@@ -27,7 +27,30 @@ namespace Fdp.Toolkit.Replication.Systems
     {
         private readonly ITkbDatabase _tkbDatabase;
         private readonly EntityLifecycleModule _lifecycleModule;
-        private readonly IReadOnlyList<ITkbEntityTranslator> _translators;
+        private readonly IReadOnlyList<ITkbEntityTranslator>? _explicitTranslators;
+
+        /// <summary>
+        /// ⭐ The node's TKB→ECS projection list. An explicit list wins; otherwise the ONE list the
+        /// node's <see cref="EntityLifecycleModule"/> already holds is used — §6.3's
+        /// <i>"identical for all three systems within the same node"</i>, satisfied by SHARING the
+        /// instance rather than by a second argument nobody passes.
+        ///
+        /// <para>📌 <c>CE-155</c>. ⚠ <b>Corrected scope, <c>2026-09-01</c>:</b> an earlier version of this
+        /// comment said the list was <c>Array.Empty</c> on <i>every</i> node. 📐 It is empty on the
+        /// <b>FACTORY path</b> only — <c>NedNetworkFactory.CreateReplicationModule()</c> omits
+        /// <c>tkbEntityTranslators</c>, which is how <b>CGF</b> builds its module. Hosts on the
+        /// <b>BUILDER path</b> could pass one, via
+        /// <c>HrotNodeBuilderReplicationExtensions.Build()</c> forwarding <c>.WithTranslators(...)</c>.
+        /// ⚠⚠ <b>UPDATED <c>2026-09-03</c>: NO PRODUCTION HOST CALLS IT ANY MORE.</b> SimHost dropped it
+        /// at <c>CE-140</c> step 3 and IG — the last caller — at <c>CE-141</c>, under the ruling that
+        /// every ECS node uses the same TKB projection through the same shared code. ⇒ ⭐ <b>this
+        /// fallback is now THE path, not a factory-path convenience</b>, and it is what makes
+        /// <c>tkb-1/DESIGN.md</c> §6.3's <i>"identical for all three systems within the same node"</i>
+        /// true by SHARING the instance. Resolved lazily because composition roots call
+        /// <see cref="EntityLifecycleModule.SetTranslators"/> after the module is constructed.</para>
+        /// </summary>
+        private IReadOnlyList<ITkbEntityTranslator> Translators
+            => _explicitTranslators ?? _lifecycleModule.Translators;
 
         private readonly Queue<Entity> _promotionQueue = new();
         private readonly HashSet<Entity> _inQueue = new();
@@ -45,7 +68,7 @@ namespace Fdp.Toolkit.Replication.Systems
         {
             _tkbDatabase = tkbDatabase ?? throw new ArgumentNullException(nameof(tkbDatabase));
             _lifecycleModule = lifecycleModule ?? throw new ArgumentNullException(nameof(lifecycleModule));
-            _translators = translators ?? System.Array.Empty<ITkbEntityTranslator>();
+            _explicitTranslators = translators;
         }
 
         public void Execute(ISimulationView view, float dt)
@@ -119,7 +142,7 @@ namespace Fdp.Toolkit.Replication.Systems
                 }
 
                 // All requirements satisfied: apply blueprint defaults.
-                foreach (var t in _translators)
+                foreach (var t in Translators)
                     t.Inject(_world!, entity, template);
             }
 

@@ -14,6 +14,9 @@ using Hrot.AI.Behaviors;
 using Hrot.CGF;
 using Hrot.CGF.Configuration;
 using Hrot.CGF.Systems;
+using Hrot.Common.Systems;   // Q65 obstacle 1: the request tier moved here
+using Hrot.Common.EntityCreation;   // CE-160: the harness composes through the shared pack
+using Fdp.Toolkit.Replication.Attributes;   // PRE-EXISTING BREAK: AttributeCompilerFactory was never imported
 using Hrot.Core.Network;
 using Hrot.Map.Common;
 using Hrot.Map.Definitions.Tkb;
@@ -215,6 +218,23 @@ namespace Hrot.SimHost.Integration.Tests.Infrastructure
         public readonly StubAckSink       AckSink       = new();
         public readonly StubIdAllocator   IdAllocator   = new(startId: 1000);
 
+        /// <summary>
+        /// ⭐ <c>CE-160</c> — the node id this harness runs as. A request whose
+        /// <c>OwnerAppInstanceId</c> does not match it is not targeted at this node and is dropped,
+        /// so tests must build requests against THIS constant rather than a repeated literal
+        /// (three test methods carried a bare <c>1</c> and a comment explaining it).
+        /// </summary>
+        public const int LocalNodeId = 1;
+
+        /// <summary>
+        /// ⭐⭐ <c>CE-160</c> — the translator list the pack composed, exposed so a rail can assert
+        /// the harness projects the SAME component set as production. ⛔ Before the pack adoption
+        /// this harness hand-rolled FIVE translators where <c>TkbTranslatorSet.Base()</c> carries
+        /// SIX; nothing could see the drift because nothing could see the list.
+        /// </summary>
+        public IReadOnlyList<ITkbEntityTranslator> Translators { get; private set; } =
+            System.Array.Empty<ITkbEntityTranslator>();
+
         // â”€â”€ Systems: IEcsModuleSystem-based (executed manually each tick) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
         private readonly CreateEntityRequestSystem      _requestSystem;
         private readonly NetworkSpawningSystem          _spawnSystem;
@@ -226,6 +246,26 @@ namespace Hrot.SimHost.Integration.Tests.Infrastructure
         private readonly IReadOnlyList<IEcsModuleSystem> _inputSystems;
         private readonly IReadOnlyList<IEcsModuleSystem> _simSystems;
         private readonly IReadOnlyList<IEcsModuleSystem> _postSimSystems;
+
+        // ── Diagnostic seams ──────────────────────────────────────────────────────
+        // ⭐ Read-only views of what this harness actually SCHEDULES, and of the behaviour
+        //   registry it resolves names against. A test that fails "the entity did not move"
+        //   cannot distinguish "the system is absent" from "the system ran and did nothing";
+        //   these two make that distinction measurable instead of inferred.
+        public IReadOnlyList<IEcsModuleSystem> TestHook_InputSystems      => _inputSystems;
+        public IReadOnlyList<IEcsModuleSystem> TestHook_SimulationSystems => _simSystems;
+        public IReadOnlyList<IEcsModuleSystem> TestHook_PostSimSystems    => _postSimSystems;
+        public BehaviorRegistry                TestHook_BehaviorRegistry  => _behaviorRegistry;
+
+        /// <summary>
+        /// ⭐⭐ <c>CE-144</c> — the lifecycle module, exposed so a destroy rail can assert WHO destroyed
+        /// the entity. ⛔ <c>GetStatistics().destructed</c> only increments inside the ELM's own
+        /// completion paths, so it is the one observable that separates a teardown THROUGH the module
+        /// from a hard <c>DestroyEntity</c> that bypassed it — and the intermediate <c>TearDown</c> state
+        /// is not observable from outside, because it is set and completed within a single harness tick
+        /// (measured <c>2026-09-03</c>).
+        /// </summary>
+        public EntityLifecycleModule           TestHook_Elm               => _elm;
 
         // â”€â”€ Performance metrics â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
         private bool               _metricsEnabled;
@@ -245,39 +285,80 @@ namespace Hrot.SimHost.Integration.Tests.Infrastructure
             _wgs84 = new WGS84Transform();
             _wgs84.SetOrigin(32.0853, 34.7818, 10.0);   // Tel-Aviv origin (same as config.json)
 
+            // 🔴🔴 PUBLISH IT AS THE WORLD SINGLETON — the harness HELD this transform and did not
+            //   pass it, which is the SILENT-DEFAULT shape in its purest form.
+            //
+            // 📐 Measured 2026-09-01: every production host does this —
+            //   SimHostApp.cs:509 · CgfSubsystem.cs:544 · EditorSubsystem.cs:1025 — because behaviour
+            //   PARAMETER RESOLVERS reach the transform through the world, not through a captured
+            //   closure: CgfNodes.ResolveMoveToParams (:163) reads
+            //   HasSingletonManaged<IGeographicTransform>() and passes null when absent.
+            //
+            // ⛔ And a null transform does NOT fail loudly. CgfNodes.cs:205 guards the geo branch as
+            //      if ((dto.TargetLat != 0 || dto.TargetLon != 0) && geoTransform != null)
+            //   with Speed and ArrivalRadius assigned ABOVE it. ⇒ a MoveToLocation mission produced a
+            //   NavigationIntent with Mode=DirectPoint, TargetSpeed=15, ArrivalRadius=5 and
+            //   FinalDestination=(0,0) — an order to drive to where the vehicle already stands. The
+            //   rail reported "moved 0.0m", which reads as broken physics and was nothing of the sort.
+            //   📄 WhyDoesTheMissionNotMoveProbe carries the full per-hop measurement.
+            _world.SetSingletonManaged<Fdp.Modules.Geographic.IGeographicTransform>(_wgs84);
+
             _entityMap        = new NetworkEntityMap();
             _tkbDb            = BuildTkbDatabase();
             _behaviorRegistry = BuildBehaviorRegistry(_wgs84, _entityMap);
 
-            // 3. Entity lifecycle module (empty participant list -> bypass ACK protocol) -
-            var translators = new List<ITkbEntityTranslator>
+            // 3-4. THE ENTITY-CREATION TIER -- built by the SHARED PACK, exactly as every
+            //   production host builds it.
+            //
+            // CE-160: this harness used to hand-assemble the tier -- its own translator list, its
+            //   own ELM wiring, and its own three `new` calls. That made it a SEVENTH composition
+            //   root for entity creation, and it had already DRIFTED: the hand-rolled list carried
+            //   FIVE translators where TkbTranslatorSet.Base() carries SIX (PresentationTkbTranslator
+            //   was missing), so every test below projected a different component set than production.
+            //
+            //   The drift is the point. A test harness that assembles the pipeline itself cannot
+            //   detect a defect in how the pipeline is assembled -- it can only ever prove that the
+            //   SYSTEMS work, never that the PACK composes them correctly. Going through
+            //   EntityCreationPack.Build makes the list correct BY CONSTRUCTION and turns the seven
+            //   flow tests below into real coverage of the unification.
+            //
+            //   IsBroadcastArbiter is FALSE, matching CreateEntityRequestSystem's own default, which
+            //   is what this harness passed implicitly before. The tests target their requests at
+            //   OwnerAppInstanceId == NodeId, so the broadcast tiebreaker never applies.
+            var jsonAttributeCompiler = AttributeCompilerFactory.Build(_wgs84);
+
+            _elm = new EntityLifecycleModule(_tkbDb, new List<int>());
+
+            var creation = EntityCreationPack.Build(new EntityCreationContext
             {
-                new SpatialCoreTkbTranslator(),
-                new VehicleKinematicsTkbTranslator(),
-                new BehaviorTkbTranslator(),
-                new CombatTkbTranslator(),
-                new PerceptionTkbTranslator(),
-            }.AsReadOnly();
-            _elm = new EntityLifecycleModule(_tkbDb, new List<int>(), translators: translators);
+                World                 = _world,
+                EntityMap             = _entityMap,
+                TkbDb                 = _tkbDb,
+                IdAllocator           = IdAllocator,
+                Elm                   = _elm,
+                NodeId                = LocalNodeId,
+                NetworkRequestSource  = RequestSource,
+                AckSink               = AckSink,
+                JsonAttributeCompiler = jsonAttributeCompiler,
+                IsBroadcastArbiter    = false,
+            });
+
+            // The pack calls Elm.SetTranslators; RegisterSystems follows it, as on every host.
             _elm.RegisterSystems(_elmSystems);
 
-            // 4. Request / spawn systems â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-            var jsonAttributeCompiler = AttributeCompilerFactory.Build(_wgs84);
-            _finalizationSystem = new EntityRequestFinalizationSystem(AckSink, _entityMap);
-            _requestSystem = new CreateEntityRequestSystem(
-                RequestSource, AckSink, _tkbDb, IdAllocator, localNodeId: 1,
-                jsonAttributeCompiler: jsonAttributeCompiler, finalizationSystem: _finalizationSystem);
+            _requestSystem      = creation.RequestSystem;
+            _spawnSystem        = creation.SpawnSystem;
+            _finalizationSystem = creation.FinalizationSystem;
+            Translators         = creation.Translators;
 
-            _spawnSystem = new NetworkSpawningSystem(
-                _tkbDb, _elm, _entityMap, IdAllocator, localNodeId: 1,
-                translators: translators,
-                onEntitySpawned: (world, entity, isLocalAuthority) =>
-                {
-                    // Mark locally-owned physics components as authoritative so
-                    // CarKinematicsSystem (.WithOwned<SimTransform>()) processes this entity.
-                    if (isLocalAuthority && world.HasComponent<SimTransform>(entity))
-                        world.SetAuthority<SimTransform>(entity, true);
-                });
+            // The pack builds every piece; this harness schedules all three below in Tick(), so
+            // nothing may be unserviceable. Asserting here rather than logging keeps the harness
+            // honest about the thing it now exists to prove.
+            var unserviceable = creation.Unserviceable(new object[]
+                { _requestSystem, _spawnSystem, _finalizationSystem });
+            if (unserviceable.Length > 0)
+                throw new InvalidOperationException(
+                    "SimHostInstance did not schedule every EntityCreationPack piece: " + unserviceable);
 
             // 5. Geographic systems â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
             new GeographicModule(_wgs84).RegisterSystems(_geoSystems);
@@ -309,6 +390,15 @@ namespace Hrot.SimHost.Integration.Tests.Infrastructure
             simList.Add(new MissionAdapterSystem());
 
             foreach (var s in musclePack.PostSimulationSystems) postSimList.Add(s);
+
+            // ⭐⭐⭐ CE-144 — PRODUCTION PARITY, and its absence was another instance of the drift this
+            //   file's header describes. Every replicating host registers DisposalMonitoringSystem
+            //   (NedReplicationModule.cs:420); this harness composes no NED module, so it had none —
+            //   which means the NetworkEntityMap kept entries for entities the ELM had destroyed, and
+            //   nothing could see it. It is the shared owner of BOTH map prunes (dead entities into the
+            //   graveyard, then the graveyard itself), so a destroy rail without it can only ever assert
+            //   half the teardown.
+            postSimList.Add(new Fdp.Toolkit.Replication.Systems.DisposalMonitoringSystem(_entityMap));
 
             _inputSystems   = inputList;
             _simSystems     = simList;
@@ -476,6 +566,35 @@ namespace Hrot.SimHost.Integration.Tests.Infrastructure
             RunForTicks(ticks);
         }
 
+        /// <summary>
+        /// ⭐⭐⭐ <c>CE-144</c> — <b>publishes a <see cref="Fdp.Toolkit.NetworkSpawning.Events.DestroyEntityCommand"/>
+        /// and opens the lifecycle window so the harness actually RUNS the teardown.</b>
+        ///
+        /// <para>⛔ <b>Why a helper rather than publishing on the bus directly.</b> 📐 This harness gates
+        /// the whole spawn/lifecycle block on <c>RequestSource.HasPendingRequests</c> — i.e. on a pending
+        /// <i>create</i> — so <c>NetworkSpawningSystem.ProcessDestroy</c> and the ELM systems <b>never ran
+        /// on a destroy-only tick</b>, and the pack's entire destroy half was unreachable here. ⚠ The gate
+        /// itself is deliberate (it skips the bus sub-swaps that would otherwise drop simulation events
+        /// written in phase 1), so the fix is to open the window explicitly rather than to remove it.</para>
+        ///
+        /// <para>⭐ The window spans several ticks because the ELM's destruction handshake needs them:
+        /// <c>DrainInstantComplete</c> only completes an ack-less destruction once
+        /// <c>currentFrame &gt; StartFrame</c>.</para>
+        /// </summary>
+        public void RequestDestroy(long networkId, string reason = "test")
+        {
+            _world.Bus.PublishManaged(new Fdp.Toolkit.NetworkSpawning.Events.DestroyEntityCommand
+            {
+                NetworkId = networkId,
+                Reason    = reason,
+            });
+            _lifecycleTicksRemaining = LifecycleWindowTicks;
+        }
+
+        /// <summary>Ticks for which the lifecycle block stays open after <see cref="RequestDestroy"/>.</summary>
+        public const int LifecycleWindowTicks = 8;
+        private int _lifecycleTicksRemaining;
+
         /// <summary>Runs exactly <paramref name="ticks"/> simulation ticks at 1/60 s each.</summary>
         public void RunForTicks(int ticks)
         {
@@ -620,6 +739,25 @@ namespace Hrot.SimHost.Integration.Tests.Infrastructure
         /// </summary>
         private void Tick(float dt)
         {
+            // 🔴🔴🔴 ADVANCE THE WORLD'S VERSION CLOCK — the kernel does this on EVERY frame and this
+            //   hand-rolled loop did not. ModuleHostKernel.cs:495 is `_liveWorld.Tick(); // Increment
+            //   version`, called UNCONDITIONALLY (BehaviorFrame.cs:16 documents that word).
+            //
+            // ⛔ Without it GlobalVersion stays pinned at its initial 1 for the life of the harness
+            //   (measured 2026-09-01: "version 1→1" on every tick while components were demonstrably
+            //   being written). ⇒ EVERY CHANGE-DETECTION QUERY IN THE HARNESS IS PERMANENTLY EMPTY:
+            //   QueryDelta(query, since) can never report a change when no version ever exceeds `since`.
+            //
+            // ⚠ That is not a niche facility. NavigationIntentBridgeSystem — the seam that turns a
+            //   behaviour's NavigationIntent into the NavState physics reads — scans exactly this way
+            //   (QueryDelta(query, _lastScanTick)). It was scheduled, ticked, and structurally blind:
+            //   a MoveToLocation mission produced a perfectly good intent and NavState never left
+            //   Mode=None, so the entity stood still and the rail reported "moved 0.0m".
+            //   📄 WhyDoesTheMissionNotMoveProbe proves the mapping logic itself is correct: driving a
+            //      fresh bridge by hand sets Mode=Direct, it survives the next scheduled tick, and the
+            //      vehicle starts moving.
+            _world.Tick();
+
             var view   = (ISimulationView)_world;
             var cmdBuf = (EntityCommandBuffer)view.GetCommandBuffer();
 
@@ -643,8 +781,10 @@ namespace Hrot.SimHost.Integration.Tests.Infrastructure
             // create-entity request is actually pending.  Skipping sub-swaps in
             // the common steady-state case preserves the simulation write-buffer
             // so the final swap below makes sim events available next tick.
-            if (RequestSource.HasPendingRequests)
+            if (RequestSource.HasPendingRequests || _lifecycleTicksRemaining > 0)
             {
+                if (_lifecycleTicksRemaining > 0) _lifecycleTicksRemaining--;
+
                 // CreateEntityRequestSystem â†’ publishes SpawnEntityCommand + writes ACK.
                 _requestSystem.Execute(view, dt);
 
@@ -821,6 +961,11 @@ namespace Hrot.SimHost.Integration.Tests.Infrastructure
                 Width       = preset.Width,
                 MaxSpeedFwd = maxSpeed,
                 MaxAccel    = preset.MaxAccel,
+                // Carry the class itself, not just the dimensions it implied.  Flattening
+                // the preset lost it, so the translator re-derived PersonalCar and every
+                // template in this harness got a car's steering and accel gain regardless
+                // of the vehicleClass the caller asked for.
+                VehicleClass = vehicleClass,
             });
 
             // Behavior DTO -- consumed by BehaviorTkbTranslator.

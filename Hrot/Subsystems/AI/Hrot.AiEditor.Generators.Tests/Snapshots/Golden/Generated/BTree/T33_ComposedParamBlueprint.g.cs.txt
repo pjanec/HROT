@@ -1,0 +1,25 @@
+// HROT_EDITOR_GENERATED - manual edits to this file will be overwritten by the AI editor on next save.
+// AssetId: bb330000-0000-0000-0000-000000000001
+
+using System;
+using System.Numerics;
+
+using Fbt;
+using Fbt.Compiler;
+using Fdp.Toolkit.Behavior;
+using Fdp.Toolkit.Behavior.Components;
+using Hrot.AI.Behaviors.Generated;
+
+namespace Hrot.AI.Behaviors.Trees;
+
+public static class T33_ComposedParamBlueprint
+{
+    public static BTreeBuilder<BrainBlackboard, BTreeContext> CreateBuilder() =>
+        new BTreeBuilder<BrainBlackboard, BTreeContext>()
+            .Action("Hrot.AI.Behaviors.Generated.ParamDemo_CEFE162F_Bp.TickCore@0@658677001",
+                visualId: new Guid("bb330000-0000-0000-0000-000000000011"));
+
+    [BTreeDefinition("T33_ComposedParamBlueprint", AssetId = "bb330000-0000-0000-0000-000000000001")]
+    public static BehaviorTreeBlob Build() =>
+        CreateBuilder().Compile("T33_ComposedParamBlueprint");
+}

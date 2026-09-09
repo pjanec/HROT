@@ -20,6 +20,7 @@ namespace Fdp.Toolkit.Behavior.Modules
     ///       <item><see cref="HsmTickSystem{BrainHsm128}"/> — HSM tick for 128-byte HSM instances</item>
     ///       <item><see cref="HsmTickSystem{BrainHsm64}"/> — HSM tick for 64-byte HSM instances</item>
     ///       <item><see cref="CognitiveCleanupSystem"/> — clears per-frame interrupt bytes after all brain ticks</item>
+    ///       <item><see cref="BehaviorFrameSystem"/> — advances the global behaviour-frame pulse (Q46 rule 2b)</item>
     ///     </list>
     ///   </item>
     /// </list>
@@ -48,6 +49,12 @@ namespace Fdp.Toolkit.Behavior.Modules
                 new HsmTickSystem<BrainHsm128>(_registry),
                 new HsmTickSystem<BrainHsm64>(_registry),
                 new CognitiveCleanupSystem(),              // BHU-015: clears interrupt bytes last
+                // ⭐⭐⭐ Batch 94 (94b) — the behaviour-frame pulse, LAST, so it means "a brain tick
+                //    HAS RUN". Q46 §2 rule 2b: ONE tick source for every host, gated on dt > 0.
+                // ⚠ The position is intentional but NOT load-bearing — BehaviorFrame is an edge
+                //    detector read at draw time, and BlueprintTickSystem is in another module and
+                //    could not be ordered against this one anyway.
+                new BehaviorFrameSystem(),
             };
         }
     }

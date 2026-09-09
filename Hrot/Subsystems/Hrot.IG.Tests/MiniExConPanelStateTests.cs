@@ -1,5 +1,6 @@
 using System.Collections.Generic;
 using Hrot.IG.Components;
+using Hrot.Core.Network;
 using Hrot.IG.UI;
 using Fdp.Core;
 using Fdp.Toolkit.NetworkSpawning.Events;
@@ -38,14 +39,14 @@ public class MiniExConPanelStateTests
 
     private static FdpEventBus CreateBus() => new FdpEventBus();
 
-    private static SimTransform? ExtractTransform(SpawnEntityCommand cmd)
+    private static SimTransform? ExtractTransform(EntityCreationRequest cmd)
     {
         foreach (var obj in cmd.InitialComponents)
             if (obj is SimTransform t) return t;
         return null;
     }
 
-    private static IgSymbolOverride? ExtractSymbolOverride(SpawnEntityCommand cmd)
+    private static IgSymbolOverride? ExtractSymbolOverride(EntityCreationRequest cmd)
     {
         foreach (var obj in cmd.InitialComponents)
             if (obj is IgSymbolOverride o) return o;
@@ -60,16 +61,16 @@ public class MiniExConPanelStateTests
     [Fact]
     public void Submit_PublishesCommandWithCorrectTkbType()
     {
-        var bus   = CreateBus();
+        var requests = new ScenarioEntityCreationRequestSource();
         var state = new MiniExConPanelState { TkbType = TkbTank };
 
-        SpawnEntityCommand? captured = null;
-        state.OnCommandPublished += cmd => captured = cmd;
+        EntityCreationRequest? captured = null;
+        state.OnRequestEnqueued += req => captured = req;
 
-        state.Submit(bus);
+        state.Submit(requests);
 
         Assert.NotNull(captured);
-        Assert.Equal(TkbTank, captured!.Value.TkbType);
+        Assert.Equal(TkbTank, captured!.TkbType);
     }
 
     /// <summary>
@@ -82,15 +83,15 @@ public class MiniExConPanelStateTests
     [InlineData(999L)]
     public void Submit_VariousTkbTypes_CommandReflectsFormValue(long tkbType)
     {
-        var bus   = CreateBus();
+        var requests = new ScenarioEntityCreationRequestSource();
         var state = new MiniExConPanelState { TkbType = tkbType };
 
-        SpawnEntityCommand? captured = null;
-        state.OnCommandPublished += cmd => captured = cmd;
+        EntityCreationRequest? captured = null;
+        state.OnRequestEnqueued += req => captured = req;
 
-        state.Submit(bus);
+        state.Submit(requests);
 
-        Assert.Equal(tkbType, captured!.Value.TkbType);
+        Assert.Equal(tkbType, captured!.TkbType);
     }
 
     // ═══════════════════════════════════════════════════════════════════════════
@@ -104,15 +105,22 @@ public class MiniExConPanelStateTests
     [Fact]
     public void Submit_CommandHasLocalNodeId()
     {
-        var bus   = CreateBus();
+        var requests = new ScenarioEntityCreationRequestSource();
         var state = new MiniExConPanelState { TkbType = TkbTank };
 
-        SpawnEntityCommand? captured = null;
-        state.OnCommandPublished += cmd => captured = cmd;
+        EntityCreationRequest? captured = null;
+        state.OnRequestEnqueued += req => captured = req;
 
-        state.Submit(bus);
+        state.Submit(requests);
 
-        Assert.Equal(IgNetworkConstants.LocalNodeId, captured!.Value.OwnerNodeId);
+        // ⭐ RE-HOMED CLAIM (host (f), 2026-09-02). This asserted that the panel names the LOCAL node as
+        // owner. 📐 Measured: that was never observable — SpawnEntityCommandEgressTranslator wrote
+        // Owner = default onto every wire sample regardless of cmd.OwnerNodeId, so every IG creation has
+        // always been UNTARGETED and serviced by the default processor. The retarget makes that explicit
+        // rather than changing it. ⛔ Honouring LocalNodeId would make IG own (and under R-140 stop
+        // persisting) the operator's entity — a product decision, deliberately not taken here.
+        // 📄 IgEntityCreationRequests remarks.
+        Assert.Equal(0, captured!.OwnerAppInstanceId);
     }
 
     // ═══════════════════════════════════════════════════════════════════════════
@@ -126,19 +134,19 @@ public class MiniExConPanelStateTests
     [Fact]
     public void Submit_HostileAffiliation_SymbolOverrideIsHostile()
     {
-        var bus   = CreateBus();
+        var requests = new ScenarioEntityCreationRequestSource();
         var state = new MiniExConPanelState
         {
             TkbType     = TkbTank,
             Affiliation = ForceId.Hostile,
         };
 
-        SpawnEntityCommand? captured = null;
-        state.OnCommandPublished += cmd => captured = cmd;
+        EntityCreationRequest? captured = null;
+        state.OnRequestEnqueued += req => captured = req;
 
-        state.Submit(bus);
+        state.Submit(requests);
 
-        var symbolOverride = ExtractSymbolOverride(captured!.Value);
+        var symbolOverride = ExtractSymbolOverride(captured!);
         Assert.NotNull(symbolOverride);
         Assert.Equal(IgSymbolOverride.StyleSetHostile, symbolOverride!.StyleSetId);
     }
@@ -150,19 +158,19 @@ public class MiniExConPanelStateTests
     [Fact]
     public void Submit_FriendAffiliation_SymbolOverrideIsFriend()
     {
-        var bus   = CreateBus();
+        var requests = new ScenarioEntityCreationRequestSource();
         var state = new MiniExConPanelState
         {
             TkbType     = TkbTank,
             Affiliation = ForceId.Friend,
         };
 
-        SpawnEntityCommand? captured = null;
-        state.OnCommandPublished += cmd => captured = cmd;
+        EntityCreationRequest? captured = null;
+        state.OnRequestEnqueued += req => captured = req;
 
-        state.Submit(bus);
+        state.Submit(requests);
 
-        var symbolOverride = ExtractSymbolOverride(captured!.Value);
+        var symbolOverride = ExtractSymbolOverride(captured!);
         Assert.NotNull(symbolOverride);
         Assert.Equal(IgSymbolOverride.StyleSetFriend, symbolOverride!.StyleSetId);
     }
@@ -174,19 +182,19 @@ public class MiniExConPanelStateTests
     [Fact]
     public void Submit_NeutralAffiliation_SymbolOverrideIsNeutral()
     {
-        var bus   = CreateBus();
+        var requests = new ScenarioEntityCreationRequestSource();
         var state = new MiniExConPanelState
         {
             TkbType     = TkbTank,
             Affiliation = ForceId.Neutral,
         };
 
-        SpawnEntityCommand? captured = null;
-        state.OnCommandPublished += cmd => captured = cmd;
+        EntityCreationRequest? captured = null;
+        state.OnRequestEnqueued += req => captured = req;
 
-        state.Submit(bus);
+        state.Submit(requests);
 
-        var symbolOverride = ExtractSymbolOverride(captured!.Value);
+        var symbolOverride = ExtractSymbolOverride(captured!);
         Assert.NotNull(symbolOverride);
         Assert.Equal(IgSymbolOverride.StyleSetNeutral, symbolOverride!.StyleSetId);
     }
@@ -201,7 +209,7 @@ public class MiniExConPanelStateTests
     [Fact]
     public void Submit_SpawnPosition_TransformXMatchesFormPositionX()
     {
-        var bus   = CreateBus();
+        var requests = new ScenarioEntityCreationRequestSource();
         var state = new MiniExConPanelState
         {
             TkbType   = TkbTank,
@@ -209,12 +217,12 @@ public class MiniExConPanelStateTests
             PositionY = SpawnY,
         };
 
-        SpawnEntityCommand? captured = null;
-        state.OnCommandPublished += cmd => captured = cmd;
+        EntityCreationRequest? captured = null;
+        state.OnRequestEnqueued += req => captured = req;
 
-        state.Submit(bus);
+        state.Submit(requests);
 
-        var transform = ExtractTransform(captured!.Value);
+        var transform = ExtractTransform(captured!);
         Assert.NotNull(transform);
         Assert.Equal(SpawnX, transform!.Value.Position.X);
     }
@@ -225,7 +233,7 @@ public class MiniExConPanelStateTests
     [Fact]
     public void Submit_SpawnPosition_TransformYMatchesFormPositionY()
     {
-        var bus   = CreateBus();
+        var requests = new ScenarioEntityCreationRequestSource();
         var state = new MiniExConPanelState
         {
             TkbType   = TkbTank,
@@ -233,12 +241,12 @@ public class MiniExConPanelStateTests
             PositionY = SpawnY,
         };
 
-        SpawnEntityCommand? captured = null;
-        state.OnCommandPublished += cmd => captured = cmd;
+        EntityCreationRequest? captured = null;
+        state.OnRequestEnqueued += req => captured = req;
 
-        state.Submit(bus);
+        state.Submit(requests);
 
-        var transform = ExtractTransform(captured!.Value);
+        var transform = ExtractTransform(captured!);
         Assert.NotNull(transform);
         Assert.Equal(SpawnY, transform!.Value.Position.Y);
     }
@@ -253,14 +261,14 @@ public class MiniExConPanelStateTests
     [Fact]
     public void Submit_TwiceSameState_ProducesDistinctRequestIds()
     {
-        var bus   = CreateBus();
+        var requests = new ScenarioEntityCreationRequestSource();
         var state = new MiniExConPanelState { TkbType = TkbTank };
 
         var ids = new List<System.Guid>();
-        state.OnCommandPublished += cmd => ids.Add(cmd.RequestId);
+        state.OnRequestEnqueued += cmd => ids.Add(cmd.RequestId);
 
-        state.Submit(bus);
-        state.Submit(bus);
+        state.Submit(requests);
+        state.Submit(requests);
 
         Assert.Equal(2, ids.Count);
         Assert.NotEqual(ids[0], ids[1]);
@@ -276,17 +284,17 @@ public class MiniExConPanelStateTests
     [Fact]
     public void Submit_InitialComponents_ContainsTransformAndSymbolOverride()
     {
-        var bus   = CreateBus();
+        var requests = new ScenarioEntityCreationRequestSource();
         var state = new MiniExConPanelState { TkbType = TkbTank };
 
-        SpawnEntityCommand? captured = null;
-        state.OnCommandPublished += cmd => captured = cmd;
+        EntityCreationRequest? captured = null;
+        state.OnRequestEnqueued += req => captured = req;
 
-        state.Submit(bus);
+        state.Submit(requests);
 
         int transformCount      = 0;
         int symbolOverrideCount = 0;
-        foreach (var obj in captured!.Value.InitialComponents)
+        foreach (var obj in captured!.InitialComponents)
         {
             if (obj is SimTransform)     transformCount++;
             if (obj is IgSymbolOverride) symbolOverrideCount++;
@@ -297,25 +305,25 @@ public class MiniExConPanelStateTests
     }
 
     // ═══════════════════════════════════════════════════════════════════════════
-    // OnCommandPublished event (PACK2-U003)
+    // OnRequestEnqueued event (PACK2-U003)
     // ═══════════════════════════════════════════════════════════════════════════
 
     /// <summary>
-    /// Submit must raise the <see cref="MiniExConPanelState.OnCommandPublished"/> event
+    /// Submit must raise the <see cref="MiniExConPanelState.OnRequestEnqueued"/> event
     /// synchronously with the published command (PACK2-U003 / C.2).
     /// </summary>
     [Fact]
-    public void Submit_FiresOnCommandPublishedEvent()
+    public void Submit_FiresOnRequestEnqueuedEvent()
     {
         var state = new MiniExConPanelState { TkbType = 301L };
-        var bus   = CreateBus();
+        var requests = new ScenarioEntityCreationRequestSource();
 
-        SpawnEntityCommand? captured = null;
-        state.OnCommandPublished += cmd => captured = cmd;
+        EntityCreationRequest? captured = null;
+        state.OnRequestEnqueued += req => captured = req;
 
-        state.Submit(bus);
+        state.Submit(requests);
 
         Assert.NotNull(captured);
-        Assert.Equal(301L, captured!.Value.TkbType);
+        Assert.Equal(301L, captured!.TkbType);
     }
 }

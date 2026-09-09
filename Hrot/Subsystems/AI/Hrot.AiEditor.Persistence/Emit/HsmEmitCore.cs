@@ -38,12 +38,21 @@ public static class HsmEmitCore
     /// Layout lives in JSON; read by the future JSON loader (PU-301).
     /// </summary>
     public static string EmitTopologyCore(HsmAssetDto dto)
+        => EmitTopologyCore(dto, sizeResolver: null);
+
+    /// <summary>
+    /// ⭐ <c>E7b</c> overload: an optional struct-size resolver, so a transition bound to a
+    /// struct-typed managed variable can bake that variable's packed offset into its action key.
+    /// Primitive-typed variables need no resolver and are unaffected.
+    /// </summary>
+    public static string EmitTopologyCore(HsmAssetDto dto, System.Func<string, int?>? sizeResolver)
     {
-        return EmitInternal(dto, includeLayout: false);
+        return EmitInternal(dto, includeLayout: false, sizeResolver);
     }
 
     /// <summary>Core emitter: shared implementation for both <see cref="Emit"/> and <see cref="EmitTopologyCore"/>.</summary>
-    private static string EmitInternal(HsmAssetDto dto, bool includeLayout)
+    private static string EmitInternal(HsmAssetDto dto, bool includeLayout,
+        System.Func<string, int?>? sizeResolver = null)
     {
         var sb = new StringBuilder();
         var usings = includeLayout ? CollectUsings(dto) : CollectUsingsTopologyOnly(dto);
@@ -72,7 +81,7 @@ public static class HsmEmitCore
         sb.AppendLine($"public static class {className}");
         sb.AppendLine("{");
 
-        EmitCreateBuilder(sb, dto);
+        EmitCreateBuilder(sb, dto, sizeResolver);
         sb.AppendLine();
         EmitCompile(sb, dto);
 
@@ -182,8 +191,14 @@ public static class HsmEmitCore
 
     // ---- CreateBuilder ----
 
-    private static void EmitCreateBuilder(StringBuilder sb, HsmAssetDto dto)
+    private static void EmitCreateBuilder(StringBuilder sb, HsmAssetDto dto,
+        System.Func<string, int?>? sizeResolver = null)
     {
+        // ⭐⭐ E7b — the packed offsets of the managed blackboard's inline params, computed once for
+        //    the whole asset. An unbound transition never touches this map, so an asset with no
+        //    ExpressionTargetField emits byte-identically.
+        var paramOffsets = HsmParamOffsets(dto, sizeResolver);
+
         sb.AppendLine($"{Indent}public static HsmBuilder CreateBuilder()");
         sb.AppendLine($"{Indent}{{");
 
@@ -226,7 +241,7 @@ public static class HsmEmitCore
         }
 
         // RegisterAction calls (alphabetical)
-        var allActions = CollectActions(dto);
+        var allActions = CollectActions(dto, paramOffsets);
         if (allActions.Count > 0)
         {
             sb.AppendLine();
@@ -322,7 +337,7 @@ public static class HsmEmitCore
             // Each state's own transitions are appended consecutively in document order, so the
             // per-state TransitionNode order (and thus the compiled blob) is unchanged.
             foreach (var (varName, t) in pendingTransitions)
-                EmitTransitionCall(sb, stableIdToState, varName, t, pad, eventIdMap);
+                EmitTransitionCall(sb, stableIdToState, varName, t, pad, eventIdMap, paramOffsets);
         }
 
         // Global transitions sorted by EventId (matching original emitter: OrderBy(g => g.EventId))
@@ -468,7 +483,8 @@ public static class HsmEmitCore
         StringBuilder sb,
         Dictionary<Guid, StateNodeDto> stableIdToState,
         string stateVar, TransitionNodeDto t, string pad,
-        Dictionary<string, ushort> eventIdMap)
+        Dictionary<string, ushort> eventIdMap,
+        IReadOnlyDictionary<string, int> paramOffsets)
     {
         string onCall = t.EventName != null
             ? $"{stateVar}.On({QuoteStr(t.EventName)})"
@@ -482,7 +498,7 @@ public static class HsmEmitCore
         if (!string.IsNullOrEmpty(t.GuardFunction))
             chain += $".Guard({QuoteStr(t.GuardFunction!)})";
         if (!string.IsNullOrEmpty(t.ActionFunction))
-            chain += $".Action({QuoteStr(t.ActionFunction!)})";
+            chain += $".Action({QuoteStr(EffectiveActionName(t.ActionFunction!, t.ExpressionTargetField, paramOffsets))})";
         if (t.Priority != 0)
             chain += $".Priority({t.Priority})";
 
@@ -572,6 +588,14 @@ public static class HsmEmitCore
         foreach (var sup in unusedSuppressions)
         {
             sb.AppendLine($"{Indent}{Indent}.SuppressUnusedWarning(\"{sup}\")");
+        }
+
+        // ⭐ W7b (§9.4) -- per-VARIABLE "allow concurrent writes". Sorted like its neighbours so the
+        //   emitted layout method stays deterministic; omitted entirely when empty, so every existing
+        //   asset emits byte-identically.
+        foreach (var allowed in (dto.Suppressions.ConcurrentWritesAllowed ?? new()).OrderBy(s => s))
+        {
+            sb.AppendLine($"{Indent}{Indent}.AllowConcurrentWrites(\"{allowed}\")");
         }
 
         sb.AppendLine($"{Indent}{Indent}.Build();");
@@ -674,7 +698,8 @@ public static class HsmEmitCore
         }
     }
 
-    private static List<string> CollectActions(HsmAssetDto dto)
+    private static List<string> CollectActions(
+        HsmAssetDto dto, IReadOnlyDictionary<string, int> paramOffsets)
     {
         var set = new SortedSet<string>(StringComparer.Ordinal);
         foreach (var s in dto.States)
@@ -684,11 +709,71 @@ public static class HsmEmitCore
             if (s.ActivityAction != null) set.Add(s.ActivityAction);
             if (s.TimerAction    != null) set.Add(s.TimerAction);
         }
+        // ⭐⭐ E7b — the SAME resolution the transition itself emits. ⛔ If these two disagreed the
+        //    builder would register one name and the transition would address another, which is
+        //    exactly the silent TryGetValue miss E6 was.
         foreach (var t in dto.Transitions)
-            if (t.ActionFunction != null) set.Add(t.ActionFunction);
+            if (t.ActionFunction != null)
+                set.Add(EffectiveActionName(t.ActionFunction, t.ExpressionTargetField, paramOffsets));
         foreach (var gt in dto.GlobalTransitions)
             if (gt.ActionFunction != null) set.Add(gt.ActionFunction);
         return new List<string>(set);
+    }
+
+    // ---- E7b: expression-target binding ----------------------------------------
+
+    /// <summary>
+    /// ⭐⭐⭐ <b><c>E7b</c> — the action name a bound transition is addressed by:
+    /// <c>{ActionFqn}@{byteOffset}</c> when <paramref name="expressionTargetField"/> names a packed
+    /// managed variable; the bare FQN otherwise.</b>
+    ///
+    /// <para>
+    /// 🔴🔴 <b>What this closes.</b> <c>ExpressionTargetField</c> — <i>"the blackboard field that
+    /// receives the expression result of <c>ActionFunction</c>"</i> — round-tripped
+    /// (<c>HsmAssetMapper</c>), was maintained by the command sink, was counted as a reference by
+    /// <c>HsmAsset.CountNodesReferencingVariable</c>, and was treated as a WRITER STYLE by
+    /// <c>HsmValidator</c> rule 9 — and appeared <b>zero times</b> in either emit core. ⛔ A producer
+    /// with no consumer: the binding could never reach the blob, so there were no bytes to write.
+    /// </para>
+    ///
+    /// <para>
+    /// ⭐⭐ <b>The mechanism already existed and was unreachable.</b> <c>HsmActionGenerator</c> emits a
+    /// per-binding thunk for every <c>[SharedAiAction]</c> — it projects the bound field at its byte
+    /// offset and calls the method — and registers it under the compound key
+    /// <c>HsmActionKey.ForCompoundKey</c>. ⚠ Nothing ever produced a compound key on the ASSET side,
+    /// so those registrations were addressable by nobody.
+    /// </para>
+    ///
+    /// <para>
+    /// ⚠⚠ <b>The <c>"@"</c> spelling is MIRRORED from <c>HsmActionKey.CompoundKeyName</c>, and the
+    /// mirror is forced:</b> this assembly is netstandard2.0 and deliberately references nothing, so
+    /// it cannot call the Roslyn-hosted analyzer. ⇒ <b>the drift is the defect</b> — same shape as
+    /// <c>HsmActionKey.Compute</c> mirroring <c>HsmFlattener.ComputeHash</c>, and
+    /// <c>BehaviorParameterSizeAnalyzer</c>'s inlined size constant. ⭐ An agreement test compares the
+    /// two sides across the wall rather than restating either.
+    /// </para>
+    /// </summary>
+    internal static string EffectiveActionName(
+        string actionFqn, string? expressionTargetField, IReadOnlyDictionary<string, int> paramOffsets)
+    {
+        if (string.IsNullOrEmpty(expressionTargetField)) return actionFqn;
+        if (!paramOffsets.TryGetValue(expressionTargetField!, out int byteOffset)) return actionFqn;
+        return actionFqn + "@" + byteOffset;   // MIRROR of HsmActionKey.CompoundKeyName
+    }
+
+    /// <summary>
+    /// ⭐ The managed blackboard's inline param offsets by variable name — <b>the shared packer's
+    /// own answer</b> (<see cref="BTreeBlackboardPackHelper"/>), so an expression target and the
+    /// <c>ParseParams</c> that writes it can never land on different bytes. Empty for a non-managed
+    /// blackboard, for <c>State</c>-role-only variables, or when a type cannot be sized.
+    /// </summary>
+    private static IReadOnlyDictionary<string, int> HsmParamOffsets(
+        HsmAssetDto dto, System.Func<string, int?>? sizeResolver)
+    {
+        var map = new Dictionary<string, int>(StringComparer.Ordinal);
+        foreach (var f in HsmBridgeEmitCore.PackParamsFor(dto, sizeResolver))
+            map[f.Name] = f.ByteOffset;
+        return map;
     }
 
     private static List<string> CollectGuards(HsmAssetDto dto)

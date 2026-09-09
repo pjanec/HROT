@@ -1,7 +1,7 @@
 {
   "$meta": {
     "docType": "Hrot.Blueprints",
-    "schemaVersion": 1
+    "schemaVersion": 2
   },
   "Header": {},
   "AssetId": "d06f6a14-3e77-4473-962f-36a5d10dc316",
@@ -15,11 +15,9 @@
       "BTreeAction"
     ]
   },
-  "Parameters": [],
+  "Declarations": [],
   "ParameterOrder": null,
-  "WorkingState": [],
   "WorkingStateOrder": null,
-  "Variables": [],
   "VariableOrder": null,
   "EventDispatchers": [],
   "CustomEvents": [],
@@ -31,6 +29,8 @@
       "Kind": "Function",
       "Inputs": [],
       "Outputs": [],
+      "ExecOutputs": [],
+      "ExecInputs": [],
       "Nodes": [
         {
           "kind": "EventEntry",
@@ -89,17 +89,6 @@
           }
         },
         {
-          "kind": "CallCustomEvent",
-          "EventId": "",
-          "Id": "5c875375-2647-447b-abbd-df11787b8f57",
-          "Pins": [],
-          "EditorMetadata": {
-            "X": 188,
-            "Y": 376,
-            "Comment": null
-          }
-        },
-        {
           "kind": "ChannelCommand",
           "ChannelType": "LocomotionChannel",
           "ActionId": "DemoEnumAction",
@@ -126,6 +115,8 @@
           "ToPinId": "e5eeee01-0003-b001-0001-000000000001"
         }
       ],
+      "LocalVariables": [],
+      "Comments": [],
       "EditorMetadata": {
         "ViewportX": 0,
         "ViewportY": 0,

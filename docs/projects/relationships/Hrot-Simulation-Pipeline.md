@@ -40,7 +40,7 @@ shared DDS space and renders the world without participating in simulation logic
 |------|---------|-----------|-----------------|
 | Orchestrator | `Hrot.Orchestrator` | -- | Cluster state machine, 2PC, asset I/O |
 | SimHost | `Hrot.SimHost` | `MuscleGround \| Perception` | Ground kinematics, physics, combat, LOS |
-| CGF | `Hrot.CGF` | `Brain` | AI behaviour trees, mission control, entity spawning authority |
+| CGF | `Hrot.CGF` | `Brain` | AI behaviour trees, mission control, broadcast arbiter for *unowned* create requests |
 | IG | `Hrot.IG` | `ImageGenerator` | 2-D / 3-D rendering, ghost replication, map interaction |
 | ExCon | `Hrot.ExCon` | observer | Operator UI, scenario control, time control |
 
@@ -141,13 +141,25 @@ This is the same Anti-Corruption Layer (ACL) pattern described in
 - **Mission planning** -- `MissionPlan`, `MissionTask`, `CMD_REPLACE_MISSION`, etc.
 - **TacticalIntent dispatch** -- commander entities broadcast `TacticalIntentRequest`
   to subordinates, resolved by `TacticalIntentResolutionSystem`
-- **Entity spawn authority** -- `CreateEntityRequestSystem` is the _default processor_
-  (`isDefaultProcessor = true`). It allocates network IDs and sends
-  `SpawnEntityCommand` events. Muscle nodes set `isDefaultProcessor = false`.
+- **Broadcast arbitration for _unowned_ create requests** -- `CreateEntityRequestSystem` runs here
+  as the _default processor_ (`isDefaultProcessor = true`), so a request with
+  `OwnerAppInstanceId == 0` is serviced exactly once instead of by every node.
+  Other nodes set `isDefaultProcessor = false`.
+  **This is a tiebreaker, not spawn authority** -- any ECS node processes a request
+  targeted at itself (`OwnerAppInstanceId == localNodeId`) unconditionally, and network IDs
+  come from the distributed `DdsIdAllocatorServer`, not from CGF. See
+  [`RULINGS.md` `R-138`](../../blueprints/RULINGS.md).
 - **Cognitive ECS components** -- `BehaviorState`, `BrainBTreeState`,
   `BrainBlackboard`, `MissionPlan`
 
 ### What the Muscle (SimHost) owns
+
+> **"Owns" here means the CONVENTIONAL default for entities CGF spawned, not a fixed property of
+> SimHost.** Ownership is held **per component** (`AuthorityMask` + `DescriptorOwnership`) and is
+> **transferable at runtime** over the `OwnershipUpdate` topic. SimHost holds `SimTransform` for
+> CGF-spawned entities because CGF's `BrainMuscleOwnershipStrategy` *delegates* kinematics to it
+> (`DeferredTakeOwnership` → `DeferredTakeoverSystem`). A node that originates its own entity keeps
+> what it creates and delegates nothing. See [`RULINGS.md` `R-138`](../../blueprints/RULINGS.md).
 
 - **Ground kinematics** -- CarKinem-backed vehicle physics, trajectory following
 - **Navigation execution** -- receives `NavigationIntent` from CGF, writes back
@@ -1028,7 +1040,6 @@ configured `--log-dir`. Log entries include the node ID in scope context:
 | Full distributed | `orchestrator,excon` + `simhost` + `cgf` + `ig` | Production cluster |
 | Replay browser | `replaybrowser` | Offline replay analysis without live DDS |
 | Scenario editor | `editor` | Scenario authoring without simulation |
-| StrideMock | `stridemock` | 3-D visualization stub |
 
 ---
 

@@ -102,4 +102,45 @@ public class IgNodeBootstrapperTests
 
         Assert.Contains(modules, m => m is EventEffectModule);
     }
+
+    // ── Order ─────────────────────────────────────────────────────────────────
+    //
+    // ⛔⛔ THE SIX TESTS ABOVE ASSERT MEMBERSHIP, NOT SEQUENCE — every one of them stays green under
+    //    an arbitrary permutation. That is a real gap, because ModuleHostKernel.RegisterModule appends
+    //    to a plain List the frame loop walks in order (ModuleHostKernel.cs:437), so the order these
+    //    modules come back in IS this node's frame execution order. A refactor that reorders them is a
+    //    behaviour change, and nothing here could see it.
+    //
+    // ⇒ these two rails pin the sequence, so the B4b switchover onto the capability seam is provably
+    //   behaviour-preserving rather than assumed to be.
+    // 📄 docs/DESIGN_Subsystem_Composition_Unification.md §4.1t.
+
+    /// <summary>The exact presentation sequence this node has always registered, headless.</summary>
+    private static readonly Type[] HeadlessOrder =
+    {
+        typeof(StyleResolutionModule),
+        typeof(MapCullingModule),
+        typeof(MapLayerModule),
+        typeof(HistoryTrailModule),
+    };
+
+    [Fact]
+    public void GetAdditionalModules_Headless_PreservesTheRegistrationSEQUENCE()
+    {
+        var sut     = CreateBootstrapper(headless: true);
+        var modules = InvokeGetAdditionalModules(sut);
+
+        Assert.Equal(HeadlessOrder, modules.Select(m => m.GetType()).ToArray());
+    }
+
+    [Fact]
+    public void GetAdditionalModules_NonHeadless_AppendsTheEffectModuleLAST()
+    {
+        var sut     = CreateBootstrapper(headless: false);
+        var modules = InvokeGetAdditionalModules(sut);
+
+        Assert.Equal(
+            HeadlessOrder.Append(typeof(EventEffectModule)).ToArray(),
+            modules.Select(m => m.GetType()).ToArray());
+    }
 }

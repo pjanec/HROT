@@ -25,24 +25,34 @@ public static class FdpEntityInspectorHelper
     /// </summary>
     /// <param name="panel">The inspector panel to configure.</param>
     /// <param name="windowManager">The window manager for spawning watch windows.</param>
-    /// <param name="ownerName">Subsystem name shown in watch-window titles (e.g. "CGF", "IG").</param>
+    /// <param name="owningPerspective">
+    ///   ⭐⭐ <b>The PERSPECTIVE the spawned watch windows belong to</b> (e.g. <c>"Scenario"</c>,
+    ///   <c>"IG"</c>), and the lower-cased prefix of their window ids.
+    ///   <para>⚠⚠ <b>Renamed from <c>ownerName</c>, `2026-08-23`, because the old name and its old doc
+    ///   were both FALSE:</b> it said <i>"subsystem name shown in watch-window titles"</i> — 📐 the
+    ///   titles are built from the ENTITY *(<c>"Watch Entity [i, vN]"</c>)* and never mention it, while
+    ///   the value is in fact assigned to <c>Reflector.EditOwningPerspective</c> and passed as
+    ///   <see cref="FdpEntityWatchWindow"/>'s <c>owningPerspective</c>. ⛔ A caller reading the old doc
+    ///   would pass a subsystem name and silently spawn windows into a perspective nothing claims —
+    ///   which is exactly what the <c>Editor</c>→<c>Scenario</c> rename exposed.</para>
+    /// </param>
     /// <param name="sessionGetter">Callback that returns the current repository session.</param>
     /// <param name="pickBridge">Map-pick bridge for in-world component editing (may be null).</param>
     /// <param name="titleBarColor">Title-bar color for spawned watch windows.</param>
     public static void WireInspectorWithInspectContextMenu(
         EntityInspectorPanel       panel,
         WindowManager              windowManager,
-        string                     ownerName,
+        string                     owningPerspective,
         Func<IInspectableSession?> sessionGetter,
         MapPickServiceBridge?      pickBridge,
         Vector4?                   titleBarColor)
     {
         panel.Reflector.EditWindowManager     = windowManager;
         panel.Reflector.EditSessionGetter     = sessionGetter;
-        panel.Reflector.EditOwningPerspective = ownerName;
+        panel.Reflector.EditOwningPerspective = owningPerspective;
         panel.Reflector.EditPickerContext     = pickBridge;
 
-        string prefix = ownerName.ToLowerInvariant();
+        string prefix = owningPerspective.ToLowerInvariant();
         panel.RegisterContextMenuHandler(new LambdaEntityContextMenuHandler((entity, builder) =>
         {
             builder.AddItem("Inspect...", () =>
@@ -65,10 +75,10 @@ public static class FdpEntityInspectorHelper
                 var watchPanel = new EntityWatchPanel(entity);
                 watchPanel.Reflector.EditWindowManager     = windowManager;
                 watchPanel.Reflector.EditSessionGetter     = sessionGetter;
-                watchPanel.Reflector.EditOwningPerspective = ownerName;
+                watchPanel.Reflector.EditOwningPerspective = owningPerspective;
                 watchPanel.Reflector.EditPickerContext     = pickBridge;
                 windowManager.RegisterWindow(new FdpEntityWatchWindow(
-                    id, title, ownerName, watchPanel, sessionGetter, titleBarColor));
+                    id, title, owningPerspective, watchPanel, sessionGetter, titleBarColor));
             });
         }));
     }

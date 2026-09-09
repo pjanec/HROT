@@ -84,14 +84,19 @@ under-designed**. Headlines (full detail + deltas in `Blueprint_Fixed_Collection
   build the DebugProbe overflow hook in FC-0.
 
 ## Immediate next step (at resume)
-1. **✅ WRITTEN — `Architect_Question_20_Component_Collection_Write.md`** (mirrors Q#16). Q20-A element-write gate
-   granularity (component-level `[BlueprintWritable]` vs per-collection-field opt-in) · Q20-B tick-order for
-   sequence mutation · Q20-C managed collections read-only (per-field-managed forbiddance) · Q20-D op family +
-   overflow/existence/`Count` contract. Design notes: `Span<T>` InlineArray-write mandate + re-zero-on-shrink +
-   self-only (no Target pin). **PENDING architect pass — gates FC-0/FC-1.**
-2. Decide `GetShared`/`Parameters` scope (add to Q#19-E table). Decide parked PR timing.
-3. Then set up `Blueprint_Fixed_Collections_TASK_TRACKER.md` and build: FC-0 (foundation + `Span<T>` pattern +
-   DebugProbe overflow) → blueprint-var writes & component writes as **independent** slices → action-DTO.
+1. **✅ Q#20 APPROVED (architect, 2026-08-04).** The Claude-as-architect review pass (G1–G7 + G1 resolution,
+   on `claude/reset-from-blueprint-1t6cq8`) was confirmed wholesale by the NotebookLM architect: A1+amendment ·
+   1-tick-lag documented as the B contract (fix-the-splice left as an FC-1 choice) · C1 · D with strict
+   accessor mediation · FC-1b generator approved · G3 validator + G4 in-pin + G6 universal invariant mandated.
+   All rulings recorded in the Q#20 doc; resolutions folded into umbrella §"Decisions folded", List-Variables
+   (Span-form emits, zeroing, §3 `SizeReliable=false` annotation), Q#19 (zeroing supersession).
+   **FC-0/FC-1/FC-1b are cleared to build.**
+2. ~~Decide `GetShared`/`Parameters` scope~~ **DECIDED:** OUT v1 + explicit validate-time rejection
+   diagnostic. ~~The FC-1 G2 choice~~ **DONE (FC-1·G2): splice FIXED in both compositions** — same-tick
+   contract holds by construction. Remaining open: parked-PR timing.
+3. Next: set up `Blueprint_Fixed_Collections_TASK_TRACKER.md` and build: **FC-0** (convention + `[InlineArray]`
+   reference + round-trip test + invariant + DebugProbe overflow) → **FC-1** (component write nodes + G2/G3/G4
+   gates) → **FC-1b** (ops generator) → blueprint-var writes (independent) → action-DTO.
 
 Memory: [[project_fixed_capacity_list_variables]] (now the Fixed Collections workstream tracker),
 [[project_component_access_workstream]] (CA-07 machinery reused).

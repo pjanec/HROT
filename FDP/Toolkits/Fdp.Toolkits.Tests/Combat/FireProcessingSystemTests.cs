@@ -287,14 +287,52 @@ namespace Fdp.Toolkit.Combat.Tests
             Assert.Fail("No bullet entity with PhysicsCollider found.");
         }
 
-        // ── TD-6: Authority gate ──────────────────────────────────────────────
-        /// <c>HasAuthority == false</c> (remote node owns the entity), no bullet
-        /// should be spawned and no <see cref="WeaponFireNotification"/> published.
+        // ── CE-198: the Muscle executes the Brain's order, whoever owns the shooter ───
+        //
+        // These three rails REPLACE TD-6's pair, which asserted the opposite
+        // (FireProcessing_SkipsBullet_WhenShooterNotAuthoritative /
+        //  FireProcessing_SpawnsBullet_WhenShooterIsAuthoritative).
+        //
+        // ⚠ WHY THE OLD PAIR STAYED GREEN WHILE THE FEATURE WAS DEAD: both constructed
+        //   NetworkAuthority by hand — primaryOwnerId 2 (a KNOWN other owner) and 1 (self).
+        //   Production on the Muscle produces NEITHER: EntityMasterIngressTranslator stamps
+        //   ghosts with the unknown-owner sentinel primaryOwnerId = -1, so HasAuthority was
+        //   false for every combatant and no bullet was ever spawned on any topology.
+        //   The shape the suite never built is the shape production always has.
+
+        /// <summary>
+        /// ⭐ THE RAIL THAT WOULD HAVE CAUGHT CE-198. A ghost shooter carrying the Muscle's real
+        /// production shape — the unknown-owner sentinel <c>PrimaryOwnerId = -1</c> — still spawns
+        /// a bullet, because the Muscle executes the shot the Brain ordered.
         /// </summary>
         [Fact]
-        public void FireProcessing_SkipsBullet_WhenShooterNotAuthoritative()
+        public void FireProcessing_SpawnsBullet_ForAGhostShooterWithTheUnknownOwnerSentinel()
         {
-            // Spawn shooter as non-authoritative (remote owner).
+            var shooter = SpawnShooter(Vector3.Zero);
+            // Exactly what EntityMasterIngressTranslator writes for a ghost on the Muscle.
+            _world.AddComponent(shooter, new NetworkAuthority(primaryOwnerId: -1, localNodeId: 1));
+            var target = SpawnTarget(new Vector3(10f, 0f, 0f));
+
+            PublishIntent(shooter, target);
+            _sys.Execute(_world, 0.016f);
+
+            var q = _world.Query().With<BallisticProjectile>().Build();
+            int bulletCount = 0;
+            foreach (var _ in q) bulletCount++;
+            Assert.Equal(1, bulletCount);
+
+            _world.Bus.SwapBuffers();
+            Assert.Equal(1, _world.Bus.Read<WeaponFireNotification>().Length);
+        }
+
+        /// <summary>
+        /// A shooter owned by a DIFFERENT node also fires: the Brain that sent the order is the
+        /// owner, and the Muscle that received it is not. Gating on ownership here is what broke
+        /// the kill chain — see the comment block in <c>FireProcessingSystem</c>.
+        /// </summary>
+        [Fact]
+        public void FireProcessing_SpawnsBullet_WhenAnotherNodeOwnsTheShooter()
+        {
             var shooter = SpawnShooterNonAuthoritative(Vector3.Zero);
             var target  = SpawnTarget(new Vector3(10f, 0f, 0f));
 
@@ -304,21 +342,15 @@ namespace Fdp.Toolkit.Combat.Tests
             var q = _world.Query().With<BallisticProjectile>().Build();
             int bulletCount = 0;
             foreach (var _ in q) bulletCount++;
-            Assert.Equal(0, bulletCount);
-
-            _world.Bus.SwapBuffers();
-            var notifications = _world.Bus.Read<WeaponFireNotification>();
-            Assert.Equal(0, notifications.Length);
+            Assert.Equal(1, bulletCount);
         }
 
         /// <summary>
-        /// TD-6 complementary: when the shooter entity has <see cref="NetworkAuthority"/>
-        /// with <c>HasAuthority == true</c>, the bullet is spawned normally.
+        /// The self-owned case (AllInOne / a locally created entity) is unchanged.
         /// </summary>
         [Fact]
         public void FireProcessing_SpawnsBullet_WhenShooterIsAuthoritative()
         {
-            // Explicit authority: primary owner == local node.
             var entity = _world.CreateEntity();
             _world.AddComponent(entity, new SimTransform { Position = Vector3.Zero, Rotation = Quaternion.Identity });
             _world.AddComponent(entity, new WeaponState { MuzzleVelocity = 800f, Ammo = 10 });

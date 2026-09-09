@@ -176,7 +176,27 @@ namespace CarKinem.Systems
                          Vector2 toDest = navDestXY - pos2D;
                          targetHeading = Vector2.Normalize(toDest);
                          targetPos = pos2D + targetHeading; // Look ahead
+
+                         // Approach braking. Without this, targetSpeed is a STEP function of
+                         // distance — full cruise until inside ArrivalRadius, then 0 — so the
+                         // vehicle commits to cruise speed with only ArrivalRadius left in which
+                         // to shed it. At 15 m/s with MaxDecel 4 m/s² the stopping distance is
+                         // v²/2a = 28 m against a 5 m radius, i.e. a ~23 m overshoot.
+                         // Cap the target by the braking envelope that still stops on the point:
+                         //     v_max(d) = sqrt(2 · MaxDecel · (d − ArrivalRadius))
+                         // Design basis: FDP/Docs/projects/toolkits/FDP.Toolkit.CarKinem.md
+                         // §"Speed Controller" (MaxBraking is a control input, not just a clamp)
+                         // and .dev/_DONE/demos-1/FDP-demos-all.md:605/636, whose acceptance is
+                         // "halts ... without overshooting the objective".
+                         // MaxDecel <= 0 means the profile is unknown (a default-constructed
+                         // VehicleParams — see CE-103); cap nothing rather than freeze the vehicle.
                          targetSpeed = nav.TargetSpeed;
+                         if (@params.MaxDecel > 0f)
+                         {
+                             float brakingDistance = MathF.Max(0f, toDest.Length() - nav.ArrivalRadius);
+                             float approachSpeed   = MathF.Sqrt(2f * @params.MaxDecel * brakingDistance);
+                             targetSpeed = MathF.Min(targetSpeed, approachSpeed);
+                         }
                     }
                     else
                     {

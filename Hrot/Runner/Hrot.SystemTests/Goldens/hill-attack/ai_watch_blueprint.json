@@ -1,0 +1,10 @@
+{
+  "columns": "VariableTableColumns { ShowType = False, Visible = Hrot.Editor.AiShared.Variables.VariableColumn[], IsValid = True }",
+  "groups": [],
+  "panelId": "ai_watch_blueprint",
+  "panelKind": "watch",
+  "rowCount": 0,
+  "rows": [],
+  "selectedPath": null,
+  "valueMode": "Current"
+}

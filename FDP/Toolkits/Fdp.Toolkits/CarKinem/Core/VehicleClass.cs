@@ -17,9 +17,30 @@ namespace CarKinem.Core
     /// </summary>
     public static class VehiclePresets
     {
+        /// <summary>
+        /// Returns the kinematic baseline for a vehicle class, with
+        /// <see cref="VehicleParams.Class"/> set to the class it actually describes.
+        /// </summary>
+        /// <remarks>
+        /// The stamping matters: this fills thirteen kinematic fields, and leaving the
+        /// fourteenth -- the one that says what the struct IS -- at its default made every
+        /// caller responsible for a line the function should own.  Three of them wrote it
+        /// independently (<c>VehicleCommandSystem</c>, the CarKinem example's
+        /// <c>ScenarioManager</c>, <c>VehicleKinematicsTkbTranslator</c>), each with its own
+        /// comment; and because <c>PersonalCar</c> is <c>0</c>, anyone who forgot got a Tank
+        /// preset that reported itself as a car -- wrong in a way nothing would surface.
+        /// <para>
+        /// An undefined class normalises to <c>PersonalCar</c> BEFORE the lookup, so the
+        /// returned <c>Class</c> always describes the data returned rather than what was
+        /// asked for.
+        /// </para>
+        /// </remarks>
         public static VehicleParams GetPreset(VehicleClass vehicleClass)
         {
-            return vehicleClass switch
+            if (!System.Enum.IsDefined(vehicleClass))
+                vehicleClass = VehicleClass.PersonalCar;
+
+            var preset = vehicleClass switch
             {
                 VehicleClass.PersonalCar => new VehicleParams
                 {
@@ -107,8 +128,13 @@ namespace CarKinem.Core
                     AccelGain = 2.5f
                 },
                 
-                _ => GetPreset(VehicleClass.PersonalCar) // Default
+                // Unreachable: an undefined class was normalised above.  Kept so the
+                // switch stays exhaustive if a new member is added before its arm is.
+                _ => GetPreset(VehicleClass.PersonalCar)
             };
+
+            preset.Class = vehicleClass;
+            return preset;
         }
         
         public static (byte R, byte G, byte B) GetColor(VehicleClass vehicleClass)

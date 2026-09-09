@@ -1,0 +1,30 @@
+// HROT_EDITOR_GENERATED - manual edits to this file will be overwritten by the AI editor on next save.
+// AssetId: bb000004-0000-0000-0000-000000000000
+
+using System;
+using System.Numerics;
+
+using Fbt;
+using Fbt.Compiler;
+using Fdp.Toolkit.Behavior;
+using Fdp.Toolkit.Behavior.Components;
+
+namespace Hrot.AI.Behaviors.Trees;
+
+public static class T03_Parallel
+{
+    public static BTreeBuilder<BrainBlackboard, BTreeContext> CreateBuilder() =>
+        new BTreeBuilder<BrainBlackboard, BTreeContext>()
+            .Parallel(0, par =>
+            {
+                par.Wait(1f,
+                    visualId: new Guid("b4030000-0000-0000-0000-000000000001"));
+                par.Wait(1f,
+                    visualId: new Guid("b4040000-0000-0000-0000-000000000001"));
+            },
+                visualId: new Guid("b4020000-0000-0000-0000-000000000001"));
+
+    [BTreeDefinition("T03_Parallel", AssetId = "bb000004-0000-0000-0000-000000000000")]
+    public static BehaviorTreeBlob Build() =>
+        CreateBuilder().Compile("T03_Parallel");
+}

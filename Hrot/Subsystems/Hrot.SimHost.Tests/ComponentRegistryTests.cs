@@ -1,3 +1,4 @@
+using Fdp.Core.Collections;
 using Fdp.Core;
 using Fdp.Core.CommandHierarchy;
 using Fdp.Toolkit.Behavior.Components;
@@ -139,10 +140,96 @@ namespace Hrot.SimHost.Tests
         {
             using var world = new EntityRepository();
             NavigationSolverComponentRegistry.RegisterAll(world);
+            try
+            {
+                Assert.Null(Record.Exception(() => world.GetSingleton<PathfindingBatchData>()));
+                Assert.Null(Record.Exception(() => world.GetSingleton<AreaQueryBatchData>()));
+                Assert.Null(Record.Exception(() => world.GetSingleton<EqsTargetPool>()));
+            }
+            finally
+            {
+                NavigationSolverComponentRegistry.DisposeAll(world);
+            }
+        }
 
-            Assert.Null(Record.Exception(() => world.GetSingleton<PathfindingBatchData>()));
-            Assert.Null(Record.Exception(() => world.GetSingleton<AreaQueryBatchData>()));
-            Assert.Null(Record.Exception(() => world.GetSingleton<EqsTargetPool>()));
+        /// <summary>
+        /// <b><c>B3</c> — the registry allocates its four persistent pools AT MOST ONCE per world.</b>
+        ///
+        /// <para>Two production hosts call this registry twice on one world — <c>EditorSubsystem</c> and
+        /// <c>EditorStrideSubsystem</c> each run <c>SimHostComponentRegistry.RegisterAll</c> and
+        /// <c>CgfComponentRegistry.RegisterAll</c> on the same world, and both delegate here. Because
+        /// <c>SetSingleton</c> is "set or update", an unguarded second call replaced each pool with a fresh
+        /// <c>Allocator.Persistent</c> array and orphaned the first — silently, with no test.</para>
+        ///
+        /// <para>The observable is the array's identity: after a second RegisterAll the world must still
+        /// hold the SAME native memory, which is what proves nothing was leaked behind it.</para>
+        /// </summary>
+        [Fact]
+        public void NavigationSolverComponentRegistry_RegisterAll_IsIdempotentOnTheFourPersistentPools()
+        {
+            using var world = new EntityRepository();
+            NavigationSolverComponentRegistry.RegisterAll(world);
+            try
+            {
+                var firstPathfinding = BaseAddress(world.GetSingleton<PathfindingBatchData>().Results);
+                var firstAreaQuery   = BaseAddress(world.GetSingleton<AreaQueryBatchData>().Results);
+                var firstTargets     = BaseAddress(world.GetSingleton<EqsTargetPool>().Targets);
+                var firstResults     = BaseAddress(world.GetSingleton<EqsResultPool>().Results);
+
+                // The second host's registration pass.
+                NavigationSolverComponentRegistry.RegisterAll(world);
+
+                Assert.Equal(firstPathfinding, BaseAddress(world.GetSingleton<PathfindingBatchData>().Results));
+                Assert.Equal(firstAreaQuery,   BaseAddress(world.GetSingleton<AreaQueryBatchData>().Results));
+                Assert.Equal(firstTargets,     BaseAddress(world.GetSingleton<EqsTargetPool>().Targets));
+                Assert.Equal(firstResults,     BaseAddress(world.GetSingleton<EqsResultPool>().Results));
+            }
+            finally
+            {
+                NavigationSolverComponentRegistry.DisposeAll(world);
+            }
+        }
+
+        /// <summary>
+        /// <c>DisposeAll</c> is the symmetric counterpart <c>RegisterAll</c> never had: three of the four
+        /// pools had no production disposer at all. It must clear the stored handles so a second call —
+        /// or a later <c>EqsModule.Dispose</c> on the same world — is a no-op rather than a double free.
+        /// </summary>
+        [Fact]
+        public void NavigationSolverComponentRegistry_DisposeAll_FreesEveryPoolAndIsIdempotent()
+        {
+            using var world = new EntityRepository();
+            NavigationSolverComponentRegistry.RegisterAll(world);
+
+            NavigationSolverComponentRegistry.DisposeAll(world);
+
+            Assert.False(world.GetSingleton<PathfindingBatchData>().Results.IsCreated);
+            Assert.False(world.GetSingleton<AreaQueryBatchData>().Results.IsCreated);
+            Assert.False(world.GetSingleton<EqsTargetPool>().Targets.IsCreated);
+            Assert.False(world.GetSingleton<EqsResultPool>().Results.IsCreated);
+
+            // A double free would corrupt the allocator, so this second call is the real assertion.
+            NavigationSolverComponentRegistry.DisposeAll(world);
+        }
+
+        /// <summary>And a world that never reached the registry must not throw.</summary>
+        [Fact]
+        public void NavigationSolverComponentRegistry_DisposeAll_ToleratesAWorldWithNoPools()
+        {
+            using var world = new EntityRepository();
+            NavigationSolverComponentRegistry.DisposeAll(world);
+        }
+
+        /// <summary>
+        /// Address of the array's first element — the identity of the underlying allocation.
+        /// <c>NativeArray</c> exposes no pointer accessor, but its indexer returns a <c>ref</c> into the
+        /// block, so the address of slot 0 is the block's base address.
+        /// </summary>
+        private static unsafe nint BaseAddress<T>(NativeArray<T> array) where T : unmanaged
+        {
+            Assert.True(array.IsCreated);
+            ref T slot0 = ref array[0];
+            return (nint)System.Runtime.CompilerServices.Unsafe.AsPointer(ref slot0);
         }
 
         // ── SimHostComponentRegistry (idempotency via delegation) ─────────────

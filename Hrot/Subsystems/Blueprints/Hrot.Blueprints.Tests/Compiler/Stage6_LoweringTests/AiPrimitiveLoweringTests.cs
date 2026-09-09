@@ -45,7 +45,10 @@ public sealed class AiPrimitiveLoweringTests
 
         Assert.False(sink.HasErrors,
             $"Unexpected errors: {string.Join(", ", sink.All.Select(d => d.Code))}");
-        Assert.Contains(lowered.WorkingState, f => f.Name == "__phase");
+        // ⭐ Batch 86 — RESTATED. IrAsset.WorkingState is retired and always empty (R-01); the
+        //   synthesized __phase now lands in the ONE state tier. ⛔ Left as-is this would have gone
+        //   GREEN-on-empty in reverse — Assert.Contains over [] is a loud red, which is why it caught it.
+        Assert.Contains(lowered.StateDeclarations, f => f.Name == "__phase");
     }
 
     [Fact]

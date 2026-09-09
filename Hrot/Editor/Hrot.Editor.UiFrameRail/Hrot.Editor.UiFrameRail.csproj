@@ -1,0 +1,28 @@
+<!--
+  ⭐⭐⭐ Batch 100 (100a) — TEST SUPPORT ONLY. 📌 R-124.
+
+  ⛔⛔ NOTHING IN A PRODUCTION ASSEMBLY MAY REFERENCE THIS PROJECT.
+  ⭐ It is a separate project rather than a folder in one test assembly because BOTH
+    Hrot.Editor.AiShared.Tests and Hrot.Blueprints.Tests need it, and copying it into
+    both would be two implementations of one harness (ruling 9).
+  ⭐ The package versions are PINNED TO THE APP'S: Raylib-cs 7.0.2 / rlImgui-cs 3.2.0.
+    ⚠ A harness rendering with a different ImGui than the app measures the wrong layout.
+-->
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>disable</ImplicitUsings>
+    <IsPackable>false</IsPackable>
+    <!-- ⭐ Not a test project itself: it hosts no tests, it lets other assemblies write them. -->
+    <IsTestProject>false</IsTestProject>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Raylib-cs" Version="7.0.2" />
+    <PackageReference Include="rlImgui-cs" Version="3.2.0" />
+    <PackageReference Include="ImGui.NET" Version="1.91.6.1" />
+  </ItemGroup>
+
+</Project>

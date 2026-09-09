@@ -125,6 +125,21 @@ public static class BlackboardFieldClassifier
         if (t.IsEnum) return true;
         if (t.IsDefined(typeof(BlackboardDtoStructAttribute), inherit: false)) return true;
         if (knownTypes.Contains(t)) return true;
+        // FC-3a (Q#21-A1): the fixed-list WRAPPER pattern is a first-class known shape, provided
+        // its element type is itself known by this same rule (recursion terminates: an element
+        // cannot be another wrapper -- TryGetFixedListShape rejects nesting).
+        if (TryGetFixedListShape(t, out var elem, out _) && IsKnownType(elem, knownTypes)) return true;
         return false;
     }
+
+    /// <summary>
+    /// FC-3a (Q#21-A1) -- structural recognition of the canonical fixed-list WRAPPER pattern.
+    /// Thin delegate to <see cref="Fdp.Core.FixedListShape"/>, THE single definition of the
+    /// shape (also used by the FC-3b JSON converter and the FC-3c inspector view provider),
+    /// kept on the classifier for editor-side discoverability. Loose twin-field DTOs
+    /// (<c>Items</c> + <c>Count</c> declared side-by-side on the DTO) are deliberately NOT
+    /// recognized -- they remain read-only passthrough (Q#21-A1).
+    /// </summary>
+    public static bool TryGetFixedListShape(Type t, out Type elementType, out int capacity)
+        => Fdp.Core.FixedListShape.TryGet(t, out elementType, out capacity);
 }

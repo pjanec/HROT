@@ -91,6 +91,8 @@ namespace Fdp.Toolkit.Runner
                     NodeId            = _nodeIdResolver != null ? _nodeIdResolver(subsystem.Name, _nodeId) : _nodeId,
                     // GZH-016: inject active-map-owner predicate so subsystems can gate canvas input.
                     IsActiveMapOwner  = () => _activeMapOwner == captured,
+                    // A subsystem's own control plane can ask the host to leave the frame loop.
+                    RequestAppExit    = Stop,
                 };
                 subsystem.Initialize(cfg);
             }
@@ -116,8 +118,15 @@ namespace Fdp.Toolkit.Runner
             }
         }
 
-        /// <summary>Signals the frame loop to exit gracefully.</summary>
+        /// <summary>Signals the frame loop to exit gracefully. Safe to call from any thread.</summary>
         public void Stop() => _running = false;
+
+        /// <summary>
+        /// False once <see cref="Stop"/> has been called. The Composition Root's render loop owns
+        /// its own <c>while</c>, so it polls this each frame to honour the same request that ends
+        /// <see cref="Run"/> — one stop signal, both loops.
+        /// </summary>
+        public bool IsRunning => _running;
 
         /// <summary>
         /// Thread-safe enqueue for console-dispatched actions. Called by

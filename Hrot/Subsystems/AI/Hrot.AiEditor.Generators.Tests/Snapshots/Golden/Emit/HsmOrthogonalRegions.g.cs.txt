@@ -1,0 +1,38 @@
+// HROT_EDITOR_GENERATED - manual edits to this file will be overwritten by the AI editor on next save.
+// AssetId: e0710002-0000-0000-0000-000000000001
+
+using System;
+
+using Fhsm.Compiler;
+using Fhsm.Kernel.Attributes;
+using Fhsm.Kernel.Data;
+using Hrot.AI.Behaviors;
+
+namespace Hrot.AI.Behaviors.Machines;
+
+public static class HsmOrthogonalRegions
+{
+    public static HsmBuilder CreateBuilder()
+    {
+        var builder = new HsmBuilder("HsmOrthogonalRegions");
+
+        builder.RegisterAction("Hrot.AI.Behaviors.CgfHsmNodes.StubIdle");
+
+        var concurrent = builder.State("Concurrent", stableId: new Guid("e0710002-1000-0000-0000-000000000002"))
+            .Initial()
+            .Parallel();
+        concurrent.Child("RegionZeroWorker", sb2 =>
+        {
+            sb2.Initial().OnEntry("Hrot.AI.Behaviors.CgfHsmNodes.StubIdle");
+        }, stableId: new Guid("e0710002-1000-0000-0000-000000000003"));
+        concurrent.Child("RegionOneWorker", sb2 =>
+        {
+            sb2.OnEntry("Hrot.AI.Behaviors.CgfHsmNodes.StubIdle");
+        }, stableId: new Guid("e0710002-1000-0000-0000-000000000004"));
+
+        return builder;
+    }
+
+    [HsmDefinition("HsmOrthogonalRegions", AssetId = "e0710002-0000-0000-0000-000000000001")]
+    public static HsmDefinitionBlob Compile() => CreateBuilder().Build().Compile();
+}

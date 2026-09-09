@@ -81,25 +81,55 @@ internal sealed class FunctionCallNodeSession : INodeEditSession
 
     private void ApplyFunctionGraphSelection(Guid graphId)
     {
-        _node.TargetGraphId = graphId.ToString();
-        _node.TargetTypeId  = "";
-        _node.MethodName    = "";
-        MarkChanged();
+        RecordChange("Set Function Target", () =>
+        {
+            _node.TargetGraphId = graphId.ToString();
+            _node.TargetTypeId  = "";
+            _node.MethodName    = "";
+        });
     }
 
     private void ApplyClrTarget(string typeId, string methodName, bool isPure)
     {
-        _node.TargetTypeId  = typeId;
-        _node.MethodName    = methodName;
-        _node.IsPure        = isPure;
-        _node.TargetGraphId = "";
-        MarkChanged();
+        RecordChange($"Set Function Target '{methodName}'", () =>
+        {
+            _node.TargetTypeId  = typeId;
+            _node.MethodName    = methodName;
+            _node.IsPure        = isPure;
+            _node.TargetGraphId = "";
+        });
     }
 
-    private void MarkChanged()
+    /// <summary>
+    /// BP-11: the node's undo-relevant state. Picking a target rewrites up to four fields at once —
+    /// one gesture, so one undo entry, and the reason a single-key
+    /// <c>GraphCommand.SetNodeProperty</c> cannot express it.
+    /// </summary>
+    private readonly record struct NodeState(string TargetGraphId, string TargetTypeId, string MethodName, bool IsPure);
+
+    private NodeState Capture() => new(_node.TargetGraphId, _node.TargetTypeId, _node.MethodName, _node.IsPure);
+
+    private void Restore(NodeState s)
     {
-        IsDirty = true;
-        _editService?.MarkDirty(_parent);
+        _node.TargetGraphId = s.TargetGraphId;
+        _node.TargetTypeId  = s.TargetTypeId;
+        _node.MethodName    = s.MethodName;
+        _node.IsPure        = s.IsPure;
+    }
+
+    /// <summary>
+    /// BP-11: runs <paramref name="mutate"/> as an undoable edit. When no edit service is present
+    /// (headless construction) the mutation still happens — it just is not recorded.
+    /// </summary>
+    private void RecordChange(string label, Action mutate)
+    {
+        if (_editService is null) { mutate(); IsDirty = true; return; }
+
+        var before = Capture();
+        _editService.RecordPropertyEdit(
+            _parent, label,
+            apply: () => { mutate();        IsDirty = true; },
+            undo:  () => { Restore(before); IsDirty = true; });
     }
 
     // ── INodeEditSession ─────────────────────────────────────────────────────────

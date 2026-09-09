@@ -47,20 +47,17 @@ public static class PanelConstants
     /// </summary>
     public const int FilterTextMaxLength = 256;
 
-    // ── InspectorPanel ────────────────────────────────────────────────────────
+    // ── Entity selection sentinel ────────────────────────────────────────────
 
     /// <summary>
-    /// Sentinel entity-ID value used by <see cref="InspectorPanel"/> to
-    /// indicate that no entity is currently selected.
+    /// Sentinel entity-ID value used across ExCon panels/logic (e.g.
+    /// <see cref="ExConLogic"/>) to indicate that no entity is currently selected.
+    /// ⚠ <c>InspectorMaxTotalLines</c> was removed alongside <c>InspectorPanel</c>
+    /// (U-obs-5 follow-up, deleted as a measured-dead <c>[Obsolete]</c> panel —
+    /// <c>docs/UX/UX_Feature_DeadUI_Removal.md:102</c>); this sentinel survives
+    /// because <see cref="ExConLogic"/> still reads it.
     /// </summary>
     public const int InspectorNoSelection = 0;
-
-    /// <summary>
-    /// Hard cap on the total number of descriptor field lines that
-    /// <see cref="InspectorPanel"/> will cache per entity.  Prevents unbounded
-    /// allocation for pathological entities with many descriptors.
-    /// </summary>
-    public const int InspectorMaxTotalLines = 256;
 
     // ── DiagnosticsPanel ──────────────────────────────────────────────────────
 

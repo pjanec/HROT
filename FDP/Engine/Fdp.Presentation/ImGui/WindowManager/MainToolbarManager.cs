@@ -1,7 +1,51 @@
 using System.Numerics;
+using System.Text.Json.Nodes;
+using Fdp.Diagnostics.Contracts.Panels;
 using ImGuiNET;
 
 namespace Fdp.Presentation.WindowManager;
+
+/// <summary>
+/// ⭐⭐⭐ <b>What the MAIN TOOLBAR offers right now — the shell's toolbar made machine-readable.</b>
+/// 📄 <c>DESIGN_Cgf_Editor_Sharing_Slice2_Open_Asset.md</c> §6 item ⑤ · §7 *(the standing reminder)*.
+///
+/// <para>⛔⛔ <b>The gap it closes, measured `2026-08-25`:</b> <see cref="MainToolbarManager"/> renders every
+/// entry through an opaque <c>Action</c> delegate and published <b>nothing</b>. ⇒ MCP could read every
+/// docked panel and <b>not</b> the toolbar — so *"does this host offer the Reload button?"* was
+/// unanswerable headlessly, on either host.</para>
+///
+/// <para>⭐⭐ <b>Entry IDS, not entry pixels.</b> ⛔ The render delegates draw arbitrary ImGui and cannot be
+/// introspected; ⭐ what IS structural — and what §7 actually asks about — is <b>which entries this host
+/// registered and which of them the active perspective shows</b>. ⇒ the dump carries the ids, their sort
+/// order, their perspective filter and their visibility, ⛔ not a picture.</para>
+///
+/// <para>⚠ <b><c>visible</c> is the field that means something.</b> An entry registered for another
+/// perspective is present-but-hidden, which is a different claim from *"this host never registered it"* —
+/// 📌 and telling those two apart is the whole reason a later feature slice can assert
+/// *"its toolbar affordance is present and SAME on CGF"*.</para>
+/// </summary>
+/// <param name="PanelId">⭐ A singleton per host ⇒ the declared literal <c>main_toolbar</c>.</param>
+/// <param name="PanelKind">⭐ <c>main-toolbar</c> — the SAME kind on every host, so conformance groups it.</param>
+/// <param name="CurrentPerspective">The perspective the visibility filter was evaluated against.</param>
+/// <param name="Entries">Every registered item, in render order.</param>
+public sealed record MainToolbarPanelViewModel(
+    string PanelId,
+    string PanelKind,
+    string CurrentPerspective,
+    IReadOnlyList<MainToolbarEntryView> Entries) : IPanelViewModel
+{
+    /// <inheritdoc/>
+    public JsonNode Dump() => PanelDump.Of(this);
+}
+
+/// <summary>⭐ One toolbar item as the dump sees it.</summary>
+/// <param name="Id">The registration id — the stable name a rail asserts on.</param>
+/// <param name="Kind"><c>entry</c> or <c>separator</c>.</param>
+/// <param name="SortOrder">Render order; ⚠ a reshuffle is a UX change, not noise.</param>
+/// <param name="Perspective">The perspective filter, or <c>null</c> for a global item.</param>
+/// <param name="Visible">Whether the CURRENT perspective shows it.</param>
+public sealed record MainToolbarEntryView(
+    string Id, string Kind, int SortOrder, string? Perspective, bool Visible);
 
 /// <summary>
 /// Manages a persistent top-anchored toolbar rendered as a band directly under
@@ -324,4 +368,62 @@ public sealed class MainToolbarManager
         // Advance cursor past the separator (1 px wide + a small gap)
         Gui.Dummy(new Vector2(3, sepHeight));
     }
+    // ── Observability (cgf==editor slice 2, item ⑤) ──────────────────────────
+
+    /// <summary>⭐ The panel id every host publishes this singleton under.</summary>
+    public const string PanelIdLiteral = "main_toolbar";
+
+    /// <summary>⭐⭐ The KIND — identical on every host, so cross-host conformance groups by it.</summary>
+    public const string PanelKindLiteral = "main-toolbar";
+
+    /// <summary>
+    /// ⭐⭐ Builds the view-model for the current item set. ⭐ Public so a rail can assert the model
+    /// without an ImGui frame — ⛔ the draw path is not a testable seam.
+    /// </summary>
+    public MainToolbarPanelViewModel BuildViewModel(string currentPerspective)
+    {
+        EnsureSorted();
+
+        var entries = new List<MainToolbarEntryView>(_items.Count);
+        foreach (var item in _items)
+        {
+            entries.Add(new MainToolbarEntryView(
+                Id:          item.Id,
+                Kind:        item is SeparatorItem ? "separator" : "entry",
+                SortOrder:   item.SortOrder,
+                Perspective: item.Perspective,
+                // ⭐ THE SAME predicate RenderEntries uses, three lines below — ⛔ not a re-derivation.
+                Visible:     item.Perspective == null || item.Perspective == currentPerspective));
+        }
+
+        return new MainToolbarPanelViewModel(
+            PanelIdLiteral, PanelKindLiteral, currentPerspective, entries);
+    }
+
+    /// <summary>
+    /// ⭐⭐⭐ <b>Declares and registers the toolbar snapshot — and it is called even when the toolbar does
+    /// NOT DRAW.</b>
+    ///
+    /// <para>🔴🔴 <b>That is the whole point, and it was measured.</b> 📐 <c>2026-08-25</c>: only
+    /// <c>EditorSubsystem</c> registers main-toolbar entries, so in <c>--mode all</c> the manager holds
+    /// zero items, <see cref="Height"/> is <c>0</c>, and <c>WindowManager</c>'s
+    /// <c>if (_mainToolbar.Height &gt; 0f)</c> guard skips the render entirely. ⇒ ⛔ publishing from
+    /// inside the draw would make *"this host offers no toolbar entries"* indistinguishable from
+    /// *"this host's toolbar was never instrumented"* — and telling those two apart is exactly what §7 of
+    /// the slice-2 design needs.</para>
+    ///
+    /// <para>⚠ <b>Stated plainly, because it bends <see cref="IPanelViewModel"/>'s usual invariant</b>
+    /// *("the draw renders only from this")*: the toolbar's entries render through opaque host-supplied
+    /// delegates, so this model never described pixels — it describes the <b>registered item set and its
+    /// visibility</b>, which is well-defined whether or not a frame drew it. ⭐ The visibility predicate is
+    /// still the SAME expression <c>RenderEntries</c> filters on.</para>
+    /// </summary>
+    public void PublishSnapshot(string currentPerspective)
+    {
+        PanelSnapshot.DeclareInstrumented(PanelIdLiteral);
+        if (!PanelSnapshot.CaptureEnabled) return;
+
+        PanelSnapshot.Register(BuildViewModel(currentPerspective));
+    }
+
 }

@@ -64,8 +64,8 @@ When delegating to a subagent, give it:
 | Fbt.*, Fhsm.*, GizmoMap.*, NodeEditor.*, StructEdit.* | `FDP/ExtDeps` |
 | Hrot.Common, Hrot.Core, Hrot.Presentation, Hrot.UI.Common | `Hrot/Engine` |
 | Hrot.Network.* | `Hrot/Network` |
-| Hrot.ClusterRunner, Hrot.FakeStrideApp | `Hrot/Runner` |
-| Hrot.AI.Behaviors, Hrot.CGF, Hrot.Editor, Hrot.ExCon, Hrot.IG, Hrot.Orchestrator, Hrot.ReplayBrowser, Hrot.SimHost, Hrot.StrideMock | `Hrot/Subsystems` |
+| Hrot.ClusterRunner | `Hrot/Runner` |
+| Hrot.AI.Behaviors, Hrot.CGF, Hrot.Editor, Hrot.ExCon, Hrot.IG, Hrot.NodeComposition, Hrot.Orchestrator, Hrot.ReplayBrowser, Hrot.SimHost | `Hrot/Subsystems` |
 | Hrot.Blueprints.* | `Hrot/Blueprints` |
 | Hrot.BTree.Editor, Hrot.Hsm.Editor | `Hrot/AI` |
 | Hrot.Editor.AiShared | `Hrot/Editor` |

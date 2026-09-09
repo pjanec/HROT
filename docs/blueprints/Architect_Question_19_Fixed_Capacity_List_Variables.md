@@ -34,6 +34,11 @@ the *write* side is net-new.
 | Indexed r/w | direct `Get[i]` / `Set[i]` by index over the logical length `[0, Count)` |
 | Preallocation | supports declaring/resizing to a given logical length, **default-filled**. *Free for blittable `T`*: `default(T)` is all-zero bytes and the blob is zero-initialized — so preallocation = setting `Count = N` over already-zeroed slots; only a **grow-after-shrink** must re-zero the reclaimed `[oldCount, N)` range |
 
+> **Zeroing rule superseded 2026-08-04 (Q#20 review G6):** the lazy "re-zero on grow-after-shrink" clause above
+> is retired in favor of the cross-home **tail-always-default invariant** — `RemoveAt`/`Clear`/`Resize`-shrink
+> zero vacated slots at mutation time, grow never fills. See `Blueprint_Fixed_Collections_Design.md`
+> §"Decisions folded". Everything else in this table stands.
+
 ---
 
 ## Q19-A — How does a list variable surface to the graph (read/query side)?

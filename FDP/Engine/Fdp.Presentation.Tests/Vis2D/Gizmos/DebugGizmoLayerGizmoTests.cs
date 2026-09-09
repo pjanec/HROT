@@ -1,3 +1,4 @@
+using Fdp.Presentation.Tests.Vis2D;
 using System.Numerics;
 using Fdp.Core;
 using Fdp.Toolkit.Diagnostics.Gizmos;
@@ -17,6 +18,8 @@ namespace Fdp.Toolkit.Vis2D.Tests.Gizmos
             {
                 Zoom              = zoom,
                 VisibleLayersMask = 0xFFFF_FFFFu, // All layers visible
+                // 91d: production ALWAYS supplies a provider (MapCanvas:119).
+                Resources         = HeadlessResourceProvider.Instance,
             };
         }
 
@@ -124,6 +127,7 @@ namespace Fdp.Toolkit.Vis2D.Tests.Gizmos
             {
                 Zoom              = 1f,
                 VisibleLayersMask = 0u, // All bits off => layer 5 bit also off
+                Resources         = HeadlessResourceProvider.Instance,
             };
 
             layer.Draw(ctx);

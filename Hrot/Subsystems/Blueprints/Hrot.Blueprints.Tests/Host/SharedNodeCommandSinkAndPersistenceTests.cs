@@ -295,5 +295,17 @@ public sealed class SharedNodeCommandSinkAndPersistenceTests
         private readonly List<BlueprintAsset> _log;
         public RecordingEditService(List<BlueprintAsset> log) => _log = log;
         public void MarkDirty(BlueprintAsset asset) => _log.Add(asset);
-    }
+    
+        /// <summary>
+        /// BP-11: no undo stack here, but recording still performs the edit and marks dirty —
+        /// the same two observable effects the real EditService has.
+        /// </summary>
+        public void RecordPropertyEdit(BlueprintAsset asset, string description, Action apply, Action undo)
+        {
+            apply();
+            MarkDirty(asset);
+        }
+
+        public void NotifyStructureChanged(BlueprintAsset asset) { }
+}
 }

@@ -1,7 +1,9 @@
 using Hrot.Core.Mission;
 using ImGuiNET;
+using Fdp.Diagnostics.Contracts.Panels;
 using Hrot.UI.Common.Facades;
 using System.Text.Json;
+using System.Text.Json.Nodes;
 
 namespace Hrot.UI.Common.Panels;
 
@@ -13,6 +15,16 @@ namespace Hrot.UI.Common.Panels;
 /// <param name="TkbId">TKB type identifier (matches <c>TkbTemplate.TkbType</c>).</param>
 /// <param name="Name">Display name shown in the spawner list.</param>
 public sealed record TkbCatalogEntry(long TkbId, string Name);
+
+/// <summary>⭐⭐⭐ U-obs-5 — the whole of what <see cref="SpawnerPanel"/> shows, this frame. ⚠ See
+/// <c>ConfigPanel</c>'s remarks for the group-5 twin finding.</summary>
+public sealed record SpawnerPanelViewModel(
+    string PanelId, string PanelKind, string SearchFilter, long SelectedType,
+    string SelectedAffiliation, IReadOnlyList<TkbCatalogEntry> FilteredEntries) : IPanelViewModel
+{
+    /// <inheritdoc/>
+    public JsonNode Dump() => PanelDump.Of(this);
+}
 
 /// <summary>
 /// Shared UI panel that lets the operator browse the TKB entity type catalog,
@@ -97,6 +109,11 @@ public sealed class SpawnerPanel
     /// when iterated inside <see cref="Draw"/>.
     /// </summary>
     public IReadOnlyList<TkbCatalogEntry> FilteredEntries => _filteredEntries;
+
+    // ── Public BUILD entry point (U-obs-5) ───────────────────────────────
+    /// <summary>⭐⭐⭐ BUILD — a pure projection of current state. No ImGui.</summary>
+    public SpawnerPanelViewModel BuildViewModel(string panelId, string panelKind) => new(
+        panelId, panelKind, _searchFilter, _selectedType, _affiliation.ToString(), FilteredEntries);
 
     // ── Button / control handlers (public for testability) ────────────────────
 

@@ -1,4 +1,6 @@
+﻿using Hrot.SimHost.Installers;
 using System;
+using System.Collections.Generic;
 using CycloneDDS.Runtime;
 using Fdp.Core;
 using Fdp.Core.Logging;
@@ -7,6 +9,7 @@ using Fdp.ModuleHost.Abstractions;
 using Fdp.Toolkit.Replication.Events;
 using Hrot.Map.Common.Dds;
 using Hrot.NED.Messages;
+using Fdp.Toolkit.Replication.Attributes;
 
 namespace Hrot.Map.Common.Replication.Egress
 {
@@ -69,11 +72,36 @@ namespace Hrot.Map.Common.Replication.Egress
         {
             foreach (var cmd in view.ReadManagedEvents<UpdateEntityAttributeCommand>())
             {
+                // ⭐⭐⭐ AX-005c / R-134 — THE SOLE DDS BOUNDARY for the binary arm.
+                //    The command carries FDP-internal `EntityAttributeChange` records; they become DDS
+                //    `AttributeRecord`s HERE and nowhere else, with `AttributeValueKind` converted to
+                //    `AttributeValueType` by an explicit mapping (never a cast).
+                //    📄 DESIGN_Cgf_AxisB_Rotation_Slice.md §11.1/§11.3 · RULINGS.md R-134.
+                //
+                // ⭐⭐ This translator was EXTENDED rather than duplicated: 📐 measured `2026-08-25`, it is
+                //    already registered in production (SharedTranslatorPack.cs:79) and already carries the
+                //    JSON arm to the same DDS topic for the same owner. ⛔ A second translator writing
+                //    `UpdateEntityAttributeRequest` would be two implementations of one concept (ruling 9).
+                List<AttributeRecord>? records = null;
+                if (cmd.AttributeChanges is { Count: > 0 } changes)
+                {
+                    records = new List<AttributeRecord>(changes.Count);
+                    foreach (var change in changes)
+                        records.Add(AttributeRecordConversion.ToNetwork(change));
+                }
+
+                // ⚠ A command with neither arm is a no-op request: skip it rather than writing an empty
+                //   sample the owner would parse and discard. ⛔ Silent network traffic that does nothing
+                //   is worse than none.
+                if (records == null && string.IsNullOrEmpty(cmd.AttributePatchJson))
+                    continue;
+
                 var request = new UpdateEntityAttributeRequest
                 {
                     RequestId          = Guid.NewGuid(),
                     EntityId           = (int)cmd.NetworkId,
                     AttributePatchJson = cmd.AttributePatchJson,
+                    AttributeRecords   = records,
                     RequireAck         = false,
                 };
 
@@ -81,8 +109,8 @@ namespace Hrot.Map.Common.Replication.Egress
                 SentSampleCount++;
 
                 FdpLog<UpdateEntityAttributeCommandEgressTranslator>.Debug(
-                    "[UpdateEntityAttributeCommandEgress] NetID={0} patch={1}",
-                    cmd.NetworkId, cmd.AttributePatchJson);
+                    "[UpdateEntityAttributeCommandEgress] NetID={0} patch={1} binaryRecords={2}",
+                    cmd.NetworkId, cmd.AttributePatchJson, records?.Count ?? 0);
             }
         }
     }

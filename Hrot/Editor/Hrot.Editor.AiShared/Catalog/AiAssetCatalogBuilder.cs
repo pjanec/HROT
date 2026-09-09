@@ -1,3 +1,4 @@
+using System.IO;
 using System.Reflection;
 
 namespace Hrot.Editor.AiShared.Catalog;
@@ -30,6 +31,21 @@ public sealed class AiAssetCatalogBuilder
     private readonly Action<Assembly> _hsmLoadFrom;
     private readonly Action _blueprintRefresh;
 
+    // ⭐⭐ CE-091 (J2 K1) — the JSON refresh path this class's own doc has always promised.
+    //    ⚠ Same shape as _bTreeLoadFrom above and for the same documented reason: `Refresh(rootDirectory:)`
+    //    is a concrete method on the BTree/HSM json contributors, and those projects REFERENCE this
+    //    assembly — so naming their types here would be a circular reference. A delegate is the only
+    //    legal shape. 📄 DESIGN_Subsystem_Composition_Unification.md §5c.10.
+    private readonly Action<string>? _bTreeJsonRefresh;
+    private readonly Func<string?>?  _bTreeJsonRootDir;
+    private readonly Action<string>? _hsmJsonRefresh;
+    private readonly Func<string?>?  _hsmJsonRootDir;
+
+    // ⭐⭐⭐ CE-095 (J1 K5) — where "the root is not there" is REPORTED. ⛔ A sink, not a logger: this
+    //    assembly has no logging dependency and each host routes differently (Console on the editor,
+    //    FdpLog<CgfSubsystem> on CGF). 📄 DESIGN_Subsystem_Composition_Unification.md §5c.13.
+    private readonly Action<string>? _warnMissingRoot;
+
     /// <summary>
     /// Initializes the builder.
     /// </summary>
@@ -56,6 +72,21 @@ public sealed class AiAssetCatalogBuilder
     ///   Optional JSON-file HSM contributor (PU-301).  When provided it is added
     ///   AFTER <paramref name="hsmContributor"/> so JSON wins on AssetId collision.
     /// </param>
+    /// <param name="bTreeJsonRefresh">
+    ///   ⭐ Callback that invokes <c>BTreeJsonAssetContributor.Refresh(rootDirectory: root)</c>.
+    ///   Example: <c>root =&gt; btreeJsonContrib.Refresh(rootDirectory: root)</c>.
+    ///   ⚠ Optional because a host may have no JSON contributor at all; ⛔ but a host that HAS one must
+    ///   pass this (the silent-default rule) or <see cref="RefreshJsonContributors"/> is inert for it.
+    /// </param>
+    /// <param name="bTreeJsonRootDir">Where that contributor reads from; a null/empty answer skips it.</param>
+    /// <param name="hsmJsonRefresh">Symmetric to <paramref name="bTreeJsonRefresh"/>.</param>
+    /// <param name="hsmJsonRootDir">Symmetric to <paramref name="bTreeJsonRootDir"/>.</param>
+    /// <param name="warnMissingRoot">
+    ///   ⭐⭐ Where <see cref="RefreshJsonContributors"/> reports a root that does not exist on disk.
+    ///   ⚠ Receives the message BODY only — <c>"BTree JSON root not found: /x/y"</c> — so the host adds its
+    ///   own prefix and routes it to its own logger. ⛔ Omitting it makes a missing root silent, which is
+    ///   what both hosts' inline copies were written to avoid.
+    /// </param>
     public AiAssetCatalogBuilder(
         IAssetCatalogContributor bTreeContributor,
         IAssetCatalogContributor hsmContributor,
@@ -64,8 +95,18 @@ public sealed class AiAssetCatalogBuilder
         Action<Assembly> hsmLoadFrom,
         Action blueprintRefresh,
         IAssetCatalogContributor? bTreeJsonContributor = null,
-        IAssetCatalogContributor? hsmJsonContributor   = null)
+        IAssetCatalogContributor? hsmJsonContributor   = null,
+        Action<string>? bTreeJsonRefresh = null,
+        Func<string?>?  bTreeJsonRootDir = null,
+        Action<string>? hsmJsonRefresh   = null,
+        Func<string?>?  hsmJsonRootDir   = null,
+        Action<string>? warnMissingRoot  = null)
     {
+        _warnMissingRoot  = warnMissingRoot;
+        _bTreeJsonRefresh = bTreeJsonRefresh;
+        _bTreeJsonRootDir = bTreeJsonRootDir;
+        _hsmJsonRefresh   = hsmJsonRefresh;
+        _hsmJsonRootDir   = hsmJsonRootDir;
         _bTreeLoadFrom    = bTreeLoadFrom    ?? throw new ArgumentNullException(nameof(bTreeLoadFrom));
         _hsmLoadFrom      = hsmLoadFrom      ?? throw new ArgumentNullException(nameof(hsmLoadFrom));
         _blueprintRefresh = blueprintRefresh ?? throw new ArgumentNullException(nameof(blueprintRefresh));
@@ -106,5 +147,63 @@ public sealed class AiAssetCatalogBuilder
         _bTreeLoadFrom(aiAssembly);
         _hsmLoadFrom(aiAssembly);
         _blueprintRefresh();
+    }
+
+    /// <summary>
+    /// ⭐⭐⭐ Re-reads the JSON-backed contributor for <paramref name="kind"/> from its root directory.
+    ///
+    /// <para>⚠⚠ <b>This method is NEW as of <c>CE-091</c>, and it is the one
+    /// <see cref="RefreshFromAssembly"/>'s summary has referenced since this class was written.</b>
+    /// 📐 Measured: the <c>&lt;see cref&gt;</c> pointed at nothing, and BOTH composition roots had
+    /// hand-rolled the same six-line kind-dispatch lambda in its place. ⇒ ⭐ the policy — which kind maps
+    /// to which contributor, and skipping when its root is unset — now lives here ONCE.</para>
+    ///
+    /// <para>⛔ A kind with no JSON contributor is a NO-OP, deliberately: Blueprint has none, and the two
+    /// AI kinds only have one when the host wired it. ⚠ That is absence-by-construction, not a swallowed
+    /// error — the caller cannot supply a refresh for a contributor it never built.</para>
+    ///
+    /// <para>⭐⭐⭐ <b><c>CE-095</c> (<c>J1</c> <c>K5</c>) — the MISSING-ROOT clause, which is the half
+    /// <c>CE-091</c> did not collapse.</b> 📐 Measured <c>2026-08-27</c>: this method existed for the CREATE
+    /// path and did NOT check the root exists, while both composition roots ALSO ran an
+    /// <c>if (Directory.Exists(root)) Refresh(...) else warn(...)</c> block of their own for the INITIAL
+    /// refresh. ⇒ ⛔ <b>two implementations of "refresh the JSON contributor for kind K"</b>, differing in
+    /// the one clause that matters — ruling 9, and <c>CE-091</c> only got half of it.</para>
+    ///
+    /// <para>⚠ <b>A missing root WARNS and does NOT refresh, deliberately.</b> ⛔ Refreshing anyway would
+    /// <i>empty</i> the contributor *(<c>Discover</c> clears its headers when the directory is gone)*, so a
+    /// root that disappears at runtime would silently drop every already-loaded asset. ⭐ Keeping the last
+    /// good set and saying so is the behaviour both hosts' inline copies had.</para>
+    /// </summary>
+    /// <param name="kind">The asset kind whose JSON contributor should re-scan.</param>
+    public void RefreshJsonContributors(AssetKind kind)
+    {
+        switch (kind)
+        {
+            case AssetKind.BTree: Invoke(_bTreeJsonRefresh, _bTreeJsonRootDir, "BTree"); break;
+            case AssetKind.Hsm:   Invoke(_hsmJsonRefresh,   _hsmJsonRootDir,   "HSM");   break;
+        }
+
+        // ⚠ The root is resolved AT CALL TIME, not captured: the hosts' own lambdas read a field that is
+        //   assigned during Initialize, so resolving eagerly here would freeze a null.
+        void Invoke(Action<string>? refresh, Func<string?>? rootDir, string label)
+        {
+            if (refresh == null) return;
+
+            var root = rootDir?.Invoke();
+
+            // ⛔ An UNSET root is silent, and stays silent: it means "this host has not resolved its roots
+            //    yet", which is a sequencing fact, not an operator-visible fault.
+            if (string.IsNullOrEmpty(root)) return;
+
+            // ⭐ A SET root that is not on disk is the operator-visible case — with ruling 67's configured
+            //   root it means the config points at a tree with no assets in it.
+            if (!Directory.Exists(root))
+            {
+                _warnMissingRoot?.Invoke($"{label} JSON root not found: {root}");
+                return;
+            }
+
+            refresh(root!);
+        }
     }
 }

@@ -4,6 +4,7 @@ using Fdp.Interfaces;
 using Fdp.ModuleHost.Abstractions;
 using Fdp.Toolkit.Replication.Services;
 using Hrot.MuscleCharacter.Animation.Components;
+using Fdp.Toolkit.Tkb.Domain;
 
 namespace Hrot.Animation.Replication.Translators.Descriptors;
 

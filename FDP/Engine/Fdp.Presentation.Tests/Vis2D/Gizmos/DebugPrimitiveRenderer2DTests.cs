@@ -1,3 +1,4 @@
+using Fdp.Presentation.Tests.Vis2D;
 using System.Collections.Generic;
 using System.Numerics;
 using Fdp.Core;
@@ -32,7 +33,9 @@ namespace Fdp.Toolkit.Vis2D.Tests.Gizmos
         /// <summary>Builds a RenderContext with the given zoom and layer mask.</summary>
         public static RenderContext MakeCtx(float zoom = 1f, uint layerMask = 0xFFFF_FFFFu)
         {
-            return new RenderContext { Zoom = zoom, VisibleLayersMask = layerMask };
+            return new RenderContext { Zoom = zoom, VisibleLayersMask = layerMask,
+                                       // 91d: production ALWAYS supplies a provider (MapCanvas:119).
+                                       Resources = HeadlessResourceProvider.Instance };
         }
 
         /// <summary>Creates a Map2D Line primitive on the given layer / ZIndex.</summary>

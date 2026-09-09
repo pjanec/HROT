@@ -1,9 +1,26 @@
 using System;
 using System.Numerics;
+using System.Text.Json.Nodes;
+using Fdp.Diagnostics.Contracts.Panels;
 using ImGuiNET;
 using Raylib_cs;
 
 namespace Hrot.IG.UI;
+
+/// <summary>⭐⭐⭐ U-obs-5 (group 6) — the whole of what <see cref="IgDebugPanel"/> shows, this frame.
+/// ⚠ A plain panel: no <see cref="PanelId"/>/<see cref="PanelKind"/> of its own — the HOST
+/// (<c>IgDebugWindow</c>) supplies both. ⚠ <c>FPS</c> is deliberately NOT modelled: it comes from
+/// <c>Raylib.GetFPS()</c>, a native call with no window in a headless test process — capturing it here
+/// would make <c>BuildViewModel</c> unsafe to call from a unit test, which is exactly the gotcha table's
+/// "CAPTURE … before anything ImGui-dependent" in reverse. The stateful diagnostics
+/// (<see cref="DebugPanelState"/>'s own fields) are all real and modelled.</summary>
+public sealed record IgDebugPanelViewModel(
+    string PanelId, string PanelKind, double CurrentSimTime, long CurrentWallTicks,
+    bool ForceHostile, bool HideLabels) : IPanelViewModel
+{
+    /// <inheritdoc/>
+    public JsonNode Dump() => PanelDump.Of(this);
+}
 
 /// <summary>
 /// ImGui panel providing operator debug controls for the IG session (IG.5.1).
@@ -43,6 +60,12 @@ public class IgDebugPanel
         DrawContent();
         ImGui.End();
     }
+
+    /// <summary>⭐⭐⭐ BUILD — a pure projection of <see cref="DebugPanelState"/>. No ImGui, no Raylib —
+    /// safe to call headless.</summary>
+    public IgDebugPanelViewModel BuildViewModel(string panelId, string panelKind) => new(
+        panelId, panelKind, _state.CurrentSimTime, _state.CurrentWallTicks,
+        _state.ForceHostile, _state.HideLabels);
 
     /// <summary>
     /// Renders the panel content without the outer <c>ImGui.Begin/End</c> wrapper.

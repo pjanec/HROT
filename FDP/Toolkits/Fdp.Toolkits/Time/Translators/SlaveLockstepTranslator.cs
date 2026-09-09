@@ -44,6 +44,13 @@ namespace Fdp.Toolkit.Time.Translators
         public long   SentSampleCount { get; private set; }
         public TranslatorDirection Direction => TranslatorDirection.Bidirectional;
 
+        /// <summary>
+        /// ⭐⭐⭐ <b>CONTROL PLANE</b> (<c>DQ30-C</c>) — the FrameOrder/FrameAck lockstep barrier — a granted STEP arrives here.
+        /// ⛔⛔ Letting this stop with the simulation is <c>DQ30-A</c>'s deadlock: the node would
+        /// freeze and never hear the command that un-freezes it.
+        /// </summary>
+        public TranslatorClass Category => TranslatorClass.ControlPlane;
+
         /// <summary>Creates the translator.</summary>
         /// <param name="participant">
         /// DDS domain participant.  Pass <see langword="null"/> in unit-test environments — both

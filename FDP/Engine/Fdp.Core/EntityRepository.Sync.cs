@@ -121,9 +121,30 @@ namespace Fdp.Core
             SyncSingletonById(source, GlobalComponentIds.RaycastBatchData); // AccurateLineOfSightTest ring-buffer reads
             SyncSingletonById(source, GlobalComponentIds.EqsSolverGlobalState); // per-tick accurate-LOS ray budget
 
-            // 4. Sync global version
-            // This ensures subsequent operations use the correct tick/version reference
-            _globalVersion = source._globalVersion;
+            // 4. Sync BOTH version clocks.
+            //
+            // ⭐⭐⭐ QA-030 — _simulationTick used to be left behind here, and that is a silent defect
+            //    with a wide blast radius: ISimulationView.Tick (EntityRepository.View.cs) reads
+            //    _simulationTick, NOT _globalVersion. A fresh EntityRepository starts both at 1, so
+            //    every SoD / background snapshot handed to a module system reported Tick == 1 FOREVER
+            //    while its GlobalVersion tracked the live world correctly.
+            //
+            // 📐 Measured 2026-08-26 (EditorHarness, EQS solver): the live repo advanced 1 -> 121 -> 241
+            //    over 240 pumped frames and the solver re-evaluated 37 times — every one of them seeing
+            //    view.Tick == 1. Two cross-tick mechanisms are built on that value and both were inert:
+            //      · EqsSolverSystem stamps EqsResultEvent.RefreshTick = tick + 1, so every publish
+            //        wrote the same LastUpdateTick and consumers could not tell one from the next;
+            //      · SensorEvalState.AwaitingSinceTick == currentTick is the _AwaitingRaycasts
+            //        skip-guard, so once a sensor entered that phase it could never leave it —
+            //        contradicting EQS_Design_v1.3_final.md:422 ("on subsequent ticks polls the
+            //        raycast result ring buffer for completion").
+            //
+            // ⚠ The class invariant (_globalVersion >= _simulationTick, EntityRepository.cs:65) held
+            //    throughout, which is why nothing asserted: advancing one clock and not the other keeps
+            //    the inequality true. The comment below this line already CLAIMED to sync "the correct
+            //    tick"; it only ever synced the version.
+            _globalVersion  = source._globalVersion;
+            _simulationTick = source._simulationTick;
         }
 
         /// <summary>

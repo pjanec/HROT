@@ -253,6 +253,60 @@ public sealed class ClusterSlaveTests
     }
 
     /// <summary>
+    /// ⭐⭐ A <see cref="ClusterSlave"/> registers the orchestration vocabulary on the bus it is
+    /// handed, so it can always publish what it publishes — <b>without</b> its host having
+    /// remembered to call <c>OrchestrationEventRegistry.RegisterAll</c>.
+    ///
+    /// <para>
+    /// 🔴 <b>The crash this locks.</b> Under <c>--mode all</c> each subsystem gets its OWN isolated
+    /// bus, so a <c>RegisterAll</c> in one subsystem's bootstrap does nothing for another's. CGF,
+    /// Editor and <c>HrotNodeBuilder</c> called it; <b>IG did not</b>. IG's first <c>Tick()</c>
+    /// published <c>NodeHeartbeatEvent</c> on an unregistered stream and strict mode took the whole
+    /// process down on frame one.
+    /// </para>
+    ///
+    /// <para>
+    /// ⚠ Asserts against <b>strict mode ON</b> — with it off, an unregistered publish auto-creates
+    /// the stream and the test would pass whether or not the fix exists.
+    /// </para>
+    /// </summary>
+    [Fact]
+    public void ClusterSlave_RegistersItsOwnEvents_OnABusItsHostNeverPrepared()
+    {
+        bool previous = FdpConfig.EnforceExplicitEventRegistration;
+        FdpConfig.EnforceExplicitEventRegistration = true;
+        try
+        {
+            // A bare bus — deliberately NOT passed through OrchestrationEventRegistry.RegisterAll,
+            // exactly as IgSubsystem's bus arrived.
+            var eventBus = new FdpEventBus();
+            using var slave = new ClusterSlave(7, "IG", eventBus);
+
+            Thread.Sleep(1100);
+
+            var ex = Record.Exception(() => slave.Tick());
+
+            Assert.Null(ex);   // was: InvalidOperationException "Strict Mode Violation"
+        }
+        finally
+        {
+            FdpConfig.EnforceExplicitEventRegistration = previous;
+        }
+    }
+
+    /// <summary>
+    /// A null bus means "no I/O" (the offline/test shape) — construction must stay silent rather
+    /// than trying to register anything.
+    /// </summary>
+    [Fact]
+    public void ClusterSlave_WithNoBus_ConstructsAndTicksWithoutThrowing()
+    {
+        using var slave = new ClusterSlave(1, "Headless", eventBus: null);
+
+        Assert.Null(Record.Exception(() => slave.Tick()));
+    }
+
+    /// <summary>
     /// CMC-S006 test 4: ClusterSlave(null) does not throw when Tick() is called with no bus.
     /// </summary>
     [Fact]

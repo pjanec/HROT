@@ -1,0 +1,137 @@
+{
+  "$meta": {
+    "docType": "Hrot.BTree",
+    "schemaVersion": 1
+  },
+  "AssetId": "bb000039-0000-0000-0000-000000000000",
+  "Name": "T39_TwoDistinctPrimitives",
+  "TargetNamespace": "Hrot.AI.Behaviors.Trees",
+  "BlackboardTypeName": "Fdp.Toolkit.Behavior.Components.BrainBlackboard",
+  "ContextTypeName": "Fdp.Toolkit.Behavior.BTreeContext",
+  "Nodes": [
+    {
+      "kind": "Root",
+      "VisualId": "bb390000-0000-0000-0000-000000000001",
+      "ChildVisualIds": [
+        "bb390000-0000-0000-0000-000000000002"
+      ],
+      "DisplayLabel": "Root",
+      "EditorMetadata": { "X": 300, "Y": 0, "Comment": null, "Collapsed": false, "Color": null }
+    },
+    {
+      "kind": "Parallel",
+      "VisualId": "bb390000-0000-0000-0000-000000000002",
+      "ChildVisualIds": [
+        "bb390000-0000-0000-0000-000000000003",
+        "bb390000-0000-0000-0000-000000000004",
+        "bb390000-0000-0000-0000-000000000005"
+      ],
+      "DisplayLabel": "Parallel",
+      "EditorMetadata": {
+        "X": 300,
+        "Y": 130,
+        "Comment": "BP-41 proof: RequireAll parallel re-executes every child every tick as long as none has reached Success (RunsNeeded=100 on the two stateful children), so all three composed AiPrimitives run in the same tick on the same entity, deterministically in child order.",
+        "Collapsed": false,
+        "Color": null
+      }
+    },
+    {
+      "kind": "Action",
+      "Action": {
+        "MethodFqn": "Hrot.AI.Behaviors.Brains.DemoAiPrimitiveNodes.TickCore",
+        "ExpressionTargetField": "bpParamsA",
+        "DelegateShape": "AiPrimitiveTickCore",
+        "WorkingStateTypeId": "Hrot.AI.Behaviors.Brains.DemoAiPrimitiveNodes+WorkingState"
+      },
+      "VisualId": "bb390000-0000-0000-0000-000000000003",
+      "ChildVisualIds": [],
+      "DisplayLabel": "PrimitiveA_Ticks",
+      "EditorMetadata": {
+        "X": 0,
+        "Y": 260,
+        "Comment": "Primitive A: WorkingState {int Ticks} = 4 bytes, Params {int RunsNeeded} = 4 bytes. Node-scoped (no WorkingStateTargetField), so its slot key is FNV-1a(assetId, THIS node's VisualId). Increments Ticks by 1 each tick.",
+        "Collapsed": false,
+        "Color": null
+      }
+    },
+    {
+      "kind": "Action",
+      "Action": {
+        "MethodFqn": "Hrot.AI.Behaviors.Brains.DemoAiPrimitiveNodesB.TickCore",
+        "ExpressionTargetField": "bpParamsB",
+        "DelegateShape": "AiPrimitiveTickCore",
+        "WorkingStateTypeId": "Hrot.AI.Behaviors.Brains.DemoAiPrimitiveNodesB+WorkingState"
+      },
+      "VisualId": "bb390000-0000-0000-0000-000000000004",
+      "ChildVisualIds": [],
+      "DisplayLabel": "PrimitiveB_Accumulator",
+      "EditorMetadata": {
+        "X": 300,
+        "Y": 260,
+        "Comment": "Primitive B: a DIFFERENT AiPrimitive type on the SAME entity. WorkingState {long Accumulator; int Steps} = 16 bytes and Params {int RunsNeeded; int Stride} = 8 bytes -- both larger than A's, so a provisioner that sized every slot from the first placement, or a bin-packer assuming one Params stride, corrupts this node rather than A.",
+        "Collapsed": false,
+        "Color": null
+      }
+    },
+    {
+      "kind": "Action",
+      "Action": {
+        "MethodFqn": "Hrot.AI.Behaviors.Generated.ParamDemo_CEFE162F_Bp.TickCore",
+        "ExpressionTargetField": "bpParamsC",
+        "DelegateShape": "AiPrimitiveTickCore",
+        "WorkingStateTypeId": "Hrot.AI.Behaviors.Generated.ParamDemo_CEFE162F_Bp+WorkingState"
+      },
+      "VisualId": "bb390000-0000-0000-0000-000000000005",
+      "ChildVisualIds": [],
+      "DisplayLabel": "PrimitiveC_RealGeneratedBlueprint",
+      "EditorMetadata": {
+        "X": 600,
+        "Y": 260,
+        "Comment": "Primitive C: a REAL blueprint-generated AiPrimitive (from ParamDemo.bp.json, the same one T33 composes alone) sharing the entity with the two hand-written stand-ins. Its Params {int Threshold; bool FlagA; bool FlagB} and EMPTY WorkingState are a third distinct layout -- including the zero-size working-state case. TickCore writes LocomotionChannel.ActiveAction=99 and bumps ActionInstanceId, which is how the test observes it dispatched.",
+        "Collapsed": false,
+        "Color": null
+      }
+    }
+  ],
+  "Pills": [],
+  "Canvas": { "PanX": 0, "PanY": 0, "Zoom": 1 },
+  "SubtreeSyncBindings": {},
+  "Suppressions": { "Conflict": [], "Unused": [] },
+  "Blackboard": {
+    "Managed": true,
+    "TypeName": "Fdp.Toolkit.Behavior.Components.BrainBlackboard",
+    "HeavyDtoType": null,
+    "Variables": [
+      {
+        "Name": "bpParamsA",
+        "Type": {
+          "TypeId": "Hrot.AI.Behaviors.Brains.DemoAiPrimitiveNodes+Params",
+          "IsArray": false,
+          "FixedLength": null
+        },
+        "DefaultValueJson": "{\"RunsNeeded\":100}",
+        "Comment": "Params for A. RunsNeeded=100 keeps the node Running for the whole test, so the Parallel re-executes it every tick."
+      },
+      {
+        "Name": "bpParamsB",
+        "Type": {
+          "TypeId": "Hrot.AI.Behaviors.Brains.DemoAiPrimitiveNodesB+Params",
+          "IsArray": false,
+          "FixedLength": null
+        },
+        "DefaultValueJson": "{\"RunsNeeded\":100,\"Stride\":7}",
+        "Comment": "Params for B. Stride=7 makes B's slot contents (7, 14, 21, ...) impossible to confuse with A's tick counter (1, 2, 3, ...), so cross-talk shows up as a wrong number rather than a coincidence."
+      },
+      {
+        "Name": "bpParamsC",
+        "Type": {
+          "TypeId": "Hrot.AI.Behaviors.Generated.ParamDemo_CEFE162F_Bp+Params",
+          "IsArray": false,
+          "FixedLength": null
+        },
+        "Comment": null,
+        "IsAutoManaged": true
+      }
+    ]
+  }
+}

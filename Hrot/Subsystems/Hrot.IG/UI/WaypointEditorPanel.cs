@@ -1,8 +1,21 @@
 ﻿using System;
+using System.Text.Json.Nodes;
+using Fdp.Diagnostics.Contracts.Panels;
 using Hrot.ScenarioEditor.Gizmos;
 using ImGuiNET;
 
 namespace Hrot.IG.UI;
+
+/// <summary>⭐⭐⭐ U-obs-5 (group 6) — the whole of what <see cref="WaypointEditorPanel"/> shows, this
+/// frame. ⚠ A plain panel: no <see cref="PanelId"/>/<see cref="PanelKind"/> of its own — the HOST
+/// (<c>IgWaypointEditorWindow</c>) supplies both.</summary>
+public sealed record WaypointEditorPanelViewModel(
+    string PanelId, string PanelKind, bool HasSelection, int SelectedVertexIndex,
+    float PositionX, float PositionY, float PositionZ, float TargetSpeed, string ExtensionJson) : IPanelViewModel
+{
+    /// <inheritdoc/>
+    public JsonNode Dump() => PanelDump.Of(this);
+}
 
 /// <summary>
 /// ImGui panel that exposes per-waypoint editing controls when a
@@ -88,6 +101,23 @@ public class WaypointEditorPanel
             ref var wp   = ref activeState.GetSelectedWaypointRef();
             _jsonBuffer  = wp.ExtensionJson ?? string.Empty;
         }
+    }
+
+    /// <summary>⭐⭐⭐ BUILD — a pure projection of the active gizmo's selected waypoint, if any. No
+    /// ImGui. ⭐ Reuses <see cref="UpdatePanelState"/>, the SAME cache refresh <see cref="DrawContent"/>
+    /// uses, so the model can never drift from what is drawn.</summary>
+    public WaypointEditorPanelViewModel BuildViewModel(string panelId, string panelKind)
+    {
+        var activeState = _getActiveState();
+        bool hasSelection = activeState?.SelectedVertexIndex >= 0;
+        UpdatePanelState(hasSelection ? activeState : null);
+
+        if (!hasSelection)
+            return new(panelId, panelKind, false, -1, 0f, 0f, 0f, 0f, string.Empty);
+
+        ref var wp = ref activeState!.GetSelectedWaypointRef();
+        return new(panelId, panelKind, true, activeState.SelectedVertexIndex,
+            wp.Position.X, wp.Position.Y, wp.Position.Z, wp.TargetSpeed, wp.ExtensionJson ?? string.Empty);
     }
 
     /// <summary>

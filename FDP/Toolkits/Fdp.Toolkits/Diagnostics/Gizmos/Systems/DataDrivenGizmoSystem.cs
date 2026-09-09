@@ -60,9 +60,12 @@ namespace Fdp.Toolkit.Diagnostics.Gizmos.Systems
         private readonly List<Entity> _entityList = new();
         private int _timeSliceOffset = 0;
 
-        // Exclusive-focus tracking: the single gizmo that captures all typed input events.
-        // null when no gizmo holds focus.
-        private IEntityStatefulGizmo? _focusedGizmo;
+        // ⭐⭐⭐ Exclusive-focus tracking. R-144 / §6.2b: the slot is a SHARED GizmoFocusRegistry, so
+        // "at most one exclusive focus per subsystem" holds across BOTH arbiters by construction rather
+        // than by ToolController convention. Every method takes `this` as the owner: the slot is shared,
+        // but ROUTING and BINDING EMISSION stay with the arbiter that granted it, or both arbiters would
+        // deliver the same event to the same gizmo twice.
+        private readonly GizmoFocusRegistry _focus;
 
         // Optional isolated interaction bus. When non-null, interaction events are read from
         // this bus instead of the world bus so that UI noise is quarantined.
@@ -88,11 +91,7 @@ namespace Fdp.Toolkit.Diagnostics.Gizmos.Systems
 
             _injectedGizmos[entity] = gizmo;
 
-            if ((gizmo.RequiresExclusiveFocus || gizmo.WantsRawInput) && _focusedGizmo == null)
-            {
-                _focusedGizmo = gizmo;
-                _focusedGizmo.SetFocus(true);
-            }
+            _focus.TryGrant(this, gizmo);
         }
 
         /// <summary>
@@ -103,11 +102,7 @@ namespace Fdp.Toolkit.Diagnostics.Gizmos.Systems
         {
             if (!_injectedGizmos.TryGetValue(entity, out var gizmo)) return;
 
-            if (_focusedGizmo == gizmo)
-            {
-                _focusedGizmo.SetFocus(false);
-                _focusedGizmo = null;
-            }
+            _focus.Release(gizmo);
 
             gizmo.Dispose();
             _injectedGizmos.Remove(entity);
@@ -119,17 +114,68 @@ namespace Fdp.Toolkit.Diagnostics.Gizmos.Systems
         /// </summary>
         public bool HasInjectedGizmo(Entity entity) => _injectedGizmos.ContainsKey(entity);
 
+        /// <summary>
+        /// ⭐⭐⭐ <b>SUSPEND the focus holder — <c>SetFocus(false)</c> WITHOUT the <c>Dispose()</c>.</b>
+        /// The entity-scoped twin of <c>GlobalGizmoManager.SuspendFocus</c>; see that method for the full
+        /// rationale (<c>UXI-07</c> / <c>Q27-F</c>).
+        ///
+        /// <para>⭐ The gizmo stays INJECTED, so it keeps drawing on its entity; it only stops holding
+        /// focus. ⚠ The suspend stack lives in <c>ToolController</c>, not here.</para>
+        /// </summary>
+        public IEntityStatefulGizmo? SuspendFocus()
+        {
+            return _focus.Suspend();
+        }
+
+        /// <summary>
+        /// ⭐ Give focus back to a gizmo previously returned by <see cref="SuspendFocus"/>.
+        /// ⛔ No-ops when that gizmo is no longer injected — it may have been deactivated while suspended.
+        /// </summary>
+        public void ResumeFocus(IEntityStatefulGizmo? gizmo)
+        {
+            if (gizmo == null) return;
+
+            bool stillInjected = false;
+            foreach (var kvp in _injectedGizmos)
+            {
+                if (kvp.Value == gizmo) { stillInjected = true; break; }
+            }
+            if (!stillInjected) return;
+
+            _focus.Resume(this, gizmo);
+        }
+
+        /// <summary>
+        /// ⭐⭐⭐ Cancel and dispose ONLY the current focus holder — the entity-scoped twin of
+        /// <c>GlobalGizmoManager.CancelFocused</c>. See that method for why a stack POP must not use
+        /// <see cref="CancelInteractiveTools"/> (it would destroy the gizmo the push just suspended).
+        /// </summary>
+        public void CancelFocused()
+        {
+            var gizmo = _focus.TakeForCancel();
+            if (gizmo == null) return;
+
+            gizmo.OnCancel();
+
+            Entity? key = null;
+            foreach (var kvp in _injectedGizmos)
+            {
+                if (kvp.Value == gizmo) { key = kvp.Key; break; }
+            }
+            if (key.HasValue) _injectedGizmos.Remove(key.Value);
+
+            gizmo.Dispose();
+        }
+
         // Synchronously cancels and disposes all injected (on-demand) gizmos.
         // Called by GizmoExecutionController when the last terminal disconnects.
         public void CancelInteractiveTools()
         {
             foreach (var kvp in _injectedGizmos)
             {
-                if (kvp.Value == _focusedGizmo)
-                {
-                    _focusedGizmo.SetFocus(false);
-                    _focusedGizmo = null;
-                }
+                // ⚠ Release only if THIS gizmo holds the shared slot; the sweep must not reach into a
+                //   holder the other arbiter granted (§6.2b ②).
+                _focus.Release(kvp.Value);
                 kvp.Value.OnCancel();
                 kvp.Value.Dispose();
             }
@@ -164,7 +210,8 @@ namespace Fdp.Toolkit.Diagnostics.Gizmos.Systems
             Func<ISimulationView, Entity, bool>? isSelectedPredicate = null,
             GizmoUndoStack? undoStack = null,
             FdpEventBus? interactionBus = null,
-            IActiveViewProvider? breakpointManager = null)
+            IActiveViewProvider? breakpointManager = null,
+            GizmoFocusRegistry? focus = null)
         {
             _registry             = registry    ?? throw new ArgumentNullException(nameof(registry));
             _drawBuilder          = drawBuilder ?? throw new ArgumentNullException(nameof(drawBuilder));
@@ -174,7 +221,14 @@ namespace Fdp.Toolkit.Diagnostics.Gizmos.Systems
             _undoStack            = undoStack;
             _interactionBus       = interactionBus;
             _breakpointManager    = breakpointManager;
+            _focus                = focus ?? new GizmoFocusRegistry();
         }
+
+        /// <summary>
+        /// ⭐⭐ The focus slot this arbiter arbitrates over — <c>R-144</c> / §6.2b.
+        /// ⛔ Sharing is asserted through this: <c>ReferenceEquals(global.Focus, dataDriven.Focus)</c>.
+        /// </summary>
+        public GizmoFocusRegistry Focus => _focus;
 
         // ---- IEcsModuleSystem -----------------------------------------------------
 
@@ -287,12 +341,8 @@ namespace Fdp.Toolkit.Diagnostics.Gizmos.Systems
                         RuleIndex  = rule.RuleIndex,
                     });
 
-                    // Grant exclusive focus if the gizmo requests it.
-                    if ((instance.RequiresExclusiveFocus || instance.WantsRawInput) && _focusedGizmo == null)
-                    {
-                        _focusedGizmo = instance;
-                        _focusedGizmo.SetFocus(true);
-                    }
+                    // Grant exclusive focus if the gizmo requests it and the shared slot is free.
+                    _focus.TryGrant(this, instance);
                 }
             }
 
@@ -328,14 +378,13 @@ namespace Fdp.Toolkit.Diagnostics.Gizmos.Systems
                         gi.Instance.UpdateAndDraw(activeView, deltaTime, _drawBuilder);
                         buf.StampGizmoTypeId(mark, gi.Definition.GizmoTypeId);
                         // Emit InputCaptureBinding for the exclusive-focus holder.
-                        if (gi.Instance == _focusedGizmo &&
-                            (_focusedGizmo.RequiresExclusiveFocus || _focusedGizmo.WantsRawInput))
+                        if (_focus.ShouldEmitBinding(this, gi.Instance))
                         {
                             var binding = DebugPrimitive.MakeInputCaptureBinding(
                                 networkId: (long)entity.Index,
                                 subElementId: 0,
-                                exclusive: _focusedGizmo.RequiresExclusiveFocus,
-                                wantsRawInput: _focusedGizmo.WantsRawInput);
+                                exclusive: gi.Instance.RequiresExclusiveFocus,
+                                wantsRawInput: gi.Instance.WantsRawInput);
                             binding.AnchorGeneration = (ushort)entity.Generation;
                             _drawBuilder.EmitRaw(in binding);
                         }
@@ -371,14 +420,13 @@ namespace Fdp.Toolkit.Diagnostics.Gizmos.Systems
                         gi.Instance.UpdateAndDraw(activeView, deltaTime, _drawBuilder);
                         ((DebugPrimitiveBuffer)_drawBuilder).StampGizmoTypeId(mark, gi.Definition.GizmoTypeId);
                         // Emit InputCaptureBinding for the exclusive-focus holder.
-                        if (gi.Instance == _focusedGizmo &&
-                            (_focusedGizmo.RequiresExclusiveFocus || _focusedGizmo.WantsRawInput))
+                        if (_focus.ShouldEmitBinding(this, gi.Instance))
                         {
                             var binding = DebugPrimitive.MakeInputCaptureBinding(
                                 networkId: (long)entity.Index,
                                 subElementId: 0,
-                                exclusive: _focusedGizmo.RequiresExclusiveFocus,
-                                wantsRawInput: _focusedGizmo.WantsRawInput);
+                                exclusive: gi.Instance.RequiresExclusiveFocus,
+                                wantsRawInput: gi.Instance.WantsRawInput);
                             binding.AnchorGeneration = (ushort)entity.Generation;
                             _drawBuilder.EmitRaw(in binding);
                         }
@@ -403,14 +451,13 @@ namespace Fdp.Toolkit.Diagnostics.Gizmos.Systems
                     kvp.Value.UpdateAndDraw(activeView, deltaTime, _drawBuilder);
                     ((DebugPrimitiveBuffer)_drawBuilder).StampGizmoTypeId(mark, injTypeId);
                     // Emit InputCaptureBinding for the exclusive-focus holder.
-                    if (kvp.Value == _focusedGizmo &&
-                        (_focusedGizmo.RequiresExclusiveFocus || _focusedGizmo.WantsRawInput))
+                    if (_focus.ShouldEmitBinding(this, kvp.Value))
                     {
                         var binding = DebugPrimitive.MakeInputCaptureBinding(
                             networkId: (long)kvp.Key.Index,
                             subElementId: 0,
-                            exclusive: _focusedGizmo.RequiresExclusiveFocus,
-                            wantsRawInput: _focusedGizmo.WantsRawInput);
+                            exclusive: kvp.Value.RequiresExclusiveFocus,
+                            wantsRawInput: kvp.Value.WantsRawInput);
                         binding.AnchorGeneration = (ushort)kvp.Key.Generation;
                         _drawBuilder.EmitRaw(in binding);
                     }
@@ -449,12 +496,9 @@ namespace Fdp.Toolkit.Diagnostics.Gizmos.Systems
             {
                 var gizmo = FindGizmo(evt.Token.Target, evt.Token.GizmoTypeId);
                 if (gizmo == null) continue;
-                if ((gizmo.RequiresExclusiveFocus || gizmo.WantsRawInput) && _focusedGizmo != gizmo)
-                {
-                    _focusedGizmo?.SetFocus(false);
-                    _focusedGizmo = gizmo;
-                    _focusedGizmo.SetFocus(true);
-                }
+                // ⭐ Behaviour ③ — the STEAL: touching a gizmo gives it the input, whatever held it.
+                //   The one focus behaviour with no GlobalGizmoManager counterpart (§6.2b).
+                _focus.GrantStealing(this, gizmo);
                 gizmo.OnInteractionStarted(ToGizmoToken(evt.Token), evt.WorldPos);
             }
 
@@ -462,7 +506,7 @@ namespace Fdp.Toolkit.Diagnostics.Gizmos.Systems
             var drags = bus.Read<GizmoDragUpdateEvent>();
             foreach (ref readonly var evt in drags)
             {
-                var gizmo = _focusedGizmo ?? FindGizmo(evt.Token.Target, evt.Token.GizmoTypeId);
+                var gizmo = Recipient(evt.Token);
                 gizmo?.OnDragUpdate(evt.WorldPos);
             }
 
@@ -470,7 +514,7 @@ namespace Fdp.Toolkit.Diagnostics.Gizmos.Systems
             var commits = bus.Read<GizmoInteractionCommitEvent>();
             foreach (ref readonly var evt in commits)
             {
-                var gizmo = _focusedGizmo ?? FindGizmo(evt.Token.Target, evt.Token.GizmoTypeId);
+                var gizmo = Recipient(evt.Token);
                 gizmo?.OnCommit(evt.WorldPos);
             }
 
@@ -478,7 +522,7 @@ namespace Fdp.Toolkit.Diagnostics.Gizmos.Systems
             var cancels = bus.Read<GizmoInteractionCancelEvent>();
             foreach (ref readonly var evt in cancels)
             {
-                var gizmo = _focusedGizmo ?? FindGizmo(evt.Token.Target, evt.Token.GizmoTypeId);
+                var gizmo = Recipient(evt.Token);
                 gizmo?.OnCancel();
             }
 
@@ -506,7 +550,7 @@ namespace Fdp.Toolkit.Diagnostics.Gizmos.Systems
             var mouseEvents = bus.Read<GizmoMouseEvent>();
             foreach (ref readonly var evt in mouseEvents)
             {
-                var gizmo = _focusedGizmo ?? FindGizmo(evt.Token.Target, evt.Token.GizmoTypeId);
+                var gizmo = Recipient(evt.Token);
                 gizmo?.OnMouseEvent(evt.Button, evt.IsPressed, evt.WorldPos);
             }
 
@@ -514,9 +558,21 @@ namespace Fdp.Toolkit.Diagnostics.Gizmos.Systems
             var keyEvents = bus.Read<GizmoKeyEvent>();
             foreach (ref readonly var evt in keyEvents)
             {
-                (_focusedGizmo ?? FindGizmo(evt.Token.Target, evt.Token.GizmoTypeId))?.OnKeyEvent(evt.Key, evt.IsPressed);
+                Recipient(evt.Token)?.OnKeyEvent(evt.Key, evt.IsPressed);
             }
         }
+
+        /// <summary>
+        /// ⭐⭐⭐ <b>THE routing rule: the focus holder receives un-anchored input</b> — <c>R-144</c>,
+        /// §6.2b ⑨. Holder FIRST, the entity lookup only as the second arm.
+        ///
+        /// <para>⛔⛔ <b>This is not a "fallback" and the order is load-bearing.</b> Raw-input tokens carry
+        /// <c>GizmoTypeId == 0</c> because <c>MakeInputCaptureBinding</c> never stamps one, so
+        /// <see cref="FindGizmo"/> can essentially never match for them — the holder arm is the ONLY
+        /// working delivery path for raw mouse and keyboard here.</para>
+        /// </summary>
+        private IEntityStatefulGizmo? Recipient(PickToken token)
+            => _focus.RecipientFor(this, () => FindGizmo(token.Target, token.GizmoTypeId));
 
         // Converts the ECS-based PickToken to the ECS-free GizmoPickToken used by
         // IGizmoInteractionHandler. Index maps to AnchorId; Generation maps to StreamId.
@@ -618,11 +674,7 @@ namespace Fdp.Toolkit.Diagnostics.Gizmos.Systems
             {
                 if (list[i].RuleIndex != ruleIndex) continue;
                 var gizmo = list[i].Instance;
-                if (_focusedGizmo == gizmo)
-                {
-                    _focusedGizmo.SetFocus(false);
-                    _focusedGizmo = null;
-                }
+                _focus.Release(gizmo);
                 gizmo.Dispose();
                 list.RemoveAt(i);
             }
@@ -638,11 +690,7 @@ namespace Fdp.Toolkit.Diagnostics.Gizmos.Systems
             // Also tear down any injected on-demand gizmo for this entity.
             if (_injectedGizmos.TryGetValue(entity, out var injected))
             {
-                if (_focusedGizmo == injected)
-                {
-                    _focusedGizmo.SetFocus(false);
-                    _focusedGizmo = null;
-                }
+                _focus.Release(injected);
                 injected.Dispose();
                 _injectedGizmos.Remove(entity);
             }
@@ -653,11 +701,7 @@ namespace Fdp.Toolkit.Diagnostics.Gizmos.Systems
             foreach (var gi in list)
             {
                 // Clear focus if this entity's gizmo held it.
-                if (_focusedGizmo == gi.Instance)
-                {
-                    _focusedGizmo.SetFocus(false);
-                    _focusedGizmo = null;
-                }
+                _focus.Release(gi.Instance);
                 gi.Instance.Dispose();
             }
 

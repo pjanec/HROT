@@ -1,11 +1,27 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.Numerics;
+using System.Text.Json.Nodes;
 using ImGuiNET;
+using Fdp.Diagnostics.Contracts.Panels;
 using Hrot.UI.Common.Facades;
 using Hrot.UI.Common.Models;
 
 namespace Hrot.UI.Common.Panels;
+
+/// <summary>⭐⭐⭐ U-obs-5 — the whole of what <see cref="SharedOrbatPanel"/> shows, this frame. ⚠ See
+/// <c>ConfigPanel</c>'s remarks for the group-5 twin finding — ironically this is the very panel
+/// <c>docs/projects/Hrot/Engine/Hrot.UI.Common.md</c> names as the example of the intended sharing that
+/// never actually happened at the assembly level. ⭐ <see cref="Nodes"/> is dumped as-is — already a
+/// flat, delegate-free DTO.</summary>
+public sealed record SharedOrbatPanelViewModel(
+    string PanelId, string PanelKind, string FilterText,
+    IReadOnlyList<int> ExpandedNodeIds, IReadOnlyList<OrbatNodeViewModel> Nodes) : IPanelViewModel
+{
+    /// <inheritdoc/>
+    public JsonNode Dump() => PanelDump.Of(this);
+}
 
 /// <summary>
 /// Shared ORBAT (Order of Battle) tree panel.
@@ -42,6 +58,15 @@ public sealed class SharedOrbatPanel
 
     /// <summary>Set of expanded node IDs managed by this panel instance.</summary>
     public IReadOnlySet<int> ExpandedNodes => _expandedNodes;
+
+    // ── Public BUILD entry point (U-obs-5) ───────────────────────────────
+    /// <summary>⭐⭐⭐ BUILD — a pure projection of the visible tree. No ImGui. ⭐ Calls
+    /// <c>data.GetVisibleNodes</c>, the SAME source <see cref="DrawContent"/> reads.</summary>
+    public SharedOrbatPanelViewModel BuildViewModel(IOrbatDataProvider data, string panelId, string panelKind)
+    {
+        var nodes = data.GetVisibleNodes(_filterText, _expandedNodes);
+        return new SharedOrbatPanelViewModel(panelId, panelKind, _filterText, _expandedNodes.ToList(), nodes);
+    }
 
     // ── Render ────────────────────────────────────────────────────────────────
 

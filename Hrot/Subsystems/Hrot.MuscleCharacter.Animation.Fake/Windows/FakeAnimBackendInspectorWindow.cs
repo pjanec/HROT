@@ -1,10 +1,28 @@
 using System;
+using System.Text.Json.Nodes;
 using ImGuiNET;
 using Fdp.Core;
+using Fdp.Diagnostics.Contracts.Panels;
 using Fdp.Presentation.WindowManager;
 using Hrot.MuscleCharacter.Animation.Fake.Components;
 
 namespace Hrot.MuscleCharacter.Animation.Fake.Windows;
+
+/// <summary>⭐⭐⭐ U-obs-5 (group 6) — the whole of what <see cref="FakeAnimBackendInspectorWindow"/>
+/// shows, this frame. ⭐ Captures the header (entity count) and the selected entity's summary (active
+/// slot count, generation, total ticks) — the same fields <see cref="DrawEntityList"/> and
+/// <see cref="DrawSelectedEntityDetail"/>'s own header line already read. ⛔ Not the full per-slot /
+/// per-tab table: that is a boxed <c>FakeAnimBackendState</c> struct with fixed-size inline arrays —
+/// "project the displayed shape by hand", not reflected — and this panel already exposes an equivalent
+/// full dump via its own "Copy JSON Snapshot" button (<see cref="BuildJsonSnapshot"/>), so re-deriving
+/// it here would be the SAME state modelled twice.</summary>
+public sealed record FakeAnimBackendInspectorPanelViewModel(
+    string PanelId, string PanelKind, int EntityCount, bool HasSelection, int SelectedEntityIndex,
+    int SelectedActiveSlotCount, uint SelectedGeneration, long SelectedTotalTicks) : IPanelViewModel
+{
+    /// <inheritdoc/>
+    public JsonNode Dump() => PanelDump.Of(this);
+}
 
 /// <summary>
 /// ANC-P1-09: ImGui diagnostic window for FakeAnimationBackend inspection.
@@ -15,12 +33,15 @@ namespace Hrot.MuscleCharacter.Animation.Fake.Windows;
 /// </summary>
 public sealed class FakeAnimBackendInspectorWindow : ManagedWindow
 {
+    internal const string Kind = "anim-backend-inspector";
+
     private EntityRepository? _repo;
     private int _selectedEntityIndex = -1;
 
     public FakeAnimBackendInspectorWindow()
         : base("anim_backend_inspector", "Animation Backend Inspector", "Authoring", WindowScope.PerspectiveBound)
     {
+        PanelSnapshot.DeclareInstrumented(Id);
     }
 
     public void SetBackend(EntityRepository repo)
@@ -28,8 +49,43 @@ public sealed class FakeAnimBackendInspectorWindow : ManagedWindow
         _repo = repo;
     }
 
+    /// <summary>⭐⭐⭐ BUILD — a pure projection of <see cref="_repo"/> and the current selection. No
+    /// ImGui — safe to call headless.</summary>
+    private FakeAnimBackendInspectorPanelViewModel BuildViewModel()
+    {
+        var repo = _repo;
+        if (repo == null) return new(Id, Kind, 0, false, -1, 0, 0, 0);
+
+        var query = repo.Query().With<FakeAnimBackendState>().Build();
+        int count = 0;
+        foreach (var _ in query) count++;
+
+        if (_selectedEntityIndex < 0) return new(Id, Kind, count, false, -1, 0, 0, 0);
+
+        foreach (var e in repo.Query().With<FakeAnimBackendState>().Build())
+        {
+            if (e.Index != _selectedEntityIndex) continue;
+            ref readonly var state = ref repo.GetComponentRO<FakeAnimBackendState>(e);
+            return new(Id, Kind, count, true, _selectedEntityIndex,
+                CountActiveSlots(in state), state.Generation, state.TotalTicks);
+        }
+
+        return new(Id, Kind, count, false, _selectedEntityIndex, 0, 0, 0);   // selected entity no longer present
+    }
+
+    private FakeAnimBackendInspectorPanelViewModel BuildAndPublish()
+    {
+        var vm = BuildViewModel();
+        if (PanelSnapshot.CaptureEnabled) PanelSnapshot.Register(vm);
+        return vm;
+    }
+
+    internal FakeAnimBackendInspectorPanelViewModel SimulateDrawClientArea() => BuildAndPublish();
+
     protected override void DrawClientArea()
     {
+        BuildAndPublish();
+
         var repo = _repo;
         if (repo == null)
         {

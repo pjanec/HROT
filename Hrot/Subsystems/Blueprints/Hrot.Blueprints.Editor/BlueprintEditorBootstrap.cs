@@ -36,7 +36,8 @@ public static class BlueprintEditorBootstrap
         Func<string?>? currentClassProvider = null,
         ISharedStructTypeProvider? sharedStructTypeProvider = null,
         IComponentTypeProvider? componentTypeProvider = null,
-        IComponentTypeProvider? writableComponentTypeProvider = null)
+        IComponentTypeProvider? writableComponentTypeProvider = null,
+        IBlueprintPeerProvider? peerProvider = null)
     {
         sharedStructTypeProvider     ??= new ReflectionSharedStructTypeProvider();
         componentTypeProvider        ??= new ReflectionComponentTypeProvider();
@@ -52,6 +53,10 @@ public static class BlueprintEditorBootstrap
 
         // BATCH-03D1: Register FunctionCallNode drawer
         registry.Register(typeof(FunctionCallNode), new FunctionCallNodeDrawer(editService));
+
+        // BP-89: outputs are declared on the result node (Unreal parity) — the Return node's
+        // Details panel previously fell back to a read-only summary with no way to add outputs.
+        registry.Register(typeof(ReturnNode), new ReturnNodeDrawer(editService));
 
         // Typed literal nodes: Inspector editor for the literal value (one widget per TypeId)
         registry.Register(typeof(LiteralNode), new LiteralNodeDrawer(editService));
@@ -73,6 +78,18 @@ public static class BlueprintEditorBootstrap
         // CA-04: SetComponentNode -- same picker mechanism as GetComponentNode, but over the
         // WRITABLE-only provider ([BlueprintWritable]-gated), see ComponentNodeDrawers.cs.
         registry.Register(typeof(SetComponentNode), new SetComponentNodeDrawer(editService, writableComponentTypeProvider));
+
+        // BP-05…BP-08: four node kinds that compiled and ran but had no Details-panel editor at all,
+        // so whatever the palette baked at creation was permanent. Each reuses a catalog that was
+        // already in the editor; none needed new discovery machinery.
+        registry.Register(typeof(ReadRankedResultNode), new ReadRankedResultNodeDrawer(editService));
+        registry.Register(typeof(WaitForChannelNode),   new WaitForChannelNodeDrawer(channelCatalog, editService));
+        registry.Register(typeof(CallCustomEventNode),  new CallCustomEventNodeDrawer(editService));
+        registry.Register(typeof(CallPeerBlueprintNode), new CallPeerBlueprintNodeDrawer(editService, peerProvider));
+
+        // BP-108: Print String / Format String -- Format (text) + Level/ResultTypeId (combo).
+        registry.Register(typeof(PrintStringNode), new PrintStringNodeDrawer(editService));
+        registry.Register(typeof(FormatStringNode), new FormatStringNodeDrawer(editService));
 
         // ANC-P5-08a: Register PlayMontageChainNode drawer (if animation queries available)
         if (animationQueries != null && currentClassProvider != null)
@@ -164,6 +181,17 @@ public static class BlueprintEditorBootstrap
         // ItemCount). No type provider needed -- these nodes have no picker of their own; their
         // ComponentTypeFqn/accessor FQNs are baked on WIRE by BlueprintCommandSink, not at creation.
         foreach (var descriptor in ComponentPaletteEntries.ConsumerEntries())
+            registry.Register(descriptor);
+
+        // FC-1 (Q#20): register the six static collection WRITE entries (Add/SetAt/InsertAt/
+        // RemoveAt/Clear/Resize). Same no-picker wire-bake shape as the consumers; the two
+        // writability gates act at wire time in BlueprintCommandSink.
+        foreach (var descriptor in ComponentPaletteEntries.CollectionWriteEntries())
+            registry.Register(descriptor);
+
+        // FC-2/LV-3: register the six fixed-list VARIABLE write entries (same six verbs, bound
+        // to a declared list variable via VariableId instead of a wired component collection).
+        foreach (var descriptor in ComponentPaletteEntries.ListWriteEntries())
             registry.Register(descriptor);
 
         return registry;
@@ -264,7 +292,20 @@ public static class BlueprintEditorBootstrap
         if (string.IsNullOrEmpty(assemblyLocation))
             return recipes;
 
-        var recipesPath = Path.Combine(assemblyLocation, AssetRoots.RecipesRelative(AssetKind.Blueprint));
+        // ⭐⭐⭐ CE-094 (J1) — RULING 67 REACHES THE RECIPES TOO.
+        //
+        // 🔴 What was here: `Path.Combine(assemblyLocation, RecipesRelative(Blueprint))` — the directory
+        //    the AI.Behaviors DLL happens to sit in. ⇒ ⛔ on a node TOLD where its tree lives
+        //    (`--asset-root`), blueprint ASSETS came from the configured tree while blueprint RECIPES came
+        //    from the bin directory: the same split brain ruling 67 exists to close, in a member the
+        //    ruling's own sweep missed. 📐 Found by J1's `AssetsRelative`/`RecipesRelative` scan.
+        //
+        // ⭐ `RecipesFor` is `AbsoluteBase + RecipesRelative(kind)` with `AbsoluteBase = ConfiguredRoot ??
+        //    AppContext.BaseDirectory` ⇒ ⚠ with no config it is the previous behaviour for any normal
+        //    deployment (the DLL sits beside the host); with config it is the configured tree.
+        //    ⛔ The assembly probe above STAYS: it answers a different question — "is AI.Behaviors even
+        //    loaded" — and returning an empty list when it is not is deliberate.
+        var recipesPath = AssetRoots.RecipesFor(AssetKind.Blueprint);
         if (!Directory.Exists(recipesPath))
             return recipes;
 

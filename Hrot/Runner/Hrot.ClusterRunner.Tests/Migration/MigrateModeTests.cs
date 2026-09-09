@@ -293,4 +293,124 @@ public sealed class MigrateModeTests
             Directory.Delete(dir, true);
         }
     }
+
+    // ── U-10 step 3: the blueprint bump, end to end ───────────────────────
+
+    /// <summary>
+    /// ⭐⭐ <b>"The migrator is registered" is not "the migrator runs."</b> Everything else about the
+    /// blueprint chain is proved against a registry this test suite builds; this drives the real
+    /// <c>--mode migrate</c> profile — <c>BuildClusterRunnerMigrate</c>, the persistent adapter, the
+    /// file on disk — over an actual v1 blueprint.
+    /// </summary>
+    [Fact]
+    public async Task RunAsync_V1Blueprint_MigratesToV2OnDisk()
+    {
+        string dir = CreateTempDir();
+        try
+        {
+            // A minimal but CANONICAL v1 blueprint: all three lists, in model order.
+            const string v1 = @"{
+  ""$meta"": { ""docType"": ""Hrot.Blueprints"", ""schemaVersion"": 1 },
+  ""Name"": ""MigrateModeProbe"",
+  ""Parameters"": [],
+  ""ParameterOrder"": null,
+  ""WorkingState"": [],
+  ""WorkingStateOrder"": null,
+  ""Variables"": [ { ""Id"": ""a0000006-0000-0000-0000-000000000001"", ""Name"": ""Count"" } ],
+  ""VariableOrder"": null
+}";
+            string path = Path.Combine(dir, "probe.bp.json");
+            await File.WriteAllTextAsync(path, v1);
+
+            var output = new StringWriter();
+            int exitCode = await CreateMode(BuildServices(), dir, output).RunAsync();
+
+            Assert.Equal(0, exitCode);
+            Assert.Contains("1 migrated", output.ToString());
+
+            // ⭐ The file on disk is v2: stamped, tagged, and the three v1 lists are gone.
+            var dom = System.Text.Json.Nodes.JsonNode.Parse(await File.ReadAllTextAsync(path))!.AsObject();
+            Assert.Equal(2, dom["$meta"]!["schemaVersion"]!.GetValue<int>());
+            var declarations = dom["Declarations"]!.AsArray();
+            Assert.Single(declarations);
+            Assert.Equal("Variable", declarations[0]!["Kind"]!.GetValue<string>());
+            Assert.False(dom.ContainsKey("Variables"));
+        }
+        finally
+        {
+            Directory.Delete(dir, true);
+        }
+    }
+
+    /// <summary>
+    /// ⭐ <b>The revert, exercised through the tool.</b> ⛔ <c>git revert</c> cannot reach a
+    /// <c>.bp.json</c> outside the repo — a designer's working file written as v2 by a newer editor
+    /// and then opened by an older build. The down-migrator is what puts it back, and
+    /// <c>--target-version 1</c> is how an operator runs it.
+    /// </summary>
+    [Fact]
+    public async Task RunAsync_V2Blueprint_DownMigratesToV1OnDisk()
+    {
+        string dir = CreateTempDir();
+        try
+        {
+            const string v2 = @"{
+  ""$meta"": { ""docType"": ""Hrot.Blueprints"", ""schemaVersion"": 2 },
+  ""Name"": ""RevertProbe"",
+  ""Declarations"": [ { ""Kind"": ""Variable"", ""Id"": ""a0000006-0000-0000-0000-000000000001"", ""Name"": ""Count"" } ],
+  ""ParameterOrder"": null,
+  ""WorkingStateOrder"": null,
+  ""VariableOrder"": null
+}";
+            string path = Path.Combine(dir, "revert.bp.json");
+            await File.WriteAllTextAsync(path, v2);
+
+            var output = new StringWriter();
+            int exitCode = await CreateMode(BuildServices(), dir, output, targetVersion: 1).RunAsync();
+
+            Assert.Equal(0, exitCode);
+
+            var dom = System.Text.Json.Nodes.JsonNode.Parse(await File.ReadAllTextAsync(path))!.AsObject();
+            Assert.Equal(1, dom["$meta"]!["schemaVersion"]!.GetValue<int>());
+            Assert.False(dom.ContainsKey("Declarations"));
+            Assert.Single(dom["Variables"]!.AsArray());
+            Assert.Empty(dom["Parameters"]!.AsArray());
+        }
+        finally
+        {
+            Directory.Delete(dir, true);
+        }
+    }
+
+    /// <summary>
+    /// ⚠ <b><c>BP-241</c>: a non-canonical v1 file is REPORTED, not repaired — and the run continues.</b>
+    /// ⭐ That is C1, which was already implemented; C2's <c>--canonicalise</c> opt-in is deliberately
+    /// NOT in this batch (see the Batch 55 report). This pins the behaviour an operator gets today.
+    /// </summary>
+    [Fact]
+    public async Task RunAsync_NonCanonicalV1Blueprint_IsReportedAndTheRunContinues()
+    {
+        string dir = CreateTempDir();
+        try
+        {
+            // ⛔ No WorkingState list — one of Batch 54's four refused shapes.
+            const string broken = @"{
+  ""$meta"": { ""docType"": ""Hrot.Blueprints"", ""schemaVersion"": 1 },
+  ""Name"": ""Broken"", ""Parameters"": [], ""Variables"": []
+}";
+            await File.WriteAllTextAsync(Path.Combine(dir, "broken.bp.json"), broken);
+            await File.WriteAllTextAsync(Path.Combine(dir, "fine.json"), V1ScenarioJson);
+
+            var output = new StringWriter();
+            int exitCode = await CreateMode(BuildServices(), dir, output).RunAsync();
+
+            Assert.Equal(1, exitCode);                          // non-zero: CI notices
+            Assert.Contains("1 failed", output.ToString());     // named and counted
+            Assert.Contains("1 migrated", output.ToString());   // ⭐ the other file still migrated
+        }
+        finally
+        {
+            Directory.Delete(dir, true);
+        }
+    }
 }

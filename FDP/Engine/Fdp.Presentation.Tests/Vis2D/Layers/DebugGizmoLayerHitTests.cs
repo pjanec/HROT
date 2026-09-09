@@ -1,3 +1,4 @@
+using Fdp.Presentation.Tests.Vis2D;
 // SC-GZ026: Geometry-aware hit-testing in DebugGizmoLayer.
 using System.Numerics;
 using Fdp.Core;
@@ -16,7 +17,9 @@ namespace Fdp.Toolkit.Vis2D.Tests.Layers
 
         private static RenderContext MakeCtx(float zoom = 1f)
         {
-            return new RenderContext { Zoom = zoom, VisibleLayersMask = 0xFFFF_FFFFu };
+            return new RenderContext { Zoom = zoom, VisibleLayersMask = 0xFFFF_FFFFu,
+                                       // 91d: production ALWAYS supplies a provider (MapCanvas:119).
+                                       Resources = HeadlessResourceProvider.Instance };
         }
 
         private static DebugGizmoLayer MakeLayer(DebugPrimitive prim, out FdpEventBus bus, float zoom = 1f)

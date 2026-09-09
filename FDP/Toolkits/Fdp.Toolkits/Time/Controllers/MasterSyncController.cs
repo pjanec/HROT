@@ -37,6 +37,17 @@ namespace Fdp.Toolkit.Time.Controllers
         private float  _pendingStepDelta;
         private float  _pendingUnscaledStepDelta;
 
+        // ── Deferred steps (AS-14) ───────────────────────────────────────────
+        // A step requested while the previous step's ACKs are still outstanding used to be
+        // DISCARDED, with no signal to the caller: N step requests produced ONE step's worth of
+        // sim time.  It is now QUEUED here and drained the moment the ACK set clears, so a request
+        // can be late but never silently lost.  Bounded by TimeConfig.MaxQueuedSteps: a slave that
+        // has stopped ACKing altogether must not accumulate an unbounded burst that all fires at
+        // once when it returns — past the bound the request is REFUSED AUDIBLY (warning + counter)
+        // rather than absorbed.
+        private readonly Queue<float> _queuedStepDeltas = new();
+        private long _refusedStepCount;
+
         // ── Infrastructure ───────────────────────────────────────────────────
         private readonly FdpEventBus _eventBus;
         private readonly TimeConfig  _config;
@@ -56,11 +67,32 @@ namespace Fdp.Toolkit.Time.Controllers
         /// Optional override for <c>HighResUtcClock.GetTicks</c>. Inject a controlled counter
         /// in unit tests to avoid <c>Thread.Sleep</c>.
         /// </param>
+        /// <param name="startPaused">
+        /// ⭐⭐⭐ <b><c>CE-101</c> — boot with the cluster PAUSED instead of free-running.</b>
+        ///
+        /// <para>🔴 <b>Measured `2026-08-28` on `--mode all`:</b> the cluster's clock started by itself
+        /// ~2 s after boot and ran at ~1× real time with <b>no scenario loaded and zero entities</b>.
+        /// 🔒 User: <i>"simulation time is running from the beginning. Undesired, should start paused."</i></para>
+        ///
+        /// <para>⭐⭐ <b>The cause is that the baseline broadcast below is ALSO a command.</b> It exists to give
+        /// late-joining slaves a t=0 anchor (see its comment) — but <c>ClusterTimeObservation.Apply</c> derives
+        /// <c>PauseRequested = (TargetMode == Deterministic)</c>, so announcing <c>Continuous</c> in that anchor
+        /// tells the whole cluster to RUN. ⛔ Two meanings on one message, and only one of them was intended.</para>
+        ///
+        /// <para>⚠⚠ <b>And it silently disabled STEPPING</b> (<c>CE-105</c>): <see cref="Step"/> is REFUSED in any
+        /// mode but <c>Stepping</c>, so every <c>POST /sim/step</c> on a freshly booted cluster was dropped with
+        /// a warning — the pause-step-inspect loop the debug API documents could not work at all.</para>
+        ///
+        /// <para>⛔ <b>Opt-in, and deliberately so.</b> A runtime deployment that should come up running keeps
+        /// today's behaviour; an operator/authoring host (<c>--mode all</c>) asks for paused. ⚠ The anchor is
+        /// still broadcast either way — it is load-bearing for clock alignment and is NOT removed.</para>
+        /// </param>
         public MasterSyncController(
             FdpEventBus          eventBus,
             HashSet<int>?        slaveNodeIds = null,
             TimeConfig?          config       = null,
-            Func<long>?          tickSource   = null)
+            Func<long>?          tickSource   = null,
+            bool                 startPaused  = false)
         {
             _eventBus       = eventBus ?? throw new ArgumentNullException(nameof(eventBus));
             _config         = config ?? TimeConfig.Default;
@@ -86,14 +118,27 @@ namespace Fdp.Toolkit.Time.Controllers
             // holds a valid reference for late-joining slaves.  Without this, IG and ExCon
             // that boot 200–500 ms after the Orchestrator have no anchor point and start their
             // clocks from an independent t=0, producing a permanent startup offset.
+            // ⭐⭐⭐ CE-101 — the MODE this anchor announces is a COMMAND, so it follows `startPaused`.
+            //    ⛔ `Deterministic` is what "paused" IS on this cluster: ClusterTimeObservation.Apply sets
+            //       `PauseRequested = (TargetMode == Deterministic)`, and ClusterTimeTransportAdapter.IsPaused
+            //       reads exactly that. ⇒ announcing it is what makes every node's UI say "paused".
+            //    ⭐ And `_mode` moves with it: Step() refuses anything but Stepping (CE-105), and a master that
+            //      announced Deterministic while still accumulating wall time in Continuous would be lying.
+            if (startPaused)
+                _mode = MasterMode.Stepping;
+
             _eventBus.Publish(new SwitchTimeModeEvent
             {
-                TargetMode       = TimeMode.Continuous,
+                TargetMode       = startPaused ? TimeMode.Deterministic : TimeMode.Continuous,
                 BarrierWallTicks = _totalWallTicks,
                 SimTimeSnapshot  = 0.0,
                 TimeScale        = _timeScale,
                 FixedDelta       = 0f,
             });
+
+            Fdp.Core.Logging.FdpLog<MasterSyncController>.Info(
+                "[TC3][Master] Boot time mode = {0} (startPaused={1}). Press play / POST /sim/play to run.",
+                startPaused ? "Deterministic (paused)" : "Continuous (running)", startPaused);
         }
 
         // ── ITimeController ──────────────────────────────────────────────────
@@ -179,20 +224,120 @@ namespace Fdp.Toolkit.Time.Controllers
 
         // ── ISteppableTimeController ─────────────────────────────────────────
 
+        /// <summary>Number of step requests currently deferred behind outstanding ACKs (AS-14).</summary>
+        public int QueuedStepCount => _queuedStepDeltas.Count;
+
+        /// <summary>
+        /// True while a step has been issued and at least one slave has not acknowledged it (`T6`).
+        ///
+        /// <para>Distinguishes "mid-step, waiting on the cluster" from "paused and idle". Both are
+        /// deterministic mode and both report a zero delta, so without this they are the same state
+        /// from outside — and they are not: one is waiting on something and will proceed, the other
+        /// will not move until the operator asks.</para>
+        /// </summary>
+        public bool IsAwaitingStepAcks => _mode == MasterMode.Stepping && _pendingAcks.Count > 0;
+
+        /// <summary>
+        /// True during the Future Barrier window: the operator's pause has been broadcast and the
+        /// master's sim time is ALREADY frozen, but the barrier has not yet been crossed so the
+        /// controller is not in <c>Stepping</c> mode (`T7`).
+        ///
+        /// <para><b>Why it has to be exposed.</b> <see cref="GetMode()"/> deliberately answers
+        /// <c>Continuous</c> for this whole window — 200 ms by default — because the pending barrier
+        /// is an implementation detail. That is fine for "which protocol am I speaking", and wrong
+        /// for "why is time stopped": in the window the clock reports a zero delta and every probe
+        /// says "nothing is holding it", so <c>HaltReasonResolver</c> answered <c>Unknown</c>. This
+        /// is the missing probe its <c>Unknown</c> documentation predicted.</para>
+        /// </summary>
+        public bool IsPauseBarrierPending => _mode == MasterMode.BarrierPending;
+
+        /// <summary>
+        /// Number of step requests REFUSED since construction — because the controller was not in
+        /// <c>Stepping</c> mode, or because the deferral queue was already full. A non-zero value
+        /// means the caller asked for motion it did not get; it is paired with a logged warning.
+        /// </summary>
+        public long RefusedStepCount => _refusedStepCount;
+
         /// <summary>
         /// Advances one deterministic step of <paramref name="fixedDelta"/> seconds.
-        /// Only valid in <c>Stepping</c> mode — silently returns current state in other modes.
-        /// Blocked while the previous step's <see cref="FrameStepCompletedEvent"/> ACKs are
-        /// still outstanding (non-empty <c>_pendingAcks</c>).
+        ///
+        /// <para>Only valid in <c>Stepping</c> mode; a call in any other mode is REFUSED — it
+        /// returns the current state, logs a warning and increments
+        /// <see cref="RefusedStepCount"/>.</para>
+        ///
+        /// <para>While the previous step's <see cref="FrameStepCompletedEvent"/> ACKs are still
+        /// outstanding the step cannot be issued — a lockstep cluster must not run ahead of its
+        /// slaves. It is therefore QUEUED (see <see cref="QueuedStepCount"/>) and applied by
+        /// <c>UpdateStepping</c> as soon as the ACK set clears, rather than discarded. Past
+        /// <see cref="TimeConfig.MaxQueuedSteps"/> the request is refused audibly.</para>
         /// </summary>
         public GlobalTime Step(float fixedDelta)
         {
-            if (_mode != MasterMode.Stepping)
+            // `T7`: a step pressed inside the Future Barrier window is a step the operator asked for
+            // AFTER pausing — the pause is broadcast and sim time is already frozen, the cluster has
+            // simply not reached the barrier yet. Refusing it dropped the request for the first
+            // 200 ms after every pause, which is precisely when an operator presses step. It goes in
+            // the SAME queue AS-14 built, and UpdateStepping releases it on the first frame past the
+            // barrier.
+            if (_mode == MasterMode.BarrierPending)
+            {
+                if (_queuedStepDeltas.Count >= _config.MaxQueuedSteps)
+                {
+                    _refusedStepCount++;
+                    Fdp.Core.Logging.FdpLog<MasterSyncController>.Warn(
+                        "[TimeSync] STEP REFUSED: deferral queue is full ({0}) while the pause " +
+                        "barrier is still pending. Delta={1:F4}s dropped (refusals so far={2}).",
+                        _config.MaxQueuedSteps, fixedDelta, _refusedStepCount);
+                    return GetCurrentState();
+                }
+
+                _queuedStepDeltas.Enqueue(fixedDelta);
+                Fdp.Core.Logging.FdpLog<MasterSyncController>.Info(
+                    "[TimeSync] STEP QUEUED: pause barrier still pending. Delta={0:F4}s, queued={1}.",
+                    fixedDelta, _queuedStepDeltas.Count);
                 return GetCurrentState();
+            }
+
+            if (_mode != MasterMode.Stepping)
+            {
+                _refusedStepCount++;
+                Fdp.Core.Logging.FdpLog<MasterSyncController>.Warn(
+                    "[TimeSync] STEP REFUSED: controller is in {0} mode, not Stepping. " +
+                    "Delta={1:F4}s dropped (refusals so far={2}).",
+                    _mode, fixedDelta, _refusedStepCount);
+                return GetCurrentState();
+            }
 
             if (_pendingAcks.Count > 0)
-                return GetCurrentState();
+            {
+                if (_queuedStepDeltas.Count >= _config.MaxQueuedSteps)
+                {
+                    _refusedStepCount++;
+                    Fdp.Core.Logging.FdpLog<MasterSyncController>.Warn(
+                        "[TimeSync] STEP REFUSED: deferral queue is full ({0}) and nodes [{1}] " +
+                        "have not ACKed. Delta={2:F4}s dropped (refusals so far={3}).",
+                        _config.MaxQueuedSteps, string.Join(", ", _pendingAcks),
+                        fixedDelta, _refusedStepCount);
+                    return GetCurrentState();
+                }
 
+                _queuedStepDeltas.Enqueue(fixedDelta);
+                Fdp.Core.Logging.FdpLog<MasterSyncController>.Info(
+                    "[TimeSync] STEP QUEUED: awaiting ACKs from [{0}]. Delta={1:F4}s, queued={2}.",
+                    string.Join(", ", _pendingAcks), fixedDelta, _queuedStepDeltas.Count);
+                return GetCurrentState();
+            }
+
+            return ExecuteStep(fixedDelta);
+        }
+
+        /// <summary>
+        /// Issues one deterministic step unconditionally: advances the master's own time state,
+        /// publishes <see cref="AdvanceFrameIntent"/> and re-arms the ACK set. Callers must have
+        /// established that the controller is in <c>Stepping</c> mode with no outstanding ACKs.
+        /// </summary>
+        private GlobalTime ExecuteStep(float fixedDelta)
+        {
             _frameNumber++;
             float scaledDelta       = fixedDelta * _timeScale;
             _totalTime             += scaledDelta;
@@ -292,11 +437,17 @@ namespace Fdp.Toolkit.Time.Controllers
                 return;
 
             Fdp.Core.Logging.FdpLog<MasterSyncController>.Info(
-                "[TimeSync] RESUME. SimTime: {0}, Cleared {1} pending ACK(s).",
+                "[TimeSync] RESUME. SimTime: {0}, Cleared {1} pending ACK(s), dropped {2} queued step(s).",
                 TimeSpan.FromSeconds(_totalTime).ToString(@"hh\:mm\:ss\.fff"),
-                _pendingAcks.Count);
+                _pendingAcks.Count,
+                _queuedStepDeltas.Count);
 
             _pendingAcks.Clear();
+
+            // A step deferred during THIS pause is meaningless once time is free-running again —
+            // releasing it into the next pause would step a cluster the operator did not ask to
+            // step. Dropping is stated in the log above, so it is still not silent.
+            _queuedStepDeltas.Clear();
 
             _pendingBarrierWallTicks = -1;
             double simTimeSnapshot   = _totalTime;
@@ -341,6 +492,7 @@ namespace Fdp.Toolkit.Time.Controllers
             _totalTime         = targetSimTime;
             _mode              = MasterMode.Stepping;
             _pendingAcks       = new HashSet<int>();
+            _queuedStepDeltas.Clear();
 
             _expectedSlaves.Clear();
             if (slaveNodeIds != null)
@@ -421,6 +573,20 @@ namespace Fdp.Toolkit.Time.Controllers
             }
 
             _totalWallTicks += elapsedTicks;
+
+            // AS-14: the ACK set is clear, so a step deferred while it was outstanding may now be
+            // issued. Exactly one per frame — the next one waits for this one's ACKs, which is the
+            // whole point of the guard. Must run BEFORE _pendingStepDelta is drained below so the
+            // released step's delta is reported in this frame's GlobalTime, exactly as a directly
+            // issued step would be.
+            if (_pendingAcks.Count == 0 && _queuedStepDeltas.Count > 0)
+            {
+                float queued = _queuedStepDeltas.Dequeue();
+                Fdp.Core.Logging.FdpLog<MasterSyncController>.Info(
+                    "[TimeSync] STEP RELEASED from queue. Delta={0:F4}s, still queued={1}.",
+                    queued, _queuedStepDeltas.Count);
+                ExecuteStep(queued);
+            }
 
             float dt = _pendingStepDelta;
             float unscaledDt = _pendingUnscaledStepDelta;

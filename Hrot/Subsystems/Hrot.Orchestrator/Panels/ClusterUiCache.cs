@@ -45,10 +45,18 @@ public sealed class ClusterUiCache : IDisposable
     public double      MasterSimTime          =>
         _localTimeController != null
             ? _localTimeController.GetCurrentState().TotalTime
-            : _networkSimTime;
-    public long        MasterWallTicks        { get; private set; }
-    public float       MasterTimeScale        { get; private set; } = 1f;
-    public bool        IsPaused               { get; private set; }
+            : _clusterTime.ResumeSimTime;
+    public long        MasterWallTicks        => _clusterTime.BarrierWallTicks;
+    public float       MasterTimeScale        => _clusterTime.TimeScale;
+
+    /// <summary>
+    /// The cluster's last pause DECISION — see <see cref="ClusterTimeObservation.PauseRequested"/>,
+    /// which this forwards. `T7` measured the distinction that the old name hides: on the
+    /// Orchestrator this turns over with the master's frozen sim time, and on ExCon it runs ahead of
+    /// the local slave clock by the barrier window. It is not "my clock is stopped" — for that, ask
+    /// <c>ISimClock.IsAdvancing</c>.
+    /// </summary>
+    public bool        IsPaused               => _clusterTime.PauseRequested;
 
     public IReadOnlyDictionary<int, NodeHeartbeat> ActiveNodes => _activeNodes;
     public IReadOnlyList<DistributedTransaction>   TxHistory   => _txHistory;
@@ -96,7 +104,11 @@ public sealed class ClusterUiCache : IDisposable
     private readonly HashSet<Guid>                            _activeEpisodes = new();
     private readonly ClusterMasterPlanner                       _planner = new ClusterMasterPlanner(HrotStateGraph.Build());
     private readonly ITimeController?                         _localTimeController;
-    private double                                            _networkSimTime;
+
+    // `T7`: the SwitchTimeModeEvent fold, shared with ClusterTimeTransportAdapter. The two classes
+    // are different roles on different nodes — no node constructs both — but they folded the same
+    // event with the same four lines, and that half was genuine duplicate code.
+    private readonly ClusterTimeObservation                   _clusterTime  = new();
 
     public ClusterUiCache(FdpEventBus bus, ITimeController? localTimeController = null)
     {
@@ -173,16 +185,7 @@ public sealed class ClusterUiCache : IDisposable
     private void DrainTimeMode()
     {
         foreach (var ev in _bus.Read<SwitchTimeModeEvent>())
-        {
-            var isDeterministic = ev.TargetMode == TimeMode.Deterministic;
-            IsPaused = isDeterministic;
-            if (ev.TimeScale > 0f)
-                MasterTimeScale = ev.TimeScale;
-            if (ev.BarrierWallTicks > 0)
-                MasterWallTicks = ev.BarrierWallTicks;
-            if (!isDeterministic && ev.SimTimeSnapshot > 0.0)
-                _networkSimTime = ev.SimTimeSnapshot;
-        }
+            _clusterTime.Apply(ev);
     }
 
     private void Process2PcNetworkTraffic()

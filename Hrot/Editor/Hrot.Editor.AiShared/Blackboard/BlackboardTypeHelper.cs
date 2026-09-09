@@ -10,9 +10,15 @@ public static class BlackboardTypeHelper
     // Returns the C# alias name for known primitives; otherwise Type.Name.
     // Examples: typeof(float) -> "float", typeof(int) -> "int", typeof(Vector3) -> "Vector3"
     public static string GetDisplayName(Type t)
-        => BlackboardDtoEmitter.TypeAliases.TryGetValue(t, out string? alias)
-            ? alias
-            : t.Name;
+    {
+        if (BlackboardDtoEmitter.TypeAliases.TryGetValue(t, out string? alias))
+            return alias;
+        // FC-3a (Q#21-A1/B1): a recognized fixed-list wrapper displays as "List<T>[N]" in the
+        // Variables panel (display-only v1) instead of its raw wrapper struct name.
+        if (BlackboardFieldClassifier.TryGetFixedListShape(t, out var elem, out int capacity))
+            return $"List<{GetDisplayName(elem)}>[{capacity}]";
+        return t.Name;
+    }
 
     // Maps display names to their CLR types for the known primitive and vector types.
     private static readonly Dictionary<string, Type> _primitiveTypes = new()

@@ -74,8 +74,9 @@ data-centric publish/subscribe communication. Key concepts:
 |                   FDP Simulation Process                      |
 |                                                               |
 |  +---------------------+   +--------------------------+      |
-|  | CycloneNetworkModule |   | DdsIdAllocatorServer     |      |
-|  |  (IEcsModule)       |   |  (optional, one per sim) |      |
+|  | NedReplicationModule|   | DdsIdAllocatorServer     |      |
+|  | / BdcReplication... |   |  (optional, one per sim) |      |
+|  |  (IReplicationModule)|  |                          |      |
 |  +---------+-----------+   +----------+---------------+      |
 |            |                          |                       |
 |            v                          v                       |
@@ -204,7 +205,18 @@ All types live under the root namespace `Fdp.Network.Cyclone`.
 
 | File | Type | Description |
 |------|------|-------------|
-| `Modules/CycloneNetworkModule.cs` | `class CycloneNetworkModule` | Root `IEcsModule`. Constructs and registers all systems, serialization providers, and the gateway system. Also contains the inner class `CycloneNetworkIngressSystem` (a thin shim used when the module is wired without the full `CycloneIngressSystem`). |
+| `Systems/CycloneNetworkIngressSystem.cs` | `class CycloneNetworkIngressSystem` | Polls every translator's `PollIngress`. ⭐ Carries `DQ30-C`'s `IsWorldStateFrozen` gate, which CGF sets on each instance it finds through `Kernel.SystemScheduler`. 📐 Constructed at **23 production sites across 12 files** — the translator packs and the four hosts. ⚠ Namespace is still `Fdp.Network.Cyclone.Modules` *(unchanged by the `AX-021` file move)*. |
+
+> ⛔⛔ **`CycloneNetworkModule` was DELETED `2026-08-26` (`AX-021`).** This table used to describe it as the
+> *"Root `IEcsModule`"* that *"constructs and registers all systems"*. 📐 Measured: it was constructed
+> **nowhere** — zero production and zero test sites — and had been **superseded by per-domain composite
+> modules**, `NedReplicationModule` and `BdcReplicationModule` *(both `IReplicationModule`, both obtained from
+> a node's network factory)*. ⭐ Those are **role-aware** and bundle the tightly-coupled lifecycle systems,
+> including the `CycloneNetworkCleanupSystem` the deleted module explicitly refused to register.
+>
+> ⚠ **Why it stayed invisible:** the live `CycloneNetworkIngressSystem` shared its file, so the FILE was
+> always referenced and no unused-file sweep could flag the module beside it.
+> 📄 Full measurement: `docs/blueprints/Architect_Question_59_Attribute_Vocabulary_Single_Source.md` §13.
 
 ### Namespace `Fdp.Network.Cyclone.Providers`
 
@@ -266,7 +278,11 @@ All types live under the root namespace `Fdp.Network.Cyclone`.
 
 ## Public API Reference
 
-### CycloneNetworkModule
+### ⛔ CycloneNetworkModule — **DELETED `2026-08-26` (`AX-021`)**
+
+> ⚠ The API reference below is HISTORY, kept so a reader meeting the name in an old document can resolve
+> it. ⭐ Use `networkFactory.CreateReplicationModule()` → `NedReplicationModule` / `BdcReplicationModule`.
+
 
 ```csharp
 public class CycloneNetworkModule : IEcsModule
@@ -624,7 +640,9 @@ var entityStateTranslator = new MyEntityStateTranslator(
     entityMap,
     ordinal: 1);
 
-var module = new CycloneNetworkModule(
+// ⛔ AX-021: DELETED. Historical snippet.
+var // ⛔ AX-021: DELETED. Historical snippet.
+module = new CycloneNetworkModule(
     participant,
     nodeMapper,
     idAllocator,
@@ -878,7 +896,7 @@ server.Dispose();
 | `Fdp.Toolkits` (Fdp.Interfaces) | Defines the translator interfaces (`INetworkTranslator`, `IDescriptorTranslator`, `INetworkEventTranslator`), `ISerializationProvider`, `INetworkIdAllocator`, and `INetworkTopology`. |
 | `Fdp.Toolkits` (Fdp.Toolkit.Replication) | Provides `NetworkEntityMap` (toolkit version), `NetworkGatewaySystem`, `GhostCreationSystem`, `UnsafeLayout<T>`, `MultiInstanceLayout<T>`, `OwnershipExtensions`, and replication ECS components (`NetworkTransform`, `NetworkVelocity`, `NetworkIdentity`, `NetworkOwnership`, `ForceNetworkPublish`, `ChildMap`, `PartMetadata`). |
 | `Fdp.Toolkit.Lifecycle` | Provides `EntityLifecycleModule` and lifecycle events such as `DestructionOrder` that `CycloneNetworkCleanupSystem` listens for. |
-| `Fdp.Toolkit.NetworkSpawning` | Provides `INetworkIdAllocator` (consumed by `CycloneNetworkModule`) and ghost spawning utilities. |
+| `Fdp.Toolkit.NetworkSpawning` | Provides `INetworkIdAllocator` (consumed by the per-domain replication modules) and ghost spawning utilities. |
 | `Fdp.Network.Cyclone.Tests` | Unit and integration tests for this project. Uses `InternalsVisibleTo` to access internal types. Includes mock simulation views and in-process `DdsIdAllocatorServer` tests. |
 | `Fdp.Examples.NetworkDemo` | Example project demonstrating multi-node entity replication using this transport. |
 | `Fdp.Examples.DDS` | Example project demonstrating raw DDS publish/subscribe patterns on top of `CycloneDDS.NET`. |

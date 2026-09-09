@@ -1,9 +1,35 @@
+using System.Text.Json.Nodes;
 using ImGuiNET;
 using Fdp.Core.Logging;
+using Fdp.Diagnostics.Contracts.Panels;
 using Hrot.UI.Common.Facades;
 using Hrot.UI.Common.Models;
 
 namespace Hrot.UI.Common.Panels;
+
+/// <summary>
+/// ⭐⭐⭐ <b>U-obs-5 — the whole of what <see cref="ConfigPanel"/> shows, this frame.</b>
+/// 📄 <c>docs/DESIGN_UI_Observability_Snapshot.md</c> §Example.
+///
+/// <para>⚠⚠ <b>Group 5 twin finding — read before touching this file.</b> This CLASS is physically
+/// duplicated in the (unreferenced, not in any <c>.sln</c>) <c>Hrot.UI.Common</c> PROJECT under the
+/// same path shape, but both copies declare namespace <c>Hrot.UI.Common.Panels</c> — the copy that
+/// actually SHIPS is this one, compiled into <c>Hrot.Presentation.dll</c> (which <c>Hrot.Editor</c> and
+/// <c>Hrot.ExCon</c> both reference). The <c>Hrot.UI.Common</c> project itself has zero
+/// <c>ProjectReference</c>s anywhere in the repo — measured, and confirmed against
+/// <c>docs/projects/Hrot/Engine/Hrot.UI.Common.md</c>'s own intent (a shared hexagonal-ports library
+/// meant to be referenced, not source-copied). ⇒ only THIS copy is converted; the orphaned project's
+/// copy is left untouched and reported as a finding for the coordinator (ruling-9 question: delete the
+/// dead project, or wire it up as a real reference and delete this copy).</para>
+/// </summary>
+public sealed record ConfigPanelViewModel(
+    string PanelId, string PanelKind,
+    bool SatelliteLayer, bool GroundUnits, bool AirUnits, bool Vehicles,
+    bool TacticalGraphics, bool RoadGraphs, bool Grid, float IconScale) : IPanelViewModel
+{
+    /// <inheritdoc/>
+    public JsonNode Dump() => PanelDump.Of(this);
+}
 
 /// <summary>
 /// Shared UI panel that lets the operator configure the map layer visibility interactively.
@@ -91,6 +117,12 @@ public sealed class ConfigPanel
         FdpLog<ConfigPanel>.Debug("[Node-{0}] Config: Applying config state", _localNodeId);
         ctrl.ApplyConfig(new MapLayerState(_satelliteLayer, _groundUnits, _airUnits, _vehicles, _tacticalGraphics, _roadGraphs, _grid));
     }
+
+    // ── Public BUILD entry point (U-obs-5) ───────────────────────────────
+    /// <summary>⭐⭐⭐ BUILD — a pure projection of current state. No ImGui.</summary>
+    public ConfigPanelViewModel BuildViewModel(string panelId, string panelKind) => new(
+        panelId, panelKind, _satelliteLayer, _groundUnits, _airUnits, _vehicles,
+        _tacticalGraphics, _roadGraphs, _grid, _iconScale);
 
     // ── Draw ──────────────────────────────────────────────────────────────────
 

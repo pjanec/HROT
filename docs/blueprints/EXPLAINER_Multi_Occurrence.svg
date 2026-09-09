@@ -1,0 +1,158 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1000 700" width="1000" height="700" font-family="Segoe UI, Helvetica, Arial, sans-serif">
+  <style>
+    .h1 { font-size:15px; fill:#1b1f24; font-weight:700; }
+    .h2 { font-size:11.5px; fill:#ffffff; font-weight:700; letter-spacing:.3px; }
+    .lb { font-size:11.5px; fill:#1b1f24; font-weight:700; }
+    .t  { font-size:11px; fill:#1b1f24; }
+    .tb { font-size:11px; fill:#1b1f24; font-weight:600; }
+    .s  { font-size:9.5px; fill:#57606a; }
+    .m  { font-size:9.5px; fill:#0a3069; font-family:ui-monospace, Consolas, monospace; }
+    .ok  { fill:#e9f5e9; stroke:#4a8a3c; stroke-width:1.4; rx:4; }
+    .bad { fill:#fdecea; stroke:#c0392b; stroke-width:1.5; rx:4; }
+    .warn{ fill:#fff4e0; stroke:#bf8700; stroke-width:1.4; rx:4; }
+    .box { fill:#ffffff; stroke:#8c959f; stroke-width:1.1; rx:4; }
+    .lane{ fill:#f6f8fa; stroke:#8c959f; stroke-width:1; rx:4; }
+  </style>
+  <rect width="1000" height="700" fill="#ffffff"/>
+
+  <text x="16" y="24" class="h1">Multi-occurrence — when one thing runs more than once, who gets their own bytes?</text>
+  <text x="16" y="42" class="s">Same problem in three costumes. BTree already solved it; blueprints solved half; HSM has not started. Measured on HEAD, 2026-08-16.</text>
+
+  <!-- HOST HEADERS -->
+  <rect x="138" y="56" width="280" height="22" fill="#2f6fbf" rx="4"/>
+  <text x="148" y="71" class="h2">BLUEPRINT Instance</text>
+  <rect x="426" y="56" width="280" height="22" fill="#4a8a3c" rx="4"/>
+  <text x="436" y="71" class="h2">BTree</text>
+  <rect x="714" y="56" width="270" height="22" fill="#c0392b" rx="4"/>
+  <text x="724" y="71" class="h2">HSM</text>
+
+  <!-- ROW: what runs more than once -->
+  <text x="16" y="100" class="lb">What runs</text>
+  <text x="16" y="114" class="lb">&gt;1 at a time?</text>
+
+  <rect x="138" y="86" width="280" height="52" class="box"/>
+  <text x="148" y="104" class="tb">several ASSETS on one entity</text>
+  <text x="148" y="120" class="s">4 slots (1024) … 16 slots (16384)</text>
+  <text x="148" y="133" class="s">attached, stacking, all ticked</text>
+
+  <rect x="426" y="86" width="280" height="52" class="box"/>
+  <text x="436" y="104" class="tb">many NODES of one action type</text>
+  <text x="436" y="120" class="s">inside one tree</text>
+  <text x="436" y="133" class="s">sequential within a tick</text>
+
+  <rect x="714" y="86" width="270" height="52" class="box"/>
+  <text x="724" y="104" class="tb">several REGIONS, same tick</text>
+  <text x="724" y="120" class="s">ActiveLeafIds[4] — genuinely</text>
+  <text x="724" y="133" class="s">concurrent, plus ancestor chains</text>
+
+  <!-- ROW: STATE -->
+  <rect x="16" y="148" width="968" height="118" class="lane"/>
+  <text x="26" y="168" class="lb">STATE</text>
+  <text x="26" y="184" class="s">per-occurrence</text>
+  <text x="26" y="197" class="s">scratch</text>
+  <text x="26" y="220" class="s">Does each</text>
+  <text x="26" y="233" class="s">occurrence get</text>
+  <text x="26" y="246" class="s">its own bytes?</text>
+
+  <rect x="138" y="158" width="280" height="98" class="warn"/>
+  <text x="148" y="176" class="tb">◑ HALF</text>
+  <text x="148" y="194" class="t">own allocated slot per ASSET</text>
+  <text x="148" y="210" class="m">slot.BlueprintId = blueprintId</text>
+  <text x="148" y="228" class="s">free-list + bump, zeroed on attach,</text>
+  <text x="148" y="241" class="s">per-slot StructureHash</text>
+  <text x="148" y="254" class="s">⛔ SAME asset twice ⇒ collapses</text>
+
+  <rect x="426" y="158" width="280" height="98" class="ok"/>
+  <text x="436" y="176" class="tb">✅ SOLVED — the template</text>
+  <text x="436" y="194" class="t">own slot per NODE</text>
+  <text x="436" y="210" class="m">FNV-1a(assetGuid, nodeVisualId)</text>
+  <text x="436" y="228" class="s">provisioned at activation into the</text>
+  <text x="436" y="241" class="s">BlueprintBlackboard partitions</text>
+  <text x="436" y="254" class="s">Scope: Node / Behavior / Entity</text>
+
+  <rect x="714" y="158" width="270" height="98" class="bad"/>
+  <text x="724" y="176" class="tb">⛔ NONE</text>
+  <text x="724" y="194" class="t">one static offset, per entity</text>
+  <text x="724" y="210" class="m">hash(method @ fieldOffset)</text>
+  <text x="724" y="228" class="s">no region, no state, no instance</text>
+  <text x="724" y="241" class="s">anywhere in the address</text>
+  <text x="724" y="254" class="s">⇒ concurrent regions overwrite</text>
+
+  <!-- ROW: PARAMS -->
+  <rect x="16" y="274" width="968" height="112" class="lane"/>
+  <text x="26" y="294" class="lb">PARAMS</text>
+  <text x="26" y="310" class="s">the authored</text>
+  <text x="26" y="323" class="s">inputs</text>
+  <text x="26" y="346" class="s">One struct per</text>
+  <text x="26" y="359" class="s">BEHAVIOUR —</text>
+  <text x="26" y="372" class="s">everywhere.</text>
+
+  <rect x="138" y="284" width="280" height="92" class="warn"/>
+  <text x="148" y="302" class="tb">◑ RULED, not yet built</text>
+  <text x="148" y="320" class="s">today: Instances have NO params</text>
+  <text x="148" y="338" class="t">ruling: params go IN THE SLOT</text>
+  <text x="148" y="354" class="m">[Cursor 16][Params N][State M]</text>
+  <text x="148" y="370" class="s">⇒ per-instance params, isolated</text>
+
+  <rect x="426" y="284" width="280" height="92" class="bad"/>
+  <text x="436" y="302" class="tb">⛔ per-behaviour only</text>
+  <text x="436" y="320" class="s">ONE params struct in the shared</text>
+  <text x="436" y="333" class="s">100-byte BrainBlackboard region</text>
+  <text x="436" y="352" class="s">two nodes of the same action bind</text>
+  <text x="436" y="365" class="s">the SAME field ⇒ same bytes</text>
+
+  <rect x="714" y="284" width="270" height="92" class="bad"/>
+  <text x="724" y="302" class="tb">⛔ per-behaviour only</text>
+  <text x="724" y="320" class="s">same 100-byte region</text>
+  <text x="724" y="339" class="s">and here the occurrences are</text>
+  <text x="724" y="352" class="s">CONCURRENT, so the collision</text>
+  <text x="724" y="365" class="s">is a live race, not a sharing rule</text>
+
+  <!-- UNIFICATION -->
+  <rect x="16" y="396" width="968" height="112" class="lane"/>
+  <rect x="16" y="396" width="968" height="20" fill="#8250df" rx="4"/>
+  <text x="24" y="411" class="h2">⭐ IT IS ONE PROBLEM — "N concurrent occurrences of one thing need N slots, keyed by occurrence"</text>
+
+  <text x="28" y="436" class="tb">The occurrence key is the only thing that differs:</text>
+  <rect x="28" y="446" width="300" height="50" class="box"/>
+  <text x="38" y="464" class="tb">BTree — SOLVED</text>
+  <text x="38" y="480" class="m">key = (assetGuid, nodeVisualId)</text>
+  <text x="38" y="492" class="s">⇒ adopt this algorithm, do not invent</text>
+
+  <rect x="340" y="446" width="300" height="50" class="box"/>
+  <text x="350" y="464" class="tb">Blueprint — widen</text>
+  <text x="350" y="480" class="m">blueprintId → (blueprintId, instanceKey)</text>
+  <text x="350" y="492" class="s">⇒ same allocator, finer key</text>
+
+  <rect x="652" y="446" width="332" height="50" class="box"/>
+  <text x="662" y="464" class="tb">HSM — add one</text>
+  <text x="662" y="480" class="m">key = (…, regionIndex, stateIndex)</text>
+  <text x="662" y="492" class="s">⇒ then provision like BTree does</text>
+
+  <!-- COST -->
+  <rect x="16" y="518" width="968" height="166" class="lane"/>
+  <rect x="16" y="518" width="968" height="20" fill="#57606a" rx="4"/>
+  <text x="24" y="533" class="h2">WHAT IT COSTS — and the good news is where the discriminator already lives</text>
+
+  <rect x="28" y="548" width="300" height="66" class="ok"/>
+  <text x="38" y="566" class="tb">BTree — nothing</text>
+  <text x="38" y="584" class="s">It is the reference implementation.</text>
+  <text x="38" y="598" class="s">Its key algorithm and its slot</text>
+  <text x="38" y="610" class="s">provisioner are what the others adopt.</text>
+
+  <rect x="340" y="548" width="300" height="66" class="warn"/>
+  <text x="350" y="566" class="tb">Blueprint — MODERATE</text>
+  <text x="350" y="584" class="s">BlueprintSlotEntry + TryAttach +</text>
+  <text x="350" y="598" class="s">TryGetSlotOffset + attach events,</text>
+  <text x="350" y="610" class="s">plus FieldLayout. No kernel change.</text>
+
+  <rect x="652" y="548" width="332" height="66" class="warn"/>
+  <text x="662" y="566" class="tb">HSM — LARGER, but not a redesign</text>
+  <text x="662" y="584" class="s">Emitter must read Role/Scope (0 refs today),</text>
+  <text x="662" y="598" class="s">slots must be provisioned, and the action</text>
+  <text x="662" y="610" class="s">key must carry the occurrence.</text>
+
+  <rect x="28" y="624" width="956" height="48" class="ok"/>
+  <text x="38" y="643" class="tb">⭐⭐ The discriminator is ALREADY IN SCOPE at the call site — this is a signature widening, not a data-flow redesign.</text>
+  <text x="38" y="662" class="m">for (int r = 0; r &lt; regionCount; r++) { … ExecuteAction(state.ActivityActionId, instancePtr, contextPtr, …); }   // r and current are RIGHT THERE</text>
+</svg>

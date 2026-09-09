@@ -20,6 +20,17 @@ public interface ICgfEntityLifecycleAdapters
     IEntityAckSink AckSink { get; }
 
     /// <summary>
+    /// ⭐⭐ Sends a creation request OUTWARD, to the node that should service it — the mirror of
+    /// <see cref="RequestSource"/>. Consumed by <c>ForwardingEntityCreationRequestSource</c> via
+    /// <c>EntityCreationContext.RequestEgress</c> (D1).
+    ///
+    /// <para>⚠ <b>Null on a stack that cannot forward</b>, in which case the pack composes no forwarder
+    /// and every locally-enqueued request is serviced locally — today's behaviour for every host that
+    /// has not adopted forwarding.</para>
+    /// </summary>
+    IEntityCreationRequestEgress? RequestEgress { get; }
+
+    /// <summary>
     /// Optional strategy that distributes initial descriptor ownership across Muscle nodes.
     /// When null the Brain node retains full ownership of all descriptors.
     /// </summary>

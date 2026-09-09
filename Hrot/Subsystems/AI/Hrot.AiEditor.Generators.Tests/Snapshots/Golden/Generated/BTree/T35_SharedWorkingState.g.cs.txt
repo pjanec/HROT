@@ -1,0 +1,33 @@
+// HROT_EDITOR_GENERATED - manual edits to this file will be overwritten by the AI editor on next save.
+// AssetId: bb000035-0000-0000-0000-000000000000
+
+using System;
+using System.Numerics;
+
+using Fbt;
+using Fbt.Compiler;
+using Fdp.Toolkit.Behavior;
+using Fdp.Toolkit.Behavior.Components;
+using Hrot.AI.Behaviors.Brains;
+
+namespace Hrot.AI.Behaviors.Trees;
+
+public static class T35_SharedWorkingState
+{
+    public static BTreeBuilder<BrainBlackboard, BTreeContext> CreateBuilder() =>
+        new BTreeBuilder<BrainBlackboard, BTreeContext>()
+            .Parallel(0, par =>
+            {
+                par.Action("Hrot.AI.Behaviors.Brains.DemoAiPrimitiveNodes.TickCore@0@1452493810",
+                    visualId: new Guid("bb350000-0000-0000-0000-000000000003"));
+                par.Action("Hrot.AI.Behaviors.Brains.DemoAiPrimitiveNodes.TickCore@4@1452493810",
+                    visualId: new Guid("bb350000-0000-0000-0000-000000000004"));
+                par.Action("Hrot.AI.Behaviors.Brains.DemoAiPrimitiveNodes.TickCore@8@935647214",
+                    visualId: new Guid("bb350000-0000-0000-0000-000000000005"));
+            },
+                visualId: new Guid("bb350000-0000-0000-0000-000000000002"));
+
+    [BTreeDefinition("T35_SharedWorkingState", AssetId = "bb000035-0000-0000-0000-000000000000")]
+    public static BehaviorTreeBlob Build() =>
+        CreateBuilder().Compile("T35_SharedWorkingState");
+}

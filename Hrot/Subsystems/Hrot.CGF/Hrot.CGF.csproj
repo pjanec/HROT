@@ -41,6 +41,16 @@
     <!-- Universal breakpoints library (UBP-P10T2) -->
     <ProjectReference Include="..\..\Diagnostics\Hrot.Diagnostics.Breakpoints\Hrot.Diagnostics.Breakpoints.csproj" />
     <ProjectReference Include="..\Blueprints\Hrot.Blueprints.Editor\Hrot.Blueprints.Editor.csproj" />    <!-- SwitchTimeModeDescriptorTranslator (CGF1-A.2, BATCH-09) -->
+    <!--
+      cgf==editor SLICE 2 (CE-012): the BTree/HSM asset CONTRIBUTORS live here, and CGF needs them to
+      populate its AssetCatalog the way the editor does (AiAssetCatalogBuilder REQUIRES all three and
+      throws on null). Blueprint's contributor already arrived via Hrot.Blueprints.Editor above.
+      Neither project references Hrot.CGF, so there is no cycle; both sit BELOW this one, referencing
+      only Hrot.Editor.AiShared / NodeEditor / Fdp.* — the same layer Hrot.Blueprints.Editor does.
+      This is the charter direction made literal: "CGF should be as capable as the editor."
+    -->
+    <ProjectReference Include="..\AI\Hrot.BTree.Editor\Hrot.BTree.Editor.csproj" />
+    <ProjectReference Include="..\AI\Hrot.Hsm.Editor\Hrot.Hsm.Editor.csproj" />
     <!-- Scenario serialization toolkit for ScenarioLoadClusterStateHandler (CGF1-S0307) -->
     <!-- Orchestration toolkit contracts -->
     <!-- CgfLogicPack: Brain-tier modules, executors, NetworkEntityMap -->

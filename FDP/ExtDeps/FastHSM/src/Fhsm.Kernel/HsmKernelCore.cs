@@ -502,7 +502,8 @@ namespace Fhsm.Kernel
                     regionCount,
                     currentEventId,
                     contextPtr,
-                    traceCtx);
+                    traceCtx,
+                    out int selectedRegion);
 
                 if (selectedTransition == null)
                 {
@@ -510,7 +511,7 @@ namespace Fhsm.Kernel
                     break;
                 }
 
-                ExecuteTransition(definition, instancePtr, instanceSize, selectedTransition.Value, activeLeafIds, regionCount, contextPtr, ref cmdWriter, traceCtx);
+                ExecuteTransition(definition, instancePtr, instanceSize, selectedTransition.Value, activeLeafIds, regionCount, selectedRegion, contextPtr, ref cmdWriter, traceCtx);
                 
                 // Event consumed - subsequent iterations check for Epsilon (0) transitions
                 currentEventId = 0;
@@ -528,8 +529,14 @@ namespace Fhsm.Kernel
             int regionCount,
             ushort eventId,
             void* contextPtr,
-            HsmTraceContext* traceCtx)
+            HsmTraceContext* traceCtx,
+            out int regionIndex)
         {
+            // The region the winning transition was selected in. ExecuteTransition needs it to write
+            // the RIGHT region's active leaf; before this it received regionCount but no index and
+            // wrote slot 0 unconditionally.
+            regionIndex = 0;
+
             // 1. Global transitions
             var globalSpan = definition.GlobalTransitions;
             for (int i = 0; i < globalSpan.Length; i++)
@@ -586,6 +593,10 @@ namespace Fhsm.Kernel
                                     {
                                         bestTransition = trans;
                                         highestPriority = priority;
+                                        // The loop already knows which region it is scanning; this is
+                                        // the only place that knowledge existed, and it used to be
+                                        // dropped on the way out.
+                                        regionIndex = r;
                                     }
                                 }
                             }
@@ -624,6 +635,7 @@ namespace Fhsm.Kernel
             TransitionDef transition,
             ushort* activeLeafIds,
             int regionCount,
+            int regionIndex,
             void* contextPtr,
             ref HsmCommandWriter cmdWriter,
             HsmTraceContext* traceCtx)
@@ -674,7 +686,9 @@ namespace Fhsm.Kernel
                 // Save history if this state has history
                 if ((state.Flags & StateFlags.IsHistory) != 0 || state.HistorySlotIndex != 0xFFFF)
                 {
-                    SaveHistory(definition, instancePtr, instanceSize, stateId, activeLeafIds[0]);
+                    // The leaf of the region being transitioned. Slot 0 here recorded a bystander
+                    // region's state as this one's history — the same defect as the write in step 4.
+                    SaveHistory(definition, instancePtr, instanceSize, stateId, activeLeafIds[regionIndex]);
                 }
             }
 
@@ -704,7 +718,7 @@ namespace Fhsm.Kernel
                 {
                     // Restore history
                     bool isDeep = (state.Flags & StateFlags.IsDeepHistory) != 0;
-                    if (RestoreHistory(definition, instancePtr, instanceSize, stateId, isDeep))
+                    if (RestoreHistory(definition, instancePtr, instanceSize, stateId, isDeep, regionIndex))
                     {
                         historyRestored = true;
                         break;
@@ -730,7 +744,10 @@ namespace Fhsm.Kernel
             // 4. Update active state
             if (!historyRestored)
             {
-                activeLeafIds[0] = finalLeafId;
+                // The region the transition was SELECTED in, not slot 0. A transition fired in region 1
+                // used to overwrite region 0's leaf and leave region 1 where it was, corrupting two
+                // regions with one event. Harmless while regionCount == 1, which is why it survived.
+                activeLeafIds[regionIndex] = finalLeafId;
 
                 // Check for terminal state.
                 ref readonly var finalStateDef = ref definition.GetState(finalLeafId);
@@ -947,7 +964,8 @@ namespace Fhsm.Kernel
             HsmDefinitionBlob definition,
             byte* instancePtr,
             int instanceSize,
-            ushort stateIndex)
+            ushort stateIndex,
+            int regionIndex)
         {
             ref readonly var state = ref definition.GetState(stateIndex);
             
@@ -958,7 +976,7 @@ namespace Fhsm.Kernel
                 {
                     if (child.HistorySlotIndex != 0xFFFF)
                     {
-                        RestoreHistory(definition, instancePtr, instanceSize, i, true);
+                        RestoreHistory(definition, instancePtr, instanceSize, i, true, regionIndex);
                     }
                 }
             }
@@ -969,7 +987,8 @@ namespace Fhsm.Kernel
             byte* instancePtr,
             int instanceSize,
             ushort stateIndex,
-            bool isDeep)
+            bool isDeep,
+            int regionIndex)
         {
             ref readonly var state = ref definition.GetState(stateIndex);
             if (state.HistorySlotIndex == 0xFFFF) return false;
@@ -987,8 +1006,8 @@ namespace Fhsm.Kernel
             // Restore
             if (isDeep)
             {
-                SetActiveLeafId(instancePtr, instanceSize, 0, savedStateId);
-                RestoreDeepHistory(definition, instancePtr, instanceSize, savedStateId);
+                SetActiveLeafId(instancePtr, instanceSize, regionIndex, savedStateId);
+                RestoreDeepHistory(definition, instancePtr, instanceSize, savedStateId, regionIndex);
             }
             else
             {
@@ -1011,12 +1030,12 @@ namespace Fhsm.Kernel
                 if (target != 0xFFFF)
                 {
                     ushort leaf = DrillDownToInitial(definition, target);
-                    SetActiveLeafId(instancePtr, instanceSize, 0, leaf);
+                    SetActiveLeafId(instancePtr, instanceSize, regionIndex, leaf);
                 }
                 else
                 {
                     // Fallback (shouldn't happen if IsAncestor check passed)
-                    SetActiveLeafId(instancePtr, instanceSize, 0, savedStateId);
+                    SetActiveLeafId(instancePtr, instanceSize, regionIndex, savedStateId);
                 }
             }
             

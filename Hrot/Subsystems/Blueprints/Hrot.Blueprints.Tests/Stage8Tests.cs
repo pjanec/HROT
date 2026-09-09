@@ -17,6 +17,9 @@ namespace Hrot.Blueprints.Tests;
 /// Test method names are suffixed with Stage8 so they can be filtered:
 ///   dotnet test --filter "Stage8"
 /// </summary>
+// Batch 52 §1 — compiles with EmitPdbWithEmbeddedSource: true, so it shares the RoslynFinalizer
+// static with the class that nulls it to reach BP1672. See RoslynFinalizerCollection.
+[Collection("RoslynFinalizer")]
 public sealed class Stage8Tests
 {
     private static (BlueprintCompiler Compiler, BlueprintAsset Asset) MakeSimpleLibrary()

@@ -72,7 +72,6 @@ namespace CarKinem.Systems
                 
                 // Add VehicleParams component (use preset)
                 var preset = VehiclePresets.GetPreset(cmd.Class);
-                preset.Class = cmd.Class;  // Set class field
                 repo.AddComponent(entity, preset);
                 
                 // Add NavState component (idle)

@@ -214,5 +214,121 @@ namespace CarKinem.Tests.Systems
             trajectoryPool.Dispose();
             repo.Dispose();
         }
+
+        /// <summary>
+        /// CE-167 / the overshoot the user observed in the editor: a vehicle driving to a
+        /// point must brake on the APPROACH, not only once it is already inside
+        /// <c>ArrivalRadius</c>.
+        ///
+        /// <para>
+        /// Before the approach-braking cap, <c>targetSpeed</c> was a step function of
+        /// distance — full <c>NavState.TargetSpeed</c> right up to the radius, then 0 — so a
+        /// tank at 15 m/s with <c>MaxDecel</c> 4 m/s² needed v²/2a = 28 m to stop with 5 m
+        /// left, and coasted ~20 m past the destination. That is what made the cluster
+        /// report <c>NavigationStatus.Arrived</c> at 20–21 m with an <c>ArrivalRadius</c>
+        /// of 5: a REAL arrival followed by an overshoot, never a false one.
+        /// </para>
+        ///
+        /// <para>
+        /// Design basis: <c>.dev/_DONE/demos-1/FDP-demos-all.md:605/636</c> —
+        /// "braking friction correctly halts the vehicle exactly at the destination
+        /// coordinate without ... overshooting".
+        /// </para>
+        /// </summary>
+        [Fact]
+        public void VehicleBrakesOnApproachAndStopsNearTheDestination_WithoutOvershooting()
+        {
+            const float ArrivalRadius = 5f;
+            const float MaxDecel      = 4f;
+            const float CruiseSpeed   = 15f;
+            const float Dt            = 1f / 60f;
+
+            var repo = new EntityRepository();
+            repo.RegisterComponent<VehicleState>();
+            repo.RegisterComponent<SimTransform>();
+            repo.RegisterComponent<SimVelocity>();
+            repo.RegisterComponent<VehicleParams>();
+            repo.RegisterComponent<NavState>();
+            repo.RegisterComponent<SpatialGridData>();
+            repo.SetSingletonUnmanaged(new GlobalTime { DeltaTime = Dt, TimeScale = 1.0f });
+
+            var roadNetwork     = new RoadNetworkBuilder().Build(5f, 40, 40);
+            var trajectoryPool  = new TrajectoryPoolManager();
+            var spatialSystem   = new SpatialHashSystem();
+            var kinematicsSystem = new CarKinematicsSystem(trajectoryPool);
+
+            // Tank at the origin already at cruise speed, facing the destination (North).
+            var destination = new Vector3(0f, 200f, 0f);
+
+            var entity = repo.CreateEntity();
+            repo.AddComponent(entity, new VehicleState { Speed = CruiseSpeed });
+            repo.AddComponent(entity, new SimTransform
+            {
+                Position = Vector3.Zero,
+                Rotation = SimMath.FacingNorth
+            });
+            repo.SetAuthority<SimTransform>(entity, true);
+            repo.AddComponent(entity, new SimVelocity { Linear = new Vector3(0, CruiseSpeed, 0) });
+            repo.AddComponent(entity, new VehicleParams
+            {
+                // The Tank preset's shape: enough decel to stop on a point if it is commanded early.
+                WheelBase        = 4.758f,
+                MaxSpeedFwd      = 20f,
+                MaxAccel         = 2.5f,
+                MaxDecel         = MaxDecel,
+                MaxSteerAngle    = 0.8f,
+                MaxLatAccel      = 6f,
+                LookaheadTimeMin = 0.8f,
+                LookaheadTimeMax = 2.5f,
+                AccelGain        = 1.8f,
+                AvoidanceRadius  = 2.5f
+            });
+            repo.AddComponent(entity, new NavState
+            {
+                Mode             = KinematicsMode.Direct,
+                FinalDestination = destination,
+                ArrivalRadius    = ArrivalRadius,
+                TargetSpeed      = CruiseSpeed
+            });
+
+            // Drive for 40 simulated seconds — far more than the ~15 s the 200 m leg needs.
+            float closestApproach = float.MaxValue;
+            for (int i = 0; i < (int)(40f / Dt); i++)
+            {
+                spatialSystem.Execute(repo, Dt);
+                kinematicsSystem.Execute(repo, Dt);
+
+                var p = repo.GetComponent<SimTransform>(entity).Position;
+                closestApproach = MathF.Min(closestApproach, Vector3.Distance(p, destination));
+            }
+
+            var finalPos   = repo.GetComponent<SimTransform>(entity).Position;
+            var finalNav   = repo.GetComponent<NavState>(entity);
+            var finalState = repo.GetComponent<VehicleState>(entity);
+            float finalDistance = Vector3.Distance(finalPos, destination);
+
+            // It must actually get there — a cap that simply freezes the vehicle also
+            // "does not overshoot", so pin the arrival first.
+            Assert.Equal(1, finalNav.HasArrived);
+            Assert.True(closestApproach <= ArrivalRadius,
+                $"Vehicle must reach the destination. Closest approach was {closestApproach:F1} m " +
+                $"against an ArrivalRadius of {ArrivalRadius} m.");
+
+            // And it must come to rest, not orbit.
+            Assert.True(MathF.Abs(finalState.Speed) < 0.5f,
+                $"Vehicle must be stopped after arriving; speed was {finalState.Speed:F2} m/s.");
+
+            // The defect: it used to settle ~20 m out. Without approach braking a vehicle
+            // that latches HasArrived at 5 m while doing 15 m/s coasts v²/2a = 28 m further.
+            Assert.True(finalDistance <= ArrivalRadius,
+                $"Vehicle must come to rest INSIDE the arrival radius, not coast past it. " +
+                $"Final distance {finalDistance:F1} m against an ArrivalRadius of {ArrivalRadius} m " +
+                $"(pos {finalPos}, destination {destination}). A distance near 20 m is the " +
+                $"pre-fix step-function behaviour: full cruise speed until the radius, then brake.");
+
+            roadNetwork.Dispose();
+            trajectoryPool.Dispose();
+            repo.Dispose();
+        }
     }
 }

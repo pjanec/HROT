@@ -42,8 +42,15 @@ public sealed class EnumPinTests
         var entries = provider.GetValues(typeKey);
 
         Assert.NotEmpty(entries);
-        // GraphKind has 3 members: Function=0, Event=1, Construction=2
-        Assert.Equal(3, entries.Count);
+
+        // ⚠ Counted from the enum, not hardcoded. This test borrows GraphKind as a convenient sample
+        // enum -- it is not about GraphKind -- so a literal count turned it into a tripwire on an
+        // unrelated production type: adding GraphKind.Macro (Batch 28) failed it for a reason that has
+        // nothing to do with the value provider.
+        Assert.Equal(
+            Enum.GetValues(typeof(Hrot.Blueprints.Core.Assets.GraphKind)).Length,
+            entries.Count);
+
         Assert.Contains(entries, e => e.DisplayName == "Function" && e.Value == 0L);
         Assert.Contains(entries, e => e.DisplayName == "Event"    && e.Value == 1L);
         Assert.Contains(entries, e => e.DisplayName == "Construction" && e.Value == 2L);

@@ -11,7 +11,7 @@
 
 ## ⚠ REVISION NOTICE — v2: JSON-backed Category-2 (authoritative; overrides conflicting text below)
 
-This DD predates the **Persistence Unification** thread, which makes **JSON the source of truth for BTree/HSM** (see `.dev/persistence-unification/BTree_HSM_JSON_Persistence_Detailed_Design.md`, decisions D1–D14). The blackboard feature is **re-based onto that JSON substrate**. Where the sections below describe a C#-source-of-truth `.Blackboard.cs` mechanism, **this notice wins.**
+This DD predates the **Persistence Unification** thread, which makes **JSON the source of truth for BTree/HSM** (see `.dev/_DONE/persistence-unification/BTree_HSM_JSON_Persistence_Detailed_Design.md`, decisions D1–D14). The blackboard feature is **re-based onto that JSON substrate**. Where the sections below describe a C#-source-of-truth `.Blackboard.cs` mechanism, **this notice wins.**
 
 **What changes (editor-owned, "Category 2"):**
 - Editor-owned blackboard variables are **serialized into the asset's `.btree.json` / `.hsm.json`** as a `Blackboard` block (mirroring Blueprint `VariableDecl`), **not** emitted to a `{AssetName}.Blackboard.cs` companion file. There is no editor-owned `.cs` for the blackboard.

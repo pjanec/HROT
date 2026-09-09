@@ -112,10 +112,21 @@ namespace Hrot.Map.Common.Replication.Utils
                             var cart = geoTransform.ToCartesian(pos.Latitude, pos.Longitude, pos.Altitude);
 
                             var cartPos = new Vector3((float)cart.X, (float)cart.Y, (float)cart.Z);
-                            // Heading is degrees CW from North.
-                            float headingRad = d.WorldPos.Ori.Heading * (MathF.PI / 180f);
-                            // Yaw=-90 rotates North=(0,1) to East=(1,0) per right-handed convention.
-                            var rot = Quaternion.CreateFromYawPitchRoll(-headingRad, 0, 0);
+
+                            // ⭐⭐⭐ Q59-C1 / F3 — CALL THE SHARED CONVERSION. This used to inline
+                            //    `CreateFromYawPitchRoll(-headingRad, 0, 0)`, i.e. a yaw about Y with NO
+                            //    compass offset, while every other path uses axis Z with a (90-h) offset.
+                            // 🔴 Measured 2026-08-26 — they disagreed at EVERY heading, and not by a
+                            //    convention: h=0 gave East where North was meant, and h=90 pointed
+                            //    STRAIGHT UP. It rotated in the wrong plane.
+                            // ⚠ Live defect, not theoretical: NedCgfEntityLifecycleAdapters calls this
+                            //    overload for msg.InitialDescriptors, and nothing overwrites the result —
+                            //    the per-tick SimTransformBridgeSystem.Execute was removed, so this is the
+                            //    entity's persisted initial rotation on the CGF spawn path.
+                            // ⭐ The conversion is FDP and network-agnostic (Q59 §7.5): a descriptor and an
+                            //    attribute share their FIELD-LEVEL conversion, never their addressing.
+                            var rot = Fdp.Modules.Geographic.Systems.SimTransformBridgeSystem
+                                .HeadingDegToRotation(d.WorldPos.Ori.Heading);
 
                             result.Add(new SimTransform
                             {
@@ -314,13 +325,16 @@ namespace Hrot.Map.Common.Replication.Utils
         /// <summary>
         /// Applies the coordinate conversion from a <c>dtGeoSpatial</c> descriptor to a
         /// <see cref="SimTransform"/> via the provided <see cref="ListPatchContext"/>.
-        /// Sets <c>Position</c> only (no rotation) so the result aligns with the JSON path
-        /// delegates registered for <c>GeoPosition.Latitude/Longitude/Altitude</c>.
+        /// Sets <c>Position</c> and <c>Rotation</c> so the result aligns with the JSON path delegates
+        /// registered for <c>GeoPosition.Latitude/Longitude/Altitude</c> and <c>Heading</c>.
         /// </summary>
         /// <remarks>
-        /// TODO ATTR-BATCH-03: If new JSON path delegates are added for dtWorldPos (e.g. "Heading"),
-        /// this method MUST be updated to maintain convergence between the descriptor-union route
-        /// and the JSON-string route. Enforced currently by DescriptorMapper_GeoSpatial_SharedDelegate_ProducesSameResultAsDirectPath.
+        /// ⭐⭐⭐ <b><c>Q59-C1</c> — ATTR-BATCH-03's TODO HAS BEEN DISCHARGED.</b> It said: *"If new JSON path
+        /// delegates are added for dtWorldPos (e.g. "Heading"), this method MUST be updated to maintain
+        /// convergence between the descriptor-union route and the JSON-string route."*
+        /// ⇒ <c>AX-018</c> registered exactly that delegate, so the precondition is now met and this method
+        /// sets <c>Rotation</c> as well as <c>Position</c>. ⛔ It previously set position ONLY — correct while
+        /// no heading route existed, silently divergent the moment one did.
         /// </remarks>
         /// <param name="ctx">The patch context to apply the transform into.</param>
         /// <param name="geo">The geodetic position source.</param>
@@ -335,6 +349,11 @@ namespace Hrot.Map.Common.Replication.Utils
 
             ref SimTransform st = ref ctx.GetUnmanagedComponent<SimTransform>();
             st.Position = new Vector3((float)cart.X, (float)cart.Y, (float)cart.Z);
+
+            // ⭐⭐ Q59-C1 — the same shared conversion the JSON "Heading" route and the binary
+            //    SimTransformHeadingInstaller use. ⛔ One formula, three callers, zero copies.
+            st.Rotation = Fdp.Modules.Geographic.Systems.SimTransformBridgeSystem
+                .HeadingDegToRotation(geo.Ori.Heading);
         }
 
         /// <summary>

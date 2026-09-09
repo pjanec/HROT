@@ -34,7 +34,9 @@ namespace Hrot.Blueprints.Editor.Host;
 public sealed class BlueprintGraphModel : IGraphModel
 {
     private readonly BlueprintAsset    _asset;
-    private readonly Graph             _graph;
+    // BP-24: not readonly — Retarget swaps the projected graph in place so the GraphView (and
+    // everything holding this model) survives a canvas graph switch with its identity intact.
+    private Graph                      _graph;
     private readonly NodeKindRegistry? _kindRegistry;
     private readonly IChannelCommandCatalog? _channelCommands;
     private readonly Func<Guid, BlueprintSignature?>? _peerSignatureLookup;
@@ -116,8 +118,29 @@ public sealed class BlueprintGraphModel : IGraphModel
 
     public GraphId Id          => new(IdGenerator.Deterministic($"graph:{_asset.AssetId}:{_graph.Id}"));
     public string  DisplayName => _graph.Name;
-    public GraphKindDescriptor Kind { get; } =
-        new("EventGraph", "Event Graph", AllowsLatent: true, RequiresEntryNode: true);
+    /// <summary>
+    /// BP-85 — describes the graph the canvas is CURRENTLY showing. This used to be a fixed
+    /// "Event Graph" descriptor initialised once, so a Function graph reported itself as an event
+    /// graph and the canvas had no way to tell the designer which graph they were editing.
+    ///
+    /// <para>
+    /// Computed (not initialised once) because <see cref="Retarget"/> swaps <c>_graph</c> in place
+    /// on a canvas graph switch — a stored descriptor would keep describing the graph the model was
+    /// constructed with.
+    /// </para>
+    ///
+    /// <para>
+    /// <c>AllowsLatent</c> / <c>RequiresEntryNode</c> are deliberately left as they were for every
+    /// kind: they carry editor SEMANTICS (what may be placed / what must exist), and changing them
+    /// per graph kind is a behaviour decision, not the display fix BP-85 asks for.
+    /// </para>
+    /// </summary>
+    public GraphKindDescriptor Kind => _graph.Kind switch
+    {
+        GraphKind.Function     => new("FunctionGraph",     "Function",            AllowsLatent: true, RequiresEntryNode: true),
+        GraphKind.Construction => new("ConstructionGraph", "Construction Script", AllowsLatent: true, RequiresEntryNode: true),
+        _                      => new("EventGraph",        "Event Graph",         AllowsLatent: true, RequiresEntryNode: true),
+    };
 
     public IReadOnlyCollection<INodeModel>    Nodes    => _nodes.Values;
     public IReadOnlyCollection<ILinkModel>    Links    => _links.Values;
@@ -273,7 +296,7 @@ public sealed class BlueprintGraphModel : IGraphModel
             // data-IN pin is CURRENTLY wired (BlueprintNodeModel's BP2066-mirroring stale-bake error
             // check) -- this constructor has no other connectivity signal, so resolve it here where
             // _graph.Links is in scope.
-            var collectionPinWired = assetNode is ComponentForEachNode or ComponentItemGetNode or ComponentItemCountNode or ComponentContainsNode or ComponentFindNode
+            var collectionPinWired = assetNode is ComponentForEachNode or ComponentItemGetNode or ComponentItemCountNode or ComponentContainsNode or ComponentFindNode or CollectionWriteNode
                 && resolvedPins.Any(p => p.Direction == PinDirection.Input
                                        && p.Label == "Collection"
                                        && _graph.Links.Any(l => l.ToNodeId == assetNode.Id && l.ToPinId == p.Id.Value));
@@ -339,7 +362,7 @@ public sealed class BlueprintGraphModel : IGraphModel
 
         if (System.Guid.TryParse(id, out var guid))
         {
-            var decl = _asset.Parameters.FirstOrDefault(p => p.Id == guid);
+            var decl = _asset.Declarations.Of(DeclarationKind.Parameter).FirstOrDefault(d => d.Id == guid);
             if (decl != null && !string.IsNullOrEmpty(decl.Name)) return decl.Name;
         }
         return null;
@@ -368,6 +391,26 @@ public sealed class BlueprintGraphModel : IGraphModel
     {
         Rebuild();
         NotifyChanged();
+    }
+
+    /// <summary>
+    /// BP-24 — the asset graph currently projected. Exposed so the graph switcher can save
+    /// per-graph view state for the outgoing graph before retargeting.
+    /// </summary>
+    public Graph CurrentGraph => _graph;
+
+    /// <summary>
+    /// BP-24 — switches the projection to a different graph <b>of the same asset</b> and rebuilds.
+    /// The model object survives, so the <see cref="GraphView"/>, undo stack, find bar, command
+    /// set and bookmark store built around it all keep working; <see cref="Id"/> changes
+    /// automatically because it is derived from the graph id (which is exactly what the
+    /// bookmark filtering wants). Callers fire <see cref="NotifyChanged"/> when ready —
+    /// the switcher restores viewport/selection between Retarget and the notify.
+    /// </summary>
+    public void Retarget(Graph graph)
+    {
+        _graph = graph ?? throw new ArgumentNullException(nameof(graph));
+        Rebuild();
     }
 
     // ── helpers ──────────────────────────────────────────────────────────────

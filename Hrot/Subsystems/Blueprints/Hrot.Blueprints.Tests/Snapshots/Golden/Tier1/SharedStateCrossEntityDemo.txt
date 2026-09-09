@@ -1,0 +1,13 @@
+StructureHash: 0xBE099EE4CB02DBED
+Parameters:
+  (empty)
+WorkingState:
+  (empty)
+Variables:
+  Commander : Fdp.Core.Entity @8 size=8
+  RallyCountMirror : System.Int32 @16 size=4
+  FoundMirror : System.Boolean @20 size=1
+GraphLocalSlots:
+  (empty)
+Diagnostics:
+  (none)

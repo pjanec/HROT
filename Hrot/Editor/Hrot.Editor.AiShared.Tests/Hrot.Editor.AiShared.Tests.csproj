@@ -12,6 +12,8 @@
     <PackageReference Include="FluentAssertions" Version="6.12.0" />
     <PackageReference Include="Microsoft.CodeAnalysis.CSharp" Version="4.8.0" />
     <PackageReference Include="xunit" Version="2.9.0" />
+    <!-- Batch 101 (101a): the scalar frame rail SKIPS where no display exists (R-124). -->
+    <PackageReference Include="Xunit.SkippableFact" Version="1.4.13" />
     <PackageReference Include="xunit.runner.visualstudio" Version="2.8.2">
       <PrivateAssets>all</PrivateAssets>
       <IncludeAssets>runtime; build; native; contentfiles; analyzers</IncludeAssets>
@@ -23,8 +25,17 @@
   </ItemGroup>
 
   <ItemGroup>
+    <!-- ⭐⭐⭐ Batch 100 (100a) — the FRAME RAIL (R-124). TEST SUPPORT ONLY; renders real ImGui
+         frames under Xvfb so a rail can assert INSIDE one. ⭐ Shared with Hrot.Blueprints.Tests
+         rather than copied (ruling 9). ⛔ No production assembly may reference it. -->
+    <ProjectReference Include="..\Hrot.Editor.UiFrameRail\Hrot.Editor.UiFrameRail.csproj" />
     <ProjectReference Include="..\Hrot.Editor.AiShared\Hrot.Editor.AiShared.csproj" />
+    <!-- CE-082: DiagnosticsWindowsBundle lives here; the layout orphan rail composes it so the
+         diagnostics window ids are judged BEHAVIOURALLY instead of by a source-text literal. -->
+    <ProjectReference Include="..\..\Engine\Hrot.Presentation\Hrot.Presentation.csproj" />
     <ProjectReference Include="..\..\..\FDP\Engine\Fdp.Presentation\Fdp.Presentation.csproj" />
+    <!-- FC-3c: open real StructEdit sessions to test the FixedListBufferViewProvider. -->
+    <ProjectReference Include="..\..\..\FDP\ExtDeps\StructEdit\src\StructEdit.Reflection\StructEdit.Reflection.csproj" />
     <ProjectReference Include="..\..\..\FDP\ExtDeps\NodeEdit\src\NodeEditor.Core\NodeEditor.Core.csproj" />
     <ProjectReference Include="..\..\..\FDP\ExtDeps\NodeEdit\src\NodeEditor.Primitives\NodeEditor.Primitives.csproj" />
     <ProjectReference Include="..\..\..\FDP\ExtDeps\NodeEdit\src\NodeEditor.UI\NodeEditor.UI.csproj" />

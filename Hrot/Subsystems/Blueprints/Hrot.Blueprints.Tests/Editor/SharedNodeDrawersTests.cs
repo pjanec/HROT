@@ -491,7 +491,25 @@ public sealed class SharedNodeDrawersTests
             MarkDirtyCallCount++;
             LastMarkedAsset = asset;
         }
-    }
+    
+        /// <summary>BP-11: every recorded (label, apply, undo) triple, in order.</summary>
+        public List<(string Label, Action Apply, Action Undo)> Recorded { get; } = new();
+
+        public int StructureChangedCallCount { get; private set; }
+
+        /// <summary>
+        /// Mirrors the real service: recording performs the edit, so a drawer that routes through
+        /// here mutates exactly once — and the captured <c>Undo</c> lets a headless test reverse it.
+        /// </summary>
+        public void RecordPropertyEdit(BlueprintAsset asset, string description, Action apply, Action undo)
+        {
+            Recorded.Add((description, apply, undo));
+            apply();
+            MarkDirty(asset);
+        }
+
+        public void NotifyStructureChanged(BlueprintAsset asset) => StructureChangedCallCount++;
+}
 
     private sealed class TestPredicateCompiler : IPredicateCompiler
     {

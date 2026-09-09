@@ -416,7 +416,18 @@ public sealed class EntityBlueprintsEditModelTests : IDisposable
         var ids = assignments.Select(a => a.AssetId).ToHashSet();
         Assert.Contains(_assetIdA, ids);
         Assert.Contains(_assetIdB, ids);
+        // ⭐⭐ `Params`, not `Overrides` — this test had been UNCOMPILABLE and the project with it.
+        // 📐 `BlueprintAssignmentDto.Overrides` was DELETED deliberately: its own doc-comment records the
+        //    ruling — *"a name→value Overrides dict and the resolver's byte region are two implementations
+        //    of one concept — ruling 9. The resolver shape wins"* — and `Params` (resolved param BYTES)
+        //    replaced it. ⛔ The assertion was never updated, so `Hrot.Blueprints.Tests` FAILED TO BUILD.
+        // ⭐ The CLAIM is unchanged and is what matters: these are DEFAULT assignments, so they carry no
+        //   per-entity payload at all. ⚠ Both members are asserted — `ParamsStructureHash` is documented
+        //   as null exactly when `Params` is, and checking one alone would let half a payload through.
         foreach (var a in assignments)
-            Assert.Null(a.Overrides);
+        {
+            Assert.Null(a.Params);
+            Assert.Null(a.ParamsStructureHash);
+        }
     }
 }

@@ -1,25 +1,24 @@
 {
   "$meta": {
     "docType": "Hrot.Blueprints",
-    "schemaVersion": 1
+    "schemaVersion": 2
   },
-  "Header": {
-    "SubsystemType": "Hrot.Blueprints",
-    "SchemaVersion": "1.0"
-  },
+  "Header": {},
   "AssetId": "a8d44fe3-29fc-490a-9b84-33452321bec3",
   "Name": "HillAssault2I_IsWaveCompleted",
   "Dispatch": "AiPrimitive",
   "TierHint": "Auto",
+  "IsWorldSingleton": false,
   "Primitive": {
     "Intent": "Action",
     "Hostings": [
       "BTreeAction"
     ]
   },
-  "Parameters": [],
-  "WorkingState": [],
-  "Variables": [],
+  "Declarations": [],
+  "ParameterOrder": null,
+  "WorkingStateOrder": null,
+  "VariableOrder": null,
   "EventDispatchers": [],
   "CustomEvents": [],
   "CallablePeers": [],
@@ -30,86 +29,95 @@
       "Kind": "Function",
       "Inputs": [],
       "Outputs": [],
+      "ExecOutputs": [],
+      "ExecInputs": [],
       "Nodes": [
         {
           "kind": "EventEntry",
-          "Id": "2863a61c-28a3-4b14-894a-de7e7acf989e",
           "EventTypeId": "",
+          "Id": "2863a61c-28a3-4b14-894a-de7e7acf989e",
           "Pins": [],
           "EditorMetadata": {
             "X": 40,
-            "Y": 400
+            "Y": 400,
+            "Comment": null
           }
         },
         {
           "kind": "GetShared",
-          "Id": "b3fd6866-6789-4203-9d53-04a3436e88e5",
           "VariableId": "state",
           "SharedTypeId": "Hrot.AI.Behaviors.Brains.HillAttackSharedState",
+          "Id": "b3fd6866-6789-4203-9d53-04a3436e88e5",
           "Pins": [],
           "EditorMetadata": {
             "X": 40,
-            "Y": 40
+            "Y": 40,
+            "Comment": null
           }
         },
         {
           "kind": "FunctionCall",
-          "Id": "be3145a1-e861-4317-a96d-ce6157eb28e1",
           "TargetTypeId": "Hrot.AI.Behaviors.Brains.WaveMonitorOps",
           "MethodName": "UpdateShared",
           "IsPure": true,
           "TargetGraphId": "",
           "TrailingContext": "View",
+          "Id": "be3145a1-e861-4317-a96d-ce6157eb28e1",
           "Pins": [],
           "EditorMetadata": {
             "X": 300,
-            "Y": 100
+            "Y": 100,
+            "Comment": null
           }
         },
         {
           "kind": "SetShared",
-          "Id": "4e7e0d25-66ac-400a-9e80-cb03f6c19ced",
           "VariableId": "state",
           "SharedTypeId": "Hrot.AI.Behaviors.Brains.HillAttackSharedState",
+          "Id": "4e7e0d25-66ac-400a-9e80-cb03f6c19ced",
           "Pins": [],
           "EditorMetadata": {
             "X": 620,
-            "Y": 400
+            "Y": 400,
+            "Comment": null
           }
         },
         {
           "kind": "FunctionCall",
-          "Id": "41ba22ac-d753-4921-8a13-c3fc46d6e84b",
           "TargetTypeId": "Hrot.AI.Behaviors.Brains.WaveMonitorOps",
           "MethodName": "ActiveCountShared",
           "IsPure": true,
           "TargetGraphId": "",
           "TrailingContext": "None",
+          "Id": "41ba22ac-d753-4921-8a13-c3fc46d6e84b",
           "Pins": [],
           "EditorMetadata": {
             "X": 900,
-            "Y": 160
+            "Y": 160,
+            "Comment": null
           }
         },
         {
           "kind": "Literal",
-          "Id": "214b4779-0425-496d-8377-44b337d87c26",
           "TypeId": "System.Int32",
           "ValueJson": "0",
+          "Id": "214b4779-0425-496d-8377-44b337d87c26",
           "Pins": [],
           "EditorMetadata": {
             "X": 900,
-            "Y": 260
+            "Y": 260,
+            "Comment": null
           }
         },
         {
           "kind": "Compare",
-          "Id": "633aea53-1010-43b1-b57e-5f2e8d2a842c",
           "Operator": "Equal",
+          "Id": "633aea53-1010-43b1-b57e-5f2e8d2a842c",
           "Pins": [],
           "EditorMetadata": {
             "X": 1140,
-            "Y": 200
+            "Y": 200,
+            "Comment": null
           }
         },
         {
@@ -118,27 +126,30 @@
           "Pins": [],
           "EditorMetadata": {
             "X": 1380,
-            "Y": 400
+            "Y": 400,
+            "Comment": null
           }
         },
         {
           "kind": "Return",
-          "Id": "c4e45015-25f0-428b-b511-eaa9f0d8b4a2",
           "Status": "Success",
+          "Id": "c4e45015-25f0-428b-b511-eaa9f0d8b4a2",
           "Pins": [],
           "EditorMetadata": {
             "X": 1620,
-            "Y": 320
+            "Y": 320,
+            "Comment": null
           }
         },
         {
           "kind": "Return",
-          "Id": "0b057c21-8b88-451e-9893-a513f81afc1f",
           "Status": "Running",
+          "Id": "0b057c21-8b88-451e-9893-a513f81afc1f",
           "Pins": [],
           "EditorMetadata": {
             "X": 1620,
-            "Y": 480
+            "Y": 480,
+            "Comment": null
           }
         }
       ],
@@ -204,6 +215,8 @@
           "ToPinId": "e2ebd340-875b-6e53-bb7c-82b2b0eb2ebb"
         }
       ],
+      "LocalVariables": [],
+      "Comments": [],
       "EditorMetadata": {
         "ViewportX": 0,
         "ViewportY": 0,
@@ -212,7 +225,7 @@
     }
   ],
   "EditorMetadata": {
-    "Description": "P1b (Hill-attack -> Blueprints migration), tree-INTEGRATION track (architect Q#9-A): the integrated twin of HillAssault2_IsWaveCompleted -- SAME WaveMonitorOps swap-remove kernel, but leaves its native WorkingState EMPTY and converses over the standalone entity-scoped HillAttackSharedState struct via GetShared/SetShared(VariableId=\"state\") instead of a private Wave:WaveState WorkingState var, so it can be composed alongside its sibling integrated nodes in a real commander .btree.json (mirrors HillAssault2I_CalculateSegments's empty-WorkingState/GetShared-SetShared pattern). This is the 4th and final wave-loop node for PlatoonHillAttack2.btree.json's Repeater(Sequence(RequestAreaQuery, IsAreaQueryResolved, DispatchWaveWithTargets, IsWaveCompleted)) -- previously omitted pending the curated WaveMonitorOps(HillAttackSharedState, ISimulationView) / ActiveCount(HillAttackSharedState) tree-integration overloads (now added). Graph: EventEntry -> SetShared(\"state\") [Value <- FunctionCall WaveMonitorOps.Update(s <- GetShared(\"state\").Value) [IsPure, TrailingContext=View]] -> Branch(Condition <- Compare(FunctionCall WaveMonitorOps.ActiveCount(s <- the SAME Update.Return), Literal Int32 0, Equal)) -> True: Return(Success) (wave complete); False: Return(Running) (still polling). The single Update.Return output pin fans out to BOTH the SetShared writeback and the ActiveCount read (pure data nodes fan out freely, proven by the isolated twin and HillAssault2I_RequestAreaQuery), avoiding any re-read-before-write ordering hazard. Reuses the curated Hrot.AI.Behaviors.Brains.WaveMonitorOps.Update(HillAttackSharedState,ISimulationView)/ActiveCount(HillAttackSharedState) tree-integration overloads (thin adapters that project ActiveRunners/BurnedSlotsMask/BaselineReservedMask into a WaveState, reuse the proven WaveState kernel, and write the fields back) -- zero logic duplication, does not modify the C# oracle, the isolated twin (HillAssault2_IsWaveCompleted.bp.json), the compiler, or WaveMonitorOps' pre-existing WaveState-based members.",
+    "Description": "P1b (Hill-attack -\u003E Blueprints migration), tree-INTEGRATION track (architect Q#9-A): the integrated twin of HillAssault2_IsWaveCompleted -- SAME WaveMonitorOps swap-remove kernel, but leaves its native WorkingState EMPTY and converses over the standalone entity-scoped HillAttackSharedState struct via GetShared/SetShared(VariableId=\u0022state\u0022) instead of a private Wave:WaveState WorkingState var, so it can be composed alongside its sibling integrated nodes in a real commander .btree.json (mirrors HillAssault2I_CalculateSegments\u0027s empty-WorkingState/GetShared-SetShared pattern). This is the 4th and final wave-loop node for PlatoonHillAttack2.btree.json\u0027s Repeater(Sequence(RequestAreaQuery, IsAreaQueryResolved, DispatchWaveWithTargets, IsWaveCompleted)) -- previously omitted pending the curated WaveMonitorOps(HillAttackSharedState, ISimulationView) / ActiveCount(HillAttackSharedState) tree-integration overloads (now added). Graph: EventEntry -\u003E SetShared(\u0022state\u0022) [Value \u003C- FunctionCall WaveMonitorOps.Update(s \u003C- GetShared(\u0022state\u0022).Value) [IsPure, TrailingContext=View]] -\u003E Branch(Condition \u003C- Compare(FunctionCall WaveMonitorOps.ActiveCount(s \u003C- the SAME Update.Return), Literal Int32 0, Equal)) -\u003E True: Return(Success) (wave complete); False: Return(Running) (still polling). The single Update.Return output pin fans out to BOTH the SetShared writeback and the ActiveCount read (pure data nodes fan out freely, proven by the isolated twin and HillAssault2I_RequestAreaQuery), avoiding any re-read-before-write ordering hazard. Reuses the curated Hrot.AI.Behaviors.Brains.WaveMonitorOps.Update(HillAttackSharedState,ISimulationView)/ActiveCount(HillAttackSharedState) tree-integration overloads (thin adapters that project ActiveRunners/BurnedSlotsMask/BaselineReservedMask into a WaveState, reuse the proven WaveState kernel, and write the fields back) -- zero logic duplication, does not modify the C# oracle, the isolated twin (HillAssault2_IsWaveCompleted.bp.json), the compiler, or WaveMonitorOps\u0027 pre-existing WaveState-based members.",
     "Category": null,
     "Recipe": null
   }

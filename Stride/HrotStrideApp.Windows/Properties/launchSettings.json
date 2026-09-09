@@ -1,0 +1,11 @@
+{
+  "profiles": {
+    "HrotStrideApp.Windows": {
+      "commandName": "Project",
+      "environmentVariables": {
+        "STRIDE_EDITOR_WINDOW": "1",
+        "STRIDE_HOST_REAL_EDITOR": "1"
+      }
+    }
+  }
+}

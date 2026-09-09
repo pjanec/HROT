@@ -3,8 +3,8 @@
 > **Status:** Detailed design. Grounded in read-only verification of the `blueprint-integ-1` sources (8 verification passes, all cited inline). Ready for batch breakdown.
 > **Audience:** Implementation agents (sonnet) + human reviewer (lead).
 > **Drives:** Switching BTree and HSM visual-editor assets from *C#-as-source-of-truth* to *JSON-as-source-of-truth*, mirroring the Blueprint subsystem. Plus unified Save/Save-All, path-at-creation, a unified tree asset browser, and one-time migration.
-> **Does NOT cover:** The visual *blackboard authoring* feature set (panel, aggregation, aliasing, sync, bin-packing, validation) — that is the separate **Blackboard Authoring DD** (`.dev/ai-hsm-btree-vis-edit/Blackboard_Authoring_Detailed_Design.md`), implemented as Slice 1.5 and **activated AFTER** this thread, re-based on the JSON substrate this thread lands. This thread only lands the JSON *substrate* for blackboard schema (forward-compatible round-trip).
-> **Ordering:** Runs **after** Thread 2 (`.dev/blueprint-finalize/`). Rebase on latest `blueprint-integ-1` first.
+> **Does NOT cover:** The visual *blackboard authoring* feature set (panel, aggregation, aliasing, sync, bin-packing, validation) — that is the separate **Blackboard Authoring DD** (`.dev/_DONE/ai-hsm-btree-vis-edit/Blackboard_Authoring_Detailed_Design.md`), implemented as Slice 1.5 and **activated AFTER** this thread, re-based on the JSON substrate this thread lands. This thread only lands the JSON *substrate* for blackboard schema (forward-compatible round-trip).
+> **Ordering:** Runs **after** Thread 2 (`.dev/_DONE/blueprint-finalize/`). Rebase on latest `blueprint-integ-1` first.
 > **Scope guardrails:** branch `blueprint-integ-1`. GizmoMap.Contracts stays 0.2.2. No `Hrot.IG` / DDS / `Stride/`. No `editor_stride`.
 
 ---
@@ -66,7 +66,7 @@ Under `Hrot/Subsystems/Hrot.AI.Behaviors/`: `Blueprints/**/*.bp.json` (fed to th
 `IRefactorService` + `AtomicMultiFileWriter` rename FQNs via line-based string replacement on each asset's `SourceFilePath`; already supports Blueprint/BTree/HSM kinds.
 
 ### 2.9 Blackboard: feature is BUILT but DORMANT (not dead, not wired)
-- The **Blackboard Authoring DD** (`.dev/ai-hsm-btree-vis-edit/`) is design-reviewed; its TASK-TRACKER shows **all 44 tasks `[x]`** — but our verification found **no production callers**, **no `*.Blackboard.cs` on disk**, vars populated **UI-only**, and **no asset adopts it**. Conclusion: components built + unit-tested, **never engine-wired**.
+- The **Blackboard Authoring DD** (`.dev/_DONE/ai-hsm-btree-vis-edit/`) is design-reviewed; its TASK-TRACKER shows **all 44 tasks `[x]`** — but our verification found **no production callers**, **no `*.Blackboard.cs` on disk**, vars populated **UI-only**, and **no asset adopts it**. Conclusion: components built + unit-tested, **never engine-wired**.
 - Both editor models already carry `IsBlackboardEditorManaged` ([BehaviorTreeAsset.cs:205](Hrot/Subsystems/AI/Hrot.BTree.Editor/Model/BehaviorTreeAsset.cs#L205), [HsmAsset.cs:60](Hrot/Subsystems/AI/Hrot.Hsm.Editor/Model/HsmAsset.cs#L60)) and `BlackboardLoadState`; vars are `List<BlackboardVariableEntry>` (record `Name`, `System.Type FieldType`, `Comment` — **not JSON-friendly**, not persisted today).
 - Runtime tiers: inline `BrainBlackboard.BehaviorParameters` (ceiling = `MaxBehaviorParamByteSize`; see §8 note) + on-demand `Blackboard1024` heavy component, provisioned via `[BTreeDefinition(HeavyDtoType=…)]`. Real heavy DTOs use `fixed`-buffer SoA arrays ([HillAttackDtos.cs:94 `HillAttackMutableState`](Hrot/Subsystems/Hrot.AI.Behaviors/Brains/HillAttackDtos.cs#L94)).
 - **Do NOT delete any blackboard scaffolding.** It is reused (logic is persistence-agnostic) when Slice 1.5 is activated on JSON.

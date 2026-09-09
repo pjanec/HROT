@@ -93,7 +93,11 @@ namespace Fdp.Toolkit.Behavior.Systems
                     {
                         try
                         {
-                            def.ParseParams(evt.JsonParams, dst, repo, evt.Entity);
+                            // ⭐ G1/E7 — `host` is null: this is a ROOT behaviour, which is its
+                            //   defined value (DESIGN_Parameter_Model.md §3.4). A HOSTED occurrence
+                            //   will pass its host's variable access here, at E7a, without another
+                            //   signature change.
+                            def.ParseParams(evt.JsonParams, dst, repo, evt.Entity, host: null);
                             parseOk = true;
                         }
                         catch (Exception ex)

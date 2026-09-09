@@ -1,6 +1,22 @@
 # Blueprint Subsystem — Slice 1 Implementation Roadmap — v1.1
 
-> **Status:** Roadmap-review-approved (architect feedback on v1.0 incorporated).
+> # 📜 HISTORICAL — NOT A STATUS DOCUMENT
+>
+> **This roadmap is fully superseded and is retained only as a record of how Slice 1 was planned.**
+> Slice 1 shipped; the milestone list below (M0–M12) describes intent from before implementation and
+> **does not describe the current state of the code**. Reading it as status will mislead you — it was
+> found to contradict the code during the 2026-08-04 audit (BP-50).
+>
+> **For what actually exists today, use:**
+> - [Blueprints_Overview.md](Blueprints_Overview.md) — current capabilities & architecture
+> - [Blueprint_Issues_Tracker.md](Blueprint_Issues_Tracker.md) — the live gap list, verified against code
+> - [Blueprint_Issues_Detail.md](Blueprint_Issues_Detail.md) — per-issue evidence
+>
+> Do not add new work items here. Historical content follows unchanged.
+
+---
+
+> **Status (at time of writing):** Roadmap-review-approved (architect feedback on v1.0 incorporated).
 > **Supersedes:** `Blueprint_Subsystem_Implementation_Roadmap.md` v1.0.
 > **Companion docs:** `Blueprint_Subsystem_Architecture_v1.2.md`, `..._FinalResolutions.md`, `..._InlinePatches.md`.
 

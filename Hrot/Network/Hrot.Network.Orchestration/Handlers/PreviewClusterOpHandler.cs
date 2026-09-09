@@ -5,6 +5,7 @@ using System.Threading.Tasks;
 using Hrot.NED.Descriptors.Orchestration;
 using Fdp.Core;
 using Fdp.Core.Logging;
+using Fdp.Toolkit.Orchestration.Preview;
 
 namespace Hrot.Common.Orchestration.Handlers
 {
@@ -39,6 +40,15 @@ namespace Hrot.Common.Orchestration.Handlers
         private readonly EntityRepository? _liveRepo;
         private EntityRepository? _snap;
 
+        // ⭐⭐⭐ HN-017 — WHAT ELSE A PREVIEW MUST PUT BACK.
+        // 📄 docs/DESIGN_Deterministic_Network_Ids.md §2b (the enumeration) · §4c (the chosen approach).
+        // ⛔⛔ The rewind below is `_liveRepo.SyncFrom(_snap)` and NOTHING ELSE, so every mutable thing
+        //    outside the EntityRepository survived it. §2b enumerated three; this is the ONE list, and it
+        //    lives in Fdp.Toolkits so ReferencePreviewHandler shares this exact implementation rather than
+        //    growing a second one (HN-016: there are two preview handlers).
+        // ⚠ Null when the host supplied no participants — legal, and it means "no non-ECS state here".
+        private readonly PreviewStateBracket? _bracket;
+
         /// <param name="liveRepo">
         /// The subsystem's authoritative entity repository.
         /// Pass <see langword="null"/> for subsystems that carry no ECS state
@@ -46,10 +56,26 @@ namespace Hrot.Common.Orchestration.Handlers
         /// both LoadingPreview and UnloadingPreview while remaining registered
         /// so the ClusterSlave can ACK the two-phase commit correctly.
         /// </param>
-        public PreviewClusterOpHandler(EntityRepository? liveRepo)
+        /// <param name="rewindables">
+        /// ⭐⭐ The non-ECS state this node must also put back — <c>PreviewParticipants.IdAllocator(...)</c>
+        /// and <c>PreviewParticipants.EntityMap(...)</c>. 📄 §2b.
+        /// <para>⛔⛔ <b>Pass BOTH or neither.</b> 📐 Restoring the allocator alone makes things WORSE:
+        /// <c>NetworkEntityMap.Register</c> throws on a duplicate id, and the allocator's drift is currently
+        /// the only thing stopping preview 2 from colliding. ⇒ exact id repetition without the map rewind is
+        /// a guaranteed exception.</para>
+        /// <para>⚠ Empty for subsystems with no ECS state (ExCon, IG, CGF skeleton) — they pass
+        /// <c>liveRepo: null</c> too.</para>
+        /// </param>
+        public PreviewClusterOpHandler(
+            EntityRepository? liveRepo,
+            System.Collections.Generic.IEnumerable<IPreviewRewindable>? rewindables = null)
         {
             _liveRepo = liveRepo;
+            _bracket  = rewindables is null ? null : new PreviewStateBracket(rewindables);
         }
+
+        /// <summary>⭐ Exposed for rails — a rail must reach the CONSTRUCTED object, not the wiring source.</summary>
+        internal PreviewStateBracket? TestHook_Bracket => _bracket;
 
         /// <inheritdoc />
         /// <remarks>
@@ -98,6 +124,8 @@ namespace Hrot.Common.Orchestration.Handlers
         {
             _snap?.Dispose();
             _snap = null;
+            // ⭐ Nothing was rewound, so nothing is restored — drop the capture rather than applying it.
+            _bracket?.Discard();
         }
 
         // ── Internal test accessor ────────────────────────────────────────────
@@ -139,6 +167,9 @@ namespace Hrot.Common.Orchestration.Handlers
             snap.SyncFrom(_liveRepo, includeTransient: true);
             _snap = snap;
 
+            // ⭐ Beside the repo snapshot, deliberately: "what preview saves" has ONE moment as well as one home.
+            _bracket?.Capture();
+
             FdpLog<PreviewClusterOpHandler>.Info(
                 "[Preview] LoadingPreview: snapshot captured.");
         }
@@ -165,6 +196,10 @@ namespace Hrot.Common.Orchestration.Handlers
             _liveRepo.SyncFrom(_snap, includeTransient: true);
             _snap.Dispose();
             _snap = null;
+
+            // ⭐⭐ AFTER the repo rewind: the map's entries refer to entities the rewind has just restored,
+            //    so restoring the map first would briefly describe a world that does not exist yet.
+            _bracket?.Restore();
 
             FdpLog<PreviewClusterOpHandler>.Info(
                 "[Preview] UnloadingPreview: live repo rewound to snapshot.");

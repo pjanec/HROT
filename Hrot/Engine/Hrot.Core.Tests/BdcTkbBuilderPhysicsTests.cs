@@ -66,6 +66,62 @@ namespace Hrot.Map.Common.Tests
             var dto = template.GetDescriptor<VehicleParametersDto>()!;
             Assert.Equal(20f, dto.MaxSpeedFwd);
         }
+
+        // ── CE-113 ───────────────────────────────────────────────────────────────
+        // WithPhysics used to store six of SimVehicleDef's eleven fields and drop the
+        // rest under a comment deferring them to a "Phase 6" that never happened.  The
+        // two that a vehicle cannot be driven without are TurnRate and Mobility.
+
+        private static TkbDatabase BuildTank()
+        {
+            var db = new TkbDatabase();
+            new NedTkbBuilder(db)
+                .DefineVehicle(TestTkbId, "TestTank")
+                .WithPhysics(TestTkbId, def =>
+                {
+                    def.Length   = 7.93f;
+                    def.Width    = 3.66f;
+                    def.MaxSpeed = 20f;
+                    def.TurnRate = 15f;
+                    def.Mobility = TerrainMobility.Tracked;
+                });
+            return db;
+        }
+
+        [Fact]
+        public void WithPhysics_carries_the_authored_TurnRate_into_the_descriptor()
+        {
+            var dto = BuildTank().GetByType(TestTkbId)!.GetDescriptor<VehicleParametersDto>()!;
+            Assert.Equal(15f, dto.TurnRate);
+        }
+
+        /// <summary>
+        /// The catalog authors <c>TerrainMobility</c>; the kinematics translator needs a
+        /// <c>VehicleClass</c>.  The mapping stays on this side of the layer boundary
+        /// because <c>Fdp.Toolkits</c> cannot reference <c>Hrot.Core</c>'s enum.
+        /// </summary>
+        [Fact]
+        public void WithPhysics_maps_Tracked_mobility_to_the_Tank_vehicle_class()
+        {
+            var dto = BuildTank().GetByType(TestTkbId)!.GetDescriptor<VehicleParametersDto>()!;
+            Assert.Equal(CarKinem.Core.VehicleClass.Tank, dto.VehicleClass);
+        }
+
+        /// <summary>
+        /// A template that authors no mobility must leave the class absent rather than
+        /// claiming PersonalCar, so the translator can tell the two apart.
+        /// </summary>
+        [Fact]
+        public void WithPhysics_without_an_authored_mobility_still_reports_a_class()
+        {
+            // TerrainMobility is a non-nullable enum on SimVehicleDef whose default is
+            // Tracked, so "unauthored" is not expressible upstream -- the builder always
+            // maps whatever the def holds.  Pinned so the asymmetry with the DTO's
+            // nullable field is deliberate and visible, not an accident.
+            var dto = BuildDatabase().GetByType(TestTkbId)!.GetDescriptor<VehicleParametersDto>()!;
+            Assert.NotNull(dto.VehicleClass);
+            Assert.Equal(CarKinem.Core.VehicleClass.Tank, dto.VehicleClass);
+        }
     }
 }
 

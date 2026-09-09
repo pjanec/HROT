@@ -11,6 +11,7 @@ using Fdp.Toolkit.Perception.Events;
 using Fdp.Toolkit.Physics.Components;
 using Fdp.Toolkit.Replication.Components;
 using Hrot.Editor.Adapters;
+using Hrot.UI.Common.Adapters;   // ⭐ CE-061 — the host-agnostic adapters moved to Hrot.Presentation
 using Hrot.Map.Common;
 using Hrot.Map.Common.Components;
 using Hrot.Map.Common.Events;
@@ -392,7 +393,7 @@ public sealed class EditorAuthoringIntegrationTests : IDisposable
         var registry = new Fdp.Toolkit.Behavior.BehaviorRegistry();
         registry.Register(1, "Ambush", new Fdp.Toolkit.Behavior.BehaviorDefinition { Name = "Ambush" });
 
-        var service = new EditorMissionService(world.Bus, world, registry);
+        var service = new ScenarioMissionService(world.Bus, world, registry);
 
         // GetAvailableBehaviors resolves entities via NetworkIdentity, not ECS index.
         var behaviors = service.GetAvailableBehaviors(insurgentNetId);

@@ -1,24 +1,23 @@
 {
   "$meta": {
     "docType": "Hrot.Blueprints",
-    "schemaVersion": 1
+    "schemaVersion": 2
   },
-  "Header": {
-    "SubsystemType": "Hrot.Blueprints",
-    "SchemaVersion": "1.0"
-  },
+  "Header": {},
   "AssetId": "9d2e4c81-7a3f-4e56-b9c0-2a4d6e8f1b53",
   "Name": "HillAssault2_DispatchAllToBaseline",
   "Dispatch": "AiPrimitive",
   "TierHint": "Auto",
+  "IsWorldSingleton": false,
   "Primitive": {
     "Intent": "Action",
     "Hostings": [
       "BTreeAction"
     ]
   },
-  "Parameters": [
+  "Declarations": [
     {
+      "Kind": "Parameter",
       "Id": "a2000000-0000-0000-0000-000000000001",
       "Name": "BaselineStartX",
       "Type": {
@@ -26,9 +25,12 @@
         "IsArray": false,
         "GenericArgs": []
       },
-      "DefaultValueJson": "0"
+      "DefaultValueJson": "0",
+      "Tooltip": null,
+      "Comment": null
     },
     {
+      "Kind": "Parameter",
       "Id": "a2000000-0000-0000-0000-000000000002",
       "Name": "BaselineStartY",
       "Type": {
@@ -36,9 +38,12 @@
         "IsArray": false,
         "GenericArgs": []
       },
-      "DefaultValueJson": "0"
+      "DefaultValueJson": "0",
+      "Tooltip": null,
+      "Comment": null
     },
     {
+      "Kind": "Parameter",
       "Id": "a2000000-0000-0000-0000-000000000003",
       "Name": "BaselineEndX",
       "Type": {
@@ -46,9 +51,12 @@
         "IsArray": false,
         "GenericArgs": []
       },
-      "DefaultValueJson": "0"
+      "DefaultValueJson": "0",
+      "Tooltip": null,
+      "Comment": null
     },
     {
+      "Kind": "Parameter",
       "Id": "a2000000-0000-0000-0000-000000000004",
       "Name": "BaselineEndY",
       "Type": {
@@ -56,11 +64,12 @@
         "IsArray": false,
         "GenericArgs": []
       },
-      "DefaultValueJson": "0"
-    }
-  ],
-  "WorkingState": [
+      "DefaultValueJson": "0",
+      "Tooltip": null,
+      "Comment": null
+    },
     {
+      "Kind": "Variable",
       "Id": "b3000000-0000-0000-0000-000000000001",
       "Name": "BaselineReservedMask",
       "Type": {
@@ -76,7 +85,9 @@
       "Comment": null
     }
   ],
-  "Variables": [],
+  "ParameterOrder": null,
+  "WorkingStateOrder": null,
+  "VariableOrder": null,
   "EventDispatchers": [],
   "CustomEvents": [],
   "CallablePeers": [],
@@ -87,140 +98,167 @@
       "Kind": "Function",
       "Inputs": [],
       "Outputs": [],
+      "ExecOutputs": [],
+      "ExecInputs": [],
       "Nodes": [
         {
           "kind": "EventEntry",
-          "Id": "e0000000-0000-0000-0000-000000000001",
           "EventTypeId": "",
+          "Id": "e0000000-0000-0000-0000-000000000001",
           "Pins": [],
           "EditorMetadata": {
-            "X": 40.0,
-            "Y": 400.0
+            "X": 40,
+            "Y": 400,
+            "Comment": null
           }
         },
         {
           "kind": "Literal",
-          "Id": "11000000-0000-0000-0000-000000000001",
           "TypeId": "System.UInt16",
           "ValueJson": "(ushort)0",
+          "Id": "11000000-0000-0000-0000-000000000001",
           "Pins": [],
           "EditorMetadata": {
-            "X": 40.0,
-            "Y": 480.0
+            "X": 40,
+            "Y": 480,
+            "Comment": null
           }
         },
         {
           "kind": "SetVariable",
-          "Id": "50000000-0000-0000-0000-000000000001",
           "VariableId": "b3000000-0000-0000-0000-000000000001",
+          "Id": "50000000-0000-0000-0000-000000000001",
           "Pins": [],
           "EditorMetadata": {
-            "X": 280.0,
-            "Y": 400.0
+            "X": 280,
+            "Y": 400,
+            "Comment": null
           }
         },
         {
           "kind": "FlowForEach",
-          "Id": "fe000000-0000-0000-0000-000000000001",
           "SourceComponentFqn": "Fdp.Core.CommandHierarchy.UnitRoster",
           "CountAccessorFqn": "Hrot.AI.Behaviors.Brains.UnitRosterOps.Count",
           "ItemAccessorFqn": "Hrot.AI.Behaviors.Brains.UnitRosterOps.Subordinate",
+          "Id": "fe000000-0000-0000-0000-000000000001",
           "Pins": [
             {
               "Id": "fe000000-0000-0000-0000-0000000000a1",
               "Name": "In",
               "Direction": "In",
+              "TypeRef": {
+                "TypeId": "",
+                "IsArray": false,
+                "GenericArgs": []
+              },
               "IsExec": true,
-              "TypeRef": {}
+              "LinkedToIds": []
             },
             {
               "Id": "fe000000-0000-0000-0000-0000000000a2",
               "Name": "Body",
               "Direction": "Out",
+              "TypeRef": {
+                "TypeId": "",
+                "IsArray": false,
+                "GenericArgs": []
+              },
               "IsExec": true,
-              "TypeRef": {}
+              "LinkedToIds": []
             },
             {
               "Id": "fe000000-0000-0000-0000-0000000000a3",
               "Name": "Completed",
               "Direction": "Out",
+              "TypeRef": {
+                "TypeId": "",
+                "IsArray": false,
+                "GenericArgs": []
+              },
               "IsExec": true,
-              "TypeRef": {}
+              "LinkedToIds": []
             },
             {
               "Id": "fe000000-0000-0000-0000-0000000000a4",
               "Name": "CurrentItem",
               "Direction": "Out",
-              "IsExec": false,
               "TypeRef": {
                 "TypeId": "Fdp.Core.Entity",
                 "IsArray": false,
                 "GenericArgs": []
-              }
+              },
+              "IsExec": false,
+              "LinkedToIds": []
             },
             {
               "Id": "fe000000-0000-0000-0000-0000000000a5",
               "Name": "CurrentIndex",
               "Direction": "Out",
-              "IsExec": false,
               "TypeRef": {
                 "TypeId": "System.Int32",
                 "IsArray": false,
                 "GenericArgs": []
-              }
+              },
+              "IsExec": false,
+              "LinkedToIds": []
             },
             {
               "Id": "fe000000-0000-0000-0000-0000000000a6",
               "Name": "Count",
               "Direction": "Out",
-              "IsExec": false,
               "TypeRef": {
                 "TypeId": "System.Int32",
                 "IsArray": false,
                 "GenericArgs": []
-              }
+              },
+              "IsExec": false,
+              "LinkedToIds": []
             }
           ],
           "EditorMetadata": {
-            "X": 560.0,
-            "Y": 400.0
+            "X": 560,
+            "Y": 400,
+            "Comment": null
           }
         },
         {
           "kind": "FunctionCall",
-          "Id": "fc000000-0000-0000-0000-000000000001",
           "TargetTypeId": "Hrot.AI.Behaviors.Brains.WorldOps",
           "MethodName": "IsAlive",
           "IsPure": true,
           "TargetGraphId": "",
           "TrailingContext": "View",
+          "Id": "fc000000-0000-0000-0000-000000000001",
           "Pins": [
             {
               "Id": "fc000000-0000-0000-0000-0000000000a1",
               "Name": "e",
               "Direction": "In",
-              "IsExec": false,
               "TypeRef": {
                 "TypeId": "Fdp.Core.Entity",
                 "IsArray": false,
                 "GenericArgs": []
-              }
+              },
+              "IsExec": false,
+              "LinkedToIds": []
             },
             {
               "Id": "fc000000-0000-0000-0000-0000000000a2",
               "Name": "Return",
               "Direction": "Out",
-              "IsExec": false,
               "TypeRef": {
                 "TypeId": "System.Boolean",
                 "IsArray": false,
                 "GenericArgs": []
-              }
+              },
+              "IsExec": false,
+              "LinkedToIds": []
             }
           ],
           "EditorMetadata": {
-            "X": 820.0,
-            "Y": 120.0
+            "X": 820,
+            "Y": 120,
+            "Comment": null
           }
         },
         {
@@ -231,441 +269,504 @@
               "Id": "b1000000-0000-0000-0000-0000000000a1",
               "Name": "In",
               "Direction": "In",
+              "TypeRef": {
+                "TypeId": "",
+                "IsArray": false,
+                "GenericArgs": []
+              },
               "IsExec": true,
-              "TypeRef": {}
+              "LinkedToIds": []
             },
             {
               "Id": "b1000000-0000-0000-0000-0000000000a2",
               "Name": "True",
               "Direction": "Out",
+              "TypeRef": {
+                "TypeId": "",
+                "IsArray": false,
+                "GenericArgs": []
+              },
               "IsExec": true,
-              "TypeRef": {}
+              "LinkedToIds": []
             },
             {
               "Id": "b1000000-0000-0000-0000-0000000000a3",
               "Name": "False",
               "Direction": "Out",
+              "TypeRef": {
+                "TypeId": "",
+                "IsArray": false,
+                "GenericArgs": []
+              },
               "IsExec": true,
-              "TypeRef": {}
+              "LinkedToIds": []
             },
             {
               "Id": "b1000000-0000-0000-0000-0000000000a4",
               "Name": "Condition",
               "Direction": "In",
-              "IsExec": false,
               "TypeRef": {
-                "TypeId": "System.Boolean"
-              }
+                "TypeId": "System.Boolean",
+                "IsArray": false,
+                "GenericArgs": []
+              },
+              "IsExec": false,
+              "LinkedToIds": []
             }
           ],
           "EditorMetadata": {
-            "X": 1040.0,
-            "Y": 400.0
+            "X": 1040,
+            "Y": 400,
+            "Comment": null
           }
         },
         {
           "kind": "FunctionCall",
-          "Id": "fc000000-0000-0000-0000-000000000002",
           "TargetTypeId": "Hrot.AI.Behaviors.Brains.SegmentMath",
           "MethodName": "LerpParam",
           "IsPure": true,
           "TargetGraphId": "",
           "TrailingContext": "None",
+          "Id": "fc000000-0000-0000-0000-000000000002",
           "Pins": [
             {
               "Id": "fc000000-0000-0000-0000-0000000000b1",
               "Name": "index",
               "Direction": "In",
-              "IsExec": false,
               "TypeRef": {
                 "TypeId": "System.Int32",
                 "IsArray": false,
                 "GenericArgs": []
-              }
+              },
+              "IsExec": false,
+              "LinkedToIds": []
             },
             {
               "Id": "fc000000-0000-0000-0000-0000000000b2",
               "Name": "count",
               "Direction": "In",
-              "IsExec": false,
               "TypeRef": {
                 "TypeId": "System.Int32",
                 "IsArray": false,
                 "GenericArgs": []
-              }
+              },
+              "IsExec": false,
+              "LinkedToIds": []
             },
             {
               "Id": "fc000000-0000-0000-0000-0000000000b3",
               "Name": "Return",
               "Direction": "Out",
-              "IsExec": false,
               "TypeRef": {
                 "TypeId": "System.Single",
                 "IsArray": false,
                 "GenericArgs": []
-              }
+              },
+              "IsExec": false,
+              "LinkedToIds": []
             }
           ],
           "EditorMetadata": {
-            "X": 820.0,
-            "Y": 260.0
+            "X": 820,
+            "Y": 260,
+            "Comment": null
           }
         },
         {
           "kind": "FunctionCall",
-          "Id": "fc000000-0000-0000-0000-000000000003",
           "TargetTypeId": "Hrot.AI.Behaviors.Brains.SegmentMath",
           "MethodName": "Lerp",
           "IsPure": true,
           "TargetGraphId": "",
           "TrailingContext": "None",
+          "Id": "fc000000-0000-0000-0000-000000000003",
           "Pins": [
             {
               "Id": "fc000000-0000-0000-0000-0000000000c1",
               "Name": "a",
               "Direction": "In",
-              "IsExec": false,
               "TypeRef": {
                 "TypeId": "System.Single",
                 "IsArray": false,
                 "GenericArgs": []
-              }
+              },
+              "IsExec": false,
+              "LinkedToIds": []
             },
             {
               "Id": "fc000000-0000-0000-0000-0000000000c2",
               "Name": "b",
               "Direction": "In",
-              "IsExec": false,
               "TypeRef": {
                 "TypeId": "System.Single",
                 "IsArray": false,
                 "GenericArgs": []
-              }
+              },
+              "IsExec": false,
+              "LinkedToIds": []
             },
             {
               "Id": "fc000000-0000-0000-0000-0000000000c3",
               "Name": "t",
               "Direction": "In",
-              "IsExec": false,
               "TypeRef": {
                 "TypeId": "System.Single",
                 "IsArray": false,
                 "GenericArgs": []
-              }
+              },
+              "IsExec": false,
+              "LinkedToIds": []
             },
             {
               "Id": "fc000000-0000-0000-0000-0000000000c4",
               "Name": "Return",
               "Direction": "Out",
-              "IsExec": false,
               "TypeRef": {
                 "TypeId": "System.Single",
                 "IsArray": false,
                 "GenericArgs": []
-              }
+              },
+              "IsExec": false,
+              "LinkedToIds": []
             }
           ],
           "EditorMetadata": {
-            "X": 1040.0,
-            "Y": 40.0
+            "X": 1040,
+            "Y": 40,
+            "Comment": null
           }
         },
         {
           "kind": "FunctionCall",
-          "Id": "fc000000-0000-0000-0000-000000000004",
           "TargetTypeId": "Hrot.AI.Behaviors.Brains.SegmentMath",
           "MethodName": "Lerp",
           "IsPure": true,
           "TargetGraphId": "",
           "TrailingContext": "None",
+          "Id": "fc000000-0000-0000-0000-000000000004",
           "Pins": [
             {
               "Id": "fc000000-0000-0000-0000-0000000000d1",
               "Name": "a",
               "Direction": "In",
-              "IsExec": false,
               "TypeRef": {
                 "TypeId": "System.Single",
                 "IsArray": false,
                 "GenericArgs": []
-              }
+              },
+              "IsExec": false,
+              "LinkedToIds": []
             },
             {
               "Id": "fc000000-0000-0000-0000-0000000000d2",
               "Name": "b",
               "Direction": "In",
-              "IsExec": false,
               "TypeRef": {
                 "TypeId": "System.Single",
                 "IsArray": false,
                 "GenericArgs": []
-              }
+              },
+              "IsExec": false,
+              "LinkedToIds": []
             },
             {
               "Id": "fc000000-0000-0000-0000-0000000000d3",
               "Name": "t",
               "Direction": "In",
-              "IsExec": false,
               "TypeRef": {
                 "TypeId": "System.Single",
                 "IsArray": false,
                 "GenericArgs": []
-              }
+              },
+              "IsExec": false,
+              "LinkedToIds": []
             },
             {
               "Id": "fc000000-0000-0000-0000-0000000000d4",
               "Name": "Return",
               "Direction": "Out",
-              "IsExec": false,
               "TypeRef": {
                 "TypeId": "System.Single",
                 "IsArray": false,
                 "GenericArgs": []
-              }
+              },
+              "IsExec": false,
+              "LinkedToIds": []
             }
           ],
           "EditorMetadata": {
-            "X": 1040.0,
-            "Y": 160.0
+            "X": 1040,
+            "Y": 160,
+            "Comment": null
           }
         },
         {
           "kind": "Literal",
-          "Id": "11000000-0000-0000-0000-000000000002",
           "TypeId": "System.Single",
           "ValueJson": "15f",
+          "Id": "11000000-0000-0000-0000-000000000002",
           "Pins": [],
           "EditorMetadata": {
-            "X": 1040.0,
-            "Y": 560.0
+            "X": 1040,
+            "Y": 560,
+            "Comment": null
           }
         },
         {
           "kind": "Literal",
-          "Id": "11000000-0000-0000-0000-000000000003",
           "TypeId": "System.Single",
           "ValueJson": "5f",
+          "Id": "11000000-0000-0000-0000-000000000003",
           "Pins": [],
           "EditorMetadata": {
-            "X": 1040.0,
-            "Y": 620.0
+            "X": 1040,
+            "Y": 620,
+            "Comment": null
           }
         },
         {
           "kind": "FunctionCall",
-          "Id": "fc000000-0000-0000-0000-000000000005",
           "TargetTypeId": "Hrot.AI.Behaviors.Brains.MoveIntentJson",
           "MethodName": "Build",
           "IsPure": true,
           "TargetGraphId": "",
           "TrailingContext": "None",
+          "Id": "fc000000-0000-0000-0000-000000000005",
           "Pins": [
             {
               "Id": "fc000000-0000-0000-0000-0000000000e1",
               "Name": "x",
               "Direction": "In",
-              "IsExec": false,
               "TypeRef": {
                 "TypeId": "System.Single",
                 "IsArray": false,
                 "GenericArgs": []
-              }
+              },
+              "IsExec": false,
+              "LinkedToIds": []
             },
             {
               "Id": "fc000000-0000-0000-0000-0000000000e2",
               "Name": "y",
               "Direction": "In",
-              "IsExec": false,
               "TypeRef": {
                 "TypeId": "System.Single",
                 "IsArray": false,
                 "GenericArgs": []
-              }
+              },
+              "IsExec": false,
+              "LinkedToIds": []
             },
             {
               "Id": "fc000000-0000-0000-0000-0000000000e3",
               "Name": "speed",
               "Direction": "In",
-              "IsExec": false,
               "TypeRef": {
                 "TypeId": "System.Single",
                 "IsArray": false,
                 "GenericArgs": []
-              }
+              },
+              "IsExec": false,
+              "LinkedToIds": []
             },
             {
               "Id": "fc000000-0000-0000-0000-0000000000e4",
               "Name": "arrivalRadius",
               "Direction": "In",
-              "IsExec": false,
               "TypeRef": {
                 "TypeId": "System.Single",
                 "IsArray": false,
                 "GenericArgs": []
-              }
+              },
+              "IsExec": false,
+              "LinkedToIds": []
             },
             {
               "Id": "fc000000-0000-0000-0000-0000000000e5",
               "Name": "Return",
               "Direction": "Out",
-              "IsExec": false,
               "TypeRef": {
                 "TypeId": "System.String",
                 "IsArray": false,
                 "GenericArgs": []
-              }
+              },
+              "IsExec": false,
+              "LinkedToIds": []
             }
           ],
           "EditorMetadata": {
-            "X": 1280.0,
-            "Y": 200.0
+            "X": 1280,
+            "Y": 200,
+            "Comment": null
           }
         },
         {
           "kind": "Literal",
-          "Id": "11000000-0000-0000-0000-000000000004",
           "TypeId": "System.String",
-          "ValueJson": "\"MoveToLocation\"",
+          "ValueJson": "\u0022MoveToLocation\u0022",
+          "Id": "11000000-0000-0000-0000-000000000004",
           "Pins": [],
           "EditorMetadata": {
-            "X": 1280.0,
-            "Y": 460.0
+            "X": 1280,
+            "Y": 460,
+            "Comment": null
           }
         },
         {
           "kind": "PublishEvent",
-          "Id": "ae000000-0000-0000-0000-000000000001",
           "EventId": "AssignTacticalIntentEvent",
+          "Id": "ae000000-0000-0000-0000-000000000001",
           "Pins": [
             {
               "Id": "ae000000-0000-0000-0000-0000000000a1",
               "Name": "In",
               "Direction": "In",
+              "TypeRef": {
+                "TypeId": "",
+                "IsArray": false,
+                "GenericArgs": []
+              },
               "IsExec": true,
-              "TypeRef": {}
+              "LinkedToIds": []
             },
             {
               "Id": "ae000000-0000-0000-0000-0000000000a2",
               "Name": "Out",
               "Direction": "Out",
+              "TypeRef": {
+                "TypeId": "",
+                "IsArray": false,
+                "GenericArgs": []
+              },
               "IsExec": true,
-              "TypeRef": {}
+              "LinkedToIds": []
             },
             {
               "Id": "ae000000-0000-0000-0000-0000000000a3",
               "Name": "Target",
               "Direction": "In",
-              "IsExec": false,
               "TypeRef": {
                 "TypeId": "Fdp.Core.Entity",
                 "IsArray": false,
                 "GenericArgs": []
-              }
+              },
+              "IsExec": false,
+              "LinkedToIds": []
             },
             {
               "Id": "ae000000-0000-0000-0000-0000000000a4",
               "Name": "IntentId",
               "Direction": "In",
-              "IsExec": false,
               "TypeRef": {
                 "TypeId": "System.String",
                 "IsArray": false,
                 "GenericArgs": []
-              }
+              },
+              "IsExec": false,
+              "LinkedToIds": []
             },
             {
               "Id": "ae000000-0000-0000-0000-0000000000a5",
               "Name": "JsonParams",
               "Direction": "In",
-              "IsExec": false,
               "TypeRef": {
                 "TypeId": "System.String",
                 "IsArray": false,
                 "GenericArgs": []
-              }
+              },
+              "IsExec": false,
+              "LinkedToIds": []
             }
           ],
           "EditorMetadata": {
-            "X": 1560.0,
-            "Y": 400.0
+            "X": 1560,
+            "Y": 400,
+            "Comment": null
           }
         },
         {
           "kind": "GetVariable",
-          "Id": "67000000-0000-0000-0000-000000000001",
           "VariableId": "b3000000-0000-0000-0000-000000000001",
+          "Id": "67000000-0000-0000-0000-000000000001",
           "Pins": [],
           "EditorMetadata": {
-            "X": 1560.0,
-            "Y": 620.0
+            "X": 1560,
+            "Y": 620,
+            "Comment": null
           }
         },
         {
           "kind": "FunctionCall",
-          "Id": "fc000000-0000-0000-0000-000000000006",
           "TargetTypeId": "Hrot.AI.Behaviors.Brains.MaskOps",
           "MethodName": "WithBitSet",
           "IsPure": true,
           "TargetGraphId": "",
           "TrailingContext": "None",
+          "Id": "fc000000-0000-0000-0000-000000000006",
           "Pins": [
             {
               "Id": "fc000000-0000-0000-0000-0000000000f1",
               "Name": "mask",
               "Direction": "In",
-              "IsExec": false,
               "TypeRef": {
                 "TypeId": "System.UInt16",
                 "IsArray": false,
                 "GenericArgs": []
-              }
+              },
+              "IsExec": false,
+              "LinkedToIds": []
             },
             {
               "Id": "fc000000-0000-0000-0000-0000000000f2",
               "Name": "index",
               "Direction": "In",
-              "IsExec": false,
               "TypeRef": {
                 "TypeId": "System.Int32",
                 "IsArray": false,
                 "GenericArgs": []
-              }
+              },
+              "IsExec": false,
+              "LinkedToIds": []
             },
             {
               "Id": "fc000000-0000-0000-0000-0000000000f3",
               "Name": "Return",
               "Direction": "Out",
-              "IsExec": false,
               "TypeRef": {
                 "TypeId": "System.UInt16",
                 "IsArray": false,
                 "GenericArgs": []
-              }
+              },
+              "IsExec": false,
+              "LinkedToIds": []
             }
           ],
           "EditorMetadata": {
-            "X": 1800.0,
-            "Y": 520.0
+            "X": 1800,
+            "Y": 520,
+            "Comment": null
           }
         },
         {
           "kind": "SetVariable",
-          "Id": "50000000-0000-0000-0000-000000000002",
           "VariableId": "b3000000-0000-0000-0000-000000000001",
+          "Id": "50000000-0000-0000-0000-000000000002",
           "Pins": [],
           "EditorMetadata": {
-            "X": 2040.0,
-            "Y": 400.0
+            "X": 2040,
+            "Y": 400,
+            "Comment": null
           }
         },
         {
           "kind": "Return",
-          "Id": "8e000000-0000-0000-0000-000000000001",
           "Status": "Success",
+          "Id": "8e000000-0000-0000-0000-000000000001",
           "Pins": [],
           "EditorMetadata": {
-            "X": 2300.0,
-            "Y": 400.0
+            "X": 2300,
+            "Y": 400,
+            "Comment": null
           }
         },
         {
@@ -674,7 +775,8 @@
           "Pins": [],
           "EditorMetadata": {
             "X": 40,
-            "Y": 40
+            "Y": 40,
+            "Comment": null
           }
         }
       ],
@@ -842,6 +944,8 @@
           "ToPinId": "8a000000-0000-0000-0000-000000000001"
         }
       ],
+      "LocalVariables": [],
+      "Comments": [],
       "EditorMetadata": {
         "ViewportX": 0,
         "ViewportY": 0,
@@ -850,7 +954,7 @@
     }
   ],
   "EditorMetadata": {
-    "Description": "P1b (Hill-attack -> Blueprints migration): Action_DispatchAllToBaseline rebuilt as a visually-authored AiPrimitive BTreeAction, exercising an in-body Branch INSIDE a FlowForEach body (P1b), the FlowForEach loop-introspection out-pins CurrentIndex/Count, a managed PublishEvent (world.Bus.PublishManaged), a context-aware (TrailingContext=View) FunctionCall, and several pure curated FunctionCall helpers. Graph: EventEntry -> SetVariable(BaselineReservedMask) <- Literal(System.UInt16 0) -> FlowForEach over the commander's UnitRoster (curated UnitRosterOps.Count/Subordinate; explicit CurrentItem/CurrentIndex/Count out-pins). Body -> Branch(Condition <- FunctionCall WorldOps.IsAlive(e <- CurrentItem) [TrailingContext=View, IsPure]). Branch.True (alive) -> PublishEvent(AssignTacticalIntentEvent; Target <- CurrentItem; IntentId <- Literal(System.String \"MoveToLocation\"); JsonParams <- FunctionCall MoveIntentJson.Build(x <- FunctionCall SegmentMath.Lerp(a <- GetParameter(BaselineStartX), b <- GetParameter(BaselineEndX), t <- FunctionCall SegmentMath.LerpParam(index <- CurrentIndex, count <- Count)), y <- FunctionCall SegmentMath.Lerp(a <- GetParameter(BaselineStartY), b <- GetParameter(BaselineEndY), t <- the SAME LerpParam.Return), speed <- Literal(System.Single 15f), arrivalRadius <- Literal(System.Single 5f))) -> SetVariable(BaselineReservedMask) <- FunctionCall MaskOps.WithBitSet(mask <- GetVariable(BaselineReservedMask), index <- CurrentIndex) [bundles the oracle's 'if (i<16) mask |= 1<<i' guard]. Branch.False (dead OR packed==0, since Entity(0) is never alive) is UNWIRED -- the single IsAlive branch covers BOTH oracle 'continue' cases (packed==0 unpacks to Entity.Null via new Entity((ulong)0), which IsAlive reports false for). FlowForEach.Completed -> Return(Success). New curated helpers: Hrot.AI.Behaviors.Brains.SegmentMath.LerpParam/Lerp (the count>1?i/(count-1):0.5 ternary and the a+(b-a)*t interpolation -- no visual-node form for the conditional, architect Q#6-A), Hrot.AI.Behaviors.Brains.MoveIntentJson.Build (curated JSON-payload builder for the MoveToLocationParams DTO, architect Q#6-C -- serialization stays in reviewable C#, the graph only publishes the resulting string), Hrot.AI.Behaviors.Brains.MaskOps.WithBitSet (bitwise mask-set + the i<16 guard, architect Q#6-A -- bitwise ops have no visual-node form). Reuses Hrot.AI.Behaviors.Brains.WorldOps.IsAlive (P7 context-aware FunctionCall, already introduced by the AimAndFireSpecific slice). DEVIATION 1 (documented): the oracle's leading 'if (!HasComponent<UnitRoster>(Self)) return Success' guard is omitted -- the FlowForEach lowering reads GetComponentRO<UnitRoster> on self unconditionally, exactly as HillAssault2_AreAllAtBaseline already does (the commander always has a UnitRoster in practice; the proof test adds it explicitly). DEVIATION 2 (documented): the oracle's BehaviorLog.IsDebugEnabled diagnostic logging calls are not reproduced (debug-only side channel, no bearing on WorkingState/return-status/published-event behavior). Does not modify the C# oracle (HillAttackCommanderNodes.Action_DispatchAllToBaseline).",
+    "Description": "P1b (Hill-attack -\u003E Blueprints migration): Action_DispatchAllToBaseline rebuilt as a visually-authored AiPrimitive BTreeAction, exercising an in-body Branch INSIDE a FlowForEach body (P1b), the FlowForEach loop-introspection out-pins CurrentIndex/Count, a managed PublishEvent (world.Bus.PublishManaged), a context-aware (TrailingContext=View) FunctionCall, and several pure curated FunctionCall helpers. Graph: EventEntry -\u003E SetVariable(BaselineReservedMask) \u003C- Literal(System.UInt16 0) -\u003E FlowForEach over the commander\u0027s UnitRoster (curated UnitRosterOps.Count/Subordinate; explicit CurrentItem/CurrentIndex/Count out-pins). Body -\u003E Branch(Condition \u003C- FunctionCall WorldOps.IsAlive(e \u003C- CurrentItem) [TrailingContext=View, IsPure]). Branch.True (alive) -\u003E PublishEvent(AssignTacticalIntentEvent; Target \u003C- CurrentItem; IntentId \u003C- Literal(System.String \u0022MoveToLocation\u0022); JsonParams \u003C- FunctionCall MoveIntentJson.Build(x \u003C- FunctionCall SegmentMath.Lerp(a \u003C- GetParameter(BaselineStartX), b \u003C- GetParameter(BaselineEndX), t \u003C- FunctionCall SegmentMath.LerpParam(index \u003C- CurrentIndex, count \u003C- Count)), y \u003C- FunctionCall SegmentMath.Lerp(a \u003C- GetParameter(BaselineStartY), b \u003C- GetParameter(BaselineEndY), t \u003C- the SAME LerpParam.Return), speed \u003C- Literal(System.Single 15f), arrivalRadius \u003C- Literal(System.Single 5f))) -\u003E SetVariable(BaselineReservedMask) \u003C- FunctionCall MaskOps.WithBitSet(mask \u003C- GetVariable(BaselineReservedMask), index \u003C- CurrentIndex) [bundles the oracle\u0027s \u0027if (i\u003C16) mask |= 1\u003C\u003Ci\u0027 guard]. Branch.False (dead OR packed==0, since Entity(0) is never alive) is UNWIRED -- the single IsAlive branch covers BOTH oracle \u0027continue\u0027 cases (packed==0 unpacks to Entity.Null via new Entity((ulong)0), which IsAlive reports false for). FlowForEach.Completed -\u003E Return(Success). New curated helpers: Hrot.AI.Behaviors.Brains.SegmentMath.LerpParam/Lerp (the count\u003E1?i/(count-1):0.5 ternary and the a\u002B(b-a)*t interpolation -- no visual-node form for the conditional, architect Q#6-A), Hrot.AI.Behaviors.Brains.MoveIntentJson.Build (curated JSON-payload builder for the MoveToLocationParams DTO, architect Q#6-C -- serialization stays in reviewable C#, the graph only publishes the resulting string), Hrot.AI.Behaviors.Brains.MaskOps.WithBitSet (bitwise mask-set \u002B the i\u003C16 guard, architect Q#6-A -- bitwise ops have no visual-node form). Reuses Hrot.AI.Behaviors.Brains.WorldOps.IsAlive (P7 context-aware FunctionCall, already introduced by the AimAndFireSpecific slice). DEVIATION 1 (documented): the oracle\u0027s leading \u0027if (!HasComponent\u003CUnitRoster\u003E(Self)) return Success\u0027 guard is omitted -- the FlowForEach lowering reads GetComponentRO\u003CUnitRoster\u003E on self unconditionally, exactly as HillAssault2_AreAllAtBaseline already does (the commander always has a UnitRoster in practice; the proof test adds it explicitly). DEVIATION 2 (documented): the oracle\u0027s BehaviorLog.IsDebugEnabled diagnostic logging calls are not reproduced (debug-only side channel, no bearing on WorkingState/return-status/published-event behavior). Does not modify the C# oracle (HillAttackCommanderNodes.Action_DispatchAllToBaseline).",
     "Category": null,
     "Recipe": null
   }

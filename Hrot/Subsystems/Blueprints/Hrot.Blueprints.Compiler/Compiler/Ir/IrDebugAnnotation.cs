@@ -15,6 +15,13 @@ public sealed record IrDebugAnnotation
     public Guid? OriginNodeId { get; init; }
 
     /// <summary>
+    /// BP-83 — the macro graph <see cref="OriginNodeId"/> belongs to, when this node was produced by
+    /// macro expansion. <see cref="GraphId"/> is the HOST graph, so both are needed to name an
+    /// authored node unambiguously across two macros.
+    /// </summary>
+    public Guid? OriginGraphId { get; init; }
+
+    /// <summary>
     /// Set by Stage5_Schedule on the FIRST (entry/effect) statement of each EXEC node.
     /// <para>Used by <c>DebugProbeInsertion</c> to insert a per-node <c>NodeEnter</c> probe
     /// immediately before that statement, keyed to this node's id.  Data-dep statements
