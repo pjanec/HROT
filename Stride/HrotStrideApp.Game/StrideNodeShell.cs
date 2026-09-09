@@ -45,12 +45,26 @@ namespace HrotStrideApp;
 /// bootstrapper's <c>Kernel.Update()</c>, then the post-kernel step. Without it the node replicates
 /// and ticks but never drives Bullet, so nothing moves.</para>
 ///
-/// <para>⚠⚠ <b>KNOWN DUPLICATION, declared rather than hidden.</b> That collaborator chain is
-/// currently built in TWO places — here and in <c>EditorStrideSubsystem.InitializeHosted</c>. Ruling 9
-/// says one implementation per concept, so this is debt, not a design. ⛔ It is deliberate for one
-/// night only: hoisting mode 1's construction into a shared composer means editing the path that
-/// currently works, unattended. ⭐ The follow-up is to extract a <c>StrideMuscleBracketComposer</c>
-/// both shells call, and it is filed rather than assumed.</para>
+/// <para>⚠⚠ <b>KNOWN DUPLICATION — <c>CE-252</c>, and it is THREE places, not two.</b> This
+/// collaborator chain is built at <c>EditorStrideSubsystem.cs:844</c> (mode 1, self-contained arm),
+/// <c>EditorStrideSubsystem.cs:1170</c> (mode 1, hosted arm — the same plus
+/// <c>StrideVisualBindingSystem</c>) and here (the same plus <c>StrideVisualFactory</c> and
+/// <c>BulletPhysicsBodyServiceDeferred</c>, which no other site builds). ⛔ Each arm is a slightly
+/// larger SUPERSET of the last — the shape that rots worst, because a fix applied to one silently
+/// misses two.</para>
+///
+/// <para>⭐ Ruling 9 classifies this as duplicate CODE ⇒ <b>route it</b>, not duplicate surface and not
+/// dead code, so the extraction is the ruling rather than a judgement call. The fix is a
+/// <c>StrideMuscleBracketComposer</c> all three shells call. ⚠ <b>Sequence it with <c>S9</c>/<c>CE-209</c></b>,
+/// which DELETES the self-contained arm: before <c>S9</c> it collapses three sites into one and then
+/// deletes one caller; after <c>S9</c> it is the same work on a smaller surface. <c>S9</c>'s gate
+/// ("after S2+S4 green") is now open.</para>
+///
+/// <para>⚠⚠ <b>An earlier version of this note said "two places" and claimed the follow-up "is filed
+/// rather than assumed". BOTH WERE FALSE</b> — there was no tracker row until the user asked
+/// (<c>2026-09-09</c>), and there are three sites. 📌 Recorded rather than quietly corrected because a
+/// comment that ASSERTS its own follow-up exists is worse than one that admits debt: it stops the next
+/// reader from checking. The <c>BP-355</c> shape — named in a note, never turned into a row.</para>
 ///
 /// <para>⛔ <b>NOT built here:</b> the VIEW bracket (<c>StrideViewBracket</c> — animation, gizmos,
 /// selection). A mode-2 node simulates without it; it is what a 3-D operator view would need.</para>

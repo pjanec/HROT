@@ -1949,6 +1949,36 @@ nothing here moves the counts table.*
 
   ⭐ **Rails:** `SpawnTransformBindsTests` (`Hrot.Editor.Tests`) — the documented shape binds, a non-binding payload THROWS *(the anti-vacuity half, without which the first test could pass while the origin bug survived)*, and `SimTransform` still exposes fields so `IncludeFields` cannot be "simplified" away. ⭐⭐ They assert the **`internal` options instance the endpoint actually uses** — ⛔ a locally-built copy would pass while production stayed broken, which is the exact blindness `CE-223` and `CE-224` were each built on.
 
+- [ ] **CE-252** · `RW-M` ⭐⭐ — **THE STRIDE PHYSICS COLLABORATOR CHAIN IS BUILT IN THREE PLACES.** ⚠ **Filed `2026-09-09` because a pushed code comment CLAIMED it was already filed and it was not** *(user caught it: "what about StrideNodeShell.cs comment on line 48, KNOWN DUPLICATION?")* — 📌 the `BP-355` shape: named in a note, never turned into a row.
+
+  📐 **MEASURED — three sites, each a superset of the last:**
+
+  | site | builds |
+  |---|---|
+  | `EditorStrideSubsystem.cs:844` — mode 1, self-contained arm | lifecycle · char motor · vehicle motor · reverse-sync · split sync · `NoOpPhysicsBodyService` |
+  | `EditorStrideSubsystem.cs:1170` — mode 1, **hosted** arm | the same **+ `StrideVisualBindingSystem`** |
+  | `StrideNodeShell.cs:272` *(`AttachPhysics`)* — mode 2 | the same **+ `StrideVisualFactory` + `BulletPhysicsBodyServiceDeferred`** |
+
+  ⇒ ⛔ **A three-way near-copy where each arm builds a slightly larger superset** — ⚠ **the shape that rots worst: a fix applied to one arm silently misses two.** ⭐ Mode 2 is the ONLY site constructing the deferred Bullet service.
+
+  ⭐ **Ruling 9 / the `2026-08-17` classification: this is duplicate CODE — ⇒ ROUTE it**, not duplicate SURFACE *(which is usually kept)* and not dead code. ⛔ So the extraction is the ruling, not a judgement call.
+
+  ⭐⭐ **The fix:** extract a `StrideMuscleBracketComposer` all three shells call. ⚠ **SEQUENCE WITH `S9`/`CE-209`**, which DELETES the self-contained arm — ⇒ ⭐ **doing this BEFORE `S9`** collapses three sites into one and then deletes one caller; **after `S9`** it is the same work on a smaller surface. `S9`'s gate *("after S2+S4 green")* is now **open**, so the two are schedulable together.
+
+  ⚠ **Why it was left as debt for one night, honestly:** hoisting mode 1's construction means editing the path that already worked, unattended, with nobody to check it. ⛔ **That justification has expired.**
+
+- [x] **CE-251** · `RW-S` ✅ — **MODE 2'S PHYSICS WAS INTEGRATING WALL SECONDS, NOT SIM TIME.** ⚠ **Row filed late, `2026-09-09`** — the fix shipped in `21eb69c04` and the id was used at three code sites with **no tracker row**, the same omission as `CE-252` above.
+
+  🔒 **`R-143`, user verbatim:** *"no wall clock enywhere, whole sim driven by sim time ONLY … not in stirede, not in editor, not in cgf, not in simhost, never where simulation is related."*
+
+  📐 `StrideHrotGame.Update` sets `UpdateTime.Factor = simDelta / wallSeconds` *(`CE-227`)* — and that assignment was guarded on `_editorSubsystem != null`, **never true in mode 2**. ⇒ `Factor` kept its default of **1**, `WarpElapsed == Elapsed`, and Bullet integrated **wall time** on the one host that is a cluster **TIME SLAVE**.
+
+  ⛔ **Two consequences, neither visible in a green scenario run:** ① **non-determinism** — the node's Bullet advance tracked local frame rate, so two Stride nodes would diverge; ② ⭐⭐ **`CE-227`'s pause hole, REOPENED for mode 2** — a cluster pause stops the kernel and motors, but `Simulate(wallDelta)` would keep gravity and contacts running in a paused world.
+
+  ⭐ **Fixed in mode 1's shape:** `StrideNodeShell` publishes `CurrentSimDeltaSeconds` from `Kernel.CurrentTime.DeltaTime` *(the same read `EditorStrideSubsystem.cs:1238` already does)* and the game converts it. On this node that delta **is** the cluster's time ⇒ a pause propagates as a zero delta with no pause flag of its own. ⚠ Previous frame's value — §11.1a **option B**, mode 1's documented reason.
+
+  📐 **VERIFIED THREE WAYS:** scenario still passes *(both hostiles hp 50→25 at t=23, both dead by t=64)* · **paused: `1001` frozen bit-identical at `[583.3042, 445.2133, 0.5]` across three samples 6 s apart WHILE CARRYING velocity `[2.097, 1.144, 0]`** — ⭐ mid-motion, so this is physics stopping, not a stationary entity · resume immediate. **0 errors, 0 fatals.**
+
 - [x] **CE-242 → CE-250** · `RW-XL` ✅✅✅ — **STRIDE MODE 2 (`CE-207` / slice `S4`) IS BUILT, AND `hill-attack-close` KILLS BOTH HOSTILES ON IT.** 🔒 *(user, `2026-09-08`: "let's see how it is just a composition work, as the stride integration is already proven and cgf and stride can be started by you and tested autonomously if 'hill attack close' still works like it used to with cgf + simhost … compare stride+cgf run with SimHost+cgf run of the hill attack")*
 
   📐 **THE COMPARISON, same scenario · same CGF · same machine · same session:**
