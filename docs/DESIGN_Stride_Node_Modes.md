@@ -1231,6 +1231,30 @@ MSB3073 exit 150)*.
 | ⭐⭐ **libraries only** *(3 projects)* | ⛔ their test projects stay out-of-solution and keep needing `stride-check.sh` to be compiled at all — ⚠ **which is exactly the hole `CE-204` found**, just one level up |
 | ⭐⭐⭐ **libraries + test projects** *(6)*, **and never `dotnet test` the solution** | ⭐ everything compiles under the ordinary gate; ⛔ a solution-wide `dotnet test` would try to launch them and fail. ⚠ **This repo does not gate that way** — `quick-check.sh <proj>` and per-project filters are the convention *(the three-tier rule)* ⇒ ⭐ **LEAN: take all six**, and put the reason in a comment beside the solution entries |
 
+### ✅✅✅ 16.2a TIER 1 IS BUILT — `CE-217`, `2026-09-09` *(obligation ⑤)*
+
+⭐⭐ **Shipped exactly as §16.1/§16.2 specified, and §16.2's lean was taken: ALL SIX projects.**
+
+| | |
+|---|---|
+| `Directory.Build.props` | ⭐ `EnableWindowsTargeting` declared **conditioned on non-Windows**, so `stride-check.sh`'s `-p:` flag is no longer needed for a Linux/CI restore. ⚠ Conditioned rather than unconditional — on Windows it is meaningless and setting it would state something untrue about the machine |
+| `IOS-IG-SimHost.sln` | ⭐ **6 entries** under a `Stride` solution folder: `Hrot.Stride.Core` · `.Core.Tests` · `Hrot.Stride.Animation` · `.Animation.Tests` · `HrotStrideApp.Game` · `.Game.Tests` |
+| ⛔ **`HrotStrideApp.Windows` stays OUT** | it is the one that genuinely cannot build off Windows *(the Stride asset compiler wants Direct3D11, `MSB3073` exit 150)* |
+
+📐 **MEASURED ON WINDOWS:**
+
+| | |
+|---|---|
+| full solution build | ✅ **Build succeeded, 0 errors** *(100 warnings — pre-existing)* |
+| ⭐⭐⭐ **the RED-PROOF** — the acceptance that matters | a deliberate `CS0246` in `Hrot.Stride.Core` now **FAILS THE SOLUTION BUILD**: *"error CS0246 … `[…\Hrot.Stride.Core.csproj]`", 1 Error(s)*. ⇒ 📌 **the `CE-203` defect class is structurally impossible now** — a widened signature can no longer break the Stride host while every gate stays green. Reverted, re-verified green |
+| ⚠ **build time** | 🔴 **cold 8 m 07 s · warm incremental 2 m 42 s** for the 155-project solution. ⛔ §16.1 predicted *"grows by three leaf projects"* — ⚠ **it is more than that**, because these six drag in six Stride NuGet packages and the asset-compiler package. ⭐ Stated plainly: this is a REAL cost to the full-solution build, and it is why the three-tier rule *(build the affected project, `quick-check.sh`)* matters more than ever — ⛔ the full build was already not the inner loop |
+
+⛔ **UNCHANGED, and it must stay that way:** ⚠ **never `dotnet test` the whole solution** — the Stride test projects compile everywhere but can only RUN on Windows *(the host wants the `Microsoft.WindowsDesktop.App` runtime)*. ⭐ This repo gates with `quick-check.sh <proj>` and per-project filters, so nothing here changes the convention — §16.2's own reasoning for taking all six.
+
+⇒ ⭐ **`stride-check.sh` is now a convenience, not the only line of defence.**
+
+---
+
 ### 16.3 ⭐ TIER 2 — the TFM split, **demoted to optional**
 
 ⭐ Splitting each project into a `net8.0` half *(in the solution)* and a `net8.0-windows` half buys

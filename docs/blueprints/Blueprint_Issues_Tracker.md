@@ -1975,6 +1975,20 @@ nothing here moves the counts table.*
 
   ⇒ ⛔ **DELIBERATELY NOT FIXED HERE.** 🔒 The "H - ui" session asked for confirmation so it can fold this into `CE-151` rather than have a competing row or a competing fix. ⭐ This row exists to carry the Windows measurement to them, and should be **closed by `CE-151`**, not separately.
 
+- [x] **CE-217** · `RW-S` ✅✅ — **THE STRIDE TREE IS IN THE MAIN SOLUTION** *(§16 Tier 1)*. ⭐ Tasked by the "H - ui" session as highest leverage, and it is the resolution path my own `CE-216` investigation named.
+
+  ⭐ **`Directory.Build.props`** declares `EnableWindowsTargeting` **conditioned on non-Windows** — the property `stride-check.sh` used to pass as a `-p:` flag, which is a fact about **the machine** and is why it never lived in a csproj. ⚠ Conditioned, not unconditional: on Windows it is meaningless and asserting it would state something untrue.
+
+  ⭐ **Six solution entries** *(§16.2's own lean, taken)*: the three libraries **and** their three test projects. ⛔ Libraries-only would have left the test projects out-of-solution and still needing `stride-check.sh` to compile at all — *"exactly the hole `CE-204` found, one level up"*. ⛔ **`HrotStrideApp.Windows` stays OUT** — the Stride asset compiler wants Direct3D11.
+
+  📐 **RED-PROOF, which is the acceptance that matters:** a deliberate `CS0246` in `Hrot.Stride.Core` now **FAILS the full solution build** *(`1 Error(s)`, attributed to `Hrot.Stride.Core.csproj`)*, where before it could not. ⇒ 📌 **the `CE-203` defect class — a widened signature breaking the Stride host while ~4 700 tests and every gate stayed green — is now structurally impossible.** Reverted and re-verified green.
+
+  ⚠ **THE COST, stated plainly:** full solution build **cold 8 m 07 s · warm incremental 2 m 42 s** at 155 projects, `0 errors`. ⛔ §16.1 predicted *"grows by three leaf projects"* — **it is more than that**, because the six drag in six Stride NuGet packages plus the asset compiler. ⭐ This sharpens the three-tier rule rather than weakening it: ⛔ **never full-solution-build inside the fix loop** — `quick-check.sh <proj>` is ~8 s.
+
+  ⛔ **AND NEVER `dotnet test` THE SOLUTION** — the Stride test projects compile everywhere but RUN only on Windows *(the host wants the `Microsoft.WindowsDesktop.App` runtime)*. ⭐ This repo gates per-project anyway, which is §16.2's reason for taking all six. 📄 [`DESIGN_Stride_Node_Modes.md` §16.2a](https://github.com/pjanec/HROT/blob/claude/reset-working-branch-qd1qpv/docs/DESIGN_Stride_Node_Modes.md)
+
+  ⇒ ⭐ **`stride-check.sh` is now a convenience, not the only line of defence**, and `CE-216`'s finding — *the main solution compiled an animation backend nothing runs, while the live one sat outside it* — is resolved: **both are now in.**
+
 - [x] **CE-252** · `RW-M` ✅ — **THE STRIDE PHYSICS COLLABORATOR CHAIN IS BUILT IN THREE PLACES.** ⚠ **Filed `2026-09-09` because a pushed code comment CLAIMED it was already filed and it was not** *(user caught it: "what about StrideNodeShell.cs comment on line 48, KNOWN DUPLICATION?")* — 📌 the `BP-355` shape: named in a note, never turned into a row.
 
   📐 **MEASURED — three sites, each a superset of the last:**
