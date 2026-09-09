@@ -1,7 +1,8 @@
 <!--STATUS
 state: LIVE
 updated: 2026-09-09
-current-answer: §4c — 68-B is SETTLED BY MEASUREMENT (A, on principle; B2 refuted). §3's 68-B
+current-answer: §4c (68-B settled) + §4d (68-C keying measured). §3's 68-A argument is
+  CORRECTED in place. 68-B is SETTLED BY MEASUREMENT (A, on principle; B2 refuted). §3's 68-B
   framing is SUPERSEDED. 68-A/C/D still carry leans only and are NOT approved.
 known-conflict: none identified
 -->
@@ -53,20 +54,31 @@ as exhaustive.
 
 ### 68-A — Should FDP adopt the design's single registry at all?
 
-**My lean: YES, and the evidence accumulated rather than being assumed.** Three defects in one
-issue, all the same shape (*"the tool underneath never comes back"*), reached by three different
-routes:
+**My lean: YES.**
 
-| defect | route |
+⛔⛔ **CORRECTED `2026-09-09` — the original argument here was MOTIVATED REASONING and is retracted.**
+It read *"three defects in one issue, all the same shape"*. ⚠ **Attributed honestly, only ONE is
+caused by the duplication** — and two of the three were **bugs I wrote this session while fixing it**.
+🔒 Counting my own fresh mistakes as evidence for a refactor I already wanted is exactly the failure
+this programme's claim-table rule exists to catch.
+
+| defect | actually caused by the two-arbiter split? |
 |---|---|
-| `CE-259e` — dead Measure toggle | `CancelInteractiveTools` swept the gizmo; the adapter's shadow flag never learned |
-| `CE-259f` — pop-is-not-a-sweep | the stack pop used the sweep and destroyed what it had just suspended |
-| `CE-259g` — resume race | the pop was tied to a task continuation and ran after the caller resumed |
+| `CE-259e` — dead Measure toggle | ✅ **YES** — pre-existing; two arbiters plus an adapter's shadow flag |
+| `CE-259f` — pop used the sweep | ⚠ **PARTLY** — my bug, but enabled by the arbiters offering only a coarse `CancelInteractiveTools` |
+| `CE-259g` — resume race | ⛔ **NO** — a task-continuation ordering bug. **A single registry would not have prevented it** |
 
-⚠⚠ **And the honest counter-evidence, which is mine:** implementing `PushModal` required adding
-`SuspendFocus`, `ResumeFocus` and `CancelFocused` — **three methods, written twice, once per
-arbiter.** The duplication this question exists to remove got *worse* as a direct result of the
-work that revealed it.
+⭐⭐ **What actually supports 68-A, and it is stronger than a defect count:**
+
+| # | evidence | basis |
+|---|---|---|
+| ① | ⭐⭐⭐ **The same policy is written twice AND HAS ALREADY DIVERGED.** Both arbiters route raw input to the focus holder — but `GlobalGizmoManager` ignores the token **entirely** while `DataDrivenGizmoSystem` consults it **second** | §4c, measured |
+| ② | **Measured duplication cost:** `PushModal` required `SuspendFocus` + `ResumeFocus` + `CancelFocused` — **three methods written twice**, once per arbiter | this session |
+| ③ | **The invariant is unenforceable as built** — *"at most one holder"* is asserted in 2 arbiters plus, until today, 4 adapter-local slots | §2 |
+
+**What would flip me:** evidence that the two arbiters' focus semantics are *legitimately* different
+rather than accidentally divergent. ⚠ §4c measured only the RAW-INPUT path; the spatial path is not
+compared.
 
 ### 68-B — 🔴 THE REAL QUESTION: what happens to the routing fallback?
 
@@ -112,11 +124,13 @@ tokens are supposed to be impossible, making the fallback dead defensive code. T
 - **C2 — a smaller `GizmoFocusRegistry` inside `Fdp.Toolkits`**, holding only the slot, with both
   existing arbiters delegating to it.
 
-**My lean: C2.** ⚠ `GizmoInteractionManager` is an **ECS-free** reference implementation with its
-own registry keyed by `AnchorId`; FDP's two arbiters are keyed by `long` id and by `Entity`
-respectively. C1 means porting a *different* ownership model at the same time as fixing focus —
-two changes wearing one name. C2 changes only the thing with defects behind it, and leaves C1
-available later.
+**My lean: C2 — and measuring the keying STRENGTHENED it rather than weakening it.** See §4d.
+
+📌 The counter-argument I owed this question was: *`AnchorId` is network-stable and the design says
+routing must never use an ECS handle, so maybe C1 is the principled destination.* ⭐ **Measured — and
+the premise is false in practice: FDP already uses the network-stable token as an ECS-LOCAL one.**
+⇒ C1 would bundle a **second, independent** change (fixing the keying) into a focus fix. §4d carries
+the measurement and files the keying separately.
 
 ### 68-D — Is this a `Fdp.Toolkits` change too big to do while `UXI-07` is open?
 
@@ -207,6 +221,48 @@ extra entity-scoped arm bolted on. The two meanings were never really two — �
 evidence — do not cite it for a factual claim."* ✅ **It complied: no citation of this document appears
 in that answer**, unlike ask #2. ⇒ ⭐⭐ **the enforceable form of "ignore my leans" is "do not cite my
 doc as evidence", because compliance is CHECKABLE.**
+
+## 4d. 📐 68-C DEEP DIVE — **network-stable vs ECS-local, measured** *(`2026-09-09`)*
+
+⭐ Asked by the user: *is the `AnchorId` (network-stable) vs `Entity` (ECS-local) distinction a reason
+to prefer C1?* **Measured answer: no — it is a reason to prefer C2 and file the keying separately.**
+
+### The contract, and what the code does with it
+
+| # | fact | source |
+|---|---|---|
+| ① | `GizmoPickToken.AnchorId` is documented *"NetworkId / semantic object id"*, `IsValid => AnchorId != 0` | `GizmoMap.Contracts/Sources/GizmoPickToken.cs` |
+| ② | 🔒 The design says the registry is keyed by *"a 64-bit `AnchorId` (network id, semantic id, anything stable — **never an ECS handle**)"* | `gizmo-input-focus-design.md` §8 |
+| ③ | 🔴 **But FDP stamps an ECS handle INTO it:** `AnchorId = (long)token.Target.Index` | `DataDrivenGizmoSystem.cs:589` |
+| ④ | 🔴 **And reinterprets it back as one:** `Target = new Entity((int)token.AnchorId, (ushort)token.StreamId)` — `AnchorId`→`Index`, `StreamId`→`Generation` | `DebugGizmoLayer.cs:244-249` |
+| ⑤ | ⚠ The conversion **knows it is fragile** — its own comment: *"WARNING: A `token.AnchorId` of 0 is a perfectly valid ECS Index (Entity 0). Negative values denote canvas clicks or stateless tools, which safely fall through to `Entity.Null`."* | `DebugGizmoLayer.cs:238-242` |
+| ⑥ | The two validity rules **disagree**: `AnchorId != 0` vs `!Target.IsNull` | ① and `PickToken.cs:14` |
+| ⑦ | The network ingress does the **same** reinterpretation from the wire: `new Entity((int)batch.PickAnchorId, (ushort)batch.PickStreamId)` | `GizmoInteractionIngressTranslator.cs` |
+
+⇒ ⭐⭐⭐ **The "network-stable" property is DOCUMENTED BUT NOT HONOURED.** `AnchorId` carries an ECS
+entity **index**, and `StreamId` — declared as a *"publisher stream discriminator for multi-SimHost
+clusters"* — is used as the entity **generation**. Two fields are doing jobs their own names deny.
+
+### ⚠ What this does and does not prove
+
+⭐ **Proven:** the contract and the implementation disagree, on both ends and over the wire.
+⛔ **NOT measured, and I am not claiming it:** whether this breaks anything cross-node *today*. That
+needs a live two-node gizmo interaction, and 🔒 `UXI-07` is already recorded as unverifiable headlessly
+(§4.10). ⇒ **latent contract violation, not a demonstrated defect.**
+⚠ **Also unverified:** a relayed claim that global gizmos put `GlobalGizmoManager.NewId()` into
+`AnchorId`. 📐 `GlobalGizmoManager` stamps no `InspNetworkId`/`StructNetworkId` at all — its id is a
+dictionary key. ⛔ **Discarded as unsupported.**
+
+### ⭐ Why this makes C2 the better answer
+
+| | |
+|---|---|
+| ⛔ **C1 fuses two independent changes** | porting `GizmoInteractionManager` means adopting `AnchorId` keying — i.e. **fixing the keying** at the same time as **fixing focus**. The keying fix has cross-node blast radius that is explicitly unmeasured |
+| ✅ **C2 is correctly scoped** | a focus registry changes only the thing with a measured defect behind it, and is keying-agnostic |
+| ⭐⭐ **and the keying is its OWN question** | *"does gizmo routing honour its own network-stable contract?"* is not a focus question. It deserves its own answer, its own measurement, and probably its own architect round |
+
+🔒 **So the original counter-argument dissolves:** C1 is not "the principled destination we are deferring".
+⭐ It is **two changes**, and the second one is not even about focus.
 
 ## 5. Standing of any answer to this document
 
