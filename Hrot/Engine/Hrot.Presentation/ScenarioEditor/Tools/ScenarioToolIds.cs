@@ -58,6 +58,12 @@ namespace Hrot.ScenarioEditor.Tools
         /// </summary>
         public const string PlaceRemoteEntity = "scenario.place.remote-entity";
 
+        /// <summary>Area (polygon) authoring — <c>ISpawnController.StartAreaAuthoringMode</c>.</summary>
+        public const string PlaceArea = "scenario.place.area";
+
+        /// <summary>Route (waypoint sequence) authoring — <c>ISpawnController.StartRouteAuthoringMode</c>.</summary>
+        public const string PlaceRoute = "scenario.place.route";
+
         /// <summary>
         /// The ONE mapping from the legacy enum to the tool vocabulary. ⛔ If a second one appears, that is
         /// the duplication this issue exists to remove.

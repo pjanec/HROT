@@ -355,6 +355,10 @@ public sealed class CgfSubsystem : ISubsystem, Fdp.Toolkit.Runner.IMapCameraProv
     private EntityQuery?               _entityQuery;
     private Fdp.Toolkit.Diagnostics.Gizmos.DebugPrimitiveBuffer? _cgfGizmoBuffer;
     private Fdp.Toolkit.Diagnostics.Gizmos.Systems.GlobalGizmoManager? _cgfGizmoManager;
+
+    /// <summary>🔒 <c>UXI-07</c> — this host's tool arbiter, so adapters built in a LATER phase than
+    /// <c>MapInteractionPack.Build</c> can still be handed it (step 4a).</summary>
+    private Hrot.ScenarioEditor.Tools.ToolController? _cgfToolController;
     private Fdp.Toolkit.Diagnostics.Gizmos.Systems.DataDrivenGizmoSystem? _cgfDataDrivenGizmoSystem;
     private Fdp.Core.FdpEventBus? _cgfInteractionBus;
     private Fdp.Toolkit.Diagnostics.Gizmos.GizmoExecutionController? _cgfGizmoController;
@@ -1167,12 +1171,15 @@ public sealed class CgfSubsystem : ISubsystem, Fdp.Toolkit.Runner.IMapCameraProv
                 // ⭐⭐⭐ UXI-07 — the Spawn tool's behaviour goes to the PACK (see §4.10; the editor carries
                 //   the same comment). ⚠ Resolved at CALL TIME: _spawnAdapter is built later, and a
                 //   headless node has none — then Spawn reports, which is the honest state (ruling 49).
-                StartPlacementMode = () => _spawnAdapter?.StartPlacementModeWithLastType(),
+                // ⭐⭐⭐ UXI-07 step 4a — the ARM BODY, ⛔ never the public API (that now calls
+                //   Activate(Spawn), which invokes this delegate — naming the API closes the cycle).
+                StartPlacementMode = () => _spawnAdapter?.ArmPlacement(),
             });
 
         _cgfGizmoBuffer           = cgfMapInteraction.Buffer;
         _cgfInteractionBus        = cgfMapInteraction.InteractionBus;
         _cgfGizmoManager          = cgfMapInteraction.GlobalManager;
+        _cgfToolController        = cgfMapInteraction.Tools;
         _cgfDataDrivenGizmoSystem = cgfMapInteraction.DataDrivenSystem;
         var cgfStatelessRegistry  = cgfMapInteraction.StatelessRegistry;
         var cgfGizmoRegistry      = cgfMapInteraction.GizmoRegistry;
@@ -1403,7 +1410,9 @@ public sealed class CgfSubsystem : ISubsystem, Fdp.Toolkit.Runner.IMapCameraProv
             var cgfJsonCompiler = Fdp.Toolkit.Replication.Attributes.AttributeCompilerFactory.Build(
                 _context.GeoTransform!);
             _spawnAdapter      = new Hrot.UI.Common.Adapters.ScenarioSpawnAdapter(
-                _context.World.Bus, cgfJsonCompiler, _context.TkbDb, _scenarioSource, _cgfGizmoManager);
+                // 🔒 UXI-07 step 4a — the arbiter is PASSED (same reason as the editor's site).
+                _context.World.Bus, cgfJsonCompiler, _context.TkbDb, _scenarioSource, _cgfGizmoManager,
+                _cgfToolController);
             _missionService    = new Hrot.UI.Common.Adapters.ScenarioMissionService(
                 _context.World.Bus, _context.World, _behaviorRegistry!);
             _mapConfigAdapter  = new Hrot.UI.Common.Adapters.ScenarioMapConfigAdapter(_mapViewConfig, _canvas);

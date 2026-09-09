@@ -1831,7 +1831,11 @@ namespace Hrot.Editor
                     //   moved the registrations out of the drain WITHOUT moving this — so Spawn reported
                     //   "this host composes no spawn adapter" on a host that has one. See §4.10.
                     // ⚠ Resolved at CALL TIME: _spawnAdapter is built later, in the non-headless block.
-                    StartPlacementMode = () => _spawnAdapter?.StartPlacementModeWithLastType(),
+                    // ⭐⭐⭐ UXI-07 step 4a — this points at the ARM BODY, ⛔ never at the public
+                    //   StartPlacementMode*/WithLastType API. 📐 That API now calls Activate(Spawn), and
+                    //   Activate(Spawn) invokes THIS delegate — so naming the API here would close the
+                    //   cycle §4.9 measured. See ScenarioSpawnAdapter.ArmPlacement's remarks.
+                    StartPlacementMode = () => _spawnAdapter?.ArmPlacement(),
                     // GZH-003: the editor is interactive and always has a window at startup. It is not
                     // under the cluster runner, so PerspectiveCoordinatorSystem never attaches a viewer
                     // for it — starting disabled would shut its gate permanently (§3.2d ①).
@@ -2257,7 +2261,11 @@ namespace Hrot.Editor
                 // Build the JSON?ECS attribute compiler with the geo-transform so that
                 // geodetic spawn coordinates are projected correctly on entity placement.
                 var jsonCompiler  = Fdp.Toolkit.Replication.Attributes.AttributeCompilerFactory.Build(geoTransform);
-                _spawnAdapter     = new ScenarioSpawnAdapter(_world.Bus, jsonCompiler, tkbDb, scenarioLoadSource, _globalGizmoManager!);
+                // 🔒 UXI-07 step 4a — the arbiter is PASSED, so ORBAT "create unit" and the Spawner
+                //    panel's Place button arm THROUGH the controller instead of beside it (§4.8).
+                _spawnAdapter     = new ScenarioSpawnAdapter(
+                    _world.Bus, jsonCompiler, tkbDb, scenarioLoadSource, _globalGizmoManager!,
+                    _editorToolController);
                 // 🔒 UXI-07 step 4a — the arbiter is PASSED, so obstacle placement displaces the
                 //    active tool instead of quietly taking focus beside it (§4.8's inventory).
                 _zoneAdapter      = new EditorZoneAdapter(

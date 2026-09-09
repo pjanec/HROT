@@ -463,6 +463,61 @@ public sealed class TheViewportInteractionIsSharedTests
           + "Spawn tool this host registers will report itself unserviceable even though the host "
           + "composes a spawn adapter (UXI-07 section 4.10). Note the '=' — it belongs on the CONTEXT, "
           + "not as an ':' argument to InteractionDeps, which no longer carries it.");
+
+        // ⭐⭐⭐ A THIRD ASSERTION, and it pins a CYCLE rather than an omission (UXI-07 step 4a, §4.9).
+        //   📐 The pack's Spawn arm invokes this delegate. ScenarioSpawnAdapter.StartPlacementMode now
+        //   calls Activate(Spawn). ⇒ if a host points the delegate back at the PUBLIC API, the chain is
+        //   Activate → arm → StartPlacementModeWithLastType → StartPlacementMode → Activate → … and the
+        //   host stack-overflows the first time anyone presses Place Entity.
+        // ⛔ The fix is structural: the delegate must name the ARM BODY (ArmPlacement).
+        Assert.False(
+            new System.Text.RegularExpressions.Regex(
+                @"StartPlacementMode\s*=\s*\(\)\s*=>[^,;]*StartPlacementMode(WithLastType)?\s*\(")
+                .IsMatch(src),
+            $"{file} points the pack's StartPlacementMode delegate at ScenarioSpawnAdapter's PUBLIC "
+          + "placement API. That API calls ToolController.Activate(Spawn), and Activate invokes this "
+          + "very delegate — an infinite recursion the first time Place Entity is pressed. Point it at "
+          + "the arm body instead: StartPlacementMode = () => _spawnAdapter?.ArmPlacement() "
+          + "(UXI-07 step 4a, UX_Feature_Tool_Model.md section 4.9).");
+    }
+
+    /// <summary>
+    /// ⭐⭐⭐ <b><c>UXI-07</c> step 4a — a host that builds a <c>ScenarioSpawnAdapter</c> must HAND IT THE
+    /// ARBITER.</b> 📄 <c>UX_Feature_Tool_Model.md</c> §4.9.
+    ///
+    /// <para>🔒 <i>"A production caller that HAS the dependency must PASS it"</i> — the silent-default rule,
+    /// and this is one rail per forwarded dependency, asserted at the composition root. ⛔ The ctor
+    /// parameter is optional so tests and unconverted hosts still work, which is exactly why a root CAN
+    /// forget it: the adapter then arms an <c>EntityPlacementGizmo</c> straight on
+    /// <c>GlobalGizmoManager</c> and the ORBAT's *"create unit"* silently bypasses the controller again —
+    /// §4.8's inventory, restored.</para>
+    ///
+    /// <para>⚠ A behavioural rail cannot see this: it constructs its own adapter and passes whatever it
+    /// likes. The failure is an OMISSION at a root, so only a source scan reaches it.</para>
+    /// </summary>
+    [Theory]
+    [InlineData("Hrot.Editor", "EditorSubsystem.cs")]
+    [InlineData("Hrot.CGF",    "CgfSubsystem.cs")]
+    public void EveryRootThatBuildsASpawnAdapterHandsItTheArbiter(string project, string file)
+    {
+        var src = ReadHostSource(project, file);
+
+        // ⚠⚠ Tolerant of ANY qualification. 🔴 The D' rail was blind for a whole issue because it matched
+        //    a bare "new EntityRotatorGizmo" while a host wrote the fully-qualified form — and CGF writes
+        //    exactly that here ("new Hrot.UI.Common.Adapters.ScenarioSpawnAdapter(").
+        var ctor = new System.Text.RegularExpressions.Regex(
+            @"new\s+(?:[\w.]+\.)?ScenarioSpawnAdapter\s*\((?<args>[^;]*?)\)\s*;",
+            System.Text.RegularExpressions.RegexOptions.Singleline);
+
+        var m = ctor.Match(src);
+        Assert.True(m.Success, $"{file} no longer constructs a ScenarioSpawnAdapter — if that is deliberate, "
+                             + "retire this rail rather than weakening it.");
+
+        Assert.True(
+            m.Groups["args"].Value.Contains("ToolController", StringComparison.Ordinal),
+            $"{file} constructs a ScenarioSpawnAdapter without passing its ToolController. Entity "
+          + "placement, area authoring and route authoring will then arm directly on GlobalGizmoManager, "
+          + "bypassing the arbiter — the very bypass UXI-07 step 4a removes (section 4.9).");
     }
 
     /// <summary>

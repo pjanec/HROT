@@ -17,6 +17,7 @@ using Fdp.Toolkit.Vis2D.Abstractions;
 using Hrot.Common.Events;
 using Hrot.Common.Orchestration.Handlers;
 using Hrot.Editor.Adapters;
+using Hrot.ScenarioEditor.Tools;
 using Hrot.UI.Common.Adapters;
 using Hrot.Map.Common;
 using Hrot.Map.Common.Config;
@@ -110,6 +111,86 @@ namespace Hrot.Editor.Tests.Adapters
             var adapter = new ScenarioSpawnAdapter(_bus, globalGizmoManager: manager);
             adapter.StartRouteAuthoringMode();
 
+            Assert.Equal(1, manager.ActiveCount);
+        }
+
+        // ── UXI-07 step 4a — the three modals arm THROUGH the arbiter ────────────────────────────
+        //
+        // 📄 UX_Feature_Tool_Model.md §4.9. 🔴 Before this step all three registered a gizmo straight on
+        //    GlobalGizmoManager, so the gizmo took focus while ToolController still believed some other
+        //    tool held it — §4.8's bypass, reached from ScenarioOrbatAdapter.CreateUnit and
+        //    SpawnerPanel.HandleActivatePlacementTool (both SHARED surfaces).
+        // ⭐ Asserting on ActiveModal is what makes these non-vacuous: a gizmo count of 1 was already true
+        //   BEFORE the change, so counting alone could never have caught the bypass.
+
+        private ToolController MakeController(GlobalGizmoManager manager) =>
+            new ToolController(() => manager, () => null);
+
+        /// <summary>
+        /// ⚠ <c>Spawn</c> is registered by <c>MapInteractionPack</c>, not by the adapter — so a test must
+        /// register it the way the pack does: an arm that calls the adapter's ARM BODY. ⭐ That also
+        /// reproduces the production wiring whose cycle §4.9 warns about.
+        /// </summary>
+        [Fact]
+        public void StartPlacementMode_ArmsThroughTheArbiter_NotBesideIt()
+        {
+            var manager    = MakeManager();
+            var controller = MakeController(manager);
+
+            ScenarioSpawnAdapter? adapter = null;
+            var spawn = new ToolDescriptor(ScenarioToolIds.Spawn, "Place Entity",
+                                           ToolModality.Modal, ToolArbiter.Global);
+            controller.Register(spawn, _ => adapter!.ArmPlacement());
+
+            adapter = new ScenarioSpawnAdapter(_bus, globalGizmoManager: manager, tools: controller);
+            adapter.StartPlacementMode(2001L, null);
+
+            Assert.Same(spawn, controller.ActiveModal);
+            Assert.Equal(1, manager.ActiveCount);
+        }
+
+        [Fact]
+        public void StartAreaAuthoringMode_ArmsThroughTheArbiter_NotBesideIt()
+        {
+            var manager    = MakeManager();
+            var controller = MakeController(manager);
+            var adapter    = new ScenarioSpawnAdapter(_bus, globalGizmoManager: manager, tools: controller);
+
+            adapter.StartAreaAuthoringMode("");
+
+            Assert.Equal(ScenarioToolIds.PlaceArea, controller.ActiveModal?.Id);
+            Assert.Equal(1, manager.ActiveCount);
+        }
+
+        [Fact]
+        public void StartRouteAuthoringMode_ArmsThroughTheArbiter_NotBesideIt()
+        {
+            var manager    = MakeManager();
+            var controller = MakeController(manager);
+            var adapter    = new ScenarioSpawnAdapter(_bus, globalGizmoManager: manager, tools: controller);
+
+            adapter.StartRouteAuthoringMode();
+
+            Assert.Equal(ScenarioToolIds.PlaceRoute, controller.ActiveModal?.Id);
+            Assert.Equal(1, manager.ActiveCount);
+        }
+
+        /// <summary>
+        /// ⭐⭐⭐ <b>The whole point of step 4a: one modal DISPLACES another.</b> 🔒 <c>Q27</c> ruling C.
+        /// 🔴 Before the conversion these two armed side by side — two gizmos, both live, and whichever
+        /// won the focus race got the mouse.
+        /// </summary>
+        [Fact]
+        public void ArmingRouteAfterAreaDisplacesIt_RatherThanStackingASecondLiveGizmo()
+        {
+            var manager    = MakeManager();
+            var controller = MakeController(manager);
+            var adapter    = new ScenarioSpawnAdapter(_bus, globalGizmoManager: manager, tools: controller);
+
+            adapter.StartAreaAuthoringMode("");
+            adapter.StartRouteAuthoringMode();
+
+            Assert.Equal(ScenarioToolIds.PlaceRoute, controller.ActiveModal?.Id);
             Assert.Equal(1, manager.ActiveCount);
         }
     }

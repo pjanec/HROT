@@ -928,7 +928,7 @@ teardown paths currently pair it with"* — and that is `PushModal`, which `Tool
 |---|---|---|
 | `EditorZoneAdapter` | ✅ converted | new tool `scenario.place.obstacle` |
 | `MapCommandController` *(IG)* | ✅ converted | new tool `scenario.place.remote-entity` — ⭐ a remote creation request now DISPLACES the operator's armed tool instead of fighting it for raw input |
-| `ScenarioSpawnAdapter` | ⛔ **blocked on a restructure** | see below |
+| `ScenarioSpawnAdapter` | ✅ **converted** *(`2026-09-09`, second unit)* — see §4.9b | new tools `scenario.place.area` / `scenario.place.route`; placement reaches the arbiter by `Activate(Spawn)` |
 | `MeasureToolGizmoAdapter` *(IG)* | ⛔ pending | settings-driven lifetime; §4.7c's hazard is its real fix |
 
 ⭐⭐ **THE PATTERN, established by the two conversions and to be repeated:** the adapter takes an optional
@@ -954,8 +954,74 @@ goes anywhere near the arbiter.
 |---|---|
 | **①** split the adapter's **arm body** from its **public API**: `ArmPlacement()` *(the body)* vs `StartPlacementMode(type, json)` *(stash + `Activate(Spawn)`)* | |
 | **②** the hosts pass the **arm body** as the pack's `StartPlacementMode`, ⛔ not `StartPlacementModeWithLastType` | ⇒ the loop cannot form |
-| **③** ExCon's three direct callers then become arbitrated **for free**, with no ExCon change | ⭐ that is the payoff, and it is why the restructure is worth doing rather than special-casing |
+| ⛔⛔ **③ SUPERSEDED — THIS CLAIM IS FALSE.** *(measured `2026-09-09`, see §4.9b)* ~~ExCon's three direct callers then become arbitrated for free~~ | 🔴 they call **`IExConLogic`**, not this adapter — `ExConLogic` is its own `ISpawnController` and sends a wire command. ⭐ **The real payoff is `ScenarioOrbatAdapter.CreateUnit` + `SpawnerPanel`; see §4.9b** |
 | **④** `StartAreaAuthoringMode` / `StartRouteAuthoringMode` have **no tool id and no recursion** ⇒ they take the plain pattern, as `scenario.place.area` / `scenario.place.route` | |
+
+### 4.9b ✅ `ScenarioSpawnAdapter` AS-BUILT — **and ⛔ §4.9's claim ③ was WRONG** *(obligation ⑤, `2026-09-09`)*
+
+⛔⛔ **THE CORRECTION FIRST, because the rest of §4.9 rests on it.** §4.9 ③ said the restructure's payoff
+was *"ExCon's three direct callers become arbitrated for free"*, naming `ExConOrbatAdapter.CreateUnit`,
+`OrbatPanel.cs:212` and `ExConPanelAdapters.cs:19`.
+
+🔴 **Measured, and it is false.** Those three call **`IExConLogic.StartPlacementMode`**, and
+**`ExConLogic` is its OWN `ISpawnController` implementation** *(`ExConLogic.cs:41` — `: IExConLogic,
+IMapPickService, ISpawnController`)*. Its body writes a `MapCommandDto` *(`CMD_PLACE_ENTITY`)* over the
+wire and **never touches `ScenarioSpawnAdapter` or any gizmo manager**.
+
+| ⚠ how the claim was made | ⭐ the lesson, and it is already in `CLAUDE.md` |
+|---|---|
+| a text search for `StartPlacementMode(` returned ExCon call sites, and I read them as callers of THIS adapter | 🔒 ***"is this text hit REALLY this symbol?"*** — **two interfaces declare the same method name.** Text search cannot tell them apart; that is the documented escalation case, and Roslyn was not consulted |
+
+⇒ ⭐⭐ **ExCon was never a bypass.** It is a REMOTE surface: it sends a command, and the arbitration happens
+on the **receiving** host — which `MapCommandController` *(converted in the first 4a unit as
+`scenario.place.remote-entity`)* **already** does. **That payoff was delivered by a different item.**
+
+#### ⭐ The REAL payoff, measured
+
+| the actual bypassing callers of `ISpawnController.StartPlacementMode` on THIS adapter | |
+|---|---|
+| `ScenarioOrbatAdapter.CreateUnit` *(`:165`)* | the ORBAT tree's *"create unit"* |
+| `SpawnerPanel.HandleActivatePlacementTool` *(`:145`)* | the Spawner panel's Place button |
+
+⭐ **Both are SHARED surfaces**, and on every host composing this adapter *(Editor `:2260`, CGF `:1405`)*
+they armed an `EntityPlacementGizmo` straight on `GlobalGizmoManager` — §4.8's bypass, on the two most
+ordinary spawn gestures in the product. ⇒ **the restructure is still worth doing; the reason changed.**
+
+#### ⭐⭐ As built — §4.9 ①②④ hold unchanged
+
+| | |
+|---|---|
+| **①** | `ArmPlacement()` / `ArmAreaAuthoring()` / `ArmRouteAuthoring()` are the bodies; the public `Start*` API stashes and calls `Activate`. ⚠ The adapter registers **only** `PlaceArea` + `PlaceRoute` — ⛔ **not `Spawn`**, which `MapInteractionPack` owns, and the duplicate-id guard is strict |
+| **②** | both hosts now pass `() => _spawnAdapter?.ArmPlacement()` as the pack's `StartPlacementMode` ⇒ 🔒 **the cycle cannot form** |
+| **④** | area/route took the plain pattern, as predicted — no recursion, because no host wires them into the pack |
+
+⚠⚠ **ONE BEHAVIOUR-PRESERVING SUBTLETY, and it is load-bearing:** `_pendingPropertiesJson` is **CONSUMED**
+by the arm *(read-then-null)*, not merely stored. 📐 Before the split, the toolbar path was
+`StartPlacementModeWithLastType()` → `StartPlacementMode(last, json: null)` — i.e. **the toolbar always
+cleared the properties.** ⛔ A field that merely persisted would make a toolbar press after an ORBAT create
+silently re-apply that unit's affiliation JSON. ⚠ **NOT RAILED:** `GlobalGizmoManager` exposes no accessor
+for a registered gizmo, so the json is not observable through any existing seam — ⛔ and adding production
+surface for a test was rejected. ⇒ **this claim is held by construction *(three lines, one reader)*, not by
+a gate. Stated here so nobody assumes it is covered.**
+
+#### 📐 Rails — **4 new behavioural + 2 new structural, all red-proofed**
+
+| rail | red-proof |
+|---|---|
+| `EditorSpawnAdapterTests` **3 → 7** — the three modals assert **`controller.ActiveModal`**, ⭐ not just a gizmo count *(a count of 1 was already true BEFORE the change, so counting alone could never have caught the bypass)*, plus `ArmingRouteAfterAreaDisplacesIt` for ruling C | deleting the three dispatch blocks ⇒ **4🔴 / 3✅**, on a **clean build** |
+| `EveryRootThatBuildsAPackForwardsItsToolArbiter` gains a **third** assertion — the delegate may **not** name the public API | pointing it back at `StartPlacementModeWithLastType` ⇒ **1🔴** |
+| `EveryRootThatBuildsASpawnAdapterHandsItTheArbiter` *(new `[Theory]`, both roots)* | dropping `_editorToolController` from the ctor call ⇒ **1🔴** |
+
+⚠⚠ **A PROCESS NOTE WORTH MORE THAN THE RAILS.** The first attempt at the third red-proof used
+`if (false)`, which produced **6 compile errors** — and `dotnet test --no-build` then ran a **STALE BINARY
+and printed `PASSED`**. 🔒 That is exactly the trap `CLAUDE.md` records *("it REFUSES to test a failed
+build … both times it looked like a green")*. ⇒ ⭐ **every red-proof here asserts `build errors == 0`
+BEFORE trusting the result**, and the invalid run was discarded.
+
+⭐ **Second trap, same session:** the first `new ScenarioSpawnAdapter` grep found **one** root — CGF writes
+`new Hrot.UI.Common.Adapters.ScenarioSpawnAdapter(`, **fully qualified**. 🔒 The identical blindness that
+hid `D′` for a whole issue *(§4.7b finding 2)*; the new rail's regex is qualification-tolerant by
+construction.
 
 ### 4.10 🔴🔴🔴 A REGRESSION I SHIPPED IN STEP 3b, FOUND AND FIXED *(`2026-09-09`)*
 
