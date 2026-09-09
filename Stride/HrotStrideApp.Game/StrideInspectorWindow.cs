@@ -49,57 +49,6 @@ public static class StrideInspectorWindowConfig
     public static bool? ForceEnabled { get; set; }
 }
 
-// ── View-model types (pure data, no window dependency) ──────────────────────
-
-/// <summary>
-/// One row in the entity list panel.  Pure data — no Raylib/ImGui dependency.
-/// </summary>
-public sealed class EntityRow
-{
-    /// <summary>The FDP entity handle.</summary>
-    public Entity Entity { get; init; }
-
-    /// <summary>
-    /// The entity's TKB type (0 = unknown / component not present).
-    /// Obtained from <see cref="TkbIdentity.TkbType"/> if the component is registered.
-    /// </summary>
-    public long TkbType { get; init; }
-
-    /// <summary>
-    /// Display name derived from TKB type.  Falls back to "Entity #{NetworkId}"
-    /// when no type mapping is available.
-    /// </summary>
-    public string DisplayName { get; init; } = string.Empty;
-
-    /// <summary>The entity's FDP world position (from <see cref="SimTransform"/>).</summary>
-    public System.Numerics.Vector3 Position { get; init; }
-
-    /// <summary>The entity's network-assigned integer ID (from <see cref="NetworkIdentity"/>).</summary>
-    public long NetworkId { get; init; }
-}
-
-/// <summary>
-/// One component field shown in the inspector panel.  Pure data.
-/// </summary>
-public sealed class InspectorField
-{
-    public string Name  { get; init; } = string.Empty;
-    public string Value { get; init; } = string.Empty;
-}
-
-/// <summary>
-/// The view model for the inspector panel.  Pure data populated by
-/// <see cref="StrideInspectorViewModel.BuildInspector"/>.
-/// </summary>
-public sealed class InspectorViewModel
-{
-    /// <summary>Title row — entity name / type.</summary>
-    public string Title { get; init; } = string.Empty;
-
-    /// <summary>All fields to display.</summary>
-    public IReadOnlyList<InspectorField> Fields { get; init; } = Array.Empty<InspectorField>();
-}
-
 // ── Shared selection state (STR-P5-T3, BATCH-23) ────────────────────────────
 
 /// <summary>
@@ -204,217 +153,6 @@ public sealed class EditorSelectionState
     }
 }
 
-// ── View model (pure logic, headless-testable) ───────────────────────────────
-
-/// <summary>
-/// Maps the live FDP world into display rows and inspector fields.
-///
-/// <para>
-/// All logic is pure (no Raylib/ImGui dependency) so it can be unit-tested headlessly.
-/// The window calls these methods from the rendering thread; tests call them directly.
-/// </para>
-/// </summary>
-public static class StrideInspectorViewModel
-{
-    // Static TKB name table (matches UrbanCombat templates registered by
-    // UrbanCombatNewScenario.RegisterUrbanCombatTkbTemplates).
-    private static readonly Dictionary<long, string> s_tkbNames = new()
-    {
-        { 1001L, "CivilianPedestrian" },
-        { 1002L, "CivilianCar"        },
-        { 2001L, "MilitaryAPC"        },
-        { 2002L, "InfantrySoldier"    },
-        { 2003L, "Insurgent"          },
-    };
-
-    /// <summary>
-    /// Builds the entity-list rows by querying all entities that have
-    /// <see cref="NetworkIdentity"/> and <see cref="SimTransform"/>.
-    ///
-    /// <para>
-    /// Safe to call with a null or empty world (returns empty list).
-    /// No component is required beyond <c>NetworkIdentity</c> and <c>SimTransform</c>;
-    /// optional components (<c>TkbIdentity</c>) are read with guards.
-    /// </para>
-    /// </summary>
-    public static IReadOnlyList<EntityRow> BuildEntityList(EntityRepository? world)
-    {
-        if (world == null) return Array.Empty<EntityRow>();
-
-        var rows = new List<EntityRow>();
-
-        // Check if optional components are registered before querying them.
-        bool hasTkbIdentity = world.IsComponentTypeRegistered<TkbIdentity>();
-        bool hasNetworkId   = world.IsComponentTypeRegistered<NetworkIdentity>();
-        bool hasSimTransform = world.IsComponentTypeRegistered<SimTransform>();
-
-        if (!hasNetworkId || !hasSimTransform)
-            return Array.Empty<EntityRow>();
-
-        // Build the minimal query: entities with both NetworkIdentity and SimTransform.
-        var query = world.Query()
-            .With<NetworkIdentity>()
-            .With<SimTransform>()
-            .Build();
-
-        foreach (var entity in query)
-        {
-            if (!world.IsAlive(entity)) continue;
-
-            ref readonly var netId     = ref world.GetComponentRO<NetworkIdentity>(entity);
-            ref readonly var transform = ref world.GetComponentRO<SimTransform>(entity);
-
-            long tkbType = 0L;
-            if (hasTkbIdentity && world.HasComponent<TkbIdentity>(entity))
-            {
-                ref readonly var tkbId = ref world.GetComponentRO<TkbIdentity>(entity);
-                tkbType = tkbId.TkbType;
-            }
-
-            string displayName = BuildDisplayName(tkbType, netId.Value);
-
-            rows.Add(new EntityRow
-            {
-                Entity      = entity,
-                TkbType     = tkbType,
-                DisplayName = displayName,
-                Position    = new System.Numerics.Vector3(
-                    transform.Position.X,
-                    transform.Position.Y,
-                    transform.Position.Z),
-                NetworkId   = netId.Value,
-            });
-        }
-
-        return rows;
-    }
-
-    /// <summary>
-    /// Builds an <see cref="InspectorViewModel"/> for the given entity by reading its
-    /// <see cref="SimTransform"/>, <see cref="SimVelocity"/>, and <see cref="NetworkIdentity"/>
-    /// components.  Returns an empty model when the entity is not alive or components are absent.
-    /// </summary>
-    public static InspectorViewModel BuildInspector(EntityRepository? world, Entity entity)
-    {
-        if (world == null || !world.IsAlive(entity))
-            return new InspectorViewModel { Title = "(no selection)" };
-
-        var fields = new List<InspectorField>();
-
-        // ── NetworkIdentity ──────────────────────────────────────────────────
-        if (world.IsComponentTypeRegistered<NetworkIdentity>()
-            && world.HasComponent<NetworkIdentity>(entity))
-        {
-            ref readonly var netId = ref world.GetComponentRO<NetworkIdentity>(entity);
-            fields.Add(new InspectorField { Name = "NetworkId", Value = netId.Value.ToString() });
-        }
-
-        // ── TkbIdentity ──────────────────────────────────────────────────────
-        long tkbType = 0L;
-        if (world.IsComponentTypeRegistered<TkbIdentity>()
-            && world.HasComponent<TkbIdentity>(entity))
-        {
-            ref readonly var tkbId = ref world.GetComponentRO<TkbIdentity>(entity);
-            tkbType = tkbId.TkbType;
-            fields.Add(new InspectorField { Name = "TkbType", Value = tkbType.ToString() });
-        }
-
-        // ── SimTransform ─────────────────────────────────────────────────────
-        if (world.IsComponentTypeRegistered<SimTransform>()
-            && world.HasComponent<SimTransform>(entity))
-        {
-            ref readonly var t = ref world.GetComponentRO<SimTransform>(entity);
-            fields.Add(new InspectorField
-            {
-                Name  = "SimTransform.Position",
-                Value = $"({t.Position.X:F2}, {t.Position.Y:F2}, {t.Position.Z:F2})",
-            });
-            var euler = QuaternionToEulerDeg(t.Rotation);
-            fields.Add(new InspectorField
-            {
-                Name  = "SimTransform.Rotation",
-                Value = $"yaw={euler.Y:F1}° pitch={euler.X:F1}° roll={euler.Z:F1}°",
-            });
-        }
-
-        // ── SimVelocity ──────────────────────────────────────────────────────
-        if (world.IsComponentTypeRegistered<SimVelocity>()
-            && world.HasComponent<SimVelocity>(entity))
-        {
-            ref readonly var v = ref world.GetComponentRO<SimVelocity>(entity);
-            float speed = v.Linear.Length();
-            fields.Add(new InspectorField
-            {
-                Name  = "SimVelocity",
-                Value = $"({v.Linear.X:F2}, {v.Linear.Y:F2}, {v.Linear.Z:F2}) |v|={speed:F2}",
-            });
-        }
-
-        // ── NavigationStatus ─────────────────────────────────────────────────
-        if (world.IsComponentTypeRegistered<Fdp.Toolkit.Navigation.NavigationStatus>()
-            && world.HasComponent<Fdp.Toolkit.Navigation.NavigationStatus>(entity))
-        {
-            ref readonly var nav = ref world.GetComponentRO<Fdp.Toolkit.Navigation.NavigationStatus>(entity);
-            fields.Add(new InspectorField
-            {
-                Name  = "NavigationStatus",
-                Value = $"{nav.Result} phase={nav.Phase}",
-            });
-        }
-
-        // ── Authority ────────────────────────────────────────────────────────
-        if (world.IsComponentTypeRegistered<SimTransform>())
-        {
-            bool owned = world.HasAuthority<SimTransform>(entity);
-            fields.Add(new InspectorField { Name = "Authority(SimTransform)", Value = owned ? "OWNED" : "remote" });
-        }
-
-        string title = BuildDisplayName(tkbType,
-            (world.IsComponentTypeRegistered<NetworkIdentity>() && world.HasComponent<NetworkIdentity>(entity))
-                ? world.GetComponentRO<NetworkIdentity>(entity).Value
-                : 0L);
-
-        return new InspectorViewModel { Title = title, Fields = fields };
-    }
-
-    /// <summary>
-    /// Produces a human-readable name from TKB type + network ID.
-    /// Falls back to "Entity #<networkId>" when the TKB type is unknown.
-    /// </summary>
-    public static string BuildDisplayName(long tkbType, long networkId)
-    {
-        if (tkbType != 0 && s_tkbNames.TryGetValue(tkbType, out var name))
-            return $"{name} #{networkId}";
-        if (tkbType != 0)
-            return $"TKB:{tkbType} #{networkId}";
-        return $"Entity #{networkId}";
-    }
-
-    // Minimal quaternion → Euler (YXZ / yaw-pitch-roll) for display only.
-    // Not authoritative; just for the inspector readout.
-    public static System.Numerics.Vector3 QuaternionToEulerDeg(System.Numerics.Quaternion q)
-    {
-        // Extract yaw (Y), pitch (X), roll (Z) in degrees.
-        // Using the standard formula for YXZ Euler:
-        //   pitch = asin(2*(qw*qx - qy*qz))
-        //   yaw   = atan2(2*(qw*qy + qx*qz), 1 - 2*(qx²+qy²))
-        //   roll  = atan2(2*(qw*qz + qx*qy), 1 - 2*(qy²+qz²))
-        float sinP = 2f * (q.W * q.X - q.Y * q.Z);
-        sinP = Math.Clamp(sinP, -1f, 1f);
-        float pitch = (float)(Math.Asin(sinP) * (180.0 / Math.PI));
-
-        float yaw = (float)(Math.Atan2(
-            2f * (q.W * q.Y + q.X * q.Z),
-            1f - 2f * (q.X * q.X + q.Y * q.Y)) * (180.0 / Math.PI));
-
-        float roll = (float)(Math.Atan2(
-            2f * (q.W * q.Z + q.X * q.Y),
-            1f - 2f * (q.Y * q.Y + q.Z * q.Z)) * (180.0 / Math.PI));
-
-        return new System.Numerics.Vector3(pitch, yaw, roll);
-    }
-}
-
 // ── Window (Raylib/ImGui, only constructed when enabled) ─────────────────────
 
 /// <summary>
@@ -452,7 +190,9 @@ public sealed class StrideInspectorWindow : IDisposable
 {
     private static readonly NLog.Logger Log = NLog.LogManager.GetCurrentClassLogger();
 
-    private readonly EditorStrideSubsystem _subsystem;
+    /// ⭐ CE-213 / R-S17 — the OPTIONAL host contract, not the editor subsystem. Null on a mode-2
+    ///   node, which is what makes this window usable by both modes. 📄 IStrideEditorWindowHost.
+    private readonly IStrideEditorWindowHost? _host;
     private readonly EditorSelectionState _selection;
     private readonly int _width;
     private readonly int _height;
@@ -501,12 +241,15 @@ public sealed class StrideInspectorWindow : IDisposable
     /// <param name="width">Window width in pixels (default 1280).</param>
     /// <param name="height">Window height in pixels (default 800).</param>
     public StrideInspectorWindow(
-        EditorStrideSubsystem subsystem,
-        EditorSelectionState  selection,
+        IStrideEditorWindowHost? host,
+        EditorSelectionState     selection,
         int width  = 1280,
         int height = 800)
     {
-        _subsystem = subsystem ?? throw new ArgumentNullException(nameof(subsystem));
+        // ⭐⭐ CE-213 / R-S17 — NULLABLE ON PURPOSE. A mode-2 node has no editor subsystem, and every
+        //    use of this host below was ALREADY null-guarded because those three members are mode 1's
+        //    panel fill. ⛔ Throwing here would re-impose the coupling the widening removed.
+        _host = host;
         _selection = selection ?? throw new ArgumentNullException(nameof(selection));
         _width  = width;
         _height = height;
@@ -591,9 +334,9 @@ public sealed class StrideInspectorWindow : IDisposable
         // When buildEditorUi=true was passed to EditorStrideSubsystem.Initialize,
         // the editor is non-headless and RegisterWindows registers ALL panels
         // (map canvas adapters, layers, AI editor, blueprints, orbat, spawner, …).
-        if (_subsystem.HostedEditor != null)
+        if (_host?.HostedEditor != null)
         {
-            _subsystem.HostedEditor.RegisterWindows(_windowManager);
+            _host.HostedEditor.RegisterWindows(_windowManager);
             Log.Info("[StrideInspectorWindow] editor.RegisterWindows(wm) — full editor UI wired.");
         }
         else
@@ -637,7 +380,7 @@ public sealed class StrideInspectorWindow : IDisposable
         // Close() nulls _windowManager before Shutdown, so this is belt-and-suspenders.
         if (ImGuiNET.ImGui.GetCurrentContext() == IntPtr.Zero) return;
 
-        var editor = _subsystem.HostedEditor;
+        var editor = _host?.HostedEditor;
         var wm     = _windowManager;
 
         // ── P1 timing: total frame ────────────────────────────────────────────
@@ -704,7 +447,7 @@ public sealed class StrideInspectorWindow : IDisposable
         editor?.DrawUI();
 
         // BATCH-S2-AD: transient paused-nav toast overlay.
-        if (_subsystem != null && _subsystem.ToastSecondsRemaining > 0f)
+        if (_host != null && _host.ToastSecondsRemaining > 0f)
         {
             var vp = ImGuiNET.ImGui.GetMainViewport();
             ImGuiNET.ImGui.SetNextWindowPos(
@@ -715,7 +458,7 @@ public sealed class StrideInspectorWindow : IDisposable
                 ImGuiNET.ImGuiWindowFlags.NoDecoration | ImGuiNET.ImGuiWindowFlags.NoNav | ImGuiNET.ImGuiWindowFlags.NoMove |
                 ImGuiNET.ImGuiWindowFlags.NoSavedSettings | ImGuiNET.ImGuiWindowFlags.AlwaysAutoResize | ImGuiNET.ImGuiWindowFlags.NoFocusOnAppearing);
             ImGuiNET.ImGui.PushStyleColor(ImGuiNET.ImGuiCol.Text, new System.Numerics.Vector4(1f, 0.85f, 0.2f, 1f)); // amber
-            ImGuiNET.ImGui.TextUnformatted(_subsystem.ToastMessage);
+            ImGuiNET.ImGui.TextUnformatted(_host.ToastMessage);
             ImGuiNET.ImGui.PopStyleColor();
             ImGuiNET.ImGui.End();
         }

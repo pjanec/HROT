@@ -100,7 +100,11 @@ namespace HrotStrideApp;
 /// </list>
 /// </para>
 /// </summary>
-public sealed class EditorStrideSubsystem : IDisposable
+// ⭐ CE-213 / R-S17 — implements IStrideEditorWindowHost so the raylib window host takes a small
+//   OPTIONAL contract instead of this whole subsystem. 📐 All three members (HostedEditor,
+//   ToastMessage, ToastSecondsRemaining) already existed with the right shapes, so this is a
+//   declaration, not new code: mode 1 keeps passing itself, mode 2 passes null.
+public sealed class EditorStrideSubsystem : IDisposable, IStrideEditorWindowHost
 {
     // ── Constants mirroring EditorSubsystem ───────────────────────────────
     private const int EditorNodeId = 0;
