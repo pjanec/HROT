@@ -1570,8 +1570,6 @@ namespace Hrot.Editor
                     Selection:          () => _selectionState,
                     Gizmos:             () => _editorDataDrivenGizmoSystem,
                     Camera:             () => _camera,
-                    GlobalGizmos:       () => _globalGizmoManager,
-                    StartPlacementMode: () => _spawnAdapter?.StartPlacementModeWithLastType(),
                     Tools:              () => _editorToolController));
 
             _kernel.RegisterModule(new BehaviorDiagnosticsModule());
@@ -1828,6 +1826,12 @@ namespace Hrot.Editor
                         view.HasComponent<SelectionState>(entity) &&
                         view.GetComponentRO<SelectionState>(entity).IsSelected,
                     BreakpointManager = _bpManager,
+                    // ⭐⭐⭐ UXI-07 — the Spawn tool's behaviour goes to the PACK, which registers the tool
+                    //   set. 🔴 It used to be handed to ScenarioEditorModule.InteractionDeps, and step 3b
+                    //   moved the registrations out of the drain WITHOUT moving this — so Spawn reported
+                    //   "this host composes no spawn adapter" on a host that has one. See §4.10.
+                    // ⚠ Resolved at CALL TIME: _spawnAdapter is built later, in the non-headless block.
+                    StartPlacementMode = () => _spawnAdapter?.StartPlacementModeWithLastType(),
                     // GZH-003: the editor is interactive and always has a window at startup. It is not
                     // under the cluster runner, so PerspectiveCoordinatorSystem never attaches a viewer
                     // for it — starting disabled would shut its gate permanently (§3.2d ①).

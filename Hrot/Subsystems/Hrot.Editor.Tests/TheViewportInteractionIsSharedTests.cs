@@ -449,6 +449,20 @@ public sealed class TheViewportInteractionIsSharedTests
             $"{file} builds a MapInteraction and registers ScenarioEditorModule but never passes "
           + "InteractionDeps.Tools. The drain would then drop every tool activation on this host. "
           + "Pass the pack's MapInteraction.Tools (UXI-07 step 3b).");
+
+        // ⭐⭐⭐ ONE RAIL PER FORWARDED DEPENDENCY — and this second assertion exists because the first
+        //   one alone was NOT enough. 🔴 Measured 2026-09-09: step 3b moved the tool registrations into
+        //   MapInteractionPack, which takes the spawn delegate through MapInteractionContext. Both hosts
+        //   kept handing it to InteractionDeps instead — a record that no longer read it — so Spawn
+        //   reported "this host composes no spawn adapter" on hosts that compose one.
+        // ⚠ A BEHAVIOURAL rail could not see this: it builds its own pack and would pass regardless.
+        //   The failure is an OMISSION at a composition root, which only a source scan reaches.
+        Assert.True(
+            new System.Text.RegularExpressions.Regex(@"StartPlacementMode\s*=\s*\(\)\s*=>").IsMatch(src),
+            $"{file} builds a MapInteractionContext but never sets StartPlacementMode on it, so the "
+          + "Spawn tool this host registers will report itself unserviceable even though the host "
+          + "composes a spawn adapter (UXI-07 section 4.10). Note the '=' — it belongs on the CONTEXT, "
+          + "not as an ':' argument to InteractionDeps, which no longer carries it.");
     }
 
     /// <summary>
@@ -476,6 +490,62 @@ public sealed class TheViewportInteractionIsSharedTests
                                                StringComparison.Ordinal));
         helper = helper.Substring(0, helper.IndexOf("}", StringComparison.Ordinal));
         Assert.DoesNotContain("PrimarySelected", helper);
+    }
+
+    /// <summary>
+    /// ⭐⭐⭐ <b>A HOST THAT COMPOSES A SPAWN ADAPTER MUST GET A SERVICEABLE <c>Spawn</c> TOOL.</b>
+    ///
+    /// <para>🔴🔴 <b>THE REGRESSION THIS EXISTS FOR, shipped and then found <c>2026-09-09</c>:</b> step 3b
+    /// moved the tool registrations out of <c>ScenarioEditorModule</c> and into <c>MapInteractionPack</c>,
+    /// which takes the spawn delegate through <c>MapInteractionContext</c>. ⛔ Both hosts kept passing it
+    /// to <c>InteractionDeps</c> — which nothing read any more — so <c>Spawn</c> reported <i>"this host
+    /// composes no spawn adapter"</i> on the Editor and CGF, <b>both of which compose one</b>.</para>
+    ///
+    /// <para>⚠⚠ <b>Why the existing forwarding rail did not catch it:</b> it asserts <c>Tools</c> is passed.
+    /// ⛔ One rail per dependency is the stated control, and this dependency had none. ⇒ this is that rail.
+    /// ⭐ It is BEHAVIOURAL, not a source scan: it builds a real pack and asks the real tool whether it
+    /// works, which is the only form that could have failed.</para>
+    /// </summary>
+    [Fact]
+    public void APackGivenASpawnDelegateHasAServiceableSpawnTool()
+    {
+        var (world, _, _) = WorldWithEntity();
+        var reports = new List<string>();
+        bool placed = false;
+
+        var map = Hrot.ScenarioEditor.Map.MapInteractionPack.Build(
+            new Hrot.ScenarioEditor.Map.MapInteractionContext
+            {
+                World                   = world,
+                StartPlacementMode      = () => placed = true,
+                ReportUnserviceableTool = reports.Add,
+            });
+
+        Assert.True(map.Tools.Activate(ScenarioToolIds.Spawn));
+        Assert.True(placed);                       // 🔴 the delegate actually ran …
+        Assert.Empty(reports);                     // 🔴 … and nothing cried "no spawn adapter"
+    }
+
+    /// <summary>
+    /// ⭐ The complement, so the rail above cannot pass by accident: a pack given NO spawn delegate still
+    /// REGISTERS <c>Spawn</c> (🔒 no per-subsystem whitelist) and reports why it does nothing (ruling 49).
+    /// </summary>
+    [Fact]
+    public void APackWithNoSpawnDelegateStillRegistersSpawnAndSaysWhyItCannot()
+    {
+        var (world, _, _) = WorldWithEntity();
+        var reports = new List<string>();
+
+        var map = Hrot.ScenarioEditor.Map.MapInteractionPack.Build(
+            new Hrot.ScenarioEditor.Map.MapInteractionContext
+            {
+                World                   = world,
+                ReportUnserviceableTool = reports.Add,
+            });
+
+        Assert.True(map.Tools.IsRegistered(ScenarioToolIds.Spawn));   // registered …
+        Assert.False(map.Tools.Activate(ScenarioToolIds.Spawn));      // … unserviceable …
+        Assert.Contains(reports, r => r.Contains("spawn adapter"));   // … and it SAID so
     }
 
     private static void Publish(EntityRepository world, EditorTool tool)

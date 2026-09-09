@@ -957,6 +957,40 @@ goes anywhere near the arbiter.
 | **③** ExCon's three direct callers then become arbitrated **for free**, with no ExCon change | ⭐ that is the payoff, and it is why the restructure is worth doing rather than special-casing |
 | **④** `StartAreaAuthoringMode` / `StartRouteAuthoringMode` have **no tool id and no recursion** ⇒ they take the plain pattern, as `scenario.place.area` / `scenario.place.route` | |
 
+### 4.10 🔴🔴🔴 A REGRESSION I SHIPPED IN STEP 3b, FOUND AND FIXED *(`2026-09-09`)*
+
+⛔⛔ **`Spawn` was unserviceable on the Editor and CGF — hosts that compose a spawn adapter.** It reported
+*"this host composes no spawn adapter"* and did nothing.
+
+📐 **The mechanism, and it is worth stating exactly because the shape recurs.** Step 3b moved the tool
+REGISTRATIONS out of `ScenarioEditorModule` and into `MapInteractionPack`, which takes the spawn delegate
+through `MapInteractionContext`. ⚠ **Both hosts kept handing it to `InteractionDeps`** — the record that no
+longer read it. ⇒ two parallel dependency-carrying records, a dependency moved from one to the other, and
+the WIRING left behind.
+
+| ⭐ the fix, in three parts — **the third is the one that matters** | |
+|---|---|
+| **①** both hosts set `StartPlacementMode` on the **`MapInteractionContext`** | the delegate reaches the pack that registers the tool |
+| **②** ⛔ **`InteractionDeps.GlobalGizmos` and `.StartPlacementMode` are DELETED** | 📐 measured: after step 3b the module read neither, yet both hosts dutifully passed them. ⭐ Deleting makes the mistake **unrepresentable**, not merely fixed — a host that tries the old wiring no longer compiles |
+| **③** ⭐⭐⭐ **the forwarding rail gained a SECOND assertion** | 🔒 *"one rail per forwarded dependency"* was already the stated control; `Tools` had one and `StartPlacementMode` did not. ⚠⚠ **A behavioural rail could NOT have caught this** — it builds its own pack and passes regardless. The failure is an OMISSION at a composition root, which only a source scan reaches. Red-proofed by deleting the editor's line: **1🔴, exactly that rail** |
+
+⚠ **Two behavioural rails were added as well** (`APackGivenASpawnDelegateHasAServiceableSpawnTool` and its
+no-delegate complement) — ⭐ they pin the pack's half of the contract, which is genuinely a different claim
+from the wiring's half. ⛔ Neither substitutes for the other.
+
+#### ⚠⚠ AND `UXI-07` CANNOT BE VERIFIED HEADLESSLY — **measured by the Windows session, `2026-09-09`**
+
+🔒 **Reported after three independent checks:** `/editor/commands` is per-document; **no route publishes
+`GlobalActionRequestedEvent` or `ActivateEditorToolEvent`**; and `ClusterRunner` **deliberately** never
+calls `AttachEditorCommands` (`Program.cs:545`).
+
+⇒ ⛔⛔ **There is no API entry point that arms a tool**, so the whole tool path — this issue's subject — is
+outside what the ai-debug MCP surface can drive. ⭐ **Consequence, stated plainly so nobody plans around a
+capability that is absent:** `UXI-07`'s user-visible behaviour *(the `Select` button, retargeting, the
+Measure toggle)* can be confirmed **only by a human driving the editor**, and the `T3` "run the real thing"
+tier does not reach it. ⚠ That also bounds steps 5–6 *(toolbar binding, central `Escape`)*: they will ship
+with unit rails and a manual check, and saying so now is better than discovering it at their gate.
+
 ## Migration
 
 | Step | Change | Gate |

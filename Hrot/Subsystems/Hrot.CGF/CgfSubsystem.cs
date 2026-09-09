@@ -1164,6 +1164,10 @@ public sealed class CgfSubsystem : ISubsystem, Fdp.Toolkit.Runner.IMapCameraProv
                 IsSelectedPredicate = null,
                 // GZH-003: CGF is headless-first; enable only when a terminal connects.
                 StartEnabled = false,
+                // ⭐⭐⭐ UXI-07 — the Spawn tool's behaviour goes to the PACK (see §4.10; the editor carries
+                //   the same comment). ⚠ Resolved at CALL TIME: _spawnAdapter is built later, and a
+                //   headless node has none — then Spawn reports, which is the honest state (ruling 49).
+                StartPlacementMode = () => _spawnAdapter?.StartPlacementModeWithLastType(),
             });
 
         _cgfGizmoBuffer           = cgfMapInteraction.Buffer;
@@ -1239,7 +1243,6 @@ public sealed class CgfSubsystem : ISubsystem, Fdp.Toolkit.Runner.IMapCameraProv
                 Selection:    () => _selectionState,
                 Gizmos:       () => _cgfDataDrivenGizmoSystem,
                 Camera:       () => _canvas?.Camera,
-                GlobalGizmos: () => _cgfGizmoManager,
                 // ⭐⭐⭐ CE-061 — StartPlacementMode is SUPPLIED now, and it has to be.
                 // ⚠⚠ Until this batch it was legitimately absent — CGF composed no spawn adapter, so the
                 //    Spawn tool reported itself unserviceable (ruling 49, and `TheViewportInteractionIs
@@ -1249,7 +1252,6 @@ public sealed class CgfSubsystem : ISubsystem, Fdp.Toolkit.Runner.IMapCameraProv
                 // ⚠ Resolved at CALL TIME on purpose: this module is registered from Initialize, while
                 //   `_spawnAdapter` is built later in the non-headless block — a captured value would be
                 //   permanently null. ⭐ A headless node still has none, and then the report is honest.
-                StartPlacementMode: () => _spawnAdapter?.StartPlacementModeWithLastType(),
                 // ⭐⭐ The inspector follow-through CGF's own "Select entity" item used to do inline. ⛔ It
                 //    is a host panel concern, so it stays a hook rather than being pushed into the shared
                 //    assembly — see SelectEntitySystem's `alsoSelect` remarks.

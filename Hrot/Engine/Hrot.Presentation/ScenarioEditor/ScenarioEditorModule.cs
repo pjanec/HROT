@@ -58,10 +58,16 @@ public class ScenarioEditorModule : IEcsModule
         Func<ISelectionState?>        Selection,
         Func<DataDrivenGizmoSystem?>  Gizmos,
         Func<MapCamera?>              Camera,
-        Func<GlobalGizmoManager?>?    GlobalGizmos       = null,
-        Action?                       StartPlacementMode = null,
         Action<Entity>?               AlsoSelect         = null,
         Func<Hrot.ScenarioEditor.Tools.ToolController?>? Tools = null);
+
+    // ⛔⛔ REMOVED 2026-09-09 (UXI-07 §4.10): GlobalGizmos and StartPlacementMode.
+    //    🔴 Step 3b moved the tool REGISTRATIONS out of this module and into MapInteractionPack, which
+    //    takes both through MapInteractionContext — so these two became parameters that BOTH hosts still
+    //    dutifully passed and NOTHING read. ⚠ That is not merely dead code: the Spawn tool went
+    //    unserviceable on the Editor and CGF, reporting "this host composes no spawn adapter" on hosts
+    //    that compose one, because the delegate was being handed to the wrong record.
+    //    ⭐ Deleting them makes the mistake unrepresentable rather than merely fixed.
 
     public ScenarioEditorModule(
         ScenarioFileService? fileService = null,
