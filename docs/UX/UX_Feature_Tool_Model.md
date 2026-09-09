@@ -72,6 +72,30 @@ architect round rather than a recipe.
 | ⭐⭐ **`CancelInteractiveTools()` on BOTH arbiters** — `GlobalGizmoManager.cs:96` · `DataDrivenGizmoSystem.cs:124` | cancels the focused gizmo, calls `OnCancel()`, keeps permanent/modeless ones. **Driven from one place**: `GizmoExecutionController.cs:48-49` calls both **when the last terminal disconnects** | ⛔ **NOT a user-facing Escape** and not a stack — so *"no central cancel"* still holds for the user. ⭐⭐ **But `IToolController.Cancel()` should DELEGATE to these rather than invent a third teardown** — they already encode *"cancel the interactive, spare the permanent"*, which is exactly the modal/modeless split `Q27` ruled. 🔒 seam law |
 | ⭐⭐ **`DebugGizmoLayer._activeTool`** — a live `GizmoInteractionProxyTool?` (`:28`), created at `:180`/`:187`, self-clears via `onExit`, and **handles Escape at `:266`** | the **frontend** routing tool that `gizmo-input-focus-design.md` §14 promised would survive | ⭐⭐⭐ **§14's proxy tool DID survive — what did not survive is that it is a SINGLE NULLABLE SLOT, not a stack.** ⇒ refines this document's §"the tool stack was deleted": the *routing* half is alive and correct; only the **LIFO depth** is missing. ⛔ Do not re-implement the proxy; the backend `IToolController` supplies the depth the frontend slot cannot |
 
+### 🔴🔴🔴 A **THIRD** ARBITER INSTANCE ON SIMHOST — **found while syncing with the Stride lane, `2026-09-09`** *(hand-off, NOT fixed here)*
+
+⛔⛔ **The design counts TWO arbiters. On SimHost there are THREE — and the extra one is never ticked.**
+
+| # | the instance | on which bus | ticked? |
+|---|---|---|:--:|
+| ① | the pack's `GlobalGizmoManager` — `SimHostApp.cs:405` *(`= mapInteraction.GlobalManager`)*, holds `LayerControlGizmo` (`:415`), scheduled in the gizmo group (`:470`) | the pack's bus | ✅ |
+| ② | the pack's `DataDrivenGizmoSystem` — `SimHostApp.cs:406` | the pack's bus | ✅ |
+| 🔴 ③ | **`SimHostVisualization.cs:236` — `new GlobalGizmoManager(_gizmoBuffer!)`, constructed UNCONDITIONALLY and with NO bus** | ⛔ falls back to the **world** bus | ⛔ **NO — grep for `_globalGizmoManager` in that file returns exactly `:93`, `:236`, `:268`; nothing registers or `Execute`s it** |
+
+⇒ 🔴 **Its ONLY use is `:268`** — handed to `CanvasMapPickAdapter` as `globalGizmoManager:`. ⇒ ⭐⭐ **SimHost's map-pick modal gizmos are registered on an arbiter that never runs**, so they cannot draw and cannot receive routed events.
+
+📐 **And exactly one host does this** — the other two pass the pack's manager, correctly:
+
+| host | what `CanvasMapPickAdapter` gets |
+|---|---|
+| IG — `IgApplication.cs:507` | ✅ `_globalGizmoManager`, the pack's |
+| CGF — `CgfSubsystem.cs:1552` | ✅ `_cgfGizmoManager`, the pack's |
+| 🔴 **SimHost — `SimHostVisualization.cs:268`** | ⛔ **its own, private, never-ticked one** |
+
+🔒 **This is the SILENT-DEFAULT pattern verbatim** *(`CLAUDE.md`: "a production caller that HAS a dependency must PASS it")*: `SimHostApp` **holds** the pack's manager at `:405` and passes `gizmoBuffer`, `gizmoSystem` **and** `interactionBus` into `Initialize` (`:568-570`) — ⛔ **but not the manager, because `Initialize` has no parameter for it.** ⇒ the fix is one parameter plus a `??`, exactly like the other three.
+
+⚠⚠ **WHY IT IS URGENT AND WHOSE IT IS:** 📐 `StrideNodeShell.cs:614` constructs `SimHostVisualization` and reuses it **WHOLE** *(`R-S18`, the mode-2 operator window)* ⇒ **the Stride mode-2 node inherits this defect**, and that lane is building on it right now. ⛔ **Deliberately NOT fixed in this sweep** — `Hrot.SimHost` + `Stride/` is the Windows lane's live area, and rule 6 says the ids are theirs to allocate. ⭐ **Handed over, with the measurement above.**
+
 ### ⭐ What the sweep does NOT change
 
 ⭐ **Every `Q27` ruling stands** — they are user rulings, answered `2026-08-10` directly, and nothing measured
