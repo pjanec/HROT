@@ -875,6 +875,53 @@ silent-default pattern's tenth instance: `InteractionDeps.Tools` is optional so 
 constructs, which is exactly the shape that lets a root forget it — and a forgotten arbiter drops every
 tool press.
 
+### 4.8 📐 STEP 4's REAL INVENTORY — **the design said THREE adapters; it is EIGHT sites across FOUR hosts** *(`2026-09-09`)*
+
+⛔⛔ **`§Migration` step 4 names `EditorMapPickAdapter`, `EditorZoneAdapter`, `EditorSpawnAdapter`. That
+list is INCOMPLETE, and the omissions are not minor** — one of them is the adapter `CE-254` is about.
+
+📐 **The enumeration, and the test that defines membership.** *"Registers on `GlobalGizmoManager`"* is the
+wrong filter — `LayerControlGizmo` does that and is explicitly **permanent** (`RequiresExclusiveFocus:
+false`). ⭐ The right filter is **arms a STATEFUL gizmo that CONTENDS FOR FOCUS**
+(`RequiresExclusiveFocus` or `WantsRawInput`), because that is exactly what `CancelInteractiveTools`
+acts on.
+
+| site | host(s) | exclusive-focus gizmos it arms | in the design's list? |
+|---|---|---|---|
+| `ScenarioSpawnAdapter` | shared *(Editor + CGF)* | `EntityPlacementGizmo` · `PointSequenceGizmo` | ✅ *(as "EditorSpawnAdapter")* |
+| `EditorMapPickAdapter` | Editor | `EntityPickerGizmo` · `LocationPickerGizmo` · `ModalBoxSelectionGizmo` | ✅ |
+| `EditorZoneAdapter` | Editor | `ObstaclePlacementGizmo` | ✅ |
+| ⛔ **`CanvasMapPickAdapter`** | **SimHost · CGF · IG** | `EntityPickerGizmo` · `FdpLocationPickerGizmo` | 🔴 **NOT NAMED — and this is `CE-254`'s adapter** |
+| ⛔ **`IgApplication`** | IG | `EntityPickerGizmo` · `FdpLocationPickerGizmo` · `PointSequenceGizmo` | 🔴 **NOT NAMED** |
+| ⛔ **`MapCommandController`** | IG | `EntityPlacementGizmo` | 🔴 **NOT NAMED** |
+| ⛔ **`ReplayBrowserSubsystem`** | ReplayBrowser | `BoundingBoxPickerGizmo` | 🔴 **NOT NAMED** |
+| ⛔ **`MeasureToolGizmoAdapter`** | IG | `MeasureGizmo` | 🔴 added `2026-09-09`, §4.7c |
+
+⭐ **Correctly OUT of scope, by TYPE rather than by assumption:** `MissionPresentationGizmo`,
+`ReplaySpatialBoundsGizmo`, `RubberBandGizmo`, `EntityEditorLabelGizmo`/`EntityEditorPolylineGizmo` all
+implement `IStatelessGizmo`/`IGlobalStatelessGizmo` — a different interface with **no focus concept at
+all** — and `LayerControlGizmo` declares `RequiresExclusiveFocus: false`.
+
+#### ⛔⛔⛔ AND STEP 4 IS THE SAME MECHANISM AS `PushModal` — **`Q27-F`, which the design defers**
+
+📐 **Measured:** `EditorMapPickAdapter` uses `TaskCompletionSource` **5×** and `CanvasMapPickAdapter` **2×**;
+`EditorMapPickAdapter.cs:26` still carries a live `<see cref="MapCanvas.PopTool"/>` reference. ⇒ these are
+**precisely** the case `Q27-F`'s answer describes: *"the pick adapters `Register` without LIFO, so the
+CALLER's control flow resumes via `TaskCompletionSource` but the previous tool never does."*
+
+⇒ ⭐⭐⭐ **A picker cannot simply `Activate`: that CANCELS the tool underneath, and the operator never gets
+it back.** 🔒 `Q27-F` ruled the fix — *"suspend = `SetFocus(false)` WITHOUT the `Dispose()` that both
+teardown paths currently pair it with"* — and that is `PushModal`, which `ToolController` currently
+**throws** on.
+
+| ⭐ THE SPLIT, and the dividing line is MEASURED, not invented | |
+|---|---|
+| ⭐ **4a — FIRE-AND-FORGET arms** *(no `TaskCompletionSource`)*: `ScenarioSpawnAdapter` · `EditorZoneAdapter` · `MapCommandController` · `MeasureToolGizmoAdapter` | ✅ **buildable now** on plain `Activate` — they arm and forget, so cancel-the-other is the whole requirement |
+| ⛔ **4b — SUSPEND/RESUME pickers** *(`TaskCompletionSource`)*: `EditorMapPickAdapter` · `CanvasMapPickAdapter` · `IgApplication`'s picker arms · `ReplayBrowserSubsystem` | 🔴 **needs `PushModal` FIRST.** ⛔ Converting them to `Activate` would be a REGRESSION — it would destroy the tool the operator was using instead of suspending it |
+
+⚠⚠ **This supersedes the plan's implicit claim that step 4 is one batch.** ⛔ It is two, and the second is
+`Q27-F`'s increment — which the Migration table lists *after* step 6.
+
 ## Migration
 
 | Step | Change | Gate |
@@ -882,7 +929,8 @@ tool press.
 | 1 | `ToolDescriptor` + `IToolController`; **Editor only**; register the 6 existing tools with their real modality (`Select` = null modal tool) | nothing calls it yet |
 | ✅ 2 | Route the **toolbar event path** (`ActivateEditorToolEvent` switch) through `Activate()` — **BUILT `2026-09-09`**, see §4.7b | every tool behaves as today *(+ `Select` is now live, and a retarget no longer leaves two gizmos)* |
 | ✅ 3 | Route the **action path** (`GlobalActionIds.Rotate/EditOverlay/EditRoute`) through `Activate()` — 🔴 **the D′ duplicate is DELETED**; **BUILT `2026-09-09`**, see §4.7b | ⭐ red-proofed by un-blinding `NoCompositionRootConstructsAToolGizmoItself`, which had been green over the duplicate |
-| 4 | Convert the bypassing adapters (`EditorMapPickAdapter`, `EditorZoneAdapter`, `EditorSpawnAdapter`, ⭐ **and `IG/Gizmos/MeasureToolGizmoAdapter` — added `2026-09-09`, see §4.7c's hazard**) | ⭐ **completes A1 — the 🔴 two-arbiter defect closes here** |
+| **4a** | Convert the FIRE-AND-FORGET arms — `ScenarioSpawnAdapter`, `EditorZoneAdapter`, `MapCommandController`, `MeasureToolGizmoAdapter`. ⭐ **§4.8 has the measured inventory: EIGHT sites, not three** | ⭐ **completes A1 — the 🔴 two-arbiter defect closes here** |
+| **4b** | Convert the SUSPEND/RESUME pickers — `EditorMapPickAdapter`, `CanvasMapPickAdapter`, `IgApplication`, `ReplayBrowserSubsystem`. ⛔ **BLOCKED on `PushModal` (`Q27-F`)**: they resume via `TaskCompletionSource`, so plain `Activate` would destroy the tool underneath instead of suspending it (§4.8) |
 | 5 | Toolbar binds `ActiveModalChanged`; opt tools in via `ShowOnToolbar` | [UXR-84](UX_Requirements.md#uxr-84): active tool visibly active |
 | 6 | Central Escape → `Cancel()`; gizmos keep their own cleanup | Escape cancels the modal tool from anywhere |
 | 7 | Repeat for SimHost / CGF | same descriptors, host-bound activation |
