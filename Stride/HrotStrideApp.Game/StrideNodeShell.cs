@@ -82,6 +82,7 @@ public sealed class StrideNodeShell : IDisposable, Hrot.Presentation.DebugApi.IP
     private Hrot.SimHost.SimHostVisualization? _visualization;
     private StrideInspectorWindow? _operatorWindow;
     private EditorSelectionState? _operatorSelection;
+    private Hrot.UI.Common.Adapters.ClusterTimeTransportAdapter? _clusterTime;
     private StrideVisualBindingSystem? _visualBinding;
     private StridePhysicsBracket? _physicsBracket;
 
@@ -452,6 +453,12 @@ public sealed class StrideNodeShell : IDisposable, Hrot.Presentation.DebugApi.IP
         // CE-214 - the operator window's frame. AFTER the kernel and the debug-API drain, so panels
         //   read a world that has finished the frame rather than one mid-schedule. PumpFrame is a
         //   no-op once Close() has nulled its window manager, which is the documented shutdown order.
+        // ⛔ CE-214 — the visualization MUST be ticked, not merely drawn: Update(dt) is what advances
+        //    the map camera and the selection system. Measured omission — the map rendered but never
+        //    tracked, because DrawWorld() only paints what Update() moved.
+        _visualization?.Update(CurrentSimDeltaSeconds);
+        _clusterTime?.Update();
+
         _operatorWindow?.PumpFrame();
     }
 
@@ -661,6 +668,29 @@ public sealed class StrideNodeShell : IDisposable, Hrot.Presentation.DebugApi.IP
                         PickBridge:     _visualization.GetMapPickBridge())),
             },
             new Fdp.Toolkit.Runner.UiBundleContext(wm));
+
+        // ⭐⭐⭐ CLUSTER TIME CONTROLS — 🔒 user 2026-09-09: "simhost is also time slave. there should be
+        //    toolbar butons to control the cluster wide time. these are what is required, local time
+        //    control seems useless … we work in cluster and use cluster synced time."
+        //
+        // ⭐ The transport is the SAME adapter SimHost builds (SimHostSubsystem:339), over THIS node's
+        //   event bus — and HrotNodeBuilder registers the orchestration intents on exactly that bus for
+        //   exactly this purpose ("ClusterTimeTransportAdapter issues PauseTimeIntent/ResumeTimeIntent/
+        //   StepTimeIntent/SetTimeScaleIntent … onto HrotNodeContext.EventBus"). ⛔ Nothing local: every
+        //   button publishes a cluster INTENT, and the node obeys the master like any other slave.
+        _clusterTime = new Hrot.UI.Common.Adapters.ClusterTimeTransportAdapter(
+            ctx.EventBus, () => ctx.Kernel.CurrentTime.TotalTime);
+        if (_visualization.UI != null)
+            _visualization.UI.TimeFacade = _clusterTime;
+
+        // ⚠ SetPanelsWindowManaged makes DrawUI skip SimHostMainUI — right for the inspector and event
+        //   browser (the bundle registers those), but it also skips the CONTROLS, and
+        //   SimHostControlsWindow is internal to Hrot.SimHost. ⇒ measured: /panels had no `controls`
+        //   at all. This registers the same PUBLIC panel in a window of our own.
+        wm.RegisterWindow(new StrideNodeControlsWindow(
+            new Hrot.SimHost.UI.SimHostSimulationControlsPanel { TimeFacade = _clusterTime },
+            () => ctx.World,
+            () => ctx.Kernel));
 
         _visualization.SetPanelsWindowManaged();
 
