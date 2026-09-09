@@ -1563,7 +1563,8 @@ public sealed class CgfSubsystem : ISubsystem, Fdp.Toolkit.Runner.IMapCameraProv
 
         // Create a map-pick bridge so component fields tagged [MapPickable] can be edited.
         CanvasMapPickAdapter? cgfCanvasAdapter = _canvas != null && _context?.World != null
-            ? new CanvasMapPickAdapter(_canvas, _context.World, globalGizmoManager: _cgfGizmoManager)
+            ? new CanvasMapPickAdapter(_canvas, _context.World, globalGizmoManager: _cgfGizmoManager,
+                  tools: () => _cgfToolController)   // 🔒 UXI-07 step 4b
             : null;
         MapPickServiceBridge? cgfPickBridge = cgfCanvasAdapter != null
             ? new MapPickServiceBridge(cgfCanvasAdapter, _context!.World)

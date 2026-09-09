@@ -1183,6 +1183,67 @@ refusal is **reported** and returns a usable no-op handle *(⛔ never null, neve
 
 ⇒ ✅ **§4.8's 4b row is UNBLOCKED.** The four picker sites can now `PushModal` instead of `Activate`.
 
+### 4.12 ✅ STEP 4b AS-BUILT — **the picker protocol becomes ONE implementation** *(obligation ⑤, `2026-09-09`)*
+
+⭐⭐⭐ **The unification is bigger than "convert four sites."** 📐 Measured: the same twelve-line body —
+*make a `TaskCompletionSource` · mint a gizmo id · build a picker whose `onRemove` unregisters that id ·
+hook cancellation · `Register` straight on `GlobalGizmoManager`* — was written **six times**
+*(`CanvasMapPickAdapter` and `EditorMapPickAdapter`, three picks each)*, and **`IgApplication`** +
+**`ReplayBrowserSubsystem`** hand-roll the same thing with a **private one-slot arbiter**
+*(`_activeLocationPickerId`, `_activeGizmoId`)* instead of a task. ⛔ Every copy was §4.8's bypass.
+
+⇒ ⭐⭐ **`PickerToolHost`** is the one implementation: it owns the id, the arm, the push, the cancellation
+hook and the pop. The adapters keep only what is genuinely theirs — *which gizmo, and what a pick means*.
+
+| ⭐ decision | why |
+|---|---|
+| ⭐⭐ **`PushModal`, never `Activate`** | a pick INTERRUPTS. `Activate` would cancel and dispose the half-drawn route underneath — §4.8's measured reason 4b could not precede `PushModal` |
+| ⭐⭐⭐ **a RESOLVER for the controller, and LAZY registration** | 🔴 measured: `IgApplication.cs:513` builds its pick adapter **before** `:816` assigns the controller. ⛔ An instance would have been permanently `null` and every IG pick would have kept bypassing — **the silent-default shape, caught by reading the composition order rather than by a test** |
+| ⭐ registration is **idempotent per controller** | the duplicate-id guard stays strict (`G4`) |
+
+#### 🔴🔴 THE DEFECT THE RAIL CAUGHT — **the pop was tied to a TASK CONTINUATION, and that is a RACE**
+
+📐 The first implementation popped from `tcs.Task.ContinueWith(...)`. ⛔ A caller's `await` continuation and
+that one are queued **independently**, so the caller could resume from `PickLocationAsync` **before the
+tool underneath was restored.** ⚠⚠ **`PushModal` was correct and the SUSPEND rail passed** — only the
+rail that asserts the **RESUME** (`CompletingAPickResumesTheToolUnderneath`) caught it.
+
+⇒ ⭐⭐⭐ **The pop now lives in `Remove()`**, the callback the gizmo invokes when it actually goes away, so
+the resume is deterministic. ⭐ The continuation stays as a **backstop** for the one case it still covers —
+a `TaskCompletionSource` completed *without* the gizmo being removed. ⚠ Both are idempotent
+(`ModalScope.Dispose` guards, `PopModalAt` re-checks depth, `Unregister` early-outs), so the
+`Unregister → Dispose → onRemove` re-entry terminates.
+
+🔒 **This is the THIRD distinct route by which *"the tool underneath never comes back"* has been attempted
+in this issue** *(§4.9c's dead toggle · §4.11's pop-is-not-a-sweep · this race)*. ⇒ ⭐⭐ **a rail that
+asserts only the SUSPEND is not enough; assert the RESUME.**
+
+#### 📐 Rails — `EditorMapPickAdapterTests` **3 → 5**, red-proofed
+
+| | |
+|---|---|
+| `APickSuspendsTheActiveToolRatherThanDestroyingIt` | `Assert.False(route.Disposed)` **is** step 4b |
+| `CompletingAPickResumesTheToolUnderneath` | the half that caught the race |
+| ⭐ red-proof: `Activate` in place of `PushModal` *(clean build)* | **2🔴 / 3✅** — exactly the two new rails |
+
+⚠⚠ **THREE BUILD-LEVEL MISTAKES WORTH RECORDING, all mine, all caught BEFORE commit:**
+① a trailing `//` comment inside a call swallowed `, repo);` in `SimHostVisualization` — ⛔ and it reddened
+**Editor and CGF too**, which build SimHost as a dependency, so one break looked like three;
+② `using Fdp.Toolkit.Diagnostics.Gizmos.Interaction;` **rebound `MapMouseButton`/`MapKeyboardKey`
+file-wide** and broke a pre-existing `TestInputProvider` I never touched — 🔒 **two sibling namespaces
+declare the same enum names**, and a `using` is not a local decision;
+③ `GizmoPickToken` is in `Fdp.Toolkit.Diagnostics.Gizmos`, **not** the `.Interaction` child — ⛔ guessing a
+namespace from the folder path was wrong twice, grepping the declaration was right immediately.
+⇒ ⭐ and between ① and ②, a `dotnet test --no-build` reported **`Passed! 3/3` off a STALE BINARY** while the
+test project did not compile. **Every test invocation in this batch is now gated on `errors == 0` first.**
+
+#### ⛔ NOT YET CONVERTED — **the other two 4b sites**
+
+`IgApplication`'s picker arms and `ReplayBrowserSubsystem.ReplaySpatialPickerContext` still hold their
+private one-slot arbiters. ⚠ They are **callback-style, not `await`-style** *(no `TaskCompletionSource` —
+the repo-wide grep confirms only the two adapters combine TCS with a picker gizmo)*, so they need a
+push/pop keyed on their own callbacks rather than `RunPickAsync`. ⭐ Named here so 4b is not read as closed.
+
 ## Migration
 
 | Step | Change | Gate |

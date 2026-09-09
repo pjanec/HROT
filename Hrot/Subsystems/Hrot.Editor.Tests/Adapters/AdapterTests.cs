@@ -8,6 +8,7 @@ using Fdp.Core;
 using Fdp.Toolkit.Behavior;
 using Fdp.Toolkit.Behavior.Components;
 using Fdp.Toolkit.Behavior.Events;
+using Fdp.ModuleHost.Abstractions;
 using Fdp.Toolkit.Diagnostics.Gizmos;
 using Fdp.Toolkit.Diagnostics.Gizmos.Events;
 using Fdp.Toolkit.Diagnostics.Gizmos.Systems;
@@ -646,6 +647,92 @@ namespace Hrot.Editor.Tests.Adapters
             var result = await task;
             // Placeholder implementation returns empty list.
             Assert.NotNull(result);
+        }
+
+        // ── UXI-07 step 4b — a pick INTERRUPTS the active tool ────────────────────────────────────
+        //
+        // 📄 UX_Feature_Tool_Model.md §4.12. 🔴 Before this step every pick registered its gizmo straight
+        //    on GlobalGizmoManager, so it took exclusive focus while ToolController still believed some
+        //    other tool held it (§4.8's bypass). ⭐⭐ And the fix could NOT be Activate: that CANCELS the
+        //    tool underneath, so picking a point mid-route would have DESTROYED the half-drawn route.
+
+        /// <summary>A stand-in for "the tool the operator was already using".</summary>
+        private sealed class RouteProbe : IEntityStatefulGizmo
+        {
+            public bool RequiresExclusiveFocus => true;
+            public bool IsFocused { get; private set; }
+            public bool Disposed  { get; private set; }
+
+            public void SetFocus(bool f) { IsFocused = f; }
+            public void UpdateAndDraw(ISimulationView v, float dt, IDebugDrawBuilder b) { }
+            public void OnInteractionStarted(GizmoPickToken t, Vector3 w) { }
+            public void OnDragUpdate(Vector3 p) { }
+            public void OnCommit(Vector3 w) { }
+            public void OnMenuAction(int id) { }
+            public void OnMouseEvent(Fdp.Toolkit.Diagnostics.Gizmos.Interaction.MapMouseButton b, bool p, Vector3 w) { }
+            public void OnKeyEvent(Fdp.Toolkit.Diagnostics.Gizmos.Interaction.MapKeyboardKey k, bool p) { }
+            public void OnCancel() { }
+            public void Dispose() { Disposed = true; }
+        }
+
+        private static (ToolController controller, RouteProbe route) ArmARouteTool(GlobalGizmoManager manager)
+        {
+            var controller = new ToolController(() => manager, () => null);
+            var route      = new RouteProbe();
+
+            controller.Register(
+                new ToolDescriptor("route", "Route", ToolModality.Modal, ToolArbiter.Global),
+                _ => { manager.Register(GlobalGizmoManager.NewId(), route); return ToolActivationOutcome.Armed; });
+
+            Assert.True(controller.Activate("route"));
+            Assert.True(route.IsFocused);
+            return (controller, route);
+        }
+
+        /// <summary>
+        /// ⭐⭐⭐ <b>THE ONE THAT MATTERS — a pick SUSPENDS the route; it does not destroy it.</b>
+        /// ⛔ <c>Assert.False(route.Disposed)</c> is the whole of step 4b: an <c>Activate</c>-based
+        /// conversion would fail exactly here.
+        /// </summary>
+        [Fact]
+        public void APickSuspendsTheActiveToolRatherThanDestroyingIt()
+        {
+            var manager = MakeManager();
+            var (controller, route) = ArmARouteTool(manager);
+
+            var adapter = new EditorMapPickAdapter(
+                _canvas, HrotEnvironment.CreateGeoTransform(),
+                globalGizmoManager: manager, tools: () => controller);
+
+            _ = adapter.PickLocationAsync();
+
+            Assert.Equal(ScenarioToolIds.PickLocation, controller.ActiveModal?.Id);
+            Assert.False(route.IsFocused);    // it yielded the input …
+            Assert.False(route.Disposed);     // ⭐⭐ … but it is ALIVE
+        }
+
+        /// <summary>
+        /// ⭐⭐ <b>Completing the pick POPS and RESUMES the route.</b> ⚠ Without this half a pick would
+        /// leave the operator's tool alive but permanently unfocused — the dead-tool shape this
+        /// programme has already hit twice.
+        /// </summary>
+        [Fact]
+        public async Task CompletingAPickResumesTheToolUnderneath()
+        {
+            var manager = MakeManager();
+            var (controller, route) = ArmARouteTool(manager);
+
+            var adapter = new EditorMapPickAdapter(
+                _canvas, HrotEnvironment.CreateGeoTransform(),
+                globalGizmoManager: manager, tools: () => controller);
+
+            var task = adapter.PickLocationAsync();
+            SimulateLeftClick(manager, 0f, 0f);
+            await task;
+
+            Assert.False(route.Disposed);
+            Assert.True(route.IsFocused);     // ⭐⭐ the route has the input back
+            Assert.Equal("route", controller.ActiveModal?.Id);
         }
     }
 

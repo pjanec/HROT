@@ -510,7 +510,11 @@ public class IgApplication : IDisposable
     public MapPickServiceBridge? GetMapPickBridge()
     {
         if (_mapPickBridge == null && _canvas != null)
-            _mapPickBridge = new MapPickServiceBridge(new CanvasMapPickAdapter(_canvas, _world, globalGizmoManager: _globalGizmoManager), _world);
+            _mapPickBridge = new MapPickServiceBridge(new CanvasMapPickAdapter(_canvas, _world, globalGizmoManager: _globalGizmoManager,
+                    // 🔒 UXI-07 step 4b — a RESOLVER: this adapter is built here, but _igToolController
+                    //    is not assigned until the pack is built further down (:816). An instance would
+                    //    be permanently null.
+                    tools: () => _igToolController), _world);
         return _mapPickBridge;
     }
 

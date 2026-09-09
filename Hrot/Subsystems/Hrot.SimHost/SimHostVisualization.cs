@@ -339,7 +339,13 @@ namespace Hrot.SimHost
                 }
             };
 
-            _mapPickBridge = new MapPickServiceBridge(new CanvasMapPickAdapter(_map, repo, globalGizmoManager: _globalGizmoManager), repo);
+            // 🔒 UXI-07 step 4b — a pick SUSPENDS the active tool instead of arming beside it.
+            _mapPickBridge = new MapPickServiceBridge(
+                new CanvasMapPickAdapter(
+                    _map, repo,
+                    globalGizmoManager: _globalGizmoManager,
+                    tools: () => _toolController),
+                repo);
 
             // Seed a small initial scenario so the window isn't empty
             //_scenario.SpawnFastOne();

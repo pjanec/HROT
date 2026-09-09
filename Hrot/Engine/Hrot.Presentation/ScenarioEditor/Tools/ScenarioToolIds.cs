@@ -64,6 +64,22 @@ namespace Hrot.ScenarioEditor.Tools
         /// <summary>Route (waypoint sequence) authoring — <c>ISpawnController.StartRouteAuthoringMode</c>.</summary>
         public const string PlaceRoute = "scenario.place.route";
 
+        // ── UXI-07 step 4b — the PICKERS ─────────────────────────────────────────────────────────
+        //
+        // ⭐⭐⭐ These are INTERRUPTIONS, not switches: they are pushed with ToolController.PushModal so
+        //    the tool underneath is SUSPENDED and resumes when the pick finishes. ⛔ Activating them
+        //    would DESTROY a half-drawn route instead of pausing it — §4.8's measured reason 4b could
+        //    not be built before PushModal existed.
+
+        /// <summary>Pick one world location — <c>IMapPickService.PickLocationAsync</c>.</summary>
+        public const string PickLocation = "scenario.pick.location";
+
+        /// <summary>Pick one entity — <c>IMapPickService.PickEntityAsync</c>.</summary>
+        public const string PickEntity = "scenario.pick.entity";
+
+        /// <summary>Box-select entities — <c>IMapPickService.PickAreaEntitiesAsync</c>.</summary>
+        public const string PickArea = "scenario.pick.area";
+
         /// <summary>
         /// The ONE mapping from the legacy enum to the tool vocabulary. ⛔ If a second one appears, that is
         /// the duplication this issue exists to remove.

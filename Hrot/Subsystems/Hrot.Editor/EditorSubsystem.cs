@@ -2256,7 +2256,9 @@ namespace Hrot.Editor
             if (!_headless)
             {
                 _mapViewConfig    = new MapViewConfig();
-                _mapPickAdapter   = new EditorMapPickAdapter(_canvas!, geoTransform, _world, _globalGizmoManager!);
+                // 🔒 UXI-07 step 4b — picks SUSPEND the active tool instead of arming beside it.
+                _mapPickAdapter   = new EditorMapPickAdapter(
+                    _canvas!, geoTransform, _world, _globalGizmoManager!, () => _editorToolController);
 
                 // Build the JSON?ECS attribute compiler with the geo-transform so that
                 // geodetic spawn coordinates are projected correctly on entity placement.
