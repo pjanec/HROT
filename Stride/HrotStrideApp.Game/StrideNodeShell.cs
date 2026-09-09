@@ -318,12 +318,56 @@ public sealed class StrideNodeShell : IDisposable
     private Hrot.Editor.DebugApi.MainThreadJobQueue? _debugApiQueue;
     private Hrot.Editor.DebugApi.DebugApiHost?       _debugApiHost;
 
+    /// <summary>
+    /// ⭐⭐⭐ <c>CE-251</c> — the node's LAST OBSERVED SIM DELTA, for <c>StrideHrotGame</c> to turn into
+    /// <c>GameTime.Factor</c>. Mode 1 publishes the identical value as
+    /// <c>EditorStrideSubsystem.CurrentSimDeltaSeconds</c> (<c>:1245</c>); this is mode 2's copy of
+    /// that one source of truth for "how far did the world move".
+    /// </summary>
+    /// <remarks>
+    /// ⚠ It is the PREVIOUS frame's delta, deliberately and for exactly mode 1's documented reason
+    /// (§11.1a, option B): Stride's <c>base.Update</c> — and therefore its physics step — runs BEFORE
+    /// this shell ticks the kernel, so the current frame's delta does not exist yet.
+    /// </remarks>
+    public float CurrentSimDeltaSeconds { get; private set; }
+
     public void Tick(float wallDt)
     {
         var world = Context?.World;
         if (world == null) return;
 
-        _physicsBracket?.RunPreKernelStep(world, wallDt, simRunning: true);
+        // ⛔⛔⛔ CE-251 — MODE 2'S PHYSICS WAS RUNNING ON THE WALL CLOCK.
+        //
+        // 🔒 R-143, user verbatim: "no wall clock enywhere, whole sim driven by sim time ONLY … not in
+        //    stirede, not in editor, not in cgf, not in simhost, never where simulation is related."
+        //
+        // 📐 The hole: StrideHrotGame.Update sets UpdateTime.Factor = simDelta / wallSeconds, and that
+        //    assignment is guarded on `_editorSubsystem != null` — which is NEVER true in mode 2. So
+        //    Factor kept its default of 1, WarpElapsed == Elapsed, and Stride's physics game system fed
+        //    Bullet WALL seconds on the one host that is a cluster TIME SLAVE.
+        //
+        // ⛔ Two consequences, neither of which the green hill-attack run would have shown:
+        //    ① non-determinism — the node's Bullet advance tracked local frame rate, not cluster time,
+        //      so two Stride nodes on one cluster would diverge;
+        //    ② CE-227's pause hole, REOPENED for mode 2 — a cluster-wide pause stops the kernel and the
+        //      motors, but with Factor at 1 Stride keeps calling Simulate(wallDelta), so gravity and
+        //      contacts would go on running in a paused world. That is exactly the defect CE-227 was
+        //      raised for, and it never applied to mode 2 because mode 2 did not exist yet.
+        //
+        // ⭐ The fix is mode 1's, unchanged in shape: publish the KERNEL's own delta and let the game
+        //    convert it. Reading Kernel.CurrentTime.DeltaTime is what EditorStrideSubsystem.cs:1238
+        //    already does, and on this node it is the CLUSTER's time — the master supplies it, so a
+        //    pause propagates as a zero delta with no pause flag of its own (Q66 §3A).
+        //
+        // ⚠ Published BEFORE the kernel tick on purpose: it is the previous frame's value, which is
+        //    what the next base.Update needs, and it matches mode 1's documented option B exactly.
+        CurrentSimDeltaSeconds = Context!.Kernel.CurrentTime.DeltaTime;
+
+        // ⭐ And the bracket's own gate comes from the SAME number rather than a hard-coded `true`, so
+        //    the motors and Bullet cannot disagree about whether the world moved this frame.
+        bool simRunning = CurrentSimDeltaSeconds > 0f;
+
+        _physicsBracket?.RunPreKernelStep(world, CurrentSimDeltaSeconds, simRunning);
         _bootstrapper.Tick(wallDt);
         _physicsBracket?.RunPostKernelStep(world);
 

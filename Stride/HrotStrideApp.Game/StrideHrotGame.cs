@@ -433,7 +433,21 @@ public sealed class StrideHrotGame : Game
         //    a cluster-wide pause stops physics identically on every node in mode 2 — no reference to
         //    who owns an entity or which node loaded the scenario.
         double wallSeconds = gameTime.Elapsed.TotalSeconds;
-        if (_editorSubsystem != null && wallSeconds > 0.0)
+
+        // ⭐⭐⭐ CE-251 — MODE 2 NEEDS THIS TOO, and the guard below excluded it.
+        //    `_editorSubsystem` is null in mode 2, so Factor kept its default of 1 and Stride fed
+        //    Bullet WALL seconds on the one host that is a cluster TIME SLAVE — breaking R-143 ("no
+        //    wall clock … not in stirede") and reopening CE-227's pause hole for this mode: a
+        //    cluster-wide pause stops the kernel and the motors, but Simulate(wallDelta) would keep
+        //    gravity and contacts running in a paused world.
+        //    ⭐ Same formula, same meaning, different source of the sim delta: the node reads it from
+        //    its own kernel, which is the CLUSTER's clock (Q66 §3A). ⚠ Previous frame's value, exactly
+        //    as in mode 1 — §11.1a option B — because base.Update runs before the shell ticks.
+        if (NodeMode && _nodeShell != null && wallSeconds > 0.0)
+        {
+            UpdateTime.Factor = _nodeShell.CurrentSimDeltaSeconds / wallSeconds;
+        }
+        else if (_editorSubsystem != null && wallSeconds > 0.0)
         {
             // ⚠ Guarded on wallSeconds > 0: on the first frame (and any zero-length frame) Elapsed is
             //   zero, so WarpElapsed is zero whatever the factor — the division would be meaningless.
