@@ -114,6 +114,18 @@ none of the totals below is a proof of completeness — each was corroborated wi
 | **R-S13** | *"stridenodeshell as bracket"* | **§7.3a** — the view tier becomes a `StrideViewBracket` in the shape `StridePhysicsBracket` already has, and `StrideNodeShell` is the thing that *drives* two brackets around `Kernel.Update()` rather than a second composition root |
 | **R-S14** | *"the map on day 1 approved, same for q5 and q7"* | ✅ **THE LAST THREE OPEN QUESTIONS CLOSED** — `Q3` the operator surface ships **with** `CE-207` *(§7.2b)* · `Q5` 2-D-only gizmos get **skip counters, not 3-D forms, for now** *(§8)* · `Q7` the shell **owns the clock advance** *(§11.1 ②, option A)*. ⇒ ⭐⭐⭐ **`build-state: READY-TO-BUILD`** |
 
+### ⭐⭐⭐ 2.2 — the `2026-09-09` rulings on `S6`, verbatim
+
+> ⭐ Raised by the user asking to *"review the design of the S6, to make it clear what it takes and if it
+> needs some more clarifications"*. ⭐⭐ All three close ambiguities this document itself carried.
+
+| # | ruling | consequence |
+|---|---|---|
+| **R-S15** | 🔒 *"the map is part of the diagnostic suite, it shows the entities in 2d, so yes map for sure, with entities, gizmos, context menu etc."* | ⛔⛔ **§7.2's *"map panel + `IMapCameraProvider`, and nothing else"* is SUPERSEDED.** ⭐ The map is **not a separate deliverable beside the diagnostics bundle — it is PART of it**, and it must be a **working** map: entities drawn in 2-D, gizmos, context menu. ⇒ ⭐⭐ mode 2's window is the **same operator surface the other four hosts have**, map included, not a viewer |
+| **R-S16** | 🔒 *"window is not optional, sames as in stride editor."* | ⛔⛔ **§7.2's *"optional, off by default … one flag, same shape as `STRIDE_EDITOR_WINDOW`"* is SUPERSEDED.** ⭐ The companion window ships as a **first-class part of mode 2**, not an opt-in extra. ⭐⭐ **And it is SAFE**, which is why the original caveat can go: 📐 measured — mode 2 sets `Headless = false` *(`StrideNodeShell.cs:186`)* and `game.Run()` always opens a Stride window *(`HrotStrideAppApp.cs:32`)* ⇒ **there is no headless mode 2**, so §7.2's *"headless/CI must be unaffected"* has nothing to protect here |
+| **R-S17** | 🔒 *"point 1: widen"* — in answer to *"widen `CE-213` from 'rename' to 'rename + decouple', or file it separately?"* | ⭐⭐⭐ **`CE-213` WIDENS.** ⛔ §7.2's claim that the renamed host *"is a generic raylib-window host"* was **aspirational, not as-built** — 📐 measured: `StrideInspectorWindow` takes an `EditorStrideSubsystem` *(`:455`, `:503`)*, so a rename alone leaves mode 2 unable to construct it. ⭐ The decoupling is **small and bounded**: **7 references, 3 members** — `HostedEditor` ×3, `ToastMessage`, `ToastSecondsRemaining` — and **two of the three are already null-guarded** *(`:594` `if (_subsystem.HostedEditor != null)`, `:707` `editor?.DrawUI()`)*, because they ARE mode 1's panel fill. ⇒ `CE-213` becomes *"delete the dead view-model · rename · decouple to a small optional host contract"* |
+
+
 ---
 
 ## 3. WHAT `.dev/_DONE/stride-mock/DESIGN.md` ALREADY SETTLED — and what died with the mock
@@ -401,9 +413,9 @@ window** — which is precisely why the user's *"2-D maps should be unified anyw
 
 | ⭐ the design | |
 |---|---|
-| ⭐⭐ **REUSE §7.1's window host.** After the rename, `StrideEditorWindow` is a generic *"raylib window + `WindowManager` + dockspace + message log"* host — ⛔ **there must not be a second one** | mode 1 fills it with the editor's panels; ⭐ mode 2 fills it with the **map panel + the Stride node's `IMapCameraProvider`**, and nothing else |
-| ⭐ **mode 2's map surface is SimHost's** | `SimPresentationModule` *(`Hrot.SimHost/Modules/`)* already implements `IMapCameraProvider` for a Muscle node. ⇒ ⭐ **the Stride node reuses it** — same role, same components, no new map code |
-| ⭐ **optional, off by default** | one flag, same shape as `STRIDE_EDITOR_WINDOW`. ⛔ Headless/CI must be unaffected |
+| ⛔ ~~**REUSE §7.1's window host.** After the rename, `StrideEditorWindow` is a generic *"raylib window + `WindowManager` + dockspace + message log"* host~~ ⚠⚠ **CORRECTED `2026-09-09` (`R-S17`): it is NOT generic and the rename does not make it so** — it takes an `EditorStrideSubsystem` *(`StrideInspectorWindow.cs:455`, `:503`)*. ⭐ **`CE-213` widens** to rename **and decouple**; the reuse itself stands, and there must still not be a second host | ⛔ ~~mode 2 fills it with the **map panel + `IMapCameraProvider`**, and nothing else~~ ⚠⚠ **SUPERSEDED `2026-09-09` (`R-S15`)** — 🔒 *"the map is part of the diagnostic suite … with entities, gizmos, context menu etc."* ⇒ mode 2 gets the **FULL operator surface of §7.2b, map included**, not a map alone |
+| ⭐ **mode 2's map surface is SimHost's** | `SimPresentationModule` *(`Hrot.SimHost/Modules/`)* already implements `IMapCameraProvider` for a Muscle node. ⇒ ⭐ **the Stride node reuses it** — same role, same components, no new map code. ⚠ **`R-S15` raises the bar on what "the map" MEANS**: entities drawn in 2-D, **gizmos**, **context menu** — i.e. the working map the other hosts have, so the `PickBridge`/gizmo inputs `DiagnosticsHostServices` takes are part of the deliverable, not optional extras |
+| ⛔ ~~**optional, off by default**~~ ⚠⚠ **SUPERSEDED `2026-09-09` (`R-S16`)** | 🔒 *"window is not optional, sames as in stride editor."* ⇒ ⭐ the companion window is a **first-class part of mode 2**, not an opt-in flag. ⭐⭐ The old *"headless/CI must be unaffected"* caveat has **nothing to protect**: 📐 mode 2 sets `Headless = false` and always opens a Stride window ⇒ **there is no headless mode 2** |
 | ⚠ **what it costs** | the map stack needs `PresentationComponentRegistry` + the presentation modules ⇒ ⭐ **that is a CAPABILITY, resolved only when the companion window is on** — `StrideCapabilities.Map2D`, keyed on the same `Map2D` capability key IG uses. ⛔ **It does not come back as a node ROLE** |
 
 ⇒ **`CE-214`.** ⚠ **Depends on `CE-213`** *(the rename/extraction)* and on §6.2 only for naming.

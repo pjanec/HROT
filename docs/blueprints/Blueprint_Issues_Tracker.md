@@ -3218,6 +3218,21 @@ whenever the finding is "the sim did not do the impressive thing".**
 
   ⭐ **Delete ① and its test class** — ⭐ `R-129` check: **searched `docs/` and `.dev/`, no design record keeps it**; it is scaffolding superseded by `RegisterWindows`. ⭐⭐ **Rename `StrideInspectorWindow` → `StrideEditorWindow`**: it is not an inspector, it is the editor's **host window** *(GL context + `WindowManager` + dockspace + message log)*, mirroring `ClusterRunner`'s `LocalWindowController`. ⚠ The env var `STRIDE_EDITOR_WINDOW` is already right. 📄 §7.1.
 
+
+  ### ⭐⭐⭐ WIDENED `2026-09-09` — **`R-S17`: it must DECOUPLE the host, not just rename it** 🔒 *(user: "point 1: widen")*
+
+  ⛔⛔ **`DESIGN_Stride_Node_Modes.md` §7.2 claimed that after this rename the class is a generic *"raylib window + `WindowManager` + dockspace + message log"* host, and `CE-214` DEPENDS on that.** 📐 **Measured — it is false:** `StrideInspectorWindow` takes an `EditorStrideSubsystem` in its constructor *(`:455`, `:503`)*, so a rename alone leaves **mode 2 unable to construct it** and `CE-214` blocked.
+
+  ⭐⭐ **The decoupling is small and bounded — measured, not estimated: 7 references, 3 members.**
+
+  | member | uses | already null-safe? |
+  |---|---|---|
+  | `HostedEditor` | 3 — `RegisterWindows(_windowManager)` `:596`, `DrawUI()` `:707` | ⭐⭐ **YES** — `:594` is `if (_subsystem.HostedEditor != null)`, `:707` is `editor?.DrawUI()` |
+  | `ToastSecondsRemaining` · `ToastMessage` | 2 — the paused-nav toast overlay | ⚠ guarded on `_subsystem != null` |
+
+  ⇒ ⭐⭐⭐ **Two of the three are ALREADY optional by construction, because they ARE mode 1's panel fill** — exactly what mode 2 must not have. ⇒ ⭐ replace the `EditorStrideSubsystem` dependency with a **small optional host contract** *(hosted editor + a toast source)*; mode 2 passes none of it.
+
+  ⇒ ⛔ **SEQUENCING: this now GATES `CE-214`/`S6`.** ⚠ §13's slice table lists `S6` before `S7`, but `CE-214` has always declared *"Depends on `CE-213`"* — ⭐ **the dependency is real and the table's order is the wrong way round.** Do `CE-213` first.
 ---
 
 - [ ] **CE-214** · `RW-M` ⭐⭐⭐ — **MODE 2 GETS THE FULL SimHost-LIKE OPERATOR + DIAGNOSTICS SURFACE, FROM DAY 1.** 🔒 *(user, `2026-09-06`: "Stride in mode 2 still needs an optional companion 2d window similar (or identical - 2d maps should be unified anyway) to simHost's one"* · `2026-09-07`: *"i want companion map from day 1 … it is not just a 2d map, it needs to be full simhost-like UI and diag surface like simhost subsystem is having now - component and event inspectors, ai diag web server etc")*
@@ -3258,6 +3273,23 @@ whenever the finding is "the sim did not do the impressive thing".**
   | **4** | ⭐ the map surface reuses `SimPresentationModule`'s `IMapCameraProvider` — ⛔ **no new map code** |
 
   📄 [`DESIGN_Stride_Node_Modes.md` §7.2](https://github.com/pjanec/HROT/blob/claude/reset-working-branch-qd1qpv/docs/DESIGN_Stride_Node_Modes.md). ⛔ **Depends on `CE-213`** *(the window-host rename/extraction)*; ⭐ **lands WITH `CE-207`**, not after.
+
+  ### ⭐⭐⭐ `2026-09-09` — **HALF BUILT, plus two rulings that CHANGE the other half**
+
+  ✅ **DONE, as `CE-245`** *(shipped `126fe20db`)* — rows 3 and 4 of the table above: the node constructs its **own `DebugApiHost` + `DebugApiService`** and a `SubsystemDebugProvider` over its own world, drained on its own frame. 📐 It paid for itself immediately: `GET /tkb/types/100` settled `CE-247` in one call, and the last four of `S4`'s defects were **asked** rather than grepped out of logs.
+
+  ⚠ **Two deviations from this row, declared:** ① **no `--debug-port` arg** *(item 1)* — it reads `HROT_DEBUG_API_PORT`, the env var **every other host already uses**; ⭐ per-process, so it solves the several-nodes-one-machine problem the item was raised for. ⛔ **Decide: amend the item, or add the arg.** ② **`IProvidesDebugSurface` is NOT implemented** — the provider is constructed directly, so mode 2 is **the sixth PROVIDER but not the sixth IMPLEMENTOR**. ⚠ Invisible to `Program.cs:388`'s `.OfType<IProvidesDebugSurface>()` — ⛔ harmless today *(mode 2 is not composed by `ClusterRunner`)*, **not** harmless the day it is.
+
+  🔴 **STILL OPEN — the window half**, and both rulings below make it BIGGER than this row assumed:
+
+  | ruling | what changes |
+  |---|---|
+  | ⭐⭐⭐ **`R-S15`** 🔒 *"the map is part of the diagnostic suite, it shows the entities in 2d, so yes map for sure, with entities, gizmos, context menu etc."* | ⛔ §7.2's *"map panel … and nothing else"* is **SUPERSEDED**. The map is **not a separate deliverable beside the bundle — it is part of it**, and it must WORK: entities in 2-D, **gizmos**, **context menu**. ⇒ ⭐ the `PickBridge` and gizmo inputs `DiagnosticsHostServices` takes are **part of the deliverable**, not optional extras |
+  | ⭐⭐⭐ **`R-S16`** 🔒 *"window is not optional, sames as in stride editor."* | ⛔ §7.2's *"optional, off by default … one flag"* is **SUPERSEDED** — it is a **first-class part of mode 2**. ⭐⭐ And safe: 📐 mode 2 sets `Headless = false` and always opens a Stride window ⇒ **there is no headless mode 2**, so the old *"headless/CI must be unaffected"* caveat protects nothing |
+
+  📐 **What the window half actually takes — measured against the four hosts that already do it:** compose `DiagnosticsWindowsBundle` through `UiBundleHost.Compose` with a `DiagnosticsHostServices`. ⭐ Most of its inputs are `new()` *(`EntityInspectorPanel`, `InspectorState`)* or already built for `CE-245` *(`ArchitectureDiagnosticsService`, `ExecutionStats`)*; the real ones are an **event-history service** for `EventBrowserPanel`, an **`FdpRepositoryAdapter`** over the node's world, and — now `R-S15` — a **`MapPickServiceBridge`**. ⚠ SimHost gets all of these from `SimHostVisualization`; ⇒ **decide whether mode 2 reuses that type or builds the same handful itself.**
+
+  ⛔⛔ **AND IT IS GATED ON `CE-213` — see that row's `2026-09-09` widening.** The host window is **not** generic today *(it takes an `EditorStrideSubsystem`)*, so `S6` cannot start until `CE-213` decouples it. ⚠ §13's slice table lists `S6` before `S7`; **the table is the wrong way round.**
 
 ---
 
