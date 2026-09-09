@@ -985,6 +985,45 @@ step so a step integrates once"*. ⚠ It touches the same surface as `CE-227`'s 
 *(`UpdateTime.Factor = simDelta / wallSeconds`)*, so it is a physics-timing change, not a tuning tweak.
 
 
+#### ⭐⭐⭐ 13.6a `CE-241` ON A TIME-SLAVE NODE — **the fix as written is RULED OUT, and here is why** *(`2026-09-09`, measured)*
+
+⚠ §13.6 closes by naming the fix — *"`FixedTimeStep`/`MaxSubSteps` set from the sim step so a step
+integrates once"* — and explicitly flags what it had **not** measured. ⭐ Mode 2 supplied the missing
+number, and it inverts the conclusion.
+
+📐 **Measured on the mode-2 node, CGF + Stride, `hill-attack-close` running**, `Kernel.CurrentTime.DeltaTime`,
+four consecutive 300-frame windows:
+
+| window | min | **p50** | p90 | **max** |
+|---|---|---|---|---|
+| 1 | 0.0125 | **0.0222** | 0.0319 | 🔴 **3.8023 s** |
+| 2 | 0.0047 | **0.0415** | 0.1194 | 🔴 **4.5315 s** |
+| 3 | 0.0062 | **0.0551** | 0.0907 | 0.3393 s |
+| 4 | 0.0059 | **0.0592** | 0.0875 | 0.3220 s |
+
+⇒ ⛔⛔ **Not a stable step, and WORSE than mode 1's** *(§13.6: p50 0.0220, max 0.2251)*. ⭐ The **median
+itself moves** between windows *(0.022 → 0.059)*, and single frames carry **multi-second** deltas.
+⚠ **A time slave is the harder case, not the easier one** — the natural assumption was the opposite.
+
+| ⛔ why §11.1 item ③ cannot simply be applied here | |
+|---|---|
+| `FixedTimeStep = simDelta` | ⇒ **one Bullet step of 4.5 s**: tunnelling, exploding constraints, bodies through the slab |
+| `FixedTimeStep = 1/60` + a high `MaxSubSteps` | ⇒ **270 sub-steps in one frame**; the frame then takes longer than the delta it is discharging ⇒ **spiral of death** — ⭐ the same failure `FIX-PERF-1` already documents for mode 1's loop driver |
+
+⇒ ⭐⭐⭐ **Any `CE-241` fix must FIRST bound the per-frame delta, and that is a CLUSTER-TIME decision, not
+a physics-tuning one:** *what should a slave do with a 4.5 s catch-up — **clamp and drop**, **clamp and
+carry**, or **refuse to advance**?* ⛔ **Left for a decision rather than guessed at unattended**; each
+answer has a different determinism story and the third interacts with the lockstep roster.
+
+⚠⚠ **AND THE MULTI-SECOND DELTAS ARE A FINDING IN THEIR OWN RIGHT, separate from `CE-241`.** A time
+**slave** being handed a **4.5-second advance in a single frame** is a time-sync question, not a physics
+one. ⛔ **Not investigated** — recorded so the next session does not read it as normal.
+
+⭐ The measurement is now a **permanent throttled diagnostic** *(`StrideNodeShell.Tick`, once per 300
+frames, INFO)* — it is the number that decides the fix, and it cost a rebuild to get.
+
+---
+
 ### ⭐⭐⭐ 13.7 `CE-207` SLICE `S4` — **MODE 2 IS BUILT, AND IT COMPLETES `hill-attack-close`** *(`2026-09-09`, obligation ⑤)*
 
 > 🔒 **The gate this clears** — user, verbatim: *"you absolutely must check the system using the hill

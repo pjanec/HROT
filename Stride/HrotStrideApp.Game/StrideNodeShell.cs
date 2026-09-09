@@ -331,6 +331,11 @@ public sealed class StrideNodeShell : IDisposable
     /// </remarks>
     public float CurrentSimDeltaSeconds { get; private set; }
 
+    // ⭐ CE-241 — the rolling sim-delta window behind the diagnostic in Tick. See its note there.
+    private const int DtWindow = 300;
+    private readonly float[] _dtSamples = new float[DtWindow];
+    private int _dtCount;
+
     public void Tick(float wallDt)
     {
         var world = Context?.World;
@@ -362,6 +367,51 @@ public sealed class StrideNodeShell : IDisposable
         // ⚠ Published BEFORE the kernel tick on purpose: it is the previous frame's value, which is
         //    what the next base.Update needs, and it matches mode 1's documented option B exactly.
         CurrentSimDeltaSeconds = Context!.Kernel.CurrentTime.DeltaTime;
+
+        // ⭐⭐ CE-241 — THE NUMBER THAT DECIDES THE FIX, logged once per 300 frames.
+        //
+        // 📌 Measured 2026-09-09 on this node, CGF + Stride, hill-attack-close running:
+        //      min 0.0125 p50 0.0222 p90 0.0319 max 3.8023 s
+        //      min 0.0047 p50 0.0415 p90 0.1194 max 4.5315 s
+        //      min 0.0062 p50 0.0551 p90 0.0907 max 0.3393 s
+        //      min 0.0059 p50 0.0592 p90 0.0875 max 0.3220 s
+        //    ⇒ ⛔ NOT a stable step. The median MOVES between windows (0.022 -> 0.059) and single
+        //    frames carry MULTI-SECOND deltas. Mode 1's own distribution (§13.6: p50 0.0220,
+        //    max 0.2251) is tame by comparison, so a slave node is the WORSE case, not the easier one.
+        //
+        // ⛔⛔ This RULES OUT §11.1 item ③ as written ("FixedTimeStep/MaxSubSteps set from the sim step
+        //    so a step integrates once") on a time-slave node, in both readings:
+        //      FixedTimeStep = simDelta      ⇒ a single Bullet step of 4.5 s: tunnelling, exploding
+        //                                      constraints, bodies through the slab;
+        //      FixedTimeStep = 1/60, MaxSubSteps high ⇒ 270 sub-steps in one frame ⇒ the frame takes
+        //                                      longer than the delta it is discharging ⇒ spiral of
+        //                                      death (the same failure FIX-PERF-1 already documents
+        //                                      for the mode-1 loop driver).
+        //    ⇒ ⭐ ANY CE-241 fix must first BOUND the per-frame delta, and that is a cluster-time
+        //    question (what should a slave do with a 4.5 s catch-up: clamp and drop, clamp and carry,
+        //    or refuse to advance?), not a physics-tuning one. ⛔ Left for a decision rather than
+        //    guessed at unattended.
+        //
+        // ⚠ AND THE MULTI-SECOND DELTAS ARE THEMSELVES A FINDING, separate from CE-241: a time SLAVE
+        //    receiving a 4.5 s advance in one frame is a time-sync question. Not investigated here.
+        //
+        // ⭐ Kept as a permanent throttled diagnostic (once per 300 frames, INFO) because it is the
+        //    number that decides the fix, and it cost a rebuild to get.
+        if (CurrentSimDeltaSeconds > 0f)
+        {
+            _dtSamples[_dtCount % DtWindow] = CurrentSimDeltaSeconds;
+            _dtCount++;
+            if (_dtCount % DtWindow == 0)
+            {
+                var w = new float[DtWindow];
+                System.Array.Copy(_dtSamples, w, DtWindow);
+                System.Array.Sort(w);
+                Log.Info("[StrideNodeShell] CE-241 simDelta over {0} frames — min={1:F4} p50={2:F4} " +
+                         "p90={3:F4} max={4:F4} s  (1/60={5:F4})",
+                         DtWindow, w[0], w[DtWindow / 2], w[(DtWindow * 9) / 10], w[DtWindow - 1],
+                         1f / 60f);
+            }
+        }
 
         // ⭐ And the bracket's own gate comes from the SAME number rather than a hard-coded `true`, so
         //    the motors and Bullet cannot disagree about whether the world moved this frame.
