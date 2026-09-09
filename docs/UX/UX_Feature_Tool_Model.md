@@ -1244,6 +1244,53 @@ private one-slot arbiters. ⚠ They are **callback-style, not `await`-style** *(
 the repo-wide grep confirms only the two adapters combine TCS with a picker gizmo)*, so they need a
 push/pop keyed on their own callbacks rather than `RunPickAsync`. ⭐ Named here so 4b is not read as closed.
 
+### 4.12b ✅ STEP 4b COMPLETE — **all four sites, and a rail caught a defect in an already-shipped deletion** *(obligation ⑤, `2026-09-09`)*
+
+| site | how it converted |
+|---|---|
+| `CanvasMapPickAdapter` · `EditorMapPickAdapter` | ✅ `RunPickAsync` — the `await` half *(§4.12)* |
+| `IgApplication` — location + entity remote arms | ✅ `PushPicker` — the callback half; `_activeLocationPickerId` and `_activeEntityPickerId` **deleted** |
+| `ReplayBrowserSubsystem.ReplaySpatialPickerContext` | ✅ `PushPicker`; `_activeGizmoId` **deleted** |
+| ⛔ `IgApplication._activeSequenceGizmo` | **SCOPED OUT — not a picker.** Remote-driven area/route authoring with ExCon context ids, 8+ sites; the same shape as `MapCommandController` in 4a, not 4b |
+
+⭐ **`PushPicker` is the callback-style half of ONE protocol, not a second protocol** — same push, same
+arm-through-the-arbiter, same pop on the gizmo's `onRemove`. ⛔ Only the completion signal differs, because
+those sites publish their result *(over the wire, or into a field a panel reads)* rather than completing a task.
+
+⭐⭐ **`ReplayBrowser`'s `_activeGizmoId` did TWO jobs and only ONE was duplication.** *"Unregister my previous
+picker"* is the private one-slot arbiter ⇒ deleted. *"Is a pick in flight"* is a **real contract** — the search
+panel reads it through `IsPickPendingFor` ⇒ re-homed to a plain `_pickActive` flag, set on push and cleared
+exactly where `_activeGizmoId = null` used to sit. ⚠ A mechanical deletion would have taken both.
+
+⭐ **`PickBounds` is its own tool id, deliberately.** Same gesture as `PickArea`, different meaning and result:
+`PickArea` yields the ENTITIES in the box, this yields THE BOX, as a search filter. ⛔ Collapsing them would
+make one of the two lie about what it returns.
+
+#### 🔴🔴🔴 THE DEFECT THE RAIL CAUGHT — **in a deletion that was ALREADY COMMITTED**
+
+📐 `CE-259g` deleted IG's two private slots on the premise *"the controller already guarantees one modal at a
+time."* ⛔⛔ **That premise was verified against `Activate` and then applied to `PushModal` — a different
+method, which had no such rule.**
+
+⇒ 🔴 a second pick would have **GROWN the stack** and left the first picker **alive and suspended beneath**,
+recoverable only by popping twice. ⚠ Nothing throws; the picker just quietly accumulates — the same silent
+shape as every other defect in this issue.
+
+⭐⭐⭐ **Fixed in `PushModal`, not per host:** re-pushing the SAME tool now pops that level first *(cancelling
+it and resuming what it suspended)*, then pushes fresh. 🔒 Stacking two identical interruptions is never
+meaningful — the operator asked for **this** tool, not two of it.
+
+| ⚠ the lesson, and it recurred WITHIN THE HOUR of being written down | |
+|---|---|
+| 🔒 This is `CLAUDE.md`'s **WHOLE-FIELD READ** rule — *"read for what would FALSIFY the framing, not for what serves the edit"* | ⛔ I checked the guarantee on the method I was **not** calling |
+| ⭐⭐ **The rail that caught it is the one written to JUSTIFY the deletion** | 📐 `RePushingTheSamePickerRetargetsRatherThanStacking`. Had only the suspend/resume rails existed, all six would have passed and the defect would have stayed |
+| ⛔⛔ **Committing IG's conversion "compiling but not yet railed" was a real mistake** | ⭐ it was flagged as unrailed at the time and shipped anyway; the rails would have found this an hour earlier |
+
+📐 **Rails:** `PickerToolHostTests` **NEW, 6/6** *(the shared protocol's own suite — the four sites differ only
+in which gizmo they pass, so per-host copies would be four spellings of one claim)*. `ToolControllerTests`
+**15/15** as a regression check, since `PushModal`'s semantics changed for every caller.
+**Red-proof:** removing the re-target ⇒ **1🔴**, exactly that rail, on a 0-error build.
+
 ## Migration
 
 | Step | Change | Gate |

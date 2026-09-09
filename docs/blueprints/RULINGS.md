@@ -6,6 +6,10 @@ current-answer: this file is now LEAN. Feature intent lives in the DESIGN docs (
   This file holds ONLY what those two cannot: engine invariants, silent-failure hazards,
   and cross-cutting decisions with no single design home.
 stale-below: nothing.
+re-read: 2026-09-09 — .claude/CLAUDE.md changed again, so rulings-check WARNed on the rows citing it.
+  Re-read and CONFIRMED none moved: the edit was PURELY ADDITIVE (git diff: ZERO removed lines) —
+  two new sections, the architect-usage scoring (1 of 3 relayed asks paid) and THE WHOLE-FIELD READ.
+  No existing row's surroundings were touched. 32/32 quotes still verify.
 re-read: 2026-09-03 — .claude/CLAUDE.md changed, so rulings-check WARNed on the four rows that cite it
   (R-128, R-129, R-135, R-139). Re-read and CONFIRMED none moved: the ONLY edit was one row of the
   "WHICH TOOL" routing table, adding scripts/find.sh (which runs search_code AND grep and prints what

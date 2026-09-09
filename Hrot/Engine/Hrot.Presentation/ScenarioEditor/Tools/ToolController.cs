@@ -172,6 +172,20 @@ namespace Hrot.ScenarioEditor.Tools
                 return NullScope.Instance;
             }
 
+            // ⭐⭐⭐ RE-PUSHING THE SAME TOOL REPLACES IT — it does NOT stack.
+            //
+            // 🔴 MEASURED 2026-09-09 by RePushingTheSamePickerRetargetsRatherThanStacking, and it caught a
+            //   REAL defect in an already-committed deletion. Every converted host used to keep a private
+            //   one-slot field (_activeLocationPickerId, _activeEntityPickerId, _activeGizmoId) purely to
+            //   unregister its previous picker before arming a new one. Those were deleted on the premise
+            //   that the controller already guarantees one modal at a time — TRUE for Activate, but
+            //   PushModal had no such rule, so a second pick would have grown the stack and left the first
+            //   picker ALIVE and suspended beneath it, recoverable only by popping twice.
+            // ⭐ Stacking two identical interruptions is never meaningful: the operator asked for this
+            //   tool, not for two of it. Replacing is the only reading that matches the gesture.
+            if (ReferenceEquals(ActiveModal, descriptor))
+                PopModalAt(_modalStack.Count);
+
             // ⭐⭐⭐ THE WHOLE DIFFERENCE FROM Activate, in one line: SUSPEND the current top instead of
             //   cancelling it. 🔒 Q27-F — "suspend = SetFocus(false) WITHOUT the Dispose()".
             //   ⛔ We deliberately do NOT call CancelOtherArbiter: an interruption must leave everything

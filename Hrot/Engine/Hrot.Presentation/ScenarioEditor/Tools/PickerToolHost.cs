@@ -17,7 +17,7 @@ namespace Hrot.ScenarioEditor.Tools
     /// <see cref="GlobalGizmoManager"/></i> — was written <b>six times</b> across
     /// <c>CanvasMapPickAdapter</c> and <c>EditorMapPickAdapter</c> (three picks each), and two more sites
     /// (<c>IgApplication</c>, <c>ReplayBrowserSubsystem</c>) hand-rolled the same thing with a private
-    /// one-slot arbiter instead of a task. 🔒 Ruling 9 — one concept, one implementation.</para>
+    /// one-slot arbiter instead of a task — ✅ all four are converted as of <c>2026-09-09</c>. 🔒 Ruling 9 — one concept, one implementation.</para>
     ///
     /// <para>⭐⭐ <b>And every one of those copies was §4.8's BYPASS:</b> the gizmo took exclusive focus
     /// while <see cref="ToolController"/> still believed some other tool held it.</para>
@@ -40,7 +40,7 @@ namespace Hrot.ScenarioEditor.Tools
         private readonly Action<string>?           _report;
 
         /// <summary>
-        /// ⚠⚠ The controller this host has already registered its three picker tools on.
+        /// ⚠⚠ The controller this host has already registered its picker tools on.
         /// 🔴 <b>Registration MUST be lazy, and that is measured, not defensive:</b>
         /// <c>IgApplication.cs:513</c> builds its pick adapter <b>before</b> <c>:816</c> assigns the tool
         /// controller from the pack. ⇒ a constructor-time registration would silently register on
@@ -80,7 +80,8 @@ namespace Hrot.ScenarioEditor.Tools
             //   pretending (ruling 49: registered-and-explained beats absent).
             foreach (var id in new[] { ScenarioToolIds.PickLocation,
                                        ScenarioToolIds.PickEntity,
-                                       ScenarioToolIds.PickArea })
+                                       ScenarioToolIds.PickArea,
+                                       ScenarioToolIds.PickBounds })
             {
                 var captured = id;
                 _pendingArm[captured] = () =>
@@ -92,7 +93,7 @@ namespace Hrot.ScenarioEditor.Tools
         }
 
         /// <summary>
-        /// Register the three picker tools the first time a controller is actually available.
+        /// Register the picker tools the first time a controller is actually available.
         /// ⭐ Idempotent, and re-registers if the host swapped controllers (teardown → rebuild).
         /// ⛔ Registration happens ONCE per controller — the duplicate-id guard stays strict (G4).
         /// </summary>
@@ -106,6 +107,7 @@ namespace Hrot.ScenarioEditor.Tools
                          (ScenarioToolIds.PickLocation, "Pick Location"),
                          (ScenarioToolIds.PickEntity,   "Pick Entity"),
                          (ScenarioToolIds.PickArea,     "Pick Area"),
+                         (ScenarioToolIds.PickBounds,   "Pick Bounds"),
                      })
             {
                 var id = pair.Item1;

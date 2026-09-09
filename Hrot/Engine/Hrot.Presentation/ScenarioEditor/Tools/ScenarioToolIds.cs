@@ -81,6 +81,14 @@ namespace Hrot.ScenarioEditor.Tools
         public const string PickArea = "scenario.pick.area";
 
         /// <summary>
+        /// Drag a spatial BOUNDS rectangle — <c>ISpatialPickerContext.RequestBoundingBoxPick</c>.
+        /// ⚠ Deliberately distinct from <see cref="PickArea"/>: same gesture, different meaning and a
+        /// different result. <c>PickArea</c> returns the ENTITIES inside the box; this returns the BOX,
+        /// as a search filter. ⛔ Collapsing them would make one of the two lie about what it yields.
+        /// </summary>
+        public const string PickBounds = "scenario.pick.bounds";
+
+        /// <summary>
         /// The ONE mapping from the legacy enum to the tool vocabulary. ⛔ If a second one appears, that is
         /// the duplication this issue exists to remove.
         /// </summary>

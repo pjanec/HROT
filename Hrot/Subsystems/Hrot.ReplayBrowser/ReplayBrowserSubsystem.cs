@@ -103,6 +103,9 @@ public sealed class ReplayBrowserSubsystem : ISubsystem, IWindowRegistrar
     // â”€â”€ Gizmo debug overlay â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
     private Fdp.Toolkit.Diagnostics.Gizmos.DebugPrimitiveBuffer? _gizmoBuffer;
     private Fdp.Toolkit.Diagnostics.Gizmos.Systems.GlobalGizmoManager? _globalGizmoManager;
+
+    /// <summary>🔒 <c>UXI-07</c> step 4b — this host's tool arbiter.</summary>
+    private Hrot.ScenarioEditor.Tools.ToolController? _replayToolController;
     private Fdp.Toolkit.Diagnostics.Gizmos.Systems.DataDrivenGizmoSystem? _dataDrivenGizmoSystem;
     private Fdp.Toolkit.Diagnostics.Gizmos.Systems.StatelessGizmoSystem? _statelessGizmoSystem;
     private Fdp.Toolkit.Vis2D.Layers.DebugGizmoLayer? _gizmoLayer;
@@ -192,6 +195,7 @@ public sealed class ReplayBrowserSubsystem : ISubsystem, IWindowRegistrar
             _gizmoBuffer           = mapInteraction.Buffer;
             _interactionBus        = mapInteraction.InteractionBus;
             _globalGizmoManager    = mapInteraction.GlobalManager;
+            _replayToolController  = mapInteraction.Tools;
             _dataDrivenGizmoSystem = mapInteraction.DataDrivenSystem;
             _statelessGizmoSystem  = mapInteraction.StatelessSystem;
             var gizmoRegistry      = mapInteraction.GizmoRegistry;
@@ -704,7 +708,10 @@ public sealed class ReplayBrowserSubsystem : ISubsystem, IWindowRegistrar
             _behaviorRegistry, getSelectedEntity, getSelectedNetworkId);
         if (_globalGizmoManager != null)
         {
-            _searchPanel.SpatialPickerCtx = new ReplaySpatialPickerContext(_globalGizmoManager);
+            // 🔒 UXI-07 step 4b — the bounds pick SUSPENDS the active tool instead of arming beside it.
+            _searchPanel.SpatialPickerCtx = new ReplaySpatialPickerContext(
+                new Hrot.ScenarioEditor.Tools.PickerToolHost(
+                    () => _replayToolController, () => _globalGizmoManager));
         }
     }
 
@@ -1003,40 +1010,42 @@ public sealed class ReplayBrowserSubsystem : ISubsystem, IWindowRegistrar
 
     private sealed class ReplaySpatialPickerContext : Fdp.Presentation.Editing.ISpatialPickerContext
     {
-        private readonly Fdp.Toolkit.Diagnostics.Gizmos.Systems.GlobalGizmoManager _gizmoManager;
+        private readonly Hrot.ScenarioEditor.Tools.PickerToolHost _pickers;
         private string? _pendingPath;
         private Fdp.Toolkit.ReplayBrowser.Search.BoundingBox2D? _resolvedBox;
-        private long? _activeGizmoId;
 
-        public ReplaySpatialPickerContext(Fdp.Toolkit.Diagnostics.Gizmos.Systems.GlobalGizmoManager gizmoManager)
+        /// <summary>
+        /// ⚠⚠ <b>The RE-HOMED half of the deleted <c>_activeGizmoId</c>.</b> That field did TWO jobs:
+        /// *"unregister my previous picker"* — ⛔ a private one-slot arbiter, now the controller's job —
+        /// and *"is a pick in flight"*, which <see cref="IsPickPendingFor"/> exposes to the search panel.
+        /// ⭐ Only the second is a real contract, so only the second survives, as a plain flag.
+        /// </summary>
+        private bool _pickActive;
+
+        public ReplaySpatialPickerContext(Hrot.ScenarioEditor.Tools.PickerToolHost pickers)
         {
-            _gizmoManager = gizmoManager;
+            _pickers = pickers;
         }
 
-        public bool IsPickPendingFor(string jsonPath) => _activeGizmoId.HasValue && _pendingPath == jsonPath;
+        public bool IsPickPendingFor(string jsonPath) => _pickActive && _pendingPath == jsonPath;
 
         public void RequestBoundingBoxPick(string jsonPath)
         {
-            if (_activeGizmoId.HasValue)
-            {
-                _gizmoManager.Unregister(_activeGizmoId.Value);
-                _activeGizmoId = null;
-            }
-
             _pendingPath = jsonPath;
             _resolvedBox = null;
 
-            long id = Fdp.Toolkit.Diagnostics.Gizmos.Systems.GlobalGizmoManager.NewId();
-            var gizmo = new Fdp.Toolkit.ReplayBrowser.BoundingBoxPickerGizmo(
-                box => _resolvedBox = box,
-                () =>
-                {
-                    _gizmoManager.Unregister(id);
-                    _activeGizmoId = null;
-                });
-
-            _activeGizmoId = id;
-            _gizmoManager.Register(id, gizmo);
+            // ⭐⭐⭐ UXI-07 step 4b — PUSH through the arbiter. 🔴 This used to Register straight on
+            //   GlobalGizmoManager and unregister its own previous gizmo first; re-arming is now a
+            //   RE-TARGET the controller handles, so that bookkeeping is gone (§4.12).
+            _pickActive = _pickers.PushPicker(
+                Hrot.ScenarioEditor.Tools.ScenarioToolIds.PickBounds,
+                remove => new Fdp.Toolkit.ReplayBrowser.BoundingBoxPickerGizmo(
+                    box => _resolvedBox = box,
+                    () =>
+                    {
+                        remove();
+                        _pickActive = false;
+                    }));
         }
 
         public bool TryConsumeBoundingBoxPick(string jsonPath, out Fdp.Toolkit.ReplayBrowser.Search.BoundingBox2D box)
