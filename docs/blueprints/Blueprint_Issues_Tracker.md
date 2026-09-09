@@ -1949,7 +1949,33 @@ nothing here moves the counts table.*
 
   ⭐ **Rails:** `SpawnTransformBindsTests` (`Hrot.Editor.Tests`) — the documented shape binds, a non-binding payload THROWS *(the anti-vacuity half, without which the first test could pass while the origin bug survived)*, and `SimTransform` still exposes fields so `IncludeFields` cannot be "simplified" away. ⭐⭐ They assert the **`internal` options instance the endpoint actually uses** — ⛔ a locally-built copy would pass while production stayed broken, which is the exact blindness `CE-223` and `CE-224` were each built on.
 
-- [ ] **CE-252** · `RW-M` ⭐⭐ — **THE STRIDE PHYSICS COLLABORATOR CHAIN IS BUILT IN THREE PLACES.** ⚠ **Filed `2026-09-09` because a pushed code comment CLAIMED it was already filed and it was not** *(user caught it: "what about StrideNodeShell.cs comment on line 48, KNOWN DUPLICATION?")* — 📌 the `BP-355` shape: named in a note, never turned into a row.
+- [x] **CE-215** · `RW-M` ✅ — **S5: THE GIZMO INGRESS HALF NEVER EXISTED.** 📐 The TODO `// _gizmoIngress?.PollAndApply(); // wire in SM-006` named a task id from the **retired** `stride-mock` programme and could never be "just wired": `PollAndApply` is `GizmoMap.Example`'s `IGizmoTransport` API, and ⛔ **no production consumer of `DebugPrimitivesBatch` existed anywhere** — the publisher has shipped for ages and nothing read it.
+
+  ⭐ **`DebugPrimitivesBatchSubscriberSystem`** is that missing half: a strict mirror of the publisher, living beside it. ⛔ **Ragged payloads are dropped WHOLE and counted** *(a partial decode renders plausible garbage)*; own-node samples skipped and counted; the buffer is **not** cleared here because only the frame owner knows the boundary.
+
+  📐 **MEASURED LIVE** *(CGF + Stride mode 2)*: `batches=1385 primitives=973716 droppedRagged=0 skippedOwnNode=0`, `1006` dead `t=35`, `1007` dead `t=128`, **0 errors**. ⭐ `droppedRagged=0` says both sides agree on the struct layout.
+
+  ⚠ **My mistake, recorded:** registering it on `Context.Kernel` AFTER `BootstrapNode` throws *"Cannot register systems after Initialize() called"* and kills the process on frame one. ⇒ it goes through the boot plan's `ApplicationSystemsRegistrar` hook *(phase 6d)*.
+
+  ⛔ **NOT CLAIMED: remote gizmos are not yet DRAWN in 3-D.** The render sequence lives in `StrideViewBracket.RunPostKernelStep`, which needs a non-null `StrideAnimationBridge` mode 2 does not have — **`S3`'s remaining half**. ⚠ Duplicating the bracket's render sequence in the shell would be a second implementation of one concept, so it waits.
+
+- [ ] **CE-256** · `RW-M` 🔴 — **A MODE-2 NODE STARTED BEFORE CGF GETS NO OWNERSHIP GRANTS, EVER.** 🔎 Found `2026-09-09` while isolating an unrelated change; ⚠ **not caused by it**.
+
+  📐 **MEASURED.** Start the Stride node before CGF's API answers, then load the scenario: CGF's cluster cache has no `MuscleGround` node at grant time, `BrainMuscleOwnershipStrategy.GetInitialGrants` returns its documented **empty "safe fallback"**, and those entities are **never re-granted** — **0 takeovers across 340 s and a scenario reload** *(`sawWorldChange:false`, so no new grants are attempted either)*. ⭐ Waiting for CGF's `/capabilities` before starting the node gives **8 takeovers every time**.
+
+  ⇒ ⭐⭐ **This is `CE-242`'s fallback biting on ORDERING rather than on naming, and it has NO RETRY.** ⛔ The empty grant list is silent by design, so the symptom is a node that replicates, ticks and simulates while nothing it owns ever moves — indistinguishable from the pre-`CE-242` state.
+
+  ⚠ **Operationally:** always start the mode-2 node **after** CGF answers. ⭐ The principled fix is [`DESIGN_Role_Affinity_Ownership.md`](https://github.com/pjanec/HROT/blob/claude/reset-working-branch-qd1qpv/docs/DESIGN_Role_Affinity_Ownership.md), which derives ownership locally from each node's own role and retires this grant path entirely — ⛔ a retry bolted onto the current strategy would be a second mechanism.
+
+- [ ] **CE-257** · `RW-S` ⭐⭐ — **THE MODE-2 NODE DOES NOT PUBLISH THE `IGeographicTransform` WORLD SINGLETON.** 🔎 **Raised by the "H - ui" session from source; CONFIRMED here on Windows as requested.**
+
+  📐 **Measured — exactly three production sites publish it, and none is in `Stride/` or `Hrot.NodeComposition`:** `CgfSubsystem.cs:639` · `EditorSubsystem.cs:1118` · `SimHostApp.cs:545`. ⇒ ⭐ **`CE-151`'s exact *"three hosts do it, the fourth forgot"* shape, with mode 2 as the fourth.**
+
+  📐 **Impact, measured rather than assumed:** `AttributeInterpreterProvider.GeoOf` is **guarded** and returns `null`, so attribute interpretation degrades **silently** *(its own comment: "`GetSingletonManaged` THROWS when unset; that is the trap that reddened the `AX-005` rail on the IG")*. ⛔ `EntityDragGizmo:186` reads it **UNGUARDED and would throw** — ⭐ but is unreachable on mode 2 today, because that host has no gizmo system *(`CE-253`)*.
+
+  ⇒ ⛔ **DELIBERATELY NOT FIXED HERE.** 🔒 The "H - ui" session asked for confirmation so it can fold this into `CE-151` rather than have a competing row or a competing fix. ⭐ This row exists to carry the Windows measurement to them, and should be **closed by `CE-151`**, not separately.
+
+- [x] **CE-252** · `RW-M` ✅ — **THE STRIDE PHYSICS COLLABORATOR CHAIN IS BUILT IN THREE PLACES.** ⚠ **Filed `2026-09-09` because a pushed code comment CLAIMED it was already filed and it was not** *(user caught it: "what about StrideNodeShell.cs comment on line 48, KNOWN DUPLICATION?")* — 📌 the `BP-355` shape: named in a note, never turned into a row.
 
   📐 **MEASURED — three sites, each a superset of the last:**
 
@@ -1966,6 +1992,18 @@ nothing here moves the counts table.*
   ⭐⭐ **The fix:** extract a `StrideMuscleBracketComposer` all three shells call. ⚠ **SEQUENCE WITH `S9`/`CE-209`**, which DELETES the self-contained arm — ⇒ ⭐ **doing this BEFORE `S9`** collapses three sites into one and then deletes one caller; **after `S9`** it is the same work on a smaller surface. `S9`'s gate *("after S2+S4 green")* is now **open**, so the two are schedulable together.
 
   ⚠ **Why it was left as debt for one night, honestly:** hoisting mode 1's construction means editing the path that already worked, unattended, with nobody to check it. ⛔ **That justification has expired.**
+
+  ### ✅✅✅ DONE `2026-09-09` — **`StrideMuscleBracketComposer`, one site**
+
+  📐 **Measured after:** `new StridePhysicsBracket(` has **exactly ONE production site** *(the composer)* plus one test fake, down from three; the motors and the reverse-sync group appear nowhere else. **47 insertions, 195 deletions.**
+
+  ⭐⭐ **What it deliberately does NOT absorb:** the visual factory and the CHOICE of physics service — the one genuinely per-host part *(mode 1 receives a service after `BeginRun`; mode 2 builds a `BulletPhysicsBodyServiceDeferred` over its own scene)*. ⭐ The chain BELOW those two choices is what was identical.
+
+  ⛔⛔ **EVERY CONDITIONAL PRESERVED VERBATIM, each documented with the defect it encodes** — this was the real risk. ⚠ Notably **`physicsIsActive` reads the ARGUMENT, not the post-fallback service**: collapsing it to `service != null` would have silently inverted it, because the fallback makes the service always non-null, and the bracket would then create phantom NoOp bodies and let `BulletReverseSyncSystem` clobber `SimVelocity` *(`STR-D11`)*.
+
+  📐 **GATES — both modes run, because both call sites changed:** mode 2 → 8 takeovers, 6 Bullet bodies, 0 errors, `1007` dead `t=97`, `1006` dead `t=123`; mode 1 hosted arm → full editor UI wired, window open, `DrawWorld=1.9ms`, 6 bodies from the composer's lifecycle, 0 errors; tests **5 failed / 225 passed / 230**, identical to baseline *(all five pre-date this session, verified at `8b8bc5fdc`)*.
+
+  ⇒ ⭐ **This is `S9`/`CE-209`'s gate.** `S9` deletes the self-contained arm, which was one of the three sites — with one composer that deletion removes **a caller, not a copy**.
 
 - [x] **CE-251** · `RW-S` ✅ — **MODE 2'S PHYSICS WAS INTEGRATING WALL SECONDS, NOT SIM TIME.** ⚠ **Row filed late, `2026-09-09`** — the fix shipped in `21eb69c04` and the id was used at three code sites with **no tracker row**, the same omission as `CE-252` above.
 
