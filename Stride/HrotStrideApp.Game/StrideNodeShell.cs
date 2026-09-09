@@ -83,6 +83,8 @@ public sealed class StrideNodeShell : IDisposable, Hrot.Presentation.DebugApi.IP
     private StrideInspectorWindow? _operatorWindow;
     private EditorSelectionState? _operatorSelection;
     private Hrot.UI.Common.Adapters.ClusterTimeTransportAdapter? _clusterTime;
+    private Fdp.Toolkit.Diagnostics.Gizmos.Systems.DebugPrimitivesBatchSubscriberSystem? _gizmoIngress;
+    private int _gizmoLogTicks;
     private StrideVisualBindingSystem? _visualBinding;
     private StridePhysicsBracket? _physicsBracket;
 
@@ -200,6 +202,37 @@ public sealed class StrideNodeShell : IDisposable, Hrot.Presentation.DebugApi.IP
                  "capabilities [{3}].",
                  nodeId, domainId, capabilities.Count,
                  string.Join(", ", System.Linq.Enumerable.Select(capabilities, c => c.Key)));
+
+        // ⭐⭐⭐ CE-215 / S5 — THE GIZMO INGRESS, the half that never existed.
+        //
+        // 📌 StrideNodeBootstrapper carried `// _gizmoIngress?.PollAndApply(); // wire in SM-006` — a
+        //    TODO naming a task id from the RETIRED stride-mock programme. 📐 Measured 2026-09-09: it
+        //    could never be "just wired", because `PollAndApply` is GizmoMap.Example's IGizmoTransport
+        //    API and NO PRODUCTION CONSUMER of DebugPrimitivesBatch existed in the tree. The publisher
+        //    has shipped for ages (NedNetworkFactory.CreateGizmoPublisherSystem); nothing read it.
+        //    ⇒ DebugPrimitivesBatchSubscriberSystem is that missing half, a strict mirror of the
+        //    publisher, living beside it.
+        //
+        // ⛔⛔ REGISTERED THROUGH THE BOOT PLAN'S OWN HOOK, not after BootstrapNode. 📌 Measured the
+        //    hard way: registering it on Context.Kernel after boot threw "Cannot register systems after
+        //    Initialize() called" and killed the process on the first frame. ⭐ ApplicationSystemsRegistrar
+        //    is phase 6d of the shared plan — inside Initialize, which is where a system belongs.
+        //
+        // ⭐ Constructed here rather than behind INetworkFactory because this shell already binds NED
+        //    directly (`new NedNetworkFactory` above). ⚠ Promoting it to IGizmoNetworkFactory is the
+        //    follow-up the day a second host wants remote gizmos — it would touch six implementors.
+        //
+        // ⛔ The node CLEARS ConsumerBuffer at the top of its own frame (StrideNodeBootstrapper:176);
+        //    the subscriber deliberately does not, because only the frame owner knows the boundary.
+        if (_participant != null)
+        {
+            _gizmoIngress = new Fdp.Toolkit.Diagnostics.Gizmos.Systems.DebugPrimitivesBatchSubscriberSystem(
+                _bootstrapper.ConsumerBuffer,
+                new Fdp.Toolkit.Diagnostics.Gizmos.Network.DdsReaderGizmoAdapter<GizmoMap.Network.DebugPrimitivesBatch>(_participant),
+                (byte)nodeId);
+            _bootstrapper.ApplicationSystemsRegistrar =
+                appCtx => appCtx.Kernel.RegisterGlobalSystem(_gizmoIngress);
+        }
 
         Context = _bootstrapper
             .WithCapabilities(capabilities)
@@ -458,6 +491,17 @@ public sealed class StrideNodeShell : IDisposable, Hrot.Presentation.DebugApi.IP
         //    tracked, because DrawWorld() only paints what Update() moved.
         _visualization?.Update(CurrentSimDeltaSeconds);
         _clusterTime?.Update();
+
+        // ⭐⭐ CE-215 — COUNT, DO NOT DROP SILENTLY. 🔒 The slice's own words: "a 2-D-only gizmo
+        //    silently vanishing is indistinguishable from a broken gizmo". ⚠ Throttled to ~once per
+        //    600 frames so it is a heartbeat, not a flood.
+        if (_gizmoIngress != null && ++_gizmoLogTicks % 600 == 0)
+        {
+            Log.Info("[StrideNodeShell] CE-215 gizmo ingress — batches={0} primitives={1} " +
+                     "droppedRagged={2} skippedOwnNode={3}",
+                     _gizmoIngress.ReceivedSampleCount, _gizmoIngress.AppendedPrimitiveCount,
+                     _gizmoIngress.DroppedRaggedCount, _gizmoIngress.SkippedOwnNodeCount);
+        }
 
         _operatorWindow?.PumpFrame();
     }
