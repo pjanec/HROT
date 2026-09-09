@@ -1,11 +1,14 @@
 <!--STATUS
 state: LIVE
-build-state: NOT-BUILT
+build-state: BUILDING (A1 steps 1-3 BUILT 2026-09-09 - see 4.7 + 4.7b as-built; steps 4-6 open)
 verified: 2026-09-09 (PREMISE SWEEP - all 13 premises re-tested against source, see 0b; and the RED
   defect REPRODUCED by a headless probe with an inverse-edit red-proof - two exclusive tools hold focus
   at once and ONE mouse event reaches BOTH)
-current-answer: NOT-BUILT (design only; Q27 answered). No IToolController/ToolDescriptor/modal-stack in
-  source. >>> READ 0b FIRST <<< - the premises SURVIVE, but four moved and three are now WIDER than this
+current-answer: 4 (the A1 build) + 4.7/4.7b (the AS-BUILT). Steps 1-3 of Migration are BUILT: the
+  ToolController arbitrates, ToolActivationDrainSystem arms every tool through it, and the editor's D-prime
+  duplicate (GlobalActionIds.Rotate/EditOverlay/EditRoute) is DELETED. Steps 4-6 (the three bypassing
+  adapters, the toolbar binding, central Escape) and PushModal's suspend/resume are OPEN.
+  >>> READ 0b FIRST <<< - the premises SURVIVE, but four moved and three are now WIDER than this
   document says, because CE-051/CE-061/UXI-23-S2b reworked this exact area after the 2026-08-28 scan.
 known-rot: the line citations in the body are pre-CE-051 and mostly MOVED. 0b carries the current ones.
   Specifically: the idiom table's "EditorSubsystem.cs:3806-3894" is now the shared ToolActivationDrainSystem;
@@ -712,10 +715,59 @@ leave a dismissed tool on the modal stack.** ⭐ Hence
 `ToolActivationOutcome { Armed, Dismissed, Unserviceable }`.
 
 ⛔⛔ **And the toggle is PER-ENTITY, not per-descriptor** — pressing `Edit` on entity A then entity B must
-MOVE to B, not toggle off. ⚠ `ToolDescriptor.ToggleOnReactivate` is the coarser *same-tool-twice* rule and
-the drain's arms deliberately do **not** use it; the per-entity decision stays inside the activation, which
-is the only thing holding the target. ⇒ ⭐ **routing the drain through the controller preserves its
-semantics exactly rather than approximating them.**
+MOVE to B, not toggle off.
+
+> ⚠⚠ **SUPERSEDED `2026-09-09` by §4.7b, and the correction is load-bearing.** This paragraph used to end:
+> *"`ToolDescriptor.ToggleOnReactivate` is the coarser same-tool-twice rule and the drain's arms deliberately
+> do **not** use it; the per-entity decision stays inside the activation, which is the only thing holding the
+> target."* 📐 **That cannot work** — see §4.7b: the controller cancels the armed modal **before** invoking the
+> activation, so by then `HasInjectedGizmo(e)` is already false. ⇒ the drain's `Edit`/`Route` **do** set the
+> flag and the controller keys it on the **(tool, target)** pair.
+
+### 4.7b 🔴🔴🔴 AS-BUILT, STEPS 2 + 3 — **THE TOGGLE NEARLY DIED IN THE ROUTING** *(obligation ⑤, `2026-09-09`)*
+
+📐 **The measurement that changed the design.** `DataDrivenGizmoSystem.CancelInteractiveTools()`
+(`:124-137`) clears **every** injected gizmo; `GlobalGizmoManager`'s (`:112-119`) clears every
+exclusive-focus / raw-input one and spares the permanent. ⚠ All four scenario gizmos declare
+`RequiresExclusiveFocus: true` *(`MeasureGizmo:39` · `VertexEditGizmo:55` · `RouteWaypointGizmo:63` ·
+`EntityRotatorGizmo:41`)*, so **all four are torn down by their own arbiter's cancel** — which is correct for
+the fix and **fatal for the toggle**: by the time an activation runs, the gizmo whose presence
+`ToggleEntityGizmo:176` tests is already gone ⇒ a second `Edit` press would **re-arm instead of turning
+off.** 🔒 `R-137` — unification may not cost a capability.
+
+⭐⭐⭐ **The resolution: the modal stack stores `ArmedTool(Tool, Target)`, not a bare descriptor**, and the
+reactivation rule keys on **both**. Same tool + same target + `ToggleOnReactivate` ⇒ cancel. Same tool,
+different target ⇒ fall through to the arm path, which **is** what re-targeting means. ⭐ It is also what
+`PushModal`'s suspend/resume will need: a resumed modal must come back on the entity it was armed on.
+
+| ⭐ TWO DELIBERATE BEHAVIOUR CHANGES — **neither is a capability lost, and both are user-visible** | |
+|---|---|
+| 🔒 **`Select` is now LIVE.** It was an empty `break` — the toolbar button did nothing. `Q27` makes it the **null modal tool**, so it registers with `ToolArbiter.None` and arming it clears **both** arbiters. ⇒ it is how an operator leaves a tool | ⚠ this **supersedes** `IToolController`'s original *"makes nothing newly live"* claim, which is now qualified in its own header |
+| ⭐ **The same modal tool on a different entity retargets.** Before, `Edit` on A then on B left injected gizmos on **both** | ⛔ not a loss: only one can hold focus (`DataDrivenGizmoSystem.cs:91` grants on `_focusedGizmo == null`), so the second was **drawable-but-inert**. `Q27` ruling C allows one modal per subsystem |
+
+#### 🔴🔴 STEP 3 FOUND A BLIND RAIL — **`R-142` ③, and it had been green over the very duplicate it forbids**
+
+📐 `TheViewportInteractionIsSharedTests.NoCompositionRootConstructsAToolGizmoItself` asserted the literal
+`"new EntityRotatorGizmo"` was absent from `EditorSubsystem.cs`. ⛔ The file wrote
+`new Hrot.ScenarioEditor.Gizmos.EntityRotatorGizmo(` — **fully qualified** — so the rail passed while
+`GlobalActionIds.Rotate`/`EditOverlay`/`EditRoute` carried a **verbatim copy of the drain's three arms**
+(guards, `NetworkIdentity` lookup, toggle, `EntityWriteRouter`). ⚠⚠ **The lesson is the substring, not the
+copy: a source scan that pins the SPELLING of a reference tests the spelling.** ⇒ it is a regex now,
+tolerant of any qualification — **fixed in place, not routed around**.
+
+⭐ **That fix is also step 3's red-proof**: un-blinded it fails on `Hrot.Editor` at the pre-step-3 tree
+(1 failed / 1 passed across the `[Theory]`'s two hosts) and passes once the three handlers publish
+`ActivateEditorToolEvent`, exactly as `Measure` and `PlaceEntity` two lines above already did.
+
+🔒 **Where the context menu's entity goes.** `ActivateEditorToolEvent` carries only the tool, and the drain
+acts on `PrimarySelected`. ⇒ the editor's handlers **select, then activate** — which is not a workaround but
+the rule `ToolActivationDrainSystem.ActivateRotate`'s own remarks already stated: *"CGF's copy did ONE thing
+extra: it set `PrimarySelected` first … that stays a CALLER concern."* ⛔ Widening the event was rejected: it
+is a registered wire type both hosts publish (`PresentationComponentRegistry`), so the blast radius is far
+larger than the problem.
+
+⚠ **The per-tool component guards were not lost** — the drain applies the same ones and now **reports the
+reason** (ruling 49) where the handlers returned in silence.
 
 #### 🔒 AND THIS SHARPENS `Q27-A`'s CONDITION — **`§Migration` step 4 is now an END STATE, not a precondition**
 
@@ -737,8 +789,8 @@ the next slice, not this one.
 | Step | Change | Gate |
 |--:|---|---|
 | 1 | `ToolDescriptor` + `IToolController`; **Editor only**; register the 6 existing tools with their real modality (`Select` = null modal tool) | nothing calls it yet |
-| 2 | Route the **toolbar event path** (`ActivateEditorToolEvent` switch) through `Activate()` | every tool behaves as today |
-| 3 | Route the **action path** (`GlobalActionIds.Rotate/EditOverlay/EditRoute`) through `Activate()` — 🔴 **deletes the duplicated toggle logic**, the D′ idiom | context-menu activation identical |
+| ✅ 2 | Route the **toolbar event path** (`ActivateEditorToolEvent` switch) through `Activate()` — **BUILT `2026-09-09`**, see §4.7b | every tool behaves as today *(+ `Select` is now live, and a retarget no longer leaves two gizmos)* |
+| ✅ 3 | Route the **action path** (`GlobalActionIds.Rotate/EditOverlay/EditRoute`) through `Activate()` — 🔴 **the D′ duplicate is DELETED**; **BUILT `2026-09-09`**, see §4.7b | ⭐ red-proofed by un-blinding `NoCompositionRootConstructsAToolGizmoItself`, which had been green over the duplicate |
 | 4 | Convert the three bypassing adapters (`EditorMapPickAdapter`, `EditorZoneAdapter`, `EditorSpawnAdapter`) | ⭐ **completes A1 — the 🔴 two-arbiter defect closes here** |
 | 5 | Toolbar binds `ActiveModalChanged`; opt tools in via `ShowOnToolbar` | [UXR-84](UX_Requirements.md#uxr-84): active tool visibly active |
 | 6 | Central Escape → `Cancel()`; gizmos keep their own cleanup | Escape cancels the modal tool from anywhere |

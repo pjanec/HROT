@@ -22,15 +22,32 @@ namespace Hrot.ScenarioEditor.Tools
     ///
     /// <para>⭐⭐ <b>The safety property:</b> nothing changes while only ONE modal tool is active — which is
     /// every case that works today. The controller acts only when a SECOND modal would take focus.
-    /// ⇒ this makes nothing newly live; it makes concurrency impossible.</para>
+    /// ⇒ it makes concurrency impossible rather than making anything newly live.</para>
+    ///
+    /// <para>⚠⚠ <b>TWO DELIBERATE EXCEPTIONS to that property, both landed in step 2 and both recorded in
+    /// the design at §4.7.</b> An earlier version of this paragraph claimed <i>"this makes NOTHING newly
+    /// live"</i> without qualification — ⛔ that is no longer true, and pretending otherwise would hide a
+    /// user-visible change:
+    /// <list type="number">
+    /// <item>🔒 <b><c>Select</c> is now the NULL MODAL TOOL and clears both arbiters</b> (<c>Q27</c>). It was
+    /// an empty <c>break</c> — the toolbar button did nothing — and it is how an operator leaves a tool.</item>
+    /// <item>⭐ <b>A modal tool armed on entity A is torn down when the same tool arms on B.</b> Before, both
+    /// kept an injected gizmo; only one could ever hold focus, so the second was drawable-but-inert.</item>
+    /// </list></para>
     /// </summary>
     public interface IToolController
     {
         /// <summary>The modal tool currently holding focus, or <c>null</c>. Top of the stack.</summary>
         ToolDescriptor? ActiveModal { get; }
 
+        /// <summary>
+        /// The entity <see cref="ActiveModal"/> armed on, or <see cref="Entity.Null"/> for a non-entity tool
+        /// (and when nothing is armed). ⭐ Part of the identity of "the active tool" — see <see cref="ArmedTool"/>.
+        /// </summary>
+        Entity ActiveModalTarget { get; }
+
         /// <summary>Bottom → top. One entry today; <c>PushModal</c> is what grows it.</summary>
-        IReadOnlyList<ToolDescriptor> ModalStack { get; }
+        IReadOnlyList<ArmedTool> ModalStack { get; }
 
         /// <summary>Modeless tools, unaffected by the modal stack (<c>Q27</c> ruling C).</summary>
         IReadOnlyCollection<ToolDescriptor> ActiveModeless { get; }

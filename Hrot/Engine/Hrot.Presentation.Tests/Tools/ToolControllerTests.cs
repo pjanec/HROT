@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Linq;
 using System.Numerics;
 using Fdp.Core;
@@ -265,6 +266,53 @@ namespace Hrot.Presentation.Tests.Tools
             fx.Controller.Activate("edit", entity);          // second press toggles OFF
             Assert.Null(fx.Controller.ActiveModal);
             Assert.Equal(1, arms);                            // it did not re-arm
+        }
+
+        /// <summary>
+        /// ⭐⭐⭐ <b>THE SAME TOOL ON A DIFFERENT ENTITY RE-TARGETS — it does not toggle off.</b>
+        ///
+        /// <para>⛔⛔ <b>This rail exists because a descriptor-keyed rule gets it WRONG, and a measurement is
+        /// what caught it.</b> 📐 <c>2026-09-09</c>: both arbiters' <c>CancelInteractiveTools()</c> tear the
+        /// armed gizmo down BEFORE the next activation runs (<c>DataDrivenGizmoSystem.cs:124-137</c> clears
+        /// <b>every</b> injected gizmo), so an activation can no longer see whether it was already armed on
+        /// that entity — and <c>ToolActivationDrainSystem.ToggleEntityGizmo:176</c> keys its toggle on
+        /// exactly that. ⇒ the CONTROLLER has to remember the target, which is what <see cref="ArmedTool"/>
+        /// is for. ⚠ Without it, <c>Edit</c> pressed twice would re-arm instead of toggling — a capability
+        /// lost to unification, which <c>R-137</c> forbids.</para>
+        ///
+        /// <para>⚠ <b>The behaviour this deliberately CHANGES:</b> before <c>UXI-07</c>, Edit on A then Edit
+        /// on B left injected gizmos on BOTH. 🔒 <c>Q27</c> ruling C allows one modal per subsystem, and the
+        /// second gizmo could never take focus anyway (<c>DataDrivenGizmoSystem.cs:91</c> grants focus on
+        /// <c>_focusedGizmo == null</c>) — drawable-but-inert, not a capability. Folded into §4.7.</para>
+        /// </summary>
+        [Fact]
+        public void TheSameToolOnADifferentEntityRetargetsRatherThanToggling()
+        {
+            var fx = new Fixture();
+            var a  = _world.CreateEntity();
+            var b  = _world.CreateEntity();
+
+            var armed = new List<Entity>();
+            fx.Controller.Register(
+                new ToolDescriptor("edit", "Edit Shape", ToolModality.Modal, ToolArbiter.EntityScoped,
+                                   ToggleOnReactivate: true),
+                target =>
+                {
+                    armed.Add(target);
+                    fx.DataDriven.ActivateGizmo(target, new ProbeGizmo());
+                    return ToolActivationOutcome.Armed;
+                });
+
+            fx.Controller.Activate("edit", a);
+            fx.Controller.Activate("edit", b);                // ⭐ a DIFFERENT entity — re-target
+
+            Assert.Equal(new[] { a, b }, armed);               // it armed twice …
+            Assert.Equal(b, fx.Controller.ActiveModalTarget);  // … and B is the live one
+            Assert.False(fx.DataDriven.HasInjectedGizmo(a));   // 🔴 A let go — Q27 ruling C
+
+            fx.Controller.Activate("edit", b);                 // now the SAME entity — toggle off
+            Assert.Null(fx.Controller.ActiveModal);
+            Assert.Equal(2, armed.Count);
         }
 
         /// <summary>

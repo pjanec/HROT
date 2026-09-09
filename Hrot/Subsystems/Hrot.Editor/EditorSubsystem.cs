@@ -1854,16 +1854,25 @@ namespace Hrot.Editor
             {
                 interactionBus.Publish(new Hrot.Common.Diagnostics.Gizmos.OpenLayerEditorEvent());
             });
-            actionRegistry.Register(GlobalActionIds.Rotate, (view, target) =>
+            // ⭐⭐⭐ UXI-07 step 3 — the D′ DUPLICATE IS GONE. Rotate / EditOverlay / EditRoute carried a
+            //    VERBATIM copy of ToolActivationDrainSystem's three arms (guards, netId lookup, toggle,
+            //    EntityWriteRouter and all). ⇒ they now do exactly what Measure and PlaceEntity below
+            //    already did: publish ActivateEditorToolEvent and let the ONE drain arm the tool through
+            //    the ONE ToolController, which cancels the other arbiter's modal first.
+            // 🔒 The caller SELECTS, then activates — ToolActivationDrainSystem.ActivateRotate's own
+            //    remarks: a context menu acts on the entity under the cursor, a toolbar on the selection,
+            //    and reconciling that is a CALLER concern, so the shared body needs no host branch.
+            // ⚠ The per-tool component guards are NOT lost: the drain applies the same ones and now
+            //   REPORTS the reason (ruling 49) where these handlers returned in silence.
+            void ActivateToolOnEntity(EditorTool tool, Entity target)
             {
                 if (target == Entity.Null) return;
-                if (!view.HasComponent<SimTransform>(target)) return;
-                _editorDataDrivenGizmoSystem!.DeactivateGizmo(target);
-                var gizmo = new Hrot.ScenarioEditor.Gizmos.EntityRotatorGizmo(
-                    view, target, onRemove: () => _editorDataDrivenGizmoSystem!.DeactivateGizmo(target),
-                    writer: Fdp.Toolkit.Replication.Attributes.EntityWriteRouter.For(_world!));
-                _editorDataDrivenGizmoSystem!.ActivateGizmo(target, gizmo);
-            });
+                if (_selectionState != null) _selectionState.PrimarySelected = target;
+                _world?.Bus.Publish(new ActivateEditorToolEvent(tool));
+            }
+
+            actionRegistry.Register(GlobalActionIds.Rotate, (_, target) =>
+                ActivateToolOnEntity(EditorTool.Rotate, target));
             actionRegistry.Register(GlobalActionIds.Measure, (_, _) =>
             {
                 _world.Bus.Publish(new ActivateEditorToolEvent(EditorTool.Measure));
@@ -1872,44 +1881,10 @@ namespace Hrot.Editor
             {
                 _world.Bus.Publish(new ActivateEditorToolEvent(EditorTool.Spawn));
             });
-            actionRegistry.Register(GlobalActionIds.EditOverlay, (view, target) =>
-            {
-                if (target == Entity.Null || !view.HasManagedComponent<EditablePolyline>(target)) return;
-
-                if (_editorDataDrivenGizmoSystem!.HasInjectedGizmo(target))
-                {
-                    _editorDataDrivenGizmoSystem!.DeactivateGizmo(target);
-                }
-                else
-                {
-                    long netId = view.HasComponent<NetworkIdentity>(target)
-                        ? view.GetComponentRO<NetworkIdentity>(target).Value
-                        : 0L;
-                    var gizmo = new Hrot.ScenarioEditor.Gizmos.VertexEditGizmo(
-                        _world!, target, netId,
-                        onRemove: () => _editorDataDrivenGizmoSystem!.DeactivateGizmo(target));
-                    _editorDataDrivenGizmoSystem!.ActivateGizmo(target, gizmo);
-                }
-            });
-            actionRegistry.Register(GlobalActionIds.EditRoute, (view, target) =>
-            {
-                if (target == Entity.Null || !view.HasManagedComponent<RoutePlan>(target)) return;
-
-                if (_editorDataDrivenGizmoSystem!.HasInjectedGizmo(target))
-                {
-                    _editorDataDrivenGizmoSystem!.DeactivateGizmo(target);
-                }
-                else
-                {
-                    long netId = view.HasComponent<NetworkIdentity>(target)
-                        ? view.GetComponentRO<NetworkIdentity>(target).Value
-                        : 0L;
-                    var gizmo = new Hrot.ScenarioEditor.Gizmos.RouteWaypointGizmo(
-                        _world!, target, netId,
-                        onRemove: () => _editorDataDrivenGizmoSystem!.DeactivateGizmo(target));
-                    _editorDataDrivenGizmoSystem!.ActivateGizmo(target, gizmo);
-                }
-            });
+            actionRegistry.Register(GlobalActionIds.EditOverlay, (_, target) =>
+                ActivateToolOnEntity(EditorTool.Edit, target));
+            actionRegistry.Register(GlobalActionIds.EditRoute, (_, target) =>
+                ActivateToolOnEntity(EditorTool.Route, target));
             actionRegistry.Register(GlobalActionIds.CenterOnEntity, (view, target) =>
             {
                 if (target == Entity.Null) return;

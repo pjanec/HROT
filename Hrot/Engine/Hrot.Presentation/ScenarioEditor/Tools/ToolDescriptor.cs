@@ -58,7 +58,12 @@ namespace Hrot.ScenarioEditor.Tools
     /// <param name="ShowOnToolbar">🔒 Optional by default, per the user ruling above.</param>
     /// <param name="ToggleOnReactivate">🔒 <c>Q27</c>: re-activating the current modal tool does NOT cancel
     /// it unless flagged. ⭐ <c>Edit</c>/<c>Route</c> set this — they toggled before this slice and must keep
-    /// toggling; <c>Rotate</c> does not, because both hosts deliberately re-arm it.</param>
+    /// toggling; <c>Rotate</c> does not, because both hosts deliberately re-arm it.
+    ///
+    /// <para>⛔⛔ <b>The rule is keyed on (tool, TARGET), not on the tool alone</b> — see
+    /// <see cref="ArmedTool"/>. 📐 Measured: <c>ToolActivationDrainSystem.ToggleEntityGizmo:176</c> keys its
+    /// toggle on <c>HasInjectedGizmo(e)</c>, so <c>Edit</c> on A then <c>Edit</c> on B must RETARGET, not
+    /// toggle off. A descriptor-only rule gets that case wrong.</para></param>
     public sealed record ToolDescriptor(
         string       Id,
         string       Label,
@@ -66,6 +71,22 @@ namespace Hrot.ScenarioEditor.Tools
         ToolArbiter  Arbiter,
         bool         ShowOnToolbar      = false,
         bool         ToggleOnReactivate = false);
+
+    /// <summary>
+    /// ⭐⭐ <b>A modal tool AND the entity it armed on.</b> The modal stack is made of these, not of bare
+    /// descriptors.
+    ///
+    /// <para>⛔⛔ <b>Why the target is part of the stack entry, measured <c>2026-09-09</c>:</b> both arbiters'
+    /// <c>CancelInteractiveTools()</c> tear the armed gizmo down BEFORE the new activation runs
+    /// (<c>DataDrivenGizmoSystem.cs:124-137</c> clears <b>every</b> injected gizmo;
+    /// <c>GlobalGizmoManager.cs:112-119</c> clears every exclusive-focus / raw-input one). ⇒ by the time an
+    /// activation is invoked it can no longer see whether it was already armed on that entity, so the
+    /// controller — not the activation — has to remember the target.</para>
+    ///
+    /// <para>⭐ It is also what <c>PushModal</c>'s suspend/resume needs: a resumed modal must come back on
+    /// the entity it was armed on.</para>
+    /// </summary>
+    public readonly record struct ArmedTool(ToolDescriptor Tool, Entity Target);
 
     /// <summary>
     /// ⭐⭐⭐ <b>What happened when a tool was asked to activate. THREE outcomes, not two.</b>
@@ -77,9 +98,16 @@ namespace Hrot.ScenarioEditor.Tools
     /// mislead the operator; collapsing it into "true" would leave a dismissed tool on the modal stack.</para>
     ///
     /// <para>⛔ <b>And the toggle is PER-ENTITY, not per-descriptor</b> — pressing <c>Edit</c> on entity A
-    /// then on entity B must move to B, not toggle off. ⇒ that decision stays inside the activation, which
-    /// has the target; <see cref="ToolDescriptor.ToggleOnReactivate"/> is the coarser
-    /// same-tool-pressed-twice rule and the drain's arms deliberately do NOT use it.</para>
+    /// then on entity B must move to B, not toggle off.
+    /// ⚠⚠ <b>CORRECTED <c>2026-09-09</c> during step 2, and the correction is load-bearing.</b> An earlier
+    /// version of this paragraph said the decision *"stays inside the activation, which has the target"* and
+    /// that the drain's arms deliberately do NOT set <see cref="ToolDescriptor.ToggleOnReactivate"/>.
+    /// 📐 <b>That cannot work:</b> the controller cancels the armed modal BEFORE invoking the activation, and
+    /// <c>DataDrivenGizmoSystem.CancelInteractiveTools()</c> (<c>:124-137</c>) clears <b>every</b> injected
+    /// gizmo ⇒ <c>HasInjectedGizmo(e)</c> is already false and the arm re-arms instead of toggling.
+    /// ⇒ ⭐ the drain's <c>Edit</c>/<c>Route</c> DO set the flag, and the controller keys it on the
+    /// <b>(tool, target)</b> pair it remembers in <see cref="ArmedTool"/>. The activation's own
+    /// <c>HasInjectedGizmo</c> arm survives for the gizmo the controller did not arm.</para>
     /// </summary>
     public enum ToolActivationOutcome
     {

@@ -12,6 +12,7 @@ using Hrot.Common.Events;
 using Hrot.IG.Components;
 using Hrot.Map.Common.Components;
 using Hrot.ScenarioEditor.Gizmos;
+using Hrot.ScenarioEditor.Tools;
 
 namespace Hrot.ScenarioEditor.Systems;
 
@@ -56,6 +57,15 @@ public sealed class ToolActivationDrainSystem : IEcsModuleSystem
     private readonly Func<GlobalGizmoManager?>?    _globalGizmos;
     private readonly Action?                _startPlacementMode;
     private readonly Action<string>?        _reportUnserviceable;
+    private readonly ToolController         _tools;
+
+    /// <summary>
+    /// ⚠⚠ <b>The ONE piece of per-frame state, and it is here because <c>Execute</c> is the only place a
+    /// world exists.</b> Set at the top of <see cref="Execute"/> and cleared in a <c>finally</c>, so an
+    /// activation that somehow runs outside a frame reports unserviceable instead of dereferencing null.
+    /// ⛔ Everything else (<c>selection</c>, both arbiters) is a RESOLVER and is re-resolved per activation.
+    /// </summary>
+    private EntityRepository? _frameWorld;
 
     /// <param name="startPlacementMode">
     /// ⭐⭐ The Spawn tool's whole behaviour: *"start placement with the last selected type"*.
@@ -92,6 +102,92 @@ public sealed class ToolActivationDrainSystem : IEcsModuleSystem
         _globalGizmos        = globalGizmos;
         _startPlacementMode  = startPlacementMode;
         _reportUnserviceable = reportUnserviceable;
+
+        _tools = new ToolController(
+            () => _globalGizmos?.Invoke(),
+            _gizmos,
+            reportUnserviceable);
+        RegisterScenarioTools();
+    }
+
+    /// <summary>
+    /// ⭐⭐⭐ <b><c>UXI-07</c> step 2 — the single arbiter this drain activates through.</b> Exposed so the
+    /// host can bind a toolbar / <c>Escape</c> to <see cref="IToolController.ActiveModalChanged"/> and
+    /// <see cref="IToolController.Cancel"/> (step 5) without a second registry.
+    /// </summary>
+    public IToolController Tools => _tools;
+
+    /// <summary>
+    /// ⭐⭐ <b>The six arms, unchanged in body, moved behind descriptors.</b> 📄
+    /// <c>docs/UX/UX_Feature_Tool_Model.md</c> §4.
+    ///
+    /// <para>⭐ <b>What each descriptor encodes, and why it is what it is:</b>
+    /// <list type="bullet">
+    /// <item><b>Arbiter</b> — measured, not guessed: <c>Edit</c>/<c>Route</c>/<c>Rotate</c> inject
+    /// per-entity gizmos through <c>DataDrivenGizmoSystem</c>; <c>Measure</c> and the spawn adapter register
+    /// on <c>GlobalGizmoManager</c>. <c>Select</c> owns no gizmo at all.</item>
+    /// <item><b><c>ToggleOnReactivate</c></b> — only <c>Edit</c>/<c>Route</c>, which toggled before this
+    /// slice. ⛔ <c>Rotate</c> deliberately re-arms (both hosts did it that way) and <c>Measure</c> is
+    /// re-registered rather than toggled.</item>
+    /// </list></para>
+    ///
+    /// <para>⛔⛔ <b><c>Select</c> is now LIVE, and that is a deliberate, user-visible change.</b> It was an
+    /// empty <c>break</c> — the toolbar button did nothing. 🔒 <c>Q27</c> makes it the NULL MODAL TOOL, so
+    /// arming it clears BOTH arbiters (<c>ToolArbiter.None</c>) and is how an operator leaves a tool.
+    /// ⚠ This is the one place where routing through the controller changes behaviour that previously
+    /// "worked"; folded into the design at §4.7.</para>
+    /// </summary>
+    private void RegisterScenarioTools()
+    {
+        _tools.Register(
+            new ToolDescriptor(ScenarioToolIds.Select, "Select", ToolModality.Modal, ToolArbiter.None,
+                               ShowOnToolbar: true),
+            // The null modal tool: it arms nothing of its own — CancelOtherArbiter(None) has already
+            // cleared both sides by the time this runs, and that IS the whole behaviour.
+            _ => ToolActivationOutcome.Armed);
+
+        _tools.Register(
+            new ToolDescriptor(ScenarioToolIds.Spawn, "Place Entity", ToolModality.Modal, ToolArbiter.Global,
+                               ShowOnToolbar: true),
+            _ =>
+            {
+                // Start placement with the last selected type (tracked by the adapter).
+                if (_startPlacementMode == null)
+                    return Unserviceable(EditorTool.Spawn, "this host composes no spawn adapter");
+                _startPlacementMode();
+                return ToolActivationOutcome.Armed;
+            });
+
+        _tools.Register(
+            new ToolDescriptor(ScenarioToolIds.Edit, "Edit Shape", ToolModality.Modal, ToolArbiter.EntityScoped,
+                               ShowOnToolbar: true, ToggleOnReactivate: true),
+            target => ToggleEntityGizmo<EditablePolyline>(target, EditorTool.Edit,
+                (w, e, netId, onRemove) => new VertexEditGizmo(w, e, netId, onRemove)));
+
+        _tools.Register(
+            new ToolDescriptor(ScenarioToolIds.Route, "Edit Route", ToolModality.Modal, ToolArbiter.EntityScoped,
+                               ShowOnToolbar: true, ToggleOnReactivate: true),
+            target => ToggleEntityGizmo<RoutePlan>(target, EditorTool.Route,
+                (w, e, netId, onRemove) => new RouteWaypointGizmo(w, e, netId, onRemove)));
+
+        _tools.Register(
+            new ToolDescriptor(ScenarioToolIds.Measure, "Measure", ToolModality.Modal, ToolArbiter.Global,
+                               ShowOnToolbar: true),
+            _ =>
+            {
+                var global = _globalGizmos?.Invoke();
+                if (global == null)
+                    return Unserviceable(EditorTool.Measure, "this host composes no global gizmo manager");
+
+                var id = GlobalGizmoManager.NewId();
+                global.Register(id, new MeasureGizmo(onRemove: () => global.Unregister(id)));
+                return ToolActivationOutcome.Armed;
+            });
+
+        _tools.Register(
+            new ToolDescriptor(ScenarioToolIds.Rotate, "Rotate", ToolModality.Modal, ToolArbiter.EntityScoped,
+                               ShowOnToolbar: true),
+            ActivateRotate);
     }
 
     /// <inheritdoc/>
@@ -106,46 +202,24 @@ public sealed class ToolActivationDrainSystem : IEcsModuleSystem
         var gizmos    = _gizmos();
         if (selection == null || gizmos == null) return;
 
-        foreach (ref readonly var evt in world.Bus.Read<ActivateEditorToolEvent>())
+        _frameWorld = world;
+        try
         {
-            switch (evt.Tool)
+            foreach (ref readonly var evt in world.Bus.Read<ActivateEditorToolEvent>())
             {
-                case EditorTool.Select:
-                    // (Phase 5: _interactionTool removed; selection via ECS gizmos)
-                    break;
-
-                case EditorTool.Spawn:
-                    // Start placement with the last selected type (tracked by the adapter).
-                    if (_startPlacementMode != null) _startPlacementMode();
-                    else Unserviceable(EditorTool.Spawn, "this host composes no spawn adapter");
-                    break;
-
-                case EditorTool.Edit:
-                    ToggleEntityGizmo<EditablePolyline>(world, selection, gizmos, EditorTool.Edit,
-                        (w, e, netId, onRemove) => new VertexEditGizmo(w, e, netId, onRemove));
-                    break;
-
-                case EditorTool.Route:
-                    ToggleEntityGizmo<RoutePlan>(world, selection, gizmos, EditorTool.Route,
-                        (w, e, netId, onRemove) => new RouteWaypointGizmo(w, e, netId, onRemove));
-                    break;
-
-                case EditorTool.Measure:
-                {
-                    var global = _globalGizmos?.Invoke();
-                    if (global != null)
-                    {
-                        var id = GlobalGizmoManager.NewId();
-                        global.Register(id, new MeasureGizmo(onRemove: () => global.Unregister(id)));
-                    }
-                    else Unserviceable(EditorTool.Measure, "this host composes no global gizmo manager");
-                    break;
-                }
-
-                case EditorTool.Rotate:
-                    ActivateRotate(world, selection, gizmos);
-                    break;
+                // ⭐⭐⭐ UXI-07 step 2 — the WHOLE drain is now one line, because "which tool is active" is
+                //    no longer this system's business. The controller cancels the OTHER arbiter's modal
+                //    before arming, which is the correctness change (ToolController.CancelOtherArbiter).
+                // ⚠ The TARGET comes from the selection, exactly as the switch did. 📐 A context-menu
+                //   caller SELECTS first and then activates — see ActivateRotate's remarks; that is why the
+                //   editor's action path can publish ActivateEditorToolEvent instead of duplicating a body.
+                var target = selection.PrimarySelected is { } p ? p : Entity.Null;
+                _tools.Activate(ScenarioToolIds.ForEditorTool(evt.Tool), target);
             }
+        }
+        finally
+        {
+            _frameWorld = null;
         }
     }
 
@@ -157,25 +231,26 @@ public sealed class ToolActivationDrainSystem : IEcsModuleSystem
     /// deactivate, ⛔ not stack a second gizmo on the same entity. 📐 The editor had this; CGF's
     /// context-menu parallels did not have the concept at all.</para>
     /// </summary>
-    private void ToggleEntityGizmo<TComponent>(
-        EntityRepository world,
-        ISelectionState selection,
-        DataDrivenGizmoSystem gizmos,
+    private ToolActivationOutcome ToggleEntityGizmo<TComponent>(
+        Entity e,
         EditorTool tool,
         Func<EntityRepository, Entity, long, Action, IEntityStatefulGizmo> factory)
         where TComponent : class
     {
-        var entity = selection.PrimarySelected;
-        if (entity is not { } e || e == Entity.Null) { Unserviceable(tool, "nothing is selected"); return; }
-        if (!world.HasManagedComponent<TComponent>(e))
-        {
-            Unserviceable(tool, $"the selected entity has no {typeof(TComponent).Name}");
-            return;
-        }
+        if (_frameWorld is not { } world) return Unserviceable(tool, "no simulation frame is in progress");
+        var gizmos = _gizmos();
+        if (gizmos == null) return Unserviceable(tool, "this host composes no entity gizmo system");
 
-        if (gizmos.HasInjectedGizmo(e)) { gizmos.DeactivateGizmo(e); return; }
+        if (e == Entity.Null)                          return Unserviceable(tool, "nothing is selected");
+        if (!world.HasManagedComponent<TComponent>(e))
+            return Unserviceable(tool, $"the selected entity has no {typeof(TComponent).Name}");
+
+        // ⚠ Still reachable even though the controller cancels our arbiter first: a gizmo injected by
+        //   something the controller did not arm (an unconverted adapter) is still a real toggle-off.
+        if (gizmos.HasInjectedGizmo(e)) { gizmos.DeactivateGizmo(e); return ToolActivationOutcome.Dismissed; }
 
         gizmos.ActivateGizmo(e, factory(world, e, NetworkIdOf(world, e), () => gizmos.DeactivateGizmo(e)));
+        return ToolActivationOutcome.Armed;
     }
 
     /// <summary>
@@ -192,21 +267,24 @@ public sealed class ToolActivationDrainSystem : IEcsModuleSystem
     /// ⚠ Preserved deliberately — both hosts did it that way, and a rotate gizmo re-armed on the same
     /// entity is the documented interaction.</para>
     /// </summary>
-    private void ActivateRotate(EntityRepository world, ISelectionState selection, DataDrivenGizmoSystem gizmos)
+    private ToolActivationOutcome ActivateRotate(Entity e)
     {
-        var entity = selection.PrimarySelected;
-        if (entity is not { } e || e == Entity.Null) { Unserviceable(EditorTool.Rotate, "nothing is selected"); return; }
+        if (_frameWorld is not { } world)
+            return Unserviceable(EditorTool.Rotate, "no simulation frame is in progress");
+        var gizmos = _gizmos();
+        if (gizmos == null)
+            return Unserviceable(EditorTool.Rotate, "this host composes no entity gizmo system");
+
+        if (e == Entity.Null)                   return Unserviceable(EditorTool.Rotate, "nothing is selected");
         if (!world.HasComponent<SimTransform>(e))
-        {
-            Unserviceable(EditorTool.Rotate, "the selected entity has no SimTransform");
-            return;
-        }
+            return Unserviceable(EditorTool.Rotate, "the selected entity has no SimTransform");
 
         gizmos.DeactivateGizmo(e);
         gizmos.ActivateGizmo(e, new EntityRotatorGizmo(
             world, e,
             onRemove: () => gizmos.DeactivateGizmo(e),
             writer:   EntityWriteRouter.For(world)));
+        return ToolActivationOutcome.Armed;
     }
 
     private static long NetworkIdOf(EntityRepository world, Entity e)
@@ -214,10 +292,15 @@ public sealed class ToolActivationDrainSystem : IEcsModuleSystem
             ? world.GetComponentRO<NetworkIdentity>(e).Value
             : 0L;
 
-    private void Unserviceable(EditorTool tool, string reason)
+    /// <summary>
+    /// Say what happened, never fail silently (ruling 49) — and RETURN the outcome, so an arm's last line
+    /// is <c>return Unserviceable(...)</c> and no path can report-then-fall-through to "armed".
+    /// </summary>
+    private ToolActivationOutcome Unserviceable(EditorTool tool, string reason)
     {
         var message = $"tool '{tool}' did nothing — {reason}.";
         if (_reportUnserviceable != null) _reportUnserviceable(message);
         else FdpLog<ToolActivationDrainSystem>.Info("[Tools] {0}", message);
+        return ToolActivationOutcome.Unserviceable;
     }
 }

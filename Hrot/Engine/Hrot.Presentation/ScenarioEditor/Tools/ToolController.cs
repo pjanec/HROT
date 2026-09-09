@@ -35,7 +35,7 @@ namespace Hrot.ScenarioEditor.Tools
         private readonly Func<DataDrivenGizmoSystem?> _dataDriven;
         private readonly Action<string>?              _reportUnserviceable;
 
-        private readonly List<ToolDescriptor>    _modalStack    = new();
+        private readonly List<ArmedTool>         _modalStack    = new();
         private readonly HashSet<ToolDescriptor> _activeModeless = new();
 
         /// <param name="global">Resolver for the non-entity arbiter. May return null on a host without one.</param>
@@ -56,10 +56,13 @@ namespace Hrot.ScenarioEditor.Tools
         }
 
         /// <inheritdoc/>
-        public ToolDescriptor? ActiveModal => _modalStack.Count > 0 ? _modalStack[^1] : null;
+        public ToolDescriptor? ActiveModal => _modalStack.Count > 0 ? _modalStack[^1].Tool : null;
 
         /// <inheritdoc/>
-        public IReadOnlyList<ToolDescriptor> ModalStack => _modalStack;
+        public Entity ActiveModalTarget => _modalStack.Count > 0 ? _modalStack[^1].Target : Entity.Null;
+
+        /// <inheritdoc/>
+        public IReadOnlyList<ArmedTool> ModalStack => _modalStack;
 
         /// <inheritdoc/>
         public IReadOnlyCollection<ToolDescriptor> ActiveModeless => _activeModeless;
@@ -106,9 +109,14 @@ namespace Hrot.ScenarioEditor.Tools
                 }
             }
 
-            // 🔒 Q27: "Re-activating the current modal tool does NOT cancel it — no-op, or re-target when a
+            // 🔒 Q27: "Re-activating the current modal tool does NOT cancel it — no-op, or RE-TARGET when a
             //    different target is supplied. Toggle only if ToggleOnReactivate."
-            if (ReferenceEquals(ActiveModal, descriptor) && descriptor.ToggleOnReactivate)
+            // ⛔⛔ Keyed on (tool, TARGET). Edit on A then Edit on B is a RE-TARGET, not a toggle — 📐 the
+            //    drain's toggle reads HasInjectedGizmo(e), which is per-entity (ToggleEntityGizmo:176).
+            //    Falling through to the arm path below is exactly what re-targeting means.
+            if (ReferenceEquals(ActiveModal, descriptor)
+                && ActiveModalTarget == target
+                && descriptor.ToggleOnReactivate)
             {
                 Cancel();
                 return true;
@@ -123,7 +131,7 @@ namespace Hrot.ScenarioEditor.Tools
             switch (activate(target))
             {
                 case ToolActivationOutcome.Armed:
-                    _modalStack.Add(descriptor);
+                    _modalStack.Add(new ArmedTool(descriptor, target));
                     NotifyActiveModalChanged();
                     return true;
 
@@ -182,9 +190,9 @@ namespace Hrot.ScenarioEditor.Tools
         /// </summary>
         private void CancelActiveModalWithoutNotify()
         {
-            var top = ActiveModal;
-            if (top == null) return;
+            if (_modalStack.Count == 0) return;
 
+            var top = _modalStack[^1].Tool;
             _modalStack.RemoveAt(_modalStack.Count - 1);
 
             switch (top.Arbiter)
