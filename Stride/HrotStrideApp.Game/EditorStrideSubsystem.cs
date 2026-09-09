@@ -51,7 +51,7 @@ namespace HrotStrideApp;
 /// FIX-PERF-1 (hosted-mode substepping): <see cref="TickHosted"/> is designed to be called
 /// ONCE per render frame with the render wall delta — NOT through the fixed-step loop driver.
 /// See <see cref="StrideHrotGame.Update"/> which bypasses <see cref="StrideHostLoopDriver.AdvanceFrame"/>
-/// when <see cref="HostRealEditor"/> is true.
+/// ONCE per render frame with the render wall delta (CE-209: this is now the only path).
 /// </para>
 ///
 /// <para>
@@ -153,15 +153,13 @@ public sealed class EditorStrideSubsystem : IDisposable, IStrideEditorWindowHost
     public MasterSyncController TimeController { get; private set; } = null!;
 
     // ── Orchestration layer ───────────────────────────────────────────────
-
-    /// <summary>
-    /// Control-plane event bus — a <b>distinct</b> <see cref="FdpEventBus"/> instance
-    /// from <see cref="WorldBus"/>.  Required invariant: design §8.1.
-    /// </summary>
-    public FdpEventBus OrchestrationBus { get; private set; } = null!;
-
-    /// <summary>The in-process cluster master (empty Mandatory list → latch released immediately).</summary>
-    public ClusterMaster ClusterMaster { get; private set; } = null!;
+    // ⛔ CE-209 — `OrchestrationBus` and `ClusterMaster` are GONE. They belonged to the
+    //   self-contained composition, which built its own control plane beside the editor's; the
+    //   hosted path never assigned them, so after the retirement they were properties that were
+    //   permanently null. The §8.1 "orchestration bus ≠ world bus" invariant did not go with
+    //   them — it is now the hosted EditorSubsystem's, asserted by that host's own rails
+    //   (EditorSubsystemBootTests.OrchestrationBus_HasTheTimeControlIntentsRegistered) and, for
+    //   ECS nodes, by TheDebugProvidersDoNotUnderReportTests.AnEcsNodeDoesNotBuildASecondOrchestrationBus.
 
     // ── Spawn pipeline (exposed for test inspection) ──────────────────────
 
@@ -171,8 +169,9 @@ public sealed class EditorStrideSubsystem : IDisposable, IStrideEditorWindowHost
     /// </summary>
     public ScenarioEntityCreationRequestSource ScenarioSource { get; private set; } = null!;
 
-    /// <summary>Network entity map (local-id ↔ network-id).</summary>
-    public NetworkEntityMap EntityMap { get; private set; } = null!;
+    // ⛔ CE-209 — `EntityMap` is GONE for the same reason: only the self-contained arm assigned it.
+    //   In the hosted composition the editor owns the NetworkEntityMap, and StrideHrotGame already
+    //   said so in a comment while the property sat null beside it.
 
     // ── Kinematics module (P1, STR-P1-T1) ────────────────────────────────
 
@@ -447,34 +446,25 @@ public sealed class EditorStrideSubsystem : IDisposable, IStrideEditorWindowHost
 
     private VehicleNavigationIntentSystem? _vehicleNavIntentSystem;
 
-    // ── Hosted-editor mode (STRIDE_HOST_REAL_EDITOR=1) ────────────────────
-    // When true, this subsystem delegates World/Kernel/TimeController to a real
-    // EditorSubsystem and drives it via _editor.Update(dt) each Tick.
-    // Default = false (today's self-contained kernel path).
-    private bool _hostRealEditor;
+    // ⭐⭐ CE-209 / R-S9 — the self-contained arm is RETIRED (user, 2026-09-05: "self-contained
+    //   stride can be retired"). This subsystem now ALWAYS hosts a real EditorSubsystem and
+    //   delegates World/Kernel/TimeController to it. The `_hostRealEditor` flag, the
+    //   STRIDE_HOST_REAL_EDITOR env var and the ~330-line duplicate composition it selected are
+    //   gone; hosted is the only editor path, which is what Q2 said would happen.
 
-    /// <summary>
-    /// True when this subsystem is hosting a real <see cref="Hrot.Editor.EditorSubsystem"/>
-    /// (enabled via <c>STRIDE_HOST_REAL_EDITOR=1</c> env flag or the <c>hostRealEditor</c>
-    /// parameter to <see cref="Initialize"/>).
-    /// </summary>
-    public bool HostRealEditor => _hostRealEditor;
-
-    // The hosted real EditorSubsystem (non-null only when _hostRealEditor == true).
+    // The hosted real EditorSubsystem (non-null once Initialize has run).
     private EditorSubsystem? _editor;
 
     /// <summary>
     /// The <see cref="IEditorLogic"/> facade of the hosted real editor.
-    /// Non-null only when <see cref="HostRealEditor"/> is <c>true</c> AND
-    /// <see cref="Initialize"/> has been called.
+    /// Non-null once <see cref="Initialize"/> has been called.
     /// </summary>
     public IEditorLogic? HostedEditorLogic => _editor?.EditorLogic;
 
     /// <summary>
     /// The hosted <see cref="EditorSubsystem"/> instance (implements
     /// <c>IWindowRegistrar</c>, <c>DrawWorld</c>, and <c>DrawUI</c>).
-    /// Non-null only when <see cref="HostRealEditor"/> is <c>true</c> AND
-    /// <see cref="Initialize"/> has been called.
+    /// Non-null once <see cref="Initialize"/> has been called.
     ///
     /// <para>
     /// Used by <see cref="StrideInspectorWindow"/> to wire the full editor UI:
@@ -524,17 +514,8 @@ public sealed class EditorStrideSubsystem : IDisposable, IStrideEditorWindowHost
     /// gizmo shapes are actually rendered in the Stride window. Pass <c>null</c> (default) for
     /// headless runs (CI / tests) — the logging sink is used instead.
     /// </param>
-    /// <param name="hostRealEditor">
-    /// When <c>true</c>, skip building this subsystem's own kernel and instead construct a real
-    /// <see cref="Hrot.Editor.EditorSubsystem"/> (headless) with the Stride muscle injected via
-    /// <see cref="Hrot.Editor.EditorSubsystem.MuscleModuleFactory"/>. The subsystem's
-    /// <see cref="World"/>, <see cref="Kernel"/>, <see cref="TimeController"/>, and
-    /// <see cref="ScenarioSource"/> are repointed to the editor's equivalents.
-    /// Default = <c>false</c> (today's behavior, byte-identical).
-    /// Activated at runtime by setting the <c>STRIDE_HOST_REAL_EDITOR=1</c> environment variable.
-    /// </param>
     /// <param name="buildEditorUi">
-    /// When <c>true</c> (and <paramref name="hostRealEditor"/> is also <c>true</c>), the hosted
+    /// When <c>true</c>, the hosted
     /// <see cref="Hrot.Editor.EditorSubsystem"/> is initialized with
     /// <see cref="Hrot.Editor.SubsystemConfig.Headless"/> = <c>false</c>, enabling MapCanvas,
     /// adapters, layers, and all non-GPU editor UI.  Must be paired with a live GLFW/OpenGL
@@ -551,334 +532,14 @@ public sealed class EditorStrideSubsystem : IDisposable, IStrideEditorWindowHost
         IMannequinBlendTreeInstaller? blendTreeInstaller = null,
         IPhysicsBodyService? physicsBodyService = null,
         Hrot.Stride.Core.IDebugDrawSink3D? debugDrawSink = null,
-        bool hostRealEditor = false,
         bool buildEditorUi = false)
-    {
-        _hostRealEditor = hostRealEditor;
-
-        if (_hostRealEditor)
-        {
-            InitializeHosted(visualFactory, blendTreeInstaller, physicsBodyService, debugDrawSink, buildEditorUi);
-            return;
-        }
-
-        // ── 1. ECS world ────────────────────────────────────────────────
-        World = new EntityRepository();
-
-        // Orchestration bus is SEPARATE from world.Bus (design §8.1 invariant).
-        OrchestrationBus = new FdpEventBus();
-        OrchestrationEventRegistry.RegisterAll(OrchestrationBus);
-        OrchestratorEventRegistry.RegisterInternalEvents(OrchestrationBus);
-
-        var accumulator = new EventAccumulator();
-        Kernel          = new ModuleHostKernel(World, accumulator);
-
-        // ── 2. Component registration ────────────────────────────────────
-        // Mirror EditorSubsystem §1b: all component types must be registered before
-        // the kernel builds its query plans (Initialize() below).
-        SimHostComponentRegistry.RegisterAll(World);
-        CgfComponentRegistry.RegisterAll(World);
-
-        // CrowdMotorIntent (BATCH-17, STR-D11): the steering-output component written by
-        // CrowdAgentUpdateSystem (P2) and read by BulletCharacterMotor. Not included in
-        // SimHostComponentRegistry because it was added to the seam in P1; register it here
-        // so the motor can query it and the harness Physics Walk case can add it to entities.
-        World.RegisterComponent<Fdp.Toolkit.Navigation.CrowdMotorIntent>();
-
-        // CrowdAgent (BATCH-19 FIX): tag component that opts an entity into DotRecast crowd
-        // steering. CrowdAgentUpdateSystem.Execute guards on IsComponentTypeRegistered<CrowdAgent>()
-        // and returns early if absent — the F5 NavmeshWalk demo also guards on the same check and
-        // bails with "[Navmesh Walk] WARNING: CrowdAgent component type not registered — cannot proceed."
-        // NavigationIntent and NavigationStatus are already registered via SimHostComponentRegistry →
-        // MuscleRoleComponentRegistry → KinematicComponentRegistry (confirmed). Only CrowdAgent was missing.
-        World.RegisterComponent<Fdp.Toolkit.Navigation.CrowdAgent>();
-
-        // NavAgentProfile (BATCH-20): the per-agent locomotion profile read by
-        // NavigationIntentBridgeSystem when it auto-registers an infantry crowd agent from a
-        // LocomotionChannel MoveTo action. Not registered by the SimHost registries; register it
-        // here so the F6 "FDP Move Order (char)" demo can supply the correct infantry radius/height
-        // (and so HasComponent<NavAgentProfile> in the bridge is a safe registered-type query).
-        World.RegisterComponent<Fdp.Toolkit.Navigation.NavAgentProfile>();
-
-        // ── 3. Time controller ───────────────────────────────────────────
-        var timeConfig  = new TimeControllerConfig { Role = TimeRole.Standalone };
-        TimeController  = (MasterSyncController)TimeControllerFactory.Create(World.Bus, timeConfig);
-        Kernel.SetTimeController(TimeController);
-        TimeController.SwitchToDeterministic(new System.Collections.Generic.HashSet<int>());
-
-        // ── 4. Shared services ────────────────────────────────────────────
-        EntityMap = new NetworkEntityMap();
-        World.SetSingletonManaged<NetworkEntityMap>(EntityMap);
-
-        var behaviorRegistry = new BehaviorRegistry();
-        var mapperRegistry   = new TacticalIntentMapperRegistry();
-        // Register Urban-Combat mappers so CgfLogicPack resolves tactical intents.
-        mapperRegistry.Register(new Hrot.AI.Behaviors.Mappers.DefendAreaMapper());
-        mapperRegistry.Register(new Hrot.AI.Behaviors.Mappers.HullDownAttackMapper());
-
-        // ── 5. Spawn pipeline ─────────────────────────────────────────────
-        // ⭐⭐ CE-145 item 3 — join the SHARED catalogue. This host used to build its own bare
-        //    `new TkbDatabase()` and seed only the five UrbanCombat templates, so it MISSED
-        //    NedTkbCatalog and the route templates that every other host gets. CreateTkb() seeds
-        //    NedTkbCatalog + UrbanCombatTkbCatalog together, so all hosts now have identical
-        //    catalogue CONTENTS. 📄 docs/DESIGN_Entity_Creation_Unification.md §3.3.
-        // ⛔⛔ Do NOT add UrbanCombatNewScenario.RegisterUrbanCombatTkbTemplates(TkbDb) back here.
-        //    TkbDatabase.Register THROWS on a duplicate name or type
-        //    (Fdp.Toolkits/Tkb/TkbDatabase.cs:24-28) and CreateTkb() already seeds those five ⇒ it
-        //    would crash the Stride editor at startup. Same defect removed the same call from
-        //    EditorSubsystem (§3.3 FINDING ①).
-        // ⭐ The five templates still carry StrideRenderModelDefDto (on all five since f27717262),
-        //    so StrideVisualBindingSystem resolves visuals for every UrbanCombat class as before.
-        TkbDb = Hrot.Map.Common.HrotEnvironment.CreateTkb();
-        var tkbDb = TkbDb;
-
-        // ⭐⭐⭐ CE-146 / P1 host (e) — the entity-creation tier is BUILT AS A UNIT by the shared pack,
-        //    not hand-assembled here. 🔒 User ruling 2026-09-01: "our desire is that all hosts use shared
-        //    code doing the same. So we should get into a state when we can say 'no host does XXX'."
-        //    ⇒ this host no longer constructs its own ELM translators, spawn system or request system.
-        // ⭐ TranslatorPlacements, not ExtraTranslators: InfantryVehicleStateStripTkbTranslator has a
-        //    POSITIONAL contract — its own doc requires it "immediately after
-        //    VehicleKinematicsTkbTranslator … position in the list is the guarantee". BasePlus APPENDS,
-        //    which CE-145 recorded as a latent violation; BaseWith states the anchor as a TYPE and THROWS
-        //    if it is absent. 🔒 R-137 — unification puts the lost flexibility back as configuration.
-        // ⭐ IsBroadcastArbiter: true preserves this host's prior isDefaultProcessor: true. This is a
-        //    STANDALONE editor, so it IS the only node — nothing else can arbitrate Owner == 0.
-        // ⭐ FinalizationSystem is NEW to this host; the pack always builds it, and the kernel
-        //    registration below is what makes Unserviceable() return empty.
-        // 📄 docs/DESIGN_Entity_Creation_Unification.md §3, §3.3 ·
-        //    docs/blueprints/Architect_Question_65_Entity_Genesis_Uniformity.md §0.
-        // ✅ VERIFIED ON WINDOWS 2026-09-02: `dotnet build Stride\HrotStrideApp.sln` — 0 errors, no
-        //    call-site fix needed. The three Stride suites are identical to base 2b0a703b3 over 9 runs
-        //    per side, and STRIDE_SELFTEST=1 passes all four checks with no "cannot place" and no
-        //    "[EntityCreation]" warn — i.e. the TranslatorPlacement anchor resolved and every pack
-        //    piece (including the FinalizationSystem new to this host) was actually scheduled.
-        var idAllocator = new SequentialIdAllocator();
-        var creation = EntityCreationPack.Build(new EntityCreationContext
-        {
-            World       = World,
-            EntityMap   = EntityMap,
-            TkbDb       = tkbDb,
-            IdAllocator = idAllocator,
-            Elm         = new EntityLifecycleModule(tkbDb, System.Array.Empty<int>()),
-            NodeId      = EditorNodeId,
-            TranslatorPlacements = new[]
-            {
-                Hrot.Core.Tkb.TranslatorPlacement
-                    .After<CarKinem.Tkb.VehicleKinematicsTkbTranslator>(
-                        new InfantryVehicleStateStripTkbTranslator()),
-            },
-            IsBroadcastArbiter = true,
-        });
-
-        var elm           = creation.Elm;
-        var spawnSys      = creation.SpawnSystem;
-        var requestSystem = creation.RequestSystem;
-
-        ScenarioSource = creation.LocalRequests;
-
-        // ── 6. Orchestration slave ────────────────────────────────────────
-        // Mirror EditorSubsystem line 581 exactly.
-        var clusterSlave = new ClusterSlave(EditorNodeId, "Editor", OrchestrationBus);
-        var orchPack     = new OrchestrationLogicPack(clusterSlave);
-
-        // ── 7. Logic packs ────────────────────────────────────────────────
-        // Brain (CGF) — direct system registration mirroring EditorHarness pattern.
-        var cgfPack = new CgfLogicPack(behaviorRegistry, EntityMap, ScenarioSource, mapperRegistry);
-
-        // ── P1 (STR-P1-T1) + BATCH refactor: build the reusable kernel-resident muscle module
-        //   set via StrideMuscleModules.Build().  This creates the same instances as before
-        //   (StrideKinematicsModule, CombatModule, DamageAssessmentModule, nav-bridge systems,
-        //   VehicleNavigationIntentSystem, PersonalRouteAuthoringSystem) without inlining
-        //   their construction here.
-        //
-        // BATCH-19 (STR-D19 discharge): use a deferred DotRecastDtCrowdProvider instead of
-        // FakeDtCrowdProvider.  The provider starts in "no-op" mode and is initialized with
-        // the real Infantry DtNavMesh by StrideHrotGame.BakeNavmesh() after BeginRun (when scene
-        // geometry is available).  Until TryInitializeNavMesh is called, RegisterAgent / Update
-        // return silently — no crash, same behaviour as the old fake.
-        // Infantry max-agent-radius: 0.4 m (slightly > 0.3 m agent radius for grid margin).
-        var deferredCrowd = new DotRecastDtCrowdProvider(maxAgentRadius: 0.4f);
-        InfantryCrowdProvider = deferredCrowd;
-
-        var muscleSet = StrideMuscleModules.Build(deferredCrowd);
-        KinematicsModule        = muscleSet.StrideKinematics;
-        _vehicleNavIntentSystem = muscleSet.VehicleNavIntent;
-
-        // Register modules and systems on the kernel.
-        // Simulation-phase systems MUST go through an IEcsModule (kernel restriction).
-        Kernel.RegisterModule(elm);
-        Kernel.RegisterModule(new Fdp.ModuleHost.Scheduling.SingleSystemModule("NetworkSpawning", spawnSys));
-        Kernel.RegisterModule(orchPack);
-        Kernel.RegisterGlobalSystem(requestSystem);
-        // ⭐⭐ CE-146 — FinalizationSystem is NEW to this host. It was never registered here, so the ACK
-        //    path was absent; harmless behind a NullEntityAckSink, but the pack builds it unconditionally
-        //    and scheduling it keeps Unserviceable() honest instead of permanently warning.
-        Kernel.RegisterGlobalSystem(creation.FinalizationSystem);
-
-        // ⭐⭐ Make an omission LOUD — the S2b habit. Every one of the five defects behind this design
-        //    was silent.
-        var unserviceable = creation.Unserviceable(new object[]
-        {
-            creation.SpawnSystem, creation.RequestSystem, creation.FinalizationSystem,
-        });
-        if (unserviceable.Length > 0)
-            Log.Warn("[EntityCreation] " + unserviceable);
-
-        Kernel.RegisterGlobalSystem(new GenesisMaterializationSystem(EntityMap));
-
-        // CGF input + sim systems
-        foreach (var sys in cgfPack.InputSystems)      Kernel.RegisterGlobalSystem(sys);
-
-        // Build the combined Simulation-phase system list:
-        //   DamageAssessmentModule + nav-bridge + StrideKinematicsModule (no integrators)
-        //   + VehicleNavigationIntentSystem + UnitHierarchySystem + EqsResultUpdateSystem.
-        // This mirrors the original composition exactly (same system instances, same order).
-        var simSystems = new System.Collections.Generic.List<IEcsModuleSystem>();
-        foreach (var s in muscleSet.Damage.SimulationSystems) simSystems.Add(s);
-        simSystems.Add(muscleSet.NavIntentBridge);
-        simSystems.Add(muscleSet.RouteTrajSync);
-        foreach (var s in muscleSet.StrideKinematics.SimulationSystems) simSystems.Add(s);
-        simSystems.Add(muscleSet.VehicleNavIntent);
-        // ⭐⭐ CE-221 — these two STAY, and that is deliberate, not an oversight.
-        //    They are cross-role infrastructure and every OTHER root now gets them from
-        //    CoreInfrastructureCapabilities.UnitHierarchy / EqsResultUpdateCapability. This
-        //    STANDALONE path resolves no NodeCompositionPlan at all — it hand-builds its list and
-        //    hands it to EditorStrideSimulationModule — so with CgfLogicPack no longer carrying
-        //    them, these two lines are the ONLY source of both systems here. Deleting them would
-        //    silently remove hierarchy maintenance and EQS ingestion from standalone mode.
-        //    ⚠ This is the last hand-written carrier left; putting this path on a plan is the
-        //    tidy end-state and is deliberately NOT bundled into CE-221.
-        simSystems.Add(new UnitHierarchySystem());
-        simSystems.Add(new EqsResultUpdateSystem());
-
-        Kernel.RegisterModule(new EditorStrideSimulationModule(
-            cgfPack.SimulationSystems,
-            simSystems));
-
-        // Muscle input systems (combat input)
-        foreach (var sys in muscleSet.Combat.InputSystems)  Kernel.RegisterGlobalSystem(sys);
-        Kernel.RegisterGlobalSystem(muscleSet.PersonalRoute);
-
-        // Muscle post-sim systems: combat post-sim + StrideKinematicsModule post-sim
-        // (DeadReckoningSyncSystem with DriveFromNetwork=false).
-        foreach (var sys in muscleSet.Combat.PostSimulationSystems)                  Kernel.RegisterGlobalSystem(sys);
-        foreach (var sys in muscleSet.StrideKinematics.PostSimulationSystems)        Kernel.RegisterGlobalSystem(sys);
-
-        Kernel.Initialize();
-
-        // ── 8. ClusterMaster — latch released immediately (empty Mandatory) ──
-        // Mirror EditorSubsystem lines 1091–1092.
-        var offlineConfig = new ClusterConfiguration { Mandatory = System.Array.Empty<string>() };
-        ClusterMaster     = new ClusterMaster(OrchestrationBus, offlineConfig);
-        // Because Mandatory is empty, the constructor calls PublishStandby() immediately,
-        // setting _bootstrapLatch = true and publishing ClusterState.Idle ("Standby").
-
-        // ⭐⭐⭐ CE-252 — ONE composer, three call sites. Steps 9-13b used to be written out here and
-        //    AGAIN in the hosted arm below (measured byte-identical) and AGAIN in
-        //    StrideNodeShell.AttachPhysics. Ruling 9: duplicate CODE routes.
-        //    ⛔ Every conditional that used to live here is preserved inside the composer, with the
-        //    defect each one encodes named — do not re-inline them.
-        var muscleBracket = Hrot.Stride.Core.StrideMuscleBracketComposer.Compose(
-            visualFactory:          visualFactory,
-            physicsBodyService:     physicsBodyService,
-            tkbDb:                  TkbDb,
-            vehicleNavIntentSystem: _vehicleNavIntentSystem);
-
-        VisualBindingSystem = muscleBracket.VisualBinding;
-        PhysicsBodyService  = muscleBracket.PhysicsBodyService;
-        _physicsBracket     = muscleBracket.Bracket;
-
-        // ── 14. Animation backend + locomotion/montage bridge (STR-P4-T3/T4) ──
-        // The real StrideAnimationBackend is the IAnimationBackend for editor_stride
-        // (design §6.4). The bridge (DD-1 §10) reconciles backend registration with the
-        // live mannequin set, pumps SimVelocity → UpdateLocomotionInputs each tick (so a
-        // moving mannequin blends idle→walk→run), routes off-mesh-link traversals to the
-        // jump montage, and ticks the backend. It is driven manually in Tick() after
-        // Kernel.Update() so it reads the post-physics SimTransform/SimVelocity.
-        //
-        // A class is "animated" (a mannequin) iff its TKB template carries a
-        // CharacterAnimationDefDto (STR-P4-T2 attaches it to InfantrySoldier/Insurgent).
-        AnimationBackend = new StrideAnimationBackend();
-        AnimationBackend.Initialize(new Hrot.MuscleCharacter.Animation.Contracts.AnimationBackendConfig
-        {
-            MaxEntities = 256,
-            DefaultPlayRate = 1f,
-        });
-
-        AnimationBridge = new StrideAnimationBridge(
-            AnimationBackend,
-            isAnimatedClass: IsAnimatedClass,
-            jumpStartMontageId: StableIdHasher.ComputeMontageAssetId("Jump_Start"),
-            jumpLoopMontageId:  StableIdHasher.ComputeMontageAssetId("Jump_Loop"),
-            jumpEndMontageId:   StableIdHasher.ComputeMontageAssetId("Jump_End"));
-
-        // ── 14b. Live animation glue (STR-P4, BATCH-16 Fix A) ─────────────────
-        // The binder is the missing live-path connection: it loads the clips, creates the
-        // PerEntityBlendTreeBuilder per mannequin AnimationComponent, registers the montage clips,
-        // and attaches the builder to the backend (so Tick() drives the skeleton). It needs both a
-        // live visual set (AnimationComponent) and a GPU clip-loader, so it is created only when
-        // both VisualBindingSystem and a blendTreeInstaller are present (the live GPU app).
-        // Headless runs leave it null — the backend still computes the blend, but there is no
-        // skeleton to drive. Driven manually in Tick() after the bridge reconciles registration.
-        if (VisualBindingSystem != null && blendTreeInstaller != null)
-        {
-            AnimationBinder = new MannequinAnimationBinder(
-                AnimationBackend, AnimationBridge, VisualBindingSystem, blendTreeInstaller);
-        }
-
-        // ── 15. Record / replay (STR-P5-T4, STR-D5 resolution, design §9) ─────
-        // EcsRecordReplayController is the same factory EditorSubsystem/SimHostSubsystem use:
-        //   - PrepareRecordingAsync installs a RecordingModule (RecorderTickSystem captures
-        //     this node's authoritative SimTransform each PostSimulation tick).
-        //   - PrepareReplayAsync installs a ReplayModule (PlaybackTickSystem drives SimTransform
-        //     from recorded keyframes, registered OUTSIDE any togglable group so it always runs).
-        // Both are installed/uninstalled into THIS kernel on demand.
-        RecordReplayController = new EcsRecordReplayController(Kernel, nodeId: EditorNodeId, World);
-
-        // ReferenceReplayLoadHandler severs the reverse-sync group during replay (design §9):
-        //   PrepareReplay → ReverseSyncGroup.Enabled = false (Bullet reverse-sync cannot overwrite
-        //                   historical SimTransform; PlaybackTickSystem drives it instead).
-        //   FinalizeReplay / PrepareLive → ReverseSyncGroup.Enabled = true (authority back to Bullet).
-        // Only the post-sim (reverse-sync) group is wired here; editor_stride has no separate
-        // Togglable input/simulation/lifecycle groups (CGF/sim run inside the kernel module graph),
-        // and the NoOp physics service means there is no Bullet step to pause — severing the
-        // reverse-sync group is sufficient in Mode 1 (see report §"sever-suffices"). bypassLifecycle
-        // is null (no GhostCreationSystem in this composition).
-        ReplayLoadHandler = new ReferenceReplayLoadHandler(
-            controller:            RecordReplayController,
-            inputGroup:            null,
-            simGroup:              null,
-            postSimGroup:          ReverseSyncGroup,
-            lifecycleGroup:        null,
-            bypassLifecycleToggle: null,
-            storageDirectory:      RecordReplayStorageDirectory);
-
-        // ── 16. 3D gizmo ProducerBuffer + renderer (STR-P5-T1, design §11) ────
-        // Local gizmo producers write DebugPrimitives into ProducerBuffer; GizmoRenderer3D
-        // sweeps it (two-pass anchor-resolve + FdpStrideTransform swizzle) and emits to a sink.
-        // In the live GPU app a PooledEntityDebugDrawSink3D is passed via debugDrawSink
-        // (STR-D16 resolution, BATCH-21); headless/tests get the logging sink.
-        ProducerBuffer  = new Fdp.Toolkit.Diagnostics.Gizmos.GizmoPrimitiveBuffer();
-        var effectiveSink = debugDrawSink ?? (Hrot.Stride.Core.IDebugDrawSink3D)new LoggingDebugDrawSink3D();
-        _debugDrawSinkDisposable = effectiveSink as IDisposable;
-        GizmoRenderer3D = new Hrot.Stride.Core.DebugPrimitiveRenderer3D(effectiveSink);
-
-        // ── View bracket (CE-207 / S3) ───────────────────────────────────
-        // Built LAST because it is handed the four units the steps above constructed. The public
-        // properties stay — they are read by tests and by StrideHrotGame — but the ORDER in which
-        // these units run is now the bracket's, not this method's statement order.
-        _viewBracket = new StrideViewBracket(
-            animationBridge: AnimationBridge,
-            animationBinder: AnimationBinder,
-            gizmoRenderer:   GizmoRenderer3D,
-            producerBuffer:  ProducerBuffer);
-    }
+        => InitializeHosted(visualFactory, blendTreeInstaller, physicsBodyService, debugDrawSink, buildEditorUi);
 
     // ── Hosted-editor initialization (STRIDE_HOST_REAL_EDITOR=1) ─────────────────────────────
 
     /// <summary>
-    /// Hosted-mode initialization path (enabled when <c>STRIDE_HOST_REAL_EDITOR=1</c> or
-    /// <c>hostRealEditor=true</c> is passed to <see cref="Initialize"/>).
+    /// The initialization path. ⭐ CE-209: since the self-contained arm was retired this is
+    /// the ONLY one — <see cref="Initialize"/> delegates straight here.
     ///
     /// <para>
     /// Constructs a real <see cref="Hrot.Editor.EditorSubsystem"/> headlessly with the
@@ -1249,63 +910,7 @@ public sealed class EditorStrideSubsystem : IDisposable, IStrideEditorWindowHost
     /// </para>
     /// </summary>
     /// <param name="dt">Simulation delta-time in seconds.</param>
-    public void Tick(float dt)
-    {
-        if (_hostRealEditor)
-        {
-            TickHosted(dt);
-            return;
-        }
-
-        // ── Step 1: Orchestration pump ────────────────────────────────────
-        // Mirror EditorSubsystem 1373–1374: swap orch bus then tick master.
-        OrchestrationBus.SwapBuffers();
-        ClusterMaster.Tick();
-
-        // ── Steps 2, 2b, 3: Physics bracket pre-kernel step ─────────────
-        // Delegates to StridePhysicsBracket.RunPreKernelStep in the identical order:
-        //   2.  PhysicsBodyLifecycle.Execute  (if physicsIsActive)
-        //   2b. VehicleNavIntentSystem.Execute → CharacterMotor.Execute → VehicleMotor.Execute
-        //   3.  ReverseSyncGroup.Execute  (BEFORE Kernel.Update — design §8.3)
-        // ⚠ CE-219 does NOT change this path. Here the wall dt IS the sim dt by construction: the
-        //   two lines below force-step the time controller by the same `dt`, so GlobalTime.DeltaTime
-        //   for this frame equals what the bracket just integrated, and `simRunning: true` is true.
-        //   This standalone path has no cluster pause to observe — it drives the clock itself.
-        _physicsBracket.RunPreKernelStep(World, dt, simRunning: true);
-
-        // ── Step 4: FDP kernel tick ───────────────────────────────────────
-        // Step() puts dt into the time controller; Kernel.Update() reads from it.
-        TimeController.Step(dt);
-        Kernel.Update();
-
-        // ── Step 4b: Animation bridge (STR-P4-T3/T4) ─────────────────────
-        // Runs after the kernel update so it reads the post-physics SimTransform/SimVelocity
-        // (DD-1 §10 phase placement). Reconciles backend registration with the live mannequin
-        // set, pumps SimVelocity → idle/walk/run locomotion blend, routes off-mesh-link
-        // traversal events to the jump montage path, and ticks the backend once.
-        _viewBracket.RunAnimationStep(World, dt);
-
-        // ── Step 5: Physics bracket post-kernel step ─────────────────────
-        // Delegates to StridePhysicsBracket.RunPostKernelStep:
-        //   5.  SplitSync.Sync  (Pass A: visual existence; Pass B: non-owned forward-sync)
-        //       Fallback is a no-op in headless mode (same as the original else-branch).
-        // ⛔ It sits BETWEEN the view bracket's two entry points, and that is not incidental: its
-        //    Pass A creates the AnimationComponents the binder (step 5b, now inside the view
-        //    bracket) needs. See StrideViewBracket's class remarks.
-        _physicsBracket.RunPostKernelStep(World);
-
-        // ── Steps 5b + 7 + 6: view bracket post-kernel step ──────────────
-        //   5b. AnimationBinder.Reconcile
-        //   7.  the callback below — selection alive-guard + highlight + move marker, emitted into
-        //       THIS frame's buffer (BATCH-S2-AG: emitting after the render drew them one tick late)
-        //   6.  gizmo render + buffer clock advance
-        _viewBracket.RunPostKernelStep(World, dt, emitHostGizmos: () =>
-        {
-            SelectionState.ClearIfDead(World);
-            EmitSelectionHighlight();
-            EmitMoveMarker(dt); // BATCH-S2-O: destination marker
-        });
-    }
+    public void Tick(float dt) => TickHosted(dt);
 
     /// <summary>
     /// Hosted-mode Tick: delegates kernel advancement to the real
@@ -1425,19 +1030,11 @@ public sealed class EditorStrideSubsystem : IDisposable, IStrideEditorWindowHost
         PhysicsBodyLifecycle?.DestroyAll();
         VisualBindingSystem?.DestroyAll();
         _debugDrawSinkDisposable?.Dispose();
-        if (_hostRealEditor)
-        {
-            // Hosted mode: the real editor owns World/Kernel/ClusterMaster — shut it down.
-            // EditorSubsystem.Shutdown() flushes the regeneration scheduler and disposes everything.
-            try { _editor?.Shutdown(); } catch { /* ignore dispose-time errors */ }
-        }
-        else
-        {
-            // OFF path: this subsystem owns its kernel/world/cluster — dispose them.
-            Kernel?.Dispose();
-            World?.Dispose();
-            ClusterMaster?.Dispose();
-        }
+        // The real editor owns World/Kernel/ClusterMaster — shut it down.
+        // EditorSubsystem.Shutdown() flushes the regeneration scheduler and disposes everything.
+        // ⭐ CE-209: there is no second arm here any more. The self-contained composition that
+        // owned its own kernel/world/cluster is gone, so there is exactly one ownership story.
+        try { _editor?.Shutdown(); } catch { /* ignore dispose-time errors */ }
     }
 
     // ── Helpers ───────────────────────────────────────────────────────────

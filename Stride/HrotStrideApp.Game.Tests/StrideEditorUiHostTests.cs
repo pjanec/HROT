@@ -6,8 +6,9 @@ using Xunit;
 namespace HrotStrideApp.Tests;
 
 /// <summary>
-/// Headless smoke tests for the full-editor-UI wiring path
-/// (<c>STRIDE_HOST_REAL_EDITOR=1</c> + <c>STRIDE_EDITOR_WINDOW=1</c>).
+/// Headless smoke tests for the full-editor-UI wiring path (<c>STRIDE_EDITOR_WINDOW=1</c>).
+/// ⭐ CE-209: <c>STRIDE_HOST_REAL_EDITOR</c> is gone — hosting the real editor is no longer a mode
+/// you select, it is the only composition, so only the window toggle remains.
 ///
 /// <para>
 /// These tests run headlessly — no GPU, no Raylib, no rlImGui window.
@@ -16,7 +17,6 @@ namespace HrotStrideApp.Tests;
 ///   <item><c>EditorStrideSubsystem.HostedEditor</c> is non-null after hosted init.</item>
 ///   <item><c>buildEditorUi=true</c> sets the editor non-headless (enabling MapCanvas/adapters).</item>
 ///   <item><c>buildEditorUi=false</c> (default) keeps the editor headless — tests stay GL-free.</item>
-///   <item>The OFF path (<c>hostRealEditor=false</c>) leaves <c>HostedEditor</c> null.</item>
 /// </list>
 /// </para>
 ///
@@ -34,10 +34,9 @@ public sealed class StrideEditorUiHostTests : IDisposable
     public StrideEditorUiHostTests()
     {
         _subsystem = new EditorStrideSubsystem();
-        // hostRealEditor=true, buildEditorUi=false (default):
-        // Boots the real EditorSubsystem HEADLESSLY so no GL context is needed.
-        // HostedEditor is non-null; HostedEditor is headless.
-        _subsystem.Initialize(hostRealEditor: true);
+        // buildEditorUi=false (default): boots the real EditorSubsystem HEADLESSLY so no GL
+        // context is needed. HostedEditor is non-null and headless.
+        _subsystem.Initialize();
     }
 
     public void Dispose() => _subsystem.Dispose();
@@ -45,14 +44,12 @@ public sealed class StrideEditorUiHostTests : IDisposable
     // ── HostedEditor accessor ─────────────────────────────────────────────────
 
     /// <summary>
-    /// After Initialize(hostRealEditor=true), HostedEditor is non-null.
+    /// After Initialize(), HostedEditor is non-null.
     /// This is the precondition for the window wiring (RegisterWindows/DrawWorld/DrawUI).
     /// </summary>
     [Fact]
     public void HostedEditor_AfterHostedInit_IsNonNull()
     {
-        Assert.True(_subsystem.HostRealEditor,
-            "HostRealEditor should be true when Initialize(hostRealEditor: true) was called.");
         Assert.NotNull(_subsystem.HostedEditor);
     }
 
@@ -83,25 +80,16 @@ public sealed class StrideEditorUiHostTests : IDisposable
             "so tests and CI never require a GL context.");
     }
 
-    // ── OFF path: HostedEditor is null when not in hosted mode ────────────────
-
-    /// <summary>
-    /// When Initialize() is called without hostRealEditor=true,
-    /// HostedEditor returns null (OFF path is byte-identical to pre-existing behaviour).
-    /// </summary>
-    [Fact]
-    public void HostedEditor_OffPath_IsNull()
-    {
-        using var offSubsystem = new EditorStrideSubsystem();
-        offSubsystem.Initialize(); // default: hostRealEditor=false
-        Assert.Null(offSubsystem.HostedEditor);
-        Assert.Null(offSubsystem.HostedEditorLogic);
-    }
+    // ⛔ CE-209 — `HostedEditor_OffPath_IsNull` lived here and is DELETED, not re-homed. It
+    //   asserted that Initialize() WITHOUT hostRealEditor leaves HostedEditor null — a test OF the
+    //   self-contained arm. With that arm retired the claim is not merely unprovable, it is false by
+    //   construction: every Initialize() hosts an editor. Deleting a test whose SUBJECT no longer
+    //   exists is the right outcome; a weakened version would assert nothing.
 
     // ── buildEditorUi=true (non-headless) wiring sanity ────────────────────────
 
     /// <summary>
-    /// When Initialize(hostRealEditor=true, buildEditorUi=true) is called,
+    /// When Initialize(buildEditorUi: true) is called,
     /// the hosted EditorSubsystem is non-headless (IsHeadless=false).
     ///
     /// <para>
@@ -115,7 +103,7 @@ public sealed class StrideEditorUiHostTests : IDisposable
     public void HostedEditor_BuildEditorUiTrue_IsNonHeadless()
     {
         using var sub = new EditorStrideSubsystem();
-        sub.Initialize(hostRealEditor: true, buildEditorUi: true);
+        sub.Initialize(buildEditorUi: true);
 
         var editor = sub.HostedEditor;
         Assert.NotNull(editor);

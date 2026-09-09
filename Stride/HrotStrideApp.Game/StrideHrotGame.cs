@@ -494,21 +494,13 @@ public sealed class StrideHrotGame : Game
         // Internal-loop mode (BATCH-10): drive EditorStrideSubsystem.
         if (_editorSubsystem != null)
         {
-            // FIX-PERF-1 (hosted-mode substepping):
-            // When the editor subsystem is hosting the real EditorSubsystem
-            // (STRIDE_HOST_REAL_EDITOR=1), call Tick ONCE per render frame with the wall dt
-            // — the fixed-step loop driver would cause up to 8 sub-steps per frame, each
-            // running the full editor.Update() (canvas + AI hot-reload + kernel + Bullet),
-            // causing a spiral-of-death at low render rates.
-            // The OFF path (self-contained kernel) keeps the loop driver unchanged.
-            if (_editorSubsystem.HostRealEditor)
-            {
-                _editorSubsystem.Tick(simDt);
-            }
-            else
-            {
-                _loopDriver.AdvanceFrame(simDt, dt => _editorSubsystem.Tick(dt));
-            }
+            // FIX-PERF-1 (hosted-mode substepping): Tick ONCE per render frame — the fixed-step
+            // loop driver would cause up to 8 sub-steps per frame, each running the full
+            // editor.Update() (canvas + AI hot-reload + kernel + Bullet), which is a
+            // spiral-of-death at low render rates.
+            // ⭐ CE-209: the branch that chose between this and _loopDriver.AdvanceFrame is gone
+            //   with the self-contained arm — the subsystem always hosts the real editor now.
+            _editorSubsystem.Tick(simDt);
 
             // Spawn diagnostics (follow-up to BATCH-10): throttled to ~once per second.
             LogSpawnDiagnostics();
@@ -1203,29 +1195,19 @@ public sealed class StrideHrotGame : Game
         //   The MainScene's 144 static colliders guarantee PhysicsProcessor is present in BeginRun.
         // ── BATCH-S2-H: autonomous self-test mode ────────────────────────────────
         // When STRIDE_SELFTEST=1 is set the app runs StrideSelfTest and exits automatically.
-        // The self-test requires the hosted real-editor + Stride muscle path, so force
-        // hostRealEditor=true regardless of STRIDE_HOST_REAL_EDITOR.
         // STRIDE_EDITOR_WINDOW remains gated by its own flag (defaults OFF — no raylib window
         // needed for the self-test, only the 3D Stride window + physics).
+        // ⭐ CE-209 / R-S9: the self-test used to have to FORCE hostRealEditor=true because a
+        //   self-contained arm existed to be forced away from. It no longer does — the hosted
+        //   editor is the only composition, so the self-test simply gets it. Q2 predicted exactly
+        //   this collapse: "STRIDE_HOST_REAL_EDITOR disappears (hosted becomes the only editor
+        //   path), STRIDE_EDITOR_WINDOW stays (it is a window toggle), STRIDE_SELFTEST stays".
         bool selfTestEnabled = string.Equals(
             System.Environment.GetEnvironmentVariable("STRIDE_SELFTEST"),
             "1",
             StringComparison.Ordinal);
         if (selfTestEnabled)
             Log.Info("[StrideHrotGame] STRIDE_SELFTEST=1 — autonomous self-test mode ENABLED.");
-
-        // ── 4a. Flag-gated hosted-editor mode (STRIDE_HOST_REAL_EDITOR=1) ─────────
-        // When the env var is set, EditorStrideSubsystem boots the real EditorSubsystem
-        // headlessly and reuses its World/Kernel/TimeController. Default = OFF (today's path).
-        // STRIDE_SELFTEST=1 also forces this path (self-test needs the full hosted pipeline).
-        bool hostRealEditor = selfTestEnabled || string.Equals(
-            System.Environment.GetEnvironmentVariable("STRIDE_HOST_REAL_EDITOR"),
-            "1",
-            StringComparison.Ordinal);
-        if (hostRealEditor)
-            Log.Info("[StrideHrotGame] STRIDE_HOST_REAL_EDITOR=1 (or STRIDE_SELFTEST=1) — hosted-editor mode ENABLED.");
-        else
-            Log.Info("[StrideHrotGame] STRIDE_HOST_REAL_EDITOR not set — self-contained kernel mode (default).");
 
         var visualFactory      = new StrideVisualFactory(this, scene);
         var blendTreeInstaller = new StrideMannequinBlendTreeInstaller(Content);
@@ -1273,15 +1255,12 @@ public sealed class StrideHrotGame : Game
         Log.Info("[StrideHrotGame] PooledEntityDebugDrawSink3D created (STR-D16 resolved).");
 
         // Initialize subsystem with the real physics service + concrete GPU draw sink.
-        // Pass hostRealEditor so the subsystem knows whether to boot its own kernel or
-        // delegate to the real EditorSubsystem (STRIDE_HOST_REAL_EDITOR=1 path).
         // Pass buildEditorUi so the hosted EditorSubsystem is initialized non-headless when
         // the second raylib window is also enabled (STRIDE_EDITOR_WINDOW=1) — this activates
         // MapCanvas, adapters, layers, and all ImGui panels inside the editor so that
         // RegisterWindows/DrawWorld/DrawUI work correctly.
-        bool buildEditorUi = hostRealEditor && StrideInspectorWindowConfig.IsEnabled;
+        bool buildEditorUi = StrideInspectorWindowConfig.IsEnabled;
         _editorSubsystem.Initialize(visualFactory, blendTreeInstaller, bulletService, debugDrawSink,
-            hostRealEditor: hostRealEditor,
             buildEditorUi: buildEditorUi);
 
         // ── 4b. Bake navmesh from arena static colliders (BATCH-18, STR-D19) ─────────
@@ -1291,40 +1270,11 @@ public sealed class StrideHrotGame : Game
         // handles the null case gracefully with a loud log rather than crashing).
         BakeNavmesh(scene, _editorSubsystem?.World, _editorSubsystem?.InfantryCrowdProvider);
 
-        // ── 5. Enqueue demo UrbanCombat spawns ────────────────────────────
-        // Spawn 4 InfantrySoldiers (TkbType 2002) + 2 MilitaryAPC vehicles (TkbType 2001).
-        // FDP coords: X=East, Y=North, Z=Up.
-        // Swizzle to Stride: (fdp.X, fdp.Z, fdp.Y).
-        //
-        // Arena center is at Stride (0, 0, 5), which is FDP (0, 5, 0).
-        // Camera is at Stride (0, 10, -5) looking toward Stride (0, 0, 5).
-        // We place entities in a loose line at FDP Y=5, FDP Z=0 (ground level),
-        // spread along FDP X (East).
-        //
-        // Infantry soldier spawn positions (FDP):
-        //   Infantry 1: (−3, 5, 0) → Stride (−3, 0,  5)
-        //   Infantry 2: (−1, 5, 0) → Stride (−1, 0,  5)
-        //   Infantry 3: ( 1, 5, 0) → Stride ( 1, 0,  5)
-        //   Infantry 4: ( 3, 5, 0) → Stride ( 3, 0,  5)
-        // Vehicle spawn positions (FDP):
-        //   Vehicle 1:  (−5, 7, 0) → Stride (−5, 0,  7)
-        //   Vehicle 2:  ( 5, 7, 0) → Stride ( 5, 0,  7)
-        //
-        // All entities at FDP Z=0 (ground level, Stride Y=0).
-        // The camera at Stride (0, 10, -5) looks roughly toward Stride Z+ (North in FDP),
-        // so all spawns at Z=5 and Z=7 are directly in front of the camera.
-        //
-        // ── BATCH-S2-J: ONLY in the standalone (non-hosted) demo mode ─────────────
-        // In hosted real-editor mode (STRIDE_HOST_REAL_EDITOR / STRIDE_SELFTEST) the editor
-        // loads REAL scenarios; the 6 demo entities (4 mannequins along FDP Y=5, 2 APCs at Y=7)
-        // would otherwise sit in the tiny arena as static OBSTACLES that a loaded scenario
-        // vehicle drives straight into and wedges against (root cause of "test-move vehicle
-        // won't move": the IFV path along Y=5 collides with the demo mannequin at (-3,5)).
-        if (!hostRealEditor)
-            EnqueueDemoSpawns();
-        else
-            Log.Info("[StrideHrotGame] Hosted real-editor mode — skipping demo UrbanCombat spawns " +
-                     "(real scenarios are loaded via the editor; demo entities would clutter/obstruct the arena).");
+        // ⭐⭐ CE-209 / R-S9 — the 6 UrbanCombat DEMO SPAWNS are GONE with the self-contained arm.
+        //   They only ever ran on the non-hosted path (BATCH-S2-J had already excluded them from
+        //   hosted mode: 4 mannequins along FDP Y=5 + 2 APCs at Y=7 sat in the tiny arena as static
+        //   OBSTACLES a loaded scenario vehicle wedged against). With hosted the only composition
+        //   the guard had exactly one reachable arm, so the demo set is deleted rather than gated.
 
         // ── 6. Build the in-app test harness (BATCH-12, STR-TEST-1) ───────
         BuildTestHarness(scene);
@@ -1337,9 +1287,10 @@ public sealed class StrideHrotGame : Game
         if (selfTestEnabled && _testHarness != null && _editorSubsystem != null)
         {
             var harnessCtx = _testHarness.Context;
-            // In hosted mode EditorStrideSubsystem.EntityMap is not assigned (the editor owns the
-            // map); resolve the LIVE NetworkEntityMap from the world singleton the spawn pipeline uses
-            // (set in both the hosted and OFF paths via World.SetSingletonManaged<NetworkEntityMap>).
+            // The editor owns the NetworkEntityMap; resolve the LIVE one from the world singleton
+            // the spawn pipeline uses (World.SetSingletonManaged<NetworkEntityMap>).
+            // ⭐ CE-209: this used to say "in hosted mode ... not assigned" against an EntityMap
+            //   property that the OFF arm did assign. Both the property and the OFF arm are gone.
             var emap = _editorSubsystem.World?.GetSingletonManaged<Fdp.Toolkit.Replication.Services.NetworkEntityMap>();
             if (emap != null)
             {
@@ -1844,48 +1795,6 @@ public sealed class StrideHrotGame : Game
         }
     }
 
-    /// <summary>
-    /// Enqueues 6 UrbanCombat demo spawn requests into <see cref="EditorStrideSubsystem.ScenarioSource"/>.
-    /// See method body comments for the exact FDP → Stride position mapping.
-    /// </summary>
-    private void EnqueueDemoSpawns()
-    {
-        if (_editorSubsystem == null)
-            throw new InvalidOperationException("EditorStrideSubsystem must be initialized before enqueueing spawns.");
-
-        // FDP identity rotation (facing north = default).
-        var identityRotation = System.Numerics.Quaternion.Identity;
-
-        // Helper: enqueue one spawn.
-        void Spawn(long tkbType, float fdpX, float fdpY, float fdpZ)
-        {
-            _editorSubsystem.ScenarioSource.Enqueue(new EntityCreationRequest
-            {
-                RequestId          = Guid.NewGuid(),
-                OwnerAppInstanceId = 0,        // localNodeId=0 → authority granted immediately
-                TkbType            = tkbType,
-                InitialComponents  = new List<object>
-                {
-                    new SimTransform
-                    {
-                        Position = new System.Numerics.Vector3(fdpX, fdpY, fdpZ),
-                        Rotation = identityRotation,
-                    },
-                    new TkbIdentity { TkbType = tkbType },
-                },
-            });
-        }
-
-        // 4 InfantrySoldiers (TkbType 2002 = mannequinModel) at FDP Y=5 (center of arena)
-        Spawn(tkbType: 2002L, fdpX: -3f, fdpY: 5f, fdpZ: 0f); // → Stride (−3, 0,  5)
-        Spawn(tkbType: 2002L, fdpX: -1f, fdpY: 5f, fdpZ: 0f); // → Stride (−1, 0,  5)
-        Spawn(tkbType: 2002L, fdpX:  1f, fdpY: 5f, fdpZ: 0f); // → Stride ( 1, 0,  5)
-        Spawn(tkbType: 2002L, fdpX:  3f, fdpY: 5f, fdpZ: 0f); // → Stride ( 3, 0,  5)
-
-        // 2 MilitaryAPC vehicles (TkbType 2001 = Box2x1x1) slightly deeper in the arena
-        Spawn(tkbType: 2001L, fdpX: -5f, fdpY: 7f, fdpZ: 0f); // → Stride (−5, 0,  7)
-        Spawn(tkbType: 2001L, fdpX:  5f, fdpY: 7f, fdpZ: 0f); // → Stride ( 5, 0,  7)
-    }
 
     // ── BATCH-18: Navmesh bake ────────────────────────────────────────────
 

@@ -2,7 +2,10 @@
 state: LIVE
 build-state: READY-TO-BUILD
 updated: 2026-09-09
-current-answer: §13.7 (CE-207 slice S4 AS BUILT, 2026-09-09) -- MODE 2 IS BUILT AND COMPLETES
+current-answer: §13.8 (CE-209 slice S9 AS BUILT, 2026-09-09) -- THE SELF-CONTAINED MODE IS
+  RETIRED, so EVERY slice in §13's table is now BUILT. Read §13.8 for what the retirement cost
+  (the deleted arm was the test fixture for 14 classes) and for the suite-rotation finding CE-262.
+  Then §13.7 (CE-207 slice S4 AS BUILT, 2026-09-09) -- MODE 2 IS BUILT AND COMPLETES
   hill-attack-close, both hostiles killed, measured against a CGF+SimHost baseline in the same
   session. Read §13.7 FIRST: it carries the seven defects S4 cost, the retraction about the
   perception tier, and the explicit list of what mode 2 still does NOT have. Then §13.1 (the
@@ -822,7 +825,7 @@ call **reaches a service**, not that the bracket calls the method.
 | **S6** | ⭐⭐ **the DAY-1 OPERATOR SURFACE** — the companion 2-D map **plus** the SimHost-equivalent diagnostics *(component + event inspectors, the debug API)* | `CE-214` | ⚠ | ⭐ **lands WITH `S4`, not after it** *(`R-S14`)*. The bundle composes on the Stride node; a `--debug-port` arg exists; the surface answers on it. ⛔ **Not "a 2-D map behind a flag"** — that framing is superseded, §7.2b |
 | **S7** | dead inspector view-model deleted; class renamed | `CE-213` | ⭐ no | `stride-check.sh` green; `StrideInspectorViewModelTests` gone |
 | **S8** | animation duplicate investigated | `CE-216` | ⭐ no *(reading)* | `.dev/_DONE/anim-ctrl/DD-1` §15–16 read; a decision recorded HERE |
-| **S9** | retire self-contained mode | `CE-209` | ⚠ | **LAST**, after S2+S4 green. ⚠ Check `STRIDE_SELFTEST` survives — it *forces* hosted mode |
+| **S9** | retire self-contained mode | `CE-209` | ✅ | ✅✅ **BUILT `2026-09-09` — §13.8.** ⭐ `STRIDE_SELFTEST` **survives, measured on Windows**: it reaches its verdict *(`initialHold=PASS repos=FAIL pausedFreeze=FAIL drive=PASS`)* and exits clean with the flag deleted — the two FAILs are `CE-222`, pre-existing and named |
 | **S10** | `ImageGenerator` → `Map2D` rename | `CE-212` | ⭐ no, **but needs Roslyn** | Roslyn rename run TWICE and unioned; no text replace |
 
 ### The gate story — say it up front
@@ -1148,6 +1151,76 @@ the first reading would have meant rebuilding a tier that already worked.
 | ⚠ **`CE-241`** — `FixedTimeStep`/`MaxSubSteps` still unset | the §11.1 sub-step item; the bursty motion §13.6 measured is still there |
 | ⚠ **one string is identity AND role** | `CE-242`'s note: five hard-coded lists switch on it, so a Stride node **cannot coexist with a real SimHost** on one domain *(they would also collide on `HrotNodeBuilder.cs:195`'s `SubsystemName+"Allocator"`)*. Acceptable while mode 2 REPLACES SimHost; the principled fix is `DESIGN_Role_Affinity_Ownership.md`, `READY-TO-BUILD` and not yet built |
 | ⚠ **mode-2 shutdown never calls `NavigationSolverComponentRegistry.DisposeAll`** | four persistent arrays leak at process exit. SimHost's node has the same shape |
+
+---
+
+### ⭐⭐⭐ 13.8 `CE-209` SLICE `S9` — **THE SELF-CONTAINED MODE IS RETIRED** *(`2026-09-09`, obligation ⑤)*
+
+> 🔒 **`R-S9`, user, `2026-09-05`:** *"self-contained stride can be retired"* — the last slice in the plan.
+
+⭐⭐ **What it was.** `EditorStrideSubsystem.Initialize` had two arms. The hosted arm booted a real
+`EditorSubsystem` and repointed `World`/`Kernel`/`TimeController`/`ScenarioSource` at it. The other arm —
+**330 lines**, and its own file header said so in as many words — *"mirrors the simulation+orchestration
+core of `EditorSubsystem`"*: its own `EntityRepository`, its own `ModuleHostKernel`, its own `FdpEventBus`,
+its own `ClusterMaster`, its own spawn pipeline. ⛔ **That is ruling 9's duplicate implementation, in one
+file, selected by an env var.**
+
+### ⭐ What was deleted
+
+| | |
+|---|---|
+| **the arm itself** | `Initialize`'s OFF branch *(330 lines)* ⇒ `Initialize` is now one line delegating to `InitializeHosted` |
+| **the branches it needed** | `Tick`'s OFF body *(57 lines)* ⇒ `Tick(dt) => TickHosted(dt)`; `Dispose`'s two-arm ownership story ⇒ one |
+| **the selector** | the `hostRealEditor` parameter, the `_hostRealEditor` field, the `HostRealEditor` property, `STRIDE_HOST_REAL_EDITOR` *(and its `launchSettings.json` entry)*, and `StrideHrotGame`'s `if (HostRealEditor) Tick else _loopDriver.AdvanceFrame` |
+| ⭐ **three properties that had become permanently null** | `OrchestrationBus`, `ClusterMaster`, `EntityMap` — only the OFF arm ever assigned them. 📌 `StrideHrotGame` *already* carried a comment saying the editor owns the entity map, sitting two lines from the null property |
+| **the 6 demo spawns** | `EnqueueDemoSpawns` *(4 mannequins + 2 APCs in the template arena)*. ⚠ `BATCH-S2-J` had already excluded them from hosted mode because a loaded scenario vehicle wedged against them ⇒ with hosted the only path, the guard had exactly **one reachable arm** |
+
+⭐⭐⭐ **`STRIDE_SELFTEST` SURVIVES — MEASURED, NOT ASSUMED** *(the slice row's own caveat)*. It used to have
+to **force** `hostRealEditor=true`; there is nothing left to force it away from, so it simply gets the
+composition. 📐 Run on Windows with the flag gone:
+`RESULT initialHold=PASS repos=FAIL pausedFreeze=FAIL drive=PASS`, **0 errors**, process exits itself.
+⚠ The two FAILs are **`CE-222`**, pre-existing and already named; ⭐ `drive` is **less vacuous than the
+`2026-09-08` reading** — `endDrive=(7.00,8.11)` with `distMoved=14.34`, where that run measured the start
+point `(6.00,8.00)`.
+
+### ⛔⛔ THE COST THE SLICE ROW DID NOT NAME — **the retired arm was the TEST FIXTURE**
+
+📐 **Measured before touching anything** *(the `HN-037` lesson: measure the TEST surface, not just
+production callers)*: **26 `Initialize` call sites across 14 test classes** built this subsystem, and all
+but five took the **default** ⇒ the self-contained arm. ⛔ **A "simple deletion of unused code" it was
+not** — production had one caller and the tests had 26.
+
+⭐ **The cheap way to size it, before editing 14 files:** flip the parameter's DEFAULT to `true` and run the
+suite. 📐 That answered it in one run — **5 new reds**, and their character decided the work:
+
+| the 5 | what it was | what it got |
+|---|---|---|
+| `StrideEditorUiHostTests.HostedEditor_OffPath_IsNull` | a test **OF** the retired arm | ⛔ **DELETED.** Its claim is not merely unprovable now, it is **false by construction** — every `Initialize()` hosts an editor. A weakened version would assert nothing |
+| `WhichSingletonsDoesTheStrideWorldGetProbe` | `CE-151`'s assertion-free probe, whose whole subject was *"standalone is EXPOSED, hosted is SAFE"* | ⭐⭐⭐ **PROMOTED TO A RAIL** — `TheStrideWorldGetsTheBootstrapSingletonsTests`. The exposed mode no longer exists, so the probe's question has ONE answer for every caller — exactly the condition its own header set: *"the real assertion lands with that fix."* ⚠ Its anti-vacuity guard `Assert.False(HostRealEditor)` fires the moment the default changes — **it did its job** |
+| `EditorStrideSubsystemTests` ×2 | asserted `ClusterMaster` / `OrchestrationBus`, the retired arm's own objects | **re-homed by NAMING THE NEW OWNER, not by deletion**: §8.1's *"orchestration bus ≠ world bus"* is the hosted editor's, held by `EditorSubsystemBootTests` and, for ECS nodes, `AnEcsNodeDoesNotBuildASecondOrchestrationBus` |
+| the hosted-mode fixture | `EditorStrideSubsystemHostedModeTests`, written as *"the ON path delta"* | ⛔ **DELETED as a duplicate** — once both fixtures boot the same composition its two tests restate the class above them verbatim |
+
+⚠⚠ **AND AN HONEST NEGATIVE: THE SUITE ROTATES, AND IT ROTATED BEFORE THIS SLICE TOO.** 📐 Five full runs —
+baseline **5, 6**; after **5, 5, 6, 7** — with the **same five deterministic reds every time** *(`SI3`,
+`StrD21` ×2, `StrideKinematics`, `StrideNedRenderDescriptors`)* and 0–2 extras whose identity changes per
+run and which **pass 12/12 in isolation, 3 runs**. ⛔⛔ **The obvious diagnosis — "many concurrent
+real-editor boots" — is REFUTED: serialising the assembly made it WORSE (8 reds, different names again).**
+⇒ it is order/state dependence inside the process, the `Fdp.Toolkits.Tests` / `Hrot.SimHost.Tests` shape.
+⭐ **Filed as `CE-262` rather than shipped silently** *(`R-131`: an un-gateable test is a defect to resolve
+or justify, never to shrug at)*.
+
+⭐ **No source rail was added for "there is only one composition."** The behavioural one is stronger and
+already there: both surviving fixtures call a bare `Initialize()` and assert `HostedEditor` is **non-null**
+— if a second composition ever returns, that is where a caller would fall into it. ⛔ Copying
+`CompositionRootSource` *(internal to `Hrot.SimHost.Tests`)* into the Stride assembly to get a text rail
+would have been the seam law's own failure mode: a duplicate helper, so the `CE-156`/`CE-260` fixes could
+rot in one copy while the other stayed green.
+
+### ⭐ What `Q2` predicted, and what actually happened
+
+📄 §14 `Q2` said: *"after `CE-209` the three env vars collapse: `STRIDE_HOST_REAL_EDITOR` disappears
+(hosted becomes the only editor path), `STRIDE_EDITOR_WINDOW` stays (it is a window toggle),
+`STRIDE_SELFTEST` stays and implies `--mode editor`."* ✅ **All three, exactly.**
 
 ---
 

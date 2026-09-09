@@ -12,17 +12,33 @@ namespace HrotStrideApp.Tests;
 /// Integration tests for <see cref="EditorStrideSubsystem"/> (STR-P0-T6).
 ///
 /// <para>
-/// These tests run headlessly — no Stride GPU, no Raylib, no DDS.
-/// They model the success conditions from the batch spec / TASK-DETAIL.md:
+/// These tests run headlessly — no Stride GPU, no Raylib, no DDS. They model the success
+/// conditions from the batch spec / TASK-DETAIL.md:
 /// <list type="bullet">
 ///   <item>Boots headless without throwing; world/kernel/time-controller are non-null.</item>
-///   <item>OrchestrationBus ≠ WorldBus (separate instances — design §8.1 invariant).</item>
-///   <item>ClusterMaster releases bootstrap latch immediately (empty Mandatory); initial
-///     cluster state is <c>Standby</c> (= <see cref="ClusterState.Idle"/>).</item>
-///   <item>Spawning via the Brain path stamps <c>OwnerNodeId = 0</c> and the entity
-///     carries <c>SimTransform</c> authority (`.WithOwned&lt;SimTransform&gt;()`) from
-///     birth.</item>
+///   <item>Spawning via the Brain path stamps <c>OwnerNodeId = 0</c> and the entity carries
+///     <c>SimTransform</c> authority (<c>.WithOwned&lt;SimTransform&gt;()</c>) from birth.</item>
 ///   <item>Pumping N frames after a spawn does not throw.</item>
+/// </list>
+/// </para>
+///
+/// <para>
+/// ⭐⭐ <b>CE-209 / R-S9 — this fixture used to cover the SELF-CONTAINED (OFF) path, with a second
+/// class below it for the hosted one.</b> The self-contained composition is retired, so there is
+/// one mode and one fixture: this one. The hosted class was a straight duplicate of these claims
+/// once both fixtures booted the same composition, so it is gone rather than kept beside this.
+/// </para>
+///
+/// <para>
+/// ⚠ Two claims went with the retired arm rather than being re-homed, and both already had a
+/// better owner:
+/// <list type="bullet">
+///   <item><c>OrchestrationBus ≠ WorldBus</c> (design §8.1) — the bus belongs to the hosted
+///     <c>EditorSubsystem</c> now, asserted by <c>EditorSubsystemBootTests</c> in
+///     <c>Hrot.ClusterRunner.Integration.Tests</c>, and for ECS nodes by
+///     <c>TheDebugProvidersDoNotUnderReportTests.AnEcsNodeDoesNotBuildASecondOrchestrationBus</c>.</item>
+///   <item><c>ClusterMaster</c> publishes Standby/Idle on the first tick — same owner. This
+///     subsystem has no ClusterMaster of its own left to assert about.</item>
 /// </list>
 /// </para>
 /// </summary>
@@ -50,58 +66,10 @@ public sealed class EditorStrideSubsystemTests : IDisposable
         Assert.NotNull(_sut.World);
         Assert.NotNull(_sut.Kernel);
         Assert.NotNull(_sut.TimeController);
-        Assert.NotNull(_sut.OrchestrationBus);
-        Assert.NotNull(_sut.ClusterMaster);
         Assert.NotNull(_sut.ScenarioSource);
-        Assert.NotNull(_sut.EntityMap);
-    }
-
-    // ── Separate bus invariant (design §8.1) ─────────────────────────────
-
-    /// <summary>
-    /// The orchestration bus must be a DIFFERENT <see cref="FdpEventBus"/> instance
-    /// from the simulation world bus.  This is the §8.1 invariant that keeps
-    /// orchestration events from polluting simulation event streams.
-    /// </summary>
-    [Fact]
-    public void OrchestrationBus_IsDifferentInstance_FromWorldBus()
-    {
-        // Reference inequality — the two are distinct object instances.
-        Assert.False(
-            ReferenceEquals(_sut.OrchestrationBus, _sut.WorldBus),
-            "OrchestrationBus must NOT be the same FdpEventBus instance as World.Bus");
-    }
-
-    // ── ClusterMaster latch + Standby (empty Mandatory) ──────────────────
-
-    /// <summary>
-    /// With <c>Mandatory = Array.Empty&lt;string&gt;()</c>, <see cref="Hrot.Orchestrator.ClusterMaster"/>
-    /// releases its bootstrap latch immediately in its constructor and publishes
-    /// <see cref="ClusterStateUpdateEvent"/> with <see cref="ClusterState.Idle"/>
-    /// (the "Standby" state in the design).
-    ///
-    /// Observed by reading the native event after the first Tick's SwapBuffers:
-    /// the constructor publishes to the pending buffer; Tick calls SwapBuffers
-    /// which moves it to the active buffer, making it readable via <c>Read&lt;T&gt;()</c>.
-    /// </summary>
-    [Fact]
-    public void ClusterMaster_EmptyMandatory_PublishesStandbyIdle_AfterFirstTick()
-    {
-        // The ClusterMaster constructor (with empty Mandatory) calls PublishStandby()
-        // → PublishClusterState(ClusterState.Idle) synchronously. This writes to the
-        // pending buffer of OrchestrationBus. After Tick swaps the buffer, we can read it.
-        _sut.Tick(1f / 60f);
-
-        // ClusterMaster.PublishClusterState uses PublishManaged (not Publish/native),
-        // even though ClusterStateUpdateEvent is a struct.
-        // ReadManaged<T> returns IEnumerable<T> from the managed event stream.
-        var events = _sut.OrchestrationBus.ReadManaged<ClusterStateUpdateEvent>().ToList();
-
-        Assert.True(events.Count > 0,
-            "ClusterMaster (empty Mandatory) must publish at least one ClusterStateUpdateEvent.");
-
-        // The first state published must be Idle (= design's "Standby").
-        Assert.Equal(ClusterState.Idle, events[0].CurrentState);
+        // ⭐ CE-209: OrchestrationBus / ClusterMaster / EntityMap were the self-contained arm's own
+        //   objects and are gone with it. HostedEditorLogic is what this composition now repoints to.
+        Assert.NotNull(_sut.HostedEditor);
     }
 
     // ── Owned-from-birth spawn via Brain path ─────────────────────────────
@@ -223,90 +191,3 @@ public sealed class EditorStrideSubsystemTests : IDisposable
     }
 }
 
-/// <summary>
-/// Headless boot test for <see cref="EditorStrideSubsystem"/> in <b>hosted-editor mode</b>
-/// (<c>hostRealEditor=true</c>, the <c>STRIDE_HOST_REAL_EDITOR=1</c> path).
-///
-/// <para>
-/// Verifies that:
-/// <list type="bullet">
-///   <item>Construction and a few Ticks complete without exception (no GPU required —
-///     physics body service defaults to <see cref="Hrot.Stride.Core.NoOpPhysicsBodyService"/>).</item>
-///   <item><see cref="EditorStrideSubsystem.HostRealEditor"/> returns <c>true</c>.</item>
-///   <item><see cref="EditorStrideSubsystem.World"/>, <c>Kernel</c>, <c>TimeController</c>,
-///     and <c>ScenarioSource</c> are non-null (repointed to the real editor's objects).</item>
-///   <item>Spawning via <see cref="EditorStrideSubsystem.ScenarioSource"/> materialises an
-///     entity in the editor's World after a few Ticks.</item>
-/// </list>
-/// </para>
-///
-/// <para>
-/// The OFF path (<c>hostRealEditor=false</c>) is covered by <see cref="EditorStrideSubsystemTests"/>;
-/// this fixture covers only the ON path delta.
-/// </para>
-/// </summary>
-public sealed class EditorStrideSubsystemHostedModeTests : IDisposable
-{
-    private readonly EditorStrideSubsystem _sut;
-
-    public EditorStrideSubsystemHostedModeTests()
-    {
-        _sut = new EditorStrideSubsystem();
-        // No visualFactory / physicsBodyService — headless, no GPU.
-        _sut.Initialize(hostRealEditor: true);
-    }
-
-    public void Dispose() => _sut.Dispose();
-
-    // ── SI-HM-1: Hosted mode boots headlessly ────────────────────────────
-
-    /// <summary>
-    /// The hosted-mode path (<c>hostRealEditor=true</c>) initialises and ticks 3 frames
-    /// without throwing, in headless/CI mode (no GPU, no Bullet, no Raylib).
-    /// </summary>
-    [Fact]
-    public void HostedMode_Initialize_AndTickThreeFrames_DoesNotThrow()
-    {
-        Assert.True(_sut.HostRealEditor, "HostRealEditor must be true when hostRealEditor=true was passed.");
-        Assert.NotNull(_sut.World);
-        Assert.NotNull(_sut.Kernel);
-        Assert.NotNull(_sut.TimeController);
-        Assert.NotNull(_sut.ScenarioSource);
-
-        // Three ticks must complete without exception.
-        _sut.Tick(1f / 60f);
-        _sut.Tick(1f / 60f);
-        _sut.Tick(1f / 60f);
-    }
-
-    // ── SI-HM-2: Spawn via ScenarioSource in hosted mode ─────────────────
-
-    /// <summary>
-    /// Spawning an entity via <see cref="EditorStrideSubsystem.ScenarioSource"/> in hosted mode
-    /// routes through the real <c>EditorSubsystem</c>'s spawn pipeline and materialises the
-    /// entity in the shared <see cref="EditorStrideSubsystem.World"/> after a few ticks.
-    /// </summary>
-    [Fact]
-    public void HostedMode_BrainPathSpawn_MaterialisesEntity_InSharedWorld()
-    {
-        // Enqueue a spawn via the (repointed) ScenarioSource.
-        _sut.ScenarioSource.Enqueue(new EntityCreationRequest
-        {
-            RequestId          = Guid.NewGuid(),
-            OwnerAppInstanceId = 0,
-            TkbType            = 2002L,  // InfantrySoldier (UrbanCombat templates)
-            InitialComponents  = new System.Collections.Generic.List<object>
-            {
-                new SimTransform { Position = System.Numerics.Vector3.Zero },
-            },
-        });
-
-        // Drive 5 frames to let the spawn pipeline materialise the entity.
-        for (int i = 0; i < 5; i++)
-            _sut.Tick(1f / 60f);
-
-        // The entity must appear in World (= the real editor's World).
-        Assert.True(_sut.World.EntityCount > 0,
-            "Hosted mode: entity spawned via ScenarioSource must appear in World after 5 ticks.");
-    }
-}

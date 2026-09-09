@@ -341,7 +341,7 @@ public sealed class StrideInspectorWindow : IDisposable
         var msgLogWindow = Fdp.Presentation.WindowManager.MessageLogHostWiring.CreateAndRegister(_windowManager);
 
         // ── 5. Register all editor windows ───────────────────────────────────
-        // HostedEditor is non-null when STRIDE_HOST_REAL_EDITOR=1.
+        // ⭐ CE-209: the host is always present in mode 1 now; mode 2 passes its own.
         // RegisterWindows is a no-op when the editor is headless (Headless=true).
         // When buildEditorUi=true was passed to EditorStrideSubsystem.Initialize,
         // the editor is non-headless and RegisterWindows registers ALL panels
@@ -355,7 +355,7 @@ public sealed class StrideInspectorWindow : IDisposable
         }
         else
         {
-            Log.Info("[StrideInspectorWindow] No hosted editor (STRIDE_HOST_REAL_EDITOR not set) — " +
+            Log.Info("[StrideInspectorWindow] No window host supplied — " +
                      "WindowManager is empty; window shows black canvas only.");
         }
 
