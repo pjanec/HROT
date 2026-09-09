@@ -428,6 +428,44 @@ namespace GizmoMap.Presentation
             _renderer.DrawStructInspector(onStructUpdate);
         }
 
+        /// <summary>
+        /// ⭐⭐⭐ <b>The UNFILTERED spatial hit-test — <c>CE-259p</c>.</b>
+        /// 📄 <c>docs/UX/UX_Feature_Tool_Model.md</c> §4.7g.
+        ///
+        /// <para>🔴 <b>Why this is public:</b> <c>IMapLayer.PickEntity</c> is implemented as <c>=> null</c>
+        /// by <b>every</b> production layer in the repo, so <c>MapCanvas.PickTopmostEntity</c> always
+        /// yielded <c>null</c> and <c>EntityPickerGizmo</c> — whose whole pick arm is gated on that
+        /// hit-test — could never pick anything. Meanwhile the terminal has had a real, working hit-test
+        /// all along: <c>FindTopmostInteractivePrimitive</c>, the one that makes ordinary SELECTION work.
+        /// ⇒ ⭐ this exposes the LIVE mechanism instead of adding a second one (seam law).</para>
+        ///
+        /// <para>⭐⭐ <b>Deliberately UNFILTERED by the capture binding.</b> A picker holds exclusive focus,
+        /// and <see cref="HandleInput"/> uses <c>exclusiveAnchorId</c> so that nothing ELSE starts an
+        /// interaction underneath it. ⛔ But the picker itself must be able to see what it is pointing at —
+        /// that is its entire job. ⇒ *"only the capture holder receives interactions"* and *"the capture
+        /// holder may hit-test"* are compatible, and conflating them is what made the picker blind.</para>
+        ///
+        /// <para>⚠ Yields a result only when the primitive is bound to a LIVE LOCAL entity
+        /// (<c>AnchorGeneration != 0</c>). ⛔ A stateless tool handle or a remote network object addresses a
+        /// different domain and is NOT an entity — those yield <see langword="null"/> rather than a
+        /// fabricated one.</para>
+        ///
+        /// <para>⛔ <b>Returns the raw anchor, not an <c>Entity</c>, on purpose:</b> this project is
+        /// deliberately decoupled from <c>Fdp.Core</c> (see the type header). The ECS handle is
+        /// reconstructed by the caller that owns that dependency.</para>
+        /// </summary>
+        public static (int Index, ushort Generation)? PickTopmostEntityAnchor(
+            ReadOnlySpan<DebugPrimitive> primitives, Vector2 worldPos, float zoom)
+        {
+            var best = FindTopmostInteractivePrimitive(primitives, worldPos, zoom, exclusiveAnchorId: null);
+            if (!best.HasValue) return null;
+
+            var hit = best.Value;
+            if (hit.AnchorGeneration == 0) return null;
+
+            return ((int)hit.AnchorIndex, (ushort)hit.AnchorGeneration);
+        }
+
         private static DebugPrimitive? FindTopmostInteractivePrimitive(
             ReadOnlySpan<DebugPrimitive> primitives,
             Vector2 testPos,

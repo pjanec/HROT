@@ -851,6 +851,50 @@ recurses** through `GlobalGizmoManager.Unregister` → `Dispose`. ⇒ **the real
 adapter through the controller). 🔒 **No tracker id allocated: this lane is out of range under the two-lane
 stopgap and reaching upward is what caused the `CE-256` collision.**
 
+### 4.7g ✅ THE ENTITY HIT-TEST — **a seam every production layer stubbed out** *(`CE-259p`, `2026-09-09`)*
+
+📌 **Operator:** *"when picker active clicking entity did not close the picker."*
+
+#### 📐 The enumeration — every `IMapLayer.PickEntity` in the repo
+
+| implementation | returns |
+|---|---|
+| `GridMapLayer` · `DebugGizmoLayer` *(Fdp.Presentation)* · `PerceptionMapLayer` · `SelectionRenderSystem` · `SimHostTrajectoryLayer` · `SimHostRoadLayer` · `RoadMapLayer` | 🔴 **`null`, all of them** |
+| `Fdp.Examples.CarKinem/TrajectoryMapLayer.cs:143` | ✅ real — ⛔ **an EXAMPLES project** |
+
+⇒ 🔒 **`MapCanvas.PickTopmostEntity` was dead in every production host.** `EntityPickerGizmo._hitTest` is
+`pos => _canvas.PickTopmostEntity(pos)`, so `_hoveredValid` was **never** true and its left-release pick
+arm was **unreachable**. ⚠ The layer-mask filter is never consulted ⇒ `MapDisplayComponent` is a **red
+herring** here.
+
+#### ⭐⭐⭐ THE SEAM LAW — **two hit-tests, and the picker used the dead one**
+
+| | |
+|---|---|
+| ⛔ **dead** | `IMapLayer.PickEntity` — the picker's dependency |
+| ✅ **live** | the terminal's `FindTopmostInteractivePrimitive` — 🔒 **this is why ordinary SELECTION works**: `SelectionInteractionSystem` resolves `GizmoInteractionStartedEvent.Token.Target` |
+
+⇒ ⭐ the fix **routes to the live one** rather than adding a third: `GizmoMap.Presentation.DebugGizmoLayer`
+exposes **`PickTopmostEntityAnchor`**, and the `IMapLayer` wrapper — which already holds `_buffer` — calls
+it. ⛔ It returns the RAW anchor, not an `Entity`: the vendored project is deliberately decoupled from
+`Fdp.Core`, and the caller that owns that dependency reconstructs the handle.
+
+#### ⭐⭐ The design call this embeds — **and it is NOT the same as `CE-259l`**
+
+🔒 **The hit-test is deliberately UNFILTERED by the capture binding.** `HandleInput` passes
+`exclusiveAnchorId` so that **nothing else** starts an interaction under a capture holder — that stays.
+⇒ ⭐⭐ *"only the capture holder receives interactions"* and *"the capture holder may hit-test"* are
+**compatible claims**, and conflating them is exactly what blinded the picker. ⚠ A picker that cannot see
+what it is pointing at cannot pick; that is its whole job.
+
+⚠ **Why an entity-domain guard:** a primitive with `AnchorGeneration == 0` is a stateless tool handle or a
+remote network object — a **different addressing domain**. ⛔ Fabricating `Entity(index, 0)` would hand
+the picker a handle resolving to the wrong object, or to a live entity that merely shares an index.
+
+📐 **`GizmoLayerEntityHitTestTests` 6/6**, inverse-edit red-proofed: restoring `=> null` reddens **3 of 6**
+— and ⭐ the 3 that stay green are the *"resolves nothing"* cases, which is what proves the rails are not
+vacuously passing.
+
 ### 4.7f 🔴🔴 A RAW RELEASE WITHOUT ITS PRESS — **a panel right-click destroyed a map gizmo** *(`CE-259n`, `2026-09-09`)*
 
 📌 **Operator, running `T1`:** *"vertex handle appeared. right clicking targetmemory entity opens context
