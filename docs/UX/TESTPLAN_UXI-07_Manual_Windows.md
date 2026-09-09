@@ -12,7 +12,7 @@ known-conflict: none identified.
 
 # TEST PLAN — `UXI-07` by hand, on Windows
 
-> **Branch `claude/axis-c-e2-asset-shell` at `6b2a3f27`.**
+> **Branch `claude/axis-c-e2-asset-shell` — pull the latest; `CE-259k` (the six deaf gizmos) is required for `T1`.**
 > The Windows session normally sits on `claude/reset-working-branch-qd1qpv`, so check out or merge this
 > branch first. Nothing here is on `main`.
 
@@ -25,15 +25,19 @@ user found by opening the editor. Everything `UXI-07` shipped rests on rails, an
 about their own blind spot — 📄 `UX_Feature_Tool_Model.md` §4.10 records the tool model as
 **unverifiable headlessly**.
 
-⛔⛔ **And today's change widened that gap on purpose.** The focus slot is now **shared between both
-arbiters**, so *when a gizmo loses focus* changed. Every rail agrees it is correct; **no rail can see a
-gizmo that stops responding to the mouse.**
+⚠⚠ **CORRECTED `2026-09-09` — the original framing of this section was WRONG.** It said today's shared
+focus slot *"widened the gap on purpose"* and that the hour was needed to validate it. 📐 **Measured
+since: every exclusive-focus arming path reachable from the editor already goes through `ToolController`,
+so the registry changes the MECHANISM, not the BEHAVIOUR — there is nothing to see** *(§6.2b, "WHAT THE
+REGISTRY IS NOT")*. ⭐ **The hour still paid, for a different reason: it found `CE-259k`, three dead
+toolbar tools no rail could see.**
 
 | ⭐ what this hour buys that no rail can | |
 |---|---|
-| ⭐⭐⭐ **the SUSPEND/RESUME capability** *(`T1`)* | it has never once been run by a person |
-| ⭐⭐ **input actually reaching the right gizmo** | rails assert the ROUTING DECISION, not that the mouse works |
-| ⭐⭐ **the absence of DOUBLE input** *(`T2b`)* | the specific hazard the shared slot creates |
+| ⭐⭐⭐ **the SUSPEND/RESUME capability** *(`T1`, step 4b)* | ⭐ a REAL behaviour change *(suspend vs destroy)*, and it has never once been run by a person |
+| ⭐⭐⭐ **input actually reaching the gizmo at all** | 🔴 **this is what paid.** `CE-259k`: six gizmos declared exclusive focus and never asked for raw input ⇒ they DREW and ignored every click. Rails assert the routing DECISION; only a person sees a tool that renders and does nothing |
+| ⭐⭐ **the absence of DOUBLE input** *(`T2b`)* | ✅ **answered `2026-09-09`** — rotate, drag, marquee and Escape all tracked 1:1, no doubling |
+| ⛔ **68-A, the shared registry** | **NOTHING** — see the correction above |
 
 ---
 
@@ -71,7 +75,7 @@ dotnet run --project Hrot/Runner/Hrot.ClusterRunner -- --mode all
 |---|---|
 | **①** | Select an entity that has a **route**. Right-click it ▸ **"Edit Route"** |
 | **②** | Click **two or three waypoints** on the map — a visibly half-drawn route |
-| **③** | ⛔ **WITHOUT pressing Escape or finishing**, open the **Mission** panel, edit a task with a location parameter, and click its **`Pick`** button |
+| **③** | ⛔ **WITHOUT pressing Escape or finishing**, arm a PICK. ⚠ **Two routes, and the first is far easier** — 📐 measured `2026-09-09` after the operator reported *"don't see any Pick button anywhere"*:<br/>⭐⭐ **(a) the ENTITY INSPECTOR context menu** — right-click an entity that has `TargetMemory` ▸ **"Mark Target for N Units…"** *(`EditorSubsystem.cs:2325`)*. ⛔ The item only appears on an entity WITH `TargetMemory`. ⭐ Right-clicking inside a PANEL does not reach the map tool, so it will not cancel the tool underneath — which is exactly what this test needs.<br/>⚠ **(b) the `Pick` button** — it is **not a top-level control**: it lives in the **Details** window's **Mission** tab, drawn per TASK PROPERTY by `BehaviorUiCompiler.cs:175,206`, and only for a location/entity-typed property. ⇒ it needs an entity the mission service offers behaviours for, a task added, and that task to have such a property |
 | **④** | Click a point on the map to complete the pick |
 
 | ✅ expected | ⛔ FAILURE SIGNAL |
@@ -92,17 +96,24 @@ can see the route still drawn on screen.
 held **independent** focus slots, so two "exclusive" tools could hold input at once whenever neither went
 through `ToolController`.
 
-#### `T2a` — exclusivity
+#### ⛔⛔ `T2a` — **WITHDRAWN `2026-09-09`. It could not have worked, and it was not the operator's fault.**
 
-| step | |
-|---|---|
-| **①** | Arm **Measure** from the toolbar. Click once on the map to start a measurement |
-| **②** | ⛔ **Without cancelling it**, right-click an entity ▸ **"Rotate"** |
+⚠ **As written it said:** arm Measure, click once, then *"without cancelling it, right-click an entity ▸
+Rotate."* 🔴 **`MeasureGizmo`'s own state machine cancels on RIGHT-PRESS** — and the context menu needs a
+right-click. ⇒ **the only gesture that opens the menu is the one that ends the measurement**, so the
+two-tools-at-once condition is unreachable by that route. 📌 The operator reported exactly this:
+*"right click cancels the measure and activated context menu where i selected rotate and it worked."*
+⭐ **That is CORRECT behaviour, not a failure.**
 
-| ✅ expected | ⛔ FAILURE SIGNAL |
-|---|---|
-| exactly **one** of the two responds to the mouse | 🔴 **both react to the same drag** — the measurement line *and* the rotation follow the cursor together. That is the old two-slot defect and it means the registry is not shared |
-| the other is visibly **inactive but still drawn** *(not vanished)* | ⚠ if it vanishes entirely, focus was taken by a **cancel** rather than a release — report it, it is a different bug |
+⛔⛔ **And the deeper reason it is withdrawn rather than rewritten:** 📐 measured — **every exclusive-focus
+arming path reachable from the editor already goes through `ToolController`**, so `CancelOtherArbiter`
+enforces exclusivity on all of them. ⇒ ⭐⭐ **the shared registry changes the MECHANISM, not the
+BEHAVIOUR, and NO editor gesture distinguishes before from after.**
+📄 [`gizmo-input-focus-design.md` §6.2b](../designs/gizmos-1/gizmo-input-focus-design.md), *"WHAT THE
+REGISTRY IS NOT"*, carries the enumeration and the correction.
+
+🔒 **The lesson for this document:** *"this change needs a manual test"* is a claim like any other and
+owes a claim table. **It was asserted, not measured.**
 
 #### ⭐⭐ `T2b` — **NO DOUBLE INPUT** *(the hazard the shared slot creates)*
 

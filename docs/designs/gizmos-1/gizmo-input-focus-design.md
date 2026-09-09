@@ -438,6 +438,36 @@ change is attributable**, which is the whole point of running them first (`R-142
 | drop `focus: focus` from `DataDrivenGizmoSystem`'s construction in `MapInteractionPack` | ✅ **exactly 2** — `ThePackGivesBothArbitersTheSameFocusSlot` and `TwoAdaptersBypassingTheControllerCannotBothHoldFocus`. ⛔ The other 28 stayed green, which is the point: **nothing that existed before this change can see the defect** |
 | make `RecipientFor` ignore the owner *(the double-delivery regression)* | ✅ **exactly 2** — `TheHolderIsOfferedOnlyToTheArbiterThatGrantedIt` and `ANonOwningArbiterStillRunsItsTargetLookup` |
 
+#### ⛔⛔ WHAT THE REGISTRY IS **NOT** — **no editor-observable behaviour change** *(measured `2026-09-09`, and it CORRECTS a claim I made)*
+
+⚠⚠ **I told the operator the six-gizmo fix (`CE-259k`) was needed *"to test today's registry"*, on the
+reasoning that the registry is only observable on controller-BYPASSING paths and those were the pickers.
+🔴 **That reasoning was wrong, and measuring it is what showed it.**
+
+📐 **Enumerated — every exclusive-focus arming path reachable from the editor:**
+
+| path | goes through `ToolController`? |
+|---|---|
+| toolbar / `ActivateEditorToolEvent` → `ToolActivationDrainSystem` | ✅ |
+| context menu *(Edit Shape · Edit Route · Rotate)* | ✅ `SelectEntity` then `ActivateTool` |
+| the PICKERS *(`EditorMapPickAdapter`, `CanvasMapPickAdapter`, `ReplayBrowserSubsystem`)* | ✅ **converted in 4b** — `PickerToolHost` → `PushModal` |
+| `ScenarioSpawnAdapter` *(Place / Draw Area / Draw Route)* | ✅ `StartAreaAuthoringMode` calls `_tools.Activate(PlaceArea)` — `:268` |
+| `EditorZoneAdapter` *(obstacles)* · IG's `MapCommandController` | ✅ **converted in 4a** — both are arm bodies returning `ToolActivationOutcome` |
+| `layerControlGizmo` *(all hosts)* | ⛔ registered directly — ⭐ but **permanent/modeless**, never takes the slot |
+
+⇒ 🔒 **`CancelOtherArbiter` already makes exclusivity hold on every path an operator can reach.**
+⇒ ⭐⭐ **The registry changes the MECHANISM, not the BEHAVIOUR:** the invariant becomes true **by
+construction** instead of by a convention that only covers callers who remember to use the controller,
+and the three suspend/resume methods stop existing twice. ⛔ **There is no editor gesture that
+distinguishes before from after.**
+
+| ⭐ what this means, stated so nobody over- or under-sells it | |
+|---|---|
+| ⛔ **do NOT write a manual test for 68-A** | there is nothing to see. Its guarantee is against a FUTURE bypass and against the duplication — both structural, both covered by `GizmoFocusRegistryTests` + the forwarding rail |
+| ✅ **`CE-259k` was still worth doing on its own merits** | it revived **three dead toolbar tools** *(Measure, Draw Area, Draw Route)*, confirmed by the operator. ⚠ **But that is not the reason I gave for it** — the honest reason is that they were broken |
+| ⭐⭐ **what IS manually testable is step 4b (`PushModal`)** | *suspend* vs *destroy* is a real behaviour change and it IS visible: the tool underneath stays drawn and comes back |
+| 🔒 **the generic lesson** | ⛔ *"this change needs a manual test"* deserves the same claim table as any other lean. 📐 One `grep` over the arming paths would have shown there was nothing to observe — **I asserted it instead of measuring it** |
+
 #### ⛔ Explicitly NOT in this unit
 
 | | |
