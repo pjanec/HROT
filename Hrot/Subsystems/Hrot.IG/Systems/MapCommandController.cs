@@ -123,7 +123,13 @@ public class MapCommandController
         Action<MapCommandAckDto>           ackCallback,
         ScenarioEntityCreationRequestSource requests,
         long                               localNodeId        = 0,
-        GlobalGizmoManager?                globalGizmoManager = null)
+        GlobalGizmoManager?                globalGizmoManager = null,
+        // ⭐⭐⭐ UXI-07 step 4a — the host's ONE tool arbiter (MapInteraction.Tools). §4.8's inventory
+        //   named this file as a bypass the design never listed: it arms an EntityPlacementGizmo, which
+        //   declares RequiresExclusiveFocus AND WantsRawInput, so before this it could take the raw input
+        //   stream while a tool still believed it held focus.
+        // ⛔ Optional so existing callers compile; ⚠ a host that HAS one must pass it.
+        Hrot.ScenarioEditor.Tools.ToolController? tools = null)
     {
         _canvas             = canvas      ?? throw new ArgumentNullException(nameof(canvas));
         _eventBus           = eventBus    ?? throw new ArgumentNullException(nameof(eventBus));
@@ -131,7 +137,25 @@ public class MapCommandController
         _requests           = requests    ?? throw new ArgumentNullException(nameof(requests));
         _localNodeId        = localNodeId;
         _globalGizmoManager = globalGizmoManager;
+        _tools              = tools;
+
+        // ⭐ Registered ONCE — ⛔ not per session, or the duplicate-id guard throws on the second request.
+        _tools?.Register(
+            new Hrot.ScenarioEditor.Tools.ToolDescriptor(
+                Hrot.ScenarioEditor.Tools.ScenarioToolIds.PlaceRemoteEntity,
+                "Place Entity (remote request)",
+                Hrot.ScenarioEditor.Tools.ToolModality.Modal,
+                Hrot.ScenarioEditor.Tools.ToolArbiter.Global),
+            _ => ArmPlacementGizmo());
     }
+
+    /// <summary>⭐ <c>UXI-07</c> step 4a — the host's ONE arbiter; see the constructor parameter.</summary>
+    private readonly Hrot.ScenarioEditor.Tools.ToolController? _tools;
+
+    // ⚠ Per-session parameters, held between Activate() and the arm body — the same shape the Spawn tool
+    //   already uses (its arm calls back into the adapter, which holds "what is being placed").
+    private long    _pendingTkbType;
+    private string? _pendingPropertiesJson;
 
     // ── Public API ────────────────────────────────────────────────────────────
 
@@ -181,11 +205,51 @@ public class MapCommandController
         _toolFinished     = false;
         _nameGenerator    = nameGenerator;
 
+        _pendingTkbType        = tkbType;
+        _pendingPropertiesJson = initialPropertiesJson;
+
+        // ⭐⭐⭐ UXI-07 step 4a — ACTIVATE through the arbiter rather than arming it directly.
+        //   🔴 The direct Register was §4.8's bypass. ⭐ Going through the controller also means an
+        //   incoming remote creation request now DISPLACES whatever tool the operator had armed, rather
+        //   than fighting it for the raw input stream.
+        if (_tools != null)
+        {
+            _tools.Activate(Hrot.ScenarioEditor.Tools.ScenarioToolIds.PlaceRemoteEntity);
+        }
+        else
+        {
+            // ⚠ No arbiter wired ⇒ arm anyway and SAY SO (R-137: do not cost a capability; ⛔ but do not
+            //   hide the bypass either).
+            Hrot.ScenarioEditor.Tools.ToolReport.Say(null,
+                "remote entity placement armed WITHOUT an arbiter — MapCommandController was constructed "
+              + "with no ToolController, so this modal cannot displace another (UXI-07 step 4a).");
+            ArmPlacementGizmo();
+        }
+
+        FdpLog<MapCommandController>.Info(
+            "[Node-{0}] PlacementTool activated. RequestId={1} ContextId={2} TKB={3}",
+            _localNodeId, requestId, contextId, tkbType);
+    }
+
+    /// <summary>
+    /// ⭐ <c>UXI-07</c> step 4a — the arm body, behaviour unchanged. Reached through
+    /// <c>ToolController.Activate</c> in production, or directly when no arbiter was wired.
+    /// ⚠ Reads the per-session parameters stashed by <c>ActivatePlacementCommand</c>.
+    /// </summary>
+    private Hrot.ScenarioEditor.Tools.ToolActivationOutcome ArmPlacementGizmo()
+    {
+        if (_globalGizmoManager == null)
+        {
+            Hrot.ScenarioEditor.Tools.ToolReport.Unserviceable(
+                null, "Place Entity (remote request)", "this host composes no global gizmo manager");
+            return Hrot.ScenarioEditor.Tools.ToolActivationOutcome.Unserviceable;
+        }
+
         var id = GlobalGizmoManager.NewId();
         var gizmo = new EntityPlacementGizmo(
             onEntityCreated:       OnEntityCreatedByTool,
-            tkbType:               tkbType,
-            initialPropertiesJson: initialPropertiesJson,
+            tkbType:               _pendingTkbType,
+            initialPropertiesJson: _pendingPropertiesJson,
             autoPopOnPlace:        true,
             nameResolver:          _nameGenerator,
             onRemove:              () =>
@@ -194,11 +258,8 @@ public class MapCommandController
                 OnCreationToolExited();
             });
         _activePlacementId = id;
-        _globalGizmoManager?.Register(id, gizmo);
-
-        FdpLog<MapCommandController>.Info(
-            "[Node-{0}] PlacementTool activated. RequestId={1} ContextId={2} TKB={3}",
-            _localNodeId, requestId, contextId, tkbType);
+        _globalGizmoManager.Register(id, gizmo);
+        return Hrot.ScenarioEditor.Tools.ToolActivationOutcome.Armed;
     }
 
     /// <summary>

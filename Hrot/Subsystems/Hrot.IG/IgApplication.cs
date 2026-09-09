@@ -852,7 +852,10 @@ public class IgApplication : IDisposable
                         + "must run before RegisterApplicationSystems (SharedApplicationBootstrapper "
                         + ":111 vs :139); if that order changed, IG's authoring tools have no sink."),
                     _effectiveInstanceId,
-                    globalGizmoManager: _globalGizmoManager);
+                    globalGizmoManager: _globalGizmoManager,
+                    // 🔒 UXI-07 step 4a — the arbiter, so an incoming remote creation request
+                    //    DISPLACES the operator's armed tool instead of fighting it for raw input.
+                    tools: _igToolController);
             }
 
             // UXI-23 S2b: both come from the pack. _globalGizmoManager is assigned HERE, at its original

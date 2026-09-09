@@ -2254,7 +2254,10 @@ namespace Hrot.Editor
                 // geodetic spawn coordinates are projected correctly on entity placement.
                 var jsonCompiler  = Fdp.Toolkit.Replication.Attributes.AttributeCompilerFactory.Build(geoTransform);
                 _spawnAdapter     = new ScenarioSpawnAdapter(_world.Bus, jsonCompiler, tkbDb, scenarioLoadSource, _globalGizmoManager!);
-                _zoneAdapter      = new EditorZoneAdapter(_canvas!, _world.Bus, _globalGizmoManager!);
+                // 🔒 UXI-07 step 4a — the arbiter is PASSED, so obstacle placement displaces the
+                //    active tool instead of quietly taking focus beside it (§4.8's inventory).
+                _zoneAdapter      = new EditorZoneAdapter(
+                    _canvas!, _world.Bus, _globalGizmoManager!, _editorToolController);
                 _mapConfigAdapter = new ScenarioMapConfigAdapter(_mapViewConfig, _canvas!);
                 _selectionState   = new DefaultSelectionState();
 
