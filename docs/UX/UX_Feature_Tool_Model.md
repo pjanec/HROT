@@ -1,7 +1,9 @@
 <!--STATUS
 state: LIVE
 build-state: NOT-BUILT
-verified: 2026-09-09 (PREMISE SWEEP - all 13 premises re-tested against source; see 0b)
+verified: 2026-09-09 (PREMISE SWEEP - all 13 premises re-tested against source, see 0b; and the RED
+  defect REPRODUCED by a headless probe with an inverse-edit red-proof - two exclusive tools hold focus
+  at once and ONE mouse event reaches BOTH)
 current-answer: NOT-BUILT (design only; Q27 answered). No IToolController/ToolDescriptor/modal-stack in
   source. >>> READ 0b FIRST <<< - the premises SURVIVE, but four moved and three are now WIDER than this
   document says, because CE-051/CE-061/UXI-23-S2b reworked this exact area after the 2026-08-28 scan.
@@ -77,9 +79,39 @@ here touches them. ⭐ The **migration's 7 steps stand as written**; only their 
 *(two hosts)*, **step 4 shrinks** *(the spawn adapter is now one shared conversion serving two hosts)*, and
 **step 5 gets a seam it did not have** *(`EditorToolbarPanelViewModel`)*.
 
-⛔ **Not measured, and stated as such:** whether the two-arbiter defect is *observable* at runtime on a real
-cluster. 📐 The code path is proven; the **symptom** is not, and `RUNBOOK_Cluster_Debugging_Over_Http.md`
-would be how to try. ⚠ That is the one row a reader should push on.
+### 🔴🔴🔴 THE DEFECT IS **REPRODUCED** — *not theoretical* *(headless probe, `2026-09-09`)*
+
+⚠⚠ **An earlier version of this section said the symptom was NOT measured. That is now SUPERSEDED — it was
+measured, and it reproduces.**
+
+📐 **A throwaway headless probe wired exactly as `MapInteractionPack.Build` does** *(one `DebugPrimitiveBuffer`,
+one `FdpEventBus`, `GlobalGizmoManager` + `DataDrivenGizmoSystem` both given that bus)*, then: activate a
+modal on the DataDriven side *(the `Rotate`/`Edit`/`Route` shape)*, activate a modal on the Global side
+*(the `Measure`/picker/spawn shape)*, publish **ONE** `GizmoMouseEvent`, tick both.
+
+| assertion | result |
+|---|:--:|
+| both tools report `IsFocused` — two "exclusive" holders at once | ✅ **confirmed** |
+| the single mouse event reaches **both** — `MouseCount == 1` on each | 🔴 **confirmed** |
+| ⭐ **inverse-edit red-proof** — flip *only* the Global tool's `RequiresExclusiveFocus` to `false`: the DataDriven tool still gets its input, the Global one gets **0** | ✅ **confirmed** ⇒ the probe measures focus routing, not an artefact |
+
+⇒ 🔒 **`UXI-07`'s 🔴 severity is EARNED, and it is now a property of SHARED code on all five hosts.**
+
+⚠⚠ **One probe bug worth recording, because it would silently fake a clean result:** `FdpEventBus.Publish`
+is **double-buffered** — *"visible in the next frame (after `SwapBuffers`)"* (`FdpEventBus.cs:30`). The first
+probe omitted `bus.SwapBuffers()` and both counters read **0**, which looks exactly like *"something
+arbitrates."* ⛔ **Any future rail here must swap before ticking.**
+
+⭐ **The probe was NOT kept** — it was a parallel test class, and `R-142` ④ says a kept rail belongs **inside
+the feature's own suite** (`Fdp.Toolkits.Tests/Diagnostics/Gizmos/GizmoHeadlessTests.cs`, the `GZH-` series).
+⇒ **it should land there as the hazard rail of whichever slice fixes this**, phrased to go GREEN when one
+arbiter exists — ⛔ not as a rail that asserts today's duplicate delivery forever.
+
+⛔ **Still not measured, and stated as such:** what the duplicate delivery *looks like to a user* on a real
+cluster — which of the two tools appears to win, and whether the raw-input half (§the terminal `break`) makes
+it look like a dead tool rather than a double-acting one. 📄 `RUNBOOK_Cluster_Debugging_Over_Http.md` is how
+to try. ⚠ **That is now the one row a reader should push on** — the mechanism is proven, its *presentation*
+is not.
 
 **But two *partial* mechanisms exist**, and they are the problem as much as the starting point:
 
