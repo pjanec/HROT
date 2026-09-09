@@ -37,6 +37,27 @@ namespace Hrot.ScenarioEditor.Tools
         /// <summary>Entity rotation.</summary>
         public const string Rotate  = "scenario.rotate";
 
+        // ── UXI-07 step 4a — the modal interactions that used to arm the arbiter DIRECTLY ─────────
+        //
+        // ⭐⭐ These are TOOLS by Q27's definition — "at most one active tool requiring focus per
+        //    subsystem" — even though none of them belongs on the toolbar. 🔒 That is exactly why
+        //    ToolDescriptor.ShowOnToolbar defaults to FALSE: the user's ruling, "tools do not
+        //    necessarily need to be shown on the toolbar — this must be optional."
+        // ⛔ They were NOT tool ids before because they were never routed through an arbiter; §4.8's
+        //    inventory is what turned them from "adapter internals" into named modals.
+
+        /// <summary>Zone obstacle placement — <c>IZoneAuthoringController.StartObstaclePlacementMode</c>.</summary>
+        public const string PlaceObstacle = "scenario.place.obstacle";
+
+        /// <summary>
+        /// Entity placement driven by a REMOTE creation session (IG's <c>MapCommandController</c>).
+        /// ⚠ Deliberately distinct from <see cref="Spawn"/>: <c>Spawn</c> is the operator arming the
+        /// local spawn adapter, this is a request arriving from ExCon with its own session id and
+        /// lifetime. ⭐ Same gizmo, different owner — and the controller must be able to tell them apart
+        /// so cancelling one does not silently orphan the other's session.
+        /// </summary>
+        public const string PlaceRemoteEntity = "scenario.place.remote-entity";
+
         /// <summary>
         /// The ONE mapping from the legacy enum to the tool vocabulary. ⛔ If a second one appears, that is
         /// the duplication this issue exists to remove.

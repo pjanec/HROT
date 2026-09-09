@@ -922,6 +922,41 @@ teardown paths currently pair it with"* — and that is `PushModal`, which `Tool
 ⚠⚠ **This supersedes the plan's implicit claim that step 4 is one batch.** ⛔ It is two, and the second is
 `Q27-F`'s increment — which the Migration table lists *after* step 6.
 
+### 4.9 ⭐ STEP 4a AS-BUILT — **two converted, and the other two have a MEASURED constraint** *(`2026-09-09`)*
+
+| site | state | note |
+|---|---|---|
+| `EditorZoneAdapter` | ✅ converted | new tool `scenario.place.obstacle` |
+| `MapCommandController` *(IG)* | ✅ converted | new tool `scenario.place.remote-entity` — ⭐ a remote creation request now DISPLACES the operator's armed tool instead of fighting it for raw input |
+| `ScenarioSpawnAdapter` | ⛔ **blocked on a restructure** | see below |
+| `MeasureToolGizmoAdapter` *(IG)* | ⛔ pending | settings-driven lifetime; §4.7c's hazard is its real fix |
+
+⭐⭐ **THE PATTERN, established by the two conversions and to be repeated:** the adapter takes an optional
+`ToolController`, `Register`s its arm ONCE in the constructor *(⛔ not per activation — the duplicate-id
+guard is the `G4` lesson and stays strict)*, stashes the per-invocation parameters in fields, and its
+public method calls `Activate(id)`. ⚠ The parameters need fields because `ToolActivation` takes only an
+`Entity`; ⛔ widening that delegate to carry arbitrary payloads was rejected — it would make every tool pay
+for one tool's parameters. 🔒 It is the same shape `Spawn` already used: its arm calls back into the
+adapter, which holds *"what is being placed."*
+
+#### 🔴🔴 WHY `ScenarioSpawnAdapter` CANNOT TAKE THAT PATTERN AS-IS — **it would RECURSE**
+
+📐 **Measured call chain:** the `Spawn` tool's arm calls `startPlacementMode()` → the hosts pass
+`() => _spawnAdapter.StartPlacementModeWithLastType()` → which calls `StartPlacementMode(LastSelectedTkbType)`.
+⇒ ⛔ **making `StartPlacementMode` call `Activate(Spawn)` closes a loop**: `Activate` → arm →
+`StartPlacementMode` → `Activate` → …
+
+⚠ **And it is a real bypass, not a theoretical one:** `StartPlacementMode` is ALSO called directly from
+**ExCon** — `ExConOrbatAdapter.CreateUnit`, `OrbatPanel.cs:212`, `ExConPanelAdapters.cs:19` — none of which
+goes anywhere near the arbiter.
+
+| ⭐ the resolution, for the next unit | |
+|---|---|
+| **①** split the adapter's **arm body** from its **public API**: `ArmPlacement()` *(the body)* vs `StartPlacementMode(type, json)` *(stash + `Activate(Spawn)`)* | |
+| **②** the hosts pass the **arm body** as the pack's `StartPlacementMode`, ⛔ not `StartPlacementModeWithLastType` | ⇒ the loop cannot form |
+| **③** ExCon's three direct callers then become arbitrated **for free**, with no ExCon change | ⭐ that is the payoff, and it is why the restructure is worth doing rather than special-casing |
+| **④** `StartAreaAuthoringMode` / `StartRouteAuthoringMode` have **no tool id and no recursion** ⇒ they take the plain pattern, as `scenario.place.area` / `scenario.place.route` | |
+
 ## Migration
 
 | Step | Change | Gate |
@@ -929,7 +964,7 @@ teardown paths currently pair it with"* — and that is `PushModal`, which `Tool
 | 1 | `ToolDescriptor` + `IToolController`; **Editor only**; register the 6 existing tools with their real modality (`Select` = null modal tool) | nothing calls it yet |
 | ✅ 2 | Route the **toolbar event path** (`ActivateEditorToolEvent` switch) through `Activate()` — **BUILT `2026-09-09`**, see §4.7b | every tool behaves as today *(+ `Select` is now live, and a retarget no longer leaves two gizmos)* |
 | ✅ 3 | Route the **action path** (`GlobalActionIds.Rotate/EditOverlay/EditRoute`) through `Activate()` — 🔴 **the D′ duplicate is DELETED**; **BUILT `2026-09-09`**, see §4.7b | ⭐ red-proofed by un-blinding `NoCompositionRootConstructsAToolGizmoItself`, which had been green over the duplicate |
-| **4a** | Convert the FIRE-AND-FORGET arms — `ScenarioSpawnAdapter`, `EditorZoneAdapter`, `MapCommandController`, `MeasureToolGizmoAdapter`. ⭐ **§4.8 has the measured inventory: EIGHT sites, not three** | ⭐ **completes A1 — the 🔴 two-arbiter defect closes here** |
+| **4a** | Convert the FIRE-AND-FORGET arms — ✅ `EditorZoneAdapter`, ✅ `MapCommandController`; ⛔ `ScenarioSpawnAdapter` *(needs §4.9's arm/API split — it would RECURSE)*, ⛔ `MeasureToolGizmoAdapter`. ⭐ **§4.8 has the measured inventory: EIGHT sites, not three** | ⭐ **completes A1 — the 🔴 two-arbiter defect closes here** |
 | **4b** | Convert the SUSPEND/RESUME pickers — `EditorMapPickAdapter`, `CanvasMapPickAdapter`, `IgApplication`, `ReplayBrowserSubsystem`. ⛔ **BLOCKED on `PushModal` (`Q27-F`)**: they resume via `TaskCompletionSource`, so plain `Activate` would destroy the tool underneath instead of suspending it (§4.8) |
 | 5 | Toolbar binds `ActiveModalChanged`; opt tools in via `ShowOnToolbar` | [UXR-84](UX_Requirements.md#uxr-84): active tool visibly active |
 | 6 | Central Escape → `Cancel()`; gizmos keep their own cleanup | Escape cancels the modal tool from anywhere |
