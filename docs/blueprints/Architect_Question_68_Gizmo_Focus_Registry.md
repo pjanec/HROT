@@ -1,9 +1,11 @@
 <!--STATUS
 state: LIVE
 updated: 2026-09-09
-current-answer: §4c (68-B settled) + §4d (68-C keying measured). §3's 68-A argument is
-  CORRECTED in place. 68-B is SETTLED BY MEASUREMENT (A, on principle; B2 refuted). §3's 68-B
-  framing is SUPERSEDED. 68-A/C/D still carry leans only and are NOT approved.
+current-answer: §6 — ALL FOUR SUB-QUESTIONS ARE APPROVED (user, 2026-09-09). §6 is the ruling and
+  the build order; §4c (68-B settled by measurement) and §4d (68-C keying) are the evidence behind it.
+stale-below: §3's "My lean:" lines are now HISTORY — they record how each answer was reached, not
+  its standing. ⛔ Quote §6 for what was decided. §3's 68-B framing ("a fallback for an unresolvable
+  token") is SUPERSEDED by §4c and must not be quoted at all.
 known-conflict: none identified
 -->
 
@@ -263,6 +265,38 @@ dictionary key. ⛔ **Discarded as unsupported.**
 
 🔒 **So the original counter-argument dissolves:** C1 is not "the principled destination we are deferring".
 ⭐ It is **two changes**, and the second one is not even about focus.
+
+## 6. ✅✅✅ APPROVED — **all four sub-questions, `2026-09-09`**
+
+> 🔒 **User, verbatim:** *"68 most recent leans approved"*
+
+⚠ *"Most recent"* is load-bearing: the leans as they stand **after** the §4c correction and the §4d
+measurement — ⛔ **not** the original §3 text, whose 68-A argument is retracted and whose 68-B framing
+is superseded.
+
+| # | ✅ the ruling | the evidence it rests on |
+|---|---|---|
+| **68-A** | ✅ **YES — FDP adopts ONE focus registry.** The two `_focusedGizmo` slots stop being independent state | §3's corrected table: the same policy written twice **and already diverged** · three methods written twice for `PushModal` · the invariant unenforceable across 2 arbiters |
+| **68-B** | ✅ **A (= B1) — KEEP the un-anchored-input rule, sourced from the registry.** ⛔⛔ **And rename it:** it is **not** a "fallback". It is *"the focus holder receives un-anchored input"* — the **primary** rule in `GlobalGizmoManager` and the **first** branch in `DataDrivenGizmoSystem`. ⭐ Stated once as a registry member **`RecipientFor(token)`**: *resolve by target, else the focus holder* | §4c ①–④ — decisively ④ (`GlobalGizmoManager.Execute` never reads `evt.Token`) and ③ (raw-input tokens carry `GizmoTypeId == 0`, so `FindGizmo` can essentially never match) ⇒ **B2 would delete raw input for entity-scoped gizmos outright** |
+| **68-C** | ✅ **C2 — a small `GizmoFocusRegistry` in `Fdp.Toolkits`**, both arbiters delegating to it. ⛔ **NOT C1** (porting `GizmoInteractionManager`) | §4d — C1 fuses a focus fix with a **keying** fix whose cross-node blast radius is explicitly unmeasured. The keying is filed separately as `CE-259h` |
+| **68-D** | ✅ **its own unit, after 4b — and 4b IS closed** (`725316a8`) ⇒ **it starts now** | §3's ordering argument; the remaining bypass (`IgApplication._activeSequenceGizmo`) is 4a-shaped and is **not** a picker |
+
+### ⛔ What approval does NOT settle — stated so nobody reads more into it
+
+| | |
+|---|---|
+| ⛔ **the keying violation** | `AnchorId` documented network-stable, stamped with an ECS `Entity.Index` (§4d ③④⑦). **`CE-259h`, unresolved.** ⭐ The registry is deliberately **keying-agnostic** so it does not depend on the answer |
+| ⛔ **`_activeSequenceGizmo`** | IG's remote-driven area/route authoring, 8+ sites. Fire-and-forget (4a-shaped), so it needs `Activate`, not `PushModal` — a separate conversion |
+| ⚠ **the spatial path** | §4c compared only the RAW-INPUT routing of the two arbiters. ⛔ The spatial/target-resolved path is **not** compared, and 68-A's "what would flip me" row named exactly that gap. ⇒ **measure it before collapsing anything beyond the focus slot** |
+
+### ⭐ Build order that follows
+
+| step | |
+|---|---|
+| **①** | `GizmoFocusRegistry` in `Fdp.Toolkits` — the slot, `SetFocus`/`Clear`/`Suspend`/`Resume`, and **`RecipientFor(token)`** |
+| **②** | `GlobalGizmoManager` delegates. ⭐ Its `Execute` becomes `RecipientFor(evt.Token)` — **a behaviour-preserving rewrite** by §4c ④, since ignoring the token *is* "no target resolves" |
+| **③** | `DataDrivenGizmoSystem` delegates. ⚠ Its `:452` **steal** and its grant-if-null at `:291` are the two sites that must keep their exact semantics — ⛔ they are the ones a naive collapse breaks |
+| **④** | ⛔ **`T-1` first** (`R-142`): run `PickerToolHostTests`, `ToolControllerTests`, `TheViewportInteractionIsSharedTests`, `MeasureToolGizmoAdapterTests` **before** editing, so a red afterwards is attributable |
 
 ## 5. Standing of any answer to this document
 
