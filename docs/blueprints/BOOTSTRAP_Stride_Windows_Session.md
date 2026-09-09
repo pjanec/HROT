@@ -261,76 +261,62 @@ a control plane can throw every frame while the API answers `ok:true`.
 
 ---
 
-# ⭐⭐⭐ SESSION STATE — `2026-09-08` — **READ THIS FIRST AFTER A COMPACTION**
+# ⭐⭐⭐ SESSION STATE — `2026-09-09` — **READ THIS FIRST AFTER A COMPACTION**
 
-> ⭐ **§2's verification is DONE. `CE-221` is fixed and the host boots. The work since has been driven
-> by the user's own visual checks, and it found five production defects the ~8 000 tests were green on.**
+> ✅✅✅ **`S4` / `CE-207` — MODE 2 IS BUILT AND THE SCENARIO PASSES ON IT.**
+> ⭐⭐⭐ `hill-attack-close` on **CGF + Stride mode 2** kills **both** hostiles — `1006` at `t=27`,
+> `1007` at `t=61`, `1001` itself down to hp 25 from return fire — with **0 errors, 0 fatals**, the node
+> alive throughout. 📐 Baseline the same session, **CGF + SimHost**: `1007` `t=35`, `1006` `t=42`.
+> 🔒 That is the user's stated gate: *"the scenario needs to end up with killing both enemy tanks."*
 
-## S-1. The rulings this session produced — ⛔ they bind
+📄 **The full as-built, the seven defects and the explicit NOT-DONE list live in
+[`DESIGN_Stride_Node_Modes.md` §13.7](https://github.com/pjanec/HROT/blob/claude/reset-working-branch-qd1qpv/docs/DESIGN_Stride_Node_Modes.md).**
+⛔ Do not restate them here — §13.7 is the durable home; this is the pointer.
 
-| ruling | |
-|---|---|
-| ⭐⭐⭐ [`R-143`](RULINGS.md) | 🔒 *"no wall clock enywhere, whole sim driven by sim time ONLY. only use of wallclock us stamping the fdp recording"* — *"not in stirede, not in editor, not in cgf, not in simhost, never where simulation is related"*. ⛔ It RETIRED §7.3b's *"the view tier is free-running so `wallDt` is correct here"* |
-| 🔒 **ELM / mode 2** | *"ELM and deferred ownership transfer is in play here and no editor specific shortcuts shall be made; it needs to work also for stride mode 2 where the brain who loads the scenario is on another node"* ⇒ ⛔ **any fix bounded only in the editor is wrong** |
-| 🔒 **hill-attack is the gate** | *"you absolutely must check the system using the hill attack close scenario"* and *"the scenario needs to end up with killing both enemy tanks"* |
-| ⛔ **MEASURE, do not offer a choice** | 🔒 *"always measure before decideind anything, i thought this is written clearly in calude.md"* — 📌 said after I offered an either/or instead of running the two commands that settled it |
-
-## S-2. What is FIXED and verified on Windows
-
-| id | what | proof |
-|---|---|---|
-| ✅ `CE-221` | the host **did not boot** — two `[SingleInstance]` systems registered twice. Fixed by hoisting `UnitHierarchySystem` + `EqsResultUpdateSystem` into **cross-role infrastructure capabilities** declared once per plan | `hill-attack-close`: **both hostiles killed** (`1006` t≈21 s, `1007` t≈46 s), 15 waves, 0 overshoot, 0 errors |
-| ✅ `CE-225` | `spawn_entity` placed everything at the **origin** and answered `ok:true`. `SimTransform` uses **public fields** and `JsonSerializer` ignores fields unless `IncludeFields` is set ⇒ no payload could ever bind | live: `{"position":{"x":480,"y":450,"z":0.5}}` → reads back `[480,450,0.5]`; a non-binding payload is now **refused** |
-| ✅ `CE-227` | ⭐⭐⭐ **the pause gate.** `GameTime.Factor = simDelta / wallDelta` ⇒ `WarpElapsed == simDelta` ⇒ Bullet integrates **sim seconds**; paused ⇒ `Simulate(0)` ⇒ its fixed-step loop never runs | paused 25 s bit-identical; resumed 30 s physics live |
-| ✅ `CE-230` | the host tick, loop driver, test harness and view bracket now run on `CurrentSimDeltaSeconds` | paused: UI still renders, API responsive; resumed: physics integrates |
-
-⛔⛔ **`Simulation.DisableSimulation` IS NOT A PAUSE — never use it as one.** It makes Stride's physics game
-system `return` **before** `Simulate`, taking body readiness, contacts and events with it. That was
-`CE-223`, and it made vehicles unable to move at all while looking like a fix.
-
-⚠⚠ **RETRACTED this session:** I claimed Stride's physics was wall-dt dependent and that another engine
-might be needed. **False.** `StepSimulation(FixedTimeStep, 0, FixedTimeStep)` is fixed-step; wall time only
-decided how many steps ran, and **zero is a legal answer**.
-
-## S-3. What is OPEN
-
-| id | what |
-|---|---|
-| ✅ **the terrain floor** | **DONE — `CE-231`.** A 20 km × 20 km visible + collidable slab, top face at `Y=0`, added in `BootEditorSubsystem`. 📐 Verified: vehicles hold `z=0.5`, `simVel.z=0` — **the falling is gone**. ⛔ It did NOT make them move |
-| ✅✅ **the X/Y collapse AND velocity-without-translation** | **DONE — `CE-232`, and they were ONE defect.** `MainScene`'s four walls are `StaticPlaneColliderShapeDesc` = **infinite half-spaces** at `X=±20`/`Z=±20`, so every scenario coordinate beyond them was the inside of a solid. Bodies at `x=446` were **426 m deep** and Bullet expelled them at up to **780 m/s**, then held them jammed inside the arena — which is why velocity was non-zero while position never moved. ⭐ Fixed by `NeutralizeInfinitePlaneColliders` in `BootEditorSubsystem`
-| ⛔ HISTORY — the terrain floor | ⭐⭐ **the current blocker.** Scenarios sit at world coords ~450–670; the Stride ground is near the origin, so vehicles **fall** the moment physics integrates. 🔒 *(user: "best if we could extend the stride's terrain floor to be way larger so our scenarios can be modelled outside of the current (and extremely small) stride arena")* ⚠ **Their X/Y also collapse from `(446,420)` to `(18,19)`, which free fall does NOT explain** — ✅ **EXPLAINED `2026-09-08` by `CE-232`: the arena's infinite plane walls were ejecting them** |
-| ⚠ **vehicle bodies** | ⭐⭐ **THE LIVE HOST NOW DRIVES — measured `2026-09-08` after `CE-232`.** All four tanks advanced from `(446,420)`-ish to their assigned waypoints and ARRIVED: `#1001 → (522,401)` for a destination of `(523,401)`, `#1002 → (525,450)` vs `(526,450)`, `#1003 → (528,498)` vs `(529,499)`. ⛔ **So *"vehicles have never worked in this tree"* is now FALSE for the live host.** ⚠ `FdpMoveOrderIntegrationTests` is still red at `69390758e`, the commit that introduced it, so THAT suite has never passed — ⛔ but it is no longer evidence that the feature is broken
-| ⚠ `CE-222` | `repos`/`pausedFreeze` still red. ⛔ **The physics-gate lead is REFUTED** (still red after `CE-223`). 🔴 **And `drive=PASS` IS VACUOUS** — `endDrive` is the START point; it passes on the residual `B→A` offset of 13.34 m. ⇒ one defect corrupts **three of four** checks; only `initialHold` is independent |
-| ⚠ `CE-226` | generated registrars still lack `ParamsDtoType` (34/40 empty) — the other session's lane |
-| ✅✅✅ **`hill-attack-close` COMPLETES — both enemy tanks killed** | 🔒 The user's acceptance gate is **MET on Stride**. 📐 `1006` and `1007` both reach `hp = 0` (t≈358 and shortly after); **4 shots, 4 hits** at 25 damage — exactly two per tank — with **0 EQS timeouts and 0 errors** across the run. ⭐ It took **two** Stride-specific fixes: **`CE-233`** *(the hosted arm had no perception tier, so every EQS area query timed out and the commander looped at the baseline forever)* and **`CE-234`** *(nothing integrated projectiles, so every round hung at the muzzle and the hit test was a zero-length segment)*. ⛔⛔ **My earlier report blamed the scenario — `PhaseCount: 1` and "`VisionRange` 100 vs 143 m". Both were SYMPTOMS.** 📐 The firing line sits **91.2 m / 88.6 m** from the hostiles, inside the 100 m vision range; the baseline is 144.2 m / 138.4 m. The user was right: the scenario always kept targets in range, and Stride simply never advanced to the firing line |
-| ⚠ **the navmesh still only covers the arena** | the bake reports `polys=49 (Vehicle) / 108 (Infantry)` from *"floor from arena colliders"* — ±20 m, nothing where scenarios live. ⭐ Vehicles are unaffected **today** because `VehicleNavigationIntentSystem` logs *"navmesh bypassed"* and steers direct — ⛔ **navmesh-driven infantry outside the arena cannot work until the bake covers scenario extents.** ⚠ The `CE-231` slab does not help: it sets `ColliderShape` directly, so it carries no `ColliderShapes` **description** and `StrideSceneGeometrySource` cannot see it |
-| ✅✅✅ **ANIMATION — CONFIRMED WORKING** *(user, visual, `2026-09-08`)* | 🔒 **User, verbatim: *"i saw manquinn walking. animated."*** ⭐⭐⭐ **Animation was never broken — it was STARVED.** 📐 The chain: infantry carried an injected `VehicleState`, so `NavigationIntentBridgeSystem` refused to crowd-register it, `VehicleNavigationIntentSystem` drove it while `KinematicVehicleMotor` skips capsules ⇒ **it never moved** ⇒ no frame-to-frame pose delta ⇒ `BulletReverseSyncSystem` wrote `SimVelocity = 0` ⇒ the blend, which is driven from `SimVelocity`, sat at **Idle**. ⭐ Fixed by `CE-237`+`CE-238`; the mannequin now walks at a commanded **1.50 m/s** and animates. ⛔⛔ **Every animation rail was GREEN throughout — 74/74** *(`Hrot.Stride.Animation.Tests` 48 + the Game.Tests trio 26)*: the backend, bridge, binder and TKB defs were all correct. ⚠ **A textbook case of a green suite over a dead feature, and the suite was not at fault — nothing was wrong with animation to catch.** |
-
-## S-4. How to drive the host — ⭐ the tool that found most of the above
-
-⭐⭐ **The debug API needs ZERO code on Stride** — `EditorSubsystem` already builds a `DebugApiHost` behind
-`HROT_DEBUG_API_PORT`, and the Stride host hosts a real `EditorSubsystem`. It was under-adopted, not missing.
+## S-1. How to run mode 2 — ⭐ three processes, and the node has its OWN API now
 
 ```
-set HROT_DEBUG_API_PORT=8131, STRIDE_HOST_REAL_EDITOR=1, STRIDE_EDITOR_WINDOW=1
-run Stride\Bin\Windows\Debug\win-x64\HrotStrideApp.Windows.exe
+R=Hrot/Runner/Hrot.ClusterRunner/bin/Debug/net8.0/Hrot.ClusterRunner.exe
+HROT_DEBUG_API_PORT=8140 $R --mode orchestrator --no-wait     # --no-wait is REQUIRED or it exits
+HROT_DEBUG_API_PORT=8141 $R --mode cgf          --no-wait
+cd Stride/Bin/Windows/Debug/win-x64
+HROT_DEBUG_API_PORT=8143 ./HrotStrideApp.Windows.exe --mode node --node-id 700 --domain 0
 
-B=http://localhost:8131          # localhost, NEVER 127.0.0.1 (it 404s every route)
-POST $B/scenario/load/live       {"name":"hill-attack-close","waitForReady":true}
-POST $B/sim/play                 {}
-GET  $B/entities/1001            # READ THE ENTITY. Do not theorise from logs
-GET  $B/capabilities             # every route with its tool name — do not guess paths
+POST http://localhost:8141/scenario/load/live  {"name":"hill-attack-close","waitForReady":true}
+POST http://localhost:8141/sim/play            {}
+GET  http://localhost:8143/entities/1001       # ⭐ the STRIDE node's own world (CE-245)
+GET  http://localhost:8143/tkb/types/100       # ⭐ its TKB catalog
+GET  http://localhost:8143/diagnostics/architecture
 ```
 
-⚠ **The host boots PAUSED** — nothing moves until `/sim/play`, and that is not a defect. 📌 A whole
-diagnostic loop went into *"nothing moves"* that was simply a paused world.
+⭐⭐ **For the SimHost baseline swap the third process for `--mode simhost` on 8142** — ⛔ never run both,
+they collide *(`CE-242`: one node is "SimHost" per domain)*.
+⚠ `localhost`, **never `127.0.0.1`** *(404s every route)*. ⚠ The cluster boots **PAUSED**.
+⚠ **Kill the Stride node before rebuilding** — it holds the output DLLs *(MSB3021)*.
 
-## S-5. ⛔ THE PROCESS LESSONS THIS SESSION PAID FOR
+## S-2. ⛔⛔ THE PROCESS LESSON THIS SESSION PAID FOR — **the silent no-op**
+
+⭐⭐⭐ **Five of the seven defects were SILENT NO-OPS, and every one presented as *"navigation is
+broken."*** An empty grant list *(a documented "safe fallback")* · three hooks never called ·
+`TryCreateVisual` returning null *"silently, by design"* · a null optional property · a graceful
+`return` when no navmesh. ⛔ **Not one logged anything.**
+
+| ⭐ what generalises | |
+|---|---|
+| ⭐⭐⭐ **mode 2 is the ONLY host composing from CAPABILITIES instead of a whole-registry call** | ⇒ every registration the other hosts get free from `SimHostComponentRegistry.RegisterAll` had to be re-earned, and **each omission stayed inert until the stage before it started working** ⇒ ⚠ they could only be found **in order, one run each** |
+| ⭐⭐ **the instrument is worth building FIRST** | `CE-245` — the first three were grepped out of logs at one rebuild each; the last four were **asked**. 📌 `GET /tkb/types/100` settled `CE-247` in one call |
+| ⛔⛔ **a diagnostic can lie by omission** | I read the architecture dump as showing five perception systems ABSENT. **Wrong** — `RegisterManualSystem` systems enumerate differently, and `executionCount: 741` settled it. ⚠ **Check a module's execution count before concluding its systems are missing** |
+| ⭐ **the ~8 000-test suite was green throughout** | every defect came from RUNNING the cluster — `R-142`'s tally again |
+
+## S-3. What is OPEN — ⭐ nothing here blocks mode 2; all are named in §13.7
 
 | | |
 |---|---|
-| ⛔⛔ **grep cannot settle a NEGATIVE claim** | 📌 I claimed *"`CgfCuratedBehaviorRegistrar.Register` has zero callers"*. It is `[BlueprintRegistrar]`-attributed and invoked **reflectively** — invisible to grep **by construction**. The other session corrected me. ⭐ codebase-memory MCP was down and **the CLI fallback exists**; I did not use it |
-| ⛔⛔ **a green rail is not a working feature** | 📌 **three times**: `StridePhysicsBracketPauseGateTests` passes against its own fake · `DiscoveryAndHintTests` asserts the schema is *"an object"* and its own comment says *"possibly empty"* · `drive=PASS` measures displacement from a point the entity never reached |
-| ⛔ **verify against the RIGHT baseline** | 📌 three sessions called the vehicle reds *"pre-existing"* against three different bases. That only ever proved *"not the last batch"*. The answer needed the commit that INTRODUCED the test |
-| ⛔⛔ **NEVER RUN TWO SUITES AT ONCE — contention manufactures a PHANTOM REGRESSION** | 📌 `2026-09-08`: comparing `CE-232` against its base I ran both suites **and** the live Stride host concurrently, and got **5** reds against the baseline's 4 — the extra one in `EditorStrideSubsystemHostedModeTests`, green at the baseline. ⭐ **The tell: its IDENTITY ROTATED between runs** *(`HostedMode_BrainPathSpawn…` then `HostedMode_Initialize_AndTickThreeFrames…`)* and it passed **3/3 in isolation**. 📐 Run **sequentially with the host stopped**, the answer is stable: **4/243/247 three times, exactly the baseline's four.** ⚠ These tests boot a real subsystem and tick frames, so they are the first to fall over under load — ⛔ and the machine then killed every background task for low memory |
-| ⛔ **do not present an inference as a measurement** | 📌 I said `DisableSimulation` blocks body creation. It was inferred from effect; the truth was a **latch of my own** in the wrapper's pre-`Inner` branch. The third configuration — gate inert, latch present — is what exposed it |
+| ⚠ **`CE-241`** | `FixedTimeStep`/`MaxSubSteps` still unset ⇒ the **bursty / slow-motion** motion §13.6 measured. ⭐ **The most user-visible remaining item** |
+| ⚠ **`CE-222`** | `STRIDE_SELFTEST` verdict is stale by ~10 physics fixes; ⛔ its `drive` check is **vacuous** *(`endDrive` is the START point)* |
+| ⚠ **LOS is 2-D** | `R-S10` — no terrain, no height ⇒ **3-D occlusion will NOT match what perception believes** |
+| ⚠ **`Q67` §6** | `NavAgentProfile` has **no production writer** ⇒ crowd uses hard-coded radius 0.4 / height 1.8, not authored `Width/2` |
+| ⚠ **one string is identity AND role** | five hard-coded lists switch on `SubsystemName` ⇒ a Stride node **cannot coexist with a real SimHost**. Principled fix: `DESIGN_Role_Affinity_Ownership.md` *(`READY-TO-BUILD`, not built)* |
+| ⚠ **camera** | the fixed overview camera looks at the ORIGIN arena; scenarios live 400–700 m away ⇒ **off-screen**. `BasicCameraController` gives free flight. Not a defect, but a camera framing the loaded scenario would make visual checks far cheaper |
+| ⚠ **minimised window** | the Stride host crashes when minimised *(`ImageMultiScaler` 1×1 render target)* |
+| ⛔ **leak** | mode-2 shutdown never calls `NavigationSolverComponentRegistry.DisposeAll` — four persistent arrays at process exit. SimHost's node has the same shape |

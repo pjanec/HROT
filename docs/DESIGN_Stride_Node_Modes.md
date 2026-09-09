@@ -1,12 +1,16 @@
 <!--STATUS
 state: LIVE
 build-state: READY-TO-BUILD
-updated: 2026-09-07
-current-answer: §13.1 (the 2026-09-07 WINDOWS VERIFICATION - read it before quoting any
+updated: 2026-09-09
+current-answer: §13.7 (CE-207 slice S4 AS BUILT, 2026-09-09) -- MODE 2 IS BUILT AND COMPLETES
+  hill-attack-close, both hostiles killed, measured against a CGF+SimHost baseline in the same
+  session. Read §13.7 FIRST: it carries the seven defects S4 cost, the retraction about the
+  perception tier, and the explicit list of what mode 2 still does NOT have. Then §13.1 (the
+  2026-09-07 WINDOWS VERIFICATION - read it before quoting any
   "compiled here" cell in §13). the whole file. §2.1 carries the 2026-09-07 rulings (R-S11 CLI args + ctor slots die,
   R-S12 the physics delta, R-S13 the shell drives brackets, R-S14 closing the last three open questions);
   §11.1 and §7.3a are where R-S12/R-S13 land, §7.2b is the day-1 operator surface. §14's questions are
-  ALL CLOSED — the table is now a record, not a decision list. Build order is §13's slice table. S0/S1/S2a/S2b/S2c/S3 are BUILT
+  ALL CLOSED — the table is now a record, not a decision list. Build order is §13's slice table. S0/S1/S2a/S2b/S2c/S3 are BUILT, and S4 (CE-207, mode 2) is BUILT as of 2026-09-09 -- see §13.7
   (as-built: §11.1a for S2c, §7.3b for S3). It is
   the ONE owning design for the Stride story — the two modes the user
   wants (mode 1 networkless dual-window editor, mode 2 networked node replacing SimHost), the shared
@@ -980,6 +984,75 @@ the field.**
 step so a step integrates once"*. ⚠ It touches the same surface as `CE-227`'s pause gate
 *(`UpdateTime.Factor = simDelta / wallSeconds`)*, so it is a physics-timing change, not a tuning tweak.
 
+
+### ⭐⭐⭐ 13.7 `CE-207` SLICE `S4` — **MODE 2 IS BUILT, AND IT COMPLETES `hill-attack-close`** *(`2026-09-09`, obligation ⑤)*
+
+> 🔒 **The gate this clears** — user, verbatim: *"you absolutely must check the system using the hill
+> attack close scenario"* and *"the scenario needs to end up with killing both enemy tanks."*
+
+⭐⭐⭐ **RESULT — the two runs, side by side, same scenario, same CGF, same machine:**
+
+| | `1001` reaches the firing point | hostiles | node health |
+|---|---|---|---|
+| ⭐ **CGF + SimHost** *(baseline)* | `(524,401)` at **t=11** | hp 50→25 at t=21 · **`1007` dead t=35** · **`1006` dead t=42** | — |
+| ⭐⭐⭐ **CGF + Stride mode 2** | `(522,401)` at **t=15** | `1007` hp 25 at t=15 · **`1006` dead t=27** · **`1007` dead t=61** · ⭐ `1001` itself down to hp 25 at t=173 *(return fire)* | ✅ **0 errors, 0 fatals, alive throughout** |
+
+⇒ ⭐⭐ **Both hostiles killed on both hosts.** End state on the node: `TargetMemory` carries **both**
+hostiles with scores and positions, `WeaponState.Ammo` **42 → 38**, `CognitiveSpatialModule`
+`failureCount: 0`.
+
+#### ⛔⛔⛔ The seven defects, and the ONE SHAPE they share
+
+📐 Every one was found by RUNNING the cluster, not by a suite — the whole ~8 000-test suite was green
+throughout. ⭐⭐ **Five of the seven were SILENT NO-OPS on a single path**, each of which made the
+symptom look like *"navigation is broken"*:
+
+| id | what | how it presented |
+|---|---|---|
+| **`CE-242`** | heartbeat published `SubsystemName = "Stride"`; `MapSubsystemNameToRole` maps only `"SimHost"`→`MuscleGround` ⇒ `GetLeastLoadedNode` returned null ⇒ `GetInitialGrants` returned an **empty grant list** *(its documented "safe fallback")* | every entity a ghost; **nothing moved for 597 s** |
+| **`CE-243`** | `EqsModule` registered without its schema | 🔴 **process died** — `Event type 2020 not registered` |
+| **`CE-244`** | `StrideNodeBootstrapper` called only `ProvideModules()` — ⛔ **`PopulateSystems` and `Register` were NEVER called** | ⭐⭐ **perception was never composed at all**, while the boot log listed all five capabilities by name |
+| **`CE-246`** | the bracket's `VehicleNavIntentSystem` was **null** | its own telemetry said `VehicleNavIntent=0.0` on every line |
+| **`CE-247`** | TKB templates carry no `StrideRenderModelDefDto` ⇒ `TryCreateVisual` returns null **silently, by design** | **0 Bullet bodies**; `LC-CREATE` count 0 |
+| **`CE-248`** | no `INavmeshProvider` ⇒ `VehicleNavigationIntentSystem` returns on line 1 | `Phase` never left `Idle` |
+| **`CE-249`**+**`CE-250`** | the perception **egress** pack was never registered, and the combat/perception **schema** was never declared | node saw targets and **told nobody**; `TargetMemory` empty for 475 s with `Ammo` still 42 |
+
+⭐⭐⭐ **The generalisable lesson:** ⛔ **mode 2 is the ONLY host that composes from capabilities instead
+of from a whole-registry call**, so every registration the other hosts get by calling
+`SimHostComponentRegistry.RegisterAll` / `EditorStrideSubsystem`'s boot had to be re-earned — and each
+omission was *inert* until the stage before it started working. ⇒ ⚠ **they could only be found in
+order, one run each.**
+
+#### ⭐⭐ What made it tractable — `CE-245`, the node's own debug API
+
+⛔ The first three were found by grepping logs, one rebuild-and-rerun each. ⭐⭐⭐ **`CE-245` gives the
+mode-2 node the same `DebugApiHost` surface every other node has** *(this is §7.2b / `S6` / `CE-214`,
+which `R-S14` requires to land WITH `S4`)* — and the last four were found in a single session because
+`/entities/{id}`, `/tkb/types/{n}` and `/diagnostics/architecture` could be **asked** instead of inferred.
+📌 `GET /tkb/types/100` showing no `StrideRenderModelDefDto` is what settled `CE-247` in one call.
+
+#### ⚠⚠ A RETRACTION, recorded because the wrong reading is the tempting one
+
+⛔ From `/diagnostics/architecture` I first concluded that `VisionBroadphaseSystem`,
+`LosRequestBatchingSystem`, `SensorTrackDebounceSystem`, `LocalGridBuilderSystem` and
+`AreaQuerySolverSystem` were **ABSENT** on the node — they appear in SimHost's system enumeration and not
+in this one's. 🔴 **FALSE.** ⭐ They are `RegisterManualSystem` systems driven by `CognitiveSpatialModule`'s
+own `Tick`, so they enumerate differently; the module's **`executionCount: 741, failureCount: 0`** settles
+it. ⇒ **the perception tier worked the whole time; only the hop off the node was missing.** ⚠ Acting on
+the first reading would have meant rebuilding a tier that already worked.
+
+#### ⛔ What mode 2 still does NOT have — say it, do not let the green run imply it
+
+| | |
+|---|---|
+| ⛔ **`NodeRole.NavigationSolver` and `CreateSimHostPathfindingTranslators`** | deliberately not claimed — §4.1b. Off-node pathfinding would need that decision revisited first |
+| ⛔ **brain component tables** | `CognitiveComponentRegistry` stays excluded: no brain systems run here, and `DESIGN_Role_Affinity_Ownership.md` opens on *"SimHost having a muscle role should not instantiate any brain related components."* ⚠ SimHost registers them today and that design calls it **debt** ⇒ copying SimHost wholesale would import it on purpose |
+| ⚠ **LOS is still SimHost's 2-D sweep** | `R-S10` — no terrain, no height. ⛔ **3-D occlusion in the Stride window will NOT match what perception believes.** Unchanged by this batch |
+| ⚠ **`CE-241`** — `FixedTimeStep`/`MaxSubSteps` still unset | the §11.1 sub-step item; the bursty motion §13.6 measured is still there |
+| ⚠ **one string is identity AND role** | `CE-242`'s note: five hard-coded lists switch on it, so a Stride node **cannot coexist with a real SimHost** on one domain *(they would also collide on `HrotNodeBuilder.cs:195`'s `SubsystemName+"Allocator"`)*. Acceptable while mode 2 REPLACES SimHost; the principled fix is `DESIGN_Role_Affinity_Ownership.md`, `READY-TO-BUILD` and not yet built |
+| ⚠ **mode-2 shutdown never calls `NavigationSolverComponentRegistry.DisposeAll`** | four persistent arrays leak at process exit. SimHost's node has the same shape |
+
+---
 
 ## 14. OPEN QUESTIONS — each with a lean
 

@@ -1949,6 +1949,27 @@ nothing here moves the counts table.*
 
   ⭐ **Rails:** `SpawnTransformBindsTests` (`Hrot.Editor.Tests`) — the documented shape binds, a non-binding payload THROWS *(the anti-vacuity half, without which the first test could pass while the origin bug survived)*, and `SimTransform` still exposes fields so `IncludeFields` cannot be "simplified" away. ⭐⭐ They assert the **`internal` options instance the endpoint actually uses** — ⛔ a locally-built copy would pass while production stayed broken, which is the exact blindness `CE-223` and `CE-224` were each built on.
 
+- [x] **CE-242 → CE-250** · `RW-XL` ✅✅✅ — **STRIDE MODE 2 (`CE-207` / slice `S4`) IS BUILT, AND `hill-attack-close` KILLS BOTH HOSTILES ON IT.** 🔒 *(user, `2026-09-08`: "let's see how it is just a composition work, as the stride integration is already proven and cgf and stride can be started by you and tested autonomously if 'hill attack close' still works like it used to with cgf + simhost … compare stride+cgf run with SimHost+cgf run of the hill attack")*
+
+  📐 **THE COMPARISON, same scenario · same CGF · same machine · same session:**
+
+  | | `1001` at the firing point | hostiles | health |
+  |---|---|---|---|
+  | **CGF + SimHost** *(baseline)* | `(524,401)` t=11 | hp 50→25 at t=21 · `1007` **dead t=35** · `1006` **dead t=42** | — |
+  | ⭐⭐⭐ **CGF + Stride mode 2** | `(522,401)` t=15 | `1007` hp 25 t=15 · `1006` **dead t=27** · `1007` **dead t=61** · `1001` hp 25 at t=173 *(return fire)* | ✅ **0 errors, 0 fatals, alive** |
+
+  ⇒ ⭐⭐ End state on the node: `TargetMemory` holds **both** hostiles with scores, `WeaponState.Ammo` **42 → 38**, `CognitiveSpatialModule` `failureCount: 0`.
+
+  ⭐ **Seven defects, and FIVE were SILENT NO-OPS on one path** — each made the symptom read as *"navigation is broken"*: **`CE-242`** heartbeat named `"Stride"`, so `MapSubsystemNameToRole` gave `NodeRole.None` and the ownership strategy returned an **empty grant list** *(nothing moved for 597 s)* · **`CE-243`** `EqsModule` without its schema *(process died, event 2020)* · **`CE-244`** ⛔ the bootstrapper called only `ProvideModules()` — **`PopulateSystems` and `Register` were never called**, so **perception was never composed at all** while the boot log named all five capabilities · **`CE-246`** the bracket's `VehicleNavIntentSystem` was null · **`CE-247`** no `StrideRenderModelDefDto` ⇒ `TryCreateVisual` returns null **silently by design** ⇒ **0 Bullet bodies** · **`CE-248`** no `INavmeshProvider` ⇒ nav returns on line 1 · **`CE-249`/`CE-250`** the perception **egress** and the combat **schema** were never registered, so the node saw targets and told nobody.
+
+  ⭐⭐⭐ **`CE-245` is why this took one session and not seven** — it gives the mode-2 node the same `DebugApiHost` every other node has *(§7.2b / `S6` / `CE-214`, which `R-S14` requires to land WITH `S4`)*. The first three defects were grepped out of logs, one rebuild each; the last four were **asked** — 📌 `GET /tkb/types/100` showing no `StrideRenderModelDefDto` settled `CE-247` in one call.
+
+  ⚠⚠ **RETRACTED IN-FLIGHT:** I first read `/diagnostics/architecture` as showing the five `CognitiveSpatialModule` systems ABSENT on the node. 🔴 **Wrong** — they are `RegisterManualSystem` systems enumerated differently, and `executionCount: 741, failureCount: 0` settles it. **The perception tier worked all along; only the hop off the node was missing.** ⛔ Acting on that reading would have rebuilt a working tier.
+
+  ⛔ **NOT claimed:** `NodeRole.NavigationSolver`/off-node pathfinding *(§4.1b, deliberate)* · brain component tables *(`CognitiveComponentRegistry` stays excluded — `DESIGN_Role_Affinity_Ownership.md`)* · LOS is still SimHost's 2-D sweep *(`R-S10` — no terrain, no height)* · `CE-241`'s sub-step/bursty motion is untouched · a Stride node **cannot coexist with a real SimHost** on one domain *(five hard-coded lists switch on the subsystem name)*.
+
+  📄 As-built: [`DESIGN_Stride_Node_Modes.md` §13.7](https://github.com/pjanec/HROT/blob/claude/reset-working-branch-qd1qpv/docs/DESIGN_Stride_Node_Modes.md). **Gate:** `Hrot.NodeComposition.Tests` *(the feature's own suite, owning `StrideNodeBootstrapperTests`)* **53/53**.
+
 - [x] **CE-239 + CE-240** · `RW-S` ✅ — **STRIDE VEHICLES IGNORED THE ORDER'S SPEED AND DROVE AT 3 m/s; AND THE 20 km GROUND SLAB Z-FOUGHT WITH THE ARENA FLOOR.** 🔒 *(user, `2026-09-08`: "why are the tanks in hill attack moving so slowly? … the whole scenario takes more than 5 minutes what should take about half a minute" · "the floor plane z-fights with the in-area floor; lowering the rendered floor plane a bit would help")*
 
   ⭐⭐ **`CE-239` — honour `NavigationIntent.TargetSpeed`.** 📐 `VehicleNavigationIntentSystem` built its `VehicleWaypointController` **once** with `DefaultCruiseSpeed = 3.0f` and **never read `TargetSpeed`**, so every vehicle on the Stride host drove at 3 m/s regardless of the order. `hill-attack-close` orders **15**, its tanks declare `MaxSpeedFwd = 20`, and the reference `--mode all` host runs the same scenario at ~7.6 m/s. ⇒ **`Compute` gains a per-call `cruiseSpeedOverride`** *(null/≤0 keeps the old default, so behaviour is unchanged for every other caller)*, and the system passes the entity's `TargetSpeed` **clamped to its own `MaxSpeedFwd`** — an order can never command a chassis past its declared limit. ⭐ Both files are Stride-local; no shared blast radius.
