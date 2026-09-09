@@ -929,7 +929,7 @@ teardown paths currently pair it with"* — and that is `PushModal`, which `Tool
 | `EditorZoneAdapter` | ✅ converted | new tool `scenario.place.obstacle` |
 | `MapCommandController` *(IG)* | ✅ converted | new tool `scenario.place.remote-entity` — ⭐ a remote creation request now DISPLACES the operator's armed tool instead of fighting it for raw input |
 | `ScenarioSpawnAdapter` | ✅ **converted** *(`2026-09-09`, second unit)* — see §4.9b | new tools `scenario.place.area` / `scenario.place.route`; placement reaches the arbiter by `Activate(Spawn)` |
-| `MeasureToolGizmoAdapter` *(IG)* | ⛔ pending | settings-driven lifetime; §4.7c's hazard is its real fix |
+| `MeasureToolGizmoAdapter` *(IG)* | ✅ **converted** *(`2026-09-09`, third unit)* — see §4.9c | the settings checkbox becomes a BRIDGE; §4.7c's dead-toggle hazard is FIXED |
 
 ⭐⭐ **THE PATTERN, established by the two conversions and to be repeated:** the adapter takes an optional
 `ToolController`, `Register`s its arm ONCE in the constructor *(⛔ not per activation — the duplicate-id
@@ -1022,6 +1022,74 @@ BEFORE trusting the result**, and the invalid run was discarded.
 `new Hrot.UI.Common.Adapters.ScenarioSpawnAdapter(`, **fully qualified**. 🔒 The identical blindness that
 hid `D′` for a whole issue *(§4.7b finding 2)*; the new rail's regex is qualification-tolerant by
 construction.
+
+### 4.9c ✅ `MeasureToolGizmoAdapter` AS-BUILT — **STEP 4a IS COMPLETE** *(obligation ⑤, `2026-09-09`)*
+
+⭐⭐⭐ **The finding was BIGGER than §4.7c's recorded hazard: IG had TWO Measure implementations.**
+
+| | |
+|---|---|
+| the Measure **action** | `IgApplication.cs:2641` → `Activate(Measure)` → the shared `ScenarioToolRegistrations` arm |
+| the Measure **checkbox** | `IgApplication.cs:865` → `MeasureToolGizmoAdapter` → **its own** `MeasureGizmo`, registered straight on `GlobalGizmoManager` |
+
+🔒 **Ruling 9 forbids two implementations of one concept**, and the second one was also §4.8's bypass.
+
+#### 🔴🔴 The dead toggle — mechanism confirmed exactly
+
+📐 `MeasureGizmo.RequiresExclusiveFocus` is **`true`** ⇒ `GlobalGizmoManager.CancelInteractiveTools()`
+sweeps it, calling `OnCancel()` and `Dispose()` — ⛔ **both EMPTY on `MeasureGizmo`** *(`:159`, `:164`)*.
+⇒ the adapter's `onRemove` never fired, `_wasActive` stayed `true` while the gizmo was gone, and **Measure
+was dead until the operator cycled the setting.** ⚠ Pre-existing via the terminal-disconnect cancel, but
+newly reachable from ORDINARY TOOL SWITCHING once `ToolController` began cancelling the other arbiter.
+
+⚠⚠ **§4.7c's claim that the obvious fix *"RECURSES through `Unregister`→`Dispose`"* is WRONG — measured.**
+Both teardown paths **remove from `_activeGizmos` before disposing** *(`Unregister:80`, and
+`CancelInteractiveTools`'s focused branch)*, so a `Dispose()`→`onRemove()`→`Unregister()` chain hits the
+`if (!_activeGizmos.Remove(id, out var gizmo)) return;` early-out and **terminates**. ⭐ Routing through the
+controller is still the right fix — ⛔ but for the **ruling-9** reason, not the recursion one. *(Corrected
+in place; §4.7c's parenthetical is superseded by this paragraph.)*
+
+#### ⭐⭐ The three-way test *(`2026-08-17`)* applied — **duplicate SURFACE, not duplicate CODE**
+
+⇒ ⭐ **KEEP the checkbox + unit selector, ROUTE the implementation.** ⛔ Deleting it would cost IG a
+capability.
+
+| | |
+|---|---|
+| **units: PUSH → PULL** | the adapter used to set `gizmo.DisplayUnits` every frame on an instance it owned. It now **exposes** `ReadUnits()`, and `MapInteractionContext.MeasureUnits` hands that source to the ONE shared gizmo. ⭐ The per-frame sync branch is **gone entirely** |
+| ⚠ **why the pack cannot just read the setting** | `MeasureToolGizmoSettings` is **IG-INTERNAL** *(`Hrot.IG/Gizmos/`, registered by IG's own `GizmoRegistrar:27`)* — `Hrot.Presentation` cannot reference it. 🔒 That is `Q26` constraint 3 again: shared arm, host-bound input |
+| ⭐⭐⭐ **the dead-toggle fix** | the adapter subscribes to **`ActiveModalChanged`**; when anything else takes the modal slot it writes the `Active` setting **false** *(and clears `_wasActive`, or the edge-triggered `Update` would read the next FALSE→FALSE as "no change")*. ⇒ the checkbox follows the arbiter back down, and switching it on again **re-arms** |
+| ⚠ `Disarm()` cancels **only if Measure is what is armed** | ⛔ otherwise the checkbox turning ITSELF off would tear down the tool that displaced it |
+
+#### 📐 Rails — **the spec-traced suite was RE-HOMED, not renamed**
+
+⚠⚠ `SC_GZ021_MT_1..7` asserted through `TestHook_ActiveGizmo`, which no longer exists. 🔒 Each claim was
+**re-homed to its new owner** *(the `HN-037` lesson: a reroute is not a mechanical `s/old/new/`)* —
+*"a gizmo is registered"* now also asserts **WHO armed it** (`controller.ActiveModal`), and *"units reach
+the gizmo"* became *"the source reads correctly"* (`ReadUnits`). ⭐ The harness drives the **production**
+`ScenarioToolRegistrations.RegisterAll`, ⛔ not a hand-rolled tool set that would pass over a broken arm.
+
+| **7 → 9** | red-proof *(each on a build verified at 0 errors)* |
+|---|---|
+| `MT_3/4` arm+cancel **through the arbiter**, `MT_9` the adapter registers nothing itself | restoring the bypass ⇒ **4🔴 / 5✅** |
+| `MT_8` — another tool displaces Measure ⇒ the setting follows, **and the toggle still re-arms** | removing the `ActiveModalChanged` subscription ⇒ **1🔴**, exactly `MT_8` |
+
+#### ⚠⚠ `Hrot.Presentation.Tests` — **an A/B that reversed my first reading, recorded because it nearly became a false finding**
+
+📐 A first sample looked like a regression: **base 3/3 green, mine 1–2 reds per run.** ⛔ I did not write it
+off as the known flake — I measured, and the **5-vs-5 A/B reversed it**:
+
+| | reds |
+|---|---|
+| ⭐ **base tree** *(stashed)* | **3 reds in 5 runs** — `MapInteractionPackTests`, `ScenarioFileServiceTests`, `SelectionInteractionSystemTests` |
+| ⭐ **with the change** | **1 red in 5 runs** — `MapCullingPolicyTests` |
+
+⇒ ⭐⭐ **the base tree was WORSE in the larger sample; the first "3/3 green" was luck** *(`CE-084` clocks this
+suite at ~1 red per 4 runs, so P(3 green) ≈ 0.42)*. ⭐ Every failure text is process-global
+`ComponentTypeRegistry` state — *"Component type ID 121 is not registered"*, *"'TkbIdentity' is not
+registered"* — which this diff does not touch, and every `Hrot.Presentation` change here is **additive and
+inert when `MeasureUnits` is null**, as it is in those tests. 🔒 `CE-084`'s own rule stands: **neither a red
+nor a green from this suite is evidence** — ⇒ the row gains three new rotating identities.
 
 ### 4.10 🔴🔴🔴 A REGRESSION I SHIPPED IN STEP 3b, FOUND AND FIXED *(`2026-09-09`)*
 

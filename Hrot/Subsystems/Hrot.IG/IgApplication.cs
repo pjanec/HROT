@@ -805,6 +805,13 @@ public class IgApplication : IDisposable
                             new Hrot.ScenarioEditor.Gizmos.MissionPresentationGizmo(ctx.GeoTransform!),
                             new[] { typeof(SimTransform), typeof(SelectionState) });
                     },
+                    // ⭐⭐⭐ UXI-07 step 4a — the SHARED Measure arm pulls IG's unit preference from here,
+                    //   which is what let MeasureToolGizmoAdapter stop building a SECOND MeasureGizmo
+                    //   just to push units onto it (ruling 9; §4.9c).
+                    // ⚠ Resolved at CALL TIME: the adapter is constructed AFTER this pack.
+                    MeasureUnits = () =>
+                        _measureToolGizmoAdapter?.ReadUnits()
+                            ?? Hrot.ScenarioEditor.Gizmos.MeasureDisplayUnits.Meters,
                 });
 
             _gizmoBuffer            = igMapInteraction.Buffer;
@@ -862,7 +869,10 @@ public class IgApplication : IDisposable
             // position, so the MapCommandController above keeps its pre-migration behaviour.
             // BATCH-29: GlobalGizmoManager manages non-entity-bound gizmos (placement, picker).
             _globalGizmoManager = igMapInteraction.GlobalManager;
-            _measureToolGizmoAdapter = new MeasureToolGizmoAdapter(_globalGizmoManager, _gizmoSettingsRegistry);
+            // 🔒 UXI-07 step 4a — the arbiter is PASSED, so the settings checkbox ARMS THROUGH it and
+            //    follows it back down when another tool displaces Measure (the dead-toggle fix, §4.9c).
+            _measureToolGizmoAdapter = new MeasureToolGizmoAdapter(
+                _globalGizmoManager, _gizmoSettingsRegistry, _igToolController);
             var schemaRegistry = new GizmoMap.Presentation.GizmoSchemaRegistry();
             var layerControlEditService = new StructEdit.Reflection.ComponentEditServiceBuilder().Build();
             using var layerControlSchemaSession = layerControlEditService.Open(

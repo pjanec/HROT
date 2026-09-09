@@ -140,7 +140,8 @@ namespace Hrot.ScenarioEditor.Map
                 gizmos:              () => dataDriven,
                 globalGizmos:        () => globalManager,
                 startPlacementMode:  ctx.StartPlacementMode,
-                reportUnserviceable: ctx.ReportUnserviceableTool);
+                reportUnserviceable: ctx.ReportUnserviceableTool,
+                measureUnits:        ctx.MeasureUnits);
 
             // 🔴 GZH-003 headless-first, but NOT "disabled for everyone" (§3.2d ①): the only production
             // driver of AddListener() is PerspectiveCoordinatorSystem, so a standalone IG or editor has no

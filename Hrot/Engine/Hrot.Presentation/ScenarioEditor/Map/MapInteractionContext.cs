@@ -142,6 +142,25 @@ namespace Hrot.ScenarioEditor.Map
         public Action<string>? ReportUnserviceableTool { get; init; }
 
         /// <summary>
+        /// ⭐⭐ <b>Live units for the shared <c>Measure</c> tool</b> — <c>UXI-07</c> step 4a.
+        ///
+        /// <para>🔒 Same <c>Q26</c> constraint 3 split as <see cref="StartPlacementMode"/>: the Measure
+        /// gizmo and its arm are SHARED, but WHERE the unit preference lives is host-bound. 📐 IG keeps it
+        /// in an IG-INTERNAL <c>MeasureToolGizmoSettings</c> registered by its own
+        /// <c>GizmoRegistrar</c>, which this assembly cannot reference — ⛔ so the pack cannot read the
+        /// setting itself, however tempting that looks.</para>
+        ///
+        /// <para>🔴 <b>What it replaced:</b> IG built a SECOND <c>MeasureGizmo</c> in
+        /// <c>MeasureToolGizmoAdapter</c> purely to push units onto it — two implementations of one
+        /// concept (ruling 9), and the second one armed straight on <c>GlobalGizmoManager</c>, bypassing
+        /// the arbiter. ⇒ ⭐ a PULL source lets the surviving surface keep its behaviour while owning no
+        /// instance.</para>
+        ///
+        /// <para>⛔ <see langword="null"/> ⇒ the gizmo uses its own settable <c>DisplayUnits</c> (metres).</para>
+        /// </summary>
+        public Func<Hrot.ScenarioEditor.Gizmos.MeasureDisplayUnits>? MeasureUnits { get; init; }
+
+        /// <summary>
         /// ⭐⭐ <b><c>S4</c> — which visibility policy each projector gets.</b> Optional: when null the pack
         /// attaches <see cref="CullingStateVisibilityPolicy"/> to the entity projector and the framework
         /// default to everything else.
