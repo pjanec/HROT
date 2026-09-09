@@ -773,93 +773,20 @@ public sealed class EditorStrideSubsystem : IDisposable, IStrideEditorWindowHost
         // Because Mandatory is empty, the constructor calls PublishStandby() immediately,
         // setting _bootstrapLatch = true and publishing ClusterState.Idle ("Standby").
 
-        // ── 9. Visual binding system (STR-P0-T7/T8) ──────────────────────────
-        // Wired only when a factory is provided — headless tests pass null.
-        // The StrideVisualBindingSystem reconciles FDP entities to Stride visuals each
-        // frame via the two-pass differential sync (design §7 Pass-A).
-        if (visualFactory != null)
-        {
-            VisualBindingSystem = new StrideVisualBindingSystem(visualFactory, TkbDb);
-        }
+        // ⭐⭐⭐ CE-252 — ONE composer, three call sites. Steps 9-13b used to be written out here and
+        //    AGAIN in the hosted arm below (measured byte-identical) and AGAIN in
+        //    StrideNodeShell.AttachPhysics. Ruling 9: duplicate CODE routes.
+        //    ⛔ Every conditional that used to live here is preserved inside the composer, with the
+        //    defect each one encodes named — do not re-inline them.
+        var muscleBracket = Hrot.Stride.Core.StrideMuscleBracketComposer.Compose(
+            visualFactory:          visualFactory,
+            physicsBodyService:     physicsBodyService,
+            tkbDb:                  TkbDb,
+            vehicleNavIntentSystem: _vehicleNavIntentSystem);
 
-        // ── 10. Physics body service + lifecycle (STR-P1-T2, STR-D11) ────────
-        // Use the caller-supplied physicsBodyService if provided (live GPU path: BulletPhysicsBodyService).
-        // Fall back to NoOpPhysicsBodyService for headless tests/CI (no running Simulation).
-        // The real service is passed from StrideHrotGame.BootEditorSubsystem after BeginRun
-        // where PhysicsProcessor is guaranteed to be initialised (STR-D11).
-        PhysicsBodyService = physicsBodyService ?? new NoOpPhysicsBodyService();
-        // physicsIsActive is true ONLY when a real (non-NoOp) service was supplied.
-        // When false, StridePhysicsBracket.RunPreKernelStep skips PhysicsBodyLifecycle.Execute —
-        // no phantom NoOp bodies are created and BulletReverseSyncSystem cannot clobber SimVelocity.
-        bool physicsIsActive = physicsBodyService != null;
-        PhysicsBodyLifecycleSystem? physicsBodyLifecycle = null;
-        if (VisualBindingSystem != null)
-        {
-            physicsBodyLifecycle = new PhysicsBodyLifecycleSystem(PhysicsBodyService, VisualBindingSystem);
-        }
-
-        // ── 11. Motors (STR-P1-T3, STR-P1-T4) ───────────────────────────────
-        // Wired only when a lifecycle system is available (requires visual binding).
-        // BulletCharacterMotor + KinematicVehicleMotor run pre-physics (inside the bracket)
-        // to push intents/commands into the physics service.
-        // NOTE: The no-op service accepts calls without errors, so motors execute
-        // harmlessly in headless mode.
-        BulletCharacterMotor?  characterMotor = null;
-        KinematicVehicleMotor? vehicleMotor   = null;
-        if (physicsBodyLifecycle != null)
-        {
-            characterMotor = new BulletCharacterMotor(PhysicsBodyService, physicsBodyLifecycle);
-            vehicleMotor   = new KinematicVehicleMotor(PhysicsBodyService, physicsBodyLifecycle);
-        }
-
-        // ── 12. Reverse-sync group (STR-P1-T5, STR-D5) ───────────────────────
-        // BulletReverseSyncSystem wrapped in a TogglablePostSimulationGroup.
-        // Driven inside StridePhysicsBracket.RunPreKernelStep BEFORE Kernel.Update() so FDP
-        // Simulation-phase consumers read post-physics SimTransform the same frame (design §8.3).
-        // NOT registered with the kernel (would run inside Update, causing one-frame lag).
-        //
-        // The group is ALWAYS created so the P5 replay handler (STR-P5-T4) has a togglable
-        // post-sim group to sever during replay even in headless mode (no visual factory).
-        Fdp.ModuleHost.Scheduling.TogglablePostSimulationGroup reverseSyncGroup;
-        if (physicsBodyLifecycle != null)
-        {
-            var reverseSync = new BulletReverseSyncSystem(PhysicsBodyService, physicsBodyLifecycle);
-            reverseSyncGroup = new Fdp.ModuleHost.Scheduling.TogglablePostSimulationGroup(
-                "BulletReverseSync", reverseSync);
-        }
-        else
-        {
-            reverseSyncGroup = new Fdp.ModuleHost.Scheduling.TogglablePostSimulationGroup(
-                "BulletReverseSync");
-        }
-
-        // ── 13. Split-authority sync (STR-P1-T6) ─────────────────────────────
-        // Replaces the P0 flat forward-sync (VisualBindingSystem.Sync).
-        // Driven inside StridePhysicsBracket.RunPostKernelStep AFTER Kernel.Update().
-        SplitAuthorityStrideSyncScript? splitSync = null;
-        if (VisualBindingSystem != null && visualFactory != null)
-        {
-            splitSync = new SplitAuthorityStrideSyncScript(VisualBindingSystem, visualFactory);
-        }
-
-        // ── 13b. Physics bracket (BATCH refactor) ────────────────────────────
-        // Assemble StridePhysicsBracket from the parts constructed above (steps 10–13).
-        // Wire VehicleNavIntentSystem from the muscle set (STR-D21: pre-kernel extra execute).
-        _physicsBracket = new StridePhysicsBracket(
-            physicsIsActive:      physicsIsActive,
-            physicsBodyLifecycle: physicsBodyLifecycle,
-            characterMotor:       characterMotor,
-            vehicleMotor:         vehicleMotor,
-            reverseSyncGroup:     reverseSyncGroup,
-            splitSync:            splitSync,
-            // ⭐ CE-219 — the bracket gates Stride's OWN Bullet step through this service. The parameter
-            //   is optional so the many test fakes need not implement it, but a production caller that
-            //   HOLDS the service must PASS it: an unpassed optional dependency here would leave gravity
-            //   running while the cluster is paused, silently and with the gate looking present.
-            physicsBodyService:   PhysicsBodyService)
-        {
-            VehicleNavIntentSystem = _vehicleNavIntentSystem,
-        };
+        VisualBindingSystem = muscleBracket.VisualBinding;
+        PhysicsBodyService  = muscleBracket.PhysicsBodyService;
+        _physicsBracket     = muscleBracket.Bracket;
 
         // ── 14. Animation backend + locomotion/montage bridge (STR-P4-T3/T4) ──
         // The real StrideAnimationBackend is the IAnimationBackend for editor_stride
@@ -1125,67 +1052,20 @@ public sealed class EditorStrideSubsystem : IDisposable, IStrideEditorWindowHost
         // ── H3. Build Stride view systems (steps 9-16, bound to editor's World) ──
         // These are identical to the OFF path because they all operate on World (= editor's World).
 
-        // ── (step 9) Visual binding system ───────────────────────────────
-        if (visualFactory != null)
-        {
-            VisualBindingSystem = new StrideVisualBindingSystem(visualFactory, TkbDb);
-        }
+        // ⭐⭐⭐ CE-252 — ONE composer, three call sites. Steps 9-13b used to be written out here and
+        //    AGAIN in the hosted arm below (measured byte-identical) and AGAIN in
+        //    StrideNodeShell.AttachPhysics. Ruling 9: duplicate CODE routes.
+        //    ⛔ Every conditional that used to live here is preserved inside the composer, with the
+        //    defect each one encodes named — do not re-inline them.
+        var muscleBracket = Hrot.Stride.Core.StrideMuscleBracketComposer.Compose(
+            visualFactory:          visualFactory,
+            physicsBodyService:     physicsBodyService,
+            tkbDb:                  TkbDb,
+            vehicleNavIntentSystem: _vehicleNavIntentSystem);
 
-        // ── (step 10) Physics body service ───────────────────────────────
-        PhysicsBodyService = physicsBodyService ?? new NoOpPhysicsBodyService();
-        bool physicsIsActive = physicsBodyService != null;
-        PhysicsBodyLifecycleSystem? physicsBodyLifecycle = null;
-        if (VisualBindingSystem != null)
-        {
-            physicsBodyLifecycle = new PhysicsBodyLifecycleSystem(PhysicsBodyService, VisualBindingSystem);
-        }
-
-        // ── (step 11) Motors ──────────────────────────────────────────────
-        BulletCharacterMotor?  characterMotor = null;
-        KinematicVehicleMotor? vehicleMotor   = null;
-        if (physicsBodyLifecycle != null)
-        {
-            characterMotor = new BulletCharacterMotor(PhysicsBodyService, physicsBodyLifecycle);
-            vehicleMotor   = new KinematicVehicleMotor(PhysicsBodyService, physicsBodyLifecycle);
-        }
-
-        // ── (step 12) Reverse-sync group ─────────────────────────────────
-        Fdp.ModuleHost.Scheduling.TogglablePostSimulationGroup reverseSyncGroup;
-        if (physicsBodyLifecycle != null)
-        {
-            var reverseSync = new BulletReverseSyncSystem(PhysicsBodyService, physicsBodyLifecycle);
-            reverseSyncGroup = new Fdp.ModuleHost.Scheduling.TogglablePostSimulationGroup(
-                "BulletReverseSync", reverseSync);
-        }
-        else
-        {
-            reverseSyncGroup = new Fdp.ModuleHost.Scheduling.TogglablePostSimulationGroup(
-                "BulletReverseSync");
-        }
-
-        // ── (step 13) Split-authority sync ───────────────────────────────
-        SplitAuthorityStrideSyncScript? splitSync = null;
-        if (VisualBindingSystem != null && visualFactory != null)
-        {
-            splitSync = new SplitAuthorityStrideSyncScript(VisualBindingSystem, visualFactory);
-        }
-
-        // ── (step 13b) Physics bracket ───────────────────────────────────
-        _physicsBracket = new StridePhysicsBracket(
-            physicsIsActive:      physicsIsActive,
-            physicsBodyLifecycle: physicsBodyLifecycle,
-            characterMotor:       characterMotor,
-            vehicleMotor:         vehicleMotor,
-            reverseSyncGroup:     reverseSyncGroup,
-            splitSync:            splitSync,
-            // ⭐ CE-219 — the bracket gates Stride's OWN Bullet step through this service. The parameter
-            //   is optional so the many test fakes need not implement it, but a production caller that
-            //   HOLDS the service must PASS it: an unpassed optional dependency here would leave gravity
-            //   running while the cluster is paused, silently and with the gate looking present.
-            physicsBodyService:   PhysicsBodyService)
-        {
-            VehicleNavIntentSystem = _vehicleNavIntentSystem,
-        };
+        VisualBindingSystem = muscleBracket.VisualBinding;
+        PhysicsBodyService  = muscleBracket.PhysicsBodyService;
+        _physicsBracket     = muscleBracket.Bracket;
 
         // ── H4. Wire the pre-kernel hook onto the editor ──────────────────
         // The hook runs inside EditorSubsystem.Update() just before _kernel.Update().

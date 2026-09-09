@@ -294,70 +294,42 @@ public sealed class StrideNodeShell : IDisposable, Hrot.Presentation.DebugApi.IP
         if (Context == null) throw new InvalidOperationException("AttachPhysics before Boot.");
 
         var visualFactory = new StrideVisualFactory(game, scene);
-        _visualBinding    = new StrideVisualBindingSystem(visualFactory, Context.TkbDb);
 
         var physicsProcessor = game.SceneSystem.SceneInstance
             .GetProcessor<Stride.Physics.PhysicsProcessor>();
 
-        IPhysicsBodyService service;
-        bool physicsIsActive;
+        // ⭐⭐ The one thing that is genuinely per-host: WHICH physics service. Mode 1 receives one
+        //   from StrideHrotGame after BeginRun; mode 2 builds a deferred Bullet service over its own
+        //   scene. ⛔ Null here means "headless" to the composer, which is exactly right.
+        IPhysicsBodyService? service = null;
         if (physicsProcessor?.Simulation != null)
         {
             service = new BulletPhysicsBodyServiceDeferred(
                 physicsProcessor.Simulation,
                 () => _visualBinding?.Visuals
                       ?? new System.Collections.Generic.Dictionary<Entity, StrideVisualReference>());
-            physicsIsActive = true;
             Log.Info("[StrideNodeShell] Bullet physics wired for the mode-2 node.");
         }
         else
         {
-            service = new NoOpPhysicsBodyService();
-            physicsIsActive = false;
             Log.Warn("[StrideNodeShell] No PhysicsProcessor at attach time — mode 2 will NOT move bodies.");
         }
 
-        PhysicsBodyService = service;
-        var lifecycle      = new PhysicsBodyLifecycleSystem(service, _visualBinding);
-        var characterMotor = new BulletCharacterMotor(service, lifecycle);
-        var vehicleMotor   = new KinematicVehicleMotor(service, lifecycle);
-        var reverseSync    = new Fdp.ModuleHost.Scheduling.TogglablePostSimulationGroup(
-            "BulletReverseSync", new BulletReverseSyncSystem(service, lifecycle));
-        var splitSync      = new SplitAuthorityStrideSyncScript(_visualBinding, visualFactory);
+        // ⭐⭐⭐ CE-252 — THE SHARED CHAIN. This used to be the third hand-written copy of steps
+        //    9-13b; the other two were in EditorStrideSubsystem's two arms. Ruling 9: duplicate CODE
+        //    routes. ⛔ Note mode 2 was the ONLY site that built BulletPhysicsBodyServiceDeferred and
+        //    the visual factory itself — those stay here, because they are the per-host half.
+        var muscleBracket = Hrot.Stride.Core.StrideMuscleBracketComposer.Compose(
+            visualFactory:          visualFactory,
+            physicsBodyService:     service,
+            tkbDb:                  Context.TkbDb,
+            vehicleNavIntentSystem: MuscleSet?.VehicleNavIntent);
 
-        _physicsBracket = new StridePhysicsBracket(
-            physicsIsActive:      physicsIsActive,
-            physicsBodyLifecycle: lifecycle,
-            characterMotor:       characterMotor,
-            vehicleMotor:         vehicleMotor,
-            reverseSyncGroup:     reverseSync,
-            splitSync:            splitSync,
-            physicsBodyService:   service)
-        {
-            // ⛔⛔ CE-246 — WITHOUT THIS THE NODE OWNS THE TANKS AND NEVER DRIVES THEM.
-            //
-            // 📌 Measured 2026-09-09, CGF + Stride mode 2, hill-attack-close: the node took ownership
-            //    of all 8 entities, promoted every ghost to its full TKB shape (VehicleState,
-            //    VehicleParams, NavState, NavigationStatus present), and received a fresh
-            //    NavigationIntent {Mode=DirectPoint, FinalDestination=[523,401,0], TargetSpeed=15}
-            //    every few seconds -- and 1001 never left (446,421) with v=0.0. The bracket's own
-            //    telemetry named the hole in plain sight: "VehicleNavIntent=0.0" on every
-            //    [Bracket breakdown] line, because the property was NULL and `?.Execute` was a no-op.
-            //
-            // 📐 VehicleNavigationIntentSystem is the ONLY thing that turns an ingressed
-            //    NavigationIntent into the steering/throttle the vehicle motor consumes. With it
-            //    absent, every upstream stage works and the last one silently does nothing -- which is
-            //    exactly why the four defects before this one each looked like "navigation is broken".
-            //
-            // ⭐ The template is mode 1, EditorStrideSubsystem.cs:857 and :1183, which set this same
-            //    property from the same muscle set, in an object initializer, for the same reason. This
-            //    shell already built the set (MuscleSet, above) to compose its capabilities; it simply
-            //    never lent the bracket the one system that is NOT kernel-resident. It is a
-            //    constructor-adjacent property rather than a parameter precisely so it can be omitted
-            //    -- which made omitting it silent. A production caller that HAS the dependency must
-            //    PASS it.
-            VehicleNavIntentSystem = MuscleSet?.VehicleNavIntent,
-        };
+        _visualBinding     = muscleBracket.VisualBinding;
+        PhysicsBodyService = muscleBracket.PhysicsBodyService;
+        _physicsBracket    = muscleBracket.Bracket;
+
+        bool physicsIsActive = muscleBracket.PhysicsIsActive;
 
         return physicsIsActive;
     }
