@@ -1988,6 +1988,18 @@ nothing here moves the counts table.*
 
   ⛔ **HISTORICAL —** the original hand-off note said: 🔒 The "H - ui" session asked for confirmation so it can fold this into `CE-151` rather than have a competing row or a competing fix. ⭐ This row exists to carry the Windows measurement to them, and should be **closed by `CE-151`**, not separately.
 
+- [ ] **CE-261** · `RW-M` 🔴 — **IG's MEASURE TOGGLE DIES ON A CANCEL, AND `UXI-07` MAKES IT REACHABLE.** 🔎 Found by the "H - ui" session, which asked me to allocate the id; ⭐ **claim VERIFIED here before filing**.
+
+  📐 **Measured.** `MeasureToolGizmoAdapter` *(`Hrot.IG/Gizmos/`)* keeps a `MeasureGizmo` alive while a persisted setting is true. `:46` `if (active && !_wasActive)` constructs it with an `onRemove` callback whose **only** job is `_wasActive = false` *(`:53`)*, then registers it **straight on `GlobalGizmoManager`** *(`:58`)* — ⛔ bypassing the controller.
+
+  ⛔⛔ **And `MeasureGizmo.OnCancel()` and `Dispose()` are BOTH literally `{ }`** *(`MeasureGizmo.cs:159`, `:164`)* — `_onRemove()` is invoked on one other path only *(`:150`)*. ⇒ **a cancel or dispose never resets `_wasActive`**, the `active && !_wasActive` arm can never fire again, and the toggle is **dead until the setting is cycled off and on** *(the `!active && _wasActive` arm at `:60`)*.
+
+  ⚠ **Pre-existing, but `UXI-07` step 3b makes it REACHABLE from ordinary tool switching on IG** — the controller now cross-cancels, which is exactly the path that disposes without `onRemove`.
+
+  ⛔ **The obvious fix is wrong:** having `Dispose()` call `onRemove` recurses through `Unregister` → `Dispose`. ⇒ ⭐ **the real fix is `UXI-07` step 4** — route the adapter through the controller so the controller owns the lifecycle and the adapter stops needing a self-reported `_wasActive` at all.
+
+  ⚠ **NOT reproduced interactively** — pressing Measure twice is a GUI action this session cannot perform. ⭐ What IS measured is the code path and IG's health after step 3b: 12 panels, 0 errors, `InputCaptureBinding` 0 at rest.
+
 - [x] **CE-260** · `RW-S` ✅ — **TWO SOURCE-SCAN RAILS IN THIS PROJECT WERE BLIND TO A QUALIFIED `new`.** 🔎 Shape found by the "H - ui" session on their own rail *(`CE-259`)*; re-measured here and it was present twice in mine.
 
   📐 **The blindness:** a rail asserting the literal `"new FdpEventBus()"` is **green over a file that writes `new Fdp.Core.FdpEventBus()`**. ⛔⛔ **The DIRECTION is what makes it lethal** — a POSITIVE spelling check merely goes red when someone requalifies *(annoying, visible)*; a **NEGATIVE** one, `Assert.False(src.Contains(...))`, goes **silently green over the very defect it forbids**. Both of mine were negative.
