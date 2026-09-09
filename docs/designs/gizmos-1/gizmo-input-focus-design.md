@@ -1,3 +1,13 @@
+<!--STATUS
+state: LIVE
+updated: 2026-09-09
+current-answer: §6 is the intent and still stands. ⚠ READ §6.4 FIRST — it records that §6.2's
+  single registry was NEVER ADOPTED INTO FDP, and what FDP actually has instead (§6.2a).
+known-rot: §13's closing line ("port the same GizmoInteractionManager into FDP and rewire
+  DataDrivenGizmoSystem over it") and §9's "DataDrivenGizmoSystem shrinks dramatically" describe a
+  port that DID NOT HAPPEN. ⛔ Do not quote either as a description of the code.
+-->
+
 # Gizmo Input & Focus — Design Document
 
 **Subject:** FDP / HROT GizmoMap — backend-driven interactive tools over a stateless dumb terminal
@@ -213,6 +223,39 @@ public sealed class ActiveGlobalGizmo
 This registry lives **inside the `GizmoInteractionManager`** (see §8), not in the ECS. It is transient, never serialized, never replicated. A managed reference is fine — the manager knows its own tools' references; nobody else cares.
 
 Rule: **only the holder of the registry slot may emit `InputCaptureBinding(Exclusive=true)`.** Because the manager (not the gizmo) emits the primitive, the gizmo doesn't even know the registry exists — it just declares `RequiresExclusiveFocus => true` and the manager handles the rest.
+
+### 6.2a ⛔⛔ AS-BUILT DIVERGENCE — **§6.2's single registry was never adopted into FDP** *(measured `2026-09-09`)*
+
+⚠⚠ **§6.2 and §9 describe a port that did not happen.** Measured while investigating the `UXI-07`
+two-arbiter defect:
+
+| the design says | what FDP actually has |
+|---|---|
+| §6.2 — *"only the holder of the registry slot may emit `InputCaptureBinding(Exclusive=true)`"*, one `ActiveGlobalGizmo` slot inside **one** `GizmoInteractionManager` | ⛔ **`ActiveGlobalGizmo` does not exist — 0 occurrences repo-wide.** `GizmoInteractionManager` exists in **`GizmoMap.Example` ONLY** (9 mentions, all in the example project). ⇒ **the reference implementation was written and never ported** |
+| §9 — *"In FDP, `DataDrivenGizmoSystem` shrinks dramatically. It becomes a lifecycle bridge plus an event router"* | 🔴 **It did not shrink. It owns its OWN `_focusedGizmo`** — ~40 touches, **four grant sites** (`:91`, `:291` grant-if-null, and **`:452` which STEALS**: `if ((gizmo.RequiresExclusiveFocus \|\| gizmo.WantsRawInput) && _focusedGizmo != gizmo) { _focusedGizmo?.SetFocus(false); … }`), ~8 release sites |
+| §6.2 — one arbiter | 🔴 **TWO.** `GlobalGizmoManager` has a **second** `_focusedGizmo` (14 touches, grant at `:66`). Neither knows about the other; both are handed the same `FdpEventBus` by `MapInteractionPack` |
+
+⭐ **The CONTRACT half of this design WAS adopted** — `IGizmoInteractionHandler` / `IStatefulGizmo`
+are shared and implemented widely (`Fdp.Presentation` pickers, `Hrot.ScenarioEditor` gizmos,
+`TuningConsoleGizmo`, `LayerControlGizmo`). ⛔ **It is specifically the ARBITER half that was left
+behind**, which is the *"the seam exists and is under-adopted"* shape this repo keeps producing.
+
+🔴 **Consequence, and it is the root of `UXI-07`:** *"at most one exclusive focus per subsystem"* is
+**not true by construction** anywhere in FDP. `ToolController.CancelOtherArbiter` currently makes it
+true by **convention** — it cancels the other arbiter before arming. ⚠ **That is a workaround, not the
+fix**, and it holds only for tools that go through the controller.
+
+⚠ **A second, separate finding — the field is OVERLOADED, which is why the port is not mechanical.**
+`DataDrivenGizmoSystem._focusedGizmo` carries **two unrelated meanings**: (a) *who holds exclusive
+focus* — §6.2's concern — and (b) *who receives an event whose token does not resolve*, the
+`_focusedGizmo ?? FindGizmo(evt.Token…)` fallback at `:465, :473, :481, :509, :517` (drag, commit,
+cancel, mouse, key). ⛔ **§6.2's registry replaces only (a).** Meaning (b) has **no design record** —
+searched `docs/` and `.dev/`, none found — so adopting the registry requires a decision about the
+routing fallback that this document never made. ⇒ ~12 touch points, not 4.
+
+⭐ **Gateability, measured:** `Fdp.Toolkits.Tests` `Diagnostics.Gizmos` subset is **190/190 green on
+3 consecutive runs** ⇒ ⛔ **`DEBT-AIB-030`'s rotating flake does NOT affect this subset**; a change
+here can be gated honestly. *(That is a statement about this subset only, not the whole assembly.)*
 
 ### 6.3 What the terminal does NOT do
 
@@ -521,6 +564,8 @@ The example is a non-ECS test bed for the architecture. Implement in this order:
 5. `DemoSceneGenerator` becomes the host: holds a `GizmoInteractionManager`, populates it with the two polygon editors at startup, and exposes a `TriggerRotator()` method that constructs and registers a rotator on demand.
 
 When this works end-to-end in the example, port the same `GizmoInteractionManager` and interface set into FDP and rewire `DataDrivenGizmoSystem` over it.
+
+> ⛔⛔ **KNOWN ROT — the sentence above describes a port that DID NOT HAPPEN** *(measured `2026-09-09`, see **§6.2a**)*. The **interface set** was ported; the **`GizmoInteractionManager` was not**, and `DataDrivenGizmoSystem` was never rewired over it — it grew its own focus field instead, and `GlobalGizmoManager` grew a second one. ⚠ Do not read this line as a description of the code.
 
 ## 14. Open questions / deferred
 
