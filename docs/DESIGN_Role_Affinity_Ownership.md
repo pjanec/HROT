@@ -42,6 +42,41 @@ same function over the same entity cannot disagree.
 
 ---
 
+## 0a. ⭐⭐⭐ A MEASURED FAILURE THIS DESIGN REMOVES BY CONSTRUCTION — `CE-256` *(`2026-09-09`)*
+
+⭐ This design has been argued from principle. 📌 **Here is a concrete, reproduced failure of the grant
+path, so the case rests on a measurement and not only on an argument.**
+
+📐 **Measured on a CGF + Stride mode-2 cluster, both directions, `hill-attack-close`:**
+
+| start order | result |
+|---|---|
+| node started **BEFORE** CGF is healthy | 🔴 **0 ownership takeovers.** The node replicates all 8 entities, promotes every ghost, composes its window and reports **0 errors** — and **owns nothing**, so nothing it is responsible for ever moves. **Survives a scenario reload** *(340 s observed)* |
+| node started **AFTER** CGF's API answers | ✅ **8 takeovers, every time** |
+
+📐 **The mechanism, exactly.** `BrainMuscleOwnershipStrategy.GetInitialGrants` asks
+`IClusterStateCache.GetLeastLoadedNode(MuscleGround)`. That cache is fed by `NodeHeartbeat` samples at
+**1 Hz**. ⛔ If no Muscle node is known **at the moment entities are created**, the strategy returns an
+**empty grant list** — its own documented *"safe fallback: the Brain retains physics authority"* — and
+⛔⛔ **nothing ever re-grants.** ⚠ The window is not a race between threads; it is a race between
+**process start-up and scenario load**, and it is wide.
+
+⇒ ⭐⭐⭐ **§3's rule removes this, and it is worth stating why in one line:** *"the creator declines, the
+role-holder claims on promotion"* means ownership is **derived locally from a node's own role**, not
+handed out by a remote party at creation time. ⛔ **A late joiner has nothing to miss** — it claims what
+its role says it owns, whenever it arrives. ⇒ the failure above is **not a bug to fix in the grant path;
+it is a property of having a grant path at all.**
+
+| ⛔ what was deliberately NOT built | |
+|---|---|
+| **a re-grant / retry on node-join** | ⚠ The obvious fix: have CGF re-evaluate when a Muscle heartbeat arrives for entities with no muscle owner. ⛔ **Rejected** — it is a SECOND ownership mechanism, and this design deletes the first. 📌 Ruling 9. ⭐ Building it would mean building something this design removes |
+| ⭐ **what WAS built instead** | a **detector**, in the node: `StrideNodeShell.CheckOwnershipStarvation` warns once when the node holds entities with a `SimTransform` and owns **none** of them, naming the start-order cause. ⚠ **It is not a fix and does not claim to be** — ⭐ it converts a silent 340-second mystery into one sentence at the moment it happens. 📐 Proven both ways: fires on the starved ordering *(8 entities, 0 owned)*, **silent** on the healthy one *(8 takeovers, 0 warnings)* |
+
+⚠ **Read this as evidence FOR the design, not as a reason to patch around it.** ⭐ Until §3 is built the
+operational rule is simply: **start a muscle node only after CGF answers.**
+
+---
+
 ## 1. INVENTORY
 
 ⭐ Run `2026-09-01` through the codebase-memory **graph** (CLI), each cross-checked with `grep`.

@@ -85,6 +85,10 @@ public sealed class StrideNodeShell : IDisposable, Hrot.Presentation.DebugApi.IP
     private Hrot.UI.Common.Adapters.ClusterTimeTransportAdapter? _clusterTime;
     private Fdp.Toolkit.Diagnostics.Gizmos.Systems.DebugPrimitivesBatchSubscriberSystem? _gizmoIngress;
     private int _gizmoLogTicks;
+
+    // ⭐ CE-256 — the ownership-starvation detector's state. See the check in Tick.
+    private int  _ownershipCheckTicks;
+    private bool _ownershipStarvationReported;
     private StrideVisualBindingSystem? _visualBinding;
     private StridePhysicsBracket? _physicsBracket;
 
@@ -498,6 +502,8 @@ public sealed class StrideNodeShell : IDisposable, Hrot.Presentation.DebugApi.IP
                      _gizmoIngress.DroppedRaggedCount, _gizmoIngress.SkippedOwnNodeCount);
         }
 
+        CheckOwnershipStarvation();
+
         _operatorWindow?.PumpFrame();
     }
 
@@ -751,6 +757,67 @@ public sealed class StrideNodeShell : IDisposable, Hrot.Presentation.DebugApi.IP
 
         Log.Info("[StrideNodeShell] CE-214: operator window composed (perspective SimHost, node {0}).",
                  ctx.NodeId);
+    }
+
+    /// <summary>
+    /// ⭐⭐⭐ <b><c>CE-256</c> — say it out loud when this node holds entities it does not own.</b>
+    /// </summary>
+    /// <remarks>
+    /// <para><b>📌 The defect this reports</b> — measured <c>2026-09-09</c>. If the node starts before
+    /// CGF is healthy, CGF's cluster cache has no <c>MuscleGround</c> node when the scenario loads,
+    /// <c>BrainMuscleOwnershipStrategy.GetInitialGrants</c> returns its documented <b>empty "safe
+    /// fallback"</b>, and those entities are <b>never re-granted</b>: 0 takeovers across 340 s and a
+    /// scenario reload. Start the node after CGF answers and it is 8 takeovers every time.</para>
+    ///
+    /// <para>⛔⛔ <b>Why a DETECTOR and not a fix.</b> The obvious fix is a retry — have CGF re-grant when
+    /// a Muscle node appears. ⚠ That would be a SECOND ownership mechanism, and
+    /// <c>DESIGN_Role_Affinity_Ownership.md</c> §3 deletes the first one: <i>"the creator declines, the
+    /// role-holder claims on promotion"</i>. ⇒ ⭐ under role affinity <b>there is nothing to race</b> —
+    /// ownership stops being something a remote party hands out at creation time, so a late joiner
+    /// simply claims what its role says it owns. Building a retry now means building something that
+    /// design removes.</para>
+    ///
+    /// <para>⭐⭐ <b>What the detector is worth on its own.</b> The failure is SILENT and looks healthy:
+    /// the node replicates, ticks, promotes ghosts, composes its window and reports zero errors — while
+    /// nothing it owns ever moves. ⚠ It cost me 340 seconds and an isolation run to tell it apart from
+    /// a change I had just made. ⇒ turning that into one sentence at the moment it happens is the
+    /// difference between a diagnosis and an afternoon.</para>
+    ///
+    /// <para>⚠ Reported ONCE per starvation episode, and the latch clears the moment any ownership
+    /// arrives — ⛔ a warning that repeats every second trains people to ignore it.</para>
+    /// </remarks>
+    private void CheckOwnershipStarvation()
+    {
+        var world = Context?.World;
+        if (world == null) return;
+
+        // ⭐ ~10 s at 60 fps. Deliberately slow: a node legitimately owns nothing for the first
+        //   moments after a scenario load, while the grants are still in flight.
+        if (++_ownershipCheckTicks % 600 != 0) return;
+
+        int total = 0, owned = 0;
+        foreach (var _ in world.Query().With<SimTransform>().Build())               total++;
+        foreach (var _ in world.Query().With<SimTransform>().WithOwned<SimTransform>().Build()) owned++;
+
+        if (owned > 0 || total == 0)
+        {
+            // ⭐ Ownership arrived (or there is nothing to own) — re-arm for a future episode.
+            _ownershipStarvationReported = false;
+            return;
+        }
+
+        if (_ownershipStarvationReported) return;
+        _ownershipStarvationReported = true;
+
+        Log.Warn(
+            "[StrideNodeShell] CE-256: this node holds {0} entities with a SimTransform and OWNS NONE " +
+            "of them. Nothing it is responsible for will move. The usual cause is that this node was " +
+            "started BEFORE CGF was healthy: CGF grants muscle ownership once, at entity creation, from " +
+            "its cluster cache — if no MuscleGround node was known then, BrainMuscleOwnershipStrategy " +
+            "returns an empty grant list as its documented safe fallback and NOTHING RE-GRANTS. Restart " +
+            "this node after CGF's API answers. (The structural fix is role-affinity ownership, where " +
+            "the role-holder claims on promotion and there is nothing to race.)",
+            total);
     }
 
     public void Dispose()
