@@ -50,5 +50,38 @@ namespace Hrot.SimHost.Tests
                     $"expected {path} to exist — the rail's target moved.", path);
             return System.IO.File.ReadAllText(path);
         }
+
+        /// <summary>
+        /// ⭐⭐⭐ <b><c>CE-260</c> — does this source CONSTRUCT <paramref name="typeName"/>, however it
+        /// spells the type?</b> Use this instead of <c>src.Contains("new Foo(")</c>.
+        /// </summary>
+        /// <remarks>
+        /// <para><b>📌 The blindness this exists to remove.</b> 🔎 Found by the "H - ui" session on their
+        /// own rail and re-measured here on two of mine: a source-scan that asserts the literal string
+        /// <c>"new EntityRotatorGizmo"</c> is <b>GREEN over a file that writes
+        /// <c>new Hrot.ScenarioEditor.Gizmos.EntityRotatorGizmo(</c></b> — fully qualified. Their rail had
+        /// been green over the very duplicate it forbids ever since <c>CE-051</c>.</para>
+        ///
+        /// <para>⛔⛔ <b>The direction is what makes it dangerous.</b> A POSITIVE assertion that pins a
+        /// spelling merely goes red when someone requalifies — annoying, visible, fixable. ⭐ A NEGATIVE
+        /// one — <c>Assert.False(src.Contains(...))</c> — goes <b>SILENTLY GREEN</b>, which is the whole
+        /// defect class this repo keeps paying for: a rail that cannot tell "absent" from "spelled
+        /// differently".</para>
+        ///
+        /// <para>⚠ <b>Honest about what this is NOT.</b> It is still TEXT, not the compiler: an alias
+        /// (<c>using Bus = Fdp.Core.FdpEventBus;</c> then <c>new Bus()</c>) still slips past, and so does
+        /// a factory that hides the construction. ⭐ It closes the QUALIFICATION hole, which is the one
+        /// that actually bit — ⛔ it does not turn a text scan into a semantic one. For that the answer is
+        /// Roslyn, and the rail should say so rather than imply coverage it has not got.</para>
+        /// </remarks>
+        internal static bool ConstructsType(string src, string typeName)
+        {
+            // new  [Optional.Dotted.Qualification.]TypeName  followed by ( or <
+            string pattern =
+                "\\bnew\\s+(?:[A-Za-z_][A-Za-z0-9_]*\\s*\\.\\s*)*"
+                + System.Text.RegularExpressions.Regex.Escape(typeName)
+                + "\\s*[(<]";
+            return System.Text.RegularExpressions.Regex.IsMatch(src, pattern);
+        }
     }
 }

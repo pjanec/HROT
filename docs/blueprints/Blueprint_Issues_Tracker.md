@@ -1987,6 +1987,20 @@ nothing here moves the counts table.*
 
   ⛔ **HISTORICAL —** the original hand-off note said: 🔒 The "H - ui" session asked for confirmation so it can fold this into `CE-151` rather than have a competing row or a competing fix. ⭐ This row exists to carry the Windows measurement to them, and should be **closed by `CE-151`**, not separately.
 
+- [x] **CE-260** · `RW-S` ✅ — **TWO SOURCE-SCAN RAILS IN THIS PROJECT WERE BLIND TO A QUALIFIED `new`.** 🔎 Shape found by the "H - ui" session on their own rail *(`CE-259`)*; re-measured here and it was present twice in mine.
+
+  📐 **The blindness:** a rail asserting the literal `"new FdpEventBus()"` is **green over a file that writes `new Fdp.Core.FdpEventBus()`**. ⛔⛔ **The DIRECTION is what makes it lethal** — a POSITIVE spelling check merely goes red when someone requalifies *(annoying, visible)*; a **NEGATIVE** one, `Assert.False(src.Contains(...))`, goes **silently green over the very defect it forbids**. Both of mine were negative.
+
+  ⚠ **And the second one was worse:** `EntityGenesisHazardRails` asserts `Assert.False(a && b)` where **both** operands were literal-spelling checks ⇒ **either** operand going falsely-false passes the rail.
+
+  ⭐ **Fixed at the shared helper, not with three local regexes:** `CompositionRootSource.ConstructsType(src, typeName)` tolerates optional dotted qualification. ⇒ the next rail is correct by default.
+
+  ⛔⛔ **AND THE FIRST FIX WAS ITSELF BROKEN, which is the part worth keeping.** The pattern was authored with a stray **`0x08` byte** — a real backspace, not `` — so it matched **nothing** and the rail stayed green *while looking fixed*. ⚠ **A repaired rail that cannot fail is worth LESS than the broken one, because it now carries confidence.** ⭐ Caught only by the red-proof; found by hexdumping the pattern after the probe tests failed on even the trivial case.
+
+  📐 **RED-PROOF:** with a qualified `new Fdp.Core.FdpEventBus()` injected into `SimHostNodeBootstrapper`, `AnEcsNodeDoesNotBuildASecondOrchestrationBus` goes **1 failed / 2 passed** — the injected host red, CGF and IG green. ⛔ The old literal check passed **all three**. Injection reverted.
+
+  ⭐ **`CompositionRootSourceTests`** now rails the helper itself *(6 tests)*, including the word boundary *(`renew` must not read as `new`)*, a near-name miss, and ⚠ **the documented LIMIT asserted as a test**: a `using` alias still slips past — ⛔ closing that needs Roslyn, not a better regex. **Suite 911 total** *(905 + 6)*, failures 3/3 across two runs, inside the established rotating band.
+
 - [x] **CE-217** · `RW-S` ✅✅ — **THE STRIDE TREE IS IN THE MAIN SOLUTION** *(§16 Tier 1)*. ⭐ Tasked by the "H - ui" session as highest leverage, and it is the resolution path my own `CE-216` investigation named.
 
   ⭐ **`Directory.Build.props`** declares `EnableWindowsTargeting` **conditioned on non-Windows** — the property `stride-check.sh` used to pass as a `-p:` flag, which is a fact about **the machine** and is why it never lived in a csproj. ⚠ Conditioned, not unconditional: on Windows it is meaningless and asserting it would state something untrue.

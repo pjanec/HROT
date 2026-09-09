@@ -175,7 +175,13 @@ namespace Hrot.SimHost.Tests
             var src = CompositionRootSource.StripComments(
                 CompositionRootSource.ReadRepoSource(bootstrapperPath));
 
-            Assert.False(src.Contains("new FdpEventBus()"),
+            // ⭐⭐ CE-260 — QUALIFICATION-TOLERANT. This was `src.Contains("new FdpEventBus()")`, which a
+            //    file writing `new Fdp.Core.FdpEventBus()` walks straight past — and because the
+            //    assertion is NEGATIVE it would have gone SILENTLY GREEN over the very defect it forbids.
+            //    📌 Exactly the blindness the "H - ui" session found on their own rail (CE-259), where a
+            //    fully-qualified `new Hrot.ScenarioEditor.Gizmos.EntityRotatorGizmo(` had kept a rail
+            //    green over a duplicate since CE-051.
+            Assert.False(CompositionRootSource.ConstructsType(src, "FdpEventBus"),
                 $"{bootstrapperPath} constructs its own FdpEventBus. A networked slave node has exactly " +
                 "ONE orchestration bus — the one HrotNodeBuilder created on HrotNodeContext.EventBus, " +
                 "which already carries this node's complete ISlaveOrchestrationTranslator (ingress AND " +

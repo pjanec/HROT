@@ -65,7 +65,8 @@ namespace Hrot.SimHost.Tests
                 CompositionRootSource.ReadRepoSource(relativePath));
 
             bool materialisesLocally =
-                code.Contains("new NetworkSpawningSystem") || code.Contains("EntityCreationPack.Build");
+                CompositionRootSource.ConstructsType(code, "NetworkSpawningSystem")
+                || code.Contains("EntityCreationPack.Build");  // CE-260: qualification-tolerant
 
             bool forwardsSpawnsToTheArbiter =
                 code.Contains("SpawnEntityCommandEgressTranslator")
@@ -155,10 +156,17 @@ namespace Hrot.SimHost.Tests
             var code = CompositionRootSource.StripComments(
                 CompositionRootSource.ReadRepoSource(relativePath));
 
+            // ⭐⭐ CE-260 — BOTH operands are qualification-tolerant now, and both had to be: this
+            //    assertion is `Assert.False(a && b)`, so EITHER operand going falsely-false makes the
+            //    whole rail pass. A fully-qualified `new Fdp.…​.GhostDestructionSystem(` or
+            //    `new Fdp.…​.NetworkSpawningSystem(` would have made it green over the hazard it exists
+            //    to catch (the CE-259 blindness, in its most dangerous direction).
             bool materialisesLocally =
-                code.Contains("new NetworkSpawningSystem") || code.Contains("EntityCreationPack.Build");
+                CompositionRootSource.ConstructsType(code, "NetworkSpawningSystem")
+                || code.Contains("EntityCreationPack.Build");
 
-            bool hasSecondDestroyConsumer = code.Contains("new GhostDestructionSystem");
+            bool hasSecondDestroyConsumer =
+                CompositionRootSource.ConstructsType(code, "GhostDestructionSystem");
 
             Assert.False(materialisesLocally && hasSecondDestroyConsumer,
                 $"{relativePath} holds NetworkSpawningSystem AND GhostDestructionSystem. They consume the " +
