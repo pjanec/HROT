@@ -1,16 +1,25 @@
 <!--STATUS
 state: LIVE
-build-state: S1 BUILT (2026-08-28, see 3.9b as-built) / S2 construct (RW-M) / S3 declare+report
-  (RW-L) / S4 configuration (RW-M) / S5 the action half (RW-M) are READY-TO-BUILD. Sized RW-H
-  overall. Every architect call is CLOSED: S1's open call was resolved by the user 2026-08-28 --
+build-state: S1 BUILT (3.9b) / S2 + S2a BUILT (3.9j.5b, 2026-08-30) / S2b BUILT (MapInteractionPack,
+  adopted by all five hosts) / S3 BUILT (MapSelfCheckSystem + MapInteraction.Unserviceable) /
+  S4 BUILT (CullingStateVisibilityPolicy + VisibilityPolicyResolver, 3.2f approved 2026-08-30).
+  >>> ONLY S5 -- THE ACTION HALF (RW-M) -- REMAINS READY-TO-BUILD. <<<
+  Every architect call is CLOSED: S1's open call was resolved by the user 2026-08-28 --
   "lift both mechanisms, layer definitions as S4 config, shareable between multiple subsystems".
-verified: 2026-08-28 (five cluster boots + a source scan; see sections 2b, 2c, 3.0a, 3.2c)
-updated: 2026-08-28
-current-answer: START AT SECTION 3.9b -- S1's AS-BUILT. S1 IS BUILT AND VERIFIED, AND THE USER'S
-  SYMPTOM IS NOT YET FIXED: both missing components now reach SimHost (0/8 -> 8/8 and 0/8 -> 7/8,
-  measured live) but its frame is still 605/3, so a further cause remains. 3.9b names the lead
-  (three host-private entity presentation gizmos; a reflection registrar that scans only LOADED
-  assemblies) as a HYPOTHESIS for S2, deliberately not as a root cause.
+verified: 2026-09-09 (source measurement: five MapInteractionPack.Build call sites; S-slice markers
+  in production code; per-host grep for each seam). Earlier: 2026-08-28 (five cluster boots).
+updated: 2026-09-09
+known-rot: THIS BLOCK ITSELF said "S2 / S3 / S4 / S5 are READY-TO-BUILD" until 2026-09-09, while the
+  file's OWN 3.9j.5b and 3.2f recorded S2 and S4 as built. Four slices had shipped. Obligation-(5)
+  repair; the prior wording must NOT be quoted. The measured slice ledger also lives in
+  docs/PROGRAMME_Cgf_Equals_Editor_Gap_Map.md 2b.
+current-answer: >>> S5, THE ACTION HALF, IS THE ONLY REMAINING SLICE (3.9 sizing table, row S5):
+  IG's switch fork -> the shared registry; CGF's GlobalActionRegistry + dispatch + ingress;
+  RubberBandState in the three hosts that pass null. Read 3.9h BEFORE scheduling it -- S5 must
+  follow UXI-07 migration steps 3-4, which delete the action->tool routing S5 would re-implement.
+  FOR HISTORY ON THE EARLIER SLICES: 3.9b is S1's as-built, 3.9j.5b is S2's. S1's residual symptom
+  (SimHost's frame still 605/3) was root-caused and closed by S2 -- 3.9j.1 has the real cause, which
+  was NOT the reflection hypothesis 3.9b floated.
   ARCHITECTURE REFERENCE: docs/DESIGN_Map_Rendering_And_Interaction.md is the standing document for
   how rendering and interaction actually work (layer map, both gizmo kinds, the render frame, the
   interaction path, the tool path, the TO-BE with the restored modal stack, and the 8-item silent-risk
