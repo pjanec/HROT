@@ -845,6 +845,78 @@ public sealed class TheViewportInteractionIsSharedTests
     }
 
     /// <summary>Reads a composition root's source; the source scan is the only way to see a local function.</summary>
+    /// <summary>
+    /// ⭐⭐⭐ <b><c>CE-259k</c> — AN EXCLUSIVE-FOCUS GIZMO THAT DOES NOT WANT RAW INPUT IS DEAF, AND
+    /// NOTHING CAUGHT IT.</b> 📄 <c>gizmo-input-focus-design.md</c> §5.1 · §6.2c.
+    ///
+    /// <para>🔴 <b>Measured by RUNNING THE EDITOR, <c>2026-09-09</c> — six gizmos were affected and the
+    /// ~8 000-rail suite was entirely green.</b> The mechanism is a pincer in
+    /// <c>DebugGizmoLayer.HandleInput</c>: <c>:126</c> withholds raw HW events unless the binding sets the
+    /// raw bit, and <c>:428</c> suppresses spatial hit-testing for every primitive not anchored to the
+    /// capture token whenever the binding is EXCLUSIVE. ⇒ a gizmo that is exclusive but not raw receives
+    /// <b>nothing on either path</b>. ⛔ It still DRAWS, because <c>UpdateAndDraw</c> is unconditional —
+    /// which is exactly why it reads as *"the tool renders and ignores my clicks"* rather than as a crash.</para>
+    ///
+    /// <para>🔒 <b>Design basis:</b> §5.1 gives <c>InputCaptureBinding</c> ONE flag — <i>"1 = Exclusive,
+    /// 0 = Shared"</i> — and defines the primitive itself as the declaration that the token <i>"wants raw
+    /// hardware events streamed to it"</i>. ⛔ The second bit is an as-built divergence; <c>CE-259l</c> is
+    /// whether it should exist at all. ⭐ This rail holds the invariant either way.</para>
+    ///
+    /// <para>⚠ <b>A SOURCE SCAN, deliberately</b> — the same reason as the forwarding rails above: the
+    /// failure is an OMISSION (a property nobody wrote), and these gizmos have no common constructor to
+    /// instantiate reflectively. ⭐ The allow-list is the escape hatch: a gizmo that genuinely routes
+    /// spatially anchors its own primitives to the capture id, and must say so HERE, in one line, rather
+    /// than by silently omitting a property.</para>
+    /// </summary>
+    [Fact]
+    public void NoExclusiveFocusGizmoForgetsToAskForRawInput()
+    {
+        var root = RepoRoot();
+
+        // ⭐ Gizmos that legitimately route through the SPATIAL path — they anchor their drawn primitives
+        //   to the capture token, so DebugGizmoLayer.cs:428 lets those primitives through. ⛔ Empty today:
+        //   every exclusive gizmo in the repo drives itself from OnMouseEvent/OnKeyEvent.
+        var spatiallyRouted = new System.Collections.Generic.HashSet<string>(StringComparer.Ordinal);
+
+        var offenders = new System.Collections.Generic.List<string>();
+        int scanned = 0;
+
+        foreach (var dir in new[] { "FDP", "Hrot" })
+        foreach (var path in Directory.EnumerateFiles(
+                     Path.Combine(root, dir), "*Gizmo.cs", SearchOption.AllDirectories))
+        {
+            // ⛔ The example project is reference material, not a shipped surface.
+            if (path.Contains("GizmoMap.Example", StringComparison.Ordinal)) continue;
+            if (path.Contains($"{Path.DirectorySeparatorChar}obj{Path.DirectorySeparatorChar}",
+                              StringComparison.Ordinal)) continue;
+
+            var src = File.ReadAllText(path);
+            if (!src.Contains("RequiresExclusiveFocus => true", StringComparison.Ordinal)) continue;
+
+            scanned++;
+            var name = Path.GetFileNameWithoutExtension(path);
+            if (spatiallyRouted.Contains(name)) continue;
+            if (src.Contains("WantsRawInput => true", StringComparison.Ordinal)) continue;
+
+            offenders.Add(name);
+        }
+
+        Assert.True(scanned > 0, "the scan found no exclusive-focus gizmos at all — the pattern moved.");
+        Assert.True(offenders.Count == 0,
+            "these gizmos declare RequiresExclusiveFocus => true but never ask for raw input, so the "
+          + "terminal delivers them NOTHING on either path — they draw and ignore every click "
+          + $"(CE-259k): {string.Join(", ", offenders)}. Either declare WantsRawInput => true, or add "
+          + "the gizmo to this rail's `spatiallyRouted` allow-list and say why it is safe.");
+    }
+
+    private static string RepoRoot()
+    {
+        var dir = new DirectoryInfo(AppContext.BaseDirectory);
+        while (dir != null && !Directory.Exists(Path.Combine(dir.FullName, "docs"))) dir = dir.Parent;
+        Assert.NotNull(dir);
+        return dir!.FullName;
+    }
+
     private static string ReadHostSource(string project, string file)
     {
         var dir = new DirectoryInfo(AppContext.BaseDirectory);

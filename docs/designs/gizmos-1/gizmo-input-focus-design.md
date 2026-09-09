@@ -446,6 +446,66 @@ change is attributable**, which is the whole point of running them first (`R-142
 | `IgApplication._activeSequenceGizmo` | fire-and-forget remote area/route authoring; needs `Activate`, not `PushModal` |
 | ⛔ **the SPATIAL routing path** | §4c compared only RAW INPUT between the two arbiters. **The spatial path was never compared** ⇒ nothing beyond the focus slot is collapsed here |
 
+### 6.2c 🔴🔴 AS-BUILT DEFECT — **an EXCLUSIVE gizmo that does not want RAW INPUT is DEAF** *(`CE-259k`, measured `2026-09-09` BY RUNNING THE EDITOR)*
+
+> 🔒 **Found by the user in minutes, with the whole ~8 000-rail suite green.** 📌 The `T-1`/`R-142` tally
+> gains another row: **six** production gizmos were affected and **not one rail could see it.**
+
+#### ⭐⭐ The mechanism — a pincer, and either half alone would be survivable
+
+| # | measured | source |
+|---|---|---|
+| ① | raw HW events reach the capture token **only** when the binding sets bit `2` | `DebugGizmoLayer.cs:126` — `if ((prim.ConditionMask & 2u) != 0) routeRawInput = true;` |
+| ② | ⭐⭐ **an EXCLUSIVE binding SUPPRESSES spatial hit-testing** for every primitive not anchored to the capture id | `DebugGizmoLayer.cs:428` — `if (exclusiveAnchorId.HasValue && anchorId != exclusiveAnchorId.Value) continue;` |
+| ③ | ⇒ 🔴 **`exclusive && !raw` receives NOTHING on either path** | ①+② |
+| ④ | ⛔ **and it still DRAWS**, because `UpdateAndDraw` is unconditional | `GlobalGizmoManager.Execute` step 1 |
+
+⇒ ⭐⭐⭐ **The symptom is *"the tool renders and ignores my clicks"*, never a crash or a log line** — which
+is precisely why it survived. 📌 The operator's words: *"Draw Area and Draw Route show a blue circle
+lagging behind the cursor and click does not start drawing anything… and can't be cancelled"* — ⚠ **Escape
+fails too, because Escape is a raw KEY event.**
+
+#### 📐 The six, and why the report's PASS/FAIL split is the proof
+
+| gizmo | excl | raw | predicted | ⭐ operator observed |
+|---|---|---|---|---|
+| `MeasureGizmo` | ✅ | ⛔ | deaf | ✅ **deaf** |
+| `PointSequenceGizmo` *(Draw Area + Draw Route)* | ✅ | ⛔ | deaf | ✅ **deaf** |
+| `ObstaclePlacementGizmo` · `ModalBoxSelectionGizmo` · `FdpLocationPickerGizmo` · `EntityPickerGizmo` | ✅ | ⛔ | deaf | ⚠ not reached |
+| `EntityPlacementGizmo` | ✅ | ✅ | works | ✅ **worked** |
+| `EntityRotatorGizmo` | ✅ | ✅ | works | ✅ **worked** |
+| `EntityDragGizmo` | ⛔ | — | never captures ⇒ normal spatial | ✅ **worked** |
+
+⭐⭐ **All six observations predicted by one mechanism** — ⛔ that, not the plausibility of the story, is
+why this is recorded as measured rather than as a hypothesis.
+
+#### 🔒 The DESIGN says the second bit should not exist
+
+> **§5.1, verbatim:** *"A non-visual meta-primitive declaring that the bound token **wants raw hardware
+> events streamed to it**."* — and its field table gives **ONE** flag: `ConditionMask: 1 = Exclusive,
+> 0 = Shared`.
+
+⇒ ⭐⭐⭐ **In the design, EMITTING the binding IS the request for raw input**, and `exclusive` says only
+whether the capture is exclusive or shared. ⛔ **The `wantsRawInput` bit is an AS-BUILT ADDITION with no
+design record**, and it now gates the very thing the primitive exists to declare. ⚠ **That is the root
+cause; the six gizmos are its victims, not its authors.**
+
+#### ✅ What was done, and what was deliberately NOT
+
+| | |
+|---|---|
+| ✅ **`CE-259k` — all six now declare `WantsRawInput => true`** | ⭐ correct **per gizmo on its own evidence**: each implements its entire behaviour in `OnMouseEvent`/`OnKeyEvent` while `OnInteractionStarted`/`OnCommit` are **empty stubs**. ⭐⭐ It is also correct under EITHER reading of §5.1, so it cannot be invalidated by `CE-259l` |
+| ✅ **a rail, because six one-line fixes do not stop a seventh** | `NoExclusiveFocusGizmoForgetsToAskForRawInput` — a SOURCE SCAN over every `*Gizmo.cs` in `FDP/` and `Hrot/`, with an explicit `spatiallyRouted` allow-list. ⭐ Inverse-edit red-proofed. ⛔ A source scan **on purpose**: the failure is an OMISSION, and these gizmos share no constructor to instantiate reflectively |
+| ⛔ **`CE-259l` — should the `wantsRawInput` bit exist AT ALL?** | ⚠ **NOT decided here.** Removing it *(or making `exclusive` imply raw)* is the one-implementation fix and matches §5.1 — but it changes the **terminal contract** for every gizmo in FDP, and it is not what an operator is blocked on. ⇒ its own question, its own measurement |
+
+#### ⚠ What this cost, stated plainly
+
+⛔ **`UXI-07`'s own step 4b was never reachable in the editor** — `FdpLocationPickerGizmo` and
+`EntityPickerGizmo` are both in the deaf set, so the suspend/resume capability shipped, gated and green
+could not have been exercised by hand. ⇒ ⭐⭐ **the `T3`/"run the real thing" tier is not optional for this
+subsystem**, and a manual test plan for it must check `WantsRawInput` against the terminal **before** it
+claims a test is runnable.
+
 ### 6.3 What the terminal does NOT do
 
 - It does **not** decide which `InputCaptureBinding` "wins" if multiple appear. Backend ensures only one exclusive request exists per frame; if a buggy backend sends two, the terminal may pick the last one — that's a backend bug, not terminal logic.
