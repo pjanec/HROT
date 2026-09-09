@@ -1,8 +1,15 @@
 <!--STATUS
 state: LIVE
 build-state: NOT-BUILT
-verified: 2026-08-28 (coordinator source scan)
-current-answer: NOT-BUILT (design only; Q27 answered). No IToolController/ToolDescriptor/modal-stack in source - only fossil comments.
+verified: 2026-09-09 (PREMISE SWEEP - all 13 premises re-tested against source; see 0b)
+current-answer: NOT-BUILT (design only; Q27 answered). No IToolController/ToolDescriptor/modal-stack in
+  source. >>> READ 0b FIRST <<< - the premises SURVIVE, but four moved and three are now WIDER than this
+  document says, because CE-051/CE-061/UXI-23-S2b reworked this exact area after the 2026-08-28 scan.
+known-rot: the line citations in the body are pre-CE-051 and mostly MOVED. 0b carries the current ones.
+  Specifically: the idiom table's "EditorSubsystem.cs:3806-3894" is now the shared ToolActivationDrainSystem;
+  "EditorSubsystem.cs:1122-1134" (the two-arbiter construction) is now MapInteractionPack.cs:92-100 and
+  therefore structural on FIVE hosts, not one; EditorSpawnAdapter no longer exists (it is the SHARED
+  ScenarioSpawnAdapter); and the D-prime duplicate has a SECOND instance on IG that this document never named.
 -->
 # Feature design — making a tool a thing
 
@@ -27,6 +34,52 @@ current-answer: NOT-BUILT (design only; Q27 answered). No IToolController/ToolDe
 ⚠ **Every other design in this programme adopted a seam that already existed.** This one has none — so
 the [seam-law prior](UX_Seam_Inventory.md) is genuinely absent here, and that is *why* it needs an
 architect round rather than a recipe.
+
+## 0b. ⭐⭐⭐ PREMISE SWEEP — **`2026-09-09`, all 13 premises re-tested against source**
+
+> ⛔⛔ **Why it was owed.** This document's previous `verified:` date is `2026-08-28`. **After** it,
+> `CE-051` *(Axis-C `E3` — the viewport interaction went shared)*, `CE-061` *(Axis-C `E5` — the
+> Scenario windows + a CGF spawn adapter)* and `UXI-23` `S2b` *(`MapInteractionPack`)* reworked
+> **exactly this area**. ⇒ 🔒 the design's rulings are user rulings and do not decay — ⛔ **but its
+> LINE CITATIONS are state claims, and `§M` says those rot.**
+>
+> ⭐⭐ **VERDICT: the design SURVIVES INTACT — every premise still holds.** ⚠ But **four moved** and
+> ⭐⭐⭐ **three are now WIDER than the body says**, in ways that change the migration's economics.
+
+| # | premise | verdict | measured `2026-09-09` |
+|--:|---|:--:|---|
+| **1** | prior art empty — `ITool`/`ToolDescriptor`/`ToolRegistry`/`ToolController`/`ActiveTool` = 0 types | ✅ **HOLDS** | `search_graph` + grep agree: **0**. ⭐ And the code now **says so deliberately** — `Hrot.Common/Editor/EditorTool.cs` header: *"There is deliberately still no `ITool`/`ToolManager` registry — inventing a registry is not what `E3` is for."* ⇒ `E3` **declined** this scope; it did not absorb it |
+| **2** | 🔴 two exclusive-focus arbiters, one bus, no arbitration | ✅ **HOLDS — and is now WIDER** | ⛔⛔ **MOVED and became STRUCTURAL.** The construction is no longer `EditorSubsystem.cs:1122-1134`; it is **`MapInteractionPack.cs:92-100`**, which hands the **same `bus`** to `GlobalGizmoManager` and `DataDrivenGizmoSystem` — ⇒ **on all FIVE hosts, by construction.** ⚠ It was an editor composition accident; it is now a guaranteed property of the shared pack. ⭐ The per-arbiter guards are unchanged: `DataDrivenGizmoSystem.cs:91` · `GlobalGizmoManager.cs:66` |
+| **3** | terminal half — first `InputCaptureBinding` wins, no arbitration | ✅ **HOLDS** | `DebugGizmoLayer.cs:121-135` — the loop still `break`s on the first match |
+| **4** | exclusivity is only per-`Entity` | ✅ **HOLDS** | `DataDrivenGizmoSystem.cs:74` `_injectedGizmos` is still `Dictionary<Entity, …>` |
+| **5** | six activation idioms | ✅ **HOLDS — MOVED** | ⭐ Idioms **A/B/D/E/F migrated wholesale into the shared `ToolActivationDrainSystem`** (`Hrot.Presentation/ScenarioEditor/Systems/`), registered by `ScenarioEditorModule` on **both** Editor and CGF. ⛔ `EditorSubsystem.cs:3806-3894` no longer holds the switch. ⭐⭐ **A real improvement `E3` delivered for free: the drain now REPORTS** *(`Unserviceable(tool, reason)`)* instead of failing silently |
+| **6** | 🔴 **D′ — the toggle duplicated via `GlobalActionRegistry`** | ✅ **HOLDS — and there are now TWO instances** | ⛔ **Editor:** `EditorSubsystem.cs:1875-1912` *(`EditOverlay`/`EditRoute`, `HasInjectedGizmo` at `:1879`/`:1898`)* + `:1857` *(`Rotate`, the E/F shape)* — duplicating `ToolActivationDrainSystem.cs:176`. 🔴🔴 **AND IG, which this document never named:** `IgApplication.cs:3167` and `:3199`, the same `HasInjectedGizmo` toggle for `RoutePlan`/`EditablePolyline`, in `ActivateAreaEditingTool`. ⇒ ⭐ **step 3's blast radius is TWO hosts** |
+| **6b** | — | ⭐ **PARTIALLY DONE ALREADY** | `GlobalActionIds.Measure` (`:1867`) and `PlaceEntity` (`:1871`) **already publish `ActivateEditorToolEvent`** instead of duplicating ⇒ **2 of 5 action-path routes are converted**; step 3 is the remaining 3 (`Rotate`, `EditOverlay`, `EditRoute`) × 2 hosts |
+| **7** | no button can show active state | ✅ **HOLDS — restate the count** | ⛔ *"six bare `ImGui.Button` calls reading no state"* is now inaccurate: `EditorToolbarPanel.DrawContent` has **four TOOL buttons reading no state** *(`Select`, `Place Entity`, `Edit Shape`, `Edit Route`)* plus two **non-tool** buttons, one of which *(the mode toggle)* **does** read state. ⭐⭐ **And step 5 got cheaper:** the panel now has `BuildViewModel` → `EditorToolbarPanelViewModel`, a state projection that did not exist on `2026-08-28` ⇒ `ActiveModal` binds into an existing seam |
+| **8** | `Measure`/`Rotate` have no toolbar button | ✅ **HOLDS** | absent from `DrawContent` |
+| **9** | `Select` is a dead no-op | ✅ **HOLDS — MOVED** | now `ToolActivationDrainSystem.Execute`'s `case EditorTool.Select: break;` |
+| **10** | the enum names four deleted classes | ✅ **HOLDS — MOVED** | the enum moved to `Hrot.Common/Editor/EditorTool.cs` (`CE-051`) and its doc comments **still** name `CreationTool` · `EditTool` · `RouteEditTool` · `MeasureTool` — **all four still 0 declarations** |
+| **11** | Escape re-implemented per gizmo | ✅ **HOLDS** | **16 files** handle Escape themselves *(11 in-tree gizmos + `DebugGizmoLayer` + ExtDeps)*. ⚠ The body says *"8 gizmos"* — the true count is higher, so the premise is understated, not overstated |
+| **12** | fossils of the deleted stack | ✅ **HOLDS** | `EditorMapPickAdapter.cs:26` still carries the **broken `<see cref="MapCanvas.PopTool"/>`**; `GizmoInteractionProxyTool.cs:16` still says *"optional exit callback instead of `MapCanvas.PopTool()`"* |
+| **13** | three bypassing adapters call `Register` directly | ✅ **HOLDS — and step 4 got CHEAPER** | ⭐⭐⭐ **`EditorSpawnAdapter` NO LONGER EXISTS.** It is the **shared `Hrot.Presentation/Adapters/ScenarioSpawnAdapter`**, composed by **both** Editor (`EditorSubsystem.cs:2263`) and CGF (`CgfSubsystem.cs:1400`), still bypassing at `:153`, `:215`, `:271`. ⇒ **converting it once fixes two hosts.** The other two remain editor-private: `EditorMapPickAdapter.cs:73,109,~125` · `EditorZoneAdapter.cs:74` |
+
+### ⭐⭐ Two mechanisms the `§0` prior-art table MISSED — **both are partial building blocks, not substitutes**
+
+| found | what it is | bearing on the design |
+|---|---|---|
+| ⭐⭐ **`CancelInteractiveTools()` on BOTH arbiters** — `GlobalGizmoManager.cs:96` · `DataDrivenGizmoSystem.cs:124` | cancels the focused gizmo, calls `OnCancel()`, keeps permanent/modeless ones. **Driven from one place**: `GizmoExecutionController.cs:48-49` calls both **when the last terminal disconnects** | ⛔ **NOT a user-facing Escape** and not a stack — so *"no central cancel"* still holds for the user. ⭐⭐ **But `IToolController.Cancel()` should DELEGATE to these rather than invent a third teardown** — they already encode *"cancel the interactive, spare the permanent"*, which is exactly the modal/modeless split `Q27` ruled. 🔒 seam law |
+| ⭐⭐ **`DebugGizmoLayer._activeTool`** — a live `GizmoInteractionProxyTool?` (`:28`), created at `:180`/`:187`, self-clears via `onExit`, and **handles Escape at `:266`** | the **frontend** routing tool that `gizmo-input-focus-design.md` §14 promised would survive | ⭐⭐⭐ **§14's proxy tool DID survive — what did not survive is that it is a SINGLE NULLABLE SLOT, not a stack.** ⇒ refines this document's §"the tool stack was deleted": the *routing* half is alive and correct; only the **LIFO depth** is missing. ⛔ Do not re-implement the proxy; the backend `IToolController` supplies the depth the frontend slot cannot |
+
+### ⭐ What the sweep does NOT change
+
+⭐ **Every `Q27` ruling stands** — they are user rulings, answered `2026-08-10` directly, and nothing measured
+here touches them. ⭐ The **migration's 7 steps stand as written**; only their sizing moves: **step 3 doubles**
+*(two hosts)*, **step 4 shrinks** *(the spawn adapter is now one shared conversion serving two hosts)*, and
+**step 5 gets a seam it did not have** *(`EditorToolbarPanelViewModel`)*.
+
+⛔ **Not measured, and stated as such:** whether the two-arbiter defect is *observable* at runtime on a real
+cluster. 📐 The code path is proven; the **symptom** is not, and `RUNBOOK_Cluster_Debugging_Over_Http.md`
+would be how to try. ⚠ That is the one row a reader should push on.
 
 **But two *partial* mechanisms exist**, and they are the problem as much as the starting point:
 
