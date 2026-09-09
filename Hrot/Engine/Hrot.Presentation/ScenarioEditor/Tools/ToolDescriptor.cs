@@ -86,7 +86,18 @@ namespace Hrot.ScenarioEditor.Tools
     /// <para>⭐ It is also what <c>PushModal</c>'s suspend/resume needs: a resumed modal must come back on
     /// the entity it was armed on.</para>
     /// </summary>
-    public readonly record struct ArmedTool(ToolDescriptor Tool, Entity Target);
+    /// <param name="Suspended">
+    /// ⭐⭐ <b>The gizmo this entry SUSPENDED when it was pushed</b> — <see langword="null"/> for an entry
+    /// armed by <c>Activate</c>, which suspends nothing.
+    ///
+    /// <para>🔒 It is stored on the PUSHED entry, not on the one beneath, because that is what makes the
+    /// pop total: popping this entry knows exactly which gizmo to resume, and the entry beneath it names
+    /// the arbiter to resume it on. ⛔ A parallel side-list would be a second stack to keep in step.</para>
+    /// </param>
+    public readonly record struct ArmedTool(
+        ToolDescriptor Tool,
+        Entity         Target,
+        Fdp.Toolkit.Diagnostics.Gizmos.IEntityStatefulGizmo? Suspended = null);
 
     /// <summary>
     /// ⭐⭐⭐ <b>What happened when a tool was asked to activate. THREE outcomes, not two.</b>

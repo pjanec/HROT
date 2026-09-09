@@ -1,6 +1,8 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using Fdp.Core;
+using Fdp.Core.Logging;
 using Fdp.Toolkit.Diagnostics.Gizmos.Systems;
 
 namespace Hrot.ScenarioEditor.Tools
@@ -152,9 +154,47 @@ namespace Hrot.ScenarioEditor.Tools
 
         /// <inheritdoc/>
         public IDisposable PushModal(string toolId, Entity target = default)
-            => throw new NotSupportedException(
-                "UXI-07: PushModal (suspend/resume) is designed but not built in this slice. " +
-                "See docs/UX/UX_Feature_Tool_Model.md section 4.6. Use Activate for a deliberate switch.");
+        {
+            if (!_tools.TryGetValue(toolId, out var entry))
+            {
+                ToolReport.Unserviceable(_reportUnserviceable, toolId, "it is not registered on this host");
+                return NullScope.Instance;
+            }
+
+            var (descriptor, activate) = entry;
+
+            // ⛔ A modeless tool has nothing to suspend and nothing to come back to — pushing one is a
+            //   caller error, not a silent no-op that leaves an un-poppable handle around.
+            if (descriptor.Modality == ToolModality.Modeless)
+            {
+                ToolReport.Unserviceable(_reportUnserviceable, toolId,
+                    "it is modeless — use Activate; only modal tools can be pushed");
+                return NullScope.Instance;
+            }
+
+            // ⭐⭐⭐ THE WHOLE DIFFERENCE FROM Activate, in one line: SUSPEND the current top instead of
+            //   cancelling it. 🔒 Q27-F — "suspend = SetFocus(false) WITHOUT the Dispose()".
+            //   ⛔ We deliberately do NOT call CancelOtherArbiter: an interruption must leave everything
+            //      it interrupted alive, on BOTH arbiters.
+            var suspended = SuspendCurrentTop();
+
+            switch (activate(target))
+            {
+                case ToolActivationOutcome.Armed:
+                    _modalStack.Add(new ArmedTool(descriptor, target, suspended));
+                    WarnIfStackIsDeep();
+                    NotifyActiveModalChanged();
+                    return new ModalScope(this, _modalStack.Count);
+
+                default:
+                    // ⚠⚠ The push FAILED, so the suspension must be UNDONE — otherwise the tool underneath
+                    //   is left alive but unfocused, i.e. visibly armed and silently dead. 🔴 That is the
+                    //   dead-toggle shape this programme has already been bitten by twice.
+                    ResumeInto(_modalStack.Count > 0 ? _modalStack[^1].Tool.Arbiter : ToolArbiter.None, suspended);
+                    NotifyActiveModalChanged();
+                    return NullScope.Instance;
+            }
+        }
 
         /// <inheritdoc/>
         public void Cancel()
@@ -189,22 +229,139 @@ namespace Hrot.ScenarioEditor.Tools
         /// <see cref="CancelOtherArbiter"/> so that <see cref="Activate"/> reads as the two distinct
         /// obligations it has: replace my own top, and clear the other side.
         /// </summary>
+        /// <remarks>
+        /// ⭐⭐ <b>It unwinds the WHOLE stack, not just the top</b> — and that is a deliberate reading of
+        /// ruling C once <see cref="PushModal"/> exists. 🔒 <c>Activate</c> is <i>"a deliberate switch"</i>:
+        /// the operator chose a different tool, so nothing that was interrupted is still wanted.
+        /// ⛔ Popping only the top would leave suspended tools underneath that <b>nothing can ever
+        /// resume</b> — their scope handle pops by depth and that depth is now occupied by the new tool.
+        /// ⚠ Each level is cancelled through ITS OWN arbiter; ⛔ none is resumed.
+        /// </remarks>
         private void CancelActiveModalWithoutNotify()
         {
-            if (_modalStack.Count == 0) return;
-
-            var top = _modalStack[^1].Tool;
-            _modalStack.RemoveAt(_modalStack.Count - 1);
-
-            switch (top.Arbiter)
+            while (_modalStack.Count > 0)
             {
-                case ToolArbiter.EntityScoped: _dataDriven()?.CancelInteractiveTools(); break;
-                case ToolArbiter.Global:       _global()?.CancelInteractiveTools();     break;
-                case ToolArbiter.None:         break;   // the null modal tool owns no gizmo
+                var top = _modalStack[^1].Tool;
+                _modalStack.RemoveAt(_modalStack.Count - 1);
+
+                switch (top.Arbiter)
+                {
+                    case ToolArbiter.EntityScoped: _dataDriven()?.CancelInteractiveTools(); break;
+                    case ToolArbiter.Global:       _global()?.CancelInteractiveTools();     break;
+                    case ToolArbiter.None:         break;   // the null modal tool owns no gizmo
+                }
             }
         }
 
         private void NotifyActiveModalChanged() => ActiveModalChanged?.Invoke(ActiveModal);
 
+        // ── PushModal internals ───────────────────────────────────────────────────
+
+        /// <summary>
+        /// Suspend whatever currently holds focus, on the arbiter that owns the current top.
+        /// ⭐ Returns the suspended gizmo, or <see langword="null"/> when nothing was armed.
+        /// </summary>
+        private Fdp.Toolkit.Diagnostics.Gizmos.IEntityStatefulGizmo? SuspendCurrentTop()
+        {
+            if (_modalStack.Count == 0) return null;
+
+            return _modalStack[^1].Tool.Arbiter switch
+            {
+                ToolArbiter.EntityScoped => _dataDriven()?.SuspendFocus(),
+                ToolArbiter.Global       => _global()?.SuspendFocus(),
+                _                        => null,   // the null modal tool owns no gizmo
+            };
+        }
+
+        /// <summary>Give focus back to <paramref name="gizmo"/> on <paramref name="owner"/>'s arbiter.</summary>
+        private void ResumeInto(ToolArbiter owner, Fdp.Toolkit.Diagnostics.Gizmos.IEntityStatefulGizmo? gizmo)
+        {
+            if (gizmo == null) return;
+
+            switch (owner)
+            {
+                case ToolArbiter.EntityScoped: _dataDriven()?.ResumeFocus(gizmo); break;
+                case ToolArbiter.Global:       _global()?.ResumeFocus(gizmo);     break;
+                case ToolArbiter.None:         break;
+            }
+        }
+
+        /// <summary>
+        /// Pop the entry at <paramref name="depth"/> — tear IT down, then resume what it suspended.
+        /// ⚠ Idempotent and order-tolerant: a scope disposed after its entry already went away
+        /// (<see cref="Cancel"/>, or an <see cref="Activate"/> that unwound the stack) does nothing.
+        /// </summary>
+        private void PopModalAt(int depth)
+        {
+            if (_modalStack.Count != depth) return;   // already popped, or something deeper is still up
+
+            var popped = _modalStack[^1];
+            _modalStack.RemoveAt(_modalStack.Count - 1);
+
+            // ⛔⛔ CancelFocused, NOT CancelInteractiveTools — measured 2026-09-09: the sweep clears EVERY
+            //    exclusive-focus gizmo on the arbiter, so it destroyed the tool this push had just
+            //    SUSPENDED and the resume below had nothing left to resume. A pop ends ONE interruption.
+            switch (popped.Tool.Arbiter)
+            {
+                case ToolArbiter.EntityScoped: _dataDriven()?.CancelFocused(); break;
+                case ToolArbiter.Global:       _global()?.CancelFocused();     break;
+                case ToolArbiter.None:         break;
+            }
+
+            // ⭐⭐ The RESUME — the half that makes this a stack rather than a cancel. The entry BENEATH
+            //    names the arbiter, because that is where its gizmo lives.
+            ResumeInto(_modalStack.Count > 0 ? _modalStack[^1].Tool.Arbiter : ToolArbiter.None,
+                       popped.Suspended);
+
+            NotifyActiveModalChanged();
+        }
+
+        /// <summary>
+        /// 🔒 <c>Q27-F</c>: <i>"Nothing needs more than 2 today (tool → picker). Lean: no hard limit, but
+        /// LOG beyond 3 — an unbounded stack is a leak, not a feature."</i> ⛔ Deliberately not an
+        /// exception: refusing the push would break a legitimate deep interaction, which is worse.
+        /// </summary>
+        private void WarnIfStackIsDeep()
+        {
+            if (_modalStack.Count <= 3) return;
+
+            FdpLog<ToolController>.Warn(
+                "[Tools] modal stack is {0} deep ({1}) — nothing in this design needs more than 2 " +
+                "(tool -> picker). A stack that keeps growing is a leak, not a feature (Q27-F).",
+                _modalStack.Count,
+                string.Join(" > ", _modalStack.Select(a => a.Tool.Id)));
+        }
+
+        /// <summary>The handle returned by <see cref="PushModal"/>. Disposing it pops exactly its level.</summary>
+        private sealed class ModalScope : IDisposable
+        {
+            private readonly ToolController _owner;
+            private readonly int            _depth;
+            private bool                    _disposed;
+
+            internal ModalScope(ToolController owner, int depth)
+            {
+                _owner = owner;
+                _depth = depth;
+            }
+
+            public void Dispose()
+            {
+                if (_disposed) return;
+                _disposed = true;
+                _owner.PopModalAt(_depth);
+            }
+        }
+
+        /// <summary>
+        /// ⭐ Returned when the push did not happen. ⛔ <see langword="null"/> is not an option — the
+        /// caller writes <c>using var _ = tools.PushModal(...)</c>, so a null would throw at the
+        /// <c>using</c> and turn a reported refusal into a crash.
+        /// </summary>
+        private sealed class NullScope : IDisposable
+        {
+            internal static readonly NullScope Instance = new();
+            public void Dispose() { }
+        }
     }
 }

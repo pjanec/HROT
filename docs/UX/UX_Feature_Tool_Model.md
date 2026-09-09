@@ -917,7 +917,7 @@ teardown paths currently pair it with"* — and that is `PushModal`, which `Tool
 | ⭐ THE SPLIT, and the dividing line is MEASURED, not invented | |
 |---|---|
 | ⭐ **4a — FIRE-AND-FORGET arms** *(no `TaskCompletionSource`)*: `ScenarioSpawnAdapter` · `EditorZoneAdapter` · `MapCommandController` · `MeasureToolGizmoAdapter` | ✅ **buildable now** on plain `Activate` — they arm and forget, so cancel-the-other is the whole requirement |
-| ⛔ **4b — SUSPEND/RESUME pickers** *(`TaskCompletionSource`)*: `EditorMapPickAdapter` · `CanvasMapPickAdapter` · `IgApplication`'s picker arms · `ReplayBrowserSubsystem` | 🔴 **needs `PushModal` FIRST.** ⛔ Converting them to `Activate` would be a REGRESSION — it would destroy the tool the operator was using instead of suspending it |
+| ⛔ **4b — SUSPEND/RESUME pickers** *(`TaskCompletionSource`)*: `EditorMapPickAdapter` · `CanvasMapPickAdapter` · `IgApplication`'s picker arms · `ReplayBrowserSubsystem` | ✅ **UNBLOCKED `2026-09-09`** — `PushModal` is BUILT (§4.11). ⛔ Still never `Activate`: that would destroy the tool the operator was using instead of suspending it |
 
 ⚠⚠ **This supersedes the plan's implicit claim that step 4 is one batch.** ⛔ It is two, and the second is
 `Q27-F`'s increment — which the Migration table lists *after* step 6.
@@ -1124,6 +1124,64 @@ capability that is absent:** `UXI-07`'s user-visible behaviour *(the `Select` bu
 Measure toggle)* can be confirmed **only by a human driving the editor**, and the `T3` "run the real thing"
 tier does not reach it. ⚠ That also bounds steps 5–6 *(toolbar binding, central `Escape`)*: they will ship
 with unit rails and a manual check, and saying so now is better than discovering it at their gate.
+
+### 4.11 ✅ `PushModal` AS-BUILT — **suspend/resume, and 4b is unblocked** *(obligation ⑤, `2026-09-09`)*
+
+🔒 **`Q27-F` named the missing capability exactly:** *"suspend = `SetFocus(false)` WITHOUT the `Dispose()`
+that both teardown paths currently pair it with."* ⭐ **Confirmed by measurement, both ways:**
+
+| the seam-law pass | |
+|---|---|
+| ⭐ **grep** over `Fdp.Toolkits/Diagnostics/` + `Hrot.Presentation/ScenarioEditor/` | **no suspend/resume seam** |
+| ⭐ **`search_graph`** `.*(Suspend\|Resume\|PushModal\|PushTool\|PopTool).*`, total **180** | every hit is **time-control**, **blueprint-compiler latency**, or **file-sync** — ⛔ **nothing in the gizmo/tool focus domain** |
+| ⚠ the design's own unported `GizmoInteractionManager` *(`GizmoMap.Example`)* | ⛔ **same shape** — `SetFocus(false)` then `Dispose()`. **No prior art there either** |
+
+⇒ ⭐⭐ **Genuinely absent, so it was BUILT rather than adopted** — the one case where this repo's usual
+*"the seam already exists and is under-adopted"* answer does **not** apply.
+
+#### ⭐⭐ What was added — **additive, three methods per arbiter**
+
+| | |
+|---|---|
+| `GlobalGizmoManager` · `DataDrivenGizmoSystem` | ⭐ **`SuspendFocus()`** → returns the suspended gizmo *(`SetFocus(false)`, **no** `Dispose`, **stays registered so it keeps DRAWING**)* · ⭐ **`ResumeFocus(gizmo)`** *(no-ops if it is gone)* · ⭐⭐ **`CancelFocused()`** — see the defect below |
+| `ArmedTool` | gains **`Suspended`** — stored on the **PUSHED** entry, so a pop knows exactly what to resume and the entry beneath names the arbiter. ⛔ A parallel side-list would be a second stack to keep in step |
+| `ToolController.PushModal` | suspends the top, arms, pushes, returns a depth-keyed `IDisposable`. ⛔ It does **NOT** call `CancelOtherArbiter` — an interruption must leave everything it interrupted alive, on **both** arbiters |
+
+🔒 **The suspend STACK lives in the controller, not in the arbiters** — ⛔ otherwise the two arbiters grow
+two half-copies of one stack, which is the duplication `CE-259c` already documents.
+
+#### 🔴🔴 THE DEFECT A RAIL CAUGHT — **a POP is not a SWEEP**
+
+📐 The first implementation popped with **`CancelInteractiveTools()`**, which clears **every**
+exclusive-focus gizmo on that arbiter ⇒ ⛔ **it destroyed the very tool the push had just suspended**, and
+the resume then had nothing to resume. ⭐ `PoppingResumesTheToolBeneathAndDisposesTheInterrupter` reddened
+on `Assert.False(route.Disposed)`.
+
+⇒ ⭐⭐⭐ **`CancelFocused()` was added: cancel + dispose + unregister ONLY the focus holder.**
+⚠ **Two different operations that looked like one** — `CancelInteractiveTools` is *"the terminal
+disconnected, drop everything interactive"*; a pop is *"one interruption ended."*
+
+#### ⭐ Two semantics decided here, both traceable
+
+| decision | basis |
+|---|---|
+| ⭐⭐ **`Activate` UNWINDS THE WHOLE STACK**, cancelling each level and resuming none | 🔒 ruling C — `Activate` is *"a deliberate switch"*. ⛔ Popping only the top would strand suspended tools: a scope pops **by depth**, and that depth now belongs to the new tool ⇒ **nothing could ever resume them** |
+| ⭐ **depth > 3 LOGS, does not throw** | 🔒 `Q27-F` — *"no hard limit, but log beyond 3."* ⛔ Refusing a legitimate deep interaction is worse than a warning |
+
+#### 📐 Rails — `ToolControllerTests` **10 → 15**, red-proofed
+
+⚠⚠ **The old `PushModalRefusesLoudlyUntilItIsBuilt` was RE-HOMED, not deleted** — its premise
+*("declared and NOT built")* is void, but its real claim *("must not quietly behave like `Activate`")*
+survives as `PushingAnUnknownToolRefusesAndArmsNothing` + `PushingAModelessToolRefuses`, which assert the
+refusal is **reported** and returns a usable no-op handle *(⛔ never null, never a throw — the call site is
+`using var _ = …`)*.
+
+| red-proof *(each on a build verified at 0 errors)* | |
+|---|---|
+| pop with `CancelInteractiveTools` instead of `CancelFocused` | **1🔴**, exactly the resume rail |
+| `PushModal` cancels instead of suspending *(i.e. behaves like `Activate`)* | **4🔴 / 11✅** |
+
+⇒ ✅ **§4.8's 4b row is UNBLOCKED.** The four picker sites can now `PushModal` instead of `Activate`.
 
 ## Migration
 

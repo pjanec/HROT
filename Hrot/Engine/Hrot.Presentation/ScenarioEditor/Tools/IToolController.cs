@@ -59,11 +59,26 @@ namespace Hrot.ScenarioEditor.Tools
         bool Activate(string toolId, Entity target = default);
 
         /// <summary>
-        /// ⚠ <b>Declared, deliberately NOT implemented in this slice.</b> The suspend/resume stack is the
-        /// next increment; <c>Q27</c>'s ruling and the <c>MapCanvas.PushTool</c> history live in
-        /// <c>UX_Feature_Tool_Model.md</c>. Implementations throw <see cref="NotSupportedException"/>
-        /// rather than silently behaving like <see cref="Activate"/> — ⭐ absent-and-explained beats
-        /// present-and-broken (ruling 49).
+        /// ⭐⭐⭐ <b>Arm a modal tool as an INTERRUPTION — the tool beneath is SUSPENDED, not destroyed.</b>
+        /// Dispose the returned handle to pop: the interrupter is torn down and the tool beneath resumes
+        /// with its state intact. 📄 <c>docs/UX/UX_Feature_Tool_Model.md</c> §4.11 · <c>Q27-F</c>.
+        ///
+        /// <code>
+        /// using var _ = tools.PushModal(ScenarioToolIds.EntityPicker);
+        /// int netId = await _pick.PickEntityAsync(ct);
+        /// // dispose → pop → the route editor beneath resumes, half-drawn route intact
+        /// </code>
+        ///
+        /// <para>⛔ <b>Choose deliberately:</b> <see cref="Activate"/> is a SWITCH (the current modal is
+        /// cancelled and disposed, and the whole stack unwinds); this is an INTERRUPTION. 🔒 Only the
+        /// caller knows which it is — the descriptor cannot express it.</para>
+        ///
+        /// <para>⚠ A suspended tool KEEPS DRAWING and simply stops receiving input — 🔒 the design's lean:
+        /// a half-drawn route that vanished and reappeared would read as a bug.</para>
+        ///
+        /// <para>⭐ Returns a no-op handle (never <see langword="null"/>, never a throw) when the tool is
+        /// unknown or modeless, after REPORTING why — so <c>using var _ = …</c> at the call site cannot
+        /// turn a refusal into a crash.</para>
         /// </summary>
         IDisposable PushModal(string toolId, Entity target = default);
 

@@ -119,6 +119,70 @@ namespace Fdp.Toolkit.Diagnostics.Gizmos.Systems
         /// </summary>
         public bool HasInjectedGizmo(Entity entity) => _injectedGizmos.ContainsKey(entity);
 
+        /// <summary>
+        /// ⭐⭐⭐ <b>SUSPEND the focus holder — <c>SetFocus(false)</c> WITHOUT the <c>Dispose()</c>.</b>
+        /// The entity-scoped twin of <c>GlobalGizmoManager.SuspendFocus</c>; see that method for the full
+        /// rationale (<c>UXI-07</c> / <c>Q27-F</c>).
+        ///
+        /// <para>⭐ The gizmo stays INJECTED, so it keeps drawing on its entity; it only stops holding
+        /// focus. ⚠ The suspend stack lives in <c>ToolController</c>, not here.</para>
+        /// </summary>
+        public IEntityStatefulGizmo? SuspendFocus()
+        {
+            var suspended = _focusedGizmo;
+            if (suspended == null) return null;
+
+            suspended.SetFocus(false);
+            _focusedGizmo = null;
+            return suspended;
+        }
+
+        /// <summary>
+        /// ⭐ Give focus back to a gizmo previously returned by <see cref="SuspendFocus"/>.
+        /// ⛔ No-ops when that gizmo is no longer injected — it may have been deactivated while suspended.
+        /// </summary>
+        public void ResumeFocus(IEntityStatefulGizmo? gizmo)
+        {
+            if (gizmo == null) return;
+
+            bool stillInjected = false;
+            foreach (var kvp in _injectedGizmos)
+            {
+                if (kvp.Value == gizmo) { stillInjected = true; break; }
+            }
+            if (!stillInjected) return;
+
+            if (_focusedGizmo != null && _focusedGizmo != gizmo)
+                _focusedGizmo.SetFocus(false);
+
+            _focusedGizmo = gizmo;
+            gizmo.SetFocus(true);
+        }
+
+        /// <summary>
+        /// ⭐⭐⭐ Cancel and dispose ONLY the current focus holder — the entity-scoped twin of
+        /// <c>GlobalGizmoManager.CancelFocused</c>. See that method for why a stack POP must not use
+        /// <see cref="CancelInteractiveTools"/> (it would destroy the gizmo the push just suspended).
+        /// </summary>
+        public void CancelFocused()
+        {
+            var gizmo = _focusedGizmo;
+            if (gizmo == null) return;
+
+            gizmo.OnCancel();
+            gizmo.SetFocus(false);
+            _focusedGizmo = null;
+
+            Entity? key = null;
+            foreach (var kvp in _injectedGizmos)
+            {
+                if (kvp.Value == gizmo) { key = kvp.Key; break; }
+            }
+            if (key.HasValue) _injectedGizmos.Remove(key.Value);
+
+            gizmo.Dispose();
+        }
+
         // Synchronously cancels and disposes all injected (on-demand) gizmos.
         // Called by GizmoExecutionController when the last terminal disconnects.
         public void CancelInteractiveTools()

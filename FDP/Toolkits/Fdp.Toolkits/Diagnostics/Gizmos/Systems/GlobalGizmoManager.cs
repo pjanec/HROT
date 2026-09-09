@@ -89,6 +89,87 @@ namespace Fdp.Toolkit.Diagnostics.Gizmos.Systems
             gizmo.Dispose();
         }
 
+        /// <summary>
+        /// ⭐⭐⭐ <b>SUSPEND the focus holder — <c>SetFocus(false)</c> WITHOUT the <c>Dispose()</c>.</b>
+        /// Returns the suspended gizmo so the caller can resume exactly it, or <c>null</c> when nothing
+        /// held focus.
+        ///
+        /// <para>🔒 <b>This is the "entire missing capability" named by <c>UXI-07</c>/<c>Q27-F</c>:</b>
+        /// every teardown path here pairs <c>SetFocus(false)</c> with <c>Dispose()</c>
+        /// (<see cref="Unregister"/>, <see cref="CancelInteractiveTools"/>), so a caller that wants to
+        /// INTERRUPT a tool rather than switch away from it had no way to say so. ⛔ Without this, a picker
+        /// that armed over a half-drawn route destroyed the route.</para>
+        ///
+        /// <para>⭐⭐ <b>The gizmo STAYS REGISTERED, so it keeps DRAWING</b> — 🔒 the design's lean: <i>"a
+        /// half-drawn route that vanishes while you pick a point, then reappears, reads as a bug."</i>
+        /// It simply stops holding focus, which frees the slot for the interrupting tool.</para>
+        ///
+        /// <para>⚠ The SUSPEND STACK is deliberately NOT kept here. The caller
+        /// (<c>ToolController</c>) owns ordering and depth, so the two arbiters do not grow two
+        /// half-copies of one stack.</para>
+        /// </summary>
+        public IEntityStatefulGizmo? SuspendFocus()
+        {
+            var suspended = _focusedGizmo;
+            if (suspended == null) return null;
+
+            suspended.SetFocus(false);
+            _focusedGizmo = null;
+            return suspended;
+        }
+
+        /// <summary>
+        /// ⭐ Give focus back to a gizmo previously returned by <see cref="SuspendFocus"/>.
+        /// ⛔ No-ops when that gizmo is no longer registered — it may have completed or been cancelled
+        /// while suspended, and resuming a disposed gizmo would be worse than not resuming.
+        /// </summary>
+        public void ResumeFocus(IEntityStatefulGizmo? gizmo)
+        {
+            if (gizmo == null) return;
+            if (!_activeGizmos.ContainsValue(gizmo)) return;
+
+            // ⚠ Whatever holds focus now is being displaced by the resume — the caller has already torn
+            //   the interrupting tool down, so this only fires if something else grabbed the slot.
+            if (_focusedGizmo != null && _focusedGizmo != gizmo)
+                _focusedGizmo.SetFocus(false);
+
+            _focusedGizmo = gizmo;
+            gizmo.SetFocus(true);
+        }
+
+        /// <summary>
+        /// ⭐⭐⭐ <b>Cancel and dispose ONLY the current focus holder</b> — the precise inverse of
+        /// <see cref="SuspendFocus"/>, and what a STACK POP needs.
+        ///
+        /// <para>🔴 <b>Why this exists, measured <c>2026-09-09</c>:</b> <c>ToolController.PushModal</c>'s
+        /// pop first used <see cref="CancelInteractiveTools"/> — which sweeps <b>every</b> exclusive-focus
+        /// gizmo on this arbiter — and so it <b>destroyed the very tool the push had just suspended</b>.
+        /// ⇒ the resume then had nothing to resume. ⭐ A rail caught it
+        /// (<c>PoppingResumesTheToolBeneathAndDisposesTheInterrupter</c>).</para>
+        ///
+        /// <para>⚠ <b>Sweep vs. pop are different operations</b>: <see cref="CancelInteractiveTools"/> is
+        /// <i>"the terminal disconnected, drop everything interactive"</i>; this is <i>"one interruption
+        /// ended."</i> ⛔ Using the first for the second is what the rail reddened on.</para>
+        /// </summary>
+        public void CancelFocused()
+        {
+            var gizmo = _focusedGizmo;
+            if (gizmo == null) return;
+
+            gizmo.OnCancel();
+            gizmo.SetFocus(false);
+            _focusedGizmo = null;
+
+            long? key = null;
+            foreach (var kvp in _activeGizmos)
+            {
+                if (kvp.Value == gizmo) { key = kvp.Key; break; }
+            }
+            if (key.HasValue) _activeGizmos.Remove(key.Value);
+
+            gizmo.Dispose();
+        }
+
         // Synchronously disposes all on-demand gizmos and releases the focused gizmo.
         // Called by GizmoExecutionController when the last terminal disconnects.
         // Permanent gizmos (RequiresExclusiveFocus == false AND WantsRawInput == false)
