@@ -553,6 +553,13 @@ namespace Hrot.Editor
         private DebugPrimitiveBuffer? _gizmoBuffer;
         private DataDrivenGizmoSystem? _editorDataDrivenGizmoSystem;
         private GlobalGizmoManager?  _globalGizmoManager;
+
+        /// <summary>
+        /// ⭐⭐ <c>UXI-07</c> step 3b — this host's ONE tool arbiter, built by <c>MapInteractionPack</c>
+        /// alongside the two focus arbiters it reconciles. ⚠ A FIELD and not a local because the module is
+        /// registered (~:1562) BEFORE the pack is built (~:1815); the resolver closes over this.
+        /// </summary>
+        private Hrot.ScenarioEditor.Tools.ToolController? _editorToolController;
         private FdpEventBus?         _interactionBus;
         private GizmoExecutionController? _gizmoController;
         // DEBT-002: hub broadcasts DTO state to all connected terminals.
@@ -1564,7 +1571,8 @@ namespace Hrot.Editor
                     Gizmos:             () => _editorDataDrivenGizmoSystem,
                     Camera:             () => _camera,
                     GlobalGizmos:       () => _globalGizmoManager,
-                    StartPlacementMode: () => _spawnAdapter?.StartPlacementModeWithLastType()));
+                    StartPlacementMode: () => _spawnAdapter?.StartPlacementModeWithLastType(),
+                    Tools:              () => _editorToolController));
 
             _kernel.RegisterModule(new BehaviorDiagnosticsModule());
             // `ST-010`: the default arm registers exactly what it always did. The injected arm
@@ -1846,6 +1854,7 @@ namespace Hrot.Editor
             _interactionBus              = interactionBus;
             _editorDataDrivenGizmoSystem = editorMapInteraction.DataDrivenSystem;
             _globalGizmoManager          = editorMapInteraction.GlobalManager;
+            _editorToolController        = editorMapInteraction.Tools;
             var actionRegistry = new GlobalActionRegistry();
             long layerControlId = GlobalGizmoManager.NewId();
             var layerControlGizmo = new Hrot.Common.Diagnostics.Gizmos.LayerControlGizmo(layerControlId, interactionBus, new StructEdit.Reflection.ComponentEditServiceBuilder().Build(), _gizmoUiHub);

@@ -248,6 +248,12 @@ public class IgApplication : IDisposable
     private GizmoUndoStack?             _gizmoUndoStack;
     private GlobalGizmoManager?         _globalGizmoManager;
     private DataDrivenGizmoSystem?       _igDataDrivenGizmoSystem;
+
+    /// <summary>
+    /// ⭐⭐ <c>UXI-07</c> step 3b — this host's ONE tool arbiter, built by <c>MapInteractionPack</c> beside
+    /// the two focus arbiters it reconciles. 🔒 <c>Q27-B</c>: one per map subsystem.
+    /// </summary>
+    private Hrot.ScenarioEditor.Tools.ToolController? _igToolController;
     private FdpEventBus?                 _interactionBus;
     private GizmoExecutionController?    _gizmoController;
     // GZH-003: provides Phase-5 perspective switching with ref-counted gate.
@@ -807,6 +813,7 @@ public class IgApplication : IDisposable
             _gizmoSettingsRegistry  = igMapInteraction.Settings;
             _interactionBus         = igMapInteraction.InteractionBus;
             _igDataDrivenGizmoSystem = igMapInteraction.DataDrivenSystem;
+            _igToolController        = igMapInteraction.Tools;
             _gizmoUndoStack         = new GizmoUndoStack();
             // ⚠ _globalGizmoManager is deliberately assigned LATER, at its original position, so that
             // MapCommandController below keeps receiving exactly what it received before this migration.
@@ -2623,12 +2630,12 @@ FdpLog<IgApplication>.Info("[Node-{0}] MapClickEvent published. ContextId={1} hi
 
             case "200": // Measure ? activate the measurement gizmo
 
-                if (_globalGizmoManager != null)
-                {
-                    var id = GlobalGizmoManager.NewId();
-                    var gizmo = new Hrot.ScenarioEditor.Gizmos.MeasureGizmo(onRemove: () => _globalGizmoManager?.Unregister(id));
-                    _globalGizmoManager.Register(id, gizmo);
-                }
+                // ⭐⭐⭐ UXI-07 step 3b — ACTIVATE the shared Measure tool; do not rebuild it.
+                // 🔴 The NewId/MeasureGizmo/Register triple was a copy of the shared arm. ⭐ And going
+                //    through the controller fixes a real defect here: pressing Measure twice used to
+                //    REGISTER A SECOND gizmo (a fresh NewId each time), which could never take focus.
+                //    Now the first is cancelled first — Q27 ruling C, one modal per subsystem.
+                _igToolController?.Activate(Hrot.ScenarioEditor.Tools.ScenarioToolIds.Measure);
 
                 break;
 
@@ -3161,62 +3168,52 @@ FdpLog<IgApplication>.Info("[Node-{0}] MapClickEvent published. ContextId={1} hi
             return;
         }
 
-        // ?? Route entity path ? inject RouteWaypointGizmo (toggle) ??
-        if (World.HasManagedComponent<Hrot.Map.Common.Components.RoutePlan>(entity))
+        // ⭐⭐⭐ UXI-07 step 3b — ACTIVATE the shared Route/Edit tools through the host's ONE arbiter.
+        // 🔴 This method used to carry verbatim copies of both shared arms — the HasInjectedGizmo toggle,
+        //    the RouteWaypointGizmo / VertexEditGizmo construction, the DeactivateGizmo callback — one of
+        //    FIVE `D′` instances measured 2026-09-09. ⇒ deleted; MapInteractionPack registered the real
+        //    ones, and the toggle now lives in exactly one place (ruling 9).
+        // ⭐ Going through the controller makes these tools MODAL on IG for the first time: arming one
+        //    cancels whatever held focus in the OTHER arbiter, which a direct ActivateGizmo cannot do.
+        if (_igToolController == null)
         {
-            if (_igDataDrivenGizmoSystem!.HasInjectedGizmo(entity))
-            {
-                _igDataDrivenGizmoSystem!.DeactivateGizmo(entity);
-                FdpLog<IgApplication>.Info(
-                    "[Node-{0}] Route editing deactivated for NetID {1}.", _effectiveInstanceId, networkEntityId);
-            }
-            else
-            {
-                if (!World.HasComponent<SimTransform>(entity))
-                {
-                    FdpLog<IgApplication>.Warn(
-                        "[Node-{0}] ActivateAreaEditingTool: entity {1} has no SimTransform yet.", _effectiveInstanceId, networkEntityId);
-                    return;
-                }
-                var gizmo = new Hrot.ScenarioEditor.Gizmos.RouteWaypointGizmo(
-                    _world!, entity, networkEntityId,
-                    onRemove: () => _igDataDrivenGizmoSystem!.DeactivateGizmo(entity));
-                _igDataDrivenGizmoSystem!.ActivateGizmo(entity, gizmo);
-                FdpLog<IgApplication>.Info(
-                    "[Node-{0}] Route editing activated for NetID {1}.", _effectiveInstanceId, networkEntityId);
-            }
+            FdpLog<IgApplication>.Warn(
+                "[Node-{0}] ActivateAreaEditingTool: this host wired no ToolController (pass MapInteraction.Tools).",
+                _effectiveInstanceId);
             return;
         }
 
-        // ?? Area overlay path ? inject VertexEditGizmo (toggle) ??
-        if (!World.HasManagedComponent<EditablePolyline>(entity))
+        // 🔒 IG-ONLY GUARD, DELIBERATELY KEPT AT THE CALL SITE (R-137 — unification may not cost a
+        //    capability). IG receives entities over the network, so an EditablePolyline/RoutePlan can
+        //    arrive BEFORE its SimTransform; the editor and CGF author locally and never see that window.
+        //    ⛔ Pushing this into the shared arm would make the editor refuse a legitimately
+        //    transform-less shape. ⭐ Q27's standing ruling allows exactly this: "differences are data
+        //    availability or host rules, never set membership."
+        bool isRoute = World.HasManagedComponent<Hrot.Map.Common.Components.RoutePlan>(entity);
+        bool isArea  = World.HasManagedComponent<EditablePolyline>(entity);
+        if (!isRoute && !isArea)
         {
             FdpLog<IgApplication>.Warn(
                 "[Node-{0}] ActivateAreaEditingTool: entity {1} has no EditablePolyline.", _effectiveInstanceId, networkEntityId);
             return;
         }
+        if (!World.HasComponent<SimTransform>(entity) && !_igDataDrivenGizmoSystem!.HasInjectedGizmo(entity))
+        {
+            // ⚠ Only blocks ARMING. A toggle-OFF must still work on an entity whose transform went away,
+            //   or the gizmo would be unkillable from the UI.
+            FdpLog<IgApplication>.Warn(
+                "[Node-{0}] ActivateAreaEditingTool: entity {1} has no SimTransform yet.", _effectiveInstanceId, networkEntityId);
+            return;
+        }
 
-        if (_igDataDrivenGizmoSystem!.HasInjectedGizmo(entity))
-        {
-            _igDataDrivenGizmoSystem!.DeactivateGizmo(entity);
-            FdpLog<IgApplication>.Info(
-                "[Node-{0}] Area editing deactivated for NetID {1}.", _effectiveInstanceId, networkEntityId);
-        }
-        else
-        {
-            if (!World.HasComponent<SimTransform>(entity))
-            {
-                FdpLog<IgApplication>.Warn(
-                    "[Node-{0}] ActivateAreaEditingTool: entity {1} has no SimTransform yet.", _effectiveInstanceId, networkEntityId);
-                return;
-            }
-            var gizmo = new Hrot.ScenarioEditor.Gizmos.VertexEditGizmo(
-                _world!, entity, networkEntityId,
-                onRemove: () => _igDataDrivenGizmoSystem!.DeactivateGizmo(entity));
-            _igDataDrivenGizmoSystem!.ActivateGizmo(entity, gizmo);
-            FdpLog<IgApplication>.Info(
-                "[Node-{0}] Area editing activated for NetID {1}.", _effectiveInstanceId, networkEntityId);
-        }
+        string toolId = isRoute
+            ? Hrot.ScenarioEditor.Tools.ScenarioToolIds.Route
+            : Hrot.ScenarioEditor.Tools.ScenarioToolIds.Edit;
+        _igToolController.Activate(toolId, entity);
+
+        FdpLog<IgApplication>.Info(
+            "[Node-{0}] {1} tool activated for NetID {2}.",
+            _effectiveInstanceId, isRoute ? "Route editing" : "Area editing", networkEntityId);
     }
 
     /// <summary>

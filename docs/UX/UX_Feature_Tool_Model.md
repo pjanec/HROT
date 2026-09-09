@@ -1,13 +1,15 @@
 <!--STATUS
 state: LIVE
-build-state: BUILDING (A1 steps 1-3 BUILT 2026-09-09 - see 4.7 + 4.7b as-built; steps 4-6 open)
+build-state: BUILDING (A1 steps 1-3 + 3b BUILT 2026-09-09 - see 4.7 / 4.7b / 4.7c as-built; 4-6 open)
 verified: 2026-09-09 (PREMISE SWEEP - all 13 premises re-tested against source, see 0b; and the RED
   defect REPRODUCED by a headless probe with an inverse-edit red-proof - two exclusive tools hold focus
   at once and ONE mouse event reaches BOTH)
 current-answer: 4 (the A1 build) + 4.7/4.7b (the AS-BUILT). Steps 1-3 of Migration are BUILT: the
   ToolController arbitrates, ToolActivationDrainSystem arms every tool through it, and the editor's D-prime
-  duplicate (GlobalActionIds.Rotate/EditOverlay/EditRoute) is DELETED. Steps 4-6 (the three bypassing
-  adapters, the toolbar binding, central Escape) and PushModal's suspend/resume are OPEN.
+  duplicate (GlobalActionIds.Rotate/EditOverlay/EditRoute) is DELETED. Step 3b moved the arbiter INTO
+  MapInteractionPack, so all FIVE hosts (IG, CGF, ReplayBrowser, SimHost, Editor) get one with the full
+  tool set, and the D-prime idiom is gone from every production site. Steps 4-6 (the bypassing adapters,
+  the toolbar binding, central Escape) and PushModal's suspend/resume are OPEN.
   >>> READ 0b FIRST <<< - the premises SURVIVE, but four moved and three are now WIDER than this
   document says, because CE-051/CE-061/UXI-23-S2b reworked this exact area after the 2026-08-28 scan.
 known-rot: the line citations in the body are pre-CE-051 and mostly MOVED. 0b carries the current ones.
@@ -784,6 +786,71 @@ the interface carries `PushModal` but this slice implements `Activate`/`Cancel`.
 converted a bypassing picker can still fight the controller** — that is `Q27-A`'s stated condition and it is
 the next slice, not this one.
 
+### 4.7c 🔴🔴🔴 AS-BUILT, STEP 3b — **THE ARBITER WAS IN THE WRONG PLACE, AND THE USER CAUGHT IT** *(obligation ⑤, `2026-09-09`)*
+
+> 🔒 **User, verbatim:** *"SimHost has a full 2d map and a potential for spawning entities and doing many
+> things affecting existing entities … Does it need ToolController? what is a tool controller? i thought
+> the tools are something reusable not bound to scenario editor only."*
+
+⭐⭐⭐ **They were right, and the design record already said so.** Steps 1–3 built the controller behind
+`ToolActivationDrainSystem`. 📐 **Measured:** `MapInteractionPack.Build` is called by **FIVE** hosts — IG,
+CGF, ReplayBrowser, SimHost, Editor — and only **TWO** compose the drain. ⇒ three hosts had **no arbiter at
+all**, and each hand-rolled the same gizmos inline.
+
+| 📐 the `D′` idiom was on FIVE production sites, not one | |
+|---|---|
+| `EditorSubsystem.cs` ×3 *(Rotate · EditOverlay · EditRoute)* | ✅ deleted in step 3 |
+| `IgApplication.cs` ×3 *(Measure · Route · Edit)* | ✅ deleted here |
+| `SimHostApp.cs` *(Rotate action)* · `SimHostVisualization.cs` *(Rotate context menu)* | ✅ deleted here |
+| `IG/Gizmos/MeasureToolGizmoAdapter.cs` | ⛔ **KEPT — a duplicate SURFACE, not duplicate CODE** *(see below)* |
+
+#### 🔒 THE SPLIT, AND IT IS A RULING RATHER THAN A PREFERENCE
+
+⭐⭐ **`Q26` constraint 3**, quoted in `Architect_Question_27`: *"a tool descriptor is shared; its activation
+is host-bound."* ⇒
+- **`ScenarioToolRegistrations`** holds the six descriptors **and their arm bodies** — one implementation each.
+- **`MapInteractionPack.Build`** constructs `MapInteraction.Tools` and registers that set, so **every** host
+  gets the whole vocabulary for free.
+- The **host-bound** halves are two optional context inputs: `StartPlacementMode` and `ReportUnserviceableTool`.
+
+⭐⭐ **The registrations need NO selection state** — every activation takes its `target` as an argument. That
+is what let the pack own registration; only the *drain* needs a selection, because its job is turning a
+target-less `ActivateEditorToolEvent` into a target.
+
+| 🔒 the two user rulings this makes true BY CONSTRUCTION | |
+|---|---|
+| *"all map subsystems share the **full** tool set; differences are data availability or host rules, never set membership"* *(`2026-08-10`)* | a host with no spawn adapter still **registers** `Spawn`; it reports why it did nothing (ruling 49). ⛔ No per-subsystem whitelist exists to drift |
+| **`Q27-B` = B1, per subsystem** — the worked example is SimHost holding `Measure` across a perspective switch | the arbiter's lifetime **is** `MapInteraction`'s. Railed: two packs ⇒ two controllers |
+
+#### ⭐ WHAT EACH HOST GAINED, stated as behaviour rather than structure
+
+| host | before | after |
+|---|---|---|
+| **SimHost** · **IG** · **ReplayBrowser** | no arbiter; tools hand-rolled or absent | the full set, **modal** — arming one cancels the other arbiter's focus holder |
+| **IG `Measure`** | pressing it twice **registered a second gizmo** (fresh `NewId`) that could never take focus | the first is cancelled first — `Q27` ruling C |
+| **all five** | `ToolController` was reachable on two hosts | reachable on five, from one construction site |
+
+⚠ **IG keeps ONE guard the shared arm does not have**, deliberately: `SimTransform` must be present before
+`Edit`/`Route` **arm**. 📐 IG receives entities over the network, so a shape can arrive before its transform;
+the editor and CGF author locally and never see that window. 🔒 That is exactly the *"host rules"* the
+`2026-08-10` ruling allows, so it lives at IG's call site — ⛔ pushing it into the shared arm would make the
+editor refuse a legitimately transform-less shape. ⭐ It gates **arming only**: a toggle-OFF still works, or
+the gizmo would be unkillable from the UI.
+
+#### ⚠⚠ A HAZARD FOUND WHILE MEASURING, NOT SHIPPED BLIND — **no id allocated, see below**
+
+📐 `MeasureToolGizmoAdapter` (IG) keeps a `MeasureGizmo` alive while a **persisted setting** is true and syncs
+its units. ⭐ That is a duplicate **SURFACE**, not duplicate code *(the `2026-08-17` three-way test)*, so it is
+KEPT. ⛔ **But it registers straight on `GlobalGizmoManager`, bypassing the controller** — it is a step-4
+adapter. 🔴 **Measured:** `MeasureGizmo.Dispose()` and `OnCancel()` are **both empty** (`:159`, `:164`), so
+neither invokes the `onRemove` the adapter passes ⇒ if a cancel disposes that gizmo, the adapter's
+`_wasActive` stays `true` and **its toggle dies until the setting is cycled**.
+⚠ **Pre-existing** — `GizmoExecutionController` already cancels on terminal disconnect — but this slice makes
+it reachable from ordinary tool switching on IG. ⛔ **The obvious fix (have `Dispose` call `onRemove`)
+recurses** through `GlobalGizmoManager.Unregister` → `Dispose`. ⇒ **the real fix is step 4** (route the
+adapter through the controller). 🔒 **No tracker id allocated: this lane is out of range under the two-lane
+stopgap and reaching upward is what caused the `CE-256` collision.**
+
 ## Migration
 
 | Step | Change | Gate |
@@ -791,7 +858,7 @@ the next slice, not this one.
 | 1 | `ToolDescriptor` + `IToolController`; **Editor only**; register the 6 existing tools with their real modality (`Select` = null modal tool) | nothing calls it yet |
 | ✅ 2 | Route the **toolbar event path** (`ActivateEditorToolEvent` switch) through `Activate()` — **BUILT `2026-09-09`**, see §4.7b | every tool behaves as today *(+ `Select` is now live, and a retarget no longer leaves two gizmos)* |
 | ✅ 3 | Route the **action path** (`GlobalActionIds.Rotate/EditOverlay/EditRoute`) through `Activate()` — 🔴 **the D′ duplicate is DELETED**; **BUILT `2026-09-09`**, see §4.7b | ⭐ red-proofed by un-blinding `NoCompositionRootConstructsAToolGizmoItself`, which had been green over the duplicate |
-| 4 | Convert the three bypassing adapters (`EditorMapPickAdapter`, `EditorZoneAdapter`, `EditorSpawnAdapter`) | ⭐ **completes A1 — the 🔴 two-arbiter defect closes here** |
+| 4 | Convert the bypassing adapters (`EditorMapPickAdapter`, `EditorZoneAdapter`, `EditorSpawnAdapter`, ⭐ **and `IG/Gizmos/MeasureToolGizmoAdapter` — added `2026-09-09`, see §4.7c's hazard**) | ⭐ **completes A1 — the 🔴 two-arbiter defect closes here** |
 | 5 | Toolbar binds `ActiveModalChanged`; opt tools in via `ShowOnToolbar` | [UXR-84](UX_Requirements.md#uxr-84): active tool visibly active |
 | 6 | Central Escape → `Cancel()`; gizmos keep their own cleanup | Escape cancels the modal tool from anywhere |
 | 7 | Repeat for SimHost / CGF | same descriptors, host-bound activation |

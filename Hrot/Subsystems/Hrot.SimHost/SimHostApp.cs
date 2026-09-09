@@ -110,7 +110,15 @@ namespace Hrot.SimHost
         private GizmoRegistry? _gizmoRegistry;
         private StatelessGizmoRegistry? _statelessGizmoRegistry;
         private GlobalGizmoManager? _globalGizmoManager;
-        private DataDrivenGizmoSystem? _dataDrivenGizmoSystem;        private FdpEventBus? _interactionBus;
+        private DataDrivenGizmoSystem? _dataDrivenGizmoSystem;
+
+        /// <summary>
+        /// ⭐⭐ <c>UXI-07</c> step 3b — this host's ONE tool arbiter, built by <c>MapInteractionPack</c>
+        /// beside the two focus arbiters it reconciles. ⚠ A field because the visualization is initialized
+        /// far below where the pack is built.
+        /// </summary>
+        private Hrot.ScenarioEditor.Tools.ToolController? _toolController;
+        private FdpEventBus? _interactionBus;
         private Fdp.Interfaces.INetworkTranslator? _gizmoIngressTranslator;
         private GizmoExecutionController? _gizmoController;
         // DEBT-002: hub broadcasts DTO state to all connected terminals.
@@ -404,6 +412,7 @@ namespace Hrot.SimHost
                 _interactionBus         = mapInteraction.InteractionBus;
                 _globalGizmoManager     = mapInteraction.GlobalManager;
                 _dataDrivenGizmoSystem  = mapInteraction.DataDrivenSystem;
+                _toolController         = mapInteraction.Tools;
                 // Register the global action registry and wire operator action handlers.
                 var actionRegistry = new GlobalActionRegistry();
                 long layerControlId = GlobalGizmoManager.NewId();
@@ -417,20 +426,18 @@ namespace Hrot.SimHost
                 {
                     _interactionBus.Publish(new Hrot.Common.Diagnostics.Gizmos.OpenLayerEditorEvent());
                 });
-                actionRegistry.Register(GlobalActionIds.Rotate, (view, target) =>
-                {
-                    if (target == Entity.Null) return;
-                    if (!view.HasComponent<SimTransform>(target)) return;
-                    // Always start fresh: deactivate any existing gizmo, then inject the new one.
-                    _dataDrivenGizmoSystem!.DeactivateGizmo(target);
-                    var gizmo = new Hrot.ScenarioEditor.Gizmos.EntityRotatorGizmo(
-                        view, target,
-                        onRemove: () => _dataDrivenGizmoSystem!.DeactivateGizmo(target),
-                        // ⭐ AX-005b — SimHost usually OWNS the entity, so this routes Direct; the writer
-                        //   is passed anyway because the same node can hold unowned replicas.
-                        writer: Fdp.Toolkit.Replication.Attributes.EntityWriteRouter.For(_world!));
-                    _dataDrivenGizmoSystem!.ActivateGizmo(target, gizmo);
-                });
+                // ⭐⭐⭐ UXI-07 step 3b — SimHost drives the SHARED tool, through the SHARED arbiter.
+                // 🔴 This handler used to carry a verbatim copy of the Rotate arm (guard, DeactivateGizmo,
+                //    EntityRotatorGizmo, EntityWriteRouter) — one of FIVE `D′` instances measured
+                //    2026-09-09. ⇒ deleted; `MapInteractionPack.Build` registered the real one above.
+                // 🔒 "A tool is not an action. An action is what ACTIVATES a tool" (Q27 ruling D) — so the
+                //    action stays here and does exactly that, one line.
+                // ⭐ Activating through mapInteraction.Tools is what makes the tool MODAL on this host:
+                //    the controller cancels whatever held focus in the other arbiter first, which is the
+                //    defect UXI-07 exists to close and which SimHost previously had no way to do.
+                var mapTools = mapInteraction.Tools;
+                actionRegistry.Register(GlobalActionIds.Rotate, (_, target) =>
+                    mapTools.Activate(Hrot.ScenarioEditor.Tools.ScenarioToolIds.Rotate, target));
 
                 // ── AI diagnostics toggles (behav-diag-1) ─────────────────────────
                 actionRegistry.Register(GlobalActionIds.ToggleAiTrace, (view, target) =>
@@ -586,7 +593,18 @@ namespace Hrot.SimHost
                     // ⇒ ⭐⭐ The seam stays (it costs nothing and unblocks the real fix); the WIRING waits
                     //    until the exclusivity defect is resolved. ⛔ Fixing map picking by breaking the
                     //    scenario is not a fix.
-                    interactionBus: _interactionBus);
+                    interactionBus: _interactionBus,
+                    // ⭐⭐⭐ UXI-07 step 3b — the tool ARBITER is passed, and that is NOT the thing CE-254
+                    //   forbids two paragraphs up. ⚠ The distinction matters, so state it:
+                    //     ⛔ globalGizmoManager wires CanvasMapPickAdapter to a LIVE manager, which
+                    //        activates input paths that were dead on this host — that is the regression.
+                    //     ⭐ toolController activates NOTHING on its own. Constructing it and registering
+                    //        the tool set only fills a dictionary; the arbiters are touched solely inside
+                    //        Activate(), which is reached ONLY from the "Rotate entity" context-menu
+                    //        callback. ⇒ a headless hill-attack-close run never enters it.
+                    //   🔒 Still worth a Windows confirmation before anyone widens this, because CE-254 is
+                    //      exactly the case where "obviously right" was measured wrong.
+                    toolController: _toolController);
                 _vis.FdpEntityInspector.ExtractionService = simHostEntityService;
 
                 FdpLog<SimHostApp>.Info("[Node-{0}] Visualization ready. Window open.", localNodeId);

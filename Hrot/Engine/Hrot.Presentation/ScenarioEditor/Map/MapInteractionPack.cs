@@ -122,6 +122,26 @@ namespace Hrot.ScenarioEditor.Map
                 "GizmoExecution", globalManager, dataDriven, stateless, selfCheck);
             groupRef = group;
 
+            // ⭐⭐⭐ UXI-07 step 3b — THE ONE ARBITER, built here so all FIVE hosts get it.
+            // 📐 The defect is structural in the two lines above: globalManager and dataDriven each guard
+            //    exclusivity only within themselves while sharing `bus`, so two "exclusive" tools can hold
+            //    focus at once. ⇒ the arbiter belongs where the pair is CONSTRUCTED, not behind a system
+            //    only two of the five hosts compose.
+            // 🔒 Q27-B: "per subsystem" — the arbiter's lifetime is the map's, which is this object's.
+            // ⭐ Registering the tool set here too is what makes the user's 2026-08-10 ruling true by
+            //    construction: "all map subsystems share the FULL tool set … never set membership."
+            //    A host that cannot service one still has it, and it REPORTS why (ruling 49).
+            var tools = new Hrot.ScenarioEditor.Tools.ToolController(
+                () => globalManager, () => dataDriven, ctx.ReportUnserviceableTool);
+
+            Hrot.ScenarioEditor.Tools.ScenarioToolRegistrations.RegisterAll(
+                tools,
+                world:               () => ctx.World,
+                gizmos:              () => dataDriven,
+                globalGizmos:        () => globalManager,
+                startPlacementMode:  ctx.StartPlacementMode,
+                reportUnserviceable: ctx.ReportUnserviceableTool);
+
             // 🔴 GZH-003 headless-first, but NOT "disabled for everyone" (§3.2d ①): the only production
             // driver of AddListener() is PerspectiveCoordinatorSystem, so a standalone IG or editor has no
             // viewer-attach path and would sit behind a permanently shut gate. The per-host truth survives
@@ -132,7 +152,7 @@ namespace Hrot.ScenarioEditor.Map
 
             return new MapInteraction(
                 buffer, bus, gizmoRegistry, statelessRegistry, settings,
-                globalManager, dataDriven, stateless, group, gate, selfCheck);
+                globalManager, dataDriven, stateless, group, gate, selfCheck, tools);
         }
     }
 }

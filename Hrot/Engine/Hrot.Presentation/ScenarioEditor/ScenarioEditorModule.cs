@@ -60,7 +60,8 @@ public class ScenarioEditorModule : IEcsModule
         Func<MapCamera?>              Camera,
         Func<GlobalGizmoManager?>?    GlobalGizmos       = null,
         Action?                       StartPlacementMode = null,
-        Action<Entity>?               AlsoSelect         = null);
+        Action<Entity>?               AlsoSelect         = null,
+        Func<Hrot.ScenarioEditor.Tools.ToolController?>? Tools = null);
 
     public ScenarioEditorModule(
         ScenarioFileService? fileService = null,
@@ -87,8 +88,11 @@ public class ScenarioEditorModule : IEcsModule
         // ⭐⭐⭐ PACK2-E002, finished by CE-051. The render-layer half (PACK2-E003) is still open.
         if (_interaction is not { } deps) return;
 
+        // 🔒 UXI-07 step 3b — the drain takes the host's ONE arbiter (MapInteraction.Tools). ⛔ A host that
+        //    does not pass it gets a drain that REPORTS every dropped activation rather than swallowing it;
+        //    TheViewportInteractionIsSharedTests rails that both production roots do pass it.
         registry.RegisterSystem(new ToolActivationDrainSystem(
-            deps.Selection, deps.Gizmos, deps.GlobalGizmos, deps.StartPlacementMode));
+            deps.Selection, deps.Gizmos, deps.Tools ?? (() => null)));
         registry.RegisterSystem(new SelectEntitySystem(deps.Selection, deps.AlsoSelect));
         registry.RegisterSystem(new CenterOnEntitySystem(deps.Camera));
     }
