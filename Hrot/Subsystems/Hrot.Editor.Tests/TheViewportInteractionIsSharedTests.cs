@@ -423,6 +423,80 @@ public sealed class TheViewportInteractionIsSharedTests
             new Hrot.ScenarioEditor.Map.MapInteractionContext { World = worldB });
 
         Assert.NotSame(a.Tools, b.Tools);
+
+        // ⭐⭐ …and the same reasoning applies to the FOCUS SLOT: it is per subsystem, so SimHost holding
+        //     Measure must survive a switch to CGF and back. R-144 / §6.2b.
+        Assert.NotSame(a.GlobalManager.Focus, b.GlobalManager.Focus);
+    }
+
+    /// <summary>
+    /// ⭐⭐⭐ <b><c>R-144</c> / 68-A — THE FORWARDING RAIL FOR THE FOCUS SLOT: the pack gives BOTH arbiters
+    /// the SAME <c>GizmoFocusRegistry</c>.</b> 📄 <c>gizmo-input-focus-design.md</c> §6.2b.
+    ///
+    /// <para>🔴 <b>Why an identity assertion and not a behavioural one:</b> the failure mode is that each
+    /// arbiter quietly constructs its OWN registry — the constructor parameter is optional, so a root that
+    /// forgets it still compiles, still runs, and every existing rail stays green. ⛔ That is precisely the
+    /// silent-default pattern (*"a production caller that HAS the dependency must PASS it"*), and the
+    /// control this programme settled on is a forwarding rail asserted <b>on the constructed object</b>,
+    /// one per dependency.</para>
+    ///
+    /// <para>⚠ <b>It is the whole of 68-A.</b> One registry EACH satisfies every method signature and fixes
+    /// nothing: *"at most one exclusive focus per subsystem"* would stay a <c>ToolController</c> convention,
+    /// true only for tools that go through the controller — and the adapters that register straight on an
+    /// arbiter do not.</para>
+    ///
+    /// <para>⭐ Inverse-edit red-proof: dropping <c>focus: focus</c> from either constructor call in
+    /// <c>MapInteractionPack.cs</c> reddens this rail and NOTHING else in the 376-rail baseline.</para>
+    /// </summary>
+    [Fact]
+    public void ThePackGivesBothArbitersTheSameFocusSlot()
+    {
+        var (world, _, _) = WorldWithEntity();
+
+        var map = Hrot.ScenarioEditor.Map.MapInteractionPack.Build(
+            new Hrot.ScenarioEditor.Map.MapInteractionContext { World = world });
+
+        Assert.NotNull(map.GlobalManager.Focus);
+        Assert.Same(map.GlobalManager.Focus, map.DataDrivenSystem.Focus);
+    }
+
+    /// <summary>
+    /// ⭐⭐⭐ <b>EXCLUSIVITY NOW HOLDS WITHOUT THE ARBITER CONVENTION</b> — the behavioural half of
+    /// <c>R-144</c>, and the claim <c>ArmingAToolClearsAModalHoldingFocusInTheOtherArbiter</c> could not
+    /// make.
+    ///
+    /// <para>🔴 <b>The difference is that NOTHING here goes through <c>ToolController</c>.</b> That rail
+    /// arms through the drain, so <c>CancelOtherArbiter</c> does the work; this one registers straight on
+    /// each arbiter — <b>exactly what <c>EditorMapPickAdapter</c>, <c>EditorZoneAdapter</c> and
+    /// <c>ScenarioSpawnAdapter</c> do</b>, and the path the convention never covered. ⛔ Before the shared
+    /// registry both gizmos held focus at once and the terminal received two capture bindings for one
+    /// frame.</para>
+    /// </summary>
+    [Fact]
+    public void TwoAdaptersBypassingTheControllerCannotBothHoldFocus()
+    {
+        var (world, entity, _) = WorldWithEntity();
+
+        var map = Hrot.ScenarioEditor.Map.MapInteractionPack.Build(
+            new Hrot.ScenarioEditor.Map.MapInteractionContext { World = world });
+
+        // ⭐ A real exclusive-focus gizmo on the GLOBAL arbiter — the adapters' exact shape.
+        long pickerId = GlobalGizmoManager.NewId();
+        var picker    = new Hrot.ScenarioEditor.Gizmos.MeasureGizmo(
+            onRemove: () => map.GlobalManager.Unregister(pickerId));
+        map.GlobalManager.Register(pickerId, picker);
+
+        Assert.Same(picker, map.GlobalManager.Focus.Holder);
+
+        // …and now an entity-scoped one on the OTHER arbiter, with no controller in sight.
+        var rotator = new Hrot.ScenarioEditor.Gizmos.EntityRotatorGizmo(
+            world, entity, onRemove: () => map.DataDrivenSystem.DeactivateGizmo(entity));
+        map.DataDrivenSystem.ActivateGizmo(entity, rotator);
+
+        // 🔴 ONE holder, across both arbiters. Two private _focusedGizmo fields could not say this.
+        Assert.Same(picker, map.GlobalManager.Focus.Holder);
+        Assert.True(map.DataDrivenSystem.HasInjectedGizmo(entity));   // ⭐ still ARMED and drawing …
+        Assert.False(rotator.IsFocused);                              // ⭐ … it simply does not hold input
     }
 
     /// <summary>

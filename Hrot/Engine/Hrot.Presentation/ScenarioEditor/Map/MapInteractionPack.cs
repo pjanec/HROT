@@ -89,15 +89,25 @@ namespace Hrot.ScenarioEditor.Map
             ctx.ContributeExtras?.Invoke(
                 new MapInteractionRegistries(gizmoRegistry, statelessRegistry, settings, buffer, bus));
 
+            // ⭐⭐⭐ R-144 / §6.2b — THE ONE FOCUS SLOT, created HERE because this is the only production
+            //    site that builds both arbiters. 📐 The defect it closes is named two comments below and
+            //    was written in this file long before the ruling: the two systems "each guard exclusivity
+            //    only within themselves while sharing `bus`, so two 'exclusive' tools can hold focus at
+            //    once."  ⛔ One registry EACH would satisfy every signature and fix nothing — the whole of
+            //    68-A is that this single instance reaches both constructors.
+            // ⚠ Q27-B, "per subsystem": the slot's lifetime is the map's, which is this object's.
+            var focus = new GizmoFocusRegistry();
+
             var globalManager = new GlobalGizmoManager(
-                buffer, bus, breakpointManager: ctx.BreakpointManager);
+                buffer, bus, breakpointManager: ctx.BreakpointManager, focus: focus);
 
             var dataDriven = new DataDrivenGizmoSystem(
                 gizmoRegistry,
                 buffer,
                 isSelectedPredicate: ctx.IsSelectedPredicate,
                 interactionBus: bus,
-                breakpointManager: ctx.BreakpointManager);
+                breakpointManager: ctx.BreakpointManager,
+                focus: focus);
 
             // 🔒 NO isSelectedPredicate here, ever. On StatelessGizmoSystem the predicate is ONE BLANKET
             // GATE over every projector the host owns — the entity avatars, the routes, the tactical areas,

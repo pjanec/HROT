@@ -257,6 +257,195 @@ routing fallback that this document never made. ⇒ ~12 touch points, not 4.
 3 consecutive runs** ⇒ ⛔ **`DEBT-AIB-030`'s rotating flake does NOT affect this subset**; a change
 here can be gated honestly. *(That is a statement about this subset only, not the whole assembly.)*
 
+> ⛔⛔ **SUPERSEDED — the last paragraph above ("the field is OVERLOADED… two unrelated meanings").**
+> Measured `2026-09-09`: meaning (b) is **not** a fallback for an unresolvable token. `GlobalGizmoManager.Execute`
+> **never reads `evt.Token`** and delivers raw input to the holder unconditionally, and
+> `MakeInputCaptureBinding` never stamps a `GizmoTypeId`, so raw-input tokens carry `GizmoTypeId == 0`
+> and `FindGizmo` can essentially never match for them. ⇒ **the two arbiters run the SAME rule**; there
+> is one meaning — *"the focus holder receives un-anchored input"* — and `_focusedGizmo ?? FindGizmo(...)`
+> is that rule with an entity-scoped second arm. 📄 [`Architect_Question_68`](../../blueprints/Architect_Question_68_Gizmo_Focus_Registry.md) §4c.
+
+### 6.2b ✅ THE APPROVED RESOLUTION — **`GizmoFocusRegistry`, ONE INSTANCE, shared** *(`R-144`, `2026-09-09`)*
+
+> 🔒 **User, `2026-09-09`:** *"68 most recent leans approved"* ⇒ 68-A YES · 68-B A · 68-C **C2** · 68-D now.
+
+⛔ **C1 — porting `GizmoInteractionManager` from `GizmoMap.Example` — was REJECTED**, because it bundles
+the focus fix with a **keying** fix (`AnchorId` is documented network-stable and is stamped with an ECS
+`Entity.Index`) whose cross-node blast radius is unmeasured. That is `CE-259h`, and the registry below is
+deliberately **keying-agnostic** so it does not wait on it. ⇒ §13's *"port it into FDP"* line stays rotted.
+
+#### ⭐⭐⭐ The two facts that shape the API, both measured
+
+| # | fact | why it decides something |
+|---|---|---|
+| ① | 🔴 **ONE INSTANCE, not one class.** `MapInteractionPack.cs:92-99` is the **single** production composition root of both arbiters, and its own comment already names the defect: *"globalManager and dataDriven each guard exclusivity only within themselves while sharing `bus`, so two 'exclusive' tools can hold focus at once."* | ⛔ Giving each arbiter its own registry instance changes the code layout and **fixes nothing** — `ToolController.CancelOtherArbiter`, the convention workaround, would still be load-bearing |
+| ② | 🔴🔴 **A shared slot creates a DOUBLE-DELIVERY hazard that does not exist today.** Both arbiters run in `PostSimulation` over the **same** bus and each routes to *its own* holder. Share the slot naively and **both** route to it ⇒ every mouse/key/drag event delivered **twice** | ⇒ ⭐ **the registry stores `(holder, owner)`.** The **slot** is shared, so exclusivity is true by construction; **routing and binding emission stay with the OWNING arbiter**, so nothing is delivered or emitted twice |
+
+#### ⭐ The eleven behaviours the field carries today — the enumeration the API is derived from
+
+📐 `grep -n "_focusedGizmo" DataDrivenGizmoSystem.cs` → **47 lines**; `GlobalGizmoManager.cs` → 14.
+
+| # | behaviour | sites |
+|---|---|---|
+| ① | grant **if the slot is empty** | `DDGS:91`, `:355` · `GGM:66` |
+| ② | release **if this gizmo holds it** | `DDGS:106, :685, :705, :720` · `GGM:83` |
+| ③ | ⭐ **STEAL on interaction start** — displace whoever holds it | `DDGS:516-520` — ⛔ **the one site with no `GlobalGizmoManager` counterpart** |
+| ④ | suspend *(`SetFocus(false)`, no dispose)* | `DDGS:132` · `GGM:111` |
+| ⑤ | resume | `DDGS:155` · `GGM:126` |
+| ⑥ | take-for-cancel | `DDGS:169` · `GGM:154` |
+| ⑦ | sweep *(cancel every interactive tool)* | `DDGS:192` · `GGM:177` |
+| ⑧ | **emit `InputCaptureBinding` for the holder** | `DDGS:395, :438, :470` *(three draw loops)* · `GGM:216` |
+| ⑨ | ⭐⭐ **`RecipientFor` — holder FIRST, target lookup second** | `DDGS:529, :537, :545, :573, :581` · `GGM:229-246` *(holder only; the second arm is absent, which is the same rule with nothing to fall through to)* |
+| ⑩ | the predicate `RequiresExclusiveFocus \|\| WantsRawInput`, written **~14 times** | everywhere above |
+| ⑪ | ⛔ **index-routed events do NOT consult focus** — `FindGizmoByIndex` at `DDGS:554, :566`, and a comment at `:608` states the split | ⇒ `GizmoMenuActionEvent` / `GizmoStructUpdateEvent` are **out of scope** |
+
+#### ⭐⭐ Class diagram — **existing boxes are marked, so a duplicate would be visible**
+
+```mermaid
+classDiagram
+    class GizmoFocusRegistry {
+        <<NEW — Fdp.Toolkits/Diagnostics/Gizmos/Systems>>
+        -IEntityStatefulGizmo holder
+        -object owner
+        +IEntityStatefulGizmo Holder
+        +bool WantsFocus(gizmo)$
+        +bool TryGrant(owner, gizmo)
+        +void GrantStealing(owner, gizmo)
+        +bool Release(gizmo)
+        +IEntityStatefulGizmo Suspend()
+        +void Resume(owner, gizmo)
+        +IEntityStatefulGizmo TakeForCancel()
+        +bool ShouldEmitBinding(owner, gizmo)
+        +IEntityStatefulGizmo RecipientFor(owner, resolveByTarget)
+    }
+    class GlobalGizmoManager {
+        <<EXISTS — Systems/GlobalGizmoManager.cs>>
+        -Dictionary~long,IEntityStatefulGizmo~ activeGizmos
+        +Execute(view, dt)
+    }
+    class DataDrivenGizmoSystem {
+        <<EXISTS — Systems/DataDrivenGizmoSystem.cs>>
+        +Execute(view, dt)
+        -FindGizmo(target, typeId)
+        -FindGizmoByIndex(index)
+    }
+    class MapInteractionPack {
+        <<EXISTS — Hrot.Presentation/ScenarioEditor/Map>>
+        +Build(ctx)
+    }
+    class ToolController {
+        <<EXISTS — ScenarioEditor/Tools>>
+        +Activate(id)
+        +PushModal(id)
+        -CancelOtherArbiter(arbiter)
+    }
+    class IEntityStatefulGizmo {
+        <<EXISTS — interface>>
+        +bool RequiresExclusiveFocus
+        +bool WantsRawInput
+        +SetFocus(bool)
+    }
+
+    MapInteractionPack ..> GizmoFocusRegistry : creates ONE
+    MapInteractionPack ..> GlobalGizmoManager : injects it
+    MapInteractionPack ..> DataDrivenGizmoSystem : injects the SAME one
+    GlobalGizmoManager    --> GizmoFocusRegistry : 1 shared
+    DataDrivenGizmoSystem --> GizmoFocusRegistry : 1 shared
+    GizmoFocusRegistry o-- IEntityStatefulGizmo : holder 0..1
+    ToolController ..> GlobalGizmoManager
+    ToolController ..> DataDrivenGizmoSystem
+```
+
+⭐⭐ **What the diagram makes visible:** the multiplicity is **`1` shared**, not `1` each — and that
+single edge is the whole of 68-A. ⛔ Two `GizmoFocusRegistry` instances would satisfy every method
+signature here and fix nothing.
+
+#### ⭐⭐ Sequence — **the case that used to be broken: a picker interrupting a tool on the OTHER arbiter**
+
+```mermaid
+sequenceDiagram
+    autonumber
+    actor Op as Operator
+    participant TC as ToolController
+    participant REG as GizmoFocusRegistry
+    participant DD as DataDrivenGizmoSystem
+    participant GG as GlobalGizmoManager
+    participant RT as Route gizmo
+    participant PK as Picker gizmo
+
+    Note over RT: half-drawn route, entity-scoped, on DD
+    Op->>TC: PushModal(pick.location)
+    TC->>DD: SuspendFocus()
+    DD->>REG: Suspend()
+    REG->>RT: SetFocus(false)
+    REG-->>DD: RT (slot now empty, still registered so it keeps DRAWING)
+    TC->>GG: activate the picker
+    GG->>REG: TryGrant(GG, PK)
+    REG->>PK: SetFocus(true)
+
+    Op->>GG: mouse click
+    GG->>REG: RecipientFor(GG, null)
+    REG-->>GG: PK
+    Note right of REG: owner is GG, so DD is not<br/>offered the holder => delivered ONCE
+    GG->>PK: OnMouseEvent(...)
+
+    PK-->>TC: remove()
+    TC->>GG: CancelFocused()
+    GG->>REG: TakeForCancel()
+    REG-->>GG: PK
+    GG->>PK: OnCancel then Dispose
+    TC->>DD: ResumeInto(RT)
+    DD->>REG: Resume(DD, RT)
+    REG->>RT: SetFocus(true)
+    Note over RT: route intact, input back
+```
+
+#### ⚠ The hazard this introduces, stated before it is built
+
+⛔ **Sharing the slot means the two arbiters can no longer BOTH hold focus.** That is the defect being
+fixed — but it is a **behaviour change**, and the honest question is whether anything relied on it
+*(e.g. a permanent global gizmo with `WantsRawInput` coexisting with an entity-scoped tool)*.
+⭐ **The adjudicator is the T-1 baseline, measured before any edit: 376 rails green** —
+`Fdp.Toolkits.Tests` `Diagnostics.Gizmos` **190** · `Hrot.Presentation.Tests` Tools+Gizmos **65** ·
+`Hrot.Editor.Tests` Adapters+Viewport **67** · `Hrot.IG.Tests` Gizmo **54**. ⇒ ⭐ **a red after the
+change is attributable**, which is the whole point of running them first (`R-142`).
+
+#### ✅ AS-BUILT — **built `2026-09-09`, and where it deviated from the drawing above**
+
+⭐ Obligation ⑤: the design carries the truth, not the report.
+
+| | |
+|---|---|
+| ✅ **built as drawn** | `GizmoFocusRegistry` in `Fdp.Toolkits/Diagnostics/Gizmos/Systems/` · both arbiters delegate — **`_focusedGizmo` is now 0 occurrences in both files** *(was 14 + 47)* · `MapInteractionPack.cs:99` creates ONE and passes it to both |
+| ⚠ **DEVIATION ①, and it matters** | ⭐ The first cut had `RecipientFor` return **`null`** for a non-owning arbiter. ⛔ **That would also have suppressed that arbiter's TARGET LOOKUP** — a change to the SPATIAL routing path, the one path §4c never compared and which this unit explicitly scopes out. ⇒ **as built, a non-owning arbiter is denied the HOLDER but still runs its own target lookup**, which is exactly today's behaviour. ⭐ No double delivery results: a target lookup only ever resolves that arbiter's OWN gizmos |
+| ⚠ **DEVIATION ②** | ⭐ Both arbiters' **sweeps** (`CancelInteractiveTools`) now release only a holder **they** granted. ⛔ Not in the original drawing, and necessary: with the slot shared, an unguarded sweep would reach into the other arbiter's holder — which it does not own and cannot dispose |
+| ⭐ **`ToolController.CancelOtherArbiter` was KEPT** | ⛔ **Deliberately not deleted.** It is now belt-and-braces rather than the load-bearing mechanism, and `R-137` *(unification may not cost a capability)* plus this repo's *"prefer routing to deleting"* both say a still-correct path is not removed in the same unit that makes it redundant. ⚠ Its removal is a separate, measurable question |
+
+#### 📐 GATES — measured, `2026-09-09`
+
+| gate | before | after |
+|---|---|---|
+| `Fdp.Toolkits.Tests` `~Diagnostics.Gizmos` | **190/190** | ✅ **204/204** *(+14 new `GizmoFocusRegistryTests`)* |
+| `Hrot.Editor.Tests` `~Adapter\|~ViewportInteraction` | **67/67** | ✅ **69/69** *(+2)* |
+| `Hrot.Presentation.Tests` `~Tools\|~Gizmos` | **65/65** | ✅ **65/65** |
+| `Hrot.IG.Tests` `~Gizmo` | **54/54** | ✅ **54/54** |
+| build | — | ✅ `Fdp.Toolkits` · `Hrot.Presentation` · `Hrot.CGF` · `Hrot.ReplayBrowser` · `Hrot.IG` — **0 errors each** ⚠ every test run above was gated on `0 Error(s)`, never read off a stale binary |
+
+⭐⭐ **Two inverse-edit RED-PROOFS, because a green suite proves nothing about a NEW invariant:**
+
+| the inverse edit | what reddened |
+|---|---|
+| drop `focus: focus` from `DataDrivenGizmoSystem`'s construction in `MapInteractionPack` | ✅ **exactly 2** — `ThePackGivesBothArbitersTheSameFocusSlot` and `TwoAdaptersBypassingTheControllerCannotBothHoldFocus`. ⛔ The other 28 stayed green, which is the point: **nothing that existed before this change can see the defect** |
+| make `RecipientFor` ignore the owner *(the double-delivery regression)* | ✅ **exactly 2** — `TheHolderIsOfferedOnlyToTheArbiterThatGrantedIt` and `ANonOwningArbiterStillRunsItsTargetLookup` |
+
+#### ⛔ Explicitly NOT in this unit
+
+| | |
+|---|---|
+| `CE-259h` — the `AnchorId`/`Entity` keying violation | the registry is keying-agnostic and does not wait on it |
+| `IgApplication._activeSequenceGizmo` | fire-and-forget remote area/route authoring; needs `Activate`, not `PushModal` |
+| ⛔ **the SPATIAL routing path** | §4c compared only RAW INPUT between the two arbiters. **The spatial path was never compared** ⇒ nothing beyond the focus slot is collapsed here |
+
 ### 6.3 What the terminal does NOT do
 
 - It does **not** decide which `InputCaptureBinding` "wins" if multiple appear. Backend ensures only one exclusive request exists per frame; if a buggy backend sends two, the terminal may pick the last one — that's a backend bug, not terminal logic.
