@@ -1,11 +1,14 @@
 <!--STATUS
 state: LIVE
-build-state: NOT-BUILT
+build-state: BUILDING (A1 steps 1-3 BUILT 2026-09-09 - see 4.7 + 4.7b as-built; steps 4-6 open)
 verified: 2026-09-09 (PREMISE SWEEP - all 13 premises re-tested against source, see 0b; and the RED
   defect REPRODUCED by a headless probe with an inverse-edit red-proof - two exclusive tools hold focus
   at once and ONE mouse event reaches BOTH)
-current-answer: NOT-BUILT (design only; Q27 answered). No IToolController/ToolDescriptor/modal-stack in
-  source. >>> READ 0b FIRST <<< - the premises SURVIVE, but four moved and three are now WIDER than this
+current-answer: 4 (the A1 build) + 4.7/4.7b (the AS-BUILT). Steps 1-3 of Migration are BUILT: the
+  ToolController arbitrates, ToolActivationDrainSystem arms every tool through it, and the editor's D-prime
+  duplicate (GlobalActionIds.Rotate/EditOverlay/EditRoute) is DELETED. Steps 4-6 (the three bypassing
+  adapters, the toolbar binding, central Escape) and PushModal's suspend/resume are OPEN.
+  >>> READ 0b FIRST <<< - the premises SURVIVE, but four moved and three are now WIDER than this
   document says, because CE-051/CE-061/UXI-23-S2b reworked this exact area after the 2026-08-28 scan.
 known-rot: the line citations in the body are pre-CE-051 and mostly MOVED. 0b carries the current ones.
   Specifically: the idiom table's "EditorSubsystem.cs:3806-3894" is now the shared ToolActivationDrainSystem;
@@ -542,13 +545,252 @@ first**, because until then a bypassing picker can still fight the controller fo
 tools that opted in via `ShowOnToolbar`. ⇒ **`Select` becomes the null modal tool** (a real state, not a
 dead case), and `Measure`/`Rotate` may stay button-less by choice rather than by omission.
 
+## 4. ⭐⭐⭐ `A1` — THE BUILD: **ONE ARBITER, AND IT DELEGATES RATHER THAN REPLACES** *(`2026-09-09`; `build-state: READY-TO-BUILD`)*
+
+> 🔒 **Why now, and it is not my reason — it is a MEASUREMENT from the Windows lane.** `CE-254` tried to
+> hand `CanvasMapPickAdapter` the pack's live `GlobalGizmoManager` on SimHost and **it broke
+> `hill-attack-close`**: baseline `1007 t=34 / 1006 t=44`; with the live manager, twice, both hostiles
+> either stalled at `hp=25` for 140+ s or took no damage. ⇒ ⭐⭐ **the two-arbiter defect is no longer
+> latent — it is what stops a real fix from landing**, and closing it is the precondition for `CE-254`.
+
+### 4.1 📐 INVENTORY — `search_graph(name_pattern=".*(GizmoManager|GizmoSystem|GizmoExecutionController|InteractionHost|FocusHolder).*", label="Class")` → **total 12**
+
+| production class | file | in-degree | holds focus? |
+|---|---|:--:|:--:|
+| `GlobalGizmoManager` | `Fdp.Toolkits/Diagnostics/Gizmos/Systems/` | 13 | ✅ `_focusedGizmo` |
+| `DataDrivenGizmoSystem` | same | 9 | ✅ `_focusedGizmo` |
+| `StatelessGizmoSystem` | same | 9 | ⛔ no |
+| `GizmoExecutionController` | `Fdp.Toolkits/Diagnostics/Gizmos/` | 4 | ⛔ drives both on teardown |
+| ⚠ `BehaviorGizmoManagerSystem` | `…/Systems/` | **0** | ⛔ **no focus code at all** |
+
+⇒ ⭐⭐ **EXACTLY TWO ARBITERS — confirmed, not assumed.** `BehaviorGizmoManagerSystem` looked like a third
+and is not: no `RequiresExclusiveFocus`, no `_focusedGizmo`, no `SetFocus`, no `InputCaptureBinding`. It
+manages behaviour-bound gizmo *lifecycle*. ⚠ **It also has ZERO production callers** despite carrying
+`[UpdateInPhase(PostSimulation)]` — recorded, ⛔ **not proposed for deletion**: *"unreferenced is not
+unintentional"* needs a corpus search first, and it does not block this slice.
+
+### 4.2 ⭐⭐⭐ THE DESIGN CALL — **`Cancel()` DELEGATES to `CancelInteractiveTools()`; it does NOT invent a third teardown**
+
+📐 Both arbiters already expose `CancelInteractiveTools()` (`GlobalGizmoManager.cs:96` ·
+`DataDrivenGizmoSystem.cs:124`), already driven from ONE place (`GizmoExecutionController.cs:48-49`), and
+they already encode *"cancel the interactive, spare the permanent"* — ⭐ **which IS `Q27`'s modal/modeless
+split, written in code before the ruling existed.** 🔒 Seam law: the controller **adopts** that, it does not
+duplicate it. ⛔ A third teardown path would be the exact disease this issue exists to cure.
+
+### 4.3 🔒 THE SAFETY PROPERTY THAT PROTECTS `hill-attack-close`
+
+⭐⭐⭐ **Nothing changes when only ONE modal is active — which is every case that works today.** The
+controller only acts when a SECOND modal would take focus. ⇒ ⛔ this slice makes nothing newly live; it
+makes concurrency *impossible*. **That is precisely what `CE-254` needs before it can wire the pick adapter.**
+
+### 4.4 ⭐⭐ THE CLASS DIAGRAM *(existing classes carry their file; obligation ②)*
+
+```mermaid
+classDiagram
+    class IToolController {
+        <<interface>>
+        +ToolDescriptor ActiveModal
+        +IReadOnlyList~ToolDescriptor~ ModalStack
+        +Activate(string toolId, Entity target) bool
+        +PushModal(string toolId, Entity target) IDisposable
+        +Cancel() void
+        +ActiveModalChanged
+    }
+    class ToolController {
+        -ToolRegistry _registry
+        -List~ActiveTool~ _stack
+        -Func~GlobalGizmoManager~ _global
+        -Func~DataDrivenGizmoSystem~ _dataDriven
+        +Activate(id, target) bool
+        +Cancel() void
+        -CancelOtherArbiter(ToolArbiter owner) void
+    }
+    class ToolDescriptor {
+        <<record>>
+        +string Id
+        +string Label
+        +ToolModality Modality
+        +ToolArbiter Arbiter
+        +bool ShowOnToolbar
+        +bool ToggleOnReactivate
+    }
+    class ToolRegistry {
+        +Register(ToolDescriptor, ToolActivation) void
+        +TryGet(string id, out ...) bool
+    }
+    class GlobalGizmoManager {
+        EXISTING Fdp.Toolkits
+        +Register(long, gizmo) void
+        +Unregister(long) void
+        +CancelInteractiveTools() void
+    }
+    class DataDrivenGizmoSystem {
+        EXISTING Fdp.Toolkits
+        +ActivateGizmo(Entity, gizmo) void
+        +DeactivateGizmo(Entity) void
+        +CancelInteractiveTools() void
+    }
+    class ToolActivationDrainSystem {
+        EXISTING Hrot.Presentation
+        +Execute(view, dt) void
+    }
+    class GizmoExecutionController {
+        EXISTING Fdp.Toolkits
+    }
+    IToolController <|.. ToolController
+    ToolController --> ToolRegistry : owns
+    ToolRegistry o-- ToolDescriptor : holds many
+    ToolController ..> GlobalGizmoManager : cancels + activates
+    ToolController ..> DataDrivenGizmoSystem : cancels + activates
+    ToolActivationDrainSystem --> IToolController : routes every tool through
+    GizmoExecutionController ..> GlobalGizmoManager : already cancels both
+    GizmoExecutionController ..> DataDrivenGizmoSystem : already cancels both
+```
+
+### 4.5 ⭐⭐ THE SEQUENCE — **the defect, and where it dies**
+
+```mermaid
+sequenceDiagram
+    actor User
+    participant Drain as ToolActivationDrainSystem
+    participant TC as ToolController
+    participant DD as DataDrivenGizmoSystem
+    participant GG as GlobalGizmoManager
+    participant Term as DebugGizmoLayer
+
+    User->>Drain: ActivateEditorToolEvent(Rotate)
+    Drain->>TC: Activate("rotate", entity)
+    TC->>TC: no modal held, nothing to cancel
+    TC->>DD: ActivateGizmo(entity, EntityRotatorGizmo)
+    DD-->>TC: focus granted
+
+    Note over User,Term: today a SECOND modal would join it
+    User->>Drain: ActivateEditorToolEvent(Measure)
+    Drain->>TC: Activate("measure", null)
+    TC->>DD: CancelInteractiveTools()
+    Note right of TC: THE FIX - the other arbiter<br/>is cleared BEFORE the new modal arms
+    TC->>GG: Register(id, MeasureGizmo)
+    GG-->>TC: focus granted
+
+    Term->>Term: scan frame for InputCaptureBinding
+    Note over Term: exactly ONE now, so the<br/>first-one-wins break is correct
+```
+
+### 4.6 ⭐ ITEMS
+
+| # | item | gate |
+|--:|---|---|
+| **1** | `ToolModality` · `ToolArbiter` · `ToolDescriptor` · `ToolRegistry` · `IToolController` · `ToolController` in `Hrot.Presentation/ScenarioEditor/Tools/` *(namespace `Hrot.ScenarioEditor.Tools`, beside `MapInteractionPack`)*; register the six `EditorTool` values | nothing calls it yet |
+| **2** | `ToolActivationDrainSystem` routes every arm through `IToolController` | every tool behaves as today |
+| **3** | the editor's action path (`GlobalActionIds.Rotate/EditOverlay/EditRoute`) routes through it — 🔴 **deletes the `D′` duplicate** | context-menu activation identical |
+| **4** | ⭐⭐ **the rails, INTO `GizmoHeadlessTests` (`GZH-` series)** per `R-142` — ⛔ not a parallel class: ① two modals cannot both hold focus ② exactly ONE `InputCaptureBinding` per frame ③ inverse-edit red-proof | the reproduced defect goes green |
+
+### 4.7 🔴🔴🔴 AS-BUILT — **THE FIRST RAILS WERE VACUOUS, AND THE RED-PROOF IS WHAT CAUGHT IT** *(obligation ⑤, `2026-09-09`)*
+
+📐 **Measured.** The first draft armed BOTH tools **through the controller**, then deleted
+`CancelOtherArbiter` to red-proof it — and **all seven rails still PASSED.**
+
+⭐⭐ **The reason is the valuable part:** `CancelActiveModalWithoutNotify()` already tears the previous
+modal down through **its own** arbiter when the stack pops. ⇒ with both tools registered, the cross-cancel
+is **redundant** and the rails proved nothing.
+
+⭐⭐⭐ **`CancelOtherArbiter` earns its keep in exactly ONE situation: the other arbiter holds a modal the
+controller DID NOT ARM.** ⛔ That is not hypothetical — it is `EditorMapPickAdapter`, `EditorZoneAdapter`
+and `ScenarioSpawnAdapter`, which call `GlobalGizmoManager.Register` directly and are **not converted in
+this slice**. ⇒ the rails now simulate that bypass, and the re-run red-proof is clean:
+
+| | with the fix | fix removed |
+|---|:--:|:--:|
+| `ABypassingModalLosesFocusWhenAToolArms` | ✅ | 🔴 |
+| `OneInputReachesOnlyTheActiveTool` | ✅ | 🔴 |
+| `ExactlyOneInputCaptureBindingPerFrame` | ✅ | 🔴 |
+| the other four *(modeless survival, reporting, toggle, `PushModal` refusal)* | ✅ | ✅ *(correctly unaffected)* |
+
+#### ⚠⚠ SECOND CORRECTION — **`ToolActivation` returns THREE outcomes, not a `bool`** *(same day, driven by reading the drain)*
+
+📐 **Measured in `ToolActivationDrainSystem`:** its `Edit`/`Route` arms **toggle** — `ToggleEntityGizmo:176`
+calls `DeactivateGizmo` and returns when a gizmo is already injected on that entity. ⇒ ⛔ a `bool` cannot
+express it: **`false` would make the controller cry *unserviceable* and mislead the operator; `true` would
+leave a dismissed tool on the modal stack.** ⭐ Hence
+`ToolActivationOutcome { Armed, Dismissed, Unserviceable }`.
+
+⛔⛔ **And the toggle is PER-ENTITY, not per-descriptor** — pressing `Edit` on entity A then entity B must
+MOVE to B, not toggle off.
+
+> ⚠⚠ **SUPERSEDED `2026-09-09` by §4.7b, and the correction is load-bearing.** This paragraph used to end:
+> *"`ToolDescriptor.ToggleOnReactivate` is the coarser same-tool-twice rule and the drain's arms deliberately
+> do **not** use it; the per-entity decision stays inside the activation, which is the only thing holding the
+> target."* 📐 **That cannot work** — see §4.7b: the controller cancels the armed modal **before** invoking the
+> activation, so by then `HasInjectedGizmo(e)` is already false. ⇒ the drain's `Edit`/`Route` **do** set the
+> flag and the controller keys it on the **(tool, target)** pair.
+
+### 4.7b 🔴🔴🔴 AS-BUILT, STEPS 2 + 3 — **THE TOGGLE NEARLY DIED IN THE ROUTING** *(obligation ⑤, `2026-09-09`)*
+
+📐 **The measurement that changed the design.** `DataDrivenGizmoSystem.CancelInteractiveTools()`
+(`:124-137`) clears **every** injected gizmo; `GlobalGizmoManager`'s (`:112-119`) clears every
+exclusive-focus / raw-input one and spares the permanent. ⚠ All four scenario gizmos declare
+`RequiresExclusiveFocus: true` *(`MeasureGizmo:39` · `VertexEditGizmo:55` · `RouteWaypointGizmo:63` ·
+`EntityRotatorGizmo:41`)*, so **all four are torn down by their own arbiter's cancel** — which is correct for
+the fix and **fatal for the toggle**: by the time an activation runs, the gizmo whose presence
+`ToggleEntityGizmo:176` tests is already gone ⇒ a second `Edit` press would **re-arm instead of turning
+off.** 🔒 `R-137` — unification may not cost a capability.
+
+⭐⭐⭐ **The resolution: the modal stack stores `ArmedTool(Tool, Target)`, not a bare descriptor**, and the
+reactivation rule keys on **both**. Same tool + same target + `ToggleOnReactivate` ⇒ cancel. Same tool,
+different target ⇒ fall through to the arm path, which **is** what re-targeting means. ⭐ It is also what
+`PushModal`'s suspend/resume will need: a resumed modal must come back on the entity it was armed on.
+
+| ⭐ TWO DELIBERATE BEHAVIOUR CHANGES — **neither is a capability lost, and both are user-visible** | |
+|---|---|
+| 🔒 **`Select` is now LIVE.** It was an empty `break` — the toolbar button did nothing. `Q27` makes it the **null modal tool**, so it registers with `ToolArbiter.None` and arming it clears **both** arbiters. ⇒ it is how an operator leaves a tool | ⚠ this **supersedes** `IToolController`'s original *"makes nothing newly live"* claim, which is now qualified in its own header |
+| ⭐ **The same modal tool on a different entity retargets.** Before, `Edit` on A then on B left injected gizmos on **both** | ⛔ not a loss: only one can hold focus (`DataDrivenGizmoSystem.cs:91` grants on `_focusedGizmo == null`), so the second was **drawable-but-inert**. `Q27` ruling C allows one modal per subsystem |
+
+#### 🔴🔴 STEP 3 FOUND A BLIND RAIL — **`R-142` ③, and it had been green over the very duplicate it forbids**
+
+📐 `TheViewportInteractionIsSharedTests.NoCompositionRootConstructsAToolGizmoItself` asserted the literal
+`"new EntityRotatorGizmo"` was absent from `EditorSubsystem.cs`. ⛔ The file wrote
+`new Hrot.ScenarioEditor.Gizmos.EntityRotatorGizmo(` — **fully qualified** — so the rail passed while
+`GlobalActionIds.Rotate`/`EditOverlay`/`EditRoute` carried a **verbatim copy of the drain's three arms**
+(guards, `NetworkIdentity` lookup, toggle, `EntityWriteRouter`). ⚠⚠ **The lesson is the substring, not the
+copy: a source scan that pins the SPELLING of a reference tests the spelling.** ⇒ it is a regex now,
+tolerant of any qualification — **fixed in place, not routed around**.
+
+⭐ **That fix is also step 3's red-proof**: un-blinded it fails on `Hrot.Editor` at the pre-step-3 tree
+(1 failed / 1 passed across the `[Theory]`'s two hosts) and passes once the three handlers publish
+`ActivateEditorToolEvent`, exactly as `Measure` and `PlaceEntity` two lines above already did.
+
+🔒 **Where the context menu's entity goes.** `ActivateEditorToolEvent` carries only the tool, and the drain
+acts on `PrimarySelected`. ⇒ the editor's handlers **select, then activate** — which is not a workaround but
+the rule `ToolActivationDrainSystem.ActivateRotate`'s own remarks already stated: *"CGF's copy did ONE thing
+extra: it set `PrimarySelected` first … that stays a CALLER concern."* ⛔ Widening the event was rejected: it
+is a registered wire type both hosts publish (`PresentationComponentRegistry`), so the blast radius is far
+larger than the problem.
+
+⚠ **The per-tool component guards were not lost** — the drain applies the same ones and now **reports the
+reason** (ruling 49) where the handlers returned in silence.
+
+#### 🔒 AND THIS SHARPENS `Q27-A`'s CONDITION — **`§Migration` step 4 is now an END STATE, not a precondition**
+
+⚠⚠ **`§A1 without A3` says A1 closes the defect *iff* every modal activation routes through the
+controller.** 📐 **Measured otherwise:** the controller **also defends against a bypassing activation**, so
+converting the three adapters makes the guard *unnecessary* rather than being required *for correctness*.
+⇒ ⭐ **step 4 remains the right end state** — one arbiter beats one arbiter plus a sweeper — ⛔ but it is no
+longer what stands between this slice and a closed defect. **The prior wording is SUPERSEDED by this
+paragraph.**
+
+⛔ **NOT in this slice, and named so nobody thinks it shipped:** the three bypassing adapters *(step 4 of
+§Migration)*, the toolbar binding *(step 5)*, central Escape *(step 6)*, and `PushModal`'s suspend/resume —
+the interface carries `PushModal` but this slice implements `Activate`/`Cancel`. ⚠ **Until the adapters are
+converted a bypassing picker can still fight the controller** — that is `Q27-A`'s stated condition and it is
+the next slice, not this one.
+
 ## Migration
 
 | Step | Change | Gate |
 |--:|---|---|
 | 1 | `ToolDescriptor` + `IToolController`; **Editor only**; register the 6 existing tools with their real modality (`Select` = null modal tool) | nothing calls it yet |
-| 2 | Route the **toolbar event path** (`ActivateEditorToolEvent` switch) through `Activate()` | every tool behaves as today |
-| 3 | Route the **action path** (`GlobalActionIds.Rotate/EditOverlay/EditRoute`) through `Activate()` — 🔴 **deletes the duplicated toggle logic**, the D′ idiom | context-menu activation identical |
+| ✅ 2 | Route the **toolbar event path** (`ActivateEditorToolEvent` switch) through `Activate()` — **BUILT `2026-09-09`**, see §4.7b | every tool behaves as today *(+ `Select` is now live, and a retarget no longer leaves two gizmos)* |
+| ✅ 3 | Route the **action path** (`GlobalActionIds.Rotate/EditOverlay/EditRoute`) through `Activate()` — 🔴 **the D′ duplicate is DELETED**; **BUILT `2026-09-09`**, see §4.7b | ⭐ red-proofed by un-blinding `NoCompositionRootConstructsAToolGizmoItself`, which had been green over the duplicate |
 | 4 | Convert the three bypassing adapters (`EditorMapPickAdapter`, `EditorZoneAdapter`, `EditorSpawnAdapter`) | ⭐ **completes A1 — the 🔴 two-arbiter defect closes here** |
 | 5 | Toolbar binds `ActiveModalChanged`; opt tools in via `ShowOnToolbar` | [UXR-84](UX_Requirements.md#uxr-84): active tool visibly active |
 | 6 | Central Escape → `Cancel()`; gizmos keep their own cleanup | Escape cancels the modal tool from anywhere |

@@ -1,4 +1,5 @@
 using Fdp.Core;
+using Fdp.ModuleHost.Abstractions;
 using Fdp.Toolkit.Diagnostics.Gizmos;
 using Fdp.Toolkit.Diagnostics.Gizmos.Systems;
 using Fdp.Toolkit.Vis2D;
@@ -6,6 +7,7 @@ using Fdp.Toolkit.Vis2D.Abstractions;
 using Fdp.Toolkit.Vis2D.Defaults;
 using Fdp.Toolkit.Vis2D.Components;
 using Hrot.Common;
+using Hrot.IG.Components;
 using Hrot.Common.Events;
 using Hrot.ScenarioEditor;
 using Hrot.ScenarioEditor.Systems;
@@ -49,6 +51,16 @@ public sealed class TheViewportInteractionIsSharedTests
     /// 📐 Before E3 both did: the editor in <c>DrainToolActivationEvents</c>, CGF in its context menu — and
     /// only CGF's set the selection first, which is how *"the same tool"* meant two things.
     /// ⇒ the gizmo constructors now appear only in the shared <see cref="ToolActivationDrainSystem"/>.
+    ///
+    /// <para>🔴🔴 <b>THE RAIL WAS BLIND, measured <c>2026-09-09</c> during <c>UXI-07</c> step 3.</b> It
+    /// matched the literal <c>"new EntityRotatorGizmo"</c>, while <c>EditorSubsystem.cs:1862</c> wrote
+    /// <c>new Hrot.ScenarioEditor.Gizmos.EntityRotatorGizmo(</c> — <b>fully qualified</b>. ⇒ the editor's
+    /// <c>GlobalActionIds.Rotate</c>/<c>EditOverlay</c>/<c>EditRoute</c> handlers carried a verbatim copy of
+    /// the drain's three arms and this rail stayed GREEN over all of it.
+    /// ⚠⚠ <b>The lesson is the substring, not the copy:</b> a source scan that pins the SPELLING of a
+    /// reference tests the spelling. ⇒ it is a REGEX now, and it tolerates any qualification.
+    /// 🔒 <c>R-142</c> ③ — a rail that stays green while the feature is broken is itself the finding, and
+    /// it is fixed in place rather than routed around.</para>
     /// </summary>
     [Theory]
     [InlineData("Hrot.CGF", "CgfSubsystem.cs")]
@@ -57,11 +69,18 @@ public sealed class TheViewportInteractionIsSharedTests
     {
         var text = ReadHostSource(project, file);
 
-        foreach (var gizmo in new[] { "new EntityRotatorGizmo", "new VertexEditGizmo", "new RouteWaypointGizmo",
-                                      "new MeasureGizmo" })
-            Assert.False(text.Contains(gizmo, StringComparison.Ordinal),
+        foreach (var gizmo in new[] { "EntityRotatorGizmo", "VertexEditGizmo", "RouteWaypointGizmo",
+                                      "MeasureGizmo" })
+        {
+            // `new` · optional namespace qualification · the type · `(`  — the whole point is that
+            // "new Hrot.ScenarioEditor.Gizmos.EntityRotatorGizmo(" must match as surely as "new EntityRotatorGizmo(".
+            var construction = new System.Text.RegularExpressions.Regex(
+                @"new\s+(?:[A-Za-z_][\w]*\s*\.\s*)*" + gizmo + @"\s*\(");
+
+            Assert.False(construction.IsMatch(text),
                 $"{file} constructs {gizmo} itself — CE-051 moved every tool gizmo into the shared "
               + "ToolActivationDrainSystem (ruling 9). Publish ActivateEditorToolEvent instead.");
+        }
     }
 
     /// <summary>
@@ -253,6 +272,104 @@ public sealed class TheViewportInteractionIsSharedTests
         world.Bus.SwapBuffers();
 
         Assert.Null(Record.Exception(() => system.Execute(world, 0f)));
+    }
+
+    // ══ ④b UXI-07 — THE DRAIN ARMS THROUGH THE ONE CONTROLLER ═══════════════
+    //
+    // 📄 docs/UX/UX_Feature_Tool_Model.md §4. These two rails are added to the DRAIN's own suite rather
+    //    than to a new class (R-142 ④): the drain is the feature, and steps 2–3 changed HOW it arms.
+    // ⛔ The CONTROLLER's own rules (retarget, Dismissed, PushModal) are railed next to the controller in
+    //    Hrot.Presentation.Tests/Tools/ToolControllerTests.cs — these two assert the DRAIN's end of it.
+
+    /// <summary>
+    /// ⭐⭐⭐ <b>The <c>Edit</c> toggle SURVIVED being routed through the controller — and it very nearly
+    /// did not.</b>
+    ///
+    /// <para>🔴🔴 <b>The hazard, measured <c>2026-09-09</c>:</b> the controller cancels the armed modal
+    /// before invoking the next activation, and <c>DataDrivenGizmoSystem.CancelInteractiveTools()</c>
+    /// (<c>:124-137</c>) clears <b>every</b> injected gizmo. ⇒ by the time the <c>Edit</c> arm runs, its
+    /// <c>HasInjectedGizmo(e)</c> toggle test is already false and a naive routing would RE-ARM on the
+    /// second press instead of turning off. 🔒 <c>R-137</c>: unification may not cost a capability.
+    /// ⭐ The fix is that the controller remembers the (tool, TARGET) pair — <c>ArmedTool</c>.</para>
+    /// </summary>
+    [Fact]
+    public void TheEditToolStillTogglesOffOnASecondPress()
+    {
+        var (world, entity, _) = WorldWithEntity();
+        var ecb = (EntityCommandBuffer)((ISimulationView)world).GetCommandBuffer();
+        ecb.AddManagedComponent(entity, new EditablePolyline
+        {
+            Points  = new List<System.Numerics.Vector2> { new(0f, 0f), new(1f, 1f) },
+            Version = 1,
+        });
+        ecb.Playback(world);
+
+        var selection = new DefaultSelectionState { PrimarySelected = entity };
+        var gizmos    = NewGizmoSystem();                       // ⚠ ONE instance — a per-call factory
+        var system    = new ToolActivationDrainSystem(          //   would hide the whole effect.
+            selection: () => selection,
+            gizmos:    () => gizmos);
+
+        Publish(world, EditorTool.Edit);
+        system.Execute(world, 0f);
+        Assert.True(gizmos.HasInjectedGizmo(entity));           // armed
+
+        Publish(world, EditorTool.Edit);
+        system.Execute(world, 0f);
+        Assert.False(gizmos.HasInjectedGizmo(entity));          // 🔴 and OFF again, not re-armed
+    }
+
+    /// <summary>
+    /// ⭐⭐⭐ <b><c>UXI-07</c> END TO END — arming a tool clears a modal holding focus in the OTHER
+    /// arbiter.</b> This is the defect the whole issue exists to close, asserted where a user actually
+    /// triggers it: by publishing <see cref="ActivateEditorToolEvent"/>.
+    ///
+    /// <para>⛔⛔ <b>The bypassing gizmo is not a straw man</b> — <c>EditorMapPickAdapter</c>,
+    /// <c>EditorZoneAdapter</c> and <c>ScenarioSpawnAdapter</c> all call <c>GlobalGizmoManager.Register</c>
+    /// directly and are NOT converted in this slice. 🔒 And it is not academic: the Windows lane measured
+    /// that wiring <c>CanvasMapPickAdapter</c> to a live manager on SimHost breaks
+    /// <c>hill-attack-close</c> (<c>CE-257</c>).</para>
+    ///
+    /// <para>⚠ Inverse-edit red-proof: removing <c>ToolController.CancelOtherArbiter</c>'s global branch
+    /// leaves <c>picker.IsFocused</c> true and this rail fails.</para>
+    /// </summary>
+    [Fact]
+    public void ArmingAToolClearsAModalHoldingFocusInTheOtherArbiter()
+    {
+        var (world, entity, _) = WorldWithEntity();
+
+        // The production wiring: ONE buffer, ONE bus, BOTH arbiters — MapInteractionPack.cs:92-100.
+        var buffer = new Fdp.Toolkit.Diagnostics.Gizmos.DebugPrimitiveBuffer();
+        var bus    = new FdpEventBus();
+        var global = new GlobalGizmoManager(buffer, bus);
+        var gizmos = new DataDrivenGizmoSystem(new GizmoRegistry(), buffer, interactionBus: bus);
+
+        // ⭐ A REAL exclusive-focus gizmo, registered straight on the arbiter — the adapters' exact shape.
+        //   ⛔ Deliberately not a hand-rolled probe: a fake could differ from production in the one
+        //   property that decides this (RequiresExclusiveFocus), which is what CancelInteractiveTools
+        //   filters on (GlobalGizmoManager.cs:112-119).
+        long pickerId = GlobalGizmoManager.NewId();
+        global.Register(pickerId, new Hrot.ScenarioEditor.Gizmos.MeasureGizmo(
+            onRemove: () => global.Unregister(pickerId)));
+        Assert.Equal(1, global.ActiveCount);                     // the adapter shape holds the arbiter …
+
+        var selection = new DefaultSelectionState { PrimarySelected = entity };
+        var system    = new ToolActivationDrainSystem(
+            selection:    () => selection,
+            gizmos:       () => gizmos,
+            globalGizmos: () => global);
+
+        Publish(world, EditorTool.Rotate);
+        system.Execute(world, 0f);
+
+        Assert.True(gizmos.HasInjectedGizmo(entity));             // the tool armed …
+        Assert.Equal(0, global.ActiveCount);                      // 🔴 … and the other arbiter LET GO
+    }
+
+    private static void Publish(EntityRepository world, EditorTool tool)
+    {
+        world.Bus.Publish(new ActivateEditorToolEvent(tool));
+        world.Bus.SwapBuffers();
     }
 
     // ══ ⑤ the module wires them, and only when it has a viewport ════════════
