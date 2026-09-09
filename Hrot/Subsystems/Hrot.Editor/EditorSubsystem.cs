@@ -2325,8 +2325,24 @@ namespace Hrot.Editor
                         $"Mark Target for {perceiverCount} Units...",
                         async void () =>
                         {
-                            int targetNetId = await _mapPickAdapter!.PickEntityAsync();
-                            Entity target   = FindEntityByNetworkId(targetNetId);
+                            // ⭐⭐⭐ CE-259o — CANCELLING A PICK IS A NORMAL OUTCOME, NOT AN ERROR.
+                            //   🔴 Measured by an operator 2026-09-09: right-clicking to cancel the picker
+                            //   surfaced "A task was cancelled". EntityPickerGizmo's right-press calls
+                            //   onCancelled -> tcs.TrySetCanceled(), and this is `async void`, so the
+                            //   OperationCanceledException had NO caller to observe it and escaped to the
+                            //   top level. ⛔ The gizmo and the TCS are both correct; the missing half was
+                            //   here. ⚠ Every `async void` that awaits a cancellable pick owes this catch.
+                            int targetNetId;
+                            try
+                            {
+                                targetNetId = await _mapPickAdapter!.PickEntityAsync();
+                            }
+                            catch (OperationCanceledException)
+                            {
+                                return;   // the operator changed their mind — nothing to report
+                            }
+
+                            Entity target = FindEntityByNetworkId(targetNetId);
                             if (!_world.IsAlive(target)) return;
 
                             foreach (var perceiver in _selectionState?.SelectedEntities ?? System.Array.Empty<Entity>())
@@ -2342,7 +2358,17 @@ namespace Hrot.Editor
                         $"Mark Area Targets for {perceiverCount} Units...",
                         async void () =>
                         {
-                            IReadOnlyList<int> targetNetIds = await _mapPickAdapter!.PickAreaEntitiesAsync();
+                            // ⭐ CE-259o — same as above: a cancelled box-select is an outcome, not a fault.
+                            IReadOnlyList<int> targetNetIds;
+                            try
+                            {
+                                targetNetIds = await _mapPickAdapter!.PickAreaEntitiesAsync();
+                            }
+                            catch (OperationCanceledException)
+                            {
+                                return;
+                            }
+
                             foreach (var perceiver in _selectionState?.SelectedEntities ?? System.Array.Empty<Entity>())
                                 foreach (int netId in targetNetIds)
                                 {
