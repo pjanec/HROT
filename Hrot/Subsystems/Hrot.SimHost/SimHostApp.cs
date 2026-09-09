@@ -567,6 +567,25 @@ namespace Hrot.SimHost
                     worldPosDescriptorId: _networkFactory?.WorldPosDescriptorId ?? 0,
                     gizmoBuffer: _gizmoBuffer,
                     gizmoSystem: _dataDrivenGizmoSystem,
+                    // ⛔⛔⛔ CE-254 — DO NOT PASS globalGizmoManager HERE. IT REGRESSES THE SCENARIO.
+                    //
+                    // 📐 The seam exists (SimHostVisualization's optional parameter) and passing
+                    //    `_globalGizmoManager` — the PACK's kernel-scheduled one — is what IG and CGF do
+                    //    and looks obviously right. ⛔ MEASURED 2026-09-09 on hill-attack-close, and it
+                    //    is NOT right here:
+                    //      without it   1007 dead t=34, 1006 dead t=44   (matches the standing baseline)
+                    //      with it, x2  run A: both stall at hp=25 from t=25 to t=140+
+                    //                   run B: hostiles never take damage at all through t=78
+                    //
+                    // ⭐ Plausible mechanism, NOT yet proven: wiring CanvasMapPickAdapter to a LIVE,
+                    //    scheduled manager activates gizmo/input paths that were previously dead on this
+                    //    host, and that is the same ground as the two-arbiter exclusivity defect
+                    //    (docs/UX/UX_Feature_Tool_Model.md) — two "exclusive" tools holding focus at
+                    //    once, with GlobalGizmoManager winning raw input by fixed group order.
+                    //
+                    // ⇒ ⭐⭐ The seam stays (it costs nothing and unblocks the real fix); the WIRING waits
+                    //    until the exclusivity defect is resolved. ⛔ Fixing map picking by breaking the
+                    //    scenario is not a fix.
                     interactionBus: _interactionBus);
                 _vis.FdpEntityInspector.ExtractionService = simHostEntityService;
 

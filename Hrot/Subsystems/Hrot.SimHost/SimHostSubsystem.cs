@@ -327,8 +327,11 @@ namespace Hrot.SimHost
                 },
                 new Fdp.Toolkit.Runner.UiBundleContext(windowManager));
 
-            windowManager.RegisterWindow(new FakeNavigationInspectorWindow(
-                () => _app?.WorldOrNull));
+            // ⛔ CE-255 — FakeNavigationInspectorWindow REMOVED 🔒 (user, 2026-09-09: "remove
+            //    fake_nav_inspector"). Three of its four tabs were "(not yet implemented)" stubs, and
+            //    its Navmesh tab matched only EngineBacked and Fake providers — so on any host running
+            //    DotRecastNavmeshProvider it printed "No navmesh provider registered" while a navmesh
+            //    was loaded. ⚠ It STATED SOMETHING FALSE, which is worse than being absent.
 
             vis.SetPanelsWindowManaged();
 

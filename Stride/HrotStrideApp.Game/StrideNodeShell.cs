@@ -692,6 +692,15 @@ public sealed class StrideNodeShell : IDisposable, Hrot.Presentation.DebugApi.IP
             () => ctx.World,
             () => ctx.Kernel));
 
+        // ⛔ CE-253 / CE-254 — SAY WHAT THIS HOST CANNOT SERVICE, rather than letting it be discovered
+        //   by a crash or a dead click. This node passes no gizmoSystem and no globalGizmoManager to
+        //   SimHostVisualization, so entity rotation is suppressed (CE-253's guard) and [MapPickable]
+        //   field editing cannot draw (CE-254). ⭐ Both are honest absences on this host today; the
+        //   house rule is that an omission is LOUD.
+        Log.Warn("[StrideNodeShell] CE-253/CE-254: this node composes no gizmo registry and no " +
+                 "MapInteractionPack, so the map offers no entity-rotation gizmo and no [MapPickable] " +
+                 "field picking. Diagnostics, map, inspectors and cluster time controls are unaffected.");
+
         _visualization.SetPanelsWindowManaged();
 
         Log.Info("[StrideNodeShell] CE-214: operator window composed (perspective SimHost, node {0}).",
