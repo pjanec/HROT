@@ -276,6 +276,29 @@ public sealed class StrideNodeShell : IDisposable, Hrot.Presentation.DebugApi.IP
         //    on every PrepareLive/PrepareEdit -- is not registered on the mode-2 node. If that handler
         //    is ever added here, this call must move to after each ingest; Apply is idempotent
         //    (HasDescriptor guard per template) so re-calling it is free.
+        // ⛔⛔⛔ CE-257 — PUBLISH THE GEO TRANSFORM AS A WORLD SINGLETON. The other three hosts do;
+        //    this one forgot.
+        //
+        // 🔎 Raised by the "H - ui" session from source, CONFIRMED here on Windows. 📐 Measured:
+        //    exactly THREE production sites publish it — CgfSubsystem.cs:639, EditorSubsystem.cs:1118,
+        //    SimHostApp.cs:545 — and none was in Stride/ or Hrot.NodeComposition. ⇒ CE-151's exact
+        //    "three hosts do it, the fourth forgot" shape, with mode 2 as the fourth.
+        //
+        // 📐 What it cost, measured rather than assumed: AttributeInterpreterProvider.GeoOf is GUARDED
+        //    and returns null, so attribute interpretation degraded SILENTLY — its own comment records
+        //    the sharper trap, "GetSingletonManaged THROWS when unset; that is the trap that reddened
+        //    the AX-005 rail on the IG". ⛔ EntityDragGizmo:186 reads it UNGUARDED and would throw; that
+        //    is unreachable on mode 2 today only because this host has no gizmo system (CE-253) — an
+        //    accident, not a defence.
+        //
+        // ⭐ Published from Context.GeoTransform, the instance HrotNodeBuilder made for this node
+        //    (:237), so the singleton and the node agree by construction.
+        if (Context.GeoTransform != null)
+            Context.World.SetSingletonManaged<Fdp.Modules.Geographic.IGeographicTransform>(Context.GeoTransform);
+        else
+            Log.Warn("[StrideNodeShell] CE-257: the node context carries no GeoTransform, so none was " +
+                     "published. Attribute interpretation will degrade to null and geo routes to 0N 0E.");
+
         StrideNedRenderDescriptors.Apply(Context.TkbDb);
 
         Log.Info("[StrideNodeShell] Node booted. World={0} Kernel={1} ClusterSlave={2}",
@@ -578,7 +601,14 @@ public sealed class StrideNodeShell : IDisposable, Hrot.Presentation.DebugApi.IP
             // ⭐⭐ CE-236 — PASSED, never defaulted. A defaulted WGS84Transform origin is 0N 0E while
             //    every node simulates on the Berlin origin HrotEnvironment.CreateGeoTransform() sets,
             //    so geo routes would answer against the wrong planet.
-            geoTransform: HrotEnvironment.CreateGeoTransform()));
+            // ⭐ CE-257 — the NODE'S transform, not a third fresh one. 🔒 CE-236's ruling is "one
+            //   GeographicTransform, shared by the debug API, the scenario loader and the JSON
+            //   parameter interpreter alike". ⚠ Honestly: CreateGeoTransform() is deterministic (a
+            //   WGS84Transform on a fixed Berlin origin, no mutable state), so the instances were
+            //   value-equivalent and this is tidiness, NOT a bug — ⛔ unlike CE-180's trajectory pools,
+            //   where identity genuinely mattered. Sharing anyway, because "one transform" is easier to
+            //   keep true than "three that happen to agree".
+            geoTransform: Context.GeoTransform ?? HrotEnvironment.CreateGeoTransform()));
         _debugApiHost.Start();
 
         Log.Info("[StrideNodeShell] CE-245: debug API listening on {0} (perspective SimHost, node {1}).",

@@ -1967,13 +1967,23 @@ nothing here moves the counts table.*
 
   ⚠ **Operationally:** always start the mode-2 node **after** CGF answers. ⭐ The principled fix is [`DESIGN_Role_Affinity_Ownership.md`](https://github.com/pjanec/HROT/blob/claude/reset-working-branch-qd1qpv/docs/DESIGN_Role_Affinity_Ownership.md), which derives ownership locally from each node's own role and retires this grant path entirely — ⛔ a retry bolted onto the current strategy would be a second mechanism.
 
-- [ ] **CE-257** · `RW-S` ⭐⭐ — **THE MODE-2 NODE DOES NOT PUBLISH THE `IGeographicTransform` WORLD SINGLETON.** 🔎 **Raised by the "H - ui" session from source; CONFIRMED here on Windows as requested.**
+- [x] **CE-257** · `RW-S` ✅ — **THE MODE-2 NODE DOES NOT PUBLISH THE `IGeographicTransform` WORLD SINGLETON.** 🔎 **Raised by the "H - ui" session from source; CONFIRMED here on Windows as requested.**
 
   📐 **Measured — exactly three production sites publish it, and none is in `Stride/` or `Hrot.NodeComposition`:** `CgfSubsystem.cs:639` · `EditorSubsystem.cs:1118` · `SimHostApp.cs:545`. ⇒ ⭐ **`CE-151`'s exact *"three hosts do it, the fourth forgot"* shape, with mode 2 as the fourth.**
 
   📐 **Impact, measured rather than assumed:** `AttributeInterpreterProvider.GeoOf` is **guarded** and returns `null`, so attribute interpretation degrades **silently** *(its own comment: "`GetSingletonManaged` THROWS when unset; that is the trap that reddened the `AX-005` rail on the IG")*. ⛔ `EntityDragGizmo:186` reads it **UNGUARDED and would throw** — ⭐ but is unreachable on mode 2 today, because that host has no gizmo system *(`CE-253`)*.
 
-  ⇒ ⛔ **DELIBERATELY NOT FIXED HERE.** 🔒 The "H - ui" session asked for confirmation so it can fold this into `CE-151` rather than have a competing row or a competing fix. ⭐ This row exists to carry the Windows measurement to them, and should be **closed by `CE-151`**, not separately.
+  ✅ **FIXED `2026-09-09`** — the "H - ui" session re-tasked it to me *("small, Stride-only, and it silently degrades to 0N 0E, so it is worth closing while it is fresh")* rather than folding it into `CE-151`.
+
+  ⭐ `StrideNodeShell.Boot` now publishes `Context.GeoTransform` — the instance `HrotNodeBuilder` made for this node *(:237)* — so the singleton and the node agree by construction, with a loud warn on the null path instead of a silent degrade.
+
+  📐 **VERIFIED LIVE:** the node's own `/world/info` reports `origin {lat 52.52, lon 13.405}` — **Berlin, not 0N 0E** — and **matches CGF's byte for byte**. Scenario unaffected: 8 takeovers, 6 bodies, 0 errors, both hostiles killed.
+
+  ⚠ **A phantom I checked before reporting:** `/world/geo-to-local` at the origin returns ECEF-looking numbers rather than ~(0,0,0). 📐 **CGF returns the IDENTICAL values**, so that is pre-existing, host-independent route behaviour — ⛔ not a mode-2 defect and not caused by this fix.
+
+  ⚠ **Also collapsed:** the debug API was building a THIRD `CreateGeoTransform()`; it now takes the node's. 🔒 `CE-236`'s ruling is "one GeographicTransform … shared". ⭐ Stated honestly: `CreateGeoTransform()` is deterministic *(fixed Berlin origin, no mutable state)*, so the instances were **value-equivalent** and this is tidiness, ⛔ **not** the `CE-180` shape where identity genuinely mattered.
+
+  ⛔ **HISTORICAL —** the original hand-off note said: 🔒 The "H - ui" session asked for confirmation so it can fold this into `CE-151` rather than have a competing row or a competing fix. ⭐ This row exists to carry the Windows measurement to them, and should be **closed by `CE-151`**, not separately.
 
 - [x] **CE-217** · `RW-S` ✅✅ — **THE STRIDE TREE IS IN THE MAIN SOLUTION** *(§16 Tier 1)*. ⭐ Tasked by the "H - ui" session as highest leverage, and it is the resolution path my own `CE-216` investigation named.
 
