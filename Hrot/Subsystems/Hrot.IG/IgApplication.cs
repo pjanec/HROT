@@ -254,6 +254,14 @@ public class IgApplication : IDisposable
     /// the two focus arbiters it reconciles. 🔒 <c>Q27-B</c>: one per map subsystem.
     /// </summary>
     private Hrot.ScenarioEditor.Tools.ToolController? _igToolController;
+
+    /// <summary>⭐ <c>UXI-07</c> step 4b — the shared picker protocol (§4.12). ⚠ A RESOLVER for the
+    /// controller: this field is built once, but <c>_igToolController</c> is assigned later.</summary>
+    private Hrot.ScenarioEditor.Tools.PickerToolHost? _pickerToolsBacking;
+
+    private Hrot.ScenarioEditor.Tools.PickerToolHost _pickerTools =>
+        _pickerToolsBacking ??= new Hrot.ScenarioEditor.Tools.PickerToolHost(
+            () => _igToolController, () => _globalGizmoManager);
     private FdpEventBus?                 _interactionBus;
     private GizmoExecutionController?    _gizmoController;
     // GZH-003: provides Phase-5 perspective switching with ref-counted gate.
@@ -264,8 +272,6 @@ public class IgApplication : IDisposable
     internal Func<bool> IsActiveMapOwner { set => _isActiveMapOwner = value; }
     private long?                        _activeSequenceId;
     private PointSequenceGizmo?          _activeSequenceGizmo;
-    private long?                        _activeLocationPickerId;
-    private long?                        _activeEntityPickerId;
 
     // -- Optional IG translator provider (injected via InitializeEmbedded; null = no NED translators)
     private Hrot.Core.Network.IIgTranslators? _igTranslatorsProvider;
@@ -3764,24 +3770,21 @@ FdpLog<IgApplication>.Info("[Node-{0}] MapClickEvent published. ContextId={1} hi
             return;
         _lastPickLocationContextId = _activeContextId;
 
-        if (_activeLocationPickerId.HasValue)
-        {
-            _globalGizmoManager!.Unregister(_activeLocationPickerId.Value);
-            _activeLocationPickerId = null;
-        }
-
-        var id = GlobalGizmoManager.NewId();
-        var gizmo = new Fdp.Toolkit.Vis2D.Gizmos.FdpLocationPickerGizmo(
-            onPicked: worldPos =>
-                OnCanvasClicked(worldPos, MapMouseButton.Left, false, false, Entity.Null, updateSelection: false),
-            onRemove: () =>
-            {
-                _globalGizmoManager!.Unregister(id);
-                _activeLocationPickerId = null;
-                FdpLog<IgApplication>.Debug("[Node-{0}] LocationPicker cancelled.", _effectiveInstanceId);
-            });
-        _activeLocationPickerId = id;
-        _globalGizmoManager!.Register(id, gizmo);
+        // ⭐⭐⭐ UXI-07 step 4b — PUSH through the arbiter instead of arming beside it.
+        //   🔴 This used to Register straight on _globalGizmoManager and keep its OWN
+        //   _activeLocationPickerId slot to unregister the previous one — a private one-slot arbiter
+        //   duplicating what ToolController already guarantees (§4.8's bypass). ⭐ Re-arming is now a
+        //   RE-TARGET handled by the controller, so the slot is gone.
+        _pickerTools.PushPicker(
+            Hrot.ScenarioEditor.Tools.ScenarioToolIds.PickLocation,
+            remove => new Fdp.Toolkit.Vis2D.Gizmos.FdpLocationPickerGizmo(
+                onPicked: worldPos =>
+                    OnCanvasClicked(worldPos, MapMouseButton.Left, false, false, Entity.Null, updateSelection: false),
+                onRemove: () =>
+                {
+                    remove();
+                    FdpLog<IgApplication>.Debug("[Node-{0}] LocationPicker cancelled.", _effectiveInstanceId);
+                }));
         FdpLog<IgApplication>.Info("[Node-{0}] Location picker gizmo activated. ContextId={1}", _effectiveInstanceId, _activeContextId);
     }
 
@@ -3845,32 +3848,24 @@ FdpLog<IgApplication>.Info("[Node-{0}] MapClickEvent published. ContextId={1} hi
             return;
         }
 
-        if (_activeEntityPickerId.HasValue)
-        {
-            _globalGizmoManager!.Unregister(_activeEntityPickerId.Value);
-            _activeEntityPickerId = null;
-        }
-
-        var id     = GlobalGizmoManager.NewId();
         var filter = _entityFilterFactory.CreateFilter(filters);
-        var gizmo  = new Fdp.Toolkit.Vis2D.Gizmos.EntityPickerGizmo(
-            hitTest:     pos => _canvas.PickTopmostEntity(pos) ?? Entity.Null,
-            filter:      filter,
-            onPicked:    entity =>
-            {
-                // Re-use OnCanvasClicked to publish the MapClickEvent.
-                // The entity will appear in HitStack so the ExCon receives the networkId.
-                OnCanvasClicked(Vector2.Zero, MapMouseButton.Left, false, false, entity, updateSelection: false);
-                FdpLog<IgApplication>.Info("[Node-{0}] EntityPicker picked entity {1}", _effectiveInstanceId, entity.Index);
-            },
-            onCancelled: () => FdpLog<IgApplication>.Debug("[Node-{0}] EntityPicker cancelled.", _effectiveInstanceId),
-            onRemove:    () =>
-            {
-                _globalGizmoManager!.Unregister(id);
-                _activeEntityPickerId = null;
-            });
-        _activeEntityPickerId = id;
-        _globalGizmoManager!.Register(id, gizmo);
+
+        // ⭐⭐⭐ UXI-07 step 4b — see the location picker above: the private _activeEntityPickerId slot
+        //   is replaced by the controller's own one-modal-at-a-time guarantee.
+        _pickerTools.PushPicker(
+            Hrot.ScenarioEditor.Tools.ScenarioToolIds.PickEntity,
+            remove => new Fdp.Toolkit.Vis2D.Gizmos.EntityPickerGizmo(
+                hitTest:     pos => _canvas.PickTopmostEntity(pos) ?? Entity.Null,
+                filter:      filter,
+                onPicked:    entity =>
+                {
+                    // Re-use OnCanvasClicked to publish the MapClickEvent.
+                    // The entity will appear in HitStack so the ExCon receives the networkId.
+                    OnCanvasClicked(Vector2.Zero, MapMouseButton.Left, false, false, entity, updateSelection: false);
+                    FdpLog<IgApplication>.Info("[Node-{0}] EntityPicker picked entity {1}", _effectiveInstanceId, entity.Index);
+                },
+                onCancelled: () => FdpLog<IgApplication>.Debug("[Node-{0}] EntityPicker cancelled.", _effectiveInstanceId),
+                onRemove:    remove));
         FdpLog<IgApplication>.Info("[Node-{0}] Entity picker gizmo activated. ContextId={1} Filters=[{2}]",
             _effectiveInstanceId, _activeContextId, string.Join(",", filters));
     }

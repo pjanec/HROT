@@ -124,6 +124,42 @@ order. ⭐ But 68-B's answer is wanted *now*, because every further conversion a
 ⛔ Anything grep settles. The inventory in §2 is measured, not a question.
 ⛔ Whether the defects were real — they are fixed, with red-proofed rails.
 
+## 4b. 📨 RELAYED ARCHITECT ANSWERS — **evidence, NOT a ruling** *(`2026-09-09`)*
+
+⚠⚠ **NOTHING BELOW IS APPROVED.** Two asks were relayed *(NotebookLM, project `simhost`)*.
+
+### ⛔ Ask #1 — mostly a MISS, recorded so the record is honest
+
+| sub-question | what came back |
+|---|---|
+| 68-A | ⛔ **not answered** — the reply began at 68-B |
+| 68-B | ⛔ **not answered** — restated my framing, no pick among B1/B2/B3 |
+| 68-C | ⚠ **answered a different question** (*how do bypasses migrate*), and recommended registering with **`GizmoInteractionManager`** — 🔴 **VERIFIED FALSE:** outside `GizmoMap.Example` that name appears twice, both in comments. It has never been ported into FDP; its absence is this question's premise |
+| 68-D | ✅ agreed: own unit, after 4b |
+
+⭐ **Diagnosed cause: MY question's shape.** It carried a *"My lean:"* on all four sub-questions, so the
+model agreed where agreeing was easy and skipped where it had nothing to add.
+
+### ✅ Ask #2 — 68-B only, leans STRIPPED, after a corpus refresh
+
+**Pick: A** — *keep the fallback, source it from the registry.* ⭐ Same as my lean.
+**Q "is the fallback intentional?"** → *"not determinable from sources."*
+**Q "what produces an unresolvable token?"** → *"no case found."*
+
+⚠⚠ **DISCOUNT THE AGREEMENT — it is partly CIRCULAR.** The refresh ingested **this very document**, so
+its evidence for both *"not determinable"* and *"no case found"* **cites §3 of this file** — my own
+words returned as support. ⇒ ⛔ *"the architect agrees"* is NOT independent corroboration of my lean.
+
+⭐⭐ **ONE GENUINELY INDEPENDENT CONTRIBUTION, and it VERIFIES:** the index-only events
+*(`GizmoMenuActionEvent`, `GizmoStructUpdateEvent`)* route through **`FindGizmoByIndex`** and therefore
+**never touch the fallback at all**.
+📐 **Checked against source:** `DataDrivenGizmoSystem.cs` — fallback at `:529, :537, :545, :573, :581`;
+`FindGizmoByIndex` at `:554, :566`; and a code comment at **`:608`** states the split explicitly.
+⇒ ⭐ **the fallback is scoped to TOKEN-CARRYING events only** — a real narrowing of 68-B's blast radius
+that I had not established, and it makes B2 *(delete)* more measurable later.
+
+⭐ It also correctly declined to name `GizmoInteractionManager` as an FDP component this time.
+
 ## 5. Standing of any answer to this document
 
 🔒 Per this programme's rules: an architect answer is **one input**, never a ruling, and never

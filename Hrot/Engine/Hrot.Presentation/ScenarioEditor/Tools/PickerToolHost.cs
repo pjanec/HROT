@@ -213,6 +213,77 @@ namespace Hrot.ScenarioEditor.Tools
             return tcs.Task;
         }
 
+        /// <summary>
+        /// ⭐⭐⭐ <b>The CALLBACK-STYLE half of the same protocol</b> — for a pick whose result does not come
+        /// back as a <see cref="Task{T}"/>.
+        ///
+        /// <para>📐 <b>Measured:</b> a repo-wide grep shows only the two pick ADAPTERS combine a
+        /// <see cref="TaskCompletionSource{T}"/> with a picker gizmo. <c>IgApplication</c>'s two arms
+        /// (`CMD_PICK_LOCATION` / `CMD_PICK_ENTITY` from ExCon) and
+        /// <c>ReplayBrowserSubsystem.ReplaySpatialPickerContext</c> instead publish their result — over the
+        /// wire, or into a field the panel later reads. ⛔ They cannot use <see cref="RunPickAsync"/>,
+        /// because there is no task to hang the pop on.</para>
+        ///
+        /// <para>⭐⭐ <b>It is the SAME mechanism, not a second protocol:</b> push, arm through the arbiter,
+        /// and pop when the gizmo goes away. Only the completion signal differs — the gizmo's own
+        /// <c>onRemove</c> instead of a task. ⇒ this is what replaces their PRIVATE ONE-SLOT ARBITERS
+        /// (<c>_activeLocationPickerId</c>, <c>_activeEntityPickerId</c>, <c>_activeGizmoId</c>): the
+        /// controller already guarantees one modal at a time, so a host-local "unregister my previous one"
+        /// slot is exactly the duplicated mechanism step 4b exists to remove.</para>
+        ///
+        /// <para>⚠ Re-pushing the same picker while it is already up is a RE-TARGET, handled by the
+        /// controller — ⛔ callers must NOT keep unregistering a previous id themselves.</para>
+        /// </summary>
+        /// <param name="createGizmo">
+        /// Builds the picker, given a <c>remove</c> callback to use as its <c>onRemove</c>. ⭐ Invoking
+        /// <c>remove</c> is what ends the interaction and resumes the tool underneath.
+        /// </param>
+        /// <returns><see langword="true"/> when the picker armed.</returns>
+        public bool PushPicker(
+            string                                toolId,
+            Func<Action, IEntityStatefulGizmo>    createGizmo)
+        {
+            if (createGizmo == null) throw new ArgumentNullException(nameof(createGizmo));
+
+            var manager = _global();
+            if (manager == null)
+            {
+                ToolReport.Unserviceable(_report, toolId, "this host composes no global gizmo manager");
+                return false;
+            }
+
+            long id = GlobalGizmoManager.NewId();
+            IDisposable? scopeRef = null;
+
+            void Remove()
+            {
+                _global()?.Unregister(id);
+                scopeRef?.Dispose();   // ⭐ idempotent — see RunPickAsync
+            }
+
+            var gizmo = createGizmo(Remove);
+
+            _pendingArm[toolId] = () =>
+            {
+                var g = _global();
+                if (g == null) return ToolActivationOutcome.Unserviceable;
+                g.Register(id, gizmo);
+                return ToolActivationOutcome.Armed;
+            };
+
+            var tools = EnsureRegistered();
+            if (tools == null)
+            {
+                ToolReport.Say(_report,
+                    $"pick '{toolId}' armed WITHOUT an arbiter — this host wired no ToolController, so it "
+                  + "cannot suspend the tool underneath (UXI-07 step 4b).");
+                return _pendingArm[toolId]() == ToolActivationOutcome.Armed;
+            }
+
+            scopeRef = tools.PushModal(toolId);
+            return tools.ActiveModal?.Id == toolId;
+        }
+
         /// <summary>Returned when no arbiter was wired — disposing it must be safe and do nothing.</summary>
         private sealed class NoScope : IDisposable
         {
