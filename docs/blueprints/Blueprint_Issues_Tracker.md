@@ -3317,6 +3317,18 @@ whenever the finding is "the sim did not do the impressive thing".**
 
   ⚠ **The other animation gaps, for the record:** `ST-013` — `CivilianPedestrian` renders as a mannequin with **no animation descriptor**; **mode 2 has no animation at all** *(the bridge is built in mode 1's shell only, so §7.3's view-tier extraction must carry it)*; and **every animation test is `net8.0-windows`** ⇒ compile-verified, never run off Windows. 📄 §9.
 
+
+  ### ⭐⭐⭐ INVESTIGATED AND DECIDED `2026-09-09` — **NEITHER IS A DUPLICATE TO DELETE**
+
+  📐 **Measured.** `Hrot.MuscleCharacter.Animation.Stride` *(`net8.0`)* is **IN `IOS-IG-SimHost.sln`** and has **ZERO production consumers** — only its own test project. `Hrot.Stride.Animation` *(`net8.0-windows`)* is **NOT in the solution** and is **the live one**: `EditorStrideSubsystem:874`/`:1270` construct it, and `MannequinAnimationBinder`, `StrideViewBracket` and `StrideAnimationHarnessCases` all use it.
+
+  ⛔⛔ **They have DRIFTED — a namespace-normalised diff is 1 056 lines** across ~660-line files. ⇒ ⭐ **two different implementations, not two copies**: the in-solution one defines its own `StrideEntityTransform` and other *"internal Stride-namespace types (`DD-1` §16 'no leakage')"* — a **Stride-shaped but Stride-FREE** backend — while the other drives a real `PerEntityBlendTreeBuilder`.
+
+  ⇒ ⭐⭐⭐ **DECISION: delete neither.** ⛔ Deleting the `Hrot/` one removes the only copy that compiles and tests with the main solution; deleting the `Stride/` one breaks the live host. 📌 This is not an animation problem — it is the **TFM/solution wall**, the same disease `CLAUDE.md` names from `BATCH-03-REPORT.md:100`.
+
+  🔴🔴 **AND THE REAL FINDING, worse than the duplication: the main solution compiles and tests a backend that NOTHING RUNS**, while the one that runs sits outside the solution. ⇒ a fix to the in-solution copy reaches no running code; a fix to the live one is never seen by the solution build.
+
+  ⭐ **Resolution path: §16 Tier 1** *(one MSBuild property + three solution entries)*. Once `Hrot.Stride.Animation` is in the solution the `Hrot/` copy is genuinely redundant and retires cleanly — ⛔ **not before**. ⇒ **`S8` is discharged as a DECISION** *(its acceptance was a recorded decision, not code)* and hands its substance to §16. 📄 [`DESIGN_Stride_Node_Modes.md` §9.1](https://github.com/pjanec/HROT/blob/claude/reset-working-branch-qd1qpv/docs/DESIGN_Stride_Node_Modes.md)
 ---
 
 - [x] **CE-218** · `RW-S` ⭐⭐⭐ — **`EyesAndMuscle` RETIRED — the pre-Stride TRACER BULLET, structurally unreachable, and its own design says its job is done.** 🔒 *(user, `2026-09-05`: "The EyeAndMuscle was probably just a predecessor of Stride, a step on the way to stride, no longer needed i think, can you check? removing dead code is desired.")*
