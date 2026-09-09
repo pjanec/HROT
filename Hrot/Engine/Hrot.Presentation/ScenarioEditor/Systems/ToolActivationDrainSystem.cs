@@ -1,6 +1,5 @@
 using System;
 using Fdp.Core;
-using Fdp.Core.Logging;
 using Fdp.ModuleHost.Abstractions;
 using Fdp.Toolkit.Diagnostics.Gizmos.Systems;
 using Fdp.Toolkit.Vis2D.Abstractions;
@@ -103,8 +102,9 @@ public sealed class ToolActivationDrainSystem : IEcsModuleSystem
             // ⛔ Never silently: a host that scheduled the drain but wired no arbiter would otherwise
             //    swallow every tool press. ⭐ Drain the events anyway so they do not pile up.
             foreach (ref readonly var _ in world.Bus.Read<ActivateEditorToolEvent>()) { }
-            Report("tool activation was dropped — this host scheduled the drain but wired no ToolController "
-                 + "(pass MapInteraction.Tools).");
+            ToolReport.Say(_reportUnserviceable,
+                "tool activation was dropped — this host scheduled the drain but wired no ToolController "
+              + "(pass MapInteraction.Tools).");
             return;
         }
 
@@ -119,11 +119,5 @@ public sealed class ToolActivationDrainSystem : IEcsModuleSystem
             var target = selection.PrimarySelected is { } p ? p : Entity.Null;
             tools.Activate(ScenarioToolIds.ForEditorTool(evt.Tool), target);
         }
-    }
-
-    private void Report(string message)
-    {
-        if (_reportUnserviceable != null) _reportUnserviceable(message);
-        else FdpLog<ToolActivationDrainSystem>.Info("[Tools] {0}", message);
     }
 }

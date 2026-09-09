@@ -1873,15 +1873,24 @@ namespace Hrot.Editor
             //    and reconciling that is a CALLER concern, so the shared body needs no host branch.
             // ⚠ The per-tool component guards are NOT lost: the drain applies the same ones and now
             //   REPORTS the reason (ruling 49) where these handlers returned in silence.
-            void ActivateToolOnEntity(EditorTool tool, Entity target)
+            // ⭐⭐⭐ ONE RULE FOR ACTIVATING A TOOL, and every host now obeys it (UXI-07 §4.7d):
+            //     • TARGET-LESS  (toolbar, orbat, a menu item with no entity)
+            //           → publish ActivateEditorToolEvent; the drain supplies the primary selection.
+            //     • TARGETED     (a context menu ON an entity)
+            //           → call Tools.Activate(id, target) directly. The controller takes the target.
+            // 🔴 CORRECTION to step 3, and it removes a behaviour change that was never flagged: step 3
+            //    routed these three through the EVENT, which meant setting PrimarySelected first just to
+            //    smuggle the target to the drain. ⛔ The original handlers did NOT touch the selection, so
+            //    that silently made a context-menu Rotate also re-select. ⇒ direct activation restores the
+            //    old behaviour AND matches SimHost and IG, which had to call directly anyway.
+            void ActivateToolOnEntity(string toolId, Entity target)
             {
                 if (target == Entity.Null) return;
-                if (_selectionState != null) _selectionState.PrimarySelected = target;
-                _world?.Bus.Publish(new ActivateEditorToolEvent(tool));
+                _editorToolController?.Activate(toolId, target);
             }
 
             actionRegistry.Register(GlobalActionIds.Rotate, (_, target) =>
-                ActivateToolOnEntity(EditorTool.Rotate, target));
+                ActivateToolOnEntity(Hrot.ScenarioEditor.Tools.ScenarioToolIds.Rotate, target));
             actionRegistry.Register(GlobalActionIds.Measure, (_, _) =>
             {
                 _world.Bus.Publish(new ActivateEditorToolEvent(EditorTool.Measure));
@@ -1891,9 +1900,9 @@ namespace Hrot.Editor
                 _world.Bus.Publish(new ActivateEditorToolEvent(EditorTool.Spawn));
             });
             actionRegistry.Register(GlobalActionIds.EditOverlay, (_, target) =>
-                ActivateToolOnEntity(EditorTool.Edit, target));
+                ActivateToolOnEntity(Hrot.ScenarioEditor.Tools.ScenarioToolIds.Edit, target));
             actionRegistry.Register(GlobalActionIds.EditRoute, (_, target) =>
-                ActivateToolOnEntity(EditorTool.Route, target));
+                ActivateToolOnEntity(Hrot.ScenarioEditor.Tools.ScenarioToolIds.Route, target));
             actionRegistry.Register(GlobalActionIds.CenterOnEntity, (view, target) =>
             {
                 if (target == Entity.Null) return;

@@ -1,7 +1,6 @@
 using System;
 using System.Collections.Generic;
 using Fdp.Core;
-using Fdp.Core.Logging;
 using Fdp.Toolkit.Diagnostics.Gizmos.Systems;
 
 namespace Hrot.ScenarioEditor.Tools
@@ -92,7 +91,9 @@ namespace Hrot.ScenarioEditor.Tools
         {
             if (!_tools.TryGetValue(toolId, out var entry))
             {
-                Report($"tool '{toolId}' is not registered on this host");
+                // ⭐ Same sentence shape as every other refusal (ToolReport) — an operator should not
+                //   have to recognise two phrasings for "the tool you pressed did nothing".
+                ToolReport.Unserviceable(_reportUnserviceable, toolId, "it is not registered on this host");
                 return false;
             }
 
@@ -205,10 +206,5 @@ namespace Hrot.ScenarioEditor.Tools
 
         private void NotifyActiveModalChanged() => ActiveModalChanged?.Invoke(ActiveModal);
 
-        private void Report(string message)
-        {
-            if (_reportUnserviceable != null) _reportUnserviceable(message);
-            else FdpLog<ToolController>.Info("[Tools] {0}", message);
-        }
     }
 }

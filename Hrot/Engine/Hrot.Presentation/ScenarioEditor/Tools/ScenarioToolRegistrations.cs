@@ -1,6 +1,5 @@
 using System;
 using Fdp.Core;
-using Fdp.Core.Logging;
 using Fdp.Toolkit.Diagnostics.Gizmos;
 using Fdp.Toolkit.Diagnostics.Gizmos.Systems;
 using Fdp.Toolkit.Replication.Attributes;
@@ -67,11 +66,10 @@ namespace Hrot.ScenarioEditor.Tools
             if (world      == null) throw new ArgumentNullException(nameof(world));
             if (gizmos     == null) throw new ArgumentNullException(nameof(gizmos));
 
+            // ⭐ ONE sentence shape for every refusal — ToolReport owns the phrasing and the fallback.
             ToolActivationOutcome Unserviceable(EditorTool tool, string reason)
             {
-                var message = $"tool '{tool}' did nothing — {reason}.";
-                if (reportUnserviceable != null) reportUnserviceable(message);
-                else FdpLog<ToolController>.Info("[Tools] {0}", message);
+                ToolReport.Unserviceable(reportUnserviceable, tool, reason);
                 return ToolActivationOutcome.Unserviceable;
             }
 

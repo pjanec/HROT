@@ -25,6 +25,10 @@ namespace Hrot.Editor.Tests;
 /// shared primitives and referenced nothing new, which is exactly how the editor's drain and CGF's context
 /// menu drifted apart for months *(the same reason E2's create-core rail is a source scan)*.</para>
 /// </summary>
+// 🔒 SERIALIZED: this class flips the process-global FdpConfig.EnforceExplicitEventRegistration (§⑤).
+//    ⛔ Without this, that flip leaks into any class publishing a managed event in parallel — measured
+//    2026-09-09 against JsonEntityContextMenuHandlerTests. See the collection's own remarks.
+[Collection(Hrot.Editor.Tests.Windows.PanelSnapshotTestCollection.Name)]
 public sealed class TheViewportInteractionIsSharedTests
 {
     // ══ ① THE DE-DUP GUARDS — §6's requirement, made checkable ══════════════
@@ -419,6 +423,59 @@ public sealed class TheViewportInteractionIsSharedTests
             new Hrot.ScenarioEditor.Map.MapInteractionContext { World = worldB });
 
         Assert.NotSame(a.Tools, b.Tools);
+    }
+
+    /// <summary>
+    /// ⭐⭐⭐ <b>THE FORWARDING RAIL — every production root that builds a pack must PASS its arbiter on.</b>
+    ///
+    /// <para>🔒 <b>The control for the silent-default pattern</b>, which this programme has now found ten
+    /// times: <i>"a production caller that HAS the dependency must PASS it."</i> ⛔ <c>InteractionDeps.Tools</c>
+    /// is optional so a headless or partial host still constructs, which is exactly the shape that lets a
+    /// root forget it — and a forgotten arbiter means every tool press on that host is dropped.</para>
+    ///
+    /// <para>⚠ A SOURCE SCAN, because the failure is an OMISSION in one composition root: no behavioural
+    /// test can see a host that simply never passed the argument, and a reference count cannot either.</para>
+    /// </summary>
+    [Theory]
+    [InlineData("Hrot.CGF", "CgfSubsystem.cs")]
+    [InlineData("Hrot.Editor", "EditorSubsystem.cs")]
+    public void EveryRootThatBuildsAPackForwardsItsToolArbiter(string project, string file)
+    {
+        var src = ReadHostSource(project, file);
+
+        Assert.Contains("InteractionDeps(", src);
+        Assert.True(
+            new System.Text.RegularExpressions.Regex(@"Tools:\s*\(\)\s*=>").IsMatch(src),
+            $"{file} builds a MapInteraction and registers ScenarioEditorModule but never passes "
+          + "InteractionDeps.Tools. The drain would then drop every tool activation on this host. "
+          + "Pass the pack's MapInteraction.Tools (UXI-07 step 3b).");
+    }
+
+    /// <summary>
+    /// ⭐⭐ <b>ONE RULE for activating a tool, and no host may invent a third idiom.</b>
+    /// 📄 <c>UX_Feature_Tool_Model.md</c> §4.7d — TARGETED activation calls <c>Tools.Activate(id, target)</c>;
+    /// TARGET-LESS activation publishes <see cref="ActivateEditorToolEvent"/> and the drain supplies the
+    /// selection.
+    ///
+    /// <para>🔴 <b>The mistake this pins, made and corrected on <c>2026-09-09</c>:</b> step 3 routed the
+    /// editor's three entity context-menu actions through the EVENT, which meant writing
+    /// <c>PrimarySelected</c> first purely to smuggle the target to the drain — ⛔ a side effect the
+    /// original handlers never had, and a third idiom next to SimHost's and IG's direct calls.</para>
+    /// </summary>
+    [Fact]
+    public void TheEditorsEntityActionsActivateDirectlyRatherThanReSelecting()
+    {
+        var src = ReadHostSource("Hrot.Editor", "EditorSubsystem.cs");
+
+        // The three entity-targeted actions go through one direct-activation helper …
+        Assert.Contains("void ActivateToolOnEntity(string toolId, Entity target)", src);
+        Assert.Contains("_editorToolController?.Activate(toolId, target)", src);
+
+        // … and that helper does NOT write the selection to carry the target.
+        var helper = src.Substring(src.IndexOf("void ActivateToolOnEntity(string toolId, Entity target)",
+                                               StringComparison.Ordinal));
+        helper = helper.Substring(0, helper.IndexOf("}", StringComparison.Ordinal));
+        Assert.DoesNotContain("PrimarySelected", helper);
     }
 
     private static void Publish(EntityRepository world, EditorTool tool)

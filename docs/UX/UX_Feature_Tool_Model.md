@@ -851,6 +851,30 @@ recurses** through `GlobalGizmoManager.Unregister` → `Dispose`. ⇒ **the real
 adapter through the controller). 🔒 **No tracker id allocated: this lane is out of range under the two-lane
 stopgap and reaching upward is what caused the `CE-256` collision.**
 
+### 4.7d ⭐⭐ THE UNIFICATION PASS — **one rule, one sentence, one serial collection** *(`2026-09-09`)*
+
+> 🔒 **User:** *"make sure every change is revised from unification perspective — the more unified
+> everything is, the better."*
+
+| # | what was duplicated | what it is now |
+|---|---|---|
+| **①** | 🔴 **THREE idioms for activating a tool**, and step 3 introduced the worst: the editor SET `PrimarySelected` and published an event purely to smuggle the target to the drain, while SimHost and IG called `Activate(id, target)` directly | ⭐⭐⭐ **ONE RULE:** *targeted* activation calls `Tools.Activate(id, target)`; *target-less* activation (toolbar, `ScenarioOrbatAdapter`) publishes `ActivateEditorToolEvent` and the drain supplies the selection. ⚠ This also **reverts an unflagged behaviour change** — the editor's original handlers never touched the selection, so a context-menu `Rotate` had begun re-selecting |
+| **②** | **THREE refusal phrasings and two log categories** — `"tool 'Edit' did nothing — nothing is selected."` vs `"tool 'x' is not registered on this host"` (no verb, no full stop), each with its own `sink ?? log` fallback | ⭐ **`ToolReport`** owns the sentence and the fallback; every refusal reads the same to the operator |
+| **③** | ⛔ a **second** serial test collection was tempting for the strict-mode global | 🔒 **reused `PanelSnapshotTestCollection`** — its own header says *"do not invent a different shape"*; widened from *"the `PanelSnapshot` singleton"* to *"process-global state"*, name unchanged because it is mirrored across four assemblies |
+
+🔴 **③ was a real race, not tidiness.** 📐 `TheViewportInteractionIsSharedTests` is the only class in its
+assembly that flips `FdpConfig.EnforceExplicitEventRegistration`; with xUnit running classes in parallel the
+flip leaked into `JsonEntityContextMenuHandlerTests`, which threw
+`"Strict Mode Violation: … 'ContextActionTriggered'"` while passing **6/6 in isolation**. ⚠ The race
+**pre-dates** the rail that exposed it — the same shape as `CE-099`'s `AssetRoots` race — and three tests
+added the same day merely widened the window until it bit most runs. ✅ After the collection fix: **4 runs,
+zero strict-mode failures.**
+
+⭐ **The forwarding rail** (`EveryRootThatBuildsAPackForwardsItsToolArbiter`) is the control for the
+silent-default pattern's tenth instance: `InteractionDeps.Tools` is optional so a partial host still
+constructs, which is exactly the shape that lets a root forget it — and a forgotten arbiter drops every
+tool press.
+
 ## Migration
 
 | Step | Change | Gate |
