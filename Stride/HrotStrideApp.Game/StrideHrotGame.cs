@@ -1128,6 +1128,23 @@ public sealed class StrideHrotGame : Game
         //    for a Stride node. Absent variable ⇒ not started, costing nothing in a normal run.
         _nodeShell.StartDebugApi(Environment.GetEnvironmentVariable("HROT_DEBUG_API_PORT"));
 
+        // ⭐⭐⭐ CE-214 / S6 — THE OPERATOR WINDOW, unconditionally.
+        //    🔒 R-S16: "window is not optional, sames as in stride editor." ⛔ So there is no flag here,
+        //    unlike mode 1's STRIDE_EDITOR_WINDOW. ⭐ Safe: there is no headless mode 2 (this process
+        //    sets Headless = false and always opens a Stride window), so §7.2's "headless/CI must be
+        //    unaffected" caveat has nothing to protect.
+        //    ⚠ Guarded so a window failure cannot cost the node its simulation — the node's JOB is to
+        //    simulate; the operator surface is how a human watches it.
+        try
+        {
+            _nodeShell.StartOperatorWindow();
+        }
+        catch (Exception ex)
+        {
+            Log.Warn(ex, "[StrideHrotGame] CE-214: the operator window failed to compose — the node " +
+                         "continues to simulate without it.");
+        }
+
         Log.Info("[StrideHrotGame] CE-207: mode 2 node attached — the frame loop now drives " +
                  "StrideNodeBootstrapper.Tick (parameterless Kernel.Update, time slave).");
     }

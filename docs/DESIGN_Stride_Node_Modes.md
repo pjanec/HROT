@@ -609,6 +609,33 @@ INVESTIGATION**, not a deletion.
 
 ---
 
+### ⭐⭐⭐ 9.1 `CE-216` / `S8` — **THE TWO `StrideAnimationBackend`s ARE NOT A DUPLICATE TO DELETE** *(`2026-09-09`, the decision this slice asks for)*
+
+⭐ `S8`'s acceptance is *"`.dev/_DONE/anim-ctrl/DD-1` §15–16 read; a decision recorded HERE."* ⇒ read, measured, and the decision **inverts the framing the slice was written with.**
+
+📐 **MEASURED:**
+
+| | `Hrot.MuscleCharacter.Animation.Stride` | `Hrot.Stride.Animation` |
+|---|---|---|
+| TFM | `net8.0` | `net8.0-windows` |
+| ⭐⭐ **in `IOS-IG-SimHost.sln`?** | ✅ **YES** | ⛔ **NO** |
+| production consumers | 🔴 **NONE** — only its own test project | ⭐ **the live host**: `EditorStrideSubsystem:874` and `:1270` construct it; `MannequinAnimationBinder`, `StrideViewBracket`, `StrideAnimationHarnessCases` all use it |
+| own tests | `StrideBackendSmokeTests` | `StrideAnimationBackendBehaviorTests` · `…ContractTests` · `BackendBuilderHookTests` |
+| lines | 657 | 663 |
+
+⛔⛔ **They have DRIFTED: a namespace-normalised diff is 1 056 lines.** ⇒ ⭐ **these are two different implementations, not two copies** — the in-solution one carries its own `StrideEntityTransform` and other *"internal Stride-namespace types (`ANC-P8-01`, `DD-1` §16 'no leakage')"*, i.e. it is a **Stride-shaped but Stride-free** backend; the other drives a real `PerEntityBlendTreeBuilder`.
+
+⇒ ⭐⭐⭐ **THE DECISION: delete NEITHER, and it is not an animation problem at all — it is the TFM/solution wall.** ⛔ Deleting the `Hrot/` one removes the only copy that **compiles and tests with the main solution**; deleting the `Stride/` one breaks the live host. 📌 This is the same disease `CLAUDE.md` already names from `BATCH-03-REPORT.md:100` — *"the netstandard/net8 wall duplicating whole algorithms."*
+
+| ⚠ **the REAL finding, and it is worse than duplication** | |
+|---|---|
+| 🔴🔴 **the main solution compiles and tests a backend that NOTHING RUNS**, while the backend that DOES run is outside the solution | ⇒ ⛔ a behaviour fix applied to the in-solution copy reaches **no running code**, and a fix to the live one is **never seen by the solution build** |
+| ⭐ **the resolution is §16 Tier 1** *(one MSBuild property + three solution entries)* | once `Hrot.Stride.Animation` is IN the solution, the `Hrot/` copy becomes genuinely redundant and retires cleanly. ⛔ **Not before** |
+
+⇒ ⭐ **`S8` is DISCHARGED as a decision** *(its acceptance was a recorded decision, not a code change)*, and it **hands its substance to §16**, not to a deletion batch.
+
+---
+
 ## 10. SCENARIOS AND ORCHESTRATION *(ruling `R-S8`)*
 
 > 🔒 **User:** *"Stride itself is not saving/loading scenarios; its editor part is."*
