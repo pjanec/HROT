@@ -2,7 +2,7 @@
 state: LIVE
 doc-type: programme charter — the GOALS and the ORDER, in the user's own framing. Not a buildable design,
   so no build-state/UML gate; the buildable designs are the ones §6 points to.
-updated: 2026-08-23
+updated: 2026-09-09
 current-answer: the whole file. ⭐ Point a fresh session HERE first — it says what we are doing and why,
   before any design or batch. §3 is the running order; §4 is what is already decided.
 known-conflict: none.
@@ -45,6 +45,14 @@ known-conflict: none.
 | **2** | ✅ **DONE `2026-08-24`** — the harness core: `N0`–`N2` *(perspective reach · determinism rail · golden store)* built and merged. 📄 [`DESIGN_Regression_Net.md`](DESIGN_Regression_Net.md) §7b | — |
 | **3** | ✅ **DONE `2026-08-24`** — `N3`–`N6` built: 6 paired goldens across all 4 perspectives, behaviour assertions, and ⭐⭐ **the MUTATION TABLE** *(`DESIGN_Regression_Net.md` §8b)* — two mutations each reddening exactly one case, incl. a golden catching an **un-asserted** field. 🔒 **The net is proven to fail on demand.** Suite `58 → 76` | ⭐ *the net is now TRUSTED — a green suite that encodes nothing is worse than none, and this one encodes and was shown to go red* |
 | **4** | **Then** decide **which features to port when** — ⛔⛔ **AND IT IS LARGELY ALREADY DESIGNED: START FROM [`UX/`](UX/), DO NOT RE-DERIVE IT** *(added `2026-08-23` after the user pointed at it)*. 📐 **37 issues · 21 designed**, with their own tracker, rulings ledger and corrections log. ⭐⭐⭐ **`UX_Feature_Cgf_Brain_Diagnostics.md` (UXI-37) IS this step for CGF's brain tier**, and its verdict is *"⭐ **this is a wiring design, not a capability design**"* — 📐 measured: `Hrot.Editor.AiShared` is **already on CGF's build graph**, the breakpoint manager / trace log / blackboard renderers are **already registered**, `PreviewClusterOpHandler` is **already referenced**. ⇒ ⭐ **step 4 is mostly ADOPTION, not porting** | 🔒 *"Only then we will start thinking what features to port when"* — ⛔ **not before**, or we port without a net. ⚠⚠ **BUT reading the design is not "starting step 4"** — ⛔ **step 4's designs CONSTRAIN steps 1–3**: 📌 `2026-08-23`, `Q52` reached the wrong mechanism for `--mode ig` because it never opened `UX_Feature_Map_Parity.md` §3.2 / `UX_Feature_Map_Layers.md` §2.2, **which already ruled on it** |
+
+### ⭐⭐ WHERE WE ARE — **updated `2026-09-09`** *(so a fresh session does not have to derive it)*
+
+| | |
+|---|---|
+| ✅ **steps 0–3** | done — Stride integrated, the regression net built and mutation-proven |
+| ⭐⭐⭐ **step 4 is RUNNING**, and its roadmap is 📄 [`PROGRAMME_Cgf_Equals_Editor_Gap_Map.md`](PROGRAMME_Cgf_Equals_Editor_Gap_Map.md) §5 | ✅ **sequencing steps 1–2 DONE** *(CGF got the AiShared shell, windows, menu and toolbar — `CE-001`…`CE-045`)* · ⭐ **now on step 3 = Axis C, the editor→shared EXTRACTION**: `E1` scenario ✅ **BUILT** *(`CE-046`)* ⇒ ⭐ **the LIVE increment is `E2`** *(asset-picker / new-asset shell)*, then `E3` tools/selection/camera, `E4` view/inspector |
+| ⚠ **a parallel lane** | the **Stride node-modes slices** *(`DESIGN_Stride_Node_Modes.md`, `S5`–`S9`)* run independently on Windows; ⛔ they are **not** part of step 4 |
 
 ⭐⭐⭐ **STEPS 2–3 COMPLETE `2026-08-24` — THE NET EXISTS AND IS TRUSTED.** ⇒ **step 4 (feature porting) is UNBLOCKED**, and from here every port runs against the net *(and an intentional behaviour change re-blesses goldens under review — the gizmo membership change was the first such, landed `2026-08-24`)*.
 

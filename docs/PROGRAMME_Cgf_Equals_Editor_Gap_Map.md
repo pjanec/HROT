@@ -2,7 +2,9 @@
 state: LIVE
 doc-type: gap analysis / coverage map — what the design corpus ALREADY defines toward "cgf == editor",
   and the gaps. Not a buildable design (no build-state/UML gate); it POINTS at the buildable designs.
-updated: 2026-08-26
+updated: 2026-09-09
+stale-fixed-2026-09-09: §0's "Nothing is implemented yet" row and the three "E1 ... in flight" claims were
+  both FALSE and are corrected in place (E1 = CE-046, built 2026-08-26). ⭐ The live Axis-C increment is E2.
 current-answer: the whole file. Built from a full sweep of docs/UX/ (42 docs) + the PROGRAMME charter +
   a codebase-memory enumeration. ⭐ §2c added `2026-08-26` — **AXIS C, the editor→shared EXTRACTION (R1)**:
   Axes A/B are "CGF adopts AiShared"; Axis C is "extract the host composition roots to shared". §5 rewritten
@@ -23,7 +25,7 @@ known-conflict: none. Supersessions in the corpus are listed in §7 so nobody qu
 | ⭐⭐⭐ **The direction IS the charter, not a new idea** | 📄 [`PROGRAMME_Unification_And_Harness.md`](PROGRAMME_Unification_And_Harness.md) §1: CGF *"should be **as capable as the editor**, just doing it in a **distributed** setup."* Ruling 66: ⭐ **"THE EDITOR IS A ONE-NODE CLUSTER"** — same code paths; *"distributing is supplying the real roster, not building a distributed version."* |
 | ⭐⭐ **It is ~85% WIRING, not new capability** | 📄 `UX_Feature_Cgf_Brain_Diagnostics.md` §0 (UXI-37), verbatim: *"⇒ This is a **wiring design, not a capability design**."* `Hrot.Editor.AiShared` is **already on CGF's build graph**; the shared machinery exists and is under-adopted (the seam law). |
 | ⚠⚠ **"Only network setup" is TRUE plus ONE corollary: AUTHORITY** | Ruling 22: *"CGF does not own `SimTransform`… it needs to send a **request** to SimHost, not change ECS directly. **Editor owns all.**"* ⇒ two **permanent, ruled** divergences that ARE the endpoint (not gaps): **(a)** CGF binds **networked** handlers, the editor **networkless** ones; **(b)** CGF writes **unowned** components as **requests**. |
-| 🔴 **Nothing is implemented yet** | the UX task register is empty; the golden-path walk (its task source) has not run; `Q25` (authoring shell) is architect-**unanswered**. `Q26`/`Q29` ARE answered. |
+| ⛔⛔ **~~Nothing is implemented yet~~ — SUPERSEDED `2026-09-09`, and it was the headline that rotted, not the sub-claims** | 📐 **Measured `2026-09-09`:** steps 1–2 shipped as `CE-001`…`CE-045` *(slices 1–4, the MCP `MA-` and diagnostics `MD-` series)*, and **Axis-C `E1` shipped as `CE-046`** — so *"nothing"* is false by ~46 rows. ⭐ **What REMAINS true, re-measured:** the **UX task register** is still empty and the **golden-path walk** has not run. ⚠ **`Q25` is no longer "architect-unanswered"** — 📄 [`Architect_Question_25`](UX/Architect_Question_25_Scenario_Authoring_Golden_Path.md) carries a **✅ RECOMMENDED ANSWERS** section *(coordinator, `2026-08-25`)* that is **awaiting USER approval**; `Q25-D` is answered outright by `Q26`. `Q26`/`Q29` remain answered. |
 
 ## 0.5 ⭐⭐⭐ UNDER THE PURE-SHARING FRAMING *(user, `2026-08-25`)* — **is anything OPEN?**
 
@@ -168,7 +170,7 @@ graph TD
 ### 2c.2 ⭐⭐ The split — host-agnostic *(→ shared)* vs bootstrap/network *(→ thin host)*
 | capability | → | extraction increment |
 |---|---|---|
-| scenario session *(New/Load-Edit/Load-Live/Save/migration)* | **shared** | **E1** — `IScenarioSession` *(AQ60 Slice A, in flight)* |
+| scenario session *(New/Load-Edit/Load-Live/Save/migration)* | **shared** | **E1** — `IScenarioSession` ✅ **BUILT** *(AQ60 Slice A = `CE-046`, `2026-08-26`)* |
 | asset browse/create shell *(`AssetPickerLauncher`/`NewAssetLauncher`/`AssetPickActionRouter`/`ShowNewAssetDialog`)* | **shared** | **E2** — the §6.1 relocation *(subsumes gap-map §4 blocker 7 "packaging")* |
 | tool / selection / camera / rename *(`ActivateTool`, `SelectEntity`, `CenterOnEntity`, `OpenRenameDialog`, the tool system)* | **shared** *(CGF is windowed)* | **E3** |
 | view / inspector / property-edit *(`View`/`DerRepo`, `CommitPropertyEdit`)* + `RebuildAndReloadAI` dev-loop | ~~**shared**~~ ✅ **MEASURED ALREADY SHARED — E4 was NOT an extraction** | ✅ **E4 DONE `CE-052`** — 📐 `EntityInspectorPanel` is already composed on BOTH hosts; `View`/`DerRepo`'s only consumers are condemned DEAD UI *(`UX_Feature_DeadUI_Removal` §3)*; `CommitPropertyEdit` after `CE-051` is used only by the already-shared `EntityRenameModal`. ⇒ **the real E4 was ONE silent-default defect** *(CGF built a `DataBreakpointManager` but never wired `MutationInterceptor` ⇒ data breakpoints silently didn't fire on CGF)* + a forwarding rail. 📄 `DESIGN_Cgf_View_Inspector_Slice.md` |
@@ -177,7 +179,7 @@ graph TD
 ⛔ **Axis C does NOT overturn the ⚖️ DIVERGENT table** — those per-host divergences *(networkless handlers, request-writes)* are E5, the deliberate endpoint. R1 says **CAPABILITY** must not be editor-only; it does not erase the ruled bootstrap divergences.
 
 ### 2c.3 ⭐ Sequenced increments *(each its OWN design; extract to `Hrot.Editor.AiShared`, editor delegates byte-identical, CGF instantiates)*
-**E1 scenario** *(Slice A — in flight)* → **E2 asset-picker/new-asset shell** *(§6.1)* → **E3 tools/selection/camera** → **E4 view/inspector** → **E5** = what remains is the thin-host bootstrap *(by construction, not a build item)*. ⚠ Each increment measures its captures first *(HN-037 lesson — these are lifts, not `s/old/new/`)*.
+**E1 scenario** ✅ **BUILT** *(`CE-046`)* → **E2 asset-picker/new-asset shell** *(§6.1)* → **E3 tools/selection/camera** → **E4 view/inspector** → **E5** = what remains is the thin-host bootstrap *(by construction, not a build item)*. ⚠ Each increment measures its captures first *(HN-037 lesson — these are lifts, not `s/old/new/`)*.
 
 ## 3. ⭐ THE ONLY GENUINELY-NEW CODE (everything else is wiring)
 
@@ -207,7 +209,7 @@ graph TD
 | ✅ **1** | ~~CGF constructs the AiShared shell + registers the graph/watch/breakpoints windows~~ **DONE** — slices 1–4 *(`CE-001`..`036`)*, MCP authoring *(`MA-`)*, diagnostics *(`MD-`)* | delivered the viewing/diagnostics chain |
 | ✅ **1-prereq** | ~~**UXI-06** perspective-default fix~~ **DONE** *(already built; confirmed slice 1)* | — |
 | ✅ **2** | ~~menu/toolbar discoverability on CGF (**UXI-05/35**)~~ **DONE** — toolbar `CE-037`..`040`, menu `CE-041`..`045` *(one shared `CgfEditorShellToolbar` list, `SUBSET-BY-DESIGN` verdict)* | the registered windows are reachable |
-| ⭐ **3** *(now active — Axis C, R1)* | **the editor→shared EXTRACTION** *(§2c)*: **E1 scenario** *(Slice A, in flight)* → **E2 asset-picker/new-asset shell** *(§6.1)* → **E3 tools/selection/camera** → **E4 view/inspector**. ⭐ Folds in the old editing gaps *(config-`AssetRoots` ✅ done; AQ25 shell / behavior-affinity resolve-with-user as they arise)* | this IS "cgf==editor" at capability level — extract, editor delegates byte-identical, CGF instantiates |
+| ⭐ **3** *(now active — Axis C, R1; ⭐ **the live increment is `E2`** — `E1` landed as `CE-046`)* | **the editor→shared EXTRACTION** *(§2c)*: **E1 scenario** ✅ **BUILT** *(`CE-046`)* → **E2 asset-picker/new-asset shell** *(§6.1)* → **E3 tools/selection/camera** → **E4 view/inspector**. ⭐ Folds in the old editing gaps *(config-`AssetRoots` ✅ done; AQ25 shell / behavior-affinity resolve-with-user as they arise)* | this IS "cgf==editor" at capability level — extract, editor delegates byte-identical, CGF instantiates |
 | **4** *(separable)* | **Axis B** map/selection parity: `UXI-30` gate ✅ → `UXI-10 → 11 → 29 → 23`; `AQ59` attribute-vocabulary | not needed for the watch/MyBlueprint chain |
 
 ⭐⭐ **FUTURE (own designs, deferred by user `2026-08-26`):** ⛔ **checkpoint RESTORE** *(Feature X — the save exists, restore does not)*; ⛔ **capability-gating config layer** *(reduced-capability CGF: live-only · live+monitoring · headless)* — unify fully-featured FIRST; ⛔ **toolbar+menu CUSTOMIZATION system** — ⭐ **the customizable element is WHICH distinct actions surface as toolbar buttons AND as main-menu items, per subsystem/perspective** *(configurable, ⛔ not hardcoded host-conditionals, ⛔ never chameleon commands — R3)*. All actions stay logically distinct; the "per-host default" is only a surfacing choice. **Its own AQ when we reach it.**
