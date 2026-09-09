@@ -851,6 +851,56 @@ recurses** through `GlobalGizmoManager.Unregister` → `Dispose`. ⇒ **the real
 adapter through the controller). 🔒 **No tracker id allocated: this lane is out of range under the two-lane
 stopgap and reaching upward is what caused the `CE-256` collision.**
 
+### 4.7f 🔴🔴 A RAW RELEASE WITHOUT ITS PRESS — **a panel right-click destroyed a map gizmo** *(`CE-259n`, `2026-09-09`)*
+
+📌 **Operator, running `T1`:** *"vertex handle appeared. right clicking targetmemory entity opens context
+menu which kills the selection of area entity and gizmo disappears."*
+⇒ ⭐ **the gizmo died BEFORE any pick armed** — this is not a `PushModal` failure.
+
+#### ⭐⭐ The mechanism — an ASYMMETRY, and it is two lines apart
+
+| | `DebugGizmoLayer.HandleInput` |
+|---|---|
+| raw **PRESS** | ✅ gated — `if (!isMouseCaptured && IsMouseButtonPressed(...))` |
+| raw **RELEASE** | 🔴 **NOT gated on capture** — *"…but ALWAYS send released events to prevent stuck backend input queues."* |
+
+⇒ 🔴 **a right-click inside an ImGui PANEL delivers a raw right-RELEASE to the map's focus holder**, and
+`VertexEditGizmo.OnMouseEvent` reads *right + `!isPressed`* as **"commit and exit"** (`:174-179`) ⇒ it
+writes back, calls `_onRemove()`, and the gizmo is gone.
+
+⚠⚠ **The ungated release was DELIBERATE and its reason is REAL** — a gizmo that took its press on the map
+and released over a panel MUST still get the release, or it hangs mid-drag for ever. ⛔ **So "gate the
+release on capture" is the WRONG fix**: it reintroduces exactly that hang.
+
+#### ⭐⭐⭐ The distinction that satisfies both
+
+🔒 **A release is legitimate when ITS OWN PRESS was delivered** — wherever the pointer has since
+travelled. ⇒ `RawButtonGate` remembers that one bit, one instance per button, held across frames.
+
+| case | before | after |
+|---|---|---|
+| press on map → release on map | ✅ delivered | ✅ delivered |
+| ⭐ press on **map** → release over a **panel** *(the stuck-drag case the comment guards)* | ✅ delivered | ✅ **still delivered** |
+| 🔴 press swallowed by a **panel** → release | ⛔ **delivered** *(the defect)* | ✅ **suppressed** |
+| release with no press at all | ⛔ delivered | ✅ suppressed |
+
+⚠ `!contextMenuOpened` is **preserved** on the right button — the map's own canvas menu still consumes
+its release.
+
+#### ⭐⭐ Why the logic was EXTRACTED rather than fixed in place
+
+⛔ `HandleInput` polls `Raylib.IsMouseButtonPressed/Released` **directly**, so the decision cannot be
+driven from a headless test — ⚠ fixing it inline would have shipped an **unrailed** fix, in a subsystem
+that has already had one operator-found defect sail past a green ~8 000-rail suite today (`CE-259k`).
+⇒ ⭐ `RawButtonGate` is a 4-member struct with `RawButtonGateTests` **6/6**, inverse-edit red-proofed:
+restoring *"always deliver"* reddens **4 of 6**, and ⭐ **the 2 that stay green are precisely the
+legitimate-release cases** — which is what proves the fix did not re-break the hang.
+
+⚠ **Blast radius, stated:** `DebugGizmoLayer` is the shared terminal, so this reaches every host. ⭐ The
+change only ever **suppresses a release whose press was suppressed** — any gizmo pairing correctly is
+untouched, and a gizmo that acted on an unpaired release was, by definition, acting on a click that was
+not for it.
+
 ### 4.7e ✅ WHERE A REFUSAL ACTUALLY SURFACES — **measured `2026-09-09`, and it is NOT invisible**
 
 📌 **The operator report that prompted this:** *"Edit Shape and Edit Route buttons from the editor toolbar

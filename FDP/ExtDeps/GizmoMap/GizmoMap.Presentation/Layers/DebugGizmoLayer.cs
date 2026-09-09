@@ -31,6 +31,13 @@ namespace GizmoMap.Presentation
         private readonly ContextMenuAdapter _contextMenuAdapter = new();
         private Vector2 _rightPressScreenPos;
         private bool _rightWasDragged;
+
+        // ⭐⭐⭐ CE-259n — a raw RELEASE is only delivered when its own PRESS was (see RawButtonGate).
+        //   ⛔ Per button, and held across frames: "is a press of THIS button outstanding" is not a
+        //   per-frame fact. Without these, a right-click on an ImGui PANEL ended a map gizmo, because the
+        //   press was correctly withheld and the release was sent anyway.
+        private RawButtonGate _leftRaw;
+        private RawButtonGate _rightRaw;
         private const float RightDragThresholdSq = 25f;
 
         // Main menu aggregator: collects MainMenuBinding primitives each frame.
@@ -286,20 +293,38 @@ namespace GizmoMap.Presentation
                     modifiers |= (int)MapKeyboardKey.AltMask;
 
                 // Only send raw PRESSED events if ImGui doesn't want the mouse...
-                if (!isMouseCaptured && Raylib.IsMouseButtonPressed(MouseButton.Left))
-                    onInteraction?.Invoke(captureToken, GizmoInteractionEventKind.RawInput,
-                        worldPos3, (int)MapMouseButton.Left | modifiers, 0x81);
-                // ...but ALWAYS send released events to prevent stuck backend input queues.
+                if (Raylib.IsMouseButtonPressed(MouseButton.Left))
+                {
+                    if (_leftRaw.OnPress(isMouseCaptured))
+                        onInteraction?.Invoke(captureToken, GizmoInteractionEventKind.RawInput,
+                            worldPos3, (int)MapMouseButton.Left | modifiers, 0x81);
+                }
+                // ...and send the release whenever ITS OWN PRESS was delivered — wherever the pointer has
+                // since travelled. ⭐ That still prevents the stuck backend input queue the original
+                // comment guarded (press on map, release over a panel ⇒ delivered), ⛔ while no longer
+                // handing a gizmo a release it never earned (press swallowed by a panel ⇒ suppressed).
+                //   🔴 CE-259n: VertexEditGizmo treats a right-RELEASE as "commit and exit", so an
+                //   unpaired one destroyed the edit on any panel right-click.
                 else if (Raylib.IsMouseButtonReleased(MouseButton.Left))
-                    onInteraction?.Invoke(captureToken, GizmoInteractionEventKind.RawInput,
-                        worldPos3, (int)MapMouseButton.Left | modifiers, 0x80);
+                {
+                    if (_leftRaw.OnRelease())
+                        onInteraction?.Invoke(captureToken, GizmoInteractionEventKind.RawInput,
+                            worldPos3, (int)MapMouseButton.Left | modifiers, 0x80);
+                }
 
-                if (!isMouseCaptured && Raylib.IsMouseButtonPressed(MouseButton.Right))
-                    onInteraction?.Invoke(captureToken, GizmoInteractionEventKind.RawInput,
-                        worldPos3, (int)MapMouseButton.Right | modifiers, 0x81);
-                else if (!contextMenuOpened && Raylib.IsMouseButtonReleased(MouseButton.Right))
-                    onInteraction?.Invoke(captureToken, GizmoInteractionEventKind.RawInput,
-                        worldPos3, (int)MapMouseButton.Right | modifiers, 0x80);
+                if (Raylib.IsMouseButtonPressed(MouseButton.Right))
+                {
+                    if (_rightRaw.OnPress(isMouseCaptured))
+                        onInteraction?.Invoke(captureToken, GizmoInteractionEventKind.RawInput,
+                            worldPos3, (int)MapMouseButton.Right | modifiers, 0x81);
+                }
+                else if (Raylib.IsMouseButtonReleased(MouseButton.Right))
+                {
+                    // ⚠ !contextMenuOpened is PRESERVED: the map's own canvas menu consumes the release.
+                    if (_rightRaw.OnRelease() && !contextMenuOpened)
+                        onInteraction?.Invoke(captureToken, GizmoInteractionEventKind.RawInput,
+                            worldPos3, (int)MapMouseButton.Right | modifiers, 0x80);
+                }
 
                 // ---- Generic Input Queue ----
                 // Raylib's GetKeyPressed() only queues *printable character presses*.
