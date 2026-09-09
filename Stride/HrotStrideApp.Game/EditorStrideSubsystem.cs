@@ -1591,6 +1591,21 @@ public sealed class EditorStrideSubsystem : IDisposable, IStrideEditorWindowHost
     private const float ToastTotalSeconds = 4.0f;
 
     /// <summary>Currently-visible toast text (empty when none). Read by the editor-window overlay.</summary>
+    // ── IStrideEditorWindowHost (CE-213 / R-S17) ─────────────────────────────────────
+    // ⭐ Mode 1's half of the window contract: forward the three operations to the hosted editor.
+    //   ⚠ HostedEditor is null until buildEditorUi, and was ALREADY null-guarded at every one of these
+    //   call sites before the widening — so these are the same guards, moved behind the seam.
+
+    /// <inheritdoc/>
+    public void RegisterWindows(Fdp.Presentation.WindowManager.WindowManager windowManager)
+        => HostedEditor?.RegisterWindows(windowManager);
+
+    /// <inheritdoc/>
+    public void DrawWorld() => HostedEditor?.DrawWorld();
+
+    /// <inheritdoc/>
+    void IStrideEditorWindowHost.DrawUI() => HostedEditor?.DrawUI();
+
     public string ToastMessage => _toastMessage;
     /// <summary>Seconds the toast remains visible; &gt; 0 means draw it. Read by the editor-window overlay.</summary>
     public float ToastSecondsRemaining => _toastSecondsRemaining;

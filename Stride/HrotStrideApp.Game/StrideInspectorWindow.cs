@@ -230,6 +230,18 @@ public sealed class StrideInspectorWindow : IDisposable
     private Fdp.Presentation.WindowManager.WindowManager? _windowManager;
 
     /// <summary>
+    /// ⭐⭐ <c>CE-214</c> — the window's <c>WindowManager</c>, so a host can COMPOSE panels into it after
+    /// <see cref="Open"/>. ⛔ Null before <c>Open()</c> and after <c>Close()</c>.
+    /// </summary>
+    /// <remarks>
+    /// ⭐ Mode 1 fills this window through <c>IStrideEditorWindowHost.HostedEditor.RegisterWindows</c>;
+    /// mode 2 has no hosted editor and composes <c>DiagnosticsWindowsBundle</c> + its own
+    /// <c>SimHostVisualization</c> panels here instead — the same <c>UiBundleHost.Compose(...,
+    /// new UiBundleContext(windowManager))</c> call the other four hosts already make.
+    /// </remarks>
+    public Fdp.Presentation.WindowManager.WindowManager? WindowManager => _windowManager;
+
+    /// <summary>
     /// Constructs the inspector window.  Does NOT open the window yet.
     /// Call <see cref="Open"/> to create the OS window.
     /// </summary>
@@ -334,9 +346,11 @@ public sealed class StrideInspectorWindow : IDisposable
         // When buildEditorUi=true was passed to EditorStrideSubsystem.Initialize,
         // the editor is non-headless and RegisterWindows registers ALL panels
         // (map canvas adapters, layers, AI editor, blueprints, orbat, spawner, …).
-        if (_host?.HostedEditor != null)
+        if (_host != null)
         {
-            _host.HostedEditor.RegisterWindows(_windowManager);
+            // ⭐ CE-213/R-S17 — an OPERATION, not an editor object. Mode 1 forwards to its hosted
+            //   editor; mode 2 forwards to its SimHostVisualization. The window knows neither.
+            _host.RegisterWindows(_windowManager);
             Log.Info("[StrideInspectorWindow] editor.RegisterWindows(wm) — full editor UI wired.");
         }
         else
@@ -380,7 +394,7 @@ public sealed class StrideInspectorWindow : IDisposable
         // Close() nulls _windowManager before Shutdown, so this is belt-and-suspenders.
         if (ImGuiNET.ImGui.GetCurrentContext() == IntPtr.Zero) return;
 
-        var editor = _host?.HostedEditor;
+
         var wm     = _windowManager;
 
         // ── P1 timing: total frame ────────────────────────────────────────────
@@ -391,7 +405,9 @@ public sealed class StrideInspectorWindow : IDisposable
 
         // ── DrawWorld: 2-D map canvas (no-op when editor is null or headless) ──
         _timingDrawWorld.Restart();
-        editor?.DrawWorld();
+        // ⭐⭐ R-S15 — THIS IS THE MAP. While the host contract exposed a null editor object, mode 2
+        //    drew nothing here and its map surface stayed blank while the panels composed fine.
+        _host?.DrawWorld();
         _timingDrawWorld.Stop();
 
         rlImGui.Begin();
@@ -444,7 +460,7 @@ public sealed class StrideInspectorWindow : IDisposable
         wm?.Render();
 
         // ── editor.DrawUI(): menus, popups, hotkey dispatch ───────────────────
-        editor?.DrawUI();
+        _host?.DrawUI();
 
         // BATCH-S2-AD: transient paused-nav toast overlay.
         if (_host != null && _host.ToastSecondsRemaining > 0f)

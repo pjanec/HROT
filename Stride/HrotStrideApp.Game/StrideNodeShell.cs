@@ -78,6 +78,10 @@ public sealed class StrideNodeShell : IDisposable, Hrot.Presentation.DebugApi.IP
 
     private readonly StrideNodeBootstrapper _bootstrapper = new();
     private DdsParticipant? _participant;
+    private NedNetworkFactory? _networkFactory;
+    private Hrot.SimHost.SimHostVisualization? _visualization;
+    private StrideInspectorWindow? _operatorWindow;
+    private EditorSelectionState? _operatorSelection;
     private StrideVisualBindingSystem? _visualBinding;
     private StridePhysicsBracket? _physicsBracket;
 
@@ -138,6 +142,10 @@ public sealed class StrideNodeShell : IDisposable, Hrot.Presentation.DebugApi.IP
 
         var networkFactory = new NedNetworkFactory(
             _participant, entityMap, geoTransform, eventBus, nodeId, NodeRole.None);
+        // CE-214 - retained so the operator window can ask it for this node's mission sender rather
+        //   than a fifth private copy of NullSimHostMissionSender (every existing one is internal to
+        //   its assembly; ruling 9 says route, do not duplicate).
+        _networkFactory = networkFactory;
 
         var config = new HrotNodeConfig
         {
@@ -440,6 +448,11 @@ public sealed class StrideNodeShell : IDisposable, Hrot.Presentation.DebugApi.IP
         //    consistent world between frames instead of mid-schedule. ClusterRunner drains at the
         //    equivalent point (Program.cs:601-603).
         _debugApiQueue?.DrainAll();
+
+        // CE-214 - the operator window's frame. AFTER the kernel and the debug-API drain, so panels
+        //   read a world that has finished the frame rather than one mid-schedule. PumpFrame is a
+        //   no-op once Close() has nulled its window manager, which is the documented shutdown order.
+        _operatorWindow?.PumpFrame();
     }
 
     /// <summary>
@@ -549,8 +562,116 @@ public sealed class StrideNodeShell : IDisposable, Hrot.Presentation.DebugApi.IP
                  p, Context.NodeId);
     }
 
+    /// <summary>
+    /// ⭐⭐⭐ <b><c>CE-214</c> / slice <c>S6</c> — the mode-2 node's OPERATOR WINDOW: the same 2-D map,
+    /// inspectors, event browser, architecture panel and profiler the other four hosts have.</b>
+    /// </summary>
+    /// <remarks>
+    /// <para>🔒 <b><c>R-S16</c></b> — <i>"window is not optional, sames as in stride editor."</i> ⇒ it is
+    /// composed unconditionally, not behind a flag. ⭐ Safe because there is no headless mode 2: the
+    /// process sets <c>Headless = false</c> and always opens a Stride window.</para>
+    ///
+    /// <para>🔒 <b><c>R-S15</c></b> — <i>"the map is part of the diagnostic suite … with entities,
+    /// gizmos, context menu etc."</i> ⇒ ⛔ the map is NOT a separate deliverable beside the bundle.
+    /// ⭐⭐ That is exactly why this reuses <c>SimHostVisualization</c> WHOLE (<c>R-S18</c>, <i>"the more
+    /// unified, the better"</i>): what it builds beyond the four panels — <c>MapCanvas</c>,
+    /// <c>SelectionInteractionSystem</c>, <c>GlobalGizmoManager</c>, <c>DebugGizmoLayer</c>,
+    /// <c>MapPickServiceBridge</c> and the entity context menu — <b>IS the working map</b>. ⚠ Building
+    /// a parallel handful of panels would have produced a map with no gizmos and no context menu.</para>
+    ///
+    /// <para><b>📐 The four inputs this node lacks natively, and why each is safe:</b> an <b>empty</b>
+    /// <c>RoadNetworkBlob</c> — the exact value <c>SimHostApp.LoadRoadNetwork(null)</c> returns, and
+    /// that helper is <c>internal</c> to <c>Hrot.SimHost</c> so it cannot be called from here; a fresh
+    /// <c>FormationTemplateManager</c>; the node's own <c>INetworkIdAllocator</c>; and an
+    /// <c>ISimHostMissionSender</c> from this node's network factory.</para>
+    ///
+    /// <para>⭐⭐ <b>The first three reach ONLY <c>SimHostScenarioManager</c></b> — measured,
+    /// <c>SimHostVisualization.cs:217</c> is their single use — and ⭐ <b>that type's constructor is
+    /// pure field assignment</b>, completely inert until driven. ⛔ Mode 2 never drives it: <b>CGF owns
+    /// scenario loading</b> and this node receives entities over the wire. ⇒ passing empty values
+    /// cannot desynchronise anything, and this is <b>NOT</b> the <c>CE-180</c> two-pools hazard — ⭐ the
+    /// <b>trajectory pool</b>, the one input genuinely shared with the running kinematics, is passed as
+    /// the node's SINGLE instance.</para>
+    ///
+    /// <para>⚠ The window host contract is passed as <see langword="null"/> (<c>CE-213</c>'s
+    /// <c>IStrideEditorWindowHost</c>): no hosted editor, no toast. ⭐ That is what lets one window
+    /// class serve both modes.</para>
+    /// </remarks>
+    public void StartOperatorWindow()
+    {
+        if (Context == null)   throw new InvalidOperationException("Boot() before StartOperatorWindow().");
+        if (MuscleSet == null) throw new InvalidOperationException("MuscleSet is null — Boot() first.");
+
+        HrotNodeContext ctx = Context;
+
+        _visualization = new Hrot.SimHost.SimHostVisualization();
+        _visualization.Initialize(
+            repo:                ctx.World,
+            kernel:              ctx.Kernel,
+            road:                new CarKinem.Road.RoadNetworkBlob(),
+            trajectoryPool:      MuscleSet.StrideKinematics.TrajectoryPool,
+            formationTemplates:  new CarKinem.Formation.FormationTemplateManager(),
+            missionSender:       _networkFactory!.CreateSimHostMissionSender(),
+            eventHistoryService: new Fdp.Core.Diagnostics.DiagnosticEventHistoryService(),
+            idAllocator:         ctx.IdAllocator,
+            localNodeId:         ctx.NodeId);
+
+        _operatorSelection = new EditorSelectionState();
+        // ⭐⭐ R-S15 — the host adapter is what makes the MAP draw. Passing null here (as the first
+        //    cut did) composes every panel correctly and leaves the map surface BLANK.
+        _operatorWindow    = new StrideInspectorWindow(
+            new StrideNodeWindowHost(_visualization), _operatorSelection);
+        _operatorWindow.Open();
+
+        var wm = _operatorWindow.WindowManager;
+        if (wm == null)
+        {
+            Log.Warn("[StrideNodeShell] CE-214: operator window opened with no WindowManager — no " +
+                     "panels composed. The node still simulates.");
+            return;
+        }
+
+        // ⭐⭐ THE SAME CALL THE OTHER FOUR HOSTS MAKE — SimHostSubsystem, IgSubsystem, CgfSubsystem and
+        //    EditorSubsystem all compose this one shared bundle. Mode 2 is the FIFTH host, which is the
+        //    whole reason §7.2b could put the operator surface on day 1.
+        Fdp.Toolkit.Runner.UiBundleHost.Compose(
+            new Fdp.Toolkit.Runner.IUiBundle[]
+            {
+                new Hrot.Presentation.Windows.DiagnosticsWindowsBundle(
+                    new Hrot.Presentation.Windows.DiagnosticsHostServices(
+                        IdPrefix:    "stride_",
+                        TitlePrefix: "Stride",
+                        // ⚠ "SimHost" — the same CE-242 reasoning as the heartbeat and the debug
+                        //    provider: the PERSPECTIVE routes a request to this node's surface, and
+                        //    mode 2 IS the cluster's SimHost-role node.
+                        Perspective: "SimHost",
+                        Inspector:      _visualization.FdpEntityInspector,
+                        RepoAdapter:    () => _visualization.GetFdpRepoAdapter(),
+                        InspectorState: () => _visualization.FdpInspectorState,
+                        EventBrowser:   _visualization.FdpEventBrowser,
+                        // ⭐⭐ CE-083 — ONE COLOUR PER SUBSYSTEM. ⛔ Deliberately NOT SimHost's
+                        //    (which is internal to Hrot.SimHost anyway): a mode-2 node is its own
+                        //    host, and an operator running a Stride node beside a real SimHost must
+                        //    be able to tell whose window is whose at a glance. Stride teal.
+                        TitleBarColor:  StrideWindowColor.TitleBar,
+                        ArchitecturePanel: new Fdp.Presentation.Panels.ArchitectureDiagnosticsPanel(
+                            new Fdp.ModuleHost.Diagnostics.ArchitectureDiagnosticsService(() => ctx.Kernel)),
+                        ExecutionStats: () => ctx.Kernel.GetExecutionStats(),
+                        // ⭐ R-S15 — the map's pick bridge is part of the deliverable, not an extra.
+                        PickBridge:     _visualization.GetMapPickBridge())),
+            },
+            new Fdp.Toolkit.Runner.UiBundleContext(wm));
+
+        _visualization.SetPanelsWindowManaged();
+
+        Log.Info("[StrideNodeShell] CE-214: operator window composed (perspective SimHost, node {0}).",
+                 ctx.NodeId);
+    }
+
     public void Dispose()
     {
+        try { _operatorWindow?.Dispose(); } catch { /* teardown best-effort */ }
+        try { _visualization?.Dispose();   } catch { /* teardown best-effort */ }
         try { _debugApiHost?.Dispose(); } catch { /* teardown best-effort */ }
         try { _bootstrapper.Dispose(); } catch { /* teardown best-effort */ }
         _participant = null;
