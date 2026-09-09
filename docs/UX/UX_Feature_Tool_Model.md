@@ -851,6 +851,35 @@ recurses** through `GlobalGizmoManager.Unregister` → `Dispose`. ⇒ **the real
 adapter through the controller). 🔒 **No tracker id allocated: this lane is out of range under the two-lane
 stopgap and reaching upward is what caused the `CE-256` collision.**
 
+### 4.7e ✅ WHERE A REFUSAL ACTUALLY SURFACES — **measured `2026-09-09`, and it is NOT invisible**
+
+📌 **The operator report that prompted this:** *"Edit Shape and Edit Route buttons from the editor toolbar
+do nothing visible — but Edit from the context menu works."*
+
+| # | measured | source |
+|---|---|---|
+| ① | the toolbar path is **target-less**: the drain supplies `PrimarySelected` as the target | `ToolActivationDrainSystem.cs:119` |
+| ② | ⭐ **the wiring is CORRECT** — clicking writes `_selectionState.PrimarySelected` and the drain resolves `() => _selectionState`, **the same instance** | `EditorSubsystem.cs:2013` + `:1570` |
+| ③ | `Edit`/`Route` refuse **explicitly**: *"nothing is selected"* · *"the selected entity has no `EditablePolyline`"* | `ScenarioToolRegistrations.cs:147-149` |
+| ④ | ⚠ `EditorSubsystem` passes **NO** `ReportUnserviceableTool` sink — 📐 `grep -c` ⇒ **0** ⇒ `ToolReport` takes its fallback: `FdpLog<ToolController>.Info("[Tools] …")` | `ToolReport.cs:46` |
+| ⑤ | ⭐⭐⭐ **…and that fallback IS a user-visible surface.** `AddRule(Trace..Fatal, NLogMessageLogTarget.SharedInstance)` plus `registry.RegisterSource(NLogMessageLogTarget.SharedInstance)` ⇒ every refusal appears in the **Message Log** window, tab **"NLog (Global)"**, with a status-bar notification badge | `ClusterRunner/Program.cs:62` · `LocalWindowController.cs:79` · `EditorSubsystem.cs:4964` |
+
+⇒ ⭐⭐ **`ToolReport`/ruling 49 WORKS — the message reaches the screen.** ⛔ **Do NOT build a second sink**;
+📌 an earlier reading of ④ alone concluded *"the refusal is invisible, wire a sink"* — ⑤ refutes it, and
+building one would have been a duplicate surface for a mechanism already delivering.
+
+#### ⚠ The REAL gap, and it is a different one — **`CE-259m`**
+
+🔒 **Why the context menu works and the toolbar does not, in one line:** the context menu is
+**COMPONENT-AWARE** — *"Edit Shape"* is only offered `if (hasPolyline)` and it **selects first**
+(`EditorSubsystem.cs:2306-2309`). ⛔ **The toolbar button is ALWAYS drawn and ALWAYS enabled**, on a
+hand-coded row that reads no state (`EditorToolbarPanel.cs:53-59`).
+
+⇒ ⭐ the operator gets *"press it and read the log to find out why not"* where the context menu gets
+*"it is not offered unless it applies."* ⚠ **That is step 5's job** — nothing reads `ShowOnToolbar`
+(📐 measured: set on **6** descriptors, **0** consumers) and nothing binds `ActiveModalChanged`, so no
+toolbar button can show applicability OR active state.
+
 ### 4.7d ⭐⭐ THE UNIFICATION PASS — **one rule, one sentence, one serial collection** *(`2026-09-09`)*
 
 > 🔒 **User:** *"make sure every change is revised from unification perspective — the more unified
