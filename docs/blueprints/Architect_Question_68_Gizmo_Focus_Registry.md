@@ -1,7 +1,8 @@
 <!--STATUS
 state: LIVE
 updated: 2026-09-09
-current-answer: §3 carries the sub-questions and my recommended answers. NOTHING IS APPROVED YET.
+current-answer: §4c — 68-B is SETTLED BY MEASUREMENT (A, on principle; B2 refuted). §3's 68-B
+  framing is SUPERSEDED. 68-A/C/D still carry leans only and are NOT approved.
 known-conflict: none identified
 -->
 
@@ -98,6 +99,12 @@ arbiter, which is the part with three measured defects behind it.
 **What would change my lean:** evidence that meaning (b) was never intended — i.e. that unresolved
 tokens are supposed to be impossible, making the fallback dead defensive code. Then B2.
 
+> ⛔⛔ **SUPERSEDED BY MEASUREMENT `2026-09-09` — see §4c.** The framing above calls meaning (b) a
+> *"fallback"* for a *"token that does not resolve"*. **That is the wrong name and it is what made
+> this look undesigned.** Measured: it is *"the focus holder receives UN-ANCHORED input"* — the
+> **primary** rule in `GlobalGizmoManager` and the **first** branch in `DataDrivenGizmoSystem`.
+> ⇒ **B2 is REFUTED**, and B3 is unnecessary: there is no second concept to house.
+
 ### 68-C — Where should the single registry live?
 
 - **C1 — port `GizmoInteractionManager` from `GizmoMap.Example` into `Fdp.Toolkits`**, as §13 of the
@@ -159,6 +166,47 @@ words returned as support. ⇒ ⛔ *"the architect agrees"* is NOT independent c
 that I had not established, and it makes B2 *(delete)* more measurable later.
 
 ⭐ It also correctly declined to name `GizmoInteractionManager` as an FDP component this time.
+
+## 4c. ✅ 68-B IS SETTLED BY MEASUREMENT — **and the "fallback" was misnamed** *(`2026-09-09`)*
+
+⭐⭐⭐ **VERIFIED AGAINST SOURCE. This is measurement, not a relayed opinion.**
+
+| # | measured fact | source |
+|---|---|---|
+| ① | `PickToken.IsValid => !Target.IsNull` | `FDP/Diagnostics/Fdp.Diagnostics.Contracts/Primitives/PickToken.cs:14` |
+| ② | The TERMINAL deliberately emits null-target tokens — it branches on it: `Space = pickToken.IsValid ? EntityLocal : World` | `FDP/Engine/Fdp.Presentation/Vis2D/Layers/DebugGizmoLayer.cs:184, :192` |
+| ③ | ⭐⭐ **`MakeInputCaptureBinding` never stamps a `GizmoTypeId`** — it sets `Shape`, `InspNetworkId`, `SubElementId`, `ConditionMask` and nothing else ⇒ raw-input tokens always carry `GizmoTypeId == 0` | `GizmoMap.Contracts/Primitives/DebugPrimitive.cs:344-350` |
+| ④ | 🔴🔴 **`GlobalGizmoManager.Execute` NEVER READS `evt.Token`.** It takes `_focusedGizmo` and delivers every raw mouse/key event to it unconditionally | `GlobalGizmoManager.cs` — `if (_focusedGizmo == null) return; … focused.OnMouseEvent(evt.Button, evt.IsPressed, evt.WorldPos)` |
+
+### ⭐⭐⭐ What the two arbiters actually do — the same policy, written twice
+
+| arbiter | raw-input routing |
+|---|---|
+| `GlobalGizmoManager` | **focus holder, token IGNORED entirely** |
+| `DataDrivenGizmoSystem` | **focus holder FIRST**, entity lookup only as a second arm |
+
+⇒ 🔒 **The `??` is NOT a fallback for a failure. It is the SAME RULE as the other arbiter**, with an
+extra entity-scoped arm bolted on. The two meanings were never really two — ⭐ **"who holds focus" and
+"who gets un-anchored input" are one concept**, and the code has said so all along in
+`GlobalGizmoManager`.
+
+### ⛔ Consequences, and they are decisive
+
+| | |
+|---|---|
+| ⛔⛔ **B2 (delete the fallback) is REFUTED** | 📐 by ③, raw-input tokens carry `GizmoTypeId == 0`, so `FindGizmo` can essentially **never** match for them ⇒ `_focusedGizmo` is the **ONLY working delivery path** for raw mouse/key in `DataDrivenGizmoSystem`. Deleting it would not lose an edge case — **it would delete raw input for entity-scoped gizmos outright** |
+| ⛔ **B3 (split into two fields) is UNNECESSARY** | there is no second concept to house |
+| ✅ **A is correct — on PRINCIPLE, not caution** | the registry's holder **is** the right recipient for un-anchored input. That is already the rule in one arbiter |
+| ⭐ **and it names the real defect** | the expression is badly named, not badly designed. A registry member — `RecipientFor(token)`: *resolve by target, else the focus holder* — states the rule once and removes the ambiguity that created this question |
+
+### ⚠ Provenance, stated so it can be re-checked
+
+⭐ Facts ① and ② I measured directly. ⭐⭐ Facts ③ and ④ came from the **third** relayed ask and were
+**verified against source before being recorded here** — ④ is the decisive one and I had not found it.
+⭐ That ask was evidence-only, with the instruction *"`Architect_Question_68` is my own reasoning, not
+evidence — do not cite it for a factual claim."* ✅ **It complied: no citation of this document appears
+in that answer**, unlike ask #2. ⇒ ⭐⭐ **the enforceable form of "ignore my leans" is "do not cite my
+doc as evidence", because compliance is CHECKABLE.**
 
 ## 5. Standing of any answer to this document
 
