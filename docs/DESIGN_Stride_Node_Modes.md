@@ -125,6 +125,25 @@ none of the totals below is a proof of completeness — each was corroborated wi
 | **R-S16** | 🔒 *"window is not optional, sames as in stride editor."* | ⛔⛔ **§7.2's *"optional, off by default … one flag, same shape as `STRIDE_EDITOR_WINDOW`"* is SUPERSEDED.** ⭐ The companion window ships as a **first-class part of mode 2**, not an opt-in extra. ⭐⭐ **And it is SAFE**, which is why the original caveat can go: 📐 measured — mode 2 sets `Headless = false` *(`StrideNodeShell.cs:186`)* and `game.Run()` always opens a Stride window *(`HrotStrideAppApp.cs:32`)* ⇒ **there is no headless mode 2**, so §7.2's *"headless/CI must be unaffected"* has nothing to protect here |
 | **R-S17** | 🔒 *"point 1: widen"* — in answer to *"widen `CE-213` from 'rename' to 'rename + decouple', or file it separately?"* | ⭐⭐⭐ **`CE-213` WIDENS.** ⛔ §7.2's claim that the renamed host *"is a generic raylib-window host"* was **aspirational, not as-built** — 📐 measured: `StrideInspectorWindow` takes an `EditorStrideSubsystem` *(`:455`, `:503`)*, so a rename alone leaves mode 2 unable to construct it. ⭐ The decoupling is **small and bounded**: **7 references, 3 members** — `HostedEditor` ×3, `ToastMessage`, `ToastSecondsRemaining` — and **two of the three are already null-guarded** *(`:594` `if (_subsystem.HostedEditor != null)`, `:707` `editor?.DrawUI()`)*, because they ARE mode 1's panel fill. ⇒ `CE-213` becomes *"delete the dead view-model · rename · decouple to a small optional host contract"* |
 
+| **R-S18** | 🔒 *"s6 sizing — the more unified, the better"* | ⭐⭐⭐ **MODE 2 REUSES `SimHostVisualization`, it does not build a parallel handful.** ⚠⚠ **This CORRECTS my own earlier caution** that reusing it *"drags in more than the three objects"* — 📐 measured, and under `R-S15` **most of what it 'drags in' IS the deliverable**: `MapCanvas`, `SelectionInteractionSystem`, `GlobalGizmoManager`, `DebugGizmoLayer`, `MapPickServiceBridge`, `CenterCameraOnEntity` — i.e. **entities, gizmos and the context menu**, exactly what `R-S15` demands. ⇒ ⭐ the "extra" was the requirement |
+| **R-S19** | 🔒 *"two decisions — agreed with your lean"* | ✅ **① `--debug-port` is NOT added** — mode 2 reads **`HROT_DEBUG_API_PORT`**, the env var every other host already uses; it is per-PROCESS, so it solves the several-nodes-one-machine problem §7.2b item 1 was raised for. ⛔ **§7.2b item 1 is amended, not outstanding.** ✅ **② `IProvidesDebugSurface` IS implemented** — `StrideNodeShell` now declares it *(built + verified `2026-09-09`: 98 endpoints, perspective `SimHost`, node world readable)*, so mode 2 is the **sixth IMPLEMENTOR**, not merely the sixth provider, and is visible to `Program.cs:388`'s `.OfType<>()` sweep the day `ClusterRunner` ever composes it |
+
+#### ⭐⭐ `R-S18` — the sizing, MEASURED, so `S6` is not a surprise
+
+📐 **`SimHostVisualization.Initialize` takes 7 required inputs. Mode 2 can satisfy EVERY ONE — there is no blocker:**
+
+| input | on a mode-2 node |
+|---|---|
+| `EntityRepository` · `ModuleHostKernel` | ✅ `Context.World` / `Context.Kernel` |
+| `TrajectoryPoolManager` | ✅ `MuscleSet.StrideKinematics.TrajectoryPool` — the node already owns exactly one *(`StrideCapabilities` §4.1b: the pool is handed to both consumers, which is why `Needs` is empty)* |
+| `FormationTemplateManager` | ✅ `StrideKinematicsModule` already creates one *(`:96`, `formationTemplates ?? new FormationTemplateManager()`)* |
+| `ISimHostMissionSender` | ✅ from the network factory *(`NedNetworkFactory:124`; a `NullSimHostMissionSender` exists for the participant-less case)* |
+| `IDiagnosticEventHistoryService` | ⭐ needed anyway — it is what `EventBrowserPanel` reads |
+| ⚠ `RoadNetworkBlob` | ⭐⭐ **`SimHostApp.LoadRoadNetwork(null)` returns `new RoadNetworkBlob()`** *(`:942-943`)* — **an empty blob is a SUPPORTED path in shared code**, so mode 2 passes no path rather than inventing an alternative |
+
+⇒ ⭐⭐ **The unification direction and `R-S15` agree**: the objects `SimHostVisualization` builds beyond the three panels are precisely the working map. ⛔ **Building a parallel handful would have produced a map without gizmos or a context menu** — the thing `R-S15` rules out.
+
+
 
 ---
 

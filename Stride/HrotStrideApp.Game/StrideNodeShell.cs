@@ -69,7 +69,7 @@ namespace HrotStrideApp;
 /// <para>⛔ <b>NOT built here:</b> the VIEW bracket (<c>StrideViewBracket</c> — animation, gizmos,
 /// selection). A mode-2 node simulates without it; it is what a 3-D operator view would need.</para>
 /// </summary>
-public sealed class StrideNodeShell : IDisposable
+public sealed class StrideNodeShell : IDisposable, Hrot.Presentation.DebugApi.IProvidesDebugSurface
 {
     private static readonly NLog.Logger Log = NLog.LogManager.GetCurrentClassLogger();
 
@@ -443,6 +443,42 @@ public sealed class StrideNodeShell : IDisposable
     }
 
     /// <summary>
+    /// ⭐⭐⭐ <c>CE-214</c> item ② — <b>mode 2 is the SIXTH <c>IProvidesDebugSurface</c> IMPLEMENTOR</b>,
+    /// not merely the sixth provider. 🔒 Approved by the user <c>2026-09-09</c>.
+    /// </summary>
+    /// <remarks>
+    /// ⚠ <c>CE-245</c> shipped this provider CONSTRUCTED INLINE. That worked — mode 2 hosts its own
+    /// <c>DebugApiHost</c> and needs no aggregation — ⛔ but it left the node invisible to
+    /// <c>ClusterRunner</c>'s <c>Program.cs:388</c> <c>.OfType&lt;IProvidesDebugSurface&gt;()</c> sweep,
+    /// which is harmless for exactly as long as <c>ClusterRunner</c> never composes mode 2. ⭐ The
+    /// interface is one method; implementing it now costs nothing and removes a trap later.
+    ///
+    /// <para>⭐ Returning <see langword="null"/> before <see cref="Boot"/> is the interface's OWN
+    /// documented contract — <i>"nothing to contribute in this configuration"</i> — so a caller that
+    /// asks too early gets the defined answer rather than an exception.</para>
+    ///
+    /// <para>⚠ <b>"SimHost" for the name AND the perspective</b>, and it is the same <c>CE-242</c>
+    /// reasoning as the heartbeat: the perspective is what ROUTES a request to a node's surface, and
+    /// mode 2 IS the cluster's SimHost-role node. A tool that can talk to a SimHost perspective talks
+    /// to this one unchanged — the whole point of "a node replacing SimHost".</para>
+    /// </remarks>
+    public Hrot.Presentation.DebugApi.ISubsystemDebugProvider? CreateDebugProvider()
+    {
+        if (Context == null) return null;
+        HrotNodeContext ctx = Context;
+
+        return new Hrot.Presentation.DebugApi.SubsystemDebugProvider(
+            subsystemName: "SimHost",
+            perspective:   "SimHost",
+            world:         () => ctx.World,
+            entityMap:     () => ctx.EntityMap,
+            tkbDb:         () => ctx.TkbDb,
+            clusterState:  Hrot.Presentation.DebugApi.SubsystemDebugProvider
+                               .ClusterStateFrom(() => ctx.ClusterSlave),
+            architecture:  () => new Fdp.ModuleHost.Diagnostics.ArchitectureDiagnosticsService(() => ctx.Kernel));
+    }
+
+    /// <summary>
     /// ⭐⭐⭐ <b><c>CE-245</c> — the mode-2 node's own debug/MCP surface.</b> 📄 Owning design:
     /// <c>DESIGN_Stride_Node_Modes.md</c> §7.2b and slice <c>S6</c> (<c>CE-214</c>), which requires the
     /// day-1 operator surface to land WITH <c>S4</c> rather than after it (<c>R-S14</c>).
@@ -485,24 +521,11 @@ public sealed class StrideNodeShell : IDisposable
         //   same, and for the same reason).
         Fdp.Diagnostics.Contracts.Panels.PanelSnapshot.CaptureEnabled = true;
 
-        HrotNodeContext ctx = Context;
-
-        var provider = new Hrot.Presentation.DebugApi.SubsystemDebugProvider(
-            subsystemName: "SimHost",
-            // ⚠ "SimHost" for BOTH, and it is the same CE-242 reasoning as the heartbeat name: the
-            //   perspective is what routes a request to a node's surface, and mode 2 IS the cluster's
-            //   SimHost-role node. A tool that knows how to talk to a SimHost perspective talks to this
-            //   one unchanged, which is the whole point of "a node replacing SimHost".
-            perspective:   "SimHost",
-            world:         () => ctx.World,
-            entityMap:     () => ctx.EntityMap,
-            tkbDb:         () => ctx.TkbDb,
-            clusterState:  Hrot.Presentation.DebugApi.SubsystemDebugProvider
-                               .ClusterStateFrom(() => ctx.ClusterSlave),
-            architecture:  () => new Fdp.ModuleHost.Diagnostics.ArchitectureDiagnosticsService(() => ctx.Kernel));
+        var provider = CreateDebugProvider();
+        if (provider == null) return;
 
         var dispatcher = new Hrot.Presentation.DebugApi.PerspectiveScopedDispatcher(
-            new[] { (Hrot.Presentation.DebugApi.ISubsystemDebugProvider)provider },
+            new[] { provider },
             currentPerspective: () => "SimHost",
             // ⛔ null, not false: there is no MasterSyncController on this node, and GET /capabilities
             //   must report "no master here" rather than "the master is idle".
@@ -523,7 +546,7 @@ public sealed class StrideNodeShell : IDisposable
         _debugApiHost.Start();
 
         Log.Info("[StrideNodeShell] CE-245: debug API listening on {0} (perspective SimHost, node {1}).",
-                 p, ctx.NodeId);
+                 p, Context.NodeId);
     }
 
     public void Dispose()
