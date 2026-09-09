@@ -1253,7 +1253,10 @@ public sealed class CgfSubsystem : ISubsystem, Fdp.Toolkit.Runner.IMapCameraProv
                 // ⭐⭐ The inspector follow-through CGF's own "Select entity" item used to do inline. ⛔ It
                 //    is a host panel concern, so it stays a hook rather than being pushed into the shared
                 //    assembly — see SelectEntitySystem's `alsoSelect` remarks.
-                AlsoSelect:   entity => _fdpInspectorState.SelectedEntity = entity)));
+                AlsoSelect:   entity => _fdpInspectorState.SelectedEntity = entity,
+                // 🔒 UXI-07 step 3b — the host's ONE tool arbiter, built by MapInteractionPack alongside
+                //    the two focus arbiters it reconciles. ⛔ Resolver for the same reason as the rest.
+                Tools:        () => cgfMapInteraction.Tools)));
 
         // ── Universal breakpoints (UBP-P10T2) ────────────────────────────────────
         // ⭐⭐⭐ cgf==editor SLICE 4 (DQ30) — the no-op time adapter is RETIRED.

@@ -11,6 +11,7 @@ using Hrot.IG.Components;
 using Hrot.Common.Events;
 using Hrot.ScenarioEditor;
 using Hrot.ScenarioEditor.Systems;
+using Hrot.ScenarioEditor.Tools;
 using Xunit;
 
 namespace Hrot.Editor.Tests;
@@ -24,6 +25,10 @@ namespace Hrot.Editor.Tests;
 /// shared primitives and referenced nothing new, which is exactly how the editor's drain and CGF's context
 /// menu drifted apart for months *(the same reason E2's create-core rail is a source scan)*.</para>
 /// </summary>
+// 🔒 SERIALIZED: this class flips the process-global FdpConfig.EnforceExplicitEventRegistration (§⑤).
+//    ⛔ Without this, that flip leaks into any class publishing a managed event in parallel — measured
+//    2026-09-09 against JsonEntityContextMenuHandlerTests. See the collection's own remarks.
+[Collection(Hrot.Editor.Tests.Windows.PanelSnapshotTestCollection.Name)]
 public sealed class TheViewportInteractionIsSharedTests
 {
     // ══ ① THE DE-DUP GUARDS — §6's requirement, made checkable ══════════════
@@ -212,17 +217,16 @@ public sealed class TheViewportInteractionIsSharedTests
     {
         var (world, _, _) = WorldWithEntity();
         var reports = new List<string>();
-        var system = new ToolActivationDrainSystem(
-            selection:           () => new DefaultSelectionState(),
-            gizmos:              () => NewGizmoSystem(),
-            globalGizmos:        null,
-            startPlacementMode:  null,
-            reportUnserviceable: reports.Add);
+        // ⭐ UXI-07 step 3b — the reporting lives in the SHARED registration now, so the rail drives it
+        //   there rather than through the drain. ⛔ A host with neither a spawn adapter nor a global gizmo
+        //   manager still REGISTERS both tools (no per-subsystem whitelist) and says why they do nothing.
+        var tools = new ToolController(() => null, () => NewGizmoSystem(), reports.Add);
+        ScenarioToolRegistrations.RegisterAll(
+            tools, world: () => world, gizmos: () => NewGizmoSystem(),
+            globalGizmos: null, startPlacementMode: null, reportUnserviceable: reports.Add);
 
-        world.Bus.Publish(new ActivateEditorToolEvent(EditorTool.Spawn));
-        world.Bus.Publish(new ActivateEditorToolEvent(EditorTool.Measure));
-        world.Bus.SwapBuffers();
-        system.Execute(world, 0f);
+        tools.Activate(ScenarioToolIds.Spawn);
+        tools.Activate(ScenarioToolIds.Measure);
 
         Assert.Equal(2, reports.Count);
         Assert.Contains(reports, r => r.Contains("Spawn") && r.Contains("spawn adapter"));
@@ -239,17 +243,13 @@ public sealed class TheViewportInteractionIsSharedTests
         var (world, _, _) = WorldWithEntity();
         var reports = new List<string>();
         bool placed = false;
-        var system = new ToolActivationDrainSystem(
-            selection:           () => new DefaultSelectionState(),
-            gizmos:              () => NewGizmoSystem(),
-            globalGizmos:        null,
-            startPlacementMode:  () => placed = true,
-            reportUnserviceable: reports.Add);
+        var tools = new ToolController(() => null, () => NewGizmoSystem(), reports.Add);
+        ScenarioToolRegistrations.RegisterAll(
+            tools, world: () => world, gizmos: () => NewGizmoSystem(),
+            globalGizmos: null, startPlacementMode: () => placed = true, reportUnserviceable: reports.Add);
 
-        world.Bus.Publish(new ActivateEditorToolEvent(EditorTool.Spawn));
-        world.Bus.Publish(new ActivateEditorToolEvent(EditorTool.Select));
-        world.Bus.SwapBuffers();
-        system.Execute(world, 0f);
+        tools.Activate(ScenarioToolIds.Spawn);
+        tools.Activate(ScenarioToolIds.Select);
 
         Assert.True(placed);
         Assert.Empty(reports);
@@ -266,7 +266,8 @@ public sealed class TheViewportInteractionIsSharedTests
     public void ANotYetBuiltViewportIsToleratedRatherThanThrowing()
     {
         var (world, _, _) = WorldWithEntity();
-        var system = new ToolActivationDrainSystem(selection: () => null, gizmos: () => null);
+        var system = new ToolActivationDrainSystem(
+            selection: () => null, gizmos: () => null, tools: () => null);
 
         world.Bus.Publish(new ActivateEditorToolEvent(EditorTool.Rotate));
         world.Bus.SwapBuffers();
@@ -306,9 +307,13 @@ public sealed class TheViewportInteractionIsSharedTests
 
         var selection = new DefaultSelectionState { PrimarySelected = entity };
         var gizmos    = NewGizmoSystem();                       // ⚠ ONE instance — a per-call factory
-        var system    = new ToolActivationDrainSystem(          //   would hide the whole effect.
+        var tools     = new ToolController(() => null, () => gizmos);
+        ScenarioToolRegistrations.RegisterAll(                   //   would hide the whole effect.
+            tools, world: () => world, gizmos: () => gizmos);
+        var system    = new ToolActivationDrainSystem(
             selection: () => selection,
-            gizmos:    () => gizmos);
+            gizmos:    () => gizmos,
+            tools:     () => tools);
 
         Publish(world, EditorTool.Edit);
         system.Execute(world, 0f);
@@ -354,16 +359,123 @@ public sealed class TheViewportInteractionIsSharedTests
         Assert.Equal(1, global.ActiveCount);                     // the adapter shape holds the arbiter …
 
         var selection = new DefaultSelectionState { PrimarySelected = entity };
+        var tools     = new ToolController(() => global, () => gizmos);
+        ScenarioToolRegistrations.RegisterAll(
+            tools, world: () => world, gizmos: () => gizmos, globalGizmos: () => global);
         var system    = new ToolActivationDrainSystem(
-            selection:    () => selection,
-            gizmos:       () => gizmos,
-            globalGizmos: () => global);
+            selection: () => selection,
+            gizmos:    () => gizmos,
+            tools:     () => tools);
 
         Publish(world, EditorTool.Rotate);
         system.Execute(world, 0f);
 
         Assert.True(gizmos.HasInjectedGizmo(entity));             // the tool armed …
         Assert.Equal(0, global.ActiveCount);                      // 🔴 … and the other arbiter LET GO
+    }
+
+    /// <summary>
+    /// ⭐⭐⭐ <b><c>UXI-07</c> step 3b — EVERY host that builds the pack gets an arbiter WITH THE FULL TOOL
+    /// SET.</b> This is the rail for the placement fix, and it is a <c>Build</c>-level claim on purpose.
+    ///
+    /// <para>📐 <b>What it prevents, measured <c>2026-09-09</c>:</b> the controller was first built inside
+    /// <c>ToolActivationDrainSystem</c>. <c>MapInteractionPack.Build</c> is called by <b>FIVE</b> hosts
+    /// (IG, CGF, ReplayBrowser, SimHost, Editor) and only <b>TWO</b> compose that drain ⇒ three hosts had
+    /// no arbiter at all and hand-rolled the same gizmos inline.</para>
+    ///
+    /// <para>🔒 <b>And the FULL set, not a subset</b> — user, <c>2026-08-10</c>: <i>"all map subsystems
+    /// share the full tool set; differences are data availability or host rules, never set
+    /// membership."</i> ⇒ this host passes no spawn adapter, and <c>Spawn</c> is registered anyway.</para>
+    /// </summary>
+    [Fact]
+    public void ThePackGivesEveryHostAnArbiterCarryingTheWholeToolSet()
+    {
+        var (world, _, _) = WorldWithEntity();
+
+        var map = Hrot.ScenarioEditor.Map.MapInteractionPack.Build(
+            new Hrot.ScenarioEditor.Map.MapInteractionContext { World = world });
+
+        Assert.NotNull(map.Tools);
+
+        // ⛔ Named as LITERALS, not reflected off ScenarioToolIds: a rail that derived its expectations
+        //    from the code under test would follow that code wherever it went.
+        foreach (var id in new[] { "scenario.select", "scenario.spawn", "scenario.edit",
+                                   "scenario.route", "scenario.measure", "scenario.rotate" })
+            Assert.True(map.Tools.IsRegistered(id),
+                $"tool '{id}' is not registered on a freshly-built pack — every map subsystem gets the "
+              + "FULL set (user ruling, 2026-08-10: never set membership).");
+    }
+
+    /// <summary>
+    /// ⭐⭐ <b>The arbiter is PER MAP SUBSYSTEM</b> — 🔒 <c>Q27-B</c> answered <b>B1</b>, whose worked
+    /// example is SimHost holding <c>Measure</c> while the user switches to CGF and back. ⇒ two packs must
+    /// not share one controller, or a perspective switch would cancel the other subsystem's tool.
+    /// </summary>
+    [Fact]
+    public void TwoMapSubsystemsGetTwoIndependentArbiters()
+    {
+        var (worldA, _, _) = WorldWithEntity();
+        var (worldB, _, _) = WorldWithEntity();
+
+        var a = Hrot.ScenarioEditor.Map.MapInteractionPack.Build(
+            new Hrot.ScenarioEditor.Map.MapInteractionContext { World = worldA });
+        var b = Hrot.ScenarioEditor.Map.MapInteractionPack.Build(
+            new Hrot.ScenarioEditor.Map.MapInteractionContext { World = worldB });
+
+        Assert.NotSame(a.Tools, b.Tools);
+    }
+
+    /// <summary>
+    /// ⭐⭐⭐ <b>THE FORWARDING RAIL — every production root that builds a pack must PASS its arbiter on.</b>
+    ///
+    /// <para>🔒 <b>The control for the silent-default pattern</b>, which this programme has now found ten
+    /// times: <i>"a production caller that HAS the dependency must PASS it."</i> ⛔ <c>InteractionDeps.Tools</c>
+    /// is optional so a headless or partial host still constructs, which is exactly the shape that lets a
+    /// root forget it — and a forgotten arbiter means every tool press on that host is dropped.</para>
+    ///
+    /// <para>⚠ A SOURCE SCAN, because the failure is an OMISSION in one composition root: no behavioural
+    /// test can see a host that simply never passed the argument, and a reference count cannot either.</para>
+    /// </summary>
+    [Theory]
+    [InlineData("Hrot.CGF", "CgfSubsystem.cs")]
+    [InlineData("Hrot.Editor", "EditorSubsystem.cs")]
+    public void EveryRootThatBuildsAPackForwardsItsToolArbiter(string project, string file)
+    {
+        var src = ReadHostSource(project, file);
+
+        Assert.Contains("InteractionDeps(", src);
+        Assert.True(
+            new System.Text.RegularExpressions.Regex(@"Tools:\s*\(\)\s*=>").IsMatch(src),
+            $"{file} builds a MapInteraction and registers ScenarioEditorModule but never passes "
+          + "InteractionDeps.Tools. The drain would then drop every tool activation on this host. "
+          + "Pass the pack's MapInteraction.Tools (UXI-07 step 3b).");
+    }
+
+    /// <summary>
+    /// ⭐⭐ <b>ONE RULE for activating a tool, and no host may invent a third idiom.</b>
+    /// 📄 <c>UX_Feature_Tool_Model.md</c> §4.7d — TARGETED activation calls <c>Tools.Activate(id, target)</c>;
+    /// TARGET-LESS activation publishes <see cref="ActivateEditorToolEvent"/> and the drain supplies the
+    /// selection.
+    ///
+    /// <para>🔴 <b>The mistake this pins, made and corrected on <c>2026-09-09</c>:</b> step 3 routed the
+    /// editor's three entity context-menu actions through the EVENT, which meant writing
+    /// <c>PrimarySelected</c> first purely to smuggle the target to the drain — ⛔ a side effect the
+    /// original handlers never had, and a third idiom next to SimHost's and IG's direct calls.</para>
+    /// </summary>
+    [Fact]
+    public void TheEditorsEntityActionsActivateDirectlyRatherThanReSelecting()
+    {
+        var src = ReadHostSource("Hrot.Editor", "EditorSubsystem.cs");
+
+        // The three entity-targeted actions go through one direct-activation helper …
+        Assert.Contains("void ActivateToolOnEntity(string toolId, Entity target)", src);
+        Assert.Contains("_editorToolController?.Activate(toolId, target)", src);
+
+        // … and that helper does NOT write the selection to carry the target.
+        var helper = src.Substring(src.IndexOf("void ActivateToolOnEntity(string toolId, Entity target)",
+                                               StringComparison.Ordinal));
+        helper = helper.Substring(0, helper.IndexOf("}", StringComparison.Ordinal));
+        Assert.DoesNotContain("PrimarySelected", helper);
     }
 
     private static void Publish(EntityRepository world, EditorTool tool)

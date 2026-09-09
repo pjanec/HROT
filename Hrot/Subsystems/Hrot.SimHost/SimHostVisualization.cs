@@ -90,6 +90,9 @@ namespace Hrot.SimHost
         // ── Gizmo debug overlay (GZ032) ───────────────────────────────────────
         private DebugPrimitiveBuffer? _gizmoBuffer;        // On-demand gizmo activation (EntityRotatorGizmo, etc.).
         private Fdp.Toolkit.Diagnostics.Gizmos.Systems.DataDrivenGizmoSystem? _gizmoSystem;
+
+        /// <summary>⭐ <c>UXI-07</c> — the host's ONE tool arbiter; see the <c>Initialize</c> parameter.</summary>
+        private Hrot.ScenarioEditor.Tools.ToolController? _toolController;
         private Fdp.Toolkit.Diagnostics.Gizmos.Systems.GlobalGizmoManager? _globalGizmoManager;
         private DebugGizmoLayer? _gizmoLayer;
         private Fdp.Core.FdpEventBus? _interactionBus;
@@ -152,13 +155,19 @@ namespace Hrot.SimHost
             // ⭐⭐⭐ CE-254 — THE HOST'S OWN, KERNEL-SCHEDULED manager. See the assignment below for why
             //   constructing one here was wrong. Optional so the fallback keeps every existing caller
             //   compiling; ⛔ but a host that HAS one must pass it.
-            Fdp.Toolkit.Diagnostics.Gizmos.Systems.GlobalGizmoManager? globalGizmoManager = null)
+            Fdp.Toolkit.Diagnostics.Gizmos.Systems.GlobalGizmoManager? globalGizmoManager = null,
+            // ⭐⭐⭐ UXI-07 step 3b — the host's ONE tool arbiter (MapInteraction.Tools), so this panel's
+            //   context menu ACTIVATES the shared tool instead of hand-rolling it. Same contract as
+            //   globalGizmoManager above: optional to keep callers compiling, ⛔ but a host that HAS one
+            //   must pass it (the silent-default rule).
+            Hrot.ScenarioEditor.Tools.ToolController? toolController = null)
         {
             _repo                 = repo         ?? throw new ArgumentNullException(nameof(repo));
             _kernel               = kernel        ?? throw new ArgumentNullException(nameof(kernel));
             _missionSender        = missionSender ?? throw new ArgumentNullException(nameof(missionSender));
             _worldPosDescriptorId = worldPosDescriptorId;
             _gizmoSystem          = gizmoSystem;
+            _toolController       = toolController;
 
             // ── Selection & inspector ─────────────────────────────────────────
             _selection = new SimHostSelectionManager();
@@ -220,17 +229,27 @@ namespace Hrot.SimHost
                 //    the honest state, not the desired one — supplying a real DataDrivenGizmoSystem
                 //    there needs a populated GizmoRegistry on the node, which is composition work with
                 //    its own blast radius. Tracked as CE-254 rather than faked here.
+                // ⭐⭐⭐ UXI-07 step 3b — ACTIVATE the shared Rotate tool; do not rebuild it.
+                // 🔴 This body was a verbatim copy of the shared arm (deactivate, EntityRotatorGizmo,
+                //    EntityWriteRouter) — one of FIVE `D′` instances measured 2026-09-09. ⇒ deleted.
+                // ⭐ Going through the controller also makes the tool MODAL here for the first time: it
+                //    cancels whatever held focus in the OTHER arbiter, which a direct ActivateGizmo cannot.
+                // ⚠ The offer is still gated on the CAPABILITY as well as the component (ruling 49) — the
+                //    mode-2 node has no gizmo system, and offering a command it cannot run is the defect
+                //    CE-254 recorded. ⛔ Gating on _toolController too would HIDE the item where the
+                //    arbiter was simply not passed; that is a wiring bug and must report, not vanish.
                 if (_repo!.HasComponent<SimTransform>(entity) && _gizmoSystem != null)
                     builder.AddItem("Rotate entity", () =>
                     {
                         if (_map == null) return;
-                        // Inject EntityRotatorGizmo directly via the gizmo system.
-                        _gizmoSystem!.DeactivateGizmo(entity);
-                        var gizmo = new Hrot.ScenarioEditor.Gizmos.EntityRotatorGizmo(
-                            _repo!, entity,
-                            onRemove: () => _gizmoSystem!.DeactivateGizmo(entity),
-                            writer: Fdp.Toolkit.Replication.Attributes.EntityWriteRouter.For(_repo!));
-                        _gizmoSystem!.ActivateGizmo(entity, gizmo);
+                        if (_toolController == null)
+                        {
+                            Fdp.Core.Logging.FdpLog<SimHostVisualization>.Info(
+                                "[Tools] 'Rotate entity' did nothing — this host wired no ToolController "
+                              + "(pass MapInteraction.Tools to SimHostVisualization.Initialize).");
+                            return;
+                        }
+                        _toolController.Activate(Hrot.ScenarioEditor.Tools.ScenarioToolIds.Rotate, entity);
                     });
             }));
 
