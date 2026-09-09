@@ -107,11 +107,42 @@ the feature's own suite** (`Fdp.Toolkits.Tests/Diagnostics/Gizmos/GizmoHeadlessT
 ⇒ **it should land there as the hazard rail of whichever slice fixes this**, phrased to go GREEN when one
 arbiter exists — ⛔ not as a rail that asserts today's duplicate delivery forever.
 
-⛔ **Still not measured, and stated as such:** what the duplicate delivery *looks like to a user* on a real
-cluster — which of the two tools appears to win, and whether the raw-input half (§the terminal `break`) makes
-it look like a dead tool rather than a double-acting one. 📄 `RUNBOOK_Cluster_Debugging_Over_Http.md` is how
-to try. ⚠ **That is now the one row a reader should push on** — the mechanism is proven, its *presentation*
-is not.
+### 🔴🔴🔴 AND THE RAW-INPUT HALF IS **DETERMINISTIC**, not arbitrary — **the Global side ALWAYS wins** *(probe, `2026-09-09`)*
+
+⚠⚠ **This CORRECTS the body's §"the TERMINAL half".** That section says *"whichever system runs earlier in
+the group"* captures raw input, and frames it as **arbitrary**. 📐 **Measured: it is FIXED, on every host.**
+
+📐 **The probe** *(same pack wiring, then read the `DebugPrimitiveBuffer` frame)*:
+
+| assertion | result |
+|---|:--:|
+| one frame carries **TWO** `InputCaptureBinding` primitives | ✅ confirmed |
+| the **FIRST** one — the only one the terminal reads before its `break` — is the **Global** tool's | ✅ confirmed |
+| ⭐ **reverse the ACTIVATION order** *(arm the Global tool first instead)* — outcome **unchanged** | ✅ confirmed |
+
+⇒ 🔒 **The winner is decided by the pack's fixed group order — `MapInteractionPack.cs:121-122` builds
+`("GizmoExecution", globalManager, dataDriven, stateless, selfCheck)` and `TogglablePostSimulationGroup`
+executes `_innerSystems` in order** *(`:82-83`)* ⇒ `GlobalGizmoManager` emits its binding first, **always**.
+⛔ **Not a race, and not activation-dependent: a structural, reproducible bias toward the Global arbiter on
+all five hosts.**
+
+#### ⭐⭐ THE SPLIT, STATED CONCRETELY — **which tools sit on which side**
+
+| arbiter | the tools on it | what it gets when both are armed |
+|---|---|---|
+| **`GlobalGizmoManager`** | `MeasureGizmo` · `EntityPlacementGizmo` · `PointSequenceGizmo` · `EntityPickerGizmo` · `FdpLocationPickerGizmo` · `LocationPickerGizmo` · `ObstaclePlacementGizmo` · `ModalBoxSelectionGizmo` | ⭐ **raw input AND typed events** — it feels like it works |
+| **`DataDrivenGizmoSystem`** *(entity-scoped)* | `EntityRotatorGizmo` · `VertexEditGizmo` · `RouteWaypointGizmo` | 🔴 **typed events ONLY, never the raw stream** — it still MUTATES, but its direct manipulation is dead |
+
+⇒ ⭐⭐ **The derived symptom:** arm `Rotate`/`Edit Shape`/`Edit Route` on an entity, then start `Measure`, a
+picker, or entity placement — **the picker captures the hardware, and the entity tool keeps acting on the
+typed mouse events at the same time.** ⇒ a stray rotation / vertex drag *while measuring or placing*, and an
+entity tool that feels half-dead if armed second.
+
+⛔⛔ **Stated honestly — this last paragraph is DERIVED from the two measured mechanisms, NOT observed on
+screen.** ⭐ What is measured: two focus holders · one event reaching both · two capture bindings · the
+Global one always first. ⚠ **What is NOT measured: the on-screen presentation.** 📄 Closing that needs the
+real thing — `RUNBOOK_Cluster_Debugging_Over_Http.md`, the `T3` lane — and ⭐ **it does not change the fix**,
+only how the bug is described to a user.
 
 **But two *partial* mechanisms exist**, and they are the problem as much as the starting point:
 
