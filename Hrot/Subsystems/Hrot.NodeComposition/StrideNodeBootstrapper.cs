@@ -248,6 +248,78 @@ public sealed class StrideNodeBootstrapper : SharedApplicationBootstrapper, IDis
         // set registered in SimHostComponentRegistry so cross-entity references
         // are correctly materialised on this node.
         GenesisIntentRegistry.RegisterAll(world);
+
+        // ⛔⛔⛔ CE-250 — THE COMBAT/PERCEPTION SCHEMA. This node RUNS BallisticsSystem,
+        //    DamageCalculationSystem, FireProcessingSystem and HitResolutionSystem, and until now it
+        //    registered none of the components or events they read and write.
+        //
+        // 📌 How it surfaced: adding the perception egress (CE-249) killed the process on the first
+        //    frame that carried a perception command --
+        //      InvalidOperationException: Component type 251 not registered. All components must be
+        //      registered before command buffer playback.
+        //    251 is PerceptionReceptor. Before CE-249 nothing on this node ever published a
+        //    perception command, so the missing schema was INERT rather than absent-looking: the
+        //    combat systems ran every frame over queries that could never match, and the entity's
+        //    PhysicsCollider read back null through the debug API. ⇒ the crash was CE-249 exposing
+        //    this, not CE-249 breaking anything.
+        //
+        // 📐 CombatComponentRegistry is the owning registry and it carries exactly this node's needs:
+        //    PerceptionReceptor, TargetMemory, SensorContactList, WeaponState, BallisticProjectile,
+        //    PhysicsCollider, plus the events the chain runs on -- LosCheckRequestEvent,
+        //    TargetVisibleEvent, SensorTrackStateEvent, WeaponFireIntent, HitEvent,
+        //    DamageAssessedEvent, FireRequestEvent. SimHost reaches it through
+        //    SimHostComponentRegistry.RegisterAll (:46); this bootstrapper's hand-picked subset never
+        //    did.
+        //
+        // ⭐ Node-wide schema, so it belongs HERE beside MuscleRoleComponentRegistry rather than in a
+        //    capability: the combat systems come from the muscle pack and the perception egress from
+        //    the network translators, and both need the same tables. (Contrast CE-243, where the EQS
+        //    schema went into the capability that registers EqsModule because only that capability
+        //    needs it.)
+        //
+        // ⚠ Still deliberately EXCLUDED, unchanged: CognitiveComponentRegistry. Brain AI data stays on
+        //    CGF -- see the note above and DESIGN_Role_Affinity_Ownership.md's opening ruling, "SimHost
+        //    having a muscle role should not instantiate any brain related components".
+        CombatComponentRegistry.RegisterAll(world);
+
+        // ⛔⛔ CE-250b — THE REST OF SIMHOST'S SCHEMA, MINUS THE BRAIN TABLES.
+        //
+        // 📌 Registering CombatComponentRegistry alone moved the crash rather than fixing it: the next
+        //    frame died on "Event type 2030 not registered" (RaycastRequestEvent), which
+        //    LosRequestBatchingSystem publishes and RaycastSolverSystem consumes -- both already
+        //    running here. Fixing these ONE AT A TIME is how a night gets spent, so the set below is
+        //    taken from SimHostComponentRegistry.RegisterAll (:40-79) in ITS order.
+        //
+        // 📐 Each line is here because this node ALREADY RUNS the system that needs it -- verified
+        //    against its own /diagnostics/architecture:
+        //      MissionComponentRegistry     FormationTargetSystem, VehicleCommandSystem
+        //      RouteComponentRegistry       RouteTrajectorySyncSystem, PersonalRouteAuthoringSystem
+        //      HierarchyComponentRegistry   UnitHierarchySystem
+        //      Raycast{Request,Result}Event RaycastSolverSystem + the LOS chain (this is 2030)
+        //      MapPresentationRegistry      the shared map/gizmo component set the other three
+        //                                   windowed hosts register
+        //    ⇒ the node was running systems whose schema nobody had declared. Harmless while nothing
+        //    published to them, fatal the moment CE-249 let perception actually flow.
+        //
+        // ⛔⛔ STILL EXCLUDED, AND DELIBERATELY: CognitiveComponentRegistry -- BehaviorState,
+        //    LocomotionChannel, BrainBTreeState, BrainBlackboard. This node has no brain systems
+        //    (no BTreeTickSystem, no TacticalIntentResolutionSystem -- both are CGF's), and
+        //    DESIGN_Role_Affinity_Ownership.md opens on the user's ruling that "SimHost having a
+        //    muscle role should not instantiate any brain related components. If it does, this is a
+        //    mistake." SimHost registers them today and that design calls it debt; ⇒ copying SimHost
+        //    wholesale here would import the debt on purpose. TkbTemplate.ApplyTo() silently skips
+        //    missing components, so spawning stays correct without them -- the reason the original
+        //    exclusion note above gives, still true.
+        MissionComponentRegistry.RegisterAll(world);
+        Hrot.Presentation.Map.MapPresentationRegistry.RegisterAll(world);
+        RouteComponentRegistry.RegisterAll(world);
+        HierarchyComponentRegistry.RegisterAll(world);
+
+        world.RegisterEvent<Fdp.Toolkit.Physics.RaycastRequestEvent>();
+        world.RegisterEvent<Fdp.Toolkit.Physics.RaycastResultEvent>();
+        world.RegisterEvent<Hrot.Common.Events.MissionControlAckEvent>();
+        world.RegisterEvent<Hrot.Common.Events.GlobalActionRequestedEvent>();
+        world.RegisterEvent<Fdp.Toolkit.Diagnostics.Gizmos.Events.GizmoComponentActivatedEvent>();
     }
 
     /// <inheritdoc/>
@@ -434,5 +506,63 @@ public sealed class StrideNodeBootstrapper : SharedApplicationBootstrapper, IDis
         if (configuredFactory == null) return;
         // SimHost auxiliary translators: entity attribute updates, combat egress, etc.
         configuredFactory.CreateSimHostAuxiliaryTranslators().RegisterOn(context.Kernel);
+
+        // ⛔⛔⛔ CE-249 — THE PERCEPTION EGRESS. Without it this node SEES targets and never TELLS
+        //    anyone, so the brain has nothing to shoot at.
+        //
+        // 📌 Measured 2026-09-09 on the two runs side by side, same scenario, same CGF:
+        //      CGF + SimHost  1001 reaches (524,401) at t=11; both hostiles hp 50->25 at t=21;
+        //                     1007 dead t=35, 1006 dead t=42.
+        //      CGF + Stride   1001 reaches (522,401) at t=11 -- MOVEMENT AT PARITY -- and both
+        //                     hostiles stay at hp=50 indefinitely (observed to t=475).
+        //    On CGF, entity 1001's TargetMemory.Entries is EMPTY for the whole Stride run while
+        //    WeaponState.Ammo sits at 42: the brain is armed, in position, and has no target.
+        //
+        // 📐 The perception TIER is not the problem and measuring it is what found this. The node's
+        //    own /diagnostics/architecture reports CognitiveSpatialModule -- which owns
+        //    LocalGridBuilderSystem, AreaQuerySolverSystem, VisionBroadphaseSystem,
+        //    LosRequestBatchingSystem and SensorTrackDebounceSystem -- as
+        //    "lifecycleState: Ready, executionCount: 741, failureCount: 0". It runs, it sees, and it
+        //    publishes SensorTrackStateEvent onto this node's OWN bus. What was missing is the hop
+        //    off the node: SensorTrackStateEgressTranslator (SimPerceptionTranslatorPack) writes the
+        //    DDS SensorTrackState sample that CGF's SensorTrackStateIngressTranslator turns back into
+        //    a SensorTrackStateEvent for ActiveSensorTracksUpdateSystem -> CgfThreatEvaluationSystem
+        //    -> TargetMemory -> WeaponDispatcherSystem.
+        //
+        // ⚠ An earlier reading of the same dump concluded those five systems were ABSENT here because
+        //    they appear in SimHost's system enumeration and not in this node's. That was WRONG -- they
+        //    are RegisterManualSystem systems driven by the module's own Tick, so they are enumerated
+        //    differently, and executionCount 741 settles it. Recorded because the wrong reading is the
+        //    tempting one and would have sent the next session to rebuild a tier that already works.
+        //
+        // ⭐ SimHostNodeBootstrapper registers THREE packs here; this node registered one. The
+        //    pack is role-gated inside the factory (NedSimHostPerceptionTranslators requires
+        //    NodeRole.Perception), which mode 2 has -- StrideCapabilities.DefaultRole is
+        //    MuscleGround | Perception -- so the gate was already satisfied and only the call was
+        //    absent.
+        //
+        // ⛔ NOT added: CreateSimHostPathfindingTranslators, SimHost's third pack. It needs
+        //    CoreLogicPack.TrajectoryPool, and mode 2 deliberately does not claim
+        //    NodeRole.NavigationSolver -- DESIGN_Stride_Node_Modes.md §4.1b: "navigation is provided
+        //    by the MuscleGround capability and the flag is not claimed". Leaving it out is that
+        //    design decision, not an oversight; if off-node pathfinding is ever wanted here, §4.1b is
+        //    the thing to revisit first.
+        if (context.GhostCreationSystem != null)
+        {
+            configuredFactory
+                .CreateSimHostPerceptionTranslators(context.GhostCreationSystem)
+                .RegisterOn(context.Kernel);
+        }
+        else
+        {
+            // ⛔ Loud, not silent: NedSimHostPerceptionTranslators THROWS on a null ghost-creation
+            //    system, and a node that quietly skipped its perception egress is exactly the class of
+            //    defect this whole sequence was made of.
+            FdpLog<StrideNodeBootstrapper>.Warn(
+                "[StrideNodeBootstrapper] CE-249: GhostCreationSystem is null, so the perception " +
+                "egress translators were NOT registered. This node will see targets and never report " +
+                "them, and the brain will never fire. Expected only on a headless/offline node with " +
+                "no replication module.");
+        }
     }
 }
