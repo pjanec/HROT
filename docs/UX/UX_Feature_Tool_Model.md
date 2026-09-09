@@ -703,6 +703,20 @@ this slice**. ⇒ the rails now simulate that bypass, and the re-run red-proof i
 | `ExactlyOneInputCaptureBindingPerFrame` | ✅ | 🔴 |
 | the other four *(modeless survival, reporting, toggle, `PushModal` refusal)* | ✅ | ✅ *(correctly unaffected)* |
 
+#### ⚠⚠ SECOND CORRECTION — **`ToolActivation` returns THREE outcomes, not a `bool`** *(same day, driven by reading the drain)*
+
+📐 **Measured in `ToolActivationDrainSystem`:** its `Edit`/`Route` arms **toggle** — `ToggleEntityGizmo:176`
+calls `DeactivateGizmo` and returns when a gizmo is already injected on that entity. ⇒ ⛔ a `bool` cannot
+express it: **`false` would make the controller cry *unserviceable* and mislead the operator; `true` would
+leave a dismissed tool on the modal stack.** ⭐ Hence
+`ToolActivationOutcome { Armed, Dismissed, Unserviceable }`.
+
+⛔⛔ **And the toggle is PER-ENTITY, not per-descriptor** — pressing `Edit` on entity A then entity B must
+MOVE to B, not toggle off. ⚠ `ToolDescriptor.ToggleOnReactivate` is the coarser *same-tool-twice* rule and
+the drain's arms deliberately do **not** use it; the per-entity decision stays inside the activation, which
+is the only thing holding the target. ⇒ ⭐ **routing the drain through the controller preserves its
+semantics exactly rather than approximating them.**
+
 #### 🔒 AND THIS SHARPENS `Q27-A`'s CONDITION — **`§Migration` step 4 is now an END STATE, not a precondition**
 
 ⚠⚠ **`§A1 without A3` says A1 closes the defect *iff* every modal activation routes through the

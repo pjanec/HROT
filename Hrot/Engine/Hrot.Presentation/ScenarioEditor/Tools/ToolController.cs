@@ -98,9 +98,12 @@ namespace Hrot.ScenarioEditor.Tools
             if (descriptor.Modality == ToolModality.Modeless)
             {
                 // Modeless tools coexist and toggle independently — they never touch the modal stack.
-                if (!activate(target)) return false;
-                _activeModeless.Add(descriptor);
-                return true;
+                switch (activate(target))
+                {
+                    case ToolActivationOutcome.Armed:     _activeModeless.Add(descriptor);    return true;
+                    case ToolActivationOutcome.Dismissed: _activeModeless.Remove(descriptor); return true;
+                    default:                                                                  return false;
+                }
             }
 
             // 🔒 Q27: "Re-activating the current modal tool does NOT cancel it — no-op, or re-target when a
@@ -117,16 +120,25 @@ namespace Hrot.ScenarioEditor.Tools
             CancelActiveModalWithoutNotify();
             CancelOtherArbiter(descriptor.Arbiter);
 
-            if (!activate(target))
+            switch (activate(target))
             {
-                // The host cannot service it. Report and leave NO modal armed rather than a half state.
-                NotifyActiveModalChanged();
-                return false;
-            }
+                case ToolActivationOutcome.Armed:
+                    _modalStack.Add(descriptor);
+                    NotifyActiveModalChanged();
+                    return true;
 
-            _modalStack.Add(descriptor);
-            NotifyActiveModalChanged();
-            return true;
+                // ⭐ The tool turned ITSELF off (Edit/Route pressed twice on the same entity). ⛔ NOT an
+                //   error, so no report — but nothing is armed, so nothing goes on the stack.
+                case ToolActivationOutcome.Dismissed:
+                    NotifyActiveModalChanged();
+                    return true;
+
+                default:
+                    // The host cannot service it. The activation already said WHY through its own report
+                    // channel (the drain's Unserviceable); leave NO modal armed rather than a half state.
+                    NotifyActiveModalChanged();
+                    return false;
+            }
         }
 
         /// <inheritdoc/>

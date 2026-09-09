@@ -68,10 +68,35 @@ namespace Hrot.ScenarioEditor.Tools
         bool         ToggleOnReactivate = false);
 
     /// <summary>
-    /// What a tool actually DOES when activated. Returns <c>true</c> when it armed, <c>false</c> when the
-    /// host cannot service it — ⭐ which the controller turns into an honest report rather than silence
-    /// (ruling 49, and the same contract <c>ToolActivationDrainSystem.Unserviceable</c> already uses).
+    /// ⭐⭐⭐ <b>What happened when a tool was asked to activate. THREE outcomes, not two.</b>
+    ///
+    /// <para>⚠⚠ <b>Measured from <c>ToolActivationDrainSystem</c>, and this is why the delegate is not a
+    /// <c>bool</c>:</b> its <c>Edit</c>/<c>Route</c> arms TOGGLE — <c>ToggleEntityGizmo</c> at
+    /// <c>:176</c> calls <c>DeactivateGizmo</c> and returns when a gizmo is already injected on that
+    /// entity. ⛔ Collapsing that into "false" would make the controller report it as unserviceable and
+    /// mislead the operator; collapsing it into "true" would leave a dismissed tool on the modal stack.</para>
+    ///
+    /// <para>⛔ <b>And the toggle is PER-ENTITY, not per-descriptor</b> — pressing <c>Edit</c> on entity A
+    /// then on entity B must move to B, not toggle off. ⇒ that decision stays inside the activation, which
+    /// has the target; <see cref="ToolDescriptor.ToggleOnReactivate"/> is the coarser
+    /// same-tool-pressed-twice rule and the drain's arms deliberately do NOT use it.</para>
+    /// </summary>
+    public enum ToolActivationOutcome
+    {
+        /// <summary>The tool armed and now holds the interaction.</summary>
+        Armed,
+
+        /// <summary>The tool deliberately turned ITSELF off (the toggle case). ⛔ Not an error.</summary>
+        Dismissed,
+
+        /// <summary>This host cannot service it. ⭐ The controller reports the reason (ruling 49).</summary>
+        Unserviceable,
+    }
+
+    /// <summary>
+    /// What a tool actually DOES when activated. ⭐ The same contract
+    /// <c>ToolActivationDrainSystem.Unserviceable</c> already uses: say what happened, never fail silently.
     /// </summary>
     /// <param name="target">The entity the tool acts on, or <see cref="Entity.Null"/> for non-entity tools.</param>
-    public delegate bool ToolActivation(Entity target);
+    public delegate ToolActivationOutcome ToolActivation(Entity target);
 }

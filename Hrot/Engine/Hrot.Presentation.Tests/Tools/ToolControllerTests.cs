@@ -122,7 +122,7 @@ namespace Hrot.Presentation.Tests.Tools
             var entityTool = new ProbeGizmo();
             fx.Controller.Register(
                 new ToolDescriptor("rotate", "Rotate", ToolModality.Modal, ToolArbiter.EntityScoped),
-                target => { fx.DataDriven.ActivateGizmo(target, entityTool); return true; });
+                target => { fx.DataDriven.ActivateGizmo(target, entityTool); return ToolActivationOutcome.Armed; });
 
             Assert.True(fx.Controller.Activate("rotate", entity));
 
@@ -152,7 +152,7 @@ namespace Hrot.Presentation.Tests.Tools
             var entityTool = new ProbeGizmo();
             fx.Controller.Register(
                 new ToolDescriptor("rotate", "Rotate", ToolModality.Modal, ToolArbiter.EntityScoped),
-                target => { fx.DataDriven.ActivateGizmo(target, entityTool); return true; });
+                target => { fx.DataDriven.ActivateGizmo(target, entityTool); return ToolActivationOutcome.Armed; });
             fx.Controller.Activate("rotate", entity);
 
             fx.Bus.Publish(new GizmoMouseEvent
@@ -185,7 +185,7 @@ namespace Hrot.Presentation.Tests.Tools
 
             fx.Controller.Register(
                 new ToolDescriptor("rotate", "Rotate", ToolModality.Modal, ToolArbiter.EntityScoped),
-                target => { fx.DataDriven.ActivateGizmo(target, new ProbeGizmo()); return true; });
+                target => { fx.DataDriven.ActivateGizmo(target, new ProbeGizmo()); return ToolActivationOutcome.Armed; });
             fx.Controller.Activate("rotate", entity);
 
             fx.Global.Execute(_world, 0.016f);
@@ -214,10 +214,10 @@ namespace Hrot.Presentation.Tests.Tools
             var entity = _world.CreateEntity();
             fx.Controller.Register(
                 new ToolDescriptor("rotate", "Rotate", ToolModality.Modal, ToolArbiter.EntityScoped),
-                target => { fx.DataDriven.ActivateGizmo(target, new ProbeGizmo()); return true; });
+                target => { fx.DataDriven.ActivateGizmo(target, new ProbeGizmo()); return ToolActivationOutcome.Armed; });
             fx.Controller.Register(
                 new ToolDescriptor("measure", "Measure", ToolModality.Modal, ToolArbiter.Global),
-                _ => { fx.Global.Register(GlobalGizmoManager.NewId(), new ProbeGizmo()); return true; });
+                _ => { fx.Global.Register(GlobalGizmoManager.NewId(), new ProbeGizmo()); return ToolActivationOutcome.Armed; });
 
             fx.Controller.Activate("rotate", entity);
             fx.Controller.Activate("measure");
@@ -257,7 +257,7 @@ namespace Hrot.Presentation.Tests.Tools
             fx.Controller.Register(
                 new ToolDescriptor("edit", "Edit Shape", ToolModality.Modal, ToolArbiter.EntityScoped,
                                    ToggleOnReactivate: true),
-                target => { arms++; fx.DataDriven.ActivateGizmo(target, new ProbeGizmo()); return true; });
+                target => { arms++; fx.DataDriven.ActivateGizmo(target, new ProbeGizmo()); return ToolActivationOutcome.Armed; });
 
             fx.Controller.Activate("edit", entity);
             Assert.NotNull(fx.Controller.ActiveModal);
@@ -265,6 +265,53 @@ namespace Hrot.Presentation.Tests.Tools
             fx.Controller.Activate("edit", entity);          // second press toggles OFF
             Assert.Null(fx.Controller.ActiveModal);
             Assert.Equal(1, arms);                            // it did not re-arm
+        }
+
+        /// <summary>
+        /// ⭐⭐⭐ <b><c>Dismissed</c> is the third outcome, and it is why the delegate is not a
+        /// <c>bool</c>.</b> 📐 <c>ToolActivationDrainSystem.ToggleEntityGizmo:176</c> turns <c>Edit</c>/
+        /// <c>Route</c> OFF when a gizmo is already injected on that entity. ⛔ Reporting that as
+        /// unserviceable would mislead the operator; treating it as armed would leave a dismissed tool on
+        /// the stack. ⇒ the controller must succeed, arm NOTHING, and say nothing.
+        /// </summary>
+        [Fact]
+        public void ADismissedActivationSucceedsButArmsNothing()
+        {
+            string? reported = null;
+            var controller = new ToolController(() => null, () => null, msg => reported = msg);
+
+            controller.Register(
+                new ToolDescriptor("edit", "Edit Shape", ToolModality.Modal, ToolArbiter.EntityScoped),
+                _ => ToolActivationOutcome.Dismissed);
+
+            Assert.True(controller.Activate("edit"));   // it worked …
+            Assert.Null(controller.ActiveModal);         // … and armed nothing
+            Assert.Null(reported);                       // ⛔ and did NOT cry unserviceable
+        }
+
+        /// <summary>
+        /// ⭐ The complement: <c>Unserviceable</c> arms nothing AND leaves the previous modal cleared, so a
+        /// failed activation never leaves a half state. ⚠ The activation reports its own reason (the drain's
+        /// <c>Unserviceable</c>), so the controller does not double-report here.
+        /// </summary>
+        [Fact]
+        public void AnUnserviceableActivationLeavesNoModalArmed()
+        {
+            var fx     = new Fixture();
+            var entity = _world.CreateEntity();
+
+            fx.Controller.Register(
+                new ToolDescriptor("rotate", "Rotate", ToolModality.Modal, ToolArbiter.EntityScoped),
+                target => { fx.DataDriven.ActivateGizmo(target, new ProbeGizmo()); return ToolActivationOutcome.Armed; });
+            fx.Controller.Register(
+                new ToolDescriptor("measure", "Measure", ToolModality.Modal, ToolArbiter.Global),
+                _ => ToolActivationOutcome.Unserviceable);
+
+            fx.Controller.Activate("rotate", entity);
+            Assert.NotNull(fx.Controller.ActiveModal);
+
+            Assert.False(fx.Controller.Activate("measure"));
+            Assert.Null(fx.Controller.ActiveModal);      // the old one is gone, the new one never armed
         }
 
         /// <summary>
