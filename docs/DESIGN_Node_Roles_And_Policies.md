@@ -1,9 +1,13 @@
 <!--STATUS
 state: LIVE
-updated: 2026-09-02
+updated: 2026-09-10
 current-answer: §3 is the role table and §3.1 is entity-creation uniformity (a role never denies a
-  capability), §4 is ownership, §5 is persistence, §6 is where an entity should be created. §7 is the
-  honest list of what is ENFORCED versus merely CONVENTION.
+  capability), §4 is ownership, §5 is persistence, §5a is which nodes must carry an ORBAT (operator
+  surfaces), §6 is where an entity should be created. §7 is the honest list of what is ENFORCED versus
+  merely CONVENTION.
+  ⭐ §5a is NEW on 2026-09-10 and is the FIRST statement of its rule anywhere - 177 corpus files mention
+  ORBAT and none said which nodes need one. It owns only WHICH NODES; the panel unification is UXI-04,
+  the ExCon fork retirement UXI-25, the seam defect CE-259t.
 open-elsewhere: §8 ① — what happens to a REPLICATED entity at save time — is a SCENARIO-SAVING
   question parked here; its owning home is docs/designs/cgf-scn-2/DESIGN.md (scenario serialization
   correctness). §8.1 records that an earlier draft claimed no such design existed, which was FALSE —
@@ -157,6 +161,64 @@ IG **requests** it from a node that is allowed to save, and that node owns and p
 
 ---
 
+## 5a. ⭐⭐⭐ OPERATOR SURFACES — **which nodes must carry an ORBAT** *(user, `2026-09-10`)*
+
+> 🔒 **User, verbatim, first form:** *"…and everywhere else the orbat panel is (cgf, editor, stride
+> editor.., everywhere brain role is)."*
+> 🔒 **User, verbatim, correcting that same day:** *"orbat needed also on excon node."*
+
+⭐⭐ **Why this is a NODE-ROLE statement and not a UI one.** The ORBAT is the surface that **drives and
+reflects the global entity selection** — an operator picks a unit there and every panel on that node
+follows. ⇒ *"which nodes have one"* is a statement about **what a node is expected to let an operator
+do**, which is exactly this document's subject. ⛔ *How* the panel is built and de-duplicated is **not**
+this document's business — §5a.2 points at the designs that own it.
+
+### ⭐⭐⭐ 5a.1 The rule
+
+| ⭐ | |
+|---|---|
+| ⭐⭐⭐ **A node carries an ORBAT if and only if it presents an OPERATOR-FACING VIEW OF THE FORCE** | ⭐ an operator who can command or inspect units on that node needs the roster they act on |
+| ⛔⛔ **It is NOT keyed on `NodeRole`, and it cannot be** | 🔴 **ExCon is not an ECS node at all** *(§5's table)* and carries the **richest** ORBAT in the repo. ⇒ the `[Flags]` enum of §3 **cannot express this predicate** — do not try to derive it from a role bit |
+| ⭐ **the counter-example that keeps the rule honest** | **Muscle / SimHost** legitimately has **none**: nobody commands units *at* a Muscle tier — it executes `NavigationIntent` (§3). ⇒ ⛔ **"every host gets every panel" is NOT the rule** |
+| ⚠ **`R-141` still applies to the PANEL, not to the POLICY** | ⭐ a host that has no operator is not *"justifying an omission"* — it has **no operator-facing view at all**. ⛔ But a host that HAS one may not hand-roll a private ORBAT to avoid the shared seam; that is `UXI-04`'s subject |
+
+### ⭐⭐ 5a.2 AS-IS — measured `2026-09-10`
+
+📐 **INVENTORY:** `search_graph(name_pattern=".*Orbat.*", label="Class")` → **total 22, `has_more` false**;
+`scripts/find.sh SharedOrbatPanel --glob '*.cs'` for the construction sites.
+⚠ **`check_index_coverage` is NOT reachable through the CLI** *(`CLAUDE.md`)*, so this enumeration is
+best-effort and is corroborated by grep, not proven complete.
+
+| node | operator-facing force view? | ORBAT today | measured at |
+|---|---|---|---|
+| ⭐ **Editor** | ✅ yes | ✅ `SharedOrbatPanel` + `ScenarioOrbatAdapter` | `EditorSubsystem.cs:2461` *(construct)* · `:4890` *(register)* |
+| ⭐ **CGF** | ✅ yes | ✅ the same shared pair | `CgfSubsystem.cs:1408`/`:1421`/`:1605` |
+| ⭐ **ExCon** *(operator console, ⛔ not an ECS node)* | ✅ yes | ⚠ its **own private** `OrbatPanel` — the richest one, and the only one carrying mission-plan editing | `ExConSubsystem.cs:498`/`:570` · `Panels/OrbatPanel.cs:67-453` |
+| ⭐ **Stride mode 1** | ✅ yes — it hosts the REAL editor | ⭐ **inherited**: `HostedEditor.RegisterWindows(wm)` *"registers every editor panel"* — ⚠ **design-claimed only**; the production path in `Stride/` is **NOT measured** | `DESIGN_Stride_Node_Modes.md:415` |
+| **Stride mode 2** | ⛔ no — `:439` makes it a **Muscle** node | ⛔ none, **correctly** — its bundle is *"component + event inspectors, architecture panel, profiler"* and the stated target is *"full simhost-like UI"* | `DESIGN_Stride_Node_Modes.md:439`/`:447`/`:455` |
+| **SimHost** *(`MuscleGround \| Perception`)* | ⛔ no | ⛔ none | — |
+| **IG** · **ReplayBrowser** | ⛔ no — they present a MAP, not a force to command | ⛔ none | graph total above + grep over both hosts |
+
+⇒ ⭐⭐ **The rule is satisfied today, but INCIDENTALLY** — by each host's own wiring, with nothing stating
+the expectation. ⭐ That is what this section fixes; ⛔ it is **not** a claim that anything enforces it
+*(§7)*.
+
+| ⭐ what this section deliberately does NOT own — *one concept, one document* | owner |
+|---|---|
+| the ORBAT panel **unification** *(four raw-ImGui panels onto one shared implementation; the shared one is impoverished — its whole menu is Disembark)* | 📄 **`UXI-04`** — [`docs/UX/UX_Issues.md`](UX/UX_Issues.md#uxi-04) |
+| retiring **ExCon's private fork** onto the shared seam | 📄 **`UXI-25`** — [`docs/UX/UX_Issues.md`](UX/UX_Issues.md#uxi-25), blocked on `UXI-04` |
+| the ORBAT **context menu** *(incl. `CMD_SET_SELECTION`)* | 📄 [`docs/designs/orbat-context-menu/OC1-DESIGN.md`](designs/orbat-context-menu/OC1-DESIGN.md) |
+| what the panel **does to selection**, and the request/notify protocol it must use | 📄 [`UX_Feature_Selection.md`](UX/UX_Feature_Selection.md) §2.6–§2.7 |
+| 🔴 the **seam defect** — `ExConOrbatAdapter.SelectEntity` sets selection locally and never reaches the cluster ⇒ **a prerequisite for `UXI-25`** | 📄 `CE-259t`, [`Blueprint_Issues_Tracker.md`](blueprints/Blueprint_Issues_Tracker.md) |
+
+⭐ **Design basis for the rule itself:** 📐 searched `docs/` **and** `.dev/` by topic — **177 markdown
+files mention ORBAT** and ⛔ **not one states which nodes must carry it.** The only near-misses are the
+user's own quotes *(recorded at `UX_Feature_Selection.md:285`)* and `UX_RESUME.md:574`, which is an
+enumeration **habit** *("enumerate every host before editing a shared panel")*, not a policy. ⇒ **this
+section is the first statement of it.**
+
+---
+
 ## 6. ⭐⭐⭐ WHERE SHOULD THIS ENTITY BE CREATED? — **the decision, per entity**
 
 ```mermaid
@@ -196,6 +258,7 @@ which is what keeps the next reader honest.
 | ownership is per-component and transferable | ✅ **CODE** — `AuthorityMask` + the `OwnershipUpdate` topic |
 | ⭐⭐ **IG entities are never persisted to the scenario** | ✅ **COMPOSITION** — ⛔ **IG registers no scenario-SAVE handler**, so it never runs an extractor. ⚠ **Enforced by an ABSENCE, and nothing checks the absence** — see §7.1 |
 | 🔴 **a persistable entity is not IG-owned** | ⛔ **convention only** |
+| 🔴 **a node with an operator-facing force view carries an ORBAT** *(§5a)* | ⛔ **convention only** — ⚠ **and it is satisfied INCIDENTALLY**, by four hosts' independent wiring. ⛔ **Not railable as stated**: the predicate is *"has an operator"*, which no code expresses; the nearest checkable form is *"each host that registers a scenario panel set also registers an ORBAT"*, ⚠ **not proposed here** — it would fire on Stride mode 1, whose registration path is unmeasured |
 
 ### 7.1 ✅⭐⭐ HOW THE RULE IS ACTUALLY ENFORCED — **by NOT HANDLING THE OPERATION** *(user, `2026-09-02`)*
 
@@ -369,3 +432,7 @@ what the serializer itself filters on.**
 | ⭐ [`docs/designs/cgf-scn-2/DESIGN.md`](designs/cgf-scn-2/DESIGN.md) | **scenario serialization correctness** — what belongs in scenario JSON. ⭐ **The owning home for §8 ①** |
 | [`docs/designs/cgf-scn/DESIGN.md`](designs/cgf-scn/DESIGN.md) | CGF as the authoritative entity genesis source for scenario LOAD — relevant to §3.1 and §4 |
 | [`DESIGN_Role_Affinity_Ownership.md`](DESIGN_Role_Affinity_Ownership.md) | ⚠ **designed, not built** — would turn §4's expectations into a derived default |
+| ⭐ [`UX_Feature_Selection.md`](UX/UX_Feature_Selection.md) §2.6–§2.7 | **the selection model itself** — the request/notify protocol every ORBAT must use, and the target state for the four selection stores. ⛔ **§5a owns only WHICH NODES carry an ORBAT**; it does not restate the protocol |
+| ⭐ `UXI-04` · `UXI-25` — [`docs/UX/UX_Issues.md`](UX/UX_Issues.md) | the ORBAT panel **unification** and the ExCon fork **retirement**. ⛔ §5a is the POLICY; these are the work |
+| [`docs/designs/orbat-context-menu/OC1-DESIGN.md`](designs/orbat-context-menu/OC1-DESIGN.md) | the ORBAT context menu, incl. `CMD_SET_SELECTION` |
+| ⭐ [`SNAPSHOT_Map_Interaction_Architecture.md`](SNAPSHOT_Map_Interaction_Architecture.md) §4 | where the *"the ORBAT rule is written nowhere"* finding was filed before §5a existed. ⚠ **Now closed by §5a** — the snapshot's row is a pointer |
