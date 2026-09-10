@@ -17,12 +17,22 @@ namespace Hrot.ScenarioEditor.Tests;
 /// </summary>
 public class VertexEditGizmoTests : IDisposable
 {
-    // -- No-op IDebugDrawBuilder stub --
+    // -- No-op IDebugDrawBuilder stub. ⭐ Also COUNTS, for the §4.7i focus rails below: EmitRaw and
+    //    DrawContextMenuBinding are DEFAULT interface methods, which is why the original stub omitted
+    //    them and why adding them here changes nothing for the existing tests. --
     private sealed class NullDraw : Fdp.Toolkit.Diagnostics.Gizmos.IDebugDrawBuilder
     {
+        public int Lines;          // the WORK IN PROGRESS — the edited shape's edges
+        public int Handles;        // the AFFORDANCE — one raw Box2D per vertex
+        public int MenuBindings;   // the handle-anchored context menu
+
+        public void EmitRaw(in DebugPrimitive prim) => Handles++;
+        public void DrawContextMenuBinding(long networkId, string menuJson) => MenuBindings++;
+
         public void DrawLine(Vector3 s, Vector3 e, Rgba32 c, float t = 1f,
             SizeMode m = SizeMode.ScreenPixels,
-            PipelineTarget tg = PipelineTarget.All, byte l = 0, LineStyle style = LineStyle.Solid) { }
+            PipelineTarget tg = PipelineTarget.All, byte l = 0, LineStyle style = LineStyle.Solid)
+            => Lines++;
         public void DrawLineGradient(Vector3 s, Vector3 e, Rgba32 sc, Rgba32 ec, float t = 1f,
             SizeMode m = SizeMode.ScreenPixels,
             PipelineTarget tg = PipelineTarget.All, byte l = 0, LineStyle style = LineStyle.Solid) { }
@@ -171,5 +181,72 @@ public class VertexEditGizmoTests : IDisposable
 
         var poly = ((ISimulationView)_repo).GetManagedComponentRO<EditablePolyline>(_entity);
         Assert.Equal(2, poly.Points.Count);
+    }
+
+    // -- §4.7i — A SUSPENDED TOOL DRAWS ITS WORK, NOT ITS HANDLES (user ruling, 2026-09-10) --
+
+    /// <summary>
+    /// 🔒 The baseline half of the ruling: while this gizmo HOLDS focus it draws both the edited shape
+    /// and a handle per vertex, plus the handle-anchored context menu.
+    /// <para>📐 IsFocused is granted at ARM time (DataDrivenGizmoSystem.ActivateGizmo:94 → TryGrant →
+    /// SetFocus(true):63), so this is the state a freshly armed tool is in — which is why hiding handles
+    /// on !IsFocused cannot hide them from an operator who just armed the tool.</para>
+    /// </summary>
+    [Fact]
+    public void AFocusedGizmo_DrawsItsShapeAndItsHandles()
+    {
+        using var gizmo = CreateGizmo();
+        gizmo.OnInteractionStarted(Token(1), Vector3.Zero);   // activates
+        gizmo.SetFocus(true);
+
+        var draw = new NullDraw();
+        gizmo.UpdateAndDraw(_repo, 0.016f, draw);
+
+        Assert.Equal(3, draw.Handles);        // one per vertex
+        Assert.Equal(1, draw.MenuBindings);
+        Assert.True(draw.Lines > 0, "the edited shape must be drawn");
+    }
+
+    /// <summary>
+    /// 🔒🔒 THE RULING: <i>"handles gone entirely while suspended... The partial route or shape edited
+    /// should stay drawn."</i> ⛔ Not dimmed — ABSENT.
+    /// <para>⭐⭐ This rail is ALSO the safety proof for <c>CE-259r</c>. That change reorders the gizmo
+    /// group so the entity emitters run first, which flips the layer-0 z-order tiebreak in favour of
+    /// HANDLES (DebugGizmoLayer.cs:510). Correct for an ACTIVE tool — but a SUSPENDED tool's handles
+    /// would then steal the entity picker's hover, and the picker hit-tests UNFILTERED by design so it
+    /// has no capture filter to shield it. If this rail reddens, CE-259r becomes a mis-pick.</para>
+    /// </summary>
+    [Fact]
+    public void ASuspendedGizmo_DrawsItsShape_ButNoHandlesAndNoMenu()
+    {
+        using var gizmo = CreateGizmo();
+        gizmo.OnInteractionStarted(Token(1), Vector3.Zero);
+        gizmo.SetFocus(true);
+        gizmo.SetFocus(false);                                 // what GizmoFocusRegistry.Suspend does
+
+        var draw = new NullDraw();
+        gizmo.UpdateAndDraw(_repo, 0.016f, draw);
+
+        Assert.Equal(0, draw.Handles);
+        Assert.Equal(0, draw.MenuBindings);
+        Assert.True(draw.Lines > 0, "the work in progress must STAY drawn while suspended");
+    }
+
+    /// <summary>
+    /// ⭐ The other half of the ruling — <i>"and re-appear once focus returns."</i>
+    /// </summary>
+    [Fact]
+    public void ResumingFocus_BringsTheHandlesBack()
+    {
+        using var gizmo = CreateGizmo();
+        gizmo.OnInteractionStarted(Token(1), Vector3.Zero);
+        gizmo.SetFocus(false);
+        gizmo.SetFocus(true);                                  // Resume
+
+        var draw = new NullDraw();
+        gizmo.UpdateAndDraw(_repo, 0.016f, draw);
+
+        Assert.Equal(3, draw.Handles);
+        Assert.Equal(1, draw.MenuBindings);
     }
 }

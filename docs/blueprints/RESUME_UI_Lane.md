@@ -8,12 +8,16 @@ current-answer: ⚠⚠ THERE ARE NOW **TWO** LIVE STRANDS ON THIS LANE. Read the
   §5 the eight user rulings of 2026-09-10 + the TWO OWNING DESIGNS THAT DO NOT EXIST YET,
   §6 rot owed to other documents. Then its owners: UX_Feature_Tool_Model.md §4.7h–§4.14 and
   UX_Feature_Selection.md §2.6.
-  BUILDABLE NOW, measured — ⚠ BUT IN THIS ORDER (user ruling 2026-09-10): Tool_Model §4.7i FIRST
-  (a suspended tool draws geometry, NO handles), THEN CE-259r (reorder the gizmo group — the picker's
-  hover hit-tests an empty frame). CE-259r's reorder flips the layer-0 z-order tiebreak so a handle
-  beats an entity pick box, which the user ruled CORRECT for an active tool — but until §4.7i lands, a
-  SUSPENDED tool still draws handles (operator-observed 2026-09-09) and the picker would latch one
-  instead of the entity. §4.7i deletes the competitor. Shipping CE-259r alone is the regression.
+  ✅✅ SHIPPED 2026-09-10 (user-approved build): Tool_Model §4.7i + CE-259r TOGETHER — a suspended tool
+  draws its geometry and NO handles (VertexEditGizmo + RouteWaypointGizmo), and the gizmo group is
+  reordered so the stateless projector emits before the data-driven arbiter. Read §4.7i's AS-BUILT
+  sub-section: it names the two gizmos measured and EXCLUDED, with reasons.
+  ⛔ NOT YET VERIFIED IN THE PRODUCT — the operator's T1 re-run is what closes it. CE-259q fixed the
+  arming half on 2026-09-10; this is the pick half. Expect: crosshair turns green over an entity and a
+  left click completes the pick.
+  ⭐ NEW, needs a user nod, not built: CE-259v — a suspended EntityRotatorGizmo draws a line to a STALE
+  cursor. Measured to have NO handle at all, so §4.7i had nothing to bind to on it; lean is to hide the
+  preview line while unfocused.
   OPEN with leans: CE-259s, CE-259t. FIXED 2026-09-10: CE-259q.
   ⛔ The 2026-09-09 T1 manual test found the amber-crosshair defect; it is CE-259r and NOT yet fixed.
   ══ STRAND 2 — ENTITY CREATION (as of 2026-09-03, untouched since) ══

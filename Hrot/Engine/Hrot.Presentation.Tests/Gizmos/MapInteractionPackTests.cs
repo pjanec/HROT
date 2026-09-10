@@ -307,5 +307,46 @@ namespace Hrot.Presentation.Tests.Gizmos
             public int DrawCount;
             public void Draw(ISimulationView view, Entity entity, IDebugDrawBuilder drawBuilder) => DrawCount++;
         }
+
+        // ── ⑤ CE-259r — the group ORDER, and why it is load-bearing ────────────────────────────
+
+        /// <summary>
+        /// 🔴🔴🔴 <b><c>CE-259r</c> — the STATELESS projector must run BEFORE the data-driven arbiter.</b>
+        ///
+        /// <para>📐 Measured 2026-09-10: the host clears the primitive buffer (<c>EndFrame</c>) immediately
+        /// before ticking this group, so a hit-test dispatched INSIDE the group only sees what EARLIER
+        /// members emitted this frame. With <c>dataDriven</c> first, <c>EntityPickerGizmo</c>'s hover
+        /// hit-tested an EMPTY buffer (frame=0, anchored=0) ⇒ <c>Entity.Null</c> every frame ⇒
+        /// <c>_hoveredValid</c> never true ⇒ the operator saw an amber crosshair and the left-release pick
+        /// arm was unreachable. ⛔ NOT a "partly filled frame" — the buffer is EMPTY; it is pure ordering.
+        /// The entity pick boxes come from the STATELESS projector, which is why it must go first.</para>
+        ///
+        /// <para>⚠⚠ The order also sets EMISSION order, which breaks <c>DebugLayer</c> ties in
+        /// <c>DebugGizmoLayer.FindTopmostInteractivePrimitive</c> — and entity pick boxes and tool handles
+        /// are both layer 0. So this order additionally decides that a HANDLE beats an entity box, which
+        /// the user ruled correct for an ACTIVE tool (2026-09-10) and which is safe only because §4.7i
+        /// makes a SUSPENDED tool draw no handles. ⛔ Reordering this back silently breaks the picker;
+        /// removing §4.7i silently turns it into a mis-pick.</para>
+        ///
+        /// <para>📄 docs/UX/UX_Feature_Tool_Model.md §4.7g.1 (the frame as a sequence diagram) and §4.7i.</para>
+        /// </summary>
+        [Fact]
+        public void ThePack_RunsTheStatelessProjectorBeforeTheDataDrivenArbiter()
+        {
+            var pack = MapInteractionPack.Build(Ctx());
+
+            var names = pack.GizmoGroup.GetSystems()
+                            .Select(s => s.GetType().Name)
+                            .ToList();
+
+            int stateless  = names.FindIndex(n => n.Contains("Stateless"));
+            int dataDriven = names.FindIndex(n => n.Contains("DataDriven"));
+
+            Assert.True(stateless  >= 0, $"no stateless system in the group: {string.Join(", ", names)}");
+            Assert.True(dataDriven >= 0, $"no data-driven system in the group: {string.Join(", ", names)}");
+            Assert.True(stateless < dataDriven,
+                "CE-259r: the stateless projector must emit BEFORE the data-driven arbiter dispatches a "
+              + $"hover, or the picker hit-tests an empty buffer. Actual order: {string.Join(", ", names)}");
+        }
     }
 }

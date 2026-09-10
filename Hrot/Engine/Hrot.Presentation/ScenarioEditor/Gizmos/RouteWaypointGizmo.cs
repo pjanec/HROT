@@ -91,8 +91,15 @@ namespace Hrot.ScenarioEditor.Gizmos
         {
             if (!_active || _waypoints.Count == 0) return;
 
+            // 🔒🔒 §4.7i (user ruling 2026-09-10) — A SUSPENDED TOOL DRAWS ITS WORK, NOT ITS HANDLES.
+            //   The route line below ALWAYS draws (it is the work in progress); the waypoint handles and
+            //   the handle-anchored context menu vanish entirely while focus is elsewhere. ⛔ Not dimmed.
+            //   ⭐⭐ Also load-bearing for CE-259r — see the twin comment in VertexEditGizmo.UpdateAndDraw
+            //   and docs/UX/UX_Feature_Tool_Model.md §4.7i.
+
             // ContextMenuBinding so right-clicking a handle shows the waypoint menu.
-            draw.DrawContextMenuBinding(_networkId, MenuJson);
+            if (IsFocused)
+                draw.DrawContextMenuBinding(_networkId, MenuJson);
 
             // Route line segments.
             int segCount = _isLoop ? _waypoints.Count : _waypoints.Count - 1;
@@ -106,7 +113,9 @@ namespace Hrot.ScenarioEditor.Gizmos
                     new Rgba32(0x44, 0x88, 0xFF, 0xFF), 1.5f, SizeMode.ScreenPixels);
             }
 
-            // Box2D handle per waypoint.
+            // Box2D handle per waypoint. ⛔ §4.7i — handles only while this gizmo holds focus.
+            if (!IsFocused) return;
+
             for (int i = 0; i < _waypoints.Count; i++)
             {
                 bool isActive = (i == _activeVertex);

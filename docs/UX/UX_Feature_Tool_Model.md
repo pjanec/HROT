@@ -22,7 +22,8 @@ current-answer: 4 (the A1 build) + 4.7/4.7b (the AS-BUILT). Steps 1-3 of Migrati
     4.7g.1 THE FRAME as a sequenceDiagram — CE-259r's mechanism: the picker's hit-test runs one system
           BEFORE the entity emitters, so the buffer is EMPTY (not partly filled). Read the diagram before
           touching the gizmo group order.
-    4.7i  a SUSPENDED tool draws its geometry but NO handles (RULED, NOT BUILT). Its z-order sub-section
+    4.7i  a SUSPENDED tool draws its geometry but NO handles — ✅ BUILT 2026-09-10 WITH CE-259r; read
+          its AS-BUILT sub-section (two gizmos measured and EXCLUDED with reasons; CE-259v filed). Its z-order sub-section
           carries a graph TD of the tie (who wins, and the two leaves) and a stateDiagram-v2 of what a
           tool draws per focus state. Independent of the
           selection work below. Measured: IsFocused is a DEAD parameter on 14 of 14 stateful gizmos, so
@@ -1181,6 +1182,56 @@ entity pick boxes and tool handles **both at layer 0**. ⇒ after the swap **a h
 
 ⚠ **What this does NOT say:** the handle-wins rule is about an **ACTIVE** tool. ⛔ It is not a claim that
 handles outrank entities in general — with no tool armed there are no handles to rank.
+
+#### ✅✅✅ AS-BUILT `2026-09-10` — **§4.7i AND `CE-259r` SHIPPED TOGETHER**
+
+⭐ **What was built, per the diagrams above — no deviation from either.**
+
+| change | file |
+|---|---|
+| the focus guard, twice: the handle-anchored **context menu** and the **handle loop** | `VertexEditGizmo.cs` *(`UpdateAndDraw`)* — the edge preview is **outside** both guards, so the work in progress always draws |
+| the same pair | `RouteWaypointGizmo.cs` *(`UpdateAndDraw`)* |
+| ⭐ **`CE-259r`** — `stateless` now precedes `dataDriven` | `MapInteractionPack.cs` — the group is `globalManager, stateless, dataDriven, selfCheck`, with the reason and the *"do not reorder back"* warning inline |
+
+📐 **The precondition that made this safe, measured BEFORE writing the guard:** `IsFocused` is granted at
+**ARM** time — `DataDrivenGizmoSystem.ActivateGizmo:94` → `GizmoFocusRegistry.TryGrant` →
+`SetFocus(true):63`. ⛔ Had focus only been granted on first *interaction*, hiding handles would have made
+them un-findable. ⭐ And `TryGrant` grants **only if the slot is empty**, which composes correctly: a tool
+that arms while another holds focus shows no handles, because it cannot be manipulated.
+
+##### ⛔⛔ TWO GIZMOS MEASURED AND DELIBERATELY EXCLUDED — **this is a finding, not an omission**
+
+📐 `EmitRaw`/`DrawContextMenuBinding` over all 14 stateful gizmos: **only three** emit anchored primitives.
+
+| gizmo | verdict |
+|---|---|
+| ⛔⛔ **`EntityDragGizmo`** | ⭐ its single `EmitRaw` is a **transparent pick box for the ENTITY ITSELF**, not a tool handle — it is what makes the entity hit-testable at all. ⇒ **hiding it on `!IsFocused` would remove the entity's own hit target**, the exact opposite of this ruling's intent, and it would break selection. **Left alone.** |
+| ⚠ **`EntityRotatorGizmo`** | 📐 it draws **no handle** — only a cursor-follow line plus a text label *(`:74`, `:80`)*, i.e. a live drag preview. ⇒ nothing to hide under this rule. ⚠⚠ **But while SUSPENDED it would draw a line to a STALE cursor position**, which is neither work-in-progress geometry nor a handle. ⛔ **Not silently changed** — filed as `CE-259v` for a decision |
+
+⭐ **The other 11** draw through higher-level `Draw*` calls with no anchored handle primitives, so the rule
+has nothing to bind to on them. ⇒ 🔒 **the rule is generic; its current surface is two gizmos, measured.**
+
+##### 📐 Rails — **into each feature's own suite** *(`R-142` ④, ⛔ no new class)*
+
+| suite | rails | red-proof |
+|---|---|---|
+| `VertexEditGizmoTests` **5 → 8** | focused draws shape+handles+menu · **suspended draws shape, 0 handles, 0 menu** · resume brings them back | ✅ **inverse edit** — guards deleted ⇒ **exactly `ASuspendedGizmo_...` reddens**, the other two stay green |
+| `RouteWaypointGizmoTests` **4 → 5** | one rail asserting both states in one pass | — |
+| `MapInteractionPackTests` **10 → 11** | ⭐ `ThePack_RunsTheStatelessProjectorBeforeTheDataDrivenArbiter` — asserts the ORDER off `GizmoGroup.GetSystems()` | ✅ **inverse edit** — order swapped back ⇒ **1🔴, that rail alone** |
+
+⚠⚠ **`Hrot.Presentation.Tests` full-suite runs are NOT evidence here** — 📐 `CE-084` reproduced this
+session: **three runs, four different reds** *(`SelectionInteractionSystemTests` ×2,
+`RouteWaypointGizmoTests.OnCommit_WritesBackToEcs`, `EntityPresentationGizmoTests.TheProjector_...`)*.
+⇒ **every gate below is `--filter`ed**, which is what `CE-084`'s row already prescribes.
+
+📐 **Gates:** `Hrot.Presentation` · `Hrot.Editor` · `Hrot.CGF` · `Hrot.IG` · `Hrot.SimHost` ·
+`Hrot.ReplayBrowser` — **0 errors each** *(all five pack hosts)*. Filtered: `VertexEditGizmoTests` **8/8** ·
+`RouteWaypointGizmoTests` **5/5** · `MapInteractionPackTests` **11/11** · `ToolControllerTests` **18/18** ·
+`PickerToolHostTests` **6/6** · `GizmoLayerEntityHitTestTests` **6/6** · `RawButtonGateTests` **6/6**.
+Working tree carries only the six intended files after every run.
+
+⛔ **NOT verified in the product.** ⭐ The operator's `T1` re-run is what closes this: the amber crosshair
+should now resolve and a left click should pick. ⚠ `CE-259q` already fixed the arming half.
 
 #### ⭐⭐ The tie, and who wins it — **`DebugGizmoLayer.cs:510`**
 

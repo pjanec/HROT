@@ -128,8 +128,23 @@ namespace Hrot.ScenarioEditor.Map
             var selfCheck = new MapSelfCheckSystem(
                 buffer, () => groupRef?.Enabled ?? false, ctx.ReportMapDiagnostic);
 
+            // ⭐⭐⭐ CE-259r — THE ORDER IS LOAD-BEARING, AND `stateless` MUST PRECEDE `dataDriven`.
+            //   📐 Measured 2026-09-10: the host clears the primitive buffer (EndFrame) immediately before
+            //     ticking this group, so a hit-test dispatched INSIDE the group sees only what earlier
+            //     members have emitted THIS frame. With dataDriven first, EntityPickerGizmo's hover
+            //     hit-tested an EMPTY buffer (frame=0, anchored=0) => Entity.Null every frame =>
+            //     _hoveredValid never true => amber crosshair, and its left-release pick arm unreachable.
+            //     ⛔ NOT a "partly filled frame" problem — the buffer is EMPTY; it is pure ordering.
+            //   ⭐ The entity pick boxes come from the STATELESS projector (EntityPresentationGizmo), so
+            //     running it first is what makes the picker's hover resolve.
+            //   ⚠⚠ This ALSO flips the z-order tiebreak: emission order breaks DebugLayer ties
+            //     (DebugGizmoLayer.cs:510) and pick boxes + tool handles are both layer 0 => a HANDLE now
+            //     beats an entity box. 🔒 Ruled CORRECT for an ACTIVE tool (user, 2026-09-10) — and safe
+            //     only because §4.7i makes a SUSPENDED tool draw no handles at all. ⛔ Do not reorder this
+            //     back, and do not ship it without §4.7i.
+            //   📄 docs/UX/UX_Feature_Tool_Model.md §4.7g.1 (the frame as a sequence) and §4.7i.
             var group = new TogglablePostSimulationGroup(
-                "GizmoExecution", globalManager, dataDriven, stateless, selfCheck);
+                "GizmoExecution", globalManager, stateless, dataDriven, selfCheck);
             groupRef = group;
 
             // ⭐⭐⭐ UXI-07 step 3b — THE ONE ARBITER, built here so all FIVE hosts get it.

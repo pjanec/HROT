@@ -95,8 +95,25 @@ namespace Hrot.ScenarioEditor.Gizmos
         {
             if (!_active || _points.Count == 0) return;
 
+            // 🔒🔒 §4.7i (user ruling 2026-09-10) — A SUSPENDED TOOL DRAWS ITS WORK, NOT ITS HANDLES.
+            //   "handles gone entirely while suspended, and re-appear once focus returns. Inactive handle
+            //    is best expressed by not being shown at all... The partial route or shape edited should
+            //    stay drawn."
+            //   ⇒ the edge preview below ALWAYS draws (it is the work in progress); the handles and the
+            //     handle-anchored context menu are affordances and vanish entirely while focus is elsewhere.
+            //     ⛔ Not dimmed — ABSENT, so "cannot be manipulated" is unambiguous.
+            //   ⭐⭐ ALSO LOAD-BEARING FOR CE-259r: once the gizmo group is reordered so the entity
+            //     emitters run first, a layer-0 z-order tie is broken by emission order in favour of
+            //     HANDLES (DebugGizmoLayer.cs:510). Correct for an ACTIVE tool (user ruling) — but a
+            //     SUSPENDED tool's handles would then steal the entity picker's hover, and the picker
+            //     hit-tests UNFILTERED by design so it has no capture filter to shield it. Hiding these
+            //     deletes the competitor. 📄 docs/UX/UX_Feature_Tool_Model.md §4.7i.
+            //   📐 IsFocused is granted at ARM time (DataDrivenGizmoSystem.ActivateGizmo:94 → TryGrant →
+            //     SetFocus(true):63), so a freshly armed tool shows its handles on frame one.
+
             // ContextMenuBinding so right-clicking a vertex handle shows the insert/delete menu.
-            draw.DrawContextMenuBinding(_networkId, MenuJson);
+            if (IsFocused)
+                draw.DrawContextMenuBinding(_networkId, MenuJson);
 
             // Draw live preview edges so the edited shape is visible during drag.
             int n = _points.Count;
@@ -107,7 +124,9 @@ namespace Hrot.ScenarioEditor.Gizmos
                 draw.DrawLine(a, b, EdgeColor, thickness: 2f, sizeMode: SizeMode.ScreenPixels);
             }
 
-            // Box2D handle for each vertex.
+            // Box2D handle for each vertex. ⛔ §4.7i — handles only while this gizmo holds focus.
+            if (!IsFocused) return;
+
             for (int i = 0; i < _points.Count; i++)
             {
                 bool isActive = (i == _activeVertex);
