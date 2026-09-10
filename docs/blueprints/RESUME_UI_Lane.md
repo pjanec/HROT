@@ -39,6 +39,19 @@ current-answer: ⚠⚠ THERE ARE NOW **TWO** LIVE STRANDS ON THIS LANE. Read the
   📐 CE-259y CORRECTED: it is SEVEN reds, not two (CE-259aa was hiding five), and its dependency on S7
   is WITHDRAWN — S7 could not collapse AnchorIndex, so that row is now just "the wrapper must forward
   its ISimulationView".
+  ✅ ALSO FIXED 2026-09-10: CE-259ab — DataDrivenGizmoSystem hard-cast its IDebugDrawBuilder seam to
+  DebugPrimitiveBuffer at 4 sites, so DataDrivenGizmoPredicateTests.D003_* threw InvalidCastException
+  inside Execute and had NEVER RUN. Pre-existing (identical at da2d360d). Fixed BOTH halves: the system
+  degrades-and-asserts, and the hand-rolled D003NoOpDrawBuilder is retired for a real buffer — degrading
+  alone would have made a red rail GREEN AND BLIND.
+  ⚠⚠ HOW IT WAS INVISIBLE ALL SESSION, worth remembering on a fresh VM: 68 projects had never been
+  restored, so every suite in them reported NETSDK1004 and was skipped. `dotnet restore <sln>` once, then
+  a full-solution build, is what surfaced them. ⛔ NETSDK1004 is not a code break — do not treat it as one,
+  and do not treat "the suite did not run" as "the suite is green".
+  📐 KNOWN PRE-EXISTING REDS, all reproduced at da2d360d so none is this lane's: Hrot.IG.Tests 5
+  (EntityInfoTranslator ×4, EntityMasterTranslator ×1) · Hrot.ClusterRunner.Tests 3
+  (OrchestratorSubsystemTests) · Hrot.Editor.Tests 1 (AiHotReloadCoordinator ALC collection) ·
+  Hrot.Presentation.Tests rotates 0–1 (CE-084) · Fdp.Toolkits.Tests rotates 0–2 (DEBT-AIB-030).
   ⛔ PROCESS FAILURE WORTH NOT REPEATING (the third of the day): HandleInput builds a pick token TWICE
   and the first S5 pass converted ONE arm. Every suite stayed green because the rails exercise the
   hit-test, not HandleInput. `scripts/find.sh 'AnchorGeneration != 0'` found it in one call. And the
