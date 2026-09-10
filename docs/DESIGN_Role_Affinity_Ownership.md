@@ -24,9 +24,28 @@ open-risk: §3.5 -- BTreeTickSystem's query carries NO authority filter, so decl
       tier, so gating only BTreeTickSystem leaves every HSM-tier ghost double-ticked.
   => step 3b is a PER-SYSTEM PASS, not a one-line query edit. The DECISION (both (a) and (b)) is
   unchanged and its escape clause is closed.
-  ALSO 2026-09-10: §5 decision (3) LEAN CHANGED to DEFER -- IClusterStateCache publishes no brain index
-  or count, and it lives in Hrot.Network.NED which REFERENCES Fdp.Toolkits, so the policy's designed
-  home cannot see it without breaking the network-agnosticism ruling that settled decision (1).
+  ALSO 2026-09-10, IN ORDER -- read the LAST line, the middle one is superseded:
+    (i) my first lean on §5 decision (3) was "defer multi-Brain entirely" -- because IClusterStateCache
+        publishes no brain index or count, and it lives in Hrot.Network.NED which REFERENCES
+        Fdp.Toolkits, so the policy's designed home cannot see it without breaking the
+        network-agnosticism ruling that settled decision (1). Those MEASUREMENTS stand.
+   (ii) SUPERSEDED BY USER RULING, same day: the seam is NOT deferrable and the question is not
+        brain-specific. "its not just multi brain, it is also multi muscle or multi perception... i need
+        the shard provider interface for these, implemented for single brain and single muscle case we
+        have now, but reimplementable later."
+  => §3.8 IS THE SEAM and it is part of P3: IRoleShardProvider.ServesRole(role, key) + an extensible
+     RoleShardKey (NetworkId => balancing, TkbType => specialisation) + SingleNodePerRoleShardProvider
+     as the only implementation built. Both insertion points can fill the key -- measured:
+     NetworkSpawningSystem has networkId local at :108 and stamps NetworkIdentity at :138;
+     GhostPromotionSystem's ghost carries NetworkIdentity (GhostCreationSystem:51) and TkbIdentity.
+     §3.3's OwnableMask signature and its single flat role mask are SUPERSEDED by §3.8 -- the mask is
+     now PER ROLE and each role is shard-tested separately.
+  🔴 §3.8 carries TWO CONSTRAINTS a later implementation MUST honour, and the first kills the obvious
+     approach: ServesRole may read only inputs IDENTICAL ON EVERY NODE, so performance balancing CANNOT
+     be a node measuring its own load (two nodes would both answer true => two owners, the exact
+     conflict this design removes); and a shard mapping must be stable for an entity's lifetime,
+     because the policy runs at birth and promotion only.
+  §5 decision (2) APPROVED by the user 2026-09-10 ("yes on boot warning").
 known-rot: an earlier draft sourced the role's ownable set from DescriptorOwnershipMap and called
   that "the one place a networking concept is defensible". WRONG -- corrected in §2.3 (user ruling,
   2026-09-01): there are multiple network implementations (NedNetworkFactory, BdcNetworkFactory,
@@ -258,13 +277,15 @@ public interface IRoleAffinityPolicy
     /// Component ids this node should own for an entity of this template.
     /// ⛔ No descriptors, no ordinals, no participant — see §2.3.
     /// The caller intersects the result with the entity's live component mask.
-    BitMask512 OwnableMask(TkbTemplate template, bool isCreator);
+    /// ⚠ SUPERSEDED 2026-09-10 — the signature gains `in RoleShardKey key` and the flat
+    ///   role mask becomes one mask PER ROLE. See §3.8 (the role-shard seam, user ruling).
+    BitMask512 OwnableMask(TkbTemplate template, bool isCreator, in RoleShardKey key);
 }
 ```
 
 | ⭐ where each bit comes from | |
 |---|---|
-| ⭐⭐ **the ROLE's assigned mask** | a `BitMask512` of component ids **declared per role**, plain configuration. ⛔ Not derived from any wire vocabulary — a `NodeRole` → mask table, and nothing else |
+| ⭐⭐ **the ROLE's assigned mask** | a `BitMask512` of component ids **declared per role**, plain configuration. ⛔ Not derived from any wire vocabulary — a `NodeRole` → mask table, and nothing else. ⚠ **`2026-09-10`: the table is now consulted PER ROLE and gated by `IRoleShardProvider.ServesRole` — §3.8.** A single flat union is no longer correct |
 | ⭐⭐ **∪ the template's `BirthCriticalComponents`, when `isCreator`** | §3.1's birthright. ⭐ The creator keeps these **whatever its role**, which is precisely the architect's correction |
 
 ⭐ **The whole rule is then:** `AuthorityMask = componentMask ∧ OwnableMask(template, isCreator)` —
@@ -322,6 +343,90 @@ precede promotion — and `EntityCreation.Unserviceable()` already exists to mak
 ```csharp
 public IRoleAffinityPolicy? RoleAffinityPolicy { get; init; }   // null => today's behaviour
 ```
+
+### 3.8 ⭐⭐⭐ THE ROLE-SHARD SEAM — **generic over roles, built single-node, re-implementable later** *(user ruling, `2026-09-10`)*
+
+> 🔒 **User, verbatim:** *"its not just multi brain, it is also multi muscle or multi perception. we might
+> need performance balancing or nodes specialized to some types of entities or whatever. i need the shard
+> provider interface for these, implemented for single brain and single muscle case we have now, but
+> reimplementable later."*
+
+⛔⛔ **This SUPERSEDES §5 ③'s "defer it entirely" lean of the same day.** ⭐ The seam ships with `P3`; only
+a **sharding IMPLEMENTATION** is deferred. ⚠ And the question is no longer *"multiple Brains?"* — it is
+**"which node serves role R for THIS entity?"**, asked identically for `Brain`, `MuscleGround`,
+`Perception`, `NavigationSolver` and anything added later.
+
+#### ⭐⭐ The seam
+
+```csharp
+/// Does THIS node serve `role` for THIS entity?
+/// ⛔ MUST be deterministic and must give the SAME answer on every node — see the contract below.
+public interface IRoleShardProvider
+{
+    bool ServesRole(NodeRole role, in RoleShardKey key);
+}
+
+/// ⭐ Extensible ON PURPOSE (the user's "or whatever"): adding Faction/Zone later touches
+/// neither call site nor any existing implementation.
+public readonly struct RoleShardKey
+{
+    public readonly long          NetworkId;   // stable per-entity discriminator ⇒ BALANCING
+    public readonly int           TkbType;     // the entity TYPE ⇒ SPECIALISATION
+    public readonly DISEntityType DisType;     // already stamped in the entity header
+}
+```
+
+📐 **Both insertion points can fill it — measured `2026-09-10`, this is why the shape is safe:**
+
+| leg | what is in scope |
+|---|---|
+| **CREATE** `NetworkSpawningSystem` | `networkId` is a local at `:108`; `cmd.TkbType`; the DIS value computed at `:155`; and `NetworkIdentity` is stamped on the entity at `:138` |
+| **PROMOTE** `GhostPromotionSystem` | the ghost carries `NetworkIdentity` *(added by `GhostCreationSystem.cs:51`)* and `TkbIdentity` *(read at `:117`)*; the template is already resolved at `:126` |
+
+#### ⭐ What changes in `RoleAffinityPolicy` — ⚠ **a real change to §3.3, not a wrapper**
+
+⛔⛔ **§3.3's `RoleAffinityPolicy` held ONE flat `roleOwnedComponents` mask.** ⭐ That no longer works:
+each declared role must be **shard-tested separately**, so the policy needs a **component mask PER ROLE**
+and unions only the roles it actually serves.
+
+```
+OwnableMask(template, isCreator, key):
+    mask = ∅
+    for each role bit R in declaredRoles:
+        if shard.ServesRole(R, key):  mask |= componentsPerRole[R]
+    if isCreator:                     mask |= template.BirthCriticalComponents
+    return mask                       // caller still ∧ the live component mask
+```
+
+⭐ **The one implementation built now:**
+
+```csharp
+public sealed class SingleNodePerRoleShardProvider(NodeRole declaredRoles) : IRoleShardProvider
+{
+    public bool ServesRole(NodeRole role, in RoleShardKey key) => (declaredRoles & role) != 0;
+}
+```
+
+| ⭐ why this is the right default | |
+|---|---|
+| ⭐⭐ **it IGNORES the key** | ⇒ **byte-identical to the single-Brain/single-Muscle behaviour we have today**, so the seam costs nothing to adopt and the `P3` rails do not change meaning |
+| ⭐⭐ **it is correct on a NETWORKLESS node for free** | a networkless node has no `NetworkIdentity`, so `NetworkId` is `0` — ⛔ but the default never reads it. ⇒ 🔒 the §2.3 network-agnosticism ruling holds **by construction**, not by care |
+| ⭐ its input is what a host already declares | 📐 `SimHostApp.DefaultRole:182` · `CgfSubsystem.DefaultRole` — no new configuration |
+
+#### ⛔⛔⛔ THE CONTRACT A LATER IMPLEMENTATION MUST HONOUR — **two constraints, and the first kills the obvious approach**
+
+| # | constraint | why |
+|---|---|---|
+| 🔴🔴 **①** | **`ServesRole` may read ONLY inputs that are IDENTICAL ON EVERY NODE.** ⛔⛔ **A node may NOT decide from its own CPU load, queue depth, entity count or any locally-observed metric** | ⭐⭐⭐ **This design's whole safety property is that two nodes independently evaluating the same function cannot disagree** *(§3's opening)*. ⛔ If node A reads *its* load and node B reads *its* load, both can answer `true` for one entity ⇒ **two owners, which is exactly the conflict this design removes.** ⇒ 🔴 **"performance balancing" CANNOT be implemented as each node measuring itself.** It must be a **shard assignment published by ONE authority and replicated**, which every node then reads identically — the provider is handed that table, it does not compute one |
+| 🔴 **②** | **the shard mapping must be STABLE for the lifetime of an entity** | ⭐ the policy is evaluated at **birth** and **promotion** only *(§3.2's two insertion points)*. ⇒ ⛔ if the mapping changes while entities are live, they keep their birth assignment while newly-promoted ghosts follow the new mapping — **ownership becomes history-dependent.** ⚠ **Today's constraint, stated so an implementer knows what they must add:** a shard mapping is fixed for a scenario's lifetime. ⛔ **Making it dynamic requires a RE-EVALUATION path, which is a SECOND ownership mechanism** *(ruling 9)* — that is a design of its own, not an implementation detail of this seam |
+
+⭐ **A consequence worth stating, because it is benign:** if a shard table has not arrived yet, the
+provider answers `false` for everyone and the entity is owned by no one ⇒ that is exactly §5 ②'s case,
+which **logs once and does not fall back.** ⇒ the two decisions compose.
+
+⚠ **NOT in scope of `P3`:** any shard table, its transport, its authority, or a balancing metric. ⭐ `P3`
+ships **the interface, the key, the single-node implementation, and the per-role mask table** — nothing
+else.
 
 ### 3.4 ⛔ What this does NOT retire
 
@@ -398,12 +503,27 @@ combat systems are unaffected — ⭐ which is correct here, but it must not be 
 classDiagram
     class IRoleAffinityPolicy {
         <<interface>>
-        +OwnableMask(template, map) BitMask512
+        +OwnableMask(template, isCreator, key) BitMask512
     }
     class RoleAffinityPolicy {
-        -NodeRole role
-        -BitMask512 roleOwnedComponents
-        +OwnableMask(template, isCreator) BitMask512
+        -NodeRole declaredRoles
+        -Dictionary~NodeRole,BitMask512~ componentsPerRole
+        -IRoleShardProvider shard
+        +OwnableMask(template, isCreator, key) BitMask512
+    }
+    class IRoleShardProvider {
+        <<interface>>
+        +ServesRole(role, key) bool
+    }
+    class SingleNodePerRoleShardProvider {
+        -NodeRole declaredRoles
+        +ServesRole(role, key) bool
+    }
+    class RoleShardKey {
+        <<struct>>
+        +long NetworkId
+        +int TkbType
+        +DISEntityType DisType
     }
     class IOwnershipDistributionStrategy {
         <<interface>>
@@ -432,6 +552,11 @@ classDiagram
     }
 
     IRoleAffinityPolicy <|.. RoleAffinityPolicy
+    IRoleShardProvider <|.. SingleNodePerRoleShardProvider
+    RoleAffinityPolicy --> IRoleShardProvider : does THIS node serve the role for THIS entity
+    RoleAffinityPolicy ..> RoleShardKey
+    NetworkSpawningSystem ..> RoleShardKey : builds from networkId + TkbType
+    GhostPromotionSystem ..> RoleShardKey : builds from NetworkIdentity + TkbIdentity
     NetworkSpawningSystem --> IRoleAffinityPolicy : declines what role excludes
     NetworkSpawningSystem --> TkbTemplate : birth-critical always kept
     RoleAffinityPolicy --> TkbTemplate : reads BirthCriticalComponents
@@ -440,8 +565,11 @@ classDiagram
     GhostPromotionSystem --> EntityRepository
     DeferredTakeoverSystem --> EntityRepository : explicit grants override
 
-    note for NetworkSpawningSystem "EXISTS - line 181 today assigns the full component mask"
-    note for GhostPromotionSystem "EXISTS - translators at 122, promote at 129"
+    note for IRoleShardProvider "NEW - user ruling 2026-09-10. GENERIC over roles, not brain-only. See 3.8"
+    note for SingleNodePerRoleShardProvider "NEW - the ONLY implementation built now. IGNORES the key, so it is byte-identical to today and correct on a networkless node"
+    note for RoleShardKey "NEW - extensible on purpose: adding faction or zone later touches neither call site nor any implementation"
+    note for NetworkSpawningSystem "EXISTS - line 186-190 today assigns the full component mask. networkId is a local at 108, NetworkIdentity stamped at 138"
+    note for GhostPromotionSystem "EXISTS - translators at 122, promote at 129. Ghost carries NetworkIdentity from GhostCreationSystem 51 and TkbIdentity"
     note for DescriptorOwnershipMap "EXISTS but DELIBERATELY UNUSED here - it is populated per network implementation, see 2.3"
     note for TkbTemplate "EXISTS - MandatoryComponents is already per-component and network-free. BirthCriticalComponents is the ONE addition, initial content SimTransform"
     note for DeferredTakeoverSystem "EXISTS - unchanged, still the override path"
@@ -518,8 +646,8 @@ sequenceDiagram
 | **①** | ~~descriptor set or component-id set?~~ | ✅ **SETTLED `2026-09-01` — a `BitMask512` of COMPONENT IDS assigned to the role.** ⛔ Not `DescriptorOwnershipMap`: it is populated per network implementation *(NED / BDC / offline)*, so an ownership rule keyed on it would differ per stack and be empty offline. See §2.3 | — |
 | **①b** | ~~which DESCRIPTORS are birth-critical~~ | ✅ **SETTLED `2026-09-01` — and the question itself was wrong.** It is a **COMPONENT** property *(descriptors are a networking concept; a networkless node has none)*, declared by the **TKB template**, and the initial content is **`SimTransform` only, only for templates that list it**. See §3.1 | — |
 | **①c** | 🔴 **the execution gate** *(§3.5)* — registration, the query filter, or both? | ⭐⭐ **both** — UNCHANGED, and the escape clause is now DEAD. ⚠⚠ **RE-MEASURED `2026-09-10`, three corrections in §3.5:** the method is **`WithOwned<T>()`**, not `.WithAuthority<T>()`; **three production systems already use it** *(it replaced the legacy manual owner checks)*; and its cost is **two `BitMask512` ops on an already-loaded cache line** *(`EntityQuery.cs:157-158`, step 4 after the cold `meta` fetch liveness already pays)*. ⇒ ⛔ **the "measurable per-frame cost" that would have flipped this lean does not exist.** 🔴 **What DID change is the SIZE:** §3.5 named ONE system; there are **SEVEN** un-gated, three of which WRITE cognitive state, and **`HsmTickSystem` is the non-negotiable second** *(the `BrainTier` field selects BTree vs HSM ⇒ gating only BTree leaves HSM ghosts double-ticked)* | ⛔ **nothing measurable remains.** The only open part is the per-system judgement on the other five — a review, not a decision |
-| **②** | nobody holds the role ⇒ the component is owned by **no one** and nothing ticks it | ⭐ **log once per entity, no fallback** — UNCHANGED. A fallback *("creator keeps it after N frames")* reintroduces exactly the race this design removes. ⭐⭐ **AND TAKE THE STARTUP CHECK NOW, not "later"** *(re-measured `2026-09-10`)*: the *"what would change it"* column deferred a startup cluster check as future work, ⛔ **but the predicate already exists and is one line** — `IClusterStateCache.GetLeastLoadedNode(NodeRole.Brain)` returns `int?` and **`null` IS "nobody holds the role"** *(`Hrot.Network.NED/Routing/IClusterStateCache.cs:23`)*. ⚠ It is NED-only, so it belongs at the node's composition root, ⛔ never inside the policy *(§2.3)* | if a deployment legitimately runs with no Brain *(a pure-Muscle test cluster)* the boot check must WARN, not throw |
-| **③** | multiple Brain nodes | ⛔⛔ **LEAN CHANGED `2026-09-10` — DEFER IT ENTIRELY; ship P3 single-Brain.** ⚠ The old lean *(`NetworkId % brainCount == myBrainIndex` inside the policy)* rested on *"`IClusterStateCache` already tracks nodes by role"*, and 📐 **measuring that surface breaks it twice.** ⛔ **① it publishes no index and no count** — the whole interface is `GetLeastLoadedNode(NodeRole)` · `UpdateNode` · `PruneStale` *(`:23`/`:29`/`:35`)*, so there is **no stable ordering to be `myBrainIndex`**, and `PruneStale` changes membership silently. ⛔⛔ **② it would BREAK THE RULING THAT SETTLED ①:** `IClusterStateCache` lives in **`Hrot.Network.NED`**, and 📐 `Hrot.Network.NED.csproj:35` references `Fdp.Toolkits` — **the wall points the wrong way**, so the policy at its designed home *(§6 step 1, `Fdp.Toolkits/Replication`)* **cannot see it**. Sourcing a brain index there re-introduces a network-implementation dependency into ownership, which is exactly what the `2026-09-01` ruling forbids. ⛔ **③ a semantic hazard the old lean never named:** the policy is evaluated at **birth and promotion only** *(§3.2's two insertion points)* ⇒ a Brain joining or leaving re-shards `NetworkId % brainCount` for NEW entities while live ones keep their birth assignment. **Ownership becomes history-dependent** — not a crash, but not a rule either | ⭐ if multiple Brain nodes become a near-term deployment requirement, ③ is not deferrable — and the right shape is then an **`IBrainShardProvider` injected DOWNWARD from the host** *(the trick `DESIGN_Subsystem_Composition_Unification.md` §4.1t used for Stride's capabilities)*, ⛔ never a `Fdp.Toolkits` → NED reference. It is its own design, with the re-shard question answered first |
+| **②** | nobody holds the role ⇒ the component is owned by **no one** and nothing ticks it | ✅✅ **APPROVED BY THE USER `2026-09-10`** *("yes on boot warning")* — **log once per entity, no fallback, PLUS the boot warning.** A fallback *("creator keeps it after N frames")* reintroduces exactly the race this design removes. ⭐⭐ **AND TAKE THE STARTUP CHECK NOW, not "later"** *(re-measured `2026-09-10`)*: the *"what would change it"* column deferred a startup cluster check as future work, ⛔ **but the predicate already exists and is one line** — `IClusterStateCache.GetLeastLoadedNode(NodeRole.Brain)` returns `int?` and **`null` IS "nobody holds the role"** *(`Hrot.Network.NED/Routing/IClusterStateCache.cs:23`)*. ⚠ It is NED-only, so it belongs at the node's composition root, ⛔ never inside the policy *(§2.3)* | if a deployment legitimately runs with no Brain *(a pure-Muscle test cluster)* the boot check must WARN, not throw |
+| **③** | ~~multiple Brain nodes~~ ⇒ ⭐⭐⭐ **RE-FRAMED: multi-node sharding for ANY role** | ✅✅✅ **RULED BY THE USER `2026-09-10` — BUILD THE SEAM NOW, DEFER ONLY THE IMPLEMENTATION.** 🔒 *"its not just multi brain, it is also multi muscle or multi perception. we might need performance balancing or nodes specialized to some types of entities or whatever. i need the shard provider interface for these, implemented for single brain and single muscle case we have now, but reimplementable later."* ⇒ 📄 **§3.8 is the seam** — `IRoleShardProvider.ServesRole(role, key)` + an extensible `RoleShardKey` *(NetworkId ⇒ balancing · TkbType ⇒ specialisation)*, with `SingleNodePerRoleShardProvider` as the only implementation built. ⛔⛔ **BOTH of the day's earlier positions are SUPERSEDED:** the ORIGINAL `NetworkId % brainCount == myBrainIndex` lean *(unbuildable — `IClusterStateCache` publishes no index or count, and it lives in `Hrot.Network.NED` which REFERENCES `Fdp.Toolkits`, so the policy's home cannot see it without breaking the §2.3 ruling)* **and** my *"defer it entirely"* lean *(too coarse — it deferred the SEAM, which is what makes the later work possible without touching the two insertion points)*. 🔴 **§3.8 carries the two constraints a later implementation MUST honour**, and the first one kills the obvious approach: ⛔ **a node may not shard on its own load** — the answer must come from a mapping identical on every node, or two owners re-appear | ⭐ nothing open in the SEAM. ⛔ What is deliberately unanswered: the shard table's authority, transport, and balancing metric — and **making a mapping change mid-scenario**, which needs a re-evaluation path and is therefore a design of its own *(ruling 9)*, not an implementation of this one |
 
 ---
 
@@ -529,11 +657,13 @@ sequenceDiagram
 |---|---|---|
 | **0a** | 🔴 **RELOCATE `GhostPromotionSystem` registration from `NedReplicationModule` into `EntityCreationPack`** — §3.7. ⛔ One commit: add to the pack **and** remove from the NED module | rail: a node built from the pack registers promotion **exactly once**; and a **BDC-composed** node promotes its ghosts *(today it does not — that gap closes here)* |
 | **0** | ⭐ `TkbTemplate.BirthCriticalComponents` + `AddBirthCriticalComponent<T>()`, mirroring the existing `AddMandatoryComponent<T>()`; seed **`SimTransform`** on the templates that carry one | unit: a template that does not list it does not report it; the list is network-free *(no `DescriptorOwnershipMap`, no participant, so it holds on a networkless node)* |
-| **1** | `IRoleAffinityPolicy` + `RoleAffinityPolicy` in `Fdp.Toolkits/Replication` | unit: Brain and Muscle masks are **disjoint** over the brain/kinematic sets, **and** birth-critical components are in **both** |
+| ⭐⭐ **1a** | 🆕 **`IRoleShardProvider` + `RoleShardKey` + `SingleNodePerRoleShardProvider`** in `Fdp.Toolkits/Replication` — §3.8, user ruling `2026-09-10` | unit: the default provider answers `true` for every DECLARED role and `false` otherwise, **for any key** *(incl. `NetworkId == 0`, the networkless case)*; ⭐ **a rail that the default IGNORES the key** — red-proof: make it read `NetworkId` and the "identical on every node" contract rail reddens |
+| **1** | `IRoleAffinityPolicy` + `RoleAffinityPolicy` in `Fdp.Toolkits/Replication`, ⚠ **taking the provider and a mask PER ROLE** *(§3.8 — ⛔ not the single flat mask §3.3 first drew)* | unit: Brain and Muscle masks are **disjoint** over the brain/kinematic sets, **and** birth-critical components are in **both**. ⭐⭐ **AND the shard rail: with a stub provider answering `false` for `Brain`, a Brain-declaring node's mask contains NO brain components** — this is the one that proves the seam is real rather than decorative |
 | **2** | `NetworkSpawningSystem:181` intersects with the policy; **null policy keeps today's behaviour** | rail: with no policy, the mask is unchanged *(red-proof: inject a policy, assert the bits drop)*. ⭐⭐ **AND the birthright rail: a creator ALWAYS keeps `dtWorldPos`, whatever its role** — this is the one the architect's correction exists to protect, so it is written before step 2's code |
 | **3** | `GhostPromotionSystem` claims after the translator loop | rail: a promoted ghost owns exactly the role's descriptors |
 | **3b** | 🔴 **the execution gate** — §3.5: `.WithAuthority<BehaviorState>()` on `BTreeTickSystem`, and narrow the Muscle-only registration | rail: a node holding brain components it does **not** own ticks them **zero** times. ⛔ **Without this the whole design is cosmetic** — authority would gate replication while both nodes still ran the tree |
-| **4** | hand CGF a Brain policy and SimHost a Muscle policy at their composition roots | ⭐⭐ **the acceptance test:** a SimHost-created brain-enabled entity ends with `HasAuthority<BehaviorState>` **false on SimHost and true on CGF**, and `TacticalIntentResolutionSystem`'s gate passes |
+| ⭐ **3c** | 🆕 **the BOOT WARNING** *(§5 ② — user-approved `2026-09-10`)*: at the composition root, warn once if `IClusterStateCache.GetLeastLoadedNode(NodeRole.Brain)` is `null`. ⛔ **WARN, never throw** *(a pure-Muscle test cluster is legitimate)*, and ⛔ **at the root, not in the policy** — it is NED-only and the policy stays network-agnostic *(§2.3)* | rail: the warning fires on a roster with no Brain and is **silent** when one is present |
+| **4** | hand CGF a Brain policy and SimHost a Muscle policy at their composition roots, ⭐ **each with a `SingleNodePerRoleShardProvider` over the role that host already declares** *(`SimHostApp.DefaultRole:182` · `CgfSubsystem.DefaultRole`)* | ⭐⭐ **the acceptance test:** a SimHost-created brain-enabled entity ends with `HasAuthority<BehaviorState>` **false on SimHost and true on CGF**, and `TacticalIntentResolutionSystem`'s gate passes |
 
 ⭐⭐ **The acceptance criterion for the whole thing** is the failing cluster test
 `CgfSubsystemHeadlessTests.SimHost_MoveToLocationMission_EntityMovesWithoutGhostTick` — it asserts a
