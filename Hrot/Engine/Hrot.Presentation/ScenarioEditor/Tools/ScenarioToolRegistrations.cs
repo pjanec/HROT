@@ -152,7 +152,20 @@ namespace Hrot.ScenarioEditor.Tools
                 //   by something the controller did not arm (an unconverted adapter) is a real toggle-off.
                 if (g.HasInjectedGizmo(e)) { g.DeactivateGizmo(e); return ToolActivationOutcome.Dismissed; }
 
-                g.ActivateGizmo(e, factory(w, e, NetworkIdOf(w, e), () => g.DeactivateGizmo(e)));
+                // ⭐⭐⭐ THE onRemove PAIR — both halves of the gizmo's lifetime, composed at the ONE site
+                //   that has both in scope. 📄 docs/UX/UX_Feature_Tool_Model.md §4.7h.
+                // 🔴 Measured 2026-09-10 (operator: "Edit Shape" armed every OTHER time): these gizmos
+                //   self-remove on right-release and on Escape (VertexEditGizmo.cs:174-179 / :182-189), and
+                //   the old closure told the ARBITER only. The controller kept believing (Edit, e) was
+                //   armed, so the next activation hit Activate's ToggleOnReactivate branch and cancelled.
+                // ⚠ This is the CE-259n lesson generalised: when one event must update two state holders,
+                //   pair them where both are visible — not in whichever one the caller happened to reach.
+                string toolId = ScenarioToolIds.ForEditorTool(tool);
+                g.ActivateGizmo(e, factory(w, e, NetworkIdOf(w, e), () =>
+                {
+                    g.DeactivateGizmo(e);
+                    controller.NotifyToolEnded(toolId, e);
+                }));
                 return ToolActivationOutcome.Armed;
             }
 
@@ -171,9 +184,18 @@ namespace Hrot.ScenarioEditor.Tools
                     return Unserviceable(EditorTool.Rotate, "the selected entity has no SimTransform");
 
                 g.DeactivateGizmo(e);
+                // ⭐ The same onRemove PAIR as Edit/Route — EntityRotatorGizmo self-removes through
+                //   RequestRemove() (EntityRotatorGizmo.cs:157-160). ⚠ Rotate has no ToggleOnReactivate, so
+                //   it does not ALTERNATE like Edit did; what a stale entry costs here is a lying
+                //   ActiveModal — which is precisely what UXI-07 step 5's toolbar is meant to bind to.
+                //   ⇒ fixed here too rather than left as a second, subtler instance of one defect.
                 g.ActivateGizmo(e, new EntityRotatorGizmo(
                     w, e,
-                    onRemove: () => g.DeactivateGizmo(e),
+                    onRemove: () =>
+                    {
+                        g.DeactivateGizmo(e);
+                        controller.NotifyToolEnded(ScenarioToolIds.Rotate, e);
+                    },
                     writer:   EntityWriteRouter.For(w)));
                 return ToolActivationOutcome.Armed;
             }

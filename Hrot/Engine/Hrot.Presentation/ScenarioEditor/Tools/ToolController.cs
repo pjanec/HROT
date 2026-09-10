@@ -218,6 +218,53 @@ namespace Hrot.ScenarioEditor.Tools
             NotifyActiveModalChanged();
         }
 
+        /// <inheritdoc/>
+        public void NotifyToolEnded(string toolId, Entity target = default)
+        {
+            if (!_tools.TryGetValue(toolId, out var entry)) return;   // never registered ⇒ nothing to pop
+            var descriptor = entry.Descriptor;
+
+            // ⭐ TOPMOST match: the same (tool, target) can only be on the stack once (Activate replaces,
+            //   PushModal re-targets), but searching downward is what makes the not-top case below reachable.
+            int idx = -1;
+            for (int i = _modalStack.Count - 1; i >= 0; i--)
+            {
+                if (ReferenceEquals(_modalStack[i].Tool, descriptor) && _modalStack[i].Target == target)
+                {
+                    idx = i;
+                    break;
+                }
+            }
+
+            // ⚠ IDEMPOTENT, deliberately — same property as PopModalAt. The arbiter sweeps
+            //   (CancelFocused / CancelInteractiveTools) dispose a gizmo without going through its
+            //   onRemove, but nothing guarantees that stays true, and a self-removing gizmo may also be
+            //   torn down by entity death. ⇒ a second notification for an entry already gone is normal.
+            if (idx < 0) return;
+
+            var ended = _modalStack[idx];
+            _modalStack.RemoveAt(idx);
+
+            if (idx == _modalStack.Count)
+            {
+                // It WAS the top. ⛔⛔ NOT CancelFocused, and that is the whole difference from PopModalAt:
+                //   the gizmo ENDED ITSELF, so there is nothing of ours left to tear down — and cancelling
+                //   "the focus holder" here would reach whatever holds focus NOW, which after a self-removal
+                //   is either nothing or somebody else's gizmo.
+                // ⭐ The resume still happens: this entry interrupted something and that something is owed
+                //   its focus back, exactly as a popped scope would give it.
+                ResumeInto(_modalStack.Count > 0 ? _modalStack[^1].Tool.Arbiter : ToolArbiter.None,
+                           ended.Suspended);
+            }
+            // ⛔ else: the entry was SUSPENDED underneath an interruption and its gizmo went away anyway
+            //   (entity death — a suspended gizmo receives no input, so it cannot self-remove). Removing the
+            //   entry is all that is owed: the interruption above still holds focus, and when IT pops,
+            //   ResumeInto hands back this now-dead gizmo — which DataDrivenGizmoSystem.ResumeFocus
+            //   documents as a no-op "when that gizmo is no longer injected" (:132). ⇒ no chain repair.
+
+            NotifyActiveModalChanged();
+        }
+
         // ── internals ─────────────────────────────────────────────────────────────
 
         /// <summary>

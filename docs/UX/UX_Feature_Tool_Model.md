@@ -998,6 +998,69 @@ silent-default pattern's tenth instance: `InteractionDeps.Tools` is optional so 
 constructs, which is exactly the shape that lets a root forget it — and a forgotten arbiter drops every
 tool press.
 
+### 4.7h 🔴🔴🔴 A SELF-REMOVING GIZMO NEVER TOLD THE CONTROLLER — **"Edit Shape" worked every OTHER time** *(`CE-259q`, `2026-09-10`)*
+
+🔒 **Found by an operator running the editor, verbatim:** *"i right click again, select Edit shape again,
+nothing happens. i need to repeat, second try work. third try does not. fourth try does."*
+⭐⭐ **A deterministic 2-cycle — which is what made it diagnosable in one pass.**
+
+#### 📐 The mechanism, end to end
+
+| # | what | where |
+|---|---|---|
+| ① | `VertexEditGizmo` **self-removes** — right-RELEASE and Escape both write back and call `_onRemove()` | `VertexEditGizmo.cs:174-179` · `:182-189` |
+| ② | `onRemove` was `() => g.DeactivateGizmo(e)` — it told the **ARBITER only** | `ScenarioToolRegistrations.cs:155` *(pre-fix)* |
+| ③ | nothing pops `ToolController._modalStack`, which still held `(Edit, entity)` | `ToolController.cs` — the stack was mutated only by `Activate`, `PushModal`, `Cancel`, `PopModalAt` |
+| ④ | so the operator's next activation was read as a deliberate **RE-activation**, and `Edit` has `ToggleOnReactivate: true` ⇒ **`Cancel()`, nothing armed** | `ToolController.cs:120-126` · `ScenarioToolRegistrations.cs:96-97` |
+| ⑤ | that `Cancel()` emptied the stack ⇒ **the attempt after it armed normally** | the 2-cycle |
+
+⛔⛔ **`Activate` returned `true` throughout.** ⇒ ⭐ **a tool's activation return value is NOT evidence that
+anything armed** — the rail asserts the arbiter, not the bool. That is why ~8 000 green rails could not see
+this, and it is the same lesson as §4.7's *"a broken gizmo still draws"*.
+
+#### ⭐⭐ The fix — `IToolController.NotifyToolEnded(toolId, target)`
+
+⭐ The gizmo's `onRemove` now updates **both** state holders, composed at the ONE site that has both in
+scope (`ScenarioToolRegistrations`, for Edit · Route · Rotate). 🔒 **This is the `CE-259n` lesson
+generalised:** when one event must update two state holders, pair them where both are visible — not in
+whichever one the caller happened to reach.
+
+| ⚠ the trap that shaped the design | |
+|---|---|
+| ⛔⛔ **NOT `Cancel()`** | it unwinds the **whole** stack by deliberate design (`ToolController.cs:254-267`) ⇒ a self-removing tool would destroy the tool it had **interrupted** — the `PushModal` suspend/resume capability §4.11 built and an operator confirmed on `2026-09-09`. ⭐ `NotifyToolEnded` pops **one** entry and resumes what that entry suspended |
+| ⛔ **NOT `CancelFocused` either** | that is `PopModalAt`'s job. Here the gizmo **already ended itself**, so cancelling "the focus holder" would reach whatever holds focus NOW — nothing, or somebody else's gizmo |
+| ⭐ **the mid-stack case needs no chain repair** | an entry whose gizmo died while SUSPENDED is simply removed; when the interruption above it pops, `ResumeInto` hands back a gizmo that `DataDrivenGizmoSystem.ResumeFocus` documents as a no-op *"when that gizmo is no longer injected"* (`:132`) |
+| ⚠ **idempotent on purpose** | the arbiter sweeps dispose a gizmo without routing through `onRemove` *today*, and entity death can remove one while suspended ⇒ a second notification for an entry already gone is NORMAL |
+
+⭐⭐ **Why the picker never had this bug, which is the design precedent:** `PickerToolHost` arms through
+`PushModal` and disposes the returned **scope**, so the controller pops itself (`:181`, `:285`). ⇒ the
+`Activate` path simply had no equivalent, and `NotifyToolEnded` is it.
+
+⭐ **Rotate is fixed too** even though it lacks `ToggleOnReactivate` and therefore does not alternate:
+a stale entry there costs a **lying `ActiveModal`**, which is exactly what step 5's toolbar binds to.
+
+#### ⚠ A LYING COMMENT IS WHY THIS SURVIVED
+
+🔴 `VertexEditGizmo.cs:27` read *"The gizmo does NOT call `_onRemove()` on its own"* — **false from the
+moment the right-release arm existed.** ⇒ anyone auditing the lifetime read that line and stopped.
+✅ Corrected in place, with the two call sites named. 🔒 **The generalisable bit:** a header comment that
+describes a *policy* ("this class never X") rots invisibly; one that names the *lines* does not.
+
+#### 📐 Rails — `ToolControllerTests` **15 → 18**, all inverse-edit red-proofed
+
+| rail | catches | red-proof |
+|---|---|---|
+| `AToolThatEndedItselfCanBeArmedAgainImmediately` | ⭐ the operator's 2-cycle — asserts the **second** arm | drop `NotifyToolEnded` from the pair ⇒ FAILS while `Activate` still returns `true` |
+| `AToolEndingItselfResumesWhatItInterruptedInsteadOfDestroyingIt` | ⛔ forbids the naive `Cancel()` fix | body ⇒ `Cancel()` ⇒ FAILS: the interrupted tool is disposed |
+| `NotifyToolEndedIsIdempotentAndIgnoresUnknownTools` | double-notify, unknown tool, **right tool + WRONG target** | same `Cancel()` edit ⇒ FAILS (it pops somebody else's entry) |
+
+⚠⚠ **And a rail bug worth recording, because it failed for a reason that does not exist in the product:**
+the first draft of rail 2 put the picker on the **entity-scoped** arbiter keyed by the same entity, and
+`DataDrivenGizmoSystem.ActivateGizmo:90` deactivates the previous injection for that entity first — so the
+push **disposed the tool underneath** before `NotifyToolEnded` was reached. 📐 Production pickers are
+`ToolArbiter.Global` on `GlobalGizmoManager` (`PickerToolHost.cs:116`, `:173`). ⇒ ⭐ **mirror the ARBITERS,
+not just the gesture.**
+
 ### 4.8 📐 STEP 4's REAL INVENTORY — **the design said THREE adapters; it is EIGHT sites across FOUR hosts** *(`2026-09-09`)*
 
 ⛔⛔ **`§Migration` step 4 names `EditorMapPickAdapter`, `EditorZoneAdapter`, `EditorSpawnAdapter`. That

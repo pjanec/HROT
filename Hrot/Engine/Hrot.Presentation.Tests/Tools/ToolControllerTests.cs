@@ -199,6 +199,153 @@ namespace Hrot.Presentation.Tests.Tools
         }
 
         /// <summary>
+        /// ⭐⭐⭐ <b><c>CE-259q</c> — A TOOL THAT ENDED ITSELF CAN BE ARMED AGAIN IMMEDIATELY.</b>
+        /// 📄 <c>docs/UX/UX_Feature_Tool_Model.md</c> §4.7h.
+        ///
+        /// <para>🔴 <b>The operator's report, <c>2026-09-10</c>, verbatim:</b> <i>"i right click again, select
+        /// Edit shape again, nothing happens. i need to repeat, second try work. third try does not. fourth
+        /// try does."</i> ⇒ ⭐ a DETERMINISTIC 2-cycle, which is why this rail asserts the SECOND arm rather
+        /// than just the first.</para>
+        ///
+        /// <para>📐 <b>The mechanism it pins:</b> <c>VertexEditGizmo</c> self-removes on right-release
+        /// (<c>:174-179</c>) and on Escape (<c>:182-189</c>). Before the fix its <c>onRemove</c> told the
+        /// ARBITER only, so <c>_modalStack</c> still held <c>(Edit, entity)</c> ⇒ the next <c>Activate</c>
+        /// matched the <c>ToggleOnReactivate</c> branch (<c>ToolController.cs:120-126</c>) and CANCELLED.</para>
+        ///
+        /// <para>⚠ <b>Inverse-edit red-proof:</b> drop <c>controller.NotifyToolEnded(...)</c> from the
+        /// <c>onRemove</c> pair and the second <c>Assert.True(armed)</c> FAILS while <c>Activate</c> still
+        /// returns <c>true</c> — ⭐ which is exactly why the operator saw "nothing happens" and no error.
+        /// ⛔ <c>Activate</c>'s return value is NOT a proof of arming; assert the arbiter.</para>
+        /// </summary>
+        [Fact]
+        public void AToolThatEndedItselfCanBeArmedAgainImmediately()
+        {
+            var fx     = new Fixture();
+            var entity = _world.CreateEntity();
+
+            // The production shape, ScenarioToolRegistrations.ToggleEntityGizmo: ToggleOnReactivate, and an
+            // onRemove that updates BOTH the arbiter and the controller.
+            var descriptor = new ToolDescriptor(
+                "edit", "Edit Shape", ToolModality.Modal, ToolArbiter.EntityScoped,
+                ToggleOnReactivate: true);
+
+            ProbeGizmo? armed = null;
+            fx.Controller.Register(descriptor, target =>
+            {
+                if (fx.DataDriven.HasInjectedGizmo(target))
+                {
+                    fx.DataDriven.DeactivateGizmo(target);
+                    return ToolActivationOutcome.Dismissed;
+                }
+
+                armed = new ProbeGizmo();
+                fx.DataDriven.ActivateGizmo(target, armed);
+                return ToolActivationOutcome.Armed;
+            });
+
+            // ① arm it — the operator's first "Edit Shape"
+            fx.Controller.Activate("edit", entity);
+            Assert.True(fx.DataDriven.HasInjectedGizmo(entity));
+
+            // ② the gizmo ENDS ITSELF (right-release / Escape). This is the paired onRemove.
+            fx.DataDriven.DeactivateGizmo(entity);
+            fx.Controller.NotifyToolEnded("edit", entity);
+
+            Assert.False(fx.DataDriven.HasInjectedGizmo(entity));
+            Assert.Null(fx.Controller.ActiveModal);   // 🔴 was the stale (Edit, entity) entry
+
+            // ③ arm it again — this is the try that used to do nothing
+            fx.Controller.Activate("edit", entity);
+            Assert.True(fx.DataDriven.HasInjectedGizmo(entity));   // 🔴 was FALSE: the toggle cancelled
+            Assert.Same(descriptor, fx.Controller.ActiveModal);
+        }
+
+        /// <summary>
+        /// ⛔⛔⛔ <b><c>CE-259q</c> guard — ENDING A TOOL MUST NOT SWEEP THE STACK.</b>
+        ///
+        /// <para>🔒 The naive fix for the rail above is <c>onRemove: () => tools.Cancel()</c>. ⛔ That is
+        /// WRONG and this rail is what forbids it: <c>Cancel</c> unwinds the WHOLE stack by deliberate design
+        /// (<c>ToolController.cs:254-267</c>), so a self-removing picker would destroy the tool it had
+        /// INTERRUPTED — the <c>PushModal</c> suspend/resume capability an operator confirmed working for the
+        /// first time on <c>2026-09-09</c> (the half-drawn route surviving a pick).</para>
+        ///
+        /// <para>⚠ <b>Red-proof:</b> replace the <c>NotifyToolEnded</c> body with <c>Cancel()</c> and the
+        /// <c>Assert.False(underneath.Disposed)</c> FAILS.</para>
+        /// </summary>
+        [Fact]
+        public void AToolEndingItselfResumesWhatItInterruptedInsteadOfDestroyingIt()
+        {
+            var fx     = new Fixture();
+            var entity = _world.CreateEntity();
+
+            // The tool underneath — the half-drawn route/shape.
+            var underneath = new ProbeGizmo();
+            fx.Controller.Register(
+                new ToolDescriptor("edit", "Edit Shape", ToolModality.Modal, ToolArbiter.EntityScoped),
+                target => { fx.DataDriven.ActivateGizmo(target, underneath); return ToolActivationOutcome.Armed; });
+            fx.Controller.Activate("edit", entity);
+            Assert.True(underneath.IsFocused);
+
+            // The interrupter — a picker, pushed rather than activated.
+            // ⚠⚠ ToolArbiter.Global, on GlobalGizmoManager, because that is what production does:
+            //    PickerToolHost.cs:116 registers every picker descriptor as Global and :173 arms it with
+            //    g.Register(id, gizmo). 🔴 A first draft of this rail put the picker on the ENTITY-scoped
+            //    arbiter keyed by the same entity — and DataDrivenGizmoSystem.ActivateGizmo:90 deactivates
+            //    the previous injection for that entity first, so the push DISPOSED the tool underneath
+            //    before NotifyToolEnded was ever reached. ⇒ the rail failed for a reason that does not
+            //    exist in the product. Mirror the arbiters, not just the gesture.
+            var picker = new ProbeGizmo();
+            long pickerId = GlobalGizmoManager.NewId();
+            fx.Controller.Register(
+                new ToolDescriptor("pick", "Pick Entity", ToolModality.Modal, ToolArbiter.Global),
+                _ => { fx.Global.Register(pickerId, picker); return ToolActivationOutcome.Armed; });
+            fx.Controller.PushModal("pick", entity);
+
+            Assert.False(underneath.IsFocused);   // suspended, NOT disposed — Q27-F
+            Assert.False(underneath.Disposed);
+
+            // The picker ends ITSELF, and reports it.
+            fx.Global.Unregister(pickerId);
+            fx.Controller.NotifyToolEnded("pick", entity);
+
+            Assert.False(underneath.Disposed);    // 🔴 Cancel() would have destroyed it
+            Assert.True(underneath.IsFocused);    // ⭐ and it got its focus BACK
+        }
+
+        /// <summary>
+        /// ⚠ <c>NotifyToolEnded</c> is IDEMPOTENT and tolerates an unknown tool. ⭐ Not defensive padding:
+        /// the arbiter sweeps dispose a gizmo without routing through its <c>onRemove</c> today, and entity
+        /// death can remove one while suspended ⇒ a second notification for an entry already gone is a
+        /// NORMAL event, and it must not pop somebody else's entry.
+        /// </summary>
+        [Fact]
+        public void NotifyToolEndedIsIdempotentAndIgnoresUnknownTools()
+        {
+            var fx     = new Fixture();
+            var entity = _world.CreateEntity();
+
+            var descriptor = new ToolDescriptor(
+                "edit", "Edit Shape", ToolModality.Modal, ToolArbiter.EntityScoped);
+            fx.Controller.Register(descriptor,
+                target => { fx.DataDriven.ActivateGizmo(target, new ProbeGizmo()); return ToolActivationOutcome.Armed; });
+
+            fx.Controller.Activate("edit", entity);
+            Assert.Same(descriptor, fx.Controller.ActiveModal);
+
+            fx.Controller.NotifyToolEnded("never-registered", entity);
+            Assert.Same(descriptor, fx.Controller.ActiveModal);   // untouched
+
+            fx.Controller.NotifyToolEnded("edit", _world.CreateEntity());
+            Assert.Same(descriptor, fx.Controller.ActiveModal);   // right tool, WRONG target ⇒ untouched
+
+            fx.Controller.NotifyToolEnded("edit", entity);
+            Assert.Null(fx.Controller.ActiveModal);
+
+            fx.Controller.NotifyToolEnded("edit", entity);         // again — must not throw or over-pop
+            Assert.Null(fx.Controller.ActiveModal);
+        }
+
+        /// <summary>
         /// 🔒 <b><c>R-137</c> — unification may not cost a capability.</b> A modeless tool
         /// (<c>LayerControlGizmo</c>'s shape) must SURVIVE a modal switch. ⭐ This is why
         /// <c>CancelOtherArbiter</c> delegates to <c>CancelInteractiveTools()</c>, which spares permanent

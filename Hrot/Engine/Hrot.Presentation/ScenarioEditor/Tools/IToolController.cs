@@ -85,6 +85,33 @@ namespace Hrot.ScenarioEditor.Tools
         /// <summary>Cancel the active modal tool. Modeless and stateless gizmos are untouched.</summary>
         void Cancel();
 
+        /// <summary>
+        /// ⭐⭐⭐ <b>"The gizmo for this (tool, target) ENDED ITSELF" — the half of the lifetime the
+        /// controller could not see.</b> 📄 <c>docs/UX/UX_Feature_Tool_Model.md</c> §4.7h.
+        ///
+        /// <para>🔴 <b>The defect this closes, reported by an operator <c>2026-09-10</c>: "Edit Shape"
+        /// worked every OTHER time</b> — try 1 armed, try 2 did nothing, try 3 armed, try 4 did nothing,
+        /// deterministically. 📐 Root cause: <c>VertexEditGizmo</c> (and <c>RouteWaypointGizmo</c>) call
+        /// their <c>onRemove</c> on right-release AND on Escape — <c>VertexEditGizmo.cs:174-179</c> /
+        /// <c>:182-189</c> — which reaches <c>DataDrivenGizmoSystem.DeactivateGizmo</c> and nothing else.
+        /// ⇒ the arbiter forgot the gizmo while <c>_modalStack</c> still held <c>(Edit, entity)</c>, so the
+        /// operator's next activation matched <c>Activate</c>'s <c>ToggleOnReactivate</c> branch and
+        /// CANCELLED instead of arming — emptying the stack, which is why the attempt after that worked.</para>
+        ///
+        /// <para>⭐⭐ <b>Why a notification and not derived state.</b> 🔒 <c>R-126</c> would prefer one source
+        /// read live rather than a latch — ⛔ but <c>_modalStack</c> also carries the SUSPENDED gizmo of each
+        /// interruption (<see cref="PushModal"/>), and no arbiter can reconstruct that. ⇒ the stack must stay
+        /// authoritative for suspension, so the arbiter's half has to be pushed INTO it.</para>
+        ///
+        /// <para>⛔⛔ <b>Do NOT use <see cref="Cancel"/> for this.</b> 📐 <c>Cancel</c> unwinds the WHOLE stack
+        /// by deliberate design, so a self-removing tool would destroy the tool it had interrupted — which is
+        /// exactly the <c>PushModal</c> suspend/resume capability an operator confirmed working for the first
+        /// time on <c>2026-09-09</c>. ⭐ This pops ONE entry and resumes what that entry suspended.</para>
+        ///
+        /// <para>⚠ IDEMPOTENT: a notification for an entry already gone is a no-op, not an error.</para>
+        /// </summary>
+        void NotifyToolEnded(string toolId, Entity target = default);
+
         /// <summary>Raised whenever <see cref="ActiveModal"/> changes. The toolbar binds here (step 5).</summary>
         event Action<ToolDescriptor?>? ActiveModalChanged;
     }

@@ -24,9 +24,15 @@ namespace Hrot.ScenarioEditor.Gizmos
     // - OnCancel: reverts the dragged vertex.
     // - OnMenuAction(1): insert a new vertex after the active one.
     // - OnMenuAction(2): delete the active vertex.
-    // - The gizmo does NOT call _onRemove() on its own (marker stays for multiple drags).
-    //   _onRemove() is provided by the definition and removes ActiveVertexEditRequest
-    //   when called from outside (e.g. tool switch, entity lifecycle).
+    // - OnCommit does NOT call _onRemove() — the marker stays for multiple drags (:139-144).
+    // - ⭐ IT DOES self-remove to END the tool: right-RELEASE (:174-179) and Escape (:182-189) both
+    //   write back and then call _onRemove().
+    //   🔴 CORRECTED 2026-09-10. This line used to read "The gizmo does NOT call _onRemove() on its own",
+    //   which was false from the moment the right-release arm existed — and that wrong comment is why the
+    //   lifetime desync below went unnoticed. ⇒ _onRemove() must update BOTH the arbiter and the
+    //   ToolController, which is what ScenarioToolRegistrations now composes (IToolController
+    //   .NotifyToolEnded, docs/UX/UX_Feature_Tool_Model.md §4.7h). ⛔ A gizmo that self-removes and tells
+    //   only the arbiter leaves the controller believing this tool is still armed.
     public sealed class VertexEditGizmo : IEntityStatefulGizmo
     {
         // Context menu JSON: array format required by ContextMenuAdapter.
