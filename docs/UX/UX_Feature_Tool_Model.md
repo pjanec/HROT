@@ -10,6 +10,19 @@ current-answer: 4 (the A1 build) + 4.7/4.7b (the AS-BUILT). Steps 1-3 of Migrati
   MapInteractionPack, so all FIVE hosts (IG, CGF, ReplayBrowser, SimHost, Editor) get one with the full
   tool set, and the D-prime idiom is gone from every production site. Steps 4-6 (the bypassing adapters,
   the toolbar binding, central Escape) and PushModal's suspend/resume are OPEN.
+  ⭐ 2026-09-10 — THREE NEW SECTIONS carrying user rulings, read them before touching this area:
+    4.7h  a self-removing gizmo must tell the ToolController (CE-259q, BUILT).
+    4.7i  a SUSPENDED tool draws its geometry but NO handles (RULED, NOT BUILT). Independent of the
+          selection work below and buildable alone. Measured: IsFocused is a DEAD parameter on 14 of 14
+          stateful gizmos, so the signal already exists; hiding the handles also closes a silent mis-pick.
+    4.13  "Mark Target for N Units..." is RETIRED (it gates on one entity and acts on another); target-pick
+          moves to the SELECTED perceiver's menu and arms the existing hovering picker.
+    4.14  selection is GLOBAL; a selection CHANGE cancels editing of the previously selected entity; clicks
+          during an edit must not select (already true on the map, bypassed by panels).
+  ⛔ 4.13 and 4.14 CANNOT be built before UX_Feature_Selection.md 2.1 (one store) - measured 2026-09-10:
+    four selection stores and ~11 writers, so "the selection changed" has four meanings today.
+  ⚠ OWED when 4.13/4.14 become buildable: UX_Feature_Selection.md carries no classDiagram/sequenceDiagram
+    yet (obligation 1). This document's two diagrams do not cover the selection/cancel seam.
   >>> READ 0b FIRST <<< - the premises SURVIVE, but four moved and three are now WIDER than this
   document says, because CE-051/CE-061/UXI-23-S2b reworked this exact area after the 2026-08-28 scan.
 known-rot: the line citations in the body are pre-CE-051 and mostly MOVED. 0b carries the current ones.
@@ -1061,6 +1074,57 @@ push **disposed the tool underneath** before `NotifyToolEnded` was reached. 📐
 `ToolArbiter.Global` on `GlobalGizmoManager` (`PickerToolHost.cs:116`, `:173`). ⇒ ⭐ **mirror the ARBITERS,
 not just the gesture.**
 
+### 4.7i 🔒🔒🔒 A SUSPENDED TOOL DRAWS ITS WORK, NOT ITS HANDLES *(user ruling, `2026-09-10`)*
+
+🔒 **User, verbatim:** *"handles gone entirely while suspended, and re-appear once focus returns. Inactive
+handle is best expressed by not being shown at all - clearest indication that something can not be
+handled. The partial route or shape edited should stay drawn."*
+
+| ⭐ the rule | |
+|---|---|
+| **the work-in-progress GEOMETRY stays drawn** | a half-drawn route or area that vanished and reappeared would read as a bug — that half of §4.11's lean is unchanged |
+| ⭐⭐ **the HANDLES disappear entirely while suspended, and return on resume** | ⛔ not dimmed, not greyed — **absent**. 🔒 *"not being shown at all"* is the clearest possible statement that a thing cannot be manipulated |
+| ⭐ it is a GENERIC rule | every focus-suspendable tool, not just shape/route editing |
+
+⛔⛔ **SUPERSEDES the wording in `IToolController.cs:76-77`** — *"A suspended tool KEEPS DRAWING and simply
+stops receiving input"*. ⭐ That stays true of the geometry and is now **false of the handles**. The
+`2026-09-09` operator confirmation *("handles survived the rightclick, gizmo stayed while picker armed")*
+verified the SUSPEND/RESUME MECHANISM, ⛔ not the appearance — the appearance is what this ruling corrects.
+
+#### ⭐⭐ The signal already exists and NOTHING reads it — 📐 measured `2026-09-10`, 14 of 14
+
+`GizmoFocusRegistry.Suspend()` calls `SetFocus(false)` (`:113`) and `Resume` sets it back (`:136`), so every
+gizmo is told, every frame, whether it holds focus.
+
+📐 **All 14 production `IEntityStatefulGizmo` implementations mention `IsFocused` exactly twice — the
+property and its setter — and NONE of them read it:** `VertexEditGizmo` · `RouteWaypointGizmo` ·
+`EntityRotatorGizmo` · `EntityDragGizmo` · `EntityPlacementGizmo` · `MeasureGizmo` · `LayerControlGizmo` ·
+`ModalBoxSelectionGizmo` · `ObstaclePlacementGizmo` · `LocationPickerGizmo` · `FdpLocationPickerGizmo` ·
+`EntityPickerGizmo` · `PointSequenceGizmo` · `BoundingBoxPickerGizmo`.
+
+⇒ ⭐⭐⭐ **This is the DEAD-PARAMETER shape, at interface scale** — *"the seam is unused: an interface nobody
+calls, versus one called every frame with a dead parameter"* (`.claude/CLAUDE.md`, prior-art discipline).
+⇒ **the ruling needs no new machinery**: a gizmo that draws handles gates that emission on `IsFocused`.
+⛔ **And it must gate the EMISSION, not merely the colour** — see the hazard below.
+
+#### ⭐⭐ Why hiding the handles also closes a SILENT MIS-PICK
+
+📐 A suspended `VertexEditGizmo` emits handle primitives anchored to the entity being edited
+(`VertexEditGizmo.cs:118-119`), and a handle sits at a **vertex**, which can be anywhere — including on top
+of a **different** entity. The picker's hover hit-test is deliberately unfiltered by capture
+(`PickTopmostEntityAnchor(… exclusiveAnchorId: null)`, `CE-259p`), so it considers those handles.
+
+⇒ 🔴 **hovering that spot resolves the EDITED entity while the crosshair is visibly over the OTHER one** —
+a wrong pick with red-crosshair confirmation that it was right. ⚠ And once the frame-order defect
+(`CE-259r`) is fixed, handles emitted after entity pick boxes win the `DebugLayer` tie
+(`GizmoMap.Presentation/Layers/DebugGizmoLayer.cs:510`), so it stops being a coin flip.
+
+⭐⭐ **A suspended tool that emits no interactive primitives cannot shadow a pick.** ⇒ the UI ruling and the
+mis-pick fix are ONE change.
+
+⚠ **Unmeasured:** whether any consumer other than the hit-test and the renderer reads a suspended gizmo's
+primitives.
+
 ### 4.8 📐 STEP 4's REAL INVENTORY — **the design said THREE adapters; it is EIGHT sites across FOUR hosts** *(`2026-09-09`)*
 
 ⛔⛔ **`§Migration` step 4 names `EditorMapPickAdapter`, `EditorZoneAdapter`, `EditorSpawnAdapter`. That
@@ -1476,6 +1540,72 @@ meaningful — the operator asked for **this** tool, not two of it.
 in which gizmo they pass, so per-host copies would be four spellings of one claim)*. `ToolControllerTests`
 **15/15** as a regression check, since `PushModal`'s semantics changed for every caller.
 **Red-proof:** removing the re-target ⇒ **1🔴**, exactly that rail, on a 0-error build.
+
+### 4.13 🔒🔒 TARGET-PICK IS ARMED FROM THE SELECTED PERCEIVER'S MENU — **`"Mark Target for N Units…"` is RETIRED** *(user ruling, `2026-09-10`)*
+
+🔒 **User, verbatim:** *"'Mark target for N units' as is is incompatible with right-click-selects. It was
+confusing anyway. Correct approach is that the selected entity menu should offer picking a target which
+triggers the hovering picker."*
+
+#### 🔴 Why the old item cannot survive right-click-selects — **and it was already incoherent**
+
+📐 **Measured `2026-09-10`. `TargetMemory` belongs to the PERCEIVER**, not the target:
+`EditorPerceptionSetupSystem.cs:26` gates on `HasComponent<TargetMemory>(cmd.Perceiver)` and `:29` writes
+`GetComponentRW<TargetMemory>(cmd.Perceiver)`.
+
+| the old item | measured |
+|---|---|
+| **gates** on the RIGHT-CLICKED entity being a perceiver | `EditorSubsystem.cs:2318` |
+| **acts** on the SELECTED entities as perceivers, ignoring the clicked one | `:2349` / `:2377` publish `SeedTargetCommand { Perceiver = <each selected>, Target = <picked> }` |
+
+⇒ 🔴 **the gate asks about entity X and the action seeds entities Y…Z.** Right-clicking perceiver `P` with
+`A`,`B` selected seeds `A` and `B`, never `P`. ⛔ That is incoherent independently of right-click-selects;
+⚠ **and it only works today BECAUSE right-click does not select in the inspector** (§4.14) — the prior
+selection survives the gesture by accident, not by design.
+
+#### ⭐ The replacement
+
+| | |
+|---|---|
+| **where** | the **selected** entity's context menu — which, under right-click-selects, is the entity you just right-clicked |
+| **what** | *"Pick target…"* ⇒ arms the existing hovering `EntityPickerGizmo` through the ONE picker protocol (`PickerToolHost`, §4.12) |
+| **fan-out** | 🔒 seeds **every selected entity that supports it** — user ruling `2026-09-10` #3 |
+| **visibility** | 🔒 shown **only when the item applies to ALL selected** — that is `UX_Feature_Selection.md` §2.4 / ruling 47 *(applicable to some ⇒ **absent**)*, ⛔ not a new rule |
+| **mechanism reuse** | ⭐ `SeedTargetCommand` is untouched: **1** production producer and **1** consumer (`EditorPerceptionSetupSystem`, scheduled via `EditorSystemsModule` — `EditorSubsystem.cs:1629`). Only the ARMING SITE moves |
+
+⚠ **Depends on** `UXI-11` one-store selection and `UXI-24`'s menu-applicability rule, both `NOT-BUILT` — see §4.14.
+
+### 4.14 🔒🔒🔒 SELECTION AND EDITING — **only the selected entity is editable** *(user rulings, `2026-09-10`)*
+
+| # | 🔒 the ruling, verbatim where given | |
+|---|---|---|
+| **①** | *"inspector selection changes global entity selection state. not just map, not just editor, everywhere, every host, unified behavior."* | ⇒ ⛔ **`EntityInspectorPanel.ChainToMap` as an OPT-IN IS RETIRED.** 📐 It defaults to `false` (`:148`) and the only production host setting it true is **ReplayBrowser** (`:676-677`), with an operator toggle at `:663-667` ⇒ **in the editor, inspector selection does not reach the map today** |
+| **②** | *"Changing selection to another entity should cancel any currently active editing of the previously selected entity as we want just selected entity be editable."* | ⭐ **The trigger is the SELECTION CHANGE, not the click that caused it** — panel, map, command, script, all the same |
+| **③** | clicks during an edit must not select another entity — *"clicks are routed to top level gizmo only - something like mouse capture"* | ✅ **already true on the map**: `HandleInput` passes `exclusiveAnchorId` into the hit-test (`GizmoMap…/DebugGizmoLayer.cs:213`) and `:491` skips every non-matching anchor ⇒ no `Started` event ⇒ no selection change. 🔴 **panels bypass it entirely** |
+| **④** | right-click selects | ✅ already ruled — `UX_Feature_Selection.md` §2.3 *(user, `2026-08-12`)*. See §4.14's note below on the as-built divergence |
+
+⭐⭐ **② and ③ are not in tension:** while a tool is armed the MAP cannot change the selection (③ blocks it),
+so ② never fires from a map click. ② exists for the surfaces that are **not** captured — panels, commands —
+and there it cancels the edit rather than leaving an unselected entity editable.
+
+#### ⛔⛔ THE PREREQUISITE, and it is the whole reason this is not a small change
+
+📐 **Measured `2026-09-10`: there are FOUR selection stores and ~11 production writers**, not the *"two
+stores, three writers"* `UX_Feature_Selection.md` §1 records —
+see that document's §1 for the corrected inventory.
+
+⇒ 🔒 **"the selection changed" has four possible meanings today, so ② has nothing single to hook.**
+⇒ ⭐⭐⭐ **rulings ①–④ all sit on top of `UXI-11` §2.1 (one store; `ISelectionState` becomes a view), which is
+`build-state: NOT-BUILT`** — and `UXI-24` (multi-select, which §4.13's fan-out needs) states its own
+dependency on `UXI-11`. ⛔ **Do not build ①–④ before it**; ⭐ §4.7i (suspended handles) is independent of all
+of this and may ship alone.
+
+#### 📐 What the tool side owes once the store is one
+
+| | |
+|---|---|
+| the cancel hook | a selection change cancels the modal tool armed on the previously-selected entity — ⭐ through `IToolController` (`Cancel` for a switch, or `NotifyToolEnded` per §4.7h), ⛔ **never by sweeping an arbiter directly** |
+| ⚠ **today nothing does it** | 📐 the ONLY production `ToolController.Cancel()` is IG's `MeasureToolGizmoAdapter.cs:124`; `SelectEntitySystem.cs:83` and `SelectionInteractionSystem` both write selection and touch no tool state |
 
 ## Migration
 

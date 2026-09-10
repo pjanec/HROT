@@ -1,8 +1,17 @@
 <!--STATUS
 state: LIVE
 build-state: NOT-BUILT
-verified: 2026-08-28 (coordinator source scan)
-current-answer: NOT-BUILT (design only). ISelectionState unchanged; no EcsSelectionState; CGF not on the selection chain; ClearAll has 0 callers.
+verified: 2026-09-10 (measured source scan, graph + grep, coverage checked)
+current-answer: NOT-BUILT (design only). ISelectionState unchanged; no EcsSelectionState; CGF not on the
+  selection chain; ClearAll has 0 callers.
+  ⭐ 2026-09-10 — §2.6 is NEW and carries four user rulings: selection is GLOBAL across every host
+  (ChainToMap as an opt-in is retired), a selection CHANGE cancels editing of the previously selected
+  entity, clicks during an edit must not select (already true on the map via the capture-anchor filter,
+  bypassed by panels), and §2.3 row 1 stands (an already-selected entity keeps the whole selection).
+  ⛔ §1's headline is SUPERSEDED by its own re-measurement: FOUR stores and ~11 writers, not two/three.
+  ⛔ §2.6's rulings CANNOT be built before §2.1 (one store) — "the selection changed" has four meanings today.
+  ⭐ "Mark Target for N Units..." is RETIRED; replacement in UX_Feature_Tool_Model.md §4.13.
+stale-below: §1's title ("two stores and three writers") — read the corrected inventory at the top of §1.
 -->
 # Feature design — selection
 
@@ -21,6 +30,24 @@ current-answer: NOT-BUILT (design only). ISelectionState unchanged; no EcsSelect
 | ⚠ | `IEntityActionController` | duplicated in 2 projects | **single-entity only** (`long entityId` per method) ⇒ fan-out belongs on the descriptor layer ([UXI-03](UX_Feature_Entity_Action_Vocabulary.md)), not this facade |
 
 ## 1. The defect: two stores and **three** writers, synchronised by hand
+
+⚠⚠ **RE-MEASURED `2026-09-10` — the headline of this section UNDERSTATES it. There are FOUR stores and
+~11 production writers.** ⛔ The audit below is still correct about what it covers; it simply does not
+cover the panel-private stores or the full `PrimarySelected` write set. ⭐ The corrected inventory:
+
+| # | store | measured |
+|--:|---|---|
+| 1 | **`SelectionState` ECS component** | written by `SelectionInteractionSystem` |
+| 2 | **`ISelectionState`** — **3** production implementations | `DefaultSelectionState` · `SimHostInspectorAdapter` *(+`CarKinemInspectorAdapter` in Examples)* |
+| 3 | 🔴 **`EntityInspectorPanel._selectedEntities`** — its own multi-select `HashSet` | `FDP/Engine/Fdp.Presentation/ImGui/Panels/EntityInspectorPanel.cs:377` |
+| 4 | 🔴 **`DerEntityInspectorPanel._selectedEntityId`** — its own single `int` | `FDP/Engine/Fdp.Presentation/ImGui/Panels/DerEntityInspectorPanel.cs:77` |
+
+📐 **`PrimarySelected` alone has 9 production write sites:** `CgfSubsystem.cs:1461`, `:2884` ·
+`EditorSubsystem.cs:754`, `:789`, `:1946`, `:2008`, `:2013` · `SelectEntitySystem.cs:83`.
+
+⇒ 🔒 **This is why the `2026-09-10` rulings in §2.6 cannot be built before §2.1** — *"the selection
+changed"* currently has four possible meanings, so nothing single can be hooked. *(Coverage when measured:
+index mode `full`, recording complete; no parse gaps in any file named here.)*
 
 ⚠ **Corrected 2026-08-12** ([Correction 28](UX_Tasks_Detail.md#corrections)) — an earlier draft of this
 section claimed the two stores are *desynchronised in the Editor*. **They are not.** The audit below is
@@ -196,6 +223,37 @@ merits:**
 🔒 **The one exception stays as-is:** `SelectionInteractionSystem` writes the repository directly during
 its own main-thread `Tick`. That is correct today, immediate, and has no reason to change — the ECB rule
 applies to **callers outside the tick**, which is where the view's setter lives.
+
+### 2.6 🔒🔒🔒 SELECTION IS GLOBAL, AND ONLY THE SELECTED ENTITY IS EDITABLE *(user rulings, `2026-09-10`)*
+
+| # | 🔒 the ruling | consequence |
+|---|---|---|
+| **①** | *"inspector selection changes global entity selection state. not just map, not just editor, everywhere, every host, unified behavior."* | ⛔ **`EntityInspectorPanel.ChainToMap` as an opt-in is RETIRED.** 📐 It defaults to `false` (`:148`); the only production host that sets it true is **ReplayBrowser** (`:676-677`), and there is an operator toggle at `:663-667` ⇒ **in the editor, inspector selection does not reach the map today.** ⭐ Under §2.1 the question disappears: there is one store, so a panel writing selection IS the global selection |
+| **②** | *"Changing selection to another entity should cancel any currently active editing of the previously selected entity as we want just selected entity be editable."* | ⭐⭐ **the trigger is the SELECTION CHANGE, not the click** — panel, map, command or script alike. 📄 the tool-side contract is [`UX_Feature_Tool_Model.md` §4.14](UX_Feature_Tool_Model.md) |
+| **③** | clicks while an edit is in progress must not select another entity — *"something like mouse capture"*, defined by the gizmo | ✅ **already true on the map** (`GizmoMap…/DebugGizmoLayer.cs:213` + `:491` — the capture-anchor filter); 🔴 **panels bypass it** |
+
+⭐⭐ **② and ③ do not conflict:** while a tool is armed the map cannot change the selection at all, so ②
+never fires from a map click. ② governs the surfaces that are not captured.
+
+#### ⚠ AS-BUILT DIVERGENCE from §2.3, measured `2026-09-10`
+
+| §2.3 row | as-built |
+|---|---|
+| right-click an **unselected** entity ⇒ cleared, then selected | ✅ on the **map** — right-release emits a `Started` event (`GizmoMap…/DebugGizmoLayer.cs:227`) which `SelectionInteractionSystem` turns into clear+select. 🔴 **NOT in the inspector** — `EntityInspectorPanel.cs:398-403` only opens the popup; left-click selects (`:385-395`), right-click does not |
+| right-click an **already-selected** entity ⇒ **selection unchanged** | 🔴 **VIOLATED** — the clear+select is unconditional, so right-clicking one of five selected **collapses the selection to one** |
+| mutate selection **before** the menu is populated | ⚠ **not asserted anywhere** — no rail found |
+
+🔒 **The second row is load-bearing, not cosmetic:** the `2026-09-10` fan-out ruling (*"context menu opened
+on selection … should affect all selected entities as long as they support that"*) is impossible if the
+gesture that opens the menu destroys the multi-selection. ⇒ **§2.3 row 1 stands and the unconditional clear
+is a defect.**
+
+#### 📄 What this retires elsewhere
+
+⛔ **`"Mark Target for N Units…"` is retired** and replaced by *"Pick target…"* on the selected perceiver's
+menu — 🔒 user ruling `2026-09-10`, recorded with its measurements in
+[`UX_Feature_Tool_Model.md` §4.13](UX_Feature_Tool_Model.md). ⭐ It was already incoherent: it **gates** on
+the right-clicked entity holding `TargetMemory` and then **acts** on the selected entities instead.
 
 ## 3. Acceptance
 
