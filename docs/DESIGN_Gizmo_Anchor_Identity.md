@@ -325,6 +325,29 @@ the hit-test, and `HandleInput` needs a live window.
 | 🔴🔴 **`Fdp.Presentation.Tests` aborts with SIGSEGV** *(exit **139**)* inside `DebugGizmoLayerHitTests`, so only ~**90** of its tests are ever reported | ⭐ **PROVEN PRE-EXISTING**: reproduced at `740b522c` with all of this work stashed, and reproduced outside the test host with a reflection loader *(`Segmentation fault`, exit 139)*. ⚠ **`BP-337` records the same abort signature** from a *managed* NRE; this one is a genuine native fault, so it is a **different** cause. ⇒ **`CE-259aa`**. ⭐ This design's own rails were gated by `--filter GizmoLayerEntityHitTestTests` *(11/11)* |
 | ⚠ the two RENDERER read sites of `LineOffsetPx` have **no runnable rail** | the only renderer suite is inside that same aborting project. ⭐ **But S6 is byte-identical by construction**, which `SC-FONT-TEXT-6c` proves ⇒ there is nothing behavioural left to catch |
 | ⚠ `Fdp.Toolkits.Tests` 2078/2080 | both reds are `TransientSpawnTagRails` *(scenario-save, unrelated)* and **GREEN when run filtered (2/2)** ⇒ the **`DEBT-AIB-030`** rotating-flake signature |
+### 6.3 ⭐⭐ LOOSE END CLOSED BY `U3` — **two more publishers were leaking the payload onto the wire**
+
+📐 **Measured `2026-09-10` while verifying `U3`.** `S2` set `PickStreamId = 0u` at the Hrot egress
+*(`GizmoInteractionEgressTranslator.cs:95`)*, but **two other publishers of the same DDS record were never
+touched** and still wrote `PickStreamId = token.StreamId` — i.e. a **process-local ECS generation on the
+wire**, which is defect `D2` one publisher along:
+
+| site | |
+|---|---|
+| `GizmoMap.Viewer/Program.cs:98`,`:117` | the standalone terminal, both the interaction and the menu-action path |
+| `GizmoMap.Network/Transport/DdsGizmoInteractionPublisher.cs:33` | the reusable transport adapter |
+
+⭐ **Harmless today and still wrong:** `search_code`+grep over **every** `PickStreamId` site shows
+**nothing reads it** — `S1`'s ingress resolves purely from `PickAnchorId` — but leaving it set contradicts
+the rule this design just wrote into `GizmoPickToken.cs` *("NEVER put these on the wire")*, and a future
+reader would take the populated field as licence. ⚠ Its **declared** meaning is a *"publisher stream
+discriminator for multi-SimHost clusters"*, which nothing sets ⇒ **`0` is the honest value**, not a
+placeholder to fill with whatever is to hand *(`R-141`: an unused capability is the natural outcome of
+sharing)*.
+
+⭐ **Railed in the publisher's own suite** *(`R-142` ④)*: `SC-GZ-WIRE-1` asserts the identity goes and the
+payload stays; `SC-GZ-WIRE-2` asserts the wire record has **no slot** an ECS handle could leak through by
+another route, so adding one reddens and sends the author here. Red-proofed by inverse edit.
 ---
 
 ## 7. CONSTRAINTS
@@ -347,7 +370,7 @@ the hit-test, and `HandleInput` needs a live window.
 |---|---|---|
 | **U1** | ✅ **MOOT `2026-09-10`** — S3-as-built needs **no** resolver at the local boundary *(§6.2 ③)*, so there is no wiring to scope. ⚠ It asked *'whether CGF/ReplayBrowser need the resolver'* | — |
 | **U2** | the **full contents** of the other 10 test files in ①④ — only `GizmoInteractionTranslatorTests` was read | S2's migration cost |
-| **U3** | ⚠ **STILL NOT VERIFIED — the one open risk.** Both projects **build clean** after S3–S7, but a compile is not a behaviour check: a viewer reading `GizmoPickToken.AnchorId` as an ECS index now gets a network id **and still compiles** | S3 |
+| **U3** | ✅✅ **VERIFIED `2026-09-10`, and it found a LOOSE END — see §6.3.** ⭐ `GizmoMap.Example` was **already** semantic-id based *(`Polygon1AnchorId = 1001L`, `RotatorAnchorId = 2001L`, `LayerControlGizmo.AnchorId = 9999L`, and `VertexEditGizmo.cs:74` stamps `prim.BoxAnchorId = _anchorId`)* ⇒ its boxes carried `AnchorGeneration == 0`, so the OLD multiplex already fell through to `BoxAnchorId` — **identical behaviour before and after S5.** ⭐⭐ `GizmoMap.Viewer` forwards `token.AnchorId` straight to `PickAnchorId` *(`Program.cs:98`,`:117`)*, which is exactly S2's intent ⇒ **S5 fixed D2 for the standalone viewer too, for free.** 🔴 **But both it and `DdsGizmoInteractionPublisher` still forwarded `token.StreamId` to the wire** — §6.3 | ✅ closed |
 | **U4** | ✅ **MOOT `2026-09-10`** — `SelectionInteractionSystem` was **not changed** *(§6.2 ④)*, so what it does with the entity no longer bears on any step. ⛔ **Still not measured**, and it would matter again if anyone revived resolve-at-the-boundary | — |
 | **U5** | ⚠ `check_index_coverage` is `best_effort` — ⛔ **not proof** that ①/② enumerated everything | ⑯'s completeness |
 
