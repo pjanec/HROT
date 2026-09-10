@@ -13,8 +13,12 @@ current-answer: 4 (the A1 build) + 4.7/4.7b (the AS-BUILT). Steps 1-3 of Migrati
   ⭐ 2026-09-10 — THREE NEW SECTIONS carrying user rulings, read them before touching this area:
     4.7h  a self-removing gizmo must tell the ToolController (CE-259q, BUILT).
     4.7i  a SUSPENDED tool draws its geometry but NO handles (RULED, NOT BUILT). Independent of the
-          selection work below and buildable alone. Measured: IsFocused is a DEAD parameter on 14 of 14
-          stateful gizmos, so the signal already exists; hiding the handles also closes a silent mis-pick.
+          selection work below. Measured: IsFocused is a DEAD parameter on 14 of 14 stateful gizmos, so
+          the signal already exists; hiding the handles also closes a silent mis-pick.
+          ⛔⛔ CORRECTED 2026-09-10: "buildable ALONE" is true of selection but FALSE of CE-259r. The user
+          ruled handles outrank entity boxes for an ACTIVE tool, and CE-259r's group reorder flips exactly
+          that tiebreak -- so without 4.7i the picker would latch a SUSPENDED tool's handle (a case this
+          section records an operator OBSERVING). => ship 4.7i BEFORE or WITH CE-259r, never after.
     4.13  "Mark Target for N Units..." is RETIRED (it gates on one entity and acts on another); target-pick
           moves to the SELECTED perceiver's menu and arms the existing hovering picker.
     4.14  selection is GLOBAL; a selection CHANGE cancels editing of the previously selected entity; clicks
@@ -1098,6 +1102,30 @@ verified the SUSPEND/RESUME MECHANISM, ⛔ not the appearance — the appearance
 
 `GizmoFocusRegistry.Suspend()` calls `SetFocus(false)` (`:113`) and `Resume` sets it back (`:136`), so every
 gizmo is told, every frame, whether it holds focus.
+
+#### 🔒🔒🔒 `2026-09-10` — **THE Z-ORDER RULE, AND WHY §4.7i IS A PREREQUISITE OF `CE-259r`** *(user ruling)*
+
+> 🔒 **User, verbatim:** *"handle wins is correct for an active tool (unless the tool is entity picker but
+> then no other handles ahould be ahowm anyway as their tool does not have focus)"*
+
+⭐⭐ **The rule, stated once:** when a tool is **active**, its **handles outrank** entity pick boxes in a
+z-order tie. ⭐ Rationale in the user's own frame — while a tool is armed, its handles *are* what the
+operator is aiming at.
+
+⛔⛔⛔ **AND THE SECOND CLAUSE IS A SEQUENCING CONSTRAINT, not a caveat.** `CE-259r` reorders the gizmo group
+so the entity emitters run before the picker; 📐 **measured, that ALSO flips the z-order tiebreak** — group
+order sets emission order and `DebugGizmoLayer.cs:510` breaks `DebugLayer` ties by emission order, with
+entity pick boxes and tool handles **both at layer 0**. ⇒ after the swap **a handle beats an entity box**.
+
+| ⭐ the interaction that decides the order of work | |
+|---|---|
+| 🔴 **the bad case is REACHABLE TODAY, and it was OBSERVED** | 📌 this very section records the `2026-09-09` operator confirmation: *"handles survived the rightclick, gizmo stayed while picker armed."* ⇒ a suspended `VertexEditGizmo` keeps drawing handles **while the picker hovers** |
+| ⛔⛔ **so `CE-259r` ALONE would make the picker latch a SUSPENDED TOOL'S HANDLE** instead of the entity under the cursor | ⭐ the picker hit-tests **unfiltered** *(`exclusiveAnchorId: null`)*, precisely so it can see entities — so it has no capture filter to shield it, unlike selection and drag *(`HandleInput:124` + `:491`)* |
+| ✅ **§4.7i REMOVES THE COMPETITOR** | a suspended tool draws **no handles** ⇒ nothing at layer 0 to win the tie ⇒ the picker sees only entity boxes. 🔒 **That is the user's *"no other handles should be shown anyway as their tool does not have focus"*** |
+| ⭐⭐⭐ **⇒ SHIP §4.7i BEFORE OR WITH `CE-259r`** | ⛔ **not after.** ⚠ **This SUPERSEDES the index line's *"buildable alone"*** — that claim was about independence from the SELECTION work *(still true)*, ⛔ **not from `CE-259r`** |
+
+⚠ **What this does NOT say:** the handle-wins rule is about an **ACTIVE** tool. ⛔ It is not a claim that
+handles outrank entities in general — with no tool armed there are no handles to rank.
 
 📐 **All 14 production `IEntityStatefulGizmo` implementations mention `IsFocused` exactly twice — the
 property and its setter — and NONE of them read it:** `VertexEditGizmo` · `RouteWaypointGizmo` ·

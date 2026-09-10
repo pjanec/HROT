@@ -8,8 +8,12 @@ current-answer: ⚠⚠ THERE ARE NOW **TWO** LIVE STRANDS ON THIS LANE. Read the
   §5 the eight user rulings of 2026-09-10 + the TWO OWNING DESIGNS THAT DO NOT EXIST YET,
   §6 rot owed to other documents. Then its owners: UX_Feature_Tool_Model.md §4.7h–§4.14 and
   UX_Feature_Selection.md §2.6.
-  BUILDABLE NOW, measured, nothing else blocking: CE-259r (reorder the gizmo group — the picker's
-  hover hit-tests an empty frame) and Tool_Model §4.7i (a suspended tool draws geometry, no handles).
+  BUILDABLE NOW, measured — ⚠ BUT IN THIS ORDER (user ruling 2026-09-10): Tool_Model §4.7i FIRST
+  (a suspended tool draws geometry, NO handles), THEN CE-259r (reorder the gizmo group — the picker's
+  hover hit-tests an empty frame). CE-259r's reorder flips the layer-0 z-order tiebreak so a handle
+  beats an entity pick box, which the user ruled CORRECT for an active tool — but until §4.7i lands, a
+  SUSPENDED tool still draws handles (operator-observed 2026-09-09) and the picker would latch one
+  instead of the entity. §4.7i deletes the competitor. Shipping CE-259r alone is the regression.
   OPEN with leans: CE-259s, CE-259t. FIXED 2026-09-10: CE-259q.
   ⛔ The 2026-09-09 T1 manual test found the amber-crosshair defect; it is CE-259r and NOT yet fixed.
   ══ STRAND 2 — ENTITY CREATION (as of 2026-09-03, untouched since) ══
