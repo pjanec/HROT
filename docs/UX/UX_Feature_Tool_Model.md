@@ -1230,8 +1230,45 @@ session: **three runs, four different reds** *(`SelectionInteractionSystemTests`
 `PickerToolHostTests` **6/6** · `GizmoLayerEntityHitTestTests` **6/6** · `RawButtonGateTests` **6/6**.
 Working tree carries only the six intended files after every run.
 
-⛔ **NOT verified in the product.** ⭐ The operator's `T1` re-run is what closes this: the amber crosshair
-should now resolve and a left click should pick. ⚠ `CE-259q` already fixed the arming half.
+#### 🔴🔴🔴 OPERATOR RUN, `2026-09-10` — **§4.7i CONFIRMED, `CE-259r` DID NOT WORK, AND A THIRD DEFECT SURFACED**
+
+> 🔒 **Operator, verbatim:** *"started editing area, the hanldes disappeared when picker activated, the
+> picker stayed amber all the time, not able to pick any entity (instead the entity under the picker got
+> selected - but just once out of many tries), right mouse down cancelled picker and the handles reappared
+> and then or mouse button up they disappeared as the editing mode was cancelled too."*
+
+| # | what it says | verdict |
+|---|---|---|
+| ✅ | *"handles disappeared when picker activated"* … and reappeared on resume | ⭐⭐ **§4.7i WORKS.** This is the ruling, confirmed in the product |
+| 🔴🔴 | *"the picker stayed amber all the time"* | ⛔⛔ **`CE-259r`'s first fix was aimed at the WRONG ARBITER** — see below |
+| ⚠ | *"the entity under the picker got selected — but just once out of many tries"* | ⭐ consistent with the amber crosshair: `_hoveredValid` false ⇒ the left-release pick arm is skipped *(`EntityPickerGizmo.cs:156-158`)* and the click falls through to the selection path, which reads the previous COMPLETE frame. ⛔ **The intermittency is NOT measured** — re-check after the fix rather than theorising |
+| 🔴🔴 | *"right mouse down cancelled picker … then on mouse button up … editing mode was cancelled too"* | ⛔ **A THIRD, PRE-EXISTING DEFECT, now visible: `CE-259w`** — one right-click ends two tools |
+
+##### ⛔⛔⛔ WHY THE FIRST FIX FAILED — **and it is a REPEAT of a lesson this document already records**
+
+📐 **Measured after the operator run:** the production picker is registered on **`ToolArbiter.Global`**
+*(`PickerToolHost.cs:116`; `g.Register(id, gizmo)` at `:173`/`:272`)*, so its hover hit-test —
+`EntityPickerGizmo.OnDragUpdate:141-146` — is dispatched by **`globalManager`, the FIRST member of the
+group** — ⛔ **not by `dataDriven`.**
+
+⇒ 🔴 **Swapping `stateless` past `dataDriven` left `globalManager` AHEAD of it, so the buffer was still
+empty and nothing changed.** ✅ **`stateless` now goes FIRST:** `stateless, globalManager, dataDriven,
+selfCheck`.
+
+| ⛔ the two process failures, named | |
+|---|---|
+| ⛔⛔ **the PROBE mirrored the wrong arbiter** | it put the picker in `dataDriven`, measuring a scenario **that does not exist in production.** 📌 **This is the identical mistake `§4.7h`/`CE-259q` made and wrote down** — *"mirror the ARBITERS, not just the gesture."* ⇒ ⭐ **a headless probe must be built from the PRODUCTION registration site**, not from the shape of the gesture |
+| 🔴🔴 **the RAIL WAS BLIND OVER IT** *(`R-142` ③)* | the new rail asserted only `stateless < dataDriven` and was **GREEN while the feature was still broken.** ✅ **Fixed IN PLACE** — it now asserts `stateless` precedes **EVERY** arbiter that dispatches interactions, and is **red-proofed against the order that shipped this morning ⇒ 1🔴** |
+
+⭐⭐ **The invariant, stated so it cannot be half-satisfied again:** *the stateless projector must emit
+before **every** arbiter that dispatches interactions* — either arbiter can host a picker, so naming one
+of them is not the rule.
+
+📐 **Gates after the re-fix:** 0 errors on `Hrot.Presentation` + all five pack hosts; filtered
+`MapInteractionPackTests` **11/11** · `VertexEditGizmoTests` **8/8** · `RouteWaypointGizmoTests` **5/5** ·
+`ToolControllerTests` **18/18** · `PickerToolHostTests` **6/6**.
+
+⛔ **STILL NOT verified in the product** — the next operator run is what closes `CE-259r`.
 
 #### ⭐⭐ The tie, and who wins it — **`DebugGizmoLayer.cs:510`**
 

@@ -137,6 +137,17 @@ namespace Hrot.ScenarioEditor.Map
             //     ⛔ NOT a "partly filled frame" problem — the buffer is EMPTY; it is pure ordering.
             //   ⭐ The entity pick boxes come from the STATELESS projector (EntityPresentationGizmo), so
             //     running it first is what makes the picker's hover resolve.
+            //   🔴🔴🔴 CORRECTED 2026-09-10, SAME DAY, BY AN OPERATOR RUN. The first fix put `stateless`
+            //     second (after globalManager) and DID NOT WORK — the crosshair stayed amber.
+            //     📐 CAUSE: the production picker is registered on ToolArbiter.Global
+            //     (PickerToolHost.cs:116, g.Register at :173/:272), so its hover hit-test runs inside
+            //     EntityPickerGizmo.OnDragUpdate (:141-146) dispatched by GLOBALMANAGER — the FIRST group
+            //     member — not by dataDriven. Swapping stateless past dataDriven alone left globalManager
+            //     ahead of it, so the buffer was still empty.
+            //     ⛔ MY HEADLESS PROBE PUT THE PICKER IN dataDriven and therefore measured a scenario that
+            //     does not exist in production. That is the same mistake the CE-259q rail made and wrote
+            //     down as a lesson — "mirror the ARBITERS, not just the gesture" — repeated.
+            //     ⇒ `stateless` must precede EVERY arbiter that dispatches interactions, so it goes FIRST.
             //   ⚠⚠ This ALSO flips the z-order tiebreak: emission order breaks DebugLayer ties
             //     (DebugGizmoLayer.cs:510) and pick boxes + tool handles are both layer 0 => a HANDLE now
             //     beats an entity box. 🔒 Ruled CORRECT for an ACTIVE tool (user, 2026-09-10) — and safe
@@ -144,7 +155,7 @@ namespace Hrot.ScenarioEditor.Map
             //     back, and do not ship it without §4.7i.
             //   📄 docs/UX/UX_Feature_Tool_Model.md §4.7g.1 (the frame as a sequence) and §4.7i.
             var group = new TogglablePostSimulationGroup(
-                "GizmoExecution", globalManager, stateless, dataDriven, selfCheck);
+                "GizmoExecution", stateless, globalManager, dataDriven, selfCheck);
             groupRef = group;
 
             // ⭐⭐⭐ UXI-07 step 3b — THE ONE ARBITER, built here so all FIVE hosts get it.

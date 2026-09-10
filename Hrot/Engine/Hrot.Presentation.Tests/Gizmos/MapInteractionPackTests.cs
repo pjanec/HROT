@@ -331,7 +331,7 @@ namespace Hrot.Presentation.Tests.Gizmos
         /// <para>📄 docs/UX/UX_Feature_Tool_Model.md §4.7g.1 (the frame as a sequence diagram) and §4.7i.</para>
         /// </summary>
         [Fact]
-        public void ThePack_RunsTheStatelessProjectorBeforeTheDataDrivenArbiter()
+        public void ThePack_RunsTheStatelessProjectorBeforeEveryArbiterThatDispatchesInteractions()
         {
             var pack = MapInteractionPack.Build(Ctx());
 
@@ -339,14 +339,25 @@ namespace Hrot.Presentation.Tests.Gizmos
                             .Select(s => s.GetType().Name)
                             .ToList();
 
-            int stateless  = names.FindIndex(n => n.Contains("Stateless"));
-            int dataDriven = names.FindIndex(n => n.Contains("DataDriven"));
+            // 🔴🔴🔴 THIS RAIL WAS BLIND, AND THAT IS THE FINDING (R-142 ③). Its first version asserted
+            //   only `stateless < dataDriven`. It was GREEN while the feature was still BROKEN, because
+            //   the PRODUCTION picker is registered on ToolArbiter.Global (PickerToolHost.cs:116) — so its
+            //   hover is dispatched by GLOBALMANAGER, which the first fix left ahead of `stateless`.
+            //   ⇒ fixed IN PLACE to the real invariant: the stateless projector must precede EVERY arbiter
+            //   that dispatches interactions, because either of them can host the picker.
+            int stateless = names.FindIndex(n => n.Contains("Stateless"));
+            Assert.True(stateless >= 0, $"no stateless system in the group: {string.Join(", ", names)}");
 
-            Assert.True(stateless  >= 0, $"no stateless system in the group: {string.Join(", ", names)}");
-            Assert.True(dataDriven >= 0, $"no data-driven system in the group: {string.Join(", ", names)}");
-            Assert.True(stateless < dataDriven,
-                "CE-259r: the stateless projector must emit BEFORE the data-driven arbiter dispatches a "
-              + $"hover, or the picker hit-tests an empty buffer. Actual order: {string.Join(", ", names)}");
+            var arbiters = new[] { "GlobalGizmoManager", "DataDriven" };
+            foreach (var arbiter in arbiters)
+            {
+                int idx = names.FindIndex(n => n.Contains(arbiter));
+                Assert.True(idx >= 0, $"no {arbiter} in the group: {string.Join(", ", names)}");
+                Assert.True(stateless < idx,
+                    $"CE-259r: the stateless projector must emit BEFORE {arbiter} dispatches a hover, or a "
+                  + "picker hosted by that arbiter hit-tests an empty buffer. Actual order: "
+                  + string.Join(", ", names));
+            }
         }
     }
 }

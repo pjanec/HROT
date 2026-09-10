@@ -8,16 +8,23 @@ current-answer: ⚠⚠ THERE ARE NOW **TWO** LIVE STRANDS ON THIS LANE. Read the
   §5 the eight user rulings of 2026-09-10 + the TWO OWNING DESIGNS THAT DO NOT EXIST YET,
   §6 rot owed to other documents. Then its owners: UX_Feature_Tool_Model.md §4.7h–§4.14 and
   UX_Feature_Selection.md §2.6.
-  ✅✅ SHIPPED 2026-09-10 (user-approved build): Tool_Model §4.7i + CE-259r TOGETHER — a suspended tool
-  draws its geometry and NO handles (VertexEditGizmo + RouteWaypointGizmo), and the gizmo group is
-  reordered so the stateless projector emits before the data-driven arbiter. Read §4.7i's AS-BUILT
-  sub-section: it names the two gizmos measured and EXCLUDED, with reasons.
-  ⛔ NOT YET VERIFIED IN THE PRODUCT — the operator's T1 re-run is what closes it. CE-259q fixed the
-  arming half on 2026-09-10; this is the pick half. Expect: crosshair turns green over an entity and a
-  left click completes the pick.
-  ⭐ NEW, needs a user nod, not built: CE-259v — a suspended EntityRotatorGizmo draws a line to a STALE
-  cursor. Measured to have NO handle at all, so §4.7i had nothing to bind to on it; lean is to hide the
-  preview line while unfocused.
+  ✅ §4.7i IS BUILT AND OPERATOR-CONFIRMED 2026-09-10 ("the handles disappeared when picker activated").
+  ⚠⚠ CE-259r WAS RE-FIXED THE SAME DAY — the first attempt did NOT work and the operator run found it.
+  The production picker is on ToolArbiter.Global (PickerToolHost.cs:116), so its hover is dispatched by
+  GLOBALMANAGER, the FIRST group member — not by dataDriven. Swapping stateless past dataDriven alone
+  left globalManager ahead of it. The group is now stateless, globalManager, dataDriven, selfCheck.
+  ⛔ TWO PROCESS FAILURES WORTH NOT REPEATING: my headless probe put the picker in dataDriven, measuring
+  a scenario that does not exist in production (the same "mirror the ARBITERS, not just the gesture"
+  mistake CE-259q already recorded); and the new rail asserted only stateless<dataDriven so it stayed
+  GREEN over the live defect. The rail is fixed IN PLACE to require stateless before EVERY arbiter, and
+  red-proofed against the order that shipped this morning.
+  ⛔ CE-259r IS STILL NOT VERIFIED IN THE PRODUCT — the next operator run closes it.
+  🔴 NEW, MEASURED, NOT BUILT: CE-259w — ONE RIGHT-CLICK ENDS TWO TOOLS. The picker cancels on right
+  PRESS (EntityPickerGizmo.cs:164), the vertex editor self-removes on right RELEASE (:198-200), so the
+  DOWN pops the picker, the editor resumes, and the UP then ends the editor. Pre-existing; §4.7i only
+  made it visible. Lean is (a) pair the gesture in the arbiter — the press recipient also gets the
+  release. ⛔ Blast radius NOT measured yet; do not build before it is (R-139).
+  ⭐ ALSO OPEN, needs a nod: CE-259v — a suspended EntityRotatorGizmo draws a line to a STALE cursor.
   OPEN with leans: CE-259s, CE-259t. FIXED 2026-09-10: CE-259q.
   ⛔ The 2026-09-09 T1 manual test found the amber-crosshair defect; it is CE-259r and NOT yet fixed.
   ══ STRAND 2 — ENTITY CREATION (as of 2026-09-03, untouched since) ══
