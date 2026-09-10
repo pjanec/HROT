@@ -362,16 +362,165 @@ namespace Hrot.Presentation.Tests.Tools
             Assert.Null(fx.Controller.ActiveModal);      // the old one is gone, the new one never armed
         }
 
+        // ══ UXI-07 / Q27-F — PushModal: SUSPEND and RESUME ════════════════════════════════════════
+        //
+        // ⚠⚠ RE-HOMED, not deleted. The old rail here — PushModalRefusesLoudlyUntilItIsBuilt — asserted
+        //    that PushModal threw NotSupportedException, whose whole premise ("declared and NOT built")
+        //    is now void. ⭐ Its ACTUAL claim was "it must not quietly behave like Activate", and that
+        //    claim survives as the two rails below: a push SUSPENDS where Activate DISPOSES, and an
+        //    unserviceable push still refuses rather than pretending.
+
+        /// <summary>Registers a Global-arbiter modal that arms <paramref name="gizmo"/>.</summary>
+        private static void RegisterGlobalTool(Fixture fx, string id, ProbeGizmo gizmo)
+            => fx.Controller.Register(
+                new ToolDescriptor(id, id, ToolModality.Modal, ToolArbiter.Global),
+                _ => { fx.Global.Register(GlobalGizmoManager.NewId(), gizmo); return ToolActivationOutcome.Armed; });
+
         /// <summary>
-        /// ⭐ <c>PushModal</c> is declared and NOT built in this slice. It must refuse loudly rather than
-        /// quietly behaving like <c>Activate</c> — absent-and-explained beats present-and-broken.
+        /// ⭐⭐⭐ <b>THE ONE THAT MATTERS — a push SUSPENDS the tool beneath; it does NOT destroy it.</b>
+        /// 🔒 <c>Q27-F</c>: <i>"suspend = <c>SetFocus(false)</c> WITHOUT the <c>Dispose()</c> that both
+        /// teardown paths currently pair it with."</i>
+        ///
+        /// <para>⛔ <b>This is exactly what 4b needs and why 4b could not be built first:</b> converting the
+        /// pickers to <c>Activate</c> would have DISPOSED the half-drawn route underneath — a regression,
+        /// not a conversion.</para>
         /// </summary>
         [Fact]
-        public void PushModalRefusesLoudlyUntilItIsBuilt()
+        public void PushingAModalSuspendsTheOneBeneathRatherThanDisposingIt()
         {
-            var controller = new ToolController(() => null, () => null);
-            var ex = Assert.Throws<NotSupportedException>(() => controller.PushModal("anything"));
-            Assert.Contains("UXI-07", ex.Message);
+            var fx     = new Fixture();
+            var route  = new ProbeGizmo();
+            var picker = new ProbeGizmo();
+
+            RegisterGlobalTool(fx, "route",  route);
+            RegisterGlobalTool(fx, "picker", picker);
+
+            Assert.True(fx.Controller.Activate("route"));
+            Assert.True(route.IsFocused);
+
+            using (fx.Controller.PushModal("picker"))
+            {
+                Assert.True(picker.IsFocused);       // the interrupter owns the input …
+                Assert.False(route.IsFocused);       // … the route yields focus …
+                Assert.False(route.Disposed);        // ⭐⭐ … but is ALIVE. THE WHOLE POINT.
+                Assert.Equal(2, fx.Controller.ModalStack.Count);
+            }
+        }
+
+        /// <summary>
+        /// ⭐⭐ <b>Popping RESUMES the tool beneath, and tears the interrupter down.</b>
+        /// ⚠ Without the resume half this would be an ordinary cancel with extra steps.
+        /// </summary>
+        [Fact]
+        public void PoppingResumesTheToolBeneathAndDisposesTheInterrupter()
+        {
+            var fx     = new Fixture();
+            var route  = new ProbeGizmo();
+            var picker = new ProbeGizmo();
+
+            RegisterGlobalTool(fx, "route",  route);
+            RegisterGlobalTool(fx, "picker", picker);
+
+            fx.Controller.Activate("route");
+            var scope = fx.Controller.PushModal("picker");
+            scope.Dispose();
+
+            Assert.True(picker.Disposed);            // the interruption is over
+            Assert.False(route.Disposed);            // the route survived it …
+            Assert.True(route.IsFocused);            // ⭐⭐ … and has the input back
+            Assert.Equal("route", fx.Controller.ActiveModal?.Id);
+            Assert.Single(fx.Controller.ModalStack);
+        }
+
+        /// <summary>⭐ Disposing twice is a no-op — <c>using</c> plus an explicit dispose must not double-pop.</summary>
+        [Fact]
+        public void DisposingTheScopeTwiceDoesNotPopTwice()
+        {
+            var fx     = new Fixture();
+            var route  = new ProbeGizmo();
+            var picker = new ProbeGizmo();
+
+            RegisterGlobalTool(fx, "route",  route);
+            RegisterGlobalTool(fx, "picker", picker);
+
+            fx.Controller.Activate("route");
+            var scope = fx.Controller.PushModal("picker");
+            scope.Dispose();
+            scope.Dispose();
+
+            Assert.Single(fx.Controller.ModalStack);        // ⛔ not zero — the route was not popped too
+            Assert.Equal("route", fx.Controller.ActiveModal?.Id);
+        }
+
+        /// <summary>
+        /// ⭐⭐ <b><c>Activate</c> UNWINDS THE WHOLE STACK.</b> 🔒 It is <i>"a deliberate switch"</i>, so
+        /// nothing interrupted is still wanted. ⛔ Popping only the top would strand the suspended tool:
+        /// its scope pops BY DEPTH, and that depth now belongs to the new tool ⇒ nothing could ever
+        /// resume it.
+        /// </summary>
+        [Fact]
+        public void ADeliberateSwitchUnwindsTheWholeStackRatherThanStrandingSuspendedTools()
+        {
+            var fx      = new Fixture();
+            var route   = new ProbeGizmo();
+            var picker  = new ProbeGizmo();
+            var measure = new ProbeGizmo();
+
+            RegisterGlobalTool(fx, "route",   route);
+            RegisterGlobalTool(fx, "picker",  picker);
+            RegisterGlobalTool(fx, "measure", measure);
+
+            fx.Controller.Activate("route");
+            fx.Controller.PushModal("picker");
+            Assert.Equal(2, fx.Controller.ModalStack.Count);
+
+            Assert.True(fx.Controller.Activate("measure"));
+
+            Assert.Single(fx.Controller.ModalStack);
+            Assert.Equal("measure", fx.Controller.ActiveModal?.Id);
+            Assert.True(picker.Disposed);
+            Assert.True(route.Disposed);             // ⭐ unwound, NOT left suspended forever
+            Assert.True(measure.IsFocused);
+        }
+
+        /// <summary>
+        /// ⭐ The re-homed half of the deleted rail: an unserviceable push still REFUSES — ⛔ it does not
+        /// quietly behave like <c>Activate</c>. ⚠ It reports instead of throwing, and returns a usable
+        /// handle, because the caller writes <c>using var _ = tools.PushModal(...)</c> and a null or a
+        /// throw there turns a reported refusal into a crash.
+        /// </summary>
+        [Fact]
+        public void PushingAnUnknownToolRefusesAndArmsNothing()
+        {
+            var reports    = new List<string>();
+            var controller = new ToolController(() => null, () => null, reports.Add);
+
+            using (controller.PushModal("no.such.tool"))
+            {
+                Assert.Empty(controller.ModalStack);
+            }
+
+            Assert.Contains(reports, r => r.Contains("no.such.tool") && r.Contains("not registered"));
+        }
+
+        /// <summary>⭐ A modeless tool has nothing to suspend and nothing to come back to ⇒ refuse, loudly.</summary>
+        [Fact]
+        public void PushingAModelessToolRefuses()
+        {
+            var fx      = new Fixture();
+            var reports = new List<string>();
+            var controller = new ToolController(() => fx.Global, () => fx.DataDriven, reports.Add);
+
+            controller.Register(
+                new ToolDescriptor("grid", "Grid", ToolModality.Modeless, ToolArbiter.Global),
+                _ => ToolActivationOutcome.Armed);
+
+            using (controller.PushModal("grid"))
+            {
+                Assert.Empty(controller.ModalStack);
+            }
+
+            Assert.Contains(reports, r => r.Contains("modeless"));
         }
     }
 }

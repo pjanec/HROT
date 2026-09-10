@@ -113,7 +113,42 @@ namespace Fdp.Toolkit.Vis2D.Layers
         public bool HandleDrag(Vector2 worldPos, Vector2 delta) => false;
         public bool HandleKeyInput(AbstractionKeyboardKey key) => false;
 
-        public Entity? PickEntity(Vector2 worldPos) => null;
+        /// <summary>
+        /// ⭐⭐⭐ <b><c>CE-259p</c> — THE ENTITY HIT-TEST, implemented for real.</b>
+        /// 📄 <c>docs/UX/UX_Feature_Tool_Model.md</c> §4.7g.
+        ///
+        /// <para>🔴 <b>Measured `2026-09-09`, by an operator who could not complete a pick:</b> EVERY
+        /// production <c>IMapLayer.PickEntity</c> in the repo returned <c>null</c> — <c>GridMapLayer</c>,
+        /// <c>PerceptionMapLayer</c>, <c>SelectionRenderSystem</c>, both SimHost layers, and this one. The
+        /// only real implementation lived in an EXAMPLES project. ⇒ <c>MapCanvas.PickTopmostEntity</c> was
+        /// dead in production, and <c>EntityPickerGizmo</c> — whose entire pick arm is gated on it — could
+        /// never pick anything.</para>
+        ///
+        /// <para>⭐⭐ <b>The seam law:</b> there were TWO entity hit-tests and the picker used the dead one.
+        /// The LIVE one is the terminal's own <c>FindTopmostInteractivePrimitive</c> — the mechanism that
+        /// makes ordinary SELECTION work (<c>SelectionInteractionSystem</c> resolves
+        /// <c>GizmoInteractionStartedEvent.Token.Target</c>). ⇒ this routes to that, rather than adding a
+        /// third.</para>
+        ///
+        /// <para>⚠ The hit-test is deliberately NOT filtered by the capture binding — see
+        /// <c>GizmoMap.Presentation.DebugGizmoLayer.PickTopmostEntityAnchor</c>: <i>"only the capture
+        /// holder receives interactions"</i> and <i>"the capture holder may hit-test"</i> are compatible
+        /// claims, and conflating them is what blinded the picker.</para>
+        /// </summary>
+        public Entity? PickEntity(Vector2 worldPos)
+        {
+            if (_buffer == null) return null;
+
+            // ⚠ The camera is refreshed in Update(); a pick can arrive before the first frame, so fall
+            //   back to the live one rather than hit-testing against a default zoom of 0.
+            float zoom = _mapCamera?.InnerCamera.Zoom ?? _camera.Zoom;
+            if (zoom <= 0f) return null;
+
+            var anchor = GizmoMap.Presentation.DebugGizmoLayer.PickTopmostEntityAnchor(
+                _buffer.GetFrame(), worldPos, zoom);
+
+            return anchor is { } a ? new Entity(a.Index, a.Generation) : null;
+        }
 
         /// <summary>
         /// Resolver used to render colored icons for right-click context-menu items that carry an

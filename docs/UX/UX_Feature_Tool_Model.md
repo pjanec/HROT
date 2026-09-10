@@ -851,6 +851,129 @@ recurses** through `GlobalGizmoManager.Unregister` → `Dispose`. ⇒ **the real
 adapter through the controller). 🔒 **No tracker id allocated: this lane is out of range under the two-lane
 stopgap and reaching upward is what caused the `CE-256` collision.**
 
+### 4.7g ✅ THE ENTITY HIT-TEST — **a seam every production layer stubbed out** *(`CE-259p`, `2026-09-09`)*
+
+📌 **Operator:** *"when picker active clicking entity did not close the picker."*
+
+#### 📐 The enumeration — every `IMapLayer.PickEntity` in the repo
+
+| implementation | returns |
+|---|---|
+| `GridMapLayer` · `DebugGizmoLayer` *(Fdp.Presentation)* · `PerceptionMapLayer` · `SelectionRenderSystem` · `SimHostTrajectoryLayer` · `SimHostRoadLayer` · `RoadMapLayer` | 🔴 **`null`, all of them** |
+| `Fdp.Examples.CarKinem/TrajectoryMapLayer.cs:143` | ✅ real — ⛔ **an EXAMPLES project** |
+
+⇒ 🔒 **`MapCanvas.PickTopmostEntity` was dead in every production host.** `EntityPickerGizmo._hitTest` is
+`pos => _canvas.PickTopmostEntity(pos)`, so `_hoveredValid` was **never** true and its left-release pick
+arm was **unreachable**. ⚠ The layer-mask filter is never consulted ⇒ `MapDisplayComponent` is a **red
+herring** here.
+
+#### ⭐⭐⭐ THE SEAM LAW — **two hit-tests, and the picker used the dead one**
+
+| | |
+|---|---|
+| ⛔ **dead** | `IMapLayer.PickEntity` — the picker's dependency |
+| ✅ **live** | the terminal's `FindTopmostInteractivePrimitive` — 🔒 **this is why ordinary SELECTION works**: `SelectionInteractionSystem` resolves `GizmoInteractionStartedEvent.Token.Target` |
+
+⇒ ⭐ the fix **routes to the live one** rather than adding a third: `GizmoMap.Presentation.DebugGizmoLayer`
+exposes **`PickTopmostEntityAnchor`**, and the `IMapLayer` wrapper — which already holds `_buffer` — calls
+it. ⛔ It returns the RAW anchor, not an `Entity`: the vendored project is deliberately decoupled from
+`Fdp.Core`, and the caller that owns that dependency reconstructs the handle.
+
+#### ⭐⭐ The design call this embeds — **and it is NOT the same as `CE-259l`**
+
+🔒 **The hit-test is deliberately UNFILTERED by the capture binding.** `HandleInput` passes
+`exclusiveAnchorId` so that **nothing else** starts an interaction under a capture holder — that stays.
+⇒ ⭐⭐ *"only the capture holder receives interactions"* and *"the capture holder may hit-test"* are
+**compatible claims**, and conflating them is exactly what blinded the picker. ⚠ A picker that cannot see
+what it is pointing at cannot pick; that is its whole job.
+
+⚠ **Why an entity-domain guard:** a primitive with `AnchorGeneration == 0` is a stateless tool handle or a
+remote network object — a **different addressing domain**. ⛔ Fabricating `Entity(index, 0)` would hand
+the picker a handle resolving to the wrong object, or to a live entity that merely shares an index.
+
+📐 **`GizmoLayerEntityHitTestTests` 6/6**, inverse-edit red-proofed: restoring `=> null` reddens **3 of 6**
+— and ⭐ the 3 that stay green are the *"resolves nothing"* cases, which is what proves the rails are not
+vacuously passing.
+
+### 4.7f 🔴🔴 A RAW RELEASE WITHOUT ITS PRESS — **a panel right-click destroyed a map gizmo** *(`CE-259n`, `2026-09-09`)*
+
+📌 **Operator, running `T1`:** *"vertex handle appeared. right clicking targetmemory entity opens context
+menu which kills the selection of area entity and gizmo disappears."*
+⇒ ⭐ **the gizmo died BEFORE any pick armed** — this is not a `PushModal` failure.
+
+#### ⭐⭐ The mechanism — an ASYMMETRY, and it is two lines apart
+
+| | `DebugGizmoLayer.HandleInput` |
+|---|---|
+| raw **PRESS** | ✅ gated — `if (!isMouseCaptured && IsMouseButtonPressed(...))` |
+| raw **RELEASE** | 🔴 **NOT gated on capture** — *"…but ALWAYS send released events to prevent stuck backend input queues."* |
+
+⇒ 🔴 **a right-click inside an ImGui PANEL delivers a raw right-RELEASE to the map's focus holder**, and
+`VertexEditGizmo.OnMouseEvent` reads *right + `!isPressed`* as **"commit and exit"** (`:174-179`) ⇒ it
+writes back, calls `_onRemove()`, and the gizmo is gone.
+
+⚠⚠ **The ungated release was DELIBERATE and its reason is REAL** — a gizmo that took its press on the map
+and released over a panel MUST still get the release, or it hangs mid-drag for ever. ⛔ **So "gate the
+release on capture" is the WRONG fix**: it reintroduces exactly that hang.
+
+#### ⭐⭐⭐ The distinction that satisfies both
+
+🔒 **A release is legitimate when ITS OWN PRESS was delivered** — wherever the pointer has since
+travelled. ⇒ `RawButtonGate` remembers that one bit, one instance per button, held across frames.
+
+| case | before | after |
+|---|---|---|
+| press on map → release on map | ✅ delivered | ✅ delivered |
+| ⭐ press on **map** → release over a **panel** *(the stuck-drag case the comment guards)* | ✅ delivered | ✅ **still delivered** |
+| 🔴 press swallowed by a **panel** → release | ⛔ **delivered** *(the defect)* | ✅ **suppressed** |
+| release with no press at all | ⛔ delivered | ✅ suppressed |
+
+⚠ `!contextMenuOpened` is **preserved** on the right button — the map's own canvas menu still consumes
+its release.
+
+#### ⭐⭐ Why the logic was EXTRACTED rather than fixed in place
+
+⛔ `HandleInput` polls `Raylib.IsMouseButtonPressed/Released` **directly**, so the decision cannot be
+driven from a headless test — ⚠ fixing it inline would have shipped an **unrailed** fix, in a subsystem
+that has already had one operator-found defect sail past a green ~8 000-rail suite today (`CE-259k`).
+⇒ ⭐ `RawButtonGate` is a 4-member struct with `RawButtonGateTests` **6/6**, inverse-edit red-proofed:
+restoring *"always deliver"* reddens **4 of 6**, and ⭐ **the 2 that stay green are precisely the
+legitimate-release cases** — which is what proves the fix did not re-break the hang.
+
+⚠ **Blast radius, stated:** `DebugGizmoLayer` is the shared terminal, so this reaches every host. ⭐ The
+change only ever **suppresses a release whose press was suppressed** — any gizmo pairing correctly is
+untouched, and a gizmo that acted on an unpaired release was, by definition, acting on a click that was
+not for it.
+
+### 4.7e ✅ WHERE A REFUSAL ACTUALLY SURFACES — **measured `2026-09-09`, and it is NOT invisible**
+
+📌 **The operator report that prompted this:** *"Edit Shape and Edit Route buttons from the editor toolbar
+do nothing visible — but Edit from the context menu works."*
+
+| # | measured | source |
+|---|---|---|
+| ① | the toolbar path is **target-less**: the drain supplies `PrimarySelected` as the target | `ToolActivationDrainSystem.cs:119` |
+| ② | ⭐ **the wiring is CORRECT** — clicking writes `_selectionState.PrimarySelected` and the drain resolves `() => _selectionState`, **the same instance** | `EditorSubsystem.cs:2013` + `:1570` |
+| ③ | `Edit`/`Route` refuse **explicitly**: *"nothing is selected"* · *"the selected entity has no `EditablePolyline`"* | `ScenarioToolRegistrations.cs:147-149` |
+| ④ | ⚠ `EditorSubsystem` passes **NO** `ReportUnserviceableTool` sink — 📐 `grep -c` ⇒ **0** ⇒ `ToolReport` takes its fallback: `FdpLog<ToolController>.Info("[Tools] …")` | `ToolReport.cs:46` |
+| ⑤ | ⭐⭐⭐ **…and that fallback IS a user-visible surface.** `AddRule(Trace..Fatal, NLogMessageLogTarget.SharedInstance)` plus `registry.RegisterSource(NLogMessageLogTarget.SharedInstance)` ⇒ every refusal appears in the **Message Log** window, tab **"NLog (Global)"**, with a status-bar notification badge | `ClusterRunner/Program.cs:62` · `LocalWindowController.cs:79` · `EditorSubsystem.cs:4964` |
+
+⇒ ⭐⭐ **`ToolReport`/ruling 49 WORKS — the message reaches the screen.** ⛔ **Do NOT build a second sink**;
+📌 an earlier reading of ④ alone concluded *"the refusal is invisible, wire a sink"* — ⑤ refutes it, and
+building one would have been a duplicate surface for a mechanism already delivering.
+
+#### ⚠ The REAL gap, and it is a different one — **`CE-259m`**
+
+🔒 **Why the context menu works and the toolbar does not, in one line:** the context menu is
+**COMPONENT-AWARE** — *"Edit Shape"* is only offered `if (hasPolyline)` and it **selects first**
+(`EditorSubsystem.cs:2306-2309`). ⛔ **The toolbar button is ALWAYS drawn and ALWAYS enabled**, on a
+hand-coded row that reads no state (`EditorToolbarPanel.cs:53-59`).
+
+⇒ ⭐ the operator gets *"press it and read the log to find out why not"* where the context menu gets
+*"it is not offered unless it applies."* ⚠ **That is step 5's job** — nothing reads `ShowOnToolbar`
+(📐 measured: set on **6** descriptors, **0** consumers) and nothing binds `ActiveModalChanged`, so no
+toolbar button can show applicability OR active state.
+
 ### 4.7d ⭐⭐ THE UNIFICATION PASS — **one rule, one sentence, one serial collection** *(`2026-09-09`)*
 
 > 🔒 **User:** *"make sure every change is revised from unification perspective — the more unified
@@ -917,7 +1040,7 @@ teardown paths currently pair it with"* — and that is `PushModal`, which `Tool
 | ⭐ THE SPLIT, and the dividing line is MEASURED, not invented | |
 |---|---|
 | ⭐ **4a — FIRE-AND-FORGET arms** *(no `TaskCompletionSource`)*: `ScenarioSpawnAdapter` · `EditorZoneAdapter` · `MapCommandController` · `MeasureToolGizmoAdapter` | ✅ **buildable now** on plain `Activate` — they arm and forget, so cancel-the-other is the whole requirement |
-| ⛔ **4b — SUSPEND/RESUME pickers** *(`TaskCompletionSource`)*: `EditorMapPickAdapter` · `CanvasMapPickAdapter` · `IgApplication`'s picker arms · `ReplayBrowserSubsystem` | 🔴 **needs `PushModal` FIRST.** ⛔ Converting them to `Activate` would be a REGRESSION — it would destroy the tool the operator was using instead of suspending it |
+| ⛔ **4b — SUSPEND/RESUME pickers** *(`TaskCompletionSource`)*: `EditorMapPickAdapter` · `CanvasMapPickAdapter` · `IgApplication`'s picker arms · `ReplayBrowserSubsystem` | ✅ **UNBLOCKED `2026-09-09`** — `PushModal` is BUILT (§4.11). ⛔ Still never `Activate`: that would destroy the tool the operator was using instead of suspending it |
 
 ⚠⚠ **This supersedes the plan's implicit claim that step 4 is one batch.** ⛔ It is two, and the second is
 `Q27-F`'s increment — which the Migration table lists *after* step 6.
@@ -928,8 +1051,8 @@ teardown paths currently pair it with"* — and that is `PushModal`, which `Tool
 |---|---|---|
 | `EditorZoneAdapter` | ✅ converted | new tool `scenario.place.obstacle` |
 | `MapCommandController` *(IG)* | ✅ converted | new tool `scenario.place.remote-entity` — ⭐ a remote creation request now DISPLACES the operator's armed tool instead of fighting it for raw input |
-| `ScenarioSpawnAdapter` | ⛔ **blocked on a restructure** | see below |
-| `MeasureToolGizmoAdapter` *(IG)* | ⛔ pending | settings-driven lifetime; §4.7c's hazard is its real fix |
+| `ScenarioSpawnAdapter` | ✅ **converted** *(`2026-09-09`, second unit)* — see §4.9b | new tools `scenario.place.area` / `scenario.place.route`; placement reaches the arbiter by `Activate(Spawn)` |
+| `MeasureToolGizmoAdapter` *(IG)* | ✅ **converted** *(`2026-09-09`, third unit)* — see §4.9c | the settings checkbox becomes a BRIDGE; §4.7c's dead-toggle hazard is FIXED |
 
 ⭐⭐ **THE PATTERN, established by the two conversions and to be repeated:** the adapter takes an optional
 `ToolController`, `Register`s its arm ONCE in the constructor *(⛔ not per activation — the duplicate-id
@@ -954,8 +1077,342 @@ goes anywhere near the arbiter.
 |---|---|
 | **①** split the adapter's **arm body** from its **public API**: `ArmPlacement()` *(the body)* vs `StartPlacementMode(type, json)` *(stash + `Activate(Spawn)`)* | |
 | **②** the hosts pass the **arm body** as the pack's `StartPlacementMode`, ⛔ not `StartPlacementModeWithLastType` | ⇒ the loop cannot form |
-| **③** ExCon's three direct callers then become arbitrated **for free**, with no ExCon change | ⭐ that is the payoff, and it is why the restructure is worth doing rather than special-casing |
+| ⛔⛔ **③ SUPERSEDED — THIS CLAIM IS FALSE.** *(measured `2026-09-09`, see §4.9b)* ~~ExCon's three direct callers then become arbitrated for free~~ | 🔴 they call **`IExConLogic`**, not this adapter — `ExConLogic` is its own `ISpawnController` and sends a wire command. ⭐ **The real payoff is `ScenarioOrbatAdapter.CreateUnit` + `SpawnerPanel`; see §4.9b** |
 | **④** `StartAreaAuthoringMode` / `StartRouteAuthoringMode` have **no tool id and no recursion** ⇒ they take the plain pattern, as `scenario.place.area` / `scenario.place.route` | |
+
+### 4.9b ✅ `ScenarioSpawnAdapter` AS-BUILT — **and ⛔ §4.9's claim ③ was WRONG** *(obligation ⑤, `2026-09-09`)*
+
+⛔⛔ **THE CORRECTION FIRST, because the rest of §4.9 rests on it.** §4.9 ③ said the restructure's payoff
+was *"ExCon's three direct callers become arbitrated for free"*, naming `ExConOrbatAdapter.CreateUnit`,
+`OrbatPanel.cs:212` and `ExConPanelAdapters.cs:19`.
+
+🔴 **Measured, and it is false.** Those three call **`IExConLogic.StartPlacementMode`**, and
+**`ExConLogic` is its OWN `ISpawnController` implementation** *(`ExConLogic.cs:41` — `: IExConLogic,
+IMapPickService, ISpawnController`)*. Its body writes a `MapCommandDto` *(`CMD_PLACE_ENTITY`)* over the
+wire and **never touches `ScenarioSpawnAdapter` or any gizmo manager**.
+
+| ⚠ how the claim was made | ⭐ the lesson, and it is already in `CLAUDE.md` |
+|---|---|
+| a text search for `StartPlacementMode(` returned ExCon call sites, and I read them as callers of THIS adapter | 🔒 ***"is this text hit REALLY this symbol?"*** — **two interfaces declare the same method name.** Text search cannot tell them apart; that is the documented escalation case, and Roslyn was not consulted |
+
+⇒ ⭐⭐ **ExCon was never a bypass.** It is a REMOTE surface: it sends a command, and the arbitration happens
+on the **receiving** host — which `MapCommandController` *(converted in the first 4a unit as
+`scenario.place.remote-entity`)* **already** does. **That payoff was delivered by a different item.**
+
+#### ⭐ The REAL payoff, measured
+
+| the actual bypassing callers of `ISpawnController.StartPlacementMode` on THIS adapter | |
+|---|---|
+| `ScenarioOrbatAdapter.CreateUnit` *(`:165`)* | the ORBAT tree's *"create unit"* |
+| `SpawnerPanel.HandleActivatePlacementTool` *(`:145`)* | the Spawner panel's Place button |
+
+⭐ **Both are SHARED surfaces**, and on every host composing this adapter *(Editor `:2260`, CGF `:1405`)*
+they armed an `EntityPlacementGizmo` straight on `GlobalGizmoManager` — §4.8's bypass, on the two most
+ordinary spawn gestures in the product. ⇒ **the restructure is still worth doing; the reason changed.**
+
+#### ⭐⭐ As built — §4.9 ①②④ hold unchanged
+
+| | |
+|---|---|
+| **①** | `ArmPlacement()` / `ArmAreaAuthoring()` / `ArmRouteAuthoring()` are the bodies; the public `Start*` API stashes and calls `Activate`. ⚠ The adapter registers **only** `PlaceArea` + `PlaceRoute` — ⛔ **not `Spawn`**, which `MapInteractionPack` owns, and the duplicate-id guard is strict |
+| **②** | both hosts now pass `() => _spawnAdapter?.ArmPlacement()` as the pack's `StartPlacementMode` ⇒ 🔒 **the cycle cannot form** |
+| **④** | area/route took the plain pattern, as predicted — no recursion, because no host wires them into the pack |
+
+⚠⚠ **ONE BEHAVIOUR-PRESERVING SUBTLETY, and it is load-bearing:** `_pendingPropertiesJson` is **CONSUMED**
+by the arm *(read-then-null)*, not merely stored. 📐 Before the split, the toolbar path was
+`StartPlacementModeWithLastType()` → `StartPlacementMode(last, json: null)` — i.e. **the toolbar always
+cleared the properties.** ⛔ A field that merely persisted would make a toolbar press after an ORBAT create
+silently re-apply that unit's affiliation JSON. ⚠ **NOT RAILED:** `GlobalGizmoManager` exposes no accessor
+for a registered gizmo, so the json is not observable through any existing seam — ⛔ and adding production
+surface for a test was rejected. ⇒ **this claim is held by construction *(three lines, one reader)*, not by
+a gate. Stated here so nobody assumes it is covered.**
+
+#### 📐 Rails — **4 new behavioural + 2 new structural, all red-proofed**
+
+| rail | red-proof |
+|---|---|
+| `EditorSpawnAdapterTests` **3 → 7** — the three modals assert **`controller.ActiveModal`**, ⭐ not just a gizmo count *(a count of 1 was already true BEFORE the change, so counting alone could never have caught the bypass)*, plus `ArmingRouteAfterAreaDisplacesIt` for ruling C | deleting the three dispatch blocks ⇒ **4🔴 / 3✅**, on a **clean build** |
+| `EveryRootThatBuildsAPackForwardsItsToolArbiter` gains a **third** assertion — the delegate may **not** name the public API | pointing it back at `StartPlacementModeWithLastType` ⇒ **1🔴** |
+| `EveryRootThatBuildsASpawnAdapterHandsItTheArbiter` *(new `[Theory]`, both roots)* | dropping `_editorToolController` from the ctor call ⇒ **1🔴** |
+
+⚠⚠ **A PROCESS NOTE WORTH MORE THAN THE RAILS.** The first attempt at the third red-proof used
+`if (false)`, which produced **6 compile errors** — and `dotnet test --no-build` then ran a **STALE BINARY
+and printed `PASSED`**. 🔒 That is exactly the trap `CLAUDE.md` records *("it REFUSES to test a failed
+build … both times it looked like a green")*. ⇒ ⭐ **every red-proof here asserts `build errors == 0`
+BEFORE trusting the result**, and the invalid run was discarded.
+
+⭐ **Second trap, same session:** the first `new ScenarioSpawnAdapter` grep found **one** root — CGF writes
+`new Hrot.UI.Common.Adapters.ScenarioSpawnAdapter(`, **fully qualified**. 🔒 The identical blindness that
+hid `D′` for a whole issue *(§4.7b finding 2)*; the new rail's regex is qualification-tolerant by
+construction.
+
+### 4.9c ✅ `MeasureToolGizmoAdapter` AS-BUILT — **STEP 4a IS COMPLETE** *(obligation ⑤, `2026-09-09`)*
+
+⭐⭐⭐ **The finding was BIGGER than §4.7c's recorded hazard: IG had TWO Measure implementations.**
+
+| | |
+|---|---|
+| the Measure **action** | `IgApplication.cs:2641` → `Activate(Measure)` → the shared `ScenarioToolRegistrations` arm |
+| the Measure **checkbox** | `IgApplication.cs:865` → `MeasureToolGizmoAdapter` → **its own** `MeasureGizmo`, registered straight on `GlobalGizmoManager` |
+
+🔒 **Ruling 9 forbids two implementations of one concept**, and the second one was also §4.8's bypass.
+
+#### 🔴🔴 The dead toggle — mechanism confirmed exactly
+
+📐 `MeasureGizmo.RequiresExclusiveFocus` is **`true`** ⇒ `GlobalGizmoManager.CancelInteractiveTools()`
+sweeps it, calling `OnCancel()` and `Dispose()` — ⛔ **both EMPTY on `MeasureGizmo`** *(`:159`, `:164`)*.
+⇒ the adapter's `onRemove` never fired, `_wasActive` stayed `true` while the gizmo was gone, and **Measure
+was dead until the operator cycled the setting.** ⚠ Pre-existing via the terminal-disconnect cancel, but
+newly reachable from ORDINARY TOOL SWITCHING once `ToolController` began cancelling the other arbiter.
+
+⚠⚠ **§4.7c's claim that the obvious fix *"RECURSES through `Unregister`→`Dispose`"* is WRONG — measured.**
+Both teardown paths **remove from `_activeGizmos` before disposing** *(`Unregister:80`, and
+`CancelInteractiveTools`'s focused branch)*, so a `Dispose()`→`onRemove()`→`Unregister()` chain hits the
+`if (!_activeGizmos.Remove(id, out var gizmo)) return;` early-out and **terminates**. ⭐ Routing through the
+controller is still the right fix — ⛔ but for the **ruling-9** reason, not the recursion one. *(Corrected
+in place; §4.7c's parenthetical is superseded by this paragraph.)*
+
+#### ⭐⭐ The three-way test *(`2026-08-17`)* applied — **duplicate SURFACE, not duplicate CODE**
+
+⇒ ⭐ **KEEP the checkbox + unit selector, ROUTE the implementation.** ⛔ Deleting it would cost IG a
+capability.
+
+| | |
+|---|---|
+| **units: PUSH → PULL** | the adapter used to set `gizmo.DisplayUnits` every frame on an instance it owned. It now **exposes** `ReadUnits()`, and `MapInteractionContext.MeasureUnits` hands that source to the ONE shared gizmo. ⭐ The per-frame sync branch is **gone entirely** |
+| ⚠ **why the pack cannot just read the setting** | `MeasureToolGizmoSettings` is **IG-INTERNAL** *(`Hrot.IG/Gizmos/`, registered by IG's own `GizmoRegistrar:27`)* — `Hrot.Presentation` cannot reference it. 🔒 That is `Q26` constraint 3 again: shared arm, host-bound input |
+| ⭐⭐⭐ **the dead-toggle fix** | the adapter subscribes to **`ActiveModalChanged`**; when anything else takes the modal slot it writes the `Active` setting **false** *(and clears `_wasActive`, or the edge-triggered `Update` would read the next FALSE→FALSE as "no change")*. ⇒ the checkbox follows the arbiter back down, and switching it on again **re-arms** |
+| ⚠ `Disarm()` cancels **only if Measure is what is armed** | ⛔ otherwise the checkbox turning ITSELF off would tear down the tool that displaced it |
+
+#### 📐 Rails — **the spec-traced suite was RE-HOMED, not renamed**
+
+⚠⚠ `SC_GZ021_MT_1..7` asserted through `TestHook_ActiveGizmo`, which no longer exists. 🔒 Each claim was
+**re-homed to its new owner** *(the `HN-037` lesson: a reroute is not a mechanical `s/old/new/`)* —
+*"a gizmo is registered"* now also asserts **WHO armed it** (`controller.ActiveModal`), and *"units reach
+the gizmo"* became *"the source reads correctly"* (`ReadUnits`). ⭐ The harness drives the **production**
+`ScenarioToolRegistrations.RegisterAll`, ⛔ not a hand-rolled tool set that would pass over a broken arm.
+
+| **7 → 9** | red-proof *(each on a build verified at 0 errors)* |
+|---|---|
+| `MT_3/4` arm+cancel **through the arbiter**, `MT_9` the adapter registers nothing itself | restoring the bypass ⇒ **4🔴 / 5✅** |
+| `MT_8` — another tool displaces Measure ⇒ the setting follows, **and the toggle still re-arms** | removing the `ActiveModalChanged` subscription ⇒ **1🔴**, exactly `MT_8` |
+
+#### ⚠⚠ `Hrot.Presentation.Tests` — **an A/B that reversed my first reading, recorded because it nearly became a false finding**
+
+📐 A first sample looked like a regression: **base 3/3 green, mine 1–2 reds per run.** ⛔ I did not write it
+off as the known flake — I measured, and the **5-vs-5 A/B reversed it**:
+
+| | reds |
+|---|---|
+| ⭐ **base tree** *(stashed)* | **3 reds in 5 runs** — `MapInteractionPackTests`, `ScenarioFileServiceTests`, `SelectionInteractionSystemTests` |
+| ⭐ **with the change** | **1 red in 5 runs** — `MapCullingPolicyTests` |
+
+⇒ ⭐⭐ **the base tree was WORSE in the larger sample; the first "3/3 green" was luck** *(`CE-084` clocks this
+suite at ~1 red per 4 runs, so P(3 green) ≈ 0.42)*. ⭐ Every failure text is process-global
+`ComponentTypeRegistry` state — *"Component type ID 121 is not registered"*, *"'TkbIdentity' is not
+registered"* — which this diff does not touch, and every `Hrot.Presentation` change here is **additive and
+inert when `MeasureUnits` is null**, as it is in those tests. 🔒 `CE-084`'s own rule stands: **neither a red
+nor a green from this suite is evidence** — ⇒ the row gains three new rotating identities.
+
+### 4.10 🔴🔴🔴 A REGRESSION I SHIPPED IN STEP 3b, FOUND AND FIXED *(`2026-09-09`)*
+
+⛔⛔ **`Spawn` was unserviceable on the Editor and CGF — hosts that compose a spawn adapter.** It reported
+*"this host composes no spawn adapter"* and did nothing.
+
+📐 **The mechanism, and it is worth stating exactly because the shape recurs.** Step 3b moved the tool
+REGISTRATIONS out of `ScenarioEditorModule` and into `MapInteractionPack`, which takes the spawn delegate
+through `MapInteractionContext`. ⚠ **Both hosts kept handing it to `InteractionDeps`** — the record that no
+longer read it. ⇒ two parallel dependency-carrying records, a dependency moved from one to the other, and
+the WIRING left behind.
+
+| ⭐ the fix, in three parts — **the third is the one that matters** | |
+|---|---|
+| **①** both hosts set `StartPlacementMode` on the **`MapInteractionContext`** | the delegate reaches the pack that registers the tool |
+| **②** ⛔ **`InteractionDeps.GlobalGizmos` and `.StartPlacementMode` are DELETED** | 📐 measured: after step 3b the module read neither, yet both hosts dutifully passed them. ⭐ Deleting makes the mistake **unrepresentable**, not merely fixed — a host that tries the old wiring no longer compiles |
+| **③** ⭐⭐⭐ **the forwarding rail gained a SECOND assertion** | 🔒 *"one rail per forwarded dependency"* was already the stated control; `Tools` had one and `StartPlacementMode` did not. ⚠⚠ **A behavioural rail could NOT have caught this** — it builds its own pack and passes regardless. The failure is an OMISSION at a composition root, which only a source scan reaches. Red-proofed by deleting the editor's line: **1🔴, exactly that rail** |
+
+⚠ **Two behavioural rails were added as well** (`APackGivenASpawnDelegateHasAServiceableSpawnTool` and its
+no-delegate complement) — ⭐ they pin the pack's half of the contract, which is genuinely a different claim
+from the wiring's half. ⛔ Neither substitutes for the other.
+
+#### ⚠⚠ AND `UXI-07` CANNOT BE VERIFIED HEADLESSLY — **measured by the Windows session, `2026-09-09`**
+
+🔒 **Reported after three independent checks:** `/editor/commands` is per-document; **no route publishes
+`GlobalActionRequestedEvent` or `ActivateEditorToolEvent`**; and `ClusterRunner` **deliberately** never
+calls `AttachEditorCommands` (`Program.cs:545`).
+
+⇒ ⛔⛔ **There is no API entry point that arms a tool**, so the whole tool path — this issue's subject — is
+outside what the ai-debug MCP surface can drive. ⭐ **Consequence, stated plainly so nobody plans around a
+capability that is absent:** `UXI-07`'s user-visible behaviour *(the `Select` button, retargeting, the
+Measure toggle)* can be confirmed **only by a human driving the editor**, and the `T3` "run the real thing"
+tier does not reach it. ⚠ That also bounds steps 5–6 *(toolbar binding, central `Escape`)*: they will ship
+with unit rails and a manual check, and saying so now is better than discovering it at their gate.
+
+### 4.11 ✅ `PushModal` AS-BUILT — **suspend/resume, and 4b is unblocked** *(obligation ⑤, `2026-09-09`)*
+
+🔒 **`Q27-F` named the missing capability exactly:** *"suspend = `SetFocus(false)` WITHOUT the `Dispose()`
+that both teardown paths currently pair it with."* ⭐ **Confirmed by measurement, both ways:**
+
+| the seam-law pass | |
+|---|---|
+| ⭐ **grep** over `Fdp.Toolkits/Diagnostics/` + `Hrot.Presentation/ScenarioEditor/` | **no suspend/resume seam** |
+| ⭐ **`search_graph`** `.*(Suspend\|Resume\|PushModal\|PushTool\|PopTool).*`, total **180** | every hit is **time-control**, **blueprint-compiler latency**, or **file-sync** — ⛔ **nothing in the gizmo/tool focus domain** |
+| ⚠ the design's own unported `GizmoInteractionManager` *(`GizmoMap.Example`)* | ⛔ **same shape** — `SetFocus(false)` then `Dispose()`. **No prior art there either** |
+
+⇒ ⭐⭐ **Genuinely absent, so it was BUILT rather than adopted** — the one case where this repo's usual
+*"the seam already exists and is under-adopted"* answer does **not** apply.
+
+#### ⭐⭐ What was added — **additive, three methods per arbiter**
+
+| | |
+|---|---|
+| `GlobalGizmoManager` · `DataDrivenGizmoSystem` | ⭐ **`SuspendFocus()`** → returns the suspended gizmo *(`SetFocus(false)`, **no** `Dispose`, **stays registered so it keeps DRAWING**)* · ⭐ **`ResumeFocus(gizmo)`** *(no-ops if it is gone)* · ⭐⭐ **`CancelFocused()`** — see the defect below |
+| `ArmedTool` | gains **`Suspended`** — stored on the **PUSHED** entry, so a pop knows exactly what to resume and the entry beneath names the arbiter. ⛔ A parallel side-list would be a second stack to keep in step |
+| `ToolController.PushModal` | suspends the top, arms, pushes, returns a depth-keyed `IDisposable`. ⛔ It does **NOT** call `CancelOtherArbiter` — an interruption must leave everything it interrupted alive, on **both** arbiters |
+
+🔒 **The suspend STACK lives in the controller, not in the arbiters** — ⛔ otherwise the two arbiters grow
+two half-copies of one stack, which is the duplication `CE-259c` already documents.
+
+#### 🔴🔴 THE DEFECT A RAIL CAUGHT — **a POP is not a SWEEP**
+
+📐 The first implementation popped with **`CancelInteractiveTools()`**, which clears **every**
+exclusive-focus gizmo on that arbiter ⇒ ⛔ **it destroyed the very tool the push had just suspended**, and
+the resume then had nothing to resume. ⭐ `PoppingResumesTheToolBeneathAndDisposesTheInterrupter` reddened
+on `Assert.False(route.Disposed)`.
+
+⇒ ⭐⭐⭐ **`CancelFocused()` was added: cancel + dispose + unregister ONLY the focus holder.**
+⚠ **Two different operations that looked like one** — `CancelInteractiveTools` is *"the terminal
+disconnected, drop everything interactive"*; a pop is *"one interruption ended."*
+
+#### ⭐ Two semantics decided here, both traceable
+
+| decision | basis |
+|---|---|
+| ⭐⭐ **`Activate` UNWINDS THE WHOLE STACK**, cancelling each level and resuming none | 🔒 ruling C — `Activate` is *"a deliberate switch"*. ⛔ Popping only the top would strand suspended tools: a scope pops **by depth**, and that depth now belongs to the new tool ⇒ **nothing could ever resume them** |
+| ⭐ **depth > 3 LOGS, does not throw** | 🔒 `Q27-F` — *"no hard limit, but log beyond 3."* ⛔ Refusing a legitimate deep interaction is worse than a warning |
+
+#### 📐 Rails — `ToolControllerTests` **10 → 15**, red-proofed
+
+⚠⚠ **The old `PushModalRefusesLoudlyUntilItIsBuilt` was RE-HOMED, not deleted** — its premise
+*("declared and NOT built")* is void, but its real claim *("must not quietly behave like `Activate`")*
+survives as `PushingAnUnknownToolRefusesAndArmsNothing` + `PushingAModelessToolRefuses`, which assert the
+refusal is **reported** and returns a usable no-op handle *(⛔ never null, never a throw — the call site is
+`using var _ = …`)*.
+
+| red-proof *(each on a build verified at 0 errors)* | |
+|---|---|
+| pop with `CancelInteractiveTools` instead of `CancelFocused` | **1🔴**, exactly the resume rail |
+| `PushModal` cancels instead of suspending *(i.e. behaves like `Activate`)* | **4🔴 / 11✅** |
+
+⇒ ✅ **§4.8's 4b row is UNBLOCKED.** The four picker sites can now `PushModal` instead of `Activate`.
+
+### 4.12 ✅ STEP 4b AS-BUILT — **the picker protocol becomes ONE implementation** *(obligation ⑤, `2026-09-09`)*
+
+⭐⭐⭐ **The unification is bigger than "convert four sites."** 📐 Measured: the same twelve-line body —
+*make a `TaskCompletionSource` · mint a gizmo id · build a picker whose `onRemove` unregisters that id ·
+hook cancellation · `Register` straight on `GlobalGizmoManager`* — was written **six times**
+*(`CanvasMapPickAdapter` and `EditorMapPickAdapter`, three picks each)*, and **`IgApplication`** +
+**`ReplayBrowserSubsystem`** hand-roll the same thing with a **private one-slot arbiter**
+*(`_activeLocationPickerId`, `_activeGizmoId`)* instead of a task. ⛔ Every copy was §4.8's bypass.
+
+⇒ ⭐⭐ **`PickerToolHost`** is the one implementation: it owns the id, the arm, the push, the cancellation
+hook and the pop. The adapters keep only what is genuinely theirs — *which gizmo, and what a pick means*.
+
+| ⭐ decision | why |
+|---|---|
+| ⭐⭐ **`PushModal`, never `Activate`** | a pick INTERRUPTS. `Activate` would cancel and dispose the half-drawn route underneath — §4.8's measured reason 4b could not precede `PushModal` |
+| ⭐⭐⭐ **a RESOLVER for the controller, and LAZY registration** | 🔴 measured: `IgApplication.cs:513` builds its pick adapter **before** `:816` assigns the controller. ⛔ An instance would have been permanently `null` and every IG pick would have kept bypassing — **the silent-default shape, caught by reading the composition order rather than by a test** |
+| ⭐ registration is **idempotent per controller** | the duplicate-id guard stays strict (`G4`) |
+
+#### 🔴🔴 THE DEFECT THE RAIL CAUGHT — **the pop was tied to a TASK CONTINUATION, and that is a RACE**
+
+📐 The first implementation popped from `tcs.Task.ContinueWith(...)`. ⛔ A caller's `await` continuation and
+that one are queued **independently**, so the caller could resume from `PickLocationAsync` **before the
+tool underneath was restored.** ⚠⚠ **`PushModal` was correct and the SUSPEND rail passed** — only the
+rail that asserts the **RESUME** (`CompletingAPickResumesTheToolUnderneath`) caught it.
+
+⇒ ⭐⭐⭐ **The pop now lives in `Remove()`**, the callback the gizmo invokes when it actually goes away, so
+the resume is deterministic. ⭐ The continuation stays as a **backstop** for the one case it still covers —
+a `TaskCompletionSource` completed *without* the gizmo being removed. ⚠ Both are idempotent
+(`ModalScope.Dispose` guards, `PopModalAt` re-checks depth, `Unregister` early-outs), so the
+`Unregister → Dispose → onRemove` re-entry terminates.
+
+🔒 **This is the THIRD distinct route by which *"the tool underneath never comes back"* has been attempted
+in this issue** *(§4.9c's dead toggle · §4.11's pop-is-not-a-sweep · this race)*. ⇒ ⭐⭐ **a rail that
+asserts only the SUSPEND is not enough; assert the RESUME.**
+
+#### 📐 Rails — `EditorMapPickAdapterTests` **3 → 5**, red-proofed
+
+| | |
+|---|---|
+| `APickSuspendsTheActiveToolRatherThanDestroyingIt` | `Assert.False(route.Disposed)` **is** step 4b |
+| `CompletingAPickResumesTheToolUnderneath` | the half that caught the race |
+| ⭐ red-proof: `Activate` in place of `PushModal` *(clean build)* | **2🔴 / 3✅** — exactly the two new rails |
+
+⚠⚠ **THREE BUILD-LEVEL MISTAKES WORTH RECORDING, all mine, all caught BEFORE commit:**
+① a trailing `//` comment inside a call swallowed `, repo);` in `SimHostVisualization` — ⛔ and it reddened
+**Editor and CGF too**, which build SimHost as a dependency, so one break looked like three;
+② `using Fdp.Toolkit.Diagnostics.Gizmos.Interaction;` **rebound `MapMouseButton`/`MapKeyboardKey`
+file-wide** and broke a pre-existing `TestInputProvider` I never touched — 🔒 **two sibling namespaces
+declare the same enum names**, and a `using` is not a local decision;
+③ `GizmoPickToken` is in `Fdp.Toolkit.Diagnostics.Gizmos`, **not** the `.Interaction` child — ⛔ guessing a
+namespace from the folder path was wrong twice, grepping the declaration was right immediately.
+⇒ ⭐ and between ① and ②, a `dotnet test --no-build` reported **`Passed! 3/3` off a STALE BINARY** while the
+test project did not compile. **Every test invocation in this batch is now gated on `errors == 0` first.**
+
+#### ⛔ NOT YET CONVERTED — **the other two 4b sites**
+
+`IgApplication`'s picker arms and `ReplayBrowserSubsystem.ReplaySpatialPickerContext` still hold their
+private one-slot arbiters. ⚠ They are **callback-style, not `await`-style** *(no `TaskCompletionSource` —
+the repo-wide grep confirms only the two adapters combine TCS with a picker gizmo)*, so they need a
+push/pop keyed on their own callbacks rather than `RunPickAsync`. ⭐ Named here so 4b is not read as closed.
+
+### 4.12b ✅ STEP 4b COMPLETE — **all four sites, and a rail caught a defect in an already-shipped deletion** *(obligation ⑤, `2026-09-09`)*
+
+| site | how it converted |
+|---|---|
+| `CanvasMapPickAdapter` · `EditorMapPickAdapter` | ✅ `RunPickAsync` — the `await` half *(§4.12)* |
+| `IgApplication` — location + entity remote arms | ✅ `PushPicker` — the callback half; `_activeLocationPickerId` and `_activeEntityPickerId` **deleted** |
+| `ReplayBrowserSubsystem.ReplaySpatialPickerContext` | ✅ `PushPicker`; `_activeGizmoId` **deleted** |
+| ⛔ `IgApplication._activeSequenceGizmo` | **SCOPED OUT — not a picker.** Remote-driven area/route authoring with ExCon context ids, 8+ sites; the same shape as `MapCommandController` in 4a, not 4b |
+
+⭐ **`PushPicker` is the callback-style half of ONE protocol, not a second protocol** — same push, same
+arm-through-the-arbiter, same pop on the gizmo's `onRemove`. ⛔ Only the completion signal differs, because
+those sites publish their result *(over the wire, or into a field a panel reads)* rather than completing a task.
+
+⭐⭐ **`ReplayBrowser`'s `_activeGizmoId` did TWO jobs and only ONE was duplication.** *"Unregister my previous
+picker"* is the private one-slot arbiter ⇒ deleted. *"Is a pick in flight"* is a **real contract** — the search
+panel reads it through `IsPickPendingFor` ⇒ re-homed to a plain `_pickActive` flag, set on push and cleared
+exactly where `_activeGizmoId = null` used to sit. ⚠ A mechanical deletion would have taken both.
+
+⭐ **`PickBounds` is its own tool id, deliberately.** Same gesture as `PickArea`, different meaning and result:
+`PickArea` yields the ENTITIES in the box, this yields THE BOX, as a search filter. ⛔ Collapsing them would
+make one of the two lie about what it returns.
+
+#### 🔴🔴🔴 THE DEFECT THE RAIL CAUGHT — **in a deletion that was ALREADY COMMITTED**
+
+📐 `CE-259g` deleted IG's two private slots on the premise *"the controller already guarantees one modal at a
+time."* ⛔⛔ **That premise was verified against `Activate` and then applied to `PushModal` — a different
+method, which had no such rule.**
+
+⇒ 🔴 a second pick would have **GROWN the stack** and left the first picker **alive and suspended beneath**,
+recoverable only by popping twice. ⚠ Nothing throws; the picker just quietly accumulates — the same silent
+shape as every other defect in this issue.
+
+⭐⭐⭐ **Fixed in `PushModal`, not per host:** re-pushing the SAME tool now pops that level first *(cancelling
+it and resuming what it suspended)*, then pushes fresh. 🔒 Stacking two identical interruptions is never
+meaningful — the operator asked for **this** tool, not two of it.
+
+| ⚠ the lesson, and it recurred WITHIN THE HOUR of being written down | |
+|---|---|
+| 🔒 This is `CLAUDE.md`'s **WHOLE-FIELD READ** rule — *"read for what would FALSIFY the framing, not for what serves the edit"* | ⛔ I checked the guarantee on the method I was **not** calling |
+| ⭐⭐ **The rail that caught it is the one written to JUSTIFY the deletion** | 📐 `RePushingTheSamePickerRetargetsRatherThanStacking`. Had only the suspend/resume rails existed, all six would have passed and the defect would have stayed |
+| ⛔⛔ **Committing IG's conversion "compiling but not yet railed" was a real mistake** | ⭐ it was flagged as unrailed at the time and shipped anyway; the rails would have found this an hour earlier |
+
+📐 **Rails:** `PickerToolHostTests` **NEW, 6/6** *(the shared protocol's own suite — the four sites differ only
+in which gizmo they pass, so per-host copies would be four spellings of one claim)*. `ToolControllerTests`
+**15/15** as a regression check, since `PushModal`'s semantics changed for every caller.
+**Red-proof:** removing the re-target ⇒ **1🔴**, exactly that rail, on a 0-error build.
 
 ## Migration
 

@@ -1570,8 +1570,6 @@ namespace Hrot.Editor
                     Selection:          () => _selectionState,
                     Gizmos:             () => _editorDataDrivenGizmoSystem,
                     Camera:             () => _camera,
-                    GlobalGizmos:       () => _globalGizmoManager,
-                    StartPlacementMode: () => _spawnAdapter?.StartPlacementModeWithLastType(),
                     Tools:              () => _editorToolController));
 
             _kernel.RegisterModule(new BehaviorDiagnosticsModule());
@@ -1828,6 +1826,16 @@ namespace Hrot.Editor
                         view.HasComponent<SelectionState>(entity) &&
                         view.GetComponentRO<SelectionState>(entity).IsSelected,
                     BreakpointManager = _bpManager,
+                    // ⭐⭐⭐ UXI-07 — the Spawn tool's behaviour goes to the PACK, which registers the tool
+                    //   set. 🔴 It used to be handed to ScenarioEditorModule.InteractionDeps, and step 3b
+                    //   moved the registrations out of the drain WITHOUT moving this — so Spawn reported
+                    //   "this host composes no spawn adapter" on a host that has one. See §4.10.
+                    // ⚠ Resolved at CALL TIME: _spawnAdapter is built later, in the non-headless block.
+                    // ⭐⭐⭐ UXI-07 step 4a — this points at the ARM BODY, ⛔ never at the public
+                    //   StartPlacementMode*/WithLastType API. 📐 That API now calls Activate(Spawn), and
+                    //   Activate(Spawn) invokes THIS delegate — so naming the API here would close the
+                    //   cycle §4.9 measured. See ScenarioSpawnAdapter.ArmPlacement's remarks.
+                    StartPlacementMode = () => _spawnAdapter?.ArmPlacement(),
                     // GZH-003: the editor is interactive and always has a window at startup. It is not
                     // under the cluster runner, so PerspectiveCoordinatorSystem never attaches a viewer
                     // for it — starting disabled would shut its gate permanently (§3.2d ①).
@@ -2248,12 +2256,18 @@ namespace Hrot.Editor
             if (!_headless)
             {
                 _mapViewConfig    = new MapViewConfig();
-                _mapPickAdapter   = new EditorMapPickAdapter(_canvas!, geoTransform, _world, _globalGizmoManager!);
+                // 🔒 UXI-07 step 4b — picks SUSPEND the active tool instead of arming beside it.
+                _mapPickAdapter   = new EditorMapPickAdapter(
+                    _canvas!, geoTransform, _world, _globalGizmoManager!, () => _editorToolController);
 
                 // Build the JSON?ECS attribute compiler with the geo-transform so that
                 // geodetic spawn coordinates are projected correctly on entity placement.
                 var jsonCompiler  = Fdp.Toolkit.Replication.Attributes.AttributeCompilerFactory.Build(geoTransform);
-                _spawnAdapter     = new ScenarioSpawnAdapter(_world.Bus, jsonCompiler, tkbDb, scenarioLoadSource, _globalGizmoManager!);
+                // 🔒 UXI-07 step 4a — the arbiter is PASSED, so ORBAT "create unit" and the Spawner
+                //    panel's Place button arm THROUGH the controller instead of beside it (§4.8).
+                _spawnAdapter     = new ScenarioSpawnAdapter(
+                    _world.Bus, jsonCompiler, tkbDb, scenarioLoadSource, _globalGizmoManager!,
+                    _editorToolController);
                 // 🔒 UXI-07 step 4a — the arbiter is PASSED, so obstacle placement displaces the
                 //    active tool instead of quietly taking focus beside it (§4.8's inventory).
                 _zoneAdapter      = new EditorZoneAdapter(
@@ -2311,8 +2325,24 @@ namespace Hrot.Editor
                         $"Mark Target for {perceiverCount} Units...",
                         async void () =>
                         {
-                            int targetNetId = await _mapPickAdapter!.PickEntityAsync();
-                            Entity target   = FindEntityByNetworkId(targetNetId);
+                            // ⭐⭐⭐ CE-259o — CANCELLING A PICK IS A NORMAL OUTCOME, NOT AN ERROR.
+                            //   🔴 Measured by an operator 2026-09-09: right-clicking to cancel the picker
+                            //   surfaced "A task was cancelled". EntityPickerGizmo's right-press calls
+                            //   onCancelled -> tcs.TrySetCanceled(), and this is `async void`, so the
+                            //   OperationCanceledException had NO caller to observe it and escaped to the
+                            //   top level. ⛔ The gizmo and the TCS are both correct; the missing half was
+                            //   here. ⚠ Every `async void` that awaits a cancellable pick owes this catch.
+                            int targetNetId;
+                            try
+                            {
+                                targetNetId = await _mapPickAdapter!.PickEntityAsync();
+                            }
+                            catch (OperationCanceledException)
+                            {
+                                return;   // the operator changed their mind — nothing to report
+                            }
+
+                            Entity target = FindEntityByNetworkId(targetNetId);
                             if (!_world.IsAlive(target)) return;
 
                             foreach (var perceiver in _selectionState?.SelectedEntities ?? System.Array.Empty<Entity>())
@@ -2328,7 +2358,17 @@ namespace Hrot.Editor
                         $"Mark Area Targets for {perceiverCount} Units...",
                         async void () =>
                         {
-                            IReadOnlyList<int> targetNetIds = await _mapPickAdapter!.PickAreaEntitiesAsync();
+                            // ⭐ CE-259o — same as above: a cancelled box-select is an outcome, not a fault.
+                            IReadOnlyList<int> targetNetIds;
+                            try
+                            {
+                                targetNetIds = await _mapPickAdapter!.PickAreaEntitiesAsync();
+                            }
+                            catch (OperationCanceledException)
+                            {
+                                return;
+                            }
+
                             foreach (var perceiver in _selectionState?.SelectedEntities ?? System.Array.Empty<Entity>())
                                 foreach (int netId in targetNetIds)
                                 {

@@ -60,7 +60,8 @@ namespace Hrot.ScenarioEditor.Tools
             Func<DataDrivenGizmoSystem?> gizmos,
             Func<GlobalGizmoManager?>?   globalGizmos        = null,
             Action?                      startPlacementMode  = null,
-            Action<string>?              reportUnserviceable = null)
+            Action<string>?              reportUnserviceable = null,
+            Func<Hrot.ScenarioEditor.Gizmos.MeasureDisplayUnits>? measureUnits = null)
         {
             if (controller == null) throw new ArgumentNullException(nameof(controller));
             if (world      == null) throw new ArgumentNullException(nameof(world));
@@ -113,7 +114,14 @@ namespace Hrot.ScenarioEditor.Tools
                         return Unserviceable(EditorTool.Measure, "this host composes no global gizmo manager");
 
                     var id = GlobalGizmoManager.NewId();
-                    global.Register(id, new MeasureGizmo(onRemove: () => global.Unregister(id)));
+                    // ⭐⭐⭐ THE ONE MeasureGizmo (ruling 9). 🔴 IG used to build a SECOND one in
+                    //   MeasureToolGizmoAdapter, registered straight on GlobalGizmoManager — two
+                    //   implementations of one concept, and the adapter's was the bypass (§4.8).
+                    // ⭐ measureUnits is how the surviving SURFACE (IG's settings checkbox + unit
+                    //   selector) keeps its behaviour without owning an instance.
+                    global.Register(id, new MeasureGizmo(
+                        onRemove:      () => global.Unregister(id),
+                        unitsProvider: measureUnits));
                     return ToolActivationOutcome.Armed;
                 });
 
