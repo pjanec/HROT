@@ -181,13 +181,9 @@ graph TD
     class ECS,ISS,PRIV,FDPINSP bad
 ```
 
-| 🔴 | measured |
-|---|---|
-| **4 stores** | `SelectionState` component · `ISelectionState` *(3 impls)* · `EntityInspectorPanel._selectedEntities:377` · `DerEntityInspectorPanel._selectedEntityId:77` |
-| **9 `PrimarySelected` write sites** | `CgfSubsystem.cs:1461`,`:2884` · `EditorSubsystem.cs:754`,`:789`,`:1946`,`:2008`,`:2013` · `SelectEntitySystem.cs:83` |
-| **3 hand-rolled `SetSelected`** | `SelectionInteractionSystem` · `EditorSubsystem` · `IgApplication.SelectEntityOnMap:1596-1614` |
-| ⛔ **no FDP-internal "selection changed" event exists** | both `SelectionChangedEvent` *(`[DdsTopic]`, `MapMessages.cs:106`)* and `SelectionChangedEventDto` *(`Commands.cs:117`)* are NETWORK types ⇒ `R-134` forbids panels listening to them |
-| ✅ the **request** event exists | `SelectEntityCommand` — ⚠ single-entity (`long NetworkId`), no multi-select |
+⛔ **The store/writer inventory is OWNED by `UX/UX_Feature_Selection.md` §1** *(four stores, ~11 writers,
+with every `file:line`)* and the target state by its §2.7 — ⭐ **not restated here.** The diagram above is
+this document's contribution: the SHAPE of the disagreement, which §1's tables do not draw.
 
 ---
 
@@ -264,14 +260,18 @@ not**, which is why it surfaced repeatedly through the `2026-09-10` session.
 
 ## 5. FUTURE INTENTIONS — **rulings recorded, nothing built**
 
-### 5.1 User rulings, `2026-09-10`
+### 5.1 User rulings, `2026-09-10` — **INDEX ONLY**
+
+⛔⛔ **ONE CONCEPT, ONE DOCUMENT** *(user, `2026-09-10`)*. ⭐ This table is a **pointer index**: the
+wording below is a label, ⛔ **not the specification.** The specification of each ruling lives in the
+document named in its `home` column, and only there.
 
 | # | ruling | home |
 |---|---|---|
 | 1 | a suspended tool draws its **geometry but NO handles**; they return on resume | `UX_Feature_Tool_Model.md` §4.7i |
-| 2 | **only the selected entity is editable** — an entity LOSING selection cancels its edit *(per-entity predicate, not a global change event)* | §4.14 ② |
+| 2 | **only the selected entity is editable** — an entity LOSING selection cancels its edit *(per-entity predicate, not a global change event)* | `Tool_Model` §4.14 *(tool-side)* + `Selection` §2.6 ② |
 | 3 | clicks during an edit must not select — **map-input concern only** | §4.14 ③ |
-| 4 | **panels are map- and tool-unaware**: they publish a selection **request** and react to a **notification**; nothing else | §4.14 ⑤ · §2.6 ④ |
+| 4 | **panels are map- and tool-unaware**: they publish a selection **request** and react to a **notification**; nothing else | `Selection` §2.6 ④ |
 | 5 | **selection is HOST-LOCAL.** Owner = the global ECS repo on ECS nodes, *no one else*; one similar central piece on non-ECS nodes | §2.6 |
 | 6 | remote map control is **just another requester** — translate, then publish the same FDP request | §2.6 |
 | 7 | target-pick moves to the **selected perceiver's** menu, fanning out over all selected that support it | §4.13 |

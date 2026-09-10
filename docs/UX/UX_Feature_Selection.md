@@ -18,7 +18,8 @@ current-answer: ✅ READ §2.7 — the consolidated TARGET STATE (2026-09-10), w
     selection cancels that entity's edit) and §2.3 row 1 (an already-selected entity keeps the selection)
     are BUILDABLE NOW: ② is a per-entity predicate (ISelectionState.IsSelected + IToolController
     .ModalStack's per-entity Target), and row 1 is a conditional in SelectionInteractionSystem.
-    Per-ruling status table: UX_Feature_Tool_Model.md §4.14.
+    Slice order and per-ruling status: §2.7.5 (this file). Tool_Model §4.14 keeps only the
+    TOOL-side obligation and points here — one concept, one document.
   ⭐ "Mark Target for N Units..." is RETIRED; replacement in UX_Feature_Tool_Model.md §4.13.
 stale-below: §1's title ("two stores and three writers") — read the corrected inventory at the top of §1.
 known-conflict: none open. ✅ "Who owns selection" is RULED (2026-09-10): the global ECS repo on
@@ -38,7 +39,7 @@ known-conflict: none open. ✅ "Who owns selection" is RULED (2026-09-10): the g
 -->
 # Feature design — selection
 
-> **Design for [UXI-11](UX_Issues.md#uxi-11) · drafted 2026-08-12.** **Status: ❌ NOT-BUILT (design only) — `ISelectionState` unchanged; no `EcsSelectionState`; CGF not on the selection chain; `ClearAll` has 0 callers.** Implements [rulings 27-28](UX_RESUME_INTERACTION.md). Feeds
+> **Design for [UXI-11](UX_Issues.md#uxi-11) · drafted 2026-08-12 · target state consolidated `2026-09-10` in §2.7.** **Status: ✅ READY-TO-BUILD, ❌ nothing built — `ISelectionState` unchanged; no `EcsSelectionState`; CGF not on the selection chain; `ClearAll` has 0 callers.** Implements [rulings 27-28](UX_RESUME_INTERACTION.md). Feeds
 > [UXI-24](UX_Issues.md#uxi-24) (multi-select) and [UXI-23](UX_Issues.md#uxi-23) (map parity).
 
 ## 0. Prior art ([rule 6](UX_Issues.md#rules))
@@ -71,7 +72,7 @@ cover the panel-private stores or the full `PrimarySelected` write set. ⭐ The 
 ⇒ ⚠⚠ **CORRECTED same day — an earlier version of this line said this is why ALL of §2.6's rulings
 "cannot be built before §2.1". That is too coarse.** ⭐ Only ruling ① *(selection is global)* needs §2.1 —
 that ruling **is** §2.1. Rulings ② and §2.3 row 1 are **per-entity / local** and buildable without it
-*(`UX_Feature_Tool_Model.md` §4.14 carries the per-ruling table)*. ⭐ What the four stores DO block is the
+*(§2.7.5 carries the slice order)*. ⭐ What the four stores DO block is the
 **request/notify protocol** of §2.7, because *"the selection changed"* has four possible meanings until
 S-1 lands. *(Coverage when measured: index mode `full`, recording complete; no parse gaps in any file
 named here.)*
@@ -258,7 +259,7 @@ applies to **callers outside the tick**, which is where the view's setter lives.
 | **①** | *"inspector selection changes global entity selection state. not just map, not just editor, everywhere, every host, unified behavior."* | ⛔ **`EntityInspectorPanel.ChainToMap` as an opt-in is RETIRED.** 📐 It defaults to `false` (`:148`); the only production host that sets it true is **ReplayBrowser** (`:676-677`), and there is an operator toggle at `:663-667` ⇒ **in the editor, inspector selection does not reach the map today.** ⭐ Under §2.1 the question disappears: there is one store, so a panel writing selection IS the global selection |
 | **②** | *"Changing selection to another entity should cancel any currently active editing of the previously selected entity as we want just selected entity be editable."* ⭐ **restated by the user the same day, and this form is the buildable one:** *"if entity becomes unselected, it should cancel any editing on the entity losing the selection"* | ⭐⭐ **a PER-ENTITY predicate, not a global change event** — *"is THIS entity still selected?"* asked of the store the ARMING used. ⛔ **It does NOT require §2.1.** 📄 the measurements and the shape are in [`UX_Feature_Tool_Model.md` §4.14](UX_Feature_Tool_Model.md) |
 | **③** | clicks while an edit is in progress must not select another entity — *"something like mouse capture"*, defined by the gizmo | ✅ **already true, and it is a MAP-INPUT rule only** (`GizmoMap…/DebugGizmoLayer.cs:213` + `:491` — the capture-anchor filter). ⛔ It does **not** extend to panels |
-| **④** | 🔒 *"panels should not need to read tool state. panel can force selection change. they should stay unaware of any map or map tools whatsoever."* | ⭐⭐ **panels WRITE selection and know nothing else.** ⇒ ② is the whole mechanism for a panel-driven change, with no panel involvement. ⛔ An earlier version of this table said panels must consult tool state — **wrong, it would couple every shared panel to the map.** 📐 Measured: the only map/tool reference in all of `FDP/…/ImGui/` is `ChainToMap` *(5 sites in `EntityInspectorPanel`)*, which ruling ① already retires ⇒ **①  and ④ converge on one deletion.** 📄 [`UX_Feature_Tool_Model.md` §4.14 ⑤](UX_Feature_Tool_Model.md) |
+| **④** | 🔒 *"panels should not need to read tool state. panel can force selection change. they should stay unaware of any map or map tools whatsoever."* | ⭐⭐ **panels WRITE selection and know nothing else.** ⇒ ② is the whole mechanism for a panel-driven change, with no panel involvement. ⛔ An earlier version of this table said panels must consult tool state — **wrong, it would couple every shared panel to the map.** 📐 Measured: the only map/tool reference in all of `FDP/…/ImGui/` is `ChainToMap` *(5 sites in `EntityInspectorPanel`)*, which ruling ① already retires ⇒ **①  and ④ converge on one deletion.** ⭐ **This row is the SPECIFICATION** — `UX_Feature_Tool_Model.md` §4.14 keeps only the TOOL-side half and points here. |
 
 ⭐⭐ **② and ③ do not conflict:** while a tool is armed the map cannot change the selection at all, so ②
 never fires from a map click. ② governs the surfaces that are not captured — and it does so **without those

@@ -1578,46 +1578,25 @@ selection survives the gesture by accident, not by design.
 
 ⚠ **Depends on** `UXI-11` one-store selection and `UXI-24`'s menu-applicability rule, both `NOT-BUILT` — see §4.14.
 
-### 4.14 🔒🔒🔒 SELECTION AND EDITING — **only the selected entity is editable** *(user rulings, `2026-09-10`)*
+### 4.14 🔒 SELECTION AND EDITING — **the TOOL-SIDE half only** *(user rulings, `2026-09-10`)*
 
-| # | 🔒 the ruling, verbatim where given | |
+⛔⛔ **ONE CONCEPT, ONE DOCUMENT** *(user, `2026-09-10`)*. 📄 **The `2026-09-10` selection rulings are
+SPECIFIED IN `UX_Feature_Selection.md` §2.6, and the target state in §2.7** — selection is global and
+host-local, panels are map- and tool-unaware and speak only request/notify, the owner is the ECS repo,
+remote map control is just another requester, and right-click selects. ⛔ **They are NOT restated here**;
+an earlier version of this section duplicated all five and that duplication is what this trim removes.
+
+⭐ **What belongs to `UXI-07`, and is therefore all that remains below:**
+
+| # | the tool-side obligation | |
 |---|---|---|
-| **①** | *"inspector selection changes global entity selection state. not just map, not just editor, everywhere, every host, unified behavior."* | ⇒ ⛔ **`EntityInspectorPanel.ChainToMap` as an OPT-IN IS RETIRED.** 📐 It defaults to `false` (`:148`) and the only production host setting it true is **ReplayBrowser** (`:676-677`), with an operator toggle at `:663-667` ⇒ **in the editor, inspector selection does not reach the map today** |
-| **②** | *"Changing selection to another entity should cancel any currently active editing of the previously selected entity as we want just selected entity be editable."* | ⭐ **The trigger is the SELECTION CHANGE, not the click that caused it** — panel, map, command, script, all the same |
-| **③** | clicks during an edit must not select another entity — *"clicks are routed to top level gizmo only - something like mouse capture"* | ✅ **already true, and it is a MAP-INPUT rule only**: `HandleInput` passes `exclusiveAnchorId` into the hit-test (`GizmoMap…/DebugGizmoLayer.cs:213`) and `:491` skips every non-matching anchor ⇒ no `Started` event ⇒ no selection change. ⛔ **It does NOT extend to panels** — see ⑤ |
-| **⑤** | 🔒 *"panels should not need to read tool state. panel can force selection change. they should stay unaware of any map or map tools whatsoever."* | ⭐⭐⭐ **the layering rule, and it DELETES work rather than adding it** — see below |
-| **④** | right-click selects | ✅ already ruled — `UX_Feature_Selection.md` §2.3 *(user, `2026-08-12`)*. See §4.14's note below on the as-built divergence |
+| **②** | 🔒 *"if entity becomes unselected, it should cancel any editing on the entity losing the selection"* | ⭐ a **per-entity predicate** — the tool armed on that entity ends via `NotifyToolEnded` *(§4.7h)*. ⛔ Never by sweeping an arbiter |
+| **③** | clicks during an edit must not select | ✅ **already true, and it is a MAP-INPUT rule** — `HandleInput` passes `exclusiveAnchorId` into the hit-test *(`GizmoMap…/DebugGizmoLayer.cs:213`)* and `:491` skips non-matching anchors ⇒ no `Started` ⇒ no selection change. ⛔ **It never governed panels and must not be extended to them** |
 
-#### ⭐⭐⭐ ⑤ THE LAYERING RULE — **panels write selection and know nothing else** *(user, `2026-09-10`)*
-
-⛔⛔ **AN EARLIER VERSION OF THIS SECTION SAID "the panel half needs panels to consult tool state." THAT WAS
-WRONG** — it would couple every shared panel to the map. 🔒 The user's correction: *"panels should not need
-to read tool state. panel can force selection change. they should stay unaware of any map or map tools
-whatsoever."*
-
-| ⭐ the layering, in three lines | |
-|---|---|
-| a **panel** writes the selection. Full stop | ⛔ it does not ask what is armed, does not know a map exists |
-| the **map's tools** observe the selection model | ⇒ ② is the entire mechanism: a panel forcing a change unselects `E`, and ② cancels `E`'s edit — **with no panel involvement at all** |
-| **capture (③) is a MAP-INPUT concern**, not a global one | it decides where a click on the *canvas* is routed. ⛔ It never governed panels, and it must not be extended to |
-
-⇒ ⭐⭐ **THERE IS NO PANEL WORK IN ②–③.** The two behaviours differ deliberately and consistently: a map
-click during an edit is swallowed by capture; a panel forcing a selection cancels the edit. Neither surface
-reads the other.
-
-📐 **Measured `2026-09-10` — the panel layer is ALREADY almost compliant.** The only map/tool reference in
-the whole of `FDP/Engine/Fdp.Presentation/ImGui/` is **`ChainToMap`** — `EntityInspectorPanel.cs:148`,
-`:152`, `:393`, `:663`, `:667` — and it is *the name of the map inside a panel*. ⛔ No panel references
-`ToolController`, `MapCanvas`, `ScenarioToolIds` or any gizmo type; nor does `Hrot.Editor/UI/`.
-
-⇒ ⭐⭐⭐ **ruling ① and ruling ⑤ converge on ONE deletion**: ① retires `ChainToMap` as an opt-in because
-selection is global; ⑤ forbids it because a panel may not know a map exists. ⚠ `OnEntitySelected` is a
-**neutral** callback *(the panel reports, the host wires)* — not a layering violation, ⭐ but it becomes
-redundant once §2.1 makes `IInspectorContext.SelectedEntity` a view over the one store.
-
-⭐ **② and ③ are not in tension:** while a tool is armed the MAP cannot change the selection (③ blocks it),
-so ② never fires from a map click. ② governs the surfaces that are **not** captured.
-
+⭐⭐ **② and ③ do not conflict, and this is a tool fact worth keeping here:** while a tool is armed the MAP
+cannot change the selection at all, so ② never fires from a map click. ② governs the surfaces that are not
+captured — **and it needs nothing from them**: a panel publishes a selection request, the owner applies it,
+and the tool side observes the outcome. ⇒ ⭐ **THERE IS NO PANEL WORK IN ②–③.**
 #### 📐📐 THE ARMING PATHS, MEASURED — **and ② has a REAL dependency, just not the one first claimed**
 
 📐 **Enumerated `2026-09-10`. Every production site that arms a modal tool:**
@@ -1675,40 +1654,14 @@ as `ActivateToolOnEntity` already does — which removes the ordering dependency
 systems around it. ⚠ **Reordering may still be wanted once §2.3's inspector half exists**, because then the
 right-click *should* select and the order matters again — ⛔ do not decide that here.
 
-#### ⭐⭐⭐ WHAT IS ACTUALLY BLOCKED — **corrected `2026-09-10`, same day**
+#### ⭐ WHAT THE TOOL SIDE DEPENDS ON
 
-⛔⛔ **AN EARLIER VERSION OF THIS SUBSECTION CLAIMED ①–④ ALL REQUIRE `UXI-11` (one store) FIRST. THAT WAS
-WRONG, and the correction is the user's:** 🔒 *"if entity becomes unselected, it should cancel any editing
-on the entity losing the selection."*
+⛔⛔ **ONE CONCEPT, ONE DOCUMENT** *(user, `2026-09-10`)*. The slice order and the per-ruling status live in
+📄 **`UX_Feature_Selection.md` §2.7.5** *(`S-1`..`S-6`)* — ⛔ **not restated here.**
 
-⭐⭐ **The rule is a PER-ENTITY PREDICATE, not a global change event.** *"The selection changed"* does have
-four possible meanings today (📐 four stores, ~11 writers — `UX_Feature_Selection.md` §1), ⛔ but ② never
-needed that: an armed tool is **already keyed by entity**, and the question is only *"is THIS entity still
-selected?"*
-
-| 📐 measured `2026-09-10` — why ② is implementable now | |
-|---|---|
-| the predicate exists on the interface | `ISelectionState.IsSelected(Entity)` — `FDP/Engine/Fdp.Presentation/Vis2D/Abstractions/ISelectionState.cs` |
-| armed tools are enumerable **with their entity** | `IToolController.ModalStack` → `readonly record struct ArmedTool(ToolDescriptor Tool, Entity Target, IEntityStatefulGizmo? Suspended)` — `ToolDescriptor.cs:97-100` |
-| ⭐⭐ **the tool side reads exactly ONE store — no ambiguity** | `ToolActivationDrainSystem` takes the target from `selection.PrimarySelected` on the host's injected `ISelectionState`. ⇒ **ask the same store the ARMING used.** The cross-surface consistency problem is real and is `UXI-11`; it is a *different* problem |
-| ⭐ interruptions are exempt **by construction** | production pickers push with **no target** (`PickerToolHost.cs:181`, `:285` — `PushModal(toolId)`) ⇒ `Target == Entity.Null`. ⇒ the rule applies to entries with a **non-null** target, so a picker or Measure is never cancelled by a selection change |
-| change detection already exists if polling is unwanted | `DefaultSelectionState.Version` — *"bumped every time `PrimarySelected` changes or `ClearSelection` is called"* |
-
-⇒ **the shape:** for each `ModalStack` entry with `Target != Entity.Null`, if `!selection.IsSelected(Target)`
-then end that tool through `IToolController` — ⭐ `NotifyToolEnded(tool.Id, target)` per §4.7h, ⛔ never by
-sweeping an arbiter.
-
-| ruling | blocked on `UXI-11`? |
-|---|---|
-| ① selection is GLOBAL across every host | ⛔ **NO — UNBLOCKED `2026-09-10`.** 🔒 *"selection is host local, no dds entity selection stuff needs to exist"* ⇒ ① means one store **PER HOST** with uniform behaviour, **not** a replicated selection. ⇒ it **is** `UXI-11` §2.1 and carries no cluster-authority question. 📄 `UX_Feature_Selection.md` §2.6 |
-| ② losing selection cancels that entity's edit | ⛔ **not `UXI-11`** — ⚠ **but NOT free-standing either: it needs §2.3's right-click-selects on the surface the menu opens from**, because a targeted arming deliberately does not select. 📐 Satisfied on the map, **not** in the inspector — see the arming-path measurement above |
-| ③ clicks during an edit must not select | ✅ already true on the map; the panel half needs panels to consult tool state, ⛔ not one store |
-| ④ / §2.3 row 1 — an already-selected entity keeps the whole selection | ⛔ **NO — buildable now.** It is a conditional in `SelectionInteractionSystem`: skip the clear when the hit entity is already selected |
-
-⚠ **§4.13's fan-out over MULTIPLE selected perceivers still wants `UXI-24`** *(map additive-click does not
-exist)*; ⭐ the single-perceiver case works against today's selection. ⭐ §4.7i (suspended handles) is
-independent of all of it.
-
+⭐ **The only dependency that is a TOOL fact**, measured above: **ruling ② needs §2.3's right-click-selects
+on the surface the menu opens from**, because a TARGETED arming deliberately does not select its target
+*(§4.7d)*. ✅ Satisfied on the map; 🔴 not in the entity inspector.
 #### 📐 What the tool side owes once the store is one
 
 | | |
