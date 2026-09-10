@@ -27,14 +27,46 @@ namespace Fdp.Toolkit.Diagnostics.Gizmos
         // Bytes 8-11 overlay: AnchorIndex for EntityLocal; StringHash for intern escaping.
 
 
-        // ECS Entity Index for primitives anchored to an entity.
-        // An index of 0 is a perfectly valid memory offset in a data-oriented ECS.
-        // Never use AnchorIndex to evaluate handle validity; evaluate AnchorGeneration instead.
+        // ⭐⭐ OFFSET 8 CARRIES THREE THINGS, discriminated by Shape/Space. S7,
+        //   DESIGN_Gizmo_Anchor_Identity.md §6. ⛔ NONE of them is an identity for INTERACTION -- that
+        //   is BoxAnchorId (offset 44); see its note.
+        //     (a) an interactive Box2D/Sphere handle -> the ECS entity INDEX, an in-process PAYLOAD
+        //         that lets the consumer-side adapter rebuild Entity(index, generation) with no lookup.
+        //     (b) SemanticShape / any EntityLocal primitive -> the SpatialAnchor cache KEY, which is a
+        //         NETWORK id (DebugPrimitiveBuffer.DrawSemanticShape writes `(int)networkId`;
+        //         DebugPrimitiveRenderer2D:104-106 reads `(long)AnchorIndex` against a cache keyed by
+        //         SpatialAnchor.NetworkId at offset 24).
+        //     (c) Text / EntityBadge with Space != EntityLocal -> StringHash, below.
+        //
+        //   ⛔⛔ HARD LIMIT, measured 2026-09-10 (CE-259z): arm (b) TRUNCATES a 64-bit network id to
+        //     int. The cache is written with the full `long` SpatialAnchor.NetworkId and read with an
+        //     int-widened AnchorIndex, so an EntityLocal primitive whose anchor id exceeds int.MaxValue
+        //     SILENTLY FAILS TO RESOLVE and the shape is skipped (`continue`).
+        //     ⭐ It cannot be widened here: SemanticShape's 40-byte payload union is full (ProfileId at
+        //       24-31, Length/Width at 32-39, ConditionMask at 40-43, Resolved* at 44-63) and the
+        //       64-byte size is a DDS-marshalled invariant. ⇒ it is a CONSTRAINT, not a slot to find.
+        //     ⭐⭐ So: an id used as an EntityLocal ANCHOR must stay <= int.MaxValue. Production ids do
+        //       (SequentialIdAllocator counts from 1), and the disjoint TOOL range (1L<<40) is above it
+        //       BY DESIGN -- safe only because no tool emits an EntityLocal primitive. DrawSemanticShape
+        //       now asserts this rather than wrapping in silence.
         [FieldOffset(8)]  public int AnchorIndex;
 
         [FieldOffset(8)]  public uint StringHash;
 
+        // ⭐⭐⭐ OFFSET 12 CARRIES TWO THINGS, discriminated by Shape -- exactly like offset 8's
+        //   AnchorIndex/StringHash overlay documented above. S6, DESIGN_Gizmo_Anchor_Identity.md §6.
+        //     - any interactive / EntityLocal shape  -> AnchorGeneration, the ECS generation
+        //     - Text and EntityBadge                 -> LineOffsetPx, a SIGNED screen-pixel offset
+        //   ⛔ Neither is an IDENTITY. Identity is BoxAnchorId (offset 44) for a hit-testable shape and
+        //     StructNetworkId (offset 24) for a binding, and it is a NETWORK id. See MakePickToken.
         [FieldOffset(12)] public ushort AnchorGeneration; // ECS Entity Generation. A generation of 0 guarantees the handle is null or uninitialized.
+
+        // ⭐ The SAME two bytes, read as signed. Negative moves a text line UP, positive DOWN.
+        //   ⭐⭐ This alias exists so nobody writes `unchecked((ushort)(short)x)` on the way in and
+        //     `(short)x` on the way out again -- the compiler does it, and the two casts were the only
+        //     thing making a signed value look like a generation. Producers: DebugPrimitive.MakeText,
+        //     DebugPrimitiveBuffer.DrawText (both copies). Consumers: DebugPrimitiveRenderer2D:345,:360.
+        [FieldOffset(12)] public short LineOffsetPx;
         [FieldOffset(14)] public SizeMode SizeMode;
         [FieldOffset(15)] public byte ZIndex;           // intra-layer sort; 0=background
         [FieldOffset(16)] public ushort ThicknessU16;   // thickness * 10 (max 6553.5)
@@ -59,12 +91,23 @@ namespace Fdp.Toolkit.Diagnostics.Gizmos
         [FieldOffset(32)] public float BoxExtentX;
         [FieldOffset(36)] public float BoxExtentY;
         [FieldOffset(40)] public float BoxAngleDeg;
-        // Offset 44: BoxAnchorId -- Multiplexed interaction handle.
-        // When AnchorGeneration == 0, the primitive is a stateless tool or network object,
-        // and this field carries the authoritative 64-bit ID for managed hit-routing.
-        // When AnchorGeneration != 0, this field is ignored and the terminal routes
-        // the ECS AnchorIndex instead.
-        // Overlaps ArrowHeadSize/EndColor (different shape -- no conflict).
+        // ⭐⭐⭐ Offset 44: BoxAnchorId -- THE IDENTITY, AND IT IS ALWAYS A NETWORK ID.
+        //   Every hit-testable primitive stamps it: an entity pick box / handle carries the entity's
+        //   NetworkIdentity value, a stateless tool handle carries the tool's own id from a DISJOINT
+        //   high range (GlobalGizmoManager.ToolAnchorIdBase = 1L<<40), and -1L is the canvas sentinel.
+        //   ⇒ the terminal compares ONLY this field, and puts ONLY this value in GizmoPickToken.AnchorId.
+        //
+        //   ⛔⛔ SUPERSEDED 2026-09-10 (S5, DESIGN_Gizmo_Anchor_Identity.md). This comment used to read:
+        //     "When AnchorGeneration == 0, ... this field carries the authoritative 64-bit ID ...
+        //      When AnchorGeneration != 0, this field is ignored and the terminal routes the ECS
+        //      AnchorIndex instead."
+        //   🔴 That rule was the CAUSE of two defects, not a description of a design: tool ids (1,2,3...)
+        //     and ECS indices share the small-integer range, so an exclusive tool's capture admitted
+        //     whichever entity's index equalled its id (D1); and the ECS index -- process-local -- went
+        //     on the DDS wire, mis-targeting on the receiver (D2). AnchorIndex/AnchorGeneration are now
+        //     an IN-PROCESS PAYLOAD only: never compared, never routed, never marshalled as an identity.
+        //
+        //   Overlaps ArrowHeadSize/EndColor (different shape -- no conflict).
         [FieldOffset(44)] public long BoxAnchorId;
 
         // Arrow payload
@@ -317,10 +360,10 @@ namespace Fdp.Toolkit.Diagnostics.Gizmos
             // (stored as-is, not * 10 like line/sphere thickness). Zero means "use renderer default".
             if (fontSizePx > 0f)
                 p.ThicknessU16 = (ushort)fontSizePx;
-            // AnchorGeneration carries the screen-pixel line offset for Text primitives.
-            // Signed: negative moves the line UP, positive DOWN (stored as int16 bit-pattern).
+            // Offset 12 carries the screen-pixel line offset for Text primitives (S6).
+            // Signed: negative moves the line UP, positive DOWN.
             if (lineOffsetPx != 0f)
-                p.AnchorGeneration = unchecked((ushort)(short)lineOffsetPx);
+                p.LineOffsetPx = (short)lineOffsetPx;
             return p;
         }
 

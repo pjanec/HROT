@@ -243,9 +243,9 @@ namespace Fdp.Toolkit.Diagnostics.Gizmos
             // ThicknessU16 repurposed for Text: carries desired screen-pixel font size (not * 10).
             if (fontSizePx > 0f)
                 p.ThicknessU16 = (ushort)fontSizePx;
-            // AnchorGeneration carries the screen-pixel line offset for Text primitives (signed).
+            // Offset 12 carries the screen-pixel line offset for Text primitives (S6, signed).
             if (lineOffsetPx != 0f)
-                p.AnchorGeneration = unchecked((ushort)(short)lineOffsetPx);
+                p.LineOffsetPx = (short)lineOffsetPx;
             Append(p);
         }
 
@@ -367,6 +367,20 @@ namespace Fdp.Toolkit.Diagnostics.Gizmos
             p.Space         = CoordinateSpace.EntityLocal;
             p.TargetView    = PipelineTarget.All;
             p.DebugLayer    = layer;
+            // ⭐⭐⭐ S7 (DESIGN_Gizmo_Anchor_Identity.md §6, CE-259z) — offset 8 is the SpatialAnchor
+            //   cache KEY for an EntityLocal primitive, and it is 32 bits wide. The cache is FILLED with
+            //   the full 64-bit SpatialAnchor.NetworkId (DebugPrimitiveRenderer2D:63) and PROBED with
+            //   this value widened back to long (:105), so an id above int.MaxValue wraps here and the
+            //   lookup misses -- the shape is silently skipped, never drawn.
+            //   ⛔ It cannot be widened: SemanticShape's payload union is full and 64 bytes is a
+            //     DDS-marshalled invariant. ⇒ assert instead of wrapping in silence.
+            //   ⚠ Debug.Assert, not a throw: a diagnostic emitter must never take down a frame, and
+            //     production ids count from 1 (SequentialIdAllocator) so this is a latent limit, not a
+            //     live failure. A throw here would be a new way to lose the map.
+            System.Diagnostics.Debug.Assert(
+                networkId >= int.MinValue && networkId <= int.MaxValue,
+                $"SemanticShape anchor id {networkId} does not fit the 32-bit EntityLocal anchor key; " +
+                "the primitive would silently fail to resolve. See DebugPrimitive.cs offset 8.");
             p.AnchorIndex   = (int)networkId;
             p.ProfileId     = profileId;
             p.LengthMeters  = lengthMeters;

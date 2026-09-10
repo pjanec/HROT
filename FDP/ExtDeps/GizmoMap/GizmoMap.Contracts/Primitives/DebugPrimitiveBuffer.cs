@@ -199,9 +199,9 @@ namespace Fdp.Toolkit.Diagnostics.Gizmos
             // ThicknessU16 repurposed for Text: carries desired screen-pixel font size (not * 10).
             if (fontSizePx > 0f)
                 p.ThicknessU16 = (ushort)fontSizePx;
-            // AnchorGeneration carries the screen-pixel line offset for Text primitives (signed).
+            // Offset 12 carries the screen-pixel line offset for Text primitives (S6, signed).
             if (lineOffsetPx != 0f)
-                p.AnchorGeneration = unchecked((ushort)(short)lineOffsetPx);
+                p.LineOffsetPx = (short)lineOffsetPx;
             Append(p);
         }
 
