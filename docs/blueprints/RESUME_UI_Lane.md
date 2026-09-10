@@ -52,6 +52,36 @@ current-answer: ⚠⚠ THERE ARE NOW **TWO** LIVE STRANDS ON THIS LANE. Read the
   (EntityInfoTranslator ×4, EntityMasterTranslator ×1) · Hrot.ClusterRunner.Tests 3
   (OrchestratorSubsystemTests) · Hrot.Editor.Tests 1 (AiHotReloadCoordinator ALC collection) ·
   Hrot.Presentation.Tests rotates 0–1 (CE-084) · Fdp.Toolkits.Tests rotates 0–2 (DEBT-AIB-030).
+  ✅✅✅ CE-259aa IS CLOSED, 2026-09-10, and it was bigger than the row said. NEW OWNING DESIGN:
+  ../DESIGN_Gizmo_Renderer_Seam.md — READ ITS §6.1 (as-built), it is where the findings are.
+  📐 Fdp.Presentation.Tests now reports 544 tests (535 pass / 8 fail / 1 skip). It reported ~90 and
+  then died, so ~450 had NEVER EXECUTED. CE-088's "54 of 185" is explained and subsumed: same crash,
+  not a discovery bug. ⛔ THE LESSON: "the suite did not run" is not "the suite is green", and a
+  native crash makes those indistinguishable from the summary line.
+  ⭐ Root cause: the Fdp.Presentation renderer WRAPPER had invented a SECOND DispatchShape hook firing
+  before the real renderer, so test doubles captured unfiltered primitives AND left Raylib drawing.
+  The real seam was one layer down all along (GizmoMap.Presentation .cs:193-195) and
+  GizmoMap.Presentation.Tests had always used it, 41/41 headless. Fourth measured instance of the
+  seam law (CE-259p, SC-GZ067-1, CE-259ab, this).
+  🔴 CE-259y IS REFUTED, not fixed-as-filed. The dropped ISimulationView is the DESIGNED END STATE:
+  feedback2.md:798 "completely severs the presentation layer's reliance on the heavy simulation ECS",
+  :871 "Eradicating Entity", and the SpatialAnchor mechanism IS built with production producers
+  (EntityPresentationGizmo.cs:95). The 7 reds were rails for the RETIRED ECS mechanism, now rewritten.
+  🔒 The unread parameter is what manufactured the false finding — a parameter nobody reads is a claim
+  nobody checks. Deleted from the wrapper AND the layer; the 4 hosts stopped passing a world.
+  🔴 NEW, FILED, NOT FIXED: CE-259ac — a gizmo Line is UNPICKABLE. The live hit-test serves Box2D and
+  Sphere only; line hit-testing was lost in the terminal migration and its only record was a rail that
+  could not run. R-137. NOT re-implemented on a rail's say-so (a UX decision, no design record asks
+  for it) but PINNED by SC-GZ026-2b so it cannot be lost twice.
+  ⚠ TWO HARD-CODED TEST HOOKS DELETED: TestHook_IsCaptureActive/IsInteractionActive were `=> false`,
+  so every Assert.True could never pass and every Assert.False was vacuous. The real state is private
+  one assembly down behind a Raylib-polling HandleInput ⇒ not railable headlessly, and now SAID so.
+  ⭐ NEW REUSABLE CONTROL: [RequiresDisplayFact] (FDP/Engine/Fdp.Presentation.Tests/Raylib/). Use it for
+  ANY test that opens a window or issues a Raylib draw call — a skip costs one summary line, a crash
+  costs every test after it.
+  📐 The 8 remaining Fdp.Presentation.Tests reds (EntityInspectorPanel, EventBrowserPanel,
+  PerspectiveMenu, WindowManagerMainToolbar) are NOT gizmo-related and are PROVEN pre-existing
+  (identical 8 with all work stashed). They had simply never run — they belong to their own owners.
   ⛔ PROCESS FAILURE WORTH NOT REPEATING (the third of the day): HandleInput builds a pick token TWICE
   and the first S5 pass converted ONE arm. Every suite stayed green because the rails exercise the
   hit-test, not HandleInput. `scripts/find.sh 'AnchorGeneration != 0'` found it in one call. And the
