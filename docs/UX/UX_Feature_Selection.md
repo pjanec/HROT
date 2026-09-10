@@ -399,8 +399,29 @@ tool activation from `MapCommandRequest` messages and bridges the results back t
 
 🔴 **But the map-command switch lives INLINE IN `IgApplication`** *(`:1120-1160`)*, not in it — cases
 `CMD_START_EDITING` · `CMD_PICK_LOCATION` · `CMD_PICK_ENTITY` · **`CMD_SET_SELECTION`** · `CMD_SET_VIEW` ·
-`CMD_DRAW_PERSONAL_ROUTE`. ⇒ ⭐ the ruling is a **RELOCATION into a class whose stated purpose already
-covers it**, not a new mechanism.
+`CMD_DRAW_PERSONAL_ROUTE`.
+
+⚠⚠ **CORRECTED `2026-09-10`, same day — an earlier version of this subsection called the ruling "a
+RELOCATION into a class whose stated purpose already covers it". That was imprecise.** 📐 Measured: the
+class's **HEADER** claims the dispatch role; its **ACTUAL SURFACE is session management**, and the
+dispatcher role does not exist as a class anywhere today.
+
+| 📐 `MapCommandController`'s real responsibility | |
+|---|---|
+| `ActivatePlacementCommand` `:185` · `BeginAreaAuthoringSession` `:276` · `OnAreaEntityCreated` `:294` · `OnAreaToolCancelled` `:318` · `OnCreateEntityAck` `:340` | ⭐ **remote-driven entity-creation SESSIONS** — placement and area authoring — with request↔ack correlation and three ExCon status codes |
+| single-session state | `_sessionRequestId` · `_sessionContextId` · `_toolFinished` · `_activePlacementId` ⇒ **one active session at a time** |
+| ⛔ it handles **none** of the selection/view/pick/edit commands | those are the inline switch |
+| **IG-specific?** | ⛔ **only by namespace and wiring.** Dependencies are host-neutral — `MapCanvas`, `FdpEventBus`, `Action<MapCommandAckDto>`, `long localNodeId`, `GlobalGizmoManager?` — and it is constructed at exactly one site *(`IgApplication.cs:863`)* |
+| **DDS-specific?** | ⛔ **NO, and it is checkable:** every `Hrot.NED.Messages.*` reference is in a DOC COMMENT *(`:20`, `:66`, `:84`, `:168`)* and **none in code**. ⇒ `R-134`-clean, exactly as its header claims |
+
+⇒ ⭐ **LEAN — widen `MapCommandController` into the dispatcher the ruling names** *(its name and header
+already promise it, and its host-neutral dependencies mean it could later be SHARED rather than IG-only,
+which matters because `CMD_PICK_*` and `CMD_START_EDITING` have direct analogues in the editor's own tool
+model)*.
+⛔⛔ **WITH ONE CONSTRAINT:** the **session state must stay separate from dispatch.** Selection and view
+commands are **stateless one-shots**; placement and area authoring are **stateful single-session**. ⇒ folding
+stateless cases into a class that guards `_sessionContextId` is how a selection command ends up silently
+refused because a placement session happens to be open.
 
 ##### 🔴🔴 AND THE ECHO-LOOP SUPPRESSION IS IMPLEMENTED IN THE WRONG PLACE
 
