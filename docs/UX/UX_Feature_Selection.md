@@ -255,6 +255,49 @@ on selection … should affect all selected entities as long as they support tha
 gesture that opens the menu destroys the multi-selection. ⇒ **§2.3 row 1 stands and the unconditional clear
 is a defect.**
 
+#### 📐📐 EVERY SELECTION-FORCING SURFACE, measured `2026-09-10` — **the inventory ruling ① needs**
+
+🔒 **User, `2026-09-10`:** *"der entity inspector as well should force entity selection change (as it plays
+similar role as the ecs entity inspector)"* · *"[the orbat rule] should apply to orbat panel for editor and
+everywhere else the orbat panel is (cgf, stride editor, everywhere brain role is)"*.
+
+| surface | forces selection today? |
+|---|---|
+| ⭐⭐ **orbat — the SHARED seam** `IOrbatController.SelectEntity(int networkId)` | ✅ **the seam already exists**, 2 production impls |
+| ↳ `ScenarioOrbatAdapter.cs:156-160` *(ECS hosts)* | ✅ publishes `ActivateEditorToolEvent(Select)` **then** `SelectEntityCommand`. ⚠ It was `ActivateTool(Select)` ALONE — *"it activated the SELECT TOOL and **ignored `entityId` entirely**, so clicking an ORBAT row selected nothing"* (`CE-060`, fixed `2026-08-27`, recorded at `:137-155`) |
+| ↳ `ExConOrbatAdapter.cs:124` *(ExCon, DDS)* | 🔴 `_logic.SelectEntity(id)` ⇒ `ExConLogic.cs:359-363` sets `SelectedEntityId` **LOCALLY ONLY**. ⛔ `SendSetSelection` (`:366-377`) is the one that also writes `CMD_SET_SELECTION` over DDS — see `CE-259t` |
+| **ECS entity inspector** `EntityInspectorPanel` | ⚠ **left-click yes** (`:385-395`, via `IInspectorContext.SelectedEntity` + `OnEntitySelected`); 🔴 **right-click NO** (`:398-403`) |
+| 🔴 **DER entity inspector** `DerEntityInspectorPanel` | ⛔ **no selection seam AT ALL** — only a private `_selectedEntityId` (`:77`) and the context-menu handler list. ⚠ Unlike its ECS twin it has **no `IInspectorContext`, no `OnEntitySelected`, no callback** ⇒ ruling ① needs a seam ADDED here, not just a right-click arm |
+| **map** | ✅ left-press and right-release both emit `Started` → `SelectionInteractionSystem` |
+
+##### 📐 Where the orbat panel actually is — **and where it is NOT**
+
+`SharedOrbatPanel` is constructed in **CGF** (`CgfSubsystem.cs:1408`, registered `:1605`), the **Editor**
+(`EditorSubsystem.cs:2461`, registered `:4890`) and **`ExConMock.cs:111`**.
+⛔⛔ **No Stride host registers it** — 📐 `grep` over `Stride/` finds none. ⇒ ⚠ *"everywhere the orbat panel
+is … stride editor"* is **not** satisfied today; the Stride editor has no orbat panel to apply the rule to.
+⭐ That is a PORT, not a fix, and it is out of this document's scope — recorded so nobody assumes coverage.
+
+⚠⚠ **And ExCon's PRODUCTION orbat is its own private panel, not the shared one:** `ExConSubsystem.cs:498`
+constructs `Hrot.ExCon/Panels/OrbatPanel.cs` and `:570` registers `ExConOrbatWindow`; that panel calls
+`logic.SendSetSelection(...)` (`OrbatPanel.cs:312`) — the **correct** local+DDS path. `ExConWindows.cs:57`
+acknowledges the split in its own words: *"Not the same panel as `SharedOrbatPanel` (group 5)"*.
+⇒ 🔴 **the shared path and the private path have DIFFERENT selection semantics, and the SHARED one is the
+weaker** — `CE-259t`.
+
+##### ⭐⭐ THE PRECEDENT FOR RULING ② ALREADY EXISTS — **and it argues for doing it CENTRALLY**
+
+📐 `ScenarioOrbatAdapter.SelectEntity` arms the **null `Select` tool** before changing the selection, and
+`Select` is `ToolArbiter.None`, so `Activate` runs `CancelActiveModalWithoutNotify()` **and**
+`CancelOtherArbiter(None)` — which clears BOTH arbiters. ⇒ ⭐ **selecting from the orbat already cancels any
+armed editing.** ⚠ But as a **per-call-site side effect**, not a rule, and **only the orbat does it**.
+
+⇒ ⭐⭐⭐ **Ruling ② should be the central per-entity predicate, NOT this idiom copied to every surface.**
+🔒 Copying it would (a) make every selection-forcing surface arm a *tool* — which ruling ④ forbids, since a
+panel may not know tools exist — and (b) be the duplication this programme keeps finding. ⭐ The orbat's own
+line then becomes redundant and can drop the `ActivateEditorToolEvent`.
+⚠ `CE-259s`'s stale-target ordering does **not** bite here: `Select` ignores its target.
+
 #### 📄 What this retires elsewhere
 
 ⛔ **`"Mark Target for N Units…"` is retired** and replaced by *"Pick target…"* on the selected perceiver's
