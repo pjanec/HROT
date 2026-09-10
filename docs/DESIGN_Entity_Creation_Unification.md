@@ -1,15 +1,32 @@
 <!--STATUS
 state: LIVE
-updated: 2026-08-31
+updated: 2026-09-10
 build-state: BUILDING
 current-answer: §5 is the plan. Steps 1, 2 and 4 are BUILT. Step 1 + 2 (2026-08-30): TkbTranslatorSet is
   the one base list and all five spawning sites use it. Step 4 (2026-08-31): the UrbanCombat templates
   live in Hrot.Core.Tkb.UrbanCombatTkbCatalog, seeded from HrotEnvironment.CreateTkb() — §3.3's AS-BUILT
-  block is authoritative, and it corrects three false premises. NOT STARTED: step 3, the
-  EntityCreationPack (§3, §3.4 for the two authoring affordances, UML in §4). ⛔ Before step 3, do
-  obstacle 1 — move CreateEntityRequestSystem + EntityRequestFinalizationSystem +
-  DeleteEntityRequestSystem to Hrot.Core/Network (Q65 §5.4). ⛔ IG's step-3 adoption is ATOMIC with
-  Q65-A' + CE-143 + CE-144 (Q65 §6's ordering hazard).
+  block is authoritative, and it corrects three false premises.
+  ⛔⛔ CORRECTED 2026-09-10 — THIS BLOCK SAID "NOT STARTED: step 3, the EntityCreationPack", AND THAT WAS
+  FALSE FROM 2026-09-03. Step 3 (= P1 in the plan below) is ✅ COMPLETE ON ALL SIX HOSTS: (b) SimHost
+  2026-09-01 · (c)+(e) Editor + Stride editor 2026-09-02 (e verified on Windows) · (d) CGF 2026-09-02 ·
+  (f) IG 2026-09-03, atomic with Q65-A' + CE-143 + CE-144. Measured then: GhostDestructionSystem deleted,
+  IgNodeBootstrapper.cs:362 calls EntityCreationPack.Build, CE-141 + CE-144 confirmed on a live
+  four-process cluster (§2.3c). Obstacle 1 was done as part of it.
+  ⭐⭐⭐ WHERE THE REMAINING WORK IS — and it is NOT in this file:
+  📄 docs/blueprints/BOOTSTRAP_Entity_Creation_Session.md §5.0 IS THE AGREED PLAN (user-confirmed
+  2026-09-01) and the ordered continuation point.
+    P2 = relocate GhostPromotionSystem from NedReplicationModule into EntityCreationPack, add+remove in
+         ONE commit — UNBLOCKED, the next buildable step; it also closes "a BDC node never promotes its
+         ghosts" (BdcReplicationModule.cs:66).
+    P3 = AUTO-TAKEOVER / role-affinity ownership — 📄 docs/DESIGN_Role_Affinity_Ownership.md,
+         build-state READY-TO-BUILD, "Nothing here is built yet", §6 steps 0→3b. ⚠ Its §5 holds THREE
+         OPEN DECISIONS that are the USER's to settle first (①c the execution gate · ② nobody holds the
+         role · ③ multiple Brain nodes).
+  ⛔⛔ "P1 done" DOES NOT MEAN ENTITY-CREATION UNIFICATION IS DONE — P3 is the unimplemented half, and a
+  reader who stops at this file will conclude the opposite. That is exactly what happened on 2026-09-10.
+  ⚠ ALSO: §3.4's TWO-METHOD API shape is SUPERSEDED by docs/DESIGN_Entity_Authoring_Surface.md
+  (READY-TO-BUILD, ONE method RequestEntityCreation with an owner parameter). See this block's
+  'supersedes' note in that file.
 known-rot: §2.3's Role-selected HALVES are SUPERSEDED — Architect_Question_65 §4 resolved the question
   and there is ONE uniform pipeline. §2.3 is kept only as HISTORY. §3's Role invariant (item 4) still says
   "role decides which half"; that wording is stale and must be read against Q65 §4.
