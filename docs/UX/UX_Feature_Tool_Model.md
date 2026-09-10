@@ -1584,12 +1584,39 @@ selection survives the gesture by accident, not by design.
 |---|---|---|
 | **①** | *"inspector selection changes global entity selection state. not just map, not just editor, everywhere, every host, unified behavior."* | ⇒ ⛔ **`EntityInspectorPanel.ChainToMap` as an OPT-IN IS RETIRED.** 📐 It defaults to `false` (`:148`) and the only production host setting it true is **ReplayBrowser** (`:676-677`), with an operator toggle at `:663-667` ⇒ **in the editor, inspector selection does not reach the map today** |
 | **②** | *"Changing selection to another entity should cancel any currently active editing of the previously selected entity as we want just selected entity be editable."* | ⭐ **The trigger is the SELECTION CHANGE, not the click that caused it** — panel, map, command, script, all the same |
-| **③** | clicks during an edit must not select another entity — *"clicks are routed to top level gizmo only - something like mouse capture"* | ✅ **already true on the map**: `HandleInput` passes `exclusiveAnchorId` into the hit-test (`GizmoMap…/DebugGizmoLayer.cs:213`) and `:491` skips every non-matching anchor ⇒ no `Started` event ⇒ no selection change. 🔴 **panels bypass it entirely** |
+| **③** | clicks during an edit must not select another entity — *"clicks are routed to top level gizmo only - something like mouse capture"* | ✅ **already true, and it is a MAP-INPUT rule only**: `HandleInput` passes `exclusiveAnchorId` into the hit-test (`GizmoMap…/DebugGizmoLayer.cs:213`) and `:491` skips every non-matching anchor ⇒ no `Started` event ⇒ no selection change. ⛔ **It does NOT extend to panels** — see ⑤ |
+| **⑤** | 🔒 *"panels should not need to read tool state. panel can force selection change. they should stay unaware of any map or map tools whatsoever."* | ⭐⭐⭐ **the layering rule, and it DELETES work rather than adding it** — see below |
 | **④** | right-click selects | ✅ already ruled — `UX_Feature_Selection.md` §2.3 *(user, `2026-08-12`)*. See §4.14's note below on the as-built divergence |
 
-⭐⭐ **② and ③ are not in tension:** while a tool is armed the MAP cannot change the selection (③ blocks it),
-so ② never fires from a map click. ② exists for the surfaces that are **not** captured — panels, commands —
-and there it cancels the edit rather than leaving an unselected entity editable.
+#### ⭐⭐⭐ ⑤ THE LAYERING RULE — **panels write selection and know nothing else** *(user, `2026-09-10`)*
+
+⛔⛔ **AN EARLIER VERSION OF THIS SECTION SAID "the panel half needs panels to consult tool state." THAT WAS
+WRONG** — it would couple every shared panel to the map. 🔒 The user's correction: *"panels should not need
+to read tool state. panel can force selection change. they should stay unaware of any map or map tools
+whatsoever."*
+
+| ⭐ the layering, in three lines | |
+|---|---|
+| a **panel** writes the selection. Full stop | ⛔ it does not ask what is armed, does not know a map exists |
+| the **map's tools** observe the selection model | ⇒ ② is the entire mechanism: a panel forcing a change unselects `E`, and ② cancels `E`'s edit — **with no panel involvement at all** |
+| **capture (③) is a MAP-INPUT concern**, not a global one | it decides where a click on the *canvas* is routed. ⛔ It never governed panels, and it must not be extended to |
+
+⇒ ⭐⭐ **THERE IS NO PANEL WORK IN ②–③.** The two behaviours differ deliberately and consistently: a map
+click during an edit is swallowed by capture; a panel forcing a selection cancels the edit. Neither surface
+reads the other.
+
+📐 **Measured `2026-09-10` — the panel layer is ALREADY almost compliant.** The only map/tool reference in
+the whole of `FDP/Engine/Fdp.Presentation/ImGui/` is **`ChainToMap`** — `EntityInspectorPanel.cs:148`,
+`:152`, `:393`, `:663`, `:667` — and it is *the name of the map inside a panel*. ⛔ No panel references
+`ToolController`, `MapCanvas`, `ScenarioToolIds` or any gizmo type; nor does `Hrot.Editor/UI/`.
+
+⇒ ⭐⭐⭐ **ruling ① and ruling ⑤ converge on ONE deletion**: ① retires `ChainToMap` as an opt-in because
+selection is global; ⑤ forbids it because a panel may not know a map exists. ⚠ `OnEntitySelected` is a
+**neutral** callback *(the panel reports, the host wires)* — not a layering violation, ⭐ but it becomes
+redundant once §2.1 makes `IInspectorContext.SelectedEntity` a view over the one store.
+
+⭐ **② and ③ are not in tension:** while a tool is armed the MAP cannot change the selection (③ blocks it),
+so ② never fires from a map click. ② governs the surfaces that are **not** captured.
 
 #### ⭐⭐⭐ WHAT IS ACTUALLY BLOCKED — **corrected `2026-09-10`, same day**
 
