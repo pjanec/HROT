@@ -2426,14 +2426,14 @@ namespace Hrot.Editor
                 schemaRegistry.Register(
                     Hrot.Common.Diagnostics.Gizmos.LayerControlGizmo.SchemaHash,
                     layerControlSchemaSession.Document);
+                // ⭐ R3 — no world is passed; see DESIGN_Gizmo_Renderer_Seam.md §6.
                 _gizmoLayer = new DebugGizmoLayer(
                     31,
                     _gizmoBuffer!,
                     interactionBus,
-                    _world,
-                    _canvas!.Camera,
-                    new GizmoMap.Presentation.Shapes.DefaultEntityShapeLibrary(),
-                    schemaRegistry);
+                    camera: _canvas!.Camera,
+                    shapeLibrary: new GizmoMap.Presentation.Shapes.DefaultEntityShapeLibrary(),
+                    schemaRegistry: schemaRegistry);
                 _canvas!.AddLayer(_gizmoLayer);
                 if (_canvas != null) _canvas.DrawBuffer = _gizmoBuffer;
 

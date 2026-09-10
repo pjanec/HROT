@@ -34,6 +34,29 @@ namespace Fdp.Toolkit.Vis2D.Layers
                 new GizmoMap.Presentation.DebugPrimitiveRenderer2D());
         }
 
+        /// <summary>
+        /// ⭐⭐⭐ <b>R3 (DESIGN_Gizmo_Renderer_Seam.md §6) — THE ONE BUFFER CONSTRUCTOR.</b>
+        ///
+        /// <para>⛔⛔ There used to be TWO, byte-identical apart from a fourth parameter: this one takes an
+        /// injectable <c>renderer</c>, the other took an <c>ISimulationView? view</c> — <b>and stored it
+        /// nowhere.</b> Four production hosts passed a live world into it
+        /// (<c>IgApplication</c>, <c>ReplayBrowserSubsystem</c>, <c>SimHostVisualization</c>,
+        /// <c>EditorSubsystem</c>), so the signature promised an ECS dependency that no code consumed.</para>
+        ///
+        /// <para>🔒 That promise is not merely unimplemented, it is <b>designed away</b>:
+        /// <c>.dev/_DONE/gizmos-1/feedback2.md:798</c> — the <c>SpatialAnchor</c> two-pass
+        /// <i>"completely severs the presentation layer's reliance on the heavy simulation ECS (like
+        /// SimTransform or NetworkEntityMap)"</i> — and <c>:871</c> <i>"Eradicating Entity"</i>.
+        /// ⭐ <c>EntityLocal</c> resolution goes through <c>SpatialAnchor</c> primitives, which
+        /// <c>EntityPresentationGizmo.cs:95</c> really does emit.</para>
+        ///
+        /// <para>⚠ <b>Deleting the parameter is the point, not tidiness:</b> it is what made
+        /// <c>CE-259y</c> conclude <i>"the whole EntityLocal gizmo path is inert"</i> — a finding that
+        /// cost real time and was <b>false</b>. A parameter nobody reads is a claim nobody checks.</para>
+        ///
+        /// <para>⭐ Collapsing the two also removes an ambiguity that deleting the parameter would
+        /// otherwise have created: <c>new DebugGizmoLayer(31, buf, bus)</c> would have matched both.</para>
+        /// </summary>
         public DebugGizmoLayer(
             int layerBitIndex,
             DebugPrimitiveBuffer buffer,
@@ -48,27 +71,7 @@ namespace Fdp.Toolkit.Vis2D.Layers
             _eventBus = eventBus;
             _mapCamera = camera;
             var imGuiAdapter = new GizmoMap.Presentation.ImGuiPropertyTreeAdapter(schemaRegistry);
-            _renderer = renderer ?? new Fdp.Toolkit.Vis2D.Gizmos.DebugPrimitiveRenderer2D(null, shapeLibrary, imGuiAdapter);
-            var innerRenderer = new GizmoMap.Presentation.DebugPrimitiveRenderer2D(null, imGuiAdapter);
-            _innerTerminal = new GizmoMap.Presentation.DebugGizmoLayer(
-                innerRenderer);
-        }
-
-        public DebugGizmoLayer(
-            int layerBitIndex,
-            DebugPrimitiveBuffer buffer,
-            FdpEventBus eventBus,
-            Fdp.ModuleHost.Abstractions.ISimulationView? view,
-            MapCamera? camera = null,
-            GizmoMap.Presentation.Shapes.IEntityShapeLibrary? shapeLibrary = null,
-            GizmoMap.Presentation.GizmoSchemaRegistry? schemaRegistry = null)
-        {
-            LayerBitIndex = layerBitIndex;
-            _buffer = buffer;
-            _eventBus = eventBus;
-            _mapCamera = camera;
-            var imGuiAdapter = new GizmoMap.Presentation.ImGuiPropertyTreeAdapter(schemaRegistry);
-            _renderer = new Fdp.Toolkit.Vis2D.Gizmos.DebugPrimitiveRenderer2D(view, shapeLibrary, imGuiAdapter);
+            _renderer = renderer ?? new Fdp.Toolkit.Vis2D.Gizmos.DebugPrimitiveRenderer2D(shapeLibrary, imGuiAdapter);
             var innerRenderer = new GizmoMap.Presentation.DebugPrimitiveRenderer2D(null, imGuiAdapter);
             _innerTerminal = new GizmoMap.Presentation.DebugGizmoLayer(
                 innerRenderer);
@@ -97,8 +100,14 @@ namespace Fdp.Toolkit.Vis2D.Layers
                 if ((ctx.VisibleLayersMask & (1u << LayerBitIndex)) == 0) return;
             }
 
-            _renderer.SetLayerMask((ushort)ctx.VisibleLayersMask);
-
+            // ⛔⛔ R2 (DESIGN_Gizmo_Renderer_Seam.md §6) — `_renderer.SetLayerMask((ushort)ctx
+            //   .VisibleLayersMask)` USED TO BE HERE, every frame, and the method was an EMPTY BODY.
+            //   🔒 Routing it would have been wrong, not a fix: Architect_Question_28_Map_Layers.md:20
+            //     rules the backend's LayerControlMask primitive "the only filter that reaches drawn
+            //     primitives", authoritative per frame. ctx.VisibleLayersMask is 32 bits against that
+            //     256 and would be a SECOND authority for one fact (ruling 9 / R-132).
+            //   ⭐ The LayerBitIndex gate directly above is a DIFFERENT concern — it is whether THIS
+            //     LAYER draws at all, which the map canvas legitimately owns. It stays.
             var mapCamera = ctx.Resources.Get<MapCamera>();
             if (mapCamera != null)
                 _camera = mapCamera.InnerCamera;
@@ -107,7 +116,19 @@ namespace Fdp.Toolkit.Vis2D.Layers
             _renderer.Render(primitives, ctx);
         }
 
-        // FDP Inputs are muted. Raw input is polled by the inner terminal.
+        /// <summary>
+        /// ⭐⭐ <b>Deliberately returns <see langword="false"/> — this layer does not consume
+        /// <c>IMapLayer</c> input.</b> <c>MapCanvas.cs:229-252</c> really does offer it to every layer
+        /// (and <c>GridMapLayer.cs:94</c> declines the same way); the gizmo layer declines because its
+        /// input arrives through <c>_innerTerminal.HandleInput(...)</c> in <see cref="Update"/>, which
+        /// polls the hardware directly.
+        ///
+        /// <para>⛔ <b>Do not "fix" this to make a test pass.</b> 📌 Seven rails in three classes asserted
+        /// that it returns <c>true</c> and publishes an event — rails for the pre-terminal input route
+        /// (<c>.dev/_DONE/gizmos-1/</c> BATCH-23 era). They never ran, because those classes crashed
+        /// first. Wiring a second input mechanism to satisfy them is exactly what ruling 9 forbids.
+        /// 📄 docs/DESIGN_Gizmo_Renderer_Seam.md §6 R4.</para>
+        /// </summary>
         public bool HandleInput(Vector2 worldPos, AbstractionMouseButton button, bool isPressed) => false;
         public void HandleHover(Vector2 mouseWorldPos) { }
         public bool HandleDrag(Vector2 worldPos, Vector2 delta) => false;
@@ -192,7 +213,22 @@ namespace Fdp.Toolkit.Vis2D.Layers
         public System.Collections.Generic.IReadOnlyList<Fdp.Toolkit.Diagnostics.Gizmos.Interaction.ContextMenuItemDto> ConsumeMainMenu()
             => _innerTerminal.ConsumeMainMenu();
 
-        private void OnInteraction(
+        /// <summary>
+        /// ⭐⭐⭐ <b>R4 (docs/DESIGN_Gizmo_Renderer_Seam.md §6) — <c>internal</c>, on purpose.</b>
+        ///
+        /// <para>This is the layer's whole reason for existing on the FDP side: turn a terminal
+        /// <c>GizmoPickToken</c> into a <c>PickToken</c> and publish the typed event. ⛔ In production it
+        /// is reached only through <c>_innerTerminal.HandleInput(..., OnInteraction)</c> in
+        /// <see cref="Update"/>, which polls Raylib — so a headless rail cannot get here through the
+        /// front door, and for years the rails tried the back one: <c>layer.HandleInput(...)</c>, which
+        /// returns <c>false</c> by design (see its note).</para>
+        ///
+        /// <para>⭐⭐ Making it <c>internal</c> lets a rail assert the thing that actually matters and is
+        /// otherwise UNCOVERED: that a token's <b>payload</b> becomes the right <c>PickToken.Target</c>
+        /// (<c>ToPickToken</c>, the S3 payload path of <c>DESIGN_Gizmo_Anchor_Identity.md</c>) and that
+        /// each <c>GizmoInteractionEventKind</c> publishes its matching event exactly once.</para>
+        /// </summary>
+        internal void OnInteraction(
             GizmoPickToken token,
             GizmoInteractionEventKind kind,
             Vector3 worldPos,
@@ -294,8 +330,19 @@ namespace Fdp.Toolkit.Vis2D.Layers
             };
         }
 
-        // Test hooks preserved for existing test surface.
-        internal bool TestHook_IsCaptureActive => false;
-        internal bool TestHook_IsInteractionActive => false;
+        // 🔴🔴 DELETED 2026-09-10 (R4, DESIGN_Gizmo_Renderer_Seam.md §6):
+        //     internal bool TestHook_IsCaptureActive     => false;
+        //     internal bool TestHook_IsInteractionActive => false;
+        //   ⛔⛔ Two HARD-CODED constants whose comment read "Test hooks preserved for existing test
+        //     surface." ⇒ every rail asserting `Assert.True(layer.TestHook_...)` was FAILING BY
+        //     CONSTRUCTION and every `Assert.False(...)` was VACUOUSLY GREEN. Nobody noticed either,
+        //     because those classes SIGSEGV'd before running at all (CE-259aa).
+        //   ⭐ R-142 ③ — fix the blindness in place, do not route around it. The real interaction and
+        //     capture state lives in GizmoMap.Presentation.DebugGizmoLayer._activeTool, one layer down
+        //     and private, behind a HandleInput that polls Raylib.
+        //   🔒 So the honest position, stated rather than hidden: that state is NOT railable headlessly
+        //     at this layer. What IS railable — and is now railed — is OnInteraction: the token→PickToken
+        //     conversion and the event publication. A constant that lets a rail claim otherwise is worse
+        //     than an admitted gap.
     }
 }

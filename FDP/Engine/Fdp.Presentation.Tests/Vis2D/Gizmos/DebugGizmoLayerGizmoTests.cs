@@ -46,7 +46,7 @@ namespace Fdp.Toolkit.Vis2D.Tests.Gizmos
             var buffer   = new DebugPrimitiveBuffer(16);
             var bus      = new FdpEventBus();
             var renderer = new CapturingRenderer2D();
-            var layer    = new DebugGizmoLayer(31, buffer, bus, renderer);
+            var layer    = new DebugGizmoLayer(31, buffer, bus, renderer.AsLayerRenderer());
 
             var prim = RenderTestHelpers.MakeLine();
             buffer.DrawLine(Vector3.Zero, Vector3.One, Rgba32.Green);
@@ -62,36 +62,21 @@ namespace Fdp.Toolkit.Vis2D.Tests.Gizmos
             bus.Dispose();
         }
 
-        // SC-GZ013-2: HandleInput within hit radius of pickable primitive => returns true
-        // and publishes GizmoInteractionStartedEvent.
-        [Fact]
-        public void SC_GZ013_2_HandleInput_HitPrimitive_ReturnsTrueAndPublishesEvent()
-        {
-            var buffer   = new DebugPrimitiveBuffer(16);
-            var bus      = new FdpEventBus();
-            var renderer = new CapturingRenderer2D();
-            var layer    = new DebugGizmoLayer(31, buffer, bus, renderer);
-
-            // Pickable line at (10, 10).
-            var worldPos = new Vector2(10f, 10f);
-            var prim = MakePickableLine(worldPos);
-            // Manually append — DebugPrimitiveBuffer has no generic AppendRaw; use DrawEntityLocal
-            // to get a properly anchored primitive in the buffer. We use a direct line with
-            // AnchorIndex/Generation set; use DrawLine for the buffer but override via
-            // a second buffer push after reflection is not ideal, so we use a Subclass trick:
-            // directly append via a thin helper below.
-            AppendTo(buffer, prim);
-
-            bool result = layer.HandleInput(worldPos, MapMouseButton.Left, isPressed: true);
-            Assert.True(result);
-
-            bus.SwapBuffers();
-            var events = bus.Read<GizmoInteractionStartedEvent>();
-            Assert.Equal(1, events.Length);
-            Assert.Equal(new Vector3(worldPos.X, worldPos.Y, 0f), events[0].WorldPos);
-
-            bus.Dispose();
-        }
+        // 🔴🔴 SC-GZ013-2 RETIRED 2026-09-10 (R4, docs/DESIGN_Gizmo_Renderer_Seam.md §6).
+        //   It drove `layer.HandleInput(...)` and asserted it returned true and published a Started
+        //   event. THREE reasons it could never do that, none of which the rail could see because this
+        //   class SIGSEGV'd before running (CE-259aa):
+        //     ① `HandleInput` returns FALSE BY DESIGN — the layer declines IMapLayer input because the
+        //        inner terminal polls the hardware (see the note on the method);
+        //     ② the primitive it built was a LINE, and the live hit-test serves Box2D and Sphere only
+        //        (CE-259ac);
+        //     ③ its own comment admitted the fixture was improvised: "use a Subclass trick: directly
+        //        append via a thin helper below".
+        //   ⭐ Both halves it wanted are now railed properly, and they actually run:
+        //     the publication → DebugGizmoLayerActivationTests.SC-GZ025-1..4 (via OnInteraction);
+        //     the hit geometry → DebugGizmoLayerHitTests.SC-GZ026-1..4 (via PickTopmostEntityAnchor);
+        //     the design decision that HandleInput declines → SC-GZ025-5.
+        //   🔒 R-131 says analyse, fix, or JUSTIFY the removal. This is the justification.
 
         // SC-GZ013-3: HandleInput far from any pickable primitive => returns false.
         [Fact]
@@ -100,7 +85,7 @@ namespace Fdp.Toolkit.Vis2D.Tests.Gizmos
             var buffer   = new DebugPrimitiveBuffer(16);
             var bus      = new FdpEventBus();
             var renderer = new CapturingRenderer2D();
-            var layer    = new DebugGizmoLayer(31, buffer, bus, renderer);
+            var layer    = new DebugGizmoLayer(31, buffer, bus, renderer.AsLayerRenderer());
 
             var prim = MakePickableLine(new Vector2(100f, 100f));
             AppendTo(buffer, prim);
@@ -119,7 +104,7 @@ namespace Fdp.Toolkit.Vis2D.Tests.Gizmos
             var buffer   = new DebugPrimitiveBuffer(16);
             var bus      = new FdpEventBus();
             var renderer = new CapturingRenderer2D();
-            var layer    = new DebugGizmoLayer(5, buffer, bus, renderer); // Bit 5
+            var layer    = new DebugGizmoLayer(5, buffer, bus, renderer.AsLayerRenderer()); // Bit 5
 
             buffer.DrawLine(Vector3.Zero, Vector3.One, Rgba32.Green);
 

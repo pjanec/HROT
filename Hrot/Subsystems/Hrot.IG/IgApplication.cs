@@ -896,14 +896,17 @@ public class IgApplication : IDisposable
             schemaRegistry.Register(
                 Hrot.Common.Diagnostics.Gizmos.LayerControlGizmo.SchemaHash,
                 layerControlSchemaSession.Document);
+            // ⭐ R3 (DESIGN_Gizmo_Renderer_Seam.md §6) — no world is passed. The layer's old
+            //   `view` parameter was stored nowhere; EntityLocal resolves through SpatialAnchor
+            //   primitives instead (.dev/_DONE/gizmos-1/feedback2.md:798). Named arguments because the
+            //   two constructors collapsed into one.
             var gizmoLayer = new DebugGizmoLayer(
                 31,
                 _gizmoBuffer!,
                 _interactionBus,
-                ctx.World,
-                _canvas.Camera,
-                new GizmoMap.Presentation.Shapes.DefaultEntityShapeLibrary(),
-                schemaRegistry);
+                camera: _canvas.Camera,
+                shapeLibrary: new GizmoMap.Presentation.Shapes.DefaultEntityShapeLibrary(),
+                schemaRegistry: schemaRegistry);
             _gizmoLayer = gizmoLayer;
             _canvas.AddLayer(gizmoLayer);
             _canvas.DrawBuffer = _gizmoBuffer;
