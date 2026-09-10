@@ -1700,7 +1700,7 @@ sweeping an arbiter.
 
 | ruling | blocked on `UXI-11`? |
 |---|---|
-| ① selection is GLOBAL across every host | ✅ **YES — that ruling IS `UXI-11` §2.1.** Unifying the stores is the ruling, not a precondition for it |
+| ① selection is GLOBAL across every host | ⛔ **NO — UNBLOCKED `2026-09-10`.** 🔒 *"selection is host local, no dds entity selection stuff needs to exist"* ⇒ ① means one store **PER HOST** with uniform behaviour, **not** a replicated selection. ⇒ it **is** `UXI-11` §2.1 and carries no cluster-authority question. 📄 `UX_Feature_Selection.md` §2.6 |
 | ② losing selection cancels that entity's edit | ⛔ **not `UXI-11`** — ⚠ **but NOT free-standing either: it needs §2.3's right-click-selects on the surface the menu opens from**, because a targeted arming deliberately does not select. 📐 Satisfied on the map, **not** in the inspector — see the arming-path measurement above |
 | ③ clicks during an edit must not select | ✅ already true on the map; the panel half needs panels to consult tool state, ⛔ not one store |
 | ④ / §2.3 row 1 — an already-selected entity keeps the whole selection | ⛔ **NO — buildable now.** It is a conditional in `SelectionInteractionSystem`: skip the clear when the hit entity is already selected |

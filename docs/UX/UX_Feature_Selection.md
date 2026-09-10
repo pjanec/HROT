@@ -17,10 +17,14 @@ current-answer: NOT-BUILT (design only). ISelectionState unchanged; no EcsSelect
     Per-ruling status table: UX_Feature_Tool_Model.md §4.14.
   ⭐ "Mark Target for N Units..." is RETIRED; replacement in UX_Feature_Tool_Model.md §4.13.
 stale-below: §1's title ("two stores and three writers") — read the corrected inventory at the top of §1.
-known-conflict: WHO OWNS SELECTION. Hrot.Network.NED/MapMessages.cs:103 states "The IG is authoritative
-  for the selection state"; §2.1 says the ECS component is the single source of truth; the 2026-09-10
-  ruling ① says selection is global and unified across every host. THREE implied owners, unreconciled.
-  ⛔ Do not build ① until it is settled. ⭐ It does not block ②, §2.3 row 1 or Tool_Model §4.7i.
+known-conflict: none open. ✅ The "who owns selection" conflict (MapMessages.cs:103 "The IG is
+  authoritative for the selection state" vs §2.1's single source of truth vs ruling ①'s "every host")
+  was CLOSED by the 2026-09-10 ruling: SELECTION IS HOST-LOCAL. ⇒ ① means one store PER HOST with
+  uniform behaviour, NOT a replicated selection, so ① is just §2.1 and is UNBLOCKED. DDS selection
+  traffic exists only for direct 2-D map control (ExCon ↔ IG) and must translate to FDP events.
+  ⚠ ONE OPEN OBSERVATION, deliberately not a verdict: ExCon's ingress hands SelectionChangedEventDto
+  straight to ContextMenuLogic without it becoming an FDP event, and ExCon does have an FdpEventBus.
+  Either an R-134 shape or a deliberate DDS-client architecture — §2.6's last subsection; not measured.
 -->
 # Feature design — selection
 
@@ -335,13 +339,53 @@ event carries `List<int> SelectedEntityIds`, *"the complete list of currently se
 any previous selection state"* — while the **internal** request is single-entity. ⇒ **the internal model is
 the one that is behind**, not the network.
 
-##### ⚠⚠ `known-conflict` — WHO IS AUTHORITATIVE FOR SELECTION?
+##### ✅✅ RESOLVED — **SELECTION IS HOST-LOCAL** *(user ruling, `2026-09-10`)*
 
-🔴 `MapMessages.cs:103` states, in its own words: *"**The IG is authoritative for the selection state**."*
-⚠ That sits uneasily with ruling ① *(selection is global, unified, every host)* and with §2.1 *(the ECS
-component is the single source of truth)*. ⛔ **NOT RESOLVED HERE** — three documents now imply three
-different owners, and picking one is an architectural call, not a detail. ⭐ It does not block ②, §2.3 row 1
-or §4.7i, all of which are host-local.
+🔒 **User, verbatim:** *"selection is host local, no dds entity selection stuff needs to exist (unless this
+is a part of direct 2d map control which is a different story and even this one needs to be translated to
+fdp events)"*.
+
+⇒ ⭐⭐⭐ **THE THREE-OWNER CONFLICT DISSOLVES rather than being settled**, and it re-reads ruling ①:
+
+| ⭐ what ① means | |
+|---|---|
+| *"global … every host, unified behavior"* = **one store PER HOST, and every host behaves the same** | ⛔ **NOT** one selection replicated across the cluster |
+| ⇒ ① is exactly **`UXI-11` §2.1** *(the ECS component is the source of truth; `ISelectionState` is a view)* | ⭐ with **no cluster-authority question attached** |
+| ⇒ ⭐⭐ **① IS UNBLOCKED** | the `known-conflict` in this file's STATUS block is closed by this ruling |
+
+⛔ **And it retires the general reading of `MapMessages.cs:103`** — *"The IG is authoritative for the
+selection state"*. ⭐ That is true only of **the IG's own map**, for the benefit of remote observers; it is
+**not** a statement about who owns selection in the system.
+
+##### ⭐ THE CARVE-OUT: direct 2-D map control — **it stays, and it must translate**
+
+🔒 *"unless this is a part of direct 2d map control which is a different story and even this one needs to
+be translated to fdp events"*.
+
+📐 **Measured — that is precisely what the existing DDS selection traffic is:**
+
+| direction | site |
+|---|---|
+| **IG → observers**: the IG publishes when **its own map** selection changes | `IgApplication.cs:2160-2172` — `WriteSelectionChanged(new SelectionChangedEventDto { MapId, SelectedEntityIds })` |
+| **ExCon → IG**: *"select this on your map"* | `ExConLogic.SendSetSelection:366-377` → `CMD_SET_SELECTION` |
+
+⇒ ⭐ **Remote map control, not a general selection mechanism.** It stays; ⛔ it does **not** become the
+selection concept, and no host needs DDS to know what it has selected.
+
+##### ⚠ OPEN, and recorded as an OBSERVATION rather than a verdict
+
+📐 `ExCon` **does have `FdpEventBus`** *(`ExConSubsystem.cs:152`, `:280`; observer bus `:172`, `:296`)*, so
+*"translated to fdp events"* is applicable there. 📐 Today the ingress does **not** do that: DDS
+`SelectionChangedEvent` → `SelectionChangedEventDto` *(`NedExConIngressTranslators:67-77`)* →
+`ConcurrentEventQueue<SelectionChangedEventDto>` → `ExConLogic._selectionQueue` →
+`ContextMenuLogic.OnSelectionChanged(SelectionChangedEventDto evt, …)` — ⇒ **the network DTO reaches ExCon
+application logic without becoming an FDP-internal event.**
+
+⚠⚠ **TWO READINGS, and I am not choosing between them here:** either this is the `R-134` shape *(a network
+type inside the internal path — the same class as the `AttributeRecord` finding that row already records)*,
+**or** ExCon's queue-based ingress is a deliberate architecture for a DDS client and the FDP bus is used for
+other concerns. ⛔ **Not measured:** what ExCon's two buses actually carry. ⇒ settle that before treating it
+as a defect.
 
 #### 📄 What this retires elsewhere
 
