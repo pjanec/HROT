@@ -1618,6 +1618,63 @@ redundant once §2.1 makes `IInspectorContext.SelectedEntity` a view over the on
 ⭐ **② and ③ are not in tension:** while a tool is armed the MAP cannot change the selection (③ blocks it),
 so ② never fires from a map click. ② governs the surfaces that are **not** captured.
 
+#### 📐📐 THE ARMING PATHS, MEASURED — **and ② has a REAL dependency, just not the one first claimed**
+
+📐 **Enumerated `2026-09-10`. Every production site that arms a modal tool:**
+
+| ⭐ entity-TARGETED *(the only ones ② can apply to)* | target comes from |
+|---|---|
+| `ToolActivationDrainSystem.cs:120` | `selection.PrimarySelected ?? Entity.Null` — the primary selection **by construction** |
+| `EditorSubsystem.cs:1897` `ActivateToolOnEntity` | an explicit argument |
+| `IgApplication.cs:3235` · `SimHostVisualization.cs:252` · `SimHostApp.cs:440` | explicit entity |
+
+⭐ **TARGET-LESS ⇒ `Entity.Null` ⇒ exempt from ② by construction:** IG Measure `:2661` ·
+`MapCommandController:217` · `MeasureToolGizmoAdapter:106` · `EditorZoneAdapter:131` ·
+`ScenarioSpawnAdapter` ×3 · `PickerToolHost` ×2 *(`PushModal(toolId)`, no target)*.
+
+⭐⭐ **AND NO PRODUCTION BYPASS ARMS AN ENTITY-SCOPED GIZMO OUTSIDE THE CONTROLLER** — the direct-arbiter
+sites are `LayerControlGizmo` ×4 *(modeless, no entity)*, `MapCommandController:261` *(global)*, and
+`ScenarioToolRegistrations` ×2, which **are** the controller's own arm bodies. ⇒ 🔒 **`ModalStack` sees every
+entity-targeted armed tool**, which is exactly the completeness ② needs.
+
+##### 🔴 …but a TARGETED arming deliberately does NOT select its target
+
+🔒 **§4.7d, quoted from `EditorSubsystem.cs:1884-1888`:** *"TARGET-LESS → publish
+`ActivateEditorToolEvent`; the drain supplies the primary selection. **TARGETED** (a context menu ON an
+entity) → call `Tools.Activate(id, target)` **directly**. The controller takes the target."* ⭐ And the
+correction note beneath it records **why**: routing them through the event *"meant setting `PrimarySelected`
+first just to smuggle the target to the drain"*, which *"silently made a context-menu Rotate also
+re-select"* — ⇒ **direct activation exists precisely so that arming does not touch the selection.**
+
+⇒ ⭐⭐⭐ **CONSEQUENCE FOR ②:** a context-menu Edit on an **unselected** entity would arm and then be
+cancelled on the next tick. ⇒ **② depends on the RIGHT-CLICK having selected the entity** — i.e. on §2.3
+holding *on the surface the menu was opened from*. ✅ The **map** guarantees it *(right-release selects, and
+`SelectionInteractionSystem.Tick` at `EditorSubsystem.cs:2520` runs before `_kernel.Update()` at `:2560`)*.
+🔴 **The entity inspector does not** *(`EntityInspectorPanel.cs:398-403` opens the popup and selects
+nothing)*. ⛔ **That, and not "one store", is ②'s real prerequisite.**
+
+##### 🔴 `CE-259s` — THE DRAIN RUNS BEFORE THE SELECTION SYSTEM, so the smuggle does not work
+
+📐 `ScenarioEditorModule.RegisterSystems` registers **`ToolActivationDrainSystem` at `:100`** and
+**`SelectEntitySystem` at `:102`** ⇒ the drain runs FIRST. The inspector context menu
+*(`EditorSubsystem.cs:2307-2310`)* publishes `SelectEntityCommand` **then** `ActivateEditorToolEvent` on the
+**same bus** *(`EditorApplication` is constructed with `_world.Bus` — `EditorSubsystem.cs:2059`)*, both
+readable in the same kernel tick ⇒ 🔴 **the drain reads the PRE-MENU `PrimarySelected`.**
+
+⚠ **Stated precisely:** the armed target is whatever was primary *before* the menu item ran. It coincides
+with the intended entity whenever that entity was **already** selected — which a map right-click guarantees
+and an inspector **left**-click also guarantees — and diverges when neither happened. ⭐ **That is why this
+has never been visible.**
+
+⛔ **Those three items are ALSO a §4.7d VIOLATION:** `Edit Shape`, `Edit Route` and `Rotate` at
+`:2307-2310` still use the **retired indirect idiom** *(`SelectEntity(...)` then `ActivateTool(...)`)*. The
+sweep that converted the action-registry handlers never reached the inspector menu.
+
+⭐ **LEAN: convert those three to the targeted idiom** — `_editorToolController.Activate(toolId, target)`,
+as `ActivateToolOnEntity` already does — which removes the ordering dependency instead of reordering two
+systems around it. ⚠ **Reordering may still be wanted once §2.3's inspector half exists**, because then the
+right-click *should* select and the order matters again — ⛔ do not decide that here.
+
 #### ⭐⭐⭐ WHAT IS ACTUALLY BLOCKED — **corrected `2026-09-10`, same day**
 
 ⛔⛔ **AN EARLIER VERSION OF THIS SUBSECTION CLAIMED ①–④ ALL REQUIRE `UXI-11` (one store) FIRST. THAT WAS
@@ -1644,7 +1701,7 @@ sweeping an arbiter.
 | ruling | blocked on `UXI-11`? |
 |---|---|
 | ① selection is GLOBAL across every host | ✅ **YES — that ruling IS `UXI-11` §2.1.** Unifying the stores is the ruling, not a precondition for it |
-| ② losing selection cancels that entity's edit | ⛔ **NO — buildable now**, per the table above |
+| ② losing selection cancels that entity's edit | ⛔ **not `UXI-11`** — ⚠ **but NOT free-standing either: it needs §2.3's right-click-selects on the surface the menu opens from**, because a targeted arming deliberately does not select. 📐 Satisfied on the map, **not** in the inspector — see the arming-path measurement above |
 | ③ clicks during an edit must not select | ✅ already true on the map; the panel half needs panels to consult tool state, ⛔ not one store |
 | ④ / §2.3 row 1 — an already-selected entity keeps the whole selection | ⛔ **NO — buildable now.** It is a conditional in `SelectionInteractionSystem`: skip the clear when the hit entity is already selected |
 
