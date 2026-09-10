@@ -264,7 +264,7 @@ namespace Fdp.Toolkit.Diagnostics.Gizmos
         }
 
         public void DrawEntityLocal(
-            Entity anchor, Vector3 localStart, Vector3 localEnd,
+            long anchorNetworkId, Vector3 localStart, Vector3 localEnd,
             Rgba32 color, float thickness = 1f, byte layer = 0)
         {
             var p = default(DebugPrimitive);
@@ -276,15 +276,20 @@ namespace Fdp.Toolkit.Diagnostics.Gizmos
             p.DebugLayer       = layer;
             p.SizeMode         = SizeMode.ScreenPixels;
             p.ThicknessU16     = (ushort)(thickness * 10f);
-            p.AnchorIndex      = anchor.Index;
-            p.AnchorGeneration = anchor.Generation;
+            // ⭐⭐⭐ CE-259z — offset 8 is the SpatialAnchor cache KEY, a NETWORK id.
+            //   ⛔ It used to be `anchor.Index` (an ECS index) against a cache keyed by
+            //     SpatialAnchor.NetworkId ⇒ the lookup missed and the primitive was SILENTLY SKIPPED.
+            //   ⛔ And no AnchorGeneration is stamped: the generation is not part of the key, and
+            //     stamping it here is what made offset 12 look like an identity component.
+            AssertFitsAnchorKey(anchorNetworkId);
+            p.AnchorIndex      = (int)anchorNetworkId;
             p.LineStart        = localStart;
             p.LineEnd          = localEnd;
             Append(p);
         }
 
         public void DrawEntityLocalInteractive(
-            Entity anchor, Vector3 localStart, Vector3 localEnd,
+            long anchorNetworkId, Vector3 localStart, Vector3 localEnd,
             Rgba32 color, ushort subElementId,
             float thickness = 1f, byte layer = 0)
         {
@@ -297,8 +302,17 @@ namespace Fdp.Toolkit.Diagnostics.Gizmos
             p.DebugLayer       = layer;
             p.SizeMode         = SizeMode.ScreenPixels;
             p.ThicknessU16     = (ushort)(thickness * 10f);
-            p.AnchorIndex      = anchor.Index;
-            p.AnchorGeneration = anchor.Generation;
+            // ⭐ CE-259z — see DrawEntityLocal.
+            // ⛔⛔ AND NO `BoxAnchorId`, THOUGH IT WOULD BE THE IDENTITY (S5) — IT PHYSICALLY DOES NOT
+            //   FIT. Measured 2026-09-10: for a Line the payload union is LineStart @24-35 and LineEnd
+            //   @36-47, with EndColor @48-51; `BoxAnchorId` is a long @44-51 ⇒ it OVERLAPS LineEnd.Z
+            //   AND EndColor. Stamping it corrupts the geometry, or is silently overwritten by it
+            //   (which is what the first attempt did — the rail read back 0).
+            //   ⇒ ⭐⭐ THIS IS THE DEEPER REASON A LINE CANNOT BE INTERACTIVE, and it is stronger than
+            //     "the hit-test does not handle Line" (CE-259ac): a Line has NO SLOT FOR AN IDENTITY.
+            //     Anything pickable must be Box2D or Sphere, whose payloads leave offset 44 free.
+            AssertFitsAnchorKey(anchorNetworkId);
+            p.AnchorIndex      = (int)anchorNetworkId;
             p.LineStart        = localStart;
             p.LineEnd          = localEnd;
             p.SubElementId     = subElementId;
@@ -325,6 +339,20 @@ namespace Fdp.Toolkit.Diagnostics.Gizmos
             p.AnchorGeneration = anchor.Generation;
             Append(p);
         }
+
+        /// <summary>
+        /// ⭐⭐ <b>C7 / CE-259z — the <c>EntityLocal</c> anchor key is 32 bits and the narrowing is
+        /// unchecked.</b> An id above <c>int.MaxValue</c> wraps, misses the <c>SpatialAnchor</c> cache and
+        /// the primitive is skipped in silence. ⛔ It cannot be widened (<c>SemanticShape</c>'s payload
+        /// union is full; 64 bytes is a DDS invariant) ⇒ assert, do not wrap.
+        /// ⚠ <c>Debug.Assert</c>, not a throw: a diagnostic emitter must never take down a frame, and
+        /// production ids count from 1 (<c>SequentialIdAllocator</c>), so this is a latent limit.
+        /// </summary>
+        private static void AssertFitsAnchorKey(long anchorNetworkId)
+            => System.Diagnostics.Debug.Assert(
+                   anchorNetworkId >= int.MinValue && anchorNetworkId <= int.MaxValue,
+                   $"EntityLocal anchor id {anchorNetworkId} does not fit the 32-bit SpatialAnchor cache "
+                 + "key; the primitive would silently fail to resolve. See DebugPrimitive.cs offset 8.");
 
         // ---- Internal helpers -----------------------------------------------
 

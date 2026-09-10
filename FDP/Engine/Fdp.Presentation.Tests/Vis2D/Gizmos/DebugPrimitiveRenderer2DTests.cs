@@ -313,6 +313,63 @@ namespace Fdp.Toolkit.Vis2D.Tests.Gizmos
         }
     }
 
+    // ── CE-259z — DrawEntityLocal end-to-end against the renderer ─────────────
+
+    public class DrawEntityLocalResolvesEndToEndTests
+    {
+        // ⭐⭐⭐ THE RAIL THAT WOULD HAVE CAUGHT CE-259z, and nothing had it: drive the PRODUCTION
+        //   helper into the PRODUCTION renderer and check the primitive actually arrives.
+        //   ⛔ RED-PROOF SHAPE: restore `p.AnchorIndex = anchor.Index` in
+        //      DebugPrimitiveBuffer.DrawEntityLocal and pass an entity whose index differs from its
+        //      network id — the cache lookup misses and Dispatched is EMPTY. That was the shipped
+        //      behaviour: drawn nowhere, no error.
+        [Fact]
+        public void CE259z_DrawEntityLocal_ResolvesAgainstItsSpatialAnchor()
+        {
+            const long netId = 90210L;
+            var buffer = new DebugPrimitiveBuffer(16);
+            buffer.DrawSpatialAnchor(netId, worldX: 10f, worldY: 20f, worldZ: 0f, headingDeg: 0f);
+            buffer.DrawEntityLocal(netId, new Vector3(1f, 0f, 0f), new Vector3(2f, 0f, 0f), Rgba32.Red);
+
+            var renderer = new CapturingRenderer2D();
+            renderer.Render(buffer.GetFrame(), RenderTestHelpers.MakeCtx());
+
+            // The anchor is not dispatched (it is frame state), the line is — resolved to world.
+            Assert.Equal(1, renderer.Dispatched.Count);
+            Assert.Equal(CoordinateSpace.World, renderer.Dispatched[0].Space);
+            Assert.Equal(11f, renderer.Dispatched[0].LineStart.X, precision: 3);
+            Assert.Equal(20f, renderer.Dispatched[0].LineStart.Y, precision: 3);
+        }
+
+        // CE-259z-b: DrawEntityLocalInteractive sets the cache key and the sub-element, and 🔒 CANNOT
+        // set an identity: for a Line, BoxAnchorId (long @44-51) OVERLAPS LineEnd.Z (@44-47) and
+        // EndColor (@48-51). ⭐⭐ That is the STRUCTURAL reason behind CE-259ac — stronger than "the
+        // hit-test does not handle Line" — and it means the row cannot be closed by teaching the
+        // hit-test about lines: the primitive could not carry what it routes on.
+        // 📌 Found by trying it: the first version of this rail stamped BoxAnchorId and read back 0,
+        //    because `p.LineEnd = localEnd` had overwritten it.
+        [Fact]
+        public void CE259z_DrawEntityLocalInteractive_HasNoRoomForAnIdentity()
+        {
+            const long netId = 90210L;
+            var buffer = new DebugPrimitiveBuffer(16);
+            buffer.DrawEntityLocalInteractive(netId, Vector3.Zero, new Vector3(1f, 2f, 3f), Rgba32.Red,
+                subElementId: 3);
+
+            var prim = buffer.GetFrame()[0];
+            Assert.Equal((int)netId, prim.AnchorIndex);    // the SpatialAnchor cache key
+            Assert.Equal((ushort)3,  prim.SubElementId);    // offset 52 — unaffected by the overlap
+
+            // ⭐ The geometry is intact precisely BECAUSE no identity was written over it.
+            Assert.Equal(3f, prim.LineEnd.Z, precision: 3);
+
+            // 🔒 And the overlap is real, not folklore — write the identity and the geometry dies.
+            var corrupted = prim;
+            corrupted.BoxAnchorId = netId;
+            Assert.NotEqual(3f, corrupted.LineEnd.Z);
+        }
+    }
+
     // ── GZ027 — EntityLocal rendering for all shapes ──────────────────────────
 
     public class DebugPrimitiveRenderer2DEntityLocalAllShapesTests

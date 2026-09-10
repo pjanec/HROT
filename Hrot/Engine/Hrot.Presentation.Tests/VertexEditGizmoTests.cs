@@ -47,9 +47,9 @@ public class VertexEditGizmoTests : IDisposable
             CoordinateSpace sp = CoordinateSpace.World, byte l = 0, float fontSizePx = 0f, float lineOffsetPx = 0f) { }
         public void DrawEntityBadge(Entity e, Fdp.Core.FixedString32 rt,
             PipelineTarget tg = PipelineTarget.All) { }
-        public void DrawEntityLocal(Entity a, Vector3 ls, Vector3 le,
+        public void DrawEntityLocal(long a, Vector3 ls, Vector3 le,
             Rgba32 c, float t = 1f, byte l = 0) { }
-        public void DrawEntityLocalInteractive(Entity a, Vector3 ls, Vector3 le,
+        public void DrawEntityLocalInteractive(long a, Vector3 ls, Vector3 le,
             Rgba32 c, ushort sid, float t = 1f, byte l = 0) { }
     }
 

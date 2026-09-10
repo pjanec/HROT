@@ -348,6 +348,37 @@ sharing)*.
 ⭐ **Railed in the publisher's own suite** *(`R-142` ④)*: `SC-GZ-WIRE-1` asserts the identity goes and the
 payload stays; `SC-GZ-WIRE-2` asserts the wire record has **no slot** an ECS handle could leak through by
 another route, so adding one reddens and sends the author here. Red-proofed by inverse edit.
+### 6.4 ⭐⭐⭐ `C7` FINISHED — **the 32-bit key had a THIRD violator, and a `Line` has no identity slot**
+
+📐 **Measured `2026-09-10` while settling `CE-259z`'s open half** *(⚠ which asked a policy question —
+*"should the tool range be enforced?"* — and turned out to have a **live defect** underneath it)*.
+
+| ① the defect | |
+|---|---|
+| 🔴 **`DrawEntityLocal` / `DrawEntityLocalInteractive` wrote `anchor.Index` — an ECS index — into offset 8** | `Fdp.Diagnostics.Contracts/DebugPrimitiveBuffer.cs:266`,`:286`, against a cache **filled** from `SpatialAnchor.NetworkId` *(`DebugPrimitiveRenderer2D.cs:63`)* and **probed** as `(long)AnchorIndex` *(`:105`)* ⇒ **the lookup missed and the primitive was SILENTLY SKIPPED** |
+| 🔒 **the design had already specified the fix** | `.dev/_DONE/gizmos-1/feedback2.md:871` — *"`IDebugDrawBuilder` is stripped of ECS awareness. Methods like `DrawEntityLocal` will now accept **`long anchorNetworkId`** instead of an `Entity`."* ⛔ **never built** |
+| ✅ **and it was safe to finish** | ⭐ **zero production callers** *(every reference: the declaration, the implementation, a test stub, or a rail)* ⇒ a **trap for the next author**, not a live outage |
+
+⭐ **ROUTED, not deleted** *(the standing rule: prefer routing — the capability is designed-for, just
+unfinished)*: both helpers take `long anchorNetworkId`, write it as the key, **stamp no generation**
+*(the generation is not part of the key, and stamping it there is what made offset 12 look like an
+identity component)*, and assert `C7` through one shared helper.
+
+#### ⛔⛔ ② AND TRYING TO DO IT PROPERLY FOUND SOMETHING BETTER — **a `Line` cannot be interactive, structurally**
+
+📌 I tried to also stamp the `S5` identity in `BoxAnchorId`, and **the rail read back `0`.**
+📐 **Cause:** for a `Line` the payload union is `LineStart` **@24-35** + `LineEnd` **@36-47** with
+`EndColor` **@48-51**, while `BoxAnchorId` is a `long` **@44-51** ⇒ **it overlaps `LineEnd.Z` AND
+`EndColor`**, and `p.LineEnd = localEnd` had simply overwritten it.
+
+| ⭐ why this matters more than the fix | |
+|---|---|
+| ⭐⭐ **It is a STRONGER statement than `CE-259ac`'s** | *"the hit-test does not serve `Line`"* is a missing branch. **"A `Line` has no slot for an identity"** is a **layout fact** ⇒ ⛔ **`CE-259ac` cannot be closed by teaching the hit-test about lines** — the primitive could not carry what it routes on |
+| ⭐ **the remaining options, and the lean** | **(a)** accept it and give a gizmo that wants a clickable line a **co-located invisible `Box2D`/`Sphere`** hit target — ⭐ which `VertexEditGizmo` and `RouteWaypointGizmo` **already do**; **(b)** find 8 free bytes in the Line payload — ⛔ they do not exist inside the 64-byte DDS invariant *(`C1`)*. ⇒ ⭐⭐ **LEAN: (a)**, and (b) is not available |
+| ⭐ **it was PROVED, not asserted** | the rail writes the identity and **watches the geometry die** — `CE259z_DrawEntityLocalInteractive_HasNoRoomForAnIdentity`. ⚠ The first version of that rail asserted the opposite and **failed**, which is how the fact was found at all |
+
+⭐ **`C7`'s policy question is now MOOT**: no tool emits an `EntityLocal` primitive, and with the helpers
+taking an **explicit network id** there is no path by which a `1L<<40` tool id reaches the key.
 ---
 
 ## 7. CONSTRAINTS

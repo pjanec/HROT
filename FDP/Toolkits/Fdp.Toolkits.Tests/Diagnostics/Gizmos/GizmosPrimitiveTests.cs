@@ -384,17 +384,25 @@ namespace Fdp.Toolkit.Diagnostics.Gizmos.Tests
             Assert.Equal("test",                   frame[0].TextContent.ToString());
         }
 
+        // ⭐⭐⭐ REWRITTEN 2026-09-10 (CE-259z). It used to pass `new Entity(3, 2)` and assert
+        //   AnchorIndex==3 / AnchorGeneration==2 — i.e. it RAILED THE DEFECT: offset 8 on an EntityLocal
+        //   primitive is the SpatialAnchor cache KEY, which the renderer fills from
+        //   SpatialAnchor.NetworkId (DebugPrimitiveRenderer2D.cs:63) and probes as
+        //   `(long)AnchorIndex` (:105). An ECS index missed the cache ⇒ the primitive was SILENTLY
+        //   SKIPPED. 🔒 .dev/_DONE/gizmos-1/feedback2.md:871 specified the fix — "DrawEntityLocal will
+        //   now accept `long anchorNetworkId` instead of an `Entity`" — and it was never built.
         [Fact]
-        public void Buffer_DrawEntityLocal_SetsAnchorAndSpace()
+        public void Buffer_DrawEntityLocal_SetsAnchorKeyAndSpace()
         {
-            var buf    = new DebugPrimitiveBuffer(16);
-            var anchor = new Entity(3, 2);
-            buf.DrawEntityLocal(anchor, Vector3.Zero, Vector3.UnitZ, Rgba32.Red);
+            var buf = new DebugPrimitiveBuffer(16);
+            buf.DrawEntityLocal(anchorNetworkId: 90210L, Vector3.Zero, Vector3.UnitZ, Rgba32.Red);
 
             var frame = buf.GetFrame();
             Assert.Equal(CoordinateSpace.EntityLocal, frame[0].Space);
-            Assert.Equal(3, frame[0].AnchorIndex);
-            Assert.Equal(2, (int)frame[0].AnchorGeneration);
+            Assert.Equal(90210, frame[0].AnchorIndex);
+            // ⛔ And NO generation: it is not part of the key, and stamping it here is what made
+            //   offset 12 look like an identity component in the first place.
+            Assert.Equal(0, (int)frame[0].AnchorGeneration);
         }
 
         [Fact]

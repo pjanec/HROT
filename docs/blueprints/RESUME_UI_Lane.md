@@ -82,6 +82,20 @@ current-answer: ⚠⚠ THERE ARE NOW **TWO** LIVE STRANDS ON THIS LANE. Read the
   📐 The 8 remaining Fdp.Presentation.Tests reds (EntityInspectorPanel, EventBrowserPanel,
   PerspectiveMenu, WindowManagerMainToolbar) are NOT gizmo-related and are PROVEN pre-existing
   (identical 8 with all work stashed). They had simply never run — they belong to their own owners.
+  ✅✅ CE-259z CLOSED 2026-09-10, and its "open policy question" hid a THIRD live instance of the
+  same family: DrawEntityLocal / DrawEntityLocalInteractive wrote an ECS index into offset 8, which the
+  renderer probes as a NETWORK id against the SpatialAnchor cache ⇒ the lookup missed and the primitive
+  was SILENTLY SKIPPED, drawn nowhere. feedback2.md:871 had specified the fix ("DrawEntityLocal will now
+  accept `long anchorNetworkId`") and it was never built. ROUTED not deleted; measured ZERO production
+  callers, so it was a trap for the next author, not an outage.
+  ⭐⭐⭐ AND THE ATTEMPT TO FINISH IT PROPERLY FOUND SOMETHING BETTER: I tried to also stamp the S5
+  identity in BoxAnchorId and the rail read back 0. For a Line, BoxAnchorId (long @44-51) OVERLAPS
+  LineEnd.Z (@44-47) and EndColor (@48-51). ⇒ A LINE HAS NO SLOT FOR AN IDENTITY. That is structural,
+  and it means CE-259ac CANNOT be closed by teaching the hit-test about lines — the primitive could not
+  carry what it routes on. LEAN recorded on that row: give a gizmo that wants a clickable line a
+  co-located invisible Box2D/Sphere, which VertexEditGizmo and RouteWaypointGizmo already do.
+  🔒 Both facts are PROVED by rails, not asserted: the second one writes the identity and watches the
+  geometry die. Its first version asserted the opposite and failed — which is how the fact was found.
   ⛔ PROCESS FAILURE WORTH NOT REPEATING (the third of the day): HandleInput builds a pick token TWICE
   and the first S5 pass converted ONE arm. Every suite stayed green because the rails exercise the
   hit-test, not HandleInput. `scripts/find.sh 'AnchorGeneration != 0'` found it in one call. And the

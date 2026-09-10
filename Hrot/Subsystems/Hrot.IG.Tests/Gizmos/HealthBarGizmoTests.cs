@@ -44,9 +44,9 @@ namespace Hrot.IG.Tests.Gizmos
             CoordinateSpace space = CoordinateSpace.World, byte layer = 0, float fontSizePx = 0f, float lineOffsetPx = 0f) { }
         public void DrawTextLong(float x, float y, string text, Rgba32 color,
             CoordinateSpace space = CoordinateSpace.World, byte layer = 0, float fontSizePx = 0f, float lineOffsetPx = 0f) { }
-        public void DrawEntityLocal(Entity anchor, Vector3 localStart, Vector3 localEnd,
+        public void DrawEntityLocal(long anchor, Vector3 localStart, Vector3 localEnd,
             Rgba32 color, float thickness = 1f, byte layer = 0) { }
-        public void DrawEntityLocalInteractive(Entity anchor, Vector3 localStart, Vector3 localEnd,
+        public void DrawEntityLocalInteractive(long anchor, Vector3 localStart, Vector3 localEnd,
             Rgba32 color, ushort subElementId, float thickness = 1f, byte layer = 0) { }
     }
 
