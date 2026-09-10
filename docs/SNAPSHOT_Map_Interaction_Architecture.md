@@ -94,7 +94,7 @@ graph TD
 | concern | state |
 |---|---|
 | ⭐ **free-space (canvas) context menu** | ✅ **shared AND data-driven.** `CanvasContextMenuGizmo` *(an `IGlobalStatelessGizmo`)* reads `CanvasContextMenuState`, an **ECS component**; each host only registers `CanvasMenuUpdateSystem` to keep it fresh. ⇒ the menu DEFINITION is data, not host code |
-| ⚠ **entity placement** | **half-unified** — the `Spawn` TOOL is shared; the BEHAVIOUR is a host delegate `MapInteractionContext.StartPlacementMode`, implemented per host by `ScenarioSpawnAdapter` |
+| ✅ **entity placement** | ⚠⚠ **CORRECTED `2026-09-10`. An earlier version of this row said "half-unified — the BEHAVIOUR is a host delegate, implemented per host". THAT WAS WRONG** — it implied per-host implementations. 📐 There is **exactly ONE** `ScenarioSpawnAdapter` *(`:35`, `namespace Hrot.UI.Common.Adapters:22`)*; the Editor reaches it by `using` *(`EditorSubsystem.cs:65`)* and CGF spells it fully qualified *(`CgfSubsystem.cs:223`)* — **same class**. Both wire the **identical** lambda `() => _spawnAdapter?.ArmPlacement()` *(Editor `:1838`, CGF `:1176`)*, and `TheViewportInteractionIsSharedTests.cs:546-554` **rails that exact shape**. ⇒ what differs is **PRESENCE ONLY**: IG/SimHost/ReplayBrowser supply no `StartPlacementMode`, so `Spawn` **reports unserviceable** *(ruling 49)* — 🔒 `R-141`, the natural outcome of sharing, ⛔ not divergence |
 | ⚠ **entity context menu** | the panel seam is shared *(`IEntityContextMenuHandler`)*; the ITEMS are host lambdas — 5 registration sites: Editor `EditorSubsystem.cs:2289/2291/2316/2388` · IG `:1287` · CGF `:1432` · SimHost `:179` · shared helper `FdpEntityInspectorHelper.cs:56` |
 | 🔴 **selection** | **4 stores, ~11 writers** — see §2.3 |
 | 🔴 **remote map control** | **IG only, and inline** — see §3 |
@@ -216,6 +216,23 @@ graph TD
 | 🔴 echo suppression in the wrong place | `ParseCommandAndSetSelection` selects *"**without publishing a `SelectionChangedEvent`** (to avoid ExCon→IG→ExCon echo loops)"* ⇒ under a request/notify protocol that leaves **every local panel stale**. It belongs at the EGRESS translator |
 
 ---
+
+### 1.2 ⭐⭐ THE TWO OUTSTANDING ITEMS ARE DIFFERENT IN KIND — **and only one is an extraction**
+
+🔒 **User read, `2026-09-10`:** *"it looks quite ok just the IgApplication now playing the role of remote
+map command dispatcher so this seems almost like the only thing needing extraction."*
+✅ **Correct on the map/tool axis** — the pack unification did its job. ⚠ **With one exception**, and it is
+worth separating because the two need different work:
+
+| item | kind | why |
+|---|---|---|
+| **the remote-map-command dispatcher** | ⭐ **EXTRACTION** | one role in the wrong home *(`IgApplication.cs:1120-1160`, inline, IG-only)*. ⭐ The seam it should plug into already exists — `ContributeExtras`. **Nothing to redesign, something to move** |
+| 🔴 **selection** | ⛔ **DE-DUPLICATION, not extraction** | 📐 4 stores · 9 `PrimarySelected` write sites · **3 hand-rolled `SetSelected`** *(`SelectionInteractionSystem`, `EditorSubsystem`, `IgApplication.SelectEntityOnMap:1596-1614`)* · and **no FDP-internal notification event at all**. ⇒ nothing to move; **logic to collapse.** That is `UXI-11` §2.1, designed and unbuilt |
+| entity context-menu ITEMS | ⚠ arguably legitimate | 5 host lambdas — host-specific actions are the point. ⛔ Except the Editor's carries `CE-259s` |
+| everything else measured | ✅ shared, or a genuine knob | see §1.1 |
+
+⇒ 🔒 **The honest summary: the map and tool axes ARE in good shape; selection is the axis where they are
+not**, which is why it surfaced repeatedly through the `2026-09-10` session.
 
 ## 4. FINDINGS LEDGER — `2026-09-10`
 
