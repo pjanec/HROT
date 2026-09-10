@@ -17,11 +17,17 @@ current-answer: NOT-BUILT (design only). ISelectionState unchanged; no EcsSelect
     Per-ruling status table: UX_Feature_Tool_Model.md §4.14.
   ⭐ "Mark Target for N Units..." is RETIRED; replacement in UX_Feature_Tool_Model.md §4.13.
 stale-below: §1's title ("two stores and three writers") — read the corrected inventory at the top of §1.
-known-conflict: none open. ✅ The "who owns selection" conflict (MapMessages.cs:103 "The IG is
-  authoritative for the selection state" vs §2.1's single source of truth vs ruling ①'s "every host")
-  was CLOSED by the 2026-09-10 ruling: SELECTION IS HOST-LOCAL. ⇒ ① means one store PER HOST with
-  uniform behaviour, NOT a replicated selection, so ① is just §2.1 and is UNBLOCKED. DDS selection
-  traffic exists only for direct 2-D map control (ExCon ↔ IG) and must translate to FDP events.
+known-conflict: none open. ✅ "Who owns selection" is RULED (2026-09-10): the global ECS repo on
+  ECS-enabled nodes and NO ONE ELSE; one similar central piece on non-ECS nodes (ExCon). Selection is
+  HOST-LOCAL. ⇒ ① means one store PER HOST with uniform behaviour, NOT a replicated selection, so ① is
+  just §2.1 and is UNBLOCKED. This closes the former conflict between MapMessages.cs:103 ("The IG is
+  authoritative for the selection state" — true only of the IG's own map, for remote observers) and §2.1.
+  DDS selection traffic exists only for direct 2-D map control (ExCon ↔ IG); it is JUST ANOTHER REQUESTER
+  and must translate into the same FDP selection-change request event a panel publishes.
+  🔴 Two as-built consequences recorded in §2.6: the CMD_SET_SELECTION case sits inline in IgApplication
+  rather than in MapCommandController (whose header already claims that job), and its echo-loop
+  suppression works by NOT publishing the notification — which would leave every local panel stale under
+  the request/notify protocol. Echo suppression belongs at the egress translator.
   ⚠ ONE OPEN OBSERVATION, deliberately not a verdict: ExCon's ingress hands SelectionChangedEventDto
   straight to ContextMenuLogic without it becoming an FDP event, and ExCon does have an FdpEventBus.
   Either an R-134 shape or a deliberate DDS-client architecture — §2.6's last subsection; not measured.
@@ -371,6 +377,48 @@ be translated to fdp events"*.
 
 ⇒ ⭐ **Remote map control, not a general selection mechanism.** It stays; ⛔ it does **not** become the
 selection concept, and no host needs DDS to know what it has selected.
+
+##### 🔒🔒🔒 WHO OWNS SELECTION — **RULED `2026-09-10`**
+
+🔒 **User, verbatim:** *"the global ecs repo on ecs enabled nodes, no one else. Some similar central piece
+on non ecs nodes like excon. map control message for selection change need to be handled by ig map
+controller handling all similar map control messages, changing the selection via the some global
+selectionstate owner (i.e likely by issuing fdp selection change request event as everyone else does)"*.
+
+| ⭐ the owner | |
+|---|---|
+| **ECS-enabled nodes** | 🔒 **the global ECS repo. NO ONE ELSE.** ⇒ exactly §2.1: the `SelectionState` component is the truth, `ISelectionState` is a view |
+| **non-ECS nodes** *(ExCon)* | 🔒 **one similar central piece** — ⛔ not per-panel state |
+| ⭐⭐⭐ **remote map control is JUST ANOTHER REQUESTER** | the DDS command is translated and then *"issu[es an] fdp selection change request event as everyone else does"*. ⇒ **no privileged path** |
+
+##### 📐 The IG map-control path, measured — **the piece exists and the selection case is in the wrong place**
+
+⭐⭐ **`MapCommandController` IS the controller this ruling names.** Its own header: *"Orchestrates IG-side
+tool activation from `MapCommandRequest` messages and bridges the results back to the ExCon via
+`MapCommandAck`. **This control layer decouples IG map tools from any specific network protocol.**"*
+
+🔴 **But the map-command switch lives INLINE IN `IgApplication`** *(`:1120-1160`)*, not in it — cases
+`CMD_START_EDITING` · `CMD_PICK_LOCATION` · `CMD_PICK_ENTITY` · **`CMD_SET_SELECTION`** · `CMD_SET_VIEW` ·
+`CMD_DRAW_PERSONAL_ROUTE`. ⇒ ⭐ the ruling is a **RELOCATION into a class whose stated purpose already
+covers it**, not a new mechanism.
+
+##### 🔴🔴 AND THE ECHO-LOOP SUPPRESSION IS IMPLEMENTED IN THE WRONG PLACE
+
+📐 `ParseCommandAndSetSelection` *(`IgApplication.cs:2949-2976`)* resolves the id and calls
+`SelectEntityOnMap`. 🔒 **Its own doc comment:** *"Selects the entity identified by `entityId` in the ECS
+**without publishing a `SelectionChangedEvent`** (to avoid ExCon→IG→ExCon echo loops)."*
+
+⇒ ⛔⛔ **echo avoidance is achieved by NOT NOTIFYING** — which under the request/notify protocol above would
+leave **every local panel stale** after a remote selection change, because the notification they listen for
+is precisely the thing being suppressed. ⭐⭐ **Echo suppression belongs at the EGRESS translator** *(do not
+re-publish outward what ingress produced)*, ⛔ never by muting the internal notification.
+
+📐 **And `SelectEntityOnMap` (`:1596-1614`) is a THIRD hand-rolled `SetSelected`:** it clears
+`SelectionState` on every entity in a loop, sets it on the target, **and** hand-syncs
+`_fdpInspectorState.SelectedEntity` + `_fdpLastMapSelection`. ⇒ 🔒 exactly the *"duplicated selection logic
+and a sync that must be remembered at every new call site"* §1 describes — alongside
+`SelectionInteractionSystem`'s and `EditorSubsystem`'s. ⭐ Under this ruling all three collapse into
+*request → owner applies → notification*, and those two fields become notification CONSUMERS.
 
 ##### ⚠ OPEN, and recorded as an OBSERVATION rather than a verdict
 
