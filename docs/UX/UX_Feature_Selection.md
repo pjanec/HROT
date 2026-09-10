@@ -17,6 +17,10 @@ current-answer: NOT-BUILT (design only). ISelectionState unchanged; no EcsSelect
     Per-ruling status table: UX_Feature_Tool_Model.md §4.14.
   ⭐ "Mark Target for N Units..." is RETIRED; replacement in UX_Feature_Tool_Model.md §4.13.
 stale-below: §1's title ("two stores and three writers") — read the corrected inventory at the top of §1.
+known-conflict: WHO OWNS SELECTION. Hrot.Network.NED/MapMessages.cs:103 states "The IG is authoritative
+  for the selection state"; §2.1 says the ECS component is the single source of truth; the 2026-09-10
+  ruling ① says selection is global and unified across every host. THREE implied owners, unreconciled.
+  ⛔ Do not build ① until it is settled. ⭐ It does not block ②, §2.3 row 1 or Tool_Model §4.7i.
 -->
 # Feature design — selection
 
@@ -297,6 +301,47 @@ armed editing.** ⚠ But as a **per-call-site side effect**, not a rule, and **o
 panel may not know tools exist — and (b) be the duplication this programme keeps finding. ⭐ The orbat's own
 line then becomes redundant and can drop the `ActivateEditorToolEvent`.
 ⚠ `CE-259s`'s stale-target ordering does **not** bite here: `Select` ignores its target.
+
+#### 🔒🔒🔒 THE PANEL↔SELECTION PROTOCOL — **request / notify, and no tool knowledge** *(user ruling, `2026-09-10`)*
+
+🔒 **User, verbatim:** *"panels should be sending selection change request fdp events and listen and react
+to selection changed (by changing their own selection indicators). no tool knowledge should be needed. only
+selection concept knowledge, including multiselect."*
+
+| ⭐ the protocol | |
+|---|---|
+| a panel **PUBLISHES A REQUEST** — *"select these"* | ⛔ it does not write a store, and it does not hold the truth |
+| a panel **LISTENS FOR "selection changed"** and repaints its own indicator | ⇒ **panel-private selection becomes VIEW STATE**, derived from the notification — ⛔ never a source |
+| a panel knows **the selection concept, including MULTI-select** | ⛔ and nothing else — no tools, no map, no arbiters *(ruling ④)* |
+
+##### 📐 What exists, measured `2026-09-10` — **the request half exists; the notify half does NOT**
+
+| half | state |
+|---|---|
+| ⭐ **request** | ✅ `SelectEntityCommand` is already an FDP-internal bus event *(`Hrot/Engine/Hrot.Core/Events/Common/SelectEntityCommand.cs`)* consumed by `SelectEntitySystem`. 🔴 **but SINGLE-entity — `long NetworkId`, nothing else** ⇒ it cannot express *"select these three"* |
+| 🔴 **notify** | ⛔⛔ **THERE IS NO FDP-INTERNAL SELECTION-CHANGED EVENT.** 📐 Both existing types are NETWORK: `Hrot.Network.NED/MapMessages.cs:106` is `[DdsTopic("SelectionChangedEvent")]` `[DdsIdlFile("hrot-map-msgs")]`, and `Hrot.Core/Network/Commands.cs:117` `SelectionChangedEventDto` is the adapter-boundary DTO *(egress `NedIgNetworkAdapter.WriteSelectionChanged:92`; ingress `NedExConIngressTranslators:67-77` → ExCon's queue)* |
+| the existing "notification" | ⚠ `SelectionInteractionSystem.OnSelectionChanged` is an `Action<Entity, Vector3>` **CALLBACK**, not a bus event — ⭐ and single-entity. It is the seam that becomes the publisher |
+| multi-select mutators | 🔴 `ISelectionState` has only `IsSelected` · `SelectedEntities` · `PrimarySelected{get;set}` · `HoveredEntity{get;set}` ⇒ **no `Add`/`Remove`/`SetMultiple`/`Clear`** — exactly as §2.1's own amendment warned |
+
+⛔⛔ **AND `R-134` DECIDES WHERE THE NOTIFY EVENT MAY COME FROM:** *network is strictly separated from
+internal FDP event processing; no DDS type crosses into the FDP-internal path; the egress translator is the
+sole boundary.* ⇒ ⭐⭐ **panels may NOT listen to `SelectionChangedEvent` or `SelectionChangedEventDto`.** The
+FDP-internal notification is a **new, internal** record with its own types, and the translator converts —
+🔒 *"even at the cost of keeping the same enum duplicated in two namespaces"* is the pattern `R-134` already
+blesses for exactly this shape.
+
+⭐⭐ **A pleasing asymmetry worth keeping in mind:** the **WIRE** model is already multi-select — the DDS
+event carries `List<int> SelectedEntityIds`, *"the complete list of currently selected Entity IDs. Replaces
+any previous selection state"* — while the **internal** request is single-entity. ⇒ **the internal model is
+the one that is behind**, not the network.
+
+##### ⚠⚠ `known-conflict` — WHO IS AUTHORITATIVE FOR SELECTION?
+
+🔴 `MapMessages.cs:103` states, in its own words: *"**The IG is authoritative for the selection state**."*
+⚠ That sits uneasily with ruling ① *(selection is global, unified, every host)* and with §2.1 *(the ECS
+component is the single source of truth)*. ⛔ **NOT RESOLVED HERE** — three documents now imply three
+different owners, and picking one is an architectural call, not a detail. ⭐ It does not block ②, §2.3 row 1
+or §4.7i, all of which are host-local.
 
 #### 📄 What this retires elsewhere
 
