@@ -19,6 +19,32 @@ current-answer: ⚠⚠ THERE ARE NOW **TWO** LIVE STRANDS ON THIS LANE. Read the
   GREEN over the live defect. The rail is fixed IN PLACE to require stateless before EVERY arbiter, and
   red-proofed against the order that shipped this morning.
   ⛔ CE-259r IS STILL NOT VERIFIED IN THE PRODUCT — the next operator run closes it.
+  ✅✅✅ THE ANCHOR-IDENTITY REFACTOR IS BUILT AND PUSHED, 2026-09-10 — S0..S7 of
+  ../DESIGN_Gizmo_Anchor_Identity.md (commits 90bec913, 740b522c, 882d35f6, 6c719f56).
+  ⭐ READ ITS §6.2 "AS-BUILT" FIRST — three steps deviated from the written design and §6.2 OVERRIDES
+  §5's UML and §6's table. In one line: a gizmo anchor is identified by its NETWORK id everywhere; the
+  ECS handle survives only as a declared IN-PROCESS PAYLOAD on GizmoPickToken (AnchorIndex + StreamId),
+  never compared, never routed, never on the wire.
+  ✅ CLOSED BY IT: CE-259x (the exclusive-filter leak — but by DELETING S0's fix and removing the CAUSE,
+  a disjoint tool-id range, §6.1) and CE-259h (the pick token's network-stable contract).
+  🔴 NEW, FILED, NOT FIXED: CE-259z — an EntityLocal primitive's SpatialAnchor key is truncated to 32
+  bits, so an id above int.MaxValue makes the shape VANISH with no error. Cannot be widened (the payload
+  union is full and 64 bytes is a DDS invariant) ⇒ it is constraint C7; asserted + railed, open question
+  is whether to ENFORCE that no tool emits EntityLocal rather than rely on it.
+  🔴🔴 NEW, FILED, BLOCKS GATING: CE-259aa — Fdp.Presentation.Tests aborts with a native SIGSEGV
+  (exit 139, reproduced outside the test host) inside DebugGizmoLayerHitTests, so ~95 of its ~185 tests
+  have NEVER RUN. That is the real cause of CE-088's "54 of 185 discovered". PROVEN pre-existing at
+  740b522c with all work stashed. ⛔ Do NOT quarantine (R-131) — the crash is hiding the other tests.
+  Interim gate: --filter the class you need.
+  📐 CE-259y CORRECTED: it is SEVEN reds, not two (CE-259aa was hiding five), and its dependency on S7
+  is WITHDRAWN — S7 could not collapse AnchorIndex, so that row is now just "the wrapper must forward
+  its ISimulationView".
+  ⛔ PROCESS FAILURE WORTH NOT REPEATING (the third of the day): HandleInput builds a pick token TWICE
+  and the first S5 pass converted ONE arm. Every suite stayed green because the rails exercise the
+  hit-test, not HandleInput. `scripts/find.sh 'AnchorGeneration != 0'` found it in one call. And the
+  rail that should have caught it lived in GizmoMap.Contracts.Tests as a RE-IMPLEMENTATION of the
+  production logic — that project cannot reference production code at all. Moved, and both arms now
+  call ONE seam, DebugGizmoLayer.MakePickToken.
   🔴 NEW, MEASURED, NOT BUILT: CE-259w — ONE RIGHT-CLICK ENDS TWO TOOLS. The picker cancels on right
   PRESS (EntityPickerGizmo.cs:164), the vertex editor self-removes on right RELEASE (:198-200), so the
   DOWN pops the picker, the editor resumes, and the UP then ends the editor. Pre-existing; §4.7i only

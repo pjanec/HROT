@@ -1,12 +1,17 @@
 <!--STATUS
 state: LIVE
-build-state: READY-TO-BUILD (S1..S7 in §6; nothing here is built)
+build-state: BUILT (S0..S7, 2026-09-10 — see §6.2 for the AS-BUILT and where it deviates)
 updated: 2026-09-10
-current-answer: §2 is the CLAIM LEDGER — every load-bearing claim with its file:line proof and HOW it was
-  measured. §3 is AS-IS, §4 the two defects, §5 the target state with the UML, §6 the build order,
+current-answer: ⭐⭐⭐ §6.2 is the AS-BUILT and it OVERRIDES §5's UML and §6's table wherever they
+  disagree — three steps deviated while building. Then §2, the CLAIM LEDGER: every load-bearing claim
+  with its file:line proof and how it was measured. §3 is AS-IS-BEFORE, §4 the two defects, §5 the
+  target state with the UML, §6 the build order, §6.1/§6.2 the two refinements found during the build,
   §7 the constraints, §8 what is NOT verified, §9 the retraction log.
-  ⭐ Read §2 first. This design was reached through ~8 corrections in one session (§9), so a claim without
-  a proof row in §2 is NOT a claim of this document.
+  ⭐ Read §6.2 then §2. This design was reached through ~8 corrections in one session (§9), so a claim
+  without a proof row in §2 is NOT a claim of this document.
+stale-below: ⛔ §5.2's classDiagram and §6's S3/S4/S6/S7 rows describe the design AS WRITTEN, not as
+  built. §6.2 names each deviation and why. ⛔ Claim ⑥ is FALSE as built and claim ㉑ is INCOMPLETE —
+  both are annotated in §2 and corrected in §6.2.
 design-basis: docs/blueprints/Blueprint_Issues_Tracker.md CE-259x (the exclusive-filter leak) and CE-259h
   (the pick token's network-stable contract) - docs/UX/UX_Feature_Tool_Model.md §4.7g (the entity
   hit-test) - the field contracts in FDP/ExtDeps/GizmoMap/GizmoMap.Contracts/Primitives/DebugPrimitive.cs
@@ -58,7 +63,7 @@ own comments (§2 rows ⑦ and ⑧); the code violates them.
 | ④ | `AnchorIndex` **overlays** `StringHash` at offset 8, discriminated by `Space`/`Shape` | `DebugPrimitive.cs:8-11`, `:27-35` | read |
 | ⑤ | `AnchorGeneration` **also carries the signed screen-pixel line offset** for Text | `DebugPrimitiveBuffer.cs:202-204` *(write)* · `DebugPrimitiveRenderer2D.cs:345`,`:360` *(read)* · documented `DebugPrimitive.cs:320` | read |
 | ⑤b | that Text use is **live in production**, 4 sites | `EntityEditorLabelGizmo.cs:57` `-16f` · `:77` `-30f` · `:82` `-30f` · `:96` `-44f`; its own note at `:51` says the spacing *"is applied via lineOffsetPx (carried in AnchorGeneration)"* | read |
-| ⑥ | after the ECS role is removed, offset 12 has **exactly one** live use | every reference is the ECS role, the declaration, or ⑤ — enumerated | grep |
+| ⑥ | 🔴🔴 **FALSE AS BUILT — corrected `2026-09-10` during S6.** It said *"after the ECS role is removed, offset 12 has **exactly one** live use"*. ⛔ The as-built S3 **keeps the ECS generation as the interaction PAYLOAD** *(§6.2 ①)*, so the slot has **TWO** live uses. ⇒ ⭐ the answer is an **alias pair**, not a rename — and that **un-retracts §9 ⑨**, whose only reason was this claim | `DebugPrimitive.cs` offset 12 now declares both `AnchorGeneration` and `LineOffsetPx` | read |
 | ⑦ | 🔒 **the in-process token already specifies a network id** | `GizmoPickToken.cs:8` — `AnchorId` *"NetworkId / semantic object id (0 = invalid)"*; `:10` `StreamId` *"publisher stream discriminator"* | read |
 | ⑧ | 🔒 **the DDS record already specifies a network id** | `GizmoInteractionBatch.cs:21` — *"PickToken fields (**blittable breakdown of stable network ID** + SubElementId)"* over `long PickAnchorId; uint PickSubElementId; uint PickStreamId;` | read |
 | ⑨ | 🔴 **the local boundary violates ⑦** — it rebuilds an ECS handle | `Fdp.Presentation/Vis2D/Layers/DebugGizmoLayer.cs:271-285` — `Target = new Entity((int)token.AnchorId, (ushort)token.StreamId)` | read |
@@ -81,6 +86,7 @@ own comments (§2 rows ⑦ and ⑧); the code violates them.
 | ⑳b | 2 of 5 hosts pass **no world** to the adapter | `CgfSubsystem.cs:1425` and `ReplayBrowserSubsystem.cs:251` use the **3-arg** overload; the richer overloads are `Fdp.Presentation/…/DebugGizmoLayer.cs:37-72`. ⚠ **Still true and still the wiring surface for S3/S4** — ⛔ but with ⑳ retracted it is a *constructor argument*, not an architectural gap |
 | ⑳c | ⭐ the map is single-threaded-safe **for this use**, despite being a plain `Dictionary` | the terminal reads it during `canvas.Update` and the kernel writes it in `_kernel.Update()` — **the same main thread**, in sequence *(`EditorSubsystem.cs:2519` then `:2560`)* | read |
 | ㉑ | `AnchorIndex` is **already** a network id in the renderer | `DebugPrimitiveRenderer2D.cs:104-105` — *"Resolve against SpatialAnchor cache keyed by **AnchorIndex (used as network ID)**"*; matched by `IDebugDrawBuilder.cs:120` and `DebugPrimitiveBuffer.cs:370` *(`SemanticShape`)* | read |
+| ㉑b | ⛔⛔ **…AND IT IS TRUNCATED. Found `2026-09-10` during S7 — a live latent defect, `CE-259z`.** 📐 The `SpatialAnchor` cache is **filled** with the full 64-bit `SpatialAnchor.NetworkId` *(`DebugPrimitiveRenderer2D.cs:63` — `anchors[prim.NetworkId]`)* and **probed** with an int-widened `AnchorIndex` *(`:105` — `(long)prim.AnchorIndex`)*, which `DebugPrimitiveBuffer.cs:370` wrote as **`(int)networkId`** — an *unchecked* narrowing. ⇒ 🔴 an `EntityLocal` primitive whose anchor id exceeds `int.MaxValue` **wraps, misses the cache and is SKIPPED** *(`:106` `continue`)* — the shape is never drawn, with no error. ⭐ It **cannot be widened**: `SemanticShape`'s 40-byte union is full *(ProfileId 24-31, Length/Width 32-39, ConditionMask 40-43, `Resolved*` 44-63)* and 64 bytes is a DDS invariant *(C1)* ⇒ **a CONSTRAINT (`C7`), not a slot to find** | read |
 | ㉒ | **nothing structural changes on the wire** | `GizmoInteractionBatch.cs:16-25` — field set, `long`/`uint`/`uint` types, `[DdsKey] SourceNodeId, SequenceNumber` and `[DdsQos]` all unchanged; `DebugPrimitive` stays `[StructLayout(Explicit, Size = 64)]` with **no field added, removed or moved** | read |
 
 ---
@@ -167,6 +173,7 @@ classDiagram
         <<struct 64B>>
         +long BoxAnchorId
         +long StructNetworkId
+        +ushort AnchorGeneration
         +short LineOffsetPx
         +int AnchorIndex
     }
@@ -175,6 +182,8 @@ classDiagram
         +long AnchorId
         +uint SubElementId
         +uint GizmoTypeId
+        +int AnchorIndex
+        +uint StreamId
     }
     class PickToken {
         <<struct>>
@@ -200,16 +209,18 @@ classDiagram
     class DataDrivenGizmoSystem
 
     Terminal ..> DebugPrimitive : compares BoxAnchorId ONLY
-    Terminal ..> GizmoPickToken : emits a NETWORK id
+    Terminal ..> GizmoPickToken : MakePickToken - one seam, both arms
     EgressTranslator ..> GizmoPickToken : network id straight to the wire
     IngressTranslator ..> NetworkEntityMap : resolves on the RECEIVER
     IngressTranslator ..> PickToken
-    SelectionInteractionSystem ..> NetworkEntityMap : resolves to write SelectionState
+    Terminal ..> PickToken : ToPickToken rebuilds from the PAYLOAD - no map
+    SelectionInteractionSystem ..> PickToken : UNCHANGED - Target is already local
     DataDrivenGizmoSystem ..> DebugPrimitive : binding keyed by NETWORK id
 
-    note for DebugPrimitive "LineOffsetPx REPLACES AnchorGeneration at offset 12 - same 2 bytes. AnchorIndex keeps ONE meaning - the network id for EntityLocal, per DebugPrimitiveRenderer2D 104-105"
-    note for NetworkEntityMap "NO NEW ABSTRACTION - claim 20 RETRACTED. The production map is in Fdp.Toolkits which Fdp.Presentation already references. Bidirectional, O(1) both ways"
-    note for IngressTranslator "TODAY it rebuilds the SENDER handle - claim 10. It already holds view, so its fix is local"
+    note for GizmoPickToken "AS BUILT sec 6.2 - AnchorId is the IDENTITY. AnchorIndex plus StreamId are an IN-PROCESS PAYLOAD - never compared, never routed, never on the wire. They exist because ReplayBrowser has NO NetworkEntityMap"
+    note for DebugPrimitive "AS BUILT sec 6.2 - offset 12 is an ALIAS PAIR, not a rename: AnchorGeneration AND LineOffsetPx, same 2 bytes. Offset 8 has THREE roles and its EntityLocal anchor key is 32 bits - constraint C7"
+    note for NetworkEntityMap "NO NEW ABSTRACTION - claim 20 RETRACTED. The production map is in Fdp.Toolkits which Fdp.Presentation already references. Used by the INGRESS only"
+    note for IngressTranslator "Fixed in S1 - resolves the network id locally instead of rebuilding the SENDER handle"
 ```
 
 ### 5.3 Sequence — a remote pick, which is `D2`
@@ -234,7 +245,7 @@ sequenceDiagram
     InA->>ResA: TryResolve(PickAnchorId)
     ResA-->>InA: the LOCAL Entity for that id
     InA->>SelA: PickToken with a valid local Target
-    Note over InA,SelA: TODAY step 8 rebuilds the<br/>SENDER handle and mis-targets
+    Note over InA,SelA: BUILT in S1 - before that,<br/>step 8 rebuilt the SENDER handle
 ```
 
 ---
@@ -255,6 +266,65 @@ sequenceDiagram
 ⭐ **S0 is shippable alone.** ⛔ **S1+S2 must land together** *(they are the two ends of one hop)*.
 ⭐ S3→S4 then S5→S7.
 
+### 6.1 ⭐⭐⭐ REFINEMENT FOUND DURING S3/S5 — **one id space needs DISJOINT ALLOCATION**
+
+⚠⚠ **The design said "identity is the network id" and stopped there.** 📐 **Measured `2026-09-10` while
+building:** collapsing to one numeric space makes **tool ids and network ids share it**, and they
+**collide today** —
+
+| allocator | first id | proof |
+|---|---|---|
+| tool ids | **1, 2, 3…** | `GlobalGizmoManager.cs:27` `_nextId = 0` + `:63` `Interlocked.Increment` |
+| network ids | **2, 3, 4…** | `Hrot.Core/Network/SequentialIdAllocator.cs:14` `_next = 1` + `:17` `Interlocked.Increment` |
+
+⇒ 🔴 **without this, a global tool's exclusive binding would admit the entity whose NETWORK id equals the
+tool id** — the same class of bug one level along, and `S0`'s generation term is what had been hiding it.
+
+⭐⭐ **Fix: allocate tool anchor ids from a disjoint high base** — `ToolAnchorIdBase = 1L << 40`, so
+`NewId()` yields `2^40 + n`. ⭐ Why that and not negatives: 📐 `DebugGizmoLayer.cs:217` already uses
+**`-1L` as the CANVAS sentinel** *(`hitNetworkId = hit.BoxAnchorId != 0 ? hit.BoxAnchorId : -1L`)*, so a
+negative tool id would be read as *"the canvas"*. ⭐ A high positive base collides with nothing: a network
+id would have to exceed **1.1 × 10¹²**, and `ToPickToken` resolves a tool id to no entity, which is correct.
+
+⛔ **This is why `S5` deletes `S0`'s generation term rather than keeping it as a belt** — with one id space
+and disjoint allocation, the generation adds nothing and reintroduces the two-domain thinking.
+
+### 6.2 ⭐⭐⭐ AS-BUILT — **three steps deviated. This section OVERRIDES §5's UML and §6's table.**
+
+🔒 **Obligation ⑤** *(`CLAUDE.md`, "THE DESIGN MUST REFLECT THE AS-BUILT")*: a deviation recorded only in
+a batch report leaves the design lying. ⭐ Built `2026-09-10`, commits `882d35f6` *(S3+S4+S5)* and
+`6c719f56` *(S6+S7)*, on top of `90bec913` *(S0)* and `740b522c` *(S1+S2)*.
+
+| step | as WRITTEN in §6 | ⭐ as BUILT | why it changed |
+|---|---|---|---|
+| **S0** | compare the whole anchor *(value **and** generation)* | ✅ as written, **then DELETED by S5** | ⭐ S0 patched the *symptom*; §6.1's disjoint id range removes the *cause*, after which the generation term only reintroduces two-domain thinking |
+| **S1 · S2** | ✅ as written | ✅ as written | — |
+| **S3** | 🔴 **the terminal returns ONLY a network id; every consumer resolves it through `NetworkEntityMap`** | ⭐⭐ **`GizmoPickToken` gained an explicit PAYLOAD field.** `AnchorId` is the identity *(network id)*; `AnchorIndex` + `StreamId` are an **in-process shortcut** the producer already had, so the consumer-side adapter rebuilds `Entity(index, generation)` with **no lookup and no map** | 🔴 **Measured while building: `ReplayBrowser` composes `SelectionInteractionSystem` *(`ReplayBrowserSubsystem.cs:210`)* and has NO `NetworkEntityMap` at all** — and CGF passes no world either *(claim ⑳b)*. ⇒ resolve-at-the-boundary would have **silently dropped ReplayBrowser's selection.** ⚠ The payload is **never compared, never routed, never on the wire** — S1/S2 still resolve at the translators, where a process-local handle is meaningless |
+| **S4** | `SelectionInteractionSystem` via the resolver; `FindGizmo` re-keyed by network id | ⭐ **the binding-key half was built** *(all 3 sites in `DataDrivenGizmoSystem`, keyed by `NetworkIdOf`)*; ⭐⭐ **the consumer half became UNNECESSARY** | ⭐ with S3-as-built, **both** paths hand `PickToken.Target` a valid *local* `Entity` — the adapter from the payload, the ingress from the map. ⇒ `SelectionInteractionSystem` and `FindGizmo`'s `Dictionary<Entity, …>` are correct unchanged. ⛔ **No host wiring was needed** ⇒ `U1` and `U4` are moot, not answered |
+| **S5** | stop stamping the ECS handle; comparison collapses to `BoxAnchorId` | ⭐ **comparison collapsed as written; the STAMPING STAYS** — it is now the S3 payload | ⇒ ⛔ **claim ⑥ is false as built**, which is what re-opens S6 *(below)* |
+| **S6** | **RENAME** offset 12 to `LineOffsetPx` | ⭐⭐ **an ALIAS PAIR** — `AnchorGeneration` *(ushort)* **and** `LineOffsetPx` *(short)*, same two bytes | ⭐ the slot has **two** live uses, not one *(claim ⑥)* ⇒ this is exactly the offset-8 `AnchorIndex`/`StringHash` precedent. ⭐⭐ **§9 ⑨ is UN-RETRACTED**: its only reason was the one-use claim |
+| **S7** | `AnchorIndex` **keeps one meaning** — the network id | ⛔⛔ **impossible, and the attempt found a DEFECT instead.** Offset 8 carries **three** roles *(payload index · `EntityLocal` anchor key · `StringHash`)*, discriminated by `Shape`/`Space` — the documented pattern. ⭐ So S7 became: **document all three, and pin the anchor key's 32-bit HARD LIMIT** *(claim ㉑b, `CE-259z`)*, with a `Debug.Assert` at the one truncating writer | ⭐⭐ **an unchecked `(int)networkId` narrowing whose lookup then misses the cache** ⇒ the shape is skipped, silently. ⛔ Cannot be widened *(C1 + a full payload union)* ⇒ it is a constraint, `C7` |
+
+#### ⛔⛔ A SECOND TOKEN SITE — **the first S5 pass converted ONE of TWO, and the rails could not see it**
+
+📐 `HandleInput` builds a pick token **twice**: on **left press** *(the primary drag/pick path)* and on
+**right click**. ⭐ Only the right-click arm was converted; the left-press arm kept
+`AnchorGeneration != 0 ? AnchorIndex : BoxAnchorId` and **every suite stayed green** — the rails exercise
+the hit-test, and `HandleInput` needs a live window.
+
+| ⭐ the fix, and the generalisable lesson | |
+|---|---|
+| ⭐⭐ **ONE seam: `DebugGizmoLayer.MakePickToken(in DebugPrimitive)`**, called by both arms | ⛔ duplicated construction is *how* half a change ships |
+| 🔴 **`R-142` ③ — the blind rail was fixed IN PLACE, not routed around** | `SC-GZ067-1` lived in **`GizmoMap.Contracts.Tests`** as a **RE-IMPLEMENTATION** of the token construction. ⛔ That project references **only `GizmoMap.Contracts`** *(its csproj says so)*, so it **structurally cannot** call production code ⇒ it asserted a COPY, and stayed green through S5 asserting the OLD semantics. ⭐ **Moved to `GizmoMap.Presentation.Tests`, calling the real seam** |
+| ⭐ **the search that found it** | `scripts/find.sh 'AnchorGeneration != 0'` — ⛔ it was never hard to find; it was never asked for. 📌 the same shape as `R-139`'s *"a principle where a `file:line` should be"* |
+
+#### ⛔ WHAT IS NOT GATEABLE — **stated, not glossed**
+
+| | |
+|---|---|
+| 🔴🔴 **`Fdp.Presentation.Tests` aborts with SIGSEGV** *(exit **139**)* inside `DebugGizmoLayerHitTests`, so only ~**90** of its tests are ever reported | ⭐ **PROVEN PRE-EXISTING**: reproduced at `740b522c` with all of this work stashed, and reproduced outside the test host with a reflection loader *(`Segmentation fault`, exit 139)*. ⚠ **`BP-337` records the same abort signature** from a *managed* NRE; this one is a genuine native fault, so it is a **different** cause. ⇒ **`CE-259aa`**. ⭐ This design's own rails were gated by `--filter GizmoLayerEntityHitTestTests` *(11/11)* |
+| ⚠ the two RENDERER read sites of `LineOffsetPx` have **no runnable rail** | the only renderer suite is inside that same aborting project. ⭐ **But S6 is byte-identical by construction**, which `SC-FONT-TEXT-6c` proves ⇒ there is nothing behavioural left to catch |
+| ⚠ `Fdp.Toolkits.Tests` 2078/2080 | both reds are `TransientSpawnTagRails` *(scenario-save, unrelated)* and **GREEN when run filtered (2/2)** ⇒ the **`DEBT-AIB-030`** rotating-flake signature |
 ---
 
 ## 7. CONSTRAINTS
@@ -267,6 +337,7 @@ sequenceDiagram
 | **C4** | ⭐ **the map is referenced directly** — `Fdp.Toolkit.Replication.Services.NetworkEntityMap`, no abstraction | ⑳ *(retracted)* + ⑲. ⚠ CGF/ReplayBrowser must start passing it *(⑳b)* — a constructor argument |
 | **C5** | ⛔ **never `FindEntityByNetworkId`** | ⑲b — linear scan; use the map |
 | **C6** | ⚠ **a mixed-version cluster** disagrees on the value's meaning mid-upgrade — ⛔ **not a regression**, because ⑩ means those nodes already mis-target, and ㉒ means nothing fails to parse |
+| ⭐⭐ **C7** *(added `2026-09-10`, S7)* | ⛔⛔ **an id used as an `EntityLocal` ANCHOR must stay ≤ `int.MaxValue`** — the `SpatialAnchor` cache key at offset 8 is 32 bits and the narrowing is unchecked, so a larger id wraps, misses, and the primitive is **skipped in silence** | ㉑b. ⭐ Production ids satisfy it *(`SequentialIdAllocator` counts from 1)*, and §6.1's **tool range `1L<<40` is ABOVE it by design** — safe **only** because no tool emits an `EntityLocal` primitive. ⚠ **If that ever changes, this constraint breaks first and quietly** ⇒ railed as `SC-GZ-ANCHOR32-2` |
 
 ---
 
@@ -274,10 +345,10 @@ sequenceDiagram
 
 | # | not verified | which step it bears on |
 |---|---|---|
-| **U1** | whether **CGF/ReplayBrowser** actually need the resolver *(do their gizmos hit-test entity-anchored primitives at all?)* | S4's wiring scope |
+| **U1** | ✅ **MOOT `2026-09-10`** — S3-as-built needs **no** resolver at the local boundary *(§6.2 ③)*, so there is no wiring to scope. ⚠ It asked *'whether CGF/ReplayBrowser need the resolver'* | — |
 | **U2** | the **full contents** of the other 10 test files in ①④ — only `GizmoInteractionTranslatorTests` was read | S2's migration cost |
-| **U3** | whether any **non-Hrot** consumer *(`GizmoMap.Viewer`, `GizmoMap.Example`)* depends on the index semantics | S3 |
-| **U4** | whether `SelectionInteractionSystem` does anything with the entity **beyond** writing `SelectionState` | S4 |
+| **U3** | ⚠ **STILL NOT VERIFIED — the one open risk.** Both projects **build clean** after S3–S7, but a compile is not a behaviour check: a viewer reading `GizmoPickToken.AnchorId` as an ECS index now gets a network id **and still compiles** | S3 |
+| **U4** | ✅ **MOOT `2026-09-10`** — `SelectionInteractionSystem` was **not changed** *(§6.2 ④)*, so what it does with the entity no longer bears on any step. ⛔ **Still not measured**, and it would matter again if anyone revived resolve-at-the-boundary | — |
 | **U5** | ⚠ `check_index_coverage` is `best_effort` — ⛔ **not proof** that ①/② enumerated everything | ⑯'s completeness |
 
 ---
@@ -299,3 +370,6 @@ sequenceDiagram
 | ⑧ | *"only 3 gizmos emit anchored primitives"* | grep over a **hand-picked list**; the graph found **13 files** ⇒ ⑯ |
 | ⑨ | an **alias pair** at offset 12 | the offset-8 analogy needs **two live uses**; offset 12 will have one ⇒ a plain **rename** |
 | ⑩ | *"it changes a wire contract"* | ⑧/㉒ — **it does not**; the record already documents a network id |
+| ⓫ | 🔴 **S3 AS WRITTEN** — *"the terminal returns only a network id and every consumer resolves it through the map"* *(withdrawn DURING the build, after being implemented and then reverted)* | ⛔ **`ReplayBrowser` has NO `NetworkEntityMap`** and composes `SelectionInteractionSystem` anyway *(`ReplayBrowserSubsystem.cs:210`)* ⇒ it would have **silently lost selection**. ⭐ Replaced by the explicit **payload field** on `GizmoPickToken` — §6.2 ③ |
+| ⓬ | ⭐⭐⭐ **⑨ IS ITSELF UN-RETRACTED `2026-09-10` — the ALIAS PAIR was RIGHT after all.** ⛔ It had been withdrawn *"because the offset-8 analogy needs TWO live uses; offset 12 will have one"* — and **claim ⑥, that one-use premise, is FALSE as built** *(the generation survives as the S3 payload)*. ⇒ 📌 **a retraction resting on a claim about a design that had not been built yet** |
+| ⓭ | *"S7: `AnchorIndex` keeps ONE meaning"* | ⛔ offset 8 has **three** roles, discriminated by `Shape`/`Space` — the **documented** overlay pattern, not a defect. ⭐ The real finding was the **32-bit truncation** underneath it *(㉑b / `C7` / `CE-259z`)* |
