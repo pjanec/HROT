@@ -122,6 +122,16 @@ namespace GizmoMap.Presentation
             bool isKeyboardCaptured = ImGuiNET.ImGui.GetIO().WantCaptureKeyboard;
 
             long? exclusiveAnchorId = null;
+            // ⭐⭐⭐ S0 (DESIGN_Gizmo_Anchor_Identity.md §6) — AN ANCHOR IS (value, generation).
+            //   The comparison below used only the VALUE, so two anchors with the same number and
+            //   different generations compared EQUAL. That let a click leak past an exclusive tool to
+            //   whichever entity's ECS index happened to equal the active tool's id: GlobalGizmoManager
+            //   keys its binding by a TOOL id from NewId() (1, 2, 3...) with no generation stamp, while an
+            //   entity pick box routes its ECS AnchorIndex -- the same small-integer range.
+            //   ⛔ Do NOT reduce this to a one-bit "domain" test: the fix is to compare the WHOLE anchor,
+            //     which additionally rejects a STALE handle (index reused, generation bumped) that
+            //     DebugPrimitive.cs:31-33 warns about and nothing else guards.
+            ushort exclusiveAnchorGen = 0;
             bool routeRawInput = false;
             var captureToken = default(GizmoPickToken);
             
@@ -129,7 +139,11 @@ namespace GizmoMap.Presentation
             {
                 ref readonly var prim = ref primitives[i];
                 if (prim.Shape != DebugPrimitiveShape.InputCaptureBinding) continue;
-                if ((prim.ConditionMask & 1u) != 0) exclusiveAnchorId = prim.StructNetworkId;
+                if ((prim.ConditionMask & 1u) != 0)
+                {
+                    exclusiveAnchorId  = prim.StructNetworkId;
+                    exclusiveAnchorGen = prim.AnchorGeneration;   // S0 -- the other half of the anchor
+                }
                 if ((prim.ConditionMask & 2u) != 0) routeRawInput = true;
                 captureToken = new GizmoPickToken
                 {
@@ -165,7 +179,7 @@ namespace GizmoMap.Presentation
             // Gate activation: ignore if ImGui is capturing the mouse
             if (_activeTool == null && !isMouseCaptured && Raylib.IsMouseButtonPressed(MouseButton.Left))
             {
-                var best = FindTopmostInteractivePrimitive(primitives, worldPos, camera.Zoom, exclusiveAnchorId);
+                var best = FindTopmostInteractivePrimitive(primitives, worldPos, camera.Zoom, exclusiveAnchorId, exclusiveAnchorGen);
                 if (best.HasValue)
                 {
                     var hit = best.Value;
@@ -210,7 +224,7 @@ namespace GizmoMap.Presentation
                 {
                     long hitNetworkId = -1L; // canvas anchor fallback
 
-                    var best = FindTopmostInteractivePrimitive(primitives, worldPos, camera.Zoom, exclusiveAnchorId);
+                    var best = FindTopmostInteractivePrimitive(primitives, worldPos, camera.Zoom, exclusiveAnchorId, exclusiveAnchorGen);
                     if (best.HasValue)
                     {
                         var hit = best.Value;
@@ -466,11 +480,34 @@ namespace GizmoMap.Presentation
             return ((int)hit.AnchorIndex, (ushort)hit.AnchorGeneration);
         }
 
+        /// <summary>
+        /// ⭐⭐ <b>Test seam for the exclusive-capture filter (S0).</b> Mirrors
+        /// <see cref="PickTopmostEntityAnchor"/> -- which exists for the same reason -- but lets a rail
+        /// supply the capture binding that <see cref="HandleInput"/> would have scanned out of the frame.
+        ///
+        /// <para>⛔ Without this the filter is unreachable from a test: the public entry point hard-codes
+        /// <c>exclusiveAnchorId: null</c> and <see cref="HandleInput"/> needs a live window.</para>
+        /// </summary>
+        public static (int Index, ushort Generation)? PickTopmostEntityAnchorUnderCapture(
+            ReadOnlySpan<DebugPrimitive> primitives, Vector2 worldPos, float zoom,
+            long? exclusiveAnchorId, ushort exclusiveAnchorGen)
+        {
+            var best = FindTopmostInteractivePrimitive(
+                primitives, worldPos, zoom, exclusiveAnchorId, exclusiveAnchorGen);
+            if (!best.HasValue) return null;
+
+            var hit = best.Value;
+            if (hit.AnchorGeneration == 0) return null;
+
+            return ((int)hit.AnchorIndex, (ushort)hit.AnchorGeneration);
+        }
+
         private static DebugPrimitive? FindTopmostInteractivePrimitive(
             ReadOnlySpan<DebugPrimitive> primitives,
             Vector2 testPos,
             float zoom,
-            long? exclusiveAnchorId = null)
+            long? exclusiveAnchorId = null,
+            ushort exclusiveAnchorGen = 0)
         {
             DebugPrimitive? best = null;
             float effZoom = zoom > 0f ? zoom : 1f;
@@ -488,7 +525,10 @@ namespace GizmoMap.Presentation
                 // If AnchorGeneration == 0, the primitive is a stateless tool handle or remote network object.
                 // We fall back to the 64-bit BoxAnchorId to route the global network ID or tool ID.
                 long anchorId = prim.AnchorGeneration != 0 ? prim.AnchorIndex : prim.BoxAnchorId;
-                if (exclusiveAnchorId.HasValue && anchorId != exclusiveAnchorId.Value) continue;
+                // ⭐ S0 -- compare the WHOLE anchor: value AND generation. See the note in HandleInput.
+                if (exclusiveAnchorId.HasValue
+                    && (anchorId != exclusiveAnchorId.Value || prim.AnchorGeneration != exclusiveAnchorGen))
+                    continue;
 
                 float hitRadius = prim.SizeMode == SizeMode.ScreenPixels ? 5f / effZoom : 5f;
                 bool hit = false;

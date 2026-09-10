@@ -118,5 +118,83 @@ namespace Fdp.Toolkit.Vis2D.Tests.Layers
             Assert.NotNull(hit);          // 🔴 null here is the picker going blind again
             Assert.Equal(7, hit!.Value.Index);
         }
+
+        // ── S0 (DESIGN_Gizmo_Anchor_Identity.md §6) — THE EXCLUSIVE FILTER COMPARES THE WHOLE ANCHOR ──
+
+        /// <summary>
+        /// 🔴🔴🔴 <b>The defect, reproduced: a click LEAKED past an exclusive tool to whichever entity's
+        /// ECS index equalled the active tool's id.</b>
+        ///
+        /// <para>📐 <c>GlobalGizmoManager</c> keys its capture binding by a TOOL id from
+        /// <c>NewId()</c> — 1, 2, 3… — with NO generation stamp, while an entity pick box routes its ECS
+        /// <c>AnchorIndex</c>: the same small-integer range. The filter compared only the VALUE, so tool
+        /// id 3 and entity index 3 matched and the picker's click reached the entity underneath, which
+        /// then dragged and got selected.</para>
+        ///
+        /// <para>⭐ Red-proof: drop the <c>prim.AnchorGeneration != exclusiveAnchorGen</c> term and this
+        /// rail returns the entity.</para>
+        /// </summary>
+        [Fact]
+        public void AToolDomainCaptureDoesNotAdmitAnEntityWhoseIndexEqualsTheToolId()
+        {
+            var prims = new[] { EntityBox(index: 3, generation: 4, x: 100f, y: 50f) };
+
+            // A GLOBAL (tool) binding: MakeInputCaptureBinding leaves AnchorGeneration at 0.
+            var hit = GizmoMap.Presentation.DebugGizmoLayer.PickTopmostEntityAnchorUnderCapture(
+                prims, new Vector2(100f, 50f), Zoom,
+                exclusiveAnchorId: 3L, exclusiveAnchorGen: 0);
+
+            Assert.Null(hit);
+        }
+
+        /// <summary>
+        /// ⭐⭐ <b>The counter-case, so the fix cannot over-filter.</b> An ENTITY-domain capture — what
+        /// <c>DataDrivenGizmoSystem</c> emits, keyed by <c>entity.Index</c> WITH the generation stamped —
+        /// must still admit that entity, or handle dragging breaks.
+        /// </summary>
+        [Fact]
+        public void AnEntityDomainCaptureStillAdmitsItsOwnEntity()
+        {
+            var prims = new[] { EntityBox(index: 3, generation: 4, x: 100f, y: 50f) };
+
+            var hit = GizmoMap.Presentation.DebugGizmoLayer.PickTopmostEntityAnchorUnderCapture(
+                prims, new Vector2(100f, 50f), Zoom,
+                exclusiveAnchorId: 3L, exclusiveAnchorGen: 4);
+
+            Assert.NotNull(hit);
+            Assert.Equal(3, hit!.Value.Index);
+            Assert.Equal((ushort)4, hit.Value.Generation);
+        }
+
+        /// <summary>
+        /// ⭐ <b>A STALE handle is rejected too</b> — same index, generation bumped after the ECS slot was
+        /// reused. 🔒 <c>DebugPrimitive.cs:31-33</c> warns about exactly this and nothing guarded it
+        /// before S0.
+        /// </summary>
+        [Fact]
+        public void AStaleAnchorGenerationIsRejected()
+        {
+            var prims = new[] { EntityBox(index: 3, generation: 9, x: 100f, y: 50f) };
+
+            var hit = GizmoMap.Presentation.DebugGizmoLayer.PickTopmostEntityAnchorUnderCapture(
+                prims, new Vector2(100f, 50f), Zoom,
+                exclusiveAnchorId: 3L, exclusiveAnchorGen: 4);
+
+            Assert.Null(hit);
+        }
+
+        /// <summary>⭐ With NO capture binding the filter is inert — the unfiltered picker path.</summary>
+        [Fact]
+        public void WithNoCaptureBindingEveryEntityIsStillPickable()
+        {
+            var prims = new[] { EntityBox(index: 3, generation: 4, x: 100f, y: 50f) };
+
+            var hit = GizmoMap.Presentation.DebugGizmoLayer.PickTopmostEntityAnchorUnderCapture(
+                prims, new Vector2(100f, 50f), Zoom,
+                exclusiveAnchorId: null, exclusiveAnchorGen: 0);
+
+            Assert.NotNull(hit);
+            Assert.Equal(3, hit!.Value.Index);
+        }
     }
 }
