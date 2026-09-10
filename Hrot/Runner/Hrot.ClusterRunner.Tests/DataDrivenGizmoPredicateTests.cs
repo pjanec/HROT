@@ -71,28 +71,16 @@ namespace Hrot.ClusterRunner.Tests
         }
     }
 
-    internal sealed class D003NoOpDrawBuilder : IDebugDrawBuilder
-    {
-        public void DrawLine(Vector3 s, Vector3 e, Rgba32 c, float t = 1f,
-            SizeMode sm = SizeMode.ScreenPixels, PipelineTarget pt = PipelineTarget.All, byte l = 0, LineStyle style = LineStyle.Solid) { }
-        public void DrawLineGradient(Vector3 s, Vector3 e, Rgba32 sc, Rgba32 ec, float t = 1f,
-            SizeMode sm = SizeMode.ScreenPixels, PipelineTarget pt = PipelineTarget.All, byte l = 0, LineStyle style = LineStyle.Solid) { }
-        public void DrawSphere(Vector3 c, float r, Rgba32 col,
-            float thickness = 0f, SizeMode sizeMode = SizeMode.WorldMeters,
-            PipelineTarget pt = PipelineTarget.All, byte l = 0,
-            Rgba32 fillColor = default, LineStyle style = LineStyle.Solid) { }
-        public void DrawArrow(Vector3 from, Vector3 to, Rgba32 col, float headSize = 1f, byte l = 0) { }
-        public void DrawText(float x, float y, FixedString32 text, Rgba32 col,
-            CoordinateSpace space = CoordinateSpace.World, byte l = 0, float fontSizePx = 0f, float lineOffsetPx = 0f) { }
-        public void DrawTextLong(float x, float y, string text, Rgba32 col,
-            CoordinateSpace space = CoordinateSpace.World, byte l = 0, float fontSizePx = 0f, float lineOffsetPx = 0f) { }
-        public void DrawEntityBadge(Entity target, FixedString32 richText,
-            PipelineTarget targetPipeline = PipelineTarget.All) { }
-        public void DrawEntityLocal(Entity anchor, Vector3 localStart, Vector3 localEnd,
-            Rgba32 color, float thickness = 1f, byte l = 0) { }
-        public void DrawEntityLocalInteractive(Entity anchor, Vector3 localStart, Vector3 localEnd,
-            Rgba32 color, ushort subElementId, float thickness = 1f, byte layer = 0) { }
-    }
+    // 🔴🔴 D003NoOpDrawBuilder RETIRED 2026-09-10 (CE-259ab). It hand-rolled IDebugDrawBuilder, and
+    //   DataDrivenGizmoSystem stamps GizmoTypeId through a DebugPrimitiveBuffer -- so with this stub the
+    //   whole Execute() call threw InvalidCastException before either assertion below could run, and both
+    //   D003 tests had been RED for as long as the cast existed.
+    //   ⛔ Fixing the SYSTEM to degrade instead of throw is only half the answer (R-142 ③): a stub that
+    //     cannot stamp makes this rail BLIND to composite-key routing rather than red. ⇒ use the real
+    //     builder -- there is exactly ONE production IDebugDrawBuilder and it is DebugPrimitiveBuffer,
+    //     so the stub was measuring a configuration production never has.
+    //   ⭐ It is not a heavier fixture: a capacity-64 buffer is a plain array, and it lets a future rail
+    //     here assert what was actually EMITTED instead of only counting calls.
 
     // ---- Test class --------------------------------------------------------
 
@@ -117,7 +105,7 @@ namespace Hrot.ClusterRunner.Tests
             var registry = new GizmoRegistry();
             registry.Register(def);
 
-            var draw = new D003NoOpDrawBuilder();
+            var draw = new DebugPrimitiveBuffer(capacity: 64);
 
             // Predicate: always false -> all entities filtered out
             var sys = new DataDrivenGizmoSystem(registry, draw,
@@ -148,7 +136,7 @@ namespace Hrot.ClusterRunner.Tests
             var registry = new GizmoRegistry();
             registry.Register(def);
 
-            var draw = new D003NoOpDrawBuilder();
+            var draw = new DebugPrimitiveBuffer(capacity: 64);
 
             // Predicate: always true -> all entities pass
             var sys = new DataDrivenGizmoSystem(registry, draw,

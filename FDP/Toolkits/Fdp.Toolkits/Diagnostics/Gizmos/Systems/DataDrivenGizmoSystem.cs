@@ -47,6 +47,29 @@ namespace Fdp.Toolkit.Diagnostics.Gizmos.Systems
     {
         private readonly GizmoRegistry _registry;
         private readonly IDebugDrawBuilder _drawBuilder;
+
+        /// <summary>
+        /// ⭐⭐⭐ <b><c>CE-259ab</c> — the <c>GizmoTypeId</c> stamping target, or <see langword="null"/>.</b>
+        ///
+        /// <para>⛔ Four sites used to write <c>(DebugPrimitiveBuffer)_drawBuilder</c> — a HARD cast on the
+        /// <see cref="IDebugDrawBuilder"/> seam, which threw <c>InvalidCastException</c> for any builder
+        /// that is not a buffer. 📌 That is what reddened
+        /// <c>DataDrivenGizmoPredicateTests.D003_*</c>: the whole <c>Execute</c> call died before either
+        /// assertion, so a rail about the VISIBILITY PREDICATE could never even reach it.</para>
+        ///
+        /// <para>⭐⭐ Why degrading is the right answer and not widening the interface: <b>there is exactly
+        /// ONE production implementation of <c>IDebugDrawBuilder</c></b> —
+        /// <c>Fdp.Diagnostics.Contracts/DebugPrimitiveBuffer.cs:16</c> (measured: graph enumeration of the
+        /// 7 <c>*DrawBuilder</c> classes plus a grep for the interface; every other implementor is a test
+        /// stub or <c>GizmoMap.Example</c>). ⇒ no production path loses stamping, and putting
+        /// <c>Count</c>/<c>StampGizmoTypeId</c> on the interface would force six-plus stubs to implement
+        /// two members for no production gain.</para>
+        ///
+        /// <para>⚠ But the loss must not be SILENT: <c>GizmoTypeId</c> is the composite routing key
+        /// (<c>TASK-GZ065</c>), so a rail that drives routing through a stub builder would be blind rather
+        /// than red. <see cref="StampSince"/> asserts once, and reports <c>false</c> so a caller can tell.</para>
+        /// </summary>
+        private readonly DebugPrimitiveBuffer? _stampBuffer;
         private readonly Func<ISimulationView, Entity, bool>? _isSelectedPredicate;
         private readonly Dictionary<Entity, List<CompiledGizmoInstance>> _activeGizmos;
         private readonly bool[] _globalVisibilityCache;
@@ -215,6 +238,7 @@ namespace Fdp.Toolkit.Diagnostics.Gizmos.Systems
         {
             _registry             = registry    ?? throw new ArgumentNullException(nameof(registry));
             _drawBuilder          = drawBuilder ?? throw new ArgumentNullException(nameof(drawBuilder));
+            _stampBuffer          = drawBuilder as DebugPrimitiveBuffer;   // CE-259ab -- may be null
             _isSelectedPredicate  = isSelectedPredicate;
             _activeGizmos         = new Dictionary<Entity, List<CompiledGizmoInstance>>();
             _globalVisibilityCache = new bool[registry.Rules.Count];
@@ -361,7 +385,6 @@ namespace Fdp.Toolkit.Diagnostics.Gizmos.Systems
             if (budget <= 0f || _entityList.Count == 0)
             {
                 // Unlimited path: iterate all active gizmos normally.
-                var buf = (DebugPrimitiveBuffer)_drawBuilder;
                 foreach (var kvp in _activeGizmos)
                 {
                     Entity entity = kvp.Key;
@@ -374,9 +397,9 @@ namespace Fdp.Toolkit.Diagnostics.Gizmos.Systems
                         var gi = instances[i];
                         if (gi.RuleIndex < cacheSize && !_globalVisibilityCache[gi.RuleIndex]) continue;
                         if (!gi.Definition.VisibilityPolicy.IsEntityVisible(view, entity)) continue;
-                        int mark = buf.Count;
+                        int mark = MarkPrimitives();
                         gi.Instance.UpdateAndDraw(activeView, deltaTime, _drawBuilder);
-                        buf.StampGizmoTypeId(mark, gi.Definition.GizmoTypeId);
+                        StampSince(mark, gi.Definition.GizmoTypeId);
                         // Emit InputCaptureBinding for the exclusive-focus holder.
                         if (_focus.ShouldEmitBinding(this, gi.Instance))
                         {
@@ -419,9 +442,9 @@ namespace Fdp.Toolkit.Diagnostics.Gizmos.Systems
                         var gi = instances[i];
                         if (gi.RuleIndex < cacheSize && !_globalVisibilityCache[gi.RuleIndex]) continue;
                         if (!gi.Definition.VisibilityPolicy.IsEntityVisible(view, entity)) continue;
-                        int mark = ((DebugPrimitiveBuffer)_drawBuilder).Count;
+                        int mark = MarkPrimitives();
                         gi.Instance.UpdateAndDraw(activeView, deltaTime, _drawBuilder);
-                        ((DebugPrimitiveBuffer)_drawBuilder).StampGizmoTypeId(mark, gi.Definition.GizmoTypeId);
+                        StampSince(mark, gi.Definition.GizmoTypeId);
                         // Emit InputCaptureBinding for the exclusive-focus holder.
                         if (_focus.ShouldEmitBinding(this, gi.Instance))
                         {
@@ -453,9 +476,9 @@ namespace Fdp.Toolkit.Diagnostics.Gizmos.Systems
                 if (view.IsAlive(kvp.Key))
                 {
                     uint injTypeId = Fnv1a32(kvp.Value.GetType().FullName ?? string.Empty);
-                    int mark = ((DebugPrimitiveBuffer)_drawBuilder).Count;
+                    int mark = MarkPrimitives();
                     kvp.Value.UpdateAndDraw(activeView, deltaTime, _drawBuilder);
-                    ((DebugPrimitiveBuffer)_drawBuilder).StampGizmoTypeId(mark, injTypeId);
+                    StampSince(mark, injTypeId);
                     // Emit InputCaptureBinding for the exclusive-focus holder.
                     if (_focus.ShouldEmitBinding(this, kvp.Value))
                     {
@@ -504,6 +527,29 @@ namespace Fdp.Toolkit.Diagnostics.Gizmos.Systems
         /// </summary>
         private static long NetworkIdOf(EntityRepository repo, Entity entity)
             => Fdp.Toolkit.Replication.Services.NetworkIdResolver.RuntimeNetworkIdOf(repo, entity);
+
+        /// <summary>⭐ CE-259ab — the primitive count to stamp FROM, or 0 when the builder cannot stamp.</summary>
+        private int MarkPrimitives() => _stampBuffer?.Count ?? 0;
+
+        /// <summary>
+        /// ⭐ CE-259ab — stamp <paramref name="gizmoTypeId"/> onto every primitive emitted since
+        /// <paramref name="mark"/>. Returns <see langword="false"/> when the draw builder is not a
+        /// <c>DebugPrimitiveBuffer</c> and the stamping was therefore skipped.
+        /// ⛔ It used to be a hard cast that threw and killed the whole frame — see <see cref="_stampBuffer"/>.
+        /// </summary>
+        private bool StampSince(int mark, uint gizmoTypeId)
+        {
+            if (_stampBuffer == null)
+            {
+                System.Diagnostics.Debug.Assert(false,
+                    "GizmoTypeId was NOT stamped: the IDebugDrawBuilder is not a DebugPrimitiveBuffer, so " +
+                    "composite-key gizmo routing (TASK-GZ065) is inert for this frame. Production has exactly " +
+                    "one implementation, so this means a test stub -- see DataDrivenGizmoSystem._stampBuffer.");
+                return false;
+            }
+            _stampBuffer.StampGizmoTypeId(mark, gizmoTypeId);
+            return true;
+        }
 
         // ---- Interaction event routing -------------------------------------------
 
