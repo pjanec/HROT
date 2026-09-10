@@ -1,7 +1,15 @@
 <!--STATUS
 state: LIVE
-updated: 2026-09-09
+updated: 2026-09-10
 current-answer: §2 is the test list, in VALUE order. §1 is setup. §4 is what to report back.
+  ⭐ 2026-09-10 — T1 is the live test and it was CORRECTED before being handed to the operator:
+  ① the setup branch is now claude/reset-working-branch-qd1qpv (axis-c-e2-asset-shell merged at 274a51fd);
+  ② T1 gained the CROSSHAIR READ-OUT — red/amber/parked-at-origin distinguishes three different bugs and
+     is the direct observable for CE-259p, which nothing in the earlier draft used;
+  ③ T1's two measured PRECONDITIONS are stated (the target must be normally left-click-selectable, and
+     must carry a MapDisplayComponent) — either one makes a correct build read as broken;
+  ④ T1's old expected row "the picked coordinate fills into the mission task field" is SUPERSEDED for
+     route (a): that route publishes SeedTargetCommand per SELECTED perceiver and shows nothing.
 design-basis: docs/UX/UX_Feature_Tool_Model.md §4.8–§4.12 (the tool model and the picker protocol) ·
   docs/designs/gizmos-1/gizmo-input-focus-design.md §6.2a/§6.2b (the two-arbiter defect and the
   approved registry) · docs/blueprints/Architect_Question_68_Gizmo_Focus_Registry.md §6 (the ruling).
@@ -12,9 +20,10 @@ known-conflict: none identified.
 
 # TEST PLAN — `UXI-07` by hand, on Windows
 
-> **Branch `claude/axis-c-e2-asset-shell` — pull the latest; `CE-259k` (the six deaf gizmos) is required for `T1`.**
-> The Windows session normally sits on `claude/reset-working-branch-qd1qpv`, so check out or merge this
-> branch first. Nothing here is on `main`.
+> ⭐⭐ **Branch `claude/reset-working-branch-qd1qpv` — UPDATED `2026-09-10`.** `claude/axis-c-e2-asset-shell`
+> was merged into it at **`274a51fd`** *(clean, no conflicts)*, so the Windows lane branch now carries
+> everything below and there is nothing to check out. ⛔ **HISTORY:** this line used to say *"check out
+> `claude/axis-c-e2-asset-shell` first"* — that branch is no longer the place to be. Nothing is on `main`.
 
 ---
 
@@ -44,8 +53,9 @@ toolbar tools no rail could see.**
 ## 1. Setup
 
 ```powershell
-git fetch origin claude/axis-c-e2-asset-shell
-git checkout claude/axis-c-e2-asset-shell     # or merge it into the Windows lane branch
+git fetch origin claude/reset-working-branch-qd1qpv
+git checkout claude/reset-working-branch-qd1qpv
+git pull origin claude/reset-working-branch-qd1qpv      # must include 274a51fd or later
 dotnet build Hrot/Runner/Hrot.ClusterRunner/Hrot.ClusterRunner.csproj
 dotnet run --project Hrot/Runner/Hrot.ClusterRunner -- --mode all
 ```
@@ -73,16 +83,45 @@ dotnet run --project Hrot/Runner/Hrot.ClusterRunner -- --mode all
 
 | step | |
 |---|---|
-| **①** | Select an entity that has a **route**. Right-click it ▸ **"Edit Route"** |
-| **②** | Click **two or three waypoints** on the map — a visibly half-drawn route |
+| **①** | ⭐ **Either menu item works — take whichever the scenario offers** *(both verified in source `2026-09-10`, `EditorSubsystem.cs:2306-2309`)*: right-click an entity ▸ **"Edit Route"** *(shown only with a `RoutePlan`)* or ▸ **"Edit Shape"** *(shown only with an `EditablePolyline`)*. ⛔ **If neither item is in the menu, that entity has neither component** — try another, it is not a defect |
+| **②** | Click **two or three waypoints / vertices** on the map — a visibly half-drawn route or shape |
 | **③** | ⛔ **WITHOUT pressing Escape or finishing**, arm a PICK. ⚠ **Two routes, and the first is far easier** — 📐 measured `2026-09-09` after the operator reported *"don't see any Pick button anywhere"*:<br/>⭐⭐ **(a) the ENTITY INSPECTOR context menu** — right-click an entity that has `TargetMemory` ▸ **"Mark Target for N Units…"** *(`EditorSubsystem.cs:2325`)*. ⛔ The item only appears on an entity WITH `TargetMemory`. ⭐ Right-clicking inside a PANEL does not reach the map tool, so it will not cancel the tool underneath — which is exactly what this test needs.<br/>⚠ **(b) the `Pick` button** — it is **not a top-level control**: it lives in the **Details** window's **Mission** tab, drawn per TASK PROPERTY by `BehaviorUiCompiler.cs:175,206`, and only for a location/entity-typed property. ⇒ it needs an entity the mission service offers behaviours for, a task added, and that task to have such a property |
-| **④** | Click a point on the map to complete the pick |
+| **④** | **Move the cursor over a target ENTITY** *(not empty ground — route (a) picks an entity)*, then **left-click and release on it** |
+
+#### ⭐⭐⭐ The crosshair IS the instrument — **measured `2026-09-10`, and it is the direct read-out for `CE-259p`**
+
+📐 `EntityPickerGizmo.cs:118-120` draws the crosshair **RED** when `_hoveredValid` and **AMBER** otherwise;
+`_hoveredValid` *(`:145`)* is `hitTest(pos)` **AND** the filter. ⇒ ⭐⭐ **the colour under your cursor tells you
+which half is broken before you even click:**
+
+| what you see | what it means |
+|---|---|
+| ⭐ crosshair **follows the cursor** | the input path is alive *(`CE-259k` holding)* |
+| 🔴 crosshair **parked at map ORIGIN**, not under the cursor | ⛔ no `OnDragUpdate` is arriving at all — the gizmo is deaf again. ⭐ This is the one residual case of the item-③ hypothesis |
+| ⭐⭐ crosshair turns **RED** over an entity | ✅ **`CE-259p` WORKS** — the hit-test resolved a real entity and it passed the filter |
+| 🔴 crosshair stays **AMBER over every entity** | ⛔ **`CE-259p` is still broken, or the filter rejects it** — ⚠ see the two preconditions below before reporting this |
+
+⛔⛔ **TWO PRECONDITIONS, measured — either one makes a CORRECT build look broken:**
+
+| # | precondition | why |
+|---|---|---|
+| **①** | ⭐⭐⭐ **the target must be an entity you can normally LEFT-CLICK-SELECT** | 📐 the hit-test *(`GizmoMap.Presentation/Layers/DebugGizmoLayer.cs:457`)* is the **same** `FindTopmostInteractivePrimitive` that ordinary selection uses, and it only sees `Box2D`/`Sphere` primitives with `AnchorGeneration != 0`. ⇒ **if the entity cannot be selected by clicking, the picker cannot see it either — and that is not this test's defect** |
+| **②** | ⭐⭐ **the target needs a `MapDisplayComponent`** | 📐 `LayerMaskFilter.IsMatch` *(`HrotEntityFilterFactory.cs:100`)* returns **false** with no such component, whatever the mask. "Mark Target" passes **no** presets ⇒ mask `0xFFFFFFFF`, so **any** entity WITH the component passes |
 
 | ✅ expected | ⛔ FAILURE SIGNAL |
 |---|---|
-| the half-drawn route **stays visible on the map the whole time** — during the pick, not just after | 🔴 **the route DISAPPEARS when the pick arms** ⇒ `PushModal` fell back to `Activate` |
-| after the pick lands, the route tool is **live again**: clicking the map adds the **next** waypoint | 🔴 clicking does nothing, or **starts a NEW route from scratch** ⇒ the resume failed / the tool was disposed |
-| the picked coordinate **fills into the mission task field** | 🔴 field stays empty ⇒ the pick never completed |
+| the half-drawn route/shape **stays visible on the map the whole time** — during the pick, not just after | 🔴 **it DISAPPEARS when the pick arms** ⇒ `PushModal` fell back to `Activate` |
+| the crosshair **tracks the cursor** and goes **RED** over a valid entity | 🔴 see the crosshair table above — it distinguishes three different bugs |
+| **left-RELEASE** on a red crosshair **closes the picker** *(crosshair gone)* | 🔴 nothing happens ⇒ the pick never completed. ⚠ `OnMouseEvent` *(`:156`)* fires on **RELEASE**, and right-**PRESS** *(`:164`)* cancels — so do not drag off the entity between press and release |
+| afterwards the route/shape tool is **live again**: clicking the map adds the **next** waypoint | 🔴 clicking does nothing, or **starts a NEW route from scratch** ⇒ the resume failed / the tool was disposed |
+| a **right-click** instead cancels cleanly, with **no** *"A task was cancelled"* anywhere | 🔴 that message ⇒ `CE-259o` regressed |
+
+⛔⛔ **What you will NOT see on route (a), and it is NOT a failure:** ⚠ **the pick has no visible result.**
+📐 `EditorSubsystem.cs:2325-2350` publishes a `SeedTargetCommand` **per SELECTED perceiver** — with nothing
+selected the loop runs **zero times**, and the menu label says so *(`"Mark Target for 0 Units..."`)*.
+⇒ ⭐ **judge route (a) by the crosshair and the picker closing, never by an effect.** ⛔ **The old expected
+row *"the picked coordinate fills into the mission task field"* was WRONG for route (a)** — there is no
+field on this route; that row belongs to route (b) and is SUPERSEDED here.
 
 ⭐ **Why this one is first:** it is the only test here whose capability did not exist a week ago. 📐 The
 rails prove the *decision* (`PushPickerSuspendsTheToolUnderneathRatherThanDestroyingIt`); only a person
