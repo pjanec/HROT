@@ -19,8 +19,11 @@ current-answer: 4 (the A1 build) + 4.7/4.7b (the AS-BUILT). Steps 1-3 of Migrati
           moves to the SELECTED perceiver's menu and arms the existing hovering picker.
     4.14  selection is GLOBAL; a selection CHANGE cancels editing of the previously selected entity; clicks
           during an edit must not select (already true on the map, bypassed by panels).
-  ⛔ 4.13 and 4.14 CANNOT be built before UX_Feature_Selection.md 2.1 (one store) - measured 2026-09-10:
-    four selection stores and ~11 writers, so "the selection changed" has four meanings today.
+  ⚠ CORRECTED same day: an earlier version of this block said 4.13/4.14 cannot be built before
+    UX_Feature_Selection.md 2.1 (one store). WRONG, and the correction is the user's - "if entity becomes
+    unselected, it should cancel any editing on the entity losing the selection" is a PER-ENTITY predicate,
+    not a global change event, so it needs no unified store. Only the "selection is global across every
+    host" ruling needs 2.1, because that ruling IS 2.1. See 4.14's per-ruling status table.
   ⚠ OWED when 4.13/4.14 become buildable: UX_Feature_Selection.md carries no classDiagram/sequenceDiagram
     yet (obligation 1). This document's two diagrams do not cover the selection/cancel seam.
   >>> READ 0b FIRST <<< - the premises SURVIVE, but four moved and three are now WIDER than this
@@ -1588,17 +1591,39 @@ selection survives the gesture by accident, not by design.
 so ② never fires from a map click. ② exists for the surfaces that are **not** captured — panels, commands —
 and there it cancels the edit rather than leaving an unselected entity editable.
 
-#### ⛔⛔ THE PREREQUISITE, and it is the whole reason this is not a small change
+#### ⭐⭐⭐ WHAT IS ACTUALLY BLOCKED — **corrected `2026-09-10`, same day**
 
-📐 **Measured `2026-09-10`: there are FOUR selection stores and ~11 production writers**, not the *"two
-stores, three writers"* `UX_Feature_Selection.md` §1 records —
-see that document's §1 for the corrected inventory.
+⛔⛔ **AN EARLIER VERSION OF THIS SUBSECTION CLAIMED ①–④ ALL REQUIRE `UXI-11` (one store) FIRST. THAT WAS
+WRONG, and the correction is the user's:** 🔒 *"if entity becomes unselected, it should cancel any editing
+on the entity losing the selection."*
 
-⇒ 🔒 **"the selection changed" has four possible meanings today, so ② has nothing single to hook.**
-⇒ ⭐⭐⭐ **rulings ①–④ all sit on top of `UXI-11` §2.1 (one store; `ISelectionState` becomes a view), which is
-`build-state: NOT-BUILT`** — and `UXI-24` (multi-select, which §4.13's fan-out needs) states its own
-dependency on `UXI-11`. ⛔ **Do not build ①–④ before it**; ⭐ §4.7i (suspended handles) is independent of all
-of this and may ship alone.
+⭐⭐ **The rule is a PER-ENTITY PREDICATE, not a global change event.** *"The selection changed"* does have
+four possible meanings today (📐 four stores, ~11 writers — `UX_Feature_Selection.md` §1), ⛔ but ② never
+needed that: an armed tool is **already keyed by entity**, and the question is only *"is THIS entity still
+selected?"*
+
+| 📐 measured `2026-09-10` — why ② is implementable now | |
+|---|---|
+| the predicate exists on the interface | `ISelectionState.IsSelected(Entity)` — `FDP/Engine/Fdp.Presentation/Vis2D/Abstractions/ISelectionState.cs` |
+| armed tools are enumerable **with their entity** | `IToolController.ModalStack` → `readonly record struct ArmedTool(ToolDescriptor Tool, Entity Target, IEntityStatefulGizmo? Suspended)` — `ToolDescriptor.cs:97-100` |
+| ⭐⭐ **the tool side reads exactly ONE store — no ambiguity** | `ToolActivationDrainSystem` takes the target from `selection.PrimarySelected` on the host's injected `ISelectionState`. ⇒ **ask the same store the ARMING used.** The cross-surface consistency problem is real and is `UXI-11`; it is a *different* problem |
+| ⭐ interruptions are exempt **by construction** | production pickers push with **no target** (`PickerToolHost.cs:181`, `:285` — `PushModal(toolId)`) ⇒ `Target == Entity.Null`. ⇒ the rule applies to entries with a **non-null** target, so a picker or Measure is never cancelled by a selection change |
+| change detection already exists if polling is unwanted | `DefaultSelectionState.Version` — *"bumped every time `PrimarySelected` changes or `ClearSelection` is called"* |
+
+⇒ **the shape:** for each `ModalStack` entry with `Target != Entity.Null`, if `!selection.IsSelected(Target)`
+then end that tool through `IToolController` — ⭐ `NotifyToolEnded(tool.Id, target)` per §4.7h, ⛔ never by
+sweeping an arbiter.
+
+| ruling | blocked on `UXI-11`? |
+|---|---|
+| ① selection is GLOBAL across every host | ✅ **YES — that ruling IS `UXI-11` §2.1.** Unifying the stores is the ruling, not a precondition for it |
+| ② losing selection cancels that entity's edit | ⛔ **NO — buildable now**, per the table above |
+| ③ clicks during an edit must not select | ✅ already true on the map; the panel half needs panels to consult tool state, ⛔ not one store |
+| ④ / §2.3 row 1 — an already-selected entity keeps the whole selection | ⛔ **NO — buildable now.** It is a conditional in `SelectionInteractionSystem`: skip the clear when the hit entity is already selected |
+
+⚠ **§4.13's fan-out over MULTIPLE selected perceivers still wants `UXI-24`** *(map additive-click does not
+exist)*; ⭐ the single-perceiver case works against today's selection. ⭐ §4.7i (suspended handles) is
+independent of all of it.
 
 #### 📐 What the tool side owes once the store is one
 

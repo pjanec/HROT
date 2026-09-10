@@ -9,7 +9,12 @@ current-answer: NOT-BUILT (design only). ISelectionState unchanged; no EcsSelect
   entity, clicks during an edit must not select (already true on the map via the capture-anchor filter,
   bypassed by panels), and §2.3 row 1 stands (an already-selected entity keeps the whole selection).
   ⛔ §1's headline is SUPERSEDED by its own re-measurement: FOUR stores and ~11 writers, not two/three.
-  ⛔ §2.6's rulings CANNOT be built before §2.1 (one store) — "the selection changed" has four meanings today.
+  ⚠ CORRECTED same day: an earlier version of this block said §2.6's rulings all need §2.1 (one store)
+    first. WRONG. Only ruling ① (selection is global) needs it — that ruling IS §2.1. Rulings ② (losing
+    selection cancels that entity's edit) and §2.3 row 1 (an already-selected entity keeps the selection)
+    are BUILDABLE NOW: ② is a per-entity predicate (ISelectionState.IsSelected + IToolController
+    .ModalStack's per-entity Target), and row 1 is a conditional in SelectionInteractionSystem.
+    Per-ruling status table: UX_Feature_Tool_Model.md §4.14.
   ⭐ "Mark Target for N Units..." is RETIRED; replacement in UX_Feature_Tool_Model.md §4.13.
 stale-below: §1's title ("two stores and three writers") — read the corrected inventory at the top of §1.
 -->
@@ -229,7 +234,7 @@ applies to **callers outside the tick**, which is where the view's setter lives.
 | # | 🔒 the ruling | consequence |
 |---|---|---|
 | **①** | *"inspector selection changes global entity selection state. not just map, not just editor, everywhere, every host, unified behavior."* | ⛔ **`EntityInspectorPanel.ChainToMap` as an opt-in is RETIRED.** 📐 It defaults to `false` (`:148`); the only production host that sets it true is **ReplayBrowser** (`:676-677`), and there is an operator toggle at `:663-667` ⇒ **in the editor, inspector selection does not reach the map today.** ⭐ Under §2.1 the question disappears: there is one store, so a panel writing selection IS the global selection |
-| **②** | *"Changing selection to another entity should cancel any currently active editing of the previously selected entity as we want just selected entity be editable."* | ⭐⭐ **the trigger is the SELECTION CHANGE, not the click** — panel, map, command or script alike. 📄 the tool-side contract is [`UX_Feature_Tool_Model.md` §4.14](UX_Feature_Tool_Model.md) |
+| **②** | *"Changing selection to another entity should cancel any currently active editing of the previously selected entity as we want just selected entity be editable."* ⭐ **restated by the user the same day, and this form is the buildable one:** *"if entity becomes unselected, it should cancel any editing on the entity losing the selection"* | ⭐⭐ **a PER-ENTITY predicate, not a global change event** — *"is THIS entity still selected?"* asked of the store the ARMING used. ⛔ **It does NOT require §2.1.** 📄 the measurements and the shape are in [`UX_Feature_Tool_Model.md` §4.14](UX_Feature_Tool_Model.md) |
 | **③** | clicks while an edit is in progress must not select another entity — *"something like mouse capture"*, defined by the gizmo | ✅ **already true on the map** (`GizmoMap…/DebugGizmoLayer.cs:213` + `:491` — the capture-anchor filter); 🔴 **panels bypass it** |
 
 ⭐⭐ **② and ③ do not conflict:** while a tool is armed the map cannot change the selection at all, so ②
