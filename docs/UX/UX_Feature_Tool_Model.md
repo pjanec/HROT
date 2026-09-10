@@ -10,9 +10,21 @@ current-answer: 4 (the A1 build) + 4.7/4.7b (the AS-BUILT). Steps 1-3 of Migrati
   MapInteractionPack, so all FIVE hosts (IG, CGF, ReplayBrowser, SimHost, Editor) get one with the full
   tool set, and the D-prime idiom is gone from every production site. Steps 4-6 (the bypassing adapters,
   the toolbar binding, central Escape) and PushModal's suspend/resume are OPEN.
+  ⭐⭐ 2026-09-10, UML ADDED (user: "update the design including the mermaids — this usually clarifies
+  stuff much better than paragraphs of text"): THREE new diagrams, and they replace prose that was
+  actively misleading. 4.7g.1 sequenceDiagram = CE-259r's frame (the buffer is EMPTY, not partly filled —
+  that wrong wording is what made a frame-end marker and a 256 KB buffer look necessary). 4.7i graph TD =
+  the layer-0 tie and its TWO LEAVES (handle-wins is right for an ACTIVE tool, wrong for a SUSPENDED one).
+  4.7i stateDiagram-v2 = what a tool draws per focus state. The doc now carries 5 mermaid blocks, all
+  parsed by scripts/mermaid-check.mjs.
   ⭐ 2026-09-10 — THREE NEW SECTIONS carrying user rulings, read them before touching this area:
     4.7h  a self-removing gizmo must tell the ToolController (CE-259q, BUILT).
-    4.7i  a SUSPENDED tool draws its geometry but NO handles (RULED, NOT BUILT). Independent of the
+    4.7g.1 THE FRAME as a sequenceDiagram — CE-259r's mechanism: the picker's hit-test runs one system
+          BEFORE the entity emitters, so the buffer is EMPTY (not partly filled). Read the diagram before
+          touching the gizmo group order.
+    4.7i  a SUSPENDED tool draws its geometry but NO handles (RULED, NOT BUILT). Its z-order sub-section
+          carries a graph TD of the tie (who wins, and the two leaves) and a stateDiagram-v2 of what a
+          tool draws per focus state. Independent of the
           selection work below. Measured: IsFocused is a DEAD parameter on 14 of 14 stateful gizmos, so
           the signal already exists; hiding the handles also closes a silent mis-pick.
           ⛔⛔ CORRECTED 2026-09-10: "buildable ALONE" is true of selection but FALSE of CE-259r. The user
@@ -1018,6 +1030,49 @@ silent-default pattern's tenth instance: `InteractionDeps.Tools` is optional so 
 constructs, which is exactly the shape that lets a root forget it — and a forgotten arbiter drops every
 tool press.
 
+#### ⭐⭐⭐ 4.7g.1 THE FRAME — **`CE-259r`: the picker asks before the producer runs** *(measured `2026-09-10`)*
+
+⭐⭐ **The whole defect is one diagram.** ⛔ Prose kept mis-stating it as *"the hit-test sees a partly
+filled frame"*, which invited a frame-end marker and a bigger buffer. 📐 **The buffer is EMPTY**, and the
+reason is visible the moment the frame is drawn as a sequence.
+
+```mermaid
+sequenceDiagram
+    autonumber
+    actor Op as Operator
+    participant Canvas as MapCanvas.Update
+    participant Buf as DebugPrimitiveBuffer
+    participant Kern as Kernel group "GizmoExecution"
+    participant Pick as EntityPickerGizmo
+    participant Ents as EntityPresentationGizmo
+
+    Note over Canvas,Buf: BEFORE the clear - this is why SELECTION works
+    Op->>Canvas: mouse move / click
+    Canvas->>Buf: HandleInput reads the PREVIOUS complete frame
+    Buf-->>Canvas: primitives resolve
+
+    Note over Buf: EditorSubsystem 2556
+    Canvas->>Buf: EndFrame - buffer CLEARED
+
+    Note over Kern,Ents: EditorSubsystem 2560 - kernel runs the group
+    Kern->>Kern: globalManager
+    Kern->>Pick: dataDriven - OnDragUpdate hovers
+    Pick->>Buf: hitTest
+    Buf-->>Pick: frame=0 anchored=0 NULL
+    Note right of Pick: amber crosshair,<br/>left-release arm gated off
+    Kern->>Ents: stateless - emits the entity PICK BOXES
+    Ents->>Buf: frame=2
+    Kern->>Kern: selfCheck
+```
+
+⇒ ⭐⭐⭐ **The consumer runs one system BEFORE the producer.** ⛔ Not a completeness problem — **an ordering
+one** ⇒ 📄 the fix is `MapInteractionPack.cs:131-132`, swapping `dataDriven` and `stateless` in the
+`TogglablePostSimulationGroup` argument list.
+
+⚠⚠ **AND THE SWAP HAS A SECOND EFFECT — see §4.7i's z-order sub-section.** ⛔ It is NOT a no-op, and
+`§4.7i` must ship **before or with** it.
+
+
 ### 4.7h 🔴🔴🔴 A SELF-REMOVING GIZMO NEVER TOLD THE CONTROLLER — **"Edit Shape" worked every OTHER time** *(`CE-259q`, `2026-09-10`)*
 
 🔒 **Found by an operator running the editor, verbatim:** *"i right click again, select Edit shape again,
@@ -1126,6 +1181,80 @@ entity pick boxes and tool handles **both at layer 0**. ⇒ after the swap **a h
 
 ⚠ **What this does NOT say:** the handle-wins rule is about an **ACTIVE** tool. ⛔ It is not a claim that
 handles outrank entities in general — with no tool armed there are no handles to rank.
+
+#### ⭐⭐ The tie, and who wins it — **`DebugGizmoLayer.cs:510`**
+
+```mermaid
+graph TD
+    A["hit-test at a screen point"] --> B{"candidates<br/>at this point?"}
+    B -->|"none"| Z["Entity.Null"]
+    B -->|"one or more"| C{"capture filter:<br/>exclusiveAnchorId set?"}
+    C -->|"YES - selection and drag<br/>HandleInput 124 + 491"| D["keep ONLY the captured anchor"]
+    C -->|"NO - the PICKER,<br/>unfiltered by design"| E["keep ALL candidates"]
+    D --> F["rank by DebugLayer"]
+    E --> F
+    F --> G{"tie on<br/>DebugLayer?"}
+    G -->|"no"| H["highest layer wins"]
+    G -->|"YES - pick boxes AND<br/>handles are both layer 0"| I["EMISSION ORDER breaks the tie<br/>= the kernel group order"]
+    I --> J["today: entity box wins"]
+    I --> K["after CE-259r swap:<br/>HANDLE wins"]
+
+    K --> L{"is that handle's<br/>tool ACTIVE?"}
+    L -->|"YES"| M["CORRECT - user ruling 2026-09-10"]
+    L -->|"NO - it is SUSPENDED"| N["WRONG - picker latches a dead handle"]
+    N --> O["4.7i deletes the competitor:<br/>a suspended tool draws NO handles"]
+    O --> M
+
+    style N fill:#7f1d1d,color:#fff
+    style M fill:#14532d,color:#fff
+    style O fill:#1e3a5f,color:#fff
+```
+
+⭐⭐⭐ **Read the two leaves.** The swap is correct on the left branch and wrong on the right, and **§4.7i
+is what removes the right branch entirely** — which is why it is a prerequisite and not a follow-up.
+
+#### ⭐⭐ What a tool DRAWS, per focus state — **the §4.7i rule as a state machine**
+
+```mermaid
+stateDiagram-v2
+    [*] --> Armed : Activate(id, target)
+
+    state Armed {
+        [*] --> HasFocus
+        HasFocus : IsFocused = true
+        HasFocus : draws GEOMETRY
+        HasFocus : draws HANDLES
+        HasFocus : receives input
+    }
+
+    state Suspended {
+        [*] --> NoFocus
+        NoFocus : IsFocused = false
+        NoFocus : draws GEOMETRY
+        NoFocus : NO handles
+        NoFocus : no input
+    }
+
+    Armed --> Suspended : PushModal(other tool)<br/>GizmoFocusRegistry.Suspend<br/>SetFocus(false) at 113
+    Suspended --> Armed : PopModalAt / scope disposed<br/>Resume restores focus at 136
+    Armed --> [*] : Cancel or self-remove<br/>NotifyToolEnded - 4.7h
+    Suspended --> [*] : Cancel unwinds the whole stack
+
+    note right of Suspended
+        TODAY both states draw handles.
+        IsFocused is a DEAD parameter on
+        14 of 14 stateful gizmos, so the
+        signal is already delivered every
+        frame and nothing reads it.
+    end note
+```
+
+⭐ **The build is therefore per-gizmo and small:** read the flag that is already set, and skip the handle
+emission — ⛔ never the geometry. 📐 **The rail that proves BOTH halves at once:** with a suspended
+`VertexEditGizmo` and an entity under the cursor, the picker resolves **the entity** — that reddens if
+either §4.7i or `CE-259r` is missing.
+
+
 
 📐 **All 14 production `IEntityStatefulGizmo` implementations mention `IsFocused` exactly twice — the
 property and its setter — and NONE of them read it:** `VertexEditGizmo` · `RouteWaypointGizmo` ·

@@ -128,9 +128,21 @@ sequenceDiagram
     Giz->>Giz: mutate + emit primitives
 ```
 
-⚠ **The frame boundary is the trap.** Per host frame: `EndFrame` **clears** the buffer, then the kernel
-runs the group which **refills** it. ⇒ a hit-test during `canvas.Update` sees the **previous complete**
-frame; a hit-test dispatched *inside* the group sees a **partly-filled** one. 📄 `CE-259r`.
+⚠ **The frame boundary is the trap.** Per host frame: `EndFrame` **clears** the buffer *(`EditorSubsystem
+.cs:2556`)*, then the kernel runs the group which **refills** it *(`:2560`)*. ⇒ a hit-test during
+`canvas.Update` sees the **previous complete** frame — 🔒 **which is exactly why ordinary selection and
+drag work.**
+
+⛔⛔ **CORRECTED `2026-09-10`: this paragraph used to end *"a hit-test dispatched inside the group sees a
+PARTLY-FILLED one."* 🔴 That wording is FALSE and it was load-bearing** — it framed `CE-259r` as a frame
+**completeness** problem, which is what made a frame-end marker and a larger buffer look necessary.
+📐 **Measured: the buffer is EMPTY** *(`frame=0`, `anchored=0`)* when the picker hovers, because the
+picker's system runs **one system before** the entity emitters. ⇒ an **ordering** problem, fixed by
+ordering.
+
+📄 **The frame is drawn as a sequence in [`UX_Feature_Tool_Model.md`](UX/UX_Feature_Tool_Model.md) §4.7g.1
+— and the z-order consequence of the fix, plus why §4.7i gates it, in that file's §4.7i.** ⛔ Not redrawn
+here: one picture per mechanism, and the owning design holds it.
 
 ### 2.2 Tool activation — **as built** *(⚠ supersedes `DESIGN_Map_Rendering_And_Interaction.md` §3.2)*
 
