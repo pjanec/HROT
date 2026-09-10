@@ -236,14 +236,22 @@ CGF, whose stated blocker `CE-059` was removed)* · `CE-063` *(`EditorMapPickAda
 | # | blocker | axis | kind |
 |---|---|---|---|
 | 1 | ~~**UXI-30** engine authority gate~~ — ✅ **BUILT `2026-08-25`** *(`AX-001`)*; the gate is now structural, not per-installer. ⚠ `AX-005`/`AX-006` are what remains: no production request SENDER exists, and *"owned"* is an authority bit only SimHost and replication ever set | B | ~~design-a-fix~~ done |
-| 2 | **Asset-root walk-up** → `null` on a deployed node (ruling 67 has the fix) | A (editing) | build |
-| 3 | **AQ25** authoring shell + role/mode gating — architect-**unanswered** | A (editing) | resolve-with-user |
-| 4 | **Behavior-affinity registry** (Q25-C) + the schema-driven-`BehaviorUiCompiler` unknown | A (editing) | design |
+| 2 | ~~**Asset-root walk-up** → `null` on a deployed node~~ ✅✅ **BUILT — NOT A BLOCKER** *(`CE-033`; re-verified `2026-09-10`: `AssetRoots.Configure(string? root)` exists at `:62`)*. ⚠ This row was stale from the moment `CE-033` landed, and §3 item 3 of this very file already said so | A (editing) | ~~build~~ **done** |
+| 3 | ~~**AQ25** authoring shell + role/mode gating — architect-**unanswered**~~ ⛔⛔ **THIS ROW IS WRONG TWICE, re-measured `2026-09-10`.** ① 📄 [`Architect_Question_25`](UX/Architect_Question_25_Scenario_Authoring_Golden_Path.md) carries a **✅ RECOMMENDED ANSWERS** section *(coordinator, `2026-08-25`)* — `Q25-D` is **answered outright by `Q26`** and `Q25-F` is **withdrawn** *(no new exe; the editor is a one-node cluster)*. ② 🔒 **AND THE USER ALREADY SCOPED IT OUT**, verbatim in that section: *"A/B/C/E are authoring FEATURES, not prerequisites for SHARING the editing capability with CGF (they are missing on the editor too, and get shared for free once built)"* ⇒ **postponable; resolve them when the feature is actually built.** ⇒ ⭐ **nothing here blocks the unification** | A (editing) | ~~resolve-with-user~~ **postponed by user scoping** |
+| 4 | **Behavior-affinity registry** (`Q25-C`) + ~~the schema-driven-`BehaviorUiCompiler` unknown~~ | A (editing) | ⭐⭐ **THE PIVOTAL UNKNOWN IS CLOSED** — 📐 **re-verified `2026-09-10`:** `BehaviorUiCompiler.Compile<TDto>()` *(`:92-93`)* is **strictly CLR-type-driven** — `typeof(TDto).GetProperties(...)` at `:140-141`, switching on `prop.PropertyType` at `:180`/`:214`/`:230`/`:246` ⇒ ⛔ **it cannot consume a runtime schema as-is.** ⭐ **But the answer is REUSE, not codegen:** the runtime field-schema model already exists *(`BlueprintFieldDescriptor`, 65 sites)* and the variable Details panel already renders rows from field metadata ⇒ **a schema-driven SIBLING renderer.** ⇒ ⛔ **not a design blocker; a FEATURE to build**, postponed with row 3 |
 | 5 | ~~Graph-asset editing on a runtime node — undesigned~~ — **NOT undesigned** (hot-reload Cosmetic/Soft/Hard, `AI_Editor_Shared_Infrastructure.md` §17; editor not special). Reduces to: wire `QuickReloadService` on CGF + fix the shared R-52 offset-write bug | A (editing) | wire + bug-fix |
 | 6 | ~~Debug pause/step blocked on `.dev` programmes~~ — **NOT a blocker** (Correction 45 unblocked it `2026-08-14`; programmes finished `2026-07-16`). It is Axis-A wiring + one new CGF time-controller adapter class | A (diag) | ~~wait~~ build |
-| 7 | Packaging of `Hrot.Editor`'s catalog/save services | A | decide-at-impl |
+| 7 | ~~Packaging of `Hrot.Editor`'s catalog/save services~~ ✅✅ **DECIDED AND BUILT — NOT A BLOCKER** *(`CE-049`, `E2`; §2c.2 already records it as subsuming this row)*. 📐 Re-verified `2026-09-10`: `AssetPickerLauncher`, `NewAssetLauncher` and `AssetPickActionRouter` all live in **`Hrot/Editor/Hrot.Editor.AiShared/Browser/`**, which CGF reaches | A | ~~decide-at-impl~~ **done** |
 
 ⭐⭐ **Note the split:** blockers 2–5 are all on the **editing/authoring** side. **Viewing/diagnostics** (your watch → MyBlueprint → asset-graph chain) has **none of them** — it is wiring.
+
+⛔⛔⛔ **RE-MEASURED `2026-09-10` — THIS TABLE HAD FOUR STALE ROWS OF SEVEN, and the pattern is worth naming:**
+⭐ rows **2** and **7** were **built** and this file's own §3 and §2c.2 said so; rows **3** and **4** were
+**answered / scoped out by the user** and `AQ25`'s own STATUS block said so. ⇒ 📌 **every correction was
+available inside documents this table links to** — the table was simply never re-read against them.
+⚠ **What genuinely remains of §4 is rows 5 and 6, both already marked *not* blockers**, plus `Q25-C`'s
+FEATURE work. ⇒ ⭐⭐ **there is no open blocker on the Axis-A / authoring side.** The live front is Axis B
+*(§5 step 4)*.
 
 ## 5. ⭐⭐ SEQUENCING RECOMMENDATION *(charter Step 4; user approves)*
 
