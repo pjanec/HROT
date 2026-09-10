@@ -15,22 +15,26 @@ namespace Hrot.Network.NED.Gizmos
     {
         public static GizmoInteractionIngressTranslator CreateIngress(
             DdsParticipant participant,
-            FdpEventBus interactionBus)
+            FdpEventBus interactionBus,
+            Fdp.Toolkit.Replication.Services.NetworkEntityMap? entityMap = null)
         {
             return new GizmoInteractionIngressTranslator(
                 new DdsReaderGizmoAdapter<GizmoInteractionBatch>(participant),
-                interactionBus);
+                interactionBus,
+                entityMap);
         }
 
         public static GizmoInteractionEgressTranslator CreateEgress(
             DdsParticipant participant,
             byte localNodeId,
-            FdpEventBus interactionBus)
+            FdpEventBus interactionBus,
+            Fdp.Toolkit.Replication.Services.NetworkEntityMap? entityMap = null)
         {
             return new GizmoInteractionEgressTranslator(
                 localNodeId,
                 new DdsWriterGizmoAdapter<GizmoInteractionBatch>(participant),
-                interactionBus);
+                interactionBus,
+                entityMap);
         }
     }
 }

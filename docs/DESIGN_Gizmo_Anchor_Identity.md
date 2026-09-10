@@ -75,10 +75,11 @@ own comments (§2 rows ⑦ and ⑧); the code violates them.
 | ⑰ | **every interactive entity has a non-zero network id by construction** | `EntityPresentationGizmo.cs:19`,`:37` — `[GizmoProjector(typeof(SimTransform), typeof(NetworkIdentity))]`, *"the query is `SimTransform` + `NetworkIdentity` and nothing else"* ⇒ no `NetworkIdentity`, no pick box | read |
 | ⑰b | …and `EmitPickBox` stamps all three fields | `EntityPresentationGizmoShared.cs:21-33` — `entity.Index`, `entity.Generation`, `networkId` | read |
 | ⑱ | a tool **handle** can still carry id 0 | `ScenarioToolRegistrations.cs:204-207` — `NetworkIdOf` returns `0L` when `NetworkIdentity` is absent | read |
-| ⑲ | the network→entity map exists and is **O(1)** | `NetworkEntityMap.cs:9` `ConcurrentDictionary<long, Entity>`, `:11` `Register`; populated at `NetworkSpawningSystem.cs:198`, which also stamps `NetworkIdentity` at `:138` | read |
+| ⑲ | ⛔⛔ **CORRECTED `2026-09-10` DURING S1 — THERE ARE **TWO** `NetworkEntityMap` CLASSES AND MY FIRST CITATION WAS THE WRONG ONE.** 📐 `Fdp.Network.Cyclone/Services/NetworkEntityMap.cs` *(namespace `Fdp.Network.Cyclone.Services`, a `ConcurrentDictionary`)* is **NOT** the production one. ⭐ **The production map is `FDP/Toolkits/Fdp.Toolkits/Replication/Services/NetworkEntityMap.cs`, namespace `Fdp.Toolkit.Replication.Services`** — it is what `NetworkSpawningSystem` takes and uses *(`:26`, `:69`, `:198` `Register`, `:113`/`:208` `TryGetEntity`)*, and what `SimHostApp.cs:1009` fully qualifies. ⭐⭐ It is **BIDIRECTIONAL and O(1) both ways** — `:10` `Dictionary<long, Entity> _netToEntity` **and** `:11` `Dictionary<Entity, long> _entityToNet` — plus a graveyard *(`:15-16`)* and an `EntityRegistered` event *(`:27`)*. ⚠ It is a plain `Dictionary`, **not** concurrent | read |
 | ⑲b | ⛔ the *other* resolver is a **linear scan** — do not use it | `NetworkIdResolver.cs:67-72` `FindEntityByNetworkId` iterates `repo.Query().With<NetworkIdentity>()` | read |
-| ⑳ | `Fdp.Presentation` **cannot** reference the map's assembly | `Fdp.Presentation.csproj` references `GizmoMap.Presentation` · `Fdp.Toolkits` · StructEdit ×2 · `NodeEditor.Core` — **no `Fdp.Network.Cyclone`** | read |
-| ⑳b | …and 2 of 5 hosts pass **no world** to the adapter | `CgfSubsystem.cs:1425` and `ReplayBrowserSubsystem.cs:251` use the **3-arg** overload; the richer overloads are `Fdp.Presentation/…/DebugGizmoLayer.cs:37-72` | read |
+| ⑳ | 🔴🔴 **RETRACTED `2026-09-10` DURING S1 — THIS CLAIM IS FALSE, AND IT WAS THE ONLY REASON FOR AN ABSTRACTION.** ⛔ It said *"`Fdp.Presentation` cannot reference the map's assembly"* on the strength of `Fdp.Presentation.csproj` having **no `Fdp.Network.Cyclone`** — ✅ **true, and irrelevant**: ⑲ shows the production map lives in **`Fdp.Toolkits`**, which that csproj **does** reference. ⇒ ⭐⭐⭐ **`NetworkEntityMap` is directly reachable from `Fdp.Presentation`; NO host-supplied resolver and NO `IAnchorResolver` interface are needed.** 📌 Root cause of the error: two files named `NetworkEntityMap.cs`, the same trap as the two `DebugPrimitiveBuffer.cs` — ⇒ **cite the NAMESPACE, not the folder** | read |
+| ⑳b | 2 of 5 hosts pass **no world** to the adapter | `CgfSubsystem.cs:1425` and `ReplayBrowserSubsystem.cs:251` use the **3-arg** overload; the richer overloads are `Fdp.Presentation/…/DebugGizmoLayer.cs:37-72`. ⚠ **Still true and still the wiring surface for S3/S4** — ⛔ but with ⑳ retracted it is a *constructor argument*, not an architectural gap |
+| ⑳c | ⭐ the map is single-threaded-safe **for this use**, despite being a plain `Dictionary` | the terminal reads it during `canvas.Update` and the kernel writes it in `_kernel.Update()` — **the same main thread**, in sequence *(`EditorSubsystem.cs:2519` then `:2560`)* | read |
 | ㉑ | `AnchorIndex` is **already** a network id in the renderer | `DebugPrimitiveRenderer2D.cs:104-105` — *"Resolve against SpatialAnchor cache keyed by **AnchorIndex (used as network ID)**"*; matched by `IDebugDrawBuilder.cs:120` and `DebugPrimitiveBuffer.cs:370` *(`SemanticShape`)* | read |
 | ㉒ | **nothing structural changes on the wire** | `GizmoInteractionBatch.cs:16-25` — field set, `long`/`uint`/`uint` types, `[DdsKey] SourceNodeId, SequenceNumber` and `[DdsQos]` all unchanged; `DebugPrimitive` stays `[StructLayout(Explicit, Size = 64)]` with **no field added, removed or moved** | read |
 
@@ -180,12 +181,10 @@ classDiagram
         +Entity Target
         +uint SubElementId
     }
-    class IAnchorResolver {
-        <<interface>>
-        +TryResolve(long networkId, out Entity e) bool
-    }
-    class NetworkEntityMapResolver {
-        +TryResolve(long networkId, out Entity e) bool
+    class NetworkEntityMap {
+        EXISTS Fdp.Toolkits
+        +TryGetEntity(long id, out Entity e) bool
+        +Register(long id, Entity e) void
     }
     class Terminal {
         FindTopmostInteractivePrimitive
@@ -200,17 +199,16 @@ classDiagram
     class SelectionInteractionSystem
     class DataDrivenGizmoSystem
 
-    IAnchorResolver <|.. NetworkEntityMapResolver
     Terminal ..> DebugPrimitive : compares BoxAnchorId ONLY
     Terminal ..> GizmoPickToken : emits a NETWORK id
     EgressTranslator ..> GizmoPickToken : network id straight to the wire
-    IngressTranslator ..> IAnchorResolver : resolves on the RECEIVER
+    IngressTranslator ..> NetworkEntityMap : resolves on the RECEIVER
     IngressTranslator ..> PickToken
-    SelectionInteractionSystem ..> IAnchorResolver : resolves to write SelectionState
+    SelectionInteractionSystem ..> NetworkEntityMap : resolves to write SelectionState
     DataDrivenGizmoSystem ..> DebugPrimitive : binding keyed by NETWORK id
 
     note for DebugPrimitive "LineOffsetPx REPLACES AnchorGeneration at offset 12 - same 2 bytes. AnchorIndex keeps ONE meaning - the network id for EntityLocal, per DebugPrimitiveRenderer2D 104-105"
-    note for IAnchorResolver "NEW and TINY. Host-supplied because Fdp.Presentation cannot reference Fdp.Network.Cyclone - claim 20"
+    note for NetworkEntityMap "NO NEW ABSTRACTION - claim 20 RETRACTED. The production map is in Fdp.Toolkits which Fdp.Presentation already references. Bidirectional, O(1) both ways"
     note for IngressTranslator "TODAY it rebuilds the SENDER handle - claim 10. It already holds view, so its fix is local"
 ```
 
@@ -224,7 +222,7 @@ sequenceDiagram
     participant EgB as Egress (B)
     participant DDS as DDS
     participant InA as Ingress (A)
-    participant ResA as IAnchorResolver (A)
+    participant ResA as NetworkEntityMap (A)
     participant SelA as Selection (A)
 
     OpB->>TermB: click a pick box
@@ -246,7 +244,7 @@ sequenceDiagram
 | # | step | rests on | rail |
 |---|---|---|---|
 | **S0** | ⭐ **independent, ship first — close `D1`.** In `FindTopmostInteractivePrimitive`, compare the **whole** anchor: skip unless `anchorId` **and** `prim.AnchorGeneration` both match the binding's *(the binding's generation is already read at `DebugGizmoLayer.cs:137`)* | ⑫ ⑫b ⑬ ⑬b | a tool id `3` + an entity at ECS index `3` must **not** leak *(red-proof on today's code)*; that entity's real anchor must still resolve. ⛔ Needs a `PickTopmostEntityAnchor`-style public overload — the precedent `CE-259p` set |
-| **S1** | 🔴 **the receiver stops trusting the sender's handle.** `IAnchorResolver` + `NetworkEntityMapResolver`; `GizmoInteractionIngressTranslator` resolves by network id | ⑩ ⑲ | a batch whose `PickAnchorId` is a network id **not** present locally yields **no** event *(today it yields a wrong entity)* |
+| **S1** | 🔴 **the receiver stops trusting the sender's handle.** `GizmoInteractionIngressTranslator` takes the **`NetworkEntityMap`** and resolves by network id. ⛔ **No new interface** — ⑳ retracted | ⑩ ⑲ ⑳ | a batch whose `PickAnchorId` is a network id **not** present locally yields **no** event *(today it yields a wrong entity)* |
 | **S2** | **the egress stops disassembling.** Write the network id, not `Target.Index`/`Generation` | ⑪ ⑦ ⑧ | round-trip: egress→ingress on **two different index layouts** resolves the **same** entity. ⚠ **`GizmoInteractionTranslatorTests` must be rewritten here** — ⑮ |
 | **S3** | **the terminal returns a network id.** `ToPickToken` stops rebuilding an `Entity` | ⑨ ⑦ | the token's `AnchorId` equals the picked primitive's `BoxAnchorId` |
 | **S4** | **the two genuine consumers resolve locally.** `SelectionInteractionSystem` via the resolver; `FindGizmo` re-keyed by network id *(5 sites, `DataDrivenGizmoSystem.cs:77`/`:92`/`:103`/`:108`/`:115`)* | ⑭ ⑲ ⑳ ⑳b | selecting by network id sets `SelectionState` on the right entity; a tool armed on entity X is found by X's network id |
@@ -266,7 +264,7 @@ sequenceDiagram
 | **C1** | ⛔ **the 64-byte layout must not move** | it is a DDS-marshalled struct *(㉒)*; S6 is a rename of the same 2 bytes, not a resize |
 | **C2** | ⭐ **id 0 cannot reach the comparison for an ENTITY** | ⑰ — no `NetworkIdentity`, no pick box |
 | **C3** | ⚠ **but a tool HANDLE can carry 0** *(⑱)* ⇒ **assert non-zero at the arm site**, ⛔ do not keep a fallback for a case ⑰ makes unreachable |
-| **C4** | ⭐ the resolver is **host-supplied**, not referenced | ⑳ — and CGF/ReplayBrowser must start passing it *(⑳b)*; they have worlds, so this is unwired, not blocked |
+| **C4** | ⭐ **the map is referenced directly** — `Fdp.Toolkit.Replication.Services.NetworkEntityMap`, no abstraction | ⑳ *(retracted)* + ⑲. ⚠ CGF/ReplayBrowser must start passing it *(⑳b)* — a constructor argument |
 | **C5** | ⛔ **never `FindEntityByNetworkId`** | ⑲b — linear scan; use the map |
 | **C6** | ⚠ **a mixed-version cluster** disagrees on the value's meaning mid-upgrade — ⛔ **not a regression**, because ⑩ means those nodes already mis-target, and ㉒ means nothing fails to parse |
 
@@ -296,7 +294,8 @@ sequenceDiagram
 | ④ | *"`AnchorGeneration` is overloaded so it cannot be a domain tag"* | true in general, **false in the two positions the filter reads it** |
 | ⑤ | *"compare `BoxAnchorId`"* as the immediate fix | ③ says that field is **ignored** when `AnchorGeneration != 0` — contract-violating |
 | ⑥ | a **domain gate** *(`AnchorGeneration != 0` as a category)* | invented a concept; the real bug is comparing **half an identity** ⇒ compare both fields |
-| ⑦ | *"a resolver is not viable"* | conflated *cannot reference the class* with *cannot have the capability* ⇒ ⑳/C4 |
+| ⑦ | *"a resolver is not viable"* | conflated *cannot reference the class* with *cannot have the capability* |
+| ⑪ | ⭐ **an `IAnchorResolver` abstraction** *(withdrawn during S1)* | 🔴 **two files named `NetworkEntityMap.cs`** — I cited the `Fdp.Network.Cyclone` one; the PRODUCTION map is in **`Fdp.Toolkits`**, which `Fdp.Presentation` already references ⇒ **no abstraction needed at all.** ⑳ retracted, ⑲ corrected |
 | ⑧ | *"only 3 gizmos emit anchored primitives"* | grep over a **hand-picked list**; the graph found **13 files** ⇒ ⑯ |
 | ⑨ | an **alias pair** at offset 12 | the offset-8 analogy needs **two live uses**; offset 12 will have one ⇒ a plain **rename** |
 | ⑩ | *"it changes a wire contract"* | ⑧/㉒ — **it does not**; the record already documents a network id |

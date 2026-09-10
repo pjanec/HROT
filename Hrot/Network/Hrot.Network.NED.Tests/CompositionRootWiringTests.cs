@@ -182,15 +182,21 @@ namespace Hrot.DDS.DataModel.Tests
             var batch = new GizmoInteractionBatch
             {
                 Kind                 = GizmoInteractionEventKind.DragUpdate,
-                PickAnchorId         = (uint)entity.Index,
-                PickStreamId         = entity.Generation,
+                // ⭐ S1 (DESIGN_Gizmo_Anchor_Identity.md §6) — PickAnchorId is a NETWORK id, resolved
+                //   locally by the ingress. ⛔ It used to be the SENDER's ECS index, which is meaningless
+                //   on a receiver with a different spawn order.
+                PickAnchorId         = 90210L,
+                PickStreamId         = 0u,
                 Space                = (byte)CoordinateSpace.Screen,
             };
 
             var reader = new SingleBatchReader(batch);
             var interactionBus = new FdpEventBus();
             interactionBus.Register<GizmoDragUpdateEvent>();
-            var sys    = new GizmoInteractionIngressTranslator(reader: reader, interactionBus: interactionBus);
+            var entityMap = new Fdp.Toolkit.Replication.Services.NetworkEntityMap();
+            entityMap.Register(90210L, entity);
+            var sys    = new GizmoInteractionIngressTranslator(
+                reader: reader, interactionBus: interactionBus, entityMap: entityMap);
             var cmd = new EntityCommandBuffer();
             sys.PollIngress(cmd, repo);
             interactionBus.SwapBuffers();

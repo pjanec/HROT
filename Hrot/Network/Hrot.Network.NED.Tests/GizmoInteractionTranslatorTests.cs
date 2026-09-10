@@ -63,6 +63,23 @@ namespace Hrot.DDS.DataModel.Tests
             Assert.Equal("GizmoInteractionBatch", attr!.TopicName);
         }
 
+
+        // ⭐⭐⭐ S1/S2 (DESIGN_Gizmo_Anchor_Identity.md §6) — THESE TESTS USED TO PIN THE DEFECT.
+        //   They asserted `record.PickAnchorId == (uint)entity.Index` and fed `PickStreamId = generation`,
+        //   i.e. they encoded the SENDER's process-local ECS handle travelling over DDS — which is exactly
+        //   the cross-node mis-targeting the design removes, and it is why the bug stayed green.
+        //   ⭐ Rewritten to the contract the record itself documents (GizmoInteractionBatch.cs:21 — "a
+        //     blittable breakdown of stable network ID").
+        //   ⭐⭐ NetId is deliberately NOT equal to entity.Index, so a test cannot pass by coincidence.
+        private const long NetId = 90210L;
+
+        private static Fdp.Toolkit.Replication.Services.NetworkEntityMap MapWith(Fdp.Core.Entity entity)
+        {
+            var map = new Fdp.Toolkit.Replication.Services.NetworkEntityMap();
+            map.Register(NetId, entity);
+            return map;
+        }
+
         // SC-GZ037-2: Egress system writes DragUpdate record with correct fields.
         [Fact]
         public void SC_GZ037_2_EgressSystem_Writes_DragUpdate_Correctly()
@@ -72,7 +89,7 @@ namespace Hrot.DDS.DataModel.Tests
             var writer = new CapturingWriter();
             var interactionBus = new FdpEventBus();
             interactionBus.Register<GizmoDragUpdateEvent>();
-            var sys = new GizmoInteractionEgressTranslator(nodeId: 7, writer: writer, interactionBus: interactionBus);
+            var sys = new GizmoInteractionEgressTranslator(nodeId: 7, writer: writer, interactionBus: interactionBus, entityMap: MapWith(entity));
 
             interactionBus.Publish(new GizmoDragUpdateEvent
             {
@@ -86,7 +103,7 @@ namespace Hrot.DDS.DataModel.Tests
             var record = writer.Written[0];
             Assert.Equal(GizmoInteractionEventKind.DragUpdate, record.Kind);
             Assert.Equal(7, record.SourceNodeId);
-            Assert.Equal((uint)entity.Index, record.PickAnchorId);
+            Assert.Equal(NetId, record.PickAnchorId);   // S2 — the NETWORK id, not the ECS index
             Assert.Equal(3u, record.PickSubElementId);
             Assert.Equal(1f, record.WorldX, precision: 4);
             Assert.Equal(2f, record.WorldY, precision: 4);
@@ -103,8 +120,8 @@ namespace Hrot.DDS.DataModel.Tests
             var batch = new GizmoInteractionBatch
             {
                 Kind                 = GizmoInteractionEventKind.Commit,
-                PickAnchorId         = (uint)entity.Index,
-                PickStreamId         = entity.Generation,
+                PickAnchorId         = NetId,   // S1 — a NETWORK id, resolved locally
+                PickStreamId         = 0u,
                 PickSubElementId     = 5,
                 WorldX = 10f, WorldY = 20f, WorldZ = 30f,
             };
@@ -112,7 +129,7 @@ namespace Hrot.DDS.DataModel.Tests
             var interactionBus = new FdpEventBus();
             interactionBus.Register<GizmoInteractionCommitEvent>();
             interactionBus.Register<GizmoInteractionCancelEvent>();
-            var sys = new GizmoInteractionIngressTranslator(reader: reader, interactionBus: interactionBus);
+            var sys = new GizmoInteractionIngressTranslator(reader: reader, interactionBus: interactionBus, entityMap: MapWith(entity));
             var cmd = new EntityCommandBuffer();
             sys.PollIngress(cmd, repo);
             interactionBus.SwapBuffers();
@@ -138,14 +155,14 @@ namespace Hrot.DDS.DataModel.Tests
             var batch = new GizmoInteractionBatch
             {
                 Kind                 = GizmoInteractionEventKind.DragUpdate,
-                PickAnchorId         = (uint)index,
-                PickStreamId         = gen,
+                PickAnchorId         = NetId,   // S1 — a NETWORK id, resolved locally
+                PickStreamId         = 0u,
             };
             var reader = new SingleItemReader(batch);
             var interactionBus = new FdpEventBus();
             interactionBus.Register<GizmoInteractionCancelEvent>();
             interactionBus.Register<GizmoDragUpdateEvent>();
-            var sys = new GizmoInteractionIngressTranslator(reader: reader, interactionBus: interactionBus);
+            var sys = new GizmoInteractionIngressTranslator(reader: reader, interactionBus: interactionBus, entityMap: MapWith(entity));
             var cmd = new EntityCommandBuffer();
             sys.PollIngress(cmd, repo);
             interactionBus.SwapBuffers();
@@ -170,13 +187,13 @@ namespace Hrot.DDS.DataModel.Tests
             var batch = new GizmoInteractionBatch
             {
                 Kind                 = GizmoInteractionEventKind.Cancel,
-                PickAnchorId         = (uint)index,
-                PickStreamId         = gen,
+                PickAnchorId         = NetId,   // S1 — a NETWORK id, resolved locally
+                PickStreamId         = 0u,
             };
             var reader = new SingleItemReader(batch);
             var interactionBus = new FdpEventBus();
             interactionBus.Register<GizmoInteractionCancelEvent>();
-            var sys = new GizmoInteractionIngressTranslator(reader: reader, interactionBus: interactionBus);
+            var sys = new GizmoInteractionIngressTranslator(reader: reader, interactionBus: interactionBus, entityMap: MapWith(entity));
             var cmd = new EntityCommandBuffer();
             sys.PollIngress(cmd, repo);
             interactionBus.SwapBuffers();
@@ -257,6 +274,95 @@ namespace Hrot.DDS.DataModel.Tests
 
             Assert.Single(writer.Written);
             Assert.Equal(0xAB01u, writer.Written[0].PickGizmoTypeId);
+        }
+
+        /// <summary>
+        /// ⭐⭐⭐ <b>S1+S2 — THE RAIL THE CROSS-NODE DEFECT NEEDED, and the one the old tests could not
+        /// express.</b>
+        ///
+        /// <para>🔴 Before: the egress put the SENDER's <c>Entity.Index</c>/<c>Generation</c> on the wire
+        /// and the ingress rebuilt a local handle from them. Indices are allocated per process in spawn
+        /// order, so on a receiver with a DIFFERENT layout that handle names a different or dead entity —
+        /// silently, because the <c>IsAlive</c> guard dropped it.</para>
+        ///
+        /// <para>⭐ This drives BOTH ends with <b>deliberately mismatched index layouts</b>: the sender's
+        /// entity is the 1st created, the receiver's is the 4th, so their indices CANNOT coincide. The hop
+        /// must still land on the receiver's own entity, which is only possible via the network id.</para>
+        /// </summary>
+        [Fact]
+        public void AHopBetweenNodesWithDifferentIndexLayoutsResolvesTheSameEntity()
+        {
+            // ── sender: its entity is the FIRST created ──
+            using var senderRepo = GizmoInteractionTestRepo.Create();
+            var senderEntity = senderRepo.CreateEntity();
+
+            // ── receiver: burn three entities first, so the SAME network id maps to a DIFFERENT index ──
+            using var recvRepo = GizmoInteractionTestRepo.Create();
+            recvRepo.CreateEntity(); recvRepo.CreateEntity(); recvRepo.CreateEntity();
+            var recvEntity = recvRepo.CreateEntity();
+
+            Assert.NotEqual(senderEntity.Index, recvEntity.Index);   // the premise of the rail
+
+            var writer  = new CapturingWriter();
+            var sendBus = new FdpEventBus();
+            sendBus.Register<GizmoDragUpdateEvent>();
+            var egress = new GizmoInteractionEgressTranslator(
+                nodeId: 7, writer: writer, interactionBus: sendBus, entityMap: MapWith(senderEntity));
+
+            sendBus.Publish(new GizmoDragUpdateEvent
+            {
+                Token    = new PickToken { Target = senderEntity, SubElementId = 3 },
+                WorldPos = new System.Numerics.Vector3(1f, 2f, 3f),
+            });
+            sendBus.SwapBuffers();
+            egress.ScanAndPublish(senderRepo);
+
+            var onTheWire = Assert.Single(writer.Written);
+            Assert.Equal(NetId, onTheWire.PickAnchorId);   // S2 — a network id crossed, not a handle
+
+            // ── the same record arrives on the receiver ──
+            var recvBus = new FdpEventBus();
+            recvBus.Register<GizmoDragUpdateEvent>();
+            recvBus.Register<GizmoInteractionCancelEvent>();
+            var ingress = new GizmoInteractionIngressTranslator(
+                reader: new SingleItemReader(onTheWire), interactionBus: recvBus,
+                entityMap: MapWith(recvEntity));
+
+            ingress.PollIngress(new EntityCommandBuffer(), recvRepo);
+            recvBus.SwapBuffers();
+
+            var drags = recvBus.Read<GizmoDragUpdateEvent>().ToArray();
+            var drag  = Assert.Single(drags);
+            Assert.Equal(recvEntity, drag.Token.Target);   // S1 — the RECEIVER's own entity
+        }
+
+        /// <summary>
+        /// ⭐ <b>An unknown network id yields NO event.</b> Dropping is correct; the old handle-rebuild
+        /// fabricated a wrong-or-dead entity and let it through.
+        /// </summary>
+        [Fact]
+        public void ANetworkIdThisNodeDoesNotKnowYieldsNoEvent()
+        {
+            using var repo = GizmoInteractionTestRepo.Create();
+            var entity = repo.CreateEntity();
+
+            var batch = new GizmoInteractionBatch
+            {
+                Kind             = GizmoInteractionEventKind.Commit,
+                PickAnchorId     = 777777L,      // never registered
+                PickSubElementId = 5,
+            };
+            var bus = new FdpEventBus();
+            bus.Register<GizmoInteractionCommitEvent>();
+            bus.Register<GizmoInteractionCancelEvent>();
+
+            var sys = new GizmoInteractionIngressTranslator(
+                reader: new SingleItemReader(batch), interactionBus: bus, entityMap: MapWith(entity));
+            sys.PollIngress(new EntityCommandBuffer(), repo);
+            bus.SwapBuffers();
+
+            Assert.Empty(bus.Read<GizmoInteractionCommitEvent>().ToArray());
+            Assert.Empty(bus.Read<GizmoInteractionCancelEvent>().ToArray());
         }
     }
 }

@@ -25,6 +25,18 @@ namespace Hrot.Network.NED.Gizmos
         private readonly IDdsReader<GizmoInteractionBatch>? _reader;
         private readonly FdpEventBus _interactionBus;
 
+        // ⭐⭐⭐ S1 (DESIGN_Gizmo_Anchor_Identity.md §6) — RESOLVE, DO NOT REBUILD.
+        //   ⛔ This translator used to do `new Entity((int)batch.PickAnchorId, (ushort)batch.PickStreamId)`,
+        //     i.e. it rebuilt a LOCAL entity handle out of the SENDER's process-local ECS index and
+        //     generation. Indices are allocated per process in spawn order, so the sender's (7,3) is a
+        //     DIFFERENT or DEAD entity here => remote gizmo interaction silently mis-targeted, and the
+        //     IsAlive check below MASKED it by dropping or substituting a cancel.
+        //   🔒 GizmoInteractionBatch.cs:21 already documents these fields as a "blittable breakdown of
+        //     stable network ID", so this is a CONFORMANCE fix, not a contract change.
+        //   ⭐ O(1) both ways: Fdp.Toolkit.Replication.Services.NetworkEntityMap is the map
+        //     NetworkSpawningSystem:198 registers into.
+        private readonly Fdp.Toolkit.Replication.Services.NetworkEntityMap? _entityMap;
+
         public string TopicName => "GizmoInteractionBatch";
         public TranslatorDirection Direction => TranslatorDirection.Ingress;
         public long ReceivedSampleCount { get; private set; }
@@ -32,10 +44,12 @@ namespace Hrot.Network.NED.Gizmos
 
         public GizmoInteractionIngressTranslator(
             IDdsReader<GizmoInteractionBatch>? reader,
-            FdpEventBus interactionBus)
+            FdpEventBus interactionBus,
+            Fdp.Toolkit.Replication.Services.NetworkEntityMap? entityMap = null)
         {
             _reader         = reader;
             _interactionBus = interactionBus ?? throw new ArgumentNullException(nameof(interactionBus));
+            _entityMap      = entityMap;
         }
 
         public void PollIngress(IEntityCommandBuffer cmd, ISimulationView view)
@@ -53,7 +67,12 @@ namespace Hrot.Network.NED.Gizmos
 
         private void Translate(ISimulationView view, in GizmoInteractionBatch batch)
         {
-            var entity   = new Entity((int)batch.PickAnchorId, (ushort)batch.PickStreamId);
+            // ⭐ S1 — PickAnchorId is a NETWORK id (GizmoInteractionBatch.cs:21). Resolve it locally.
+            //   ⛔ A network id this node does not know yields NO event: dropping is correct, whereas the
+            //     old handle-rebuild fabricated a wrong-or-dead entity and let it through.
+            Entity entity = default;
+            if (_entityMap == null || !_entityMap.TryGetEntity(batch.PickAnchorId, out entity))
+                return;
             var worldPos = new Vector3(batch.WorldX, batch.WorldY, batch.WorldZ);
             var token    = new PickToken
             {
