@@ -380,12 +380,15 @@ namespace Fdp.Toolkit.Diagnostics.Gizmos.Systems
                         // Emit InputCaptureBinding for the exclusive-focus holder.
                         if (_focus.ShouldEmitBinding(this, gi.Instance))
                         {
+                            // ⭐⭐⭐ S5 (DESIGN_Gizmo_Anchor_Identity.md §6) — key the binding by the
+                            //   entity's NETWORK id, matching what its primitives stamp in BoxAnchorId.
+                            //   ⛔ It used to be `(long)entity.Index` with the generation stamped beside
+                            //     it, which is what forced the terminal to multiplex two id domains.
                             var binding = DebugPrimitive.MakeInputCaptureBinding(
-                                networkId: (long)entity.Index,
+                                networkId: NetworkIdOf(repo, entity),
                                 subElementId: 0,
                                 exclusive: gi.Instance.RequiresExclusiveFocus,
                                 wantsRawInput: gi.Instance.WantsRawInput);
-                            binding.AnchorGeneration = (ushort)entity.Generation;
                             _drawBuilder.EmitRaw(in binding);
                         }
                     }
@@ -422,12 +425,15 @@ namespace Fdp.Toolkit.Diagnostics.Gizmos.Systems
                         // Emit InputCaptureBinding for the exclusive-focus holder.
                         if (_focus.ShouldEmitBinding(this, gi.Instance))
                         {
+                            // ⭐⭐⭐ S5 (DESIGN_Gizmo_Anchor_Identity.md §6) — key the binding by the
+                            //   entity's NETWORK id, matching what its primitives stamp in BoxAnchorId.
+                            //   ⛔ It used to be `(long)entity.Index` with the generation stamped beside
+                            //     it, which is what forced the terminal to multiplex two id domains.
                             var binding = DebugPrimitive.MakeInputCaptureBinding(
-                                networkId: (long)entity.Index,
+                                networkId: NetworkIdOf(repo, entity),
                                 subElementId: 0,
                                 exclusive: gi.Instance.RequiresExclusiveFocus,
                                 wantsRawInput: gi.Instance.WantsRawInput);
-                            binding.AnchorGeneration = (ushort)entity.Generation;
                             _drawBuilder.EmitRaw(in binding);
                         }
                     }
@@ -453,12 +459,12 @@ namespace Fdp.Toolkit.Diagnostics.Gizmos.Systems
                     // Emit InputCaptureBinding for the exclusive-focus holder.
                     if (_focus.ShouldEmitBinding(this, kvp.Value))
                     {
+                        // ⭐ S5 — see the note above: the binding is keyed by the NETWORK id.
                         var binding = DebugPrimitive.MakeInputCaptureBinding(
-                            networkId: (long)kvp.Key.Index,
+                            networkId: NetworkIdOf(repo, kvp.Key),
                             subElementId: 0,
                             exclusive: kvp.Value.RequiresExclusiveFocus,
                             wantsRawInput: kvp.Value.WantsRawInput);
-                        binding.AnchorGeneration = (ushort)kvp.Key.Generation;
                         _drawBuilder.EmitRaw(in binding);
                     }
                 }
@@ -466,7 +472,7 @@ namespace Fdp.Toolkit.Diagnostics.Gizmos.Systems
 
             // 5. Route typed interaction events to the appropriate gizmo.
             var uiBus = _interactionBus ?? repo.Bus;
-            RouteInteractionEvents(uiBus);
+            RouteInteractionEvents(uiBus, repo);
 
             // 6. Process commit events and push undo records to the stack.
             if (_undoStack != null)
@@ -486,9 +492,22 @@ namespace Fdp.Toolkit.Diagnostics.Gizmos.Systems
             }
         }
 
+        /// <summary>
+        /// ⭐⭐ S5 (DESIGN_Gizmo_Anchor_Identity.md §6) — an entity's stable NETWORK id, or 0.
+        ///
+        /// <para>⭐ Reuses the existing <c>NetworkIdResolver.RuntimeNetworkIdOf</c> rather than adding a
+        /// second lookup — and it is the BP-512 shape: the question is *"what is THIS entity's id"*, which
+        /// the entity's own <c>NetworkIdentity</c> answers in O(1) with no map to keep in step.</para>
+        ///
+        /// <para>⛔ 0 means "not replicated". Such an entity emits no pick box either
+        /// (<c>EntityPresentationGizmo</c> queries <c>NetworkIdentity</c>), so it is not interactive.</para>
+        /// </summary>
+        private static long NetworkIdOf(EntityRepository repo, Entity entity)
+            => Fdp.Toolkit.Replication.Services.NetworkIdResolver.RuntimeNetworkIdOf(repo, entity);
+
         // ---- Interaction event routing -------------------------------------------
 
-        private void RouteInteractionEvents(FdpEventBus bus)
+        private void RouteInteractionEvents(FdpEventBus bus, EntityRepository repo)
         {
             // Started: find the gizmo on the picked entity, set focus if exclusive.
             var started = bus.Read<GizmoInteractionStartedEvent>();
@@ -499,7 +518,7 @@ namespace Fdp.Toolkit.Diagnostics.Gizmos.Systems
                 // ⭐ Behaviour ③ — the STEAL: touching a gizmo gives it the input, whatever held it.
                 //   The one focus behaviour with no GlobalGizmoManager counterpart (§6.2b).
                 _focus.GrantStealing(this, gizmo);
-                gizmo.OnInteractionStarted(ToGizmoToken(evt.Token), evt.WorldPos);
+                gizmo.OnInteractionStarted(ToGizmoToken(evt.Token, repo), evt.WorldPos);
             }
 
             // DragUpdate: route to the focused gizmo (token match).
@@ -575,11 +594,17 @@ namespace Fdp.Toolkit.Diagnostics.Gizmos.Systems
             => _focus.RecipientFor(this, () => FindGizmo(token.Target, token.GizmoTypeId));
 
         // Converts the ECS-based PickToken to the ECS-free GizmoPickToken used by
-        // IGizmoInteractionHandler. Index maps to AnchorId; Generation maps to StreamId.
-        private static GizmoPickToken ToGizmoToken(PickToken token) => new GizmoPickToken
+        // IGizmoInteractionHandler.
+        // ⭐⭐⭐ S5 — AnchorId is the entity's NETWORK id, which GizmoPickToken.cs:8 has always documented
+        //   ("NetworkId / semantic object id"). ⛔ It used to be token.Target.Index with the generation in
+        //   StreamId, i.e. a process-local handle in two fields whose contracts say otherwise.
+        //   ⭐ AnchorIndex/StreamId travel as an IN-PROCESS PAYLOAD only — never compared, never on the
+        //     wire. See the field notes in GizmoPickToken.cs.
+        private static GizmoPickToken ToGizmoToken(PickToken token, EntityRepository repo) => new GizmoPickToken
         {
-            AnchorId     = (long)token.Target.Index,
+            AnchorId     = NetworkIdOf(repo, token.Target),   // ⭐ IDENTITY: the network id
             SubElementId = token.SubElementId,
+            AnchorIndex  = token.Target.Index,                // ⭐ in-process payload (GizmoPickToken.cs)
             StreamId     = (uint)token.Target.Generation,
             GizmoTypeId  = token.GizmoTypeId,
         };

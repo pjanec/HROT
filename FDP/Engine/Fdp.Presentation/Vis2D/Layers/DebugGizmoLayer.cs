@@ -268,17 +268,27 @@ namespace Fdp.Toolkit.Vis2D.Layers
             }
         }
 
+        /// <summary>
+        /// ⭐⭐⭐ S3/S5 (DESIGN_Gizmo_Anchor_Identity.md §6) — REBUILD THE HANDLE FROM THE TOKEN'S PAYLOAD.
+        ///
+        /// <para>⭐ <c>token.AnchorId</c> is the IDENTITY (a network id) and is deliberately NOT used here:
+        /// <c>AnchorIndex</c> + <c>StreamId</c> are an in-process payload the producer already had, so this
+        /// needs no lookup and no map. ⛔ That matters — <c>ReplayBrowser</c> composes
+        /// <c>SelectionInteractionSystem</c> and has NO <c>NetworkEntityMap</c>, so resolving here would
+        /// silently drop its selection.</para>
+        ///
+        /// <para>⛔ A canvas click or a stateless tool has no entity: <c>AnchorGeneration</c> is 0, so
+        /// <c>Entity.Null</c> results and <c>PickToken.IsValid</c> reports invalid. ⚠ The WIRE never
+        /// carries this payload — S1/S2 resolve at the translators, where a process-local handle is
+        /// meaningless.</para>
+        /// </summary>
         private static PickToken ToPickToken(GizmoPickToken token)
         {
-            // Reconstruct the ECS handle from the multiplexed payload.
-            // WARNING: A token.AnchorId of 0 is a perfectly valid ECS Index (Entity 0).
-            // Negative values denote canvas clicks or stateless tools, which safely fall through to Entity.Null.
-            if (token.AnchorId < 0 || token.AnchorId > int.MaxValue)
-                return default;
+            if (token.StreamId == 0) return default;   // no live local entity anchor
 
             return new PickToken
             {
-                Target = new Entity((int)token.AnchorId, (ushort)token.StreamId),
+                Target       = new Entity(token.AnchorIndex, (ushort)token.StreamId),
                 SubElementId = token.SubElementId,
                 GizmoTypeId  = token.GizmoTypeId,
             };

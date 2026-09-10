@@ -136,34 +136,44 @@ namespace GizmoMap.Contracts.Tests
     // ==========================================================================
     // SC-GZ067: GizmoTypeId propagation into pick token
     // ==========================================================================
+    //
+    // 🔴 SC-GZ067-1 MOVED 2026-09-10 to GizmoMap.Presentation.Tests
+    //    (GizmoPresentationTests.GizmoPickTokenConstructionTests).
+    //
+    //    ⛔ It lived here as a RE-IMPLEMENTATION of DebugGizmoLayer.HandleInput's token construction --
+    //      this project deliberately references ONLY GizmoMap.Contracts, so it structurally cannot call
+    //      the production code (see the csproj comment). ⇒ it asserted a COPY of the logic.
+    //    📌 That blindness was measured: S5 (DESIGN_Gizmo_Anchor_Identity.md §6) changed the real
+    //      construction to `AnchorId = BoxAnchorId` and this test stayed GREEN asserting the old
+    //      `AnchorGeneration != 0 ? AnchorIndex : BoxAnchorId` -- the exact R-142 ③ shape.
+    //    ⭐ The production code now exposes ONE seam, DebugGizmoLayer.MakePickToken, and the moved rail
+    //      calls it. ⛔ Do not re-add a mirror here.
 
-    public class GizmoPickTokenGizmoTypeIdTests
+    // ==========================================================================
+
+    public class GizmoPickTokenFieldContractTests
     {
-        // SC-GZ067-1: HandleInput token construction correctly propagates GizmoTypeId from the hit
-        // primitive. Verified by replicating the token-construction logic from DebugGizmoLayer.HandleInput.
+        // SC-GZ067-2: the token separates IDENTITY from PAYLOAD -- the S5 contract, testable from the
+        // contracts assembly alone because it is a property of the STRUCT, not of the terminal.
+        // 📄 GizmoPickToken.cs field notes; DESIGN_Gizmo_Anchor_Identity.md §5.1.
         [Fact]
-        public void SC_GZ067_1_HandleInput_PropagatesGizmoTypeId_ToPickToken()
+        public void SC_GZ067_2_PickToken_CarriesIdentityAndPayloadIndependently()
         {
-            // A Box2D primitive with GizmoTypeId stamped by StampGizmoTypeId.
-            var prim = default(DebugPrimitive);
-            prim.Shape           = DebugPrimitiveShape.Box2D;
-            prim.GizmoTypeId     = 77u;
-            prim.AnchorIndex     = 5;
-            prim.AnchorGeneration = 1; // non-zero => entity-local routing path
-            prim.SubElementId    = 0;
-
-            // Replicate HandleInput's entity-local token construction (GizmoMap.Presentation).
-            long anchorId = prim.AnchorGeneration != 0 ? prim.AnchorIndex : prim.BoxAnchorId;
             var token = new GizmoPickToken
             {
-                AnchorId     = anchorId,
-                SubElementId = prim.SubElementId,
-                StreamId     = prim.AnchorGeneration,
-                GizmoTypeId  = prim.GizmoTypeId,
+                AnchorId     = 90210L,   // identity: the network id
+                AnchorIndex  = 5,        // payload: a process-local ECS index
+                StreamId     = 1u,       // payload: the ECS generation
+                SubElementId = 3u,
+                GizmoTypeId  = 77u,
             };
 
-            Assert.Equal(77u, token.GizmoTypeId);
-            Assert.Equal(5L,  token.AnchorId);
+            // ⭐ The two domains must not alias: a network id of 90210 and an index of 5 coexist.
+            Assert.Equal(90210L, token.AnchorId);
+            Assert.Equal(5,      token.AnchorIndex);
+            Assert.NotEqual(token.AnchorId, (long)token.AnchorIndex);
+            Assert.Equal(1u,     token.StreamId);
+            Assert.Equal(77u,    token.GizmoTypeId);
         }
     }
 }

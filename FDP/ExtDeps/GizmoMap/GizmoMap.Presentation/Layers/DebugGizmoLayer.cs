@@ -121,17 +121,18 @@ namespace GizmoMap.Presentation
             bool isMouseCaptured = ImGuiNET.ImGui.GetIO().WantCaptureMouse;
             bool isKeyboardCaptured = ImGuiNET.ImGui.GetIO().WantCaptureKeyboard;
 
+            // ⭐⭐⭐ S5 (DESIGN_Gizmo_Anchor_Identity.md §6) — THE CAPTURE BINDING IS KEYED BY ONE ID.
+            //   ⛔ HISTORY, and it is why the generation is no longer read here. S0 first patched the
+            //     filter to compare (value, generation) because the comparison used only the VALUE, so a
+            //     click leaked past an exclusive tool to whichever entity's ECS index equalled the active
+            //     tool's id -- GlobalGizmoManager keyed its binding by a TOOL id from NewId() (1, 2, 3...)
+            //     while an entity pick box routed its ECS AnchorIndex, the same small-integer range.
+            //   ⭐ S5 removed the CAUSE instead: identity is now the network id on both sides
+            //     (DebugPrimitive.BoxAnchorId / InputCaptureBinding.StructNetworkId), and tool ids are
+            //     allocated from a DISJOINT high range (GlobalGizmoManager.ToolAnchorIdBase, §6.1).
+            //   ⇒ one id space, one comparison. Re-adding a generation term would reintroduce the
+            //     two-domain thinking this step deleted.
             long? exclusiveAnchorId = null;
-            // ⭐⭐⭐ S0 (DESIGN_Gizmo_Anchor_Identity.md §6) — AN ANCHOR IS (value, generation).
-            //   The comparison below used only the VALUE, so two anchors with the same number and
-            //   different generations compared EQUAL. That let a click leak past an exclusive tool to
-            //   whichever entity's ECS index happened to equal the active tool's id: GlobalGizmoManager
-            //   keys its binding by a TOOL id from NewId() (1, 2, 3...) with no generation stamp, while an
-            //   entity pick box routes its ECS AnchorIndex -- the same small-integer range.
-            //   ⛔ Do NOT reduce this to a one-bit "domain" test: the fix is to compare the WHOLE anchor,
-            //     which additionally rejects a STALE handle (index reused, generation bumped) that
-            //     DebugPrimitive.cs:31-33 warns about and nothing else guards.
-            ushort exclusiveAnchorGen = 0;
             bool routeRawInput = false;
             var captureToken = default(GizmoPickToken);
             
@@ -140,16 +141,14 @@ namespace GizmoMap.Presentation
                 ref readonly var prim = ref primitives[i];
                 if (prim.Shape != DebugPrimitiveShape.InputCaptureBinding) continue;
                 if ((prim.ConditionMask & 1u) != 0)
-                {
-                    exclusiveAnchorId  = prim.StructNetworkId;
-                    exclusiveAnchorGen = prim.AnchorGeneration;   // S0 -- the other half of the anchor
-                }
+                    exclusiveAnchorId = prim.StructNetworkId;
                 if ((prim.ConditionMask & 2u) != 0) routeRawInput = true;
                 captureToken = new GizmoPickToken
                 {
-                    AnchorId = prim.StructNetworkId,
+                    AnchorId     = prim.StructNetworkId,   // ⭐ S5 — IDENTITY: network id (or a tool id)
                     SubElementId = prim.SubElementId,
-                    StreamId = prim.AnchorGeneration,
+                    AnchorIndex  = prim.AnchorIndex,       // ⭐ payload
+                    StreamId     = prim.AnchorGeneration,
                 };
                 break;
             }
@@ -179,25 +178,12 @@ namespace GizmoMap.Presentation
             // Gate activation: ignore if ImGui is capturing the mouse
             if (_activeTool == null && !isMouseCaptured && Raylib.IsMouseButtonPressed(MouseButton.Left))
             {
-                var best = FindTopmostInteractivePrimitive(primitives, worldPos, camera.Zoom, exclusiveAnchorId, exclusiveAnchorGen);
+                var best = FindTopmostInteractivePrimitive(primitives, worldPos, camera.Zoom, exclusiveAnchorId);
                 if (best.HasValue)
                 {
                     var hit = best.Value;
                     
-                    // We multiplex two distinct addressing domains inside the fixed 64-byte payload.
-                    // If AnchorGeneration != 0, the primitive is bound to a live local ECS entity. We route the
-                    // local AnchorIndex so the engine can reconstruct the exact ECS memory handle.
-                    // If AnchorGeneration == 0, the primitive is a stateless tool handle or remote network object.
-                    // We fall back to the 64-bit BoxAnchorId to route the global network ID or tool ID.
-                    long anchorId = hit.AnchorGeneration != 0 ? hit.AnchorIndex : hit.BoxAnchorId;
-                    
-                    var token = new GizmoPickToken
-                    {
-                        AnchorId = anchorId,
-                        SubElementId = hit.SubElementId,
-                        StreamId = hit.AnchorGeneration,
-                        GizmoTypeId = hit.GizmoTypeId,
-                    };
+                    var token = MakePickToken(in hit);
                     _activeTool = new GizmoInteractionProxyTool(
                         token, worldPos, onInteraction, onExit: () => _activeTool = null, hit.Space);
                     _activeTool.HandlePress(worldPos, MouseButton.Left);
@@ -224,21 +210,13 @@ namespace GizmoMap.Presentation
                 {
                     long hitNetworkId = -1L; // canvas anchor fallback
 
-                    var best = FindTopmostInteractivePrimitive(primitives, worldPos, camera.Zoom, exclusiveAnchorId, exclusiveAnchorGen);
+                    var best = FindTopmostInteractivePrimitive(primitives, worldPos, camera.Zoom, exclusiveAnchorId);
                     if (best.HasValue)
                     {
                         var hit = best.Value;
                         hitNetworkId = hit.BoxAnchorId != 0 ? hit.BoxAnchorId : -1L;
-                        
-                        long anchorId = hit.AnchorGeneration != 0 ? hit.AnchorIndex : hit.BoxAnchorId;
-                        
-                        var token = new GizmoPickToken
-                        {
-                            AnchorId = anchorId,
-                            SubElementId = hit.SubElementId,
-                            StreamId = hit.AnchorGeneration,
-                            GizmoTypeId = hit.GizmoTypeId,
-                        };
+
+                        var token = MakePickToken(in hit);
                         onInteraction?.Invoke(token, GizmoInteractionEventKind.Started, worldPos3, 0, 0);
                     }
 
@@ -481,7 +459,36 @@ namespace GizmoMap.Presentation
         }
 
         /// <summary>
-        /// ⭐⭐ <b>Test seam for the exclusive-capture filter (S0).</b> Mirrors
+        /// ⭐⭐⭐ <b>S5 (DESIGN_Gizmo_Anchor_Identity.md §6) — ONE ID, AND IT IS THE NETWORK ID.</b>
+        /// The single place a hit primitive becomes a <see cref="GizmoPickToken"/>.
+        ///
+        /// <para>⛔ Both call sites in <see cref="HandleInput"/> used to build the token inline as
+        /// <c>anchorId = AnchorGeneration != 0 ? AnchorIndex : BoxAnchorId</c> — a PROCESS-LOCAL ECS index
+        /// in a field <c>GizmoPickToken.cs:8</c> documents as a *"NetworkId / semantic object id"*. That is
+        /// defect <c>D2</c> of the design, and having it written twice is how the left-press arm kept the
+        /// old behaviour after the right-click arm was fixed.</para>
+        ///
+        /// <para>⭐ <c>AnchorIndex</c>/<c>StreamId</c> still travel, as an IN-PROCESS PAYLOAD only — never
+        /// compared, never routed, never on the wire. The field notes in <c>GizmoPickToken.cs</c> say why a
+        /// payload and not a map lookup (<c>ReplayBrowser</c> has no <c>NetworkEntityMap</c>).</para>
+        ///
+        /// <para>⭐ Public so a rail can assert it without a live window — <see cref="HandleInput"/> needs
+        /// Raylib. ⛔ A test that RE-IMPLEMENTS this is blind to exactly the bug above.</para>
+        /// </summary>
+        public static GizmoPickToken MakePickToken(in DebugPrimitive hit) => new GizmoPickToken
+        {
+            AnchorId     = hit.BoxAnchorId,        // ⭐ IDENTITY: the network id (or a disjoint tool id)
+            SubElementId = hit.SubElementId,
+            AnchorIndex  = hit.AnchorIndex,        // ⭐ payload — see GizmoPickToken.cs
+            StreamId     = hit.AnchorGeneration,   // ⭐ payload — the ECS generation
+            GizmoTypeId  = hit.GizmoTypeId,
+        };
+
+        /// <summary>⭐ Test seam: the disjoint tool-anchor-id range (§6.1), without a Fdp.Toolkits reference.</summary>
+        public static long ToolCaptureIdForTests(int n) => (1L << 40) + n;
+
+        /// <summary>
+        /// ⭐⭐ <b>Test seam for the exclusive-capture filter (S0/S5).</b> Mirrors
         /// <see cref="PickTopmostEntityAnchor"/> -- which exists for the same reason -- but lets a rail
         /// supply the capture binding that <see cref="HandleInput"/> would have scanned out of the frame.
         ///
@@ -490,10 +497,9 @@ namespace GizmoMap.Presentation
         /// </summary>
         public static (int Index, ushort Generation)? PickTopmostEntityAnchorUnderCapture(
             ReadOnlySpan<DebugPrimitive> primitives, Vector2 worldPos, float zoom,
-            long? exclusiveAnchorId, ushort exclusiveAnchorGen)
+            long? exclusiveAnchorId)
         {
-            var best = FindTopmostInteractivePrimitive(
-                primitives, worldPos, zoom, exclusiveAnchorId, exclusiveAnchorGen);
+            var best = FindTopmostInteractivePrimitive(primitives, worldPos, zoom, exclusiveAnchorId);
             if (!best.HasValue) return null;
 
             var hit = best.Value;
@@ -506,8 +512,7 @@ namespace GizmoMap.Presentation
             ReadOnlySpan<DebugPrimitive> primitives,
             Vector2 testPos,
             float zoom,
-            long? exclusiveAnchorId = null,
-            ushort exclusiveAnchorGen = 0)
+            long? exclusiveAnchorId = null)
         {
             DebugPrimitive? best = null;
             float effZoom = zoom > 0f ? zoom : 1f;
@@ -519,16 +524,19 @@ namespace GizmoMap.Presentation
 
                 if (prim.AnchorIndex == 0 && prim.SubElementId == 0 && prim.BoxAnchorId == 0) continue;
 
-                // We multiplex two distinct addressing domains inside the fixed 64-byte payload.
-                // If AnchorGeneration != 0, the primitive is bound to a live local ECS entity. We route the
-                // local AnchorIndex so the engine can reconstruct the exact ECS memory handle.
-                // If AnchorGeneration == 0, the primitive is a stateless tool handle or remote network object.
-                // We fall back to the 64-bit BoxAnchorId to route the global network ID or tool ID.
-                long anchorId = prim.AnchorGeneration != 0 ? prim.AnchorIndex : prim.BoxAnchorId;
-                // ⭐ S0 -- compare the WHOLE anchor: value AND generation. See the note in HandleInput.
-                if (exclusiveAnchorId.HasValue
-                    && (anchorId != exclusiveAnchorId.Value || prim.AnchorGeneration != exclusiveAnchorGen))
-                    continue;
+                // ⭐⭐⭐ S5 (DESIGN_Gizmo_Anchor_Identity.md §6) — ONE ID, AND IT IS THE NETWORK ID.
+                //   ⛔ This used to multiplex two addressing domains:
+                //        anchorId = AnchorGeneration != 0 ? AnchorIndex : BoxAnchorId
+                //     ...and then compare only the VALUE, so a TOOL id matched an entity whose ECS index
+                //     happened to equal it (S0 patched that by also comparing the generation).
+                //   ⭐ Identity is now BoxAnchorId on BOTH sides: every entity primitive stamps its network
+                //     id there (EntityPresentationGizmoShared.EmitPickBox, and the tool handles likewise),
+                //     and a binding carries the same id in StructNetworkId. Tool ids come from a DISJOINT
+                //     range so the single space stays unambiguous (GlobalGizmoManager.ToolAnchorIdBase).
+                //   ⇒ S0's generation term is GONE: with one id space it adds nothing and reintroduces the
+                //     two-domain thinking this step removes.
+                long anchorId = prim.BoxAnchorId;
+                if (exclusiveAnchorId.HasValue && anchorId != exclusiveAnchorId.Value) continue;
 
                 float hitRadius = prim.SizeMode == SizeMode.ScreenPixels ? 5f / effZoom : 5f;
                 bool hit = false;

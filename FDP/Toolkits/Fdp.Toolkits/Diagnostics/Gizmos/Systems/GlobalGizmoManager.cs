@@ -26,6 +26,20 @@ namespace Fdp.Toolkit.Diagnostics.Gizmos.Systems
     {
         private static long _nextId = 0;
 
+        /// <summary>
+        /// ⭐⭐⭐ S5 (DESIGN_Gizmo_Anchor_Identity.md §6.1) — TOOL ANCHOR IDS LIVE IN A DISJOINT RANGE.
+        ///
+        /// <para>Anchor identity is now the NETWORK ID everywhere, so tool ids and entity network ids
+        /// share ONE numeric space — and they collided: tool ids ran 1, 2, 3… while
+        /// <c>Hrot.Core.Network.SequentialIdAllocator</c> hands out 2, 3, 4… ⇒ a global tool's exclusive
+        /// binding would have admitted the entity whose network id equalled the tool id.</para>
+        ///
+        /// <para>⛔ NOT negative: <c>DebugGizmoLayer</c> uses <c>-1L</c> as the CANVAS sentinel, so a
+        /// negative tool id would read as "the canvas". ⭐ A high positive base collides with nothing — a
+        /// network id would have to exceed 1.1e12 — and it resolves to no entity, which is correct.</para>
+        /// </summary>
+        public const long ToolAnchorIdBase = 1L << 40;
+
         private readonly IDebugDrawBuilder _drawBuilder;
         private readonly Dictionary<long, IEntityStatefulGizmo> _activeGizmos = new();
         private readonly GizmoFocusRegistry _focus;
@@ -60,7 +74,7 @@ namespace Fdp.Toolkit.Diagnostics.Gizmos.Systems
         public GizmoFocusRegistry Focus => _focus;
 
         /// <summary>Generates a unique stable id for use with <see cref="Register"/>.</summary>
-        public static long NewId() => Interlocked.Increment(ref _nextId);
+        public static long NewId() => ToolAnchorIdBase + Interlocked.Increment(ref _nextId);
 
         /// <summary>
         /// Registers a gizmo with the given stable id. If the gizmo requires exclusive

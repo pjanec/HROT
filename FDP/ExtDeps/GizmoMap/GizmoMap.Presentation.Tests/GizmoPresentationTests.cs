@@ -498,4 +498,81 @@ namespace GizmoMap.Presentation.Tests
             Assert.NotNull(method);
         }
     }
+
+    // ==========================================================================
+    // SC-GZ067: pick-token construction — DebugGizmoLayer.MakePickToken
+    // 🔴 MOVED here 2026-09-10 from GizmoMap.Contracts.Tests, where it could only
+    //    RE-IMPLEMENT the logic (that project references ONLY GizmoMap.Contracts) and so
+    //    stayed green while S5 changed the real construction. R-142 ③.
+    // 📄 docs/DESIGN_Gizmo_Anchor_Identity.md §5.1/§6 (S5).
+    // ==========================================================================
+
+    public class GizmoPickTokenConstructionTests
+    {
+        private static DebugPrimitive EntityPickBox(long networkId, int ecsIndex, ushort ecsGen, uint gizmoTypeId = 0u)
+        {
+            var p = default(DebugPrimitive);
+            p.Shape            = DebugPrimitiveShape.Box2D;
+            p.Space            = CoordinateSpace.World;
+            p.BoxAnchorId      = networkId;
+            p.AnchorIndex      = ecsIndex;
+            p.AnchorGeneration = ecsGen;
+            p.GizmoTypeId      = gizmoTypeId;
+            return p;
+        }
+
+        // SC-GZ067-1: the token's IDENTITY is the network id, never the ECS index.
+        // ⛔ RED-PROOF SHAPE: restore `AnchorGeneration != 0 ? AnchorIndex : BoxAnchorId` in
+        //    MakePickToken and this asserts 5L instead of 90210L.
+        [Fact]
+        public void SC_GZ067_1_MakePickToken_AnchorIdIsTheNetworkId()
+        {
+            var prim = EntityPickBox(networkId: 90210L, ecsIndex: 5, ecsGen: 1, gizmoTypeId: 77u);
+
+            var token = DebugGizmoLayer.MakePickToken(in prim);
+
+            Assert.Equal(90210L, token.AnchorId);
+            Assert.Equal(77u,    token.GizmoTypeId);
+        }
+
+        // SC-GZ067-1b: the ECS handle still travels, as a PAYLOAD — the local adapter rebuilds
+        // Entity(AnchorIndex, StreamId) from it without any map lookup.
+        [Fact]
+        public void SC_GZ067_1b_MakePickToken_CarriesTheEcsHandleAsPayload()
+        {
+            var prim = EntityPickBox(networkId: 90210L, ecsIndex: 5, ecsGen: 7);
+
+            var token = DebugGizmoLayer.MakePickToken(in prim);
+
+            Assert.Equal(5,  token.AnchorIndex);
+            Assert.Equal(7u, token.StreamId);
+        }
+
+        // SC-GZ067-1c: a TOOL handle has no ECS anchor — the payload is empty and the identity is the
+        // tool's own (disjoint-range) id, so the consumer resolves no entity. §6.1.
+        [Fact]
+        public void SC_GZ067_1c_MakePickToken_ToolHandleHasNoEcsPayload()
+        {
+            var prim = EntityPickBox(networkId: DebugGizmoLayer.ToolCaptureIdForTests(3), ecsIndex: 0, ecsGen: 0);
+
+            var token = DebugGizmoLayer.MakePickToken(in prim);
+
+            Assert.Equal(DebugGizmoLayer.ToolCaptureIdForTests(3), token.AnchorId);
+            Assert.Equal(0u, token.StreamId);   // ⇒ ToPickToken yields Entity.Null
+        }
+
+        // SC-GZ067-1d: an entity whose NETWORK id collides with ANOTHER entity's ECS index is not
+        // confusable — the two live in different fields. This is defect D1's root cause, pinned.
+        [Fact]
+        public void SC_GZ067_1d_MakePickToken_NetworkIdAndEcsIndexDoNotAlias()
+        {
+            // Entity A: network id 3, ECS index 41.  Entity B: network id 41, ECS index 3.
+            var a = DebugGizmoLayer.MakePickToken(EntityPickBox(networkId: 3L,  ecsIndex: 41, ecsGen: 1));
+            var b = DebugGizmoLayer.MakePickToken(EntityPickBox(networkId: 41L, ecsIndex: 3,  ecsGen: 1));
+
+            Assert.NotEqual(a.AnchorId, b.AnchorId);
+            Assert.Equal(3L,  a.AnchorId);
+            Assert.Equal(41L, b.AnchorId);
+        }
+    }
 }

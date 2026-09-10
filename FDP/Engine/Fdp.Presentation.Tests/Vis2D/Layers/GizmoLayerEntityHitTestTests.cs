@@ -22,7 +22,8 @@ namespace Fdp.Toolkit.Vis2D.Tests.Layers
         private const float Zoom = 1f;
 
         /// <summary>A box primitive anchored to a live local ECS entity, as an entity avatar draws.</summary>
-        private static DebugPrimitive EntityBox(int index, ushort generation, float x, float y, float size = 4f)
+        private static DebugPrimitive EntityBox(
+            int index, ushort generation, float x, float y, float size = 4f, long networkId = 0L)
         {
             var p = default(DebugPrimitive);
             p.Shape         = DebugPrimitiveShape.Box2D;
@@ -32,6 +33,10 @@ namespace Fdp.Toolkit.Vis2D.Tests.Layers
             p.BoxExtentY    = size;
             p.AnchorIndex      = index;
             p.AnchorGeneration = generation;
+            // ⭐ S5 (DESIGN_Gizmo_Anchor_Identity.md §6) — the IDENTITY. Every entity primitive stamps its
+            //   network id here (EntityPresentationGizmoShared.EmitPickBox), and it is the only field the
+            //   exclusive-capture filter compares. AnchorIndex/Generation above are payload only.
+            p.BoxAnchorId      = networkId;
             return p;
         }
 
@@ -119,66 +124,75 @@ namespace Fdp.Toolkit.Vis2D.Tests.Layers
             Assert.Equal(7, hit!.Value.Index);
         }
 
-        // ── S0 (DESIGN_Gizmo_Anchor_Identity.md §6) — THE EXCLUSIVE FILTER COMPARES THE WHOLE ANCHOR ──
+        // ── S5 (DESIGN_Gizmo_Anchor_Identity.md §6) — THE EXCLUSIVE FILTER COMPARES THE NETWORK ID ──
+        //
+        // ⚠ These replace the interim S0 rails. S0 compared the WHOLE anchor (value + generation) as a
+        //   stop-gap while two id domains still existed; S5 collapses identity to the NETWORK ID, so the
+        //   generation is no longer part of the comparison and the rails say so in those terms.
+
+        private const long EntityNetId = 4242L;
 
         /// <summary>
-        /// 🔴🔴🔴 <b>The defect, reproduced: a click LEAKED past an exclusive tool to whichever entity's
-        /// ECS index equalled the active tool's id.</b>
+        /// 🔴🔴🔴 <b>The defect, in S5 terms: a TOOL capture must not admit an ENTITY.</b>
         ///
-        /// <para>📐 <c>GlobalGizmoManager</c> keys its capture binding by a TOOL id from
-        /// <c>NewId()</c> — 1, 2, 3… — with NO generation stamp, while an entity pick box routes its ECS
-        /// <c>AnchorIndex</c>: the same small-integer range. The filter compared only the VALUE, so tool
-        /// id 3 and entity index 3 matched and the picker's click reached the entity underneath, which
-        /// then dragged and got selected.</para>
-        ///
-        /// <para>⭐ Red-proof: drop the <c>prim.AnchorGeneration != exclusiveAnchorGen</c> term and this
-        /// rail returns the entity.</para>
+        /// <para>📐 Tool ids and entity network ids now share ONE numeric space, so they are allocated
+        /// disjointly — <c>GlobalGizmoManager.ToolAnchorIdBase</c> (§6.1). Before that, tool ids ran
+        /// 1, 2, 3… and network ids 2, 3, 4…, so a global tool's exclusive binding admitted whichever
+        /// entity's id collided, and the picker's click reached it: it dragged and got selected.</para>
         /// </summary>
         [Fact]
-        public void AToolDomainCaptureDoesNotAdmitAnEntityWhoseIndexEqualsTheToolId()
+        public void AToolCaptureDoesNotAdmitAnEntity()
         {
-            var prims = new[] { EntityBox(index: 3, generation: 4, x: 100f, y: 50f) };
+            var prims = new[] { EntityBox(index: 3, generation: 4, x: 100f, y: 50f, networkId: EntityNetId) };
 
-            // A GLOBAL (tool) binding: MakeInputCaptureBinding leaves AnchorGeneration at 0.
             var hit = GizmoMap.Presentation.DebugGizmoLayer.PickTopmostEntityAnchorUnderCapture(
                 prims, new Vector2(100f, 50f), Zoom,
-                exclusiveAnchorId: 3L, exclusiveAnchorGen: 0);
+                exclusiveAnchorId: GizmoMap.Presentation.DebugGizmoLayer.ToolCaptureIdForTests(1));
 
             Assert.Null(hit);
         }
 
         /// <summary>
-        /// ⭐⭐ <b>The counter-case, so the fix cannot over-filter.</b> An ENTITY-domain capture — what
-        /// <c>DataDrivenGizmoSystem</c> emits, keyed by <c>entity.Index</c> WITH the generation stamped —
-        /// must still admit that entity, or handle dragging breaks.
+        /// ⭐⭐⭐ <b>The disjoint-range guarantee, asserted rather than assumed (§6.1).</b> A tool anchor id
+        /// can never equal a plausible entity network id — <c>SequentialIdAllocator</c> starts at 2 and the
+        /// editor's at 1000, while tool ids start above 2^40.
         /// </summary>
         [Fact]
-        public void AnEntityDomainCaptureStillAdmitsItsOwnEntity()
+        public void AToolAnchorIdCanNeverCollideWithAnEntityNetworkId()
         {
-            var prims = new[] { EntityBox(index: 3, generation: 4, x: 100f, y: 50f) };
+            long firstToolId = GizmoMap.Presentation.DebugGizmoLayer.ToolCaptureIdForTests(1);
+
+            Assert.True(firstToolId > 1L << 39,
+                $"tool ids must live in a disjoint high range; got {firstToolId}");
+            Assert.True(firstToolId > 1_000_000_000L, "a network id could never reach the tool range");
+        }
+
+        /// <summary>
+        /// ⭐⭐ <b>The counter-case, so the fix cannot over-filter.</b> An entity-scoped capture — what
+        /// <c>DataDrivenGizmoSystem</c> emits, keyed by the entity's NETWORK id (S5) — must still admit
+        /// that entity, or handle dragging breaks.
+        /// </summary>
+        [Fact]
+        public void AnEntityCaptureStillAdmitsItsOwnEntity()
+        {
+            var prims = new[] { EntityBox(index: 3, generation: 4, x: 100f, y: 50f, networkId: EntityNetId) };
 
             var hit = GizmoMap.Presentation.DebugGizmoLayer.PickTopmostEntityAnchorUnderCapture(
-                prims, new Vector2(100f, 50f), Zoom,
-                exclusiveAnchorId: 3L, exclusiveAnchorGen: 4);
+                prims, new Vector2(100f, 50f), Zoom, exclusiveAnchorId: EntityNetId);
 
             Assert.NotNull(hit);
             Assert.Equal(3, hit!.Value.Index);
             Assert.Equal((ushort)4, hit.Value.Generation);
         }
 
-        /// <summary>
-        /// ⭐ <b>A STALE handle is rejected too</b> — same index, generation bumped after the ECS slot was
-        /// reused. 🔒 <c>DebugPrimitive.cs:31-33</c> warns about exactly this and nothing guarded it
-        /// before S0.
-        /// </summary>
+        /// <summary>⭐ A capture for a DIFFERENT entity does not admit this one.</summary>
         [Fact]
-        public void AStaleAnchorGenerationIsRejected()
+        public void AnEntityCaptureDoesNotAdmitADifferentEntity()
         {
-            var prims = new[] { EntityBox(index: 3, generation: 9, x: 100f, y: 50f) };
+            var prims = new[] { EntityBox(index: 3, generation: 4, x: 100f, y: 50f, networkId: EntityNetId) };
 
             var hit = GizmoMap.Presentation.DebugGizmoLayer.PickTopmostEntityAnchorUnderCapture(
-                prims, new Vector2(100f, 50f), Zoom,
-                exclusiveAnchorId: 3L, exclusiveAnchorGen: 4);
+                prims, new Vector2(100f, 50f), Zoom, exclusiveAnchorId: EntityNetId + 1);
 
             Assert.Null(hit);
         }
@@ -187,11 +201,10 @@ namespace Fdp.Toolkit.Vis2D.Tests.Layers
         [Fact]
         public void WithNoCaptureBindingEveryEntityIsStillPickable()
         {
-            var prims = new[] { EntityBox(index: 3, generation: 4, x: 100f, y: 50f) };
+            var prims = new[] { EntityBox(index: 3, generation: 4, x: 100f, y: 50f, networkId: EntityNetId) };
 
             var hit = GizmoMap.Presentation.DebugGizmoLayer.PickTopmostEntityAnchorUnderCapture(
-                prims, new Vector2(100f, 50f), Zoom,
-                exclusiveAnchorId: null, exclusiveAnchorGen: 0);
+                prims, new Vector2(100f, 50f), Zoom, exclusiveAnchorId: null);
 
             Assert.NotNull(hit);
             Assert.Equal(3, hit!.Value.Index);
