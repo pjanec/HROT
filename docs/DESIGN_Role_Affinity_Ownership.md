@@ -1,6 +1,6 @@
 <!--STATUS
 state: LIVE
-updated: 2026-09-01
+updated: 2026-09-10
 build-state: READY-TO-BUILD
 current-answer: §3 is the design; §4 carries the UML; §5 holds the open decisions, each with a lean.
   Nothing here is built yet.
@@ -13,6 +13,20 @@ known-rot: §3.1's FIRST draft (2026-09-01, same day) applied ONE symmetric rule
 open-risk: §3.5 -- BTreeTickSystem's query carries NO authority filter, so declining authority does
   not stop a node ticking a brain. Until step 3b lands, the rest of this design gates replication
   only. Do not mark this design BUILT while §3.5 is open.
+  RE-MEASURED 2026-09-10, and §3.5 was wrong in three ways -- all corrected in place there:
+  (1) the filter method is WithOwned<T>() at QueryBuilder.cs:93, NOT ".WithAuthority<T>() at :97";
+  (2) "no production system uses it" is FALSE -- CoordinateTransformSystem:29, GeodeticSmoothingSystem:31
+      and CarKinematicsSystem:73 all do, and it REPLACED the legacy manual owner checks (MOD1-P1T3),
+      so it is an adopted pattern and its per-frame cost is two BitMask512 ops on an already-loaded
+      cache line (EntityQuery.cs:157-158, step 4 after liveness' cold meta fetch);
+  (3) MUCH BIGGER: §3.5 named ONE system and there are SEVEN un-gated, three of which WRITE cognitive
+      state. HsmTickSystem:110-113 is the non-negotiable second -- BehaviorState.BrainTier selects the
+      tier, so gating only BTreeTickSystem leaves every HSM-tier ghost double-ticked.
+  => step 3b is a PER-SYSTEM PASS, not a one-line query edit. The DECISION (both (a) and (b)) is
+  unchanged and its escape clause is closed.
+  ALSO 2026-09-10: §5 decision (3) LEAN CHANGED to DEFER -- IClusterStateCache publishes no brain index
+  or count, and it lives in Hrot.Network.NED which REFERENCES Fdp.Toolkits, so the policy's designed
+  home cannot see it without breaking the network-agnosticism ruling that settled decision (1).
 known-rot: an earlier draft sourced the role's ownable set from DescriptorOwnershipMap and called
   that "the one place a networking concept is defensible". WRONG -- corrected in §2.3 (user ruling,
   2026-09-01): there are multiple network implementations (NedNetworkFactory, BdcNetworkFactory,
@@ -332,7 +346,28 @@ var q = repo.Query()
 **replication** *(every egress translator checks it)* and a **few explicit in-system gates**
 *(`TacticalIntentResolutionSystem:94`, whose own event doc says the `HasAuthority<BehaviorState>` checks
 *"are sufficient to prevent"* duplicate execution — ⚠ that comment is about ASSIGNMENT, not the tick)*.
-📐 `QueryBuilder:97` supports `.WithAuthority<T>()`, and **no production system uses it.**
+⛔⛔ **RE-MEASURED `2026-09-10`, AND THIS LINE WAS WRONG TWICE.** It read: *"`QueryBuilder:97` supports
+`.WithAuthority<T>()`, and no production system uses it."*
+
+| the old claim | 📐 measured `2026-09-10` |
+|---|---|
+| the method is `.WithAuthority<T>()` at `:97` | 🔴 **there is no such method.** It is **`WithOwned<T>()` at `QueryBuilder.cs:93`** *(plus `WithoutOwned<T>()` at `:105`)*. ⇒ the design named a symbol that does not exist, so every reader searching for it found nothing and could have concluded the capability was missing |
+| *"no production system uses it"* | 🔴 **THREE production systems use it, and the comments say it REPLACED the legacy manual `PrimaryOwnerId == LocalNodeId` checks** *(`MOD1-P1T3`)*: `Fdp.Toolkits/Geographic/Systems/CoordinateTransformSystem.cs:29` `.WithOwned<Position>()` · `GeodeticSmoothingSystem.cs:31` `.WithoutOwned<Position>()` · `CarKinem/Systems/CarKinematicsSystem.cs:73` `.WithOwned<SimTransform>()`. ⇒ ⭐⭐ **this is an ADOPTED, production-proven pattern, not a dormant capability** |
+| *(implied)* the filter might cost per-frame time — §5 ①c's escape clause | ⭐⭐ **NOT a risk, measured at the enumerator.** `EntityQuery.cs:157-158` applies the authority masks as **step 4**, *after* the hot component-mask filter *and after* the cold `meta` fetch that the liveness check (`:145`) already pays. ⇒ the added cost is **two `BitMask512` ops on an already-loaded cache line**, and `CarKinematicsSystem` already pays it every frame in production. ⛔ **§5 ①c's *"if `.WithAuthority` proves to have a measurable per-frame cost"* is therefore CLOSED — it does not** |
+
+⛔⛔⛔ **AND THE BIGGER FINDING: THIS SECTION NAMES ONE SYSTEM; THERE ARE SEVEN.**
+📐 `grep -rln "With<BehaviorState>\|With<BrainBlackboard>\|With<BrainBTreeState>"` over `FDP/`+`Hrot/`,
+tests excluded — **every one un-gated**:
+
+| system | why it matters |
+|---|---|
+| 🔴🔴 **`HsmTickSystem.cs:110-113`** *(`.With<BehaviorState>().With<T>()`)* | ⭐⭐⭐ **the exact sibling of `BTreeTickSystem`.** `BehaviorState.BrainTier` selects which tier ticks *(`BTreeTickSystem:78-80` skips non-BTree)* ⇒ **gating only the BTree system leaves every HSM-tier ghost double-ticked.** ⛔ Non-negotiable: it ships with (b) or (b) is half a fix |
+| 🔴 `CognitiveCleanupSystem.cs:26-32` | **WRITES** — `GetComponentRW<BrainBlackboard>` on **every** entity holding a blackboard, clearing interrupt bits ⇒ a node clobbers a blackboard another node owns |
+| 🔴 `ChannelArbitrationSystem.cs:23-44` · `CognitiveInterruptSystem.cs:59-79` | both **WRITE** cognitive state on un-gated queries |
+| ⚠ `TraceBufferLifecycleSystem.cs:46-49` · `MissionDirectorSystem.cs:91-94` · `Hrot.CGF` `MissionAdapterSystem` · `RouteContextSystem` | ⭐ read-mostly and/or Brain-only by composition ⇒ **judge each**, do not blanket-gate. ⛔ But judging each is the work, and it is not one line |
+
+⇒ ⭐⭐ **(b) is a PER-SYSTEM PASS over ~7 systems, not a one-line query edit.** ⚠ That changes the
+ESTIMATE, ⛔ not the decision — see §5 ①c.
 
 ⇒ ⭐⭐⭐ **The architect's Path-B line — *"SimHost does not touch or register brain components"* — is not
 tidiness. It is the actual protection**, and it is `tkb-1/DESIGN.md` §6.5b gate ②: a component a node
@@ -341,7 +376,7 @@ never registers is skipped by the translator, so the query never matches and not
 | ⭐ closure | |
 |---|---|
 | **(a) PRIMARY — registration** | narrow a Muscle-only node's `CognitiveComponentRegistry` so brain components are never registered. ⭐ Zero runtime cost, uses the architecture's own narrowing lever. 📐 Today `Hrot/Subsystems/Hrot.SimHost/CognitiveComponentRegistry.cs:32-40` registers `BehaviorState`, `LocomotionChannel`, `BrainBTreeState`, `BrainBlackboard` |
-| **(b) ALSO REQUIRED — the tick gate** | add `.WithAuthority<BehaviorState>()` to `BTreeTickSystem`'s query. ⚠ **(a) alone is not sufficient**: a node that legitimately registers brain components *(all-in-one, or a Muscle node running its own brains per `R-138`)* and then receives a ghost whose brain another node owns would **double-tick**. Authority is the only thing that can separate *"my brain"* from *"someone else's brain"* on such a node |
+| **(b) ALSO REQUIRED — the tick gate** | add **`.WithOwned<BehaviorState>()`** *(the real method name — see the correction above)* to `BTreeTickSystem`'s query **AND `HsmTickSystem`'s**, then judge the other five. ⚠ **(a) alone is not sufficient**: a node that legitimately registers brain components *(all-in-one, or a Muscle node running its own brains per `R-138`)* and then receives a ghost whose brain another node owns would **double-tick**. Authority is the only thing that can separate *"my brain"* from *"someone else's brain"* on such a node |
 
 ### 3.6 ⚠ TWO different "authority" concepts — do not confuse them
 
@@ -482,9 +517,9 @@ sequenceDiagram
 |---|---|---|---|
 | **①** | ~~descriptor set or component-id set?~~ | ✅ **SETTLED `2026-09-01` — a `BitMask512` of COMPONENT IDS assigned to the role.** ⛔ Not `DescriptorOwnershipMap`: it is populated per network implementation *(NED / BDC / offline)*, so an ownership rule keyed on it would differ per stack and be empty offline. See §2.3 | — |
 | **①b** | ~~which DESCRIPTORS are birth-critical~~ | ✅ **SETTLED `2026-09-01` — and the question itself was wrong.** It is a **COMPONENT** property *(descriptors are a networking concept; a networkless node has none)*, declared by the **TKB template**, and the initial content is **`SimTransform` only, only for templates that list it**. See §3.1 | — |
-| **①c** | 🔴 **the execution gate** *(§3.5)* — registration, the query filter, or both? | ⭐⭐ **both**: narrow a Muscle-only node's registration *(primary, zero cost)* **and** add `.WithAuthority<BehaviorState>()` to `BTreeTickSystem`. ⛔ Registration alone leaves the all-in-one / own-brains case double-ticking | if `.WithAuthority` proves to have a measurable per-frame cost on large entity counts, registration alone plus an explicit in-system check |
-| **②** | nobody holds the role ⇒ the component is owned by **no one** and nothing ticks it | ⭐ **log once per entity, no fallback.** A fallback *("creator keeps it after N frames")* reintroduces exactly the race this design removes | if silent brainless entities prove common in real deployments, revisit as a startup-time cluster check, not a per-entity fallback |
-| **③** | multiple Brain nodes | ⭐ `NetworkId % brainCount == myBrainIndex` **inside the policy**, so the mechanism never learns about it | needs the cluster to publish a stable brain index; `IClusterStateCache` already tracks nodes by role |
+| **①c** | 🔴 **the execution gate** *(§3.5)* — registration, the query filter, or both? | ⭐⭐ **both** — UNCHANGED, and the escape clause is now DEAD. ⚠⚠ **RE-MEASURED `2026-09-10`, three corrections in §3.5:** the method is **`WithOwned<T>()`**, not `.WithAuthority<T>()`; **three production systems already use it** *(it replaced the legacy manual owner checks)*; and its cost is **two `BitMask512` ops on an already-loaded cache line** *(`EntityQuery.cs:157-158`, step 4 after the cold `meta` fetch liveness already pays)*. ⇒ ⛔ **the "measurable per-frame cost" that would have flipped this lean does not exist.** 🔴 **What DID change is the SIZE:** §3.5 named ONE system; there are **SEVEN** un-gated, three of which WRITE cognitive state, and **`HsmTickSystem` is the non-negotiable second** *(the `BrainTier` field selects BTree vs HSM ⇒ gating only BTree leaves HSM ghosts double-ticked)* | ⛔ **nothing measurable remains.** The only open part is the per-system judgement on the other five — a review, not a decision |
+| **②** | nobody holds the role ⇒ the component is owned by **no one** and nothing ticks it | ⭐ **log once per entity, no fallback** — UNCHANGED. A fallback *("creator keeps it after N frames")* reintroduces exactly the race this design removes. ⭐⭐ **AND TAKE THE STARTUP CHECK NOW, not "later"** *(re-measured `2026-09-10`)*: the *"what would change it"* column deferred a startup cluster check as future work, ⛔ **but the predicate already exists and is one line** — `IClusterStateCache.GetLeastLoadedNode(NodeRole.Brain)` returns `int?` and **`null` IS "nobody holds the role"** *(`Hrot.Network.NED/Routing/IClusterStateCache.cs:23`)*. ⚠ It is NED-only, so it belongs at the node's composition root, ⛔ never inside the policy *(§2.3)* | if a deployment legitimately runs with no Brain *(a pure-Muscle test cluster)* the boot check must WARN, not throw |
+| **③** | multiple Brain nodes | ⛔⛔ **LEAN CHANGED `2026-09-10` — DEFER IT ENTIRELY; ship P3 single-Brain.** ⚠ The old lean *(`NetworkId % brainCount == myBrainIndex` inside the policy)* rested on *"`IClusterStateCache` already tracks nodes by role"*, and 📐 **measuring that surface breaks it twice.** ⛔ **① it publishes no index and no count** — the whole interface is `GetLeastLoadedNode(NodeRole)` · `UpdateNode` · `PruneStale` *(`:23`/`:29`/`:35`)*, so there is **no stable ordering to be `myBrainIndex`**, and `PruneStale` changes membership silently. ⛔⛔ **② it would BREAK THE RULING THAT SETTLED ①:** `IClusterStateCache` lives in **`Hrot.Network.NED`**, and 📐 `Hrot.Network.NED.csproj:35` references `Fdp.Toolkits` — **the wall points the wrong way**, so the policy at its designed home *(§6 step 1, `Fdp.Toolkits/Replication`)* **cannot see it**. Sourcing a brain index there re-introduces a network-implementation dependency into ownership, which is exactly what the `2026-09-01` ruling forbids. ⛔ **③ a semantic hazard the old lean never named:** the policy is evaluated at **birth and promotion only** *(§3.2's two insertion points)* ⇒ a Brain joining or leaving re-shards `NetworkId % brainCount` for NEW entities while live ones keep their birth assignment. **Ownership becomes history-dependent** — not a crash, but not a rule either | ⭐ if multiple Brain nodes become a near-term deployment requirement, ③ is not deferrable — and the right shape is then an **`IBrainShardProvider` injected DOWNWARD from the host** *(the trick `DESIGN_Subsystem_Composition_Unification.md` §4.1t used for Stride's capabilities)*, ⛔ never a `Fdp.Toolkits` → NED reference. It is its own design, with the re-shard question answered first |
 
 ---
 
