@@ -1,8 +1,12 @@
 <!--STATUS
 state: LIVE
-build-state: NOT-BUILT
+build-state: READY-TO-BUILD (§2.7 is the consolidated TARGET STATE with class + sequence diagrams;
+  §2.7.5 carries the slice order S-1..S-6. Nothing is built yet.)
 verified: 2026-09-10 (measured source scan, graph + grep, coverage checked)
-current-answer: NOT-BUILT (design only). ISelectionState unchanged; no EcsSelectionState; CGF not on the
+current-answer: ✅ READ §2.7 — the consolidated TARGET STATE (2026-09-10), with the class diagram, the
+  request/notify sequence, the delete-list and the S-1..S-6 slice order. §2.1 is its older sketch and
+  §2.7 supersedes it where they differ. §2.6 carries the rulings §2.7 encodes.
+  STILL NOT BUILT: ISelectionState unchanged; no EcsSelectionState; CGF not on the
   selection chain; ClearAll has 0 callers.
   ⭐ 2026-09-10 — §2.6 is NEW and carries four user rulings: selection is GLOBAL across every host
   (ChainToMap as an opt-in is retired), a selection CHANGE cancels editing of the previously selected
@@ -64,9 +68,13 @@ cover the panel-private stores or the full `PrimarySelected` write set. ⭐ The 
 📐 **`PrimarySelected` alone has 9 production write sites:** `CgfSubsystem.cs:1461`, `:2884` ·
 `EditorSubsystem.cs:754`, `:789`, `:1946`, `:2008`, `:2013` · `SelectEntitySystem.cs:83`.
 
-⇒ 🔒 **This is why the `2026-09-10` rulings in §2.6 cannot be built before §2.1** — *"the selection
-changed"* currently has four possible meanings, so nothing single can be hooked. *(Coverage when measured:
-index mode `full`, recording complete; no parse gaps in any file named here.)*
+⇒ ⚠⚠ **CORRECTED same day — an earlier version of this line said this is why ALL of §2.6's rulings
+"cannot be built before §2.1". That is too coarse.** ⭐ Only ruling ① *(selection is global)* needs §2.1 —
+that ruling **is** §2.1. Rulings ② and §2.3 row 1 are **per-entity / local** and buildable without it
+*(`UX_Feature_Tool_Model.md` §4.14 carries the per-ruling table)*. ⭐ What the four stores DO block is the
+**request/notify protocol** of §2.7, because *"the selection changed"* has four possible meanings until
+S-1 lands. *(Coverage when measured: index mode `full`, recording complete; no parse gaps in any file
+named here.)*
 
 ⚠ **Corrected 2026-08-12** ([Correction 28](UX_Tasks_Detail.md#corrections)) — an earlier draft of this
 section claimed the two stores are *desynchronised in the Editor*. **They are not.** The audit below is
@@ -462,6 +470,132 @@ as a defect.
 menu — 🔒 user ruling `2026-09-10`, recorded with its measurements in
 [`UX_Feature_Tool_Model.md` §4.13](UX_Feature_Tool_Model.md). ⭐ It was already incoherent: it **gates** on
 the right-clicked entity holding `TargetMemory` and then **acts** on the selected entities instead.
+
+### 2.7 ⭐⭐⭐ TARGET STATE — **consolidated `2026-09-10`** *(supersedes §2.1's sketch where they differ)*
+
+⭐ §2.1 got the *store* right and predates every ruling of `2026-09-10`. This section is the **whole target**:
+one owner, two events, four stores collapsing to one, and every surface a requester.
+
+#### 2.7.1 The classes
+
+```mermaid
+classDiagram
+    class SelectionState {
+        <<ECS component - THE TRUTH>>
+        +bool IsSelected
+        +bool IsPrimarySelection
+    }
+    class ISelectionState {
+        <<interface - becomes a VIEW>>
+        +IsSelected(e) bool
+        +SelectedEntities
+        +PrimarySelected
+        +Add(e)
+        +Remove(e)
+        +SetMultiple(set)
+        +Clear()
+    }
+    class EcsSelectionState {
+        <<read-through over the component>>
+    }
+    class DdsBackedSelectionState {
+        <<non-ECS hosts - ExCon>>
+    }
+    class SelectionRequestSystem {
+        <<THE ONLY WRITER>>
+        +Execute(view, dt)
+    }
+    class SelectionChangeRequest {
+        <<FDP event - EXISTS but single-entity>>
+        +Entities
+        +Mode
+    }
+    class SelectionChangedNotification {
+        <<FDP event - DOES NOT EXIST YET>>
+        +Selected
+        +Primary
+    }
+    class ISelectionRequester {
+        <<every surface - panels, map, orbat, dispatcher>>
+    }
+
+    ISelectionState <|.. EcsSelectionState
+    ISelectionState <|.. DdsBackedSelectionState
+    EcsSelectionState ..> SelectionState : reads
+    ISelectionRequester ..> SelectionChangeRequest : publishes
+    SelectionRequestSystem ..> SelectionChangeRequest : consumes
+    SelectionRequestSystem ..> SelectionState : the ONLY writer
+    SelectionRequestSystem ..> SelectionChangedNotification : publishes
+    ISelectionRequester ..> SelectionChangedNotification : reacts - repaints
+```
+
+| element | state today |
+|---|---|
+| `SelectionState` component | ✅ exists, already models multi-select |
+| `ISelectionState` | ⚠ exists; 🔴 **needs `Add`/`Remove`/`SetMultiple`/`Clear`** — it has only `IsSelected`, `SelectedEntities`, `PrimarySelected`, `HoveredEntity` |
+| `EcsSelectionState` | 🔴 **does not exist** — `DefaultSelectionState` is a parallel `HashSet` store |
+| `DdsBackedSelectionState` | 🔴 does not exist; 🔒 ruling: *"some similar central piece on non ecs nodes"* |
+| `SelectionRequestSystem` | ⚠ `SelectEntitySystem` is its single-entity ancestor |
+| **request** event | ⚠ `SelectEntityCommand` exists but is `long NetworkId` — **needs a set + a mode** *(replace · add · remove · clear)* |
+| 🔴 **notification** event | ⛔ **DOES NOT EXIST.** Both `SelectionChangedEvent` *(`[DdsTopic]`)* and `SelectionChangedEventDto` are NETWORK types ⇒ `R-134` requires a NEW FDP-internal record |
+
+#### 2.7.2 The flow
+
+```mermaid
+sequenceDiagram
+    participant S as Surface
+    participant Bus as FdpEventBus
+    participant Sys as SelectionRequestSystem
+    participant ECS as SelectionState
+    participant Tools as ToolController
+    participant All as All surfaces
+
+    S->>Bus: SelectionChangeRequest(entities, mode)
+    Note over S: a panel knows ONLY this
+    Bus->>Sys: consumed
+    Sys->>ECS: apply - the ONLY writer
+    Sys->>Bus: SelectionChangedNotification
+    Bus->>All: repaint indicators
+    Bus->>Tools: entity lost selection?
+    Tools->>Tools: NotifyToolEnded for its armed tool
+```
+
+#### 2.7.3 The rules this encodes
+
+| # | rule | source |
+|---|---|---|
+| **1** | ⭐⭐ **ONE writer.** `SelectionRequestSystem` is the only thing that mutates the truth | 🔒 *"the global ecs repo … no one else"* |
+| **2** | **Every surface is a requester** — map, ECS inspector, DER inspector, orbat, **and the remote-map-control dispatcher** | 🔒 *"just another requester"* |
+| **3** | ⛔ **No surface reads tool state**, and none writes the store | 🔒 *"panels … stay unaware of any map or map tools whatsoever"* |
+| **4** | ⭐ Panels repaint from the **notification**; their own sets are VIEW state | 🔒 *"listen and react to selection changed"* |
+| **5** | **Losing selection cancels that entity's edit** — the tool side observes, via `NotifyToolEnded` per `Tool_Model` §4.7h | 🔒 ruling ② |
+| **6** | ⭐ Right-click SELECTS *(§2.3, and row 1 — an already-selected entity keeps the whole selection)* | 🔒 `2026-08-12` + `2026-09-10` |
+| **7** | Selection is **HOST-LOCAL**; DDS carries it only for direct 2-D map control, translated at the boundary | 🔒 ruling ⑤/⑥ |
+| **8** | ⛔ **Echo suppression at the EGRESS translator**, never by muting the notification | §2.6 |
+
+#### 2.7.4 What must be deleted, not merely added
+
+| 🔴 | |
+|---|---|
+| `DefaultSelectionState`'s own `HashSet` | becomes `EcsSelectionState`, a read-through |
+| the **3 hand-rolled `SetSelected`** | `SelectionInteractionSystem` · `EditorSubsystem` · `IgApplication.SelectEntityOnMap:1596-1614` ⇒ all become requests |
+| `EntityInspectorPanel._selectedEntities` · `DerEntityInspectorPanel._selectedEntityId` | view state fed by the notification |
+| `EntityInspectorPanel.ChainToMap` | ⛔ **retired** — a panel may not know a map exists |
+| `ScenarioOrbatAdapter`'s `ActivateEditorToolEvent(Select)` | ⭐ redundant once rule 5 is central |
+| `IgApplication._fdpInspectorState` hand-sync | a notification consumer |
+
+#### 2.7.5 Sequencing — **derived from the measurements, not preference**
+
+| # | slice | gate |
+|---|---|---|
+| **S-1** | `ISelectionState` gains the multi mutators; `EcsSelectionState` replaces `DefaultSelectionState` | the 4 stores become 1 + views |
+| **S-2** | the **request** event gains a set + mode; `SelectionRequestSystem` becomes the only writer | the 3 hand-rolled writers are deleted |
+| **S-3** | the **notification** event *(new, FDP-internal)*; panels subscribe | ⛔ `R-134`: no DDS type in the internal path |
+| **S-4** | right-click selects on every surface *(§2.3 incl. row 1)*; DER inspector gains a seam | `CE-259s`'s ordering resolves with it |
+| **S-5** | rule 5 — losing selection cancels that entity's edit | ⭐ needs **S-4** *(a targeted arming does not select — `Tool_Model` §4.14)* |
+| **S-6** | remote-map-control dispatcher becomes a requester; echo suppression moves to egress | 📄 `DESIGN_Remote_Map_Control.md` |
+
+⚠ **`UXI-24` (multi-select) rides on S-1 + S-2** — its map additive-click needs the mutators and the mode.
 
 ## 3. Acceptance
 

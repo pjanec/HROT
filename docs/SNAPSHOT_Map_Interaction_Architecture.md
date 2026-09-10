@@ -5,7 +5,9 @@ snapshot-date: 2026-09-10
 updated: 2026-09-10
 current-answer: §1 is the block map, §2 the data flows, §3 the remote-map-control path. §4 is the
   FINDINGS LEDGER from the 2026-09-10 session (the reason this file exists). §5 is FUTURE INTENTIONS
-  and the two owning designs that do not exist yet. §6 lists rot found in OTHER documents.
+  and the two owning designs — B (remote map control) was WRITTEN 2026-09-10 as
+  docs/DESIGN_Remote_Map_Control.md (work item CE-259u); A (the interaction-surface layer) is STILL
+  MISSING. §6 lists rot found in OTHER documents.
 owns-nothing: ⛔ NOT an owning design. Do NOT cite this to justify a change.
   The real owners: docs/DESIGN_Map_Rendering_And_Interaction.md (the layer reference) ·
   docs/UX/UX_Feature_Map_Parity.md (UXI-23 — projectors, construction, policy) ·
@@ -234,6 +236,11 @@ worth separating because the two need different work:
 ⇒ 🔒 **The honest summary: the map and tool axes ARE in good shape; selection is the axis where they are
 not**, which is why it surfaced repeatedly through the `2026-09-10` session.
 
+⭐⭐ **Both now have a written target state** *(`2026-09-10`)*: the extraction in
+📄 **[`DESIGN_Remote_Map_Control.md`](DESIGN_Remote_Map_Control.md)** *(work item `CE-259u`, slices
+`D-1..D-6`)*, and the de-duplication in 📄 **`UX/UX_Feature_Selection.md` §2.7** *(slices `S-1..S-6`)*.
+⭐ `D-1..D-4` are independent of `S-*`; `D-5`/`D-6` need `S-2`.
+
 ## 4. FINDINGS LEDGER — `2026-09-10`
 
 ⭐ Filed as tracker rows unless marked otherwise. **All measured; `file:line` in the row.**
@@ -270,12 +277,12 @@ not**, which is why it surfaced repeatedly through the `2026-09-10` session.
 | 7 | target-pick moves to the **selected perceiver's** menu, fanning out over all selected that support it | §4.13 |
 | 8 | the menu shows only items applicable to **ALL** selected | §2.4 / ruling 47 *(pre-existing)* |
 
-### 5.2 The two owning designs that DO NOT EXIST
+### 5.2 The two owning designs — **one written `2026-09-10`, one still missing**
 
 | # | needed for | why it cannot be squeezed into an existing doc |
 |---|---|---|
 | ⭐⭐ **A** | **the interaction-surface layer** | 📐 `DESIGN_Map_Rendering_And_Interaction.md` says of itself *"**Owns nothing** — it is the shared reference"*, and §4.3 SPLITS ownership: `UXI-23` = projectors/construction/policy, `UXI-07` = tools/modality/routing, action half **joint**. ⇒ **no document owns "the interaction surface" as a thing.** 🔒 User intent: *"as unified as possible … best if there is just one implementation, where role-specific means just parametrizing"* — which is what `MapInteractionPack`+`MapInteractionContext` already are; the design has to say so and own the seam |
-| ⭐⭐ **B** | **remote map control** | 🔒 User intent: *"the remote map command dispatcher should rather be a separate module installable on any host having 2d map, and maybe present just on IG node"* ⇒ present-by-CONFIGURATION, not by code shape *(`R-141`)*. ⭐ The seam exists — `ContributeExtras` — ⛔ but the dispatcher does not, and *"wiring the remote map command to host-internal selection will then be just one of many responsibilities"* |
+| ✅ **B — WRITTEN `2026-09-10`** | **remote map control** ⇒ 📄 **[`DESIGN_Remote_Map_Control.md`](DESIGN_Remote_Map_Control.md)**, `READY-TO-BUILD`, work item **`CE-259u`** | 🔒 User intent: *"the remote map command dispatcher should rather be a separate module installable on any host having 2d map, and maybe present just on IG node"* ⇒ present-by-CONFIGURATION, not by code shape *(`R-141`)*. ⭐ The seam exists — `ContributeExtras` — ⛔ but the dispatcher does not, and *"wiring the remote map command to host-internal selection will then be just one of many responsibilities"* |
 
 ⚠ **Sequencing that follows from the measurements, not from preference:**
 `CE-259r` and §4.7i are independent and buildable now · ruling ② needs `§2.3`'s inspector arm · rulings
