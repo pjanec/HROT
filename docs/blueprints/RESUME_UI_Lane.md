@@ -1,7 +1,19 @@
 <!--STATUS
 state: LIVE
-updated: 2026-09-03
-current-answer: ✅✅✅ READ docs/blueprints/BOOTSTRAP_Entity_Creation_Session.md §5.0 — THE AGREED PLAN
+updated: 2026-09-10
+current-answer: ⚠⚠ THERE ARE NOW **TWO** LIVE STRANDS ON THIS LANE. Read the one you are continuing.
+  ══ STRAND 1 — MAP INTERACTION / SELECTION / TOOLS (the live one as of 2026-09-10) ══
+  ✅✅✅ READ docs/SNAPSHOT_Map_Interaction_Architecture.md FIRST. It is a SNAPSHOT, not an owning
+  design: §1 the block map, §2 the data flows, §3 remote map control, §4 the FINDINGS LEDGER,
+  §5 the eight user rulings of 2026-09-10 + the TWO OWNING DESIGNS THAT DO NOT EXIST YET,
+  §6 rot owed to other documents. Then its owners: UX_Feature_Tool_Model.md §4.7h–§4.14 and
+  UX_Feature_Selection.md §2.6.
+  BUILDABLE NOW, measured, nothing else blocking: CE-259r (reorder the gizmo group — the picker's
+  hover hit-tests an empty frame) and Tool_Model §4.7i (a suspended tool draws geometry, no handles).
+  OPEN with leans: CE-259s, CE-259t. FIXED 2026-09-10: CE-259q.
+  ⛔ The 2026-09-09 T1 manual test found the amber-crosshair defect; it is CE-259r and NOT yet fixed.
+  ══ STRAND 2 — ENTITY CREATION (as of 2026-09-03, untouched since) ══
+  READ docs/blueprints/BOOTSTRAP_Entity_Creation_Session.md §5.0 — THE AGREED PLAN
   (user-confirmed 2026-09-01). That is the ordered continuation point; this file is only the longer LOG.
   STATE AS OF 2026-09-03 (branch head e762fe988, next free id CE-166):
     P1 EntityCreationPack adoption — ✅ COMPLETE, ALL SIX HOSTS. Host (f) IG landed 2026-09-03 with
