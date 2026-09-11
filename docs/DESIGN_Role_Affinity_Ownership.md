@@ -724,8 +724,21 @@ in it.** Every construction site passes `GhostCreationSystem` alone *(`NedReplic
 `BdcReplicationModule.cs:61`, and every test)*, and promotion was registered **standalone**, i.e. OUTSIDE
 the gate.
 ⇒ ⭐ the pack registers it standalone too, **preserving today's behaviour exactly** — 🔒 a relocation may
-not change behaviour. ⛔ Whether promotion *should* be gated during replay is a real question with a real
-answer somewhere, and it is **filed, not answered here**.
+not change behaviour.
+
+✅✅ **FOLLOWED UP `2026-09-11`, and the answer vindicates that choice** *(`CE-259ao` resolved,
+`CE-259ap` filed)*. 📐 Measured:
+
+| question | answer |
+|---|---|
+| is the group's summary stale prose? | ⛔ **No — it was INTENT.** `docs/designs/replay-and-modules/DESIGN.md` §2.1 lists the group as *"Disabled during replay — block ghost create/promote/destroy"* ⇒ 🔒 **the CODE is behind the DESIGN**, `R-129` from the unusual direction |
+| ⭐⭐ **does a replay deliver ghosts to promote?** | ⛔ **NOT from the restore path.** No record/replay code writes `EntityMetadataCold.LifecycleState`, and its default is **`Constructing = 0`, not `Ghost`** ⇒ a restored entity cannot match `With<TkbIdentity>().WithLifecycle(Ghost)`. The only ghost source is live DDS ingress, which `TogglableInputGroup` is what actually stops |
+| does the gate work for what it DOES hold? | ⛔ **No — it is INERT.** `GhostCreationSystem.Execute` is an empty body; ghosts come from `CreateGhost(...)` called directly by ingress translators ⇒ toggling `Enabled` changes nothing |
+
+⇒ ⭐⭐⭐ **promotion's absence from the group is LATENT, not live** — so `P2` was right to preserve the
+behaviour rather than "fix" the gate, and the real work is `CE-259ap`'s *(honour `BypassLifecycle` at
+`CreateGhost` and delete the group, rather than populating a group in the wrong layer)*. ⛔ Still not done
+here: both options change replay behaviour on every host.
 
 ### 📐 GATES
 

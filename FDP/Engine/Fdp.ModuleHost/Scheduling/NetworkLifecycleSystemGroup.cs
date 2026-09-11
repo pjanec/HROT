@@ -3,19 +3,48 @@ using Fdp.ModuleHost.Abstractions;
 namespace Fdp.ModuleHost.Scheduling
 {
     /// <summary>
-    /// Groups the three network lifecycle systems — <c>LifecycleSystem</c>,
-    /// <c>GhostPromotionSystem</c>, and <c>NetworkGatewaySystem</c> — under a
-    /// single gate.
+    /// ⭐ A replay gate: when <see cref="Enabled"/> is <c>false</c>,
+    /// <see cref="ExecuteGroup"/> iterates zero systems. Toggled by
+    /// <c>ReferenceReplayLoadHandler</c> — <c>false</c> on <c>RunningReplay</c>
+    /// (<c>CGF1-S0304</c>), <c>true</c> again on <c>RunningLive</c> (<c>CGF1-S0305</c>).
     ///
-    /// <para>
-    /// When <see cref="Enabled"/> is <c>true</c> (default), all three inner
-    /// systems execute normally each frame.  When set to <c>false</c>
-    /// (e.g. during <c>RunningReplay</c> by <c>ReplayLoadClusterStateHandler</c>),
-    /// <see cref="ExecuteGroup"/> iterates zero systems so no lifecycle state
-    /// changes or ghost promotions occur during playback (CGF1-S0304).
-    /// Reset to <c>true</c> by <c>ReplayLoadClusterStateHandler</c> when returning to
-    /// <c>RunningLive</c> (CGF1-S0305).
-    /// </para>
+    /// <para>⛔⛔⛔ <b>MEASURED <c>2026-09-11</c>: TODAY THIS GATE IS INERT. Toggling
+    /// <see cref="Enabled"/> changes no behaviour whatsoever.</b> Two independent reasons, and
+    /// <b>both</b> must be fixed before it protects anything — 📄 filed as <c>CE-259ap</c>:
+    /// <list type="number">
+    ///   <item>⛔ <b>Every production site passes exactly ONE member —
+    ///     <c>GhostCreationSystem</c> — and that system's <c>Execute</c> is an empty body</b>
+    ///     (*"No-op: system is registered for pipeline consistency"*). Ghosts are created by
+    ///     <c>GhostCreationSystem.CreateGhost(...)</c>, called DIRECTLY by the ingress translators on
+    ///     the Input phase — a path this gate cannot reach. ⇒ disabling the group stops a no-op.</item>
+    ///   <item>⛔ <b>The same instance is ALSO registered with the scheduler</b>
+    ///     (<c>NedReplicationModule.RegisterSystems</c>, <c>BdcReplicationModule</c>), which knows
+    ///     nothing about <see cref="Enabled"/>. ⚠ Harmless only because the method is a no-op; it
+    ///     means the gate would not hold even if the member did work.</item>
+    /// </list></para>
+    ///
+    /// <para>⚠⚠ <b>An earlier version of this summary said the group holds *"the three network
+    /// lifecycle systems — <c>LifecycleSystem</c>, <c>GhostPromotionSystem</c> and
+    /// <c>NetworkGatewaySystem</c>"*, and that no *"lifecycle state changes or ghost promotions occur
+    /// during playback."* ⛔ NONE of those three has ever been passed to it by any site.</b>
+    /// ⭐⭐ <b>But that text was not invention — it was INTENT, and the design still holds it:</b>
+    /// <c>docs/designs/replay-and-modules/DESIGN.md</c> §2.1 lists this group as *"Disabled during
+    /// replay — block ghost create/promote/destroy during playback"*, and §3.10.3 names two further
+    /// systems that *"must be moved inside"* it. ⇒ 🔒 <b>the CODE is behind the DESIGN here; the comment
+    /// was ahead of it.</b> This summary now states what the class DOES and cites where the intent
+    /// lives, so a reader can tell the two apart.</para>
+    ///
+    /// <para>⚠ <b>What actually protects a replay today</b>, so nobody concludes replay is unguarded:
+    /// <c>TogglableInputGroup</c> is disabled during playback (§2.1), which is what stops live DDS
+    /// ingress from reaching the translators that call <c>CreateGhost</c>. ⛔ The second documented
+    /// protection, <c>GhostCreationSystem.BypassLifecycle</c>, is written by three production sites and
+    /// <b>read by none</b> — see that property's own remarks.</para>
+    ///
+    /// <para>⭐ <b>And the restore path delivers no ghosts to promote</b> — measured: no record/replay
+    /// code writes <c>EntityMetadataCold.LifecycleState</c> at all, and its default is
+    /// <c>EntityLifecycle.Constructing</c> (<c>= 0</c>), NOT <c>Ghost</c>, so a restored entity cannot
+    /// match <c>GhostPromotionSystem</c>'s <c>WithLifecycle(Ghost)</c> query. ⇒ promotion's absence from
+    /// this group is LATENT, not live.</para>
     /// </summary>
     public sealed class NetworkLifecycleSystemGroup
     {

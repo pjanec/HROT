@@ -1,3 +1,23 @@
+<!--STATUS
+state: LIVE
+updated: 2026-09-11
+current-answer: §2.1 is the TARGET table and §3.10 the gap list. ⚠ This document was written as a
+  DESIGN of replay isolation, and §1.1 is titled "Broken Replay Isolation" — so its tables describe
+  how it was MEANT to be, not how it IS. Read §2.1a before quoting the NetworkLifecycleSystemGroup row.
+known-rot: ⛔⛔ §2.1's row "NetworkLifecycleSystemGroup | Disabled during replay | block ghost
+  create/promote/destroy" is NOT the as-is, measured 2026-09-11 (§2.1a): every production site passes
+  that group exactly ONE member (GhostCreationSystem), whose Execute is an EMPTY BODY, so toggling the
+  group's Enabled flag changes no behaviour at all. GhostPromotionSystem and NetworkGatewaySystem have
+  never been passed to it by any site, and GhostDestructionSystem — §3.10.3's first "must be moved
+  inside" — was DELETED outright by CE-144, so that half of §3.10.3 is moot rather than outstanding.
+  ⛔ §2.1's second documented protection, GhostCreationSystem.BypassLifecycle, is written by three
+  production sites and READ BY NONE. Filed as CE-259ap.
+  ⭐ What DOES protect a replay today is the TogglableInputGroup row (disabled ⇒ no live DDS ingress
+  reaches the translators that call CreateGhost directly), and the fact that the restore path never
+  writes EntityMetadataCold.LifecycleState — whose default is Constructing (0), not Ghost.
+stale-below: nothing beyond the known-rot above; the other §2.1 rows were not re-measured on
+  2026-09-11 and carry no claim either way.
+-->
 # Design: Replay Isolation and Modern Module System
 
 ## 1. Problem Statement
@@ -47,6 +67,32 @@ The following table reflects the final decisions from the design discussion:
 | `PlaybackTickSystem` | Not registered | **Running** | Drives replay frame-by-frame restore of ECS state |
 | Export phase (CycloneEgressSystem, SmartEgressSystem, OwnershipEgressSystem) | Runs normally | Runs normally | IG nodes receive historical state from network; timeline seek requires a forced-dirty workaround (see Section 3.10) |
 | `RecorderTickSystem` | Runs when RecordingModule active | **Not registered** | RecordingModule is uninstalled at exercise end; it is mutually exclusive with ReplayModule |
+
+
+### 2.1a ⛔⛔ AS-IS — **the `NetworkLifecycleSystemGroup` row is NOT built, and the gate is INERT** *(measured `2026-09-11`)*
+
+⚠ **§2.1 above is the TARGET.** This subsection is what the code does, measured while relocating
+`GhostPromotionSystem` into `EntityCreationPack` *(`P2`; [`../../DESIGN_Role_Affinity_Ownership.md`](../../DESIGN_Role_Affinity_Ownership.md) §6a)*.
+
+| the row claims | measured |
+|---|---|
+| the group holds `LifecycleSystem`, `GhostPromotionSystem`, `NetworkGatewaySystem` | ⛔ **none of the three, at any site.** Every construction site passes **`GhostCreationSystem` alone** — `NedReplicationModule.cs:219`, `BdcReplicationModule.cs:61`, and all eight test sites |
+| disabling it blocks ghost **create** | ⛔ **No.** `GhostCreationSystem.Execute` is `{ }` — *"No-op: system is registered for pipeline consistency."* Ghosts are made by `CreateGhost(...)`, called **directly by the ingress translators** on the Input phase, a path no scheduler gate reaches. ⇒ **toggling `Enabled` changes nothing** |
+| disabling it blocks ghost **promote** | ⛔ promotion was never in the group; it was registered standalone *(and now comes from `EntityCreationPack`)*. ⚠ **But LATENT, not live** — see the row below |
+| disabling it blocks ghost **destroy** | ⭐ **moot**: `GhostDestructionSystem`, §3.10.3's first *"must be moved inside"*, was **DELETED** by `CE-144`. Destruction now goes through `NetworkSpawningSystem.ProcessDestroy` → the ELM |
+| `GhostCreationSystem.BypassLifecycle` skips lifecycle + map registration during replay | ⛔ **written by 3 production sites, READ BY NONE.** `CreateGhost` does not consult it; it unconditionally sets `Ghost` and registers in the map |
+| ⭐ **does a replay deliver ghosts to promote at all?** | ⛔ **Not from the restore path.** 📐 No record/replay code writes `EntityMetadataCold.LifecycleState`, and its default is **`Constructing = 0`, not `Ghost`** ⇒ a restored entity cannot match `GhostPromotionSystem`'s `With<TkbIdentity>().WithLifecycle(Ghost)` query. ⇒ the ONLY ghost source is live DDS ingress, which the `TogglableInputGroup` row is what actually stops |
+
+⇒ ⭐⭐ **The honest summary: replay isolation for the ghost path rests on `TogglableInputGroup` and on the
+restore path not writing lifecycle — NOT on this group, which protects nothing today.** ⛔ Two of the
+three mechanisms §2.1 names *(the group, `BypassLifecycle`)* are inert. 📄 Filed as **`CE-259ap`**; not
+fixed here, because making either one live **changes replay behaviour on every host** and nothing has
+measured what depends on the current behaviour.
+
+⚠⚠ **And four rails are GREEN over it** — `ReplayLoadClusterOpHandlerTests`, `LiveFromReplayTests`,
+`NodeBootstrapperReplayTests`, `FullBranchPipelineTests`, **12/12** — because they assert the flag and the
+group's `Enabled` **flip**, never that either has an **effect**. 📌 `R-142` ③'s shape: the setter is
+tested, and the setter is all there is.
 
 ### 2.2 IG Nodes During Replay
 
