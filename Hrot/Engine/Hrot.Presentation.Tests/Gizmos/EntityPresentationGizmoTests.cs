@@ -316,6 +316,46 @@ namespace Hrot.Presentation.Tests.Gizmos
         }
 
         /// <summary>
+        /// ⭐⭐⭐ <b>§6.8 — AN ENTITY WHOSE NETWORK ID IS 0 EMITS NOTHING.</b>
+        /// 📄 <c>docs/DESIGN_Gizmo_Anchor_Identity.md</c> §6.8.
+        ///
+        /// <para>⛔ The <c>[GizmoProjector(SimTransform, NetworkIdentity)]</c> attribute guarantees the
+        /// component is PRESENT, never that its value is usable. With <c>0</c> this gizmo used to emit
+        /// THREE broken primitives from one unset field: a <c>SpatialAnchor</c> nothing can reference, a
+        /// pick box that wins the hit-test and resolves to nothing, and an <c>EntityLocal</c>
+        /// <c>SemanticShape</c> that resolves against no anchor.</para>
+        ///
+        /// <para>⚠ An entity whose id has not been allocated yet is a NORMAL transient state — it gets
+        /// its avatar on the frame the id exists. ⛔ RED-PROOF SHAPE: delete the
+        /// <c>if (networkId == 0) return;</c> guard and this reddens on a non-empty frame.</para>
+        /// </summary>
+        [Fact]
+        public void Draw_EmitsNothing_WhenTheNetworkIdIsZero()
+        {
+            var entity = Spawn(0L, new Vector3(30f, 40f, 0f));
+
+            var buffer = new DebugPrimitiveBuffer();
+            new EntityPresentationGizmo().Draw(_repo, entity, buffer);
+
+            Assert.Empty(buffer.GetFrame().ToArray());
+        }
+
+        /// <summary>
+        /// ⭐⭐ <b>The counter-case, so the guard cannot over-refuse.</b> A real id still emits the full
+        /// set. ⛔ Without this pairing the rail above would also pass if the gizmo drew nothing ever.
+        /// </summary>
+        [Fact]
+        public void Draw_StillEmits_WhenTheNetworkIdIsReal()
+        {
+            var entity = Spawn(11L, new Vector3(30f, 40f, 0f));
+
+            var buffer = new DebugPrimitiveBuffer();
+            new EntityPresentationGizmo().Draw(_repo, entity, buffer);
+
+            Assert.True(buffer.GetFrame().Length >= 3);
+        }
+
+        /// <summary>
         /// 🔴 <b><c>CE-126(a)</c>.</b> CGF's copy called the RAW builder, which starts from
         /// <c>default(DebugPrimitive)</c> and never sets <c>Color</c> — so its avatars were emitted at
         /// <c>(0,0,0,0)</c>, fully transparent and invisible. Going through the shared helper is what

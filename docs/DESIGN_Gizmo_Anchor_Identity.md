@@ -698,6 +698,63 @@ selection, and selection resolves an anchor id). ⇒ giving them a replicated en
 FAITHFUL, not what makes them pass. ⭐ **Exactly one rail keeps a bare entity** — the one whose subject
 *is* the missing identity.
 
+#### ⭐⭐⭐ THE COMPLETE EMITTER AUDIT — *"are you sure ALL gizmo users now pass proper identity?"* (`2026-09-11`)
+
+⛔⛔ **The first answer was NO, and asking forced the enumeration that found three more.** 📐 Enumerated
+with `search_graph` **and** `search_code` *(never grep alone — that is what produced the earlier misses)*:
+every implementation of the draw-builder seam, and every production site that supplies an identity.
+
+**① THE EMISSION PATHS — 3 production draw builders:**
+
+| builder | invariant |
+|---|---|
+| `Fdp.Diagnostics.Contracts.DebugPrimitiveBuffer` *(ECS-aware)* | ✅ both funnels |
+| `GizmoMap.Contracts.GizmoPrimitiveBuffer` *(ECS-free — GizmoMap apps, Stride)* | ✅ both funnels |
+| ⛔ `GizmoMap.Example.LocalDrawBuilder` | **NOT guarded** — the example app's own builder, outside the HROT product |
+| ⚠ **5 test doubles** *(`FullCapturingDrawBuilder`, `CountingDrawBuilder`, `LineCapturingDrawBuilder`, `TuningDrawBuilder`, `HealthBarGizmoTests.CapturingDrawBuilder`)* | **bypass it entirely** ⇒ a rail using a double is BLIND to the invariant — the `R-142` ③ shape, and exactly the `EmitRaw` blindness already fixed once in `FullCapturingDrawBuilder` |
+
+**② THE IDENTITY SUPPLIERS — every production emitter, and where its id comes from:**
+
+| emitter | id source | verdict |
+|---|---|---|
+| `CanvasContextMenuGizmo` | `CanvasAnchorId = -1L` *(const)* | ✅ non-zero by construction |
+| `TuningConsoleGizmo` | `AnchorId = 9001L` *(const)* | ✅ non-zero by construction |
+| `GlobalGizmoManager.NewId()` | `ToolAnchorIdBase + ++n` | ✅ non-zero by construction |
+| `ContextMenuProjectorGizmo` | entity `NetworkIdentity.Value` | ✅ **already guarded** — `if (networkId == 0) return;` *(`:102`)*. ⭐ **THE PRIOR ART, and it was the ONLY emitter that checked the VALUE** |
+| `VertexEditGizmo` · `RouteWaypointGizmo` | ctor `networkId` | ✅ guarded at the tool *(§6.7)* |
+| `DataDrivenGizmoSystem` bindings ×3 | `NetworkIdOf(repo, entity)` | ✅ guarded *(`TryEmitCaptureBinding`, above)* |
+| 🔴 `EntityPresentationGizmo` | `netId.Value`; the `[GizmoProjector]` attribute guarantees **PRESENCE, not a value** | ⛔ **was unguarded** ⇒ with `0` it emitted **three** broken primitives from one unset field: a `SpatialAnchor` nothing can reference, a pick box that swallows clicks, an `EntityLocal` `SemanticShape` resolving against no anchor. **FIXED** |
+| 🔴 `EmitPickBox` · `EmitPickSegments` | callers checked `HasComponent` only | ⛔ **was unguarded** — a component present with `Value == 0` passed. **FIXED at the shared seam**, so every caller inherits it *(constraint `C2` now means the value, not the component)* |
+| 🔴 `EntityDragGizmo` | `long networkId = 0;` then emit unconditionally | ⛔ **was unguarded.** **FIXED** — only the PICK BOX is skipped; the drag preview still draws |
+
+⇒ ⭐⭐ **The pattern in all three was the same, and it is the one `ContextMenuProjectorGizmo` had right:
+check the VALUE, not the component.** 📌 An entity whose id is not yet allocated is a **normal transient
+state** — returning is correct, and it gets its avatar on the frame the id exists.
+
+#### ⭐⭐ AND THE REPO CAUGHT ME TWICE WHILE FIXING IT — *worth recording, both times*
+
+| 🔴 | |
+|---|---|
+| **① I wrote a FIFTH inline network-id lookup** | my first version of the `EmitPickSegments` guard read the component and compared `.Value` inline. ⛔ `ThereIsOneNetworkIdResolverTests.NoNewInlineNetworkIdLookupAppears` — the `R-77`/`BP-508` tripwire — **reddened, and it was right.** ⭐ Routed through `NetworkIdResolver.RuntimeNetworkIdOf` instead, which also covers liveness and presence, so ONE call replaced both checks. ⚠ `EntityDragGizmo`'s pre-existing inline pair was routed too, while I was there |
+| **② then my COMMENT tripped the same rail** | that rail scans **TEXT**, so prose *quoting* the lookup shape matches it. ⛔ **Do not "fix" the rail for that** — describe the shape without writing it. ⭐ A tripwire that catches a comment is a tripwire that works |
+
+⇒ ⭐⭐ **This is the kind of thing that makes the case for the invariant itself:** the discipline held because
+something MEASURED it, not because anyone remembered it.
+
+#### ⛔ THE HONEST ANSWER TO *"…or is caught at runtime?"*
+
+| | |
+|---|---|
+| ⭐ **dev + CI** | ✅ **caught** — the invariant runs on every primitive through both product buffers |
+| ⛔⛔ **RELEASE** | **NOT caught.** `Debug.Assert` is compiled out ⇒ what holds in production is the **guards** *(the five refusals above)*, not the assert. ⚠ A NEW emitter written tomorrow that passes 0 is caught only if it is exercised by a test |
+| ⛔ **a WRONG id** | never caught — the invariant checks presence, not correctness. An id naming another node's entity passes everything |
+| ⛔ **`LocalDrawBuilder`** | an `IGizmoDrawBuilder` that is not a buffer bypasses the invariant by construction. ⚠ Same for any future non-buffer implementation — ⇒ the invariant is on the BUFFERS, not on the interface, and that is a real hole rather than a chosen boundary |
+
+⇒ 🔒 **So the claim that is true: no PRODUCTION emitter can now pass identity 0, each refusal is railed as
+a PAIR with a red-proof, and the invariant catches a new one in dev/CI. ⛔ The claim that is NOT true:
+"it cannot happen" — a Release build with a fresh un-tested emitter through a non-buffer draw builder
+would still get through.**
+
 #### ⚠ WHAT THIS INVARIANT DOES **NOT** COVER — *stated so nobody over-trusts it*
 
 | | |

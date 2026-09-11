@@ -85,6 +85,14 @@ namespace Hrot.ScenarioEditor.Gizmos
             ref readonly var netId = ref view.GetComponentRO<NetworkIdentity>(entity);
             long networkId = netId.Value;
 
+            // ⭐⭐⭐ §6.8 — the projector attribute guarantees the component is PRESENT, never that its
+            //   value is usable. ⛔ With 0 this gizmo emits a SpatialAnchor nothing can reference, a pick
+            //   box that swallows clicks, and an EntityLocal SemanticShape that resolves against no
+            //   anchor — three broken primitives from one unset field. ⚠ An entity whose id has not been
+            //   allocated yet is a NORMAL transient state, so returning is correct: it gets its avatar on
+            //   the frame the id exists. 📌 Prior art: ContextMenuProjectorGizmo.cs:102.
+            if (networkId == 0) return;
+
             // ⭐ SimTransform is the single source on every host. CGF's copy preferred NetworkTransform on
             // the grounds that it is "fresher on a host that does not own the entity" — measured false:
             // GeoSpatialIngressTranslator writes BOTH from the same packet in the same call (:75, :89), so

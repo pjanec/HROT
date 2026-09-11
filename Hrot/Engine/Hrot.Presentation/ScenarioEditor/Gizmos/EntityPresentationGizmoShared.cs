@@ -28,6 +28,13 @@ namespace Hrot.ScenarioEditor.Gizmos
         /// </summary>
         public static void EmitPickBox(IDebugDrawBuilder draw, long networkId, in Vector3 position, byte layer = 0)
         {
+            // ⭐⭐⭐ §6.8 — NO ID, NO PICK TARGET. Constraint C2 was enforced by CALLERS checking that a
+            //   NetworkIdentity was PRESENT; a component present with Value 0 passed that and produced a
+            //   pick box that swallows clicks and resolves to nothing. ⭐ The rule belongs on the seam
+            //   that owns it, so every caller gets it. 📌 Prior art: ContextMenuProjectorGizmo.cs:102
+            //   already did exactly this — the only emitter that did.
+            if (networkId == 0) return;
+
             var pickBox = DebugPrimitive.MakeBox2D(
                 new Vector2(position.X, position.Y),
                 new Vector2(8f, 8f),
@@ -92,7 +99,18 @@ namespace Hrot.ScenarioEditor.Gizmos
             byte layer = 0)
         {
             if (points == null || points.Count < 2) return;
-            if (!view.HasComponent<NetworkIdentity>(entity)) return;
+            // ⭐⭐ §6.8 — the VALUE, not just the component: `HasComponent` alone let a NetworkIdentity
+            //   with Value 0 through, which emits pick segments that cannot be resolved.
+            // ⭐⭐⭐ THROUGH THE ONE RESOLVER (R-77 / BP-508), not an inline read — and that is not
+            //   style: `ThereIsOneNetworkIdResolverTests.NoNewInlineNetworkIdLookupAppears` is a
+            //   tripwire on the inline-lookup TEXT SHAPE, and my first version of this guard reddened
+            //   it. ⭐ The rail was right; the resolver also covers liveness and component presence, so
+            //   this one call replaces both checks.
+            // ⚠⚠ AND A TRAP WORTH KNOWING: that rail scans TEXT, so even a COMMENT quoting the shape
+            //   trips it — my second attempt reddened it by DESCRIBING the pattern in prose. ⛔ Do not
+            //   "fix" the rail for that; describe the shape without writing it.
+            if (Fdp.Toolkit.Replication.Services.NetworkIdResolver
+                    .RuntimeNetworkIdOf(view as EntityRepository, entity) == 0) return;
 
             ref readonly var netId = ref view.GetComponentRO<NetworkIdentity>(entity);
             long networkId = netId.Value;
