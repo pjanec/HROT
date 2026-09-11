@@ -179,6 +179,60 @@ that same non-recorded protocol, and the ack drainer is ungated during replay fo
 *"if it can happen, it will one day. Who cares how often, needs to be handled every time."* An earlier note
 here asked it; struck.
 
+#### 2.1c ⭐⭐⭐ GATE, OR RECORD THE PENDING STATE? — **the user's question, and the answer is a third option** *(`2026-09-11`)*
+
+🔒 **User:** *"is the gate promotion and the ack drainer at runtime really the right fix? shouldn't we
+record/restore the pending promotions dictionary?"*
+
+⭐⭐ **The instinct is right that gating alone is incomplete. But recording it would REVERSE AN EXPLICIT
+POLICY, and there is a cheaper option that fixes the part gating misses.**
+
+| the answer rests on | measured |
+|---|---|
+| replay is **state-RESTORE**, not re-execution | `PlaybackSystem.ApplyFrame` restores raw chunks; §2.1 disables input/sim/post-sim — physics *"would overwrite restored positions"* |
+| lifecycle **is** recorded | cold chunk, `EntityMetadataCold.LifecycleState` @ offset 84 |
+| ⭐⭐ **the ghost's promotion bookkeeping is DELIBERATELY NOT recorded** | `GhostStateTracker` carries **`[DataPolicy(DataPolicy.Transient)]`**, and `Transient = NoSnapshot \| NoRecord \| NoSave` — the enum's own doc: *"Completely transient… UI caches, temporary buffers, debug metrics"* |
+| `_pendingConstruction` is not ECS state at all | a plain `Dictionary<Entity, PendingConstruction>`, holding a `HashSet<int>` of module ids — ⛔ not blittable, so not chunk-recordable as-is |
+| ⛔ **a restored `Constructing` entity is a ZOMBIE** | `QueryBuilder.WithLifecycle`: *"Default: **Active** (excludes Constructing and TearDown)"* ⇒ invisible to every default query |
+| ⭐ the codebase already reconciles non-recorded state at a boundary | `EcsRecordReplayController._afterSeek` → `NetworkEntityMap.RebuildFromWorld` |
+
+### ⛔ ① RECORDING IT IS A MODEL CHANGE, NOT A BUG FIX
+
+The recording has **already decided** this class of state is transient. To record the pending dictionaries
+you must reverse `DataPolicy.Transient` on the tracker, add non-ECS side-channel state to the recording
+format *(or move the dictionary into a component and replace `HashSet<int>` with a bitmask)*, and grow every
+recording. ⇒ that is adopting a **faithful re-execution** model in a system built as **state restore**.
+
+### ⭐ ② GATING IS CONSISTENT WITH THE EXISTING MODEL — **but only covers DURING playback**
+
+The log is authoritative for lifecycle; the systems that would fight it are silenced. That is §2.1's own
+design. ⛔ It says nothing about what happens when live resumes.
+
+### 🔴 ③ THE HOLE GATING DOES NOT COVER, AND THE USER'S INSTINCT POINTS STRAIGHT AT IT: **branch-to-live**
+
+`PrepareLive` after a replay resumes live simulation from the restored frame. An entity recorded
+**mid-`Constructing`** comes back `Constructing` with **no `_pendingConstruction` entry and no
+`GhostStateTracker`** *(both transient)* ⇒ **nothing will ever complete it**, and being non-`Active` it is
+invisible to every default query. ⚠ A permanent zombie — and 📐 measured: nothing in the `PrepareLive` path
+touches the ELM.
+
+### ⭐⭐⭐ ④ THE LEAN — **RECONCILE AT THE BOUNDARY, DO NOT RECORD CONTINUOUSLY**
+
+On `FinalizeReplay`/`PrepareLive`, rebuild the ELM's pending state from the **restored lifecycle states** —
+⭐ exactly the shape `EcsRecordReplayController` already uses for `NetworkEntityMap.RebuildFromWorld` on
+seek, in the same class, for the same reason *(a non-recorded index that time travel invalidates)*.
+
+| option | cost | fixes |
+|---|---|---|
+| ⛔ record the dictionaries | format change · policy reversal · bigger recordings · `HashSet<int>` not blittable | playback **and** branch |
+| ⭐ gate during playback *(§2.1's design)* | one composition change | playback only |
+| ⭐⭐⭐ **gate + reconcile on branch** | the gate, plus one method with an existing precedent | playback **and** branch, at a fraction of the cost |
+
+⚠ **What would change this lean:** if replay must become **re-executable** *(deterministic re-simulation
+from a frame, not just scrubbing)*, then recording is right and the whole `Transient` policy needs
+revisiting. ⛔ **That is a product question, not an implementation one** — and it is the one to put to the
+user before building either.
+
 ⚠⚠ **And four rails are GREEN over it** — `ReplayLoadClusterOpHandlerTests`, `LiveFromReplayTests`,
 `NodeBootstrapperReplayTests`, `FullBranchPipelineTests`, **12/12** — because they assert the flag and the
 group's `Enabled` **flip**, never that either has an **effect**. 📌 `R-142` ③'s shape: the setter is
