@@ -12,9 +12,16 @@ known-rot: ⛔⛔ §2.1's row "NetworkLifecycleSystemGroup | Disabled during rep
   inside" — was DELETED outright by CE-144, so that half of §3.10.3 is moot rather than outstanding.
   ⛔ §2.1's second documented protection, GhostCreationSystem.BypassLifecycle, is written by three
   production sites and READ BY NONE. Filed as CE-259ap.
-  ⭐ What DOES protect a replay today is the TogglableInputGroup row (disabled ⇒ no live DDS ingress
-  reaches the translators that call CreateGhost directly), and the fact that the restore path never
-  writes EntityMetadataCold.LifecycleState — whose default is Constructing (0), not Ghost.
+  ⛔⛔ CORRECTED 2026-09-11: §2.1's "TogglableInputGroup disabled => block live DDS ingress" Reason is
+  ALSO false as built — that group holds the LOGIC-PACK input systems (§2.4), while all 11 production
+  CycloneNetworkIngressSystem registrations are direct and outside every togglable group, and
+  SetSystemsEnabled touches no ingress system and no participant. ⇒ live DDS ingress REACHES a node in
+  RunningReplay (railed + red-proofed). ⭐ The ONLY thing protecting the ghost path is that the restore
+  path never writes EntityMetadataCold.LifecycleState — default Constructing (0), not Ghost — so
+  promotion has nothing to act on. That is a property of the restore path, not a guard.
+  ⭐⭐ The right gate EXISTS and is under-adopted: CycloneNetworkIngressSystem.IsWorldStateFrozen skips
+  exactly the WorldState translators, but its one production writer is CgfSubsystem's DEBUGGER halt
+  (DQ30-C), not replay. CE-259ap's lean is to adopt it.
 stale-below: nothing beyond the known-rot above; the other §2.1 rows were not re-measured on
   2026-09-11 and carry no claim either way.
 -->
@@ -81,13 +88,37 @@ The following table reflects the final decisions from the design discussion:
 | disabling it blocks ghost **promote** | ⛔ promotion was never in the group; it was registered standalone *(and now comes from `EntityCreationPack`)*. ⚠ **But LATENT, not live** — see the row below |
 | disabling it blocks ghost **destroy** | ⭐ **moot**: `GhostDestructionSystem`, §3.10.3's first *"must be moved inside"*, was **DELETED** by `CE-144`. Destruction now goes through `NetworkSpawningSystem.ProcessDestroy` → the ELM |
 | `GhostCreationSystem.BypassLifecycle` skips lifecycle + map registration during replay | ⛔ **written by 3 production sites, READ BY NONE.** `CreateGhost` does not consult it; it unconditionally sets `Ghost` and registers in the map |
-| ⭐ **does a replay deliver ghosts to promote at all?** | ⛔ **Not from the restore path.** 📐 No record/replay code writes `EntityMetadataCold.LifecycleState`, and its default is **`Constructing = 0`, not `Ghost`** ⇒ a restored entity cannot match `GhostPromotionSystem`'s `With<TkbIdentity>().WithLifecycle(Ghost)` query. ⇒ the ONLY ghost source is live DDS ingress, which the `TogglableInputGroup` row is what actually stops |
+| ⭐ **does a replay deliver ghosts to promote at all?** | ⛔ **Not from the restore path.** 📐 No record/replay code writes `EntityMetadataCold.LifecycleState`, and its default is **`Constructing = 0`, not `Ghost`** ⇒ a restored entity cannot match `GhostPromotionSystem`'s `With<TkbIdentity>().WithLifecycle(Ghost)` query. ⇒ the ONLY ghost source is live DDS ingress — **see the next row** |
+| 🔴🔴 **`TogglableInputGroup` disabled ⇒ "block live DDS ingress"** *(the row's own Reason)* | ⛔⛔ **FALSE AS BUILT, measured `2026-09-11`.** That group holds the **logic-pack** input systems (`MissionControlExecutionSystem`, `FireProcessingSystem`, …) — §2.4 lists them. Every one of the **11** production `CycloneNetworkIngressSystem` registrations is a **direct** `RegisterSystem`/`RegisterGlobalSystem`, never into a togglable group; and `ReferenceReplayLoadHandler.SetSystemsEnabled` toggles only the four groups, touching **no** ingress system and **no** DDS participant. ⇒ 🔒 **live DDS ingress REACHES a node in `RunningReplay`** |
 
-⇒ ⭐⭐ **The honest summary: replay isolation for the ghost path rests on `TogglableInputGroup` and on the
-restore path not writing lifecycle — NOT on this group, which protects nothing today.** ⛔ Two of the
-three mechanisms §2.1 names *(the group, `BypassLifecycle`)* are inert. 📄 Filed as **`CE-259ap`**; not
-fixed here, because making either one live **changes replay behaviour on every host** and nothing has
-measured what depends on the current behaviour.
+⇒ ⛔⛔⛔ **THE HONEST SUMMARY, after the `2026-09-11` follow-up measurement: ALL THREE mechanisms §2.1
+names for the ghost path are inert or absent.** The lifecycle group gates a no-op; `BypassLifecycle` is
+unread; and `TogglableInputGroup` does not contain the ingress systems at all. ⭐ The only thing standing
+between a replaying node and a corrupted world is that **the restore path never writes `Ghost`**, so
+promotion has nothing to act on — 🔒 **a property of the restore path, not a guard.** ⇒ a single live
+`EntityMaster` sample arriving mid-replay still calls `CreateGhost` directly, which sets `Ghost` and
+registers the entity in the map; with `TkbIdentity` present the ungated `GhostPromotionSystem` then
+promotes it into the replaying world.
+
+⭐⭐⭐ **BUT THE RIGHT GATE ALREADY EXISTS AND IS UNDER-ADOPTED** — `CycloneNetworkIngressSystem`
+`.IsWorldStateFrozen`, a `Func<bool>` asked **once per `Execute`** that skips exactly the
+`TranslatorClass.WorldState` translators while letting control-plane ingress through *(so a resume can
+still arrive)*. ⛔ It has **one** production writer — `CgfSubsystem.WireWorldStateFreezeGate`, driven by
+the **DEBUGGER halt** (`CgfClusterDebugTimeController.IsWorldStateFrozen => _halted`, `DQ30-C`) — not by
+replay, and on CGF only. ⇒ ⭐ **the replay fix is to adopt that seam**, not to populate the lifecycle group
+*(wrong layer — `CreateGhost` is called from the translators, which no scheduler gate reaches)* and not to
+implement `BypassLifecycle` *(the same job, one level coarser)*.
+
+📄 Filed as **`CE-259ap`**; not fixed here, because adopting the gate **changes replay behaviour on every
+host** and nothing has yet measured what depends on the current behaviour.
+
+📐 **The measurement is pinned by rails**, in the feature's own suite
+*(`Hrot.SimHost.Tests/ReplayLoadClusterOpHandlerTests`)*:
+`RunningReplay_DoesNotStopADirectlyRegisteredInputPhaseSystem` *(the real handler, a real
+`Commit(PrepareReplay)`, a real kernel — an `Input`-phase system registered the way every ingress system
+is keeps executing)* and `TheReplayPathWiresNoWorldStateFreeze_AndIngressIsNeverInATogglableGroup`.
+⭐ Both inverse-edit red-proofed: putting the probe inside the group reddens the first, and wrapping one
+module's ingress in a `TogglableInputGroup` reddens the second.
 
 ⚠⚠ **And four rails are GREEN over it** — `ReplayLoadClusterOpHandlerTests`, `LiveFromReplayTests`,
 `NodeBootstrapperReplayTests`, `FullBranchPipelineTests`, **12/12** — because they assert the flag and the

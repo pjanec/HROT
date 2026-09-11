@@ -34,11 +34,28 @@ namespace Fdp.ModuleHost.Scheduling
     /// was ahead of it.</b> This summary now states what the class DOES and cites where the intent
     /// lives, so a reader can tell the two apart.</para>
     ///
-    /// <para>⚠ <b>What actually protects a replay today</b>, so nobody concludes replay is unguarded:
-    /// <c>TogglableInputGroup</c> is disabled during playback (§2.1), which is what stops live DDS
-    /// ingress from reaching the translators that call <c>CreateGhost</c>. ⛔ The second documented
-    /// protection, <c>GhostCreationSystem.BypassLifecycle</c>, is written by three production sites and
-    /// <b>read by none</b> — see that property's own remarks.</para>
+    /// <para>⛔⛔⛔ <b>CORRECTED <c>2026-09-11</c> — AND NOTHING ELSE PROTECTS THE GHOST PATH EITHER.</b>
+    /// ⚠ An earlier version of this remark said *"<c>TogglableInputGroup</c> is disabled during playback
+    /// (§2.1), which is what stops live DDS ingress from reaching the translators that call
+    /// <c>CreateGhost</c>."* 🔴 **That was taken from the design's Reason column and is FALSE as built.**
+    /// 📐 Measured: <c>TogglableInputGroup</c> holds the LOGIC-PACK input systems
+    /// (<c>MissionControlExecutionSystem</c>, <c>FireProcessingSystem</c>, …), while every one of the
+    /// <b>11</b> production <c>CycloneNetworkIngressSystem</c> registrations is a DIRECT
+    /// <c>RegisterSystem</c>/<c>RegisterGlobalSystem</c> — never into a togglable group — and
+    /// <c>ReferenceReplayLoadHandler.SetSystemsEnabled</c> toggles only those four groups, touching no
+    /// ingress system and no DDS participant.
+    /// ⇒ 🔒 <b>live DDS ingress DOES reach a node in <c>RunningReplay</c></b>, proven by the rail
+    /// <c>ReplayLoadClusterOpHandlerTests.RunningReplay_DoesNotStopADirectlyRegisteredInputPhaseSystem</c>.
+    /// ⇒ ⛔ <b>all three documented protections for the ghost path are inert or absent</b>, so
+    /// <c>BypassLifecycle</c> is LOAD-BEARING rather than dead weight. 📄 <c>CE-259ap</c>.</para>
+    ///
+    /// <para>⭐⭐ <b>And the gate that WOULD do the job already exists:</b>
+    /// <c>CycloneNetworkIngressSystem.IsWorldStateFrozen</c> — a <c>Func&lt;bool&gt;</c> checked once per
+    /// <c>Execute</c> that skips exactly the <c>TranslatorClass.WorldState</c> translators while letting
+    /// control-plane ingress through. ⛔ Its ONE production writer is
+    /// <c>CgfSubsystem.WireWorldStateFreezeGate</c>, driven by the <b>DEBUGGER halt</b> (<c>DQ30-C</c>),
+    /// not by replay, and on one host only. ⇒ an under-adopted seam, which is why <c>CE-259ap</c>'s lean
+    /// is to ADOPT it rather than to populate this group.</para>
     ///
     /// <para>⭐ <b>And the restore path delivers no ghosts to promote</b> — measured: no record/replay
     /// code writes <c>EntityMetadataCold.LifecycleState</c> at all, and its default is
