@@ -95,27 +95,14 @@ namespace Hrot.SimHost.Modules.Orchestration
             // Wrap the downstream afterSeek callback with NetworkEntityMap rebuild logic.
             _afterSeek = () =>
             {
-                // 1. Rebuild NetworkEntityMap from the current ECS state
+                // 1. Rebuild NetworkEntityMap from the current ECS state.
+                //    ⭐ ROUTED 2026-09-11 to NetworkEntityMap.RebuildFromWorld. The body used to live
+                //      inline here, behind a private lambda, while its own comment above claimed to
+                //      "unify NetworkEntityMap resync for all subsystems" — ⛔ which it could not, because
+                //      a module with its own seek path (the ReplayBrowser) had no way to reach it and so
+                //      went without a map entirely. One implementation, reachable by all (ruling 9).
                 if (_repo.HasSingletonManaged<NetworkEntityMap>())
-                {
-                    var map = _repo.GetSingletonManaged<NetworkEntityMap>()!;
-
-                    // Prune dead entities from the future
-                    map.PruneDeadEntities(_repo);
-
-                    // Repopulate with historical entities present at this frame
-                    var q = _repo.Query()
-                        .With<NetworkIdentity>()
-                        .WithLifecycle(EntityLifecycle.All)
-                        .Build();
-
-                    foreach (var e in q)
-                    {
-                        long netId = _repo.GetComponentRO<NetworkIdentity>(e).Value;
-                        if (!map.TryGetEntity(netId, out _))
-                            map.Register(netId, e);
-                    }
-                }
+                    _repo.GetSingletonManaged<NetworkEntityMap>()!.RebuildFromWorld(_repo);
 
                 // 2. Chain downstream transport-layer cleanup (e.g., NED replication invalidation)
                 afterSeek?.Invoke();

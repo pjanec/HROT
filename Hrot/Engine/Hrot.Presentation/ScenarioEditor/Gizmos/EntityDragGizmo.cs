@@ -97,8 +97,8 @@ public sealed class EntityDragGizmo : IEntityStatefulGizmo
         pickBox.BoxExtentX       = PickRadius;
         pickBox.BoxExtentY       = PickRadius;
         pickBox.Color            = PickSphereColor;
-        pickBox.AnchorIndex      = _entity.Index;
-        pickBox.AnchorGeneration = (ushort)_entity.Generation;
+        // 🔴 §6.7 — `pickBox.AnchorIndex = _entity.Index; pickBox.AnchorGeneration = ...` DELETED.
+        //   The handle was a pick payload nothing reads; identity is BoxAnchorId (set above).
         pickBox.BoxAnchorId      = networkId;
         draw.EmitRaw(in pickBox);
 

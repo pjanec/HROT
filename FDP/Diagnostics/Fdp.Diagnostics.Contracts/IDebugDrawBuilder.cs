@@ -179,13 +179,19 @@ namespace Fdp.Toolkit.Diagnostics.Gizmos
         void EmitRaw(in DebugPrimitive prim) { }
 
         /// <summary>
-        /// Emits a world-space sphere primitive anchored to <paramref name="anchor"/>.
+        /// Emits a world-space sphere primitive identified by <paramref name="anchorNetworkId"/>.
         /// The sphere is hit-testable by <c>DebugGizmoLayer</c> -- clicking it triggers
-        /// <c>GizmoInteractionStartedEvent { Token.Target = anchor }</c>.
+        /// <c>GizmoInteractionStartedEvent { Token.AnchorId = anchorNetworkId }</c>.
         /// Default no-op so existing stub implementations compile without changes.
+        ///
+        /// <para>⛔⛔ §6.7 — this took an <c>Entity anchor</c> and stamped its index+generation into
+        /// offsets 8/12. ⚠ That made the sphere UNPICKABLE once the hit-test routed on
+        /// <c>BoxAnchorId</c>: the primitive passed the interactivity pre-filter and then yielded a token
+        /// with <c>AnchorId == 0</c>. ⇒ this is the capability KEPT, not a signature tidied
+        /// (<c>R-137</c>). 📄 <c>docs/DESIGN_Gizmo_Anchor_Identity.md</c> §6.7.</para>
         /// </summary>
         void DrawEntitySphere(
-            Entity anchor,
+            long    anchorNetworkId,
             Vector3 worldCenter,
             float   radius,
             Rgba32  color,

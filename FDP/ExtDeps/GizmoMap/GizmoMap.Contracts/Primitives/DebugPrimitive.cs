@@ -7,7 +7,8 @@ namespace Fdp.Toolkit.Diagnostics.Gizmos
     // 64-byte blittable tagged union. One cache line. All payloads share offsets 24-63.
     //
     // Offset 8 (AnchorIndex/StringHash): when Space == EntityLocal, int AnchorIndex encodes
-    // the entity anchor index. When Space != EntityLocal and Shape is Text or EntityBadge,
+    // the anchor's NETWORK id, narrowed to 32 bits (§6.7 / C7 — never an ECS index).
+    // When Space != EntityLocal and Shape is Text or EntityBadge,
     // uint StringHash at the same offset encodes the string intern map key (StringHash != 0
     // means the full text is resolved from StringInternMap; StringHash == 0 = inline mode).
     //
@@ -28,11 +29,20 @@ namespace Fdp.Toolkit.Diagnostics.Gizmos
         // Bytes 8-11 overlay: AnchorIndex for EntityLocal; StringHash for intern escaping.
 
 
-        // ⭐⭐ OFFSET 8 CARRIES THREE THINGS, discriminated by Shape/Space. S7,
-        //   DESIGN_Gizmo_Anchor_Identity.md §6. ⛔ NONE of them is an identity for INTERACTION -- that
-        //   is BoxAnchorId (offset 44); see its note.
-        //     (a) an interactive Box2D/Sphere handle -> the ECS entity INDEX, an in-process PAYLOAD
-        //         that lets the consumer-side adapter rebuild Entity(index, generation) with no lookup.
+        // ⭐⭐ OFFSET 8 CARRIES TWO THINGS, discriminated by Shape/Space. S7/§6.7,
+        //   DESIGN_Gizmo_Anchor_Identity.md. ⛔ NEITHER is an identity for INTERACTION -- that is
+        //   BoxAnchorId (offset 44); see its note.
+        //
+        //   🔴🔴 §6.7, 2026-09-11 — ARM (a) IS GONE, AND IT WAS THE THIRD ROLE:
+        //       "(a) an interactive Box2D/Sphere handle -> the ECS entity INDEX, an in-process PAYLOAD
+        //        that lets the consumer-side adapter rebuild Entity(index, generation) with no lookup."
+        //     ⛔ A process-local ECS handle, in a DDS-marshalled struct, in the same 4 bytes that mean
+        //       a network id for the shape next to it. Its whole purpose was to spare the consumer a
+        //       lookup — and the reason given for that was ONE module with no NetworkEntityMap.
+        //       🔒 User: "replaybrowser is ecs module like any else. i do not want such exceptions."
+        //     ⇒ no producer writes an ECS index here now, and no consumer reads one. ⭐ The union is
+        //       one role narrower, which is the real win: a three-role field cannot be reasoned about.
+        //
         //     (b) SemanticShape / any EntityLocal primitive -> the SpatialAnchor cache KEY, which is a
         //         NETWORK id (DebugPrimitiveBuffer.DrawSemanticShape writes `(int)networkId`;
         //         DebugPrimitiveRenderer2D:104-106 reads `(long)AnchorIndex` against a cache keyed by
@@ -54,13 +64,21 @@ namespace Fdp.Toolkit.Diagnostics.Gizmos
 
         [FieldOffset(8)]  public uint StringHash;
 
-        // ⭐⭐⭐ OFFSET 12 CARRIES TWO THINGS, discriminated by Shape -- exactly like offset 8's
-        //   AnchorIndex/StringHash overlay documented above. S6, DESIGN_Gizmo_Anchor_Identity.md §6.
-        //     - any interactive / EntityLocal shape  -> AnchorGeneration, the ECS generation
-        //     - Text and EntityBadge                 -> LineOffsetPx, a SIGNED screen-pixel offset
-        //   ⛔ Neither is an IDENTITY. Identity is BoxAnchorId (offset 44) for a hit-testable shape and
-        //     StructNetworkId (offset 24) for a binding, and it is a NETWORK id. See MakePickToken.
-        [FieldOffset(12)] public ushort AnchorGeneration; // ECS Entity Generation. A generation of 0 guarantees the handle is null or uninitialized.
+        // ⭐⭐⭐ OFFSET 12 NOW CARRIES ONE THING: LineOffsetPx, for Text and EntityBadge. S6/§6.7,
+        //   DESIGN_Gizmo_Anchor_Identity.md.
+        //
+        //   🔴🔴 §6.7, 2026-09-11 — `AnchorGeneration` HAS NO PRODUCER AND NO CONSUMER LEFT.
+        //     It held "the ECS generation" for interactive and EntityLocal shapes, the other half of the
+        //     pick payload deleted from offset 8. Every writer is gone (MakeBox2D's ECS overload,
+        //     MakePickSegment, MakeSemanticShape, DrawEntitySphere, and the three tool gizmos that
+        //     stamped it by hand), and so is every reader (MakePickToken, PickTopmostEntityAnchor,
+        //     EcsDebugPrimitiveExtensions.GetAnchor).
+        //   ⚠ THE FIELD ITSELF IS KEPT, deliberately: it is the ushort ALIAS of LineOffsetPx below, and
+        //     the S6 pairing is what stops anyone writing `unchecked((ushort)(short)x)` again. ⛔ So do
+        //     not read a value here as a generation — for a Text primitive it is a signed pixel offset.
+        //   ⛔ It is not an IDENTITY either. Identity is BoxAnchorId (offset 44) for a hit-testable
+        //     shape and StructNetworkId (offset 24) for a binding, and it is a NETWORK id.
+        [FieldOffset(12)] public ushort AnchorGeneration; // ⚠ §6.7: no longer an ECS generation — the unsigned alias of LineOffsetPx.
 
         // ⭐ The SAME two bytes, read as signed. Negative moves a text line UP, positive DOWN.
         //   ⭐⭐ This alias exists so nobody writes `unchecked((ushort)(short)x)` on the way in and
@@ -310,19 +328,15 @@ namespace Fdp.Toolkit.Diagnostics.Gizmos
             return p;
         }
 
-        // ECS-anchored overload for interactive tools and pick-box primitives.
-        public static DebugPrimitive MakeBox2D(
-            Vector2 center, Vector2 extents, Rgba32 color,
-            int anchorIndex, ushort anchorGeneration, long networkId,
-            ushort subElementId = 0, float angleDeg = 0f, float thickness = 1f,
-            SizeMode sizeMode = SizeMode.ScreenPixels, PipelineTarget target = PipelineTarget.All,
-            byte layer = 0, Rgba32 fillColor = default, LineStyle style = LineStyle.Solid)
-        {
-            var p = MakeBox2D(center, extents, color, angleDeg, thickness, sizeMode, target, layer, fillColor, style, networkId, subElementId);
-            p.AnchorIndex = anchorIndex;
-            p.AnchorGeneration = anchorGeneration;
-            return p;
-        }
+        // 🔴🔴 DELETED 2026-09-11 (§6.7) — the "ECS-anchored overload":
+        //     MakeBox2D(center, extents, color, int anchorIndex, ushort anchorGeneration,
+        //               long networkId, ...)
+        //   ⛔ Its only job was to stamp the emitting process's ECS handle into offsets 8/12 on top of
+        //     the base overload's networkId, so a picked primitive could hand a consumer a ready-made
+        //     Entity. Nothing reads that any more: identity is BoxAnchorId and the consumer resolves it
+        //     in its own world. 📄 docs/DESIGN_Gizmo_Anchor_Identity.md §6.7, GizmoPickToken.cs.
+        //   ⭐ Callers moved to the base overload, which already takes `networkId` as its `anchorId` —
+        //     i.e. the ECS-free path was always there; this overload only added the payload.
 
         /// <summary>
         /// ⭐⭐⭐ <b><c>CE-259ac</c> — A CLICKABLE LINE SEGMENT.</b> Returns a <see cref="DebugPrimitiveShape.Box2D"/>
@@ -356,7 +370,6 @@ namespace Fdp.Toolkit.Diagnostics.Gizmos
             float pickThickness = 0f,
             ushort subElementId = 0,
             Rgba32 color = default,
-            int anchorIndex = 0, ushort anchorGeneration = 0,
             SizeMode sizeMode = SizeMode.ScreenPixels,
             PipelineTarget target = PipelineTarget.Map2D,
             byte layer = 0)
@@ -378,8 +391,8 @@ namespace Fdp.Toolkit.Diagnostics.Gizmos
                 layer: layer,
                 anchorId: networkId,
                 subElementId: subElementId);
-            p.AnchorIndex      = anchorIndex;        // in-process payload only (see GizmoPickToken.cs)
-            p.AnchorGeneration = anchorGeneration;
+            // 🔴 §6.7 — the `anchorIndex`/`anchorGeneration` parameters and their two writes are GONE.
+            //   The segment's identity is `networkId` in BoxAnchorId; nothing reads an ECS handle here.
             return p;
         }
 
@@ -465,8 +478,15 @@ namespace Fdp.Toolkit.Diagnostics.Gizmos
             return p;
         }
 
+        /// <summary>
+        /// ⭐⭐ §6.7 — <paramref name="anchorKey"/> is the <c>SpatialAnchor</c> CACHE KEY at offset 8: the
+        /// anchor's network id narrowed to 32 bits (constraint <c>C7</c>), which is what
+        /// <c>DebugPrimitiveRenderer2D:105</c> probes the cache with. ⛔ It is NOT an ECS index, and the
+        /// companion <c>ushort anchorGeneration</c> parameter — which stamped the emitter's ECS
+        /// generation into offset 12 for nothing to read — is DELETED.
+        /// </summary>
         public static DebugPrimitive MakeSemanticShape(
-            int anchorIndex, ushort anchorGeneration, long networkId, ulong profileId,
+            int anchorKey, long networkId, ulong profileId,
             float length, float width, uint conditionMask,
             PipelineTarget target = PipelineTarget.All, byte layer = 0)
         {
@@ -475,8 +495,7 @@ namespace Fdp.Toolkit.Diagnostics.Gizmos
             p.Space = CoordinateSpace.EntityLocal;
             p.TargetView = target;
             p.DebugLayer = layer;
-            p.AnchorIndex = anchorIndex;
-            p.AnchorGeneration = anchorGeneration;
+            p.AnchorIndex = anchorKey;
             p.BoxAnchorId = networkId;
             p.ProfileId = profileId;
             p.LengthMeters = length;

@@ -95,7 +95,7 @@ namespace Hrot.ScenarioEditor.Gizmos
             EntityPresentationGizmoShared.DrawSpatialAnchorFromRotation(draw, networkId, tf.Position, tf.Rotation);
 
             // ⭐ CGF's copy omitted the pick box, so CGF entities could not be picked at all (CE-126b).
-            EntityPresentationGizmoShared.EmitPickBox(draw, entity, networkId, tf.Position);
+            EntityPresentationGizmoShared.EmitPickBox(draw, networkId, tf.Position);
 
             // ── Condition: the damage states, now read off the replicated Health itself. ──
             // ⭐ CE-196 — this used to read IgHealthState.Damage, a precomputed percentage. The
@@ -123,7 +123,6 @@ namespace Hrot.ScenarioEditor.Gizmos
             // avatars were emitted fully transparent (CE-126a).
             EntityPresentationGizmoShared.DrawSemanticShape(
                 draw,
-                entity,
                 networkId,
                 profileId,
                 length,

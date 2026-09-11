@@ -297,15 +297,22 @@ namespace Hrot.Presentation.Tests.Gizmos
             var frame = buffer.GetFrame();
             Assert.True(frame.Length >= 3);
 
-            // ⚠ The network id lands in BoxAnchorId, NOT NetworkId: MakeBox2D routes its `networkId`
+            // ⚠ The network id lands in BoxAnchorId, NOT NetworkId: MakeBox2D routes its `anchorId`
             // argument to `p.BoxAnchorId` (DebugPrimitive.cs:264,277), and on a Box2D the NetworkId field
             // is overlapped by the box geometry — reading it back yields the packed extents as garbage.
-            // Together with AnchorIndex/AnchorGeneration this pairing is what resolves a click to an entity.
+            // ⭐⭐⭐ §6.7 — AND THAT FIELD IS NOW THE WHOLE PAIRING. This rail used to also assert
+            //   `pick.AnchorIndex == entity.Index` and `pick.AnchorGeneration == entity.Generation`,
+            //   saying "together with AnchorIndex/AnchorGeneration this pairing is what resolves a click
+            //   to an entity". ⛔ It no longer is: the ECS handle is not emitted, and a click resolves
+            //   BoxAnchorId against the world. ⇒ the rail now pins that offsets 8/12 are LEFT CLEAN,
+            //   which is the property that replaced it.
+            // ⛔ RED-PROOF SHAPE: re-add the two stamps in EmitPickBox and the two zero asserts redden.
+            // 📄 docs/DESIGN_Gizmo_Anchor_Identity.md §6.7.
             var pick = frame[1];
             Assert.Equal(DebugPrimitiveShape.Box2D, pick.Shape);
             Assert.Equal(11L, pick.BoxAnchorId);
-            Assert.Equal(entity.Index, pick.AnchorIndex);
-            Assert.Equal((ushort)entity.Generation, pick.AnchorGeneration);
+            Assert.Equal(0, pick.AnchorIndex);
+            Assert.Equal((ushort)0, pick.AnchorGeneration);
         }
 
         /// <summary>

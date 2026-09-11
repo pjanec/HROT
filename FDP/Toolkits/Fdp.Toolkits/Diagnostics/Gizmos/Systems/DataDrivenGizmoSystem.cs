@@ -503,7 +503,7 @@ namespace Fdp.Toolkit.Diagnostics.Gizmos.Systems
                 var commits = uiBus.Read<GizmoInteractionCommitEvent>();
                 foreach (ref readonly var commit in commits)
                 {
-                    var target = commit.Token.Target;
+                    var target = ResolveAnchor(repo, commit.Token.AnchorId);
                     if (!_activeGizmos.TryGetValue(target, out var gizmoList)) continue;
                     for (int i = 0; i < gizmoList.Count; i++)
                     {
@@ -527,6 +527,22 @@ namespace Fdp.Toolkit.Diagnostics.Gizmos.Systems
         /// </summary>
         private static long NetworkIdOf(EntityRepository repo, Entity entity)
             => Fdp.Toolkit.Replication.Services.NetworkIdResolver.RuntimeNetworkIdOf(repo, entity);
+
+        /// <summary>
+        /// ⭐⭐⭐ §6.7 — the INVERSE of <see cref="NetworkIdOf"/>: the local entity an anchor id names, or
+        /// <c>Entity.Null</c>. 📄 <c>docs/DESIGN_Gizmo_Anchor_Identity.md</c> §6.7.
+        ///
+        /// <para>⭐⭐ <b>This is where a pick's identity becomes a handle, and it is the right place:</b>
+        /// <c>_activeGizmos</c> is <c>Dictionary&lt;Entity, …&gt;</c>, and this system holds the world. ⛔ The
+        /// pipeline used to carry the producer's ECS handle all the way here as a token payload so that no
+        /// resolve was needed — see <c>GizmoPickToken.cs</c> for why that did not survive measurement.</para>
+        ///
+        /// <para>⚠ <c>Entity.Null</c> is a NORMAL answer: a canvas click (<c>0</c>/<c>-1</c>), a tool id
+        /// from the disjoint range (§6.1), or an anchor owned by another node. All three correctly route to
+        /// no entity-bound gizmo.</para>
+        /// </summary>
+        private static Entity ResolveAnchor(EntityRepository repo, long anchorId)
+            => Fdp.Toolkit.Replication.Services.NetworkIdResolver.ResolveNetworkId(repo, anchorId);
 
         /// <summary>⭐ CE-259ab — the primitive count to stamp FROM, or 0 when the builder cannot stamp.</summary>
         private int MarkPrimitives() => _stampBuffer?.Count ?? 0;
@@ -559,19 +575,19 @@ namespace Fdp.Toolkit.Diagnostics.Gizmos.Systems
             var started = bus.Read<GizmoInteractionStartedEvent>();
             foreach (ref readonly var evt in started)
             {
-                var gizmo = FindGizmo(evt.Token.Target, evt.Token.GizmoTypeId);
+                var gizmo = FindGizmo(ResolveAnchor(repo, evt.Token.AnchorId), evt.Token.GizmoTypeId);
                 if (gizmo == null) continue;
                 // ⭐ Behaviour ③ — the STEAL: touching a gizmo gives it the input, whatever held it.
                 //   The one focus behaviour with no GlobalGizmoManager counterpart (§6.2b).
                 _focus.GrantStealing(this, gizmo);
-                gizmo.OnInteractionStarted(ToGizmoToken(evt.Token, repo), evt.WorldPos);
+                gizmo.OnInteractionStarted(ToGizmoToken(evt.Token), evt.WorldPos);
             }
 
             // DragUpdate: route to the focused gizmo (token match).
             var drags = bus.Read<GizmoDragUpdateEvent>();
             foreach (ref readonly var evt in drags)
             {
-                var gizmo = Recipient(evt.Token);
+                var gizmo = Recipient(evt.Token, repo);
                 gizmo?.OnDragUpdate(evt.WorldPos);
             }
 
@@ -579,7 +595,7 @@ namespace Fdp.Toolkit.Diagnostics.Gizmos.Systems
             var commits = bus.Read<GizmoInteractionCommitEvent>();
             foreach (ref readonly var evt in commits)
             {
-                var gizmo = Recipient(evt.Token);
+                var gizmo = Recipient(evt.Token, repo);
                 gizmo?.OnCommit(evt.WorldPos);
             }
 
@@ -587,7 +603,7 @@ namespace Fdp.Toolkit.Diagnostics.Gizmos.Systems
             var cancels = bus.Read<GizmoInteractionCancelEvent>();
             foreach (ref readonly var evt in cancels)
             {
-                var gizmo = Recipient(evt.Token);
+                var gizmo = Recipient(evt.Token, repo);
                 gizmo?.OnCancel();
             }
 
@@ -595,8 +611,16 @@ namespace Fdp.Toolkit.Diagnostics.Gizmos.Systems
             var menus = bus.Read<GizmoMenuActionEvent>();
             foreach (ref readonly var evt in menus)
             {
-                // Index-only event: carries just an entity index (AnchorId), no generation.
-                FindGizmoByIndex((int)evt.AnchorId, evt.GizmoTypeId)?.OnMenuAction(evt.ActionId);
+                // ⭐⭐⭐ §6.7 — AnchorId is a NETWORK id, so RESOLVE it.
+                //   ⛔⛔ THIS WAS A LIVE DEFECT, and the last survivor of the D1 family: it read
+                //     `FindGizmoByIndex((int)evt.AnchorId, ...)` — narrowing a network id to an int and
+                //     comparing it against `Entity.Index`. Two addressing domains compared as one number,
+                //     exactly what S0/S5 removed from the capture filter. The event's own contract says
+                //     "Network-level entity ID" (GizmoInteractionEvents.cs:48), and S5 made that true in
+                //     fact, which is what turned a stale-but-harmless comparison into a wrong one.
+                //   ⭐ GlobalGizmoManager keys this event by the id already (its _activeGizmos is
+                //     Dictionary<long, …>) — one concept, and now one policy.
+                FindGizmo(ResolveAnchor(repo, evt.AnchorId), evt.GizmoTypeId)?.OnMenuAction(evt.ActionId);
 
                 // Route to injected tools (VertexEditGizmo, RouteWaypointGizmo, ...).
                 foreach (var kvp in _injectedGizmos)
@@ -607,15 +631,15 @@ namespace Fdp.Toolkit.Diagnostics.Gizmos.Systems
             var structUpdates = bus.ReadManaged<GizmoStructUpdateEvent>();
             foreach (var evt in structUpdates)
             {
-                // Index-only event: carries just an entity index (AnchorId), no generation.
-                FindGizmoByIndex((int)evt.AnchorId, evt.GizmoTypeId)?.OnStructUpdate(evt.PayloadJson);
+                // ⭐ §6.7 — a NETWORK id, resolved. See the MenuAction note above for the defect.
+                FindGizmo(ResolveAnchor(repo, evt.AnchorId), evt.GizmoTypeId)?.OnStructUpdate(evt.PayloadJson);
             }
 
             // MouseEvent: only the focused exclusive-focus gizmo receives raw mouse events.
             var mouseEvents = bus.Read<GizmoMouseEvent>();
             foreach (ref readonly var evt in mouseEvents)
             {
-                var gizmo = Recipient(evt.Token);
+                var gizmo = Recipient(evt.Token, repo);
                 gizmo?.OnMouseEvent(evt.Button, evt.IsPressed, evt.WorldPos);
             }
 
@@ -623,7 +647,7 @@ namespace Fdp.Toolkit.Diagnostics.Gizmos.Systems
             var keyEvents = bus.Read<GizmoKeyEvent>();
             foreach (ref readonly var evt in keyEvents)
             {
-                Recipient(evt.Token)?.OnKeyEvent(evt.Key, evt.IsPressed);
+                Recipient(evt.Token, repo)?.OnKeyEvent(evt.Key, evt.IsPressed);
             }
         }
 
@@ -636,22 +660,18 @@ namespace Fdp.Toolkit.Diagnostics.Gizmos.Systems
         /// <see cref="FindGizmo"/> can essentially never match for them — the holder arm is the ONLY
         /// working delivery path for raw mouse and keyboard here.</para>
         /// </summary>
-        private IEntityStatefulGizmo? Recipient(PickToken token)
-            => _focus.RecipientFor(this, () => FindGizmo(token.Target, token.GizmoTypeId));
+        private IEntityStatefulGizmo? Recipient(PickToken token, EntityRepository repo)
+            => _focus.RecipientFor(this, () => FindGizmo(ResolveAnchor(repo, token.AnchorId), token.GizmoTypeId));
 
-        // Converts the ECS-based PickToken to the ECS-free GizmoPickToken used by
+        // Converts the ECS-bus PickToken to the ECS-free GizmoPickToken used by
         // IGizmoInteractionHandler.
-        // ⭐⭐⭐ S5 — AnchorId is the entity's NETWORK id, which GizmoPickToken.cs:8 has always documented
-        //   ("NetworkId / semantic object id"). ⛔ It used to be token.Target.Index with the generation in
-        //   StreamId, i.e. a process-local handle in two fields whose contracts say otherwise.
-        //   ⭐ AnchorIndex/StreamId travel as an IN-PROCESS PAYLOAD only — never compared, never on the
-        //     wire. See the field notes in GizmoPickToken.cs.
-        private static GizmoPickToken ToGizmoToken(PickToken token, EntityRepository repo) => new GizmoPickToken
+        // ⭐⭐⭐ §6.7 — A FIELD COPY, and that is the whole point. Both tokens are now keyed by the
+        //   anchor's NETWORK id, so this needs neither a lookup nor the world it used to take: it was
+        //   `NetworkIdOf(repo, token.Target)` plus two payload fields carrying the ECS handle onward.
+        private static GizmoPickToken ToGizmoToken(PickToken token) => new GizmoPickToken
         {
-            AnchorId     = NetworkIdOf(repo, token.Target),   // ⭐ IDENTITY: the network id
+            AnchorId     = token.AnchorId,
             SubElementId = token.SubElementId,
-            AnchorIndex  = token.Target.Index,                // ⭐ in-process payload (GizmoPickToken.cs)
-            StreamId     = (uint)token.Target.Generation,
             GizmoTypeId  = token.GizmoTypeId,
         };
 
@@ -664,12 +684,13 @@ namespace Fdp.Toolkit.Diagnostics.Gizmos.Systems
         /// </summary>
         private IEntityStatefulGizmo? FindGizmo(Entity entity, uint gizmoTypeId)
         {
-            // STRICT ARCHITECTURAL BOUNDARY (interaction events only):
-            // Empty-canvas interaction clicks arrive as Entity.Null (Index=0/Gen=0). Reject them
-            // so they cannot hijack a real gizmo. Interaction events always carry a fully-qualified
-            // Token.Target (non-zero generation), so this guard never rejects a legitimate target.
-            // NOTE: index-only editor events (MenuAction/StructUpdate) use FindGizmoByIndex instead,
-            // which intentionally allows index 0 (a real entity can live there).
+            // ⭐⭐ STRICT BOUNDARY: Entity.Null is a NORMAL input here and must route to nothing.
+            //   §6.7 — every caller now arrives via ResolveAnchor, so Entity.Null means exactly one of:
+            //     an empty-canvas click (AnchorId 0 or -1) · a TOOL id from the disjoint range (§6.1,
+            //     owned by GlobalGizmoManager) · an anchor this node does not host. ⛔ None may hijack a
+            //     real gizmo, and dropping them here is the correct answer for all three.
+            //   ⚠ It used to guard against a DIFFERENT thing — a half-built handle with generation 0 —
+            //     because the token carried a reconstructed ECS handle. That hazard is gone with it.
             if (entity.IsNull)
                 return null;
 
@@ -683,32 +704,18 @@ namespace Fdp.Toolkit.Diagnostics.Gizmos.Systems
             return SelectByTypeId(list, gizmoTypeId);
         }
 
-        /// <summary>
-        /// Index-only lookup for editor events (MenuAction, StructUpdate) that carry just an entity
-        /// index (AnchorId) with no generation. The live gizmo entry has a non-zero generation that
-        /// an exact Entity equality check would miss, so we match on Index alone.
-        /// <para>Unlike <see cref="FindGizmo"/>, this does NOT reject index 0: a real entity can live
-        /// at index 0, and these events are not empty-canvas interaction clicks.</para>
-        /// </summary>
-        private IEntityStatefulGizmo? FindGizmoByIndex(int index, uint gizmoTypeId)
-        {
-            if (index < 0)
-                return null;
-
-            List<CompiledGizmoInstance>? list = null;
-            foreach (var kvp in _activeGizmos)
-            {
-                if (kvp.Key.Index == index)
-                {
-                    list = kvp.Value;
-                    break;
-                }
-            }
-            if (list == null || list.Count == 0)
-                return null;
-
-            return SelectByTypeId(list, gizmoTypeId);
-        }
+        // 🔴🔴 DELETED 2026-09-11 (§6.7):
+        //     private IEntityStatefulGizmo? FindGizmoByIndex(int index, uint gizmoTypeId)
+        //   ⛔⛔ An INDEX-ONLY scan over _activeGizmos, matching `kvp.Key.Index == index`. Its doc said
+        //     the MenuAction/StructUpdate events "carry just an entity index (AnchorId) with no
+        //     generation" — TRUE when it was written, FALSE after S5 made AnchorId the network id. ⇒ it
+        //     narrowed a network id to an int and compared it to an ECS index: the D1 defect, in the one
+        //     place S0/S5 had not swept.
+        //   ⭐ Replaced by `FindGizmo(ResolveAnchor(repo, evt.AnchorId), ...)` — the same routing every
+        //     other event now uses, and the same policy GlobalGizmoManager already had.
+        //   ⚠ Its "does NOT reject index 0" carve-out died with it and is no loss: 0 was only special
+        //     because an ECS index of 0 is a legal entity. An ANCHOR id of 0 means "no anchor", which
+        //     FindGizmo's Entity.Null guard already rejects correctly.
 
         private static IEntityStatefulGizmo? SelectByTypeId(List<CompiledGizmoInstance> list, uint gizmoTypeId)
         {

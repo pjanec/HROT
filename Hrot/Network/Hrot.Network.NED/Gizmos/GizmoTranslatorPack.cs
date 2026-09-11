@@ -13,28 +13,29 @@ namespace Hrot.Network.NED.Gizmos
     /// </summary>
     public static class GizmoTranslatorPack
     {
+        // 🔴 §6.7, 2026-09-11 — the `NetworkEntityMap? entityMap = null` parameter is GONE from both
+        //   factories and both translators. It existed only so each end could translate between a
+        //   network id and a local ECS handle, because PickToken held an `Entity`. PickToken now holds
+        //   the network id itself, so neither translator looks anything up: the id crosses the wire
+        //   unchanged. 📄 docs/DESIGN_Gizmo_Anchor_Identity.md §6.7.
         public static GizmoInteractionIngressTranslator CreateIngress(
             DdsParticipant participant,
-            FdpEventBus interactionBus,
-            Fdp.Toolkit.Replication.Services.NetworkEntityMap? entityMap = null)
+            FdpEventBus interactionBus)
         {
             return new GizmoInteractionIngressTranslator(
                 new DdsReaderGizmoAdapter<GizmoInteractionBatch>(participant),
-                interactionBus,
-                entityMap);
+                interactionBus);
         }
 
         public static GizmoInteractionEgressTranslator CreateEgress(
             DdsParticipant participant,
             byte localNodeId,
-            FdpEventBus interactionBus,
-            Fdp.Toolkit.Replication.Services.NetworkEntityMap? entityMap = null)
+            FdpEventBus interactionBus)
         {
             return new GizmoInteractionEgressTranslator(
                 localNodeId,
                 new DdsWriterGizmoAdapter<GizmoInteractionBatch>(participant),
-                interactionBus,
-                entityMap);
+                interactionBus);
         }
     }
 }

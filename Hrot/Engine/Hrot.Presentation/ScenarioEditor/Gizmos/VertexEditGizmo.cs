@@ -19,7 +19,7 @@ namespace Hrot.ScenarioEditor.Gizmos
     // - RequiresExclusiveFocus = true: terminal hit-testing is filtered to this entity while active.
     // - WantsRawInput = true: right-click release and Escape are delivered to this gizmo.
     // - SubElementId = vertexIndex + 1 (0 is reserved as "no handle").
-    // - AnchorIndex / AnchorGeneration encode the ECS Entity.
+    // - BoxAnchorId carries the entity's NETWORK id (§6.7); no ECS handle is emitted.
     // - OnCommit: writes back relative points to EditablePolyline, publishes UpdateEntityCommand.
     // - OnCancel: reverts the dragged vertex.
     // - OnMenuAction(1): insert a new vertex after the active one.
@@ -140,8 +140,8 @@ namespace Hrot.ScenarioEditor.Gizmos
                 prim.BoxExtentY       = 8f;
                 prim.Color            = isActive ? ActiveColor : IdleColor;
                 prim.SubElementId     = (ushort)(i + 1);
-                prim.AnchorIndex      = _entity.Index;
-                prim.AnchorGeneration = (ushort)_entity.Generation;
+                // 🔴 §6.7 — the `AnchorIndex`/`AnchorGeneration` writes are DELETED: identity is
+                //   BoxAnchorId, and the ECS handle they carried is read by nothing.
                 prim.BoxAnchorId      = _networkId;
                 draw.EmitRaw(in prim);
             }

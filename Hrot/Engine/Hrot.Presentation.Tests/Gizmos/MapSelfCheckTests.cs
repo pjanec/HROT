@@ -180,7 +180,7 @@ namespace Hrot.Presentation.Tests.Gizmos
             {
                 buffer.Clear();
                 Hrot.ScenarioEditor.Gizmos.EntityPresentationGizmoShared.DrawSemanticShape(
-                    buffer, entity, 400L, 0UL, 5f, 2f, conditionMask: 0u);
+                    buffer, 400L, 0UL, 5f, 2f, conditionMask: 0u);
                 selfCheck.Execute(_world, 0.016f);
             }
 

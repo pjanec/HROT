@@ -74,4 +74,76 @@ public static class NetworkIdResolver
 
         return Entity.Null;
     }
+
+    /// <summary>
+    /// ⭐⭐⭐ <b>§6.7, 2026-09-11 — the PER-TICK-SAFE resolve: the world's maintained
+    /// <see cref="NetworkEntityMap"/> first, the linear scan only as a correctness floor.</b>
+    /// 📄 <c>docs/DESIGN_Gizmo_Anchor_Identity.md</c> §6.7.
+    ///
+    /// <para>⭐⭐ <b>Why this exists and <see cref="FindEntityByNetworkId"/> was not enough.</b> The type
+    /// header above is right that a SELECTION-CHANGE resolve wants no index. ⛔ But a gizmo DRAG resolves
+    /// its anchor on <b>every frame</b> of the drag, which is precisely the *"per-tick lookup"* that header
+    /// sends to <see cref="NetworkEntityMap"/>. ⇒ this is that referral, made callable — ⛔ NOT a cache
+    /// bolted onto the resolver: it owns no state and adds no second index. It reads the ONE index the
+    /// replication systems already maintain.</para>
+    ///
+    /// <para>⭐⭐⭐ <b>The fallback is a FLOOR, not an exception.</b> 🔒 User, <c>2026-09-11</c>:
+    /// *"replaybrowser is ecs module like any else. i do not want such exceptions."* ⇒ every ECS module
+    /// gets the map, and this answers correctly in a world that does not have one yet (a fresh rail, a
+    /// half-composed host) instead of silently reporting "not here". ⛔ The floor is O(n) — a module that
+    /// relies on it in a drag loop is a defect to fix by giving THAT module the map, not by widening this.</para>
+    ///
+    /// <para>⭐⭐⭐ <b>THE MAP ANSWER IS VERIFIED AGAINST THE ENTITY, and that is what makes this safe to
+    /// offer at all.</b> ⚠ The type header above is right that *"a stale index silently answers with the
+    /// wrong entity"* — so the hit is confirmed by reading the entity's OWN
+    /// <see cref="NetworkIdentity"/> (one component read, no query). ⇒ a stale or time-travelled map
+    /// degrades to <b>slow</b> (the scan runs) and never to <b>wrong</b>. ⛔ Without this check the
+    /// fast path would be trading correctness for speed, which the header correctly refuses.
+    /// 📌 It is not hypothetical: a replay re-materialises the same network id as a DIFFERENT live handle
+    /// after a seek, and the old entry can still be alive.</para>
+    /// </summary>
+    public static Entity ResolveNetworkId(EntityRepository? repo, long networkId)
+    {
+        if (repo == null || networkId <= 0) return Entity.Null;
+
+        if (repo.HasSingletonManaged<NetworkEntityMap>())
+        {
+            var map = repo.GetSingletonManaged<NetworkEntityMap>();
+            if (map != null
+                && map.TryGetEntity(networkId, out var mapped)
+                && RuntimeNetworkIdOf(repo, mapped) == networkId)
+                return mapped;
+        }
+
+        return FindEntityByNetworkId(repo, networkId);
+    }
+
+    /// <summary>
+    /// ⭐⭐⭐ <b>"This node KNEW this anchor and it is now gone"</b> — the one thing
+    /// <see cref="ResolveNetworkId"/> cannot express, because it collapses <i>unknown</i> and
+    /// <i>dead</i> into <c>Entity.Null</c>. 📄 <c>docs/DESIGN_Gizmo_Anchor_Identity.md</c> §6.7.
+    ///
+    /// <para>⛔⛔ <b>Why the distinction is load-bearing.</b> <c>GizmoInteractionIngressTranslator</c>
+    /// turns a <c>DragUpdate</c>/<c>Commit</c> into a <b>Cancel</b> when the anchored entity died
+    /// mid-drag — a real safety behaviour, not a fallback. ⚠ But *"an anchor I do not host"* must NOT
+    /// synthesise a cancel: on a multi-node cluster most anchors belong to somebody else, and every one
+    /// of them would cancel the local focus holder's drag. ⇒ only a <b>known-and-dead</b> anchor counts.</para>
+    ///
+    /// <para>⭐⭐ Both "known" signals are read: a live map entry whose entity is dead, and the map's
+    /// GRAVEYARD (<c>Unregister</c> parks an id there for <c>graveyardDurationFrames</c>) — which is the
+    /// case once the replication systems have processed the destruction. ⛔ Without a map this is
+    /// <see langword="false"/>: a mapless node cannot know, and answering <i>"dead"</i> on a guess is the
+    /// error that matters.</para>
+    /// </summary>
+    public static bool IsKnownDeadAnchor(EntityRepository? repo, long networkId)
+    {
+        if (repo == null || networkId <= 0) return false;
+        if (!repo.HasSingletonManaged<NetworkEntityMap>()) return false;
+
+        var map = repo.GetSingletonManaged<NetworkEntityMap>();
+        if (map == null) return false;
+
+        if (map.TryGetEntity(networkId, out var mapped) && !repo.IsAlive(mapped)) return true;
+        return map.IsGraveyard(networkId);
+    }
 }

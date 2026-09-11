@@ -268,12 +268,15 @@ namespace Hrot.IG.Tests.Gizmos
 
             // Mid-way along the first edge, which runs from (10,20) to (110,20) in world space
             // (points are RELATIVE to the SimTransform origin).
-            var hit = GizmoMap.Presentation.DebugGizmoLayer.PickTopmostEntityAnchor(
+            var hit = GizmoMap.Presentation.DebugGizmoLayer.PickTopmostAnchorId(
                 buffer.GetFrame(), new Vector2(60f, 20f), zoom: 1f);
 
+            // ⭐ §6.7 — the hit-test answers with the anchor's NETWORK id; the consumer resolves it to
+            //   an Entity in its own world. ⛔ It used to return the primitive's (Index, Generation).
             Assert.NotNull(hit);
-            Assert.Equal(entity.Index, hit!.Value.Index);
-            Assert.Equal((ushort)entity.Generation, hit.Value.Generation);
+            Assert.Equal(
+                Fdp.Toolkit.Replication.Services.NetworkIdResolver.RuntimeNetworkIdOf(_repo, entity),
+                hit!.Value);
         }
 
         // SC-GZ058-7b: ...and the token carries the NETWORK id, which is what the right-click path
@@ -311,7 +314,7 @@ namespace Hrot.IG.Tests.Gizmos
             new MapOverlayGizmo().Draw(_repo, entity, buffer);
 
             // Well inside the triangle's bounding box but far from all three edges.
-            Assert.Null(GizmoMap.Presentation.DebugGizmoLayer.PickTopmostEntityAnchor(
+            Assert.Null(GizmoMap.Presentation.DebugGizmoLayer.PickTopmostAnchorId(
                 buffer.GetFrame(), new Vector2(40f, 80f), zoom: 1f));
         }
 

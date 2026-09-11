@@ -1,3 +1,4 @@
+using System;
 using System.Numerics;
 using Fdp.Core;
 using Fdp.Toolkit.Diagnostics.Gizmos;
@@ -25,6 +26,31 @@ namespace Fdp.Toolkit.Vis2D.Layers
         private readonly GizmoMap.Presentation.DebugGizmoLayer _innerTerminal;
         private readonly MapCamera? _mapCamera;
         private Camera2D _camera;
+
+        /// <summary>
+        /// ⭐⭐⭐ <b>§6.7 — the world, for ONE job: turning a picked anchor id into an <c>Entity</c> in
+        /// <see cref="PickEntity"/>.</b> 📄 <c>docs/DESIGN_Gizmo_Anchor_Identity.md</c> §6.7.
+        ///
+        /// <para>⚠⚠ <b>This is not the parameter that was deleted in <c>DESIGN_Gizmo_Renderer_Seam.md</c>
+        /// §6 R3, and the difference is the whole point.</b> That one was an <c>ISimulationView? view</c>
+        /// that was <b>stored nowhere and read by nothing</b> — a promised ECS dependency no code consumed,
+        /// which is what let <c>CE-259y</c> conclude the whole <c>EntityLocal</c> path was inert. ⭐ This
+        /// one has exactly one reader, named above.</para>
+        ///
+        /// <para>⛔ <b>The DRAW path still takes no world, and must not.</b> The two-pass
+        /// <c>SpatialAnchor</c> renderer exists to sever that reliance
+        /// (<c>.dev/_DONE/gizmos-1/feedback2.md:798</c>). ⇒ <c>null</c> is legal: a host that never picks
+        /// (or a headless rail) renders and routes interactions exactly as before, and only
+        /// <see cref="PickEntity"/> answers <c>null</c>.</para>
+        ///
+        /// <para>⭐⭐⭐ <b>A PROVIDER, not a reference, and that is measured rather than defensive.</b>
+        /// <c>ReplayBrowserSubsystem.RebindActiveRepo</c> REPLACES its repository on every seek and on
+        /// every view-mode switch — the Merged view builds a brand-new <c>EntityRepository</c> each time
+        /// (<c>BuildAndBindTransientMaster</c>). ⇒ a captured reference would pin the boot repo and
+        /// resolve picks against a world nobody is looking at. ⭐ The three fixed-world hosts simply pass
+        /// <c>() =&gt; _repo</c>.</para>
+        /// </summary>
+        private readonly Func<EntityRepository?>? _worldProvider;
 
         public DebugGizmoLayer(int layerBitIndex = 31)
         {
@@ -64,12 +90,14 @@ namespace Fdp.Toolkit.Vis2D.Layers
             Fdp.Toolkit.Vis2D.Gizmos.DebugPrimitiveRenderer2D? renderer = null,
             MapCamera? camera = null,
             GizmoMap.Presentation.Shapes.IEntityShapeLibrary? shapeLibrary = null,
-            GizmoMap.Presentation.GizmoSchemaRegistry? schemaRegistry = null)
+            GizmoMap.Presentation.GizmoSchemaRegistry? schemaRegistry = null,
+            Func<EntityRepository?>? worldProvider = null)
         {
             LayerBitIndex = layerBitIndex;
             _buffer = buffer;
             _eventBus = eventBus;
             _mapCamera = camera;
+            _worldProvider = worldProvider;
             var imGuiAdapter = new GizmoMap.Presentation.ImGuiPropertyTreeAdapter(schemaRegistry);
             _renderer = renderer ?? new Fdp.Toolkit.Vis2D.Gizmos.DebugPrimitiveRenderer2D(shapeLibrary, imGuiAdapter);
             var innerRenderer = new GizmoMap.Presentation.DebugPrimitiveRenderer2D(null, imGuiAdapter);
@@ -165,10 +193,22 @@ namespace Fdp.Toolkit.Vis2D.Layers
             float zoom = _mapCamera?.InnerCamera.Zoom ?? _camera.Zoom;
             if (zoom <= 0f) return null;
 
-            var anchor = GizmoMap.Presentation.DebugGizmoLayer.PickTopmostEntityAnchor(
+            // ⭐⭐⭐ §6.7 — the hit-test answers with the anchor's NETWORK ID; the handle is RESOLVED.
+            //   ⛔ It used to be `new Entity(a.Index, a.Generation)` from a `(int, ushort)` the terminal
+            //     returned — an ECS handle rebuilt from primitive bytes, in the one assembly boundary
+            //     that exists to be ECS-free. ⇒ that is why this layer now takes a world: the
+            //     IMapLayer.PickEntity contract owes the caller an Entity, and resolving is the honest
+            //     way to produce one.
+            //   ⚠ No world ⇒ no pick. That is visible rather than silent: the four production hosts each
+            //     construct this with their repository (and each one ALREADY passed a live world to the
+            //     ctor overload deleted in DESIGN_Gizmo_Renderer_Seam.md §6 R3, which stored it nowhere).
+            var anchorId = GizmoMap.Presentation.DebugGizmoLayer.PickTopmostAnchorId(
                 _buffer.GetFrame(), worldPos, zoom);
+            if (anchorId is not { } id) return null;
 
-            return anchor is { } a ? new Entity(a.Index, a.Generation) : null;
+            var entity = Fdp.Toolkit.Replication.Services.NetworkIdResolver.ResolveNetworkId(
+                _worldProvider?.Invoke(), id);
+            return entity.IsNull ? null : entity;
         }
 
         /// <summary>
@@ -305,30 +345,33 @@ namespace Fdp.Toolkit.Vis2D.Layers
         }
 
         /// <summary>
-        /// ⭐⭐⭐ S3/S5 (DESIGN_Gizmo_Anchor_Identity.md §6) — REBUILD THE HANDLE FROM THE TOKEN'S PAYLOAD.
+        /// ⭐⭐⭐ <b>§6.7 (DESIGN_Gizmo_Anchor_Identity.md) — A FIELD COPY. THE IDENTITY IS CARRIED, NOT
+        /// TRANSLATED.</b>
         ///
-        /// <para>⭐ <c>token.AnchorId</c> is the IDENTITY (a network id) and is deliberately NOT used here:
-        /// <c>AnchorIndex</c> + <c>StreamId</c> are an in-process payload the producer already had, so this
-        /// needs no lookup and no map. ⛔ That matters — <c>ReplayBrowser</c> composes
-        /// <c>SelectionInteractionSystem</c> and has NO <c>NetworkEntityMap</c>, so resolving here would
-        /// silently drop its selection.</para>
+        /// <para>⛔⛔ <b>What was here, and why it is gone.</b> This used to be
+        /// <c>Target = new Entity(token.AnchorIndex, (ushort)token.StreamId)</c>, gated on
+        /// <c>StreamId == 0</c>: it REBUILT an ECS handle out of a payload the terminal forwarded from the
+        /// picked primitive. The justification on record was that <c>ReplayBrowser</c> had no
+        /// <c>NetworkEntityMap</c>, so a resolve here would silently drop its selection. 🔒 The user
+        /// rejected that trade — *"replaybrowser is ecs module like any else. i do not want such
+        /// exceptions"* — and measuring agreed: nothing prevented giving it the map.</para>
         ///
-        /// <para>⛔ A canvas click or a stateless tool has no entity: <c>AnchorGeneration</c> is 0, so
-        /// <c>Entity.Null</c> results and <c>PickToken.IsValid</c> reports invalid. ⚠ The WIRE never
-        /// carries this payload — S1/S2 resolve at the translators, where a process-local handle is
-        /// meaningless.</para>
+        /// <para>⭐⭐ So the resolve moved to the CONSUMERS, each of which holds a world
+        /// (<c>DataDrivenGizmoSystem</c>, <c>SelectionInteractionSystem</c>), and this adapter keeps the
+        /// property the renderer seam is built on: <b>no ECS dependency on the presentation path.</b>
+        /// 📌 That is not incidental — <c>.dev/_DONE/gizmos-1/feedback2.md:798</c> is explicit that the
+        /// two-pass <c>SpatialAnchor</c> design exists to sever exactly this reliance.</para>
+        ///
+        /// <para>⚠ <c>AnchorId == 0</c> (an empty-canvas click) yields a token whose
+        /// <c>IsValid</c> is false, as before — the value that means "no anchor" simply travels instead of
+        /// being re-derived from a generation.</para>
         /// </summary>
-        private static PickToken ToPickToken(GizmoPickToken token)
+        private static PickToken ToPickToken(GizmoPickToken token) => new PickToken
         {
-            if (token.StreamId == 0) return default;   // no live local entity anchor
-
-            return new PickToken
-            {
-                Target       = new Entity(token.AnchorIndex, (ushort)token.StreamId),
-                SubElementId = token.SubElementId,
-                GizmoTypeId  = token.GizmoTypeId,
-            };
-        }
+            AnchorId     = token.AnchorId,
+            SubElementId = token.SubElementId,
+            GizmoTypeId  = token.GizmoTypeId,
+        };
 
         // 🔴🔴 DELETED 2026-09-10 (R4, DESIGN_Gizmo_Renderer_Seam.md §6):
         //     internal bool TestHook_IsCaptureActive     => false;

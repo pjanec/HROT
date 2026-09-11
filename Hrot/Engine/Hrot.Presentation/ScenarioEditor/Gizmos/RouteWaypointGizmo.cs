@@ -130,8 +130,8 @@ namespace Hrot.ScenarioEditor.Gizmos
                 prim.BoxExtentY       = 8f;
                 prim.Color            = isActive ? ActiveColor : IdleColor;
                 prim.SubElementId     = (ushort)(i + 1);
-                prim.AnchorIndex      = _entity.Index;
-                prim.AnchorGeneration = (ushort)_entity.Generation;
+                // 🔴 §6.7 — the `AnchorIndex`/`AnchorGeneration` writes are DELETED: identity is
+                //   BoxAnchorId, and the ECS handle they carried is read by nothing.
                 prim.BoxAnchorId      = _networkId;
                 draw.EmitRaw(in prim);
             }

@@ -1,6 +1,6 @@
 <!--STATUS
 state: LIVE
-updated: 2026-09-10
+updated: 2026-09-11
 current-answer: ⚠⚠ THERE ARE NOW **TWO** LIVE STRANDS ON THIS LANE. Read the one you are continuing.
   ══ STRAND 1 — MAP INTERACTION / SELECTION / TOOLS (the live one as of 2026-09-10) ══
   ✅✅✅ READ docs/SNAPSHOT_Map_Interaction_Architecture.md FIRST. It is a SNAPSHOT, not an owning
@@ -19,12 +19,35 @@ current-answer: ⚠⚠ THERE ARE NOW **TWO** LIVE STRANDS ON THIS LANE. Read the
   GREEN over the live defect. The rail is fixed IN PLACE to require stateless before EVERY arbiter, and
   red-proofed against the order that shipped this morning.
   ⛔ CE-259r IS STILL NOT VERIFIED IN THE PRODUCT — the next operator run closes it.
-  ✅✅✅ THE ANCHOR-IDENTITY REFACTOR IS BUILT AND PUSHED, 2026-09-10 — S0..S7 of
-  ../DESIGN_Gizmo_Anchor_Identity.md (commits 90bec913, 740b522c, 882d35f6, 6c719f56).
-  ⭐ READ ITS §6.2 "AS-BUILT" FIRST — three steps deviated from the written design and §6.2 OVERRIDES
-  §5's UML and §6's table. In one line: a gizmo anchor is identified by its NETWORK id everywhere; the
-  ECS handle survives only as a declared IN-PROCESS PAYLOAD on GizmoPickToken (AnchorIndex + StreamId),
-  never compared, never routed, never on the wire.
+  ✅✅✅ THE ANCHOR-IDENTITY REFACTOR IS BUILT AND PUSHED — S0..S7 on 2026-09-10, and §6.7 on
+  2026-09-11 (../DESIGN_Gizmo_Anchor_Identity.md).
+  ⭐⭐⭐ READ ITS **§6.7** FIRST — it SUPERSEDES §6.6 and is the current answer. Then §6.2 "AS-BUILT",
+  which OVERRIDES §5's UML and §6's table (three steps deviated while building).
+  ⭐ IN ONE LINE: a gizmo anchor is identified by its NETWORK id everywhere, END TO END, and the ECS
+  handle is GONE — from GizmoPickToken, from PickToken (now `long AnchorId`), from the terminal's
+  hit-test (`PickTopmostAnchorId → long?`) and from every primitive producer. Each consumer resolves
+  the id IN ITS OWN WORLD via NetworkIdResolver.ResolveNetworkId (map-first, and the map hit is
+  VERIFIED against the entity's NetworkIdentity, so a stale map degrades to slow, never to wrong).
+  ⚠⚠ AN EARLIER VERSION OF THIS BLOCK SAID the ECS handle "survives as a declared IN-PROCESS PAYLOAD
+  on GizmoPickToken (AnchorIndex + StreamId)". THAT IS SUPERSEDED — the user refuted the reasoning
+  ("replaybrowser is ecs module like any else. i do not want such exceptions") and it was measured
+  wrong: the NetworkEntityMap is a WORLD SINGLETON, not a per-host delegate, so the SILENT-DEFAULT
+  argument never applied. ReplayBrowser now maintains one like every other ECS module.
+  🔴 A LIVE DEFECT FELL OUT: DataDrivenGizmoSystem routed MenuAction/StructUpdate through
+  FindGizmoByIndex((int)evt.AnchorId,…) — a network id narrowed to an int and compared to Entity.Index,
+  i.e. defect D1 in the one place S0/S5 never swept. Fixed; FindGizmoByIndex deleted. GlobalGizmoManager
+  had already keyed those events by the id ⇒ the seam law, 5th measured instance.
+  ⭐⭐⭐ THE PROCESS LESSON WORTH KEEPING: T-1 caught a regression in my OWN change after I had already
+  written a confident design paragraph saying the opposite. I removed the ingress DROP ("the consumer
+  decides"); SC-GZ037-4 and ANetworkIdThisNodeDoesNotKnowYieldsNoEvent reddened and were RIGHT — DDS is
+  broadcast and Recipient routes to the FOCUS HOLDER FIRST (R-144), so a foreign drag would have fed one
+  operator's gesture into another operator's active tool. Both behaviours kept, and better: the drop now
+  asks "is this id in my WORLD" (any node can answer) instead of "is it in my MAP" (which is what made a
+  mapless node silently drop everything).
+  ⛔ NEW, FILED, NOT FIXED: CE-259ah — DrawEntityBadge writes an ECS handle nothing reads into offsets
+  24/28 while the renderer takes the badge position from BoxCenterX/Y, which nothing writes ⇒
+  HealthBarGizmo badges render at the world origin. Same family, different offsets, needs a placement
+  decision. ⭐ Closed: CE-259ag.
   ✅ CLOSED BY IT: CE-259x (the exclusive-filter leak — but by DELETING S0's fix and removing the CAUSE,
   a disjoint tool-id range, §6.1) and CE-259h (the pick token's network-stable contract).
   🔴 NEW, FILED, NOT FIXED: CE-259z — an EntityLocal primitive's SpatialAnchor key is truncated to 32

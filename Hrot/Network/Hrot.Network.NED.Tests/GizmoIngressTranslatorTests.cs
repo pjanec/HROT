@@ -107,10 +107,14 @@ namespace Hrot.DDS.DataModel.Tests
         [Fact]
         public void CE259af_1_ReceivedPickBox_LosesTheSenderEcsHandle()
         {
+            // ⭐ §6.7 — no factory stamps an ECS handle any more, so this rail writes offsets 8/12 by
+            //   hand to simulate a peer running OLDER code. That is what the strip now guards.
             var pick = DebugPrimitive.MakeBox2D(
                 new System.Numerics.Vector2(10f, 20f), new System.Numerics.Vector2(8f, 8f),
                 new Rgba32(0, 0, 0, 0),
-                anchorIndex: 5, anchorGeneration: 7, networkId: 90210L);
+                anchorId: 90210L);
+            pick.AnchorIndex      = 5;
+            pick.AnchorGeneration = 7;
 
             var prim = Ingest(pick).GetFrame()[0];
 

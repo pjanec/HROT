@@ -1,3 +1,4 @@
+using System.Linq;
 using System.Runtime.InteropServices;
 using Fdp.Toolkit.Diagnostics.Gizmos;
 using Xunit;
@@ -44,6 +45,14 @@ namespace GizmoMap.Contracts.Tests
         {
             var token = new GizmoPickToken { AnchorId = 0L };
             Assert.False(token.IsValid);
+        }
+
+        // SC-GZ053-4b: ⭐⭐ §6.7 — the CANVAS SENTINEL is not a valid anchor. Both token types agree.
+        // ⛔ RED-PROOF SHAPE: change IsValid back to `AnchorId != 0` and this reddens.
+        [Fact]
+        public void SC_GZ053_4b_GizmoPickTokenIsInvalidForTheCanvasSentinel()
+        {
+            Assert.False(new GizmoPickToken { AnchorId = -1L }.IsValid);
         }
 
         // SC-GZ053-5: All DebugPrimitiveShape enum values 0-10 are accessible.
@@ -153,27 +162,38 @@ namespace GizmoMap.Contracts.Tests
 
     public class GizmoPickTokenFieldContractTests
     {
-        // SC-GZ067-2: the token separates IDENTITY from PAYLOAD -- the S5 contract, testable from the
+        // SC-GZ067-2: the token carries ONE identity and no ECS handle -- §6.7, testable from the
         // contracts assembly alone because it is a property of the STRUCT, not of the terminal.
-        // 📄 GizmoPickToken.cs field notes; DESIGN_Gizmo_Anchor_Identity.md §5.1.
+        // ⭐⭐ REWRITTEN 2026-09-11. It used to assert that IDENTITY and a PROCESS-LOCAL ECS PAYLOAD
+        //   "coexist without aliasing" (AnchorId 90210 beside AnchorIndex 5). ⛔ That payload is
+        //   deleted, so the rail now pins the stronger property: the ONLY identity-bearing field is
+        //   AnchorId, and `StreamId` is a reserved publisher discriminator that production leaves 0.
+        // ⛔ RED-PROOF SHAPE: re-add an `AnchorIndex` field and this stops compiling -- which is the
+        //   point. A deleted field is best railed by the type system.
+        // 📄 GizmoPickToken.cs field notes; DESIGN_Gizmo_Anchor_Identity.md §6.7.
         [Fact]
-        public void SC_GZ067_2_PickToken_CarriesIdentityAndPayloadIndependently()
+        public void SC_GZ067_2_PickToken_CarriesOneIdentityAndNoEcsHandle()
         {
             var token = new GizmoPickToken
             {
-                AnchorId     = 90210L,   // identity: the network id
-                AnchorIndex  = 5,        // payload: a process-local ECS index
-                StreamId     = 1u,       // payload: the ECS generation
+                AnchorId     = 90210L,   // identity: the network id -- the only one
                 SubElementId = 3u,
                 GizmoTypeId  = 77u,
             };
 
-            // ⭐ The two domains must not alias: a network id of 90210 and an index of 5 coexist.
             Assert.Equal(90210L, token.AnchorId);
-            Assert.Equal(5,      token.AnchorIndex);
-            Assert.NotEqual(token.AnchorId, (long)token.AnchorIndex);
-            Assert.Equal(1u,     token.StreamId);
+            Assert.Equal(3u,     token.SubElementId);
             Assert.Equal(77u,    token.GizmoTypeId);
+            Assert.Equal(0u,     token.StreamId);   // reserved, never an ECS generation
+
+            // ⭐ The struct has exactly these four settable fields plus StreamId: no ECS handle hides
+            //   in it. Enumerating them is how this stays true if someone adds one back.
+            var names = typeof(GizmoPickToken).GetFields(
+                    System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.Instance)
+                .Select(f => f.Name).OrderBy(n => n).ToArray();
+            Assert.Equal(
+                new[] { "AnchorId", "GizmoTypeId", "StreamId", "SubElementId" },
+                names);
         }
     }
 }

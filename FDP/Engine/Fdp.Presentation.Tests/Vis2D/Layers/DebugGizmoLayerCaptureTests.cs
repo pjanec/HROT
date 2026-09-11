@@ -65,15 +65,9 @@ namespace Fdp.Toolkit.Vis2D.Tests.Layers
         {
             var bus    = new FdpEventBus();
             var layer  = new DebugGizmoLayer(31, new DebugPrimitiveBuffer(16), bus);
-            var anchor = new Entity(4, 1);
 
             layer.OnInteraction(
-                new GizmoPickToken
-                {
-                    AnchorId    = 90210L,
-                    AnchorIndex = anchor.Index,
-                    StreamId    = (uint)anchor.Generation,
-                },
+                new GizmoPickToken { AnchorId = 90210L },   // §6.7 — the id IS the identity
                 GizmoInteractionEventKind.DragUpdate,
                 new Vector3(10f, 20f, 0f), actionId: 0, stateFlags: 0);
 
@@ -83,7 +77,7 @@ namespace Fdp.Toolkit.Vis2D.Tests.Layers
             Assert.Equal(1, events.Length);
             Assert.Equal(10f, events[0].WorldPos.X, precision: 3);
             Assert.Equal(20f, events[0].WorldPos.Y, precision: 3);
-            Assert.Equal(anchor, events[0].Token.Target);
+            Assert.Equal(90210L, events[0].Token.AnchorId);
         }
     }
 }

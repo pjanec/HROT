@@ -320,7 +320,7 @@ namespace Fdp.Toolkit.Diagnostics.Gizmos
         }
 
         public void DrawEntitySphere(
-            Entity  anchor,
+            long    anchorNetworkId,
             Vector3 worldCenter,
             float   radius,
             Rgba32  color,
@@ -335,8 +335,13 @@ namespace Fdp.Toolkit.Diagnostics.Gizmos
             p.SphereCenter     = worldCenter;
             p.SphereRadius     = radius;
             p.DebugLayer       = layer;
-            p.AnchorIndex      = anchor.Index;
-            p.AnchorGeneration = anchor.Generation;
+            // ⭐⭐ §6.7 — IDENTITY, in the field the hit-test actually routes on. ⛔ This was
+            //   `AnchorIndex = anchor.Index; AnchorGeneration = anchor.Generation` — an ECS handle in
+            //   the two offsets nothing reads for identity any more, which left the sphere pickable in
+            //   its doc comment and unpickable in fact. ⭐ A Sphere's payload (SphereCenter @24-35,
+            //   SphereRadius @36-39) leaves offset 44 free, so BoxAnchorId fits — unlike a Line, whose
+            //   LineEnd/EndColor overlap it (see DebugPrimitive.MakePickSegment's note).
+            p.BoxAnchorId      = anchorNetworkId;
             Append(p);
         }
 

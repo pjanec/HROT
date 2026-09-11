@@ -149,10 +149,32 @@ namespace Fdp.Toolkit.Diagnostics.Gizmos.Tests
             repo.RegisterComponent<GizmoTestCompA>();
             repo.RegisterComponent<GizmoTestCompB>();
             repo.RegisterComponent<GizmoSelectedTag>();
+            // ⭐⭐ §6.7 — interaction routing resolves an anchor NETWORK ID to a local entity, so every
+            //   fixture that publishes an interaction event needs this component registered.
+            repo.RegisterComponent<Fdp.Toolkit.Replication.Components.NetworkIdentity>();
             repo.RegisterEvent<ConstructionOrder>();
             repo.RegisterEvent<DestructionOrder>();
             repo.RegisterEvent<ClearBehaviorEvent>();
             return repo;
+        }
+
+        /// <summary>
+        /// ⭐⭐⭐ §6.7 — an entity that a gizmo interaction can actually be ROUTED to.
+        /// 📄 <c>docs/DESIGN_Gizmo_Anchor_Identity.md</c> §6.7.
+        ///
+        /// <para>⛔ Before §6.7 a pick token carried the producer's ECS handle, so a bare
+        /// <c>repo.CreateEntity()</c> was routable and these fixtures used one. Identity is now the
+        /// network id and <c>DataDrivenGizmoSystem</c> resolves it against the world — so an entity with
+        /// no <see cref="Fdp.Toolkit.Replication.Components.NetworkIdentity"/> is, correctly,
+        /// <b>not interactive</b>. ⭐ That is the production rule too:
+        /// <c>EntityPresentationGizmoShared.EmitPickBox</c> emits no pick box without one (constraint
+        /// <c>C2</c>), so a rail using a bare entity was testing a state production cannot reach.</para>
+        /// </summary>
+        public static Entity CreateNetworkedEntity(EntityRepository repo, long networkId)
+        {
+            var e = repo.CreateEntity();
+            repo.AddComponent(e, new Fdp.Toolkit.Replication.Components.NetworkIdentity { Value = networkId });
+            return e;
         }
 
         /// <summary>
@@ -885,6 +907,10 @@ namespace Fdp.Toolkit.Diagnostics.Gizmos.Tests
 
     public class DataDrivenGizmoSystemRoutingTests
     {
+        /// <summary>⭐ §6.7 — the anchor id every rail below routes on. A real network id, not an
+        /// ECS index: 41 is deliberately far from any index this fixture will allocate.</summary>
+        private const long NetId = 7041L;
+
         private static (EntityRepository repo, DataDrivenGizmoSystem sys, TrackingGizmoDefinition def1, TrackingGizmoDefinition def2, Entity entity, FdpEventBus interactionBus)
             CreateRoutingFixture()
         {
@@ -909,7 +935,10 @@ namespace Fdp.Toolkit.Diagnostics.Gizmos.Tests
             var buffer = new Fdp.Toolkit.Diagnostics.Gizmos.DebugPrimitiveBuffer();
             var sys = new DataDrivenGizmoSystem(registry, buffer, interactionBus: interactionBus);
 
-            var entity = repo.CreateEntity();
+            // ⭐⭐ §6.7 — the entity carries a NetworkIdentity, because that is what an interaction is
+            //   routed by now. ⛔ A bare CreateEntity() is not interactive, and production agrees:
+            //   EmitPickBox emits no pick box without a network id (C2).
+            var entity = GizmoTestRepo.CreateNetworkedEntity(repo, NetId);
             repo.AddComponent(entity, new GizmoTestCompA { Value = 1 });
 
             // Init both gizmos.
@@ -930,7 +959,7 @@ namespace Fdp.Toolkit.Diagnostics.Gizmos.Tests
 
             bus.Publish(new GizmoInteractionStartedEvent
             {
-                Token = new PickToken { Target = entity, GizmoTypeId = 0xAA01u },
+                Token = new PickToken { AnchorId = NetId, GizmoTypeId = 0xAA01u },
             });
             bus.SwapBuffers();
             sys.Execute(repo, 0f);
@@ -940,8 +969,15 @@ namespace Fdp.Toolkit.Diagnostics.Gizmos.Tests
         }
 
         // SC-GZ066-2: GizmoStructUpdateEvent with def2's GizmoTypeId reaches def2 only.
-        // Fixed (D-6): index-only editor events now use FindGizmoByIndex, which matches on Index
-        // and allows index 0 (previously dropped by FindGizmo's entity.IsNull/gen-0 guard).
+        // ⭐⭐⭐ REWRITTEN 2026-09-11 (§6.7) — AND THIS RAIL WAS ASSERTING THE DEFECT.
+        //   ⛔ It published `AnchorId = entity.Index` and its comment read "Fixed (D-6): index-only
+        //     editor events now use FindGizmoByIndex, which matches on Index". That was true of the
+        //     code and FALSE of the contract: GizmoStructUpdateEvent.AnchorId is documented as a
+        //     "stable gizmo anchor id" and S5 made it a NETWORK id in fact. ⇒ the rail pinned the
+        //     narrow-a-network-id-to-an-index comparison in place, which is defect D1.
+        //   ⭐ It now publishes the network id, which is what every producer sends.
+        //   ⛔ RED-PROOF SHAPE: route these events through an index comparison again and this reddens
+        //     (NetId 7041 is not this entity's ECS index).
         [Fact]
         public void SC_GZ066_2_StructUpdate_RoutesTo_MatchingGizmo()
         {
@@ -949,7 +985,7 @@ namespace Fdp.Toolkit.Diagnostics.Gizmos.Tests
 
             bus.PublishManaged(new Fdp.Toolkit.Diagnostics.Gizmos.Events.GizmoStructUpdateEvent
             {
-                AnchorId    = entity.Index,
+                AnchorId    = NetId,
                 GizmoTypeId = 0xAA02u,
                 PayloadJson = "{\"x\":1}",
             });
@@ -962,7 +998,8 @@ namespace Fdp.Toolkit.Diagnostics.Gizmos.Tests
         }
 
         // SC-GZ066-5: GizmoMenuActionEvent with def2's GizmoTypeId — only def2 receives it.
-        // Fixed (D-6): index-only routing via FindGizmoByIndex (see SC_GZ066_2).
+        // ⭐⭐ §6.7 — routed by the NETWORK id; see SC_GZ066_2 for why the old `(uint)entity.Index`
+        //   form was the defect rather than the fix.
         [Fact]
         public void SC_GZ066_5_MenuAction_RoutesTo_MatchingGizmo_Only()
         {
@@ -970,7 +1007,7 @@ namespace Fdp.Toolkit.Diagnostics.Gizmos.Tests
 
             bus.Publish(new GizmoMenuActionEvent
             {
-                AnchorId    = (uint)entity.Index,
+                AnchorId    = NetId,
                 ActionId    = 7,
                 GizmoTypeId = 0xAA02u,
             });

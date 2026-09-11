@@ -139,17 +139,28 @@ namespace Fdp.Toolkit.Diagnostics.Gizmos.Tests
         }
 
         [Fact]
-        public void PickToken_IsValid_FalseWhenTargetIsNull()
+        public void PickToken_IsValid_FalseWhenThereIsNoAnchor()
         {
-            var t = default(PickToken);
-            Assert.False(t.IsValid);
+            Assert.False(default(PickToken).IsValid);
         }
 
         [Fact]
-        public void PickToken_IsValid_TrueForNonNullEntity()
+        public void PickToken_IsValid_TrueForARealAnchorId()
         {
-            var t = new PickToken { Target = new Entity(1, 1), SubElementId = 42 };
+            var t = new PickToken { AnchorId = 7041L, SubElementId = 42 };
             Assert.True(t.IsValid);
+        }
+
+        // ⭐⭐⭐ §6.7 — THE CANVAS SENTINEL IS NOT A VALID ANCHOR, which is why IsValid tests `> 0` and
+        //   not `!= 0`. GizmoMap.Presentation.DebugGizmoLayer uses -1 for the canvas context menu, and
+        //   the only production reader of this flag picks EntityLocal vs World for a drag position —
+        //   so calling -1 valid would put a canvas drag in an entity's local frame.
+        // ⛔ RED-PROOF SHAPE: change IsValid to `AnchorId != 0` and this reddens.
+        // 📄 docs/DESIGN_Gizmo_Anchor_Identity.md §6.7; PickToken.cs.
+        [Fact]
+        public void PickToken_IsValid_FalseForTheCanvasSentinel()
+        {
+            Assert.False(new PickToken { AnchorId = -1L }.IsValid);
         }
     }
 
@@ -244,15 +255,24 @@ namespace Fdp.Toolkit.Diagnostics.Gizmos.Tests
             Assert.Equal(0u, p.StringHash);
         }
 
+        // 🔴🔴 DELETED 2026-09-11 (§6.7): AnchorProperty_ReconstructsEntity.
+        //   It asserted `p.GetAnchor()` rebuilt Entity(7, 3) from offsets 8/12 — i.e. it railed the
+        //   FABRICATION itself, on a field pair that for most shapes holds a narrowed network id, a
+        //   StringHash or a signed pixel offset. `GetAnchor` had no production caller and is deleted.
+        //   📄 docs/DESIGN_Gizmo_Anchor_Identity.md §6.7.
+        // ⭐ Replaced by the property that matters: the primitive's pick token carries its IDENTITY.
         [Fact]
-        public void AnchorProperty_ReconstructsEntity()
+        public void GetPickToken_CarriesTheAnchorIdentity_NotAnEcsHandle()
         {
             var p = default(DebugPrimitive);
-            p.AnchorIndex      = 7;
-            p.AnchorGeneration = 3;
-            var anchor = p.GetAnchor();
-            Assert.Equal(7, anchor.Index);
-            Assert.Equal(3, anchor.Generation);
+            p.BoxAnchorId      = 7041L;
+            p.AnchorIndex      = 7;    // whatever offset 8 holds for this shape
+            p.AnchorGeneration = 3;    // ...and offset 12
+
+            var token = p.GetPickToken();
+
+            Assert.Equal(7041L, token.AnchorId);
+            Assert.True(token.IsValid);
         }
 
         [Fact]

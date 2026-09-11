@@ -52,7 +52,7 @@ namespace Hrot.DDS.DataModel.Tests
             var sys = new GizmoInteractionEgressTranslator(nodeId: 1, writer: null, interactionBus: interactionBus);
 
             // Publish an event so there is something to drain.
-            var token = new PickToken { Target = Entity.Null, SubElementId = 0 };
+            var token = default(PickToken);   // §6.7 — no anchor; AnchorId 0
             interactionBus.Publish(new GizmoInteractionStartedEvent { Token = token });
             interactionBus.SwapBuffers();
 
@@ -156,7 +156,7 @@ namespace Hrot.DDS.DataModel.Tests
             interactionBus.Register<GizmoDragUpdateEvent>();
             var sys       = new GizmoInteractionEgressTranslator(nodeId: 1, writer: writer, interactionBus: interactionBus);
 
-            var token = new PickToken { Target = Entity.Null, SubElementId = 0 };
+            var token = default(PickToken);   // §6.7 — no anchor; AnchorId 0
             interactionBus.Publish(new GizmoDragUpdateEvent
             {
                 Token    = token,
@@ -176,8 +176,11 @@ namespace Hrot.DDS.DataModel.Tests
         public void SC_GZ047_5_IngressSystem_RestoresSpace_InDragUpdate()
         {
             using var repo = new EntityRepository();
+            // ⭐ §6.7 — the ingress delivers only anchors this node HOSTS (a foreign drag must not reach
+            //   the local focus holder, R-144), so the world needs the entity this batch names.
+            repo.RegisterComponent<Fdp.Toolkit.Replication.Components.NetworkIdentity>();
             var entity = repo.CreateEntity();
-            var token  = new PickToken { Target = entity, SubElementId = 0 };
+            repo.AddComponent(entity, new Fdp.Toolkit.Replication.Components.NetworkIdentity { Value = 90210L });
 
             var batch = new GizmoInteractionBatch
             {
@@ -193,10 +196,11 @@ namespace Hrot.DDS.DataModel.Tests
             var reader = new SingleBatchReader(batch);
             var interactionBus = new FdpEventBus();
             interactionBus.Register<GizmoDragUpdateEvent>();
-            var entityMap = new Fdp.Toolkit.Replication.Services.NetworkEntityMap();
-            entityMap.Register(90210L, entity);
+            // ⭐⭐ §6.7 — NO NetworkEntityMap is needed here any more, and that is the point of the
+            //   change: the ingress forwards the received network id and a mapless node no longer
+            //   DROPS the event. (It used to take `entityMap` and `return` on a lookup miss.)
             var sys    = new GizmoInteractionIngressTranslator(
-                reader: reader, interactionBus: interactionBus, entityMap: entityMap);
+                reader: reader, interactionBus: interactionBus);
             var cmd = new EntityCommandBuffer();
             sys.PollIngress(cmd, repo);
             interactionBus.SwapBuffers();

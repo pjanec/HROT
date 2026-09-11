@@ -36,34 +36,31 @@ namespace Fdp.Toolkit.Vis2D.Tests.Layers
 
         /// <summary>
         /// A terminal token as <c>MakePickToken</c> builds one: <c>AnchorId</c> is the network identity,
-        /// <c>AnchorIndex</c>+<c>StreamId</c> the in-process ECS payload.
-        /// 📄 docs/DESIGN_Gizmo_Anchor_Identity.md §5.1.
+        /// and since §6.7 that is the ONLY identity — the <c>AnchorIndex</c>+<c>StreamId</c> ECS payload
+        /// is deleted. 📄 docs/DESIGN_Gizmo_Anchor_Identity.md §6.7.
         /// </summary>
-        private static GizmoPickToken TokenFor(Entity anchor, long networkId = 90210L, uint subElementId = 0u)
+        private static GizmoPickToken TokenFor(long networkId = 90210L, uint subElementId = 0u)
             => new GizmoPickToken
             {
                 AnchorId     = networkId,
                 SubElementId = subElementId,
-                AnchorIndex  = anchor.Index,
-                StreamId     = (uint)anchor.Generation,
             };
 
-        // SC-GZ025-1: a Started interaction publishes GizmoInteractionStartedEvent exactly once, with
-        // the local Entity rebuilt from the token's PAYLOAD (no map lookup — ReplayBrowser has none).
+        // SC-GZ025-1: a Started interaction publishes GizmoInteractionStartedEvent exactly once,
+        // carrying the anchor's NETWORK ID (§6.7 — the ECS handle is no longer forwarded or rebuilt).
         [Fact]
-        public void SC_GZ025_1_Started_PublishesStartedEventOnce_WithTheLocalEntity()
+        public void SC_GZ025_1_Started_PublishesStartedEventOnce_WithTheAnchorId()
         {
             var layer  = MakeLayer(out var bus);
-            var anchor = new Entity(7, 3);
 
-            layer.OnInteraction(TokenFor(anchor), GizmoInteractionEventKind.Started,
+            layer.OnInteraction(TokenFor(), GizmoInteractionEventKind.Started,
                 new Vector3(10f, 20f, 0f), actionId: 0, stateFlags: 0);
 
             bus.SwapBuffers();
             var events = bus.Read<GizmoInteractionStartedEvent>();
 
             Assert.Equal(1, events.Length);
-            Assert.Equal(anchor, events[0].Token.Target);
+            Assert.Equal(90210L, events[0].Token.AnchorId);
             Assert.Equal(10f, events[0].WorldPos.X, precision: 3);
             Assert.Equal(20f, events[0].WorldPos.Y, precision: 3);
         }
@@ -73,32 +70,33 @@ namespace Fdp.Toolkit.Vis2D.Tests.Layers
         public void SC_GZ025_2_Started_CarriesSubElementId()
         {
             var layer  = MakeLayer(out var bus);
-            var anchor = new Entity(7, 3);
 
-            layer.OnInteraction(TokenFor(anchor, subElementId: 4u), GizmoInteractionEventKind.Started,
+            layer.OnInteraction(TokenFor(subElementId: 4u), GizmoInteractionEventKind.Started,
                 Vector3.Zero, 0, 0);
 
             bus.SwapBuffers();
             Assert.Equal(4u, bus.Read<GizmoInteractionStartedEvent>()[0].Token.SubElementId);
         }
 
-        // SC-GZ025-3: a CANVAS interaction (no entity anchor ⇒ StreamId 0) publishes with an INVALID
-        // token rather than fabricating Entity 0 — which is a perfectly valid ECS index.
-        // ⛔ RED-PROOF SHAPE: drop the `StreamId == 0` guard in ToPickToken and Target becomes
-        //    Entity(0, 0) and IsValid flips.
+        // SC-GZ025-3: a CANVAS interaction publishes an INVALID token. §6.7 — the canvas sentinel -1
+        // is carried through as AnchorId, and `IsValid` is false because nothing resolves it to an
+        // entity. ⛔ RED-PROOF SHAPE: make ToPickToken force AnchorId to 0 or drop the -1 sentinel
+        //    handling and this flips. ⚠ Before §6.7 this rail guarded a DIFFERENT hazard — a rebuilt
+        //    Entity(0,0), which is a perfectly valid ECS index — and that hazard no longer exists.
         [Fact]
-        public void SC_GZ025_3_CanvasInteraction_PublishesAnInvalidToken_NotEntityZero()
+        public void SC_GZ025_3_CanvasInteraction_PublishesAnInvalidToken()
         {
             var layer = MakeLayer(out var bus);
 
             layer.OnInteraction(
-                new GizmoPickToken { AnchorId = -1L },   // the canvas sentinel; no ECS payload
+                new GizmoPickToken { AnchorId = -1L },   // the canvas sentinel
                 GizmoInteractionEventKind.Started, Vector3.Zero, 0, 0);
 
             bus.SwapBuffers();
             var events = bus.Read<GizmoInteractionStartedEvent>();
 
             Assert.Equal(1, events.Length);
+            Assert.Equal(-1L, events[0].Token.AnchorId);
             Assert.False(events[0].Token.IsValid);
         }
 
@@ -107,8 +105,7 @@ namespace Fdp.Toolkit.Vis2D.Tests.Layers
         public void SC_GZ025_4_EachKind_PublishesItsOwnEventType()
         {
             var layer  = MakeLayer(out var bus);
-            var anchor = new Entity(7, 3);
-            var token  = TokenFor(anchor);
+            var token  = TokenFor();
 
             layer.OnInteraction(token, GizmoInteractionEventKind.DragUpdate, Vector3.Zero, 0, 0);
             layer.OnInteraction(token, GizmoInteractionEventKind.Commit,     Vector3.Zero, 0, 0);

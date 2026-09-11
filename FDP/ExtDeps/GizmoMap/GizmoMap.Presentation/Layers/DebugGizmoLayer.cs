@@ -147,8 +147,6 @@ namespace GizmoMap.Presentation
                 {
                     AnchorId     = prim.StructNetworkId,   // ⭐ S5 — IDENTITY: network id (or a tool id)
                     SubElementId = prim.SubElementId,
-                    AnchorIndex  = prim.AnchorIndex,       // ⭐ payload
-                    StreamId     = prim.AnchorGeneration,
                 };
                 break;
             }
@@ -437,25 +435,28 @@ namespace GizmoMap.Presentation
         /// that is its entire job. ⇒ *"only the capture holder receives interactions"* and *"the capture
         /// holder may hit-test"* are compatible, and conflating them is what made the picker blind.</para>
         ///
-        /// <para>⚠ Yields a result only when the primitive is bound to a LIVE LOCAL entity
-        /// (<c>AnchorGeneration != 0</c>). ⛔ A stateless tool handle or a remote network object addresses a
-        /// different domain and is NOT an entity — those yield <see langword="null"/> rather than a
-        /// fabricated one.</para>
+        /// <para>⭐⭐⭐ <b>§6.7, 2026-09-11 — RETURNS THE NETWORK ID.</b> ⛔ It used to return
+        /// <c>(int Index, ushort Generation)</c> — the hit primitive's ECS handle, which the caller turned
+        /// straight back into an <c>Entity</c>. ⇒ a process-local handle crossing an assembly boundary
+        /// that exists to be ECS-free. Now it answers with the anchor's IDENTITY and the caller resolves
+        /// it in its own world (📄 <c>docs/DESIGN_Gizmo_Anchor_Identity.md</c> §6.7).</para>
         ///
-        /// <para>⛔ <b>Returns the raw anchor, not an <c>Entity</c>, on purpose:</b> this project is
-        /// deliberately decoupled from <c>Fdp.Core</c> (see the type header). The ECS handle is
-        /// reconstructed by the caller that owns that dependency.</para>
+        /// <para>⚠ Yields a result only for a primitive carrying a real anchor id
+        /// (<c>BoxAnchorId != 0</c>). ⛔ A sub-element-only handle yields <see langword="null"/> rather
+        /// than a fabricated identity. ⚠ A TOOL id (≥ <c>1&lt;&lt;40</c>, the disjoint range of §6.1) is
+        /// returned as-is and simply resolves to no entity — which is the correct answer for it.</para>
+        ///
+        /// <para>⛔ <b>Returns an id, not an <c>Entity</c>, on purpose:</b> this project is deliberately
+        /// decoupled from <c>Fdp.Core</c> (see the type header).</para>
         /// </summary>
-        public static (int Index, ushort Generation)? PickTopmostEntityAnchor(
+        public static long? PickTopmostAnchorId(
             ReadOnlySpan<DebugPrimitive> primitives, Vector2 worldPos, float zoom)
         {
             var best = FindTopmostInteractivePrimitive(primitives, worldPos, zoom, exclusiveAnchorId: null);
             if (!best.HasValue) return null;
 
-            var hit = best.Value;
-            if (hit.AnchorGeneration == 0) return null;
-
-            return ((int)hit.AnchorIndex, (ushort)hit.AnchorGeneration);
+            long id = best.Value.BoxAnchorId;
+            return id != 0 ? id : (long?)null;
         }
 
         /// <summary>
@@ -468,9 +469,11 @@ namespace GizmoMap.Presentation
         /// defect <c>D2</c> of the design, and having it written twice is how the left-press arm kept the
         /// old behaviour after the right-click arm was fixed.</para>
         ///
-        /// <para>⭐ <c>AnchorIndex</c>/<c>StreamId</c> still travel, as an IN-PROCESS PAYLOAD only — never
-        /// compared, never routed, never on the wire. The field notes in <c>GizmoPickToken.cs</c> say why a
-        /// payload and not a map lookup (<c>ReplayBrowser</c> has no <c>NetworkEntityMap</c>).</para>
+        /// <para>⭐⭐ <b>§6.7, 2026-09-11 — THE ECS PAYLOAD IS GONE.</b> This used to also copy
+        /// <c>hit.AnchorIndex</c> and <c>hit.AnchorGeneration</c> into the token so a consumer could
+        /// rebuild an <c>Entity</c> with no lookup. ⛔ The token now carries <b>only</b> the network id;
+        /// each consumer resolves it in its own world. See <c>GizmoPickToken.cs</c> for why the payload's
+        /// justification did not survive measurement.</para>
         ///
         /// <para>⭐ Public so a rail can assert it without a live window — <see cref="HandleInput"/> needs
         /// Raylib. ⛔ A test that RE-IMPLEMENTS this is blind to exactly the bug above.</para>
@@ -479,8 +482,6 @@ namespace GizmoMap.Presentation
         {
             AnchorId     = hit.BoxAnchorId,        // ⭐ IDENTITY: the network id (or a disjoint tool id)
             SubElementId = hit.SubElementId,
-            AnchorIndex  = hit.AnchorIndex,        // ⭐ payload — see GizmoPickToken.cs
-            StreamId     = hit.AnchorGeneration,   // ⭐ payload — the ECS generation
             GizmoTypeId  = hit.GizmoTypeId,
         };
 
@@ -489,23 +490,21 @@ namespace GizmoMap.Presentation
 
         /// <summary>
         /// ⭐⭐ <b>Test seam for the exclusive-capture filter (S0/S5).</b> Mirrors
-        /// <see cref="PickTopmostEntityAnchor"/> -- which exists for the same reason -- but lets a rail
+        /// <see cref="PickTopmostAnchorId"/> -- which exists for the same reason -- but lets a rail
         /// supply the capture binding that <see cref="HandleInput"/> would have scanned out of the frame.
         ///
         /// <para>⛔ Without this the filter is unreachable from a test: the public entry point hard-codes
         /// <c>exclusiveAnchorId: null</c> and <see cref="HandleInput"/> needs a live window.</para>
         /// </summary>
-        public static (int Index, ushort Generation)? PickTopmostEntityAnchorUnderCapture(
+        public static long? PickTopmostAnchorIdUnderCapture(
             ReadOnlySpan<DebugPrimitive> primitives, Vector2 worldPos, float zoom,
             long? exclusiveAnchorId)
         {
             var best = FindTopmostInteractivePrimitive(primitives, worldPos, zoom, exclusiveAnchorId);
             if (!best.HasValue) return null;
 
-            var hit = best.Value;
-            if (hit.AnchorGeneration == 0) return null;
-
-            return ((int)hit.AnchorIndex, (ushort)hit.AnchorGeneration);
+            long id = best.Value.BoxAnchorId;
+            return id != 0 ? id : (long?)null;
         }
 
         private static DebugPrimitive? FindTopmostInteractivePrimitive(

@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using Fdp.Core;
+using Fdp.Toolkit.Replication.Components;
 
 namespace Fdp.Toolkit.Replication.Services
 {
@@ -195,5 +196,43 @@ namespace Fdp.Toolkit.Replication.Services
             }
         }
 
+        /// <summary>
+        /// ⭐⭐⭐ <b>Rebuild this map from the world's current ECS state.</b> Prunes entries whose entity
+        /// is gone, then registers every live entity carrying a <see cref="NetworkIdentity"/> that is not
+        /// already mapped.
+        ///
+        /// <para>⭐ <b>Extracted 2026-09-11 from <c>EcsRecordReplayController</c>'s private
+        /// <c>_afterSeek</c> lambda</b>, whose own comment already declared the intent —
+        /// <i>"Unify NetworkEntityMap resync for all subsystems (Editor, SimHost, CGF, etc.)"</i> — while
+        /// living somewhere only that controller could reach. ⛔ A module with its own seek path (the
+        /// ReplayBrowser) could not use it and had to go without a map entirely. ⇒ one implementation,
+        /// reachable by every ECS module (ruling 9).</para>
+        ///
+        /// <para>⭐⭐ <b>Why this matters beyond tidiness:</b> a module WITHOUT a map cannot resolve a
+        /// network id to a local entity, and that single gap was the stated reason the gizmo pick token
+        /// carried a process-local ECS handle alongside its network id. 📄
+        /// <c>docs/DESIGN_Gizmo_Anchor_Identity.md</c> §6.7.</para>
+        ///
+        /// <para>⚠ Time-travel safe: it queries <c>EntityLifecycle.All</c>, so entities that exist at the
+        /// seeked-to frame are registered even if they are dead "now".</para>
+        /// </summary>
+        public void RebuildFromWorld(EntityRepository repo)
+        {
+            if (repo == null) throw new ArgumentNullException(nameof(repo));
+
+            PruneDeadEntities(repo);
+
+            var q = repo.Query()
+                .With<NetworkIdentity>()
+                .WithLifecycle(EntityLifecycle.All)
+                .Build();
+
+            foreach (var e in q)
+            {
+                long netId = repo.GetComponentRO<NetworkIdentity>(e).Value;
+                if (netId != 0 && !TryGetEntity(netId, out _))
+                    Register(netId, e);
+            }
+        }
     }
 }

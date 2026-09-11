@@ -22,25 +22,27 @@ namespace Fdp.Toolkit.Vis2D.Tests.Layers
 {
     public class DebugGizmoLayerHitTests
     {
-        private static Entity DummyAnchor => new Entity(99, 1);
+        /// <summary>⭐ §6.7 — an anchored primitive the hit-test will consider: a network id, and that
+        /// is all it takes. (There used to be a <c>DummyAnchor</c> ECS handle stamped alongside.)</summary>
+        private const long AnchorNetId = 90210L;
 
-        /// <summary>An anchored primitive the hit-test will consider: a live ECS payload + a network id.</summary>
         private static DebugPrimitive Anchored(DebugPrimitiveShape shape, SizeMode sizeMode)
         {
-            var anchor = DummyAnchor;
             var p = default(DebugPrimitive);
             p.Shape            = shape;
             p.Space            = CoordinateSpace.World;
             p.SizeMode         = sizeMode;
             p.TargetView       = PipelineTarget.Map2D;
-            p.AnchorIndex      = anchor.Index;
-            p.AnchorGeneration = anchor.Generation;
-            p.BoxAnchorId      = 90210L;          // the identity, per DESIGN_Gizmo_Anchor_Identity §5.1
+            // ⭐ §6.7 — only the identity is stamped. `AnchorIndex`/`AnchorGeneration` used to carry
+            //   the ECS handle here too; nothing reads one now.
+            p.BoxAnchorId      = AnchorNetId;
             return p;
         }
 
-        private static (int Index, ushort Generation)? Pick(DebugPrimitive p, Vector2 at, float zoom = 1f)
-            => GizmoMap.Presentation.DebugGizmoLayer.PickTopmostEntityAnchor(new[] { p }, at, zoom);
+        // ⭐ §6.7 — the seam answers with the anchor's NETWORK ID (it was PickTopmostEntityAnchor,
+        //   returning the hit primitive's (Index, Generation) ECS handle).
+        private static long? Pick(DebugPrimitive p, Vector2 at, float zoom = 1f)
+            => GizmoMap.Presentation.DebugGizmoLayer.PickTopmostAnchorId(new[] { p }, at, zoom);
 
         // 📌 HISTORY, 2026-09-10 → 2026-09-11. SC-GZ026-1/2/4 originally hit-tested a LINE, and the live
         //   hit-test served Box2D and Sphere only ⇒ a capability the terminal migration had dropped
@@ -63,7 +65,7 @@ namespace Fdp.Toolkit.Vis2D.Tests.Layers
             var hit = Pick(p, new Vector2(50f, 0f));
 
             Assert.NotNull(hit);
-            Assert.Equal(99, hit!.Value.Index);
+            Assert.Equal(AnchorNetId, hit!.Value);
         }
 
         // SC-GZ026-2: a click well beyond the extent (+ the 5-unit grace radius) misses.
@@ -106,13 +108,12 @@ namespace Fdp.Toolkit.Vis2D.Tests.Layers
             var p = DebugPrimitive.MakePickSegment(
                 new Vector2(0f, 0f), new Vector2(100f, 100f),
                 networkId: 90210L, pickThickness: 2f,
-                sizeMode: SizeMode.WorldMeters,
-                anchorIndex: 99, anchorGeneration: 1);
+                sizeMode: SizeMode.WorldMeters);
 
             var hit = Pick(p, new Vector2(x, y));
 
             Assert.NotNull(hit);
-            Assert.Equal(99, hit!.Value.Index);
+            Assert.Equal(90210L, hit!.Value);
         }
 
         // SC-GZ026-5b: and a click well off the diagonal misses — the corridor is narrow, not a square.
@@ -154,8 +155,7 @@ namespace Fdp.Toolkit.Vis2D.Tests.Layers
             var p = DebugPrimitive.MakePickSegment(
                 new Vector2(0f, 0f), new Vector2(100f, 0f),
                 networkId: 90210L, pickThickness: 2f,
-                sizeMode: SizeMode.WorldMeters,
-                anchorIndex: 99, anchorGeneration: 1);
+                sizeMode: SizeMode.WorldMeters);
 
             Assert.NotNull(Pick(p, new Vector2(50f, 0f)));    // on it
             Assert.Null(Pick(p, new Vector2(140f, 0f)));      // past the end, beyond the grace radius

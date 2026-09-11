@@ -906,7 +906,11 @@ public class IgApplication : IDisposable
                 _interactionBus,
                 camera: _canvas.Camera,
                 shapeLibrary: new GizmoMap.Presentation.Shapes.DefaultEntityShapeLibrary(),
-                schemaRegistry: schemaRegistry);
+                schemaRegistry: schemaRegistry,
+                // ⭐ §6.7 — the world IS passed now, for ONE reader: PickEntity resolves a picked
+                //   anchor's network id to an Entity. ⚠ NOT a revival of R3's deleted `view`
+                //   parameter, which was stored nowhere. See DebugGizmoLayer._world.
+                worldProvider: () => _world);
             _gizmoLayer = gizmoLayer;
             _canvas.AddLayer(gizmoLayer);
             _canvas.DrawBuffer = _gizmoBuffer;

@@ -1,17 +1,22 @@
 <!--STATUS
 state: LIVE
-build-state: BUILT (S0..S7, 2026-09-10 — see §6.2 for the AS-BUILT and where it deviates)
-updated: 2026-09-10
-current-answer: ⭐⭐⭐ §6.2 is the AS-BUILT and it OVERRIDES §5's UML and §6's table wherever they
+build-state: BUILT (S0..S7 2026-09-10; §6.7 — the ECS payload DELETED — 2026-09-11)
+updated: 2026-09-11
+current-answer: ⭐⭐⭐ §6.7 IS THE CURRENT ANSWER and it SUPERSEDES §6.6 entirely: the ECS index and
+  generation are gone from GizmoPickToken, from PickToken, and from every primitive producer; identity
+  is the network id end to end and each consumer resolves it in its own world. ⭐ Then §6.2, the
+  AS-BUILT, which OVERRIDES §5's UML and §6's table wherever they
   disagree — three steps deviated while building. Then §2, the CLAIM LEDGER: every load-bearing claim
   with its file:line proof and how it was measured. §3 is AS-IS-BEFORE, §4 the two defects, §5 the
   target state with the UML, §6 the build order, §6.1/§6.2 the two refinements found during the build,
   §7 the constraints, §8 what is NOT verified, §9 the retraction log.
   ⭐ Read §6.2 then §2. This design was reached through ~8 corrections in one session (§9), so a claim
   without a proof row in §2 is NOT a claim of this document.
-stale-below: ⛔ §5.2's classDiagram and §6's S3/S4/S6/S7 rows describe the design AS WRITTEN, not as
-  built. §6.2 names each deviation and why. ⛔ Claim ⑥ is FALSE as built and claim ㉑ is INCOMPLETE —
-  both are annotated in §2 and corrected in §6.2.
+stale-below: ⛔⛔ §6.6 IS SUPERSEDED BY §6.7 — do not quote its option table as a live rationale; only
+  its CE-259af ingress-strip half is current. ⛔ §5.2's classDiagram and §6's S3/S4/S6/S7 rows describe
+  the design AS WRITTEN, not as built, AND predate §6.7 — anywhere they show an ECS payload travelling
+  in a token, §6.7 wins. §6.2 names each build deviation and why. ⛔ Claim ⑥ is FALSE as built and claim
+  ㉑ is INCOMPLETE — both are annotated in §2 and corrected in §6.2.
 design-basis: docs/blueprints/Blueprint_Issues_Tracker.md CE-259x (the exclusive-filter leak) and CE-259h
   (the pick token's network-stable contract) - docs/UX/UX_Feature_Tool_Model.md §4.7g (the entity
   hit-test) - the field contracts in FDP/ExtDeps/GizmoMap/GizmoMap.Contracts/Primitives/DebugPrimitive.cs
@@ -161,9 +166,11 @@ not ask for (⑨), and the egress then puts a **process-local** handle on the wi
 
 ### 5.1 The rule
 
-> ⭐⭐⭐ **An anchor is identified by its NETWORK ID.** The ECS handle may travel as an optional local
-> payload, but ⛔ **it is never compared, never routed and never authoritative** — and after S5 it is not
-> stamped for interaction at all.
+> ⭐⭐⭐ **An anchor is identified by its NETWORK ID.**
+> ⚠⚠ **AMENDED `2026-09-11` by §6.7:** an earlier version of this rule continued *"the ECS handle may
+> travel as an optional local payload, but it is never compared, never routed and never authoritative."*
+> ⛔ **It does not travel at all now.** The handle is emitted by nothing and read by nothing; each
+> consumer resolves the network id in its own world.
 
 ### 5.2 Classes
 
@@ -182,22 +189,28 @@ classDiagram
         +long AnchorId
         +uint SubElementId
         +uint GizmoTypeId
-        +int AnchorIndex
         +uint StreamId
     }
     class PickToken {
         <<struct>>
-        +Entity Target
+        +long AnchorId
         +uint SubElementId
+        +uint GizmoTypeId
     }
     class NetworkEntityMap {
         EXISTS Fdp.Toolkits
         +TryGetEntity(long id, out Entity e) bool
         +Register(long id, Entity e) void
+        +RebuildFromWorld(EntityRepository repo) void
+    }
+    class NetworkIdResolver {
+        EXISTS Fdp.Toolkits
+        +ResolveNetworkId(repo, long id) Entity
+        +IsKnownDeadAnchor(repo, long id) bool
     }
     class Terminal {
         FindTopmostInteractivePrimitive
-        ToPickToken
+        PickTopmostAnchorId
     }
     class IngressTranslator {
         Translate(batch)
@@ -211,16 +224,20 @@ classDiagram
     Terminal ..> DebugPrimitive : compares BoxAnchorId ONLY
     Terminal ..> GizmoPickToken : MakePickToken - one seam, both arms
     EgressTranslator ..> GizmoPickToken : network id straight to the wire
-    IngressTranslator ..> NetworkEntityMap : resolves on the RECEIVER
-    IngressTranslator ..> PickToken
-    Terminal ..> PickToken : ToPickToken rebuilds from the PAYLOAD - no map
-    SelectionInteractionSystem ..> PickToken : UNCHANGED - Target is already local
+    IngressTranslator ..> PickToken : forwards the RECEIVED id
+    Terminal ..> PickToken : ToPickToken - a FIELD COPY, no world
+    SelectionInteractionSystem ..> NetworkIdResolver : resolves in ITS OWN world
+    DataDrivenGizmoSystem ..> NetworkIdResolver : resolves in ITS OWN world
+    IngressTranslator ..> NetworkIdResolver : addressability plus known-dead only
+    NetworkIdResolver ..> NetworkEntityMap : fast path, VERIFIED against NetworkIdentity
     DataDrivenGizmoSystem ..> DebugPrimitive : binding keyed by NETWORK id
 
-    note for GizmoPickToken "AS BUILT sec 6.2 - AnchorId is the IDENTITY. AnchorIndex plus StreamId are an IN-PROCESS PAYLOAD - never compared, never routed, never on the wire. They exist because ReplayBrowser has NO NetworkEntityMap"
-    note for DebugPrimitive "AS BUILT sec 6.2 - offset 12 is an ALIAS PAIR, not a rename: AnchorGeneration AND LineOffsetPx, same 2 bytes. Offset 8 has THREE roles and its EntityLocal anchor key is 32 bits - constraint C7"
-    note for NetworkEntityMap "NO NEW ABSTRACTION - claim 20 RETRACTED. The production map is in Fdp.Toolkits which Fdp.Presentation already references. Used by the INGRESS only"
-    note for IngressTranslator "Fixed in S1 - resolves the network id locally instead of rebuilding the SENDER handle"
+    note for GizmoPickToken "AS BUILT sec 6.7 - AnchorId is the ONLY identity. The AnchorIndex field is DELETED and StreamId is back to a reserved publisher discriminator. Sec 6.2's IN-PROCESS PAYLOAD is SUPERSEDED"
+    note for PickToken "AS BUILT sec 6.7 - was Entity Target. IsValid is AnchorId greater than 0, NOT non-zero: minus 1 is the terminal canvas sentinel"
+    note for DebugPrimitive "AS BUILT sec 6.7 - offset 8 has TWO roles now, not three: the SpatialAnchor cache key and StringHash. The ECS payload role is gone. Offset 12 is an ALIAS PAIR and only LineOffsetPx has a producer. The 32-bit anchor key is constraint C7"
+    note for NetworkEntityMap "NO NEW ABSTRACTION - claim 20 RETRACTED. EVERY ecs module maintains one, ReplayBrowser included since sec 6.7"
+    note for NetworkIdResolver "THE one resolve seam. Map first, then the existing filtered scan as a correctness floor. A map hit is confirmed against the entity own NetworkIdentity, so a stale map degrades to SLOW never to WRONG"
+    note for IngressTranslator "Sec 6.7 - no map, no id translation. It still DROPS an anchor this node does not host (DDS is broadcast and routing prefers the focus holder) and still turns a KNOWN-DEAD anchor into a Cancel"
 ```
 
 ### 5.3 Sequence — a remote pick, which is `D2`
@@ -233,7 +250,7 @@ sequenceDiagram
     participant EgB as Egress (B)
     participant DDS as DDS
     participant InA as Ingress (A)
-    participant ResA as NetworkEntityMap (A)
+    participant ResA as NetworkIdResolver (A)
     participant SelA as Selection (A)
 
     OpB->>TermB: click a pick box
@@ -242,10 +259,12 @@ sequenceDiagram
     EgB->>DDS: PickAnchorId = network id
     Note over DDS: the field the record<br/>already documents - claim 8
     DDS->>InA: batch
-    InA->>ResA: TryResolve(PickAnchorId)
-    ResA-->>InA: the LOCAL Entity for that id
-    InA->>SelA: PickToken with a valid local Target
-    Note over InA,SelA: BUILT in S1 - before that,<br/>step 8 rebuilt the SENDER handle
+    InA->>ResA: is this id in MY world
+    ResA-->>InA: yes - deliver, or no - drop
+    InA->>SelA: PickToken carrying the NETWORK id
+    SelA->>ResA: ResolveNetworkId(myWorld, AnchorId)
+    ResA-->>SelA: the LOCAL Entity
+    Note over InA,SelA: sec 6.7 - the RESOLVE moved to the<br/>consumer, which owns a world. S1 did it<br/>in the translator, S0 rebuilt the SENDER handle
 ```
 
 ---
@@ -411,7 +430,14 @@ same network id ⇒ the same menu whichever you click)*, `7c` *(inside the area 
 ⚠ **Deliberately NOT done:** the menu CONTENT is whatever `ContextMenuProjectorGizmo` already defines, and
 clicking an edge does nothing gizmo-specific yet *(inserting a vertex there, say)* — ⭐ **searched `docs/`
 and `.dev/`, no record specifies such a gesture.**
-### 6.6 ⭐⭐⭐ WHY THE ECS PAYLOAD EXISTS, AND WHAT MAKES IT SAFE *(`CE-259af`)*
+### 6.6 ⛔⛔ SUPERSEDED BY §6.7 — ~~WHY THE ECS PAYLOAD EXISTS, AND WHAT MAKES IT SAFE~~ *(`CE-259af`)*
+
+> ⛔⛔⛔ **`2026-09-11`, later the same day: THE PAYLOAD IS DELETED and this section's option table is
+> HISTORY.** Its ① *(carry the producer's ECS handle)* was chosen because option ② was blocked by
+> `ReplayBrowser` having no `NetworkEntityMap` — **a fact about one module, never a constraint.**
+> ⇒ 📄 **read [§6.7](#67-the-ecs-payload-is-deleted) instead.** ⭐ What survives here and is still true:
+> the `CE-259af` ingress strip and its three shape-discriminated rails *(the sub-sections below
+> "THE TRAP" onward)*.
 
 🔒 **Asked `2026-09-11`:** *"why are we still keeping a field for ecs entity index and generation in
 the gizmo now? its comment say do not use it for comparison but why it is there in the first place when
@@ -463,6 +489,116 @@ offset 8 carries *(§6.4 / `S7`)*:
 ⇒ the strip is **shape-discriminated**, and **three rails pin all three roles** — `CE-259af-1/2/3`, with
 **two red-proofs**: removing the strip reddens 1, and a **blanket** zeroing reddens the other 2.
 ⭐ That second red-proof exists precisely because I made that mistake; it now cannot be repeated silently.
+---
+
+### 6.7 ⭐⭐⭐ THE ECS PAYLOAD IS **DELETED** — **§6.6's reasoning was wrong, and the user broke it in one question**
+
+🔒 **User, `2026-09-11`, verbatim:** *"what prevents adding network id map to replaybrowser? the reasoning
+sounds weak. we should not losen gizmo design because one of user modules is not having somethinv what
+could be added easily especially when everyone else has it. replaybrowser is ecs module like any else. i
+do not want such exceptions. Is the presence of ECS entity index and generation necessary?"*
+
+⛔⛔⛔ **§6.6 ABOVE IS SUPERSEDED BY THIS SECTION.** Its option table is retained as history because the
+*shape* of the reasoning is the lesson: it compared three ways to turn a picked network id into an
+`Entity` and picked ① *(carry the producer's handle)* because option ② was blocked by **one module having
+no `NetworkEntityMap`.** ⇒ **the identity model of the whole gizmo pipeline was bent around one module's
+missing service, and "nothing prevents adding it" was never measured.**
+
+#### 📐 THE MEASUREMENT THAT DEMOLISHED IT
+
+| §6.6 claimed | measured `2026-09-11` |
+|---|---|
+| *"`ReplayBrowser` HAS NO MAP"* | ✅ **true, and that is all it was** — a fact about one module, not a constraint |
+| *"a map lookup needs something passed per host, so it can be silently forgotten"* | ⛔ **FALSE.** `NetworkEntityMap` is a **world singleton**, not a constructor argument: `CgfSubsystem.cs:637`, `SimHostApp.cs:546`, `EditorSubsystem.cs:1122` all `SetSingletonManaged` it, and `PreviewParticipants.cs:79`, `HillAttackTankNodes.cs:119` read it that way |
+| *"③ a linear scan everywhere, which `C5` forbids"* | ⚠ **true but irrelevant** — it was offered as the only alternative to ①, when ② was available all along |
+| implicitly: *"giving `ReplayBrowser` a map is work"* | ⛔ **FALSE, and this is the sharpest part.** The *"rebuild the map from ECS state"* routine ALREADY EXISTED — inside `EcsRecordReplayController`'s **private `_afterSeek` lambda**, under a comment claiming to *"unify NetworkEntityMap resync for all subsystems (Editor, SimHost, CGF, etc.)"* while living somewhere **exactly one** of them could reach |
+
+⇒ 🔒 **the answer to the question as asked: NO. The ECS entity index and generation are not necessary.**
+
+#### ⭐⭐ WHAT CHANGED — **identity is the network id END TO END, and the resolve happens where a world is**
+
+| layer | before | after |
+|---|---|---|
+| `GizmoPickToken` | `AnchorId` + **`AnchorIndex`** + `StreamId`-as-generation | ⭐ `AnchorId` only; `StreamId` back to its declared *"publisher stream discriminator"* (reserved, 0) |
+| `PickToken` *(ECS bus)* | **`Entity Target`** | ⭐ **`long AnchorId`**; `IsValid => AnchorId != 0` |
+| `DebugPrimitive` offsets 8/12 | **three** roles @8, **two** @12 | ⭐ **two** roles @8 *(anchor cache key · `StringHash`)*, **one** @12 *(`LineOffsetPx`)* — the ECS-payload role is gone, and `AnchorGeneration` survives only as the **unsigned alias** of `LineOffsetPx` *(`S6`)* |
+| the terminal's hit-test | `PickTopmostEntityAnchor → (int Index, ushort Generation)` | ⭐ `PickTopmostAnchorId → long?` — an **identity**, not a handle, out of an assembly that exists to be ECS-free |
+| DDS egress | `PickAnchorId = NetworkIdOf(token.Target)` — a map lookup **up** from the handle | ⭐ `PickAnchorId = token.AnchorId` — nothing to look up; ⭐⭐ **and a node with no map can now SEND**, where `NetworkIdOf` used to return 0 and anchor the interaction to nothing |
+| DDS ingress | `map.TryGetEntity(...)` + **`return` on the miss** | ⭐ `AnchorId = batch.PickAnchorId`, and the DROP **kept** but re-asked: *"is this id in my WORLD"* instead of *"is it in my map"*. ⛔⛔ The old form was a **SILENT DROP of every incoming interaction on a mapless node** |
+| the consumers | read a forwarded handle | ⭐ `DataDrivenGizmoSystem` + `SelectionInteractionSystem` resolve the id **in their own world**, which each already holds |
+| `ReplayBrowser` | no map | ⭐ `EnsureNetworkEntityMap` at boot and at **every** rebind — the one choke point `OnManagerTimeChanged` routes all seeks through |
+
+#### 🔴🔴 A LIVE DEFECT FELL OUT OF IT — **the last survivor of the `D1` family**
+
+📐 `DataDrivenGizmoSystem` routed `GizmoMenuActionEvent` and `GizmoStructUpdateEvent` through
+`FindGizmoByIndex((int)evt.AnchorId, …)` — **narrowing a network id to an `int` and comparing it against
+`Entity.Index`.** Two addressing domains compared as one number: **precisely `D1`**, in the one place
+`S0`/`S5` never swept. ⚠ Its own doc said the events *"carry just an entity index (AnchorId) with no
+generation"* — **true when written, and made FALSE by `S5`**, which is how a stale comment became a live
+mis-route: a right-click menu action reached the wrong gizmo or none.
+
+⭐ Fixed by construction: both now `FindGizmo(ResolveAnchor(repo, evt.AnchorId), …)`, and
+`FindGizmoByIndex` is deleted. 📌 **`GlobalGizmoManager` already keyed these by the id**
+(`Dictionary<long, IEntityStatefulGizmo>`) ⇒ the seam law again, **five** measured instances this
+programme: two implementations of one concept, and the caller had the wrong one.
+
+#### ⭐⭐ THE RESOLVE — **one seam, map-first, VERIFIED**
+
+`NetworkIdResolver.ResolveNetworkId(repo, networkId)`:
+1. the world's `NetworkEntityMap` singleton — **O(1)**;
+2. ⭐⭐⭐ **the hit is CONFIRMED against the entity's own `NetworkIdentity`** *(one component read)*;
+3. otherwise the existing filtered `FindEntityByNetworkId` scan.
+
+⛔ **Step 2 is what makes step 1 admissible at all.** `NetworkIdResolver`'s own header refuses a
+maintained index because *"a stale one silently answers with the wrong entity"* — ⭐ verifying turns that
+into **degrade-to-slow**, never degrade-to-wrong. 📌 Not hypothetical: a replay re-materialises the same
+network id as a **different live handle** after a seek, and the old entry survives a liveness check.
+
+⚠ **And why a map at all, when the header says a per-gesture scan is correct:** a **drag** resolves its
+anchor on **every frame** of the drag. That is the *"per-tick lookup"* the header itself refers to
+`NetworkEntityMap`. ⇒ this is that referral made callable, not a cache bolted onto the resolver.
+
+#### ⭐ WHAT THIS ALSO PAID FOR
+
+| | |
+|---|---|
+| ⭐ `DrawEntitySphere` | took an `Entity` and stamped offsets 8/12 ⇒ ⛔ it would have become **UNPICKABLE** once the hit-test routed `BoxAnchorId` *(pre-filter passes, token comes out with `AnchorId == 0`)*. Now takes `long anchorNetworkId` → `BoxAnchorId`. ⭐ A capability KEPT *(`R-137`)*, not a signature tidied |
+| ⭐ `GizmoTranslatorPack` | the `NetworkEntityMap? entityMap = null` parameter is gone from **both** factories and **both** translators — it existed only to translate id⇄handle |
+| ⭐ `EcsDebugPrimitiveExtensions.GetAnchor()` | deleted: `new Entity(p.AnchorIndex, p.AnchorGeneration)` from bytes that mean something else for most shapes. 📐 **No production caller** — only a rail asserting the fabrication |
+| ⭐ `NetworkEntityMap.RebuildFromWorld` | extracted from the private lambda; `EcsRecordReplayController` routes through it |
+| ⭐ `GizmoPickToken.IsValid` | aligned to `> 0` so both token types agree on what the canvas sentinel means. ⚠ **Consistency, not a live fix** — measured: only rails read this one |
+| ⚠ the `CE-259af` ingress strip | **kept**, re-scoped: with no local producer it is now a **wire-compatibility** guard against an older peer. ⛔ Not dead — its inputs come from another process |
+
+#### ⭐⭐⭐ WHAT THE RAILS CAUGHT IN MY OWN CHANGE — **and it was a real regression**
+
+📌 **This is the honest record, because the first cut of this section claimed the opposite.** My draft
+said the ingress *"now drops nothing — the consumer decides"*. 🔴 **Two existing rails reddened and they
+were right:**
+
+| rail | what it protected |
+|---|---|
+| `SC-GZ037-4` *(a dead entity's DragUpdate yields a Cancel)* | ⭐ a **capability**, `R-137`. I had collapsed *unknown* and *dead* into one `Entity.Null` ⇒ no Cancel would ever be synthesised again |
+| `ANetworkIdThisNodeDoesNotKnowYieldsNoEvent` | ⭐⭐⭐ **cross-node CROSS-TALK.** DDS is broadcast, so every node receives every interaction, and `DataDrivenGizmoSystem.Recipient` routes to the **FOCUS HOLDER FIRST** (`R-144`). ⇒ forwarding a foreign anchor's drag would feed one operator's gesture into **another operator's active tool** |
+
+⇒ ⭐⭐ **Both behaviours are kept, and the fix is better than the code I was replacing:**
+- the DROP asks *"is this id in my **world**"* — answerable by **any** ECS node, with or without a map
+  *(the resolver falls back to a filtered scan)* — instead of *"is it in my **map**"*, which is what made
+  a mapless node drop everything;
+- the CANCEL fires only for a **known-and-dead** anchor — `NetworkIdResolver.IsKnownDeadAnchor`, which
+  reads a live map entry whose entity is dead **or** the map's graveyard. ⛔ *"Not mine"* is never *"died"*.
+
+🔒 **The lesson, stated plainly: `T-1` did its job.** The feature's own suite reddened on a regression I
+had already written a confident design paragraph about. ⛔ I would have shipped it.
+
+#### ⛔ WHAT THIS DID **NOT** FIX — *filed, not silently widened*
+
+📌 Measured while enumerating the handle writes: **`DrawEntityBadge` writes `target.Index`/`.Generation`
+into `BadgeTargetIndex`/`BadgeTargetGen` (offsets 24/28)**, while `DebugPrimitiveRenderer2D:371` says
+*"BadgeTargetIndex holds the anchor network ID"* and reads the badge's world position from
+`BoxCenterX/Y` — **which nothing writes.** ⇒ `HealthBarGizmo` badges carry an unread ECS handle and draw
+at the world origin. ⭐ Same family, **different offsets and a different feature**, and the fix needs a
+badge-placement decision *(`Space = EntityLocal` + the offset-8 key)*. ⇒ filed as **`CE-259ag`**.
+
 ---
 
 ## 7. CONSTRAINTS

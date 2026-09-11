@@ -41,6 +41,9 @@ namespace Hrot.DDS.DataModel.Tests
         public static EntityRepository Create()
         {
             var repo = new EntityRepository();
+            // ⭐ §6.7 — interaction ingress asks "is this anchor id in my WORLD", so the component that
+            //   answers that has to be registered.
+            repo.RegisterComponent<Fdp.Toolkit.Replication.Components.NetworkIdentity>();
             repo.RegisterEvent<GizmoInteractionStartedEvent>();
             repo.RegisterEvent<GizmoDragUpdateEvent>();
             repo.RegisterEvent<GizmoInteractionCommitEvent>();
@@ -73,11 +76,25 @@ namespace Hrot.DDS.DataModel.Tests
         //   ⭐⭐ NetId is deliberately NOT equal to entity.Index, so a test cannot pass by coincidence.
         private const long NetId = 90210L;
 
-        private static Fdp.Toolkit.Replication.Services.NetworkEntityMap MapWith(Fdp.Core.Entity entity)
+        /// <summary>
+        /// ⭐⭐ §6.7 — the map is a WORLD SINGLETON, set on the repository, which is how every production
+        /// host wires it (<c>CgfSubsystem.cs:637</c>, <c>SimHostApp.cs:546</c>,
+        /// <c>EditorSubsystem.cs:1122</c>, and now <c>ReplayBrowserSubsystem</c>).
+        /// ⛔ It used to be a constructor argument on the translators; both took
+        /// <c>NetworkEntityMap? entityMap = null</c> purely to translate id⇄handle, and both lost it.
+        /// ⭐ Registering it here also gives the entity a real <c>NetworkIdentity</c>, without which
+        /// §6.7's resolve — and production's own <c>EmitPickBox</c> (constraint C2) — see no anchor.
+        /// </summary>
+        private static Fdp.Core.Entity NetworkedEntity(EntityRepository repo, long netId = NetId)
         {
-            var map = new Fdp.Toolkit.Replication.Services.NetworkEntityMap();
-            map.Register(NetId, entity);
-            return map;
+            var e = repo.CreateEntity();
+            repo.AddComponent(e, new Fdp.Toolkit.Replication.Components.NetworkIdentity { Value = netId });
+
+            if (!repo.HasSingletonManaged<Fdp.Toolkit.Replication.Services.NetworkEntityMap>())
+                repo.SetSingletonManaged(new Fdp.Toolkit.Replication.Services.NetworkEntityMap());
+            repo.GetSingletonManaged<Fdp.Toolkit.Replication.Services.NetworkEntityMap>()!
+                .Register(netId, e);
+            return e;
         }
 
         // SC-GZ037-2: Egress system writes DragUpdate record with correct fields.
@@ -85,15 +102,15 @@ namespace Hrot.DDS.DataModel.Tests
         public void SC_GZ037_2_EgressSystem_Writes_DragUpdate_Correctly()
         {
             using var repo = GizmoInteractionTestRepo.Create();
-            var entity = repo.CreateEntity();
             var writer = new CapturingWriter();
             var interactionBus = new FdpEventBus();
             interactionBus.Register<GizmoDragUpdateEvent>();
-            var sys = new GizmoInteractionEgressTranslator(nodeId: 7, writer: writer, interactionBus: interactionBus, entityMap: MapWith(entity));
+            var sys = new GizmoInteractionEgressTranslator(nodeId: 7, writer: writer, interactionBus: interactionBus);
 
             interactionBus.Publish(new GizmoDragUpdateEvent
             {
-                Token    = new PickToken { Target = entity, SubElementId = 3 },
+                // ⭐ §6.7 — the token already holds the network id, so the egress needs no map at all.
+                Token    = new PickToken { AnchorId = NetId, SubElementId = 3 },
                 WorldPos = new System.Numerics.Vector3(1f, 2f, 3f),
             });
             interactionBus.SwapBuffers();
@@ -115,7 +132,7 @@ namespace Hrot.DDS.DataModel.Tests
         public void SC_GZ037_3_IngressSystem_Translates_Commit()
         {
             using var repo = GizmoInteractionTestRepo.Create();
-            var entity = repo.CreateEntity();
+            var entity = NetworkedEntity(repo);
 
             var batch = new GizmoInteractionBatch
             {
@@ -129,14 +146,15 @@ namespace Hrot.DDS.DataModel.Tests
             var interactionBus = new FdpEventBus();
             interactionBus.Register<GizmoInteractionCommitEvent>();
             interactionBus.Register<GizmoInteractionCancelEvent>();
-            var sys = new GizmoInteractionIngressTranslator(reader: reader, interactionBus: interactionBus, entityMap: MapWith(entity));
+            var sys = new GizmoInteractionIngressTranslator(reader: reader, interactionBus: interactionBus);
             var cmd = new EntityCommandBuffer();
             sys.PollIngress(cmd, repo);
             interactionBus.SwapBuffers();
 
             var commits = interactionBus.Read<GizmoInteractionCommitEvent>().ToArray();
             Assert.Single(commits);
-            Assert.Equal(entity, commits[0].Token.Target);
+            // ⭐ §6.7 — the received NETWORK id is what the token carries; the consumer resolves it.
+            Assert.Equal(NetId, commits[0].Token.AnchorId);
             Assert.Equal(5u, commits[0].Token.SubElementId);
             Assert.Equal(10f, commits[0].WorldPos.X, precision: 4);
         }
@@ -146,9 +164,10 @@ namespace Hrot.DDS.DataModel.Tests
         public void SC_GZ037_4_IngressSystem_DeadEntity_DragUpdate_YieldsCancelEvent()
         {
             using var repo = GizmoInteractionTestRepo.Create();
-            var entity = repo.CreateEntity();
-            var index  = entity.Index;
-            var gen    = entity.Generation;
+            // ⭐ §6.7 — the map entry survives the destruction, which is exactly what lets this node say
+            //   "I KNEW this anchor and it is gone" rather than "not mine". See
+            //   NetworkIdResolver.IsKnownDeadAnchor for why the two must not be conflated.
+            var entity = NetworkedEntity(repo);
             repo.DestroyEntity(entity);
             repo.Bus.SwapBuffers();
 
@@ -162,7 +181,7 @@ namespace Hrot.DDS.DataModel.Tests
             var interactionBus = new FdpEventBus();
             interactionBus.Register<GizmoInteractionCancelEvent>();
             interactionBus.Register<GizmoDragUpdateEvent>();
-            var sys = new GizmoInteractionIngressTranslator(reader: reader, interactionBus: interactionBus, entityMap: MapWith(entity));
+            var sys = new GizmoInteractionIngressTranslator(reader: reader, interactionBus: interactionBus);
             var cmd = new EntityCommandBuffer();
             sys.PollIngress(cmd, repo);
             interactionBus.SwapBuffers();
@@ -178,9 +197,7 @@ namespace Hrot.DDS.DataModel.Tests
         public void SC_GZ037_5_IngressSystem_Cancel_AlwaysForwarded()
         {
             using var repo = GizmoInteractionTestRepo.Create();
-            var entity = repo.CreateEntity();
-            var index  = entity.Index;
-            var gen    = entity.Generation;
+            var entity = NetworkedEntity(repo);
             repo.DestroyEntity(entity);
             repo.Bus.SwapBuffers();
 
@@ -193,7 +210,7 @@ namespace Hrot.DDS.DataModel.Tests
             var reader = new SingleItemReader(batch);
             var interactionBus = new FdpEventBus();
             interactionBus.Register<GizmoInteractionCancelEvent>();
-            var sys = new GizmoInteractionIngressTranslator(reader: reader, interactionBus: interactionBus, entityMap: MapWith(entity));
+            var sys = new GizmoInteractionIngressTranslator(reader: reader, interactionBus: interactionBus);
             var cmd = new EntityCommandBuffer();
             sys.PollIngress(cmd, repo);
             interactionBus.SwapBuffers();
@@ -254,7 +271,6 @@ namespace Hrot.DDS.DataModel.Tests
         public void SC_GZ066_3_EgressTranslator_WriteRecord_PreservesGizmoTypeId()
         {
             using var repo = GizmoInteractionTestRepo.Create();
-            var entity = repo.CreateEntity();
             var writer = new CapturingWriter();
             var interactionBus = new FdpEventBus();
             interactionBus.Register<GizmoInteractionStartedEvent>();
@@ -264,7 +280,7 @@ namespace Hrot.DDS.DataModel.Tests
             {
                 Token = new Fdp.Toolkit.Diagnostics.Gizmos.PickToken
                 {
-                    Target      = entity,
+                    AnchorId    = NetId,
                     GizmoTypeId = 0xAB01u,
                 },
                 WorldPos = System.Numerics.Vector3.Zero,
@@ -294,12 +310,12 @@ namespace Hrot.DDS.DataModel.Tests
         {
             // ── sender: its entity is the FIRST created ──
             using var senderRepo = GizmoInteractionTestRepo.Create();
-            var senderEntity = senderRepo.CreateEntity();
+            var senderEntity = NetworkedEntity(senderRepo);
 
             // ── receiver: burn three entities first, so the SAME network id maps to a DIFFERENT index ──
             using var recvRepo = GizmoInteractionTestRepo.Create();
             recvRepo.CreateEntity(); recvRepo.CreateEntity(); recvRepo.CreateEntity();
-            var recvEntity = recvRepo.CreateEntity();
+            var recvEntity = NetworkedEntity(recvRepo);
 
             Assert.NotEqual(senderEntity.Index, recvEntity.Index);   // the premise of the rail
 
@@ -307,11 +323,11 @@ namespace Hrot.DDS.DataModel.Tests
             var sendBus = new FdpEventBus();
             sendBus.Register<GizmoDragUpdateEvent>();
             var egress = new GizmoInteractionEgressTranslator(
-                nodeId: 7, writer: writer, interactionBus: sendBus, entityMap: MapWith(senderEntity));
+                nodeId: 7, writer: writer, interactionBus: sendBus);
 
             sendBus.Publish(new GizmoDragUpdateEvent
             {
-                Token    = new PickToken { Target = senderEntity, SubElementId = 3 },
+                Token    = new PickToken { AnchorId = NetId, SubElementId = 3 },
                 WorldPos = new System.Numerics.Vector3(1f, 2f, 3f),
             });
             sendBus.SwapBuffers();
@@ -325,26 +341,42 @@ namespace Hrot.DDS.DataModel.Tests
             recvBus.Register<GizmoDragUpdateEvent>();
             recvBus.Register<GizmoInteractionCancelEvent>();
             var ingress = new GizmoInteractionIngressTranslator(
-                reader: new SingleItemReader(onTheWire), interactionBus: recvBus,
-                entityMap: MapWith(recvEntity));
+                reader: new SingleItemReader(onTheWire), interactionBus: recvBus);
 
             ingress.PollIngress(new EntityCommandBuffer(), recvRepo);
             recvBus.SwapBuffers();
 
             var drags = recvBus.Read<GizmoDragUpdateEvent>().ToArray();
             var drag  = Assert.Single(drags);
-            Assert.Equal(recvEntity, drag.Token.Target);   // S1 — the RECEIVER's own entity
+
+            // ⭐⭐⭐ §6.7 — the token carries the ID, and the RECEIVER'S OWN ENTITY is what it resolves
+            //   to here. ⛔ The rail used to assert `drag.Token.Target == recvEntity`; asserting the
+            //   RESOLVE keeps exactly that claim while the token stays ECS-free — and it still fails if
+            //   a sender handle ever crosses, because senderEntity.Index != recvEntity.Index (asserted
+            //   above) so a leaked handle would resolve to the wrong entity or to nothing.
+            Assert.Equal(NetId, drag.Token.AnchorId);
+            Assert.Equal(
+                recvEntity,
+                Fdp.Toolkit.Replication.Services.NetworkIdResolver.ResolveNetworkId(
+                    recvRepo, drag.Token.AnchorId));
         }
 
         /// <summary>
-        /// ⭐ <b>An unknown network id yields NO event.</b> Dropping is correct; the old handle-rebuild
-        /// fabricated a wrong-or-dead entity and let it through.
+        /// ⭐ <b>An unknown network id yields NO event.</b> Dropping is correct: the old handle-rebuild
+        /// fabricated a wrong-or-dead entity and let it through, and DDS is broadcast — every node sees
+        /// every interaction, while <c>DataDrivenGizmoSystem.Recipient</c> routes to the FOCUS HOLDER
+        /// first (<c>R-144</c>), so a forwarded foreign drag would feed one operator's gesture into
+        /// another operator's active tool.
+        ///
+        /// <para>⭐⭐ §6.7 kept this and changed only the QUESTION asked — from *"is this id in my
+        /// NetworkEntityMap"* (which made a MAPLESS node drop everything, in silence) to *"is this id in
+        /// my WORLD"*, which every ECS node can answer.</para>
         /// </summary>
         [Fact]
         public void ANetworkIdThisNodeDoesNotKnowYieldsNoEvent()
         {
             using var repo = GizmoInteractionTestRepo.Create();
-            var entity = repo.CreateEntity();
+            var entity = NetworkedEntity(repo);
 
             var batch = new GizmoInteractionBatch
             {
@@ -357,7 +389,7 @@ namespace Hrot.DDS.DataModel.Tests
             bus.Register<GizmoInteractionCancelEvent>();
 
             var sys = new GizmoInteractionIngressTranslator(
-                reader: new SingleItemReader(batch), interactionBus: bus, entityMap: MapWith(entity));
+                reader: new SingleItemReader(batch), interactionBus: bus);
             sys.PollIngress(new EntityCommandBuffer(), repo);
             bus.SwapBuffers();
 

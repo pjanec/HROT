@@ -19,17 +19,22 @@ namespace Hrot.ScenarioEditor.Gizmos
             draw.DrawSpatialAnchor(networkId, position.X, position.Y, position.Z, yawDeg, pitchDeg, rollDeg);
         }
 
-        public static void EmitPickBox(IDebugDrawBuilder draw, Entity entity, long networkId, in Vector3 position, byte layer = 0)
+        /// <summary>
+        /// ⭐ An invisible, hit-testable box at <paramref name="position"/>, identified by
+        /// <paramref name="networkId"/>.
+        /// ⛔ §6.7 — the <c>Entity entity</c> parameter is DELETED: it existed only to stamp the
+        /// emitter's ECS index+generation into the primitive as a pick payload, which nothing reads now.
+        /// 📄 <c>docs/DESIGN_Gizmo_Anchor_Identity.md</c> §6.7.
+        /// </summary>
+        public static void EmitPickBox(IDebugDrawBuilder draw, long networkId, in Vector3 position, byte layer = 0)
         {
             var pickBox = DebugPrimitive.MakeBox2D(
                 new Vector2(position.X, position.Y),
                 new Vector2(8f, 8f),
                 new Rgba32(0, 0, 0, 0),
-                entity.Index,
-                (ushort)entity.Generation,
-                networkId,
                 target: PipelineTarget.Map2D,
-                layer: layer);
+                layer: layer,
+                anchorId: networkId);
             draw.EmitRaw(in pickBox);
         }
 
@@ -45,9 +50,10 @@ namespace Hrot.ScenarioEditor.Gizmos
         /// <para>⭐⭐ <b>Both halves then work with no further wiring, which is why this is the whole
         /// change.</b> Measured before building:</para>
         /// <list type="bullet">
-        ///   <item><description><b>Selection</b> — <c>SelectionInteractionSystem.Tick</c> selects
-        ///   <c>evt.Token.Target</c> with no <c>GizmoTypeId</c> filter, so any pick primitive carrying
-        ///   this entity's ECS payload selects it.</description></item>
+        ///   <item><description><b>Selection</b> — <c>SelectionInteractionSystem.Tick</c> selects the
+        ///   entity the token's <c>AnchorId</c> resolves to, with no <c>GizmoTypeId</c> filter, so any
+        ///   pick primitive carrying this entity's network id selects it. ⚠ Updated for §6.7: it used to
+        ///   read a forwarded ECS payload.</description></item>
         ///   <item><description><b>Context menu</b> — the AREA and ROUTE menus <b>already exist and are
         ///   already bound by network id</b> (<c>ContextMenuProjectorGizmo</c>: <c>MenuJsonArea</c> when
         ///   the entity has an <c>EditablePolyline</c>, <c>MenuJsonRoute</c> for a <c>RoutePlan</c>), and
@@ -109,8 +115,6 @@ namespace Hrot.ScenarioEditor.Gizmos
                     pickThickness: 0f,
                     subElementId: 0,          // ⛔ see the note above — NOT the edge index
                     color: default,           // fully transparent, exactly like EmitPickBox
-                    anchorIndex: entity.Index,
-                    anchorGeneration: (ushort)entity.Generation,
                     sizeMode: SizeMode.ScreenPixels,
                     target: PipelineTarget.Map2D,
                     layer: layer);
@@ -154,9 +158,12 @@ namespace Hrot.ScenarioEditor.Gizmos
             return 0UL;
         }
 
+        /// <summary>
+        /// ⛔ §6.7 — the <c>Entity entity</c> parameter is DELETED; it supplied only the ECS generation
+        /// that <c>MakeSemanticShape</c> stamped into offset 12 for nothing to read.
+        /// </summary>
         public static void DrawSemanticShape(
             IDebugDrawBuilder draw,
-            Entity entity,
             long networkId,
             ulong profileId,
             float length,
@@ -165,8 +172,7 @@ namespace Hrot.ScenarioEditor.Gizmos
             byte layer = 0)
         {
             var prim = DebugPrimitive.MakeSemanticShape(
-                (int)networkId,
-                (ushort)entity.Generation,
+                (int)networkId,          // the SpatialAnchor cache key at offset 8 (C7 narrowing)
                 networkId,
                 profileId,
                 length,

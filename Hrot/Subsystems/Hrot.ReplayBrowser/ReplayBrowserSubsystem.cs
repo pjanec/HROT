@@ -140,6 +140,9 @@ public sealed class ReplayBrowserSubsystem : ISubsystem, IWindowRegistrar
         {
             _activeRepo = new EntityRepository();
             Fdp.Toolkit.ReplayBrowser.Federation.RepositoryPriming.RegisterDiscoveredComponents(_activeRepo);
+            // ⭐ §6.7 — the map exists from boot, not only from the first rebind: the canvas and the
+            //   gizmo layer are constructed below and may resolve an anchor before any recording loads.
+            EnsureNetworkEntityMap(_activeRepo);
             _canvas = new MapCanvas();
 
             _inspectorState = new InspectorState();
@@ -248,11 +251,15 @@ public sealed class ReplayBrowserSubsystem : ISubsystem, IWindowRegistrar
                 typeof(Hrot.Common.Diagnostics.Gizmos.LayerControlDto));
             schemaRegistry.Register(Hrot.Common.Diagnostics.Gizmos.LayerControlGizmo.SchemaHash, layerControlSchemaSession.Document);
 
-            // ⭐ R3 — no world is passed; see DESIGN_Gizmo_Renderer_Seam.md §6.
+            // ⭐ §6.7 — the world IS passed now, for ONE reader: PickEntity resolves a picked anchor's
+            //   network id to an Entity, against the NetworkEntityMap this module now maintains
+            //   (EnsureNetworkEntityMap). ⚠ NOT a revival of R3's deleted `view` parameter, which was
+            //   stored nowhere. See DebugGizmoLayer._world.
             _gizmoLayer = new Fdp.Toolkit.Vis2D.Layers.DebugGizmoLayer(
                 31, _gizmoBuffer, _interactionBus, camera: _canvas.Camera,
                 shapeLibrary: new GizmoMap.Presentation.Shapes.DefaultEntityShapeLibrary(),
-                schemaRegistry: schemaRegistry);
+                schemaRegistry: schemaRegistry,
+                worldProvider: () => _activeRepo);
 
             _canvas.AddLayer(_gizmoLayer);
             _canvas.DrawBuffer = _gizmoBuffer;
@@ -578,6 +585,44 @@ public sealed class ReplayBrowserSubsystem : ISubsystem, IWindowRegistrar
     {
         _activeRepo = repo;
         _session = new RepositoryAdapter(repo);
+        EnsureNetworkEntityMap(repo);
+    }
+
+    /// <summary>
+    /// ⭐⭐⭐ <b>This module gets a <see cref="NetworkEntityMap"/>, like every other ECS module.</b>
+    /// 🔒 User, <c>2026-09-11</c>: *"what prevents adding network id map to replaybrowser? … replaybrowser
+    /// is ecs module like any else. i do not want such exceptions."*
+    /// 📄 <c>docs/DESIGN_Gizmo_Anchor_Identity.md</c> §6.7.
+    ///
+    /// <para>⛔⛔ <b>What its absence was costing, and it was not local.</b> The gizmo pick token carried
+    /// the producer's raw ECS index+generation as a payload — a process-local handle in a network-stable
+    /// contract — and the justification on record was *this module*: it had no map, so a network-id
+    /// resolve "would silently drop its selection". ⇒ one module's missing service was shaping the
+    /// identity model of the whole gizmo pipeline. 📐 Nothing prevented it: the map is a world singleton
+    /// three other hosts already set (<c>CgfSubsystem.cs:637</c>, <c>SimHostApp.cs:546</c>,
+    /// <c>EditorSubsystem.cs:1122</c>).</para>
+    ///
+    /// <para>⭐⭐ <b>Called from <see cref="RebindActiveRepo"/>, which is the ONE choke point</b> —
+    /// <c>OnManagerTimeChanged</c> routes every seek, step and view-mode switch through it, in both the
+    /// per-node and Merged arms. ⇒ the map cannot drift behind the frame.</para>
+    ///
+    /// <para>⛔⛔ <b><see cref="NetworkEntityMap.Clear"/> FIRST, and that is not defensive noise.</b>
+    /// <see cref="NetworkEntityMap.RebuildFromWorld"/> prunes dead entries and adds missing ones, which is
+    /// right for a forward-running world. ⚠ A replay TIME-TRAVELS: the same network id can be a
+    /// DIFFERENT live handle after a seek, and an entry that is still alive survives the prune and blocks
+    /// the re-add — a stale map that answers with the wrong entity, which is the exact failure
+    /// <c>NetworkIdResolver</c>'s header warns a maintained index can produce. ⇒ rebuild from empty.</para>
+    /// </summary>
+    private static void EnsureNetworkEntityMap(EntityRepository repo)
+    {
+        if (!repo.HasSingletonManaged<NetworkEntityMap>())
+            repo.SetSingletonManaged(new NetworkEntityMap());
+
+        var map = repo.GetSingletonManaged<NetworkEntityMap>();
+        if (map == null) return;
+
+        map.Clear();
+        map.RebuildFromWorld(repo);
     }
 
     /// <summary>
@@ -986,9 +1031,12 @@ public sealed class ReplayBrowserSubsystem : ISubsystem, IWindowRegistrar
     /// <summary>
     /// ⭐ <c>BP-508</c> — routed through the ONE resolver *(<c>R-77</c>)*. ⛔ This copy scanned
     /// <b>every</b> entity and asked <c>HasComponent</c> per entity; the shared one filters the query.
+    /// ⭐⭐ §6.7 — now the MAP-FIRST entry point: this module maintains a <see cref="NetworkEntityMap"/>
+    /// like any other (see <see cref="EnsureNetworkEntityMap"/>), so the diff cycle's two lookups per
+    /// frame are O(1) instead of two scans.
     /// </summary>
     private Entity FindEntityByNetworkId(long networkId)
-        => Fdp.Toolkit.Replication.Services.NetworkIdResolver.FindEntityByNetworkId(_activeRepo, networkId);
+        => Fdp.Toolkit.Replication.Services.NetworkIdResolver.ResolveNetworkId(_activeRepo, networkId);
 
     // ── Null service stubs (used until real implementations are injected) ──
 

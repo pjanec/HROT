@@ -182,8 +182,9 @@ namespace GizmoMap.Network.Tests
                 AnchorId     = 90210L,   // identity: the network id
                 SubElementId = 3u,
                 GizmoTypeId  = 77u,
-                AnchorIndex  = 5,        // payload — must NOT be derivable from the batch
-                StreamId     = 7u,       // payload — must NOT reach the wire
+                // ⚠ §6.7 — there is no ECS payload left to keep off the wire: the fields are deleted.
+                //   StreamId stays the reserved publisher discriminator, and production writes 0.
+                StreamId     = 7u,
             };
 
             publisher.Publish(token, CoordinateSpace.World, new System.Numerics.Vector3(1f, 2f, 3f),

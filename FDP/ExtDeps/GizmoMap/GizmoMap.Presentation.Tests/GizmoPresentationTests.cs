@@ -535,30 +535,38 @@ namespace GizmoMap.Presentation.Tests
             Assert.Equal(77u,    token.GizmoTypeId);
         }
 
-        // SC-GZ067-1b: the ECS handle still travels, as a PAYLOAD — the local adapter rebuilds
-        // Entity(AnchorIndex, StreamId) from it without any map lookup.
+        // SC-GZ067-1b: ⭐⭐⭐ §6.7 — the ECS handle DOES NOT TRAVEL. Offsets 8/12 of the hit primitive
+        //   are IGNORED: whatever they hold (a stale handle from an older peer, a StringHash, a
+        //   SpatialAnchor key) cannot leak into the token.
+        // ⚠ INVERTED 2026-09-11. It used to assert `token.AnchorIndex == 5 && token.StreamId == 7` —
+        //   i.e. that the payload was faithfully forwarded. That payload is deleted, so the rail now
+        //   pins the opposite property, which is the one that matters.
+        // ⛔ RED-PROOF SHAPE: make MakePickToken write `StreamId = hit.AnchorGeneration` again and this
+        //   reddens on the 0u.
         [Fact]
-        public void SC_GZ067_1b_MakePickToken_CarriesTheEcsHandleAsPayload()
+        public void SC_GZ067_1b_MakePickToken_IgnoresOffsets8And12_NoEcsHandleTravels()
         {
             var prim = EntityPickBox(networkId: 90210L, ecsIndex: 5, ecsGen: 7);
 
             var token = DebugGizmoLayer.MakePickToken(in prim);
 
-            Assert.Equal(5,  token.AnchorIndex);
-            Assert.Equal(7u, token.StreamId);
+            Assert.Equal(90210L, token.AnchorId);   // the identity, and the only thing carried
+            Assert.Equal(0u,     token.StreamId);   // ⛔ NOT the primitive's AnchorGeneration (7)
         }
 
-        // SC-GZ067-1c: a TOOL handle has no ECS anchor — the payload is empty and the identity is the
-        // tool's own (disjoint-range) id, so the consumer resolves no entity. §6.1.
+        // SC-GZ067-1c: a TOOL handle's identity is the tool's own id, from the disjoint high range —
+        // so a consumer resolving it against its world finds no entity, which is correct for a tool. §6.1.
         [Fact]
-        public void SC_GZ067_1c_MakePickToken_ToolHandleHasNoEcsPayload()
+        public void SC_GZ067_1c_MakePickToken_ToolHandleCarriesTheToolId()
         {
             var prim = EntityPickBox(networkId: DebugGizmoLayer.ToolCaptureIdForTests(3), ecsIndex: 0, ecsGen: 0);
 
             var token = DebugGizmoLayer.MakePickToken(in prim);
 
             Assert.Equal(DebugGizmoLayer.ToolCaptureIdForTests(3), token.AnchorId);
-            Assert.Equal(0u, token.StreamId);   // ⇒ ToPickToken yields Entity.Null
+            // ⭐ Above int.MaxValue by construction ⇒ it can never collide with an entity network id
+            //   (SequentialIdAllocator counts from 1), which is the whole point of the disjoint range.
+            Assert.True(token.AnchorId > int.MaxValue);
         }
 
         // SC-GZ067-1d: an entity whose NETWORK id collides with ANOTHER entity's ECS index is not

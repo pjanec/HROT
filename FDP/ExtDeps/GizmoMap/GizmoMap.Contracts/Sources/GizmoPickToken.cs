@@ -7,38 +7,41 @@ namespace Fdp.Toolkit.Diagnostics.Gizmos
     {
         public long  AnchorId;      // NetworkId / semantic object id (0 = invalid)
         public uint  SubElementId;  // gizmo sub-element index within the anchored entity
-        public uint  StreamId;      // publisher stream discriminator (for multi-SimHost clusters)
 
-        // ⭐⭐⭐ WHY THESE EXIST AT ALL, given that identity is the network id (asked 2026-09-11, and it
-        //   is the right question — a field whose comment says "do not compare this" has to justify
-        //   itself). 📄 DESIGN_Gizmo_Anchor_Identity.md §6.2 ③ and §6.6.
+        // ⭐⭐⭐ RESERVED — "publisher stream discriminator (for multi-SimHost clusters)", which is what
+        //   this field has always claimed to be. Production writes 0 everywhere.
         //
-        //   📐 THE CONSTRAINT: the two consumers of a pick are ECS systems that need an `Entity`, not an
-        //     id — SelectionInteractionSystem writes SelectionState, and DataDrivenGizmoSystem.FindGizmo
-        //     uses Dictionary<Entity, IEntityStatefulGizmo>. So SOMETHING must turn the picked network id
-        //     into a local Entity. Measured options, 2026-09-10:
-        //       ① the producer hands its handle along (these fields) — free, no lookup, no host wiring;
-        //       ② a NetworkEntityMap lookup — O(1), but ⛔ ReplayBrowser HAS NO MAP (it falls back to
-        //          NetworkIdResolver.FindEntityByNetworkId, ReplayBrowserSubsystem.cs:991);
-        //       ③ FindEntityByNetworkId everywhere — ⛔ a LINEAR SCAN over all entities, which C5 forbids.
-        //     ⇒ ① was chosen: it needs nothing passed per host, so it cannot be silently forgotten in
-        //       one of them — the SILENT-DEFAULT failure that produced CE-259y.
+        //   ⛔⛔ HISTORY, 2026-09-11 — IT CARRIED AN ECS GENERATION, AND `AnchorIndex` SAT BESIDE IT.
+        //     Those two fields were an in-process payload: the ECS handle of the entity whose pick box
+        //     was hit, forwarded so a consumer could rebuild an `Entity` without a lookup. Their comment
+        //     said "never compare these", which is a bad smell in a struct field, and the user asked the
+        //     right question: *"why is it there in the first place when we decided to use network ids?"*
         //
-        //   ⭐⭐ SO THE CONTRACT IS NOT "do not compare" — IT IS "VALID ONLY FOR A PRIMITIVE EMITTED IN
-        //     THIS PROCESS", and since 2026-09-11 that is ENFORCED, not asserted: the single place
-        //     foreign primitives enter a local buffer — DebugPrimitivesIngressTranslator — STRIPS them
-        //     (CE-259af). A received primitive therefore arrives with StreamId == 0, the adapter yields
-        //     an invalid token, and the interaction is published over DDS to the OWNING node, where
-        //     GizmoInteractionIngressTranslator resolves the network id through its map. ⇒ it degrades
-        //     onto the designed remote path instead of selecting a locally-plausible WRONG entity.
-        //
-        //   ⛔ AnchorId above remains the ONLY identity: the only thing compared, routed, or sent over
-        //     the wire. ⛔ Never compare on these, and never marshal them as an identity.
-        public int   AnchorIndex;   // ECS entity index  — payload only
-        // (the generation travels in StreamId for the same purpose)
+        //   ⭐⭐ THE ANSWER WAS: it is NOT necessary, and the reasoning that kept it was wrong.
+        //     The justification on record was *"ReplayBrowser has no NetworkEntityMap, so a map lookup
+        //     would silently drop its selection"* — i.e. the gizmo identity model was weakened to
+        //     accommodate ONE module that lacked a service every other ECS module has. 🔒 User:
+        //     *"replaybrowser is ecs module like any else. i do not want such exceptions."*
+        //   📐 Measured: nothing prevented it. `NetworkEntityMap` is already a world singleton
+        //     (`CgfSubsystem.cs:637`, `SimHostApp.cs:546`, `EditorSubsystem.cs:1122`) and the "rebuild it
+        //     from ECS state" routine already existed — buried in a private lambda whose own comment
+        //     claimed to *"unify NetworkEntityMap resync for all subsystems"* while being reachable by
+        //     exactly one of them.
+        //   ⇒ 📄 `docs/DESIGN_Gizmo_Anchor_Identity.md` §6.7. The ECS handle is gone from this contract,
+        //     `PickToken` carries the network id too, and each consumer resolves it in ITS OWN world —
+        //     which is where a world exists and where the resolve belongs.
+        public uint  StreamId;
+
         // Routing discriminator set by the terminal from the picked primitive's GizmoTypeId field;
         // 0 for legacy or entity-local primitives that predate composite-key routing.
         public uint  GizmoTypeId;
-        public bool  IsValid => AnchorId != 0;
+        /// <summary>
+        /// ⭐⭐ <c>&gt; 0</c>, matching <c>PickToken.IsValid</c> — see that type for the measurement.
+        /// ⛔ It was <c>!= 0</c>, which calls the terminal's <c>-1</c> CANVAS SENTINEL valid. ⚠ No
+        /// production reader was measured for this one *(only rails)*, so this is consistency rather
+        /// than a live fix — but two tokens for one concept disagreeing about what "valid" means is
+        /// exactly the trap the anchor-identity work exists to remove. 📄 §6.7.
+        /// </summary>
+        public bool  IsValid => AnchorId > 0;
     }
 }

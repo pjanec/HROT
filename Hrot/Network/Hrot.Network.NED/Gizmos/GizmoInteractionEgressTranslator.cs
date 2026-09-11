@@ -25,9 +25,8 @@ namespace Hrot.Network.NED.Gizmos
         private readonly FdpEventBus _interactionBus;
         private uint _sequenceNumber;
 
-        // ⭐⭐ S2 — the Entity -> network id direction. Fdp.Toolkit.Replication.Services.NetworkEntityMap is
-        //   bidirectional and O(1) both ways (TryGetEntity / TryGetNetworkId), so no scan is involved.
-        private readonly Fdp.Toolkit.Replication.Services.NetworkEntityMap? _entityMap;
+        // 🔴 §6.7 — `NetworkEntityMap? _entityMap` DELETED. S2 used it for the Entity -> network id
+        //   direction; the token now carries the network id, so there is nothing to look up.
         public string TopicName => "GizmoInteractionBatch";
         public TranslatorDirection Direction => TranslatorDirection.Egress;
         public long ReceivedSampleCount { get; private set; }
@@ -36,13 +35,11 @@ namespace Hrot.Network.NED.Gizmos
         public GizmoInteractionEgressTranslator(
             byte nodeId,
             IDdsWriter<GizmoInteractionBatch>? writer,
-            FdpEventBus interactionBus,
-            Fdp.Toolkit.Replication.Services.NetworkEntityMap? entityMap = null)
+            FdpEventBus interactionBus)
         {
             _nodeId         = nodeId;
             _writer         = writer;
             _interactionBus = interactionBus ?? throw new ArgumentNullException(nameof(interactionBus));
-            _entityMap      = entityMap;
         }
 
         public void PollIngress(IEntityCommandBuffer cmd, ISimulationView view) { }
@@ -73,9 +70,7 @@ namespace Hrot.Network.NED.Gizmos
                 WriteStructUpdate(evt.AnchorId, evt.GizmoTypeId, evt.PayloadJson);
         }
 
-        /// <summary>⭐ S2 — the entity's stable network id, or 0 when it has none (then nothing is sent).</summary>
-        private long NetworkIdOf(Entity entity)
-            => _entityMap != null && _entityMap.TryGetNetworkId(entity, out var netId) ? netId : 0L;
+        // 🔴 §6.7 — `private long NetworkIdOf(Entity)` DELETED with the map it read.
 
         private void WriteRecord(
             GizmoInteractionEventKind kind,
@@ -88,10 +83,15 @@ namespace Hrot.Network.NED.Gizmos
                 SourceNodeId         = _nodeId,
                 SequenceNumber       = _sequenceNumber++,
                 Kind                 = kind,
-                // ⭐⭐⭐ S2 — send the NETWORK id, which is what the record documents (:21).
-                //   ⛔ This used to send token.Target.Index / .Generation — a PROCESS-LOCAL handle that is
-                //     meaningless on the receiver. S1 and S2 are the two ends of one hop and land together.
-                PickAnchorId         = NetworkIdOf(token.Target),
+                // ⭐⭐⭐ S2/§6.7 — send the NETWORK id, which is what the record documents (:21) and what
+                //   the token now already holds.
+                //   ⛔ HISTORY: this sent `token.Target.Index`/`.Generation` (a PROCESS-LOCAL handle,
+                //     meaningless on the receiver — defect D2); S2 then made it `NetworkIdOf(token.Target)`,
+                //     a NetworkEntityMap lookup back UP from the handle. §6.7 deleted the handle from the
+                //     token, so the id travels from the picked primitive to the wire untouched — ⭐ and a
+                //     node with no map can now SEND, where before `NetworkIdOf` returned 0 and the
+                //     interaction went out anchored to nothing.
+                PickAnchorId         = token.AnchorId,
                 PickStreamId         = 0u,   // reserved: "publisher stream discriminator" (GizmoPickToken.cs:10)
                 PickSubElementId     = token.SubElementId,
                 PickGizmoTypeId      = token.GizmoTypeId,

@@ -308,13 +308,16 @@ namespace Hrot.SimHost
             //    wiring is now identical to the two hosts where picking is known to work.
             _globalGizmoManager = globalGizmoManager
                 ?? new Fdp.Toolkit.Diagnostics.Gizmos.Systems.GlobalGizmoManager(_gizmoBuffer!);
-            // ⭐ R3 — no world is passed; see DESIGN_Gizmo_Renderer_Seam.md §6.
+            // ⭐ §6.7 — the world IS passed now, for ONE reader: PickEntity resolves a picked anchor's
+            //   network id to an Entity. ⚠ NOT a revival of R3's deleted `view` parameter, which was
+            //   stored nowhere. See DebugGizmoLayer._world.
             _gizmoLayer = new DebugGizmoLayer(
                 31,
                 _gizmoBuffer,
                 interactionBus ?? repo.Bus,
                 camera: _map.Camera,
-                shapeLibrary: new GizmoMap.Presentation.Shapes.DefaultEntityShapeLibrary());
+                shapeLibrary: new GizmoMap.Presentation.Shapes.DefaultEntityShapeLibrary(),
+                worldProvider: () => _repo);
             _map.AddLayer(_gizmoLayer);
             _map.DrawBuffer = _gizmoBuffer;
             _interactionBus = interactionBus;
