@@ -916,12 +916,19 @@ public sealed class CgfSubsystem : ISubsystem, Fdp.Toolkit.Runner.IMapCameraProv
         _context.Kernel.RegisterGlobalSystem(creation.SpawnSystem);
         _context.Kernel.RegisterGlobalSystem(creation.RequestSystem);
         _context.Kernel.RegisterGlobalSystem(creation.FinalizationSystem);
+        // ⭐⭐⭐ P2 — ghost promotion moved into the pack (DESIGN_Role_Affinity_Ownership.md §3.7).
+        //    ⚠ CGF is the host whose module came from NedNetworkFactory.CreateReplicationModule(), which
+        //    omits tkbEntityTranslators — so its promotion used the ELM fallback. The pack now hands it
+        //    the SAME list instance it gives the ELM and the spawn system, which is §6.3's invariant made
+        //    true by construction for all three rather than two.
+        _context.Kernel.RegisterGlobalSystem(creation.PromotionSystem);
 
         // ⭐⭐ Make an omission LOUD — the S2b habit. Every one of the five defects behind this design
         //    was silent, and CE-138 (this host's own zero-iteration translator loop) was one of them.
         var unserviceable = creation.Unserviceable(new object[]
         {
             creation.SpawnSystem, creation.RequestSystem, creation.FinalizationSystem,
+            creation.PromotionSystem,
         });
         if (unserviceable.Length > 0)
             Fdp.Core.Logging.FdpLog<CgfSubsystem>.Warn(unserviceable);

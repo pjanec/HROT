@@ -12,8 +12,10 @@ namespace Hrot.Common.EntityCreation
 {
     /// <summary>
     /// What <see cref="EntityCreationPack.Build"/> produced. ⛔ Nothing here is scheduled — the host
-    /// registers the three systems with its own kernel and then calls
+    /// registers the <b>four</b> systems with its own kernel and then calls
     /// <see cref="Unserviceable"/> so an omission is loud instead of silent.
+    /// <para>⚠ <b>FOUR since <c>P2</c> (<c>2026-09-11</c>)</b> — <see cref="PromotionSystem"/> joined when
+    /// ghost promotion's registrar moved out of <c>NedReplicationModule</c>.</para>
     /// </summary>
     public sealed class EntityCreation
     {
@@ -23,7 +25,8 @@ namespace Hrot.Common.EntityCreation
             ScenarioEntityCreationRequestSource localRequests,
             CreateEntityRequestSystem requestSystem,
             EntityRequestFinalizationSystem finalizationSystem,
-            NetworkSpawningSystem spawnSystem)
+            NetworkSpawningSystem spawnSystem,
+            Fdp.Toolkit.Replication.Systems.GhostPromotionSystem promotionSystem)
         {
             Translators        = translators;
             Elm                = elm;
@@ -31,6 +34,7 @@ namespace Hrot.Common.EntityCreation
             RequestSystem      = requestSystem;
             FinalizationSystem = finalizationSystem;
             SpawnSystem        = spawnSystem;
+            PromotionSystem    = promotionSystem;
         }
 
         /// <summary>
@@ -68,6 +72,21 @@ namespace Hrot.Common.EntityCreation
         public NetworkSpawningSystem SpawnSystem { get; }
 
         /// <summary>
+        /// ⭐⭐⭐ <b><c>P2</c> — applies the TKB template to an arrived ghost and advances its lifecycle.
+        /// Schedule this.</b> 📄 <c>docs/DESIGN_Role_Affinity_Ownership.md</c> §3.7, §6 step <c>0a</c>.
+        ///
+        /// <para>⭐ Its registrar moved here from <c>NedReplicationModule.RegisterSystems</c> — one network
+        /// implementation — because promotion consumes the TKB and the translator list, neither of which is
+        /// networked. ⭐ Ghost CREATION stays on <c>IReplicationModule</c>, where it belongs.</para>
+        ///
+        /// <para>⭐⭐ <b>Ordering needs nothing from the host:</b> the system carries
+        /// <c>[UpdateAfter(typeof(GhostCreationSystem))]</c>, so *creation precedes promotion* is true by
+        /// construction rather than by which registrar the host wired first. And <c>[SingleInstance]</c>
+        /// makes a double registration throw at <c>BeginRun()</c> instead of promoting twice a frame.</para>
+        /// </summary>
+        public Fdp.Toolkit.Replication.Systems.GhostPromotionSystem PromotionSystem { get; }
+
+        /// <summary>
         /// ⭐⭐ <b>The <c>S2b</c> diagnostic habit: report what the pack built and the host did NOT
         /// schedule.</b> 📌 Every one of the five entity-creation defects that produced this design was a
         /// SILENT omission — this is the mechanism that makes the next one loud.
@@ -87,7 +106,18 @@ namespace Hrot.Common.EntityCreation
             var seen = new HashSet<object>(scheduled ?? Enumerable.Empty<object>(),
                                            ReferenceEqualityComparer.Instance);
 
-            var missing = new List<string>(3);
+            var missing = new List<string>(4);
+            // ⭐⭐ P2 — the FOURTH row, and it is the one this mechanism was most needed for: the other
+            //   three were new capabilities a host had never had, while promotion is a capability every
+            //   host ALREADY HAD from its replication module. ⇒ a host that adopts the pack and forgets
+            //   to schedule this would SILENTLY LOSE ghost promotion — the exact regression shape the
+            //   design warns about ("a host that has not adopted the pack would LOSE ghost promotion the
+            //   moment the NED module stops registering it").
+            if (!seen.Contains(PromotionSystem))
+                missing.Add($"{nameof(PromotionSystem)} (GhostPromotionSystem) — arrived ghosts will " +
+                            "never get their TKB projection and will stay in EntityLifecycle.Ghost " +
+                            "forever. ⚠ This USED to be registered by NedReplicationModule; if this host " +
+                            "relied on that, scheduling it here is not optional");
             if (!seen.Contains(RequestSystem))
                 missing.Add($"{nameof(RequestSystem)} (CreateEntityRequestSystem) — this node cannot " +
                             "process entity-creation requests, including ones it targets at itself");

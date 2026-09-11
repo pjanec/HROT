@@ -479,9 +479,17 @@ internal sealed class IgNodeBootstrapper : SharedApplicationBootstrapper
         //    other host already has, and uniformity is the point.
         context.Kernel.RegisterGlobalSystem(creation.SpawnSystem);         // BeforeSync
 
+        // ⭐⭐⭐ P2 — ghost promotion now comes from the pack, not from NedReplicationModule.
+        //   📄 docs/DESIGN_Role_Affinity_Ownership.md §3.7. ⚠ IG is the host this matters most for: as a
+        //   pure ImageGenerator it receives ghosts of entities other nodes originate, so losing promotion
+        //   would leave every received entity stuck in EntityLifecycle.Ghost with no TKB projection.
+        //   ⭐ No ordering argument needed here — [UpdateAfter(GhostCreationSystem)] carries it.
+        context.Kernel.RegisterGlobalSystem(creation.PromotionSystem);      // BeforeSync
+
         var unserviceable = creation.Unserviceable(new object[]
         {
             creation.RequestSystem, creation.FinalizationSystem, creation.SpawnSystem,
+            creation.PromotionSystem,
         });
         if (unserviceable.Length > 0)
             FdpLog<IgNodeBootstrapper>.Info(

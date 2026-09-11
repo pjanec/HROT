@@ -239,6 +239,18 @@ namespace Hrot.SimHost.Integration.Tests.Infrastructure
         private readonly CreateEntityRequestSystem      _requestSystem;
         private readonly NetworkSpawningSystem          _spawnSystem;
         private readonly EntityRequestFinalizationSystem   _finalizationSystem;
+
+        /// <summary>
+        /// ⭐⭐ <c>P2</c> — the pack's fourth piece since ghost promotion's registrar moved out of
+        /// <c>NedReplicationModule</c> *(<c>DESIGN_Role_Affinity_Ownership.md</c> §3.7)*.
+        /// <para>⚠ <b>It idles in this harness and is ticked anyway, deliberately.</b> 📐 This harness
+        /// composes no replication module and runs zero participants, so no ghost ever arrives and the
+        /// promotion query is always empty. ⛔ But <see cref="EntityCreation.Unserviceable"/> now reports
+        /// it, and this harness THROWS on any unserviceable piece — *"asserting here rather than logging
+        /// keeps the harness honest about the thing it now exists to prove."* ⇒ ticking a system that has
+        /// nothing to do is the honest outcome; silencing the assertion would not be.</para>
+        /// </summary>
+        private readonly Fdp.Toolkit.Replication.Systems.GhostPromotionSystem _promotionSystem;
         private readonly SystemList                     _elmSystems  = new();
         private readonly SystemList                     _geoSystems  = new();
 
@@ -349,13 +361,14 @@ namespace Hrot.SimHost.Integration.Tests.Infrastructure
             _requestSystem      = creation.RequestSystem;
             _spawnSystem        = creation.SpawnSystem;
             _finalizationSystem = creation.FinalizationSystem;
+            _promotionSystem    = creation.PromotionSystem;
             Translators         = creation.Translators;
 
             // The pack builds every piece; this harness schedules all three below in Tick(), so
             // nothing may be unserviceable. Asserting here rather than logging keeps the harness
             // honest about the thing it now exists to prove.
             var unserviceable = creation.Unserviceable(new object[]
-                { _requestSystem, _spawnSystem, _finalizationSystem });
+                { _requestSystem, _spawnSystem, _finalizationSystem, _promotionSystem });
             if (unserviceable.Length > 0)
                 throw new InvalidOperationException(
                     "SimHostInstance did not schedule every EntityCreationPack piece: " + unserviceable);
@@ -795,6 +808,12 @@ namespace Hrot.SimHost.Integration.Tests.Infrastructure
                 // NetworkSpawningSystem â†’ consumes SpawnEntityCommand, creates ECS entity,
                 // calls elm.BeginConstruction (publishes ConstructionOrder via cmd buf).
                 _spawnSystem.Execute(view, dt);
+                cmdBuf.Playback(_world);
+
+                // ⭐⭐ P2 — GhostPromotionSystem, in its real phase position: BeforeSync, after ghost
+                //    creation. ⚠ A no-op here (no replication module, zero participants ⇒ no ghosts
+                //    arrive), but scheduled so Unserviceable() stays satisfied rather than silenced.
+                _promotionSystem.Execute(view, dt);
                 cmdBuf.Playback(_world);
 
                 // Sub-swap B: ConstructionOrder moves to read buffer so

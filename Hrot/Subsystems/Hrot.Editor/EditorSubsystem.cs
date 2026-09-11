@@ -1642,12 +1642,19 @@ namespace Hrot.Editor
             _kernel.RegisterModule(new Fdp.ModuleHost.Scheduling.SingleSystemModule("NetworkSpawning", spawnSys));
             _kernel.RegisterGlobalSystem(creation.RequestSystem);
             _kernel.RegisterGlobalSystem(creation.FinalizationSystem);
+            // ⭐⭐⭐ P2 — ghost promotion moved into the pack (DESIGN_Role_Affinity_Ownership.md §3.7).
+            //   ⚠ NEW to this host, and harmlessly so: the editor's OfflineNetworkFactory returns a
+            //   NullReplicationModule, so no ghosts ever arrive and the system idles. ⭐ It is scheduled
+            //   anyway because Q65 §0 forbids removing a capability by composition — and because a host
+            //   that skipped it would warn forever through Unserviceable().
+            _kernel.RegisterGlobalSystem(creation.PromotionSystem);
 
             // ⭐⭐ Make an omission LOUD — the S2b habit. Every one of the five defects behind this
             //   design was silent.
             var unserviceable = creation.Unserviceable(new object[]
             {
                 creation.SpawnSystem, creation.RequestSystem, creation.FinalizationSystem,
+                creation.PromotionSystem,
             });
             if (unserviceable.Length > 0)
                 Fdp.Core.Logging.FdpLog<EditorSubsystem>.Warn(unserviceable);

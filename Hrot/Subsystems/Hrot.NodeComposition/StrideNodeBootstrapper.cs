@@ -481,12 +481,16 @@ public sealed class StrideNodeBootstrapper : SharedApplicationBootstrapper, IDis
             context.Kernel.RegisterModule(new Fdp.ModuleHost.Scheduling.SingleSystemModule("NetworkSpawning", creation.SpawnSystem));
             context.Kernel.RegisterGlobalSystem(creation.RequestSystem);        // Input
             context.Kernel.RegisterGlobalSystem(creation.FinalizationSystem);  // PostSimulation
+            // ⭐⭐⭐ P2 — ghost promotion moved into the pack (DESIGN_Role_Affinity_Ownership.md §3.7).
+            //   ⭐ Ordering carries itself: [UpdateAfter(GhostCreationSystem)] on the system.
+            context.Kernel.RegisterGlobalSystem(creation.PromotionSystem);      // BeforeSync
 
             // ⭐⭐ The S2b habit: make an omission loud. Every one of the five defects behind this design
             //   was silent.
             var unserviceable = creation.Unserviceable(new object[]
             {
                 creation.SpawnSystem, creation.RequestSystem, creation.FinalizationSystem,
+                creation.PromotionSystem,
             });
             if (unserviceable.Length > 0)
                 FdpLog<StrideNodeBootstrapper>.Warn(unserviceable);

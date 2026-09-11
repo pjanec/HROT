@@ -5,11 +5,17 @@ current-answer: ✅✅✅ READ §5.0 — THE AGREED PLAN (user-confirmed 2026-09
   that carries live state. P1 (EntityCreationPack adoption) is COMPLETE across ALL SIX HOSTS as of
   2026-09-03: host (f) IG shipped with Q65-A' + CE-143 + CE-144 atomically, VERIFIED (GhostDestructionSystem
   deleted; IgNodeBootstrapper.cs:362 calls EntityCreationPack.Build; CE-141+CE-144 confirmed on a live
-  four-process cluster). ⇒ THE NEXT BUILDABLE STEP IS P2 — relocate GhostPromotionSystem out of
-  NedReplicationModule into EntityCreationPack, add+remove in ONE commit.
-  ⭐⭐⭐ AND THE PROGRAMME IS NOT FINISHED WHEN P2 LANDS: P3 is AUTO-TAKEOVER (role-affinity ownership),
-  which is FULLY DESIGNED AND ENTIRELY UNBUILT — ../DESIGN_Role_Affinity_Ownership.md, build-state
-  READY-TO-BUILD, "Nothing here is built yet", §6 steps 0a->4 (NINE steps, not "0->3b").
+  four-process cluster).
+  ✅✅✅ P2 IS DONE, 2026-09-11 — GhostPromotionSystem's registrar relocated from NedReplicationModule
+  into EntityCreationPack in ONE commit, add+remove together. AS-BUILT:
+  ../DESIGN_Role_Affinity_Ownership.md §6a. The BDC gap ("a BDC node never promotes its ghosts") closed
+  with it, as §3.7 predicted.
+  ⇒ THE NEXT BUILDABLE STEP IS P3 step 0 (TkbTemplate.BirthCriticalComponents) — or, in parallel and
+  independent of it, ../DESIGN_Entity_Authoring_Surface.md (see below).
+  ⭐⭐⭐ THE PROGRAMME IS NOT FINISHED: P3 is AUTO-TAKEOVER (role-affinity ownership),
+  ../DESIGN_Role_Affinity_Ownership.md, now build-state BUILDING (step 0a only — its eight remaining
+  steps 0, 1a, 1, 2, 3, 3b, 3c, 4 are entirely unbuilt, measured 2026-09-11: all six of its new types
+  have ZERO occurrences in .cs).
   ⛔⛔ CORRECTED 2026-09-11 — THIS BLOCK SAID P3's §5 "holds THREE OPEN DECISIONS that are the USER's to
   settle before it starts". That was true on 2026-09-03 and IS NOW FALSE: that design was updated
   2026-09-10 and ALL THREE ARE RESOLVED (① / ①b settled 2026-09-01; ② user-approved "yes on boot
@@ -299,7 +305,7 @@ alternative is a temporary bridge that would itself be the second registrar the 
 | # | step | state |
 |---|---|---|
 | **P1** | ⭐⭐ **finish pack adoption** — hosts (b) SimHost → (c)+(e) Editor + Stride editor *(coupled, `CE-146`)* → (d) CGF → (f) IG *(atomic with `Q65-A′`+`CE-143`+`CE-144`)*. §3's order, §5's mechanics | ✅✅✅ **COMPLETE `2026-09-03` — ALL SIX HOSTS.** (b) `2026-09-01` · (c)+(e) `2026-09-02` *(e **VERIFIED on Windows**)* · (d) `2026-09-02` · ⭐ **(f) IG `2026-09-03`** — the §4.9 triage cleared the pause, then (f) shipped with its three atomic companions. 📐 **VERIFIED, not assumed:** `GhostDestructionSystem` is deleted *(only comments name it)*, `IgNodeBootstrapper.cs:362` calls `EntityCreationPack.Build`, `CE-143` is BUILT *(`Q65` §5.5)*, and `CE-141`+`CE-144` were confirmed on a **live four-process cluster** *(`DESIGN_Entity_Creation_Unification.md` §2.3c)* |
-| **P2** | 🔴 **relocate `GhostPromotionSystem`** from `NedReplicationModule` into `EntityCreationPack`, **one commit, add+remove together** | ⭐⭐ **UNBLOCKED `2026-09-03` — the next buildable step.** ⭐ Also closes *"a BDC node never promotes its ghosts"* *(`BdcReplicationModule.cs:66`)* |
+| **P2** | ✅✅✅ **DONE `2026-09-11`** — ~~relocate `GhostPromotionSystem`~~ | ✅ **SHIPPED in one commit, add+remove together.** 📄 **AS-BUILT: [`../DESIGN_Role_Affinity_Ownership.md`](../DESIGN_Role_Affinity_Ownership.md) §6a.** ⭐ The BDC gap closed as the predicted side effect. ⭐⭐ **One addition beyond §3.7:** the ordering stopped being free when the registrar moved *(measured: `SystemScheduler` orders a phase by REGISTRATION ORDER absent a declared edge)*, so `GhostPromotionSystem` now carries **`[UpdateAfter(GhostCreationSystem)]`** — order true by construction — and **`[SingleInstance]`**, which turns step `0a`'s *"exactly once"* gate into a throw at `BeginRun()` instead of a counted rail. ⭐ A silent per-host lever went with it: the old `if (_tkbDb != null && _lifecycleModule != null)` guard, whose own comment admitted *"which hosts pass null has not been measured"* — the pack requires both. 📐 `EntityCreationPackRails` **13/13 → 22/22**, four inverse-edit red-proofs each 1🔴 |
 | **P3** | ⭐⭐⭐ **AUTO-TAKEOVER — role-affinity ownership.** ⛔ **DESIGNED, NOT BUILT — the unimplemented half of this whole programme** | blocked on P2. 📄 [`../DESIGN_Role_Affinity_Ownership.md`](../DESIGN_Role_Affinity_Ownership.md) `build-state: READY-TO-BUILD`, §6 steps 0→3b; ⚠ **its §5 holds THREE OPEN DECISIONS for the user** — settle them before starting. ⛔ Do not re-derive its three constraints: two categories *(birth-critical vs cognitive)* · network-agnostic *(no descriptor keying)* · authority does not stop execution *(needs the query filter too, or it is cosmetic)* |
 
 ### 🔴🔴 `2026-09-11` — **TWO CORRECTIONS TO THIS TABLE, both measured. Read them before planning.**

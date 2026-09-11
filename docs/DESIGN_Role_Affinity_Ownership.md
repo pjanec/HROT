@@ -1,9 +1,23 @@
 <!--STATUS
 state: LIVE
-updated: 2026-09-10
-build-state: READY-TO-BUILD
-current-answer: §3 is the design; §4 carries the UML; §5 holds the open decisions, each with a lean.
-  Nothing here is built yet.
+updated: 2026-09-11
+build-state: BUILDING — step 0a only. ⛔ NOT "BUILT": open-risk below still binds (§3.5 / step 3b).
+current-answer: §3 is the design; §4 carries the UML; §6 is the sequencing; ⭐⭐ §6a IS THE AS-BUILT and
+  wins over §3.7 where they differ (§3.7 is unchanged and still right; §6a ADDS the two attributes the
+  build needed).
+  ✅✅✅ STEP 0a IS DONE, 2026-09-11 — the GhostPromotionSystem relocation into EntityCreationPack.
+  ⛔⛔ CORRECTED: this block said "Nothing here is built yet". That was true until 2026-09-11 and is now
+  false for step 0a ONLY. Steps 0, 1a, 1, 2, 3, 3b, 3c and 4 remain entirely unbuilt — measured
+  2026-09-11: BirthCriticalComponents, IRoleShardProvider, RoleShardKey,
+  SingleNodePerRoleShardProvider, IRoleAffinityPolicy and RoleAffinityPolicy have ZERO occurrences
+  in .cs.
+  ⭐ §5's three decisions are all RESOLVED (① / ①b 2026-09-01; ② user-approved and ③ user-ruled
+  2026-09-10; ①c "nothing measurable remains"). What is left in §5 is a per-system REVIEW for step 3b,
+  not a decision — so this design is NOT blocked on the user.
+  ⚠ ONE FINDING FROM THE 0a BUILD, filed not fixed (§6a's last subsection): NetworkLifecycleSystemGroup's
+  summary claims it groups GhostPromotionSystem so that "no ghost promotions occur during playback", but
+  NO production site has ever put that system in it — promotion ran, and still runs, OUTSIDE the replay
+  gate. The relocation preserved that behaviour deliberately; whether it SHOULD be gated is unanswered.
 stale-below: nothing.
 known-rot: §3.1's FIRST draft (2026-09-01, same day) applied ONE symmetric rule to every descriptor.
   That was WRONG and is corrected in place: it would have made a Brain creator produce SimTransform
@@ -655,7 +669,7 @@ sequenceDiagram
 
 | step | what | gate |
 |---|---|---|
-| **0a** | 🔴 **RELOCATE `GhostPromotionSystem` registration from `NedReplicationModule` into `EntityCreationPack`** — §3.7. ⛔ One commit: add to the pack **and** remove from the NED module | rail: a node built from the pack registers promotion **exactly once**; and a **BDC-composed** node promotes its ghosts *(today it does not — that gap closes here)* |
+| **0a** | ✅✅✅ **DONE `2026-09-11` — see §6a AS-BUILT.** ~~RELOCATE `GhostPromotionSystem` registration from `NedReplicationModule` into `EntityCreationPack`~~ | ✅ gate met, and made STRUCTURAL rather than counted: `[SingleInstance]` + `[UpdateAfter]`. Four inverse-edit red-proofs |
 | **0** | ⭐ `TkbTemplate.BirthCriticalComponents` + `AddBirthCriticalComponent<T>()`, mirroring the existing `AddMandatoryComponent<T>()`; seed **`SimTransform`** on the templates that carry one | unit: a template that does not list it does not report it; the list is network-free *(no `DescriptorOwnershipMap`, no participant, so it holds on a networkless node)* |
 | ⭐⭐ **1a** | 🆕 **`IRoleShardProvider` + `RoleShardKey` + `SingleNodePerRoleShardProvider`** in `Fdp.Toolkits/Replication` — §3.8, user ruling `2026-09-10` | unit: the default provider answers `true` for every DECLARED role and `false` otherwise, **for any key** *(incl. `NetworkId == 0`, the networkless case)*; ⭐ **a rail that the default IGNORES the key** — red-proof: make it read `NetworkId` and the "identical on every node" contract rail reddens |
 | **1** | `IRoleAffinityPolicy` + `RoleAffinityPolicy` in `Fdp.Toolkits/Replication`, ⚠ **taking the provider and a mask PER ROLE** *(§3.8 — ⛔ not the single flat mask §3.3 first drew)* | unit: Brain and Muscle masks are **disjoint** over the brain/kinematic sets, **and** birth-critical components are in **both**. ⭐⭐ **AND the shard rail: with a stub provider answering `false` for `Brain`, a Brain-declaring node's mask contains NO brain components** — this is the one that proves the seam is real rather than decorative |
@@ -664,6 +678,74 @@ sequenceDiagram
 | **3b** | 🔴 **the execution gate** — §3.5: `.WithAuthority<BehaviorState>()` on `BTreeTickSystem`, and narrow the Muscle-only registration | rail: a node holding brain components it does **not** own ticks them **zero** times. ⛔ **Without this the whole design is cosmetic** — authority would gate replication while both nodes still ran the tree |
 | ⭐ **3c** | 🆕 **the BOOT WARNING** *(§5 ② — user-approved `2026-09-10`)*: at the composition root, warn once if `IClusterStateCache.GetLeastLoadedNode(NodeRole.Brain)` is `null`. ⛔ **WARN, never throw** *(a pure-Muscle test cluster is legitimate)*, and ⛔ **at the root, not in the policy** — it is NED-only and the policy stays network-agnostic *(§2.3)* | rail: the warning fires on a roster with no Brain and is **silent** when one is present |
 | **4** | hand CGF a Brain policy and SimHost a Muscle policy at their composition roots, ⭐ **each with a `SingleNodePerRoleShardProvider` over the role that host already declares** *(`SimHostApp.DefaultRole:182` · `CgfSubsystem.DefaultRole`)* | ⭐⭐ **the acceptance test:** a SimHost-created brain-enabled entity ends with `HasAuthority<BehaviorState>` **false on SimHost and true on CGF**, and `TacticalIntentResolutionSystem`'s gate passes |
+
+## 6a. ✅✅✅ AS-BUILT — **step `0a` shipped `2026-09-11`** *(obligation ⑤)*
+
+⭐⭐ **§3.7's relocation is done, and it landed as §3.7 specified: ONE commit, add + remove together.**
+`EntityCreationPack.Build` constructs `GhostPromotionSystem`; `NedReplicationModule.RegisterSystems` no
+longer does. ⭐ The BDC gap closed as the side effect §3.7 predicted.
+
+| what shipped | |
+|---|---|
+| ⭐ **the pack builds it** | `new GhostPromotionSystem(ctx.TkbDb, ctx.Elm, translators)` — the **SAME `translators` instance** the ELM and the spawn system get, so `tkb-1/DESIGN.md` §6.3's *"identical for all three systems within the same node"* is now true by construction for **all three** rather than two |
+| ⭐ **`EntityCreation` gained `PromotionSystem`**, and `Unserviceable` a **fourth** row | ⚠ the row it most needed: the other three were capabilities a host never had, while promotion is one **every host already had from its replication module** ⇒ a host adopting the pack and forgetting to schedule it would **silently lose** promotion. That is the regression shape §5.0's *"adopt first, relocate second"* ordering exists to prevent |
+| ⭐ **all five production roots + the integration harness schedule it** | IG · Stride node · CGF · SimHost · Editor, and `SimHostInstance` *(which ticks it in its real phase position; it idles there — no replication module, zero participants — and is ticked anyway because that harness THROWS on an unserviceable piece, and silencing the assertion would be the dishonest fix)* |
+
+### ⭐⭐⭐ ONE DEVIATION FROM §3.7, AND IT IS AN ADDITION: **two attributes, because the ORDER stopped being free**
+
+📐 **Measured while building:** with no declared edge, `SystemScheduler` orders a phase by **registration
+order** *(Kahn's algorithm over nodes added in insertion order — `SystemScheduler.cs:233`/`:280`)*.
+⭐ §3.7 says *"moving the registrar does not move the phase"* — **true, and not the whole risk**: it also
+notes *"within-phase order still matters — creation must precede promotion."* ⛔ While ONE module
+registered both systems that ordering was free; across two registrars it depends on which the host wires
+first, and promotion running before creation costs a frame of latency **silently**.
+
+⇒ `GhostPromotionSystem` now declares:
+
+| attribute | what it buys |
+|---|---|
+| **`[UpdateAfter(typeof(GhostCreationSystem))]`** | the ordering is true **by construction**, not by host wiring order. ⚠ The edge is PHASE-SCOPED *(`SystemScheduler.cs:250` adds it only when the target is in the phase being sorted)* and both systems are `BeforeSync`; on a host with no replication module *(the editor's `NullReplicationModule`, the harness)* there is no creation system and the edge is correctly skipped |
+| **`[SingleInstance]`** | ⭐⭐ turns this step's gate — *"registers promotion exactly once"* — from a counted rail into a **throw at `BeginRun()`**. ⛔ The failure mode of a MOVE is landing the add without the remove; `CE-165` put this attribute in the scheduler for exactly that class, and it recurses into groups |
+
+### ⭐⭐ A SILENT PER-HOST LEVER DELETED — **not tidying**
+
+The old site read `if (_tkbDb != null && _lifecycleModule != null)`, and the comment above it called that
+*"the real (and silent) per-host lever — a role that supplies no TKB database still skips promotion with no
+diagnostic"*, admitting *"which hosts pass null has not been measured."*
+⇒ ⭐ in the pack both are **REQUIRED** inputs *(`EntityCreationContext.Validate` throws)*, so the guard
+cannot exist and the unmeasured question cannot recur.
+
+### ⚠⚠ WHAT THE RELOCATION DELIBERATELY DID NOT CHANGE — **the replay gate, and it is a FINDING**
+
+📐 Measured `2026-09-11`: `NetworkLifecycleSystemGroup`'s own summary says it groups *"LifecycleSystem,
+**GhostPromotionSystem** and NetworkGatewaySystem"* so that *"no lifecycle state changes or **ghost
+promotions** occur during playback (`CGF1-S0304`)"* — ⛔ **but no production site has ever put this system
+in it.** Every construction site passes `GhostCreationSystem` alone *(`NedReplicationModule.cs:219`,
+`BdcReplicationModule.cs:61`, and every test)*, and promotion was registered **standalone**, i.e. OUTSIDE
+the gate.
+⇒ ⭐ the pack registers it standalone too, **preserving today's behaviour exactly** — 🔒 a relocation may
+not change behaviour. ⛔ Whether promotion *should* be gated during replay is a real question with a real
+answer somewhere, and it is **filed, not answered here**.
+
+### 📐 GATES
+
+| gate | result |
+|---|---|
+| build, affected projects only *(⛔ never the solution)* | `Fdp.Toolkits` · `Hrot.Common` · `Hrot.Network.NED` · `Hrot.IG` · `Hrot.CGF` · `Hrot.SimHost` · `Hrot.Editor` · `Hrot.NodeComposition` · `Hrot.SimHost.Integration.Tests` — **0 errors** |
+| ⭐ **T-1, the feature's own suite** | `EntityCreationPackRails` **13/13 → 22/22** *(5 new rails, +1 existing rail updated)* |
+| ⭐ **four inverse-edit red-proofs, each 1🔴** | the remove undone *(NED re-registers)* · a host forgetting to schedule *(CGF)* · `[UpdateAfter]` dropped · `[SingleInstance]` dropped |
+| ⚠ **and a red-proof caught a STALE-BINARY false green** | the first attempt at the two attribute proofs stayed GREEN: `dotnet test --no-build` kept the previous `Fdp.Toolkits.dll` in the test project's `bin`. 📌 `CLAUDE.md`'s own warning. ⇒ the test project must be REBUILT when a dependency changes |
+| `Fdp.Toolkits.Tests` *(owns `GhostProtocolTests`, `TranslatorWiringTests`, `SubEntityTests`)* | ✅ **2081/2081** |
+| `Hrot.SimHost.Integration.Tests` *(the harness changed)* | ✅ **46/46** |
+| ⭐ **integration, the invariant's own suite** *(gate row 8)* | `GhostPromotionTests` **0/1** — ⚠ `OutOfOrder_GeoSpatialBeforeEntityMaster_PositionPreservedAfterPromotion` is **red IDENTICALLY on the stashed base tree at `6859df38`** ⇒ pre-existing. `TheEgressShadowExistsAtBirthTests` **6/6** |
+| `Hrot.Editor.Tests` **405/406** · `Hrot.NodeComposition.Tests` **53/53** | ✅ |
+| `Hrot.SimHost.Tests` **926/931**, 3 skipped, 2 failed | ⚠ both proven pre-existing at `64d2fe44` *(`MapPresentationParityRails` on `EditorStrideSubsystem.cs`, `FullBranchPipelineTests`)* |
+| `Hrot.ClusterRunner.Tests` **270/273** | ⚠ 3 × `OrchestratorSubsystemTests`, **red identically on the stashed base** ⇒ pre-existing. ⭐ `NedReplicationModuleTests` green |
+
+⛔ **NOT done here, and it is the next step, not this one:** §3.7's `EntityCreationContext.RoleAffinityPolicy`
+field. It needs `IRoleAffinityPolicy`, which step **1** creates — adding the field now would not compile.
+
+---
 
 ⭐⭐ **The acceptance criterion for the whole thing** is the failing cluster test
 `CgfSubsystemHeadlessTests.SimHost_MoveToLocationMission_EntityMovesWithoutGhostTick` — it asserts a

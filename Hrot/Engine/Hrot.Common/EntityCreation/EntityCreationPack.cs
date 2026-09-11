@@ -10,6 +10,7 @@ using Fdp.Toolkit.NetworkSpawning.Systems;
 using Fdp.Toolkit.Replication.Abstractions;
 using Fdp.Toolkit.Replication.Patching;
 using Fdp.Toolkit.Replication.Services;
+using Fdp.Toolkit.Replication.Systems;   // ⭐ P2 — GhostPromotionSystem; see the Build() note
 using Hrot.Common.Systems;
 using Hrot.Core.Network;
 using Hrot.Core.Tkb;
@@ -37,10 +38,16 @@ namespace Hrot.Common.EntityCreation
     ///
     /// <para>⚠ <b>What this pack does NOT own</b> — measured, and deliberate:
     /// <list type="bullet">
-    ///   <item><b>Ghost lifecycle.</b> <c>NedReplicationModule</c> already registers
-    ///     <c>GhostCreationSystem</c> for all roles and <c>GhostPromotionSystem</c> behind a
-    ///     <c>NodeRole</c> gate. Registering them here would create a SECOND registrar — the
-    ///     duplicate-implementation trap. Widening that gate is <c>Q65-B</c>, in that module.</item>
+    ///   <item>⭐⭐ <b>Ghost CREATION</b> — <c>GhostCreationSystem</c> stays on
+    ///     <c>IReplicationModule</c>: *"a wire sample arrived, make a shell"* is genuinely a network
+    ///     concern, and the interface puts it on every implementation.
+    ///     <para>⛔⛔ <b>Ghost PROMOTION IS NO LONGER IN THIS LIST — it MOVED HERE, <c>P2</c>,
+    ///     <c>2026-09-11</c>.</b> ⚠ An earlier version of this bullet said registering it here *"would
+    ///     create a SECOND registrar — the duplicate-implementation trap."* 📐 **That reasoning assumed
+    ///     `NedReplicationModule` is THE registrar; it is one of THREE modules and two never registered
+    ///     it** *(BDC created ghosts and never promoted them; Offline returns a
+    ///     `NullReplicationModule`)*. ⇒ this is a MOVE: the pack became the registrar and the NED module
+    ///     stopped, in one commit. 📄 <c>DESIGN_Role_Affinity_Ownership.md</c> §3.7.</para></item>
     ///   <item><b>The TKB catalogue.</b> <see cref="EntityCreationContext.TkbDb"/> is required input,
     ///     never built here — that is what keeps the four <c>HrotEnvironment.CreateTkb()</c> sites from
     ///     diverging.</item>
@@ -162,8 +169,35 @@ namespace Hrot.Common.EntityCreation
                 //   host forgets. 📄 docs/DESIGN_Cgf_AxisB_Rotation_Slice.md §13.7.
                 translators: translators);
 
+            // ⭐⭐⭐ P2 — GHOST PROMOTION IS BUILT HERE NOW. 📄 DESIGN_Role_Affinity_Ownership.md §3.7,
+            //   §6 step 0a. It was registered by NedReplicationModule.RegisterSystems — ONE network
+            //   implementation — and the concerns had been bundled by LIFECYCLE ADJACENCY, not by subject:
+            //   ghost CREATION is genuinely a network concern (a wire sample arrived, make a shell) and
+            //   stays on IReplicationModule; ghost PROMOTION applies the TKB template and consumes the
+            //   translator list, neither of which is networked.
+            //
+            //   🔴 It was already a defect independent of that design: BdcReplicationModule registers
+            //     GhostCreationSystem and NO promotion, so a BDC node's ghosts were never promoted — they
+            //     kept only their replicated components and stayed in EntityLifecycle.Ghost forever. ⭐ That
+            //     closes here as a side effect rather than as separate work.
+            //
+            // ⭐⭐ THE SAME `translators` INSTANCE the ELM and the spawn system get — which is
+            //   tkb-1/DESIGN.md §6.3's "identical for all three systems within the same node", now true BY
+            //   CONSTRUCTION for all three rather than for two of them. ⚠ Passing it explicitly is
+            //   equivalent to the system's own `?? _lifecycleModule.Translators` fallback (the pack set that
+            //   list at `ctx.Elm.SetTranslators` above); explicit matches how SpawnSystem is wired.
+            //
+            // ⭐⭐⭐ AND THE PER-HOST SILENT LEVER IS GONE, which is a real gain, not tidying. The old site
+            //   read `if (_tkbDb != null && _lifecycleModule != null)` and its own comment called that
+            //   "the real (and silent) per-host lever — a role that supplies no TKB database still skips
+            //   promotion with no diagnostic", adding "which hosts pass null has not been measured".
+            //   ⇒ here TkbDb and Elm are REQUIRED inputs (ctx.Validate throws), so the guard cannot exist
+            //   and the question cannot recur.
+            var promotionSystem = new GhostPromotionSystem(ctx.TkbDb, ctx.Elm, translators);
+
             return new EntityCreation(
-                translators, ctx.Elm, localRequests, requestSystem, finalization, spawnSystem);
+                translators, ctx.Elm, localRequests, requestSystem, finalization, spawnSystem,
+                promotionSystem);
         }
     }
 }

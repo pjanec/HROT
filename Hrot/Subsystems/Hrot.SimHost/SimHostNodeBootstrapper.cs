@@ -500,12 +500,18 @@ public sealed class SimHostNodeBootstrapper : SharedApplicationBootstrapper
         context.Kernel.RegisterModule(new Fdp.ModuleHost.Scheduling.SingleSystemModule("NetworkSpawning", spawningSystem));
         context.Kernel.RegisterGlobalSystem(creation.RequestSystem);        // Input
         context.Kernel.RegisterGlobalSystem(creation.FinalizationSystem);   // PostSimulation
+        // ⭐⭐⭐ P2 — ghost promotion moved into the pack (DESIGN_Role_Affinity_Ownership.md §3.7).
+        //   📌 This host's `.WithTranslators(...)` was dropped at CE-140 step 3 precisely because its only
+        //   consumer was NedReplicationModule's GhostPromotionSystem construction (see the note at :231);
+        //   the pack now supplies that list directly, which is what that removal was waiting for.
+        context.Kernel.RegisterGlobalSystem(creation.PromotionSystem);       // BeforeSync
 
         // ⭐⭐ Make an omission LOUD. Every one of the five defects behind this design was silent, so the
         //   pack reports any piece the host built and then forgot to schedule.
         var unserviceable = creation.Unserviceable(new object[]
         {
             creation.SpawnSystem, creation.RequestSystem, creation.FinalizationSystem,
+            creation.PromotionSystem,
         });
         if (unserviceable.Length > 0)
             Fdp.Core.Logging.FdpLog<SimHostNodeBootstrapper>.Warn(unserviceable);

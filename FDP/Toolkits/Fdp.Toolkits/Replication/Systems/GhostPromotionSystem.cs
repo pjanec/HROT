@@ -22,7 +22,45 @@ namespace Fdp.Toolkit.Replication.Systems
     /// <para>Checks are O(1) bitmask operations against the entity's
     /// <see cref="EntityHeader.ComponentMask"/> — no network concepts involved.</para>
     /// </summary>
+    /// <remarks>
+    /// ⭐⭐⭐ <b><c>P2</c> (<c>2026-09-11</c>) — THE TWO ATTRIBUTES BELOW EXIST BECAUSE THE REGISTRAR MOVED.</b>
+    /// 📄 <c>docs/DESIGN_Role_Affinity_Ownership.md</c> §3.7 · §6 step <c>0a</c>. Registration left
+    /// <c>NedReplicationModule.RegisterSystems</c> — <b>one</b> network implementation — for
+    /// <c>EntityCreationPack</c>, which every ECS host builds. ⭐ Ghost CREATION is a network concern and
+    /// stays in the replication module; ghost PROMOTION consumes the TKB and the translator list and is a
+    /// SIMULATION concern. ⇒ the BDC gap closes as a side effect: <c>BdcReplicationModule</c> creates
+    /// ghosts and registered no promotion, so its ghosts were never promoted.
+    ///
+    /// <para>⭐⭐ <see cref="UpdateAfterAttribute"/> — <b>the ordering was true BY REGISTRATION ORDER and is
+    /// now true BY CONSTRUCTION.</b> 📐 Measured: with no declared edge, <c>SystemScheduler</c> orders a
+    /// phase by insertion order *(Kahn's algorithm over nodes added in registration order,
+    /// <c>SystemScheduler.cs:233</c>/<c>:280</c>)*. ⛔ While both systems were registered by the SAME
+    /// module that was free; across two registrars it would depend on which the host wires first — and a
+    /// promotion running before creation costs a frame of latency silently. ⚠ The edge is PHASE-SCOPED
+    /// *(<c>SystemScheduler.cs:250</c> adds it only when the target is in the same phase)*, and both are
+    /// <see cref="SystemPhase.BeforeSync"/>; on a host with no replication module at all *(the editor's
+    /// <c>NullReplicationModule</c>, the integration harness)* there is no <c>GhostCreationSystem</c> to
+    /// order against and the edge is correctly skipped.</para>
+    ///
+    /// <para>⭐⭐ <see cref="SingleInstanceAttribute"/> — <b>this is what makes step <c>0a</c>'s gate
+    /// structural instead of a rail.</b> The gate is *"a node built from the pack registers promotion
+    /// exactly once"*; ⛔ the failure mode of a MOVE is landing the add without the remove, which would
+    /// promote twice per frame. 📌 <c>CE-165</c> put this attribute in the scheduler for exactly that
+    /// class of defect, and it recurses into groups, so a second registration now throws at
+    /// <c>BeginRun()</c> rather than being measured later.</para>
+    ///
+    /// <para>⚠⚠ <b>WHAT THE MOVE DELIBERATELY DID NOT CHANGE — the replay gate.</b> 📐 Measured
+    /// <c>2026-09-11</c>: <c>NetworkLifecycleSystemGroup</c>'s own summary claims it groups
+    /// <i>"LifecycleSystem, GhostPromotionSystem and NetworkGatewaySystem"</i> so that *"no … ghost
+    /// promotions occur during playback"*, but <b>no production site has ever put this system in it</b> —
+    /// every one passes <c>GhostCreationSystem</c> alone, and promotion was registered standalone at
+    /// <c>NedReplicationModule.cs:417</c>, i.e. OUTSIDE the gate. ⇒ the pack registers it standalone too,
+    /// preserving today's behaviour exactly. ⛔ Whether promotion SHOULD be gated during replay is a
+    /// separate question and is filed, not answered here — a relocation may not change behaviour.</para>
+    /// </remarks>
     [UpdateInPhase(SystemPhase.BeforeSync)]
+    [UpdateAfter(typeof(GhostCreationSystem))]
+    [SingleInstance]
     public class GhostPromotionSystem : IEcsModuleSystem
     {
         private readonly ITkbDatabase _tkbDatabase;

@@ -413,8 +413,32 @@ public sealed class NedReplicationModule : INedReplicationModule
         // ⚠ The two null guards remain the real (and silent) per-host lever — a role that supplies no
         //   TKB database still skips promotion with no diagnostic. Not converted to a throw here:
         //   which hosts pass null has not been measured.
-        if (_tkbDb != null && _lifecycleModule != null)
-            registry.RegisterSystem(new GhostPromotionSystem(_tkbDb, _lifecycleModule, _tkbEntityTranslators));
+        // ⛔⛔⛔ REMOVED BY P2, 2026-09-11 — GHOST PROMOTION IS REGISTERED BY `EntityCreationPack` NOW.
+        //   📄 docs/DESIGN_Role_Affinity_Ownership.md §3.7 · §6 step 0a. ⭐ The concerns had been bundled
+        //   by LIFECYCLE ADJACENCY, not by subject: ghost CREATION (`GhostCreationSystem`, still
+        //   registered above, still on `IReplicationModule`) is genuinely a NETWORK concern; ghost
+        //   PROMOTION applies the TKB template and consumes the translator list — a SIMULATION concern
+        //   that had no business living in one network implementation.
+        //
+        //   🔴 It was already a defect independent of that design: `BdcReplicationModule` registers
+        //     `GhostCreationSystem` and NO promotion, so a BDC node's ghosts were never promoted. ⭐ The
+        //     move closes that as a side effect.
+        //
+        //   ⚠⚠ THE WHOLE POINT OF THE ONE-COMMIT RULE IS HERE: the add and this removal ship together, or
+        //     promotion runs TWICE per frame. It is now also structural — `GhostPromotionSystem` carries
+        //     `[SingleInstance]`, so re-adding a registration here throws at `BeginRun()`.
+        //
+        //   ⭐ WHAT THIS ALSO DELETED, deliberately: the `if (_tkbDb != null && _lifecycleModule != null)`
+        //     guard. The comment above it called that "the real (and silent) per-host lever — a role that
+        //     supplies no TKB database still skips promotion with no diagnostic", and admitted "which
+        //     hosts pass null has not been measured". ⇒ in the pack both are REQUIRED inputs
+        //     (`EntityCreationContext.Validate` throws), so the lever cannot exist and the unmeasured
+        //     question cannot recur.
+        //
+        //   ⚠ And this SUPERSEDES the Q65-B change of 2026-09-01, which collapsed two role-gated
+        //     registrations here into one un-gated one. That was correct for where the code sat; §3.7
+        //     says the relocation is the end state and the earlier change "disappears" with it.
+        //
         // ── Cleanup systems (all roles) ──────────────────────────────────────
         var allCleanupTranslators = new List<FdpIDescriptorTranslator>(allTranslators.OfType<FdpIDescriptorTranslator>());
         if (_dtoIngress != null) allCleanupTranslators.Add(_dtoIngress);

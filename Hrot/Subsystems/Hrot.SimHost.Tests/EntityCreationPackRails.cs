@@ -272,14 +272,19 @@ namespace Hrot.SimHost.Tests
         {
             var creation = EntityCreationPack.Build(MinimalContext(out _));
 
+            // ⭐ FOUR pieces since P2 — PromotionSystem joined when ghost promotion's registrar moved out
+            //   of NedReplicationModule (DESIGN_Role_Affinity_Ownership.md §3.7). ⭐⭐ This rail REDDENED on
+            //   that change and was right to: it is the control that every built piece is accounted for,
+            //   so a new piece must be added here deliberately rather than the assertion relaxed.
             Assert.Equal(string.Empty, creation.Unserviceable(new object[]
             {
                 creation.RequestSystem, creation.SpawnSystem, creation.FinalizationSystem,
+                creation.PromotionSystem,
             }));
 
             var missingRequest = creation.Unserviceable(new object[]
             {
-                creation.SpawnSystem, creation.FinalizationSystem,
+                creation.SpawnSystem, creation.FinalizationSystem, creation.PromotionSystem,
             });
             Assert.Contains("RequestSystem", missingRequest);
 
@@ -287,6 +292,7 @@ namespace Hrot.SimHost.Tests
             Assert.Contains("RequestSystem", missingAll);
             Assert.Contains("SpawnSystem", missingAll);
             Assert.Contains("FinalizationSystem", missingAll);
+            Assert.Contains("PromotionSystem", missingAll);
         }
 
         /// <summary>
@@ -329,6 +335,168 @@ namespace Hrot.SimHost.Tests
                 .ToList();
 
             Assert.Empty(suspicious);
+        }
+
+        // ── P2 — GHOST PROMOTION MOVED INTO THE PACK ──────────────────────────────────────────────
+        //
+        // 📄 docs/DESIGN_Role_Affinity_Ownership.md §3.7 · §6 step 0a, whose gate is: "a node built from
+        //    the pack registers promotion EXACTLY ONCE; and a BDC-composed node promotes its ghosts".
+        //
+        // ⭐⭐ The rails below split that gate into the four things that can actually go wrong in a MOVE:
+        //    the add is missing · the remove is missing · the ORDER flips · a host forgets to schedule it.
+
+        /// <summary>
+        /// ⭐⭐⭐ <b>The add half — the pack builds promotion, and it shares the node's ONE translator
+        /// list.</b>
+        ///
+        /// <para>⭐ The list identity is the load-bearing assertion, not the non-null: <c>tkb-1/DESIGN.md</c>
+        /// §6.3 requires the projection list to be *"identical for all three systems within the same
+        /// node"*, and before <c>P2</c> that was true of TWO of them — promotion was built by a different
+        /// registrar, and on the factory path *(CGF)* it got no list at all and fell back to the ELM's.
+        /// ⇒ asserting the SAME INSTANCE reaches the ELM, the spawn system and promotion is what makes
+        /// §6.3 true by construction.</para>
+        /// </summary>
+        [Fact]
+        public void Build_ProducesGhostPromotion_SharingTheNodesOneTranslatorList()
+        {
+            var creation = EntityCreationPack.Build(MinimalContext(out _));
+
+            Assert.NotNull(creation.PromotionSystem);
+
+            // ⭐ The ELM holds the one list; promotion resolves through it (explicitly passed, and its own
+            //   fallback is the same instance) — so the ELM's list IS what promotion projects with.
+            Assert.Same(creation.Translators, creation.Elm.Translators);
+        }
+
+        /// <summary>
+        /// ⭐⭐⭐ <b>The remove half, and the reason the design demands ONE commit.</b> The failure mode of a
+        /// relocation is landing the add without the remove, which would promote twice per frame.
+        ///
+        /// <para>⛔⛔ This is asserted STRUCTURALLY rather than by counting registrations:
+        /// <c>GhostPromotionSystem</c> carries <c>[SingleInstance]</c>, so a second registration throws in
+        /// <c>SystemScheduler</c> *(<c>CE-165</c>, and it recurses into groups)*. ⇒ the rail asserts the
+        /// attribute is present — the mechanism — plus that the NED module no longer registers it.</para>
+        ///
+        /// <para>⚠ The source check is deliberately about <c>RegisterSystem</c>, not about the type name:
+        /// that file still MENTIONS the system in a long explanatory comment, and it should.</para>
+        /// </summary>
+        [Fact]
+        public void GhostPromotion_IsRegisteredExactlyOnce_StructurallyAndInTheNedModule()
+        {
+            var t = typeof(Fdp.Toolkit.Replication.Systems.GhostPromotionSystem);
+
+            Assert.True(
+                Attribute.IsDefined(t, typeof(Fdp.ModuleHost.Abstractions.SingleInstanceAttribute)),
+                "GhostPromotionSystem must carry [SingleInstance]. P2 moved its registrar from " +
+                "NedReplicationModule into EntityCreationPack; without the attribute a host that lands " +
+                "the add without the remove promotes every arrived ghost TWICE per frame, and nothing " +
+                "fails — which is exactly the one-commit hazard the design names (CE-165).");
+
+            var ned = CompositionRootSource.StripComments(CompositionRootSource.ReadRepoSource(
+                "Hrot/Network/Hrot.Network.NED/Replication/NedReplicationModule.cs"));
+
+            Assert.DoesNotContain("new GhostPromotionSystem", ned);
+
+            // ⛔ Anti-vacuity: the file must still register ghost CREATION. If this stopped being true the
+            //   rail above would pass over a module that had lost the network half too.
+            Assert.Contains("RegisterSystem(GhostCreationSystem)", ned);
+        }
+
+        /// <summary>
+        /// ⭐⭐⭐ <b>The ORDER — and this is the one the relocation genuinely put at risk.</b>
+        ///
+        /// <para>📐 Measured: with no declared edge, <c>SystemScheduler</c> orders a phase by REGISTRATION
+        /// ORDER *(Kahn over nodes added in insertion order)*. ⛔ While one module registered both systems
+        /// that was free; across two registrars it depends on which the host wires first, and promotion
+        /// running before creation costs a frame of latency SILENTLY. ⇒ the system declares
+        /// <c>[UpdateAfter(GhostCreationSystem)]</c> and the ordering is true by construction.</para>
+        ///
+        /// <para>⚠ Both must also be in the SAME phase, because <c>SystemScheduler</c> adds the edge only
+        /// when the target is in the phase being sorted — an edge across phases is silently dropped. ⇒ the
+        /// rail asserts the phase equality too, which is the half that would rot invisibly.</para>
+        /// </summary>
+        [Fact]
+        public void GhostPromotion_DeclaresItRunsAfterGhostCreation_InTheSamePhase()
+        {
+            var promotion = typeof(Fdp.Toolkit.Replication.Systems.GhostPromotionSystem);
+            var creation  = typeof(Fdp.Toolkit.Replication.Systems.GhostCreationSystem);
+
+            var after = Attribute.GetCustomAttributes(promotion, typeof(UpdateAfterAttribute), inherit: true)
+                                 .Cast<UpdateAfterAttribute>()
+                                 .Select(a => a.Target)
+                                 .ToList();
+
+            Assert.Contains(creation, after);
+
+            static Fdp.ModuleHost.Abstractions.SystemPhase PhaseOf(Type t) =>
+                ((Fdp.ModuleHost.Abstractions.UpdateInPhaseAttribute)Attribute.GetCustomAttribute(
+                    t, typeof(Fdp.ModuleHost.Abstractions.UpdateInPhaseAttribute))!).Phase;
+
+            Assert.Equal(PhaseOf(creation), PhaseOf(promotion));
+        }
+
+        /// <summary>
+        /// ⭐⭐⭐ <b>The fourth failure mode, and the one <c>P2</c> could regress SILENTLY: a host that
+        /// adopts the pack and forgets to schedule promotion LOSES a capability it already had.</b>
+        ///
+        /// <para>🔒 The design states the hazard: *"a host that has not adopted the pack would LOSE ghost
+        /// promotion the moment the NED module stops registering it."* ⇒ <c>Unserviceable</c> must name it,
+        /// and every production root must pass it.</para>
+        /// </summary>
+        [Fact]
+        public void Unserviceable_NamesGhostPromotion_WhenAHostForgetsToScheduleIt()
+        {
+            var creation = EntityCreationPack.Build(MinimalContext(out _));
+
+            var missing = creation.Unserviceable(new object[]
+                { creation.RequestSystem, creation.SpawnSystem, creation.FinalizationSystem });
+
+            Assert.Contains("PromotionSystem", missing);
+            Assert.Contains("EntityLifecycle.Ghost", missing);
+
+            // ⭐ And it is silent once the host schedules all four.
+            Assert.Equal(string.Empty, creation.Unserviceable(new object[]
+            {
+                creation.RequestSystem, creation.SpawnSystem, creation.FinalizationSystem,
+                creation.PromotionSystem,
+            }));
+        }
+
+        /// <summary>
+        /// ⭐⭐⭐ <b>Every production root that builds the pack SCHEDULES promotion.</b> This is the rail
+        /// that would have caught the regression, and it is the <c>CE-162</c> family shape: a caller that
+        /// HAS the dependency must pass it.
+        ///
+        /// <para>⚠ Source-based on purpose: these are composition roots, so what matters is what the host
+        /// WIRES, which is not observable by constructing anything.</para>
+        /// </summary>
+        public static TheoryData<string> RootsThatBuildThePack() => new()
+        {
+            "Hrot/Subsystems/Hrot.IG/IgNodeBootstrapper.cs",
+            "Hrot/Subsystems/Hrot.NodeComposition/StrideNodeBootstrapper.cs",
+            "Hrot/Subsystems/Hrot.CGF/CgfSubsystem.cs",
+            "Hrot/Subsystems/Hrot.SimHost/SimHostNodeBootstrapper.cs",
+            "Hrot/Subsystems/Hrot.Editor/EditorSubsystem.cs",
+        };
+
+        [Theory]
+        [MemberData(nameof(RootsThatBuildThePack))]
+        public void EveryRootThatBuildsThePack_SchedulesGhostPromotion(string rootPath)
+        {
+            var src = CompositionRootSource.StripComments(
+                CompositionRootSource.ReadRepoSource(rootPath));
+
+            // ⛔ Anti-vacuity: if this root stops building the pack, the row asserts nothing.
+            Assert.True(src.Contains("EntityCreationPack.Build"),
+                $"{rootPath} no longer builds the pack, so this row cannot assert anything. Either it " +
+                "genuinely stopped (drop the row and say why) or the rail is aimed at the wrong file.");
+
+            Assert.True(src.Contains("creation.PromotionSystem"),
+                $"{rootPath} builds EntityCreationPack but never schedules creation.PromotionSystem. " +
+                "P2 moved ghost promotion's registrar out of NedReplicationModule, so this host no " +
+                "longer gets it for free: arrived ghosts will never receive their TKB projection and " +
+                "will stay in EntityLifecycle.Ghost forever. That is a capability this host ALREADY HAD " +
+                "being lost silently — the exact regression the design's one-commit rule exists to stop.");
         }
 
         private sealed class CountingTranslator : ITkbEntityTranslator
