@@ -54,8 +54,17 @@ namespace Fdp.Toolkit.Diagnostics.Gizmos.Tests
             _buffer = new DebugPrimitiveBuffer(64);
             _sys = new DataDrivenGizmoSystem(registry, _buffer, isSelectedPredicate: null);
 
+            // ⭐⭐ §6.8 — an exclusive-focus gizmo's InputCaptureBinding is KEYED BY the anchor's network
+            //   id, so the fixture entity must have one. ⛔ It used to be a bare CreateEntity(), which is
+            //   why SC-B28-3 below could ever have been named "HasEntityIndexAsNetworkId".
+            _repo.RegisterComponent<Fdp.Toolkit.Replication.Components.NetworkIdentity>();
             _entity = _repo.CreateEntity();
+            _repo.AddComponent(_entity, new Fdp.Toolkit.Replication.Components.NetworkIdentity { Value = NetId });
         }
+
+        /// <summary>⭐ Deliberately far from any ECS index this fixture allocates, so a rail cannot pass
+        /// by coincidence if the two id domains are ever confused again.</summary>
+        private const long NetId = 7041L;
 
         public void Dispose() => _repo.Dispose();
 
@@ -100,9 +109,15 @@ namespace Fdp.Toolkit.Diagnostics.Gizmos.Tests
             }
         }
 
-        // SC-B28-3: The InputCaptureBinding primitive carries the entity Index as NetworkId.
+        // SC-B28-3: ⭐⭐⭐ The InputCaptureBinding carries the anchor's NETWORK ID.
+        //   ⛔⛔ RENAMED 2026-09-11 (§6.8). It was `SC_B28_3_InputCaptureBinding_HasEntityIndexAsNetworkId`
+        //     and it asserted `Assert.Equal((long)_entity.Index, prim.StructNetworkId)` — i.e. THE RAIL'S
+        //     OWN NAME AND BODY PINNED DEFECT D1 IN PLACE: an ECS index used as a network id. S5 fixed the
+        //     production side and left this rail asserting a coincidence (on a bare entity both were 0).
+        //   ⭐ NetId is 7041, nothing like an index, so the two domains can no longer be confused silently.
+        //   ⛔ RED-PROOF SHAPE: key the binding by `entity.Index` again and this reddens.
         [Fact]
-        public void SC_B28_3_InputCaptureBinding_HasEntityIndexAsNetworkId()
+        public void SC_B28_3_InputCaptureBinding_CarriesTheAnchorNetworkId()
         {
             var gizmo = new ExclusiveMockGizmo(exclusive: true);
             _sys.ActivateGizmo(_entity, gizmo);
@@ -114,7 +129,7 @@ namespace Fdp.Toolkit.Diagnostics.Gizmos.Tests
             {
                 if (prim.Shape == DebugPrimitiveShape.InputCaptureBinding && prim.ConditionMask == 1u)
                 {
-                    Assert.Equal((long)_entity.Index, prim.StructNetworkId);
+                    Assert.Equal(NetId, prim.StructNetworkId);
                     return;
                 }
             }

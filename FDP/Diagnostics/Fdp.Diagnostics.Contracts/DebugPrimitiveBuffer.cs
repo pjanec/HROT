@@ -68,6 +68,10 @@ namespace Fdp.Toolkit.Diagnostics.Gizmos
         /// </summary>
         public void AppendRaw(in DebugPrimitive primitive)
         {
+            // ⭐ §6.8 — the SAME invariant, on the other funnel. Every gizmo pick box, pick segment and
+            //   binding reaches the buffer through EmitRaw, so this is the arm that actually catches a
+            //   gizmo emitting without an identity.
+            DebugPrimitive.AssertHasIdentity(in primitive);
             int slot = Interlocked.Increment(ref _count) - 1;
             if ((uint)slot < (uint)_primitives.Length)
                 _primitives[slot] = primitive;
@@ -437,7 +441,9 @@ namespace Fdp.Toolkit.Diagnostics.Gizmos
         }
 
         internal void Append(DebugPrimitive p)
-        {            int slot = Interlocked.Increment(ref _count) - 1;
+        {
+            DebugPrimitive.AssertHasIdentity(in p);
+            int slot = Interlocked.Increment(ref _count) - 1;
             if ((uint)slot < (uint)_primitives.Length)
                 _primitives[slot] = p;
             else

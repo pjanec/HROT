@@ -660,7 +660,11 @@ namespace Fdp.Toolkit.Diagnostics.Gizmos.Tests
         public void SC_GZ065_5_ContextMenuBinding_Stamped()
         {
             var buf = new DebugPrimitiveBuffer(16);
-            buf.Append(MakeShape(DebugPrimitiveShape.ContextMenuBinding));
+            // ⭐ §6.8 — a binding is keyed by StructNetworkId; a 0 there can never be routed to, and the
+            //   identity invariant now says so. This rail is about STAMPING, so give it a real anchor.
+            var binding = MakeShape(DebugPrimitiveShape.ContextMenuBinding);
+            binding.StructNetworkId = 7041L;
+            buf.Append(binding);
 
             buf.StampGizmoTypeId(0, 99u);
 

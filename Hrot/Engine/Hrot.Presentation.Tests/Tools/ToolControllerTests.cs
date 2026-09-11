@@ -37,7 +37,30 @@ namespace Hrot.Presentation.Tests.Tools
     {
         private readonly EntityRepository _world = new();
 
+        public ToolControllerTests()
+            => _world.RegisterComponent<Fdp.Toolkit.Replication.Components.NetworkIdentity>();
+
         public void Dispose() => _world.Dispose();
+
+        private long _nextNetId = 7041L;
+
+        /// <summary>
+        /// ⭐⭐⭐ <b>§6.8 — an entity a tool can actually be ARMED on: one with a network identity.</b>
+        /// 📄 <c>docs/DESIGN_Gizmo_Anchor_Identity.md</c> §6.8.
+        ///
+        /// <para>⛔ These rails used a bare <c>_world.CreateEntity()</c>. That state is UNREACHABLE in
+        /// production — an entity-scoped tool's target is the primary selection, and selection resolves
+        /// an anchor id — and arming an exclusive gizmo on it is now refused, because the
+        /// <c>InputCaptureBinding</c> it would emit carries identity 0 and matches no primitive, blocking
+        /// all picking. ⇒ ⭐ the rails were exercising a state the product cannot be in; giving them a
+        /// replicated entity is what makes them faithful, not what makes them pass.</para>
+        /// </summary>
+        private Entity NetworkedEntity()
+        {
+            var e = _world.CreateEntity();
+            _world.AddComponent(e, new Fdp.Toolkit.Replication.Components.NetworkIdentity { Value = _nextNetId++ });
+            return e;
+        }
 
         /// <summary>A modal tool that records focus and counts the input it receives.</summary>
         private sealed class ProbeGizmo : IEntityStatefulGizmo
@@ -113,7 +136,7 @@ namespace Hrot.Presentation.Tests.Tools
         public void ABypassingModalLosesFocusWhenAToolArms()
         {
             var fx     = new Fixture();
-            var entity = _world.CreateEntity();
+            var entity = NetworkedEntity();
 
             // The picker/spawn/zone adapters' shape: registered straight on the arbiter, controller unaware.
             var bypassing = new ProbeGizmo();
@@ -145,7 +168,7 @@ namespace Hrot.Presentation.Tests.Tools
         public void OneInputReachesOnlyTheActiveTool()
         {
             var fx     = new Fixture();
-            var entity = _world.CreateEntity();
+            var entity = NetworkedEntity();
 
             var bypassing = new ProbeGizmo();
             BypassAndArmDirectlyOnGlobal(fx, bypassing);
@@ -180,7 +203,7 @@ namespace Hrot.Presentation.Tests.Tools
         public void ExactlyOneInputCaptureBindingPerFrame()
         {
             var fx     = new Fixture();
-            var entity = _world.CreateEntity();
+            var entity = NetworkedEntity();
 
             BypassAndArmDirectlyOnGlobal(fx, new ProbeGizmo());
 
@@ -221,7 +244,7 @@ namespace Hrot.Presentation.Tests.Tools
         public void AToolThatEndedItselfCanBeArmedAgainImmediately()
         {
             var fx     = new Fixture();
-            var entity = _world.CreateEntity();
+            var entity = NetworkedEntity();
 
             // The production shape, ScenarioToolRegistrations.ToggleEntityGizmo: ToggleOnReactivate, and an
             // onRemove that updates BOTH the arbiter and the controller.
@@ -276,7 +299,7 @@ namespace Hrot.Presentation.Tests.Tools
         public void AToolEndingItselfResumesWhatItInterruptedInsteadOfDestroyingIt()
         {
             var fx     = new Fixture();
-            var entity = _world.CreateEntity();
+            var entity = NetworkedEntity();
 
             // The tool underneath — the half-drawn route/shape.
             var underneath = new ProbeGizmo();
@@ -322,7 +345,7 @@ namespace Hrot.Presentation.Tests.Tools
         public void NotifyToolEndedIsIdempotentAndIgnoresUnknownTools()
         {
             var fx     = new Fixture();
-            var entity = _world.CreateEntity();
+            var entity = NetworkedEntity();
 
             var descriptor = new ToolDescriptor(
                 "edit", "Edit Shape", ToolModality.Modal, ToolArbiter.EntityScoped);
@@ -359,7 +382,7 @@ namespace Hrot.Presentation.Tests.Tools
             var modeless = new ProbeGizmo { RequiresExclusiveFocus = false };
             fx.Global.Register(GlobalGizmoManager.NewId(), modeless);
 
-            var entity = _world.CreateEntity();
+            var entity = NetworkedEntity();
             fx.Controller.Register(
                 new ToolDescriptor("rotate", "Rotate", ToolModality.Modal, ToolArbiter.EntityScoped),
                 target => { fx.DataDriven.ActivateGizmo(target, new ProbeGizmo()); return ToolActivationOutcome.Armed; });
@@ -399,7 +422,7 @@ namespace Hrot.Presentation.Tests.Tools
         public void ReactivationTogglesOnlyWhenTheDescriptorSaysSo()
         {
             var fx     = new Fixture();
-            var entity = _world.CreateEntity();
+            var entity = NetworkedEntity();
             int arms   = 0;
 
             fx.Controller.Register(
@@ -493,7 +516,7 @@ namespace Hrot.Presentation.Tests.Tools
         public void AnUnserviceableActivationLeavesNoModalArmed()
         {
             var fx     = new Fixture();
-            var entity = _world.CreateEntity();
+            var entity = NetworkedEntity();
 
             fx.Controller.Register(
                 new ToolDescriptor("rotate", "Rotate", ToolModality.Modal, ToolArbiter.EntityScoped),
@@ -698,11 +721,12 @@ namespace Hrot.Presentation.Tests.Tools
             var fx      = new Fixture();
             var reports = new List<string>();
 
-            _world.RegisterComponent<Fdp.Toolkit.Replication.Components.NetworkIdentity>();
             _world.RegisterManagedComponent<Hrot.IG.Components.EditablePolyline>();
 
             // An EditablePolyline entity that is NOT replicated: the component the tool requires is
             // present, so only the anchor-id guard can refuse it.
+            // ⛔ DELIBERATELY a bare CreateEntity, NOT NetworkedEntity() — this is the ONE rail in this
+            //   class whose subject IS the missing identity.
             var entity = _world.CreateEntity();
             _world.SetManagedComponent(entity, new Hrot.IG.Components.EditablePolyline());
 
@@ -731,10 +755,9 @@ namespace Hrot.Presentation.Tests.Tools
             var fx      = new Fixture();
             var reports = new List<string>();
 
-            _world.RegisterComponent<Fdp.Toolkit.Replication.Components.NetworkIdentity>();
             _world.RegisterManagedComponent<Hrot.IG.Components.EditablePolyline>();
 
-            var entity = _world.CreateEntity();
+            var entity = NetworkedEntity();
             _world.SetManagedComponent(entity, new Hrot.IG.Components.EditablePolyline());
             _world.AddComponent(entity, new Fdp.Toolkit.Replication.Components.NetworkIdentity { Value = 7041L });
 

@@ -403,16 +403,9 @@ namespace Fdp.Toolkit.Diagnostics.Gizmos.Systems
                         // Emit InputCaptureBinding for the exclusive-focus holder.
                         if (_focus.ShouldEmitBinding(this, gi.Instance))
                         {
-                            // ⭐⭐⭐ S5 (DESIGN_Gizmo_Anchor_Identity.md §6) — key the binding by the
-                            //   entity's NETWORK id, matching what its primitives stamp in BoxAnchorId.
-                            //   ⛔ It used to be `(long)entity.Index` with the generation stamped beside
-                            //     it, which is what forced the terminal to multiplex two id domains.
-                            var binding = DebugPrimitive.MakeInputCaptureBinding(
-                                networkId: NetworkIdOf(repo, entity),
-                                subElementId: 0,
-                                exclusive: gi.Instance.RequiresExclusiveFocus,
-                                wantsRawInput: gi.Instance.WantsRawInput);
-                            _drawBuilder.EmitRaw(in binding);
+                            // ⭐⭐⭐ S5/§6.8 — keyed by the entity's NETWORK id, and REFUSED when there
+                            //   is none. See TryEmitCaptureBinding for the deadlock that caused.
+                            TryEmitCaptureBinding(repo, entity, gi.Instance);
                         }
                     }
                 }
@@ -448,16 +441,9 @@ namespace Fdp.Toolkit.Diagnostics.Gizmos.Systems
                         // Emit InputCaptureBinding for the exclusive-focus holder.
                         if (_focus.ShouldEmitBinding(this, gi.Instance))
                         {
-                            // ⭐⭐⭐ S5 (DESIGN_Gizmo_Anchor_Identity.md §6) — key the binding by the
-                            //   entity's NETWORK id, matching what its primitives stamp in BoxAnchorId.
-                            //   ⛔ It used to be `(long)entity.Index` with the generation stamped beside
-                            //     it, which is what forced the terminal to multiplex two id domains.
-                            var binding = DebugPrimitive.MakeInputCaptureBinding(
-                                networkId: NetworkIdOf(repo, entity),
-                                subElementId: 0,
-                                exclusive: gi.Instance.RequiresExclusiveFocus,
-                                wantsRawInput: gi.Instance.WantsRawInput);
-                            _drawBuilder.EmitRaw(in binding);
+                            // ⭐⭐⭐ S5/§6.8 — keyed by the entity's NETWORK id, and REFUSED when there
+                            //   is none. See TryEmitCaptureBinding for the deadlock that caused.
+                            TryEmitCaptureBinding(repo, entity, gi.Instance);
                         }
                     }
 
@@ -482,13 +468,8 @@ namespace Fdp.Toolkit.Diagnostics.Gizmos.Systems
                     // Emit InputCaptureBinding for the exclusive-focus holder.
                     if (_focus.ShouldEmitBinding(this, kvp.Value))
                     {
-                        // ⭐ S5 — see the note above: the binding is keyed by the NETWORK id.
-                        var binding = DebugPrimitive.MakeInputCaptureBinding(
-                            networkId: NetworkIdOf(repo, kvp.Key),
-                            subElementId: 0,
-                            exclusive: kvp.Value.RequiresExclusiveFocus,
-                            wantsRawInput: kvp.Value.WantsRawInput);
-                        _drawBuilder.EmitRaw(in binding);
+                        // ⭐ S5/§6.8 — keyed by the NETWORK id, and REFUSED when there is none.
+                        TryEmitCaptureBinding(repo, kvp.Key, kvp.Value);
                     }
                 }
             }
@@ -543,6 +524,49 @@ namespace Fdp.Toolkit.Diagnostics.Gizmos.Systems
         /// </summary>
         private static Entity ResolveAnchor(EntityRepository repo, long anchorId)
             => Fdp.Toolkit.Replication.Services.NetworkIdResolver.ResolveNetworkId(repo, anchorId);
+
+        /// <summary>
+        /// ⭐⭐⭐ <b>§6.8 — EMIT AN EXCLUSIVE-CAPTURE BINDING ONLY IF THE ANCHOR CAN BE ADDRESSED.</b>
+        /// 🔒 User ruling, <c>2026-09-11</c>: *"Identity was always a requirement so we can not drop it."*
+        /// 📄 <c>docs/DESIGN_Gizmo_Anchor_Identity.md</c> §6.8.
+        ///
+        /// <para>🔴🔴 <b>THE DEFECT THIS CLOSES, found by arming the identity invariant</b>
+        /// (<c>DebugPrimitive.AssertHasIdentity</c>) — the binding was emitted with
+        /// <c>networkId: NetworkIdOf(repo, entity)</c>, which is <b>0</b> for an entity with no
+        /// <c>NetworkIdentity</c>. ⛔ And a capture id of 0 is not merely inert: the terminal's filter
+        /// admits only primitives whose <c>BoxAnchorId</c> EQUALS the capture id, and since §6.7 nothing
+        /// carries 0 ⇒ <b>an exclusive tool on an unreplicated entity blocked ALL picking and received
+        /// nothing.</b> A dead-locked map, silently.</para>
+        ///
+        /// <para>⭐⭐ <b>Skipping is the correct degradation, not a workaround.</b> A gizmo whose anchor has
+        /// no durable id cannot take part in exclusive capture — the mechanism is keyed by that id. ⇒ it
+        /// still draws and still runs; it just does not claim input it could never be routed. ⛔ The
+        /// alternative — emit the unaddressable binding — is the deadlock above.</para>
+        ///
+        /// <para>⚠ Two call sites (the time-sliced arm and the injected arm) both route here, so the rule
+        /// cannot be half-applied. Returns <see langword="false"/> when it refused.</para>
+        /// </summary>
+        private bool TryEmitCaptureBinding(EntityRepository repo, Entity entity, IEntityStatefulGizmo gizmo)
+        {
+            long anchorId = NetworkIdOf(repo, entity);
+            if (anchorId == 0)
+            {
+                System.Diagnostics.Debug.Assert(false,
+                    $"An entity-scoped gizmo ({gizmo.GetType().Name}) holds exclusive focus on an entity "
+                  + "with NO NetworkIdentity, so its InputCaptureBinding would carry identity 0 — which "
+                  + "matches no primitive and would block all picking. The binding is SKIPPED. "
+                  + "See DESIGN_Gizmo_Anchor_Identity.md §6.8.");
+                return false;
+            }
+
+            var binding = DebugPrimitive.MakeInputCaptureBinding(
+                networkId:     anchorId,
+                subElementId:  0,
+                exclusive:     gizmo.RequiresExclusiveFocus,
+                wantsRawInput: gizmo.WantsRawInput);
+            _drawBuilder.EmitRaw(in binding);
+            return true;
+        }
 
         /// <summary>⭐ CE-259ab — the primitive count to stamp FROM, or 0 when the builder cannot stamp.</summary>
         private int MarkPrimitives() => _stampBuffer?.Count ?? 0;

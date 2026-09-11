@@ -470,6 +470,114 @@ namespace Fdp.Toolkit.Diagnostics.Gizmos
 
         // MainMenuBinding payload reuses StringHash (offset 8) for the interned JSON menu array hash.
         // All other fields remain zero. Non-visual meta-primitive consumed by MainMenuAdapter.
+        /// <summary>
+        /// ⭐⭐⭐ <b>THE IDENTITY INVARIANT — an INTERACTIVE primitive MUST carry one.</b>
+        /// 🔒 User ruling, <c>2026-09-11</c>: *"how comes there could be gizmo with no identity? this
+        /// should be hard-guarded. Identity was always a requirement so we can not drop it."*
+        /// 📄 <c>docs/DESIGN_Gizmo_Anchor_Identity.md</c> §6.8.
+        ///
+        /// <para>⛔⛔ <b>Why this never fired before, which is the whole answer to "how comes":</b>
+        /// identity was a requirement stated in COMMENTS and enforced NOWHERE. Two checks existed and
+        /// both test PRESENCE, not a usable value — <c>EntityPresentationGizmo</c>'s
+        /// <c>[GizmoProjector(SimTransform, NetworkIdentity)]</c> query and
+        /// <c>EmitPickSegments</c>'s <c>HasComponent&lt;NetworkIdentity&gt;</c>. ⇒ a component present with
+        /// <c>Value == 0</c> passed both. ⭐⭐ And the ECS payload MASKED the violation: a primitive with
+        /// no anchor id was still pickable, because the terminal forwarded the emitter's ECS handle and
+        /// the consumer rebuilt an <c>Entity</c> from it. ⇒ breaking the rule had no symptom. Deleting
+        /// the payload (§6.7) removed the mask, which is why this surfaced now and not earlier.</para>
+        ///
+        /// <para>⭐⭐ <b>Where the identity lives is shape-discriminated</b>, and the terminal's own
+        /// hit-test is the authority:
+        /// <list type="bullet">
+        ///   <item>interactive + <c>EntityLocal</c> ⇒ offset 8 (<c>AnchorIndex</c>), the 32-bit
+        ///   <c>SpatialAnchor</c> cache key — a <c>Line</c> has no room for <c>BoxAnchorId</c>;</item>
+        ///   <item>interactive + any other space ⇒ <c>BoxAnchorId</c> (offset 44);</item>
+        ///   <item>a BINDING ⇒ <c>StructNetworkId</c> (offset 24). ⚠ <c>-1</c> is LEGAL there — it is the
+        ///   canvas sentinel the context menu uses — so the test is <c>!= 0</c>, never <c>&gt; 0</c>.</item>
+        /// </list></para>
+        ///
+        /// <para>⭐⭐⭐ <b>IT LIVES HERE, ON THE PRIMITIVE, BECAUSE THERE ARE TWO BUFFERS.</b> 📐 Found by
+        /// <c>search_graph</c> after a filename-based grep misled me: <c>GizmoMap.Contracts</c> holds
+        /// <c>GizmoPrimitiveBuffer</c> — the ECS-FREE twin, with its own <c>Append</c>/<c>AppendRaw</c>,
+        /// used by the standalone GizmoMap apps and by <c>Stride/HrotStrideApp.Game</c>. ⛔ Putting the
+        /// invariant in <c>Fdp.Diagnostics.Contracts.DebugPrimitiveBuffer</c> alone would have enforced it
+        /// on ONE of the two funnel pairs — the seam law, committed by the very change meant to remove a
+        /// second identity channel. ⭐ The check reads only <c>DebugPrimitive</c> fields, so this assembly
+        /// is its natural home and both buffers call it.</para>
+        ///
+        /// <para>⚠ <b><c>Debug.Assert</c>, not a throw</b>, and deliberately — the same ruling as
+        /// <c>DebugPrimitiveBuffer.AssertFitsAnchorKey</c>: a diagnostics emitter must never take down a frame, and this
+        /// runs on every primitive of every frame. ⭐ It fires in dev and in CI, where it can be acted on,
+        /// and the invariant additionally has RAILS so it is enforced rather than merely observed. ⛔ The
+        /// primitive is still appended: dropping it silently would trade a loud dev failure for an
+        /// invisible production one.</para>
+        /// </summary>
+        public static void AssertHasIdentity(in DebugPrimitive p)
+        {
+            // ⭐⭐⭐ A SHAPE ALLOW-LIST, not a "looks interactive" heuristic — and the first cut of this
+            //   check got that wrong, loudly, which is why it is spelled out.
+            //   ⛔⛔ The first version tested `AnchorIndex != 0 || SubElementId != 0 || BoxAnchorId != 0`,
+            //     mirroring the terminal's own pre-filter. 📐 Measured: that FALSE-POSITIVES on every
+            //     shape whose offset 8 is a StringHash rather than an anchor key — interned `Text`,
+            //     `EntityBadge`, and `MainMenuBinding` (which has NO identity by design: it is global).
+            //     ⇒ 26 rails across 5 suites asserted, none of them a real violation.
+            //   ⭐ The honest rule is the one the ROUTING uses: only a shape the hit-test can PICK needs
+            //     a pick identity, and only an EntityLocal primitive needs an anchor KEY.
+            switch (p.Shape)
+            {
+                // ── bindings: keyed by StructNetworkId (offset 24) ─────────────────────────────
+                case DebugPrimitiveShape.InputCaptureBinding:
+                case DebugPrimitiveShape.ContextMenuBinding:
+                case DebugPrimitiveShape.StructInspector:
+                    System.Diagnostics.Debug.Assert(
+                        p.StructNetworkId != 0,
+                        $"A {p.Shape} binding carries NO IDENTITY (StructNetworkId == 0). Nothing can "
+                      + "ever route to it: the terminal keys bindings by this field. Pass the anchor's "
+                      + "network id, a disjoint tool id (GlobalGizmoManager.ToolAnchorIdBase), or -1 for "
+                      + "the canvas. See DESIGN_Gizmo_Anchor_Identity.md §6.8.");
+                    return;
+
+                // ⛔ MainMenuBinding is deliberately NOT here: it is a GLOBAL contribution with no
+                //   anchor, and offset 8 is its interned JSON hash. LayerControlMask likewise.
+                case DebugPrimitiveShape.MainMenuBinding:
+                case DebugPrimitiveShape.LayerControlMask:
+                case DebugPrimitiveShape.SpatialAnchor:   // it IS an identity source, not a consumer
+                    return;
+            }
+
+            // ── an EntityLocal primitive of ANY shape needs the 32-bit anchor KEY at offset 8 ──
+            if (p.Space == CoordinateSpace.EntityLocal)
+            {
+                System.Diagnostics.Debug.Assert(
+                    p.AnchorIndex != 0,
+                    $"An EntityLocal {p.Shape} carries NO ANCHOR KEY (offset 8 == 0). It resolves against "
+                  + "no SpatialAnchor, so it is drawn nowhere and picks nothing. "
+                  + "See DESIGN_Gizmo_Anchor_Identity.md §6.8.");
+                return;
+            }
+
+            // ── a HIT-TESTABLE shape needs a pick identity ────────────────────────────────────
+            //   ⚠ Only Box2D and Sphere: those are the shapes FindTopmostInteractivePrimitive tests,
+            //     and the only ones whose payload leaves offset 44 free for BoxAnchorId (a Line's
+            //     LineEnd/EndColor overlap it — see MakePickSegment's note).
+            bool hitTestable = p.Shape == DebugPrimitiveShape.Box2D
+                            || p.Shape == DebugPrimitiveShape.Sphere;
+            if (!hitTestable) return;
+
+            // ⚠ A hit-testable shape may legitimately be DECORATIVE — a plain DrawBox2D outline with no
+            //   anchor and no sub-element is not a pick target and needs no identity.
+            bool claimsInteraction = p.SubElementId != 0 || p.BoxAnchorId != 0;
+            if (!claimsInteraction) return;
+
+            System.Diagnostics.Debug.Assert(
+                p.BoxAnchorId != 0,
+                $"An interactive {p.Shape} (SubElementId {p.SubElementId}) carries NO IDENTITY "
+              + "(BoxAnchorId == 0). It is WORSE than inert: a non-zero SubElementId still passes the "
+              + "terminal's interactivity pre-filter, so it WINS the hit-test and swallows the click, "
+              + "then resolves to no entity and reaches no gizmo. Identity is the anchor's network id "
+              + "and it was always required. See DESIGN_Gizmo_Anchor_Identity.md §6.8.");
+        }
+
         public static DebugPrimitive MakeMainMenuBinding(uint menuJsonHash)
         {
             var p = default(DebugPrimitive);

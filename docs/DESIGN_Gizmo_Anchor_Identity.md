@@ -2,7 +2,8 @@
 state: LIVE
 build-state: BUILT (S0..S7 2026-09-10; §6.7 — the ECS payload DELETED — 2026-09-11)
 updated: 2026-09-11
-current-answer: ⭐⭐⭐ §6.7 IS THE CURRENT ANSWER and it SUPERSEDES §6.6 entirely: the ECS index and
+current-answer: ⭐⭐⭐ §6.8 (the IDENTITY INVARIANT — hard-guarded at every emission funnel,
+  and the live arbiter deadlock it found) then §6.7. §6.7 IS THE CURRENT ANSWER on the model itself and it SUPERSEDES §6.6 entirely: the ECS index and
   generation are gone from GizmoPickToken, from PickToken, and from every primitive producer; identity
   is the network id end to end and each consumer resolves it in its own world. ⭐ Then §6.2, the
   AS-BUILT, which OVERRIDES §5's UML and §6's table wherever they
@@ -631,6 +632,80 @@ into `BadgeTargetIndex`/`BadgeTargetGen` (offsets 24/28)**, while `DebugPrimitiv
 `BoxCenterX/Y` — **which nothing writes.** ⇒ `HealthBarGizmo` badges carry an unread ECS handle and draw
 at the world origin. ⭐ Same family, **different offsets and a different feature**, and the fix needs a
 badge-placement decision *(`Space = EntityLocal` + the offset-8 key)*. ⇒ filed as **`CE-259ag`**.
+
+---
+
+### 6.8 ⭐⭐⭐ THE IDENTITY INVARIANT — **"how comes there could be a gizmo with no identity?"**
+
+🔒 **User ruling, `2026-09-11`, verbatim:** *"how comes there could be gizmo with no identity? this
+should be hard-guarded. Identity was always a requirement so we can not drop it."*
+
+#### 📐 THE ANSWER TO "HOW COMES" — **two reasons, and the second is the interesting one**
+
+| | |
+|---|---|
+| **①** ⛔ **Nothing enforced it.** | Identity was a requirement stated in **comments**. The only two checks that existed test **PRESENCE, not a usable value** — `EntityPresentationGizmo`'s `[GizmoProjector(SimTransform, NetworkIdentity)]` query and `EmitPickSegments`' `HasComponent<NetworkIdentity>`. ⇒ a component present with `Value == 0` passed both |
+| **②** ⭐⭐⭐ **THE ECS PAYLOAD MASKED EVERY VIOLATION.** | A primitive with no anchor id was still pickable, because the terminal forwarded the emitter's ECS handle and the consumer rebuilt an `Entity` from it. ⇒ **breaking the rule had NO SYMPTOM.** §6.7 removed the mask — which is why this surfaces now and not two years ago |
+
+⇒ ⭐⭐ **This is the same mechanism as every other defect in the family, one level up:** the parallel
+channel did not merely duplicate identity, **it hid the absence of identity.**
+
+#### ⭐⭐ THE GUARD — `DebugPrimitive.AssertHasIdentity`, at every funnel
+
+⭐ An **INTERACTIVE** primitive must carry an identity, and *where* is shape-discriminated — the
+terminal's own hit-test is the authority:
+
+| primitive | identity field |
+|---|---|
+| interactive + `EntityLocal` | offset 8 (`AnchorIndex`) — the 32-bit `SpatialAnchor` cache key. ⚠ A `Line` has no room for `BoxAnchorId` |
+| interactive + any other space | `BoxAnchorId` (offset 44) |
+| a **BINDING** | `StructNetworkId` (offset 24). ⚠ **`-1` is LEGAL** — the canvas sentinel ⇒ the test is `!= 0`, never `> 0` |
+
+⛔⛔ **IT LIVES ON `DebugPrimitive`, NOT IN A BUFFER — and finding that out is the process lesson.**
+📐 `search_graph` was asked for the complete set of `DebugPrimitiveBuffer` classes and returned **one**;
+a filename-based grep had me believing there were two implementations. ⭐ The graph was right — the second
+file declares **`GizmoPrimitiveBuffer`**, deliberately renamed to avoid the FQN collision. ⚠⚠ **But the
+conclusion still changed:** that ECS-FREE twin in `GizmoMap.Contracts` has its **own**
+`Append`/`AppendRaw`, and is what the standalone GizmoMap apps and `Stride/HrotStrideApp.Game` emit
+through. ⇒ putting the invariant in `Fdp.Diagnostics.Contracts.DebugPrimitiveBuffer` alone would have
+enforced it on **one of two funnel pairs** — ⛔ the seam law, committed by the change whose entire purpose
+was removing a second identity channel. ⭐ The check reads only `DebugPrimitive` fields, so the struct's
+own assembly is its home and **all four funnels** call it.
+
+⚠ **`Debug.Assert`, not a throw** — the same ruling as `AssertFitsAnchorKey`: a diagnostics emitter must
+never take down a frame, and this runs on every primitive of every frame. ⭐ It fires in dev and CI, where
+it can be acted on. ⛔ The primitive is still appended: dropping it would trade a loud dev failure for an
+invisible production one.
+
+#### 🔴🔴 WHAT ARMING IT FOUND IMMEDIATELY — **a live deadlock, in the arbiter path**
+
+📐 `DataDrivenGizmoSystem` emitted its `InputCaptureBinding` with
+`networkId: NetworkIdOf(repo, entity)` at **three** sites — and that is **`0`** for an entity with no
+`NetworkIdentity`.
+
+⛔⛔ **A capture id of `0` is not inert, it is a DEADLOCK.** The terminal's filter admits only primitives
+whose `BoxAnchorId` **equals** the capture id, and since §6.7 nothing carries `0` ⇒ **an exclusive tool on
+an unreplicated entity blocked ALL picking and received nothing.** Silently.
+
+⭐ **Fixed at one seam, `TryEmitCaptureBinding`**, which all three sites now route through: no anchor id ⇒
+**no binding**, and an assert. ⭐⭐ **Skipping is the correct degradation, not a workaround** — a gizmo
+whose anchor has no durable id cannot take part in a mechanism KEYED by that id; it still draws and still
+runs, it just does not claim input it could never be routed.
+
+⚠ **And it re-based eleven rails.** `ToolControllerTests` armed entity-scoped tools on bare
+`_world.CreateEntity()` entities — **a state production cannot be in** (the target is the primary
+selection, and selection resolves an anchor id). ⇒ giving them a replicated entity is what makes them
+FAITHFUL, not what makes them pass. ⭐ **Exactly one rail keeps a bare entity** — the one whose subject
+*is* the missing identity.
+
+#### ⚠ WHAT THIS INVARIANT DOES **NOT** COVER — *stated so nobody over-trusts it*
+
+| | |
+|---|---|
+| ⛔ **Release builds** | `Debug.Assert` is compiled out. ⇒ the enforcement is dev + CI, and the *guards* (§6.7's tool refusal, this section's binding refusal) are what hold in production |
+| ⛔ **A WRONG id** | it checks presence, never correctness. An id that names another node's entity passes |
+| ⛔ **`Stride/` is outside `IOS-IG-SimHost.sln`** | 📌 so "the solution build is clean" never covered it — a gate gap I had asserted past. ✅ **Measured:** Stride touches none of the changed APIs in a breaking way — only `prim.AnchorIndex` as the `EntityLocal` anchor key *(the role §6.7 preserved)*, `GizmoPrimitiveBuffer` and `NetworkEntityMap` |
+| ⚠ **`GizmoMap.Example` / `Viewer`** | now under the invariant too. If a demo emits an identity-less interactive primitive it will assert — correctly, but it is new noise in those apps |
 
 ---
 
