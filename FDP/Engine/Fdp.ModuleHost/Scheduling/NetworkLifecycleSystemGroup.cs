@@ -57,11 +57,25 @@ namespace Fdp.ModuleHost.Scheduling
     /// not by replay, and on one host only. ⇒ an under-adopted seam, which is why <c>CE-259ap</c>'s lean
     /// is to ADOPT it rather than to populate this group.</para>
     ///
-    /// <para>⭐ <b>And the restore path delivers no ghosts to promote</b> — measured: no record/replay
-    /// code writes <c>EntityMetadataCold.LifecycleState</c> at all, and its default is
-    /// <c>EntityLifecycle.Constructing</c> (<c>= 0</c>), NOT <c>Ghost</c>, so a restored entity cannot
-    /// match <c>GhostPromotionSystem</c>'s <c>WithLifecycle(Ghost)</c> query. ⇒ promotion's absence from
-    /// this group is LATENT, not live.</para>
+    /// <para>🔴🔴🔴 <b>RETRACTED <c>2026-09-11</c> — AND THIS REVERSES THE SEVERITY.</b> An earlier version
+    /// of this remark said *"the restore path delivers no ghosts to promote — no record/replay code writes
+    /// <c>EntityMetadataCold.LifecycleState</c>, and its default is <c>Constructing</c> (<c>= 0</c>), not
+    /// <c>Ghost</c> ⇒ promotion's absence from this group is LATENT, not live."*
+    /// ⛔⛔ <b>The premise was measured with a grep for <c>SetLifecycleState</c>, and the restore path does
+    /// not use a setter.</b> 📐 <c>RecorderSystem</c> writes the entity index's <b>COLD CHUNK</b> raw
+    /// (<c>ENTITY_INDEX_COLD_TYPE_ID</c>), <c>PlaybackSystem.ApplyChunkData</c> restores it via
+    /// <c>RestoreColdChunkFromBuffer</c>, and <c>EntityMetadataCold</c> carries
+    /// <c>[FieldOffset(84)] LifecycleState</c>. ⇒ <b>lifecycle IS recorded and restored, wholesale.</b>
+    ///
+    /// <para>⇒ ⭐⭐⭐ <b>an entity recorded while it was a ghost COMES BACK AS A GHOST</b>, matches
+    /// <c>With&lt;TkbIdentity&gt;().WithLifecycle(Ghost)</c>, and the ungated <c>GhostPromotionSystem</c>
+    /// then advances it to <c>Constructing</c> and applies the TKB template — <b>mutating entities the LOG
+    /// owns.</b> ⇒ 🔒 <b>promotion's absence from this gate is LIVE, not latent</b>, and it does not depend
+    /// on live ingress at all. 📄 <c>CE-259ap</c>.</para>
+    ///
+    /// <para>⚠ 📌 The lesson, recorded because it cost a wrong severity call: <b>a grep for the SETTER
+    /// cannot see a raw-memory restore.</b> The question was *"does anything write lifecycle?"* and the
+    /// answer was written by a chunk copy.</para>
     /// </summary>
     public sealed class NetworkLifecycleSystemGroup
     {
@@ -78,8 +92,11 @@ namespace Fdp.ModuleHost.Scheduling
         /// </summary>
         /// <param name="innerSystems">
         /// The ordered list of <see cref="IEcsModuleSystem"/> instances to execute
-        /// when the group is enabled.  Typically: <c>LifecycleSystem</c>,
-        /// <c>GhostPromotionSystem</c>, <c>NetworkGatewaySystem</c>.
+        /// when the group is enabled.
+        /// <para>⚠ In production this is always exactly <c>GhostCreationSystem</c> — see the class
+        /// summary. ⛔ An earlier version of this line said *"Typically: <c>LifecycleSystem</c>,
+        /// <c>GhostPromotionSystem</c>, <c>NetworkGatewaySystem</c>"*, which no site has ever passed;
+        /// that was the design's intent, not a description.</para>
         /// </param>
         public NetworkLifecycleSystemGroup(params IEcsModuleSystem[] innerSystems)
         {

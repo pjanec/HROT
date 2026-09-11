@@ -732,13 +732,18 @@ not change behaviour.
 | question | answer |
 |---|---|
 | is the group's summary stale prose? | ⛔ **No — it was INTENT.** `docs/designs/replay-and-modules/DESIGN.md` §2.1 lists the group as *"Disabled during replay — block ghost create/promote/destroy"* ⇒ 🔒 **the CODE is behind the DESIGN**, `R-129` from the unusual direction |
-| ⭐⭐ **does a replay deliver ghosts to promote?** | ⛔ **NOT from the restore path.** No record/replay code writes `EntityMetadataCold.LifecycleState`, and its default is **`Constructing = 0`, not `Ghost`** ⇒ a restored entity cannot match `With<TkbIdentity>().WithLifecycle(Ghost)`. The only ghost source is live DDS ingress, which `TogglableInputGroup` is what actually stops |
+| 🔴🔴 **does a replay deliver ghosts to promote?** | ⛔⛔ **YES — RETRACTED `2026-09-11`.** This row first said NO, on a grep for `SetLifecycleState`; **the restore does not use a setter.** `RecorderSystem` writes the entity index's COLD CHUNK raw and `PlaybackSystem` restores it via `RestoreColdChunkFromBuffer`; `EntityMetadataCold` carries `LifecycleState` at offset 84. ⇒ **recorded ghosts come back as ghosts**, and the ungated promotion mutates entities the LOG owns — no live ingress needed |
 | does the gate work for what it DOES hold? | ⛔ **No — it is INERT.** `GhostCreationSystem.Execute` is an empty body; ghosts come from `CreateGhost(...)` called directly by ingress translators ⇒ toggling `Enabled` changes nothing |
 
-⇒ ⭐⭐⭐ **promotion's absence from the group is LATENT, not live** — so `P2` was right to preserve the
-behaviour rather than "fix" the gate, and the real work is `CE-259ap`'s *(honour `BypassLifecycle` at
-`CreateGhost` and delete the group, rather than populating a group in the wrong layer)*. ⛔ Still not done
-here: both options change replay behaviour on every host.
+⇒ 🔴🔴🔴 **promotion's absence from the replay gate is LIVE, not latent** *(this line said "latent" until
+`2026-09-11`; the retraction is in the table above)*. ⭐⭐ **`P2` was still right to preserve the behaviour**
+— a relocation may not change behaviour, and the fix is a replay-isolation decision with a five-host blast
+radius, not a side effect of moving a registrar. ⇒ it is `CE-259ap`'s work: adopt
+`CycloneNetworkIngressSystem.IsWorldStateFrozen` for the ingress half **and** gate promotion for the
+restored-ghost half. ⚠ And a **user correction** narrowed the other half: a live `EntityMaster` arriving
+mid-replay is **benign by itself** — the recording keeps a `MaxNetworkId` high-water mark, a keyframe does
+`repo.Clear()`, and `ResolveNetworkId` verifies a map hit so a stale entry degrades to a scan rather than
+resolving wrong.
 
 ### 📐 GATES
 

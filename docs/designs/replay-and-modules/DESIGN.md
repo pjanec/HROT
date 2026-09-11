@@ -88,17 +88,29 @@ The following table reflects the final decisions from the design discussion:
 | disabling it blocks ghost **promote** | ⛔ promotion was never in the group; it was registered standalone *(and now comes from `EntityCreationPack`)*. ⚠ **But LATENT, not live** — see the row below |
 | disabling it blocks ghost **destroy** | ⭐ **moot**: `GhostDestructionSystem`, §3.10.3's first *"must be moved inside"*, was **DELETED** by `CE-144`. Destruction now goes through `NetworkSpawningSystem.ProcessDestroy` → the ELM |
 | `GhostCreationSystem.BypassLifecycle` skips lifecycle + map registration during replay | ⛔ **written by 3 production sites, READ BY NONE.** `CreateGhost` does not consult it; it unconditionally sets `Ghost` and registers in the map |
-| ⭐ **does a replay deliver ghosts to promote at all?** | ⛔ **Not from the restore path.** 📐 No record/replay code writes `EntityMetadataCold.LifecycleState`, and its default is **`Constructing = 0`, not `Ghost`** ⇒ a restored entity cannot match `GhostPromotionSystem`'s `With<TkbIdentity>().WithLifecycle(Ghost)` query. ⇒ the ONLY ghost source is live DDS ingress — **see the next row** |
+| 🔴🔴 **does a replay deliver ghosts to promote at all?** | ⛔⛔ **YES — and an earlier version of this row said NO. RETRACTED `2026-09-11`.** That row's premise came from a grep for `SetLifecycleState`, and **the restore path does not use a setter**: 📐 `RecorderSystem` writes the entity index's **cold chunk** raw (`ENTITY_INDEX_COLD_TYPE_ID`), `PlaybackSystem.ApplyChunkData` restores it via `RestoreColdChunkFromBuffer`, and `EntityMetadataCold` carries `[FieldOffset(84)] LifecycleState`. ⇒ **an entity recorded while it was a ghost comes back as a ghost**, matches the promotion query, and the ungated `GhostPromotionSystem` advances it to `Constructing` and applies the TKB template — **mutating entities the LOG owns, with no live ingress involved.** ⇒ promotion's absence from the gate is **LIVE, not latent** |
 | 🔴🔴 **`TogglableInputGroup` disabled ⇒ "block live DDS ingress"** *(the row's own Reason)* | ⛔⛔ **FALSE AS BUILT, measured `2026-09-11`.** That group holds the **logic-pack** input systems (`MissionControlExecutionSystem`, `FireProcessingSystem`, …) — §2.4 lists them. Every one of the **11** production `CycloneNetworkIngressSystem` registrations is a **direct** `RegisterSystem`/`RegisterGlobalSystem`, never into a togglable group; and `ReferenceReplayLoadHandler.SetSystemsEnabled` toggles only the four groups, touching **no** ingress system and **no** DDS participant. ⇒ 🔒 **live DDS ingress REACHES a node in `RunningReplay`** |
 
 ⇒ ⛔⛔⛔ **THE HONEST SUMMARY, after the `2026-09-11` follow-up measurement: ALL THREE mechanisms §2.1
 names for the ghost path are inert or absent.** The lifecycle group gates a no-op; `BypassLifecycle` is
-unread; and `TogglableInputGroup` does not contain the ingress systems at all. ⭐ The only thing standing
-between a replaying node and a corrupted world is that **the restore path never writes `Ghost`**, so
-promotion has nothing to act on — 🔒 **a property of the restore path, not a guard.** ⇒ a single live
-`EntityMaster` sample arriving mid-replay still calls `CreateGhost` directly, which sets `Ghost` and
-registers the entity in the map; with `TkbIdentity` present the ungated `GhostPromotionSystem` then
-promotes it into the replaying world.
+unread; and `TogglableInputGroup` does not contain the ingress systems at all. ⛔⛔ **And nothing stands behind them** — the
+*"but the restore never writes `Ghost`"* consolation was **retracted `2026-09-11`** (see the table row):
+the restore writes lifecycle as part of the cold chunk, so **recorded ghosts come back as ghosts** and the
+ungated `GhostPromotionSystem` mutates them.
+
+⭐⭐ **A live `EntityMaster` arriving mid-replay is, by itself, BENIGN — and that correction came from the
+user.** 📐 Measured: the recording stores a **`MaxNetworkId`** high-water mark
+*(`RecorderSystem`/`AsyncRecorder` → `RecordingMetadata.MaxNetworkId` → `ReplayModule.MaxNetworkId` →
+`ReferenceReplayLoadHandler` → `ReplayConsensusAggregator` takes the cluster max)*, so a post-recording id
+need not collide; a keyframe does **`repo.Clear()`** (`PlaybackSystem.ApplyFrame`, `frameType == 1`), so a
+stray live entity is wiped; and a stale `NetworkEntityMap` entry cannot resolve WRONG because
+`NetworkIdResolver.ResolveNetworkId` **verifies** a map hit against the entity's own `NetworkIdentity` and
+degrades to a scan. ⇒ ⛔ **the earlier framing of this as "corruption from live ingress" was OVERSTATED.**
+⚠ Two caveats: **no consumer was found that actually rebases an id allocator past `MaxNetworkId`** *(the
+chain ends at the orchestrator's aggregate — not measured as wired)*, and the map is re-synced **only on
+seek** *(`EcsRecordReplayController`'s `_afterSeek`)*, not per frame.
+
+⇒ ⭐⭐⭐ **So the real defect is the one that needs no live traffic: promotion mutating RESTORED ghosts.**
 
 ⭐⭐⭐ **BUT THE RIGHT GATE ALREADY EXISTS AND IS UNDER-ADOPTED** — `CycloneNetworkIngressSystem`
 `.IsWorldStateFrozen`, a `Func<bool>` asked **once per `Execute`** that skips exactly the
