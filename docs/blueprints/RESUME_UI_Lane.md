@@ -190,10 +190,13 @@ current-answer: ⚠⚠ THERE ARE NOW **TWO** LIVE STRANDS ON THIS LANE. Read the
   geometry would stop resolving at all) and Text/EntityBadge use StringHash@8 + LineOffsetPx@12. The
   strip is shape-discriminated, with TWO red-proofs — removing it reddens 1, a BLANKET zeroing reddens
   the other 2. That second red-proof exists because I made that mistake.
-  ⚠ Why not delete the payload instead: ReplayBrowser has NO NetworkEntityMap (:991 falls back to the
+  ⛔⛔ THE NEXT SENTENCE IS SUPERSEDED BY §6.7 AND IS KEPT ONLY AS HISTORY — DO NOT QUOTE IT. The payload
+  WAS deleted, and the premise below is false: the map is a WORLD SINGLETON, not a per-host delegate, so
+  no host can forget to pass it, and ReplayBrowser now maintains one like every other ECS module.
+  ~~⚠ Why not delete the payload instead: ReplayBrowser has NO NetworkEntityMap (:991 falls back to the
   linear FindEntityByNetworkId, which C5 forbids), so resolving locally needs a delegate every host
   must remember to pass — the SILENT-DEFAULT failure that produced CE-259y. The payload needs nothing
-  passed, so it cannot be forgotten in one host. 📄 DESIGN_Gizmo_Anchor_Identity.md §6.6.
+  passed, so it cannot be forgotten in one host. 📄 DESIGN_Gizmo_Anchor_Identity.md §6.6.~~
   ⛔ PROCESS FAILURE WORTH NOT REPEATING (the third of the day): HandleInput builds a pick token TWICE
   and the first S5 pass converted ONE arm. Every suite stayed green because the rails exercise the
   hit-test, not HandleInput. `scripts/find.sh 'AnchorGeneration != 0'` found it in one call. And the
@@ -208,6 +211,26 @@ current-answer: ⚠⚠ THERE ARE NOW **TWO** LIVE STRANDS ON THIS LANE. Read the
   ⭐ ALSO OPEN, needs a nod: CE-259v — a suspended EntityRotatorGizmo draws a line to a STALE cursor.
   OPEN with leans: CE-259s, CE-259t. FIXED 2026-09-10: CE-259q.
   ⛔ The 2026-09-09 T1 manual test found the amber-crosshair defect; it is CE-259r and NOT yet fixed.
+  ✅✅✅ RUN-THE-REAL-THING, 2026-09-11 — THE ANCHOR-IDENTITY WORK IS PROVEN IN THREE RUNNING HOSTS.
+  📄 DESIGN_Gizmo_Anchor_Identity.md §6.8a (editor + --mode all) and §6.8b (ReplayBrowser).
+  ⭐ --mode editor and --mode all under xvfb, driven over HTTP: hill-attack live, simTime 348.9, the AI
+  chain (contact → firing), 739–802 primitives/frame per perspective with 16–24 Box2D pick boxes each,
+  117 translators / 20 live topics. ZERO GizmoAnchorIdentityException across 1130 log lines.
+  ⭐⭐ --mode replaybrowser (the riskiest host — §6.7 gave it a NetworkEntityMap it never had, rebuilt at
+  every seek): a 50.5 MB / 3671-frame .fdp recorded from the editor, loaded, seeked to 5 frames with
+  /replay/entities returning n=8 EVERY TIME, stepped forward/back with correct clamping, 8 panels
+  captured per frame, unloaded. ZERO exceptions.
+  ⭐⭐⭐ AND THE ZERO IS NOT VACUOUS — an INVERSE-EDIT RED-PROOF in that process: a temporary
+  Box2D(subElementId:7, anchorId:0) in ReplaySpatialBoundsGizmo.Draw ABORTED IT ON FRAME 1 via
+  DebugPrimitiveBuffer.AppendRaw:74 → StatelessGizmoSystem.Execute:107 → ReplayBrowserSubsystem
+  .Update:421 ⇒ the emitters really run there, the central guard is armed there, and it fails fast
+  UNHANDLED (no scheduler try/catch swallows it — the CE-188 disease). Reverted; clean drive re-run.
+  🔴 NEW, FILED, NOT FIXED: CE-259am — the ReplayBrowser perspective declares NO debug-API providers
+  (providers=[], matrix={}), so panels.gizmo / world.read / world.entityMap are dark over HTTP, and the
+  error text asserts a missing DebugPrimitiveBuffer WHICH THE RED-PROOF SHOWS IS FALSE (it is the
+  provider registry that is empty, not the host). Same shape as CE-259al, different cause.
+  ⛔ STILL NOT RUN-PROVEN, unchanged: a real PICK/SELECTION (CE-259al — the interaction bus is isolated
+  from the world bus by design, so no HTTP route can publish onto it) and Stride/ (cannot run here).
   ══ STRAND 2 — ENTITY CREATION (as of 2026-09-03, untouched since) ══
   READ docs/blueprints/BOOTSTRAP_Entity_Creation_Session.md §5.0 — THE AGREED PLAN
   (user-confirmed 2026-09-01). That is the ordered continuation point; this file is only the longer LOG.
