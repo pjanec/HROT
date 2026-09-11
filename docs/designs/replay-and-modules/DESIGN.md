@@ -16,14 +16,29 @@ known-rot: ⛔⛔ §2.1's row "NetworkLifecycleSystemGroup | Disabled during rep
   ALSO false as built — that group holds the LOGIC-PACK input systems (§2.4), while all 11 production
   CycloneNetworkIngressSystem registrations are direct and outside every togglable group, and
   SetSystemsEnabled touches no ingress system and no participant. ⇒ live DDS ingress REACHES a node in
-  RunningReplay (railed + red-proofed). ⭐ The ONLY thing protecting the ghost path is that the restore
-  path never writes EntityMetadataCold.LifecycleState — default Constructing (0), not Ghost — so
-  promotion has nothing to act on. That is a property of the restore path, not a guard.
+  RunningReplay (railed + red-proofed).
+  🔴🔴 RETRACTED SAME DAY, and it REVERSES A SEVERITY: an earlier version of this block said "the ONLY
+  thing protecting the ghost path is that the restore path never writes EntityMetadataCold.LifecycleState
+  — default Constructing (0), not Ghost". That premise was measured with a grep for the SETTER and the
+  restore uses a RAW COLD-CHUNK COPY (EntityMetadataCold carries [FieldOffset(84)] LifecycleState). ⇒
+  lifecycle IS recorded and restored wholesale, a ghost comes back A GHOST, and the ungated
+  GhostPromotionSystem mutates entities the log owns. Read §2.1b, never this retracted line.
+  ⛔⛔ A FOURTH inert protection, measured 2026-09-11 (§2.1g): NedReplicationModule.AfterSeekCallback
+  returns a NON-NULL EMPTY lambda whose only statement is a commented-out ResetTracking() call, and
+  ResetTracking exists in zero C# files — while T-RMF-23 is ticked DONE. Every "is it wired" check passes.
   ⭐⭐ The right gate EXISTS and is under-adopted: CycloneNetworkIngressSystem.IsWorldStateFrozen skips
   exactly the WorldState translators, but its one production writer is CgfSubsystem's DEBUGGER halt
   (DQ30-C), not replay. CE-259ap's lean is to adopt it.
-stale-below: nothing beyond the known-rot above; the other §2.1 rows were not re-measured on
-  2026-09-11 and carry no claim either way.
+  🔴🔴🔴 §2.1e IS SUPERSEDED BY §2.1f: its central claim — "≥20 change-detection caches are broken by a
+  rewind, so a rewind SUPPRESSES a needed publish" — is FALSE. Every holder read is an EQUALITY compare
+  (not a >= monotonic guard), a keyframe repo.Clear() wipes the managed EgressPublicationState (managed
+  tables share _componentTables) and its absence FORCES a publish, and egress runs during playback so the
+  cache tracks the log. ⇒ class B is SELF-HEALING; the reflection subscription rail and the generalised
+  boundary event are DROPPED, and class C (the ELM's non-recorded pending-construction protocol) is the
+  only remaining defect. Do NOT quote §2.1e's class-B conclusion or its step 2/3 plan.
+stale-below: §2.1e's class-B conclusion and its 3-step plan (superseded by §2.1f); the retracted
+  lifecycle line above. The other §2.1 rows were not re-measured on 2026-09-11 and carry no claim
+  either way.
 -->
 # Design: Replay Isolation and Modern Module System
 
@@ -291,7 +306,14 @@ invalidates. ⇒ this is that pattern applied to the other three.
 playback stays desirable *(it stops pointless work and the `BeginConstruction` throw)* but is no longer the
 thing correctness rests on. ⛔ **Neither half is built.** 📄 `CE-259ap`.
 
-#### 2.1e ⛔⛔⛔ THE SWEEP — **`ResumeFromRestoredState` AS PROPOSED IS NOT RELIABLE, for two measured reasons** *(`2026-09-11`)*
+#### 2.1e 🔴🔴🔴 SUPERSEDED BY §2.1f — **THE SWEEP — `ResumeFromRestoredState` AS PROPOSED IS NOT RELIABLE, for two measured reasons** *(`2026-09-11`)*
+
+> 🔴🔴🔴 **SUPERSEDED THE SAME DAY BY [§2.1f](#21f----retraction--class-b-is-self-healing-21es-biggest-class-was-not-a-defect-2026-09-11-decided-by-code-analysis-at-the-users-instruction).**
+> ⛔ **This section's central claim — that ≥20 class-B change-detection caches are broken by a rewind — is
+> FALSE**, and so are its step-2 (generalised boundary event) and step-3 (reflection subscription rail)
+> remedies. ⭐ **What survives and is still correct:** the *process* lesson that three hand sweeps by a
+> motivated author each missed holders *(and that a hand-maintained enumeration therefore cannot be kept
+> true)*, and the class-C half. ⇒ **read §2.1f before quoting anything below.**
 
 🔒 **User:** *"do the sweep for `Dictionary<Entity,` in module fields, check if reconstructing on
 `resumeFromRestoredState` is reliable the way you suggest."* ⭐ It is not. Here is the measurement.
@@ -374,6 +396,66 @@ cannot be kept true.
 `NodeBootstrapperReplayTests`, `FullBranchPipelineTests`, **12/12** — because they assert the flag and the
 group's `Enabled` **flip**, never that either has an **effect**. 📌 `R-142` ③'s shape: the setter is
 tested, and the setter is all there is.
+
+#### 2.1f 🔴🔴🔴 RETRACTION — **CLASS B IS SELF-HEALING. §2.1e's biggest class WAS NOT A DEFECT** *(`2026-09-11`, decided by CODE ANALYSIS at the user's instruction)*
+
+> 🔒 **User, verbatim:** *"but you have to decide from analyzing the code as catching a failure is unreliable."*
+> ⇒ ⛔ a non-reproducing rail proves nothing *(the same logic as "an absence in grep is an absence in your
+> pattern")*, so the verdict below is composed from measured facts, not from an attempted repro.
+
+⛔⛔ **§2.1e claimed ≥20 change-detection caches are broken by a rewind, because *"the cache says 'already
+published V' while the restored world holds V′ ⇒ the translator SKIPS the publish ⇒ peers never learn the
+restored state."* 🔴 THAT IS WRONG, and it is wrong three times over.**
+
+⭐⭐⭐ **The reasoning error, stated once:** a *"last published value"* cache mirrors **WHAT THE PEER KNOWS**,
+and the peer is **not rewound**. ⇒ a cache holding a value *"from the future"* is **not corruption** — the
+peer really did receive it. What the peer needs is the **current** state, and an equality compare against
+the current state delivers exactly that. ⇒ 🔒 **the cache suppresses a publish only when `cached ==
+current`, in which case the peer ALREADY HOLDS the current value and skipping is CORRECT.**
+
+| # | the mechanism | measured |
+|---|---|---|
+| **①** | ⭐⭐ **every hand-rolled holder is an EQUALITY compare, not a `>=` MONOTONIC guard** | `MapRouteEgressTranslator.cs:96-98` `lastVersion == routePlan.Version` · `AnimationMontageQueueEgressTranslator.cs:74` `lastVer == queue.QueueVersion` · `AnimationMontageQueueStateEgressTranslator.cs:62-64` · `AnimationChannelStatusEgressTranslator.cs:63-65` — all tuple/scalar `==` |
+| **②** | ⭐⭐ **a keyframe WIPES the managed publication state, and its absence FORCES a publish** | `ManagedComponentTable<T>` is stored in the **same** `_componentTables` dictionary as the blittable tables (`EntityRepository.cs:1219`, `:1373`, `:1422`) and `Clear()` (`:423-439`) iterates `_componentTables.Values` ⇒ `EgressPublicationState` is wiped by the keyframe `repo.Clear()`; `SmartEgressUtil.ShouldPublish:92-95` then returns **`true`** — *"Default to safe behaviour: publish, so no data is silently dropped"* |
+| **③** | ⭐⭐ **egress RUNS during playback, so the cache tracks the LOG frame by frame** | every `CycloneEgressSystem` registration is a **direct** `RegisterSystem`/`RegisterGlobalSystem` — `NedReplicationModule.cs:308`, `BdcReplicationModule.cs:82`, `IgNodeBootstrapper.cs:555`, `SimHostApp.cs`, ×4 `NedSimHost*Translators` — never into a togglable group; `SetSystemsEnabled` touches only the four groups; `ModuleHostKernel.cs:752` runs `SystemPhase.Export` **unconditionally** and no replay-conditional phase skip exists in the kernel or core |
+
+⇒ ⭐⭐⭐ **The hazard §2.1e described would need a MONOTONIC guard** *(a rewind lowers the current
+tick/version below the cached one ⇒ suppressed forever)*. 📐 **The one once-guard that exists —
+`SmartEgressUtil.ShouldPublish:112-115`, `return !state.LastPublishedTickMap.ContainsKey(ordinal)` for
+reliable descriptors — lives in the managed component mechanism ② wipes.** ⇒ **no surviving instance.**
+
+⛔ **ONE HOLDER LEFT UNCLASSIFIED:** `MissionControlExecutionSystem._missionVersions`
+(`Hrot.Common/Systems/MissionControlExecutionSystem.cs:70`, read at `:137`, written at `:191`/`:214`/`:237`)
+is a **command-dedup** counter, not an egress cache. ⚠ Not classified — do not count it either way.
+
+#### ⇒ WHAT THIS CHANGES IN THE PLAN
+
+| ⭐ | |
+|---|---|
+| ⛔⛔ **DROP the reflection-based subscription rail** *(§2.1e step 3)* | ⭐ it would flag ~20 **self-healing** holders and be switched off within a batch — 📌 exactly the failure `CLAUDE.md` records for the optional-dependency sweep. ⚠ It was the answer to a problem that does not exist |
+| ⛔ **DROP the generalised boundary event as a class-B remedy** | ⭐ §3.10.4's own example (`_trackedEntities`) is class A, not B: `CycloneNetworkCleanupSystem.Execute` step 1 **re-scans the whole world every frame** and re-adds (`CycloneNetworkCleanupSystem.cs:44-62`), and disposes only on a `DestructionOrder` **event** (`:65-104`) ⇒ it self-heals. 📌 The *"mass DISPOSE flood"* `ONBOARDING.md:252` describes belonged to a **liveness-scanning** version of that system that no longer exists |
+| ⭐⭐⭐ **KEEP the class-C reconciliation, and it is now the ONLY defect** | ⭐ and it is BOUNDED — the ELM's `_pendingConstruction`/`_pendingDestruction` plus `EntityRequestFinalizationSystem._tracked`, each re-derivable from `LifecycleState`, **which IS recorded** (§2.1b). ⇒ a hand-written `ResumeFromRestoredState()` **does not rot here**, because its input is the recorded lifecycle rather than an open-ended cache inventory |
+
+#### 2.1g ⛔⛔ A FOURTH INERT REPLAY PROTECTION — **`AfterSeekCallback` is a NON-NULL EMPTY LAMBDA** *(`2026-09-11`)*
+
+📐 `NedReplicationModule.cs:111-114`:
+
+```csharp
+public Action? AfterSeekCallback =>
+    _cleanupSystem != null ? (Action)(() => {
+        //_cleanupSystem.ResetTracking();
+    }) : null;
+```
+
+| 📐 measured | |
+|---|---|
+| ⛔⛔ **`ResetTracking` exists in ZERO C# files** | grep over the repo returns **one** hit — the commented-out line above. `CycloneNetworkCleanupSystem.cs` read **in full** (107 lines): no such method |
+| ⛔ **yet `T-RMF-23` is ticked `[x]` DONE** | `.dev/_DONE/replay-and-modules/TASK-TRACKER.md:36`, and `reviews/BATCH-04-REVIEW.md:34` states *"`CycloneNetworkCleanupSystem.ResetTracking()` added"* with the property quoted as *"clean"* ⇒ it landed and was later removed, leaving the call site commented out to keep it compiling |
+| 🔴 **a non-null empty lambda is STRICTLY WORSE than `null`** | ⭐ every downstream null-check passes (`StrideNodeBootstrapper.cs:402`, `CgfSubsystem.cs:982-986`, `SimHostNodeBootstrapper.cs:429`) and every rail asserting *"the afterSeek callback is wired"* is satisfied by a callback that does nothing |
+
+⇒ ⭐ **The fix is one line and it is NOT to resurrect the method** *(§2.1f shows `_trackedEntities`
+self-heals)*: **return `null` and say why**. ⛔ Do not leave a protection that reads as wired.
+📄 `CE-259ap`.
 
 ### 2.2 IG Nodes During Replay
 
