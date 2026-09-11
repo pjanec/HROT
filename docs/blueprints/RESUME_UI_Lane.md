@@ -149,6 +149,28 @@ current-answer: ⚠⚠ THERE ARE NOW **TWO** LIVE STRANDS ON THIS LANE. Read the
   gizmo-specific yet (insert a vertex there?) — searched docs/ and .dev/, no record specifies it.
   ⭐ Also fixed a blind shared double: FullCapturingDrawBuilder inherited EmitRaw's DEFAULT NO-OP and
   silently dropped every raw primitive, so rails using it were blind to pick boxes and bindings.
+  ✅✅ CE-259af DONE 2026-09-11, and it came from the USER ASKING WHY A FIELD EXISTS: "why are we still
+  keeping a field for ecs entity index and generation in the gizmo now?" ⭐ Answering it properly meant
+  justifying the FIELD rather than the decision — and that turned up a real latent defect.
+  📐 DebugPrimitivesIngressTranslator AppendRaw'd received primitives VERBATIM, so a receiving node's
+  buffer held the SENDER's ECS handle at offsets 8/12 ⇒ ToPickToken would rebuild a foreign handle and
+  SelectionInteractionSystem would select a locally-plausible WRONG entity, silently. Defect D2
+  relocated from the wire to the receiver's own boundary. NOT live (that translator is instantiated
+  only in tests) but IG imports it and holds a map.
+  ⭐⭐ FIX: strip the payload at the ONE place foreign primitives enter a buffer ⇒ a received primitive
+  arrives with StreamId==0, the adapter yields an invalid token, and the interaction goes over DDS to
+  the OWNING node which resolves via its map. It degrades onto the DESIGNED remote path instead of a
+  wrong selection. ⇒ the field's contract is no longer "do not compare this" but "valid only for a
+  primitive emitted in THIS PROCESS" — structural now, not a comment.
+  ⛔⛔ AND THE NAIVE FIX IS WRONG — I NEARLY SHIPPED IT. Zeroing 8/12 unconditionally breaks two of the
+  THREE roles offset 8 carries: EntityLocal uses it as the SpatialAnchor cache KEY (remote EntityLocal
+  geometry would stop resolving at all) and Text/EntityBadge use StringHash@8 + LineOffsetPx@12. The
+  strip is shape-discriminated, with TWO red-proofs — removing it reddens 1, a BLANKET zeroing reddens
+  the other 2. That second red-proof exists because I made that mistake.
+  ⚠ Why not delete the payload instead: ReplayBrowser has NO NetworkEntityMap (:991 falls back to the
+  linear FindEntityByNetworkId, which C5 forbids), so resolving locally needs a delegate every host
+  must remember to pass — the SILENT-DEFAULT failure that produced CE-259y. The payload needs nothing
+  passed, so it cannot be forgotten in one host. 📄 DESIGN_Gizmo_Anchor_Identity.md §6.6.
   ⛔ PROCESS FAILURE WORTH NOT REPEATING (the third of the day): HandleInput builds a pick token TWICE
   and the first S5 pass converted ONE arm. Every suite stayed green because the rails exercise the
   hit-test, not HandleInput. `scripts/find.sh 'AnchorGeneration != 0'` found it in one call. And the

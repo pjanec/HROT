@@ -299,7 +299,7 @@ a batch report leaves the design lying. ⭐ Built `2026-09-10`, commits `882d35f
 |---|---|---|---|
 | **S0** | compare the whole anchor *(value **and** generation)* | ✅ as written, **then DELETED by S5** | ⭐ S0 patched the *symptom*; §6.1's disjoint id range removes the *cause*, after which the generation term only reintroduces two-domain thinking |
 | **S1 · S2** | ✅ as written | ✅ as written | — |
-| **S3** | 🔴 **the terminal returns ONLY a network id; every consumer resolves it through `NetworkEntityMap`** | ⭐⭐ **`GizmoPickToken` gained an explicit PAYLOAD field.** `AnchorId` is the identity *(network id)*; `AnchorIndex` + `StreamId` are an **in-process shortcut** the producer already had, so the consumer-side adapter rebuilds `Entity(index, generation)` with **no lookup and no map** | 🔴 **Measured while building: `ReplayBrowser` composes `SelectionInteractionSystem` *(`ReplayBrowserSubsystem.cs:210`)* and has NO `NetworkEntityMap` at all** — and CGF passes no world either *(claim ⑳b)*. ⇒ resolve-at-the-boundary would have **silently dropped ReplayBrowser's selection.** ⚠ The payload is **never compared, never routed, never on the wire** — S1/S2 still resolve at the translators, where a process-local handle is meaningless |
+| **S3** ⚠ *(see §6.6 — the field this produced is justified and ENFORCED there)* | 🔴 **the terminal returns ONLY a network id; every consumer resolves it through `NetworkEntityMap`** | ⭐⭐ **`GizmoPickToken` gained an explicit PAYLOAD field.** `AnchorId` is the identity *(network id)*; `AnchorIndex` + `StreamId` are an **in-process shortcut** the producer already had, so the consumer-side adapter rebuilds `Entity(index, generation)` with **no lookup and no map** | 🔴 **Measured while building: `ReplayBrowser` composes `SelectionInteractionSystem` *(`ReplayBrowserSubsystem.cs:210`)* and has NO `NetworkEntityMap` at all** — and CGF passes no world either *(claim ⑳b)*. ⇒ resolve-at-the-boundary would have **silently dropped ReplayBrowser's selection.** ⚠ The payload is **never compared, never routed, never on the wire** — S1/S2 still resolve at the translators, where a process-local handle is meaningless |
 | **S4** | `SelectionInteractionSystem` via the resolver; `FindGizmo` re-keyed by network id | ⭐ **the binding-key half was built** *(all 3 sites in `DataDrivenGizmoSystem`, keyed by `NetworkIdOf`)*; ⭐⭐ **the consumer half became UNNECESSARY** | ⭐ with S3-as-built, **both** paths hand `PickToken.Target` a valid *local* `Entity` — the adapter from the payload, the ingress from the map. ⇒ `SelectionInteractionSystem` and `FindGizmo`'s `Dictionary<Entity, …>` are correct unchanged. ⛔ **No host wiring was needed** ⇒ `U1` and `U4` are moot, not answered |
 | **S5** | stop stamping the ECS handle; comparison collapses to `BoxAnchorId` | ⭐ **comparison collapsed as written; the STAMPING STAYS** — it is now the S3 payload | ⇒ ⛔ **claim ⑥ is false as built**, which is what re-opens S6 *(below)* |
 | **S6** | **RENAME** offset 12 to `LineOffsetPx` | ⭐⭐ **an ALIAS PAIR** — `AnchorGeneration` *(ushort)* **and** `LineOffsetPx` *(short)*, same two bytes | ⭐ the slot has **two** live uses, not one *(claim ⑥)* ⇒ this is exactly the offset-8 `AnchorIndex`/`StringHash` precedent. ⭐⭐ **§9 ⑨ is UN-RETRACTED**: its only reason was the one-use claim |
@@ -411,6 +411,58 @@ same network id ⇒ the same menu whichever you click)*, `7c` *(inside the area 
 ⚠ **Deliberately NOT done:** the menu CONTENT is whatever `ContextMenuProjectorGizmo` already defines, and
 clicking an edge does nothing gizmo-specific yet *(inserting a vertex there, say)* — ⭐ **searched `docs/`
 and `.dev/`, no record specifies such a gesture.**
+### 6.6 ⭐⭐⭐ WHY THE ECS PAYLOAD EXISTS, AND WHAT MAKES IT SAFE *(`CE-259af`)*
+
+🔒 **Asked `2026-09-11`:** *"why are we still keeping a field for ecs entity index and generation in
+the gizmo now? its comment say do not use it for comparison but why it is there in the first place when
+we decided to use network ids?"* ⭐ **The right question** — a field whose comment says *"do not compare
+this"* has to justify its existence, and §6.2 ③ justified the DECISION without justifying the FIELD.
+
+| 📐 the constraint that forces it | |
+|---|---|
+| **the consumers need an `Entity`, not an id** | `SelectionInteractionSystem` writes `SelectionState`; `DataDrivenGizmoSystem.FindGizmo` keys `Dictionary<Entity, IEntityStatefulGizmo>` ⇒ **something** must turn the picked network id into a local `Entity` |
+| ① **the producer hands its handle along** *(these fields)* | free, no lookup, ⭐ **and nothing to pass per host, so it cannot be silently forgotten in one of them** — the SILENT-DEFAULT failure that produced `CE-259y` |
+| ② a `NetworkEntityMap` lookup | O(1), but ⛔ **`ReplayBrowser` HAS NO MAP** — it falls back to `NetworkIdResolver.FindEntityByNetworkId` *(`ReplayBrowserSubsystem.cs:991`)*, and it **does** compose `SelectionInteractionSystem` *(`:211`)* |
+| ③ `FindEntityByNetworkId` everywhere | ⛔ a **LINEAR SCAN** over all entities, which `C5` forbids |
+
+⇒ ⭐ ① stands. **But the field was under-defended, and measuring it found a latent trap.**
+
+#### 🔴 THE TRAP — **ingress copies primitives VERBATIM**
+
+📐 `DebugPrimitivesIngressTranslator.PollAndApply` `AppendRaw`s received primitives **unchanged**, so a
+receiving node's buffer would hold the **SENDER's** ECS handle at offsets 8/12 ⇒ `ToPickToken` rebuilds
+`new Entity(AnchorIndex, StreamId)` from a foreign process's handle and **selects a locally-plausible
+WRONG entity, silently.** ⇒ **defect `D2` relocated from the wire to the receiver's own boundary.**
+⚠ **Not live:** that translator is instantiated **only in tests** *(measured; no production call site)* —
+but IG imports the type, runs `SelectionInteractionSystem`, and holds a map, so the day anyone wires
+primitive streaming it bites.
+
+#### ⭐⭐ THE FIX — **enforce the invariant at the ONE place foreign primitives enter**
+
+⭐ The ingress **strips** the payload. ⇒ a received primitive arrives with `StreamId == 0`, the adapter
+yields an **invalid** token, and the interaction is published over DDS to the **owning** node, where
+`GizmoInteractionIngressTranslator` resolves the network id through its map. ⭐⭐ **It degrades onto the
+DESIGNED remote path instead of into a wrong selection** — a dumb terminal does not own entities.
+⭐ The **identity is untouched**: `BoxAnchorId`/`StructNetworkId` are network ids, so hit-testing, the
+exclusive-capture filter and the context-menu lookup all still work on a received primitive.
+
+⇒ ⭐⭐⭐ **The contract is no longer *"do not compare"*. It is *"valid only for a primitive emitted in
+this process"* — and that is now STRUCTURAL rather than a comment.**
+
+#### ⛔⛔ AND THE NAIVE FIX IS WRONG — **I nearly shipped it**
+
+📌 My first version **zeroed offsets 8/12 unconditionally.** That breaks two of the **three** roles
+offset 8 carries *(§6.4 / `S7`)*:
+
+| role | verdict |
+|---|---|
+| (a) interactive `Box2D`/`Sphere` → the **ECS payload** | ⭐ strip |
+| (b) any **`EntityLocal`** primitive → the **`SpatialAnchor` cache KEY**, a network id | ⛔⛔ **MUST SURVIVE**, or remote `EntityLocal` geometry stops resolving at all — the whole purpose of the two-pass dumb-terminal renderer |
+| (c) **`Text`/`EntityBadge`** → `StringHash` @8 and `LineOffsetPx` @12 | ⛔⛔ **MUST SURVIVE**, or remote text loses its content and its line stacking |
+
+⇒ the strip is **shape-discriminated**, and **three rails pin all three roles** — `CE-259af-1/2/3`, with
+**two red-proofs**: removing the strip reddens 1, and a **blanket** zeroing reddens the other 2.
+⭐ That second red-proof exists precisely because I made that mistake; it now cannot be repeated silently.
 ---
 
 ## 7. CONSTRAINTS
