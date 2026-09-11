@@ -9,8 +9,20 @@ current-answer: ✅✅✅ READ §5.0 — THE AGREED PLAN (user-confirmed 2026-09
   NedReplicationModule into EntityCreationPack, add+remove in ONE commit.
   ⭐⭐⭐ AND THE PROGRAMME IS NOT FINISHED WHEN P2 LANDS: P3 is AUTO-TAKEOVER (role-affinity ownership),
   which is FULLY DESIGNED AND ENTIRELY UNBUILT — ../DESIGN_Role_Affinity_Ownership.md, build-state
-  READY-TO-BUILD, "Nothing here is built yet", §6 steps 0->3b, and its §5 holds THREE OPEN DECISIONS
-  that are the USER's to settle before it starts. Do not let "P1 done" read as "unification done".
+  READY-TO-BUILD, "Nothing here is built yet", §6 steps 0a->4 (NINE steps, not "0->3b").
+  ⛔⛔ CORRECTED 2026-09-11 — THIS BLOCK SAID P3's §5 "holds THREE OPEN DECISIONS that are the USER's to
+  settle before it starts". That was true on 2026-09-03 and IS NOW FALSE: that design was updated
+  2026-09-10 and ALL THREE ARE RESOLVED (① / ①b settled 2026-09-01; ② user-approved "yes on boot
+  warning"; ③ user-ruled — build the IRoleShardProvider seam now, defer only the implementation), and
+  ①c's own column reads "nothing measurable remains". ⇒ P3 IS NOT BLOCKED ON THE USER. What is left in
+  its §5 is a per-system REVIEW: step 3b grew from ONE un-gated tick system to SEVEN, three of which
+  WRITE cognitive state (HsmTickSystem:110-113 the non-negotiable second).
+  ⭐⭐ A FOURTH READY-TO-BUILD DESIGN OF THIS PROGRAMME IS NOT IN THE PLAN AT ALL:
+  ../DESIGN_Entity_Authoring_Surface.md — the ONE-method RequestEntityCreation(owner, …) surface that
+  SUPERSEDES DESIGN_Entity_Creation_Unification.md §3.4. Measured 2026-09-11: zero occurrences in .cs,
+  and the two superseded names survive only in three doc comments that PROMISE them. Independent of
+  P2/P3, so it can run in parallel. See §5.0's correction table.
+  Do not let "P1 done" read as "unification done".
   This file is a SESSION BOOTSTRAP — a self-contained continuation point for the entity-creation
   unification work. Read it after docs/blueprints/RULINGS.md (RULE ZERO) and instead of reading
   RESUME_UI_Lane.md top-to-bottom.
