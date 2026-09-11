@@ -782,6 +782,45 @@ would still get through.**
 
 ---
 
+#### ⭐⭐⭐ §6.8a — **RUN UNDER XVFB AND DRIVEN OVER HTTP: the throw does not fire** *(`2026-09-11`)*
+
+🔒 **User:** *"can you try running the apps and drive them via the HTTP control API (load scenario, run
+it, select entities etc.) using xvfb to check if they run without throws and to fix places where they
+throw?"* 📄 Procedure: [`RUNBOOK_Cluster_Debugging_Over_Http.md`](RUNBOOK_Cluster_Debugging_Over_Http.md).
+
+⭐⭐ **Two processes, both windowed under `xvfb-run`** — `--mode editor` *(the §9 oracle: one world,
+everything local)* on `8131` and `--mode all` *(orchestrator + SimHost + IG + ExCon + CGF)* on `8111`.
+
+| what was driven | result |
+|---|---|
+| `hill-attack` loaded LIVE on both | ✅ `entityCount 8`, **`sawWorldChange:true`, `hadWorldAnchor:true`** — the runbook's honest bits, not just `ok:true` |
+| `sim/play`, then `timescale 4`, soaked | ✅ **`simTime 348.9`** — ~6 minutes of sim on a real clock |
+| the AI invariant chain *(runbook §8)* | ✅ **`SensorContactList.Count 1`** *(acquired)* → **`WeaponChannel.Status Running`** *(firing)*; the log shows wave dispatch, EQS queries, `MunitionDetonation` samples |
+| ⭐ **the gizmo frame, per perspective** | ✅ editor **802** primitives; cluster **739 / 741 / 759** on SimHost / IG / Scenario — each with **16–24 `Box2D` pick boxes** and **9 `ContextMenuBinding`s**, i.e. the shapes the invariant actually guards, drawn every frame |
+| ⭐ `/annotations`, all three types | ✅ appended — including a **DECORATIVE sphere with no identity**, which validates the *"a hit-testable shape that claims no interaction needs no id"* carve-out **in production**, not just in a rail |
+| `/entities/{id}/focus` ×6 | ✅ camera moves, gizmos redraw at new positions |
+| `/diagnostics/architecture` | ✅ **117 translators, 20 topics carrying traffic** *(`WorldPos` 27 369, `SST_OwnershipUpdate` 96, `SensorTrackState` 72 …)* |
+| 🔒 **`GizmoAnchorIdentityException`** | ⭐⭐⭐ **ZERO**, across **1 130 log lines** — and zero `exception`, zero `Unhandled`, zero `Aborted`, zero `[ModuleHost] … exception` on either process |
+
+⇒ ⭐⭐ **The audit of §6.8 holds against the running product: no production emitter passes identity 0, and
+the throw does not false-positive.** ⛔ **There was nothing to fix** — which is the answer, not an absence
+of effort.
+
+##### ⛔⛔ WHAT THIS RUN COULD **NOT** REACH — *the honest half*
+
+| ⛔ | |
+|---|---|
+| **a real PICK / SELECTION was never driven** | 📐 Measured: `SelectionState` is **ABSENT** on every entity for the whole run, so `SelectionInteractionSystem`'s resolve — the heart of §6.7 — was **not exercised**. ⭐⭐ **And it is not drivable over HTTP by design:** interaction events are registered on the **ISOLATED interaction bus** (`MapInteractionPack.cs:68` → `InteractionEventRegistry.RegisterAll`) while `POST /entities/command` publishes to the **world bus** ⇒ publishing `GizmoInteractionStartedEvent` **or** the flat `GizmoMenuActionEvent` both fail with *"Failed to publish event"*. ⚠ That quarantine is deliberate *(UI noise off the world bus)*; the consequence for this tier is not |
+| **the edit-handle gizmos** | `VertexEditGizmo` / `RouteWaypointGizmo` need a tool armed by a real click ⇒ **untouched**. ⛔ So §6.7's tool guard and the sub-element question are still rail-only, not run-proven |
+| **no input synthesis available** | `xdotool`/`xte` are not installed in this container, so a synthetic click on the canvas was not an option either |
+| **`Stride/`** | cannot run here *(outside the solution, `net8.0-windows`)* — still the one place the throw is armed and unexercised |
+
+⇒ ⭐ **Filed as `CE-259al`:** the debug API cannot drive a gizmo interaction, which makes the whole
+pick→resolve→select path invisible to the *"run the real thing"* tier — the tier `2026-09-04` showed finds
+what the suite misses.
+
+---
+
 ## 7. CONSTRAINTS
 
 | # | constraint | why |
