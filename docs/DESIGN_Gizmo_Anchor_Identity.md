@@ -819,6 +819,68 @@ of effort.
 pick→resolve→select path invisible to the *"run the real thing"* tier — the tier `2026-09-04` showed finds
 what the suite misses.
 
+#### ⭐⭐⭐ §6.8b — **THE REPLAY BROWSER, RUN AND SEEKED: the riskiest change works, and the guard is PROVEN LIVE there** *(`2026-09-11`)*
+
+🔒 **User:** *"pls try running replay browser in xvfb first, driven via HTTP, as the changes there were
+very likely the largest and breaking and it is worth testing if that runs at all now; maybe you can save
+some recording from a running cluster and try to open it there."*
+
+⭐⭐ **Why this run mattered more than §6.8a's.** §6.7 gave `ReplayBrowserSubsystem` a `NetworkEntityMap` it
+never had, rebuilt from ECS state at **every** seek/step/view-switch (`EnsureNetworkEntityMap`, called from
+the `RebindActiveRepo` choke point) — the one host where the change is structural rather than a field
+rename.
+
+| what was driven | result |
+|---|---|
+| ⭐ **the recording** — `--mode editor` on `8151`, `hill-attack` live, `/recording/start` *(preview)*, `sim/play` to **simTime 12.95**, `/recording/stop` | ✅ **50.5 MB `.fdp` + 24 KB `.meta.json`**, `3 671` frames. ⚠ `mode:"live"` recording answers `NOT_SUPPORTED_HERE: debug.recordReplay` on **every** cluster perspective *(`/capabilities`)* ⇒ the editor is the only recorder reachable here |
+| `POST /replay/load` into `--mode replaybrowser` on `8152` | ✅ `loaded:true, totalFrames:3671` |
+| ⭐⭐ **`seek` 0 → 500 → 1200 → 2500 → 3670**, each followed by `/replay/entities` | ✅ **`n=8` every time** — ⭐ i.e. the map is rebuilt from empty **five times** across a time-travelling world and the entity read stays correct |
+| `step` forward ×6 at the last frame, then `back` ×3 | ✅ `stepped:false` at the clamp, then `3669/3668/3667` |
+| `/panels` | ✅ **8 panels captured per frame** — the host is genuinely rendering, not idling |
+| `/replay/unload` | ✅ `unloaded:true` |
+| 🔒 **`GizmoAnchorIdentityException`** | ⭐⭐⭐ **ZERO** — and zero `exception`, `Unhandled`, `ERROR`, `FATAL` in the process log or the in-memory `/logs` |
+
+##### ⭐⭐⭐ AND THE ZERO IS NOT VACUOUS — **an inverse-edit RED-PROOF, in this process**
+
+⛔⛔ *"No exception"* is worthless unless the emitters actually ran — the `T-1` trap of a green rail over a
+dead path. 📐 So one temporary emitter was added to `ReplaySpatialBoundsGizmo.Draw` — a `Box2D` with
+`subElementId: 7, anchorId: 0`, the exact `Fail` branch — and the process **aborted on the first frame**:
+
+```
+Unhandled exception. Fdp.Toolkit.Diagnostics.Gizmos.GizmoAnchorIdentityException:
+  An interactive Box2D (SubElementId 7) carries NO IDENTITY (BoxAnchorId is zero). …
+  at DebugPrimitive.AssertHasIdentity        DebugPrimitive.cs:576
+  at DebugPrimitiveBuffer.AppendRaw          DebugPrimitiveBuffer.cs:74
+  at ReplayBrowserSubsystem.ReplaySpatialBoundsGizmo.Draw   ReplayBrowserSubsystem.cs:1128
+  at StatelessGizmoSystem.Execute            StatelessGizmoSystem.cs:107
+  at ReplayBrowserSubsystem.Update           ReplayBrowserSubsystem.cs:421
+```
+
+⇒ ⭐⭐ **Three things that stack are proven at once:** ① the ReplayBrowser's gizmo emission really runs every
+frame, through the real `StatelessGizmoSystem`; ② the central guard is armed **in this host**, not only in the
+editor; ③ it **fails fast and unhandled** — no scheduler `try/catch` swallows it, which is the `CE-188`
+disease this design's §6.8 was written against. ⭐ The edit was then reverted and the clean drive above re-run
+on the reverted build *(tree clean, `git status` empty)*.
+
+##### ⛔⛔ WHAT THIS RUN COULD NOT REACH — **a NEW capability gap, and it is the ReplayBrowser's**
+
+📐 Measured on `GET /capabilities` at `8152`: `providers=[]`, `matrix={}`, `routablePerspectives=[]`. The
+ReplayBrowser perspective serves `editor.authoring` *(hence `/replay/*` works)* but offers **neither
+`world.read`, `world.entityMap` nor `panels.gizmo`** ⇒
+
+| route | answer |
+|---|---|
+| `GET /panels/_gizmo` | ⛔ *"This host has no debug primitive buffer for the active perspective"* — **false in fact**: `_gizmoBuffer` is non-null and being filled *(the red-proof above threw out of it)*. ⚠ The message describes the **provider registry**, not the host |
+| `POST /annotations` ×3 | ⛔ *"No DebugPrimitiveBuffer for the active perspective"* — same cause |
+| `POST /entities/1001/focus` | ⛔ `NOT_SUPPORTED_HERE: world.read` |
+| `GET /entities/1001` | ⛔ `NOT_SUPPORTED_HERE: world.entityMap` |
+
+⇒ ⭐ **Filed as `CE-259am`.** It is the same shape as `CE-259al` *(no interaction is drivable)* but a
+different cause — there the bus is deliberately isolated, here the **perspective simply declares no
+providers**, so even the read-only gizmo/entity surface is dark. ⛔ **Consequence for this design:** the
+ReplayBrowser's primitive counts could not be *read*; the red-proof is what substitutes for it, and it is
+stronger evidence than a count would have been.
+
 ---
 
 ## 7. CONSTRAINTS
