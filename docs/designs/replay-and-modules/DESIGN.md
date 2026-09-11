@@ -291,6 +291,64 @@ invalidates. ⇒ this is that pattern applied to the other three.
 playback stays desirable *(it stops pointless work and the `BeginConstruction` throw)* but is no longer the
 thing correctness rests on. ⛔ **Neither half is built.** 📄 `CE-259ap`.
 
+#### 2.1e ⛔⛔⛔ THE SWEEP — **`ResumeFromRestoredState` AS PROPOSED IS NOT RELIABLE, for two measured reasons** *(`2026-09-11`)*
+
+🔒 **User:** *"do the sweep for `Dictionary<Entity,` in module fields, check if reconstructing on
+`resumeFromRestoredState` is reliable the way you suggest."* ⭐ It is not. Here is the measurement.
+
+📐 **Swept every production field of shape `Dictionary<Entity,…>` · `HashSet<Entity>` · `List<Entity>` ·
+`Queue<Entity>`** *(tests and examples excluded)*: **75 holders** across ~45 files. Classified by **what the
+holder DOES**, which is the property that decides whether a rewind hurts it:
+
+| class | count | does a restore invalidate it, and can it be RE-DERIVED? |
+|---|---|---|
+| **A — per-frame scratch** *(`_entityList`, `_toAdd*`, `_stale*`, `_visited`, `_destructionLog`, `_promotionQueue`/`_inQueue`)* | **15** | ✅ **safe, needs nothing** — rebuilt every frame. 📐 Verified for the one in the system this programme touched: `GhostPromotionSystem._inQueue` is removed from on dequeue |
+| 🔴🔴 **B — change-detection caches** *(`_last*`, `_known*`, `_prev*`, `_tracked*`)* | **17** | ⛔⛔ **CANNOT be re-derived — the world does not know what was SENT.** They can only be **INVALIDATED** |
+| **C — pending protocol promises** *(`_pending*`)* | **6** | ⚠ partly — *which* entities is derivable from `LifecycleState`; *how far the handshake got* is not, and must be restarted |
+| **D — bindings to external engine objects** *(`_visuals`, `_bodies`, `_bound`, `_routes`, `_active*`, `_injected*`)* | **8** | ✅ mostly self-heal — they reconcile by **liveness**, and the restore bumps generations so stale keys go dead and get pruned |
+| the remainder *(diag accumulators, guid maps, selection sets, debug history)* | ~29 | ✅ presentation/diagnostic — no simulation consequence |
+
+### 🔴 REASON 1 — **my three cases were all class C. The BIGGEST class was untouched.**
+
+⭐⭐ **15 of the 17 class-B holders are EGRESS TRANSLATORS.** After a rewind the cache says *"already
+published V"* while the restored world holds *V′* ⇒ the translator **skips the publish** ⇒ **peers never
+learn the restored state.** ⛔ Re-deriving is impossible in principle: the ECS world records what IS, never
+what was **sent**. ⭐ The only correct operation is to **clear** them, which forces a full baseline
+republish — safe, at the cost of one burst.
+
+⚠ **And that burst is a known, documented cost**: §3.10.4 describes the inverse *"scrub flood"* — *"severe
+DDS congestion and visual pop-in"* — so a resume-time baseline burst must be deliberate, not accidental.
+
+### 🔴 REASON 2 — **an ENUMERATING fix rots by construction**
+
+📐 75 holders across ~45 files **today**, and the pattern is idiomatic: every new egress translator adds a
+`_lastPublished…`. ⇒ ⛔ a hand-written `ResumeFromRestoredState()` that NAMES its holders is wrong the day
+someone adds the 76th, and nothing would tell them. 📌 The same shape as every under-adopted seam this
+programme keeps measuring.
+
+### ⭐⭐⭐ WHAT IS RELIABLE — **a boundary EVENT holders SUBSCRIBE to, which this design ALREADY PRESCRIBED**
+
+⭐⭐ §3.10.4 already specified exactly this, for exactly one holder: *"`ReferenceReplayLoadHandler` (or
+`PlaybackTickSystem`) must expose a `SeekCompleted` callback or event. `CycloneNetworkCleanupSystem`
+registers with this callback and clears `_trackedEntities` when a seek completes."*
+📐 **Measured `2026-09-11`: NOT BUILT** — `CycloneNetworkCleanupSystem._trackedEntities` exists, and no
+`SeekCompleted` hook exists anywhere.
+
+⇒ ⭐ **So the fix is to GENERALISE that prescription, not to invent a new entry point:** one boundary event
+raised on **seek** *and* on **`FinalizeReplay`/`PrepareLive`**, which holders opt into. ⭐ And the
+subscription is checkable — a rail can assert every class-B/C holder subscribes, which an enumeration in one
+method can never guarantee.
+
+| ⭐ the classification rule, so the next author decides correctly without reading this section | |
+|---|---|
+| **reconciles against the world every frame** *(liveness-checked)* | ✅ subscribe to nothing — the restore's generation bump prunes it |
+| **caches a VALUE it compares against** | ⛔ **subscribe and CLEAR** — it cannot be re-derived, and a stale entry SUPPRESSES a needed publish |
+| **holds a PROMISE it waits on** | ⛔ **subscribe and RESTART** — re-derive the set from `LifecycleState`, with a FRESH participant set *(§2.1d: restoring partial ack progress deadlocks)* |
+
+⇒ ⛔⛔ **`CE-259ap`'s earlier lean — "one `ResumeFromRestoredState()` pass re-deriving three things" — is
+SUPERSEDED by this.** It was right about class C and blind to class B, and it chose the one shape that
+cannot be kept true.
+
 ⚠⚠ **And four rails are GREEN over it** — `ReplayLoadClusterOpHandlerTests`, `LiveFromReplayTests`,
 `NodeBootstrapperReplayTests`, `FullBranchPipelineTests`, **12/12** — because they assert the flag and the
 group's `Enabled` **flip**, never that either has an **effect**. 📌 `R-142` ③'s shape: the setter is
