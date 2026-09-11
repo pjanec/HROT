@@ -379,6 +379,38 @@ identity component)*, and assert `C7` through one shared helper.
 
 ⭐ **`C7`'s policy question is now MOOT**: no tool emits an `EntityLocal` primitive, and with the helpers
 taking an **explicit network id** there is no path by which a `1L<<40` tool id reaches the key.
+### 6.5 ⭐⭐⭐ THE FIRST CONSUMER — **areas and routes are selectable and right-clickable by their lines** *(`CE-259ae`)*
+
+🔒 **User, `2026-09-11`:** *"polygon areas and routes entities should be selectable by clicking on their
+lines, also context menu by right clicking them."*
+
+⭐⭐⭐ **What made this a small change: BOTH HALVES WERE ALREADY BUILT AND MERELY UNREACHABLE.** Measured
+before writing anything — and this is the whole reason the diff is one helper plus two call sites:
+
+| half | ✅ how it already worked | what was missing |
+|---|---|---|
+| **selection** | `SelectionInteractionSystem.Tick` selects `evt.Token.Target`, with **no `GizmoTypeId` filter** | nothing — any pick primitive carrying the entity's ECS payload selects it |
+| **context menu** | `ContextMenuProjectorGizmo` *(`[GizmoProjector(NetworkIdentity)]`)* already emits **`MenuJsonArea`** for an `EditablePolyline` entity and **`MenuJsonRoute`** for a `RoutePlan`, bound by network id; the terminal's right-click arm resolves the menu from the **hit primitive's `BoxAnchorId`** | nothing |
+| **a pick target on the lines** | ⛔ `MapOverlayGizmo` / `TacticalAreaGizmo` emit **`Line` only**, and the hit-test serves `Box2D`/`Sphere` | 🔴 **this, and only this** |
+
+⭐ **The change:** one shared `EntityPresentationGizmoShared.EmitPickSegments(…)` — beside `EmitPickBox`,
+which is the same pattern for a point — emitting an invisible oriented pick box per edge via §6.4's
+`MakePickSegment`. ⚠ `MapOverlayGizmo` passes the `SimTransform` origin *(its points are RELATIVE)*;
+`TacticalAreaGizmo` passes `Vector2.Zero` *(ABSOLUTE)*; `IsClosed` tells an area from a route.
+
+| ⛔⛔ two things measurement decided, that guessing would have got wrong | |
+|---|---|
+| ⭐⭐⭐ **`SubElementId` MUST be 0** | an `EditablePolyline` entity may have a **`VertexEditGizmo` INJECTED**, and `DataDrivenGizmoSystem.FindGizmo` gives injected gizmos **strict priority, ignoring `GizmoTypeId` entirely** ⇒ a non-zero sub-element would reach `OnInteractionStarted`, whose `idx = SubElementId - 1` would **start dragging vertex `i`**. ⭐ With `0` it falls through that gizmo's `idx < 0` guard — and `0` already means *"the whole entity"*, which is what clicking a boundary selects |
+| ⭐⭐ **the z-order worry was BACKWARDS** | I first believed these would **steal an active tool's handles**, since the stateless group emits FIRST. 📐 The hit-test walks the buffer in **REVERSE**, so a layer-0 tie goes to the **LAST-emitted** primitive ⇒ the arbiter groups, running after stateless, still win. **`CE-259r` / §4.7i holds unchanged.** ⚠ Reading the loop direction is what stopped me "fixing" a non-problem |
+
+⭐ **Rails** *(`R-142` ④ — into `PresentationGizmoTests`, which already owned `SC-GZ058-5`)*:
+`SC-GZ058-6`/`6b` *(edge counts, closed vs open)*, **`7`** *(the requirement)*, `7b` *(every edge carries the
+same network id ⇒ the same menu whichever you click)*, `7c` *(inside the area but off the lines MISSES)*,
+`7d` *(no `NetworkIdentity` ⇒ no pick target, `C2`)*. **Red-proof: deleting the call reddens 4 of 11.**
+
+⚠ **Deliberately NOT done:** the menu CONTENT is whatever `ContextMenuProjectorGizmo` already defines, and
+clicking an edge does nothing gizmo-specific yet *(inserting a vertex there, say)* — ⭐ **searched `docs/`
+and `.dev/`, no record specifies such a gesture.**
 ---
 
 ## 7. CONSTRAINTS

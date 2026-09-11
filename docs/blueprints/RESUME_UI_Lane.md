@@ -127,6 +127,28 @@ current-answer: ⚠⚠ THERE ARE NOW **TWO** LIVE STRANDS ON THIS LANE. Read the
   🔴 ALSO FILED, latent: CE-259ad — the hit-test does not resolve EntityLocal coordinates (reads
   BoxCenterX/Y raw), so an EntityLocal pick target would draw in the right place and click in the wrong
   one. Same draw-vs-pick family. NOT live: every pick target is World-space today.
+  ✅✅✅ CE-259ae DONE 2026-09-11 — POLYGON AREAS AND ROUTES ARE SELECTABLE BY CLICKING THEIR LINES,
+  AND RIGHT-CLICKABLE FOR THEIR CONTEXT MENU. 🔒 User requirement, verbatim: "polygon areas and routes
+  entities should be selectable by clicking on their lines, also context menu by right clicking them."
+  ⭐⭐⭐ THE FINDING THAT MADE IT SMALL: both halves were ALREADY BUILT and merely UNREACHABLE.
+  SelectionInteractionSystem selects Token.Target with no GizmoTypeId filter; and
+  ContextMenuProjectorGizmo ALREADY emits MenuJsonArea (EditablePolyline) and MenuJsonRoute (RoutePlan)
+  bound by network id, with the terminal resolving the menu from the hit primitive's BoxAnchorId.
+  ⇒ nothing was missing but a PICK TARGET on the lines (both gizmos emitted Line only, and the
+  hit-test serves Box2D/Sphere). One shared EntityPresentationGizmoShared.EmitPickSegments, two call
+  sites, done. ⭐ Measure the seams before designing — that is what turned a feature into a helper.
+  ⛔⛔ SubElementId MUST be 0, and this was measured not guessed: an EditablePolyline entity may have a
+  VertexEditGizmo INJECTED, and FindGizmo gives injected gizmos STRICT PRIORITY ignoring GizmoTypeId
+  ⇒ a non-zero sub-element would make a click on edge i start DRAGGING VERTEX i. With 0 it falls
+  through that gizmo's idx<0 guard, and 0 already means "the whole entity".
+  ⚠⚠ A Z-ORDER WORRY I HAD BACKWARDS, worth remembering: I believed these would steal an active tool's
+  handles because the stateless group emits FIRST. The hit-test walks the buffer in REVERSE, so a
+  layer-0 tie goes to the LAST-emitted primitive ⇒ the arbiter groups still win and CE-259r/§4.7i
+  holds unchanged. Reading the loop direction stopped me "fixing" a non-problem.
+  ⚠ NOT done deliberately: the menu CONTENT is unchanged, and clicking an edge does nothing
+  gizmo-specific yet (insert a vertex there?) — searched docs/ and .dev/, no record specifies it.
+  ⭐ Also fixed a blind shared double: FullCapturingDrawBuilder inherited EmitRaw's DEFAULT NO-OP and
+  silently dropped every raw primitive, so rails using it were blind to pick boxes and bindings.
   ⛔ PROCESS FAILURE WORTH NOT REPEATING (the third of the day): HandleInput builds a pick token TWICE
   and the first S5 pass converted ONE arm. Every suite stayed green because the rails exercise the
   hit-test, not HandleInput. `scripts/find.sh 'AnchorGeneration != 0'` found it in one call. And the

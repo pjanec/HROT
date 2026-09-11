@@ -41,6 +41,12 @@ namespace Hrot.ScenarioEditor.Gizmos
                 var b = new Vector3(polyline.Points[(i + 1) % n].X, polyline.Points[(i + 1) % n].Y, 0f);
                 draw.DrawLine(a, b, AreaColor, 1.5f, SizeMode.ScreenPixels);
             }
+
+            // ⭐⭐⭐ CE-259ae — make the boundary CLICKABLE (select on left-click, context menu on
+            //   right-click). ⚠ origin is Vector2.Zero here: unlike MapOverlayGizmo, this gizmo's
+            //   points are ABSOLUTE world coordinates, not offsets from SimTransform.
+            EntityPresentationGizmoShared.EmitPickSegments(
+                draw, view, entity, polyline.Points, Vector2.Zero, isClosed: true);
         }
     }
 }
