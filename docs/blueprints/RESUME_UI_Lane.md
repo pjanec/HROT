@@ -96,6 +96,37 @@ current-answer: ⚠⚠ THERE ARE NOW **TWO** LIVE STRANDS ON THIS LANE. Read the
   co-located invisible Box2D/Sphere, which VertexEditGizmo and RouteWaypointGizmo already do.
   🔒 Both facts are PROVED by rails, not asserted: the second one writes the identity and watches the
   geometry die. Its first version asserted the opposite and failed — which is how the fact was found.
+  ✅✅✅ CE-259ac FIXED 2026-09-11 — LINES ARE CLICKABLE. 🔒 User: "what is the issue with clickability
+  of something as simple as a line? I do not want to accept it." ⭐⭐ THEY WERE RIGHT AND THIS IS THE
+  MOST INSTRUCTIVE MISS OF THE WHOLE PROGRAMME: my layout fact was TRUE ("a Line cannot host
+  BoxAnchorId" — LineEnd@36-47 + EndColor@48-51 vs BoxAnchorId@44-51) and I attached the WRONG
+  CONCLUSION to it. It argues against storing the identity INSIDE a Line — not against clickable
+  lines. ⛔ I generalised from ONE blocked route to "the capability is unavailable" without measuring
+  the others. That is R-139's failure mode with a measurement attached: a true file:line does not make
+  the inference from it true.
+  📐 Measuring the other routes found a REAL BUG, not a missing feature: the renderer has ALWAYS drawn
+  Box2D rotated (Renderer2D.cs:296 DrawRectanglePro, and :139 composes the anchor yaw) while the
+  hit-test compared AXIS-ALIGNED extents ⇒ a rotated box DREW ROTATED AND PICKED AXIS-ALIGNED. Latent
+  only because no production gizmo had set a non-zero angle yet.
+  ⭐ THE FIX, with NO contract change: an oriented-box hit-test (reduces exactly to the old compare at
+  angle 0) + DebugPrimitive.MakePickSegment(from, to, networkId, pickThickness, subElementId). A
+  clickable line IS a thin oriented box, and Box2D already carries centre, extents, angle, a 64-bit
+  BoxAnchorId and SubElementId@52 for "which segment". It is EmitPickBox's transparent-pick-target
+  pattern generalised from a point to a segment.
+  ⛔ Widening Line itself was checked and IS out: Stride/…/DebugPrimitiveRenderer3D.cs:222-223 needs
+  the full Vector3. That is the only part of my original analysis that survives.
+  ⚠⚠ AND THE RED-PROOF CAUGHT A FLAW IN MY OWN RAIL, worth remembering: my first rail probed the
+  diagonal's MIDPOINT, which hits with or without the rotation — the inverse edit stayed GREEN and
+  exposed it. It also corrected my description of the bug: an un-rotated segment box is NOT "the
+  bounding square" — extents are (length/2, thickness/2), so ignoring the angle leaves a long thin
+  corridor ALONG THE X AXIS through the midpoint whatever direction the segment runs. Rails now probe
+  off-centre; the red-proof reddens 2 of 11.
+  🔴 STILL OPEN, and it is a UX CALL not work: no gizmo is wired to USE clickable lines yet. Searched
+  docs/ and .dev/ — NO record says what clicking an edge should DO (insert a vertex at that point?
+  select the segment?). The mechanism is delivered and railed; the gesture semantics need one decision.
+  🔴 ALSO FILED, latent: CE-259ad — the hit-test does not resolve EntityLocal coordinates (reads
+  BoxCenterX/Y raw), so an EntityLocal pick target would draw in the right place and click in the wrong
+  one. Same draw-vs-pick family. NOT live: every pick target is World-space today.
   ⛔ PROCESS FAILURE WORTH NOT REPEATING (the third of the day): HandleInput builds a pick token TWICE
   and the first S5 pass converted ONE arm. Every suite stayed green because the rails exercise the
   hit-test, not HandleInput. `scripts/find.sh 'AnchorGeneration != 0'` found it in one call. And the

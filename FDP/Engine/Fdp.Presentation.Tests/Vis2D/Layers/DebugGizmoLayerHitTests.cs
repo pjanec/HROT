@@ -42,17 +42,13 @@ namespace Fdp.Toolkit.Vis2D.Tests.Layers
         private static (int Index, ushort Generation)? Pick(DebugPrimitive p, Vector2 at, float zoom = 1f)
             => GizmoMap.Presentation.DebugGizmoLayer.PickTopmostEntityAnchor(new[] { p }, at, zoom);
 
-        // ⛔⛔ MEASURED 2026-09-10 — A CAPABILITY THE MIGRATION DROPPED, and these rails were its only
-        //   record. SC-GZ026-1/2/4 originally hit-tested a LINE. The live hit-test
-        //   (GizmoMap.Presentation.DebugGizmoLayer.FindTopmostInteractivePrimitive) handles
-        //   **Box2D and Sphere ONLY** — bindings are skipped and every other shape falls through as a
-        //   miss (matching DESIGN_Gizmo_Anchor_Identity.md §2 ⑯b). ⇒ a Line is UNPICKABLE today.
-        //   🔒 R-137 — unification may not cost a capability — so the loss is FILED (CE-259ac), not
-        //     silently accepted, and not re-implemented here on a rail's say-so: whether gizmo lines
-        //     should be pickable is a UX decision with an owner, and no design record asks for it.
-        //   ⭐ The GEOMETRY these rails existed to protect — inside/outside an extent, and a
-        //     screen-pixel radius that scales with zoom — is preserved below on Box2D, the shape the
-        //     live hit-test actually serves.
+        // 📌 HISTORY, 2026-09-10 → 2026-09-11. SC-GZ026-1/2/4 originally hit-tested a LINE, and the live
+        //   hit-test served Box2D and Sphere only ⇒ a capability the terminal migration had dropped
+        //   (R-137). It was filed as CE-259ac and I proposed ACCEPTING it. 🔴 The user declined, and was
+        //   right: the layout fact (a Line cannot host BoxAnchorId) argued against storing the identity
+        //   INSIDE a Line — not against clickable lines. ⭐ CE-259ac is now FIXED via an oriented-box
+        //   hit-test + DebugPrimitive.MakePickSegment; see SC-GZ026-5..5e below.
+        //   ⭐ These first rails stay on Box2D, which is the right shape for an extent test.
 
         // SC-GZ026-1: a click inside a Box2D's extent hits, and reports that box's anchor.
         [Fact]
@@ -83,17 +79,103 @@ namespace Fdp.Toolkit.Vis2D.Tests.Layers
             Assert.Null(Pick(p, new Vector2(110f, 0f)));
         }
 
-        // SC-GZ026-2b: 🔒 the dropped capability, pinned so it cannot be lost twice. A Line is NOT
-        // pickable — if someone implements line hit-testing this reddens, which is the moment to close
-        // CE-259ac and restore SC-GZ026-1/2 in their original Line form.
-        [Fact]
-        public void SC_GZ026_2b_ALineIsNotPickable_CE259ac()
-        {
-            var p = Anchored(DebugPrimitiveShape.Line, SizeMode.WorldMeters);
-            p.LineStart = new Vector3(0f, 0f, 0f);
-            p.LineEnd   = new Vector3(100f, 0f, 0f);
+        // ✅✅ SC-GZ026-2b REPLACED 2026-09-11 — CE-259ac is FIXED, so the pin that said "a Line is not
+        //   pickable" is gone and the rails below assert the capability instead.
+        //   🔒 User ruling: "what is the issue with clickability of something as simple as a line?
+        //     I do not want to accept it." ⇒ and the honest answer was: nothing. The hit-test had only
+        //     ever implemented two shapes and never learned rotation.
+        //   ⭐ A clickable segment is a THIN ORIENTED BOX (DebugPrimitive.MakePickSegment) — the same
+        //     pattern EntityPresentationGizmoShared.EmitPickBox already uses for a point, generalised.
 
-            Assert.Null(Pick(p, new Vector2(50f, 0f)));   // dead centre of the segment
+        // SC-GZ026-5: 🔴🔴 THE ONE THAT DISCRIMINATES — a click on a diagonal segment AWAY FROM ITS
+        //   MIDPOINT picks it.
+        //   ⛔ RED-PROOF SHAPE (verified 2026-09-11): set `rad = 0f` in the oriented-box branch of
+        //      FindTopmostInteractivePrimitive and BOTH probes below MISS.
+        //   📌 And here is what the old bug actually WAS, which my first version of this rail got
+        //      wrong: an un-rotated reading of a segment box does NOT give "the segment's bounding
+        //      square". MakePickSegment yields extents (length/2, thickness/2) = (70.7, 1) here, so
+        //      ignoring the angle leaves a 141-long, 2-thick corridor ALONG THE X AXIS through the
+        //      midpoint — whatever direction the segment actually runs. ⇒ you could only ever click a
+        //      diagonal near its middle, and only horizontally. That is why probing the MIDPOINT
+        //      (50,50) proves nothing: it hits either way. These probes are off-centre on purpose.
+        [Theory]
+        [InlineData(75f, 75f)]
+        [InlineData(25f, 25f)]
+        public void SC_GZ026_5_PickSegment_OffCentreOnTheLine_IsHit(float x, float y)
+        {
+            var p = DebugPrimitive.MakePickSegment(
+                new Vector2(0f, 0f), new Vector2(100f, 100f),
+                networkId: 90210L, pickThickness: 2f,
+                sizeMode: SizeMode.WorldMeters,
+                anchorIndex: 99, anchorGeneration: 1);
+
+            var hit = Pick(p, new Vector2(x, y));
+
+            Assert.NotNull(hit);
+            Assert.Equal(99, hit!.Value.Index);
+        }
+
+        // SC-GZ026-5b: and a click well off the diagonal misses — the corridor is narrow, not a square.
+        // ⚠ NOT a red-proof: these miss with or without the rotation (see SC-GZ026-5's note). They pin
+        //   the thickness, which is worth pinning on its own.
+        [Fact]
+        public void SC_GZ026_5b_PickSegment_OffTheLine_IsMiss()
+        {
+            var p = DebugPrimitive.MakePickSegment(
+                new Vector2(0f, 0f), new Vector2(100f, 100f),
+                networkId: 90210L, pickThickness: 2f,
+                sizeMode: SizeMode.WorldMeters);
+
+            Assert.Null(Pick(p, new Vector2(95f, 5f)));    // bounding-box corner, far from the line
+            Assert.Null(Pick(p, new Vector2(5f, 95f)));    // and the other one
+        }
+
+        // SC-GZ026-5c: the segment's identity and sub-element survive — so a route can tell WHICH edge
+        // was clicked, which is the whole point of making them clickable.
+        [Fact]
+        public void SC_GZ026_5c_PickSegment_CarriesIdentityAndSubElement()
+        {
+            var p = DebugPrimitive.MakePickSegment(
+                new Vector2(0f, 0f), new Vector2(10f, 0f),
+                networkId: 90210L, subElementId: 7);
+
+            var token = GizmoMap.Presentation.DebugGizmoLayer.MakePickToken(in p);
+
+            Assert.Equal(90210L, token.AnchorId);     // the S5 identity, full 64-bit
+            Assert.Equal(7u,     token.SubElementId); // which segment
+        }
+
+        // SC-GZ026-5d: the geometry is honest — a click beyond an endpoint misses, and the pick
+        // corridor is as narrow as asked. ⭐ Paired with 5 so neither "always hits" nor "always misses"
+        // can pass.
+        [Fact]
+        public void SC_GZ026_5d_PickSegment_RespectsLengthAndThickness()
+        {
+            var p = DebugPrimitive.MakePickSegment(
+                new Vector2(0f, 0f), new Vector2(100f, 0f),
+                networkId: 90210L, pickThickness: 2f,
+                sizeMode: SizeMode.WorldMeters,
+                anchorIndex: 99, anchorGeneration: 1);
+
+            Assert.NotNull(Pick(p, new Vector2(50f, 0f)));    // on it
+            Assert.Null(Pick(p, new Vector2(140f, 0f)));      // past the end, beyond the grace radius
+            Assert.Null(Pick(p, new Vector2(50f, 40f)));      // well off to the side
+        }
+
+        // SC-GZ026-5e: ⭐ a zero-angle segment behaves EXACTLY as the old axis-aligned test did —
+        // the rotation term must be a generalisation, not a behaviour change for existing boxes.
+        [Fact]
+        public void SC_GZ026_5e_ZeroAngleBox_IsUnchangedByTheOrientedTest()
+        {
+            var p = Anchored(DebugPrimitiveShape.Box2D, SizeMode.WorldMeters);
+            p.BoxCenterX = 50f;
+            p.BoxCenterY = 0f;
+            p.BoxExtentX = 8f;
+            p.BoxExtentY = 8f;
+            p.BoxAngleDeg = 0f;
+
+            Assert.NotNull(Pick(p, new Vector2(54f, 4f)));    // inside the extent
+            Assert.Null(Pick(p, new Vector2(80f, 0f)));       // outside it
         }
 
         // SC-GZ026-3: a click within SphereRadius of the centre hits.

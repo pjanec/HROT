@@ -1,3 +1,4 @@
+using System;
 using System.Numerics;
 using System.Runtime.InteropServices;
 
@@ -319,6 +320,65 @@ namespace Fdp.Toolkit.Diagnostics.Gizmos
         {
             var p = MakeBox2D(center, extents, color, angleDeg, thickness, sizeMode, target, layer, fillColor, style, networkId, subElementId);
             p.AnchorIndex = anchorIndex;
+            p.AnchorGeneration = anchorGeneration;
+            return p;
+        }
+
+        /// <summary>
+        /// ⭐⭐⭐ <b><c>CE-259ac</c> — A CLICKABLE LINE SEGMENT.</b> Returns a <see cref="DebugPrimitiveShape.Box2D"/>
+        /// oriented along <paramref name="from"/>→<paramref name="to"/>, <paramref name="pickThickness"/>
+        /// wide, so the terminal's hit-test picks the SEGMENT and not its bounding square.
+        ///
+        /// <para>⛔⛔ <b>Why a box and not a pickable <c>Line</c>.</b> A <c>Line</c> physically cannot carry
+        /// an identity: its payload is <c>LineStart</c> @24-35 + <c>LineEnd</c> @36-47 with <c>EndColor</c>
+        /// @48-51, while <see cref="BoxAnchorId"/> — the field the hit-test routes on — is a <c>long</c>
+        /// @44-51 and overlaps both. Narrowing <c>LineEnd</c> to 2D would free exactly those 8 bytes, but
+        /// <c>Stride/Hrot.Stride.Core/DebugPrimitiveRenderer3D.cs:222-223</c> draws lines from the full
+        /// <c>Vector3</c>, so that is not available. ⇒ ⭐ a <c>Box2D</c> already has every field needed —
+        /// centre, extents, <b>angle</b>, a full 64-bit <c>BoxAnchorId</c>, and <c>SubElementId</c> @52 for
+        /// "which segment" — so no new shape and no layout change are required.</para>
+        ///
+        /// <para>⭐⭐ <b>This is the established pattern, generalised from a point to a segment.</b>
+        /// <c>EntityPresentationGizmoShared.EmitPickBox</c> already gives an entity a fully transparent
+        /// 8×8 <c>Box2D</c> purely as a pick target, separate from its visual. Emit your pretty
+        /// <c>Line</c> (dashed, gradient, whatever) for looks and one of these for picking — or pass a
+        /// visible colour and let this BE the visual, since the renderer draws rotated boxes correctly.</para>
+        ///
+        /// <para>⚠ Requires the oriented-box hit-test (<c>DebugGizmoLayer.FindTopmostInteractivePrimitive</c>).
+        /// Before <c>2026-09-11</c> that test was axis-aligned, which is why lines were unpickable and why a
+        /// rotated box drew rotated but picked square.</para>
+        /// </summary>
+        /// <param name="pickThickness">Full width of the pick corridor in world units (not a half-extent).
+        /// The terminal adds its own ~5px grace radius on top, so a value of 0 still picks a thin line.</param>
+        public static DebugPrimitive MakePickSegment(
+            Vector2 from, Vector2 to,
+            long networkId,
+            float pickThickness = 0f,
+            ushort subElementId = 0,
+            Rgba32 color = default,
+            int anchorIndex = 0, ushort anchorGeneration = 0,
+            SizeMode sizeMode = SizeMode.ScreenPixels,
+            PipelineTarget target = PipelineTarget.Map2D,
+            byte layer = 0)
+        {
+            var d = to - from;
+            float length = MathF.Sqrt(d.X * d.X + d.Y * d.Y);
+            // ⭐ A degenerate segment is a point: keep it pickable rather than emitting a zero-area box
+            //   that only the grace radius could ever hit at exactly one spot.
+            float angleDeg = length > 0f ? MathF.Atan2(d.Y, d.X) * (180f / MathF.PI) : 0f;
+
+            var p = MakeBox2D(
+                center: (from + to) * 0.5f,
+                extents: new Vector2(length * 0.5f, pickThickness * 0.5f),
+                color: color,
+                angleDeg: angleDeg,
+                thickness: 1f,
+                sizeMode: sizeMode,
+                target: target,
+                layer: layer,
+                anchorId: networkId,
+                subElementId: subElementId);
+            p.AnchorIndex      = anchorIndex;        // in-process payload only (see GizmoPickToken.cs)
             p.AnchorGeneration = anchorGeneration;
             return p;
         }

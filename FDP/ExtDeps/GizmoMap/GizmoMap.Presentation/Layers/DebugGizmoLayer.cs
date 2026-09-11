@@ -543,9 +543,28 @@ namespace GizmoMap.Presentation
 
                 if (prim.Shape == DebugPrimitiveShape.Box2D)
                 {
-                    float dx = Math.Abs(testPos.X - prim.BoxCenterX);
-                    float dy = Math.Abs(testPos.Y - prim.BoxCenterY);
-                    hit = dx <= (prim.BoxExtentX + hitRadius) && dy <= (prim.BoxExtentY + hitRadius);
+                    // ⭐⭐⭐ CE-259ac — AN ORIENTED-BOX TEST. The renderer has ALWAYS drawn Box2D rotated
+                    //   (DebugPrimitiveRenderer2D.cs:296 Raylib.DrawRectanglePro(..., prim.BoxAngleDeg, ...),
+                    //   and :139 even composes the anchor's yaw for EntityLocal) while this test compared
+                    //   axis-aligned extents. ⇒ 🔴 A ROTATED BOX DREW ROTATED AND PICKED AXIS-ALIGNED:
+                    //   draw and pick disagreed, which is a defect in its own right. Latent only because
+                    //   no production gizmo had set a non-zero angle yet — and the moment one does, a
+                    //   diagonal box's pick area is its bounding square.
+                    //   ⭐ It is also what makes A LINE CLICKABLE: a clickable segment IS a thin oriented
+                    //     box, so with this the terminal needs no new shape and DebugPrimitive needs no
+                    //     new field. See DebugPrimitive.MakePickSegment.
+                    //   ⭐ Reduces EXACTLY to the old comparison when BoxAngleDeg == 0.
+                    float lx = testPos.X - prim.BoxCenterX;
+                    float ly = testPos.Y - prim.BoxCenterY;
+                    if (prim.BoxAngleDeg != 0f)
+                    {
+                        // Rotate the probe INTO box space (i.e. by -angle).
+                        float rad = -prim.BoxAngleDeg * (MathF.PI / 180f);
+                        float c = MathF.Cos(rad), sn = MathF.Sin(rad);
+                        (lx, ly) = (lx * c - ly * sn, lx * sn + ly * c);
+                    }
+                    hit = Math.Abs(lx) <= (prim.BoxExtentX + hitRadius)
+                       && Math.Abs(ly) <= (prim.BoxExtentY + hitRadius);
                 }
                 else if (prim.Shape == DebugPrimitiveShape.Sphere)
                 {
