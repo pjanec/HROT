@@ -296,15 +296,32 @@ thing correctness rests on. ⛔ **Neither half is built.** 📄 `CE-259ap`.
 🔒 **User:** *"do the sweep for `Dictionary<Entity,` in module fields, check if reconstructing on
 `resumeFromRestoredState` is reliable the way you suggest."* ⭐ It is not. Here is the measurement.
 
-📐 **Swept every production field of shape `Dictionary<Entity,…>` · `HashSet<Entity>` · `List<Entity>` ·
-`Queue<Entity>`** *(tests and examples excluded)*: **75 holders** across ~45 files. Classified by **what the
-holder DOES**, which is the property that decides whether a rewind hurts it:
+🔴🔴🔴 **CORRECTED `2026-09-11`, SAME DAY — THE SWEEP BELOW WAS TOO NARROW AND ITS COUNTS ARE WRONG.**
+🔒 User: *"are you using codebase memory as companion to grep which is known to omit lots of occurrences?"*
+⛔ **I ran it on bare grep.** Re-running with `search_code` and then **reading** each field instead of
+bucketing by name found three defects, and **the dominant one was my own query design, not grep**:
+
+| # | what was wrong | proof |
+|---|---|---|
+| **①** | ⛔⛔ **the SHAPE was too narrow — I swept only `Dictionary<Entity,…>`.** Per-entity state keyed by **NETWORK ID** (`Dictionary<long,…>`) is equally per-entity and equally rewind-sensitive | 🔴 **`CycloneNetworkCleanupSystem._trackedEntities` is `Dictionary<long, Entity>`** ⇒ **my sweep would have missed the very holder §3.10.4 already names.** So is **`EntityRequestFinalizationSystem._tracked`** — pending entity-creation requests, in the pack `P2` just extended |
+| **②** | ⛔ **I bucketed by NAME PATTERN** (`_last*`/`_known*`/`_prev*`/`_tracked*`), so class B under-counted | `MapRouteEgressTranslator._publishedVersions` is a textbook change-detection cache and matched none of those prefixes |
+| **③** | ⚠ **a third shape exists: ECS components marked `Transient`** — not a field sweep at all | `EgressPublicationState.LastPublishedTickMap` is exactly a class-B cache living inside a component the recorder omits *(§2.1d)* |
+| ⭐ | grep-vs-graph was NOT the main error | `search_code` found 7 files grep's modifier-anchored regex dropped — 📐 **all locals, not cross-frame fields**, so the file coverage held. ⛔ The damage came from ① and ② |
+
+⇒ ⭐⭐⭐ **AND THAT IS THE ARGUMENT, NOT A FOOTNOTE: if three sweeps by an author who knew what he was
+looking for still missed the design's own example, NO enumeration can bound this set.** ⛔ A
+`ResumeFromRestoredState()` listing holders is unmaintainable **by demonstration**, not by prediction.
+⇒ 🔒 **the seam must be SUBSCRIBE-based, with a rail asserting subscription** — §3.10.4's own prescription.
+
+📐 **The classification below is therefore QUALITATIVE — the classes are right, the counts are a FLOOR,
+not a total.** Swept `Dictionary<Entity,…>` · `HashSet<Entity>` · `Queue<Entity>` fields (tests/examples
+excluded), classified by **what the holder DOES**:
 
 | class | count | does a restore invalidate it, and can it be RE-DERIVED? |
 |---|---|---|
 | **A — per-frame scratch** *(`_entityList`, `_toAdd*`, `_stale*`, `_visited`, `_destructionLog`, `_promotionQueue`/`_inQueue`)* | **15** | ✅ **safe, needs nothing** — rebuilt every frame. 📐 Verified for the one in the system this programme touched: `GhostPromotionSystem._inQueue` is removed from on dequeue |
-| 🔴🔴 **B — change-detection caches** *(`_last*`, `_known*`, `_prev*`, `_tracked*`)* | **17** | ⛔⛔ **CANNOT be re-derived — the world does not know what was SENT.** They can only be **INVALIDATED** |
-| **C — pending protocol promises** *(`_pending*`)* | **6** | ⚠ partly — *which* entities is derivable from `LifecycleState`; *how far the handshake got* is not, and must be restarted |
+| 🔴🔴 **B — change-detection caches** *(`_last*`, `_published*`, `_known*`, `_prev*`, `_tracked*`)* | **≥ 20** | ⛔⛔ **CANNOT be re-derived — the world does not know what was SENT.** They can only be **INVALIDATED.** ⚠ Known additions the first pass missed: `MapRouteEgressTranslator._publishedVersions` · `CycloneNetworkCleanupSystem._trackedEntities` *(network-id keyed)* · `EntityDamageEgressTranslator._lastPublished` · `MissionControlExecutionSystem._missionVersions`/`_taskOrder` · `EgressPublicationState.LastPublishedTickMap` *(inside a `Transient` component)* |
+| **C — pending protocol promises** *(`_pending*`, `_tracked`)* | **≥ 10** | ⚠ partly — *which* entities is derivable from `LifecycleState`; *how far the handshake got* is not, and must be restarted. ⚠ Additions the first pass missed: 🔴 **`EntityRequestFinalizationSystem._tracked`** *(pending entity-creation requests — in the pack `P2` extended)* · `EntityInfoIngressTranslator._pendingSubordinates`/`_pendingUnspawnedSubordinates` · `MapRouteIngressTranslator._pendingRoutes` · `MapVisualOverlayIngressTranslator._pendingOverlays` · `BinaryGhostStore.StashedData` |
 | **D — bindings to external engine objects** *(`_visuals`, `_bodies`, `_bound`, `_routes`, `_active*`, `_injected*`)* | **8** | ✅ mostly self-heal — they reconcile by **liveness**, and the restore bumps generations so stale keys go dead and get pruned |
 | the remainder *(diag accumulators, guid maps, selection sets, debug history)* | ~29 | ✅ presentation/diagnostic — no simulation consequence |
 
@@ -319,12 +336,16 @@ republish — safe, at the cost of one burst.
 ⚠ **And that burst is a known, documented cost**: §3.10.4 describes the inverse *"scrub flood"* — *"severe
 DDS congestion and visual pop-in"* — so a resume-time baseline burst must be deliberate, not accidental.
 
-### 🔴 REASON 2 — **an ENUMERATING fix rots by construction**
+### 🔴 REASON 2 — **an ENUMERATING fix rots by construction, and this section is the PROOF**
 
-📐 75 holders across ~45 files **today**, and the pattern is idiomatic: every new egress translator adds a
-`_lastPublished…`. ⇒ ⛔ a hand-written `ResumeFromRestoredState()` that NAMES its holders is wrong the day
-someone adds the 76th, and nothing would tell them. 📌 The same shape as every under-adopted seam this
-programme keeps measuring.
+📐 Dozens of holders across ~45 files **today**, in **at least three shapes** *(`Entity`-keyed fields,
+network-id-keyed fields, and caches inside `Transient` components)*, and the pattern is idiomatic: every new
+egress translator adds a `_lastPublished…`. ⇒ ⛔ a hand-written `ResumeFromRestoredState()` that NAMES its
+holders is wrong the day someone adds the next one, and nothing would tell them.
+⭐⭐⭐ **The correction block at the top of this section is the demonstration:** three sweeps by an author
+who knew the target still missed `CycloneNetworkCleanupSystem._trackedEntities` — **the one holder this
+design had already named** — and `EntityRequestFinalizationSystem._tracked`, in the pack that had just been
+edited. 🔒 **If the enumeration cannot be produced reliably by hand, it cannot be MAINTAINED by hand.**
 
 ### ⭐⭐⭐ WHAT IS RELIABLE — **a boundary EVENT holders SUBSCRIBE to, which this design ALREADY PRESCRIBED**
 
