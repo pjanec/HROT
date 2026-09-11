@@ -132,6 +132,53 @@ is keeps executing)* and `TheReplayPathWiresNoWorldStateFreeze_AndIngressIsNever
 ⭐ Both inverse-edit red-proofed: putting the probe inside the group reddens the first, and wrapping one
 module's ingress in a `TogglableInputGroup` reddens the second.
 
+#### 2.1b ⭐⭐⭐ WHY PROMOTING A REPLAYED GHOST IS WRONG — **it is not the ECS writes** *(measured `2026-09-11`)*
+
+🔒 **The user's question, and it is the right one:** *"What is wrong about promoting a ghost from replay?
+How does replay work? Does it replay the lifecycle state?"*
+
+⭐⭐ **YES — replay replays the lifecycle state, and that is exactly why the ECS half is harmless.**
+`PlaybackSystem.ApplyFrame` restores **raw chunks by index** each frame:
+
+| what is restored | how |
+|---|---|
+| component masks | the **hot** chunk, `typeId == -1` → `RestoreHotChunkFromBuffer` |
+| ⭐ **entity metadata, incl. `LifecycleState`** | the **cold** chunk, `typeId == -2` → `RestoreColdChunkFromBuffer`; `EntityMetadataCold.LifecycleState` sits at `[FieldOffset(84)]` |
+| component data | one chunk per registered component type |
+| ⭐ **event buffers** | `ReadAndInjectEvents` + `eventBus.ClearCurrentBuffers()` |
+| the whole world, on a keyframe | `repo.Clear()` (`frameType == 1`) |
+
+⇒ ⭐ **three of `PromoteGhost`'s four effects are OVERWRITTEN by the log** — the TKB `Inject` writes,
+`SetLifecycleState(Constructing)` and the `GhostStateTracker` removal. **Redundant, not corrupting.**
+
+### 🔴🔴 THE HARM IS THE FOURTH EFFECT — **a stateful protocol the log cannot rewind**
+
+`PromoteGhost` ends in `_lifecycleModule.BeginConstruction(...)`, and that call:
+
+| | |
+|---|---|
+| inserts into **`EntityLifecycleModule._pendingConstruction`** | a plain `Dictionary<Entity, PendingConstruction>` — ⛔ **not ECS state, so never recorded and never restored** |
+| ⛔⛔ **throws if the entity is already there** | `if (_pendingConstruction.ContainsKey(entity)) throw new InvalidOperationException($"Entity {entity.Index} already in construction")` |
+| 📐 and nothing resets it | `EntityLifecycleModule` has **no** `Clear()`/`Reset()`, and `ReferenceReplayLoadHandler`, `ReplayModule` and `EcsRecordReplayController` contain **zero** references to the ELM |
+
+⇒ 🔒 **THE WORLD REWINDS; THE ELM DOES NOT.** Frame *N* promotion registers the entity as pending; the log
+restores it to `Ghost`; frame *N+1* promotion calls `BeginConstruction` again ⇒ **throw** — and with
+`FdpConfig.FailFastOnModuleException` defaulting `true` and `SystemScheduler.ExecuteSystem`'s `try/catch`
+commented out, it **surfaces** rather than being swallowed.
+
+⚠ **Conditional, and the conditions are characteristic of replay.** `DrainInstantComplete` clears the entry
+only when `RemainingAcks.Count == 0 && currentFrame > StartFrame`, so it sticks when either the node has ELM
+participants whose acks never arrive during playback, or — ⭐ **the replay-specific one** — **a SEEK rewinds
+the replayed frame counter so `currentFrame > StartFrame` goes FALSE**, which is what seeking *is*.
+
+⇒ ⭐⭐⭐ **This is why §2.1's gate named `LifecycleSystem` AND `GhostPromotionSystem` together:** both drive
+that same non-recorded protocol, and the ack drainer is ungated during replay for the identical reason.
+⛔ Neither was ever passed to the group.
+
+⛔⛔ **And "how often does a recording capture a mid-flight ghost" is NOT a question worth asking** — 🔒 user:
+*"if it can happen, it will one day. Who cares how often, needs to be handled every time."* An earlier note
+here asked it; struck.
+
 ⚠⚠ **And four rails are GREEN over it** — `ReplayLoadClusterOpHandlerTests`, `LiveFromReplayTests`,
 `NodeBootstrapperReplayTests`, `FullBranchPipelineTests`, **12/12** — because they assert the flag and the
 group's `Enabled` **flip**, never that either has an **effect**. 📌 `R-142` ③'s shape: the setter is
