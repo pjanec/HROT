@@ -590,6 +590,39 @@ were right:**
 🔒 **The lesson, stated plainly: `T-1` did its job.** The feature's own suite reddened on a regression I
 had already written a confident design paragraph about. ⛔ I would have shipped it.
 
+#### ⭐⭐ A NARROWING THIS CREATED, AND THE GUARD THAT CLOSES IT *(asked `2026-09-11`: "does that apply to entities having network id but emitting pick boxes with sub-ids?")*
+
+⭐⭐⭐ **No — a sub-element handle on an entity that HAS a network id is completely unaffected**, and the
+reason is structural: **identity and sub-element have always lived in different fields** — `BoxAnchorId`
+@44 and `SubElementId` @52. 📐 All three production sub-element emitters stamp both
+*(`VertexEditGizmo.cs:145`, `RouteWaypointGizmo.cs:135`, and `GizmoMap.Example`'s copy)*, and the routing
+is byte-for-byte what it was: the token carries `AnchorId` *(which entity)* + `SubElementId` *(which
+handle)*, the consumer resolves the entity, and the injected gizmo reads `token.SubElementId`.
+
+⚠⚠ **But measuring the question found the failure mode is SHARPER than "stops being pickable", and that
+correction matters.** For a primitive with `SubElementId != 0` and **`BoxAnchorId == 0`**:
+
+| | |
+|---|---|
+| ⛔ it still passes the terminal's interactivity **pre-filter** | `FindTopmostInteractivePrimitive`: a non-zero `SubElementId` admits it |
+| ⇒ it **WINS the hit-test** and consumes the click through a proxy tool | |
+| ⇒ then yields a token with `AnchorId == 0`, which resolves to no entity and reaches no gizmo | |
+| ⇒ 🔴 **the click is SWALLOWED, and whatever sits underneath is BLOCKED — silently** | ⛔ worse than inert. Before §6.7 the ECS payload carried the entity, so this shape still worked |
+
+📐 **Reachability, measured rather than assumed:** `ScenarioToolRegistrations.ToggleEntityGizmo` passed
+`NetworkIdOf(w, e)` with **no guard**, so a `0` was structurally possible. ✅ **Unreachable in production
+today — but only TRANSITIVELY:** the tool's target is the primary selection
+*(`ToolActivationDrainSystem:116`)*, and selection now resolves an anchor id, so an unreplicated entity
+cannot become the target. ⛔⛔ **That is a property of ANOTHER subsystem, not of this call** — exactly the
+kind of accidental safety that breaks the day selection changes.
+
+⇒ ⭐ **Closed with a stated guard at the site that holds the id** *(the silent-default rule in its inverse
+form: a caller that HAS the value must check it)*: `Edit Shape` / `Edit Route` now **refuse** an entity
+with no network identity and **report why**, instead of arming handles that eat clicks. ⭐ Railed as a
+PAIR in the controller's own suite — `AnEntityWithNoNetworkIdentityCannotArmAnEditHandleTool` plus
+`AReplicatedEntityStillArmsTheEditHandleTool` so the guard cannot over-refuse; **red-proof: deleting the
+guard reddens the first and leaves the second green.**
+
 #### ⛔ WHAT THIS DID **NOT** FIX — *filed, not silently widened*
 
 📌 Measured while enumerating the handle writes: **`DrawEntityBadge` writes `target.Index`/`.Generation`

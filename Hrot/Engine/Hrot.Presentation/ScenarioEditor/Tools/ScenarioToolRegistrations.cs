@@ -148,6 +148,26 @@ namespace Hrot.ScenarioEditor.Tools
                 if (!w.HasManagedComponent<TComponent>(e))
                     return Unserviceable(tool, $"the selected entity has no {typeof(TComponent).Name}");
 
+                // ⭐⭐⭐ §6.7 — ARM ONLY WITH A REAL ANCHOR ID, because these gizmos' handles are
+                //   identified by it: VertexEditGizmo.cs:145 and RouteWaypointGizmo.cs:135 stamp
+                //   `BoxAnchorId = _networkId` beside `SubElementId = i + 1`.
+                //   ⛔⛔ WITHOUT THIS GUARD a netId of 0 produces handles that are WORSE than
+                //     unpickable: `SubElementId != 0` still passes the terminal's interactivity
+                //     pre-filter, so a handle WINS the hit-test and consumes the click through a proxy
+                //     tool — and then yields a token with `AnchorId == 0`, which resolves to no entity
+                //     and reaches no gizmo. ⇒ the click is swallowed AND whatever is underneath is
+                //     blocked, silently. 📐 Before §6.7 the ECS payload carried the entity, so netId 0
+                //     still worked; deleting the payload is what made this shape fail.
+                //   ⚠ Measured unreachable TODAY, and only TRANSITIVELY: the target is the primary
+                //     selection (ToolActivationDrainSystem:116) and selection now resolves an anchor id,
+                //     so an unreplicated entity cannot become the target. ⛔ That is a property of
+                //     ANOTHER subsystem, not of this call — which is exactly the kind of accidental
+                //     safety this guard replaces with a stated one. 🔒 The caller HAS the id; it must
+                //     check it (the silent-default rule, in its inverse form).
+                long anchorId = NetworkIdOf(w, e);
+                if (anchorId == 0)
+                    return Unserviceable(tool, "the selected entity has no network identity, so its edit handles could not be addressed");
+
                 // ⚠ Still reachable even though the controller cancels our arbiter first: a gizmo injected
                 //   by something the controller did not arm (an unconverted adapter) is a real toggle-off.
                 if (g.HasInjectedGizmo(e)) { g.DeactivateGizmo(e); return ToolActivationOutcome.Dismissed; }
@@ -161,7 +181,7 @@ namespace Hrot.ScenarioEditor.Tools
                 // ⚠ This is the CE-259n lesson generalised: when one event must update two state holders,
                 //   pair them where both are visible — not in whichever one the caller happened to reach.
                 string toolId = ScenarioToolIds.ForEditorTool(tool);
-                g.ActivateGizmo(e, factory(w, e, NetworkIdOf(w, e), () =>
+                g.ActivateGizmo(e, factory(w, e, anchorId, () =>
                 {
                     g.DeactivateGizmo(e);
                     controller.NotifyToolEnded(toolId, e);

@@ -669,5 +669,84 @@ namespace Hrot.Presentation.Tests.Tools
 
             Assert.Contains(reports, r => r.Contains("modeless"));
         }
+
+        /// <summary>
+        /// ⭐⭐⭐ <b>§6.7 — <c>Edit Shape</c> / <c>Edit Route</c> REFUSE an entity with no network
+        /// identity, and report why.</b> 📄 <c>docs/DESIGN_Gizmo_Anchor_Identity.md</c> §6.7.
+        ///
+        /// <para>⛔⛔ <b>Why refusing is the correct behaviour and arming is not.</b> Those two gizmos
+        /// identify each drag handle by the entity's anchor id — <c>VertexEditGizmo.cs:145</c> and
+        /// <c>RouteWaypointGizmo.cs:135</c> stamp <c>BoxAnchorId = _networkId</c> beside
+        /// <c>SubElementId = i + 1</c>. With an id of <c>0</c> the handles are WORSE than unpickable: a
+        /// non-zero <c>SubElementId</c> still passes the terminal's interactivity pre-filter, so a handle
+        /// WINS the hit-test and consumes the click through a proxy tool, then yields a token with
+        /// <c>AnchorId == 0</c> that resolves to no entity and reaches no gizmo. ⇒ the click is swallowed
+        /// and whatever sits underneath is blocked, in silence.</para>
+        ///
+        /// <para>⚠ <b>Unreachable in production today, and only TRANSITIVELY</b> — the target is the
+        /// primary selection (<c>ToolActivationDrainSystem:116</c>) and selection now resolves an anchor
+        /// id, so an unreplicated entity cannot become the target. ⭐ This rail is what turns that
+        /// accident into a stated contract, at the call site that holds the id.</para>
+        ///
+        /// <para>⛔ RED-PROOF SHAPE: delete the <c>anchorId == 0</c> guard in
+        /// <c>ScenarioToolRegistrations.ToggleEntityGizmo</c> and this reddens on BOTH asserts — the tool
+        /// arms, and nothing is reported.</para>
+        /// </summary>
+        [Fact]
+        public void AnEntityWithNoNetworkIdentityCannotArmAnEditHandleTool()
+        {
+            var fx      = new Fixture();
+            var reports = new List<string>();
+
+            _world.RegisterComponent<Fdp.Toolkit.Replication.Components.NetworkIdentity>();
+            _world.RegisterManagedComponent<Hrot.IG.Components.EditablePolyline>();
+
+            // An EditablePolyline entity that is NOT replicated: the component the tool requires is
+            // present, so only the anchor-id guard can refuse it.
+            var entity = _world.CreateEntity();
+            _world.SetManagedComponent(entity, new Hrot.IG.Components.EditablePolyline());
+
+            ScenarioToolRegistrations.RegisterAll(
+                fx.Controller,
+                world:               () => _world,
+                gizmos:              () => fx.DataDriven,
+                globalGizmos:        () => fx.Global,
+                reportUnserviceable: reports.Add);
+
+            bool armed = fx.Controller.Activate(ScenarioToolIds.Edit, entity);
+
+            Assert.False(armed);
+            Assert.False(fx.DataDriven.HasInjectedGizmo(entity));
+            Assert.Contains(reports, r => r.Contains("network identity", StringComparison.OrdinalIgnoreCase));
+        }
+
+        /// <summary>
+        /// ⭐⭐ <b>The counter-case, so the guard cannot over-refuse:</b> the SAME entity with a
+        /// <c>NetworkIdentity</c> arms normally and gets its gizmo.
+        /// ⛔ Without this pairing the guard above would also pass if the tool simply never worked.
+        /// </summary>
+        [Fact]
+        public void AReplicatedEntityStillArmsTheEditHandleTool()
+        {
+            var fx      = new Fixture();
+            var reports = new List<string>();
+
+            _world.RegisterComponent<Fdp.Toolkit.Replication.Components.NetworkIdentity>();
+            _world.RegisterManagedComponent<Hrot.IG.Components.EditablePolyline>();
+
+            var entity = _world.CreateEntity();
+            _world.SetManagedComponent(entity, new Hrot.IG.Components.EditablePolyline());
+            _world.AddComponent(entity, new Fdp.Toolkit.Replication.Components.NetworkIdentity { Value = 7041L });
+
+            ScenarioToolRegistrations.RegisterAll(
+                fx.Controller,
+                world:               () => _world,
+                gizmos:              () => fx.DataDriven,
+                globalGizmos:        () => fx.Global,
+                reportUnserviceable: reports.Add);
+
+            Assert.True(fx.Controller.Activate(ScenarioToolIds.Edit, entity));
+            Assert.True(fx.DataDriven.HasInjectedGizmo(entity));
+        }
     }
 }
