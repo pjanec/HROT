@@ -233,6 +233,64 @@ from a frame, not just scrubbing)*, then recording is right and the whole `Trans
 revisiting. ⛔ **That is a product question, not an implementation one** — and it is the one to put to the
 user before building either.
 
+#### 2.1d ⭐⭐⭐ GOING LIVE FROM A RECORDED STATE — **what the recording omits, and why RE-DERIVING beats RECORDING** *(`2026-09-11`)*
+
+🔒 **User:** *"imagine we want to go to live from a recorded state…"* ⭐ Not hypothetical — `PrepareLive`
+after a replay is a shipped path (`LiveFromReplayTests`), so **the restored frame must be a VALID LIVE
+STARTING STATE**, which is a far stronger requirement than "scrubbing looks right".
+
+📐 **Enumerated: everything the Flight Recorder omits** *(`DataPolicy.NoRecord`/`Transient`, components
+only — event types are replaced wholesale by `ReadAndInjectEvents`)*. ⭐⭐ **The useful split is NOT
+transient-vs-recorded, it is SELF-HEALING vs NOT:**
+
+| omitted state | policy | does live traffic refill it on resume? |
+|---|---|---|
+| `NetworkTransform` · `NetworkVelocity` | `NoRecord` | ✅ **yes** — the owner republishes and dead reckoning drives from it. Recording them would be waste |
+| `EgressPublicationState` | `Transient` | ✅ yes — a *"have I published"* cache; worst case one redundant republish |
+| `ForceNetworkPublish` | `Transient` | ✅ a one-shot tag; absent IS the normal state |
+| `GlobalDebugSettings` · `DebugState` | `Transient` | ✅ irrelevant to simulation |
+| `GenesisIntentComponents` ×7 | `Transient` | ✅ creation-time intents, already consumed |
+| 🔴 **`GhostStateTracker`** | `Transient` | ⛔ **NO** — nothing re-creates it, and promotion needs it to evaluate soft timeouts |
+| 🔴 **`PendingNetworkAck`** | `Transient` | ⛔ **NO** — its own doc: *"entities awaiting network acknowledgment … removed after publishing lifecycle status"* ⇒ an entity restored mid-wait never publishes it |
+| ⚠ `MissionAdapterState` | `Transient` | ⚠ **not measured** — CGF mission-adapter state |
+| 🔴🔴 **`EntityLifecycleModule._pendingConstruction` / `_pendingDestruction`** | not ECS state at all | ⛔ **NO** |
+
+⇒ ⭐⭐⭐ **The `Transient` policy is RIGHT for the first group and WRONG for the second.** `GhostStateTracker`
+carries the same attribute as UI caches and debug metrics, and the enum's own doc describes that group as
+*"UI caches, temporary buffers, debug metrics"* — ⛔ **mid-handshake protocol state is none of those.** That
+misclassification, not the gate, is the root of the branch-to-live hole.
+
+### ⛔⛔ BUT RECORDING `RemainingAcks` WOULD BE WORSE THAN NOT RECORDING IT
+
+⭐ The **authoritative** fact IS recorded — `LifecycleState`. So *"which entities are mid-construction"* is
+**derivable** from the restored world *(`Constructing` + `TkbIdentity`)*. ⛔ The only part that is NOT
+derivable is **how far the handshake had got** — `RemainingAcks`.
+
+🔴 **And restoring that is not meaningful, because it is a DISTRIBUTED handshake.** Your node's half is
+restored to frame *T*; the peers that already sent those acks are not, and they will not resend. ⇒ a
+faithfully-restored `RemainingAcks` **waits forever for an ack nobody owes** — a deadlock, strictly worse
+than starting over. ⚠ Recording it only becomes correct if **every** node restores the **same** frame with
+the **same** partial state, in lockstep, which replay does not guarantee per node.
+
+### ⭐⭐⭐ SO THE MODEL FOR GOING LIVE IS: **restore the WORLD from the log, then RE-DERIVE every in-flight protocol from it**
+
+⭐ One `ResumeFromRestoredState()` pass at the `FinalizeReplay`/`PrepareLive` boundary:
+
+| for each restored entity | do |
+|---|---|
+| `Ghost` | re-attach `GhostStateTracker`, stamped with the **resume** frame *(so soft timeouts run from now, not from a recorded past)* |
+| `Constructing` + `TkbIdentity` | re-open a construction with a **fresh** participant set — re-run the handshake rather than resurrect a stale one |
+| `TearDown` | re-open a destruction, same reasoning |
+| any | clear the egress publication caches so the first live frame republishes a full baseline |
+
+⭐ **The precedent is in the same class:** `EcsRecordReplayController._afterSeek` already re-derives
+`NetworkEntityMap` via `RebuildFromWorld`, for exactly this reason — a non-recorded index that time travel
+invalidates. ⇒ this is that pattern applied to the other three.
+
+⇒ ⭐⭐ **And it subsumes the gate question:** with the protocol re-derived at the boundary, gating during
+playback stays desirable *(it stops pointless work and the `BeginConstruction` throw)* but is no longer the
+thing correctness rests on. ⛔ **Neither half is built.** 📄 `CE-259ap`.
+
 ⚠⚠ **And four rails are GREEN over it** — `ReplayLoadClusterOpHandlerTests`, `LiveFromReplayTests`,
 `NodeBootstrapperReplayTests`, `FullBranchPipelineTests`, **12/12** — because they assert the flag and the
 group's `Enabled` **flip**, never that either has an **effect**. 📌 `R-142` ③'s shape: the setter is
