@@ -225,10 +225,45 @@ current-answer: ⚠⚠ THERE ARE NOW **TWO** LIVE STRANDS ON THIS LANE. Read the
   DebugPrimitiveBuffer.AppendRaw:74 → StatelessGizmoSystem.Execute:107 → ReplayBrowserSubsystem
   .Update:421 ⇒ the emitters really run there, the central guard is armed there, and it fails fast
   UNHANDLED (no scheduler try/catch swallows it — the CE-188 disease). Reverted; clean drive re-run.
-  🔴 NEW, FILED, NOT FIXED: CE-259am — the ReplayBrowser perspective declares NO debug-API providers
-  (providers=[], matrix={}), so panels.gizmo / world.read / world.entityMap are dark over HTTP, and the
-  error text asserts a missing DebugPrimitiveBuffer WHICH THE RED-PROOF SHOWS IS FALSE (it is the
-  provider registry that is empty, not the host). Same shape as CE-259al, different cause.
+  ✅✅✅ CE-259am FIXED 2026-09-11 — THE REPLAY BROWSER CONTRIBUTES A DEBUG PROVIDER, and fixing it found a
+  SECOND, PRE-EXISTING defect. 📄 AS-BUILT: ../DESIGN_Gizmo_Anchor_Identity.md §6.8c.
+  ⭐⭐ A seam ADOPTION, not a mechanism: it was the ONLY perspective-owning subsystem not implementing
+  IProvidesDebugSurface — the seam Program.cs:388 already selects on and four other hosts already have.
+  Now providers=[ReplayBrowser] with a MEASURED matrix (world.read/world.entityMap/panels.gizmo true, the
+  other six honestly false). world: is a Func for a LOAD-BEARING reason unique to this host (RebindActiveRepo
+  REPLACES the repo on every seek, so a captured value would answer from the pre-load master forever), and
+  entityMap: goes through a NEW shared SubsystemDebugProvider.EntityMapFrom — the exact analog of TkbFrom.
+  ⚠ CGF/SimHost/IG deliberately NOT migrated to it: their private fields ARE the singleton they set, so they
+  are correct BY CONVENTION and swapping three hosts deserves its own measurement.
+  ⭐ The message is fixed too: one GizmoFeedAbsenceReason() names which of three states it is instead of
+  asserting a missing buffer the red-proof showed was there.
+  🔴🔴 THE SECOND DEFECT, and it was NOT debug-API-only: the instant world.read became reachable,
+  /entities/{id}/focus answered 500 "Strict Mode Violation: CenterOnEntityCommand (ID: 8104) … not
+  registered" — BYTE-FOR-BYTE the crash CE-065 already fixed on CGF, whose own header records
+  POST /entities/1000/focus → 500 … (ID: 8104) as its reproduction. The shared list had FOUR adopters and
+  this is the fifth host that needed it; RepositoryPriming registers component tables, NEVER events.
+  ⭐ Fixed in TWO halves and the second is the point: ① PresentationComponentRegistry.RegisterAll at a new
+  PrepareRepo choke point (Initialize AND RebindActiveRepo, idempotent); ② the shared CenterOnEntitySystem
+  ticked from Update — ⛔⛔ ① ALONE WOULD HAVE MADE THE ROUTE LIE (ok:true, camera never moves, since this
+  host runs no kernel so nothing consumes the event). ⭐ It also fixes the UI path: the entity-inspector's
+  "Center on entity" was publishing into a world that had never heard of the event.
+  ⛔⛔ AND A RED-PROOF CAUGHT A FLAW IN MY OWN RAIL — the most useful thing in the batch. My perspective
+  assertion was src.Contains("\"<Perspective>\"") and the inverse edit STAYED GREEN: every one of these
+  subsystems also writes `public string Name => "<Perspective>"`, so the literal was satisfied by the NAME
+  property while perspective: named something else. THIRD recorded instance of that blindness (the
+  fully-qualified EntityRotatorGizmo since CE-051; new FdpEventBus() in CE-260). Fixed IN PLACE, reddens now.
+  📐 Rails went into the feature's OWN suite (TheDebugProvidersDoNotUnderReportTests 10/10 → 21/21) because
+  this is a THIRD defect shape: CE-162 was argument-present-and-null, CE-163 argument-absent-from-a-provider,
+  this is NO PROVIDER AT ALL — and both older rails read an argument list that does not exist. Four
+  inverse-edit red-proofs, all 1🔴.
+  📐 Blast radius BOUNDED: Configuration:190 rejects replaybrowser combined with anything ⇒ standalone-only,
+  so --mode all and --mode editor cannot be affected.
+  🔴 NEW, FILED, NOT FIXED: CE-259an — TWO REPLAY WORLDS. /replay/load loads into an ISOLATED
+  ReplayBrowserContext owned by the debug service, so /replay/entities says 8 while GET /entities says 0 —
+  and BOTH are correct (world.read reports the UI's own repo, still empty until an operator opens a
+  recording). ⛔ Reading /entities → 0 as "the recording is empty" is the CE-110 mistake again. LEAN: do NOT
+  rewire the shared route — add the hint. Searched docs/ and .dev/: no design record says which world
+  /replay/load should target.
   ⛔ STILL NOT RUN-PROVEN, unchanged: a real PICK/SELECTION (CE-259al — the interaction bus is isolated
   from the world bus by design, so no HTTP route can publish onto it) and Stride/ (cannot run here).
   ══ STRAND 2 — ENTITY CREATION (as of 2026-09-03, untouched since) ══

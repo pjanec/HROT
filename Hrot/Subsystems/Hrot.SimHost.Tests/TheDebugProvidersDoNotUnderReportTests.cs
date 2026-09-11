@@ -41,6 +41,13 @@ namespace Hrot.SimHost.Tests
         {
             { "Hrot/Subsystems/Hrot.IG/IgSubsystem.cs",           "Hrot/Subsystems/Hrot.IG/IgApplication.cs" },
             { "Hrot/Subsystems/Hrot.SimHost/SimHostSubsystem.cs", "Hrot/Subsystems/Hrot.SimHost/SimHostApp.cs" },
+            // ⭐ CE-259am — ReplayBrowser gained a map in DESIGN_Gizmo_Anchor_Identity.md §6.7 and must
+            //   forward it like everyone else. ⚠ Its composition and its "app" are ONE file: the subsystem
+            //   holds _activeRepo and rebuilds the singleton itself (EnsureNetworkEntityMap).
+            {
+                "Hrot/Subsystems/Hrot.ReplayBrowser/ReplayBrowserSubsystem.cs",
+                "Hrot/Subsystems/Hrot.ReplayBrowser/ReplayBrowserSubsystem.cs"
+            },
         };
 
         [Theory]
@@ -72,6 +79,169 @@ namespace Hrot.SimHost.Tests
                 "GET /capabilities will report world.entityMap:false and GET /entities will answer " +
                 "NOT_SUPPORTED_HERE for this perspective — on its own port too, because the cell comes " +
                 "from the provider and not from the hosting topology. Forward the map (CE-162).");
+        }
+
+        // ── CE-259am — a subsystem that OWNS A PERSPECTIVE contributes a provider AT ALL ──────────
+
+        /// <summary>
+        /// ⭐⭐⭐ The subsystems that OWN a perspective, from
+        /// <c>docs/DESIGN_Perspective_Unification.md</c> §1b's <i>subsystem → perspectives</i> table
+        /// *(user-confirmed <c>2026-08-23</c>)* — ⛔ not a list this rail invented.
+        ///
+        /// <para>⚠ <b>Two deliberate absences, both from that same table:</b> the <b>editor</b> owns the
+        /// debug API itself with the full surface *(it needs no provider — <c>DESIGN_Mcp_Diagnostics_Federation.md</c>
+        /// §1)*, and the <b>orchestrator</b> owns NO perspective *(both its windows are
+        /// <c>WindowScope.Global</c> with an empty <c>OwningPerspective</c>)</b>.</para>
+        /// </summary>
+        public static TheoryData<string, string> PerspectiveOwningSubsystems() => new()
+        {
+            { "Hrot/Subsystems/Hrot.CGF/CgfSubsystem.cs",                         "Scenario" },
+            { "Hrot/Subsystems/Hrot.SimHost/SimHostSubsystem.cs",                 "SimHost" },
+            { "Hrot/Subsystems/Hrot.IG/IgSubsystem.cs",                           "IG" },
+            { "Hrot/Subsystems/Hrot.ExCon/ExConSubsystem.cs",                     "ExCon" },
+            { "Hrot/Subsystems/Hrot.ReplayBrowser/ReplayBrowserSubsystem.cs",     "ReplayBrowser" },
+        };
+
+        /// <summary>
+        /// 🔴 <b><c>CE-259am</c> — measured <c>2026-09-11</c> driving <c>--mode replaybrowser</c> under
+        /// <c>xvfb</c> over HTTP.</b> <c>ReplayBrowserSubsystem</c> implemented no
+        /// <c>IProvidesDebugSurface</c> at all, so <c>PerspectiveScopedDispatcher</c> was constructed with
+        /// an EMPTY provider list ⇒ <c>GET /capabilities</c> reported <c>providers=[]</c> and
+        /// <c>matrix={}</c>, and <c>/panels/_gizmo</c>, <c>/annotations</c>, <c>/entities/{id}</c> and
+        /// <c>/entities/{id}/focus</c> all refused — ⛔ while that host held a world, a map AND a gizmo
+        /// buffer it was filling every frame.
+        ///
+        /// <para>⚠⚠ <b>A THIRD defect shape, which is why neither existing theory could see it.</b>
+        /// <c>CE-162</c> was <i>argument present and <c>null</c></i>; <c>CE-163</c> was <i>argument absent
+        /// from an existing provider</i>; this is <b>no provider whatsoever</b> — 📌 and both of those
+        /// rails read the provider's argument list, which does not exist in this case. ⇒ the assertion has
+        /// to be about the subsystem DECLARING the seam.</para>
+        ///
+        /// <para>⭐ It also pins the <c>perspective:</c> STRING, and that half is not decoration:
+        /// <c>PerspectiveScopedDispatcher.Resolve</c> matches on it, so a provider naming a perspective the
+        /// window manager never reports is <b>indistinguishable at runtime from contributing nothing</b> —
+        /// the same silent outcome, one line further in.</para>
+        /// </summary>
+        [Theory]
+        [MemberData(nameof(PerspectiveOwningSubsystems))]
+        public void ASubsystemOwningAPerspective_ContributesADebugProvider(
+            string subsystemPath, string perspective)
+        {
+            var src = CompositionRootSource.StripComments(
+                CompositionRootSource.ReadRepoSource(subsystemPath));
+
+            Assert.True(src.Contains("IProvidesDebugSurface"),
+                $"{subsystemPath} owns the '{perspective}' perspective but does not implement " +
+                "Hrot.Presentation.DebugApi.IProvidesDebugSurface. ClusterRunner/Program.cs builds the " +
+                "dispatcher from subsystems.OfType<IProvidesDebugSurface>(), so this subsystem " +
+                "contributes NOTHING: GET /capabilities reports providers=[] and matrix={} for its mode, " +
+                "and every world/gizmo/entity route answers as though the host held nothing — even when " +
+                "it holds a world, an entity map and a gizmo buffer. That is not a missing capability, it " +
+                "is an instrument reporting ABSENT where the truth is PRESENT (CE-259am).");
+
+            Assert.True(src.Contains("CreateDebugProvider"),
+                $"{subsystemPath} declares IProvidesDebugSurface but has no CreateDebugProvider body.");
+
+            // ⛔⛔ READ THE ARGUMENT, NOT THE FILE. 📌 The first cut of this assertion was
+            //    `src.Contains($"\"{perspective}\"")` and its inverse-edit red-proof STAYED GREEN: every
+            //    one of these subsystems also writes `public string Name => "<Perspective>"`, so the
+            //    literal was satisfied by the NAME property while `perspective:` named something else
+            //    entirely. ⇒ exactly the blindness CLAUDE.md records twice (a fully-qualified
+            //    `new …EntityRotatorGizmo(` keeping a rail green since CE-051; `new FdpEventBus()` in
+            //    CE-260). ⭐ Fixed IN PLACE, and it reddens now.
+            // ⭐ EVERY occurrence, not just the provider's: these files also pass `perspective:` to window
+            //   registration helpers, and all of them must agree — measured 2026-09-11, CGF and SimHost
+            //   each have two and both match.
+            int at = 0, seen = 0;
+            while ((at = src.IndexOf("perspective:", at, System.StringComparison.Ordinal)) >= 0)
+            {
+                var after = src[(at + "perspective:".Length)..].TrimStart();
+                Assert.True(after.StartsWith($"\"{perspective}\"", System.StringComparison.Ordinal),
+                    $"{subsystemPath} passes a `perspective:` argument that is not \"{perspective}\" — " +
+                    "the perspective DESIGN_Perspective_Unification.md §1b says it owns (found: " +
+                    $"{after[..System.Math.Min(40, after.Length)]}). PerspectiveScopedDispatcher.Resolve " +
+                    "matches providers on that exact string against what the window manager reports, so a " +
+                    "mismatch is indistinguishable at runtime from contributing no provider at all: every " +
+                    "route answers NOT_SUPPORTED_HERE while the host holds everything it needs.");
+                seen++;
+                at += "perspective:".Length;
+            }
+
+            Assert.True(seen > 0, $"{subsystemPath} passes no `perspective:` argument at all.");
+        }
+
+        /// <summary>
+        /// ⭐⭐ <b>The <c>CE-162</c> theory's twin for the MAP FEED</b> — <c>gizmoBuffer</c> is the member
+        /// whose absence <c>CE-259am</c> was actually measured through, and the <c>entityMap</c> theory
+        /// above could not cover it.
+        ///
+        /// <para>⛔ Deliberately narrow, exactly as the <c>entityMap</c> row is: it lists the subsystems
+        /// measured to HOLD a buffer. ⭐ <c>ExCon</c> is absent and that is correct — it builds none, so
+        /// <c>panels.gizmo</c> is honestly false for its perspective *(ruling 49:
+        /// absent-and-explained beats present-and-broken)*.</para>
+        /// </summary>
+        public static TheoryData<string> SubsystemsWithAGizmoBuffer() => new()
+        {
+            "Hrot/Subsystems/Hrot.CGF/CgfSubsystem.cs",
+            "Hrot/Subsystems/Hrot.IG/IgSubsystem.cs",
+            "Hrot/Subsystems/Hrot.SimHost/SimHostSubsystem.cs",
+            "Hrot/Subsystems/Hrot.ReplayBrowser/ReplayBrowserSubsystem.cs",
+        };
+
+        [Theory]
+        [MemberData(nameof(SubsystemsWithAGizmoBuffer))]
+        public void ASubsystemHoldingAGizmoBuffer_PassesItToItsDebugProvider(string subsystemPath)
+        {
+            var src = CompositionRootSource.StripComments(
+                CompositionRootSource.ReadRepoSource(subsystemPath));
+
+            // ⛔ Anti-vacuity: if the subsystem stops driving a buffer, this row asserts nothing and must
+            //   be re-examined rather than passing quietly.
+            Assert.True(src.Contains("DebugPrimitiveBuffer") || src.Contains("GizmoBuffer")
+                        || src.Contains("gizmoBuffer"),
+                $"{subsystemPath} no longer mentions a debug primitive buffer, so this row cannot assert " +
+                "anything. Either it genuinely stopped drawing gizmos (drop the row and say why) or the " +
+                "rail is aimed at the wrong file.");
+
+            Assert.Contains("gizmoBuffer:", src);
+
+            var afterKey = src[(src.IndexOf("gizmoBuffer:", System.StringComparison.Ordinal)
+                                + "gizmoBuffer:".Length)..].TrimStart();
+
+            Assert.False(afterKey.StartsWith("null", System.StringComparison.Ordinal),
+                $"{subsystemPath} passes `gizmoBuffer: null` while it drives a DebugPrimitiveBuffer. " +
+                "SubsystemDebugProvider computes panels.gizmo from the member being non-null, so " +
+                "GET /panels/_gizmo and POST /annotations will refuse for this perspective — and the " +
+                "refusal reads as 'this host draws no gizmos', which would be false. Forward the buffer " +
+                "(BP-487, CE-259am).");
+        }
+
+        /// <summary>
+        /// ⛔⛔ <b>Anti-vacuity for both theories above, and it is the load-bearing half:</b> they are TEXT
+        /// checks on composition files, so the seam they assert against must still be the seam the runner
+        /// reads. ⇒ if <c>Program.cs</c> stops selecting providers by <c>IProvidesDebugSurface</c>, or
+        /// <c>Resolve</c> stops matching on <c>Perspective</c>, five green rows would assert nothing.
+        /// </summary>
+        [Fact]
+        public void TheRunnerSelectsProvidersByTheSeamTheseRailsAssert()
+        {
+            var program = CompositionRootSource.StripComments(CompositionRootSource.ReadRepoSource(
+                "Hrot/Runner/Hrot.ClusterRunner/Program.cs"));
+
+            Assert.Contains("OfType<Hrot.Presentation.DebugApi.IProvidesDebugSurface>()", program);
+            Assert.Contains("CreateDebugProvider()", program);
+
+            var dispatcher = CompositionRootSource.StripComments(CompositionRootSource.ReadRepoSource(
+                "Hrot/Engine/Hrot.Presentation/DebugApi/PerspectiveScopedDispatcher.cs"));
+
+            // ⭐ The match is on the provider's Perspective string — what the third assertion above pins.
+            Assert.Contains("p.Perspective, perspective", dispatcher);
+
+            var provider = CompositionRootSource.StripComments(CompositionRootSource.ReadRepoSource(
+                "Hrot/Engine/Hrot.Presentation/DebugApi/ISubsystemDebugProvider.cs"));
+
+            // ⭐ And panels.gizmo is measured from the member, which is why forwarding it matters.
+            Assert.Contains("DebugCapabilities.GizmoFrame] = GizmoBuffer is not null", provider);
         }
 
         // ── CE-163 — the cluster state, and it is UNIFORM across the ECS nodes ────────────────────

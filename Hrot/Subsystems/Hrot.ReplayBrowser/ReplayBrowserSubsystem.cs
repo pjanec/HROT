@@ -33,7 +33,8 @@ namespace Hrot.ReplayBrowser;
 /// live simulation state. Does not implement <c>IMapCameraProvider</c> so the
 /// spatial camera remains independent of other subsystems.
 /// </summary>
-public sealed class ReplayBrowserSubsystem : ISubsystem, IWindowRegistrar
+public sealed class ReplayBrowserSubsystem : ISubsystem, IWindowRegistrar,
+    Hrot.Presentation.DebugApi.IProvidesDebugSurface
 {
     // ── ISubsystem ────────────────────────────────────────────────────────
 
@@ -112,6 +113,9 @@ public sealed class ReplayBrowserSubsystem : ISubsystem, IWindowRegistrar
     private Fdp.Core.FdpEventBus? _interactionBus;
     private Hrot.Common.Systems.GlobalActionDispatchSystem? _actionDispatchSystem;
     private Hrot.ScenarioEditor.Systems.SelectionInteractionSystem? _selectionSystem;
+
+    /// <summary>⭐ <c>CE-259am</c> — the shared camera-centring system; see its tick in <see cref="Update"/>.</summary>
+    private Hrot.ScenarioEditor.Systems.CenterOnEntitySystem? _centerOnEntitySystem;
     private readonly Fdp.Toolkit.Diagnostics.Gizmos.Hub.GizmoUiStateHub _gizmoUiHub = new();
 
     // ── Constructors ──────────────────────────────────────────────────────
@@ -142,7 +146,7 @@ public sealed class ReplayBrowserSubsystem : ISubsystem, IWindowRegistrar
             Fdp.Toolkit.ReplayBrowser.Federation.RepositoryPriming.RegisterDiscoveredComponents(_activeRepo);
             // ⭐ §6.7 — the map exists from boot, not only from the first rebind: the canvas and the
             //   gizmo layer are constructed below and may resolve an anchor before any recording loads.
-            EnsureNetworkEntityMap(_activeRepo);
+            PrepareRepo(_activeRepo);
             _canvas = new MapCanvas();
 
             _inspectorState = new InspectorState();
@@ -244,6 +248,9 @@ public sealed class ReplayBrowserSubsystem : ISubsystem, IWindowRegistrar
             });
 
             _actionDispatchSystem = new Hrot.Common.Systems.GlobalActionDispatchSystem(actionRegistry, _interactionBus);
+            // ⭐⭐ CE-259am — a DELEGATE, not `_canvas.Camera`: the canvas is replaced on a view-mode
+            //    switch, and the system's own param doc gives that as the reason it takes a Func.
+            _centerOnEntitySystem = new Hrot.ScenarioEditor.Systems.CenterOnEntitySystem(() => _canvas?.Camera);
 
             var schemaRegistry = new GizmoMap.Presentation.GizmoSchemaRegistry();
             using var layerControlSchemaSession = editService.Open(
@@ -416,6 +423,21 @@ public sealed class ReplayBrowserSubsystem : ISubsystem, IWindowRegistrar
             {
                 _selectionSystem?.Tick(deltaTime);
                 _actionDispatchSystem?.Execute(_activeRepo, deltaTime);
+                // ⭐⭐⭐ CE-259am — the SHARED CenterOnEntitySystem, ticked directly like its five
+                //    neighbours here because this host runs no ModuleHostKernel
+                //    (DESIGN_Subsystem_Composition_Unification.md:1153 measures zero kernel references).
+                //
+                // ⛔⛔ REGISTERING THE EVENT WITHOUT THIS WOULD HAVE MADE THE ROUTE LIE, which is worse
+                //    than the 500 it replaces: POST /entities/{id}/focus would answer ok:true and the
+                //    camera would not move. 🔒 DESIGN_Mcp_Diagnostics_Federation.md §9.3 — "a 200 with a
+                //    transaction id proves only that the ROUTE ran", a gap that surface has already been
+                //    bitten by twice (MA-004, MA-017).
+                // ⭐ Reuse, not a new mechanism: the system is the one the editor and CGF both run, and
+                //   its single dependency is a Func<MapCamera?> — written as a delegate for exactly this
+                //   host's shape ("the canvas is created during window registration"), so nothing had to
+                //   be adapted. ⚠ It also fixes the UI path: the entity-inspector context menu's
+                //   "Center on entity" published into a world that had never heard of the event.
+                _centerOnEntitySystem?.Execute(_activeRepo, deltaTime);
                 _dataDrivenGizmoSystem?.Execute(_activeRepo, deltaTime);
                 _globalGizmoManager?.Execute(_activeRepo, deltaTime);
                 _statelessGizmoSystem?.Execute(_activeRepo, deltaTime);
@@ -585,6 +607,36 @@ public sealed class ReplayBrowserSubsystem : ISubsystem, IWindowRegistrar
     {
         _activeRepo = repo;
         _session = new RepositoryAdapter(repo);
+        PrepareRepo(repo);
+    }
+
+    /// <summary>
+    /// ⭐⭐⭐ <b>Everything a repo this subsystem BINDS must have before the shared viewport systems run on
+    /// it</b> — called from <see cref="Initialize"/> and from <see cref="RebindActiveRepo"/>, which between
+    /// them cover every repo this host ever ticks *(the boot transient master, each per-node sandbox, and
+    /// the Merged transient master)*.
+    ///
+    /// <para>🔴🔴 <b><c>CE-259am</c> — THE SECOND DEFECT, and it was PRE-EXISTING: this host ran the shared
+    /// viewport systems on worlds where their EVENTS WERE NEVER REGISTERED.</b> 📐 Measured `2026-09-11`
+    /// the moment <see cref="CreateDebugProvider"/> made the routes reachable:
+    /// <c>POST /entities/1001/focus</c> answered <c>500 "Strict Mode Violation: Unmanaged event type
+    /// 'CenterOnEntityCommand' (ID: 8104) was published without being explicitly registered."</c>
+    /// ⚠⚠ <b>Byte-for-byte the crash <c>CE-065</c> already fixed on CGF</b> — see
+    /// <c>PresentationComponentRegistry</c>'s own header, which records
+    /// <c>POST /entities/1000/focus → 500 … (ID: 8104)</c> as the reproduction. ⇒ the shared list was
+    /// adopted by four hosts *(Stride · CGF · SimHost · editor)* and this is the fifth that needed it.
+    /// 🔒 That header's standing instruction: <i>"If a fourth system joins ScenarioEditorModule, its event
+    /// belongs HERE"</i> — ⭐ so the fix is to ADOPT the list, not to hand-register three events beside it.
+    /// ⛔ <c>RepositoryPriming.RegisterDiscoveredComponents</c> above does NOT cover this: it registers
+    /// component tables, never events.</para>
+    ///
+    /// <para>⭐ Idempotent by construction — <c>RegisterAll</c>'s own remark: <i>"every call resolves to
+    /// GetOrCreate…, so a host that reaches this twice is fine."</i> ⇒ safe on every seek.</para>
+    /// </summary>
+    private void PrepareRepo(EntityRepository repo)
+    {
+        // ⭐⭐ The shared list, not a local copy of three RegisterEvent calls.
+        Hrot.Map.Common.PresentationComponentRegistry.RegisterAll(repo);
         EnsureNetworkEntityMap(repo);
     }
 
@@ -624,6 +676,102 @@ public sealed class ReplayBrowserSubsystem : ISubsystem, IWindowRegistrar
         map.Clear();
         map.RebuildFromWorld(repo);
     }
+
+    // ── IProvidesDebugSurface ─────────────────────────────────────────────
+
+    /// <summary>
+    /// ⭐⭐⭐ <b><c>CE-259am</c> — THIS SUBSYSTEM CONTRIBUTES A DEBUG PROVIDER, like every other host that
+    /// owns a perspective.</b> 📄 <c>docs/DESIGN_Gizmo_Anchor_Identity.md</c> §6.8c ·
+    /// <c>docs/DESIGN_Mcp_Diagnostics_Federation.md</c> §1 *(the federation: a node exposes the providers
+    /// for the subsystems it runs)* · <c>docs/DESIGN_Subsystem_Composition_Unification.md</c> §5.6 *(the
+    /// classDiagram <see cref="Hrot.Presentation.DebugApi.ISubsystemDebugProvider.GizmoBuffer"/> is drawn
+    /// in)*.
+    ///
+    /// <para>🔴 <b>What its absence cost, measured `2026-09-11` driving <c>--mode replaybrowser</c> over
+    /// HTTP.</b> This was the ONLY perspective-owning subsystem that implemented nothing here, so
+    /// <c>PerspectiveScopedDispatcher</c> was built with an EMPTY provider list ⇒
+    /// <c>GET /capabilities</c> reported <c>providers=[]</c>, <c>matrix={}</c>, and every
+    /// world/gizmo route answered as if the host held nothing: <c>GET /panels/_gizmo</c> and
+    /// <c>POST /annotations</c> said <i>"no debug primitive buffer for the active perspective"</i>,
+    /// <c>GET /entities/{id}</c> said <c>NOT_SUPPORTED_HERE: world.entityMap</c>.
+    /// ⛔⛔ <b>All four answers were FALSE</b> — this host holds a world, a map and a gizmo buffer, and the
+    /// buffer is filled every frame *(proven by an inverse-edit red-proof that aborted the process out of
+    /// <c>DebugPrimitiveBuffer.AppendRaw</c> via <c>StatelessGizmoSystem.Execute</c> → <see cref="Update"/>)*.
+    /// ⇒ ⚠ the instrument reported ABSENT where the truth was PRESENT — the <c>CE-110</c> disease, which
+    /// that row records costing a wrong root-cause hypothesis.</para>
+    ///
+    /// <para>⭐⭐ <b>EVERY accessor is a <see cref="Func{T}"/>, and here that is LOAD-BEARING rather than
+    /// stylistic.</b> ⛔ <see cref="_activeRepo"/> is REPLACED on every seek, step and view-mode switch
+    /// *(<see cref="RebindActiveRepo"/>)*, so a value captured when the composition root builds this
+    /// provider would answer from the pre-load transient master FOREVER — the *"a value-captured provider
+    /// LIES"* shape <see cref="Hrot.Presentation.DebugApi.SubsystemDebugProvider"/>'s own ctor remarks were
+    /// written for. ⭐ This host is the strongest case for it in the repo: nothing else swaps its world
+    /// while running.</para>
+    ///
+    /// <para>⛔ <b>What is null, and each is a MEASURED absence rather than a silent default</b> *(the rule:
+    /// a caller that HAS a dependency must PASS it — so the ones it does not hold are named)*:
+    /// <list type="bullet">
+    ///   <item><b><c>drive</c></b> — replay time is not CLUSTER time. This host has no
+    ///     <c>ClusterTimeTransportAdapter</c>; its timeline is a <see cref="FederatedReplayManager"/>, which
+    ///     <c>/replay/seek</c> and <c>/replay/step</c> already serve. ⚠ Fronting the manager as an
+    ///     <c>ITimeTransportFacade</c> would be a NEW adapter and a design call, not a wiring fix.</item>
+    ///   <item><b><c>extraction</c></b> — 📐 measured: <see cref="_inspectorPanel"/> is given
+    ///     <c>Serializer</c> only *(`:319`)* and its <c>ExtractionService</c> is never set, so there is no
+    ///     node-owned projection to hand over. 🔒 <c>ISubsystemDebugProvider.Extraction</c>'s own contract:
+    ///     <i>"Never fabricate one here — the point is to use the node's REAL projection, not a second,
+    ///     poorer one."</i> ⇒ the API falls back as documented.</item>
+    ///   <item><b><c>architecture</c></b> — ⭐ design-confirmed absent:
+    ///     <c>DESIGN_Subsystem_Composition_Unification.md:1153</c> measures <b>zero</b>
+    ///     <c>ModuleHostKernel</c>/<c>RegisterGlobalSystem</c> references here, and `:2063` records that
+    ///     ReplayBrowser has <i>"neither kernel nor ClusterSlave"</i>.</item>
+    ///   <item><b><c>tkbDb</c> · <c>missionEditor</c> · <c>requestTransition</c> · <c>clusterState</c> ·
+    ///     <c>requestDiagnosticDump</c> · <c>dumpStatus</c> · <c>availableScenarios</c></b> — none exist in
+    ///     this subsystem *(no catalog, no mission service, no orchestration bus, no cluster slave)*. ⭐ A
+    ///     replay browser participates in no cluster; that is what it IS.</item>
+    /// </list></para>
+    ///
+    /// <para>⚠⚠ <b>The one thing to know about <c>world</c> here:</b> <c>world.read</c> is a single
+    /// capability covering the MUTATING entity routes too *(<c>/entities/spawn</c>,
+    /// <c>DELETE /entities/{id}</c>, <c>POST /entities/{id}/component</c>)*. 📐 Measured consequence: such a
+    /// write lands in the replay SANDBOX repo, which <see cref="RebindActiveRepo"/> replaces on the next
+    /// seek — ⛔ it reaches no <c>.fdp</c> and no other node, so it is discarded, not destructive.
+    /// ⭐ Exposing it anyway follows <c>R-141</c> *(an unused capability is the natural outcome of sharing,
+    /// never a per-host decision to just-not)* and <c>R-137</c> *(a unification may not cost a
+    /// capability)*: without it <c>/entities</c>, <c>/entities/{id}/state</c>, <c>/diff/*</c> and
+    /// <c>/checkpoint</c> are all dark, and <c>/replay/entities</c> reports component NAMES only — no
+    /// values. ⛔ <b>Searched <c>docs/</c> and <c>.dev/</c> for a record on whether a replay sandbox may be
+    /// mutated: none found.</b></para>
+    ///
+    /// <para>⛔⛔ <b>AND THE ONE THING A READER MUST NOT MISREAD — THERE ARE TWO REPLAY WORLDS.</b>
+    /// 📐 Measured `2026-09-11`: after <c>POST /replay/load</c> + <c>seek</c>, <c>/replay/entities</c>
+    /// returns <b>8</b> while <c>GET /entities</c> returns <b>0</b>. ⚠ Both are correct.
+    /// <c>POST /replay/load</c> loads into an <b>ISOLATED <c>ReplayBrowserContext</c> owned by the debug
+    /// service</b> — its own route doc says so, and says <i>"use list_replay_entities (not list_entities)
+    /// while replaying"</i> — whereas <see cref="_activeRepo"/> is the UI's own world, driven by this
+    /// subsystem's <see cref="FederatedReplayManager"/> and still EMPTY until an operator opens a
+    /// recording. ⭐ That isolation exists so an agent can inspect a recording without disturbing the
+    /// operator's session; on this host it is redundant but harmless. ⇒ <c>world.read</c> here reports the
+    /// UI's world honestly, ⛔ it is NOT a second view of the HTTP-loaded recording — reading
+    /// <c>/entities</c> → <c>0</c> as <i>"the recording is empty"</i> would be the <c>CE-110</c> mistake
+    /// again. 📄 Filed as <c>CE-259an</c>; wiring <c>/replay/load</c> to the UI's manager is a contract
+    /// change to a shared route, not a wiring fix.</para>
+    /// </summary>
+    public Hrot.Presentation.DebugApi.ISubsystemDebugProvider? CreateDebugProvider()
+        => new Hrot.Presentation.DebugApi.SubsystemDebugProvider(
+            subsystemName: Name,
+            // ⭐ "ReplayBrowser" — the perspective the window manager actually reports, design-confirmed at
+            //   DESIGN_Perspective_Unification.md:84. ⛔ The dispatcher matches on THIS string, so a
+            //   mismatch here is indistinguishable from contributing nothing at all.
+            perspective:   "ReplayBrowser",
+            world:         () => _activeRepo,
+            // ⭐⭐⭐ Read the map off the CURRENT repo through the shared helper, never a captured field:
+            //   the map is a world singleton (§6.7) and this host's world is swapped on every seek, so the
+            //   singleton it must report is whichever one EnsureNetworkEntityMap just rebuilt.
+            entityMap:     Hrot.Presentation.DebugApi.SubsystemDebugProvider
+                               .EntityMapFrom(() => _activeRepo),
+            // ⭐⭐ The very buffer this host's map draws (`:265` takes it as the canvas DrawBuffer) and that
+            //   StatelessGizmoSystem + GlobalGizmoManager + DataDrivenGizmoSystem fill from Update (`:421`).
+            gizmoBuffer:   () => _gizmoBuffer);
 
     /// <summary>
     /// Loads one or more .fdp recording files via a fresh <see cref="FederatedReplayManager"/>

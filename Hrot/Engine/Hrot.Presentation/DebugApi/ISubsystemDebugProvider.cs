@@ -426,6 +426,41 @@ public sealed class SubsystemDebugProvider : ISubsystemDebugProvider
     }
 
     /// <summary>
+    /// ⭐⭐⭐ <b><c>CE-259am</c> — read <see cref="ISubsystemDebugProvider.EntityMap"/> off the subsystem's
+    /// OWN world singleton.</b> ⭐ The exact analog of <see cref="TkbFrom"/>, and the same
+    /// one-implementation argument: 📐 the <see cref="NetworkEntityMap"/> is a world singleton in every
+    /// host that has one — <c>CgfSubsystem.cs:637</c>, <c>SimHostApp.cs:546</c>,
+    /// <c>EditorSubsystem.cs:1122</c>, and <c>ReplayBrowserSubsystem.EnsureNetworkEntityMap</c> — so a
+    /// fourth hand-written <c>HasSingletonManaged</c> copy would be a fourth place to drift.
+    /// 📄 <c>docs/DESIGN_Gizmo_Anchor_Identity.md</c> §6.7 *(why the map became a singleton)*.
+    ///
+    /// <para>⭐⭐ <b>Why a helper rather than <c>() =&gt; _someField</c>, which three hosts still do.</b>
+    /// ⛔ A captured field is only correct while the subsystem's world is FIXED.
+    /// <c>ReplayBrowserSubsystem</c> REPLACES its repository on every seek, step and view-mode switch, and
+    /// each replacement gets a freshly rebuilt map ⇒ a field capture there reports the map of a world the
+    /// host stopped using. ⭐ Reading the singleton off the CURRENT world is correct for both shapes, and
+    /// it carries <see cref="TkbFrom"/>'s stronger property too: what the API reports is provably the
+    /// instance this node's own systems resolve against, not a private handle that may have diverged.</para>
+    ///
+    /// <para>⚠ <b>NOT migrated in <c>CE-259am</c>, deliberately, and named so it is not mistaken for an
+    /// oversight:</b> CGF, SimHost and IG still pass their private field. 📐 Each of those fields IS the
+    /// instance its host registers as the singleton, so they are correct today — ⛔ but they are correct by
+    /// CONVENTION, and swapping them is a behaviour change in three hosts that deserves its own
+    /// measurement rather than riding along with a ReplayBrowser fix.</para>
+    /// </summary>
+    public static Func<NetworkEntityMap?> EntityMapFrom(Func<EntityRepository?> world)
+    {
+        if (world is null) throw new ArgumentNullException(nameof(world));
+        return () =>
+        {
+            var w = world();
+            return w is not null && w.HasSingletonManaged<NetworkEntityMap>()
+                ? w.GetSingletonManaged<NetworkEntityMap>()
+                : null;
+        };
+    }
+
+    /// <summary>
     /// ⭐⭐⭐ <b><c>CE-163</c> — the ONE way an ECS node contributes
     /// <see cref="ISubsystemDebugProvider.ClusterState"/>: read its OWN <see cref="ClusterSlave"/>.</b>
     /// ⭐ Same one-implementation argument as <see cref="TransitionsVia"/> and <see cref="TkbFrom"/> —

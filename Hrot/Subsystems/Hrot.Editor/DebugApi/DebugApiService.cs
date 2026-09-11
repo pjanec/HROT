@@ -185,6 +185,53 @@ namespace Hrot.Editor.DebugApi
         private DebugPrimitiveBuffer? _gizmoFeed => _primitiveBuffer ?? _dispatcher?.GizmoBuffer;
 
         /// <summary>
+        /// ⭐⭐⭐ <b><c>CE-259am</c> — SAY WHICH OF THE TWO ABSENCES IT IS, because they have different
+        /// fixes and the old text asserted the wrong one.</b>
+        /// 📄 <c>docs/DESIGN_Gizmo_Anchor_Identity.md</c> §6.8c.
+        ///
+        /// <para>🔴 <b>The miss this repairs.</b> Both callers said <i>"this host has no debug primitive
+        /// buffer for the active perspective"</i> — ⛔ a claim about the HOST, and on
+        /// <c>--mode replaybrowser</c> it was simply false: that host holds a buffer and fills it every
+        /// frame. 📐 The real cause was that the subsystem contributed NO PROVIDER at all, so the
+        /// dispatcher had an empty list and could not route anywhere. ⚠ The message sent a session hunting
+        /// a missing buffer that existed — ⭐ the same *"absent vs unwired"* confusion <c>CE-110</c> and
+        /// <c>CE-193</c> are both about, one level further out.</para>
+        ///
+        /// <para>⭐ Three distinguishable states, each with the action it implies:
+        /// <list type="number">
+        ///   <item><b>no provider claims the active perspective</b> ⇒ that subsystem implements no
+        ///     <c>IProvidesDebugSurface</c>, or its <c>perspective:</c> string does not match. The routable
+        ///     names are printed so a mismatch is visible rather than inferred.</item>
+        ///   <item><b>a provider claims it and passes no buffer</b> ⇒ either the subsystem draws no gizmos
+        ///     *(ExCon — a legitimate absence, ruling 49)* or it holds one and forgot to forward it
+        ///     *(the silent default)*.</item>
+        ///   <item><b>no dispatcher at all</b> ⇒ the editor-shaped host was built without its own buffer.</item>
+        /// </list></para>
+        /// </summary>
+        private string GizmoFeedAbsenceReason()
+        {
+            if (_dispatcher is null)
+                return "this host was built with no debug primitive buffer and no perspective dispatcher, "
+                     + "so there is no gizmo feed to read.";
+
+            string active = _dispatcher.CurrentPerspective;
+            var routable  = _dispatcher.RoutablePerspectives;
+
+            if (_dispatcher.Active() is null)
+                return $"no debug provider claims the active perspective '{active}', so nothing can be "
+                     + "routed to. This is NOT a statement that the host draws no gizmos — it may well "
+                     + "hold a buffer. Either that subsystem implements no IProvidesDebugSurface, or its "
+                     + "provider's `perspective:` string does not match. Routable perspectives here: "
+                     + (routable.Count == 0 ? "(none)" : string.Join(", ", routable))
+                     + ". See GET /capabilities.";
+
+            return $"the provider for perspective '{active}' passes no DebugPrimitiveBuffer, so this "
+                 + "perspective reports no gizmo feed. That is legitimate for a subsystem that draws no "
+                 + "gizmos (ExCon), and a defect for one that holds a buffer and does not forward it. "
+                 + "Check GET /capabilities for panels.gizmo.";
+        }
+
+        /// <summary>
         /// ⭐⭐⭐ <b><c>CE-066</c> — THIS HOST'S MISSION EDITOR, resolved exactly like
         /// <see cref="_gizmoFeed"/>: the editor's own, else the ACTIVE PERSPECTIVE's.
         /// 📄 <c>DESIGN_Subsystem_Composition_Unification.md</c> §5.9.
@@ -1573,8 +1620,8 @@ namespace Hrot.Editor.DebugApi
             //    silent no-op that reported success.
             var buffer = _gizmoFeed;
             if (buffer is null)
-                return (null, "No DebugPrimitiveBuffer for the active perspective, so there is nothing to "
-                            + "draw into (see GET /capabilities for panels.gizmo).");
+                // ⭐ CE-259am — the reason, not a claim about the host. See GizmoFeedAbsenceReason.
+                return (null, "Nothing to draw into: " + GizmoFeedAbsenceReason());
 
             if (body is null)
                 return (null, "Request body is required.");

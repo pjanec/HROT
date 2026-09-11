@@ -879,7 +879,96 @@ ReplayBrowser perspective serves `editor.authoring` *(hence `/replay/*` works)* 
 different cause — there the bus is deliberately isolated, here the **perspective simply declares no
 providers**, so even the read-only gizmo/entity surface is dark. ⛔ **Consequence for this design:** the
 ReplayBrowser's primitive counts could not be *read*; the red-proof is what substitutes for it, and it is
-stronger evidence than a count would have been.
+stronger evidence than a count would have been. ✅ **FIXED — §6.8c.**
+
+#### ✅✅✅ §6.8c — **`CE-259am` FIXED: the ReplayBrowser contributes a debug provider, and fixing it found a SECOND, PRE-EXISTING defect** *(`2026-09-11`)*
+
+⭐⭐ **The fix is a seam ADOPTION, not a mechanism.** `ReplayBrowserSubsystem` now implements
+`IProvidesDebugSurface` — the seam `ClusterRunner/Program.cs:388` already selects on
+*(`subsystems.OfType<IProvidesDebugSurface>()`)* and that **four** other hosts already implement.
+📐 It was the only perspective-owning subsystem that did not.
+
+| what it passes | why |
+|---|---|
+| `perspective: "ReplayBrowser"` | ⭐ design-confirmed at [`DESIGN_Perspective_Unification.md`](DESIGN_Perspective_Unification.md) §1b. ⛔ `PerspectiveScopedDispatcher.Resolve` matches on this exact string, so a mismatch is **indistinguishable at runtime from contributing nothing** |
+| `world: () => _activeRepo` | ⭐⭐ **a `Func` for a LOAD-BEARING reason unique to this host**: `RebindActiveRepo` REPLACES the repo on every seek, step and view-mode switch ⇒ a captured value would answer from the pre-load transient master forever. 📌 The *"a value-captured provider LIES"* shape, and this is its strongest case in the repo |
+| `entityMap: SubsystemDebugProvider.EntityMapFrom(() => _activeRepo)` | ⭐⭐ **NEW shared helper**, the exact analog of `TkbFrom`: the map is a world singleton in every host *(§6.7)*, so a fourth hand-written `HasSingletonManaged` copy would be a fourth place to drift. ⚠ **CGF/SimHost/IG are deliberately NOT migrated** — their private fields ARE the singleton they set, so they are correct *by convention*; swapping three hosts deserves its own measurement |
+| `gizmoBuffer: () => _gizmoBuffer` | the buffer the canvas takes as `DrawBuffer` and the three gizmo systems fill from `Update` |
+| ⛔ **null, each a MEASURED absence** | `drive` *(replay time ≠ cluster time; no `ClusterTimeTransportAdapter` — fronting the replay manager as an `ITimeTransportFacade` would be a new adapter and a design call)* · `extraction` *(the inspector gets `Serializer` only; its `ExtractionService` is never set, and the contract says **never fabricate one**)* · `architecture` *(design-confirmed: `DESIGN_Subsystem_Composition_Unification.md:1153` measures **zero** `ModuleHostKernel` refs)* · `tkbDb` · `missionEditor` · `requestTransition` · `clusterState` · `requestDiagnosticDump` · `dumpStatus` |
+
+⭐ **And the message that blamed the host is fixed too** — one shared `GizmoFeedAbsenceReason()` behind both
+call sites, naming which of three states it is: *no provider claims the active perspective* **(printing the
+routable names)** · *the provider passes no buffer* · *no dispatcher at all*. ⛔ The old text asserted the
+host had no buffer, which the red-proof shows was false.
+
+##### 🔴🔴 THE SECOND DEFECT — **this host ran the shared viewport systems on worlds where their EVENTS WERE NEVER REGISTERED**
+
+📐 **Surfaced the instant `world.read` became reachable:** `POST /entities/1001/focus` answered
+**`500 "Strict Mode Violation: Unmanaged event type 'CenterOnEntityCommand' (ID: 8104) was published
+without being explicitly registered"`**.
+⚠⚠ **Byte-for-byte the crash `CE-065` already fixed on CGF** — `PresentationComponentRegistry`'s own header
+records `POST /entities/1000/focus → 500 … (ID: 8104)` as its reproduction. ⇒ ⭐ the shared list had **four**
+adopters *(Stride · CGF · SimHost · editor)* and this was the fifth host that needed it.
+⛔ `RepositoryPriming.RegisterDiscoveredComponents` does not cover it: **it registers component tables,
+never events.**
+
+| ⭐ the fix, and why it is TWO halves | |
+|---|---|
+| **①** `PresentationComponentRegistry.RegisterAll(repo)` at a new **`PrepareRepo`** choke point, called from `Initialize` **and** `RebindActiveRepo` | ⭐ the shared LIST, not three local `RegisterEvent` calls — 🔒 that header's standing instruction. ⭐ Idempotent by its own contract, so it is safe on every seek |
+| **②** the shared **`CenterOnEntitySystem`** ticked from `Update`, beside its five neighbours | ⛔⛔ **① ALONE WOULD HAVE MADE THE ROUTE LIE** — `ok:true` and the camera never moves, because this host runs no kernel so nothing consumes the event. 🔒 `DESIGN_Mcp_Diagnostics_Federation.md` §9.3: *"a 200 with a transaction id proves only that the ROUTE ran"* — a gap that surface has already been bitten by twice. ⭐ Zero adaptation needed: the system's single dependency is a `Func<MapCamera?>`, written as a delegate for *exactly* this host's shape |
+| ⭐ **it also fixes the UI path** | the entity-inspector's *"Center on entity"* was publishing into a world that had never heard of the event — ⇒ **pre-existing and reachable without any debug API** |
+
+##### ✅ MEASURED AFTER THE FIX — `--mode replaybrowser` on `8152`, under `xvfb`, over HTTP
+
+```
+[Runner] Debug API listening on 8152 — mode=replaybrowser,
+         providers=[ReplayBrowser], perspectives=[ReplayBrowser].
+matrix.ReplayBrowser = { world.read:true, world.entityMap:true, panels.gizmo:true,
+                         panels.read:true, time.drive:false, scenario.load:false,
+                         diagnostics.architecture:false, mission.edit:false, tkb.read:false }
+```
+
+| route | before | after |
+|---|---|---|
+| `GET /panels/_gizmo` | ⛔ *"no debug primitive buffer"* | ✅ **604 primitives**, `dropped:0` *(602 `Line` + `LayerControlMask` + `MainMenuBinding`)* |
+| `POST /annotations` | ⛔ refused | ✅ `added:true, bufferIndex 604 → count 605` |
+| `POST /entities/{id}/focus` | ⛔ `NOT_SUPPORTED_HERE: world.read` → then **500 Strict Mode** | ✅ `focused:true`, **no violation** |
+| `GET /entities/{id}` · `/state` | ⛔ `NOT_SUPPORTED_HERE: world.entityMap` | ✅ served |
+| the whole replay drive *(load · 5 seeks · step ±)* | ✅ | ✅ unchanged |
+| 🔒 log scan | — | **0** `GizmoAnchorIdentityException` · **0** `Unhandled` · **0** `Strict Mode` · **0** `exception` · **0** `ERROR`/`FATAL` · `/logs` **0 non-Info of 5** |
+
+##### ⚠⚠ AND ONE THING A READER MUST NOT MISREAD — **there are TWO replay worlds** *(new, filed as `CE-259an`)*
+
+📐 After `POST /replay/load` + `seek`, **`/replay/entities` returns 8 while `GET /entities` returns 0** —
+⭐ **and both are correct.** `POST /replay/load` loads into an **isolated `ReplayBrowserContext` owned by the
+debug service** *(its own route doc says so, and says "use `list_replay_entities` (not `list_entities`) while
+replaying")*, whereas `world.read` reports **the UI's own `_activeRepo`**, driven by the subsystem's
+`FederatedReplayManager` and still empty until an operator opens a recording.
+⇒ ⛔ **reading `/entities` → `0` as *"the recording is empty"* would be the `CE-110` mistake again.** The
+isolation is deliberate *(an agent may inspect a recording without disturbing the operator's session)*;
+wiring `/replay/load` to the UI's manager is a **contract change to a shared route**, not a wiring fix.
+
+##### ⭐ THE RAILS — into the feature's own suite, and one of them caught ME
+
+⭐ All in **`Hrot.SimHost.Tests/TheDebugProvidersDoNotUnderReportTests`** *(`R-142` ④ — the existing suite for
+this exact family, **10/10 → 21/21**)*, because this is a **third defect shape** its two theories could not
+see: `CE-162` was *argument present and null*, `CE-163` was *argument absent from an existing provider*,
+`CE-259am` is **no provider whatsoever** — and both older rails read an argument list that does not exist.
+
+| rail | inverse-edit red-proof |
+|---|---|
+| `ASubsystemOwningAPerspective_ContributesADebugProvider` *(the 5 perspective-owning subsystems from `DESIGN_Perspective_Unification.md` §1b — ⛔ not a list the rail invented)* | ✅ **1🔴** on dropping `IProvidesDebugSurface`; ✅ **1🔴** on a wrong `perspective:` — proved on **two** hosts |
+| `ASubsystemHoldingAGizmoBuffer_PassesItToItsDebugProvider` | ✅ **1🔴** on `gizmoBuffer: null` |
+| the `CE-162` theory, **+1 row for ReplayBrowser** | ✅ **1🔴** on `entityMap: null` |
+| `TheRunnerSelectsProvidersByTheSeamTheseRailsAssert` *(anti-vacuity: `Program.cs` still selects on `IProvidesDebugSurface`, `Resolve` still matches on `Perspective`, `panels.gizmo` still measured from the member)* | — |
+
+⛔⛔ **AND THE RED-PROOF CAUGHT A FLAW IN MY OWN RAIL, which is the most useful thing here.** The first cut of
+the perspective assertion was `src.Contains($"\"{perspective}\"")` and its inverse edit **stayed GREEN**:
+every one of these subsystems also writes `public string Name => "<Perspective>"`, so the literal was
+satisfied by the **`Name` property** while `perspective:` named something else entirely. ⇒ 📌 **the third
+recorded instance of this exact blindness** *(a fully-qualified `new …EntityRotatorGizmo(` kept a rail green
+since `CE-051`; `new FdpEventBus()` in `CE-260`)*. ⭐ **Fixed IN PLACE** — it now reads the value **after every
+`perspective:` key** — and reddens.
 
 ---
 
