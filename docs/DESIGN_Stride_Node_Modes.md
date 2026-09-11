@@ -1,7 +1,7 @@
 <!--STATUS
 state: LIVE
 build-state: READY-TO-BUILD
-updated: 2026-09-09
+updated: 2026-09-11
 current-answer: §13.8 (CE-209 slice S9 AS BUILT, 2026-09-09) -- THE SELF-CONTAINED MODE IS
   RETIRED, so EVERY slice in §13's table is now BUILT. Read §13.8 for what the retirement cost
   (the deleted arm was the test fixture for 14 classes) and for the suite-rotation finding CE-262.
@@ -453,8 +453,18 @@ window** — which is precisely why the user's *"2-D maps should be unified anyw
 | piece | home | already composed by |
 |---|---|---|
 | component + event inspectors, architecture panel, profiler | ⭐ **`Hrot.Presentation/Windows/DiagnosticsWindowsBundle.cs`** *(shared engine assembly)* | ⭐⭐ **4 hosts** — SimHost · IG · CGF · Editor |
-| the debug-surface contract *(`IProvidesDebugSurface`)* | ⭐ `Hrot.Presentation.DebugApi` *(shared)* | ⭐⭐ **5 implementors** — + ExCon |
+| the debug-surface contract *(`IProvidesDebugSurface`)* | ⭐ `Hrot.Presentation.DebugApi` *(shared)* | ⭐⭐ **6 implementors** — see the correction below |
 | the ai-debug HTTP server *(`DebugApiHost`)* | ⚠ `Hrot.Editor/DebugApi/` | ⚠ **aggregated PER PROCESS** — `Program.cs:388` collects providers from the subsystems in that process |
+
+⚠⚠ **CORRECTION, measured `2026-09-11` *(graph AND grep agreeing)* — the implementor count in the row above
+had been wrong in BOTH directions, and `CE-259am` moved it:**
+
+| | |
+|---|---|
+| ⭐⭐ **the measured set is SIX** | `CgfSubsystem` · `ExConSubsystem` · `IgSubsystem` · **`ReplayBrowserSubsystem`** *(new — `CE-259am`, `2026-09-11`)* · `SimHostSubsystem` · `StrideNodeShell` |
+| ⛔⛔ **`EditorSubsystem` is NOT one** | 📐 **zero** `IProvidesDebugSurface` / `CreateDebugProvider` references in it — it **OWNS** the debug API directly with the full surface *(`DESIGN_Mcp_Diagnostics_Federation.md` §1)*. ⚠ This row's *"5 implementors"* and `R-S19`'s *"the sixth IMPLEMENTOR"* both counted it, so **each was one too high at the time**: before `CE-259am` there were **five**, and mode 2 was the **fifth**, not the sixth |
+| ⭐ **why the ordinal is not worth re-litigating** | `R-S19`'s substance — *mode 2 implements the contract and is visible to `Program.cs:388`'s `.OfType<>()` sweep* — is **unaffected and still true**. ⛔ Only the count was off. ⚠ Left as HISTORY rather than rewritten, because it is the Stride lane's own record of its slice |
+| ⭐ **the durable form** | ⛔ **do not quote a number here — measure it**: `search_graph(name_pattern="CreateDebugProvider")`, corroborated by grep. 📌 `CLAUDE.md` §M's rule: a count is a STATE CLAIM and it rots |
 
 ⇒ ⭐⭐ **SimHost runs no web server** — it fills a provider that its *process* serves. ⛔ In a distributed run
 **each node hosts its own**. ⭐ Mode 2 becomes **the 5th bundle host and the 6th provider**, and constructs a

@@ -197,7 +197,7 @@ build-state: phase 0 is BUILT (§5, as-built §5.6–§5.9).
   ⭐ NEW 2026-09-03: phase N₀ (§4.0) is READY-TO-BUILD — the time role becomes a HrotNodeBuilder input,
   which is the measured prerequisite for the Editor adopting the shared node bootstrap (§4.1). It is
   pulled FORWARD out of phase N on a user ruling that the Editor is in scope for unification.
-updated: 2026-09-07
+updated: 2026-09-11
 known-rot: §4.1's "Still untouched: the EDITOR (neither axis)" and §4.1L's "MuscleModuleFactory has no
   production setter" are BOTH corrected in §4.1ac (2026-09-07). The editor is on the BUILDER axis
   (CE-203) and off the CAPABILITY axis only; MuscleModuleFactory is assigned in production at
@@ -2819,9 +2819,10 @@ classDiagram
         +IMissionEditorService MissionEditor
         +ITkbDatabase TkbDb
         +TkbFrom(world) Func~ITkbDatabase~
+        +EntityMapFrom(world) Func~NetworkEntityMap~
         +DescribeCapabilities()
     }
-    note for SubsystemDebugProvider "EXISTS - same file. Func-backed: each dependency is built in\nInitialize, AFTER the composition root builds the provider.\nTkbFrom is the ONE way to read the world singleton (CE-110)."
+    note for SubsystemDebugProvider "EXISTS - same file. Func-backed: each dependency is built in\nInitialize, AFTER the composition root builds the provider.\nTkbFrom and EntityMapFrom (CE-259am) are the ONE way to read\neach world singleton - CGF/IG/SimHost still pass a private field\nfor the map, correct by convention, not yet migrated."
 
     class PerspectiveScopedDispatcher {
         +Active() ISubsystemDebugProvider
@@ -2854,7 +2855,13 @@ classDiagram
     class ExConSubsystem {
         +CreateDebugProvider()
     }
-    note for ExConSubsystem "HAS NO BUFFER AND NO CATALOG - passes null for both,\nhonestly absent (ruling 49). 3 of 4 on each member."
+    note for ExConSubsystem "HAS NO BUFFER AND NO CATALOG - passes null for both,\nhonestly absent (ruling 49). Buffer: 4 of 5 - catalog: 3 of 5."
+    class ReplayBrowserSubsystem {
+        -DebugPrimitiveBuffer _gizmoBuffer
+        -EntityRepository _activeRepo
+        +CreateDebugProvider()
+    }
+    note for ReplayBrowserSubsystem "CE-259am, ADDED 2026-09-11 - it was the only\nperspective-owning subsystem implementing nothing, so\nPerspectiveScopedDispatcher had an EMPTY list and every\nworld/gizmo route refused while the host held all three.\nworld and entityMap are Funcs for a load-bearing reason:\nRebindActiveRepo REPLACES the repo on every seek.\nNo kernel, no bus, no catalog => 9 members honestly null."
 
     ISubsystemDebugProvider <|.. SubsystemDebugProvider
     PerspectiveScopedDispatcher o-- "1..*" ISubsystemDebugProvider
@@ -2863,7 +2870,18 @@ classDiagram
     IgSubsystem ..> SubsystemDebugProvider : builds
     SimHostSubsystem ..> SubsystemDebugProvider : builds
     ExConSubsystem ..> SubsystemDebugProvider : builds
+    ReplayBrowserSubsystem ..> SubsystemDebugProvider : builds
 ```
+
+⚠⚠ **The diagram draws the FIVE `ClusterRunner`-composed adopters. A SIXTH implementor exists outside it:**
+`StrideNodeShell` *(`Stride/HrotStrideApp.Game`, `CE-214` item ②)* — 📐 measured `2026-09-11`, graph **and**
+grep agreeing: `CreateDebugProvider` has **6** implementors *(CGF · ExCon · IG · ReplayBrowser · SimHost ·
+StrideNodeShell)*. ⛔ It is **not drawn** because `ClusterRunner` does not compose it, so it never reaches
+this `PerspectiveScopedDispatcher`.
+⛔⛔ **And `EditorSubsystem` is NOT an implementor** — 📐 zero `IProvidesDebugSurface`/`CreateDebugProvider`
+references in it; it **owns** the debug API directly with the full surface *(`DESIGN_Mcp_Diagnostics_Federation.md`
+§1)*. ⚠ Two documents count it as one and are therefore wrong by one — see the correction note in
+[`DESIGN_Stride_Node_Modes.md`](DESIGN_Stride_Node_Modes.md) §"the debug-surface contract".
 
 #### 🔒 Why this does NOT breach the §3 standing constraint
 ⭐⭐ It moves **diagnostics egress** only: ⛔ **no module, system, translator or participant is registered**,

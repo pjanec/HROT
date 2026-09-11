@@ -56,7 +56,10 @@ public static class PresentationComponentRegistry
         //    the SAME component the authority owns, and `HealthBarGizmo`/`StyleResolutionSystem` derive
         //    the fraction themselves. 🔒 User ruling, 2026-09-05: "no precalculated percentages".
         // ⚠ Registering it HERE matters: this registry is reached by Stride, CGF, SimHost AND the editor
-        //   (four call sites), so the cache existed on every presentation host — not only IG. Dropping it
+        //   (FIVE call sites since CE-259am added ReplayBrowser, 2026-09-11 — it ran the shared viewport
+        //   systems on worlds whose events were never registered, and /entities/{id}/focus answered the
+        //   very 500 this header records below), so the cache existed on every presentation host — not
+        //   only IG. Dropping it
         //   without putting `Health` in its place would leave `HealthBarGizmo` projecting a component
         //   those hosts never registered. ⭐ The call is idempotent (GetOrCreate), so hosts that already
         //   register `Health` through their combat registry are unaffected.

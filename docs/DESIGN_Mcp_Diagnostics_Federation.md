@@ -6,7 +6,7 @@ build-state: BUILT — `2026-08-26`, ids `MD-001`..`MD-008`. ⭐ Items ①②③
   federation topology that already exists (each node hosts its own DebugApi with mode-gated capabilities);
   (2) designs the DIAGNOSTICS surface over MCP — per-node logs, per-node architecture snapshot, and
   cluster-wide collection — all on the SHARED DebugApiService so every node (incl. SimHost) exposes its own.
-updated: 2026-09-03
+updated: 2026-09-11
 current-answer: ⭐⭐ §8 AS BUILT — it WINS over §2.1/§2.2/§6 where they disagree (three premises moved).
   ⭐⭐ §1c (CE-163) is the live answer for the SEPARATE-PROCESS topology, and it CORRECTS §7's
   "only a ClusterUiCache pumper can observe cluster state" as true-of-the-cache but incomplete: every ECS
@@ -463,6 +463,22 @@ ISubsystemDebugProvider
   + RequestDiagnosticDump   (MD-006)  ── SubsystemDebugProvider.DumpsVia(bus), mirroring TransitionsVia
   + DumpStatus              (MD-007)  ── a DiagnosticDumpStatus record: primitives, never the cache object
 ```
+
+⭐ **`2026-09-11` — a FOURTH shared contributor helper, no new member:** `SubsystemDebugProvider.EntityMapFrom(world)`
+*(`CE-259am`)*, the exact analog of `TkbFrom` — it reads the `NetworkEntityMap` **world singleton** off the
+subsystem's CURRENT world. ⭐ Same one-implementation argument as `TransitionsVia`/`DumpsVia`/`TkbFrom`: the
+map is a singleton in every host that has one, so a hand-rolled `HasSingletonManaged` per adopter is one
+more place to drift. ⚠ **CGF · SimHost · IG still pass a private field** — correct today *by convention*
+(the field IS the instance they register), deliberately not migrated with a ReplayBrowser fix.
+⇒ ⭐ **It was REQUIRED, not tidiness, for `ReplayBrowserSubsystem`:** that host REPLACES its repository on
+every seek, so the singleton it must report is whichever one it just rebuilt — a field capture there reports
+the map of a world the host stopped using.
+
+⭐⭐ **And the ADOPTER SET moved:** `ReplayBrowserSubsystem` joined it on `2026-09-11` — 📐 the measured
+implementor set is now **six** *(CGF · ExCon · IG · ReplayBrowser · SimHost · `StrideNodeShell`)*, with
+⛔ **`EditorSubsystem` NOT among them** *(it owns the API directly per §1, and two documents miscount it as
+one)*. ⛔ **Do not quote that number — measure it:** `search_graph(name_pattern="CreateDebugProvider")`,
+corroborated by grep. 📄 `DESIGN_Gizmo_Anchor_Identity.md` §6.8c.
 
 | ⭐ decision | why |
 |---|---|

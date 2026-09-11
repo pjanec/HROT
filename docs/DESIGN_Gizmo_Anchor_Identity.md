@@ -181,10 +181,11 @@ classDiagram
         <<struct 64B>>
         +long BoxAnchorId
         +long StructNetworkId
-        +ushort AnchorGeneration
         +short LineOffsetPx
+        +ushort AnchorGeneration
         +int AnchorIndex
     }
+    note for DebugPrimitive "AS BUILT sec 6.7 - BOTH surviving names changed MEANING, so read\nthem here, not by their names. AnchorIndex at offset 8 is NO LONGER an\nECS index: it is the EntityLocal SpatialAnchor cache KEY, a network id\nnarrowed to 32 bits (constraint C7, asserted). AnchorGeneration at\noffset 12 is NO LONGER a generation: it is only the unsigned ALIAS of\nLineOffsetPx. Offset 8 went from 3 roles to 2, offset 12 from 2 to 1."
     class GizmoPickToken {
         <<struct>>
         +long AnchorId
@@ -885,8 +886,11 @@ stronger evidence than a count would have been. ✅ **FIXED — §6.8c.**
 
 ⭐⭐ **The fix is a seam ADOPTION, not a mechanism.** `ReplayBrowserSubsystem` now implements
 `IProvidesDebugSurface` — the seam `ClusterRunner/Program.cs:388` already selects on
-*(`subsystems.OfType<IProvidesDebugSurface>()`)* and that **four** other hosts already implement.
+*(`subsystems.OfType<IProvidesDebugSurface>()`)* and that **five** other hosts already implement
+*(`CgfSubsystem` · `ExConSubsystem` · `IgSubsystem` · `SimHostSubsystem` · `StrideNodeShell` — 📐 measured
+`2026-09-11`, graph AND grep agreeing; ⛔ **`EditorSubsystem` is NOT one**, it owns the API directly)*.
 📐 It was the only perspective-owning subsystem that did not.
+⚠ **An earlier version of this sentence said "four" — corrected against the measurement.**
 
 | what it passes | why |
 |---|---|
