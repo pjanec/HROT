@@ -1,3 +1,4 @@
+using System;
 using System.Linq;
 using System.Runtime.InteropServices;
 using Fdp.Toolkit.Diagnostics.Gizmos;
@@ -53,6 +54,97 @@ namespace GizmoMap.Contracts.Tests
         public void SC_GZ053_4b_GizmoPickTokenIsInvalidForTheCanvasSentinel()
         {
             Assert.False(new GizmoPickToken { AnchorId = -1L }.IsValid);
+        }
+
+        // ⭐⭐⭐ §6.8 — THE IDENTITY INVARIANT THROWS, AND IT THROWS AT THE BUFFER.
+        // 🔒 User ruling 2026-09-11: the zero-identity case must throw "on some suitable (central?) place
+        //   where gizmos are processed so it is easy to catch the case soon after it happens in a new code".
+        // ⭐ These rail the ECS-FREE buffer, which is the one this assembly can see; the ECS-aware
+        //   DebugPrimitiveBuffer calls the SAME DebugPrimitive.AssertHasIdentity.
+        // ⛔ RED-PROOF SHAPE: make Fail() assert instead of throw and all three of these redden.
+        // 📄 docs/DESIGN_Gizmo_Anchor_Identity.md §6.8.
+        [Fact]
+        public void SC_GZ053_6_AnInteractivePrimitiveWithNoIdentity_Throws()
+        {
+            var buf  = new GizmoPrimitiveBuffer(8);
+            var prim = default(DebugPrimitive);
+            prim.Shape        = DebugPrimitiveShape.Box2D;
+            prim.SubElementId = 3;          // claims interaction...
+            // ...and carries no BoxAnchorId.
+
+            var ex = Assert.Throws<GizmoAnchorIdentityException>(() => buf.AppendRaw(in prim));
+            Assert.Contains("NO IDENTITY", ex.Message, StringComparison.Ordinal);
+        }
+
+        // ⭐⭐ The counter-cases, so the throw cannot over-fire: a real id passes, and a DECORATIVE
+        //   hit-testable shape (no anchor, no sub-element) is not a pick target and needs no identity.
+        [Fact]
+        public void SC_GZ053_6b_ARealIdentity_AndAPurelyDecorativeShape_BothPass()
+        {
+            var buf = new GizmoPrimitiveBuffer(8);
+
+            var identified = default(DebugPrimitive);
+            identified.Shape        = DebugPrimitiveShape.Box2D;
+            identified.SubElementId = 3;
+            identified.BoxAnchorId  = 7041L;
+
+            var decorative = default(DebugPrimitive);
+            decorative.Shape = DebugPrimitiveShape.Box2D;
+
+            buf.AppendRaw(in identified);
+            buf.AppendRaw(in decorative);
+            Assert.Equal(2, buf.GetFrame().Length);
+        }
+
+        // ⭐⭐ A binding with no StructNetworkId throws too — and -1 (the CANVAS sentinel) does NOT,
+        //   which is why the test is "!= 0" and never "> 0".
+        [Fact]
+        public void SC_GZ053_6c_ABindingNeedsAnId_ButTheCanvasSentinelIsOne()
+        {
+            var buf = new GizmoPrimitiveBuffer(8);
+
+            var orphan = default(DebugPrimitive);
+            orphan.Shape = DebugPrimitiveShape.ContextMenuBinding;
+            Assert.Throws<GizmoAnchorIdentityException>(() => buf.AppendRaw(in orphan));
+
+            var canvas = default(DebugPrimitive);
+            canvas.Shape           = DebugPrimitiveShape.ContextMenuBinding;
+            canvas.StructNetworkId = -1L;          // CanvasContextMenuGizmo.CanvasAnchorId
+            buf.AppendRaw(in canvas);              // must NOT throw
+            Assert.Equal(1, buf.GetFrame().Length);
+        }
+
+        // ⭐ The documented escape hatch: no THROW, and the primitive is still APPENDED (degrading to
+        //   "drop it silently" would trade a loud failure for an invisible one).
+        // ⚠⚠ The Debug.Assert listener is suppressed for the duration, and that is the POINT rather than
+        //   a workaround: on the relaxed path a violation still fails a debug build, so this rail cannot
+        //   observe "no throw" without silencing it. ⛔ Do not read the suppression as the relaxed path
+        //   being quiet — it is quiet only in RELEASE.
+        [Fact]
+        public void SC_GZ053_6d_TurningStrictnessOff_AppendsInsteadOfThrowing()
+        {
+            bool previous = GizmoIdentityEnforcement.Strict;
+            var listeners = new System.Diagnostics.TraceListener[System.Diagnostics.Trace.Listeners.Count];
+            System.Diagnostics.Trace.Listeners.CopyTo(listeners, 0);
+            try
+            {
+                GizmoIdentityEnforcement.Strict = false;
+                System.Diagnostics.Trace.Listeners.Clear();
+
+                var buf  = new GizmoPrimitiveBuffer(8);
+                var prim = default(DebugPrimitive);
+                prim.Shape        = DebugPrimitiveShape.Box2D;
+                prim.SubElementId = 3;
+
+                buf.AppendRaw(in prim);
+                Assert.Equal(1, buf.GetFrame().Length);
+            }
+            finally
+            {
+                GizmoIdentityEnforcement.Strict = previous;
+                System.Diagnostics.Trace.Listeners.Clear();
+                System.Diagnostics.Trace.Listeners.AddRange(listeners);
+            }
         }
 
         // SC-GZ053-5: All DebugPrimitiveShape enum values 0-10 are accessible.

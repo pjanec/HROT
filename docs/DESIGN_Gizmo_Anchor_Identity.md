@@ -743,12 +743,28 @@ something MEASURED it, not because anyone remembered it.
 
 #### ⛔ THE HONEST ANSWER TO *"…or is caught at runtime?"*
 
-| | |
+🔒 **User, `2026-09-11`, clarifying what was asked:** *"by 'caught at runtime' i meant if the zero
+identity throws an exception on some suitable (central?) place where gizmos are processed so it is easy to
+catch the case soon after it happens in a new code."*
+
+⇒ ⭐⭐⭐ **IT NOW THROWS.** `GizmoAnchorIdentityException`, from `DebugPrimitive.AssertHasIdentity`, the one
+place all four emission funnels call ⇒ **every primitive of every frame passes it.** ⭐ Its own exception
+type so it is catchable and greppable as itself.
+
+⚠⚠ **An earlier version of this section said `Debug.Assert`, reasoning from `AssertFitsAnchorKey`'s *"a
+diagnostics emitter must never take down a frame"*. THAT IS SUPERSEDED**, for two measured reasons:
+
+| 📐 measured before changing it | |
 |---|---|
-| ⭐ **dev + CI** | ✅ **caught** — the invariant runs on every primitive through both product buffers |
-| ⛔⛔ **RELEASE** | **NOT caught.** `Debug.Assert` is compiled out ⇒ what holds in production is the **guards** *(the five refusals above)*, not the assert. ⚠ A NEW emitter written tomorrow that passes 0 is caught only if it is exercised by a test |
-| ⛔ **a WRONG id** | never caught — the invariant checks presence, not correctness. An id naming another node's entity passes everything |
-| ⛔ **`LocalDrawBuilder`** | an `IGizmoDrawBuilder` that is not a buffer bypasses the invariant by construction. ⚠ Same for any future non-buffer implementation — ⇒ the invariant is on the BUFFERS, not on the interface, and that is a real hole rather than a chosen boundary |
+| ⭐ **the throw actually SURFACES** | `SystemScheduler.ExecuteSystem`'s `try/catch` is **commented out**, and `FdpConfig.FailFastOnModuleException` defaults **`true`** 🔒 on the user's `2026-09-04` ruling *("the fail fast should be on by default as we are still in a wild development phase")*. ⇒ it propagates with its stack. ⛔ **This was the thing worth checking** — `CE-188` is precisely the opposite case: `StatelessGizmoSystem` **threw on every frame of every editor run and nothing failed**, which is why that default exists |
+| ⭐ **an assert enforces nothing where it matters** | compiled out of Release ⇒ the enforcement vanished exactly where a new emitter would ship |
+
+| the remaining limits — **stated, not papered over** | |
+|---|---|
+| ⭐ **default ON, with a documented way out** | `GizmoIdentityEnforcement.Strict`, or `FDP_GIZMO_IDENTITY_STRICT=0` — the same env idiom as `FDP_FAIL_FAST`. ⚠ It lives in `GizmoMap.Contracts`, not `FdpConfig`, because that assembly is deliberately BCL-only. ⭐ Relaxed still asserts in a debug build **and still APPENDS** — dropping the primitive would trade a loud failure for an invisible one |
+| ⛔ **a WRONG id** | never caught — presence, not correctness. An id naming another node's entity passes everything |
+| ⛔ **`LocalDrawBuilder`** | an `IGizmoDrawBuilder` that is not a buffer bypasses the invariant by construction. ⚠ Same for any future non-buffer implementation ⇒ the check is on the BUFFERS, not the interface, and that is a real hole rather than a chosen boundary |
+| ⚠ **`Stride/` could not be RUN here** | it is outside the solution and targets `net8.0-windows`. 📐 Source-checked: it emits through `GizmoPrimitiveBuffer`, so it is now under the throw — ⛔ and that is the one residual risk of turning the throw on, stated plainly rather than discovered by a Windows session |
 
 ⇒ 🔒 **So the claim that is true: no PRODUCTION emitter can now pass identity 0, each refusal is railed as
 a PAIR with a red-proof, and the invariant catches a new one in dev/CI. ⛔ The claim that is NOT true:

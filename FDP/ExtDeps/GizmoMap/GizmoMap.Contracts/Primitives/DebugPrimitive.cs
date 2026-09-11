@@ -505,12 +505,18 @@ namespace Fdp.Toolkit.Diagnostics.Gizmos
         /// second identity channel. ⭐ The check reads only <c>DebugPrimitive</c> fields, so this assembly
         /// is its natural home and both buffers call it.</para>
         ///
-        /// <para>⚠ <b><c>Debug.Assert</c>, not a throw</b>, and deliberately — the same ruling as
-        /// <c>DebugPrimitiveBuffer.AssertFitsAnchorKey</c>: a diagnostics emitter must never take down a frame, and this
-        /// runs on every primitive of every frame. ⭐ It fires in dev and in CI, where it can be acted on,
-        /// and the invariant additionally has RAILS so it is enforced rather than merely observed. ⛔ The
-        /// primitive is still appended: dropping it silently would trade a loud dev failure for an
-        /// invisible production one.</para>
+        /// <para>⭐⭐⭐ <b>IT THROWS — <see cref="GizmoAnchorIdentityException"/>.</b> 🔒 User ruling,
+        /// <c>2026-09-11</c>: *"if the zero identity throws an exception on some suitable (central?) place
+        /// where gizmos are processed so it is easy to catch the case soon after it happens in a new
+        /// code."* ⚠⚠ **An earlier version of this check used <c>Debug.Assert</c>**, reasoning from
+        /// <c>DebugPrimitiveBuffer.AssertFitsAnchorKey</c>'s *"a diagnostics emitter must never take down a
+        /// frame"*. ⛔ **That is SUPERSEDED here**, for two measured reasons: an assert is compiled out of
+        /// Release, so the enforcement vanished exactly where a new emitter would ship; and the throw
+        /// genuinely surfaces, because <c>SystemScheduler.ExecuteSystem</c>'s <c>try/catch</c> is
+        /// COMMENTED OUT and <c>FdpConfig.FailFastOnModuleException</c> defaults <c>true</c> on the user's
+        /// <c>2026-09-04</c> ruling. ⭐ <c>GizmoIdentityEnforcement.Strict</c> is the documented way back
+        /// to assert-only. ⛔ On the relaxed path the primitive is still APPENDED: dropping it silently
+        /// would trade a loud failure for an invisible one.</para>
         /// </summary>
         public static void AssertHasIdentity(in DebugPrimitive p)
         {
@@ -529,9 +535,8 @@ namespace Fdp.Toolkit.Diagnostics.Gizmos
                 case DebugPrimitiveShape.InputCaptureBinding:
                 case DebugPrimitiveShape.ContextMenuBinding:
                 case DebugPrimitiveShape.StructInspector:
-                    System.Diagnostics.Debug.Assert(
-                        p.StructNetworkId != 0,
-                        $"A {p.Shape} binding carries NO IDENTITY (StructNetworkId == 0). Nothing can "
+                    if (p.StructNetworkId == 0) Fail(
+                        $"A {p.Shape} binding carries NO IDENTITY (StructNetworkId is zero). Nothing can "
                       + "ever route to it: the terminal keys bindings by this field. Pass the anchor's "
                       + "network id, a disjoint tool id (GlobalGizmoManager.ToolAnchorIdBase), or -1 for "
                       + "the canvas. See DESIGN_Gizmo_Anchor_Identity.md §6.8.");
@@ -548,9 +553,8 @@ namespace Fdp.Toolkit.Diagnostics.Gizmos
             // ── an EntityLocal primitive of ANY shape needs the 32-bit anchor KEY at offset 8 ──
             if (p.Space == CoordinateSpace.EntityLocal)
             {
-                System.Diagnostics.Debug.Assert(
-                    p.AnchorIndex != 0,
-                    $"An EntityLocal {p.Shape} carries NO ANCHOR KEY (offset 8 == 0). It resolves against "
+                if (p.AnchorIndex == 0) Fail(
+                    $"An EntityLocal {p.Shape} carries NO ANCHOR KEY (offset 8 is zero). It resolves against "
                   + "no SpatialAnchor, so it is drawn nowhere and picks nothing. "
                   + "See DESIGN_Gizmo_Anchor_Identity.md §6.8.");
                 return;
@@ -569,13 +573,24 @@ namespace Fdp.Toolkit.Diagnostics.Gizmos
             bool claimsInteraction = p.SubElementId != 0 || p.BoxAnchorId != 0;
             if (!claimsInteraction) return;
 
-            System.Diagnostics.Debug.Assert(
-                p.BoxAnchorId != 0,
+            if (p.BoxAnchorId == 0) Fail(
                 $"An interactive {p.Shape} (SubElementId {p.SubElementId}) carries NO IDENTITY "
-              + "(BoxAnchorId == 0). It is WORSE than inert: a non-zero SubElementId still passes the "
+              + "(BoxAnchorId is zero). It is WORSE than inert: a non-zero SubElementId still passes the "
               + "terminal's interactivity pre-filter, so it WINS the hit-test and swallows the click, "
               + "then resolves to no entity and reaches no gizmo. Identity is the anchor's network id "
               + "and it was always required. See DESIGN_Gizmo_Anchor_Identity.md §6.8.");
+        }
+
+        /// <summary>
+        /// ⭐⭐ The ONE place the identity invariant reports. Throws by default; degrades to a debug-only
+        /// assert when <see cref="GizmoIdentityEnforcement.Strict"/> is turned off.
+        /// </summary>
+        private static void Fail(string message)
+        {
+            if (GizmoIdentityEnforcement.Strict)
+                throw new GizmoAnchorIdentityException(message);
+
+            System.Diagnostics.Debug.Assert(false, message);
         }
 
         public static DebugPrimitive MakeMainMenuBinding(uint menuJsonHash)
