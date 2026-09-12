@@ -56,16 +56,30 @@ current-answer: ⚠⚠ THERE ARE NOW **THREE** LIVE STRANDS ON THIS LANE. Read t
       EntityCreationContext so both consumers share one instance).
       ⚠ §3.2's line citations were BOTH stale: create leg is NetworkSpawningSystem.cs:191 (not :181),
       promote leg is GhostPromotionSystem:208/:211-214 (not :122/:129).
-      ⭐⭐⭐ NEXT: STEP 3b — THE EXECUTION GATE, and it is what makes this design more than cosmetic.
-      Authority gates REPLICATION, not EXECUTION: the cognitive tick systems carry no authority filter,
-      so a node that now declines brain components STILL TICKS THE BRAIN (§3.5). Until 3b lands the
-      whole of P3 gates replication only. RE-ENUMERATE the un-gated systems — §3.5 says SEVEN, its own
-      table names eight beyond BTreeTickSystem, and a 10th file matches the same query. The filter is
-      WithOwned<T>() at QueryBuilder.cs:93, with NINE production call sites (six in Stride/, which
-      §3.5's grep never scoped). 3b needs BOTH the narrowed Muscle-only registration AND the query
-      filter, per §5 ①c.
-      ⭐ ALSO OPEN: step 3c (the boot warning) and step 4 (hand hosts their role->component tables —
-      nothing supplies a policy today, so every node runs null and behaves exactly as before).
+      ✅✅ STEP 3b's QUERY-FILTER HALF DONE 2026-09-12 (CE-259be). §6f is its as-built.
+      🔴 IT DEVIATED TWICE, and both matter to whoever does step 4:
+        ① THE GATE IS CONDITIONAL (gateOnAuthority, default false). §6 lists 3b BEFORE step 4, but an
+          UNCONDITIONAL filter would make a node stop processing every entity it did not create — a
+          promoted ghost owns NOTHING until a policy or grant says so, which is CE-256 verbatim. So the
+          gate follows the POLICY: turn it on in the SAME change that hands over the policy (step 4).
+          WithOwnedWhen<T>(gate) in Fdp.Core is exactly With<T>() when off, so the off-path is identical.
+        ② SIX systems gated, not §3.5's two, each on a component it ALREADY required. Two of them
+          (CognitiveInterrupt, CognitiveCleanup) never queried BehaviorState — gating them on it would
+          have NARROWED the matched set even with the gate OFF.
+      ⚠ HONEST SCOPE: the live double-tick §3.5 describes may not exist today — all six systems come from
+      CgfLogicPack, used only by CGF and the Editor, and the Editor is offline so it gets no ghosts. The
+      gate is what makes the design non-cosmetic for multi-Brain / all-in-one / R-138 Muscle-runs-brains.
+      ⛔ STEP 3b's HALF (a) IS NOT DONE and is now a DECISION for the user — CE-259bf. Narrowing SimHost's
+      CognitiveComponentRegistry would remove its ability to run brains, colliding with R-138 and the
+      2026-08-31 "no removing capabilities by design" ruling. LEAN: do not narrow; (b) is the universal fix.
+      ⭐⭐⭐ NEXT: STEP 4 — hand CGF a Brain policy and SimHost a Muscle policy at their composition roots
+      (SimHostApp.DefaultRole / CgfSubsystem.DefaultRole), each with a SingleNodePerRoleShardProvider over
+      the role that host already declares, AND set gateOnAuthority: true in the same change (see ① above).
+      Its acceptance test: a SimHost-created brain-enabled entity ends with HasAuthority<BehaviorState>
+      FALSE on SimHost and TRUE on CGF. ⚠ This is the FIRST step that changes observable behaviour —
+      everything before it is inert by construction.
+      ⭐ ALSO OPEN: step 3c (the boot warning — §5 ②, user-approved: warn once if
+      IClusterStateCache.GetLeastLoadedNode(NodeRole.Brain) is null, at the composition root, never throw).
       ⚠⚠ CORRECTION 2026-09-12: an earlier version of this block said STEP 2 IS HARD-BLOCKED on
       CE-259az. WRONG — the blocker was attached to the wrong step. Step 2 injects NO policy (its own
       gate: "with no policy, the mask is unchanged"; §3.3: "nothing changes until a host is handed one"),

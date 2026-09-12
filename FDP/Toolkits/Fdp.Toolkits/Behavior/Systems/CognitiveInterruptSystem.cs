@@ -46,6 +46,16 @@ namespace Fdp.Toolkit.Behavior.Systems
     // can reference this type via `typeof(...)`.
     public sealed class CognitiveInterruptSystem : IEcsModuleSystem
     {
+        /// <summary>
+        /// ⭐⭐⭐ <c>P3</c> step <c>3b</c> — the EXECUTION gate; see
+        /// <c>docs/DESIGN_Role_Affinity_Ownership.md</c> §3.5. ⚠ Defaults to <c>false</c>: a promoted
+        /// ghost owns nothing until a policy or grant says otherwise, so enabling it before the node has
+        /// a policy would stop it processing every entity it did not create.
+        /// </summary>
+        private readonly bool _gateOnAuthority;
+
+        public CognitiveInterruptSystem(bool gateOnAuthority = false) => _gateOnAuthority = gateOnAuthority;
+
 
         // Reused list for deferred structural adds (cold path: once per entity lifetime).
         private readonly List<(Entity entity, ActorCapabilities caps)> _toInit =
@@ -56,9 +66,12 @@ namespace Fdp.Toolkit.Behavior.Systems
             if (view is not EntityRepository repo) return;
 
             // Pass A: initialise PreviousCapabilities for brand-new entities.
+            // ⭐⭐ P3 step 3b — gated on BrainBlackboard, NOT BehaviorState: this query never required
+            //   BehaviorState, and gating on a component it did not demand would silently NARROW the
+            //   matched set even with the gate OFF. Gate only on what is already required.
             var qNew = repo.Query()
                 .With<ActorCapabilityState>()
-                .With<BrainBlackboard>()
+                .WithOwnedWhen<BrainBlackboard>(_gateOnAuthority)
                 .Without<PreviousCapabilities>()
                 .Build();
 
@@ -76,7 +89,7 @@ namespace Fdp.Toolkit.Behavior.Systems
             var q = repo.Query()
                 .With<ActorCapabilityState>()
                 .With<PreviousCapabilities>()
-                .With<BrainBlackboard>()
+                .WithOwnedWhen<BrainBlackboard>(_gateOnAuthority)
                 .Build();
 
             foreach (var entity in q)

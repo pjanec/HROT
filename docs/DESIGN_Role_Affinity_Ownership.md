@@ -1,7 +1,7 @@
 <!--STATUS
 state: LIVE
 updated: 2026-09-12
-build-state: BUILDING — steps 0a, 0, 1a, 1, 2 and 3 done. ⛔ 3b is what makes it non-cosmetic. ⛔ NOT "BUILT": open-risk below still binds (§3.5 / step 3b).
+build-state: BUILDING — steps 0a, 0, 1a, 1, 2, 3 and 3b(b) done. ⛔ NOT BUILT: step 4 supplies no policy yet, so every node still runs null; 3b(a) is an open capability QUESTION. ⛔ NOT "BUILT": open-risk below still binds (§3.5 / step 3b).
 verified: ⭐⭐ THE WHOLE DESIGN WAS RE-MEASURED AGAINST THE TREE ON 2026-09-12 before step 0 was built
   (user: "verify design before, might be stale"). VERDICT: every DECISION holds and nothing load-bearing
   is stale — the six unbuilt types are still at ZERO .cs occurrences, the blanket grant is byte-identical,
@@ -43,7 +43,13 @@ current-answer: §3 is the design; §4 carries the UML; §6 is the sequencing; �
   as-built. ⚠ §6c's int-role-bit deviation was REVERTED the same day: NodeRole moved into Fdp.Core on the
   user's ruling, so the seam carries the typed signature the design always specified.
   ✅✅✅ STEPS 2 AND 3 ARE DONE, 2026-09-12 — both insertion points. §6e is their as-built.
-  ⛔⛔ Steps 3b, 3c and 4 remain unbuilt. ⚠⚠ CORRECTION 2026-09-12 (user challenge: "what actually
+  ✅✅ STEP 3b's QUERY-FILTER HALF IS DONE, 2026-09-12 — §6f is its as-built and carries TWO deviations:
+  the gate is CONDITIONAL (§6's own ordering would have broken the cluster — an unconditional filter makes
+  a node stop processing every entity it did not create, because a promoted ghost owns nothing), and it
+  covers SIX systems rather than §3.5's two, each gated on a component it ALREADY required.
+  ⛔⛔ Steps 3c and 4 remain unbuilt, and 3b's half (a) — narrowing the Muscle registration — is now an
+  open CAPABILITY QUESTION for the user, not a task: it would remove SimHost's ability to run brains,
+  colliding with R-138 and the 2026-08-31 "no removing capabilities by design" ruling. ⚠⚠ CORRECTION 2026-09-12 (user challenge: "what actually
   blocks step 2?"): an earlier version of this block said STEP 2 IS BLOCKED on CE-259az. THAT WAS WRONG —
   the blocker was attached to the wrong step. Step 2 injects no policy (its own gate: "with no policy the
   mask is unchanged"), so it is INERT by construction and free to ship. CE-259az gates STEP 4, where
@@ -804,9 +810,78 @@ sequenceDiagram
 | **1** | ✅✅✅ **DONE `2026-09-12` — see §6d AS-BUILT.** ~~`IRoleAffinityPolicy` + `RoleAffinityPolicy` in `Fdp.Toolkits/Replication`, taking the provider and a mask PER ROLE~~ ⭐ **Shipped as specified — no deviation.** | unit: Brain and Muscle masks are **disjoint** over the brain/kinematic sets, **and** birth-critical components are in **both**. ⭐⭐ **AND the shard rail: with a stub provider answering `false` for `Brain`, a Brain-declaring node's mask contains NO brain components** — this is the one that proves the seam is real rather than decorative |
 | **2** | ✅✅✅ **DONE `2026-09-12` — see §6e AS-BUILT.** ~~`NetworkSpawningSystem` intersects with the policy; null policy keeps today's behaviour~~ ⚠ the line is **`:191`**, not the `:181` this row named | rail: with no policy, the mask is unchanged *(red-proof: inject a policy, assert the bits drop)*. ⭐⭐ **AND the birthright rail: a creator ALWAYS keeps `dtWorldPos`, whatever its role** — this is the one the architect's correction exists to protect, so it is written before step 2's code |
 | **3** | ✅✅✅ **DONE `2026-09-12` — see §6e AS-BUILT.** ~~`GhostPromotionSystem` claims after the translator loop~~ ⚠ the insertion point is **`:208`/`:211-214`**, not the `:122`/`:129` §3.2 named | ✅ met, plus three the row did not ask for: no-policy passthrough, **no birthright for a promoter**, and an explicit grant surviving |
-| **3b** | 🔴 **the execution gate** — §3.5: `.WithAuthority<BehaviorState>()` on `BTreeTickSystem`, and narrow the Muscle-only registration | rail: a node holding brain components it does **not** own ticks them **zero** times. ⛔ **Without this the whole design is cosmetic** — authority would gate replication while both nodes still ran the tree |
+| **3b** | ✅✅ **THE QUERY-FILTER HALF DONE `2026-09-12` — see §6f AS-BUILT.** ⛔ The REGISTRATION-narrowing half (a) is NOT done and is now a QUESTION, not a task — §6f says why it would remove a capability |  rail: a node holding brain components it does **not** own ticks them **zero** times. ⛔ **Without this the whole design is cosmetic** — authority would gate replication while both nodes still ran the tree |
 | ⭐ **3c** | 🆕 **the BOOT WARNING** *(§5 ② — user-approved `2026-09-10`)*: at the composition root, warn once if `IClusterStateCache.GetLeastLoadedNode(NodeRole.Brain)` is `null`. ⛔ **WARN, never throw** *(a pure-Muscle test cluster is legitimate)*, and ⛔ **at the root, not in the policy** — it is NED-only and the policy stays network-agnostic *(§2.3)* | rail: the warning fires on a roster with no Brain and is **silent** when one is present |
 | **4** | hand CGF a Brain policy and SimHost a Muscle policy at their composition roots, ⭐ **each with a `SingleNodePerRoleShardProvider` over the role that host already declares** *(`SimHostApp.DefaultRole:182` · `CgfSubsystem.DefaultRole`)* | ⭐⭐ **the acceptance test:** a SimHost-created brain-enabled entity ends with `HasAuthority<BehaviorState>` **false on SimHost and true on CGF**, and `TacticalIntentResolutionSystem`'s gate passes |
+
+## 6f. ✅✅ AS-BUILT — **step `3b`'s QUERY FILTER, shipped `2026-09-12`** *(obligation ⑤)*
+
+⭐⭐⭐ **This is the step that stops the design being cosmetic.** Authority gates REPLICATION — every egress
+translator checks it — ⛔ but a QUERY does not. Without this, a node could decline the brain components,
+publish nothing, and **still run the tree**.
+
+### 🔴🔴 DEVIATION ① — **THE GATE IS CONDITIONAL, AND §6's ORDERING WOULD HAVE BROKEN THE CLUSTER**
+
+⛔⛔ **§6 lists `3b` BEFORE step 4, and an unconditional filter shipped in that order reproduces the very
+bug §0a opens with.** 📐 Measured, and it follows from this design's own rails:
+
+| | |
+|---|---|
+| `WithOwned<T>()` requires local authority over `T` | `QueryBuilder.cs:93-98` |
+| a promoted ghost owns **NOTHING** today | railed in step 3 — `WithNoPolicy_APromotedGhostClaimsNothing` |
+| nothing supplies a policy until **step 4** | every node runs `null` |
+| ⇒ an unconditional filter makes a node **stop processing every entity it did not create itself** | 🔴 which is `CE-256` verbatim: *"owns nothing, so nothing it is responsible for ever moves"* |
+
+⇒ ⭐⭐⭐ **The gate follows the POLICY, not the step number.** A host handed an `IRoleAffinityPolicy` has by
+that act said *"I know which components are mine"* — and only then does *"do not touch what is not mine"*
+mean anything. ⭐ Same opt-in discipline that made steps 2 and 3 safe to ship early; `gateOnAuthority`
+defaults to `false` and one flag threads to both cognitive modules from `CgfLogicPack`.
+
+⚠ **`WithOwnedWhen<T>(gate)`** *(`Fdp.Core`)* is what makes the off-path provably identical: it is exactly
+`With<T>()` when the gate is off.
+
+### ⚠ DEVIATION ② — **SIX systems, not the two §3.5 names, and the gate component differs per system**
+
+⛔ §3.5 prescribes `.WithOwned<BehaviorState>()` on `BTreeTickSystem` and `HsmTickSystem`. 📐 Two problems:
+
+| | |
+|---|---|
+| ⭐⭐ **the other writers make it half a fix** | `ChannelArbitrationSystem`, `CognitiveInterruptSystem` and `CognitiveCleanupSystem` all **WRITE** cognitive state on un-gated queries. ⛔ Gating only the ticks leaves a node clobbering a brain another node owns — and the red-proof confirms it: leaving **one** system un-gated reddens the gate rail |
+| 🔴 **two of them never queried `BehaviorState` at all** | `CognitiveInterruptSystem` and `CognitiveCleanupSystem` key on `BrainBlackboard`. ⇒ gating them on `BehaviorState` would have added a `With<BehaviorState>` they did not have and **silently NARROWED the matched set even with the gate OFF** — a behaviour change wearing a feature flag. ⭐ **The rule applied instead: gate each system on a component it ALREADY requires**, so the only change is the authority bit |
+
+⭐ **Gated (6):** `BTreeTickSystem`, `HsmTickSystem<T>`, `ChannelArbitrationSystem` *(both queries)* and
+`MissionDirectorSystem` on `BehaviorState`; `CognitiveInterruptSystem` *(both queries)* and
+`CognitiveCleanupSystem` on `BrainBlackboard`.
+⛔ **Deliberately NOT gated:** `TraceBufferLifecycleSystem` and `BehaviorFrameSystem` *(diagnostics /
+pulse, no cognitive writes)*; `MissionAdapterSystem` and `RouteContextSystem` *(in `Hrot.CGF`, so they can
+only ever run on a Brain host)*; `Fdp.Examples`' `TelemetryReporterSystem` *(not production)*.
+
+### 📐 THE ENUMERATION — **§3.5's numbers were soft, as warned**
+
+📐 Re-measured `2026-09-12`: **10 production files** match the cognitive-query pattern, not the "SEVEN"
+§3.5 claims *(its own table already named eight beyond `BTreeTickSystem`)*. ⭐ And the composition matters
+more than the count: **five of the six gated systems are installed by exactly one thing** —
+`CognitiveRuntimeModule`, itself installed only by `CgfLogicPack`, itself used only by **CGF and the
+Editor**. `MissionDirectorSystem` comes from `MissionControlModule`, same pack.
+
+⚠⚠ **Which means the LIVE double-tick §3.5 describes may not exist today** — stated plainly rather than
+implied: no production host runs these systems without being a Brain, and the Editor is offline
+*(`NullReplicationModule`)*, so it receives no ghosts. ⇒ ⭐ the gate is correct and cheap and it is what
+makes the design non-cosmetic **for the multi-Brain, all-in-one and `R-138` Muscle-runs-brains cases** —
+⛔ but it is **not** repairing a defect measured in today's cluster.
+
+### ⛔⛔ WHAT IS NOT DONE — **§3.5's half (a), and it is a QUESTION now, not a task**
+
+⛔ §3.5's PRIMARY closure is *"narrow a Muscle-only node's `CognitiveComponentRegistry` so brain components
+are never registered."* **Not done, deliberately.** 📐 `Hrot.SimHost/CognitiveComponentRegistry.cs:32+`
+registers 14 cognitive components, and narrowing it would **remove SimHost's ability to run brains at
+all**. ⚠ That collides head-on with two standing rulings — `R-138` *(every ECS node can create entities;
+fully distributed)* and the `2026-08-31` ruling *"no exceptions, not removing capabilities by design"*.
+⇒ 🔒 **it is a capability decision for the user, not an implementation detail**, and §3.5 itself concedes
+(a) is insufficient without (b) anyway. ⭐ **(b), shipped here, is the universal fix**; (a) would be
+defence-in-depth bought with a capability.
+
+---
 
 ## 6e. ✅✅✅ AS-BUILT — **steps `2` and `3`, both insertion points, shipped `2026-09-12`** *(obligation ⑤)*
 
