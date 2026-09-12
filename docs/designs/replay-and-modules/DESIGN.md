@@ -465,6 +465,93 @@ public Action? AfterSeekCallback =>
 self-heals)*: **return `null` and say why**. ⛔ Do not leave a protection that reads as wired.
 📄 `CE-259ap`.
 
+#### 2.1m ⭐⭐⭐ THE UNIFIED PLAN — **`HN-018` + `CE-259ap` + `CE-259ar` ARE ONE DEFECT** *(`2026-09-12`)*
+
+##### ⭐⭐ Why three tickets are one
+
+The ELM holds per-entity protocol state *(`_pendingConstruction`, `_pendingDestruction`)* **outside** the
+`EntityRepository`. The repository is replaced underneath it by **three** operations and the dictionaries
+survive all three:
+
+| trigger | ticket |
+|---|---|
+| editor preview enter/exit | **`HN-018`** *(open, `RW-L`, `2026-08-24`)* |
+| replay **seek** | `CE-259ar` |
+| replay start / end / branch-to-live | `CE-259ap` |
+
+🔒 The design said so first — `DESIGN_Deterministic_Network_Ids.md:306` calls the ELM *"§2b's third stale
+participant"* and defers it to `HN-018` *"precisely so it can be added"* to the bracket's list.
+⇒ ⭐⭐⭐ **`HN-018` is the OWNING row; `CE-259ap`/`CE-259ar` are the same defect from the other trigger.**
+
+##### ⭐⭐ Two harms ⇒ two halves, and you need both
+
+| harm | mechanism | half |
+|---|---|---|
+| **stale entries act on a NEW world** | `CheckTimeouts:358` — `currentFrame - StartFrame` on **uint** wraps ⇒ `DestroyEntity` on a stale handle, and the generation guard is **Debug-only** *(§2.1h)* | ⭐ **CLEAR** |
+| **missing entries leave restored entities UNDRIVEN** | `DrainInstantComplete:324` iterates the **dictionary**, never a world query ⇒ a restored `Constructing`/`TearDown` entity is promoted by nothing and is invisible to every default query | ⭐ **RE-DERIVE** |
+
+⛔ Clear alone leaves zombies; re-derive alone leaves the destroy hazard. ⭐ They are exactly the two calls
+the existing seam already offers: `Capture()` / `Restore()`.
+
+##### 🔴🔴🔴 STEP 1 IS **NOT** WHAT §8.10 SAYS — **measured `2026-09-12`, and the design's prescription is unsafe as written**
+
+§8.10 prescribes *"`NetworkLifecycleSystemGroup.Enabled = false` ensures `LifecycleSystem`,
+`GhostPromotionSystem` and `NetworkGatewaySystem` never run"*. ⛔⛔ **Relocating those systems into that
+group would break lifecycle on two host families.** 📐 Measured:
+
+| # | measurement |
+|---|---|
+| **①** | `NetworkLifecycleGroup.ExecuteGroup` is called at **exactly ONE site** — `NedReplicationModule.cs:493`. ⛔ `BdcReplicationModule` **constructs** a group (`:61`) and never executes it; `OfflineNetworkFactory.NullReplicationModule` (**the editor**) exposes one (`:150`) that nothing ticks |
+| **②** | ⇒ 🔴 **moving `LifecycleSystem` into the group stops entity lifecycle ENTIRELY on the editor and on BDC nodes** — the group is a parallel `ExecuteGroup` call owned by one *network* module, not a scheduler construct |
+| **③** | ⇒ and a system in the group **that is also scheduler-registered runs TWICE per frame** on NED nodes *(the `GhostCreationSystem` double-registration the group's own summary already notes)*. `GhostPromotionSystem` is now registered by `EntityCreationPack` (`P2`) and carries **`[SingleInstance]`** ⇒ it cannot simply be added |
+
+⇒ ⭐⭐⭐ **REVISED STEP 1 — GATE IN PLACE, DO NOT RELOCATE.** Give `LifecycleSystem` and
+`GhostPromotionSystem` a replay-aware `Func<bool>` guard asked once per `Execute` — ⭐ **the
+`CycloneNetworkIngressSystem.IsWorldStateFrozen` shape**, which is the under-adopted seam §2.1a already
+identified — driven by the replay handler. ⭐ Keeps every scheduler registration *(no `P2` undo, no
+`[SingleInstance]` conflict)*, works on **every** host regardless of replication module, and delivers
+§8.10's intent *("never run")* without the group's structural problems.
+⚠ **This is a DEVIATION from `mgmt-1` §8.10 and must be argued in the batch report** *(obligation ③)*, and
+§8.10 updated to the as-built *(obligation ⑤)*.
+
+##### ⭐⭐ THE FOUR STEPS
+
+| # | step | closes |
+|---|---|---|
+| **1** | ⭐ **Gate `LifecycleSystem` + `GhostPromotionSystem` during replay** via the `Func<bool>` seam *(above)*, and honour `BypassLifecycle` inside `CreateGhost` — the direct-call path no scheduler gate can reach | `CE-259ar` *(no `CheckTimeouts` during playback ⇒ **the underflow cannot fire**)* + the promotion half of `CE-259ap` |
+| **2** | ⭐⭐⭐ **The ELM joins the bracket — this IS `HN-018`.** Add `PreviewParticipants.LifecycleModule(elm)`: `Capture()` returns a **NON-NULL marker**, `Restore()` clears both dictionaries and arms a re-derive flag; `LifecycleSystem` performs the re-derive on its next `Execute` *(where the command buffer and frame live)* — `BeginConstruction(entity, TkbIdentity.TkbType, currentFrame, cmd)` per restored `Constructing`, `BeginDestruction` per `TearDown`, each with a **fresh** participant set | `HN-018` **and** the branch-to-live zombie, from one implementation |
+| **3** | ⭐ **Drive the bracket from the REPLAY boundaries too** — `PrepareReplay`, **every seek**, `FinalizeReplay`/`PrepareLive`. Plus the `CE-259aq` one-liner *(`AfterSeekCallback` → `null` with a comment)* | 🔒 the user's ruling: *clear at every **world replacement**, not only at resume* |
+| **4** | ⛔ **NOT in this plan** — `CE-259au`'s peer axis *(the dangling `PendingNetworkAck`)* and `CE-259as` *(the unwritten initiator)*. They wait on `Q69` asks B/D | — |
+
+⚠ **Order matters: 1 before 2.** Doing 2 first leaves the underflow live in the window.
+
+##### 🔴 THE MECHANICAL DETAIL THE WHOLE OF STEP 2 HANGS ON
+
+📐 `PreviewStateBracket.Capture():86` — `if (token is null) unrestorable.Add(p.Name);` — and
+`Restore():120` — `if (!_captured.TryGetValue(p, out var token)) continue;`
+⇒ ⛔⛔ **a `null` capture makes the bracket SKIP `Restore` entirely** *(and log the node as unable to
+guarantee reproducibility, every preview)*. ⭐ So the ELM participant **must return a non-null token** even
+though it has no snapshot to give — its `Restore` is a *clear-and-re-derive*, not a copy-back.
+
+##### ✅ THE MEASUREMENTS THAT WERE MISSING, NOW MADE
+
+| # | question | answer |
+|---|---|---|
+| **①** | does adding a participant perturb the preview rails? | ✅ **NO.** `APreviewLeavesNoTraceTests` and `PreviewLeavesNoTraceRails` assert **per-participant** behaviour *(allocator capture/restore, the map's duplicate-`Register` throw, the repository-resolved overload)* — ⛔ neither asserts a participant **count** nor iterates the bracket's list |
+| **②** | how many sites build the participant list? | ⭐ **THREE**, two lines each — `CgfSubsystem.cs:1127-1128`, `NodeBootstrapper.cs:251-253`, `EditorSubsystem.cs:2143-2144`; consumed by `ReferencePreviewHandler.cs:75` and `PreviewClusterOpHandler.cs:74` |
+| **③** | is relocating into the lifecycle group safe? | 🔴 **NO** — see the three measurements above |
+
+##### ⚠ The naming call, and what this withdraws
+
+⭐ A bracket named `Preview*` driven from the replay path is **friction, not a defect** — the contract is
+*"world replacement"*. ⭐ **LEAN: use it as-is with a comment**; a rename is a Roslyn job *(never a text
+replace — `CLAUDE.md`)* and can wait for a reader who is actually confused.
+⛔⛔ **WITHDRAWN: §2.1f's standalone `ResumeFromRestoredState()`.** Right *shape* (re-derive, not record),
+wrong *home* — the bracket exists and its list is built to be extended. 🔒 And
+`DESIGN_Deterministic_Network_Ids.md:306` **validates the shape**: a correct participant *"needs the
+rewind's identity mapping, not a snapshot"* ⇒ ⭐ re-deriving from the recorded `LifecycleState` +
+`TkbIdentity` carries **no handles across the boundary at all**, so that problem never arises.
+
 #### 2.1k ⭐⭐⭐ THE OWNING DESIGN IS `mgmt-1/DESIGN.md` §8.10 — **found `2026-09-12`, via the architect relay**
 
 ⛔⛔ **`R-129` MISS, recorded because it is the generic one:** this section reasoned about replay lifecycle
