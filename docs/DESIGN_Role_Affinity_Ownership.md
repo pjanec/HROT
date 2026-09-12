@@ -1,7 +1,7 @@
 <!--STATUS
 state: LIVE
 updated: 2026-09-12
-build-state: BUILDING — steps 0a and 0 done. ⛔ NOT "BUILT": open-risk below still binds (§3.5 / step 3b).
+build-state: BUILDING — steps 0a, 0 and 1a done. ⛔ NOT "BUILT": open-risk below still binds (§3.5 / step 3b).
 verified: ⭐⭐ THE WHOLE DESIGN WAS RE-MEASURED AGAINST THE TREE ON 2026-09-12 before step 0 was built
   (user: "verify design before, might be stale"). VERDICT: every DECISION holds and nothing load-bearing
   is stale — the six unbuilt types are still at ZERO .cs occurrences, the blanket grant is byte-identical,
@@ -28,15 +28,20 @@ current-answer: §3 is the design; §4 carries the UML; §6 is the sequencing; �
   wins over §3.7 where they differ (§3.7 is unchanged and still right; §6a ADDS the two attributes the
   build needed).
   ✅✅✅ STEP 0a IS DONE, 2026-09-11 — the GhostPromotionSystem relocation into EntityCreationPack.
+  ✅✅✅ STEP 1a IS DONE, 2026-09-12 — the role-shard seam. §6c IS ITS AS-BUILT and carries a deviation
+  STEP 1 INHERITS: roles are OPAQUE int BITS, not NodeRole, because NodeRole lives in Hrot.Core and
+  Hrot.Core REFERENCES Fdp.Toolkits — §3.8's literal signature cannot compile in its stated home. This is
+  the SAME trap note (i) below already recorded for IClusterStateCache. ⇒ step 1's per-role mask table is
+  keyed by int role bits too. RoleShardKey.TkbType is also a long, not §3.8's int.
   ✅✅✅ STEP 0 IS DONE, 2026-09-12 — TkbTemplate.BirthCriticalComponents + AddBirthCriticalComponent<T>(),
   seeded on every production template, plus a catalogue-wide rail. §6b IS ITS AS-BUILT and carries the
   one gap it does NOT close: file-loaded templates (TkbDeserializer declares no components, so a
   file-loaded template has an EMPTY list — and CreateTkb() is the DEV default while files are the
   PRODUCTION path). ⛔ That must be answered BEFORE step 2, or step 2 turns every file-loaded template
   into the origin-flash defect §3.1 exists to prevent.
-  ⛔⛔ Steps 1a, 1, 2, 3, 3b, 3c and 4 remain entirely unbuilt — re-measured 2026-09-12:
-  IRoleShardProvider, RoleShardKey, SingleNodePerRoleShardProvider, IRoleAffinityPolicy and
-  RoleAffinityPolicy still have ZERO occurrences in .cs. NEXT IS STEP 1a (the role-shard seam).
+  ⛔⛔ Steps 1, 2, 3, 3b, 3c and 4 remain entirely unbuilt — IRoleAffinityPolicy and RoleAffinityPolicy
+  still have ZERO occurrences in .cs. NEXT IS STEP 1 (the policy itself), and it must use the int-role-bit
+  keying §6c explains. ⛔ STEP 2 IS BLOCKED until CE-259az (file-loaded templates) is answered.
   ⭐ §5's three decisions are all RESOLVED (① / ①b 2026-09-01; ② user-approved and ③ user-ruled
   2026-09-10; ①c "nothing measurable remains"). What is left in §5 is a per-system REVIEW for step 3b,
   not a decision — so this design is NOT blocked on the user.
@@ -404,12 +409,17 @@ a **sharding IMPLEMENTATION** is deferred. ⚠ And the question is no longer *"m
 
 #### ⭐⭐ The seam
 
+> ⚠⚠ **AS-BUILT `2026-09-12` — the sketch below is SUPERSEDED in TWO places.** The shipped signature
+> takes an **opaque `int roleBit`, not a `NodeRole`**, and `RoleShardKey.TkbType` is a **`long`, not an
+> `int`**. Both are forced, not preferences — see §6c. The sketch is kept because its *shape* is what was
+> ruled on and that is unchanged.
+
 ```csharp
 /// Does THIS node serve `role` for THIS entity?
 /// ⛔ MUST be deterministic and must give the SAME answer on every node — see the contract below.
 public interface IRoleShardProvider
 {
-    bool ServesRole(NodeRole role, in RoleShardKey key);
+    bool ServesRole(int roleBit, in RoleShardKey key);   // ⚠ was NodeRole — see §6c
 }
 
 /// ⭐ Extensible ON PURPOSE (the user's "or whatever"): adding Faction/Zone later touches
@@ -417,7 +427,7 @@ public interface IRoleShardProvider
 public readonly struct RoleShardKey
 {
     public readonly long          NetworkId;   // stable per-entity discriminator ⇒ BALANCING
-    public readonly int           TkbType;     // the entity TYPE ⇒ SPECIALISATION
+    public readonly long          TkbType;     // ⚠ was int — every TkbType in the system is a long
     public readonly DISEntityType DisType;     // already stamped in the entity header
 }
 ```
@@ -447,11 +457,17 @@ OwnableMask(template, isCreator, key):
 ⭐ **The one implementation built now:**
 
 ```csharp
-public sealed class SingleNodePerRoleShardProvider(NodeRole declaredRoles) : IRoleShardProvider
+public sealed class SingleNodePerRoleShardProvider(int declaredRoles) : IRoleShardProvider
 {
-    public bool ServesRole(NodeRole role, in RoleShardKey key) => (declaredRoles & role) != 0;
+    // ⚠ AS-BUILT adds `roleBit != 0` — "no role" must be served by NOBODY, so a defaulted or
+    //   forgotten NodeRole.None cannot quietly match every node.
+    public bool ServesRole(int roleBit, in RoleShardKey key)
+        => roleBit != 0 && (declaredRoles & roleBit) != 0;
 }
 ```
+
+⭐ **At the host's composition root the cast makes the boundary visible:**
+`new SingleNodePerRoleShardProvider((int)NodeRole.Brain)`.
 
 | ⭐ why this is the right default | |
 |---|---|
@@ -552,23 +568,23 @@ classDiagram
         +OwnableMask(template, isCreator, key) BitMask512
     }
     class RoleAffinityPolicy {
-        -NodeRole declaredRoles
-        -Dictionary~NodeRole,BitMask512~ componentsPerRole
+        -int declaredRoleBits
+        -Dictionary~int,BitMask512~ componentsPerRole
         -IRoleShardProvider shard
         +OwnableMask(template, isCreator, key) BitMask512
     }
     class IRoleShardProvider {
         <<interface>>
-        +ServesRole(role, key) bool
+        +ServesRole(roleBit, key) bool
     }
     class SingleNodePerRoleShardProvider {
-        -NodeRole declaredRoles
-        +ServesRole(role, key) bool
+        -int declaredRoleBits
+        +ServesRole(roleBit, key) bool
     }
     class RoleShardKey {
         <<struct>>
         +long NetworkId
-        +int TkbType
+        +long TkbType
         +DISEntityType DisType
     }
     class IOwnershipDistributionStrategy {
@@ -611,7 +627,7 @@ classDiagram
     GhostPromotionSystem --> EntityRepository
     DeferredTakeoverSystem --> EntityRepository : explicit grants override
 
-    note for IRoleShardProvider "NEW - user ruling 2026-09-10. GENERIC over roles, not brain-only. See 3.8"
+    note for IRoleShardProvider "BUILT 2026-09-12. GENERIC over roles. roleBit is an opaque int, NOT NodeRole - see 6c"
     note for SingleNodePerRoleShardProvider "NEW - the ONLY implementation built now. IGNORES the key, so it is byte-identical to today and correct on a networkless node"
     note for RoleShardKey "NEW - extensible on purpose: adding faction or zone later touches neither call site nor any implementation"
     note for NetworkSpawningSystem "EXISTS - line 186-190 today assigns the full component mask. networkId is a local at 108, NetworkIdentity stamped at 138"
@@ -775,13 +791,70 @@ sequenceDiagram
 |---|---|---|
 | **0a** | ✅✅✅ **DONE `2026-09-11` — see §6a AS-BUILT.** ~~RELOCATE `GhostPromotionSystem` registration from `NedReplicationModule` into `EntityCreationPack`~~ | ✅ gate met, and made STRUCTURAL rather than counted: `[SingleInstance]` + `[UpdateAfter]`. Four inverse-edit red-proofs |
 | **0** | ✅✅✅ **DONE `2026-09-12` — see §6b AS-BUILT.** ~~`TkbTemplate.BirthCriticalComponents` + `AddBirthCriticalComponent<T>()`, mirroring `AddMandatoryComponent<T>()`; seed **`SimTransform`** on the templates that carry one~~ | ✅ both gate halves met *(`TkbTemplateTests`)*, ⭐ plus a catalogue-wide rail the step did not ask for. ⚠ **ONE GAP, recorded not closed: file-loaded templates** — §6b |
-| ⭐⭐ **1a** | 🆕 **`IRoleShardProvider` + `RoleShardKey` + `SingleNodePerRoleShardProvider`** in `Fdp.Toolkits/Replication` — §3.8, user ruling `2026-09-10` | unit: the default provider answers `true` for every DECLARED role and `false` otherwise, **for any key** *(incl. `NetworkId == 0`, the networkless case)*; ⭐ **a rail that the default IGNORES the key** — red-proof: make it read `NetworkId` and the "identical on every node" contract rail reddens |
+| ⭐⭐ **1a** | ✅✅✅ **DONE `2026-09-12` — see §6c AS-BUILT.** ~~`IRoleShardProvider` + `RoleShardKey` + `SingleNodePerRoleShardProvider` in `Fdp.Toolkits/Replication`~~ — ⚠ **the signature DEVIATED: roles are opaque `int` bits, because `NodeRole` lives in `Hrot.Core` and the dependency cannot run this way** | unit: the default provider answers `true` for every DECLARED role and `false` otherwise, **for any key** *(incl. `NetworkId == 0`, the networkless case)*; ⭐ **a rail that the default IGNORES the key** — red-proof: make it read `NetworkId` and the "identical on every node" contract rail reddens |
 | **1** | `IRoleAffinityPolicy` + `RoleAffinityPolicy` in `Fdp.Toolkits/Replication`, ⚠ **taking the provider and a mask PER ROLE** *(§3.8 — ⛔ not the single flat mask §3.3 first drew)* | unit: Brain and Muscle masks are **disjoint** over the brain/kinematic sets, **and** birth-critical components are in **both**. ⭐⭐ **AND the shard rail: with a stub provider answering `false` for `Brain`, a Brain-declaring node's mask contains NO brain components** — this is the one that proves the seam is real rather than decorative |
 | **2** | `NetworkSpawningSystem:181` intersects with the policy; **null policy keeps today's behaviour** | rail: with no policy, the mask is unchanged *(red-proof: inject a policy, assert the bits drop)*. ⭐⭐ **AND the birthright rail: a creator ALWAYS keeps `dtWorldPos`, whatever its role** — this is the one the architect's correction exists to protect, so it is written before step 2's code |
 | **3** | `GhostPromotionSystem` claims after the translator loop | rail: a promoted ghost owns exactly the role's descriptors |
 | **3b** | 🔴 **the execution gate** — §3.5: `.WithAuthority<BehaviorState>()` on `BTreeTickSystem`, and narrow the Muscle-only registration | rail: a node holding brain components it does **not** own ticks them **zero** times. ⛔ **Without this the whole design is cosmetic** — authority would gate replication while both nodes still ran the tree |
 | ⭐ **3c** | 🆕 **the BOOT WARNING** *(§5 ② — user-approved `2026-09-10`)*: at the composition root, warn once if `IClusterStateCache.GetLeastLoadedNode(NodeRole.Brain)` is `null`. ⛔ **WARN, never throw** *(a pure-Muscle test cluster is legitimate)*, and ⛔ **at the root, not in the policy** — it is NED-only and the policy stays network-agnostic *(§2.3)* | rail: the warning fires on a roster with no Brain and is **silent** when one is present |
 | **4** | hand CGF a Brain policy and SimHost a Muscle policy at their composition roots, ⭐ **each with a `SingleNodePerRoleShardProvider` over the role that host already declares** *(`SimHostApp.DefaultRole:182` · `CgfSubsystem.DefaultRole`)* | ⭐⭐ **the acceptance test:** a SimHost-created brain-enabled entity ends with `HasAuthority<BehaviorState>` **false on SimHost and true on CGF**, and `TacticalIntentResolutionSystem`'s gate passes |
+
+## 6c. ✅✅✅ AS-BUILT — **step `1a`, the role-shard seam, shipped `2026-09-12`** *(obligation ⑤)*
+
+⭐⭐ **The SHAPE the user ruled on is unchanged** — an interface, an extensible key, one single-node
+implementation, and nothing else. ⛔ **The SIGNATURE deviated in two places, and the first is
+load-bearing for step 1.**
+
+### 🔴🔴 DEVIATION ① — **roles are OPAQUE `int` BITS, not `NodeRole`** *(forced, then found to be right)*
+
+📐 **Measured before writing a line:** `NodeRole` is declared in **`Hrot/Engine/Hrot.Core/NodeRole.cs:39`**
+*(`[Flags]`, `Brain = 1<<0` … `NavigationSolver = 1<<4`)*, and **`Hrot.Core.csproj:17` references
+`Fdp.Toolkits`** while `Fdp.Toolkits.csproj` references **no** Hrot project. ⇒ 🔴 **§3.8's literal
+`ServesRole(NodeRole role, …)` in `Fdp.Toolkits/Replication` CANNOT COMPILE.**
+
+⚠⚠ **This is the SAME TRAP THIS DESIGN ALREADY RECORDED ONCE, hit again on the seam itself.** Its STATUS
+block's note *(i)* says of `IClusterStateCache`: *"it lives in `Hrot.Network.NED` which REFERENCES
+`Fdp.Toolkits`, so the policy's designed home cannot see it."* ⇒ ⭐ the lesson had been written down and
+not re-applied when §3.8 named a home for a `NodeRole`-typed signature.
+
+| ⭐ why the fix is not merely the POSSIBLE one but the RIGHT one | |
+|---|---|
+| ⭐⭐⭐ **it is the move §2.3 already made for components** | 🔒 that ruling: the role's ownable set is *"a `BitMask512` of COMPONENT IDS"* — ⛔ **the engine never learns what a "Brain component" is.** ⇒ roles get the same treatment: **the engine compares bits, the application supplies the meaning.** A `NodeRole`-typed engine seam would have put a HROT deployment vocabulary inside `Fdp.Toolkits`, which is the thing §2.3 forbids one level down |
+| ⭐⭐ **the boundary becomes VISIBLE** | the host casts at its composition root — `new SingleNodePerRoleShardProvider((int)NodeRole.Brain)` — so *"this is where application meaning enters the engine"* is a line of code rather than a convention |
+| ⛔ **the alternatives are worse** | ⭐ *moving `NodeRole` into `Fdp.Toolkits`* drags a HROT deployment concept *(`ImageGenerator`!)* into the engine and touches every user; ⭐ *putting the seam in `Hrot.Core`* fails outright — **the two insertion points are `NetworkSpawningSystem` and `GhostPromotionSystem`, both in `Fdp.Toolkits`**, so the policy that calls this provider must be visible there |
+
+⇒ ⛔⛔ **STEP 1 INHERITS THIS.** `IRoleAffinityPolicy` lives in the same assembly and is called from the
+same two systems, so **its per-role mask table is keyed by `int` role bits too** — a
+`Dictionary<int, BitMask512>` the host builds from its `NodeRole` values. ⭐ §3.8's pseudocode
+*"for each role bit R in declaredRoles"* already reads correctly under this; only the TYPE changes.
+
+### ⚠ DEVIATION ② — **`RoleShardKey.TkbType` is a `long`, not §3.8's `int`**
+
+📐 Every `TkbType` in the system is a `long` — `TkbIdentity.cs:27`, `SpawnEntityCommand.cs:30`,
+`TkbTemplate.TkbType`. ⛔ An `int` field would have **silently truncated**, and the failure mode is
+specific to this seam's purpose: a SPECIALISATION shard keyed on type would map two genuinely different
+entity types whose low 32 bits collide to the **same shard**, so a node would serve entities it was never
+assigned. ⭐ Railed directly *(`Key_CarriesFullWidthTkbTypeAndNetworkId`)*.
+
+### ⭐ ONE ADDITION THE SKETCH DID NOT HAVE — **`roleBit == 0` is served by NOBODY**
+
+⭐ `ServesRole(0, …)` answers `false` whatever the node declares. ⚠ It follows from `&` already; stating
+it as code **and** as a rail is what keeps a defaulted or forgotten `NodeRole.None` from quietly matching
+every node if the expression is ever refactored.
+
+### 📐 WHAT SHIPPED
+
+| | |
+|---|---|
+| `Fdp.Toolkits/Replication/Abstractions/IRoleShardProvider.cs` | the interface **and** `RoleShardKey`, with both contract constraints written onto the method itself — ⭐ so an implementer reads *"you may not measure your own load"* at the point of implementing, not in a design doc they may never open |
+| `Fdp.Toolkits/Replication/Services/SingleNodePerRoleShardProvider.cs` | the one implementation |
+| `Fdp.Toolkits.Tests/Replication/RoleShardSeamTests.cs` | **6 rails.** ⚠ A NEW class, which `R-142` ④ normally forbids — justified in its own summary: role sharding is a new feature with no suite, and `OwnershipTests.cs` is the wire ownership PROTOCOL, a different subject |
+| ⭐⭐⭐ **the contract rail, red-proofed exactly as §6 step 1a specified** | `Default_IgnoresTheKeyEntirely_SoEveryNodeAgrees` — it proves constancy across keys differing in **every** field rather than asserting it. 📐 Making the default read `key.NetworkId` reddens it **and** the gate rail, and nothing else |
+
+⛔ **Still NOT built, and deliberately:** any shard table, its transport, its authority, or a balancing
+metric. ⚠ **And nothing CALLS this yet** — its consumer is step 1's `IRoleAffinityPolicy`.
+
+---
 
 ## 6b. ✅✅✅ AS-BUILT — **step `0` shipped `2026-09-12`** *(obligation ⑤)*
 

@@ -40,10 +40,19 @@ current-answer: ⚠⚠ THERE ARE NOW **THREE** LIVE STRANDS ON THIS LANE. Read t
       ✅ STEP 0 DONE 2026-09-12 (CE-259ay): TkbTemplate.BirthCriticalComponents +
       AddBirthCriticalComponent<T>(), seeded on every production template, four rails in TkbTemplateTests
       plus a catalogue-wide rail in HrotEnvironmentTests (red-proofed by un-seeding one template).
-      ⭐⭐⭐ NEXT IS STEP 1a — the role-shard seam: IRoleShardProvider + RoleShardKey +
-      SingleNodePerRoleShardProvider in Fdp.Toolkits/Replication (§3.8, user-ruled 2026-09-10).
-      Re-measured 2026-09-12: those three plus IRoleAffinityPolicy and RoleAffinityPolicy still have
-      ZERO occurrences in .cs.
+      ✅ STEP 1a DONE 2026-09-12 (CE-259ba): the role-shard seam — IRoleShardProvider + RoleShardKey +
+      SingleNodePerRoleShardProvider in Fdp.Toolkits/Replication, 6 rails, contract rail red-proofed.
+      🔴🔴 IT DEVIATED AND STEP 1 INHERITS THE DEVIATION — read §6c before writing step 1. Roles are
+      OPAQUE int BITS, not NodeRole: NodeRole lives in Hrot.Core and Hrot.Core REFERENCES Fdp.Toolkits,
+      so §3.8's literal ServesRole(NodeRole, ...) cannot compile in its own stated home. (Same trap the
+      design already recorded for IClusterStateCache in STATUS note (i) — written down, not re-applied.)
+      ⇒ step 1's per-role mask table is a Dictionary<int, BitMask512> keyed by role bits, and the host
+      casts at its composition root: (int)NodeRole.Brain. RoleShardKey.TkbType is a long, not an int.
+      ⭐⭐⭐ NEXT IS STEP 1 — IRoleAffinityPolicy + RoleAffinityPolicy in Fdp.Toolkits/Replication, taking
+      the shard provider and a mask PER ROLE (§3.8, NOT §3.3's single flat mask). Both still have ZERO
+      occurrences in .cs. Its gate: Brain and Muscle masks disjoint over the brain/kinematic sets AND
+      birth-critical components in BOTH; plus the shard rail — with a stub provider answering false for
+      Brain, a Brain-declaring node's mask contains NO brain components.
       ⛔⛔ HARD BLOCKER ON STEP 2, FILED AS CE-259az — DO NOT SHIP STEP 2 BEFORE ANSWERING IT.
       TkbDeserializer builds templates purely from descriptor keys and declares NO components, so a
       FILE-LOADED template has an empty BirthCriticalComponents — and CreateTkb() is the DEV default
