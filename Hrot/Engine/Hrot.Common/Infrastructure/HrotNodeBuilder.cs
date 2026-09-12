@@ -71,7 +71,7 @@ public sealed class HrotNodeBuilder
     }
 
     /// <summary>Sets the human-readable subsystem name used in DDS heartbeat publications.</summary>
-    public HrotNodeBuilder WithRole(string subsystemName, Hrot.Common.NodeRole role)
+    public HrotNodeBuilder WithRole(string subsystemName, Fdp.Core.NodeRole role)
     {
         _subsystemName = subsystemName;
         return this;
@@ -228,7 +228,7 @@ public sealed class HrotNodeBuilder
         Hrot.Core.Network.ISlaveOrchestrationTranslator? slaveTranslator = null;
         if (participant != null && _networkFactory != null)
         {
-            var nodeFactory = _networkFactory.ConfigureForNode(participant, _config.NodeId, Hrot.Common.NodeRole.None);
+            var nodeFactory = _networkFactory.ConfigureForNode(participant, _config.NodeId, Fdp.Core.NodeRole.None);
             slaveTranslator = nodeFactory.CreateSlaveOrchestratorTranslators(eventBus, _config.NodeId);
         }
 

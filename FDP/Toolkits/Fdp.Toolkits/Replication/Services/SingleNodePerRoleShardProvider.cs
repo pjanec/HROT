@@ -1,3 +1,4 @@
+using Fdp.Core;
 using Fdp.Toolkit.Replication.Abstractions;
 
 namespace Fdp.Toolkit.Replication.Services
@@ -21,38 +22,36 @@ namespace Fdp.Toolkit.Replication.Services
     /// <para>⭐ <b>Its input is something every host already declares</b> — the role it was configured
     /// with. No new configuration, no new table.</para>
     ///
-    /// <para>⚠ <b>Roles are opaque BITS here, not a <c>NodeRole</c></b> — that enum lives in
-    /// <c>Hrot.Core</c>, which references this assembly, so the dependency cannot run the other way. A
-    /// host casts at its composition root: <c>new SingleNodePerRoleShardProvider((int)NodeRole.Brain)</c>.
-    /// See <see cref="IRoleShardProvider.ServesRole"/> for why this is also the RIGHT layering and not
-    /// merely the possible one.</para>
+    /// <para>⭐ <see cref="NodeRole"/> is a <c>[Flags]</c> enum in <c>Fdp.Core</c>, so <i>"the roles I
+    /// declare"</i> is ONE value and this is ONE bitwise test. ⛔ The engine holds the LABEL only — it
+    /// never learns which components a role owns (§2.3); that table is the application's.</para>
     /// </summary>
     public sealed class SingleNodePerRoleShardProvider : IRoleShardProvider
     {
-        private readonly int _declaredRoles;
+        private readonly NodeRole _declaredRoles;
 
         /// <param name="declaredRoles">
-        /// The bitwise OR of every role this node declares. ⭐ <c>0</c> ("no role") is legitimate — a
-        /// presentation-only node declares nothing and correctly serves nothing.
+        /// The bitwise OR of every role this node declares. ⭐ <see cref="NodeRole.None"/> is legitimate —
+        /// a presentation-only node declares nothing and correctly serves nothing.
         /// </param>
-        public SingleNodePerRoleShardProvider(int declaredRoles)
+        public SingleNodePerRoleShardProvider(NodeRole declaredRoles)
         {
             _declaredRoles = declaredRoles;
         }
 
         /// <summary>
-        /// ⭐ True when this node declares <paramref name="roleBit"/>. <paramref name="key"/> is
+        /// ⭐ True when this node declares <paramref name="role"/>. <paramref name="key"/> is
         /// deliberately unread — see the class summary.
         ///
-        /// <para>⚠ <b>Multi-bit arguments are ANY, not ALL.</b> Passing more than one bit asks
+        /// <para>⚠ <b>Multi-flag arguments are ANY, not ALL.</b> Passing more than one flag asks
         /// <i>"do I serve any of these?"</i>, which follows from <c>&amp;</c> and matches how the policy
         /// iterates: it tests one declared role at a time, so the distinction never arises in production.
-        /// ⛔ A caller wanting ALL must test each bit separately.</para>
+        /// ⛔ A caller wanting ALL must test each flag separately.</para>
         ///
-        /// <para>⭐ <c>roleBit == 0</c> answers <c>false</c>: "no role" is served by nobody, which is what
-        /// keeps a defaulted/forgotten role from quietly matching every node.</para>
+        /// <para>⭐ <see cref="NodeRole.None"/> answers <c>false</c>: "no role" is served by nobody, which
+        /// is what keeps a defaulted or forgotten role from quietly matching every node.</para>
         /// </summary>
-        public bool ServesRole(int roleBit, in RoleShardKey key)
-            => roleBit != 0 && (_declaredRoles & roleBit) != 0;
+        public bool ServesRole(NodeRole role, in RoleShardKey key)
+            => role != NodeRole.None && (_declaredRoles & role) != 0;
     }
 }

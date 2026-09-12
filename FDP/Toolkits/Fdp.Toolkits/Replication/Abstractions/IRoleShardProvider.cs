@@ -22,7 +22,7 @@ namespace Fdp.Toolkit.Replication.Abstractions
     public interface IRoleShardProvider
     {
         /// <summary>
-        /// ⭐ True when this node is the one that serves <paramref name="roleBit"/> for the entity
+        /// ⭐ True when this node is the one that serves <paramref name="role"/> for the entity
         /// described by <paramref name="key"/>.
         ///
         /// <para>⛔⛔ <b>CONTRACT ①, AND IT KILLS THE OBVIOUS IMPLEMENTATION: this method may read ONLY
@@ -47,20 +47,20 @@ namespace Fdp.Toolkit.Replication.Abstractions
         /// design already rules on: log once per entity, no fallback, plus a boot warning. A fallback
         /// (<i>"the creator keeps it after N frames"</i>) would reintroduce exactly the race this removes.</para>
         /// </summary>
-        /// <param name="roleBit">
-        /// ⚠⚠ <b>An OPAQUE role bit, deliberately NOT a <c>NodeRole</c>.</b> 📐 <c>NodeRole</c> lives in
-        /// <c>Hrot.Core</c>, and <c>Hrot.Core</c> REFERENCES this assembly — the dependency cannot run the
-        /// other way, so §3.8's literal <c>ServesRole(NodeRole, ...)</c> signature could not compile here.
-        /// ⭐ More importantly it <b>should not</b>: this is the same discipline §2.3 already imposed on
-        /// components, where a role's ownable set is a <c>BitMask512</c> of component ids and the engine
-        /// never learns what a "Brain component" is. Roles get the same treatment — the engine compares
-        /// bits, the application supplies the meaning, and the caller casts at its composition root
-        /// (<c>(int)NodeRole.Brain</c>). Callers should pass a SINGLE bit; see
-        /// <see cref="SingleNodePerRoleShardProvider.ServesRole"/> for what a multi-bit argument means.
+        /// <param name="role">
+        /// ⭐ The role being asked about. ⚠ Callers should pass a SINGLE flag; see
+        /// <see cref="SingleNodePerRoleShardProvider.ServesRole"/> for what a multi-flag argument means.
+        ///
+        /// <para>⛔⛔ <b>THE ENGINE HOLDS THE LABEL AND NOTHING ELSE.</b> 🔒 User, <c>2026-09-12</c>:
+        /// <i>"the bitmask for components is correct approach, fdp should not understand what a brain and
+        /// muscle really mean."</i> ⇒ ⭐ nothing in this assembly may map a <see cref="NodeRole"/> to a set
+        /// of components, a system or a behaviour — that mapping is a <c>BitMask512</c> of component ids
+        /// supplied by the APPLICATION at its composition root (§2.3). This seam only ever asks
+        /// <i>"is that label mine for this entity?"</i>.</para>
         /// </param>
         /// <param name="key">What is known about the entity at both insertion points. See
         /// <see cref="RoleShardKey"/>.</param>
-        bool ServesRole(int roleBit, in RoleShardKey key);
+        bool ServesRole(NodeRole role, in RoleShardKey key);
     }
 
     /// <summary>

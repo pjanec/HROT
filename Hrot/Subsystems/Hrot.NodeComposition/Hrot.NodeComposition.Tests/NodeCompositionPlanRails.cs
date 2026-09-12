@@ -4,6 +4,7 @@ using System.Linq;
 using Hrot.Common.Infrastructure;
 using Hrot.Common;
 using Xunit;
+using Fdp.Core;
 
 namespace Hrot.NodeComposition.Tests;
 

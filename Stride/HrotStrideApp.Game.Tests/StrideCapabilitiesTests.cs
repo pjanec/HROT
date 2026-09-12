@@ -6,6 +6,7 @@ using Hrot.Common.Infrastructure;
 using Hrot.Stride.Core;
 using HrotStrideApp;
 using Xunit;
+using Fdp.Core;
 
 namespace HrotStrideApp.Game.Tests;
 

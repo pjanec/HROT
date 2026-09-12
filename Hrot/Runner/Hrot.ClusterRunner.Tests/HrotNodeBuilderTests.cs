@@ -4,6 +4,7 @@ using Fdp.ModuleHost.Time;
 using Fdp.Toolkit.Time.Controllers;
 using Hrot.Common.Infrastructure;
 using Xunit;
+using Fdp.Core;
 
 namespace Hrot.ClusterRunner.Tests;
 
@@ -31,7 +32,7 @@ public sealed class HrotNodeBuilderTests
     {
         var config = HeadlessConfig();
         var ctx = new HrotNodeBuilder(config)
-            .WithRole("Test", Hrot.Common.NodeRole.MuscleGround)
+            .WithRole("Test", Fdp.Core.NodeRole.MuscleGround)
             .Build();
 
         Assert.NotNull(ctx);
@@ -51,7 +52,7 @@ public sealed class HrotNodeBuilderTests
     {
         var config = HeadlessConfig();
         var ctx = new HrotNodeBuilder(config)
-            .WithRole("Test", Hrot.Common.NodeRole.MuscleGround)
+            .WithRole("Test", Fdp.Core.NodeRole.MuscleGround)
             .Build();
 
         // Register base modules then call Initialize() to prove the time controller
@@ -70,7 +71,7 @@ public sealed class HrotNodeBuilderTests
     {
         var config  = HeadlessConfig();
         var builder = new HrotNodeBuilder(config)
-            .WithRole("Test", Hrot.Common.NodeRole.MuscleGround);
+            .WithRole("Test", Fdp.Core.NodeRole.MuscleGround);
 
         builder.Build();   // first call — succeeds
 
@@ -102,7 +103,7 @@ public sealed class HrotNodeBuilderTests
     public void Build_NodeEventBus_HasTheTimeControlIntentsRegistered()
     {
         var ctx = new HrotNodeBuilder(HeadlessConfig())
-            .WithRole("Test", Hrot.Common.NodeRole.MuscleGround)
+            .WithRole("Test", Fdp.Core.NodeRole.MuscleGround)
             .Build();
 
         bool previous = Fdp.Core.FdpConfig.EnforceExplicitEventRegistration;
@@ -138,7 +139,7 @@ public sealed class HrotNodeBuilderTests
     public void Build_NodeEventBus_RoundTripsATimeIntent()
     {
         var ctx = new HrotNodeBuilder(HeadlessConfig())
-            .WithRole("Test", Hrot.Common.NodeRole.MuscleGround)
+            .WithRole("Test", Fdp.Core.NodeRole.MuscleGround)
             .Build();
 
         ctx.EventBus.PublishManaged(new Fdp.Toolkit.Time.Domain.StepTimeIntent { DeltaSeconds = 0.5f });
@@ -166,7 +167,7 @@ public sealed class HrotNodeBuilderTests
     public void Build_WithoutDeclaringATimeRole_IsStillASlave()
     {
         var ctx = new HrotNodeBuilder(HeadlessConfig())
-            .WithRole("Test", Hrot.Common.NodeRole.MuscleGround)
+            .WithRole("Test", Fdp.Core.NodeRole.MuscleGround)
             .Build();
 
         Assert.IsType<SlaveSyncController>(TimeControllerOf(ctx));
@@ -181,7 +182,7 @@ public sealed class HrotNodeBuilderTests
     public void Build_WithTimeRoleMaster_TheNodeOwnsTheClock()
     {
         var ctx = new HrotNodeBuilder(HeadlessConfig())
-            .WithRole("Test", Hrot.Common.NodeRole.MuscleGround)
+            .WithRole("Test", Fdp.Core.NodeRole.MuscleGround)
             .WithTimeRole(TimeRole.Master)
             .Build();
 
@@ -202,7 +203,7 @@ public sealed class HrotNodeBuilderTests
     public void Build_ExposesTheSameTimeControllerTheKernelReceived()
     {
         var ctx = new HrotNodeBuilder(HeadlessConfig())
-            .WithRole("Test", Hrot.Common.NodeRole.MuscleGround)
+            .WithRole("Test", Fdp.Core.NodeRole.MuscleGround)
             .Build();
 
         Assert.NotNull(ctx.TimeController);
@@ -224,7 +225,7 @@ public sealed class HrotNodeBuilderTests
     public void Build_WithTimeRoleStandalone_ExposesAMasterOnTheContext()
     {
         var ctx = new HrotNodeBuilder(HeadlessConfig())
-            .WithRole("Editor", Hrot.Common.NodeRole.None)
+            .WithRole("Editor", Fdp.Core.NodeRole.None)
             .WithTimeRole(TimeRole.Standalone)
             .Build();
 

@@ -21,22 +21,22 @@ namespace Fdp.Toolkit.Replication.Tests
     /// ownership PROTOCOL (<c>DescriptorAuthorityChanged</c> and friends) — a different subject, and
     /// folding these in would bury them.</para>
     ///
-    /// <para>⚠ <b>Role bits are OPAQUE ints here on purpose.</b> <c>NodeRole</c> lives in
-    /// <c>Hrot.Core</c>, which REFERENCES this assembly, so §3.8's literal <c>ServesRole(NodeRole, …)</c>
-    /// could not compile in <c>Fdp.Toolkits</c>. These rails therefore use the same bit VALUES
-    /// (<c>Brain = 1&lt;&lt;0</c>, <c>MuscleGround = 1&lt;&lt;1</c>, …) without naming the enum — which is
-    /// also what a host does at its composition root.</para>
+    /// <para>⭐ <b><see cref="NodeRole"/> is a <c>[Flags]</c> enum in <c>Fdp.Core</c></b> — 🔒 user ruling,
+    /// <c>2026-09-12</c>: <i>"roles has nothing to do with concrete network… roles can be defined in fdp
+    /// if needed as they are pretty generic."</i> ⛔ The engine holds the LABEL only; which components a
+    /// role owns is a <c>BitMask512</c> the application supplies (§2.3), and nothing here maps one to the
+    /// other.</para>
     /// </summary>
     public class RoleShardSeamTests
     {
-        // The bit values of Hrot.Core's NodeRole, which this assembly cannot reference. ⚠ If that enum
-        // is ever renumbered these stay correct as ARBITRARY bits — nothing here depends on the mapping,
-        // only on the bit algebra.
-        private const int Brain            = 1 << 0;
-        private const int MuscleGround     = 1 << 1;
-        private const int ImageGenerator   = 1 << 2;
-        private const int Perception       = 1 << 3;
-        private const int NavigationSolver = 1 << 4;
+        // ⚠ ImageGenerator is a KNOWN-WRONG name whose rename to Map2D is owned by CE-212
+        //   (docs/DESIGN_Stride_Node_Modes.md §S10, "needs Roslyn, run twice and unioned"). These rails
+        //   name it only because the enum does; nothing here depends on the spelling.
+        private const NodeRole Brain            = NodeRole.Brain;
+        private const NodeRole MuscleGround     = NodeRole.MuscleGround;
+        private const NodeRole ImageGenerator   = NodeRole.ImageGenerator;
+        private const NodeRole Perception       = NodeRole.Perception;
+        private const NodeRole NavigationSolver = NodeRole.NavigationSolver;
 
         private static IEnumerable<RoleShardKey> AssortedKeys()
         {
@@ -111,7 +111,7 @@ namespace Fdp.Toolkit.Replication.Tests
         [Fact]
         public void Default_DeclaringNoRole_ServesNothing()
         {
-            var provider = new SingleNodePerRoleShardProvider(0);
+            var provider = new SingleNodePerRoleShardProvider(NodeRole.None);
 
             foreach (var key in AssortedKeys())
             {
@@ -123,9 +123,9 @@ namespace Fdp.Toolkit.Replication.Tests
 
         /// <summary>
         /// ⭐ Asking about "no role" answers <c>false</c>, whatever the node declares.
-        /// ⚠ This is what stops a defaulted or forgotten role value (<c>NodeRole.None</c>, or an
-        /// uninitialised field) from quietly matching every node — <c>(anything &amp; 0) != 0</c> is
-        /// already false, but stating it as a rail makes the intent survive a refactor of the expression.
+        /// ⚠ This is what stops a defaulted or forgotten <see cref="NodeRole.None"/> (or an uninitialised
+        /// field) from quietly matching every node — <c>(anything &amp; 0) != 0</c> is already false, but
+        /// stating it as a rail makes the intent survive a refactor of the expression.
         /// </summary>
         [Fact]
         public void Default_TheEmptyRole_IsServedByNobody()
@@ -133,16 +133,16 @@ namespace Fdp.Toolkit.Replication.Tests
             var all = new SingleNodePerRoleShardProvider(
                 Brain | MuscleGround | ImageGenerator | Perception | NavigationSolver);
 
-            Assert.False(all.ServesRole(0, default));
+            Assert.False(all.ServesRole(NodeRole.None, default));
         }
 
         /// <summary>
-        /// ⭐ A multi-bit argument means ANY, not ALL — documented because it follows from <c>&amp;</c> and
+        /// ⭐ A multi-flag argument means ANY, not ALL — documented because it follows from <c>&amp;</c> and
         /// would otherwise be an accident. ⚠ In production the policy tests one declared role at a time,
         /// so the distinction never arises; this pins the behaviour for anyone who does ask.
         /// </summary>
         [Fact]
-        public void Default_AMultiBitQuery_IsAny_NotAll()
+        public void Default_AMultiFlagQuery_IsAny_NotAll()
         {
             var brainOnly = new SingleNodePerRoleShardProvider(Brain);
 

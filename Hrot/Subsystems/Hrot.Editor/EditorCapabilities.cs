@@ -8,6 +8,7 @@ using Hrot.Common.Infrastructure;
 using Hrot.SimHost;
 using Hrot.SimHost.Modules;
 using Hrot.SimHost.Systems;
+using Fdp.Core;
 
 namespace Hrot.Editor;
 

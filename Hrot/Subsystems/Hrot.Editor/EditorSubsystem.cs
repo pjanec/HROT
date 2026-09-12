@@ -1035,7 +1035,7 @@ namespace Hrot.Editor
                         SubsystemName = "Editor",
                         Headless      = true,
                     })
-                    .WithRole("Editor", Hrot.Common.NodeRole.None)
+                    .WithRole("Editor", Fdp.Core.NodeRole.None)
                     // ⭐ Standalone, NOT Master: what `new TimeControllerConfig { Role = TimeRole.Standalone }`
                     //   said here before, and TimeControllerFactory routes both to MasterSyncController.
                     .WithTimeRole(TimeRole.Standalone)
