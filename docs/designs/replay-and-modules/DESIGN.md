@@ -549,9 +549,42 @@ the floor for every spawn.
 ⇒ ⭐⭐⭐ **The barrier exists so nothing simulates, draws or publishes a half-initialised entity**, and the
 per-blueprint set is the refinement that stops a marker waiting on the physics module.
 
-#### 2.1j 🔴🔴🔴 THE CONSTRUCTION BARRIER IS INERT IN PRODUCTION — **BOTH AXES. NOTHING EVER ACKS A CONSTRUCTION** *(`2026-09-11`)*
+#### 2.1j 🔴 THE CONSTRUCTION BARRIER IS **VACUOUS**, NOT INERT — **the ELM IS the barrier, and it works; its PARTICIPANT REGISTRY is empty** *(`2026-09-11`, corrected the same day)*
 
-⛔⛔ **It is not that `_blueprintRequirements` is unwritten. The whole handshake is unwired.**
+> ⭐⭐⭐ **USER CORRECTION, and it is the right distinction:** *"isn't ELM the implementation of the barrier?
+> entity in constructing state waiting for ack from all registered modules?"*
+> ⛔⛔ **YES — and an earlier version of this section said the barrier was *"inert"* and *"the whole handshake
+> is unwired."* That was WRONG and it pointed at the wrong fix.**
+
+⭐⭐ **The ELM IS the barrier, and every part of the mechanism is present and correct:** the entity is held in
+`Constructing`; `RemainingAcks` is the wait-set; `ProcessConstructionAck:283-293` promotes to `Active` the
+moment the set empties; `CheckTimeouts:364-373` destroys the entity if it never does. ⛔ **Nothing is missing
+from the ELM.**
+
+⇒ 🔒 **It is a REGISTRY-DRIVEN barrier, and the registry is EMPTY.** *"Waiting for acks from all registered
+modules"* is exactly what it does — and **"all registered modules" is the empty set**, so the wait is
+satisfied **vacuously** and `DrainInstantComplete` promotes on the next frame.
+
+⭐⭐ **AND THE ONE FRAME IS NOT WASTED — the invariant that DOES hold today:**
+📐 `EntityLifecycleModule.RegisterSystems:92-94` registers `BlueprintApplicationSystem` **then**
+`LifecycleSystem`, both `[UpdateInPhase(SystemPhase.BeforeSync)]`; within a phase, absent an `[UpdateAfter]`
+edge, the scheduler runs them in **registration order**. `BlueprintApplicationSystem:33-40` consumes the
+`ConstructionOrder` and injects the TKB template via the translators; `DrainInstantComplete:325` additionally
+requires `currentFrame > StartFrame`. ⇒ 🔒 **"the TKB template is injected before the entity is `Active`"
+holds BY CONSTRUCTION.**
+
+⛔ **What does NOT hold is the design's stated invariant** — *"Physics/Renderer modules initialize resources …
+once local modules ACK, the entity becomes `Active`"* — because **no such module registers or acks.**
+
+##### ⭐⭐ TWO DIFFERENT DEFECTS, WHICH THE "INERT" WORDING CONFLATED
+
+| axis | verdict | the fix |
+|---|---|---|
+| ⭐ **module barrier** *(ELM `RemainingAcks`)* | ✅ **implemented and correct — VACUOUS** because nobody registers | ⛔ **nothing to build in the ELM.** ⭐ The work is on the MODULE side: a module that allocates resources for an entity calls `RegisterModule` and `AcknowledgeConstruction`. ⚠ Small and local per module — **but it changes when entities go `Active` cluster-wide**, so it is an architect call |
+| 🔴 **peer barrier** *(`ReliableInitType`/`PendingNetworkAck`)* | 🔴 **GENUINELY DANGLING — a produced component with no consumer** | `NetworkSpawningSystem.cs:159-160` **adds** `PendingNetworkAck`; its **only** reader is `NetworkGatewaySystem`, which is **never constructed in production**. ⇒ the tag accumulates unread and `ReliableInitType.AllPeers` has no effect |
+
+⇒ ⭐ **Only the second is a broken wire.** The first is an adoption gap in a working mechanism — 📌 the seam
+law's usual shape: *the mechanism exists and is under-adopted*, not missing.
 
 | # | measured | ⇒ |
 |---|---|---|
