@@ -34,14 +34,21 @@ namespace Hrot.SimHost
             world.RegisterComponent<LocomotionChannel>();
             world.RegisterComponent<WeaponChannel>();
             world.RegisterComponent<InteractionChannel>();
-            world.RegisterComponent<ActorCapabilityState>();
+            // ⭐ MOVED 2026-09-12 to CombatComponentRegistry (CE-259bf slice 2): ActorCapabilityState
+            //   is stamped by BehaviorTkbTranslator alongside EntityInfo — which ALREADY lives in the
+            //   combat registry — and is read by HealthApplicationSystem / DamageSystem, both of which
+            //   SimHost runs via CombatModule. ⛔ PreviousCapabilities stays HERE: its only readers are
+            //   CognitiveInterruptSystem (Brain) and the Stride animation reactor (design §3.9a).
             world.RegisterComponent<PreviousCapabilities>();
             world.RegisterComponent<BrainBTreeState>();
             world.RegisterComponent<BrainBlackboard>();
             world.RegisterComponent<Blackboard1024>();
             world.RegisterComponent<BrainHsm128>();
             world.RegisterComponent<BrainHsm64>();
-            world.RegisterComponent<MissionPlanQueue>();
+            // ⭐ MOVED 2026-09-12 to MissionComponentRegistry (CE-259bf slice 2) — ActiveMissionPlan
+            //   already lives there, and MissionPlanQueue is the same tier's queue. SimHost READS it:
+            //   EntityMissionIngressTranslator writes it over the wire and MissionPlanTranslator
+            //   persists it (design §3.9a).
             world.RegisterComponent<PassengerBuffer>();
             world.RegisterComponent<IsEmbarkedTag>();
 

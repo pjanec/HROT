@@ -1126,6 +1126,41 @@ role's components were hiding in it.**
 | `SimHostComponentRegistry` · `CgfComponentRegistry` | **both** now call the new registry |
 | rails | **4** into `Hrot.SimHost.Tests/ComponentRegistryTests.cs` + **1** into `CgfComponentRegistryTests` — ⭐ each feature's OWN suite *(`R-142` ④)*, no parallel class |
 
+### ✅ SLICE 2 — **the strays move to homes BOTH hosts already compose** *(same commit family)*
+
+| component | new home | ⭐ the PRECEDENT that made it the honest home, not a guess |
+|---|---|---|
+| `MissionPlanQueue` | `MissionComponentRegistry` | ⭐ **`ActiveMissionPlan` already lives there** — same tier, same lifecycle. SimHost READS the queue: the wire ingress writes it and `MissionPlanTranslator` persists it |
+| `ActorCapabilityState` | `CombatComponentRegistry` | ⭐⭐ **`EntityInfo` already lives there and `BehaviorTkbTranslator` stamps BOTH in the same block** *(`:34-44`)*; `HealthApplicationSystem` + `DamageSystem` read it and SimHost runs them via `CombatModule` |
+| ⛔ `PreviousCapabilities` | **stays in the Brain registry** | ⚠ **deliberately NOT moved with its sibling** — its only readers are `CognitiveInterruptSystem` *(Brain)* and the Stride animation reactor ⇒ **ABSENT** for SimHost |
+
+⭐⭐ **Both target registries are already called by BOTH hosts** ⇒ behaviour-preserving, like slice 1.
+
+#### ⚠⚠ A HAZARD CHECKED RATHER THAN ASSUMED — **registration order can shift ids**
+
+⛔ Moving `RegisterComponent<T>` calls between registries **changes registration ORDER**, and when
+`FdpConfig.EnforceExplicitComponentIds` is `false` — **which is every test** — ids are **sequentially
+auto-assigned** ⇒ a move can silently renumber a component in tests but not in production. 📄 That is
+`PROGRAMME_Explicit_Component_Ids.md`'s hazard ⓐ, hit for real here.
+✅ **Measured:** every component moved in slices 1 and 2 carries an explicit
+`[ComponentId(GlobalComponentIds.…)]` — `EqsSensor`, `EqsCognitiveBuffer`, `SensorEvalState`,
+`MissionPlanQueue`, `ActorCapabilityState` — ⇒ **their ids are fixed regardless of order and the hazard
+cannot bite.** ⛔ **A future slice that moves an UN-attributed type must re-run this check.**
+
+### 🔴 WHAT BLOCKS SLICE 3 — **two groups have no honest existing home**
+
+⛔ SimHost cannot stop calling the Brain's registry until these have somewhere to live that **both** hosts
+compose:
+
+| still in the Brain's registry, still needed by SimHost | ⭐ why no existing registry fits |
+|---|---|
+| `PassengerBuffer` · `IsEmbarkedTag` *(+ `EmbarkEntityCommand` / `DisembarkEntityCommand`)* | embarkation RUNTIME state, written by SimHost's `GenesisMaterializationSystem` and by the Brain's `EmbarkExecutor` / `EjectPassengersExecutor`. ⛔ `GenesisIntentRegistry` is the nearest name and is **wrong** — it holds scenario-load INTENT DTOs *(`InitialPassengersIntent`)*, not runtime state |
+| `DebugState` *(+ `PatchDebugStateCommand`)* | SimHost's own `ToggleAiTrace` action writes it *(`SimHostApp.cs:443`)*, so SimHost genuinely needs it — ⛔ but there is no diagnostics registry to put it in |
+
+⇒ ⭐ **Lean: one small registry each, named for what it owns, and called by both hosts** — the shape slice 1
+proved. ⚠ The alternative *(fold them into `MissionComponentRegistry`)* buys one less file and costs the
+honest name, which is how `CognitiveComponentRegistry` came to hold Perception in the first place.
+
 ### ⛔⛔ THE DEVIATION, ARGUED — **this slice does NOT narrow anything** *(obligation ③)*
 
 ⚠ **`CE-259bf` is written as *"drop the ten from SimHost"*. This slice deliberately drops NOTHING**, and

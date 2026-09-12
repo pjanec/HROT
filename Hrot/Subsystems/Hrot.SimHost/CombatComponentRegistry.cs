@@ -32,6 +32,11 @@ namespace Hrot.SimHost
             world.RegisterComponent<SensorContactList>();
             world.RegisterComponent<WeaponState>();
             world.RegisterComponent<EntityInfo>();
+            // ⭐⭐ MOVED HERE 2026-09-12 from CognitiveComponentRegistry (CE-259bf slice 2, §3.9a).
+            //   BehaviorTkbTranslator stamps ActorCapabilityState in the SAME block as EntityInfo
+            //   above, and HealthApplicationSystem / DamageSystem read it — both run on SimHost via
+            //   CombatModule. ⚠ BEHAVIOUR-PRESERVING: SimHost and CGF both already call this registry.
+            world.RegisterComponent<Fdp.Toolkit.Behavior.Components.ActorCapabilityState>();
             // Health is registered in HrotSharedComponentRegistry (shared across all nodes).
             world.RegisterComponent<BallisticProjectile>();
             world.RegisterComponent<PhysicsCollider>();

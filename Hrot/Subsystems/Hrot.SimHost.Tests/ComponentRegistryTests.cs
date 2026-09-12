@@ -115,6 +115,63 @@ namespace Hrot.SimHost.Tests
             Assert.Null(Record.Exception(() => world.GetComponentTable<BrainHsm128>()));
         }
 
+        // ── CE-259bf slice 2: the strays move to homes BOTH hosts already compose ─────
+
+        [Fact]
+        public void MissionComponentRegistry_RegistersMissionPlanQueue_AfterTheMove()
+        {
+            using var world = new EntityRepository();
+            MissionComponentRegistry.RegisterAll(world);
+
+            Assert.Null(Record.Exception(() => world.GetComponentTable<MissionPlanQueue>()));
+        }
+
+        [Fact]
+        public void CombatComponentRegistry_RegistersActorCapabilityState_AfterTheMove()
+        {
+            using var world = new EntityRepository();
+            CombatComponentRegistry.RegisterAll(world);
+
+            Assert.Null(Record.Exception(() => world.GetComponentTable<ActorCapabilityState>()));
+        }
+
+        /// <summary>
+        /// ⭐⭐⭐ <b>The behaviour-preserving claim for slice 2, asserted on the HOST.</b>
+        ///
+        /// <para>⛔ Moving a component between registries is only safe if every host that used to get it
+        /// still does. ⚠ Same silent-failure shape as the EQS move: nothing throws, the component simply
+        /// never exists, and the wire translator that writes <c>MissionPlanQueue</c> or the damage system
+        /// that reads <c>ActorCapabilityState</c> quietly does nothing.</para>
+        /// </summary>
+        [Fact]
+        public void SimHostComponentRegistry_StillRegistersTheMovedStrays()
+        {
+            using var world = new EntityRepository();
+            SimHostComponentRegistry.RegisterAll(world);
+
+            Assert.Null(Record.Exception(() => world.GetComponentTable<MissionPlanQueue>()));
+            Assert.Null(Record.Exception(() => world.GetComponentTable<ActorCapabilityState>()));
+        }
+
+        /// <summary>
+        /// ⭐⭐ The structural half — the BRAIN's registry no longer owns them.
+        /// ⚠ <c>PreviousCapabilities</c> deliberately STAYS there: its only readers are
+        /// <c>CognitiveInterruptSystem</c> (Brain) and the Stride animation reactor, so it is ABSENT for
+        /// SimHost and must not move with its sibling (design §3.9a).
+        /// </summary>
+        [Fact]
+        public void CognitiveComponentRegistry_NoLongerRegistersTheMovedStrays()
+        {
+            using var world = new EntityRepository();
+            CognitiveComponentRegistry.RegisterAll(world);
+
+            Assert.ThrowsAny<System.Exception>(() => world.GetComponentTable<MissionPlanQueue>());
+            Assert.ThrowsAny<System.Exception>(() => world.GetComponentTable<ActorCapabilityState>());
+
+            // ⭐ The sibling that must NOT have moved, and the anti-vacuity check in one.
+            Assert.Null(Record.Exception(() => world.GetComponentTable<PreviousCapabilities>()));
+        }
+
         // ── KinematicComponentRegistry ────────────────────────────────────────
 
         [Fact]
