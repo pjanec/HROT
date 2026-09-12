@@ -546,7 +546,7 @@ calls first; a slower, measured first answer is the deliverable.**
     MERMAID_PREFIX=/tmp/mm node scripts/mermaid-check.mjs <file.md>   # parses every block
     ```
   - ⭐ Keep box labels short so text is not clipped.
-- **Keep documentation prose short.** Lead with visuals and terse tables; no long prose walls — they go unread.
+- **Keep documentation prose short.** Lead with visuals and terse tables; no long prose walls — they go unread. ⭐⭐⭐ **For DESIGN documents this is not a preference but an obligation — see *"DIAGRAM FIRST — the diagrams ARE the design; the prose SUPPORTS them"*** in the `NO IMPLEMENTATION WITHOUT UML` section: draw after the inventory and before you write, let the prose carry only *why*, and apply the deletion test to your own draft.
 
 ## ⛔⛔⛔ NO IMPLEMENTATION WITHOUT UML — **the design must name the CLASSES and the SEQUENCES** *(user, `2026-08-20`)*
 
@@ -572,6 +572,36 @@ box — and **an existing class drawn on the same canvas as a proposed one makes
 | **③** | ⭐⭐ **An implementing task CHECKS the diagrams before building**, and reports it: *"the design carries N classes and M sequences; what I built matches / deviates HERE and why."* ⚠ **A deviation is a finding, not a silent choice** — ⭐ argue it in the report, as every good batch already does | **implementation** |
 | **④** | ⛔⛔ **A design with no UML is NOT ready to dispatch.** ⭐ A handoff citing one is a defect of the COORDINATOR — 📌 the same class of miss as `BP-355` *(named in a report, never turned into an item)* | **coordinator** |
 | **⑤** | ⛔⛔⛔ **WHEN THE BUILD DEVIATES, FOLD THE AS-BUILT TRUTH BACK INTO THE OWNING DESIGN — before the batch closes**, marking the prior state SUPERSEDED. ⭐ Its own section below, *"THE DESIGN MUST REFLECT THE AS-BUILT"* | **implementation** |
+
+### ⭐⭐⭐ DIAGRAM FIRST — **the diagrams ARE the design; the prose SUPPORTS them** *(user, `2026-09-12`)*
+
+> ⭐⭐⭐ **User, verbatim:** *"the designs should focus on the diagrams and the prose should support them
+> (diagram first)."*
+
+⛔⛔ **The default failure is a wall of prose describing a structure, with a diagram appended as
+decoration — or never drawn at all.** ⭐⭐ **Invert it: draw first, then write only what the picture
+cannot say.**
+
+| ⭐ | |
+|---|---|
+| ⭐⭐⭐ **DRAW BEFORE YOU WRITE** *(after the `INVENTORY` — obligation ②)* | ⛔ not "write the design, then illustrate it" |
+| ⭐⭐ **the prose says WHY, never WHAT** | ⭐ *what* is structure — boxes, edges, multiplicity, order: **the diagram owns it.** ⭐ *why* is the rationale, the rejected alternative, the measured constraint, the blast radius: **prose owns that, and a diagram cannot carry it** |
+| ⭐⭐ **every diagram carries a CAPTION naming what it shows that prose could not** | 📌 the model: *"what the picture shows that the prose hid"* — ⛔ a diagram with no caption is decoration |
+| ⭐ **no structural fact stated in BOTH** | ⛔ two statements of one structure rot apart — the same reason a diagram may not live in a batch. ⭐ If prose repeats the diagram, **delete the prose** |
+| ⭐⭐ **the CHECKABLE test, applied to your own draft** | 🔒 ***"if I deleted the prose, is this still buildable? if I deleted the diagrams, is it?"*** ⭐ A diagram-first design survives the first deletion and not the second. ⛔ If it is the other way round, the diagrams are decoration |
+
+#### ⭐⭐⭐ WHY THIS IS NOT A STYLE PREFERENCE — **drawing FORCES a measurement prose lets you skip**
+
+📌 **Measured `2026-09-12`, and stated precisely.** A plan was written as prose and prescribed *"move
+`LifecycleSystem` into `NetworkLifecycleSystemGroup`."* ⛔ Prose let that sentence be written **without ever
+asking who executes that group.** ⭐⭐ When the module diagram was drawn afterwards, the edge *"who calls
+this each frame"* **could not be drawn without looking it up** — and the lookup found **one caller**, on a
+host family where the group never ticks. ⇒ 🔴 **the plan's first step was unsafe and had to be rewritten.**
+
+⚠ **Stated honestly: the MEASUREMENT falsified it, not the picture.** ⭐⭐⭐ **But the picture is what
+COMPELS the measurement** — you can write *"it runs in the group"* in prose forever; **you cannot draw the
+arrow without knowing where it comes from.** ⇒ 🔒 **that is the whole argument for diagram-first, and it is
+the same mechanism as `INVENTORY`-before-design: a form that cannot be completed from assumption.**
 
 ### ⛔⛔⛔ THE DIAGRAMS LIVE IN THE DESIGN, NEVER IN THE BATCH — **a handoff REFERENCES them** *(user, `2026-08-21`)*
 
