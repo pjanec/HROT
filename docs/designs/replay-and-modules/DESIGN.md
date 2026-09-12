@@ -1,9 +1,14 @@
 <!--STATUS
 state: LIVE
 updated: 2026-09-12
-build-state: READY-TO-BUILD — §2.1m ONLY (the unified ELM rewind plan: gate lifecycle during replay,
-  add the ELM to the existing PreviewStateBracket list, drive that bracket from the replay boundaries).
-  ⭐ Authorised by the user 2026-09-12. Its three diagrams are in §2.1m and all parse.
+build-state: BUILDING — §2.1m ONLY. ✅ STEP 2 DONE and ⚠ STEP 1 PARTIAL as of 2026-09-12 (commit
+  ea659a581); ⛔ STEP 3 NOT BUILT. Read §2.1m's "AS-BUILT" table before assuming otherwise: the clear runs
+  only where a PreviewStateBracket is driven, so PrepareReplay / every seek / FinalizeReplay / PrepareLive
+  still do not clear; GhostPromotionSystem is not gated; BypassLifecycle is still not honoured inside
+  CreateGhost; and CE-259aq's one-liner is outstanding.
+  ⭐ Authorised by the user 2026-09-12. Its three diagrams are in §2.1m and all parse — the sequence
+  diagram was CORRECTED to the as-built (the re-derive is its own call at the top of Execute, not hung off
+  DrainInstantComplete).
   ⛔ EVERY OTHER SECTION IS DESIGN / as-is analysis and is NOT dispatchable — §2.1a–§2.1l are measured
   findings, §3.10 is a gap list, §2.1 is the original target table (see known-rot).
   ⚠ STEP 1 IS A DELIBERATE DEVIATION from docs/designs/mgmt-1/DESIGN.md §8.10, authorised in the same
@@ -676,8 +681,8 @@ sequenceDiagram
     P->>E: clear both dictionaries + arm re-derive
 
     Note over L,E: the NEXT tick — cmd buffer and frame are in hand
-    L->>E: DrainInstantComplete(cmd, frame)
-    E-->>L: re-derive armed
+    L->>E: ResumeFromRestoredWorld(view, frame, cmd)
+    Note right of L: ⚠ AS-BUILT: its own call at the TOP of Execute,<br/>after the replay gate. An earlier draft of this<br/>diagram hung it off DrainInstantComplete — corrected.
     loop each Constructing entity with TkbIdentity
         E->>E: BeginConstruction(e, TkbType, resumeFrame, cmd)
     end
@@ -686,6 +691,49 @@ sequenceDiagram
     end
     Note right of E: resumeFrame, never the recorded one —<br/>CheckTimeouts subtracts unsigned
 ```
+
+##### ✅ AS-BUILT — **`2026-09-12`, commit `ea659a581`** *(obligation ⑤)*
+
+⭐⭐ **Steps 1 and 2 are BUILT. Step 3 is NOT.** ⛔ Read this table before assuming the plan above is all
+done.
+
+| step | state | as built |
+|---|---|---|
+| **1** gate lifecycle during replay | ⚠ **PARTIAL** | ✅ `LifecycleSystem.IsReplayActive` *(`Func<bool>`, asked once per `Execute`)*, fed by `EntityLifecycleModule.IsReplayActive` so a root can set it **after** `RegisterSystems` *(the controller is built later)*. ⛔ **`GhostPromotionSystem` is NOT gated yet.** ⛔ `BypassLifecycle` inside `CreateGhost` NOT honoured yet |
+| **2** the ELM joins the bracket *(`HN-018`)* | ✅ **DONE** | `PreviewParticipants.LifecycleModule(elm)` → `ClearForWorldReplacement()` + `ArmResumeFromRestoredWorld()`; `LifecycleSystem` calls `ResumeFromRestoredWorld` at the top of `Execute` |
+| **3** drive from the REPLAY boundaries | ⛔ **NOT BUILT** | the clear runs **only where a `PreviewStateBracket` is driven**. `PrepareReplay`, every **seek**, and `FinalizeReplay`/`PrepareLive` still do not clear. ⚠ `CE-259aq`'s one-liner also outstanding |
+
+⭐⭐⭐ **THE GATE HAS REAL PRODUCERS — it is not a sixth inert switch.** 📐 `IRecordReplayController.IsReplayActive`
+**already existed** *(implemented by `EcsRecordReplayController.cs:61` and `CgfRecordReplayController.cs:101`)*,
+so no new state type was invented. Wired at **two** production sites: `NodeBootstrapper.cs:228` *(covers
+SimHost and Stride)* and `CgfSubsystem.cs:993`.
+
+| ⭐ where the participant is wired | |
+|---|---|
+| `EditorSubsystem.cs` · `CgfSubsystem.cs` · `NodeBootstrapper.cs` *(SimHost + Stride, via a new optional `elm` parameter both callers pass)* | ✅ |
+| **IG** | ⛔ **owes none — measured**: it registers `ReferencePreviewHandler(liveRepo: null)` *(`IgNodeBootstrapper.cs:374`)*, i.e. it performs no preview rewind |
+
+##### ⚠ DEVIATIONS FROM THE DIAGRAMS AND THE OWNING DESIGN *(obligation ③)*
+
+| # | deviation | argued |
+|---|---|---|
+| **①** | **`mgmt-1/DESIGN.md` §8.10 prescribes RELOCATING into `NetworkLifecycleSystemGroup`; the build GATES IN PLACE** | ✅ authorised `2026-09-12`; the measurement is §2.1m's step-1 table. **Folded back into §8.10's own STATUS block** |
+| **②** | the **sequence diagram** hung the re-derive off `DrainInstantComplete`; as built it is its **own call at the top of `Execute`**, after the gate | ✅ **diagram corrected above** — obligation ⑤ requires the picture to be TRUE again, not just the report |
+| **③** | the **class diagram** is accurate: `LifecycleModuleRewind` is the only new type, private inside `PreviewParticipants` | ✅ no deviation |
+| **④** | the **module diagram** is unchanged and still true — nothing was relocated | ✅ no deviation |
+
+##### ⭐ RAILS AND GATES
+
+⭐ **4 rails added INTO the feature's own suite** *(`APreviewLeavesNoTraceTests` — ⛔ not a parallel class,
+`R-142` ④)*, each **inverse-edit red-proofed**: nulling `Capture()` reddens **3** *(proving the bracket's
+null-skip really does disable the whole fix)*, removing the gate reddens 1, removing the re-derive reddens 1.
+
+| gate | result |
+|---|---|
+| `Fdp.Toolkits.Tests` *(whole, `--no-build`)* | ✅ **2085/2085**, run twice |
+| all five touched projects build | ✅ |
+| `Hrot.SimHost.Tests` | ⚠ **2 failed — both PRE-EXISTING**, confirmed against a stashed baseline over **7** runs *(`MapPresentationParityRails…EditorStrideSubsystem.cs`, `FullBranchPipelineTests.BranchedRecording_CapturesHistoricalStateAsKeyframe`)* |
+| ⚠ **a THIRD test flapped** — `EcsRecordReplayControllerTests.PrepareRecordingAsync_InstallsRecordingModule` | 📐 **2 occurrences in 8 runs with the change, 0 in 7 baseline runs** — which *looked* like a regression. 🔒 **Mechanism settles it, not the statistics:** that suite contains **ZERO** references to `EntityLifecycleModule`/`LifecycleSystem`, and the test races a **background kernel loop** against an **async `InstallModuleAsync`** *(`:52-54`)* ⇒ **load-sensitive pre-existing flake**; the change is not in its code path. ⚠ Worth filing if it recurs |
 
 ##### ⚠ The naming call, and what this withdraws
 

@@ -9,6 +9,14 @@ known-rot: ⛔ §8.10 prescribes that NetworkLifecycleSystemGroup.Enabled = fals
   group never ticks on the editor or on BDC nodes, and relocating them into it would STOP entity
   lifecycle on those hosts. The INTENT stands; the prescribed mechanism does not. See
   docs/designs/replay-and-modules/DESIGN.md §2.1m for the measured alternative (gate in place).
+  ✅ SUPERSEDED IN PART, AS-BUILT 2026-09-12 (commit ea659a581): §8.10's INTENT for LifecycleSystem is now
+  DELIVERED BY A DIFFERENT MECHANISM — LifecycleSystem carries a Func<bool> IsReplayActive, asked once per
+  Execute, fed from EntityLifecycleModule.IsReplayActive and wired to the pre-existing
+  IRecordReplayController.IsReplayActive at NodeBootstrapper.cs:228 (SimHost + Stride) and
+  CgfSubsystem.cs:993. That gates it on EVERY host, which the group cannot. ⛔ STILL OUTSTANDING against
+  §8.10: GhostPromotionSystem is NOT gated, and GhostCreationSystem.BypassLifecycle is STILL not honoured
+  inside CreateGhost — so §8.10's "new arrivals materialise directly into Active" remains a specification,
+  not a description. ⚠ A reader must not quote §8.10's group-membership sentence as the as-built.
 known-conflict: docs/designs/cgf-1/mgmt-DESIGN.md is a 3216-line NEAR-COPY of this 3226-line file (two
   producers for one slot, R-132). A reader can quote the stale half without knowing. Prefer THIS file.
 related-designs:

@@ -2,10 +2,15 @@
 state: LIVE
 updated: 2026-09-11
 current-answer: ⚠⚠ THERE ARE NOW **THREE** LIVE STRANDS ON THIS LANE. Read the one you are continuing.
-  ══ STRAND 0 — ⭐⭐⭐ THE ONLY THING MARKED READY-TO-BUILD (authorised 2026-09-12) ══
-  ✅ BUILD docs/designs/replay-and-modules/DESIGN.md §2.1m — the unified ELM rewind plan. Its STATUS
-  block carries build-state and the authorised deviation; its three diagrams (module / class / sequence)
-  are in §2.1m and all parse. Owning tracker row: HN-018; CE-259ap and CE-259ar link to it.
+  ══ STRAND 0 — ⭐⭐⭐ IN FLIGHT: steps 1+2 BUILT 2026-09-12 (ea659a581), STEP 3 IS NEXT ══
+  ✅ DONE: step 2 — HN-018 is CLOSED (the ELM is the third rewind participant, clearing and re-deriving).
+  ⚠ PARTIAL: step 1 — the replay gate exists on LifecycleSystem with real producers, but
+  GhostPromotionSystem is NOT gated and BypassLifecycle is still not honoured inside CreateGhost.
+  ⛔ NEXT — STEP 3, NOT STARTED: clear the ELM at PrepareReplay, at EVERY SEEK, and at
+  FinalizeReplay/PrepareLive. Today the clear runs ONLY where a PreviewStateBracket is driven, so the
+  replay triggers are still uncovered. Plus CE-259aq's one-liner (AfterSeekCallback → null).
+  ⭐ START AT docs/designs/replay-and-modules/DESIGN.md §2.1m — read its AS-BUILT table FIRST, then the
+  four-step table. Three diagrams (module / class / sequence) are in §2.1m and all parse.
   ⭐ READ FIRST, in this order: §2.1m (the plan + diagrams) → §2.1k (the owning design, mgmt-1 §8.10)
   → §2.1l (PreviewStateBracket — the seam that ALREADY EXISTS; do not build a parallel one).
   ⛔ STEP 1 DEVIATES from mgmt-1 §8.10 on purpose (relocating into NetworkLifecycleSystemGroup is unsafe:
