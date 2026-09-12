@@ -74,6 +74,22 @@ it** ⇒ **preview N and preview N+1 produce identical ids.**
 | ⭐ **`INetworkIdAllocator`** *(`:1101`)* | ✅ | 🔴 **NO** | the reported defect — ids drift |
 | 🔴🔴 **`NetworkEntityMap`** *(`:895`)* | ✅ | 🔴 **NO** | ⛔⛔ **and `Register` THROWS on a duplicate id** — see below |
 | 🔴 **`EntityLifecycleModule`** | ✅ | 🔴 **NO** | `_pendingConstruction` / `_pendingDestruction` are keyed by **`Entity` handles the rewind invalidates**, plus `_blueprintRequirements` |
+
+> ⭐⭐⭐ **`2026-09-11` — THE ELM ROW GENERALISES BEYOND PREVIEW, AND IT IS WORSE THAN "the handles are
+> invalidated".** 📄 Measured in full at **`docs/designs/replay-and-modules/DESIGN.md` §2.1h**: the same
+> rewind-unsafety is reached by **REPLAY and by every SEEK**, not only by the editor's preview — and
+> `LifecycleSystem` is a **direct** registration (`EntityLifecycleModule.cs:94`), so `CheckTimeouts` runs
+> **every tick during playback**. Its `currentFrame - StartFrame` is **`uint`** ⇒ a rewind wraps it to
+> ~4.29 × 10⁹ ⇒ the timeout fires ⇒ `cmd.DestroyEntity` on a stale handle — and the generation guard is
+> **Debug-only** (`EntityIndex.cs:148-157` under `#if FDP_PARANOID_MODE`, defined by `Fdp.Core.csproj:12-14`
+> only when `Configuration == Debug`). 📄 `CE-259ar`.
+>
+> ⚠ **One correction to the row above:** `_blueprintRequirements` is **NOT** rewind-invalidated — it is
+> *registration* state, like `_globalParticipants`, and a rewind does not touch it. Only the two
+> `Entity`-keyed dictionaries are. *(And it is empty in production: `RegisterRequirement` has zero callers.)*
+>
+> ⇒ 📌 **The durable lesson:** *"is this state rewind-safe?"* has **two triggers** in this codebase — the
+> editor preview and replay/seek. ⛔ **A document that answers it for one is not an answer for the other.**
 | ✅ `ITkbDatabase` | ⛔ read-only catalogue | n/a | fine |
 
 ⇒ ⭐⭐ **THREE participants, not one.** 📌 §4 ⑤ said *"two justifies a small list; one does not"* — **three

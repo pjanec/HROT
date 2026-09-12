@@ -36,9 +36,17 @@ known-rot: ⛔⛔ §2.1's row "NetworkLifecycleSystemGroup | Disabled during rep
   cache tracks the log. ⇒ class B is SELF-HEALING; the reflection subscription rail and the generalised
   boundary event are DROPPED, and class C (the ELM's non-recorded pending-construction protocol) is the
   only remaining defect. Do NOT quote §2.1e's class-B conclusion or its step 2/3 plan.
+  🔴🔴🔴 §2.1h — the class-C defect is WIDER than §2.1f said: LifecycleSystem is a DIRECT registration, so
+  CheckTimeouts runs EVERY TICK DURING PLAYBACK, and its currentFrame - StartFrame is uint. A rewind makes
+  that wrap to ~4.29e9, the timeout fires, and cmd.DestroyEntity is called on a stale pre-replay handle —
+  with the generation guard DEBUG-ONLY (Fdp.Core.csproj defines FDP_PARANOID_MODE only for Debug). ⇒ the
+  ELM must be cleared at every WORLD REPLACEMENT (PrepareReplay, every seek, the live boundary), not only
+  at resume. Filed as CE-259ar.
+  ⭐ §2.1i measures the participant sets: both production ctor sites pass an EMPTY list and
+  RegisterRequirement has ZERO callers, so the ack set is at most {gatewayModuleId} today.
 stale-below: §2.1e's class-B conclusion and its 3-step plan (superseded by §2.1f); the retracted
-  lifecycle line above. The other §2.1 rows were not re-measured on 2026-09-11 and carry no claim
-  either way.
+  lifecycle line above; §2.1f's "asymmetry in BeginDestruction" flag (moot — see §2.1i). The other §2.1
+  rows were not re-measured on 2026-09-11 and carry no claim either way.
 -->
 # Design: Replay Isolation and Modern Module System
 
@@ -456,6 +464,88 @@ public Action? AfterSeekCallback =>
 ⇒ ⭐ **The fix is one line and it is NOT to resurrect the method** *(§2.1f shows `_trackedEntities`
 self-heals)*: **return `null` and say why**. ⛔ Do not leave a protection that reads as wired.
 📄 `CE-259ap`.
+
+#### 2.1h 🔴🔴🔴 THE ELM'S BOOKKEEPING IS NOT REWIND-SAFE, AND `CheckTimeouts` TURNS THAT INTO A DESTROY — **during playback, not just at resume** *(`2026-09-11`)*
+
+⛔⛔ **§2.1f left the class-C fix at the RESUME boundary. That is too late**, and the user's framing is the
+correct one: ⭐⭐⭐ **the ELM's dictionaries are bookkeeping ABOUT A WORLD, so they must be discarded at every
+WORLD REPLACEMENT** — entering replay, **every seek**, and the live boundary — not only when resuming.
+
+##### ⭐⭐ The hazard chain, each link measured
+
+| # | link | status |
+|---|---|---|
+| **①** | `LifecycleSystem` is a **DIRECT** registration (`EntityLifecycleModule.cs:94`, `registry.RegisterSystem(new LifecycleSystem(this))`) — never inside a togglable group ⇒ ⭐ **`DrainInstantComplete` and `CheckTimeouts` run EVERY TICK DURING PLAYBACK** (`LifecycleSystem.cs:41`/`:44`) | ✅ measured |
+| **②** | a pending entry survives into the replay — the module has **no** `Clear()`/`Reset()` and nothing in the replay path touches it | ✅ measured (§2.1b) |
+| **③** | the replayed frame drops **below** the entry's `StartFrame` *(the normal case: the live counter is ahead of the recording; a backward **seek** does it too)* | ✅ by construction |
+| **④** | `CheckTimeouts:358` computes `currentFrame - kvp.Value.StartFrame > _timeoutFrames` on **`uint`** ⇒ the subtraction **wraps to ~4.29 × 10⁹**, which exceeds any `_timeoutFrames` ⇒ timeout fires | ✅ measured |
+| **⑤** | ⇒ `cmd.DestroyEntity(entity)` on a **stale handle from the pre-replay world** (`:371`) | ✅ measured |
+| **⑥** | that index now holds a **different** restored entity | ⚠ **PLAUSIBLE, NOT PROVEN** — the restore reuses explicit indices (`RestoreEntity(index, …)`), so a collision is likely, but this session did not prove it for any given entity |
+| **⑦** | 🔴 **the generation guard is DEBUG-ONLY** — `EntityIndex.cs:148-157` sits inside `#if FDP_PARANOID_MODE`, and `Fdp.Core.csproj:12-14` defines it under `Condition="'$(Configuration)'=='Debug'"` | ✅ measured |
+
+⇒ ⭐⭐⭐ **Debug: a loud `"Entity … is stale"` throw. 🔴 RELEASE: NO GUARD** — `EntityIndex.DestroyEntity`
+clears the component mask, bumps the generation and marks the slot inactive **on the innocent restored
+entity.**
+
+⚠ **Stated fairly — the WINDOW is narrow** *(see §2.1i: both production sites build the ELM with an EMPTY
+participant list, so `_pendingConstruction` normally holds an entry for ONE frame)*. ⛔ **That narrows the
+window, not the verdict** — 🔒 *user, `2026-09-11`: "if it can happen, it will one day. Who cares how often,
+needs to be handled every time."*
+
+##### ⭐⭐ R-129 — **THE DESIGN ALREADY RECORDED THIS, FOR THE OTHER TRIGGER**
+
+📄 **`docs/DESIGN_Deterministic_Network_Ids.md` §2b** enumerates what `NetworkSpawningSystem` holds outside
+the repository and its third row reads: *"🔴 `EntityLifecycleModule` · mutable ✅ · rewound by preview? 🔴
+**NO** · `_pendingConstruction`/`_pendingDestruction` are keyed by **`Entity` handles the rewind
+invalidates**."*
+
+⇒ ⭐⭐ **The hazard was recorded for the EDITOR'S PREVIEW rewind and never generalised to REPLAY** — the same
+mechanism, a different trigger. 📌 A durable lesson: *"is this state rewind-safe?"* has **two** triggers in
+this codebase, and a doc that answers it for one is not an answer for the other.
+⚠ **One correction to that row:** it lists `_blueprintRequirements` among the rewind-invalidated state.
+⛔ It is not — that is **registration** state (like `_globalParticipants`), unaffected by a rewind. Only the
+two `Entity`-keyed dictionaries are.
+
+##### ⭐ The rule this produces
+
+| ⭐ | |
+|---|---|
+| ⭐⭐⭐ **CLEAR on every world replacement** | `PrepareReplay` · **every seek** · `FinalizeReplay`/`PrepareLive` |
+| ⭐⭐ **RECONSTRUCT only when resuming to a LIVE world** | ⛔ reconstructing during playback would re-open protocols the log is about to overwrite |
+| ⭐ **the clear belongs ON the ELM, privately** | ⛔ `BeginConstruction:165-168` **throws** on re-entry, so a resume that does not clear first cannot run. ⚠ Do **not** add a public `ResetPending()` any caller can reach |
+
+#### 2.1i ⭐⭐ WHAT THE PARTICIPANT SETS ACTUALLY ARE — **and why `BlueprintId` is the one datum that must be recovered**
+
+📐 `BeginConstruction:171-175` computes the ack set as **`_globalParticipants ∪ _blueprintRequirements[blueprintId]`**.
+
+| | what it is | keyed by | measured population |
+|---|---|---|---|
+| **`_globalParticipants`** | modules that must ACK **every** construction/destruction | — node state | ⛔ **both production ctor sites pass an EMPTY list** — `EditorSubsystem.cs:1384` `Array.Empty<int>()`, `HrotNodeBuilder.cs:238` `new List<int>()`. ⭐ The **one** production adder is `NetworkGatewaySystem.cs:88` (`_elm.RegisterModule(_gatewayModuleId)`) |
+| **`_blueprintRequirements`** | modules that must ACK constructions **of one blueprint type only** | ⭐⭐ **`blueprintId`** | ⛔⛔ **`RegisterRequirement` has ZERO callers** — the union at `:172-175` is a **no-op today** |
+
+⭐⭐ **Why the per-blueprint set exists at all:** not every entity type gives every module work to do. A
+vehicle may need physics and turret setup to finish before it goes `Active`; a marker needs neither. Without
+the per-blueprint set, **every** entity would wait for **every** registered module, making the slowest module
+the floor for every spawn. ⇒ 📌 an **opt-in capability**, not a vestige — the `BTreeTick` shape in `CLAUDE.md`.
+⛔ **Do not propose deleting it**; ⛔ and this session did **not** find a design record of its intent
+*(searched `docs/` and `.dev/` for `RegisterRequirement`/`blueprintRequirement`/per-blueprint acks — the only
+hits are `hill-attack`'s unrelated "TKB Blueprint Requirements" and the `DESIGN_Deterministic_Network_Ids.md`
+row above)*.
+
+⇒ ⭐⭐⭐ **THIS IS WHY THE RECONSTRUCTION NEEDS `TkbIdentity.TkbType` AND NOT JUST "re-open with the global
+set".** `_globalParticipants` is pure node state and survives the rewind untouched; `_blueprintRequirements`
+is keyed on the **blueprint id**, which lives only on the entity. ⇒ **recovering `BlueprintId` is what keeps
+the recomputed ack set correct once anyone starts using requirements** — ⭐ and `TkbIdentity` is recorded
+(no `[DataPolicy]`; *"lives on the entity forever"*), attached by **both** production paths
+(`NetworkSpawningSystem.cs:148`, and ghosts carry it before `GhostPromotionSystem.cs:195` reads it).
+
+##### ⚠ Two consequences of the empty sets, stated so nobody over-reads them
+
+| | |
+|---|---|
+| ⭐ **construction is normally a ONE-FRAME state, not a distributed handshake** | with no participants, `BeginConstruction:185-198` takes the zero-ack branch and `DrainInstantComplete:325` promotes on the next frame (`currentFrame > StartFrame`) |
+| ⛔⛔ **the zombie claim SURVIVES this** | `DrainInstantComplete:324` iterates **`_pendingConstruction`**, never a world query ⇒ a restored `Constructing` entity that is not in the dictionary is promoted by **nothing**, whatever the participant count |
+| ⚠ **CORRECTION to §2.1f's flagged asymmetry** | `BeginDestruction:250` uses `_globalParticipants` only *(its own comment: "Default to global only for now")* while construction unions the blueprint set. ⛔ **That asymmetry is MOOT today** — `_blueprintRequirements` is never populated, so both compute the same set. ⭐ It is **latent**, and would bite the first time someone calls `RegisterRequirement` |
 
 ### 2.2 IG Nodes During Replay
 
