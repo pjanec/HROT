@@ -399,7 +399,11 @@ public sealed class StrideNodeBootstrapper : SharedApplicationBootstrapper, IDis
             lifecycleGroup:      context.NedReplication?.NetworkLifecycleGroup,
             ghostCreationSystem: context.GhostCreationSystem,
             eventAccumulator:    context.EventAccumulator,
-            afterSeek:           context.NedReplication?.AfterSeekCallback);
+            afterSeek:           context.NedReplication?.AfterSeekCallback,
+            // ⭐ HN-018 — this caller HAS the ELM, so it passes it (the silent-default rule).
+            elm:                 context.BaseModules?
+                                     .OfType<Fdp.Toolkit.Lifecycle.EntityLifecycleModule>()
+                                     .FirstOrDefault());
     }
 
     /// <inheritdoc/>

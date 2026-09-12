@@ -10,6 +10,11 @@ namespace Fdp.Toolkit.Orchestration.Preview
     /// ⭐⭐⭐ <b>The THREE participants §2b enumerated, each wrapped as an <see cref="IPreviewRewindable"/>.</b>
     /// 📄 <c>docs/DESIGN_Deterministic_Network_Ids.md</c> §2b.
     ///
+    /// <para>✅ <b>All three are now present</b> *(`2026-09-12`)*: <see cref="IdAllocator"/>,
+    /// <see cref="EntityMap"/>/<see cref="EntityMapFromRepository"/> and <see cref="LifecycleModule"/>.
+    /// ⚠⚠ <b>Until then this summary said "THREE" and the class shipped TWO</b> — the ELM was deferred as
+    /// <c>HN-018</c> and the gap was invisible from here. 📌 A count in prose is not a count in code.</para>
+    ///
     /// <para>⛔⛔ <b>All three, or none.</b> 📐 §2b's finding: restoring the ALLOCATOR alone makes things
     /// WORSE — <c>NetworkEntityMap.Register</c> throws <c>"NetworkId {id} already registered"</c> on a
     /// duplicate, and the editor never prunes the map, so exact id repetition turns a silent drift into a
@@ -50,7 +55,49 @@ namespace Fdp.Toolkit.Orchestration.Preview
         public static IPreviewRewindable EntityMapFromRepository(EntityRepository repository)
             => new RepositoryEntityMapRewind(repository ?? throw new ArgumentNullException(nameof(repository)));
 
+        /// <summary>
+        /// ⭐⭐⭐ <b>The THIRD participant §2b enumerated — the ELM's in-flight construction/destruction
+        /// queues.</b> 📄 <c>HN-018</c>; the plan is <c>docs/designs/replay-and-modules/DESIGN.md</c> §2.1m.
+        ///
+        /// <para>⭐⭐ <b>It does NOT restore a snapshot, and that is the point.</b> <c>HN-018</c> was deferred
+        /// because <i>"a non-empty queue cannot be restored by a plain copy — the keys are
+        /// <see cref="Fdp.Core.Entity"/> handles the repo rewind invalidates, so a correct participant needs
+        /// the rewind's identity mapping, not a snapshot."</i> ⇒ 🔒 <b>this one CLEARS and RE-DERIVES from
+        /// the restored world</b> *(recorded <c>LifecycleState</c> + <c>TkbIdentity</c>)*, so **no handle
+        /// crosses the boundary at all** and that objection never applies.</para>
+        ///
+        /// <para>⛔⛔ <b><see cref="IPreviewRewindable.Capture"/> MUST return NON-NULL here.</b> 📐
+        /// <c>PreviewStateBracket.Capture</c> adds a <c>null</c>-token participant to
+        /// <c>UnrestorableParticipants</c> and <c>Restore</c> then SKIPS it ⇒ a <c>null</c> would make this
+        /// fix silently never run, and would falsely report the node as unable to guarantee reproducibility
+        /// on every preview. ⭐ The token is a marker, not a snapshot — there is nothing to copy.</para>
+        ///
+        /// <para>⚠ The same participant serves the REPLAY boundaries, not just preview — the contract is
+        /// "the world was replaced", and the bracket's name is historical.</para>
+        /// </summary>
+        public static IPreviewRewindable LifecycleModule(Fdp.Toolkit.Lifecycle.EntityLifecycleModule elm)
+            => new LifecycleModuleRewind(elm ?? throw new ArgumentNullException(nameof(elm)));
+
         // ── the adapters ──────────────────────────────────────────────────────
+
+        private sealed class LifecycleModuleRewind : IPreviewRewindable
+        {
+            /// <summary>⭐ A marker, not a snapshot — see the factory's remarks on why it may not be null.</summary>
+            private static readonly object ClearAndReDeriveMarker = new object();
+
+            private readonly Fdp.Toolkit.Lifecycle.EntityLifecycleModule _elm;
+            public LifecycleModuleRewind(Fdp.Toolkit.Lifecycle.EntityLifecycleModule elm) => _elm = elm;
+
+            public string Name => "entity-lifecycle-module";
+
+            public object? Capture() => ClearAndReDeriveMarker;
+
+            public void Restore(object snapshot)
+            {
+                _elm.ClearForWorldReplacement();
+                _elm.ArmResumeFromRestoredWorld();
+            }
+        }
 
         private sealed class AllocatorRewind : IPreviewRewindable
         {

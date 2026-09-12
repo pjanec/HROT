@@ -182,7 +182,13 @@ namespace Hrot.SimHost
             Fdp.Toolkit.Replication.Systems.GhostCreationSystem? ghostCreationSystem = null,
             Fdp.Core.EventAccumulator? eventAccumulator = null,
             Action? afterSeek = null,
-            Hrot.Common.Diagnostics.DiagnosticsDumpClusterOpHandler? diagnosticsDumpHandler = null)
+            Hrot.Common.Diagnostics.DiagnosticsDumpClusterOpHandler? diagnosticsDumpHandler = null,
+            // ⭐ HN-018 — the THIRD rewind participant (§2b): the ELM's in-flight construction/destruction
+            //   queues, which a world replacement invalidates and nothing else resets.
+            //   ⛔ A caller that HAS an ELM must PASS it — an unpassed one is the silent-default defect, and
+            //   the preview/replay boundary then leaves stale entries behind (CE-259ar) and restored
+            //   Constructing entities undriven. 📄 docs/designs/replay-and-modules/DESIGN.md §2.1m step 2.
+            Fdp.Toolkit.Lifecycle.EntityLifecycleModule? elm = null)
         {
             if (participant == null && role.HasFlag(NodeRole.Brain))
                 throw new ArgumentNullException(nameof(participant),
@@ -210,6 +216,16 @@ namespace Hrot.SimHost
                 controller = new EcsRecordReplayController(kernel, nodeId, world,
                     afterSeek: afterSeek);
             RecordReplayController = controller;
+
+            // ⭐⭐ Step 1 of DESIGN.md §2.1m: gate the ELM during replay, so LifecycleSystem's
+            //    CheckTimeouts cannot run while a seek has rewound the frame counter behind a recorded
+            //    StartFrame (the unsigned wrap of CE-259ar). ⭐ The producer already existed —
+            //    IRecordReplayController.IsReplayActive — so no new state type was introduced.
+            //    ⛔ Gated IN PLACE rather than relocated into NetworkLifecycleSystemGroup: that group's
+            //    ExecuteGroup has exactly ONE caller (NedReplicationModule.Tick), so it never ticks on the
+            //    editor or on BDC nodes. Authorised deviation from mgmt-1/DESIGN.md §8.10.
+            if (elm != null && controller != null)
+                elm.IsReplayActive = () => controller.IsReplayActive;
 
             // Wire ReferenceReplayLoadHandler BEFORE ReferenceLiveLoadHandler so the
             // dispatch loop considers the Live-from-Replay branch first (CGF1-S0305).
@@ -251,6 +267,10 @@ namespace Hrot.SimHost
                     Fdp.Toolkit.Orchestration.Preview.PreviewParticipants.IdAllocator(scenarioIdAllocator));
             previewRewindables.Add(
                 Fdp.Toolkit.Orchestration.Preview.PreviewParticipants.EntityMapFromRepository(world));
+            // ⭐ HN-018 — the third participant. Independent of the map: an ELM exists on every node.
+            if (elm != null)
+                previewRewindables.Add(
+                    Fdp.Toolkit.Orchestration.Preview.PreviewParticipants.LifecycleModule(elm));
             clusterSlave.RegisterHandler(new ReferencePreviewHandler(world, previewRewindables));
 
             // Wire ReferencePrefetchHandler so this node can stage scenario files and ACK.

@@ -88,10 +88,29 @@ namespace Fdp.Toolkit.Lifecycle
             _translators = translators ?? System.Array.Empty<ITkbEntityTranslator>();
         }
         
+        /// <summary>
+        /// ⭐⭐⭐ <b>The replay gate, set by the composition root.</b> While it returns <c>true</c>,
+        /// <see cref="Systems.LifecycleSystem"/> does nothing — 📄 <c>mgmt-1/DESIGN.md</c> §8.10: during
+        /// replay <i>"the ELM pipeline is never invoked"</i>.
+        ///
+        /// <para>⭐ The producer already existed: <c>IRecordReplayController.IsReplayActive</c>, implemented
+        /// by both <c>EcsRecordReplayController</c> and <c>CgfRecordReplayController</c>. ⛔ No new state
+        /// type was invented for this.</para>
+        ///
+        /// <para>⭐⭐ Read LATE, through a lambda, so a root may set it AFTER
+        /// <see cref="RegisterSystems"/> — the controller is frequently built after the module.
+        /// ⚠ Unset means "never replaying", so a host that does not wire it behaves exactly as before.</para>
+        /// </summary>
+        public Func<bool>? IsReplayActive { get; set; }
+
         public void RegisterSystems(ISystemRegistry registry)
         {
             registry.RegisterSystem(new BlueprintApplicationSystem(_tkb, _translators));
-            registry.RegisterSystem(new LifecycleSystem(this));
+            registry.RegisterSystem(new LifecycleSystem(this)
+            {
+                // ⭐ late-bound on purpose — see IsReplayActive's remarks.
+                IsReplayActive = () => IsReplayActive?.Invoke() ?? false,
+            });
         }
 
         /// <summary>
@@ -392,6 +411,104 @@ namespace Fdp.Toolkit.Lifecycle
             }
         }
         
+        // ── World replacement: clear, then re-derive ─────────────────────────────
+        // 📄 docs/designs/replay-and-modules/DESIGN.md §2.1m — HN-018 / CE-259ap / CE-259ar.
+
+        private bool _resumePending;
+
+        /// <summary>
+        /// ⭐⭐⭐ <b>Discards all in-flight construction/destruction bookkeeping because THE WORLD WAS
+        /// REPLACED under it.</b> Call at EVERY world replacement: entering a replay, every seek, ending a
+        /// replay, branching to live, and entering/leaving an editor preview.
+        ///
+        /// <para>⛔⛔ <b>Why this must exist.</b> These dictionaries are keyed by <see cref="Entity"/>
+        /// handles that a rewind INVALIDATES, and nothing else resets them. 🔴 Left stale,
+        /// <see cref="CheckTimeouts"/> computes <c>currentFrame - StartFrame</c> on <b>uint</b>: once the
+        /// frame counter is rewound behind a recorded <c>StartFrame</c> the subtraction WRAPS past any
+        /// timeout, and the entry is "timed out" into <c>cmd.DestroyEntity(entity)</c> on a stale handle.
+        /// ⚠ The generation guard that would catch that is <c>#if FDP_PARANOID_MODE</c>, which
+        /// <c>Fdp.Core.csproj</c> defines for <b>Debug only</b> ⇒ a Release build has no guard at all.</para>
+        ///
+        /// <para>⭐ Deliberately NOT public: only a world-replacement boundary may legitimately discard an
+        /// in-flight handshake. 📌 <c>CE-259ar</c>.</para>
+        /// </summary>
+        internal void ClearForWorldReplacement()
+        {
+            _pendingConstruction.Clear();
+            _pendingDestruction.Clear();
+            _resumePending = false;
+        }
+
+        /// <summary>
+        /// ⭐⭐ Arms the re-derive performed by <see cref="ResumeFromRestoredWorld"/> on the next tick.
+        /// ⛔ Arm this ONLY when resuming to a LIVE world (<c>FinalizeReplay</c> / <c>PrepareLive</c> /
+        /// preview exit) — ⚠ never when ENTERING a replay, where re-opening protocols the log is about to
+        /// overwrite would be pure waste.
+        /// </summary>
+        internal void ArmResumeFromRestoredWorld() => _resumePending = true;
+
+        /// <summary>
+        /// ⭐⭐⭐ <b>Re-opens every in-flight protocol the restored world still implies.</b> Driven by
+        /// <see cref="Systems.LifecycleSystem"/>, which is where a command buffer and a frame number exist —
+        /// ⛔ <see cref="ClearForWorldReplacement"/>'s caller has neither.
+        ///
+        /// <para>⭐⭐ <b>Why RE-DERIVE and not RESTORE.</b> The authoritative fact — which entities are
+        /// mid-construction — IS recorded: <c>EntityMetadataCold.LifecycleState</c> travels in the entity
+        /// index's cold chunk, and <c>TkbIdentity</c> carries no <c>[DataPolicy]</c> so it is recorded too.
+        /// ⇒ 🔒 <b>re-deriving from those carries NO <see cref="Entity"/> handle across the boundary</b>,
+        /// so the handle-invalidation problem that deferred <c>HN-018</c> never arises. ⛔ Restoring a
+        /// snapshot of the queues would hit it head-on, and restoring PARTIAL ack progress would deadlock:
+        /// a participant that already acked before the rewind never acks again without a new order.</para>
+        ///
+        /// <para>⭐ The participant set is RECOMPUTED from live registration state, which is exactly what
+        /// <see cref="BeginConstruction"/> does anyway — a FRESH full set is the correct semantics after a
+        /// rewind, because the modules must redo their setup.</para>
+        ///
+        /// <para>⭐⭐ Re-publishing <c>ConstructionOrder</c> re-injects the TKB template via
+        /// <see cref="Systems.BlueprintApplicationSystem"/>, and that is CORRECT rather than destructive:
+        /// 📄 <c>docs/DESIGN_Entity_State_Sourcing.md</c> §1 — entity state must be reconstructible from
+        /// the TKB or a published descriptor, and §2 ② calls a stored copy of translator-derived
+        /// components "an ERROR … stale duplicates of TKB material".</para>
+        /// </summary>
+        internal void ResumeFromRestoredWorld(ISimulationView view, uint currentFrame, IEntityCommandBuffer cmd)
+        {
+            if (!_resumePending) return;
+            _resumePending = false;
+
+            int reopenedConstructions = 0, reopenedDestructions = 0;
+
+            // Constructing + TkbIdentity ⇒ re-open a construction with a FRESH participant set and the
+            // RESUME frame. ⛔ Never the recorded StartFrame — CheckTimeouts subtracts unsigned.
+            var constructing = view.Query()
+                .With<Fdp.Toolkit.Replication.Components.TkbIdentity>()
+                .WithLifecycle(EntityLifecycle.Constructing)
+                .Build();
+            foreach (var entity in constructing)
+            {
+                ref readonly var identity =
+                    ref view.GetComponentRO<Fdp.Toolkit.Replication.Components.TkbIdentity>(entity);
+                BeginConstruction(entity, identity.TkbType, currentFrame, cmd);
+                reopenedConstructions++;
+            }
+
+            // TearDown ⇒ re-open a destruction so the deletion the log captured actually COMPLETES.
+            // ⚠ The original Reason is not recoverable — nothing records it — so a generic one is stamped.
+            // It is diagnostic text, not protocol.
+            var tearDown = view.Query().WithLifecycle(EntityLifecycle.TearDown).Build();
+            foreach (var entity in tearDown)
+            {
+                BeginDestruction(entity, currentFrame, ResumeDestructionReason, cmd);
+                reopenedDestructions++;
+            }
+
+            FdpLog<EntityLifecycleModule>.Info(
+                "[Node-{0}] ELM: resumed from a restored world at frame {1} — re-opened {2} construction(s) " +
+                "and {3} destruction(s) with fresh participant sets.",
+                _localNodeId, currentFrame, reopenedConstructions, reopenedDestructions);
+        }
+
+        private static readonly FixedString64 ResumeDestructionReason = new FixedString64("resume-from-restored-world");
+
         public (int constructed, int destructed, int timeouts, int pending) GetStatistics()
         {
             return (_totalConstructed, _totalDestructed, _timeouts, 

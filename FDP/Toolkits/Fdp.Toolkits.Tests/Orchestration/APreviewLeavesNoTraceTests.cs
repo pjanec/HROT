@@ -3,6 +3,7 @@ using System.Linq;
 using Fdp.Core;
 using Fdp.Toolkit.NetworkSpawning;
 using Fdp.Toolkit.Orchestration.Preview;
+using Fdp.Toolkit.Lifecycle;
 using Fdp.Toolkit.Replication.Services;
 using Xunit;
 
@@ -278,5 +279,104 @@ public sealed class APreviewLeavesNoTraceTests
         bracket.Restore();          // no-op after a discard
 
         Assert.NotEqual(spent, alloc.AllocateId());
+    }
+
+    // ══ HN-018 — the THIRD participant: the ELM's in-flight queues ════════════
+    // 📄 docs/designs/replay-and-modules/DESIGN.md §2.1m.
+
+    // ⭐ null TKB is this suite family's established idiom (EntityLifecycleModuleTests passes null too):
+    //   _tkb is only touched by RegisterSystems, which these rails never call.
+    private static EntityLifecycleModule NewElm()
+        => new EntityLifecycleModule(null!, System.Array.Empty<int>());
+
+    /// <summary>
+    /// ⛔⛔ THE MECHANICAL DETAIL THE WHOLE FIX HANGS ON. PreviewStateBracket.Capture adds a participant
+    /// whose token is null to UnrestorableParticipants, and Restore then SKIPS it — so a null capture here
+    /// would make the clear-and-re-derive silently never run, and would falsely report the node as unable
+    /// to guarantee reproducibility on every single preview.
+    /// </summary>
+    [Fact]
+    public void TheLifecycleParticipantCapturesNonNull_OrItsRestoreWouldNeverRun()
+    {
+        var participant = PreviewParticipants.LifecycleModule(NewElm());
+
+        Assert.NotNull(participant.Capture());
+
+        var bracket = new PreviewStateBracket(new[] { participant });
+        bracket.Capture();
+        Assert.DoesNotContain(participant.Name, bracket.UnrestorableParticipants);
+    }
+
+    /// <summary>
+    /// ⭐⭐ A world replacement DISCARDS in-flight bookkeeping. Left stale, CheckTimeouts' unsigned
+    /// frame subtraction wraps once the counter is rewound behind a recorded StartFrame and destroys the
+    /// entity at that index — with no generation guard in a Release build (CE-259ar).
+    /// </summary>
+    [Fact]
+    public void RestoringTheBracket_ClearsTheElmsPendingQueues()
+    {
+        var repo = new EntityRepository();
+        var elm = NewElm();
+        var cmd = new EntityCommandBuffer();
+
+        var entity = repo.CreateEntity();
+        elm.BeginConstruction(entity, blueprintId: 1, currentFrame: 500, cmd);
+        Assert.Equal(1, elm.GetStatistics().pending);
+
+        var bracket = new PreviewStateBracket(new[] { PreviewParticipants.LifecycleModule(elm) });
+        bracket.Capture();
+        bracket.Restore();
+
+        Assert.Equal(0, elm.GetStatistics().pending);
+    }
+
+    /// <summary>
+    /// ⭐⭐⭐ THE RE-DERIVE. HN-018 was deferred because a non-empty queue "cannot be restored by a plain
+    /// copy — the keys are Entity handles the repo rewind invalidates". Re-deriving from the RESTORED WORLD
+    /// (recorded LifecycleState + TkbIdentity) carries no handle across the boundary, so that objection
+    /// does not apply — and a restored Constructing entity stops being a zombie nothing drives.
+    /// </summary>
+    [Fact]
+    public void AfterARestore_TheNextTickReopensConstructionForEveryRestoredConstructingEntity()
+    {
+        var repo = new EntityRepository();
+        repo.RegisterComponent<Fdp.Toolkit.Replication.Components.TkbIdentity>();
+        var elm = NewElm();
+
+        // The world as the log restored it: Constructing, carrying its TkbIdentity, in NOBODY's queue.
+        var restored = repo.CreateEntity();
+        repo.AddComponent(restored, new Fdp.Toolkit.Replication.Components.TkbIdentity { TkbType = 4242 });
+        repo.SetLifecycleState(restored, EntityLifecycle.Constructing);
+
+        var bracket = new PreviewStateBracket(new[] { PreviewParticipants.LifecycleModule(elm) });
+        bracket.Capture();
+        bracket.Restore();
+        Assert.Equal(0, elm.GetStatistics().pending);   // cleared, and nothing drives the entity yet
+
+        new Fdp.Toolkit.Lifecycle.Systems.LifecycleSystem(elm).Execute(repo, 0f);
+
+        Assert.Equal(1, elm.GetStatistics().pending);   // re-opened, with a FRESH participant set
+    }
+
+    /// <summary>
+    /// ⭐⭐ THE REPLAY GATE (step 1). mgmt-1/DESIGN.md §8.10: during replay "the ELM pipeline is never
+    /// invoked". Decisively, CheckTimeouts must not run while the frame counter is rewound.
+    /// </summary>
+    [Fact]
+    public void WhileReplayIsActive_TheLifecycleSystemDoesNothingAtAll()
+    {
+        var repo = new EntityRepository();
+        var elm = NewElm();
+        var cmd = new EntityCommandBuffer();
+
+        var entity = repo.CreateEntity();
+        elm.BeginConstruction(entity, blueprintId: 1, currentFrame: 0, cmd);
+
+        var system = new Fdp.Toolkit.Lifecycle.Systems.LifecycleSystem(elm) { IsReplayActive = () => true };
+        for (int i = 0; i < 3; i++) system.Execute(repo, 0f);
+
+        // Ungated, DrainInstantComplete would have promoted this zero-participant construction by now.
+        Assert.Equal(1, elm.GetStatistics().pending);
+        Assert.Equal(0, elm.GetStatistics().constructed);
     }
 }

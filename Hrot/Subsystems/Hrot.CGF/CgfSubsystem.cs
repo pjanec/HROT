@@ -985,6 +985,13 @@ public sealed class CgfSubsystem : ISubsystem, Fdp.Toolkit.Runner.IMapCameraProv
         var rrController = new Hrot.SimHost.Modules.Orchestration.EcsRecordReplayController(
             _context.Kernel, _context.NodeId, _context.World, afterSeek: afterSeekAction);
 
+        // ⭐⭐ Step 1 of DESIGN.md §2.1m — gate the ELM during replay (mgmt-1/DESIGN.md §8.10: "the ELM
+        //    pipeline is never invoked"). ⭐ Reuses the existing IRecordReplayController.IsReplayActive.
+        var cgfGateElm = _context.BaseModules?
+            .OfType<Fdp.Toolkit.Lifecycle.EntityLifecycleModule>().FirstOrDefault();
+        if (cgfGateElm != null)
+            cgfGateElm.IsReplayActive = () => rrController.IsReplayActive;
+
         var storageProvider = new LocalDiskStorageProvider(isolatedTempRoot);
 
         // 1. Replay handler (must be first to gate Live-from-Replay branch)
@@ -1127,6 +1134,14 @@ public sealed class CgfSubsystem : ISubsystem, Fdp.Toolkit.Runner.IMapCameraProv
                 cgfRewindables.Add(Fdp.Toolkit.Orchestration.Preview.PreviewParticipants.IdAllocator(_context.IdAllocator));
             cgfRewindables.Add(Fdp.Toolkit.Orchestration.Preview.PreviewParticipants.EntityMap(_entityMap));
         }
+        // ⭐ HN-018 — the THIRD participant §2b enumerated: the ELM's in-flight queues. ⚠ Added OUTSIDE the
+        //   map's `if`: unlike the allocator/map pair (which are "both or neither", see above), the ELM is
+        //   independent of whether this node has a network entity map.
+        //   📄 docs/designs/replay-and-modules/DESIGN.md §2.1m step 2.
+        var cgfElm = _context.BaseModules?
+            .OfType<Fdp.Toolkit.Lifecycle.EntityLifecycleModule>().FirstOrDefault();
+        if (cgfElm != null)
+            cgfRewindables.Add(Fdp.Toolkit.Orchestration.Preview.PreviewParticipants.LifecycleModule(cgfElm));
         newClusterSlave.RegisterHandler(new ReferencePreviewHandler(_context.World, cgfRewindables));
         newClusterSlave.RegisterHandler(new ReferencePrefetchHandler(storageProvider));
         newClusterSlave.RegisterHandler(new ReferenceArchiveHandler(

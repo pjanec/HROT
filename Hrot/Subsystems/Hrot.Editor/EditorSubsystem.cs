@@ -2138,10 +2138,14 @@ namespace Hrot.Editor
             // ⛔⛔ The allocator ALONE would be worse than nothing: NetworkEntityMap.Register throws on a
             //    duplicate id, and the allocator's drift is currently the only thing stopping preview 2
             //    from colliding ⇒ exact id repetition without the map rewind is a guaranteed exception.
+            // ⭐ HN-018 — the THIRD participant §2b enumerated: the ELM's in-flight queues. It CLEARS and
+            //    RE-DERIVES rather than restoring a snapshot, so no Entity handle crosses the rewind.
+            //    📄 docs/designs/replay-and-modules/DESIGN.md §2.1m step 2.
             var previewRewindables = new[]
             {
                 Fdp.Toolkit.Orchestration.Preview.PreviewParticipants.IdAllocator(_idAllocator!),
                 Fdp.Toolkit.Orchestration.Preview.PreviewParticipants.EntityMap(_entityMap!),
+                Fdp.Toolkit.Orchestration.Preview.PreviewParticipants.LifecycleModule(elm),
             };
             _previewController = new EditorPreviewController(_world, _timeController!, previewRewindables);
 

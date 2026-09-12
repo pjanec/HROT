@@ -427,7 +427,11 @@ public sealed class SimHostNodeBootstrapper : SharedApplicationBootstrapper
             ghostCreationSystem:  context.GhostCreationSystem,
             eventAccumulator:     context.EventAccumulator,
             afterSeek:            (context.NedReplication as Hrot.Common.Abstractions.INedReplicationModule)?.AfterSeekCallback,
-            diagnosticsDumpHandler: diagHandler);
+            diagnosticsDumpHandler: diagHandler,
+            // ⭐ HN-018 — this caller HAS the ELM, so it passes it (the silent-default rule).
+            elm:                  context.BaseModules?
+                                      .OfType<Fdp.Toolkit.Lifecycle.EntityLifecycleModule>()
+                                      .FirstOrDefault());
 
         SlaveTranslator = _nodeBootstrapper.SlaveTranslator;
         return slave;
