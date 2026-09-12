@@ -69,18 +69,24 @@ current-answer: ⚠⚠ THERE ARE NOW **THREE** LIVE STRANDS ON THIS LANE. Read t
       ⚠ HONEST SCOPE: the live double-tick §3.5 describes may not exist today — all six systems come from
       CgfLogicPack, used only by CGF and the Editor, and the Editor is offline so it gets no ghosts. The
       gate is what makes the design non-cosmetic for multi-Brain / all-in-one / R-138 Muscle-runs-brains.
-      ✅ STEP 3b's HALF (a) IS RESOLVED 2026-09-12 (CE-259bf closed). User ruling: SimHost is DEFINED as
-      never-Brain, so my "it removes a capability" objection was withdrawn — R-138 was the wrong rule.
-      The user also said the gate is preferable if it unifies across hosts, and it does. Re-measurement:
-      SimHost runs ZERO cognitive systems (they all come from CgfLogicPack = CGF + Editor), so there is
-      nothing to narrow FOR; and SimHost READS BehaviorState at 11 sites — SimHostVisualization.cs:385
-      uses it to decide whether an operator's right-click routes through the MISSION machinery or bypasses
-      it, so un-registering would silently turn every order into a direct move fighting the brain.
-      ⇒ THE GATE IS THE UNIFIED MECHANISM AND IS SHIPPED. Narrowing is not needed for correctness.
-      ⚠ If ever wanted for MEMORY (MAX_COMPONENT_TYPES is 512), it needs a per-component check against the
-      systems SimHost SCHEDULES — not references in its own assembly — and BehaviorState must stay.
-      📌 StrideNodeBootstrapper.cs:304's "SimHost registers them, that is debt" note is INCOMPLETE: the
-      debt is the brain INTERNALS, not BehaviorState. Correct it when next touching that file.
+      🔴 STEP 3b's HALF (a) IS NOT DONE, AND NARROWING IS THE PRIMARY FIX — CE-259bf (re-opened; it had
+      been closed with the wrong conclusion). User ruling 2026-09-12: SimHost is DEFINED as never-Brain.
+      THE DECISIVE POINT: WithOwned<T>() IMPLIES With<T>(), so an entity without the component is excluded
+      BEFORE authority is consulted — you cannot ask "do I own it" about something never added. ⇒ the gate
+      (CE-259be) is the RESIDUAL for nodes that legitimately HAVE brain components (all-in-one, multi-Brain),
+      NOT an alternative to narrowing.
+      MECHANISM: BehaviorTkbTranslator.cs:52 gates materialisation on IsComponentTypeRegistered alone, so
+      SimHost's own spawns carry the whole brain tier — the inversion already recorded at
+      NedReplicationModule.cs:396-403 ("SimHost had all 35 components including the entire brain tier"
+      while the CGF ghost had 12 and none). Precedent: StrideNodeBootstrapper.cs:304 already excludes it.
+      ⛔ BLOCKED ON CE-259bg first: SimHostVisualization.cs:385's brainActive uses LOCAL
+      HasComponent<BehaviorState> to decide whether an operator right-click routes through the MISSION
+      machinery or bypasses it. That proxy is ALREADY wrong (local answer to a cluster question) and goes
+      false for everything after narrowing. "Could it have a brain" comes from the TKB
+      (BehaviorProfileDto.BrainTier); "is its brain ACTIVE" does NOT replicate and is lost unless published.
+      ⚠ NARROW PER-COMPONENT, not all 14: NavigationIntent, PassengerBuffer, IsEmbarkedTag, MissionPlanQueue
+      and the channels are Muscle-side or shared, and a component must stay registered for systems SimHost
+      schedules FROM OTHER ASSEMBLIES. Check against SCHEDULED systems, never references in Hrot.SimHost.
       ⭐⭐⭐ NEXT: STEP 4 — hand CGF a Brain policy and SimHost a Muscle policy at their composition roots
       (SimHostApp.DefaultRole / CgfSubsystem.DefaultRole), each with a SingleNodePerRoleShardProvider over
       the role that host already declares, AND set gateOnAuthority: true in the same change (see ① above).

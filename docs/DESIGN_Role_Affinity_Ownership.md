@@ -1,7 +1,7 @@
 <!--STATUS
 state: LIVE
 updated: 2026-09-12
-build-state: BUILDING — steps 0a, 0, 1a, 1, 2, 3 and 3b(b) done. ⛔ NOT BUILT: step 4 supplies no policy yet, so every node still runs null; 3b(a) is RESOLVED — the gate is the unified mechanism, narrowing not needed (§6f). ⛔ NOT "BUILT": open-risk below still binds (§3.5 / step 3b).
+build-state: BUILDING — steps 0a, 0, 1a, 1, 2, 3 and 3b(b) done. ⛔ NOT BUILT: step 4 supplies no policy yet, so every node still runs null; 3b(a) NOT done — narrowing is the PRIMARY fix and the gate cannot substitute (§6f); blocked on CE-259bg. ⛔ NOT "BUILT": open-risk below still binds (§3.5 / step 3b).
 verified: ⭐⭐ THE WHOLE DESIGN WAS RE-MEASURED AGAINST THE TREE ON 2026-09-12 before step 0 was built
   (user: "verify design before, might be stale"). VERDICT: every DECISION holds and nothing load-bearing
   is stale — the six unbuilt types are still at ZERO .cs occurrences, the blanket grant is byte-identical,
@@ -47,11 +47,12 @@ current-answer: §3 is the design; §4 carries the UML; §6 is the sequencing; �
   the gate is CONDITIONAL (§6's own ordering would have broken the cluster — an unconditional filter makes
   a node stop processing every entity it did not create, because a promoted ghost owns nothing), and it
   covers SIX systems rather than §3.5's two, each gated on a component it ALREADY required.
-  ✅ 3b's half (a) is RESOLVED 2026-09-12 by user ruling + re-measurement: the GATE is the unified
-  mechanism and narrowing SimHost is NOT needed for correctness. SimHost runs ZERO cognitive systems, so
-  there is nothing to narrow for; and it READS BehaviorState at 11 sites to decide whether an operator's
-  order routes through the mission machinery, so dropping it would break that silently. §6f has the
-  measurement. ⛔⛔ Steps 3c and 4 remain unbuilt. ⚠⚠ CORRECTION 2026-09-12 (user challenge: "what actually
+  🔴 3b's half (a) is NOT done and narrowing IS the primary fix — user ruling 2026-09-12, and the
+  decisive point: WithOwned<T>() implies With<T>(), so you cannot ask about authority on a component that
+  was never added. The gate is the RESIDUAL for nodes that legitimately have brain components.
+  Registration is the ONLY gate on materialisation (BehaviorTkbTranslator.cs:52), which is why SimHost's
+  spawns carry the whole brain tier. §6f has the measurement and my two withdrawn objections.
+  ⛔⛔ Steps 3c and 4 remain unbuilt; 3b(a) is blocked on CE-259bg (the brainActive proxy). ⚠⚠ CORRECTION 2026-09-12 (user challenge: "what actually
   blocks step 2?"): an earlier version of this block said STEP 2 IS BLOCKED on CE-259az. THAT WAS WRONG —
   the blocker was attached to the wrong step. Step 2 injects no policy (its own gate: "with no policy the
   mask is unchanged"), so it is INERT by construction and free to ship. CE-259az gates STEP 4, where
@@ -872,40 +873,60 @@ implied: no production host runs these systems without being a Brain, and the Ed
 makes the design non-cosmetic **for the multi-Brain, all-in-one and `R-138` Muscle-runs-brains cases** —
 ⛔ but it is **not** repairing a defect measured in today's cluster.
 
-### ✅ §3.5's HALF (a) — **RESOLVED `2026-09-12`: the GATE is the unified mechanism; narrowing is not needed**
+### 🔴🔴 §3.5's HALF (a) — **NARROWING IS THE PRIMARY FIX. MY TWO OBJECTIONS ARE BOTH WITHDRAWN.**
 
-> 🔒 **User ruling, verbatim:** *"only brain role runs cognitive syatem and simhost was never a brain and
+> 🔒 **User, `2026-09-12`:** *"only brain role runs cognitive syatem and simhost was never a brain and
 > nevwr will be, it is a definiton of simhost node that it is nuscel perception and navigation but not
-> brain. narrowing is correct there. if it can be achieved by gate and become unified across host, ok, no
-> problem, even better."*
+> brain. narrowing is correct there."*
+> 🔒 **And, when I still argued the gate could substitute:** *"how can we ask about authority if entity
+> does not have such a compone t at all because it was never added? simhist does not read brai state
+> because no brain exists there."*
 
-⛔ **An earlier version of this subsection objected that narrowing would *"remove SimHost's ability to run
-brains"*, citing `R-138`. That objection is WITHDRAWN** — SimHost is **defined** as never-Brain, so there
-is no simulation capability at stake and `R-138` was the wrong rule to reach for.
+⛔⛔ **THE SECOND CHALLENGE IS DECISIVE AND IT SETTLES THE STRUCTURE OF THIS WHOLE STEP.**
+📐 `WithOwned<T>()` **implies `With<T>()`** *(`QueryBuilder.cs:93-98`)* ⇒ an entity without the component is
+excluded **before authority is ever consulted.** You cannot ask *"do I own it"* about something that was
+never added. ⇒ ⭐⭐⭐ **the gate is the RESIDUAL, not an alternative** — it covers only a node that
+legitimately HAS brain components *(all-in-one, multi-Brain, `R-138` Muscle-runs-brains)*. **§3.5 was right
+to call registration the PRIMARY closure.**
 
-⭐⭐ **And the precedent already exists:** `StrideNodeBootstrapper.cs:304-312` excludes
-`CognitiveComponentRegistry` deliberately, citing this design and this ruling, and calls SimHost's
-registration *"debt"* it refuses to import.
+### ⭐⭐⭐ THE MECHANISM, MEASURED — **registration is the ONLY gate on materialisation**
 
-📐 **But the re-measurement found the real obstacle, and it is an OPERATOR concern, not a capability one:**
+📐 `BehaviorTkbTranslator.cs:52`:
+`if (repo.IsComponentTypeRegistered<BehaviorState>() && !HasComponent) AddComponent(...)`.
+⇒ SimHost registers the 14 cognitive components, so **SimHost's own spawns materialise the full brain
+tier.** 🔴 That is the inversion this repo already recorded at `NedReplicationModule.cs:396-403`:
+*"the SimHost copy of the same entity had all 35 components including the entire brain tier"* while the CGF
+ghost carried 12 and **none** of it — *"the tiers were exactly inverted."*
+⇒ ⭐ `tkb-1/DESIGN.md` §6.5b gate ② working exactly as designed; SimHost simply has not been narrowed.
 
-| | |
-|---|---|
-| ⭐⭐⭐ **SimHost runs ZERO cognitive systems** | `CognitiveRuntimeModule` / `MissionControlModule` come only from `CgfLogicPack` *(CGF + Editor)*; SimHost's only mentions are doc comments. ⇒ **the execution concern on SimHost is already zero — there is nothing to narrow FOR** |
-| 🔴 **SimHost READS `BehaviorState` at 11 sites** | `SimHostVisualization.cs:385`'s `brainActive` decides whether an operator's right-click **routes through the MISSION machinery or BYPASSES it**. ⇒ un-registering it makes every entity look brain-dead, so an operator order becomes a direct move **fighting the brain that owns the entity** — silently |
-| ⚠ **nine of the fourteen look unreferenced — and that is NOT enough to drop them** | the count is over `Hrot.SimHost` only, and a component must be REGISTERED for systems from ANY assembly to use it. SimHost schedules systems out of `Fdp.Toolkits` |
+### ⛔ MY TWO WITHDRAWN OBJECTIONS — **recorded, because the second is the instructive one**
 
-⇒ ⭐⭐⭐ **The gate is the unified answer the ruling asked for, and it is shipped.** It protects exactly the
-hosts that DO run cognitive systems, uniformly, and covers the all-in-one case narrowing cannot reach.
-⛔ **Narrowing SimHost is not needed for correctness**, and it is a smaller, different change than §3.5
-implies — because **SimHost is not a headless Muscle node**; it carries an operator surface that reads
-brain state.
+| # | what I argued | why it was wrong |
+|---|---|---|
+| ① | *"narrowing removes SimHost's ability to run brains (`R-138`)"* | ⛔ SimHost is **DEFINED** as never-Brain. No capability is at stake and `R-138` was the wrong rule to reach for |
+| 🔴 **②** | *"SimHost READS `BehaviorState` at 11 sites"* | ⚠ **the count was real and the conclusion was not.** 📐 Opening every site: 2 doc comments, 8 AI-trace serializers, 1 context menu — **every one `HasComponent`-guarded**, and they only ever see anything **BECAUSE the tier is wrongly materialised.** ⇒ **I measured the SYMPTOM and argued it was a requirement** |
 
-⚠ **If narrowing is still wanted for MEMORY** *(`MAX_COMPONENT_TYPES` is 512, a real budget)*, it needs a
-per-component check against the systems SimHost **SCHEDULES**, not against references in its own
-assembly — and **`BehaviorState` must stay**. 📌 `StrideNodeBootstrapper`'s *"SimHost registers them, that
-is debt"* note is therefore **INCOMPLETE**: the registration is debt for the brain INTERNALS, not for
-`BehaviorState`.
+⭐⭐ **Precedent already in the tree:** `StrideNodeBootstrapper.cs:304-312` excludes
+`CognitiveComponentRegistry` deliberately, cites this design and this ruling, and calls SimHost's
+registration *"debt"* it refuses to import. ⇒ narrowing SimHost makes the two hosts consistent rather than
+inventing a new policy.
+
+### ⚠ THE ONE REAL CONSEQUENCE — **and it is a wrong proxy, not an objection** *(`CE-259bg`)*
+
+📐 `SimHostVisualization.cs:385` decides whether an operator's right-click routes through the **MISSION
+machinery** or **bypasses it** using LOCAL `HasComponent<BehaviorState>` + `ActiveBehaviorHash != None`.
+⛔ After narrowing that is `false` for every entity. ⚠ **But the proxy is already wrong** — it asks the
+local world a cluster question. ⭐ *"Could this entity have a brain"* is answerable from the TKB
+*(`BehaviorProfileDto.BrainTier != 0`)*; ⛔ *"is its brain currently ACTIVE"* is runtime state that **does
+not replicate** *(measured: no TKB translator projects `BehaviorState`, no wire translator writes it)*.
+⇒ that half is genuinely lost unless something publishes it, which is a product decision.
+
+⇒ ⭐ **Order when this is built:** re-home the proxy *(`CE-259bg`)*, then narrow *(`CE-259bf`)* — or both in
+one change, so nothing degrades silently.
+⛔ **And narrow per-component, not all 14:** `NavigationIntent`, `PassengerBuffer`, `IsEmbarkedTag`,
+`MissionPlanQueue` and the channels are Muscle-side or shared, and a component must stay registered for
+systems SimHost schedules **from other assemblies**. ⇒ check against SCHEDULED systems, never against
+references in `Hrot.SimHost`.
 
 ---
 
