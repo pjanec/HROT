@@ -58,8 +58,10 @@ cat <<'ACT'
 1. GRAPH BEFORE GREP for any COMPLETE-SET or ABSENCE claim.
    grep answers "does X exist"; it CANNOT answer "what is the whole set".
    -> scripts/find.sh <pattern> [--glob '*.cs']   runs BOTH and diffs them.
-   A report saying "MCP not connected so I used grep" is a MISS: the same
-   binary has a CLI (codebase-memory-mcp cli <tool> --help).
+   The graph's health is PROBED below -- read that line before you claim
+   anything is unavailable. The binary is NOT on PATH: invoke it by its
+   ABSOLUTE path (the probe prints it). A bare `codebase-memory-mcp ...`
+   fails with "command not found" and that is NOT the graph being down.
 2. INTENT IS IN THE DESIGN DOC, NOT THE CODE (R-129). Before touching OR
    REASONING ABOUT an existing feature, search docs/ then .dev/ BY TOPIC and
    read the owning DESIGN doc. Code says how it IS, never how it was MEANT.
@@ -75,6 +77,54 @@ FULL CANON: docs/blueprints/RULINGS.md -- Read it IN FULL when a design
 question arises. Digested below because a 66 KB hook payload gets truncated
 to ~2 KB and silently discarded (measured 2026-09-03).
 ACT
+
+# ══ GRAPH HEALTH -- MEASURED EVERY SESSION AND EVERY COMPACTION ═══════════════
+# ⭐⭐⭐ WHY THIS EXISTS (user, 2026-09-12): "using codebase memory is critical because
+#   your grep is frequently missing lots of important occurrences ... how to make sure
+#   you are really following it and not forgetting it after every compaction?"
+# ⛔⛔ The honest diagnosis: a rule that says "remember to use the graph" DECAYS. What
+#   actually failed was STRUCTURAL and silent -- scripts/find.sh printed
+#   "PARSE FAILED -- no JSON returned" on every call (it used the wrong CLI form), and a
+#   session read that as "the graph is unavailable" and fell back to grep alone.
+# ⇒ So this PROBES it instead of exhorting. A broken graph is now LOUD, at the one moment
+#   that is guaranteed to be read: the session-start / post-compaction hook.
+{
+  CM_BIN="${CODEBASE_MEMORY_MCP_BIN:-}"
+  [ -z "$CM_BIN" ] && [ -x /opt/codebase-memory-mcp/codebase-memory-mcp ] && CM_BIN=/opt/codebase-memory-mcp/codebase-memory-mcp
+  [ -z "$CM_BIN" ] && [ -x "$HOME/.local/bin/codebase-memory-mcp" ] && CM_BIN="$HOME/.local/bin/codebase-memory-mcp"
+  echo "=============================================================="
+  echo " CODEBASE-MEMORY GRAPH -- probed just now, not assumed"
+  echo "=============================================================="
+  if [ -z "$CM_BIN" ]; then
+    echo " STATUS: BINARY NOT FOUND -- run: bash scripts/cloud-bootstrap.sh"
+    echo " Until then SAY SO in every inventory/absence claim you make."
+  else
+    echo " binary: $CM_BIN   (NOT on PATH -- always call it by this path)"
+    CM_PROJ="$("$CM_BIN" cli --json list_projects 2>/dev/null | grep '^{' | tail -1 \
+      | python3 -c 'import sys,json
+try:
+    d=json.loads(sys.stdin.read().strip())
+    sc=d.get("structuredContent")
+    if not sc and "content" in d:
+        sc=json.loads("".join(c.get("text","") for c in d.get("content",[]) if isinstance(c,dict)))
+    ps=(sc or {}).get("projects") or []
+    print(ps[0].get("name","") if ps else "")
+except Exception:
+    print("")' 2>/dev/null)"
+    if [ -z "$CM_PROJ" ]; then
+      echo " STATUS: NO INDEXED PROJECT -- run:"
+      echo "   $CM_BIN cli index_repository '{\"repo_path\":\"$PWD\"}'   (tens of seconds)"
+    else
+      echo " project: $CM_PROJ"
+      echo " STATUS: OK -- use  scripts/find.sh <pattern> [--glob '*.cs']  for any"
+      echo "   complete-set or absence claim. It runs the graph AND grep and prints"
+      echo "   what each one MISSED. Neither half alone settles an exhaustive claim."
+      echo " ⛔ check_index_coverage is NOT available via the CLI -- so say"
+      echo "   'coverage not checked' in any negative claim rather than implying it was."
+    fi
+  fi
+  echo
+} 2>/dev/null
 
 # ── The ledger, DIGESTED: section heads + row ids + a one-line headline ────────
 echo

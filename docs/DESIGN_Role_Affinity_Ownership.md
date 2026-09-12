@@ -673,7 +673,24 @@ SimHostComponentRegistry(world) =
 | ⭐ | |
 |---|---|
 | ⭐⭐⭐ **the host registry does NOT vanish** | ⛔ Do not over-promise this. `ActivePerspective`, `GizmoComponentActivatedEvent`, `GlobalActionRequestedEvent`, `CmdSpawnVehicle`/`CmdCreateFormation`… are **UI and host-shell concerns, not role concerns** — they belong to *"this process has an operator window"*, which no `NodeRole` expresses. ⇒ the host registry SHRINKS to `roles + host extras` |
-| ⭐⭐ **`RegisterComponentSet` (§3.9, built `CE-259bh`) becomes the AUDIT, not the mechanism** | ⛔ A `BitMask512` cannot *drive* `RegisterComponent<T>()` — there is no id→`Type` map. ⭐ But at boot it can CHECK: *"this node registered a component its roles can never own and never read"* ⇒ exactly step 3c's diagnostic, and it makes the split self-policing instead of a one-off tidy |
+| ⚠⚠ **`RegisterComponentSet` (§3.9, built `CE-259bh`) can be EITHER the audit OR the mechanism** | ⛔⛔ **RETRACTED `2026-09-12`: an earlier version of this row said *"a `BitMask512` cannot drive `RegisterComponent<T>()` — there is no id→`Type` map."* 🔴 FALSE, and it was asserted without opening the file.** 📐 `ComponentTypeRegistry` holds **`Dictionary<int, Type> _idToType`** *(`ComponentType.cs:75`)* and exposes **`public static Type? GetType(int id)`** *(`:342`)*, plus `GetAllTypeIds()` / `GetAllTypes()`. ⇒ ⭐ the map exists and is public. See the feasibility note below for what IS true |
+
+#### 📐 CAN A MASK DRIVE REGISTRATION? — **YES. The two real constraints, measured**
+
+| # | the constraint | ⭐ measured |
+|---|---|---|
+| **①** | `_idToType` is populated **as types register**, so it cannot be read BEFORE registration to decide what to register | ✅ `ComponentType.cs:115-135` — the id is resolved inside the registration path |
+| **②** | ⭐⭐⭐ **but the id is DECLARED ON THE TYPE, so a pre-registration map needs no registry at all** | ✅ `[ComponentId(int)]` *(`ComponentIdAttribute.cs:30`)*, read at `ComponentType.cs:121`. ⭐⭐ **And it is MANDATORY in production:** `FdpConfig.EnforceExplicitComponentIds` *(`FdpConfig.cs:98`)* — *"Set to `true` in production entry-points (SimHost, IG, ExCon `Program.cs`)… Registration of any struct without the attribute throws"* ⇒ **a reflection scan over the loaded assemblies yields a COMPLETE id→`Type` map before anything is registered** |
+| **③** | ⚠ the only genuine gap: the entry point is **generic-only** | ✅ `EntityRepository.RegisterComponent<T>(DataPolicy?)` *(`EntityRepository.cs:626`)* is the sole public registration method — no `RegisterComponent(Type)` overload. ⇒ mask-driven registration needs **either** a non-generic overload **or** `MakeGenericMethod` |
+
+⇒ ⭐⭐ **So it is FEASIBLE, and the choice is a real design decision rather than a capability limit.**
+⭐ **The lean stays AUDIT-FIRST, but now for honest reasons:** ⛔ a reflection scan + `MakeGenericMethod`
+at boot trades an explicit, greppable list of `RegisterComponent<T>()` calls for a dynamic one, and this
+codebase's ids are load-bearing across processes *(`R-44`: 256 slots, globally unique, partitioned)* —
+⭐ a wrong bit would register the wrong TYPE silently. ⚠ **What would change the lean:** if the role masks
+become the single source of truth anyway *(step 4)*, keeping a hand-written registry beside them is the
+duplicate-producer shape `R-132` warns about ⇒ then generating registration FROM the mask is the
+consistent answer, and the audit becomes redundant rather than complementary.
 
 #### ⚠⚠ AND THE SAME QUESTION FOR THE LOGIC PACKS — **role in intent, host in fact, citing a type that does not exist**
 
