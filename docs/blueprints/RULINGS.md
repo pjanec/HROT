@@ -6,6 +6,16 @@ current-answer: this file is now LEAN. Feature intent lives in the DESIGN docs (
   This file holds ONLY what those two cannot: engine invariants, silent-failure hazards,
   and cross-cutting decisions with no single design home.
 stale-below: nothing.
+re-read: 2026-09-12 — BOTH .claude/CLAUDE.md and DESIGN_Entity_State_Sourcing.md changed, so
+  rulings-check WARNed on the rows citing them. Re-read and CONFIRMED none moved. 33/33 quotes verify.
+  DESIGN_Entity_State_Sourcing.md: the ONLY edit is a related-designs list added inside its STATUS
+  header (4 lines, purely additive) — R-136's substance (sections 1, 1.1, 2, 5) is untouched.
+  .claude/CLAUDE.md: additive apart from TWO lines, each REPLACED BY AN EXPANDED VERSION OF ITSELF —
+  UML obligation ① now also requires a MODULE-RELATIONSHIP diagram, and the "keep prose short"
+  preference now points at the new DIAGRAM-FIRST obligation instead of restating it. Neither line is
+  quoted by any ruling; the rows citing this file (R-128, R-129, R-135, R-139) sit in untouched
+  sections. New material: obligation ①a (why the module diagram), DIAGRAM FIRST, and the mandatory
+  related-designs field.
 re-read: 2026-09-09 — .claude/CLAUDE.md changed again, so rulings-check WARNed on the rows citing it.
   Re-read and CONFIRMED none moved: the edit was PURELY ADDITIVE (git diff: ZERO removed lines) —
   two new sections, the architect-usage scoring (1 of 3 relayed asks paid) and THE WHOLE-FIELD READ.
