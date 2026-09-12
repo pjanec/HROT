@@ -2,9 +2,9 @@
 state: LIVE
 updated: 2026-09-12
 current-answer: ⚠⚠ THREE LIVE STRANDS. Read the one you are continuing. ⭐ STRAND 0 is the live work as of
-  2026-09-12 and its head is branch claude/reset-working-branch-qd1qpv @ 0f7388422.
+  2026-09-12 and its head is branch claude/reset-working-branch-qd1qpv @ f904a8166 (+ the CE-259bh commit below).
   ══ STRAND 0 — ENTITY CREATION + ROLE-AFFINITY OWNERSHIP. This whole block is the live work. ══
-  BRANCH claude/reset-working-branch-qd1qpv @ 0f7388422. Tree clean, all gates green.
+  BRANCH claude/reset-working-branch-qd1qpv @ f904a8166 (+ the CE-259bh commit below). Tree clean, all gates green.
 
   ✅✅✅ DONE 2026-09-12 — TWO PROGRAMMES CLOSED OR ADVANCED IN ONE SESSION.
 
@@ -41,15 +41,21 @@ current-answer: ⚠⚠ THREE LIVE STRANDS. Read the one you are continuing. ⭐ 
 
   ⭐⭐⭐ NEXT, IN ORDER — and the first item now BLOCKS the rest of P3:
 
-  (1) CE-259bh — THE ROLE MODEL ITSELF IS INCOMPLETE. §3.9 (NEW) is the corrected model, READ IT FIRST.
+  (1) ✅ CE-259bh — DONE 2026-09-12, commit follows this block. THE TWO-SET ROLE MODEL IS NOW IN CODE.
       REGISTER = ownedComponentSet ∪ readComponentSet     AUTHORITY = ownedComponentSet
-      A role has TWO component sets; IRoleAffinityPolicy models only the first. Rename the shipped
-      `componentsPerRole` -> `ownedComponentsPerRole`, add `readComponentsPerRole`.
-      🔒 User 2026-09-12: "intents are brain owned components that must be replicated to muscle so musle
-      can read and act on them." MEASURED: NavigationIntent 16 wire refs, MissionPlanQueue 9 — both
-      Brain-OWNED and Muscle-READ. A Muscle node that stopped registering "brain components" would STOP
-      RECEIVING ITS OWN ORDERS. This killed my "split the bundle along the role line" proposal before it
-      was built. ⇒ blocks CE-259bf.
+      `componentsPerRole` -> `ownedComponentsPerRole`; `readComponentsPerRole` added as an OPTIONAL 4th
+      constructor argument (null ⇒ REGISTER == OWNED, so every existing call site is byte-identical);
+      IRoleAffinityPolicy gained OwnedComponentSet / ReadComponentSet / RegisterComponentSet.
+      6 rails into RoleAffinityPolicyTests (the feature's OWN suite), 3 red-proofs. As-built: §6g.
+      ⭐ Three decisions §6g argues, each a place the obvious implementation is wrong:
+        ① the union is a MEMBER, not a caller's `owned | read` — a caller that must OR them can forget
+          the second half, and forgetting it IS the measured failure.
+        ② the three sets are SHARD-FREE. The shard answers PER ENTITY; registration has no entity. A node
+          that deregistered because it does not serve that role for ONE entity could not handle the next.
+        ③ OwnedComponentSet EXCLUDES the creator's birthright (per-TEMPLATE) ⇒ a "can never own"
+          diagnostic must NOT read it off this property alone, or it is wrong exactly where being wrong
+          is loudest (the origin flash).
+      ⛔ NO HOST FILLS THE READ TABLE YET — that is step 4. This ships inert like every step before it.
 
   (2) CE-259bg — SimHostVisualization.cs:385's brainActive asks the LOCAL world a CLUSTER question to
       decide whether an operator right-click routes through the MISSION machinery or bypasses it. Already
@@ -57,7 +63,9 @@ current-answer: ⚠⚠ THREE LIVE STRANDS. Read the one you are continuing. ⭐ 
       (BehaviorProfileDto.BrainTier); "is its brain ACTIVE" does NOT replicate. ⚠ SimHostVisualization has
       NO TKB in scope — that needs plumbing.
 
-  (3) CE-259bf — narrow SimHost's CognitiveComponentRegistry. Blocked on (1) and (2).
+  (3) CE-259bf — narrow SimHost's CognitiveComponentRegistry. NO LONGER blocked on the MODEL (1 is
+      done); blocked on (2) plus classifying §3.9's NINE unclassified components — per component, against
+      the systems each role actually RUNS, not against a grep.
       🔒 User: SimHost is DEFINED as never-Brain; narrowing is correct. My "it removes a capability
       (R-138)" objection is WITHDRAWN. THE DECISIVE POINT: WithOwned<T>() IMPLIES With<T>(), so you cannot
       ask about authority on a component that was never added ⇒ the gate is the RESIDUAL, narrowing is the

@@ -1,7 +1,7 @@
 <!--STATUS
 state: LIVE
 updated: 2026-09-12
-build-state: BUILDING — steps 0a, 0, 1a, 1, 2, 3 and 3b(b) done. ⛔ NOT BUILT: step 4 supplies no policy yet, so every node still runs null; 3b(a) NOT done. ⛔⛔ §3.9 IS NEW AND LOAD-BEARING: REGISTER = ownedComponentSet ∪ readComponentSet, and this design only modelled the first — read it before touching registration. ⛔ NOT "BUILT": open-risk below still binds (§3.5 / step 3b).
+build-state: BUILDING — steps 0a, 0, 1a, 1, 2, 3, 3b(b) and §3.9's two-set model done. ⛔ NOT BUILT: step 4 supplies no policy yet, so every node still runs null; 3b(a) NOT done. ⛔⛔ §3.9 IS LOAD-BEARING AND IS NOW MODELLED IN CODE: REGISTER = ownedComponentSet ∪ readComponentSet, AUTHORITY = ownedComponentSet — read it before touching registration, and note NO HOST FILLS THE READ TABLE YET (step 4). ⛔ NOT "BUILT": open-risk below still binds (§3.5 / step 3b).
 verified: ⭐⭐ THE WHOLE DESIGN WAS RE-MEASURED AGAINST THE TREE ON 2026-09-12 before step 0 was built
   (user: "verify design before, might be stale"). VERDICT: every DECISION holds and nothing load-bearing
   is stale — the six unbuilt types are still at ZERO .cs occurrences, the blanket grant is byte-identical,
@@ -57,9 +57,12 @@ current-answer: §3 is the design; §4 carries the UML; §6 is the sequencing; �
   ownedComponentSet (authority, what IRoleAffinityPolicy already models) and readComponentSet (owned
   elsewhere, replicated IN, consumed here). REGISTER = owned ∪ read; AUTHORITY = owned. Measured:
   NavigationIntent (16 wire refs) and MissionPlanQueue (9) are Brain-OWNED and Muscle-READ, so a Muscle
-  node that stopped registering "brain components" would stop receiving its own orders. ⇒ the shipped
-  `componentsPerRole` is the OWNED set and should be renamed `ownedComponentsPerRole`; `readComponentsPerRole`
-  is NOT built. 3b(a) is blocked on that plus CE-259bg (the brainActive proxy). ⚠⚠ CORRECTION 2026-09-12 (user challenge: "what actually
+  node that stopped registering "brain components" would stop receiving its own orders.
+  ✅ BUILT 2026-09-12 (CE-259bh, as-built §6g): `componentsPerRole` → `ownedComponentsPerRole`,
+  `readComponentsPerRole` added as an OPTIONAL 4th constructor argument, and the interface now carries
+  OwnedComponentSet / ReadComponentSet / RegisterComponentSet. 6 rails, 3 red-proofs.
+  ⛔ NO HOST FILLS THE READ TABLE YET — that is step 4. 3b(a) remains blocked on CE-259bg (the brainActive
+  proxy) and on that classification work, no longer on the model. ⚠⚠ CORRECTION 2026-09-12 (user challenge: "what actually
   blocks step 2?"): an earlier version of this block said STEP 2 IS BLOCKED on CE-259az. THAT WAS WRONG —
   the blocker was attached to the wrong step. Step 2 injects no policy (its own gate: "with no policy the
   mask is unchanged"), so it is INERT by construction and free to ship. CE-259az gates STEP 4, where
@@ -361,7 +364,7 @@ public interface IRoleAffinityPolicy
 
 | ⭐ where each bit comes from | |
 |---|---|
-| ⭐⭐ **the ROLE's assigned mask** | ⚠⚠ **this is the `ownedComponentSet` — see §3.9.** A role has a SECOND set, `readComponentSet` *(owned elsewhere, replicated in, consumed here — e.g. Muscle ↔ `NavigationIntent`)*, which this interface does not model and which REGISTRATION needs. A `BitMask512` of component ids **declared per role**, plain configuration. ⛔ Not derived from any wire vocabulary — a `NodeRole` → mask table, and nothing else. ⚠ **`2026-09-10`: the table is now consulted PER ROLE and gated by `IRoleShardProvider.ServesRole` — §3.8.** A single flat union is no longer correct |
+| ⭐⭐ **the ROLE's assigned mask** | ⚠⚠ **this is the `ownedComponentSet` — see §3.9.** A role has a SECOND set, `readComponentSet` *(owned elsewhere, replicated in, consumed here — e.g. Muscle ↔ `NavigationIntent`)*, which REGISTRATION needs and AUTHORITY must never see. ✅ **Both are modelled since `2026-09-12` (§6g)** — the parameter below is `ownedComponentsPerRole`, and `readComponentsPerRole` sits beside it. A `BitMask512` of component ids **declared per role**, plain configuration. ⛔ Not derived from any wire vocabulary — a `NodeRole` → mask table, and nothing else. ⚠ **`2026-09-10`: the table is now consulted PER ROLE and gated by `IRoleShardProvider.ServesRole` — §3.8.** A single flat union is no longer correct |
 | ⭐⭐ **∪ the template's `BirthCriticalComponents`, when `isCreator`** | §3.1's birthright. ⭐ The creator keeps these **whatever its role**, which is precisely the architect's correction |
 
 ⭐ **The whole rule is then:** `AuthorityMask = componentMask ∧ OwnableMask(template, isCreator)` —
@@ -537,10 +540,16 @@ acts on it. A Muscle node that stopped registering *"brain components"* would st
 
 > ### ⭐⭐⭐ `REGISTER = ownedComponentSet ∪ readComponentSet`   ·   `AUTHORITY = ownedComponentSet`
 
-⚠⚠ **`IRoleAffinityPolicy`'s table is the OWNED set ONLY.** The shipped parameter is called
-`componentsPerRole`, which does not say so. ⇒ ⭐ **rename it `ownedComponentsPerRole`** when the code next
-moves, and add `readComponentsPerRole` beside it. ⛔ **Until both exist, registration cannot be derived
-from the role** — and deriving it from the owned set alone is the mistake above.
+⚠⚠ **`IRoleAffinityPolicy`'s table WAS the OWNED set only, under a name that did not say so.**
+✅ **BUILT `2026-09-12` — `CE-259bh`, as-built in §6g:** `componentsPerRole` → `ownedComponentsPerRole`,
+`readComponentsPerRole` added beside it, and the interface now answers the registration question directly
+*(`OwnedComponentSet` · `ReadComponentSet` · `RegisterComponentSet`)* instead of leaving callers to OR two
+tables — ⛔ **a caller that has to OR them is a caller that can forget the second half, which is the
+mistake above.**
+
+⚠ **What is still NOT done:** no host supplies a read table yet *(step 4)*, and the nine **unclassified**
+rows below are still unclassified. ⇒ ⭐ the MODEL no longer blocks the narrowing chain; the
+CLASSIFICATION does.
 
 #### 📐 THE MEASUREMENT THAT FORCED THIS — **wire references per cognitive component, `2026-09-12`**
 
@@ -651,13 +660,19 @@ classDiagram
     class IRoleAffinityPolicy {
         <<interface>>
         +OwnableMask(template, isCreator, key) BitMask512
+        +OwnedComponentSet BitMask512
+        +ReadComponentSet BitMask512
+        +RegisterComponentSet BitMask512
     }
     class RoleAffinityPolicy {
         -NodeRole declaredRoles
         -Dictionary~NodeRole,BitMask512~ ownedComponentsPerRole
-        -Dictionary~NodeRole,BitMask512~ readComponentsPerRole_NOT_BUILT
+        -Dictionary~NodeRole,BitMask512~ readComponentsPerRole
         -IRoleShardProvider shard
         +OwnableMask(template, isCreator, key) BitMask512
+        +OwnedComponentSet BitMask512
+        +ReadComponentSet BitMask512
+        +RegisterComponentSet BitMask512
     }
     class IRoleShardProvider {
         <<interface>>
@@ -708,7 +723,7 @@ classDiagram
     NetworkSpawningSystem --> IRoleAffinityPolicy : declines what role excludes
     NetworkSpawningSystem --> TkbTemplate : birth-critical always kept
     RoleAffinityPolicy --> TkbTemplate : reads BirthCriticalComponents
-    note for RoleAffinityPolicy "Models ownedComponentSet ONLY. readComponentSet is NOT built - REGISTER = owned + read, see 3.9"
+    note for RoleAffinityPolicy "BOTH SETS BUILT 2026-09-12 (CE-259bh, 6g). REGISTER = owned + read is a MEMBER, not a caller's OR. The three set properties are shard-FREE: registration is per NODE, the shard is per ENTITY"
     GhostPromotionSystem --> IRoleAffinityPolicy : claims what role includes
     NetworkSpawningSystem --> EntityRepository
     GhostPromotionSystem --> EntityRepository
@@ -885,6 +900,43 @@ sequenceDiagram
 | **3b** | ✅✅ **THE QUERY-FILTER HALF DONE `2026-09-12` — see §6f AS-BUILT.** ⛔ The REGISTRATION-narrowing half (a) is NOT done and is now a QUESTION, not a task — §6f says why it would remove a capability |  rail: a node holding brain components it does **not** own ticks them **zero** times. ⛔ **Without this the whole design is cosmetic** — authority would gate replication while both nodes still ran the tree |
 | ⭐ **3c** | 🆕 **the BOOT WARNING** *(§5 ② — user-approved `2026-09-10`)*: at the composition root, warn once if `IClusterStateCache.GetLeastLoadedNode(NodeRole.Brain)` is `null`. ⛔ **WARN, never throw** *(a pure-Muscle test cluster is legitimate)*, and ⛔ **at the root, not in the policy** — it is NED-only and the policy stays network-agnostic *(§2.3)* | rail: the warning fires on a roster with no Brain and is **silent** when one is present |
 | **4** | hand CGF a Brain policy and SimHost a Muscle policy at their composition roots, ⭐ **each with a `SingleNodePerRoleShardProvider` over the role that host already declares** *(`SimHostApp.DefaultRole:182` · `CgfSubsystem.DefaultRole`)* | ⭐⭐ **the acceptance test:** a SimHost-created brain-enabled entity ends with `HasAuthority<BehaviorState>` **false on SimHost and true on CGF**, and `TacticalIntentResolutionSystem`'s gate passes |
+
+## 6g. ✅✅✅ AS-BUILT — **§3.9's TWO-SET ROLE MODEL, shipped `2026-09-12`** *(`CE-259bh`, obligation ⑤)*
+
+⭐⭐⭐ **What changed: the role model itself, not a step of the plan.** §3.9 established that a role has two
+component sets and that this design only ever modelled one. ⛔ Until this landed, **registration could not
+be derived from a role at all** — and deriving it from the owned set alone is the measured mistake that
+would stop a Muscle node receiving its own orders.
+
+| where | the as-built |
+|---|---|
+| ⭐⭐ `IRoleAffinityPolicy` | **three new members**, all composition-time: `OwnedComponentSet` · `ReadComponentSet` · `RegisterComponentSet`. ⭐ `OwnableMask(...)` is unchanged |
+| ⭐⭐ `RoleAffinityPolicy` | `componentsPerRole` → **`ownedComponentsPerRole`**; **`readComponentsPerRole` added as an OPTIONAL 4th argument** *(`null` ⇒ `REGISTER == OWNED`, so every existing 3-argument call site compiles and behaves identically)*. The three sets are **precomputed in the constructor** |
+| ⭐ rails | **6 added to `RoleAffinityPolicyTests`** *(the feature's own suite — `R-142` ④, no parallel class)*; suite 23/23, project **2123/2123** |
+
+### ⭐⭐⭐ THREE DECISIONS WORTH THE NAME — **each is a place the obvious implementation is wrong**
+
+| # | the decision | ⛔ why the obvious thing is wrong |
+|---|---|---|
+| **①** | ⭐⭐ **`RegisterComponentSet` is a MEMBER, not a caller's `owned │ read`** | ⛔ a caller that must OR two sets is a caller that can forget the second one — **and forgetting the second one is the exact measured failure §3.9 opens with.** ⇒ the union is exposed so the mistake is unrepresentable, not merely documented |
+| **②** | 🔴🔴 **the three sets are SHARD-FREE** | ⛔⛔ `OwnableMask` consults `IRoleShardProvider`, so the tempting implementation of *"what can I own?"* is to call it with a `default` key. ⚠ **That is wrong: the shard answers PER ENTITY** *("does another node serve Brain for THIS one?")* **and registration has no entity.** A node that deregistered a component because it does not serve that role for ONE entity could not handle the next. ⭐ Railed directly — `TheRegistrationSets_AreNotNarrowedByTheShard` |
+| **③** | ⚠⚠ **`OwnedComponentSet` EXCLUDES the creator's birthright** | ⭐ `BirthCriticalComponents` are per TEMPLATE and this property has no template ⇒ **a node genuinely can own a component absent from this set** *(every entity it creates)*. ⛔ **A boot diagnostic reading "can never own" off it alone would be wrong for exactly the components where being wrong is loudest** — the origin-flash failure §3.1 exists to prevent. ⭐ Railed, because the tempting "fix" *(fold the birthright in)* turns a per-template fact into a node-wide claim |
+
+### 📐 RED-PROOFS — **inverse edits, all three reverted**
+
+| the inverse edit | ⭐ what reddened |
+|---|---|
+| drop the `BitwiseOr` that unions `read` into `RegisterComponentSet` | **2 rails** — the register half of `AReadComponent_IsRegistered_AndNeverOwned`, and the equation rail |
+| `OwnableMask` also ORs the read table | **1 rail** — the authority half of the same rail ⇒ ⭐⭐ **the two halves fail in OPPOSITE directions**, which is precisely why one set could never express both |
+| shard-gate `UnionOverDeclaredRoles` | **1 rail** — `TheRegistrationSets_AreNotNarrowedByTheShard`, i.e. decision ② above is load-bearing, not a comment |
+
+### ⛔ WHAT THIS DOES **NOT** DO
+
+⛔⛔ **No host fills the read table** — that is step 4, and until then every node still runs a `null` policy
+and registers exactly what it registers today. ⇒ ⭐ **this ships inert, like every step before it.**
+⚠ **And `CE-259bf`** *(narrowing SimHost's `CognitiveComponentRegistry`)* **is no longer blocked on the
+MODEL** — it is blocked on `CE-259bg` *(the `brainActive` routing proxy)* and on classifying §3.9's nine
+**unclassified** components, which is per-component work against the systems each role actually runs.
 
 ## 6f. ✅✅ AS-BUILT — **step `3b`'s QUERY FILTER, shipped `2026-09-12`** *(obligation ⑤)*
 
