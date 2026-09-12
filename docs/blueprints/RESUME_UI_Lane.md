@@ -2,125 +2,85 @@
 state: LIVE
 updated: 2026-09-12
 current-answer: ⚠⚠ THREE LIVE STRANDS. Read the one you are continuing. ⭐ STRAND 0 is the live work as of
-  2026-09-12 and its head is branch claude/reset-working-branch-qd1qpv @ f904a8166 (+ the CE-259bh commit below).
-  ══ STRAND 0 — ENTITY CREATION + ROLE-AFFINITY OWNERSHIP. This whole block is the live work. ══
-  BRANCH claude/reset-working-branch-qd1qpv @ f904a8166 (+ the CE-259bh commit below). Tree clean, all gates green.
+  2026-09-12 and its head is branch claude/reset-working-branch-qd1qpv @ 0cda0caf9.
+  ══ STRAND 0 — ROLE-AFFINITY OWNERSHIP (P3). This whole block is the live work. ══
+  BRANCH claude/reset-working-branch-qd1qpv @ 0cda0caf9 + the commit carrying this doc.
+  Tree clean. Gates: design-digest --check clean · rulings 34/34 · tracker-counts OK.
 
-  ✅✅✅ DONE 2026-09-12 — TWO PROGRAMMES CLOSED OR ADVANCED IN ONE SESSION.
+  ⭐⭐⭐ READ FIRST: docs/DESIGN_Role_Affinity_Ownership.md — §3.9 (the two-set model), §3.9a (the
+  per-component classification), §3.9b (registration is role-derived), §6h (the as-built for everything
+  below). Its STATUS build-state is the one-line truth of what is built.
 
-  ── (A) THE AUTHORING SURFACE, NON-UI HALF — DONE (CE-259aw), commit 2bec75080 ──
-  docs/DESIGN_Entity_Authoring_Surface.md is build-state: BUILDING (non-UI half BUILT).
-  EntityCreation.RequestEntityCreation(...) exists — ONE method, `owner` is an int with THREE legal
-  values. Plus EntityCreationRouting.DefaultEntityCreationRequestProcessor, EntityCreation.NodeId, §2's
-  AUTHOR-vs-TRANSLATOR rule written at the affordance and both translator sites (ledger R-145), and four
-  rails in Hrot.SimHost.Tests/EntityCreationPackRails.cs.
-  ⚠ TWO DESIGN CLAIMS WERE FALSE AND ARE CORRECTED IN PLACE: (a) §4's "creation.NodeId is already on it"
-  — it was not, and §6's classDiagram drew it as existing (the caption now states the general trap: a
-  <<EXISTS>> stereotype labels the BOX, so a NEW member on an OLD class inherits "exists" silently);
-  (b) my OWN justification for the 9th parameter `disType` was WRONG and is retracted in §3 — I claimed
-  R-137 capability loss, but NetworkSpawningSystem.cs:154 falls back to template.DisType.Value and the one
-  production IOwnershipDistributionStrategy never reads the parameter. The parameter stays as an explicit
-  override; ⛔ do NOT cite R-137 for it.
-  ⛔ THE UI HALF IS NOT STARTED — CE-259ax. §5/§5b per-host tails. Read that row before starting: it
-  carries the §5b.3 hazard (delegating to ScenarioSpawnAdapter as it stands HANGS IG).
+  ✅✅✅ DONE THIS SESSION (2026-09-12) — P3 ADVANCED FROM "the model is wrong" TO "SimHost has no brain".
 
-  ── (B) P3 ROLE-AFFINITY OWNERSHIP — steps 0a, 0, 1a, 1, 2, 3, 3b(b) BUILT ──
-  docs/DESIGN_Role_Affinity_Ownership.md, build-state: BUILDING. §6b..§6f are the as-builts.
-    step 0   CE-259ay  TkbTemplate.BirthCriticalComponents + AddBirthCriticalComponent<T>(), seeded on
-                       every production template, + a catalogue-wide rail that makes the NEXT unseeded
-                       template loud.  commit 6362bfee1
-    step 1a  CE-259ba  IRoleShardProvider + RoleShardKey + SingleNodePerRoleShardProvider. 6 rails.
-                       commit 983a1e2b6
-    (NodeRole moved Hrot.Common -> Fdp.Core, commit 92fb39771 — see the ruling below)
-    step 1   CE-259bc  IRoleAffinityPolicy + RoleAffinityPolicy, NO deviation. 7 rails, 2 red-proofs.
-                       commit 6180203ab
-    steps 2+3 CE-259bd Both ownership insertion points, shipped as a PAIR. 10 rails, 4 red-proofs.
-                       commit 47534a456
-    step 3b(b) CE-259be The EXECUTION gate — the step that stops the design being cosmetic. 2 module-level
-                       rails. commit f474a48f3
+  ── CODE ──────────────────────────────────────────────────────────────────────────────────────────
+  CE-259bh  d9c82c445  THE TWO-SET ROLE MODEL. REGISTER = ownedComponentSet ∪ readComponentSet,
+                       AUTHORITY = ownedComponentSet. IRoleAffinityPolicy gained OwnedComponentSet /
+                       ReadComponentSet / RegisterComponentSet; `componentsPerRole` renamed
+                       `ownedComponentsPerRole`; `readComponentsPerRole` added as an OPTIONAL 4th ctor
+                       arg (null ⇒ REGISTER == OWNED ⇒ every existing call site byte-identical).
+                       6 rails, 3 red-proofs. ⛔ NO HOST FILLS THE READ TABLE YET — that is step 4.
+  CE-259bf  4d22f5057  SLICE 1 — PerceptionRoleComponentRegistry created. Perception was the ONE role
+            854c3679a  with no registry and its components sat in the BRAIN's, which is WHY SimHost had
+            667f78543  to call the Brain's registry at all. SLICE 2 — MissionPlanQueue → Mission,
+            0cda0caf9  ActorCapabilityState → Combat (each on a measured precedent; PreviousCapabilities
+                       deliberately stayed). SLICE 3a — EmbarkationComponentRegistry +
+                       BehaviorDiagnosticsComponentRegistry. SLICE 3b — SimHost STOPS calling
+                       CognitiveComponentRegistry: 13 components + 6 events gone from a node that ticks
+                       none of them. CGF untouched. 32/32 rails, 5 red-proofs.
 
-  ⭐⭐⭐ NEXT, IN ORDER — and the first item now BLOCKS the rest of P3:
+  ── TOOLING (matters more than it looks) ──────────────────────────────────────────────────────────
+  20bff87e0  scripts/find.sh NEVER REACHED THE GRAPH. It used a CLI form this build does not parse and
+             grepped the output for '^{', so it printed "graph: 0 files PARSE FAILED" on EVERY call —
+             and sessions (me included) read that as "the graph is unavailable" and used grep alone.
+             THAT is the mechanism behind the grep-only misses the user kept hitting. FIXED + verified.
+             The binary is at /opt/codebase-memory-mcp/codebase-memory-mcp and is NOT on PATH — a bare
+             `codebase-memory-mcp …` failing with "command not found" is NOT the graph being down.
+             scripts/session-design-brief.sh (runs on startup AND compact) now PROBES graph health, so
+             a broken graph is loud at the one moment guaranteed to be read.
 
-  (1) ✅ CE-259bh — DONE 2026-09-12, commit follows this block. THE TWO-SET ROLE MODEL IS NOW IN CODE.
-      REGISTER = ownedComponentSet ∪ readComponentSet     AUTHORITY = ownedComponentSet
-      `componentsPerRole` -> `ownedComponentsPerRole`; `readComponentsPerRole` added as an OPTIONAL 4th
-      constructor argument (null ⇒ REGISTER == OWNED, so every existing call site is byte-identical);
-      IRoleAffinityPolicy gained OwnedComponentSet / ReadComponentSet / RegisterComponentSet.
-      6 rails into RoleAffinityPolicyTests (the feature's OWN suite), 3 red-proofs. As-built: §6g.
-      ⭐ Three decisions §6g argues, each a place the obvious implementation is wrong:
-        ① the union is a MEMBER, not a caller's `owned | read` — a caller that must OR them can forget
-          the second half, and forgetting it IS the measured failure.
-        ② the three sets are SHARD-FREE. The shard answers PER ENTITY; registration has no entity. A node
-          that deregistered because it does not serve that role for ONE entity could not handle the next.
-        ③ OwnedComponentSet EXCLUDES the creator's birthright (per-TEMPLATE) ⇒ a "can never own"
-          diagnostic must NOT read it off this property alone, or it is wrong exactly where being wrong
-          is loudest (the origin flash).
-      ⛔ NO HOST FILLS THE READ TABLE YET — that is step 4. This ships inert like every step before it.
+  ⭐⭐⭐ NEXT, IN DEPENDENCY ORDER
+  (1) P3 STEP 4 — hand CGF a Brain policy and SimHost a Muscle policy at their composition roots AND set
+      gateOnAuthority: true IN THE SAME CHANGE. ⛔⛔ THE ORDERING HAZARD, still live: an unconditional
+      execution gate BEFORE the policies makes a node stop processing every entity it did not create —
+      CE-256 reproduced by its own fix. §6 step 4 + QueryBuilderAuthorityExtensions' header carry it.
+      ⭐ Most of SimHost's owned/read table is ALREADY WRITTEN — §3.9a's classification is it.
+  (2) P3 STEP 3c — the boot warning. RegisterComponentSet (CE-259bh) now makes the real diagnostic
+      buildable: "this node registered a component its roles can never own AND never read".
+  (3) CE-259bk — the rest of the role-derived registration story (§3.9b). CE-259bl (logic packs) AFTER
+      it: components before systems.
+  (4) CE-259bm — PROGRAMME_Explicit_Component_Ids.md. Runnable as its OWN session. Step 1 is an EXACT
+      inventory and must NOT be grep.
 
-  (2) CE-259bg — SimHostVisualization.cs:385's brainActive asks the LOCAL world a CLUSTER question to
-      decide whether an operator right-click routes through the MISSION machinery or bypasses it. Already
-      wrong; false for everything after narrowing. "Could it have a brain" comes from the TKB
-      (BehaviorProfileDto.BrainTier); "is its brain ACTIVE" does NOT replicate. ⚠ SimHostVisualization has
-      NO TKB in scope — that needs plumbing.
+  ⭐⭐ USER RULINGS THIS SESSION — do not re-litigate
+  · "capability only. leave commanding for later." → CE-259bi's predicate is BehaviorProfileDto.BrainTier
+    != 0 and nothing else; the shift-waypoint affordance is an ACCEPTED loss. DEFERRED, do not build.
+  · "why are you using CE-259{xy}, can't we incrementing the number?" → ids are PLAIN INCREMENTS from
+    CE-263. Existing suffixed ids are NOT renumbered (they are cited from designs and commits).
+  · "lets do (a)" → the by-id registrar uses the existing production path (reflect RegisterComponent,
+    MakeGenericMethod) WITH the bare catch removed. (c), a generated switch, is the recorded upgrade path.
+  · "Simhost has no ai(brain). So it does not need" → slice 3b, done.
+  · "Ai debug toggle was meant host local, no routing tje toggle elsewhere needed" → the toggle no-opping
+    on a brainless host is CORRECT. ⛔ I had proposed routing it to the brain's node; RETRACTED.
+  · "run builds/searches as background tasks" → now a CLAUDE.md rule (asked TWICE before it was written).
 
-  (3) CE-259bf — narrow SimHost's CognitiveComponentRegistry. NO LONGER blocked on the MODEL (1 is
-      done); blocked on (2) plus classifying §3.9's NINE unclassified components — per component, against
-      the systems each role actually RUNS, not against a grep.
-      🔒 User: SimHost is DEFINED as never-Brain; narrowing is correct. My "it removes a capability
-      (R-138)" objection is WITHDRAWN. THE DECISIVE POINT: WithOwned<T>() IMPLIES With<T>(), so you cannot
-      ask about authority on a component that was never added ⇒ the gate is the RESIDUAL, narrowing is the
-      PRIMARY fix, exactly as §3.5 always said.
-      MECHANISM: BehaviorTkbTranslator.cs:52 gates materialisation on IsComponentTypeRegistered ALONE,
-      which is why SimHost's own spawns carry the whole brain tier — the inversion recorded at
-      NedReplicationModule.cs:396-403 ("SimHost had all 35 components including the entire brain tier"
-      while the CGF ghost had 12 and none). Precedent: StrideNodeBootstrapper.cs:304 ALREADY excludes it.
-      ⛔ SAFE-TO-DROP SET IS SIX, not fourteen: BrainBTreeState, BrainBlackboard, Blackboard1024,
-      BrainHsm128, BrainHsm64, BehaviorState — all ZERO wire refs. Nine more UNCLASSIFIED, and zero wire
-      refs does NOT prove nothing local reads them (a component can be produced by a system this node
-      schedules). Classify per component against the systems the role RUNS, never a grep of Hrot.SimHost.
-
-  (4) P3 step 4 — hand CGF a Brain policy and SimHost a Muscle policy at their composition roots
-      (CgfSubsystem.DefaultRole / SimHostApp.DefaultRole), each with a SingleNodePerRoleShardProvider,
-      AND set gateOnAuthority: true IN THE SAME CHANGE. ⛔ THE ORDER MATTERS AND §6 GETS IT WRONG: an
-      unconditional gate before step 4 makes a node stop processing every entity it did not create,
-      because a promoted ghost owns nothing — CE-256 reproduced by its own fix. That is why
-      gateOnAuthority defaults false. Acceptance: a SimHost-created brain-enabled entity ends
-      HasAuthority<BehaviorState> FALSE on SimHost and TRUE on CGF. ⚠ FIRST step that changes observable
-      behaviour; everything before it is inert by construction.
-
-  (5) P3 step 3c — the boot warning (§5 ②, user-approved): warn once if
-      IClusterStateCache.GetLeastLoadedNode(NodeRole.Brain) is null, at the composition root, NEVER throw.
-
-  ⛔ ALSO OPEN, NOT IN THIS ORDER:
-    CE-259ax  the UI half of the authoring surface (see (A))
-    CE-259av  GhostCreationSystem.BypassLifecycle still not honoured inside CreateGhost
-    CE-259az  file-loaded TKB templates carry an EMPTY BirthCriticalComponents. ⚠ BLOCKS NOTHING — the
-              branch NEVER EXECUTES today (TkbName is null in every scenario, no .zip artifact exists).
-              Fix is ~3 lines at TkbLoadClusterStateHandler (Hrot.SimHost — the APP layer).
-    CE-259bb  delete --role and SimHostApp.ParseRole (user ruling). ParseRole has ZERO production callers.
-    CE-259au / CE-259as   await Architect_Question_69 asks B and D
-    CE-259at  tracker-counts.py counts only BP- rows, so a green check is NOT evidence a CE- row registered
-    CE-212    NodeRole.ImageGenerator -> Map2D rename (owned by DESIGN_Stride_Node_Modes.md §S10; needs
-              Roslyn run TWICE and unioned — these names are a CLI surface)
-
-  ⭐⭐ USER RULINGS MADE THIS SESSION — do not re-litigate:
-    • Roles are NOT a networking concept. NodeRole lives in Fdp.Core now. The engine holds the LABEL
-      only; which components a role owns is a BitMask512 the APPLICATION supplies ("fdp should not
-      understand what a brain and muscle really mean").
-    • --role should be deleted; the selected --mode hardcodes the role (each host hardcodes its mask).
-    • SimHost is DEFINED as Muscle+Perception+Navigation and never Brain. Narrowing is correct there.
-    • A role has an ownedComponentSet AND a readComponentSet (their naming).
-
-  ⚠⚠ PROCESS NOTE FOR THE NEXT SESSION — I GOT THE SAME THING WRONG THREE TIMES TODAY, and each time the
-  user caught it. The pattern: I found a real latent gap and inflated "this will matter when X becomes
-  live" into "this BLOCKS work now", without measuring whether the path executes at all. CE-259az was
-  called a hard blocker on step 2, then on step 4, and blocks neither. Separately I twice concluded from a
-  grep COUNT without opening the sites ("SimHost reads BehaviorState at 11 sites" — all eleven are
-  HasComponent-guarded and only see anything because the tier is wrongly materialised). ⇒ before calling
-  anything blocked: measure whether the code path RUNS, and open the sites behind any count.
-
-  ✅ SEQUENCING CHECK DONE 2026-09-12, do not redo: the authoring surface and P3 are INDEPENDENT —
-  measured in both directions, zero references either way.
+  ⚠⚠ MY FAILURE MODES THIS SESSION — five corrections, all the same shape: I ASSERTED WHERE A file:line
+  BELONGED, and the user or the suite did the measuring.
+  · "persistence requires BehaviorState/BrainBlackboard on SimHost" — FALSE. I read the serializer
+    factory's REGISTRATION LIST and inferred purpose; the three translators each say in their own
+    <remarks> that Inject is a no-op existing "solely to produce a readable clipboard dump". The answer
+    was in the first 25 lines of each file.
+  · "a BitMask512 cannot drive RegisterComponent<T>() — there is no id→Type map" — FALSE twice over.
+    ComponentType.cs:75 holds Dictionary<int,Type>, :342 exposes GetType(int), and
+    RecordingExportService.cs:815-850 ALREADY registers by id in production.
+  · "the graph is unavailable" — FALSE. find.sh was broken; the CLI worked all along at its absolute path.
+  · "the cost of slice 3b is one menu item" — FALSE. 13 components + 6 events, and the real cost is the
+    SimHost half of the AI-trace feature.
+  · "slice 3b is safe" — measured PRODUCTION consumers only. 18 TEST files source their world from
+    SimHostComponentRegistry; two brain-tier fixtures went red. The suite caught what I did not.
+  ⇒ 🔒 THE HABIT THAT WOULD HAVE CAUGHT ALL FIVE: when the reason for a claim is a principle rather than
+  a file:line, the work is NOT done — and "the test surface" is part of the blast radius, not an
+  afterthought.
 
   ══ STRAND 1 — MAP INTERACTION / SELECTION / TOOLS (the live one as of 2026-09-10) ══
   ✅✅✅ READ docs/SNAPSHOT_Map_Interaction_Architecture.md FIRST. It is a SNAPSHOT, not an owning
