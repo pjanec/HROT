@@ -42,9 +42,13 @@ current-answer: §3 is the design; §4 carries the UML; §6 is the sequencing; �
   ✅✅✅ STEP 1 IS DONE, 2026-09-12 — IRoleAffinityPolicy + RoleAffinityPolicy, NO deviation. §6d is its
   as-built. ⚠ §6c's int-role-bit deviation was REVERTED the same day: NodeRole moved into Fdp.Core on the
   user's ruling, so the seam carries the typed signature the design always specified.
-  ⛔⛔ Steps 2, 3, 3b, 3c and 4 remain unbuilt. NEXT IS STEP 3 or 3b — ⛔ NOT step 2: STEP 2 IS BLOCKED
-  until CE-259az (file-loaded templates carry an EMPTY BirthCriticalComponents, and files are the
-  PRODUCTION path while CreateTkb() is only the dev default) is answered.
+  ⛔⛔ Steps 2, 3, 3b, 3c and 4 remain unbuilt. ⚠⚠ CORRECTION 2026-09-12 (user challenge: "what actually
+  blocks step 2?"): an earlier version of this block said STEP 2 IS BLOCKED on CE-259az. THAT WAS WRONG —
+  the blocker was attached to the wrong step. Step 2 injects no policy (its own gate: "with no policy the
+  mask is unchanged"), so it is INERT by construction and free to ship. CE-259az gates STEP 4, where
+  hosts are actually handed a policy, and then only on a deployment that loads a NAMED TKB zip —
+  TkbLoadClusterStateHandler Clear()s the catalogue before loading, so those templates carry an empty
+  BirthCriticalComponents, while the programmatic fallback step 0 seeded is unaffected.
   ⭐ §5's three decisions are all RESOLVED (① / ①b 2026-09-01; ② user-approved and ③ user-ruled
   2026-09-10; ①c "nothing measurable remains"). What is left in §5 is a per-system REVIEW for step 3b,
   not a decision — so this design is NOT blocked on the user.
@@ -947,7 +951,8 @@ path is the dev path and the unseeded path is the production one.**
 |---|---|
 | ⛔ **it is not a seeding problem, it is a SCHEMA question** | either the TKB file format gains a way to say *"birth-critical"*, or the deserializer applies a convention. ⭐ The first is authoring design; the second puts a HROT policy inside an engine assembly *(`Fdp.Toolkits`)*, which is the wrong layer |
 | ⭐ **it is not yet load-bearing** | nothing reads the list until step 2. ⇒ fixing it now would be guessing at a schema before the consumer exists |
-| ⛔ **but it MUST be answered before step 2 ships** | otherwise step 2 turns every file-loaded template into the exact origin-flash defect §3.1's architect correction exists to prevent — on the production path only, which is the worst possible place for it to be discovered |
+| ⚠⚠ **CORRECTED `2026-09-12` — IT GATES STEP 4, NOT STEP 2** | 🔴 An earlier version of this row said *"it MUST be answered before STEP 2 ships"*, and the resume doc called step 2 hard-blocked. **Both were wrong, and the error was attaching the blocker to the wrong step.** 📐 **Step 2 injects NOTHING:** its own gate is *"with no policy, the mask is unchanged"*, and §3.3 says *"nothing changes until a host is handed one."* Hosts are handed a policy in **step 4**. ⇒ ⭐ `BirthCriticalComponents` is never READ until step 4, so step 2 is inert by construction and free to ship |
+| ⛔ **What it DOES gate: step 4, and only on a NAMED-TKB deployment** | 📐 Measured `2026-09-12`: `TkbLoadClusterStateHandler` calls **`_tkbDb.Clear()`** *(`:95`)* and then loads every template from the zip ⇒ a named TKB **REPLACES** the seeded catalogue wholesale and every template has an EMPTY `BirthCriticalComponents`. ⚠ But that branch only runs when a TKB is **requested by name**; with none requested it falls back to `NedTkbCatalog.RegisterAll()` *(`:72`)* — the programmatic path step 0 seeded. ⇒ ⭐ **development, on the hardcoded catalogue, is unaffected.** A named-TKB deployment at step 4 is where a Brain-role creator would write a position it never publishes |
 
 ---
 

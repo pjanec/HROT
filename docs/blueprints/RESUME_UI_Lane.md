@@ -49,15 +49,23 @@ current-answer: ⚠⚠ THERE ARE NOW **THREE** LIVE STRANDS ON THIS LANE. Read t
       "opaque int role bits" deviation was RETRACTED the same day and is marked as such — do not build on
       it. The engine holds the role LABEL only; the role->components BitMask512 table stays the
       application's ("fdp should not understand what a brain and muscle really mean").
-      ⭐⭐⭐ NEXT: STEP 3 or STEP 3b — ⛔ NOT step 2.
-      ⛔⛔ STEP 2 IS HARD-BLOCKED ON CE-259az. TkbDeserializer builds templates purely from descriptor
-      keys and declares NO components, so a FILE-LOADED template has an empty BirthCriticalComponents —
-      and CreateTkb() is the DEV default while files are the PRODUCTION path. Shipping step 2 first turns
-      every file-loaded template into the origin-flash defect §3.1 exists to prevent, on production only.
+      ⭐⭐⭐ NEXT: STEP 2 or STEP 3 — both are free to ship.
+      ⚠⚠ CORRECTION 2026-09-12: an earlier version of this block said STEP 2 IS HARD-BLOCKED on
+      CE-259az. WRONG — the blocker was attached to the wrong step. Step 2 injects NO policy (its own
+      gate: "with no policy, the mask is unchanged"; §3.3: "nothing changes until a host is handed one"),
+      and hosts are handed one in STEP 4. So BirthCriticalComponents is never READ until step 4, and
+      step 2 is inert by construction.
+      ⛔ CE-259az GATES STEP 4, and then only on a deployment that loads a NAMED TKB zip:
+      TkbLoadClusterStateHandler Clear()s the catalogue (:95) then reloads from the zip, so those
+      templates carry an empty BirthCriticalComponents — while with no TKB requested it falls back to
+      NedTkbCatalog.RegisterAll() (:72), the programmatic path step 0 seeded. Development is unaffected.
       It is a SCHEMA question (does the TKB file format declare birth-criticality?), not a seeding one.
-      ⭐ STEP 3 (GhostPromotionSystem claims after the translator loop) is NOT blocked: the promote leg
-      does not use BirthCriticalComponents. Its insertion point is :208 (translator loop) / :211-214
-      (promote) — NOT the :122/:129 §3.2 used to name.
+      ⭐ STEP 2 is ONE line: NetworkSpawningSystem.cs:191 `metaNS.AuthorityMask = compNS;` becomes an
+      intersection with policy.OwnableMask(...), null policy keeping today's behaviour. NOTE the line is
+      :191, NOT §3.2's stale ":181".
+      ⭐ STEP 3 (GhostPromotionSystem claims after the translator loop) is also free: the promote leg does
+      not use BirthCriticalComponents. Insertion point :208 (translator loop) / :211-214 (promote) —
+      NOT the :122/:129 §3.2 used to name.
       ⛔ ALSO OPEN, filed 2026-09-12: CE-259bb — delete --role and SimHostApp.ParseRole (user ruling:
       "--role shoukd be deleted. selecetd --mode shoukld hardcide the role"). ParseRole has ZERO
       production callers; every host already hardcodes its DefaultRole.
