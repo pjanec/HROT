@@ -1,7 +1,7 @@
 <!--STATUS
 state: LIVE
 updated: 2026-09-12
-build-state: BUILDING — steps 0a, 0, 1a, 1, 2, 3 and 3b(b) done. ⛔ NOT BUILT: step 4 supplies no policy yet, so every node still runs null; 3b(a) NOT done — narrowing is the PRIMARY fix and the gate cannot substitute (§6f); blocked on CE-259bg. ⛔ NOT "BUILT": open-risk below still binds (§3.5 / step 3b).
+build-state: BUILDING — steps 0a, 0, 1a, 1, 2, 3 and 3b(b) done. ⛔ NOT BUILT: step 4 supplies no policy yet, so every node still runs null; 3b(a) NOT done. ⛔⛔ §3.9 IS NEW AND LOAD-BEARING: REGISTER = ownedComponentSet ∪ readComponentSet, and this design only modelled the first — read it before touching registration. ⛔ NOT "BUILT": open-risk below still binds (§3.5 / step 3b).
 verified: ⭐⭐ THE WHOLE DESIGN WAS RE-MEASURED AGAINST THE TREE ON 2026-09-12 before step 0 was built
   (user: "verify design before, might be stale"). VERDICT: every DECISION holds and nothing load-bearing
   is stale — the six unbuilt types are still at ZERO .cs occurrences, the blanket grant is byte-identical,
@@ -52,7 +52,14 @@ current-answer: §3 is the design; §4 carries the UML; §6 is the sequencing; �
   was never added. The gate is the RESIDUAL for nodes that legitimately have brain components.
   Registration is the ONLY gate on materialisation (BehaviorTkbTranslator.cs:52), which is why SimHost's
   spawns carry the whole brain tier. §6f has the measurement and my two withdrawn objections.
-  ⛔⛔ Steps 3c and 4 remain unbuilt; 3b(a) is blocked on CE-259bg (the brainActive proxy). ⚠⚠ CORRECTION 2026-09-12 (user challenge: "what actually
+  ⛔⛔ Steps 3c and 4 remain unbuilt.
+  🔴🔴 §3.9 ADDED 2026-09-12 AND IT CORRECTS THE ROLE MODEL ITSELF: a role has TWO component sets —
+  ownedComponentSet (authority, what IRoleAffinityPolicy already models) and readComponentSet (owned
+  elsewhere, replicated IN, consumed here). REGISTER = owned ∪ read; AUTHORITY = owned. Measured:
+  NavigationIntent (16 wire refs) and MissionPlanQueue (9) are Brain-OWNED and Muscle-READ, so a Muscle
+  node that stopped registering "brain components" would stop receiving its own orders. ⇒ the shipped
+  `componentsPerRole` is the OWNED set and should be renamed `ownedComponentsPerRole`; `readComponentsPerRole`
+  is NOT built. 3b(a) is blocked on that plus CE-259bg (the brainActive proxy). ⚠⚠ CORRECTION 2026-09-12 (user challenge: "what actually
   blocks step 2?"): an earlier version of this block said STEP 2 IS BLOCKED on CE-259az. THAT WAS WRONG —
   the blocker was attached to the wrong step. Step 2 injects no policy (its own gate: "with no policy the
   mask is unchanged"), so it is INERT by construction and free to ship. CE-259az gates STEP 4, where
@@ -354,7 +361,7 @@ public interface IRoleAffinityPolicy
 
 | ⭐ where each bit comes from | |
 |---|---|
-| ⭐⭐ **the ROLE's assigned mask** | a `BitMask512` of component ids **declared per role**, plain configuration. ⛔ Not derived from any wire vocabulary — a `NodeRole` → mask table, and nothing else. ⚠ **`2026-09-10`: the table is now consulted PER ROLE and gated by `IRoleShardProvider.ServesRole` — §3.8.** A single flat union is no longer correct |
+| ⭐⭐ **the ROLE's assigned mask** | ⚠⚠ **this is the `ownedComponentSet` — see §3.9.** A role has a SECOND set, `readComponentSet` *(owned elsewhere, replicated in, consumed here — e.g. Muscle ↔ `NavigationIntent`)*, which this interface does not model and which REGISTRATION needs. A `BitMask512` of component ids **declared per role**, plain configuration. ⛔ Not derived from any wire vocabulary — a `NodeRole` → mask table, and nothing else. ⚠ **`2026-09-10`: the table is now consulted PER ROLE and gated by `IRoleShardProvider.ServesRole` — §3.8.** A single flat union is no longer correct |
 | ⭐⭐ **∪ the template's `BirthCriticalComponents`, when `isCreator`** | §3.1's birthright. ⭐ The creator keeps these **whatever its role**, which is precisely the architect's correction |
 
 ⭐ **The whole rule is then:** `AuthorityMask = componentMask ∧ OwnableMask(template, isCreator)` —
@@ -508,6 +515,66 @@ which **logs once and does not fall back.** ⇒ the two decisions compose.
 ships **the interface, the key, the single-node implementation, and the per-role mask table** — nothing
 else.
 
+### 3.9 🔴🔴🔴 REGISTER ≠ OWN — **a role has TWO component sets, and this design only ever modelled one** *(user, `2026-09-12`)*
+
+> 🔒 **User, verbatim:** *"intents are brain owned components that must be replicated to muscle so musle
+> can read and act on them. so muscle cant simply stop registwring them because they are brain ones."*
+> 🔒 **And on naming:** *"maybe renaming to ownedComponentSet and readComponentSet would make it more
+> clear."*
+
+⛔⛔ **THIS INVALIDATES A PROPOSAL THIS SESSION HAD ALREADY FORMED** — *"a role registers the components it
+owns; split the cognitive bundle along the role line."* 🔴 **Wrong, and wrong in a way that would have
+broken the cluster:** `NavigationIntent` is **Brain-OWNED** and **replicated to Muscle**, which reads it and
+acts on it. A Muscle node that stopped registering *"brain components"* would stop receiving its own orders.
+
+⭐⭐⭐ **The correct model: every component stands in ONE of THREE relationships to a role.**
+
+| relationship | example *(measured)* | REGISTER? | OWN? |
+|---|---|---|---|
+| ⭐ **OWNED** — I have authority; I write it, I publish it | Muscle ↔ `SimTransform` · Brain ↔ `BrainBlackboard` | ✅ | ✅ |
+| 🔴 **READ** — owned elsewhere, **replicated IN**, my systems consume it | ⭐⭐ **Muscle ↔ `NavigationIntent`, `MissionPlanQueue`** | ✅ **MUST** | ⛔ **never** |
+| ⛔ **ABSENT** — never mine, never arrives, nothing here reads it | Muscle ↔ `BrainBTreeState`, `BrainHsm128` | ⛔ | ⛔ |
+
+> ### ⭐⭐⭐ `REGISTER = ownedComponentSet ∪ readComponentSet`   ·   `AUTHORITY = ownedComponentSet`
+
+⚠⚠ **`IRoleAffinityPolicy`'s table is the OWNED set ONLY.** The shipped parameter is called
+`componentsPerRole`, which does not say so. ⇒ ⭐ **rename it `ownedComponentsPerRole`** when the code next
+moves, and add `readComponentsPerRole` beside it. ⛔ **Until both exist, registration cannot be derived
+from the role** — and deriving it from the owned set alone is the mistake above.
+
+#### 📐 THE MEASUREMENT THAT FORCED THIS — **wire references per cognitive component, `2026-09-12`**
+
+| component | wire refs | ⇒ for a MUSCLE node |
+|---|---|---|
+| ⭐⭐ **`NavigationIntent`** | **16** *(`NavigationIntentIngressTranslator` + `…EgressTranslator`)* | 🔴 **READ — must register** |
+| ⭐ **`MissionPlanQueue`** | **9** *(`EntityMissionIngressTranslator` writes the component)* | 🔴 **READ — must register** |
+| `BehaviorState` | 1 — ⚠ and it is `TacticalIntentEgressTranslator`'s `HasAuthority<>` **gate**, not a replication | ⛔ never arrives |
+| `BrainBTreeState` · `BrainBlackboard` · `Blackboard1024` · `BrainHsm128` · `BrainHsm64` | **0** | ⛔ **ABSENT — safe to drop** |
+| the three channels · `ActorCapabilityState` · `PreviousCapabilities` · `SimTier` · `PassengerBuffer` · `IsEmbarkedTag` | **0** | ⚠ **unclassified** — zero wire presence does NOT prove nothing local reads them |
+
+⇒ ⭐ **The measured SAFE-TO-DROP set for a Muscle node is six:** the five brain internals **plus
+`BehaviorState`**. ⛔ **Not the whole cognitive bundle**, and ⛔ **not derivable from "is it a brain
+component"** — `NavigationIntent` is a brain component and must stay.
+
+#### ⚠ WHY "zero wire references" IS NECESSARY BUT NOT SUFFICIENT
+
+⛔ A component can be **produced locally** by a system this node schedules, with no wire involvement at
+all. ⇒ the classification must be **per component, against the systems a role actually RUNS**, not against
+a grep. 📌 The nine unclassified rows above are exactly where that work is.
+
+#### ⭐⭐ WHAT THIS BUYS — **"can this node EVER own X?" becomes answerable statically**
+
+🔒 The user's other observation: *"technicly the 'can ever have authority' question coukd be asked."*
+⭐ With `ownedComponentSet` declared per role, that is a **composition-time** question — no entity, no
+runtime state. ⇒ it is the right driver for **registration** and for a **boot-time diagnostic**
+*(⚠ "this node registers a component its role can never own **and** never reads" is a configuration error
+worth naming out loud — and it is exactly SimHost's current state)*.
+⛔ **It is NOT the same question as `WithOwned<T>()`**, which asks *"do I own THIS ENTITY's copy right
+now?"* — §3.5's execution gate. ⭐ Static "could ever" drives what EXISTS; runtime "do now" drives what
+RUNS.
+
+---
+
 ### 3.4 ⛔ What this does NOT retire
 
 ⭐ **Explicit `DeferredTakeOwnership` grants still win.** Role affinity is the **default**; a creator that
@@ -587,7 +654,8 @@ classDiagram
     }
     class RoleAffinityPolicy {
         -NodeRole declaredRoles
-        -Dictionary~NodeRole,BitMask512~ componentsPerRole
+        -Dictionary~NodeRole,BitMask512~ ownedComponentsPerRole
+        -Dictionary~NodeRole,BitMask512~ readComponentsPerRole_NOT_BUILT
         -IRoleShardProvider shard
         +OwnableMask(template, isCreator, key) BitMask512
     }
@@ -640,6 +708,7 @@ classDiagram
     NetworkSpawningSystem --> IRoleAffinityPolicy : declines what role excludes
     NetworkSpawningSystem --> TkbTemplate : birth-critical always kept
     RoleAffinityPolicy --> TkbTemplate : reads BirthCriticalComponents
+    note for RoleAffinityPolicy "Models ownedComponentSet ONLY. readComponentSet is NOT built - REGISTER = owned + read, see 3.9"
     GhostPromotionSystem --> IRoleAffinityPolicy : claims what role includes
     NetworkSpawningSystem --> EntityRepository
     GhostPromotionSystem --> EntityRepository
@@ -921,12 +990,24 @@ local world a cluster question. ⭐ *"Could this entity have a brain"* is answer
 not replicate** *(measured: no TKB translator projects `BehaviorState`, no wire translator writes it)*.
 ⇒ that half is genuinely lost unless something publishes it, which is a product decision.
 
-⇒ ⭐ **Order when this is built:** re-home the proxy *(`CE-259bg`)*, then narrow *(`CE-259bf`)* — or both in
-one change, so nothing degrades silently.
-⛔ **And narrow per-component, not all 14:** `NavigationIntent`, `PassengerBuffer`, `IsEmbarkedTag`,
-`MissionPlanQueue` and the channels are Muscle-side or shared, and a component must stay registered for
-systems SimHost schedules **from other assemblies**. ⇒ check against SCHEDULED systems, never against
-references in `Hrot.SimHost`.
+### ⛔⛔ AND A PROPOSAL THIS SESSION FORMED WAS INVALIDATED BEFORE IT WAS BUILT — **read §3.9 first**
+
+⚠ I proposed *"a role registers the components it OWNS; split the cognitive bundle along the role line."*
+🔴 **The user killed it:** *"intents are brain owned components that must be replicated to muscle so musle
+can read and act on them."* 📐 Measured: `NavigationIntent` has **16** wire references and
+`MissionPlanQueue` **9** — a Muscle node that stopped registering *"brain components"* would **stop
+receiving its own orders.**
+
+⇒ ⭐⭐⭐ **`REGISTER = ownedComponentSet ∪ readComponentSet`, and this design only ever modelled the first.**
+📄 **§3.9 is the corrected model and is the thing to read before touching registration.**
+
+⇒ ⭐ **Order when this is built:** ① add `readComponentSet` to the role model *(§3.9)* · ② re-home the
+routing proxy *(`CE-259bg`)* · ③ then narrow *(`CE-259bf`)*.
+⛔ **The measured SAFE-TO-DROP set for Muscle is SIX, not fourteen:** `BrainBTreeState`,
+`BrainBlackboard`, `Blackboard1024`, `BrainHsm128`, `BrainHsm64` and `BehaviorState` — all with **zero**
+wire references. ⚠ Nine more are **unclassified**, and zero wire references does NOT prove nothing local
+reads them: a component can be produced by a system this node schedules. ⇒ classify **per component
+against the systems the role RUNS**, never against a grep of `Hrot.SimHost`.
 
 ---
 

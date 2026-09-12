@@ -69,24 +69,32 @@ current-answer: ⚠⚠ THERE ARE NOW **THREE** LIVE STRANDS ON THIS LANE. Read t
       ⚠ HONEST SCOPE: the live double-tick §3.5 describes may not exist today — all six systems come from
       CgfLogicPack, used only by CGF and the Editor, and the Editor is offline so it gets no ghosts. The
       gate is what makes the design non-cosmetic for multi-Brain / all-in-one / R-138 Muscle-runs-brains.
-      🔴 STEP 3b's HALF (a) IS NOT DONE, AND NARROWING IS THE PRIMARY FIX — CE-259bf (re-opened; it had
-      been closed with the wrong conclusion). User ruling 2026-09-12: SimHost is DEFINED as never-Brain.
-      THE DECISIVE POINT: WithOwned<T>() IMPLIES With<T>(), so an entity without the component is excluded
-      BEFORE authority is consulted — you cannot ask "do I own it" about something never added. ⇒ the gate
-      (CE-259be) is the RESIDUAL for nodes that legitimately HAVE brain components (all-in-one, multi-Brain),
-      NOT an alternative to narrowing.
-      MECHANISM: BehaviorTkbTranslator.cs:52 gates materialisation on IsComponentTypeRegistered alone, so
-      SimHost's own spawns carry the whole brain tier — the inversion already recorded at
-      NedReplicationModule.cs:396-403 ("SimHost had all 35 components including the entire brain tier"
-      while the CGF ghost had 12 and none). Precedent: StrideNodeBootstrapper.cs:304 already excludes it.
-      ⛔ BLOCKED ON CE-259bg first: SimHostVisualization.cs:385's brainActive uses LOCAL
-      HasComponent<BehaviorState> to decide whether an operator right-click routes through the MISSION
-      machinery or bypasses it. That proxy is ALREADY wrong (local answer to a cluster question) and goes
-      false for everything after narrowing. "Could it have a brain" comes from the TKB
-      (BehaviorProfileDto.BrainTier); "is its brain ACTIVE" does NOT replicate and is lost unless published.
-      ⚠ NARROW PER-COMPONENT, not all 14: NavigationIntent, PassengerBuffer, IsEmbarkedTag, MissionPlanQueue
-      and the channels are Muscle-side or shared, and a component must stay registered for systems SimHost
-      schedules FROM OTHER ASSEMBLIES. Check against SCHEDULED systems, never references in Hrot.SimHost.
+      🔴🔴 READ §3.9 BEFORE TOUCHING REGISTRATION OR THE ROLE TABLE — CE-259bh. A role has TWO component
+      sets and this design only ever modelled one:
+          REGISTER = ownedComponentSet ∪ readComponentSet     AUTHORITY = ownedComponentSet
+      User ruling 2026-09-12: "intents are brain owned components that must be replicated to muscle so
+      musle can read and act on them. so muscle cant simply stop registwring them because they are brain
+      ones." MEASURED: NavigationIntent has 16 wire refs and MissionPlanQueue 9 — both Brain-OWNED and
+      Muscle-READ. A Muscle node that stopped registering "brain components" would STOP RECEIVING ITS OWN
+      ORDERS. This killed my "split the bundle along the role line" proposal before it was built.
+      ⇒ rename the shipped componentsPerRole -> ownedComponentsPerRole, add readComponentsPerRole.
+      ⭐ It also makes "can this node EVER own X" a COMPOSITION-TIME question — the right driver for
+      registration and for a boot diagnostic. NOT the same as WithOwned<T>() (this entity's copy, now).
+
+      🔴 STEP 3b's HALF (a) IS NOT DONE — CE-259bf, now BLOCKED on CE-259bh and CE-259bg. Narrowing IS the
+      primary fix (user ruling; and WithOwned<T>() implies With<T>(), so you cannot ask about authority on
+      a component that was never added — the gate is the RESIDUAL for nodes that legitimately HAVE the
+      components). MECHANISM: BehaviorTkbTranslator.cs:52 gates materialisation on IsComponentTypeRegistered
+      alone, which is why SimHost's own spawns carry the whole brain tier (the inversion recorded at
+      NedReplicationModule.cs:396-403). Precedent: StrideNodeBootstrapper.cs:304 already excludes it.
+      ⛔ MEASURED SAFE-TO-DROP SET IS SIX, not fourteen: BrainBTreeState, BrainBlackboard, Blackboard1024,
+      BrainHsm128, BrainHsm64, BehaviorState — all ZERO wire refs. Nine more UNCLASSIFIED, and zero wire
+      refs does NOT prove nothing local reads them: classify per component against the systems the role
+      RUNS, never against a grep of Hrot.SimHost.
+      ⛔ CE-259bg: SimHostVisualization.cs:385's brainActive uses LOCAL HasComponent<BehaviorState> to
+      decide whether an operator right-click routes through the MISSION machinery or bypasses it — a local
+      answer to a cluster question, already wrong, and false for everything after narrowing. "Could it have
+      a brain" comes from the TKB (BehaviorProfileDto.BrainTier); "is its brain ACTIVE" does not replicate.
       ⭐⭐⭐ NEXT: STEP 4 — hand CGF a Brain policy and SimHost a Muscle policy at their composition roots
       (SimHostApp.DefaultRole / CgfSubsystem.DefaultRole), each with a SingleNodePerRoleShardProvider over
       the role that host already declares, AND set gateOnAuthority: true in the same change (see ① above).
