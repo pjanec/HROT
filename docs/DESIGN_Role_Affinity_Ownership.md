@@ -1,7 +1,7 @@
 <!--STATUS
 state: LIVE
 updated: 2026-09-12
-build-state: BUILDING — steps 0a, 0, 1a, 1, 2, 3, 3b(b) and §3.9's two-set model done. ⛔ NOT BUILT: step 4 supplies no policy yet, so every node still runs null; 3b(a) NOT done. ⛔⛔ §3.9 IS LOAD-BEARING AND IS NOW MODELLED IN CODE: REGISTER = ownedComponentSet ∪ readComponentSet, AUTHORITY = ownedComponentSet — read it before touching registration, and note NO HOST FILLS THE READ TABLE YET (step 4). ⛔ NOT "BUILT": open-risk below still binds (§3.5 / step 3b).
+build-state: BUILDING — steps 0a, 0, 1a, 1, 2, 3, 3b(b) and §3.9's two-set model done. ⛔ NOT BUILT: step 4 supplies no policy yet, so every node still runs null; 3b(a) NOT done. ⛔⛔ §3.9 IS LOAD-BEARING AND IS NOW MODELLED IN CODE: REGISTER = ownedComponentSet ∪ readComponentSet, AUTHORITY = ownedComponentSet — read it before touching registration, and note NO HOST FILLS THE READ TABLE YET (step 4). 🔴🔴 §3.9a IS NEW (2026-09-12) AND IT SUPERSEDES §3.9's "safe-to-drop six": the classification is MEASURED, the set is THREE, and a THIRD requirement source — SCENARIO PERSISTENCE — decides three of the six. 3b(a) is now blocked on a DESIGN question (which node saves the scenario), not on code. ⛔ NOT "BUILT": open-risk below still binds (§3.5 / step 3b).
 verified: ⭐⭐ THE WHOLE DESIGN WAS RE-MEASURED AGAINST THE TREE ON 2026-09-12 before step 0 was built
   (user: "verify design before, might be stale"). VERDICT: every DECISION holds and nothing load-bearing
   is stale — the six unbuilt types are still at ZERO .cs occurrences, the blanket grant is byte-identical,
@@ -561,19 +561,83 @@ CLASSIFICATION does.
 |---|---|---|
 | ⭐⭐ **`NavigationIntent`** | **16** *(`NavigationIntentIngressTranslator` + `…EgressTranslator`)* | 🔴 **READ — must register** |
 | ⭐ **`MissionPlanQueue`** | **9** *(`EntityMissionIngressTranslator` writes the component)* | 🔴 **READ — must register** |
-| `BehaviorState` | 1 — ⚠ and it is `TacticalIntentEgressTranslator`'s `HasAuthority<>` **gate**, not a replication | ⛔ never arrives |
-| `BrainBTreeState` · `BrainBlackboard` · `Blackboard1024` · `BrainHsm128` · `BrainHsm64` | **0** | ⛔ **ABSENT — safe to drop** |
-| the three channels · `ActorCapabilityState` · `PreviousCapabilities` · `SimTier` · `PassengerBuffer` · `IsEmbarkedTag` | **0** | ⚠ **unclassified** — zero wire presence does NOT prove nothing local reads them |
+| `BehaviorState` | 1 — ⚠ and it is `TacticalIntentEgressTranslator`'s `HasAuthority<>` **gate**, not a replication | ⛔ never arrives over the wire |
+| `BrainBTreeState` · `BrainBlackboard` · `Blackboard1024` · `BrainHsm128` · `BrainHsm64` | **0** | ⚠⚠ **see §3.9a — three of these are NOT safe to drop, for a reason wire references cannot show** |
+| the three channels · `ActorCapabilityState` · `PreviousCapabilities` · `SimTier` · `PassengerBuffer` · `IsEmbarkedTag` | **0** | ⚠ unclassified here; ✅ **CLASSIFIED in §3.9a** |
 
-⇒ ⭐ **The measured SAFE-TO-DROP set for a Muscle node is six:** the five brain internals **plus
-`BehaviorState`**. ⛔ **Not the whole cognitive bundle**, and ⛔ **not derivable from "is it a brain
-component"** — `NavigationIntent` is a brain component and must stay.
+⛔⛔ **AN EARLIER VERSION OF THIS BLOCK CONCLUDED *"the measured SAFE-TO-DROP set for a Muscle node is
+six — the five brain internals plus `BehaviorState`."* 🔴 THAT IS WRONG AND IS SUPERSEDED BY §3.9a.**
+⭐ What survives it: ⛔ **not the whole cognitive bundle**, and ⛔ **not derivable from *"is it a brain
+component"*** — `NavigationIntent` is a brain component and must stay.
 
 #### ⚠ WHY "zero wire references" IS NECESSARY BUT NOT SUFFICIENT
 
 ⛔ A component can be **produced locally** by a system this node schedules, with no wire involvement at
 all. ⇒ the classification must be **per component, against the systems a role actually RUNS**, not against
-a grep. 📌 The nine unclassified rows above are exactly where that work is.
+a grep.
+
+### 3.9a ✅ THE CLASSIFICATION, MEASURED `2026-09-12` — **and it found a THIRD requirement source the wire count cannot see**
+
+> ⭐⭐⭐ **The headline: the "safe-to-drop six" was wrong about THREE of its six, because a component can be
+> required by SCENARIO PERSISTENCE with zero wire references and zero local systems.**
+
+📐 **The two questions §3.9 said to ask — *does this node RUN a system that touches it* and *does it
+arrive over the wire* — are both necessary and together still INSUFFICIENT.** 🔴 **The third is: *does
+this node's SCENARIO SERIALIZER touch it?*** `Hrot.SimHost/Serializers/HrotScenarioSerializerFactory.cs`
+registers translators for `BrainBlackboard`, `Blackboard1024`, `BTreeTraceWorkingMemory1024`,
+`HsmTraceWorkingMemory1024`, `MissionPlanQueue`, `PassengerBuffer` and `IsEmbarkedTag` — ⛔ **none of
+which any wire count or system sweep would have surfaced.**
+
+⛔⛔ **And `BehaviorState` is the gate for FOUR of them.** `BrainBlackboardTranslator.cs:48`,
+`Blackboard1024Translator.cs:48`, `BTreeTraceWorkingMemoryTranslator.cs:52` and
+`HsmTraceWorkingMemoryTranslator.cs:48` each do `repo.HasComponent<BehaviorState>(entity)` as their
+`CanTranslate` condition and then read it to resolve the layout. ⇒ 🔴 **dropping `BehaviorState`
+registration on a saving node does not crash — it makes `CanTranslate` return false and the blackboards
+are SILENTLY NOT SAVED.** ⚠ Plus a second, independent live reader: `AiTraceContextMenu.cs:26`, reached
+from SimHost's own `ToggleAiTrace` action (`SimHostApp.cs:443`), gates on the same component.
+
+#### 📐 WHAT SIMHOST ACTUALLY RUNS — **the premise the classification rests on**
+
+| | measured |
+|---|---|
+| ⭐⭐⭐ **SimHost runs NO cognitive system** | ✅ zero references to `BTreeTickSystem` · `HsmTickSystem` · `BehaviorIngressSystem` · `ChannelArbitrationSystem` · `MissionDirectorSystem` · `CognitiveInterruptSystem` · `CognitiveCleanupSystem` in `Hrot.SimHost` *(the one hit is a doc-comment in dead code)*. `SimHostCoreLogicPack`'s own summary says it groups the **Muscle-tier** modules "for the `MuscleGround` role"; `StrideNodeBootstrapper.cs:306` states the same intent — *"no `BTreeTickSystem`, no `TacticalIntentResolutionSystem` — both are CGF's"* |
+| ⭐⭐ **the channels' only consumers are CGF's** | ✅ `ActionDispatchModule` *(which constructs `LocomotionDispatcherSystem`)* is registered by **`CgfLogicPack` only**; `Hrot.SimHost/Modules/ActionDispatchModule.cs` is a relocation stub |
+| ⭐⭐ **EQS is SimHost's, not CGF's** | ✅ `SimHostCapabilities.cs:79` registers `EqsModule` ⇒ the EQS trio is **owned** by SimHost's Perception role |
+| ⛔⛔ **the registry is SHARED with CGF** | 🔴 `CgfComponentRegistry.cs:17` **and** `SimHostComponentRegistry.cs:19` both call `CognitiveComponentRegistry.RegisterAll` ⇒ **editing that file narrows the BRAIN too.** The narrowing cannot be done there |
+
+#### ⭐⭐⭐ THE CLASSIFICATION — **SimHost (`MuscleGround` + `Perception` + `NavigationSolver`, never `Brain`)**
+
+| component | relationship | why — the measured reason |
+|---|---|---|
+| `NavigationIntent` | 🔴 **READ** | `NavigationIntentBridgeSystem` runs in `SimHostCoreLogicPack`; 16 wire refs. ⭐ Already registered by `MuscleRoleComponentRegistry` too |
+| `MissionPlanQueue` | 🔴 **READ** | wire ingress writes it (9 refs) **and** `MissionPlanTranslator` persists it |
+| `BehaviorState` | 🔴 **READ** | ⛔ **NOT droppable** — the `CanTranslate` gate of four scenario translators, plus `AiTraceContextMenu.cs:26` |
+| `BrainBlackboard` · `Blackboard1024` | 🔴 **READ** | each has its own scenario translator ⇒ dropping = silent save loss |
+| `BTreeTraceWorkingMemory1024` · `HsmTraceWorkingMemory1024` · `DebugState` | 🔴 **READ** | scenario translators; `DebugState` is written by SimHost's own `ToggleAiTrace` action |
+| `PassengerBuffer` · `IsEmbarkedTag` | ✅ **OWNED** | `GenesisMaterializationSystem` *(SimHost's own)* writes them, and both have scenario translators |
+| `ActorCapabilityState` | ✅ **OWNED** | `HealthApplicationSystem` and `DamageSystem` read it, and SimHost runs `CombatModule` |
+| `EqsSensor` · `EqsCognitiveBuffer` · `SensorEvalState` | ✅ **OWNED** | SimHost registers `EqsModule` — this is the Perception role |
+| ⛔ `BrainBTreeState` · `BrainHsm128` · `BrainHsm64` | ⛔ **ABSENT** | no SimHost system · 0 wire refs · **no scenario translator** — the only three that clear all THREE tests |
+| ⛔ the three channels *(`Locomotion` · `Weapon` · `Interaction`)* | ⛔ **ABSENT** | only `ActionDispatchModule` + `ChannelArbitrationSystem` touch them, both CGF-only |
+| ⛔ `PreviousCapabilities` | ⛔ **ABSENT** | read only by `CognitiveInterruptSystem` *(CGF)* and the Stride animation reactor |
+| ⚠ `SimTier` | ⚠ **WRITE-ONLY** | stamped by `BehaviorTkbTranslator:30` and its **only** reader is `TrafficBrainSystem` in `FDP/Examples` ⇒ nothing in production reads it on any node. ⛔ A finding in its own right, not a narrowing decision |
+
+⇒ 🔴 **THE SAFE-TO-DROP SET FOR SIMHOST IS THREE, NOT SIX** — `BrainBTreeState`, `BrainHsm128`,
+`BrainHsm64` — plus the three channels and `PreviousCapabilities` if the persistence question below
+resolves the way this classification assumes. ⛔ **`BehaviorState`, `BrainBlackboard` and `Blackboard1024`
+move from "safe to drop" to "REQUIRED", and the reason is persistence, not simulation.**
+
+#### ⛔⛔ THE OPEN QUESTION THIS EXPOSES — **which node SAVES the scenario?**
+
+⚠ **The persistence argument above is contingent, and honestly so.** 📄 `DESIGN_Node_Roles_And_Policies.md`
+§5 says **both `Brain` and `MuscleGround` may hold persistent state**, and §7.2 measures that
+`StagingEntityExtractor` **cannot tell an owner** — *whichever node saves, saves what is in ITS world.*
+⇒ ⭐ if **CGF** performs the save, brain state is preserved there and SimHost may drop all six;
+⛔ if **SimHost** performs it, dropping `BehaviorState`/`BrainBlackboard`/`Blackboard1024` **silently
+strips the brain tier from every saved scenario.**
+
+⇒ ⛔⛔ **`CE-259bf` cannot be built until that is settled** — ⭐ and it is an architect-shaped question
+*(scenario fidelity across nodes, large blast radius)*, not an implementation detail.
 
 #### ⭐⭐ WHAT THIS BUYS — **"can this node EVER own X?" becomes answerable statically**
 
