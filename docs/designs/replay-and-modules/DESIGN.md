@@ -465,6 +465,53 @@ public Action? AfterSeekCallback =>
 self-heals)*: **return `null` and say why**. ⛔ Do not leave a protection that reads as wired.
 📄 `CE-259ap`.
 
+#### 2.1k ⭐⭐⭐ THE OWNING DESIGN IS `mgmt-1/DESIGN.md` §8.10 — **found `2026-09-12`, via the architect relay**
+
+⛔⛔ **`R-129` MISS, recorded because it is the generic one:** this section reasoned about replay lifecycle
+for two days without finding its owning design. 📄 It is **`docs/designs/mgmt-1/DESIGN.md` §8.10
+"Distributed Entity Lifecycle During Replay"** *(+ §8.5)* — never opened by this session.
+⚠ The architect **mis-cited it** as `cgf-scn-3/DESIGN.md` §8.10, where the phrases do not appear; the
+substance was right and the path wrong, which is its measured failure mode.
+
+📐 **§8.10, verbatim:** *"`EntityHeader.LifecycleState` is part of the recorded chunk, so entities instantly
+materialise as `Active`; **the ELM pipeline is never invoked**."* · *"`GhostCreationSystem.BypassLifecycle =
+true` (set at `RunningReplay` entry) causes `CreateGhost()` to place new arrivals directly into
+`EntityLifecycle.Active`, bypassing `Ghost → Constructing → Active`. **`NetworkLifecycleSystemGroup.Enabled
+= false` ensures `LifecycleSystem`, `GhostPromotionSystem`, and `NetworkGatewaySystem` never run.**"*
+
+📐 **§8.5, the rationale:** *"if ELM were re-enabled between seeks, entities in-flight over DDS would stall
+in `Constructing` waiting for ACKs from a node that is only replaying recorded data, not executing live
+handshake logic."*
+
+| ⭐ what this settles | |
+|---|---|
+| ⭐⭐ **where the three names came from** | `NetworkLifecycleSystemGroup`'s summary was **quoting this design**, not inventing — §2.1a's *"the code is behind the design"* reading is confirmed at its source |
+| ⭐⭐⭐ **the intent is BYPASS, not gate** | the design's model is that during replay **lifecycle does not run at all** and entities materialise straight into `Active` |
+| 🔴 **and not one of the three mechanisms implements it** | the group holds only `GhostCreationSystem` *(empty `Execute`)* · `BypassLifecycle` is read by nobody · `LifecycleSystem` is a **direct** registration so `CheckTimeouts` runs every playback tick *(§2.1h)* |
+| ⇒ ⭐ **the fix is to IMPLEMENT §8.10** | ⛔ not to invent a policy. The design already ruled; the code never caught up |
+
+#### 2.1l ⭐⭐⭐ THE REWIND SEAM ALREADY EXISTS — **`PreviewStateBracket`, and `HN-018` is the same defect**
+
+⛔⛔ **Prior-art miss — the seam law fired again.** `FDP/Toolkits/Fdp.Toolkits/Orchestration/Preview/`
+carries **`IPreviewRewindable`** *(`Name` · `Capture()` · `Restore(object)`, opaque token per participant)*,
+**`PreviewStateBracket`** and **`PreviewParticipants`**, wired into `ReferencePreviewHandler`,
+`PreviewClusterOpHandler`, `CgfSubsystem`, `NodeBootstrapper` and `EditorSubsystem`, with rails
+*(`APreviewLeavesNoTraceTests`, `PreviewLeavesNoTraceRails`)*. ⇒ **the mechanism for putting non-repository
+state back after a rewind is BUILT — for the EDITOR PREVIEW trigger.**
+
+📐 `IPreviewRewindable`'s summary names **three** participants *(id allocator · `NetworkEntityMap` ·
+**`EntityLifecycleModule`'s pending queues**)*; `PreviewParticipants` says *"The THREE participants"* and
+**ships two**. ⭐⭐ **The ELM's absence is REASONED AND TRACKED, not silent** —
+`DESIGN_Deterministic_Network_Ids.md:306`: *"a non-empty queue cannot be restored by a plain copy — the keys
+are `Entity` handles the repo rewind invalidates, so a correct participant needs the **rewind's identity
+mapping, not a snapshot**. ⇒ a separate finding (**`HN-018`**), not a silent omission; the bracket takes a
+LIST precisely so it can be added."* 🔒 **`HN-018` is OPEN** *(tracker `:1179`, `RW-L`, `2026-08-24`)*.
+
+| ⭐⭐⭐ the consequence for this design | |
+|---|---|
+| ⭐⭐ **`HN-018` and `CE-259ap`/`CE-259ar` are ONE defect seen from TWO triggers** | ⛔ **do not design a separate replay-side mechanism** — extend the existing bracket's list |
+| ⭐⭐⭐ **and the design names the hard part, which VALIDATES the re-derive shape** | *"needs the rewind's identity mapping, not a snapshot"* ⇒ 🔒 **re-deriving from the recorded `LifecycleState` + `TkbIdentity` carries NO handles across the boundary, so the identity-mapping problem does not arise at all.** That is a stronger argument for re-derive than §2.1f made |
+
 #### 2.1h 🔴🔴🔴 THE ELM'S BOOKKEEPING IS NOT REWIND-SAFE, AND `CheckTimeouts` TURNS THAT INTO A DESTROY — **during playback, not just at resume** *(`2026-09-11`)*
 
 ⛔⛔ **§2.1f left the class-C fix at the RESUME boundary. That is too late**, and the user's framing is the

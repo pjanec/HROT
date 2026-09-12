@@ -147,7 +147,86 @@ anything that cannot be attributed to a named file will be discarded.
 
 ---
 
-## 7. What happens to the answers
+## 7. ✅ ANSWERS RECEIVED AND VERIFIED — `2026-09-12`
+
+⭐ Two asks relayed to notebook **`HROT - 279`**, project `simhost`, **no refresh** *(so neither this
+document nor `DESIGN.md` §2.1f–§2.1j was in the corpus)*. ⭐⭐ **Snapshot probe answered:**
+`CycloneNetworkModule.cs` **absent** from its sources, most recent changes dated **2026-09-09** ⇒ the
+snapshot is post-`AX-021` and current, so the errors below are **hallucination, not staleness**.
+
+### ⭐⭐⭐ 7.1 WHAT THE RELAY PAID FOR — **two things a local read would not have produced**
+
+| # | the find | verified |
+|---|---|---|
+| **①** | 🔴🔴 **`IPreviewRewindable` / `PreviewStateBracket` / `PreviewParticipants` EXIST** — `FDP/Toolkits/Fdp.Toolkits/Orchestration/Preview/`, wired into `ReferencePreviewHandler`, `PreviewClusterOpHandler`, `CgfSubsystem`, `NodeBootstrapper`, `EditorSubsystem`, with rails (`APreviewLeavesNoTraceTests`, `PreviewLeavesNoTraceRails`) | ✅ **TRUE** — files read |
+| **②** | 🔴🔴 **The owning design for replay lifecycle is `docs/designs/mgmt-1/DESIGN.md` §8.10 + §8.5** — a document this session had never opened | ✅ **TRUE in substance, MIS-CITED** — the architect attributed it to `docs/designs/cgf-scn-3/DESIGN.md` §8.10, where the phrases do **not** appear |
+
+#### ⭐⭐⭐ ① THE SEAM ALREADY EXISTS — and the ELM's absence from it is a FILED, OPEN ticket
+
+📐 `IPreviewRewindable`'s own summary: *"§2b enumerated **three** of them: the id allocator,
+`NetworkEntityMap` and **`EntityLifecycleModule`'s pending queues**."* 📐 `PreviewParticipants`'
+summary says *"The **THREE** participants §2b enumerated"* — ⛔ **and ships TWO** (`IdAllocator`,
+`EntityMap`/`EntityMapFromRepository`). **No ELM participant exists.**
+
+⭐⭐ **But that omission is REASONED and TRACKED, not silent** — `DESIGN_Deterministic_Network_Ids.md:306`,
+verbatim: entries are *"created and drained within a tick … at a preview boundary they are normally
+**empty**. ⚠ And a non-empty queue cannot be restored by a plain copy — the keys are `Entity` handles the
+repo rewind invalidates, so a correct participant needs the **rewind's identity mapping, not a snapshot**.
+⇒ a separate finding (`HN-018`), not a silent omission; the bracket takes a LIST precisely so it can be
+added."*
+
+🔒 **`HN-018` is OPEN** *(`Blueprint_Issues_Tracker.md:1179`, `RW-L`, filed `2026-08-24`)*.
+
+⇒ ⭐⭐⭐ **THE CONVERGENCE, and it is the most useful thing either ask produced:** `HN-018` *(the ELM is the
+third stale PREVIEW participant)* and `CE-259ap`/`CE-259ar` *(the ELM is not rewind-safe under REPLAY)* are
+**the same defect reached from the two triggers**. ⛔ **Do not design a separate replay-side mechanism** —
+`PreviewStateBracket` is the existing seam and its list is designed to be extended.
+⭐⭐ **And the design already names the hard part** — *"needs the rewind's identity mapping, not a
+snapshot"* — which is **exactly why re-deriving from the recorded `LifecycleState` + `TkbIdentity` is the
+right shape: it carries no handles across the boundary at all**, so the identity-mapping problem does not
+arise.
+
+#### ⭐⭐⭐ ② THE OWNING DESIGN FOR REPLAY LIFECYCLE — `mgmt-1/DESIGN.md` §8.10 / §8.5
+
+📐 **§8.10, verbatim:** *"`EntityHeader.LifecycleState` is part of the recorded chunk, so entities instantly
+materialise as `Active`; the ELM pipeline is never invoked."* … *"`GhostCreationSystem.BypassLifecycle =
+true` (set at `RunningReplay` entry) causes `CreateGhost()` to place new arrivals directly into
+`EntityLifecycle.Active`, bypassing `Ghost → Constructing → Active`. **`NetworkLifecycleSystemGroup.Enabled
+= false` ensures `LifecycleSystem`, `GhostPromotionSystem`, and `NetworkGatewaySystem` never run.**"*
+
+📐 **§8.5, the rationale:** *"if ELM were re-enabled between seeks, entities in-flight over DDS would stall
+in `Constructing` waiting for ACKs from a node that is only replaying recorded data, not executing live
+handshake logic."*
+
+⇒ ⭐⭐ **This is where the three names in `NetworkLifecycleSystemGroup`'s summary came from** — the comment
+was quoting this design, not inventing. ⭐⭐⭐ **And it is the INTENT the code does not implement:**
+the group holds only `GhostCreationSystem` (empty `Execute`); `BypassLifecycle` is read by nobody;
+`LifecycleSystem` is a **direct** registration so `CheckTimeouts` runs every playback tick (`CE-259ar`).
+🔒 **The design says the ELM never runs during replay; the code runs it every tick.**
+⇒ ⭐ **the fix is to IMPLEMENT §8.10, not to invent a policy.**
+
+### ⚠ 7.2 VERIFICATION LEDGER — **roughly 4 false, 6 mis-cited, 14 true across both asks**
+
+| claim | verdict |
+|---|---|
+| `NetworkGatewaySystem` is the **only** production system consuming `ConstructionOrder` and publishing `ConstructionAck`; `BlueprintApplicationSystem` consumes but does not ack | ✅ TRUE |
+| no production `RegisterRequirement` call sites; all ELM constructions pass empty | ✅ TRUE |
+| no replacement barrier introduced after `AX-021` | ✅ TRUE |
+| the preview framework and its three-vs-two participant gap; `HN-018` | ✅ TRUE |
+| `DESIGN_Entity_State_Sourcing.md`'s sourcing principle *(TKB or published `TransientLocal`)* | ✅ TRUE — it is `R-136` |
+| `DataPolicy.Transient` criterion *("UI caches, temporary buffers, debug metrics")* | ✅ TRUE |
+| 🔴 **"gateway registered in `NetworkLifecycleSystemGroup` in `NedReplicationModule.cs:470` and `BdcReplicationModule.cs:464`"** | 🔴 **FALSE** — `BdcReplicationModule.cs` is **92 lines**; `NedReplicationModule.cs:470` is a descriptor-ownership mapping; `grep NetworkGatewaySystem` on both returns nothing |
+| 🔴 **consumer `EntityLifecycleStatusTranslator`** | 🔴 **FALSE** — no such class. `EntityLifecycleStatusDescriptor.cs` is a **24-line DTO**, referenced by **nothing** ⇒ ⭐ a **third orphan** of the peer-ack feature |
+| 🔴 **`CycloneNetworkCleanupSystem` "registers with a `SeekCompleted` callback to clear `_trackedEntities`"** | 🔴 **FALSE AS BUILT** — measured `2026-09-11`: `AfterSeekCallback` is a **non-null empty lambda** whose only statement is a commented-out `ResetTracking()`, and `ResetTracking` exists in **zero** C# files (`CE-259aq`). ⚠ The architect read §3.10.4's **prescription** and stated it as built |
+| 🔴 **`ShouldBeReliable(order.TypeId)` in the ELM implementation spec** | 🔴 **NOT FOUND** ⇒ the "older type-level position vs newer request-level" framing is **unsupported**; only the request-level side is attested (`Q65` §5.5 ✅, `CE-143` ✅) |
+| `PendingNetworkAck` in `NetworkOwnership.cs` · `CreateEntityRequestSystem.cs:451` · `EntityLifecycleInterfaces.cs:458` · `NetworkGatewaySystem.cs:98` · `StagingEntityExtractor` folder · `cgf-scn-3 §8.10` | ⚠ **substance true, citations wrong** — actually `NetworkComponents.cs:39` · ownership-grant code at `:451` · `:92-93` · `:88` · `Hrot/Subsystems/Hrot.CGF/Orchestration/` · `docs/designs/mgmt-1/DESIGN.md` |
+
+⛔⛔ **THE LESSON, MEASURED TWICE:** the architect is **reliable on WHERE TO LOOK and on DESIGN INTENT**, and
+**unreliable on LINE NUMBERS, FILE PATHS and WHETHER A PRESCRIPTION WAS BUILT.** ⚠ Its two most confident
+claims — the gateway's registration sites, and the `SeekCompleted` callback — were **both false, and both
+would have overturned a correct local measurement**. 🔒 **Rule 3 of the procedure is not ceremony.**
+
+## 8. What happens to the answers
 
 ⭐ Per `CLAUDE.md`'s three non-negotiables: a relayed answer is **one input** to the joint working session —
 ⛔ never a ruling, and never a reason to start building. 🔒 **The user decides.** ⭐ Answers will be folded
