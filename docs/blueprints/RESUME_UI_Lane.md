@@ -69,9 +69,18 @@ current-answer: ⚠⚠ THERE ARE NOW **THREE** LIVE STRANDS ON THIS LANE. Read t
       ⚠ HONEST SCOPE: the live double-tick §3.5 describes may not exist today — all six systems come from
       CgfLogicPack, used only by CGF and the Editor, and the Editor is offline so it gets no ghosts. The
       gate is what makes the design non-cosmetic for multi-Brain / all-in-one / R-138 Muscle-runs-brains.
-      ⛔ STEP 3b's HALF (a) IS NOT DONE and is now a DECISION for the user — CE-259bf. Narrowing SimHost's
-      CognitiveComponentRegistry would remove its ability to run brains, colliding with R-138 and the
-      2026-08-31 "no removing capabilities by design" ruling. LEAN: do not narrow; (b) is the universal fix.
+      ✅ STEP 3b's HALF (a) IS RESOLVED 2026-09-12 (CE-259bf closed). User ruling: SimHost is DEFINED as
+      never-Brain, so my "it removes a capability" objection was withdrawn — R-138 was the wrong rule.
+      The user also said the gate is preferable if it unifies across hosts, and it does. Re-measurement:
+      SimHost runs ZERO cognitive systems (they all come from CgfLogicPack = CGF + Editor), so there is
+      nothing to narrow FOR; and SimHost READS BehaviorState at 11 sites — SimHostVisualization.cs:385
+      uses it to decide whether an operator's right-click routes through the MISSION machinery or bypasses
+      it, so un-registering would silently turn every order into a direct move fighting the brain.
+      ⇒ THE GATE IS THE UNIFIED MECHANISM AND IS SHIPPED. Narrowing is not needed for correctness.
+      ⚠ If ever wanted for MEMORY (MAX_COMPONENT_TYPES is 512), it needs a per-component check against the
+      systems SimHost SCHEDULES — not references in its own assembly — and BehaviorState must stay.
+      📌 StrideNodeBootstrapper.cs:304's "SimHost registers them, that is debt" note is INCOMPLETE: the
+      debt is the brain INTERNALS, not BehaviorState. Correct it when next touching that file.
       ⭐⭐⭐ NEXT: STEP 4 — hand CGF a Brain policy and SimHost a Muscle policy at their composition roots
       (SimHostApp.DefaultRole / CgfSubsystem.DefaultRole), each with a SingleNodePerRoleShardProvider over
       the role that host already declares, AND set gateOnAuthority: true in the same change (see ① above).

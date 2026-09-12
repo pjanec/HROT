@@ -1,7 +1,7 @@
 <!--STATUS
 state: LIVE
 updated: 2026-09-12
-build-state: BUILDING — steps 0a, 0, 1a, 1, 2, 3 and 3b(b) done. ⛔ NOT BUILT: step 4 supplies no policy yet, so every node still runs null; 3b(a) is an open capability QUESTION. ⛔ NOT "BUILT": open-risk below still binds (§3.5 / step 3b).
+build-state: BUILDING — steps 0a, 0, 1a, 1, 2, 3 and 3b(b) done. ⛔ NOT BUILT: step 4 supplies no policy yet, so every node still runs null; 3b(a) is RESOLVED — the gate is the unified mechanism, narrowing not needed (§6f). ⛔ NOT "BUILT": open-risk below still binds (§3.5 / step 3b).
 verified: ⭐⭐ THE WHOLE DESIGN WAS RE-MEASURED AGAINST THE TREE ON 2026-09-12 before step 0 was built
   (user: "verify design before, might be stale"). VERDICT: every DECISION holds and nothing load-bearing
   is stale — the six unbuilt types are still at ZERO .cs occurrences, the blanket grant is byte-identical,
@@ -47,9 +47,11 @@ current-answer: §3 is the design; §4 carries the UML; §6 is the sequencing; �
   the gate is CONDITIONAL (§6's own ordering would have broken the cluster — an unconditional filter makes
   a node stop processing every entity it did not create, because a promoted ghost owns nothing), and it
   covers SIX systems rather than §3.5's two, each gated on a component it ALREADY required.
-  ⛔⛔ Steps 3c and 4 remain unbuilt, and 3b's half (a) — narrowing the Muscle registration — is now an
-  open CAPABILITY QUESTION for the user, not a task: it would remove SimHost's ability to run brains,
-  colliding with R-138 and the 2026-08-31 "no removing capabilities by design" ruling. ⚠⚠ CORRECTION 2026-09-12 (user challenge: "what actually
+  ✅ 3b's half (a) is RESOLVED 2026-09-12 by user ruling + re-measurement: the GATE is the unified
+  mechanism and narrowing SimHost is NOT needed for correctness. SimHost runs ZERO cognitive systems, so
+  there is nothing to narrow for; and it READS BehaviorState at 11 sites to decide whether an operator's
+  order routes through the mission machinery, so dropping it would break that silently. §6f has the
+  measurement. ⛔⛔ Steps 3c and 4 remain unbuilt. ⚠⚠ CORRECTION 2026-09-12 (user challenge: "what actually
   blocks step 2?"): an earlier version of this block said STEP 2 IS BLOCKED on CE-259az. THAT WAS WRONG —
   the blocker was attached to the wrong step. Step 2 injects no policy (its own gate: "with no policy the
   mask is unchanged"), so it is INERT by construction and free to ship. CE-259az gates STEP 4, where
@@ -870,16 +872,40 @@ implied: no production host runs these systems without being a Brain, and the Ed
 makes the design non-cosmetic **for the multi-Brain, all-in-one and `R-138` Muscle-runs-brains cases** —
 ⛔ but it is **not** repairing a defect measured in today's cluster.
 
-### ⛔⛔ WHAT IS NOT DONE — **§3.5's half (a), and it is a QUESTION now, not a task**
+### ✅ §3.5's HALF (a) — **RESOLVED `2026-09-12`: the GATE is the unified mechanism; narrowing is not needed**
 
-⛔ §3.5's PRIMARY closure is *"narrow a Muscle-only node's `CognitiveComponentRegistry` so brain components
-are never registered."* **Not done, deliberately.** 📐 `Hrot.SimHost/CognitiveComponentRegistry.cs:32+`
-registers 14 cognitive components, and narrowing it would **remove SimHost's ability to run brains at
-all**. ⚠ That collides head-on with two standing rulings — `R-138` *(every ECS node can create entities;
-fully distributed)* and the `2026-08-31` ruling *"no exceptions, not removing capabilities by design"*.
-⇒ 🔒 **it is a capability decision for the user, not an implementation detail**, and §3.5 itself concedes
-(a) is insufficient without (b) anyway. ⭐ **(b), shipped here, is the universal fix**; (a) would be
-defence-in-depth bought with a capability.
+> 🔒 **User ruling, verbatim:** *"only brain role runs cognitive syatem and simhost was never a brain and
+> nevwr will be, it is a definiton of simhost node that it is nuscel perception and navigation but not
+> brain. narrowing is correct there. if it can be achieved by gate and become unified across host, ok, no
+> problem, even better."*
+
+⛔ **An earlier version of this subsection objected that narrowing would *"remove SimHost's ability to run
+brains"*, citing `R-138`. That objection is WITHDRAWN** — SimHost is **defined** as never-Brain, so there
+is no simulation capability at stake and `R-138` was the wrong rule to reach for.
+
+⭐⭐ **And the precedent already exists:** `StrideNodeBootstrapper.cs:304-312` excludes
+`CognitiveComponentRegistry` deliberately, citing this design and this ruling, and calls SimHost's
+registration *"debt"* it refuses to import.
+
+📐 **But the re-measurement found the real obstacle, and it is an OPERATOR concern, not a capability one:**
+
+| | |
+|---|---|
+| ⭐⭐⭐ **SimHost runs ZERO cognitive systems** | `CognitiveRuntimeModule` / `MissionControlModule` come only from `CgfLogicPack` *(CGF + Editor)*; SimHost's only mentions are doc comments. ⇒ **the execution concern on SimHost is already zero — there is nothing to narrow FOR** |
+| 🔴 **SimHost READS `BehaviorState` at 11 sites** | `SimHostVisualization.cs:385`'s `brainActive` decides whether an operator's right-click **routes through the MISSION machinery or BYPASSES it**. ⇒ un-registering it makes every entity look brain-dead, so an operator order becomes a direct move **fighting the brain that owns the entity** — silently |
+| ⚠ **nine of the fourteen look unreferenced — and that is NOT enough to drop them** | the count is over `Hrot.SimHost` only, and a component must be REGISTERED for systems from ANY assembly to use it. SimHost schedules systems out of `Fdp.Toolkits` |
+
+⇒ ⭐⭐⭐ **The gate is the unified answer the ruling asked for, and it is shipped.** It protects exactly the
+hosts that DO run cognitive systems, uniformly, and covers the all-in-one case narrowing cannot reach.
+⛔ **Narrowing SimHost is not needed for correctness**, and it is a smaller, different change than §3.5
+implies — because **SimHost is not a headless Muscle node**; it carries an operator surface that reads
+brain state.
+
+⚠ **If narrowing is still wanted for MEMORY** *(`MAX_COMPONENT_TYPES` is 512, a real budget)*, it needs a
+per-component check against the systems SimHost **SCHEDULES**, not against references in its own
+assembly — and **`BehaviorState` must stay**. 📌 `StrideNodeBootstrapper`'s *"SimHost registers them, that
+is debt"* note is therefore **INCOMPLETE**: the registration is debt for the brain INTERNALS, not for
+`BehaviorState`.
 
 ---
 
