@@ -1147,7 +1147,47 @@ auto-assigned** ⇒ a move can silently renumber a component in tests but not in
 `MissionPlanQueue`, `ActorCapabilityState` — ⇒ **their ids are fixed regardless of order and the hazard
 cannot bite.** ⛔ **A future slice that moves an UN-attributed type must re-run this check.**
 
-### 🔴 WHAT BLOCKS SLICE 3 — **two groups have no honest existing home**
+### ✅ SLICE 3a — **the two cross-role sets get their own homes** *(the blocker below is CLOSED)*
+
+| new registry | holds | ⭐ why its own file, not a line in an existing one |
+|---|---|---|
+| `EmbarkationComponentRegistry` | `PassengerBuffer` · `IsEmbarkedTag` · `EmbarkEntityCommand` · `DisembarkEntityCommand` | embarkation spans **SimHost** *(`GenesisMaterializationSystem`)*, the **Brain** *(`EmbarkExecutor`/`EjectPassengersExecutor`)* and the **Editor** *(`EditorCargoSystem`)* ⇒ it belongs to no single role. ⛔ `GenesisIntentRegistry` is the nearest NAME and is wrong — it holds scenario-load INTENT DTOs; these are the RUNTIME components those intents materialise into |
+| `BehaviorDiagnosticsComponentRegistry` | `DebugState` · `PatchDebugStateCommand` | ⭐ SimHost's **own** `ToggleAiTrace` action writes them *(`SimHostApp.cs:443`)* — a node with no brain still records the operator's request |
+
+⚠⚠ **The COMMANDS travel with their components, deliberately.**
+`FdpConfig.EnforceExplicitEventRegistration` makes an unregistered publish **THROW** ⇒ splitting an event
+from the state it mutates would convert a registry omission into a **runtime crash on whichever host
+publishes first**. ⛔ That is a different and worse failure than the silent-absence one the component rails
+guard.
+
+⛔ **The trace RING BUFFERS deliberately stay in the Brain's registry** — written only by
+`TraceBufferLifecycleSystem` *(Brain)*, and their SimHost readers are extract-only translators whose
+`CanTranslate` also demands `BehaviorState` ⇒ on a brainless node they can never populate or dump.
+
+### ✅ AND THE LAST SLICE-3b BLOCKER IS MEASURED AWAY — **SimHost publishes NO Brain event**
+
+📐 **Measured `2026-09-12`:** of the six events still in the Brain's registry — `CognitiveInterruptEvent`,
+`ClearBehaviorEvent`, `BehaviorFinishedEvent`, `AssignBehaviorHashEvent`, `AssignTacticalIntentEvent`,
+`AssignBehaviorEvent` — **not one is referenced anywhere in `Hrot.SimHost` except the registry line
+itself.**
+
+⚠ **The obvious objection, checked rather than waved away:** `BD1-DESIGN.md` says
+`Hrot.SimHost.Systems.MissionControlRequestSystem` publishes `ClearBehaviorEvent` on `CMD_ABORT_ALL`.
+🔴 **That class does not exist** — the only matches are a TEST named after it and stale doc-comments in
+`ClearBehaviorEvent.cs:13` and `BehaviorIngressSystem.cs:175`. ⇒ the same BD1-half that `CE-259bg` found
+missing. ⭐ So dropping those events from SimHost cannot throw.
+
+### ⛔ WHAT SLICE 3b STILL COSTS — **and it is the FIRST non-behaviour-preserving step**
+
+⚠ Every slice so far has been provably behaviour-preserving. ⛔ **3b is not**: SimHost stops calling
+`CognitiveComponentRegistry`, so **ten components stop existing there** — and one has a live consumer:
+
+| ⭐ the cost | |
+|---|---|
+| 🔴 `AiTraceContextMenu.cs:26` gates `ToggleAiTrace` on `HasComponent<BehaviorState>` | ⇒ **the SimHost menu item silently stops appearing.** ⚠ It was already meaningless — toggling a brain's trace on a node with no brain — and it is the SAME wrong-node defect as `CE-259bg`'s `brainActive`, ⛔ but the disappearance is a visible behaviour change and belongs to a decision, not to a refactor |
+| ⭐ the brain-state clipboard dump stops on SimHost | ⭐ already named as an accepted cost in §3.9a |
+
+### ⛔ HISTORY — **the slice-3 blocker as it stood before 3a** *(CLOSED `2026-09-12`)*
 
 ⛔ SimHost cannot stop calling the Brain's registry until these have somewhere to live that **both** hosts
 compose:

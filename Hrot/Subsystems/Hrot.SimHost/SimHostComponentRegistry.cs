@@ -22,6 +22,10 @@ public static class SimHostComponentRegistry
         //   (design §3.9a). This is the Perception half, extracted 2026-09-12 from
         //   CognitiveComponentRegistry where it was mislabelled "Brain-tier".
         PerceptionRoleComponentRegistry.RegisterAll(world);
+        // ⭐ Cross-role sets extracted 2026-09-12 from CognitiveComponentRegistry (CE-259bf slice 3a).
+        //   ⚠ BOTH hosts call them, so each host's registered set is unchanged by the move.
+        EmbarkationComponentRegistry.RegisterAll(world);
+        BehaviorDiagnosticsComponentRegistry.RegisterAll(world);
         CombatComponentRegistry.RegisterAll(world);
 
         MissionComponentRegistry.RegisterAll(world);

@@ -172,6 +172,62 @@ namespace Hrot.SimHost.Tests
             Assert.Null(Record.Exception(() => world.GetComponentTable<PreviousCapabilities>()));
         }
 
+        // ── CE-259bf slice 3a: the two CROSS-ROLE sets get their own homes ────────────
+
+        [Fact]
+        public void EmbarkationComponentRegistry_RegistersTheEmbarkationState()
+        {
+            using var world = new EntityRepository();
+            EmbarkationComponentRegistry.RegisterAll(world);
+
+            Assert.Null(Record.Exception(() => world.GetComponentTable<PassengerBuffer>()));
+            Assert.Null(Record.Exception(() => world.GetComponentTable<IsEmbarkedTag>()));
+        }
+
+        [Fact]
+        public void BehaviorDiagnosticsComponentRegistry_RegistersDebugState()
+        {
+            using var world = new EntityRepository();
+            BehaviorDiagnosticsComponentRegistry.RegisterAll(world);
+
+            Assert.Null(Record.Exception(() => world.GetComponentTable<Fdp.Toolkit.Behavior.Diagnostics.DebugState>()));
+        }
+
+        /// <summary>
+        /// ⭐⭐⭐ <b>The behaviour-preserving claim for slice 3a, on the HOST.</b>
+        ///
+        /// <para>⛔⛔ <c>DebugState</c> is the one with a live SimHost writer — its own <c>ToggleAiTrace</c>
+        /// action (<c>SimHostApp.cs:443</c>). ⚠ And the embark/disembark COMMANDS moved with their
+        /// components deliberately: <c>EnforceExplicitEventRegistration</c> turns an unregistered publish
+        /// into a THROW, so a half-move would convert a registry omission into a runtime crash.</para>
+        /// </summary>
+        [Fact]
+        public void SimHostComponentRegistry_StillRegistersTheCrossRoleSets()
+        {
+            using var world = new EntityRepository();
+            SimHostComponentRegistry.RegisterAll(world);
+
+            Assert.Null(Record.Exception(() => world.GetComponentTable<PassengerBuffer>()));
+            Assert.Null(Record.Exception(() => world.GetComponentTable<IsEmbarkedTag>()));
+            Assert.Null(Record.Exception(() => world.GetComponentTable<Fdp.Toolkit.Behavior.Diagnostics.DebugState>()));
+        }
+
+        /// <summary>
+        /// ⚠ The ring buffers must NOT have moved with <c>DebugState</c>: they are written only by
+        /// <c>TraceBufferLifecycleSystem</c> (Brain) and their SimHost readers are extract-only
+        /// translators gated on <c>BehaviorState</c> (design §3.9a).
+        /// </summary>
+        [Fact]
+        public void CognitiveComponentRegistry_KeepsTheTraceRingBuffers_ButNotDebugState()
+        {
+            using var world = new EntityRepository();
+            CognitiveComponentRegistry.RegisterAll(world);
+
+            Assert.Null(Record.Exception(() => world.GetComponentTable<Fdp.Toolkit.Behavior.Diagnostics.BTreeTraceWorkingMemory1024>()));
+            Assert.ThrowsAny<System.Exception>(
+                () => world.GetComponentTable<Fdp.Toolkit.Behavior.Diagnostics.DebugState>());
+        }
+
         // ── KinematicComponentRegistry ────────────────────────────────────────
 
         [Fact]

@@ -49,8 +49,9 @@ namespace Hrot.SimHost
             //   already lives there, and MissionPlanQueue is the same tier's queue. SimHost READS it:
             //   EntityMissionIngressTranslator writes it over the wire and MissionPlanTranslator
             //   persists it (design §3.9a).
-            world.RegisterComponent<PassengerBuffer>();
-            world.RegisterComponent<IsEmbarkedTag>();
+            // ⭐ MOVED 2026-09-12 to EmbarkationComponentRegistry (CE-259bf slice 3a): embarkation
+            //   runtime state spans SimHost (GenesisMaterializationSystem), the Brain (EmbarkExecutor)
+            //   and the Editor (EditorCargoSystem) — it belongs to no single role and was parked here.
 
             // CQRS navigation command — written by the Brain tier (MoveToExecutor)
             // and read by the Muscle tier (NavigationIntentBridgeSystem).
@@ -58,14 +59,15 @@ namespace Hrot.SimHost
 
             // BTree/HSM diagnostic tracing — opt-in 1024-byte ring buffers per entity,
             // plus the generic transient DebugState driving them, and the patch event.
+            // ⚠ The ring buffers STAY: written only by TraceBufferLifecycleSystem (Brain), and their
+            //   SimHost readers are extract-only translators gated on BehaviorState (design §3.9a).
             world.RegisterComponent<BTreeTraceWorkingMemory1024>();
             world.RegisterComponent<HsmTraceWorkingMemory1024>();
-            world.RegisterComponent<DebugState>();
-            world.RegisterManagedEvent<PatchDebugStateCommand>();
+            // ⭐ DebugState + PatchDebugStateCommand MOVED 2026-09-12 to
+            //   BehaviorDiagnosticsComponentRegistry — SimHost's OWN ToggleAiTrace action writes them.
 
             // Embarkation commands (edit-1/EDIT1-E001)
-            world.RegisterEvent<EmbarkEntityCommand>();
-            world.RegisterEvent<DisembarkEntityCommand>();
+            // ⭐ Embark/Disembark commands MOVED with their components (see above).
             world.RegisterEvent<CognitiveInterruptEvent>();
             world.RegisterEvent<ClearBehaviorEvent>();
             world.RegisterEvent<BehaviorFinishedEvent>();

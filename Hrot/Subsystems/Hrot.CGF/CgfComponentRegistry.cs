@@ -21,6 +21,10 @@ public static class CgfComponentRegistry
         // ⚠ Whether CGF actually NEEDS Perception is a separate question with its own evidence —
         //   ⛔ do not drop this line as "obvious cleanup" without measuring what CGF schedules.
         PerceptionRoleComponentRegistry.RegisterAll(world);
+        // ⭐ Cross-role sets extracted 2026-09-12 from CognitiveComponentRegistry (CE-259bf slice 3a).
+        //   ⚠ BOTH hosts call them, so each host's registered set is unchanged by the move.
+        EmbarkationComponentRegistry.RegisterAll(world);
+        BehaviorDiagnosticsComponentRegistry.RegisterAll(world);
         HierarchyComponentRegistry.RegisterAll(world);
 
         KinematicComponentRegistry.RegisterAll(world);
