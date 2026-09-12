@@ -692,6 +692,53 @@ become the single source of truth anyway *(step 4)*, keeping a hand-written regi
 duplicate-producer shape `R-132` warns about ⇒ then generating registration FROM the mask is the
 consistent answer, and the audit becomes redundant rather than complementary.
 
+#### 🔴🔴🔴 ID-DRIVEN REGISTRATION IS ALREADY BUILT AND RUNNING IN PRODUCTION — **`RecordingExportService`** *(measured `2026-09-12`)*
+
+> 🔒 **User:** *"how do hosts define their component masks, do they at all? if they do, nothing prevents
+> the component mask to drive the registration, right? can we do it?"*
+
+⭐⭐⭐ **`FDP/Toolkits/Fdp.Toolkits/ReplayBrowser/RecordingExportService.cs:815-850` does the WHOLE mechanism
+already**, and it is the seam law again — the thing I said had to be built exists and is under-adopted:
+
+| step | ⭐ the existing code |
+|---|---|
+| **①** build id→`Type` **without registering anything** | scans loaded types, `if (type.GetCustomAttributes(typeof(ComponentIdAttribute), false).Length == 0) continue;` → `ComponentTypeRegistry.GetOrRegisterManaged(type)` |
+| **②** find the generic entry point | reflects `EntityRepository`'s *"single public generic instance method named `RegisterComponent` with exactly one parameter"* and caches the `MethodInfo` *(`RecordingSearchService.cs:20` caches the same handle)* |
+| **③** ⭐⭐ **register BY ID** | `foreach (int typeId in ComponentTypeRegistry.GetAllTypeIds()) { Type? type = ComponentTypeRegistry.GetType(typeId); registerMethod.MakeGenericMethod(type).Invoke(repo, new object?[] { null }); }` |
+
+⇒ ⭐⭐⭐ **A mask-driven registrar is THAT LOOP WITH ONE LINE ADDED — `if (!mask.IsSet(typeId)) continue;`.**
+⛔⛔ **So "a `BitMask512` cannot drive `RegisterComponent<T>()`" was wrong twice: the id→`Type` map exists
+AND the id-driven registration loop exists.**
+
+#### 📐 DO HOSTS DEFINE COMPONENT MASKS TODAY? — **NO. Not one.**
+
+| | measured |
+|---|---|
+| ⛔ **no host declares a component set** | registration is **273 `RegisterComponent<T>` + 26 `RegisterManagedComponent<T>`** call sites across **46 production files**, composed by hand into the host registries of §3.9b |
+| ⚠ every `BitMask512` in the host projects is **per-TRANSLATOR**, not per-host | `GetConsumedComponentsMask()` on each `IEntityScenarioTranslator`; CGF's one static mask is `StagingEntityExtractor.BuildStaticMask()` — a save-time EXCLUSION mask |
+| ⭐ **but id-SETS already drive engine behaviour** | `ComponentTypeRegistry.GetSaveableTypeIds()` · `GetRecordableTypeIds()` · `GetSnapshotableTypeIds()` — per-type policy, consumed as id sets. ⇒ the pattern is native here, not foreign |
+
+#### ⭐⭐⭐ THE INSIGHT THAT DECIDES THE SHAPE — **a role mask is AUTHORED IN TYPES, so one artefact can serve both**
+
+⚠ A `BitMask512` is not hand-authored as bit numbers — it is built as `mask.SetBit(ComponentType<T>.ID)`.
+⇒ ⭐⭐ **the role's "mask" IS a typed list.** So the choice is not *"types vs ids"*; it is **whether ONE
+typed role manifest produces BOTH the registration and the authority mask, or whether two hand-kept lists
+are expected to agree.**
+
+⇒ 🔒 **Deriving registration FROM the mask makes `REGISTER = ownedComponentSet ∪ readComponentSet` TRUE BY
+CONSTRUCTION** rather than true by review — ⛔ and two hand-kept lists for one fact is exactly the
+two-producers shape `R-132` warns about, which is how SimHost came to register the brain tier in the first
+place.
+
+#### ⚠⚠ WHAT A COMPONENT MASK CANNOT DO — **the scope limit, measured**
+
+| ⛔ | |
+|---|---|
+| ⛔⛔ **EVENTS ARE NOT COMPONENTS** | the registries also carry **116 `RegisterEvent<T>` + 23 `RegisterManagedEvent<T>`**. `ComponentTypeRegistry` ids are COMPONENT ids ⇒ **a component mask cannot express an event**. ⭐ The role registries therefore do not vanish; they shrink to *events + host extras* |
+| ⚠ **`DataPolicy` override** | `RegisterComponent<T>(DataPolicy? policyOverride = null)` — the existing reflection path passes `null`, and 📐 the only production call passing a policy is in `FDP/Examples` ⇒ **not a blocker**, but a mask carries no policy and that must be said out loud |
+| ⚠ **explicit ids must hold** | the scan skips types without `[ComponentId]`. ⭐ `FdpConfig.EnforceExplicitComponentIds` is set `true` in production entry points ⇒ complete THERE; ⛔ tests run with it `false`, so a mask-driven path is production-shaped and tests keep the explicit calls |
+| 🔴🔴 **the existing loop SWALLOWS failures** | *"Skip types that cannot be registered"* — a bare `catch`. ⛔ **A production registrar must NOT inherit that.** A DECLARED bit that fails to register is a configuration error and must throw or log loudly: a silently-skipped role component is precisely the silent-default family this codebase keeps producing |
+
 #### ⚠⚠ AND THE SAME QUESTION FOR THE LOGIC PACKS — **role in intent, host in fact, citing a type that does not exist**
 
 | pack | what its OWN doc-comment says | ⛔ measured |
