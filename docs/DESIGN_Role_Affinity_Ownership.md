@@ -731,9 +731,13 @@ already built on.** ⭐ Three shapes are available, and the choice is about chec
 | **(b)** a `Dictionary<int, Action<EntityRepository>>` primed at type-init | ⭐ no reflection at the CALL site — the same cached-delegate trick `UnsafeShim` uses. ⚠ chicken-and-egg: the delegate exists only once `ComponentType<T>` has been touched, so something must still prime it once |
 | **(c)** ⭐⭐ **a generated `switch (id) { case N: repo.RegisterComponent<Foo>(); … }`** | ⭐ fully native, **compile-time checked**, and this repo already generates code. ⛔ needs a generator step and regenerates on every new component |
 
-⭐ **Lean: (a) to start** — it is the existing production path and costs nothing new — ⚠ **with the bare
-`catch` removed** *(see the scope-limit table above)*. ⭐ **(c) if the registration set ever becomes the
-single source of truth**, because then a missing case is a compile error rather than a boot warning.
+✅✅ **RULED `2026-09-12` (user): SHAPE (a).** 🔒 *"lets do (a)."* ⇒ ⭐ the by-id registrar reuses the
+existing production path — reflect the generic `RegisterComponent`, resolve `ComponentTypeRegistry.GetType(id)`,
+`MakeGenericMethod(...).Invoke(...)` — ⛔ **with the bare `catch` REMOVED**: a DECLARED role bit that fails
+to register is a configuration error and must be loud *(see the scope-limit table above)*.
+⚠ **(c) stays the documented upgrade path**, not a rejected option: if the registration set ever becomes
+the single source of truth, a generated `switch` turns a missing entry into a COMPILE error instead of a
+boot warning. ⛔ Do not treat that as settled against — it is sequenced behind, not dismissed.
 
 #### 📐 DO HOSTS DEFINE COMPONENT MASKS TODAY? — **NO. Not one.**
 

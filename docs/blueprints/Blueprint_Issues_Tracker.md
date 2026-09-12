@@ -16,6 +16,23 @@ rail, a signature change) · `RW-L` = real work, low (≲150 lines) · `RW-M` = 
 / some design) · `RW-H` = real work, high (new subsystem or architect decision first).
 🔴 = correctness/data-loss issue, not an enhancement.
 
+> ### ⛔⛔ ID ALLOCATION — **PLAIN INCREMENTING NUMBERS. ⛔ NO LETTER SUFFIXES** *(user, `2026-09-12`)*
+>
+> 🔒 **User:** *"why are you using `CE-259{xy}`, can't we incrementing the number?"*
+>
+> 📐 **Measured, and the suffix turned out to encode NOTHING.** **63** rows are numbered `CE-259a` …
+> `CE-259bm`, but **`CE-259` itself is *"`UXI-07` steps 2+3: every tool arms through the one arbiter"*** —
+> a tool-arbiter item with no relationship to the entity-creation / role-affinity work hanging off it.
+> ⛔ And the number space was never exhausted: **`CE-260`, `CE-261` and `CE-262` are already in use** by
+> later, unrelated rows. ⇒ ⚠ **the suffixes are accidental, not a parent/child convention**, and they read
+> badly — *"`CE-259bm`"* is hard to say, hard to search and hard to quote on a phone.
+>
+> | ⭐ the rule | |
+> |---|---|
+> | ⭐⭐⭐ **allocate the NEXT FREE PLAIN NUMBER** | the next free is **`CE-263`** *(as of `2026-09-12`)*. ⛔ Never `CE-263a` |
+> | ⛔ **do NOT renumber the existing 63** | ⚠ they are cited from design docs, commit messages and reports; an id is a stable handle, and rewriting them would break every reference to buy tidiness. ⭐ They stay as historical spellings |
+> | ⭐ **grouping belongs in PROSE, not in the id** | a row says *"part of the role-affinity programme"*; ⛔ the number does not try to |
+
 > ⚠⚠ **`RW-S` was MISSING from this legend until `2026-08-27` while being used on 95 rows** *(since the
 > Batch-60 era, across `CE-` · `HN-` · `AX-` · `MA-` and one `BP-`)*. ⭐ Documented here to match practice.
 > ⛔ **It is still absent from `scripts/tracker-counts.py`'s `ORDER`**, so a `BP-` row tagged `RW-S` buckets
