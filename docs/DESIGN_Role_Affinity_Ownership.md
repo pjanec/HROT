@@ -1177,7 +1177,42 @@ itself.**
 `ClearBehaviorEvent.cs:13` and `BehaviorIngressSystem.cs:175`. ⇒ the same BD1-half that `CE-259bg` found
 missing. ⭐ So dropping those events from SimHost cannot throw.
 
-### ⛔ WHAT SLICE 3b STILL COSTS — **and it is the FIRST non-behaviour-preserving step**
+### 📐 WHAT SLICE 3b ACTUALLY COSTS — **MEASURED per component, `2026-09-12`** *(user: "is that really just about one single menu item?")*
+
+⛔⛔ **An earlier version of this section said "ten components, one live consumer — a menu item." BOTH
+numbers were wrong.** ⭐ The registry holds **13 components + 6 events** after slices 1–3a, and the honest
+answer is that the loss is the **SimHost half of the AI-TRACE / diagnostics feature**, not one item.
+
+| what SimHost loses | consumer | ⭐ verdict |
+|---|---|---|
+| ⛔ `SimTier` · `LocomotionChannel` · `WeaponChannel` · `InteractionChannel` · `PreviousCapabilities` · `BrainBTreeState` · `BrainHsm64` | **NONE** — zero references in `Hrot.SimHost` | ✅ free |
+| ⚠ `BrainHsm128` | `Modules/CombatModule.cs` — ⭐ **a DOC-COMMENT only**, saying `HsmDamageBridgeSystem` was RELOCATED to the Brain | ✅ free |
+| 🔴 `BehaviorState` | `AiTraceContextMenu.cs:26` gates `ToggleAiTrace` on it ⇒ **the toggle silently no-ops** · 4 scenario translators use it as their `CanTranslate` gate · `SimHostVisualization`'s **dead** `HandleRightClickForEntity` | ⚠ the real cost |
+| 🔴 `BTreeTraceWorkingMemory1024` · `HsmTraceWorkingMemory1024` | **`AiDiagnosticsTkbTranslator.cs:47-58` STAMPS them on every SimHost spawn** *(guarded by `IsComponentTypeRegistered`, so it silently skips)* — plus their two dump translators | ⚠ the real cost |
+| 🔴 `BrainBlackboard` · `Blackboard1024` | their two **extract-only** clipboard-dump translators | ⚠ the real cost |
+| ⛔ all **6 events** | **NONE** | ✅ free |
+
+⇒ ⭐⭐⭐ **The loss is exactly ONE FEATURE, in four places: AI-trace on SimHost** — the menu toggle, the
+per-spawn buffer stamping, and the brain-state clipboard dumps.
+
+#### ⭐⭐ AND EVERY PART OF IT IS ALREADY INERT THERE — **three independent sources**
+
+| 📐 | |
+|---|---|
+| **①** | `SimHostCoreLogicPack`'s own summary: it groups the **Muscle-tier** modules *"for the `MuscleGround` role"* |
+| **②** | `SimHostCapabilities` registers `EqsModule`, the navigation module and `CognitiveSpatialModule` *(spatial PERCEPTION despite the name)* — ⛔ **no `CgfLogicPack`, no `CognitiveRuntimeModule`, no `MissionControlModule`** |
+| **③** | `StrideNodeBootstrapper.cs:304-312` already EXCLUDES this very registry, in those words: *"This node has no brain systems (no `BTreeTickSystem`, no `TacticalIntentResolutionSystem` — both are CGF's)"* |
+
+⇒ 🔒 **nothing on SimHost ever WRITES a trace buffer** *(`TraceBufferLifecycleSystem` is the Brain's)* and
+nothing ticks a tree ⇒ **the buffers stamped there are always empty and the dumps always dump nothing.**
+⭐⭐ So slice 3b does not remove a working feature — **it removes the SCAFFOLDING of a feature that cannot
+work on this node**, which is the `CE-259bg` `brainActive` defect in another costume.
+
+⚠⚠ **The one stale INTENT to retire with it:** `SimHostScenarioManager`'s header claims each spawned entity
+carries `BehaviorState` + `BrainBlackboard` *"so the BTree cognitive tier drives its behaviour autonomously
+from the first frame."* 📐 **No SimHost composition delivers that** — same shape as `BD1`'s dead routing.
+
+### ⛔ AND IT IS STILL THE FIRST NON-BEHAVIOUR-PRESERVING STEP
 
 ⚠ Every slice so far has been provably behaviour-preserving. ⛔ **3b is not**: SimHost stops calling
 `CognitiveComponentRegistry`, so **ten components stop existing there** — and one has a live consumer:
