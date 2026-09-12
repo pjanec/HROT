@@ -129,7 +129,30 @@ namespace Hrot.Common.EntityCreation
         /// </summary>
         public IOwnershipDistributionStrategy? OwnershipStrategy { get; init; }
 
-        
+        /// <summary>
+        /// ⭐⭐⭐ <b><c>P3</c> — the ROLE-AFFINITY policy: <i>"which components should THIS node own?"</i></b>
+        /// 📄 <c>docs/DESIGN_Role_Affinity_Ownership.md</c> §3.3, §3.7.
+        ///
+        /// <para>⚠ <b>The SIBLING of <see cref="OwnershipStrategy"/>, and they must not be confused.</b>
+        /// That one answers <i>"which grants do I hand OUT?"</i> and is consulted only by a broadcast
+        /// arbiter; this one answers <i>"which do I KEEP?"</i> and is consulted by every creator. 📌 They
+        /// are also not alternatives — an explicit <c>DeferredTakeOwnership</c> grant still wins; this
+        /// makes the DEFAULT declarative and local, which removes the need for a grant in the common case
+        /// (§3.4).</para>
+        ///
+        /// <para>⭐⭐ <b>Why it lives HERE and not on a host's system constructor.</b> The pack builds BOTH
+        /// consumers — <c>NetworkSpawningSystem</c> (create) and <c>GhostPromotionSystem</c> (promote) —
+        /// so setting it once here gives them the SAME INSTANCE by construction, exactly as the translator
+        /// list already does. ⛔ A per-host constructor argument would be the silent-default shape: one
+        /// caller passes it, the next host forgets, and the two legs disagree about who owns what.</para>
+        ///
+        /// <para>⚠ <b><c>null</c> keeps today's behaviour exactly</b> — own everything you materialised —
+        /// so adoption is incremental and nothing changes until a host is handed a policy (step 4). ⭐ It
+        /// is also what makes a networkless host correct for free.</para>
+        /// </summary>
+        public Fdp.Toolkit.Replication.Abstractions.IRoleAffinityPolicy? RoleAffinity { get; init; }
+
+
         /// <summary>Throws when a required input is missing, naming the field.</summary>
         internal void Validate()
         {

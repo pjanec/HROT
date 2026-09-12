@@ -49,7 +49,23 @@ current-answer: ⚠⚠ THERE ARE NOW **THREE** LIVE STRANDS ON THIS LANE. Read t
       "opaque int role bits" deviation was RETRACTED the same day and is marked as such — do not build on
       it. The engine holds the role LABEL only; the role->components BitMask512 table stays the
       application's ("fdp should not understand what a brain and muscle really mean").
-      ⭐⭐⭐ NEXT: STEP 2 or STEP 3 — both are free to ship.
+      ✅ STEPS 2 AND 3 DONE 2026-09-12 (CE-259bd): both insertion points, 10 rails, FOUR inverse-edit
+      red-proofs. §6e is the as-built and carries three choices the design did not spell out (the
+      promote leg is ADDITIVE so explicit grants survive; it re-reads the component mask because the
+      translator loop adds components after the earlier ref; the policy is threaded through
+      EntityCreationContext so both consumers share one instance).
+      ⚠ §3.2's line citations were BOTH stale: create leg is NetworkSpawningSystem.cs:191 (not :181),
+      promote leg is GhostPromotionSystem:208/:211-214 (not :122/:129).
+      ⭐⭐⭐ NEXT: STEP 3b — THE EXECUTION GATE, and it is what makes this design more than cosmetic.
+      Authority gates REPLICATION, not EXECUTION: the cognitive tick systems carry no authority filter,
+      so a node that now declines brain components STILL TICKS THE BRAIN (§3.5). Until 3b lands the
+      whole of P3 gates replication only. RE-ENUMERATE the un-gated systems — §3.5 says SEVEN, its own
+      table names eight beyond BTreeTickSystem, and a 10th file matches the same query. The filter is
+      WithOwned<T>() at QueryBuilder.cs:93, with NINE production call sites (six in Stride/, which
+      §3.5's grep never scoped). 3b needs BOTH the narrowed Muscle-only registration AND the query
+      filter, per §5 ①c.
+      ⭐ ALSO OPEN: step 3c (the boot warning) and step 4 (hand hosts their role->component tables —
+      nothing supplies a policy today, so every node runs null and behaves exactly as before).
       ⚠⚠ CORRECTION 2026-09-12: an earlier version of this block said STEP 2 IS HARD-BLOCKED on
       CE-259az. WRONG — the blocker was attached to the wrong step. Step 2 injects NO policy (its own
       gate: "with no policy, the mask is unchanged"; §3.3: "nothing changes until a host is handed one"),

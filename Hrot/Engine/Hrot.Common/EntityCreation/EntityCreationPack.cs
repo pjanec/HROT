@@ -168,7 +168,13 @@ namespace Hrot.Common.EntityCreation
                 //   ⛔ Do not reintroduce it to move an invariant into a composition root — that is the
                 //   SILENT-DEFAULT shape: an optional dependency one caller happens to pass and the next
                 //   host forgets. 📄 docs/DESIGN_Cgf_AxisB_Rotation_Slice.md §13.7.
-                translators: translators);
+                translators: translators,
+                // ⭐⭐⭐ P3 step 2 — the ROLE-AFFINITY policy, wired from the context so this system and
+                //   GhostPromotionSystem below get the SAME INSTANCE by construction (§3.7). ⚠ null is the
+                //   norm today and keeps today's behaviour exactly; step 4 is where hosts supply one.
+                //   ⛔ This is NOT the onEntitySpawned hole re-opened: that was an invariant a single host
+                //   happened to pass, whereas this is a POLICY the pack hands to both of its consumers.
+                roleAffinity: ctx.RoleAffinity);
 
             // ⭐⭐⭐ P2 — GHOST PROMOTION IS BUILT HERE NOW. 📄 DESIGN_Role_Affinity_Ownership.md §3.7,
             //   §6 step 0a. It was registered by NedReplicationModule.RegisterSystems — ONE network
@@ -194,7 +200,11 @@ namespace Hrot.Common.EntityCreation
             //   promotion with no diagnostic", adding "which hosts pass null has not been measured".
             //   ⇒ here TkbDb and Elm are REQUIRED inputs (ctx.Validate throws), so the guard cannot exist
             //   and the question cannot recur.
-            var promotionSystem = new GhostPromotionSystem(ctx.TkbDb, ctx.Elm, translators)
+            // ⭐⭐⭐ P3 step 3 — the SAME policy instance the spawn system got, which is the whole reason
+            //   §3.7 relocated this registrar into the pack: the CREATE leg declines exactly what the
+            //   PROMOTE leg claims, and that is only true by construction if both evaluate one instance.
+            var promotionSystem = new GhostPromotionSystem(
+                ctx.TkbDb, ctx.Elm, translators, roleAffinity: ctx.RoleAffinity)
         {
             // ⭐⭐⭐ §2.1m step 1 — the replay gate, wired ONCE here so every host that builds the pack gets
             //   it. Read LATE through the ELM so a root may set elm.IsReplayActive afterwards (the
