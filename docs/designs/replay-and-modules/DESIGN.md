@@ -1,11 +1,13 @@
 <!--STATUS
 state: LIVE
 updated: 2026-09-12
-build-state: BUILDING — §2.1m ONLY. ✅ STEP 2 DONE and ⚠ STEP 1 PARTIAL as of 2026-09-12 (commit
-  ea659a581); ⛔ STEP 3 NOT BUILT. Read §2.1m's "AS-BUILT" table before assuming otherwise: the clear runs
-  only where a PreviewStateBracket is driven, so PrepareReplay / every seek / FinalizeReplay / PrepareLive
-  still do not clear; GhostPromotionSystem is not gated; BypassLifecycle is still not honoured inside
-  CreateGhost; and CE-259aq's one-liner is outstanding.
+build-state: BUILT — §2.1m, 2026-09-12 (ea659a581 + 4e7d2285f). All three steps landed: the ELM is
+  cleared at every world replacement (PrepareReplay, every seek, FinalizeReplay/PrepareLive, and the editor
+  preview via the bracket), the re-derive is armed only when resuming to a live world, and both
+  LifecycleSystem and GhostPromotionSystem are gated during replay. CE-259aq is closed.
+  ⛔ ONE NAMED RESIDUE, tracked as CE-259av: GhostCreationSystem.BypassLifecycle is still not honoured
+  inside CreateGhost, so mgmt-1/DESIGN.md §8.10's "new arrivals materialise directly into Active" remains a
+  specification. Read §2.1m's AS-BUILT table.
   ⭐ Authorised by the user 2026-09-12. Its three diagrams are in §2.1m and all parse — the sequence
   diagram was CORRECTED to the as-built (the re-derive is its own call at the top of Execute, not hung off
   DrainInstantComplete).
@@ -694,14 +696,20 @@ sequenceDiagram
 
 ##### ✅ AS-BUILT — **`2026-09-12`, commit `ea659a581`** *(obligation ⑤)*
 
-⭐⭐ **Steps 1 and 2 are BUILT. Step 3 is NOT.** ⛔ Read this table before assuming the plan above is all
-done.
+⭐⭐⭐ **ALL THREE STEPS ARE BUILT** *(step 1 bar one named residue)*. ⛔ Read this table for exactly what
+landed and what did not.
+
+⭐⭐ **ONE PUBLIC SURFACE, INTENT-SHAPED:** `EntityLifecycleModule.OnWorldReplaced(bool resumingToLive)` —
+⛔ the `ClearForWorldReplacement`/`ArmResumeFromRestoredWorld` pair stays **internal on purpose**: only a
+world-replacement boundary may legitimately discard an in-flight handshake, and a public `Clear()` invites
+exactly the caller that should not exist. ⭐ Stating the INTENT also makes the clear-without-arm case
+impossible to get wrong by forgetting a second call.
 
 | step | state | as built |
 |---|---|---|
-| **1** gate lifecycle during replay | ⚠ **PARTIAL** | ✅ `LifecycleSystem.IsReplayActive` *(`Func<bool>`, asked once per `Execute`)*, fed by `EntityLifecycleModule.IsReplayActive` so a root can set it **after** `RegisterSystems` *(the controller is built later)*. ⛔ **`GhostPromotionSystem` is NOT gated yet.** ⛔ `BypassLifecycle` inside `CreateGhost` NOT honoured yet |
+| **1** gate lifecycle during replay | ⚠ **PARTIAL** | ✅ `LifecycleSystem.IsReplayActive` *(`Func<bool>`, asked once per `Execute`)*, fed by `EntityLifecycleModule.IsReplayActive` so a root can set it **after** `RegisterSystems` *(the controller is built later)*. ✅ **`GhostPromotionSystem.IsReplayActive` ADDED `2026-09-12`** — wired ONCE in `EntityCreationPack.Build`, late-bound through the ELM, so every host that builds the pack gets it. ⛔ **`BypassLifecycle` inside `CreateGhost` STILL not honoured — filed as `CE-259av`** |
 | **2** the ELM joins the bracket *(`HN-018`)* | ✅ **DONE** | `PreviewParticipants.LifecycleModule(elm)` → `ClearForWorldReplacement()` + `ArmResumeFromRestoredWorld()`; `LifecycleSystem` calls `ResumeFromRestoredWorld` at the top of `Execute` |
-| **3** drive from the REPLAY boundaries | ⛔ **NOT BUILT** | the clear runs **only where a `PreviewStateBracket` is driven**. `PrepareReplay`, every **seek**, and `FinalizeReplay`/`PrepareLive` still do not clear. ⚠ `CE-259aq`'s one-liner also outstanding |
+| **3** drive from the REPLAY boundaries | ✅ **DONE `2026-09-12`** | `ReferenceReplayLoadHandler` gained a `worldReplaced(bool resumingToLive)` hook: `PrepareReplay` ⇒ `false` *(clear, do NOT arm)*, `FinalizeReplay`/`PrepareLive` ⇒ `true` *(clear AND arm)*. ⭐⭐ **The SEEK does NOT go through that hook** — it composes into the controller's `afterSeek` chain, **beside the `NetworkEntityMap.RebuildFromWorld` already there for the same reason**; clear only, since a seek stays inside the replay. Wired at `NodeBootstrapper` *(SimHost + Stride)* and `CgfSubsystem`. ✅ `CE-259aq` CLOSED — `AfterSeekCallback` returns `null` |
 
 ⭐⭐⭐ **THE GATE HAS REAL PRODUCERS — it is not a sixth inert switch.** 📐 `IRecordReplayController.IsReplayActive`
 **already existed** *(implemented by `EcsRecordReplayController.cs:61` and `CgfRecordReplayController.cs:101`)*,
