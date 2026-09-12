@@ -504,5 +504,143 @@ namespace Hrot.SimHost.Tests
             public IEnumerable<Type> GetConsumedDescriptors() => Array.Empty<Type>();
             public void Inject(EntityRepository repo, Entity entity, TkbTemplate template) { }
         }
+
+        // ═══ THE AUTHORING AFFORDANCE ═══════════════════════════════════════════════════════════════
+        //  📄 docs/DESIGN_Entity_Authoring_Surface.md — acceptance ①, ①b, ④, ⑤.
+        //  ⭐ These live HERE, in the pack's own suite, rather than in a new class: the affordance is a
+        //    member of what the pack produces, and every one of these asserts through a PRODUCTION-built
+        //    pack (acceptance ④'s own wording) rather than a hand-made EntityCreation.
+
+        /// <summary>⭐ Drains whatever the affordance enqueued. ⚠ Asserting on the QUEUE rather than on a
+        /// returned object is deliberate: it is the same channel a translator uses, so the rail cannot
+        /// pass while the real enqueue path is broken.</summary>
+        private static Hrot.Core.Network.EntityCreationRequest DrainOne(EntityCreation creation)
+        {
+            var drained = new List<Hrot.Core.Network.EntityCreationRequest>();
+            creation.LocalRequests.ProcessRequests(drained.Add);
+            return Assert.Single(drained);
+        }
+
+        /// <summary>
+        /// ⭐⭐⭐ <b>Acceptance ④ — <c>owner</c> has THREE legal values, and all three are expressible.</b>
+        ///
+        /// <para>📄 <c>DESIGN_Entity_Authoring_Surface.md</c> §4b. ⛔ This is the rail that pins WHY the
+        /// design superseded §3.4's two-method shape (<c>RequestFromDefaultProcessor</c> /
+        /// <c>CreateLocallyOwned</c>): two verbs can express rows 1 and 2 and have <b>no way at all</b>
+        /// to say row 3 — <i>"owned by some other node"</i> — which the wire ingress already receives.
+        /// ⇒ if someone ever collapses this back to a boolean, the third case reddens here.</para>
+        ///
+        /// <para>⭐ Row 1 also pins acceptance ①b: the default is the NAMED constant, so an omitted
+        /// argument reads as a decision rather than as a forgotten zero.</para>
+        /// </summary>
+        [Fact]
+        public void RequestEntityCreation_ExpressesAllThreeOwnerValues_IncludingAThirdNode()
+        {
+            var ctx      = MinimalContext(out _);                       // NodeId = 7
+            var creation = EntityCreationPack.Build(ctx);
+            long tkbType = ctx.TkbDb.GetAll().First().TkbType;
+
+            // ① omitted ⇒ "the designated default processor owns it"
+            creation.RequestEntityCreation(tkbType);
+            Assert.Equal(Hrot.Core.Network.EntityCreationRouting.DefaultEntityCreationRequestProcessor,
+                         DrainOne(creation).OwnerAppInstanceId);
+            Assert.Equal(0, Hrot.Core.Network.EntityCreationRouting.DefaultEntityCreationRequestProcessor);
+
+            // ② "mine" — and the author gets the id from the pack, not from the host
+            creation.RequestEntityCreation(tkbType, owner: creation.NodeId);
+            Assert.Equal(7, DrainOne(creation).OwnerAppInstanceId);
+
+            // ③ ⭐ a THIRD node by id — the case the two-method shape could not express at all
+            creation.RequestEntityCreation(tkbType, owner: 42);
+            Assert.Equal(42, DrainOne(creation).OwnerAppInstanceId);
+        }
+
+        /// <summary>
+        /// ⭐⭐ <b>Acceptance ⑤ — the returned <c>Guid</c> is the one the request actually carries.</b>
+        ///
+        /// <para>📐 An author that must be told the outcome correlates the two-phase ACK on this value
+        /// (<c>MapCommandController._pendingEntityRequests</c>), so a returned id that did not match the
+        /// enqueued one would hang that session forever while looking perfectly healthy.</para>
+        /// </summary>
+        [Fact]
+        public void RequestEntityCreation_ReturnsTheIdTheRequestCarries_SuppliedOrMinted()
+        {
+            var ctx      = MinimalContext(out _);
+            var creation = EntityCreationPack.Build(ctx);
+            long tkbType = ctx.TkbDb.GetAll().First().TkbType;
+
+            var mine     = Guid.NewGuid();
+            var echoed   = creation.RequestEntityCreation(tkbType, requestId: mine);
+            Assert.Equal(mine, echoed);
+            Assert.Equal(mine, DrainOne(creation).RequestId);
+
+            var minted = creation.RequestEntityCreation(tkbType);
+            Assert.NotEqual(Guid.Empty, minted);
+            Assert.Equal(minted, DrainOne(creation).RequestId);
+        }
+
+        /// <summary>
+        /// ⭐⭐⭐ <b>Acceptance ① end to end — every argument survives the PRODUCTION request system and
+        /// lands on the order.</b>
+        ///
+        /// <para>⭐ The one that matters most is <c>transform</c>: the affordance has no transform FIELD to
+        /// carry it, it folds it into <c>InitialComponents</c> and <c>CreateEntityRequestSystem</c> pulls
+        /// the <see cref="SimTransform"/> back out. ⛔ A rail that only inspected the DTO would pass while
+        /// that hand-off was broken.</para>
+        ///
+        /// <para>⚠ <c>DisType</c> is asserted for a measured reason: nothing downstream derives it from
+        /// <c>TkbType</c> — the request system copies the request's value verbatim — so an affordance
+        /// without that parameter would silently strip the DIS type off every authored entity the moment
+        /// a hand-rolled producer was converted to a thin caller (<c>R-137</c>).</para>
+        /// </summary>
+        [Fact]
+        public void RequestEntityCreation_EveryArgumentReachesTheSpawnOrder_TransformIncluded()
+        {
+            var ctx      = MinimalContext(out var world);               // NodeId = 7
+            var creation = EntityCreationPack.Build(ctx);
+            long tkbType = ctx.TkbDb.GetAll().First().TkbType;
+
+            creation.RequestEntityCreation(
+                tkbType,
+                transform:   new SimTransform { Position = new System.Numerics.Vector3(10f, 20f, 30f) },
+                owner:       creation.NodeId,                           // self-targeted ⇒ serviced here
+                initType:    Fdp.Toolkit.Replication.ReliableInitType.None,
+                isTransient: true,
+                disType:     0xABCDUL);
+
+            creation.RequestSystem.Execute(world, 0f);
+            world.Bus.SwapBuffers();
+
+            var order = Assert.Single(((Fdp.ModuleHost.Abstractions.ISimulationView)world)
+                .ReadManagedEvents<Fdp.Toolkit.NetworkSpawning.Events.SpawnEntityCommand>().ToArray());
+
+            Assert.Equal(tkbType, order.TkbType);
+            Assert.Equal(7,       order.OwnerNodeId);
+            Assert.Equal(Fdp.Toolkit.Replication.ReliableInitType.None, order.InitType);
+            Assert.True(order.IsTransient);
+            Assert.Equal(0xABCDUL, order.DisType);
+
+            Assert.True(order.InitialTransform.HasValue,
+                "the affordance's transform never reached the order — it is folded into " +
+                "InitialComponents and CreateEntityRequestSystem separates it back out; one of those " +
+                "two halves is broken.");
+            Assert.Equal(new System.Numerics.Vector3(10f, 20f, 30f), order.InitialTransform!.Value.Position);
+        }
+
+        /// <summary>
+        /// ⭐⭐ <b>The pack SURFACES the node id, so an author never asks the host for a number the pack
+        /// already holds.</b>
+        ///
+        /// <para>⚠ <c>DESIGN_Entity_Authoring_Surface.md</c> §4 asserted this was <i>already</i> on
+        /// <c>EntityCreation</c> and §6's class diagram drew it as an existing member. 📐 It was not —
+        /// the value was a composition input that stopped at the two systems. The design carries the
+        /// correction; this row stops it regressing to a host lookup.</para>
+        /// </summary>
+        [Fact]
+        public void EntityCreation_SurfacesTheNodeId()
+        {
+            var ctx = MinimalContext(out _);
+            Assert.Equal(ctx.NodeId, EntityCreationPack.Build(ctx).NodeId);
+        }
     }
 }

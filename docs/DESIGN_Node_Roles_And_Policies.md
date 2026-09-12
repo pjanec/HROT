@@ -26,6 +26,10 @@ design-basis: docs/blueprints/RULINGS.md R-138 (fully distributed; NodeRole is a
   (IG is passive and non-persisting) - docs/HROT-Engine-Guide/HROT-Engine-Guide.md §1.3a/§1.3b/§1.3c -
   docs/blueprints/Architect_Question_65_Entity_Genesis_Uniformity.md §0, §4 (Q65-A′), §5.5 (CE-143) -
   Hrot/Engine/Hrot.Core/NodeRole.cs (the enum itself)
+related-designs:
+  - DESIGN_Entity_Authoring_Surface.md — owns the authoring affordance whose `isTransient` argument is the
+    CARRIER for R-140's "an IG entity is disposable". Its §7c parks the product question — are IG's map
+    drawings disposable or persistent? — and names THIS document (§5, §8) as the owner of the answer.
 -->
 
 # ⭐⭐⭐ Node Roles, Policies and Conventions

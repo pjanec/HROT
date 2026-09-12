@@ -26,7 +26,8 @@ namespace Hrot.Common.EntityCreation
             CreateEntityRequestSystem requestSystem,
             EntityRequestFinalizationSystem finalizationSystem,
             NetworkSpawningSystem spawnSystem,
-            Fdp.Toolkit.Replication.Systems.GhostPromotionSystem promotionSystem)
+            Fdp.Toolkit.Replication.Systems.GhostPromotionSystem promotionSystem,
+            int nodeId)
         {
             Translators        = translators;
             Elm                = elm;
@@ -35,7 +36,21 @@ namespace Hrot.Common.EntityCreation
             FinalizationSystem = finalizationSystem;
             SpawnSystem        = spawnSystem;
             PromotionSystem    = promotionSystem;
+            NodeId             = nodeId;
         }
+
+        /// <summary>
+        /// ⭐⭐ <b>This node's app-instance id — the value an author passes as <c>owner</c> to say
+        /// <i>"I own this one."</i></b>
+        ///
+        /// <para>📄 <c>docs/DESIGN_Entity_Authoring_Surface.md</c> §4. ⚠ <b>It was NOT here before that
+        /// design was built</b> — §4 asserted <i>"<c>creation.NodeId</c> is already on it"</i> and §6's
+        /// class diagram drew it as an existing member; both were wrong, and the design carries the
+        /// correction. The value was already a composition input (<c>EntityCreationContext.NodeId</c>),
+        /// handed to the request system and the spawn system; it simply was never surfaced, so an author
+        /// wanting <c>owner: myNodeId</c> had to reach back to the host for a number the pack held.</para>
+        /// </summary>
+        public int NodeId { get; }
 
         /// <summary>
         /// ⭐ The ONE list instance for this node. It has already been handed to
@@ -56,11 +71,126 @@ namespace Hrot.Common.EntityCreation
         /// <para>⚠ Thread-safe: <c>Enqueue</c> may be called from an orchestration thread, and draining
         /// happens on the ECS tick.</para>
         ///
-        /// <para>⚠ The typed authoring affordances that wrap this (<c>CreateLocallyOwned</c> /
-        /// <c>RequestFromDefaultProcessor</c>, <c>DESIGN</c> §3.4) land with <c>Q65-A′</c> + <c>CE-143</c>,
-        /// because they need a <c>ReliableInitType</c> the request does not carry yet.</para>
+        /// <para>⭐⭐⭐ <b>AUTHORS SHOULD NOT TOUCH THIS — call <see cref="RequestEntityCreation"/>.</b>
+        /// ⚠ An earlier version of this remark promised two affordances, <c>CreateLocallyOwned</c> and
+        /// <c>RequestFromDefaultProcessor</c> (<c>DESIGN_Entity_Creation_Unification.md</c> §3.4),
+        /// blocked on <c>CE-143</c>. ⛔ <b>That two-method shape is SUPERSEDED</b> — the routing input is
+        /// ONE field, so two verbs named the ARGUMENT rather than the behaviour, and neither could
+        /// express <i>"owned by a third node"</i>. 📄 <c>DESIGN_Entity_Authoring_Surface.md</c> §4b.
+        /// ⭐ <c>CE-143</c> is resolved (<c>EntityCreationRequest.InitType</c> exists), and the one
+        /// method below shipped in its place. This property stays public because a TRANSLATOR (§2)
+        /// legitimately enqueues a fully-determined request.</para>
         /// </summary>
         public ScenarioEntityCreationRequestSource LocalRequests { get; }
+
+        /// <summary>
+        /// ⭐⭐⭐ <b>THE AUTHORING AFFORDANCE — ask for an entity to exist.</b> Returns the request id,
+        /// which is what a <c>CreateUpdateDeleteEntityAck</c> is keyed by.
+        ///
+        /// <para>📄 <c>docs/DESIGN_Entity_Authoring_Surface.md</c> §4 (the API), §4b (why ONE method and
+        /// not two), §4c (the sequence this sets in motion, including the double ACK).</para>
+        ///
+        /// <para>⭐⭐ <b>WHO MUST USE IT — the AUTHOR/TRANSLATOR rule</b> (§2, and it is the load-bearing
+        /// rule of that design):
+        /// <list type="bullet">
+        ///   <item>⭐⭐⭐ <b>AUTHOR</b> — a NEW INTENT originates here: a human gesture, an AI decision, a
+        ///     tool. Nothing outside has decided the fields yet. <b>It MUST call this method.</b></item>
+        ///   <item>⛔ <b>TRANSLATOR</b> — an EXISTING external representation is being mapped in: a
+        ///     scenario file, a DDS sample, another node's message. The representation already fixed the
+        ///     owner, the components and the id. <b>It constructs <c>EntityCreationRequest</c> directly
+        ///     onto <see cref="LocalRequests"/>, and that is CORRECT — not a loophole.</b> Forcing it
+        ///     through here would add a defaulting layer over fields that are already determined, and it
+        ///     needs <c>PreAllocatedNetworkId</c> / <c>ChildComponentOverrides</c>, which this affordance
+        ///     deliberately excludes (§3). The two production translators are
+        ///     <c>StagingEntityExtractor</c> (scenario load) and <c>NedCgfEntityLifecycleAdapters</c>
+        ///     (wire ingress).</item>
+        /// </list>
+        /// ⚠ <b>Stated as the weaker guarantee it is:</b> since <paramref name="owner"/> accepts any node
+        /// id, a translator now *could* call this. The exemption is by DEFINITION above, not by the type
+        /// system (§7 R1).</para>
+        ///
+        /// <para>⛔⛔ <b>SCOPE — NETWORKED entities only</b> (§7b). The trigger is <i>"does this entity
+        /// need a network identity?"</i>, ⛔ NOT <i>"am I creating an entity?"</i>. Local probe entities
+        /// such as the AI's EQS sensor children are created straight through <c>ctx.World</c> and must
+        /// NOT come through here — it would give them a network id and a lifecycle handshake they have
+        /// no use for.</para>
+        /// </summary>
+        /// <param name="tkbType">The TKB entity type code. ⚠ An unknown type is rejected with an
+        /// <c>UnknownDescriptorType</c> ack and there is no phase-2 ack.</param>
+        /// <param name="transform">Where it starts. ⭐ Folded into the request's component list — the
+        /// request system pulls the <see cref="Fdp.Core.SimTransform"/> back out of it
+        /// (<c>CreateEntityRequestSystem</c>) — so there is no transform field on the DTO and no second
+        /// way to say it.</param>
+        /// <param name="initialComponents">Ordinary ECS components to apply at spawn. ⭐ Geometry needs
+        /// NOTHING special: <c>EditablePolyline</c> / <c>RoutePlan</c> ride here exactly like
+        /// <c>SimTransform</c> does, so the shared base never learns what a polyline is.</param>
+        /// <param name="owner">
+        /// ⭐⭐⭐ <b>WHO RUNS GENESIS AND OWNS THE RESULT.</b> The sole routing input
+        /// (<see cref="EntityCreationRouting.IsHandledLocally"/>), and it has THREE legal values, which
+        /// is why this is a parameter and not two verbs:
+        /// <see cref="EntityCreationRouting.DefaultEntityCreationRequestProcessor"/> (the default — the
+        /// broadcast arbiter owns it), <see cref="NodeId"/> (<i>"mine"</i>), or any other node's id.
+        /// ⭐ Whichever it is, the call is identical: the request is enqueued locally, and the pack's
+        /// forwarder sends it on if it is addressed elsewhere.
+        /// </param>
+        /// <param name="initType">⭐ Whether the creator WAITS for peers before the entity goes
+        /// <c>Active</c> — a SEPARATE axis from <paramref name="owner"/> (<c>Q65</c> §5.5): owning
+        /// something does not mean nobody needs to ack it. ⭐ Pass <c>None</c> for a scratch drawing
+        /// nobody should have to ack.</param>
+        /// <param name="initialAttributesJson">Operator-supplied property overrides, compiled on top of
+        /// the template. ⭐ An AUTHORING input — the human typed it.</param>
+        /// <param name="isTransient">⭐ Marks a THROWAWAY that must never reach a saved scenario
+        /// (<c>R-140</c>). A third independent axis: a temporary entity may still want peers to ack it.
+        /// ⚠ The receiver stamps <c>ScenarioIgnoreTag</c> locally at spawn, so nothing depends on the
+        /// author still being alive.</param>
+        /// <param name="disType">
+        /// ⚠ The packed DIS entity type stamped onto the entity's metadata. ⛔ <b>It is NOT derived from
+        /// <paramref name="tkbType"/> anywhere downstream</b> — <c>CreateEntityRequestSystem</c> copies
+        /// this value verbatim, so leaving it <c>0</c> leaves the entity with no DIS type. ⭐ An author
+        /// that has the TKB template to hand passes <c>template.DisType.Value</c>, exactly as
+        /// <c>EntityPresentationGizmoShared</c> already resolves it.
+        /// </param>
+        /// <param name="requestId">Supply one to correlate the two-phase ACK yourself; omit it and one
+        /// is minted. ⭐ Either way the value actually used is RETURNED.</param>
+        public Guid RequestEntityCreation(
+            long                   tkbType,
+            Fdp.Core.SimTransform? transform             = null,
+            IReadOnlyList<object>? initialComponents     = null,
+            int                    owner                 = EntityCreationRouting.DefaultEntityCreationRequestProcessor,
+            Fdp.Toolkit.Replication.ReliableInitType initType
+                                                         = Fdp.Toolkit.Replication.ReliableInitType.AllPeers,
+            string?                initialAttributesJson = null,
+            bool                   isTransient           = false,
+            ulong                  disType               = 0,
+            Guid                   requestId             = default)
+        {
+            // ⭐ Mint only when the caller did not name its own request. An author that must be told the
+            //   outcome supplies one; one that does not care ignores the return value.
+            if (requestId == Guid.Empty) requestId = Guid.NewGuid();
+
+            // ⭐⭐ The transform rides in the component list. ⛔ Deliberately NOT a DTO field: the request
+            //   system already separates SimTransform/SimVelocity back out of InitialComponents, so a
+            //   second channel for the same fact is the duplicate-mechanism trap.
+            List<object>? components = null;
+            if (initialComponents is { Count: > 0 }) components = new List<object>(initialComponents);
+            if (transform.HasValue) (components ??= new List<object>(1)).Add(transform.Value);
+
+            LocalRequests.Enqueue(new Hrot.Core.Network.EntityCreationRequest
+            {
+                RequestId             = requestId,
+                OwnerAppInstanceId    = owner,
+                TkbType               = tkbType,
+                DisType               = disType,
+                InitialComponents     = components,
+                InitialAttributesJson = initialAttributesJson,
+                InitType              = initType,
+                IsTransient           = isTransient,
+                // ⛔ PreAllocatedNetworkId and ChildComponentOverrides are NOT exposed: one producer
+                //   each, and that producer is the scenario extractor — a TRANSLATOR (§3).
+            });
+
+            return requestId;
+        }
 
         /// <summary>Turns requests into orders. Schedule this.</summary>
         public CreateEntityRequestSystem RequestSystem { get; }

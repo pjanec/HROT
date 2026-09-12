@@ -1,7 +1,24 @@
 <!--STATUS
 state: LIVE
-updated: 2026-09-03
-build-state: READY-TO-BUILD
+updated: 2026-09-12
+build-state: BUILDING - the NON-UI half is BUILT (2026-09-12); the UI half is not started.
+  SPLIT BY USER ORDERING (2026-09-12, verbatim): "best do the non ui half of authoring surface first,
+  then p3, then the ui". §8 now carries which half owns each acceptance row.
+  ✅ BUILT: §4's API (on EntityCreation), §4b's one-method shape, ①b's routing constant, §2's
+  author/translator rule written down at the affordance and at both translator sites, and rails
+  ④/⑤/⑤b/①c in Hrot.SimHost.Tests/EntityCreationPackRails.cs (the feature's own suite).
+  ⛔ NOT BUILT - the UI half, acceptance ②③⑧⑨⑩⑪⑫: §5/§5b's per-host authoring tails (IG stops building
+  its own gizmo and IgEntityCreationRequests dies, StrideHrotGame's 12-line DTO, ScenarioSpawnAdapter as
+  a thin caller closing G1+G2, SimHost + ReplayBrowser gaining the adapter).
+as-built: TWO deviations from the dispatched design, both folded in where they stood -
+  (a) the signature has NINE parameters, not eight: `disType` was added because CreateEntityRequestSystem
+      copies request.DisType VERBATIM and derives nothing from TkbType, so an 8-parameter affordance would
+      have stripped the DIS type off every authored entity once the adapter became a thin caller (R-137).
+      §3 carries the measurement as its own row.
+  (b) §4 claimed "creation.NodeId is already on it" and §6's classDiagram drew it as an existing member.
+      FALSE - EntityCreation had no NodeId; it was added in the same commit. §4's row and §6's new caption
+      carry the correction, and the caption states the general trap: a <<EXISTS>> stereotype labels the
+      BOX, so a NEW member on an existing class inherits "exists" silently.
 current-answer: §4 is the API - ONE method, RequestEntityCreation, with an `owner` parameter; §4b is why
   one and not two; §4c is the creation sequence including the double ACK; §1.3b is the GESTURE STACK
   inventory (what is already shared) plus defects G1/G2; §5 the per-host fit; §5b is where the per-host
@@ -23,6 +40,23 @@ known-rot: R1's original argument ("a translator cannot express its case through
   true only of the two-method shape and is DEAD. The rule survives on §2's definition instead - stated
   in R1 as the weaker guarantee it now is.
 known-conflict: none.
+related-designs:
+  - DESIGN_Entity_Creation_Unification.md — owns the PIPELINE and the owner TABLE this affordance calls
+    into (the pack, the routing, D1's forwarder). THIS doc owns only the CALLER-side surface, and
+    supersedes that one's §3.4 two-method API shape.
+  - DESIGN_Role_Affinity_Ownership.md — owns what happens to component-level AUTHORITY *after* the entity
+    exists (P3 auto-takeover, BirthCriticalComponents). Measured 2026-09-12: the two are INDEPENDENT —
+    zero references either way — because this one is "who asks and whom they nominate" and that one is
+    "who ends up simulating which components".
+  - DESIGN_Node_Roles_And_Policies.md — owns the PERSISTENCE convention (R-140, IG is passive and
+    non-persisting) that §7c's open product question belongs to. It, not this doc, decides whether IG's
+    map drawings are disposable.
+  - DESIGN_Uniform_Gizmo_Membership.md — owns how a gizmo becomes a member of a host's map; this doc
+    owns only what happens when the gesture ENDS.
+  - designs/edit-1/DESIGN.md — owns ISpawnController as a PANEL-FACING port; §5b.3 explains why the
+    gesture handle must land on the adapter rather than widening that port.
+  - designs/replay-and-modules/DESIGN.md — owns the ELM's replay/rewind contract. Relevant because §4c's
+    ACK **A** (the module barrier) is the handshake an authored entity waits on.
 -->
 
 # ⭐⭐⭐ THE UNIFIED ENTITY-AUTHORING SURFACE
@@ -153,6 +187,7 @@ appear in the producer table. **Two are in, one is out.**
 | `initType` | ✅ **already designed** | §3.4: *"both affordances take an explicit `initType`, defaulted to `AllPeers` so adoption changes nothing"*, and *"IG's drawings pass `None`"*. ⭐ §4c shows what it buys: it is the `PendingNetworkAck` that makes `NetworkGatewaySystem` wait for peers |
 | `initialAttributesJson` | ✅ **IN** | 📐 the operator's placement command carries property JSON — `MapCommandController.ActivatePlacementCommand(…, initialPropertiesJson)` → `EntityPlacementGizmo.cs:219`, railed as `EPG-006`. ⭐ It is an **authoring input**: the human typed it |
 | `requestId` | ✅ **IN** | 📐 `MapCommandController` correlates the two-phase ACK through `_pendingEntityRequests[RequestId]`; it cannot let the affordance mint one. ⭐ An **author that must be told the outcome** needs to name its request |
+| ⭐ `disType` | ✅ **IN — added while BUILDING, `2026-09-12`** ⚠ | ⛔ **This row did not exist when the design was dispatched, and its absence was a capability loss waiting to happen.** 📐 Measured at build time: `CreateEntityRequestSystem` copies `request.DisType` **verbatim** onto the entity's metadata *(`:221` → `:490`)* and **derives nothing from `TkbType`** — it discards the template it just looked up. ⇒ an 8-parameter signature would have silently stripped the DIS type off every authored entity the moment `ScenarioSpawnAdapter` became a thin caller *(`:223` passes `cmd.DisType` today)*, which is `R-137`: **unification may not cost a capability.** ⭐ It is a legitimate authoring input by §3's own rule — `EntityPresentationGizmoShared.cs:174` already resolves `template.DisType.Value` at authoring time. ⚠ **A cheaper fix exists and was deliberately NOT taken**: the request system could default it from the template it already loads. That is a behaviour change for the two translators that pass `0` on purpose, so it is a separate finding, not a drive-by |
 | `preAllocatedNetworkId` | ⛔ **OUT** | 📐 one producer only — ① the scenario **extractor**, a translator. ⚠ ⑤ passes it today and it is **dead**: every IG tool sets `NetworkId = 0` *(`IgApplication.cs:3562`, `:3662`)* |
 | `childComponentOverrides` | ⛔ **OUT** | 📐 one producer only — ① again. Bulk scenario shape, not an authoring choice |
 
@@ -182,8 +217,13 @@ Guid RequestEntityCreation(
         ReliableInitType initType                = ReliableInitType.AllPeers,
         string? initialAttributesJson            = null,
         bool isTransient                         = false,
+        ulong disType                            = 0,       // ⭐ ADDED WHILE BUILDING - see §3
         Guid requestId                           = default);
 ```
+
+> ⚠⚠ **AS-BUILT, `2026-09-12`. The signature above is the SHIPPED one and differs from the dispatched
+> design in ONE place: `disType`.** ⛔ The dispatched version had eight parameters; §3's new `disType` row
+> carries the measurement that forced a ninth. Nothing else moved.
 
 ```csharp
 // the arbiter owns and runs genesis — today's behaviour, and the overwhelming majority of call sites
@@ -204,7 +244,8 @@ creation.RequestEntityCreation(tkbType, transform, components, owner: thatNodeId
 | ⭐ **the default is a NAMED constant** | `DefaultEntityCreationRequestProcessor` ⇒ an omitted `owner` reads as a decision, not as a forgotten `0`. 🔒 User: *"rather long than misleading"* |
 | **returns the `Guid`** | the request id — minted when the caller passed `default`, echoed when it supplied one. ⭐ An author that wants the ACK keeps it; one that does not, ignores it |
 | ⛔ **no policy table, no TKB flag, no config switch** | 🔒 §3.4: *"only concrete authoring code picks the way it needs"* |
-| **lives on `EntityCreation`** | the pack's result object, which every one of the six roots already holds. ⛔ No new seam, no new constructor argument. ⭐ `creation.NodeId` is already on it, so *"mine"* needs no extra lookup |
+| **lives on `EntityCreation`** | the pack's result object, which every one of the six roots already holds. ⛔ No new seam, no new constructor argument |
+| ⚠⚠ **`creation.NodeId` — CORRECTED `2026-09-12`** | ⛔ **This row previously read *"`creation.NodeId` is already on it, so 'mine' needs no extra lookup"*. 🔴 FALSE, and §6's class diagram drew it as an existing member on the strength of it.** 📐 Measured at build time: `EntityCreation` had **no `NodeId`** — the value was a composition input *(`EntityCreationContext.NodeId`)* that stopped at the request system and the spawn system, so an author wanting `owner: myNodeId` had to reach back to the host for a number the pack already held. ⭐ **It was ADDED in the same commit**, so the conclusion survives; only the tense was wrong |
 
 ### 4b. ⭐⭐ WHY ONE METHOD — **the measurement, not a preference**
 
@@ -411,7 +452,7 @@ classDiagram
         <<pack result - EXISTS>>
         +ScenarioEntityCreationRequestSource LocalRequests
         +int NodeId
-        +RequestEntityCreation(tkbType, transform, components, owner, initType, attrJson, isTransient, requestId) Guid
+        +RequestEntityCreation(tkbType, transform, components, owner, initType, attrJson, isTransient, disType, requestId) Guid
     }
     class EntityCreationRouting {
         <<EXISTS - gains the constant>>
@@ -423,9 +464,11 @@ classDiagram
         +Guid RequestId
         +int OwnerAppInstanceId
         +long TkbType
+        +ulong DisType
         +List~object~ InitialComponents
         +string InitialAttributesJson
         +ReliableInitType InitType
+        +bool IsTransient
     }
     class ScenarioEntityCreationRequestSource {
         <<EXISTS>>
@@ -482,6 +525,15 @@ classDiagram
     NedEntityCreationRequestSource ..> EntityCreationRequest : constructs directly
     IgEntityCreationRequests ..> EntityCreationRequest : constructs directly
 ```
+
+⚠⚠ **CAPTION — what the diagram shows that the prose hid, and what it got WRONG.** ⭐ The picture's
+value is that every box except three is marked `EXISTS`: the affordance adds **one method and one
+property**, not a layer. ⛔ **But `<<pack result - EXISTS>>` made `NodeId` look existing when it was
+not** — a class-diagram stereotype applies to the BOX, and a member added to an existing box inherits
+its label silently. 📌 That is how §4's *"already on it"* survived review. ⇒ ⭐ **when a member is new on
+an existing class, say so in the caption; the stereotype cannot.** ✅ Both `NodeId` and
+`RequestEntityCreation` were built `2026-09-12`; `DisType` / `IsTransient` were always on the DTO and
+are drawn now only because the affordance carries them.
 
 📄 **The `sequenceDiagram` is §4c** — the full authoring call through both routings, both ACK phases and
 the ELM handshake. ⛔ It is **not** redrawn here: 🔒 *"never both for the same thing — two pictures of one
@@ -590,18 +642,23 @@ network identity and a lifecycle handshake they have no use for.
 
 ## 8. ACCEPTANCE
 
-| # | |
-|---|---|
-| ① | `RequestEntityCreation` exists on `EntityCreation`, `owner` defaulted to `EntityCreationRouting.DefaultEntityCreationRequestProcessor` and `initType` to `AllPeers` |
-| ①b | ⭐ `EntityCreationRouting` **carries the constant and uses it** — `:49`'s literal `0` is gone. ⛔ Not a second definition of the number |
-| ② | `IgEntityCreationRequests` is **deleted**; IG's two controllers call the affordance |
-| ③ | `StrideHrotGame` and `ScenarioSpawnAdapter` call the affordance — ⭐ **three authors, one call** |
-| ④ | a rail on a **production-built** pack: the default yields `OwnerAppInstanceId == 0`; `owner: NodeId` yields `== NodeId`; ⭐ **`owner: 7` yields `== 7`** — the third case the two-method shape could not express |
-| ⑤ | a rail: the returned `Guid` equals a caller-supplied `requestId`, and is non-empty when omitted |
-| ⑥ | ① and ④ *(the two translators)* still construct the DTO directly, and §2's rule says so in writing |
-| ⑦ | `design-digest.py --check` and `mermaid-check.mjs` pass |
-| ⭐ **⑧** | 🔴 **`G1` closed**: all three affordances of `ScenarioSpawnAdapter` end in `RequestEntityCreation`. ⛔ **zero `_bus.PublishManaged(cmd)` left in the file** — a rail asserts an authored AREA reaches the request source, which reddens today |
-| ⭐ **⑨** | 🔴 **`G2` closed**: `_ = _nameResolver` is gone; a rail asserts the resolver's string reaches the request's `EntityInfo` |
-| ⭐ **⑩** | `ScenarioSpawnAdapter.BeginPlacement` returns a gesture whose `Exited` fires; ⭐ **a rail drives IG's full session** — place → exit → ack → **Finished published and `ClearSession` ran**, and a **cancel with nothing placed publishes Cancelled**. ⛔ Without this the §5b.3 hang ships |
-| ⭐ **⑪** | `ISpawnController` is **unchanged** *(still three `void` methods)*; `Hrot.IG` still holds **zero** references to it; ⭐ ExCon's shim is untouched |
-| ⭐ **⑫** | `SimHostApp` and `ReplayBrowserSubsystem` construct the adapter — ⭐ **no per-host justification required or given** *(`R-141`)* |
+⭐⭐ **SPLIT `2026-09-12` at the user's ordering** — 🔒 *"best do the non ui half of authoring surface
+first, then p3, then the ui"*. ⛔ The rows are unchanged; what is new is **which half owns each**.
+
+| # | | state |
+|---|---|---|
+| ① | `RequestEntityCreation` exists on `EntityCreation`, `owner` defaulted to `EntityCreationRouting.DefaultEntityCreationRequestProcessor` and `initType` to `AllPeers` | ✅ **DONE** *(non-UI)* — ⚠ nine parameters, not eight; §3's `disType` row says why |
+| ①b | ⭐ `EntityCreationRouting` **carries the constant and uses it** — `:49`'s literal `0` is gone. ⛔ Not a second definition of the number | ✅ **DONE** *(non-UI)* |
+| ①c | ⭐ **ADDED** — `EntityCreation.NodeId` is surfaced, so *"mine"* needs no host lookup | ✅ **DONE** *(non-UI)* — it was **not** there, contra §4/§6 |
+| ② | `IgEntityCreationRequests` is **deleted**; IG's two controllers call the affordance | ⛔ **UI half** |
+| ③ | `StrideHrotGame` and `ScenarioSpawnAdapter` call the affordance — ⭐ **three authors, one call** | ⛔ **UI half** |
+| ④ | a rail on a **production-built** pack: the default yields `OwnerAppInstanceId == 0`; `owner: NodeId` yields `== NodeId`; ⭐ **`owner: 7` yields `== 7`** — the third case the two-method shape could not express | ✅ **DONE** *(non-UI)* — `RequestEntityCreation_ExpressesAllThreeOwnerValues_IncludingAThirdNode`. ⚠ the third node is `42`, because the rail fixture's own `NodeId` **is** `7` and reusing it would make row 2 and row 3 the same assertion |
+| ⑤ | a rail: the returned `Guid` equals a caller-supplied `requestId`, and is non-empty when omitted | ✅ **DONE** *(non-UI)* |
+| ⑤b | ⭐ **ADDED** — a rail that every argument reaches the **spawn order** through the production request system, `transform` included | ✅ **DONE** *(non-UI)* — ⛔ a DTO-only rail would pass while the `InitialComponents` fold ↔ `SimTransform` extraction hand-off was broken |
+| ⑥ | ① and ④ *(the two translators)* still construct the DTO directly, and §2's rule says so in writing | ✅ **DONE** *(non-UI)* — the rule is on `RequestEntityCreation`'s own doc comment and at both translator sites |
+| ⑦ | `design-digest.py --check` and `mermaid-check.mjs` pass | ✅ **DONE** |
+| ⭐ **⑧** | 🔴 **`G1` closed**: all three affordances of `ScenarioSpawnAdapter` end in `RequestEntityCreation`. ⛔ **zero `_bus.PublishManaged(cmd)` left in the file** — a rail asserts an authored AREA reaches the request source, which reddens today | ⛔ **UI half** |
+| ⭐ **⑨** | 🔴 **`G2` closed**: `_ = _nameResolver` is gone; a rail asserts the resolver's string reaches the request's `EntityInfo` | ⛔ **UI half** |
+| ⭐ **⑩** | `ScenarioSpawnAdapter.BeginPlacement` returns a gesture whose `Exited` fires; ⭐ **a rail drives IG's full session** — place → exit → ack → **Finished published and `ClearSession` ran**, and a **cancel with nothing placed publishes Cancelled**. ⛔ Without this the §5b.3 hang ships | ⛔ **UI half** |
+| ⭐ **⑪** | `ISpawnController` is **unchanged** *(still three `void` methods)*; `Hrot.IG` still holds **zero** references to it; ⭐ ExCon's shim is untouched | ⛔ **UI half** |
+| ⭐ **⑫** | `SimHostApp` and `ReplayBrowserSubsystem` construct the adapter — ⭐ **no per-host justification required or given** *(`R-141`)* | ⛔ **UI half** |

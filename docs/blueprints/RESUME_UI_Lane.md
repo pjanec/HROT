@@ -16,28 +16,24 @@ current-answer: ⚠⚠ THERE ARE NOW **THREE** LIVE STRANDS ON THIS LANE. Read t
   assert the flag flips while none asserts it has an effect.
 
   ⭐⭐⭐ THE NEXT WORK, IN THE ORDER THE USER SET (2026-09-12, verbatim: "best do the non ui half of
-  authoring surface first, then p3, then the ui"):
+  authoring surface first, then p3, then the ui"). ⭐ (a) IS DONE — START AT (b).
 
-  (a) ⭐ NON-UI HALF OF THE AUTHORING SURFACE — docs/DESIGN_Entity_Authoring_Surface.md
-      (build-state: READY-TO-BUILD, updated 2026-09-03). NOT a UI design: it is ONE engine-side method,
-      RequestEntityCreation(tkbType, transform, initialComponents, owner, initType,
-      initialAttributesJson, isTransient, requestId) on the EntityCreation pack result (§4), replacing
-      hand-rolled EntityCreationRequest DTO construction at AUTHORING call sites.
-      Its load-bearing rule is §2 AUTHOR vs TRANSLATOR: a site where a NEW INTENT ORIGINATES must use it;
-      a site mapping in an EXISTING representation (scenario file, DDS sample) constructs the DTO directly
-      and that is CORRECT and not a loophole. §7 Q1 asks for that rule to be ratified — it is currently
-      inferred and written down nowhere else.
-      SCOPE (§7b): networked entities only. The trigger is "does this entity need a network identity?",
-      NOT "am I creating an entity" — the AI's EQS sensor children must NOT be routed through it.
-      MEASURED 2026-09-11 and re-confirmed 2026-09-12: RequestEntityCreation has ZERO occurrences in .cs,
-      while three doc comments already promise it (EntityCreation.cs:55-56, EntityCreationPack.cs:52).
-      It SUPERSEDES DESIGN_Entity_Creation_Unification.md §3.4's two-method shape.
-      THE NON-UI HALF = the API itself + the author/translator ratification + the pack/engine plumbing.
-      THE UI HALF, deferred to (c) = §5's per-host authoring tails: IG builds its own EntityPlacementGizmo
-      and bypasses the shared adapter, the Stride editor hand-rolls a 12-line DTO, ScenarioSpawnAdapter
-      becomes a thin caller, and SimHost + ReplayBrowser gain an affordance by sharing.
-      It closes defects G1 (an authored AREA never reaches the request source) and G2 (_ = _nameResolver,
-      a resolved name discarded). 12 acceptance criteria in §8.
+  (a) ✅✅✅ NON-UI HALF OF THE AUTHORING SURFACE — **DONE 2026-09-12**, tracker row CE-259aw.
+      docs/DESIGN_Entity_Authoring_Surface.md is now build-state: BUILDING (non-UI half BUILT); its §8
+      says which half owns each acceptance row, and its STATUS block carries the two as-built deviations.
+      BUILT: EntityCreation.RequestEntityCreation (NINE parameters) · EntityCreation.NodeId ·
+      EntityCreationRouting.DefaultEntityCreationRequestProcessor replacing :49's literal 0 ·
+      the AUTHOR vs TRANSLATOR rule written onto the affordance and at BOTH translator sites (ledger
+      R-145) · four rails in Hrot.SimHost.Tests/EntityCreationPackRails.cs, inverse-edit red-proofed.
+      ⚠ TWO DEVIATIONS worth knowing before touching it: ① the signature has NINE parameters, not §4's
+      eight — `disType` had to be added because CreateEntityRequestSystem copies request.DisType
+      VERBATIM (:221→:490) and derives nothing from TkbType, so an eight-parameter affordance would have
+      stripped the DIS type off every authored entity as soon as ScenarioSpawnAdapter became a thin
+      caller (R-137). ⛔ A cheaper fix was deliberately NOT taken — the request system could default it
+      from the template it already loads, but that changes behaviour for the two translators that pass 0
+      on purpose. ② §4 said "creation.NodeId is already on it" and §6's classDiagram drew it as existing;
+      both FALSE, and the reason is general enough to have been written into the diagram's caption: a
+      <<EXISTS>> stereotype labels the BOX, so a NEW member on an OLD class inherits "exists" silently.
 
   (b) ⭐⭐ P3 — AUTO-TAKEOVER (role-affinity ownership), docs/DESIGN_Role_Affinity_Ownership.md.
       This is what the user meant by "auto promotion". build-state: BUILDING — STEP 0a ONLY.
@@ -54,7 +50,12 @@ current-answer: ⚠⚠ THERE ARE NOW **THREE** LIVE STRANDS ON THIS LANE. Read t
       the whole design is cosmetic. Suggested start: step 0 (TkbTemplate.BirthCriticalComponents +
       AddBirthCriticalComponent<T>(), mirroring AddMandatoryComponent<T>(), seeding SimTransform).
 
-  (c) ⭐ THE UI HALF of the authoring surface — §5/§5b's per-host tails, listed under (a).
+  (c) ⭐ THE UI HALF of the authoring surface — §5/§5b's per-host tails, tracker row CE-259ax, which
+      lists all four pieces AND the §5b.3 hazard that must be built first: delegating to
+      ScenarioSpawnAdapter as it stands HANGS IG (the adapter swallows both notifications IG's remote
+      session needs, so _toolFinished never flips, Finished is never published, ClearSession never runs,
+      and every subsequent placement is then refused by the guard at the top of ActivatePlacementCommand).
+      The affordance it calls now exists, so nothing here is blocked.
 
   ✅ SEQUENCING CHECK DONE 2026-09-12, so do not redo it: (a) and (b) are INDEPENDENT. Measured in both
   directions — the authoring surface has ZERO references to role-affinity / auto-takeover / RoleShard /

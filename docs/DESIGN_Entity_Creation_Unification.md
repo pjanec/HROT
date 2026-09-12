@@ -92,6 +92,10 @@ known-rot: §5.1 twice said IG "keeps GhostDestructionSystem". WRONG — it must
 mechanism: §3.4a (new 2026-08-31) explains WHY double consumption is possible — the FDP bus is a
   broadcast double-buffer (ManagedEventStream.Read() returns _front; only Swap() clears), so every
   reader of an event type gets the full list. Read it before touching any order-consuming system.
+related-designs:
+  - DESIGN_Entity_Authoring_Surface.md — owns the CALLER-side surface (EntityCreation.RequestEntityCreation,
+    the AUTHOR vs TRANSLATOR rule, the per-host authoring tails). It SUPERSEDES §3.4's two-method API shape
+    here; §3.4's owner TABLE and its ReliableInitType reasoning stay live in THIS document.
 -->
 # DESIGN — entity creation is assembled by hand at six sites; make it a pack
 

@@ -55,15 +55,16 @@ namespace Hrot.Common.EntityCreation
     ///     the narrowing lever (<c>tkb-1/DESIGN.md</c> §6.5b gate ②).</item>
     /// </list></para>
     ///
-    /// <para>⚠ <b>The two AUTHORING AFFORDANCES are not here yet.</b> <c>DESIGN</c> §3.4 specifies
-    /// <c>RequestFromDefaultProcessor</c> and <c>CreateLocallyOwned</c>, and they need an explicit
-    /// <c>ReliableInitType</c> — which <c>EntityCreationRequest</c> does not carry yet
-    /// (<c>CE-143</c>: <c>CreateEntityRequestSystem</c> hardcodes <c>AllPeers</c> at <c>:302</c> and
-    /// <c>:397</c>). ⛔ Adding them now would ship a signature that changes immediately. ⇒ ⭐ they land
-    /// with <c>Q65-A′</c> + <c>CE-143</c>; this slice is the CONSTRUCTION half only, and it is a pure
-    /// composition change.</para>
+    /// <para>⭐⭐⭐ <b>THE AUTHORING AFFORDANCE SHIPPED —
+    /// <see cref="EntityCreation.RequestEntityCreation"/>, ONE method.</b> ⚠ An earlier version of this
+    /// remark said <i>"the two authoring affordances are not here yet"</i>, naming
+    /// <c>RequestFromDefaultProcessor</c> / <c>CreateLocallyOwned</c> and blocking them on
+    /// <c>CE-143</c>. ⛔ <b>That TWO-METHOD shape is SUPERSEDED</b> (<c>CE-143</c> is resolved, and the
+    /// routing input turned out to be ONE field with THREE legal values, so two verbs named the
+    /// argument rather than the behaviour). 📄 <c>docs/DESIGN_Entity_Authoring_Surface.md</c> §4, §4b.</para>
     ///
     /// <para>📄 <c>docs/DESIGN_Entity_Creation_Unification.md</c> §3, §3.4, UML §4 ·
+    /// <c>docs/DESIGN_Entity_Authoring_Surface.md</c> ·
     /// <c>docs/blueprints/Architect_Question_65_Entity_Genesis_Uniformity.md</c> §0, §4.</para>
     /// </summary>
     public static class EntityCreationPack
@@ -205,7 +206,7 @@ namespace Hrot.Common.EntityCreation
 
             return new EntityCreation(
                 translators, ctx.Elm, localRequests, requestSystem, finalization, spawnSystem,
-                promotionSystem);
+                promotionSystem, ctx.NodeId);
         }
     }
 }

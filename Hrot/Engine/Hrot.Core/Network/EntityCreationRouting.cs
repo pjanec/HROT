@@ -19,6 +19,20 @@ namespace Hrot.Core.Network;
 public static class EntityCreationRouting
 {
     /// <summary>
+    /// ⭐⭐ <b>The owner value that means <i>"whichever node is the designated default processor"</i>.</b>
+    ///
+    /// <para>📄 <c>docs/DESIGN_Entity_Authoring_Surface.md</c> §4 / acceptance ①b. ⭐ It is the default
+    /// <c>owner</c> of <c>EntityCreation.RequestEntityCreation</c>, so an omitted argument reads as a
+    /// DECISION (<i>"let the arbiter own it"</i>) rather than as a forgotten zero.</para>
+    ///
+    /// <para>⛔ <b>Not new vocabulary — a NAME for a magic number that already had a meaning here.</b>
+    /// <see cref="IsHandledLocally"/> below already compared against the literal <c>0</c>; it now uses
+    /// this constant, so there is exactly ONE definition of the value. ⛔ It deliberately does NOT live
+    /// on <c>EntityCreationRequest</c>: the DTO carries the value, it does not interpret it.</para>
+    /// </summary>
+    public const int DefaultEntityCreationRequestProcessor = 0;
+
+    /// <summary>
     /// ⭐ True when <paramref name="request"/> is this node's to service.
     ///
     /// <para>The rule, unchanged from the original inline guard: an explicitly targeted request is
@@ -46,7 +60,7 @@ public static class EntityCreationRouting
 
         int  targetNodeId    = request.OwnerAppInstanceId;
         bool isTargetedAtMe  = targetNodeId == localNodeId;
-        bool isDefaultTarget = targetNodeId == 0;
+        bool isDefaultTarget = targetNodeId == DefaultEntityCreationRequestProcessor;
 
         return isTargetedAtMe || (isDefaultTarget && isDefaultProcessor);
     }

@@ -74,6 +74,12 @@ design-basis: docs/blueprints/RULINGS.md R-138 (fully distributed, ownership per
   transferable, NodeRole is a convention) - docs/blueprints/Architect_Question_65_Entity_Genesis_Uniformity.md
   §0 (no capability removal by design), §5.3 (mechanism vs policy) - docs/designs/tkb-1/DESIGN.md
   §6.5b gate 2 (registration is the narrowing lever).
+related-designs:
+  - DESIGN_Entity_Authoring_Surface.md — owns the CALLER side of creation (who asks for an entity and whom
+    they nominate as owner). Measured 2026-09-12: INDEPENDENT of this design in both directions — this one
+    decides component-level AUTHORITY after the entity exists, that one decides nothing about it.
+  - DESIGN_Entity_Creation_Unification.md — owns the pack this design's step 0a moved GhostPromotionSystem
+    into.
 -->
 # ⭐⭐⭐ Role-Affinity Ownership — **every node decides locally what it owns, so no two nodes ever claim the same component**
 
