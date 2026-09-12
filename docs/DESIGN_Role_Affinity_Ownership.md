@@ -1,7 +1,7 @@
 <!--STATUS
 state: LIVE
 updated: 2026-09-12
-build-state: BUILDING — steps 0a, 0, 1a, 1, 2, 3, 3b(b) and §3.9's two-set model done. ⛔ NOT BUILT: step 4 supplies no policy yet, so every node still runs null; 3b(a) NOT done. ⛔⛔ §3.9 IS LOAD-BEARING AND IS NOW MODELLED IN CODE: REGISTER = ownedComponentSet ∪ readComponentSet, AUTHORITY = ownedComponentSet — read it before touching registration, and note NO HOST FILLS THE READ TABLE YET (step 4). ✅ §3.9a IS NEW (2026-09-12): the per-component classification for SimHost is MEASURED and CONFIRMS the set of six, adding four more (the three channels + PreviousCapabilities) for TEN droppable. ⚠ It carries a RETRACTION — an intermediate version claimed scenario persistence required three of them; that was false (DataPolicy.NoSave governs scenario exclusion, and three of the translators are extract-only clipboard dumps). ⛔ 3b(a) is NOT blocked on persistence; what remains is that CognitiveComponentRegistry is SHARED with CGF, so the narrowing must move to MuscleRoleComponentRegistry. ⛔ NOT "BUILT": open-risk below still binds (§3.5 / step 3b).
+build-state: BUILDING — steps 0a, 0, 1a, 1, 2, 3, 3b(b), §3.9's two-set model AND 3b(a) THE REGISTRATION NARROWING (§6h: SimHost no longer registers the brain tier) done. ⛔ NOT BUILT: step 4 supplies no policy yet, so every node still runs null; 3b(a) NOT done. ⛔⛔ §3.9 IS LOAD-BEARING AND IS NOW MODELLED IN CODE: REGISTER = ownedComponentSet ∪ readComponentSet, AUTHORITY = ownedComponentSet — read it before touching registration, and note NO HOST FILLS THE READ TABLE YET (step 4). ✅ §3.9a IS NEW (2026-09-12): the per-component classification for SimHost is MEASURED and CONFIRMS the set of six, adding four more (the three channels + PreviousCapabilities) for TEN droppable. ⚠ It carries a RETRACTION — an intermediate version claimed scenario persistence required three of them; that was false (DataPolicy.NoSave governs scenario exclusion, and three of the translators are extract-only clipboard dumps). ⛔ 3b(a) is NOT blocked on persistence; what remains is that CognitiveComponentRegistry is SHARED with CGF, so the narrowing must move to MuscleRoleComponentRegistry. ⛔ NOT "BUILT": open-risk below still binds (§3.5 / step 3b).
 verified: ⭐⭐ THE WHOLE DESIGN WAS RE-MEASURED AGAINST THE TREE ON 2026-09-12 before step 0 was built
   (user: "verify design before, might be stale"). VERDICT: every DECISION holds and nothing load-bearing
   is stale — the six unbuilt types are still at ZERO .cs occurrences, the blanket grant is byte-identical,
@@ -631,7 +631,7 @@ and `PreviousCapabilities` — for **ten** droppable on SimHost.
 | what | ⭐ verdict |
 |---|---|
 | `BrainBlackboardTranslator` · `Blackboard1024Translator` · the two trace translators stop producing a **clipboard dump** of brain state on SimHost | ⭐ **acceptable, arguably correct** — dumping a blackboard from a node that never ticks a brain shows a value nothing on that node produced |
-| `AiTraceContextMenu.cs:26` gates its `ToggleAiTrace` on `HasComponent<BehaviorState>` ⇒ the SimHost menu item silently stops appearing | 🔴 **the SAME defect as `CE-259bg`'s `brainActive`** — a local component answering a cluster question. ⛔ Toggling a brain's trace from a node that has no brain was already meaningless; it must become a request to the node that runs the brain. ⇒ **file it with `CE-259bg`, do not let it block the narrowing** |
+| `AiTraceContextMenu.cs:26` gates its `ToggleAiTrace` on `HasComponent<BehaviorState>` ⇒ the toggle no-ops on SimHost | ✅ **CORRECT BEHAVIOUR, NOT A DEFECT — 🔒 user ruling `2026-09-12`: *"Ai debug toggle was meant host local, no routing tje toggle elsewhere needed"*.** ⛔⛔ **RETRACTED:** an earlier version of this row called it *"the same defect as `CE-259bg`'s `brainActive`"* and said *"it must become a request to the node that runs the brain"*. 🔴 **Wrong, and the two cases are NOT alike:** `brainActive` used a local component to answer a **CLUSTER** question *(does this entity's brain — wherever it runs — have a behaviour?)*; the trace toggle asks a **HOST-LOCAL** question *(trace the brain running HERE)*. ⇒ ⭐ on a node with no brain there is nothing to trace, so the toggle having no effect is the **right** answer and no routing work exists. ⚠ `HasComponent<T>` on an unregistered type returns **false**, it does not throw — `HasUnmanagedComponent` reads a mask bit via `ComponentType<T>.ID` *(`EntityRepository.cs:1010`)* ⇒ a clean no-op |
 
 ### 3.9b ⭐⭐⭐ REGISTRATION IS ALREADY ROLE-DERIVED — **it is ~80% BUILT AND UNDER-ADOPTED** *(user question, `2026-09-12`)*
 
@@ -1212,7 +1212,50 @@ work on this node**, which is the `CE-259bg` `brainActive` defect in another cos
 carries `BehaviorState` + `BrainBlackboard` *"so the BTree cognitive tier drives its behaviour autonomously
 from the first frame."* 📐 **No SimHost composition delivers that** — same shape as `BD1`'s dead routing.
 
-### ⛔ AND IT IS STILL THE FIRST NON-BEHAVIOUR-PRESERVING STEP
+### ✅✅✅ SLICE 3b SHIPPED — **SimHost no longer registers a brain** *(user ruling, `2026-09-12`)*
+
+> 🔒 **User:** *"Simhost has no ai(brain). So it does not need"* · *"Ai debug toggle was meant host local,
+> no routing tje toggle elsewhere needed"*
+
+⭐⭐⭐ **`SimHostComponentRegistry` no longer calls `CognitiveComponentRegistry`.** 13 components and 6
+events stop existing on a node that runs nothing which would tick them — the defect §3.9a's opening ruling
+names, closed. ⛔ CGF is untouched and still composes the whole brain tier.
+
+| ⭐ what made it safe, in order | |
+|---|---|
+| slices 1–3a | every component SimHost genuinely uses was FIRST moved to a registry SimHost calls |
+| ⭐ the events | measured: **not one** of the six is referenced in `Hrot.SimHost` |
+| ⭐⭐ `HasComponent<T>` on an unregistered type | **returns `false`, does not throw** — `HasUnmanagedComponent` reads a mask bit via `ComponentType<T>.ID` *(`EntityRepository.cs:1010`)* ⇒ the surviving `HasComponent<BehaviorState>` guards are clean no-ops, not crashes |
+| ⭐ spawning | `TkbTemplate.ApplyTo()` silently skips missing components — the same reason `StrideNodeBootstrapper` already excludes this registry |
+
+#### ⛔⛔ AN EXISTING RAIL REDDENED, AND THAT WAS THE POINT — **the claim was RE-HOMED, not deleted**
+
+📌 `SimHostComponentRegistry_RegisterAll_StillProvidesCognitiveComponents` failed. ⭐ It is a **delegation**
+rail — *"composing the sub-registries still yields the set SimHost needs"* — and it merely **sampled**
+`BehaviorState`, which the ruling above makes the wrong sample.
+⇒ ⭐⭐ **renamed to `…StillProvidesTheDelegatedSet` and the sample swapped to `MissionPlanQueue`**, a
+component that now reaches SimHost through a *different* sub-registry, so the delegation claim is still
+exercised across a boundary that actually moved. ⛔ **The brain half did not vanish — it moved, INVERTED,
+into `SimHostComponentRegistry_DoesNotRegisterTheBrainTier`.**
+
+#### 🔴🔴 THE BLAST RADIUS I MEASURED IN THE WRONG PLACE — **TEST FIXTURES, not production**
+
+⛔⛔ **I measured production consumers per component and called the cost "one feature". The suite
+disagreed: `HillAttackNodeTests` went red** — 📌 `SC_HA008_1_AimAndFireSpecific_WritesWeaponChannel…`
+and three siblings.
+
+📐 **Cause, and it is not a surprise once seen:** `HillAttackNodeTests.cs:65` builds its world with
+`SimHostComponentRegistry.RegisterAll(repo)` and then exercises **BRAIN-TIER** nodes. ⇒ it obtained the
+brain tier **IMPLICITLY, from SimHost's debt.** ⭐ The fixture now calls
+`CognitiveComponentRegistry.RegisterAll(repo)` itself — ⛔ **not a workaround: a test of brain behaviour
+needs a world with a brain in it, and it was only ever green because a Muscle node carried one.**
+
+| ⚠ the rule this broke | |
+|---|---|
+| 🔒 **"before calling any deletion simple/mechanical, MEASURE THE TEST SURFACE, not just production callers"** | ⛔ I measured `Hrot.SimHost` production only. 📐 **18 test files across 2 projects** call `SimHostComponentRegistry.RegisterAll` — 10 in `Hrot.SimHost.Tests`, 8 EQS files in `ClusterRunner.Integration.Tests` |
+| ⭐ what saved it | the suite ran before the commit. ⚠ **That is luck turning into process, not process working** — the per-component sweep should have included the test assemblies from the start |
+
+### ⛔ HISTORY — **why 3b was held for a decision**
 
 ⚠ Every slice so far has been provably behaviour-preserving. ⛔ **3b is not**: SimHost stops calling
 `CognitiveComponentRegistry`, so **ten components stop existing there** — and one has a live consumer:

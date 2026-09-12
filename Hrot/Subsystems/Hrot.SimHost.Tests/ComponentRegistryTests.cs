@@ -228,6 +228,71 @@ namespace Hrot.SimHost.Tests
                 () => world.GetComponentTable<Fdp.Toolkit.Behavior.Diagnostics.DebugState>());
         }
 
+        // ── CE-259bf slice 3b: SimHost no longer registers the BRAIN ─────────────────
+        // 🔒 User ruling 2026-09-12: "Simhost has no ai(brain). So it does not need [them]."
+
+        /// <summary>
+        /// ⭐⭐⭐ <b>THE POINT OF THE WHOLE CHAIN — a node with no brain no longer materialises one.</b>
+        ///
+        /// <para>📄 §3.9a/§6h. SimHost runs NO cognitive system, yet registered the entire brain tier, so
+        /// every spawn carried components nothing there would ever tick. ⛔ If this reddens, the brain
+        /// tier has come back to a Muscle node — which is the defect this design opens on.</para>
+        /// </summary>
+        [Fact]
+        public void SimHostComponentRegistry_DoesNotRegisterTheBrainTier()
+        {
+            using var world = new EntityRepository();
+            SimHostComponentRegistry.RegisterAll(world);
+
+            Assert.ThrowsAny<System.Exception>(() => world.GetComponentTable<BehaviorState>());
+            Assert.ThrowsAny<System.Exception>(() => world.GetComponentTable<BrainBTreeState>());
+            Assert.ThrowsAny<System.Exception>(() => world.GetComponentTable<BrainBlackboard>());
+            Assert.ThrowsAny<System.Exception>(() => world.GetComponentTable<Blackboard1024>());
+            Assert.ThrowsAny<System.Exception>(() => world.GetComponentTable<BrainHsm128>());
+            Assert.ThrowsAny<System.Exception>(() => world.GetComponentTable<BrainHsm64>());
+            Assert.ThrowsAny<System.Exception>(() => world.GetComponentTable<LocomotionChannel>());
+        }
+
+        /// <summary>
+        /// ⭐⭐⭐ <b>The other half, and the one that makes the drop SAFE rather than merely smaller.</b>
+        ///
+        /// <para>⛔⛔ Every component SimHost genuinely uses had to be moved to a registry SimHost calls
+        /// BEFORE the cognitive call could go. ⚠ This rail is what would have caught doing it in the
+        /// other order — and the failure would have been SILENT, since a missing component makes a
+        /// translator skip rather than throw.</para>
+        /// </summary>
+        [Fact]
+        public void SimHostComponentRegistry_StillRegistersEverythingItActuallyUses()
+        {
+            using var world = new EntityRepository();
+            SimHostComponentRegistry.RegisterAll(world);
+
+            Assert.Null(Record.Exception(() => world.GetComponentTable<NavigationIntent>()));     // MuscleRole
+            Assert.Null(Record.Exception(() => world.GetComponentTable<MissionPlanQueue>()));     // Mission
+            Assert.Null(Record.Exception(() => world.GetComponentTable<ActorCapabilityState>())); // Combat
+            Assert.Null(Record.Exception(() => world.GetComponentTable<PassengerBuffer>()));      // Embarkation
+            Assert.Null(Record.Exception(() => world.GetComponentTable<IsEmbarkedTag>()));        // Embarkation
+            Assert.Null(Record.Exception(() => world.GetComponentTable<EqsSensor>()));            // Perception
+            Assert.Null(Record.Exception(
+                () => world.GetComponentTable<Fdp.Toolkit.Behavior.Diagnostics.DebugState>()));   // Diagnostics
+        }
+
+        /// <summary>
+        /// ⭐⭐ <b>CGF is UNAFFECTED — it still gets the whole brain tier.</b>
+        /// ⛔ The drop must be per-HOST, not a deletion from the shared registry. ⚠ Without this, emptying
+        /// <c>CognitiveComponentRegistry</c> would also satisfy the rail above.
+        /// </summary>
+        [Fact]
+        public void TheBrainTierStillExists_ForHostsThatRunABrain()
+        {
+            using var world = new EntityRepository();
+            CognitiveComponentRegistry.RegisterAll(world);
+
+            Assert.Null(Record.Exception(() => world.GetComponentTable<BehaviorState>()));
+            Assert.Null(Record.Exception(() => world.GetComponentTable<BrainBTreeState>()));
+            Assert.Null(Record.Exception(() => world.GetComponentTable<LocomotionChannel>()));
+        }
+
         // ── KinematicComponentRegistry ────────────────────────────────────────
 
         [Fact]
@@ -412,15 +477,29 @@ namespace Hrot.SimHost.Tests
 
         // ── SimHostComponentRegistry (idempotency via delegation) ─────────────
 
+        /// <summary>
+        /// ⚠⚠ <b>RENAMED AND RE-AIMED <c>2026-09-12</c> (<c>CE-259bf</c> slice 3b) — the CLAIM is kept,
+        /// the SAMPLE was corrected.</b>
+        ///
+        /// <para>This rail guards <b>delegation</b>: composing the sub-registries must still yield the set
+        /// SimHost needs. ⛔ It happened to sample <c>BehaviorState</c>, and 🔒 the user ruled
+        /// <i>"Simhost has no ai(brain). So it does not need [them]"</i> ⇒ that sample now asserts the
+        /// OPPOSITE of the intended contract. ⭐ It is replaced by <c>MissionPlanQueue</c> — a component
+        /// that reaches SimHost through a DIFFERENT sub-registry than it used to, so the delegation claim
+        /// is still exercised across a boundary that actually moved.</para>
+        ///
+        /// <para>⛔ The brain half of the old assertion did not vanish — it moved to
+        /// <c>SimHostComponentRegistry_DoesNotRegisterTheBrainTier</c>, inverted, above.</para>
+        /// </summary>
         [Fact]
-        public void SimHostComponentRegistry_RegisterAll_StillProvidesCognitiveComponents()
+        public void SimHostComponentRegistry_RegisterAll_StillProvidesTheDelegatedSet()
         {
             using var world = new EntityRepository();
             // The refactored SimHostComponentRegistry delegates to sub-registries.
             // Verify the full set of components remains accessible.
             SimHostComponentRegistry.RegisterAll(world);
 
-            Assert.Null(Record.Exception(() => world.GetComponentTable<BehaviorState>()));
+            Assert.Null(Record.Exception(() => world.GetComponentTable<MissionPlanQueue>()));
             Assert.Null(Record.Exception(() => world.GetComponentTable<NavigationIntent>()));
             Assert.Null(Record.Exception(() => world.GetComponentTable<NavigationStatus>()));
             Assert.Null(Record.Exception(() => world.GetComponentTable<VehicleState>()));
