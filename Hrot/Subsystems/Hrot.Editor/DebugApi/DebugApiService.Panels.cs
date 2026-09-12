@@ -128,10 +128,10 @@ namespace Hrot.Editor.DebugApi
             //    ACTIVE PERSPECTIVE's subsystem, not to the API service. See its remarks.
             var buffer = _gizmoFeed;
             if (buffer is null)
-                return (null, "This host has no debug primitive buffer for the active perspective, so there "
-                            + "is no gizmo feed. Check GET /capabilities for panels.gizmo — ExCon draws no "
-                            + "gizmos, so its perspective legitimately has none.",
-                        DebugApiHints.Panel);
+                // ⭐⭐ CE-259am — this used to assert "this host has no debug primitive buffer", which on
+                //    --mode replaybrowser was FALSE: the host had one and was filling it every frame, while
+                //    the subsystem contributed no provider. The explainer distinguishes the two causes.
+                return (null, "No gizmo feed: " + GizmoFeedAbsenceReason(), DebugApiHints.Panel);
 
             var frame = buffer.GetFrame();
             var items = new JsonArray();

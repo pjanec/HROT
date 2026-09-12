@@ -83,10 +83,18 @@ public sealed class EntityDragGizmo : IEntityStatefulGizmo
         ref readonly var tf = ref view.GetComponentRO<SimTransform>(_entity);
         var worldPos = new Vector3(tf.Position.X, tf.Position.Y, 0f);
 
-        long networkId = 0;
-        if (view.HasComponent<NetworkIdentity>(_entity))
-            networkId = view.GetComponentRO<NetworkIdentity>(_entity).Value;
+        // ⭐ §6.8 / R-77 — through the ONE resolver, which also covers liveness and presence. ⛔ This was
+        //   an inline `HasComponent` + `GetComponentRO(...).Value` pair: a fifth copy of the lookup
+        //   BP-508 consolidated.
+        long networkId = Fdp.Toolkit.Replication.Services.NetworkIdResolver
+            .RuntimeNetworkIdOf(view as EntityRepository, _entity);
 
+        // ⭐⭐⭐ §6.8 — NO ID, NO PICK BOX. `networkId` defaults to 0 above when the entity carries no
+        //   NetworkIdentity, and this emitted the box anyway ⇒ a pick target that wins the hit-test and
+        //   resolves to nothing. ⚠ Only the PICK BOX is skipped — the drag preview below still draws, so
+        //   an in-progress drag stays visible.
+        if (networkId != 0)
+        {
         // Emit transparent Box2D so DebugGizmoLayer can hit-test this entity.
         var pickBox = default(DebugPrimitive);
         pickBox.Shape            = DebugPrimitiveShape.Box2D;
@@ -97,10 +105,11 @@ public sealed class EntityDragGizmo : IEntityStatefulGizmo
         pickBox.BoxExtentX       = PickRadius;
         pickBox.BoxExtentY       = PickRadius;
         pickBox.Color            = PickSphereColor;
-        pickBox.AnchorIndex      = _entity.Index;
-        pickBox.AnchorGeneration = (ushort)_entity.Generation;
+        // 🔴 §6.7 — `pickBox.AnchorIndex = _entity.Index; pickBox.AnchorGeneration = ...` DELETED.
+        //   The handle was a pick payload nothing reads; identity is BoxAnchorId (set above).
         pickBox.BoxAnchorId      = networkId;
         draw.EmitRaw(in pickBox);
+        }
 
         // While dragging: show a yellow preview line from original to current position.
         if (_isDragging)

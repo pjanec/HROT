@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using Fdp.Core;
+using Fdp.Toolkit.Replication.Components;
 
 namespace Fdp.Toolkit.Replication.Services
 {
@@ -167,6 +168,17 @@ namespace Fdp.Toolkit.Replication.Services
              _graveyard.RemoveAll(e => (currentFrame - e.DeathFrame) > _graveyardDurationFrames);
         }
 
+        /// <summary>
+        /// Moves the ids of destroyed entities into the graveyard.
+        ///
+        /// <para>⚠ <b>Clock corrected <c>2026-09-03</c>: this stamps <see cref="EntityRepository.SimulationTick"/>,
+        /// not <c>GlobalVersion</c>.</b> The graveyard window is denominated in FRAMES
+        /// (<c>graveyardDurationFrames</c>), and the repository's own rule is explicit — <i>"Frame-index /
+        /// wall-tick consumers must read this, NOT GlobalVersion"</i> — because <c>BumpMemoryVersion()</c>
+        /// advances <c>GlobalVersion</c> alone during a mid-tick debug burst. ⭐ The mismatch was harmless
+        /// only while <see cref="PruneGraveyard"/> had no caller and the window was never evaluated; it
+        /// stopped being harmless the moment <c>DisposalMonitoringSystem</c> started ticking it.</para>
+        /// </summary>
         public void PruneDeadEntities(EntityRepository repo)
         {
             var toRemove = new List<long>();
@@ -177,12 +189,50 @@ namespace Fdp.Toolkit.Replication.Services
                     toRemove.Add(kvp.Key);
                 }
             }
-            
+
             foreach (var netId in toRemove)
             {
-                Unregister(netId, repo.GlobalVersion);
+                Unregister(netId, repo.SimulationTick);
             }
         }
 
+        /// <summary>
+        /// ⭐⭐⭐ <b>Rebuild this map from the world's current ECS state.</b> Prunes entries whose entity
+        /// is gone, then registers every live entity carrying a <see cref="NetworkIdentity"/> that is not
+        /// already mapped.
+        ///
+        /// <para>⭐ <b>Extracted 2026-09-11 from <c>EcsRecordReplayController</c>'s private
+        /// <c>_afterSeek</c> lambda</b>, whose own comment already declared the intent —
+        /// <i>"Unify NetworkEntityMap resync for all subsystems (Editor, SimHost, CGF, etc.)"</i> — while
+        /// living somewhere only that controller could reach. ⛔ A module with its own seek path (the
+        /// ReplayBrowser) could not use it and had to go without a map entirely. ⇒ one implementation,
+        /// reachable by every ECS module (ruling 9).</para>
+        ///
+        /// <para>⭐⭐ <b>Why this matters beyond tidiness:</b> a module WITHOUT a map cannot resolve a
+        /// network id to a local entity, and that single gap was the stated reason the gizmo pick token
+        /// carried a process-local ECS handle alongside its network id. 📄
+        /// <c>docs/DESIGN_Gizmo_Anchor_Identity.md</c> §6.7.</para>
+        ///
+        /// <para>⚠ Time-travel safe: it queries <c>EntityLifecycle.All</c>, so entities that exist at the
+        /// seeked-to frame are registered even if they are dead "now".</para>
+        /// </summary>
+        public void RebuildFromWorld(EntityRepository repo)
+        {
+            if (repo == null) throw new ArgumentNullException(nameof(repo));
+
+            PruneDeadEntities(repo);
+
+            var q = repo.Query()
+                .With<NetworkIdentity>()
+                .WithLifecycle(EntityLifecycle.All)
+                .Build();
+
+            foreach (var e in q)
+            {
+                long netId = repo.GetComponentRO<NetworkIdentity>(e).Value;
+                if (netId != 0 && !TryGetEntity(netId, out _))
+                    Register(netId, e);
+            }
+        }
     }
 }

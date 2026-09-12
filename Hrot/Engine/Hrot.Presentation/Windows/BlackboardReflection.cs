@@ -30,7 +30,7 @@ public static class BlackboardReflection
     /// </summary>
     /// <param name="inspector">the host's entity inspector panel.</param>
     /// <param name="registry">
-    /// the behavior registry used to resolve a brain's <c>ParamsDtoType</c>/<c>HeavyDtoType</c>.
+    /// the behavior registry used to resolve a brain's <c>BlackboardLayoutType</c>/<c>HeavyDtoType</c>.
     /// ⚠ Captured, so a host may pass a field that is populated later — but ⛔ a production caller that
     /// HAS one must pass it (the silent-default rule): a null registry makes every edit context null,
     /// which renders the panel's typed projection silently inert.
@@ -44,7 +44,7 @@ public static class BlackboardReflection
         // And the heavy Blackboard1024.
         inspector.Reflector.AddBufferViewProvider(new Blackboard1024ViewProvider());
 
-        // Inject EditContextFactory so TryOpenEditWindow passes ParamsDtoType/HeavyDtoType to StructEdit.
+        // Inject EditContextFactory so TryOpenEditWindow passes BlackboardLayoutType/HeavyDtoType to StructEdit.
         inspector.Reflector.EditContextFactory = (session, e, type) =>
         {
             if (type != typeof(BrainBlackboard) && type != typeof(Blackboard1024)) return null;
@@ -56,8 +56,8 @@ public static class BlackboardReflection
 
             if (type == typeof(BrainBlackboard))
             {
-                if (def.ParamsDtoType == null) return null;
-                return new StructEdit.Core.EditContext().With("ParamsDtoType", def.ParamsDtoType);
+                if (def.BlackboardLayoutType == null) return null;
+                return new StructEdit.Core.EditContext().With("BlackboardLayoutType", def.BlackboardLayoutType);
             }
 
             // Blackboard1024

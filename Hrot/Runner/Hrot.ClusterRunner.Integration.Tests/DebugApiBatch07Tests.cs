@@ -42,7 +42,7 @@ public sealed class DebugApiBatch07Tests
     [Fact]
     public void AddBreakpoint_Compound_RoundTrips()
     {
-        using var h = new EditorHarness();
+        using var h = new EditorHarness(enableBreakpoints: true);
         var svc = h.BuildDebugApiService();
 
         // Use a LifecyclePredicateDto (simple, no component registration needed)
@@ -63,7 +63,7 @@ public sealed class DebugApiBatch07Tests
     [Fact]
     public void AddBreakpoint_NullCondition_ThrowsArgumentException()
     {
-        using var h = new EditorHarness();
+        using var h = new EditorHarness(enableBreakpoints: true);
         var svc = h.BuildDebugApiService();
 
         var body = new JsonObject(); // no condition key
@@ -73,7 +73,7 @@ public sealed class DebugApiBatch07Tests
     [Fact]
     public void AddBreakpoint_WithOccurrenceThreshold_StoresCorrectly()
     {
-        using var h = new EditorHarness();
+        using var h = new EditorHarness(enableBreakpoints: true);
         var svc = h.BuildDebugApiService();
 
         var body = AddBreakpointBody("Alpha", name: "threshold-test", occurrenceThreshold: 5);
@@ -91,7 +91,7 @@ public sealed class DebugApiBatch07Tests
     [Fact]
     public void ListBreakpoints_ReturnsAll()
     {
-        using var h = new EditorHarness();
+        using var h = new EditorHarness(enableBreakpoints: true);
         var svc = h.BuildDebugApiService();
 
         svc.AddBreakpoint(AddBreakpointBody("Alpha", name: "bp1"));
@@ -118,7 +118,7 @@ public sealed class DebugApiBatch07Tests
     [Fact]
     public void RemoveBreakpoint_RemovesFromList()
     {
-        using var h = new EditorHarness();
+        using var h = new EditorHarness(enableBreakpoints: true);
         var svc = h.BuildDebugApiService();
 
         var result = svc.AddBreakpoint(AddBreakpointBody()).AsObject();
@@ -134,7 +134,7 @@ public sealed class DebugApiBatch07Tests
     [Fact]
     public void RemoveBreakpoint_UnknownId_ThrowsArgumentException()
     {
-        using var h = new EditorHarness();
+        using var h = new EditorHarness(enableBreakpoints: true);
         var svc = h.BuildDebugApiService();
 
         Assert.Throws<ArgumentException>(() => svc.RemoveBreakpoint("BP#99999"));
@@ -145,7 +145,7 @@ public sealed class DebugApiBatch07Tests
     [Fact]
     public void GetBreakpointStatus_InitiallyNotPaused()
     {
-        using var h = new EditorHarness();
+        using var h = new EditorHarness(enableBreakpoints: true);
         var svc = h.BuildDebugApiService();
 
         var status = svc.GetBreakpointStatus().AsObject();
@@ -158,7 +158,7 @@ public sealed class DebugApiBatch07Tests
     [Fact]
     public void OnBreakpointHit_Event_UpdatesHitState()
     {
-        using var h = new EditorHarness();
+        using var h = new EditorHarness(enableBreakpoints: true);
         var svc = h.BuildDebugApiService();
 
         // Register a breakpoint

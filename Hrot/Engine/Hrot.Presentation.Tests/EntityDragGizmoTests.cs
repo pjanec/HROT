@@ -55,7 +55,10 @@ public class EntityDragGizmoTests
             if (prim.Shape != DebugPrimitiveShape.Box2D) continue;
             var token = prim.GetPickToken();
             if (!token.IsValid) continue;
-            Assert.Equal(_entity, token.Target);
+            // ⭐ §6.7 — the pick box is identified by the entity's NETWORK id, not its ECS handle.
+            Assert.Equal(
+                Fdp.Toolkit.Replication.Services.NetworkIdResolver.RuntimeNetworkIdOf(_repo, _entity),
+                token.AnchorId);
             found = true;
             break;
         }

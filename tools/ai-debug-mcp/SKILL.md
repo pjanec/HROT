@@ -65,6 +65,35 @@ mutually exclusive.
 `ok:false` and `error` explains why (and the tool result is flagged as an MCP error). `awaited` relates to
 wait-gating (below). The server passes this through verbatim — it never hides a failure as success.
 
+**On a 500, read `fault` — it says WHERE the exception happened** (`CE-190`). An unhandled server-side
+exception now reports its origin, not just its message:
+
+```
+"error": "System.NullReferenceException: Object reference not set… @ DebugApi/DebugApiService.cs:1234 in DebugApiService.DumpEntity",
+"fault": { "type": …, "message": …, "site": "<file>:<line> in <Type.Method>", "frames": [ … ], "inner": [ … ] }
+```
+
+`error` carries the type and site inline (some callers only ever see that string); `fault` carries the frame
+list and the inner-exception chain. **Report the `site` when you escalate a 500** — it is the difference
+between "the API broke" and a file and line someone can open. Two caveats: a fault raised on the main thread
+arrives wrapped in an `AggregateException`, and `site` deliberately names the *inner* throw rather than the
+await (`wrappedIn` records the wrapper); and file/line need PDBs beside the assembly — without them `site`
+degrades to `Type.Method +IL_0042`, never to nothing.
+
+**A malformed field is now a 400, not a silently-substituted value** (`CE-191`). The API used to answer
+`ok:true` after quietly discarding input it could not parse. It no longer does:
+
+| you send | you used to get | you now get |
+|---|---|---|
+| `spawn` with an unparseable `transform` | the entity **at the origin**, `ok:true` | 400, nothing spawned |
+| `spawn` with a **typo'd** component type | the entity **without that component**, `ok:true` | 400 naming the unknown type |
+| a graph command with `"x": "left-ish"` | the node at **0**, `ok:true` | 400 naming the field |
+| `remove` with one malformed id among five | **the other four deleted**, `ok:true` | 400, nothing removed |
+
+⚠ **Absent optional fields are still legal** — only *unparseable* ones changed. And on reads, an
+unserializable row is no longer dropped: it stays in the array carrying `payloadError` /
+`serializationError`, so a count is never quietly short.
+
 **Wait-gating (why you sometimes see `awaited:false`).** Commands that *could* wait for a result only do so
 when time is advancing. If you send a command with `wait:true` while the sim is paused/in Edit, you get
 `{awaited:false, reason:"sim not running"}` immediately instead of a hang. That is expected — pause-step-inspect
@@ -349,7 +378,7 @@ Conventions: **Req** = required param. Coordinates are local ECS metres unless s
 
 ### Group P — Discovery with schema
 - **`list_behaviors`** — List the behaviours available, each with the JSON schema of its parameter DTO. Key by tkbType (what this KIND of entity can do) or entityId (what THIS entity can do); omit both for every registered behaviour. `tkbType?` (number), `entityId?` (number). Returns [{ id, name, brainTier, paramSchema }]
-  Notes: paramSchema is derived from the behaviour definition the runtime itself parses params with, so what you author matches what the engine reads.; An unknown entityId is a 404 whose hint points at GET /entities — it is not answered with an empty list.; A behaviour with no parameters returns an empty properties object, never null..
+  Notes: paramSchema is derived from the behaviour definition the runtime itself parses params with, so what you author matches what the engine reads. (CE-224/CE-226, 2026-09-08: the schema now covers BOTH shapes a behaviour uses to describe its parameters -- a curated ParamsDtoType, whose blittable struct is read by FIELD as well as by property, and a generated ManagedBlackboardVariables manifest. When both exist the curated DTO wins, per R-132; they are never merged. Live count went 0/40 -> 20/40, and the 20 that still show an empty schema were each measured to accept no parameters at all. CE-228, still open for CURATED behaviours only: ParamsDtoType names the BLACKBOARD struct while the resolver deserializes a separate wire DTO that may accept MORE keys -- MoveToLocation also takes TargetLat/TargetLon, which the schema does not advertise. For GENERATED behaviours there is no such gap: the manifest and the ParseParams switch are emitted from one list.); An unknown entityId is a 404 whose hint points at GET /entities — it is not answered with an empty list.; A behaviour with no parameters returns an empty properties object, never null..
   Example: `list_behaviors({"entityId":1000})` — discover what entity 1000 can be told to do, and how to shape the params.
 
 ### Group P — Mission editing
@@ -594,6 +623,72 @@ GET  /status                            # confirms the active perspective
 disagree about the same entity: measured `2026-08-28`, entity 1001 held `Class: Tank, AccelGain: 1.8` on
 CGF and `PersonalCar, AccelGain: 0` on SimHost. Reading "the cluster" without switching gives you one of
 those two answers with no indication which.
+
+### 5c.3 🔴🔴🔴 A FIELD IS ONLY TRUE ON THE NODE THAT OWNS ITS TIER — a zero on the other one is CORRECT
+
+§5c.2 tells you to switch. **This tells you what a switched read is worth**, and it is the trap that costs
+the most, because the wrong answer is *well-formed, plausible and silently wrong*.
+
+⛔ **First: the perspective name is NOT the subsystem name.**
+
+| subsystem | perspective to `POST` | role |
+|---|---|---|
+| CGF | **`Scenario`** ⚠ | Brain |
+| SimHost | `SimHost` | Muscle |
+| IG | `IG` | — |
+| ExCon | `ExCon` | no ECS world — entity routes answer `NOT_SUPPORTED_HERE` |
+
+📌 **Measured `2026-09-04`, and it produced a wrong root cause that was committed before it was caught.**
+`BehaviorState.ActiveBehaviorHash` read **`0`** on `SimHost` and was reported as *"no behaviour is running
+on the cluster"*. On `Scenario` the same entity, same instant, read **`-1606975122` — byte-identical to the
+editor.** The Brain was running the behaviour all along; the Muscle simply does not run the Brain tier, so
+its zero was **correct**.
+
+⭐⭐⭐ **The rule: before reading a field, ask which tier owns it. A zero, an absence, or a default on the
+other node is EXPECTED and is not evidence of anything.**
+
+| field | authoritative on | on the other node |
+|---|---|---|
+| `BehaviorState.ActiveBehaviorHash`, `BrainBTreeState`, `MissionPlanQueue`, `TargetMemory`, `ActiveSensorTracks` | **Brain** (`Scenario`) | 0 / empty **by design** |
+| `SensorContactList`, `VehicleState`, `NavState`, `WeaponChannel` execution | **Muscle** (`SimHost`) | may lag or differ |
+| `NavigationIntent` | written by the **Brain**, consumed by the **Muscle** | present on both — ⭐ compare them to prove the wire |
+| `Health`, `VehicleParams`, `PerceptionReceptor` | ⚠ **both, and they can DISAGREE** | scenario-authored on the Brain vs TKB-derived on the Muscle |
+
+⚠ **That last row is a live defect class, not a quirk** — measured the same day: `Health` `50/50` on the
+Brain (the scenario's value) and `3000/3000` on the Muscle (the TKB's), from one entity, one instant.
+
+### 5c.4 ⭐ `/diagnostics/architecture` is the ONE route that ignores the perspective
+
+Every other data route answers for the **active** perspective only. This one reports **every subsystem on
+the node at once** — modules, ECS systems, and per-translator `sentSamples`/`receivedSamples`. Use it to
+answer *"is this system even scheduled here?"* and *"is the wire carrying X?"* **without** switching, and
+before you start switching for anything else.
+
+### 5c.5 ⛔⛔ "NOT AVAILABLE" CAN MEAN "NOT WIRED" — and it reads exactly like "not there"
+
+📌 **Measured `2026-09-04` (`CE-169`).** `GET /behaviors` answered `"Behavior registry not available."` on a
+cluster node **that was resolving a behaviour hash to run a behaviour at that moment**. The registry was
+fully populated; the composition root had simply never handed it to the API. Two more reads were degraded
+by the same omission: `/entities/{id}/state` omitted the behaviour **name**, and `/trace` reported
+`tier: "unknown"`.
+
+⭐⭐ **The distinguishing test — one call, and it is the same shape as §5c.1:** ask the **editor** the same
+question. Identical hash + a resolvable name there ⇒ the thing exists and your instrument on the cluster is
+blind. ⛔ **Never let a "not available" become a premise** — it is the R-133 shape: an instrument that cannot
+tell *absent* from *unwired* will be read as evidence of absence.
+
+⚠ **Still open at the time of writing (`CE-171`):** `/trace` answers `tier: "unknown"` on every cluster
+node, because the tier is selected from the debug **sessions**, which the cluster's service constructor does
+not accept at all. `BrainTier` is present and correct on both hosts — ⛔ **do not read `tier: "unknown"` as
+"no BTree is running"**.
+
+### 5c.6 ⚠ Fixed-size array components come back COLLAPSED — you cannot decode them from `/entities/{id}`
+
+`BrainBlackboard.BehaviorParameters`, `SensorContactList.EntityIds`, `TargetMemory.ThreatScores` and every
+other inline fixed array render as **`{"FixedElementField": N}`** — one element, not the buffer. So an
+entity dump can tell you a contact **count** but never the behaviour's live **parameter values**.
+⛔ Do not plan a diagnosis around reading blackboard params out of an entity dump; there is no route for it
+today.
 
 ## 5d. ⭐ Localise a "it works on the editor, not on the cluster" report
 

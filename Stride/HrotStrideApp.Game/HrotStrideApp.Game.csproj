@@ -67,4 +67,9 @@
     <PackageReference Include="Microsoft.CodeAnalysis.CSharp" Version="4.8.0" />
   </ItemGroup>
 
+  <!-- CE-232: the test assembly asserts the REAL infinite-plane filter, not a copy of the predicate. -->
+  <ItemGroup>
+    <InternalsVisibleTo Include="HrotStrideApp.Game.Tests" />
+  </ItemGroup>
+
 </Project>

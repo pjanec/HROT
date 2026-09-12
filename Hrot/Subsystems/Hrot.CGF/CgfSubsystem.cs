@@ -31,7 +31,10 @@ using Fdp.Toolkit.Physics;
 using Fdp.Toolkit.Scenario;
 using Hrot.CGF.Configuration;
 using Hrot.CGF.Systems;
+using Hrot.Common.Systems;   // Q65 obstacle 1: the request tier moved here
 using Hrot.Common;
+using Hrot.Common.EntityCreation;   // CE-140 step 3 host (d): the shared entity-creation pack
+using Fdp.Interfaces;               // ITkbEntityTranslator, for ExtraTranslators
 using Hrot.Common.Infrastructure;
 using Hrot.Common.Interactions;
 using Hrot.Common.Scenario;
@@ -75,6 +78,27 @@ public sealed class CgfSubsystem : ISubsystem, Fdp.Toolkit.Runner.IMapCameraProv
 {
     private HrotNodeContext?  _context;
     private NetworkEntityMap? _entityMap;
+
+    /// <summary>
+    /// ⭐⭐⭐ <b>The ONE declaration of what this node is.</b> <c>CE-200</c>: CGF used to spell
+    /// <c>NodeRole.Brain</c> in three separate places, which is the same drift <c>CE-197</c> measured
+    /// on SimHost — three copies of a role, free to disagree with what the node actually composes.
+    /// </summary>
+    /// <remarks>
+    /// ⛔ A node's role is a fact about the node, not a parameter each call site restates. The
+    /// capability plan below resolves against THIS, so the declaration and the composition cannot
+    /// drift apart — and a source rail pins that the constant is the only spelling.
+    /// </remarks>
+    public const NodeRole DefaultRole = NodeRole.Brain;
+
+    /// <summary>
+    /// The capabilities <see cref="DefaultRole"/> resolves to (<c>B4b</c> step 2, host (c)).
+    /// </summary>
+    /// <remarks>
+    /// ⛔ Resolution order is registration order is EXECUTION order — see <c>CgfCapabilities</c>.
+    /// </remarks>
+    private IReadOnlyList<INodeCapability> _capabilities =
+        System.Array.Empty<INodeCapability>();
 
     /// <summary>
     /// ⭐⭐⭐ <c>CE-046</c> (Axis-C <b>E1</b>) — <b>the SAME scenario session the editor runs, over CGF's own
@@ -331,6 +355,10 @@ public sealed class CgfSubsystem : ISubsystem, Fdp.Toolkit.Runner.IMapCameraProv
     private EntityQuery?               _entityQuery;
     private Fdp.Toolkit.Diagnostics.Gizmos.DebugPrimitiveBuffer? _cgfGizmoBuffer;
     private Fdp.Toolkit.Diagnostics.Gizmos.Systems.GlobalGizmoManager? _cgfGizmoManager;
+
+    /// <summary>🔒 <c>UXI-07</c> — this host's tool arbiter, so adapters built in a LATER phase than
+    /// <c>MapInteractionPack.Build</c> can still be handed it (step 4a).</summary>
+    private Hrot.ScenarioEditor.Tools.ToolController? _cgfToolController;
     private Fdp.Toolkit.Diagnostics.Gizmos.Systems.DataDrivenGizmoSystem? _cgfDataDrivenGizmoSystem;
     private Fdp.Core.FdpEventBus? _cgfInteractionBus;
     private Fdp.Toolkit.Diagnostics.Gizmos.GizmoExecutionController? _cgfGizmoController;
@@ -372,6 +400,14 @@ public sealed class CgfSubsystem : ISubsystem, Fdp.Toolkit.Runner.IMapCameraProv
             perspective:   "Scenario",
             world:         () => _context?.World,
             entityMap:     () => _entityMap,
+            // ⭐⭐⭐ CE-171 — CGF's OWN extraction service, the one built WITH the scenario serializer
+            //    (line ~1057) and already handed to the entity-inspector panel. ⛔ Until this line the
+            //    debug API built its own from the world alone, which has no translator pipeline, so
+            //    `BrainBlackboard.BehaviorParameters` came back as `{"FixedElementField": 1}` instead of
+            //    the decoded params DTO — on the very node that holds the Brain's behaviour state.
+            // ⚠ Lazy for the same measured reason as gizmoBuffer and missionEditor below: it is created
+            //   during window registration, well after the composition root builds this provider.
+            extraction:    () => _fdpEntityInspector.ExtractionService,
             drive:         () => _clusterTimeAdapter,
             // ⭐⭐⭐ BP-487 — CGF's OWN map feed: the very buffer its DebugGizmoLayer draws (line ~1096) and
             //    its canvas takes as DrawBuffer (line ~1098), fed by GlobalGizmoManager + StatelessGizmoSystem.
@@ -399,6 +435,14 @@ public sealed class CgfSubsystem : ISubsystem, Fdp.Toolkit.Runner.IMapCameraProv
             //    path the operator's own "Load into Live" button takes.
             requestTransition: Hrot.Presentation.DebugApi.SubsystemDebugProvider
                                    .TransitionsVia(() => _context?.EventBus),
+            // ⭐⭐⭐ CE-163 — CGF's OWN committed cluster state, from its OWN ClusterSlave, through the SAME
+            //    shared projection SimHost and IG use. 🔒 "every ECS node must use the same shared code".
+            // ⚠ Lazy for a LOAD-BEARING reason, not style: Initialize REPLACES the context's slave with the
+            //   one it builds itself (`_context = _context with { ClusterSlave = newClusterSlave }`, so it
+            //   can control handler registration order). A captured value would read the pre-Initialize
+            //   slave forever — the one that never commits anything.
+            clusterState:  Hrot.Presentation.DebugApi.SubsystemDebugProvider
+                               .ClusterStateFrom(() => _context?.ClusterSlave),
             // ⭐⭐ MD-002 — CGF's own kernel snapshot, the same one its Architecture Diagnostics window
             //    already renders (line ~1038). ⚠ Lazy: _context is null until Initialize.
             // ⭐⭐ MD-006 — same bus, same argument as requestTransition above.
@@ -449,10 +493,26 @@ public sealed class CgfSubsystem : ISubsystem, Fdp.Toolkit.Runner.IMapCameraProv
     /// <summary>Internal test hook: exposes the debug snapshot provider (UBP-P10T2).</summary>
     internal DebugSnapshotProvider? BpSnapshotProvider => _bpSnapshotProvider;
 
+    /// <summary>
+    /// The behaviour registry this CGF node populated at boot
+    /// (<c>CgfBehaviorSetup.LoadFromAiAssembly</c> in the <c>behavior-registry</c> boot step).
+    ///
+    /// <para>⭐ <b>A PRODUCTION accessor, not a test hook</b> — <c>CE-169</c>: the cluster's debug API
+    /// needs it to answer <c>GET /behaviors</c> and to resolve a behaviour HASH to its NAME in
+    /// <c>GET /entities/{id}/state</c>. Without it both answered as though the node had no
+    /// behaviours, while that same node was resolving the hash to run one.</para>
+    ///
+    /// <para>⚠ Null until the <c>behavior-registry</c> boot step has run, so a consumer constructed
+    /// before subsystem boot must read it LAZILY rather than capture it.</para>
+    /// </summary>
+    internal BehaviorRegistry? BehaviorRegistry => _behaviorRegistry;
+
     /// <summary>TestHook: exposes the CGF behavior registry so integration tests can register
     /// scenario-specific behaviors (e.g. UrbanCombat) before the cluster transitions to
-    /// OperatingLive and scenario entities begin executing missions.</summary>
-    internal BehaviorRegistry? TestHook_BehaviorRegistry => _behaviorRegistry;
+    /// OperatingLive and scenario entities begin executing missions.
+    /// ⭐ An alias for <see cref="BehaviorRegistry"/> — one storage, two names, so the existing test
+    /// call sites keep reading in test vocabulary without a second source of truth.</summary>
+    internal BehaviorRegistry? TestHook_BehaviorRegistry => BehaviorRegistry;
 
     /// <summary>
     /// TestHook: spawns an entity and publishes a <c>DeferredTakeOwnership</c> routing table
@@ -495,15 +555,46 @@ public sealed class CgfSubsystem : ISubsystem, Fdp.Toolkit.Runner.IMapCameraProv
     private int _testIdCounter;
 
     /// <inheritdoc/>
+    /// <summary>
+    /// The node context, as a CHECKED read for use inside a boot step.
+    ///
+    /// <para>
+    /// A step's lambda cannot see that an earlier step assigned <c>_context</c> — the compiler must
+    /// assume a lambda runs at any time — so the field reads as nullable in there. The real guarantee
+    /// is the plan's: a step that needs the context declares a key only the "node-context" step
+    /// provides, and <c>NodeBootPlan.Run</c> throws by key if that step did not run. This turns that
+    /// guarantee into an actual check rather than a `!` suppression. 📄 §4.1T.
+    /// </para>
+    /// </summary>
+    private HrotNodeContext Ctx =>
+        _context ?? throw new InvalidOperationException(
+            "[CgfSubsystem] a boot step read the node context before the 'node-context' step built it.");
+
     public void Initialize(SubsystemConfig config)
     {        _headless = config.Headless;
         int cgfNodeId = config.NodeId != 0 ? config.NodeId : 400;
         string baseTempRoot = OrchestrationConstants.ResolveStagingRoot();
         string isolatedTempRoot = System.IO.Path.Combine(baseTempRoot, "nodes", $"node-{cgfNodeId}");
         string resolvedLogDir = System.IO.Path.Combine(System.AppContext.BaseDirectory, "logs");
-        // ── Create DDS participant in the Application Shell (Composition Root) ───
-        // Rule: only the outermost executable may instantiate DdsParticipant.
-        // HrotNodeBuilder no longer has a fallback.
+        // ⭐⭐⭐ THE NODE-BOOT HEAD IS A DECLARED PLAN (§4.1T) — the first INLINE ECS root to take one.
+        //
+        // The statements below are UNCHANGED and in the SAME ORDER; what is new is that each region
+        // states what it requires and provides, and NodeBootPlan verifies it (it never reorders — §4.1P).
+        // Values that cross a step boundary travel through the plan's bag rather than through locals,
+        // which is the rule §4.1R derived after measuring that this method's spine values live 118-191
+        // lines each and every boundary is crossed by three to five of them.
+        //
+        // ⛔ SCOPE: only the HEAD (participant -> context -> base modules -> behaviour registry ->
+        //    node factory -> replication module). Everything from the entity-creation tier onward is
+        //    still ordinary code and reads what it needs back via plan.Value<T>(...) below.
+        var bootPlan = new NodeBootPlan();
+        bootPlan
+
+            // ── Create DDS participant in the Application Shell (Composition Root) ───
+            // Rule: only the outermost executable may instantiate DdsParticipant.
+            // HrotNodeBuilder no longer has a fallback.
+            .Step("participant", provides: new[] { "participant" }, run: v =>
+            {
         var shellParticipant = _networkFactory?.Participant;
         if (shellParticipant == null)
         {
@@ -514,7 +605,16 @@ public sealed class CgfSubsystem : ISubsystem, Fdp.Toolkit.Runner.IMapCameraProv
                 AppInstanceId = cgfNodeId,
             });
         }
-        // ── Build common infrastructure ────────────────────────────────────────
+                v.Set("participant", shellParticipant);
+            })
+
+            // ── Build common infrastructure ────────────────────────────────────────
+            .Step("node-context",
+                requires: new[] { "participant" },
+                provides: new[] { "node-config" },
+                run: v =>
+            {
+        var shellParticipant = v.Get<CycloneDDS.Runtime.DdsParticipant>("participant");
         var nodeConfig = new HrotNodeConfig
         {
             DomainId            = config.DomainId,
@@ -529,7 +629,7 @@ public sealed class CgfSubsystem : ISubsystem, Fdp.Toolkit.Runner.IMapCameraProv
             SubsystemName       = "CGF",
         };
         _context = new HrotNodeBuilder(nodeConfig)
-            .WithRole("CgfNode", NodeRole.Brain)
+            .WithRole("CgfNode", DefaultRole)
             .WithNetworkFactory(_networkFactory)
             .Build();
 
@@ -558,17 +658,24 @@ public sealed class CgfSubsystem : ISubsystem, Fdp.Toolkit.Runner.IMapCameraProv
             _context.World.SetSingletonManaged<Fdp.Interfaces.ITkbDatabase>(_context.TkbDb);
 
         CgfComponentRegistry.RegisterAll(_context.World);
+                v.Set("node-config", nodeConfig);
+            })
 
-        // ── Register base infrastructure modules ───────────────────────────────
-        foreach (var m in _context.BaseModules)
-            _context.Kernel.RegisterModule(m);
+            // ── Register base infrastructure modules ───────────────────────────────
+            .Step("base-modules", requires: new[] { "node-config" }, run: _ =>
+            {
+        foreach (var m in Ctx.BaseModules)
+            Ctx.Kernel.RegisterModule(m);
 
         // Allocate RaycastBatchData so Action_QueryRaycast can enqueue/query requests on CGF.
         _physicsModule = new PhysicsToolkitModule();
-        _physicsModule.Initialize(_context.World);
+        _physicsModule.Initialize(Ctx.World);
+            })
 
-        // ── Create replication module via factory (Brain role) ─────────────────
-        // Replaces: EntityStatesIngressPack + ActuatorIntentsEgressPack + GhostCleanupModule
+            // ── Create replication module via factory (Brain role) ─────────────────
+            // Replaces: EntityStatesIngressPack + ActuatorIntentsEgressPack + GhostCleanupModule
+            .Step("behavior-registry", provides: new[] { "behavior-registry" }, run: v =>
+            {
         var behaviorRegistry = new BehaviorRegistry();
         _behaviorRegistry = behaviorRegistry;
         // Blueprint registry (shared by materialization system and serializers). Created here so the
@@ -596,19 +703,56 @@ public sealed class CgfSubsystem : ISubsystem, Fdp.Toolkit.Runner.IMapCameraProv
         Fdp.Toolkit.Behavior.Diagnostics.BehaviorTraceLog.Instance =
             new Hrot.AI.Behaviors.Logging.BehaviorTraceLogEmitter();
 
-        // Configure network factory for this node so auxiliary translators can be created.
-        var nodeFactory = _networkFactory?.ConfigureForNode(_context, NodeRole.Brain, behaviorRegistry);
+                v.Set("behavior-registry", behaviorRegistry);
+            })
 
+            // Configure network factory for this node so auxiliary translators can be created.
+            .Step("configured-factory",
+                requires: new[] { "behavior-registry" },
+                provides: new[] { "node-factory" },
+                run: v =>
+            {
+        var behaviorRegistry = v.Get<BehaviorRegistry>("behavior-registry");
+        var nodeFactory = _networkFactory?.ConfigureForNode(Ctx, DefaultRole, behaviorRegistry);
+                v.Set("node-factory", nodeFactory);
+            })
+
+            .Step("replication-module",
+                requires: new[] { "node-factory" },
+                provides: new[] { "replication-module" },
+                run: v =>
+            {
+        var nodeFactory = v.Get<INetworkFactory?>("node-factory");
         var replicationModule = nodeFactory?.CreateReplicationModule();
         if (replicationModule != null)
         {
-            _context = _context with
+            _context = Ctx with
             {
                 NedReplication      = replicationModule as Hrot.Common.Abstractions.INedReplicationModule,
                 GhostCreationSystem = replicationModule.GhostCreationSystem,
             };
             _context.Kernel.RegisterModule(replicationModule);
         }
+                v.Set("replication-module", replicationModule);
+            })
+
+            .Run(nameof(CgfSubsystem));
+
+        // ⭐ The boundary between the migrated head and the code that is not migrated yet. These reads
+        //   shrink as the rest of Initialize is declared; plan.Value<T> exists for exactly this
+        //   boundary and is checked against what a step actually published (§4.1T).
+        var nodeConfig        = bootPlan.Value<HrotNodeConfig>("node-config");
+        var behaviorRegistry  = bootPlan.Value<BehaviorRegistry>("behavior-registry");
+        var nodeFactory       = bootPlan.Value<INetworkFactory?>("node-factory");
+        var replicationModule = bootPlan.Value<Hrot.Common.Abstractions.IReplicationModule?>("replication-module");
+
+        // ⭐ Non-null past this point BECAUSE the plan ran: the "node-context" step builds both, and
+        //   Run() throws by key if a step that provides a required value did not execute. Stated once,
+        //   here, rather than sprinkling `!` down the rest of the method — the plan is the guarantee.
+        if (_context is null || _entityMap is null)
+            throw new InvalidOperationException(
+                "[CgfSubsystem] the 'node-context' boot step did not produce a context. " +
+                "This is a composition defect, not a runtime condition.");
 
         // ── Wire CreateEntityRequestSystem (CGF is the cluster-default processor) ─
         // This makes CGF intercept broadcast CreateEntityRequests (Owner == 0) and spawn
@@ -616,9 +760,65 @@ public sealed class CgfSubsystem : ISubsystem, Fdp.Toolkit.Runner.IMapCameraProv
         // DeferredTakeOwnership. SimHost nodes keep isDefaultProcessor=false.
         // Protocol-specific sources and sinks are obtained via the factory (Rule 3).
 
-        // Create the scenario source once; shared with load handlers in Phases 3-4
-        // via CgfLogicPack.ScenarioSource.
-        _scenarioSource = new ScenarioEntityCreationRequestSource();
+        // ⭐⭐⭐ CE-140 step 3, host (d) — CGF's entity-creation tier, BUILT AS A UNIT by the shared pack.
+        //    🔒 User ruling 2026-09-01: "our desire is that all hosts use shared code doing the same. So we
+        //    should get into a state when we can say 'no host does XXX'." ⇒ this was the LAST of the six
+        //    composition roots §3 enumerated, and it is now the same call the other five make.
+        //
+        // ⭐⭐ CGF is where the pack's SHAPE came from — DESIGN §5 records "CGF already composes exactly
+        //    this" of the composite-source arrangement — so this is the one host where adoption removes no
+        //    decision it had not already made correctly. ⛔ That is exactly why it went LAST: it is the
+        //    broadcast arbiter AND carries BrainMuscleOwnershipStrategy's delegation, so a composition
+        //    mistake here breaks unowned requests for the WHOLE CLUSTER and every CGF-spawned entity's
+        //    kinematics handover. It adopts on three hosts of evidence, not on nerve.
+        //
+        // ⚠ HOISTED. The construction used to sit ~25 lines BELOW, after CgfLogicPack. It has to run here
+        //    because `_scenarioSource` is now `creation.LocalRequests`, and CgfLogicPack consumes it. The
+        //    inputs are all already in scope: `nodeFactory` at :601, and TkbDb/IdAllocator/BaseModules on
+        //    `_context`. ⛔ Nothing between the old and new position wrote any of them.
+        //
+        // ⭐ IsBroadcastArbiter: true — the same `isDefaultProcessor: true` this host always passed, and
+        //    ⚠ it is NOT an authority gate: a request TARGETED at a node is processed by that node
+        //    regardless. It only decides who intercepts `Owner == 0` broadcasts from non-ECS clients like
+        //    ExCon. 🔒 Exactly one node in a cluster may set it, and CGF is that node.
+        //
+        // ⭐ Every optional input is the value this host already passed, threaded from the SAME
+        //    `adapters` object — the pack substitutes NullEntityAckSink when offline, as this code did.
+        // 📄 docs/DESIGN_Entity_Creation_Unification.md §3, §5.1 row d ·
+        //    docs/blueprints/Architect_Question_65_Entity_Genesis_Uniformity.md §0, §1.
+        var adapters = nodeFactory?.CreateCgfEntityLifecycleAdapters();
+
+        var creation = EntityCreationPack.Build(new EntityCreationContext
+        {
+            World       = _context.World,
+            EntityMap   = _entityMap!,
+            TkbDb       = _context.TkbDb!,
+            IdAllocator = _context.IdAllocator!,
+            Elm         = (EntityLifecycleModule)_context.BaseModules
+                              .First(m => m is EntityLifecycleModule),
+            NodeId      = _context.NodeId,
+
+            NetworkRequestSource = adapters?.RequestSource,
+            AckSink              = adapters?.AckSink,
+            JsonAttributeCompiler = adapters?.JsonCompiler,
+            OwnershipStrategy     = adapters?.OwnershipStrategy,
+
+            // ⭐ CE-138's list, unchanged: the ONE base set plus AiDiagnostics, which lives above
+            //   Hrot.Core and so cannot be in Base(). ⛔ Never subtract to narrow — gate ②
+            //   (IsComponentTypeRegistered) narrows per component, and a short list fails SILENTLY for
+            //   every entity this node ever spawns. 📄 tkb-1/DESIGN.md §6.5b.
+            ExtraTranslators = new ITkbEntityTranslator[]
+            {
+                new Hrot.SimHost.Diagnostics.AiDiagnosticsTkbTranslator(),
+            },
+
+            IsBroadcastArbiter = true,
+        });
+
+        // Shared with the load handlers in Phases 3-4 via CgfLogicPack.ScenarioSource.
+        // ⭐ Now the pack's own in-memory source, merged behind CompositeEntityCreationRequestSource with
+        //   the DDS ingress — the same two-source arrangement this host hand-built, from one place.
+        _scenarioSource = creation.LocalRequests;
 
 
         // Expose the blueprint registry to the Entity Inspector renderers so
@@ -633,60 +833,106 @@ public sealed class CgfSubsystem : ISubsystem, Fdp.Toolkit.Runner.IMapCameraProv
         mapperRegistry.Register(new HullDownAttackMapper());
         var cgfLogicPack = new CgfLogicPack(behaviorRegistry, _entityMap, _scenarioSource,
             mapperRegistry);
-        _context.Kernel.RegisterModule(new BehaviorDiagnosticsModule());
-        _context.Kernel.RegisterModule(cgfLogicPack);
+
+        // ⭐⭐⭐ B4b step 2, HOST (c) — CGF's units come from a DECLARED PLAN, not a hand-written block.
+        //    📄 §4.1x. SimHost was host (a), IG host (b); this is the third and last cluster host.
+        //
+        // ⛔ NOT a bootstrapper adoption. §4.1j's phase table marks node-bootstrap adoption "optional,
+        //    LAST" because it is the only phase touching orchestration/participant/time authority. The
+        //    CAPABILITY axis is orthogonal and needs nothing from SharedApplicationBootstrapper, so this
+        //    host keeps its own inline ECS root and calls the hooks itself.
+        //
+        // ⚠ BEHAVIOUR-PRESERVING BY CONSTRUCTION: resolution order is registration order is EXECUTION
+        //   order, so the sequence below reproduces the previous block exactly —
+        //   BehaviorDiagnosticsModule, then the pack, then the two groups built from the pack's lists.
+        _capabilities = new NodeCompositionPlan()
+            .Capability(CgfSubsystem.DefaultRole, new CgfCapabilities.Brain(cgfLogicPack))
+            // ⭐ CE-221 — cross-role infrastructure, declared LAST so it keeps its tail-of-Simulation
+            //    position. Declared once per plan; Resolve de-duplicates by Key, which is what makes
+            //    a Brain+Muscle node register it ONCE instead of twice.
+            .Capability(CgfSubsystem.DefaultRole, new Hrot.Common.Infrastructure.CoreInfrastructureCapabilities.UnitHierarchy())
+            .Capability(CgfSubsystem.DefaultRole, new Hrot.SimHost.EqsResultUpdateCapability())
+            .Resolve(CgfSubsystem.DefaultRole);
+
+        foreach (INodeCapability capability in _capabilities)
+            foreach (IEcsModule module in capability.ProvideModules())
+                _context.Kernel.RegisterModule(module);
 
         // Execute the Brain systems every frame via two togglable phase groups.
-        _toggleInput = new TogglableInputGroup("CgfInput",           cgfLogicPack.InputSystems);
-        _toggleSim   = new TogglableSimulationGroup("CgfSimulation", cgfLogicPack.SimulationSystems);
+        var cgfInputSystems   = new List<IEcsModuleSystem>();
+        var cgfSimSystems     = new List<IEcsModuleSystem>();
+        var cgfPostSimSystems = new List<IEcsModuleSystem>();
+
+        foreach (INodeCapability capability in _capabilities)
+            capability.PopulateSystems(_context, cgfInputSystems, cgfSimSystems, cgfPostSimSystems);
+
+        // ⛔⛔ CGF builds NO post-simulation group. A capability contributing one would have its systems
+        //    SILENTLY DROPPED — refuse instead, naming the count. Every defect this design chased was
+        //    silent; an unregistered system is exactly that shape.
+        if (cgfPostSimSystems.Count > 0)
+            throw new InvalidOperationException(
+                $"A CGF capability contributed {cgfPostSimSystems.Count} post-simulation system(s), but " +
+                "CgfSubsystem builds only an input and a simulation group. Add a post-simulation group " +
+                "here before a capability declares one — do not let the systems be dropped.");
+
+        _toggleInput = new TogglableInputGroup("CgfInput",           cgfInputSystems);
+        _toggleSim   = new TogglableSimulationGroup("CgfSimulation", cgfSimSystems);
 
         _context.Kernel.RegisterGlobalSystem(_toggleInput);
         _context.Kernel.RegisterModule(new CgfSimulationModule(_toggleSim));
 
-        var adapters = nodeFactory?.CreateCgfEntityLifecycleAdapters();
-
-        var tkbDb       = _context.TkbDb!;
+        // ⭐ Still needed by the scenario load handlers below (:879 `cgfIdAllocator`). ⚠ The `tkbDb` local
+        //   that stood beside it is GONE — the pack reads TkbDb off the context directly, so a second
+        //   name for the same catalogue had nothing left to do.
         var idAllocator = _context.IdAllocator!;
-        var elm         = (EntityLifecycleModule)_context.BaseModules
-                              .First(m => m is EntityLifecycleModule);
 
-        // 1. Composite request source: always include the scenario source; add the live
-        //    NED adapter source only when network is available.
-        var requestSources = new System.Collections.Generic.List<IEntityCreationRequestSource>
+        // ⛔ HISTORY — CE-138's TKB→ECS projection list, and the hand-built request/spawn tier that
+        //    followed it, LIVED HERE until CE-140 step 3 (host (d), 2026-09-02). Both are now inputs to
+        //    the EntityCreationPack.Build(…) call ~25 lines above; the reasoning that earned them is
+        //    preserved at that call site. What CE-138 established stands and is unchanged:
+        //
+        // 📐 Measured 2026-08-30: NetworkSpawningSystem's `translators` argument was omitted (⇒
+        //    Array.Empty) and elm.SetTranslators was never called, so BOTH projection routes were
+        //    zero-iteration loops. CGF-spawned entities carried NetworkIdentity, NetworkOwnership,
+        //    TkbIdentity and a DIS header — and none of their type's kinematics, combat, perception,
+        //    behaviour or presentation. Rails: Hrot.SimHost.Tests/TkbTranslatorSpawnParityRails.cs.
+        // 🔒 User ruling 2026-08-30: "the tkb idea is very simple and I think the usage rules should be
+        //    same or very similar on cgf and simhost." ⇒ this is SimHost's list, verbatim.
+        // ⭐⭐ Safe by construction, and this is the point of tkb-1/DESIGN.md §6.5b: every translator
+        //    guards each write with IsComponentTypeRegistered<T>(), so a component CGF never registered
+        //    stays a no-op no matter how many translators it is handed. The narrowing lever is the
+        //    REGISTRATION SET, never the list — a short list fails silently for every entity, whereas an
+        //    unregistered component fails loudly at one site.
+        // ⭐⭐ CE-140 step 2 — the ONE base list, not a sixth inline copy.
+        //    Hrot.Core.Tkb.TkbTranslatorSet.Base() carries spatial/kinematics/behaviour/combat/
+        //    perception/presentation; AiDiagnostics is added because it lives above Hrot.Core.
+        // ⛔ Never subtract to narrow — gate 2 (IsComponentTypeRegistered) does that per component.
+        //    📄 DESIGN_Entity_Creation_Unification.md §3.1, tkb-1/DESIGN.md §6.5b.
+        // ⭐ Register the genesis pipeline the pack built above — unconditionally, online and offline.
+        //   🔒 Q65 §0: the shared code "should not restrict any ECS enabled node from creating own
+        //   networked entities … not removing capabilities by design." ⇒ no `if (adapters != null)`
+        //   guards any of these three; only the DELETION routing below is network-dependent, and that
+        //   was already true.
+        _context.Kernel.RegisterGlobalSystem(creation.SpawnSystem);
+        _context.Kernel.RegisterGlobalSystem(creation.RequestSystem);
+        _context.Kernel.RegisterGlobalSystem(creation.FinalizationSystem);
+        // ⭐⭐⭐ P2 — ghost promotion moved into the pack (DESIGN_Role_Affinity_Ownership.md §3.7).
+        //    ⚠ CGF is the host whose module came from NedNetworkFactory.CreateReplicationModule(), which
+        //    omits tkbEntityTranslators — so its promotion used the ELM fallback. The pack now hands it
+        //    the SAME list instance it gives the ELM and the spawn system, which is §6.3's invariant made
+        //    true by construction for all three rather than two.
+        _context.Kernel.RegisterGlobalSystem(creation.PromotionSystem);
+
+        // ⭐⭐ Make an omission LOUD — the S2b habit. Every one of the five defects behind this design
+        //    was silent, and CE-138 (this host's own zero-iteration translator loop) was one of them.
+        var unserviceable = creation.Unserviceable(new object[]
         {
-            _scenarioSource!
-        };
-        if (adapters != null)
-            requestSources.Add(adapters.RequestSource);
-        var compositeRequestSource = new CompositeEntityCreationRequestSource(requestSources);
+            creation.SpawnSystem, creation.RequestSystem, creation.FinalizationSystem,
+            creation.PromotionSystem,
+        });
+        if (unserviceable.Length > 0)
+            Fdp.Core.Logging.FdpLog<CgfSubsystem>.Warn(unserviceable);
 
-        // 2. ACK sink: real NED sink when connected; null-object for offline / headless runs.
-        IEntityAckSink ackSink = adapters?.AckSink ?? new NullEntityAckSink();
-
-        var finalizationSystem = new EntityRequestFinalizationSystem(ackSink, _entityMap!);
-
-        // 3. Register the core genesis pipeline unconditionally (online and offline).
-        var requestSystem = new CreateEntityRequestSystem(
-            requestSource:        compositeRequestSource,
-            ackSink:              ackSink,
-            tkbDb:                tkbDb,
-            idAllocator:          idAllocator,
-            localNodeId:          _context.NodeId,
-            jsonAttributeCompiler: adapters?.JsonCompiler,
-            finalizationSystem:   finalizationSystem,
-            isDefaultProcessor:   true,
-            ownershipStrategy:    adapters?.OwnershipStrategy);
-
-        var spawnSystem = new NetworkSpawningSystem(
-            tkbDb,
-            elm,
-            _entityMap!,
-            idAllocator,
-            _context.NodeId);
-
-        _context.Kernel.RegisterGlobalSystem(spawnSystem);
-        _context.Kernel.RegisterGlobalSystem(requestSystem);
-        _context.Kernel.RegisterGlobalSystem(finalizationSystem);
         _context.Kernel.RegisterGlobalSystem(new Hrot.SimHost.Systems.GenesisMaterializationSystem(_entityMap!));
         Hrot.SimHost.Systems.BlueprintGenesisRuntimeRegistration.RegisterBlueprintGenesisSystems(
             _context.Kernel, _blueprintRegistry!);
@@ -698,7 +944,10 @@ public sealed class CgfSubsystem : ISubsystem, Fdp.Toolkit.Runner.IMapCameraProv
                 adapters.DeleteSource,
                 adapters.AckSink,
                 _entityMap!,
-                finalizationSystem,
+                // ⭐ The SAME finalization instance the create side uses — the pack's. ⛔ Constructing a
+                //   second one here would give delete its own ACK bookkeeping, which is precisely the
+                //   class of split this pack exists to make unrepresentable.
+                creation.FinalizationSystem,
                 _context.NodeId);
 
             _context.Kernel.RegisterGlobalSystem(deleteSystem);
@@ -733,8 +982,24 @@ public sealed class CgfSubsystem : ISubsystem, Fdp.Toolkit.Runner.IMapCameraProv
         var nedModuleForAfterSeek = replicationModule as Hrot.Common.Abstractions.INedReplicationModule;
         Action? afterSeekAction = nedModuleForAfterSeek?.AfterSeekCallback;
 
+        // ⭐⭐ §2.1m step 3 — A SEEK IS A WORLD REPLACEMENT TOO. Resolved BEFORE the controller so the
+        //   clear composes into the same afterSeek chain the NetworkEntityMap rebuild already uses.
+        //   ⛔ Clear only — a seek stays inside the replay, so the re-derive is NOT armed.
+        var cgfGateElm = _context.BaseModules?
+            .OfType<Fdp.Toolkit.Lifecycle.EntityLifecycleModule>().FirstOrDefault();
+        if (cgfGateElm != null)
+        {
+            var chained = afterSeekAction;
+            afterSeekAction = () => { cgfGateElm.OnWorldReplaced(resumingToLive: false); chained?.Invoke(); };
+        }
+
         var rrController = new Hrot.SimHost.Modules.Orchestration.EcsRecordReplayController(
             _context.Kernel, _context.NodeId, _context.World, afterSeek: afterSeekAction);
+
+        // ⭐⭐ Step 1 of DESIGN.md §2.1m — gate the ELM during replay (mgmt-1/DESIGN.md §8.10: "the ELM
+        //    pipeline is never invoked"). ⭐ Reuses the existing IRecordReplayController.IsReplayActive.
+        if (cgfGateElm != null)
+            cgfGateElm.IsReplayActive = () => rrController.IsReplayActive;
 
         var storageProvider = new LocalDiskStorageProvider(isolatedTempRoot);
 
@@ -748,7 +1013,10 @@ public sealed class CgfSubsystem : ISubsystem, Fdp.Toolkit.Runner.IMapCameraProv
             bypassLifecycleToggle: null,
             storageDirectory:      isolatedTempRoot,
             suspendGlobalTimePush: _context.Kernel.SuspendGlobalTimePush,
-            resumeGlobalTimePush:  _context.Kernel.ResumeGlobalTimePush));
+            resumeGlobalTimePush:  _context.Kernel.ResumeGlobalTimePush,
+            // ⭐⭐⭐ §2.1m step 3 — discard the ELM's bookkeeping at every world replacement, and arm the
+            //   re-derive only when resuming to a LIVE world.
+            worldReplaced:         cgfGateElm == null ? null : cgfGateElm.OnWorldReplaced));
 
         // 2. CGF-Authoritative Scenario and Episode Load Handlers (must be BEFORE ReferenceLiveLoadHandler)
         var scenarioSerializer = Hrot.SimHost.Serializers.HrotScenarioSerializerFactory.Build(_behaviorRegistry!);
@@ -878,6 +1146,14 @@ public sealed class CgfSubsystem : ISubsystem, Fdp.Toolkit.Runner.IMapCameraProv
                 cgfRewindables.Add(Fdp.Toolkit.Orchestration.Preview.PreviewParticipants.IdAllocator(_context.IdAllocator));
             cgfRewindables.Add(Fdp.Toolkit.Orchestration.Preview.PreviewParticipants.EntityMap(_entityMap));
         }
+        // ⭐ HN-018 — the THIRD participant §2b enumerated: the ELM's in-flight queues. ⚠ Added OUTSIDE the
+        //   map's `if`: unlike the allocator/map pair (which are "both or neither", see above), the ELM is
+        //   independent of whether this node has a network entity map.
+        //   📄 docs/designs/replay-and-modules/DESIGN.md §2.1m step 2.
+        var cgfElm = _context.BaseModules?
+            .OfType<Fdp.Toolkit.Lifecycle.EntityLifecycleModule>().FirstOrDefault();
+        if (cgfElm != null)
+            cgfRewindables.Add(Fdp.Toolkit.Orchestration.Preview.PreviewParticipants.LifecycleModule(cgfElm));
         newClusterSlave.RegisterHandler(new ReferencePreviewHandler(_context.World, cgfRewindables));
         newClusterSlave.RegisterHandler(new ReferencePrefetchHandler(storageProvider));
         newClusterSlave.RegisterHandler(new ReferenceArchiveHandler(
@@ -926,11 +1202,18 @@ public sealed class CgfSubsystem : ISubsystem, Fdp.Toolkit.Runner.IMapCameraProv
                 IsSelectedPredicate = null,
                 // GZH-003: CGF is headless-first; enable only when a terminal connects.
                 StartEnabled = false,
+                // ⭐⭐⭐ UXI-07 — the Spawn tool's behaviour goes to the PACK (see §4.10; the editor carries
+                //   the same comment). ⚠ Resolved at CALL TIME: _spawnAdapter is built later, and a
+                //   headless node has none — then Spawn reports, which is the honest state (ruling 49).
+                // ⭐⭐⭐ UXI-07 step 4a — the ARM BODY, ⛔ never the public API (that now calls
+                //   Activate(Spawn), which invokes this delegate — naming the API closes the cycle).
+                StartPlacementMode = () => _spawnAdapter?.ArmPlacement(),
             });
 
         _cgfGizmoBuffer           = cgfMapInteraction.Buffer;
         _cgfInteractionBus        = cgfMapInteraction.InteractionBus;
         _cgfGizmoManager          = cgfMapInteraction.GlobalManager;
+        _cgfToolController        = cgfMapInteraction.Tools;
         _cgfDataDrivenGizmoSystem = cgfMapInteraction.DataDrivenSystem;
         var cgfStatelessRegistry  = cgfMapInteraction.StatelessRegistry;
         var cgfGizmoRegistry      = cgfMapInteraction.GizmoRegistry;
@@ -1001,7 +1284,6 @@ public sealed class CgfSubsystem : ISubsystem, Fdp.Toolkit.Runner.IMapCameraProv
                 Selection:    () => _selectionState,
                 Gizmos:       () => _cgfDataDrivenGizmoSystem,
                 Camera:       () => _canvas?.Camera,
-                GlobalGizmos: () => _cgfGizmoManager,
                 // ⭐⭐⭐ CE-061 — StartPlacementMode is SUPPLIED now, and it has to be.
                 // ⚠⚠ Until this batch it was legitimately absent — CGF composed no spawn adapter, so the
                 //    Spawn tool reported itself unserviceable (ruling 49, and `TheViewportInteractionIs
@@ -1011,11 +1293,13 @@ public sealed class CgfSubsystem : ISubsystem, Fdp.Toolkit.Runner.IMapCameraProv
                 // ⚠ Resolved at CALL TIME on purpose: this module is registered from Initialize, while
                 //   `_spawnAdapter` is built later in the non-headless block — a captured value would be
                 //   permanently null. ⭐ A headless node still has none, and then the report is honest.
-                StartPlacementMode: () => _spawnAdapter?.StartPlacementModeWithLastType(),
                 // ⭐⭐ The inspector follow-through CGF's own "Select entity" item used to do inline. ⛔ It
                 //    is a host panel concern, so it stays a hook rather than being pushed into the shared
                 //    assembly — see SelectEntitySystem's `alsoSelect` remarks.
-                AlsoSelect:   entity => _fdpInspectorState.SelectedEntity = entity)));
+                AlsoSelect:   entity => _fdpInspectorState.SelectedEntity = entity,
+                // 🔒 UXI-07 step 3b — the host's ONE tool arbiter, built by MapInteractionPack alongside
+                //    the two focus arbiters it reconciles. ⛔ Resolver for the same reason as the rest.
+                Tools:        () => cgfMapInteraction.Tools)));
 
         // ── Universal breakpoints (UBP-P10T2) ────────────────────────────────────
         // ⭐⭐⭐ cgf==editor SLICE 4 (DQ30) — the no-op time adapter is RETIRED.
@@ -1160,7 +1444,9 @@ public sealed class CgfSubsystem : ISubsystem, Fdp.Toolkit.Runner.IMapCameraProv
             var cgfJsonCompiler = Fdp.Toolkit.Replication.Attributes.AttributeCompilerFactory.Build(
                 _context.GeoTransform!);
             _spawnAdapter      = new Hrot.UI.Common.Adapters.ScenarioSpawnAdapter(
-                _context.World.Bus, cgfJsonCompiler, _context.TkbDb, _scenarioSource, _cgfGizmoManager);
+                // 🔒 UXI-07 step 4a — the arbiter is PASSED (same reason as the editor's site).
+                _context.World.Bus, cgfJsonCompiler, _context.TkbDb, _scenarioSource, _cgfGizmoManager,
+                _cgfToolController);
             _missionService    = new Hrot.UI.Common.Adapters.ScenarioMissionService(
                 _context.World.Bus, _context.World, _behaviorRegistry!);
             _mapConfigAdapter  = new Hrot.UI.Common.Adapters.ScenarioMapConfigAdapter(_mapViewConfig, _canvas);
@@ -1311,7 +1597,8 @@ public sealed class CgfSubsystem : ISubsystem, Fdp.Toolkit.Runner.IMapCameraProv
 
         // Create a map-pick bridge so component fields tagged [MapPickable] can be edited.
         CanvasMapPickAdapter? cgfCanvasAdapter = _canvas != null && _context?.World != null
-            ? new CanvasMapPickAdapter(_canvas, _context.World, globalGizmoManager: _cgfGizmoManager)
+            ? new CanvasMapPickAdapter(_canvas, _context.World, globalGizmoManager: _cgfGizmoManager,
+                  tools: () => _cgfToolController)   // 🔒 UXI-07 step 4b
             : null;
         MapPickServiceBridge? cgfPickBridge = cgfCanvasAdapter != null
             ? new MapPickServiceBridge(cgfCanvasAdapter, _context!.World)

@@ -294,12 +294,9 @@ Hrot.ClusterRunner.Services
       - Update(float) : void
       - DrawWorld() / DrawUI() / Shutdown() : void
 
-  EyesAndMuscleSubsystem.cs
-    class EyesAndMuscleSubsystem : ISubsystem, IMapCameraProvider, IWindowRegistrar (public, sealed)
       - Name : string
       - TitleBarColor : Vector4
       - World : EntityRepository?
-      - Module : EyesAndMuscleModule?
       - Initialize(SubsystemConfig) : void
       - Update(float) / DrawWorld() / DrawUI() / Shutdown() : void
 
@@ -452,22 +449,6 @@ Built-in commands registered in constructor:
 
 ---
 
-### `EyesAndMuscleSubsystem` (public class)
-
-Implements `ISubsystem`, `IMapCameraProvider`, `IWindowRegistrar`.
-
-| Member | Description |
-|--------|-------------|
-| `Name` | `"EyesAndMuscle"` |
-| `TitleBarColor` | Teal-green `(0.15, 0.40, 0.25, 1)`. |
-| `World` | `EntityRepository?` after `Initialize`; null before. |
-| `Module` | `EyesAndMuscleModule?` after `Initialize`; null before. |
-| `Initialize(SubsystemConfig)` | Builds `HrotNodeContext` via `HrotNodeBuilder`, registers modules, initializes kernel. |
-| `Update(float)` | Ticks the kernel. |
-| `DrawWorld() / DrawUI()` | Delegates to kernel. |
-| `Shutdown()` | Shuts down kernel. |
-
----
 
 ### Testing Action Handlers
 

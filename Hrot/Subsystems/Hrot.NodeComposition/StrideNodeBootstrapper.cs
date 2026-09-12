@@ -1,3 +1,5 @@
+using Hrot.Common.EntityCreation;   // CE-140 step 3
+using Fdp.Core.Logging;
 using System;
 using System.Collections.Generic;
 using Fdp.Core;
@@ -65,10 +67,22 @@ public sealed class StrideNodeBootstrapper : SharedApplicationBootstrapper, IDis
         NodeRole.MuscleGround | NodeRole.Perception |
         NodeRole.NavigationSolver | NodeRole.ImageGenerator;
 
-    private readonly IEcsModule? _kinematicsModule;
-    private readonly IEcsModule? _perceptionModule;
-    private readonly IEcsModule? _combatModule;
-    private readonly IEcsModule? _navigationModule;
+    /// <summary>
+    /// The capabilities this node composes, handed in by whichever shell boots it.
+    ///
+    /// <para><b>⭐ S2b / CE-208 — this REPLACED four <c>IEcsModule?</c> constructor slots</b>
+    /// (kinematics · perception · combat · navigation). Those were a private, per-host swap
+    /// mechanism for exactly what <see cref="INodeCapability"/> does for every other node, and
+    /// keeping both would be two ways to express one thing — 🔒 the ruling this programme runs on
+    /// ("no keeping two implementations for the same concept"). Nothing was lost: the slots' only
+    /// production use was <c>StrideMuscleModules.Build</c>, which is now a capability, and
+    /// <c>StrideNodeBootstrapperTests</c> already constructed this type with no arguments.</para>
+    ///
+    /// <para>⚠ Handed IN rather than resolved here, deliberately: mode 1 has no bootstrapper at all
+    /// (it composes through <c>EditorSubsystem</c>), so the declaration must be resolvable by a shell
+    /// that never constructs this class. 📄 <c>DESIGN_Stride_Node_Modes.md</c> §4.</para>
+    /// </summary>
+    private IReadOnlyList<INodeCapability> _capabilities = System.Array.Empty<INodeCapability>();
 
     // Saved by the overriding BootstrapNode so the abstract hooks can access them.
     private HrotNodeConfig?   _savedConfig;
@@ -114,20 +128,12 @@ public sealed class StrideNodeBootstrapper : SharedApplicationBootstrapper, IDis
 
     // ITimeControlGateway? TimeControl is inherited from SharedApplicationBootstrapper.
 
-    /// <param name="kinematicsModule">Optional kinematics module (e.g. GroundKinematicsModule).</param>
-    /// <param name="perceptionModule">Optional perception module (e.g. CognitiveSpatialModule).</param>
-    /// <param name="combatModule">Optional combat module (e.g. CombatModule).</param>
-    /// <param name="navigationModule">Optional navigation solver module.</param>
-    public StrideNodeBootstrapper(
-        IEcsModule? kinematicsModule = null,
-        IEcsModule? perceptionModule = null,
-        IEcsModule? combatModule     = null,
-        IEcsModule? navigationModule = null)
+    /// <remarks>
+    /// ⭐ Parameterless since S2b. The four <c>IEcsModule?</c> slots this used to take are gone —
+    /// see the <c>_capabilities</c> field. Hand the units in with <see cref="WithCapabilities"/>.
+    /// </remarks>
+    public StrideNodeBootstrapper()
     {
-        _kinematicsModule = kinematicsModule;
-        _perceptionModule = perceptionModule;
-        _combatModule     = combatModule;
-        _navigationModule = navigationModule;
     }
 
     /// <summary>
@@ -242,6 +248,78 @@ public sealed class StrideNodeBootstrapper : SharedApplicationBootstrapper, IDis
         // set registered in SimHostComponentRegistry so cross-entity references
         // are correctly materialised on this node.
         GenesisIntentRegistry.RegisterAll(world);
+
+        // ⛔⛔⛔ CE-250 — THE COMBAT/PERCEPTION SCHEMA. This node RUNS BallisticsSystem,
+        //    DamageCalculationSystem, FireProcessingSystem and HitResolutionSystem, and until now it
+        //    registered none of the components or events they read and write.
+        //
+        // 📌 How it surfaced: adding the perception egress (CE-249) killed the process on the first
+        //    frame that carried a perception command --
+        //      InvalidOperationException: Component type 251 not registered. All components must be
+        //      registered before command buffer playback.
+        //    251 is PerceptionReceptor. Before CE-249 nothing on this node ever published a
+        //    perception command, so the missing schema was INERT rather than absent-looking: the
+        //    combat systems ran every frame over queries that could never match, and the entity's
+        //    PhysicsCollider read back null through the debug API. ⇒ the crash was CE-249 exposing
+        //    this, not CE-249 breaking anything.
+        //
+        // 📐 CombatComponentRegistry is the owning registry and it carries exactly this node's needs:
+        //    PerceptionReceptor, TargetMemory, SensorContactList, WeaponState, BallisticProjectile,
+        //    PhysicsCollider, plus the events the chain runs on -- LosCheckRequestEvent,
+        //    TargetVisibleEvent, SensorTrackStateEvent, WeaponFireIntent, HitEvent,
+        //    DamageAssessedEvent, FireRequestEvent. SimHost reaches it through
+        //    SimHostComponentRegistry.RegisterAll (:46); this bootstrapper's hand-picked subset never
+        //    did.
+        //
+        // ⭐ Node-wide schema, so it belongs HERE beside MuscleRoleComponentRegistry rather than in a
+        //    capability: the combat systems come from the muscle pack and the perception egress from
+        //    the network translators, and both need the same tables. (Contrast CE-243, where the EQS
+        //    schema went into the capability that registers EqsModule because only that capability
+        //    needs it.)
+        //
+        // ⚠ Still deliberately EXCLUDED, unchanged: CognitiveComponentRegistry. Brain AI data stays on
+        //    CGF -- see the note above and DESIGN_Role_Affinity_Ownership.md's opening ruling, "SimHost
+        //    having a muscle role should not instantiate any brain related components".
+        CombatComponentRegistry.RegisterAll(world);
+
+        // ⛔⛔ CE-250b — THE REST OF SIMHOST'S SCHEMA, MINUS THE BRAIN TABLES.
+        //
+        // 📌 Registering CombatComponentRegistry alone moved the crash rather than fixing it: the next
+        //    frame died on "Event type 2030 not registered" (RaycastRequestEvent), which
+        //    LosRequestBatchingSystem publishes and RaycastSolverSystem consumes -- both already
+        //    running here. Fixing these ONE AT A TIME is how a night gets spent, so the set below is
+        //    taken from SimHostComponentRegistry.RegisterAll (:40-79) in ITS order.
+        //
+        // 📐 Each line is here because this node ALREADY RUNS the system that needs it -- verified
+        //    against its own /diagnostics/architecture:
+        //      MissionComponentRegistry     FormationTargetSystem, VehicleCommandSystem
+        //      RouteComponentRegistry       RouteTrajectorySyncSystem, PersonalRouteAuthoringSystem
+        //      HierarchyComponentRegistry   UnitHierarchySystem
+        //      Raycast{Request,Result}Event RaycastSolverSystem + the LOS chain (this is 2030)
+        //      MapPresentationRegistry      the shared map/gizmo component set the other three
+        //                                   windowed hosts register
+        //    ⇒ the node was running systems whose schema nobody had declared. Harmless while nothing
+        //    published to them, fatal the moment CE-249 let perception actually flow.
+        //
+        // ⛔⛔ STILL EXCLUDED, AND DELIBERATELY: CognitiveComponentRegistry -- BehaviorState,
+        //    LocomotionChannel, BrainBTreeState, BrainBlackboard. This node has no brain systems
+        //    (no BTreeTickSystem, no TacticalIntentResolutionSystem -- both are CGF's), and
+        //    DESIGN_Role_Affinity_Ownership.md opens on the user's ruling that "SimHost having a
+        //    muscle role should not instantiate any brain related components. If it does, this is a
+        //    mistake." SimHost registers them today and that design calls it debt; ⇒ copying SimHost
+        //    wholesale here would import the debt on purpose. TkbTemplate.ApplyTo() silently skips
+        //    missing components, so spawning stays correct without them -- the reason the original
+        //    exclusion note above gives, still true.
+        MissionComponentRegistry.RegisterAll(world);
+        Hrot.Presentation.Map.MapPresentationRegistry.RegisterAll(world);
+        RouteComponentRegistry.RegisterAll(world);
+        HierarchyComponentRegistry.RegisterAll(world);
+
+        world.RegisterEvent<Fdp.Toolkit.Physics.RaycastRequestEvent>();
+        world.RegisterEvent<Fdp.Toolkit.Physics.RaycastResultEvent>();
+        world.RegisterEvent<Hrot.Common.Events.MissionControlAckEvent>();
+        world.RegisterEvent<Hrot.Common.Events.GlobalActionRequestedEvent>();
+        world.RegisterEvent<Fdp.Toolkit.Diagnostics.Gizmos.Events.GizmoComponentActivatedEvent>();
     }
 
     /// <inheritdoc/>
@@ -261,15 +339,39 @@ public sealed class StrideNodeBootstrapper : SharedApplicationBootstrapper, IDis
         // VisualEffectCleanupSystem removes expired effect entities.
         sim.Add(new EventToEffectSystem());
         postSim.Add(new VisualEffectCleanupSystem());
+
+        // ⭐⭐ CE-244 (1 of 2) — the capabilities' `system-groups` half. See the CE-244 note on
+        //    RegisterSpawningPipeline below for the measurement; this is the same defect's other half.
+        //    UnitHierarchy and EqsResultUpdate (CoreInfrastructureCapabilities) contribute through
+        //    PopulateSystems rather than ProvideModules, deliberately, so without this pass their
+        //    systems were absent from a node whose boot log listed both capabilities by name.
+        foreach (INodeCapability capability in _capabilities)
+            capability.PopulateSystems(context, input, sim, postSim);
     }
 
     /// <inheritdoc/>
     protected override IEnumerable<IEcsModule> GetAdditionalModules()
     {
-        if (_kinematicsModule != null) yield return _kinematicsModule;
-        if (_perceptionModule != null) yield return _perceptionModule;
-        if (_combatModule     != null) yield return _combatModule;
-        if (_navigationModule != null) yield return _navigationModule;
+        // ⭐ The modules come from the resolved capability set. This is the `additional-modules` boot
+        //   step, which is exactly the step INodeCapability.ProvideModules() exists to serve (§4.1t):
+        //   expressing them through Register() instead would push them AFTER context.BaseModules and
+        //   the spawning pipeline, and registration order is execution order.
+        foreach (INodeCapability capability in _capabilities)
+            foreach (IEcsModule module in capability.ProvideModules())
+                yield return module;
+    }
+
+    /// <summary>
+    /// Hands this bootstrapper the capabilities its shell resolved. Call BEFORE bootstrapping.
+    /// </summary>
+    /// <remarks>
+    /// ⚠ A shell that forgets this gets a node with no muscle tier and no perception — so the
+    /// bootstrapper refuses an empty set at boot rather than composing a silently hollow node.
+    /// </remarks>
+    public StrideNodeBootstrapper WithCapabilities(IReadOnlyList<INodeCapability> capabilities)
+    {
+        _capabilities = capabilities ?? throw new ArgumentNullException(nameof(capabilities));
+        return this;
     }
 
     /// <inheritdoc/>
@@ -297,12 +399,50 @@ public sealed class StrideNodeBootstrapper : SharedApplicationBootstrapper, IDis
             lifecycleGroup:      context.NedReplication?.NetworkLifecycleGroup,
             ghostCreationSystem: context.GhostCreationSystem,
             eventAccumulator:    context.EventAccumulator,
-            afterSeek:           context.NedReplication?.AfterSeekCallback);
+            afterSeek:           context.NedReplication?.AfterSeekCallback,
+            // ⭐ HN-018 — this caller HAS the ELM, so it passes it (the silent-default rule).
+            elm:                 context.BaseModules?
+                                     .OfType<Fdp.Toolkit.Lifecycle.EntityLifecycleModule>()
+                                     .FirstOrDefault());
     }
 
     /// <inheritdoc/>
     protected override void RegisterSpawningPipeline(HrotNodeContext context)
     {
+        // ⛔⛔⛔ CE-244 (2 of 2) — THIS BOOTSTRAPPER HONOURED ONLY ONE THIRD OF THE CAPABILITY
+        //    CONTRACT, and the missing two thirds failed SILENTLY.
+        //
+        // 📌 Measured 2026-09-09 on a CGF + Stride mode-2 run of hill-attack-close. The boot log
+        //    reported five capabilities by name --
+        //      [cap:muscle-ground, cap:perception, cap:perception:spatial,
+        //       cap:infra:unit-hierarchy, cap:infra:eqs-result-update]
+        //    -- and PERCEPTION WAS NEVER COMPOSED AT ALL. Only GetAdditionalModules() ran, which asks
+        //    each capability for ProvideModules() alone. cap:muscle-ground contributes that way, so
+        //    physics worked and the node looked healthy; every capability that contributes through
+        //    the other two hooks contributed nothing:
+        //      PerceptionSolver.Register    -> EqsModule                          NEVER REGISTERED
+        //      PerceptionSpatial.Register   -> AreaQueryResultMaterializationSystem
+        //                                      + CognitiveSpatialModule           NEVER REGISTERED
+        //      UnitHierarchy.PopulateSystems / EqsResultUpdate.PopulateSystems    NEVER CALLED
+        //
+        // 📐 INodeCapability's own remarks name the schedule: "PopulateSystems fires at system-groups
+        //    and Register at spawning-pipeline -- and additional-modules runs BETWEEN them." The three
+        //    hooks exist because the base composes in distinct steps and a capability contributing to
+        //    more than one must be asked more than once. This type asked once.
+        //
+        // ⭐ The proven template is the mode-1 editor, EditorSubsystem.cs:1506 (PopulateSystems),
+        //    :1583 (ProvideModules) and :1588 (Register) -- "ONE ordered pass per capability: the
+        //    modules it PROVIDES, then its Register hook". Mode 2 now runs the same three, each at the
+        //    step the interface documents for it rather than all at one convenient point.
+        //
+        // ⚠ Why the capability pass goes FIRST here, before this node's own spawn systems: the editor
+        //    registers capabilities ahead of its orchestration and scenario packs, and registration
+        //    order is execution order within a phase. Nothing below reads anything a capability
+        //    registers, and no capability reads the pack, so the two are independent today -- the
+        //    order is chosen to match the editor rather than to satisfy a dependency.
+        foreach (INodeCapability capability in _capabilities)
+            capability.Register(context, BootValues);
+
         // GenesisMaterializationSystem resolves cross-entity Intent DTOs into live
         // component data during scenario load. Runs in the Input phase.
         context.Kernel.RegisterGlobalSystem(
@@ -313,15 +453,56 @@ public sealed class StrideNodeBootstrapper : SharedApplicationBootstrapper, IDis
         // headless tests with SkipAllocatorRouting=true skip this path.
         if (context.IdAllocator != null)
         {
-            var elm = (EntityLifecycleModule)context.BaseModules[0];
-            var spawningSystem = new NetworkSpawningSystem(
-                context.TkbDb!,
-                elm,
-                context.EntityMap,
-                context.IdAllocator,
-                context.NodeId);
+            // ⭐⭐⭐ CE-140 step 3 — the ENTITY CREATION PACK. This host used to hand-assemble the spawn
+            //    path here, and it is where CE-139 was found: the FIFTH host with `translators:` unpassed
+            //    and SetTranslators never called, so ProcessSpawn step 4's projection loop ran zero times
+            //    and entities were born with identity and a DIS header but none of their components.
+            //    ⇒ the pack makes that omission unrepresentable rather than merely documented.
+            //
+            // ⭐⭐ AND IT CLOSES A SECOND, QUIETER GAP: this node had NO `CreateEntityRequestSystem`, so
+            //    nothing could ask it to create an entity — not even itself. 🔒 User ruling 2026-08-31:
+            //    the shared code "should not restrict any ECS enabled node from creating own networked
+            //    entities … not removing capabilities by design". The pack has no opt-out.
+            //
+            // 📄 DESIGN_Entity_Creation_Unification.md §3, §3.4 · Architect_Question_65 §0, §4.
+            var creation = EntityCreationPack.Build(new EntityCreationContext
+            {
+                World       = context.World,
+                EntityMap   = context.EntityMap,
+                TkbDb       = context.TkbDb!,
+                IdAllocator = context.IdAllocator,
+                Elm         = (EntityLifecycleModule)context.BaseModules[0],
+                NodeId      = context.NodeId,
 
-            context.Kernel.RegisterModule(new SimHostModule(spawningSystem));
+                // ⛔ NOT the cluster's broadcast arbiter — that is CGF, and exactly one node may be it.
+                //    ⚠ This does NOT stop this node creating entities: a request targeted at this node is
+                //    processed regardless of the flag (Q65 §1).
+                IsBroadcastArbiter = false,
+            });
+
+            // ⭐ The HOST schedules. NetworkSpawningSystem is BeforeSync and goes through a module here,
+            //   exactly as before — composition changed, scheduling did not.
+            context.Kernel.RegisterModule(new Fdp.ModuleHost.Scheduling.SingleSystemModule("NetworkSpawning", creation.SpawnSystem));
+            context.Kernel.RegisterGlobalSystem(creation.RequestSystem);        // Input
+            context.Kernel.RegisterGlobalSystem(creation.FinalizationSystem);  // PostSimulation
+            // ⭐⭐⭐ P2 — ghost promotion moved into the pack (DESIGN_Role_Affinity_Ownership.md §3.7).
+            //   ⭐ Ordering carries itself: [UpdateAfter(GhostCreationSystem)] on the system.
+            context.Kernel.RegisterGlobalSystem(creation.PromotionSystem);      // BeforeSync
+
+            // ⭐⭐ The S2b habit: make an omission loud. Every one of the five defects behind this design
+            //   was silent.
+            var unserviceable = creation.Unserviceable(new object[]
+            {
+                creation.SpawnSystem, creation.RequestSystem, creation.FinalizationSystem,
+                creation.PromotionSystem,
+            });
+            if (unserviceable.Length > 0)
+                FdpLog<StrideNodeBootstrapper>.Warn(unserviceable);
+
+            // ⚠ FOLLOW-UP, not a regression: no DDS ingress source or ACK sink is passed, so this node
+            //   serves LOCAL requests only. `HrotNodeContext` exposes no lifecycle adapters, so wiring
+            //   the network half needs a context addition — out of scope for a composition change, and
+            //   strictly better than before, when this node had no request tier at all.
         }
     }
 
@@ -333,5 +514,63 @@ public sealed class StrideNodeBootstrapper : SharedApplicationBootstrapper, IDis
         if (configuredFactory == null) return;
         // SimHost auxiliary translators: entity attribute updates, combat egress, etc.
         configuredFactory.CreateSimHostAuxiliaryTranslators().RegisterOn(context.Kernel);
+
+        // ⛔⛔⛔ CE-249 — THE PERCEPTION EGRESS. Without it this node SEES targets and never TELLS
+        //    anyone, so the brain has nothing to shoot at.
+        //
+        // 📌 Measured 2026-09-09 on the two runs side by side, same scenario, same CGF:
+        //      CGF + SimHost  1001 reaches (524,401) at t=11; both hostiles hp 50->25 at t=21;
+        //                     1007 dead t=35, 1006 dead t=42.
+        //      CGF + Stride   1001 reaches (522,401) at t=11 -- MOVEMENT AT PARITY -- and both
+        //                     hostiles stay at hp=50 indefinitely (observed to t=475).
+        //    On CGF, entity 1001's TargetMemory.Entries is EMPTY for the whole Stride run while
+        //    WeaponState.Ammo sits at 42: the brain is armed, in position, and has no target.
+        //
+        // 📐 The perception TIER is not the problem and measuring it is what found this. The node's
+        //    own /diagnostics/architecture reports CognitiveSpatialModule -- which owns
+        //    LocalGridBuilderSystem, AreaQuerySolverSystem, VisionBroadphaseSystem,
+        //    LosRequestBatchingSystem and SensorTrackDebounceSystem -- as
+        //    "lifecycleState: Ready, executionCount: 741, failureCount: 0". It runs, it sees, and it
+        //    publishes SensorTrackStateEvent onto this node's OWN bus. What was missing is the hop
+        //    off the node: SensorTrackStateEgressTranslator (SimPerceptionTranslatorPack) writes the
+        //    DDS SensorTrackState sample that CGF's SensorTrackStateIngressTranslator turns back into
+        //    a SensorTrackStateEvent for ActiveSensorTracksUpdateSystem -> CgfThreatEvaluationSystem
+        //    -> TargetMemory -> WeaponDispatcherSystem.
+        //
+        // ⚠ An earlier reading of the same dump concluded those five systems were ABSENT here because
+        //    they appear in SimHost's system enumeration and not in this node's. That was WRONG -- they
+        //    are RegisterManualSystem systems driven by the module's own Tick, so they are enumerated
+        //    differently, and executionCount 741 settles it. Recorded because the wrong reading is the
+        //    tempting one and would have sent the next session to rebuild a tier that already works.
+        //
+        // ⭐ SimHostNodeBootstrapper registers THREE packs here; this node registered one. The
+        //    pack is role-gated inside the factory (NedSimHostPerceptionTranslators requires
+        //    NodeRole.Perception), which mode 2 has -- StrideCapabilities.DefaultRole is
+        //    MuscleGround | Perception -- so the gate was already satisfied and only the call was
+        //    absent.
+        //
+        // ⛔ NOT added: CreateSimHostPathfindingTranslators, SimHost's third pack. It needs
+        //    CoreLogicPack.TrajectoryPool, and mode 2 deliberately does not claim
+        //    NodeRole.NavigationSolver -- DESIGN_Stride_Node_Modes.md §4.1b: "navigation is provided
+        //    by the MuscleGround capability and the flag is not claimed". Leaving it out is that
+        //    design decision, not an oversight; if off-node pathfinding is ever wanted here, §4.1b is
+        //    the thing to revisit first.
+        if (context.GhostCreationSystem != null)
+        {
+            configuredFactory
+                .CreateSimHostPerceptionTranslators(context.GhostCreationSystem)
+                .RegisterOn(context.Kernel);
+        }
+        else
+        {
+            // ⛔ Loud, not silent: NedSimHostPerceptionTranslators THROWS on a null ghost-creation
+            //    system, and a node that quietly skipped its perception egress is exactly the class of
+            //    defect this whole sequence was made of.
+            FdpLog<StrideNodeBootstrapper>.Warn(
+                "[StrideNodeBootstrapper] CE-249: GhostCreationSystem is null, so the perception " +
+                "egress translators were NOT registered. This node will see targets and never report " +
+                "them, and the brain will never fire. Expected only on a headless/offline node with " +
+                "no replication module.");
+        }
     }
 }

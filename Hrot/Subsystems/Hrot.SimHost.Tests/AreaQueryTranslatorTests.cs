@@ -258,6 +258,69 @@ namespace Hrot.SimHost.Tests
             Assert.Equal(2, brainFinalBatch.Results[brainSlot].TargetCount);
         }
 
+        // â”€â”€ CE-172: the request shape PRODUCTION actually publishes â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+
+        /// <summary>
+        /// <b>CE-172 — a Brain BTree node submits without a <c>sourceNodeId</c>, and the egress
+        /// must still forward.</b>
+        ///
+        /// <para><b>Why this rail exists, and why SC-HA004-1 could not catch it.</b> SC-HA004-1
+        /// calls <c>RequestAreaQuery(..., sourceNodeId: brainNodeId)</c> — it hands the helper the
+        /// node id. <b>No production caller does.</b> <c>HillAttackCommanderNodes
+        /// .Action_RequestAreaQuery</c> calls the four-argument overload, so every real request
+        /// carries the <c>sourceNodeId = 0</c> default, because a BTree node has no
+        /// world-reachable local node id to pass. The egress filter then compared 0 against CGF's
+        /// node id (400) and dropped it, silently: measured live on <c>--mode all</c>, the CGF
+        /// <c>AreaQueryRequestBatch</c> egress reported <c>sentSamples: 0</c> while
+        /// <c>Condition_IsAreaQueryResolved</c> timed out after exactly 5.0 s, failed the
+        /// commander's WaveLoop, took the root terminal, and cleared PlatoonHillAttack off the
+        /// platoon leader at t≈15.5 s. The editor never saw it — its solver shares the world, so
+        /// no translator is involved at all.</para>
+        ///
+        /// <para>The rail therefore submits exactly as production does, and additionally pins the
+        /// <b>stamp</b>: the outgoing request must carry the local node id, not the incoming 0,
+        /// or <c>AreaQueryMuscleEgressTranslator</c> groups the reply under node 0 and it never
+        /// routes home.</para>
+        /// </summary>
+        [Fact]
+        public void CE172_BrainEgress_ForwardsAnUnstampedLocalRequest_AndStampsTheLocalNodeId()
+        {
+            const long areaNetworkId = 5100L;
+            const int  brainNodeId   = 400;   // CGF's real node id (CgfSubsystem: config.NodeId != 0 ? … : 400)
+
+            var brainEntityMap = new NetworkEntityMap();
+            var brainAreaEntity = _brainRepo.CreateEntity();
+            brainEntityMap.Register(areaNetworkId, brainAreaEntity);
+
+            var commander = _brainRepo.CreateEntity();
+
+            // PRODUCTION SHAPE: four arguments — no sourceNodeId. This is the whole point.
+            long requestId = AreaQueryBatchHelper.RequestAreaQuery(
+                _brainRepo, commander, brainAreaEntity, ForceId.Hostile);
+            Assert.True(requestId >= 0, "RequestAreaQuery must allocate a slot");
+
+            _brainRepo.Bus.SwapBuffers();
+
+            var writer = new CapturingWriter<AreaQueryRequestBatch>();
+            var egress = new AreaQueryBrainEgressTranslator(writer, brainEntityMap, brainNodeId);
+
+            egress.ScanAndPublish((ISimulationView)_brainRepo);
+
+            Assert.True(
+                writer.Written.Count == 1,
+                "The Brain egress dropped a request published by its own BTree. Production never "
+              + "passes sourceNodeId, so the request carries 0; comparing that against the node id "
+              + "discards every real area query, the EQS round trip never starts, and "
+              + "Condition_IsAreaQueryResolved fails on its 5 s timeout.");
+
+            var batch = writer.Written[0];
+            Assert.Equal(brainNodeId, batch.SourceNodeId);
+            Assert.Equal(1, batch.Requests?.Count ?? 0);
+            Assert.Equal(
+                brainNodeId, batch.Requests![0].SourceNodeId);
+            Assert.Equal(areaNetworkId, batch.Requests![0].TargetAreaNetworkId);
+        }
+
         // â”€â”€ SC-HA004-2: Unresolved area entity on Muscle -> TargetCount == 0 â”€â”€â”€â”€â”€
 
         /// <summary>

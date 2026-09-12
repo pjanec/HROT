@@ -40,6 +40,48 @@ namespace Fdp.Interfaces
         public List<MandatoryComponent> MandatoryComponents { get; } = new();
 
         /// <summary>
+        /// ⭐⭐⭐ <b>Component type ids whose INITIAL VALUE the entity's CREATOR must own at birth,
+        /// whatever role that creator holds.</b> 📄 <c>docs/DESIGN_Role_Affinity_Ownership.md</c> §3.1.
+        ///
+        /// <para>⭐⭐ <b>Why this exists.</b> Role-affinity ownership says <i>"a node owns a component
+        /// only if it holds the role that component belongs to"</i>. ⛔ Applied to spatial state that
+        /// rule is WRONG, and the architect named the failure exactly: a Brain-role node creating a unit
+        /// would produce <c>SimTransform</c> UNOWNED, and since <b>every egress translator gates on
+        /// <c>HasAuthority</c></b>, the creator would write a correct spawn coordinate that is
+        /// <b>never published</b> — every peer's ghost sits at the origin. ⇒ birth-critical components
+        /// are the CREATOR'S BIRTHRIGHT; it keeps them and hands them off later through the existing
+        /// <c>DeferredTakeOwnership</c> → <c>OwnershipUpdate</c> path.</para>
+        ///
+        /// <para>⭐ <b>The test is "can this component start empty?"</b> An idle blackboard on tick 0 is
+        /// correct, so cognitive state is role-affine. <c>(0,0,0)</c> is an origin flash, a wrong
+        /// spatial-hash cell and a bogus first path query, so position is not.</para>
+        ///
+        /// <para>⛔ <b>A COMPONENT property, never a descriptor one</b> — 🔒 user, <c>2026-09-01</c>:
+        /// <i>"there are networkless systems as well… TKB should define what components are birth
+        /// critical."</i> A descriptor is a networking concept; a node with no participant has no
+        /// descriptor mapping, so a descriptor-keyed definition would be undefined exactly where the
+        /// component still exists.</para>
+        ///
+        /// <para>⭐⭐ <b>OVER-DECLARING IS HARMLESS BY CONSTRUCTION, so declare it wherever it could
+        /// apply.</b> The create leg intersects this set with the entity's <b>live component mask</b>
+        /// (<c>AuthorityMask = componentMask ∧ OwnableMask(...)</c>), so naming a component the entity
+        /// never receives contributes no bits. ⛔ UNDER-declaring is the dangerous direction — it is
+        /// silent, and it surfaces as the origin flash above.</para>
+        ///
+        /// <para>⚠ <b>Deliberately a SECOND list rather than a flag on <see cref="MandatoryComponents"/></b>
+        /// — they answer different questions: <i>"must be PRESENT before promotion"</i> versus
+        /// <i>"the creator must OWN it at birth"</i>. Overloading the first would force a
+        /// birth-critical-but-not-promotion-gating component to change promotion semantics in order to
+        /// carry the flag.</para>
+        ///
+        /// <para>⚠ <b>Nothing READS this yet.</b> The consumers are steps 1–3 of that design
+        /// (<c>IRoleAffinityPolicy</c>, then <c>NetworkSpawningSystem</c> and
+        /// <c>GhostPromotionSystem</c>). Until they land this list is declarative only and ownership
+        /// behaviour is unchanged.</para>
+        /// </summary>
+        public List<int> BirthCriticalComponents { get; } = new();
+
+        /// <summary>
         /// List of child entities (sub-parts) to spawn when this template is instantiated.
         /// </summary>
         public List<ChildBlueprintDefinition> ChildBlueprints { get; } = new();
@@ -88,6 +130,26 @@ namespace Fdp.Interfaces
                 IsHard            = isHard,
                 SoftTimeoutFrames = softTimeoutFrames
             });
+        }
+
+        /// <summary>
+        /// ⭐ Declares an ECS component type <b>birth-critical</b>: the node that CREATES an entity of
+        /// this template owns that component at birth regardless of its role.
+        /// See <see cref="BirthCriticalComponents"/> for why, and for why over-declaring is safe.
+        ///
+        /// <para>Mirrors <see cref="AddMandatoryComponent{T}"/> — same authoring style, same id
+        /// resolution (works for unmanaged structs and managed class components alike), and the same
+        /// independence from any network layer.</para>
+        ///
+        /// <para>⭐ Idempotent: declaring the same component twice does not duplicate the entry, so a
+        /// builder that both defines a template and later decorates it cannot double-register.</para>
+        /// </summary>
+        /// <typeparam name="T">The component type whose initial value the creator must own.</typeparam>
+        public void AddBirthCriticalComponent<T>()
+        {
+            int id = ComponentTypeRegistry.GetOrRegisterManaged(typeof(T));
+            if (!BirthCriticalComponents.Contains(id))
+                BirthCriticalComponents.Add(id);
         }
 
         /// <summary>

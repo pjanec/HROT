@@ -156,6 +156,8 @@ public static class T31_ComposedAiPrimitiveRegistrar
             {
                 new("bpParams", typeof(global::Hrot.AI.Behaviors.Brains.DemoAiPrimitiveNodes.Params), 0),
             },
+            JsonParamsDtoType    = typeof(global::Hrot.AI.Behaviors.Trees.T31_ComposedAiPrimitive_FdpToolkitBehaviorComponentsBrainBlackboard),
+            BlackboardLayoutType = typeof(global::Hrot.AI.Behaviors.Trees.T31_ComposedAiPrimitive_FdpToolkitBehaviorComponentsBrainBlackboard),
             ParseParams  = __parseParams,
             StatefulWorkingSlots = new global::Fdp.Toolkit.Behavior.StatefulSlotInfo[]
             {

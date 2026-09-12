@@ -172,12 +172,25 @@ public sealed class VehicleWaypointController
     /// </param>
     /// <param name="targetX">Target X position (m).</param>
     /// <param name="targetY">Target Y position (m).</param>
+    /// <param name="cruiseSpeedOverride">
+    /// ⭐ <c>CE-239</c> — per-call cruise speed, so a caller can honour the ORDER's speed instead of
+    /// the controller's construction-time default. <c>null</c> or <c>&lt;= 0</c> keeps
+    /// <see cref="CruiseSpeed"/>, which is the previous behaviour exactly.
+    ///
+    /// <para>📐 <b>Why it was needed.</b> <c>VehicleNavigationIntentSystem</c> constructed this
+    /// controller once with <c>DefaultCruiseSpeed = 3 m/s</c> and never read
+    /// <c>NavigationIntent.TargetSpeed</c>, so every vehicle on the Stride host drove at 3 m/s no
+    /// matter what the order said. <c>hill-attack-close</c> issues <c>TargetSpeed = 15</c> and its
+    /// tanks declare <c>MaxSpeedFwd = 20</c>; the reference <c>--mode all</c> host runs the same
+    /// scenario at ~7.6 m/s. The whole scenario took over five minutes instead of about one.</para>
+    /// </param>
     public Output Compute(
         float posX,
         float posY,
         float currentHeadingRad,
         float targetX,
-        float targetY)
+        float targetY,
+        float? cruiseSpeedOverride = null)
     {
         float dx   = targetX - posX;
         float dy   = targetY - posY;
@@ -209,7 +222,8 @@ public sealed class VehicleWaypointController
         float proximityFactor = MathF.Max(SlowMinFrac,
                                     MathF.Min(1f, dist / SlowRadiusM));
 
-        float speed = CruiseSpeed * alignFactor * proximityFactor;
+        float cruise = cruiseSpeedOverride is > 0f ? cruiseSpeedOverride.Value : CruiseSpeed;
+        float speed  = cruise * alignFactor * proximityFactor;
 
         return new Output(speed, steer, Arrived: false,
                           DistToTarget: dist, HeadingErrorRad: headingErr);

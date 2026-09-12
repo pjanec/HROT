@@ -90,6 +90,9 @@ namespace Hrot.SimHost
         // ── Gizmo debug overlay (GZ032) ───────────────────────────────────────
         private DebugPrimitiveBuffer? _gizmoBuffer;        // On-demand gizmo activation (EntityRotatorGizmo, etc.).
         private Fdp.Toolkit.Diagnostics.Gizmos.Systems.DataDrivenGizmoSystem? _gizmoSystem;
+
+        /// <summary>⭐ <c>UXI-07</c> — the host's ONE tool arbiter; see the <c>Initialize</c> parameter.</summary>
+        private Hrot.ScenarioEditor.Tools.ToolController? _toolController;
         private Fdp.Toolkit.Diagnostics.Gizmos.Systems.GlobalGizmoManager? _globalGizmoManager;
         private DebugGizmoLayer? _gizmoLayer;
         private Fdp.Core.FdpEventBus? _interactionBus;
@@ -148,13 +151,23 @@ namespace Hrot.SimHost
             long                    worldPosDescriptorId = 0,
             DebugPrimitiveBuffer?   gizmoBuffer = null,
             Fdp.Toolkit.Diagnostics.Gizmos.Systems.DataDrivenGizmoSystem? gizmoSystem = null,
-            Fdp.Core.FdpEventBus? interactionBus = null)
+            Fdp.Core.FdpEventBus? interactionBus = null,
+            // ⭐⭐⭐ CE-254 — THE HOST'S OWN, KERNEL-SCHEDULED manager. See the assignment below for why
+            //   constructing one here was wrong. Optional so the fallback keeps every existing caller
+            //   compiling; ⛔ but a host that HAS one must pass it.
+            Fdp.Toolkit.Diagnostics.Gizmos.Systems.GlobalGizmoManager? globalGizmoManager = null,
+            // ⭐⭐⭐ UXI-07 step 3b — the host's ONE tool arbiter (MapInteraction.Tools), so this panel's
+            //   context menu ACTIVATES the shared tool instead of hand-rolling it. Same contract as
+            //   globalGizmoManager above: optional to keep callers compiling, ⛔ but a host that HAS one
+            //   must pass it (the silent-default rule).
+            Hrot.ScenarioEditor.Tools.ToolController? toolController = null)
         {
             _repo                 = repo         ?? throw new ArgumentNullException(nameof(repo));
             _kernel               = kernel        ?? throw new ArgumentNullException(nameof(kernel));
             _missionSender        = missionSender ?? throw new ArgumentNullException(nameof(missionSender));
             _worldPosDescriptorId = worldPosDescriptorId;
             _gizmoSystem          = gizmoSystem;
+            _toolController       = toolController;
 
             // ── Selection & inspector ─────────────────────────────────────────
             _selection = new SimHostSelectionManager();
@@ -199,17 +212,44 @@ namespace Hrot.SimHost
                     }
                 });
 
-                if (_repo!.HasComponent<SimTransform>(entity))
+                // ⛔⛔ CE-253 — THE GUARD MUST INCLUDE THE GIZMO SYSTEM, NOT JUST THE COMPONENT.
+                //
+                // 📌 This item's body is three null-forgiving `_gizmoSystem!` calls, and _gizmoSystem is
+                //    an OPTIONAL Initialize parameter (:157). SimHost passes it (SimHostApp.cs:569); the
+                //    Stride mode-2 node does NOT, because it composes no gizmo registry. ⇒ on that host
+                //    the item was OFFERED and threw a NullReferenceException the moment it was clicked.
+                //
+                // ⭐ Ruling 49 — a host that cannot service a command must not present it. Guarding on
+                //    the CAPABILITY as well as the component is what makes the offer honest.
+                //
+                // ⚠ Zero behaviour change for SimHost, which supplies the system: the added conjunct is
+                //    true there. ⇒ this removes a crash on one host and nothing on the other.
+                //
+                // ⛔ NOT the whole story: gating it means mode 2 has no entity rotation at all. That is
+                //    the honest state, not the desired one — supplying a real DataDrivenGizmoSystem
+                //    there needs a populated GizmoRegistry on the node, which is composition work with
+                //    its own blast radius. Tracked as CE-254 rather than faked here.
+                // ⭐⭐⭐ UXI-07 step 3b — ACTIVATE the shared Rotate tool; do not rebuild it.
+                // 🔴 This body was a verbatim copy of the shared arm (deactivate, EntityRotatorGizmo,
+                //    EntityWriteRouter) — one of FIVE `D′` instances measured 2026-09-09. ⇒ deleted.
+                // ⭐ Going through the controller also makes the tool MODAL here for the first time: it
+                //    cancels whatever held focus in the OTHER arbiter, which a direct ActivateGizmo cannot.
+                // ⚠ The offer is still gated on the CAPABILITY as well as the component (ruling 49) — the
+                //    mode-2 node has no gizmo system, and offering a command it cannot run is the defect
+                //    CE-254 recorded. ⛔ Gating on _toolController too would HIDE the item where the
+                //    arbiter was simply not passed; that is a wiring bug and must report, not vanish.
+                if (_repo!.HasComponent<SimTransform>(entity) && _gizmoSystem != null)
                     builder.AddItem("Rotate entity", () =>
                     {
                         if (_map == null) return;
-                        // Inject EntityRotatorGizmo directly via the gizmo system.
-                        _gizmoSystem!.DeactivateGizmo(entity);
-                        var gizmo = new Hrot.ScenarioEditor.Gizmos.EntityRotatorGizmo(
-                            _repo!, entity,
-                            onRemove: () => _gizmoSystem!.DeactivateGizmo(entity),
-                            writer: Fdp.Toolkit.Replication.Attributes.EntityWriteRouter.For(_repo!));
-                        _gizmoSystem!.ActivateGizmo(entity, gizmo);
+                        if (_toolController == null)
+                        {
+                            Fdp.Core.Logging.FdpLog<SimHostVisualization>.Info(
+                                "[Tools] 'Rotate entity' did nothing — this host wired no ToolController "
+                              + "(pass MapInteraction.Tools to SimHostVisualization.Initialize).");
+                            return;
+                        }
+                        _toolController.Activate(Hrot.ScenarioEditor.Tools.ScenarioToolIds.Rotate, entity);
                     });
             }));
 
@@ -233,14 +273,51 @@ namespace Hrot.SimHost
 
             // Gizmo debug overlay (GZ032).
             _gizmoBuffer = gizmoBuffer ?? new DebugPrimitiveBuffer();
-            _globalGizmoManager = new Fdp.Toolkit.Diagnostics.Gizmos.Systems.GlobalGizmoManager(_gizmoBuffer!);
+            // ⛔⛔⛔ CE-254 — THIS USED TO CONSTRUCT ITS OWN MANAGER UNCONDITIONALLY, AND NOTHING EVER
+            //    TICKED IT.
+            //
+            // 📐 GlobalGizmoManager is an IEcsModuleSystem with [UpdateInPhase(PostSimulation)] — it only
+            //    runs if a host SCHEDULES it. The instance built here was never registered on any kernel:
+            //    its only use was the CanvasMapPickAdapter below. ⇒ the modal picker gizmos that back
+            //    [MapPickable] field editing could never draw and never receive routed events.
+            //
+            // 📐 And this host HAS a real one: SimHostApp:405 takes mapInteraction.GlobalManager from the
+            //    pack, and SimHostApp:470-480 schedules the pack's gizmoGroup through
+            //    GizmoInteractionModule. ⇒ the ticked manager existed all along and the pick adapter was
+            //    handed a different, dead one.
+            //
+            // ⭐ IG (IgApplication.cs:507) and CGF (CgfSubsystem.cs:1552) both hand CanvasMapPickAdapter
+            //    the PACK's manager. This is the only host that does not.
+            //
+            // ⛔⛔⛔ AND YET SimHost STILL DOES NOT PASS ONE — deliberately, and this is the whole point
+            //    of the note. 📐 MEASURED 2026-09-09 on hill-attack-close: passing the pack's manager
+            //    here BREAKS THE SCENARIO. Without it 1007 dies t=34 and 1006 t=44 (the standing
+            //    baseline); with it, twice, either both hostiles stall at hp=25 for 140+ s or they take
+            //    no damage at all. ⇒ ⭐ the seam is correct and the WIRING is not safe yet: making the
+            //    pick adapter use a LIVE manager activates gizmo/input paths that were dead on this
+            //    host, which is the two-arbiter exclusivity ground (docs/UX/UX_Feature_Tool_Model.md).
+            //    ⛔ Fixing map picking by breaking the scenario is not a fix. See SimHostApp's call.
+            //
+            // ⚠ The `??` fallback keeps a host with no pack compiling and behaving as before — notably
+            //    the Stride mode-2 node, which composes no MapInteractionPack at all and reports that
+            //    absence out loud rather than pretending picking works (CE-253/CE-254 warning there).
+            //
+            // 🔎 Found by the "H - ui" session reading source; verified here against SimHostApp's own
+            //    wiring before acting. ⚠ Interactive confirmation (actually clicking a [MapPickable]
+            //    field on SimHost) is still OUTSTANDING — this changes which manager is wired, and that
+            //    wiring is now identical to the two hosts where picking is known to work.
+            _globalGizmoManager = globalGizmoManager
+                ?? new Fdp.Toolkit.Diagnostics.Gizmos.Systems.GlobalGizmoManager(_gizmoBuffer!);
+            // ⭐ §6.7 — the world IS passed now, for ONE reader: PickEntity resolves a picked anchor's
+            //   network id to an Entity. ⚠ NOT a revival of R3's deleted `view` parameter, which was
+            //   stored nowhere. See DebugGizmoLayer._world.
             _gizmoLayer = new DebugGizmoLayer(
                 31,
                 _gizmoBuffer,
                 interactionBus ?? repo.Bus,
-                repo,
-                _map.Camera,
-                new GizmoMap.Presentation.Shapes.DefaultEntityShapeLibrary());
+                camera: _map.Camera,
+                shapeLibrary: new GizmoMap.Presentation.Shapes.DefaultEntityShapeLibrary(),
+                worldProvider: () => _repo);
             _map.AddLayer(_gizmoLayer);
             _map.DrawBuffer = _gizmoBuffer;
             _interactionBus = interactionBus;
@@ -265,7 +342,13 @@ namespace Hrot.SimHost
                 }
             };
 
-            _mapPickBridge = new MapPickServiceBridge(new CanvasMapPickAdapter(_map, repo, globalGizmoManager: _globalGizmoManager), repo);
+            // 🔒 UXI-07 step 4b — a pick SUSPENDS the active tool instead of arming beside it.
+            _mapPickBridge = new MapPickServiceBridge(
+                new CanvasMapPickAdapter(
+                    _map, repo,
+                    globalGizmoManager: _globalGizmoManager,
+                    tools: () => _toolController),
+                repo);
 
             // Seed a small initial scenario so the window isn't empty
             //_scenario.SpawnFastOne();

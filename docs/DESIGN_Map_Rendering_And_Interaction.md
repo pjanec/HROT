@@ -12,7 +12,16 @@ rulings: R-137 unification may not cost a feature; if it does, put it back as co
 known-conflict: docs/designs/gizmos-1/gizmo-input-focus-design.md section 14 says the FRONTEND keeps a
   tool stack; UX_Feature_Tool_Model.md (UXI-07, newer and user-ruled) puts the MODAL stack in the
   BACKEND. RECONCILED in section 1.3: the word names two different mechanisms at two layers.
-known-rot: none known. Every numeric claim carries its measurement date.
+known-rot: ⚠ TWO items found 2026-09-10, listed in docs/SNAPSHOT_Map_Interaction_Architecture.md §6 and
+  NOT yet repaired here: (a) §3.2's sequence diagram shows ToolActivationDrainSystem owning
+  ToggleEntityGizmo — since UXI-07 step 3b the drain is "an EVENT ADAPTER and nothing else" and the tool
+  bodies live in ScenarioToolRegistrations; (b) §4.2's table marks IToolController / ActiveModal /
+  ModalStack / PushModal / Cancel as "NOT-BUILT" — all are BUILT (UXI-07, 2026-09-09) and PushModal's
+  suspend/resume was operator-confirmed. Otherwise every numeric claim carries its measurement date.
+see-also: docs/SNAPSHOT_Map_Interaction_Architecture.md — a 2026-09-10 SNAPSHOT of composition,
+  ownership and data flow as built, plus a findings ledger and the user rulings of that date. It owns
+  nothing and does not redraw this file's diagrams; it records what this file's layer view does not:
+  who BUILDS what per host, and the four-store selection reality.
 -->
 # Map rendering & interaction — how it works, and where it is going
 

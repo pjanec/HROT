@@ -1,3 +1,20 @@
+<!--STATUS
+state: LIVE
+updated: 2026-09-12
+current-answer: §2 (the two-phase ack pattern) and §3 (the data model) are the design.
+known-rot: ⚠ §1 and §2.1 describe the ELM handshake as "a distributed multi-node handshake" whose peer
+  ACKs gate activation. MEASURED 2026-09-12: in production the ELM participant set is EMPTY (both ctor
+  sites pass an empty list; RegisterRequirement has zero callers; NetworkGatewaySystem — the only module
+  that would register — is never constructed outside tests), so no construction is ever ACKed and the
+  barrier completes vacuously on the next frame. The two-phase ack this document specifies is therefore
+  built on a handshake that currently waits for nobody. See CE-259au.
+related-designs:
+  - FDP/Engine/Fdp.ModuleHost/docs/ModuleHost-network-ELM-design-talk.md — §1/§2/Part 1: the ELM
+    construction barrier this document sits on top of, and why the gateway is a blocking participant.
+  - docs/designs/replay-and-modules/DESIGN.md — §2.1i/§2.1j: the measured state of that barrier.
+  - docs/designs/mgmt-1/DESIGN.md — §8.10: what happens to the same handshake during replay.
+-->
+
 # Two-ACK Entity Lifecycle Pattern — Design Document
 
 **Reference:** See [TWOACK-TASK-DETAIL.md](./TWOACK-TASK-DETAIL.md) for per-task specifications  

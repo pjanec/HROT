@@ -19,6 +19,10 @@ using Stride.Games;
 using Stride.Input;
 using Stride.Physics;
 using Stride.Rendering;
+using Stride.Rendering.Materials;
+using Stride.Rendering.Materials.ComputeColors;
+using Stride.Graphics.GeometricPrimitives;
+using Stride.Extensions;
 using Stride.Rendering.Lights;
 using Fdp.ModuleHost.Time; // BATCH-S2-AD
 
@@ -94,6 +98,20 @@ public sealed class StrideHrotGame : Game
     // ── The FDP simulation node that this game drives ─────────────────────
 
     private StrideNodeBootstrapper? _bootstrapper;
+
+    /// <summary>
+    /// ⭐⭐ <c>CE-207</c> — when true this process boots as a MODE 2 cluster node (Muscle + Perception
+    /// beside CGF) instead of the mode 1 hosted editor. Set by the composition root before Run().
+    /// </summary>
+    public bool NodeMode { get; set; }
+
+    /// <summary>DDS domain for mode 2. Ignored in mode 1.</summary>
+    public int NodeDomainId { get; set; }
+
+    /// <summary>Cluster node id for mode 2. Ignored in mode 1.</summary>
+    public int NodeId { get; set; } = StrideNodeShell.DefaultNodeId;
+
+    private StrideNodeShell? _nodeShell;
 
     /// <summary>
     /// Exposes the bootstrapper for test/diagnostic inspection.
@@ -358,6 +376,15 @@ public sealed class StrideHrotGame : Game
             return;
         _editorSubsystemBooted = true;
 
+        // ⭐⭐ CE-207 / S4 — mode 2 boots a CLUSTER NODE instead of the hosted editor. Both modes share
+        //   this Game, its scene setup and its brackets; only the composition root differs, which is
+        //   what Q66 §3B means by "mirror the bracket rather than invent a composition root".
+        if (NodeMode)
+        {
+            BootClusterNode();
+            return;
+        }
+
         BootEditorSubsystem();
     }
 
@@ -379,41 +406,113 @@ public sealed class StrideHrotGame : Game
         // ── Total StrideHrotGame.Update timing (DIAG) ─────────────────────
         _totalUpdateSw.Restart();
 
+        // ⭐⭐⭐ CE-227 — STRIDE'S PHYSICS ADVANCES BY SIM SECONDS, NEVER BY THE FRAME TIME.
+        //
+        // 🔒 User ruling, 2026-09-08: "physics should run always just sometime with zero dt" and
+        //    "no elapsed ticks of wall clock, always elapsed seconds sim time".
+        //
+        // 📐 Stride's physics game system does exactly one thing with time:
+        //        scene.Simulation.Simulate((float)gameTime.WarpElapsed.TotalSeconds)
+        //    and GameTime defines  WarpElapsed = Elapsed * Factor,  with Factor a public, clamped-to-
+        //    non-negative multiplier whose own doc says it "controls how much the warped time flows,
+        //    this includes physics, animations and particles".
+        //    ⇒ setting  Factor = simDelta / wallDelta  makes  WarpElapsed == simDelta  EXACTLY: the
+        //      frame time cancels, and Bullet integrates sim seconds. Paused ⇒ simDelta 0 ⇒ Factor 0 ⇒
+        //      Simulate(0) ⇒ `carriedDelta += 0` ⇒ its fixed-step loop never runs ⇒ NOTHING INTEGRATES,
+        //      while the rest of the physics update (removals, bones, characters, contacts, events)
+        //      still ticks. That is "always run, sometimes with zero dt".
+        //
+        // ⛔⛔ This REPLACES Simulation.DisableSimulation as the pause mechanism. That flag makes the
+        //    game system `return` before Simulate is even called, taking body readiness, contacts and
+        //    events with it — measured: bodies never became physics-ready and vehicles could not move
+        //    at all (CE-223 → CE-227). ⭐ Stride's integrator is fixed-step either way
+        //    (StepSimulation(FixedTimeStep, 0, FixedTimeStep)), so wall time never reaches it; Factor
+        //    only decides HOW MANY fixed steps a frame consumes, and zero is a legal answer.
+        //
+        // ⭐ Not editor-shaped: the input is "how far did SIM time move", read from the synced clock, so
+        //    a cluster-wide pause stops physics identically on every node in mode 2 — no reference to
+        //    who owns an entity or which node loaded the scenario.
+        double wallSeconds = gameTime.Elapsed.TotalSeconds;
+
+        // ⭐⭐⭐ CE-251 — MODE 2 NEEDS THIS TOO, and the guard below excluded it.
+        //    `_editorSubsystem` is null in mode 2, so Factor kept its default of 1 and Stride fed
+        //    Bullet WALL seconds on the one host that is a cluster TIME SLAVE — breaking R-143 ("no
+        //    wall clock … not in stirede") and reopening CE-227's pause hole for this mode: a
+        //    cluster-wide pause stops the kernel and the motors, but Simulate(wallDelta) would keep
+        //    gravity and contacts running in a paused world.
+        //    ⭐ Same formula, same meaning, different source of the sim delta: the node reads it from
+        //    its own kernel, which is the CLUSTER's clock (Q66 §3A). ⚠ Previous frame's value, exactly
+        //    as in mode 1 — §11.1a option B — because base.Update runs before the shell ticks.
+        if (NodeMode && _nodeShell != null && wallSeconds > 0.0)
+        {
+            UpdateTime.Factor = _nodeShell.CurrentSimDeltaSeconds / wallSeconds;
+        }
+        else if (_editorSubsystem != null && wallSeconds > 0.0)
+        {
+            // ⚠ Guarded on wallSeconds > 0: on the first frame (and any zero-length frame) Elapsed is
+            //   zero, so WarpElapsed is zero whatever the factor — the division would be meaningless.
+            UpdateTime.Factor = _editorSubsystem.CurrentSimDeltaSeconds / wallSeconds;
+        }
+
         // ── base.Update timing (DIAG) ─────────────────────────────────────
         _baseUpdateSw.Restart();
         base.Update(gameTime);
         _baseUpdateSw.Stop();
         double baseUpdateMs = _baseUpdateSw.Elapsed.TotalMilliseconds;
 
-        float wallDt = (float)gameTime.Elapsed.TotalSeconds;
+        // ⭐⭐⭐ R-143 / CE-230 — THE SIM DELTA DRIVES EVERYTHING BELOW. NOT THE FRAME TIME.
+        //
+        // 🔒 User, 2026-09-08: "no wall clock enywhere, whole sim driven by sim time ONLY. only use of
+        //    wallclock us stamping the fdp recording" — "not in stirede, not in editor, not in cgf, not
+        //    in simhost, never where simulation is related".
+        //
+        // 📐 Measured before converting, because the obvious worry was circularity:
+        //    EditorSubsystem.Update(deltaTime) calls `_kernel?.Update()` with NO ARGUMENT — the kernel
+        //    advances the clock itself — so this delta NEVER reaches the simulation clock. It feeds the
+        //    canvas, the selection system, the gizmo producer buffer, the (already dt-ignoring)
+        //    PreKernelUpdateHook and the cluster panel. ⇒ no feedback loop, and the conversion is safe.
+        //
+        // ⚠ It is the PREVIOUS frame's sim delta, which is deliberate and already the documented
+        //   as-built: Stride's base.Update (and therefore the physics step) runs BEFORE the editor tick
+        //   advances the clock. 📄 DESIGN_Stride_Node_Modes.md §11.1a, option B. Option A (hoisting the
+        //   advance into a shell) is CE-207's and would make this the current frame's.
+        // ⭐⭐ CE-207 — MODE 2: the node is a TIME SLAVE. Its bootstrapper calls Kernel.Update()
+        //   parameterless, so the frame delta reaches only the gizmo producer buffer. There is no
+        //   CurrentSimDeltaSeconds here because there is no local editor clock to read it from — the
+        //   master supplies time. 📄 Q66 §3A.
+        if (NodeMode)
+        {
+            // ⭐ The SHELL owns the frame: physics pre-step → Kernel.Update() → physics post-step,
+            //   mirroring mode 1's documented order. Driving _bootstrapper directly would skip the
+            //   brackets and the node would replicate without ever moving a body.
+            _nodeShell?.Tick((float)gameTime.Elapsed.TotalSeconds);
+            return;
+        }
+
+        float simDt = _editorSubsystem?.CurrentSimDeltaSeconds ?? 0f;
 
         // Internal-loop mode (BATCH-10): drive EditorStrideSubsystem.
         if (_editorSubsystem != null)
         {
-            // FIX-PERF-1 (hosted-mode substepping):
-            // When the editor subsystem is hosting the real EditorSubsystem
-            // (STRIDE_HOST_REAL_EDITOR=1), call Tick ONCE per render frame with the wall dt
-            // — the fixed-step loop driver would cause up to 8 sub-steps per frame, each
-            // running the full editor.Update() (canvas + AI hot-reload + kernel + Bullet),
-            // causing a spiral-of-death at low render rates.
-            // The OFF path (self-contained kernel) keeps the loop driver unchanged.
-            if (_editorSubsystem.HostRealEditor)
-            {
-                _editorSubsystem.Tick(wallDt);
-            }
-            else
-            {
-                _loopDriver.AdvanceFrame(wallDt, dt => _editorSubsystem.Tick(dt));
-            }
+            // FIX-PERF-1 (hosted-mode substepping): Tick ONCE per render frame — the fixed-step
+            // loop driver would cause up to 8 sub-steps per frame, each running the full
+            // editor.Update() (canvas + AI hot-reload + kernel + Bullet), which is a
+            // spiral-of-death at low render rates.
+            // ⭐ CE-209: the branch that chose between this and _loopDriver.AdvanceFrame is gone
+            //   with the self-contained arm — the subsystem always hosts the real editor now.
+            _editorSubsystem.Tick(simDt);
 
             // Spawn diagnostics (follow-up to BATCH-10): throttled to ~once per second.
             LogSpawnDiagnostics();
         }
 
-        // BATCH-12: drive the in-app test harness (keyboard polling + continuous-case
-        // hooks + on-screen DebugText status). Uses the render-frame wall delta so the
-        // orbiting-ghost demo advances smoothly regardless of the fixed sim cadence.
-        _testHarness?.Update(wallDt);
+        // BATCH-12: drive the in-app test harness (keyboard polling + continuous-case hooks +
+        // on-screen DebugText status).
+        // ⚠ R-143 — this used to take the render-frame WALL delta, with the stated reason that "the
+        //   orbiting-ghost demo advances smoothly regardless of the fixed sim cadence". That reason is
+        //   retired: the harness drives scripted SIMULATION probes, so a demo that advances while sim
+        //   time is stopped is measuring the frame rate, not the simulation.
+        _testHarness?.Update(simDt);
 
         // BATCH-S2-AG: mirror the paused-nav toast (BATCH-S2-AD) into the 3D Stride viewport (where the
         // operator is clicking). DebugTextSystem uses Stride's built-in font; auto-expiry already handled by
@@ -872,6 +971,176 @@ public sealed class StrideHrotGame : Game
     /// Boots the EditorStrideSubsystem on the live scene.
     /// Called from <see cref="BeginRun"/> after scene and content are valid.
     /// </summary>
+
+    /// <summary>
+    /// ⭐⭐⭐ <c>CE-231</c> — a ground slab, VISIBLE and SOLID, large enough for scenario coordinates.
+    /// </summary>
+    /// <remarks>
+    /// <para>🔒 <b>User, 2026-09-08:</b> <i>"best if we could extend the stride's terrain floor to be way
+    /// larger so our scenarios can be modelled outside of the current (and extremely small) stride
+    /// arena"</i> — and, on a first draft that added only a collider: <i>"it can not be just a physics
+    /// collider, it must be something visible in 3d otherwise entities would be floating in the air
+    /// visually"</i>. ⇒ this entity carries BOTH a <c>ModelComponent</c> and a
+    /// <c>StaticColliderComponent</c>, sharing one size.</para>
+    ///
+    /// <para><b>📐 The problem, measured.</b> <c>MainScene</c>'s floor is a hand-placed mosaic of
+    /// <c>Floor1x0x1</c> / <c>Floor3x0x1</c> prefab tiles a few metres across, centred on the origin.
+    /// <c>hill-attack-close</c> puts its vehicles at world coordinates around <b>(446, 420)</b> to
+    /// <b>(668, 522)</b>, where there is nothing beneath them — so the moment physics integrates they
+    /// fall, measured to <c>z = -180 m</c> and still accelerating at <c>-52 m/s</c>.</para>
+    ///
+    /// <para>⭐ <b>Why built in code rather than authored as tiles.</b> The tiles are an ART asset and the
+    /// scene is the artist's; carpeting kilometres with prefab instances would bloat the asset and slow
+    /// the asset build, and it still would not follow a scenario that moves. One slab is O(1) and
+    /// trivially resized.</para>
+    ///
+    /// <para><b>⚠ AXIS MAPPING — measured, not assumed.</b> A live <c>BodyState</c> line shows FDP
+    /// <c>(446.3, 420.9, 0.5)</c> arriving as Stride <c>(446.317, 0.500, 420.903)</c> ⇒
+    /// <b>FDP.x → Stride.X, FDP.y → Stride.Z, FDP.z (up) → Stride.Y (up)</b>. The slab therefore spans
+    /// Stride's X/Z and is thin in Y, with its TOP face at <c>Y = 0</c>, the plane entities are authored
+    /// on.</para>
+    ///
+    /// <para>⚠ <b>Bounded on purpose.</b> A larger box is not free — Bullet's broadphase and contact
+    /// precision degrade as extents grow — so this covers realistic scenario space with margin rather
+    /// than being made astronomically large "to be safe". ⛔ It is also DELIBERATELY not a heightfield:
+    /// it is flat, so it gives ground and a visual reference, not terrain relief.</para>
+    /// </remarks>
+    private void AddScenarioGroundPlane(Scene scene)
+    {
+        // Metres. 20 km across covers scenario coordinates with wide margin; 1 m thick so a
+        // fast-falling body cannot tunnel through it within a single fixed physics step.
+        const float ExtentMetres    = 20000f;
+        const float ThicknessMetres = 1f;
+
+        // ⭐ A unit cube scaled to the slab: no plane-orientation ambiguity, and the SAME size drives
+        //   both the visual and the collider, so they cannot drift apart.
+        var material = Material.New(GraphicsDevice, new MaterialDescriptor
+        {
+            Attributes = new MaterialAttributes
+            {
+                Diffuse      = new MaterialDiffuseMapFeature(new ComputeColor(new Color4(0.22f, 0.25f, 0.20f, 1f))),
+                DiffuseModel = new MaterialDiffuseLambertModelFeature(),
+            },
+        });
+
+        // ⭐ The mesh is built the way this repo already builds one — PooledEntityDebugDrawSink3D
+        //   .AssembleModel. ⛔ There is no ToMeshDraw() extension in this Stride version, and inventing a
+        //   second construction path for the same job is the duplication this programme keeps removing.
+        var primitive = GeometricPrimitive.Cube.New(GraphicsDevice);
+        var half   = new Vector3(ExtentMetres, ThicknessMetres, ExtentMetres) * 0.5f;
+        var bbox   = new BoundingBox(-half, half);
+        var model  = new Model
+        {
+            new Mesh
+            {
+                Draw          = primitive.ToMeshDraw(),
+                BoundingBox   = bbox,
+                MaterialIndex = 0,
+            },
+        };
+        model.BoundingBox = bbox;
+        model.Materials.Add(new MaterialInstance(material));
+
+        var collider = new StaticColliderComponent();
+        collider.ColliderShape = new BoxColliderShape(
+            is2D: false,
+            size: new Vector3(ExtentMetres, ThicknessMetres, ExtentMetres));
+
+        // ⭐⭐ CE-240 — the COLLIDER keeps its top face at exactly Y = 0; the VISUAL sits a few
+        //   centimetres lower on a CHILD entity.
+        //
+        //   🔒 User, 2026-09-08: "the floor plane z-fights with the in-area floor; lowering the
+        //   rendered floor plane a bit would help". MainScene's prefab floor tiles are also at Y = 0,
+        //   so two coplanar surfaces fight for depth across the whole arena.
+        //
+        //   ⛔ Lowering the WHOLE entity would drop the collider too, and every body would rest that
+        //   much lower — a physics change to fix a rendering artefact. Splitting the visual onto a
+        //   child keeps the contact plane exactly where CE-231 measured it (bodies hold z = 0.5) while
+        //   moving only what is drawn. ⚠ The offset is deliberately larger than typical depth-buffer
+        //   precision at these extents but far below anything visible at human scale.
+        const float VisualDropMetres = 0.05f;
+
+        var ground = new Stride.Engine.Entity("ScenarioGroundPlane") { collider };
+        // Top face at Y = 0: the slab centre sits half a thickness below it.
+        ground.Transform.Position = new Vector3(0f, -ThicknessMetres * 0.5f, 0f);
+
+        var groundVisual = new Stride.Engine.Entity("ScenarioGroundVisual")
+        {
+            new ModelComponent(model),
+        };
+        // The cube primitive is unit-sized, so scale carries the extent for the VISUAL half.
+        groundVisual.Transform.Scale    = new Vector3(ExtentMetres, ThicknessMetres, ExtentMetres);
+        groundVisual.Transform.Position = new Vector3(0f, -VisualDropMetres, 0f);
+        ground.AddChild(groundVisual);
+
+        scene.Entities.Add(ground);
+
+        Log.Info(
+            "[StrideHrotGame] CE-231: scenario ground slab added — {0:F0} x {0:F0} m, {1:F1} m thick, " +
+            "collider top face at Y=0, visual dropped {2:F2} m to avoid z-fighting with MainScene's " +
+            "coplanar floor tiles (CE-240). Those tiles span only a few metres; scenario coordinates " +
+            "run to ~700 m.",
+            ExtentMetres, ThicknessMetres, VisualDropMetres);
+    }
+
+    /// <summary>
+    /// ⭐⭐⭐ <c>CE-207</c> — mode 2 boot: join a cluster as a Muscle + Perception node.
+    /// </summary>
+    /// <remarks>
+    /// ⭐ Keeps the SAME scene preparation mode 1 uses — the template player is neutralised, the
+    /// infinite plane walls are stripped (<c>CE-232</c>) and the scenario ground slab is added
+    /// (<c>CE-231</c>/<c>CE-240</c>) — because those are properties of the WORLD, not of the editor.
+    /// ⛔ It does not create the editor, its windows or its camera scripts.
+    /// </remarks>
+    private void BootClusterNode()
+    {
+        var scene = SceneSystem.SceneInstance.RootScene;
+        NeutralizeTemplatePlayer(scene);
+        NeutralizeInfinitePlaneColliders(scene);
+        AddScenarioGroundPlane(scene);
+        AddFixedCamera(scene);
+
+        _nodeShell = new StrideNodeShell();
+        _nodeShell.Boot(NodeDomainId, NodeId);
+        bool physicsLive = _nodeShell.AttachPhysics(this, scene);
+        AttachBootstrapper(_nodeShell.Bootstrapper);
+        Log.Info("[StrideHrotGame] CE-207 stage 2: physics bracket attached (bulletLive={0}).", physicsLive);
+
+        // ⭐⭐⭐ CE-248 — BAKE THE NAVMESH. Mode 1 does this at BootEditorSubsystem; mode 2 never did,
+        //    and VehicleNavigationIntentSystem returns immediately without an INavmeshProvider, so the
+        //    node planned no routes and commanded no motors while every earlier stage looked healthy.
+        //    ⚠ AFTER the ground slab and the collider neutralisation above: the bake reads the scene's
+        //    STATIC COLLIDERS, so it must see the 20 km scenario slab (CE-231) and must NOT see the
+        //    template arena's infinite planes (CE-232), which would otherwise bound the whole bake to
+        //    the few-metre arena.
+        BakeNavmesh(scene, _nodeShell.Context?.World, _nodeShell.InfantryCrowdProvider);
+
+        // ⭐⭐ CE-245 — the node's own debug/MCP surface, on the SAME environment variable every other
+        //    host uses (the editor's and ClusterRunner's gate alike), so no tool needs a special case
+        //    for a Stride node. Absent variable ⇒ not started, costing nothing in a normal run.
+        _nodeShell.StartDebugApi(Environment.GetEnvironmentVariable("HROT_DEBUG_API_PORT"));
+
+        // ⭐⭐⭐ CE-214 / S6 — THE OPERATOR WINDOW, unconditionally.
+        //    🔒 R-S16: "window is not optional, sames as in stride editor." ⛔ So there is no flag here,
+        //    unlike mode 1's STRIDE_EDITOR_WINDOW. ⭐ Safe: there is no headless mode 2 (this process
+        //    sets Headless = false and always opens a Stride window), so §7.2's "headless/CI must be
+        //    unaffected" caveat has nothing to protect.
+        //    ⚠ Guarded so a window failure cannot cost the node its simulation — the node's JOB is to
+        //    simulate; the operator surface is how a human watches it.
+        try
+        {
+            _nodeShell.StartOperatorWindow();
+        }
+        catch (Exception ex)
+        {
+            Log.Warn(ex, "[StrideHrotGame] CE-214: the operator window failed to compose — the node " +
+                         "continues to simulate without it.");
+        }
+
+        Log.Info("[StrideHrotGame] CE-207: mode 2 node attached — the frame loop now drives " +
+                 "StrideNodeBootstrapper.Tick (parameterless Kernel.Update, time slave).");
+    }
+
     private void BootEditorSubsystem()
     {
         // ── 1. Get the root scene ─────────────────────────────────────────
@@ -886,6 +1155,14 @@ public sealed class StrideHrotGame : Game
         // To prevent boot errors from these scripts, we remove the PlayerCharacter entity
         // from the scene. We then create a fixed overview camera that can see the spawn area.
         NeutralizeTemplatePlayer(scene);
+
+        // ── 2a. STRIP THE TEMPLATE ARENA'S INFINITE PLANE WALLS ───────────
+        // CE-232. Must run BEFORE the ground slab and before any scenario loads: while these exist,
+        // every world coordinate beyond ±20 m is the inside of a solid half-space.
+        NeutralizeInfinitePlaneColliders(scene);
+
+        // ── 2b. A GROUND PLANE BIG ENOUGH FOR REAL SCENARIO COORDINATES ───
+        AddScenarioGroundPlane(scene);
 
         // ── 3. Add a fixed overview camera ────────────────────────────────
         // Camera position in Stride space: (0, 10, -5).
@@ -918,29 +1195,19 @@ public sealed class StrideHrotGame : Game
         //   The MainScene's 144 static colliders guarantee PhysicsProcessor is present in BeginRun.
         // ── BATCH-S2-H: autonomous self-test mode ────────────────────────────────
         // When STRIDE_SELFTEST=1 is set the app runs StrideSelfTest and exits automatically.
-        // The self-test requires the hosted real-editor + Stride muscle path, so force
-        // hostRealEditor=true regardless of STRIDE_HOST_REAL_EDITOR.
         // STRIDE_EDITOR_WINDOW remains gated by its own flag (defaults OFF — no raylib window
         // needed for the self-test, only the 3D Stride window + physics).
+        // ⭐ CE-209 / R-S9: the self-test used to have to FORCE hostRealEditor=true because a
+        //   self-contained arm existed to be forced away from. It no longer does — the hosted
+        //   editor is the only composition, so the self-test simply gets it. Q2 predicted exactly
+        //   this collapse: "STRIDE_HOST_REAL_EDITOR disappears (hosted becomes the only editor
+        //   path), STRIDE_EDITOR_WINDOW stays (it is a window toggle), STRIDE_SELFTEST stays".
         bool selfTestEnabled = string.Equals(
             System.Environment.GetEnvironmentVariable("STRIDE_SELFTEST"),
             "1",
             StringComparison.Ordinal);
         if (selfTestEnabled)
             Log.Info("[StrideHrotGame] STRIDE_SELFTEST=1 — autonomous self-test mode ENABLED.");
-
-        // ── 4a. Flag-gated hosted-editor mode (STRIDE_HOST_REAL_EDITOR=1) ─────────
-        // When the env var is set, EditorStrideSubsystem boots the real EditorSubsystem
-        // headlessly and reuses its World/Kernel/TimeController. Default = OFF (today's path).
-        // STRIDE_SELFTEST=1 also forces this path (self-test needs the full hosted pipeline).
-        bool hostRealEditor = selfTestEnabled || string.Equals(
-            System.Environment.GetEnvironmentVariable("STRIDE_HOST_REAL_EDITOR"),
-            "1",
-            StringComparison.Ordinal);
-        if (hostRealEditor)
-            Log.Info("[StrideHrotGame] STRIDE_HOST_REAL_EDITOR=1 (or STRIDE_SELFTEST=1) — hosted-editor mode ENABLED.");
-        else
-            Log.Info("[StrideHrotGame] STRIDE_HOST_REAL_EDITOR not set — self-contained kernel mode (default).");
 
         var visualFactory      = new StrideVisualFactory(this, scene);
         var blendTreeInstaller = new StrideMannequinBlendTreeInstaller(Content);
@@ -988,15 +1255,12 @@ public sealed class StrideHrotGame : Game
         Log.Info("[StrideHrotGame] PooledEntityDebugDrawSink3D created (STR-D16 resolved).");
 
         // Initialize subsystem with the real physics service + concrete GPU draw sink.
-        // Pass hostRealEditor so the subsystem knows whether to boot its own kernel or
-        // delegate to the real EditorSubsystem (STRIDE_HOST_REAL_EDITOR=1 path).
         // Pass buildEditorUi so the hosted EditorSubsystem is initialized non-headless when
         // the second raylib window is also enabled (STRIDE_EDITOR_WINDOW=1) — this activates
         // MapCanvas, adapters, layers, and all ImGui panels inside the editor so that
         // RegisterWindows/DrawWorld/DrawUI work correctly.
-        bool buildEditorUi = hostRealEditor && StrideInspectorWindowConfig.IsEnabled;
+        bool buildEditorUi = StrideInspectorWindowConfig.IsEnabled;
         _editorSubsystem.Initialize(visualFactory, blendTreeInstaller, bulletService, debugDrawSink,
-            hostRealEditor: hostRealEditor,
             buildEditorUi: buildEditorUi);
 
         // ── 4b. Bake navmesh from arena static colliders (BATCH-18, STR-D19) ─────────
@@ -1004,42 +1268,13 @@ public sealed class StrideHrotGame : Game
         // overwrites the FakeNavmeshProvider set up by the simulation logic packs.
         // Guarded: bake failure logs Warn and leaves _navmeshProvider null (F4 demo
         // handles the null case gracefully with a loud log rather than crashing).
-        BakeNavmesh(scene);
+        BakeNavmesh(scene, _editorSubsystem?.World, _editorSubsystem?.InfantryCrowdProvider);
 
-        // ── 5. Enqueue demo UrbanCombat spawns ────────────────────────────
-        // Spawn 4 InfantrySoldiers (TkbType 2002) + 2 MilitaryAPC vehicles (TkbType 2001).
-        // FDP coords: X=East, Y=North, Z=Up.
-        // Swizzle to Stride: (fdp.X, fdp.Z, fdp.Y).
-        //
-        // Arena center is at Stride (0, 0, 5), which is FDP (0, 5, 0).
-        // Camera is at Stride (0, 10, -5) looking toward Stride (0, 0, 5).
-        // We place entities in a loose line at FDP Y=5, FDP Z=0 (ground level),
-        // spread along FDP X (East).
-        //
-        // Infantry soldier spawn positions (FDP):
-        //   Infantry 1: (−3, 5, 0) → Stride (−3, 0,  5)
-        //   Infantry 2: (−1, 5, 0) → Stride (−1, 0,  5)
-        //   Infantry 3: ( 1, 5, 0) → Stride ( 1, 0,  5)
-        //   Infantry 4: ( 3, 5, 0) → Stride ( 3, 0,  5)
-        // Vehicle spawn positions (FDP):
-        //   Vehicle 1:  (−5, 7, 0) → Stride (−5, 0,  7)
-        //   Vehicle 2:  ( 5, 7, 0) → Stride ( 5, 0,  7)
-        //
-        // All entities at FDP Z=0 (ground level, Stride Y=0).
-        // The camera at Stride (0, 10, -5) looks roughly toward Stride Z+ (North in FDP),
-        // so all spawns at Z=5 and Z=7 are directly in front of the camera.
-        //
-        // ── BATCH-S2-J: ONLY in the standalone (non-hosted) demo mode ─────────────
-        // In hosted real-editor mode (STRIDE_HOST_REAL_EDITOR / STRIDE_SELFTEST) the editor
-        // loads REAL scenarios; the 6 demo entities (4 mannequins along FDP Y=5, 2 APCs at Y=7)
-        // would otherwise sit in the tiny arena as static OBSTACLES that a loaded scenario
-        // vehicle drives straight into and wedges against (root cause of "test-move vehicle
-        // won't move": the IFV path along Y=5 collides with the demo mannequin at (-3,5)).
-        if (!hostRealEditor)
-            EnqueueDemoSpawns();
-        else
-            Log.Info("[StrideHrotGame] Hosted real-editor mode — skipping demo UrbanCombat spawns " +
-                     "(real scenarios are loaded via the editor; demo entities would clutter/obstruct the arena).");
+        // ⭐⭐ CE-209 / R-S9 — the 6 UrbanCombat DEMO SPAWNS are GONE with the self-contained arm.
+        //   They only ever ran on the non-hosted path (BATCH-S2-J had already excluded them from
+        //   hosted mode: 4 mannequins along FDP Y=5 + 2 APCs at Y=7 sat in the tiny arena as static
+        //   OBSTACLES a loaded scenario vehicle wedged against). With hosted the only composition
+        //   the guard had exactly one reachable arm, so the demo set is deleted rather than gated.
 
         // ── 6. Build the in-app test harness (BATCH-12, STR-TEST-1) ───────
         BuildTestHarness(scene);
@@ -1052,9 +1287,10 @@ public sealed class StrideHrotGame : Game
         if (selfTestEnabled && _testHarness != null && _editorSubsystem != null)
         {
             var harnessCtx = _testHarness.Context;
-            // In hosted mode EditorStrideSubsystem.EntityMap is not assigned (the editor owns the
-            // map); resolve the LIVE NetworkEntityMap from the world singleton the spawn pipeline uses
-            // (set in both the hosted and OFF paths via World.SetSingletonManaged<NetworkEntityMap>).
+            // The editor owns the NetworkEntityMap; resolve the LIVE one from the world singleton
+            // the spawn pipeline uses (World.SetSingletonManaged<NetworkEntityMap>).
+            // ⭐ CE-209: this used to say "in hosted mode ... not assigned" against an EntityMap
+            //   property that the OFF arm did assign. Both the property and the OFF arm are gone.
             var emap = _editorSubsystem.World?.GetSingletonManaged<Fdp.Toolkit.Replication.Services.NetworkEntityMap>();
             if (emap != null)
             {
@@ -1284,6 +1520,119 @@ public sealed class StrideHrotGame : Game
     }
 
     /// <summary>
+    /// ⭐⭐⭐ <c>CE-232</c> — strips <b>infinite half-space plane colliders</b> from the template arena,
+    /// which were ejecting every scenario entity that owns a physics body back to the origin.
+    /// </summary>
+    /// <remarks>
+    /// <para><b>📐 The defect, measured end to end on <c>hill-attack-close</c>.</b> Bodies are created at the
+    /// RIGHT place — the log shows <c>CreateBody entity=#1 FDP=(446.317,420.903,0.000)</c> and the
+    /// reverse-sync writing that same value back for the first frames. Within one second they are
+    /// somewhere else entirely: <c>#1</c> reads <c>(289.62,302.90)</c> <b>0.27 s</b> later (≈780 m/s) and
+    /// <c>#7</c> travels <c>x=668 → 587.8</c> in <b>0.6 s</b> (≈133 m/s). Nothing commands that — the
+    /// vehicle motor was asking for <c>spd=2.90</c>. They are being EJECTED.</para>
+    ///
+    /// <para><b>⭐ The cause.</b> <c>MainScene</c> carries four walls — <c>Wall_East</c>/<c>West</c> at
+    /// <c>X=±20</c> and <c>Wall_North</c>/<c>South</c> at <c>Z=±20</c> — and each is a
+    /// <c>StaticPlaneColliderShapeDesc</c>. ⛔⛔ <b>A Bullet static plane is an INFINITE half-space, not a
+    /// wall segment.</b> A scenario entity at <c>x=446</c> is therefore <b>426 m deep</b> inside solid
+    /// matter, and Bullet's penetration recovery does exactly what it should: it expels the body at a
+    /// speed proportional to the depth. Every body then comes to rest jammed just inside the ±20 box —
+    /// which is precisely where they were all measured: <c>|x| ∈ [17.9, 19.5]</c>, one of them at
+    /// <c>x = -18.95</c>, against the west wall.</para>
+    ///
+    /// <para>⭐⭐ <b>It explains the second symptom too, the one that looked separate.</b> A tank reported
+    /// <c>SimVelocity</c> 2.39 m/s and <c>wz</c> 0.424 rad/s while its position moved less than a
+    /// centimetre and its yaw oscillated ±0.2° over ten samples without ever accumulating. That is not a
+    /// dead motor and not a stuck integrator — it is a body pinned against a wall, the motor pushing and
+    /// the constraint cancelling. <b>One cause, both symptoms.</b></para>
+    ///
+    /// <para>⚠ <b>Why the partition proves it.</b> The two entities WITHOUT a physics body — the platoon
+    /// marker and the objective — held their authored coordinates exactly (<c>(427.8,457.9)</c> and
+    /// <c>(670,473.5)</c>). Only body-owning entities collapsed. Nothing but physics separates the two
+    /// groups.</para>
+    ///
+    /// <para>⭐ <b>Design basis: searched <c>docs/</c> and <c>.dev/</c>, no design record claims these walls.</b>
+    /// <c>MainScene.sdscene</c> has exactly one commit — <i>"feat: stride game project (initial, from
+    /// template)"</i> — so they are unmodified Stride template furniture bounding a demo arena, never a
+    /// designed constraint on the world. This host already neutralises template content that breaks
+    /// hosted mode (<see cref="NeutralizeTemplatePlayer"/>, and the skipped demo UrbanCombat spawns);
+    /// this is the same category and sits beside them.</para>
+    ///
+    /// <para>⛔ <b>Matched STRUCTURALLY, not by name.</b> The filter is "a static collider carrying a
+    /// <c>StaticPlaneColliderShapeDesc</c>", not <c>Wall_*</c>: an infinite half-space is never a valid
+    /// collider in a world whose scenarios span kilometres, so a fifth one added later is covered the day
+    /// it appears rather than the day someone watches a tank fly sideways.</para>
+    ///
+    /// <para>⭐ <b>The COLLIDER is removed, the entity is not.</b> The visual wall is harmless decoration at
+    /// the arena edge; only the infinite solid was doing damage. Keeping the entity is the smaller blast
+    /// radius and leaves the arena looking as authored. ⚠ It also drops these from
+    /// <c>StrideSceneGeometrySource</c>'s navmesh input, which is correct — they were bounding the bake
+    /// to the same ±20 box.</para>
+    /// </remarks>
+    private void NeutralizeInfinitePlaneColliders(Scene scene)
+    {
+        var victims = new List<(global::Stride.Engine.Entity Entity, StaticColliderComponent Collider)>();
+        foreach (var entity in scene.Entities)
+        {
+            CollectInfinitePlaneColliders(entity, victims);
+        }
+
+        foreach (var (entity, collider) in victims)
+        {
+            entity.Components.Remove(collider);
+            Log.Info(
+                "[StrideHrotGame] CE-232: removed an INFINITE plane collider from '{0}' at ({1:F1},{2:F1},{3:F1}). " +
+                "A Bullet static plane is a half-space, so it made every scenario coordinate beyond it solid " +
+                "matter and expelled body-owning entities back into the template arena.",
+                entity.Name,
+                entity.Transform.Position.X, entity.Transform.Position.Y, entity.Transform.Position.Z);
+        }
+
+        if (victims.Count == 0)
+        {
+            Log.Info("[StrideHrotGame] CE-232: no infinite plane colliders in the scene — nothing to neutralise.");
+        }
+        else
+        {
+            Log.Info(
+                "[StrideHrotGame] CE-232: neutralised {0} infinite plane collider(s); scenario coordinates " +
+                "outside the template arena are now free space.",
+                victims.Count);
+        }
+    }
+
+    /// <summary>
+    /// Depth-first walk collecting every <see cref="StaticColliderComponent"/> that carries at least one
+    /// <c>StaticPlaneColliderShapeDesc</c>. Collected first and mutated after, so the scene graph is never
+    /// modified while it is being walked.
+    /// </summary>
+    /// <remarks>⭐ <c>internal</c> rather than <c>private</c> so
+    /// <c>InfinitePlaneColliderNeutralisationTests</c> can assert the REAL filter. ⛔ A test-local copy of
+    /// this predicate would pass while production widened — the exact blindness <c>CE-223</c> shipped on.</remarks>
+    internal static void CollectInfinitePlaneColliders(
+        global::Stride.Engine.Entity entity,
+        List<(global::Stride.Engine.Entity Entity, StaticColliderComponent Collider)> victims)
+    {
+        var collider = entity.Get<StaticColliderComponent>();
+        if (collider != null)
+        {
+            foreach (var shapeDesc in collider.ColliderShapes)
+            {
+                if (shapeDesc is StaticPlaneColliderShapeDesc)
+                {
+                    victims.Add((entity, collider));
+                    break;
+                }
+            }
+        }
+
+        foreach (var childTransform in entity.Transform.Children)
+        {
+            CollectInfinitePlaneColliders(childTransform.Entity, victims);
+        }
+    }
+
+    /// <summary>
     /// Recursively removes an entity and all its children from the scene.
     /// </summary>
     private static void RemoveEntityAndChildren(Scene scene, global::Stride.Engine.Entity root)
@@ -1446,48 +1795,6 @@ public sealed class StrideHrotGame : Game
         }
     }
 
-    /// <summary>
-    /// Enqueues 6 UrbanCombat demo spawn requests into <see cref="EditorStrideSubsystem.ScenarioSource"/>.
-    /// See method body comments for the exact FDP → Stride position mapping.
-    /// </summary>
-    private void EnqueueDemoSpawns()
-    {
-        if (_editorSubsystem == null)
-            throw new InvalidOperationException("EditorStrideSubsystem must be initialized before enqueueing spawns.");
-
-        // FDP identity rotation (facing north = default).
-        var identityRotation = System.Numerics.Quaternion.Identity;
-
-        // Helper: enqueue one spawn.
-        void Spawn(long tkbType, float fdpX, float fdpY, float fdpZ)
-        {
-            _editorSubsystem.ScenarioSource.Enqueue(new EntityCreationRequest
-            {
-                RequestId          = Guid.NewGuid(),
-                OwnerAppInstanceId = 0,        // localNodeId=0 → authority granted immediately
-                TkbType            = tkbType,
-                InitialComponents  = new List<object>
-                {
-                    new SimTransform
-                    {
-                        Position = new System.Numerics.Vector3(fdpX, fdpY, fdpZ),
-                        Rotation = identityRotation,
-                    },
-                    new TkbIdentity { TkbType = tkbType },
-                },
-            });
-        }
-
-        // 4 InfantrySoldiers (TkbType 2002 = mannequinModel) at FDP Y=5 (center of arena)
-        Spawn(tkbType: 2002L, fdpX: -3f, fdpY: 5f, fdpZ: 0f); // → Stride (−3, 0,  5)
-        Spawn(tkbType: 2002L, fdpX: -1f, fdpY: 5f, fdpZ: 0f); // → Stride (−1, 0,  5)
-        Spawn(tkbType: 2002L, fdpX:  1f, fdpY: 5f, fdpZ: 0f); // → Stride ( 1, 0,  5)
-        Spawn(tkbType: 2002L, fdpX:  3f, fdpY: 5f, fdpZ: 0f); // → Stride ( 3, 0,  5)
-
-        // 2 MilitaryAPC vehicles (TkbType 2001 = Box2x1x1) slightly deeper in the arena
-        Spawn(tkbType: 2001L, fdpX: -5f, fdpY: 7f, fdpZ: 0f); // → Stride (−5, 0,  7)
-        Spawn(tkbType: 2001L, fdpX:  5f, fdpY: 7f, fdpZ: 0f); // → Stride ( 5, 0,  7)
-    }
 
     // ── BATCH-18: Navmesh bake ────────────────────────────────────────────
 
@@ -1503,11 +1810,35 @@ public sealed class StrideHrotGame : Game
     /// "navmesh unavailable" rather than crashing.
     /// </para>
     /// </summary>
-    private void BakeNavmesh(global::Stride.Engine.Scene scene)
+    /// <remarks>
+    /// ⭐⭐ <b><c>CE-248</c> — PARAMETERISED so BOTH modes bake the same navmesh from the same code.</b>
+    /// It used to read <c>_editorSubsystem.World</c> and <c>_editorSubsystem.InfantryCrowdProvider</c>
+    /// directly and <c>return</c> early when that field was null — which is precisely mode 2, where
+    /// there is no <c>EditorStrideSubsystem</c> at all. The two things it actually needs are a world to
+    /// publish the singleton into and a crowd provider to seed, so it now takes them.
+    ///
+    /// <para>📌 <b>Why this was the last gate.</b> Measured 2026-09-09: with <c>CE-242</c>..<c>CE-247</c>
+    /// in place the mode-2 node owned its entities, promoted them, created six Bullet bodies and ran the
+    /// motors — and still nothing moved, because <c>VehicleNavigationIntentSystem.Execute</c> opens with
+    /// a <c>INavmeshProvider</c> lookup and returns immediately when there is none ("graceful no-op when
+    /// no navmesh is available"). No navmesh ⇒ no route ⇒ <c>NavigationStatus.Phase</c> never leaves
+    /// <c>Idle</c> ⇒ the vehicle motor is never commanded. ⛔ Nothing logged: three separate silent
+    /// no-ops (this one, <c>TryCreateVisual</c>'s missing render-def, and the ownership fallback's empty
+    /// grant list) sat in a row on the same path.</para>
+    ///
+    /// <para>⚠ Kept as one method rather than copied into the mode-2 boot: the bake, its layer mask, its
+    /// failure guards and its crowd seeding are exactly the same work in both modes. 🔒 The user's own
+    /// standing instruction on the human/vehicle kinematics split — "something shareable, parametrizing
+    /// shared code" — applies unchanged here.</para>
+    /// </remarks>
+    private void BakeNavmesh(
+        global::Stride.Engine.Scene scene,
+        Fdp.Core.EntityRepository? world,
+        Hrot.Stride.Core.DotRecastDtCrowdProvider? infantryCrowdProvider)
     {
-        if (_editorSubsystem == null)
+        if (world == null)
         {
-            Log.Warn("[StrideHrotGame] BakeNavmesh: EditorStrideSubsystem is null — cannot bake.");
+            Log.Warn("[StrideHrotGame] BakeNavmesh: no world — cannot bake.");
             return;
         }
 
@@ -1536,15 +1867,15 @@ public sealed class StrideHrotGame : Game
 
             // Construct the provider and register as the INavmeshProvider singleton.
             _navmeshProvider = new DotRecastNavmeshProvider(meshes);
-            _editorSubsystem.World.SetSingletonManaged<INavmeshProvider>(_navmeshProvider);
+            world.SetSingletonManaged<INavmeshProvider>(_navmeshProvider);
 
             // BATCH-19: supply the Infantry DtNavMesh to the deferred crowd provider so
             // real DotRecast crowd steering is active for infantry entities.
-            if (_editorSubsystem.InfantryCrowdProvider != null
+            if (infantryCrowdProvider != null
                 && _navmeshProvider.TryGetNavMesh(NavLayerMask.Infantry, out var infantryMesh)
                 && infantryMesh != null)
             {
-                bool crowdInit = _editorSubsystem.InfantryCrowdProvider.TryInitializeNavMesh(infantryMesh);
+                bool crowdInit = infantryCrowdProvider.TryInitializeNavMesh(infantryMesh);
                 _infantryCrowdProviderInitialized = crowdInit;
                 if (crowdInit)
                     Log.Info("[StrideHrotGame] Infantry DotRecastDtCrowdProvider initialized (BATCH-19, STR-D19).");

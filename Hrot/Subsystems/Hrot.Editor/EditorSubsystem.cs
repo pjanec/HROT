@@ -1,5 +1,7 @@
 ﻿using System;
+using Hrot.Common.EntityCreation;
 using Hrot.Common;
+using Hrot.Common.Infrastructure;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Numerics;
@@ -186,6 +188,14 @@ namespace Hrot.Editor
 
         // ?? Core state ????????????????????????????????????????????????????????
 
+        /// <summary>
+        /// ⭐⭐⭐ <c>CE-203</c> — the shared node context this host is built from. Everything below that
+        /// used to be constructed here (<see cref="_world"/>, <see cref="_kernel"/>, the bus, the time
+        /// controller, the entity map, the cluster slave, the TKB, the geo transform) now comes off it,
+        /// and it owns the world+kernel teardown. 📄 <c>§4.1y</c>.
+        /// </summary>
+        private HrotNodeContext?        _node;
+
         private EntityRepository?       _world;
         private ModuleHostKernel?       _kernel;
         private MasterSyncController?   _timeController;
@@ -274,10 +284,33 @@ namespace Hrot.Editor
         private uint                    _fdpFrameCount;
         private Hrot.SimHost.Modules.CognitiveSpatialModule? _perceptionMod;
 
+        /// <summary>
+        /// The capability set this host resolved from <see cref="EditorCapabilities.DefaultRole"/>
+        /// (S2a — host (d) on the capability axis). Held so the module-registration step can ask the
+        /// same set that contributed the systems, rather than re-deriving it and risking a divergence.
+        /// </summary>
+        private IReadOnlyList<Hrot.Common.Infrastructure.INodeCapability> _capabilities =
+            System.Array.Empty<Hrot.Common.Infrastructure.INodeCapability>();
+
+        /// <summary>
+        /// The modules the resolved capabilities contributed through <c>ProvideModules()</c>.
+        ///
+        /// <para>Held because <c>EditorApplication.SwitchToExternalAsync</c> uninstalls the logic packs
+        /// BY REFERENCE — knowing a module was registered is not enough, the instance is needed.</para>
+        /// </summary>
+        private readonly List<IEcsModule> _capabilityModules = new();
+
         // `ST-010` backing fields: both were locals inside Initialize; promoted so the
         // host-integration accessors above can project them. Nothing else reads them.
         private ScenarioEntityCreationRequestSource? _scenarioLoadSource;
-        private Fdp.Toolkit.Tkb.TkbDatabase?        _tkbDatabase;
+        // ⚠ CE-203 widened this from TkbDatabase to the interface: the instance now comes from
+        //   HrotNodeContext.TkbDb, which is typed ITkbDatabase. 📐 Measured — nothing reads a concrete
+        //   member off it. ⛔⛔ CE-204: this comment used to claim the only outside consumer,
+        //   EditorStrideSubsystem:996, "assigns it straight into an ITkbDatabase-typed field". IT DID
+        //   NOT — that property was TkbDatabase, and Stride stopped compiling for a whole commit. The
+        //   grep saw the NAME and could not see the TYPE. Stride is now widened to match, and
+        //   scripts/stride-check.sh compiles it in 43 s so the next one is caught.
+        private ITkbDatabase?                       _tkbDatabase;
 
         // ?? Offline orchestrator (single-node scenario listing) ???????????????????
 
@@ -520,6 +553,13 @@ namespace Hrot.Editor
         private DebugPrimitiveBuffer? _gizmoBuffer;
         private DataDrivenGizmoSystem? _editorDataDrivenGizmoSystem;
         private GlobalGizmoManager?  _globalGizmoManager;
+
+        /// <summary>
+        /// ⭐⭐ <c>UXI-07</c> step 3b — this host's ONE tool arbiter, built by <c>MapInteractionPack</c>
+        /// alongside the two focus arbiters it reconciles. ⚠ A FIELD and not a local because the module is
+        /// registered (~:1562) BEFORE the pack is built (~:1815); the resolver closes over this.
+        /// </summary>
+        private Hrot.ScenarioEditor.Tools.ToolController? _editorToolController;
         private FdpEventBus?         _interactionBus;
         private GizmoExecutionController? _gizmoController;
         // DEBT-002: hub broadcasts DTO state to all connected terminals.
@@ -593,23 +633,16 @@ namespace Hrot.Editor
             }
         }
 
-        // ?? Nested helper: offline sequential ID allocator ????????????????????
-
-        private sealed class SequentialIdAllocator : INetworkIdAllocator, IRestorableIdAllocator
-        {
-            private long _next = 1000;
-            public long AllocateId()            => _next++;
-            public void Reset(long startId = 0) => _next = startId;
-
-            // ⭐⭐ HN-017 — the preview dry-run position. 📄 DESIGN_Deterministic_Network_Ids.md §4c.
-            // ⚠ POST-increment here, so `_next` is the NEXT id to issue — the Hrot.Core one pre-increments
-            //   and holds the LAST issued. 📌 §4b: both satisfy "restore my position"; no single NAME for
-            //   the value would be true of both, which is why the contract is the restore, not the read.
-            public object? CaptureIssuingPosition()               => _next;
-            public void RestoreIssuingPosition(object snapshot)    { if (snapshot is long v) _next = v; }
-
-            public void Dispose() { }
-        }
+        // ⛔⛔⛔ CE-203 `E2` — THE PRIVATE `SequentialIdAllocator` THAT STOOD HERE IS GONE.
+        //
+        // 📐 It was the SECOND of three copies of one class, and the shared one
+        //    (`Hrot.Core.Network.SequentialIdAllocator`) records in its own remarks that the two DISAGREED:
+        //    `Reset(1000)` issued 1001 there and 1000 here, until `HN-037` corrected the contract. ⭐ The
+        //    editor now takes the shared instance off `HrotNodeContext.IdAllocator`, which
+        //    `OfflineNetworkFactory` was already building for every other offline host.
+        //
+        // ⚠ Deliberately DESCRIBED, not quoted: a source-scan rail that looks for a second declaration must
+        //   not be satisfied by a comment containing the old code.
 
         // ?? Internal test accessors ???????????????????????????????????????????
 
@@ -698,7 +731,7 @@ namespace Hrot.Editor
         /// an in-process host binds to the SAME database rather than a duplicate, which is what
         /// template-resolution drift would otherwise look like. Null until <see cref="Initialize"/>.
         /// </summary>
-        public Fdp.Toolkit.Tkb.TkbDatabase? TkbDatabase => _tkbDatabase;
+        public ITkbDatabase? TkbDatabase => _tkbDatabase;
 
         /// <summary>
         /// Invoked with the frame delta immediately BEFORE <c>Kernel.Update()</c>. Null by default,
@@ -757,15 +790,42 @@ namespace Hrot.Editor
         }
 
         /// <summary>
-        /// Replaces the muscle module set built during <see cref="Initialize"/>.
+        /// Replaces the muscle tier built during <see cref="Initialize"/> with a host's own
+        /// CAPABILITIES.
         ///
-        /// <para><b>Null is the default and means "exactly today's behaviour"</b> --
-        /// <c>SimHostCoreLogicPack</c> + <c>CognitiveSpatialModule</c>, registered as they always
-        /// were. Non-null means a host (the Stride muscle, with Bullet physics and DotRecast nav)
-        /// supplies the replacement set. The default arm is kept byte-for-byte rather than routed
-        /// through the factory, so an editor that sets nothing cannot be affected by this at all.</para>
+        /// <para><b>Null is the default and means exactly today's behaviour</b> —
+        /// <c>SimHostCoreLogicPack</c> + <c>CognitiveSpatialModule</c>. Non-null means a host
+        /// (today only Stride mode 1, with Bullet physics and DotRecast navigation) supplies its own
+        /// muscle capabilities, which are resolved alongside the Brain and perception ones.</para>
+        ///
+        /// <para><b>⚠ This REPLACED <c>MuscleModuleFactory</c>, which returned bare
+        /// <c>IEcsModule</c>s (S2b / CE-208).</b> The old shape was a private, single-slot
+        /// substitute for the capability seam: it could swap the muscle tier and nothing else, and it
+        /// could not express a shared resource because a <c>Func</c> returning modules has nowhere to
+        /// say <c>Needs</c>. Keeping both would be two mechanisms for one concern — the duplication
+        /// this programme exists to remove. Hosts now hand over the same
+        /// <see cref="Hrot.Common.Infrastructure.INodeCapability"/> the other four roots use.</para>
         /// </summary>
-        public Func<MuscleModuleContext, IReadOnlyList<IEcsModule>>? MuscleModuleFactory { get; set; }
+        public Func<MuscleModuleContext, IReadOnlyList<Hrot.Common.Infrastructure.INodeCapability>>?
+            MuscleCapabilitiesFactory { get; set; }
+
+        /// <summary>
+        /// 🔴🔴 <b><c>CE-237</c> — order-sensitive TKB translator additions a HOST contributes.</b>
+        /// <c>null</c>/empty means plain <c>Base()</c>, this host's unchanged default.
+        ///
+        /// <para><see cref="MuscleCapabilitiesFactory"/> hands over the MUSCLE tier and nothing else, so
+        /// a host's contribution to entity CREATION was silently lost in hosted mode. 📐 Measured:
+        /// <c>InfantryVehicleStateStripTkbTranslator</c> (which removes the bogus
+        /// <c>VehicleState</c>/<c>VehicleParams</c> from capsule infantry) is placed by
+        /// <c>EditorStrideSubsystem</c>'s STANDALONE arm and was unreachable in mode 1 — so infantry kept
+        /// <c>VehicleState</c>, was refused crowd registration, was driven by the vehicle nav system while
+        /// the vehicle motor skipped its capsule, and never moved. No motion means no pose delta, so
+        /// <c>SimVelocity</c> stayed zero and the animation blend sat at Idle.</para>
+        ///
+        /// <para>⛔ <c>Hrot.Editor</c> does not reference <c>Hrot.Stride.Core</c> by design, so the
+        /// contribution must be INVERTED in rather than named here.</para>
+        /// </summary>
+        public IReadOnlyList<Hrot.Core.Tkb.TranslatorPlacement>? TranslatorPlacements { get; set; }
 
         /// <summary>Internal test hook: exposes the data breakpoint manager (UBP-P10T1).</summary>
         internal IDataBreakpointManager? DataBreakpointManager => _bpManager;
@@ -952,13 +1012,52 @@ namespace Hrot.Editor
             _isActiveMapOwner = config.IsActiveMapOwner;
             _requestAppExit   = config.RequestAppExit;
 
+            // ⭐⭐⭐ CE-203 (§4.1y) — THE ENGINE CORE COMES FROM THE SHARED BUILDER, host (d).
+            //
+            // 📐 This host used to re-implement EIGHT of HrotNodeBuilder.Build()'s ten steps by hand —
+            //    world, accumulator+kernel, bus + OrchestrationEventRegistry, time controller, entity map,
+            //    ClusterSlave, TKB and geo transform — each measured byte-equivalent to the builder's
+            //    (§4.1y's step table). The blocker was never the code: Build() HARDWIRED TimeRole.Slave
+            //    and this host is the time authority, so adopting it would have silently demoted the
+            //    editor to a slave. N₀ (CE-201) made the role an input and unblocked exactly this.
+            //
+            // ⛔⛔ Headless here means "SKIP DDS", not "no window". The name collides with this host's own
+            //    `config.Headless` (which means "no Raylib window") and they are unrelated — the editor is
+            //    an OFFLINE node, so there is no participant, no DDS allocator and no slave translator.
+            //
+            // ⛔⛔ context.BaseModules is deliberately NOT registered. It carries a GeographicModule this
+            //    host has never run and a second EntityLifecycleModule beside the creation pack's. Adopting
+            //    the builder must not smuggle in modules — that is a capability change, not a refactor.
+            //    📄 §4.1y "THE ONE TRAP".
+            _node = new HrotNodeBuilder(new HrotNodeConfig
+                    {
+                        NodeId        = EditorNodeId,
+                        SubsystemName = "Editor",
+                        Headless      = true,
+                    })
+                    .WithRole("Editor", Fdp.Core.NodeRole.None)
+                    // ⭐ Standalone, NOT Master: what `new TimeControllerConfig { Role = TimeRole.Standalone }`
+                    //   said here before, and TimeControllerFactory routes both to MasterSyncController.
+                    .WithTimeRole(TimeRole.Standalone)
+                    // ⭐⭐⭐ CE-203 `E2` — the offline factory supplies the id allocator, so this host stops
+                    //   carrying its own. 📄 §4.1y `E2`. ⛔ Constructed here rather than taken from the ctor's
+                    //   injected factory ON PURPOSE: the runner injects whatever the RUN is, and the editor is
+                    //   an offline node by definition — `EditorStrideSubsystem:109` does the same.
+                    //   ⚠ Every other member of OfflineNetworkFactory returns a Null* stub, and none of them
+                    //     is reached: `Headless = true` means no participant, so Build() takes neither the DDS
+                    //     branch nor the slave-translator branch. The ONLY thing this changes is which
+                    //     allocator object exists.
+                    .WithNetworkFactory(new OfflineNetworkFactory())
+                    .Build();
+
             // ?? 1. ECS world ?????????????????????????????????????????????????
-            _world = new EntityRepository();
-            _orchestrationBus = new FdpEventBus(); // Control Plane bus (cluster management)
-            Fdp.Toolkit.Orchestration.OrchestrationEventRegistry.RegisterAll(_orchestrationBus);
+            _world = _node.World;
+            _orchestrationBus = _node.EventBus; // Control Plane bus (cluster management)
+            // ⭐ OrchestrationEventRegistry.RegisterAll already ran inside Build() on this same bus.
+            //   RegisterInternalEvents stays HERE: it is Hrot.Orchestrator's own vocabulary and only two
+            //   hosts want it, so moving it into the builder would hand it to all six. 📄 §4.1y decision ③.
             Hrot.Orchestrator.OrchestratorEventRegistry.RegisterInternalEvents(_orchestrationBus);
-            var accumulator = new EventAccumulator();
-            _kernel = new ModuleHostKernel(_world, accumulator);
+            _kernel = _node.Kernel;
             _physicsModule = new PhysicsToolkitModule();
             _physicsModule.Initialize(_world);
 
@@ -1008,16 +1107,17 @@ namespace Hrot.Editor
             // ReadManaged on the other bus returns empty — no error, nothing happens. Putting them
             // on one bus is what unblocks paths B/C/D publishing intents like everyone else, and it
             // is the same code the CGF node will need for cluster-side debugging.
-            var timeConfig = new TimeControllerConfig { Role = TimeRole.Standalone };
-            _timeController = (MasterSyncController)TimeControllerFactory.Create(_orchestrationBus, timeConfig);
-            _kernel.SetTimeController(_timeController);
+            // ⭐ CE-203: the controller and the SetTimeController call are the builder's Step 4 now — it
+            //   creates it on THIS bus with Role = the declared time role. The cast is this host's, which
+            //   is why the context exposes ITimeController and not the concrete master (§4.1y decision ②).
+            _timeController = (MasterSyncController)_node.TimeController!;
             // Start in Deterministic mode so authoring starts paused (dt == 0 every frame).
             _timeController.SwitchToDeterministic(new System.Collections.Generic.HashSet<int>());
 
             // ?? 3. Shared services ????????????????????????????????????????????
-            var geoTransform     = HrotEnvironment.CreateGeoTransform();
+            var geoTransform     = _node.GeoTransform!;
             _geoTransform = geoTransform;
-            var entityMap        = new NetworkEntityMap();
+            var entityMap        = _node.EntityMap;
             _entityMap = entityMap;
             _world.SetSingletonManaged<NetworkEntityMap>(entityMap);
             // Behavior resolvers (Phase 2b) read the geographic transform from this world singleton;
@@ -1197,7 +1297,8 @@ namespace Hrot.Editor
             _aiCoordinator.OnReloadCompleted += info => _hotReloadSource.OnReloadCompleted(info.DllPath ?? "__ai_behaviors__");
             _aiCoordinator.OnReloadFailed    += _hotReloadSource.OnReloadFailed;
 
-            var clusterSlave     = new ClusterSlave(EditorNodeId, "Editor", _orchestrationBus);
+            // ⭐ CE-203: the builder's Step 8 already made exactly this — same node id, same name, same bus.
+            var clusterSlave     = _node.ClusterSlave;
             var zoneService      = new ZoneManagerService();
 
             // Build the serializer with custom translators AFTER component registration
@@ -1226,29 +1327,77 @@ namespace Hrot.Editor
             fileService.RegisterWorldResetObserver(() => _entityMap?.Clear());
 
             // ?? 3b. TKB + ELM + offline spawning ?????????????????????????????
-            var tkbDb       = HrotEnvironment.CreateTkb();
+            // ⭐ CE-203: the builder's Step 9 calls HrotEnvironment.CreateTkb() — the identical call this
+            //   line used to make. Taking the context's instance is what stops the two drifting.
+            var tkbDb       = _node.TkbDb!;
             _tkbDatabase    = tkbDb;   // `ST-010`: expose the authoritative spawn DB to in-process hosts
-            // Register Urban Combat entity blueprints (TKB types 1001?2003) so the
-            // ScenarioSerializer can resolve MilitaryApc, InfantrySoldier, and Insurgent.
-            UrbanCombatNewScenario.RegisterUrbanCombatTkbTemplates(tkbDb);
+            // ⭐ 2026-08-31: the explicit UrbanCombatNewScenario.RegisterUrbanCombatTkbTemplates(tkbDb)
+            //   call that stood here was REMOVED. HrotEnvironment.CreateTkb() above now seeds the
+            //   UrbanCombat templates for EVERY host, so calling it again would THROW —
+            //   TkbDatabase.Register rejects a duplicate name or type.
+            //   📄 docs/DESIGN_Entity_Creation_Unification.md §3.3.
             if (!_world.HasSingletonManaged<ITkbDatabase>()) _world.SetSingletonManaged<ITkbDatabase>(tkbDb);
-            var translators = new List<ITkbEntityTranslator>
-            {
-                new SpatialCoreTkbTranslator(),
-                new VehicleKinematicsTkbTranslator(),
-                new BehaviorTkbTranslator(),
-                new CombatTkbTranslator(),
-                new PerceptionTkbTranslator()
-            }.AsReadOnly();
-            var elm               = new EntityLifecycleModule(tkbDb, Array.Empty<int>());
-            elm.SetTranslators(translators);
-            var idAllocator       = new SequentialIdAllocator();
+            // ⭐⭐⭐ CE-203 `E2` — THE SHARED ALLOCATOR, NOT A THIRD COPY OF IT.
+            //
+            // 📐 There were THREE `SequentialIdAllocator` classes in the tree: `Hrot.Core.Network`'s (the
+            //    shared one, which `OfflineNetworkFactory.CreateIdAllocator` already returns), this host's
+            //    private nested one, and `EditorHarness`'s test copy. ⛔ The shared class's own remarks
+            //    record that this host's copy DISAGREED with it — `Reset(1000)` handed out 1001 there and
+            //    1000 here — which `HN-037` had to correct one level down. That is the divergence a second
+            //    implementation buys you, written down by the code itself.
+            //
+            // ⭐⭐ `Reset(WorldBase)` is what makes this behaviour-IDENTICAL, and it is not a fudge: the
+            //    shared allocator PRE-increments from 1, this host's POST-incremented from 1000, and the
+            //    interface contract is stated on the OBSERVABLE — "after this returns, the next id issued is
+            //    startId". ⇒ one call reproduces the old first id exactly. ⚠ And it is the same constant
+            //    `ClusterMaster` already resets this allocator to at every scenario load
+            //    (`ClusterMaster.cs:918`), so after the first load the two were always going to agree —
+            //    this line only covers the window BEFORE any load.
+            var idAllocator       = _node.IdAllocator!;
+            idAllocator.Reset(Fdp.Toolkit.NetworkSpawning.WorldIdAuthority.WorldBase);
             // ⭐ HN-017 — held so the preview bracket can be given it at :8. 📌 The 2026-08-16 rule: a
             //   production caller that HAS a dependency must PASS it, and it cannot pass what it dropped.
             _idAllocator = idAllocator;
-            var spawnSys          = new NetworkSpawningSystem(tkbDb, elm, entityMap, idAllocator, localNodeId: EditorNodeId, translators: translators);
-            var scenarioLoadSource = new ScenarioEntityCreationRequestSource();
-            _scenarioLoadSource    = scenarioLoadSource;   // `ST-010`
+
+            // ⭐⭐⭐ CE-140 step 3, host (c) — THE ENTITY CREATION PACK.
+            //    This host used to assemble the same five pieces by hand — the base list, the ELM, the
+            //    SetTranslators call, the spawn system with `translators:` passed manually, and a local
+            //    request source — across TWO WIDELY SEPARATED SITES in this method (the pieces here, the
+            //    request system ~180 lines below). ⇒ five independent chances to get it wrong, and this
+            //    host is where CE-137 had to add PresentationTkbTranslator by hand.
+            //
+            // ⭐⭐ IsBroadcastArbiter: TRUE here, unlike SimHost. The editor is a standalone, single-node
+            //    world with no cluster peer to arbitrate against, so it must service its own unowned
+            //    requests. ⚠ This preserves the previous `isDefaultProcessor: true` exactly.
+            //
+            // ⛔ ExtraTranslators is empty: this host's list was plain Base(), and add-only means an
+            //    empty extra set reproduces it exactly. Per-component narrowing stays gate 2
+            //    (IsComponentTypeRegistered), never the list — tkb-1/DESIGN.md §6.5b.
+            //
+            // 📄 DESIGN_Entity_Creation_Unification.md §3, §3.4 · Architect_Question_65 §0, §4.
+            var creation = EntityCreationPack.Build(new EntityCreationContext
+            {
+                World       = _world,
+                EntityMap   = entityMap,
+                TkbDb       = tkbDb,
+                IdAllocator = idAllocator,
+                Elm         = new EntityLifecycleModule(tkbDb, Array.Empty<int>()),
+                NodeId      = EditorNodeId,
+
+                // ⭐ CE-237 — a host's order-sensitive translator additions; null/empty keeps Base().
+                TranslatorPlacements = TranslatorPlacements is { Count: > 0 } ? TranslatorPlacements : null,
+
+                IsBroadcastArbiter = true,
+            });
+
+            var elm      = creation.Elm;
+            var spawnSys = creation.SpawnSystem;
+            // ⭐ `ST-010` — the pack owns the local request source now; this host just holds the same
+            //   instance it always did, so EntityCreationRequestSource keeps working unchanged.
+            // ⚠ The local name is kept deliberately: five later sites in this method reference it, and
+            //   renaming them would be churn that hides the one real change (who CONSTRUCTS it).
+            var scenarioLoadSource = creation.LocalRequests;
+            _scenarioLoadSource    = scenarioLoadSource;
             var extractor          = new StagingEntityExtractor();
 
             // ⭐⭐⭐ BP-509 — the staging→runtime id table reaches the control-plane bus.
@@ -1300,18 +1449,19 @@ namespace Hrot.Editor
 
             // ?? 4. Module registration (offline ? no translator packs) ????????
             // ── Muscle module set (`ST-010`: injectable; defaults to SimHost) ─────────────
-            // MuscleModuleFactory == null -> EXACTLY the code that was here before, unchanged.
-            // MuscleModuleFactory != null -> a host supplies the replacement set (the Stride muscle:
+            // MuscleCapabilitiesFactory == null -> EXACTLY the code that was here before, unchanged.
+            // MuscleCapabilitiesFactory != null -> a host supplies the replacement set (the Stride muscle:
             //                                Bullet physics + DotRecast nav).
             IReadOnlyList<IEcsModuleSystem> muscleInputSystems   = Array.Empty<IEcsModuleSystem>();
             IReadOnlyList<IEcsModuleSystem> muscleSimSystems     = Array.Empty<IEcsModuleSystem>();
             IReadOnlyList<IEcsModuleSystem> musclePostSimSystems = Array.Empty<IEcsModuleSystem>();
-            IReadOnlyList<IEcsModule>       injectedMuscleModules = Array.Empty<IEcsModule>();
+            IReadOnlyList<Hrot.Common.Infrastructure.INodeCapability> injectedMuscleCapabilities =
+                Array.Empty<Hrot.Common.Infrastructure.INodeCapability>();
 
             SimHostCoreLogicPack?    simHostCorePack = null;
             CognitiveSpatialModule?  perceptionMod   = null;
 
-            if (MuscleModuleFactory == null)
+            if (MuscleCapabilitiesFactory == null)
             {
                 simHostCorePack  = new SimHostCoreLogicPack(entityMap);
                 perceptionMod    = new CognitiveSpatialModule(
@@ -1327,7 +1477,7 @@ namespace Hrot.Editor
             }
             else
             {
-                injectedMuscleModules = MuscleModuleFactory(new MuscleModuleContext(_world!, entityMap));
+                injectedMuscleCapabilities = MuscleCapabilitiesFactory(new MuscleModuleContext(_world!, entityMap));
             }
             var mapperRegistry = new TacticalIntentMapperRegistry();
             mapperRegistry.Register(new Hrot.AI.Behaviors.Mappers.DefendAreaMapper());
@@ -1336,9 +1486,47 @@ namespace Hrot.Editor
                 scenarioLoadSource,
                 mapperRegistry);
 
+            // ⭐⭐⭐ S2a — HOST (d) ON THE CAPABILITY AXIS. The editor was the last ECS composition root
+            //    still hand-assembling its unit list; SimHost (§4.1s), IG (§4.1t) and CGF (§4.1x) all
+            //    resolve a NodeCompositionPlan. What stood in for it here was MuscleModuleFactory — a
+            //    private one-slot substitute that can swap the muscle tier and nothing else.
+            //
+            // ⚠ BEHAVIOUR-PRESERVING BY CONSTRUCTION, NOT BY INSPECTION. Registration order is
+            //    execution order, so a reordered system list fails silently. EditorCapabilitiesTests
+            //    .ResolvedSet_ProducesTheSameSystemSequencesAsTheHandWrittenBlock builds both paths from
+            //    the same pack instances and asserts the three sequences match type for type, position
+            //    for position. That rail is the licence for this switch.
+            //
+            // ⛔ The two arms stay two PLAN SHAPES rather than one plan with nullable capabilities —
+            //    a null capability registered as if it were real is the silent-default shape this
+            //    programme keeps finding. 📄 DESIGN_Subsystem_Composition_Unification.md §4.1ac.
+            var compositionPlan = MuscleCapabilitiesFactory == null
+                ? EditorCapabilities.BuildDefault(cgfLogicPackInst, simHostCorePack!, perceptionMod!)
+                : EditorCapabilities.BuildWithInjectedMuscle(cgfLogicPackInst, injectedMuscleCapabilities);
+
+            _capabilities = compositionPlan.Resolve(EditorCapabilities.DefaultRole);
+
+            var planInputSystems   = new List<IEcsModuleSystem>();
+            var planSimSystems     = new List<IEcsModuleSystem>();
+            var planPostSimSystems = new List<IEcsModuleSystem>();
+            foreach (INodeCapability capability in _capabilities)
+                capability.PopulateSystems(_node!, planInputSystems, planSimSystems, planPostSimSystems);
+
+            // ⭐⭐⭐ CE-165 — DEDUPLICATE BY TYPE when fusing the Brain and MuscleGround lists.
+            // The editor is the one node that runs BOTH packs, and both carry UnitHierarchySystem and
+            // EqsResultUpdateSystem. A plain Concat registered each twice, and a second UnitHierarchySystem
+            // re-reads the same (non-destructive) CmdAssignSubordinate events and falls through to an
+            // unguarded roster append — inflating UnitRoster.Count until legitimate assignments are rejected
+            // at capacity. Three of the four roots that fuse these packs already deduplicated by type
+            // (EditorStrideSubsystem, StrideMuscleModule, EditorHarness); this one did not, which is exactly
+            // why nothing ever disagreed out loud. SingleInstanceAttribute now makes the omission throw
+            // instead of corrupting silently — see DESIGN_Subsystem_Composition_Unification.md §4.1L.
+            // The lists now come from the resolved capability set (Brain first, then MuscleGround —
+            // the plan's order is what keeps DistinctByType resolving a shared type to CGF's instance).
             var toggleInput = new TogglableInputGroup(
                 "EditorInput",
-                cgfLogicPackInst.InputSystems.Concat(muscleInputSystems).ToArray());
+                Fdp.ModuleHost.Scheduling.SystemComposition
+                    .DistinctByType(planInputSystems, System.Array.Empty<IEcsModuleSystem>()).ToArray());
 
             // ── Blueprint runtime (MVE-BATCH-02) ──────────────────────────────────────
             // Wire the Instance-Blueprint runtime into THIS kernel (the real composition the
@@ -1360,11 +1548,13 @@ namespace Hrot.Editor
             var toggleSim = new TogglableSimulationGroup(
                 "EditorSim",
                 Hrot.Blueprints.Editor.Runtime.BlueprintRuntimeWiring.SpliceIntoSimulation(
-                    cgfLogicPackInst.SimulationSystems.Concat(muscleSimSystems), bpTick).ToArray());
+                    Fdp.ModuleHost.Scheduling.SystemComposition        // CE-165 — see toggleInput above
+                        .DistinctByType(planSimSystems, System.Array.Empty<IEcsModuleSystem>()),
+                    bpTick).ToArray());
 
             var togglePostSim = new TogglablePostSimulationGroup(
                 "EditorPostSim",
-                musclePostSimSystems.ToArray());
+                planPostSimSystems.ToArray());
             var orchPack         = new OrchestrationLogicPack(clusterSlave);
             // ⭐⭐⭐ CE-051 (Axis-C E3) — the module's interaction systems replace this host's own
             //    DrainToolActivationEvents + center/rename handlers. 📄
@@ -1380,16 +1570,29 @@ namespace Hrot.Editor
                     Selection:          () => _selectionState,
                     Gizmos:             () => _editorDataDrivenGizmoSystem,
                     Camera:             () => _camera,
-                    GlobalGizmos:       () => _globalGizmoManager,
-                    StartPlacementMode: () => _spawnAdapter?.StartPlacementModeWithLastType()));
+                    Tools:              () => _editorToolController));
 
             _kernel.RegisterModule(new BehaviorDiagnosticsModule());
             // `ST-010`: the default arm registers exactly what it always did. The injected arm
             // registers the host's set instead -- note the default does NOT register
             // simHostCorePack (it never did; only its system lists are spliced above).
-            if (perceptionMod != null) _kernel.RegisterModule(perceptionMod);
-            foreach (var mod in injectedMuscleModules) _kernel.RegisterModule(mod);
-            _kernel.RegisterGlobalSystem(new Hrot.SimHost.Systems.AreaQueryResultMaterializationSystem());
+            // ⭐ The capabilities register their own modules, in plan order. That order reproduces the
+            //    hand-written sequence exactly on BOTH arms: default = perception module then the area
+            //    queries; injected = the host's muscle modules then the area queries (there is no
+            //    perception module on that arm, and there never was).
+            //   ⭐ ONE ordered pass per capability: the modules it PROVIDES, then its Register hook.
+            //     Asking for the modules (rather than letting the capability register them and
+            //     forgetting) is what lets SwitchToExternalAsync still uninstall them by reference.
+            var bootValues = new Hrot.Common.Infrastructure.NodeBootValues();
+            foreach (INodeCapability capability in _capabilities)
+            {
+                foreach (var mod in capability.ProvideModules())
+                {
+                    _kernel.RegisterModule(mod);
+                    _capabilityModules.Add(mod);
+                }
+                capability.Register(_node!, bootValues);
+            }
             _kernel.RegisterModule(orchPack);
             _kernel.RegisterModule(scenarioMod);
 
@@ -1429,16 +1632,32 @@ namespace Hrot.Editor
             // CreateEntityRequestSystem drains scenarioLoadSource each Input tick and emits
             // SpawnEntityCommand events for NetworkSpawningSystem (BeforeSync tick), which
             // sets AuthorityMask = ComponentMask for locally owned entities.
-            var requestSystem = new CreateEntityRequestSystem(
-                requestSource:      scenarioLoadSource,
-                ackSink:            new NullEntityAckSink(),
-                tkbDb:              tkbDb,
-                idAllocator:        idAllocator,
-                localNodeId:        EditorNodeId,
-                isDefaultProcessor: true);
+            // ⭐ CE-140 step 3, host (c) — the request system is the pack's; it was built ~180 lines
+            //   above with the ELM and the spawn system, which is the point: the three pieces that must
+            //   agree are now constructed together instead of at two distant sites.
+            // ⭐⭐ FinalizationSystem is NEW to this host. It was never registered here, so the ACK path
+            //   was absent — harmless with a NullEntityAckSink, but the pack builds it unconditionally
+            //   and scheduling it keeps Unserviceable() honest rather than permanently warning.
             _kernel.RegisterModule(elm);
-            _kernel.RegisterModule(new SimHostModule(spawnSys));
-            _kernel.RegisterGlobalSystem(requestSystem);
+            _kernel.RegisterModule(new Fdp.ModuleHost.Scheduling.SingleSystemModule("NetworkSpawning", spawnSys));
+            _kernel.RegisterGlobalSystem(creation.RequestSystem);
+            _kernel.RegisterGlobalSystem(creation.FinalizationSystem);
+            // ⭐⭐⭐ P2 — ghost promotion moved into the pack (DESIGN_Role_Affinity_Ownership.md §3.7).
+            //   ⚠ NEW to this host, and harmlessly so: the editor's OfflineNetworkFactory returns a
+            //   NullReplicationModule, so no ghosts ever arrive and the system idles. ⭐ It is scheduled
+            //   anyway because Q65 §0 forbids removing a capability by composition — and because a host
+            //   that skipped it would warn forever through Unserviceable().
+            _kernel.RegisterGlobalSystem(creation.PromotionSystem);
+
+            // ⭐⭐ Make an omission LOUD — the S2b habit. Every one of the five defects behind this
+            //   design was silent.
+            var unserviceable = creation.Unserviceable(new object[]
+            {
+                creation.SpawnSystem, creation.RequestSystem, creation.FinalizationSystem,
+                creation.PromotionSystem,
+            });
+            if (unserviceable.Length > 0)
+                Fdp.Core.Logging.FdpLog<EditorSubsystem>.Warn(unserviceable);
             _kernel.RegisterGlobalSystem(new Hrot.SimHost.Systems.GenesisMaterializationSystem(entityMap));
             // BSA-WIRE: register the blueprint genesis + event-ingress systems so that
             // InitialBlueprintsIntent (written by BlueprintStateTranslator on scenario load)
@@ -1462,7 +1681,7 @@ namespace Hrot.Editor
             var logicPacks = new List<IEcsModule> { cgfLogicPackInst };
             if (simHostCorePack != null) logicPacks.Insert(0, simHostCorePack);
             if (perceptionMod   != null) logicPacks.Insert(1, perceptionMod);
-            foreach (var mod in injectedMuscleModules) logicPacks.Insert(0, mod);
+            foreach (var mod in _capabilityModules) logicPacks.Insert(0, mod);
 
             // ?? 4d. MapLayerAssignmentSystem ? must be registered BEFORE Initialize() ??
             // Stamps MapDisplayComponent.LayerMask on each entity so the DebugGizmoLayer
@@ -1614,6 +1833,16 @@ namespace Hrot.Editor
                         view.HasComponent<SelectionState>(entity) &&
                         view.GetComponentRO<SelectionState>(entity).IsSelected,
                     BreakpointManager = _bpManager,
+                    // ⭐⭐⭐ UXI-07 — the Spawn tool's behaviour goes to the PACK, which registers the tool
+                    //   set. 🔴 It used to be handed to ScenarioEditorModule.InteractionDeps, and step 3b
+                    //   moved the registrations out of the drain WITHOUT moving this — so Spawn reported
+                    //   "this host composes no spawn adapter" on a host that has one. See §4.10.
+                    // ⚠ Resolved at CALL TIME: _spawnAdapter is built later, in the non-headless block.
+                    // ⭐⭐⭐ UXI-07 step 4a — this points at the ARM BODY, ⛔ never at the public
+                    //   StartPlacementMode*/WithLastType API. 📐 That API now calls Activate(Spawn), and
+                    //   Activate(Spawn) invokes THIS delegate — so naming the API here would close the
+                    //   cycle §4.9 measured. See ScenarioSpawnAdapter.ArmPlacement's remarks.
+                    StartPlacementMode = () => _spawnAdapter?.ArmPlacement(),
                     // GZH-003: the editor is interactive and always has a window at startup. It is not
                     // under the cluster runner, so PerspectiveCoordinatorSystem never attaches a viewer
                     // for it — starting disabled would shut its gate permanently (§3.2d ①).
@@ -1640,6 +1869,7 @@ namespace Hrot.Editor
             _interactionBus              = interactionBus;
             _editorDataDrivenGizmoSystem = editorMapInteraction.DataDrivenSystem;
             _globalGizmoManager          = editorMapInteraction.GlobalManager;
+            _editorToolController        = editorMapInteraction.Tools;
             var actionRegistry = new GlobalActionRegistry();
             long layerControlId = GlobalGizmoManager.NewId();
             var layerControlGizmo = new Hrot.Common.Diagnostics.Gizmos.LayerControlGizmo(layerControlId, interactionBus, new StructEdit.Reflection.ComponentEditServiceBuilder().Build(), _gizmoUiHub);
@@ -1648,16 +1878,34 @@ namespace Hrot.Editor
             {
                 interactionBus.Publish(new Hrot.Common.Diagnostics.Gizmos.OpenLayerEditorEvent());
             });
-            actionRegistry.Register(GlobalActionIds.Rotate, (view, target) =>
+            // ⭐⭐⭐ UXI-07 step 3 — the D′ DUPLICATE IS GONE. Rotate / EditOverlay / EditRoute carried a
+            //    VERBATIM copy of ToolActivationDrainSystem's three arms (guards, netId lookup, toggle,
+            //    EntityWriteRouter and all). ⇒ they now do exactly what Measure and PlaceEntity below
+            //    already did: publish ActivateEditorToolEvent and let the ONE drain arm the tool through
+            //    the ONE ToolController, which cancels the other arbiter's modal first.
+            // 🔒 The caller SELECTS, then activates — ToolActivationDrainSystem.ActivateRotate's own
+            //    remarks: a context menu acts on the entity under the cursor, a toolbar on the selection,
+            //    and reconciling that is a CALLER concern, so the shared body needs no host branch.
+            // ⚠ The per-tool component guards are NOT lost: the drain applies the same ones and now
+            //   REPORTS the reason (ruling 49) where these handlers returned in silence.
+            // ⭐⭐⭐ ONE RULE FOR ACTIVATING A TOOL, and every host now obeys it (UXI-07 §4.7d):
+            //     • TARGET-LESS  (toolbar, orbat, a menu item with no entity)
+            //           → publish ActivateEditorToolEvent; the drain supplies the primary selection.
+            //     • TARGETED     (a context menu ON an entity)
+            //           → call Tools.Activate(id, target) directly. The controller takes the target.
+            // 🔴 CORRECTION to step 3, and it removes a behaviour change that was never flagged: step 3
+            //    routed these three through the EVENT, which meant setting PrimarySelected first just to
+            //    smuggle the target to the drain. ⛔ The original handlers did NOT touch the selection, so
+            //    that silently made a context-menu Rotate also re-select. ⇒ direct activation restores the
+            //    old behaviour AND matches SimHost and IG, which had to call directly anyway.
+            void ActivateToolOnEntity(string toolId, Entity target)
             {
                 if (target == Entity.Null) return;
-                if (!view.HasComponent<SimTransform>(target)) return;
-                _editorDataDrivenGizmoSystem!.DeactivateGizmo(target);
-                var gizmo = new Hrot.ScenarioEditor.Gizmos.EntityRotatorGizmo(
-                    view, target, onRemove: () => _editorDataDrivenGizmoSystem!.DeactivateGizmo(target),
-                    writer: Fdp.Toolkit.Replication.Attributes.EntityWriteRouter.For(_world!));
-                _editorDataDrivenGizmoSystem!.ActivateGizmo(target, gizmo);
-            });
+                _editorToolController?.Activate(toolId, target);
+            }
+
+            actionRegistry.Register(GlobalActionIds.Rotate, (_, target) =>
+                ActivateToolOnEntity(Hrot.ScenarioEditor.Tools.ScenarioToolIds.Rotate, target));
             actionRegistry.Register(GlobalActionIds.Measure, (_, _) =>
             {
                 _world.Bus.Publish(new ActivateEditorToolEvent(EditorTool.Measure));
@@ -1666,44 +1914,10 @@ namespace Hrot.Editor
             {
                 _world.Bus.Publish(new ActivateEditorToolEvent(EditorTool.Spawn));
             });
-            actionRegistry.Register(GlobalActionIds.EditOverlay, (view, target) =>
-            {
-                if (target == Entity.Null || !view.HasManagedComponent<EditablePolyline>(target)) return;
-
-                if (_editorDataDrivenGizmoSystem!.HasInjectedGizmo(target))
-                {
-                    _editorDataDrivenGizmoSystem!.DeactivateGizmo(target);
-                }
-                else
-                {
-                    long netId = view.HasComponent<NetworkIdentity>(target)
-                        ? view.GetComponentRO<NetworkIdentity>(target).Value
-                        : 0L;
-                    var gizmo = new Hrot.ScenarioEditor.Gizmos.VertexEditGizmo(
-                        _world!, target, netId,
-                        onRemove: () => _editorDataDrivenGizmoSystem!.DeactivateGizmo(target));
-                    _editorDataDrivenGizmoSystem!.ActivateGizmo(target, gizmo);
-                }
-            });
-            actionRegistry.Register(GlobalActionIds.EditRoute, (view, target) =>
-            {
-                if (target == Entity.Null || !view.HasManagedComponent<RoutePlan>(target)) return;
-
-                if (_editorDataDrivenGizmoSystem!.HasInjectedGizmo(target))
-                {
-                    _editorDataDrivenGizmoSystem!.DeactivateGizmo(target);
-                }
-                else
-                {
-                    long netId = view.HasComponent<NetworkIdentity>(target)
-                        ? view.GetComponentRO<NetworkIdentity>(target).Value
-                        : 0L;
-                    var gizmo = new Hrot.ScenarioEditor.Gizmos.RouteWaypointGizmo(
-                        _world!, target, netId,
-                        onRemove: () => _editorDataDrivenGizmoSystem!.DeactivateGizmo(target));
-                    _editorDataDrivenGizmoSystem!.ActivateGizmo(target, gizmo);
-                }
-            });
+            actionRegistry.Register(GlobalActionIds.EditOverlay, (_, target) =>
+                ActivateToolOnEntity(Hrot.ScenarioEditor.Tools.ScenarioToolIds.Edit, target));
+            actionRegistry.Register(GlobalActionIds.EditRoute, (_, target) =>
+                ActivateToolOnEntity(Hrot.ScenarioEditor.Tools.ScenarioToolIds.Route, target));
             actionRegistry.Register(GlobalActionIds.CenterOnEntity, (view, target) =>
             {
                 if (target == Entity.Null) return;
@@ -1924,10 +2138,14 @@ namespace Hrot.Editor
             // ⛔⛔ The allocator ALONE would be worse than nothing: NetworkEntityMap.Register throws on a
             //    duplicate id, and the allocator's drift is currently the only thing stopping preview 2
             //    from colliding ⇒ exact id repetition without the map rewind is a guaranteed exception.
+            // ⭐ HN-018 — the THIRD participant §2b enumerated: the ELM's in-flight queues. It CLEARS and
+            //    RE-DERIVES rather than restoring a snapshot, so no Entity handle crosses the rewind.
+            //    📄 docs/designs/replay-and-modules/DESIGN.md §2.1m step 2.
             var previewRewindables = new[]
             {
                 Fdp.Toolkit.Orchestration.Preview.PreviewParticipants.IdAllocator(_idAllocator!),
                 Fdp.Toolkit.Orchestration.Preview.PreviewParticipants.EntityMap(_entityMap!),
+                Fdp.Toolkit.Orchestration.Preview.PreviewParticipants.LifecycleModule(elm),
             };
             _previewController = new EditorPreviewController(_world, _timeController!, previewRewindables);
 
@@ -1990,7 +2208,7 @@ namespace Hrot.Editor
                         // dependency that is not passed is the silent-default defect, not a default.
                         blueprintSession: _blueprintDebugSession,
                         primitiveBuffer:  _gizmoBuffer,
-                        // MX4a — behaviour discovery. The registry carries behaviourId -> ParamsDtoType,
+                        // MX4a — behaviour discovery. The registry carries behaviourId -> JsonParamsDtoType,
                         // so GET /behaviors emits the schema from the same definition the runtime parses
                         // params with. Held here already; passing it is the whole wiring.
                         behaviorRegistry: behaviorRegistry,
@@ -2049,13 +2267,22 @@ namespace Hrot.Editor
             if (!_headless)
             {
                 _mapViewConfig    = new MapViewConfig();
-                _mapPickAdapter   = new EditorMapPickAdapter(_canvas!, geoTransform, _world, _globalGizmoManager!);
+                // 🔒 UXI-07 step 4b — picks SUSPEND the active tool instead of arming beside it.
+                _mapPickAdapter   = new EditorMapPickAdapter(
+                    _canvas!, geoTransform, _world, _globalGizmoManager!, () => _editorToolController);
 
                 // Build the JSON?ECS attribute compiler with the geo-transform so that
                 // geodetic spawn coordinates are projected correctly on entity placement.
                 var jsonCompiler  = Fdp.Toolkit.Replication.Attributes.AttributeCompilerFactory.Build(geoTransform);
-                _spawnAdapter     = new ScenarioSpawnAdapter(_world.Bus, jsonCompiler, tkbDb, scenarioLoadSource, _globalGizmoManager!);
-                _zoneAdapter      = new EditorZoneAdapter(_canvas!, _world.Bus, _globalGizmoManager!);
+                // 🔒 UXI-07 step 4a — the arbiter is PASSED, so ORBAT "create unit" and the Spawner
+                //    panel's Place button arm THROUGH the controller instead of beside it (§4.8).
+                _spawnAdapter     = new ScenarioSpawnAdapter(
+                    _world.Bus, jsonCompiler, tkbDb, scenarioLoadSource, _globalGizmoManager!,
+                    _editorToolController);
+                // 🔒 UXI-07 step 4a — the arbiter is PASSED, so obstacle placement displaces the
+                //    active tool instead of quietly taking focus beside it (§4.8's inventory).
+                _zoneAdapter      = new EditorZoneAdapter(
+                    _canvas!, _world.Bus, _globalGizmoManager!, _editorToolController);
                 _mapConfigAdapter = new ScenarioMapConfigAdapter(_mapViewConfig, _canvas!);
                 _selectionState   = new DefaultSelectionState();
 
@@ -2109,8 +2336,24 @@ namespace Hrot.Editor
                         $"Mark Target for {perceiverCount} Units...",
                         async void () =>
                         {
-                            int targetNetId = await _mapPickAdapter!.PickEntityAsync();
-                            Entity target   = FindEntityByNetworkId(targetNetId);
+                            // ⭐⭐⭐ CE-259o — CANCELLING A PICK IS A NORMAL OUTCOME, NOT AN ERROR.
+                            //   🔴 Measured by an operator 2026-09-09: right-clicking to cancel the picker
+                            //   surfaced "A task was cancelled". EntityPickerGizmo's right-press calls
+                            //   onCancelled -> tcs.TrySetCanceled(), and this is `async void`, so the
+                            //   OperationCanceledException had NO caller to observe it and escaped to the
+                            //   top level. ⛔ The gizmo and the TCS are both correct; the missing half was
+                            //   here. ⚠ Every `async void` that awaits a cancellable pick owes this catch.
+                            int targetNetId;
+                            try
+                            {
+                                targetNetId = await _mapPickAdapter!.PickEntityAsync();
+                            }
+                            catch (OperationCanceledException)
+                            {
+                                return;   // the operator changed their mind — nothing to report
+                            }
+
+                            Entity target = FindEntityByNetworkId(targetNetId);
                             if (!_world.IsAlive(target)) return;
 
                             foreach (var perceiver in _selectionState?.SelectedEntities ?? System.Array.Empty<Entity>())
@@ -2126,7 +2369,17 @@ namespace Hrot.Editor
                         $"Mark Area Targets for {perceiverCount} Units...",
                         async void () =>
                         {
-                            IReadOnlyList<int> targetNetIds = await _mapPickAdapter!.PickAreaEntitiesAsync();
+                            // ⭐ CE-259o — same as above: a cancelled box-select is an outcome, not a fault.
+                            IReadOnlyList<int> targetNetIds;
+                            try
+                            {
+                                targetNetIds = await _mapPickAdapter!.PickAreaEntitiesAsync();
+                            }
+                            catch (OperationCanceledException)
+                            {
+                                return;
+                            }
+
                             foreach (var perceiver in _selectionState?.SelectedEntities ?? System.Array.Empty<Entity>())
                                 foreach (int netId in targetNetIds)
                                 {
@@ -2184,14 +2437,17 @@ namespace Hrot.Editor
                 schemaRegistry.Register(
                     Hrot.Common.Diagnostics.Gizmos.LayerControlGizmo.SchemaHash,
                     layerControlSchemaSession.Document);
+                // ⭐ §6.7 — the world IS passed now, for ONE reader: PickEntity resolves a picked
+                //   anchor's network id to an Entity. ⚠ NOT a revival of R3's deleted `view` parameter,
+                //   which was stored nowhere. See DebugGizmoLayer._world.
                 _gizmoLayer = new DebugGizmoLayer(
                     31,
                     _gizmoBuffer!,
                     interactionBus,
-                    _world,
-                    _canvas!.Camera,
-                    new GizmoMap.Presentation.Shapes.DefaultEntityShapeLibrary(),
-                    schemaRegistry);
+                    camera: _canvas!.Camera,
+                    shapeLibrary: new GizmoMap.Presentation.Shapes.DefaultEntityShapeLibrary(),
+                    schemaRegistry: schemaRegistry,
+                    worldProvider: () => _world);
                 _canvas!.AddLayer(_gizmoLayer);
                 if (_canvas != null) _canvas.DrawBuffer = _gizmoBuffer;
 
@@ -4796,12 +5052,21 @@ namespace Hrot.Editor
             // ─────────────────────────────────────────────────────────────────────────────────────
             _aiCoordinator?.Dispose();
             _aiCoordinator = null;
-            _kernel?.Dispose();
-            _kernel = null;
+            // ⭐⭐ CE-203 — the node context OWNS the kernel and the world, and its Dispose() releases them
+            //    in that order. 🔒 HrotNodeContext's own contract (QA-001): "every consumer must call
+            //    context.Dispose(), NOT context.Kernel.Dispose()" — disposing the kernel alone is exactly
+            //    how four hosts came to leak their world. 📐 The two lines this replaces already disposed
+            //    kernel-then-world, so that ORDER is unchanged; what changes is who owns the decision.
+            // ⚠ _physicsModule now runs BEFORE the kernel instead of between kernel and world. 📐 Measured:
+            //    it is never registered on the kernel (only `new` + Initialize(_world) at :998), so its
+            //    position relative to the kernel is immaterial — what matters is that it still precedes
+            //    the world's disposal, and it does.
             _physicsModule?.Dispose();
             _physicsModule = null;
-            _world?.Dispose();
-            _world = null;
+            _node?.Dispose();
+            _node = null;
+            _kernel = null;
+            _world  = null;
             // QA-005: the breakpoint machinery owns TWO more repositories — the pre-tick snapshot
             // built here and the post-tick snapshot the manager builds for itself. Both leaked until
             // now; the world beside them was already being released, which is what made the omission

@@ -115,6 +115,56 @@ namespace Hrot.Editor.DebugApi
                ?? throw NotSupportedHere(Hrot.Presentation.DebugApi.DebugCapabilities.TkbRead);
 
         /// <summary>
+        /// ⭐⭐⭐ <b><c>CE-236</c> — THIS NODE'S GEOGRAPHIC TRANSFORM, and it is the SIMULATION'S OWN.</b>
+        /// Resolved exactly like <see cref="_tkbDb"/>: the injected instance, else the world singleton
+        /// this node's simulation actually converts with.
+        ///
+        /// <para>
+        /// 🔒 <b>User ruling, <c>2026-09-08</c>:</b> <i>"we should always have that world singleton
+        /// available. Not having it is a bug. And it must be shared … among ai debug mcp api, the
+        /// scenario loader &amp; json parameter interpreter etc. All implementations must point to the
+        /// same source, one single GeographicTransform implementation"</i>, and every consumer must read
+        /// it <i>"VIA THE INTERFACE (never directly looking up the singleton)"</i> — hence
+        /// <see cref="IGeographicTransform"/> here, resolved once in one property rather than
+        /// <c>GetSingletonManaged</c> scattered through the routes.
+        /// </para>
+        ///
+        /// <para>
+        /// 🔴🔴 <b>This used to be <c>_geoTransform = geoTransform ?? new WGS84Transform()</c>.</b>
+        /// ⛔ <c>WGS84Transform</c> has NO default origin — <c>_originLat/_originLon/_originAlt</c> are
+        /// plain fields defaulting to <c>0</c> and only <c>SetOrigin</c> fills them, while every
+        /// simulation node runs on the Berlin origin that <c>HrotEnvironment.CreateGeoTransform()</c>
+        /// sets. 📐 Measured <c>2026-09-08</c>: <c>ClusterRunner/Program.cs:447</c> passed no
+        /// <c>geoTransform:</c>, so on <c>--mode all</c> <c>GET /world/info</c> and
+        /// <c>POST /world/geo-to-local</c> answered against <b>0°N 0°E</b> — the Gulf of Guinea — while
+        /// the simulation converted against Berlin. ⚠ Not a small error: a different continent, reported
+        /// as success.
+        /// </para>
+        ///
+        /// <para>
+        /// ⛔ <b>THROWS rather than substituting an origin</b>, the same reasoning as <c>_tkbDb</c> and
+        /// ruling 49 (<i>absent-and-explained beats present-and-broken</i>): a coordinate computed
+        /// against the wrong origin is a valid-looking answer, so no caller can tell it from a right one.
+        /// </para>
+        /// </summary>
+        private IGeographicTransform GeoTransform
+            => _geoTransform
+               ?? WorldGeoTransformOrNull()
+               ?? throw NotSupportedHere(Hrot.Presentation.DebugApi.DebugCapabilities.WorldRead);
+
+        /// <summary>
+        /// The world singleton, when this node has a world and it publishes one. Null rather than
+        /// throwing so <see cref="GeoTransform"/> owns the single refusal.
+        /// </summary>
+        private IGeographicTransform? WorldGeoTransformOrNull()
+        {
+            EntityRepository? world = _editorWorld ?? _dispatcher?.World;
+            return world is not null && world.HasSingletonManaged<IGeographicTransform>()
+                ? world.GetSingletonManaged<IGeographicTransform>()
+                : null;
+        }
+
+        /// <summary>
         /// ⭐⭐⭐ <b><c>BP-487</c> — THIS HOST'S MAP FEED, resolved the same way as
         /// <see cref="_world"/>/<see cref="_time"/>: the editor's own buffer, else the ACTIVE PERSPECTIVE's.
         /// 📄 <c>DESIGN_Subsystem_Composition_Unification.md</c> §5.6 ·
@@ -133,6 +183,53 @@ namespace Hrot.Editor.DebugApi
         /// <c>NOT_SUPPORTED_HERE</c> would lose it.</para>
         /// </summary>
         private DebugPrimitiveBuffer? _gizmoFeed => _primitiveBuffer ?? _dispatcher?.GizmoBuffer;
+
+        /// <summary>
+        /// ⭐⭐⭐ <b><c>CE-259am</c> — SAY WHICH OF THE TWO ABSENCES IT IS, because they have different
+        /// fixes and the old text asserted the wrong one.</b>
+        /// 📄 <c>docs/DESIGN_Gizmo_Anchor_Identity.md</c> §6.8c.
+        ///
+        /// <para>🔴 <b>The miss this repairs.</b> Both callers said <i>"this host has no debug primitive
+        /// buffer for the active perspective"</i> — ⛔ a claim about the HOST, and on
+        /// <c>--mode replaybrowser</c> it was simply false: that host holds a buffer and fills it every
+        /// frame. 📐 The real cause was that the subsystem contributed NO PROVIDER at all, so the
+        /// dispatcher had an empty list and could not route anywhere. ⚠ The message sent a session hunting
+        /// a missing buffer that existed — ⭐ the same *"absent vs unwired"* confusion <c>CE-110</c> and
+        /// <c>CE-193</c> are both about, one level further out.</para>
+        ///
+        /// <para>⭐ Three distinguishable states, each with the action it implies:
+        /// <list type="number">
+        ///   <item><b>no provider claims the active perspective</b> ⇒ that subsystem implements no
+        ///     <c>IProvidesDebugSurface</c>, or its <c>perspective:</c> string does not match. The routable
+        ///     names are printed so a mismatch is visible rather than inferred.</item>
+        ///   <item><b>a provider claims it and passes no buffer</b> ⇒ either the subsystem draws no gizmos
+        ///     *(ExCon — a legitimate absence, ruling 49)* or it holds one and forgot to forward it
+        ///     *(the silent default)*.</item>
+        ///   <item><b>no dispatcher at all</b> ⇒ the editor-shaped host was built without its own buffer.</item>
+        /// </list></para>
+        /// </summary>
+        private string GizmoFeedAbsenceReason()
+        {
+            if (_dispatcher is null)
+                return "this host was built with no debug primitive buffer and no perspective dispatcher, "
+                     + "so there is no gizmo feed to read.";
+
+            string active = _dispatcher.CurrentPerspective;
+            var routable  = _dispatcher.RoutablePerspectives;
+
+            if (_dispatcher.Active() is null)
+                return $"no debug provider claims the active perspective '{active}', so nothing can be "
+                     + "routed to. This is NOT a statement that the host draws no gizmos — it may well "
+                     + "hold a buffer. Either that subsystem implements no IProvidesDebugSurface, or its "
+                     + "provider's `perspective:` string does not match. Routable perspectives here: "
+                     + (routable.Count == 0 ? "(none)" : string.Join(", ", routable))
+                     + ". See GET /capabilities.";
+
+            return $"the provider for perspective '{active}' passes no DebugPrimitiveBuffer, so this "
+                 + "perspective reports no gizmo feed. That is legitimate for a subsystem that draws no "
+                 + "gizmos (ExCon), and a defect for one that holds a buffer and does not forward it. "
+                 + "Check GET /capabilities for panels.gizmo.";
+        }
 
         /// <summary>
         /// ⭐⭐⭐ <b><c>CE-066</c> — THIS HOST'S MISSION EDITOR, resolved exactly like
@@ -183,6 +280,16 @@ namespace Hrot.Editor.DebugApi
             {
                 if (_editorExtraction is not null) return _editorExtraction;
 
+                // ⭐⭐⭐ CE-171 — the ACTIVE subsystem's OWN service first. ⛔⛔ The fallback below builds one
+                //    with NO ScenarioSerializer, which silently switches EntityStateExtractionService to its
+                //    REFLECTION path: every inline fixed array collapses to `{"FixedElementField": N}` and the
+                //    typed DTO the translators exist to emit — a behaviour's decoded BehaviorParameters — is
+                //    lost. 📌 CGF already builds a serializer-backed one; it was simply unreachable from here.
+                //    ⚠ Not cached: the active perspective can change between calls, and caching would answer
+                //    for the wrong node — the same hazard the fallback's own cache-key guards against.
+                var provided = _dispatcher?.Extraction;
+                if (provided is not null) return provided;
+
                 var world = _dispatcher?.World
                             ?? throw NotSupportedHere(Hrot.Presentation.DebugApi.DebugCapabilities.WorldRead);
                 var map   = _dispatcher?.EntityMap
@@ -211,8 +318,14 @@ namespace Hrot.Editor.DebugApi
         /// ⭐ The EDITOR's own catalog, handed in by <c>EditorSubsystem</c>. ⛔ <see langword="null"/> in the
         /// cluster shape, where <see cref="_tkbDb"/> follows the ACTIVE PERSPECTIVE instead.
         /// </summary>
-        private readonly TkbDatabase?          _editorTkbDb;
-        private readonly IGeographicTransform  _geoTransform;
+        // ⚠ CE-203 widened to the interface: EditorSubsystem's catalog now comes from
+        //   HrotNodeContext.TkbDb (typed ITkbDatabase), and _tkbDb below was ALREADY the
+        //   interface — this field was the only concrete link left in the chain.
+        private readonly Fdp.Interfaces.ITkbDatabase? _editorTkbDb;
+        // ⭐ CE-236: NULLABLE on purpose — see the GeoTransform property. A composition root that has the
+        //   node's transform passes it; one that does not falls through to the world singleton rather
+        //   than to a private, origin-less WGS84Transform.
+        private readonly IGeographicTransform? _geoTransform;
         private readonly float                 _spatialGridCellSize;
         private readonly float                 _spatialGridOriginX;
         private readonly float                 _spatialGridOriginY;
@@ -260,7 +373,20 @@ namespace Hrot.Editor.DebugApi
         private readonly Fdp.Toolkit.Blueprints.BlueprintRegistry? _blueprintRegistry;
 
         // Group L — Attribute patch + StructEdit component edit
-        private readonly JsonAttributeCompiler _attributeCompiler;
+        private readonly JsonAttributeCompiler? _injectedAttributeCompiler;
+        private JsonAttributeCompiler? _builtAttributeCompiler;
+
+        /// <summary>
+        /// ⭐ <c>CE-236</c> — built LAZILY, because it needs <see cref="GeoTransform"/> and this service
+        /// is constructed BEFORE the world exists on some hosts (the same ordering that made
+        /// <c>_behaviorRegistry</c> a <c>Func</c> in <c>CE-169</c>). Building it in the constructor is
+        /// what forced the old <c>?? new WGS84Transform()</c> default that answered against the wrong
+        /// origin.
+        /// </summary>
+        private JsonAttributeCompiler _attributeCompiler
+            => _injectedAttributeCompiler
+               ?? (_builtAttributeCompiler ??=
+                   Fdp.Toolkit.Replication.Attributes.AttributeCompilerFactory.Build(GeoTransform));
         private readonly IComponentEditService _componentEditSvc;
 
         // Group M — Focus / Annotations (ADA-BATCH-14)
@@ -346,10 +472,28 @@ namespace Hrot.Editor.DebugApi
         /// <summary>Default upper bound for event-history queries.</summary>
         public const int DefaultMaxEvents = 200;
 
-        // MX4a — behaviour discovery. The registry already holds behaviourId -> ParamsDtoType, so
+        // MX4a — behaviour discovery. The registry already holds behaviourId -> JsonParamsDtoType, so
         // the schema comes from the SAME definition the runtime parses params with; the mission
         // service (optional) gives exact parity with the editor's mission-task combo for an entity.
-        private readonly Fdp.Toolkit.Behavior.BehaviorRegistry? _behaviorRegistry;
+        // ⭐⭐ CE-169 — TWO sources, because the two composition roots differ in TIMING, not in intent.
+        //   ① The EDITOR builds its registry before the service, so it hands over a VALUE.
+        //   ② The CLUSTER cannot: `Program.cs` constructs this service at :429 and only calls
+        //      `orchestrator.Run()` at :675, so CGF's registry does not exist yet at construction time.
+        //      A captured value would be null FOREVER — which is precisely the defect this fixes.
+        //   ⇒ the cluster hands over a Func, resolved lazily on first use. 📌 Same shape, same reason as
+        //     `logSinks` directly below it, whose comment says the window manager "may not exist yet".
+        private readonly Fdp.Toolkit.Behavior.BehaviorRegistry?         _behaviorRegistryValue;
+        private readonly Func<Fdp.Toolkit.Behavior.BehaviorRegistry?>?  _behaviorRegistryGetter;
+
+        /// <summary>
+        /// The node's behaviour registry, or <c>null</c> when this host genuinely has none.
+        /// ⛔ Never fabricate an empty registry here — an empty one reports "no behaviours" as though
+        /// that were the node's truth, which is the <c>CE-110</c> shape the TkbDatabase comment warns
+        /// about. A null answers "not available", and that is an honest answer.
+        /// </summary>
+        private Fdp.Toolkit.Behavior.BehaviorRegistry? _behaviorRegistry
+            => _behaviorRegistryValue ?? _behaviorRegistryGetter?.Invoke();
+
         private Hrot.UI.Common.Facades.IMissionEditorService? _missionService;
 
         /// <summary>
@@ -377,7 +521,7 @@ namespace Hrot.Editor.DebugApi
             IDiagnosticEventHistoryService  eventHistory,
             MasterSyncController            timeController,
             Func<ClusterState>              clusterState,
-            TkbDatabase?                    tkbDb              = null,
+            Fdp.Interfaces.ITkbDatabase?    tkbDb              = null,
             IGeographicTransform?           geoTransform       = null,
             float                           spatialGridCellSize = 5.0f,
             float                           spatialGridOriginX  = 0f,
@@ -418,14 +562,14 @@ namespace Hrot.Editor.DebugApi
             //    a caller that HAS the dependency must pass it) — EditorSubsystem does.
             _editorRequestTransition = requestTransition;
             _editorTkbDb       = tkbDb            ?? new TkbDatabase();   // ⭐ the editor DOES pass one; kept non-null so its shape is unchanged
-            _geoTransform      = geoTransform     ?? new Fdp.Modules.Geographic.Transforms.WGS84Transform();
+            _geoTransform      = geoTransform;   // ⭐ CE-236: no origin-less default — see GeoTransform
             _spatialGridCellSize = spatialGridCellSize;
             _spatialGridOriginX  = spatialGridOriginX;
             _spatialGridOriginY  = spatialGridOriginY;
             _spatialGridWidth    = spatialGridWidth;
             _spatialGridHeight   = spatialGridHeight;
             _bpManager         = bpManager;
-            _behaviorRegistry  = behaviorRegistry;
+            _behaviorRegistryValue  = behaviorRegistry;
             _missionService    = missionService;
             _blueprintRegistry = blueprintRegistry;
             _diffService       = diffService ?? new ComponentDiffService();
@@ -435,7 +579,7 @@ namespace Hrot.Editor.DebugApi
             _btreeSession     = btreeSession;
             _hsmSession       = hsmSession;
             _blueprintSession = blueprintSession;
-            _attributeCompiler = attributeCompiler ?? Fdp.Toolkit.Replication.Attributes.AttributeCompilerFactory.Build(_geoTransform);
+            _injectedAttributeCompiler = attributeCompiler;   // CE-236: else built lazily from GeoTransform
             _componentEditSvc  = componentEditSvc  ?? new ComponentEditServiceBuilder().Build();
             _primitiveBuffer   = primitiveBuffer;
             if (_bpManager != null)
@@ -462,11 +606,13 @@ namespace Hrot.Editor.DebugApi
         public DebugApiService(
             Hrot.Presentation.DebugApi.PerspectiveScopedDispatcher dispatcher,
             Func<ClusterState>?                           clusterState      = null,
-            TkbDatabase?                                  tkbDb             = null,
+            Fdp.Interfaces.ITkbDatabase?                  tkbDb             = null,
             IGeographicTransform?                         geoTransform      = null,
             DebugPrimitiveBuffer?                         primitiveBuffer   = null,
             Func<IReadOnlyList<IMessageLogSource>>?       logSinks          = null,
-            Fdp.Toolkit.Behavior.BehaviorRegistry?        behaviorRegistry  = null)
+            // ⭐ CE-169 — a Func, not a value: CGF's registry is built during subsystem boot, which
+            //   happens AFTER this service is constructed. See the field comment for the measurement.
+            Func<Fdp.Toolkit.Behavior.BehaviorRegistry?>? behaviorRegistry  = null)
         {
             _dispatcher         = dispatcher ?? throw new ArgumentNullException(nameof(dispatcher));
             _clusterStateGetter = clusterState;
@@ -477,7 +623,12 @@ namespace Hrot.Editor.DebugApi
             //    through to the ACTIVE PERSPECTIVE's real catalog (`_dispatcher.TkbDb`), and if a node
             //    genuinely has none the route says NOT_SUPPORTED_HERE instead of lying with an empty list.
             _editorTkbDb  = tkbDb;
-            _geoTransform = geoTransform ?? new Fdp.Modules.Geographic.Transforms.WGS84Transform();
+            // ⭐⭐⭐ CE-236 — ⛔⛔ NO `?? new WGS84Transform()` HERE, for exactly CE-110's reason one line
+            //    above. That default had NO ORIGIN (WGS84Transform's origin fields default to 0 and only
+            //    SetOrigin fills them), so --mode all answered /world/geo-to-local against 0°N 0°E while
+            //    every simulation node ran on Berlin. Left null, GeoTransform falls through to the world
+            //    singleton — the one the simulation itself converts with.
+            _geoTransform = geoTransform;
 
             _spatialGridCellSize = 5.0f;
             _spatialGridOriginX  = 0f;
@@ -487,10 +638,10 @@ namespace Hrot.Editor.DebugApi
 
             _diffService       = new ComponentDiffService();
             _logSinks          = logSinks ?? (() => Array.Empty<IMessageLogSource>());   // diagnostics MD-001: lazy Func
-            _attributeCompiler = Fdp.Toolkit.Replication.Attributes.AttributeCompilerFactory.Build(_geoTransform);   // AX-017: moved to Fdp.Toolkits
+            _injectedAttributeCompiler = null;   // AX-017 lives in Fdp.Toolkits; CE-236 builds it lazily from GeoTransform
             _componentEditSvc  = new ComponentEditServiceBuilder().Build();
             _primitiveBuffer   = primitiveBuffer;
-            _behaviorRegistry  = behaviorRegistry;
+            _behaviorRegistryGetter = behaviorRegistry;
         }
 
         // ── Group A — Status ──────────────────────────────────────────────────
@@ -697,6 +848,7 @@ namespace Hrot.Editor.DebugApi
             foreach (var e in page)
             {
                 JsonNode? payload = null;
+                string?   payloadError = null;
                 try
                 {
                     // EventSerializationHelper produces inspector-grade readable JSON; parse it
@@ -704,9 +856,15 @@ namespace Hrot.Editor.DebugApi
                     var json = EventSerializationHelper.SerializeToJson(e.RawEvent);
                     payload  = JsonNode.Parse(json);
                 }
-                catch
+                catch (Exception ex)
                 {
-                    payload = null; // unserializable payload — keep the metadata row.
+                    // ⭐⭐ CE-191 — keeping the metadata row is RIGHT (one unserializable event must not
+                    //   cost the caller the whole history). ⛔ Reporting nothing was not: a null payload
+                    //   read identically to "this event genuinely carried no data".
+                    // ⭐ Reported ON THE ROW rather than failing the read — the same shape
+                    //   DescribeCommand already uses for isEnabledError.
+                    payload      = null;
+                    payloadError = $"{ex.GetType().Name}: {ex.Message}";
                 }
 
                 arr.Add(new JsonObject
@@ -717,6 +875,7 @@ namespace Hrot.Editor.DebugApi
                     ["isManaged"] = e.IsManaged,
                     ["summary"]   = e.Summary,
                     ["payload"]   = payload,
+                    ["payloadError"] = payloadError,
                 });
             }
             return arr;
@@ -1218,8 +1377,23 @@ namespace Hrot.Editor.DebugApi
             else
             {
                 // Create a default instance.
+                //
+                // ⭐⭐ CE-191 — this was `catch { evt = null; }`, and the null then went straight into
+                //   PublishEventObject below. Whatever that did, the caller was never told the event they
+                //   asked for had not been constructed. A type without a usable parameterless constructor
+                //   is a refusal, not a publish.
                 try { evt = Activator.CreateInstance(clrType); }
-                catch { evt = null; }
+                catch (Exception ex)
+                {
+                    return (null,
+                            $"'{eventTypeName}' could not be default-constructed: {ex.GetType().Name}: "
+                          + $"{ex.Message}. Send a 'payload' object for this type instead.");
+                }
+
+                if (evt == null)
+                    return (null,
+                            $"'{eventTypeName}' default-constructed to null, so there is nothing to publish. "
+                          + "Send a 'payload' object for this type.");
             }
 
             // Publish via the appropriate bus method (unmanaged struct → Publish, managed → PublishManaged).
@@ -1255,11 +1429,47 @@ namespace Hrot.Editor.DebugApi
         }
 
         /// <summary>
+        /// <summary>
+        /// 🔴🔴 <b>CE-225 — why this needs its own options, and why the default silently lost every
+        /// spawn position.</b>
+        /// </summary>
+        /// <remarks>
+        /// <para><c>SimTransform</c> declares <b>public FIELDS</b>, not properties
+        /// (<c>public Vector3 Position; public Quaternion Rotation;</c>), and
+        /// <c>System.Text.Json</c> <b>ignores fields unless <see cref="JsonSerializerOptions.IncludeFields"/>
+        /// is set</b>. So a bare <c>Deserialize&lt;SimTransform&gt;</c> could never bind a position from ANY
+        /// payload — it returned a default-constructed struct, the entity was created at the origin, and the
+        /// endpoint answered <c>ok:true</c>. 📐 Measured: both the shape this API's own SKILL documents
+        /// (<c>{"position":{"x":..}}</c>) and the shape the entity dump round-trips landed at
+        /// <c>[0,0,z]</c>.</para>
+        ///
+        /// <para>⛔⛔ <b>That is precisely the failure <c>CE-191</c> added the surrounding catch for</b> —
+        /// its comment calls an origin spawn reported as success "the worst possible shape of failure". The
+        /// catch never fired because <b>nothing threw</b>: unbound members are not an error by default.
+        /// ⇒ <c>JsonUnmappedMemberHandling.Disallow</c> is what makes that guard real: a payload whose
+        /// members do not bind now RAISES, and the existing catch refuses the spawn instead of misplacing
+        /// the entity.</para>
+        ///
+        /// <para>⭐ <see cref="JsonSerializerOptions.PropertyNameCaseInsensitive"/> so the documented
+        /// lower-case example binds as written, rather than the caller having to discover the field
+        /// casing.</para>
+        /// </remarks>
+        internal static readonly JsonSerializerOptions SpawnTransformJsonOptions = new()
+        {
+            IncludeFields               = true,
+            PropertyNameCaseInsensitive = true,
+            UnmappedMemberHandling      = System.Text.Json.Serialization.JsonUnmappedMemberHandling.Disallow,
+        };
+
         /// <c>POST /entities/spawn {tkbType, transform?, components?, attributesJson?}</c>
         /// — builds and publishes a <see cref="SpawnEntityCommand"/>. Returns <c>awaited</c>
         /// per the wait rule. Must run on the main thread.
         /// </summary>
-        public JsonNode SpawnEntity(
+        /// <remarks>
+        /// ⭐⭐⭐ <c>CE-191</c> — returns <c>(node, error)</c> rather than a bare node, because the two
+        /// optional parses below <b>used to be discarded silently</b>. See their comments.
+        /// </remarks>
+        public (JsonNode? Node, string? Error) SpawnEntity(
             long     tkbType,
             JsonNode? transform      = null,
             JsonNode? components     = null,
@@ -1275,54 +1485,96 @@ namespace Hrot.Editor.DebugApi
             };
 
             // Parse optional transform.
+            //
+            // ⭐⭐⭐ CE-191 — this was `catch { /* ignore malformed transform */ }`. A body whose transform
+            //   did not deserialize spawned the entity AT THE ORIGIN and answered ok:true. For a spatial
+            //   simulation that is the worst possible shape of failure: the caller is told the thing exists
+            //   where they asked, and it is somewhere else. Refuse instead.
             if (transform != null)
             {
                 try
                 {
-                    var simTransform = JsonSerializer.Deserialize<SimTransform>(transform.ToJsonString());
+                    var simTransform = JsonSerializer.Deserialize<SimTransform>(
+                        transform.ToJsonString(), SpawnTransformJsonOptions);
                     cmd.InitialTransform = simTransform;
                 }
-                catch { /* ignore malformed transform */ }
+                catch (Exception ex)
+                {
+                    return (null,
+                            $"'transform' could not be read as a SimTransform: {ex.GetType().Name}: {ex.Message}. "
+                          + "Nothing was spawned — it would otherwise have been placed at the origin and "
+                          + "reported as success.");
+                }
             }
 
             // Parse optional extra components list (array of { type, data } or typed objects).
-            if (components != null && components is JsonArray compArr && compArr.Count > 0)
+            //
+            // ⭐⭐⭐ CE-191 — this block had FOUR silent drops, and the entity spawned WITHOUT the component
+            //   you asked for while the response said ok:true:
+            //     ① a null array entry            → `continue`
+            //     ② an entry with no "type"       → the `if (typeName != null)` never fired
+            //     ③ an UNKNOWN type name          → `compType != null` was false ⇒ **a typo'd component
+            //                                        vanished**, which is the one a caller is most likely
+            //                                        to hit and least able to notice
+            //     ④ a payload that would not bind → `catch { }`
+            //   ⛔ All four now refuse the whole spawn. A partially-built entity is worse than none: the
+            //   caller goes on to assert against a thing that is quietly missing half its state.
+            if (components is JsonArray compArr && compArr.Count > 0)
             {
                 cmd.InitialComponents = new List<object>();
-                foreach (var item in compArr)
+                for (int i = 0; i < compArr.Count; i++)
                 {
-                    if (item is null) continue;
-                    // Support { "type": "TypeName", "data": {...} } format.
-                    var typeName = item["type"]?.GetValue<string>();
-                    var data     = item["data"];
-                    if (typeName != null)
+                    JsonNode? item = compArr[i];
+                    if (item is null)
+                        return (null, $"'components[{i}]' is null; expected {{ \"type\": \"<name>\", \"data\": {{…}} }}.");
+
+                    string? typeName = item["type"]?.GetValue<string>();
+                    JsonNode? data   = item["data"];
+
+                    if (string.IsNullOrWhiteSpace(typeName))
+                        return (null,
+                                $"'components[{i}]' has no 'type'. Expected "
+                              + "{ \"type\": \"<component type name>\", \"data\": {…} }.");
+
+                    var compType = ComponentTypeRegistry.GetAllTypes()
+                        .FirstOrDefault(t => string.Equals(t.Name, typeName, StringComparison.OrdinalIgnoreCase));
+
+                    if (compType == null)
+                        return (null,
+                                $"'components[{i}].type' names '{typeName}', which is not a registered "
+                              + "component type. Nothing was spawned — it would otherwise have been created "
+                              + "without that component and reported as success. Read GET /components for "
+                              + "the registered names.");
+
+                    if (data == null)
+                        return (null, $"'components[{i}]' ({typeName}) has no 'data' object to deserialize.");
+
+                    object? compObj;
+                    try { compObj = JsonSerializer.Deserialize(data.ToJsonString(), compType); }
+                    catch (Exception ex)
                     {
-                        var compType = ComponentTypeRegistry.GetAllTypes()
-                            .FirstOrDefault(t => string.Equals(t.Name, typeName, StringComparison.OrdinalIgnoreCase));
-                        if (compType != null && data != null)
-                        {
-                            try
-                            {
-                                var compObj = JsonSerializer.Deserialize(data.ToJsonString(), compType);
-                                if (compObj != null)
-                                    cmd.InitialComponents.Add(compObj);
-                            }
-                            catch { /* ignore undeserializable component */ }
-                        }
+                        return (null,
+                                $"'components[{i}].data' does not bind to {typeName}: "
+                              + $"{ex.GetType().Name}: {ex.Message}. Nothing was spawned.");
                     }
+
+                    if (compObj == null)
+                        return (null, $"'components[{i}].data' deserialized to null for {typeName}. Nothing was spawned.");
+
+                    cmd.InitialComponents.Add(compObj);
                 }
             }
 
             _world.Bus.PublishManaged(cmd);
 
             bool timeAdvancing = _preview.IsInPreviewMode && !_time.IsPaused;
-            return new JsonObject
+            return (new JsonObject
             {
                 ["spawned"]  = true,
                 ["tkbType"]  = tkbType,
                 ["awaited"]  = false,
                 ["reason"]   = timeAdvancing ? null : (JsonNode?)"sim not running — time only advances in preview while unpaused; call POST /preview/enter then POST /sim/play, or POST /sim/step to advance.",
-            };
+            }, null);
         }
 
         // ── Group M — Focus + Annotations (ADA-BATCH-14) ────────────────────────
@@ -1368,8 +1620,8 @@ namespace Hrot.Editor.DebugApi
             //    silent no-op that reported success.
             var buffer = _gizmoFeed;
             if (buffer is null)
-                return (null, "No DebugPrimitiveBuffer for the active perspective, so there is nothing to "
-                            + "draw into (see GET /capabilities for panels.gizmo).");
+                // ⭐ CE-259am — the reason, not a claim about the host. See GizmoFeedAbsenceReason.
+                return (null, "Nothing to draw into: " + GizmoFeedAbsenceReason());
 
             if (body is null)
                 return (null, "Request body is required.");
@@ -1527,7 +1779,7 @@ namespace Hrot.Editor.DebugApi
         /// <c>GET /behaviors?tkbType=</c> (or <c>?entityId=</c>) — the behaviours an entity of that
         /// type may run, each with the JSON schema of its parameter DTO (<c>MX4a</c>).
         ///
-        /// <para><b>Reuse, not a new registry.</b> <see cref="BehaviorDefinition.ParamsDtoType"/>
+        /// <para><b>Reuse, not a new registry.</b> <see cref="BehaviorDefinition.JsonParamsDtoType"/>
         /// already holds behaviourId → param DTO — the very type the runtime parses params with — so
         /// the schema an agent authors against and the bytes the engine reads come from ONE
         /// declaration. ⛔ Nothing here maintains a second list.</para>
@@ -1596,7 +1848,9 @@ namespace Hrot.Editor.DebugApi
                     ["id"]          = name,
                     ["name"]        = definition.Name,
                     ["brainTier"]   = definition.BrainTier,
-                    ["paramSchema"] = DtoJsonSchemaExtractor.ExtractParams(definition.ParamsDtoType),
+                    // CE-226: pass the DEFINITION, not just the DTO type — a generated behaviour has no DTO
+                    // struct and describes its parameters through ManagedBlackboardVariables instead.
+                    ["paramSchema"] = DtoJsonSchemaExtractor.ExtractParams(definition),
                 });
             }
 
@@ -1656,18 +1910,30 @@ namespace Hrot.Editor.DebugApi
             var childArr = new JsonArray();
             foreach (var cb in t.ChildBlueprints)
             {
+                // ⭐⭐ CE-191 — this used to `catch { skip }`, which SHORTENED THE ARRAY silently: a caller
+                //   counting child blueprints got a wrong number with nothing to indicate it. The row now
+                //   stays and names its own failure.
                 try
                 {
                     var json = EventSerializationHelper.SerializeToJson(cb);
                     childArr.Add(JsonNode.Parse(json));
                 }
-                catch { /* skip unserializable */ }
+                catch (Exception ex)
+                {
+                    childArr.Add(new JsonObject
+                    {
+                        ["serializationError"] = $"{ex.GetType().Name}: {ex.Message}",
+                    });
+                }
             }
 
             // Descriptor bag
             var descrArr = new JsonArray();
             foreach (var (type, partId, data) in t.GetAllDescriptors())
             {
+                // ⭐⭐ CE-191 — same as the child blueprints above: skipping made the descriptor bag SHORT
+                //   with no way to tell an absent descriptor from an unserializable one. The row survives
+                //   and carries its own error.
                 try
                 {
                     var dJson = EventSerializationHelper.SerializeToJson(data);
@@ -1678,7 +1944,16 @@ namespace Hrot.Editor.DebugApi
                         ["data"]   = JsonNode.Parse(dJson),
                     });
                 }
-                catch { /* skip unserializable descriptor */ }
+                catch (Exception ex)
+                {
+                    descrArr.Add(new JsonObject
+                    {
+                        ["type"]   = type.Name,
+                        ["partId"] = partId,
+                        ["data"]   = null,
+                        ["serializationError"] = $"{ex.GetType().Name}: {ex.Message}",
+                    });
+                }
             }
 
             return new JsonObject
@@ -1698,7 +1973,7 @@ namespace Hrot.Editor.DebugApi
         /// <summary>GET /world/info — geo origin, spatial grid extent, terrain/navmesh null.</summary>
         public JsonNode GetWorldInfo()
         {
-            var origin = _geoTransform.Origin;
+            var origin = GeoTransform.Origin;
             float extentMinX = _spatialGridOriginX;
             float extentMaxX = _spatialGridOriginX + _spatialGridWidth * _spatialGridCellSize;
             float extentMinY = _spatialGridOriginY;
@@ -1738,7 +2013,7 @@ namespace Hrot.Editor.DebugApi
         /// <summary>POST /world/geo-to-local — convert geodetic to local ENU coordinates.</summary>
         public JsonNode GeoToLocal(double lat, double lon, double alt, float? headingDeg)
         {
-            var pos = _geoTransform.ToCartesian(lat, lon, alt);
+            var pos = GeoTransform.ToCartesian(lat, lon, alt);
             var obj = new JsonObject
             {
                 ["x"] = pos.X,
@@ -1762,7 +2037,7 @@ namespace Hrot.Editor.DebugApi
         /// <summary>POST /world/local-to-geo — convert local ENU to geodetic coordinates.</summary>
         public JsonNode LocalToGeo(float x, float y, float z, Quaternion? rotation)
         {
-            var (lat, lon, alt) = _geoTransform.ToGeodetic(new Vector3(x, y, z));
+            var (lat, lon, alt) = GeoTransform.ToGeodetic(new Vector3(x, y, z));
             var obj = new JsonObject
             {
                 ["lat"] = lat,
@@ -1787,7 +2062,8 @@ namespace Hrot.Editor.DebugApi
         public JsonNode AddBreakpoint(JsonNode? body)
         {
             if (_bpManager is null)
-                throw new InvalidOperationException("Breakpoint manager not available.");
+                throw new Hrot.Presentation.DebugApi.NotSupportedHereException(
+                    Hrot.Presentation.DebugApi.DebugCapabilities.Breakpoints);
 
             var conditionNode = body?["condition"];
             if (conditionNode is null)
@@ -1829,7 +2105,8 @@ namespace Hrot.Editor.DebugApi
         public JsonNode ListBreakpoints()
         {
             if (_bpManager is null)
-                throw new InvalidOperationException("Breakpoint manager not available.");
+                throw new Hrot.Presentation.DebugApi.NotSupportedHereException(
+                    Hrot.Presentation.DebugApi.DebugCapabilities.Breakpoints);
 
             var arr = new JsonArray();
             foreach (var bp in _bpManager.AllBreakpoints)
@@ -1851,7 +2128,8 @@ namespace Hrot.Editor.DebugApi
         public void RemoveBreakpoint(string idStr)
         {
             if (_bpManager is null)
-                throw new InvalidOperationException("Breakpoint manager not available.");
+                throw new Hrot.Presentation.DebugApi.NotSupportedHereException(
+                    Hrot.Presentation.DebugApi.DebugCapabilities.Breakpoints);
 
             BreakpointId id = ParseBreakpointId(idStr);
             _bpManager.Remove(id);
@@ -1861,7 +2139,8 @@ namespace Hrot.Editor.DebugApi
         public JsonNode GetBreakpointStatus()
         {
             if (_bpManager is null)
-                throw new InvalidOperationException("Breakpoint manager not available.");
+                throw new Hrot.Presentation.DebugApi.NotSupportedHereException(
+                    Hrot.Presentation.DebugApi.DebugCapabilities.Breakpoints);
 
             JsonNode? lastHit = null;
             if (_lastHitBreakpointId.IsValid)
@@ -1883,7 +2162,9 @@ namespace Hrot.Editor.DebugApi
 
         private BreakpointId ParseBreakpointId(string idStr)
         {
-            if (_bpManager is null) throw new InvalidOperationException("No bp manager.");
+            if (_bpManager is null)
+                throw new Hrot.Presentation.DebugApi.NotSupportedHereException(
+                    Hrot.Presentation.DebugApi.DebugCapabilities.Breakpoints);
             foreach (var bp in _bpManager.AllBreakpoints)
             {
                 if (string.Equals(bp.Id.ToString(), idStr, StringComparison.OrdinalIgnoreCase))
@@ -2068,7 +2349,8 @@ namespace Hrot.Editor.DebugApi
         public string BeginRecordingStart(string mode)
         {
             if (_rrController is null)
-                throw new InvalidOperationException("EcsRecordReplayController not available.");
+                throw new Hrot.Presentation.DebugApi.NotSupportedHereException(
+                    Hrot.Presentation.DebugApi.DebugCapabilities.RecordReplay);
             if (_isRecording)
                 throw new InvalidOperationException("Recording already active. Stop it first.");
 
@@ -2107,7 +2389,8 @@ namespace Hrot.Editor.DebugApi
         public async System.Threading.Tasks.Task CompleteRecordingStartAsync()
         {
             if (_rrController is null)
-                throw new InvalidOperationException("EcsRecordReplayController not available.");
+                throw new Hrot.Presentation.DebugApi.NotSupportedHereException(
+                    Hrot.Presentation.DebugApi.DebugCapabilities.RecordReplay);
             await _rrController.PrepareRecordingAsync(_activeRecordingExerciseId,
                 Fdp.Toolkit.Orchestration.OrchestrationConstants.ResolveStagingRoot())
                 .ConfigureAwait(false);
@@ -2122,7 +2405,8 @@ namespace Hrot.Editor.DebugApi
         public async System.Threading.Tasks.Task<string?> CompleteRecordingStopAsync()
         {
             if (_rrController is null)
-                throw new InvalidOperationException("EcsRecordReplayController not available.");
+                throw new Hrot.Presentation.DebugApi.NotSupportedHereException(
+                    Hrot.Presentation.DebugApi.DebugCapabilities.RecordReplay);
             if (!_isRecording)
                 throw new InvalidOperationException("No active recording.");
 

@@ -20,7 +20,7 @@ namespace Hrot.Diagnostics.Breakpoints;
 ///
 /// <para>⭐ <b>The move it makes.</b> 📐 Before this, the file was
 /// <c>&lt;repo-root&gt;/.debug/bpsession.json</c> *(the <c>CF-8</c> default —
-/// <c>.dev/blueprint-dbg-1/TASK-DETAIL.md:699</c>, which offered <i>"a gitignored path … or the editor's
+/// <c>.dev/_DONE/blueprint-dbg-1/TASK-DETAIL.md:699</c>, which offered <i>"a gitignored path … or the editor's
 /// per-user data dir"</i> and picked the former)*. ⛔ <c>.gitignore:65</c> ignores <c>.debug/</c>, so that
 /// location <b>cannot host a git-maintained curated copy</b> — the ruling's two halves force the file to
 /// the per-user data dir, which was the alternative the same design already named.</para>

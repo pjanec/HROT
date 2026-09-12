@@ -10,6 +10,7 @@ using Hrot.Common;
 using Hrot.ExCon;
 using Hrot.IG;
 using Hrot.Map.Common;
+using Hrot.NED.Descriptors.Orchestration;
 using Hrot.Network.NED.Factory;
 using Hrot.Orchestrator;
 using Hrot.SimHost;
@@ -256,6 +257,69 @@ public sealed class HrotRunnerHarness : IDisposable
                 Thread.Sleep(PumpSleepMs);
             }
         }
+
+        ResumeTimeAfterBoot();
     }
+
+    /// <summary>
+    /// ⭐⭐⭐ <b><c>CE-148</c> — RESUME THE CLOCK, because production now boots PAUSED.</b>
+    ///
+    /// <para>🔴 <b>Without this the harness pumps a STOPPED CLOCK.</b> 📐 Measured `2026-09-01`:
+    /// after 120 pumped frames <c>view.Tick = 361</c> — the ECS world IS ticking — while
+    /// <c>GlobalTime</c> reads <c>DeltaTime=0 · TimeScale=1 · TotalTime=0.000 · FrameNumber=1</c>
+    /// and <c>SimHost TimeControllerMode = Deterministic</c>. ⇒ every system that integrates over
+    /// <c>DeltaTime</c> does nothing, silently, and a vehicle given a destination never moves.</para>
+    ///
+    /// <para>📌 <b>Why it appeared:</b> <c>CE-101</c> (<c>60daaaf6d</c>, <c>2026-08-28</c>) made
+    /// <c>--mode all</c> boot paused — a CORRECT fix to a real user-visible defect — by having
+    /// <c>OrchestratorSubsystem</c> pass <c>startPaused: true</c>. ⛔ This harness constructs that same
+    /// subsystem and nobody told it. ⚠⚠ It went unnoticed for four days because <c>CE-101</c> gated on a
+    /// live boot and NOT on this suite, which <c>BP-378</c> then claimed could not be gated — a claim
+    /// already false by that date. ⇒ 🔒 <b>the filter-around caused the regression it was hiding.</b></para>
+    ///
+    /// <para>⭐⭐ <b>Why RESUME rather than an opt-out flag.</b> A <c>startPaused</c> parameter on
+    /// <c>OrchestratorSubsystem</c> would let tests skip production's real boot sequence — ⛔ re-opening
+    /// exactly this gap, where the suite and the product disagree about how the cluster starts. ⭐ Resuming
+    /// is what an OPERATOR does, so the harness now exercises the true sequence: boot paused, then play.</para>
+    ///
+    /// <para>⚠ <b>The pause/step tests are unaffected</b> — they issue their own <c>PauseTime</c> and assert
+    /// from there, so a running baseline is the correct starting state for them.</para>
+    /// </summary>
+    private void ResumeTimeAfterBoot()
+    {
+        var master = OrchestratorSvc.TestHook_ClusterMaster;
+        if (master == null) return;   // a half-built harness: BootOrCleanUp is already unwinding
+
+        master.HandleClusterOpRequestAsync(new ClusterOpRequest
+        {
+            RequestId     = Guid.NewGuid(),
+            OperationType = ClusterOpType.ResumeTime,
+            PayloadJson   = string.Empty,
+        }).GetAwaiter().GetResult();
+
+        // ⚠ The op is asynchronous across the cluster: the master publishes a mode switch and each
+        //   slave swaps its controller on its own tick. Returning before that lands would hand the test
+        //   a harness that is *about to* run — the same ambiguity this method exists to remove.
+        //   ⭐ So pump until the clock is genuinely advancing, and stop pumping the moment it is.
+        for (int i = 0; i < ResumeSettleFrames; i++)
+        {
+            Orchestrator.RunFrames(1);
+            Thread.Sleep(PumpSleepMs);
+
+            var world = SimHost.World;
+            if (world != null
+                && world.HasSingleton<Fdp.Core.GlobalTime>()
+                && world.GetSingleton<Fdp.Core.GlobalTime>().IsAdvancing)
+                return;
+        }
+
+        // ⛔ Deliberately NOT an exception. A harness that throws here would convert every test in the
+        //   suite into the same opaque failure. ⚠ The tests that care assert on movement or sim-time and
+        //   will fail with their own, more informative message; `WhyDoesTheVehicleNotMoveProbe` dumps the
+        //   clock state directly when this needs diagnosing again.
+    }
+
+    /// <summary>Frames to pump waiting for <c>ResumeTime</c> to reach the slaves (× <c>PumpSleepMs</c>).</summary>
+    private const int ResumeSettleFrames = 120;
 }
 

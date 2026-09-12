@@ -70,6 +70,12 @@ namespace Hrot.SimHost
                 // ⭐⭐ HN-029 — the node's own control-plane bus; see SimHostApp.OrchestrationBus.
                 requestTransition: Hrot.Presentation.DebugApi.SubsystemDebugProvider
                                        .TransitionsVia(() => _app?.OrchestrationBus),
+                // ⭐⭐⭐ CE-163 — SimHost's OWN committed cluster state, from its OWN ClusterSlave, through
+                //    the SAME shared projection CGF and IG use. 🔒 "every ECS node must use the same shared
+                //    code" — ⛔ the identical line, deliberately, in all three composition roots.
+                // 📐 See ClusterStateFrom's remarks for why it was missing everywhere and what it means.
+                clusterState:  Hrot.Presentation.DebugApi.SubsystemDebugProvider
+                                   .ClusterStateFrom(() => _app?.ClusterSlave),
                 // ⭐⭐ MD-002 — this subsystem's OWN kernel snapshot. ⚠ Lazily, like every accessor here:
                 //    the kernel is created in Initialize, after the composition root builds the provider.
                 // ⭐⭐ MD-006 — the dump trigger, on the SAME bus and by the SAME argument as
@@ -92,7 +98,9 @@ namespace Hrot.SimHost
 
         // ── Core application ──────────────────────────────────────────────────
 
-        private readonly NodeRole _role = NodeRole.MuscleGround | NodeRole.Perception;
+
+        // ⭐ CE-197 — the node's role is declared ONCE, on SimHostApp. See its remarks.
+        private readonly NodeRole _role = SimHostApp.DefaultRole;
         private readonly INetworkFactory? _networkFactory;
         private SimHostApp? _app;
         private bool _headless;
@@ -169,6 +177,11 @@ namespace Hrot.SimHost
 
         /// <summary>TestHook: current kernel simulation time in seconds.</summary>
         internal double TestHook_CurrentSimTime => App.TestHook_CurrentSimTime;
+
+        /// <summary>⭐ CE-103: the kernel's own per-system execution counter. See
+        /// <c>SimHostApp.TestHook_SystemScheduler</c>.</summary>
+        internal Fdp.ModuleHost.Scheduling.SystemScheduler? TestHook_SystemScheduler
+            => App.TestHook_SystemScheduler;
 
         /// <summary>
         /// TestHook: runtime type of the currently active time controller in the SimHost kernel.
@@ -314,8 +327,11 @@ namespace Hrot.SimHost
                 },
                 new Fdp.Toolkit.Runner.UiBundleContext(windowManager));
 
-            windowManager.RegisterWindow(new FakeNavigationInspectorWindow(
-                () => _app?.WorldOrNull));
+            // ⛔ CE-255 — FakeNavigationInspectorWindow REMOVED 🔒 (user, 2026-09-09: "remove
+            //    fake_nav_inspector"). Three of its four tabs were "(not yet implemented)" stubs, and
+            //    its Navmesh tab matched only EngineBacked and Fake providers — so on any host running
+            //    DotRecastNavmeshProvider it printed "No navmesh provider registered" while a navmesh
+            //    was loaded. ⚠ It STATED SOMETHING FALSE, which is worse than being absent.
 
             vis.SetPanelsWindowManaged();
 

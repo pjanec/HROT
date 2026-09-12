@@ -1,9 +1,207 @@
 <!--STATUS
 state: LIVE
-build-state: phase 0 is BUILT (§5, as-built §5.6–§5.9). Phase 1's SEAM is BUILT with two adopters
+build-state: phase 0 is BUILT (§5, as-built §5.6–§5.9).
+  ✅✅ NEW 2026-09-04: §4.1m — ROLE-COMPOSITION **B1 IS BUILT** ([SingleInstance] + the scheduler guard +
+  SystemComposition.DistinctByType + root ④ fixed). ⛔⛔ READ §4.1m BEFORE QUOTING §4.1j's B1 ROW: the
+  guard as DESIGNED (checking only the system handed to RegisterSystem) was measured BLIND to the very
+  defect it was written for — the editor registers ONE TogglableSimulationGroup and the duplicates live
+  inside it. The guard now descends into ISystemGroup members, and the same red-proof then fired on the
+  RUNNING editor, naming UnitHierarchySystem. build-state for role composition: BUILDING at B3 (B2 as-built:
+  §4.1n; part 1 the perception grid; part 2 §4.1o; part 3 §4.1p — ALL THREE BUILT. B3 is COMPLETE.
+  B4a (the seam) is BUILT — §4.1q; B4b step 1 is BUILT — §4.1r: SimHost takes the trajectory pool from
+  a provider, verified byte-identical on entity/component sets and behaviourally on a 3600-step run.
+  ✅ B4b step 2 (the CAPABILITY axis) is BUILT FOR SIMHOST — §4.1s: SimHostNodeBootstrapper:247 builds a
+  NodeCompositionPlan and :262 resolves it, and both boot hooks run off the resolved set.
+  ⚠⚠ CORRECTED 2026-09-05: this block previously said "no host resolves a NodeCompositionPlan yet" —
+  that was stale from the moment §4.1s shipped. Measured: SimHostNodeBootstrapper does.
+  ✅ B4b step 2 IS ALSO BUILT FOR IG — §4.1t (2026-09-05), verified live in §4.1u. The SECOND host is what
+  found the seam's hole: INodeCapability reached only 2 of the base's 3 composition steps, because SimHost
+  does not override GetAdditionalModules at all. A THIRD hook, ProvideModules(), now mirrors the
+  `additional-modules` step; IgCapabilities.Presentation carries IG's five modules under
+  CapabilityKeys.ImageGenerator (declared since B3, unreferenced until now).
+  ⇒ §4.1s's "INodeCapability gained a SECOND hook" row is SUPERSEDED — there are three.
+  ⛔ REMAINING IN B4b, measured 2026-09-05:
+  ✅ B4b step 3 IS BUILT — §4.1v (2026-09-05): BOTH SimHost and IG now resolve their capability set from
+  the DECLARED role, not a constant. The measurement the old comment asked for CONTRADICTED the assumption:
+  SimHost declared MuscleGround|Perception WITHOUT NavigationSolver while composing all three, so narrowing
+  would have silently dropped EngineBackedNavigationModule + EqsModule. The declaration was made true (one
+  SimHostApp.DefaultRole, replacing THREE copies) and PostInitialize is now guarded on the resolved set.
+  ⛔ REMAINING IN B4b, measured 2026-09-05:
+    (a) ✅ CGF IS ON THE CAPABILITY SEAM as of CE-200 (§4.1x) — all three CLUSTER hosts now resolve
+        their units from a NodeCompositionPlan. ⛔ CGF is deliberately NOT on SharedApplicationBootstrapper:
+        §4.1j marks node-bootstrap adoption "optional, LAST" because it is the only phase touching
+        orchestration/participant/time authority. The two axes are orthogonal and CGF is the case that
+        proves it. Still untouched: the EDITOR (neither axis) and STRIDE.
+        ⚠⚠ CORRECTED 2026-09-07 — "the EDITOR (neither axis)" is STALE, and was so from the moment
+        CE-203 landed on 2026-09-05: the editor IS on the BUILDER axis (§4.1y, E1+E2 BUILT, host (d)).
+        It is off the CAPABILITY axis ONLY — and there it has a private one-slot substitute,
+        EditorSubsystem.MuscleModuleFactory, WHICH HAS A PRODUCTION CALLER
+        (EditorStrideSubsystem.cs:942). ⇒ READ §4.1ac before quoting this line, or §4.1L's
+        "MuscleModuleFactory has no production setter" row; both are corrected there.
+        🔒 User ruling 2026-09-05: STRIDE IS LAST.
+        ⚠⚠ CORRECTED 2026-09-05, SAME DAY: this line used to add "and Stride needs Windows,
+        unverifiable from here." THAT WAS WRONG and it was never measured — it was inherited
+        from CLAUDE.md's note that Stride targets net8.0-windows. Measured: every Stride library,
+        game and TEST project COMPILES on Linux with -p:EnableWindowsTargeting=true (43 s warm,
+        `bash scripts/stride-check.sh`). What genuinely cannot happen here is RUNNING (the
+        Microsoft.WindowsDesktop.App runtime does not exist on Linux) and building the
+        HrotStrideApp.Windows launcher (Stride's asset compiler wants Direct3D11).
+        🔴 The cost of the wrong belief, measured: CE-203 E1 widened EditorSubsystem.TkbDatabase
+        to ITkbDatabase on the strength of a grep that said the only consumer assigned it into an
+        ITkbDatabase field. It did not — EditorStrideSubsystem.TkbDb was typed TkbDatabase, and
+        the Stride host was BROKEN from 8ad97c07f until CE-204 fixed it, while the whole solution
+        built and every gate stayed green. See §4.1z.
+    (a3) ⭐⭐⭐ STRIDE, 2026-09-05: the user named TWO required modes and retired a third.
+        Mode 1 (networkless dual-window editor) EXISTS today. Mode 2 (networked node replacing
+        SimHost beside CGF) DOES NOT — and StrideNodeBootstrapper is the machinery written for it,
+        which SUPERSEDES §4.1L's "undeclared dormancy" reading: it is built-but-unwired, not dead.
+        Self-contained mode (the STR-P0 scaffold: no network, no editor, Brain+Muscle fused) is
+        RETIRED by user ruling. Perception is DECLARED AND UNFILLED on Stride in both modes and is
+        a prerequisite for mode 2, where CGF no longer masks it.
+        ⛔⛔ THE OWNING DESIGN IS NOW docs/DESIGN_Stride_Node_Modes.md — §4.1aa is SUPERSEDED and must
+        not be quoted for the modes. It covers both modes, the shared composition, the two 2-D window
+        types, gizmos in 3-D, animation, the role vocabulary, scenario ownership and the tick contract,
+        and it folds in .dev/_DONE/stride-mock/DESIGN.md (the ~70%-still-true mode-2 node design that
+        had never been read here: time=always Slave, the registries, replay safety, the tick body).
+        Tasks: CE-211 (DR is role-independent — a PREREQUISITE of CE-207) → CE-205 (StrideCapabilities)
+        → CE-206 (perception) → CE-207 (mode 2) → CE-208 (mode 1 unified) → CE-209 (retire
+        self-contained, LAST), plus CE-212 (rename ImageGenerator→Map2D), CE-213 (the dead 2nd 2-D
+        window), CE-214 (mode 2's companion map), CE-215 (gizmo ingress + skip counters), CE-216
+        (the duplicate StrideAnimationBackend — INVESTIGATE, do not delete), and CE-210 (the LOS
+        redesign, §4.1ab — NOT a Stride-lane change: it touches Fdp.Toolkits Perception/Eqs which
+        every Muscle host shares).
+        ⛔ CORRECTION 2026-09-05, SAME DAY: "ImageGenerator is DROPPED from both Stride modes" is
+        WITHDRAWN. That flag is ALSO the only registration of DeadReckoningSyncSystem
+        (NedReplicationModule.cs:337-339), so dropping it would have silently removed remote-entity
+        smoothing from the one node that renders in 3-D. User ruling: DR/smoothing is not IG-specific,
+        every node owes it for entities whose simTransform it does not own. CE-211 fixes the gate;
+        only then is Stride's role safely Muscle|Perception|Nav (identical to SimHost's).
+        ⚠ ALSO CORRECTED 2026-09-05: the id-base concern applies ONLY to self-contained mode — mode 1 creates no allocator
+        and mode 2 gets the central DdsIdAllocator automatically. Two earlier framings of the id
+        question were wrong; scenario ids are remapped on load by StagingEntityExtractor Pass 1.
+        ⛔ The shape is forced by a measured constraint:
+        Hrot.NodeComposition is net8.0 and CANNOT reference net8.0-windows Stride, so Stride's
+        capability declarations live on the Stride side and are injected downward.
+    (a2) ⭐ THE EDITOR: phase N₀ landed (CE-201, the time role is a builder input) and the ADOPTION is
+        designed at §4.1y (CE-203), build-state READY-TO-BUILD, sliced E1/E2/E3. Read §4.1y before
+        touching EditorSubsystem.Initialize — it measures which eight builder steps the editor
+        duplicates and names the ONE trap (registering BaseModules would add a GeographicModule the
+        editor has never run, plus a second EntityLifecycleModule beside the creation pack's).
+        ⛔ Its verification needs POST /preview/enter FIRST: the editor's clock does not run in edit
+        mode, and CE-202's first "editor is deterministic" claim was measured on two worlds frozen at
+        t=0. With preview entered the measurement is real — 8/8 entities identical over 600 fixed steps.
+    (b) ✅✅ RESOLVED 2026-09-05 by CE-199 — SUPERSEDED, see §4.1w. This entry said Allocate was BLOCKED
+        (NodeBootValues.Set refuses writes outside a declaring step). That diagnosis was right, and the
+        fix was the one it named: the SHARED BASE now owns a `node-resources` step that declares the keys.
+        Because `provides` is recorded before BuildContext exists, the keys come from a role-only hook
+        (DeclaredResourceKeys) and the instances from a context-aware one (ResolveResources), checked
+        against each other. ⛔ The guard was NOT relaxed. Verified live on the 4-process cluster.
+    (c) ✅ What step 3 did fix: nothing disposed TrajectoryPoolProvider, despite its own remarks claiming
+        otherwise ⇒ every node leaked its TrajectoryPoolManager. Now freed via DisposeResources.
+  B5 (the missing implementations) has not started.
+  🔴🔴 NEW 2026-09-04: §4.1q CORRECTS §4.1j's B4 classDiagram — do NOT build from it as drawn. TWO of its
+  four new abstractions ALREADY EXIST: IResourceScope is NodeBootValues (and stronger — it refuses an
+  undeclared read), and "assert every declared Need was allocated" is NodeBootPlan.Run's provided-check,
+  red-proofed at §4.1P. A third, IImplementationFactory, is unnecessary: the variation point is the
+  capability INSTANCE, so a host supplies a different INodeCapability under the same Key. And
+  IResourceProvider's NAME is already taken by Fdp.Presentation/Vis2D — built as INodeResourceProvider.
+  Cause: §4.1j and §4.1P were written the same day and §4.1j did not know what §4.1P shipped.
+  ⚠ §4.1j's B4 ACCEPTANCE is also unexecutable as written — it cites "CE-141's recorded baseline" and
+  CE-141 is an OPEN question that records no baseline; B4b uses the live hill-attack-close comparison.
+  🔴🔴 NEW 2026-09-04: §4.1p CORRECTS §4.1i's TrajectoryPoolManager row too. Its ARGUMENT is confirmed
+  ("a NavigationSolver-only node has no pool") but it names the wrong module. EngineBackedNavigationModule
+  — the one in production — already REQUIRES its pool and its Dispose frees nothing ("owned by the host").
+  The hazard is the ?? default in NavigationSolverModule, the DORMANT class carrying Name "NavigationSolver"
+  with ZERO production constructions, which role selection is what switches on. And it is not a leak: the
+  solver writes routes into the pool by handle and the kinematics systems read them back, so two pools mean
+  ROUTES RESOLVE AND VEHICLES NEVER FOLLOW THEM, silently. Fixed: pool required; GroundKinematicsModule got
+  owned-vs-borrowed + Dispose; SimHostCoreLogicPack became IDisposable (nothing in production had EVER
+  disposed a TrajectoryPoolManager). CE-181: StrideKinematicsModule.cs:92 has the same default and was NOT
+  fixed — Stride cannot compile on Linux and B2 already owes one hand-verified Stride edit.
+  🔴🔴🔴 NEW 2026-09-04: §4.1o CORRECTS §4.1i's EQS ROW — do NOT quote it. EqsModule allocates ZERO
+  persistent memory, so it is NOT fused and B3's "provider out, capability left" did not apply. The real
+  owner is the STATIC NavigationSolverComponentRegistry.RegisterAll (four Allocator.Persistent arrays), and
+  measuring it found a LIVE defect: SetSingleton is an unconditional overwrite, and BOTH Hrot.Editor
+  (EditorSubsystem.cs:970-971, :1533-1534) and Stride (EditorStrideSubsystem.cs:539-540) call the registry
+  TWICE on one world — orphaning all four arrays each time. CE-165's sibling on the memory axis, invisible to
+  [SingleInstance] because no SYSTEM is duplicated. FIXED by guarding the four allocations; DisposeAll added
+  as the symmetric free. ⚠ DisposeAll has NO caller — no host has a teardown hook — which is CE-178, left to
+  B4 on purpose. §4.1i's GroundKinematicsModule and CognitiveSpatialModule rows were re-checked and STAND.
+  Phase 1's SEAM is BUILT with two adopters
   (§5b, as-built §5b.4); its remaining adoptions are listed at the end of §5b.4. Phases 2+ get their own
   inventory + UML per batch, appended here as they are designed.
-updated: 2026-08-27
+  ⭐⭐ NEW 2026-09-03: §4.1b (CE-164) — IG built the shared slave orchestration stack via HrotNodeBuilder
+  Step 8 and then DISCARDED it, hand-building a second bus + a bare ingress-only translator and ticking the
+  halves crosswise, so its TransitionStateIntent was drained by nothing. ✅ FIXED — as-built + live evidence
+  at §4.1c: IG now originates cluster-wide transitions, and SharedApplicationBootstrapper THROWS on a slave
+  built off context.EventBus. It also SUPERSEDES DESIGN_Mcp_Diagnostics_Federation.md §1d's lean.
+  ⭐⭐ NEW 2026-09-03: §4.1d MEASURES the other abstract hook, RegisterSpawningPipeline. EntityCreationPack
+  is already built by FIVE hosts, so this is argument DRIFT, not a bypass: four rows to unify (Elm lookup,
+  the network adapters, RequestEgress, SpawnSystem scheduling), three genuinely per-role. The lean is that
+  the BASE composes the pack and the hook keeps only node domain modules. NOT built. A suspected
+  GenesisMaterializationSystem gap on CGF was tested live with hill-attack and did NOT reproduce; it is
+  recorded there as an OPEN QUESTION, not a hazard.
+  ⛔⛔ NEW 2026-09-03: §4.1e carries TWO USER CORRECTIONS to §4.1d and SUPERSEDES its ExtraTranslators
+  row (which said 'keep per-host' -- WRONG: the TKB is by design the same on all nodes, and the
+  translator is already an inert no-op where the components are unregistered, so it belongs in
+  TkbTranslatorSet.Base()). And module selection must be by ROLE, not per host: NodeRole's own doc
+  already specifies the per-role module table and RegisterSpawningPipeline ignores it. NOT built.
+  ⭐⭐⭐ NEW 2026-09-03: §4.1f IS step 0 -- the class -> role-concept mapping, measured. Headline: the role
+  bundles ALREADY EXIST as CgfLogicPack (Brain) and SimHostCoreLogicPack (MuscleGround), named after
+  hosts and selected by none. The build is mostly rename-and-move into four tiers (Always / Role /
+  Implementation / creation). THREE rows need a USER RULING before any code moves -- the enum's table
+  and the packs disagree on Combat and ActionDispatch; two systems sit in BOTH packs and would
+  double-register on a Brain|MuscleGround node; and PhysicsToolkitModule fits no role, so an Always
+  tier is required.
+  ⭐⭐⭐ NEW 2026-09-03: §4.1h CLOSES the role list and SUPERSEDES §4.1f's four-tier sketch. Four ORTHOGONAL
+  axes: RESOURCES (one per world, memory-owning -- PhysicsToolkitModule/RaycastBatchData, which CGF and
+  SimHost each hand-allocate for different reasons) / CAPABILITIES (role system-sets, unioned) /
+  IMPLEMENTATIONS (executor sets, engine-vs-fakes, SimHost-vs-Stride) / and AUTHORITY-SCOPED PROTOCOL,
+  which is listed only to be EXCLUDED. It also RESOLVES §4.1f discrepancy 1 by measurement: the enum is
+  right on both rows and the packs drifted.
+  ⭐⭐⭐ NEW 2026-09-03: §4.1i is the RESOURCE-DECLARATION pass, and it exposes the blocker: FOUR modules
+  fuse capability and resource in one class (EqsModule, CognitiveSpatialModule,
+  AutonomousPerceptionModule, GroundKinematicsModule), so selecting them by role selects a persistent
+  allocation. PhysicsToolkitModule is the only clean provider and is the template. Proof the axis is
+  required: EngineBackedNavigationModule (NavigationSolver) is handed TrajectoryPoolManager, owned by
+  GroundKinematicsModule (MuscleGround) -- so a NavigationSolver-only node has no pool. The first build
+  item is the SPLIT, not the selection mechanism.
+  ✅✅ NEW 2026-09-03: §4.1j FINISHES this design (user: "no implementation before the design is clear
+  and written"). Both open measurements are closed -- the double tick is CORRUPTING (UnitHierarchySystem
+  appends to a roster unguarded, inflating Count and falsely rejecting at Capacity), and the four fused
+  modules ARE cheaply separable (their systems take the resource by ctor, so no system is rewritten).
+  Fifth finding: AutonomousPerceptionModule and the NavigationSolver module already exist and
+  BS-1-DESIGN:357 says they are "already correctly designed... no changes needed" -- dormant, not wrong.
+  §4.1j carries the classDiagram + sequenceDiagram and the B1..B5 build sequence with acceptance.
+  build-state for the ROLE COMPOSITION work: READY-TO-BUILD at B1.
+  🔴 NEW 2026-09-03: §4.1k CORRECTS §4.1f and §4.1j on a user challenge. StrideNodeBootstrapper DECLARES
+  Role = MuscleGround|Perception|NavigationSolver|ImageGenerator and takes four nullable per-role module
+  slots -- so the roles are DECLARED, not undeployed; and the only two constructions in the repo are
+  tests passing all four null, so every slot is empty. Stride's ctor is axis 3 hand-rolled. It is also
+  the first node selecting two roles whose module sets OVERLAP, which is why B1 must precede any filling
+  of those slots.
+  🔴🔴🔴 NEW 2026-09-03: §4.1L (CE-165) SUPERSEDES §4.1k's headline on a second user challenge, and it is
+  the most consequential finding of this design. (a) StrideNodeBootstrapper is DORMANT -- AttachBootstrapper
+  has no caller -- while the LIVE Stride node is EditorStrideSubsystem, whose role slots are FULL (Brain via
+  CgfLogicPack, MuscleGround via StrideMuscleModuleSet = SimHostCoreLogicPack with GroundKinematicsModule
+  swapped for StrideKinematicsModule). So axis 3 is not a new idea: it is BUILT and RUNNING, and the Stride
+  header already names the remaining seam (STR-P1-T1). (b) FOUR composition roots fuse Brain+Muscle; both
+  packs carry UnitHierarchySystem AND EqsResultUpdateSystem; THREE roots dedupe by type and the RUNNING
+  Hrot.Editor (EditorSubsystem) does NOT -- SpliceIntoSimulation and TogglableSimulationGroup both pass the
+  concatenated list through untouched. That is a LIVE production defect: one CmdAssignSubordinate yields two
+  roster entries. The integration harness that mirrors the editor HAS the guard, which is why no test sees
+  it (rail-blindness, 4th instance). => B1 ([SingleInstance]) changes from PROPHYLACTIC to CORRECTIVE and
+  needs a reproducing rail with an inverse-edit red-proof before the fix.
+  ⚠ §4.1k's "every slot is empty" must NOT be quoted; §4.1k's corrections 1-3 and its B1/B4/B5 consequences
+  still stand.
+  ⭐ NEW 2026-09-03: phase N₀ (§4.0) is READY-TO-BUILD — the time role becomes a HrotNodeBuilder input,
+  which is the measured prerequisite for the Editor adopting the shared node bootstrap (§4.1). It is
+  pulled FORWARD out of phase N on a user ruling that the Editor is in scope for unification.
+updated: 2026-09-11
+known-rot: §4.1's "Still untouched: the EDITOR (neither axis)" and §4.1L's "MuscleModuleFactory has no
+  production setter" are BOTH corrected in §4.1ac (2026-09-07). The editor is on the BUILDER axis
+  (CE-203) and off the CAPABILITY axis only; MuscleModuleFactory is assigned in production at
+  EditorStrideSubsystem.cs:942. Read §4.1ac before quoting either.
 current-answer: the whole file. This is the STANDING design for the composition-unification programme —
   the approach, the constraints and the phase plan. §5 = phase 0 (BUILT; §5.6-§5.9 are its as-built),
   §5b = phase 1 (seam BUILT; ⚠ §5b.4 records THREE argued deviations — read it before quoting §5b.2's
@@ -109,11 +307,2400 @@ measured defects. ⇒ ⭐ **bundles; a host composes a LIST, and a smaller list 
 | ⭐⭐⭐ **0** | **the UI parity rail** *(§5)* | 🔒 user: *"for a refactor like this that rail is absolute must"*. It protects every later phase |
 | **1** | the **bundle seam** + **menus/toolbar** across the windowed hosts | ⭐ `CgfEditorShellToolbar` already IS the pattern ⇒ proves the seam cheaply before betting map/gizmos on it |
 | **2+** | **one bundle per batch**, extracted **from the editor as specimen**: scenario panels → gizmos → map → AI shell → time transport | ⭐ each collapses a measured drift site permanently |
-| ⚠ **N** *(optional, LAST)* | node-bootstrap adoption — **CGF first** *(it already uses `HrotNodeBuilder`/`HrotNodeContext`; the editor uses neither)* | ⛔ **deliberately last:** the only phase touching orchestration/participant/time authority, i.e. what §3.1 says not to move blindly. 📐 **Not one** of `CE-046`…`CE-064` was a node-bootstrap gap |
+| ⭐⭐ **N₀** *(NEW `2026-09-03`, pulled FORWARD — small, and it is a PREREQUISITE)* | **make the TIME ROLE a `HrotNodeBuilder` input** ⇒ ⭐ the Editor becomes *able* to adopt the builder | 🔒 **User, `2026-09-03`:** *"add the time role change to the plan to unblock editor (because i need the editor to be unified too of course)."* ⛔ **Not optional and not last:** §4.1 measures that `Build()` hardwires `TimeRole.Slave` while `EditorSubsystem:1013` builds a `MasterSyncController` ⇒ **every later Editor-adoption item is blocked on this one**, and it is the only phase-N item that is small |
+| ⚠ **N** *(optional, LAST)* | node-bootstrap adoption — **CGF first** *(it already uses `HrotNodeBuilder`/`HrotNodeContext`; the editor uses neither)*, ⭐ **then the Editor, once `N₀` has landed** | ⛔ **deliberately last:** the only phase touching orchestration/participant/time authority, i.e. what §3.1 says not to move blindly. 📐 **Not one** of `CE-046`…`CE-064` was a node-bootstrap gap |
+
+### 4.0 ⭐⭐⭐ PHASE N₀ — **the time role becomes an input.** `build-state: READY-TO-BUILD`
+
+> 🔒 **The user's reason, `2026-09-03`:** the Editor is **in scope for unification**, not an accepted
+> exception. ⇒ ⛔ *"the Editor hand-rolls its node context"* may not stand as a permanent note; the thing
+> that blocks fixing it gets scheduled.
+
+#### ⭐ INVENTORY *(`2026-09-03`)*
+
+```
+grep -rn "new HrotNodeBuilder" --include=*.cs Hrot Stride | grep -v obj/ | grep -v Tests   → 5 sites
+grep -rn "TimeControllerFactory.Create" --include=*.cs Hrot FDP | grep -v obj/             → the role owners
+```
+
+| | measured |
+|---|---|
+| ⭐ `HrotNodeBuilder.Build()` | one `TimeControllerConfig` with **`Role = TimeRole.Slave`** hardwired, `Mode = TimeMode.Continuous`, `SyncConfig = TimeConfig.Default` |
+| ⭐ the 5 builder sites | **all five are genuinely slaves** ⇒ ⛔ **nothing changes for them**; the default preserves them exactly |
+| 🔴 the Editor | `TimeControllerFactory.Create(_orchestrationBus, timeConfig)` cast to **`MasterSyncController`** *(`EditorSubsystem:1013`)* — the one master among the windowed hosts |
+
+#### ⭐ THE CHANGE
+
+| # | item | note |
+|---|---|---|
+| **①** | ⭐⭐ `HrotNodeBuilder.WithTimeRole(TimeRole role)` — ⭐ **defaulted to `TimeRole.Slave`** | ⛔ **five existing sites untouched, byte for byte.** ⚠ The default is safe here for the reason the silent-default rule demands: *no caller HOLDS a different value* — all five ARE slaves |
+| **②** | expose the built controller on `HrotNodeContext` **typed as the interface**, not as `MasterSyncController` | ⛔ a `Master`-typed property would push the role back into the builder's shape |
+| **③** | ⭐ **do NOT move Editor code in this phase** | 🔒 §3.1: this phase touches **time authority**, the axis the ruling says not to move blindly. ⭐ `N₀` makes adoption *possible*; the adoption is phase `N` and gets its own inventory |
+| **④** | ⭐ a rail: a builder with no `WithTimeRole` yields a **slave** controller, and one with `TimeRole.Master` yields a **master** | ⛔ without the first half the default is unproven and the five sites are only *believed* unchanged |
+
+⚠ **What `N₀` does NOT claim.** ⭐ It removes the *mechanical* blocker only. 📐 §4.1 records a second Editor
+duplicate — its **private `SequentialIdAllocator`** *(`EditorSubsystem:599`)*, a re-implementation of what
+the builder selects through `INetworkFactory` — ⇒ that dies **when the Editor adopts the builder**, in phase
+`N`, not here. ⛔ Do not fold it into `N₀`: it is a behaviour change *(which allocator runs)*, and `N₀` is
+deliberately behaviour-free.
+
+### 4.1 ⭐⭐ PHASE N, MEASURED *(`2026-09-03` — the layer cake, and the two hosts outside it)*
+
+⭐ The node half is **three** layers, not one, and they have different adoption. ⛔ *"CGF and the Editor
+bypass the bootstrapper"* collapses them and is why phase N has looked like one job:
+
+| layer | what it settles | adoption, measured |
+|---|---|---|
+| ⭐⭐⭐ **`HrotNodeBuilder.Build()`** | world · `EventAccumulator` + `ModuleHostKernel` · bus + `OrchestrationEventRegistry.RegisterAll` · time controller · DDS participant · `NetworkEntityMap` · id allocator | ✅ **4 production sites**: `IgNodeBootstrapper:148` · `StrideNodeBootstrapper:216` · `SimHostNodeBootstrapper:161` · `CgfSubsystem:534`. ⚠ **was 5 — `EyesAndMuscleSubsystem` RETIRED `2026-09-05` (`CE-218`)**. ⛔ *(the Editor was not one either; it became one at `CE-203`)* |
+| ⭐⭐ **`SharedApplicationBootstrapper`** *(the 7-phase ORDER)* | phases 1–7, of which **6a base modules · 6a+ `NedReplicationModule` · 6c time-sync · 7 `Initialize`** are base-class-only | ⚠ **3 subclasses**: SimHost *(387 ln)* · IG *(471)* · Stride *(376)*, over a **279-line** base. ⛔ CGF and the Editor re-run the order inline |
+| ⭐ **the packs** *(what the hooks build)* | `EntityCreationPack` · `MapInteractionPack` · the 9 `*TranslatorPack`s | ✅ shared and adopted independently of the two layers above — 📌 **which is why CGF gets the packs while bypassing the bootstrapper** |
+
+#### 🔴 THE EDITOR IS THE OUTLIER, and it has a MECHANICAL reason — ⛔ not neglect
+
+📐 `EditorSubsystem` duplicates **every step** of `HrotNodeBuilder.Build()` by hand: `new EntityRepository()`
+*(`:957`)* · `new FdpEventBus()` + `OrchestrationEventRegistry.RegisterAll` *(`:958-959`)* ·
+`new ModuleHostKernel(...)` *(`:962`)* · `TimeControllerFactory.Create` *(`:1013`)* · `new NetworkEntityMap()`
+*(`:1021`)* — ⛔ **including a PRIVATE `SequentialIdAllocator` class of its own** *(`:599`)*, a second
+implementation of something the builder already selects through `INetworkFactory`.
+
+⛔⛔ **But it cannot simply adopt the builder today:** 📐 `HrotNodeBuilder.Build()` **hardwires
+`Role = TimeRole.Slave`**, and the Editor creates a **`MasterSyncController`** *(`:1013`)* — it is the time
+MASTER. ⇒ ⭐⭐⭐ **the first item of phase N is making the time role a builder input**, not moving Editor code.
+⚠ **Until that exists, "the Editor should adopt `HrotNodeBuilder`" is not actionable** — and an earlier
+reading of §4 that treated the Editor as merely lagging was wrong about the cause.
+
+### 4.1b 🔴🔴 `CE-164` — **IG BUILDS THE SHARED SLAVE STACK, THEN DISCARDS IT AND HAND-BUILDS A SECOND ONE** *(measured `2026-09-03`; NOT fixed)*
+
+> 🔒 **User, `2026-09-03`:** *"the `NedSlaveOrchestrationTranslator` missing on IG shows we are missing
+> shared code for slave node composition/bootstrap. all 3 ECS nodes should call it to register this (and
+> likely many other) translators to be shared by any networked slave node."*
+>
+> ⭐⭐ **The symptom is real and the direction is right. ⛔ The premise is not: the shared code EXISTS, IG
+> DOES call it, and then throws the result away.** ⚠ That distinction changes the fix — see the lean.
+
+#### 📐 The symptom, measured live on the four-process cluster
+
+| | result |
+|---|---|
+| `POST /scenario/load/live` on **IG** | ✅ `ok, via: "cluster-intent"` — ⛔ **and the cluster never moves** |
+| the **identical** call on **CGF** | ✅ moves all three nodes to the target |
+| ⇒ | ⛔ not an illegal transition, not a state problem — **the ORIGIN node** |
+
+#### ⭐⭐⭐ The mechanism — **IG runs TWO orchestration stacks and ticks the halves crosswise**
+
+📐 **`HrotNodeBuilder.Build()` Step 8 already builds the complete stack** — `new ClusterSlave(...)` **and**
+`nodeFactory.CreateSlaveOrchestratorTranslators(eventBus, nodeId)`, i.e. a `NedSlaveOrchestrationTranslator`
+= `NodeOpSlaveTranslator` *(ingress + heartbeat)* **+** `ClusterOpEgressTranslator` *(which drains
+`TransitionStateIntent` to DDS)* — and returns both on `HrotNodeContext`. ⭐ **`IgNodeBootstrapper:151`
+calls that builder.** ⇒ ⛔ **the egress translator is BUILT on IG.**
+
+⛔⛔ **Then `IgNodeBootstrapper.BuildOrchestration` builds a second stack on a NEW bus:**
+
+| | **stack ①** — the builder's *(shared)* | **stack ②** — IG's own *(hand-built)* |
+|---|---|---|
+| bus | `HrotNodeContext.EventBus` | `new FdpEventBus()` → `IgNodeBootstrapper.OrchestrationBus` |
+| slave translator | ✅ **complete** — ingress + **egress** | ⛔ **bare `NodeOpSlaveTranslator`** — ingress + heartbeat only |
+| **`Tick()`ed?** | 🔴 **NEVER** — `context.SlaveTranslator` appears nowhere in `IgApplication` | ✅ `IgApplication:980` |
+| `SwapBuffers()`? | ✅ `IgApplication:1041` | ✅ `IgApplication:979` |
+| the live `ClusterSlave` | orphaned | ✅ `_context.ClusterSlave` *(`IgApplication:932`)*, ticked at `:981` |
+| ⭐⭐⭐ **what the debug API publishes onto** | 🔴 **THIS one** — `OrchestrationBus => _context?.EventBus` *(`IgApplication:1708`)* | — |
+
+⇒ 🔴 **`requestTransition` publishes onto stack ①'s bus, whose complete translator is never ticked.** The
+intent is written, swapped, and read by nothing. ⛔ **The capability was built and thrown away — not
+missing.**
+
+#### ⭐⭐ IG IS THE ONLY OUTLIER — every other host ticks the shared translator
+
+📐 `grep` for `SlaveTranslator?.Tick()`, production only:
+
+| host | ticks the **builder's** complete translator | passes `context.EventBus` to its orchestration |
+|---|---|---|
+| **SimHost** | ✅ `SimHostApp:560` *(from `_bootstrapper.SlaveTranslator`, `:504`)* | ✅ |
+| **Stride** | ✅ `StrideNodeBootstrapper:174` | ✅ `eventBus: context.EventBus` |
+| **CGF** | ✅ `CgfSubsystem:1294` | ✅ |
+| ~~**EyesAndMuscle**~~ | ⛔ **RETIRED `2026-09-05` — `CE-218`** *(the pre-Stride tracer bullet)* | — |
+| 🔴 **IG** | ⛔ **no** — ticks its own bare one instead | ⛔ **no** — makes a second bus |
+
+#### ⛔ WHAT LETS THIS HAPPEN — the seam, not the node
+
+⭐⭐⭐ **`SharedApplicationBootstrapper.BuildOrchestration` is `protected abstract`** *(one of **seven**
+abstract hooks)*. ⇒ the 7-phase base mandates *that* each node wire orchestration and shares **none of the
+doing** — nothing structurally binds a subclass to `context.EventBus` or to `context.SlaveTranslator`.
+⭐ Three subclasses write it three ways; two agree by convention and one drifted. ⚠ **That is the user's
+point, and it stands** — but the missing thing is a **BINDING**, not a registrar that does not exist.
+
+#### ⭐⭐⭐ THE LEAN — **① make IG use the stack it already built · ② make the seam stop permitting the split**
+
+| # | | why |
+|---|---|---|
+| **①** | ⭐⭐⭐ **`IgNodeBootstrapper.BuildOrchestration` stops creating `new FdpEventBus()` and a bare `NodeOpSlaveTranslator`** — it builds its `ClusterSlave` on `context.EventBus` and lets `context.SlaveTranslator` be the one thing ticked, exactly as Stride does *(Stride's whole override delegates to `NodeBootstrapper.BuildOrchestration(..., eventBus: context.EventBus)`)*. ⭐ `IgApplication` then ticks `_context.SlaveTranslator` and drops `_igSlaveTranslator`/`_igOrchestrationBus` | ⛔ **deletes a duplicate stack; adds no mechanism.** ⭐ Stride is the working precedent and it is the closest sibling |
+| **②** | ⭐⭐ **the base stops permitting it** — the cheap form is a **post-condition assertion in `SharedApplicationBootstrapper` after `BuildOrchestration`**: the returned `ClusterSlave` must sit on `context.EventBus`, and `context.SlaveTranslator` must be non-null when a participant exists. ⚠ The richer form *(a base `BuildOrchestration` with a per-node handler hook)* is a bigger refactor and should follow the assertion, not precede it | 🔒 *"every ECS node must use the same shared code"* — ⭐ but a convention nothing checks is a convention that decays, which is why ① alone is not enough |
+| ⛔ **what I would NOT do** | write a **new** `RegisterSlaveNodeTranslators(...)` shared registrar and call it from three bootstrappers | ⛔ **that is a FOURTH mechanism** for something `HrotNodeBuilder` Step 8 + `INetworkFactory.CreateSlaveOrchestratorTranslators` already do for five hosts. 📌 The seam law: *"we need a shared X"* here means **X exists and is under-adopted** |
+
+⚠ **On *"(and likely many other) translators"* — measured, and the answer is NO for the other hook.**
+`RegisterNetworkTranslators` is the other abstract hook, and its three implementations register genuinely
+**different, role-specific** sets: SimHost `CreateSimHost{Auxiliary,Perception,Pathfinding}Translators` ·
+Stride `CreateSimHostAuxiliaryTranslators` · IG `CreateIgEgressTranslators`. ⇒ ⭐ **that divergence is
+intended** *(an IG does not run pathfinding)*, and collapsing it would be the mirror error. ⛔ **The
+orchestration/control-plane stack is the one that must be identical, because every networked slave speaks
+the same control protocol** — and it is the one that drifted.
+
+⚠ **What would change the lean:** if IG's second bus exists for a measured reason — e.g. its render tick
+runs at a different rate and must not share buffer swaps with the control plane — then ① is wrong and the
+fix is instead to tick `context.SlaveTranslator` **on IG's existing bus pairing**. ⛔ **Searched `docs/` and
+`.dev/` for a record of why IG builds its own orchestration bus — none found**; `IgNodeBootstrapper:229`
+says only *"CMC-S016: each slave subsystem has its own orchestration bus + translator (Option C)"*, which
+argues for **per-subsystem** buses *(true of every host — each has its own)* and **not** for two buses
+inside one subsystem. ⇒ **that comment does not justify the split, and the split may simply predate the
+builder growing Step 8.** ⭐ Worth one `git log -S` on `HrotNodeBuilder` Step 8 before building.
+
+⚠ **Blast radius, stated honestly:** this changes which bus IG's control plane lives on, so it touches
+heartbeats, `NodeOpStatus` ACKs, and the `ClusterSlave` `CE-163` now reads. ⛔ **Not a read-only change**
+— it needs the four-process cluster re-run *(load/live from the IG port must move all three nodes, and IG
+must still ACK cluster ops)*, not just unit rails.
+
+📄 `CE-164` was first written up in `DESIGN_Mcp_Diagnostics_Federation.md` §1d; that section's *"IG
+hand-constructs half of it"* lean is **SUPERSEDED** by this section and points here.
+
+### 4.1c ✅ AS BUILT — `CE-164` *(obligation ⑤; `2026-09-03`)*
+
+🔒 **User ruling that authorised it:** *"IG is no different from cluster mgmt point of view. unification in
+as many places as possible for keeping the role is our goal."* ⇒ ⭐ the split was not a role difference and
+is gone.
+
+| # | as built | ⚠ deviation from the lean |
+|---|---|---|
+| **①** | `IgNodeBootstrapper.BuildOrchestration` takes `context.EventBus` instead of `new FdpEventBus()`; the hand-built `NodeOpSlaveTranslator` is **deleted**; the `OrchestrationBus` and `IgSlaveTranslator` properties are **deleted**. `IgApplication` holds `_slaveTranslator = _context.SlaveTranslator` *(the shape `SimHostApp:504` uses)* and ticks it | ⭐ **none** |
+| **①b** | ⚠ **the second `SwapBuffers()` had to go too** — the lean did not name it. IG swapped its own bus at the TOP of `Update()` and `context.EventBus` at the END. With one bus that is a **double swap per frame**, and `FdpEventBus` is double-buffered ⇒ everything published between the two swaps would be discarded. ⭐ The final order is verbatim `SimHostApp:560-561`: **tick translator → tick slave … → ONE swap at the end** | ⭐ **an addition the lean missed**, and it would have been a silent data-loss bug |
+| **②** | `ClusterSlave.PublishesOn(FdpEventBus?)` + a **throwing post-condition** in `SharedApplicationBootstrapper` right after Phase 5: the returned slave must publish on `context.EventBus`, and a node with a participant **and a network factory** must have a `SlaveTranslator` | ⚠ **the second half was WEAKENED, and the measurement forced it** — see below |
+| ⛔ **not built, as promised** | a new `RegisterSlaveNodeTranslators` shared registrar | ⭐ still the right call: `HrotNodeBuilder` Step 8 already does it for five hosts |
+
+#### ⛔⛔ THE ASSERTION HAD TO BE EXACTLY AS STRONG AS THE BUILDER — **not stronger**
+
+📌 First cut asserted *"participant ⇒ translator"*. 📐 **Measured: it threw on 55 `Hrot.IG.Tests` and 5
+`Hrot.SimHost.Tests` cases**, every one of them `InitializeEmbedded(headless: true)` with **no network
+factory** — a legitimate shape that has a participant and correctly has no translator, because
+`HrotNodeBuilder` Step 8's own condition is `participant != null && _networkFactory != null`.
+⇒ ⭐⭐⭐ **an invariant must mirror the code that establishes it.** ⛔ An assertion that fires on a valid
+configuration gets deleted within a batch — `CLAUDE.md` records exactly that happening to a previous
+silent-default sweep. ⭐ The term is now `networkFactory != null`, and the 60 reds are gone.
+
+#### ✅ LIVE EVIDENCE — the four-process cluster, driven **from the IG port**
+
+| | before `CE-164` | after |
+|---|---|---|
+| ⭐⭐⭐ `POST /scenario/load/live` on **IG** `8103` | 🔴 `ok, via:"cluster-intent"` — **and nothing moved** | ✅ `ok, awaited:true, entityCount:2, sawWorldChange:true` in **1.6 s**; CGF · SimHost · IG all → **`OperatingLive`** |
+| ⭐⭐ `POST /scenario/load/edit` on **IG** | 🔴 **timed out** — 458 polls, 30 s, state never left `OperatingLive` | ✅ all three → **`OperatingEdit`**, entity counts moved |
+| `load/live` from **CGF** *(regression check)* | ✅ | ✅ unchanged |
+| ⭐ IG still **ACKs** cluster ops | — | ✅ implied and required: `awaited:true` only returns once the master reaches the target, which needs every node's ACK |
+| `CE-144` destroy loop *(regression check)* | ✅ | ✅ `DELETE 1000` on CGF → `[1000,1001]`→`[1001]` on CGF+SimHost, `[0,1000,1001]`→`[0,1001]` on IG |
+| unhandled exceptions in any node log | — | ✅ **0**, and the new post-condition did not fire |
+
+⇒ ⭐⭐ **IG is now a first-class cluster-management peer**: it can *originate* a cluster-wide transition, not
+only receive one. 📌 That capability was present in the code the whole time and unreachable.
+
+⭐ **Gated** by `Hrot.SimHost.Tests/TheDebugProvidersDoNotUnderReportTests.cs` —
+`AnEcsNodeDoesNotBuildASecondOrchestrationBus` *(theory over the three ECS bootstrappers)* +
+`TheSharedBootstrapperAssertsTheOneBusInvariant` *(the runtime post-condition still exists)*. Both
+inverse-edit red-proofs redden exactly one row. ⚠ The source rail is the **fast** half; the runtime
+post-condition is the durable one — it binds nodes that do not exist yet.
+
+### 4.1d 📐 `RegisterSpawningPipeline` — **MEASURED** *(`2026-09-03`; the verdict, per divergence)*
+
+> 🔒 **User:** *"can't see a reason why spawning pipeline would not be same. unified entity creation is our
+> desire."*
+>
+> ⭐⭐ **The core IS already shared:** **five** hosts build `EntityCreationPack` — CGF `:656` · SimHost
+> `:296` · IG `:361` · Stride `:337` · **the Editor** `EditorSubsystem:1250`. ⛔ So this is not the
+> `CE-164` shape *(a host bypassing the shared thing)*. ⚠ **It is drift in the ARGUMENTS**, plus one
+> genuinely separate concern that shares the hook.
+
+#### 📐 THE INVENTORY — four ECS hosts' `EntityCreationContext`, field by field
+
+| | CGF | SimHost | IG | Stride | verdict |
+|---|---|---|---|---|---|
+| `World`·`EntityMap`·`TkbDb`·`IdAllocator`·`NodeId` | ✅ | ✅ | ✅ | ✅ | ⭐ already uniform |
+| `Elm` lookup | `.First(m is ELM)` | **`BaseModules[0]`** | `.First(m is ELM)` | **`BaseModules[0]`** | 🔴 **UNIFY** — two implementations of one lookup, and `[0]` is **positional**: it is silently wrong the day `BaseModules` gains an entry before the ELM. ⭐ The pack should resolve it; no host should be asked |
+| `NetworkRequestSource` · `AckSink` · `JsonAttributeCompiler` · `OwnershipStrategy` | ✅ | ⛔ | ✅ | ⛔ | ⭐⭐ **UNIFY — pass everywhere.** 📐 `INetworkFactory.CreateCgfEntityLifecycleAdapters()` returns **`null`** on `OfflineNetworkFactory` and `BdcNetworkFactory`, so passing it on a host that has no adapters is a **no-op**. ⇒ the current split is a per-host decision nobody recorded, not a capability boundary |
+| `RequestEgress` | ⛔ | ⛔ | ✅ | ⛔ | ⭐ same argument, same fix — and `DESIGN_Entity_Authoring_Surface.md`'s `RequestEntityCreation` makes **every map-enabled host** an originator, so IG-only is already the stale shape |
+| `ExtraTranslators` | `AiDiagnostics` | `AiDiagnostics` | ⛔ | ⛔ | 🔴 **UNIFY — see §4.1e. ⛔ THIS ROW'S ORIGINAL VERDICT WAS WRONG** *(it said "KEEP per-host")* |
+| `IsBroadcastArbiter` | **true** | false | false | false | ⛔ **KEEP** — the genuine role flag *(CGF is the default entity-creation request processor; `EditorSubsystem:1250` is `true` for the standalone single-node reason)* |
+| `SpawnSystem` scheduling | — | `new SimHostModule(spawn)` | `RegisterGlobalSystem` | `new SimHostModule(spawn)` | ⭐ **UNIFY, very likely to `RegisterGlobalSystem`** — 📐 `NetworkSpawningSystem` is `[UpdateInPhase(SystemPhase.BeforeSync)]`, both paths read that attribute, and `SimHostModule.RegisterSystems` is one line: `registry.RegisterSystem(_spawnSystem)`. ⚠ **Verify ordering WITHIN the phase before collapsing** — module- vs globally-registered systems may not interleave identically, and that is unmeasured |
+| `LocalRequests` captured | ✅ | ⛔ | ✅ | ⛔ | ⚠ follows from who originates requests; folds into the `RequestEgress` row |
+| `Unserviceable` log level | Warn | Warn | **Info** | Warn | ⭐ trivial; unify to Warn |
+
+#### ⚠⚠ ONE SUSPECTED GAP — **measured, and it did NOT reproduce**
+
+`GenesisMaterializationSystem` *(`[UpdateInPhase(Input)]`, resolves the six `Initial*Intent` DTO managed
+components into structural components)* is registered by **SimHost · Stride · EditorStride** and **not by
+CGF or IG**. 🔴 That looked load-bearing, because `CgfScenarioLoadHandler.DrainDeferredAcks` gates
+`PrepareState(OperatingLive)` on those six intents being **gone**, and its own comment names
+*"Condition 3: **GenesisMaterializationSystem** has resolved … and removed the transient Intent DTO managed
+components."* ⇒ a CGF that never runs it would never ACK `OperatingLive` and the cluster load would hang.
+
+📐 **Tested live on the four-process cluster with `hill-attack`** — chosen because it carries **4
+`UnitSubordinate`/`CommanderGuid`** relations, and `UnitSubordinateTranslator.Inject` **always** attaches
+`InitialUnitSubordinateIntent` *(there is no immediate arm — measured)*. ⇒ **it did not hang**: `ok,
+awaited:true, entityCount:8` in **1.5 s**, all three nodes `OperatingLive`, and CGF's entities carry the
+**resolved `UnitSubordinate`** with **no `Initial*Intent` at all**.
+
+⛔⛔ **So: not a reproduced defect, and it is NOT being filed as one.** ⚠ **What is NOT pinned** is *why* —
+CGF's live entities arrive through `StagingEntityExtractor` → `CreateEntityRequest` → the creation pipeline
+rather than through the scenario translators writing directly onto its live world, which would explain it,
+but that chain was **not traced end to end**. ⇒ ⭐ recorded as an **open question**, not a hazard:
+*"which code path clears the genesis intents on CGF, and is `DrainDeferredAcks` Condition 3 therefore
+vacuous there?"* ⛔ Do not act on either answer without tracing it.
+
+#### ⭐⭐⭐ THE LEAN — **the hook mixes TWO concerns, and that is why it drifted**
+
+📐 Read the three bodies and the split is stark. **SimHost** registers `PhysicsToolkitModule` ·
+`CoreLogicPack` · `EqsModule` · `EngineBackedNavigationModule` · `AreaQueryResultMaterializationSystem` ·
+`CognitiveSpatialModule`; **IG** registers `IgUnitHierarchyModule`. ⭐ Those are **node domain modules** and
+they are *correctly* different. ⛔ They sit in the **same method** as the creation tier, which is supposed
+to be identical — so nothing marks the difference between *"this host is a different role"* and *"this host
+drifted."*
+
+| ⭐ | |
+|---|---|
+| **①** | ⭐⭐⭐ **the BASE composes `EntityCreationPack`**, taking a small per-node options record carrying only the measured-genuine differences — `IsBroadcastArbiter`, `ExtraTranslators` — and resolving `Elm`, the adapters and the scheduling itself. ⇒ the four drift rows above become **impossible**, not merely fixed |
+| **②** | ⭐⭐ **the hook keeps only what it really is** and is renamed accordingly *(`RegisterDomainModules`)*. ⛔ A host that wants a different creation tier then has to change the **base**, in the open |
+| ⚠ **sequencing** | ⭐ do **①** as one change and leave the rename to follow — a rename touches three overrides plus the base and the tests, and mixing it with a behaviour change makes the diff unreadable |
+| ⚠ **what would change the lean** | if the `SpawnSystem` in-phase ordering turns out to differ between module and global registration, the base must pick **one** deliberately and say why — ⛔ that is the one row here that could change runtime behaviour rather than just tidy the composition |
+
+⛔ **Not built.** This is a design record; the build is a separate item.
+
+### 4.1e ⛔⛔ TWO CORRECTIONS TO §4.1d *(user, `2026-09-03`)* — **the TKB is not per-host, and selection is by ROLE**
+
+> 🔒 **User, verbatim:** *"adding to tkb per host is wrong, tkb is by design same on all nodes. registration
+> of stuff related to physics etc must be per role where possible, not hardcoded per host, so that bootstrap
+> code can be shared, but of course respecting possible different implementations (simhost vs stride)."*
+
+#### ① 🔴 **`ExtraTranslators` — §4.1d's verdict was WRONG, and the measurement says so**
+
+⛔ §4.1d said *"KEEP per-host — `CE-141` bans **subtracting**, not adding."* ⭐⭐ **That applied `CE-141`'s
+letter and missed its principle.** 🔒 **The TKB is by design the SAME on every node**, so a per-host
+**addition** is exactly as much a divergence as a subtraction.
+
+📐 **And the measurement makes the fix free.** `AiDiagnosticsTkbTranslator` guards **every** write:
+
+```csharp
+if (… && repo.IsComponentTypeRegistered<BTreeTraceWorkingMemory1024>()) repo.AddComponent(…);
+if (… && repo.IsComponentTypeRegistered<HsmTraceWorkingMemory1024>())  repo.AddComponent(…);
+if (!repo.IsComponentTypeRegistered<DebugState>()) return;
+```
+
+⭐⭐⭐ All three types live in **`CognitiveComponentRegistry`**, which IG and Stride do not register ⇒ **the
+translator is ALREADY an inert no-op there.** ⇒ ⛔ **the per-host `ExtraTranslators` buys nothing and costs
+uniformity.**
+
+| ⭐ the fix | |
+|---|---|
+| ⭐⭐⭐ **`AiDiagnosticsTkbTranslator` moves into `TkbTranslatorSet.Base()`** | the ONE list every node already shares. ⭐ Same reasoning `CE-141` used to delete IG's `.WithTranslators`, now applied to the other direction |
+| ⭐⭐ **the narrowing lever stays the COMPONENT REGISTRATION SET** | ⛔ never the translator list — `TkbTranslatorSet`'s own header, and `CE-141`'s live evidence *(16 shared components, 18 absent on IG because of the unregistered Cognitive+Kinematic tiers)* |
+| ⚠ **`ExtraTranslators` itself** | keep the field *(it is a legitimate seam for a genuinely node-unique translator)*, ⛔ but it must carry **nothing** today. 📌 A seam with no user is fine; a seam used to smuggle a TKB difference is not |
+
+#### ② ⭐⭐⭐ **PHYSICS AND FRIENDS MUST BE SELECTED BY ROLE — and the intent is already written down**
+
+⛔⛔ **`NodeRole`'s own XML doc says exactly this, and the code does not do it:**
+
+> *"Roles determine which simulation modules and translator packs are instantiated by `NodeBootstrapper`"* —
+> **`Brain`** = MissionControl + CognitiveRuntime + ActionDispatch + Combat *(no ground kinematics)* ·
+> **`MuscleGround`** = ActionDispatch + GroundKinematics + Combat *(no behaviour/BTree)* ·
+> **`ImageGenerator`** = presentation only · **`Perception`** · **`NavigationSolver`**
+
+📐 **Measured — `SimHostNodeBootstrapper` HOLDS `_role` and uses it for exactly three things:**
+`ConfigureForNode` *(`:206`)* · a `writerIdentifier` ternary *(`:248`)* · forwarding to
+`NodeBootstrapper.BuildOrchestration` *(`:250`)*. ⛔ **`RegisterSpawningPipeline` does not branch on it at
+all** — `PhysicsToolkitModule` · `CoreLogicPack` · `EqsModule` · `EngineBackedNavigationModule` ·
+`AreaQueryResultMaterializationSystem` · `CognitiveSpatialModule` are registered **unconditionally**,
+whatever the role. ⇒ ⭐⭐ **this is `R-129` in its purest form: the intent is in the doc and the code is
+behind it.**
+
+⭐ **Corroborating that the machinery was MEANT for this:** `writerIdentifier: _role.HasFlag(NodeRole.Brain)
+? "Hrot.CGF" : "Hrot.SimHost"` — ⭐⭐ **the same bootstrapper is already expected to serve BOTH the Brain
+(CGF) and MuscleGround (SimHost) roles.** ⛔ It just does not select its modules that way.
+
+#### ⭐⭐⭐ THE REVISED LEAN — **role selects WHAT, a factory seam selects WHICH IMPLEMENTATION**
+
+| ⭐ | |
+|---|---|
+| **①** | ⭐⭐⭐ **a shared, role-keyed module table in the BASE** — `Brain ⇒ {MissionControl, CognitiveRuntime, ActionDispatch, Combat}`, `MuscleGround ⇒ {ActionDispatch, GroundKinematics, Combat}`, `ImageGenerator ⇒ {}`, per the enum's own table. ⭐ It is `[Flags]`, so a `--mode all`-style node that is Brain\|MuscleGround gets the union, deduplicated |
+| **②** | ⭐⭐ **the per-host hook shrinks to the IMPLEMENTATION choice** — 🔒 *"respecting possible different implementations (simhost vs stride)"*. ⭐ The existing seam for this is already `INetworkFactory`/`nodeFactory`; the module analogue is a small `IRoleModuleFactory` the host supplies, so **Stride can hand a Stride-flavoured renderer/physics module for the SAME role** without owning the selection |
+| **③** | ⛔ **what stays truly host-unique** shrinks to near nothing — and each survivor must be **named with a reason**, not left implicit |
+| ⚠ **the honest gap** | 📐 the enum's table names **concepts** *(MissionControl · CognitiveRuntime · ActionDispatch · GroundKinematics · Combat)*, and the code registers **classes** *(`CoreLogicPack`, `EqsModule`, `EngineBackedNavigationModule`, `CognitiveSpatialModule`, `PhysicsToolkitModule`)*. ⛔⛔ **The mapping between the two is NOT measured, and it is the whole build.** ⇒ ⭐ **step 0 is to map each registered class to its role concept and get that table approved** — building the selection before the mapping is agreed would just relocate the guesswork |
+| ⚠ **what would change the lean** | if a module turns out to be needed by a role the enum's table excludes *(e.g. `PhysicsToolkitModule` on a Brain node for collider radii — `CognitiveSpatialModule` already reads `PhysicsCollider`)*, then the enum's table is the thing that is stale, not the code. ⛔ **Resolve that per module in step 0**, and update `NodeRole`'s doc if the table moves |
+
+⛔ **Not built.** ⚠ **And deliberately not started before step 0's mapping** — this is the phase §4.1's own
+sequencing calls *"the only phase touching orchestration/participant/time authority, i.e. what §3.1 says
+not to move blindly."*
+
+### 4.1f 📐 STEP 0 — **THE CLASS → ROLE-CONCEPT MAPPING** *(measured `2026-09-03`; needs a ruling on 2 rows)*
+
+> ⭐⭐⭐ **THE HEADLINE: the role bundles ALREADY EXIST — as two classes named after HOSTS.**
+> **`CgfLogicPack`** *is* the **Brain** bundle and **`SimHostCoreLogicPack`** *is* the **MuscleGround**
+> bundle. Both expose `InputSystems` / `SimulationSystems` *(SimHost also `PostSimulationSystems`)*, both
+> are registered as one module, and **neither is selected by `NodeRole`** — each host just news up its own.
+> ⇒ ⭐⭐ **the seam law again: *"we need role-keyed modules"* means the role bundles exist and are
+> under-adopted.** ⛔ This is a RENAME-AND-SELECT job far more than a new mechanism.
+
+#### ⭐ THE MAPPING — every class registered by the four ECS hosts
+
+| class | registered today by | ⭐ role concept | conf. |
+|---|---|---|---|
+| **`MissionControlModule` · `MissionControlExecutionSystem` · `MissionAdapterSystem` · `TacticalIntentResolutionSystem` · `RouteContextSystem`** | `CgfLogicPack` | ⭐ **MissionControl** *(Brain)* | ✅ high — the enum names MissionControl for Brain and these are it |
+| **`CognitiveRuntimeModule`** | `CgfLogicPack` | ⭐ **CognitiveRuntime** *(Brain)* | ✅ high — name matches the enum term exactly |
+| **`ActionDispatchModule`** | `CgfLogicPack` **only** | ⭐ **ActionDispatch** | 🔴 **see discrepancy ① — the enum puts it in BOTH roles** |
+| **`HealthApplicationSystem`** | `CgfLogicPack` | ⭐ **Combat** | ⚠ medium — Combat-adjacent, but the Combat *modules* live in the other pack |
+| **`CgfThreatEvaluationSystem` · `ActiveSensorTracksUpdateSystem`** | `CgfLogicPack` | ⭐ **Perception** *(the enum's role doc says "threat evaluation" verbatim)* | ⚠ medium — currently Brain-bundled, and the enum has a separate `Perception` role |
+| **`CombatModule` · `DamageAssessmentModule`** | `SimHostCoreLogicPack` **only** | ⭐ **Combat** | 🔴 **see discrepancy ①** |
+| **`GroundKinematicsModule`** | `SimHostCoreLogicPack` | ⭐ **GroundKinematics** *(MuscleGround)* | ✅ high — name matches the enum term exactly |
+| **`NavigationIntentBridgeSystem` · `RouteTrajectorySyncSystem` · `PersonalRouteAuthoringSystem`** | `SimHostCoreLogicPack` | ⭐ **GroundKinematics** — the enum's MuscleGround text says *"navigation **execution**"* | ✅ high |
+| ⚠ **`EqsResultUpdateSystem`** | ⛔ **BOTH packs** | **role-independent** | 🔴 **see discrepancy ②** |
+| ⚠ **`UnitHierarchySystem`** | ⛔ **BOTH packs, AND IG** *(via `IgUnitHierarchyModule`)* | **role-independent / always** | 🔴 **see discrepancy ②** |
+| **`CognitiveSpatialModule`** *(= `VisionBroadphaseSystem` · `LosRequestBatchingSystem` · `LocalGridBuilderSystem` · `AreaQuerySolverSystem` · `SensorTrackDebounceSystem`)* | SimHost, **unconditional** | ⭐⭐⭐ **Perception** — the enum's role doc reads *"LOS, broadphase, threat evaluation"*, and this is **literally** LOS + broadphase | ✅ **high — the strongest row in the table** |
+| **`AreaQueryResultMaterializationSystem`** | SimHost, unconditional | ⭐ **Perception** — it materialises `AreaQuerySolverSystem`'s results *"so the Brain BTree can read"* | ✅ high *(it pairs with the solver above)* |
+| **`EqsModule`** *(drives `EqsSolverSystem` at 10 Hz on a background thread)* | SimHost, unconditional | ⭐ **Perception** *(the EQS solver half)* | ⚠ medium — could equally be its own concept; it pairs with `EqsResultUpdateSystem`, which both packs hold |
+| **`EngineBackedNavigationModule`** *("mutually exclusive with `NavigationFakesModule`")* | SimHost, unconditional | ⭐⭐ **NavigationSolver** | ✅ high — and ⭐ **its "mutually exclusive" sibling is exactly the "different implementations" seam the user named** |
+| **`PhysicsToolkitModule`** | SimHost, unconditional | ⚠ **INFRASTRUCTURE, not a role** | 🔴 **see discrepancy ③** |
+| **`GenesisMaterializationSystem`** | SimHost · Stride · CGF · EditorStride *(**not** IG)* | ⭐ **entity creation tail** — belongs with the pack *(§4.1d)*, **not** a role module | ✅ high |
+| **`SimHostModule`** | SimHost · Stride | ⛔ **not a role module at all** — a one-system wrapper around `NetworkSpawningSystem`; §4.1d retires it | ✅ high |
+| **`IgUnitHierarchyModule`** | IG | ⛔ **a third wrapper** around the same `UnitHierarchySystem` | ✅ high |
+| **`BehaviorDiagnosticsModule`** | CGF | ⚠ diagnostics — likely *always*, like the TKB diagnostics translator of §4.1e ① | ⚠ medium |
+
+#### 🔴 THE THREE THINGS THAT NEED A RULING — **do not build past these**
+
+| # | the discrepancy | why it cannot be decided from code |
+|---|---|---|
+| **①** | ⛔⛔ **The enum's table and the packs DISAGREE, in both directions.** `NodeRole` says **Brain = … + Combat** and **MuscleGround = ActionDispatch + …** — but ⭐ `CombatModule`/`DamageAssessmentModule` are in the **MuscleGround** pack only, and `ActionDispatchModule` is in the **Brain** pack only. | ⚠ **Exactly one of the two is stale and the code cannot say which.** ⭐ Either the enum's doc was aspirational, or the packs drifted. ⇒ **a ruling, then update the loser** |
+| **②** | ⭐⭐ **`EqsResultUpdateSystem` and `UnitHierarchySystem` are in BOTH packs**, and `UnitHierarchySystem` is *also* on IG. ⇒ a `Brain\|MuscleGround` node **double-registers** them — 🔴 **and NOTHING CATCHES IT, measured: `SystemScheduler.RegisterSystem` *(`:27`)* appends to `_systemsByPhase[phase]` with no dedupe, boot-time `ModuleHostKernel.RegisterModule` *(`:402`)* has no duplicate guard at all, and the only guard that exists — `:1230` — is **reference equality on the module instance**, on the hot-swap path only.** ⇒ **a system registered twice simply RUNS TWICE PER FRAME, silently** | ⭐ Confirms they are **role-independent** and belong in an *always* tier — ⛔ but "always" must be an explicit tier, not an accident. 🔒 **User, `2026-09-03`:** *"systems that are singletons by design could have single instance check so double registration is harmful."* ⇒ ⭐⭐⭐ **that check does not exist and is the missing control** — see §4.1g |
+| **③** | ⚠ **`PhysicsToolkitModule` fits no role.** It allocates the `RaycastBatchData` singleton; ⭐ `CognitiveSpatialModule` *(Perception)* raycasts, and `GroundKinematicsModule` needs colliders ⇒ **two different roles depend on it** | ⇒ ⭐⭐ **the table needs a fourth tier — `Always` / infrastructure — beside the role rows.** 📌 This is the case §4.1e's "what would change the lean" predicted, and it is confirmed |
+
+#### ⭐⭐ WHAT THE MAPPING IMPLIES FOR THE BUILD — **four tiers, not one table**
+
+| tier | contents | selected by |
+|---|---|---|
+| ⭐ **Always** | `PhysicsToolkitModule` · `UnitHierarchySystem` · `EqsResultUpdateSystem` · diagnostics | ⛔ nothing — every ECS node |
+| ⭐⭐ **Role** | `Brain ⇒ {MissionControl…, CognitiveRuntime, …}` · `MuscleGround ⇒ {GroundKinematics…, Combat…}` · `Perception ⇒ {CognitiveSpatial, AreaQueryResultMaterialization, Eqs}` · `NavigationSolver ⇒ {Navigation}` · `ImageGenerator ⇒ {}` | ⭐ `NodeRole` flags, **unioned and deduplicated** |
+| ⭐ **Implementation** | `EngineBackedNavigationModule` **vs** `NavigationFakesModule`; a Stride-flavoured module for the same role | ⭐ a host-supplied factory — 🔒 *"respecting possible different implementations (simhost vs stride)"* |
+| ⛔ **Creation tier** | `EntityCreationPack` + `GenesisMaterializationSystem` | ⭐ §4.1d — the base, not a role |
+
+⇒ ⭐⭐⭐ **The build is then mostly renaming and moving:** `CgfLogicPack` → the Brain role bundle,
+`SimHostCoreLogicPack` → the MuscleGround role bundle, the three *Always* members hoisted out of both, and
+the four unconditional SimHost registrations moved under `Perception` / `NavigationSolver`.
+⛔ **Not started** — ①②③ first.
+
+### 4.1g 📐 TWO ANSWERS THE USER ASKED FOR *(measured `2026-09-03`)*
+
+#### ① ⭐⭐ **What `IgUnitHierarchyModule` is — and the user is right that it should not exist**
+
+> 🔒 **User:** *"there should be nothing like ighierarchymodule if hierarchy is generic concept (what is
+> ighierarchymodule?)"*
+
+📐 **It is 8 lines in `Hrot/Subsystems/Hrot.IG/IgBootstrapperHelpers.cs`, and NOTHING in it is IG-specific
+— not one line.** Its own comment states the whole reason it exists:
+
+> *"`IEcsModule` wrapper that routes `UnitHierarchySystem` into the Simulation phase slot.
+> **`RegisterGlobalSystem` rejects `SystemPhase.Simulation`; it must be registered via `RegisterModule`.**"*
+
+📐 Confirmed: `UnitHierarchySystem` is `[UpdateInPhase(SystemPhase.Simulation)]` *(`Hrot.Common/Systems/
+UnitHierarchySystem.cs:23`)*, and `ModuleHostKernel.RegisterGlobalSystem` *(`:177`)* rejects that phase
+because global systems never run it — it is module-only, on background threads.
+
+⇒ ⭐⭐⭐ **It is a workaround for a KERNEL CONSTRAINT wearing a host's name.** Any host registering any
+`Simulation`-phase system needs the same wrapper. ⚠ **And there is already a second one:** `SimHostModule`
+is the identical shape around `NetworkSpawningSystem` — ⛔ **though for a different reason, and that matters:**
+`NetworkSpawningSystem` is `[UpdateInPhase(BeforeSync)]`, which `RegisterGlobalSystem` **accepts**, so
+`SimHostModule` is **cosmetic** *(§4.1d)* while `IgUnitHierarchyModule` is **load-bearing**.
+
+| ⭐ the fix | |
+|---|---|
+| ⭐⭐ **ONE generic `SingleSystemModule(name, system)` in the toolkit** | ⛔ delete both host-named wrappers. ⭐ Cheap, obvious, and it removes a class of host-named workaround rather than one instance |
+| ⭐⭐⭐ **better — remove the need**: `RegisterGlobalSystem` wraps a `Simulation`-phase system itself instead of throwing | ⭐ the constraint is real *(the phase is module-only)*, but making **every caller** hand-write a wrapper to satisfy it is the actual defect. ⚠ Bigger blast radius — it changes a kernel contract that currently **throws**, so it wants its own measurement |
+
+#### ② 🔴 **Double registration: nothing detects it, and the user's single-instance check is the missing control**
+
+> 🔒 **User:** *"systems that are singletons by design could have single instance check so double
+> registration is harmful."*
+
+⭐⭐ **Correct, and it is worse than "could" — measured, there is no check anywhere on the path that matters:**
+
+| where | what it actually does |
+|---|---|
+| `SystemScheduler.RegisterSystem` *(`:27`)* | 🔴 **appends to `_systemsByPhase[phase]`. No dedupe.** ⇒ a system registered twice **runs twice per frame** |
+| `ModuleHostKernel.RegisterModule` *(`:402`, the BOOT path every bootstrapper uses)* | 🔴 **no duplicate guard at all** — it builds a `ModuleEntry` and appends |
+| `ModuleHostKernel.InstallModuleAsync` *(`:1230`, hot-swap only)* | ⚠ throws — ⛔ but on **reference equality of the module instance** *(`e.Module == module`)*, so **two instances of the same module type pass straight through** |
+
+⇒ ⭐⭐⭐ **§4.1f's discrepancy ② is therefore not a theoretical risk: a `Brain|MuscleGround` node would
+register `UnitHierarchySystem` and `EqsResultUpdateSystem` twice and tick each twice, silently.**
+⚠ **Whether that is merely wasteful or corrupting depends on the system** — a pure recompute is wasteful;
+anything that accumulates, advances a cursor or publishes an event **double-counts**. ⛔ **Not measured
+per system, and it must be before the `[Flags]` union is built.**
+
+| ⭐ the control the user is asking for | |
+|---|---|
+| ⭐⭐ **an opt-in `[SingleInstance]` marker on systems that are singletons by design**, enforced where systems actually land — **`SystemScheduler.RegisterSystem`** | ⭐ that is the ONE choke point both the module path and the global path funnel through ⇒ one check covers everything |
+| ⚠ **opt-in, not blanket** | ⛔ a blanket "no duplicate system type" rule would ban legitimately multi-instance systems *(the same solver parameterised twice)*, and a rule that fires on a valid shape gets deleted within a batch — 📌 exactly what `CE-164`'s over-strong first assertion did *(§4.1c)* |
+| ⭐ **it is a PREREQUISITE for the role union, not a follow-up** | ⛔ the union's whole job is to merge overlapping role sets; merging without a duplicate check is how the overlap becomes a silent double-tick |
+
+### 4.1h ⭐⭐⭐ THE CONCEPT MODEL — **closing the role list before any code moves** *(measured `2026-09-03`)*
+
+> 🔒 **User:** *"Physics engine implementation seems like resource that is needed by various roles; This will
+> be similar to what modules a role need; and concrete node often combine multiple roles. These concepts
+> and how to break the current per-host bootstrap/logic packs should be all clarified before we jump into
+> implementation."*
+>
+> ⭐⭐⭐ **The insight is correct and the code already demonstrates it TWICE — see `PhysicsToolkitModule`
+> below.** ⇒ the model needs **four ORTHOGONAL axes**, not one list. §4.1f's "four tiers" was a first
+> approximation with the wrong top row; **this section supersedes it.**
+
+#### 📐 THE FIVE ANSWERS, MEASURED
+
+| ⭐ concept | what it actually is |
+|---|---|
+| ⭐⭐ **ActionDispatch** | 📄 `Fdp.Toolkits/Behavior/Modules/ActionDispatchModule.cs` — **generic and explicitly *"executor-agnostic"*.** It registers `LocomotionDispatcherSystem` · `WeaponDispatcherSystem` · `InteractionDispatcherSystem`, each fed an executor table through the ctor: `(ushort, IActionExecutor<LocomotionChannel>)[]`, `…<WeaponChannel>[]`, `…<InteractionChannel>[]`. ⇒ ⭐⭐⭐ **it turns DECIDED actions on channels into EXECUTOR CALLS. The module is generic; the EXECUTOR SET is what varies per role.** ⛔ Only `CgfLogicPack:128` constructs one today |
+| ⭐⭐ **Combat** | 📄 `Hrot.SimHost/Modules/CombatModule.cs` — `FireProcessingSystem` · `RaycastSolverSystem` · `HitResolutionSystem` *(Input)* + `BallisticsSystem` *(PostSim)*. ⚠⚠ **Its own summary reads: *"Grouping for combat, perception, and physics systems that are present on ALL NODE ROLES."*** ⇒ ⛔ **it is self-declared all-roles AND it mixes three concerns** — a mis-named grouping that needs splitting before it can be role-keyed |
+| ⭐⭐ **`RaycastBatchData`** | ⭐⭐⭐ **a RESOURCE, not a system** — two `Allocator.Persistent` `NativeArray`s + a **world singleton**, allocated by `PhysicsToolkitModule.Initialize()`. 📐 Consumers measured across **three unrelated concerns**: `PerceptionTranslators.cs` *(4 sites — LOS)* · `RaycastSolverSystem` *(combat)* · `Action_QueryRaycast` *(a Brain behaviour-tree action)* |
+| ⭐⭐ **Damage — the role affinity** | ⛔ **it is not ONE role; it is a two-node PROTOCOL, deliberately split.** ⭐ `DamageCalculationSystem` *(in `DamageAssessmentModule`)* consumes `DetonationNotification`, computes flat HP loss and publishes `DamageAssessedEvent` — its doc: *"runs **exclusively on the Muscle node**… the Muscle is the **designated damage-calculation authority** for all detonations it observes… **Entity CQRS ownership (Brain vs. Muscle) is not checked here.**"* ⭐ Then `HealthApplicationSystem` *(in `CgfLogicPack`)* applies that event to `Health` **on the authoritative node**. ⇒ ⭐⭐ **calculate on MuscleGround · apply on the entity's AUTHORITY** |
+| ⭐⭐⭐ **`PhysicsToolkitModule`** | ⛔ **not a role module and barely a module** — it registers no meaningful systems. `Initialize()` allocates the arrays, builds `RaycastBatchData`, registers the singleton, and **retains the handles so `Dispose()` frees them**: *"Scenarios must keep the module alive for the entire simulation lifetime."* ⇒ ⭐⭐⭐ **a LIFETIME-OWNING RESOURCE PROVIDER** |
+
+#### 🔴 THE PROOF THAT "RESOURCE" IS THE RIGHT CONCEPT — **two hosts allocate it for DIFFERENT reasons**
+
+| host | why it allocates `RaycastBatchData` |
+|---|---|
+| **SimHost** | `RaycastSolverSystem` *(Combat)* and `CognitiveSpatialModule` *(Perception)* need it |
+| **CGF** *(Brain)* | `CgfSubsystem:577` — verbatim: *"Allocate `RaycastBatchData` **so `Action_QueryRaycast` can enqueue/query requests on CGF**"* |
+
+⇒ ⭐⭐⭐ **Two different roles, two different reasons, the same one-per-world resource — and BOTH hand-allocate
+it.** ⛔ It can never be a member of a role's module list, because a `Brain|MuscleGround` node would then
+allocate it **twice**: two persistent native array pairs leaked and one singleton slot overwritten.
+📌 **This is the double-registration hazard of §4.1g ② in its most damaging form**, and it is exactly the
+distinction the user drew.
+
+#### ⭐⭐⭐ THE MODEL — **four orthogonal axes**
+
+| axis | what belongs | selection rule | multiplicity |
+|---|---|---|---|
+| ⭐⭐⭐ **① RESOURCES** | `RaycastBatchData` *(via `PhysicsToolkitModule`)* · the TKB catalogue · `NetworkEntityMap` · the id allocator | ⭐ **"is it needed by ANY selected role?"** ⇒ union of the roles' *declared needs* | ⛔⛔ **EXACTLY ONE per world, always.** ⚠ Owns memory ⇒ a duplicate is a leak, not a slow frame |
+| ⭐⭐ **② CAPABILITIES** *(role system-sets)* | MissionControl · CognitiveRuntime · ActionDispatch · GroundKinematics · Combat · Perception · NavigationSolver | ⭐ `NodeRole` flags, **unioned and deduplicated** | ⭐ one instance per capability, however many roles ask for it |
+| ⭐ **③ IMPLEMENTATIONS** | the **executor sets** ActionDispatch takes · `EngineBackedNavigationModule` vs `NavigationFakesModule` · a Stride module vs a SimHost one | ⭐ host-supplied factory, **keyed by (capability, host)** | ⭐ exactly one per capability the node selected |
+| ⚠ **④ AUTHORITY-SCOPED PROTOCOL** | damage: **calculate on Muscle → apply on the authority**; ownership/ack handshakes | ⛔ **NOT a composition rule at all** — it is a per-ENTITY runtime check inside systems | — |
+
+⛔⛔ **④ is listed to be EXCLUDED.** 📌 It is the thing most likely to be mistaken for a role during the
+build: *"damage is a Muscle concern"* is **half** true, and wiring it as a role module would silently drop
+the apply half. ⭐ It stays as runtime authority checks; the composition model must not try to express it.
+
+#### ✅ THIS RESOLVES §4.1f's DISCREPANCY ① — **the enum is RIGHT, the packs drifted** *(both rows)*
+
+| row | verdict, now measured |
+|---|---|
+| **enum: `ActionDispatch` on BOTH Brain and MuscleGround** — code: Brain pack only | ✅ **the enum is right.** `ActionDispatchModule` is *executor-agnostic by construction* ⇒ **the same capability with different executor sets** is exactly what Brain *(remote command)* and Muscle *(local actuator)* both need. ⛔ The code has it Brain-only because **Muscle's executor set was never wired** — a missing implementation *(axis ③)*, not a role boundary |
+| **enum: `Combat` on BOTH** — code: MuscleGround pack only | ✅ **the enum is right, and `CombatModule`'s OWN SUMMARY agrees with it** — *"present on all node roles."* ⇒ ⛔ registering it only on SimHost contradicts the module's own contract |
+
+⇒ ⭐⭐ **No ruling needed on ① after all — the measurement settles it.** ⚠ **But the consequence is a real
+behaviour change, not a tidy-up:** giving CGF `CombatModule` puts `FireProcessingSystem`/`HitResolutionSystem`
+on the Brain node, and giving Muscle an ActionDispatch executor set is new wiring. ⛔ **Both need their own
+measurement and gates** — this section only establishes that the *intent* is uniform.
+
+#### ⭐⭐ HOW THE PER-HOST PACKS BREAK UP
+
+| today | becomes |
+|---|---|
+| `CgfLogicPack` | **Brain** capability set + its **executor set** *(axis ③)* |
+| `SimHostCoreLogicPack` | **MuscleGround** capability set + its executor set |
+| `PhysicsToolkitModule` hand-allocated in 2 hosts | ⭐ **a RESOURCE declared by the capabilities that need it**, allocated once by the base |
+| `CombatModule` *(combat + perception + physics, all-roles)* | ⛔ **SPLIT** — its Perception systems to Perception, its combat systems to Combat, its physics dependency to the resource axis |
+| `UnitHierarchySystem` in 2 packs + `IgUnitHierarchyModule` | ⭐ **one capability**, one instance, no host wrapper *(§4.1g ①)* |
+| `EqsResultUpdateSystem` in 2 packs | ⭐ one capability instance |
+
+⛔ **Still not built.** ⭐ **What is now settled:** the four axes, the five concept definitions, discrepancy
+①. ⚠ **What is NOT:** the per-capability resource *declarations* (axis ① needs each capability to say what
+it needs), and §4.1g ②'s per-system double-tick audit.
+
+### 4.1i 📐 THE RESOURCE-DECLARATION PASS *(measured `2026-09-03`)* — **and the blocker it exposes**
+
+> ⭐⭐⭐ **HEADLINE: axis ① cannot be built as-is, because THREE modules FUSE capability and resource in one
+> class.** 📌 `PhysicsToolkitModule` is the **only** clean resource provider in the codebase — which is
+> precisely why it was the one that made the concept visible. ⇒ **the first build step is a SPLIT, not a
+> selection mechanism.**
+
+#### 📐 THE RESOURCE INVENTORY — memory-owning, one-per-world
+
+📐 Found by `Allocator.Persistent` over production code *(15 files; examples/benchmarks/presentation excluded)*.
+
+| resource | owned today by | ⭐ clean? | capabilities that NEED it |
+|---|---|---|---|
+| ⭐⭐ **`RaycastBatchData`** | **`PhysicsToolkitModule`** | ✅ **YES — the only one** | **Combat** *(`RaycastSolverSystem`)* · **Perception** *(LOS, 4 sites in `PerceptionTranslators`)* · **CognitiveRuntime** *(`Action_QueryRaycast` — the reason CGF allocates it)* |
+| 🔴 **`TrajectoryPoolManager`** | ⛔ **`GroundKinematicsModule`** *(exposed as `SimHostCoreLogicPack.TrajectoryPool`, `:66`)* | ⛔ **FUSED** | **GroundKinematics** *(`RouteTrajectorySyncSystem`)* · **NavigationSolver** *(`EngineBackedNavigationModule` is handed `CoreLogicPack!.TrajectoryPool`)* · **pathfinding translators** *(`CreateSimHostPathfindingTranslators(trajectoryPool)`)* · visualization *(`SimHostTrajectoryLayer`)* |
+| 🔴 **EQS pools** — `EqsResultPool` · `EqsTargetPool` · `EqsSolverGlobalState` | ⛔ **`EqsModule`** *(2 persistent allocs + 1 system)* | ⛔ **FUSED** | **Perception** *(the solver)* · **Brain** — 📌 `AreaQueryResultMaterializationSystem`'s own doc: *"advances `EqsTargetPool.NextFreeIndex` **so the Brain BTree can read results**"* |
+| 🔴 **`AreaQueryBatchData`** · the local grid | ⛔ **`CognitiveSpatialModule`** *(1 alloc + 6 systems)* | ⛔ **FUSED** | **Perception** · **Brain** |
+| **`TerrainQueryBatchData`** | `TerrainQueryInitializationSystem` | ⚠ system-owned | terrain/geographic consumers |
+| **`SpatialGridData`** | `SpatialHashSystem` | ⚠ system-owned | **Perception** broadphase · **GroundKinematics** |
+| **RoadNetworkBlob** | `RoadNetworkBuilder` | ⚠ built, then passed | **GroundKinematics** · **NavigationSolver** |
+| perception buffers | ⛔ **`AutonomousPerceptionModule`** *(1 alloc + 7 systems)* | ⛔ **FUSED** | **Perception** |
+
+#### ⭐ NON-MEMORY SHARED SERVICES — **one per world, but no `Dispose` and no leak risk**
+
+`ITkbDatabase` · `NetworkEntityMap` · `IGeographicTransform` · `INavmeshProvider` · `ICoverProvider` ·
+`IEqsTemplateRegistry` · `IPathRegistry` · `GameConfig` · `GlobalTime`/`TimeState` · `BlockIdManager`.
+
+⇒ ⭐ These belong on axis ① too *(one per world, needed by several capabilities)*, ⛔ **but they are the
+EASY half** — a duplicate overwrites a reference rather than leaking native memory. ⚠ **Do not let their
+easiness set the contract**: the contract must be sized for the memory-owning rows.
+
+#### 🔴 THE BLOCKER — **capability and resource are the same class in four places**
+
+| | |
+|---|---|
+| ⛔⛔ **`EqsModule` · `CognitiveSpatialModule` · `AutonomousPerceptionModule` · `GroundKinematicsModule`** each **allocate persistent memory AND register systems** | ⇒ ⭐⭐⭐ **selecting them by role selects an allocation.** A `Brain\|MuscleGround\|Perception` node that lands the same module through two roles allocates twice — 📌 §4.1g ②'s hazard, now with **native memory** on it rather than a wasted tick |
+| ⭐ **`PhysicsToolkitModule` is the counter-example, and the template** | it owns memory and registers nothing ⇒ it can be selected by *"does any chosen capability need `RaycastBatchData`?"* independently of which capability that is |
+
+#### ⭐⭐⭐ THE PROOF THAT THE RESOURCE AXIS IS REQUIRED — **a NavigationSolver-only node is broken today**
+
+📐 `EngineBackedNavigationModule` *(the **NavigationSolver** capability)* is constructed with
+`CoreLogicPack!.TrajectoryPool` — a resource owned by **`GroundKinematicsModule`**, a **MuscleGround**
+capability. ⇒ ⛔ **a node selecting `NavigationSolver` WITHOUT `MuscleGround` has no pool to hand it.**
+⭐ It works today only because SimHost happens to construct both and pass one to the other by hand.
+
+⇒ ⭐⭐ **This is the cleanest possible argument for the user's framing:** the pool is not *"part of
+GroundKinematics"* — it is a **resource** that GroundKinematics happens to allocate and that at least three
+other capabilities consume. ⛔ Leave it fused and the role union cannot express a solver-only node at all.
+
+#### ⭐⭐ THE DECLARATION CONTRACT THIS IMPLIES
+
+| ⭐ | |
+|---|---|
+| **①** | ⭐⭐ **each capability DECLARES the resources it needs** — a list of resource keys, not instances. ⛔ It never allocates one |
+| **②** | ⭐⭐⭐ **each resource has exactly ONE provider**, shaped like `PhysicsToolkitModule`: allocate on `Initialize`, retain handles, free on `Dispose`. ⭐ The base allocates the **union of the declared needs**, once |
+| **③** | ⚠ **the four fused modules must be SPLIT first** — resource provider out, capability systems left behind. ⛔ **That is the real first build item**, and it is bigger than the selection mechanism it enables |
+| **④** | ⭐ **ordering falls out of the declaration** — resources are allocated before any capability that declares them registers systems, which is what `PhysicsToolkitModule`'s *"call `Initialize` once, before the first simulation tick"* already demands informally |
+
+⚠ **What is still NOT measured:** whether each fused module's allocation is **safely separable** from its
+systems *(i.e. nothing in the module's construction depends on its own systems existing)*. ⛔ That is a
+per-module check and it is the risk in step ③ — **do it per module, at the moment of splitting**, not as
+one sweep.
+
+### 4.1j ✅ THE DESIGN, FINISHED — **closing measurements, UML, and the build sequence** *(`2026-09-03`)*
+
+> 🔒 **User:** *"i would like the design finished first, do necessary measurements, no implementation before
+> the design is clear and written."* ⇒ ⭐ this section closes the two open measurements, carries the
+> **`classDiagram` + `sequenceDiagram`** obligation ① requires, and states the build order with acceptance.
+
+#### ✅ CLOSING MEASUREMENT ① — **the double tick is CORRUPTING, not merely wasteful**
+
+📐 `UnitHierarchySystem.ProcessAssignSubordinates` *(`Hrot.Common/Systems/UnitHierarchySystem.cs:100-140`)*:
+
+```csharp
+if (repo.HasComponent<UnitSubordinate>(sub)) {
+    var current = repo.GetComponent<UnitSubordinate>(sub);
+    if (!current.Commander.Equals(cmd))
+        RemoveFromHierarchy(repo, sub);      // ⛔ SAME commander ⇒ no branch, NO `continue`
+}
+… roster.SubordinateEntities[roster.Count] = (long)sub.PackedValue;   // ⛔ UNGUARDED append
+  roster.Count++;
+```
+
+⇒ 🔴🔴 **A second pass over the same `CmdAssignSubordinate` falls through to an unguarded roster append.**
+The subordinate is added **twice** and `Count` is inflated; at `UnitRoster.Capacity` the system then
+publishes `CmdAssignSubordinateRejected` for **legitimate** assignments. ⛔ **Not a wasted tick — corrupted
+state and a downstream false rejection.**
+⚠ `EqsResultUpdateSystem`: **no accumulation observed** *(it loops over buffers and writes results)* — ⛔
+**but not proven idempotent, and it does not need to be**: one corrupting member is enough to make the
+guard mandatory.
+
+⇒ ⭐⭐⭐ **`[SingleInstance]` is a HARD PREREQUISITE, not a nicety.** 🔒 The user's instinct — *"double
+registration is harmful"* — is confirmed on the first system audited.
+
+#### ✅ CLOSING MEASUREMENT ② — **the four fused modules ARE separable, and cheaply**
+
+📐 `CognitiveSpatialModule:55-61` and `AutonomousPerceptionModule:111-116` both pass the allocated
+`_localGrid` **by constructor** into their systems:
+
+```csharp
+_localGridBuilder   = registry.RegisterManualSystem(new LocalGridBuilderSystem(_localGrid));
+_areaQuerySolver    = registry.RegisterManualSystem(new AreaQuerySolverSystem(_localGrid, _liveWorld));
+_visionBroadphase   = registry.RegisterManualSystem(new VisionBroadphaseSystem(_localGrid));
+```
+
+⇒ ⭐⭐⭐ **the systems already take the resource as a PARAMETER — none of them reaches for a world
+singleton.** ⛔ So the split needs **no system rewritten**: the provider allocates and publishes; the
+capability module's ctor changes from *allocate* to *receive*. ⭐ **The risk I flagged in §4.1i is
+measured away.**
+
+#### ⭐⭐⭐ AND A FIFTH FINDING — **the Perception + NavigationSolver capabilities ALREADY EXIST, correctly**
+
+📐 `AutonomousPerceptionModule` *(`Fdp.Toolkits/Perception/Modules/`)* has **zero production registrations**
+and is a **subset** of the live `CognitiveSpatialModule` *(which adds `AreaQuerySolverSystem`)*.
+⛔ **Do NOT read that as a duplicate to delete** — 📄 the design corpus answers it directly,
+**`docs/designs/brain-split/BS-1-DESIGN.md:357-360`**:
+
+> *"**Perception node** (`AutonomousPerceptionModule`, `SensorConfig`, `SensorTargets`) — **already
+> correctly designed for Brain/Muscle separation; no changes needed.**"*
+> *"**NavMesh / Navigation Solver node** — already correctly designed; path computation via
+> `PathRequestBatch`/`RouteHandle` is network-transparent."*
+
+⇒ ⭐⭐ **Its own doc agrees**: *"can be installed **independently of the Brain modules**"*, `SlowBackground`
+at 10 Hz. ⛔ **It is dormant because no node has ever been DEPLOYED as Perception-only — not because it is
+wrong.** ⇒ ⭐⭐⭐ **for two of the five roles the composition work is SELECTION, not redesign.**
+📌 Textbook *"unreferenced is not unintentional"*.
+
+#### ⭐⭐ THE CLASS MODEL
+
+```mermaid
+classDiagram
+    class SharedApplicationBootstrapper {
+        <<abstract, existing>>
+        +BootstrapNode(config, role, factory) HrotNodeContext
+        #BuildContext()* 
+        #RegisterDomainModules()*
+    }
+    class NodeCompositionPlan {
+        <<new>>
+        +Resolve(NodeRole) CapabilitySet
+        +RequiredResources() ResourceKey[]
+    }
+    class ICapability {
+        <<new interface>>
+        +Key : CapabilityKey
+        +Needs : ResourceKey[]
+        +Register(kernel, IResourceScope, IImplementationFactory)
+    }
+    class IResourceProvider {
+        <<new interface>>
+        +Key : ResourceKey
+        +Allocate(world) void
+        +Dispose() void
+    }
+    class IResourceScope {
+        <<new>>
+        +Get(ResourceKey) object
+    }
+    class IImplementationFactory {
+        <<new, host-supplied>>
+        +For(CapabilityKey) object
+    }
+    class PhysicsResourceProvider {
+        <<existing: PhysicsToolkitModule>>
+        RaycastBatchData
+    }
+    class TrajectoryPoolProvider {
+        <<SPLIT from GroundKinematicsModule>>
+    }
+    class PerceptionGridProvider {
+        <<SPLIT from CognitiveSpatialModule>>
+    }
+    class BrainCapability {
+        <<rename: CgfLogicPack>>
+    }
+    class MuscleGroundCapability {
+        <<rename: SimHostCoreLogicPack>>
+    }
+    class PerceptionCapability {
+        <<exists: AutonomousPerceptionModule>>
+    }
+    class NavigationSolverCapability {
+        <<exists: EngineBackedNavigationModule>>
+    }
+    SharedApplicationBootstrapper --> NodeCompositionPlan : asks
+    NodeCompositionPlan --> ICapability : selects by NodeRole flags
+    ICapability --> IResourceScope : reads declared Needs
+    ICapability --> IImplementationFactory : asks for its variant
+    IResourceProvider --> IResourceScope : publishes into
+    IResourceProvider <|.. PhysicsResourceProvider
+    IResourceProvider <|.. TrajectoryPoolProvider
+    IResourceProvider <|.. PerceptionGridProvider
+    ICapability <|.. BrainCapability
+    ICapability <|.. MuscleGroundCapability
+    ICapability <|.. PerceptionCapability
+    ICapability <|.. NavigationSolverCapability
+```
+
+#### ⭐⭐ THE BOOT SEQUENCE — **resources before capabilities, dedupe before register**
+
+```mermaid
+sequenceDiagram
+    participant Host as Node host
+    participant Base as SharedApplicationBootstrapper
+    participant Plan as NodeCompositionPlan
+    participant Res as IResourceProvider(s)
+    participant Cap as ICapability(s)
+    participant Kernel as ModuleHostKernel
+    Host->>Base: BootstrapNode(config, role, factory)
+    Base->>Plan: Resolve(role)
+    Plan-->>Base: capabilities (union, deduplicated)
+    Base->>Plan: RequiredResources()
+    Plan-->>Base: resource keys (union of Needs)
+    loop once per DISTINCT resource key
+        Base->>Res: Allocate(world)
+        Res-->>Base: published into IResourceScope
+    end
+    loop once per DISTINCT capability
+        Base->>Cap: Register(kernel, scope, implFactory)
+        Cap->>Kernel: RegisterSystem / RegisterModule
+        Kernel-->>Kernel: [SingleInstance] guard rejects a second copy
+    end
+    Base->>Base: assert every declared Need was allocated
+    Base->>Kernel: Initialize()
+```
+
+#### ⭐ THE BUILD SEQUENCE — **five items, each independently gateable**
+
+| # | item | acceptance | risk |
+|---|---|---|---|
+| **B1** | ⭐⭐⭐ **`[SingleInstance]` + the guard in `SystemScheduler.RegisterSystem`** | a rail registers `UnitHierarchySystem` twice and the guard **throws**; the existing suites stay green | ⭐ low — opt-in, and it **must** land first: the union is unsafe without it |
+| **B2** | **one generic `SingleSystemModule`**; delete `IgUnitHierarchyModule` and `SimHostModule` | both hosts still register their systems in the same phases; `TheDebugProviders…` rails green | ⭐ low |
+| **B3** | ⭐⭐ **split the four fused modules** — provider out, capability left | each provider allocates+disposes; each capability's ctor **receives** the resource; no system signature changes *(measurement ② says none are needed)* | ⚠ medium — **per-module**, one commit each |
+| **B4** | **`ICapability` + `IResourceProvider` + the plan**, base composes; `CgfLogicPack`/`SimHostCoreLogicPack` renamed to Brain/MuscleGround capabilities | `--mode all` and the four-process cluster both reach `OperatingLive`; entity counts and component sets **unchanged** vs `CE-141`'s recorded baseline | 🔴 **high** — this is the switchover |
+| **B5** | wire the **missing** implementations: Muscle's ActionDispatch executor set · `CombatModule` on Brain *(§4.1h ①)* | new behaviour ⇒ its **own** measurement and rails; ⛔ **not folded into B4** | 🔴 high, and **deliberately last** |
+
+⛔ **B5 is behaviour change; B1–B4 must be behaviour-PRESERVING.** ⭐ The gate that proves it: the
+four-process cluster run recorded in `DESIGN_Entity_Creation_Unification.md` §2.3c — **same 16 shared
+components, same per-node counts, same destroy loop.**
+
+⚠ **Still open, and deliberately so:** whether `Perception`/`NavigationSolver` should be *selectable today*
+on the existing nodes, or stay dormant until a node is actually deployed in those roles. ⭐ `BS-1-DESIGN`
+says the modules are ready; ⛔ **it does not say any current node should select them**, and giving SimHost
+`AutonomousPerceptionModule` alongside `CognitiveSpatialModule` would double-register four systems — 📌
+**exactly what B1 exists to catch.** ⇒ **a deployment decision, not a composition one.**
+
+### 4.1k 🔴🔴 CORRECTION — **STRIDE IS THE FOUR-ROLE NODE, AND IT IS HANDED NOTHING** *(user challenge, `2026-09-03`)*
+
+> ⛔⛔⛔ **SUPERSEDED IN PART BY §4.1L** *(`2026-09-03`, second user challenge)*. ⭐ **Everything below is
+> TRUE OF THE CLASS `StrideNodeBootstrapper` and FALSE OF STRIDE THE NODE.** 🔴 That class has **no
+> production construction at all** — it is dormant. The **live** Stride composition is
+> `EditorStrideSubsystem`, and its role slots are **FULL**. ⇒ ⭐ **Do not quote "every slot is empty" as a
+> statement about Stride.** ⚠ The three corrections ①–③ and the `B1`/`B4`/`B5` consequences below **survive**;
+> only the "handed nothing" headline does not. 📄 **Read §4.1L first.**
+
+> 🔒 **User:** *"isn't perception / navigation solver already used by stride subsystem?"*
+>
+> ⭐⭐⭐ **The challenge is right and it corrects TWO of my statements.** ⛔ §4.1f recorded Stride as
+> registering *"the creation tier only"*, and §4.1j said the Perception/NavigationSolver capabilities are
+> *"dormant because no node has ever been deployed in those roles."* 📐 **Both were measured on
+> REGISTRATIONS. The DECLARATION says something else.**
+
+#### 📐 What `StrideNodeBootstrapper` actually declares
+
+```csharp
+/// <summary>Combined node role for all Stride-hosted node responsibilities.</summary>
+public static readonly NodeRole Role =
+    NodeRole.MuscleGround | NodeRole.Perception |
+    NodeRole.NavigationSolver | NodeRole.ImageGenerator;
+
+private readonly IEcsModule? _kinematicsModule;
+private readonly IEcsModule? _perceptionModule;
+private readonly IEcsModule? _combatModule;
+private readonly IEcsModule? _navigationModule;
+
+public StrideNodeBootstrapper(
+    IEcsModule? kinematicsModule = null,
+    IEcsModule? perceptionModule = null,
+    IEcsModule? combatModule     = null,
+    IEcsModule? navigationModule = null)
+```
+
+⇒ ⭐⭐⭐ **Stride is a genuine FOUR-ROLE node with a per-role module slot for each** — 🔒 the concrete
+instance of the user's *"a concrete node often combines multiple roles"*, which the rest of this design had
+**asserted without an example**.
+
+#### 🔴 AND EVERY SLOT IS EMPTY — **the only two constructions in the repo are TESTS, with all four `null`**
+
+📐 `grep 'new StrideNodeBootstrapper'` across the whole tree, `Stride/` included:
+
+| site | arguments |
+|---|---|
+| `Hrot.NodeComposition.Tests/StrideNodeBootstrapperTests.cs:38` | `new StrideNodeBootstrapper()` ⇒ **all four null** |
+| `…:53` | `new StrideNodeBootstrapper()` ⇒ **all four null** |
+| ⛔ **production** | 🔴 **NONE** |
+
+⇒ ⭐⭐⭐ **Stride declares `MuscleGround|Perception|NavigationSolver|ImageGenerator` and receives the modules
+for NONE of them.** ⛔ **The purest instance yet of `CLAUDE.md`'s silent-default family** — the parameters
+exist, the role declaration is explicit and correct, and **every caller passes nothing.** ⚠ Worse than the
+usual shape: here there is no production caller *at all*, so the declaration has never been honoured.
+
+#### ⭐⭐ WHAT THIS CHANGES — three corrections, and the design gets STRONGER
+
+| # | correction |
+|---|---|
+| **①** | ⛔ **§4.1f's "Stride registers the creation tier only" was true but MISLEADING.** ⭐ It registers only that **because its four role-module slots are null** — not because it is a presentation-only node. ⇒ **the row is now explained, not just observed** |
+| **②** | ⛔ **§4.1j's "no node has ever been DEPLOYED in those roles" is WRONG.** ⭐ A node **declares** them today. ⇒ the honest statement: **the roles are declared and unfilled**, which is a *stronger* argument for the composition work, not a weaker one |
+| **③** | ⭐⭐⭐ **Stride's ctor IS axis ③ (`IImplementationFactory`), hand-rolled** — four nullable per-role module slots, host-supplied. 🔒 It is exactly *"respecting possible different implementations (simhost vs stride)"*, already attempted. ⇒ ⛔ **the design is not introducing a new idea; it is generalising one that exists and was never wired** — 📌 the seam law for a **third** time in this programme |
+
+#### ⭐⭐ CONSEQUENCES FOR THE BUILD SEQUENCE
+
+| | |
+|---|---|
+| ⭐⭐ **`B4` gains a concrete acceptance case** | ⛔ Previously *"the four-process cluster is unchanged"* — behaviour-preserving only. ⭐ **Now `B4` can be proven POSITIVELY**: a plan resolving `StrideNodeBootstrapper.Role` must yield **MuscleGround + Perception + NavigationSolver** capabilities, where today it yields **nothing**. ⇒ a real before/after, not just an absence of regressions |
+| ⚠ **but it stays BEHAVIOUR-PRESERVING** | ⛔ **Filling Stride's slots is `B5`, not `B4`.** 📐 Giving a live Stride node kinematics + perception + navigation is exactly the kind of change §4.1h warned about — new systems ticking on a host that never ran them. ⭐ `B4` proves the **plan resolves correctly**; `B5` acts on it |
+| ⭐ **and `B1` is vindicated again** | ⚠ Stride is `MuscleGround\|Perception` — **the two roles whose module sets OVERLAP** *(`CognitiveSpatialModule` ⊃ `AutonomousPerceptionModule`; both carry `LocalGridBuilderSystem`, `VisionBroadphaseSystem`, `LosRequestBatchingSystem`, `SensorTrackDebounceSystem`)*. ⇒ 🔴 **the first real node to select two roles is the one that would double-register four systems** — `[SingleInstance]` must land before Stride's slots are ever filled |
+
+⚠ **Still not measured:** whether `Stride/`'s own game host constructs a bootstrapper by some other path
+*(a DI container, a factory)*. 📐 `grep 'new StrideNodeBootstrapper'` finds nothing in `Stride/`, and
+`grep 'NodeRole.'` finds **no** hits in the `Stride/` tree at all — ⛔ but a negative from grep over an
+out-of-solution tree is weaker than one over compiled code, and `check_index_coverage` is unavailable
+through the CLI. ⇒ ⭐ **stated as measured-by-grep, not as proven.**
+
+#### ⚠ AND ONE CONCERN INSIDE THE ORDER IS STILL PER-HOST FOR A REASON
+
+📐 **Phase 5, orchestration handlers.** The handler *classes* are shared, but the **list and its ORDER** are
+hand-built per host: `CgfSubsystem` **9** `RegisterHandler` calls, `EditorSubsystem` **6**,
+`IgNodeBootstrapper` **6**. ⛔ And CGF constructs a **second `ClusterSlave`** at `:793-794` — its own comment
+says *"Create a fresh ClusterSlave manually to strictly control handler registration order"*, discarding the
+builder's. ⇒ ⭐ **an ordering dependency nothing declares**, which is the shape a shared list cannot absorb
+until the dependency is expressed. ⚠ **Not scheduled here** — recorded so phase N does not discover it late.
+
+#### ⭐ Out of scope, stated so it is not mistaken for a gap
+
+📐 `ReplayBrowserSubsystem` has **zero** `ModuleHostKernel`/`RegisterGlobalSystem` references — it is a
+**viewer**, not an ECS node. ⭐ It composes `MapInteractionPack` and nothing else from this block.
 
 ⭐ **Dissolution, not extraction, for `IEditorLogic`** *(approved)*: 📐 128 ln / ~15 members, `EditorApplication`
 297 ln of one-line delegations, **zero** code references from `AiShared`, ~3 members genuinely editor-only.
 📌 `CE-060` dissolved one call in **one line** by publishing the event it already wrapped.
+
+### 4.1m ✅ AS BUILT — **`B1` shipped, and the guard as DESIGNED could not see the defect it was for** *(obligation ⑤; `2026-09-04`)*
+
+> ⭐⭐ **Read this before quoting §4.1j's `B1` row.** The item landed, but its acceptance as written
+> *("a rail registers `UnitHierarchySystem` twice and the guard throws")* is **satisfied by a guard that is
+> still blind in production.** The deviation is recorded here because the design would otherwise read as
+> finished on a point it was not.
+
+#### 🔴 THE DEVIATION — **groups hide their members from `RegisterSystem`**
+
+📐 `B1` as specified put the check in `SystemScheduler.RegisterSystem`. That is the right choke point for a
+system registered directly, and the unit rails pass. ⛔ **It cannot see root ④.** The editor wraps its fused
+Brain+MuscleGround lists in a `TogglableSimulationGroup` and registers **that one group**; the members are
+executed by `SystemScheduler.ExecuteGroup` *(`:148`)*, which iterates `group.GetSystems()` and never calls
+`RegisterSystem` for them. ⇒ **the duplicated `UnitHierarchySystem` instances never reach the guard.**
+
+📐 **Measured, not reasoned:** with the editor's deduplication reverted and the as-designed guard in place,
+`--mode editor` **booted normally and the guard never fired.** ⚠ A guard that cannot see the composition it
+exists to police is worse than none, because it reads as coverage.
+
+⇒ ✅ **The guard now walks `ISystemGroup` members recursively** *(`SystemScheduler.CollectSingleInstance`)*,
+keying a `HashSet<Type>` rather than scanning the phase lists. 📐 **Re-run of the same red-proof, same
+build, dedup still reverted:**
+
+```
+[SingleInstance] system 'Hrot.Common.Systems.UnitHierarchySystem' is registered more than once
+```
+
+⇒ ⭐⭐⭐ **`CE-165`'s central claim is now confirmed by the RUNNING EDITOR, not only by reading the concat
+chain** — and the editor's `DistinctByType` is proven load-bearing rather than precautionary.
+
+#### ✅ WHAT SHIPPED
+
+| | |
+|---|---|
+| `SingleInstanceAttribute` | `Fdp.ModuleHost/Abstractions/SystemAttributes.cs` — **opt-in**; the doc comment carries why it throws rather than skipping, and why it is not global |
+| the guard | `SystemScheduler.CollectSingleInstance` — type-keyed, **descends into groups**, message points at the COMPOSITION ROOT |
+| `SystemComposition.DistinctByType` | ⭐ the shared helper the three deduplicating roots had each hand-rolled *(§4.1L's table)* — first-wins, order preserving |
+| marked | `UnitHierarchySystem` *(corruption measured — §4.1j closing measurement ①)* · `EqsResultUpdateSystem` *(⚠ harm **not** measured; marked as a singleton by design, and the comment says so)* |
+| root ④ fixed | `EditorSubsystem` input + simulation concats now go through `DistinctByType` |
+
+⚠ **Deliberately NOT done, and it is a real remaining gap:** the other three roots *(`EditorStrideSubsystem`,
+`StrideMuscleModule`, `EditorHarness`)* still carry their own hand-rolled dedupe loops. ⭐ They are correct,
+so this is tidying, not a fix — ⛔ but until they adopt `DistinctByType` the "one implementation" ruling is
+still violated four ways. **Fold into `B2`**, which already opens those files.
+
+⚠ **Also still open:** `ModuleHostKernel.RegisterModule` *(`:402`)* has no duplicate guard of its own, and
+`:1230`'s hot-swap check remains reference-equality. `B1` did not touch either; the scheduler guard covers
+the system axis only.
+
+### 4.1n ✅ AS BUILT — **`B2` shipped: one wrapper, one fuse, two host-named classes gone** *(obligation ⑤; `2026-09-04`)*
+
+⭐ `B2` as specified: *"one generic `SingleSystemModule`; delete `IgUnitHierarchyModule` and `SimHostModule`"*,
+acceptance *"both hosts still register their systems in the same phases"*. ⭐⭐ It also absorbs §4.1m's
+carried item — **the roots that hand-rolled the dedupe loop adopt the shared helper.**
+
+#### ✅ WHAT SHIPPED
+
+| | |
+|---|---|
+| `SingleSystemModule` | `Fdp.ModuleHost/Scheduling/` — 📐 `SimHostModule` and `IgUnitHierarchyModule` were **byte-for-byte twins** differing only in `Name`; neither held host logic. Both **deleted**, all **7** call sites retargeted *(6 production + 1 test)* |
+| naming | ⭐ modules are now named after the **SYSTEM**, not the host — `"NetworkSpawning"`, `"UnitHierarchy"`. ⛔ A module called `"SimHost"` holding one spawning system tells a reader the wrong thing about which node owns it, which is exactly the host-shaped framing the role work removes |
+| `DistinctByType` adopted | ✅ root ① `EditorStrideSimulationModule` · ✅ root ③ `EditorHarness` *(the harness must fuse the packs the way the editor does, or it stops mirroring the composition it exists to mirror)* |
+
+#### ⚠ ONE ROOT DELIBERATELY NOT CONVERTED, with the reason in the code
+
+⛔ `StrideMuscleModule.RegisterSystems` is **not** a two-list concat: it accumulates across several phases
+with a **single `seen` set spanning all of them**, and the per-phase ordering is load-bearing *(it mirrors a
+specific hand-written registration order)*. ⭐ Converting it would need either a stateful `DistinctByType`
+overload or a restructure that changes ordering — **a worse fit dressed as consistency.** ⇒ left as-is with
+an XML comment saying so; it is the first customer if a stateful overload ever lands.
+⇒ ⭐⭐ **§4.1m's "violated four ways" is now violated ONE way, by a root whose shape genuinely differs.**
+
+#### ⛔⛔ A VERIFICATION GAP, stated plainly
+
+📐 **`Stride/HrotStrideApp.Game` CANNOT BE COMPILED IN THE LINUX CONTAINER.** It targets `net8.0-windows`
+and its dependencies need `Microsoft.WindowsDesktop.App`: `error NETSDK1073` on `Hrot.Stride.Animation` and
+`Hrot.Stride.Core`, **files this batch never touched** — an environment limit, not a regression.
+⇒ ⭐ the two `EditorStrideSubsystem.cs` edits were **hand-verified instead**: `_cgfSim`/`_muscleSim` are
+declared `IEnumerable<IEcsModuleSystem>` *(`:1676-1677`)*, exactly the helper's parameter type; both new
+references are **fully qualified** so no `using` is required; `Fdp.ModuleHost.Scheduling` is the same
+assembly as the `IEcsModuleSystem`/`ISystemRegistry` the file already uses; and `grep` over `Stride/` finds
+**no other reference** to either deleted class. ⛔ **That is not a compile. It needs a Windows build before
+this is called done.**
+
+#### ⭐ GATES
+
+| gate | result |
+|---|---|
+| `Fdp.ModuleHost.Tests` filtered | **9/9** *(5 from `B1`, 4 new)* |
+| `Fdp.ModuleHost.Tests` full | 201 passed / **6 failed** — the same six convoy+SoD reds baselined at `B1` |
+| `Hrot.SimHost.Tests` | 877 / **1** — `FullBranchPipelineTests`, baselined pre-existing |
+| `Hrot.Editor.Tests` | **344 / 0** ⚠ one run showed 343/1 on `TwoReloadCycles_OldAlcIsCollected` *(a GC-collection assertion)*; **3 isolated re-runs and a full re-run all green** ⇒ flake, not composition |
+| `Hrot.IG.Tests` | 410 / **5** — ⭐ **BASELINED: identical 410/5 with the IG changes stashed** |
+| `IOS-IG-SimHost.sln` build | clean |
+| live, both hosts | editor + `--mode all` boot, `/status` serves, **0** guard fires |
+| live, behaviour preserved | `hill-attack-close`: **6 engagements, 0 overshoot failures, 0 EQS timeouts**, leader **35** components holding `1234950103` — unchanged from before `B2` |
+
+⇒ **build-state for the role composition work: READY-TO-BUILD at `B3`** *(split the four fused
+capability+resource modules — provider out, capability left; one commit each, per §4.1j)*.
+
+### 4.1o 🔴🔴🔴 **`B3` PART 2 CORRECTS §4.1i: `EqsModule` IS NOT FUSED — AND THE REAL EQS DEFECT IS A LIVE DOUBLE-ALLOCATION** *(measured `2026-09-04`)*
+
+> ⛔⛔ **§4.1i's EQS row is WRONG and must not be quoted.** It reads
+> *"`EqsResultPool` · `EqsTargetPool` · `EqsSolverGlobalState` | owned today by **`EqsModule`** *(2 persistent
+> allocs + 1 system)* | ⛔ FUSED"*. ⭐ **Measured: `EqsModule` allocates ZERO persistent memory.** Its only
+> field is `EqsSolverSystem _solver = new()`; the `EqsSolverGlobalState` it lazily sets on first `Tick` is a
+> plain struct with no native memory. ⇒ **there is nothing to split out of it, and `B3`'s "provider out,
+> capability left" does not apply to this module.**
+
+#### 📐 WHO ACTUALLY OWNS THE EQS/NAV MEMORY — the measurement
+
+| | |
+|---|---|
+| ⭐⭐ **the real allocator** | **`NavigationSolverComponentRegistry.RegisterAll`** — a **static function**, not a module. It allocates **FOUR** `Allocator.Persistent` arrays: `PathfindingBatchData.Results` *(`:21`)*, `AreaQueryBatchData.Results` *(`:29`)*, `EqsTargetPool.Targets` *(`:33`)*, `EqsResultPool.Results` *(`:42`)* |
+| ⭐ **a second, guarded allocator for one slot** | `EqsSolverSystem.Execute` *(`:50-58`)* lazily creates `EqsResultPool` **if absent** — a fallback for worlds that never reached the registry, not a competing owner |
+| ⛔⛔ **the disposers** | ⭐ **exactly ONE in production**: `EqsModule.Dispose` frees `EqsResultPool.Results` — **memory it did not allocate**. 📐 Every other `Results.Dispose()`/`Targets.Dispose()` in the repo is a **test teardown** *(measured: 50+ hits, all under `*.Tests`)*. ⇒ **three of the four arrays had NO production disposer at all** |
+| ⛔ **and one host never gets even that** | `CgfComponentRegistry.cs:31` calls `RegisterAll` and CGF registers **no** `EqsModule` *(its only production call site is `SimHostNodeBootstrapper.cs:351`)* |
+
+#### 🔴 THE DEFECT THIS FOUND — **the editor and Stride double-allocate all four pools, today**
+
+📐 `EntityRepository.SetSingleton` → `SetSingletonUnmanaged` is **"set or update"**: `storage.Set(0, value, …)`,
+**unconditional overwrite, no guard** *(`EntityRepository.cs:1891-1907`, `:2037-2050`)*. ⇒ a second
+`RegisterAll` on one world **replaces each singleton with a fresh persistent array and orphans the first.**
+
+| host | the two calls, on the SAME world |
+|---|---|
+| 🔴 **`Hrot.Editor`** | `EditorSubsystem.cs:970` `SimHostComponentRegistry.RegisterAll(_world)` **+** `:971` `CgfComponentRegistry.RegisterAll(_world)` — both delegate here. ⚠ **and again at `:1533-1534`** for the `_bpPreTickSnapshot` world |
+| 🔴 **Stride** | `EditorStrideSubsystem.cs:539-540`, same pair |
+
+⇒ ⭐⭐⭐ **This is the memory-owning double-registration hazard §4.1i predicted — reached through the REGISTRY
+path, not the module path, and it is live in production rather than prophylactic.** ⛔ It is the exact
+sibling of `CE-165` *(the editor double-ticking `UnitHierarchySystem`)*: same disease, different axis, and
+`[SingleInstance]` cannot see it because no system is registered twice.
+
+#### ✅ WHAT SHIPPED
+
+| | |
+|---|---|
+| ⭐⭐ **`RegisterAll` is idempotent on the four memory-owning slots** | each `SetSingleton` guarded by `HasSingleton`. ⭐ **Idempotence is the CONTRACT, not an optimisation**: a node's capability set is the union of its roles, so any number of roles may ask for the nav/EQS schema and every ask after the first must be a no-op on memory. Component/event registration was already idempotent |
+| ⭐⭐ **`NavigationSolverComponentRegistry.DisposeAll`** | the symmetric counterpart the file never had — frees all four, **by `ref`** so the stored handle's `IsCreated` is cleared and a second call *(or a later `EqsModule.Dispose`)* is a no-op rather than a double free |
+| ⭐ **`EqsModule`'s doc corrected** | it now says plainly that the module is **not** the owner and its free is a stop-gap. ⛔ **The free was NOT removed**: it is currently the only production disposer, and deleting it would trade a documented stop-gap for a silent regression |
+
+#### ⛔ WHAT IS DELIBERATELY *NOT* DONE, and why
+
+⛔⛔ **`DisposeAll` has no host caller.** 📐 Measured: **`SimHostNodeBootstrapper` has no teardown hook at
+all** — no `Dispose`, no `Shutdown`, no `Teardown`. ⇒ ⭐ **the missing owner is a design gap, not a wiring
+oversight**, and forcing a `NavigationPoolProvider` into this commit would mean inventing a lifetime the
+hosts do not yet express. ⭐⭐ **That lifetime is `B4`'s job** *(`IResourceProvider` + the plan)*, which is
+where a provider gets somewhere to live. ⚠ Severity meanwhile: **one leak per world per process**, freed at
+exit — real, low, and now at least *bounded* by the idempotence guard, which was the unbounded half.
+
+⇒ ⭐ **`B3`'s remaining parts are unchanged**: part 1 *(the perception grid — `PerceptionGridProvider`,
+shipped)* and part 3 *(`GroundKinematicsModule` / `TrajectoryPoolManager`, genuinely fused — §4.1i's row for
+it stands and was re-checked)*.
+
+#### ⭐ RAILS + GATES
+
+| | |
+|---|---|
+| rails, into the registry's **own** suite *(`R-142`)* | `ComponentRegistryTests` — `…_IsIdempotentOnTheFourPersistentPools` *(identity of the allocation, via the address of slot 0 — `NativeArray` exposes no pointer accessor but its indexer returns a `ref` into the block)* · `…_DisposeAll_FreesEveryPoolAndIsIdempotent` · `…_DisposeAll_ToleratesAWorldWithNoPools`. ⭐ The pre-existing `…_RegistersSolverState` rail gained the teardown it never had |
+| ⭐⭐ **red-proof** | **inverse edit**: guard removed from the `EqsTargetPool` arm ⇒ `…_IsIdempotentOnTheFourPersistentPools` **FAILED 1/4**; restored ⇒ green. ⛔ Not a `git checkout` |
+| `ComponentRegistryTests` | **17 / 0** |
+| EQS + nav + hill-attack filtered | **97 / 0** |
+| `Hrot.SimHost.Tests` full | **882 / 1** — `FullBranchPipelineTests`, the red baselined at `B2` |
+| ⭐⭐ `Hrot.ClusterRunner.Integration.Tests` **EQS** *(gate-contract row 8 — the suite that would break if the EQS invariant broke)* | **68 / 0** |
+| `Hrot.Editor` build *(the host with the double registration)* | clean |
+| ⭐⭐⭐ **live, `--mode editor` on `hill-attack-close`** — ⭐ the editor is precisely the host that calls the registry twice, so this is the production observable the rails cannot reach | **BOTH hostiles killed** *(`1006`, `1007` at `Health.Current = 0`)* after 3 600 deterministic steps. Mid-run at `t=31.9 s` the leader held the commander hash **`1234950103`**; both attackers acquired *(`SensorContactList.Count` 2 and 1, `TargetMemory` populated with real scores)* and fired *(`Ammo 41` from 42, `WeaponChannel.Status = Running`)*. ⇒ the whole EQS → sensor → target → fire chain is intact |
+| log scan | ⛔ **0** EQS timeouts, **0** allocator faults, **0** exception classes other than the **pre-existing** `GizmoInteraction` `IndexOutOfRangeException` *(16 367 lines of it — a UI system, untouched by this change and spewing before it)* |
+
+⚠ **What the rails canNOT prove:** that the editor's *live* double-registration is gone — the rail exercises
+the registry directly. ⭐ The production observable is the pair of call sites above plus the guard; the live
+check is the `hill-attack-close` run in the gate table.
+
+### 4.1p ✅ AS BUILT — **`B3` PART 3: the trajectory pool. §4.1i's row is right about the RISK and wrong about the OWNER** *(`2026-09-04`)*
+
+> ⭐⭐ **§4.1i's load-bearing argument for this row is CONFIRMED** — *"`EngineBackedNavigationModule`
+> (NavigationSolver) is handed `CoreLogicPack!.TrajectoryPool`, owned by `GroundKinematicsModule`
+> (MuscleGround) — so a NavigationSolver-only node has no pool."* ⭐ True, and the consequence is **worse
+> than the leak the section frames it as.** ⛔ But the module it names as the hazard is the **wrong one**.
+
+#### 📐 THE MEASUREMENT — **three modules, three different shapes**
+
+| module | pool parameter | production constructions |
+|---|---|---|
+| ⭐⭐ **`EngineBackedNavigationModule`** — the navigation module actually in production | ✅ **required** *(`pool ?? throw`)*, and its `Dispose` frees nothing with the comment *"Road network and pool are owned by the host"* | **1** — `SimHostNodeBootstrapper.cs:357-359`, threading `CoreLogicPack!.TrajectoryPool`. ⭐⭐ **Correct today** |
+| 🔴 **`NavigationSolverModule`** — the class that actually carries `Name => "NavigationSolver"` | ⛔ `= null`, then **`?? new TrajectoryPoolManager()`** | ⛔⛔ **ZERO.** The dormant module §4.1j noted — and role selection is exactly what switches it on |
+| ⚠ **`GroundKinematicsModule`** | `= null`, `??=` lazy default *(correct for the owner)* | via `SimHostCoreLogicPack.cs:112` |
+
+⇒ ⭐⭐⭐ **The hazard is the `??` in the DORMANT module, not the fusion in the live one.** ⚠ §4.1i pointed at
+`GroundKinematicsModule`; it is the **owner**, and an owner defaulting its own resource is right.
+
+#### 🔴 WHY THIS ONE IS NOT A LEAK — **it is a silent BEHAVIOURAL break**
+
+📐 `PathfindingSolverSystem` *(NavigationSolver)* **writes** resolved routes into the pool by handle;
+`FormationTargetSystem` and `CarKinematicsSystem` *(MuscleGround)* **read them back** by that handle.
+⇒ ⛔⛔ **a node selecting both roles without threading ONE pool gets two, and then routes resolve and
+vehicles never follow them** — no exception, nothing in a log, no allocator complaint. ⚠ Every other
+instance in this programme *(`CE-165`, `CE-177`, the perception grid)* costs memory or a wasted tick;
+**this one costs the feature.**
+
+⭐ It is the `CLAUDE.md` silent-default pattern exactly: *"a production caller that HAS a dependency must
+pass it."* Today the one caller does. ⛔ **Under role composition the caller will not HAVE it** — a
+NavigationSolver-only node has no `CoreLogicPack` — and the `??` would quietly paper over that.
+
+#### ✅ WHAT SHIPPED
+
+| | |
+|---|---|
+| ⭐⭐ **`NavigationSolverModule`'s pool is REQUIRED** | `?? throw` with a message naming the consequence, matching `EngineBackedNavigationModule`'s existing shape. ⭐ **Zero production callers ⇒ free to fix now**, before B4 can trip it. One test caller updated |
+| ⭐⭐ **`GroundKinematicsModule` gets OWNED-vs-BORROWED** | `OwnsTrajectoryPool` / `OwnsFormationTemplates`, and `Dispose` frees **only what it allocated**. ⛔ Freeing a borrowed pool is the half that CORRUPTS — the same rule `PerceptionGridProvider` carries from part 1 |
+| ⭐⭐ **`SimHostCoreLogicPack : IEcsModule, IDisposable`** | ⭐ **and this one HAS a caller**, unlike `CE-178`: `ModuleHostKernel` disposes registered `IDisposable` modules. 📐 Before this, **nothing in production disposed a `TrajectoryPoolManager` anywhere**, though it holds `Allocator.Persistent` arrays and has always been `IDisposable` |
+| ⚠ **a false comment corrected** | `GroundKinematicsModule` claimed its lazy properties *"avoid eagerly creating pools for roles that never call RegisterSystems."* ⛔ **Never true** — the constructor builds the system arrays and reads both properties. It mattered: it hid that merely CONSTRUCTING the module claims native memory |
+
+⛔ **No new provider class here, deliberately.** `PerceptionGridProvider` exists in part 1 only because
+`SpatialHashGrid` is a **struct** with no owner object. `TrajectoryPoolManager` is already a class and
+already `IDisposable` — ⭐ **it IS the provider**; wrapping it would be a second layer that owns nothing.
+
+#### ⭐ RAILS + GATES
+
+| | |
+|---|---|
+| rails, into the module's **own** suite *(`R-142`)* | `GroundKinematicsModuleTests` — `BothCapabilitiesHandedOnePool_ShareIt_AndNeitherOwnsIt` *(the solver registers a route at handle 77; the kinematics side reads it back, and it stays live after the borrower disposes)* · `ANavigationSolverWithNoPoolIsRefused_NotSilentlyGivenItsOwn` · `AModuleWithNoPoolOwnsAndFreesItsOwn` |
+| ⭐⭐ **red-proofs — two inverse edits, both fired** | restoring `?? new TrajectoryPoolManager()` ⇒ the refusal rail **FAILED**; dropping the `_ownsTrajectoryPool` guard from `Dispose` ⇒ the sharing rail **FAILED**. Both restored ⇒ green |
+| `Fdp.Toolkits.Tests` nav + kinematics + perception | **304 / 0** |
+| `Fdp.Toolkits.Tests` **full** | **2061 / 0** |
+| `Hrot.SimHost.Tests` pack + registry + hill-attack | **82 / 0** |
+| `Hrot.SimHost.Tests` **full** | **882 / 1** — `FullBranchPipelineTests`, the red baselined at `B2` |
+| `Hrot.Editor` build | clean |
+| ⭐⭐ `Hrot.ClusterRunner.Integration.Tests` nav + EQS + path *(gate-contract row 8)* | **71 / 1** — `NetworkDemoPatrolAndEngageTests.NetworkDemo_Phase2_BTreeNavigationIntent_FlowsToMuscle` |
+| ⭐⭐⭐ **that red, BASELINED** *(stash the five changed files, rebuild, re-run — not recalled)* | ⛔ **identical with and without the change: 2 failed / 1 passed both ways** *(`Phase2_BTreeNavigationIntent_FlowsToMuscle` + `Phase3_PerceptionReaction_TargetMemoryPopulates`)*. ⇒ **pre-existing, and not this batch's.** ⚠ The class is also partly non-deterministic — the wide-filter run showed 1 failure where the isolated run shows 2 — so ⛔ **neither a red nor a green from it is evidence** without the stash comparison |
+
+### 4.1q ✅ AS BUILT — **`B4a`: the seam. TWO of §4.1j's FOUR new abstractions ALREADY EXISTED** *(`2026-09-04`)*
+
+> ⭐⭐⭐ **The seam law again, and this time against our own design.** §4.1j's `B4` classDiagram proposes
+> `ICapability` · `IResourceProvider` · `IResourceScope` · `IImplementationFactory`. ⛔ **Measured: two of
+> the four are already built, adopted and red-proofed — and a third is unnecessary.** ⚠ The cause is
+> ordinary: §4.1j and §4.1P were written **the same day** and §4.1j did not know what §4.1P shipped.
+
+#### 📐 THE INVENTORY — run before writing a line *(`search_graph`, label `Interface`)*
+
+| §4.1j proposes | measured |
+|---|---|
+| ⛔ **`IResourceScope.Get(ResourceKey) object`** | ✅ **ALREADY EXISTS: `NodeBootValues`** *(`Hrot.Common/Infrastructure/NodeBootPlan.cs:207`)* — and it is **stronger** than the design's version: a typed `Get<T>`/`Set<T>` that **refuses** a read the step did not declare in `requires` and a write not in `provides`. ⭐ *"the declaration and the data cannot drift apart"* is enforced, not reviewed |
+| ⛔ **"assert every declared Need was allocated"** *(the sequence diagram's last step)* | ✅ **ALREADY EXISTS: `NodeBootPlan.Run`'s `provided.Contains(need)`** — red-proofed at §4.1P *(3 of 5 rails went red when it was disabled)* |
+| ⛔ **`IImplementationFactory.For(CapabilityKey)`** | ⛔⛔ **UNNECESSARY, and dropped.** ⭐ **The variation point is the capability INSTANCE.** A host needing a different `MuscleGround` — Stride swapping `GroundKinematicsModule` for `StrideKinematicsModule` — supplies a different `INodeCapability` under the same `Key`. ⇒ one mechanism instead of two |
+| ⭐ **`ICapability`** | ✅ genuinely new — built as **`INodeCapability`** |
+| ⭐ **`NodeCompositionPlan.Resolve(NodeRole)`** | ✅ genuinely new |
+| ⚠ **`IResourceProvider`** | 🔴 **THE NAME IS TAKEN** — `FDP/Engine/Fdp.Presentation/Vis2D/Abstractions/IResourceProvider.cs`, an unrelated rendering concept in the same solution ⇒ built as **`INodeResourceProvider`** |
+| ⭐ dedupe before register | ✅ already exists — `[SingleInstance]` *(`B1`)* + `SystemComposition.DistinctByType` *(`B2`)* |
+
+⇒ ⭐⭐ **`B4`'s new surface is TWO interfaces and one resolver, not four abstractions and a factory.**
+
+#### ✅ WHAT SHIPPED — `Hrot.Common/Infrastructure/NodeCapability.cs`
+
+| | |
+|---|---|
+| `INodeCapability` | `Key` · `Needs` · `Register(context, NodeBootValues)`. ⭐ It receives the **plan's own value bag**, so a capability physically cannot read a resource it did not declare — that guarantee is borrowed from `NodeBootPlan`, not rebuilt |
+| `INodeResourceProvider : IDisposable` | `Key` · `Allocate(context, values)`. ⭐ **The owner frees; capabilities borrow and must never free** — the asymmetry `B3` established three times over |
+| `NodeCompositionPlan` | `Capability(role, cap)` · `Provider(p)` · `Resolve(role)` · `RequiredResources(role)` |
+| `CapabilityKeys` / `ResourceKeys` | ⭐ **plain `string`s, matching `NodeBootPlan`'s existing key vocabulary.** ⛔ A second typed key type would mean two spellings for one dependency plus a conversion — the duplication this programme removes |
+| ⛔ **no host switched** | `B4a` is the seam only. The switchover is `B4b` |
+
+⭐⭐ **Two rules the resolver enforces, both measured hazards rather than theory:**
+① **resources follow declared `Needs`, never role names** ⇒ a node whose capabilities need nothing
+allocates nothing; ② **a need no provider supplies THROWS** ⇒ the composition-layer form of the
+silent-default pattern, which is exactly the state in which `CE-180`'s module quietly made its own pool.
+
+#### ⚠ AN ACCEPTANCE CRITERION THAT CANNOT BE EXECUTED AS WRITTEN
+
+⛔ §4.1j's `B4` row says *"entity counts and component sets unchanged vs **`CE-141`'s recorded
+baseline**"*. 📐 **`CE-141` is an OPEN question about IG's 2-entry translator list — it records no
+baseline.** ⇒ ⭐ the workable substitute, and what `B4b` will use, is the live one this programme has
+been running: **`hill-attack-close` on both hosts, comparing entity count and per-entity component sets
+before and after.**
+
+#### ⭐ RAILS + GATES
+
+| | |
+|---|---|
+| rails | `Hrot.NodeComposition.Tests/NodeCompositionPlanRails.cs` — **8**, beside `NodeBootPlanRails` rather than in a new project. ⛔ Deliberately **no** rail for *"a capability cannot read an undeclared resource"*: that is `NodeBootValues`' guarantee and `NodeBootPlanRails` already covers it — a second rail for one rule is the duplication, not the coverage |
+| ⭐⭐ **red-proof** | **inverse edit** dropping the `seen.Add(capability.Key)` dedupe ⇒ **2 of 8 FAILED**; restored ⇒ green |
+| `Hrot.NodeComposition.Tests` full | **44 / 0** |
+| `Hrot.Common` build | clean |
+
+⇒ **`build-state`: `B4a` BUILT; `B4b` — the switchover, one host at a time — is next.**
+
+### 4.1r ✅ AS BUILT — **`B4b` step 1: SimHost takes its first resource from a PROVIDER** *(`2026-09-04`)*
+
+> ⭐⭐ **The first host switchover, and deliberately the smallest one that is still real.** ⛔ Not more
+> seam: a production composition root now obtains a shared resource from an owner instead of from
+> whichever module happened to default it.
+
+#### 📐 WHAT THE ROOT DID BEFORE
+
+| | |
+|---|---|
+| `GroundKinematicsModule` **defaulted** the pool *(`??=`)*, `SimHostCoreLogicPack` exposed it, and `SimHostNodeBootstrapper:359` threaded `CoreLogicPack!.TrajectoryPool` into `EngineBackedNavigationModule` | ⚠ **Correct — but correct by CARE.** It held because the single production caller remembered. ⛔ And it forced a dependency that should not exist: the navigation consumer reached **through the Muscle pack**, which is precisely why §4.1i could say *"a NavigationSolver-only node has no pool"* |
+
+#### ✅ WHAT SHIPPED
+
+| | |
+|---|---|
+| ⭐ **`TrajectoryPoolProvider`** *(`Hrot.Common/Infrastructure/SharedResourceProviders.cs`)* | `INodeResourceProvider` owning one `TrajectoryPoolManager`; allocates in the ctor, publishes in `Allocate`, frees in `Dispose` |
+| ⭐ **`PerceptionGridResourceProvider`** | the same identity wrapper over `B3` part 1's `PerceptionGridProvider`, so there is **one** provider concept rather than two |
+| ⭐⭐ **`SimHostNodeBootstrapper` owns the provider** and hands `TrajectoryPool.Pool` to **both** consumers — the pack *(ctor)* and the navigation module *(`:359`, no longer reaching through `CoreLogicPack`)* | ⇒ ⭐⭐⭐ **sharing is now by CONSTRUCTION, not by care**, and the pool has an owner with a lifetime for the first time |
+
+⭐ **Why the trajectory pool first, of all the resources:** it is the one where a split is not a leak.
+The solver writes routes into it **by handle** and the kinematics systems read them back by that
+handle ⇒ two pools produce **routes that resolve and vehicles that never follow them**, silently
+*(`CE-180`)*. ⇒ **the live hill-attack run is a real test of the switchover**, not a smoke test.
+
+#### ⭐⭐⭐ ACCEPTANCE — **the `CE-184` substitute, captured BEFORE the change**
+
+| | |
+|---|---|
+| ⭐⭐ **entity count + per-entity component sets, `hill-attack-close` at load** | **BYTE-IDENTICAL** before vs after — 8 entities, `32/41/41/41/41/12/40/40`, every component name unchanged *(`diff` of the two captures is empty)* |
+| ⭐⭐⭐ **behaviour, 3 600 deterministic steps** | **both hostiles killed** *(`1006`,`1007` at `Health 0`)*; both attackers acquired **2 contacts each** with `TargetMemory` populated, and both fired *(`Ammo 41` from 42)*. ⇒ routes resolved **and were followed** |
+| log scan | ⛔ **0** new exception classes — only the pre-existing `GizmoInteraction` `IndexOutOfRangeException` |
+
+#### ⭐ RAILS + GATES
+
+| | |
+|---|---|
+| rails | `Hrot.SimHost.Tests/TrajectoryPoolProviderTests.cs` — 3: the pack **borrows** *(a route registered through it survives the pack's `Dispose`)* · the provider frees once and is idempotent · its identity is the declared `ResourceKeys.TrajectoryPool` |
+| ⭐⭐ **red-proof** | **inverse edit** making the pack ignore the passed pool and default its own ⇒ the borrow rail **FAILED**; restored ⇒ green |
+| `Hrot.SimHost.Tests` full | **885 / 1** — `FullBranchPipelineTests`, the red baselined at `B2` |
+| `Hrot.SimHost` + `Hrot.ClusterRunner` build | clean |
+
+#### ⛔ WHAT IS NOT YET DONE — **the rest of `B4b`**
+
+⛔ SimHost still hand-lists its modules in `PopulateSystems`/`RegisterSpawningPipeline`; **no host yet
+resolves a `NodeCompositionPlan`.** ⭐ This step converted the *resource* axis for one host, which is
+the half that carries the silent-corruption risk. ⚠ The *capability* axis — `MuscleGroundCapability`
+etc. replacing the hand-written lists — is the remaining work, and the same before/after capture is
+the gate for each host. ⛔ CGF, IG, Stride and the editor are untouched.
+
+### 4.1s ✅ AS BUILT — **`B4b` step 2: SimHost composes from a RESOLVED capability set. And the rail caught a defect I had just shipped** *(`2026-09-04`)*
+
+> ⭐⭐⭐ **The first host whose units come from a declared plan instead of a hand-written block.**
+> ⛔⛔ **And the honest headline: the order-preservation rail FAILED on first run, against code already
+> pushed** — the resolver was silently regrouping registrations. Recorded in full because it is the
+> clearest example this programme has produced of why a rail must exist for a property nothing else observes.
+
+#### 🔴 THE MEASUREMENT THAT CONSTRAINS EVERYTHING HERE
+
+📐 **`ModuleHostKernel.RegisterModule` ends in `_modules.Add(entry)` — a plain `List` the frame loop
+iterates in order.** ⇒ ⭐⭐⭐ **registration order IS execution order.** A capability split that
+reorders registrations is a **behaviour change**, not a refactor — and `B1`–`B4` are required to be
+behaviour-preserving.
+
+#### 🔴🔴 THE DEFECT THE RAIL CAUGHT
+
+⛔ `NodeCompositionPlan` stored declarations in a **`Dictionary<NodeRole, List<INodeCapability>>`** and
+resolved by iterating it — so declarations were **grouped by role**. SimHost declares
+`MuscleGround(a) · Perception(b) · NavigationSolver(c) · Perception(d)`; the resolver returned
+**`a b d c`**, moving the navigation module *after* `CognitiveSpatialModule`.
+
+| ⚠ what makes this the instructive case | |
+|---|---|
+| ⛔⛔ **the live run was GREEN anyway** | both hostiles killed, component sets identical. ⇒ ⭐ that is evidence the reorder was *tolerated*, **not that it did not happen** |
+| ⛔ **no existing suite observes module tick order** | ~890 SimHost tests, 45 composition tests: all green with the reorder in place |
+| ⭐⭐ **I wrote the capabilities specifically to preserve order — and then the collection type undid it** | the intent was in the comments; the guarantee was in neither the code nor a test |
+
+✅ **Fixed:** the plan now stores a **flat, ordered `List<(NodeRole, INodeCapability)>`**, so resolution
+is declaration order regardless of how role declarations interleave. ⭐ The class documents why it is
+*not* a dictionary, at the field.
+
+#### ✅ WHAT SHIPPED
+
+| | |
+|---|---|
+| `SimHostCapabilities` | `MuscleGround` *(the only one contributing to BOTH boot steps)* · `PerceptionSolver` · `NavigationSolver` · `PerceptionSpatial` |
+| ⚠ **perception is TWO capabilities, and that is forced by measurement** | today's sequence interleaves perception concerns **around** navigation. Collapsing them would move the navigation module. ⛔ Whether that interleaving is meaningful or merely historical is **NOT measured** ⇒ ⭐ a follow-up should establish whether the halves can merge; until then the split preserves the observed order rather than guessing |
+| ⭐ **`INodeCapability` gained a second hook** | `PopulateSystems` + `Register`, mirroring the base's two existing boot steps *(`system-groups`, `spawning-pipeline`)* rather than inventing a third composition point. Both default to no-ops. ⚠⚠ **SUPERSEDED `2026-09-05` by §4.1t — there are now THREE hooks.** Two covered every step SimHost uses; IG registers at `additional-modules`, which neither reaches |
+| ⭐ **the migration bag is EMPTY, never `null`** | SimHost has not yet moved capability registration inside a `NodeBootPlan` step, so there is no live bag. An empty `NodeBootValues` makes a capability that reads fail with its own message naming the undeclared key — ⛔ passing `null` would be the exact silent-default shape this programme keeps removing |
+| ⛔ **the role set is not narrowed yet** | SimHost composes `MuscleGround\|Perception\|NavigationSolver` unconditionally, as today. Selecting **by** the node's declared flags needs its own measurement of what each deployed role actually carries |
+
+#### ⭐ ACCEPTANCE + GATES
+
+| | |
+|---|---|
+| entity count + per-entity component sets vs the **pre-`B4b`** baseline | **IDENTICAL** *(empty `diff`)* |
+| behaviour, ~2 000 steps to `simTime 51.9` | **both hostiles killed**; both attackers acquired and fired *(`Ammo 41`)* |
+| `Hrot.NodeComposition.Tests` | **45 / 0** *(the new order rail included)* |
+| `Hrot.SimHost.Tests` | **885 / 1** — `FullBranchPipelineTests`, baselined at `B2` |
+| ⚠ **a false alarm worth recording** | one verification run showed `simTime 2.8` after 3 600 requested steps and looked like a severe regression. 📐 **Cause: my backgrounded stepping loop had died, not the sim** — re-running deterministically advanced normally. ⭐ Measured before reporting; ⛔ a slower path would have been to report the scare |
+
+### 4.1t ✅ AS BUILT — **`B4b` step 2, host (b): IG joins the seam, and the SECOND host is what found the seam's hole** *(`2026-09-05`)*
+
+⭐⭐⭐ **The reason for switching hosts over ONE AT A TIME, vindicated on the first try.** §4.1s built the
+capability axis against SimHost alone and gave `INodeCapability` **two** hooks, chosen to mirror the base's
+boot steps. 📐 **Measured `2026-09-05`: those two hooks cover exactly the steps SimHost happens to use, and
+no more.**
+
+#### ⛔⛔ THE HOLE — **a third boot step no hook could reach**
+
+| # | measurement | evidence |
+|---|---|---|
+| ① | the base composes at **three** steps, not two: `system-groups` → **`additional-modules`** → `spawning-pipeline` | `SharedApplicationBootstrapper.cs:126` · **`:148`** · `:172` |
+| ② | `INodeCapability` reached the **first and third** only | `NodeCapability.cs` — `PopulateSystems`, `Register` |
+| ③ | ⭐⭐ **SimHost does not override `GetAdditionalModules` at all** ⇒ the gap was invisible | grep, whole repo: **2** overrides, and neither is SimHost |
+| ④ | ⭐⭐⭐ **the only two hosts that DO override it are IG and Stride** | `IgNodeBootstrapper.cs:212` · `StrideNodeBootstrapper.cs:269` |
+
+⇒ ⛔ **Expressing IG's five presentation modules through `Register` was NOT an option.** It would move all
+five from *before* `context.BaseModules` *(`EntityLifecycleModule`, `GeographicModule`)* to *after* them and
+after the spawning pipeline. `ModuleHostKernel.RegisterModule` appends to a plain `List` the frame loop walks
+in sequence *(`:437`)*, so **registration order is frame execution order** — that is a behaviour change, which
+is precisely what `B4b` forbids.
+
+⚠ **§4.1N ③ calls step `4b` "INCIDENTAL — no consumer found; only *before 7*", and that is NOT a licence to
+move it.** ⭐ That pass measured the **bootstrap data graph** — which step needs a value another produced. It
+says nothing about the **frame order of the modules the step registers**, and those are different questions.
+📌 Recorded because the sentence reads like permission and is not.
+
+#### ⭐ WHAT WAS BUILT
+
+| | |
+|---|---|
+| ⭐⭐⭐ **a THIRD hook, `ProvideModules()`** | mirrors `additional-modules`, exactly as the other two mirror their steps. Defaults to empty, so no existing capability changed. ⛔ **No parameters** — the base hook it mirrors takes none, and neither host's modules need the context; a capability needing more state takes it by **constructor**, which is the rule this interface already follows |
+| ⭐ **`IgCapabilities.Presentation`** | one capability under `CapabilityKeys.ImageGenerator` *(declared since `B3`, unreferenced until now)*, carrying all five modules **and** the `!headless` branch for `EventEffectModule` |
+| ⭐⭐ **the plan resolves LAZILY, not from a field an earlier phase set** | ⛔ the SimHost shape *(build in `PopulateSystems`, read the field later)* is a **trap here**: `additional-modules` declares `requires: ["context"]` only — **not** `"system-groups"` — so the plan may legally run it first, leaving the field empty and IG registering **no presentation modules at all**, silently, on a healthy boot |
+| ⛔ **the role set is not narrowed** | IG composes `ImageGenerator` unconditionally, the same stance `SimHostNodeBootstrapper:254` takes and for the same reason |
+
+```mermaid
+classDiagram
+    class INodeCapability {
+        <<interface>>
+        +string Key
+        +IReadOnlyList~string~ Needs
+        +PopulateSystems(ctx, input, sim, postSim)
+        +ProvideModules() IEnumerable~IEcsModule~
+        +Register(ctx, values)
+    }
+    class SharedApplicationBootstrapper {
+        <<existing>>
+        step system-groups
+        step additional-modules
+        step spawning-pipeline
+    }
+    class MuscleGround { <<SimHost>> }
+    class PerceptionSolver { <<SimHost>> }
+    class NavigationSolver { <<SimHost>> }
+    class PerceptionSpatial { <<SimHost>> }
+    class Presentation { <<IG, new>> }
+
+    INodeCapability <|.. MuscleGround
+    INodeCapability <|.. PerceptionSolver
+    INodeCapability <|.. NavigationSolver
+    INodeCapability <|.. PerceptionSpatial
+    INodeCapability <|.. Presentation
+    SharedApplicationBootstrapper ..> INodeCapability : one hook per step
+    NodeCompositionPlan --> INodeCapability : resolves in declaration order
+```
+
+#### ⭐ ACCEPTANCE + GATES
+
+| | |
+|---|---|
+| ⭐⭐⭐ **module SEQUENCE unchanged** | two new order rails in **`IgNodeBootstrapperTests`** *(the feature's own suite — `R-142` ④, no new class)*, green before and after the switchover |
+| ⭐⭐ **red-proof — INVERSE EDIT** | swapped `MapLayerModule` ↔ `HistoryTrailModule` in the capability, rebuilt: **the 2 order rails RED, the 6 pre-existing membership rails GREEN.** ⇒ the old six could never have seen a reorder, which is why the two were written |
+| `Hrot.IG.Tests` | **412 / 5**, total 416 → 418. ⛔ the 5 are **pre-existing**, baselined at `b0e0efbfc` before any edit: `EntityInfoTranslatorTests` ×4 *(`CS011_*`)* + `EntityMasterTranslatorTests.ProcessSample_WithSenderTracking_SetsOwnerId` |
+| `Hrot.NodeComposition.Tests` | **45 / 0** |
+| `Hrot.SimHost.Tests` | **885 / 1** — `FullBranchPipelineTests.BranchedRecording_CapturesHistoricalStateAsKeyframe`, **baselined by stash + rebuild**: red without this change too |
+| ⭐ live `--mode all` | see §4.1u |
+
+#### ⛔ WHAT IS STILL NOT DONE — the rest of `B4b`
+
+| | |
+|---|---|
+| **CGF · Stride · editor** | untouched. ⭐ **Stride is the cheapest next one** — it already overrides `GetAdditionalModules` with four pre-built modules, so it is a `ProvideModules` move with no new mechanism |
+| **role narrowing** | neither host selects by its declared flags yet |
+| ⛔ **`INodeResourceProvider.Allocate` has ZERO production call sites** | 📐 grep, whole repo. SimHost reads `TrajectoryPool.Pool` as a property and uses `plan.RequiredResources()` purely as a **validation**, discarding the result. ⚠ The resource half of the seam is therefore **declared and verified but never RUN** — not a defect today *(every capability receives its resources by constructor)*, but it must not be mistaken for working machinery |
+
+### 4.1u ✅ LIVE VERIFICATION — **`--mode all` after the IG switchover** *(`2026-09-05`)*
+
+⭐⭐ **The composition claim, proven on a running node rather than in a test.** `/diagnostics/architecture`
+lists the IG subsystem's modules **in registration order**:
+
+```
+IgApplicationSim, StyleResolution, MapCulling, MapLayerAssignment, HistoryTrail, EventEffect,
+EntityLifecycleManager, GeographicServices, UnitHierarchy, NedReplication, GizmoInteraction
+```
+
+⇒ ⭐⭐⭐ **the five capability-provided modules appear in the declared sequence and BEFORE
+`EntityLifecycleManager`/`GeographicServices`** — exactly the ordering §4.1t argued the switchover had to
+preserve, and the ordering that routing them through `Register` would have destroyed.
+
+⭐ **Scenario behaviour** *(`hill-attack`, ~580 s of `simTime`)*: links ①②③ of `RUNBOOK` §8 hold — the
+friendlies advance, acquire and fire, and **IG receives the state** *(`WorldPos` 4997, `EntityDamage` 6,
+`EntityMission` 7)*. ⛔ **Link ④ — the enemy dies — does not**, and that belongs to `CE-174`
+*(round-robin target allocation ignores geometry)*, which is open, host-independent and awaiting a user
+ruling. ⚠ **Not a regression:** the scenario is non-deterministic and `CE-174`'s mechanism makes kills
+intermittent by construction. 📄 The full per-translator table, and the answer it gives to `CE-167`'s
+*"which node applies damage"* question, are in [`Blueprint_Issues_Tracker.md` `CE-195`](blueprints/Blueprint_Issues_Tracker.md).
+
+⭐⭐ **Zero exceptions, zero `ERROR` lines, zero swallowed module exceptions in the whole run.**
+
+### 4.1v ✅ AS BUILT — **`B4b` step 3: composition follows the DECLARED ROLE. And item ③ turned out to be BLOCKED, not unwired** *(`2026-09-05`)*
+
+#### ⭐⭐⭐ THE ROLE AXIS — the measurement contradicted the assumption
+
+§4.1s and §4.1t both resolved from `const NodeRole composed = …`, each with a comment saying narrowing
+"needs its own measurement of what each deployed role actually carries". 📐 **That measurement did not
+confirm the assumption:**
+
+| host | DECLARED | COMPOSED (the constant) |
+|---|---|---|
+| **SimHost** | 🔴 `MuscleGround \| Perception` | `MuscleGround \| Perception \| NavigationSolver` |
+| IG | ✅ `ImageGenerator` *(a literal, `IgApplication.cs:923`)* | `ImageGenerator` |
+
+⇒ ⛔ resolving SimHost by its declared role **would have silently dropped `EngineBackedNavigationModule`
+and `EqsModule`.** ⭐ The fix is to make the **declaration** true, not to keep overriding it.
+
+| # | what the switchover exposed | |
+|---|---|---|
+| ① | ⭐⭐ **the role was written THREE times** | `SimHostApp`'s field initialiser, `SimHostApp`'s **ctor default parameter**, `SimHostSubsystem._role`. 📌 The ctor default is the copy a careful edit misses — fixing only the other two **reddened five SimHost boot tests**. ⇒ collapsed to one `SimHostApp.DefaultRole` |
+| ② | ⛔⛔ **`PostInitialize` assumed composition it does not control** | it called `_navModule!.RegisterProviders(…)` unconditionally — safe only while the constant guaranteed the module. Now guarded on the resolved set, so a narrower role is a **supported configuration rather than a crash** |
+| ③ | ⚠ **the blast radius is fully enumerated** | `NodeRole.NavigationSolver` is tested in exactly ONE place repo-wide, `NedSimHostPathfindingTranslators.cs:35` |
+
+⭐ **The dormant pair stays dormant, and that is deliberate.** That one branch registers
+`PathRequestSolverIngressTranslator` + `PathResponseSolverEgressTranslator`. 📐 Its Brain half is gated on
+`role.HasFlag(Brain) && trajectoryPool != null`, and CGF passes a **null** pool (`CgfSubsystem.cs:905`) ⇒
+**neither half was ever registered, and neither is now.** Per *"unreferenced is not unintentional"*, this
+is a designed capability nobody switched on — ⛔ not something to activate as a side effect of a refactor.
+
+#### ⛔⛔⛔ ITEM ③ — **`Allocate` IS BLOCKED, NOT MERELY UNWIRED. I got this wrong first.**
+
+📐 `INodeResourceProvider.Allocate` having **zero production call sites** reads as a wiring gap. It is not:
+**`NodeBootValues.Set` refuses any write outside a boot step that declared the key in its `provides`** —
+*"Boot step '(outside any step)' set 'res:…', which it does not declare in its provides []."*
+
+⇒ ⛔ **the obvious fix — resolve the providers and allocate into a fresh bag — THROWS AT BOOT.** I wrote
+exactly that, and **a rail caught it before a cluster did**
+(`NodeCompositionPlanRails.AllocatingIntoAFreeStandingBagIsRefused`).
+
+⭐⭐ **So `SimHostNodeBootstrapper`'s own "the values bag is EMPTY" comment was RIGHT**, and it already named
+the blocker: the resource half cannot run until a host's capability registration moves **inside** a
+`NodeBootPlan` step declaring the resource keys. ⚠ That is a change to the **shared base** — the step must
+be declared where the keys are known — and it is the real remaining work, not a wiring oversight.
+⛔ **Do not "fix" it by relaxing the guard:** the guard is what keeps the declared dependency graph the real
+one.
+
+#### ✅ WHAT ITEM ③ DID DELIVER — a leak, found by reading a claim
+
+⛔⛔ `TrajectoryPool`'s remarks claimed *"this bootstrapper disposes the provider, which nothing did
+before."* 📐 **Measured FALSE:** the class had **no `Dispose` at all**, and nothing called
+`TrajectoryPoolProvider.Dispose` anywhere in production ⇒ **every node leaked its
+`TrajectoryPoolManager`** — the `CE-177`/`CE-193` shape. The resolved providers are now held and freed
+through `DisposeResources`, wired into `SimHostApp.Shutdown`.
+
+⚠ **A documented ownership claim that nothing implements is worse than an undocumented gap**, because the
+next reader stops looking. That is the generalisable lesson here.
+
+#### ⛔ WHAT IS STILL NOT DONE
+
+| | |
+|---|---|
+| ⭐⭐⭐ **the resource half** | blocked as above — needs a `NodeBootPlan` step that declares the resource keys, in the shared base |
+| **CGF · editor** | still off the seam entirely; CGF uses `HrotNodeBuilder`+`NodeBootPlan` directly, the editor neither |
+| **Stride** | 🔒 user ruling `2026-09-05`: **last**, after CGF and the editor — and it needs Windows, which this environment cannot verify |
+
+### 4.1L 🔴🔴🔴 `CE-165` — **THE SLOTS ARE FULL, AND THE RUNNING EDITOR DOUBLE-TICKS TWO SYSTEMS TODAY** *(second user challenge, `2026-09-03`)*
+
+> 🔒 **User:** *"for sure the slots are not empty; check the stride game host for a DI or factory
+> construction path; use codebase memory (which you should be doing the whole time — see claude.md)."*
+>
+> ⭐⭐⭐ **Right on both counts, and the process criticism is the more important one.** ⛔ §4.1k's negative
+> claim *("the only two constructions are TESTS")* was made from **grep alone** — a `search_code` call
+> immediately returned `Stride/HrotStrideApp.Game/StrideHrotGame.cs`, a file the grep never showed.
+> ⚠ That is exactly the `INVENTORY`-before-claim rule, and it was skipped on a **negative** claim, which is
+> the one shape grep can never settle.
+
+#### ⭐⭐ ① THE CORRECTION — **`StrideNodeBootstrapper` is DORMANT; the live Stride node is `EditorStrideSubsystem`**
+
+| claim | verdict | evidence |
+|---|---|---|
+| *"no production construction of `StrideNodeBootstrapper`"* | ✅ **still true** — but it is a statement about a **dormant class**, not about Stride | `StrideHrotGame.cs:266 AttachBootstrapper(StrideNodeBootstrapper)` sets the only field; ⛔ **`AttachBootstrapper` itself has NO caller** — the sole other mention is a doc reference |
+| ⛔ *"Stride's four role slots are empty"* | 🔴 **WRONG about the node** | the **live** composition is `EditorStrideSubsystem.Initialize`, and it fills them |
+| *"Stride registers the creation tier only"* *(§4.1f)* | 🔴 **WRONG** | `EditorStrideSubsystem:646` builds **`CgfLogicPack` (Brain)**, `:663` builds **`StrideMuscleModules.Build(...)` (MuscleGround)**, `:642` **`OrchestrationLogicPack`**, plus the creation tier |
+
+⭐⭐⭐ **And `StrideMuscleModuleSet` IS axis ③ in production, already:** it is `SimHostCoreLogicPack`'s
+content with **`GroundKinematicsModule` swapped for `StrideKinematicsModule`** — 🔒 the user's *"respecting
+possible different implementations (simhost vs stride)"*, built and running. ⭐ The remaining gap is
+**declared in the code itself**: `EditorStrideSubsystem`'s header says *"**Muscle (P0 stub)**:
+`SimHostCoreLogicPack` registered directly. ⚠ SEAM (P1): Replace `SimHostCoreLogicPack` with
+`StrideKinematicsModule` (STR-P1-T1)"* ⇒ ⛔ **the design is not inventing axis ③; it is generalising a seam
+the Stride lane already named and half-built.** 📌 The seam law, a **fourth** time in this programme.
+
+#### 🔴🔴🔴 ② THE FINDING — **FOUR composition roots fuse Brain+Muscle. THREE dedupe. THE RUNNING EDITOR DOES NOT.**
+
+📐 Both packs carry the same two systems — measured, not inferred:
+
+| system | in `CgfLogicPack` | in `SimHostCoreLogicPack` |
+|---|---|---|
+| `UnitHierarchySystem` | ✅ `:162 simList.Add(_unitHierarchySystem)` | ✅ `:137 simList.Add(_unitHierarchySystem)` |
+| `EqsResultUpdateSystem` | ✅ `:165 simList.Add(new EqsResultUpdateSystem())` | ✅ `:138 simList.Add(new EqsResultUpdateSystem())` |
+
+⇒ **any root that concatenates the two pack lists registers each twice unless it dedupes.** 📐 The roots:
+
+| # | composition root | fuses | dedupe? |
+|---|---|---|---|
+| ① | `EditorStrideSubsystem` *(Stride, live)* | `CgfLogicPack` + `StrideMuscleModuleSet` | ✅ **type-keyed** — `EditorStrideSimulationModule:1692` `seen.Add(sys.GetType())` |
+| ② | `StrideMuscleModule.RegisterSystems` *(the injected arm)* | the muscle set only | ✅ type-keyed `:232` — ⚠ **but scoped to the muscle set; it cannot see the CGF list** |
+| ③ | `EditorHarness` *(`ClusterRunner.Integration.Tests:239`)* | `CgfLogicPack` + `SimHostCoreLogicPack` | ✅ type-keyed `:389` |
+| ④ | 🔴🔴 **`EditorSubsystem` — the RUNNING `Hrot.Editor`** | `CgfLogicPack` + `SimHostCoreLogicPack` | ⛔⛔ **NONE** |
+
+📐 **Root ④'s chain, every hop measured, no dedupe at any of them:**
+`EditorSubsystem:1352 muscleSimSystems = simHostCorePack.SimulationSystems`
+→ `:1390 cgfLogicPackInst.SimulationSystems.Concat(muscleSimSystems)`
+→ `BlueprintRuntimeWiring.SpliceIntoSimulation:107` — a plain `new List<>(…)` + one `Insert`
+→ `TogglableSimulationGroup` — a plain array, `:69 foreach (var sys in _innerSystems) sys.Execute(…)`
+→ `EditorSimulationModule(toggleSim)` *(`:1433`, a one-arg wrapper — **not** the two-arg deduping class of root ③)*.
+
+⛔ **And the default arm is the production arm:** `:1341 if (MuscleModuleFactory == null)` builds
+`SimHostCoreLogicPack`, and 📐 `MuscleModuleFactory` has **no production setter** — the only assignment in
+the tree is `Stride/HrotStrideApp.Game.Tests/EditorSubsystemHeadlessBootTests.cs:109`.
+
+#### 🔴 ③ IT IS CORRUPTING, NOT MERELY WASTEFUL — **and the harness that mirrors it CANNOT SEE IT**
+
+📐 `UnitHierarchySystem.ProcessAssignSubordinates` reads `repo.Bus.Read<CmdAssignSubordinate>()` — a
+**non-destructive frame read**, so a second instance in the same phase sees the same events. On that second
+pass, for a subordinate already assigned to the **same** commander:
+
+```csharp
+if (repo.HasComponent<UnitSubordinate>(sub)) {
+    var current = repo.GetComponent<UnitSubordinate>(sub);
+    if (!current.Commander.Equals(cmd))
+        RemoveFromHierarchy(repo, sub);      // ⛔ same commander ⇒ NO branch taken, and NO `continue`
+}
+…
+roster.SubordinateEntities[roster.Count] = (long)sub.PackedValue;   // 🔴 UNGUARDED APPEND
+roster.Count++;
+```
+
+⇒ 🔴 **one `CmdAssignSubordinate` yields TWO roster entries for one subordinate, and `Count` is 2.**
+⚠ At `UnitRoster.Capacity` this also halves the real capacity and trips the rejection path early.
+⛔ `EqsResultUpdateSystem`'s double-tick harm is **not measured** — it is epoch-guarded, so it is plausibly
+idempotent; ⭐ stated as unknown rather than asserted either way.
+
+⭐⭐⭐ **Why no test catches it: root ③ — `EditorHarness`, the integration harness that exists to mirror the
+editor — HAS the guard the editor lacks.** ⇒ 📌 the `RAIL-BLINDNESS` pattern of §7, a **fourth** instance,
+and the sharpest yet: the harness is not merely blind to the defect, **it is blind because it fixed it
+locally and the production root did not.**
+
+#### ⭐⭐⭐ ④ WHAT THIS CHANGES IN THE BUILD SEQUENCE — **`B1` is now CORRECTIVE**
+
+| | before | after |
+|---|---|---|
+| ⭐⭐⭐ **`B1` (`[SingleInstance]` + a central duplicate check)** | a **prophylactic** guard for a hazard §4.1g ② predicted would appear once roles were composed | 🔴 **a FIX for a defect that ships today in `Hrot.Editor`** ⇒ ⭐ it needs a **rail that reproduces the double roster entry first**, and an inverse-edit red-proof — not just a registration-count assertion |
+| ⭐⭐ **the three local `HashSet<Type>` guards** | unremarked | ⭐⭐ **they are the prior art, and they are the argument**: three independent authors each hand-rolled the same type-keyed dedupe at the same seam. 🔒 That is the seam law's *"we need a shared X"* ⇒ **X exists three times, under-adopted, and the one place it is missing is production** |
+| ⭐ **`B1` scope** | *"opt-in `[SingleInstance]`"* | ⭐ unchanged and **still opt-in** *(§4.1g's caution stands — a blanket ban would hit legitimately multi-instance systems)*. ⭐⭐ But `UnitHierarchySystem` and `EqsResultUpdateSystem` are its **first two attributed types**, chosen by measurement |
+| ⚠ **ordering** | `B1` first, on general grounds | ⭐ **confirmed, and now urgent for a second reason** — root ① is `MuscleGround\|Perception`, the pair whose module sets overlap *(§4.1k)*; ⛔ `B1` must land before Stride's remaining slots are filled **and** to fix root ④ |
+
+#### 📐 THE CLAIM TABLE
+
+| the correction rests on | code — how it IS | design basis — how it was MEANT to be |
+|---|---|---|
+| `StrideNodeBootstrapper` has no production construction | ✅ `StrideHrotGame.cs:266`, `AttachBootstrapper` callerless | ⛔ searched `docs/` + `.dev/`, none found — it is undeclared dormancy |
+| the live Stride root is `EditorStrideSubsystem` and its role slots are full | ✅ `:646` Brain, `:663` MuscleGround, `:642` orchestration | ✅ its own header — *"Brain (CGF) … Muscle (P0 stub) … ⚠ SEAM (P1) … (STR-P1-T1)"* |
+| both packs carry `UnitHierarchySystem` + `EqsResultUpdateSystem` | ✅ `CgfLogicPack:162,165` · `SimHostCoreLogicPack:137,138` | ✅ §4.1h — they are **capabilities**, role-independent; the duplication is pack drift |
+| roots ①②③ dedupe by type, root ④ does not | ✅ `:1692` · `:232` · `:389` vs `SpliceIntoSimulation:107` + `TogglableSimulationGroup:69` | ⛔ searched, no design records a dedupe obligation — ⭐ **that absence IS the finding** |
+| the editor takes the default (SimHost) muscle arm in production | 🔴🔴 **SUPERSEDED `2026-09-07` — see §4.1ac.** 📐 Re-measured: **`Stride/HrotStrideApp.Game/EditorStrideSubsystem.cs:942` assigns `_editor.MuscleModuleFactory` in PRODUCTION** (the hosted mode-1 path, set before `_editor.Initialize`). ⇒ *"set only at `EditorSubsystemHeadlessBootTests.cs:109`"* **is false now** — the editor's muscle arm IS swapped in production, by Stride. ⚠ The row is corrected, not deleted: it was either wrong when written or the wiring landed after `2026-09-03` | ✅ `:1330` — *"MuscleModuleFactory == null -> EXACTLY the code that was here before"* (`ST-010`) |
+| the double tick corrupts the roster | ✅ `UnitHierarchySystem.cs:107-140`, `Bus.Read` is a frame read | ✅ `UnitRoster.cs:18` — overflow is *"rejected … with a diagnostic warning"*, i.e. `Count` is trusted |
+| `EqsResultUpdateSystem`'s double tick is harmful | ⛔ **NOT MEASURED** — epoch-guarded, plausibly idempotent | ⛔ not searched |
+| ⚠ `check_index_coverage` was NOT run | — | ⛔ **unavailable through the CLI in this session**; the exhaustive claim *"four roots"* rests on `search_code` + grep together, not on coverage |
+
+#### ⛔ ALSO CORRECTED: §4.1's layer table
+
+⛔ It says *"CGF and the Editor re-run the order inline"* — **two**. 📐 There are **three** inline composition
+roots: `CgfSubsystem`, `EditorSubsystem`, and `EditorStrideSubsystem`; ⭐ `EditorHarness` is a fourth if
+test harnesses are counted, and §4.1L ③ is the reason they should be.
+
+### 4.1M 📐 THE REGISTRAR INVENTORY — **measured `2026-09-03`. ⛔ NO DESIGN CONCLUSIONS IN THIS SECTION.**
+
+> 🔒 **User ruling, `2026-09-03`, verbatim:** *"the tiers should not be prefabricated. we need flexible
+> composition but unified to very high extent. **Tier = a composition of shared parameterized
+> registrars/initializers.**"*
+>
+> ⛔⛔ **This SUPERSEDES the "two families" framing of §4.1L ② and the "three tiers" table** *(ECS node /
+> cluster participant / viewer)* that a chat reply proposed on the same day. ⭐ Both were **partitions**,
+> and a partition is an input a host gets sorted into. ⭐⭐⭐ **A tier is an OUTPUT — the set of registrars a
+> host happened to compose.** ⚠ The tables below therefore enumerate **units and their users**; they do
+> **not** classify hosts.
+>
+> ⭐⭐ **Why this section contains no recommendation.** 🔒 User, same day: *"every time i ask about some
+> persuading question you significantly change your suggestion."* 📐 Measured cause, three times in one
+> session: **the local question was measured, and the CONCLUSION rested on something never opened**
+> *(the live Stride path · the base class itself · a mechanism, where only traits had been measured)*.
+> ⇒ ⭐ this section is the enumeration that must precede the design, per `INVENTORY-BEFORE-DESIGN`.
+> ⛔ **Do not add a build sequence here.**
+
+⭐ **Reproduce it:** `python3 scripts/composition-inventory.py` *(the script states its own imprecision —
+counts are LOWER BOUNDS; `HashSet` is a regex false positive)*. Corroborated with `search_graph`:
+**16** `*Pack` classes, **3** `*LogicPack`, **87** distinct `*Module` names.
+
+#### ① THE COMPOSITION ROOTS — **nine, and the spread is the finding**
+
+| root | file | units composed |
+|---|---|---|
+| **Editor** *(inline)* | `Hrot.Editor/EditorSubsystem.cs` | 🔴 **54** |
+| **CGF** *(inline)* | `Hrot.CGF/CgfSubsystem.cs` | **30** |
+| **EditorHarness** *(TEST)* | `Hrot.ClusterRunner.Integration.Tests/EditorHarness.cs` | **16** |
+| **Stride editor** *(inline)* | `Stride/HrotStrideApp.Game/EditorStrideSubsystem.cs` | **14** |
+| **IG** *(base subclass)* | `Hrot.IG/IgNodeBootstrapper.cs` | **10** |
+| **SimHost** *(base subclass)* | `Hrot.SimHost/SimHostNodeBootstrapper.cs` | **9** |
+| **ReplayBrowser** | `Hrot.ReplayBrowser/ReplayBrowserSubsystem.cs` | **7** |
+| **ExCon** | `Hrot.ExCon/ExConSubsystem.cs` | **6** |
+| **Stride node** *(base subclass, DORMANT)* | `Hrot.NodeComposition/StrideNodeBootstrapper.cs` | **4** |
+
+⚠ **A raw count mixes concerns** — the Editor's 54 include UI registries and adapters, not only ECS
+composition. ⭐ The count is reported because the **6× spread** is itself the measurement.
+
+#### ② WHAT IS ALREADY SHARED — **45 units used by ≥2 roots** *(44 real; `HashSet` is the false positive)*
+
+| users | unit | roots |
+|---|---|---|
+| **7** | `BehaviorRegistry` | SimHost · StrideNode · CGF · Editor · StrideEd · ReplayBrowser · Harness |
+| **6** | `ClusterSlave` | IG · CGF · Editor · StrideEd · **ExCon** · Harness |
+| **6** | ⭐⭐⭐ **`EntityCreationPack`** | SimHost · IG · StrideNode · CGF · Editor · StrideEd |
+| **5** | `SimHostModule` | SimHost · StrideNode · Editor · StrideEd · Harness |
+| **4** | `CgfLogicPack` · `LocalDiskStorageProvider` · `PhysicsToolkitModule` · `TacticalIntentMapperRegistry` | |
+| **3** | `CognitiveSpatialModule` · `EcsRecordReplayController` · `EntityLifecycleModule` · `MapInteractionPack` · `ScenarioEditorModule` · `SimHostCoreLogicPack` | |
+| **2** | 30 further units — orchestration *(`OrchestrationLogicPack`, `ClusterMaster`, `ListenerRecordReplayController`, `NodeBootstrapper`)*, map *(`MapCullingModule`, `StyleResolutionModule`, `GizmoInteractionModule`)*, editor tooling *(11 registries/providers/adapters)*, diagnostics *(`SubsystemDebugProvider`, `DebugSnapshotProvider`)* | |
+
+#### ③ SINGLE-ROOT UNITS — **28, i.e. what is genuinely host-specific today**
+
+| root | n | units |
+|---|---|---|
+| Editor | **14** | `AppExitPromptController` · `BTreeTraceLaneProvider` · `BlueprintLiveValueProvider` · `BlueprintNodeDrawerRegistry` · `BlueprintPeerSourceProvider` · `EditorLogicSessionAdapter` · `EditorMapPickAdapter` · `EditorZoneAdapter` · `EqsTemplateRegistry` · `HsmTraceLaneProvider` · `LiveBlackboardValueProvider` · `LiveSessionRegistry` · `MasterSyncTimeControllerAdapter` · `StorageGatewayModule` |
+| CGF | 4 | `CanvasMapPickAdapter` · `CgfClusterDebugTimeController` · `CgfSimulationModule` · `ClusterTimeTransportAdapter` |
+| IG | 3 | `HistoryTrailModule` · `IgUnitHierarchyModule` · `MapLayerModule` |
+| Stride editor | 3 | `DotRecastDtCrowdProvider` · `EditorStrideSimulationModule` · `StrideMuscleModules` |
+| ExCon | 2 | `SlaveSyncController` · `TimeNetworkModule` |
+| SimHost | 1 | `EngineBackedNavigationModule` |
+| ReplayBrowser | 1 | `RepositoryAdapter` |
+
+#### ④ ⭐⭐⭐ TWO REGISTRAR SHAPES ALREADY EXIST IN PRODUCTION
+
+⭐⭐ **Shape A — context object + static `Build` + `Validate` + omission reporting.** ⛔ Two instances only:
+
+| | |
+|---|---|
+| `EntityCreationPack.Build(EntityCreationContext ctx)` | `:70`, opens with `ctx.Validate()` |
+| `MapInteractionPack.Build(MapInteractionContext ctx)` | `:53`, same shape |
+| ⭐ the context is the **parameterisation** | `EntityCreationContext`: **6 `required`** *(`World`, `EntityMap`, `TkbDb`, `IdAllocator`, `Elm`, `NodeId`)* + **8 optional `init`** *(`IsBroadcastArbiter`, `NetworkRequestSource`, `RequestEgress`, `AckSink`, `ExtraTranslators`, `TranslatorPlacements`, `JsonAttributeCompiler`, `OwnershipStrategy`)* |
+| ⭐⭐ and it REPORTS what the host failed to schedule | `EntityCreation.Unserviceable(scheduled)` — *"an omission is loud instead of silent"* |
+
+⭐ **Shape B — positional constructor with optional args defaulting to null.** The capability modules:
+
+| unit | signature |
+|---|---|
+| `CgfLogicPack` | `(BehaviorRegistry, NetworkEntityMap, ScenarioEntityCreationRequestSource, TacticalIntentMapperRegistry, VehicleAPI? = null)` |
+| `SimHostCoreLogicPack` | `(NetworkEntityMap, RoadNetworkBlob = default, TrajectoryPoolManager? = null, FormationTemplateManager? = null)` |
+| `CognitiveSpatialModule` | `(EntityRepository liveWorld, Func<ISimulationView,Entity,float>? colliderRadiusReader = null)` |
+| `EngineBackedNavigationModule` | `(RoadNetworkBlob roadNetwork, TrajectoryPoolManager pool)` |
+| `OrchestrationLogicPack` | `(ClusterSlave clusterSlave)` |
+
+#### ⑤ 📌 FIVE FACTS THIS ENUMERATION ESTABLISHES — ⛔ **facts, not a plan**
+
+| # | |
+|---|---|
+| **1** | ⭐⭐⭐ **`EntityCreationPack` is already a shared parameterized registrar adopted by SIX roots** — the `P1` work finished `2026-09-03`. ⇒ the user's model is **not a new mechanism**; one instance of it is shipped and verified on a live four-process cluster |
+| **2** | ⭐⭐ **Shape A exists twice, Shape B five-plus times.** ⛔ Which shape a unit uses correlates with nothing but its age |
+| **3** | ⚠ **Shape B's optional-null arguments are the silent-default family** `CLAUDE.md` names. ⛔ **NOT measured here: whether any production caller HOLDS such a value and fails to pass it** — that is the checkable form of the rule and it needs its own pass |
+| **4** | ⭐ **`ClusterSlave` has 6 users including ExCon, which composes no ECS at all.** 📐 `ExConSubsystem:257` builds it directly on its own bus; `:342` passes `NodeRole.None` |
+| **5** | ⭐ **`TkbTranslatorSet` is now referenced by 3 roots** *(SimHost, IG, CGF)* **plus the creation pack's own three files** — the rest reach it through `EntityCreationPack` |
+
+#### ⛔ WHAT THIS SECTION DOES **NOT** ESTABLISH
+
+| ⛔ | |
+|---|---|
+| **the ordering constraints** | which of `SharedApplicationBootstrapper`'s phase orderings are **essential** *(components before serializer, groups before orchestration, translators before `Initialize`)* versus incidental. ⭐⭐ **That knowledge is the valuable part of the base class and any registrar model must carry it as declared dependencies.** ⛔ **Unmeasured — and it is the blocking input for a build sequence** |
+| **the concern grouping** | the units above are listed by USER COUNT, not by concern. ⛔ Grouping them is a design act and is deliberately not done here |
+| **completeness** | ⚠ text extraction with lower-bound counts; `check_index_coverage` is unavailable through the CLI |
+
+### 4.1N 📐 THE ORDERING-CONSTRAINT PASS — **which of the base's phase orderings are REAL** *(measured `2026-09-03`)*
+
+> ⭐⭐ **This is the input §4.1M named as blocking.** A registrar model replaces a hard-coded phase list
+> with **declared dependencies**; that is only safe once you know which orderings carry a dependency and
+> which are habit. ⛔ Still no build sequence here — this is the second measurement pass.
+
+⭐ **Method:** for each phase of `SharedApplicationBootstrapper.BootstrapNode` *(327 ln)*, trace what it
+CONSUMES and what it PRODUCES, and classify the edge as **ARG** *(a value is passed)*, **HIDDEN** *(the
+value travels through a field, not a signature)*, **ENFORCED** *(violating it throws)*, or
+**INCIDENTAL** *(no dependency found)*.
+⚠ **A stated reason in a comment is a CLAIM, not evidence** — each was checked against the code it
+describes, and one nearly went the wrong way *(see §4.1N ② row 3)*.
+
+#### ① THE PHASE GRAPH — **as measured, not as documented**
+
+| phase | what it does | depends on | kind | evidence |
+|---|---|---|---|---|
+| **1** | `BuildContext` → `context` | — | root | everything downstream takes `context` |
+| **1b** | `ConfigureForNode(context, role, registry)` → `configuredFactory` | 1 | ARG | read at 6b and by `TimeControl` |
+| **2** | `RegisterDomainComponents(context.World)` | 1 | ARG | takes `context.World` |
+| **3** | `BuildSerializer` → `serializer` | ⭐⭐ **2** | 🔴 **GLOBAL SNAPSHOT — silent if violated** | `FdpAutoSerializer.Build():93` iterates `ComponentTypeRegistry.GetSnapshotableTypeIds()` and **freezes** `_entries`. A component registered after this is **silently absent from serialization** |
+| **4a** | `PopulateSystems` → 3 lists → 3 togglable groups, registered | 1 | ARG | produces `simGroup`/`postSimGroup` for 5 |
+| **4b** | `GetAdditionalModules()` → `RegisterModule` | — | ⭐ **INCIDENTAL** | no consumer found; only "before 7" |
+| **5** | `BuildOrchestration(context, simGroup, postSimGroup, serializer)` → `ClusterSlave` | **3 + 4a** | ARG | both are literal arguments |
+| **5-post** | the `CE-164` invariant | 5 | ARG | asserts on `slave` |
+| **6a** | `BaseModules` + `RegisterSpawningPipeline` | 1, ⚠ **+4a** | 🔴 **HIDDEN** | `SimHostNodeBootstrapper:350` reads `CoreLogicPack!`, assigned at `:203` **inside 4a**. ⛔ **NOT on 5** — measured: **0** `ClusterSlave` references in all three `RegisterSpawningPipeline` overrides |
+| **6a+** | `RegisterModule(context.NedReplication)` | 1 | ARG | ⚠ *also a UNIQUENESS rule:* *"Subclasses must NOT call `RegisterModule(context.NedReplication)` — double-registration corrupts the system schedule"* |
+| **6b** | `RegisterNetworkTranslators` | 1b, ⚠ **6a+**, ⚠ **4a** | 🔴 **HIDDEN ×2** | reads `context.GhostCreationSystem` — `HrotNodeBuilder:215`: *"populated by `NedReplicationModule` after `Build()`"* ⇒ **6a+**; and `CoreLogicPack!.TrajectoryPool` ⇒ **4a** |
+| **6c** | `SlaveTimeTranslatorRegistration.RegisterOn` + `TimeControl` | 1 (+1b) | ⭐ **INCIDENTAL** vs 6a/6b | needs only kernel · participant · bus · nodeId |
+| **6d** | `RegisterApplicationSystems` | — | ⭐ **INCIDENTAL** | virtual, no-op default; only "before 7" |
+| **7** | `Kernel.Initialize()` | every registration | 🔴 **ENFORCED** | `ModuleHostKernel.cs:165-166` throws *"Cannot register systems after Initialize() called"* |
+| **7+** | `PostInitialize` | **7** | 🔴 **ENFORCED** | `EngineBackedNavigationModule.cs:63-65` throws *"Call RegisterSystems before RegisterProviders."* |
+
+#### ② 🔴🔴🔴 THE HEADLINE — **THREE REAL DEPENDENCIES TRAVEL THROUGH CHANNELS THE BASE DOES NOT EXPRESS**
+
+| # | channel | instance | ⛔ how it fails |
+|---|---|---|---|
+| **①** | ⭐⭐⭐ **a SUBCLASS FIELD** | `CoreLogicPack` — **written in 4a** *(`:203`)*, **read in 6a** *(`:350`)* **and 6b** *(`:385`)* | the base's signatures show **no** 4a→6a/6b coupling at all. ⚠⚠ **CORRECTED `2026-09-03` — this row originally added *"19/14/15 fields ⇒ the channel is wide"* and §4.1N ④ predicted *"more channels are likely."* 📐 BOTH WERE WRONG. A full cross-phase field-flow pass over all three bootstrappers found exactly TWO flows, both on SimHost and both 4a→6a/6b: `CoreLogicPack` and `RoadNetwork` *(`:201` write, `:358` read)*. ⭐⭐ **IG and Stride have NONE.** ⇒ the channel is **narrow and host-local**, not systemic — see §4.1O ①** |
+| **②** | ⭐⭐⭐ **a CONTEXT FIELD MUTATED BY A REGISTRATION SIDE EFFECT** | `context.GhostCreationSystem` is `null` at build *(`HrotNodeBuilder:215`)* and is populated **by registering `NedReplicationModule`** (6a+); **read at 6b** | a translator built from a null gets wired to nothing — **silent** |
+| **③** | ⭐⭐⭐ **a GLOBAL STATIC SNAPSHOT** | `ComponentTypeRegistry` → **frozen** into `FdpAutoSerializer._entries` at 3 | a late component is **silently unserialized** — no throw, no log |
+
+⇒ ⭐⭐⭐ **A registrar model that declares dependencies only over its explicit inputs and outputs would
+lose ALL THREE — and each fails SILENTLY, not loudly.** ⛔ That, not the phase list, is the thing the
+base class is really carrying, and it is the single most important constraint on the design.
+
+⚠ **A near-miss worth recording, because it is this session's own failure mode.** Checking the Phase-2→3
+comment by **signature** said *"no dependency"* — `BuildSerializer(BehaviorRegistry?)` takes no world,
+and `ScenarioSerializer` touches `ComponentTypeRegistry` only inside `Serialize`/`Deserialize`
+*(`:419`, `:513`, `:525`)*, i.e. at USE. ⭐ It was about to be filed **INCIDENTAL**. Reading one level
+deeper — `ScenarioSerializerBuilder.Build()` → `FdpAutoSerializer.Build()` — showed the freeze at `:93`.
+🔒 **The rule this yields: an ordering claim is settled by the callee's BODY, never by its signature.**
+
+#### ③ ⭐ WHAT IS ACTUALLY FREE — **three of the orderings are habit**
+
+| | |
+|---|---|
+| ⭐ **4b** `GetAdditionalModules` | no consumer found; constraint is only *"before 7"* |
+| ⭐ **6c** time-sync registration | needs only Phase-1 values; its position between 6b and 6d is arbitrary |
+| ⭐ **6d** `RegisterApplicationSystems` | virtual no-op; only *"before 7"* |
+| ⭐⭐ **and 5 → 6a is NOT a dependency** | 📐 measured: `RegisterSpawningPipeline` never reads `ClusterSlave` in any of the three subclasses ⇒ 6a may precede 5 |
+
+#### ④ 📐 THE CLAIM TABLE
+
+| claim | code — how it IS | design — how it was MEANT |
+|---|---|---|
+| 2→3 is a real, silent-failure constraint | ✅ `FdpAutoSerializer.cs:93` freezes from the registry snapshot | ✅ the base's own comment at `:73` states it; now corroborated |
+| 7 last is enforced, not convention | ✅ `ModuleHostKernel.cs:165-166` throws | ✅ base comment *"Always last"* |
+| 7+ after 7 is enforced | ✅ `EngineBackedNavigationModule.cs:63-65` throws | ✅ base comment names this exact module |
+| 4a→6a/6b rides a subclass field | ✅ `SimHostNodeBootstrapper.cs:203` write · `:350`, `:385` reads | ⛔ **searched, no design records this channel** |
+| 6a+→6b rides a mutated context field | ✅ `HrotNodeBuilder.cs:215` comment + `:385` read | ⛔ searched, none found |
+| 5→6a is not a dependency | ✅ 0 `ClusterSlave` hits in all three overrides | ⛔ searched, none found |
+| ⛔ the OTHER subclasses' hidden field flows | ⛔ **NOT ENUMERATED** — SimHost was traced end to end; IG and Stride were spot-checked only. 📐 19/14/15 fields declared ⇒ more channels are likely | ⛔ not searched |
+
+⚠ **That last row bounds this pass:** the *kinds* of hidden channel are established and each is evidenced;
+⛔ **the full per-subclass field-flow enumeration is a further pass** and must happen before any host is
+migrated, because a missed field is a silent break.
+
+### 4.1O ⭐⭐⭐ THE APPROACH COMPARISON — **five candidates, measured criteria, one pick** *(`2026-09-03`)*
+
+> 🔒 **User, `2026-09-03`, verbatim:** *"I am not forcing into any concrete direction. I am asking those
+> question to force you to think about all possibilities and not miss any exiting user (host) and way of
+> using. **Unification = avoiding unnecessary duplication while keeping composition flexibility.** No
+> suggestion you provided was bad. We are looking for the 'optimal' one, fitting all our host, fitting our
+> code structure etc."*
+
+#### ① 📐 CLOSING MEASUREMENT — **the hidden-channel risk is SMALLER than §4.1N claimed**
+
+⭐ A full cross-phase field-flow pass over all three bootstrappers *(fields written in one phase method
+and read in another)*:
+
+| host | cross-phase field flows |
+|---|---|
+| **SimHost** | ⭐ **2** — `CoreLogicPack` *(W `:203` in 4a → R `:350` 6a, `:385` 6b)* · `RoadNetwork` *(W `:201` 4a → R `:358` 6a)* |
+| **IG** | ✅ **none** |
+| **Stride node** | ✅ **none** |
+
+⇒ ⛔⛔ **§4.1N's *"19/14/15 fields ⇒ the channel is wide"* and *"more channels are likely"* were WRONG**,
+and that row is corrected in place. ⭐ The hidden subclass-field channel is **two fields on one host**,
+both of the same shape *(a capability pack built in 4a, consumed by 6a/6b)*.
+⚠ **Method:** the automated pass had a **brace-in-string** bug that mis-attributed constructor
+assignments to `PostInitialize`; every flow reported here was **hand-verified** at the cited lines, and
+the buggy script is deliberately not shipped.
+
+⭐ **The other two channels of §4.1N ② stand unchanged**: `context.GhostCreationSystem` *(populated by a
+registration side effect)* and the `ComponentTypeRegistry` → `FdpAutoSerializer` freeze.
+
+📐 **And one more number that decides how much any approach can buy:** in the inline roots, composition is
+a **minority of the file** — `EditorSubsystem` is **5432 ln** with `Initialize()` at **`:1884`** *(a
+**3548**-line tail)*; `EditorStrideSubsystem` is **1699 ln** with `Initialize()` at **`:718`** *(a **981**-line
+tail)*. ⇒ ⛔ **"put the editors on the base class" reorganises roughly the composition tenth of those
+files and leaves the rest exactly where it is.**
+
+#### ② THE CANDIDATES — **all five, including the two already rejected, so the space is visible**
+
+| | approach | what a host writes |
+|---|---|---|
+| **A** | **status quo + targeted fixes** | its own composition, as today; duplicates fixed case by case |
+| **B** | **every ECS host inherits `SharedApplicationBootstrapper`** | 7 abstract + 4 virtual overrides |
+| **C** | **a standalone `Resolve(role)` plan function**, each root composes however it likes | a call to `Resolve`, plus its own wiring |
+| **D** | ⭐ **registrar list** — composition is a LIST of shared parameterized registrars with DECLARED dependencies; one runner orders and runs them | a list + parameters |
+| **E** | ⭐⭐ **D, with the existing base retained as the FIRST runner** and hosts migrated incrementally | today: nothing; then a list |
+
+#### ③ 📐 THE COMPARISON — **scored on the user's two criteria plus fit**
+
+| criterion | **A** | **B** | **C** | **D / E** |
+|---|---|---|---|---|
+| ⭐⭐⭐ **duplication removed** | ⛔ minimal — the **4** hand-rolled `HashSet<Type>` dedupes stay 4; the 45 shared units stay hand-wired per root | ⚠ **partial** — kills the hand-copy of Phase 4a+5 in 3 inline roots *(`EditorSubsystem:1366-1446` is exactly that copy)*, ⛔ but a host still hand-writes `new CgfLogicPack(…)` inside `PopulateSystems`, so the 45 units stay per-host | ⛔ only capability selection; the 4a+5 copy survives | ⭐⭐⭐ **maximal** — each shared unit is wired **once**, in its registrar; hosts name it |
+| ⭐⭐⭐ **flexibility kept** | ⭐⭐⭐ total *(nothing is constrained)* | ⛔⛔ **lowest** — a host needing something at a NEW point needs a **base-class edit**, i.e. a shared-file change across lanes | ⭐⭐ high | ⭐⭐⭐ **highest** — a bespoke registrar is added **without touching shared code** |
+| ⭐⭐⭐ **fits ALL nine roots** | ✅ trivially | ⛔⛔ **NO** — Phase 7 calls `Kernel.Initialize()`; **ExCon has no kernel** *(0 refs)* and **ReplayBrowser has neither kernel nor `ClusterSlave`* | ⚠ partly | ✅ **yes** — ExCon composes a short list *(cluster participation only)*, ReplayBrowser a shorter one |
+| ⭐⭐ **fits the code structure** | ✅ | ⚠ template-method, already the shape for 3 hosts | ⛔ **two ways to compose a node ⇒ breaks ruling 9** | ⭐⭐⭐ **it IS the direction of travel** — `EntityCreationPack.Build(ctx)` *(6 roots)*, `MapInteractionPack.Build(ctx)`, `TkbTranslatorSet.Base()`, `StrideMuscleModules.Build(crowd)` |
+| ⚠ **handles the 3 silent channels** | ⛔ leaves them invisible | ⛔ leaves them invisible | ⛔ leaves them invisible | ⭐⭐⭐ **forces each into a DECLARED dependency** — see ④ |
+| **risk / cost** | ⭐ none | ⚠ medium; ⛔ 3548- and 981-line tails must land in `PostInitialize` | ⭐ low | ⚠ **highest mechanism risk**, ⭐ but `E` stages it |
+
+#### ④ ⭐⭐⭐ THE ARGUMENT THAT DECIDES IT — **the silent channels are an argument FOR the registrar model, not against it**
+
+⚠ **I had been treating §4.1N's three hidden channels as the main RISK of a registrar model. That is
+backwards.** ⭐⭐ Each of them exists **precisely because the current mechanism has nowhere to say it**:
+
+| channel | today | under **D** |
+|---|---|---|
+| `CoreLogicPack` 4a→6a/6b | an invisible subclass field | the MuscleGround registrar's **declared output**, consumed by the spawning + translator registrars |
+| `GhostCreationSystem` 6a+→6b | a context field mutated by a side effect | the replication registrar's **declared output** |
+| `ComponentTypeRegistry` freeze 2→3 | a global static snapshot, silently stale | the serializer registrar **declares it depends on every component registrar** |
+
+⇒ ⭐⭐⭐ **A runner can CHECK a declared dependency. Nothing can check an ordering nobody wrote down.**
+📌 All three failures are silent today — that is the disease, and D is the only candidate that treats it.
+
+#### ⑤ ✅ THE PICK — **E** *(the registrar model, staged behind the existing base)*
+
+| ⭐ | |
+|---|---|
+| ⭐⭐⭐ **why not B** | it **cannot fit ExCon or ReplayBrowser at all** *(no kernel)*, it leaves the 45 shared units hand-wired per host, and it makes every future per-host need a **shared-file edit** — the opposite of flexibility |
+| ⭐⭐ **why not D big-bang** | ⛔ a new mechanism landing on 9 roots at once, with 3 silent channels to re-express. ⭐ **E is D with a first runner that already works** |
+| ⭐⭐⭐ **why E is optimal on BOTH criteria** | **duplication:** every shared unit wired once ⇒ maximal · **flexibility:** a host adds a registrar without touching shared code ⇒ maximal. ⭐ No other candidate scores well on both |
+| ⭐⭐⭐ **and it is PROVEN at n=1** | `EntityCreationPack.Build(EntityCreationContext)` **is** such a registrar — **6 required + 8 optional parameters, `Validate()`, and `Unserviceable(scheduled)` to make an omission loud** — adopted by **six roots** and verified on a live four-process cluster *(`P1`, `2026-09-03`)*. ⛔ **The model is not speculative; it is the generalisation of the shape that already won** |
+
+⭐⭐ **The first step it implies** *(stated, not scheduled)*: **express `SharedApplicationBootstrapper`'s own
+phases as a registrar list with declared dependencies, changing no host.** ⭐ Behaviour-preserving, it
+forces the three silent channels to be written down, and it yields a runner ExCon can later use with a
+shorter list.
+
+#### ⑥ 📐 CLAIM TABLE
+
+| the pick rests on | code — how it IS | design — how it was MEANT |
+|---|---|---|
+| B cannot fit ExCon / ReplayBrowser | ✅ 0 `ModuleHostKernel` refs in either; base Phase 7 calls `Kernel.Initialize()` | ✅ §4.1M ① — both are composition roots that must be covered |
+| B leaves the 45 units per-host | ✅ `SimHostNodeBootstrapper:203` constructs its pack inside `PopulateSystems` | ✅ §4.1M ② — the units are already shared *code*, hand-wired *per root* |
+| the inline roots' composition is a minority | ✅ 5432 ln / `Initialize` `:1884`; 1699 ln / `:718` | ⛔ searched, no design states this |
+| Shape A already exists and is adopted | ✅ `EntityCreationPack.cs:70` + `EntityCreationContext` 6+8 + `Unserviceable` | ✅ `DESIGN_Entity_Creation_Unification.md` §5 step 3 — six hosts, DONE |
+| the hidden channel is 2 fields on 1 host | ✅ hand-verified `:201/:203/:350/:358/:385`; IG + Stride none | ⛔ none — §4.1N's own overstatement is corrected here |
+| ⛔ the Editor's ~550-line composition slice can be expressed as registrars without losing ordering | ⛔ **NOT ATTEMPTED** | ⛔ not searched |
+| ⛔ `HrotNodeContext` can carry registrar outputs generically | ⛔ **NOT MEASURED** | ⛔ not searched |
+
+⚠ **Those last two bound the pick.** ⭐ Neither is load-bearing for *choosing* E over B/C/D — E is chosen
+on host coverage, duplication and flexibility, all measured. ⛔ **Both are load-bearing for the FIRST
+BUILD ITEM**, and the first step named in ⑤ is deliberately the one that answers them at zero host risk.
+
+### 4.1P ⭐⭐⭐ STEP 1 — **the base's phases become a DECLARED plan. ✅ `build-state: BUILT` `2026-09-03`**
+
+> ✅✅ **AS BUILT — obligation ⑤.** The design below shipped **as designed**, with one naming deviation
+> and no behavioural one.
+>
+> | | |
+> |---|---|
+> | ⭐ **new** | `Hrot/Engine/Hrot.Common/Infrastructure/NodeBootPlan.cs` — `NodeBootPlan` *(declare + verify + `StepKeys`)* and `BootDependencyException` *(carries `StepKey` **and** `MissingKey`)* |
+> | ⭐ **changed** | `SharedApplicationBootstrapper.BootstrapNode` declares **15** steps, then `plan.Run(GetType().Name)`. The Phase-5-post invariant moved **verbatim** into a private `AssertSlaveComposition` so it could be one step |
+> | ⚠ **deviation** | the nested record is `BootStep`, not `Step` — `Step` collides with the fluent `Step(...)` method *(CS0102)*. Naming only |
+> | ⭐ **hosts** | ⛔ **ZERO host files changed**, as the step required |
+> | ⭐⭐ **rails** | `Hrot.NodeComposition.Tests/NodeBootPlanRails.cs` — 5, incl. `ThePlanVerifiesRatherThanSorts_AnOutOfOrderPlanIsRejectedNotRepaired`, which pins §4.1P ①'s decision so a future edit cannot quietly make the runner sort |
+> | ⭐⭐⭐ **red-proof** | disabling the `provided.Contains(need)` check turned **3 of 5** rails RED *(2 correctly do not depend on it)*; restored by inverse edit and re-verified 5/5 green |
+> | ⭐⭐ **gates** | `Hrot.NodeComposition.Tests` **27/27**. `Hrot.IG.Tests` **410 pass / 5 fail**, `Hrot.SimHost.Tests` **874 pass / 1 fail** — ⭐ **every red BASELINED by stashing the change and re-running: identical names, identical counts** *(the 4 `EntityInfoTranslatorTests.CS011_*` + `EntityMasterTranslatorTests.ProcessSample_WithSenderTracking_SetsOwnerId`; `FullBranchPipelineTests.BranchedRecording_CapturesHistoricalStateAsKeyframe`)* |
+>
+> ⛔ **What it does NOT yet do** *(unchanged from ⑤ below)*: no reordering, no host migrated, no ExCon
+> short list, and the 45 shared units of §4.1M are untouched.
+
+*(`2026-09-03`)*
+
+> ⭐ §4.1O ⑤'s first step: *"express `SharedApplicationBootstrapper`'s own phases as a registrar list with
+> declared dependencies, **changing no host**."*
+
+#### ① ⭐⭐⭐ THE ONE DECISION — **DECLARE AND VERIFY, ⛔ DO NOT REORDER**
+
+| | |
+|---|---|
+| ⛔ **a runner that TOPOLOGICALLY SORTS** would change the order | ⇒ not behaviour-preserving, and §4.1N proved three of the real dependencies are **invisible** — sorting on an incomplete declaration reorders into a silent break |
+| ⭐⭐⭐ **a runner that VERIFIES** keeps the list in today's exact order and asserts each step's `Requires` were already `Provides`-ed | ⇒ **behaviour-preserving BY CONSTRUCTION**, and the three silent channels become **checked** on every boot of every node |
+| ⭐ what this buys immediately | the orderings stop being a comment. ⛔ A future edit that moves a phase now **throws with the missing key named**, instead of failing silently |
+| ⭐ what it defers | reordering, host migration, and ExCon's short list — all later, on a runner that is by then trusted |
+
+#### ② THE CLASS MODEL
+
+```mermaid
+classDiagram
+    class SharedApplicationBootstrapper {
+        <<abstract, existing>>
+        +BootstrapNode(config, role, factory) HrotNodeContext
+        #BuildContext()* HrotNodeContext
+        #PopulateSystems()*
+        #BuildOrchestration()* ClusterSlave
+    }
+    class NodeBootPlan {
+        <<new>>
+        -List~Step~ _steps
+        -HashSet~string~ _provided
+        +Step(key, run, requires, provides) NodeBootPlan
+        +Run(owner) void
+    }
+    class Step {
+        <<new, private record>>
+        +string Key
+        +string[] Requires
+        +string[] Provides
+        +Action Run
+    }
+    class BootDependencyException {
+        <<new>>
+        +string StepKey
+        +string MissingKey
+    }
+    SharedApplicationBootstrapper --> NodeBootPlan : declares its 7 phases as steps
+    NodeBootPlan *-- Step : ordered, NOT sorted
+    NodeBootPlan ..> BootDependencyException : throws when Requires unmet
+```
+
+#### ③ THE SEQUENCE
+
+```mermaid
+sequenceDiagram
+    participant Base as SharedApplicationBootstrapper
+    participant Plan as NodeBootPlan
+    participant Hook as subclass hook
+    Base->>Plan: Step("context", provides context)
+    Base->>Plan: Step("serializer", requires domain-components)
+    Base->>Plan: Step("orchestration", requires serializer + system-groups)
+    Note over Base,Plan: all 13 steps DECLARED first, none run yet
+    Base->>Plan: Run("SimHostNodeBootstrapper")
+    loop each step, IN DECLARED ORDER
+        Plan->>Plan: assert Requires subset of _provided
+        alt a Requires key is missing
+            Plan-->>Base: throw BootDependencyException(step, missingKey)
+        end
+        Plan->>Hook: run the step action
+        Plan->>Plan: _provided += Provides
+    end
+```
+
+#### ④ THE DECLARED EDGES — **exactly §4.1N's measured graph, and nothing invented**
+
+| step | requires | provides | the edge it makes checkable |
+|---|---|---|---|
+| `context` | — | `context` | — |
+| `configured-factory` | `context` | `configured-factory` | |
+| `domain-components` | `context` | `domain-components` | |
+| `serializer` | ⭐ **`domain-components`** | `serializer` | 🔴 **the `FdpAutoSerializer` freeze** *(§4.1N ② ③)* |
+| `system-groups` | `context` | `system-groups` | |
+| `additional-modules` | `context` | — | *(§4.1N ③: incidental)* |
+| `orchestration` | ⭐ **`serializer` + `system-groups`** | `cluster-slave` | ARG edges |
+| `slave-invariant` | `cluster-slave` | — | the `CE-164` assertion |
+| `spawning-pipeline` | ⭐ **`system-groups`** | `spawning-pipeline` | 🔴 **SimHost's `CoreLogicPack`/`RoadNetwork` field channel** *(§4.1N ② ①)* |
+| `ned-replication` | `context` | `ned-replication` | |
+| `network-translators` | ⭐ **`ned-replication` + `system-groups` + `configured-factory`** | — | 🔴 **`GhostCreationSystem`** *(§4.1N ② ②)* |
+| `time-sync` | `context` | — | *(incidental)* |
+| `application-systems` | `context` | — | *(incidental)* |
+| `kernel-initialize` | `context` | `kernel-initialized` | |
+| `post-initialize` | ⭐ **`kernel-initialized`** | — | 🔴 **ENFORCED** *(`EngineBackedNavigationModule:63-65`)* |
+
+#### ⑤ ACCEPTANCE
+
+| | |
+|---|---|
+| ⭐⭐ **behaviour-preserving** | ⛔ **no host file changes.** The three bootstrapper subclasses and all six inline roots are untouched; `SimHost`/`IG` suites stay green at their existing counts |
+| ⭐⭐⭐ **the rail, with an inverse-edit red-proof** | a test builds a plan whose step omits a `Provides` and asserts `BootDependencyException` names **both** the step and the missing key. ⛔ Not a smoke test — it must go RED when the check is removed |
+| ⭐ **a real boot exercises it** | the existing `SharedApplicationBootstrapperTests` boot cases run the declared plan, so an unsatisfied edge fails there too |
+| ⛔ **explicitly NOT in this step** | reordering · migrating any host · ExCon's short list · touching the 45 shared units |
+
+### 4.1Q ⭐⭐⭐ STEP 2 — **ExCon composes the SHORT LIST. ✅ `build-state: BUILT` `2026-09-03`**
+
+> ⭐ §4.1P's successor: the cheapest probe of §4.1O's *"fits all nine roots"* claim, run on the **hardest**
+> host — one with **no `ModuleHostKernel` at all**.
+
+#### ① 📐 THE DUPLICATE IT FOUND — **measured before anything was written**
+
+📐 `SlaveTimeTranslatorRegistration.RegisterOn` creates three translators and then registers them on a
+kernel. `ExConSubsystem.cs:268-270` **hand-built the same three calls** —
+`TimeNetworkModule.CreateDescriptorTranslator` · `CreateSlaveLockstepTranslator` ·
+`CreateSlaveTimeSyncTranslator`, same arguments, same order.
+
+⇒ ⭐⭐⭐ **The duplicate existed for exactly one reason: the shared helper only offered
+`RegisterOn(kernel, …)`, and ExCon has no kernel.** ⛔ Not a divergence anyone chose — a host locked out
+of shared code by a parameter it cannot supply. 📌 **The seam law again**, and the first instance found
+*by* the composition work rather than reasoned toward.
+
+#### ② ✅ WHAT WAS BUILT
+
+| | |
+|---|---|
+| ⭐⭐ **split** | `SlaveTimeTranslatorRegistration.Create(participant, eventBus, nodeId) → SlaveTimeTranslators` — **the shared half, kernel-free**. `RegisterOn` now calls it and keeps only the **kernel half** *(ingress/egress split + three global systems)*. ⛔ Signature unchanged, so its four existing callers are untouched |
+| ⚠ **named, not an array** | `SlaveTimeTranslators(Mode, SlaveLockstep, SlaveTimeSync)` + `.All`. 📐 Because a kernel-less host addresses them individually: ExCon interleaves `SlaveSyncController.Update()` **between** their `PollIngress` and `ScanAndPublish` *(`:443-452`)*, which the kernel path expresses as separate systems the scheduler orders |
+| ⭐⭐⭐ **ExCon adopts it** | its three hand-built calls become one `Create(...)`. ⚠ **The `_participant != null` guard is KEPT verbatim** — `Create` tolerates a null participant, but dropping the guard would leave the fields non-null in headless and `Update()` would start polling them. Behaviour unchanged |
+| ⭐⭐⭐ **ExCon declares a plan** | six steps — `participant` · `orchestration-bus` · `cluster-slave` · `observer-bus` · `slave-sync-controller` · `slave-time-translators` — on the **same `NodeBootPlan`** an ECS node uses, in the same order as before |
+
+#### ③ ⭐⭐⭐ WHAT IT PROVES — **and it is the §4.1O claim, not a restatement of it**
+
+| ⭐ | |
+|---|---|
+| **the runner is not ECS-shaped** | ⭐ a host with **no world, no kernel, no capabilities** composes the same plan type. ⇒ §4.1O's *"ExCon composes a short list"* is **built, not asserted** |
+| **a tier is an OUTPUT** | 🔒 the user's ruling, now demonstrated: ExCon is not *sorted into* a tier — it **is** the list of steps it composed. `NodeRole.None` *(`:342`)* stops looking like an omission and reads as what it is: **no capabilities to select** |
+| **the layer split is real** | ⭐ cluster participation *(bus · slave · sync controller · time translators)* composes **without** any ECS step. ⛔ It was previously only an argument |
+
+#### ④ ⚠ THE ONE REAL COST — **stated because it will recur on every host**
+
+📐 Assignments inside a step's closure are **invisible to C#'s nullable-flow analysis**, so five later uses
+of `_bus`/`_observerBus` failed to compile *(CS8604 ×4, CS8602 ×1)*.
+⭐ **Fixed properly, not with `!`**: two locals mirror the fields, the steps assign both, and the later uses
+read the locals — which are *provably* non-null. ⛔ The locals are **not** a workaround for an unproven
+fact: the plan's declared keys are the guarantee, and `Run()` throws by key if a providing step did not run.
+⚠ **Expect this on any host with a long tail after its composition slice** — `EditorSubsystem`'s tail is
+**3548 lines** *(§4.1O ①)*, so this cost scales with the migration and should be priced into it.
+
+#### ⑤ 📐 GATES
+
+| suite | result |
+|---|---|
+| `Hrot.ExCon.Tests` | ✅ **390 / 0** |
+| `Hrot.NodeComposition.Tests` | ✅ **27 / 0** |
+| `Hrot.ClusterRunner.Tests` *(hosts `ExConSubsystemTests`, `ExConSubsystemClusterTests`, `ExConHandlerRegistrationTests`)* | **270 pass / 5 fail** — ⭐ **baselined by stash: identical names and counts without the change** *(`DataDrivenGizmoPredicateTests` ×2, `OrchestratorSubsystemTests` ×3 — ⛔ none of them an ExCon test)* |
+| `Hrot.IG.Tests` · `Hrot.SimHost.Tests` | 410/5 and 874/1 — ⭐ unchanged from §4.1P's baselines *(`Hrot.Common` changed, so both were re-run)* |
+
+⛔ **Still not done**: no reordering, no ECS host migrated, and the 45 shared units of §4.1M untouched.
+
+### 4.1R ⭐⭐⭐ STEP 3 — **CGF answers §4.1O's open question, and the answer is NO. ✅ `build-state: BUILT` `2026-09-03`**
+
+> ⭐ §4.1O ⑥ marked one row **NOT ATTEMPTED** and load-bearing for the first build item:
+> *"whether the Editor's ~550-line composition slice can be expressed as registrars without losing
+> ordering."* ⭐⭐ CGF is the cheapest ECS host to find out on. **It was measured, and the answer changed
+> the mechanism rather than the plan.**
+
+#### ① 📐 THE MEASUREMENT — **there is no clean prefix**
+
+📐 `CgfSubsystem.Initialize` spans **`:509`–`:1192`** *(683 lines to `Kernel.Initialize()`)* and declares
+**40 locals**. The spine values do not sit in tidy blocks — each lives for most of the slice:
+
+| local | first → last | span |
+|---|---|---|
+| `replicationModule` | 613 → 804 | **191** |
+| `nodeFactory` | 611 → 797 | **186** |
+| `newClusterSlave` | 802 → 975 | **173** |
+| `idAllocator` | 716 → 889 | **173** |
+| `creation` | 630 → 772 | **142** |
+| `scenarioSerializer` | 825 → 959 | **134** |
+| `rrController` | 807 → 926 | **119** |
+| `behaviorRegistry` | 583 → 701 | **118** |
+
+⇒ ⛔⛔ **EVERY candidate step boundary is crossed by three to five live locals.** 📐 On ExCon **two**
+crossings cost five compile errors and a mirrored-local fix *(§4.1Q ④)*. ⇒ ⭐⭐⭐ **the
+closure-over-locals form does not scale to an ECS host's composition slice** — and half-wrapping CGF
+would have produced a large diff whose only finding was that.
+
+#### ② ✅ THE MECHANISM CHANGE THE MEASUREMENT DEMANDED — **a value bag keyed by the declared names**
+
+⭐ `NodeBootPlan.Step` gains an `Action<NodeBootValues>` overload *(the closure form stays, unchanged)*.
+A value that crosses a boundary travels through the plan instead of a local:
+
+| ⭐ the property that makes it worth having | |
+|---|---|
+| ⭐⭐⭐ **the declaration and the data cannot drift** | `Set` **refuses** a key the running step does not declare in `provides`; `Get<T>` **refuses** one it does not declare in `requires` |
+| ⇒ | ⛔ the keys stop being *names checked against names* — they become **the actual channel**, so a hidden read of the §4.1N kind cannot creep back in |
+| ⚠ **not a service locator** | scoped to one plan, keys are the plan's own, every access checked against the declaring step. ⛔ A bag anyone can read at any time is the ambient coupling this work exists to remove |
+| ⭐ **it is Shape A again** | 📌 the codebase converged on the same idea twice already — `EntityCreationPack.Build(EntityCreationContext)` and `MapInteractionPack.Build(MapInteractionContext)` *(§4.1M ④)*. ⇒ **not a new idea; the third instance** |
+
+⭐⭐ **And it retires §4.1Q ④'s cost immediately:** ExCon's two mirrored `null!` locals are gone —
+`orchestration-bus` and `observer-bus` now travel through the bag. ⇒ the one real cost recorded a step
+ago is **closed by the next step**, not carried.
+
+#### ③ ⛔⛔ WHAT THIS CHANGES ABOUT MIGRATING A HOST — **declaring is the LAST move, not the first**
+
+| ⭐ | |
+|---|---|
+| ⛔ **wrong order** | take a host's slice and wrap it in steps ⇒ fights 40 locals, huge diff, high risk |
+| ✅ **right order** | ① the slice's crossing values move to the bag *(or to methods over a context)* → ② **then** the steps are declared. ⭐ Declaring is cheap once nothing crosses via a local |
+| ⭐ **why the base was easy** | 📌 `SharedApplicationBootstrapper` took the plan in one commit *(§4.1P)* because its phases were **already methods** communicating through `HrotNodeContext` — i.e. the step-② work was done years ago and nobody called it that |
+| ⚠ **so the Editor is not "3548 lines of tail"** | its real cost is **its crossing values**, not its length. ⛔ That is a different, smaller measurement, and it has not been taken |
+
+#### ④ 📐 GATES
+
+| suite | result |
+|---|---|
+| `Hrot.NodeComposition.Tests` | ✅ **33 / 0** *(11 `NodeBootPlanRails`, up from 5)* |
+| `Hrot.ExCon.Tests` | ✅ **390 / 0** |
+| `Hrot.ClusterRunner.Tests` | 270 / **5** — baselined in §4.1Q, unchanged |
+| `Hrot.IG.Tests` · `Hrot.SimHost.Tests` | 410/**5** and 874/**1** — baselined in §4.1P, unchanged |
+
+⭐⭐ **Red-proof:** disabling the `provides` guard and the `requires` guard in `NodeBootValues` turned
+**2 of 11** rails red; restored by inverse edit, 33/33 green.
+⚠ **A count correction:** `Hrot.ExCon.Tests` was reported as **121** in one earlier run — that was
+`quick-check.sh` applying a filter, and a later run hit a partially-built assembly. 📐 **The full-suite
+number is 390**, confirmed with an explicit `--no-build` run.
+
+⛔ **Still not done**: CGF is **not** migrated — deliberately, and §③ is why. No reordering, no ECS host
+declared, the 45 shared units of §4.1M untouched.
+
+### 4.1S 📐 STEP 4 — **THE CROSSING-VALUE MEASUREMENT: migration cost does NOT scale with length** *(`2026-09-03`)*
+
+> ⭐ §4.1R ③ said the Editor's cost is *"its crossing values, not its 3548-line tail — a different,
+> smaller measurement, and it has not been taken."* ⭐⭐ Taken here, for all three inline ECS roots, with
+> a reusable tool: **`python3 scripts/crossing-values.py --roots`**.
+
+#### ① ⭐⭐⭐ THE NUMBERS — **and the headline is how FLAT they are**
+
+| root | slice | lines | locals living >1 line | ⭐⭐⭐ **PEAK SIMULTANEOUS LIVE** |
+|---|---|---|---|---|
+| **ExCon** *(migrated, §4.1Q)* | — | ~25 | 2 | ✅ **2** |
+| **Stride editor** | `:509`–`:718` | 210 | 21 | ⭐ **8** |
+| **CGF** | `:509`–`:1192` | 684 | 40 | **10** |
+| **Editor** | `:949`–`:1884` | 936 | 62 | 🔴 **18** |
+
+⇒ ⭐⭐⭐ **PEAK LIVE is the migration unit, and it grows far slower than length.** 📐 The Editor's slice is
+**4.5× longer** than the Stride editor's and has **3× the locals**, but only **2.25× the peak**. CGF is
+**3.3× longer** than the Stride editor for **+2** peak.
+
+⇒ ⛔⛔ **The Editor is NOT a 936-line problem, still less a 3548-line one.** ⭐ It is an **18-value**
+problem: 18 values must move to the plan's bag before its steps can be declared. ⚠ That is a batch, not a
+programme — and it is the first time this work has had a number for the Editor at all.
+
+> ⛔⛔ **PARTLY CORRECTED BY §4.1T ② *(`2026-09-04`, measured on the CGF build)*.** The numbers above are
+> right; ⚠ **what they price is not.** PEAK LIVE is a property of the WHOLE slice and **does not draw down
+> from the front** — migrating CGF's head left its `10` exactly where it was, at `:973` in the tail.
+> ⇒ ⭐⭐ **read this table as "what FINISHING each host costs", never as a budget a partial pass reduces.**
+> 📄 §4.1T ②.
+
+⭐ **Why peak and not the total:** a value only costs anything if it is live *across a boundary*. The
+totals *(62, 40, 21)* count values that are born and die inside one step and never travel.
+
+#### ② 📌 THE WIDEST SPANS — **where each host's cost actually is**
+
+| root | the values that live longest |
+|---|---|
+| **Editor** | `entityMap` **808 ln** *(1021→1829)* · `geoTransform` **641** · `behaviorRegistry` **335** · `clusterSlave` 246 · `creation` 215 |
+| **CGF** | `nodeConfig` **442** · `replicationModule` 191 · `nodeFactory` 186 · `idAllocator` 173 · `newClusterSlave` 173 |
+| **Stride editor** | `behaviorRegistry` 73 · `mapperRegistry` 72 · `creation` 66 · `cgfPack` 60 · `muscleSet` 53 |
+
+⭐ **A pattern worth naming:** the long-lived values are the **same concepts on every host** —
+`entityMap` · `behaviorRegistry` · `creation` · `clusterSlave` · the node factory. 📌 They are exactly
+§4.1M's shared units, and they are long-lived **because they are the node's shared state**. ⇒ ⭐⭐ the bag's
+keys will be nearly the same set on every host, which is what makes the second and third migrations
+cheaper than the first.
+
+#### ③ ⚠ THIS CORRECTS §4.1R's SUGGESTED ORDER
+
+⛔ §4.1R closed by proposing CGF as the next host *(it was "the cheapest ECS host" by length)*.
+📐 **Measured, the Stride editor is cheaper on both axes** — 210 lines and peak **8**, versus CGF's 684
+and **10**.
+
+| ⭐ the lean, with the trade stated | |
+|---|---|
+| ⭐⭐ **still start with CGF** | ⛔ **not** because it is cheapest — it is not — but because it is **in `IOS-IG-SimHost.sln` and gateable**: `CgfSubsystemHeadlessTests` exercises a real boot. ⚠ The Stride editor is **out of solution** *(`net8.0-windows`)*, so a migration there is measured by a suite that does not run in the normal gate. ⛔⛔ **OVERSTATED — see §4.1T ④:** there are TWO classes of that name, and the in-solution one is `[Fact(Skip=…)]`. The real boot gate is `Hrot.ClusterRunner.Integration.Tests`, which is **T3**. ⭐ The choice stands; this reason was weaker than written |
+| ⭐ **and the gap is small** | 10 vs 8 — ⛔ two values do not outweigh a gateable boot |
+| ⚠ **what would change it** | if the Stride editor's suite becomes gateable in CI, take it first — it is genuinely the smallest |
+
+#### ④ ⛔ THE TOOL'S OWN BUG, RECORDED — **because it produced a confident ZERO**
+
+📐 The first run reported **CGF: 0 locals**. 🔴 False. `CgfSubsystem.cs:389` contains a line comment
+mentioning `/missions/*` routes; the stripper handled `/* */` **before** `//`, read that as a
+block-comment opener, and blanked every line after it.
+⭐ **Fixed** *(line comments stripped first)* and **validated against a known number** — CGF now reports
+**40** living locals, matching the hand count taken in §4.1R.
+⭐⭐ **And the tool now degrades loudly**: zero locals in a slice of more than 40 lines prints
+`PARSE FAILED … Do NOT read this as 'no crossing values'` instead of a number. ⚠ It can false-positive on
+a genuinely local-free region — ⛔ deliberate: a loud false positive beats a silent zero, which is the
+same rule `scripts/find.sh` follows.
+
+⚠ **Imprecision, stated:** a local's life is first-to-last mention **by name**, so a name reused in a
+nested scope inflates its span *(over-estimates ⇒ a low number is trustworthy)*; declarations are matched
+textually, so `out`/deconstruction/pattern forms are missed *(⇒ counts are a LOWER BOUND)*.
+
+### 4.1T ⭐⭐⭐ STEP 5 — **the first INLINE ECS root takes a plan, and the honest result is MIXED. ✅ `build-state: BUILT` `2026-09-04`**
+
+> ⭐ §4.1S ③ chose CGF over the Stride editor *"not because it is cheapest — it is not — but because it is
+> in `IOS-IG-SimHost.sln` and gateable."* ⭐⭐ Built here. ⛔⛔ **And the gate half of that reasoning turned
+> out to be partly false — see ④.**
+
+#### ① ⭐ WHAT WAS BUILT — the head only, and the boundary is explicit
+
+`CgfSubsystem.Initialize` *(`:524`–`:1413`, **890 lines**)* now opens with a declared `NodeBootPlan` of
+**six steps** covering `:530`–`:690`, then falls back to ordinary code:
+
+| step | provides | requires |
+|---|---|---|
+| `participant` | `participant` | — |
+| `node-context` | `node-config` | `participant` |
+| `base-modules` | — | `node-config` |
+| `behavior-registry` | `behavior-registry` | — |
+| `configured-factory` | `node-factory` | `behavior-registry` |
+| `replication-module` | `replication-module` | `node-factory` |
+
+⭐⭐ **The statements are UNCHANGED and in the SAME ORDER.** What is new is that each region declares what
+it needs, and `Run` verifies it — §4.1P ①'s decision *(verify, never sort)* is what makes that
+behaviour-preserving by construction rather than by review.
+
+⭐ **Five values travel on the bag** rather than through ambient locals, and **four are read back** past
+the plan by `bootPlan.Value<T>` — the accessor added for exactly this boundary:
+
+```csharp
+var nodeConfig        = bootPlan.Value<HrotNodeConfig>("node-config");
+var behaviorRegistry  = bootPlan.Value<BehaviorRegistry>("behavior-registry");
+var nodeFactory       = bootPlan.Value<INetworkFactory?>("node-factory");
+var replicationModule = bootPlan.Value<IReplicationModule?>("replication-module");
+```
+
+⛔ **`Value<T>` is not a back door**: a *step* still may not read a key it did not declare *(rails
+`AStepCannotGetAKeyItDoesNotDeclareItRequires`)*. It exists only for the plan's OWNER, only after `Run`,
+and it should shrink to nothing as the rest of the slice is declared.
+
+⭐ **One incidental repair:** a step's lambda cannot see that an earlier step assigned `_context`, so the
+field reads as nullable inside it. Rather than sprinkle `!`, the class grew a checked `Ctx` accessor and
+the method a single post-`Run` guard — **the nullability is answered once, by the plan's own guarantee,
+instead of suppressed at eight call sites.**
+
+#### ② ⛔⛔ THE UNCOMFORTABLE MEASUREMENT — **the head migration did NOT move CGF's peak-live number**
+
+📐 Measured with `scripts/crossing-values.py`, before and after:
+
+| region | lines | ⭐⭐⭐ PEAK SIMULTANEOUS LIVE |
+|---|---|---|
+| CGF head, **before** *(`509`–`620`)* | 112 | **2** |
+| CGF head, **after** *(`524`–`690`)* | 167 | **2** |
+| CGF whole `Initialize`, **before** | 684 | **10** |
+| CGF whole `Initialize`, **after** | 890 | 🔴 **10** *(at `:973`)* |
+
+⇒ ⛔⛔ **I migrated the CHEAPEST prefix of the method, and §4.1S's headline number is untouched.**
+⭐ The peak sits at **`:973`**, deep in the un-migrated tail, among `idAllocator` *(`800`→`973`)* and
+`newClusterSlave` *(`886`→`1059`)* — values the head never touches. The four boundary reads simply
+re-materialise as tail locals at `:695`–`:698`.
+
+| ⭐⭐⭐ **the correction to how §4.1S's number must be read** | |
+|---|---|
+| ⛔ **PEAK LIVE is a property of the WHOLE slice, and only falls when the region CONTAINING the peak is migrated** | ⚠ §4.1S implied *"18 values must move"* reads as a budget that draws down as you go. **It does not draw down from the front.** Migrating a prefix costs its own crossings and leaves the peak exactly where it was |
+| ⭐⭐ **so PEAK LIVE prices the LAST step of a host's migration, not the first** | ⭐ It is still the right number for *"what does finishing this host cost"* — ⛔ it is the wrong number for *"what does starting cost"*, and §4.1S did not distinguish them |
+| ⭐ **what the head migration DID buy** | the mechanism is proven on an inline ECS root *(§4.1O's open question)*; six real orderings are now checked on every CGF boot instead of being comments; and `Value<T>` — the boundary primitive **every** partial migration needs — exists and is railed |
+
+⚠ **Stated plainly because the alternative is a report that reads like progress:** this step is a
+**bridgehead, not a dent.** The Editor's `18` and CGF's remaining `10` are still ahead in full.
+
+#### ③ ⭐ RAILS — three added, one red-proved
+
+`Hrot.NodeComposition.Tests/NodeBootPlanRails.cs` grows from 11 to **14**, all three new ones on
+`Value<T>` — which shipped in §4.1R with **no rail at all**, an accessor CGF's correctness now rests on:
+
+| rail | pins |
+|---|---|
+| `ValueReadsWhatAStepPublished_AfterThePlanHasRun` | the boundary works |
+| `ValueReturnsNullForAnOptionalValueThatWasPublishedAsNull` | ⭐ hosts genuinely publish nulls — CGF's `node-factory` is `_networkFactory?.ConfigureForNode(…)`, null offline. A plan that refused them would push those steps back out into ambient locals |
+| `ValueOnAKeyNothingPublishedFailsLoudlyAndListsTheKnownKeys` | ⛔ **red-proved**: replacing the throw in `NodeBootValues.Published` with `return default!` reddens this rail **and only this rail** *(14 → 13 passed, 1 failed)*. Restored by inverse edit and re-run green |
+
+#### ④ ⛔⛔ THE GATE §4.1S PROMISED IS INERT — **and that partly undermines why CGF went first**
+
+📌 §4.1S ③ picked CGF because *"`CgfSubsystemHeadlessTests` exercises a real boot."* 📐 **There are TWO
+classes of that name**, and the one in the solution is skipped:
+
+| suite | verdict |
+|---|---|
+| ⛔ `Hrot.SimHost.Tests/CgfSubsystemHeadlessTests.cs:13` | 🔴 **`[Fact(Skip = "CgfSubsystem.Initialize blocks on DdsIdAllocator waiting for live Orchestrator; verify as integration test")]`** — one test, **skipped**, pre-existing and not this change's doing. ⚠ It gates **nothing** |
+| ⭐ `Hrot.ClusterRunner.Integration.Tests/CgfSubsystemHeadlessTests.cs` | ✅ the real one — boots `simhost,cgf` over loopback DDS through `HrotRunnerHarness`. ⛔ **T3**: out of the fast lane, ~3 min, DDS-timeout-shaped |
+
+⭐⭐ **It was run, and it is 3 RED / 6 green — BASELINED, not recalled.** ⛔ The reds were **not** assumed
+pre-existing: the tree was reverted to the parent commit *(`f11e70191`)*, **rebuilt**, and the same filter
+re-run. 📐 **Byte-identical outcome — the same three test names, `Failed: 3, Passed: 6, Total: 9`, at
+2 m 59 s both times:**
+
+| test | at `027752454` *(with the plan)* | at `f11e70191` *(without)* |
+|---|---|---|
+| `SimHost_WanderMission_EntityMovesAfterBehaviorActivation` | 🔴 FAIL | 🔴 FAIL |
+| `SimHost_MoveToLocationMission_EntityMovesWithoutGhostTick` | 🔴 FAIL | 🔴 FAIL |
+| `CGF_MovingVehicle_GhostPositionUpdates` | 🔴 FAIL | 🔴 FAIL |
+| the other six | ✅ | ✅ |
+
+⇒ ⭐ **The head migration changed nothing here**, which is what a behaviour-preserving change should look
+like.
+
+> 🔴🔴 **SUPERSEDED IN PART BY §4.1U** *(`2026-09-04`)*. The baseline is correct and the reds are genuinely
+> pre-existing — ⛔ **but "no owner named here" was where the enquiry stopped, and that was the mistake.**
+> ⭐⭐ Running the cluster showed all three are movement assertions defeated by ONE production defect: the
+> ownership handover threw on every frame because no host registered `OwnershipUpdate`. ⇒ 📄 **§4.1U.**
+
+⛔⛔ **And do not read the six greens as "CGF boots correctly" either** — all three reds are
+**movement/mission** assertions downstream of a CGF boot that evidently *does* happen, so this suite
+proves the boot did not REGRESS and proves nothing about whether it was right to begin with.
+⚠ **The three reds are a pre-existing defect with no owner named here** — ⛔ not this batch's to fix, and
+⛔ not to be quietly absorbed as "known noise" either *(`R-131`: a red is a defect to resolve or justify)*.
+
+⇒ ⭐⭐ **CGF's advantage over the Stride editor was smaller than §4.1S claimed.** Both are gated by a suite
+outside the fast lane; CGF's at least *runs in this repo's CI shape*, the Stride editor's needs
+`net8.0-windows`. ⭐ **The choice still stands — the reason given for it was overstated.**
+⚠ **`Hrot.SimHost.Tests`' skipped test is a genuine hole**, not a finding of this batch to fix: a
+headless CGF boot cannot complete without a live orchestrator, so the skip is honest. ⛔ Do not "fix" it
+by unskipping.
+
+#### ⑤ ⭐ WHAT COMES NEXT, with the ② correction applied
+
+| | |
+|---|---|
+| ⭐⭐ **finish CGF's tail** *(`:692`→`:1413`)* | that is where the **10** lives. ⛔ It is one unit — the peak at `:973` cannot be halved by another prefix |
+| ⭐ **then the Editor** *(peak 18)* | ⚠ price it as **one** migration, per ②; a partial pass buys the mechanism it already has |
+| ⚠ **re-read §4.1S ①'s table with ② in mind** | the numbers are right; the *"is a batch, not a programme"* conclusion assumed they draw down incrementally, and they do not |
+
+### 4.1U 🔴🔴🔴 **RUNNING THE CLUSTER FOUND WHAT 8 000 TESTS DID NOT: THE OWNERSHIP HANDOVER NEVER RAN IN PRODUCTION** *(`2026-09-04`)*
+
+> 🔒 **User:** *"why dont you try running the cluster to see if scenario loads and entity move?"*
+> ⇒ ⭐⭐⭐ **One run answered it, and the answer was NO.** This section is the finding, the fix and — the
+> part worth keeping — **why every existing control missed it.**
+
+#### ① 📐 WHAT THE LIVE CLUSTER SHOWED
+
+`--mode all` *(orchestrator + simhost + ig + excon + cgf, one process, Xvfb, Debug API)*, `hill-attack`
+loaded live → `ok:true · entityCount 8 · OperatingLive · sawWorldChange true`, then unpaused:
+
+| | before the fix | after |
+|---|---|---|
+| sim time elapsed | 50 s | 25 s |
+| ⭐⭐⭐ **entities that moved** | 🔴 **0 / 8** | ✅ **4 / 8**, by **62–85 m** |
+| `Strict Mode Violation` in the log | 🔴 **every frame** | ✅ **0** |
+| `DeferredTakeover executed` | 🔴 **0** | ✅ **8** |
+| `PendingAuthorityGrants` on SimHost | 🔴 still attached | ✅ **stripped (null)** |
+
+⚠ **The 4 that still do not move are NOT claimed as correct** — they are the platoon parent *(TkbType 303)*
+and three non-vehicles. ⛔ Not investigated; **do not read "4/8" as "fully working."**
+
+#### ② 🔴 THE DEFECT — **a system scheduled on every node, publishing an event no node registered**
+
+```
+Strict Mode Violation: Unmanaged event type 'OwnershipUpdate' (ID: 9030) was published
+without being explicitly registered. You must call world.RegisterEvent<OwnershipUpdate>().
+  at DeferredTakeoverSystem.ExecuteTakeover(...)  DeferredTakeoverSystem.cs:125
+```
+
+⭐⭐ **The throw lands MID-METHOD, which is what makes it more than a dropped event:**
+
+| `ExecuteTakeover` step | ran? | consequence |
+|---|---|---|
+| 2a `SetAuthority(entity, componentId, true)` | ✅ | Muscle claims raw bits |
+| 2b `Bus.Publish(new OwnershipUpdate{…})` | 🔴 **THROWS** | — |
+| 3 `SetManagedComponent(entity, ownership)` | ⛔ never | **`DescriptorOwnership` never recorded** ⇒ `PrimaryOwnerId` stays `-1` |
+| 4 `RemoveManagedComponent<PendingAuthorityGrants>` | ⛔ never | **retries forever, every frame** |
+| 5 Brain's `OwnershipIngressSystem` drops its bits | ⛔ never | **Brain keeps authority** |
+
+📐 **Measured per perspective, entity 1000, before the fix:** CGF `HasAuthority=true PrimaryOwnerId=400`,
+SimHost `PrimaryOwnerId=-1`. ⇒ **the Muscle that integrates kinematics had no ownership, so nothing moved.**
+
+📄 **Design basis — the handshake is fully specified and step 5 simply never ran:**
+`docs/HROT architecture.md` §444 and §508–512 *("Symmetrical Yield… publishes an `OwnershipUpdate`… the
+Brain's `OwnershipIngressSystem`… drops its local authority bits")*. ⛔ Searched `docs/` and `.dev/` for a
+record that the handover is deliberately disabled — **none found**; 🔒 user confirmed `2026-09-04` it is not.
+
+#### ③ ⛔⛔ THE SECOND HALF — **a NAME COLLISION is why this was invisible to review**
+
+| type | EventId | registered? | published by |
+|---|---|---|---|
+| `Replication.**Components**.DescriptorAuthorityChanged` | 9010 | ✅ `HrotSharedComponentRegistry.cs:95` | ⛔ **nothing** |
+| `Replication.**Messages**.DescriptorAuthorityChanged` | 9031 | 🔴 **nowhere** | ✅ `OwnershipIngressSystem.cs:87` |
+| `Replication.Messages.OwnershipUpdate` | 9030 | 🔴 **nowhere** | ✅ `DeferredTakeoverSystem:125`, `OwnershipEgressSystem:69` |
+
+⇒ ⭐⭐⭐ **The registry registered the WRONG NAMESAKE, and the line reads perfectly correct.** ⚠ This is
+exactly the *"is this text hit REALLY this symbol"* hazard the tool-routing rules name — ⛔ and no grep for
+`DescriptorAuthorityChanged` would have shown it, because both hits are real.
+
+⭐ **The `Components` twin is deliberately LEFT REGISTERED**, not deleted: registered-and-unpublished is
+dormant, not harmful, and *"unreferenced is not unintentional."* Removing it is a separate call.
+
+#### ④ ⭐ THE FIX — **CE-161's shape, exactly**
+
+Two lines in **`HrotSharedComponentRegistry.RegisterAll`** — the ONE Hrot-wide path all four node
+bootstrappers already call *(CGF, SimHost, IG, Stride)*. ⛔ **Not** four host registries: that is four fresh
+chances to forget, which is the disease. Both publishers and the consumer are served on every node, which is
+what `R-138`'s *"nodes should be equal"* requires.
+
+#### ⑤ ⛔⛔⛔ WHY EVERY EXISTING CONTROL MISSED IT — **the part worth keeping**
+
+| control | why it was blind |
+|---|---|
+| ⛔ **~8 000 unit tests** | the only `RegisterEvent<OwnershipUpdate>()` calls in the repo are **3, all inside `Fdp.Toolkits.Tests/Replication/OwnershipTests.cs`** — ⭐⭐ **the tests registered it themselves**, so they proved the system works *given* a registration production never performs. 📌 The `§7` rail-blindness pattern, instance four: **a rail that supplies the input it is testing** |
+| ⛔ **`CgfSubsystemHeadlessTests` (T3)** | 3 red / 6 green **before the fix, and STILL 3 red after it** *(see ⑧)*. ⚠ They pointed at the area and were **not** caused by this defect — ⛔ I treated the baseline as the end of the enquiry instead of the start, which is the real lapse |
+| ⛔ **`NodeBootPlan`** *(§4.1P–T, this programme's own instrument)* | it checks **declared** requires/provides. ⛔ **Nobody had declared that `DeferredTakeoverSystem` requires the `OwnershipUpdate` registration** — ⇒ ⭐⭐ the plan can only make loud what someone wrote down, and this is the strongest argument yet for `§4.1V`'s direction: **the registration should be a `provides` of the step that schedules the system** |
+| 🔴 **me** | I ran the full gate table, baselined every red, and reported green. ⭐⭐⭐ **The user asking "does an entity actually move?" is what found it.** ⛔ No amount of gate discipline substitutes for running the thing |
+
+#### ⑥ ⚠⚠ THE RAIL TOOK THREE ATTEMPTS — **and every failure is worth keeping**
+
+🔒 **User, mid-batch:** *"are you adding rails that must have already exist when the deferred takeover
+feature was developed? dont. reuse. no bloating"* — ⭐⭐ **correct, and it redirected the whole approach.**
+
+| attempt | what happened |
+|---|---|
+| **①** a NEW `OwnershipHandoverEventRegistrationRails` class | 🔴 **Vacuous** — published on a bare `EntityRepository` and stayed GREEN with both registrations deleted. ⛔ The guard sits behind `FdpConfig.EnforceExplicitEventRegistration`, which **defaults to `false`** |
+| **②** the same class, strict mode enabled locally | ✅ red-proved — ⛔ **but it was a duplicate.** 📌 `SplitAuthoritySpawnTests` *(SPLIT-AUTH-IT)* is this feature's OWN suite and already covers the handshake. **Deleted** |
+| **③** ⭐ the assertion FOLDED INTO the existing `IT-SA-2` | ✅ **shipped.** No new class, no new test, **no new DDS domain** |
+
+⛔⛔ **A 4th test in that class deterministically reddened `IT-SA-3` — three runs, same test, same
+timing** *(it passes alone; the three originals pass together with the fix)*. ⇒ ⭐⭐ **adding a cluster to
+that class is not free**, which is the concrete reason the assertion belongs inside a test that already
+spawns the entity rather than beside it.
+
+#### ⑦ 🔴🔴🔴 WHY SPLIT-AUTH-IT WAS BLIND — **the integration suite does not run the production guard**
+
+⭐⭐⭐ **This is the finding, not the missing assertion.** 📐 `Hrot.ClusterRunner/Program.cs:52` sets
+`FdpConfig.EnforceExplicitEventRegistration = true` **process-wide in production**. ⛔ **No integration
+suite does** — so the publish that throws in production is a **silent no-op** in every test.
+
+⇒ ⛔ **No assertion inside SPLIT-AUTH-IT could ever have caught this**, and I proved that by trying:
+with the registration deleted and strict mode OFF, even the grant-stripped assertion stayed green.
+⭐⭐ **Both halves are required:**
+
+| | |
+|---|---|
+| ⭐ **the guard** | `IT-SA-2` now flips `EnforceExplicitEventRegistration` and restores it in a `finally` — ⭐ the **same save/restore idiom already used** at `EditorSubsystemBootTests:224` and `HrotNodeBuilderTests:105`. **Reused, not invented** |
+| ⭐ **the assertion** | `PendingAuthorityGrants` must be **stripped**. ⛔ `IT-SA-2`'s original `HasAuthority` check cannot see it: step 2a runs BEFORE the throw, so it asserts exactly the half that still worked |
+| ✅ **red-proof, measured** | registration deleted + strict mode ON ⇒ `IT-SA-2` **fails**; restored ⇒ 3/3 green |
+
+⚠ **Scope of the fix, stated honestly:** only `IT-SA-2` runs under the guard. ⛔ **Every other integration
+test still runs with strict mode off**, so this class of defect remains invisible everywhere else. ⭐ That
+is a real gap and it is NOT closed by this batch.
+
+#### ⑧ ⛔ WHAT THE FIX DID **NOT** FIX — **two claims corrected, one of them mine**
+
+| claim | verdict |
+|---|---|
+| 🔴 *"the three `CgfSubsystemHeadlessTests` movement reds share this cause"* — my §4.1U claim table marked it **assumed** | ⛔⛔ **FALSE, measured.** Re-run after the fix: **still 3 red / 6 green**, same three names. ⇒ they have a **different, still-unowned cause**. ⭐ The claim table's ⛔-assumed marking is what kept this honest |
+| ⭐ *"the live cluster now works"* | ⚠ **partly.** Entities move — ⛔ **and then stop.** 📐 Measured over 50 s more: the four Friend tanks moved 62–85 m, then **0.1 m**, halting ~160 m from the enemy |
+
+#### ⑨ 📐 DO THE TANKS SEE, FIRE AND KILL? — **NO.** *(measured `2026-09-04`)*
+
+`hill-attack` has real opposition: **1001–1004 Friend, 1006–1007 Hostile, all `Health 50/50`.**
+
+| observable | reading |
+|---|---|
+| health, over 50 s | 🔴 **50/50 unchanged on every entity** — no damage, ever |
+| `WeaponFire` · `Detonation` · `DamageAssessed` · `SensorTrack` in the run log | 🔴 **0 occurrences** |
+| Friend `1001` on CGF — `LocomotionChannel` | ✅ `ActiveAction 1, Status **Success**` — ⭐ the move action **COMPLETED**; the halt is an action finishing, not a stall |
+| Friend `1001` on CGF — `WeaponChannel` | 🔴 `ActiveAction 0, Status **Failure**` — **no weapon action was ever dispatched** |
+| Friend `1001` — `BehaviorState` | ✅ `ActiveBehaviorHash -1606975122`, `BrainTier 2` — a behaviour **is** bound and running |
+| ⛔ Hostile `1006` — `BehaviorState` | 🔴 `ActiveBehaviorHash 0`, `BrainTier 0` — **no behaviour bound at all.** The opposition is inert |
+| every entity — `MissionPlanQueue` | `PhaseCount 0` |
+
+⇒ ⭐⭐ **The Brain↔Muscle split now works for LOCOMOTION and is untested for COMBAT**: the Brain binds a
+behaviour, dispatches a move action, the Muscle integrates it, the action reports Success. **Nothing ever
+reaches the weapon channel.**
+
+⛔⛔ **NOT diagnosed, and deliberately not guessed at:** whether `hill-attack` *authors* an engagement at
+all *(a single move order would produce exactly this trace)*, or whether sensing/target-selection is
+missing. ⭐ **Settling it needs the scenario + behaviour asset read, which this batch did not do.**
+⚠ **Do not read ⑨ as "combat is broken"** — read it as **"combat is unexercised, and here is the trace."**
 
 ## 5. ⭐⭐⭐ PHASE 0 — **buildable detail. `build-state: READY-TO-BUILD`**
 
@@ -232,9 +2819,10 @@ classDiagram
         +IMissionEditorService MissionEditor
         +ITkbDatabase TkbDb
         +TkbFrom(world) Func~ITkbDatabase~
+        +EntityMapFrom(world) Func~NetworkEntityMap~
         +DescribeCapabilities()
     }
-    note for SubsystemDebugProvider "EXISTS - same file. Func-backed: each dependency is built in\nInitialize, AFTER the composition root builds the provider.\nTkbFrom is the ONE way to read the world singleton (CE-110)."
+    note for SubsystemDebugProvider "EXISTS - same file. Func-backed: each dependency is built in\nInitialize, AFTER the composition root builds the provider.\nTkbFrom and EntityMapFrom (CE-259am) are the ONE way to read\neach world singleton - CGF/IG/SimHost still pass a private field\nfor the map, correct by convention, not yet migrated."
 
     class PerspectiveScopedDispatcher {
         +Active() ISubsystemDebugProvider
@@ -267,7 +2855,13 @@ classDiagram
     class ExConSubsystem {
         +CreateDebugProvider()
     }
-    note for ExConSubsystem "HAS NO BUFFER AND NO CATALOG - passes null for both,\nhonestly absent (ruling 49). 3 of 4 on each member."
+    note for ExConSubsystem "HAS NO BUFFER AND NO CATALOG - passes null for both,\nhonestly absent (ruling 49). Buffer: 4 of 5 - catalog: 3 of 5."
+    class ReplayBrowserSubsystem {
+        -DebugPrimitiveBuffer _gizmoBuffer
+        -EntityRepository _activeRepo
+        +CreateDebugProvider()
+    }
+    note for ReplayBrowserSubsystem "CE-259am, ADDED 2026-09-11 - it was the only\nperspective-owning subsystem implementing nothing, so\nPerspectiveScopedDispatcher had an EMPTY list and every\nworld/gizmo route refused while the host held all three.\nworld and entityMap are Funcs for a load-bearing reason:\nRebindActiveRepo REPLACES the repo on every seek.\nNo kernel, no bus, no catalog => 9 members honestly null."
 
     ISubsystemDebugProvider <|.. SubsystemDebugProvider
     PerspectiveScopedDispatcher o-- "1..*" ISubsystemDebugProvider
@@ -276,7 +2870,18 @@ classDiagram
     IgSubsystem ..> SubsystemDebugProvider : builds
     SimHostSubsystem ..> SubsystemDebugProvider : builds
     ExConSubsystem ..> SubsystemDebugProvider : builds
+    ReplayBrowserSubsystem ..> SubsystemDebugProvider : builds
 ```
+
+⚠⚠ **The diagram draws the FIVE `ClusterRunner`-composed adopters. A SIXTH implementor exists outside it:**
+`StrideNodeShell` *(`Stride/HrotStrideApp.Game`, `CE-214` item ②)* — 📐 measured `2026-09-11`, graph **and**
+grep agreeing: `CreateDebugProvider` has **6** implementors *(CGF · ExCon · IG · ReplayBrowser · SimHost ·
+StrideNodeShell)*. ⛔ It is **not drawn** because `ClusterRunner` does not compose it, so it never reaches
+this `PerspectiveScopedDispatcher`.
+⛔⛔ **And `EditorSubsystem` is NOT an implementor** — 📐 zero `IProvidesDebugSurface`/`CreateDebugProvider`
+references in it; it **owns** the debug API directly with the full surface *(`DESIGN_Mcp_Diagnostics_Federation.md`
+§1)*. ⚠ Two documents count it as one and are therefore wrong by one — see the correction note in
+[`DESIGN_Stride_Node_Modes.md`](DESIGN_Stride_Node_Modes.md) §"the debug-surface contract".
 
 #### 🔒 Why this does NOT breach the §3 standing constraint
 ⭐⭐ It moves **diagnostics egress** only: ⛔ **no module, system, translator or participant is registered**,
@@ -769,7 +3374,7 @@ public sealed class SharedAiWindowRegistrar : IWindowRegistrar
 `RegisterWindows(WindowManager)` over 7 injected instances — ⛔ a different, flatter thing.
 ⇒ ⭐⭐⭐ **the built class is a partial, shape-superseded implementation of a design whose job
 `PerspectiveWorkspaceRegistrar` now does, per perspective, on both hosts.**
-*(Also referenced in `.dev/main-toolbar-1/BATCH-22-*` and `.dev/ai-hsm-btree-vis-edit/BATCH-04-*` — batch
+*(Also referenced in `.dev/_DONE/main-toolbar-1/BATCH-22-*` and `.dev/_DONE/ai-hsm-btree-vis-edit/BATCH-04-*` — batch
 artefacts, no contrary intent.)*
 
 #### ⭐ VERDICT under the *"no rush removals"* rule — classify before removing
@@ -2664,3 +5269,1037 @@ right for a diagnostic endpoint; going silent was the defect. ⭐ The hint names
 
 ⇒ ⭐⭐ **Before writing any rail, ask: what input does it supply, and could it pass vacuously?** ⭐ Every
 phase-0 assertion carries an explicit non-empty guard for that reason.
+
+---
+
+## ⭐⭐⭐ §4.1w — **CE-199: THE RESOURCE HALF RUNS. `Allocate` HAS A STEP TO LIVE IN.** *(as-built, `2026-09-05`)*
+
+⛔⛔ **This SUPERSEDES the STATUS block's item (b)** *("`INodeResourceProvider.Allocate` is BLOCKED")* and
+**the `Base->>Res: Allocate(world)` line of §4.1j's boot sequence** — the as-built signature and shape both
+differ, and the difference is load-bearing.
+
+### 📐 The obstacle, restated exactly
+
+`NodeBootPlan.Step` records `provides` **when the step is DECLARED**, which is before `BuildContext` has
+run. But a host's providers come from `plan.RequiredResources(role)`, and **SimHost cannot build that plan
+until it has the context and the loaded road network** *(`SimHostNodeBootstrapper`'s own comment says so)*.
+⇒ the keys are needed earlier than the instances can exist.
+
+### ⭐⭐ The resolution — **declaration and instance are SEPARATE, which is the design's own axis ①**
+
+🔒 §4.1j axis ① already says a capability declares *"a list of resource **keys**, not instances."* ⇒ the
+split is the design's, not a workaround for it.
+
+```mermaid
+classDiagram
+    class SharedApplicationBootstrapper {
+        <<abstract>>
+        -IReadOnlyList~INodeResourceProvider~ _resourceProviders
+        -NodeBootValues _bootValues
+        #BootValues NodeBootValues
+        #DeclaredResourceKeys(NodeRole) IReadOnlyList~string~
+        #ResolveResources(HrotNodeContext, NodeRole) IReadOnlyList~INodeResourceProvider~
+        +DisposeResources()
+        +BootstrapNode(config, role, factory) HrotNodeContext
+    }
+    class INodeResourceProvider {
+        <<interface>>
+        +Key string
+        +Allocate(HrotNodeContext, NodeBootValues)
+        +Dispose()
+    }
+    class SimHostNodeBootstrapper {
+        +TrajectoryPool TrajectoryPoolProvider
+        #DeclaredResourceKeys(NodeRole) IReadOnlyList~string~
+        #ResolveResources(ctx, role) IReadOnlyList~INodeResourceProvider~
+        -AssertDeclaredResourcesMatchCapabilityNeeds(required, composed)
+    }
+    class IgNodeBootstrapper {
+        note "declares NO keys - correct, not a gap"
+    }
+    class TrajectoryPoolProvider
+    class PerceptionGridResourceProvider
+
+    SharedApplicationBootstrapper <|-- SimHostNodeBootstrapper
+    SharedApplicationBootstrapper <|-- IgNodeBootstrapper
+    INodeResourceProvider <|.. TrajectoryPoolProvider
+    INodeResourceProvider <|.. PerceptionGridResourceProvider
+    SharedApplicationBootstrapper o-- INodeResourceProvider : allocates and frees
+    SimHostNodeBootstrapper --> TrajectoryPoolProvider : owns one
+```
+
+### ⭐⭐ The boot sequence, AS BUILT
+
+```mermaid
+sequenceDiagram
+    participant Host as Node host
+    participant Base as SharedApplicationBootstrapper
+    participant Plan as NodeBootPlan
+    participant Values as NodeBootValues
+    participant Res as INodeResourceProvider
+
+    Host->>Base: BootstrapNode(config, role, factory)
+    Base->>Host: DeclaredResourceKeys(role)
+    Note over Base,Host: read BEFORE BuildContext, so role only
+    Base->>Plan: Step("node-resources", requires context, provides KEYS)
+    Base->>Plan: Step("system-groups", requires context + KEYS)
+    Base->>Plan: Run()
+    Plan->>Base: enter node-resources
+    Base->>Host: ResolveResources(context, role)
+    Base->>Base: check resolved keys == declared keys
+    loop per provider
+        Base->>Res: Allocate(context, values)
+        Res->>Values: Set(Key, resource)
+    end
+    Plan->>Base: enter system-groups
+    Base->>Host: PopulateSystems(...)
+    Host->>Values: Get(key)
+    Note over Host,Values: legal only because this step declared the key
+```
+
+### ⭐ The invariants, and where each is checked
+
+| # | invariant | checked by |
+|---|---|---|
+| ① | a provider may only allocate a key the step DECLARED | the base, naming the key — before `NodeBootValues` would refuse it with a less useful message |
+| ② | a DECLARED key that nobody allocates is refused | the base, naming the key. ⚠ the more dangerous direction: a consumer would read a resource never created |
+| ③ | the static declaration equals the union of the capabilities' `Needs` | `SimHostNodeBootstrapper.AssertDeclaredResourcesMatchCapabilityNeeds` — this is what keeps the static map SUBORDINATE to the capabilities rather than a second source of truth |
+| ④ | resources are allocated BEFORE any capability registers a system | `system-groups` requires the keys ⇒ `NodeBootPlan.Run` enforces the order |
+| ⑤ | every allocated provider is freed exactly once | `DisposeResources` on the BASE — ⭐ **one implementation**; SimHost and IG each had their own copy |
+
+### ⚠ What this deliberately does NOT do
+
+⛔ **It does not move consumers onto `BootValues`.** SimHost still hands `TrajectoryPool.Pool` to its pack
+directly — the migration boundary that class's own remarks describe. ⭐ What changed is that the pool is now
+**allocated by the node, in a declared step, and freed by the node**, so a consumer CAN be migrated one at
+a time without any further base change.
+
+### ✅ Verified
+
+| gate | result |
+|---|---|
+| `Hrot.NodeComposition.Tests` | **53 / 0** *(was 47; +6 rails)*. ⭐ Red-proof: suppressing `Allocate` reddens exactly 3 → restored 53/0 |
+| `Hrot.SimHost.Tests` | **889 / 1** — the one red is the baselined `FullBranchPipelineTests` flake |
+| `Hrot.IG.Tests` | **410 / 5** — the 5 baselined translator reds |
+| ⭐⭐ **live 4-process cluster, `hill-attack-close`** | `WeaponFire` 7→7 · `MunitionDetonation` 9→9 · `EntityHitDamage` 9→8 · `EntityDamage` 10→10 · **both hostiles `0/50` on Brain AND IG** · 10 engagements · 4 waves · ⛔ **zero errors and zero `BootDependencyException`** — which is exactly what a wrong step declaration would produce |
+
+⚠ **The rail that reddened on an improvement, kept as a lesson:** `NodeRolePersistenceRails.TheNodeFreesTheProvidersItResolved`
+asserted that *SimHost's own source* contains `DisposeResources` — it pinned an implementation's **ADDRESS**.
+Moving the loop to the base made it red. ⇒ ⭐ it now asserts the **INVARIANT**: the base has exactly one
+implementation and **neither host restates it**. The old form would have stayed green while a third host
+grew a fourth copy.
+
+---
+
+## ⭐⭐⭐ §4.1x — **CE-200: HOST (c) — CGF COMPOSES FROM THE CAPABILITY SEAM** *(as-built, `2026-09-05`)*
+
+⭐⭐ **All three cluster hosts are now on the capability axis:** SimHost (§4.1s), IG (§4.1t), CGF (here).
+
+### ⛔⛔ WHAT THIS IS NOT — **and the distinction is the design's own**
+
+🔒 §4.1j's phase table marks **node-bootstrap adoption** *"optional, LAST"* — *"the only phase touching
+orchestration/participant/time authority, i.e. what §3.1 says not to move blindly."*
+⇒ ⭐⭐⭐ **CGF does NOT adopt `SharedApplicationBootstrapper` here.** The **capability axis is orthogonal
+to the bootstrapper**: `NodeCompositionPlan` needs only a role and the capability instances, so a host
+with its own inline ECS root can take it without touching its boot sequence at all. ⭐ CGF keeps its
+`NodeBootPlan` head and its inline tail; only the *unit selection* moves.
+
+⚠ **That orthogonality was not obvious and is worth stating:** the previous entries in this series moved
+hosts that were *already* on the base, so "onto the seam" and "onto the bootstrapper" looked like one
+step. **They are two**, and CGF is the case that separates them.
+
+### ⭐ The as-built
+
+```mermaid
+classDiagram
+    class INodeCapability {
+        <<interface>>
+        +Key string
+        +Needs IReadOnlyList~string~
+        +PopulateSystems(ctx, input, sim, postSim)
+        +ProvideModules() IEnumerable~IEcsModule~
+        +Register(ctx, values)
+    }
+    class CgfCapabilities_Brain {
+        -CgfLogicPack _logicPack
+        +Key = cap:brain
+        +Needs = empty
+        +ProvideModules() BehaviorDiagnosticsModule then CgfLogicPack
+        +PopulateSystems(...) pack InputSystems and SimulationSystems
+    }
+    class CgfSubsystem {
+        +DefaultRole = NodeRole.Brain
+        -IReadOnlyList~INodeCapability~ _capabilities
+    }
+    class CgfLogicPack {
+        +InputSystems IReadOnlyList
+        +SimulationSystems IReadOnlyList
+    }
+    INodeCapability <|.. CgfCapabilities_Brain
+    CgfSubsystem --> CgfCapabilities_Brain : resolves via NodeCompositionPlan
+    CgfCapabilities_Brain --> CgfLogicPack : injected, not constructed
+```
+
+```mermaid
+sequenceDiagram
+    participant Root as CgfSubsystem.Initialize
+    participant Plan as NodeCompositionPlan
+    participant Cap as CgfCapabilities.Brain
+    participant Kernel as ModuleHostKernel
+
+    Root->>Root: build CgfLogicPack
+    Root->>Plan: Capability(DefaultRole, new Brain(pack))
+    Root->>Plan: Resolve(DefaultRole)
+    Plan-->>Root: capabilities
+    loop per capability
+        Root->>Cap: ProvideModules()
+        Cap-->>Root: BehaviorDiagnosticsModule, CgfLogicPack
+        Root->>Kernel: RegisterModule(each)
+    end
+    loop per capability
+        Root->>Cap: PopulateSystems(ctx, input, sim, postSim)
+    end
+    Root->>Root: refuse if postSim is non-empty
+    Root->>Kernel: RegisterGlobalSystem(TogglableInputGroup(input))
+    Root->>Kernel: RegisterModule(CgfSimulationModule(sim))
+```
+
+### ⭐ What changed, and what deliberately did not
+
+| | |
+|---|---|
+| ⭐⭐ **the role is declared ONCE** | `CgfSubsystem.DefaultRole`. 📐 It was spelled **three times** — `WithRole`, `ConfigureForNode`, and `CgfApplication`'s — the same drift `CE-197` measured on SimHost, where the copies had already diverged from what the node composed |
+| ⭐⭐ **units come from `Resolve(DefaultRole)`** | ⛔ not a hand-written block. Declaration and composition can no longer disagree |
+| ⭐⭐ **a post-simulation contribution is REFUSED, not dropped** | CGF builds no post-sim group; a capability contributing one would have its systems silently discarded. The root throws, naming the count |
+| ⛔ **`CgfLogicPack` is INJECTED into the capability** | the capability declares WHAT the Brain contributes; the root still decides HOW the pack is built. That also keeps `ScenarioSource` reachable for the load handlers |
+| ⛔ **no bootstrapper adoption, no reordering, no ECS host declared** | the §4.1M units and the boot tail are untouched |
+
+### ✅ Verified
+
+| gate | result |
+|---|---|
+| `Hrot.SimHost.Tests` | **895 / 1** *(was 889; +6 rails)* — the red is the baselined `FullBranchPipelineTests` flake |
+| red-proof | reverting the root reddens both source rails, **and** the four behavioural rails no longer compile *(`DefaultRole` is gone)* |
+| ⭐⭐ **live 4-process cluster, `hill-attack-close`** | module order verbatim — `…NedReplication, **BehaviorDiagnostics, CgfLogicPack**, CgfSimulation…` · `WeaponFireRequest` 8→5 · `WeaponFire` 5→5 · `EntityHitDamage` 5→5 · `EntityDamage` 9→9 to IG · hostile 1007 **0/50** · 8 engagements, 3 waves · **zero errors on all three nodes** |
+
+⚠ **1006 read `25/50` at the sample instant — mid-fight, not a defect.** The run was cut at 75 s.
+
+---
+
+## ⭐⭐⭐ §4.1y — **CE-203: PHASE `N`, HOST (d) — THE EDITOR ADOPTS `HrotNodeBuilder`** `build-state: E1 + E2 BUILT · E3 DESIGNED` *(`2026-09-05`)*
+
+> 🔒 **User, `2026-09-03`:** *"i need the editor to be unified too of course."*
+> 🔒 **User, `2026-09-05`, the constraint that shapes the whole slice:** *"i do not want any UI to
+> disappear or something as a result of unification … not just scenario functioning the same, ale GUI
+> panels being still present and showing the same."*
+
+⭐ `N₀` (`CE-201`) removed the mechanical blocker — the time role is a builder input. ⭐⭐ This section is the
+adoption itself, and §4's phase table names the editor as the host that follows CGF.
+
+### 📐 INVENTORY *(`2026-09-05`; `search_code` **and** grep, both reported)*
+
+```
+search_code(pattern="new HrotNodeBuilder", limit=60)  → 73 grep matches / 43 indexed results
+grep -rn "new HrotNodeBuilder" --include=*.cs | grep -v obj/
+grep -rn "new HrotNodeContext" --include=*.cs | grep -v obj/
+```
+
+| | measured |
+|---|---|
+| ⭐ **production `HrotNodeBuilder` sites** | **4** — `SimHostNodeBootstrapper` · `StrideNodeBootstrapper` · `IgNodeBootstrapper` · `CgfSubsystem`. ⚠ **measured as 5 at the time; `EyesAndMuscleSubsystem` RETIRED `2026-09-05` (`CE-218`)** and the editor joined at `CE-203`. |
+| ⭐ **`HrotNodeContext` construction sites** | **1** — `HrotNodeBuilder:243`. ⇒ adding an `init` property to the record touches exactly one constructor |
+| 🔴 **what `EditorSubsystem.Initialize` re-implements** | **eight** of the builder's ten steps — see the table below |
+| ⚠ **`check_index_coverage`** | ⛔ **not available through the CLI** *(measured `2026-09-02`)*, so *"5 production sites"* rests on graph+grep agreement, not on a coverage proof |
+
+### 🔴 THE DUPLICATION, STEP BY STEP — **measured, not asserted**
+
+| builder step | `HrotNodeBuilder.Build()` | `EditorSubsystem.Initialize` | identical? |
+|---|---|---|---|
+| 1 world | `new EntityRepository()` :128 | `new EntityRepository()` :957 | ✅ |
+| 2 accumulator + kernel | :131-132 | :961-962 | ✅ |
+| 3 bus + `OrchestrationEventRegistry.RegisterAll` | :135, :148 | :958-959 | ✅ *(the editor adds `OrchestratorEventRegistry.RegisterInternalEvents` — **kept**, see decision ③)* |
+| 4 time controller | `Role = _timeRole`, `Mode = Continuous`, `LocalNodeId = NodeId`, `SyncConfig = Default` | `new TimeControllerConfig { Role = TimeRole.Standalone }` :1012 | ✅ **once `WithTimeRole(Standalone)` is passed** — the other three are the config's own defaults and `EditorNodeId == 0` |
+| 6 entity map | `new NetworkEntityMap()` :168 | `new NetworkEntityMap()` :1021 | ✅ |
+| 8 cluster slave | `new ClusterSlave(NodeId, name, bus)` :226 | `new ClusterSlave(EditorNodeId, "Editor", _orchestrationBus)` :1201 | ✅ **with `WithRole("Editor", …)`** |
+| 9 TKB | `HrotEnvironment.CreateTkb()` :236 | `HrotEnvironment.CreateTkb()` :1230 | ✅ |
+| 9 geo transform | `HrotEnvironment.CreateGeoTransform()` :237 | `HrotEnvironment.CreateGeoTransform()` :1019 | ✅ |
+| 5/7 participant + allocator | DDS, gated on `!Headless` | ⛔ the editor is offline and has a **private `SequentialIdAllocator`** :599 | ⛔ **NOT the same — deferred to `E2`** |
+| 9 `BaseModules` | `[EntityLifecycleModule, GeographicModule]` | ⛔ builds its own ELM inside `EntityCreationPack` :1265; **no `GeographicModule` at all** | ⛔ **NOT the same — see the trap** |
+
+⛔⛔ **THE ONE TRAP, and it is the reason this is a slice and not a rewrite.** Registering
+`context.BaseModules` on the editor's kernel would silently add a **`GeographicModule` the editor has never
+run**, and hand it a **second `EntityLifecycleModule`** beside the pack's. ⇒ ⭐ **`E1` deliberately does not
+touch module registration.** The builder's two base modules are constructed and left unregistered — an
+allocation, not a behaviour.
+
+### ⭐⭐ THE DECISIONS
+
+| # | decision | why |
+|---|---|---|
+| **①** | ⭐⭐⭐ **`E1` adopts the builder for the ENGINE CORE only** — world, accumulator, kernel, bus, time controller, entity map, cluster slave, TKB, geo transform | ⭐ every one of those nine is byte-equivalent per the table. ⛔ Everything whose equivalence is not *measured* stays where it is |
+| **②** | ⭐⭐ **`HrotNodeContext` gains `TimeController`, typed `ITimeController?`** | 🔒 `N₀` item ② said exactly this and `CE-201` did not build it. ⛔ Typed as the INTERFACE — a `MasterSyncController` property would push the role back into the builder's shape. ⭐ The editor casts at its own site, exactly as it does today |
+| **③** | ⭐ **`OrchestratorEventRegistry.RegisterInternalEvents` stays in the editor**, called on `context.EventBus` | ⛔ It is `Hrot.Orchestrator`'s vocabulary and only two hosts want it. Moving it into the builder would give it to all five |
+| **④** | ⭐⭐ **the editor's teardown becomes `context.Dispose()`** | 🔒 the record's own ownership contract (`QA-001`): *"every consumer must call `context.Dispose()`, NOT `context.Kernel.Dispose()`"*. 📐 The editor disposes kernel-then-world at `:4847`/`:4851` — **the same order**, so this is a rename, not a change |
+| **⑤** | ⛔ **`SequentialIdAllocator` is NOT deleted in `E1`** | ⭐ Replacing it means passing an `INetworkFactory` and letting the builder choose — a **behaviour change** *(which allocator runs, and entity-id issuance is what `HN-037` measured as fragile)*. ⇒ `E2`, with its own verification |
+| **⑥** | ⛔ **`SharedApplicationBootstrapper` is NOT adopted** | 📐 `CE-200` established that the builder axis and the bootstrapper axis are **two** steps; CGF took the first without the second. The editor is the same case |
+
+### ⭐ THE UML *(obligation ①; boxes marked `«existing»` already exist, with their file)*
+
+```mermaid
+classDiagram
+    class EditorSubsystem {
+        <<existing>>
+        -HrotNodeContext _node
+        -EntityRepository _world
+        -ModuleHostKernel _kernel
+        -FdpEventBus _orchestrationBus
+        -MasterSyncController _timeController
+        -SequentialIdAllocator _idAllocator
+        +Initialize(SubsystemConfig)
+        +Shutdown()
+    }
+    class HrotNodeBuilder {
+        <<existing>>
+        +WithRole(name, NodeRole)
+        +WithTimeRole(TimeRole)
+        +Build() HrotNodeContext
+    }
+    class HrotNodeConfig {
+        <<existing>>
+        +int NodeId
+        +string SubsystemName
+        +bool Headless
+    }
+    class HrotNodeContext {
+        <<existing>>
+        +EntityRepository World
+        +ModuleHostKernel Kernel
+        +EventAccumulator EventAccumulator
+        +FdpEventBus EventBus
+        +NetworkEntityMap EntityMap
+        +ClusterSlave ClusterSlave
+        +ITkbDatabase TkbDb
+        +IGeographicTransform GeoTransform
+        +IReadOnlyList~IEcsModule~ BaseModules
+        +ITimeController TimeController
+        +Dispose()
+    }
+    class ITimeController {
+        <<interface>>
+    }
+    class MasterSyncController {
+        <<existing>>
+        +SwitchToDeterministic(HashSet~int~)
+    }
+    class EntityCreationPack {
+        <<existing>>
+        +Build(EntityCreationContext) EntityCreationUnits
+    }
+
+    EditorSubsystem --> HrotNodeBuilder : builds once
+    HrotNodeBuilder --> HrotNodeConfig : reads
+    HrotNodeBuilder --> HrotNodeContext : creates
+    EditorSubsystem --> HrotNodeContext : owns, disposes
+    HrotNodeContext --> ITimeController : exposes
+    ITimeController <|.. MasterSyncController
+    EditorSubsystem ..> MasterSyncController : casts at its own site
+    EditorSubsystem --> EntityCreationPack : still builds its own ELM
+    HrotNodeContext ..> EntityCreationPack : BaseModules NOT passed
+```
+
+```mermaid
+sequenceDiagram
+    participant R as ClusterRunner
+    participant E as EditorSubsystem
+    participant B as HrotNodeBuilder
+    participant C as HrotNodeContext
+    participant P as EntityCreationPack
+
+    R->>E: Initialize(SubsystemConfig)
+    E->>B: new(HrotNodeConfig{NodeId=0, SubsystemName=Editor, Headless=true})
+    E->>B: WithRole("Editor", NodeRole.None)
+    E->>B: WithTimeRole(TimeRole.Standalone)
+    E->>B: Build()
+    B->>B: world, accumulator, kernel
+    B->>B: bus + OrchestrationEventRegistry.RegisterAll
+    B->>B: TimeControllerFactory.Create then SetTimeController
+    B->>B: entity map, ClusterSlave, TKB, geo transform
+    B-->>C: context
+    E->>C: read World, Kernel, EventBus, EntityMap, ClusterSlave, TkbDb, GeoTransform
+    E->>E: OrchestratorEventRegistry.RegisterInternalEvents(context.EventBus)
+    E->>E: cast context.TimeController to MasterSyncController
+    E->>E: SwitchToDeterministic(empty)
+    E->>E: register components on context.World
+    E->>P: Build(EntityCreationContext with its OWN ELM)
+    Note over E,C: BaseModules is deliberately NOT registered - it carries a GeographicModule the editor has never run
+    R->>E: Shutdown()
+    E->>C: Dispose()
+```
+
+### ⭐ THE SLICES
+
+| slice | what | how it is proven |
+|---|---|---|
+| ⭐⭐ **`E1`** | the engine core, decisions ①–④ | ⭐ **the UI snapshot, shape AND values** *(`scripts/ui-snapshot.py --values --scenario hill-attack-close`)* before and after, plus `scripts/determinism-probe.py` on the same scenario. ⛔ Both need `/preview/enter` — see the vacuity note below |
+| ⭐ **`E2`** | the private `SequentialIdAllocator` dies; an offline `INetworkFactory` supplies it | ⛔ **behaviour change.** Entity-id issuance across a second scenario load is what `HN-037` measured as fragile ⇒ load twice and compare id sets |
+| ⚠ **`E3`** *(candidate, not scheduled)* | the base modules — does the editor WANT a `GeographicModule`? | ⛔ a capability question, not a refactor; needs its own measurement |
+
+### ⛔⛔ HOW `E1` IS VERIFIED — **and why the first attempt at this control was worthless**
+
+📐 The editor's clock **does not run in edit mode**. A freshly loaded editor is `inPreview:false`, every
+`POST /sim/step` is dropped, and `simTime` stays `0.0` — and `CE-202` published a *"8 of 8 entities
+byte-identical"* claim measured exactly that way, comparing two worlds frozen at `t=0`.
+
+| ⭐ the control, as it now stands | |
+|---|---|
+| ⭐⭐⭐ **`POST /preview/enter {startPaused:true}` FIRST** | 📐 measured `2026-09-05`: with preview entered, one step moves `simTime` `0 → 0.0166666675` = exactly 1/60 |
+| ⭐⭐ **both harnesses REFUSE when the clock did not move** | ⛔ a control that can pass without exercising anything is worse than no control, because it is believed |
+| ✅ **the editor IS run-to-run deterministic** | 📐 two cold `--mode editor` processes, `hill-attack-close`, 600 fixed steps each *(`simTime 0 → 10.0000005`)*: **8 / 8 entities identical**, with four tanks genuinely moving *(speeds 1.17–6.92)* — ⭐ so the comparison is non-vacuous in both directions |
+
+
+### ✅ `E1` AS-BUILT *(`2026-09-05`; obligations ③ + ⑤)*
+
+⭐ **What was built matches the diagrams above**, with one addition the design named but `CE-201` had not
+delivered: `HrotNodeContext.TimeController`.
+
+| the design said | what was built |
+|---|---|
+| the editor builds through `HrotNodeBuilder` with `Headless = true`, `WithRole("Editor", NodeRole.None)`, `WithTimeRole(TimeRole.Standalone)` | ✅ verbatim, `EditorSubsystem.Initialize` |
+| nine values come off the context | ✅ `World` · `Kernel` · `EventBus` · `EntityMap` · `ClusterSlave` · `TkbDb` · `GeoTransform` · `TimeController`; the kernel's `SetTimeController` is the builder's now |
+| decision ② — `TimeController` typed as the interface | ✅ added to the record + set in `Build()`; **rail asserts REFERENCE EQUALITY with the kernel's**, because a property returning a *second* controller would pass a null check and hand the editor a clock nobody ticks |
+| decision ④ — teardown becomes `context.Dispose()` | ✅ — ⚠ **one deviation:** `_physicsModule.Dispose()` now runs BEFORE the kernel instead of between kernel and world, because the context disposes both together. 📐 Measured safe: the physics module is never registered on the kernel *(only `new` + `Initialize(_world)`)*, and it still precedes the world's disposal |
+| ⛔ `BaseModules` not registered | ✅ untouched |
+| ⛔ `SequentialIdAllocator` kept | ✅ untouched — `E2` |
+
+⚠ **One type widened beyond the design's list, and it is a consequence not a choice.** `HrotNodeContext.TkbDb`
+is `ITkbDatabase`, so `EditorSubsystem._tkbDatabase`, its public `TkbDatabase` property, and
+`DebugApiService`'s `tkbDb` parameters/field widened from the concrete `TkbDatabase`. 📐 Measured: nothing
+reads a concrete member off any of them, and `DebugApiService._tkbDb` was **already** the interface — this
+was the last concrete link in the chain.
+
+⛔⛔ **THE NEXT SENTENCE OF THIS PARAGRAPH WAS FALSE AND IS CORRECTED HERE** *(`CE-204`, same day)*. It read:
+*"The only out-of-solution consumer, `EditorStrideSubsystem:996`, assigns it straight into an
+`ITkbDatabase` field."* 🔴 It did not — `EditorStrideSubsystem.TkbDb` was declared **`public TkbDatabase`**,
+so **the Stride host stopped compiling at `8ad97c07f`** and stayed broken behind a full green gate table.
+⭐ The grep that produced the claim saw the NAME and could not see the TYPE. 📄 §4.1z carries the
+measurement and the gate.
+
+### ✅ VERIFIED
+
+| gate | result |
+|---|---|
+| ⭐⭐⭐ **UI values, control vs after** | ⛔ **exactly the noise floor** — 4 message logs *(timestamps)* + `editor_fdp_events` *(rendered-frame counter: 1809 / 1812 / 1810 across three runs of two builds)*. **Zero attributable differences.** `64` registered · `37` captured · `26` kinds |
+| ⭐⭐ **the noise floor itself** | two pre-change runs: **36 of 37** captured panels byte-identical in VALUES |
+| ⭐ `HrotNodeBuilderTests` | **9 / 0** *(+2)*; red-proof — deleting the one-line `TimeController` exposure reddens **both new rails and nothing else** |
+| ⭐ `Hrot.ClusterRunner.Tests` | **274 / 5** — the 5 are the baselined pre-existing reds *(`OrchestratorSubsystemTests` ×3, `DataDrivenGizmoPredicateTests` ×2)* |
+| ⭐⭐ **`EditorSubsystemBootTests`** *(the feature's OWN suite, `R-142` T-1)* | **12 / 0** — including the two rails that assert exactly what this change moves: the master drains a time intent published on the orchestration bus, and that bus carries the time-control registrations |
+
+⛔⛔ **A CONFOUND WORTH KEEPING, because it looked exactly like a regression.** The first "before" capture ran
+the pre-change build from a COPY at `/tmp/prechange/` and reported `assetCount 49` where the after reported
+`92`. 📐 The proper control — pre-change code rebuilt at the **normal path** — also reports `92`. ⇒ the AI
+asset catalog is discovered **relative to the binary directory**, so the 49 measured *where I ran it*, not
+what I changed. ⭐ **A before/after captured from two different directories is not a control.**
+
+
+### ✅ `E2` AS-BUILT — **the private allocator dies, and the shared one was already being built for every other offline host** *(`2026-09-05`)*
+
+⭐⭐⭐ **The seam law, for the 26th measured time — and this one the CODE ITSELF had written down.** There
+were **THREE** `SequentialIdAllocator` classes: `Hrot.Core.Network`'s *(shared)*, `EditorSubsystem`'s private
+nested one, and `EditorHarness`'s test copy. ⛔ The shared class's own remarks record that the first two
+**DISAGREED** — `Reset(1000)` issued `1001` there and `1000` in the editor — a divergence `HN-037` had to
+correct one level down. ⚠ **A second implementation had already cost a real defect before this batch
+touched it.**
+
+⭐⭐ **And the wiring existed too:** `OfflineNetworkFactory` — *in `Hrot.Editor`, and used by
+`EditorStrideSubsystem:109` and two test suites* — has always returned the shared allocator from
+`CreateIdAllocator`. ⇒ ⛔ **the editor was the one offline host not using its own offline factory.**
+
+| the design said *(decision ⑤)* | what was built |
+|---|---|
+| *"an offline `INetworkFactory` supplies it"* | ✅ `.WithNetworkFactory(new OfflineNetworkFactory())` on the builder; `_node.IdAllocator` is the shared instance |
+| ⛔ *"behaviour change — verify separately"* | ⭐⭐ **it is NOT a behaviour change, and that is a measurement not a hope**: the shared allocator PRE-increments from 1 and the deleted one POST-incremented from 1000, but `INetworkIdAllocator.Reset`'s contract is stated on the **observable** — *"after this returns, the next id issued is `startId`"* — so one `Reset(WorldIdAuthority.WorldBase)` reproduces the old sequence exactly |
+| — | ⚠ **`ClusterMaster.cs:918` already resets this same allocator to `WorldBase` at every scenario load**, so the two only ever differed in the window BEFORE the first load. The explicit reset covers exactly that window |
+| — | ⭐ **construct the factory, do not use the injected one.** `EditorSubsystem(INetworkFactory _)` ignores its argument by design *(the runner injects whatever the RUN is)*; the editor is an offline node by definition, and `EditorStrideSubsystem` already constructs its own |
+
+⭐ **Nothing else in `OfflineNetworkFactory` is reached.** Every other member returns a `Null*` stub, and
+`Headless = true` means `Build()` takes neither the DDS branch nor the slave-translator branch. ⇒ the only
+object this changes is the allocator.
+
+⚠ **The preview capability is load-bearing and was nearly lost silently.** `PreviewParticipants.IdAllocator`
+**type-TESTS** for `IRestorableIdAllocator` and degrades quietly when it is absent — the silent-default
+shape. The deleted copy implemented it; the shared one does too, and a rail now asserts it rather than
+assuming it.
+
+#### ✅ VERIFIED
+
+| gate | result |
+|---|---|
+| ⭐⭐ **`ThereIsOneSequentialIdAllocatorTests`** *(3 rails, `Hrot.Editor.Tests`)* | **3 / 0** — the offline factory's allocator after `Reset(WorldBase)` issues **1000, 1001, 1002**; it IS the shared class and still restores a preview position; and **exactly one production file declares the class** |
+| ⭐ **red-proof** | re-adding a nested `class SequentialIdAllocator` to `EditorSubsystem` reddens the structural rail **and only it** |
+| ⭐ `Hrot.Editor.Tests` | **363 / 0** *(1 skipped)* |
+| ⭐⭐⭐ **live `--mode editor`** | the scenario's entities still carry ids **1000, 1001, … 1007** — the exact sequence the deleted allocator issued |
+| ⭐⭐ **UI values, E1-control vs E2** *(same build state, only the allocator differs)* | **only the 4 timestamped message-log panels differ** — below even the E1 noise floor |
+
+⛔⛔ **THE SAME CONFOUND FIRED AGAIN, AND THIS TIME I EXPECTED IT.** `assetCount` read **92** before the E2
+build and **95** after, with every other field of that panel identical. 📐 Control: the **E1 code rebuilt in
+the same output state** also reports **95**. ⇒ the AI asset catalog tracks the BUILD/OUTPUT state, not this
+change — twice now (`49 → 92` on the directory, `92 → 95` on the rebuild). ⭐ **Treat `assetCount` as an
+environment reading, never as a regression signal**, and pair any before/after with a same-build control.
+
+
+### ⚠ THE INTEGRATION SUITE — **baselined, and it does not gate**
+
+📐 Measured three ways on `Hrot.ClusterRunner.Integration.Tests` *(~12 minutes per pass)*:
+
+| run | result |
+|---|---|
+| parent commit `06e9ed8d5` *(the BASELINE, in a clean worktree)* | **21 failed / 269 passed / 293** |
+| this branch, clean re-run | **23 failed / 267 passed / 293** |
+| ⛔ this branch, first pass | **aborted** — 30 `Failed` rows and NO summary line ⇒ the test host died mid-run. **Not comparable, and not used** |
+
+⭐⭐ **The four that differ pass IN ISOLATION on the changed tree** *(`HrotRunnerHarnessTests` ×3 +
+`ReplicationPhaseExecutionTests.DisposalMonitoringSystem_PrunesMapAfterEntityDestroyed` — 4/0)*, and two
+that failed in the BASELINE (`TimeControlIntegrationTests` ×2) pass here. ⇒ **the identity set is
+order-dependent in both directions**, which is the character `RULINGS.md` already records for this suite.
+
+⛔ **Stated plainly rather than dressed up:** this suite cannot confirm or refute a change of this size. ⭐
+The gate that CAN is `EditorSubsystemBootTests` — the feature's own suite, **12/0** — plus the live UI value
+comparison above.
+
+
+---
+
+## ⭐⭐⭐ §4.1z — **CE-204: STRIDE IS COMPILE-VERIFIABLE OFF WINDOWS, AND NOT COMPILING IT COST A BROKEN HOST** `build-state: BUILT` *(`2026-09-05`)*
+
+> 🔒 **User, `2026-09-05`:** *"stride need to be done on windows or can you do it yourself? how will we
+> find out that it does not break during the conversion?"*
+
+### 📐 THE BOUNDARY, MEASURED — ⛔ not derived from the TFM
+
+| activity | off Windows |
+|---|---|
+| restore + **COMPILE** all 6 library/game/test projects | ✅ **yes**, with `-p:EnableWindowsTargeting=true` — **43 s warm** |
+| build **`HrotStrideApp.Windows`** *(the launcher)* | ⛔ **no** — Stride's asset compiler shells out with `--platform=Windows --compile-property:StrideGraphicsApi=Direct3D11` and exits 150 *(`MSB3073`)* |
+| **RUN** any Stride test | ⛔ **no** — *"You must install or update .NET"*: the test host needs the **`Microsoft.WindowsDesktop.App` RUNTIME**, which has no Linux build |
+| run the app | ⛔ no — Windows + GPU |
+
+⚠ **Without the flag the first error is `NETSDK1073: FrameworkReference 'Microsoft.WindowsDesktop.App' was
+not recognized`** — which reads like *"Windows only"* and is what the earlier note assumed. ⭐ It is a
+**targeting-pack** problem, and `EnableWindowsTargeting` fetches the pack from NuGet. ⛔ Passed on the
+COMMAND LINE, never written into the `.csproj`s: it is a property of the machine, not of the projects.
+
+### ⛔⛔⛔ THIS WAS ALREADY WRITTEN DOWN — **and that is worse than it being unmeasured** *(`R-129`)*
+
+📄 **[`DESIGN_Stride_Port.md`](DESIGN_Stride_Port.md) §7.4, dated `2026-08-23`, says it verbatim:** *"with
+`-p:EnableWindowsTargeting=true`, **`HrotStrideApp.Game` and `Hrot.Stride.Core.Tests` both build 0 errors**
+… the relocation is **compile-verified end to end on Linux**"* — and, in the same section, the other half:
+*"⛔ Still owed a Windows check: RUNNING the Stride suites … the test host wants
+`Microsoft.WindowsDesktop.App` 8.0.0."*
+
+⇒ ⛔⛔ **An earlier version of the row above claimed *"searched `docs/` + `.dev/`, no record"*. That was
+FALSE.** ⭐ Both halves of the boundary — compile YES, run NO — were in the corpus for two weeks, and
+*"Stride needs Windows, unverifiable from here"* did not merely lack evidence: **it CONTRADICTED a design
+document nobody had read.** ⚠ `R-129`'s trigger is *"before you TOUCH or design a change to an existing
+feature"* — and a claim about **whether a host can be verified at all** is exactly such a claim.
+
+⭐ **What this section actually contributes, stated honestly:** not the discovery — **the GATE**
+*(`scripts/stride-check.sh`, 6 projects rather than §7.4's 2, red-proofed)* and **the defect it caught**.
+
+### 🔴 WHAT THE MISSING GATE COST — **and it is the whole answer to *"how will we find out?"***
+
+📐 Stride is **not in `IOS-IG-SimHost.sln`** *(measured: 0 `HrotStrideApp` entries)*, so nothing in the
+ordinary gate table compiles it. ⇒ `CE-203` `E1` widened `EditorSubsystem.TkbDatabase` to `ITkbDatabase`
+on the strength of a grep that said *"the only consumer assigns it straight into an `ITkbDatabase` field"*.
+⛔⛔ **It did not.** `EditorStrideSubsystem.TkbDb` was declared `public TkbDatabase`, and the Stride host
+**did not compile** from `8ad97c07f` onward — while the full solution built, ~4700 tests ran, the UI
+snapshot matched and every gate reported green.
+
+⭐⭐⭐ **A grep tells you a name appears. It does not tell you a TYPE fits.** That is the class of error the
+compiler exists to catch, and the compiler was never asked.
+
+### ✅ THE FIX AND THE GATE
+
+| | |
+|---|---|
+| ⭐ **the fix** | `EditorStrideSubsystem.TkbDb` widened to `ITkbDatabase` — **one line**. 📐 Every PRODUCTION consumer already took the interface *(`StrideNedRenderDescriptors.Apply`, `StrideVisualBindingSystem`'s ctor)*; the concrete type survives only in test fixtures that CONSTRUCT one. ⛔ The standalone path at `:592` still assigns `HrotEnvironment.CreateTkb()` — widening a property never breaks its writers |
+| ⭐⭐⭐ **the gate** | 📄 **`scripts/stride-check.sh`** — 6 projects, **43 s warm**, and it **degrades loudly**: it prints what it can and cannot prove rather than reporting a green that means less than it looks |
+| ⭐ **red-proof** | reverting the one-line fix makes the gate print `STRIDE IS BROKEN` and name `EditorStrideSubsystem.cs:1002` |
+
+⛔⛔ **WHAT THIS GATE CANNOT DO, so nobody over-trusts it.** It is a **COMPILE** check. It catches
+signature and type drift — the entire class of breakage a composition refactor produces — and it catches
+**nothing** about behaviour: no Stride test runs, no scene loads, no frame is drawn. ⭐ Behavioural
+verification of the Stride host still needs a Windows machine, and that is a genuine remaining gap, not a
+formality. ⇒ **run this gate on EVERY batch that touches `Hrot.Editor`, `Hrot.Core`, `Hrot.Common` or
+`Fdp.Toolkits`, and say in the report that it is compile-only.**
+
+---
+
+## ⛔⛔⛔ §4.1aa — SUPERSEDED `2026-09-05` by [`docs/DESIGN_Stride_Node_Modes.md`](DESIGN_Stride_Node_Modes.md) `build-state: SUPERSEDED`
+
+> ⛔⛔ **DO NOT QUOTE THIS SECTION FOR THE STRIDE MODES.** 📄 **The owning design is now
+> [`docs/DESIGN_Stride_Node_Modes.md`](DESIGN_Stride_Node_Modes.md)** — one design for the whole Stride
+> story *(both modes, the shared composition, the windows, gizmos, animation, roles, scenarios, the tick
+> contract)*. It was written after the user ruled *"i need this all stride story to be properly designed
+> first"* and after `.dev/_DONE/stride-mock/DESIGN.md` — **the ~70%-still-true mode-2 node design nobody
+> here had read** — was found.
+>
+> | ⛔ what this section got WRONG, corrected there | |
+> |---|---|
+> | 🔴 *"`ImageGenerator`: RESOLVED — drop from both modes"* | ⛔ **WITHDRAWN.** That flag is **also** the only thing registering `DeadReckoningSyncSystem` *(`NedReplicationModule.cs:337-339`)* ⇒ dropping it silently removes remote-entity smoothing from the one node that renders in 3-D. ⭐ 🔒 **User ruling:** DR/smoothing is **not** IG-specific — every node owes it for entities it does not own. ⇒ **`CE-211`** fixes the gate; only then is Stride's role safely `Muscle\|Perception\|Nav` |
+> | ⚠ the mode plan, decisions, diagrams and slices | ⭐ **all replaced** by the new design's §4–§13 |
+>
+> ⭐ **What survives here:** nothing Stride-specific. The capability-seam content of §4.1s/§4.1t/§4.1x
+> *(SimHost, IG, CGF)* is unaffected. ⚠ The text below is kept as **HISTORY** so older citations resolve.
+
+### ⛔ HISTORY — the superseded mode plan *(`2026-09-05`, replaced the same day)*
+
+> 🔒 **User, `2026-09-05`, verbatim:** *"I need stride in two modes: 1. with networkless editor (dual window
+> - 2d editor and 3d stride) ; 2. stride as standalone networked node, replacing SimHost, running in
+> cluster with cgf node. In both case the stride provides muscle, perception, navigation roles."*
+> 🔒 And: *"self-contained stride can be retired … of course perception needs to be filled. And of course
+> the bootstrap/composition should be shared/unified as much as possible."*
+
+### 📐 INVENTORY *(`2026-09-05`; `search_graph` **and** grep, both reported)*
+
+```
+search_graph(name_pattern=".*Stride.*",       label="Class")   → 65   (4 distinct things, see §4.1z)
+search_graph(name_pattern=".*Capabilities.*", label="Class")   → 14   (3 are INodeCapability hosts)
+grep -rn ": INodeCapability" --include=*.cs Hrot | grep -v obj/ → 7 production + 1 test double
+grep -rn "new EqsModule\|new CognitiveSpatialModule"            → SimHost, Editor, EditorHarness, tests — ZERO in Stride/
+grep -rn "AttachBootstrapper"  (whole tree, *.cs + *.md)        → declaration + 3 doc mentions, NO caller
+```
+
+| | measured |
+|---|---|
+| ⭐ **`INodeCapability` hosts today** | **3** — `SimHostCapabilities` *(MuscleGround · PerceptionSolver · NavigationSolver · PerceptionSpatial)* · `IgCapabilities` *(Presentation)* · `CgfCapabilities` *(Brain)*. ⛔ **Stride is not one** |
+| ⭐ **`CapabilityKeys` vocabulary** | `Brain` · `MuscleGround` · `Perception` · `NavigationSolver` · `ImageGenerator` *(+ 4 `ResourceKeys`)* — ⭐ **every role the user names already has a key** |
+| 🔴 **perception on Stride** | **declared, unfilled** — `StrideNodeBootstrapper.Role` includes `Perception`, its `perceptionModule` slot is `null` at every call site, `StrideMuscleModuleSet` has none, and Stride registers `EqsResultUpdateSystem` *(the consumer)* with no `EqsModule` *(the solver)* |
+| ⭐ **the Stride-native LOS** | `Hrot.Stride.Core/StrideRaycastLosService` — *"drop-in replacement … satisfies `ILosService` exactly … real 3-D raycast against Stride/Bullet geometry"*. ⛔ **unadopted** |
+
+### ⛔⛔⛔ THE CONSTRAINT THAT DECIDES THE SHAPE — **reference direction, measured**
+
+| | |
+|---|---|
+| `Hrot.NodeComposition` *(home of `StrideNodeBootstrapper`)* | **`net8.0`**, references `Hrot.Common` · `Hrot.SimHost` · `Hrot.IG` · `Fdp.Core` · `Fdp.Toolkits` |
+| `Hrot.Stride.Core` / `HrotStrideApp.Game` | **`net8.0-windows`** + `Stride.Engine` |
+| the edge that exists | ⭐ **`HrotStrideApp.Game` → `Hrot.NodeComposition`** |
+| 🔴 the edge that CANNOT exist | ⛔ **`Hrot.NodeComposition` → anything Stride** — a `net8.0` project cannot reference `net8.0-windows`, and §7.1 already established that a composition root sits **above** what it composes |
+
+⇒ ⭐⭐⭐ **Stride's capability declarations MUST live on the Stride side and be INJECTED downward.** ⚠ This is
+not a new idea — it is why `StrideNodeBootstrapper`'s ctor already takes four `IEcsModule?` slots, and its
+own header says so: *"Domain modules … are injected via the constructor so Stage 2 can swap in
+Stride-native implementations without touching the orchestration code."* ⭐ **The inversion is right; only
+its CURRENCY is wrong.**
+
+### ⭐⭐ THE DECISIONS
+
+| # | decision | why |
+|---|---|---|
+| **①** | ⭐⭐⭐ **`StrideNodeBootstrapper` takes a CAPABILITY LIST, not four module slots** — `WithCapabilities(IReadOnlyList<INodeCapability>)` | ⛔ 📐 §4.1k measured all four slots passed `null` in every test and every caller ⇒ **four silent defaults retired at once**. ⭐ And a list is what lets mode 1 and mode 2 consume the *same declaration*, which is the user's actual ask |
+| **②** | ⭐⭐⭐ **`StrideCapabilities` lives in `Stride/HrotStrideApp.Game`** — host (e) of the seam | forced by the reference direction above. ⚠ It is the FIRST capability host outside the solution ⇒ it is also the first that `scripts/stride-check.sh` alone gates |
+| **③** | ⭐⭐⭐ **Perception REUSES SimHost's, it is not re-implemented** | 🔒 the user's own framing — Stride *"replaces SimHost"*. ⇒ the Muscle node should run **`EqsModule`** *(drives `EqsSolverSystem` at 10 Hz, emits `EqsResultEvent` for the Brain's `EqsResultUpdateSystem`)* + **`CognitiveSpatialModule`** *(the sensing half: local grid, area-query solver, vision broadphase, LOS batching, sensor debounce)*. ⛔ A Stride copy would be the duplication this programme removes. ⭐ **The Brain/Muscle abstraction holds** — the Brain asks, the Muscle solves, results return as events; the Brain never learns who solved them |
+| **③b** | ⚠ **the two capability classes are `internal` to `Hrot.SimHost`** ⇒ promote them to `public` *(or extract the pair to a shared static)*. ⭐ Stride already reaches `Hrot.SimHost` transitively through `Hrot.NodeComposition` | ⛔ **Do NOT copy them into Stride** — that is exactly the second-implementation shape `CE-203` `E2` had to undo |
+| **④** | ⛔⛔ **the Stride raycast LOS is a REDESIGN, not a wiring job — `CE-210`, and §4.1ab carries it** | 📐 Measured: `ILosService` has **zero production consumers**, the live LOS is an **inline 2-D sweep inside `LosRequestBatchingSystem`** with no injection point, and the API is `Vector2`-in with `StrideRaycastLosService` lifting both endpoints to a fixed `1.5 m`. 🔒 **User ruling:** Stride runs **SimHost's 2-D sweep unchanged** until `CE-210` lands — a known, accepted transitional limitation |
+| **⑤** | ⭐⭐ **mode 1 and mode 2 differ by ROLE ONLY** | mode 1 is networkless and fuses Brain; mode 2 is a networked Muscle node beside CGF. ⭐ **That is what a role-selected plan is for.** ⛔ It must not become two capability sets |
+| **⑥** | ⛔⛔ **retire self-contained LAST** | nothing is deleted before its replacement runs. ⚠ `STRIDE_SELFTEST` **forces** hosted mode, so it should survive — **measure, do not assume** |
+
+### ⭐ THE UML *(obligation ①; `«existing»` boxes already exist, with their home)*
+
+```mermaid
+classDiagram
+    class INodeCapability {
+        <<interface>>
+        +string Key
+        +IReadOnlyList~string~ Needs
+        +ProvideModules() IEnumerable~IEcsModule~
+        +PopulateSystems(context, input, sim, postSim)
+    }
+    class NodeCompositionPlan {
+        <<existing>>
+        +Capability(NodeRole, INodeCapability)
+        +Resolve(NodeRole) IReadOnlyList~INodeCapability~
+    }
+    class SimHostCapabilities {
+        <<existing>>
+        MuscleGround
+        PerceptionSolver
+        NavigationSolver
+        PerceptionSpatial
+    }
+    class CgfCapabilities {
+        <<existing>>
+        Brain
+    }
+    class IgCapabilities {
+        <<existing>>
+        Presentation
+    }
+    class StrideCapabilities {
+        <<new — HrotStrideApp.Game>>
+        MuscleGround
+        NavigationSolver
+        Perception
+    }
+    class StrideMuscleModuleSet {
+        <<existing — HrotStrideApp.Game>>
+        +StrideKinematicsModule StrideKinematics
+        +CombatModule Combat
+        +VehicleNavigationIntentSystem VehicleNavIntent
+    }
+    class StrideNodeBootstrapper {
+        <<existing — Hrot.NodeComposition>>
+        +NodeRole Role
+        +WithCapabilities(list)
+        +BootstrapNode(config, role, factory) HrotNodeContext
+    }
+    class SharedApplicationBootstrapper {
+        <<existing — Hrot.Common>>
+    }
+    class StrideNodeSubsystem {
+        <<new — mode 2 entry point>>
+        +Initialize(SubsystemConfig)
+        +Tick(float)
+    }
+    class EditorStrideSubsystem {
+        <<existing — mode 1>>
+        +bool HostRealEditor
+        +Tick(float)
+    }
+    class EditorSubsystem {
+        <<existing — Hrot.Editor>>
+    }
+
+    SharedApplicationBootstrapper <|-- StrideNodeBootstrapper
+    INodeCapability <|.. SimHostCapabilities
+    INodeCapability <|.. CgfCapabilities
+    INodeCapability <|.. IgCapabilities
+    INodeCapability <|.. StrideCapabilities
+    StrideCapabilities --> StrideMuscleModuleSet : wraps
+    StrideCapabilities ..> SimHostCapabilities : REUSES the perception pair
+    NodeCompositionPlan --> INodeCapability : resolves by role
+    StrideNodeSubsystem --> StrideNodeBootstrapper : mode 2 drives
+    StrideNodeSubsystem --> StrideCapabilities : injects resolved list
+    EditorStrideSubsystem --> StrideCapabilities : mode 1 injects the SAME list
+    EditorStrideSubsystem --> EditorSubsystem : hosts, borrows its world
+```
+
+```mermaid
+sequenceDiagram
+    participant G as StrideHrotGame
+    participant M1 as EditorStrideSubsystem
+    participant SC as StrideCapabilities
+    participant P as NodeCompositionPlan
+    participant E as EditorSubsystem
+
+    Note over G,E: MODE 1 - networkless dual-window editor
+    G->>M1: BootEditorSubsystem(hostRealEditor true, buildEditorUi true)
+    M1->>SC: build declarations
+    M1->>P: Capability(MuscleGround, ...) then Resolve(role)
+    P-->>M1: resolved capability list
+    M1->>E: MuscleModuleFactory returns the resolved units
+    M1->>E: Initialize(Headless false, OwnWindow false)
+    E-->>M1: World, Kernel, TimeController
+    M1->>M1: build Stride view systems on the editor world
+    G->>G: open second raylib window, pump each frame
+```
+
+```mermaid
+sequenceDiagram
+    participant R as Stride launcher
+    participant M2 as StrideNodeSubsystem
+    participant SC as StrideCapabilities
+    participant B as StrideNodeBootstrapper
+    participant C as HrotNodeContext
+
+    Note over R,C: MODE 2 - networked node beside CGF, replacing SimHost
+    R->>M2: Initialize(SubsystemConfig)
+    M2->>SC: build declarations
+    M2->>B: WithCapabilities(resolved list)
+    M2->>B: BootstrapNode(config, MuscleGround Perception NavigationSolver, factory)
+    B->>B: 7 phases, WithReplication(role), participant, translators
+    B-->>C: context with SlaveTranslator
+    M2->>C: tick SlaveTranslator and Kernel each frame
+```
+
+### ⭐ THE SLICES — **dependency order, and retirement last**
+
+| id | slice | gate |
+|---|---|---|
+| ⭐⭐ **`CE-205`** | `StrideCapabilities` — the declarations both modes consume | `stride-check.sh` *(compile)* + a Stride-side rail that `Resolve(role)` yields the expected key set |
+| ⭐⭐⭐ **`CE-206`** | **perception filled** — SimHost's `EqsModule` + `CognitiveSpatialModule` pair made reachable and declared | ⭐ a rail that a node declaring `Perception` **registers a solver**, red-proofed by removing it |
+| ⭐⭐⭐ **`CE-207`** | **mode 2** — `WithCapabilities` on the bootstrapper + a caller | `StrideNodeBootstrapperTests` *(12/0 on Linux)* extended; ⛔ **a real 2-node run with CGF is a WINDOWS gate** |
+| ⭐⭐ **`CE-208`** | **mode 1** composes from the same list | the UI value snapshot *(`scripts/ui-snapshot.py --values`)*, control-vs-after, as `CE-203` did |
+| ⭐ **`CE-209`** | **retire self-contained** — after 207 and 208 are green | `STRIDE_SELFTEST` still passes; `stride-check.sh` green |
+
+### ⚠ WHAT THIS DESIGN DOES **NOT** SETTLE — **named, not buried**
+
+| open | lean |
+|---|---|
+| ✅ **`ImageGenerator`** — **RESOLVED `2026-09-05`: drop it from BOTH modes** | 🔒 User: *"'IG' role in this code base is way about 2d map, which stride doesn't do."* 📐 `IgCapabilities.Presentation` registers `StyleResolutionModule` · `MapCullingModule(cameraViewport)` · `MapLayerModule` · `HistoryTrailModule` · `EventEffectModule` — the **2-D tactical-map** stack. ⛔ In mode 1 the EDITOR already registers three of them on that world *(`EditorStrideSubsystem`'s header lists them as "deliberately omitted" for exactly this reason)* ⇒ **duplicate modules**; in mode 2 `MapCullingModule` wants a **map camera viewport** Stride has not got. ⇒ ⭐ `StrideNodeBootstrapper.Role` **drops `ImageGenerator`** |
+| ✅ **the id base** — **RESOLVED: it is not an issue for either mode** | 📐 mode 1 creates **no allocator** *(repoints to the editor's)*; mode 2 gets the **central `DdsIdAllocator`** automatically whenever a participant exists. ⇒ the 1000-base question lives **only in self-contained mode**, which `CE-209` retires. ⛔ Two earlier framings of this were WRONG — see the `CE-209` row |
+| ⛔ **how mode 2 is LAUNCHED** | ⭐ the Stride app is its own executable, so mode 2 is a Stride-side flag/arg, not a `--mode` in `Hrot.ClusterRunner` — 📐 the runner has **no Stride reference at all** and adding one would drag `net8.0-windows` into a `net8.0` runner |
+| ⛔ **behavioural verification** | 🔴 **compile-only off Windows.** Modes 1 and 2 both need a Windows pass; `CE-207`'s two-node run cannot be faked here |
+
+
+---
+
+## ⭐⭐⭐ §4.1ab — **LOS: THE STRIDE RAYCAST SERVICE IS AIMED AT THE WRONG SEAM, AND THE API IS 2-D** `build-state: DESIGN` *(`2026-09-05`)*
+
+> 🔒 **User, `2026-09-05`:** *"stride should provide raycast based LOS … LOS API can't be 2d of course."*
+> 🔒 And the transitional ruling: *"before LOS is properly implemented we can live with simHost's
+> implementation for a while, no problem, but this must be recorded properly and having a task for
+> proper implementation."*
+
+### ⛔⛔ FIRST, A CORRECTION — **`StrideRaycastLosService` is NOT "built and unadopted"**
+
+⚠ An earlier version of `§4.1aa` decision ④ and of `CE-206` called it the **27th seam-law instance** — a
+built thing under-adopted. 📐 **Measured, and it is a different failure:** it is built against a seam
+**nothing live uses.**
+
+| seam | who calls it |
+|---|---|
+| `ILosService` — what `StrideRaycastLosService` implements | ⛔ **ZERO production callers.** Only `CheapLineOfSightTest`, built solely by `FindCoverFromTarget.Build(ILosService)`, whose every caller is a test. The generator overload passes `BlockedLosService` and is *"used only for StructureHash computation, not for live evaluation"* |
+| ⭐ `LosRequestBatchingSystem` *(inside `CognitiveSpatialModule`)* | ✅ **this is the LOS that runs** — *"an inline 2-D segment-circle sweep using a caller-supplied [radius] delegate"*. ⛔ It never touches `ILosService` and offers **no injection point** for an alternative |
+
+⇒ ⭐⭐ **Not under-adopted — MIS-AIMED.** ⚠ The distinction matters: an under-adopted thing is wired by
+calling it, a mis-aimed one is not fixed until the seam it should have targeted exists.
+
+### 🔴 WHY THE API CANNOT STAY 2-D
+
+`bool HasCheapLineOfSight(Vector2 observer, Vector2 target)` — and `ILosService`'s own header says
+*"Phase 3 uses a stub (always blocked). **Phase 5 will replace with raycast against the occluder grid**."*
+⇒ ⭐ **it was always scaffolding, and Phase 5 never happened.**
+
+To satisfy it, `StrideRaycastLosService` lifts **both** endpoints to one fixed `EyeHeightMetres = 1.5f`:
+
+| what that destroys | |
+|---|---|
+| 🔴 **stance** | prone / crouched / standing all query at 1.5 m |
+| 🔴 **vehicles** | a commander's optic and a hull-down hull are the same ray |
+| 🔴 **terrain** | both endpoints forced to the SAME Z ⇒ a rise between them reads clear when the real sightline is blocked, **and the reverse** |
+
+⭐⭐ **The right method already exists and is unreachable:** `HasLineOfSight3D(Vector3, Vector3)` sits on
+the class and **not on the interface**.
+
+### ⭐ THE REDESIGN — `CE-210`, three parts in order
+
+| # | part | why in this order |
+|---|---|---|
+| **a** | ⭐⭐⭐ a **3-D LOS abstraction** — `Vector3` endpoints, eye/aim height read from the **ENTITY** *(stance, vehicle profile, TKB sensor mount)* | ⛔ a service-wide constant is what makes the current one unusable |
+| **b** | ⭐⭐⭐ **the LIVE seam** — `LosRequestBatchingSystem` takes an LOS strategy; SimHost passes today's 2-D sweep *(behaviour UNCHANGED)*, Stride passes the raycast | ⛔ **without (b) any implementation is dead code — which is exactly how the current one got here.** ⭐ This is the part that must not be skipped |
+| **c** | ⭐ **retire or re-home `ILosService`** | ⛔ two LOS interfaces, one unreachable, is the shape this programme removes |
+
+### ⚠⚠ THE TRANSITIONAL POSITION — **recorded, not hidden**
+
+🔒 **By user ruling, `CE-206` ships Stride perception running SimHost's 2-D sweep unchanged.** ⭐ That is a
+**known, accepted** limitation with a filed task, ⛔ not an oversight. ⚠ **Its consequence must be stated
+in any report claiming Stride perception works:** a Stride node reports LOS with **no terrain and no height
+sense**, so 3-D occlusion visible in the Stride window will **not** match what perception believes.
+
+⭐ **Blast radius:** `CE-210` touches `Fdp.Toolkits/Perception` and `Fdp.Toolkits/Spatial/Eqs`, which
+**every Muscle host shares** ⇒ ⛔ it is **not** a Stride-lane change and needs its own blast-radius pass
+before it starts.
+
+---
+
+## ⭐⭐⭐ §4.1ac — **THE EDITOR AND THE CAPABILITY AXIS: IT IS THE LAST ECS ROOT OFF THE SEAM, AND IT HAS A PRIVATE ONE-SLOT SUBSTITUTE** 📐 *(measured `2026-09-07`, on a user challenge)*
+
+> 🔒 **User, `2026-09-07`:** *"these all look like feature updates, where is the unification of the
+> composition code with other subsystems?"*
+
+⭐⭐ **The challenge was right about a real gap and it also exposed TWO STALE CLAIMS in this very
+document.** ⛔ Both are corrected here rather than in a batch report — an investigation that establishes a
+durable fact updates the owning design.
+
+### 📐 INVENTORY — **the three axes, and every host's state on each** *(graph + grep, both run)*
+
+```
+find.sh NodeCompositionPlan --glob '*.cs'          # the capability axis
+grep -rln SharedApplicationBootstrapper Hrot/ Stride/ FDP/
+grep -rn "DefaultRole" Hrot/Subsystems --include=*.cs
+grep -rn "MuscleModuleFactory" Hrot/ Stride/ --include=*.cs
+```
+
+| axis | what it unifies | production adopters | ⭐ the editor |
+|---|---|---|---|
+| **①** `HrotNodeBuilder` → `HrotNodeContext` | the **engine core** — world · accumulator+kernel · bus · time controller · entity map · `ClusterSlave` · TKB · geo transform | **4**: `SimHostNodeBootstrapper` · `IgNodeBootstrapper` · `CgfSubsystem` · `StrideNodeBootstrapper` *(dormant)* | ✅ **ON IT — `CE-203`, host (d), `E1`+`E2` BUILT** *(§4.1y)*. ⚠ `E3` *(the base modules — does the editor want a `GeographicModule`?)* is an **unscheduled candidate**, and it is a capability question, not a refactor |
+| **②** `NodeCompositionPlan` / `INodeCapability` | **which systems and modules a ROLE implies** | **3**: `SimHostNodeBootstrapper.cs:302` · `IgNodeBootstrapper.cs:250` · `CgfSubsystem.cs:844` | 🔴 **NOT ON IT** — and this is the whole remaining gap |
+| **③** `SharedApplicationBootstrapper` | the 7-phase **node boot** *(orchestration, participant, time authority)* | **3**: SimHost · IG · ExCon | ⛔ **deliberately not** — §4.1y decision ⑥, on `CE-200`'s precedent that axes ② and ③ are orthogonal. ⭐ **Not a gap; a decision** |
+
+### ⛔⛔ TWO CORRECTIONS TO THIS DOCUMENT
+
+| # | the claim | ⭐ measured `2026-09-07` |
+|---|---|---|
+| **①** | §4.1's STATUS block: *"Still untouched: the EDITOR (neither axis) and STRIDE"* | 🔴 **STALE** — it predates `CE-203`. The editor is on **axis ①** and has been since `2026-09-05`. ⭐ The sentence is true **only of axis ②**, and saying "neither" hid which one |
+| **②** | §4.1L's claim table: *"`MuscleModuleFactory` has no production setter — the only assignment in the tree is `EditorSubsystemHeadlessBootTests.cs:109`"* | 🔴 **FALSE NOW.** 📐 **`Stride/HrotStrideApp.Game/EditorStrideSubsystem.cs:942` assigns it in production** — the hosted mode-1 path sets it *before* `_editor.Initialize(config)`, registers three crowd component types, and returns `StrideMuscleModules.Build(deferredCrowd).ToEditorModuleList()`. ⇒ ⭐ **the editor's muscle arm IS swapped in production, by Stride.** *(Either the claim was wrong or the wiring landed after `2026-09-03`; the row is corrected, not deleted)* |
+
+### 🔴 THE FINDING — **`MuscleModuleFactory` IS a capability seam. A private one, with exactly one slot.**
+
+📐 `EditorSubsystem.cs:778` — `public Func<MuscleModuleContext, IReadOnlyList<IEcsModule>>? MuscleModuleFactory { get; set; }`,
+branched at `:1410`: `null` ⇒ build `SimHostCoreLogicPack` + `CognitiveSpatialModule`; non-`null` ⇒ call it.
+
+| ⭐ what it is | |
+|---|---|
+| ⭐⭐⭐ **structurally `INodeCapability.ProvideModules()` for ONE key** *(`MuscleGround`)*, hand-rolled | 🔒 **the seam law, a fifth measured instance**: *"we need a shared X"* ⇒ **X exists, under-adopted, and the one root that bypasses it is production** |
+| ⛔ **the other two capabilities are HARD-CODED beside it** | `CgfLogicPack` *(Brain)* and `CognitiveSpatialModule` *(Perception)* have no slot at all — so the editor can swap its muscle and nothing else |
+| ⛔ **the editor declares NO `NodeRole`** | 📐 `SimHostApp.cs:174` and `CgfSubsystem.cs:92` both declare a `DefaultRole`; **there is no `EditorSubsystem.DefaultRole`** ⇒ there is nothing for a plan to resolve **against**, and that declaration is item one of the adoption. ✅ **RULED `2026-09-07` — see §4.1ac.1** |
+
+#### ✅ 4.1ac.1 — **THE EDITOR'S ROLE, RULED** *(user, `2026-09-07`)*
+
+> 🔒 **User, verbatim:** *"editor's subsystem role could be 'everything' what Cgf+SimHost (probably not
+> so much the IG) do now, for the purpose of editing scenarios and AI behaviors and testing them
+> quickly."*
+
+⭐⭐⭐ **The role is CGF ∪ SimHost** — `Brain | MuscleGround | Perception | NavigationSolver` — ⛔ **not
+`ImageGenerator`**. ⭐ And the **purpose clause is the load-bearing half**: the editor exists to *author
+scenarios and AI behaviours and test them fast in one process*, which is precisely *"be both nodes at
+once"*. ⇒ the role is not a shortcut, it is the honest description.
+
+| ⭐ what this settles | |
+|---|---|
+| ⭐⭐ **it matches what the editor ALREADY composes** | 📐 `CgfLogicPack` *(Brain)* + the SimHost muscle default + `CognitiveSpatialModule` *(Perception)* — ⇒ the declaration is made **true of today's code**, not aspirational |
+| ⚠ **the `ImageGenerator` half is HEDGED, and stays a measurement** | 🔒 the user said *"probably not so much"*, not "no". ⛔ The editor **does** have a 2-D map, but `IgCapabilities.Presentation`'s five modules are a **different question** from *"has a map canvas"* ⇒ **`S2a` measures whether any of those five is something the editor already runs**, and reports the answer rather than assuming it |
+| ⛔⛔ **the SimHost precedent says DO NOT narrow blind** | 📌 §4.1v: SimHost declared `MuscleGround\|Perception` **without** `NavigationSolver` while composing all three; narrowing to the declaration would have **silently dropped** `EngineBackedNavigationModule` + `EqsModule`. ⇒ ⭐ **`S2a` resolves the plan and DIFFS it against today's registered set before switching**, exactly as `B4b` step 3 did |
+| ⚠ **a role this wide weakens role-selection as a NARROWING device — and that is fine here** | ⭐ the editor is the one host that legitimately wants everything; ⛔ the value it takes from the seam is **one declaration and shared units**, not narrowing |
+| ⚠ **it is a `Func`, so it cannot express `Needs`** | ⛔ no resource keys ⇒ the trajectory-pool / perception-grid sharing that `B3` exists for **cannot be stated** on this path. 📌 That is `CE-181`'s shape *(`StrideKinematicsModule.cs:92`'s `?? new TrajectoryPoolManager()`)* waiting to happen in the editor |
+
+### ⭐⭐ THE SIZE — **by the CGF precedent, this is one slice, not a programme**
+
+📐 CGF's adoption is **`CgfSubsystem.cs:844–870`, ~35 lines**: build the plan, `Resolve`, one loop for
+`ProvideModules()`, one for `PopulateSystems()`, plus a **loud refusal** for the phase group it does not
+build. ⛔ It adopted **no** bootstrapper and kept its inline ECS root.
+
+⇒ ⭐ **the editor is the same shape with three capabilities instead of one**, at a composition site of
+comparable size *(`EditorSubsystem.cs:1390–1460`)*. ⚠ **What makes it bigger than CGF, and it is not the
+line count:** ① a `DefaultRole` must be **chosen and defended** *(the editor fuses Brain+MuscleGround+
+Perception and is the time authority)*; ② `MuscleModuleFactory` has a **live production caller**, so it is
+a seam *migration*, not an addition; ③ the editor is the UI host, and 🔒 the user's `CE-203` constraint
+binds — *"i do not want any UI to disappear … GUI panels being still present and showing the same."*
+
+### ⭐⭐⭐ THE ORDERING CONSEQUENCE — **`CE-208` and "the editor joins the seam" ARE THE SAME WORK**
+
+📐 Mode 1 **is** `EditorSubsystem`, hosted, with Stride's modules injected through `MuscleModuleFactory`
+*(`EditorStrideSubsystem.cs:942`)*. ⇒ *"mode 1 composes from `StrideCapabilities`"* **means** *"the
+factory slot is replaced by the capability plan"* — which **is** the editor's axis-② adoption.
+
+⛔⛔ **So it was never a missing prerequisite slice. It was inside `CE-208`, unnamed** — and naming it
+matters because of the order it implies:
+
+| ⭐ split `CE-208` in two, and the second half is the only part that is Stride's | 🔒 honours *"STRIDE IS LAST"* *(user, `2026-09-05`)* |
+|---|---|
+| ⭐⭐ **(a) the editor's root resolves a `NodeCompositionPlan`** — declare `EditorSubsystem.DefaultRole`, wrap today's **default** arm *(SimHost muscle + `CgfLogicPack` + `CognitiveSpatialModule`)* as three capabilities, keep `MuscleModuleFactory` working | ⭐ **host (d) on axis ②.** ⛔ **Zero Stride involvement**, so it gates off Windows on the editor's own suites |
+| ⭐⭐ **(b) `StrideCapabilities` replaces the factory lambda** | ⭐ **host (e).** Needs a Windows run. ⇒ **Stride is genuinely last on this axis, which it is not if (a) is skipped** |
+
+⚠ **And the reason the order is not cosmetic:** a seam whose fourth adopter is the *swapping* host gets
+shaped by the swap. ⭐ Doing (a) first means the plan is proved against the **default** composition — the
+one every other host runs — before Stride's substitution arrives.
+
+### ✅ 4.1ac.2 AS BUILT — **the editor resolves a plan. All FIVE ECS roots are now on the capability axis** *(`2026-09-07`)*
+
+⭐⭐⭐ **`EditorSubsystem` composes from `EditorCapabilities` — host (d) — and the gap this section opened is CLOSED.**
+⇒ SimHost · IG · CGF · **editor** · Stride *(`CE-205`)* all resolve a `NodeCompositionPlan`.
+⛔ **`MuscleModuleFactory` is no longer the seam** — it now only *selects which plan shape is built*.
+
+| ⭐ what shipped | |
+|---|---|
+| **role** | `Brain \| MuscleGround \| Perception \| NavigationSolver` — 🔒 the user's `2026-09-07` ruling, pinned by a rail so a later edit cannot narrow it |
+| **two plan SHAPES, not one plan with nullable capabilities** | ⭐ `BuildDefault` *(SimHost muscle + `CgfLogicPack` + `CognitiveSpatialModule`)* · `BuildWithInjectedMuscle` *(a host supplies the muscle tier — today only Stride mode 1)*. ⛔ A null capability registered as if real is the silent-default shape this programme keeps finding |
+| **what made the switch safe** | ⭐⭐⭐ **the differential rail**, written and proven green BEFORE the flip: it builds both paths from the same pack instances and asserts the three system sequences match **type for type, position for position**. ⇒ behaviour-preserving **by construction**, not by inspection |
+
+⚠⚠ **TWO FACTS THE DESIGN DID NOT HAVE, measured while building and now load-bearing:**
+
+| # | measured | consequence |
+|---|---|---|
+| **1** | 🔴 **`CgfLogicPack` has NO post-simulation list** — only `InputSystems` and `SimulationSystems` | the hand-written block builds `togglePostSim` from the **muscle list alone**; the `Brain` capability contributes nothing there. Assuming symmetry with SimHost would have produced an empty-or-wrong post-sim group |
+| **2** | 🔴 **the editor's default arm NEVER registers its muscle pack as a module** — only its system lists are spliced | ⇒ `EditorCapabilities.MuscleGround` implements **`PopulateSystems` and deliberately NOT `Register`**. Mirroring `SimHostCapabilities` *(which does register its pack)* would have **double-run the whole muscle tier** |
+
+⭐ **Ordering, preserved exactly:** the plan lists **Brain before MuscleGround** because the fused lists are
+`DistinctByType(cgf…, muscle…)` and the helper keeps the **first** occurrence — both packs carry
+`UnitHierarchySystem` and `EqsResultUpdateSystem`, so reversing the two would silently swap which
+instance runs *(`CE-165`'s corruption, in a new disguise)*. A rail pins that order.
+
+📐 **Gates:** editor suite **368/0/1** *(baseline 363 + 5 new rails)* · `Hrot.ClusterRunner.Integration.Tests`
+`--filter Editor` **42/42** · `stride-check.sh` **6/6** *(the injected arm's consumer still compiles)*.
+⚠ One intermittent red, **`CE-220`**, reported as caused by the new rails rather than pre-existing.
+
+---
+
+### ⭐⭐⭐ 4.1ad — `CE-221`: **THE SEAM HAD TWO CONTRIBUTION PATHS AND ONLY ONE WAS DE-DUPLICATED** *(as-built, `2026-09-07`)*
+
+⛔⛔ **§4.1L's table row ② carried the caveat that became a boot failure.** It marked
+`StrideMuscleModule.RegisterSystems` *"✅ type-keyed — ⚠ but scoped to the muscle set; it cannot see the
+CGF list."* ⭐ `CE-165` fixed root ④ *(the editor's DEFAULT arm)* and left the **INJECTED** arm — the one
+Stride actually uses — carrying it. Once `[SingleInstance]` made duplicates throw, the hosted Stride
+editor died in `BeginRun()` before its first frame, and stayed dead for three days because no compile
+gate can see a composition defect.
+
+| ⭐ the mechanism, measured | |
+|---|---|
+| `INodeCapability` contributes **two ways** | `PopulateSystems` → the host's phase lists → **`DistinctByType`'d**; `ProvideModules`/`Register` → straight onto the kernel → ⛔ **invisible to that de-duplication** |
+| both packs carried the same two systems | `CgfLogicPack` *(Brain)* and `SimHostCoreLogicPack` / `StrideMuscleModuleSet` *(MuscleGround)* |
+| ⇒ the collision | Brain's copy in the toggle group, Stride's inside a provided module ⇒ two instances at `SystemScheduler` ⇒ throw |
+
+#### ⭐⭐ THE FIX — **stop duplicating, rather than de-duplicate better**
+
+⭐⭐⭐ `UnitHierarchySystem` and `EqsResultUpdateSystem` **answer to no role**, so no role pack may carry
+them. They became **cross-role infrastructure capabilities**, declared once per plan:
+`CoreInfrastructureCapabilities.UnitHierarchy` *(`Hrot.Common`, all five hosts)* and
+`EqsResultUpdateCapability` *(`Hrot.SimHost`, the four hosts that reference it)*.
+⭐ `Resolve` already de-duplicates by `Key` in declaration order — the property
+`NodeCompositionPlanRails` pins — so the editor's declaration and the injected muscle tier's identical
+declaration resolve to **one**, Brain-side winning. ⛔ **No new mechanism was added**; the seam was
+already able to do this.
+
+| ⭐ three measurements that made it a mis-assignment rather than a design | |
+|---|---|
+| **①** | ⭐ **IG already did it right and was under-adopted** — `IgNodeBootstrapper:485` registered `UnitHierarchySystem` standalone via `SingleSystemModule`, not through a pack. That call is now folded into IG's plan |
+| **②** | 📐 **every carrier appended them at the TAIL of Simulation**, identically — `CgfLogicPack:162-165`, `SimHostCoreLogicPack:137-138`, `StrideMuscleModules:263-264`, `EditorStrideSubsystem:715-716`. Nobody positioned them relative to their own pack's systems |
+| **③** | ⭐ the plan de-duplicates **capabilities** already; one declaration yields one instance |
+
+#### 🔴🔴 THE DELIBERATE BEHAVIOUR CHANGE — **the editor consumed an event one frame late, and now does not**
+
+⛔⛔ **This SUPERSEDES §4.1ac.2's *"Ordering, preserved exactly"* for these two systems only.** That
+paragraph says the plan lists Brain before MuscleGround so `DistinctByType` keeps CGF's instance — ⭐
+true, and the consequence was never stated: **CGF's copy sat at the tail of CGF's list, i.e. AHEAD of the
+entire muscle tier.** 📐 `VehicleCommandSystem` *(`GroundKinematicsModule.cs:92`, muscle)* **publishes**
+`CmdAssignSubordinate` *(`VehicleCommandSystem.cs:153`)* and `UnitHierarchySystem` **consumes** it ⇒ on
+the editor the assignment landed **one frame late**, while `SimHostCoreLogicPack` — which puts the
+kinematics systems *before* it — has always consumed it the **same** frame.
+
+⇒ ⭐⭐ **Declaring the infrastructure LAST puts the editor where every other host already was.** It is a
+**correction**, and it is argued here rather than taken silently.
+⭐ **The rail now asserts the REASON, not a sequence:** `EditorCapabilitiesTests` compares against the
+hand-written block **plus the infrastructure tail**, and adds
+`Assert.True(consumer > publisher)` naming both indices — so a future reorder fails with an explanation
+instead of a diff.
+
+#### ⭐ Gates *(Windows, `2026-09-07`)*
+
+| | |
+|---|---|
+| 🎯 **`hill-attack-close` on `--mode all`** | ⭐⭐⭐ **BOTH hostiles killed** — `1006` Health `0/50` at simTime ≈21 s, `1007` at ≈46 s, read live off the Brain. 15 waves over 213 s, `slots=3 spacing=20m`, 32/32/32 dispatch·engage·retreat, **0** `Creep failed due to overshoot`, **0** errors, **0** `SingleInstance`. ⚠ `CE-176`'s tier divergence UNCHANGED *(Brain 50/50 vs Muscle 3000/3000; ammo 41 vs 42)* — evidence the change was structural |
+| ⭐ **the Stride host** | **BOOTS.** `STRIDE_SELFTEST` reached a verdict for the first time since `2026-09-02`: `initialHold=PASS drive=PASS`; `repos`/`pausedFreeze` FAIL ⇒ **`CE-222`**, proven not caused by this change |
+| suites | `HrotStrideApp.Game.Tests` **237/4** *(base 217/14)* · `Hrot.Stride.Core.Tests` **328/2** *(unchanged)* · `Animation` **48/0** *(unchanged)* · `Hrot.Editor.Tests` **368/0/1** · `SimHostCoreLogicPackTests`+`CgfLogicPackTests` **18/0** |
+| ⚠ **four rails changed expectation** | all four updated with the count **and** an assertion encoding why *(`DoesNotContain`, and the publisher/consumer ordering)*; ⭐ the coverage removed from the pack tests was **re-homed**, not deleted — `TheInfrastructureCapabilitiesSupplyExactlyOneOfEachHoistedSystem` |
+| ⚠ **not mine, measured** | `Fdp.ModuleHost.Tests` 6 red *(zero `FDP/` files modified)* · `FullBranchPipelineTests` red **identically at base `94156812d`** · 31 `Hrot.Editor.Tests` source-scan reds caused by an **untracked local `Hrot/docs/ReactiveGuards.md`** — moving it aside gives **368/0/1**, and those rails stop their upward walk at `…/Hrot` |
+
+### ⛔ STILL HOMELESS — **`CE-151`, and it is a DIFFERENT axis again**
+
+📐 `CE-151` *(world bootstrap has no shared seam — seven roots publish the geo transform by hand)* is about
+**singletons published into the world**, not about which units compose. ⭐ Axis ① *(`HrotNodeContext`)*
+**constructs** the geo transform; ⛔ nothing makes a host **publish** it, which is why
+`EditorStrideSubsystem`'s standalone path has none. ⇒ **it is not absorbed by any of the three axes and
+still needs its own slice.**
+
+### 📐 THE CLAIM TABLE
+
+| the finding rests on | code — how it IS | design basis — how it was MEANT to be |
+|---|---|---|
+| 3 production `NodeCompositionPlan` sites, none in `Hrot.Editor` or `Stride/` | ✅ `SimHostNodeBootstrapper.cs:302` · `IgNodeBootstrapper.cs:250` · `CgfSubsystem.cs:844` | ✅ §4.1s · §4.1t · §4.1x |
+| the editor IS on the builder axis | ✅ `CE-203` `[x]`, §4.1y `E1`+`E2` BUILT | ✅ §4.1y, 🔒 user *"i need the editor to be unified too of course"* |
+| `MuscleModuleFactory` has a production setter | ✅ `EditorStrideSubsystem.cs:942` | ⛔ **§4.1L says the opposite — corrected above** |
+| the editor declares no `NodeRole` | ✅ grep `DefaultRole` over `Hrot/Subsystems`: SimHost `:174`, CGF `:92`, **no editor** | ⛔ searched, no design record says what the editor's role should be — ⭐ **that absence is item one of the slice** |
+| CGF's adoption is ~35 lines and took no bootstrapper | ✅ `CgfSubsystem.cs:844–870` + its own comment | ✅ §4.1x · §4.1j *("node-bootstrap adoption optional, LAST")* |
+| the editor's adoption is comparable in size | ⛔ **INFERRED from the CGF precedent, not measured** — ⚠ the three multipliers are named above and none is a line count | — |
+| `E3`'s `GeographicModule` question interacts with `CE-151` | ⛔ **NOT MEASURED.** ⭐ Stated as a suspicion: both concern who publishes world singletons | ✅ §4.1y `E3` row · `CE-151` |
+| ⚠ `check_index_coverage` | ⛔ **unavailable through the CLI** — the exhaustive claims rest on graph+grep agreement, not a coverage proof | — |

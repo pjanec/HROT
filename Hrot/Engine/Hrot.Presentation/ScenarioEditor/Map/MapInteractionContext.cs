@@ -121,6 +121,46 @@ namespace Hrot.ScenarioEditor.Map
         public Fdp.Toolkit.Diagnostics.Gizmos.IActiveViewProvider? BreakpointManager { get; init; }
 
         /// <summary>
+        /// ⭐⭐ <b><c>UXI-07</c> step 3b — the <c>Spawn</c> tool's whole behaviour</b>, for the tool set the
+        /// pack registers on <see cref="MapInteraction.Tools"/>.
+        ///
+        /// <para>🔒 <b>This is the host-bound half of <c>Q26</c> constraint 3</b> (<i>"a tool descriptor is
+        /// shared; its activation is host-bound"</i>): the DESCRIPTOR and the arm body are shared in
+        /// <see cref="Tools.ScenarioToolRegistrations"/>; the one genuinely per-host input arrives here.</para>
+        ///
+        /// <para>⛔ <see langword="null"/> on a host that composes no spawn adapter. ⚠ <c>Spawn</c> is still
+        /// REGISTERED — 🔒 the user's <c>2026-08-10</c> ruling forbids a per-subsystem tool whitelist — and
+        /// it REPORTS why it did nothing (ruling 49) rather than being absent.</para>
+        /// </summary>
+        public Action? StartPlacementMode { get; init; }
+
+        /// <summary>
+        /// Where <i>"this host cannot service tool X"</i> goes. ⭐ Defaults to the FDP log.
+        /// ⚠ Separate from <c>ReportMapDiagnostic</c>: that one is the self-check's channel, and merging
+        /// them would put a tool's refusal into the map's health report.
+        /// </summary>
+        public Action<string>? ReportUnserviceableTool { get; init; }
+
+        /// <summary>
+        /// ⭐⭐ <b>Live units for the shared <c>Measure</c> tool</b> — <c>UXI-07</c> step 4a.
+        ///
+        /// <para>🔒 Same <c>Q26</c> constraint 3 split as <see cref="StartPlacementMode"/>: the Measure
+        /// gizmo and its arm are SHARED, but WHERE the unit preference lives is host-bound. 📐 IG keeps it
+        /// in an IG-INTERNAL <c>MeasureToolGizmoSettings</c> registered by its own
+        /// <c>GizmoRegistrar</c>, which this assembly cannot reference — ⛔ so the pack cannot read the
+        /// setting itself, however tempting that looks.</para>
+        ///
+        /// <para>🔴 <b>What it replaced:</b> IG built a SECOND <c>MeasureGizmo</c> in
+        /// <c>MeasureToolGizmoAdapter</c> purely to push units onto it — two implementations of one
+        /// concept (ruling 9), and the second one armed straight on <c>GlobalGizmoManager</c>, bypassing
+        /// the arbiter. ⇒ ⭐ a PULL source lets the surviving surface keep its behaviour while owning no
+        /// instance.</para>
+        ///
+        /// <para>⛔ <see langword="null"/> ⇒ the gizmo uses its own settable <c>DisplayUnits</c> (metres).</para>
+        /// </summary>
+        public Func<Hrot.ScenarioEditor.Gizmos.MeasureDisplayUnits>? MeasureUnits { get; init; }
+
+        /// <summary>
         /// ⭐⭐ <b><c>S4</c> — which visibility policy each projector gets.</b> Optional: when null the pack
         /// attaches <see cref="CullingStateVisibilityPolicy"/> to the entity projector and the framework
         /// default to everything else.

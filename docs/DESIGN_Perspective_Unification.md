@@ -1,9 +1,27 @@
 <!--STATUS
 state: LIVE
-build-state: SPLIT — §3 (Part A) is BUILT (2026-08-23, BP-488..BP-497); its as-built notes are inline and
-  marked "AS-BUILT". §4 (Part B, CGF grows asset perspectives) is DESIGN: it lands feature by feature with
-  the unification, and its first slice needs the freeze decision in §8.
-updated: 2026-08-23
+build-state: ✅ BOTH PARTS BUILT. §3 (Part A) 2026-08-23, BP-488..BP-497; its as-built notes are inline
+  and marked "AS-BUILT".
+  ⛔⛔ CORRECTED 2026-09-10 — this line said "§4 (Part B, CGF grows asset perspectives) is DESIGN: ...
+  its first slice needs the freeze decision in §8". BOTH HALVES ARE NOW FALSE:
+   (a) THE FREEZE GATE IS GONE. §8's 51b-C split the question in two -- WHO builds it (decided: the
+       UI/variable lane) and IS THE FREEZE STILL NEEDED (the user's call). The user LIFTED the variable
+       freeze on 2026-08-25 ("unfreeze the variable model lane, freeze no longer needed, no one is
+       working on variables"), so 51b-C is answered and nothing gates Part B.
+   (b) PART B IS BUILT. Measured 2026-09-10 in CgfSubsystem.cs: the CGF *perspective* is gone and every
+       remaining "CGF" literal is the SUBSYSTEM name (:383 Name, :629 SubsystemName, :973 ClusterSlave,
+       :1621 TitlePrefix) -- :389's own comment states 'the perspective is "Scenario", NOT "CGF"'.
+       All four asset perspectives are declared: Scenario at :400/:1592-1607/:1622/:1655, and
+       BTree/HSM/Blueprint registrars at :1861-1863 with canvases from :1877. The AiShared reference
+       that §4 called "the first real cost" is on CGF's build graph (slice 1), and
+       PerspectiveWorkspaceServices' dependencies -- §4's "unmeasured" row -- are satisfied there.
+  ⚠ ONE DELIBERATE ABSENCE, do not file it as a gap: perspectiveMap (ClusterRunner/Program.cs:299) holds
+  only IG / SimHost / ExCon / Scenario->CGF. BTree/HSM/Blueprint are absent BY USER RULING (§1e: "no
+  perspectiveMap entries for the three, no placeholder, no declaration API -- an empty perspective is
+  simply fine"), and it is benign: the coordinator uses that map for map-owner and gizmo-listener
+  transfer, which an asset perspective has no use for. The editor is symmetric -- its three asset
+  perspectives are not in the map either.
+updated: 2026-09-10
 current-answer: the whole file. §3 is BUILT — read its AS-BUILT rows before re-deriving anything; §4 is the
   target it builds toward.
 known-rot: three of MY OWN measurements in §1 were wrong and are corrected in place, each marked
@@ -424,7 +442,15 @@ reimplementation.
 | ⭐ **`perspectiveMap` entries** | `{Scenario, BTree, HSM, Blueprint} → "CGF"` — additive, many→one already supported |
 | ⭐ **`gizmoControllables` entries** | one per new perspective name, all pointing at CGF's controllable |
 
-### ⭐ CGF keeps its diagnostics perspective — **add, do not replace**
+### ⛔⛔ HISTORY — ~~CGF keeps its diagnostics perspective — **add, do not replace**~~ **SUPERSEDED**
+
+> ⛔⛔⛔ **DO NOT QUOTE THE SUB-SECTION BELOW. The user OVERRULED it** — 📄 §8 `51b-B`: *"NO — remove `CGF`
+> entirely, rename it to `Scenario` immediately, and declare the other three now."* 📐 **The code followed
+> the user, not this recommendation** *(measured `2026-09-10`: no `CGF` perspective exists; `CgfSubsystem
+> .cs:389` says so in its own words)*. ⇒ ⭐ CGF owns **FOUR** perspectives, not five. ⚠ Kept only so a
+> reader who lands here first is not misled — this contradiction stood for 18 days.
+
+#### ⛔ the superseded recommendation, verbatim
 
 📐 CGF's four existing windows are **diagnostics, not asset editors**. ⇒ ⭐⭐ **recommendation: CGF ends up
 owning FIVE perspectives** — `Scenario · BTree · HSM · Blueprint` *(as features land)* **+ `CGF`** for the

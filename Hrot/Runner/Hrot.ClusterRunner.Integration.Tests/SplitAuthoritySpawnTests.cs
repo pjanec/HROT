@@ -78,6 +78,16 @@ namespace Hrot.ClusterRunner.Integration.Tests;
     [Fact]
     public void BrainSpawn_WithWorldPosDelegation_MuscleTakesSimTransformAuthority()
     {
+        // ⭐⭐⭐ RUN UNDER THE PRODUCTION GUARD. Hrot.ClusterRunner/Program.cs:52 sets this process-wide
+        //    and NOTHING in this suite did, which is the whole reason the handover could be broken on
+        //    every node while IT-SA-1..3 stayed green: the publish that throws in production is a
+        //    silent no-op here. Same save/restore idiom as EditorSubsystemBootTests:224 and
+        //    HrotNodeBuilderTests:105 — reused, not reinvented. 📄 §4.1U.
+        bool previousStrictMode = FdpConfig.EnforceExplicitEventRegistration;
+        FdpConfig.EnforceExplicitEventRegistration = true;
+        try
+        {
+
         int domainId = Interlocked.Increment(ref _domainCounter);
         using var simHost = new HrotRunnerHarness("simhost", domainId);
         using var cgf     = new CgfHarness(domainId);
@@ -108,6 +118,46 @@ namespace Hrot.ClusterRunner.Integration.Tests;
         Assert.True(hasAuthority,
             $"SimHost should have SimTransform authority for entity {networkId} " +
             $"within {AuthorityTimeoutMs} ms after split-authority spawn");
+
+        // ⭐⭐⭐ ADDED 2026-09-04 — and the assertion above is NOT enough on its own.
+        //
+        // 📐 Measured: the handover was broken on EVERY node in production for as long as this suite
+        //    has existed, and IT-SA-1..3 all stayed GREEN. Cause: ExecuteTakeover threw at step 2b
+        //    (Bus.Publish(OwnershipUpdate) — the event was registered by no host), but step 2a
+        //    (SetAuthority) had ALREADY run. ⇒ the assertion above tests exactly the half that still
+        //    worked, and the two steps after the throw — SetManagedComponent(ownership) and
+        //    RemoveManagedComponent<PendingAuthorityGrants> — never ran at all.
+        //
+        // ⭐⭐ The grant is the honest completion witness: it is attached by
+        //    DeferredTakeOwnershipIngressTranslator and removed ONLY by the LAST line of
+        //    ExecuteTakeover. So it is stripped if and only if the whole method completed.
+        // ⛔ Not vacuous: `hasAuthority` above is true only because 2a ran, and 2a only runs FROM a
+        //    grant — so the component provably existed before this waits for it to disappear.
+        // 📌 On the live cluster before the fix it stayed attached and the system retried every frame
+        //    forever, while the Brain kept its own authority bits and nothing moved.
+        // ⛔ INVERSE-EDIT RED-PROOF: delete RegisterEvent<Replication.Messages.OwnershipUpdate>()
+        //    from HrotSharedComponentRegistry.RegisterAll and THIS assertion fails while the one
+        //    above it still passes.
+        // 📄 docs/DESIGN_Subsystem_Composition_Unification.md §4.1U.
+        bool grantStripped = PumpBothUntil(simHost, cgf,
+            () =>
+            {
+                var world = simHost.SimHost.World;
+                var map   = simHost.SimHost.TestHook_EntityMap;
+                if (world == null) return false;
+                if (!map.TryGetEntity(networkId, out Entity entity)) return false;
+                if (!world.IsAlive(entity)) return false;
+                return !world.HasManagedComponent<PendingAuthorityGrants>(entity);
+            },
+            AuthorityTimeoutMs);
+
+        Assert.True(grantStripped,
+            $"DeferredTakeoverSystem must strip PendingAuthorityGrants for entity {networkId} within " +
+            $"{AuthorityTimeoutMs} ms — still attached means ExecuteTakeover never reached its last " +
+            "line, so the Brain was never told to yield and the descriptor ownership was never recorded.");
+
+        }
+        finally { FdpConfig.EnforceExplicitEventRegistration = previousStrictMode; }
     }
 
     // ── IT-SA-3 ───────────────────────────────────────────────────────────────

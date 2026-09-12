@@ -357,7 +357,7 @@ namespace Fdp.Toolkit.Behavior.Tests
             r1.Register("Y", TopologyOnly());
             Assert.True(r1.TryGetDefinition(BehaviorHash.FromName("Y"), out var d1));
             Assert.NotNull(d1!.ParseParams);
-            Assert.Equal(typeof(int), d1.ParamsDtoType);
+            Assert.Equal(typeof(int), d1.BlackboardLayoutType);
 
             // resolver registered AFTER the topology
             var r2 = new BehaviorRegistry();
@@ -366,7 +366,7 @@ namespace Fdp.Toolkit.Behavior.Tests
                 typeof(int));
             Assert.True(r2.TryGetDefinition(BehaviorHash.FromName("Y"), out var d2));
             Assert.NotNull(d2!.ParseParams);
-            Assert.Equal(typeof(int), d2.ParamsDtoType);
+            Assert.Equal(typeof(int), d2.BlackboardLayoutType);
         }
 
         // ── Test 10b — the curated overlay OUTRANKS a generated ParseParams ──
@@ -396,7 +396,7 @@ namespace Fdp.Toolkit.Behavior.Tests
                 Name          = "Z",
                 BrainTier     = BehaviorConstants.BrainTierBTree,
                 ParseParams   = generated,          // what a generated registrar emits
-                ParamsDtoType = typeof(long),       // and its own DTO type
+                BlackboardLayoutType = typeof(long),       // and its own DTO type
             };
 
             bool generatedRan;
@@ -417,7 +417,7 @@ namespace Fdp.Toolkit.Behavior.Tests
             d1!.ParseParams!(string.Empty, null, null!, default, null);
             Assert.True(curatedRan,    "the curated resolver must win over a generated ParseParams");
             Assert.False(generatedRan, "the generated ParseParams must not run once a curated one exists");
-            Assert.Equal(typeof(int), d1.ParamsDtoType);   // the curated DTO type wins too
+            Assert.Equal(typeof(int), d1.BlackboardLayoutType);   // the curated DTO type wins too
 
             // ── curated resolver FIRST, generated topology second ──
             generatedRan = false; curatedRan = false;
@@ -429,7 +429,7 @@ namespace Fdp.Toolkit.Behavior.Tests
             d2!.ParseParams!(string.Empty, null, null!, default, null);
             Assert.True(curatedRan,    "order must not decide which resolver wins");
             Assert.False(generatedRan);
-            Assert.Equal(typeof(int), d2.ParamsDtoType);
+            Assert.Equal(typeof(int), d2.BlackboardLayoutType);
         }
 
         // ── Test 11 — name-based Register overload derives id from name ─────

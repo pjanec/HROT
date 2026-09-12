@@ -156,6 +156,8 @@ public static class HillAssault2I_SmokeRegistrar
             {
                 new("bpParams", typeof(global::Hrot.AI.Behaviors.Generated.HillAssault2ICalculateSegments_C870810D_Bp.Params), 0),
             },
+            JsonParamsDtoType    = typeof(global::Hrot.AI.Behaviors.Trees.HillAssault2I_Smoke_FdpToolkitBehaviorComponentsBrainBlackboard),
+            BlackboardLayoutType = typeof(global::Hrot.AI.Behaviors.Trees.HillAssault2I_Smoke_FdpToolkitBehaviorComponentsBrainBlackboard),
             ParseParams  = __parseParams,
             StatefulWorkingSlots = new global::Fdp.Toolkit.Behavior.StatefulSlotInfo[]
             {

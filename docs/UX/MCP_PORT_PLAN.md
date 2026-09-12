@@ -10,7 +10,7 @@ superseded-by: ../MCP_Integration.md
 -->
 
 > ✅ **DONE (2026-08-22).** The port described below was executed onto the coordinator branch. Production
-> `DebugApi` code, the Node MCP server, and the `.dev/ai-debug-api/` corpus were ported; 3 shared-file
+> `DebugApi` code, the Node MCP server, and the `.dev/_DONE/ai-debug-api/` corpus were ported; 3 shared-file
 > drifts were reconciled; the host was wired into `EditorSubsystem` (incl. behavior-trace tracer +
 > record/replay controller) and **verified end-to-end headless** (record→replay, breakpoints, watch,
 > entities). ⇒ **The live state is [`docs/MCP_Integration.md`](../MCP_Integration.md).** The open
@@ -118,7 +118,7 @@ work (0 of 8 marker files present). A tree diff from our branch to `feat` report
   of `IOS-IG-SimHost.sln`"*, so it adds a **Node toolchain dependency** but no C# build coupling.
   Includes `SKILL.md` + `skill-parts/` (a generated agent skill guide) and `tool-catalog.mjs` (959 lines,
   single-source tool catalog).
-- `.dev/ai-debug-api/` — **52 docs**: `DESIGN.md`, `TASK-TRACKER.md`, `TASK-DETAIL.md`, `DEBT-TRACKER.md`,
+- `.dev/_DONE/ai-debug-api/` — **52 docs**: `DESIGN.md`, `TASK-TRACKER.md`, `TASK-DETAIL.md`, `DEBT-TRACKER.md`,
   16 batch instruction docs + 16 reports. **Port these too** — they are the equivalent of this
   programme's own register, and dropping them would orphan the work.
 
@@ -154,7 +154,7 @@ The judgement is concentrated in steps 3, 5 and 7 — everything else is mechani
 | 5 | Reconcile the three behavior-id files against the current behavior surface | ⚠ `BehaviorIds.cs` / `CgfBehaviorIds.cs` / `AiBehaviorFactory.cs` may have drifted — the trunk has 17 batches of blueprint work |
 | 6 | Build + run **all** gates, including ClusterRunner's own | 🔒 `ClusterRunner` must stay operational |
 | 7 | Run the ADA integration tests; then verify **end-to-end**: start the app, hit the loopback API, drive one MCP tool | A green suite is not proof the listener is wired — [trap #8](UX_Programme_Briefing.md#6-inherited-traps) |
-| 8 | Record the port in `.dev/ai-debug-api/TASK-TRACKER.md` and in [SHARED_SURFACES.md](SHARED_SURFACES.md#proposed-changes-awaiting-consultation) | It changes a co-owned file |
+| 8 | Record the port in `.dev/_DONE/ai-debug-api/TASK-TRACKER.md` and in [SHARED_SURFACES.md](SHARED_SURFACES.md#proposed-changes-awaiting-consultation) | It changes a co-owned file |
 
 **Rejected alternatives**
 

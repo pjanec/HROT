@@ -72,9 +72,14 @@ is the base-class library that HROT consumes.
 HROT is the **application layer**. It implements a military combined-arms simulation
 on top of FDP. Key concerns exclusive to HROT:
 
-- A **Brain/Muscle** split-authority model: the CGF node owns all cognitive state
-  (behavior trees, mission plans, entity spawn authority); the SimHost node owns all
-  physical state (kinematics, physics, combat resolution, sensor coverage).
+- A **Brain/Muscle** split-authority model: the CGF node holds cognitive state
+  (behavior trees, mission plans); the SimHost node holds physical state (kinematics,
+  physics, combat resolution, sensor coverage).
+  **This is a configured division of labour, not a protocol restriction.** Every ECS node
+  can create entities (by targeting itself), and ownership is held **per component** and is
+  **transferable at runtime** over the `OwnershipUpdate` topic — CGF's only special status is
+  as broadcast arbiter for *unowned* create requests. See
+  [`RULINGS.md` `R-138`](../blueprints/RULINGS.md).
 - A **visual AI behavior authoring** suite: separate graphical editors for Behavior
   Trees and Hierarchical State Machines with hot-reload, live debug overlays, and
   breakpoint support.
@@ -264,7 +269,7 @@ nodes visible to operators:
 |    CGF  (Brain)           |<------------------------->|  SimHost (Muscle)  |
 |  Behavior Trees,          |  NavigationStatus         |  Ground kinematics |
 |  Mission Planning,        |<-- WorldPos (ghost) ------>  Combat / Ballistics|
-|  Entity spawn authority   |                            |  Perception (LOS)  |
+|  Broadcast arbitration    |                            |  Perception (LOS)  |
 +---------------------------+                            +--------+-----------+
          |                                                        |
          |  EntityMaster, WorldPos                               | WorldPos,
@@ -715,7 +720,7 @@ See [AI Behavior Authoring](relationships/AI-Behavior-Authoring.md) and
 |---------|----------|-------------|-----|
 | `Hrot.Orchestrator` | Subsystem | Cluster state machine, 2PC coordinator, NAS gateway, asset inventory | [link](Hrot/Subsystems/Hrot.Orchestrator.md) |
 | `Hrot.SimHost` | Subsystem | Authoritative Muscle node: kinematics, physics, combat, LOS perception | [link](Hrot/Subsystems/Hrot.SimHost.md) |
-| `Hrot.CGF` | Subsystem | Brain node: AI behavior trees, mission planning, entity spawn authority | [link](Hrot/Subsystems/Hrot.CGF.md) |
+| `Hrot.CGF` | Subsystem | Brain node: AI behavior trees, mission planning, broadcast arbiter for unowned create requests | [link](Hrot/Subsystems/Hrot.CGF.md) |
 | `Hrot.IG` | Subsystem | Image Generator: 2-D tactical map, ghost replication, operator pick | [link](Hrot/Subsystems/Hrot.IG.md) |
 | `Hrot.ExCon` | Subsystem | Exercise Control operator station (IOS): scenario control, monitoring | [link](Hrot/Subsystems/Hrot.ExCon.md) |
 | `Hrot.Editor` | Subsystem | Offline scenario authoring, entity placement, mission planning, zone authoring | [link](Hrot/Subsystems/Hrot.Editor.md) |

@@ -82,7 +82,7 @@ Condensed here so a compacted session recovers immediately:
 
 | | |
 |---|---|
-| ✅ **Freely** | `Hrot.Editor/DebugApi/*` · `tools/ai-debug-mcp/*` · `.dev/ai-debug-api/*` · the `DebugApi*Tests.cs` files · this folder |
+| ✅ **Freely** | `Hrot.Editor/DebugApi/*` · `tools/ai-debug-mcp/*` · `.dev/_DONE/ai-debug-api/*` · the `DebugApi*Tests.cs` files · this folder |
 | ⚠ **Carefully, expect a merge** | `EditorSubsystem.cs` (~10 lines) — see the [sequencing rule](../SESSION_SYNC.md#sequencing-rule); the three behavior-id files |
 | ⛔ **Do not touch** | `docs/UX/*` and `docs/blueprints/*` except to append a row to [SHARED_SURFACES.md](../UX/SHARED_SURFACES.md) · the blueprint/BTree/HSM editor windows · `ClusterRunner`'s behaviour |
 

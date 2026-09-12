@@ -1,4 +1,5 @@
 using Fdp.Core;
+using Fdp.ModuleHost.Abstractions;
 using Fdp.Toolkit.Diagnostics.Gizmos;
 using Fdp.Toolkit.Diagnostics.Gizmos.Systems;
 using Fdp.Toolkit.Vis2D;
@@ -6,9 +7,11 @@ using Fdp.Toolkit.Vis2D.Abstractions;
 using Fdp.Toolkit.Vis2D.Defaults;
 using Fdp.Toolkit.Vis2D.Components;
 using Hrot.Common;
+using Hrot.IG.Components;
 using Hrot.Common.Events;
 using Hrot.ScenarioEditor;
 using Hrot.ScenarioEditor.Systems;
+using Hrot.ScenarioEditor.Tools;
 using Xunit;
 
 namespace Hrot.Editor.Tests;
@@ -22,6 +25,10 @@ namespace Hrot.Editor.Tests;
 /// shared primitives and referenced nothing new, which is exactly how the editor's drain and CGF's context
 /// menu drifted apart for months *(the same reason E2's create-core rail is a source scan)*.</para>
 /// </summary>
+// 🔒 SERIALIZED: this class flips the process-global FdpConfig.EnforceExplicitEventRegistration (§⑤).
+//    ⛔ Without this, that flip leaks into any class publishing a managed event in parallel — measured
+//    2026-09-09 against JsonEntityContextMenuHandlerTests. See the collection's own remarks.
+[Collection(Hrot.Editor.Tests.Windows.PanelSnapshotTestCollection.Name)]
 public sealed class TheViewportInteractionIsSharedTests
 {
     // ══ ① THE DE-DUP GUARDS — §6's requirement, made checkable ══════════════
@@ -49,6 +56,16 @@ public sealed class TheViewportInteractionIsSharedTests
     /// 📐 Before E3 both did: the editor in <c>DrainToolActivationEvents</c>, CGF in its context menu — and
     /// only CGF's set the selection first, which is how *"the same tool"* meant two things.
     /// ⇒ the gizmo constructors now appear only in the shared <see cref="ToolActivationDrainSystem"/>.
+    ///
+    /// <para>🔴🔴 <b>THE RAIL WAS BLIND, measured <c>2026-09-09</c> during <c>UXI-07</c> step 3.</b> It
+    /// matched the literal <c>"new EntityRotatorGizmo"</c>, while <c>EditorSubsystem.cs:1862</c> wrote
+    /// <c>new Hrot.ScenarioEditor.Gizmos.EntityRotatorGizmo(</c> — <b>fully qualified</b>. ⇒ the editor's
+    /// <c>GlobalActionIds.Rotate</c>/<c>EditOverlay</c>/<c>EditRoute</c> handlers carried a verbatim copy of
+    /// the drain's three arms and this rail stayed GREEN over all of it.
+    /// ⚠⚠ <b>The lesson is the substring, not the copy:</b> a source scan that pins the SPELLING of a
+    /// reference tests the spelling. ⇒ it is a REGEX now, and it tolerates any qualification.
+    /// 🔒 <c>R-142</c> ③ — a rail that stays green while the feature is broken is itself the finding, and
+    /// it is fixed in place rather than routed around.</para>
     /// </summary>
     [Theory]
     [InlineData("Hrot.CGF", "CgfSubsystem.cs")]
@@ -57,11 +74,18 @@ public sealed class TheViewportInteractionIsSharedTests
     {
         var text = ReadHostSource(project, file);
 
-        foreach (var gizmo in new[] { "new EntityRotatorGizmo", "new VertexEditGizmo", "new RouteWaypointGizmo",
-                                      "new MeasureGizmo" })
-            Assert.False(text.Contains(gizmo, StringComparison.Ordinal),
+        foreach (var gizmo in new[] { "EntityRotatorGizmo", "VertexEditGizmo", "RouteWaypointGizmo",
+                                      "MeasureGizmo" })
+        {
+            // `new` · optional namespace qualification · the type · `(`  — the whole point is that
+            // "new Hrot.ScenarioEditor.Gizmos.EntityRotatorGizmo(" must match as surely as "new EntityRotatorGizmo(".
+            var construction = new System.Text.RegularExpressions.Regex(
+                @"new\s+(?:[A-Za-z_][\w]*\s*\.\s*)*" + gizmo + @"\s*\(");
+
+            Assert.False(construction.IsMatch(text),
                 $"{file} constructs {gizmo} itself — CE-051 moved every tool gizmo into the shared "
               + "ToolActivationDrainSystem (ruling 9). Publish ActivateEditorToolEvent instead.");
+        }
     }
 
     /// <summary>
@@ -193,17 +217,16 @@ public sealed class TheViewportInteractionIsSharedTests
     {
         var (world, _, _) = WorldWithEntity();
         var reports = new List<string>();
-        var system = new ToolActivationDrainSystem(
-            selection:           () => new DefaultSelectionState(),
-            gizmos:              () => NewGizmoSystem(),
-            globalGizmos:        null,
-            startPlacementMode:  null,
-            reportUnserviceable: reports.Add);
+        // ⭐ UXI-07 step 3b — the reporting lives in the SHARED registration now, so the rail drives it
+        //   there rather than through the drain. ⛔ A host with neither a spawn adapter nor a global gizmo
+        //   manager still REGISTERS both tools (no per-subsystem whitelist) and says why they do nothing.
+        var tools = new ToolController(() => null, () => NewGizmoSystem(), reports.Add);
+        ScenarioToolRegistrations.RegisterAll(
+            tools, world: () => world, gizmos: () => NewGizmoSystem(),
+            globalGizmos: null, startPlacementMode: null, reportUnserviceable: reports.Add);
 
-        world.Bus.Publish(new ActivateEditorToolEvent(EditorTool.Spawn));
-        world.Bus.Publish(new ActivateEditorToolEvent(EditorTool.Measure));
-        world.Bus.SwapBuffers();
-        system.Execute(world, 0f);
+        tools.Activate(ScenarioToolIds.Spawn);
+        tools.Activate(ScenarioToolIds.Measure);
 
         Assert.Equal(2, reports.Count);
         Assert.Contains(reports, r => r.Contains("Spawn") && r.Contains("spawn adapter"));
@@ -220,17 +243,13 @@ public sealed class TheViewportInteractionIsSharedTests
         var (world, _, _) = WorldWithEntity();
         var reports = new List<string>();
         bool placed = false;
-        var system = new ToolActivationDrainSystem(
-            selection:           () => new DefaultSelectionState(),
-            gizmos:              () => NewGizmoSystem(),
-            globalGizmos:        null,
-            startPlacementMode:  () => placed = true,
-            reportUnserviceable: reports.Add);
+        var tools = new ToolController(() => null, () => NewGizmoSystem(), reports.Add);
+        ScenarioToolRegistrations.RegisterAll(
+            tools, world: () => world, gizmos: () => NewGizmoSystem(),
+            globalGizmos: null, startPlacementMode: () => placed = true, reportUnserviceable: reports.Add);
 
-        world.Bus.Publish(new ActivateEditorToolEvent(EditorTool.Spawn));
-        world.Bus.Publish(new ActivateEditorToolEvent(EditorTool.Select));
-        world.Bus.SwapBuffers();
-        system.Execute(world, 0f);
+        tools.Activate(ScenarioToolIds.Spawn);
+        tools.Activate(ScenarioToolIds.Select);
 
         Assert.True(placed);
         Assert.Empty(reports);
@@ -247,12 +266,421 @@ public sealed class TheViewportInteractionIsSharedTests
     public void ANotYetBuiltViewportIsToleratedRatherThanThrowing()
     {
         var (world, _, _) = WorldWithEntity();
-        var system = new ToolActivationDrainSystem(selection: () => null, gizmos: () => null);
+        var system = new ToolActivationDrainSystem(
+            selection: () => null, gizmos: () => null, tools: () => null);
 
         world.Bus.Publish(new ActivateEditorToolEvent(EditorTool.Rotate));
         world.Bus.SwapBuffers();
 
         Assert.Null(Record.Exception(() => system.Execute(world, 0f)));
+    }
+
+    // ══ ④b UXI-07 — THE DRAIN ARMS THROUGH THE ONE CONTROLLER ═══════════════
+    //
+    // 📄 docs/UX/UX_Feature_Tool_Model.md §4. These two rails are added to the DRAIN's own suite rather
+    //    than to a new class (R-142 ④): the drain is the feature, and steps 2–3 changed HOW it arms.
+    // ⛔ The CONTROLLER's own rules (retarget, Dismissed, PushModal) are railed next to the controller in
+    //    Hrot.Presentation.Tests/Tools/ToolControllerTests.cs — these two assert the DRAIN's end of it.
+
+    /// <summary>
+    /// ⭐⭐⭐ <b>The <c>Edit</c> toggle SURVIVED being routed through the controller — and it very nearly
+    /// did not.</b>
+    ///
+    /// <para>🔴🔴 <b>The hazard, measured <c>2026-09-09</c>:</b> the controller cancels the armed modal
+    /// before invoking the next activation, and <c>DataDrivenGizmoSystem.CancelInteractiveTools()</c>
+    /// (<c>:124-137</c>) clears <b>every</b> injected gizmo. ⇒ by the time the <c>Edit</c> arm runs, its
+    /// <c>HasInjectedGizmo(e)</c> toggle test is already false and a naive routing would RE-ARM on the
+    /// second press instead of turning off. 🔒 <c>R-137</c>: unification may not cost a capability.
+    /// ⭐ The fix is that the controller remembers the (tool, TARGET) pair — <c>ArmedTool</c>.</para>
+    /// </summary>
+    [Fact]
+    public void TheEditToolStillTogglesOffOnASecondPress()
+    {
+        var (world, entity, _) = WorldWithEntity();
+        var ecb = (EntityCommandBuffer)((ISimulationView)world).GetCommandBuffer();
+        ecb.AddManagedComponent(entity, new EditablePolyline
+        {
+            Points  = new List<System.Numerics.Vector2> { new(0f, 0f), new(1f, 1f) },
+            Version = 1,
+        });
+        ecb.Playback(world);
+
+        var selection = new DefaultSelectionState { PrimarySelected = entity };
+        var gizmos    = NewGizmoSystem();                       // ⚠ ONE instance — a per-call factory
+        var tools     = new ToolController(() => null, () => gizmos);
+        ScenarioToolRegistrations.RegisterAll(                   //   would hide the whole effect.
+            tools, world: () => world, gizmos: () => gizmos);
+        var system    = new ToolActivationDrainSystem(
+            selection: () => selection,
+            gizmos:    () => gizmos,
+            tools:     () => tools);
+
+        Publish(world, EditorTool.Edit);
+        system.Execute(world, 0f);
+        Assert.True(gizmos.HasInjectedGizmo(entity));           // armed
+
+        Publish(world, EditorTool.Edit);
+        system.Execute(world, 0f);
+        Assert.False(gizmos.HasInjectedGizmo(entity));          // 🔴 and OFF again, not re-armed
+    }
+
+    /// <summary>
+    /// ⭐⭐⭐ <b><c>UXI-07</c> END TO END — arming a tool clears a modal holding focus in the OTHER
+    /// arbiter.</b> This is the defect the whole issue exists to close, asserted where a user actually
+    /// triggers it: by publishing <see cref="ActivateEditorToolEvent"/>.
+    ///
+    /// <para>⛔⛔ <b>The bypassing gizmo is not a straw man</b> — <c>EditorMapPickAdapter</c>,
+    /// <c>EditorZoneAdapter</c> and <c>ScenarioSpawnAdapter</c> all call <c>GlobalGizmoManager.Register</c>
+    /// directly and are NOT converted in this slice. 🔒 And it is not academic: the Windows lane measured
+    /// that wiring <c>CanvasMapPickAdapter</c> to a live manager on SimHost breaks
+    /// <c>hill-attack-close</c> (<c>CE-257</c>).</para>
+    ///
+    /// <para>⚠ Inverse-edit red-proof: removing <c>ToolController.CancelOtherArbiter</c>'s global branch
+    /// leaves <c>picker.IsFocused</c> true and this rail fails.</para>
+    /// </summary>
+    [Fact]
+    public void ArmingAToolClearsAModalHoldingFocusInTheOtherArbiter()
+    {
+        var (world, entity, _) = WorldWithEntity();
+
+        // The production wiring: ONE buffer, ONE bus, BOTH arbiters — MapInteractionPack.cs:92-100.
+        var buffer = new Fdp.Toolkit.Diagnostics.Gizmos.DebugPrimitiveBuffer();
+        var bus    = new FdpEventBus();
+        var global = new GlobalGizmoManager(buffer, bus);
+        var gizmos = new DataDrivenGizmoSystem(new GizmoRegistry(), buffer, interactionBus: bus);
+
+        // ⭐ A REAL exclusive-focus gizmo, registered straight on the arbiter — the adapters' exact shape.
+        //   ⛔ Deliberately not a hand-rolled probe: a fake could differ from production in the one
+        //   property that decides this (RequiresExclusiveFocus), which is what CancelInteractiveTools
+        //   filters on (GlobalGizmoManager.cs:112-119).
+        long pickerId = GlobalGizmoManager.NewId();
+        global.Register(pickerId, new Hrot.ScenarioEditor.Gizmos.MeasureGizmo(
+            onRemove: () => global.Unregister(pickerId)));
+        Assert.Equal(1, global.ActiveCount);                     // the adapter shape holds the arbiter …
+
+        var selection = new DefaultSelectionState { PrimarySelected = entity };
+        var tools     = new ToolController(() => global, () => gizmos);
+        ScenarioToolRegistrations.RegisterAll(
+            tools, world: () => world, gizmos: () => gizmos, globalGizmos: () => global);
+        var system    = new ToolActivationDrainSystem(
+            selection: () => selection,
+            gizmos:    () => gizmos,
+            tools:     () => tools);
+
+        Publish(world, EditorTool.Rotate);
+        system.Execute(world, 0f);
+
+        Assert.True(gizmos.HasInjectedGizmo(entity));             // the tool armed …
+        Assert.Equal(0, global.ActiveCount);                      // 🔴 … and the other arbiter LET GO
+    }
+
+    /// <summary>
+    /// ⭐⭐⭐ <b><c>UXI-07</c> step 3b — EVERY host that builds the pack gets an arbiter WITH THE FULL TOOL
+    /// SET.</b> This is the rail for the placement fix, and it is a <c>Build</c>-level claim on purpose.
+    ///
+    /// <para>📐 <b>What it prevents, measured <c>2026-09-09</c>:</b> the controller was first built inside
+    /// <c>ToolActivationDrainSystem</c>. <c>MapInteractionPack.Build</c> is called by <b>FIVE</b> hosts
+    /// (IG, CGF, ReplayBrowser, SimHost, Editor) and only <b>TWO</b> compose that drain ⇒ three hosts had
+    /// no arbiter at all and hand-rolled the same gizmos inline.</para>
+    ///
+    /// <para>🔒 <b>And the FULL set, not a subset</b> — user, <c>2026-08-10</c>: <i>"all map subsystems
+    /// share the full tool set; differences are data availability or host rules, never set
+    /// membership."</i> ⇒ this host passes no spawn adapter, and <c>Spawn</c> is registered anyway.</para>
+    /// </summary>
+    [Fact]
+    public void ThePackGivesEveryHostAnArbiterCarryingTheWholeToolSet()
+    {
+        var (world, _, _) = WorldWithEntity();
+
+        var map = Hrot.ScenarioEditor.Map.MapInteractionPack.Build(
+            new Hrot.ScenarioEditor.Map.MapInteractionContext { World = world });
+
+        Assert.NotNull(map.Tools);
+
+        // ⛔ Named as LITERALS, not reflected off ScenarioToolIds: a rail that derived its expectations
+        //    from the code under test would follow that code wherever it went.
+        foreach (var id in new[] { "scenario.select", "scenario.spawn", "scenario.edit",
+                                   "scenario.route", "scenario.measure", "scenario.rotate" })
+            Assert.True(map.Tools.IsRegistered(id),
+                $"tool '{id}' is not registered on a freshly-built pack — every map subsystem gets the "
+              + "FULL set (user ruling, 2026-08-10: never set membership).");
+    }
+
+    /// <summary>
+    /// ⭐⭐ <b>The arbiter is PER MAP SUBSYSTEM</b> — 🔒 <c>Q27-B</c> answered <b>B1</b>, whose worked
+    /// example is SimHost holding <c>Measure</c> while the user switches to CGF and back. ⇒ two packs must
+    /// not share one controller, or a perspective switch would cancel the other subsystem's tool.
+    /// </summary>
+    [Fact]
+    public void TwoMapSubsystemsGetTwoIndependentArbiters()
+    {
+        var (worldA, _, _) = WorldWithEntity();
+        var (worldB, _, _) = WorldWithEntity();
+
+        var a = Hrot.ScenarioEditor.Map.MapInteractionPack.Build(
+            new Hrot.ScenarioEditor.Map.MapInteractionContext { World = worldA });
+        var b = Hrot.ScenarioEditor.Map.MapInteractionPack.Build(
+            new Hrot.ScenarioEditor.Map.MapInteractionContext { World = worldB });
+
+        Assert.NotSame(a.Tools, b.Tools);
+
+        // ⭐⭐ …and the same reasoning applies to the FOCUS SLOT: it is per subsystem, so SimHost holding
+        //     Measure must survive a switch to CGF and back. R-144 / §6.2b.
+        Assert.NotSame(a.GlobalManager.Focus, b.GlobalManager.Focus);
+    }
+
+    /// <summary>
+    /// ⭐⭐⭐ <b><c>R-144</c> / 68-A — THE FORWARDING RAIL FOR THE FOCUS SLOT: the pack gives BOTH arbiters
+    /// the SAME <c>GizmoFocusRegistry</c>.</b> 📄 <c>gizmo-input-focus-design.md</c> §6.2b.
+    ///
+    /// <para>🔴 <b>Why an identity assertion and not a behavioural one:</b> the failure mode is that each
+    /// arbiter quietly constructs its OWN registry — the constructor parameter is optional, so a root that
+    /// forgets it still compiles, still runs, and every existing rail stays green. ⛔ That is precisely the
+    /// silent-default pattern (*"a production caller that HAS the dependency must PASS it"*), and the
+    /// control this programme settled on is a forwarding rail asserted <b>on the constructed object</b>,
+    /// one per dependency.</para>
+    ///
+    /// <para>⚠ <b>It is the whole of 68-A.</b> One registry EACH satisfies every method signature and fixes
+    /// nothing: *"at most one exclusive focus per subsystem"* would stay a <c>ToolController</c> convention,
+    /// true only for tools that go through the controller — and the adapters that register straight on an
+    /// arbiter do not.</para>
+    ///
+    /// <para>⭐ Inverse-edit red-proof: dropping <c>focus: focus</c> from either constructor call in
+    /// <c>MapInteractionPack.cs</c> reddens this rail and NOTHING else in the 376-rail baseline.</para>
+    /// </summary>
+    [Fact]
+    public void ThePackGivesBothArbitersTheSameFocusSlot()
+    {
+        var (world, _, _) = WorldWithEntity();
+
+        var map = Hrot.ScenarioEditor.Map.MapInteractionPack.Build(
+            new Hrot.ScenarioEditor.Map.MapInteractionContext { World = world });
+
+        Assert.NotNull(map.GlobalManager.Focus);
+        Assert.Same(map.GlobalManager.Focus, map.DataDrivenSystem.Focus);
+    }
+
+    /// <summary>
+    /// ⭐⭐⭐ <b>EXCLUSIVITY NOW HOLDS WITHOUT THE ARBITER CONVENTION</b> — the behavioural half of
+    /// <c>R-144</c>, and the claim <c>ArmingAToolClearsAModalHoldingFocusInTheOtherArbiter</c> could not
+    /// make.
+    ///
+    /// <para>🔴 <b>The difference is that NOTHING here goes through <c>ToolController</c>.</b> That rail
+    /// arms through the drain, so <c>CancelOtherArbiter</c> does the work; this one registers straight on
+    /// each arbiter — <b>exactly what <c>EditorMapPickAdapter</c>, <c>EditorZoneAdapter</c> and
+    /// <c>ScenarioSpawnAdapter</c> do</b>, and the path the convention never covered. ⛔ Before the shared
+    /// registry both gizmos held focus at once and the terminal received two capture bindings for one
+    /// frame.</para>
+    /// </summary>
+    [Fact]
+    public void TwoAdaptersBypassingTheControllerCannotBothHoldFocus()
+    {
+        var (world, entity, _) = WorldWithEntity();
+
+        var map = Hrot.ScenarioEditor.Map.MapInteractionPack.Build(
+            new Hrot.ScenarioEditor.Map.MapInteractionContext { World = world });
+
+        // ⭐ A real exclusive-focus gizmo on the GLOBAL arbiter — the adapters' exact shape.
+        long pickerId = GlobalGizmoManager.NewId();
+        var picker    = new Hrot.ScenarioEditor.Gizmos.MeasureGizmo(
+            onRemove: () => map.GlobalManager.Unregister(pickerId));
+        map.GlobalManager.Register(pickerId, picker);
+
+        Assert.Same(picker, map.GlobalManager.Focus.Holder);
+
+        // …and now an entity-scoped one on the OTHER arbiter, with no controller in sight.
+        var rotator = new Hrot.ScenarioEditor.Gizmos.EntityRotatorGizmo(
+            world, entity, onRemove: () => map.DataDrivenSystem.DeactivateGizmo(entity));
+        map.DataDrivenSystem.ActivateGizmo(entity, rotator);
+
+        // 🔴 ONE holder, across both arbiters. Two private _focusedGizmo fields could not say this.
+        Assert.Same(picker, map.GlobalManager.Focus.Holder);
+        Assert.True(map.DataDrivenSystem.HasInjectedGizmo(entity));   // ⭐ still ARMED and drawing …
+        Assert.False(rotator.IsFocused);                              // ⭐ … it simply does not hold input
+    }
+
+    /// <summary>
+    /// ⭐⭐⭐ <b>THE FORWARDING RAIL — every production root that builds a pack must PASS its arbiter on.</b>
+    ///
+    /// <para>🔒 <b>The control for the silent-default pattern</b>, which this programme has now found ten
+    /// times: <i>"a production caller that HAS the dependency must PASS it."</i> ⛔ <c>InteractionDeps.Tools</c>
+    /// is optional so a headless or partial host still constructs, which is exactly the shape that lets a
+    /// root forget it — and a forgotten arbiter means every tool press on that host is dropped.</para>
+    ///
+    /// <para>⚠ A SOURCE SCAN, because the failure is an OMISSION in one composition root: no behavioural
+    /// test can see a host that simply never passed the argument, and a reference count cannot either.</para>
+    /// </summary>
+    [Theory]
+    [InlineData("Hrot.CGF", "CgfSubsystem.cs")]
+    [InlineData("Hrot.Editor", "EditorSubsystem.cs")]
+    public void EveryRootThatBuildsAPackForwardsItsToolArbiter(string project, string file)
+    {
+        var src = ReadHostSource(project, file);
+
+        Assert.Contains("InteractionDeps(", src);
+        Assert.True(
+            new System.Text.RegularExpressions.Regex(@"Tools:\s*\(\)\s*=>").IsMatch(src),
+            $"{file} builds a MapInteraction and registers ScenarioEditorModule but never passes "
+          + "InteractionDeps.Tools. The drain would then drop every tool activation on this host. "
+          + "Pass the pack's MapInteraction.Tools (UXI-07 step 3b).");
+
+        // ⭐⭐⭐ ONE RAIL PER FORWARDED DEPENDENCY — and this second assertion exists because the first
+        //   one alone was NOT enough. 🔴 Measured 2026-09-09: step 3b moved the tool registrations into
+        //   MapInteractionPack, which takes the spawn delegate through MapInteractionContext. Both hosts
+        //   kept handing it to InteractionDeps instead — a record that no longer read it — so Spawn
+        //   reported "this host composes no spawn adapter" on hosts that compose one.
+        // ⚠ A BEHAVIOURAL rail could not see this: it builds its own pack and would pass regardless.
+        //   The failure is an OMISSION at a composition root, which only a source scan reaches.
+        Assert.True(
+            new System.Text.RegularExpressions.Regex(@"StartPlacementMode\s*=\s*\(\)\s*=>").IsMatch(src),
+            $"{file} builds a MapInteractionContext but never sets StartPlacementMode on it, so the "
+          + "Spawn tool this host registers will report itself unserviceable even though the host "
+          + "composes a spawn adapter (UXI-07 section 4.10). Note the '=' — it belongs on the CONTEXT, "
+          + "not as an ':' argument to InteractionDeps, which no longer carries it.");
+
+        // ⭐⭐⭐ A THIRD ASSERTION, and it pins a CYCLE rather than an omission (UXI-07 step 4a, §4.9).
+        //   📐 The pack's Spawn arm invokes this delegate. ScenarioSpawnAdapter.StartPlacementMode now
+        //   calls Activate(Spawn). ⇒ if a host points the delegate back at the PUBLIC API, the chain is
+        //   Activate → arm → StartPlacementModeWithLastType → StartPlacementMode → Activate → … and the
+        //   host stack-overflows the first time anyone presses Place Entity.
+        // ⛔ The fix is structural: the delegate must name the ARM BODY (ArmPlacement).
+        Assert.False(
+            new System.Text.RegularExpressions.Regex(
+                @"StartPlacementMode\s*=\s*\(\)\s*=>[^,;]*StartPlacementMode(WithLastType)?\s*\(")
+                .IsMatch(src),
+            $"{file} points the pack's StartPlacementMode delegate at ScenarioSpawnAdapter's PUBLIC "
+          + "placement API. That API calls ToolController.Activate(Spawn), and Activate invokes this "
+          + "very delegate — an infinite recursion the first time Place Entity is pressed. Point it at "
+          + "the arm body instead: StartPlacementMode = () => _spawnAdapter?.ArmPlacement() "
+          + "(UXI-07 step 4a, UX_Feature_Tool_Model.md section 4.9).");
+    }
+
+    /// <summary>
+    /// ⭐⭐⭐ <b><c>UXI-07</c> step 4a — a host that builds a <c>ScenarioSpawnAdapter</c> must HAND IT THE
+    /// ARBITER.</b> 📄 <c>UX_Feature_Tool_Model.md</c> §4.9.
+    ///
+    /// <para>🔒 <i>"A production caller that HAS the dependency must PASS it"</i> — the silent-default rule,
+    /// and this is one rail per forwarded dependency, asserted at the composition root. ⛔ The ctor
+    /// parameter is optional so tests and unconverted hosts still work, which is exactly why a root CAN
+    /// forget it: the adapter then arms an <c>EntityPlacementGizmo</c> straight on
+    /// <c>GlobalGizmoManager</c> and the ORBAT's *"create unit"* silently bypasses the controller again —
+    /// §4.8's inventory, restored.</para>
+    ///
+    /// <para>⚠ A behavioural rail cannot see this: it constructs its own adapter and passes whatever it
+    /// likes. The failure is an OMISSION at a root, so only a source scan reaches it.</para>
+    /// </summary>
+    [Theory]
+    [InlineData("Hrot.Editor", "EditorSubsystem.cs")]
+    [InlineData("Hrot.CGF",    "CgfSubsystem.cs")]
+    public void EveryRootThatBuildsASpawnAdapterHandsItTheArbiter(string project, string file)
+    {
+        var src = ReadHostSource(project, file);
+
+        // ⚠⚠ Tolerant of ANY qualification. 🔴 The D' rail was blind for a whole issue because it matched
+        //    a bare "new EntityRotatorGizmo" while a host wrote the fully-qualified form — and CGF writes
+        //    exactly that here ("new Hrot.UI.Common.Adapters.ScenarioSpawnAdapter(").
+        var ctor = new System.Text.RegularExpressions.Regex(
+            @"new\s+(?:[\w.]+\.)?ScenarioSpawnAdapter\s*\((?<args>[^;]*?)\)\s*;",
+            System.Text.RegularExpressions.RegexOptions.Singleline);
+
+        var m = ctor.Match(src);
+        Assert.True(m.Success, $"{file} no longer constructs a ScenarioSpawnAdapter — if that is deliberate, "
+                             + "retire this rail rather than weakening it.");
+
+        Assert.True(
+            m.Groups["args"].Value.Contains("ToolController", StringComparison.Ordinal),
+            $"{file} constructs a ScenarioSpawnAdapter without passing its ToolController. Entity "
+          + "placement, area authoring and route authoring will then arm directly on GlobalGizmoManager, "
+          + "bypassing the arbiter — the very bypass UXI-07 step 4a removes (section 4.9).");
+    }
+
+    /// <summary>
+    /// ⭐⭐ <b>ONE RULE for activating a tool, and no host may invent a third idiom.</b>
+    /// 📄 <c>UX_Feature_Tool_Model.md</c> §4.7d — TARGETED activation calls <c>Tools.Activate(id, target)</c>;
+    /// TARGET-LESS activation publishes <see cref="ActivateEditorToolEvent"/> and the drain supplies the
+    /// selection.
+    ///
+    /// <para>🔴 <b>The mistake this pins, made and corrected on <c>2026-09-09</c>:</b> step 3 routed the
+    /// editor's three entity context-menu actions through the EVENT, which meant writing
+    /// <c>PrimarySelected</c> first purely to smuggle the target to the drain — ⛔ a side effect the
+    /// original handlers never had, and a third idiom next to SimHost's and IG's direct calls.</para>
+    /// </summary>
+    [Fact]
+    public void TheEditorsEntityActionsActivateDirectlyRatherThanReSelecting()
+    {
+        var src = ReadHostSource("Hrot.Editor", "EditorSubsystem.cs");
+
+        // The three entity-targeted actions go through one direct-activation helper …
+        Assert.Contains("void ActivateToolOnEntity(string toolId, Entity target)", src);
+        Assert.Contains("_editorToolController?.Activate(toolId, target)", src);
+
+        // … and that helper does NOT write the selection to carry the target.
+        var helper = src.Substring(src.IndexOf("void ActivateToolOnEntity(string toolId, Entity target)",
+                                               StringComparison.Ordinal));
+        helper = helper.Substring(0, helper.IndexOf("}", StringComparison.Ordinal));
+        Assert.DoesNotContain("PrimarySelected", helper);
+    }
+
+    /// <summary>
+    /// ⭐⭐⭐ <b>A HOST THAT COMPOSES A SPAWN ADAPTER MUST GET A SERVICEABLE <c>Spawn</c> TOOL.</b>
+    ///
+    /// <para>🔴🔴 <b>THE REGRESSION THIS EXISTS FOR, shipped and then found <c>2026-09-09</c>:</b> step 3b
+    /// moved the tool registrations out of <c>ScenarioEditorModule</c> and into <c>MapInteractionPack</c>,
+    /// which takes the spawn delegate through <c>MapInteractionContext</c>. ⛔ Both hosts kept passing it
+    /// to <c>InteractionDeps</c> — which nothing read any more — so <c>Spawn</c> reported <i>"this host
+    /// composes no spawn adapter"</i> on the Editor and CGF, <b>both of which compose one</b>.</para>
+    ///
+    /// <para>⚠⚠ <b>Why the existing forwarding rail did not catch it:</b> it asserts <c>Tools</c> is passed.
+    /// ⛔ One rail per dependency is the stated control, and this dependency had none. ⇒ this is that rail.
+    /// ⭐ It is BEHAVIOURAL, not a source scan: it builds a real pack and asks the real tool whether it
+    /// works, which is the only form that could have failed.</para>
+    /// </summary>
+    [Fact]
+    public void APackGivenASpawnDelegateHasAServiceableSpawnTool()
+    {
+        var (world, _, _) = WorldWithEntity();
+        var reports = new List<string>();
+        bool placed = false;
+
+        var map = Hrot.ScenarioEditor.Map.MapInteractionPack.Build(
+            new Hrot.ScenarioEditor.Map.MapInteractionContext
+            {
+                World                   = world,
+                StartPlacementMode      = () => placed = true,
+                ReportUnserviceableTool = reports.Add,
+            });
+
+        Assert.True(map.Tools.Activate(ScenarioToolIds.Spawn));
+        Assert.True(placed);                       // 🔴 the delegate actually ran …
+        Assert.Empty(reports);                     // 🔴 … and nothing cried "no spawn adapter"
+    }
+
+    /// <summary>
+    /// ⭐ The complement, so the rail above cannot pass by accident: a pack given NO spawn delegate still
+    /// REGISTERS <c>Spawn</c> (🔒 no per-subsystem whitelist) and reports why it does nothing (ruling 49).
+    /// </summary>
+    [Fact]
+    public void APackWithNoSpawnDelegateStillRegistersSpawnAndSaysWhyItCannot()
+    {
+        var (world, _, _) = WorldWithEntity();
+        var reports = new List<string>();
+
+        var map = Hrot.ScenarioEditor.Map.MapInteractionPack.Build(
+            new Hrot.ScenarioEditor.Map.MapInteractionContext
+            {
+                World                   = world,
+                ReportUnserviceableTool = reports.Add,
+            });
+
+        Assert.True(map.Tools.IsRegistered(ScenarioToolIds.Spawn));   // registered …
+        Assert.False(map.Tools.Activate(ScenarioToolIds.Spawn));      // … unserviceable …
+        Assert.Contains(reports, r => r.Contains("spawn adapter"));   // … and it SAID so
+    }
+
+    private static void Publish(EntityRepository world, EditorTool tool)
+    {
+        world.Bus.Publish(new ActivateEditorToolEvent(tool));
+        world.Bus.SwapBuffers();
     }
 
     // ══ ⑤ the module wires them, and only when it has a viewport ════════════
@@ -417,6 +845,78 @@ public sealed class TheViewportInteractionIsSharedTests
     }
 
     /// <summary>Reads a composition root's source; the source scan is the only way to see a local function.</summary>
+    /// <summary>
+    /// ⭐⭐⭐ <b><c>CE-259k</c> — AN EXCLUSIVE-FOCUS GIZMO THAT DOES NOT WANT RAW INPUT IS DEAF, AND
+    /// NOTHING CAUGHT IT.</b> 📄 <c>gizmo-input-focus-design.md</c> §5.1 · §6.2c.
+    ///
+    /// <para>🔴 <b>Measured by RUNNING THE EDITOR, <c>2026-09-09</c> — six gizmos were affected and the
+    /// ~8 000-rail suite was entirely green.</b> The mechanism is a pincer in
+    /// <c>DebugGizmoLayer.HandleInput</c>: <c>:126</c> withholds raw HW events unless the binding sets the
+    /// raw bit, and <c>:428</c> suppresses spatial hit-testing for every primitive not anchored to the
+    /// capture token whenever the binding is EXCLUSIVE. ⇒ a gizmo that is exclusive but not raw receives
+    /// <b>nothing on either path</b>. ⛔ It still DRAWS, because <c>UpdateAndDraw</c> is unconditional —
+    /// which is exactly why it reads as *"the tool renders and ignores my clicks"* rather than as a crash.</para>
+    ///
+    /// <para>🔒 <b>Design basis:</b> §5.1 gives <c>InputCaptureBinding</c> ONE flag — <i>"1 = Exclusive,
+    /// 0 = Shared"</i> — and defines the primitive itself as the declaration that the token <i>"wants raw
+    /// hardware events streamed to it"</i>. ⛔ The second bit is an as-built divergence; <c>CE-259l</c> is
+    /// whether it should exist at all. ⭐ This rail holds the invariant either way.</para>
+    ///
+    /// <para>⚠ <b>A SOURCE SCAN, deliberately</b> — the same reason as the forwarding rails above: the
+    /// failure is an OMISSION (a property nobody wrote), and these gizmos have no common constructor to
+    /// instantiate reflectively. ⭐ The allow-list is the escape hatch: a gizmo that genuinely routes
+    /// spatially anchors its own primitives to the capture id, and must say so HERE, in one line, rather
+    /// than by silently omitting a property.</para>
+    /// </summary>
+    [Fact]
+    public void NoExclusiveFocusGizmoForgetsToAskForRawInput()
+    {
+        var root = RepoRoot();
+
+        // ⭐ Gizmos that legitimately route through the SPATIAL path — they anchor their drawn primitives
+        //   to the capture token, so DebugGizmoLayer.cs:428 lets those primitives through. ⛔ Empty today:
+        //   every exclusive gizmo in the repo drives itself from OnMouseEvent/OnKeyEvent.
+        var spatiallyRouted = new System.Collections.Generic.HashSet<string>(StringComparer.Ordinal);
+
+        var offenders = new System.Collections.Generic.List<string>();
+        int scanned = 0;
+
+        foreach (var dir in new[] { "FDP", "Hrot" })
+        foreach (var path in Directory.EnumerateFiles(
+                     Path.Combine(root, dir), "*Gizmo.cs", SearchOption.AllDirectories))
+        {
+            // ⛔ The example project is reference material, not a shipped surface.
+            if (path.Contains("GizmoMap.Example", StringComparison.Ordinal)) continue;
+            if (path.Contains($"{Path.DirectorySeparatorChar}obj{Path.DirectorySeparatorChar}",
+                              StringComparison.Ordinal)) continue;
+
+            var src = File.ReadAllText(path);
+            if (!src.Contains("RequiresExclusiveFocus => true", StringComparison.Ordinal)) continue;
+
+            scanned++;
+            var name = Path.GetFileNameWithoutExtension(path);
+            if (spatiallyRouted.Contains(name)) continue;
+            if (src.Contains("WantsRawInput => true", StringComparison.Ordinal)) continue;
+
+            offenders.Add(name);
+        }
+
+        Assert.True(scanned > 0, "the scan found no exclusive-focus gizmos at all — the pattern moved.");
+        Assert.True(offenders.Count == 0,
+            "these gizmos declare RequiresExclusiveFocus => true but never ask for raw input, so the "
+          + "terminal delivers them NOTHING on either path — they draw and ignore every click "
+          + $"(CE-259k): {string.Join(", ", offenders)}. Either declare WantsRawInput => true, or add "
+          + "the gizmo to this rail's `spatiallyRouted` allow-list and say why it is safe.");
+    }
+
+    private static string RepoRoot()
+    {
+        var dir = new DirectoryInfo(AppContext.BaseDirectory);
+        while (dir != null && !Directory.Exists(Path.Combine(dir.FullName, "docs"))) dir = dir.Parent;
+        Assert.NotNull(dir);
+        return dir!.FullName;
+    }
+
     private static string ReadHostSource(string project, string file)
     {
         var dir = new DirectoryInfo(AppContext.BaseDirectory);

@@ -103,6 +103,72 @@ disagree about the same entity: measured `2026-08-28`, entity 1001 held `Class: 
 CGF and `PersonalCar, AccelGain: 0` on SimHost. Reading "the cluster" without switching gives you one of
 those two answers with no indication which.
 
+### 5c.3 🔴🔴🔴 A FIELD IS ONLY TRUE ON THE NODE THAT OWNS ITS TIER — a zero on the other one is CORRECT
+
+§5c.2 tells you to switch. **This tells you what a switched read is worth**, and it is the trap that costs
+the most, because the wrong answer is *well-formed, plausible and silently wrong*.
+
+⛔ **First: the perspective name is NOT the subsystem name.**
+
+| subsystem | perspective to `POST` | role |
+|---|---|---|
+| CGF | **`Scenario`** ⚠ | Brain |
+| SimHost | `SimHost` | Muscle |
+| IG | `IG` | — |
+| ExCon | `ExCon` | no ECS world — entity routes answer `NOT_SUPPORTED_HERE` |
+
+📌 **Measured `2026-09-04`, and it produced a wrong root cause that was committed before it was caught.**
+`BehaviorState.ActiveBehaviorHash` read **`0`** on `SimHost` and was reported as *"no behaviour is running
+on the cluster"*. On `Scenario` the same entity, same instant, read **`-1606975122` — byte-identical to the
+editor.** The Brain was running the behaviour all along; the Muscle simply does not run the Brain tier, so
+its zero was **correct**.
+
+⭐⭐⭐ **The rule: before reading a field, ask which tier owns it. A zero, an absence, or a default on the
+other node is EXPECTED and is not evidence of anything.**
+
+| field | authoritative on | on the other node |
+|---|---|---|
+| `BehaviorState.ActiveBehaviorHash`, `BrainBTreeState`, `MissionPlanQueue`, `TargetMemory`, `ActiveSensorTracks` | **Brain** (`Scenario`) | 0 / empty **by design** |
+| `SensorContactList`, `VehicleState`, `NavState`, `WeaponChannel` execution | **Muscle** (`SimHost`) | may lag or differ |
+| `NavigationIntent` | written by the **Brain**, consumed by the **Muscle** | present on both — ⭐ compare them to prove the wire |
+| `Health`, `VehicleParams`, `PerceptionReceptor` | ⚠ **both, and they can DISAGREE** | scenario-authored on the Brain vs TKB-derived on the Muscle |
+
+⚠ **That last row is a live defect class, not a quirk** — measured the same day: `Health` `50/50` on the
+Brain (the scenario's value) and `3000/3000` on the Muscle (the TKB's), from one entity, one instant.
+
+### 5c.4 ⭐ `/diagnostics/architecture` is the ONE route that ignores the perspective
+
+Every other data route answers for the **active** perspective only. This one reports **every subsystem on
+the node at once** — modules, ECS systems, and per-translator `sentSamples`/`receivedSamples`. Use it to
+answer *"is this system even scheduled here?"* and *"is the wire carrying X?"* **without** switching, and
+before you start switching for anything else.
+
+### 5c.5 ⛔⛔ "NOT AVAILABLE" CAN MEAN "NOT WIRED" — and it reads exactly like "not there"
+
+📌 **Measured `2026-09-04` (`CE-169`).** `GET /behaviors` answered `"Behavior registry not available."` on a
+cluster node **that was resolving a behaviour hash to run a behaviour at that moment**. The registry was
+fully populated; the composition root had simply never handed it to the API. Two more reads were degraded
+by the same omission: `/entities/{id}/state` omitted the behaviour **name**, and `/trace` reported
+`tier: "unknown"`.
+
+⭐⭐ **The distinguishing test — one call, and it is the same shape as §5c.1:** ask the **editor** the same
+question. Identical hash + a resolvable name there ⇒ the thing exists and your instrument on the cluster is
+blind. ⛔ **Never let a "not available" become a premise** — it is the R-133 shape: an instrument that cannot
+tell *absent* from *unwired* will be read as evidence of absence.
+
+⚠ **Still open at the time of writing (`CE-171`):** `/trace` answers `tier: "unknown"` on every cluster
+node, because the tier is selected from the debug **sessions**, which the cluster's service constructor does
+not accept at all. `BrainTier` is present and correct on both hosts — ⛔ **do not read `tier: "unknown"` as
+"no BTree is running"**.
+
+### 5c.6 ⚠ Fixed-size array components come back COLLAPSED — you cannot decode them from `/entities/{id}`
+
+`BrainBlackboard.BehaviorParameters`, `SensorContactList.EntityIds`, `TargetMemory.ThreatScores` and every
+other inline fixed array render as **`{"FixedElementField": N}`** — one element, not the buffer. So an
+entity dump can tell you a contact **count** but never the behaviour's live **parameter values**.
+⛔ Do not plan a diagnosis around reading blackboard params out of an entity dump; there is no route for it
+today.
+
 ## 5d. ⭐ Localise a "it works on the editor, not on the cluster" report
 
 The same three reads, run on both hosts, turn a vague UI report into a located defect:

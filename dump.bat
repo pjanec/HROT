@@ -3,7 +3,9 @@ python C:\Utils\AITools\CodeDump\dump.py --overwrite --filter-file dmp-EXT.dumpf
 python C:\Utils\AITools\CodeDump\dump.py --overwrite --filter-file dmp-FDP.dumpfilter . FDP.Eng.txt 
 python C:\Utils\AITools\CodeDump\dump.py --overwrite --filter-file dmp-HROT.Eng.dumpfilter . HROT.Eng.txt 
 python C:\Utils\AITools\CodeDump\dump.py --overwrite --filter-file dmp-HROT.Subsys.dumpfilter . HROT.Sub.txt 
-python C:\Utils\AITools\CodeDump\dump.py --overwrite --filter-file dmp-HROT.Blueprint.Tests.dumpfilter . HROT.Blueprint.Tests.txt 
+::python C:\Utils\AITools\CodeDump\dump.py --overwrite --filter-file dmp-HROT.Blueprint.Tests.dumpfilter . HROT.Blueprint.Tests.txt 
+python C:\Utils\AITools\CodeDump\dump.py --overwrite --filter-file dmp-Docs.dumpfilter . Docs.All.txt 
+python C:\Utils\AITools\CodeDump\dump.py --overwrite --filter-file dmp-Stride.dumpfilter . Stride.All.txt
 
 ::python C:\Utils\AITools\CodeDump\dump.py --filter-file just-tests-no-ext-FDP.dumpfilter . FDP-Tests.txt 
 ::python C:\Utils\AITools\CodeDump\dump.py --filter-file just-tests-no-ext-HROT.dumpfilter . HROT-Tests.txt 

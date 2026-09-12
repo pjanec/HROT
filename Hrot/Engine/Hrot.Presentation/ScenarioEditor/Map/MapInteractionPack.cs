@@ -89,15 +89,25 @@ namespace Hrot.ScenarioEditor.Map
             ctx.ContributeExtras?.Invoke(
                 new MapInteractionRegistries(gizmoRegistry, statelessRegistry, settings, buffer, bus));
 
+            // ⭐⭐⭐ R-144 / §6.2b — THE ONE FOCUS SLOT, created HERE because this is the only production
+            //    site that builds both arbiters. 📐 The defect it closes is named two comments below and
+            //    was written in this file long before the ruling: the two systems "each guard exclusivity
+            //    only within themselves while sharing `bus`, so two 'exclusive' tools can hold focus at
+            //    once."  ⛔ One registry EACH would satisfy every signature and fix nothing — the whole of
+            //    68-A is that this single instance reaches both constructors.
+            // ⚠ Q27-B, "per subsystem": the slot's lifetime is the map's, which is this object's.
+            var focus = new GizmoFocusRegistry();
+
             var globalManager = new GlobalGizmoManager(
-                buffer, bus, breakpointManager: ctx.BreakpointManager);
+                buffer, bus, breakpointManager: ctx.BreakpointManager, focus: focus);
 
             var dataDriven = new DataDrivenGizmoSystem(
                 gizmoRegistry,
                 buffer,
                 isSelectedPredicate: ctx.IsSelectedPredicate,
                 interactionBus: bus,
-                breakpointManager: ctx.BreakpointManager);
+                breakpointManager: ctx.BreakpointManager,
+                focus: focus);
 
             // 🔒 NO isSelectedPredicate here, ever. On StatelessGizmoSystem the predicate is ONE BLANKET
             // GATE over every projector the host owns — the entity avatars, the routes, the tactical areas,
@@ -118,9 +128,56 @@ namespace Hrot.ScenarioEditor.Map
             var selfCheck = new MapSelfCheckSystem(
                 buffer, () => groupRef?.Enabled ?? false, ctx.ReportMapDiagnostic);
 
+            // ⭐⭐⭐ CE-259r — THE ORDER IS LOAD-BEARING, AND `stateless` MUST PRECEDE `dataDriven`.
+            //   📐 Measured 2026-09-10: the host clears the primitive buffer (EndFrame) immediately before
+            //     ticking this group, so a hit-test dispatched INSIDE the group sees only what earlier
+            //     members have emitted THIS frame. With dataDriven first, EntityPickerGizmo's hover
+            //     hit-tested an EMPTY buffer (frame=0, anchored=0) => Entity.Null every frame =>
+            //     _hoveredValid never true => amber crosshair, and its left-release pick arm unreachable.
+            //     ⛔ NOT a "partly filled frame" problem — the buffer is EMPTY; it is pure ordering.
+            //   ⭐ The entity pick boxes come from the STATELESS projector (EntityPresentationGizmo), so
+            //     running it first is what makes the picker's hover resolve.
+            //   🔴🔴🔴 CORRECTED 2026-09-10, SAME DAY, BY AN OPERATOR RUN. The first fix put `stateless`
+            //     second (after globalManager) and DID NOT WORK — the crosshair stayed amber.
+            //     📐 CAUSE: the production picker is registered on ToolArbiter.Global
+            //     (PickerToolHost.cs:116, g.Register at :173/:272), so its hover hit-test runs inside
+            //     EntityPickerGizmo.OnDragUpdate (:141-146) dispatched by GLOBALMANAGER — the FIRST group
+            //     member — not by dataDriven. Swapping stateless past dataDriven alone left globalManager
+            //     ahead of it, so the buffer was still empty.
+            //     ⛔ MY HEADLESS PROBE PUT THE PICKER IN dataDriven and therefore measured a scenario that
+            //     does not exist in production. That is the same mistake the CE-259q rail made and wrote
+            //     down as a lesson — "mirror the ARBITERS, not just the gesture" — repeated.
+            //     ⇒ `stateless` must precede EVERY arbiter that dispatches interactions, so it goes FIRST.
+            //   ⚠⚠ This ALSO flips the z-order tiebreak: emission order breaks DebugLayer ties
+            //     (DebugGizmoLayer.cs:510) and pick boxes + tool handles are both layer 0 => a HANDLE now
+            //     beats an entity box. 🔒 Ruled CORRECT for an ACTIVE tool (user, 2026-09-10) — and safe
+            //     only because §4.7i makes a SUSPENDED tool draw no handles at all. ⛔ Do not reorder this
+            //     back, and do not ship it without §4.7i.
+            //   📄 docs/UX/UX_Feature_Tool_Model.md §4.7g.1 (the frame as a sequence) and §4.7i.
             var group = new TogglablePostSimulationGroup(
-                "GizmoExecution", globalManager, dataDriven, stateless, selfCheck);
+                "GizmoExecution", stateless, globalManager, dataDriven, selfCheck);
             groupRef = group;
+
+            // ⭐⭐⭐ UXI-07 step 3b — THE ONE ARBITER, built here so all FIVE hosts get it.
+            // 📐 The defect is structural in the two lines above: globalManager and dataDriven each guard
+            //    exclusivity only within themselves while sharing `bus`, so two "exclusive" tools can hold
+            //    focus at once. ⇒ the arbiter belongs where the pair is CONSTRUCTED, not behind a system
+            //    only two of the five hosts compose.
+            // 🔒 Q27-B: "per subsystem" — the arbiter's lifetime is the map's, which is this object's.
+            // ⭐ Registering the tool set here too is what makes the user's 2026-08-10 ruling true by
+            //    construction: "all map subsystems share the FULL tool set … never set membership."
+            //    A host that cannot service one still has it, and it REPORTS why (ruling 49).
+            var tools = new Hrot.ScenarioEditor.Tools.ToolController(
+                () => globalManager, () => dataDriven, ctx.ReportUnserviceableTool);
+
+            Hrot.ScenarioEditor.Tools.ScenarioToolRegistrations.RegisterAll(
+                tools,
+                world:               () => ctx.World,
+                gizmos:              () => dataDriven,
+                globalGizmos:        () => globalManager,
+                startPlacementMode:  ctx.StartPlacementMode,
+                reportUnserviceable: ctx.ReportUnserviceableTool,
+                measureUnits:        ctx.MeasureUnits);
 
             // 🔴 GZH-003 headless-first, but NOT "disabled for everyone" (§3.2d ①): the only production
             // driver of AddListener() is PerspectiveCoordinatorSystem, so a standalone IG or editor has no
@@ -132,7 +189,7 @@ namespace Hrot.ScenarioEditor.Map
 
             return new MapInteraction(
                 buffer, bus, gizmoRegistry, statelessRegistry, settings,
-                globalManager, dataDriven, stateless, group, gate, selfCheck);
+                globalManager, dataDriven, stateless, group, gate, selfCheck, tools);
         }
     }
 }

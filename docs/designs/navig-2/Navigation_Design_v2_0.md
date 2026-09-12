@@ -1124,7 +1124,27 @@ The strategy mirrors the animation subsystem's approach (DD-Fake / FakeAnimation
 
 All three share a single `NavTestMap` data source so the three views of the world stay consistent. The map can be authored as JSON (canonical, version-controlled, shareable fixtures) or constructed in-code via a fluent DSL (quick test setup).
 
-**Diagnostic visibility.** The `FakeNavigationInspectorWindow` (DD-Fake-Nav §7) is an ImGui window registered through the engine's standard `IWindowRegistrar` pattern, with three tabs (Navmesh / Crowd / Volumetric) showing live state for the loaded map and every active agent. It exports a JSON snapshot to clipboard for bug reports and diff-based debugging. The same window remains available after the real backends land — at that point it operates on the real backends' state (or stays hidden if the real backends don't expose equivalent introspection).
+**Diagnostic visibility.** ⛔⛔ **REMOVED `2026-09-09` — see the note below.** ~~The `FakeNavigationInspectorWindow` (DD-Fake-Nav §7) is an ImGui window registered through the engine's standard `IWindowRegistrar` pattern, with three tabs (Navmesh / Crowd / Volumetric) showing live state for the loaded map and every active agent. It exports a JSON snapshot to clipboard for bug reports and diff-based debugging. The same window remains available after the real backends land — at that point it operates on the real backends' state (or stays hidden if the real backends don't expose equivalent introspection).~~
+
+> ⛔⛔⛔ **SUPERSEDED `2026-09-09` — THE WINDOW IS DELETED.** 🔒 **User ruling, verbatim:** *"remove
+> fake_nav_inspector"*, after being shown what it actually contained.
+>
+> 📐 **Measured before removal:** three of its four tabs were literal `"(not yet implemented)"` stubs
+> *(Crowd, Volumetric, Paths' table)*; the only real content was the backend label and a
+> corridor-preview waypoint table. ⛔⛔ **And its Navmesh tab matched only `EngineBackedNavmeshProvider`
+> and `FakeNavmeshProvider`, falling through to `"No navmesh provider registered"` for anything else** —
+> so on a host running `DotRecastNavmeshProvider` *(the Stride mode-2 node, which bakes a real navmesh:
+> 49 Vehicle polys / 108 Infantry, measured `2026-09-09`)* **it reported the opposite of the truth.**
+>
+> ⚠ **This paragraph's own escape hatch — *"or stays hidden if the real backends don't expose equivalent
+> introspection"* — anticipated exactly this case and chose HIDING.** ⭐ The ruling goes further and
+> deletes, on the argument that a diagnostic which states something false is worse than an absent one.
+>
+> ⚠ **Left in place, deliberately:** `NavigationSnapshotBuilder` *(`Fdp.Toolkits/Navigation/`)*, which
+> backed the window's "Snapshot JSON" button. 📐 After this removal its only remaining callers are its
+> own tests in `Fdp.Toolkits.Tests`. ⛔ **NOT deleted** — different lane, and *"unreferenced is not
+> unintentional"*: it is a headless-safe JSON dump of navigation state that any future diagnostic can
+> reuse. ⇒ **flagged, not swept.**
 
 **The integration tests run against the fakes.** DD-Tests-Nav specifies twelve integration scenarios (simple corridor, L-bend follow, two-layer routing, off-mesh jump, replan on patch, replan with auto-refresh, crowd avoidance, unreachable failure, frustration watchdog, flying routing, naval layer, plus the `PlanRoute`/`FollowPath`/`FetchPathDetails` BTree workflow) that exercise the assembled Brain ↔ Muscle ↔ Solver pipeline end-to-end with the fakes as the runtime. Each scenario uses a canonical `NavTestMap` fixture and asserts on observable outcomes (events fired, final positions, status field values, `BrainPathRegistry` cache state). When a future real-backend lands, the same scenarios become regression tests by swapping the `NavigationFakesModule` for a `NavigationRealBackendsModule` with identical lifecycle.
 

@@ -164,7 +164,7 @@ public class TheDescriptorMapIsWiredTests
 
         var module = new Hrot.Network.Replication.NedReplicationModule(
             participant:          null,
-            role:                 Hrot.Common.NodeRole.MuscleGround,
+            role:                 Fdp.Core.NodeRole.MuscleGround,
             entityMap:            new Fdp.Toolkit.Replication.Services.NetworkEntityMap(),
             geoTransform:         Hrot.Map.Common.HrotEnvironment.CreateGeoTransform(),
             eventBus:             new FdpEventBus(),

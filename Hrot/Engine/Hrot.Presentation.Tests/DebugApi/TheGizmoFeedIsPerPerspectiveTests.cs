@@ -254,6 +254,79 @@ public sealed class TheGizmoFeedIsPerPerspectiveTests
     /// *"this node knows no templates"*, which is a claim about DATA. *"This node has no catalog"* is a
     /// claim about CAPABILITY. ⚠ The old silent default made the second indistinguishable from the first.
     /// </summary>
+    // ── CE-171 — the extraction service is per-perspective too ───────────────────
+
+    /// <summary>
+    /// <c>CE-171</c>. The debug API used to BUILD its own <c>EntityStateExtractionService</c> from the
+    /// active world alone. One built without a <c>ScenarioSerializer</c> silently takes the reflection
+    /// path, so every inline fixed array collapses to a single <c>FixedElementField</c> and a
+    /// behaviour's decoded <c>BehaviorParameters</c> are lost — on the very node that holds them.
+    /// The provider now carries the subsystem's OWN service so the API can prefer it.
+    /// </summary>
+    [Fact]
+    public void A_provider_reports_its_own_extraction_service_and_absence_is_absence()
+    {
+        var mine = new StubExtraction();
+
+        var has = new SubsystemDebugProvider("CGF", "Scenario", extraction: () => mine);
+        var has_not = new SubsystemDebugProvider("ExCon", "ExCon");
+
+        Assert.Same(mine, has.Extraction);
+        Assert.Null(has_not.Extraction);
+    }
+
+    /// <summary>
+    /// Lazy, for the reason every other accessor here is: CGF builds its extraction service during
+    /// window registration, long AFTER the composition root builds the provider. A value captured at
+    /// construction would be null forever — the exact shape of the defect this fixes.
+    /// </summary>
+    [Fact]
+    public void The_extraction_service_is_read_late_so_a_provider_built_before_it_exists_still_sees_it()
+    {
+        Fdp.Toolkit.Diagnostics.IEntityStateExtractionService? notYet = null;
+        var provider = new SubsystemDebugProvider("CGF", "Scenario", extraction: () => notYet);
+
+        Assert.Null(provider.Extraction);
+
+        var built = new StubExtraction();
+        notYet = built;
+
+        Assert.Same(built, provider.Extraction);
+    }
+
+    /// <summary>
+    /// And the dispatcher must answer with the ACTIVE perspective's service — reading the Brain's
+    /// entity through the Muscle's projection would decode nothing, silently.
+    /// </summary>
+    [Fact]
+    public void The_dispatcher_answers_with_the_active_perspectives_extraction_service()
+    {
+        var brain  = new StubExtraction();
+        var muscle = new StubExtraction();
+        string current = "Scenario";
+
+        var dispatcher = new PerspectiveScopedDispatcher(
+            new[]
+            {
+                new SubsystemDebugProvider("CGF",     "Scenario", extraction: () => brain),
+                new SubsystemDebugProvider("SimHost", "SimHost",  extraction: () => muscle),
+            },
+            () => current,
+            null);
+
+        Assert.Same(brain, dispatcher.Extraction);
+
+        current = "SimHost";
+        Assert.Same(muscle, dispatcher.Extraction);
+    }
+
+    private sealed class StubExtraction : Fdp.Toolkit.Diagnostics.IEntityStateExtractionService
+    {
+        public IReadOnlyList<Fdp.Toolkit.Diagnostics.EntityStateDumpDto> ExtractEntities(
+            IReadOnlyList<long>? networkIds = null)
+            => System.Array.Empty<Fdp.Toolkit.Diagnostics.EntityStateDumpDto>();
+    }
+
     [Fact]
     public void A_provider_reports_its_own_catalog_and_absence_is_absence()
     {

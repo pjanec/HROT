@@ -114,15 +114,24 @@ public static class BlueprintRuntimeWiring
     }
 
     /// <summary>
-    /// Registers the three blackboard tier components on <paramref name="world"/> if they are
-    /// not already present. Idempotent-safe to expose separately for hosts that register
-    /// components in a dedicated block.
+    /// Registers the blackboard tier components on <paramref name="world"/>. Idempotent.
+    ///
+    /// <para>⚠⚠ <b>THE LIST MOVED <c>2026-09-03</c>.</b> This method used to hold the three
+    /// <c>RegisterComponent</c> calls itself, and because its only production caller is the Editor,
+    /// <b>every other host was missing them</b> — a <c>--mode all</c> cluster aborted on its first live
+    /// load with <i>"Component BlueprintBlackboard1024 is not registered"</i> from
+    /// <c>BehaviorIngressSystem</c> on CGF.</para>
+    ///
+    /// <para>⭐ The list now lives at
+    /// <see cref="Fdp.Toolkit.Blueprints.Components.BlueprintBlackboardTiers"/> — in the same assembly as
+    /// the components and the system that needs them — and is called for every node by
+    /// <c>HrotSharedComponentRegistry.RegisterAll</c>. ⛔ This method is kept as a forwarder so the
+    /// Editor's wiring path is unchanged; it is no longer a second list.
+    /// 📄 <c>docs/DESIGN_Entity_Creation_Unification.md</c> §2.3b.</para>
     /// </summary>
     public static void RegisterTierComponents(EntityRepository world)
     {
         if (world is null) throw new ArgumentNullException(nameof(world));
-        world.RegisterComponent<BlueprintBlackboard1024>();
-        world.RegisterComponent<BlueprintBlackboard4096>();
-        world.RegisterComponent<BlueprintBlackboard16384>();
+        Fdp.Toolkit.Blueprints.Components.BlueprintBlackboardTiers.RegisterAll(world);
     }
 }

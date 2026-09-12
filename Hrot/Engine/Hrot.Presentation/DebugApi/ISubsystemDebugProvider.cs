@@ -68,6 +68,21 @@ public interface ISubsystemDebugProvider
     NetworkEntityMap? EntityMap { get; }
 
     /// <summary>
+    /// ⭐⭐⭐ <b>THIS SUBSYSTEM'S OWN entity-state extraction service — <c>CE-171</c>.</b>
+    ///
+    /// <para>⛔⛔ Without it the debug API MANUFACTURES one from the world alone, and a service built with
+    /// no <c>ScenarioSerializer</c> takes <see cref="Fdp.Toolkit.Diagnostics.EntityStateExtractionService"/>'s
+    /// REFLECTION fallback instead of the translator pipeline. ⇒ every inline fixed array — a behaviour's
+    /// <c>BrainBlackboard.BehaviorParameters</c>, a <c>SensorContactList</c>'s ids — collapses to a single
+    /// <c>FixedElementField</c>, and the typed DTO those translators exist to emit is silently lost.</para>
+    ///
+    /// <para>⭐ A subsystem that already built a serializer-backed service returns it; one that has none
+    /// returns <see langword="null"/> and the API falls back as before. ⛔ Never fabricate one here — the
+    /// point is to use the node's REAL projection, not a second, poorer one.</para>
+    /// </summary>
+    Fdp.Toolkit.Diagnostics.IEntityStateExtractionService? Extraction { get; }
+
+    /// <summary>
     /// ⭐⭐⭐ <b>The role-correct drive seam.</b> On a slave this is the subsystem's own
     /// <c>ClusterTimeTransportAdapter</c>, so a step issued here travels the SAME path the operator's
     /// button does: <c>StepTimeIntent</c> → its own event bus → DDS → the master.
@@ -272,6 +287,7 @@ public sealed class SubsystemDebugProvider : ISubsystemDebugProvider
 {
     private readonly Func<EntityRepository?>? _world;
     private readonly Func<NetworkEntityMap?>? _entityMap;
+    private readonly Func<Fdp.Toolkit.Diagnostics.IEntityStateExtractionService?>? _extraction;
     private readonly Func<ITimeTransportFacade?>? _drive;
     private readonly Func<Fdp.Toolkit.Diagnostics.Gizmos.DebugPrimitiveBuffer?>? _gizmoBuffer;
     private readonly Func<Hrot.UI.Common.Facades.IMissionEditorService?>? _missionEditor;
@@ -302,6 +318,7 @@ public sealed class SubsystemDebugProvider : ISubsystemDebugProvider
         string perspective,
         Func<EntityRepository?>? world = null,
         Func<NetworkEntityMap?>? entityMap = null,
+        Func<Fdp.Toolkit.Diagnostics.IEntityStateExtractionService?>? extraction = null,
         Func<ITimeTransportFacade?>? drive = null,
         // ⭐⭐ BP-487 — the node's map feed. ⚠ A Func for the SAME measured reason as `drive` above: CGF
         //    builds `_cgfGizmoBuffer` in Initialize, i.e. AFTER the composition root builds this provider.
@@ -325,6 +342,7 @@ public sealed class SubsystemDebugProvider : ISubsystemDebugProvider
         Perspective   = perspective   ?? throw new ArgumentNullException(nameof(perspective));
         _world        = world;
         _entityMap    = entityMap;
+        _extraction = extraction;
         _drive        = drive;
         _gizmoBuffer  = gizmoBuffer;
         _missionEditor = missionEditor;
@@ -407,10 +425,74 @@ public sealed class SubsystemDebugProvider : ISubsystemDebugProvider
         };
     }
 
+    /// <summary>
+    /// ⭐⭐⭐ <b><c>CE-259am</c> — read <see cref="ISubsystemDebugProvider.EntityMap"/> off the subsystem's
+    /// OWN world singleton.</b> ⭐ The exact analog of <see cref="TkbFrom"/>, and the same
+    /// one-implementation argument: 📐 the <see cref="NetworkEntityMap"/> is a world singleton in every
+    /// host that has one — <c>CgfSubsystem.cs:637</c>, <c>SimHostApp.cs:546</c>,
+    /// <c>EditorSubsystem.cs:1122</c>, and <c>ReplayBrowserSubsystem.EnsureNetworkEntityMap</c> — so a
+    /// fourth hand-written <c>HasSingletonManaged</c> copy would be a fourth place to drift.
+    /// 📄 <c>docs/DESIGN_Gizmo_Anchor_Identity.md</c> §6.7 *(why the map became a singleton)*.
+    ///
+    /// <para>⭐⭐ <b>Why a helper rather than <c>() =&gt; _someField</c>, which three hosts still do.</b>
+    /// ⛔ A captured field is only correct while the subsystem's world is FIXED.
+    /// <c>ReplayBrowserSubsystem</c> REPLACES its repository on every seek, step and view-mode switch, and
+    /// each replacement gets a freshly rebuilt map ⇒ a field capture there reports the map of a world the
+    /// host stopped using. ⭐ Reading the singleton off the CURRENT world is correct for both shapes, and
+    /// it carries <see cref="TkbFrom"/>'s stronger property too: what the API reports is provably the
+    /// instance this node's own systems resolve against, not a private handle that may have diverged.</para>
+    ///
+    /// <para>⚠ <b>NOT migrated in <c>CE-259am</c>, deliberately, and named so it is not mistaken for an
+    /// oversight:</b> CGF, SimHost and IG still pass their private field. 📐 Each of those fields IS the
+    /// instance its host registers as the singleton, so they are correct today — ⛔ but they are correct by
+    /// CONVENTION, and swapping them is a behaviour change in three hosts that deserves its own
+    /// measurement rather than riding along with a ReplayBrowser fix.</para>
+    /// </summary>
+    public static Func<NetworkEntityMap?> EntityMapFrom(Func<EntityRepository?> world)
+    {
+        if (world is null) throw new ArgumentNullException(nameof(world));
+        return () =>
+        {
+            var w = world();
+            return w is not null && w.HasSingletonManaged<NetworkEntityMap>()
+                ? w.GetSingletonManaged<NetworkEntityMap>()
+                : null;
+        };
+    }
+
+    /// <summary>
+    /// ⭐⭐⭐ <b><c>CE-163</c> — the ONE way an ECS node contributes
+    /// <see cref="ISubsystemDebugProvider.ClusterState"/>: read its OWN <see cref="ClusterSlave"/>.</b>
+    /// ⭐ Same one-implementation argument as <see cref="TransitionsVia"/> and <see cref="TkbFrom"/> —
+    /// ⛔ three hand-written copies of one lambda would be three places to drift, and the defect this
+    /// fixes was precisely that three nodes each independently passed nothing.
+    ///
+    /// <para>📄 <c>docs/DESIGN_Mcp_Diagnostics_Federation.md</c> §1c. 🔒 The ruling this obeys:
+    /// <i>"every ECS node must use the same shared code"</i> — ⛔ so this is passed by CGF, SimHost AND
+    /// IG, not by whichever one happened to need it.</para>
+    ///
+    /// <para>⚠⚠ <b>WHAT IT REPORTS.</b> <see cref="ClusterSlave.LocalClusterState"/> — <b>this node's
+    /// COMMITTED state</b>, ⛔ not the cluster's. ⭐ That is the right fact for a readiness poll *(the
+    /// caller asks "is THIS node at the target?")* and it is the one an ECS node can answer without any
+    /// UI. ⛔ It is NOT the cluster-wide view: that is <c>ClusterUiCache.CurrentState</c>, which only a
+    /// subsystem rendering cluster UI builds — ⭐ <b>two different facts, not two implementations of
+    /// one.</b> 📄 <c>ExConSubsystem</c> keeps the cache arm for exactly that reason, and
+    /// <c>PerspectiveScopedDispatcher.ClusterStateAnyNode</c> still prefers it in <c>--mode all</c>.</para>
+    ///
+    /// <para>⚠ Re-read on every access, like every accessor here — a subsystem's slave is created during
+    /// network init and nulled on shutdown.</para>
+    /// </summary>
+    public static Func<ClusterState?> ClusterStateFrom(Func<ClusterSlave?> clusterSlave)
+    {
+        if (clusterSlave is null) throw new ArgumentNullException(nameof(clusterSlave));
+        return () => clusterSlave()?.LocalClusterState;
+    }
+
     public string SubsystemName { get; }
     public string Perspective { get; }
     public EntityRepository? World => _world?.Invoke();
     public NetworkEntityMap? EntityMap => _entityMap?.Invoke();
+    public Fdp.Toolkit.Diagnostics.IEntityStateExtractionService? Extraction => _extraction?.Invoke();
     public ITimeTransportFacade? Drive => _drive?.Invoke();
     public Fdp.Toolkit.Diagnostics.Gizmos.DebugPrimitiveBuffer? GizmoBuffer => _gizmoBuffer?.Invoke();
     public Hrot.UI.Common.Facades.IMissionEditorService? MissionEditor => _missionEditor?.Invoke();
@@ -503,4 +585,24 @@ public static class DebugCapabilities
     /// capability is actually missing.</para>
     /// </summary>
     public const string ScenarioLoad = "scenario.load";
+
+    /// <summary>
+    /// ⭐⭐ <c>CE-193</c> — <b>data breakpoints</b> (<c>/breakpoints/*</c>, <c>/breakpoints/state</c>).
+    /// </summary>
+    /// <remarks>
+    /// 📌 <b>Why this key exists.</b> Every breakpoint endpoint threw a bare
+    /// <c>InvalidOperationException("Breakpoint manager not available.")</c>, which the host turned into a
+    /// <b>500</b> — so <i>"this host wires no breakpoint manager"</i> and <i>"the breakpoint code crashed"</i>
+    /// were indistinguishable to a caller. ⛔ That is the same disease as <c>CE-190</c>/<c>CE-191</c> one
+    /// level up: an instrument that cannot tell ABSENT from BROKEN.
+    /// ⇒ ⭐ the absence now travels as <see cref="NotSupportedHereException"/> ⇒ <b>501</b> plus this key,
+    /// which is the shape <c>Architect_Question_54</c> Q54-1 Option C already chose for exactly this case.
+    /// </remarks>
+    public const string Breakpoints = "debug.breakpoints";
+
+    /// <summary>
+    /// ⭐ <c>CE-193</c> — <b>ECS record / replay</b> (<c>/recording/*</c>, <c>/replay/*</c>).
+    /// Same reasoning as <see cref="Breakpoints"/>: its three guards threw and read as a crash.
+    /// </summary>
+    public const string RecordReplay = "debug.recordReplay";
 }

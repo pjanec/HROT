@@ -194,8 +194,8 @@ the suite caught the other, which is what the suite is for.
 
 | where | what it says |
 |---|---|
-| **`.dev/blueprint-finalize/reports/BATCH-BB1B-REPORT.md:103`** | ⭐ designs "STATIC PARAMETERS" as the authoring surface for a bound variable's `DefaultValueJson` |
-| **`.dev/blueprint-finalize/reviews/BATCH-BB1B-REVIEW.md:21`** | ⚠ files *the composition root not wiring its accessor* as a **defect** (BB1C CT0) |
+| **`.dev/_DONE/blueprint-finalize/reports/BATCH-BB1B-REPORT.md:103`** | ⭐ designs "STATIC PARAMETERS" as the authoring surface for a bound variable's `DefaultValueJson` |
+| **`.dev/_DONE/blueprint-finalize/reviews/BATCH-BB1B-REVIEW.md:21`** | ⚠ files *the composition root not wiring its accessor* as a **defect** (BB1C CT0) |
 
 📐 **That wiring has since landed** — `EditorSubsystem:2135/2153` pass `ResolveExpressionTargetField` ⇒
 **the panel runs.** 📐 **Track C's `VariableEditLauncher`** — its intended replacement

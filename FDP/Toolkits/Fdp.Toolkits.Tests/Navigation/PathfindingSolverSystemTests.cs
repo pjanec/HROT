@@ -123,7 +123,9 @@ namespace Fdp.Toolkit.Navigation.Tests
         public void NavigationSolverModule_RegistersMaterializationSystem()
         {
             // Arrange
-            var module       = new NavigationSolverModule(default(RoadNetworkBlob));
+            // B3: the pool is required — the module must share the node's pool, never default one.
+            using var pool   = new TrajectoryPoolManager();
+            var module       = new NavigationSolverModule(default(RoadNetworkBlob), pool);
             var mockRegistry = new Mock<ISystemRegistry>();
 
             // Act

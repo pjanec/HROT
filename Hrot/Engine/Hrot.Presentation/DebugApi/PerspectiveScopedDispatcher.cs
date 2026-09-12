@@ -118,6 +118,13 @@ public sealed class PerspectiveScopedDispatcher
     /// <summary>⭐ The active perspective's entity map, or <see langword="null"/>.</summary>
     public NetworkEntityMap? EntityMap => Active()?.EntityMap;
 
+    /// <summary>
+    /// ⭐ The ACTIVE perspective's own extraction service, or <see langword="null"/> when that subsystem
+    /// has none. ⛔ <c>CE-171</c>: consumers must PREFER this over building their own — a self-built one
+    /// has no <c>ScenarioSerializer</c> and therefore no translator pipeline.
+    /// </summary>
+    public Fdp.Toolkit.Diagnostics.IEntityStateExtractionService? Extraction => Active()?.Extraction;
+
     /// <summary>⭐ The active perspective's drive facade, or <see langword="null"/>.</summary>
     public ITimeTransportFacade? Drive => Active()?.Drive;
 

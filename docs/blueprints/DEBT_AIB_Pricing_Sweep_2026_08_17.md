@@ -9,7 +9,7 @@ note: a sweep record, not a design. Rows marked STILL REAL are open debt; rows m
 
 > 📌 **Batch 78, item 3.** ⛔ **Nothing was fixed** — the deliverable is this table, and a fix hidden
 > inside a sweep is a diff nobody reviewed for its own sake.
-> 📐 **Measured on the tree at `9d8b214`.** Source of the rows: `.dev/btree-ai-action-binding/DEBT-TRACKER.md`.
+> 📐 **Measured on the tree at `9d8b214`.** Source of the rows: `.dev/_DONE/btree-ai-action-binding/DEBT-TRACKER.md`.
 > ⛔ **`-030` excluded by the handoff** *(the `Fdp.Toolkits.Tests` race — nothing to price)*.
 > ⚠ **`-012` is the cautionary id** — described and never filed; that number belongs to a different,
 > resolved row. ⭐ **Every row below was read in full before being priced.**

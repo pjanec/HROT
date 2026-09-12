@@ -222,8 +222,10 @@ public class IgApplication : IDisposable
     // -- ClusterSlave (CGF1-S0104 / CMC-S016) ? wired in InitializeNetwork ------
     private Fdp.Toolkit.Orchestration.ClusterSlave? _clusterSlave;
     // CMC-S016: orchestration bus + slave translator (Option C).
-    private Fdp.Core.FdpEventBus?                             _igOrchestrationBus;
-    private Hrot.Common.Orchestration.NodeOpSlaveTranslator?    _igSlaveTranslator;
+    // ⛔ CE-164 — `_igOrchestrationBus` is GONE. There is ONE orchestration bus, `_context.EventBus`,
+    //    swapped ONCE per frame at the end of Update() (see the swap there). Two swaps of one
+    //    double-buffered bus in a frame would discard whatever was published between them.
+    private Hrot.Core.Network.ISlaveOrchestrationTranslator?  _slaveTranslator;
 
     // ?? HrotNodeBuilder infrastructure context (EAM-M002) ?????????????????????
     private HrotNodeContext? _context;
@@ -246,6 +248,20 @@ public class IgApplication : IDisposable
     private GizmoUndoStack?             _gizmoUndoStack;
     private GlobalGizmoManager?         _globalGizmoManager;
     private DataDrivenGizmoSystem?       _igDataDrivenGizmoSystem;
+
+    /// <summary>
+    /// ⭐⭐ <c>UXI-07</c> step 3b — this host's ONE tool arbiter, built by <c>MapInteractionPack</c> beside
+    /// the two focus arbiters it reconciles. 🔒 <c>Q27-B</c>: one per map subsystem.
+    /// </summary>
+    private Hrot.ScenarioEditor.Tools.ToolController? _igToolController;
+
+    /// <summary>⭐ <c>UXI-07</c> step 4b — the shared picker protocol (§4.12). ⚠ A RESOLVER for the
+    /// controller: this field is built once, but <c>_igToolController</c> is assigned later.</summary>
+    private Hrot.ScenarioEditor.Tools.PickerToolHost? _pickerToolsBacking;
+
+    private Hrot.ScenarioEditor.Tools.PickerToolHost _pickerTools =>
+        _pickerToolsBacking ??= new Hrot.ScenarioEditor.Tools.PickerToolHost(
+            () => _igToolController, () => _globalGizmoManager);
     private FdpEventBus?                 _interactionBus;
     private GizmoExecutionController?    _gizmoController;
     // GZH-003: provides Phase-5 perspective switching with ref-counted gate.
@@ -256,8 +272,6 @@ public class IgApplication : IDisposable
     internal Func<bool> IsActiveMapOwner { set => _isActiveMapOwner = value; }
     private long?                        _activeSequenceId;
     private PointSequenceGizmo?          _activeSequenceGizmo;
-    private long?                        _activeLocationPickerId;
-    private long?                        _activeEntityPickerId;
 
     // -- Optional IG translator provider (injected via InitializeEmbedded; null = no NED translators)
     private Hrot.Core.Network.IIgTranslators? _igTranslatorsProvider;
@@ -282,6 +296,20 @@ public class IgApplication : IDisposable
     /// Computed once in <see cref="InitializeEmbedded"/> and reused at runtime.
     /// </summary>
     private int _effectiveInstanceId;
+
+    /// <summary>
+    /// ⭐⭐⭐ The node's LOCAL entity-creation request source (host (f)). IG's authoring tools enqueue
+    /// INTENTS here instead of publishing <c>SpawnEntityCommand</c> ORDERS onto the event bus; the shared
+    /// pipeline drains it, and <c>ForwardingEntityCreationRequestSource</c> decides — per request — whether
+    /// this node services it or the NED egress sends it to the node that should.
+    ///
+    /// <para>⛔ <b>Read through to the pack, never a second instance.</b> The source is created by
+    /// <c>EntityCreationPack.Build</c> and published by <c>IgNodeBootstrapper</c>; owning a parallel one
+    /// here would be the duplicate-mechanism trap — the tools would fill a queue nothing drains.</para>
+    /// 📄 <c>docs/DESIGN_Entity_Creation_Unification.md</c> §3.4b.
+    /// </summary>
+    internal ScenarioEntityCreationRequestSource? LocalEntityCreationRequests
+        => _igBootstrapper?.LocalEntityCreationRequests;
 
     // -- Task 5: IG-to-ExCon event translator state ----------------------------------------------
 
@@ -488,7 +516,11 @@ public class IgApplication : IDisposable
     public MapPickServiceBridge? GetMapPickBridge()
     {
         if (_mapPickBridge == null && _canvas != null)
-            _mapPickBridge = new MapPickServiceBridge(new CanvasMapPickAdapter(_canvas, _world, globalGizmoManager: _globalGizmoManager), _world);
+            _mapPickBridge = new MapPickServiceBridge(new CanvasMapPickAdapter(_canvas, _world, globalGizmoManager: _globalGizmoManager,
+                    // 🔒 UXI-07 step 4b — a RESOLVER: this adapter is built here, but _igToolController
+                    //    is not assigned until the pack is built further down (:816). An instance would
+                    //    be permanently null.
+                    tools: () => _igToolController), _world);
         return _mapPickBridge;
     }
 
@@ -783,6 +815,13 @@ public class IgApplication : IDisposable
                             new Hrot.ScenarioEditor.Gizmos.MissionPresentationGizmo(ctx.GeoTransform!),
                             new[] { typeof(SimTransform), typeof(SelectionState) });
                     },
+                    // ⭐⭐⭐ UXI-07 step 4a — the SHARED Measure arm pulls IG's unit preference from here,
+                    //   which is what let MeasureToolGizmoAdapter stop building a SECOND MeasureGizmo
+                    //   just to push units onto it (ruling 9; §4.9c).
+                    // ⚠ Resolved at CALL TIME: the adapter is constructed AFTER this pack.
+                    MeasureUnits = () =>
+                        _measureToolGizmoAdapter?.ReadUnits()
+                            ?? Hrot.ScenarioEditor.Gizmos.MeasureDisplayUnits.Meters,
                 });
 
             _gizmoBuffer            = igMapInteraction.Buffer;
@@ -791,6 +830,7 @@ public class IgApplication : IDisposable
             _gizmoSettingsRegistry  = igMapInteraction.Settings;
             _interactionBus         = igMapInteraction.InteractionBus;
             _igDataDrivenGizmoSystem = igMapInteraction.DataDrivenSystem;
+            _igToolController        = igMapInteraction.Tools;
             _gizmoUndoStack         = new GizmoUndoStack();
             // ⚠ _globalGizmoManager is deliberately assigned LATER, at its original position, so that
             // MapCommandController below keeps receiving exactly what it received before this migration.
@@ -824,15 +864,25 @@ public class IgApplication : IDisposable
                     _canvas,
                     ctx.World.Bus,
                     dto => _networkAdapter?.WriteMapCommandAck(dto),
+                    LocalEntityCreationRequests ?? throw new InvalidOperationException(
+                        "The entity-creation pack has not been composed yet. RegisterSpawningPipeline "
+                        + "must run before RegisterApplicationSystems (SharedApplicationBootstrapper "
+                        + ":111 vs :139); if that order changed, IG's authoring tools have no sink."),
                     _effectiveInstanceId,
-                    globalGizmoManager: _globalGizmoManager);
+                    globalGizmoManager: _globalGizmoManager,
+                    // 🔒 UXI-07 step 4a — the arbiter, so an incoming remote creation request
+                    //    DISPLACES the operator's armed tool instead of fighting it for raw input.
+                    tools: _igToolController);
             }
 
             // UXI-23 S2b: both come from the pack. _globalGizmoManager is assigned HERE, at its original
             // position, so the MapCommandController above keeps its pre-migration behaviour.
             // BATCH-29: GlobalGizmoManager manages non-entity-bound gizmos (placement, picker).
             _globalGizmoManager = igMapInteraction.GlobalManager;
-            _measureToolGizmoAdapter = new MeasureToolGizmoAdapter(_globalGizmoManager, _gizmoSettingsRegistry);
+            // 🔒 UXI-07 step 4a — the arbiter is PASSED, so the settings checkbox ARMS THROUGH it and
+            //    follows it back down when another tool displaces Measure (the dead-toggle fix, §4.9c).
+            _measureToolGizmoAdapter = new MeasureToolGizmoAdapter(
+                _globalGizmoManager, _gizmoSettingsRegistry, _igToolController);
             var schemaRegistry = new GizmoMap.Presentation.GizmoSchemaRegistry();
             var layerControlEditService = new StructEdit.Reflection.ComponentEditServiceBuilder().Build();
             using var layerControlSchemaSession = layerControlEditService.Open(
@@ -846,14 +896,21 @@ public class IgApplication : IDisposable
             schemaRegistry.Register(
                 Hrot.Common.Diagnostics.Gizmos.LayerControlGizmo.SchemaHash,
                 layerControlSchemaSession.Document);
+            // ⭐ R3 (DESIGN_Gizmo_Renderer_Seam.md §6) — no world is passed. The layer's old
+            //   `view` parameter was stored nowhere; EntityLocal resolves through SpatialAnchor
+            //   primitives instead (.dev/_DONE/gizmos-1/feedback2.md:798). Named arguments because the
+            //   two constructors collapsed into one.
             var gizmoLayer = new DebugGizmoLayer(
                 31,
                 _gizmoBuffer!,
                 _interactionBus,
-                ctx.World,
-                _canvas.Camera,
-                new GizmoMap.Presentation.Shapes.DefaultEntityShapeLibrary(),
-                schemaRegistry);
+                camera: _canvas.Camera,
+                shapeLibrary: new GizmoMap.Presentation.Shapes.DefaultEntityShapeLibrary(),
+                schemaRegistry: schemaRegistry,
+                // ⭐ §6.7 — the world IS passed now, for ONE reader: PickEntity resolves a picked
+                //   anchor's network id to an Entity. ⚠ NOT a revival of R3's deleted `view`
+                //   parameter, which was stored nowhere. See DebugGizmoLayer._world.
+                worldProvider: () => _world);
             _gizmoLayer = gizmoLayer;
             _canvas.AddLayer(gizmoLayer);
             _canvas.DrawBuffer = _gizmoBuffer;
@@ -912,8 +969,10 @@ public class IgApplication : IDisposable
         _networkAdapter      = _igBootstrapper.NetworkAdapter;
         _commandGateway      = _igBootstrapper.CommandGateway;
         _clusterSlave        = _context.ClusterSlave;
-        _igSlaveTranslator   = _igBootstrapper.IgSlaveTranslator;
-        _igOrchestrationBus  = _igBootstrapper.OrchestrationBus;
+        // ⭐⭐⭐ CE-164 — the node's OWN slave translator, from the context, exactly as SimHostApp:504 does.
+        //    ⛔ Was `_igBootstrapper.IgSlaveTranslator` — a second, ingress-only translator on a second bus.
+        //    📄 docs/DESIGN_Subsystem_Composition_Unification.md §4.1b.
+        _slaveTranslator     = _context.SlaveTranslator;
 
         _miniIosPanel = new MiniExConPanel(_miniIosState, _world.Bus);
         if (_networkEnabled)
@@ -957,9 +1016,12 @@ public class IgApplication : IDisposable
     {
 
         _frameDt = dt;
-        // CMC-S016: swap orch bus then tick translator before clusterSlave.
-        _igOrchestrationBus?.SwapBuffers();
-        _igSlaveTranslator?.Tick();
+        // ⭐⭐ CMC-S016 / CE-164: translator tick BEFORE clusterSlave so DDS→bus ingress is processed
+        //    first — verbatim the SimHostApp:560-561 order, on the node's ONE orchestration bus.
+        // ⛔ The `SwapBuffers()` that stood on the first line is GONE: it swapped IG's second bus, and
+        //    swapping the shared bus HERE as well as at the end of Update() would double-swap it,
+        //    discarding anything published in between. 📄 DESIGN_Subsystem_Composition_Unification §4.1b.
+        _slaveTranslator?.Tick();
         _clusterSlave?.Tick();
 
         if (!_headless)
@@ -1657,11 +1719,26 @@ public class IgApplication : IDisposable
 
 
     /// <summary>
+    /// ⭐⭐ <b>This node's <see cref="Fdp.Toolkit.Orchestration.ClusterSlave"/></b> — the control-plane
+    /// endpoint that commits cluster-state transitions for IG and holds
+    /// <see cref="Fdp.Toolkit.Orchestration.ClusterSlave.LocalClusterState"/>.
+    ///
+    /// <para>⛔ <b>Not a test hook</b> — <c>CE-163</c> makes the debug API read it in production, exactly
+    /// as it reads <see cref="OrchestrationBus"/>. ⭐ Named and shaped to match
+    /// <c>CgfApplication.ClusterSlave</c> and <c>SimHostApp.ClusterSlave</c>, so the three ECS nodes
+    /// present one member to the one shared projection. ⚠ Read it, never latch it: <see langword="null"/>
+    /// before <c>InitializeNetwork</c> *(e.g. headless tests without DDS)* and after <c>Shutdown</c>.</para>
+    /// </summary>
+    internal Fdp.Toolkit.Orchestration.ClusterSlave? ClusterSlave => _clusterSlave;
+
+    /// <summary>
     /// Internal test hook: exposes the <see cref="Fdp.Toolkit.Orchestration.ClusterSlave"/>
     /// for handler-registration assertions (CGF1-S0104 / A.2).  <c>null</c> when
     /// <see cref="InitializeNetwork"/> was not called (e.g. headless tests without DDS).
+    ///
+    /// <para>⭐ Now a forwarder to <see cref="ClusterSlave"/> — one member, two names, no second field.</para>
     /// </summary>
-    internal Fdp.Toolkit.Orchestration.ClusterSlave? TestHook_ClusterSlave => _clusterSlave;
+    internal Fdp.Toolkit.Orchestration.ClusterSlave? TestHook_ClusterSlave => ClusterSlave;
 
     /// <summary>
     /// ⭐⭐ <b>This node's CONTROL-PLANE bus</b> — the one its <c>ClusterSlave</c> and
@@ -2583,12 +2660,12 @@ FdpLog<IgApplication>.Info("[Node-{0}] MapClickEvent published. ContextId={1} hi
 
             case "200": // Measure ? activate the measurement gizmo
 
-                if (_globalGizmoManager != null)
-                {
-                    var id = GlobalGizmoManager.NewId();
-                    var gizmo = new Hrot.ScenarioEditor.Gizmos.MeasureGizmo(onRemove: () => _globalGizmoManager?.Unregister(id));
-                    _globalGizmoManager.Register(id, gizmo);
-                }
+                // ⭐⭐⭐ UXI-07 step 3b — ACTIVATE the shared Measure tool; do not rebuild it.
+                // 🔴 The NewId/MeasureGizmo/Register triple was a copy of the shared arm. ⭐ And going
+                //    through the controller fixes a real defect here: pressing Measure twice used to
+                //    REGISTER A SECOND gizmo (a fresh NewId each time), which could never take focus.
+                //    Now the first is cancelled first — Q27 ruling C, one modal per subsystem.
+                _igToolController?.Activate(Hrot.ScenarioEditor.Tools.ScenarioToolIds.Measure);
 
                 break;
 
@@ -3121,62 +3198,52 @@ FdpLog<IgApplication>.Info("[Node-{0}] MapClickEvent published. ContextId={1} hi
             return;
         }
 
-        // ?? Route entity path ? inject RouteWaypointGizmo (toggle) ??
-        if (World.HasManagedComponent<Hrot.Map.Common.Components.RoutePlan>(entity))
+        // ⭐⭐⭐ UXI-07 step 3b — ACTIVATE the shared Route/Edit tools through the host's ONE arbiter.
+        // 🔴 This method used to carry verbatim copies of both shared arms — the HasInjectedGizmo toggle,
+        //    the RouteWaypointGizmo / VertexEditGizmo construction, the DeactivateGizmo callback — one of
+        //    FIVE `D′` instances measured 2026-09-09. ⇒ deleted; MapInteractionPack registered the real
+        //    ones, and the toggle now lives in exactly one place (ruling 9).
+        // ⭐ Going through the controller makes these tools MODAL on IG for the first time: arming one
+        //    cancels whatever held focus in the OTHER arbiter, which a direct ActivateGizmo cannot do.
+        if (_igToolController == null)
         {
-            if (_igDataDrivenGizmoSystem!.HasInjectedGizmo(entity))
-            {
-                _igDataDrivenGizmoSystem!.DeactivateGizmo(entity);
-                FdpLog<IgApplication>.Info(
-                    "[Node-{0}] Route editing deactivated for NetID {1}.", _effectiveInstanceId, networkEntityId);
-            }
-            else
-            {
-                if (!World.HasComponent<SimTransform>(entity))
-                {
-                    FdpLog<IgApplication>.Warn(
-                        "[Node-{0}] ActivateAreaEditingTool: entity {1} has no SimTransform yet.", _effectiveInstanceId, networkEntityId);
-                    return;
-                }
-                var gizmo = new Hrot.ScenarioEditor.Gizmos.RouteWaypointGizmo(
-                    _world!, entity, networkEntityId,
-                    onRemove: () => _igDataDrivenGizmoSystem!.DeactivateGizmo(entity));
-                _igDataDrivenGizmoSystem!.ActivateGizmo(entity, gizmo);
-                FdpLog<IgApplication>.Info(
-                    "[Node-{0}] Route editing activated for NetID {1}.", _effectiveInstanceId, networkEntityId);
-            }
+            FdpLog<IgApplication>.Warn(
+                "[Node-{0}] ActivateAreaEditingTool: this host wired no ToolController (pass MapInteraction.Tools).",
+                _effectiveInstanceId);
             return;
         }
 
-        // ?? Area overlay path ? inject VertexEditGizmo (toggle) ??
-        if (!World.HasManagedComponent<EditablePolyline>(entity))
+        // 🔒 IG-ONLY GUARD, DELIBERATELY KEPT AT THE CALL SITE (R-137 — unification may not cost a
+        //    capability). IG receives entities over the network, so an EditablePolyline/RoutePlan can
+        //    arrive BEFORE its SimTransform; the editor and CGF author locally and never see that window.
+        //    ⛔ Pushing this into the shared arm would make the editor refuse a legitimately
+        //    transform-less shape. ⭐ Q27's standing ruling allows exactly this: "differences are data
+        //    availability or host rules, never set membership."
+        bool isRoute = World.HasManagedComponent<Hrot.Map.Common.Components.RoutePlan>(entity);
+        bool isArea  = World.HasManagedComponent<EditablePolyline>(entity);
+        if (!isRoute && !isArea)
         {
             FdpLog<IgApplication>.Warn(
                 "[Node-{0}] ActivateAreaEditingTool: entity {1} has no EditablePolyline.", _effectiveInstanceId, networkEntityId);
             return;
         }
+        if (!World.HasComponent<SimTransform>(entity) && !_igDataDrivenGizmoSystem!.HasInjectedGizmo(entity))
+        {
+            // ⚠ Only blocks ARMING. A toggle-OFF must still work on an entity whose transform went away,
+            //   or the gizmo would be unkillable from the UI.
+            FdpLog<IgApplication>.Warn(
+                "[Node-{0}] ActivateAreaEditingTool: entity {1} has no SimTransform yet.", _effectiveInstanceId, networkEntityId);
+            return;
+        }
 
-        if (_igDataDrivenGizmoSystem!.HasInjectedGizmo(entity))
-        {
-            _igDataDrivenGizmoSystem!.DeactivateGizmo(entity);
-            FdpLog<IgApplication>.Info(
-                "[Node-{0}] Area editing deactivated for NetID {1}.", _effectiveInstanceId, networkEntityId);
-        }
-        else
-        {
-            if (!World.HasComponent<SimTransform>(entity))
-            {
-                FdpLog<IgApplication>.Warn(
-                    "[Node-{0}] ActivateAreaEditingTool: entity {1} has no SimTransform yet.", _effectiveInstanceId, networkEntityId);
-                return;
-            }
-            var gizmo = new Hrot.ScenarioEditor.Gizmos.VertexEditGizmo(
-                _world!, entity, networkEntityId,
-                onRemove: () => _igDataDrivenGizmoSystem!.DeactivateGizmo(entity));
-            _igDataDrivenGizmoSystem!.ActivateGizmo(entity, gizmo);
-            FdpLog<IgApplication>.Info(
-                "[Node-{0}] Area editing activated for NetID {1}.", _effectiveInstanceId, networkEntityId);
-        }
+        string toolId = isRoute
+            ? Hrot.ScenarioEditor.Tools.ScenarioToolIds.Route
+            : Hrot.ScenarioEditor.Tools.ScenarioToolIds.Edit;
+        _igToolController.Activate(toolId, entity);
+
+        FdpLog<IgApplication>.Info(
+            "[Node-{0}] {1} tool activated for NetID {2}.",
+            _effectiveInstanceId, isRoute ? "Route editing" : "Area editing", networkEntityId);
     }
 
     /// <summary>
@@ -3710,24 +3777,21 @@ FdpLog<IgApplication>.Info("[Node-{0}] MapClickEvent published. ContextId={1} hi
             return;
         _lastPickLocationContextId = _activeContextId;
 
-        if (_activeLocationPickerId.HasValue)
-        {
-            _globalGizmoManager!.Unregister(_activeLocationPickerId.Value);
-            _activeLocationPickerId = null;
-        }
-
-        var id = GlobalGizmoManager.NewId();
-        var gizmo = new Fdp.Toolkit.Vis2D.Gizmos.FdpLocationPickerGizmo(
-            onPicked: worldPos =>
-                OnCanvasClicked(worldPos, MapMouseButton.Left, false, false, Entity.Null, updateSelection: false),
-            onRemove: () =>
-            {
-                _globalGizmoManager!.Unregister(id);
-                _activeLocationPickerId = null;
-                FdpLog<IgApplication>.Debug("[Node-{0}] LocationPicker cancelled.", _effectiveInstanceId);
-            });
-        _activeLocationPickerId = id;
-        _globalGizmoManager!.Register(id, gizmo);
+        // ⭐⭐⭐ UXI-07 step 4b — PUSH through the arbiter instead of arming beside it.
+        //   🔴 This used to Register straight on _globalGizmoManager and keep its OWN
+        //   _activeLocationPickerId slot to unregister the previous one — a private one-slot arbiter
+        //   duplicating what ToolController already guarantees (§4.8's bypass). ⭐ Re-arming is now a
+        //   RE-TARGET handled by the controller, so the slot is gone.
+        _pickerTools.PushPicker(
+            Hrot.ScenarioEditor.Tools.ScenarioToolIds.PickLocation,
+            remove => new Fdp.Toolkit.Vis2D.Gizmos.FdpLocationPickerGizmo(
+                onPicked: worldPos =>
+                    OnCanvasClicked(worldPos, MapMouseButton.Left, false, false, Entity.Null, updateSelection: false),
+                onRemove: () =>
+                {
+                    remove();
+                    FdpLog<IgApplication>.Debug("[Node-{0}] LocationPicker cancelled.", _effectiveInstanceId);
+                }));
         FdpLog<IgApplication>.Info("[Node-{0}] Location picker gizmo activated. ContextId={1}", _effectiveInstanceId, _activeContextId);
     }
 
@@ -3791,32 +3855,24 @@ FdpLog<IgApplication>.Info("[Node-{0}] MapClickEvent published. ContextId={1} hi
             return;
         }
 
-        if (_activeEntityPickerId.HasValue)
-        {
-            _globalGizmoManager!.Unregister(_activeEntityPickerId.Value);
-            _activeEntityPickerId = null;
-        }
-
-        var id     = GlobalGizmoManager.NewId();
         var filter = _entityFilterFactory.CreateFilter(filters);
-        var gizmo  = new Fdp.Toolkit.Vis2D.Gizmos.EntityPickerGizmo(
-            hitTest:     pos => _canvas.PickTopmostEntity(pos) ?? Entity.Null,
-            filter:      filter,
-            onPicked:    entity =>
-            {
-                // Re-use OnCanvasClicked to publish the MapClickEvent.
-                // The entity will appear in HitStack so the ExCon receives the networkId.
-                OnCanvasClicked(Vector2.Zero, MapMouseButton.Left, false, false, entity, updateSelection: false);
-                FdpLog<IgApplication>.Info("[Node-{0}] EntityPicker picked entity {1}", _effectiveInstanceId, entity.Index);
-            },
-            onCancelled: () => FdpLog<IgApplication>.Debug("[Node-{0}] EntityPicker cancelled.", _effectiveInstanceId),
-            onRemove:    () =>
-            {
-                _globalGizmoManager!.Unregister(id);
-                _activeEntityPickerId = null;
-            });
-        _activeEntityPickerId = id;
-        _globalGizmoManager!.Register(id, gizmo);
+
+        // ⭐⭐⭐ UXI-07 step 4b — see the location picker above: the private _activeEntityPickerId slot
+        //   is replaced by the controller's own one-modal-at-a-time guarantee.
+        _pickerTools.PushPicker(
+            Hrot.ScenarioEditor.Tools.ScenarioToolIds.PickEntity,
+            remove => new Fdp.Toolkit.Vis2D.Gizmos.EntityPickerGizmo(
+                hitTest:     pos => _canvas.PickTopmostEntity(pos) ?? Entity.Null,
+                filter:      filter,
+                onPicked:    entity =>
+                {
+                    // Re-use OnCanvasClicked to publish the MapClickEvent.
+                    // The entity will appear in HitStack so the ExCon receives the networkId.
+                    OnCanvasClicked(Vector2.Zero, MapMouseButton.Left, false, false, entity, updateSelection: false);
+                    FdpLog<IgApplication>.Info("[Node-{0}] EntityPicker picked entity {1}", _effectiveInstanceId, entity.Index);
+                },
+                onCancelled: () => FdpLog<IgApplication>.Debug("[Node-{0}] EntityPicker cancelled.", _effectiveInstanceId),
+                onRemove:    remove));
         FdpLog<IgApplication>.Info("[Node-{0}] Entity picker gizmo activated. ContextId={1} Filters=[{2}]",
             _effectiveInstanceId, _activeContextId, string.Join(",", filters));
     }

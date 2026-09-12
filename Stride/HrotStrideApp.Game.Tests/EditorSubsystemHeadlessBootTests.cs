@@ -106,7 +106,10 @@ public sealed class EditorSubsystemHeadlessBootTests : IDisposable
         // in its standard component registries. These are required by the Stride navigation
         // systems (NavigationIntentBridgeSystem.RegisterAgent checks HasComponent<CrowdAgent>,
         // CrowdAgentUpdateSystem guards on IsComponentTypeRegistered<CrowdAgent>, etc.).
-        _editor.MuscleModuleFactory = ctx =>
+        // ⭐ S2b — the seam is now CAPABILITIES, not a module list. The test uses the same
+        //   StrideCapabilities declaration production does, so this rail exercises the real
+        //   composition path rather than a test-only assembly of the same parts.
+        _editor.MuscleCapabilitiesFactory = ctx =>
         {
             // Mirror EditorStrideSubsystem.Initialize step 2: extra muscle-specific components.
             // ctx.World is the live EntityRepository, available before Kernel.Initialize().
@@ -119,7 +122,10 @@ public sealed class EditorSubsystemHeadlessBootTests : IDisposable
 
             var ms = StrideMuscleModules.Build(_crowd);
             capturedSet = ms;
-            return ms.ToEditorModuleList();
+            // ⭐ CE-233 — MUST mirror EditorStrideSubsystem's factory exactly, including the ROLE.
+            //   This line previously read `.Resolve(NodeRole.MuscleGround)`, matching a production
+            //   line that was itself wrong, so the rail reproduced the defect instead of catching it.
+            return StrideCapabilities.Build(ms).Resolve(StrideCapabilities.DefaultRole);
         };
 
         // Boot the real EditorSubsystem headlessly.
@@ -202,6 +208,49 @@ public sealed class EditorSubsystemHeadlessBootTests : IDisposable
             $"StrideMuscleModule must be registered in the kernel's module list after booting with " +
             $"MuscleModuleFactory. Registered module types: [{string.Join(", ", moduleTypeNames)}]. " +
             "If absent: ToEditorModuleList() was not called or the factory was not invoked.");
+    }
+
+    /// <summary>
+    /// 🔴🔴 <b><c>CE-233</c> — the hosted composition must be able to SOLVE area queries.</b>
+    ///
+    /// <para><b>The defect this exists for.</b> <c>EditorStrideSubsystem</c> resolved
+    /// <c>NodeRole.MuscleGround</c> alone, on the premise that "the editor already supplies the
+    /// perception tier". <c>EditorCapabilities.BuildWithInjectedMuscle</c> says the opposite in its own
+    /// remark — <i>"the supplying host owns both"</i> — so it omits <c>CognitiveSpatialModule</c> and
+    /// expects the injected arm to bring it. Both sides delegated perception to the other and the host
+    /// booted with neither, hence no <c>AreaQuerySolverSystem</c>.</para>
+    ///
+    /// <para>📐 <b>The measured consequence</b>, and it is not subtle: on <c>hill-attack-close</c> the
+    /// platoon commander clears <c>Condition_AreAllAtBaseline</c> ("Arrived=4/4"), calls
+    /// <c>Action_RequestAreaQuery</c>, and then logs <c>"EQS area query timed out after 5.0s"</c> —
+    /// forever. The tree restarts, re-drives the platoon to the baseline, and the scenario can never
+    /// reach the firing line, never close inside the 100 m vision range, and never engage.</para>
+    ///
+    /// <para>⛔⛔ <b>Why <c>StrideCapabilitiesTests.PerceptionIsFilled_NotJustDeclared</c> did not catch
+    /// it.</b> That test resolves the plan at <c>DefaultRole</c> and asserts perception is there — and it
+    /// was, in the DECLARATION. Production never asked for that role. ⇒ <c>R-142</c> ③: the rail was
+    /// green while the feature was dead, so the fix belongs where the host actually composes. This
+    /// asserts the BOOTED kernel, which is the hop a plan-level test structurally cannot reach.</para>
+    /// </summary>
+    [Fact]
+    public void SI2b_KernelContainsCognitiveSpatialModule_SoAreaQueriesCanBeSolved()
+    {
+        var kernel = _editor.Kernel;
+        Assert.NotNull(kernel);
+
+        var moduleTypeNames = kernel.GetRegisteredModuleTypeNames();
+        Assert.NotNull(moduleTypeNames);
+
+        bool hasCognitiveSpatial = moduleTypeNames.Any(
+            n => n.Contains("CognitiveSpatial", StringComparison.OrdinalIgnoreCase));
+
+        Assert.True(hasCognitiveSpatial,
+            "CE-233: CognitiveSpatialModule must be registered in the hosted composition — it owns "
+          + "AreaQuerySolverSystem, and without it every EQS area query times out after 5 s and the "
+          + "platoon commander's tree restarts forever. The injected arm "
+          + "(EditorCapabilities.BuildWithInjectedMuscle) deliberately does NOT supply it, so the "
+          + "supplying host must resolve StrideCapabilities.DefaultRole, not MuscleGround alone. "
+          + $"Registered module types: [{string.Join(", ", moduleTypeNames)}].");
     }
 
     // ═══════════════════════════════════════════════════════════════════════

@@ -146,7 +146,15 @@ public class IgEntityData
 `EntityInfoTranslator` maps `EntityInfo.Name`, `EntityInfo.ForceIdentifier`, and
 `EntityInfo.CommanderId` into an `IgEntityData` instance and issues `UpdateEntityCommand`.
 
-### 3.6 IG — IgHealthState (New Internal Component)
+### 3.6 IG — IgHealthState (New Internal Component) ⛔ SUPERSEDED 2026-09-05 (CE-196)
+
+> ⛔⛔ **`IgHealthState` IS DELETED.** It was a render-only cache holding a damage percentage computed
+> against the SENDER's `Max`, while every receiver kept its own TKB-seeded one — so the nodes disagreed
+> about the same entity (measured: `50/50` on the Brain, `3000/3000` on IG). The `EntityDamage`
+> descriptor now carries `Current`+`Max` and the ingress writes the real `Health` component; the health
+> bar and the style resolver derive the fraction themselves.
+> ⚠ Component id **165 is RESERVED, not freed** (`HrotComponentIds.RetiredIgHealthState`).
+> 📄 `Blueprint_Issues_Tracker.md` CE-196. The text below is HISTORY.
 
 A new ECS value component `IgHealthState` holds damage data the IG rendering needs:
 
@@ -350,6 +358,15 @@ Register it in:
   the local `FdpEventBus` so `EventEffectModule` receives it.
 
 ---
+
+> ⛔⛔ **PARTLY SUPERSEDED `2026-09-07` by [`docs/DESIGN_Dead_Reckoning.md`](../../DESIGN_Dead_Reckoning.md).**
+> ⭐ **The PROBLEM below is still correctly stated** *(hard-snapping on irregular packets)*, and this is the
+> birth design of `DeadReckoningSyncSystem`. ⛔ **Part B's MECHANISM is superseded:** *"Advance
+> `NetworkPosition` by `NetworkVelocity * deltaTime` each frame"* makes the anchor an ACCUMULATOR that
+> extrapolates from its own previous guess and drifts with frame rate. 🔒 **User ruling `2026-09-06`:**
+> *"networktransform stays the last received sample; extrapolate dt = current time on node minus
+> nettransform.timestamp"* — and `2026-09-07`, that time is cluster-synced SIM time, not wall time.
+> ⛔ **Nor is DR an IG feature any more — every node runs it** *(`D1`)*. ⭐ Implementation: `CE-211`.
 
 ### 6.3 Deviation 3 — Hard-Snapping vs. Dead Reckoning (Stuttering Movement)
 

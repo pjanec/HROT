@@ -106,6 +106,8 @@ public static class T09_BlackboardManagedRegistrar
                 new("PatrolLoops", typeof(int), 20),
                 new("IsAlerted", typeof(bool), 24),
             },
+            JsonParamsDtoType    = typeof(global::Hrot.AI.Behaviors.Trees.T09_BlackboardManaged_Blackboard),
+            BlackboardLayoutType = typeof(global::Hrot.AI.Behaviors.Trees.T09_BlackboardManaged_Blackboard),
             ParseParams  = __parseParams,
         });
     }

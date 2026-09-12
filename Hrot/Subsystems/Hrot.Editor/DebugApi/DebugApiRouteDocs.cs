@@ -1115,10 +1115,11 @@ namespace Hrot.Editor.DebugApi
             Notes: new[]
             {
                 "params is passed through verbatim — the engine reads it with plain JSON, the same string the editor's Mission panel stores. Shape it to the behaviour's paramSchema (list_behaviors), not to a separate mapper.",
+                "CE-228: the example above uses MoveToLocation's REAL keys. It previously showed {Latitude, Longitude}, which bind to nothing — the params region would have stayed all-zero and the entity would have driven to the origin, with no error anywhere (R-132's failure shape, invited by this very doc).",
                 "The commit is asynchronous: it resolves when the engine acknowledges. If the sim is not being pumped at all the call returns a 504 pointing at play/step.",
                 "A stale version yields a 409 (ERR_VERSION_CONFLICT), never a silent overwrite.",
             },
-            ExampleArgsJson: "{\"networkId\":1000,\"behavior\":\"MoveToLocation\",\"params\":{\"Latitude\":50.1,\"Longitude\":14.4}}",
+            ExampleArgsJson: "{\"networkId\":1000,\"behavior\":\"MoveToLocation\",\"params\":{\"X\":500,\"Y\":520,\"Speed\":8,\"ArrivalRadius\":5}}",
             ExampleGist: "give entity 1000 a MoveToLocation task"),
 
         [("DELETE", "/missions/{networkId}/tasks")] = new RouteDoc(

@@ -8,6 +8,7 @@ using Fdp.Toolkit.Replication.Systems;
 using Hrot.Common.Abstractions;
 using Fdp.ModuleHost;
 using Fdp.ModuleHost.Abstractions;
+using Fdp.ModuleHost.Time;
 using NetworkEntityMap = Fdp.Toolkit.Replication.Services.NetworkEntityMap;
 using Fdp.Toolkit.NetworkSpawning;
 // IOrchestrationTranslator lives in same namespace (Hrot.Common.Infrastructure)
@@ -26,7 +27,7 @@ namespace Hrot.Common.Infrastructure;
 /// the world came to be leaked on every node teardown.</para>
 ///
 /// <para>📐 <b>Measured, 2026-08-26:</b> the four consumers that receive a world through this record
-/// (<c>SimHostApp</c>, <c>IgApplication</c>, <c>CgfSubsystem</c>, <c>EyesAndMuscleSubsystem</c>) all
+/// (<c>SimHostApp</c>, <c>IgApplication</c>, <c>CgfSubsystem</c>, <c>EditorSubsystem</c>) all
 /// disposed the kernel and none disposed the world; the three that build their own world directly
 /// (<c>CgfApplication</c>, <c>EditorSubsystem</c>, <c>ScenarioSubsystem</c>) all dispose it. ⇒ the
 /// defect was the MISSING OWNERSHIP CONTRACT on this record, not four independent oversights.
@@ -127,4 +128,19 @@ public sealed record HrotNodeContext : IDisposable
 
     /// <summary>Event accumulator for checkpoint event preservation (CGF-SCN-2 S503).</summary>
     public required EventAccumulator EventAccumulator { get; init; }
+
+    /// <summary>
+    /// The time controller the builder created and already handed to <see cref="Kernel"/>, exposed so a
+    /// host that must drive the clock can reach it without building a second one.
+    /// </summary>
+    /// <remarks>
+    /// <para>⭐⭐⭐ <b><c>N₀</c> item ② (<c>CE-203</c>).</b> <c>CE-201</c> made the time ROLE an input but
+    /// never exposed the RESULT, so a host wanting the controller still had to call
+    /// <c>TimeControllerFactory.Create</c> itself — which is the duplicate the editor has today.</para>
+    ///
+    /// <para>⛔ <b>Typed as the INTERFACE, deliberately.</b> A <c>MasterSyncController</c>-typed property
+    /// would push the time role back into the builder's shape, which is exactly what <c>N₀</c> removed.
+    /// ⭐ A host that needs the concrete master casts at its own site, as the editor already does.</para>
+    /// </remarks>
+    public ITimeController? TimeController { get; init; }
 }

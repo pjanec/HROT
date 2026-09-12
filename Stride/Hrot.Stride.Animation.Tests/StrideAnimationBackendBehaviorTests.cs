@@ -1,6 +1,7 @@
 using System;
 using Xunit;
 using Hrot.MuscleCharacter.Animation.Contracts;
+using Fdp.Toolkit.Tkb.Domain;
 
 namespace Hrot.Stride.Animation.Tests;
 

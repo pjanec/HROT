@@ -62,7 +62,7 @@ const GRACEFUL_KILL_TIMEOUT_MS = 10_000;
  */
 async function launchRunner(runnerDll, port, headless, mode) {
   // ⛔ Do NOT pass --debug-api / --debug-api-port. Those flags were designed in
-  //    .dev/ai-debug-api/ and NEVER LANDED: no such option exists in HrotRunnerConfiguration or
+  //    .dev/_DONE/ai-debug-api/ and NEVER LANDED: no such option exists in HrotRunnerConfiguration or
   //    RunnerOptions. Passing them produced a runner with the API OFF, after which the /status poll
   //    below could only time out — launch mode had never worked.
   // ⭐ The one and only switch is the env var HROT_DEBUG_API_PORT, read by EditorSubsystem §8b.

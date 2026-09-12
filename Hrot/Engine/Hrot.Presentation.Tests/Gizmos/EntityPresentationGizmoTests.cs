@@ -1,3 +1,4 @@
+using Fdp.Toolkit.Combat.Components;
 using System;
 using System.Numerics;
 using System.Reflection;
@@ -41,7 +42,7 @@ namespace Hrot.Presentation.Tests.Gizmos
             _repo.RegisterComponent<SimTransform>();
             _repo.RegisterComponent<NetworkIdentity>();
             _repo.RegisterComponent<CullingState>();
-            _repo.RegisterComponent<IgHealthState>();
+            _repo.RegisterComponent<Health>();
             _repo.RegisterComponent<VehicleParams>();
         }
 
@@ -90,7 +91,7 @@ namespace Hrot.Presentation.Tests.Gizmos
 
             Assert.NotNull(attr);
             Assert.DoesNotContain(typeof(CullingState), attr!.RequiredComponents);
-            Assert.DoesNotContain(typeof(IgHealthState), attr!.RequiredComponents);
+            Assert.DoesNotContain(typeof(Health), attr!.RequiredComponents);
             Assert.Equal(2, attr!.RequiredComponents.Length);
         }
 
@@ -235,7 +236,7 @@ namespace Hrot.Presentation.Tests.Gizmos
         public void Draw_WithHighDamage_SetsTheDamagedConditionBit()
         {
             var entity = Spawn(5L, new Vector3(10f, 20f, 0f));
-            _repo.AddComponent(entity, new IgHealthState { Damage = 75f });
+            _repo.AddComponent(entity, new Health { Current = 25f, Max = 100f });
 
             var buffer = new DebugPrimitiveBuffer();
             new EntityPresentationGizmo().Draw(_repo, entity, buffer);
@@ -254,7 +255,7 @@ namespace Hrot.Presentation.Tests.Gizmos
         public void Draw_WithSevereDamage_SetsBothConditionBits()
         {
             var entity = Spawn(6L, new Vector3(10f, 20f, 0f));
-            _repo.AddComponent(entity, new IgHealthState { Damage = 95f });
+            _repo.AddComponent(entity, new Health { Current = 5f, Max = 100f });
 
             var buffer = new DebugPrimitiveBuffer();
             new EntityPresentationGizmo().Draw(_repo, entity, buffer);
@@ -269,7 +270,7 @@ namespace Hrot.Presentation.Tests.Gizmos
         public void Draw_WithNoHealthState_EmitsAZeroConditionMask()
         {
             var entity = Spawn(8L, new Vector3(10f, 20f, 0f));
-            Assert.False(_repo.HasComponent<IgHealthState>(entity));
+            Assert.False(_repo.HasComponent<Health>(entity));
 
             var buffer = new DebugPrimitiveBuffer();
             new EntityPresentationGizmo().Draw(_repo, entity, buffer);
@@ -296,15 +297,62 @@ namespace Hrot.Presentation.Tests.Gizmos
             var frame = buffer.GetFrame();
             Assert.True(frame.Length >= 3);
 
-            // ⚠ The network id lands in BoxAnchorId, NOT NetworkId: MakeBox2D routes its `networkId`
+            // ⚠ The network id lands in BoxAnchorId, NOT NetworkId: MakeBox2D routes its `anchorId`
             // argument to `p.BoxAnchorId` (DebugPrimitive.cs:264,277), and on a Box2D the NetworkId field
             // is overlapped by the box geometry — reading it back yields the packed extents as garbage.
-            // Together with AnchorIndex/AnchorGeneration this pairing is what resolves a click to an entity.
+            // ⭐⭐⭐ §6.7 — AND THAT FIELD IS NOW THE WHOLE PAIRING. This rail used to also assert
+            //   `pick.AnchorIndex == entity.Index` and `pick.AnchorGeneration == entity.Generation`,
+            //   saying "together with AnchorIndex/AnchorGeneration this pairing is what resolves a click
+            //   to an entity". ⛔ It no longer is: the ECS handle is not emitted, and a click resolves
+            //   BoxAnchorId against the world. ⇒ the rail now pins that offsets 8/12 are LEFT CLEAN,
+            //   which is the property that replaced it.
+            // ⛔ RED-PROOF SHAPE: re-add the two stamps in EmitPickBox and the two zero asserts redden.
+            // 📄 docs/DESIGN_Gizmo_Anchor_Identity.md §6.7.
             var pick = frame[1];
             Assert.Equal(DebugPrimitiveShape.Box2D, pick.Shape);
             Assert.Equal(11L, pick.BoxAnchorId);
-            Assert.Equal(entity.Index, pick.AnchorIndex);
-            Assert.Equal((ushort)entity.Generation, pick.AnchorGeneration);
+            Assert.Equal(0, pick.AnchorIndex);
+            Assert.Equal((ushort)0, pick.AnchorGeneration);
+        }
+
+        /// <summary>
+        /// ⭐⭐⭐ <b>§6.8 — AN ENTITY WHOSE NETWORK ID IS 0 EMITS NOTHING.</b>
+        /// 📄 <c>docs/DESIGN_Gizmo_Anchor_Identity.md</c> §6.8.
+        ///
+        /// <para>⛔ The <c>[GizmoProjector(SimTransform, NetworkIdentity)]</c> attribute guarantees the
+        /// component is PRESENT, never that its value is usable. With <c>0</c> this gizmo used to emit
+        /// THREE broken primitives from one unset field: a <c>SpatialAnchor</c> nothing can reference, a
+        /// pick box that wins the hit-test and resolves to nothing, and an <c>EntityLocal</c>
+        /// <c>SemanticShape</c> that resolves against no anchor.</para>
+        ///
+        /// <para>⚠ An entity whose id has not been allocated yet is a NORMAL transient state — it gets
+        /// its avatar on the frame the id exists. ⛔ RED-PROOF SHAPE: delete the
+        /// <c>if (networkId == 0) return;</c> guard and this reddens on a non-empty frame.</para>
+        /// </summary>
+        [Fact]
+        public void Draw_EmitsNothing_WhenTheNetworkIdIsZero()
+        {
+            var entity = Spawn(0L, new Vector3(30f, 40f, 0f));
+
+            var buffer = new DebugPrimitiveBuffer();
+            new EntityPresentationGizmo().Draw(_repo, entity, buffer);
+
+            Assert.Empty(buffer.GetFrame().ToArray());
+        }
+
+        /// <summary>
+        /// ⭐⭐ <b>The counter-case, so the guard cannot over-refuse.</b> A real id still emits the full
+        /// set. ⛔ Without this pairing the rail above would also pass if the gizmo drew nothing ever.
+        /// </summary>
+        [Fact]
+        public void Draw_StillEmits_WhenTheNetworkIdIsReal()
+        {
+            var entity = Spawn(11L, new Vector3(30f, 40f, 0f));
+
+            var buffer = new DebugPrimitiveBuffer();
+            new EntityPresentationGizmo().Draw(_repo, entity, buffer);
+
+            Assert.True(buffer.GetFrame().Length >= 3);
         }
 
         /// <summary>

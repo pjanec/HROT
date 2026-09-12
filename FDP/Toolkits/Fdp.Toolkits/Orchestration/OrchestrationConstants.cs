@@ -87,6 +87,29 @@ namespace Fdp.Toolkit.Orchestration
         public static string GetEpisodesRoot(string stagingRoot)
             => Path.Combine(stagingRoot, EpisodesDirectoryName);
 
+        /// <summary>
+        /// ⭐⭐ The full path of ONE node's exercise recording: <c>{root}/exercises/{exerciseId}/node_N.fdp</c>.
+        ///
+        /// <para>📌 <b>Why this exists</b> (added <c>2026-09-01</c>): the EPISODE side already had
+        /// <see cref="GetEpisodeRecordingFilePath"/>, but the EXERCISE side did not, so the same three-segment
+        /// shape was hand-composed at 8 call sites — and a test that hand-composed it <b>wrong</b> (omitting
+        /// the <c>exercises/</c> segment) failed as <i>"recording file not found"</i>, which reads as a broken
+        /// recorder and is not one. ⇒ ⭐ the two halves of the recording layout now have ONE definition each,
+        /// and asserting on a recording means calling the same function production called.</para>
+        ///
+        /// <para>⚠ Six other sites still compose this shape by hand
+        /// (<c>ReferenceArchiveHandler</c> ×2, <c>GlobalContextClusterOpHandler</c> ×2,
+        /// <c>StorageGatewayModule</c>, <c>ClusterMaster</c>, <c>DebugApiService</c>,
+        /// <c>RecordReplayWiringTests</c>) — they are correct today and are left alone; adopting them is a
+        /// separate, wider change that crosses lanes.</para>
+        /// </summary>
+        public static string GetExerciseRecordingFilePath(string stagingRoot, Guid exerciseId, int nodeId)
+            => Path.Combine(
+                stagingRoot,
+                ExercisesDirectoryName,
+                exerciseId.ToString(),
+                GetNodeRecordingFileName(nodeId));
+
         public static string GetEpisodeRecordingFileName(Guid episodeId, int nodeId)
             => $"{episodeId}_node{nodeId}.fdp";
 

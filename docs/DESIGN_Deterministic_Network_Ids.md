@@ -20,6 +20,10 @@ known-rot: ⛔ §4 ④ says "hook it in PreviewClusterOpHandler so 'what preview
   IMPOSSIBLE for the two pooled allocators (§4b) and was NOT built. ⛔ §4b's closing recommendation
   ("the two pooled ones do not implement it") is SUPERSEDED by §4c — all five implement it. Do not quote
   §4 ③/④ or §4b's recommendation without §4c and §4d.
+related-designs:
+  - docs/designs/replay-and-modules/DESIGN.md — §2.1h–§2.1m — the SAME ELM rewind defect reached from REPLAY and SEEK, and the unified plan that extends this document's bracket.
+  - docs/designs/mgmt-1/DESIGN.md — §8.10/§8.5 — what must happen to entity lifecycle during replay; the other rewind trigger.
+  - docs/DESIGN_Entity_State_Sourcing.md — the recorded-vs-re-derived principle that decides what a participant may re-derive.
 -->
 # DESIGN — **a preview must leave no trace** *(the network-id counter, and what else)*
 
@@ -74,6 +78,22 @@ it** ⇒ **preview N and preview N+1 produce identical ids.**
 | ⭐ **`INetworkIdAllocator`** *(`:1101`)* | ✅ | 🔴 **NO** | the reported defect — ids drift |
 | 🔴🔴 **`NetworkEntityMap`** *(`:895`)* | ✅ | 🔴 **NO** | ⛔⛔ **and `Register` THROWS on a duplicate id** — see below |
 | 🔴 **`EntityLifecycleModule`** | ✅ | 🔴 **NO** | `_pendingConstruction` / `_pendingDestruction` are keyed by **`Entity` handles the rewind invalidates**, plus `_blueprintRequirements` |
+
+> ⭐⭐⭐ **`2026-09-11` — THE ELM ROW GENERALISES BEYOND PREVIEW, AND IT IS WORSE THAN "the handles are
+> invalidated".** 📄 Measured in full at **`docs/designs/replay-and-modules/DESIGN.md` §2.1h**: the same
+> rewind-unsafety is reached by **REPLAY and by every SEEK**, not only by the editor's preview — and
+> `LifecycleSystem` is a **direct** registration (`EntityLifecycleModule.cs:94`), so `CheckTimeouts` runs
+> **every tick during playback**. Its `currentFrame - StartFrame` is **`uint`** ⇒ a rewind wraps it to
+> ~4.29 × 10⁹ ⇒ the timeout fires ⇒ `cmd.DestroyEntity` on a stale handle — and the generation guard is
+> **Debug-only** (`EntityIndex.cs:148-157` under `#if FDP_PARANOID_MODE`, defined by `Fdp.Core.csproj:12-14`
+> only when `Configuration == Debug`). 📄 `CE-259ar`.
+>
+> ⚠ **One correction to the row above:** `_blueprintRequirements` is **NOT** rewind-invalidated — it is
+> *registration* state, like `_globalParticipants`, and a rewind does not touch it. Only the two
+> `Entity`-keyed dictionaries are. *(And it is empty in production: `RegisterRequirement` has zero callers.)*
+>
+> ⇒ 📌 **The durable lesson:** *"is this state rewind-safe?"* has **two triggers** in this codebase — the
+> editor preview and replay/seek. ⛔ **A document that answers it for one is not an answer for the other.**
 | ✅ `ITkbDatabase` | ⛔ read-only catalogue | n/a | fine |
 
 ⇒ ⭐⭐ **THREE participants, not one.** 📌 §4 ⑤ said *"two justifies a small list; one does not"* — **three
@@ -287,7 +307,7 @@ component tables and **only the EQS solver's singleton tables** — a managed si
 
 | ⛔ not built | ⭐ why, measured |
 |---|---|
-| ⛔ **`EntityLifecycleModule` as a third participant** — §2b's third stale participant | 📐 `_pendingConstruction` / `_pendingDestruction` entries are **created and drained within a tick** *(`BeginConstruction` enqueues; `DrainInstantComplete`, run by `LifecycleSystem` each tick, promotes and removes)* ⇒ at a preview boundary they are normally **empty**. ⚠ **And a non-empty queue cannot be restored by a plain copy** — the keys are `Entity` handles the repo rewind invalidates, so a correct participant needs the rewind's identity mapping, not a snapshot. ⇒ ⭐ **a separate finding (`HN-018`), not a silent omission**; the bracket takes a LIST precisely so it can be added |
+| ✅ **`EntityLifecycleModule` as a third participant** — §2b's third stale participant — ⭐⭐⭐ **BUILT `2026-09-12`** *(commit `ea659a581`)*: `PreviewParticipants.LifecycleModule(elm)`, wired at `EditorSubsystem`, `CgfSubsystem` and `NodeBootstrapper` *(SimHost + Stride)*; ⛔ IG owes none — it registers `ReferencePreviewHandler(liveRepo: null)`. 🔒 **THE DEFERRAL REASON BELOW IS ANSWERED, NOT OVERRIDDEN:** the participant does **not** restore a snapshot — it **CLEARS and RE-DERIVES** from the restored world *(recorded `EntityMetadataCold.LifecycleState` + the recorded `TkbIdentity`)*, so **no `Entity` handle crosses the rewind** and the identity-mapping problem never arises. ⚠ Its `Capture()` returns a **non-null marker**: `PreviewStateBracket` skips `Restore` for a null token, which would make the fix silently never run. 📄 `docs/designs/replay-and-modules/DESIGN.md` §2.1m. ⛔ **Original deferral, retained:** | 📐 `_pendingConstruction` / `_pendingDestruction` entries are **created and drained within a tick** *(`BeginConstruction` enqueues; `DrainInstantComplete`, run by `LifecycleSystem` each tick, promotes and removes)* ⇒ at a preview boundary they are normally **empty**. ⚠ **And a non-empty queue cannot be restored by a plain copy** — the keys are `Entity` handles the repo rewind invalidates, so a correct participant needs the rewind's identity mapping, not a snapshot. ⇒ ⭐ **a separate finding (`HN-018`), not a silent omission**; the bracket takes a LIST precisely so it can be added |
 | ⛔ **`Reset(Read())` as the mechanism** *(§4 ③)* | 📐 **impossible** — §4b. Not attempted |
 | ⛔ **a forwarding rail on the CONSTRUCTED editor object** | ⚠ **the honest gap.** The `2026-08-16` control wants a per-dependency rail asserted on the constructed object; `EditorPreviewController` is a private nested type inside `EditorSubsystem` and no unit suite constructs an initialised `EditorSubsystem`. ⇒ ⭐ **both handlers expose `TestHook_Bracket`** so such a rail is cheap the moment a harness exists |
 | ⛔ **the END-TO-END system rail** *(two previews, ids read from the API)* | 🔴 **blocked by `HN-015`** — `GET /entities` answers **500** after any runtime spawn *(a non-finite float in `ScenarioSerializer.SerializeEntity`, reached via `ExtractEntities`)*. ⚠ Registering the existing safe-float converters on the API's `JsonSerializerOptions` was **tried and MEASURED not to fix it** *(the throw is upstream)* and was **reverted** rather than left looking like a fix. ⇒ ⭐ `HN-015`'s tripwire ships; the requirement is asserted by the unit rails instead — `R-131`: a rail that can only be red for an unrelated reason must not ship |

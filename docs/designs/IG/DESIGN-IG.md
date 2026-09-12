@@ -65,6 +65,9 @@ IG Mock is the **"Map Viewer & Editor"** for the simulation. It:
 - **Acts as Editor**: Creates local visual overlays and ghosts before committing to SimHost
 - **Follows Time**: Slave to SimHost clock for synchronized visualization
 - **Dead Reckoning**: Interpolates 10Hz network updates to smooth 60Hz rendering
+  - ⛔ **FRAMING SUPERSEDED `2026-09-07`** by [`docs/DESIGN_Dead_Reckoning.md`](../../DESIGN_Dead_Reckoning.md):
+    IG *wants* smoothing, but DR is **not an IG feature** — every node dead-reckons entities it does not
+    own *(user ruling `2026-09-05`)*. ⭐ Implementation: `CE-211`.
 
 ### 2.2 Design Principles
 

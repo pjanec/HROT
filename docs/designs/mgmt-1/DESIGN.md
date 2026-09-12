@@ -1,3 +1,34 @@
+<!--STATUS
+state: LIVE
+updated: 2026-09-12
+current-answer: §8.10 "Distributed Entity Lifecycle During Replay" + §8.5 are the RULING on what runs
+  during replay. The rest of this document is the drill-management / DSM design.
+known-rot: ⛔ §8.10 prescribes that NetworkLifecycleSystemGroup.Enabled = false "ensures LifecycleSystem,
+  GhostPromotionSystem and NetworkGatewaySystem never run". MEASURED 2026-09-12: none of those three is
+  ever passed to that group, ExecuteGroup has exactly ONE caller (NedReplicationModule.cs:493) so the
+  group never ticks on the editor or on BDC nodes, and relocating them into it would STOP entity
+  lifecycle on those hosts. The INTENT stands; the prescribed mechanism does not. See
+  docs/designs/replay-and-modules/DESIGN.md §2.1m for the measured alternative (gate in place).
+  ✅ SUPERSEDED IN PART, AS-BUILT 2026-09-12 (commit ea659a581): §8.10's INTENT for LifecycleSystem is now
+  DELIVERED BY A DIFFERENT MECHANISM — LifecycleSystem carries a Func<bool> IsReplayActive, asked once per
+  Execute, fed from EntityLifecycleModule.IsReplayActive and wired to the pre-existing
+  IRecordReplayController.IsReplayActive at NodeBootstrapper.cs:228 (SimHost + Stride) and
+  CgfSubsystem.cs:993. That gates it on EVERY host, which the group cannot. ⛔ STILL OUTSTANDING against
+  §8.10: GhostPromotionSystem is NOT gated, and GhostCreationSystem.BypassLifecycle is STILL not honoured
+  inside CreateGhost — so §8.10's "new arrivals materialise directly into Active" remains a specification,
+  not a description. ⚠ A reader must not quote §8.10's group-membership sentence as the as-built.
+known-conflict: docs/designs/cgf-1/mgmt-DESIGN.md is a 3216-line NEAR-COPY of this 3226-line file (two
+  producers for one slot, R-132). A reader can quote the stale half without knowing. Prefer THIS file.
+related-designs:
+  - docs/designs/replay-and-modules/DESIGN.md — §2.1a–§2.1m: replay ISOLATION as built, the measured gap
+    against §8.10, and the unified ELM-rewind plan.
+  - docs/DESIGN_Deterministic_Network_Ids.md — §2b/§4c: the EDITOR PREVIEW rewind trigger and the
+    IPreviewRewindable/PreviewStateBracket participant seam.
+  - FDP/Engine/Fdp.ModuleHost/docs/ModuleHost-network-ELM-design-talk.md — §1/Part 1: WHY the ELM
+    construction barrier exists at all, which §8.10 assumes.
+  - docs/DESIGN_Entity_State_Sourcing.md — the recorded-vs-re-derived principle (R-136).
+-->
+
 # Distributed Drill Management System — Architecture Design
 
 > **Document scope:** Architectural design for implementing the Drill State Machine (DSM),

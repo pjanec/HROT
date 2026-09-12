@@ -1,3 +1,4 @@
+using System;
 using System.Numerics;
 using System.Runtime.InteropServices;
 
@@ -6,7 +7,8 @@ namespace Fdp.Toolkit.Diagnostics.Gizmos
     // 64-byte blittable tagged union. One cache line. All payloads share offsets 24-63.
     //
     // Offset 8 (AnchorIndex/StringHash): when Space == EntityLocal, int AnchorIndex encodes
-    // the entity anchor index. When Space != EntityLocal and Shape is Text or EntityBadge,
+    // the anchor's NETWORK id, narrowed to 32 bits (§6.7 / C7 — never an ECS index).
+    // When Space != EntityLocal and Shape is Text or EntityBadge,
     // uint StringHash at the same offset encodes the string intern map key (StringHash != 0
     // means the full text is resolved from StringInternMap; StringHash == 0 = inline mode).
     //
@@ -27,14 +29,63 @@ namespace Fdp.Toolkit.Diagnostics.Gizmos
         // Bytes 8-11 overlay: AnchorIndex for EntityLocal; StringHash for intern escaping.
 
 
-        // ECS Entity Index for primitives anchored to an entity.
-        // An index of 0 is a perfectly valid memory offset in a data-oriented ECS.
-        // Never use AnchorIndex to evaluate handle validity; evaluate AnchorGeneration instead.
+        // ⭐⭐ OFFSET 8 CARRIES TWO THINGS, discriminated by Shape/Space. S7/§6.7,
+        //   DESIGN_Gizmo_Anchor_Identity.md. ⛔ NEITHER is an identity for INTERACTION -- that is
+        //   BoxAnchorId (offset 44); see its note.
+        //
+        //   🔴🔴 §6.7, 2026-09-11 — ARM (a) IS GONE, AND IT WAS THE THIRD ROLE:
+        //       "(a) an interactive Box2D/Sphere handle -> the ECS entity INDEX, an in-process PAYLOAD
+        //        that lets the consumer-side adapter rebuild Entity(index, generation) with no lookup."
+        //     ⛔ A process-local ECS handle, in a DDS-marshalled struct, in the same 4 bytes that mean
+        //       a network id for the shape next to it. Its whole purpose was to spare the consumer a
+        //       lookup — and the reason given for that was ONE module with no NetworkEntityMap.
+        //       🔒 User: "replaybrowser is ecs module like any else. i do not want such exceptions."
+        //     ⇒ no producer writes an ECS index here now, and no consumer reads one. ⭐ The union is
+        //       one role narrower, which is the real win: a three-role field cannot be reasoned about.
+        //
+        //     (b) SemanticShape / any EntityLocal primitive -> the SpatialAnchor cache KEY, which is a
+        //         NETWORK id (DebugPrimitiveBuffer.DrawSemanticShape writes `(int)networkId`;
+        //         DebugPrimitiveRenderer2D:104-106 reads `(long)AnchorIndex` against a cache keyed by
+        //         SpatialAnchor.NetworkId at offset 24).
+        //     (c) Text / EntityBadge with Space != EntityLocal -> StringHash, below.
+        //
+        //   ⛔⛔ HARD LIMIT, measured 2026-09-10 (CE-259z): arm (b) TRUNCATES a 64-bit network id to
+        //     int. The cache is written with the full `long` SpatialAnchor.NetworkId and read with an
+        //     int-widened AnchorIndex, so an EntityLocal primitive whose anchor id exceeds int.MaxValue
+        //     SILENTLY FAILS TO RESOLVE and the shape is skipped (`continue`).
+        //     ⭐ It cannot be widened here: SemanticShape's 40-byte payload union is full (ProfileId at
+        //       24-31, Length/Width at 32-39, ConditionMask at 40-43, Resolved* at 44-63) and the
+        //       64-byte size is a DDS-marshalled invariant. ⇒ it is a CONSTRAINT, not a slot to find.
+        //     ⭐⭐ So: an id used as an EntityLocal ANCHOR must stay <= int.MaxValue. Production ids do
+        //       (SequentialIdAllocator counts from 1), and the disjoint TOOL range (1L<<40) is above it
+        //       BY DESIGN -- safe only because no tool emits an EntityLocal primitive. DrawSemanticShape
+        //       now asserts this rather than wrapping in silence.
         [FieldOffset(8)]  public int AnchorIndex;
 
         [FieldOffset(8)]  public uint StringHash;
 
-        [FieldOffset(12)] public ushort AnchorGeneration; // ECS Entity Generation. A generation of 0 guarantees the handle is null or uninitialized.
+        // ⭐⭐⭐ OFFSET 12 NOW CARRIES ONE THING: LineOffsetPx, for Text and EntityBadge. S6/§6.7,
+        //   DESIGN_Gizmo_Anchor_Identity.md.
+        //
+        //   🔴🔴 §6.7, 2026-09-11 — `AnchorGeneration` HAS NO PRODUCER AND NO CONSUMER LEFT.
+        //     It held "the ECS generation" for interactive and EntityLocal shapes, the other half of the
+        //     pick payload deleted from offset 8. Every writer is gone (MakeBox2D's ECS overload,
+        //     MakePickSegment, MakeSemanticShape, DrawEntitySphere, and the three tool gizmos that
+        //     stamped it by hand), and so is every reader (MakePickToken, PickTopmostEntityAnchor,
+        //     EcsDebugPrimitiveExtensions.GetAnchor).
+        //   ⚠ THE FIELD ITSELF IS KEPT, deliberately: it is the ushort ALIAS of LineOffsetPx below, and
+        //     the S6 pairing is what stops anyone writing `unchecked((ushort)(short)x)` again. ⛔ So do
+        //     not read a value here as a generation — for a Text primitive it is a signed pixel offset.
+        //   ⛔ It is not an IDENTITY either. Identity is BoxAnchorId (offset 44) for a hit-testable
+        //     shape and StructNetworkId (offset 24) for a binding, and it is a NETWORK id.
+        [FieldOffset(12)] public ushort AnchorGeneration; // ⚠ §6.7: no longer an ECS generation — the unsigned alias of LineOffsetPx.
+
+        // ⭐ The SAME two bytes, read as signed. Negative moves a text line UP, positive DOWN.
+        //   ⭐⭐ This alias exists so nobody writes `unchecked((ushort)(short)x)` on the way in and
+        //     `(short)x` on the way out again -- the compiler does it, and the two casts were the only
+        //     thing making a signed value look like a generation. Producers: DebugPrimitive.MakeText,
+        //     DebugPrimitiveBuffer.DrawText (both copies). Consumers: DebugPrimitiveRenderer2D:345,:360.
+        [FieldOffset(12)] public short LineOffsetPx;
         [FieldOffset(14)] public SizeMode SizeMode;
         [FieldOffset(15)] public byte ZIndex;           // intra-layer sort; 0=background
         [FieldOffset(16)] public ushort ThicknessU16;   // thickness * 10 (max 6553.5)
@@ -59,12 +110,23 @@ namespace Fdp.Toolkit.Diagnostics.Gizmos
         [FieldOffset(32)] public float BoxExtentX;
         [FieldOffset(36)] public float BoxExtentY;
         [FieldOffset(40)] public float BoxAngleDeg;
-        // Offset 44: BoxAnchorId -- Multiplexed interaction handle.
-        // When AnchorGeneration == 0, the primitive is a stateless tool or network object,
-        // and this field carries the authoritative 64-bit ID for managed hit-routing.
-        // When AnchorGeneration != 0, this field is ignored and the terminal routes
-        // the ECS AnchorIndex instead.
-        // Overlaps ArrowHeadSize/EndColor (different shape -- no conflict).
+        // ⭐⭐⭐ Offset 44: BoxAnchorId -- THE IDENTITY, AND IT IS ALWAYS A NETWORK ID.
+        //   Every hit-testable primitive stamps it: an entity pick box / handle carries the entity's
+        //   NetworkIdentity value, a stateless tool handle carries the tool's own id from a DISJOINT
+        //   high range (GlobalGizmoManager.ToolAnchorIdBase = 1L<<40), and -1L is the canvas sentinel.
+        //   ⇒ the terminal compares ONLY this field, and puts ONLY this value in GizmoPickToken.AnchorId.
+        //
+        //   ⛔⛔ SUPERSEDED 2026-09-10 (S5, DESIGN_Gizmo_Anchor_Identity.md). This comment used to read:
+        //     "When AnchorGeneration == 0, ... this field carries the authoritative 64-bit ID ...
+        //      When AnchorGeneration != 0, this field is ignored and the terminal routes the ECS
+        //      AnchorIndex instead."
+        //   🔴 That rule was the CAUSE of two defects, not a description of a design: tool ids (1,2,3...)
+        //     and ECS indices share the small-integer range, so an exclusive tool's capture admitted
+        //     whichever entity's index equalled its id (D1); and the ECS index -- process-local -- went
+        //     on the DDS wire, mis-targeting on the receiver (D2). AnchorIndex/AnchorGeneration are now
+        //     an IN-PROCESS PAYLOAD only: never compared, never routed, never marshalled as an identity.
+        //
+        //   Overlaps ArrowHeadSize/EndColor (different shape -- no conflict).
         [FieldOffset(44)] public long BoxAnchorId;
 
         // Arrow payload
@@ -266,17 +328,71 @@ namespace Fdp.Toolkit.Diagnostics.Gizmos
             return p;
         }
 
-        // ECS-anchored overload for interactive tools and pick-box primitives.
-        public static DebugPrimitive MakeBox2D(
-            Vector2 center, Vector2 extents, Rgba32 color,
-            int anchorIndex, ushort anchorGeneration, long networkId,
-            ushort subElementId = 0, float angleDeg = 0f, float thickness = 1f,
-            SizeMode sizeMode = SizeMode.ScreenPixels, PipelineTarget target = PipelineTarget.All,
-            byte layer = 0, Rgba32 fillColor = default, LineStyle style = LineStyle.Solid)
+        // 🔴🔴 DELETED 2026-09-11 (§6.7) — the "ECS-anchored overload":
+        //     MakeBox2D(center, extents, color, int anchorIndex, ushort anchorGeneration,
+        //               long networkId, ...)
+        //   ⛔ Its only job was to stamp the emitting process's ECS handle into offsets 8/12 on top of
+        //     the base overload's networkId, so a picked primitive could hand a consumer a ready-made
+        //     Entity. Nothing reads that any more: identity is BoxAnchorId and the consumer resolves it
+        //     in its own world. 📄 docs/DESIGN_Gizmo_Anchor_Identity.md §6.7, GizmoPickToken.cs.
+        //   ⭐ Callers moved to the base overload, which already takes `networkId` as its `anchorId` —
+        //     i.e. the ECS-free path was always there; this overload only added the payload.
+
+        /// <summary>
+        /// ⭐⭐⭐ <b><c>CE-259ac</c> — A CLICKABLE LINE SEGMENT.</b> Returns a <see cref="DebugPrimitiveShape.Box2D"/>
+        /// oriented along <paramref name="from"/>→<paramref name="to"/>, <paramref name="pickThickness"/>
+        /// wide, so the terminal's hit-test picks the SEGMENT and not its bounding square.
+        ///
+        /// <para>⛔⛔ <b>Why a box and not a pickable <c>Line</c>.</b> A <c>Line</c> physically cannot carry
+        /// an identity: its payload is <c>LineStart</c> @24-35 + <c>LineEnd</c> @36-47 with <c>EndColor</c>
+        /// @48-51, while <see cref="BoxAnchorId"/> — the field the hit-test routes on — is a <c>long</c>
+        /// @44-51 and overlaps both. Narrowing <c>LineEnd</c> to 2D would free exactly those 8 bytes, but
+        /// <c>Stride/Hrot.Stride.Core/DebugPrimitiveRenderer3D.cs:222-223</c> draws lines from the full
+        /// <c>Vector3</c>, so that is not available. ⇒ ⭐ a <c>Box2D</c> already has every field needed —
+        /// centre, extents, <b>angle</b>, a full 64-bit <c>BoxAnchorId</c>, and <c>SubElementId</c> @52 for
+        /// "which segment" — so no new shape and no layout change are required.</para>
+        ///
+        /// <para>⭐⭐ <b>This is the established pattern, generalised from a point to a segment.</b>
+        /// <c>EntityPresentationGizmoShared.EmitPickBox</c> already gives an entity a fully transparent
+        /// 8×8 <c>Box2D</c> purely as a pick target, separate from its visual. Emit your pretty
+        /// <c>Line</c> (dashed, gradient, whatever) for looks and one of these for picking — or pass a
+        /// visible colour and let this BE the visual, since the renderer draws rotated boxes correctly.</para>
+        ///
+        /// <para>⚠ Requires the oriented-box hit-test (<c>DebugGizmoLayer.FindTopmostInteractivePrimitive</c>).
+        /// Before <c>2026-09-11</c> that test was axis-aligned, which is why lines were unpickable and why a
+        /// rotated box drew rotated but picked square.</para>
+        /// </summary>
+        /// <param name="pickThickness">Full width of the pick corridor in world units (not a half-extent).
+        /// The terminal adds its own ~5px grace radius on top, so a value of 0 still picks a thin line.</param>
+        public static DebugPrimitive MakePickSegment(
+            Vector2 from, Vector2 to,
+            long networkId,
+            float pickThickness = 0f,
+            ushort subElementId = 0,
+            Rgba32 color = default,
+            SizeMode sizeMode = SizeMode.ScreenPixels,
+            PipelineTarget target = PipelineTarget.Map2D,
+            byte layer = 0)
         {
-            var p = MakeBox2D(center, extents, color, angleDeg, thickness, sizeMode, target, layer, fillColor, style, networkId, subElementId);
-            p.AnchorIndex = anchorIndex;
-            p.AnchorGeneration = anchorGeneration;
+            var d = to - from;
+            float length = MathF.Sqrt(d.X * d.X + d.Y * d.Y);
+            // ⭐ A degenerate segment is a point: keep it pickable rather than emitting a zero-area box
+            //   that only the grace radius could ever hit at exactly one spot.
+            float angleDeg = length > 0f ? MathF.Atan2(d.Y, d.X) * (180f / MathF.PI) : 0f;
+
+            var p = MakeBox2D(
+                center: (from + to) * 0.5f,
+                extents: new Vector2(length * 0.5f, pickThickness * 0.5f),
+                color: color,
+                angleDeg: angleDeg,
+                thickness: 1f,
+                sizeMode: sizeMode,
+                target: target,
+                layer: layer,
+                anchorId: networkId,
+                subElementId: subElementId);
+            // 🔴 §6.7 — the `anchorIndex`/`anchorGeneration` parameters and their two writes are GONE.
+            //   The segment's identity is `networkId` in BoxAnchorId; nothing reads an ECS handle here.
             return p;
         }
 
@@ -317,10 +433,10 @@ namespace Fdp.Toolkit.Diagnostics.Gizmos
             // (stored as-is, not * 10 like line/sphere thickness). Zero means "use renderer default".
             if (fontSizePx > 0f)
                 p.ThicknessU16 = (ushort)fontSizePx;
-            // AnchorGeneration carries the screen-pixel line offset for Text primitives.
-            // Signed: negative moves the line UP, positive DOWN (stored as int16 bit-pattern).
+            // Offset 12 carries the screen-pixel line offset for Text primitives (S6).
+            // Signed: negative moves the line UP, positive DOWN.
             if (lineOffsetPx != 0f)
-                p.AnchorGeneration = unchecked((ushort)(short)lineOffsetPx);
+                p.LineOffsetPx = (short)lineOffsetPx;
             return p;
         }
 
@@ -354,6 +470,129 @@ namespace Fdp.Toolkit.Diagnostics.Gizmos
 
         // MainMenuBinding payload reuses StringHash (offset 8) for the interned JSON menu array hash.
         // All other fields remain zero. Non-visual meta-primitive consumed by MainMenuAdapter.
+        /// <summary>
+        /// ⭐⭐⭐ <b>THE IDENTITY INVARIANT — an INTERACTIVE primitive MUST carry one.</b>
+        /// 🔒 User ruling, <c>2026-09-11</c>: *"how comes there could be gizmo with no identity? this
+        /// should be hard-guarded. Identity was always a requirement so we can not drop it."*
+        /// 📄 <c>docs/DESIGN_Gizmo_Anchor_Identity.md</c> §6.8.
+        ///
+        /// <para>⛔⛔ <b>Why this never fired before, which is the whole answer to "how comes":</b>
+        /// identity was a requirement stated in COMMENTS and enforced NOWHERE. Two checks existed and
+        /// both test PRESENCE, not a usable value — <c>EntityPresentationGizmo</c>'s
+        /// <c>[GizmoProjector(SimTransform, NetworkIdentity)]</c> query and
+        /// <c>EmitPickSegments</c>'s <c>HasComponent&lt;NetworkIdentity&gt;</c>. ⇒ a component present with
+        /// <c>Value == 0</c> passed both. ⭐⭐ And the ECS payload MASKED the violation: a primitive with
+        /// no anchor id was still pickable, because the terminal forwarded the emitter's ECS handle and
+        /// the consumer rebuilt an <c>Entity</c> from it. ⇒ breaking the rule had no symptom. Deleting
+        /// the payload (§6.7) removed the mask, which is why this surfaced now and not earlier.</para>
+        ///
+        /// <para>⭐⭐ <b>Where the identity lives is shape-discriminated</b>, and the terminal's own
+        /// hit-test is the authority:
+        /// <list type="bullet">
+        ///   <item>interactive + <c>EntityLocal</c> ⇒ offset 8 (<c>AnchorIndex</c>), the 32-bit
+        ///   <c>SpatialAnchor</c> cache key — a <c>Line</c> has no room for <c>BoxAnchorId</c>;</item>
+        ///   <item>interactive + any other space ⇒ <c>BoxAnchorId</c> (offset 44);</item>
+        ///   <item>a BINDING ⇒ <c>StructNetworkId</c> (offset 24). ⚠ <c>-1</c> is LEGAL there — it is the
+        ///   canvas sentinel the context menu uses — so the test is <c>!= 0</c>, never <c>&gt; 0</c>.</item>
+        /// </list></para>
+        ///
+        /// <para>⭐⭐⭐ <b>IT LIVES HERE, ON THE PRIMITIVE, BECAUSE THERE ARE TWO BUFFERS.</b> 📐 Found by
+        /// <c>search_graph</c> after a filename-based grep misled me: <c>GizmoMap.Contracts</c> holds
+        /// <c>GizmoPrimitiveBuffer</c> — the ECS-FREE twin, with its own <c>Append</c>/<c>AppendRaw</c>,
+        /// used by the standalone GizmoMap apps and by <c>Stride/HrotStrideApp.Game</c>. ⛔ Putting the
+        /// invariant in <c>Fdp.Diagnostics.Contracts.DebugPrimitiveBuffer</c> alone would have enforced it
+        /// on ONE of the two funnel pairs — the seam law, committed by the very change meant to remove a
+        /// second identity channel. ⭐ The check reads only <c>DebugPrimitive</c> fields, so this assembly
+        /// is its natural home and both buffers call it.</para>
+        ///
+        /// <para>⭐⭐⭐ <b>IT THROWS — <see cref="GizmoAnchorIdentityException"/>.</b> 🔒 User ruling,
+        /// <c>2026-09-11</c>: *"if the zero identity throws an exception on some suitable (central?) place
+        /// where gizmos are processed so it is easy to catch the case soon after it happens in a new
+        /// code."* ⚠⚠ **An earlier version of this check used <c>Debug.Assert</c>**, reasoning from
+        /// <c>DebugPrimitiveBuffer.AssertFitsAnchorKey</c>'s *"a diagnostics emitter must never take down a
+        /// frame"*. ⛔ **That is SUPERSEDED here**, for two measured reasons: an assert is compiled out of
+        /// Release, so the enforcement vanished exactly where a new emitter would ship; and the throw
+        /// genuinely surfaces, because <c>SystemScheduler.ExecuteSystem</c>'s <c>try/catch</c> is
+        /// COMMENTED OUT and <c>FdpConfig.FailFastOnModuleException</c> defaults <c>true</c> on the user's
+        /// <c>2026-09-04</c> ruling. ⭐ <c>GizmoIdentityEnforcement.Strict</c> is the documented way back
+        /// to assert-only. ⛔ On the relaxed path the primitive is still APPENDED: dropping it silently
+        /// would trade a loud failure for an invisible one.</para>
+        /// </summary>
+        public static void AssertHasIdentity(in DebugPrimitive p)
+        {
+            // ⭐⭐⭐ A SHAPE ALLOW-LIST, not a "looks interactive" heuristic — and the first cut of this
+            //   check got that wrong, loudly, which is why it is spelled out.
+            //   ⛔⛔ The first version tested `AnchorIndex != 0 || SubElementId != 0 || BoxAnchorId != 0`,
+            //     mirroring the terminal's own pre-filter. 📐 Measured: that FALSE-POSITIVES on every
+            //     shape whose offset 8 is a StringHash rather than an anchor key — interned `Text`,
+            //     `EntityBadge`, and `MainMenuBinding` (which has NO identity by design: it is global).
+            //     ⇒ 26 rails across 5 suites asserted, none of them a real violation.
+            //   ⭐ The honest rule is the one the ROUTING uses: only a shape the hit-test can PICK needs
+            //     a pick identity, and only an EntityLocal primitive needs an anchor KEY.
+            switch (p.Shape)
+            {
+                // ── bindings: keyed by StructNetworkId (offset 24) ─────────────────────────────
+                case DebugPrimitiveShape.InputCaptureBinding:
+                case DebugPrimitiveShape.ContextMenuBinding:
+                case DebugPrimitiveShape.StructInspector:
+                    if (p.StructNetworkId == 0) Fail(
+                        $"A {p.Shape} binding carries NO IDENTITY (StructNetworkId is zero). Nothing can "
+                      + "ever route to it: the terminal keys bindings by this field. Pass the anchor's "
+                      + "network id, a disjoint tool id (GlobalGizmoManager.ToolAnchorIdBase), or -1 for "
+                      + "the canvas. See DESIGN_Gizmo_Anchor_Identity.md §6.8.");
+                    return;
+
+                // ⛔ MainMenuBinding is deliberately NOT here: it is a GLOBAL contribution with no
+                //   anchor, and offset 8 is its interned JSON hash. LayerControlMask likewise.
+                case DebugPrimitiveShape.MainMenuBinding:
+                case DebugPrimitiveShape.LayerControlMask:
+                case DebugPrimitiveShape.SpatialAnchor:   // it IS an identity source, not a consumer
+                    return;
+            }
+
+            // ── an EntityLocal primitive of ANY shape needs the 32-bit anchor KEY at offset 8 ──
+            if (p.Space == CoordinateSpace.EntityLocal)
+            {
+                if (p.AnchorIndex == 0) Fail(
+                    $"An EntityLocal {p.Shape} carries NO ANCHOR KEY (offset 8 is zero). It resolves against "
+                  + "no SpatialAnchor, so it is drawn nowhere and picks nothing. "
+                  + "See DESIGN_Gizmo_Anchor_Identity.md §6.8.");
+                return;
+            }
+
+            // ── a HIT-TESTABLE shape needs a pick identity ────────────────────────────────────
+            //   ⚠ Only Box2D and Sphere: those are the shapes FindTopmostInteractivePrimitive tests,
+            //     and the only ones whose payload leaves offset 44 free for BoxAnchorId (a Line's
+            //     LineEnd/EndColor overlap it — see MakePickSegment's note).
+            bool hitTestable = p.Shape == DebugPrimitiveShape.Box2D
+                            || p.Shape == DebugPrimitiveShape.Sphere;
+            if (!hitTestable) return;
+
+            // ⚠ A hit-testable shape may legitimately be DECORATIVE — a plain DrawBox2D outline with no
+            //   anchor and no sub-element is not a pick target and needs no identity.
+            bool claimsInteraction = p.SubElementId != 0 || p.BoxAnchorId != 0;
+            if (!claimsInteraction) return;
+
+            if (p.BoxAnchorId == 0) Fail(
+                $"An interactive {p.Shape} (SubElementId {p.SubElementId}) carries NO IDENTITY "
+              + "(BoxAnchorId is zero). It is WORSE than inert: a non-zero SubElementId still passes the "
+              + "terminal's interactivity pre-filter, so it WINS the hit-test and swallows the click, "
+              + "then resolves to no entity and reaches no gizmo. Identity is the anchor's network id "
+              + "and it was always required. See DESIGN_Gizmo_Anchor_Identity.md §6.8.");
+        }
+
+        /// <summary>
+        /// ⭐⭐ The ONE place the identity invariant reports. Throws by default; degrades to a debug-only
+        /// assert when <see cref="GizmoIdentityEnforcement.Strict"/> is turned off.
+        /// </summary>
+        private static void Fail(string message)
+        {
+            if (GizmoIdentityEnforcement.Strict)
+                throw new GizmoAnchorIdentityException(message);
+
+            System.Diagnostics.Debug.Assert(false, message);
+        }
+
         public static DebugPrimitive MakeMainMenuBinding(uint menuJsonHash)
         {
             var p = default(DebugPrimitive);
@@ -362,8 +601,15 @@ namespace Fdp.Toolkit.Diagnostics.Gizmos
             return p;
         }
 
+        /// <summary>
+        /// ⭐⭐ §6.7 — <paramref name="anchorKey"/> is the <c>SpatialAnchor</c> CACHE KEY at offset 8: the
+        /// anchor's network id narrowed to 32 bits (constraint <c>C7</c>), which is what
+        /// <c>DebugPrimitiveRenderer2D:105</c> probes the cache with. ⛔ It is NOT an ECS index, and the
+        /// companion <c>ushort anchorGeneration</c> parameter — which stamped the emitter's ECS
+        /// generation into offset 12 for nothing to read — is DELETED.
+        /// </summary>
         public static DebugPrimitive MakeSemanticShape(
-            int anchorIndex, ushort anchorGeneration, long networkId, ulong profileId,
+            int anchorKey, long networkId, ulong profileId,
             float length, float width, uint conditionMask,
             PipelineTarget target = PipelineTarget.All, byte layer = 0)
         {
@@ -372,8 +618,7 @@ namespace Fdp.Toolkit.Diagnostics.Gizmos
             p.Space = CoordinateSpace.EntityLocal;
             p.TargetView = target;
             p.DebugLayer = layer;
-            p.AnchorIndex = anchorIndex;
-            p.AnchorGeneration = anchorGeneration;
+            p.AnchorIndex = anchorKey;
             p.BoxAnchorId = networkId;
             p.ProfileId = profileId;
             p.LengthMeters = length;

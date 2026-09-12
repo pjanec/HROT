@@ -1,3 +1,77 @@
+<!--STATUS
+state: LIVE
+updated: 2026-09-12
+build-state: BUILT — §2.1m, 2026-09-12 (ea659a581 + 4e7d2285f). All three steps landed: the ELM is
+  cleared at every world replacement (PrepareReplay, every seek, FinalizeReplay/PrepareLive, and the editor
+  preview via the bracket), the re-derive is armed only when resuming to a live world, and both
+  LifecycleSystem and GhostPromotionSystem are gated during replay. CE-259aq is closed.
+  ⛔ ONE NAMED RESIDUE, tracked as CE-259av: GhostCreationSystem.BypassLifecycle is still not honoured
+  inside CreateGhost, so mgmt-1/DESIGN.md §8.10's "new arrivals materialise directly into Active" remains a
+  specification. Read §2.1m's AS-BUILT table.
+  ⭐ Authorised by the user 2026-09-12. Its three diagrams are in §2.1m and all parse — the sequence
+  diagram was CORRECTED to the as-built (the re-derive is its own call at the top of Execute, not hung off
+  DrainInstantComplete).
+  ⛔ EVERY OTHER SECTION IS DESIGN / as-is analysis and is NOT dispatchable — §2.1a–§2.1l are measured
+  findings, §3.10 is a gap list, §2.1 is the original target table (see known-rot).
+  ⚠ STEP 1 IS A DELIBERATE DEVIATION from docs/designs/mgmt-1/DESIGN.md §8.10, authorised in the same
+  breath: §8.10 prescribes RELOCATING LifecycleSystem/GhostPromotionSystem into NetworkLifecycleSystemGroup,
+  which is unsafe because ExecuteGroup has exactly ONE caller (NedReplicationModule.cs:493) and the group
+  never ticks on the editor or BDC nodes. §2.1m GATES IN PLACE instead. The implementing session MUST
+  argue this in its report (obligation ③) and fold the as-built back into §8.10 (obligation ⑤).
+current-answer: ⭐ TO BUILD: §2.1m. ⭐ TO UNDERSTAND WHY: §2.1k (the owning design) and §2.1l (the seam
+  that already exists). ⚠ This document was written as a DESIGN of replay isolation, and §1.1 is titled
+  "Broken Replay Isolation" — so its tables describe how it was MEANT to be, not how it IS. Read §2.1a
+  before quoting the NetworkLifecycleSystemGroup row.
+known-rot: ⛔⛔ §2.1's row "NetworkLifecycleSystemGroup | Disabled during replay | block ghost
+  create/promote/destroy" is NOT the as-is, measured 2026-09-11 (§2.1a): every production site passes
+  that group exactly ONE member (GhostCreationSystem), whose Execute is an EMPTY BODY, so toggling the
+  group's Enabled flag changes no behaviour at all. GhostPromotionSystem and NetworkGatewaySystem have
+  never been passed to it by any site, and GhostDestructionSystem — §3.10.3's first "must be moved
+  inside" — was DELETED outright by CE-144, so that half of §3.10.3 is moot rather than outstanding.
+  ⛔ §2.1's second documented protection, GhostCreationSystem.BypassLifecycle, is written by three
+  production sites and READ BY NONE. Filed as CE-259ap.
+  ⛔⛔ CORRECTED 2026-09-11: §2.1's "TogglableInputGroup disabled => block live DDS ingress" Reason is
+  ALSO false as built — that group holds the LOGIC-PACK input systems (§2.4), while all 11 production
+  CycloneNetworkIngressSystem registrations are direct and outside every togglable group, and
+  SetSystemsEnabled touches no ingress system and no participant. ⇒ live DDS ingress REACHES a node in
+  RunningReplay (railed + red-proofed).
+  🔴🔴 RETRACTED SAME DAY, and it REVERSES A SEVERITY: an earlier version of this block said "the ONLY
+  thing protecting the ghost path is that the restore path never writes EntityMetadataCold.LifecycleState
+  — default Constructing (0), not Ghost". That premise was measured with a grep for the SETTER and the
+  restore uses a RAW COLD-CHUNK COPY (EntityMetadataCold carries [FieldOffset(84)] LifecycleState). ⇒
+  lifecycle IS recorded and restored wholesale, a ghost comes back A GHOST, and the ungated
+  GhostPromotionSystem mutates entities the log owns. Read §2.1b, never this retracted line.
+  ⛔⛔ A FOURTH inert protection, measured 2026-09-11 (§2.1g): NedReplicationModule.AfterSeekCallback
+  returns a NON-NULL EMPTY lambda whose only statement is a commented-out ResetTracking() call, and
+  ResetTracking exists in zero C# files — while T-RMF-23 is ticked DONE. Every "is it wired" check passes.
+  ⭐⭐ The right gate EXISTS and is under-adopted: CycloneNetworkIngressSystem.IsWorldStateFrozen skips
+  exactly the WorldState translators, but its one production writer is CgfSubsystem's DEBUGGER halt
+  (DQ30-C), not replay. CE-259ap's lean is to adopt it.
+  🔴🔴🔴 §2.1e IS SUPERSEDED BY §2.1f: its central claim — "≥20 change-detection caches are broken by a
+  rewind, so a rewind SUPPRESSES a needed publish" — is FALSE. Every holder read is an EQUALITY compare
+  (not a >= monotonic guard), a keyframe repo.Clear() wipes the managed EgressPublicationState (managed
+  tables share _componentTables) and its absence FORCES a publish, and egress runs during playback so the
+  cache tracks the log. ⇒ class B is SELF-HEALING; the reflection subscription rail and the generalised
+  boundary event are DROPPED, and class C (the ELM's non-recorded pending-construction protocol) is the
+  only remaining defect. Do NOT quote §2.1e's class-B conclusion or its step 2/3 plan.
+  🔴🔴🔴 §2.1h — the class-C defect is WIDER than §2.1f said: LifecycleSystem is a DIRECT registration, so
+  CheckTimeouts runs EVERY TICK DURING PLAYBACK, and its currentFrame - StartFrame is uint. A rewind makes
+  that wrap to ~4.29e9, the timeout fires, and cmd.DestroyEntity is called on a stale pre-replay handle —
+  with the generation guard DEBUG-ONLY (Fdp.Core.csproj defines FDP_PARANOID_MODE only for Debug). ⇒ the
+  ELM must be cleared at every WORLD REPLACEMENT (PrepareReplay, every seek, the live boundary), not only
+  at resume. Filed as CE-259ar.
+  ⭐ §2.1i measures the participant sets: both production ctor sites pass an EMPTY list and
+  RegisterRequirement has ZERO callers, so the ack set is at most {gatewayModuleId} today.
+stale-below: §2.1e's class-B conclusion and its 3-step plan (superseded by §2.1f); the retracted
+  lifecycle line above; §2.1f's "asymmetry in BeginDestruction" flag (moot — see §2.1i). The other §2.1
+  rows were not re-measured on 2026-09-11 and carry no claim either way.
+related-designs:
+  - docs/designs/mgmt-1/DESIGN.md — §8.10/§8.5 — THE OWNING RULE for entity lifecycle DURING replay ("the ELM pipeline is never invoked"). ⚠ This file reasoned about that for two days without finding it.
+  - docs/DESIGN_Deterministic_Network_Ids.md — §2b/§4c/§4d — the PREVIEW rewind trigger, the IPreviewRewindable/PreviewStateBracket seam, and HN-018 (the ELM as its third participant).
+  - docs/DESIGN_Entity_State_Sourcing.md — the RECORDED-vs-RE-DERIVED principle (R-136): state must be reconstructible from the TKB or a published TransientLocal descriptor.
+  - FDP/Engine/Fdp.ModuleHost/docs/ModuleHost-network-ELM-design-talk.md — §1/§2/Part 1 — WHY the construction barrier exists (local modules ACK before Active) and why the gateway joins the ELM loop as a blocking participant.
+  - docs/designs/two-ack/TwoAck-DESIGN.md — the IOS-facing two-phase ack that is BUILT ON TOP of the ELM handshake.
+-->
 # Design: Replay Isolation and Modern Module System
 
 ## 1. Problem Statement
@@ -47,6 +121,849 @@ The following table reflects the final decisions from the design discussion:
 | `PlaybackTickSystem` | Not registered | **Running** | Drives replay frame-by-frame restore of ECS state |
 | Export phase (CycloneEgressSystem, SmartEgressSystem, OwnershipEgressSystem) | Runs normally | Runs normally | IG nodes receive historical state from network; timeline seek requires a forced-dirty workaround (see Section 3.10) |
 | `RecorderTickSystem` | Runs when RecordingModule active | **Not registered** | RecordingModule is uninstalled at exercise end; it is mutually exclusive with ReplayModule |
+
+
+### 2.1a ⛔⛔ AS-IS — **the `NetworkLifecycleSystemGroup` row is NOT built, and the gate is INERT** *(measured `2026-09-11`)*
+
+⚠ **§2.1 above is the TARGET.** This subsection is what the code does, measured while relocating
+`GhostPromotionSystem` into `EntityCreationPack` *(`P2`; [`../../DESIGN_Role_Affinity_Ownership.md`](../../DESIGN_Role_Affinity_Ownership.md) §6a)*.
+
+| the row claims | measured |
+|---|---|
+| the group holds `LifecycleSystem`, `GhostPromotionSystem`, `NetworkGatewaySystem` | ⛔ **none of the three, at any site.** Every construction site passes **`GhostCreationSystem` alone** — `NedReplicationModule.cs:219`, `BdcReplicationModule.cs:61`, and all eight test sites |
+| disabling it blocks ghost **create** | ⛔ **No.** `GhostCreationSystem.Execute` is `{ }` — *"No-op: system is registered for pipeline consistency."* Ghosts are made by `CreateGhost(...)`, called **directly by the ingress translators** on the Input phase, a path no scheduler gate reaches. ⇒ **toggling `Enabled` changes nothing** |
+| disabling it blocks ghost **promote** | ⛔ promotion was never in the group; it was registered standalone *(and now comes from `EntityCreationPack`)*. ⚠ **But LATENT, not live** — see the row below |
+| disabling it blocks ghost **destroy** | ⭐ **moot**: `GhostDestructionSystem`, §3.10.3's first *"must be moved inside"*, was **DELETED** by `CE-144`. Destruction now goes through `NetworkSpawningSystem.ProcessDestroy` → the ELM |
+| `GhostCreationSystem.BypassLifecycle` skips lifecycle + map registration during replay | ⛔ **written by 3 production sites, READ BY NONE.** `CreateGhost` does not consult it; it unconditionally sets `Ghost` and registers in the map |
+| 🔴🔴 **does a replay deliver ghosts to promote at all?** | ⛔⛔ **YES — and an earlier version of this row said NO. RETRACTED `2026-09-11`.** That row's premise came from a grep for `SetLifecycleState`, and **the restore path does not use a setter**: 📐 `RecorderSystem` writes the entity index's **cold chunk** raw (`ENTITY_INDEX_COLD_TYPE_ID`), `PlaybackSystem.ApplyChunkData` restores it via `RestoreColdChunkFromBuffer`, and `EntityMetadataCold` carries `[FieldOffset(84)] LifecycleState`. ⇒ **an entity recorded while it was a ghost comes back as a ghost**, matches the promotion query, and the ungated `GhostPromotionSystem` advances it to `Constructing` and applies the TKB template — **mutating entities the LOG owns, with no live ingress involved.** ⇒ promotion's absence from the gate is **LIVE, not latent** |
+| 🔴🔴 **`TogglableInputGroup` disabled ⇒ "block live DDS ingress"** *(the row's own Reason)* | ⛔⛔ **FALSE AS BUILT, measured `2026-09-11`.** That group holds the **logic-pack** input systems (`MissionControlExecutionSystem`, `FireProcessingSystem`, …) — §2.4 lists them. Every one of the **11** production `CycloneNetworkIngressSystem` registrations is a **direct** `RegisterSystem`/`RegisterGlobalSystem`, never into a togglable group; and `ReferenceReplayLoadHandler.SetSystemsEnabled` toggles only the four groups, touching **no** ingress system and **no** DDS participant. ⇒ 🔒 **live DDS ingress REACHES a node in `RunningReplay`** |
+
+⇒ ⛔⛔⛔ **THE HONEST SUMMARY, after the `2026-09-11` follow-up measurement: ALL THREE mechanisms §2.1
+names for the ghost path are inert or absent.** The lifecycle group gates a no-op; `BypassLifecycle` is
+unread; and `TogglableInputGroup` does not contain the ingress systems at all. ⛔⛔ **And nothing stands behind them** — the
+*"but the restore never writes `Ghost`"* consolation was **retracted `2026-09-11`** (see the table row):
+the restore writes lifecycle as part of the cold chunk, so **recorded ghosts come back as ghosts** and the
+ungated `GhostPromotionSystem` mutates them.
+
+⭐⭐ **A live `EntityMaster` arriving mid-replay is, by itself, BENIGN — and that correction came from the
+user.** 📐 Measured: the recording stores a **`MaxNetworkId`** high-water mark
+*(`RecorderSystem`/`AsyncRecorder` → `RecordingMetadata.MaxNetworkId` → `ReplayModule.MaxNetworkId` →
+`ReferenceReplayLoadHandler` → `ReplayConsensusAggregator` takes the cluster max)*, so a post-recording id
+need not collide; a keyframe does **`repo.Clear()`** (`PlaybackSystem.ApplyFrame`, `frameType == 1`), so a
+stray live entity is wiped; and a stale `NetworkEntityMap` entry cannot resolve WRONG because
+`NetworkIdResolver.ResolveNetworkId` **verifies** a map hit against the entity's own `NetworkIdentity` and
+degrades to a scan. ⇒ ⛔ **the earlier framing of this as "corruption from live ingress" was OVERSTATED.**
+⚠ Two caveats: **no consumer was found that actually rebases an id allocator past `MaxNetworkId`** *(the
+chain ends at the orchestrator's aggregate — not measured as wired)*, and the map is re-synced **only on
+seek** *(`EcsRecordReplayController`'s `_afterSeek`)*, not per frame.
+
+⇒ ⭐⭐⭐ **So the real defect is the one that needs no live traffic: promotion mutating RESTORED ghosts.**
+
+⭐⭐⭐ **BUT THE RIGHT GATE ALREADY EXISTS AND IS UNDER-ADOPTED** — `CycloneNetworkIngressSystem`
+`.IsWorldStateFrozen`, a `Func<bool>` asked **once per `Execute`** that skips exactly the
+`TranslatorClass.WorldState` translators while letting control-plane ingress through *(so a resume can
+still arrive)*. ⛔ It has **one** production writer — `CgfSubsystem.WireWorldStateFreezeGate`, driven by
+the **DEBUGGER halt** (`CgfClusterDebugTimeController.IsWorldStateFrozen => _halted`, `DQ30-C`) — not by
+replay, and on CGF only. ⇒ ⭐ **the replay fix is to adopt that seam**, not to populate the lifecycle group
+*(wrong layer — `CreateGhost` is called from the translators, which no scheduler gate reaches)* and not to
+implement `BypassLifecycle` *(the same job, one level coarser)*.
+
+📄 Filed as **`CE-259ap`**; not fixed here, because adopting the gate **changes replay behaviour on every
+host** and nothing has yet measured what depends on the current behaviour.
+
+📐 **The measurement is pinned by rails**, in the feature's own suite
+*(`Hrot.SimHost.Tests/ReplayLoadClusterOpHandlerTests`)*:
+`RunningReplay_DoesNotStopADirectlyRegisteredInputPhaseSystem` *(the real handler, a real
+`Commit(PrepareReplay)`, a real kernel — an `Input`-phase system registered the way every ingress system
+is keeps executing)* and `TheReplayPathWiresNoWorldStateFreeze_AndIngressIsNeverInATogglableGroup`.
+⭐ Both inverse-edit red-proofed: putting the probe inside the group reddens the first, and wrapping one
+module's ingress in a `TogglableInputGroup` reddens the second.
+
+#### 2.1b ⭐⭐⭐ WHY PROMOTING A REPLAYED GHOST IS WRONG — **it is not the ECS writes** *(measured `2026-09-11`)*
+
+🔒 **The user's question, and it is the right one:** *"What is wrong about promoting a ghost from replay?
+How does replay work? Does it replay the lifecycle state?"*
+
+⭐⭐ **YES — replay replays the lifecycle state, and that is exactly why the ECS half is harmless.**
+`PlaybackSystem.ApplyFrame` restores **raw chunks by index** each frame:
+
+| what is restored | how |
+|---|---|
+| component masks | the **hot** chunk, `typeId == -1` → `RestoreHotChunkFromBuffer` |
+| ⭐ **entity metadata, incl. `LifecycleState`** | the **cold** chunk, `typeId == -2` → `RestoreColdChunkFromBuffer`; `EntityMetadataCold.LifecycleState` sits at `[FieldOffset(84)]` |
+| component data | one chunk per registered component type |
+| ⭐ **event buffers** | `ReadAndInjectEvents` + `eventBus.ClearCurrentBuffers()` |
+| the whole world, on a keyframe | `repo.Clear()` (`frameType == 1`) |
+
+⇒ ⭐ **three of `PromoteGhost`'s four effects are OVERWRITTEN by the log** — the TKB `Inject` writes,
+`SetLifecycleState(Constructing)` and the `GhostStateTracker` removal. **Redundant, not corrupting.**
+
+### 🔴🔴 THE HARM IS THE FOURTH EFFECT — **a stateful protocol the log cannot rewind**
+
+`PromoteGhost` ends in `_lifecycleModule.BeginConstruction(...)`, and that call:
+
+| | |
+|---|---|
+| inserts into **`EntityLifecycleModule._pendingConstruction`** | a plain `Dictionary<Entity, PendingConstruction>` — ⛔ **not ECS state, so never recorded and never restored** |
+| ⛔⛔ **throws if the entity is already there** | `if (_pendingConstruction.ContainsKey(entity)) throw new InvalidOperationException($"Entity {entity.Index} already in construction")` |
+| 📐 and nothing resets it | `EntityLifecycleModule` has **no** `Clear()`/`Reset()`, and `ReferenceReplayLoadHandler`, `ReplayModule` and `EcsRecordReplayController` contain **zero** references to the ELM |
+
+⇒ 🔒 **THE WORLD REWINDS; THE ELM DOES NOT.** Frame *N* promotion registers the entity as pending; the log
+restores it to `Ghost`; frame *N+1* promotion calls `BeginConstruction` again ⇒ **throw** — and with
+`FdpConfig.FailFastOnModuleException` defaulting `true` and `SystemScheduler.ExecuteSystem`'s `try/catch`
+commented out, it **surfaces** rather than being swallowed.
+
+⚠ **Conditional, and the conditions are characteristic of replay.** `DrainInstantComplete` clears the entry
+only when `RemainingAcks.Count == 0 && currentFrame > StartFrame`, so it sticks when either the node has ELM
+participants whose acks never arrive during playback, or — ⭐ **the replay-specific one** — **a SEEK rewinds
+the replayed frame counter so `currentFrame > StartFrame` goes FALSE**, which is what seeking *is*.
+
+⇒ ⭐⭐⭐ **This is why §2.1's gate named `LifecycleSystem` AND `GhostPromotionSystem` together:** both drive
+that same non-recorded protocol, and the ack drainer is ungated during replay for the identical reason.
+⛔ Neither was ever passed to the group.
+
+⛔⛔ **And "how often does a recording capture a mid-flight ghost" is NOT a question worth asking** — 🔒 user:
+*"if it can happen, it will one day. Who cares how often, needs to be handled every time."* An earlier note
+here asked it; struck.
+
+#### 2.1c ⭐⭐⭐ GATE, OR RECORD THE PENDING STATE? — **the user's question, and the answer is a third option** *(`2026-09-11`)*
+
+🔒 **User:** *"is the gate promotion and the ack drainer at runtime really the right fix? shouldn't we
+record/restore the pending promotions dictionary?"*
+
+⭐⭐ **The instinct is right that gating alone is incomplete. But recording it would REVERSE AN EXPLICIT
+POLICY, and there is a cheaper option that fixes the part gating misses.**
+
+| the answer rests on | measured |
+|---|---|
+| replay is **state-RESTORE**, not re-execution | `PlaybackSystem.ApplyFrame` restores raw chunks; §2.1 disables input/sim/post-sim — physics *"would overwrite restored positions"* |
+| lifecycle **is** recorded | cold chunk, `EntityMetadataCold.LifecycleState` @ offset 84 |
+| ⭐⭐ **the ghost's promotion bookkeeping is DELIBERATELY NOT recorded** | `GhostStateTracker` carries **`[DataPolicy(DataPolicy.Transient)]`**, and `Transient = NoSnapshot \| NoRecord \| NoSave` — the enum's own doc: *"Completely transient… UI caches, temporary buffers, debug metrics"* |
+| `_pendingConstruction` is not ECS state at all | a plain `Dictionary<Entity, PendingConstruction>`, holding a `HashSet<int>` of module ids — ⛔ not blittable, so not chunk-recordable as-is |
+| ⛔ **a restored `Constructing` entity is a ZOMBIE** | `QueryBuilder.WithLifecycle`: *"Default: **Active** (excludes Constructing and TearDown)"* ⇒ invisible to every default query |
+| ⭐ the codebase already reconciles non-recorded state at a boundary | `EcsRecordReplayController._afterSeek` → `NetworkEntityMap.RebuildFromWorld` |
+
+### ⛔ ① RECORDING IT IS A MODEL CHANGE, NOT A BUG FIX
+
+The recording has **already decided** this class of state is transient. To record the pending dictionaries
+you must reverse `DataPolicy.Transient` on the tracker, add non-ECS side-channel state to the recording
+format *(or move the dictionary into a component and replace `HashSet<int>` with a bitmask)*, and grow every
+recording. ⇒ that is adopting a **faithful re-execution** model in a system built as **state restore**.
+
+### ⭐ ② GATING IS CONSISTENT WITH THE EXISTING MODEL — **but only covers DURING playback**
+
+The log is authoritative for lifecycle; the systems that would fight it are silenced. That is §2.1's own
+design. ⛔ It says nothing about what happens when live resumes.
+
+### 🔴 ③ THE HOLE GATING DOES NOT COVER, AND THE USER'S INSTINCT POINTS STRAIGHT AT IT: **branch-to-live**
+
+`PrepareLive` after a replay resumes live simulation from the restored frame. An entity recorded
+**mid-`Constructing`** comes back `Constructing` with **no `_pendingConstruction` entry and no
+`GhostStateTracker`** *(both transient)* ⇒ **nothing will ever complete it**, and being non-`Active` it is
+invisible to every default query. ⚠ A permanent zombie — and 📐 measured: nothing in the `PrepareLive` path
+touches the ELM.
+
+### ⭐⭐⭐ ④ THE LEAN — **RECONCILE AT THE BOUNDARY, DO NOT RECORD CONTINUOUSLY**
+
+On `FinalizeReplay`/`PrepareLive`, rebuild the ELM's pending state from the **restored lifecycle states** —
+⭐ exactly the shape `EcsRecordReplayController` already uses for `NetworkEntityMap.RebuildFromWorld` on
+seek, in the same class, for the same reason *(a non-recorded index that time travel invalidates)*.
+
+| option | cost | fixes |
+|---|---|---|
+| ⛔ record the dictionaries | format change · policy reversal · bigger recordings · `HashSet<int>` not blittable | playback **and** branch |
+| ⭐ gate during playback *(§2.1's design)* | one composition change | playback only |
+| ⭐⭐⭐ **gate + reconcile on branch** | the gate, plus one method with an existing precedent | playback **and** branch, at a fraction of the cost |
+
+⚠ **What would change this lean:** if replay must become **re-executable** *(deterministic re-simulation
+from a frame, not just scrubbing)*, then recording is right and the whole `Transient` policy needs
+revisiting. ⛔ **That is a product question, not an implementation one** — and it is the one to put to the
+user before building either.
+
+#### 2.1d ⭐⭐⭐ GOING LIVE FROM A RECORDED STATE — **what the recording omits, and why RE-DERIVING beats RECORDING** *(`2026-09-11`)*
+
+🔒 **User:** *"imagine we want to go to live from a recorded state…"* ⭐ Not hypothetical — `PrepareLive`
+after a replay is a shipped path (`LiveFromReplayTests`), so **the restored frame must be a VALID LIVE
+STARTING STATE**, which is a far stronger requirement than "scrubbing looks right".
+
+📐 **Enumerated: everything the Flight Recorder omits** *(`DataPolicy.NoRecord`/`Transient`, components
+only — event types are replaced wholesale by `ReadAndInjectEvents`)*. ⭐⭐ **The useful split is NOT
+transient-vs-recorded, it is SELF-HEALING vs NOT:**
+
+| omitted state | policy | does live traffic refill it on resume? |
+|---|---|---|
+| `NetworkTransform` · `NetworkVelocity` | `NoRecord` | ✅ **yes** — the owner republishes and dead reckoning drives from it. Recording them would be waste |
+| `EgressPublicationState` | `Transient` | ✅ yes — a *"have I published"* cache; worst case one redundant republish |
+| `ForceNetworkPublish` | `Transient` | ✅ a one-shot tag; absent IS the normal state |
+| `GlobalDebugSettings` · `DebugState` | `Transient` | ✅ irrelevant to simulation |
+| `GenesisIntentComponents` ×7 | `Transient` | ✅ creation-time intents, already consumed |
+| 🔴 **`GhostStateTracker`** | `Transient` | ⛔ **NO** — nothing re-creates it, and promotion needs it to evaluate soft timeouts |
+| 🔴 **`PendingNetworkAck`** | `Transient` | ⛔ **NO** — its own doc: *"entities awaiting network acknowledgment … removed after publishing lifecycle status"* ⇒ an entity restored mid-wait never publishes it |
+| ⚠ `MissionAdapterState` | `Transient` | ⚠ **not measured** — CGF mission-adapter state |
+| 🔴🔴 **`EntityLifecycleModule._pendingConstruction` / `_pendingDestruction`** | not ECS state at all | ⛔ **NO** |
+
+⇒ ⭐⭐⭐ **The `Transient` policy is RIGHT for the first group and WRONG for the second.** `GhostStateTracker`
+carries the same attribute as UI caches and debug metrics, and the enum's own doc describes that group as
+*"UI caches, temporary buffers, debug metrics"* — ⛔ **mid-handshake protocol state is none of those.** That
+misclassification, not the gate, is the root of the branch-to-live hole.
+
+### ⛔⛔ BUT RECORDING `RemainingAcks` WOULD BE WORSE THAN NOT RECORDING IT
+
+⭐ The **authoritative** fact IS recorded — `LifecycleState`. So *"which entities are mid-construction"* is
+**derivable** from the restored world *(`Constructing` + `TkbIdentity`)*. ⛔ The only part that is NOT
+derivable is **how far the handshake had got** — `RemainingAcks`.
+
+🔴 **And restoring that is not meaningful, because it is a DISTRIBUTED handshake.** Your node's half is
+restored to frame *T*; the peers that already sent those acks are not, and they will not resend. ⇒ a
+faithfully-restored `RemainingAcks` **waits forever for an ack nobody owes** — a deadlock, strictly worse
+than starting over. ⚠ Recording it only becomes correct if **every** node restores the **same** frame with
+the **same** partial state, in lockstep, which replay does not guarantee per node.
+
+### ⭐⭐⭐ SO THE MODEL FOR GOING LIVE IS: **restore the WORLD from the log, then RE-DERIVE every in-flight protocol from it**
+
+⭐ One `ResumeFromRestoredState()` pass at the `FinalizeReplay`/`PrepareLive` boundary:
+
+| for each restored entity | do |
+|---|---|
+| `Ghost` | re-attach `GhostStateTracker`, stamped with the **resume** frame *(so soft timeouts run from now, not from a recorded past)* |
+| `Constructing` + `TkbIdentity` | re-open a construction with a **fresh** participant set — re-run the handshake rather than resurrect a stale one |
+| `TearDown` | re-open a destruction, same reasoning |
+| any | clear the egress publication caches so the first live frame republishes a full baseline |
+
+⭐ **The precedent is in the same class:** `EcsRecordReplayController._afterSeek` already re-derives
+`NetworkEntityMap` via `RebuildFromWorld`, for exactly this reason — a non-recorded index that time travel
+invalidates. ⇒ this is that pattern applied to the other three.
+
+⇒ ⭐⭐ **And it subsumes the gate question:** with the protocol re-derived at the boundary, gating during
+playback stays desirable *(it stops pointless work and the `BeginConstruction` throw)* but is no longer the
+thing correctness rests on. ⛔ **Neither half is built.** 📄 `CE-259ap`.
+
+#### 2.1e 🔴🔴🔴 SUPERSEDED BY §2.1f — **THE SWEEP — `ResumeFromRestoredState` AS PROPOSED IS NOT RELIABLE, for two measured reasons** *(`2026-09-11`)*
+
+> 🔴🔴🔴 **SUPERSEDED THE SAME DAY BY [§2.1f](#21f----retraction--class-b-is-self-healing-21es-biggest-class-was-not-a-defect-2026-09-11-decided-by-code-analysis-at-the-users-instruction).**
+> ⛔ **This section's central claim — that ≥20 class-B change-detection caches are broken by a rewind — is
+> FALSE**, and so are its step-2 (generalised boundary event) and step-3 (reflection subscription rail)
+> remedies. ⭐ **What survives and is still correct:** the *process* lesson that three hand sweeps by a
+> motivated author each missed holders *(and that a hand-maintained enumeration therefore cannot be kept
+> true)*, and the class-C half. ⇒ **read §2.1f before quoting anything below.**
+
+🔒 **User:** *"do the sweep for `Dictionary<Entity,` in module fields, check if reconstructing on
+`resumeFromRestoredState` is reliable the way you suggest."* ⭐ It is not. Here is the measurement.
+
+🔴🔴🔴 **CORRECTED `2026-09-11`, SAME DAY — THE SWEEP BELOW WAS TOO NARROW AND ITS COUNTS ARE WRONG.**
+🔒 User: *"are you using codebase memory as companion to grep which is known to omit lots of occurrences?"*
+⛔ **I ran it on bare grep.** Re-running with `search_code` and then **reading** each field instead of
+bucketing by name found three defects, and **the dominant one was my own query design, not grep**:
+
+| # | what was wrong | proof |
+|---|---|---|
+| **①** | ⛔⛔ **the SHAPE was too narrow — I swept only `Dictionary<Entity,…>`.** Per-entity state keyed by **NETWORK ID** (`Dictionary<long,…>`) is equally per-entity and equally rewind-sensitive | 🔴 **`CycloneNetworkCleanupSystem._trackedEntities` is `Dictionary<long, Entity>`** ⇒ **my sweep would have missed the very holder §3.10.4 already names.** So is **`EntityRequestFinalizationSystem._tracked`** — pending entity-creation requests, in the pack `P2` just extended |
+| **②** | ⛔ **I bucketed by NAME PATTERN** (`_last*`/`_known*`/`_prev*`/`_tracked*`), so class B under-counted | `MapRouteEgressTranslator._publishedVersions` is a textbook change-detection cache and matched none of those prefixes |
+| **③** | ⚠ **a third shape exists: ECS components marked `Transient`** — not a field sweep at all | `EgressPublicationState.LastPublishedTickMap` is exactly a class-B cache living inside a component the recorder omits *(§2.1d)* |
+| ⭐ | grep-vs-graph was NOT the main error | `search_code` found 7 files grep's modifier-anchored regex dropped — 📐 **all locals, not cross-frame fields**, so the file coverage held. ⛔ The damage came from ① and ② |
+
+⇒ ⭐⭐⭐ **AND THAT IS THE ARGUMENT, NOT A FOOTNOTE: if three sweeps by an author who knew what he was
+looking for still missed the design's own example, NO enumeration can bound this set.** ⛔ A
+`ResumeFromRestoredState()` listing holders is unmaintainable **by demonstration**, not by prediction.
+⇒ 🔒 **the seam must be SUBSCRIBE-based, with a rail asserting subscription** — §3.10.4's own prescription.
+
+📐 **The classification below is therefore QUALITATIVE — the classes are right, the counts are a FLOOR,
+not a total.** Swept `Dictionary<Entity,…>` · `HashSet<Entity>` · `Queue<Entity>` fields (tests/examples
+excluded), classified by **what the holder DOES**:
+
+| class | count | does a restore invalidate it, and can it be RE-DERIVED? |
+|---|---|---|
+| **A — per-frame scratch** *(`_entityList`, `_toAdd*`, `_stale*`, `_visited`, `_destructionLog`, `_promotionQueue`/`_inQueue`)* | **15** | ✅ **safe, needs nothing** — rebuilt every frame. 📐 Verified for the one in the system this programme touched: `GhostPromotionSystem._inQueue` is removed from on dequeue |
+| 🔴🔴 **B — change-detection caches** *(`_last*`, `_published*`, `_known*`, `_prev*`, `_tracked*`)* | **≥ 20** | ⛔⛔ **CANNOT be re-derived — the world does not know what was SENT.** They can only be **INVALIDATED.** ⚠ Known additions the first pass missed: `MapRouteEgressTranslator._publishedVersions` · `CycloneNetworkCleanupSystem._trackedEntities` *(network-id keyed)* · `EntityDamageEgressTranslator._lastPublished` · `MissionControlExecutionSystem._missionVersions`/`_taskOrder` · `EgressPublicationState.LastPublishedTickMap` *(inside a `Transient` component)* |
+| **C — pending protocol promises** *(`_pending*`, `_tracked`)* | **≥ 10** | ⚠ partly — *which* entities is derivable from `LifecycleState`; *how far the handshake got* is not, and must be restarted. ⚠ Additions the first pass missed: 🔴 **`EntityRequestFinalizationSystem._tracked`** *(pending entity-creation requests — in the pack `P2` extended)* · `EntityInfoIngressTranslator._pendingSubordinates`/`_pendingUnspawnedSubordinates` · `MapRouteIngressTranslator._pendingRoutes` · `MapVisualOverlayIngressTranslator._pendingOverlays` · `BinaryGhostStore.StashedData` |
+| **D — bindings to external engine objects** *(`_visuals`, `_bodies`, `_bound`, `_routes`, `_active*`, `_injected*`)* | **8** | ✅ mostly self-heal — they reconcile by **liveness**, and the restore bumps generations so stale keys go dead and get pruned |
+| the remainder *(diag accumulators, guid maps, selection sets, debug history)* | ~29 | ✅ presentation/diagnostic — no simulation consequence |
+
+### 🔴 REASON 1 — **my three cases were all class C. The BIGGEST class was untouched.**
+
+⭐⭐ **15 of the 17 class-B holders are EGRESS TRANSLATORS.** After a rewind the cache says *"already
+published V"* while the restored world holds *V′* ⇒ the translator **skips the publish** ⇒ **peers never
+learn the restored state.** ⛔ Re-deriving is impossible in principle: the ECS world records what IS, never
+what was **sent**. ⭐ The only correct operation is to **clear** them, which forces a full baseline
+republish — safe, at the cost of one burst.
+
+⚠ **And that burst is a known, documented cost**: §3.10.4 describes the inverse *"scrub flood"* — *"severe
+DDS congestion and visual pop-in"* — so a resume-time baseline burst must be deliberate, not accidental.
+
+### 🔴 REASON 2 — **an ENUMERATING fix rots by construction, and this section is the PROOF**
+
+📐 Dozens of holders across ~45 files **today**, in **at least three shapes** *(`Entity`-keyed fields,
+network-id-keyed fields, and caches inside `Transient` components)*, and the pattern is idiomatic: every new
+egress translator adds a `_lastPublished…`. ⇒ ⛔ a hand-written `ResumeFromRestoredState()` that NAMES its
+holders is wrong the day someone adds the next one, and nothing would tell them.
+⭐⭐⭐ **The correction block at the top of this section is the demonstration:** three sweeps by an author
+who knew the target still missed `CycloneNetworkCleanupSystem._trackedEntities` — **the one holder this
+design had already named** — and `EntityRequestFinalizationSystem._tracked`, in the pack that had just been
+edited. 🔒 **If the enumeration cannot be produced reliably by hand, it cannot be MAINTAINED by hand.**
+
+### ⭐⭐⭐ WHAT IS RELIABLE — **a boundary EVENT holders SUBSCRIBE to, which this design ALREADY PRESCRIBED**
+
+⭐⭐ §3.10.4 already specified exactly this, for exactly one holder: *"`ReferenceReplayLoadHandler` (or
+`PlaybackTickSystem`) must expose a `SeekCompleted` callback or event. `CycloneNetworkCleanupSystem`
+registers with this callback and clears `_trackedEntities` when a seek completes."*
+📐 **Measured `2026-09-11`: NOT BUILT** — `CycloneNetworkCleanupSystem._trackedEntities` exists, and no
+`SeekCompleted` hook exists anywhere.
+
+⇒ ⭐ **So the fix is to GENERALISE that prescription, not to invent a new entry point:** one boundary event
+raised on **seek** *and* on **`FinalizeReplay`/`PrepareLive`**, which holders opt into. ⭐ And the
+subscription is checkable — a rail can assert every class-B/C holder subscribes, which an enumeration in one
+method can never guarantee.
+
+| ⭐ the classification rule, so the next author decides correctly without reading this section | |
+|---|---|
+| **reconciles against the world every frame** *(liveness-checked)* | ✅ subscribe to nothing — the restore's generation bump prunes it |
+| **caches a VALUE it compares against** | ⛔ **subscribe and CLEAR** — it cannot be re-derived, and a stale entry SUPPRESSES a needed publish |
+| **holds a PROMISE it waits on** | ⛔ **subscribe and RESTART** — re-derive the set from `LifecycleState`, with a FRESH participant set *(§2.1d: restoring partial ack progress deadlocks)* |
+
+⇒ ⛔⛔ **`CE-259ap`'s earlier lean — "one `ResumeFromRestoredState()` pass re-deriving three things" — is
+SUPERSEDED by this.** It was right about class C and blind to class B, and it chose the one shape that
+cannot be kept true.
+
+⚠⚠ **And four rails are GREEN over it** — `ReplayLoadClusterOpHandlerTests`, `LiveFromReplayTests`,
+`NodeBootstrapperReplayTests`, `FullBranchPipelineTests`, **12/12** — because they assert the flag and the
+group's `Enabled` **flip**, never that either has an **effect**. 📌 `R-142` ③'s shape: the setter is
+tested, and the setter is all there is.
+
+#### 2.1f 🔴🔴🔴 RETRACTION — **CLASS B IS SELF-HEALING. §2.1e's biggest class WAS NOT A DEFECT** *(`2026-09-11`, decided by CODE ANALYSIS at the user's instruction)*
+
+> 🔒 **User, verbatim:** *"but you have to decide from analyzing the code as catching a failure is unreliable."*
+> ⇒ ⛔ a non-reproducing rail proves nothing *(the same logic as "an absence in grep is an absence in your
+> pattern")*, so the verdict below is composed from measured facts, not from an attempted repro.
+
+⛔⛔ **§2.1e claimed ≥20 change-detection caches are broken by a rewind, because *"the cache says 'already
+published V' while the restored world holds V′ ⇒ the translator SKIPS the publish ⇒ peers never learn the
+restored state."* 🔴 THAT IS WRONG, and it is wrong three times over.**
+
+⭐⭐⭐ **The reasoning error, stated once:** a *"last published value"* cache mirrors **WHAT THE PEER KNOWS**,
+and the peer is **not rewound**. ⇒ a cache holding a value *"from the future"* is **not corruption** — the
+peer really did receive it. What the peer needs is the **current** state, and an equality compare against
+the current state delivers exactly that. ⇒ 🔒 **the cache suppresses a publish only when `cached ==
+current`, in which case the peer ALREADY HOLDS the current value and skipping is CORRECT.**
+
+| # | the mechanism | measured |
+|---|---|---|
+| **①** | ⭐⭐ **every hand-rolled holder is an EQUALITY compare, not a `>=` MONOTONIC guard** | `MapRouteEgressTranslator.cs:96-98` `lastVersion == routePlan.Version` · `AnimationMontageQueueEgressTranslator.cs:74` `lastVer == queue.QueueVersion` · `AnimationMontageQueueStateEgressTranslator.cs:62-64` · `AnimationChannelStatusEgressTranslator.cs:63-65` — all tuple/scalar `==` |
+| **②** | ⭐⭐ **a keyframe WIPES the managed publication state, and its absence FORCES a publish** | `ManagedComponentTable<T>` is stored in the **same** `_componentTables` dictionary as the blittable tables (`EntityRepository.cs:1219`, `:1373`, `:1422`) and `Clear()` (`:423-439`) iterates `_componentTables.Values` ⇒ `EgressPublicationState` is wiped by the keyframe `repo.Clear()`; `SmartEgressUtil.ShouldPublish:92-95` then returns **`true`** — *"Default to safe behaviour: publish, so no data is silently dropped"* |
+| **③** | ⭐⭐ **egress RUNS during playback, so the cache tracks the LOG frame by frame** | every `CycloneEgressSystem` registration is a **direct** `RegisterSystem`/`RegisterGlobalSystem` — `NedReplicationModule.cs:308`, `BdcReplicationModule.cs:82`, `IgNodeBootstrapper.cs:555`, `SimHostApp.cs`, ×4 `NedSimHost*Translators` — never into a togglable group; `SetSystemsEnabled` touches only the four groups; `ModuleHostKernel.cs:752` runs `SystemPhase.Export` **unconditionally** and no replay-conditional phase skip exists in the kernel or core |
+
+⇒ ⭐⭐⭐ **The hazard §2.1e described would need a MONOTONIC guard** *(a rewind lowers the current
+tick/version below the cached one ⇒ suppressed forever)*. 📐 **The one once-guard that exists —
+`SmartEgressUtil.ShouldPublish:112-115`, `return !state.LastPublishedTickMap.ContainsKey(ordinal)` for
+reliable descriptors — lives in the managed component mechanism ② wipes.** ⇒ **no surviving instance.**
+
+⛔ **ONE HOLDER LEFT UNCLASSIFIED:** `MissionControlExecutionSystem._missionVersions`
+(`Hrot.Common/Systems/MissionControlExecutionSystem.cs:70`, read at `:137`, written at `:191`/`:214`/`:237`)
+is a **command-dedup** counter, not an egress cache. ⚠ Not classified — do not count it either way.
+
+#### ⇒ WHAT THIS CHANGES IN THE PLAN
+
+| ⭐ | |
+|---|---|
+| ⛔⛔ **DROP the reflection-based subscription rail** *(§2.1e step 3)* | ⭐ it would flag ~20 **self-healing** holders and be switched off within a batch — 📌 exactly the failure `CLAUDE.md` records for the optional-dependency sweep. ⚠ It was the answer to a problem that does not exist |
+| ⛔ **DROP the generalised boundary event as a class-B remedy** | ⭐ §3.10.4's own example (`_trackedEntities`) is class A, not B: `CycloneNetworkCleanupSystem.Execute` step 1 **re-scans the whole world every frame** and re-adds (`CycloneNetworkCleanupSystem.cs:44-62`), and disposes only on a `DestructionOrder` **event** (`:65-104`) ⇒ it self-heals. 📌 The *"mass DISPOSE flood"* `ONBOARDING.md:252` describes belonged to a **liveness-scanning** version of that system that no longer exists |
+| ⭐⭐⭐ **KEEP the class-C reconciliation, and it is now the ONLY defect** | ⭐ and it is BOUNDED — the ELM's `_pendingConstruction`/`_pendingDestruction` plus `EntityRequestFinalizationSystem._tracked`, each re-derivable from `LifecycleState`, **which IS recorded** (§2.1b). ⇒ a hand-written `ResumeFromRestoredState()` **does not rot here**, because its input is the recorded lifecycle rather than an open-ended cache inventory |
+
+#### 2.1g ⛔⛔ A FOURTH INERT REPLAY PROTECTION — **`AfterSeekCallback` is a NON-NULL EMPTY LAMBDA** *(`2026-09-11`)*
+
+📐 `NedReplicationModule.cs:111-114`:
+
+```csharp
+public Action? AfterSeekCallback =>
+    _cleanupSystem != null ? (Action)(() => {
+        //_cleanupSystem.ResetTracking();
+    }) : null;
+```
+
+| 📐 measured | |
+|---|---|
+| ⛔⛔ **`ResetTracking` exists in ZERO C# files** | grep over the repo returns **one** hit — the commented-out line above. `CycloneNetworkCleanupSystem.cs` read **in full** (107 lines): no such method |
+| ⛔ **yet `T-RMF-23` is ticked `[x]` DONE** | `.dev/_DONE/replay-and-modules/TASK-TRACKER.md:36`, and `reviews/BATCH-04-REVIEW.md:34` states *"`CycloneNetworkCleanupSystem.ResetTracking()` added"* with the property quoted as *"clean"* ⇒ it landed and was later removed, leaving the call site commented out to keep it compiling |
+| 🔴 **a non-null empty lambda is STRICTLY WORSE than `null`** | ⭐ every downstream null-check passes (`StrideNodeBootstrapper.cs:402`, `CgfSubsystem.cs:982-986`, `SimHostNodeBootstrapper.cs:429`) and every rail asserting *"the afterSeek callback is wired"* is satisfied by a callback that does nothing |
+
+⇒ ⭐ **The fix is one line and it is NOT to resurrect the method** *(§2.1f shows `_trackedEntities`
+self-heals)*: **return `null` and say why**. ⛔ Do not leave a protection that reads as wired.
+📄 `CE-259ap`.
+
+#### 2.1m ⭐⭐⭐ THE UNIFIED PLAN — **`HN-018` + `CE-259ap` + `CE-259ar` ARE ONE DEFECT** *(`2026-09-12`)*
+
+##### ⭐⭐ Why three tickets are one
+
+The ELM holds per-entity protocol state *(`_pendingConstruction`, `_pendingDestruction`)* **outside** the
+`EntityRepository`. The repository is replaced underneath it by **three** operations and the dictionaries
+survive all three:
+
+| trigger | ticket |
+|---|---|
+| editor preview enter/exit | **`HN-018`** *(open, `RW-L`, `2026-08-24`)* |
+| replay **seek** | `CE-259ar` |
+| replay start / end / branch-to-live | `CE-259ap` |
+
+🔒 The design said so first — `DESIGN_Deterministic_Network_Ids.md:306` calls the ELM *"§2b's third stale
+participant"* and defers it to `HN-018` *"precisely so it can be added"* to the bracket's list.
+⇒ ⭐⭐⭐ **`HN-018` is the OWNING row; `CE-259ap`/`CE-259ar` are the same defect from the other trigger.**
+
+##### ⭐⭐ Two harms ⇒ two halves, and you need both
+
+| harm | mechanism | half |
+|---|---|---|
+| **stale entries act on a NEW world** | `CheckTimeouts:358` — `currentFrame - StartFrame` on **uint** wraps ⇒ `DestroyEntity` on a stale handle, and the generation guard is **Debug-only** *(§2.1h)* | ⭐ **CLEAR** |
+| **missing entries leave restored entities UNDRIVEN** | `DrainInstantComplete:324` iterates the **dictionary**, never a world query ⇒ a restored `Constructing`/`TearDown` entity is promoted by nothing and is invisible to every default query | ⭐ **RE-DERIVE** |
+
+⛔ Clear alone leaves zombies; re-derive alone leaves the destroy hazard. ⭐ They are exactly the two calls
+the existing seam already offers: `Capture()` / `Restore()`.
+
+##### 🔴🔴🔴 STEP 1 IS **NOT** WHAT §8.10 SAYS — **measured `2026-09-12`, and the design's prescription is unsafe as written**
+
+§8.10 prescribes *"`NetworkLifecycleSystemGroup.Enabled = false` ensures `LifecycleSystem`,
+`GhostPromotionSystem` and `NetworkGatewaySystem` never run"*. ⛔⛔ **Relocating those systems into that
+group would break lifecycle on two host families.** 📐 Measured:
+
+| # | measurement |
+|---|---|
+| **①** | `NetworkLifecycleGroup.ExecuteGroup` is called at **exactly ONE site** — `NedReplicationModule.cs:493`. ⛔ `BdcReplicationModule` **constructs** a group (`:61`) and never executes it; `OfflineNetworkFactory.NullReplicationModule` (**the editor**) exposes one (`:150`) that nothing ticks |
+| **②** | ⇒ 🔴 **moving `LifecycleSystem` into the group stops entity lifecycle ENTIRELY on the editor and on BDC nodes** — the group is a parallel `ExecuteGroup` call owned by one *network* module, not a scheduler construct |
+| **③** | ⇒ and a system in the group **that is also scheduler-registered runs TWICE per frame** on NED nodes *(the `GhostCreationSystem` double-registration the group's own summary already notes)*. `GhostPromotionSystem` is now registered by `EntityCreationPack` (`P2`) and carries **`[SingleInstance]`** ⇒ it cannot simply be added |
+
+⇒ ⭐⭐⭐ **REVISED STEP 1 — GATE IN PLACE, DO NOT RELOCATE.** Give `LifecycleSystem` and
+`GhostPromotionSystem` a replay-aware `Func<bool>` guard asked once per `Execute` — ⭐ **the
+`CycloneNetworkIngressSystem.IsWorldStateFrozen` shape**, which is the under-adopted seam §2.1a already
+identified — driven by the replay handler. ⭐ Keeps every scheduler registration *(no `P2` undo, no
+`[SingleInstance]` conflict)*, works on **every** host regardless of replication module, and delivers
+§8.10's intent *("never run")* without the group's structural problems.
+⚠ **This is a DEVIATION from `mgmt-1` §8.10 and must be argued in the batch report** *(obligation ③)*, and
+§8.10 updated to the as-built *(obligation ⑤)*.
+
+##### ⭐⭐ THE FOUR STEPS
+
+| # | step | closes |
+|---|---|---|
+| **1** | ⭐ **Gate `LifecycleSystem` + `GhostPromotionSystem` during replay** via the `Func<bool>` seam *(above)*, and honour `BypassLifecycle` inside `CreateGhost` — the direct-call path no scheduler gate can reach | `CE-259ar` *(no `CheckTimeouts` during playback ⇒ **the underflow cannot fire**)* + the promotion half of `CE-259ap` |
+| **2** | ⭐⭐⭐ **The ELM joins the bracket — this IS `HN-018`.** Add `PreviewParticipants.LifecycleModule(elm)`: `Capture()` returns a **NON-NULL marker**, `Restore()` clears both dictionaries and arms a re-derive flag; `LifecycleSystem` performs the re-derive on its next `Execute` *(where the command buffer and frame live)* — `BeginConstruction(entity, TkbIdentity.TkbType, currentFrame, cmd)` per restored `Constructing`, `BeginDestruction` per `TearDown`, each with a **fresh** participant set | `HN-018` **and** the branch-to-live zombie, from one implementation |
+| **3** | ⭐ **Drive the bracket from the REPLAY boundaries too** — `PrepareReplay`, **every seek**, `FinalizeReplay`/`PrepareLive`. Plus the `CE-259aq` one-liner *(`AfterSeekCallback` → `null` with a comment)* | 🔒 the user's ruling: *clear at every **world replacement**, not only at resume* |
+| **4** | ⛔ **NOT in this plan** — `CE-259au`'s peer axis *(the dangling `PendingNetworkAck`)* and `CE-259as` *(the unwritten initiator)*. They wait on `Q69` asks B/D | — |
+
+⚠ **Order matters: 1 before 2.** Doing 2 first leaves the underflow live in the window.
+
+##### 🔴 THE MECHANICAL DETAIL THE WHOLE OF STEP 2 HANGS ON
+
+📐 `PreviewStateBracket.Capture():86` — `if (token is null) unrestorable.Add(p.Name);` — and
+`Restore():120` — `if (!_captured.TryGetValue(p, out var token)) continue;`
+⇒ ⛔⛔ **a `null` capture makes the bracket SKIP `Restore` entirely** *(and log the node as unable to
+guarantee reproducibility, every preview)*. ⭐ So the ELM participant **must return a non-null token** even
+though it has no snapshot to give — its `Restore` is a *clear-and-re-derive*, not a copy-back.
+
+##### ✅ THE MEASUREMENTS THAT WERE MISSING, NOW MADE
+
+| # | question | answer |
+|---|---|---|
+| **①** | does adding a participant perturb the preview rails? | ✅ **NO.** `APreviewLeavesNoTraceTests` and `PreviewLeavesNoTraceRails` assert **per-participant** behaviour *(allocator capture/restore, the map's duplicate-`Register` throw, the repository-resolved overload)* — ⛔ neither asserts a participant **count** nor iterates the bracket's list |
+| **②** | how many sites build the participant list? | ⭐ **THREE**, two lines each — `CgfSubsystem.cs:1127-1128`, `NodeBootstrapper.cs:251-253`, `EditorSubsystem.cs:2143-2144`; consumed by `ReferencePreviewHandler.cs:75` and `PreviewClusterOpHandler.cs:74` |
+| **③** | is relocating into the lifecycle group safe? | 🔴 **NO** — see the three measurements above |
+
+##### ⭐⭐⭐ DIAGRAM 1 — MODULE RELATIONSHIPS — **who registers what, and who TICKS what**
+
+⛔⛔ **This is the diagram whose absence cost the plan a rewrite.** 📐 The hazard is invisible in prose and
+obvious here: **`ExecuteGroup` has exactly ONE caller**, so the group is not a scheduler construct — it is a
+private loop owned by one *network* module, and two host families never reach it.
+
+```mermaid
+graph TD
+    subgraph kernel["ModuleHostKernel — the scheduler"]
+        SCHED["SystemScheduler<br/>phases; registration order within a phase"]
+    end
+
+    subgraph elm["EntityLifecycleModule — IEcsModule"]
+        BAS["BlueprintApplicationSystem<br/>BeforeSync · applies TKB template"]
+        LS["LifecycleSystem<br/>BeforeSync · drains acks, timeouts"]
+    end
+
+    PACK["EntityCreationPack"] -->|"RegisterSystem"| GPS["GhostPromotionSystem<br/>BeforeSync · SingleInstance"]
+    elm -->|"RegisterSystems :92-94<br/>order is load-bearing"| BAS
+    elm -->|"RegisterSystems :92-94"| LS
+
+    BAS --> SCHED
+    LS --> SCHED
+    GPS --> SCHED
+
+    subgraph ned["NedReplicationModule"]
+        NLG["NetworkLifecycleSystemGroup<br/>holds GhostCreationSystem only"]
+        TICK["Tick :493<br/>ExecuteGroup — THE ONLY CALLER"]
+    end
+    TICK --> NLG
+
+    BDC["BdcReplicationModule :61<br/>builds a group, NEVER executes it"]
+    NULLR["NullReplicationModule — the EDITOR :150<br/>exposes a group, nothing ticks it"]
+
+    RH["ReferenceReplayLoadHandler<br/>SetSystemsEnabled toggles 4 groups"] -.->|"Enabled = false"| NLG
+
+    classDef dead fill:#fdd,stroke:#c00
+    classDef live fill:#dfd,stroke:#080
+    class BDC,NULLR dead
+    class SCHED,LS,GPS live
+```
+
+| 🔴 what the picture shows that the prose hid | |
+|---|---|
+| ⛔ **`LifecycleSystem` and `GhostPromotionSystem` reach the SCHEDULER, not the group** | ⇒ they run on **every** host, replay or not — including during playback |
+| 🔴 **the group is reachable only through `NedReplicationModule.Tick`** | ⇒ relocating them into it **silently disables lifecycle** on the editor and on BDC |
+| ⚠ **a system in BOTH would execute twice a frame** | the scheduler runs it, then `ExecuteGroup` runs it again |
+
+##### ⭐⭐ DIAGRAM 2 — THE REWIND SEAM — **existing classes, and the ONE that is new**
+
+```mermaid
+classDiagram
+    class IPreviewRewindable {
+        <<interface>>
+        +string Name
+        +object Capture()
+        +void Restore(object snapshot)
+    }
+    class PreviewStateBracket {
+        -List~IPreviewRewindable~ participants
+        +Capture() void
+        +Restore() void
+        +UnrestorableParticipants List~string~
+    }
+    class AllocatorRewind
+    class EntityMapRewind
+    class RepositoryEntityMapRewind
+    class LifecycleModuleRewind {
+        +Capture() object
+        +Restore(object) void
+    }
+    class EntityLifecycleModule {
+        -Dictionary pendingConstruction
+        -Dictionary pendingDestruction
+        +BeginConstruction(e, blueprintId, frame, cmd)
+        +BeginDestruction(e, frame, reason, cmd)
+        +DrainInstantComplete(cmd, frame)
+        +CheckTimeouts(frame, cmd)
+    }
+    class LifecycleSystem {
+        +Execute(view, dt)
+    }
+
+    PreviewStateBracket o-- "1..*" IPreviewRewindable
+    IPreviewRewindable <|.. AllocatorRewind
+    IPreviewRewindable <|.. EntityMapRewind
+    IPreviewRewindable <|.. RepositoryEntityMapRewind
+    IPreviewRewindable <|.. LifecycleModuleRewind
+    LifecycleModuleRewind --> EntityLifecycleModule : clears and arms
+    LifecycleSystem --> EntityLifecycleModule : drives each tick
+```
+
+⭐ **`LifecycleModuleRewind` is the ONLY new type** — everything else exists. ⭐⭐ It is the fourth
+participant `DESIGN_Deterministic_Network_Ids.md:306` said the list was built to accept.
+
+##### ⭐⭐ DIAGRAM 3 — THE BOUNDARY SEQUENCE — **clear, then re-derive on the next tick**
+
+⭐ The split exists because `Restore(object)` has **no command buffer and no frame number**, and
+`BeginConstruction` needs both. ⇒ `Restore` clears and arms; `LifecycleSystem` re-derives where those are
+in hand.
+
+```mermaid
+sequenceDiagram
+    participant H as Replay/Preview handler
+    participant R as EntityRepository
+    participant B as PreviewStateBracket
+    participant P as LifecycleModuleRewind
+    participant E as EntityLifecycleModule
+    participant L as LifecycleSystem
+
+    Note over H,R: world replacement — restore, seek, or preview exit
+    H->>R: rewind or restore the world
+    H->>B: Restore()
+    B->>P: Restore(token)
+    Note right of P: token is NON-NULL,<br/>else the bracket skips this
+    P->>E: clear both dictionaries + arm re-derive
+
+    Note over L,E: the NEXT tick — cmd buffer and frame are in hand
+    L->>E: ResumeFromRestoredWorld(view, frame, cmd)
+    Note right of L: ⚠ AS-BUILT: its own call at the TOP of Execute,<br/>after the replay gate. An earlier draft of this<br/>diagram hung it off DrainInstantComplete — corrected.
+    loop each Constructing entity with TkbIdentity
+        E->>E: BeginConstruction(e, TkbType, resumeFrame, cmd)
+    end
+    loop each TearDown entity
+        E->>E: BeginDestruction(e, resumeFrame, "resume", cmd)
+    end
+    Note right of E: resumeFrame, never the recorded one —<br/>CheckTimeouts subtracts unsigned
+```
+
+##### ✅ AS-BUILT — **`2026-09-12`, commit `ea659a581`** *(obligation ⑤)*
+
+⭐⭐⭐ **ALL THREE STEPS ARE BUILT** *(step 1 bar one named residue)*. ⛔ Read this table for exactly what
+landed and what did not.
+
+⭐⭐ **ONE PUBLIC SURFACE, INTENT-SHAPED:** `EntityLifecycleModule.OnWorldReplaced(bool resumingToLive)` —
+⛔ the `ClearForWorldReplacement`/`ArmResumeFromRestoredWorld` pair stays **internal on purpose**: only a
+world-replacement boundary may legitimately discard an in-flight handshake, and a public `Clear()` invites
+exactly the caller that should not exist. ⭐ Stating the INTENT also makes the clear-without-arm case
+impossible to get wrong by forgetting a second call.
+
+| step | state | as built |
+|---|---|---|
+| **1** gate lifecycle during replay | ⚠ **PARTIAL** | ✅ `LifecycleSystem.IsReplayActive` *(`Func<bool>`, asked once per `Execute`)*, fed by `EntityLifecycleModule.IsReplayActive` so a root can set it **after** `RegisterSystems` *(the controller is built later)*. ✅ **`GhostPromotionSystem.IsReplayActive` ADDED `2026-09-12`** — wired ONCE in `EntityCreationPack.Build`, late-bound through the ELM, so every host that builds the pack gets it. ⛔ **`BypassLifecycle` inside `CreateGhost` STILL not honoured — filed as `CE-259av`** |
+| **2** the ELM joins the bracket *(`HN-018`)* | ✅ **DONE** | `PreviewParticipants.LifecycleModule(elm)` → `ClearForWorldReplacement()` + `ArmResumeFromRestoredWorld()`; `LifecycleSystem` calls `ResumeFromRestoredWorld` at the top of `Execute` |
+| **3** drive from the REPLAY boundaries | ✅ **DONE `2026-09-12`** | `ReferenceReplayLoadHandler` gained a `worldReplaced(bool resumingToLive)` hook: `PrepareReplay` ⇒ `false` *(clear, do NOT arm)*, `FinalizeReplay`/`PrepareLive` ⇒ `true` *(clear AND arm)*. ⭐⭐ **The SEEK does NOT go through that hook** — it composes into the controller's `afterSeek` chain, **beside the `NetworkEntityMap.RebuildFromWorld` already there for the same reason**; clear only, since a seek stays inside the replay. Wired at `NodeBootstrapper` *(SimHost + Stride)* and `CgfSubsystem`. ✅ `CE-259aq` CLOSED — `AfterSeekCallback` returns `null` |
+
+⭐⭐⭐ **THE GATE HAS REAL PRODUCERS — it is not a sixth inert switch.** 📐 `IRecordReplayController.IsReplayActive`
+**already existed** *(implemented by `EcsRecordReplayController.cs:61` and `CgfRecordReplayController.cs:101`)*,
+so no new state type was invented. Wired at **two** production sites: `NodeBootstrapper.cs:228` *(covers
+SimHost and Stride)* and `CgfSubsystem.cs:993`.
+
+| ⭐ where the participant is wired | |
+|---|---|
+| `EditorSubsystem.cs` · `CgfSubsystem.cs` · `NodeBootstrapper.cs` *(SimHost + Stride, via a new optional `elm` parameter both callers pass)* | ✅ |
+| **IG** | ⛔ **owes none — measured**: it registers `ReferencePreviewHandler(liveRepo: null)` *(`IgNodeBootstrapper.cs:374`)*, i.e. it performs no preview rewind |
+
+##### ⚠ DEVIATIONS FROM THE DIAGRAMS AND THE OWNING DESIGN *(obligation ③)*
+
+| # | deviation | argued |
+|---|---|---|
+| **①** | **`mgmt-1/DESIGN.md` §8.10 prescribes RELOCATING into `NetworkLifecycleSystemGroup`; the build GATES IN PLACE** | ✅ authorised `2026-09-12`; the measurement is §2.1m's step-1 table. **Folded back into §8.10's own STATUS block** |
+| **②** | the **sequence diagram** hung the re-derive off `DrainInstantComplete`; as built it is its **own call at the top of `Execute`**, after the gate | ✅ **diagram corrected above** — obligation ⑤ requires the picture to be TRUE again, not just the report |
+| **③** | the **class diagram** is accurate: `LifecycleModuleRewind` is the only new type, private inside `PreviewParticipants` | ✅ no deviation |
+| **④** | the **module diagram** is unchanged and still true — nothing was relocated | ✅ no deviation |
+
+##### ⭐ RAILS AND GATES
+
+⭐ **4 rails added INTO the feature's own suite** *(`APreviewLeavesNoTraceTests` — ⛔ not a parallel class,
+`R-142` ④)*, each **inverse-edit red-proofed**: nulling `Capture()` reddens **3** *(proving the bracket's
+null-skip really does disable the whole fix)*, removing the gate reddens 1, removing the re-derive reddens 1.
+
+| gate | result |
+|---|---|
+| `Fdp.Toolkits.Tests` *(whole, `--no-build`)* | ✅ **2085/2085**, run twice |
+| all five touched projects build | ✅ |
+| `Hrot.SimHost.Tests` | ⚠ **2 failed — both PRE-EXISTING**, confirmed against a stashed baseline over **7** runs *(`MapPresentationParityRails…EditorStrideSubsystem.cs`, `FullBranchPipelineTests.BranchedRecording_CapturesHistoricalStateAsKeyframe`)* |
+| ⚠ **a THIRD test flapped** — `EcsRecordReplayControllerTests.PrepareRecordingAsync_InstallsRecordingModule` | 📐 **2 occurrences in 8 runs with the change, 0 in 7 baseline runs** — which *looked* like a regression. 🔒 **Mechanism settles it, not the statistics:** that suite contains **ZERO** references to `EntityLifecycleModule`/`LifecycleSystem`, and the test races a **background kernel loop** against an **async `InstallModuleAsync`** *(`:52-54`)* ⇒ **load-sensitive pre-existing flake**; the change is not in its code path. ⚠ Worth filing if it recurs |
+
+##### ⚠ The naming call, and what this withdraws
+
+⭐ A bracket named `Preview*` driven from the replay path is **friction, not a defect** — the contract is
+*"world replacement"*. ⭐ **LEAN: use it as-is with a comment**; a rename is a Roslyn job *(never a text
+replace — `CLAUDE.md`)* and can wait for a reader who is actually confused.
+⛔⛔ **WITHDRAWN: §2.1f's standalone `ResumeFromRestoredState()`.** Right *shape* (re-derive, not record),
+wrong *home* — the bracket exists and its list is built to be extended. 🔒 And
+`DESIGN_Deterministic_Network_Ids.md:306` **validates the shape**: a correct participant *"needs the
+rewind's identity mapping, not a snapshot"* ⇒ ⭐ re-deriving from the recorded `LifecycleState` +
+`TkbIdentity` carries **no handles across the boundary at all**, so that problem never arises.
+
+#### 2.1k ⭐⭐⭐ THE OWNING DESIGN IS `mgmt-1/DESIGN.md` §8.10 — **found `2026-09-12`, via the architect relay**
+
+⛔⛔ **`R-129` MISS, recorded because it is the generic one:** this section reasoned about replay lifecycle
+for two days without finding its owning design. 📄 It is **`docs/designs/mgmt-1/DESIGN.md` §8.10
+"Distributed Entity Lifecycle During Replay"** *(+ §8.5)* — never opened by this session.
+⚠ The architect **mis-cited it** as `cgf-scn-3/DESIGN.md` §8.10, where the phrases do not appear; the
+substance was right and the path wrong, which is its measured failure mode.
+
+📐 **§8.10, verbatim:** *"`EntityHeader.LifecycleState` is part of the recorded chunk, so entities instantly
+materialise as `Active`; **the ELM pipeline is never invoked**."* · *"`GhostCreationSystem.BypassLifecycle =
+true` (set at `RunningReplay` entry) causes `CreateGhost()` to place new arrivals directly into
+`EntityLifecycle.Active`, bypassing `Ghost → Constructing → Active`. **`NetworkLifecycleSystemGroup.Enabled
+= false` ensures `LifecycleSystem`, `GhostPromotionSystem`, and `NetworkGatewaySystem` never run.**"*
+
+📐 **§8.5, the rationale:** *"if ELM were re-enabled between seeks, entities in-flight over DDS would stall
+in `Constructing` waiting for ACKs from a node that is only replaying recorded data, not executing live
+handshake logic."*
+
+| ⭐ what this settles | |
+|---|---|
+| ⭐⭐ **where the three names came from** | `NetworkLifecycleSystemGroup`'s summary was **quoting this design**, not inventing — §2.1a's *"the code is behind the design"* reading is confirmed at its source |
+| ⭐⭐⭐ **the intent is BYPASS, not gate** | the design's model is that during replay **lifecycle does not run at all** and entities materialise straight into `Active` |
+| 🔴 **and not one of the three mechanisms implements it** | the group holds only `GhostCreationSystem` *(empty `Execute`)* · `BypassLifecycle` is read by nobody · `LifecycleSystem` is a **direct** registration so `CheckTimeouts` runs every playback tick *(§2.1h)* |
+| ⇒ ⭐ **the fix is to IMPLEMENT §8.10** | ⛔ not to invent a policy. The design already ruled; the code never caught up |
+
+#### 2.1l ⭐⭐⭐ THE REWIND SEAM ALREADY EXISTS — **`PreviewStateBracket`, and `HN-018` is the same defect**
+
+⛔⛔ **Prior-art miss — the seam law fired again.** `FDP/Toolkits/Fdp.Toolkits/Orchestration/Preview/`
+carries **`IPreviewRewindable`** *(`Name` · `Capture()` · `Restore(object)`, opaque token per participant)*,
+**`PreviewStateBracket`** and **`PreviewParticipants`**, wired into `ReferencePreviewHandler`,
+`PreviewClusterOpHandler`, `CgfSubsystem`, `NodeBootstrapper` and `EditorSubsystem`, with rails
+*(`APreviewLeavesNoTraceTests`, `PreviewLeavesNoTraceRails`)*. ⇒ **the mechanism for putting non-repository
+state back after a rewind is BUILT — for the EDITOR PREVIEW trigger.**
+
+📐 `IPreviewRewindable`'s summary names **three** participants *(id allocator · `NetworkEntityMap` ·
+**`EntityLifecycleModule`'s pending queues**)*; `PreviewParticipants` says *"The THREE participants"* and
+**ships two**. ⭐⭐ **The ELM's absence is REASONED AND TRACKED, not silent** —
+`DESIGN_Deterministic_Network_Ids.md:306`: *"a non-empty queue cannot be restored by a plain copy — the keys
+are `Entity` handles the repo rewind invalidates, so a correct participant needs the **rewind's identity
+mapping, not a snapshot**. ⇒ a separate finding (**`HN-018`**), not a silent omission; the bracket takes a
+LIST precisely so it can be added."* 🔒 **`HN-018` is OPEN** *(tracker `:1179`, `RW-L`, `2026-08-24`)*.
+
+| ⭐⭐⭐ the consequence for this design | |
+|---|---|
+| ⭐⭐ **`HN-018` and `CE-259ap`/`CE-259ar` are ONE defect seen from TWO triggers** | ⛔ **do not design a separate replay-side mechanism** — extend the existing bracket's list |
+| ⭐⭐⭐ **and the design names the hard part, which VALIDATES the re-derive shape** | *"needs the rewind's identity mapping, not a snapshot"* ⇒ 🔒 **re-deriving from the recorded `LifecycleState` + `TkbIdentity` carries NO handles across the boundary, so the identity-mapping problem does not arise at all.** That is a stronger argument for re-derive than §2.1f made |
+
+#### 2.1h 🔴🔴🔴 THE ELM'S BOOKKEEPING IS NOT REWIND-SAFE, AND `CheckTimeouts` TURNS THAT INTO A DESTROY — **during playback, not just at resume** *(`2026-09-11`)*
+
+⛔⛔ **§2.1f left the class-C fix at the RESUME boundary. That is too late**, and the user's framing is the
+correct one: ⭐⭐⭐ **the ELM's dictionaries are bookkeeping ABOUT A WORLD, so they must be discarded at every
+WORLD REPLACEMENT** — entering replay, **every seek**, and the live boundary — not only when resuming.
+
+##### ⭐⭐ The hazard chain, each link measured
+
+| # | link | status |
+|---|---|---|
+| **①** | `LifecycleSystem` is a **DIRECT** registration (`EntityLifecycleModule.cs:94`, `registry.RegisterSystem(new LifecycleSystem(this))`) — never inside a togglable group ⇒ ⭐ **`DrainInstantComplete` and `CheckTimeouts` run EVERY TICK DURING PLAYBACK** (`LifecycleSystem.cs:41`/`:44`) | ✅ measured |
+| **②** | a pending entry survives into the replay — the module has **no** `Clear()`/`Reset()` and nothing in the replay path touches it | ✅ measured (§2.1b) |
+| **③** | the replayed frame drops **below** the entry's `StartFrame` *(the normal case: the live counter is ahead of the recording; a backward **seek** does it too)* | ✅ by construction |
+| **④** | `CheckTimeouts:358` computes `currentFrame - kvp.Value.StartFrame > _timeoutFrames` on **`uint`** ⇒ the subtraction **wraps to ~4.29 × 10⁹**, which exceeds any `_timeoutFrames` ⇒ timeout fires | ✅ measured |
+| **⑤** | ⇒ `cmd.DestroyEntity(entity)` on a **stale handle from the pre-replay world** (`:371`) | ✅ measured |
+| **⑥** | that index now holds a **different** restored entity | ⚠ **PLAUSIBLE, NOT PROVEN** — the restore reuses explicit indices (`RestoreEntity(index, …)`), so a collision is likely, but this session did not prove it for any given entity |
+| **⑦** | 🔴 **the generation guard is DEBUG-ONLY** — `EntityIndex.cs:148-157` sits inside `#if FDP_PARANOID_MODE`, and `Fdp.Core.csproj:12-14` defines it under `Condition="'$(Configuration)'=='Debug'"` | ✅ measured |
+
+⇒ ⭐⭐⭐ **Debug: a loud `"Entity … is stale"` throw. 🔴 RELEASE: NO GUARD** — `EntityIndex.DestroyEntity`
+clears the component mask, bumps the generation and marks the slot inactive **on the innocent restored
+entity.**
+
+⚠ **Stated fairly — the WINDOW is narrow** *(see §2.1i: both production sites build the ELM with an EMPTY
+participant list, so `_pendingConstruction` normally holds an entry for ONE frame)*. ⛔ **That narrows the
+window, not the verdict** — 🔒 *user, `2026-09-11`: "if it can happen, it will one day. Who cares how often,
+needs to be handled every time."*
+
+##### ⭐⭐ R-129 — **THE DESIGN ALREADY RECORDED THIS, FOR THE OTHER TRIGGER**
+
+📄 **`docs/DESIGN_Deterministic_Network_Ids.md` §2b** enumerates what `NetworkSpawningSystem` holds outside
+the repository and its third row reads: *"🔴 `EntityLifecycleModule` · mutable ✅ · rewound by preview? 🔴
+**NO** · `_pendingConstruction`/`_pendingDestruction` are keyed by **`Entity` handles the rewind
+invalidates**."*
+
+⇒ ⭐⭐ **The hazard was recorded for the EDITOR'S PREVIEW rewind and never generalised to REPLAY** — the same
+mechanism, a different trigger. 📌 A durable lesson: *"is this state rewind-safe?"* has **two** triggers in
+this codebase, and a doc that answers it for one is not an answer for the other.
+⚠ **One correction to that row:** it lists `_blueprintRequirements` among the rewind-invalidated state.
+⛔ It is not — that is **registration** state (like `_globalParticipants`), unaffected by a rewind. Only the
+two `Entity`-keyed dictionaries are.
+
+##### ⭐ The rule this produces
+
+| ⭐ | |
+|---|---|
+| ⭐⭐⭐ **CLEAR on every world replacement** | `PrepareReplay` · **every seek** · `FinalizeReplay`/`PrepareLive` |
+| ⭐⭐ **RECONSTRUCT only when resuming to a LIVE world** | ⛔ reconstructing during playback would re-open protocols the log is about to overwrite |
+| ⭐ **the clear belongs ON the ELM, privately** | ⛔ `BeginConstruction:165-168` **throws** on re-entry, so a resume that does not clear first cannot run. ⚠ Do **not** add a public `ResetPending()` any caller can reach |
+
+#### 2.1i ⭐⭐ WHAT THE PARTICIPANT SETS ACTUALLY ARE — **and why `BlueprintId` is the one datum that must be recovered**
+
+📐 `BeginConstruction:171-175` computes the ack set as **`_globalParticipants ∪ _blueprintRequirements[blueprintId]`**.
+
+| | what it is | keyed by | measured population |
+|---|---|---|---|
+| **`_globalParticipants`** | modules that must ACK **every** construction/destruction | — node state | ⛔ **both production ctor sites pass an EMPTY list** — `EditorSubsystem.cs:1384` `Array.Empty<int>()`, `HrotNodeBuilder.cs:238` `new List<int>()`. ⭐ The **one** production adder is `NetworkGatewaySystem.cs:88` (`_elm.RegisterModule(_gatewayModuleId)`) |
+| **`_blueprintRequirements`** | modules that must ACK constructions **of one blueprint type only** | ⭐⭐ **`blueprintId`** | ⛔⛔ **`RegisterRequirement` has ZERO callers** — the union at `:172-175` is a **no-op today** |
+
+⭐⭐ **Why the per-blueprint set exists at all:** not every entity type gives every module work to do. A
+vehicle may need physics and turret setup to finish before it goes `Active`; a marker needs neither. Without
+the per-blueprint set, **every** entity would wait for **every** registered module, making the slowest module
+the floor for every spawn.
+
+##### ⭐⭐⭐ THE DESIGN RECORD EXISTS — **and finding it took a TOPICAL search, not a name search** *(user, `2026-09-11`)*
+
+> 🔒 **User:** *"search blueprint requirements in docs. they must have a good reason and maybe it is a bug
+> they are not written today."* ⛔⛔ **An earlier version of this section said *"searched `docs/` and `.dev/`,
+> no design record found."* That was WRONG** — and wrong in the exact way `CLAUDE.md` warns about: the search
+> was anchored on the IDENTIFIER (`RegisterRequirement`, `blueprintRequirement`, "per-blueprint ack"). 📐 The
+> record is in **`FDP/Engine/Fdp.ModuleHost/docs/ModuleHost-network-ELM-design-talk.md`** and never uses any
+> of those words. ⇒ 📌 **search the TOPIC — "what must happen before an entity goes Active" — not the name.**
+
+📐 **The intent, verbatim** *(§1, "The Interaction Model: Local ELM + Network Triggers")*:
+
+| node | the design says |
+|---|---|
+| **originator (A)** | *"**Local ELM:** Node A's ELM coordinates local modules (Physics, AI). **Activation:** Once local modules ACK, the entity becomes `Active` locally."* |
+| **replica (B)** | *"**Local Initialization:** Node B's Physics/Renderer modules initialize resources. **Activation:** Once Node B's local modules ACK, the entity becomes `Active` on Node B."* |
+| **partial ownership** *(§2)* | the node must know *"**a priori** (via configuration or logic based on `DisType`) that it is supposed to own the Weapon"* — ⭐ **the per-entity-TYPE axis `_blueprintRequirements` implements** |
+| **the peer barrier** *(§Part 1)* | *"To support the 'Reliable' option where Node A waits for Node B, we need to integrate the Network Gateway into the local ELM loop as a **blocking participant**."* |
+
+⇒ ⭐⭐⭐ **The barrier exists so nothing simulates, draws or publishes a half-initialised entity**, and the
+per-blueprint set is the refinement that stops a marker waiting on the physics module.
+
+#### 2.1j 🔴 THE CONSTRUCTION BARRIER IS **VACUOUS**, NOT INERT — **the ELM IS the barrier, and it works; its PARTICIPANT REGISTRY is empty** *(`2026-09-11`, corrected the same day)*
+
+> ⭐⭐⭐ **USER CORRECTION, and it is the right distinction:** *"isn't ELM the implementation of the barrier?
+> entity in constructing state waiting for ack from all registered modules?"*
+> ⛔⛔ **YES — and an earlier version of this section said the barrier was *"inert"* and *"the whole handshake
+> is unwired."* That was WRONG and it pointed at the wrong fix.**
+
+⭐⭐ **The ELM IS the barrier, and every part of the mechanism is present and correct:** the entity is held in
+`Constructing`; `RemainingAcks` is the wait-set; `ProcessConstructionAck:283-293` promotes to `Active` the
+moment the set empties; `CheckTimeouts:364-373` destroys the entity if it never does. ⛔ **Nothing is missing
+from the ELM.**
+
+⇒ 🔒 **It is a REGISTRY-DRIVEN barrier, and the registry is EMPTY.** *"Waiting for acks from all registered
+modules"* is exactly what it does — and **"all registered modules" is the empty set**, so the wait is
+satisfied **vacuously** and `DrainInstantComplete` promotes on the next frame.
+
+⭐⭐ **AND THE ONE FRAME IS NOT WASTED — the invariant that DOES hold today:**
+📐 `EntityLifecycleModule.RegisterSystems:92-94` registers `BlueprintApplicationSystem` **then**
+`LifecycleSystem`, both `[UpdateInPhase(SystemPhase.BeforeSync)]`; within a phase, absent an `[UpdateAfter]`
+edge, the scheduler runs them in **registration order**. `BlueprintApplicationSystem:33-40` consumes the
+`ConstructionOrder` and injects the TKB template via the translators; `DrainInstantComplete:325` additionally
+requires `currentFrame > StartFrame`. ⇒ 🔒 **"the TKB template is injected before the entity is `Active`"
+holds BY CONSTRUCTION.**
+
+⛔ **What does NOT hold is the design's stated invariant** — *"Physics/Renderer modules initialize resources …
+once local modules ACK, the entity becomes `Active`"* — because **no such module registers or acks.**
+
+##### ⭐⭐ TWO DIFFERENT DEFECTS, WHICH THE "INERT" WORDING CONFLATED
+
+| axis | verdict | the fix |
+|---|---|---|
+| ⭐ **module barrier** *(ELM `RemainingAcks`)* | ✅ **implemented and correct — VACUOUS** because nobody registers | ⛔ **nothing to build in the ELM.** ⭐ The work is on the MODULE side: a module that allocates resources for an entity calls `RegisterModule` and `AcknowledgeConstruction`. ⚠ Small and local per module — **but it changes when entities go `Active` cluster-wide**, so it is an architect call |
+| 🔴 **peer barrier** *(`ReliableInitType`/`PendingNetworkAck`)* | 🔴 **GENUINELY DANGLING — a produced component with no consumer** | `NetworkSpawningSystem.cs:159-160` **adds** `PendingNetworkAck`; its **only** reader is `NetworkGatewaySystem`, which is **never constructed in production**. ⇒ the tag accumulates unread and `ReliableInitType.AllPeers` has no effect |
+
+⇒ ⭐ **Only the second is a broken wire.** The first is an adoption gap in a working mechanism — 📌 the seam
+law's usual shape: *the mechanism exists and is under-adopted*, not missing.
+
+| # | measured | ⇒ |
+|---|---|---|
+| **①** | `RegisterRequirement` — **zero callers** | the per-blueprint union at `BeginConstruction:172-175` is a no-op |
+| **②** | both production ctor sites pass an **empty** participant list — `EditorSubsystem.cs:1384`, `HrotNodeBuilder.cs:238` | `_globalParticipants` starts empty |
+| **③** | the **only** production `RegisterModule` caller is `NetworkGatewaySystem.cs:88` … | …and 🔴 **`NetworkGatewaySystem` IS NEVER CONSTRUCTED IN PRODUCTION** — `new NetworkGatewaySystem(...)` appears **only** in `NetworkGatewaySystemTests.cs:74/100/126` |
+| **④** | ⇒ `EntityLifecycleModule.AcknowledgeConstruction` — the sole publisher of `ConstructionAck` — is called by **nothing in production** *(all five call sites are inside the never-built gateway)* | 🔒 **no construction is ever acked** |
+| **⑤** | ⇒ every `BeginConstruction` takes the **zero-ack branch** (`:185-198`) and `DrainInstantComplete:325` promotes to `Active` on the next frame | ⭐ **construction is a ONE-FRAME formality, not a handshake** |
+| **⑥** | the PEER axis is inert too: `PendingNetworkAck` is added at `NetworkSpawningSystem.cs:159-160` and **consumed only by the gateway** | ⇒ `ReliableInitType.AllPeers` — set by IG at `IgApplication.cs:3614`/`:3714`, and made per-request by the **fixed** `CE-143` — **has no effect** |
+| **⑦** | `ConstructionOrder`'s other production readers are `BlueprintApplicationSystem.cs:33` *(applies the TKB template — the real work)* and `DataDrivenGizmoSystem.cs:304`. **Neither acks.** | ⇒ the order is used as a **notification**, never as a barrier |
+
+##### ⚠⚠ TWO GREEN RAILS SIT OVER THIS — **`R-142` ③ again**
+
+| rail | what it actually proves |
+|---|---|
+| `NetworkGatewayIntegrationTests` *(`PACK3-N004`)* | it asserts a `SpawnEntityCommand` with `ReliableInitType.AllPeers` **reaches `Active` on both nodes**. ⛔ With the barrier inert the entity reaches `Active` **whatever** the `InitType` — it would pass with `None`, and it passes with the gateway absent. 📌 Its own summary says it passed *after* *"PACK3-N002 (deletion of legacy `NetworkGatewaySystem` clones)"* — ⇒ **it passed BECAUSE the deletion left nothing wired**, and read that as confirmation of correct wiring |
+| `NetworkGatewaySystemTests` *(3 tests)* | they construct the gateway directly ⇒ **they test a system no host runs** |
+
+##### ⭐ What this does and does NOT license
+
+| | |
+|---|---|
+| ⭐⭐ **the framing changes** | ⛔ an earlier version of this section called `_blueprintRequirements` *"an opt-in capability, not a vestige"* (the `BTreeTick` shape). ⚠ **Too generous:** the design shows a barrier that was **specified and never wired**, which is a different thing from a capability deliberately left dormant |
+| ⛔⛔ **do NOT claim this breaks the product today** | ⚠ **NOT MEASURED:** whether an entity going `Active` one frame after creation — before physics/render set up resources — causes visible harm. Many ECS designs tolerate it (systems pick the entity up on their next tick). ⭐ The `TwoAck-DESIGN.md` §1 *"half-baked entity"* complaint is evidence the problem was FELT, but it is about the **IOS ack**, not local module readiness |
+| ⛔ **and do NOT delete anything** | 🔒 `CLAUDE.md`: *"prefer ROUTING to DELETING"*. ⭐ The right question is whether to **wire** the barrier, and that is a user/architect call with cluster-wide blast radius |
+| ⭐ **effect on the replay work** | it **simplifies** the reconstruction *(`RemainingAcks` is always empty ⇒ recomputation is trivially correct)* — ⚠ **but if the barrier is ever wired, recovering `BlueprintId` stops being theoretical and becomes load-bearing** |
+
+📄 Filed as `CE-259au`.
+
+⇒ ⭐⭐⭐ **THIS IS WHY THE RECONSTRUCTION NEEDS `TkbIdentity.TkbType` AND NOT JUST "re-open with the global
+set".** `_globalParticipants` is pure node state and survives the rewind untouched; `_blueprintRequirements`
+is keyed on the **blueprint id**, which lives only on the entity. ⇒ **recovering `BlueprintId` is what keeps
+the recomputed ack set correct once anyone starts using requirements** — ⭐ and `TkbIdentity` is recorded
+(no `[DataPolicy]`; *"lives on the entity forever"*), attached by **both** production paths
+(`NetworkSpawningSystem.cs:148`, and ghosts carry it before `GhostPromotionSystem.cs:195` reads it).
+
+##### ⚠ Two consequences of the empty sets, stated so nobody over-reads them
+
+| | |
+|---|---|
+| ⭐ **construction is normally a ONE-FRAME state, not a distributed handshake** | with no participants, `BeginConstruction:185-198` takes the zero-ack branch and `DrainInstantComplete:325` promotes on the next frame (`currentFrame > StartFrame`) |
+| ⛔⛔ **the zombie claim SURVIVES this** | `DrainInstantComplete:324` iterates **`_pendingConstruction`**, never a world query ⇒ a restored `Constructing` entity that is not in the dictionary is promoted by **nothing**, whatever the participant count |
+| ⚠ **CORRECTION to §2.1f's flagged asymmetry** | `BeginDestruction:250` uses `_globalParticipants` only *(its own comment: "Default to global only for now")* while construction unions the blueprint set. ⛔ **That asymmetry is MOOT today** — `_blueprintRequirements` is never populated, so both compute the same set. ⭐ It is **latent**, and would bite the first time someone calls `RegisterRequirement` |
 
 ### 2.2 IG Nodes During Replay
 

@@ -156,7 +156,7 @@ it**, which is trap #5 in miniature. A second rail now drives the production pat
 
 ## 7. ⭐⭐⭐ The carried question — **which unresolved `DEBT-AIB` rows are in our blast radius**
 
-📐 **Measured: 30 ids in `.dev/btree-ai-action-binding/DEBT-TRACKER.md`, 12 resolved/verified,
+📐 **Measured: 30 ids in `.dev/_DONE/btree-ai-action-binding/DEBT-TRACKER.md`, 12 resolved/verified,
 ⭐ 18 OPEN.** ⛔ **Named, not fixed**, as asked.
 
 ### 🔴🔴 Highest value first — **two of these explain things we have been re-deriving**

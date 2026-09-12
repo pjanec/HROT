@@ -63,6 +63,27 @@ public sealed class SharedApplicationBootstrapperTests
 
         public TestBootstrapper(INetworkFactory factory) { }
 
+        // ── CE-199: the resource seam, exercised through THIS host rather than a parallel one ──
+        private string[] _declaredKeys = System.Array.Empty<string>();
+        private Hrot.Common.Infrastructure.INodeResourceProvider[] _providers =
+            System.Array.Empty<Hrot.Common.Infrastructure.INodeResourceProvider>();
+
+        /// <summary>What PopulateSystems read out of BootValues, or null if it declared nothing.</summary>
+        public object? ReadBackInPopulateSystems { get; private set; }
+
+        /// <summary>Builds a host that declares <paramref name="keys"/> and resolves <paramref name="providers"/>.</summary>
+        public static TestBootstrapper WithResources(
+            INetworkFactory factory,
+            string[] keys,
+            params Hrot.Common.Infrastructure.INodeResourceProvider[] providers)
+            => new TestBootstrapper(factory) { _declaredKeys = keys, _providers = providers };
+
+        protected override System.Collections.Generic.IReadOnlyList<string> DeclaredResourceKeys(NodeRole role)
+            => _declaredKeys;
+
+        protected override System.Collections.Generic.IReadOnlyList<Hrot.Common.Infrastructure.INodeResourceProvider>
+            ResolveResources(HrotNodeContext context, NodeRole role) => _providers;
+
         protected override void RegisterDomainComponents(EntityRepository world)
         {
             CallLog.Add(nameof(RegisterDomainComponents));
@@ -93,6 +114,11 @@ public sealed class SharedApplicationBootstrapperTests
         {
             CallLog.Add(nameof(PopulateSystems));
             sim.Add(new TestSimSystem());
+
+            // ⭐ Legal only because `system-groups` requires every declared resource key (CE-199).
+            //   That the read SUCCEEDS is the proof the allocation already happened.
+            if (_declaredKeys.Length > 0)
+                ReadBackInPopulateSystems = BootValues.Get<object>(_declaredKeys[0]);
         }
 
         protected override ClusterSlave BuildOrchestration(
@@ -327,12 +353,17 @@ public sealed class SharedApplicationBootstrapperTests
         };
 
         // Virtual hooks
+        // ⭐ CE-199 added DeclaredResourceKeys + ResolveResources — the two halves of the resource
+        //   seam. They are listed here deliberately: this rail is what makes a new hook a decision
+        //   rather than a drift, and it reddened the moment they were added.
         var expectedVirtual = new[]
         {
             "GetAdditionalModules",
             "GetBehaviorRegistry",
             "RegisterApplicationSystems",
             "PostInitialize",
+            "DeclaredResourceKeys",
+            "ResolveResources",
         };
 
         var allMethods = type.GetMethods(BindingFlags.NonPublic | BindingFlags.Instance | BindingFlags.DeclaredOnly);
@@ -466,5 +497,118 @@ public sealed class SharedApplicationBootstrapperTests
         Assert.Same(
             context.NedReplication?.NetworkLifecycleGroup,
             bootstrapper.ReceivedLifecycleGroup);
+    }
+
+    // ── CE-199: the resource half of the seam ─────────────────────────────────
+    //
+    // ⭐⭐⭐ WHY THESE EXIST. INodeResourceProvider.Allocate could not run at all: NodeBootValues.Set
+    // refuses any write outside a step that declared the key, so allocating from a host method threw
+    // at boot. These rails pin that the base now owns a `node-resources` step which makes the
+    // allocation legal — and that the DECLARATION cannot drift from what is actually allocated.
+
+    /// <summary>A provider that records whether the base ever called it, and publishes a marker.</summary>
+    private sealed class SpyResourceProvider : Hrot.Common.Infrastructure.INodeResourceProvider
+    {
+        private readonly string _key;
+        public SpyResourceProvider(string key) { _key = key; }
+
+        public string  Key            => _key;
+        public int     AllocateCalls  { get; private set; }
+        public int     DisposeCalls   { get; private set; }
+        public object  Payload        { get; } = new();
+
+        public void Allocate(HrotNodeContext context, Hrot.Common.Infrastructure.NodeBootValues values)
+        {
+            AllocateCalls++;
+            values.Set(_key, Payload);
+        }
+
+        public void Dispose() => DisposeCalls++;
+    }
+
+    [Fact]
+    public void NodeResourcesStep_AllocatesTheDeclaredResource_AndPopulateSystemsCanReadIt()
+    {
+        // ⭐ THE RAIL THAT WOULD HAVE FAILED BEFORE CE-199: Allocate threw outside a declaring step.
+        var factory  = new Hrot.Editor.OfflineNetworkFactory();
+        var provider = new SpyResourceProvider(Hrot.Common.Infrastructure.ResourceKeys.TrajectoryPool);
+        var host     = TestBootstrapper.WithResources(factory, new[] { Hrot.Common.Infrastructure.ResourceKeys.TrajectoryPool }, provider);
+
+        host.BootstrapNode(HeadlessConfig(), NodeRole.None, factory);
+
+        Assert.Equal(1, provider.AllocateCalls);
+        Assert.Same(provider.Payload, host.ReadBackInPopulateSystems);
+    }
+
+    [Fact]
+    public void NodeResourcesStep_RunsBeforeSystemGroups_SoACapabilityNeverBorrowsAnUnallocatedResource()
+    {
+        // Ordering is the whole point: PopulateSystems reading the payload PROVES the allocation
+        // already happened, because Get throws when the providing step never Set it.
+        var factory  = new Hrot.Editor.OfflineNetworkFactory();
+        var provider = new SpyResourceProvider(Hrot.Common.Infrastructure.ResourceKeys.PerceptionGrid);
+        var host     = TestBootstrapper.WithResources(factory, new[] { Hrot.Common.Infrastructure.ResourceKeys.PerceptionGrid }, provider);
+
+        host.BootstrapNode(HeadlessConfig(), NodeRole.None, factory);
+
+        Assert.NotNull(host.ReadBackInPopulateSystems);
+    }
+
+    [Fact]
+    public void ResolvingAProviderForAnUndeclaredKey_IsRefused_NamingTheKey()
+    {
+        // The declaration is static (it is read before BuildContext), so it MUST be checked against
+        // what is really resolved — otherwise the step would refuse the write with a far less
+        // informative message from deep inside NodeBootValues.
+        var factory  = new Hrot.Editor.OfflineNetworkFactory();
+        var provider = new SpyResourceProvider(Hrot.Common.Infrastructure.ResourceKeys.RaycastBatch);
+        var host     = TestBootstrapper.WithResources(factory, System.Array.Empty<string>(), provider);
+
+        var ex = Assert.Throws<InvalidOperationException>(
+            () => host.BootstrapNode(HeadlessConfig(), NodeRole.None, factory));
+
+        Assert.Contains(Hrot.Common.Infrastructure.ResourceKeys.RaycastBatch, ex.Message);
+        Assert.Equal(0, provider.AllocateCalls);
+    }
+
+    [Fact]
+    public void DeclaringAKeyNobodyAllocates_IsRefused_NamingTheKey()
+    {
+        // The mirror case, and the more dangerous one: a consumer would read a resource never created.
+        var factory = new Hrot.Editor.OfflineNetworkFactory();
+        var host    = TestBootstrapper.WithResources(factory, new[] { Hrot.Common.Infrastructure.ResourceKeys.NavigationPools });
+
+        var ex = Assert.Throws<InvalidOperationException>(
+            () => host.BootstrapNode(HeadlessConfig(), NodeRole.None, factory));
+
+        Assert.Contains(Hrot.Common.Infrastructure.ResourceKeys.NavigationPools, ex.Message);
+    }
+
+    [Fact]
+    public void DisposeResources_FreesEveryAllocatedProvider_AndIsIdempotent()
+    {
+        // ⭐ ONE implementation on the base — SimHost and IG each had their own copy of this loop.
+        var factory  = new Hrot.Editor.OfflineNetworkFactory();
+        var provider = new SpyResourceProvider(Hrot.Common.Infrastructure.ResourceKeys.TrajectoryPool);
+        var host     = TestBootstrapper.WithResources(factory, new[] { Hrot.Common.Infrastructure.ResourceKeys.TrajectoryPool }, provider);
+
+        host.BootstrapNode(HeadlessConfig(), NodeRole.None, factory);
+        host.DisposeResources();
+        host.DisposeResources();
+
+        Assert.Equal(1, provider.DisposeCalls);
+    }
+
+    [Fact]
+    public void AHostThatDeclaresNoResources_AllocatesNothing_AndStillBoots()
+    {
+        // IG's shape today. "Allocates nothing" must stay a correct answer, not a degenerate one.
+        var factory = new Hrot.Editor.OfflineNetworkFactory();
+        var host    = TestBootstrapper.WithResources(factory, System.Array.Empty<string>());
+
+        var context = host.BootstrapNode(HeadlessConfig(), NodeRole.None, factory);
+
+        Assert.NotNull(context);
+        Assert.Null(host.ReadBackInPopulateSystems);
     }
 }

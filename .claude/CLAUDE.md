@@ -62,6 +62,14 @@ grep and present the result with the same confidence.
 > ⇒ ⛔ **A report that says "codebase-memory MCP was not connected, so I used grep" is now
 > a MISS** — the CLI was available; use it and say so.
 
+> ⛔⛔ **CLI GAP, measured `2026-09-02`: `check_index_coverage` is NOT available through the CLI**
+> *(`codebase-memory-mcp cli check_index_coverage …` → `unknown tool`)*. ⇒ ⭐ in a session where only the
+> CLI is reachable, the *"run `check_index_coverage` before any negative or exhaustive claim"* rule
+> **cannot be satisfied** — ⭐⭐ **say so in the claim** rather than implying coverage was checked.
+> ⚠ **And `trace_path` returned an EMPTY caller set for a struct constructor** *(`NetworkAuthority`)*, so
+> ⛔ **it does not substitute for grep on "who writes this"** — the existing warning about C# interface
+> dispatch is narrower than the real limitation.
+
 Always call `list_projects` first when you do not already know the project name, then use the `display_name` or exact `name` returned by that tool.
 
 ```json
@@ -114,9 +122,143 @@ not a signal).
 - `get_graph_schema(project)` — Node/edge counts, relationship patterns
 - `get_code_snippet(qualified_name)` — Read source code for a function
 - `get_architecture(project, aspects)` — Overview; `clusters` finds the real seams, `cycles` is opt-in
-- `search_code(pattern, project)` — Grep-like text search within indexed files
+- `search_code(pattern, project, limit)` — ⭐⭐ grep-like text search over the indexed files, **sub-second, and it reaches further than Roslyn** *(out-of-solution projects, `Stride/`, `docs/`, `.dev/`)*. ⛔⛔ **`limit` defaults to 10** — a truncated page looks exactly like a small answer; pass a real limit and read `total_grep_matches` / `total_results`. ⚠ It is TEXT: it cannot tell a real reference from a comment or a same-named symbol ⇒ **escalate to Roslyn only for that** *(see the WHICH TOOL section)*
+- ⛔⛔ **`search_graph` does NOT model field reads/writes** — 📌 measured: **1 node** *(the declaration, `in_degree: 0`)* where Roslyn found **30 references**. ⚠ **An `in_degree` of 0 on a field is evidence of NOTHING**
 - `manage_adr(action)` — CRUD for Architecture Decision Records
 - `ingest_traces(traces)` — Ingest runtime traces to validate HTTP edges
+
+## ⭐⭐⭐ WHICH TOOL — **codebase-memory FIRST; Roslyn only where it is NOT ENOUGH** *(user, `2026-09-02`)*
+
+> ⭐⭐⭐ **User, verbatim:** *"roslyn is extremely slow so use it only where codebase memory is not good enough."*
+
+📐 **The cost that decides it, measured on this repo:**
+
+| tool | cost |
+|---|---|
+| ⭐⭐ `search_graph` · `search_code` *(codebase-memory)* | **sub-second** |
+| ⭐⭐ `grep` | **sub-second** |
+| ⛔⛔ **Roslyn, first query of a session** | 🔴 **~59–66 s** *(the MSBuildWorkspace load)* |
+| ⛔ **Roslyn, first query against a DIFFERENT solution** | 🔴 **another ~20–40 s** — a second workspace |
+| ⭐ Roslyn, warm, same session, same workspace | 0.8–5 s |
+
+⇒ ⭐⭐⭐ **Default to codebase-memory + grep. Reach for Roslyn only when the question is one they CANNOT
+answer — and when you do, batch every symbol question into that one warm session.**
+
+### ⭐⭐ ① The routing table
+
+| the question | ⭐ the tool | why not the other |
+|---|---|---|
+| ⭐⭐ *"what is the complete SET of X?"* | **`search_graph`** | ⛔ Roslyn answers *"where is THIS symbol"*; it cannot enumerate. **The `INVENTORY`-before-design rule is untouched** |
+| ⭐⭐ *"which FILES mention this name?"* | ⭐⭐⭐ **`scripts/find.sh <pattern> [--glob '*.cs']`** — runs **`search_code` AND grep** and prints what each one MISSED *(added `2026-09-03`: the rule kept losing to the fact that grep is simply cheaper to type; this makes the cheapest thing to type the correct thing)*. ⛔ It **degrades loudly** — *"UNAVAILABLE"*, never an empty result that reads like an absence | ⭐ **it beats Roslyn on reach** — 📌 measured: 33/33 C# files **including `Stride/` and out-of-solution projects**, plus 13 design `.md` and 3 `.dev` files. ⚠ **pass `limit`** — the default is **10**, which silently looks like a small answer |
+| ⭐ *"what does this function do?"* | **`get_code_snippet`** → `Read` | — |
+| ⭐ anything **not C#** — `.csproj`, `Directory.Build.props`, JSON/config, scenario assets, SQL, Razor, shell, markdown | **grep / `search_code`** | ⛔⛔ the Roslyn workspace holds **C# only** |
+| ⭐ *"was this MEANT to exist?"* | **the design corpus** *(`R-129`)* | ⛔ no compiler answers intent |
+| ⛔⛔ **RENAME a C# symbol** | 🔴 **Roslyn — always** | see the ban below |
+| ⛔ *"is this text hit REALLY this symbol?"* — overloads, interface dispatch, aliases, partial classes, same name on two types | 🔴 **Roslyn** | ⛔ `search_code` is TEXT: 📌 **131 text matches vs 30 real references** on the same field — the rest were `<see cref>`, comments and markdown prose |
+| ⛔ *"who implements / overrides this?"* | 🔴 **Roslyn** `find_implementations` · `get_type_hierarchy` | ⚠ `trace_path` **under-reports C# interface dispatch** *(measured: 3 vs 9+)* |
+| ⛔ *"does it still compile?"* without a build | 🔴 **Roslyn** `get_diagnostics` | — |
+
+⛔⛔ **What codebase-memory canNOT do, so do not try:** ⭐ **`search_graph` does not model field reads/writes.**
+📌 Measured on `EntityCreationRequest.OwnerAppInstanceId`: `search_graph` returned **ONE node — the
+declaration, `in_degree: 0`** — where Roslyn found **30 references.** ⚠ **An `in_degree` of 0 on a field is
+NOT evidence of anything.** ⇒ for *"where is this field touched"*, `search_code`/grep for the set, Roslyn to
+tell which hits are real.
+
+### ⛔⛔⛔ ② NEVER rename a C# symbol with text search-and-replace
+
+⛔ Not `sed`, not `Edit --replace_all`, not a Python `str.replace`. 📌 **Measured, `2026-09-02`:**
+`roslyn_find_references` on a field returned **30 references across 5 projects**; `roslyn_preview_rename` on
+the same symbol produced a diff touching **13 files across 7 projects** — including `Hrot.Network.NED` and
+`Hrot.SimHost.Integration.Tests`, which the reference list never named. ⇒ ⭐⭐ **even the semantic reference
+list UNDERSTATES a rename's blast radius.** A text replace understates it further **and silently hits
+comments, strings and unrelated same-named symbols.**
+
+⭐ **The flow:** `roslyn_preview_rename` → **read the diff** → `roslyn_apply_rename`.
+⚠ **And still grep afterwards** — ⑤ below: the rename cannot reach projects outside the opened solution.
+
+⭐ **Server: `roslyn`** *(`MadQ.RoslynMcp`, at `/opt/roslynmcp/RoslynMcp.dll`; installed by
+`scripts/cloud-bootstrap.sh`)*. It opens the real **`MSBuildWorkspace`** and answers from the **semantic
+model**. 📐 Chosen by measuring it against `RoslynMcp.Server`+`Cli` *(JoshuaRamirez)* and **Serena** on this
+solution; the two losers are unregistered and the rejection reasons are in `install_roslynmcp()`.
+
+### ⛔⛔⛔ ③ A ZERO RESULT IS USUALLY A DEAD WORKSPACE — **and the failure is SILENT**
+
+⛔⛔ **The workspace failing to load does not raise.** 📌 That is exactly how candidate A was disqualified: our
+NuGet audit warnings made `MSBuildWorkspace` treat the solution as unloadable, it opened **zero projects**, and
+it then answered find-references with a **confident empty list.** ⚠ **An empty answer and "genuinely unused"
+are indistinguishable from the output.**
+
+⭐⭐ **So: before you trust ANY zero-or-suspiciously-small result, prove the workspace is real:**
+
+```bash
+roslyn_get_project_info(projectPath: "<the .csproj you queried>")   # must report  "is_msbuild_workspace": true
+```
+
+⛔⛔ **`is_msbuild_workspace: false` means it fell back to an `AdhocWorkspace`** — ⭐ **no project references, no
+cross-project resolution ⇒ every reference/implementation answer is worthless.** ⚠ **`roslyn_info` is NOT this
+check** — it returns only version/pid/uptime/MSBuild-discovery and says nothing about whether YOUR project
+loaded. ⭐ Second corroboration when a zero still looks wrong: **grep for the bare name.** ⛔ Graph and grep
+disagreeing with Roslyn is a signal to re-check the workspace, never to shrug.
+
+### ⛔⛔ ④ A BROKEN BUILD POISONS THE ANSWERS — **get green first, then ask**
+
+⭐ The semantic model is built from a **compilation**. ⛔ **Mid-refactor, with the build red, symbols that fail
+to bind simply are not there** — ⇒ references vanish, implementations go missing, and a rename preview
+under-reports. ⚠ **This looks identical to a correct small answer.**
+
+⇒ ⭐⭐ **After any edit that breaks the build, treat every Roslyn answer as UNRELIABLE until
+`roslyn_get_diagnostics` on the touched project reports zero errors** *(or `quick-check.sh <proj>` is green)*.
+⛔ **Never conclude *"the last N references are gone, the refactor is complete"* from a red tree** — ⭐ that is
+the compiler agreeing with your mistake.
+
+### ⛔⛔ ⑤ ONE QUERY = ONE WORKSPACE — **the repo has 8 solutions; a query sees ONE** *(measured `2026-09-02`)*
+
+⭐⭐ **`SymbolFinder` walks the projects of the ONE `Solution` the workspace opened.** ⛔ A project outside it
+has no compilation loaded, so its call sites **do not exist** for the search — silently, with no warning and
+a healthy `is_msbuild_workspace`.
+
+📌 **Measured three ways on `EntityCreationRequest.OwnerAppInstanceId`** *(grep: 37 in-solution lines + 44
+lines across 17 `Stride/` files)*:
+
+| `projectPath` | workspace | result |
+|---|---|---|
+| `Hrot/Engine/Hrot.Core/Hrot.Core.csproj` | ✅ true | **30 refs** — engine + every in-solution test, ⛔ **zero `Stride/`** |
+| `Stride/HrotStrideApp.Game/…csproj` | ✅ true | **20 refs** — engine + ⭐ **all 12 Stride Game sites**, ⛔ no `Game.Tests` |
+| `Stride/HrotStrideApp.Game.Tests/…csproj` | ✅ true | ⛔ **`Symbol not found`** — ⭐ **CAUSE FOUND: the project was never RESTORED.** After `dotnet restore` *(9.5 s)* the same query returns **49 refs, 29 of them in `Game.Tests`** |
+
+⇒ ⭐⭐⭐ **`Stride/` is NOT inherently invisible — it just is not in `IOS-IG-SimHost.sln`** *(149 projects,
+zero `HrotStrideApp` entries)*. **Point the query at `Stride/HrotStrideApp.Game.csproj` and the Stride
+references come back.** ⚠ *(An earlier version of this section said Stride was invisible to the tool. That
+was true of the query, not of the tool — SUPERSEDED.)*
+
+📐 **The observed scoping rule** *(inferred, not measured directly)*: it opens the solution discovered at the
+server's working directory — the repo root's `IOS-IG-SimHost.sln`. A project **inside** it gets the whole
+149-project solution *(hence downstream test hits)*; a project **outside** it gets that project **plus its
+`ProjectReference` closure only** — which is why `HrotStrideApp.Game.Tests` was absent even though
+`Stride/HrotStrideApp.sln` contains it.
+
+| ⭐ the working rule | |
+|---|---|
+| ⭐⭐⭐ **for a rename or blast-radius on anything in `Hrot.Core` / `Hrot.Common`, run the query TWICE and UNION** | once at an in-solution project, once at `Stride/HrotStrideApp.Game.csproj` |
+| ⭐⭐⭐ **RESTORE an out-of-solution project before querying it** | ⛔⛔ **`obj/project.assets.json` missing ⇒ MSBuildWorkspace loads the project with NO references resolved ⇒ `Symbol not found`, silently.** 📌 That — not any Stride weirdness — is why `HrotStrideApp.Game.Tests` looked unreachable. ⭐ `dotnet restore <proj>` costs ~10 s and the answer comes back complete. ⚠ Check the same for `NodeEditor.Core`, `NodeEditor.UI`, `Fhsm.Tests` |
+| ⭐ **grep as the final corroboration** | ⛔ still cheaper than a third workspace, and it covers docs and non-C# files |
+| ⛔ **do NOT "fix" this by adding the Stride projects to `IOS-IG-SimHost.sln`** | ⚠ they target `net8.0-windows`; folding them in changes what a full-solution build builds. ⭐ Two queries cost seconds; a broken solution build costs a session |
+
+⛔⛔ **And row 3 weakens check ③: `is_msbuild_workspace: true` is NECESSARY, NOT SUFFICIENT.** ⭐ The
+workspace was genuinely MSBuild and still had **no references resolved**, because the project had never been
+restored. ⇒ ⭐⭐⭐ **`Symbol ... not found` for a name grep CAN see is a LOAD failure, never "the symbol is
+unused" — and the FIRST thing to check is `ls <proj>/obj/project.assets.json`, then `dotnet restore`.**
+
+### ⚠ Operational — **the registered MCP times out on the COLD call**
+
+⛔ The `roslyn` MCP tool timeout is **60 s** and the cold workspace load is **~59 s** ⇒ 📌 **the first call
+through the MCP reliably fails with `timed out after 60s`.** ⭐ **Just call it again** — the server process
+survives the cancelled call and the second attempt answers warm *(measured: 4.9 s)*. ⭐ For a single long
+query, drive the server over stdio with a longer timeout instead.
+
+⭐⭐ **It stays warm, so KEEP THE SESSION** — the cost table at the top of this section is why. ⭐ Do not
+restart it between questions; **batch every symbol question into one run.** ⛔ **A one-shot CLI invocation
+pays the ~59 s every time.**
 
 ## ⛔⛔ UNREFERENCED IS NOT UNINTENTIONAL — **search `docs/` FIRST, then `.dev/`, before proposing any deletion** *(user ruling, `2026-08-15`; corpus order corrected `2026-08-17` and again `2026-08-21`)*
 
@@ -130,8 +272,8 @@ nothing.** ⛔ **The coordinator's lean was DELETE**, on the precedent of `BP-24
 
 | where | what it says |
 |---|---|
-| **`.dev/btree-ai-action-binding/SLICE1-DESIGN.md:82`** | ⭐⭐ **names the expression verbatim**: *"the BTree generator **ignores** the blueprint's standalone `BTreeTick` (with its `paramIndex*sizeof` math)"* — architect ruling *"BTree owns layout, blueprint provides `TickCore`"* |
-| **`.dev/btree-ai-action-binding/SLICE2-DESIGN.md` §6.2** | *"(The blueprint's own `BTreeTick`/`Memory+8` path stays the **standalone** blueprint-as-behavior hosting.)"* |
+| **`.dev/_DONE/btree-ai-action-binding/SLICE1-DESIGN.md:82`** | ⭐⭐ **names the expression verbatim**: *"the BTree generator **ignores** the blueprint's standalone `BTreeTick` (with its `paramIndex*sizeof` math)"* — architect ruling *"BTree owns layout, blueprint provides `TickCore`"* |
+| **`.dev/_DONE/btree-ai-action-binding/SLICE2-DESIGN.md` §6.2** | *"(The blueprint's own `BTreeTick`/`Memory+8` path stays the **standalone** blueprint-as-behavior hosting.)"* |
 
 ⇒ ⭐⭐ **It is an opt-in capability** (`AiPrimitiveHosting.BTreeAction`/`BTreeCondition`), **not a
 vestige.** ⛔ **Deleting it removes a capability, not a mistake.** ✅ **The right answer was ROUTE, not
@@ -197,7 +339,7 @@ every place a user can reach one.**
 construction** — ⭐ so when a `.dev/` design and a newer `docs/` design disagree, **`docs/` wins**; ⛔ but
 absence of a `docs/` record does NOT make the `.dev/` one worthless. 📌 **Measured `2026-08-21`:** searching `EditorTimeTransportFacade` returns hits in
 **both** trees — `docs/blueprints/{DESIGN_Time_Architecture,PLAN_Time_System_Refactor,Q48}.md` *(the
-live intent)* **and** `.dev/main-toolbar-1/` *(the batch that built it)*. ⇒ ⭐ **searching one tree
+live intent)* **and** `.dev/_DONE/main-toolbar-1/` *(the batch that built it)*. ⇒ ⭐ **searching one tree
 answers half the question.**
 
 📌 **Three findings this programme derived the hard way were already written down:** the standalone
@@ -273,8 +415,89 @@ implementation session builds; it does not source the design it builds from.**
 `.dev/`, one per topic, each asked for *record → confirms/refines/contradicts → what it did not cover*.
 ⛔ **Do not spend an implementation batch on a question a subagent can answer in one pass.**
 
+## ⛔⛔⛔ NO LEAN WITHOUT A CLAIM TABLE — **and STAYING QUIET LONGER IS THE POINT** *(user, `2026-09-01`)*
+
+> ⭐⭐⭐ **User, verbatim, on the third correction in one session:** *"we are constatly hitting the point
+> from the beginning - your understanding is shallw before giving lean. hiw to improve?"* — then, on the
+> proposal below: 🔒 *"staying quiet longer to give much better answer is exactly what i expect."*
+
+⛔⛔ **THE DIAGNOSIS IS NOT "DIDN'T READ ENOUGH."** 📐 Plenty was read each time. ⭐⭐⭐ **The mechanism is:
+the RECOMMENDATION WAS FORMED FIRST, and the reading went looking for support.** ⇒ every lean rested on
+**one verified property plus several ASSUMED ones — and the assumed ones were always the ones that decided
+the question.**
+
+📌 **Measured on `CE-147` *(where the `NetworkTransform` position-shadow attach belongs)* — three leans,
+three corrections, and EVERY ONE broke on a file that was NAMEABLE IN ADVANCE as load-bearing and never opened:**
+
+| the lean | what broke it | had I opened it? |
+|---|---|---|
+| *"the consumer owns its cache"* ⇒ egress | `NetworkTransform`'s **own header** says **both** sides write it | ⛔ no — the egress *usage*, never the component |
+| ⇒ `SpatialCoreTkbTranslator` | the translator loop sits **ABOVE** the authority branch ⇒ **replicas run it too** *(`NetworkSpawningSystem.cs:134`)* | ⛔ no — read the branch, not the ten lines above it |
+| my own objection *"structural mutation mid-iteration"* | `EntityQuery` is an **INDEX walk, not a chunk walk** *(`EntityQuery.cs:133`)* | ⛔ no — **invented from ECS folklore** |
+
+### ⭐⭐⭐ The tell — **a PRINCIPLE where a LINE NUMBER should be**
+
+⛔⛔ **Every broken lean was justified by a DESIGN PRINCIPLE, not a measurement** — *"the consumer should
+own its cache"* · *"the template is the right home."* ⭐⭐ **Principle-arguments feel strong and stay
+UNFALSIFIABLE until the file is opened.** ⇒ 🔒 **when the reason for a lean is a principle rather than a
+`file:line`, the work is NOT DONE.**
+
+### ⭐⭐ The cost asymmetry that makes this indefensible
+
+📐 **Measuring = 2–3 tool calls, ~30 s. A wrong lean = a full user round-trip, their attention, and the
+risk they ACCEPT it.** ⇒ ⛔ **the threshold for "should I measure this" is NEAR ZERO.** ⚠ Measurement had
+been treated as expensive. **It is not.**
+
+### ⭐⭐⭐ The rule — **a CLAIM TABLE in the chat reply, in front of every lean**
+
+| the lean rests on | code — how it IS | design basis — how it was MEANT to be |
+|---|---|---|
+| translators run for replicas too | ✅ `NetworkSpawningSystem.cs:134` | ✅ `Q65 §4` |
+| the ownership path never attaches | ✅ `OwnershipIngressSystem.cs:75` | ⛔ **searched `docs/`+`.dev/`, none found** |
+| nothing reads `NetworkTransform` authority | ⛔ **assumed** | ⛔ **not searched** |
+
+| ⭐ | |
+|---|---|
+| ⭐⭐⭐ **NO ⛔-ASSUMED ROW MAY BE LOAD-BEARING** | ⇒ if it would flip the lean when false, **MEASURE IT BEFORE ANSWERING** |
+| ⭐⭐ **an unmeasurable claim still gets its row, marked ⛔** | ⭐ that is the USEFUL case — the user pushes on **that row**, not on the conclusion |
+| ⭐⭐⭐ **the generating question, asked BEFORE forming the lean** | 🔒 ***"what would have to be true for this to be WRONG — which file shows how it IS, and which DESIGN says how it was MEANT to be?"*** |
+| ⭐⭐ **why a TABLE and not "be careful"** | ⛔ the user **cannot check the reasoning from a phone** — ⭐ but they CAN check *"four rows measured"* vs *"one."* **It exposes the SHAPE OF THE CONFIDENCE, not just the verdict** — the same reason the `INVENTORY` block and the gate-report contract stuck where *"be diligent"* never has |
+
+#### ⛔⛔⛔ THE SECOND COLUMN — **a table full of CODE rows can still be WRONG** *(added `2026-09-03`, and it was measured on a live miss)*
+
+📌 **The case.** Deciding whether IG may schedule `NetworkSpawningSystem`, the lean rested on *"ELM teardown
+waits for acks, so it may stall on a non-owning node."* ⭐ A claim table was built and **every row cited an
+implementation** — `EntityLifecycleModule.cs:277`, the hazard rail's own prose. 🔴 **The conclusion was still
+wrong.** `FDP/Docs/projects/toolkits/FDP.Toolkit.Lifecycle.md` §2 says the acks are **local MODULE acks**
+*(`DestructionAck` carries a `ModuleId`, "published by individual modules after cleanup")*, and
+`.dev/_DONE/two-ack/TwoAck-DESIGN.md` §6 states the invariant *"the ELM and `NetworkSpawningSystem` remain
+pure, generic ECS systems."* ⇒ **no authority dependency, no stall, and the whole option tree built on it was
+scaffolding.**
+
+| ⛔ why the EXISTING rules did not fire — both, precisely | |
+|---|---|
+| ⛔⛔ **`R-129` keys on the wrong TRIGGER** | it fires on *"before you TOUCH or design a change to an existing feature."* ⭐ ELM was not being changed — it was being **REASONED THROUGH**. ⇒ 🔒 **the design-read trigger must key on what the CONCLUSION DEPENDS ON, not on what is being EDITED** |
+| ⛔⛔ **the claim table pointed at the wrong CORPUS** | its generating question said *"which **FILE** would show me?"* ⇒ ⭐ **it routed to code BY CONSTRUCTION.** The rule was obeyed and the table was full; it simply never asked for intent. ⚠ **That is a defect in the rule, not a lapse in following it** |
+
+| ⭐⭐ the amendment | |
+|---|---|
+| ⭐⭐⭐ **every load-bearing row carries BOTH columns** | ⛔ a row with code and a blank design cell is **not finished** — it is *"how it is"* with no check on *"how it was meant to be"* |
+| ⭐⭐ **`⛔ searched, none found` is a COMPLETE answer** | ⭐ it is the sentence `RULE ZERO` obligation 1 already demands. ⛔ **`not searched` is not** |
+| ⭐⭐⭐ **THE PROPER-NOUN TRIGGER** | 🔒 **when an engine proper noun enters the reasoning as a LOAD-BEARING MECHANISM** — `ELM`, the pack, the bus, the entity map, the allocator — **it gets ONE corpus search before anything is built on it.** ⭐ The signal is *"I am about to explain how X works"*, ⛔ **NOT** *"I am about to edit X"* |
+| ⭐ **it is sub-second** | 📌 measured: `search_code(pattern="EntityLifecycleModule")` returned **105 markdown files** in one call, including all three that decided the question. ⇒ ⛔ **it was never hard to find. It was never asked for.** ⚠ Search the TOPIC, never a guessed filename *(`R-129` obligation ②)* |
+
+⭐⭐⭐ **CONSEQUENCE THE USER EXPLICITLY WANTS: BE SLOWER BEFORE THE FIRST ANSWER.** ⛔ The measured pattern
+was *first lean wrong · third lean right*, **because the USER'S CORRECTIONS WERE DOING THE MEASUREMENT.**
+⚠⚠ **That is the wrong division of labour — the user was acting as the test suite.** ⇒ ⭐ **spend the tool
+calls first; a slower, measured first answer is the deliverable.**
+
 ## Assistant interaction preferences
 
+- ⛔⛔⛔ **UNDERSTAND FIRST, THEN ANSWER — and NEVER ask the user to decide without a LEAN** *(user, `2026-09-01`, verbatim)*: ⭐⭐ **the enforcement mechanism is the CLAIM TABLE — see the section directly above.** *"I expect you to understand the code and concepts. I do not see the code, I am on mobile. So when you ask me to decide something, i need your lean. And i expect you first of all study available design documents (as written in claude.md) and then study relevant code using both codebase memory and grep until you fully understand it and only then you derive some solutions or explanations. You shoudl NOT work from incomplete understaning, like shallow code searcg with grep only."*
+  ⭐ **The order is fixed: ① design docs *(`R-129` — `docs/` then `.dev/`)* → ② code, via `search_graph` **AND** grep *(never one alone)* → ③ only then a solution or an explanation.**
+  ⛔⛔ **A menu of options with no recommendation is work handed back to the user** — they cannot open the code to break the tie. ⭐ **Every choice offered carries a named lean, its blast radius, and what would change the lean.** ⚠ **If understanding is genuinely incomplete, SAY WHICH PART and what would settle it** — ⛔ do not present a half-measured guess in the register of a conclusion.
+- ⭐⭐ **GLOSS EVERY ID AND SHORTHAND ON FIRST MENTION IN A REPLY** *(user, `2026-09-01`: "I do not have the list in front of my eyes so i have no idea what these mean. When referring to these, pls give mo a short few words summary in parenthesis like 'CE-147 (here the single line summary what CE 147 is about)'")*.
+  ⭐ Applies to **task/ruling ids** — `CE-147 (where the position-shadow attach belongs)` — **and to any local shorthand a document invented**: ⛔ *"host (b)"*, *"lane 3"*, *"case ②"* are meaningless in chat ⇒ **expand them** — *"host (b) — SimHost"*. ⚠ **This is IN ADDITION to the GitHub link below, not instead of it.**
 - **Ask questions in plain chat text, never with the question/multiple-choice widget** (do not use the `AskUserQuestion` tool). List options as normal prose the user can reply to.
 - **⭐ Always give GitHub links to DOCS *and* TASK IDS** *(user, `2026-08-17`: "i am on mobile"; extended `2026-08-26`: "write task ids like QA-006 and docs like architect questions or handoffs as github links so i can quickly take a look")*. Whenever chat mentions a **document** *(design, architect question, handoff, report, plan)* **OR a task id** *(`QA-006`, `CE-046`, `MX4b`, `BP-###`, `AX-###`, …)*, render it as a GitHub **blob link on the current working branch**:
   `https://github.com/pjanec/HROT/blob/<branch>/<path>` — a doc links to its file *(e.g. `…/docs/blueprints/PLAN_Remaining_Work.md`)*; ⭐ **a task id links to its owning doc** — the tracker row it lives in *(`…/docs/blueprints/Blueprint_Issues_Tracker.md`)*, or the design/report that defines it. ⛔ Do NOT print a bare id with no link — the user is on mobile and cannot grep for it.
@@ -283,10 +506,37 @@ implementation session builds; it does not source the design it builds from.**
 - **Build general, not just minimal (round-out):** when a task needs a generic node, implement the whole obvious set rather than only the one value the immediate task needs — e.g. the `Compare` node ships every `ComparisonOperator`, not just `==`; an operator/enum-keyed node covers the full enum. Proactively add closely-similar, generally-useful companions (the arithmetic/boolean peers of a comparison node) when they reuse the same machinery and are plausibly usable. Default toward completeness over minimalism. Balance against the architect's demand-driven caution: if a round-out means a whole new *speculative* vocabulary or contradicts an explicit architect ruling, flag it for a quick nod first rather than silently building it — but don't be stingy with cheap, obvious generality.
 - **Prior-art discipline (the seam law):** in this codebase a *"we need a shared X"* almost always means **X already exists and is under-adopted** — 24 measured instances so far. So every design opens with a prior-art pass, and that pass **starts with `search_graph`, not grep** (see the Codebase Memory section above — this is the rule that keeps getting skipped). Two failure modes to name explicitly: ⚠ **never read a reference *count* as adoption** — open the call sites; and ⚠ *"the seam is unused"* has two very different meanings — an interface nobody calls, versus one called every frame with a dead parameter. The fixes differ completely.
 - **Architect-questioning discipline (engine-rules gate):** no non-trivial capability / node / slice starts without a design, and no non-trivial design ships without an **architect pass**. For each non-trivial task, draft an `docs/blueprints/Architect_Question_N_*.md` mirroring the existing Q#2–Q#5 docs (decision-shaped sub-questions A/B/C/D + Claude's recommended lean + the reuse-vs-build tradeoff for each), record the answers in that doc, **then** build. Trivial mirror-pattern nodes (a documented recipe already exists) may proceed on a short in-repo design note without a full architect round.
-  - ⛔⛔ **`2026-08-16` — the NotebookLM architect is GENERALLY UNAVAILABLE.** ⭐ **User, verbatim:** *"notebooklm architect is generally unavailable now, but lets keep writing architect questions as till now, this helps isolate truly architectural issues with large blast radius."*
+  - ⛔⛔ **`2026-08-16` — the NotebookLM architect was GENERALLY UNAVAILABLE.** ⭐ **User, verbatim:** *"notebooklm architect is generally unavailable now, but lets keep writing architect questions as till now, this helps isolate truly architectural issues with large blast radius."* — ⚠ **superseded `2026-09-06`, see below.**
+  - ⭐⭐ **`2026-09-06` — the architect is REACHABLE AGAIN, through a relay.** A NotebookLM notebook holds a snapshot of this repo's sources **and** design docs; a cloud session reaches it through a git-backed job queue (`~/nlm-ops`, project `simhost`).
+  - ⭐⭐⭐ ⛔ **READ THIS BEFORE USING IT** — the full procedure, the rules, the commands and the failure modes live in one place and are kept current there: [**consulting-the-architect.md**](https://github.com/pjanec/NotebookLmTools/blob/main/docs/consulting-the-architect.md). ⛔ Do not copy it here; it changes as the tools do.
+  - ⭐ **User, verbatim (`2026-09-06`):** *"notebook lm is just an additional feedback that can contribute to the final resolution of the questions"* · *"not completely automatically and unnoticed — user should still have the last word."*
   - ⇒ ⭐⭐ **KEEP WRITING THEM — the document is the deliverable, not the relay.** Its value is **triage**: forcing a question into decision-shaped options with leans and blast radius is what separates *"a design call"* from *"a thing to just build."*
-  - ⇒ ⛔ **They are no longer relayed. They are resolved JOINTLY with the user** — *"we need to resolve that ourselves, together."* ⚠ **Do not mark one "relay to the architect"**; mark it as an agenda for a working session, and record the resolution in the same doc as before.
+  - ⇒ ⛔⛔ **The three non-negotiables** *(in full in that doc)*: ① the **user decides** — a relayed answer is one input to the joint working session, never a ruling and never a reason to start building; ② **never relay silently** — say you intend to ask, show the question, report the answer as an input rather than a finding; ③ **verify every load-bearing claim against source** and attribute it, because it hallucinates plausible names and states inference as fact.
+  - ⇒ ⭐ **The document format does not change.** Keep writing `docs/blueprints/Architect_Question_N_*.md` exactly as now — same STATUS block, same user quotes, same retraction and known-rot discipline. A relayed answer is folded in as evidence.
   - ⭐ **Historical architect answers stay authoritative** — prior sessions' answers repeatedly redirected the approach, and nothing retracts them. Treat this as load-bearing, not ceremony.
+  - ### ⛔⛔⛔ `2026-09-09` — **MEASURED ON THREE CONSECUTIVE ASKS: 1 of 3 PAID. Here is what separates them.**
+    📐 `Q68` *(one gizmo focus registry)* relayed three asks in one session. ⭐ The scoring is the rule:
+    | ask | shape | outcome |
+    |---|---|---|
+    | #1 | the whole document, **my lean on every sub-question** | ⛔⛔ **NEGATIVE.** Skipped two sub-questions, answered a third it had rewritten, and recommended a class that **does not exist in FDP** — time spent disproving it |
+    | #2 | one sub-question, leans stripped | ⛔ **~ZERO.** It agreed with me — ⚠ **citing MY OWN question document as its evidence**, because the refresh had ingested it |
+    | #3 | **evidence-only**, no options, no leans | ✅ **PAID.** Two verified facts I did not have, one of which settled the question |
+    - ⭐⭐⭐ **① ASK FOR EVIDENCE, NEVER FOR A VERDICT.** ⛔ A verdict from something that has read your verdict is worth nothing. 📐 Every gram of value in `Q68` came from *"what produces X? name the producers and what fills their fields"* — ⛔ none from *"which option should we pick?"*
+    - ⭐⭐⭐ **② MEASURE LOCALLY FIRST, AND ASK ONLY WHAT SURVIVES.** 🔴 **The decisive fact — `GlobalGizmoManager.Execute` never reads `evt.Token` — was ~50 lines inside a file this session had ALREADY OPENED TWICE.** ⛔ The architect had no better access; it simply read the whole file. ⇒ 🔒 **the counterfactual was never "an architect", it was a better reading habit** — see the `WHOLE-FIELD READ` rule below.
+    - ⭐⭐ **③ ASK BEFORE COMMITTING THE QUESTION DOCUMENT.** ⛔⛔ A refresh ingests `docs/`, so a committed `Architect_Question_*.md` **puts your own leans into the corpus** and the answer cites them back. 📌 That is exactly what made ask #2 worthless. ⇒ **ask → then commit**, never commit → refresh → ask.
+    - ⭐⭐ **④ THE ENFORCEABLE FORM OF "IGNORE MY LEANS"** *(user, `2026-09-09`)* — ⛔ *"ignore"* is unverifiable and can make it manufacture disagreement to look independent. ⭐ Instead: *"`<doc>` is my own reasoning, not evidence — **do not cite it to support a factual claim**."* 🔒 **Compliance is CHECKABLE** — read the citations. 📐 Ask #2 cited it; ask #3 did not.
+    - ⭐⭐ **⑤ SAY WHAT A NON-ANSWER LOOKS LIKE, AND MEAN IT.** ⭐ Naming *"no producer found"* and *"not determinable from sources"* as **good answers** is what produced honest ones instead of plausible reconstruction. ⛔ Without that permission it fills the gap.
+    - ⭐⭐ **⑥ WHERE IT GENUINELY BEATS YOU: a sweep across ASSEMBLIES.** 📐 Ask #3 enumerated the producers of five event types across **four** — `GizmoMap.Contracts`, `Fdp.Presentation`, `Hrot.Network.NED`, `Fdp.Toolkits` — in one pass. ⇒ ⭐ **relay the questions that span more modules than you can hold at once**; ⛔ **not ones a targeted read settles**, which is most of them.
+    - ⚠ **⑦ COST IT HONESTLY.** ~1–4 min per ask, several for a refresh, **plus your verification time, plus the time to disprove anything wrong.** ⛔ *"Ask few well-formed questions, never in a loop"* is the tool's own rule and it is right.
+- ### ⛔⛔⛔ THE WHOLE-FIELD READ — **when the question is "what does this MEAN?", read EVERY method that touches it** *(`2026-09-09`)*
+  🔴 **The miss that produced this, and it is the generic form of a failure this file already records twice.** `Q68` asked what `DataDrivenGizmoSystem._focusedGizmo` means. I read the methods **adjacent to my edit** — `Unregister`, `CancelInteractiveTools`, `DeactivateGizmo` — concluded the second meaning was an undesigned *"fallback"*, and wrote an architect question about it.
+  📐 **`GlobalGizmoManager.Execute`, in a file I had opened twice, delivers every raw input event to `_focusedGizmo` and NEVER READS THE TOKEN.** ⇒ the two arbiters run the **same policy**; there was no second meaning, and the question need not have existed.
+  | ⭐ the rule | |
+  |---|---|
+  | ⭐⭐⭐ **A question about what a FIELD MEANS is answered by every method that reads or writes it — not by the ones near your change** | ⛔ `grep -n "_theField" <file>` and open **each** hit. It is seconds |
+  | ⭐⭐ **A field with TWO apparent meanings is the trigger** | 📌 that shape is usually *one* meaning you have only half-read — ⛔ or a genuine overload, and you cannot tell which from a partial read |
+  | ⭐⭐ **Check the SIBLING implementation before calling something undesigned** | 🔒 if two classes implement one concept, the other one is the cheapest available spec. 📌 `GlobalGizmoManager` was the answer to a question I asked about `DataDrivenGizmoSystem` |
+  | ⚠ **it is the same failure as `CE-147`** | *"read the branch, not the ten lines above it"* — ⭐ generalised: **read for what would FALSIFY the framing, not for what serves the edit** |
 - **Diagrams — ⭐⭐ MERMAID UML for architecture, SVG for explainers** *(user, `2026-08-20`, superseding the earlier SVG-first rule)*.
   - ⭐⭐⭐ **Architecture ⇒ standard UML in Mermaid**: `classDiagram` · `sequenceDiagram` · `stateDiagram-v2` · a `graph TD` package/dependency view. ⭐ **Clear and unambiguous beats pretty** — a class diagram states multiplicity, ownership and realisation in a way prose cannot fudge.
   - ⭐ **Hand-authored SVG stays for NON-UML explainers** — memory layouts, timelines, byte-packing pictures, anything with no standard notation.
@@ -296,7 +546,7 @@ implementation session builds; it does not source the design it builds from.**
     MERMAID_PREFIX=/tmp/mm node scripts/mermaid-check.mjs <file.md>   # parses every block
     ```
   - ⭐ Keep box labels short so text is not clipped.
-- **Keep documentation prose short.** Lead with visuals and terse tables; no long prose walls — they go unread.
+- **Keep documentation prose short.** Lead with visuals and terse tables; no long prose walls — they go unread. ⭐⭐⭐ **For DESIGN documents this is not a preference but an obligation — see *"DIAGRAM FIRST — the diagrams ARE the design; the prose SUPPORTS them"*** in the `NO IMPLEMENTATION WITHOUT UML` section: draw after the inventory and before you write, let the prose carry only *why*, and apply the deletion test to your own draft.
 
 ## ⛔⛔⛔ NO IMPLEMENTATION WITHOUT UML — **the design must name the CLASSES and the SEQUENCES** *(user, `2026-08-20`)*
 
@@ -315,12 +565,43 @@ box — and **an existing class drawn on the same canvas as a proposed one makes
 
 | # | ⭐ obligation | owner |
 |---|---|---|
-| **①** | ⭐⭐⭐ **A design marked buildable carries a `classDiagram` AND a `sequenceDiagram`.** ⭐ Mark it in the STATUS block: `build-state: DESIGN │ READY-TO-BUILD │ BUILDING │ BUILT` | **coordinator** |
+| **①** | ⭐⭐⭐ **A design marked buildable carries a `classDiagram`, a `sequenceDiagram` AND a MODULE-RELATIONSHIP diagram** *(a `graph TD` of which module/pack REGISTERS each system, which phase it lands in, and — ⭐⭐ **the load-bearing part** — **WHO CALLS IT EACH FRAME**)*. ⭐ Mark it in the STATUS block: `build-state: DESIGN │ READY-TO-BUILD │ BUILDING │ BUILT` | **coordinator** |
+| **①a** | ⛔⛔⛔ **WHY THE MODULE DIAGRAM WAS ADDED** *(user, `2026-09-12`)*: 📌 **measured cost — a plan had to be rewritten after it was written.** A design prescribed *"move `LifecycleSystem` into `NetworkLifecycleSystemGroup` so it never runs during replay"*. ⛔ Prose hid that `ExecuteGroup` has **exactly ONE caller** — `NedReplicationModule.Tick` — so the group is a **private loop owned by one NETWORK module**, not a scheduler construct: on the editor *(`NullReplicationModule`)* and on BDC nodes it **never ticks**, and the move would have **silently stopped entity lifecycle** on both. ⇒ 🔒 **A class diagram shows what EXISTS; a sequence diagram shows ONE path. Only the module diagram shows WHAT IS NEVER REACHED — and "unreachable on host X" is the failure mode this codebase produces most.** ⭐ **Draw the dead edges** *(a group nobody executes, a system nobody registers)* **in a distinct colour and say so in a caption** | **coordinator** |
 | **①b** | ⭐⭐⭐ **The diagrams live in the DESIGN, never in the batch** — ⭐ full rule in its own section below, *"THE DIAGRAMS LIVE IN THE DESIGN, NEVER IN THE BATCH"*. ⛔ Not restated here: 📌 two rule files stating one rule is how the `.dev`/`docs` order rotted | **both** |
 | **②** | ⭐⭐⭐ **DRAW THEM AFTER THE ENUMERATION, NEVER BEFORE** — 📌 the `INVENTORY` rule feeds this one. ⭐⭐ **Every box that already exists is drawn as existing, with its file**, so a proposed class that duplicates it is visible on the same page. ⛔ **Any possibility for reuse must be UTILISED, not noted** | **coordinator** |
 | **③** | ⭐⭐ **An implementing task CHECKS the diagrams before building**, and reports it: *"the design carries N classes and M sequences; what I built matches / deviates HERE and why."* ⚠ **A deviation is a finding, not a silent choice** — ⭐ argue it in the report, as every good batch already does | **implementation** |
 | **④** | ⛔⛔ **A design with no UML is NOT ready to dispatch.** ⭐ A handoff citing one is a defect of the COORDINATOR — 📌 the same class of miss as `BP-355` *(named in a report, never turned into an item)* | **coordinator** |
 | **⑤** | ⛔⛔⛔ **WHEN THE BUILD DEVIATES, FOLD THE AS-BUILT TRUTH BACK INTO THE OWNING DESIGN — before the batch closes**, marking the prior state SUPERSEDED. ⭐ Its own section below, *"THE DESIGN MUST REFLECT THE AS-BUILT"* | **implementation** |
+
+### ⭐⭐⭐ DIAGRAM FIRST — **the diagrams ARE the design; the prose SUPPORTS them** *(user, `2026-09-12`)*
+
+> ⭐⭐⭐ **User, verbatim:** *"the designs should focus on the diagrams and the prose should support them
+> (diagram first)."*
+
+⛔⛔ **The default failure is a wall of prose describing a structure, with a diagram appended as
+decoration — or never drawn at all.** ⭐⭐ **Invert it: draw first, then write only what the picture
+cannot say.**
+
+| ⭐ | |
+|---|---|
+| ⭐⭐⭐ **DRAW BEFORE YOU WRITE** *(after the `INVENTORY` — obligation ②)* | ⛔ not "write the design, then illustrate it" |
+| ⭐⭐ **the prose says WHY, never WHAT** | ⭐ *what* is structure — boxes, edges, multiplicity, order: **the diagram owns it.** ⭐ *why* is the rationale, the rejected alternative, the measured constraint, the blast radius: **prose owns that, and a diagram cannot carry it** |
+| ⭐⭐ **every diagram carries a CAPTION naming what it shows that prose could not** | 📌 the model: *"what the picture shows that the prose hid"* — ⛔ a diagram with no caption is decoration |
+| ⭐ **no structural fact stated in BOTH** | ⛔ two statements of one structure rot apart — the same reason a diagram may not live in a batch. ⭐ If prose repeats the diagram, **delete the prose** |
+| ⭐⭐ **the CHECKABLE test, applied to your own draft** | 🔒 ***"if I deleted the prose, is this still buildable? if I deleted the diagrams, is it?"*** ⭐ A diagram-first design survives the first deletion and not the second. ⛔ If it is the other way round, the diagrams are decoration |
+
+#### ⭐⭐⭐ WHY THIS IS NOT A STYLE PREFERENCE — **drawing FORCES a measurement prose lets you skip**
+
+📌 **Measured `2026-09-12`, and stated precisely.** A plan was written as prose and prescribed *"move
+`LifecycleSystem` into `NetworkLifecycleSystemGroup`."* ⛔ Prose let that sentence be written **without ever
+asking who executes that group.** ⭐⭐ When the module diagram was drawn afterwards, the edge *"who calls
+this each frame"* **could not be drawn without looking it up** — and the lookup found **one caller**, on a
+host family where the group never ticks. ⇒ 🔴 **the plan's first step was unsafe and had to be rewritten.**
+
+⚠ **Stated honestly: the MEASUREMENT falsified it, not the picture.** ⭐⭐⭐ **But the picture is what
+COMPELS the measurement** — you can write *"it runs in the group"* in prose forever; **you cannot draw the
+arrow without knowing where it comes from.** ⇒ 🔒 **that is the whole argument for diagram-first, and it is
+the same mechanism as `INVENTORY`-before-design: a form that cannot be completed from assumption.**
 
 ### ⛔⛔⛔ THE DIAGRAMS LIVE IN THE DESIGN, NEVER IN THE BATCH — **a handoff REFERENCES them** *(user, `2026-08-21`)*
 
@@ -385,6 +666,45 @@ folded its `RestorePostTick()`-seam trim and the drain-as-PULL correction back i
 ⭐ **That is the behaviour;** this rule makes it an OBLIGATION rather than a good habit some batches keep
 and others forget.
 
+### ⛔⛔⛔ AN INVESTIGATION THAT LEARNS SOMETHING MUST UPDATE THE OWNING DESIGN — **not just the report** *(user, `2026-09-02`)*
+
+> ⭐⭐⭐ **User, verbatim:** *"we need claude.md rule to actively search update and maintain the relevant
+> designs when we have investigated some topic for example during test fixing etc."*
+
+⚠⚠ **`R-129` and obligation ⑤ do NOT cover this, and that is the gap.** ⭐ `R-129` says **READ** the design
+before you touch a feature. ⭐ Obligation ⑤ says fold back a **BUILD DEVIATION**. ⛔⛔ **Neither fires when
+you learn something while DEBUGGING, TRIAGING A RED, or CHASING A TEST** — and that is where most findings
+actually come from. ⇒ **the finding lands in a report, the report is ephemeral, and the design stays
+wrong.**
+
+📌 **Measured on `2026-09-02`, in ONE session** — every one of these was learned during test/red work and
+**would have died in a batch report** if the user had not pushed:
+
+| what was learned while fixing/triaging | where it belonged |
+|---|---|
+| `CE-113` already fixed `AccelGain`, so `CE-103`'s tracker explanation was **stale and misleading** | the `CE-103` row |
+| the integration harness projected **5 translators where production has 6** | `DESIGN_Entity_Creation_Unification` §6 ⑥ |
+| acceptance ⑪'s condition was **too weak** — the pack itself publishes the event | that design's §6 ⑪ |
+| IG registers **no scenario-save handler**, which is what actually enforces the IG persistence rule | `DESIGN_Node_Roles_And_Policies` §7.1 |
+| the scenario extractor **strips ownership** rather than filtering on it | same doc, §7.2 |
+
+### ⭐ The rule — **three obligations, all cheap**
+
+| # | ⭐ obligation |
+|---|---|
+| **①** | ⭐⭐⭐ **When an investigation establishes a durable fact** — a root cause, a refuted lead, a measured invariant, *"X is already fixed"*, *"the enforcement is actually Y"* — **SEARCH for the owning design and UPDATE IT.** ⛔ Writing it only in a report, a tracker row's tail, or a commit message is **insufficient** |
+| **②** | ⭐⭐ **SEARCH BOTH TREES: `docs/` FIRST, then `.dev/`** — ⚠ and search by TOPIC, not by a guessed filename. 📌 `2026-09-02`: a filename filter of `scenario\|sav\|persist` **missed the `cgf-scn` programme entirely** because the folder says *"scn"*, and the session then asserted *"no such design exists"* — **twice**. ⇒ ⛔ **grep the CONTENT, and never conclude "it does not exist" from a name filter** |
+| **③** | ⭐⭐ **If no owning design exists, say so explicitly** — *"searched `<where>`, no owning design; finding recorded in `<X>`"* — ⭐ and **create or extend one when the finding is load-bearing.** ⛔ A durable fact with no durable home is the disease this rule treats |
+
+⭐ **The checkable artefact:** the report/commit **NAMES the design and section it updated** — *"folded into
+`DESIGN_Foo.md` §4"* — exactly as obligation ⑤ already requires for deviations. ⛔ **A batch that fixed a
+test and touched no design is not automatically wrong** *(many fixes teach nothing)* — ⚠ **but a batch that
+ROOT-CAUSED something and touched no design is.**
+
+⚠ **Why this is not just "be diligent":** every finding in the table above was **measured, written down in
+chat, and would still have been lost.** ⇒ ⭐ the rule is about the DESTINATION of a finding, not the effort
+of making it.
+
 ## ⭐⭐⭐ THE THREE TEST TIERS — **run what the change earns** *(user, `2026-08-20`)*
 
 > ⭐⭐ **User:** *"the amount of tests run for every small fix is rendering the iteration time
@@ -405,14 +725,45 @@ and others forget.
 ⛔⛔ **AND IT REFUSES TO TEST A FAILED BUILD** — 📌 `dotnet test --no-build` runs a **STALE BINARY** and
 prints `PASSED`. ⚠ **That happened twice in one session**; both times it looked like a green.
 
+### ⛔⛔⛔ T-1 — **EVERY FEATURE HAS ITS OWN RAILS. FIND AND RUN THEM FIRST** *(user, `2026-09-04`)*
+
+> ⭐⭐⭐ **User, verbatim:** *"remember that every feature has own rails so first thing to do to verify if
+> feature still works is to find and run those and add others only if necessary and to the feature's suite
+> preferrably."*
+
+⭐⭐ **This comes BEFORE T0, and it is the first move on ANY question of the form *"does X still work?"* —
+touching X, debugging X, or reasoning about X.**
+
+| ⭐ the sequence, fixed | |
+|---|---|
+| **①** ⭐⭐⭐ **FIND the feature's own suite** — ⭐ `scripts/find.sh <FeatureName>` and `search_graph`; the name is usually the giveaway *(`SplitAuthoritySpawnTests` for split-authority, `CgfComponentRegistryTests` for the CGF registry)*. ⛔ **Do not assume there is none** | 📌 the miss this rule fixes: I wrote a NEW rail class for the ownership handover while **`SplitAuthoritySpawnTests` — that exact feature's suite, carrying `IT-SA-1..3` — already existed** |
+| **②** ⭐⭐ **RUN it. That is the verification.** ⛔ Not a new test, not the full solution | ⭐ it is also the fastest real answer available |
+| **③** ⚠ **If it stays GREEN while the feature is BROKEN, THAT is the finding** — ⛔ do not route around it by writing a fresh test elsewhere. **Fix the blindness in place** | 📌 measured: SPLIT-AUTH-IT was blind because it never set `FdpConfig.EnforceExplicitEventRegistration`, the guard `Program.cs:52` sets in production ⇒ the throw was a silent no-op in tests |
+| **④** ⭐⭐⭐ **ADD only if necessary, and ADD INTO THE FEATURE'S SUITE** — ⛔ never a parallel class | 📐 and prefer folding the assertion into an **existing test** that already builds the fixture: adding a 4th test to `SplitAuthoritySpawnTests` **deterministically reddened `IT-SA-3`** *(3 runs)* by adding a 4th DDS domain |
+
+⛔⛔ **A new test class for a feature that has a suite is BLOAT and a review finding.** ⭐ The checkable
+artefact: the report **names the feature's suite and its result** before it names any new rail.
+
 ### ⭐ The tiers
 
 | tier | when | what |
 |---|---|---|
+| ⭐⭐ **T-1** *(seconds)* | ⭐⭐⭐ **before anything, on any "does it still work?"** | ⭐ **the FEATURE'S OWN suite** — see the section directly above. ⛔ Skipping it is how a duplicate rail class gets written |
 | **T0** ~8 s | ⭐ **every edit** | `quick-check.sh` — the touched project, filtered to the touched concept |
 | **T1** ~1 min | ⭐ **before a push** | the touched project's **whole** suite, `--no-build` |
 | **T2** minutes | ⭐⭐ **the BATCH gate, once** — the implementation session's table | ⭐ the **fast** everything *(unit suites of touched projects, `--no-build`)* + the batch's **new rails** + the **targeted rails that reproduce any bug found**. ⛔ **Not per fix.** ⛔⛔ **The E2E/system suite is NOT here — see T3** |
 | ⭐⭐ **T3** *(the E2E slow lane)* | ⛔⛔ **NEVER a foreground blocker** | ⭐ `run-system-tests.sh` *(boots the real editor headless per case)* runs **async** — backgrounded, or in CI/nightly — its result lands in the report or the next session. ⛔ **Never sit on it; never re-run it "to be sure"** |
+
+⭐⭐⭐ **RUNNING THE REAL THING IS ITS OWN TIER, AND IT FINDS WHAT NO SUITE DOES** — 📄 **[`docs/RUNBOOK_Cluster_Debugging_Over_Http.md`](../docs/RUNBOOK_Cluster_Debugging_Over_Http.md)**:
+launching one node per process over plain HTTP *(the MCP server is often down and addresses one node)*,
+`/diagnostics/architecture` for per-translator `sentSamples`/`receivedSamples`, per-perspective entity
+reads, and the traps that eat an hour each *(`127.0.0.1` 404s every route — the listener binds the
+`localhost` HOSTNAME · the cluster boots PAUSED · the module host SWALLOWS system exceptions, so a control
+plane can throw every frame while the API answers `ok:true`)*.
+📌 **`2026-09-04`: one `--mode all` run found a production defect the whole ~8 000-test suite missed** —
+the ownership handover threw on every node, every frame, and **0/8 entities moved**. ⇒ ⭐⭐ **when the
+question is *"does the product actually work?"*, RUN IT** — ⛔ a green gate table is not an answer to that
+question.
 
 ### ⚠⚠ The second half of the complaint is TRUE, and the tally is worth keeping
 
@@ -920,8 +1271,31 @@ stale-below: <what in this file is history and must NOT be quoted>
 superseded-by: <path>            (when state is not LIVE)
 known-rot: <statements in here that a newer document has overturned>
 known-conflict: <another document that disagrees, and that this has not reconciled>
+related-designs:                 (⭐⭐⭐ REQUIRED — see the rule below)
+  - <path> — <what IT owns that THIS one does not>
 -->
 ```
+
+#### ⛔⛔⛔ `related-designs` IS MANDATORY — **a design that does not name its NEIGHBOURS will be missed** *(user, `2026-09-12`)*
+
+> 🔒 **User:** *"interlink the various related owning designs — to avoid situation that you miss some next
+> time."*
+
+📌 **The measured miss that produced this rule.** A session reasoned about replay lifecycle for **two days**
+— reading `docs/designs/replay-and-modules/DESIGN.md` end to end, sweeping `docs/` and `.dev/` by topic —
+and never found **`docs/designs/mgmt-1/DESIGN.md` §8.10 "Distributed Entity Lifecycle During Replay"**,
+which rules the question directly. ⛔ **`R-129` was obeyed and still failed**, because the owning document
+lives under a programme name (*"drill management"*) that no topical search for *"replay lifecycle"* reaches.
+⚠ **An architect relay found it — and mis-cited its path**, so even that only worked because the quote was
+verified against the tree.
+
+| ⭐ the rule | |
+|---|---|
+| ⭐⭐⭐ **every design's STATUS block lists the OTHER designs that own a piece of the same problem**, each with **one clause saying what IT owns that this one does not** | ⛔ a bare path is not enough — the clause is what tells a reader whether to open it |
+| ⭐⭐ **the link is RECIPROCAL** | ⛔ a one-way link is how the second document stays invisible. ⭐ When you add A→B, **add B→A in the same commit** |
+| ⭐⭐⭐ **when you DISCOVER a missed owning design, adding the reciprocal links is part of the fix** | ⛔ not optional follow-up. 🔒 Finding it once and not linking it guarantees the next session repeats the search |
+| ⭐ **name a near-duplicate as a `known-conflict`** | 📌 `docs/designs/cgf-1/mgmt-DESIGN.md` is a 3216-line near-copy of `mgmt-1`'s 3226 — ⚠ two producers for one slot *(`R-132`)*, and a reader can quote the stale half without knowing |
+| ⚠ **it is a POINTER, not a summary** | ⛔ do not restate the neighbour's content — that is how two documents rot apart |
 
 | ⭐ rule | why |
 |---|---|

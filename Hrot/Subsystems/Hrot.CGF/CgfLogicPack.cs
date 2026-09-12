@@ -66,7 +66,11 @@ namespace Hrot.CGF
         private readonly HealthApplicationSystem      _healthApplicationSystem;        private readonly ActiveSensorTracksUpdateSystem _activeSensorTracksUpdateSystem;        private readonly CgfThreatEvaluationSystem    _cgfThreatEvaluationSystem;
         private readonly RouteContextSystem           _routeContextSystem;
         private readonly TacticalIntentResolutionSystem _tacticalIntentResolutionSystem;
-        private readonly UnitHierarchySystem          _unitHierarchySystem;
+        // CE-221: UnitHierarchySystem and EqsResultUpdateSystem are CROSS-ROLE INFRASTRUCTURE and no
+        // longer live in this pack. They are contributed once per node by
+        // CoreInfrastructureCapabilities.UnitHierarchy / EqsResultUpdateCapability, declared LAST in
+        // each plan so they keep their tail-of-Simulation position. Carrying them here made every
+        // Brain+Muscle node register them twice.
 
         // ── Shared scenario source (constructed once by CgfApplication / CgfSubsystem) ─
         // Held here for future hand-off to load handlers (Phases 3-4).
@@ -141,7 +145,6 @@ namespace Hrot.CGF
             _activeSensorTracksUpdateSystem = new ActiveSensorTracksUpdateSystem();
             _cgfThreatEvaluationSystem = new CgfThreatEvaluationSystem();
             _routeContextSystem        = new RouteContextSystem();
-            _unitHierarchySystem       = new UnitHierarchySystem();
 
             var inputList     = new List<IEcsModuleSystem>();
             var simList       = new List<IEcsModuleSystem>();
@@ -159,10 +162,8 @@ namespace Hrot.CGF
             foreach (var s in _cognitiveRuntimeModule.SimulationSystems) simList.Add(s);
             foreach (var s in _actionDispatchModule.SimulationSystems)   simList.Add(s);
             simList.Add(_routeContextSystem);
-            simList.Add(_unitHierarchySystem);
-            // EQS pipeline: Brain side receives DDS results via EqsResultUpdateEvent
-            // published by EqsResultIngressTranslator and consumes them here.
-            simList.Add(new EqsResultUpdateSystem());
+            // CE-221: UnitHierarchySystem + EqsResultUpdateSystem were appended here. They are now
+            // contributed by the infrastructure capabilities (see the field block above).
 
             InputSystems       = inputList;
             SimulationSystems  = simList;

@@ -147,7 +147,7 @@ namespace Hrot.CGF
             // Only wired when a DDS participant is available.
             if (_participant != null)
             {
-                var nodeFactory = networkFactory?.ConfigureForNode(_participant, nodeId, NodeRole.Brain);
+                var nodeFactory = networkFactory?.ConfigureForNode(_participant, nodeId, CgfSubsystem.DefaultRole);
                 _slaveTranslator = nodeFactory?.CreateSlaveOrchestratorTranslators(_orchestrationBus, nodeId);
                 // Wire the Brain-side perception translators (SensorTargetsIngressTranslator, etc.)
                 // so the CGF node receives SensorTrack state-change packets from SimHost.

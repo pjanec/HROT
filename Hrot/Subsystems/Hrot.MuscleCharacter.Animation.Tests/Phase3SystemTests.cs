@@ -12,7 +12,7 @@ using Fdp.Toolkit.Lifecycle.Events;
 using Hrot.MuscleCharacter.Animation.Baking;
 using Hrot.MuscleCharacter.Animation.Components;
 using Hrot.MuscleCharacter.Animation.Contracts;
-using Hrot.MuscleCharacter.Animation.Descriptors;
+using Fdp.Toolkit.Tkb.Domain;
 using Hrot.MuscleCharacter.Animation.Events;
 using Hrot.MuscleCharacter.Animation.Fake;
 using Hrot.MuscleCharacter.Animation.Hashing;
@@ -57,7 +57,7 @@ namespace Hrot.MuscleCharacter.Animation.Tests
                         IsStanceTransition = false,
                     },
                 },
-                SupportedStances = new[] { Components.StanceId.Standing, Components.StanceId.Crouched },
+                SupportedStances = new[] { StanceId.Standing, StanceId.Crouched },
                 StanceTransitions = new List<StanceTransitionDto>(),
                 AimConfig = new AimConfigDto { MaxYawDegrees = 90f, MaxPitchDegrees = 70f, AimSourceBone = "head" },
                 NotifyMarkers = new List<NotifyMarkerDefDto>(),
@@ -232,8 +232,8 @@ namespace Hrot.MuscleCharacter.Animation.Tests
         private static Entity CreateStanceEntity(EntityRepository repo, ActorCapabilities caps)
         {
             var entity = repo.CreateEntity();
-            repo.AddComponent(entity, new StanceIntent { TargetStance = Components.StanceId.Crouched, BlendTime = 0.3f, Version = 1 });
-            repo.AddComponent(entity, new StanceStatus { CurrentStance = Components.StanceId.Standing, AckVersion = 0 });
+            repo.AddComponent(entity, new StanceIntent { TargetStance = StanceId.Crouched, BlendTime = 0.3f, Version = 1 });
+            repo.AddComponent(entity, new StanceStatus { CurrentStance = StanceId.Standing, AckVersion = 0 });
             repo.AddComponent(entity, new CharacterAnimationDefRuntime { BackendHandle = ClassId, StanceCount = 2, SlotCount = 2 });
             repo.AddComponent(entity, new ActorCapabilityState { Capabilities = caps });
             return entity;
@@ -261,8 +261,8 @@ namespace Hrot.MuscleCharacter.Animation.Tests
             var system = new StanceTransitionSystem(backend);
 
             var entity = repo.CreateEntity();
-            repo.AddComponent(entity, new StanceIntent { TargetStance = Components.StanceId.Standing, BlendTime = 0.3f, Version = 1 });
-            repo.AddComponent(entity, new StanceStatus { CurrentStance = Components.StanceId.Standing, AckVersion = 0 });
+            repo.AddComponent(entity, new StanceIntent { TargetStance = StanceId.Standing, BlendTime = 0.3f, Version = 1 });
+            repo.AddComponent(entity, new StanceStatus { CurrentStance = StanceId.Standing, AckVersion = 0 });
             repo.AddComponent(entity, new CharacterAnimationDefRuntime { BackendHandle = ClassId, StanceCount = 2, SlotCount = 2 });
             repo.AddComponent(entity, new ActorCapabilityState { Capabilities = ActorCapabilities.CanChangeStance });
 
@@ -942,7 +942,7 @@ namespace Hrot.MuscleCharacter.Animation.Tests
                         IsStanceTransition = false,
                     },
                 },
-                SupportedStances = new[] { Components.StanceId.Standing },
+                SupportedStances = new[] { StanceId.Standing },
                 StanceTransitions = new List<StanceTransitionDto>(),
                 AimConfig = null,
                 NotifyMarkers = new List<NotifyMarkerDefDto>

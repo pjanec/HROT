@@ -194,5 +194,112 @@ namespace Hrot.SimHost.Tests
             Assert.Equal(Hrot.Map.Common.Config.MapLayerBits.TacticalGraphicsBit, MapLayerRegistry.TacticalGraphicsBit);
             Assert.Equal(Hrot.Map.Common.Config.MapLayerBits.RoadGraphsBit,       MapLayerRegistry.RoadGraphsBit);
         }
+
+        // ── ⑤ CE-137: every TKB-SPAWNING host writes VisualData ───────────────────
+
+        /// <summary>
+        /// ⭐⭐⭐ <b><c>CE-137</c> — the presentation translator reaches every host that spawns from TKB.</b>
+        ///
+        /// <para>🔒 <b>User ruling, <c>2026-08-30</c>:</b> <i>"the more the subsystems are same, the
+        /// better — if VisualData is not IG-only concept, then for sure lets add it to SimHost and
+        /// anywhere where it makes sense."</i> 📐 It is not IG-only: <see cref="VisualData"/> is authored
+        /// TKB data (<c>SymbolCode</c> = the MIL-STD-2525 SIDC, <c>ColorHex</c>, <c>MapShapeName</c>),
+        /// so every host with a TKB spawn path carries it.</para>
+        ///
+        /// <para>📐 <b>Measured <c>2026-08-30</c>:</b> IG and SimHost had it; the Raylib editor's list of
+        /// <b>five</b> translators and the Stride editor's list of <b>six</b> did not — ⭐ the same
+        /// omission <c>S1</c> fixed on SimHost, surviving in two more places.</para>
+        ///
+        /// <para>⚠⚠ <b>A SOURCE SCAN, and here that is the RIGHT instrument</b> — the opposite of the
+        /// caution at the top of this file. That caution says never assert list membership <i>in place
+        /// of</i> a component assertion, because the translator early-returns when the component is
+        /// unregistered, so membership stays green through THAT failure. ⛔ The failure here is the
+        /// mirror image: the component IS registered and the translator is ABSENT from the list, which no
+        /// component assertion can see. ⇒ ⭐ the list is exactly what must be asserted.</para>
+        ///
+        /// <para>✅ <b>CGF is now IN this rail (<c>CE-138</c>, fixed <c>2026-08-30</c>).</b> ⛔ An earlier
+        /// version of this comment excluded it, claiming CGF <i>"has no TKB translator list at all,
+        /// because its entities arrive by network replication."</i> 📐 <b>False on both halves:</b>
+        /// <c>CgfSubsystem</c> constructs a <c>NetworkSpawningSystem</c> over the TKB and is the node the
+        /// design calls the <i>"entity spawning authority"</i>; and <c>.WithTranslators</c> exists
+        /// precisely to project TKB descriptors onto <i>replicated</i> ghosts. ⇒ CGF passed translators
+        /// on none of the three seams, and now passes SimHost's list on two of them.
+        /// ⚠ The third seam (<c>.WithTranslators</c> → <c>NedReplicationModule</c>) is still unreachable
+        /// on CGF: its builder chain omits <c>.WithReplication()</c>, which is where that method lives.
+        /// ⚠ ReplayBrowser has no TKB spawn path and is unmeasured.</para>
+        ///
+        /// <para>⭐ The behavioural half is already here — see
+        /// <see cref="PresentationTranslator_OnSimHostWorld_WritesVisualData"/>, which proves the write
+        /// lands once the component is registered. ⇒ this rail adds only the half that one cannot see:
+        /// <i>which composition roots obtain the projection set at all.</i></para>
+        ///
+        /// <para>⛔ <b>IG is deliberately NOT in this list and must not be added.</b> It has no spawn
+        /// pipeline — <c>SpawnEntityCommand</c> is forwarded to SimHost and the authoritative ghost
+        /// replicates back — so its 2-entry list feeds only the ghost projection and is narrower ON
+        /// PURPOSE. 📄 <c>DESIGN_Entity_Creation_Unification.md</c> §2, and the comment at
+        /// <c>IgNodeBootstrapper</c>'s own list.</para>
+        /// </summary>
+        [Theory]
+        [InlineData("Hrot/Subsystems/Hrot.CGF/CgfSubsystem.cs")]
+        [InlineData("Hrot/Subsystems/Hrot.Editor/EditorSubsystem.cs")]
+        // ⛔⛔ IG IS DELIBERATELY ABSENT — and it used to be HERE, contradicting this rail's own summary
+        //    ("IG is deliberately NOT in this list and must not be added"). 📐 The contradiction was
+        //    invisible because IgNodeBootstrapper.cs mentions TkbTranslatorSet.Base() only in a COMMENT
+        //    explaining why it does NOT call it, and the pre-2026-09-01 raw-source scan matched that.
+        //    ⇒ removing the case makes the DATA agree with the documented intent; the exclusion itself is
+        //    measured (IG has no local materialisation — SpawnEntityCommand is forwarded to SimHost) and
+        //    whether IG should widen to Base() is the open question CE-141, not this rail's to decide.
+        [InlineData("Hrot/Subsystems/Hrot.SimHost/SimHostNodeBootstrapper.cs")]
+        [InlineData("Stride/HrotStrideApp.Game/EditorStrideSubsystem.cs")]
+        // ⭐ CE-140 step 3 host (a) — the Stride NODE was missing from this list. It obtains the set
+        //   through EntityCreationPack.Build, and adding it makes the rail cover every host that has a
+        //   TKB spawn path rather than the five that happened to be here first.
+        [InlineData("Hrot/Subsystems/Hrot.NodeComposition/StrideNodeBootstrapper.cs")]
+        public void EveryTkbSpawningHost_ObtainsTheSharedTranslatorSet(string relativePath)
+        {
+            var src = ReadRepoSource(relativePath);
+
+            // ⭐⭐ CE-140 step 2 changed WHAT is asserted, and the change is the point. The claim used
+            //    to be "this host constructs PresentationTkbTranslator itself" — five hosts each doing
+            //    that by hand is exactly the disease. It is now "this host obtains the ONE shared base
+            //    set", which is a stronger claim: the shared set cannot be empty and cannot silently
+            //    lose a family, so a host that uses it cannot repeat CE-137/138/139.
+            // ⚠ Match on the TOKEN, never on one spelling — CGF and the Stride sites fully-qualify.
+            //   📌 An earlier version matched the literal "new List<ITkbEntityTranslator>" and reddened
+            //   on a host that was CORRECTLY wired.
+            //
+            // 🔴🔴 CE-140 step 3 — TWO CORRECTIONS, both found by this rail going FALSE-GREEN on
+            //    2026-09-01 when SimHost adopted EntityCreationPack:
+            //
+            //  ① COMMENTS ARE STRIPPED FIRST. The rail read raw source, so it passed on a host whose
+            //     only remaining occurrence of the token was in a COMMENT EXPLAINING THAT THE CALL HAD
+            //     MOVED. 📐 Measured: SimHostNodeBootstrapper.cs:148, prose, and the rail was green.
+            //     ⛔ A source scan that matches its own documentation asserts nothing.
+            //
+            //  ② OBTAINING IT VIA THE PACK COUNTS. EntityCreationPack.Build composes
+            //     TkbTranslatorSet.Base() + ExtraTranslators internally and hands that ONE instance to
+            //     the ELM and the spawn system — which is a STRONGER guarantee than calling Base()
+            //     by hand, because ExtraTranslators is add-only and the list cannot be narrowed.
+            //     ⇒ a host that adopts the pack satisfies this rail's intent more completely, not less.
+            //     ⛔ A host that does NEITHER still reddens — which is the whole point.
+            var code = StripComments(src);
+            bool direct  = code.Contains("TkbTranslatorSet.Base", System.StringComparison.Ordinal);
+            bool viaPack = code.Contains("EntityCreationPack.Build", System.StringComparison.Ordinal);
+
+            Assert.True(direct || viaPack,
+                $"{relativePath} obtains the shared TKB translator set neither directly "
+              + "(TkbTranslatorSet.Base) nor through EntityCreationPack.Build. A composition root that "
+              + "hand-rolls its own list is how CE-137/138/139 happened. "
+              + "⚠ Comments are stripped before this check, so documenting the call does not satisfy it.");
+        }
+
+        // ⭐ CE-160: these two helpers were PRIVATE here and a second rail family needed them.
+        //   Routed into CompositionRootSource rather than copied — CE-156's comment-stripping fix must
+        //   not rot in one copy while the other keeps passing on comments.
+        private static string StripComments(string src)
+            => CompositionRootSource.StripComments(src);
+
+        private static string ReadRepoSource(string relativePath)
+            => CompositionRootSource.ReadRepoSource(relativePath);
     }
 }

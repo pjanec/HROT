@@ -585,6 +585,8 @@ public static class PlatoonHillAttack2Registrar
                 new("bpParamsDispatchWaveWithTargets", typeof(global::Hrot.AI.Behaviors.Generated.HillAssault2IDispatchWaveWithTargets_60F11421_Bp.Params), 48),
                 new("bpParamsIsWaveCompleted", typeof(global::Hrot.AI.Behaviors.Generated.HillAssault2IIsWaveCompleted_CDAC491D_Bp.Params), 88),
             },
+            JsonParamsDtoType    = typeof(global::Hrot.AI.Behaviors.Trees.PlatoonHillAttack2_FdpToolkitBehaviorComponentsBrainBlackboard),
+            BlackboardLayoutType = typeof(global::Hrot.AI.Behaviors.Trees.PlatoonHillAttack2_FdpToolkitBehaviorComponentsBrainBlackboard),
             ParseParams  = __parseParams,
             StatefulWorkingSlots = new global::Fdp.Toolkit.Behavior.StatefulSlotInfo[]
             {

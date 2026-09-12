@@ -382,7 +382,7 @@ the user's copy with git maintained curated copy on start."*
 | ⭐ | |
 |---|---|
 | **from** | `<repo>/.debug/bpsession.json` *(`CF-8`'s choice)* |
-| **to** | `LocalApplicationData/HROT/bpsession.json` — ⭐ the alternative the same `CF-8` design already named *(`.dev/blueprint-dbg-1/TASK-DETAIL.md:699`: "a gitignored path … **or the editor's per-user data dir**")* |
+| **to** | `LocalApplicationData/HROT/bpsession.json` — ⭐ the alternative the same `CF-8` design already named *(`.dev/_DONE/blueprint-dbg-1/TASK-DETAIL.md:699`: "a gitignored path … **or the editor's per-user data dir**")* |
 | ⛔ **why the move was FORCED, not chosen** | 📐 **`.gitignore:65` ignores `.debug/`** ⇒ that location cannot host a git-maintained curated copy. The ruling's two halves are only satisfiable together by moving the user copy out |
 | ⭐⭐ **which pattern** | the **`imgui.ini`** one — `LayoutPaths.TryResetUserLayout` copies from the **output directory**, so the reset holds in a deployed build and in CI. ⛔ **Not** `CuratedScenarios`, which walks up to the source tree and is dev-only by construction: a deterministic clean environment is wanted everywhere, which is the point of the ruling |
 | ⭐ **the git home** | `debug/default/bpsession.json`, copied to `<output>/debug/` by `Hrot.ClusterRunner.csproj` — ⛔ the same `Content … Link` shape `layout/default/*` already uses |

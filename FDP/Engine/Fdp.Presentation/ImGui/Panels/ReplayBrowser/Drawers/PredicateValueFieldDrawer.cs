@@ -221,7 +221,7 @@ internal sealed class PredicateValueFieldDrawer : IImGuiFieldDrawer
                 {
                     return targetBlackboard == BlackboardTarget.Blackboard1024
                         ? def.HeavyDtoType
-                        : def.ParamsDtoType;
+                        : def.BlackboardLayoutType;
                 }
             }
         }

@@ -2,12 +2,21 @@
 state: LIVE
 doc-type: gap analysis / coverage map — what the design corpus ALREADY defines toward "cgf == editor",
   and the gaps. Not a buildable design (no build-state/UML gate); it POINTS at the buildable designs.
-updated: 2026-08-26
-current-answer: the whole file. Built from a full sweep of docs/UX/ (42 docs) + the PROGRAMME charter +
-  a codebase-memory enumeration. ⭐ §2c added `2026-08-26` — **AXIS C, the editor→shared EXTRACTION (R1)**:
-  Axes A/B are "CGF adopts AiShared"; Axis C is "extract the host composition roots to shared". §5 rewritten
-  to the current state (steps 1/2 DONE; step 3 = Axis C active). ⭐ This is the single features-to-unify
-  roadmap — ⛔ do NOT create a parallel PROGRAMME_Editor_To_Shared (verified `2026-08-26`, it would duplicate).
+updated: 2026-09-09
+stale-fixed-2026-09-09: TWO rounds, both from measurement rather than recall.
+  (a) §0's "Nothing is implemented yet" row and the three "E1 ... in flight" claims were FALSE (E1 = CE-046).
+  (b) ⛔ THE SAME ROUND'S OWN REPAIR SAID "the live Axis-C increment is E2" — ALSO FALSE, and SUPERSEDED:
+      E2/E3/E4/E5 were already closed as CE-049/CE-051/CE-052/CE-061. ⚠ The lesson is the one R-139 names —
+      the first repair was written from the last thing read, not from a sweep of the tracker.
+  (c) §2b's Axis-B table re-measured end to end: 4 of 8 rows were stale. §2c.2 gained the E5 WINDOWS row.
+current-answer: ⭐⭐ AXIS C IS COMPLETE (§2c.3, five CE rows); **the live front is AXIS B — start at §2b**,
+  whose table and UXI-23 slice ledger were measured `2026-09-09` and carry file:line evidence per row.
+  The rest of the file is the standing sweep of docs/UX/ (42 docs) + the PROGRAMME charter + a
+  codebase-memory enumeration. ⭐ This is the single features-to-unify roadmap — ⛔ do NOT create a
+  parallel PROGRAMME_Editor_To_Shared (verified `2026-08-26`, it would duplicate).
+known-rot: `UX_Feature_Map_Parity.md`'s STATUS block still calls UXI-23 S2/S3/S4 READY-TO-BUILD; all three
+  shipped (that file's own §3.9j.5b and §3.2f say so). §2b's slice ledger is the measured answer until the
+  obligation-⑤ repair lands on that document.
 known-conflict: none. Supersessions in the corpus are listed in §7 so nobody quotes a withdrawn plan.
 -->
 # GAP MAP — **`cgf == editor`: what's DEFINED vs the GAPS**
@@ -23,7 +32,7 @@ known-conflict: none. Supersessions in the corpus are listed in §7 so nobody qu
 | ⭐⭐⭐ **The direction IS the charter, not a new idea** | 📄 [`PROGRAMME_Unification_And_Harness.md`](PROGRAMME_Unification_And_Harness.md) §1: CGF *"should be **as capable as the editor**, just doing it in a **distributed** setup."* Ruling 66: ⭐ **"THE EDITOR IS A ONE-NODE CLUSTER"** — same code paths; *"distributing is supplying the real roster, not building a distributed version."* |
 | ⭐⭐ **It is ~85% WIRING, not new capability** | 📄 `UX_Feature_Cgf_Brain_Diagnostics.md` §0 (UXI-37), verbatim: *"⇒ This is a **wiring design, not a capability design**."* `Hrot.Editor.AiShared` is **already on CGF's build graph**; the shared machinery exists and is under-adopted (the seam law). |
 | ⚠⚠ **"Only network setup" is TRUE plus ONE corollary: AUTHORITY** | Ruling 22: *"CGF does not own `SimTransform`… it needs to send a **request** to SimHost, not change ECS directly. **Editor owns all.**"* ⇒ two **permanent, ruled** divergences that ARE the endpoint (not gaps): **(a)** CGF binds **networked** handlers, the editor **networkless** ones; **(b)** CGF writes **unowned** components as **requests**. |
-| 🔴 **Nothing is implemented yet** | the UX task register is empty; the golden-path walk (its task source) has not run; `Q25` (authoring shell) is architect-**unanswered**. `Q26`/`Q29` ARE answered. |
+| ⛔⛔ **~~Nothing is implemented yet~~ — SUPERSEDED `2026-09-09`, and it was the headline that rotted, not the sub-claims** | 📐 **Measured `2026-09-09`:** steps 1–2 shipped as `CE-001`…`CE-045` *(slices 1–4, the MCP `MA-` and diagnostics `MD-` series)*, and **Axis-C `E1` shipped as `CE-046`** — so *"nothing"* is false by ~46 rows. ⭐ **What REMAINS true, re-measured:** the **UX task register** is still empty and the **golden-path walk** has not run. ⚠ **`Q25` is no longer "architect-unanswered"** — 📄 [`Architect_Question_25`](UX/Architect_Question_25_Scenario_Authoring_Golden_Path.md) carries a **✅ RECOMMENDED ANSWERS** section *(coordinator, `2026-08-25`)* that is **awaiting USER approval**; `Q25-D` is answered outright by `Q26`. `Q26`/`Q29` remain answered. |
 
 ## 0.5 ⭐⭐⭐ UNDER THE PURE-SHARING FRAMING *(user, `2026-08-25`)* — **is anything OPEN?**
 
@@ -126,16 +135,42 @@ graph TD
 > on a clean tree at `03f92fefe`)*. ⚠ And *"owned"* is still an authority bit **only SimHost and the
 > replication path ever set** *(`AX-006` — `Hrot.Editor` never calls `SetAuthority`)*.
 
-| capability | owning design | status | note |
+> ⭐⭐⭐ **RE-MEASURED `2026-09-09` — FOUR of the eight rows below were STALE, and one would have been
+> called resolved by a grep that lied.** 🔒 User: *"measure thoroughly before claiming anything… do not
+> rush into conclusions."* 📐 **Method:** `search_graph` for the type inventory *(the absence claims)* +
+> grep per host directory *(the adoption claims)* + reading the owning UX design's own STATUS block.
+> ⚠⚠ **The trap worth naming:** `UXI-09`'s note said *"remove hardcoded `(640,360)`"*. That literal has
+> **zero occurrences** today — ⛔ **and the defect is entirely intact**: it was rewritten as
+> `new Vector2(1280 / 2f, 720 / 2f)` at `CgfSubsystem.cs:1373` and `SimHostVisualization.cs:227`.
+> ⇒ ⭐ **a row phrased as a string match is a row that can go stale in the wrong direction.**
+
+| capability | owning design | status | note — **measured `2026-09-09`** |
 |---|---|:--:|---|
-| CGF `GlobalActionRegistry` + dispatch + `MapInteractionPack` | UXI-23 | 🔌 | *"two constructor arguments, not scaffolding"*; ordered behind ↓ |
-| CGF `SelectionInteractionSystem` + `SelectionState` + ring + pick box | UXI-11 | 🔌 | **absent entirely** today — biggest single map gap |
-| Symbology: one pose source + merged `EntityPresentationGizmo` | UXI-10 | 🔌 | CGF shapes alpha-0 / no pick box today |
-| `LayerControlGizmo` on CGF | UXI-28 | 🔌 | CGF silently all-visible; whole feature gated on a Windows check |
-| Map viewport `MapViewport`/`MapCameraSetup` | UXI-09 | 🔌 | remove hardcoded `(640,360)` |
-| Tool controller `IToolController`/`IInteractionHost` | UXI-07 | 🕳️→🔌 | **net-new architecture** (no `ITool` exists); editor-first, CGF = migration step 7 |
-| Action vocabulary `EntityActionDescriptor` (+ `WrittenComponents` field) | UXI-03 | 📐 | designed; **one new field** is the only new code |
-| Cross-surface actions / CGF map menu | UXI-04 | 📐 | designed; CGF migrated first |
+| **`MapInteractionPack` on CGF** *(`UXI-23` `S2b`)* | UXI-23 | ✅ **BUILT** | ⚠⚠ **was `🔌`; SUPERSEDED.** 📐 `MapInteractionPack.Build` is called by **all five hosts**: `IgApplication.cs:763` · `CgfSubsystem.cs:1159` · `ReplayBrowserSubsystem.cs:170` · `SimHostApp.cs:386` · `EditorSubsystem.cs:1815`. ⛔ **But calling `Build` is NOT adoption of the other seams** — the pack's own header (`MapInteractionPack.cs:147-150`) names `LayerControlGizmo`, action registries and selection systems as **host `ContributeExtras` contributions**, and CGF passes **no `ContributeExtras` at all** *(it supplies only `World`, `IsSelectedPredicate: null`, `StartEnabled: false`)*. ⇒ ⭐ that is what makes the zero-reference rows below meaningful rather than an artefact |
+| **CGF `GlobalActionRegistry` + dispatch** *(`UXI-23` `S5`, "the action half")* | UXI-23 §1015 | 🔌 | ⭐ **the surviving half of the old row.** 📐 `GlobalActionRegistry` lives shared in `Hrot.Common/Interactions/` and is used by Editor · SimHost · ReplayBrowser — **zero files in `Hrot.CGF`**. 🔒 `Map_Parity` §3.9h: **`S5` must sequence AFTER `UXI-07` steps 3–4**, or it re-implements the action→tool routing that migration deletes |
+| CGF `SelectionInteractionSystem` + ECS `SelectionState` + ring / rubber band | UXI-11 | 🔌 | ⚠ **the note *"absent entirely"* was too strong — NARROWED.** 📐 What IS absent: `SelectionInteractionSystem` *(zero in `Hrot.CGF`; present in Editor · IG · SimHost · ReplayBrowser · AiShared)* and any use of the ECS `SelectionState` struct *(now shared at `Hrot.Core/Components/Map/SelectionState.cs`)*. ⭐ What CGF **does** have: a `DefaultSelectionState` (`CgfSubsystem.cs:353,1375`) wired into the shared `ScenarioEditorModule.InteractionDeps.Selection`, so the *tool* path sees a selection. ✅ **And the pick box is BUILT** — `CE-126` **(b)** |
+| Symbology: one pose source + merged `EntityPresentationGizmo` | UXI-10 | ✅ **BUILT `2026-08-30`** | ⚠⚠ **was `🔌 "CGF shapes alpha-0 / no pick box today"` — that is verbatim what `CE-126` RESOLVED; SUPERSEDED.** 📐 `UXI-23` `S2` replaced the three host-private projectors *(IG · SimHost · CGF)* with one shared `EntityPresentationGizmo`; the tombstone is `Hrot.CGF/Gizmos/CgfEntityPresentationGizmo.MERGED.md`. ⭐ CGF picks it up through the pack's **reflection pass** *(`[GizmoProjector]`)*, which is why no CGF wiring appears. ⚠ **Still open in the owning design** *(`UX_Feature_Entity_Symbology.md` STATUS)*: §3.1 `CE-125` *(the renderer hardcodes cyan)*, §3.2, §3.5–§3.8 |
+| `LayerControlGizmo` on CGF | UXI-28 | 🔌 | ✅ **row HOLDS, confirmed.** 📐 Registered on **4 hosts** — Editor · IG · SimHost · ReplayBrowser *(+`Hrot.Diagnostics.Tuning`)*; **zero files in `Hrot.CGF`**. ⭐ It reaches a host only through `ContributeExtras`, which CGF does not pass. 📄 `UX_Feature_Map_Layers.md` is `build-state: PARTIAL` — the mask round-trip exists; `IMapTagRegistry`/`MapTag`, interning, ALL-semantics and the registry-generated panel do not |
+| Map viewport `MapViewport`/`MapCameraSetup` | UXI-09 | 🔌 | ✅ **row HOLDS — but the note was RESTATED, see the warning above.** 📐 `MapViewport` and `MapCameraSetup` have **zero occurrences** *(`search_graph` + grep agree — only `MapCamera`, `MapCameraView`, `IMapCameraProvider` and IG-private `MapCameraViewport` exist)*. ⛔ The hardcoded window assumption is **live on two hosts** as `new Vector2(1280 / 2f, 720 / 2f)` — `CgfSubsystem.cs:1373` · `SimHostVisualization.cs:227` — while IG derives it from the real window at `IgApplication.cs:635`. 📄 `UX_Feature_Map_Viewport.md` `build-state: NOT-BUILT` |
+| Tool controller `IToolController`/`IInteractionHost` | UXI-07 | 🕳️→🔌 | ⚠ **NARROWED.** ✅ The claim *"net-new, no `ITool` exists"* still holds for the **abstraction** — `IToolController`, `IInteractionHost` and `EntityActionDescriptor` have **zero occurrences**. ⛔ **But the ACTIVATION half is shared AND already adopted by CGF**: `ToolActivationDrainSystem` *(shared, `Hrot.Presentation/ScenarioEditor/Systems/`)* is registered through `ScenarioEditorModule` at `CgfSubsystem.cs:1236` with real resolvers *(`CE-051` `E3`, `CE-061`)*. ⇒ ⭐ `UXI-07` is now *"add the controller/stack over an existing shared drain"*, not *"build the tool path"* |
+| Action vocabulary `EntityActionDescriptor` (+ `WrittenComponents` field) | UXI-03 | 📐 | ✅ **row HOLDS.** 📐 `EntityActionDescriptor`: **zero occurrences** *(graph + grep)*. ⭐ Still *"one new field is the only new code"* |
+| Cross-surface actions / CGF map menu | UXI-04 | 📐 | ✅ **row HOLDS** — it is the consumer of `S5` above and inherits its `UXI-07` ordering constraint |
+
+#### 📐 `UXI-23` SLICE LEDGER — **measured from the code, `2026-09-09`**
+
+| slice | what it is | state |
+|---|:--|:--:|
+| `S1` | lift the two producers *(map layers)* | ✅ as-built §3.9b |
+| `S2` · `S2a` | **one** entity presentation projector; the selection-gate fix | ✅ as-built §3.9j.5b, `2026-08-30` |
+| `S2b` | `MapInteractionPack` / `MapInteractionContext` — construct-vs-schedule | ✅ **14 markers in production code**, five host call sites |
+| `S3` | declare + report *(`MapSelfCheckSystem`, `MapInteraction.Unserviceable`)* | ✅ built |
+| `S4` | configuration *(`VisibilityPolicyResolver`, `CullingStateVisibilityPolicy`)* | ✅ built, §3.2f user-approved `2026-08-30` |
+| 🔴 **`S5`** | **the action half** — IG's `switch` fork → shared registry · **CGF's `GlobalActionRegistry` + dispatch + ingress** · `RubberBandState` in the three hosts passing `null` | ⛔ **NOT BUILT — the only remaining slice** |
+
+⚠⚠ **`UX_Feature_Map_Parity.md`'s own STATUS block is STALE** *(it still reads `S2 construct / S3 declare+report /
+S4 configuration / S5 the action half are READY-TO-BUILD`, dated `2026-08-28`)* — ⛔ four of those five shipped,
+and the file's **own** §3.9j.5b and §3.2f say so. ⇒ 🔒 **obligation ⑤ repair owed on that document**; until it
+lands, **this ledger is the measured answer**, not that STATUS block.
 | Commanding / `MissionPanel` on CGF | UXI-32 / Q29 | 📐 | Q29 answered; CGF must host the panel (owns the brain) |
 | **Authority-aware writes (CGF writes as request)** | **UXI-29** | ✅ **BUILT `2026-08-25`** *(`AX-003`/`AX-005a/b/c`)* | ⭐⭐⭐ **The router does NOT ask *"do I own it?"*** — that would put the attribute→component mapping in a second place beside the installers. ⭐ It attempts the local apply through the OWNER's own interpreter and asks `HasAppliedAny`: landed ⇒ `Direct`; refused by the `UXI-30` gate ⇒ publish the request ⇒ `Requested`; no sink ⇒ `Refused`. ⇒ ⭐⭐ **ONE conversion serves the local AND the remote path.** ⭐⭐ **`R-134`:** the internal path speaks `EntityAttributeChange`/`AttributeValueKind` and NO DDS type — the egress translator is the sole boundary, **structurally railed**. ⚠ The full round trip is blocked on `AX-009` *(pre-existing)*; the request **does** reach the wire on a real cluster, railed. 📄 [design §12](DESIGN_Cgf_AxisB_Rotation_Slice.md) |
 | **Engine authority gate on the binary attribute path** | **UXI-30** | ✅ **BUILT `2026-08-25`** *(`AX-001`)* | ⛔⛔ **Its premise was FALSE and measuring it produced a better fix.** 📐 Both production installers ALREADY gated every handler on `CanWrite<T>()` ⇒ the binary path WAS authority-gated, per handler — ⭐ which is the JSON path's own architecture *(its gate lives in the typed `ValueInvoker<T>`, not the router)*. ⭐⭐⭐ **The real defect: the gate was PER-INSTALLER and therefore forgettable.** ⇒ moved into `BinaryInterpreterBuilder.RegisterHandler<TComponent>`, both installers migrated onto it and their hand-written checks deleted. ✅ *"Zero production senders"* independently verified. 📄 [design §9.1](DESIGN_Cgf_AxisB_Rotation_Slice.md) |
@@ -168,37 +203,55 @@ graph TD
 ### 2c.2 ⭐⭐ The split — host-agnostic *(→ shared)* vs bootstrap/network *(→ thin host)*
 | capability | → | extraction increment |
 |---|---|---|
-| scenario session *(New/Load-Edit/Load-Live/Save/migration)* | **shared** | **E1** — `IScenarioSession` *(AQ60 Slice A, in flight)* |
-| asset browse/create shell *(`AssetPickerLauncher`/`NewAssetLauncher`/`AssetPickActionRouter`/`ShowNewAssetDialog`)* | **shared** | **E2** — the §6.1 relocation *(subsumes gap-map §4 blocker 7 "packaging")* |
-| tool / selection / camera / rename *(`ActivateTool`, `SelectEntity`, `CenterOnEntity`, `OpenRenameDialog`, the tool system)* | **shared** *(CGF is windowed)* | **E3** |
+| scenario session *(New/Load-Edit/Load-Live/Save/migration)* | **shared** | **E1** — `IScenarioSession` ✅ **BUILT** *(AQ60 Slice A = `CE-046`, `2026-08-26`)* |
+| asset browse/create shell *(`AssetPickerLauncher`/`NewAssetLauncher`/`AssetPickActionRouter`/`ShowNewAssetDialog`)* | **shared** | **E2** ✅ **BUILT** *(`CE-049`)* — the §6.1 relocation *(subsumes gap-map §4 blocker 7 "packaging")*. 📄 `DESIGN_Cgf_Asset_Picker_Shell_Slice.md` §8 as-built |
+| tool / selection / camera / rename *(`ActivateTool`, `SelectEntity`, `CenterOnEntity`, `OpenRenameDialog`, the tool system)* | **shared** *(CGF is windowed)* | **E3** ✅ **BUILT** *(`CE-051`)* — finished `PACK2-E002`; the shared `ToolActivationDrainSystem`/`SelectEntitySystem`/`CenterOnEntitySystem` are registered on CGF via `ScenarioEditorModule` (`CgfSubsystem.cs:1236`). 📄 `DESIGN_Cgf_Tool_Selection_Camera_Slice.md` §6a |
 | view / inspector / property-edit *(`View`/`DerRepo`, `CommitPropertyEdit`)* + `RebuildAndReloadAI` dev-loop | ~~**shared**~~ ✅ **MEASURED ALREADY SHARED — E4 was NOT an extraction** | ✅ **E4 DONE `CE-052`** — 📐 `EntityInspectorPanel` is already composed on BOTH hosts; `View`/`DerRepo`'s only consumers are condemned DEAD UI *(`UX_Feature_DeadUI_Removal` §3)*; `CommitPropertyEdit` after `CE-051` is used only by the already-shared `EntityRenameModal`. ⇒ **the real E4 was ONE silent-default defect** *(CGF built a `DataBreakpointManager` but never wired `MutationInterceptor` ⇒ data breakpoints silently didn't fire on CGF)* + a forwarding rail. 📄 `DESIGN_Cgf_View_Inspector_Slice.md` |
-| in-process kernel-mode *(`SwitchToExternal/Internal`, `SimHostMode`)* · networkless-vs-networked handler binding · network setup | ⚖️ **thin host** | **E5** — ⛔ **the endpoint divergence, NOT a gap** *(reconciles with the ⚖️ DIVERGENT table — those stay)* |
+| **Scenario-perspective WINDOWS** *(mission editor · ORBAT · entity placement · entity spawner)* | **shared** | ⭐⭐⭐ **E5** ✅ **BUILT** *(`CE-061`)* — ⚠⚠ **this row did not exist when §2c.2 was written, and its absence is the finding.** 🔒 User: *"the editor has many windows in its Scenario perspective … cgf offers just Entity inspector, Event Browser, architecture diagnostic, System profiler."* ⛔ `E1`–`E4` shared **CAPABILITIES**; **nothing ever enumerated WINDOWS**, so four green slices left the gap visible on screen. ⭐ The duplicated part was the thin `ManagedWindow` wrapper (`EditorWindows.cs` / `ExConWindows.cs`), now arguments of `Hrot.Presentation.Windows.{Spawner,Mission,Config,SharedOrbat}PanelWindow`. 📄 `DESIGN_Cgf_Scenario_Windows_Slice.md` §10 |
+| in-process kernel-mode *(`SwitchToExternal/Internal`, `SimHostMode`)* · networkless-vs-networked handler binding · network setup | ⚖️ **thin host** | **the RESIDUE** — ⛔ **the endpoint divergence, NOT a gap and NOT a build item** *(reconciles with the ⚖️ DIVERGENT table — those stay)*. ⚠⚠ **This row used to be labelled `E5`; `CE-061` took that number for the windows slice above.** 🔒 `CE-061`'s own words: calling `E5` *"the thin-host bootstrap divergence, NOT a gap"* was **INCOMPLETE, not wrong** — ⇒ the residue is real, it simply was never the whole of `E5`. **Do not re-use `E5` for it** |
 
-⛔ **Axis C does NOT overturn the ⚖️ DIVERGENT table** — those per-host divergences *(networkless handlers, request-writes)* are E5, the deliberate endpoint. R1 says **CAPABILITY** must not be editor-only; it does not erase the ruled bootstrap divergences.
+⛔ **Axis C does NOT overturn the ⚖️ DIVERGENT table** — those per-host divergences *(networkless handlers, request-writes)* are the **thin-host residue**, the deliberate endpoint ⚠ *(this sentence said "are E5" until `2026-09-09`; `CE-061` took `E5` for the Scenario-windows slice — see the §2c.2 table)*. R1 says **CAPABILITY** must not be editor-only; it does not erase the ruled bootstrap divergences.
 
 ### 2c.3 ⭐ Sequenced increments *(each its OWN design; extract to `Hrot.Editor.AiShared`, editor delegates byte-identical, CGF instantiates)*
-**E1 scenario** *(Slice A — in flight)* → **E2 asset-picker/new-asset shell** *(§6.1)* → **E3 tools/selection/camera** → **E4 view/inspector** → **E5** = what remains is the thin-host bootstrap *(by construction, not a build item)*. ⚠ Each increment measures its captures first *(HN-037 lesson — these are lifts, not `s/old/new/`)*.
+⭐⭐⭐ **AXIS C IS COMPLETE — all five increments BUILT, verified against the tracker `2026-09-09`:**
+**E1** scenario ✅ `CE-046` → **E2** asset-picker/new-asset shell ✅ `CE-049` → **E3** tools/selection/camera ✅ `CE-051`
+→ **E4** view/inspector ✅ `CE-052` *(premise overturned — it was already shared; the real work was one silent-default defect)*
+→ **E5** Scenario-perspective **windows** ✅ `CE-061`. ⛔ The thin-host bootstrap divergence is the **residue**, by
+construction and **not a build item** *(and no longer numbered `E5` — see the table above)*.
+⚠ Each increment measured its captures first *(HN-037 lesson — these are lifts, not `s/old/new/`)*.
+
+⭐⭐ **What Axis C did NOT close, and is tracked separately** — `CE-062` *(the Blueprint live-value provider on
+CGF, whose stated blocker `CE-059` was removed)* · `CE-063` *(`EditorMapPickAdapter` duplicates the shared
+`CanvasMapPickAdapter` — deliberately not collapsed in `E5`)*. ⇒ ⭐ **the live front is now AXIS B**, §2b.
 
 ## 3. ⭐ THE ONLY GENUINELY-NEW CODE (everything else is wiring)
 
 1. ~~`CgfClusterDebugTimeController` (replace the empty `CgfNoOpTimeController`) **+ an ingress translator category** (DQ30-C).~~ ✅ **DONE `2026-08-25`** — the no-op is retired; `TranslatorClass` + the `Category` default member + the `CycloneNetworkIngressSystem` gate all landed. 📄 [as-built §10](DESIGN_Cgf_Editor_Sharing_Slice4_Debug_PauseStep.md).
 2. `EntityActionDescriptor.WrittenComponents` — one field (UXI-03 / shell parity).
-3. **Config-into-`AssetRoots`** (ruling 67) — the one true authoring blocker.
-4. The **tool-controller abstraction** (UXI-07) — net-new, but Axis B, not needed for your chain.
+3. ~~**Config-into-`AssetRoots`** (ruling 67) — the one true authoring blocker.~~ ✅ **BUILT `2026-08-25`** *(`CE-033`; see the Axis-A row)*.
+4. The **tool-controller abstraction** (UXI-07) — ⚠ **NARROWED `2026-09-09`**: the *abstraction* is still net-new *(`IToolController`/`IInteractionHost`: zero occurrences)*, ⛔ **but the tool ACTIVATION path is already shared and adopted by CGF** — `ToolActivationDrainSystem` via `ScenarioEditorModule` (`CgfSubsystem.cs:1236`, `CE-051`/`CE-061`). ⇒ the new code is the **controller/stack over an existing drain**, not the drain. 📄 `UX_Feature_Map_Parity.md` §3.9g records that a tool STACK (`MapCanvas.PushTool`/`PopTool`) once existed and was removed.
 
 ## 4. 🔴 THE REAL BLOCKERS / OPEN DECISIONS
 
 | # | blocker | axis | kind |
 |---|---|---|---|
 | 1 | ~~**UXI-30** engine authority gate~~ — ✅ **BUILT `2026-08-25`** *(`AX-001`)*; the gate is now structural, not per-installer. ⚠ `AX-005`/`AX-006` are what remains: no production request SENDER exists, and *"owned"* is an authority bit only SimHost and replication ever set | B | ~~design-a-fix~~ done |
-| 2 | **Asset-root walk-up** → `null` on a deployed node (ruling 67 has the fix) | A (editing) | build |
-| 3 | **AQ25** authoring shell + role/mode gating — architect-**unanswered** | A (editing) | resolve-with-user |
-| 4 | **Behavior-affinity registry** (Q25-C) + the schema-driven-`BehaviorUiCompiler` unknown | A (editing) | design |
+| 2 | ~~**Asset-root walk-up** → `null` on a deployed node~~ ✅✅ **BUILT — NOT A BLOCKER** *(`CE-033`; re-verified `2026-09-10`: `AssetRoots.Configure(string? root)` exists at `:62`)*. ⚠ This row was stale from the moment `CE-033` landed, and §3 item 3 of this very file already said so | A (editing) | ~~build~~ **done** |
+| 3 | ~~**AQ25** authoring shell + role/mode gating — architect-**unanswered**~~ ⛔⛔ **THIS ROW IS WRONG TWICE, re-measured `2026-09-10`.** ① 📄 [`Architect_Question_25`](UX/Architect_Question_25_Scenario_Authoring_Golden_Path.md) carries a **✅ RECOMMENDED ANSWERS** section *(coordinator, `2026-08-25`)* — `Q25-D` is **answered outright by `Q26`** and `Q25-F` is **withdrawn** *(no new exe; the editor is a one-node cluster)*. ② 🔒 **AND THE USER ALREADY SCOPED IT OUT**, verbatim in that section: *"A/B/C/E are authoring FEATURES, not prerequisites for SHARING the editing capability with CGF (they are missing on the editor too, and get shared for free once built)"* ⇒ **postponable; resolve them when the feature is actually built.** ⇒ ⭐ **nothing here blocks the unification** | A (editing) | ~~resolve-with-user~~ **postponed by user scoping** |
+| 4 | **Behavior-affinity registry** (`Q25-C`) + ~~the schema-driven-`BehaviorUiCompiler` unknown~~ | A (editing) | ⭐⭐ **THE PIVOTAL UNKNOWN IS CLOSED** — 📐 **re-verified `2026-09-10`:** `BehaviorUiCompiler.Compile<TDto>()` *(`:92-93`)* is **strictly CLR-type-driven** — `typeof(TDto).GetProperties(...)` at `:140-141`, switching on `prop.PropertyType` at `:180`/`:214`/`:230`/`:246` ⇒ ⛔ **it cannot consume a runtime schema as-is.** ⭐ **But the answer is REUSE, not codegen:** the runtime field-schema model already exists *(`BlueprintFieldDescriptor`, 65 sites)* and the variable Details panel already renders rows from field metadata ⇒ **a schema-driven SIBLING renderer.** ⇒ ⛔ **not a design blocker; a FEATURE to build**, postponed with row 3 |
 | 5 | ~~Graph-asset editing on a runtime node — undesigned~~ — **NOT undesigned** (hot-reload Cosmetic/Soft/Hard, `AI_Editor_Shared_Infrastructure.md` §17; editor not special). Reduces to: wire `QuickReloadService` on CGF + fix the shared R-52 offset-write bug | A (editing) | wire + bug-fix |
 | 6 | ~~Debug pause/step blocked on `.dev` programmes~~ — **NOT a blocker** (Correction 45 unblocked it `2026-08-14`; programmes finished `2026-07-16`). It is Axis-A wiring + one new CGF time-controller adapter class | A (diag) | ~~wait~~ build |
-| 7 | Packaging of `Hrot.Editor`'s catalog/save services | A | decide-at-impl |
+| 7 | ~~Packaging of `Hrot.Editor`'s catalog/save services~~ ✅✅ **DECIDED AND BUILT — NOT A BLOCKER** *(`CE-049`, `E2`; §2c.2 already records it as subsuming this row)*. 📐 Re-verified `2026-09-10`: `AssetPickerLauncher`, `NewAssetLauncher` and `AssetPickActionRouter` all live in **`Hrot/Editor/Hrot.Editor.AiShared/Browser/`**, which CGF reaches | A | ~~decide-at-impl~~ **done** |
 
 ⭐⭐ **Note the split:** blockers 2–5 are all on the **editing/authoring** side. **Viewing/diagnostics** (your watch → MyBlueprint → asset-graph chain) has **none of them** — it is wiring.
+
+⛔⛔⛔ **RE-MEASURED `2026-09-10` — THIS TABLE HAD FOUR STALE ROWS OF SEVEN, and the pattern is worth naming:**
+⭐ rows **2** and **7** were **built** and this file's own §3 and §2c.2 said so; rows **3** and **4** were
+**answered / scoped out by the user** and `AQ25`'s own STATUS block said so. ⇒ 📌 **every correction was
+available inside documents this table links to** — the table was simply never re-read against them.
+⚠ **What genuinely remains of §4 is rows 5 and 6, both already marked *not* blockers**, plus `Q25-C`'s
+FEATURE work. ⇒ ⭐⭐ **there is no open blocker on the Axis-A / authoring side.** The live front is Axis B
+*(§5 step 4)*.
 
 ## 5. ⭐⭐ SEQUENCING RECOMMENDATION *(charter Step 4; user approves)*
 
@@ -207,8 +260,8 @@ graph TD
 | ✅ **1** | ~~CGF constructs the AiShared shell + registers the graph/watch/breakpoints windows~~ **DONE** — slices 1–4 *(`CE-001`..`036`)*, MCP authoring *(`MA-`)*, diagnostics *(`MD-`)* | delivered the viewing/diagnostics chain |
 | ✅ **1-prereq** | ~~**UXI-06** perspective-default fix~~ **DONE** *(already built; confirmed slice 1)* | — |
 | ✅ **2** | ~~menu/toolbar discoverability on CGF (**UXI-05/35**)~~ **DONE** — toolbar `CE-037`..`040`, menu `CE-041`..`045` *(one shared `CgfEditorShellToolbar` list, `SUBSET-BY-DESIGN` verdict)* | the registered windows are reachable |
-| ⭐ **3** *(now active — Axis C, R1)* | **the editor→shared EXTRACTION** *(§2c)*: **E1 scenario** *(Slice A, in flight)* → **E2 asset-picker/new-asset shell** *(§6.1)* → **E3 tools/selection/camera** → **E4 view/inspector**. ⭐ Folds in the old editing gaps *(config-`AssetRoots` ✅ done; AQ25 shell / behavior-affinity resolve-with-user as they arise)* | this IS "cgf==editor" at capability level — extract, editor delegates byte-identical, CGF instantiates |
-| **4** *(separable)* | **Axis B** map/selection parity: `UXI-30` gate ✅ → `UXI-10 → 11 → 29 → 23`; `AQ59` attribute-vocabulary | not needed for the watch/MyBlueprint chain |
+| ✅ **3** | ~~**Axis C, the editor→shared EXTRACTION** *(§2c)*~~ **DONE `2026-09-09`** — `E1` `CE-046` · `E2` `CE-049` · `E3` `CE-051` · `E4` `CE-052` · `E5` windows `CE-061`; the thin-host bootstrap is the deliberate residue. ⭐ Folded in the old editing gaps *(config-`AssetRoots` ✅ `CE-033`)*. ⚠ Left open, tracked: `CE-062` · `CE-063`; AQ25 shell / behavior-affinity are resolve-with-user | this IS "cgf==editor" at capability level — extract, editor delegates byte-identical, CGF instantiates |
+| ⭐ **4** *(NOW THE LIVE FRONT)* | **Axis B** map/selection parity — ⭐⭐ **re-measured `2026-09-09`, and it is much further along than this row assumed**: `UXI-30` gate ✅ · `UXI-29` ✅ · **`UXI-10` symbology ✅ BUILT** *(`S2`, `CE-126`)* · `UXI-23` ✅ **except `S5`**. ⇒ ⭐ **the remaining chain is `UXI-07` steps 3–4 → `UXI-23` `S5` → `UXI-11` → `UXI-28` → `UXI-09`**, and `UXI-03`'s one field. 🔒 **`S5` MUST follow `UXI-07`** *(`Map_Parity` §3.9h — `UXI-07`'s migration deletes the action→tool routing `S5` would otherwise re-implement)*. 📄 the per-row evidence is §2b | ⚠ **the old ordering `UXI-10 → 11 → 29 → 23` is SUPERSEDED** — two of its four are built |
 
 ⭐⭐ **FUTURE (own designs, deferred by user `2026-08-26`):** ⛔ **checkpoint RESTORE** *(Feature X — the save exists, restore does not)*; ⛔ **capability-gating config layer** *(reduced-capability CGF: live-only · live+monitoring · headless)* — unify fully-featured FIRST; ⛔ **toolbar+menu CUSTOMIZATION system** — ⭐ **the customizable element is WHICH distinct actions surface as toolbar buttons AND as main-menu items, per subsystem/perspective** *(configurable, ⛔ not hardcoded host-conditionals, ⛔ never chameleon commands — R3)*. All actions stay logically distinct; the "per-host default" is only a surfacing choice. **Its own AQ when we reach it.**
 

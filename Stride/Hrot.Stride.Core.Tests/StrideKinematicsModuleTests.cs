@@ -117,14 +117,30 @@ public sealed class StrideKinematicsModuleTests
     }
 
     /// <summary>
-    /// <c>LinearKinematicsSystem</c> must NOT be registered in any phase (§5.1).
+    /// 🔴🔴 <b><c>CE-234</c> — INVERTED. <c>LinearKinematicsSystem</c> MUST be registered.</b>
+    ///
+    /// <para>This test previously asserted the opposite, encoding §5.1's blanket <i>"both integrators are
+    /// absent"</i>. 📐 That omission was measured OVER-BROAD: the rationale is <i>"locally-owned bodies are
+    /// driven by Bullet"</i>, which is true of vehicles and characters and <b>false of projectiles</b>.
+    /// A bullet spawned by <c>FireProcessingSystem</c> has <c>SimVelocity</c> and no Stride visual entity,
+    /// so <c>PhysicsBodyLifecycleSystem</c> never builds it a body — measured: 6 <c>LC-CREATE</c> calls per
+    /// run, all six of them scenario entities. With the ECS integrator absent too, <b>nothing moved bullets
+    /// at all</b>: they sat at the muzzle, and <c>BallisticsSystem</c>'s
+    /// <c>PreviousPosition → Position</c> hit segment had ZERO LENGTH, so no shot could ever hit. Both
+    /// hostiles in <c>hill-attack-close</c> held 50/50 indefinitely while ammo counted down.</para>
+    ///
+    /// <para>⭐ Re-adding it cannot double-integrate what Bullet owns: the system's query carries
+    /// <c>.Without&lt;VehicleState&gt;()</c> and <c>.Without&lt;CrowdAgent&gt;()</c>, and its own summary
+    /// reads <i>"Covers: bullets, pedestrians, projectiles, drift objects. Vehicles are handled by
+    /// CarKinematicsSystem."</i> ⛔ <c>CarKinematicsSystem</c> stays absent — see the test above; that half
+    /// of §5.1 was correct.</para>
     /// </summary>
     [Fact]
-    public void NeitherSimNorPostSim_ContainsLinearKinematicsSystem()
+    public void PostSim_ContainsLinearKinematicsSystem_SoProjectilesActuallyTravel()
     {
         var m   = CreateModule();
         var all = AllSystems(m);
-        Assert.DoesNotContain(all,
+        Assert.Contains(all,
             s => s.GetType().FullName?.Contains("LinearKinematicsSystem") == true);
     }
 
@@ -182,10 +198,12 @@ public sealed class StrideKinematicsModuleTests
     /// CarKinematicsSystem and LinearKinematicsSystem are topologically excluded.
     /// </summary>
     [Fact]
-    public void PostSimulationSystems_HasExactlyOneEntry()
+    public void PostSimulationSystems_HasExactlyTwoEntries()
     {
+        // CE-234: DeadReckoningSyncSystem + LinearKinematicsSystem. It was one entry until the
+        // projectile integrator was restored; see PostSim_ContainsLinearKinematicsSystem_... above.
         var m = CreateModule();
-        Assert.Equal(1, m.PostSimulationSystems.Count);
+        Assert.Equal(2, m.PostSimulationSystems.Count);
     }
 
     // ── T1-SC6: CrowdAgentUpdate backed by the provided IDtCrowdProvider ──────

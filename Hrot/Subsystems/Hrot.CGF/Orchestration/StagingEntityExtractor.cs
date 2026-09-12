@@ -342,6 +342,13 @@ namespace Hrot.CGF.Orchestration
                         childOverrides = overrideDict;
                     }
 
+                    // ⭐⭐⭐ TRANSLATOR — constructing the DTO directly here is CORRECT, not a bypass of
+                    //   EntityCreation.RequestEntityCreation. 📄 DESIGN_Entity_Authoring_Surface.md §2:
+                    //   an AUTHOR originates a new intent and must use the affordance; a TRANSLATOR maps
+                    //   in an EXISTING representation — here a saved scenario file, which already fixed
+                    //   the owner, the components and the ids. ⛔ It also sets PreAllocatedNetworkId and
+                    //   ChildComponentOverrides, which the affordance deliberately EXCLUDES (§3): they
+                    //   have exactly one producer, and it is this one.
                     results.Add(new EntityCreationRequest
                     {
                         RequestId              = Guid.NewGuid(),

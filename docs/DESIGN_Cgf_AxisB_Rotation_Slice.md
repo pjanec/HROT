@@ -13,11 +13,19 @@ build-state: BUILT — the first cut (AX-001..AX-006), the AX-005 successor (AX-
   "a descriptor ordinal IS wire numbering" claim is RETRACTED — do not quote §14.3 as open.
   ⭐⭐ §12.2/§12.3 remain the LIVE diagrams for the EGRESS/request path (§16's are the APPLY path). ⛔ §11.3-§11.5 are SUPERSEDED — the plan asked for a NEW
   intent + a NEW translator; both already existed and were EXTENDED (ruling 9). Read §9 and §12.
+  ⭐⭐⭐ §13.7 (CE-147, 2026-09-01) SUPERSEDES §13.3's placement ruling; §13.7.7 is its AS-BUILT
+  (steps 1+2 BUILT: the translator attaches, 6 new rails, 4/2 red-proof, T1 824/1/3 vs baseline 818/1/3).
+  ⭐⭐⭐ §13.7.8 = steps 3+4 BUILT: the hook AND EntityCreationContext.OnEntitySpawned are RETIRED;
+  cluster suite byte-identical at 31/235/3, authority rails 13/13. the NetworkTransform shadow
+  attach belongs in GeoSpatialEgressTranslator, not in SimHostNodeBootstrapper's per-host hook. §13.3's
+  "37 registry edits" measurement was real but its conclusion too strong. ⚠ The hook may NOT be removed
+  until the egress attach lands — EntityCreationPack forwards OnEntitySpawned as an OPTIONAL per-host hook
+  and did not absorb the attach, so deleting it today re-opens AX-011. §13.4 (zero seeding) stays LIVE.
   Axis-B FIRST CUT (§4/§5, still LIVE for AX-001..006): a subsystem-
   agnostic entity-write path proven with ROTATION. Delivers UXI-30 (the binary authority gate) + a rotation
   attribute id + a subsystem-agnostic write helper the rotator gizmo drives. ⛔ NOT all of Axis B — one slice
   that establishes the owned→direct / unowned→request routing so later attribute gizmos reuse it.
-updated: 2026-08-26
+updated: 2026-09-01
 stale-below: ⛔⛔ §1's row "BinaryInterpreter.Apply — NO AUTHORITY GATE" and §6 item ①'s framing are
   SUPERSEDED by §9.1: measured, BOTH production installers already gated every handler, so the binary
   path WAS authority-gated. The real defect — and what was built — is that the gate was per-installer
@@ -547,7 +555,17 @@ sequenceDiagram
 | ⭐⭐⭐ **`AX-011`** | **attach `default(NetworkTransform)` at birth, on the node that OWNS `SimTransform`**, then grant authority over it | `SimHostNodeBootstrapper`'s `onEntitySpawned` hook |
 | ⭐⭐⭐ **`AX-012`** | the request system's **DDS constructor builds the binary interpreter itself** from the `geoTransform` it already takes | `UpdateEntityAttributeRequestSystem` |
 
-### 13.3 ⭐⭐⭐ THE PLACEMENT DECISION — **rejected `NetworkSpawningSystem`, and the measurement is why**
+### 13.3 ⛔⛔ SUPERSEDED `2026-09-01` by §13.7 (`CE-147`) — **the placement decision, and why two of its three rows were wrong**
+
+> ⛔⛔ **DO NOT QUOTE THIS SECTION AS CURRENT.** ⭐ It is retained because its *measurements* were real and
+> its stated COST — *"it is per-host"* — is exactly what `CE-147` closes. ⚠ **What was wrong:** the
+> `NetworkSpawningSystem` row concluded *"37 registry edits"* from a bare `AddComponent` throwing, without
+> checking that the engine's own baseline translator already solves that with an
+> `IsComponentTypeRegistered<T>()` guard; and the whole table asked *"where is the attach at BIRTH"* when the
+> requirement is *"the shadow exists when the CONSUMER needs it"* — a different, weaker obligation with a
+> different answer. 📄 **Read §13.7.**
+
+#### ⛔ HISTORY — the original §13.3
 
 ⭐ The user's rule was *"every replicated entity on a subsystem which OWNS the `SimTransform` should get the
 shadow at birth, regardless of template"* — ⭐⭐ and that is exactly what shipped. ⛔ **What changed is WHERE.**
@@ -598,6 +616,196 @@ control CLAUDE.md's silent-default rule asks for, and the reason `AX-012` surviv
 `21 → 24`. ⛔ **That is NOT a regression** — 📐 verified by diffing the failure SETS: **3 fixed, 0 new**. The
 6 apparent additions never RAN in the earlier pass *(the crash truncated it)*; all were re-measured on a
 clean tree at the started-marker and fail identically there.
+
+### 13.7 ⭐⭐⭐ `CE-147` — **the shadow attach belongs in the EGRESS TRANSLATOR, and the hook is retired** *(`2026-09-01`)*
+
+> 🔒 **User, `2026-09-01`:** *"tkb is applied on spawn but no longer on later ownership transfer, ownershio
+> path needs networktransform creation as well. so maybe tge egress translator is the best place?"*
+> ⭐ **The conclusion is right. The stated reason is not** — and the difference is the whole finding.
+
+#### 13.7.1 📐 THE COMPLETE INVENTORY — **16 production sites, classified by whether they REQUIRE presence**
+
+| class | sites | ⭐ what happens when the component is MISSING |
+|---|---|---|
+| 🔴 **REQUIRES presence — query clause, silently skips** | `GeoSpatialEgressTranslator:104` | ⛔⛔ **no `WorldPos` published, EVER.** Peers never see it move; the IG ghost never receives `SimTransform`, a **HARD** promotion requirement ⇒ `GhostPromotionSystem` declines forever. **= `AX-011`** |
+| 🔴 **REQUIRES presence** | `DeadReckoningSyncSystem:42` | ⛔ **ghosts stop interpolating** — no projection, no `Lerp`; the entity teleports packet-to-packet at network rate instead of smoothing at 60 Hz |
+| ⚠ requires presence, **examples only** | `TransformSyncSystem:65,:95` *(`Fdp.Examples`)* | example scenarios stop syncing; not shipped |
+| ✅ **WRITES — upsert, cannot fail on absence** | `GeoSpatialIngressTranslator:75,:116` · `IgApplication:2017` · `DeadReckoningSyncSystem:64` · `SimHostNodeBootstrapper:325` | 📐 `SetComponent` **is a literal alias for `AddComponent`, upsert** *(`EntityRepository.cs:780`)* ⇒ the ingress side **self-heals on first packet** |
+| ✅ **guarded read** | `CenterOnEntitySystem:87` | falls back to `SimTransform` |
+| ✅ **already migrated OFF it** | `EntityPresentationGizmo` | 📄 `UX_Feature_Map_Parity.md` ③ measured `NetworkTransform` is **"NEVER the better source"** — identical to `SimTransform` on a non-owner, **stale by design** on an owner |
+| ⚠ **lifecycle gate — TEST INFRA ONLY** | `SimHostInstance.cs:844` `AddMandatoryComponent<NetworkTransform>(isHard:false, softTimeoutFrames:10)` | ⛔ production `NedTkbBuilder:36-38` declares `EntityInfo` + `SimTransform` **hard** and **not** this ⇒ nothing in production gates lifecycle on it |
+
+#### 13.7.2 ⭐⭐⭐ WHY THE EGRESS TRANSLATOR — **the invariant has TWO halves, one per side**
+
+⛔ **The user's premise is TRUE and its consequence does NOT follow.** 📐 `NetworkSpawningSystem` runs the
+translators **unconditionally, ABOVE the authority branch** *(`:134`, then `isLocalAuthority` at `:174`)* ⇒
+**replicas run the TKB template too**, so a node that later RECEIVES ownership already carries whatever the
+template stamped. ⭐ A template-based attach would therefore have covered transfer after all.
+
+⇒ ⭐⭐ **But the ownership path cannot be the fix regardless:** `OwnershipIngressSystem:75` guards
+`if (repo.HasComponentByTypeId(...)) SetAuthority(...)` — ⛔ **it never ATTACHES**, and `dtWorldPos` does not
+even map the component *(§13.7.4)*.
+
+⭐⭐⭐ **The real reason, and it is stronger:** the two consumers live on **opposite sides with different
+lifecycles**, and each is already served by the translator on its own side —
+
+| side | consumer | who attaches |
+|---|---|---|
+| **replica** | `DeadReckoningSyncSystem` | ⭐ `GeoSpatialIngressTranslator` **already upserts on first packet** |
+| **owner** | `GeoSpatialEgressTranslator` | 🔴 **nobody** — this is the gap |
+
+⇒ ⭐⭐⭐ **Egress is not a new pattern; it COMPLETES an existing one.** ⛔ Every other candidate makes the
+invariant true **by coverage** — *"attach wherever authority can arise, and hope the enumeration is
+complete"* — 📌 **precisely the shape `AX-011` already was: the guard was written, the thing it guarded
+never arrived.** ⭐ The egress attach makes it true **by construction**: at the one moment the shadow is
+needed, it exists, whatever the entity's provenance and however authority got here.
+
+⚠ **An objection I raised and then FALSIFIED:** *"structural mutation mid-iteration"*. 📐 `EntityQuery`'s
+enumerator is an **INDEX walk** *(`EntityQuery.cs:133` — `while (++_currentIndex <= _maxIndex)`, re-reading
+each entity's mask)*, **not** a chunk/archetype walk ⇒ adding a component to the CURRENT entity does not
+disturb it. ⛔ The hazard was invented from ECS folklore, not measured.
+
+#### 13.7.3 ⭐ THE SHAPE
+
+⭐ Drop `.With<NetworkTransform>()` from the query; **after** the `HasAuthority` check *(so replicas are
+excluded)*, upsert a `default` shadow when absent. ⭐⭐ **Zero-seeded — §13.4's requirement is then satisfied
+BY CONSTRUCTION** rather than by a comment: the first comparison against the live pose reports *"moved"* and
+publishes immediately.
+
+#### 13.7.4 🔴 SECOND, INDEPENDENT FINDING — **`SetAuthority<NetworkTransform>` has ONE writer and ZERO readers**
+
+📐 `DescriptorOwnershipMap` is **last-writer-wins** *(`:84` `_descriptorToComponentIds[id] = componentIds`;
+`:96` the same in `RegisterFromTranslator`)*. `NedReplicationModule.PopulateDescriptorOwnershipMap` calls
+`RegisterFromTranslator` in its loops — which **does** carry component `52` from the egress translator's
+`TargetComponentIds` — and **then** calls
+`RegisterMapping(dtWorldPos, SimTransform, SimVelocity, VehicleState, VehicleParams, NavState)`,
+⛔ **overwriting it and dropping 52.** *(Its own comment — "All five IDs are passed in a single call to avoid
+overwriting the prior entry" — shows the author knew the overload overwrites.)*
+
+⇒ ⛔ `OwnershipIngressSystem` never touches that bit on transfer. ⇒ ⛔ and egress does **not** read it either:
+`HasAuthority(entity, packedKey)` resolves through **`NetworkAuthority` + `DescriptorOwnership`**
+*(`AuthorityExtensions.cs:16`)*, **not** the component `AuthorityMask`.
+⇒ ⭐⭐ **`SimHostNodeBootstrapper:326` writes a bit nothing reads** — 📌 the same dead-affordance family as
+`AX-011` itself, one level up.
+
+⚠⚠ **BUT DO NOT GENERALISE THAT TO `SimTransform`.** 📐 `CarKinematicsSystem:73` uses
+**`.WithOwned<SimTransform>()`** — a real reader of that authority bit. ⭐ The hook's
+`SetAuthority<SimTransform>(true)` is **redundant** *(because `NetworkSpawningSystem:177` has just executed
+`metaNS.AuthorityMask = compNS`, setting every present component's bit)* — ⛔ **redundant is not unread.**
+⚠ If that mask assignment ever changes, physics stops silently.
+
+#### 13.7.5 ⛔⛔ THE HOOK IS **NOT** YET COVERED BY SHARED HOST-AGNOSTIC CODE — **removal is CONDITIONAL**
+
+🔒 **User, `2026-09-01`:** *"if the SimHostNodeBootstrapper is dead code as tbe result of unification, it is
+good and we can remive. but check if all integrated in now shared common host agnostic code."*
+📐 **Checked. The answer is NO — not yet.**
+
+| ⭐ what the hook's four statements actually contribute | verdict |
+|---|---|
+| `SetAuthority<SimTransform>(true)` | ⭐ **redundant** — `AuthorityMask = compNS` already set it *(but see the §13.7.4 warning: it HAS a reader)* |
+| `AddComponent(default(NetworkTransform))` | 🔴 **THE ONLY REAL OPERATION.** `AddComponent` does **not** touch `AuthorityMask` *(`EntityRepository.cs:762`)* |
+| `SetAuthority<NetworkTransform>(true)` | ⛔ **dead** — §13.7.4, no reader |
+| `SetAuthority<NetworkVelocity>(true)` | ⭐ **redundant** — same mask assignment |
+
+⛔⛔ **`EntityCreationPack` did NOT absorb the attach.** 📐 It forwards `onEntitySpawned: ctx.OnEntitySpawned`
+*(`EntityCreationPack.cs:123`)*, and `EntityCreationContext.OnEntitySpawned` is
+**`Action<EntityRepository, Entity, bool>?` — an OPTIONAL per-host hook** *(`:103`)* whose own doc comment
+says *"Genuinely host-specific — SimHost uses it to stamp `SimTransform` authority and attach the egress
+shadow at birth (`AX-011`) — so it stays a parameter rather than moving into the pack."*
+⇒ ⭐⭐ **The pack unified the PIPELINE and deliberately left `AX-011`'s fix HOST-SPECIFIC.**
+📐 **Measured: `SimHostNodeBootstrapper:282` is the ONLY production host that passes one** *(the sole other
+site is `SimHostInstance.cs:276`, test infra, and it passes a DIFFERENT and smaller lambda — `SimTransform`
+authority only, no shadow)*.
+
+⇒ 🔴🔴 **Removing the hook TODAY re-opens `AX-011`.** ⭐ **The ORDER is therefore fixed:**
+
+```mermaid
+graph LR
+    A["① egress translator<br/>attaches the shadow"] --> B["② rail proves it<br/>inverse-edit red-proof"]
+    B --> C["③ delete the hook's<br/>NetworkTransform block"]
+    C --> D["④ retire the whole hook<br/>+ OnEntitySpawned from the pack"]
+```
+
+⭐⭐ **Step ④ is the prize the user is pointing at:** once the attach is in the egress translator, the hook's
+remaining statements are all redundant-or-dead ⇒ **`EntityCreationContext.OnEntitySpawned` itself can go**,
+and with it the last per-host hole in an otherwise host-agnostic pack — ⛔ **an optional dependency that
+exactly one caller passes is the `SILENT-DEFAULT` shape `CLAUDE.md` names.**
+⚠ **Verify before ④:** `SimHostInstance.cs:276`'s lambda must be re-homed or shown redundant too.
+
+#### 13.7.6 ⚠ WHAT IS **NOT** SETTLED — stated rather than papered over
+
+| ⛔ open | |
+|---|---|
+| **the dead-reckoning gap has no REACHABLE path I can find** | a ghost gets the shadow from ingress before DR could want it ⇒ I cannot construct a failing case, ⛔ **and I cannot prove none exists** |
+| **the 10-frame soft gate** | a lazy egress attach lands on the first authority tick, comfortably inside 10 — ⚠ but `SimHostInstance` is what the SimHost integration tests run against, so it is what reddens if this is wrong |
+| **entities with no `TkbMasterDto`** | get nothing from ANY template-based option — ⭐ an argument against the template placement that §13.3 never priced |
+
+#### 13.7.7 ✅ AS-BUILT `2026-09-01` — **steps ① and ② are BUILT; ③/④ remain**
+
+⭐ **The build MATCHED §13.7.3** — no deviation to argue. `GeoSpatialEgressTranslator.ScanAndPublish` drops
+the `.With<NetworkTransform>()` clause and upserts the shadow **below** the authority gate, seeded to
+`default`, guarded by `IsComponentTypeRegistered<NetworkTransform>()`, and grants
+`SetAuthority<NetworkTransform>(entity, true)` because `AddComponent` does not touch the mask.
+
+| gate | command | result |
+|---|---|---|
+| build *(affected project only — ⛔ never the 149-project solution in a fix loop)* | `dotnet build Hrot.Network.NED --no-restore` | ✅ 0 errors, 0 warnings |
+| ⭐⭐ **the new rails** | `dotnet test Hrot.SimHost.Tests --no-build --filter TheEgressAttachesItsOwnShadowTests` | ✅ **6/6** |
+| ⭐⭐⭐ **RED-PROOF — inverse edit, ⛔ never `git checkout --`** | re-added `.With<NetworkTransform>()` | 🔴 **4 red / 2 green — and the SPLIT is the evidence** |
+| **T1** — the whole touched suite | `dotnet test Hrot.SimHost.Tests --no-build` | ✅ **824 passed / 1 failed / 3 skipped** |
+| baseline *(bootstrap §2)* | — | **818 / 1 / 3** ⇒ ⭐ **delta is exactly +6 passed**, same single red |
+| the 1 red | `FullBranchPipelineTests.BranchedRecording_CapturesHistoricalStateAsKeyframe` | ⭐ **`QA-012`, pre-existing** — already proven by `git stash -u` + rebuild on base in an earlier session |
+
+⭐⭐ **Why the red-proof's 4/2 split is stronger than "everything went red":** the two rails that stayed
+green are exactly the two whose property holds **with or without** the fix — `AReplicaGetsNoShadowFromTheEgressPath`
+*(a replica gets none either way)* and `AWorldWithoutTheComponentRegisteredIsSkippedNotCrashed` *(no crash
+either way)*. ⛔ A red-proof in which every rail reddens cannot distinguish *"the rails test the change"*
+from *"the rails test that the code compiles at all."*
+
+⚠ **One environment note worth recording:** CycloneDDS rejects domain ids above ~232 *(the DDSI port
+calculation runs out of range)*. The first cut used 231–236 and the four rails on 233+ failed with
+`Failed to create participant` — ⛔ **which looked exactly like a broken change and was not.** Ids moved to
+215–220. 📌 Establishing that took one baseline run of the EXISTING DDS rails *(5/5 green)*, which is the
+cheap way to separate "my change" from "this machine".
+
+⛔⛔ **STILL OPEN — steps ③ and ④ of §13.7.5's order are NOT done.** `SimHostNodeBootstrapper:325-326` still
+attaches and grants; it is now **redundant** rather than load-bearing, ⛔ **but it has not been removed and
+`EntityCreationContext.OnEntitySpawned` is still an optional per-host hook.** ⚠ Removing them needs the
+cluster suite *(`TheEgressShadowExistsAtBirthTests`)* to run, and that suite is un-gateable here — see the
+`ClusterRunner.Integration.Tests` DDS-allocator crash. ⇒ **the hook stays until that can be gated.**
+
+#### 13.7.8 ✅ AS-BUILT `2026-09-01` — **steps ③ and ④ COMPLETE: the hook and `OnEntitySpawned` are RETIRED**
+
+⭐⭐⭐ **§13.7.5's four-step order is finished.** ③ removed the hook's `NetworkTransform` block; ④ removes
+**the whole hook and the parameter that carried it**:
+
+| removed | why it was safe |
+|---|---|
+| `SimHostNodeBootstrapper`'s entire `onEntitySpawned:` lambda | its remaining two statements were **redundant** — `NetworkSpawningSystem` runs `metaNS.AuthorityMask = compNS` immediately before invoking the hook |
+| `EntityCreationContext.OnEntitySpawned` *(the property)* | ⭐⭐ **the pack's LAST per-host hole** — an optional `Action` exactly ONE production host ever passed |
+| `EntityCreationPack`'s forwarding of it | — |
+| `SimHostInstance`'s lambda *(test infra)* | same redundancy |
+
+⚠ **The redundancy was PROVEN, not asserted.** 📐 The rails that actually READ those authority bits are
+**13/13 green** with the hook gone — `TheEgressShadowExistsAtBirthTests` *(incl. `TheOwnerHasAuthorityOverItsOwnShadow`)*,
+`SplitAuthoritySpawnTests` *(incl. `BrainSpawn_WithWorldPosDelegation_MuscleTakesSimTransformAuthority`)*,
+`NavigationStatusAuthorityTests`, `DragDropIntegrationTests`.
+⭐ **`CarKinematicsSystem` filters on `.WithOwned<SimTransform>()`, so that bit is load-bearing** — ⛔ it was
+simply already set one line earlier. **Redundant is not unread**, and the rails are what prove it.
+
+| gate | result |
+|---|---|
+| 4 affected projects, `--no-restore` | ✅ 0 errors |
+| the authority-asserting rails, filtered | ✅ **13/13** |
+| **cluster suite** | ✅ **31 failed / 235 passed / 3 skipped / 269** — **byte-identical to the pre-removal baseline** ⇒ ⭐ zero regression |
+| `Hrot.SimHost.Tests` | ✅ **824 / 1 / 3** — baseline *(`QA-012`)* |
+| `Hrot.SimHost.Integration.Tests` | ⚠ **13 / 28 / 41** — ⭐ **measured at base by `git stash -u` + rebuild: IDENTICAL 13/28/41** ⇒ pre-existing, not this change |
+
+⭐ **`NetworkSpawningSystem`'s `onEntitySpawned` PARAMETER IS KEPT** — ⚠ **deliberate, and it now has NO
+production caller.** ⛔ It is an FDP-level extension point, and deleting an engine seam is a wider call than
+this slice *(`R-137` — do not lose a capability as a side effect of a unification)*. ⭐ **Recorded here so the
+next reader finds a REASON rather than rediscovering it as dead affordance** — 📌 exactly the mistake the
+"unreferenced is not unintentional" rule exists to prevent.
 
 ---
 

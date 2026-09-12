@@ -49,6 +49,19 @@ namespace Fdp.Toolkit.NetworkSpawning.Events
         public ReliableInitType InitType;
 
         /// <summary>
+        /// ⭐⭐ When true, the spawned entity is a THROWAWAY and every node that materialises it stamps
+        /// <see cref="Fdp.Toolkit.Scenario.ScenarioIgnoreTag"/> so the scenario serializer skips it.
+        ///
+        /// <para>⛔ The tag is derived LOCALLY at spawn, on each receiver, rather than replicated: the
+        /// authoring node knows the entity is a sketch, and deriving it here means the decision survives
+        /// that node disconnecting. See <c>EntityCreationRequest.IsTransient</c> for the ruling and the
+        /// measurement (<c>R-140</c>; <c>docs/DESIGN_Node_Roles_And_Policies.md</c> §7.3).</para>
+        ///
+        /// <para>⭐ Defaults to <c>false</c>, so every existing publisher is unchanged.</para>
+        /// </summary>
+        public bool IsTransient;
+
+        /// <summary>
         /// Optional list of ECS component instances to apply on top of TKB template defaults.
         /// Each item is an object whose runtime type is used by EntityComponentReflector
         /// to call world.SetComponent(entity, type, value).

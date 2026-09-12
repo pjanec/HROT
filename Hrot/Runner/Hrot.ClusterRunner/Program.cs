@@ -426,10 +426,37 @@ class Program
                 // ⚠ A Func: the window manager and its MessageLogRegistry may not exist yet (headless
                 //   nodes never build one at all), and the helper still answers with the process-wide
                 //   NLog targets that Program.Main installs for EVERY mode.
+                // ⭐⭐⭐ CE-169 — the SECOND silent default at this exact call site (logSinks was the
+                //    first, see the note above). ⛔⛔ With no registry, `GET /behaviors` answered
+                //    "Behavior registry not available." and `GET /entities/{id}/state` omitted the
+                //    behaviour NAME on every cluster node — while that same node was resolving the
+                //    hash to RUN the behaviour. An instrument that cannot tell "absent" from
+                //    "unwired" reads as evidence of absence, which is exactly how it misled a
+                //    diagnosis. 📌 The rule this breaks: a production caller that HAS a dependency
+                //    must PASS it — and this one does have it, via `subsystems`.
+                // ⚠ A Func, for the same reason logSinks is one: CGF builds its registry in the
+                //   `behavior-registry` boot step, and `orchestrator.Run()` is ~240 lines BELOW this
+                //   point. A captured value would be null forever.
+                // ⭐ A node with no CGF genuinely has no registry; the Func returns null and the route
+                //   says so truthfully rather than fabricating an empty one (the CE-110 shape).
+                var behaviorRegistryGetter =
+                    () => subsystems.OfType<Hrot.CGF.CgfSubsystem>()
+                                    .Select(s => s.BehaviorRegistry)
+                                    .FirstOrDefault(r => r is not null);
+
+                // ⭐⭐ CE-236 — geoTransform is PASSED, not defaulted. Before this the service fell back
+                //    to `new WGS84Transform()`, whose origin fields default to 0, so GET /world/info and
+                //    POST /world/geo-to-local answered against 0°N 0°E while every node's simulation ran
+                //    on the Berlin origin HrotEnvironment.CreateGeoTransform() sets. 🔒 User ruling
+                //    2026-09-08: one GeographicTransform, shared by the debug API, the scenario loader
+                //    and the JSON parameter interpreter alike. ⛔ Null here is not a silent fallback any
+                //    more — the service then resolves the world singleton, and refuses if there is none.
                 clusterApiService = new Hrot.Editor.DebugApi.DebugApiService(
                     dispatcher,
                     logSinks: () => Fdp.Core.Logging.MessageLogSinks.ForDiagnostics(
-                        windowCtrl?.WindowManager?.MessageLogRegistry));
+                        windowCtrl?.WindowManager?.MessageLogRegistry),
+                    behaviorRegistry: behaviorRegistryGetter,
+                    geoTransform: HrotEnvironment.CreateGeoTransform());
                 clusterApiHost.AttachService(clusterApiService);
                 clusterApiHost.Start();
 
@@ -758,8 +785,15 @@ class Program
 
     /// <summary>
     /// Scans all loaded assemblies for non-abstract ISubsystem implementations
-    /// (excluding PerspectiveUpdateSubsystem, EyesAndMuscleSubsystem, and CiSubsystem
-    /// which are runner-internal or handled separately).
+    /// (excluding PerspectiveUpdateSubsystem and CiSubsystem, which are
+    /// runner-internal or handled separately).
+    ///
+    /// CE-218: EyesAndMuscleSubsystem used to be excluded here too. It was the
+    /// "tracer bullet" that proved the SoD async-module pattern before Stride
+    /// existed (docs/designs/eyes-and-muscle/DESIGN.md, "Why EyesAndMuscle first,
+    /// Stride later"); the patterns it proved now ship in EqsModule,
+    /// CognitiveSpatialModule, NavigationSolverModule and AutonomousPerceptionModule,
+    /// and it was never reachable from any --mode token. Retired.
     /// </summary>
     private static IEnumerable<Type> ScanForSubsystems()
     {
@@ -769,7 +803,6 @@ class Program
             .Where(t => t.IsClass && !t.IsAbstract
                      && subsystemType.IsAssignableFrom(t)
                      && t != typeof(PerspectiveUpdateSubsystem)
-                     && t != typeof(EyesAndMuscleSubsystem)
                      && t != typeof(CiSubsystem));
     }
 

@@ -145,7 +145,7 @@ internal sealed class PropertyPathFieldDrawer : IImGuiFieldDrawer
                 {
                     Type? dtoType = targetBlackboard == BlackboardTarget.Blackboard1024
                         ? def.HeavyDtoType
-                        : def.ParamsDtoType;
+                        : def.BlackboardLayoutType;
 
                     if (dtoType != null)
                         return dtoType;

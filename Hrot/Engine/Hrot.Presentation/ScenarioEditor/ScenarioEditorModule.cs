@@ -58,9 +58,16 @@ public class ScenarioEditorModule : IEcsModule
         Func<ISelectionState?>        Selection,
         Func<DataDrivenGizmoSystem?>  Gizmos,
         Func<MapCamera?>              Camera,
-        Func<GlobalGizmoManager?>?    GlobalGizmos       = null,
-        Action?                       StartPlacementMode = null,
-        Action<Entity>?               AlsoSelect         = null);
+        Action<Entity>?               AlsoSelect         = null,
+        Func<Hrot.ScenarioEditor.Tools.ToolController?>? Tools = null);
+
+    // ⛔⛔ REMOVED 2026-09-09 (UXI-07 §4.10): GlobalGizmos and StartPlacementMode.
+    //    🔴 Step 3b moved the tool REGISTRATIONS out of this module and into MapInteractionPack, which
+    //    takes both through MapInteractionContext — so these two became parameters that BOTH hosts still
+    //    dutifully passed and NOTHING read. ⚠ That is not merely dead code: the Spawn tool went
+    //    unserviceable on the Editor and CGF, reporting "this host composes no spawn adapter" on hosts
+    //    that compose one, because the delegate was being handed to the wrong record.
+    //    ⭐ Deleting them makes the mistake unrepresentable rather than merely fixed.
 
     public ScenarioEditorModule(
         ScenarioFileService? fileService = null,
@@ -87,8 +94,11 @@ public class ScenarioEditorModule : IEcsModule
         // ⭐⭐⭐ PACK2-E002, finished by CE-051. The render-layer half (PACK2-E003) is still open.
         if (_interaction is not { } deps) return;
 
+        // 🔒 UXI-07 step 3b — the drain takes the host's ONE arbiter (MapInteraction.Tools). ⛔ A host that
+        //    does not pass it gets a drain that REPORTS every dropped activation rather than swallowing it;
+        //    TheViewportInteractionIsSharedTests rails that both production roots do pass it.
         registry.RegisterSystem(new ToolActivationDrainSystem(
-            deps.Selection, deps.Gizmos, deps.GlobalGizmos, deps.StartPlacementMode));
+            deps.Selection, deps.Gizmos, deps.Tools ?? (() => null)));
         registry.RegisterSystem(new SelectEntitySystem(deps.Selection, deps.AlsoSelect));
         registry.RegisterSystem(new CenterOnEntitySystem(deps.Camera));
     }

@@ -346,6 +346,99 @@ namespace Fdp.Diagnostics.Contracts.Tests
             Assert.Equal((ushort)9, prim.ThicknessU16);
         }
 
+        // ---- S6: LineOffsetPx, the signed alias at offset 12 --------------------
+        // 📄 docs/DESIGN_Gizmo_Anchor_Identity.md §6 (S6). Added into this suite rather than a new
+        //    class -- SC-FONT-TEXT-* already owns the text primitive (R-142 ④).
+
+        // SC-FONT-TEXT-6: the editor's 3-line entity label stacking survives S6. The four live
+        // offsets are EntityEditorLabelGizmo.cs:57/:77/:82/:96 => -16, -30, -30, -44 px.
+        // ⛔ RED-PROOF SHAPE: reintroduce `unchecked((ushort)(short)lineOffsetPx)` on write while the
+        //    reader uses the signed alias and these come back as 65520 / 65506 / 65492.
+        [Theory]
+        [InlineData(-16f)]
+        [InlineData(-30f)]
+        [InlineData(-44f)]
+        [InlineData(0f)]
+        [InlineData(12f)]
+        public void SC_FONT_TEXT_6_MakeText_LineOffsetPx_RoundTripsSigned(float offsetPx)
+        {
+            var prim = DebugPrimitive.MakeText(0f, 0f,
+                new Fdp.Toolkit.Diagnostics.Gizmos.FixedString32("L"),
+                new Rgba32(255, 255, 255, 255),
+                lineOffsetPx: offsetPx);
+
+            Assert.Equal((short)offsetPx, prim.LineOffsetPx);
+        }
+
+        // SC-FONT-TEXT-6b: DrawText goes through the same slot, so a buffered line stacks identically.
+        [Fact]
+        public void SC_FONT_TEXT_6b_DrawText_LineOffsetPx_RoundTripsSigned()
+        {
+            var buffer = new DebugPrimitiveBuffer(capacity: 4);
+            buffer.DrawText(0f, 0f, "line2", new Rgba32(255, 255, 255, 255), lineOffsetPx: -30f);
+            buffer.DrawTextLong(0f, 0f, "a longer interned line", new Rgba32(255, 255, 255, 255),
+                lineOffsetPx: -44f);
+
+            var frame = buffer.GetFrame();
+            Assert.Equal(2, frame.Length);
+            Assert.Equal((short)-30, frame[0].LineOffsetPx);
+            Assert.Equal((short)-44, frame[1].LineOffsetPx);
+        }
+
+        // SC-FONT-TEXT-6c: the alias IS AnchorGeneration -- the same two bytes at offset 12, read
+        // signed vs unsigned. ⛔ If these ever stop aliasing, every Text primitive silently loses its
+        // stacking and every ECS-anchored primitive silently loses its generation.
+        [Fact]
+        public void SC_FONT_TEXT_6c_LineOffsetPx_AliasesAnchorGeneration_AtOffset12()
+        {
+            var p = default(DebugPrimitive);
+            p.LineOffsetPx = -16;
+            Assert.Equal(unchecked((ushort)(short)-16), p.AnchorGeneration);
+
+            p.AnchorGeneration = 7;              // an ECS generation
+            Assert.Equal((short)7, p.LineOffsetPx);
+
+            // ...and neither may grow the struct: 64 bytes is a DDS-marshalled invariant (C1).
+            Assert.Equal(64, Marshal.SizeOf<DebugPrimitive>());
+        }
+
+        // ---- S7: the EntityLocal anchor key is 32 bits wide ---------------------
+        // 📄 docs/DESIGN_Gizmo_Anchor_Identity.md §6 (S7); CE-259z.
+
+        // SC-GZ-ANCHOR32-1: DrawSemanticShape puts the NETWORK id in the anchor-key slot, which is
+        // what DebugPrimitiveRenderer2D:105 probes the SpatialAnchor cache with.
+        [Fact]
+        public void SC_GZ_ANCHOR32_1_DrawSemanticShape_AnchorKeyIsTheNetworkId()
+        {
+            var buffer = new DebugPrimitiveBuffer(capacity: 4);
+            buffer.DrawSemanticShape(networkId: 90210L, profileId: 7UL);
+
+            var frame = buffer.GetFrame();
+            Assert.Equal(1, frame.Length);
+            Assert.Equal(DebugPrimitiveShape.SemanticShape, frame[0].Shape);
+            Assert.Equal(CoordinateSpace.EntityLocal, frame[0].Space);
+            Assert.Equal(90210, frame[0].AnchorIndex);
+        }
+
+        // SC-GZ-ANCHOR32-2: THE HARD LIMIT, pinned. The key slot is `int`, so int.MaxValue is the
+        // largest id that survives; the disjoint TOOL range sits ABOVE it, which is why no tool may
+        // emit an EntityLocal primitive. ⛔ This is a CONSTRAINT rail, not a bug rail: the struct is
+        // 64 DDS-marshalled bytes and SemanticShape's payload union is full, so there is no wider slot
+        // to move to. If someone ever finds one, this rail is the thing that should change.
+        [Fact]
+        public void SC_GZ_ANCHOR32_2_EntityLocalAnchorKey_IsThirtyTwoBits()
+        {
+            var buffer = new DebugPrimitiveBuffer(capacity: 4);
+            buffer.DrawSemanticShape(networkId: int.MaxValue, profileId: 1UL);
+            Assert.Equal(int.MaxValue, buffer.GetFrame()[0].AnchorIndex);
+
+            // GlobalGizmoManager.ToolAnchorIdBase, restated here because Fdp.Toolkits is deliberately
+            // not referenced by this project (see the csproj).
+            const long toolAnchorIdBase = 1L << 40;
+            Assert.True(toolAnchorIdBase > int.MaxValue,
+                "the tool range must stay OUTSIDE the 32-bit EntityLocal anchor key");
+        }
+
         // ---- Helpers -----------------------------------------------------------
 
         // FNV-1a 32-bit hash -- mirrors GizmoSettingsRegistry.ComputeHash.

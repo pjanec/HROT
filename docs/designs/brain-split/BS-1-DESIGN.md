@@ -216,6 +216,52 @@ a local `WeaponFireIntent` into the Muscle's ECS event bus. See Task **BS1-T006*
 `WeaponFireIntent` (the same struct regardless of origin) and, after spawning the bullet, also
 publishes a `WeaponFireNotification` event. See Task **BS1-T007**.
 
+#### ⛔⛔⛔ 5.4a — CE-198: **`FireProcessingSystem` MUST NOT gate on `NetworkAuthority`** *(as-built correction, `2026-09-05`)*
+
+⚠ **`TD-6` (`BS-1-BATCH-04`) added exactly such a gate** — *"only spawns bullets if the node is
+authoritative over the shooter"* — and it **could never pass on the only node that runs the system**,
+silently disabling the whole kill chain on **every DISTRIBUTED** topology.
+
+⚠⚠ **SCOPE — corrected `2026-09-05`; an earlier version of this section said "every topology" and that was
+too strong.** ⭐ In **`--mode editor`** there is **one world at node 0** and the entities are created
+locally, so `NetworkAuthority` reads `{PrimaryOwnerId: 0, LocalNodeId: 0}` ⇒ the gate **passed** and kills
+always worked — measured `2026-09-04` and reproduced exactly `2026-09-05`
+*(`1001 50/50 Ammo 41 · 1002 50/50 Ammo 41 · 1006 0/50 · 1007 0/50`)*. ⛔ **The gate bit only where the
+Muscle's combatants are ghosts** — the 4-process cluster and `--mode all`. ⇒ 🔒 **that asymmetry is why the
+defect survived: the topology exercised most often is the one it did not affect**, and the product's
+shipping topology is the one it killed.
+
+📐 **Measured live on `hill-attack-close`, 4-process cluster AND `--mode all`:**
+
+| what | measurement |
+|---|---|
+| `NetworkAuthority` on the **Muscle**, every combatant | `{ HasAuthority: false, PrimaryOwnerId: -1, LocalNodeId: 1 }` |
+| …because `EntityMasterIngressTranslator.cs:147` stamps ghosts with the **unknown-owner sentinel** `-1` | by design — see its own comment |
+| `NetworkAuthority` on the **Brain** | `{ PrimaryOwnerId: 400, LocalNodeId: 400 }` ⇒ `HasAuthority` true |
+| ⇒ with the gate: `WeaponFire`(81) **sent 0**, `MunitionDetonation`(82) **0**, `EntityHitDamage`(83) **0**, hostiles `50/50` after 6 engagements | — |
+| ⇒ gate removed, same scenario: `WeaponFire` **5→5**, `MunitionDetonation` **6→6**, `EntityHitDamage` **6→6**, both hostiles **`0/50` on Brain AND IG** | causation proven |
+
+⛔⛔ **The Brain must stay `PrimaryOwnerId`** — §6.4's `HealthApplicationSystem` applies damage behind
+that very flag (`HealthApplicationSystem.cs:61`), and it worked in the probe run. ⇒ **making the Muscle
+the owner would break damage application instead.** ⭐ §2.1's contract is the authority here: *"Brain ──
+`WeaponFireIntent` ─► `WeaponFireRequest` ─► Muscle ── spawns bullet"* — **the Muscle executes the order
+it was given; it is CORRECTLY not the owner.**
+
+⭐⭐ **`TD-6`'s real concern — several nodes spawning duplicate bullets — is a COMPOSITION property**, and
+is now structurally enforced by the capability seam: only the node whose `NodeRole` composes the combat
+capability schedules these systems *(measured on `--mode all`: exactly one of three subsystems carries
+`FireProcessingSystem`, `HitResolutionSystem`, `BallisticsSystem`, `DamageCalculationSystem`)*.
+⛔ **A runtime flag that is false by construction cannot express it.**
+
+⚠ **Why the suite never caught it:** `FireProcessingSystemTests`' two `TD-6` rails hand-built
+`NetworkAuthority` with `primaryOwnerId` **2** (a *known* other owner) and **1** (self). Production on
+the Muscle produces **neither** — it produces `-1`. ⇒ ⭐ the replacement rails
+(`..._ForAGhostShooterWithTheUnknownOwnerSentinel`, `..._WhenAnotherNodeOwnsTheShooter`) build the shape
+production actually has, and redden under inverse edit.
+
+⇒ 🔒 **§4.3's `DamageSystem` guard and §6.4's `HealthApplicationSystem` guard are UNCHANGED and correct.**
+The authority rule governs **who applies damage**, never **who executes a shot**.
+
 ### 5.5 Muscle Egress — WeaponFireNotificationEgressTranslator
 
 A new translator on the Muscle publishes a `WeaponFire` DDS message for each
@@ -265,13 +311,27 @@ When `EntityHitDamage` is received:
 - `EntityHitDamageIngressTranslator` (on the authority node) deserialises the DDS message
   and publishes a local `DamageAssessedEvent`.
 - An entity-type-agnostic `HealthApplicationSystem` consumes the event, checks
-  `HasAuthority`, decrements `Health.Current`, updates the `HealthData` mirror, and strips
+  `HasAuthority`, decrements `Health.Current`, and strips
   `ActorCapabilities` if the entity is destroyed.
+
+> ⚠ **CORRECTED 2026-09-05.** This step said the system *"updates the `HealthData` mirror"*.
+> 📐 `HealthData` was **deleted** by `BUG2-A001`; only a reserved id remains in `GlobalComponentIds`.
+> The system has no mirror to update, and `MissionDirectorSystem.cs:150` says so in its own words.
 
 In the future, entity-type-specific damage modules can replace or override this system.
 See Task **BS1-T014**.
 
-### 6.5 EntityDamageEgressTranslator (SimHost → IG)
+### 6.5 EntityDamageEgressTranslator (authority node → IG)
+
+> ⚠⚠ **CORRECTED 2026-09-05 (CE-196).** This heading said *"SimHost → IG"*. 📐 Measured on a live
+> `--mode all`: the translator is **authority-gated** (`view.HasAuthority`), and the authority for
+> descriptor 30 is **CGF** — SimHost published **0** samples, CGF published all of them. The publisher is
+> whichever node owns the entity, which for `hill-attack` is the Brain.
+>
+> ⚠ **And the payload changed.** It no longer carries a precomputed 0–100 damage level; it carries
+> `Current` + `Max`, and each consumer derives its own fraction.
+> 🔒 User ruling, 2026-09-05: *"having both Max and Current makes sense as ECS component AND network
+> descriptor, no precalculated percentages."*
 
 A new `EntityDamageEgressTranslator` tracks dirty `Health` components and publishes
 `EntityDamage` DDS messages so the IG updates health bars. Registered in `SimHostApp.cs`.

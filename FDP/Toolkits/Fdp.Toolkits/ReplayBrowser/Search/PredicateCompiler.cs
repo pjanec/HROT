@@ -314,7 +314,7 @@ namespace Fdp.Toolkit.ReplayBrowser.Search
 
             Type? dtoType = dto.TargetBlackboard == BlackboardTarget.Blackboard1024
                 ? def.HeavyDtoType
-                : def.ParamsDtoType;
+                : def.BlackboardLayoutType;
             if (dtoType == null)
                 return static (_, _) => false;
 

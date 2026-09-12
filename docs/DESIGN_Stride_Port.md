@@ -5,7 +5,7 @@ updated: 2026-08-22
 current-answer: the whole file — how to port the Bullet-based Stride from origin/stride-integ-1 onto the
   coordinator line, what the integration changed on the HROT/FDP shared side, and the one real breakage
   (the crowd movement-intent refactor). Awaiting user review before any code moves.
-design-basis: origin/stride-integ-1 (measured 2026-08-22) · .dev/stride-1/Stride-Integration_v0_3.md ·
+design-basis: origin/stride-integ-1 (measured 2026-08-22) · .dev/_DONE/stride-1/Stride-Integration_v0_3.md ·
   STRANDED_FEATURES_AUDIT.md (user ruling: Bullet, not Bepu; Stride only).
 known-conflict: none.
 -->

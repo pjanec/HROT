@@ -35,8 +35,10 @@ namespace Hrot.ScenarioEditor.Map
             StatelessGizmoSystem statelessSystem,
             TogglablePostSimulationGroup gizmoGroup,
             GizmoExecutionController gate,
-            MapSelfCheckSystem selfCheck)
+            MapSelfCheckSystem selfCheck,
+            Hrot.ScenarioEditor.Tools.ToolController tools)
         {
+            Tools             = tools;
             Buffer            = buffer;
             InteractionBus    = interactionBus;
             GizmoRegistry     = gizmoRegistry;
@@ -74,6 +76,30 @@ namespace Hrot.ScenarioEditor.Map
 
         /// <summary>The drag handles — the tool half.</summary>
         public DataDrivenGizmoSystem DataDrivenSystem { get; }
+
+        /// <summary>
+        /// ⭐⭐⭐ <b><c>UXI-07</c> — THE ONE ARBITER of "which modal tool holds the interaction", for THIS
+        /// map subsystem.</b> 📄 <c>docs/UX/UX_Feature_Tool_Model.md</c> §4 · §4.7c.
+        ///
+        /// <para>⛔⛔ <b>It lives HERE, and not behind <c>ToolActivationDrainSystem</c>, because the defect
+        /// it closes is structural on every host that builds this pack.</b> 📐 Measured <c>2026-09-09</c>:
+        /// <see cref="GlobalManager"/> and <see cref="DataDrivenSystem"/> each guard exclusivity only
+        /// within themselves while sharing <see cref="InteractionBus"/>, so two "exclusive" tools can hold
+        /// focus at once — and <c>Build</c> is called by <b>FIVE</b> hosts (IG, CGF, ReplayBrowser, SimHost,
+        /// Editor). ⚠ Only two of them compose the drain, so a controller owned by the drain left the other
+        /// three unarbitrated and hand-rolling the same gizmos inline.</para>
+        ///
+        /// <para>🔒 <b>ONE PER MAP SUBSYSTEM is the ruling, not a convenience:</b> <c>Q27-B</c> was answered
+        /// <b>B1 — per subsystem</b> (<i>"perspective switch often means focus switch to another
+        /// subsystem"</i>), and the question's own worked example is SimHost holding <c>Measure</c> while
+        /// the user switches to CGF and back. ⇒ the arbiter's lifetime is the map's, which is exactly this
+        /// object's lifetime.</para>
+        ///
+        /// <para>⭐ The pack also REGISTERS the six map tools on it — <see cref="Tools.ScenarioToolRegistrations"/>
+        /// — so no host writes tool wiring of its own. A tool this host cannot service is still registered
+        /// and reports why (🔒 no per-subsystem whitelist, user <c>2026-08-10</c>).</para>
+        /// </summary>
+        public Hrot.ScenarioEditor.Tools.ToolController Tools { get; }
 
         /// <summary>The map — every <c>[GizmoProjector]</c>.</summary>
         public StatelessGizmoSystem StatelessSystem { get; }

@@ -247,7 +247,31 @@ public sealed class VehicleNavigationIntentSystem : IEcsModuleSystem
             float heading = MathF.Atan2(forward.Y, forward.X);
 
             var corner = route.Corners[route.CurrentCorner];
-            var output = _controller.Compute(curPos.X, curPos.Y, heading, corner.X, corner.Y);
+            // ⭐⭐ CE-239 — honour the ORDER's speed. The controller was constructed once with
+            //   DefaultCruiseSpeed (3 m/s) and never read NavigationIntent.TargetSpeed, so every
+            //   vehicle drove at 3 m/s regardless of what it was told. hill-attack-close orders 15 m/s
+            //   and its tanks declare MaxSpeedFwd = 20; the reference --mode all host runs the same
+            //   scenario at ~7.6 m/s, which is why the Stride run took 5+ minutes instead of ~1.
+            //   ⚠ Clamped to the vehicle's own MaxSpeedFwd when it has VehicleParams, so an order can
+            //   never command a chassis past its declared limit. Falls back to the construction-time
+            //   cruise when the order carries no speed, preserving the previous behaviour.
+            float? orderedSpeed = null;
+            if (repo.HasComponent<NavigationIntent>(entity))
+            {
+                float target = repo.GetComponentRO<NavigationIntent>(entity).TargetSpeed;
+                if (target > 0f)
+                {
+                    if (repo.HasComponent<VehicleState>(entity) && repo.HasComponent<VehicleParams>(entity))
+                    {
+                        float maxFwd = repo.GetComponentRO<VehicleParams>(entity).MaxSpeedFwd;
+                        if (maxFwd > 0f) target = MathF.Min(target, maxFwd);
+                    }
+                    orderedSpeed = target;
+                }
+            }
+
+            var output = _controller.Compute(
+                curPos.X, curPos.Y, heading, corner.X, corner.Y, orderedSpeed);
 
             // ── Movement-based stuck guard ──────────────────────────────────
             route.StuckWindowElapsed += deltaTime;
