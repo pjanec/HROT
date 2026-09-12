@@ -565,7 +565,8 @@ box — and **an existing class drawn on the same canvas as a proposed one makes
 
 | # | ⭐ obligation | owner |
 |---|---|---|
-| **①** | ⭐⭐⭐ **A design marked buildable carries a `classDiagram` AND a `sequenceDiagram`.** ⭐ Mark it in the STATUS block: `build-state: DESIGN │ READY-TO-BUILD │ BUILDING │ BUILT` | **coordinator** |
+| **①** | ⭐⭐⭐ **A design marked buildable carries a `classDiagram`, a `sequenceDiagram` AND a MODULE-RELATIONSHIP diagram** *(a `graph TD` of which module/pack REGISTERS each system, which phase it lands in, and — ⭐⭐ **the load-bearing part** — **WHO CALLS IT EACH FRAME**)*. ⭐ Mark it in the STATUS block: `build-state: DESIGN │ READY-TO-BUILD │ BUILDING │ BUILT` | **coordinator** |
+| **①a** | ⛔⛔⛔ **WHY THE MODULE DIAGRAM WAS ADDED** *(user, `2026-09-12`)*: 📌 **measured cost — a plan had to be rewritten after it was written.** A design prescribed *"move `LifecycleSystem` into `NetworkLifecycleSystemGroup` so it never runs during replay"*. ⛔ Prose hid that `ExecuteGroup` has **exactly ONE caller** — `NedReplicationModule.Tick` — so the group is a **private loop owned by one NETWORK module**, not a scheduler construct: on the editor *(`NullReplicationModule`)* and on BDC nodes it **never ticks**, and the move would have **silently stopped entity lifecycle** on both. ⇒ 🔒 **A class diagram shows what EXISTS; a sequence diagram shows ONE path. Only the module diagram shows WHAT IS NEVER REACHED — and "unreachable on host X" is the failure mode this codebase produces most.** ⭐ **Draw the dead edges** *(a group nobody executes, a system nobody registers)* **in a distinct colour and say so in a caption** | **coordinator** |
 | **①b** | ⭐⭐⭐ **The diagrams live in the DESIGN, never in the batch** — ⭐ full rule in its own section below, *"THE DIAGRAMS LIVE IN THE DESIGN, NEVER IN THE BATCH"*. ⛔ Not restated here: 📌 two rule files stating one rule is how the `.dev`/`docs` order rotted | **both** |
 | **②** | ⭐⭐⭐ **DRAW THEM AFTER THE ENUMERATION, NEVER BEFORE** — 📌 the `INVENTORY` rule feeds this one. ⭐⭐ **Every box that already exists is drawn as existing, with its file**, so a proposed class that duplicates it is visible on the same page. ⛔ **Any possibility for reuse must be UTILISED, not noted** | **coordinator** |
 | **③** | ⭐⭐ **An implementing task CHECKS the diagrams before building**, and reports it: *"the design carries N classes and M sequences; what I built matches / deviates HERE and why."* ⚠ **A deviation is a finding, not a silent choice** — ⭐ argue it in the report, as every good batch already does | **implementation** |
@@ -1240,8 +1241,31 @@ stale-below: <what in this file is history and must NOT be quoted>
 superseded-by: <path>            (when state is not LIVE)
 known-rot: <statements in here that a newer document has overturned>
 known-conflict: <another document that disagrees, and that this has not reconciled>
+related-designs:                 (⭐⭐⭐ REQUIRED — see the rule below)
+  - <path> — <what IT owns that THIS one does not>
 -->
 ```
+
+#### ⛔⛔⛔ `related-designs` IS MANDATORY — **a design that does not name its NEIGHBOURS will be missed** *(user, `2026-09-12`)*
+
+> 🔒 **User:** *"interlink the various related owning designs — to avoid situation that you miss some next
+> time."*
+
+📌 **The measured miss that produced this rule.** A session reasoned about replay lifecycle for **two days**
+— reading `docs/designs/replay-and-modules/DESIGN.md` end to end, sweeping `docs/` and `.dev/` by topic —
+and never found **`docs/designs/mgmt-1/DESIGN.md` §8.10 "Distributed Entity Lifecycle During Replay"**,
+which rules the question directly. ⛔ **`R-129` was obeyed and still failed**, because the owning document
+lives under a programme name (*"drill management"*) that no topical search for *"replay lifecycle"* reaches.
+⚠ **An architect relay found it — and mis-cited its path**, so even that only worked because the quote was
+verified against the tree.
+
+| ⭐ the rule | |
+|---|---|
+| ⭐⭐⭐ **every design's STATUS block lists the OTHER designs that own a piece of the same problem**, each with **one clause saying what IT owns that this one does not** | ⛔ a bare path is not enough — the clause is what tells a reader whether to open it |
+| ⭐⭐ **the link is RECIPROCAL** | ⛔ a one-way link is how the second document stays invisible. ⭐ When you add A→B, **add B→A in the same commit** |
+| ⭐⭐⭐ **when you DISCOVER a missed owning design, adding the reciprocal links is part of the fix** | ⛔ not optional follow-up. 🔒 Finding it once and not linking it guarantees the next session repeats the search |
+| ⭐ **name a near-duplicate as a `known-conflict`** | 📌 `docs/designs/cgf-1/mgmt-DESIGN.md` is a 3216-line near-copy of `mgmt-1`'s 3226 — ⚠ two producers for one slot *(`R-132`)*, and a reader can quote the stale half without knowing |
+| ⚠ **it is a POINTER, not a summary** | ⛔ do not restate the neighbour's content — that is how two documents rot apart |
 
 | ⭐ rule | why |
 |---|---|

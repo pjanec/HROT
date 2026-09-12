@@ -47,6 +47,12 @@ known-rot: ⛔⛔ §2.1's row "NetworkLifecycleSystemGroup | Disabled during rep
 stale-below: §2.1e's class-B conclusion and its 3-step plan (superseded by §2.1f); the retracted
   lifecycle line above; §2.1f's "asymmetry in BeginDestruction" flag (moot — see §2.1i). The other §2.1
   rows were not re-measured on 2026-09-11 and carry no claim either way.
+related-designs:
+  - docs/designs/mgmt-1/DESIGN.md — §8.10/§8.5 — THE OWNING RULE for entity lifecycle DURING replay ("the ELM pipeline is never invoked"). ⚠ This file reasoned about that for two days without finding it.
+  - docs/DESIGN_Deterministic_Network_Ids.md — §2b/§4c/§4d — the PREVIEW rewind trigger, the IPreviewRewindable/PreviewStateBracket seam, and HN-018 (the ELM as its third participant).
+  - docs/DESIGN_Entity_State_Sourcing.md — the RECORDED-vs-RE-DERIVED principle (R-136): state must be reconstructible from the TKB or a published TransientLocal descriptor.
+  - FDP/Engine/Fdp.ModuleHost/docs/ModuleHost-network-ELM-design-talk.md — §1/§2/Part 1 — WHY the construction barrier exists (local modules ACK before Active) and why the gateway joins the ELM loop as a blocking participant.
+  - docs/designs/two-ack/TwoAck-DESIGN.md — the IOS-facing two-phase ack that is BUILT ON TOP of the ELM handshake.
 -->
 # Design: Replay Isolation and Modern Module System
 
@@ -540,6 +546,135 @@ though it has no snapshot to give — its `Restore` is a *clear-and-re-derive*, 
 | **①** | does adding a participant perturb the preview rails? | ✅ **NO.** `APreviewLeavesNoTraceTests` and `PreviewLeavesNoTraceRails` assert **per-participant** behaviour *(allocator capture/restore, the map's duplicate-`Register` throw, the repository-resolved overload)* — ⛔ neither asserts a participant **count** nor iterates the bracket's list |
 | **②** | how many sites build the participant list? | ⭐ **THREE**, two lines each — `CgfSubsystem.cs:1127-1128`, `NodeBootstrapper.cs:251-253`, `EditorSubsystem.cs:2143-2144`; consumed by `ReferencePreviewHandler.cs:75` and `PreviewClusterOpHandler.cs:74` |
 | **③** | is relocating into the lifecycle group safe? | 🔴 **NO** — see the three measurements above |
+
+##### ⭐⭐⭐ DIAGRAM 1 — MODULE RELATIONSHIPS — **who registers what, and who TICKS what**
+
+⛔⛔ **This is the diagram whose absence cost the plan a rewrite.** 📐 The hazard is invisible in prose and
+obvious here: **`ExecuteGroup` has exactly ONE caller**, so the group is not a scheduler construct — it is a
+private loop owned by one *network* module, and two host families never reach it.
+
+```mermaid
+graph TD
+    subgraph kernel["ModuleHostKernel — the scheduler"]
+        SCHED["SystemScheduler<br/>phases; registration order within a phase"]
+    end
+
+    subgraph elm["EntityLifecycleModule — IEcsModule"]
+        BAS["BlueprintApplicationSystem<br/>BeforeSync · applies TKB template"]
+        LS["LifecycleSystem<br/>BeforeSync · drains acks, timeouts"]
+    end
+
+    PACK["EntityCreationPack"] -->|"RegisterSystem"| GPS["GhostPromotionSystem<br/>BeforeSync · SingleInstance"]
+    elm -->|"RegisterSystems :92-94<br/>order is load-bearing"| BAS
+    elm -->|"RegisterSystems :92-94"| LS
+
+    BAS --> SCHED
+    LS --> SCHED
+    GPS --> SCHED
+
+    subgraph ned["NedReplicationModule"]
+        NLG["NetworkLifecycleSystemGroup<br/>holds GhostCreationSystem only"]
+        TICK["Tick :493<br/>ExecuteGroup — THE ONLY CALLER"]
+    end
+    TICK --> NLG
+
+    BDC["BdcReplicationModule :61<br/>builds a group, NEVER executes it"]
+    NULLR["NullReplicationModule — the EDITOR :150<br/>exposes a group, nothing ticks it"]
+
+    RH["ReferenceReplayLoadHandler<br/>SetSystemsEnabled toggles 4 groups"] -.->|"Enabled = false"| NLG
+
+    classDef dead fill:#fdd,stroke:#c00
+    classDef live fill:#dfd,stroke:#080
+    class BDC,NULLR dead
+    class SCHED,LS,GPS live
+```
+
+| 🔴 what the picture shows that the prose hid | |
+|---|---|
+| ⛔ **`LifecycleSystem` and `GhostPromotionSystem` reach the SCHEDULER, not the group** | ⇒ they run on **every** host, replay or not — including during playback |
+| 🔴 **the group is reachable only through `NedReplicationModule.Tick`** | ⇒ relocating them into it **silently disables lifecycle** on the editor and on BDC |
+| ⚠ **a system in BOTH would execute twice a frame** | the scheduler runs it, then `ExecuteGroup` runs it again |
+
+##### ⭐⭐ DIAGRAM 2 — THE REWIND SEAM — **existing classes, and the ONE that is new**
+
+```mermaid
+classDiagram
+    class IPreviewRewindable {
+        <<interface>>
+        +string Name
+        +object Capture()
+        +void Restore(object snapshot)
+    }
+    class PreviewStateBracket {
+        -List~IPreviewRewindable~ participants
+        +Capture() void
+        +Restore() void
+        +UnrestorableParticipants List~string~
+    }
+    class AllocatorRewind
+    class EntityMapRewind
+    class RepositoryEntityMapRewind
+    class LifecycleModuleRewind {
+        +Capture() object
+        +Restore(object) void
+    }
+    class EntityLifecycleModule {
+        -Dictionary pendingConstruction
+        -Dictionary pendingDestruction
+        +BeginConstruction(e, blueprintId, frame, cmd)
+        +BeginDestruction(e, frame, reason, cmd)
+        +DrainInstantComplete(cmd, frame)
+        +CheckTimeouts(frame, cmd)
+    }
+    class LifecycleSystem {
+        +Execute(view, dt)
+    }
+
+    PreviewStateBracket o-- "1..*" IPreviewRewindable
+    IPreviewRewindable <|.. AllocatorRewind
+    IPreviewRewindable <|.. EntityMapRewind
+    IPreviewRewindable <|.. RepositoryEntityMapRewind
+    IPreviewRewindable <|.. LifecycleModuleRewind
+    LifecycleModuleRewind --> EntityLifecycleModule : clears and arms
+    LifecycleSystem --> EntityLifecycleModule : drives each tick
+```
+
+⭐ **`LifecycleModuleRewind` is the ONLY new type** — everything else exists. ⭐⭐ It is the fourth
+participant `DESIGN_Deterministic_Network_Ids.md:306` said the list was built to accept.
+
+##### ⭐⭐ DIAGRAM 3 — THE BOUNDARY SEQUENCE — **clear, then re-derive on the next tick**
+
+⭐ The split exists because `Restore(object)` has **no command buffer and no frame number**, and
+`BeginConstruction` needs both. ⇒ `Restore` clears and arms; `LifecycleSystem` re-derives where those are
+in hand.
+
+```mermaid
+sequenceDiagram
+    participant H as Replay/Preview handler
+    participant R as EntityRepository
+    participant B as PreviewStateBracket
+    participant P as LifecycleModuleRewind
+    participant E as EntityLifecycleModule
+    participant L as LifecycleSystem
+
+    Note over H,R: world replacement — restore, seek, or preview exit
+    H->>R: rewind or restore the world
+    H->>B: Restore()
+    B->>P: Restore(token)
+    Note right of P: token is NON-NULL,<br/>else the bracket skips this
+    P->>E: clear both dictionaries + arm re-derive
+
+    Note over L,E: the NEXT tick — cmd buffer and frame are in hand
+    L->>E: DrainInstantComplete(cmd, frame)
+    E-->>L: re-derive armed
+    loop each Constructing entity with TkbIdentity
+        E->>E: BeginConstruction(e, TkbType, resumeFrame, cmd)
+    end
+    loop each TearDown entity
+        E->>E: BeginDestruction(e, resumeFrame, "resume", cmd)
+    end
+    Note right of E: resumeFrame, never the recorded one —<br/>CheckTimeouts subtracts unsigned
+```
 
 ##### ⚠ The naming call, and what this withdraws
 

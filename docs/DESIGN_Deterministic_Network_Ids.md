@@ -20,6 +20,10 @@ known-rot: ⛔ §4 ④ says "hook it in PreviewClusterOpHandler so 'what preview
   IMPOSSIBLE for the two pooled allocators (§4b) and was NOT built. ⛔ §4b's closing recommendation
   ("the two pooled ones do not implement it") is SUPERSEDED by §4c — all five implement it. Do not quote
   §4 ③/④ or §4b's recommendation without §4c and §4d.
+related-designs:
+  - docs/designs/replay-and-modules/DESIGN.md — §2.1h–§2.1m — the SAME ELM rewind defect reached from REPLAY and SEEK, and the unified plan that extends this document's bracket.
+  - docs/designs/mgmt-1/DESIGN.md — §8.10/§8.5 — what must happen to entity lifecycle during replay; the other rewind trigger.
+  - docs/DESIGN_Entity_State_Sourcing.md — the recorded-vs-re-derived principle that decides what a participant may re-derive.
 -->
 # DESIGN — **a preview must leave no trace** *(the network-id counter, and what else)*
 

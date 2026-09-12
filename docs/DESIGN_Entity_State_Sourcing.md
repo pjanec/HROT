@@ -13,6 +13,10 @@ known-conflict: docs/designs/others/DESIGN-NetworkSpawning.md:112 says "Initial 
   entity master, etc.) are set as an override on top of TKB template defaults." ⭐ TRUE, and it means
   the LIFECYCLE ESSENTIALS only (things that are also published descriptors). ⛔ It must NOT be read as
   licence for arbitrary scenario-authored overrides — see §1.
+related-designs:
+  - docs/DESIGN_Deterministic_Network_Ids.md — §2b/§4c — what happens to non-repository state across an editor preview rewind (the participant seam).
+  - docs/designs/replay-and-modules/DESIGN.md — §2.1f–§2.1m — the same question for REPLAY and SEEK, incl. which caches self-heal and which protocols must be re-derived.
+  - docs/designs/mgmt-1/DESIGN.md — §8.10 — entity lifecycle during replay.
 -->
 # ⭐⭐⭐ `DESIGN` — **ENTITY STATE SOURCING: where an entity's state legitimately comes from**
 
