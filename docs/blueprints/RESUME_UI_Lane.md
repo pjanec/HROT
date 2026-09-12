@@ -36,19 +36,34 @@ current-answer: ⚠⚠ THERE ARE NOW **THREE** LIVE STRANDS ON THIS LANE. Read t
       <<EXISTS>> stereotype labels the BOX, so a NEW member on an OLD class inherits "exists" silently.
 
   (b) ⭐⭐ P3 — AUTO-TAKEOVER (role-affinity ownership), docs/DESIGN_Role_Affinity_Ownership.md.
-      This is what the user meant by "auto promotion". build-state: BUILDING — STEP 0a ONLY.
-      Step 0a (the GhostPromotionSystem relocation) was done 2026-09-11; §6a is its as-built.
-      STEPS 0, 1a, 1, 2, 3, 3b, 3c, 4 ARE ENTIRELY UNBUILT — measured: BirthCriticalComponents,
-      IRoleShardProvider, RoleShardKey, SingleNodePerRoleShardProvider, IRoleAffinityPolicy and
-      RoleAffinityPolicy all have ZERO occurrences in .cs.
-      ✅ NOT BLOCKED ON THE USER: §5's three decisions are all resolved (① /①b 2026-09-01; ② approved and
-      ③ ruled 2026-09-10). What remains in §5 is a per-system REVIEW, not a decision.
-      ⚠⚠ STEP 3b IS BIGGER THAN ITS OWN §3.5 SAYS: that section named ONE un-gated tick system and there
-      are SEVEN, three of which WRITE cognitive state (HsmTickSystem:110-113 the non-negotiable second).
-      And no production system uses QueryBuilder's .WithAuthority<T>(), while BTreeTickSystem:62-65 has no
-      authority filter — so P3 needs BOTH the narrowed Muscle-only registration AND the query filter, or
-      the whole design is cosmetic. Suggested start: step 0 (TkbTemplate.BirthCriticalComponents +
-      AddBirthCriticalComponent<T>(), mirroring AddMandatoryComponent<T>(), seeding SimTransform).
+      This is what the user meant by "auto promotion". build-state: BUILDING — steps 0a AND 0 done.
+      ✅ STEP 0 DONE 2026-09-12 (CE-259ay): TkbTemplate.BirthCriticalComponents +
+      AddBirthCriticalComponent<T>(), seeded on every production template, four rails in TkbTemplateTests
+      plus a catalogue-wide rail in HrotEnvironmentTests (red-proofed by un-seeding one template).
+      ⭐⭐⭐ NEXT IS STEP 1a — the role-shard seam: IRoleShardProvider + RoleShardKey +
+      SingleNodePerRoleShardProvider in Fdp.Toolkits/Replication (§3.8, user-ruled 2026-09-10).
+      Re-measured 2026-09-12: those three plus IRoleAffinityPolicy and RoleAffinityPolicy still have
+      ZERO occurrences in .cs.
+      ⛔⛔ HARD BLOCKER ON STEP 2, FILED AS CE-259az — DO NOT SHIP STEP 2 BEFORE ANSWERING IT.
+      TkbDeserializer builds templates purely from descriptor keys and declares NO components, so a
+      FILE-LOADED template has an empty BirthCriticalComponents — and CreateTkb() is the DEV default
+      while files are the PRODUCTION path. Step 2 would turn every file-loaded template into the exact
+      origin-flash defect §3.1 exists to prevent, on the production path only. It is a SCHEMA question
+      (does the TKB file format declare birth-criticality?), not a seeding one.
+      ✅ NOT BLOCKED ON THE USER otherwise: §5's three decisions are all resolved (① /①b 2026-09-01;
+      ② approved and ③ ruled 2026-09-10). What remains in §5 is a per-system REVIEW, not a decision.
+      ⚠⚠ STEP 3b IS BIGGER THAN ITS OWN §3.5 SAYS, and §3.5's own numbers are soft — RE-ENUMERATE, do
+      not trust them. The design says "SEVEN un-gated" while its own table names eight beyond
+      BTreeTickSystem, and a 10th file (Fdp.Examples.UrbanCombat/TelemetryReporterSystem.cs) matches the
+      same query. Three of them WRITE cognitive state; HsmTickSystem:110-113 is the non-negotiable second
+      (BehaviorState.BrainTier selects the tier, so gating only BTreeTickSystem leaves every HSM-tier
+      ghost double-ticked). The filter is WithOwned<T>() at QueryBuilder.cs:93 — and it has NINE
+      production call sites, not the three §3.5 claims (six are in Stride/Hrot.Stride.Core, which that
+      grep never scoped). So P3 needs BOTH the narrowed Muscle-only registration AND the query filter.
+      ⭐ THE DESIGN WAS FULLY RE-VERIFIED 2026-09-12 at the user's instruction — its STATUS block's
+      `verified:` field lists every locator that had rotted and is now corrected in place, so do not
+      redo that sweep. §4.1b is a NEW module-relationship diagram; read it before step 3b, it is the
+      one that shows the red band of un-gated tick systems.
 
   (c) ⭐ THE UI HALF of the authoring surface — §5/§5b's per-host tails, tracker row CE-259ax, which
       lists all four pieces AND the §5b.3 hazard that must be built first: delegating to

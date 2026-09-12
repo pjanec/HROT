@@ -1,4 +1,5 @@
 using System;
+using Fdp.Core;
 using Fdp.Interfaces;
 using Fdp.Toolkit.Behavior;
 using Fdp.Toolkit.Tkb.Domain;
@@ -73,6 +74,18 @@ namespace Hrot.Core.Tkb
         {
             if (tkb == null) throw new ArgumentNullException(nameof(tkb));
 
+            // ⭐⭐⭐ P3 step 0 — EVERY template here declares SimTransform BIRTH-CRITICAL.
+            //   📄 docs/DESIGN_Role_Affinity_Ownership.md §3.1. Under role-affinity ownership a node
+            //   owns a component only if it holds that component's role — applied to POSITION that is
+            //   wrong: a Brain-role node (CGF) creating one of these would produce SimTransform
+            //   UNOWNED, and since every egress translator gates on HasAuthority the spawn coordinate
+            //   would be written correctly and NEVER PUBLISHED. Peers would see the origin.
+            //   ⭐ Safe on all five even though none lists SimTransform as a MandatoryComponent: the
+            //   create leg intersects this set with the entity's LIVE component mask, so a template
+            //   whose entity never receives one contributes no bits. ⛔ UNDER-declaring is the
+            //   dangerous direction, and it is silent.
+            //   ⚠ Nothing reads it yet — steps 1-3 of that design are the consumers.
+
             // CivilianPedestrian (1001)
             {
                 var t = new TkbTemplate("CivilianPedestrian", TkbCivilianPedestrian);
@@ -81,6 +94,7 @@ namespace Hrot.Core.Tkb
                 t.AddDescriptor(new VehicleParametersDto { Length = 0.6f, Width = 0.4f, MaxSpeedFwd = 2.0f, MaxAccel = 1.0f });
                 t.AddDescriptor(new BehaviorProfileDto { SimTier = BehaviorConstants.SimTierCivilian, BrainTier = 0, CanMove = true });
                 t.AddDescriptor(new SensorCapabilitiesDto { VisionRange = CivilianVisionRange, HearingRange = CivilianHearingRange, FieldOfViewDegrees = 360f });
+                t.AddBirthCriticalComponent<SimTransform>();
                 tkb.Register(t);
             }
 
@@ -91,6 +105,7 @@ namespace Hrot.Core.Tkb
                 t.AddDescriptor(new StrideRenderModelDefDto { ModelAssetRef = "Models/Box2x1x1", ShapeKind = CollisionShapeKind.OrientedBox, ShapeHeight = 1.5f });
                 t.AddDescriptor(new VehicleParametersDto { Length = 4.5f, Width = 2.0f, MaxSpeedFwd = 25.0f, MaxAccel = 3.0f });
                 t.AddDescriptor(new BehaviorProfileDto { SimTier = BehaviorConstants.SimTierCivilian, BrainTier = 0, CanMove = true });
+                t.AddBirthCriticalComponent<SimTransform>();
                 tkb.Register(t);
             }
 
@@ -102,6 +117,7 @@ namespace Hrot.Core.Tkb
                 t.AddDescriptor(new VehicleParametersDto { Length = 7.0f, Width = 3.5f, MaxSpeedFwd = 12.0f, MaxAccel = 2.0f });
                 t.AddDescriptor(new BehaviorProfileDto { SimTier = BehaviorConstants.SimTierTactical, BrainTier = BehaviorConstants.BrainTierHsm, CanMove = true, CanInteract = true });
                 t.AddDescriptor(new CombatPlatformDefDto { MaxHealth = ApcMaxHealth });
+                t.AddBirthCriticalComponent<SimTransform>();
                 tkb.Register(t);
             }
 
@@ -116,6 +132,7 @@ namespace Hrot.Core.Tkb
                 t.AddDescriptor(new WeaponSuiteDto { Mounts = { new WeaponMountDto { InitialAmmunition = RifleAmmo, MuzzleVelocity = RifleMuzzleVelocity } } });
                 t.AddDescriptor(new SensorCapabilitiesDto { VisionRange = SoldierVisionRange, HearingRange = SoldierHearingRange, FieldOfViewDegrees = 360f });
                 t.AddDescriptor(BuildMannequinAnimationDef());  // ST-011
+                t.AddBirthCriticalComponent<SimTransform>();
                 tkb.Register(t);
             }
 
@@ -130,6 +147,7 @@ namespace Hrot.Core.Tkb
                 t.AddDescriptor(new WeaponSuiteDto { Mounts = { new WeaponMountDto { InitialAmmunition = RpgAmmo, MuzzleVelocity = RpgMuzzleVelocity } } });
                 t.AddDescriptor(new SensorCapabilitiesDto { VisionRange = SoldierVisionRange, HearingRange = SoldierHearingRange, FieldOfViewDegrees = 360f });
                 t.AddDescriptor(BuildMannequinAnimationDef());  // ST-011
+                t.AddBirthCriticalComponent<SimTransform>();
                 tkb.Register(t);
             }
         }

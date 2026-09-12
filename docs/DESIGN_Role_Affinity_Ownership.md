@@ -1,16 +1,42 @@
 <!--STATUS
 state: LIVE
-updated: 2026-09-11
-build-state: BUILDING — step 0a only. ⛔ NOT "BUILT": open-risk below still binds (§3.5 / step 3b).
+updated: 2026-09-12
+build-state: BUILDING — steps 0a and 0 done. ⛔ NOT "BUILT": open-risk below still binds (§3.5 / step 3b).
+verified: ⭐⭐ THE WHOLE DESIGN WAS RE-MEASURED AGAINST THE TREE ON 2026-09-12 before step 0 was built
+  (user: "verify design before, might be stale"). VERDICT: every DECISION holds and nothing load-bearing
+  is stale — the six unbuilt types are still at ZERO .cs occurrences, the blanket grant is byte-identical,
+  AddMandatoryComponent<T>() is exactly the mirror target §3.1 claims, and WithOwned<T>()/WithoutOwned<T>()
+  are exactly at QueryBuilder.cs:93/:105. What HAD rotted was LOCATORS and one count, all corrected in
+  place where they stood:
+    - §2.1's blanket grant is at NetworkSpawningSystem.cs:184-191, not :174-182 (code unchanged).
+    - §3.2's promote insertion point is at :208 / :211-214, not :122 / :129 — moved ~85 lines by step 0a,
+      i.e. this design rotted against a change THIS design made.
+    - inventory ⑥'s third SetAuthority caller is a PRIVATE NESTED class inside NedReplicationModule
+      (declared :573, call at :607); "LocalAuthorityYieldSystem:563" reads like a file path and resolves
+      to nothing. The count of three still holds.
+    - §3.8's GhostCreationSystem NetworkIdentity is at :65, not :51.
+    - 🔴 §3.5 UNDERCOUNTS WithOwned<T>() adoption: NINE production call sites, not three. The six it never
+      saw are all in Stride/Hrot.Stride.Core, because the 2026-09-10 grep was scoped to FDP/+Hrot/. This
+      STRENGTHENS §5 ①c rather than threatening it.
+    - ⚠ §3.5's "SEVEN un-gated" is itself soft: its own table names eight beyond BTreeTickSystem, and a
+      10th file (Fdp.Examples.UrbanCombat/TelemetryReporterSystem.cs) matches the same query. Step 3b must
+      re-enumerate rather than trust the number.
+  ⛔ AND A STRUCTURAL GAP, now fixed: this design carried a classDiagram and two sequenceDiagrams but NO
+  module-relationship diagram, despite §3.5 being made entirely of "which systems tick, on which host,
+  registered by whom". §4.1b is that diagram.
 current-answer: §3 is the design; §4 carries the UML; §6 is the sequencing; ⭐⭐ §6a IS THE AS-BUILT and
   wins over §3.7 where they differ (§3.7 is unchanged and still right; §6a ADDS the two attributes the
   build needed).
   ✅✅✅ STEP 0a IS DONE, 2026-09-11 — the GhostPromotionSystem relocation into EntityCreationPack.
-  ⛔⛔ CORRECTED: this block said "Nothing here is built yet". That was true until 2026-09-11 and is now
-  false for step 0a ONLY. Steps 0, 1a, 1, 2, 3, 3b, 3c and 4 remain entirely unbuilt — measured
-  2026-09-11: BirthCriticalComponents, IRoleShardProvider, RoleShardKey,
-  SingleNodePerRoleShardProvider, IRoleAffinityPolicy and RoleAffinityPolicy have ZERO occurrences
-  in .cs.
+  ✅✅✅ STEP 0 IS DONE, 2026-09-12 — TkbTemplate.BirthCriticalComponents + AddBirthCriticalComponent<T>(),
+  seeded on every production template, plus a catalogue-wide rail. §6b IS ITS AS-BUILT and carries the
+  one gap it does NOT close: file-loaded templates (TkbDeserializer declares no components, so a
+  file-loaded template has an EMPTY list — and CreateTkb() is the DEV default while files are the
+  PRODUCTION path). ⛔ That must be answered BEFORE step 2, or step 2 turns every file-loaded template
+  into the origin-flash defect §3.1 exists to prevent.
+  ⛔⛔ Steps 1a, 1, 2, 3, 3b, 3c and 4 remain entirely unbuilt — re-measured 2026-09-12:
+  IRoleShardProvider, RoleShardKey, SingleNodePerRoleShardProvider, IRoleAffinityPolicy and
+  RoleAffinityPolicy still have ZERO occurrences in .cs. NEXT IS STEP 1a (the role-shard seam).
   ⭐ §5's three decisions are all RESOLVED (① / ①b 2026-09-01; ② user-approved and ③ user-ruled
   2026-09-10; ①c "nothing measurable remains"). What is left in §5 is a per-system REVIEW for step 3b,
   not a decision — so this design is NOT blocked on the user.
@@ -51,7 +77,7 @@ open-risk: §3.5 -- BTreeTickSystem's query carries NO authority filter, so decl
      RoleShardKey (NetworkId => balancing, TkbType => specialisation) + SingleNodePerRoleShardProvider
      as the only implementation built. Both insertion points can fill the key -- measured:
      NetworkSpawningSystem has networkId local at :108 and stamps NetworkIdentity at :138;
-     GhostPromotionSystem's ghost carries NetworkIdentity (GhostCreationSystem:51) and TkbIdentity.
+     GhostPromotionSystem's ghost carries NetworkIdentity (GhostCreationSystem:65 -- re-measured 2026-09-12, was :51) and TkbIdentity.
      §3.3's OwnableMask signature and its single flat role mask are SUPERSEDED by §3.8 -- the mask is
      now PER ROLE and each role is shard-tested separately.
   🔴 §3.8 carries TWO CONSTRAINTS a later implementation MUST honour, and the first kills the obvious
@@ -142,7 +168,7 @@ operational rule is simply: **start a muscle node only after CGF answers.**
 | ③ | `search_graph name_pattern=".*(Ownership\|Authority\|Takeover\|Promotion).*" label="Class"` | **44** | 23 production, listed in §2.2 |
 | ④ | `search_graph name_pattern=".*TkbTranslator$" label="Class"` | **9** | the TKB→ECS projection set (`TkbTranslatorSet.Base()` carries 6 of them) |
 | ⑤ | `grep "AuthorityMask"` production, non-test | **1 writer outside the wire path** | `NetworkSpawningSystem.cs:181` |
-| ⑥ | `grep "SetAuthority("` production, non-test | **3** | `OwnershipIngressSystem:79` · `DeferredTakeoverSystem:118` · `LocalAuthorityYieldSystem:563` — **all three wire-driven** |
+| ⑥ | `grep "SetAuthority("` production, non-test | **3** | `OwnershipIngressSystem:79` · `DeferredTakeoverSystem:118` · `LocalAuthorityYieldSystem` — **all three wire-driven**. ⚠ **Re-measured `2026-09-12`: the third is NOT its own file** — it is a PRIVATE NESTED class inside `NedReplicationModule` *(declared `:573`, registered `:385`, and the `SetAuthority` call is at **`:607`**)*, so the earlier `LocalAuthorityYieldSystem:563` reads like a file path and resolves to nothing. ⭐ The COUNT of three still holds |
 
 ⇒ ⭐⭐⭐ **Query ⑤ is the finding.** There is exactly **one** place where a node grants itself authority
 over an entity it created, and it is a blanket copy.
@@ -153,7 +179,7 @@ over an entity it created, and it is a blanket copy.
 
 ### 2.1 The blanket grant
 
-`FDP/Toolkits/Fdp.Toolkits/NetworkSpawning/Systems/NetworkSpawningSystem.cs:174-182`:
+`FDP/Toolkits/Fdp.Toolkits/NetworkSpawning/Systems/NetworkSpawningSystem.cs:184-191` *(⚠ re-measured `2026-09-12`; this section said `:174-182` — the CODE is byte-identical, only the lines moved)*:
 
 ```csharp
 bool isLocalAuthority = cmd.OwnerNodeId == _localNodeId;
@@ -281,7 +307,7 @@ keeps the handshake it already has, and needs it.
 | leg | file | change |
 |---|---|---|
 | **CREATE** — the creator declines | `NetworkSpawningSystem.cs:181` | `metaNS.AuthorityMask = compNS & policy.OwnableMask(...)` instead of `= compNS` |
-| **PROMOTE** — the receiver claims | `GhostPromotionSystem`, after `:122`'s translator loop, before `:129`'s promote | set the bits `policy.OwnableMask(...)` names, guarded by `HasComponentByTypeId` |
+| **PROMOTE** — the receiver claims | `GhostPromotionSystem`, after the translator loop, before the promote — ⚠ **re-measured `2026-09-12`: `:208` and `:211-214`**, not the `:122`/`:129` this row used to name. 📌 Step `0a`'s own relocation moved them ~85 lines, so the design rotted against a change THIS design made | set the bits `policy.OwnableMask(...)` names, guarded by `HasComponentByTypeId` |
 
 ⭐ Ordering is already correct: the translator loop has materialised the components before either point runs.
 
@@ -477,7 +503,7 @@ var q = repo.Query()
 | the old claim | 📐 measured `2026-09-10` |
 |---|---|
 | the method is `.WithAuthority<T>()` at `:97` | 🔴 **there is no such method.** It is **`WithOwned<T>()` at `QueryBuilder.cs:93`** *(plus `WithoutOwned<T>()` at `:105`)*. ⇒ the design named a symbol that does not exist, so every reader searching for it found nothing and could have concluded the capability was missing |
-| *"no production system uses it"* | 🔴 **THREE production systems use it, and the comments say it REPLACED the legacy manual `PrimaryOwnerId == LocalNodeId` checks** *(`MOD1-P1T3`)*: `Fdp.Toolkits/Geographic/Systems/CoordinateTransformSystem.cs:29` `.WithOwned<Position>()` · `GeodeticSmoothingSystem.cs:31` `.WithoutOwned<Position>()` · `CarKinem/Systems/CarKinematicsSystem.cs:73` `.WithOwned<SimTransform>()`. ⇒ ⭐⭐ **this is an ADOPTED, production-proven pattern, not a dormant capability** |
+| *"no production system uses it"* | 🔴 **THREE production systems use it, and the comments say it REPLACED the legacy manual `PrimaryOwnerId == LocalNodeId` checks** *(`MOD1-P1T3`)*: `Fdp.Toolkits/Geographic/Systems/CoordinateTransformSystem.cs:29` `.WithOwned<Position>()` · `GeodeticSmoothingSystem.cs:31` `.WithoutOwned<Position>()` · `CarKinem/Systems/CarKinematicsSystem.cs:73` `.WithOwned<SimTransform>()`. ⇒ ⭐⭐ **this is an ADOPTED, production-proven pattern, not a dormant capability.** ⚠⚠ **AND EVEN THREE IS AN UNDERCOUNT — re-measured `2026-09-12`: there are NINE production call sites.** The six this design never saw are all in **`Stride/Hrot.Stride.Core`** *(`BulletReverseSyncSystem:144` · `SplitAuthorityStrideSyncScript:98` · `BulletCharacterMotor:168` · `PhysicsBodyLifecycleSystem:179,196` · `KinematicVehicleMotor:142`)*, because the `2026-09-10` grep was scoped to `FDP/`+`Hrot/`. 🔒 That is the `Stride/`-is-out-of-solution blind spot `CLAUDE.md` already names, hit again. ⭐ **It only STRENGTHENS the conclusion** — the physics/kinematics layer is built on this filter |
 | *(implied)* the filter might cost per-frame time — §5 ①c's escape clause | ⭐⭐ **NOT a risk, measured at the enumerator.** `EntityQuery.cs:157-158` applies the authority masks as **step 4**, *after* the hot component-mask filter *and after* the cold `meta` fetch that the liveness check (`:145`) already pays. ⇒ the added cost is **two `BitMask512` ops on an already-loaded cache line**, and `CarKinematicsSystem` already pays it every frame in production. ⛔ **§5 ①c's *"if `.WithAuthority` proves to have a measurable per-frame cost"* is therefore CLOSED — it does not** |
 
 ⛔⛔⛔ **AND THE BIGGER FINDING: THIS SECTION NAMES ONE SYSTEM; THERE ARE SEVEN.**
@@ -595,6 +621,78 @@ classDiagram
     note for DeferredTakeoverSystem "EXISTS - unchanged, still the override path"
 ```
 
+### 4.1b ⭐⭐⭐ MODULE RELATIONSHIPS — **who REGISTERS each system, and who TICKS it each frame**
+
+⚠⚠ **ADDED `2026-09-12`. This design was `READY-TO-BUILD` for eleven days with NO module diagram**, and
+obligation ①a exists for exactly the failure mode this design's §3.5 is made of: *"which systems tick,
+on which host, registered by whom."* ⛔ The class diagram shows what EXISTS and the two sequences show
+ONE path each; **only this one shows what is NEVER REACHED.**
+
+```mermaid
+graph TD
+    subgraph PACK["EntityCreationPack.Build - SHARED, every ECS host"]
+        NSS["NetworkSpawningSystem<br/>step 2 insertion point"]
+        GPS["GhostPromotionSystem<br/>step 3 insertion point"]
+        POL["IRoleAffinityPolicy<br/>NOT BUILT - step 1"]
+        SHARD["IRoleShardProvider<br/>NOT BUILT - step 1a"]
+    end
+
+    subgraph REPL["IReplicationModule - THREE implementations"]
+        GCS["GhostCreationSystem<br/>stays here"]
+        NED["NedReplicationModule"]
+        BDC["BdcReplicationModule"]
+        NUL["NullReplicationModule<br/>editor / offline"]
+    end
+
+    subgraph TICK["Cognitive tick systems - the step 3b surface"]
+        BT["BTreeTickSystem"]
+        HSM["HsmTickSystem"]
+        CC["CognitiveCleanupSystem WRITES"]
+        CA["ChannelArbitrationSystem WRITES"]
+        CI["CognitiveInterruptSystem WRITES"]
+        REST["4 more read-mostly<br/>judge each"]
+    end
+
+    TKB["TkbTemplate.BirthCriticalComponents<br/>BUILT step 0"]
+    REG["CognitiveComponentRegistry<br/>the narrowing lever - step 3b (a)"]
+
+    TKB -->|creator birthright bits| POL
+    SHARD -->|ServesRole gate| POL
+    POL -->|OwnableMask| NSS
+    POL -->|OwnableMask| GPS
+    GCS -->|makes the ghost| GPS
+    NED --> GCS
+    BDC --> GCS
+    NUL -.->|no wire at all| GCS
+    REG -->|decides what exists| BT
+    REG -->|decides what exists| HSM
+    NSS -->|AuthorityMask| BT
+    NSS -->|AuthorityMask| HSM
+    NSS -->|AuthorityMask| CC
+    NSS -->|AuthorityMask| CA
+    NSS -->|AuthorityMask| CI
+    NSS -->|AuthorityMask| REST
+
+    classDef unbuilt fill:#fff3cd,stroke:#b8860b,stroke-width:2px
+    classDef hazard fill:#ffd6d6,stroke:#c00,stroke-width:2px
+    classDef done fill:#d7f7d7,stroke:#2a7,stroke-width:2px
+    class POL,SHARD unbuilt
+    class BT,HSM,CC,CA,CI,REST hazard
+    class TKB done
+```
+
+⭐⭐ **CAPTION — what this shows that the prose and the other two diagrams hid.**
+
+| ⭐ | |
+|---|---|
+| ⭐⭐⭐ **the RED band is the answer to *"is this design cosmetic?"*** | every one of those systems reads the world **without** consulting `AuthorityMask`. ⇒ the two insertion points can set the bits perfectly and **nothing changes behaviour** until step 3b. ⛔ Prose said this in a sentence; the diagram makes it the widest thing on the page |
+| ⭐⭐ **the policy has TWO consumers, not one** | `NetworkSpawningSystem` *(create)* and `GhostPromotionSystem` *(promote)*. ⭐ Both are now inside **one** shared pack — which is only true since step `0a` moved promotion out of `NedReplicationModule`. ⇒ **step 0a was a precondition for this design, not a tidy-up** |
+| ⭐⭐⭐ **the dead edge: `NullReplicationModule`** | drawn dotted. A host with no wire still creates ghosts through the same seam, and **`IRoleAffinityPolicy` must answer on it** — that is `§2.3`'s network-agnosticism made visible rather than argued |
+| ⭐ **`CognitiveComponentRegistry` points at the TICK systems, not at the pack** | it is step 3b's *(a)* lever and it works by **making the component not exist**, so the query never matches. ⛔ It cannot help the case where a node legitimately registers brain components and receives someone else's ghost — which is why 3b needs *(b)* as well |
+| ⚠ **what is NOT drawn, deliberately** | the per-frame scheduler phase of each tick system. That is `ModuleHostKernel` scheduling, unchanged by this design, and drawing it would invite the `NetworkLifecycleSystemGroup` mistake in reverse |
+
+---
+
 ### 4.2 Sequence — **Path B: a Muscle node creates a brain-enabled entity**
 
 ⚠ The create leg is the half that matters. A promote-only diagram describes a *claim*, and a claim needs
@@ -676,7 +774,7 @@ sequenceDiagram
 | step | what | gate |
 |---|---|---|
 | **0a** | ✅✅✅ **DONE `2026-09-11` — see §6a AS-BUILT.** ~~RELOCATE `GhostPromotionSystem` registration from `NedReplicationModule` into `EntityCreationPack`~~ | ✅ gate met, and made STRUCTURAL rather than counted: `[SingleInstance]` + `[UpdateAfter]`. Four inverse-edit red-proofs |
-| **0** | ⭐ `TkbTemplate.BirthCriticalComponents` + `AddBirthCriticalComponent<T>()`, mirroring the existing `AddMandatoryComponent<T>()`; seed **`SimTransform`** on the templates that carry one | unit: a template that does not list it does not report it; the list is network-free *(no `DescriptorOwnershipMap`, no participant, so it holds on a networkless node)* |
+| **0** | ✅✅✅ **DONE `2026-09-12` — see §6b AS-BUILT.** ~~`TkbTemplate.BirthCriticalComponents` + `AddBirthCriticalComponent<T>()`, mirroring `AddMandatoryComponent<T>()`; seed **`SimTransform`** on the templates that carry one~~ | ✅ both gate halves met *(`TkbTemplateTests`)*, ⭐ plus a catalogue-wide rail the step did not ask for. ⚠ **ONE GAP, recorded not closed: file-loaded templates** — §6b |
 | ⭐⭐ **1a** | 🆕 **`IRoleShardProvider` + `RoleShardKey` + `SingleNodePerRoleShardProvider`** in `Fdp.Toolkits/Replication` — §3.8, user ruling `2026-09-10` | unit: the default provider answers `true` for every DECLARED role and `false` otherwise, **for any key** *(incl. `NetworkId == 0`, the networkless case)*; ⭐ **a rail that the default IGNORES the key** — red-proof: make it read `NetworkId` and the "identical on every node" contract rail reddens |
 | **1** | `IRoleAffinityPolicy` + `RoleAffinityPolicy` in `Fdp.Toolkits/Replication`, ⚠ **taking the provider and a mask PER ROLE** *(§3.8 — ⛔ not the single flat mask §3.3 first drew)* | unit: Brain and Muscle masks are **disjoint** over the brain/kinematic sets, **and** birth-critical components are in **both**. ⭐⭐ **AND the shard rail: with a stub provider answering `false` for `Brain`, a Brain-declaring node's mask contains NO brain components** — this is the one that proves the seam is real rather than decorative |
 | **2** | `NetworkSpawningSystem:181` intersects with the policy; **null policy keeps today's behaviour** | rail: with no policy, the mask is unchanged *(red-proof: inject a policy, assert the bits drop)*. ⭐⭐ **AND the birthright rail: a creator ALWAYS keeps `dtWorldPos`, whatever its role** — this is the one the architect's correction exists to protect, so it is written before step 2's code |
@@ -684,6 +782,40 @@ sequenceDiagram
 | **3b** | 🔴 **the execution gate** — §3.5: `.WithAuthority<BehaviorState>()` on `BTreeTickSystem`, and narrow the Muscle-only registration | rail: a node holding brain components it does **not** own ticks them **zero** times. ⛔ **Without this the whole design is cosmetic** — authority would gate replication while both nodes still ran the tree |
 | ⭐ **3c** | 🆕 **the BOOT WARNING** *(§5 ② — user-approved `2026-09-10`)*: at the composition root, warn once if `IClusterStateCache.GetLeastLoadedNode(NodeRole.Brain)` is `null`. ⛔ **WARN, never throw** *(a pure-Muscle test cluster is legitimate)*, and ⛔ **at the root, not in the policy** — it is NED-only and the policy stays network-agnostic *(§2.3)* | rail: the warning fires on a roster with no Brain and is **silent** when one is present |
 | **4** | hand CGF a Brain policy and SimHost a Muscle policy at their composition roots, ⭐ **each with a `SingleNodePerRoleShardProvider` over the role that host already declares** *(`SimHostApp.DefaultRole:182` · `CgfSubsystem.DefaultRole`)* | ⭐⭐ **the acceptance test:** a SimHost-created brain-enabled entity ends with `HasAuthority<BehaviorState>` **false on SimHost and true on CGF**, and `TacticalIntentResolutionSystem`'s gate passes |
+
+## 6b. ✅✅✅ AS-BUILT — **step `0` shipped `2026-09-12`** *(obligation ⑤)*
+
+⭐⭐ **It landed as §3.1 specified, and the mirror target was verified before writing:**
+`TkbTemplate.AddMandatoryComponent<T>()` exists exactly as described *(`FDP/Engine/Fdp.Core/Abstractions/TkbTemplate.cs`,
+a `List<MandatoryComponent>` of `ComponentTypeId`/`IsHard`/`SoftTimeoutFrames`)*, so the new API mirrors a
+real thing rather than a remembered one. ⚠ **The home is `Fdp.Core`, namespace `Fdp.Interfaces`** — §3.1
+never says which assembly, and a reader assuming `Fdp.Toolkits` will not find it.
+
+| what shipped | |
+|---|---|
+| ⭐ **the API** | `List<int> BirthCriticalComponents` + `AddBirthCriticalComponent<T>()`, **idempotent** *(a duplicate id would contribute the same mask bit twice and hide an authoring mistake behind a harmless-looking result)* |
+| ⭐ **a `List<int>`, not a struct list** | ⚠ a DEVIATION from the "mirror `MandatoryComponent`" reading: that struct carries three fields because promotion has hard/soft semantics. **Birth-criticality has no such variation** — it is one bit per component — so a parallel struct would have been ceremony. ⭐ The AUTHORING style is what §3.1 asked to mirror, and that is preserved |
+| ⭐ **seeded on EVERY production template** | `NedTkbBuilder.DefineVehicle` *(which already declared `SimTransform` mandatory, so the spatial nature was pre-decided)* · all five `UrbanCombatTkbCatalog` templates · both `BdcTkbCatalog` tac-graphics |
+| ⭐⭐⭐ **AND A RAIL THAT MAKES THE NEXT TEMPLATE LOUD** | `HrotEnvironmentTests.CreateTkb_EveryTemplateDeclaresSimTransformBirthCritical` — ⛔ **seeding is a one-off edit; the durable risk is the template authored months from now by someone who never read this design**, and an unseeded one is SILENT until steps 1-3 turn it into the origin flash. ⭐ Red-proofed by un-seeding one template |
+
+### ⚠⚠ THE ONE GAP STEP 0 DOES **NOT** CLOSE — **file-loaded templates**
+
+📐 **Measured `2026-09-12`.** `TkbDeserializer.ParseAndRegister` builds a `TkbTemplate` **purely from
+descriptor keys** — it declares no components at all, mandatory or birth-critical. ⇒ ⛔ **a template
+loaded from a TKB file has an EMPTY `BirthCriticalComponents`**, and the catalogue rail cannot see it
+because the rail walks `HrotEnvironment.CreateTkb()`.
+
+⚠ **This matters more than it looks:** `CreateTkb()` is the **development default** — its own comment
+says *"the real system loads TKB from files synced to all nodes"* (user, `2026-08-31`). ⇒ **the seeded
+path is the dev path and the unseeded path is the production one.**
+
+| ⭐ why it is RECORDED rather than fixed here | |
+|---|---|
+| ⛔ **it is not a seeding problem, it is a SCHEMA question** | either the TKB file format gains a way to say *"birth-critical"*, or the deserializer applies a convention. ⭐ The first is authoring design; the second puts a HROT policy inside an engine assembly *(`Fdp.Toolkits`)*, which is the wrong layer |
+| ⭐ **it is not yet load-bearing** | nothing reads the list until step 2. ⇒ fixing it now would be guessing at a schema before the consumer exists |
+| ⛔ **but it MUST be answered before step 2 ships** | otherwise step 2 turns every file-loaded template into the exact origin-flash defect §3.1's architect correction exists to prevent — on the production path only, which is the worst possible place for it to be discovered |
+
+---
 
 ## 6a. ✅✅✅ AS-BUILT — **step `0a` shipped `2026-09-11`** *(obligation ⑤)*
 
