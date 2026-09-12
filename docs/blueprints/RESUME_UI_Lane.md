@@ -1,7 +1,18 @@
 <!--STATUS
 state: LIVE
 updated: 2026-09-11
-current-answer: ⚠⚠ THERE ARE NOW **TWO** LIVE STRANDS ON THIS LANE. Read the one you are continuing.
+current-answer: ⚠⚠ THERE ARE NOW **THREE** LIVE STRANDS ON THIS LANE. Read the one you are continuing.
+  ══ STRAND 0 — ⭐⭐⭐ THE ONLY THING MARKED READY-TO-BUILD (authorised 2026-09-12) ══
+  ✅ BUILD docs/designs/replay-and-modules/DESIGN.md §2.1m — the unified ELM rewind plan. Its STATUS
+  block carries build-state and the authorised deviation; its three diagrams (module / class / sequence)
+  are in §2.1m and all parse. Owning tracker row: HN-018; CE-259ap and CE-259ar link to it.
+  ⭐ READ FIRST, in this order: §2.1m (the plan + diagrams) → §2.1k (the owning design, mgmt-1 §8.10)
+  → §2.1l (PreviewStateBracket — the seam that ALREADY EXISTS; do not build a parallel one).
+  ⛔ STEP 1 DEVIATES from mgmt-1 §8.10 on purpose (relocating into NetworkLifecycleSystemGroup is unsafe:
+  ExecuteGroup has ONE caller, so the group never ticks on the editor or BDC). Argue it in the report and
+  fold the as-built back into §8.10.
+  ⛔ NOT in scope: CE-259au (the vacuous construction barrier) and CE-259as — both wait on
+  Architect_Question_69 asks B/D, which are written but whose relay needs a session that can reach it.
   ══ STRAND 1 — MAP INTERACTION / SELECTION / TOOLS (the live one as of 2026-09-10) ══
   ✅✅✅ READ docs/SNAPSHOT_Map_Interaction_Architecture.md FIRST. It is a SNAPSHOT, not an owning
   design: §1 the block map, §2 the data flows, §3 remote map control, §4 the FINDINGS LEDGER,

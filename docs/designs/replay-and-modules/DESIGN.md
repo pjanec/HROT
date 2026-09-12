@@ -1,9 +1,20 @@
 <!--STATUS
 state: LIVE
-updated: 2026-09-11
-current-answer: §2.1 is the TARGET table and §3.10 the gap list. ⚠ This document was written as a
-  DESIGN of replay isolation, and §1.1 is titled "Broken Replay Isolation" — so its tables describe
-  how it was MEANT to be, not how it IS. Read §2.1a before quoting the NetworkLifecycleSystemGroup row.
+updated: 2026-09-12
+build-state: READY-TO-BUILD — §2.1m ONLY (the unified ELM rewind plan: gate lifecycle during replay,
+  add the ELM to the existing PreviewStateBracket list, drive that bracket from the replay boundaries).
+  ⭐ Authorised by the user 2026-09-12. Its three diagrams are in §2.1m and all parse.
+  ⛔ EVERY OTHER SECTION IS DESIGN / as-is analysis and is NOT dispatchable — §2.1a–§2.1l are measured
+  findings, §3.10 is a gap list, §2.1 is the original target table (see known-rot).
+  ⚠ STEP 1 IS A DELIBERATE DEVIATION from docs/designs/mgmt-1/DESIGN.md §8.10, authorised in the same
+  breath: §8.10 prescribes RELOCATING LifecycleSystem/GhostPromotionSystem into NetworkLifecycleSystemGroup,
+  which is unsafe because ExecuteGroup has exactly ONE caller (NedReplicationModule.cs:493) and the group
+  never ticks on the editor or BDC nodes. §2.1m GATES IN PLACE instead. The implementing session MUST
+  argue this in its report (obligation ③) and fold the as-built back into §8.10 (obligation ⑤).
+current-answer: ⭐ TO BUILD: §2.1m. ⭐ TO UNDERSTAND WHY: §2.1k (the owning design) and §2.1l (the seam
+  that already exists). ⚠ This document was written as a DESIGN of replay isolation, and §1.1 is titled
+  "Broken Replay Isolation" — so its tables describe how it was MEANT to be, not how it IS. Read §2.1a
+  before quoting the NetworkLifecycleSystemGroup row.
 known-rot: ⛔⛔ §2.1's row "NetworkLifecycleSystemGroup | Disabled during replay | block ghost
   create/promote/destroy" is NOT the as-is, measured 2026-09-11 (§2.1a): every production site passes
   that group exactly ONE member (GhostCreationSystem), whose Execute is an EMPTY BODY, so toggling the
