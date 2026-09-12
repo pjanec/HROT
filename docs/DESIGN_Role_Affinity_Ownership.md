@@ -138,6 +138,9 @@ related-designs:
     decides component-level AUTHORITY after the entity exists, that one decides nothing about it.
   - DESIGN_Entity_Creation_Unification.md — owns the pack this design's step 0a moved GhostPromotionSystem
     into.
+  - PROGRAMME_Explicit_Component_Ids.md — owns whether every component actually carries an explicit
+    [ComponentId]. §3.9b's mask-driven registration is only COMPLETE if it does, so that programme is a
+    prerequisite for this one's registration half.
   - designs/brain-death/BD1-DESIGN.md — owns the brain-death LIFECYCLE and the brain-vs-muscle command
     routing rule. It is the design §3.9's narrowing would break: its §2.1 predicate reads BehaviorState
     locally, which a Muscle-only node cannot answer. ⚠ Measured 2026-09-12: that routing has no
@@ -709,6 +712,28 @@ already**, and it is the seam law again — the thing I said had to be built exi
 ⇒ ⭐⭐⭐ **A mask-driven registrar is THAT LOOP WITH ONE LINE ADDED — `if (!mask.IsSet(typeId)) continue;`.**
 ⛔⛔ **So "a `BitMask512` cannot drive `RegisterComponent<T>()`" was wrong twice: the id→`Type` map exists
 AND the id-driven registration loop exists.**
+
+#### ⭐⭐ "DO WE NEED `MakeGenericMethod` MAGIC?" — **the engine ALREADY does it, one hop below** *(user, `2026-09-12`)*
+
+📐 `EntityRepository.RegisterComponent<T>` *(`:626`)* uses `T` for **exactly one line** —
+`UnsafeShim.RegisterUnmanaged<T>(this)`; everything after it works from `Type` and `typeId` and is already
+non-generic. ⭐⭐⭐ **And that one line is itself reflection:** `UnsafeShim`'s own header says it *"uses
+cached open delegates created via Reflection to bypass compile-time constraints"*, and
+`UnmanagedAccessor<T>`'s static ctor builds them with **`GetMethod(...).MakeGenericMethod(typeT)` +
+`Delegate.CreateDelegate`** *(`UnsafeShim.cs:187-194`)*, cached `static readonly` per `T`.
+
+⇒ ⛔ **A by-id registrar does not INTRODUCE a technique — it reuses the one the registration path is
+already built on.** ⭐ Three shapes are available, and the choice is about checkability, not feasibility:
+
+| shape | ⭐ |
+|---|---|
+| **(a)** reflect + `MakeGenericMethod` per id | ⭐ what `RecordingExportService` already does; zero new machinery. ⛔ resolution errors are runtime |
+| **(b)** a `Dictionary<int, Action<EntityRepository>>` primed at type-init | ⭐ no reflection at the CALL site — the same cached-delegate trick `UnsafeShim` uses. ⚠ chicken-and-egg: the delegate exists only once `ComponentType<T>` has been touched, so something must still prime it once |
+| **(c)** ⭐⭐ **a generated `switch (id) { case N: repo.RegisterComponent<Foo>(); … }`** | ⭐ fully native, **compile-time checked**, and this repo already generates code. ⛔ needs a generator step and regenerates on every new component |
+
+⭐ **Lean: (a) to start** — it is the existing production path and costs nothing new — ⚠ **with the bare
+`catch` removed** *(see the scope-limit table above)*. ⭐ **(c) if the registration set ever becomes the
+single source of truth**, because then a missing case is a compile error rather than a boot warning.
 
 #### 📐 DO HOSTS DEFINE COMPONENT MASKS TODAY? — **NO. Not one.**
 
