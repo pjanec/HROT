@@ -193,7 +193,15 @@ namespace Hrot.Common.EntityCreation
             //   promotion with no diagnostic", adding "which hosts pass null has not been measured".
             //   ⇒ here TkbDb and Elm are REQUIRED inputs (ctx.Validate throws), so the guard cannot exist
             //   and the question cannot recur.
-            var promotionSystem = new GhostPromotionSystem(ctx.TkbDb, ctx.Elm, translators);
+            var promotionSystem = new GhostPromotionSystem(ctx.TkbDb, ctx.Elm, translators)
+        {
+            // ⭐⭐⭐ §2.1m step 1 — the replay gate, wired ONCE here so every host that builds the pack gets
+            //   it. Read LATE through the ELM so a root may set elm.IsReplayActive afterwards (the
+            //   record/replay controller is routinely constructed after the pack).
+            //   📄 mgmt-1/DESIGN.md §8.10 — during replay the ELM pipeline is never invoked, and a ghost
+            //   restored from the log is the LOG's, not ours to promote (CE-259ap).
+            IsReplayActive = () => ctx.Elm.IsReplayActive?.Invoke() ?? false,
+        };
 
             return new EntityCreation(
                 translators, ctx.Elm, localRequests, requestSystem, finalization, spawnSystem,

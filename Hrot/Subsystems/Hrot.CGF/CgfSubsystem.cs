@@ -982,13 +982,22 @@ public sealed class CgfSubsystem : ISubsystem, Fdp.Toolkit.Runner.IMapCameraProv
         var nedModuleForAfterSeek = replicationModule as Hrot.Common.Abstractions.INedReplicationModule;
         Action? afterSeekAction = nedModuleForAfterSeek?.AfterSeekCallback;
 
+        // ⭐⭐ §2.1m step 3 — A SEEK IS A WORLD REPLACEMENT TOO. Resolved BEFORE the controller so the
+        //   clear composes into the same afterSeek chain the NetworkEntityMap rebuild already uses.
+        //   ⛔ Clear only — a seek stays inside the replay, so the re-derive is NOT armed.
+        var cgfGateElm = _context.BaseModules?
+            .OfType<Fdp.Toolkit.Lifecycle.EntityLifecycleModule>().FirstOrDefault();
+        if (cgfGateElm != null)
+        {
+            var chained = afterSeekAction;
+            afterSeekAction = () => { cgfGateElm.OnWorldReplaced(resumingToLive: false); chained?.Invoke(); };
+        }
+
         var rrController = new Hrot.SimHost.Modules.Orchestration.EcsRecordReplayController(
             _context.Kernel, _context.NodeId, _context.World, afterSeek: afterSeekAction);
 
         // ⭐⭐ Step 1 of DESIGN.md §2.1m — gate the ELM during replay (mgmt-1/DESIGN.md §8.10: "the ELM
         //    pipeline is never invoked"). ⭐ Reuses the existing IRecordReplayController.IsReplayActive.
-        var cgfGateElm = _context.BaseModules?
-            .OfType<Fdp.Toolkit.Lifecycle.EntityLifecycleModule>().FirstOrDefault();
         if (cgfGateElm != null)
             cgfGateElm.IsReplayActive = () => rrController.IsReplayActive;
 
@@ -1004,7 +1013,10 @@ public sealed class CgfSubsystem : ISubsystem, Fdp.Toolkit.Runner.IMapCameraProv
             bypassLifecycleToggle: null,
             storageDirectory:      isolatedTempRoot,
             suspendGlobalTimePush: _context.Kernel.SuspendGlobalTimePush,
-            resumeGlobalTimePush:  _context.Kernel.ResumeGlobalTimePush));
+            resumeGlobalTimePush:  _context.Kernel.ResumeGlobalTimePush,
+            // ⭐⭐⭐ §2.1m step 3 — discard the ELM's bookkeeping at every world replacement, and arm the
+            //   re-derive only when resuming to a LIVE world.
+            worldReplaced:         cgfGateElm == null ? null : cgfGateElm.OnWorldReplaced));
 
         // 2. CGF-Authoritative Scenario and Episode Load Handlers (must be BEFORE ReferenceLiveLoadHandler)
         var scenarioSerializer = Hrot.SimHost.Serializers.HrotScenarioSerializerFactory.Build(_behaviorRegistry!);

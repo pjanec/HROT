@@ -211,10 +211,19 @@ namespace Hrot.SimHost
             // Create EcsRecordReplayController for Brain-tier and MuscleGround nodes.
             // MuscleGround (SimHost) must also handle PrepareReplay/FinalizeReplay so that
             // replay transitions can ACK back to ClusterMaster and not time out.
+            // ⭐⭐ §2.1m step 3 — A SEEK IS A WORLD REPLACEMENT TOO. Composed into the existing afterSeek
+            //   chain, right beside the NetworkEntityMap.RebuildFromWorld that already lives there for
+            //   exactly this reason (a non-recorded index that time travel invalidates).
+            //   ⛔ Clear only — a seek stays inside the replay, so the re-derive is NOT armed.
+            Action<bool>? elmWorldReplaced = elm == null ? null : elm.OnWorldReplaced;
+            Action? afterSeekWithLifecycle = elm == null
+                ? afterSeek
+                : () => { elm.OnWorldReplaced(resumingToLive: false); afterSeek?.Invoke(); };
+
             EcsRecordReplayController? controller = null;
             if (role.HasFlag(NodeRole.Brain) || role.HasFlag(NodeRole.MuscleGround))
                 controller = new EcsRecordReplayController(kernel, nodeId, world,
-                    afterSeek: afterSeek);
+                    afterSeek: afterSeekWithLifecycle);
             RecordReplayController = controller;
 
             // ⭐⭐ Step 1 of DESIGN.md §2.1m: gate the ELM during replay, so LifecycleSystem's
@@ -239,7 +248,10 @@ namespace Hrot.SimHost
                     controller, inputGroup, simGroup, postSimGroup, lifecycleGroup, bypassToggle,
                     localTempRoot,
                     suspendGlobalTimePush: kernel.SuspendGlobalTimePush,
-                    resumeGlobalTimePush:  kernel.ResumeGlobalTimePush));
+                    resumeGlobalTimePush:  kernel.ResumeGlobalTimePush,
+                    // ⭐⭐⭐ §2.1m step 3 — the ELM's bookkeeping is discarded at EVERY world replacement,
+                    //   and the re-derive armed only when resuming to a LIVE world.
+                    worldReplaced: elmWorldReplaced));
             }
 
             // Wire ReferenceCheckpointHandler when a checkpoint worker is provided (CGF1-S0303).

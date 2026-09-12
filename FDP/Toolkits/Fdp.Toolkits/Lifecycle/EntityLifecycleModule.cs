@@ -448,6 +448,27 @@ namespace Fdp.Toolkit.Lifecycle
         internal void ArmResumeFromRestoredWorld() => _resumePending = true;
 
         /// <summary>
+        /// ⭐⭐⭐ <b>The PUBLIC world-replacement boundary — the one composition roots call.</b>
+        /// 📄 <c>docs/designs/replay-and-modules/DESIGN.md</c> §2.1m step 3.
+        ///
+        /// <para>⭐ Call at EVERY world replacement: <c>PrepareReplay</c> *(<c>resumingToLive: false</c>)*,
+        /// every <b>seek</b> *(<c>false</c> — a seek stays inside the replay)*, and
+        /// <c>FinalizeReplay</c>/<c>PrepareLive</c> *(<c>true</c>)*. ⭐ The editor preview goes through
+        /// <c>PreviewParticipants.LifecycleModule</c> instead, which does the same two things.</para>
+        ///
+        /// <para>⭐⭐ <b>Why ONE method taking the intent, rather than exposing the two internals.</b> The
+        /// pair is <c>internal</c> on purpose — ⛔ only a world-replacement boundary may legitimately
+        /// discard an in-flight handshake, and a public <c>Clear()</c> invites exactly the caller that
+        /// should not exist. ⭐ This surface states the intent instead of the mechanism, so the
+        /// clear-without-arm case cannot be got wrong by forgetting the second call.</para>
+        /// </summary>
+        public void OnWorldReplaced(bool resumingToLive)
+        {
+            ClearForWorldReplacement();
+            if (resumingToLive) ArmResumeFromRestoredWorld();
+        }
+
+        /// <summary>
         /// ⭐⭐⭐ <b>Re-opens every in-flight protocol the restored world still implies.</b> Driven by
         /// <see cref="Systems.LifecycleSystem"/>, which is where a command buffer and a frame number exist —
         /// ⛔ <see cref="ClearForWorldReplacement"/>'s caller has neither.

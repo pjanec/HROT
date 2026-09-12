@@ -108,10 +108,26 @@ public sealed class NedReplicationModule : INedReplicationModule
     public CycloneNetworkCleanupSystem? CleanupSystem => _cleanupSystem;
 
     /// <inheritdoc/>
-    public Action? AfterSeekCallback =>
-        _cleanupSystem != null ? (Action)(() => {
-            //_cleanupSystem.ResetTracking();  
-        }) : null;
+    /// <summary>
+    /// ⛔⛔ <b>Returns <c>null</c> — this module owes the seek chain NOTHING.</b> 📄 <c>CE-259aq</c>.
+    ///
+    /// <para>⚠⚠ <b>It used to return a NON-NULL EMPTY LAMBDA</b> whose only statement was a commented-out
+    /// <c>_cleanupSystem.ResetTracking()</c> — and <c>ResetTracking</c> exists in <b>zero</b> C# files,
+    /// while <c>T-RMF-23</c> is ticked DONE in its tracker. 🔴 A non-null empty lambda is <b>strictly worse
+    /// than null</b>: every downstream null-check passes and every rail asserting "the afterSeek callback is
+    /// wired" is satisfied by a callback that does nothing.</para>
+    ///
+    /// <para>⭐ <b>The clear is NOT needed here.</b> 📐 Measured <c>2026-09-11</c>:
+    /// <c>CycloneNetworkCleanupSystem.Execute</c> re-scans the whole world every frame and re-adds
+    /// (<c>:44-62</c>), disposing only on a <c>DestructionOrder</c> event (<c>:65-104</c>) ⇒ its
+    /// <c>_trackedEntities</c> SELF-HEALS after a seek. *(The "mass DISPOSE flood" its onboarding describes
+    /// belonged to a liveness-scanning version of that system which no longer exists.)*</para>
+    ///
+    /// <para>⭐⭐ <b>The seek clear that IS needed goes elsewhere</b> — the ELM's in-flight queues, composed
+    /// into the controller's <c>afterSeek</c> chain by the composition roots. 📄
+    /// <c>docs/designs/replay-and-modules/DESIGN.md</c> §2.1m step 3.</para>
+    /// </summary>
+    public Action? AfterSeekCallback => null;
 
     /// <summary>
     /// Whether dead-reckoning is configured to run on all remote entities (<c>true</c>)

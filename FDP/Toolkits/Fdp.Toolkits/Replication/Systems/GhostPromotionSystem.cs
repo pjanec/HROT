@@ -109,8 +109,32 @@ namespace Fdp.Toolkit.Replication.Systems
             _explicitTranslators = translators;
         }
 
+        /// <summary>
+        /// ⭐⭐⭐ <b>The replay gate</b> — asked once per <see cref="Execute"/>; <c>true</c> makes this system
+        /// do nothing. 📄 <c>mgmt-1/DESIGN.md</c> §8.10: during replay <i>"the ELM pipeline is never
+        /// invoked"</i>, and §8.10 names this system among the three that must not run.
+        ///
+        /// <para>🔴 <b>Why it matters HERE specifically.</b> Lifecycle IS recorded — the entity index's cold
+        /// chunk carries <c>EntityMetadataCold.LifecycleState</c> — so an entity recorded while it was a
+        /// GHOST <b>comes back as a ghost</b>, matches this system's
+        /// <c>With&lt;TkbIdentity&gt;().WithLifecycle(Ghost)</c> query, and would be promoted: mutating
+        /// entities the LOG owns, and calling <c>BeginConstruction</c> on them. 📄 <c>CE-259ap</c>.</para>
+        ///
+        /// <para>⛔ Gated IN PLACE rather than relocated into <c>NetworkLifecycleSystemGroup</c> as §8.10
+        /// prescribes — that group's <c>ExecuteGroup</c> has exactly ONE caller, so it never ticks on the
+        /// editor or on BDC nodes, and this system is <c>[SingleInstance]</c> and already scheduler-
+        /// registered by <c>EntityCreationPack</c>. Authorised deviation; 📄 <c>DESIGN.md</c> §2.1m.</para>
+        ///
+        /// <para>⚠ Unset (the default) means "never replaying", so a host that does not wire it behaves
+        /// exactly as before.</para>
+        /// </summary>
+        public System.Func<bool>? IsReplayActive { get; set; }
+
         public void Execute(ISimulationView view, float dt)
         {
+            // ⛔ The log owns the world during playback — a restored ghost is the log's, not ours to promote.
+            if (IsReplayActive != null && IsReplayActive()) return;
+
             _world = view as EntityRepository;
             if (_world == null) return;
 

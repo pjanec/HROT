@@ -379,4 +379,80 @@ public sealed class APreviewLeavesNoTraceTests
         Assert.Equal(1, elm.GetStatistics().pending);
         Assert.Equal(0, elm.GetStatistics().constructed);
     }
+
+    // ══ §2.1m step 3 — the WORLD-REPLACEMENT boundary, intent-shaped ══════════
+
+    /// <summary>
+    /// ⭐⭐ Entering a replay CLEARS but must NOT arm: re-opening protocols the log is about to overwrite
+    /// is waste, and a seek stays inside the replay.
+    /// </summary>
+    [Fact]
+    public void EnteringAReplay_ClearsWithoutArmingTheReDerive()
+    {
+        var repo = new EntityRepository();
+        repo.RegisterComponent<Fdp.Toolkit.Replication.Components.TkbIdentity>();
+        var elm = NewElm();
+        var cmd = new EntityCommandBuffer();
+
+        elm.BeginConstruction(repo.CreateEntity(), blueprintId: 1, currentFrame: 500, cmd);
+
+        // A restored Constructing entity is present — but we are ENTERING a replay, not resuming.
+        var restored = repo.CreateEntity();
+        repo.AddComponent(restored, new Fdp.Toolkit.Replication.Components.TkbIdentity { TkbType = 7 });
+        repo.SetLifecycleState(restored, EntityLifecycle.Constructing);
+
+        elm.OnWorldReplaced(resumingToLive: false);
+        Assert.Equal(0, elm.GetStatistics().pending);           // cleared
+
+        new Fdp.Toolkit.Lifecycle.Systems.LifecycleSystem(elm).Execute(repo, 0f);
+        Assert.Equal(0, elm.GetStatistics().pending);           // and NOT re-opened
+    }
+
+    /// <summary>
+    /// ⭐⭐⭐ Resuming to a LIVE world clears AND arms — this is the branch-to-live path that left restored
+    /// Constructing entities permanently invisible to every default query.
+    /// </summary>
+    [Fact]
+    public void ResumingToLive_ClearsAndReopensOnTheNextTick()
+    {
+        var repo = new EntityRepository();
+        repo.RegisterComponent<Fdp.Toolkit.Replication.Components.TkbIdentity>();
+        var elm = NewElm();
+
+        var restored = repo.CreateEntity();
+        repo.AddComponent(restored, new Fdp.Toolkit.Replication.Components.TkbIdentity { TkbType = 7 });
+        repo.SetLifecycleState(restored, EntityLifecycle.Constructing);
+
+        elm.OnWorldReplaced(resumingToLive: true);
+        new Fdp.Toolkit.Lifecycle.Systems.LifecycleSystem(elm).Execute(repo, 0f);
+
+        Assert.Equal(1, elm.GetStatistics().pending);
+    }
+
+    /// <summary>
+    /// ⭐⭐ THE GHOST HALF (CE-259ap). Lifecycle is recorded, so an entity recorded as a GHOST comes back a
+    /// ghost and would be promoted — mutating entities the log owns. The gate stops that.
+    /// </summary>
+    [Fact]
+    public void WhileReplayIsActive_GhostPromotionDoesNothing()
+    {
+        var repo = new EntityRepository();
+        repo.RegisterComponent<Fdp.Toolkit.Replication.Components.TkbIdentity>();
+        var elm = NewElm();
+
+        var ghost = repo.CreateEntity();
+        repo.AddComponent(ghost, new Fdp.Toolkit.Replication.Components.TkbIdentity { TkbType = 7 });
+        repo.SetLifecycleState(ghost, EntityLifecycle.Ghost);
+
+        var promotion = new Fdp.Toolkit.Replication.Systems.GhostPromotionSystem(
+            new Fdp.Toolkit.Replication.Tests.GatewayTestTkbDb(), elm,
+            System.Array.Empty<Fdp.Interfaces.ITkbEntityTranslator>())
+        { IsReplayActive = () => true };
+
+        promotion.Execute(repo, 0f);
+
+        // Untouched: still a ghost the LOG owns, and no construction opened on it.
+        Assert.Equal(EntityLifecycle.Ghost, repo.GetLifecycleState(ghost));
+        Assert.Equal(0, elm.GetStatistics().pending);
+    }
 }
