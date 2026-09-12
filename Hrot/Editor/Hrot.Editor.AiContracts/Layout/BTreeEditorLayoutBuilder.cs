@@ -16,6 +16,7 @@ public sealed class BTreeEditorLayoutBuilder
     private readonly Dictionary<Guid, List<SubtreeSyncBinding>> _syncBindings = new();
     private readonly List<(string VariableName, string WriterPairKey)> _conflictSuppressions = new();
     private readonly List<string> _unusedSuppressions = new();
+    private readonly List<string> _concurrentWritesAllowed = new();
     private readonly Dictionary<Guid, IReadOnlyList<Vector2>> _linkWaypoints = new();
 
     public BTreeEditorLayoutBuilder Canvas(Vector2 panOffset, float zoomLevel)
@@ -76,6 +77,14 @@ public sealed class BTreeEditorLayoutBuilder
         return this;
     }
 
+    /// <summary>⭐ <c>W7b</c> (§9.4) — the designer allowed concurrent cross-region writes to
+    /// this variable. ⛔ PER VARIABLE; see <c>SuppressBlackboardConflict</c> for the per-pair one.</summary>
+    public BTreeEditorLayoutBuilder AllowConcurrentWrites(string variableName)
+    {
+        _concurrentWritesAllowed.Add(variableName);
+        return this;
+    }
+
     /// <summary>
     /// Records waypoints for the edge from the child node (identified by <paramref name="childVisualId"/>)
     /// up to its parent. Called in the emitted <c>[BTreeLayout]</c> method only when waypoints exist.
@@ -96,6 +105,7 @@ public sealed class BTreeEditorLayoutBuilder
             kv => (IReadOnlyList<SubtreeSyncBinding>)kv.Value.AsReadOnly()),
         BlackboardConflictSuppressions = _conflictSuppressions,
         UnusedWarningSuppressions = _unusedSuppressions,
+        ConcurrentWritesAllowed   = _concurrentWritesAllowed,
         LinkWaypoints = _linkWaypoints,
     };
 }

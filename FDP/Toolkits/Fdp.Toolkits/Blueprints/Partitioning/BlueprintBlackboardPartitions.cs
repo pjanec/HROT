@@ -130,6 +130,16 @@ public static unsafe class BlueprintBlackboardPartitions
             return false;
         }
 
+        // FC-2/LV-1b (List Variables review F2, memory safety): ZERO the allocated payload. A block
+        // taken from the free list still holds the PREVIOUS occupant's bytes (TryDetach returns
+        // payload without clearing it), and nothing on the manifest/partition rail runs a
+        // definition's init on attach -- a stale non-zero value read as a fixed-list `Count` would
+        // drive an unbounded [InlineArray] indexer read (no bounds check). Zeroing here, at the
+        // single allocator choke point, makes EVERY slot kind (blueprint state, BTree stateful
+        // working state, shared slots) start from default(T) on fresh AND reused attaches alike.
+        // Attach happens at provisioning/reload time, never per-tick -- the InitBlock is cheap.
+        Unsafe.InitBlock(memory + allocatedOffset, 0, (uint)alignedSize);
+
         int slotIndex = header.SlotCount;
         ref var slot = ref Unsafe.AsRef<BlueprintSlotEntry>(slotTable + slotIndex * SlotEntrySize);
         slot.BlueprintId     = blueprintId;

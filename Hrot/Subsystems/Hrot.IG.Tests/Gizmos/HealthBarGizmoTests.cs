@@ -1,3 +1,4 @@
+using Fdp.Toolkit.Combat.Components;
 using System;
 using System.Collections.Generic;
 using System.Numerics;
@@ -43,9 +44,9 @@ namespace Hrot.IG.Tests.Gizmos
             CoordinateSpace space = CoordinateSpace.World, byte layer = 0, float fontSizePx = 0f, float lineOffsetPx = 0f) { }
         public void DrawTextLong(float x, float y, string text, Rgba32 color,
             CoordinateSpace space = CoordinateSpace.World, byte layer = 0, float fontSizePx = 0f, float lineOffsetPx = 0f) { }
-        public void DrawEntityLocal(Entity anchor, Vector3 localStart, Vector3 localEnd,
+        public void DrawEntityLocal(long anchor, Vector3 localStart, Vector3 localEnd,
             Rgba32 color, float thickness = 1f, byte layer = 0) { }
-        public void DrawEntityLocalInteractive(Entity anchor, Vector3 localStart, Vector3 localEnd,
+        public void DrawEntityLocalInteractive(long anchor, Vector3 localStart, Vector3 localEnd,
             Rgba32 color, ushort subElementId, float thickness = 1f, byte layer = 0) { }
     }
 
@@ -64,18 +65,18 @@ namespace Hrot.IG.Tests.Gizmos
             HealthBarGizmoSettings.Register(_settings);
 
             _repo = new EntityRepository();
-            _repo.RegisterComponent<IgHealthState>();
+            _repo.RegisterComponent<Health>();
         }
 
         public void Dispose() => _repo.Dispose();
 
         [Fact]
-        public void SC_GZ021_HB_1_RequiredComponents_ContainsIgHealthState()
+        public void SC_GZ021_HB_1_RequiredComponents_ContainsHealth()
         {
             var attr = typeof(HealthBarGizmo).GetCustomAttribute<GizmoProjectorAttribute>();
 
             Assert.NotNull(attr);
-            Assert.Contains(typeof(IgHealthState), attr!.RequiredComponents);
+            Assert.Contains(typeof(Health), attr!.RequiredComponents);
         }
 
         [Fact]
@@ -97,7 +98,7 @@ namespace Hrot.IG.Tests.Gizmos
             var draw  = new CapturingDrawBuilder();
 
             var entity = _repo.CreateEntity();
-            _repo.AddComponent(entity, new IgHealthState { Damage = 0f });
+            _repo.AddComponent(entity, new Health { Current = 100f, Max = 100f });
 
             gizmo.Draw(_repo, entity, draw);
 
@@ -112,7 +113,7 @@ namespace Hrot.IG.Tests.Gizmos
             var draw  = new CapturingDrawBuilder();
 
             var entity = _repo.CreateEntity();
-            _repo.AddComponent(entity, new IgHealthState { Damage = 50f });
+            _repo.AddComponent(entity, new Health { Current = 50f, Max = 100f });
 
             var ex = Record.Exception(() => gizmo.Draw(_repo, entity, draw));
 
@@ -124,7 +125,7 @@ namespace Hrot.IG.Tests.Gizmos
         {
             // Ensure all components required by any registered gizmo are in ComponentTypeRegistry.
             using var tempRepo = new EntityRepository();
-            tempRepo.RegisterComponent<IgHealthState>();
+            tempRepo.RegisterComponent<Health>();
             tempRepo.RegisterComponent<SimTransform>();
             tempRepo.RegisterComponent<Fdp.Toolkit.Perception.Components.PerceptionReceptor>();
             tempRepo.RegisterComponent<Fdp.Toolkit.Behavior.Components.BrainBlackboard>();

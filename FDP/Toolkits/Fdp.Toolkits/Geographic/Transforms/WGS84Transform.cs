@@ -19,7 +19,14 @@ namespace Fdp.Modules.Geographic.Transforms
         private double _originAlt;
         private Matrix4x4 _ecefToLocal;
         private Matrix4x4 _localToEcef;
-        
+
+        /// <summary>
+        /// The geodetic origin in DEGREES latitude/longitude and metres altitude. The fields are stored
+        /// in radians (see <see cref="SetOrigin"/>), so they are converted back for this getter.
+        /// </summary>
+        public (double lat, double lon, double alt) Origin =>
+            (_originLat * 180.0 / Math.PI, _originLon * 180.0 / Math.PI, _originAlt);
+
         public void SetOrigin(double latDeg, double lonDeg, double altMeters)
         {
             if (latDeg < -90.0 || latDeg > 90.0)

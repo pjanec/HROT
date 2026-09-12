@@ -29,6 +29,14 @@ namespace Hrot.SimHost.Systems
     ///     bypass the C# 12 [InlineArray] ldobj defensive-copy trap (Design §8.1).</item>
     /// </list></para>
     /// </summary>
+    // ⭐⭐ CE-165 — the second system carried by BOTH CgfLogicPack (Brain) and SimHostCoreLogicPack
+    // (MuscleGround), so a node in both roles registers it twice unless the composition root deduplicates.
+    // ⚠ Stated honestly: unlike UnitHierarchySystem, a second tick here has NOT been measured to corrupt —
+    // it loops over buffers and writes results rather than accumulating. It is marked anyway because it is
+    // a singleton BY DESIGN (one EQS result pump per node) and a duplicate registration is a composition
+    // defect whatever the second tick happens to cost. If a legitimate need for two instances ever appears,
+    // remove the attribute and say why — do not weaken the guard.
+    [SingleInstance]
     [UpdateInPhase(SystemPhase.Simulation)]
     public sealed class EqsResultUpdateSystem : IEcsModuleSystem
     {

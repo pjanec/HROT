@@ -31,6 +31,30 @@ namespace Hrot.ClusterRunner.Integration.Tests;
 /// </remarks>
 public sealed class BlueprintKernelRunTests
 {
+    /// <summary>
+    /// ⭐⭐⭐ <b>Batch 102 (<c>102c</c>) — the harness is IN STEPPING before a test pumps</b>
+    /// (<c>BP-379</c>).
+    ///
+    /// <para>⭐⭐ <b>Why this exists next to the count assertions.</b> They already fail when the first
+    /// frame is frozen — ⛔ but they fail as <i>"expected 1, actual 0"</i>, which reads as a blueprint
+    /// defect and cost Batch 101 a whole triage to trace back to the TIME CONTROLLER. ⚠ This one fails
+    /// as <i>"the harness is still BarrierPending"</i>, one hop from the cause.</para>
+    ///
+    /// <para>📌 <c>MasterSyncController:253</c>: <c>SwitchToDeterministic</c> arms a FUTURE BARRIER and
+    /// sets <c>BarrierPending</c> — ⛔ it does not enter <c>Stepping</c>. ⇒ the pump's first
+    /// <c>Step()</c> returned early and its first <c>Update()</c> returned an explicit
+    /// <c>dt = 0</c>.</para>
+    /// </summary>
+    [Fact]
+    public void TheHarnessIsStepping_BeforeAnythingPumps()
+    {
+        using var harness = new EditorHarness();
+
+        Assert.Equal(
+            Fdp.ModuleHost.Time.TimeMode.Deterministic,
+            harness.Kernel.GetTimeController().GetMode());
+    }
+
     [Theory]
     [InlineData(1)]
     [InlineData(3)]

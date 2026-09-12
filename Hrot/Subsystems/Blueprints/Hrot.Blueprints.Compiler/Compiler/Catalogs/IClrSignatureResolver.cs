@@ -32,6 +32,29 @@ public interface IClrSignatureResolver
     /// pins exactly as before.
     /// </summary>
     bool TryResolve(string targetTypeId, string methodName, out ClrMethodSig? sig);
+
+    /// <summary>
+    /// U-7 / <c>BP-228</c> — does <paramref name="typeId"/> name a type that actually exists?
+    ///
+    /// <para>
+    /// ⛔ <b><see cref="TryResolve"/> cannot answer this.</b> It resolves a type AND a method together
+    /// and returns one <c>bool</c>, so a <c>false</c> does not distinguish *"no such type"* from
+    /// *"no such method"*. ⚠ The <c>U-7</c> handoff said the seam already existed and no resolver
+    /// should be built — <b>true for methods, not for type existence</b>, which is why this member is
+    /// here and why it is one member rather than a second interface.
+    /// </para>
+    ///
+    /// <para>
+    /// ⛔ <b>Deliberately no default body</b> (Batch 46's lesson): a default returning <c>true</c>
+    /// would be the interface asserting a type exists on an implementer's behalf, which is the exact
+    /// shape of the defect this rail closes.
+    /// </para>
+    ///
+    /// <para>
+    /// ⚠ Accepts either the bare FQN or the editor's <c>global::</c>-prefixed form.
+    /// </para>
+    /// </summary>
+    bool TypeExists(string typeId);
 }
 
 /// <summary>Reflection-free description of a resolved method signature (parameters + return type).</summary>

@@ -22,6 +22,11 @@ public static class SimHostComponentRegistry
 
         MissionComponentRegistry.RegisterAll(world);
         PresentationComponentRegistry.RegisterAll(world);
+        // ⭐⭐⭐ UXI-23 S1 — SimHost had NO MapDisplayComponent registration at all (measured
+        //    2026-08-28: zero source references in the whole project), so its TKB-built entities
+        //    carried none and the shared entity gizmos found nothing to draw. This is the same
+        //    shared list CGF, IG and the Editor now call.
+        Hrot.Presentation.Map.MapPresentationRegistry.RegisterAll(world);
 
         RouteComponentRegistry.RegisterAll(world);
 

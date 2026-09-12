@@ -36,6 +36,10 @@ namespace Hrot.ClusterRunner.Integration.Tests;
 /// <c>Poll()</c> is called every frame.
 /// </para>
 /// </summary>
+// 🔴 MEASURED 2026-09-01: 1 red in the full suite, 2/2 PASS in isolation. Same shape as
+//   MiniExConIntegrationTests — a real cluster boot with no [Collection], so nothing serialised
+//   it. Joined to HeavyE2ETests (non-parallel, defined in AssemblyInfo.cs).
+[Collection("HeavyE2ETests")]
 public class SelectionAndMissionIntegrationTests
 {
     private const int SpawnTimeoutFrames    = 150;

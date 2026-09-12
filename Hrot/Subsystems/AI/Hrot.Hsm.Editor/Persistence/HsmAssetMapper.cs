@@ -58,6 +58,7 @@ public static class HsmAssetMapper
                 ActivityAction = s.ActivityAction,
                 TimerAction    = s.TimerAction,
                 RegionIndex    = s.RegionIndex,
+                SubtreeAssetId = s.SubtreeAssetId,   // DEBT-AIB-028(a)
                 X              = s.Position.X,
                 Y              = s.Position.Y,
                 Comment        = s.Comment,
@@ -95,6 +96,11 @@ public static class HsmAssetMapper
                 Name                = r.Name,
                 Priority            = r.Priority,
                 InitialChildStableId = r.InitialChild?.StableId,
+                // BP-299: ownership is written explicitly now. The owner is the state whose
+                // RegionNodes contains this region -- the model already knows it; only the JSON did not.
+                OwnerStableId        = OwnerOf(asset, r)?.StableId,
+                // BP-299: ownership is written explicitly now. The owner is the state whose
+                // RegionNodes contains this region -- the model already knows it; only the JSON did not.
                 Comment             = r.Comment,
                 ColorOverride       = r.ColorOverride,
             });
@@ -157,6 +163,33 @@ public static class HsmAssetMapper
             dto.Suppressions.Conflict.Add(new HsmConflictSuppressionDto { VariableName = varName, WriterPairKey = writerKey });
         foreach (var varName in asset.GetUnusedSuppressions())
             dto.Suppressions.Unused.Add(varName);
+        foreach (var varName in asset.GetConcurrentWritesAllowed())
+            (dto.Suppressions.ConcurrentWritesAllowed ??= new()).Add(varName);
+
+        // ⭐⭐⭐ Batch 91 (91b) — Approach-A ALIASES (persistence design :132).
+        //    🔴 These never persisted: the only writers to _aliases were rename, AddAlias and prune,
+        //    and NOTHING on the load path touched them ⇒ every alias a designer authored was gone on
+        //    reopen, with the badge, the type match and the cross-region refusal that guarded it.
+        //    ⛔ Emitted ONLY when non-empty (the DTO field is nullable, WhenWritingNull) — no shipped
+        //    asset can contain an alias, so the whole corpus stays byte-identical.
+        foreach (var kv in asset.GetAllAliases())
+        {
+            if (kv.Value.Count == 0) continue;
+            var list = new List<Hrot.AiEditor.Persistence.BlackboardAliasBindingDto>();
+            foreach (var a in kv.Value)
+            {
+                list.Add(new Hrot.AiEditor.Persistence.BlackboardAliasBindingDto
+                {
+                    RequiringAssetId   = a.RequiringAssetId,
+                    RequiringElementId = a.RequiringElementId,
+                    RequiringAssetName = a.RequiringAssetName,
+                    RequiredByPath     = a.RequiredByPath,
+                    // ⭐ FullName, the same spelling every other persisted type id uses.
+                    DtoTypeId          = a.DtoType?.FullName ?? string.Empty,
+                });
+            }
+            (dto.Aliases ??= new())[kv.Key] = list;
+        }
 
         // Blackboard (§5.4)
         dto.Blackboard = BlackboardToDto(asset);
@@ -207,6 +240,7 @@ public static class HsmAssetMapper
                 ActivityAction = sDto.ActivityAction,
                 TimerAction   = sDto.TimerAction,
                 RegionIndex   = sDto.RegionIndex,
+                SubtreeAssetId = sDto.SubtreeAssetId,   // DEBT-AIB-028(a)
                 Position      = new Vector2(sDto.X, sDto.Y),
                 Comment       = sDto.Comment,
                 IsCollapsed   = sDto.IsCollapsed,
@@ -262,13 +296,21 @@ public static class HsmAssetMapper
             stableIdToRegion[rDto.StableId] = region;
         }
 
-        // Attach each region to the parent state of its initial child so parallel states
-        // expose IContainerNodeModel.Regions (→ NodeEditor draws region dividers). The flat
-        // JSON region list carries no parent ref; InitialChild.Parent is the unambiguous owner.
-        // (RHS-05)
+        // Attach each region to its owning parallel state so those states expose
+        // IContainerNodeModel.Regions (→ NodeEditor draws region dividers).
+        //
+        // ⭐⭐ BP-299: the OwnerStableId written by ToDto is authoritative; InitialChild.Parent is the
+        //    FALLBACK for assets saved before that field existed (RHS-05's original derivation).
+        // ⛔ The fallback is not merely legacy support: it is why a region with no initial child used
+        //    to be orphaned, taking rules 8/8b down with it silently.
         foreach (var region in regionNodes)
         {
-            var owner = region.InitialChild?.Parent;
+            StateNode? owner = null;
+            var rDto = dto.Regions.FirstOrDefault(x => x.StableId == region.StableId);
+            if (rDto?.OwnerStableId is Guid ownerId)
+                stableIdToState.TryGetValue(ownerId, out owner);
+            owner ??= region.InitialChild?.Parent;
+
             if (owner != null && !owner.RegionNodes.Contains(region))
                 owner.RegionNodes.Add(region);
         }
@@ -386,8 +428,34 @@ public static class HsmAssetMapper
         // Suppressions
         foreach (var s in dto.Suppressions.Conflict)
             asset.SetConflictSuppressed(s.VariableName, s.WriterPairKey, true);
+
+        // ⭐⭐⭐ Batch 91 (91b) — rehydrate the aliases. ⭐ ResolveClrType is the EXISTING resolver that
+        //    already probes loaded assemblies for DTO structs living in behavior assemblies — ⛔ not a
+        //    second one. ⚠ An unresolvable type yields typeof(object) rather than throwing: a behavior
+        //    assembly can legitimately be absent, and the alias is still a real authored relationship.
+        if (dto.Aliases is { Count: > 0 })
+        {
+            var aliases = new Dictionary<string, IReadOnlyList<Hrot.Editor.AiShared.Blackboard.BlackboardAliasBinding>>();
+            foreach (var kv in dto.Aliases)
+            {
+                var list = new List<Hrot.Editor.AiShared.Blackboard.BlackboardAliasBinding>();
+                foreach (var a in kv.Value)
+                {
+                    list.Add(new Hrot.Editor.AiShared.Blackboard.BlackboardAliasBinding(
+                        a.RequiringAssetId,
+                        a.RequiringElementId,
+                        a.RequiringAssetName,
+                        a.RequiredByPath,
+                        ResolveClrType(a.DtoTypeId)));
+                }
+                aliases[kv.Key] = list.AsReadOnly();
+            }
+            asset.LoadAliases(aliases);
+        }
         foreach (var varName in dto.Suppressions.Unused)
             asset.SetUnusedWarningSuppressed(varName, true);
+        foreach (var varName in dto.Suppressions.ConcurrentWritesAllowed ?? new())
+            asset.SetConcurrentWritesAllowed(varName, true);
 
         // Blackboard variables
         // Restore the editor-managed flag from the persisted block (mirrors the BTree
@@ -403,6 +471,18 @@ public static class HsmAssetMapper
     }
 
     // ── Blackboard mapping (§5.4) ─────────────────────────────────────────────
+
+    /// <summary>
+    /// ⭐ <c>BP-299</c>: the state that owns <paramref name="region"/> — the one whose
+    /// <c>RegionNodes</c> contains it. ⚠ Asked of the MODEL rather than derived from the region's
+    /// initial child, because the initial child is exactly what may be missing.
+    /// </summary>
+    private static StateNode? OwnerOf(HsmAsset asset, RegionNode region)
+    {
+        foreach (var s in asset.AllStates)
+            if (s.RegionNodes.Contains(region)) return s;
+        return null;
+    }
 
     private static HsmBlackboardBlockDto BlackboardToDto(HsmAsset asset)
     {

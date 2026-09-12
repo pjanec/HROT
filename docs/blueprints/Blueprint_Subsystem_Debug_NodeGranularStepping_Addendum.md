@@ -2,7 +2,7 @@
 
 > **Status:** Implemented (read-only inspection). Addendum to `Blueprint_Subsystem_Debug_Protocol_Detailed_Design.md`.
 > **Audience:** Implementation agent and human reviewer.
-> **Delivered by:** branch `blueprint-integ-1`, commits `040f6f82` (BATCH-00), `c839c122` (BATCH-01), `7b1aae5b` (BATCH-02), `5007c22f` (BATCH-03). Working notes: `.dev/blueprint-dbg-2/`.
+> **Delivered by:** branch `blueprint-integ-1`, commits `040f6f82` (BATCH-00), `c839c122` (BATCH-01), `7b1aae5b` (BATCH-02), `5007c22f` (BATCH-03). Working notes: `.dev/_DONE/blueprint-dbg-2/`.
 > **Companion code:** `Hrot.Blueprints.Core/Debug/SubTickSnapshotRecorder.cs`, `Hrot.Blueprints.Editor/BlueprintDebugSession.cs`, `FDP/Engine/Fdp.Core/EntityRepository.cs` (+ `FlightRecorder/`).
 
 ---
@@ -47,7 +47,7 @@ Stepping *past* the last recorded node of the tick should advance exactly one re
 
 `EntityRepository` was split into two monotonic clocks:
 - **`_globalVersion`** — the ECS *memory-mutation* clock that `GetComponentRW` / `NativeChunkTable.GetRefRW` stamp chunk versions from (hot path, unchanged). A new `BumpMemoryVersion()` advances **only** this.
-- **`_simulationTick`** (new) — the *semantic frame* clock. `Tick()` advances **both**; frame-index / wall-tick consumers (Flight Recorder frame headers, `ISimulationView.Tick`, HSM/BTree trace ticks, `DataBreakpointManager.PausedTick`) read `_simulationTick`. Memory-version consumers (snapshot-provider delta-skip, request-id nonces, etc.) stay on `_globalVersion`. Full classified reader audit: `.dev/blueprint-dbg-2/reports/BATCH-00-REPORT.md`.
+- **`_simulationTick`** (new) — the *semantic frame* clock. `Tick()` advances **both**; frame-index / wall-tick consumers (Flight Recorder frame headers, `ISimulationView.Tick`, HSM/BTree trace ticks, `DataBreakpointManager.PausedTick`) read `_simulationTick`. Memory-version consumers (snapshot-provider delta-skip, request-id nonces, etc.) stay on `_globalVersion`. Full classified reader audit: `.dev/_DONE/blueprint-dbg-2/reports/BATCH-00-REPORT.md`.
 
 This split lets the debugger advance the memory clock per node (for sub-tick chunk-version granularity) **without** polluting the semantic frame clock. **It is currently exercised only as scaffolding** — the active full-snapshot recorder does not depend on per-node deltas — but it is **deliberately retained** to enable the delta optimization in §5. With no `BumpMemoryVersion` calls, `_globalVersion == _simulationTick` and the split is behaviorally inert.
 

@@ -391,7 +391,7 @@ public sealed class AssetJsonRoundTripTests
         var j2 = BlueprintJsonServices.Serialize(deserialized);
 
         Assert.Equal(j1, j2);
-        Assert.Contains("\"kind\":\"When\"", j1);
+        Assert.Contains("When", TestData.NodeDiscriminatorsIn(j1));
         var deserializedNodes = deserialized.Graphs[0].Nodes;
         Assert.Equal(4, deserializedNodes.Count);
         Assert.All(deserializedNodes, n => Assert.IsType<WhenNode>(n));
@@ -431,7 +431,7 @@ public sealed class AssetJsonRoundTripTests
         var j2 = BlueprintJsonServices.Serialize(deserialized);
 
         Assert.Equal(j1, j2);
-        Assert.Contains("\"kind\":\"ReadEqsResult\"", j1);
+        Assert.Contains("ReadEqsResult", TestData.NodeDiscriminatorsIn(j1));
         Assert.IsType<ReadEqsResultNode>(deserialized.Graphs[0].Nodes[0]);
     }
 
@@ -469,7 +469,7 @@ public sealed class AssetJsonRoundTripTests
         var j2 = BlueprintJsonServices.Serialize(deserialized);
 
         Assert.Equal(j1, j2);
-        Assert.Contains("\"kind\":\"SpawnEqsSensor\"", j1);
+        Assert.Contains("SpawnEqsSensor", TestData.NodeDiscriminatorsIn(j1));
         Assert.IsType<SpawnEqsSensorNode>(deserialized.Graphs[0].Nodes[0]);
     }
 }

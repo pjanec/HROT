@@ -34,5 +34,28 @@ namespace Fdp.Toolkit.Replication.Components
 
         /// <summary>Last orientation that was sent to (or received from) the network.</summary>
         public Quaternion LastRotation;
+
+        /// <summary>
+        /// Simulation time (seconds, cluster-synced) at which the publisher sampled
+        /// <see cref="LastPosition"/>/<see cref="LastRotation"/>.
+        ///
+        /// <para>
+        /// Written by the ingress translator when a sample arrives, and by nothing else. Dead
+        /// reckoning reads it to age the sample — <c>target = LastPosition + Vel * (simNow - SimStamp)</c>
+        /// — which makes the extrapolated position a pure function of replicated data, so two nodes
+        /// running at different frame rates compute the same answer for the same <c>simNow</c>.
+        /// </para>
+        ///
+        /// <para>
+        /// <b>Nothing may advance this component between samples.</b> Doing so turns the anchor into
+        /// an accumulator that extrapolates from its own previous guess, which drifts with frame
+        /// rate and diverges across nodes. On the egress side the component keeps its original job
+        /// unchanged (the last-published shadow that the send threshold compares against), and this
+        /// field is not used there.
+        /// </para>
+        ///
+        /// <para>See <c>docs/DESIGN_Dead_Reckoning.md</c> — rules R2, R3 and R4.</para>
+        /// </summary>
+        public double SimStamp;
     }
 }

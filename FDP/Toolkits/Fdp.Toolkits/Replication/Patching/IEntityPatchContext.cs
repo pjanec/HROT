@@ -56,6 +56,7 @@ public interface IEntityPatchContext
     /// </summary>
     void FlushDirtyMarks();
 
+
     /// <summary>
     /// Returns true if the current context has authority to write the unmanaged struct component
     /// <typeparamref name="T"/>. Always returns <c>true</c> in <see cref="ListPatchContext"/> (creation

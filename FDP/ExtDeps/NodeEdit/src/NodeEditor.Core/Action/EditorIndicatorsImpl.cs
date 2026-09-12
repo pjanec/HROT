@@ -15,6 +15,18 @@ public sealed class EditorIndicatorsImpl : IEditorIndicators
         _toasts = toasts;
     }
 
+    /// <summary>
+    /// The backing queue, so a host shell can drain and draw what was notified.
+    ///
+    /// <para>
+    /// ⚠ BP-223 — this was private, and the Hrot editor consequently had <b>no way</b> to reach the
+    /// queue it was notifying into: the only <c>TryDequeue</c> in the repo was the demo shell's,
+    /// against a queue it had constructed itself. Every notification a real host raised was
+    /// enqueued and discarded.
+    /// </para>
+    /// </summary>
+    public ToastQueue Toasts => _toasts;
+
     /// <inheritdoc/>
     public EditorStatusSnapshot Snapshot => _snapshot;
 

@@ -12,6 +12,7 @@ using Fdp.Toolkit.Orchestration.Handlers;
 using Fdp.Core;
 using Fdp.Toolkit.Time.Domain;
 using Fdp.Toolkit.Time.Controllers;
+using Fdp.Toolkit.NetworkSpawning;
 using ClusterState  = Hrot.NED.Descriptors.Orchestration.ClusterState;
 using ClusterOpType = Hrot.NED.Descriptors.Orchestration.ClusterOpType;
 using NodeOpType    = Hrot.NED.Descriptors.Orchestration.NodeOpType;
@@ -157,6 +158,32 @@ public sealed class ClusterMaster : IDisposable
     /// pending mode.</para>
     /// </summary>
     public string? PendingTimeMode { get; private set; }
+
+    // ── The world's ONE id authority (HN-037) ────────────────────────────────
+    /// <summary>
+    /// ⭐⭐⭐ <b>The id authority this world resets at a world boundary</b>, or <see langword="null"/> when the
+    /// host has none. 📄 <c>docs/DESIGN_Deterministic_Network_Ids.md</c> §11.
+    ///
+    /// <para>⭐⭐ <b>Why the hook is HERE and not once per host.</b> §11d planned two change points — a local
+    /// reset in the editor and a cluster reset on the orchestrator. 📐 Measured while building: <b>the editor
+    /// runs its own <c>ClusterMaster</c></b> *(<c>EditorSubsystem.cs:1702</c>, "the editor is a ONE-NODE
+    /// cluster")*, so both hosts already share this class. ⇒ ⭐ one hook, two authorities — which is the
+    /// §11e claim *("the editor becomes the offline one-node instance of the same authority")* expressed in
+    /// code instead of asserted in prose. ⛔ Two hooks would have been two implementations of one rule.</para>
+    ///
+    /// <para>⚠ <see langword="null"/> is legitimate and NOT a silent default: a headless master with no
+    /// network factory hosts no authority, and there is nothing for it to reset. ⛔ What is forbidden is a
+    /// host that HAS an authority and does not pass it — see the forwarding rails.</para>
+    /// </summary>
+    public IWorldIdAuthority? IdAuthority { get; set; }
+
+    /// <summary>
+    /// ⭐ Test/diagnostic hook: how many times a world boundary has reset the authority.
+    /// <para>📌 Exists so the guard can be asserted from the OUTSIDE — a rail proving the reset does NOT
+    /// fire on replay/preview/step needs to observe non-firing, and "nothing happened" is only checkable
+    /// against a counter.</para>
+    /// </summary>
+    public int WorldIdResetCount { get; private set; }
 
     private bool _disposed;
 
@@ -734,6 +761,10 @@ public sealed class ClusterMaster : IDisposable
         _inflightTransitionTx = tx;
         AppendToHistory(tx);
 
+        // ── HN-037: the world boundary resets the ONE id authority ───────────────────────
+        // ⭐ BEFORE the fan-out, because PrepareLive is what makes CGF allocate the authored ids.
+        ResetIdAuthorityIfWorldBoundary(trajectory, capturedSourceState);
+
         // S0502: Fan out PrepareXxx + CommitState to all active nodes.
         var activeNodeIds = new List<int>(_roster.ActiveNodes.Keys);
         if (activeNodeIds.Count > 0)
@@ -809,6 +840,87 @@ public sealed class ClusterMaster : IDisposable
         FdpLog<ClusterMaster>.Info(
             "[Orchestrator] TransitionStateIntent {0} accepted (transaction {1}).",
             requestId, tx.TransactionId);
+    }
+
+    /// <summary>
+    /// 🔴🔴 <b><c>HN-037</c> — THE GUARD. This is the whole safety argument, so read it before touching the
+    /// state list.</b> 📄 <c>docs/DESIGN_Deterministic_Network_Ids.md</c> §11b/§11c.
+    ///
+    /// <para>⭐⭐ Resetting the authority BACKWARD to 1000 is safe at a <b>scenario load</b> and nowhere else,
+    /// because the world is cleared there — nothing survives the boundary for a re-issued id to collide
+    /// with. ⛔ Fired mid-exercise the same call is catastrophic: it fights <c>mgmt-1</c> §5.7's forward
+    /// high-water mark and flushes pools other nodes are mid-way through.</para>
+    ///
+    /// <para>⭐⭐⭐ <b>The two states that qualify, and why the other four do NOT</b> *(§11c's reconciliation
+    /// table, in code)*:</para>
+    /// <list type="table">
+    ///   <item><term><c>LoadingLive</c> · <c>LoadingEdit</c></term><description>⭐ scenario load — the world
+    ///   is cleared and re-created from the file. THE world boundary, on both hosts.</description></item>
+    ///   <item><term><c>LoadingReplay</c></term><description>⛔ §5.7's own policy: reset FORWARD to the
+    ///   recording's high-water mark, not backward to a constant. Different value, different direction, and
+    ///   the world is pre-populated.</description></item>
+    ///   <item><term><c>LoadingPreview</c></term><description>⛔ §4d: the world is NOT cleared, so each node
+    ///   restores its OWN pool locally. Touching the central authority here would re-issue ids that live
+    ///   entities still hold.</description></item>
+    ///   <item><term>everything else</term><description>⛔ <c>Unloading*</c>, <c>Operating*</c>, <c>Idle</c>
+    ///   — mid-exercise or teardown; no world is being created.</description></item>
+    /// </list>
+    ///
+    /// <para>⚠ Keyed on the <b>planned trajectory</b>, not on the requested target: a BFS path from
+    /// <c>Idle</c> to <c>OperatingLive</c> passes THROUGH <c>LoadingLive</c>, and the target alone would
+    /// miss it.</para>
+    ///
+    /// <para>🔴🔴 <b>AND A <c>LoadingLive</c> STEP IS NOT SUFFICIENT — the state it is entered FROM decides.</b>
+    /// 📐 Found by the guard rail, `2026-08-24`, and §11c's three-policy table does not enumerate it: the
+    /// graph carries <c>OperatingReplay → LoadingLive</c>, the <b>live-from-replay branch</b>
+    /// *(<c>CGF1-S0305</c>; <c>ReferenceReplayLoadHandler</c> claims <c>PrepareLive</c> while a replay
+    /// session is active, so <c>CgfScenarioLoadHandler</c> never runs and no scenario is extracted)*. ⛔ That
+    /// world is NOT cleared — it continues from the replayed state, with entities already holding ids in the
+    /// 1000-block. ⇒ resetting there is precisely the catastrophic mid-exercise case this guard exists to
+    /// prevent, wearing a <c>LoadingLive</c> label.</para>
+    ///
+    /// <para>⇒ ⭐⭐⭐ <b>the rule is: a <c>Loading{Live,Edit}</c> step entered FROM <c>Idle</c>.</b> Idle is the
+    /// only state with no world, so it is the only place a load CREATES one rather than branching from one.
+    /// ⭐ A re-load from a live edit session still qualifies — its trajectory goes
+    /// <c>OperatingEdit → UnloadingEdit → Idle → LoadingEdit</c>, and the step is entered from Idle there
+    /// too.</para>
+    /// </summary>
+    private void ResetIdAuthorityIfWorldBoundary(
+        IEnumerable<ISysOpStep> trajectory, ClusterState sourceState)
+    {
+        if (IdAuthority == null) return;
+
+        // ⭐ Walk the trajectory tracking the state each step is entered FROM, starting at where the
+        //   cluster actually was. ⚠ The SOURCE is passed in, not read from _currentDsmState: that field has
+        //   already been advanced optimistically to the resolved target by the time this runs, so reading it
+        //   here would compare a load against its own destination and never see Idle.
+        var previousState = sourceState;
+        bool crossesWorldBoundary = false;
+
+        foreach (var step in trajectory)
+        {
+            if (step is not TransitionStep ts) continue;
+
+            bool isLoad = ts.TargetState == ClusterState.LoadingLive
+                       || ts.TargetState == ClusterState.LoadingEdit;
+
+            if (isLoad && previousState == ClusterState.Idle)
+            {
+                crossesWorldBoundary = true;
+                break;
+            }
+
+            previousState = ts.TargetState;
+        }
+
+        if (!crossesWorldBoundary) return;
+
+        IdAuthority.ResetToBase(WorldIdAuthority.WorldBase);
+        WorldIdResetCount++;
+
+        FdpLog<ClusterMaster>.Info(
+            "[Orchestrator] HN-037: world boundary — id authority reset to {0}.",
+            WorldIdAuthority.WorldBase);
     }
 
     private void ProcessManageEpisodeIntent(ManageEpisodeIntent intent)

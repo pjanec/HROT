@@ -23,7 +23,7 @@ architectural reference.
 
 `Hrot.Common` is the **shared foundation library** of the HROT simulation engine layer. It
 sits directly above `Hrot.Core` in the dependency hierarchy and below every application-level
-project (SimHost, IG, StrideMock, Editor). Its primary responsibilities are:
+project (SimHost, IG, NodeComposition, Editor). Its primary responsibilities are:
 
 - **Node bootstrap infrastructure** - `HrotNodeBuilder` and `SharedApplicationBootstrapper`
   eliminate ~300 lines of duplicated bootstrap boilerplate across all node types by providing
@@ -58,7 +58,7 @@ referenced by headless SimHost nodes, AI/CGF nodes, and rendering IG nodes alike
 
 ```
 +-------------------------------------------------------+
-|  Application Layer: SimHost / IG / StrideMock / Editor |
+|  Application Layer: SimHost / IG / NodeComposition / Editor |
 +-------------------------------------------------------+
                         |
                         v
@@ -781,7 +781,6 @@ Internal members are exposed to these test and sibling assemblies:
 | `Hrot.Editor.Tests`   |
 | `Hrot.Network`        |
 | `Hrot.IG.Tests`       |
-| `Hrot.StrideMock.Tests` |
 
 ---
 
@@ -1181,7 +1180,7 @@ gizmo manager. Use `IEntityStatefulGizmo` only when interaction-FSM state is nee
 | `Hrot.Network.NED`          | Consumer. References `Hrot.Common` for genesis intent types and interaction events. Provides `.WithReplication()`. |
 | `Hrot.SimHost`              | Consumer. Implements `SharedApplicationBootstrapper`, uses `HrotNodeBuilder`, `MissionControlExecutionSystem`, `UnitHierarchySystem`. |
 | `Hrot.IG`                   | Consumer. Uses gizmos, interaction pipeline, `GlobalActionRegistry`, `GlobalDebugSettings`. |
-| `Hrot.StrideMock`           | Consumer. Uses `SharedApplicationBootstrapper` for a headless rendering-engine mock node. |
+| `Hrot.NodeComposition`      | Consumer. `StrideNodeBootstrapper` (formerly in `Hrot.StrideMock`) uses `Hrot.Common`'s gizmo library and node infrastructure while composing the real Stride host's systems. |
 | `Hrot.Editor`               | Consumer. Uses scenario subsystem types and genesis intent DTOs for scenario editing.     |
 | `Fdp.Core`                  | Direct dependency. Provides the entire ECS foundation.                                    |
 | `Fdp.ModuleHost`            | Direct dependency. Provides `IEcsModule`, `ModuleHostKernel`, `ISimulationView`.          |

@@ -51,7 +51,7 @@ public sealed class BTreeOrchestratorEmitterTests
         var asset = MakeAsset();
         asset.AddVariable(new BlackboardVariableEntry("SharedFire", typeof(ShootBtDto), null));
 
-        string? result = BTreeOrchestratorEmitter.Emit(asset);
+        string? result = BTreeOrchestratorEmitter.Emit(asset, NoSubtreeCatalog.Resolve);
 
         result.Should().BeNull();
     }
@@ -63,7 +63,7 @@ public sealed class BTreeOrchestratorEmitterTests
         asset.AddVariable(new BlackboardVariableEntry("SharedFire", typeof(ShootBtDto), null));
         asset.AddAlias("SharedFire", Binding("Shoot_BT", typeof(ShootBtDto)));
 
-        string result = BTreeOrchestratorEmitter.Emit(asset)!;
+        string result = BTreeOrchestratorEmitter.Emit(asset, NoSubtreeCatalog.Resolve)!;
 
         result.Should().NotBeNull();
         result.Should().Contain("[BTreeAction(Name = \"Orchestrate_Shoot_BT\")]");
@@ -85,7 +85,7 @@ public sealed class BTreeOrchestratorEmitterTests
         // AddAlias deduplicates by (assetId, elementId), so use two unique elementIds.
         // The emitter must also deduplicate by (varName, subTreeName).
 
-        string result = BTreeOrchestratorEmitter.Emit(asset)!;
+        string result = BTreeOrchestratorEmitter.Emit(asset, NoSubtreeCatalog.Resolve)!;
 
         // Count occurrences of the method name.
         int count = CountOccurrences(result, "Orchestrate_Shoot_BT_Tick");
@@ -100,7 +100,7 @@ public sealed class BTreeOrchestratorEmitterTests
         asset.AddAlias("SharedFire", Binding("Shoot_BT", typeof(ShootBtDto)));
         asset.AddAlias("SharedFire", Binding("Patrol_BT", typeof(PatrolBtDto)));
 
-        string result = BTreeOrchestratorEmitter.Emit(asset)!;
+        string result = BTreeOrchestratorEmitter.Emit(asset, NoSubtreeCatalog.Resolve)!;
 
         result.Should().Contain("Orchestrate_Shoot_BT_Tick");
         result.Should().Contain("Orchestrate_Patrol_BT_Tick");
@@ -118,8 +118,8 @@ public sealed class BTreeOrchestratorEmitterTests
         var bindingId = new Guid("b1b2c3d4-0001-0000-0000-000000000002");
         asset.AddAlias("SharedFire", Binding("Shoot_BT", typeof(ShootBtDto), bindingId, bindingId));
 
-        string first  = BTreeOrchestratorEmitter.Emit(asset)!;
-        string second = BTreeOrchestratorEmitter.Emit(asset)!;
+        string first  = BTreeOrchestratorEmitter.Emit(asset, NoSubtreeCatalog.Resolve)!;
+        string second = BTreeOrchestratorEmitter.Emit(asset, NoSubtreeCatalog.Resolve)!;
 
         first.Should().Be(second, "emitter output must be deterministic for the same input");
     }
@@ -131,7 +131,7 @@ public sealed class BTreeOrchestratorEmitterTests
         asset.AddVariable(new BlackboardVariableEntry("SharedFire", typeof(ShootBtDto), null));
         asset.AddAlias("SharedFire", Binding("Shoot_BT", typeof(ShootBtDto)));
 
-        string result = BTreeOrchestratorEmitter.Emit(asset)!;
+        string result = BTreeOrchestratorEmitter.Emit(asset, NoSubtreeCatalog.Resolve)!;
 
         result.Should().StartWith(
             Hrot.Editor.AiShared.Emit.FluentCSharpEmitterBase.EditorGeneratedMarker);
@@ -196,7 +196,7 @@ public sealed class BTreeOrchestratorSyncEmitterTests
         var asset = MakeAsset();
         asset.AddVariable(new BlackboardVariableEntry("X", typeof(int), null));
 
-        string? result = BTreeOrchestratorEmitter.Emit(asset);
+        string? result = BTreeOrchestratorEmitter.Emit(asset, NoSubtreeCatalog.Resolve);
 
         result.Should().BeNull();
     }
@@ -211,7 +211,7 @@ public sealed class BTreeOrchestratorSyncEmitterTests
         RegisterGroup(asset, nodeId, "PatrolBT", "PatrolBlackboard", "Game.AI",
             new[] { new SubtreeSyncBinding("Range", "MasterRange", SyncIn: true, SyncOut: false) });
 
-        string result = BTreeOrchestratorEmitter.Emit(asset)!;
+        string result = BTreeOrchestratorEmitter.Emit(asset, NoSubtreeCatalog.Resolve)!;
 
         result.Should().Contain("Orchestrate_PatrolBT_Tick");
         result.Should().Contain("[BTreeAction(Name = \"Orchestrate_PatrolBT\")]");
@@ -227,7 +227,7 @@ public sealed class BTreeOrchestratorSyncEmitterTests
         RegisterGroup(asset, nodeId, "ScoutBT", "ScoutBlackboard", null,
             new[] { new SubtreeSyncBinding("Found", "MasterFound", SyncIn: false, SyncOut: true) });
 
-        string result = BTreeOrchestratorEmitter.Emit(asset)!;
+        string result = BTreeOrchestratorEmitter.Emit(asset, NoSubtreeCatalog.Resolve)!;
 
         result.Should().Contain("Orchestrate_ScoutBT_Tick");
     }
@@ -246,7 +246,7 @@ public sealed class BTreeOrchestratorSyncEmitterTests
                 new SubtreeSyncBinding("Kills",  "MasterKills",  SyncIn: false, SyncOut: true),
             });
 
-        string result = BTreeOrchestratorEmitter.Emit(asset)!;
+        string result = BTreeOrchestratorEmitter.Emit(asset, NoSubtreeCatalog.Resolve)!;
 
         int syncInPos  = result.IndexOf("subDto.Ammo = master.MasterAmmo",   StringComparison.Ordinal);
         int tickPos    = result.IndexOf("GetInterpreter().Tick",              StringComparison.Ordinal);
@@ -271,7 +271,7 @@ public sealed class BTreeOrchestratorSyncEmitterTests
                 new SubtreeSyncBinding("Alpha", "MasterAlpha", SyncIn: true, SyncOut: false),
             });
 
-        string result = BTreeOrchestratorEmitter.Emit(asset)!;
+        string result = BTreeOrchestratorEmitter.Emit(asset, NoSubtreeCatalog.Resolve)!;
 
         int posAlpha = result.IndexOf("subDto.Alpha", StringComparison.Ordinal);
         int posZeal  = result.IndexOf("subDto.Zeal",  StringComparison.Ordinal);
@@ -295,7 +295,7 @@ public sealed class BTreeOrchestratorSyncEmitterTests
                 new SubtreeSyncBinding("Tick",  MasterVariableName: null, SyncIn: false, SyncOut: true),
             });
 
-        string? result = BTreeOrchestratorEmitter.Emit(asset);
+        string? result = BTreeOrchestratorEmitter.Emit(asset, NoSubtreeCatalog.Resolve);
 
         result.Should().BeNull("no effective sync ops means no method should be emitted");
     }
@@ -315,7 +315,7 @@ public sealed class BTreeOrchestratorSyncEmitterTests
         RegisterGroup(asset, nodeId, "PatrolBT", "PatrolBlackboard", null,
             new[] { new SubtreeSyncBinding("Speed", "MasterSpeed", SyncIn: true, SyncOut: false) });
 
-        string result = BTreeOrchestratorEmitter.Emit(asset)!;
+        string result = BTreeOrchestratorEmitter.Emit(asset, NoSubtreeCatalog.Resolve)!;
 
         // Should have exactly one method for PatrolBT (the Approach A one).
         int count = 0;
@@ -327,4 +327,18 @@ public sealed class BTreeOrchestratorSyncEmitterTests
         }
         count.Should().Be(1, "Approach A must preempt Approach B for the same sub-tree name");
     }
+}
+
+/// <summary>
+/// ⭐⭐ <b><c>Q49</c>: an EXPLICIT <i>"I cannot resolve"</i>, not a silent default.</b> These rails build
+/// their assets by hand and call <c>RecordSubtreeNodeMeta</c> themselves, so there is no catalog to
+/// consult — ⛔ and <c>BehaviorTreeAsset.RecomputeSubtreeSyncIdentity</c> leaves an unresolvable node's
+/// identity ALONE, which is why every assertion in this file is unchanged by the pull.
+/// <para>⚠ <c>Emit</c>'s resolver is REQUIRED on purpose *(<c>R-126</c>)* — an optional one would rebuild
+/// the very failure mode <c>Q49</c> fixes: an identity only some callers bother to supply.</para>
+/// <para>⭐ ONE helper for both fixtures in this file — 📌 <c>R-13</c>, even for a one-liner.</para>
+/// </summary>
+internal static class NoSubtreeCatalog
+{
+    public static (string Name, string BlackboardTypeName)? Resolve(Guid _) => null;
 }

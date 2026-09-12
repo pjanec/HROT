@@ -314,9 +314,20 @@ namespace Fdp.Core
         
         /// <summary>
         /// Gets the component ID for a type (returns -1 if not registered).
+        ///
+        /// <para>
+        /// A <see langword="null"/> type is "not registered" and returns -1 as well. It used to
+        /// reach <c>Dictionary.TryGetValue</c> and throw <see cref="ArgumentNullException"/>,
+        /// which contradicted the contract on this very line: a lookup documented as total was in
+        /// fact partial. A single unresolvable component type in a persisted breakpoint predicate
+        /// was therefore enough to kill the editor on startup, every launch, with no way back
+        /// through the UI.
+        /// </para>
         /// </summary>
-        public static int GetId(Type type)
+        public static int GetId(Type? type)
         {
+            if (type is null) return -1;
+
             lock (_lock)
             {
                 if (_typeToId.TryGetValue(type, out int id))

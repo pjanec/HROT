@@ -1,0 +1,33 @@
+// HROT_EDITOR_GENERATED - manual edits to this file will be overwritten by the AI editor on next save.
+// AssetId: bb000020-0000-0000-0000-000000000000
+
+using System;
+using System.Numerics;
+
+using Fbt;
+using Fbt.Compiler;
+using Fdp.Toolkit.Behavior;
+using Fdp.Toolkit.Behavior.Components;
+using Hrot.AI.Behaviors.Brains;
+
+namespace Hrot.AI.Behaviors.Trees;
+
+public static class T20_MultiStateful
+{
+    public static BTreeBuilder<BrainBlackboard, BTreeContext> CreateBuilder() =>
+        new BTreeBuilder<BrainBlackboard, BTreeContext>()
+            .Sequence(seq =>
+            {
+                seq.Action("Hrot.AI.Behaviors.Brains.DemoCounterNodes.Action_AdvanceCursor@0@1631759884",
+                    visualId: new Guid("bb200000-0000-0000-0000-000000000003"));
+                seq.Action("Hrot.AI.Behaviors.Brains.DemoCounterNodes.Action_AdvanceCursor@4@1614982265",
+                    visualId: new Guid("bb200000-0000-0000-0000-000000000004"));
+                seq.Action("Hrot.AI.Behaviors.Brains.DemoCounterNodes.Action_IncrementCounter@8",
+                    visualId: new Guid("bb200000-0000-0000-0000-000000000005"));
+            },
+                visualId: new Guid("bb200000-0000-0000-0000-000000000002"));
+
+    [BTreeDefinition("T20_MultiStateful", AssetId = "bb000020-0000-0000-0000-000000000000")]
+    public static BehaviorTreeBlob Build() =>
+        CreateBuilder().Compile("T20_MultiStateful");
+}

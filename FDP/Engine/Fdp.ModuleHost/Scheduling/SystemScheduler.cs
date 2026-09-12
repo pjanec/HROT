@@ -19,6 +19,9 @@ namespace Fdp.ModuleHost.Scheduling
         
         // Profiling data
         private readonly Dictionary<IEcsModuleSystem, SystemProfileData> _profileData = new();
+
+        // CE-165 — every [SingleInstance] type seen so far, including those found inside registered groups.
+        private readonly HashSet<Type> _singleInstanceTypes = new();
         
         /// <summary>
         /// Register a system for execution.
@@ -28,17 +31,77 @@ namespace Fdp.ModuleHost.Scheduling
         {
             if (system == null)
                 throw new ArgumentNullException(nameof(system));
-            
+
             var phase = GetPhaseAttribute(system);
-            
+
             if (!_systemsByPhase.ContainsKey(phase))
                 _systemsByPhase[phase] = new List<IEcsModuleSystem>();
-            
+
+            EnforceSingleInstance(system);
+
             _systemsByPhase[phase].Add(system);
             _systemPhases[system] = phase;
             _profileData[system] = new SystemProfileData(GetSystemProfileName(system));
         }
         
+        /// <summary>
+        /// <c>CE-165</c> — refuses a second registration of a type marked
+        /// <see cref="SingleInstanceAttribute"/>.
+        /// </summary>
+        /// <remarks>
+        /// Checked across ALL phases, not just the one being registered into: a system that ends up in two
+        /// different phases still ticks twice per frame, which is the thing the attribute forbids. The
+        /// scheduler is the right place because it is the single choke point every registration path reaches
+        /// — module registration, manual registration and the packs all land here — so no composition root
+        /// can opt out by wiring systems its own way.
+        /// </remarks>
+        private void EnforceSingleInstance<T>(T system) where T : IEcsModuleSystem
+        {
+            CollectSingleInstance(system!, system!.GetType().Name);
+        }
+
+        /// <summary>
+        /// Walks a registered system, descending into <see cref="ISystemGroup"/> members, and records every
+        /// <see cref="SingleInstanceAttribute"/> type it finds — throwing if one was already seen.
+        /// </summary>
+        /// <remarks>
+        /// <b>The descent is the whole point, and it was measured.</b> A first version checked only the
+        /// system handed to <c>RegisterSystem</c> and could not see the defect it was written for: the
+        /// editor wraps its fused Brain+MuscleGround lists in a <c>TogglableSimulationGroup</c> and registers
+        /// that ONE group, so the duplicated <c>UnitHierarchySystem</c> instances inside it never reach this
+        /// method individually. Reverting the editor's deduplication and booting it proved the guard silent.
+        /// A guard that cannot see the composition it exists to police is worse than none, because it reads
+        /// as coverage.
+        /// </remarks>
+        private void CollectSingleInstance(IEcsModuleSystem system, string registrationRoot)
+        {
+            if (system == null) return;
+
+            var type = system.GetType();
+            if (Attribute.IsDefined(type, typeof(SingleInstanceAttribute)))
+            {
+                if (!_singleInstanceTypes.Add(type))
+                {
+                    throw new InvalidOperationException(
+                        $"[SingleInstance] system '{type.FullName}' is registered more than once (reached "
+                      + $"via '{registrationRoot}'). A second instance ticks every frame alongside the "
+                      + "first, and this type is marked single-instance because that corrupts state rather "
+                      + "than merely wasting time. Fix the COMPOSITION ROOT that registered it twice — most "
+                      + "often a host concatenating two role packs that both carry it, without "
+                      + "deduplicating by type. SystemComposition.DistinctByType is the shared helper "
+                      + "(CE-165).");
+                }
+            }
+
+            // Groups are registered as a single system but execute their members every frame, so a
+            // duplicate hiding inside one is every bit as harmful as a duplicate registration.
+            if (system is ISystemGroup group)
+            {
+                foreach (var member in group.GetSystems())
+                    CollectSingleInstance(member, registrationRoot);
+            }
+        }
+
         /// <summary>
         /// Build execution orders for all phases.
         /// Must be called after all systems registered, before execution.

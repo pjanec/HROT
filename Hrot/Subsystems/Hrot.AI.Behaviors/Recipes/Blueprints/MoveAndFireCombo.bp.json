@@ -1,23 +1,25 @@
 {
   "$meta": {
     "docType": "Hrot.Blueprints",
-    "schemaVersion": 1
+    "schemaVersion": 2
   },
-  "Header": {
-    "SubsystemType": "Hrot.Blueprints",
-    "SchemaVersion": "1.0"
-  },
+  "Header": {},
   "AssetId": "00000000-aaaa-0001-0000-000000000004",
   "Name": "MoveAndFireCombo",
-  "Dispatch": 1,
-  "TierHint": 0,
+  "Dispatch": "AiPrimitive",
+  "TierHint": "Auto",
+  "IsWorldSingleton": false,
   "Primitive": {
-    "Intent": 0,
-    "Hostings": [0, 2]
+    "Intent": "Action",
+    "Hostings": [
+      "BTreeAction",
+      "HsmAction"
+    ]
   },
-  "Parameters": [],
-  "WorkingState": [],
-  "Variables": [],
+  "Declarations": [],
+  "ParameterOrder": null,
+  "WorkingStateOrder": null,
+  "VariableOrder": null,
   "EventDispatchers": [],
   "CustomEvents": [],
   "CallablePeers": [],
@@ -25,64 +27,100 @@
     {
       "Id": "b4000001-0001-0001-0001-000000000001",
       "Name": "Main",
-      "Kind": 0,
+      "Kind": "Function",
       "Inputs": [],
       "Outputs": [],
+      "ExecOutputs": [],
+      "ExecInputs": [],
       "Nodes": [
         {
           "kind": "EventEntry",
-          "Id": "c4000001-0001-0001-0001-000000000001",
           "EventTypeId": "",
+          "Id": "c4000001-0001-0001-0001-000000000001",
           "Pins": [],
-          "EditorMetadata": {}
+          "EditorMetadata": {
+            "X": 0,
+            "Y": 0,
+            "Comment": null
+          }
         },
         {
           "kind": "ChannelCommand",
-          "Id": "c4000001-0002-0002-0002-000000000002",
           "ChannelType": "LocomotionChannel",
           "ActionId": "MoveTo",
+          "Id": "c4000001-0002-0002-0002-000000000002",
           "Pins": [],
-          "EditorMetadata": {}
+          "EditorMetadata": {
+            "X": 0,
+            "Y": 0,
+            "Comment": null
+          }
         },
         {
           "kind": "WaitForChannel",
-          "Id": "c4000001-0003-0003-0003-000000000003",
           "ChannelType": "LocomotionChannel",
+          "Id": "c4000001-0003-0003-0003-000000000003",
           "Pins": [],
-          "EditorMetadata": {}
+          "EditorMetadata": {
+            "X": 0,
+            "Y": 0,
+            "Comment": null
+          }
         },
         {
           "kind": "ChannelCommand",
-          "Id": "c4000001-0004-0004-0004-000000000004",
           "ChannelType": "WeaponChannel",
           "ActionId": "AimAndFire",
+          "Id": "c4000001-0004-0004-0004-000000000004",
           "Pins": [],
-          "EditorMetadata": {}
+          "EditorMetadata": {
+            "X": 0,
+            "Y": 0,
+            "Comment": null
+          }
         },
         {
           "kind": "WaitForChannel",
-          "Id": "c4000001-0005-0005-0005-000000000005",
           "ChannelType": "WeaponChannel",
+          "Id": "c4000001-0005-0005-0005-000000000005",
           "Pins": [],
-          "EditorMetadata": {}
+          "EditorMetadata": {
+            "X": 0,
+            "Y": 0,
+            "Comment": null
+          }
         },
         {
           "kind": "Return",
+          "Status": "Success",
           "Id": "c4000001-0006-0006-0006-000000000006",
-          "Status": 0,
           "Pins": [],
-          "EditorMetadata": {}
+          "EditorMetadata": {
+            "X": 0,
+            "Y": 0,
+            "Comment": null
+          }
         },
         {
           "kind": "Return",
+          "Status": "Failure",
           "Id": "c4000001-0007-0007-0007-000000000007",
-          "Status": 1,
           "Pins": [],
-          "EditorMetadata": {}
+          "EditorMetadata": {
+            "X": 0,
+            "Y": 0,
+            "Comment": null
+          }
         }
       ],
       "Links": [],
-      "EditorMetadata": {}
+      "LocalVariables": [],
+      "Comments": [],
+      "EditorMetadata": {
+        "ViewportX": 0,
+        "ViewportY": 0,
+        "ViewportZoom": 0
+      }
     }
   ],
   "EditorMetadata": {
@@ -91,11 +129,11 @@
     "Recipe": {
       "DisplayName": "Move and Fire Combo",
       "Category": "Combat",
-      "Description": "Sequential AiPrimitive: move to position then fire. Demonstrates ChannelCommand + WaitForChannel pattern (imperative, not reactive). Use this for BTree/HSM actions where A-B-C sequencing is needed.",
+      "Description": "Sequential AiPrimitive: move to position then fire. Demonstrates ChannelCommand \u002B WaitForChannel pattern (imperative, not reactive). Use this for BTree/HSM actions where A-B-C sequencing is needed.",
       "Difficulty": "Beginner",
       "ConceptsTaught": [
-        "AiPrimitive with multi-hosting (BTreeAction + HsmAction)",
-        "ChannelCommand + WaitForChannel for sequential coordination",
+        "AiPrimitive with multi-hosting (BTreeAction \u002B HsmAction)",
+        "ChannelCommand \u002B WaitForChannel for sequential coordination",
         "When NOT to use WhenNode (AiPrimitives stay imperative)"
       ]
     }

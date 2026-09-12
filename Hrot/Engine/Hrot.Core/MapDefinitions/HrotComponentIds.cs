@@ -22,8 +22,14 @@ namespace Hrot.Map.Definitions
         /// <summary><c>IgEntityData</c> — IG-internal entity metadata from EntityInfo.</summary>
         public const byte IgEntityData        = 164;
 
-        /// <summary><c>IgHealthState</c> — IG-internal health state derived from EntityDamage.</summary>
-        public const byte IgHealthState       = 165;
+        /// <summary>
+        /// ⛔ RETIRED (CE-196) — was <c>IgHealthState</c>, an IG-internal damage percentage derived from
+        /// the <c>EntityDamage</c> descriptor. That component is deleted: the descriptor now carries
+        /// <c>Current</c>+<c>Max</c> and every consumer reads the real <c>Health</c> component.
+        /// ⚠ The id is kept RESERVED rather than freed — reusing 165 for a different component would
+        /// silently mis-decode any persisted or recorded data that still carries the old one.
+        /// </summary>
+        public const byte RetiredIgHealthState = 165;
 
         /// <summary>
         /// <c>ActivePerspective</c> — managed singleton component selecting the active presentation

@@ -105,8 +105,20 @@ public sealed class BlueprintObserveTests
     }
 
     /// <summary>
-    /// Without a registered DebugMap, CaptureLiveState returns a non-null snapshot but
-    /// FieldValues is empty (slot exists but StateLayout is unknown).
+    /// ⭐ <c>QA-015</c> — <b>a DebugMap is NOT required to read fields, and asserting that it was
+    /// pinned an implementation detail rather than an intent.</b>
+    ///
+    /// <para>⛔ This used to assert <c>Assert.Empty(snapshot.FieldValues)</c> on the reasoning
+    /// *"no RegisterDebugMap ⇒ <c>_debugMaps</c> empty ⇒ <c>StateLayout == null</c> ⇒ no fields."*
+    /// 📐 Measured 2026-08-26: <c>CaptureStateSnapshot</c> consults <c>_debugMaps</c> only for the
+    /// ASSET NAME; the fields come from <c>_registry.TryGetById</c> and the definition's kind. So a
+    /// registered blueprint yields its fields either way — the run produced <c>["Count"] = 3</c>.</para>
+    ///
+    /// <para>⭐⭐ And the design agrees that this was never DebugMap's job:
+    /// <c>Blueprint_Subsystem_DEBUG-DD-ADDENDUM.md</c> lists <c>RegisterDebugMap(asset)</c> as one of
+    /// *"the two events that bind/rebind BREAKPOINTS"* — ⛔ nothing makes it a precondition for state
+    /// capture. ⇒ the assertion is inverted to the property that actually matters: capture works
+    /// WITHOUT a debug map, which is what makes the observe path usable on a fresh session.</para>
     /// </summary>
     [Fact]
     public void CaptureLiveState_WithoutDebugMap_ReturnsSnapshotWithEmptyFields()
@@ -131,7 +143,14 @@ public sealed class BlueprintObserveTests
 
         var snapshot = session.CaptureLiveState(entity, CounterDemoBlueprint.AssetGuid);
         Assert.NotNull(snapshot);
-        Assert.Empty(snapshot!.FieldValues);
+
+        // ⭐ QA-015 — the fields come from the REGISTRY, so they are present without a debug map.
+        //    ⛔ The old `Assert.Empty` asserted the opposite and had been red ever since capture stopped
+        //    depending on _debugMaps for anything but the asset name.
+        Assert.True(snapshot!.FieldValues.ContainsKey(CounterDemoBlueprint.CountFieldName),
+            "capture must work without RegisterDebugMap — that call binds BREAKPOINTS, not state. "
+            + $"Keys present: {string.Join(", ", snapshot.FieldValues.Keys)}");
+        Assert.Equal(3, (int)snapshot.FieldValues[CounterDemoBlueprint.CountFieldName]);
     }
 
     /// <summary>

@@ -22,12 +22,73 @@ namespace Fdp.Toolkit.Replication.Systems
     /// <para>Checks are O(1) bitmask operations against the entity's
     /// <see cref="EntityHeader.ComponentMask"/> — no network concepts involved.</para>
     /// </summary>
+    /// <remarks>
+    /// ⭐⭐⭐ <b><c>P2</c> (<c>2026-09-11</c>) — THE TWO ATTRIBUTES BELOW EXIST BECAUSE THE REGISTRAR MOVED.</b>
+    /// 📄 <c>docs/DESIGN_Role_Affinity_Ownership.md</c> §3.7 · §6 step <c>0a</c>. Registration left
+    /// <c>NedReplicationModule.RegisterSystems</c> — <b>one</b> network implementation — for
+    /// <c>EntityCreationPack</c>, which every ECS host builds. ⭐ Ghost CREATION is a network concern and
+    /// stays in the replication module; ghost PROMOTION consumes the TKB and the translator list and is a
+    /// SIMULATION concern. ⇒ the BDC gap closes as a side effect: <c>BdcReplicationModule</c> creates
+    /// ghosts and registered no promotion, so its ghosts were never promoted.
+    ///
+    /// <para>⭐⭐ <see cref="UpdateAfterAttribute"/> — <b>the ordering was true BY REGISTRATION ORDER and is
+    /// now true BY CONSTRUCTION.</b> 📐 Measured: with no declared edge, <c>SystemScheduler</c> orders a
+    /// phase by insertion order *(Kahn's algorithm over nodes added in registration order,
+    /// <c>SystemScheduler.cs:233</c>/<c>:280</c>)*. ⛔ While both systems were registered by the SAME
+    /// module that was free; across two registrars it would depend on which the host wires first — and a
+    /// promotion running before creation costs a frame of latency silently. ⚠ The edge is PHASE-SCOPED
+    /// *(<c>SystemScheduler.cs:250</c> adds it only when the target is in the same phase)*, and both are
+    /// <see cref="SystemPhase.BeforeSync"/>; on a host with no replication module at all *(the editor's
+    /// <c>NullReplicationModule</c>, the integration harness)* there is no <c>GhostCreationSystem</c> to
+    /// order against and the edge is correctly skipped.</para>
+    ///
+    /// <para>⭐⭐ <see cref="SingleInstanceAttribute"/> — <b>this is what makes step <c>0a</c>'s gate
+    /// structural instead of a rail.</b> The gate is *"a node built from the pack registers promotion
+    /// exactly once"*; ⛔ the failure mode of a MOVE is landing the add without the remove, which would
+    /// promote twice per frame. 📌 <c>CE-165</c> put this attribute in the scheduler for exactly that
+    /// class of defect, and it recurses into groups, so a second registration now throws at
+    /// <c>BeginRun()</c> rather than being measured later.</para>
+    ///
+    /// <para>⚠⚠ <b>WHAT THE MOVE DELIBERATELY DID NOT CHANGE — the replay gate.</b> 📐 Measured
+    /// <c>2026-09-11</c>: <c>NetworkLifecycleSystemGroup</c>'s own summary claims it groups
+    /// <i>"LifecycleSystem, GhostPromotionSystem and NetworkGatewaySystem"</i> so that *"no … ghost
+    /// promotions occur during playback"*, but <b>no production site has ever put this system in it</b> —
+    /// every one passes <c>GhostCreationSystem</c> alone, and promotion was registered standalone at
+    /// <c>NedReplicationModule.cs:417</c>, i.e. OUTSIDE the gate. ⇒ the pack registers it standalone too,
+    /// preserving today's behaviour exactly. ⛔ Whether promotion SHOULD be gated during replay is a
+    /// separate question and is filed, not answered here — a relocation may not change behaviour.</para>
+    /// </remarks>
     [UpdateInPhase(SystemPhase.BeforeSync)]
+    [UpdateAfter(typeof(GhostCreationSystem))]
+    [SingleInstance]
     public class GhostPromotionSystem : IEcsModuleSystem
     {
         private readonly ITkbDatabase _tkbDatabase;
         private readonly EntityLifecycleModule _lifecycleModule;
-        private readonly IReadOnlyList<ITkbEntityTranslator> _translators;
+        private readonly IReadOnlyList<ITkbEntityTranslator>? _explicitTranslators;
+
+        /// <summary>
+        /// ⭐ The node's TKB→ECS projection list. An explicit list wins; otherwise the ONE list the
+        /// node's <see cref="EntityLifecycleModule"/> already holds is used — §6.3's
+        /// <i>"identical for all three systems within the same node"</i>, satisfied by SHARING the
+        /// instance rather than by a second argument nobody passes.
+        ///
+        /// <para>📌 <c>CE-155</c>. ⚠ <b>Corrected scope, <c>2026-09-01</c>:</b> an earlier version of this
+        /// comment said the list was <c>Array.Empty</c> on <i>every</i> node. 📐 It is empty on the
+        /// <b>FACTORY path</b> only — <c>NedNetworkFactory.CreateReplicationModule()</c> omits
+        /// <c>tkbEntityTranslators</c>, which is how <b>CGF</b> builds its module. Hosts on the
+        /// <b>BUILDER path</b> could pass one, via
+        /// <c>HrotNodeBuilderReplicationExtensions.Build()</c> forwarding <c>.WithTranslators(...)</c>.
+        /// ⚠⚠ <b>UPDATED <c>2026-09-03</c>: NO PRODUCTION HOST CALLS IT ANY MORE.</b> SimHost dropped it
+        /// at <c>CE-140</c> step 3 and IG — the last caller — at <c>CE-141</c>, under the ruling that
+        /// every ECS node uses the same TKB projection through the same shared code. ⇒ ⭐ <b>this
+        /// fallback is now THE path, not a factory-path convenience</b>, and it is what makes
+        /// <c>tkb-1/DESIGN.md</c> §6.3's <i>"identical for all three systems within the same node"</i>
+        /// true by SHARING the instance. Resolved lazily because composition roots call
+        /// <see cref="EntityLifecycleModule.SetTranslators"/> after the module is constructed.</para>
+        /// </summary>
+        private IReadOnlyList<ITkbEntityTranslator> Translators
+            => _explicitTranslators ?? _lifecycleModule.Translators;
 
         private readonly Queue<Entity> _promotionQueue = new();
         private readonly HashSet<Entity> _inQueue = new();
@@ -41,15 +102,58 @@ namespace Fdp.Toolkit.Replication.Systems
         public GhostPromotionSystem(
             ITkbDatabase tkbDatabase,
             EntityLifecycleModule lifecycleModule,
-            IReadOnlyList<ITkbEntityTranslator>? translators = null)
+            IReadOnlyList<ITkbEntityTranslator>? translators = null,
+            Fdp.Toolkit.Replication.Abstractions.IRoleAffinityPolicy? roleAffinity = null)
         {
             _tkbDatabase = tkbDatabase ?? throw new ArgumentNullException(nameof(tkbDatabase));
             _lifecycleModule = lifecycleModule ?? throw new ArgumentNullException(nameof(lifecycleModule));
-            _translators = translators ?? System.Array.Empty<ITkbEntityTranslator>();
+            _explicitTranslators = translators;
+            _roleAffinity = roleAffinity;
         }
+
+        /// <summary>
+        /// ⭐⭐⭐ <b><c>P3</c> step 3 — the PROMOTE leg of role affinity: <i>"an entity another node created
+        /// has arrived; which of its components are MINE to simulate?"</i></b>
+        /// 📄 <c>docs/DESIGN_Role_Affinity_Ownership.md</c> §3.1, §3.2.
+        ///
+        /// <para>⭐⭐ <b>This is the half that makes the design work without a handshake.</b> The creator
+        /// DECLINES exactly what the role-holder CLAIMS — both evaluating the same function over the same
+        /// entity — so the two answers are complementary by construction and no node has to ask another
+        /// what it may own.</para>
+        ///
+        /// <para>⚠ <b><c>null</c> keeps today's behaviour</b> — an arrived ghost claims nothing and waits
+        /// for an explicit <c>OwnershipUpdate</c>, exactly as before. ⭐ Supplied through
+        /// <c>EntityCreationContext.RoleAffinity</c>, so this system and <c>NetworkSpawningSystem</c>
+        /// share ONE instance by construction (§3.7).</para>
+        /// </summary>
+        private readonly Fdp.Toolkit.Replication.Abstractions.IRoleAffinityPolicy? _roleAffinity;
+
+        /// <summary>
+        /// ⭐⭐⭐ <b>The replay gate</b> — asked once per <see cref="Execute"/>; <c>true</c> makes this system
+        /// do nothing. 📄 <c>mgmt-1/DESIGN.md</c> §8.10: during replay <i>"the ELM pipeline is never
+        /// invoked"</i>, and §8.10 names this system among the three that must not run.
+        ///
+        /// <para>🔴 <b>Why it matters HERE specifically.</b> Lifecycle IS recorded — the entity index's cold
+        /// chunk carries <c>EntityMetadataCold.LifecycleState</c> — so an entity recorded while it was a
+        /// GHOST <b>comes back as a ghost</b>, matches this system's
+        /// <c>With&lt;TkbIdentity&gt;().WithLifecycle(Ghost)</c> query, and would be promoted: mutating
+        /// entities the LOG owns, and calling <c>BeginConstruction</c> on them. 📄 <c>CE-259ap</c>.</para>
+        ///
+        /// <para>⛔ Gated IN PLACE rather than relocated into <c>NetworkLifecycleSystemGroup</c> as §8.10
+        /// prescribes — that group's <c>ExecuteGroup</c> has exactly ONE caller, so it never ticks on the
+        /// editor or on BDC nodes, and this system is <c>[SingleInstance]</c> and already scheduler-
+        /// registered by <c>EntityCreationPack</c>. Authorised deviation; 📄 <c>DESIGN.md</c> §2.1m.</para>
+        ///
+        /// <para>⚠ Unset (the default) means "never replaying", so a host that does not wire it behaves
+        /// exactly as before.</para>
+        /// </summary>
+        public System.Func<bool>? IsReplayActive { get; set; }
 
         public void Execute(ISimulationView view, float dt)
         {
+            // ⛔ The log owns the world during playback — a restored ghost is the log's, not ours to promote.
+            if (IsReplayActive != null && IsReplayActive()) return;
+
             _world = view as EntityRepository;
             if (_world == null) return;
 
@@ -119,8 +223,43 @@ namespace Fdp.Toolkit.Replication.Systems
                 }
 
                 // All requirements satisfied: apply blueprint defaults.
-                foreach (var t in _translators)
+                foreach (var t in Translators)
                     t.Inject(_world!, entity, template);
+
+                // ⭐⭐⭐ P3 step 3 — ROLE AFFINITY, the PROMOTE leg: claim the components this node's role
+                //   covers. 📄 docs/DESIGN_Role_Affinity_Ownership.md §3.1, §3.2.
+                //
+                //   ⭐ ORDER IS LOAD-BEARING and already correct: the translator loop above has just
+                //   MATERIALISED the template's components, so intersecting with the live mask below can
+                //   actually see them. Claiming before the loop would silently claim nothing.
+                //
+                //   ⭐⭐ isCreator: FALSE — this node did not create the entity, so it gets NO birthright.
+                //   ⛔ Granting one here would be the two-owner bug wearing the fix's clothes: the CREATOR
+                //   keeps the birth-critical components (step 2), and if a promoter claimed them too, both
+                //   nodes would own the position and their egress would fight.
+                //
+                //   ⭐ ADDITIVE (BitwiseOr), not an assignment: an explicit DeferredTakeOwnership grant
+                //   that already landed on this ghost must survive. §3.4 — explicit grants still win; this
+                //   design only makes the DEFAULT declarative and local.
+                if (_roleAffinity != null)
+                {
+                    long netId = _world!.HasComponent<NetworkIdentity>(entity)
+                        ? _world!.GetComponent<NetworkIdentity>(entity).Value
+                        : 0L;
+
+                    var claim = _roleAffinity.OwnableMask(
+                        template,
+                        isCreator: false,
+                        new Fdp.Toolkit.Replication.Abstractions.RoleShardKey(
+                            netId, tkbIdentity.TkbType, _world!.GetDisType(entity)));
+
+                    // ⚠ Re-read the mask: the translator loop added components, so the `compGP` ref taken
+                    //   before the requirement check is not a safe basis for the intersection.
+                    claim.BitwiseAnd(in _world!.GetComponentMask(entity.Index));
+
+                    ref var metaGP = ref _world!.GetMetadata(entity.Index);
+                    metaGP.AuthorityMask.BitwiseOr(in claim);
+                }
             }
 
             // Promote: Ghost → Constructing.

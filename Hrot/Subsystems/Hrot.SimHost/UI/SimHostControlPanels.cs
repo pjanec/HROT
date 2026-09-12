@@ -6,6 +6,7 @@ using CarKinem.Formation;
 using CarKinem.Trajectory;
 using Fdp.Core;
 using Fdp.ModuleHost;
+using Hrot.UI.Common.Facades;
 
 namespace Hrot.SimHost.UI
 {
@@ -21,31 +22,58 @@ namespace Hrot.SimHost.UI
 
     // ─── Simulation control panel ─────────────────────────────────────────────────
 
-    /// <summary>Play / Pause / Step / Time-Scale controls.</summary>
+    /// <summary>
+    /// Play / Pause / Step / Time-Scale controls.
+    ///
+    /// <para><b>`T5`: these controls used to be INERT.</b> Pause toggled a private field, Step set a
+    /// private flag, and <c>ConsumeStepRequest</c> had no caller anywhere in the repo — so pressing
+    /// Pause on this panel did nothing, silently. The same shape as `AS-9`'s no-op tracer coordinator:
+    /// a control that looks wired because an identically-shaped one elsewhere (the CarKinem example's
+    /// <c>MainUI</c>) genuinely is.</para>
+    ///
+    /// <para>SimHost is a SLAVE node, so it must never pause itself — a pause is cluster-wide, issued
+    /// as an intent. It already builds a <see cref="ITimeTransportFacade"/> for its status bar
+    /// (<c>SimHostSubsystem:263</c>), which is exactly the seam these controls needed, so they are
+    /// routed onto it rather than given a control path of their own.</para>
+    ///
+    /// <para>With no facade the controls render DISABLED. Deliberately: a visibly dead button is a
+    /// bug report, and a silently dead one is what this fixed.</para>
+    /// </summary>
     public class SimHostSimulationControlsPanel
     {
-        public bool  IsPaused    { get; set; }
-        public float TimeScale   { get; set; } = 1.0f;
-        public bool  StepRequested { get; set; }
+        /// <summary>
+        /// The node's cluster transport, supplied by <c>SimHostSubsystem</c> once the orchestration
+        /// bus exists. Null in a host with no bus — see the class remarks for what that renders.
+        /// </summary>
+        public ITimeTransportFacade? TimeFacade { get; set; }
 
-        public bool ConsumeStepRequest()
-        {
-            bool v = StepRequested;
-            StepRequested = false;
-            return v;
-        }
+        /// <summary>Whether the cluster reports itself paused. Answers false with no transport.</summary>
+        public bool  IsPaused  => TimeFacade?.IsPaused  ?? false;
+
+        /// <summary>The cluster's time scale. Answers 1 with no transport.</summary>
+        public float TimeScale => TimeFacade?.TimeScale ?? 1.0f;
 
         public void Render(EntityRepository repo, ModuleHostKernel kernel)
         {
-            if (ImGui.Button(IsPaused ? "Play  " : "Pause ")) IsPaused = !IsPaused;
+            var facade = TimeFacade;
+            if (facade == null) ImGui.BeginDisabled();
+
+            if (ImGui.Button(IsPaused ? "Play  " : "Pause ")) facade?.TogglePlayPause();
             ImGui.SameLine();
 
-            if (ImGui.Button("Step")) StepRequested = true;
+            if (ImGui.Button("Step")) facade?.Step();
             ImGui.SameLine();
 
             ImGui.SetNextItemWidth(100);
             float ts = TimeScale;
-            if (ImGui.SliderFloat("Speed", ref ts, 0.1f, 5.0f)) TimeScale = ts;
+            if (ImGui.SliderFloat("Speed", ref ts, 0.1f, 5.0f)) facade?.SetTimeScale(ts);
+
+            if (facade == null)
+            {
+                ImGui.EndDisabled();
+                ImGui.SameLine();
+                ImGui.TextDisabled("(no cluster transport)");
+            }
 
             if (repo != null)
             {
@@ -134,10 +162,24 @@ namespace Hrot.SimHost.UI
         private readonly SimHostSpawnPanel              _spawnPanel = new();
         public  readonly SimHostUIState                 UIState     = new();
 
-        // Forwarded properties for the visualization facade
-        public bool  IsPaused  { get => _simCtrl.IsPaused;  set => _simCtrl.IsPaused = value; }
-        public float TimeScale { get => _simCtrl.TimeScale; set => _simCtrl.TimeScale = value; }
-        public bool  ConsumeStepRequest() => _simCtrl.ConsumeStepRequest();
+        // Forwarded properties for the visualization facade.
+        //
+        // `T5`: read-only now, and the setters are gone with the private field they wrote. Nothing
+        // ever read them — the panel's pause state is the CLUSTER's, and a slave node cannot set it
+        // locally. ConsumeStepRequest went the same way: it had no caller in the repo, and a step is
+        // now an intent, not a flag someone must remember to poll.
+        public bool  IsPaused  => _simCtrl.IsPaused;
+        public float TimeScale => _simCtrl.TimeScale;
+
+        /// <summary>
+        /// Supplies the node's cluster transport to the simulation controls. Called by
+        /// <c>SimHostSubsystem</c> once the orchestration bus exists — the UI is built before it.
+        /// </summary>
+        public ITimeTransportFacade? TimeFacade
+        {
+            get => _simCtrl.TimeFacade;
+            set => _simCtrl.TimeFacade = value;
+        }
 
         public void Render(
             EntityRepository          repo,

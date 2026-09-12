@@ -21,7 +21,7 @@ Work on BTree fixes first (BPF-018, BPF-026, BPF-027, BPF-045), then NodeEditor 
 ### Required Reading (IN ORDER)
 1. **Task Details:** `.dev/blueprint-fixes-1/TASK-DETAIL.md` -- BPF-018, BPF-026, BPF-027, BPF-028, BPF-029, BPF-030, BPF-045, BPF-047, BPF-048
 2. **BTree Host Design:** `.dev/blueprints-2/BTree_Editor_NodeEditor_Host_Design.md`
-3. **NodeEditor Design:** Locate via codebase graph (search for "NodeEditor" design doc under `.dev/ai-hsm-btree-vis-edit/` or similar)
+3. **NodeEditor Design:** Locate via codebase graph (search for "NodeEditor" design doc under `.dev/_DONE/ai-hsm-btree-vis-edit/` or similar)
 4. **Workflow Guide:** `.dev/.guides/DEV-GUIDE.md`
 5. **Code Standards:** `.dev/.guides/CODE-STANDARDS.md`
 

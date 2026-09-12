@@ -24,16 +24,24 @@ namespace Fdp.Core
         /// Creates a FixedString32 from a regular string.
         /// Truncates if longer than MaxLength.
         /// </summary>
-        public FixedString32(string str)
+        public FixedString32(string str) : this(str.AsSpan())
+        {
+        }
+
+        /// <summary>
+        /// Creates a FixedString32 from a character span, encoding to UTF-8.
+        /// Truncates silently if longer than MaxLength. Zero-allocation.
+        /// </summary>
+        public FixedString32(ReadOnlySpan<char> str)
         {
             this = default;
-            if (string.IsNullOrEmpty(str)) return;
-            
+            if (str.IsEmpty) return;
+
             ref byte start = ref Unsafe.As<FixedString32, byte>(ref this);
             Span<byte> buffer = MemoryMarshal.CreateSpan(ref start, 32);
-            
+
             var encoder = Encoding.UTF8.GetEncoder();
-            encoder.Convert(str.AsSpan(), buffer.Slice(0, MaxLength), true, out _, out int bytesUsed, out _);
+            encoder.Convert(str, buffer.Slice(0, MaxLength), true, out _, out int bytesUsed, out _);
             buffer[bytesUsed] = 0;
         }
         

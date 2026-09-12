@@ -119,6 +119,7 @@ public class ComponentReflector
         var builder = new ComponentEditServiceBuilder()
             .RegisterFieldEditor<FixedString32>(new FixedString32FieldEditor())
             .RegisterFieldEditor<FixedString64>(new FixedString64FieldEditor())
+            .RegisterFieldEditor<FixedString128>(new FixedString128FieldEditor())
             .RegisterFieldEditor<Quaternion>(new QuaternionEulerFieldEditor())
             .RegisterFieldEditor<Guid>(new StructEdit.Reflection.Editors.GuidFieldEditor());
         foreach (var p in _bufferViewProviders)
@@ -365,7 +366,10 @@ public class ComponentReflector
             EditWindowManager.RegisterWindow(new ComponentEditWindow(
                 winId, title, EditOwningPerspective, editSession,
                 e, type, EditSessionGetter!, EditPickerContext, _fieldDrawers,
-                interceptor: MutationInterceptor));
+                interceptor: MutationInterceptor,
+                // ⭐ Ruling 14 — `data` IS the value the session is opened on, so the baseline costs
+                //   nothing to supply and is the only thing that makes the staged write surgical.
+                baseline: data));
         }
     }
 

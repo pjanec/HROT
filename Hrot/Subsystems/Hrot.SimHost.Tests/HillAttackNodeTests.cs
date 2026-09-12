@@ -1506,6 +1506,80 @@ namespace Hrot.SimHost.Tests
             Assert.Equal(1f, Math.Abs(result.AttackDirY), 0.001f);
         }
 
+        /// <summary>
+        /// <b>SC-HA016-2b: the case SC-HA016-2 cannot see — a baseline NOT centred opposite the
+        /// firing line.</b>
+        ///
+        /// <para>SC-HA016-2 uses a baseline parallel to the firing line and centred directly
+        /// behind it, and its own summary admits that there "this equals the firing-line
+        /// perpendicular". Both candidate definitions agree on that geometry, so it stayed green
+        /// while the code computed the wrong one for years.</para>
+        ///
+        /// <para>Here the baseline centre is offset ALONG the firing line, which separates them:
+        /// <list type="bullet">
+        ///   <item>firing line (0,0)→(100,0); its normal is (0,±1)</item>
+        ///   <item>baseline (-50,50)→(50,50); centre (0,50), i.e. behind and to the left</item>
+        ///   <item>perpendicular away from the baseline ⇒ <b>(0,-1)</b> ✅ what the tanks need</item>
+        ///   <item>normalize(firingCentre − baselineCentre) = normalize((50,-50)) ⇒
+        ///         <b>(0.707,-0.707)</b> ⛔ the old behaviour — a 45° skew</item>
+        /// </list>
+        /// The tanks creep along this vector and the overshoot guard projects onto it, so a
+        /// skewed direction walks them diagonally off the firing line instead of straight out
+        /// from it.</para>
+        /// </summary>
+        [Fact]
+        public unsafe void SC_HA016_2b_AttackDir_IsTheFiringLineNormal_NotTheApproachVector()
+        {
+            // PickableGeoPoint is [latitude, longitude]; the Cartesian fallback maps X=lon, Y=lat.
+            const string json =
+                @"{""firingLineStart"":[0,0]," +      // (x=0,   y=0)
+                @"""firingLineEnd"":[0,100]," +       // (x=100, y=0)
+                @"""baselineStart"":[50,-50]," +      // (x=-50, y=50)
+                @"""baselineEnd"":[50,50]," +         // (x=50,  y=50)
+                @"""tankSpacing"":30}";
+
+            var result = new PlatoonHillAttackParams();
+            fixed (byte* ptr = new byte[sizeof(PlatoonHillAttackParams)])
+            {
+                HillAttackCommanderNodes.ParsePlatoonHillAttackParams(json, ptr, null, new NetworkEntityMap());
+                result = *(PlatoonHillAttackParams*)ptr;
+            }
+
+            Assert.Equal(0f, result.AttackDirX, 0.001f);
+            Assert.Equal(-1f, result.AttackDirY, 0.001f);
+        }
+
+        /// <summary>
+        /// SC-HA016-2c: a degenerate firing line (start == end) has no tangent and therefore no
+        /// normal. Rather than emit a zero or NaN direction — which would make the creep
+        /// destination <c>currentPos + NaN * 10000</c> and the overshoot projection meaningless —
+        /// fall back to the baseline→firing approach vector, which at least points downrange.
+        /// </summary>
+        [Fact]
+        public unsafe void SC_HA016_2c_AttackDir_FallsBackToTheApproachVector_WhenTheFiringLineIsAPoint()
+        {
+            const string json =
+                @"{""firingLineStart"":[0,0]," +
+                @"""firingLineEnd"":[0,0]," +          // degenerate: same point
+                @"""baselineStart"":[50,0]," +
+                @"""baselineEnd"":[50,100]," +
+                @"""tankSpacing"":30}";
+
+            var result = new PlatoonHillAttackParams();
+            fixed (byte* ptr = new byte[sizeof(PlatoonHillAttackParams)])
+            {
+                HillAttackCommanderNodes.ParsePlatoonHillAttackParams(json, ptr, null, new NetworkEntityMap());
+                result = *(PlatoonHillAttackParams*)ptr;
+            }
+
+            // firingCentre (0,0) − baselineCentre (50,50) = (-50,-50) ⇒ normalized (-0.707,-0.707).
+            float len = MathF.Sqrt(result.AttackDirX * result.AttackDirX
+                                 + result.AttackDirY * result.AttackDirY);
+            Assert.Equal(1f, len, 0.001f);
+            Assert.Equal(-0.7071f, result.AttackDirX, 0.001f);
+            Assert.Equal(-0.7071f, result.AttackDirY, 0.001f);
+        }
+
         /// <summary>SC-HA016-3: Valid TargetAreaNetworkId that maps to a live entity =>
         /// TargetAreaEntity != Entity.Null.</summary>
         [Fact]

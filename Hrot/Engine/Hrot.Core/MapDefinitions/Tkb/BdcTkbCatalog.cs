@@ -239,6 +239,12 @@ namespace Hrot.Map.Definitions.Tkb
             // Tactical graphic: area overlay
             var areaTemplate = new TkbTemplate("TacGraphic_Area", TkbEntityTypes.TacGraphic_Area);
             // TKB-014 (Phase 6): ECS components will be injected by translators.
+            // ⭐⭐ P3 step 0 — the creator's birthright for the overlay's ANCHOR position.
+            //   📄 docs/DESIGN_Role_Affinity_Ownership.md §3.1. An authored area carries an initial
+            //   SimTransform (ScenarioSpawnAdapter sets InitialTransform from the anchor), so the same
+            //   never-published hazard applies here as to a vehicle. Harmless if it never gets one:
+            //   the create leg intersects with the live component mask.
+            areaTemplate.AddBirthCriticalComponent<SimTransform>();
             tkbDb.Register(areaTemplate);
 
             // Tactical graphic: route entity (ROUTES1-T003)
@@ -246,6 +252,7 @@ namespace Hrot.Map.Definitions.Tkb
             // in Phase 6 via translator.
             var routeTemplate = new TkbTemplate("TacGraphic_Route", TkbEntityTypes.TacGraphic_Route);
             // TKB-014 (Phase 6): ECS components will be injected by translators.
+            routeTemplate.AddBirthCriticalComponent<SimTransform>();   // ⭐ P3 step 0 — see the area above
             tkbDb.Register(routeTemplate);
         }
     }

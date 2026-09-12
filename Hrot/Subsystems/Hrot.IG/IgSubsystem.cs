@@ -27,15 +27,99 @@ namespace Hrot.IG
     /// </list>
     /// </para>
     /// </summary>
-    public sealed class IgSubsystem : ISubsystem, IMapCameraProvider, IWindowRegistrar, Hrot.Common.Diagnostics.Gizmos.IGizmoControllable
+    public sealed class IgSubsystem : ISubsystem, IMapCameraProvider, IWindowRegistrar, Hrot.Common.Diagnostics.Gizmos.IGizmoControllable,
+        Hrot.Presentation.DebugApi.IProvidesDebugSurface
     {
         /// <inheritdoc/>
         public string Name => "IG";
 
+        /// <summary>
+        /// ⭐⭐ <b><c>Q54</c> — IG's debug surface: a world to READ, and NO drive facade.</b>
+        /// 📄 <c>Architect_Question_54</c> Q54-2 + charter <c>D3</c>.
+        ///
+        /// <para>⚠ <b>CORRECTED <c>2026-09-03</c> (<c>CE-162</c>):</b> this paragraph used to justify BOTH
+        /// <c>drive: null</c> AND <c>entityMap: null</c> as measured absences. ⛔ Only the TIME half was
+        /// true — IG holds a <c>NetworkEntityMap</c> and now passes it. See the note at the argument.</para>
+        ///
+        /// <para>⚠⚠ <b><c>drive: null</c> is MEASURED, not an oversight.</b> 📐 `2026-08-24`: a repo-wide grep
+        /// for <c>new ClusterTimeTransportAdapter</c> finds it in <b>CGF and SimHost only</b> — IG builds
+        /// none. ⇒ ⭐ the manifest reports <c>time.drive</c> ABSENT for the IG perspective and a step issued
+        /// there answers <c>NOT_SUPPORTED_HERE</c>, which is exactly what <c>D4</c> asks for: absence that is
+        /// declared and assertable. ⛔ Fabricating an adapter here would invent a control path the operator's
+        /// UI does not have.</para>
+        ///
+        /// <para>⭐ IG is still a full ACK participant in the roster — 📌 <c>PARTICIPATE ≠ OBSERVE</c>: it
+        /// executes the master's ticks, it just does not ISSUE them.</para>
+        /// </summary>
+        public Hrot.Presentation.DebugApi.ISubsystemDebugProvider? CreateDebugProvider()
+            => new Hrot.Presentation.DebugApi.SubsystemDebugProvider(
+                subsystemName: Name,
+                perspective:   "IG",
+                world:         () => _app?.World,
+                // ⭐⭐⭐ CE-162, 2026-09-03 — IG DOES map network ids, and this argument was `null`.
+                //
+                // 🔴 The 11th instance of "a production caller that HAS a dependency must PASS it":
+                //    IgApplication:924 assigns `_entityMap = _context.EntityMap` and exposes it at :1955,
+                //    with the same member name and shape SimHostSubsystem passes — and this provider
+                //    handed null anyway. Because the capability matrix is COMPUTED from the members being
+                //    non-null (R-133, SubsystemDebugProvider), GET /capabilities reported
+                //    `world.entityMap:false` for IG, and GET /entities answered NOT_SUPPORTED_HERE there.
+                //
+                // ⛔ That is not a hosting-topology limit: the cell comes from THIS provider, so a
+                //    standalone `--mode ig` process on its own port reported the same false. It made the
+                //    IG side of a cross-node comparison unreadable — which is exactly what CE-141's
+                //    as-built and CE-144's destroy loop need.
+                //
+                // ⚠ The comment below still says IG "can neither drive time nor map network ids". Only
+                //    the TIME half was ever true (measured: no ClusterTimeTransportAdapter on IG); the
+                //    map half was wrong and is corrected here.
+                entityMap:     () => _app?.World is null ? null : _app!.TestHook_EntityMap,
+                drive:         null,
+                // ⭐⭐ BP-487 — IG DOES draw gizmos (IgApplication:734 builds the buffer, and its
+                //    DebugGizmoLayer renders it), so its perspective reports the feed PRESENT even though it
+                //    can neither drive time nor map network ids. 📌 Another demonstration that these
+                //    capabilities are genuinely independent, not one "is it wired" bit.
+                gizmoBuffer:   () => _app?.GizmoBuffer,
+                // ⭐⭐ CE-110 — IG's own catalog, read off its world exactly as IgApplication:3353 reads it.
+                //    📐 IgNodeBootstrapper:132-133 builds it from HrotEnvironment.CreateTkb() and registers
+                //    the singleton, so this reports the very instance IG's own spawning resolves against.
+                tkbDb:         Hrot.Presentation.DebugApi.SubsystemDebugProvider
+                                   .TkbFrom(() => _app?.World),
+                // ⭐⭐ HN-029 — IG cannot DRIVE time (no facade) but it CAN request a cluster transition; see
+                //    IgApplication.OrchestrationBus.
+                requestTransition: Hrot.Presentation.DebugApi.SubsystemDebugProvider
+                                       .TransitionsVia(() => _app?.OrchestrationBus),
+                // ⭐⭐⭐ CE-163 — IG's OWN committed cluster state, from its OWN ClusterSlave, through the
+                //    SAME shared projection CGF and SimHost use. 🔒 "every ECS node must use the same
+                //    shared code" — ⛔ so this is not an IG affordance, it is the uniform one.
+                // 📐 Why it was missing: DebugApiService.CurrentClusterState() had only two arms, the
+                //    editor's own getter and a sibling subsystem's pumped ClusterUiCache — BOTH `--mode all`
+                //    arms. In a separate-process cluster neither exists, so scenario/load/live's readiness
+                //    poll answered NOT_SUPPORTED_HERE(cluster.state) on a node that knew its own state.
+                // ⚠ This is the NODE's committed state, not the cluster's; see ClusterStateFrom's remarks.
+                clusterState:  Hrot.Presentation.DebugApi.SubsystemDebugProvider
+                                   .ClusterStateFrom(() => _app?.ClusterSlave),
+                // ⭐⭐ MD-002 — IG's own kernel snapshot (it already builds one for its window, line ~169).
+                // ⭐⭐ MD-006 — same bus, same argument as requestTransition above.
+                requestDiagnosticDump: Hrot.Presentation.DebugApi.SubsystemDebugProvider
+                                           .DumpsVia(() => _app?.OrchestrationBus),
+                architecture:  () => _app?.Kernel is null
+                                     ? null
+                                     : new Fdp.ModuleHost.Diagnostics.ArchitectureDiagnosticsService(
+                                           () => _app?.Kernel));
+
         /// <inheritdoc/>
-        /// <remarks>Forest green — distinct from SimHost (red) and ExCon (violet).</remarks>
-        public System.Numerics.Vector4 TitleBarColor =>
-            new System.Numerics.Vector4(0.08f, 0.40f, 0.08f, 1f);
+        /// <remarks>
+        /// Forest green — distinct from SimHost (red) and ExCon (violet).
+        /// ⭐⭐⭐ <c>CE-083</c> (user ruling, <c>2026-08-27</c>: <i>"each subsystem still needs its own
+        /// different titlebar color, for each its window"</i>) — this RETURNS
+        /// <c>IgWindowColor.TitleBar</c> rather than repeating a literal. 📐 It used to be its own
+        /// <c>(0.08,0.40,0.08)</c> while every IG WINDOW used <c>(0.07,0.30,0.07)</c>, so the spawned
+        /// "Inspect…" watch windows were a different shade from the windows they came from. ⇒ ⭐ one
+        /// value per subsystem, applied to each of its windows, and now true BY CONSTRUCTION — ⛔ there
+        /// is no second literal left to drift.
+        /// </remarks>
+        public System.Numerics.Vector4 TitleBarColor => Hrot.IG.Windows.IgWindowColor.TitleBar;
 
         private IgApplication? _app;
         private bool _headless;
@@ -116,31 +200,39 @@ namespace Hrot.IG
             windowManager.RegisterWindow(new IgWaypointEditorWindow(_app.WaypointEditorPanel));
             windowManager.RegisterWindow(new IgMiniExConWindow(_app.MiniExConPanel));
             windowManager.RegisterWindow(new IgPerformanceWindow(_app.PerformanceOverlay));
-            windowManager.RegisterWindow(new FdpEntityInspectorWindow(
-                "ig_fdp_inspector", "IG Entity Inspector", "IG",
-                _app.FdpEntityInspector,
-                () => _app.GetFdpRepoAdapter(),
-                () => _app.FdpInspectorState,
-                IgWindowColor.TitleBar));
-
-            // Wire component-editor reflector and "Inspect..." context menu.
-            var igPickBridge = _app.GetMapPickBridge();
-            FdpEntityInspectorHelper.WireInspectorWithInspectContextMenu(
-                _app.FdpEntityInspector,
-                windowManager,
-                "IG",
-                () => _app.GetFdpRepoAdapter(),
-                igPickBridge,
-                TitleBarColor);
-            windowManager.RegisterWindow(new FdpEventBrowserWindow(
-                "ig_fdp_events", "IG Event Browser", "IG",
-                _app.FdpEventBrowser,
-                IgWindowColor.TitleBar));
-            windowManager.RegisterWindow(new ArchitectureDiagnosticsWindow(
-                "ig_architecture_diagnostics", "IG Architecture Diagnostics", "IG",
-                new Fdp.Presentation.Panels.ArchitectureDiagnosticsPanel(
-                    new Fdp.ModuleHost.Diagnostics.ArchitectureDiagnosticsService(() => _app.Kernel)),
-                IgWindowColor.TitleBar));
+            // ⭐⭐⭐ PHASE 2 SLICE ② — the FIVE diagnostics sites this host used to spell out by hand are
+            //    now ONE shared bundle, `Hrot.Presentation.Windows.DiagnosticsWindowsBundle`. 📐 The same
+            //    five were copy-pasted across FOUR hosts (IG, SimHost, CGF, Editor) = 20 sites; the ids
+            //    and titles are DERIVED from `IdPrefix`/`TitlePrefix`, so they cannot drift apart again.
+            // ⭐ This is also this host's FIRST `UiBundleHost.Compose` call — the phase-1 seam's real
+            //   adoption. ⛔ A throwing bundle is NAMED, never swallowed.
+            // ⭐⭐ CE-083 (user ruling) — ONE colour per subsystem, applied to each of its windows.
+            //   📐 This host used to pass a SECOND shade to the "Inspect…" helper; its `TitleBarColor`
+            //   property now RETURNS the window constant, so there is one value and no way to drift.
+            // 📄 docs/DESIGN_Subsystem_Composition_Unification.md §5c.7.
+            Fdp.Toolkit.Runner.UiBundleHost.Compose(
+                new Fdp.Toolkit.Runner.IUiBundle[]
+                {
+                    new DiagnosticsWindowsBundle(new DiagnosticsHostServices(
+                        IdPrefix:       "ig_",
+                        TitlePrefix:    "IG",
+                        Perspective:    "IG",
+                        Inspector:      _app.FdpEntityInspector,
+                        RepoAdapter:    () => _app.GetFdpRepoAdapter(),
+                        InspectorState: () => _app.FdpInspectorState,
+                        EventBrowser:   _app.FdpEventBrowser,
+                        TitleBarColor:  IgWindowColor.TitleBar,
+                        // ⭐ This host builds its OWN architecture service, exactly as before — the
+                        //   bundle takes the finished panel, so the lazy `() => _app.Kernel` binding
+                        //   this host has always used is untouched (design §5c.7 F2).
+                        ArchitecturePanel: new Fdp.Presentation.Panels.ArchitectureDiagnosticsPanel(
+                            new Fdp.ModuleHost.Diagnostics.ArchitectureDiagnosticsService(() => _app.Kernel)),
+                        // BP-327 — the module/system execution-stats profiler.
+                        ExecutionStats: () => _app.Kernel?.GetExecutionStats(),
+                        // ⭐ CE-083 — no second colour: TitleBarColor IS IgWindowColor.TitleBar now.
+                        PickBridge:     _app.GetMapPickBridge())),
+                },
+                new Fdp.Toolkit.Runner.UiBundleContext(windowManager));
             // Signal IgApplication that these panels must not be double-rendered.
             _app.SetPanelsWindowManaged();
         }

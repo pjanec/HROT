@@ -1,0 +1,696 @@
+{
+  "$meta": {
+    "docType": "Hrot.Blueprints",
+    "schemaVersion": 2
+  },
+  "Header": {},
+  "AssetId": "00000099-0000-0000-0000-0000000000f3",
+  "Name": "SmokeGuard",
+  "Dispatch": "Instance",
+  "TierHint": "Auto",
+  "IsWorldSingleton": false,
+  "Primitive": null,
+  "Declarations": [
+    {
+      "Kind": "Variable",
+      "Id": "a1000099-0000-0000-0000-0000000000f3",
+      "Name": "GuardSpeed",
+      "Type": {
+        "TypeId": "System.Int32",
+        "IsArray": false,
+        "GenericArgs": []
+      },
+      "DefaultValueJson": "7",
+      "IsEditable": false,
+      "IsExposedOnSpawn": false,
+      "Category": null,
+      "Tooltip": null,
+      "Comment": null
+    },
+    {
+      "Kind": "Variable",
+      "Id": "a2000099-0000-0000-0000-0000000000f3",
+      "Name": "LocalResult",
+      "Type": {
+        "TypeId": "System.Int32",
+        "IsArray": false,
+        "GenericArgs": []
+      },
+      "DefaultValueJson": "0",
+      "IsEditable": false,
+      "IsExposedOnSpawn": false,
+      "Category": null,
+      "Tooltip": null,
+      "Comment": null
+    },
+    {
+      "Kind": "Variable",
+      "Id": "a3000099-0000-0000-0000-0000000000f3",
+      "Name": "LibResult",
+      "Type": {
+        "TypeId": "System.Int32",
+        "IsArray": false,
+        "GenericArgs": []
+      },
+      "DefaultValueJson": "0",
+      "IsEditable": false,
+      "IsExposedOnSpawn": false,
+      "Category": null,
+      "Tooltip": null,
+      "Comment": null
+    }
+  ],
+  "ParameterOrder": null,
+  "WorkingStateOrder": null,
+  "VariableOrder": null,
+  "EventDispatchers": [],
+  "CustomEvents": [],
+  "CallablePeers": [
+    "00000099-0000-0000-0000-0000000000f1"
+  ],
+  "Graphs": [
+    {
+      "Id": "12000099-0000-0000-0000-0000000000f3",
+      "Name": "Tick",
+      "Kind": "Function",
+      "Inputs": [],
+      "Outputs": [],
+      "ExecOutputs": [],
+      "ExecInputs": [],
+      "Nodes": [
+        {
+          "kind": "EventEntry",
+          "EventTypeId": "",
+          "Id": "31000099-0000-0000-0000-0000000000f3",
+          "Pins": [
+            {
+              "Id": "ee0000f3-0000-0000-0000-000000000003",
+              "Name": "ExecOut",
+              "Direction": "Out",
+              "TypeRef": {
+                "TypeId": "",
+                "IsArray": false,
+                "GenericArgs": []
+              },
+              "IsExec": true,
+              "LinkedToIds": []
+            }
+          ],
+          "EditorMetadata": {
+            "X": 80,
+            "Y": 400,
+            "Comment": null
+          }
+        },
+        {
+          "kind": "FunctionCall",
+          "TargetTypeId": "",
+          "MethodName": "",
+          "IsPure": false,
+          "TargetGraphId": "11000099-0000-0000-0000-0000000000f3",
+          "TrailingContext": "Unspecified",
+          "Id": "32000099-0000-0000-0000-0000000000f3",
+          "Pins": [
+            {
+              "Id": "ee0000f3-0000-0000-0000-000000000004",
+              "Name": "ExecIn",
+              "Direction": "In",
+              "TypeRef": {
+                "TypeId": "",
+                "IsArray": false,
+                "GenericArgs": []
+              },
+              "IsExec": true,
+              "LinkedToIds": []
+            },
+            {
+              "Id": "ee0000f3-0000-0000-0000-000000000005",
+              "Name": "ExecOut",
+              "Direction": "Out",
+              "TypeRef": {
+                "TypeId": "",
+                "IsArray": false,
+                "GenericArgs": []
+              },
+              "IsExec": true,
+              "LinkedToIds": []
+            },
+            {
+              "Id": "dd0000f3-0000-0000-0000-000000000007",
+              "Name": "Result",
+              "Direction": "Out",
+              "TypeRef": {
+                "TypeId": "System.Int32",
+                "IsArray": false,
+                "GenericArgs": []
+              },
+              "IsExec": false,
+              "LinkedToIds": []
+            }
+          ],
+          "EditorMetadata": {
+            "X": 360,
+            "Y": 400,
+            "Comment": null
+          }
+        },
+        {
+          "kind": "SetVariable",
+          "VariableId": "a2000099-0000-0000-0000-0000000000f3",
+          "Id": "33000099-0000-0000-0000-0000000000f3",
+          "Pins": [
+            {
+              "Id": "ee0000f3-0000-0000-0000-000000000006",
+              "Name": "ExecIn",
+              "Direction": "In",
+              "TypeRef": {
+                "TypeId": "",
+                "IsArray": false,
+                "GenericArgs": []
+              },
+              "IsExec": true,
+              "LinkedToIds": []
+            },
+            {
+              "Id": "ee0000f3-0000-0000-0000-000000000007",
+              "Name": "ExecOut",
+              "Direction": "Out",
+              "TypeRef": {
+                "TypeId": "",
+                "IsArray": false,
+                "GenericArgs": []
+              },
+              "IsExec": true,
+              "LinkedToIds": []
+            },
+            {
+              "Id": "dd0000f3-0000-0000-0000-000000000008",
+              "Name": "Value",
+              "Direction": "In",
+              "TypeRef": {
+                "TypeId": "System.Int32",
+                "IsArray": false,
+                "GenericArgs": []
+              },
+              "IsExec": false,
+              "LinkedToIds": []
+            }
+          ],
+          "EditorMetadata": {
+            "X": 640,
+            "Y": 400,
+            "Comment": null
+          }
+        },
+        {
+          "kind": "Literal",
+          "TypeId": "System.Int32",
+          "ValueJson": "10",
+          "Id": "34000099-0000-0000-0000-0000000000f3",
+          "Pins": [
+            {
+              "Id": "dd0000f3-0000-0000-0000-000000000009",
+              "Name": "Value",
+              "Direction": "Out",
+              "TypeRef": {
+                "TypeId": "System.Int32",
+                "IsArray": false,
+                "GenericArgs": []
+              },
+              "IsExec": false,
+              "LinkedToIds": []
+            }
+          ],
+          "EditorMetadata": {
+            "X": 360,
+            "Y": 520,
+            "Comment": null
+          }
+        },
+        {
+          "kind": "Literal",
+          "TypeId": "System.Int32",
+          "ValueJson": "20",
+          "Id": "35000099-0000-0000-0000-0000000000f3",
+          "Pins": [
+            {
+              "Id": "dd0000f3-0000-0000-0000-000000000010",
+              "Name": "Value",
+              "Direction": "Out",
+              "TypeRef": {
+                "TypeId": "System.Int32",
+                "IsArray": false,
+                "GenericArgs": []
+              },
+              "IsExec": false,
+              "LinkedToIds": []
+            }
+          ],
+          "EditorMetadata": {
+            "X": 360,
+            "Y": 580,
+            "Comment": null
+          }
+        },
+        {
+          "kind": "CallPeerBlueprint",
+          "PeerBlueprintId": "00000099-0000-0000-0000-0000000000f1",
+          "FunctionRef": "Combine",
+          "Id": "36000099-0000-0000-0000-0000000000f3",
+          "Pins": [
+            {
+              "Id": "ee0000f3-0000-0000-0000-000000000008",
+              "Name": "ExecIn",
+              "Direction": "In",
+              "TypeRef": {
+                "TypeId": "",
+                "IsArray": false,
+                "GenericArgs": []
+              },
+              "IsExec": true,
+              "LinkedToIds": []
+            },
+            {
+              "Id": "ee0000f3-0000-0000-0000-000000000009",
+              "Name": "ExecOut",
+              "Direction": "Out",
+              "TypeRef": {
+                "TypeId": "",
+                "IsArray": false,
+                "GenericArgs": []
+              },
+              "IsExec": true,
+              "LinkedToIds": []
+            },
+            {
+              "Id": "dd0000f3-0000-0000-0000-000000000011",
+              "Name": "A",
+              "Direction": "In",
+              "TypeRef": {
+                "TypeId": "System.Int32",
+                "IsArray": false,
+                "GenericArgs": []
+              },
+              "IsExec": false,
+              "LinkedToIds": []
+            },
+            {
+              "Id": "dd0000f3-0000-0000-0000-000000000012",
+              "Name": "B",
+              "Direction": "In",
+              "TypeRef": {
+                "TypeId": "System.Int32",
+                "IsArray": false,
+                "GenericArgs": []
+              },
+              "IsExec": false,
+              "LinkedToIds": []
+            },
+            {
+              "Id": "dd0000f3-0000-0000-0000-000000000013",
+              "Name": "Return",
+              "Direction": "Out",
+              "TypeRef": {
+                "TypeId": "System.Int32",
+                "IsArray": false,
+                "GenericArgs": []
+              },
+              "IsExec": false,
+              "LinkedToIds": []
+            }
+          ],
+          "EditorMetadata": {
+            "X": 940,
+            "Y": 400,
+            "Comment": null
+          }
+        },
+        {
+          "kind": "SetVariable",
+          "VariableId": "a3000099-0000-0000-0000-0000000000f3",
+          "Id": "37000099-0000-0000-0000-0000000000f3",
+          "Pins": [
+            {
+              "Id": "ee0000f3-0000-0000-0000-000000000010",
+              "Name": "ExecIn",
+              "Direction": "In",
+              "TypeRef": {
+                "TypeId": "",
+                "IsArray": false,
+                "GenericArgs": []
+              },
+              "IsExec": true,
+              "LinkedToIds": []
+            },
+            {
+              "Id": "ee0000f3-0000-0000-0000-000000000011",
+              "Name": "ExecOut",
+              "Direction": "Out",
+              "TypeRef": {
+                "TypeId": "",
+                "IsArray": false,
+                "GenericArgs": []
+              },
+              "IsExec": true,
+              "LinkedToIds": []
+            },
+            {
+              "Id": "dd0000f3-0000-0000-0000-000000000014",
+              "Name": "Value",
+              "Direction": "In",
+              "TypeRef": {
+                "TypeId": "System.Int32",
+                "IsArray": false,
+                "GenericArgs": []
+              },
+              "IsExec": false,
+              "LinkedToIds": []
+            }
+          ],
+          "EditorMetadata": {
+            "X": 1240,
+            "Y": 400,
+            "Comment": null
+          }
+        },
+        {
+          "kind": "Return",
+          "Status": "Success",
+          "Id": "38000099-0000-0000-0000-0000000000f3",
+          "Pins": [
+            {
+              "Id": "ee0000f3-0000-0000-0000-000000000012",
+              "Name": "ExecIn",
+              "Direction": "In",
+              "TypeRef": {
+                "TypeId": "",
+                "IsArray": false,
+                "GenericArgs": []
+              },
+              "IsExec": true,
+              "LinkedToIds": []
+            }
+          ],
+          "EditorMetadata": {
+            "X": 1540,
+            "Y": 400,
+            "Comment": null
+          }
+        }
+      ],
+      "Links": [
+        {
+          "FromNodeId": "31000099-0000-0000-0000-0000000000f3",
+          "FromPinId": "ee0000f3-0000-0000-0000-000000000003",
+          "ToNodeId": "32000099-0000-0000-0000-0000000000f3",
+          "ToPinId": "ee0000f3-0000-0000-0000-000000000004"
+        },
+        {
+          "FromNodeId": "32000099-0000-0000-0000-0000000000f3",
+          "FromPinId": "ee0000f3-0000-0000-0000-000000000005",
+          "ToNodeId": "33000099-0000-0000-0000-0000000000f3",
+          "ToPinId": "ee0000f3-0000-0000-0000-000000000006"
+        },
+        {
+          "FromNodeId": "33000099-0000-0000-0000-0000000000f3",
+          "FromPinId": "ee0000f3-0000-0000-0000-000000000007",
+          "ToNodeId": "36000099-0000-0000-0000-0000000000f3",
+          "ToPinId": "ee0000f3-0000-0000-0000-000000000008"
+        },
+        {
+          "FromNodeId": "36000099-0000-0000-0000-0000000000f3",
+          "FromPinId": "ee0000f3-0000-0000-0000-000000000009",
+          "ToNodeId": "37000099-0000-0000-0000-0000000000f3",
+          "ToPinId": "ee0000f3-0000-0000-0000-000000000010"
+        },
+        {
+          "FromNodeId": "37000099-0000-0000-0000-0000000000f3",
+          "FromPinId": "ee0000f3-0000-0000-0000-000000000011",
+          "ToNodeId": "38000099-0000-0000-0000-0000000000f3",
+          "ToPinId": "ee0000f3-0000-0000-0000-000000000012"
+        },
+        {
+          "FromNodeId": "32000099-0000-0000-0000-0000000000f3",
+          "FromPinId": "dd0000f3-0000-0000-0000-000000000007",
+          "ToNodeId": "33000099-0000-0000-0000-0000000000f3",
+          "ToPinId": "dd0000f3-0000-0000-0000-000000000008"
+        },
+        {
+          "FromNodeId": "34000099-0000-0000-0000-0000000000f3",
+          "FromPinId": "dd0000f3-0000-0000-0000-000000000009",
+          "ToNodeId": "36000099-0000-0000-0000-0000000000f3",
+          "ToPinId": "dd0000f3-0000-0000-0000-000000000011"
+        },
+        {
+          "FromNodeId": "35000099-0000-0000-0000-0000000000f3",
+          "FromPinId": "dd0000f3-0000-0000-0000-000000000010",
+          "ToNodeId": "36000099-0000-0000-0000-0000000000f3",
+          "ToPinId": "dd0000f3-0000-0000-0000-000000000012"
+        },
+        {
+          "FromNodeId": "36000099-0000-0000-0000-0000000000f3",
+          "FromPinId": "dd0000f3-0000-0000-0000-000000000013",
+          "ToNodeId": "37000099-0000-0000-0000-0000000000f3",
+          "ToPinId": "dd0000f3-0000-0000-0000-000000000014"
+        }
+      ],
+      "LocalVariables": [],
+      "Comments": [],
+      "EditorMetadata": {
+        "ViewportX": 0,
+        "ViewportY": 0,
+        "ViewportZoom": 0
+      }
+    },
+    {
+      "Id": "11000099-0000-0000-0000-0000000000f3",
+      "Name": "ComputeLocal",
+      "Kind": "Function",
+      "Inputs": [],
+      "Outputs": [
+        {
+          "Id": "a4000099-0000-0000-0000-0000000000f3",
+          "Name": "Result",
+          "Type": {
+            "TypeId": "System.Int32",
+            "IsArray": false,
+            "GenericArgs": []
+          },
+          "DefaultValueJson": null,
+          "Tooltip": null,
+          "Comment": null
+        }
+      ],
+      "ExecOutputs": [],
+      "ExecInputs": [],
+      "Nodes": [
+        {
+          "kind": "EventEntry",
+          "EventTypeId": "",
+          "Id": "21000099-0000-0000-0000-0000000000f3",
+          "Pins": [
+            {
+              "Id": "ee0000f3-0000-0000-0000-000000000001",
+              "Name": "ExecOut",
+              "Direction": "Out",
+              "TypeRef": {
+                "TypeId": "",
+                "IsArray": false,
+                "GenericArgs": []
+              },
+              "IsExec": true,
+              "LinkedToIds": []
+            }
+          ],
+          "EditorMetadata": {
+            "X": 80,
+            "Y": 120,
+            "Comment": null
+          }
+        },
+        {
+          "kind": "GetVariable",
+          "VariableId": "a1000099-0000-0000-0000-0000000000f3",
+          "Id": "22000099-0000-0000-0000-0000000000f3",
+          "Pins": [
+            {
+              "Id": "dd0000f3-0000-0000-0000-000000000001",
+              "Name": "Value",
+              "Direction": "Out",
+              "TypeRef": {
+                "TypeId": "System.Int32",
+                "IsArray": false,
+                "GenericArgs": []
+              },
+              "IsExec": false,
+              "LinkedToIds": []
+            }
+          ],
+          "EditorMetadata": {
+            "X": 80,
+            "Y": 40,
+            "Comment": null
+          }
+        },
+        {
+          "kind": "Literal",
+          "TypeId": "System.Int32",
+          "ValueJson": "3",
+          "Id": "23000099-0000-0000-0000-0000000000f3",
+          "Pins": [
+            {
+              "Id": "dd0000f3-0000-0000-0000-000000000002",
+              "Name": "Value",
+              "Direction": "Out",
+              "TypeRef": {
+                "TypeId": "System.Int32",
+                "IsArray": false,
+                "GenericArgs": []
+              },
+              "IsExec": false,
+              "LinkedToIds": []
+            }
+          ],
+          "EditorMetadata": {
+            "X": 80,
+            "Y": 220,
+            "Comment": null
+          }
+        },
+        {
+          "kind": "BinaryOp",
+          "Operator": "Multiply",
+          "Id": "24000099-0000-0000-0000-0000000000f3",
+          "Pins": [
+            {
+              "Id": "dd0000f3-0000-0000-0000-000000000003",
+              "Name": "A",
+              "Direction": "In",
+              "TypeRef": {
+                "TypeId": "System.Int32",
+                "IsArray": false,
+                "GenericArgs": []
+              },
+              "IsExec": false,
+              "LinkedToIds": []
+            },
+            {
+              "Id": "dd0000f3-0000-0000-0000-000000000004",
+              "Name": "B",
+              "Direction": "In",
+              "TypeRef": {
+                "TypeId": "System.Int32",
+                "IsArray": false,
+                "GenericArgs": []
+              },
+              "IsExec": false,
+              "LinkedToIds": []
+            },
+            {
+              "Id": "dd0000f3-0000-0000-0000-000000000005",
+              "Name": "Result",
+              "Direction": "Out",
+              "TypeRef": {
+                "TypeId": "System.Int32",
+                "IsArray": false,
+                "GenericArgs": []
+              },
+              "IsExec": false,
+              "LinkedToIds": []
+            }
+          ],
+          "EditorMetadata": {
+            "X": 360,
+            "Y": 120,
+            "Comment": null
+          }
+        },
+        {
+          "kind": "Return",
+          "Status": "Success",
+          "Id": "25000099-0000-0000-0000-0000000000f3",
+          "Pins": [
+            {
+              "Id": "ee0000f3-0000-0000-0000-000000000002",
+              "Name": "ExecIn",
+              "Direction": "In",
+              "TypeRef": {
+                "TypeId": "",
+                "IsArray": false,
+                "GenericArgs": []
+              },
+              "IsExec": true,
+              "LinkedToIds": []
+            },
+            {
+              "Id": "dd0000f3-0000-0000-0000-000000000006",
+              "Name": "Result",
+              "Direction": "In",
+              "TypeRef": {
+                "TypeId": "System.Int32",
+                "IsArray": false,
+                "GenericArgs": []
+              },
+              "IsExec": false,
+              "LinkedToIds": []
+            }
+          ],
+          "EditorMetadata": {
+            "X": 640,
+            "Y": 120,
+            "Comment": null
+          }
+        }
+      ],
+      "Links": [
+        {
+          "FromNodeId": "21000099-0000-0000-0000-0000000000f3",
+          "FromPinId": "ee0000f3-0000-0000-0000-000000000001",
+          "ToNodeId": "25000099-0000-0000-0000-0000000000f3",
+          "ToPinId": "ee0000f3-0000-0000-0000-000000000002"
+        },
+        {
+          "FromNodeId": "22000099-0000-0000-0000-0000000000f3",
+          "FromPinId": "dd0000f3-0000-0000-0000-000000000001",
+          "ToNodeId": "24000099-0000-0000-0000-0000000000f3",
+          "ToPinId": "dd0000f3-0000-0000-0000-000000000003"
+        },
+        {
+          "FromNodeId": "23000099-0000-0000-0000-0000000000f3",
+          "FromPinId": "dd0000f3-0000-0000-0000-000000000002",
+          "ToNodeId": "24000099-0000-0000-0000-0000000000f3",
+          "ToPinId": "dd0000f3-0000-0000-0000-000000000004"
+        },
+        {
+          "FromNodeId": "24000099-0000-0000-0000-0000000000f3",
+          "FromPinId": "dd0000f3-0000-0000-0000-000000000005",
+          "ToNodeId": "25000099-0000-0000-0000-0000000000f3",
+          "ToPinId": "dd0000f3-0000-0000-0000-000000000006"
+        }
+      ],
+      "LocalVariables": [],
+      "Comments": [],
+      "EditorMetadata": {
+        "ViewportX": 0,
+        "ViewportY": 0,
+        "ViewportZoom": 0
+      }
+    }
+  ],
+  "EditorMetadata": {
+    "Description": null,
+    "Category": null,
+    "Recipe": {
+      "DisplayName": "Smoke Guard  (BP-109 smoke test)",
+      "Category": "Tutorial",
+      "Description": "BP-109 end-to-end smoke test asset. A second Instance blueprint, distinct from SmokePatrol, with its own local Function graph (ComputeLocal = GuardSpeed * 3, derived from this entity\u0027s own state) and a Tick graph that also calls the shared SmokeMathLib peer\u0027s Combine function, storing both results in Variables so a test can read them back.",
+      "Difficulty": "Intermediate",
+      "ConceptsTaught": [
+        "A local Function graph (ComputeLocal) called from Tick via FunctionCall.TargetGraphId",
+        "Per-entity state (GuardSpeed) feeding a derived local computation, isolated from SmokePatrol\u0027s own PatrolSpeed",
+        "CallPeerBlueprint invoking the same shared Library function (SmokeMathLib.Combine) as SmokePatrol",
+        "Two different Instance blueprints sharing one Function Library peer"
+      ]
+    }
+  }
+}

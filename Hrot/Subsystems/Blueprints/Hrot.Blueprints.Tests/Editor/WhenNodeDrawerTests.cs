@@ -18,7 +18,19 @@ public sealed class WhenNodeDrawerTests
     private sealed class NullEditService : IEditService
     {
         public void MarkDirty(BlueprintAsset asset) { }
-    }
+    
+        /// <summary>
+        /// BP-11: no undo stack here, but recording still performs the edit and marks dirty —
+        /// the same two observable effects the real EditService has.
+        /// </summary>
+        public void RecordPropertyEdit(BlueprintAsset asset, string description, Action apply, Action undo)
+        {
+            apply();
+            MarkDirty(asset);
+        }
+
+        public void NotifyStructureChanged(BlueprintAsset asset) { }
+}
     private sealed class NullPredicateCompiler : Fdp.Toolkit.ReplayBrowser.Search.IPredicateCompiler
     {
         public Func<Fdp.Core.EntityRepository, Fdp.Core.Entity, bool> CompileComponentPredicate(

@@ -1,4 +1,5 @@
 using System.Numerics;
+using Fdp.Diagnostics.Contracts.Panels;
 using Fdp.Presentation.WindowManager;
 using Hrot.Editor;
 using Hrot.Editor.UI;
@@ -7,28 +8,60 @@ using Hrot.UI.Common.Panels;
 
 namespace Hrot.Editor.Windows;
 
+// ⭐⭐⭐ CE-061 (Axis-C E5 item ③) — FOUR WRAPPERS WERE DELETED FROM THIS FILE:
+//   EditorSpawnerWindow · EditorMissionWindow · EditorConfigWindow · EditorSharedOrbatWindow.
+// 📐 Measured: each was a thin ManagedWindow over an ALREADY-SHARED panel and an ALREADY-SHARED
+//   facade, with a body byte-identical to Hrot.ExCon/Windows/ExConWindows.cs's copy — the same
+//   concept written twice, differing only in id/title/perspective/colour. ⇒ those four are now
+//   ARGUMENTS of Hrot.Presentation.Windows.{Spawner,Mission,Config,SharedOrbat}PanelWindow, which
+//   CGF can reach (Hrot.Editor → Hrot.CGF makes this file unreachable from that host).
+// ⭐ The editor's window IDS ARE UNCHANGED (ScenarioPanelWindowIds.Editor*), so layout files,
+//   PanelSnapshot instrumentation and every id-keyed rail still resolve.
+// ⛔ EditorToolbarWindow / EditorOrbatWindow / EditorPreviewWindow / EditorZoneEditorWindow STAY:
+//   design §4 — the first takes IEditorLogic, the third needs the editor-only planning state, the
+//   fourth still reaches Hrot.Editor.Gizmos. Sharing them without those resolved would put a
+//   window on CGF that cannot be serviced (ruling 49).
+
+
 /// <summary>Editor subsystem title-bar colour (slate blue).</summary>
 internal static class EditorWindowColor
 {
     internal static readonly Vector4 TitleBar = new(0.15f, 0.22f, 0.48f, 1f);
 }
 
-/// <summary>Editor toolbar panel as a perspective-bound managed window.</summary>
+/// <summary>Editor toolbar panel as a perspective-bound managed window.
+/// ⭐⭐⭐ U-obs-5 — the HOST registers. ⚠ No sibling host: single host, kind stays a local literal.</summary>
 internal sealed class EditorToolbarWindow : ManagedWindow
 {
+    internal const string Kind = "editor-toolbar";
+
     private readonly EditorToolbarPanel _panel;
     private readonly IEditorLogic       _logic;
 
     public EditorToolbarWindow(EditorToolbarPanel panel, IEditorLogic logic)
-        : base("editor_toolbar", "Editor Toolbar", "Editor", WindowScope.PerspectiveBound)
+        : base("editor_toolbar", "Editor Toolbar", "Scenario", WindowScope.PerspectiveBound)
     {
         _panel = panel;
         _logic = logic;
         IsOpen        = true;
         TitleBarColor = EditorWindowColor.TitleBar;
+        PanelSnapshot.DeclareInstrumented(Id);
     }
 
-    protected override void DrawClientArea() => _panel.DrawContent(_logic);
+    private EditorToolbarPanelViewModel BuildAndPublish()
+    {
+        var vm = _panel.BuildViewModel(_logic, Id, Kind);
+        if (PanelSnapshot.CaptureEnabled) PanelSnapshot.Register(vm);
+        return vm;
+    }
+
+    internal EditorToolbarPanelViewModel SimulateDrawClientArea() => BuildAndPublish();
+
+    protected override void DrawClientArea()
+    {
+        BuildAndPublish();
+        _panel.DrawContent(_logic);
+    }
 }
 
 /// <summary>Editor ORBAT panel as a perspective-bound managed window.</summary>
@@ -38,7 +71,7 @@ internal sealed class EditorOrbatWindow : ManagedWindow
     private readonly IEditorLogic     _logic;
 
     public EditorOrbatWindow(EditorOrbatPanel panel, IEditorLogic logic)
-        : base("editor_orbat", "Editor ORBAT", "Editor", WindowScope.PerspectiveBound)
+        : base("editor_orbat", "Editor ORBAT", "Scenario", WindowScope.PerspectiveBound)
     {
         _panel = panel;
         _logic = logic;
@@ -49,114 +82,71 @@ internal sealed class EditorOrbatWindow : ManagedWindow
     protected override void DrawClientArea() => _panel.DrawContent(_logic);
 }
 
-/// <summary>Entity spawner panel (shared with ExCon) as a perspective-bound managed window.</summary>
-internal sealed class EditorSpawnerWindow : ManagedWindow
-{
-    private readonly SpawnerPanel    _panel;
-    private readonly ISpawnController _spawn;
-
-    public EditorSpawnerWindow(SpawnerPanel panel, ISpawnController spawn)
-        : base("editor_spawner", "Entity Spawner", "Editor", WindowScope.PerspectiveBound)
-    {
-        _panel = panel;
-        _spawn = spawn;
-        IsOpen        = true;
-        TitleBarColor = EditorWindowColor.TitleBar;
-    }
-
-    protected override void DrawClientArea() => _panel.DrawContent(_spawn);
-}
-
-/// <summary>Mission editor panel (shared) as a perspective-bound managed window.</summary>
-internal sealed class EditorMissionWindow : ManagedWindow
-{
-    private readonly MissionPanel          _panel;
-    private readonly IMissionEditorService _svc;
-    private readonly IMapPickService       _pick;
-
-    public EditorMissionWindow(MissionPanel panel, IMissionEditorService svc, IMapPickService pick)
-        : base("editor_mission", "Mission Editor", "Editor", WindowScope.PerspectiveBound)
-    {
-        _panel = panel;
-        _svc   = svc;
-        _pick  = pick;
-        IsOpen        = true;
-        TitleBarColor = EditorWindowColor.TitleBar;
-    }
-
-    protected override void DrawClientArea() => _panel.DrawContent(_svc, _pick);
-}
-
-/// <summary>Map layer / grid configuration panel (shared) as a perspective-bound managed window.</summary>
-internal sealed class EditorConfigWindow : ManagedWindow
-{
-    private readonly ConfigPanel         _panel;
-    private readonly IMapConfigController _ctrl;
-
-    public EditorConfigWindow(ConfigPanel panel, IMapConfigController ctrl)
-        : base("editor_config", "Map Configuration", "Editor", WindowScope.PerspectiveBound)
-    {
-        _panel = panel;
-        _ctrl  = ctrl;
-        IsOpen        = true;
-        TitleBarColor = EditorWindowColor.TitleBar;
-    }
-
-    protected override void DrawClientArea() => _panel.DrawContent(_ctrl);
-}
-
-/// <summary>Shared ORBAT tree with drag-and-drop embarkation as a perspective-bound managed window.</summary>
-internal sealed class EditorSharedOrbatWindow : ManagedWindow
-{
-    private readonly SharedOrbatPanel   _panel;
-    private readonly IOrbatDataProvider _data;
-    private readonly IOrbatController   _ctrl;
-
-    public EditorSharedOrbatWindow(SharedOrbatPanel panel, IOrbatDataProvider data, IOrbatController ctrl)
-        : base("editor_shared_orbat", "ORBAT Tree", "Editor", WindowScope.PerspectiveBound)
-    {
-        _panel = panel;
-        _data  = data;
-        _ctrl  = ctrl;
-        IsOpen        = true;
-        TitleBarColor = EditorWindowColor.TitleBar;
-    }
-
-    protected override void DrawClientArea() => _panel.DrawContent(_data, _ctrl);
-}
-
-/// <summary>Preview/Edit mode toggle panel as a perspective-bound managed window.</summary>
+/// <summary>Preview/Edit mode toggle panel as a perspective-bound managed window.
+/// ⭐⭐⭐ U-obs-5 — the HOST registers; the KIND is <see cref="PanelIds.Preview"/>, shared with the
+/// (not yet converted) ExCon host of the same <see cref="PreviewPanel"/>.</summary>
 internal sealed class EditorPreviewWindow : ManagedWindow
 {
     private readonly PreviewPanel       _panel;
     private readonly IPreviewController _ctrl;
 
     public EditorPreviewWindow(PreviewPanel panel, IPreviewController ctrl)
-        : base("editor_preview", "Preview", "Editor", WindowScope.PerspectiveBound)
+        : base("editor_preview", "Preview", "Scenario", WindowScope.PerspectiveBound)
     {
         _panel = panel;
         _ctrl  = ctrl;
         IsOpen        = true;
         TitleBarColor = EditorWindowColor.TitleBar;
+        PanelSnapshot.DeclareInstrumented(Id);
     }
 
-    protected override void DrawClientArea() => _panel.DrawContent(_ctrl);
+    private PreviewPanelViewModel BuildAndPublish()
+    {
+        var vm = _panel.BuildViewModel(_ctrl, Id, PanelIds.Preview);
+        if (PanelSnapshot.CaptureEnabled) PanelSnapshot.Register(vm);
+        return vm;
+    }
+
+    internal PreviewPanelViewModel SimulateDrawClientArea() => BuildAndPublish();
+
+    protected override void DrawClientArea()
+    {
+        BuildAndPublish();
+        _panel.DrawContent(_ctrl);
+    }
 }
 
-/// <summary>Zone editor (road network + LOS obstacle placement) as a perspective-bound managed window.</summary>
+/// <summary>Zone editor (road network + LOS obstacle placement) as a perspective-bound managed window.
+/// ⭐⭐⭐ U-obs-5 — the HOST registers; the KIND is <see cref="PanelIds.ZoneEditor"/>. ⚠ No ExCon host
+/// exists for this one (measured) — single host, but the constant already lives in
+/// <c>PanelIds</c> alongside its four siblings for consistency.</summary>
 internal sealed class EditorZoneEditorWindow : ManagedWindow
 {
     private readonly ZoneEditorPanel          _panel;
     private readonly IZoneAuthoringController _ctrl;
 
     public EditorZoneEditorWindow(ZoneEditorPanel panel, IZoneAuthoringController ctrl)
-        : base("editor_zone_editor", "Zone Editor", "Editor", WindowScope.PerspectiveBound)
+        : base("editor_zone_editor", "Zone Editor", "Scenario", WindowScope.PerspectiveBound)
     {
         _panel = panel;
         _ctrl  = ctrl;
         IsOpen        = true;
         TitleBarColor = EditorWindowColor.TitleBar;
+        PanelSnapshot.DeclareInstrumented(Id);
     }
 
-    protected override void DrawClientArea() => _panel.DrawContent(_ctrl);
+    private ZoneEditorPanelViewModel BuildAndPublish()
+    {
+        var vm = _panel.BuildViewModel(Id, PanelIds.ZoneEditor);
+        if (PanelSnapshot.CaptureEnabled) PanelSnapshot.Register(vm);
+        return vm;
+    }
+
+    internal ZoneEditorPanelViewModel SimulateDrawClientArea() => BuildAndPublish();
+
+    protected override void DrawClientArea()
+    {
+        BuildAndPublish();
+        _panel.DrawContent(_ctrl);
+    }
 }

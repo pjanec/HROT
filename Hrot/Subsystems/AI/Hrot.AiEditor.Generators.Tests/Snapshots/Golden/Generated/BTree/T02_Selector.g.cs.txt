@@ -1,0 +1,30 @@
+// HROT_EDITOR_GENERATED - manual edits to this file will be overwritten by the AI editor on next save.
+// AssetId: bb000003-0000-0000-0000-000000000000
+
+using System;
+using System.Numerics;
+
+using Fbt;
+using Fbt.Compiler;
+using Fdp.Toolkit.Behavior;
+using Fdp.Toolkit.Behavior.Components;
+
+namespace Hrot.AI.Behaviors.Trees;
+
+public static class T02_Selector
+{
+    public static BTreeBuilder<BrainBlackboard, BTreeContext> CreateBuilder() =>
+        new BTreeBuilder<BrainBlackboard, BTreeContext>()
+            .Selector(sel =>
+            {
+                sel.Wait(1f,
+                    visualId: new Guid("b3030000-0000-0000-0000-000000000001"));
+                sel.Wait(1f,
+                    visualId: new Guid("b3040000-0000-0000-0000-000000000001"));
+            },
+                visualId: new Guid("b3020000-0000-0000-0000-000000000001"));
+
+    [BTreeDefinition("T02_Selector", AssetId = "bb000003-0000-0000-0000-000000000000")]
+    public static BehaviorTreeBlob Build() =>
+        CreateBuilder().Compile("T02_Selector");
+}

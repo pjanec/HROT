@@ -1,0 +1,15 @@
+StructureHash: 0x3C9FCE636DE52062
+Parameters:
+  StartX : System.Single @0 size=4
+  StartY : System.Single @4 size=4
+  EndX : System.Single @8 size=4
+  EndY : System.Single @12 size=4
+  TankSpacing : System.Single @16 size=4
+WorkingState:
+  (empty)
+Variables:
+  (empty)
+GraphLocalSlots:
+  (empty)
+Diagnostics:
+  (none)

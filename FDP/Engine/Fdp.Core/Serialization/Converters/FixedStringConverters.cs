@@ -31,4 +31,18 @@ namespace Fdp.Core.Serialization.Converters
         public override void Write(Utf8JsonWriter writer, FixedString64 value, JsonSerializerOptions options)
             => writer.WriteStringValue(value.ToString());
     }
+
+    /// <summary>
+    /// Serializes/deserializes <see cref="FixedString128"/> as a plain JSON string.
+    /// Prevents the default struct serialization that would produce
+    /// <c>{ "Length": N, "IsEmpty": false, ... }</c> instead of the string value.
+    /// </summary>
+    public class FixedString128Converter : JsonConverter<FixedString128>
+    {
+        public override FixedString128 Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
+            => new FixedString128(reader.GetString() ?? string.Empty);
+
+        public override void Write(Utf8JsonWriter writer, FixedString128 value, JsonSerializerOptions options)
+            => writer.WriteStringValue(value.ToString());
+    }
 }

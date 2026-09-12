@@ -1,3 +1,4 @@
+using System;
 using Hrot.Editor.AiShared.Identity;
 
 namespace Hrot.Editor.AiShared.Recipes;
@@ -38,4 +39,15 @@ public interface INewAssetService
     /// discovered recipe assets from disk.
     /// </summary>
     IReadOnlyList<IEditableAsset> AvailableRecipes();
+
+    /// <summary>
+    /// Distinguishes an in-code <b>blank template</b> (a synthetic recipe such as "Empty"
+    /// that should seed the generic <c>New{Kind}</c> default name) from a <b>content recipe</b>
+    /// (a real, named asset from disk whose own name is a sensible default). Kinds that offer
+    /// more than one blank template (see <c>BlueprintNewAssetService</c>, which offers "Empty"
+    /// and "Function Library") override this to recognize all of them.
+    /// </summary>
+    /// <param name="recipe">The recipe instance returned by <see cref="AvailableRecipes"/>.</param>
+    bool IsBlankTemplate(IEditableAsset recipe)
+        => string.Equals(recipe.Name, "Empty", StringComparison.OrdinalIgnoreCase);
 }

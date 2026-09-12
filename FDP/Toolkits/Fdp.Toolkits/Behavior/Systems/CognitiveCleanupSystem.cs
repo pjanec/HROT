@@ -19,11 +19,24 @@ namespace Fdp.Toolkit.Behavior.Systems
     [UpdateInPhase(SystemPhase.Simulation)]
     internal sealed class CognitiveCleanupSystem : IEcsModuleSystem
     {
+        /// <summary>
+        /// ⭐⭐⭐ <c>P3</c> step <c>3b</c> — the EXECUTION gate; see
+        /// <c>docs/DESIGN_Role_Affinity_Ownership.md</c> §3.5. ⚠ Defaults to <c>false</c>: a promoted
+        /// ghost owns nothing until a policy or grant says otherwise, so enabling it before the node has
+        /// a policy would stop it processing every entity it did not create.
+        /// </summary>
+        private readonly bool _gateOnAuthority;
+
+        public CognitiveCleanupSystem(bool gateOnAuthority = false) => _gateOnAuthority = gateOnAuthority;
+
         public unsafe void Execute(ISimulationView view, float deltaTime)
         {
             if (view is not EntityRepository repo) return;
 
-            var q = repo.Query().With<BrainBlackboard>().Build();
+            // ⭐⭐ P3 step 3b — this WRITES (GetComponentRW) into every blackboard it finds, so an
+            //   un-gated node clobbers interrupt bits on a brain another node owns. Gated on
+            //   BrainBlackboard, the only component it required.
+            var q = repo.Query().WithOwnedWhen<BrainBlackboard>(_gateOnAuthority).Build();
             foreach (var entity in q)
             {
                 ref var bb = ref repo.GetComponentRW<BrainBlackboard>(entity);

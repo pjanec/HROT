@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net8.0-windows</TargetFramework>
+    <RootNamespace>Hrot.Stride.Animation</RootNamespace>
+    <AssemblyName>Hrot.Stride.Animation</AssemblyName>
+    <Nullable>enable</Nullable>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    <LangVersion>latest</LangVersion>
+  </PropertyGroup>
+
+  <!-- Stride NuGet packages (4.2.1.2487).
+       Stride.Animations namespace lives inside Stride.Engine — no separate package. -->
+  <ItemGroup>
+    <PackageReference Include="Stride.Engine" Version="4.2.1.2487" PrivateAssets="contentfiles;analyzers" />
+  </ItemGroup>
+
+  <!-- FDP/HROT ProjectReferences -->
+  <ItemGroup>
+    <!-- IAnimationBackend, IBlendTreeBuilder and related contract types -->
+    <ProjectReference Include="..\..\Hrot\Subsystems\Hrot.MuscleCharacter.Animation\Hrot.MuscleCharacter.Animation.csproj" />
+  </ItemGroup>
+</Project>

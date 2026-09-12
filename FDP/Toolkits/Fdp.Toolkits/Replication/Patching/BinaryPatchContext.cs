@@ -107,14 +107,21 @@ public sealed class BinaryPatchContext
         => DirtySubsystemsMask |= (1u << bit);
 
     /// <summary>
-    /// Records that descriptor ordinal <paramref name="ordinal"/> was touched.
-    /// Used for ACK bitmask construction; SmartEgress is flushed via
-    /// <c>PatchContext.FlushDirtyMarks()</c>.
+    /// ⭐ Records in <see cref="DirtyDescriptorMask"/> that ordinal <paramref name="ordinal"/> was touched.
+    /// ⚠ A <b>REPORT</b> of what this Apply touched — ⛔ not the egress mechanism.
+    ///
+    /// <para>⭐⭐⭐ <b><c>Q59-E</c> — this no longer forwards anywhere, and no longer needs to.</b> Under
+    /// <c>AX-015</c> it forwarded to <c>IEntityPatchContext.MarkDescriptorDirty</c> so the binary installers
+    /// could reach SmartEgress. ⇒ that seam member is <b>DELETED</b>: an applier now records the COMPONENT it
+    /// wrote and <c>DescriptorOwnershipMap</c> — fed by what the network layer declares — supplies the
+    /// descriptors. ⭐ So the installers no longer name a descriptor at all, and neither does any FDP type.</para>
+    ///
+    /// <para>⚠⚠ <b>Nothing in PRODUCTION reads this mask</b> — measured under <c>AX-015</c> and still true.
+    /// ⭐ It is retained because it is a documented capability of the generic interpreter *(reset per
+    /// <c>Apply</c>, exercised by <c>BinaryInterpreterTests</c>)*, and <c>Q59</c>'s scope is the attribute
+    /// vocabulary, not this. ⛔ "No rush removals": ⚠ but do not mistake it for an egress path.</para>
     /// </summary>
-    /// <param name="ordinal">
-    /// Descriptor type ordinal (e.g. <c>(long)EDescriptorType.dtEntityInfo</c>).
-    /// Must be in range 0–63.
-    /// </param>
+    /// <param name="ordinal">An opaque ordinal. Must be in range 0–63 to be recorded.</param>
     public void MarkDescriptorDirty(long ordinal)
     {
         if (ordinal >= 0 && ordinal < 64)

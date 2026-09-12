@@ -1,6 +1,8 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Text.Json.Nodes;
+using Fdp.Diagnostics.Contracts.Panels;
 using Fdp.Presentation.WindowManager;
 using Hrot.AiEditor.Persistence;
 using Hrot.Editor.AiShared.Blackboard;
@@ -27,7 +29,10 @@ public sealed record VariableViewModel(
     bool   IsAutoManaged         = false,
     bool   IsReadOnly            = false,
     BlackboardVariableRole Role  = BlackboardVariableRole.Input,
-    WorkingStateScope Scope      = WorkingStateScope.Node)
+    WorkingStateScope Scope      = WorkingStateScope.Node,
+    // ⭐ Row 58 — the declaration's persisted default, so the Value column's INITIAL arm has a
+    //   source. ⚠ Trailing and optional: every existing construction site is unchanged.
+    string? DefaultValueJson     = null)
 {
     /// <summary>True when the Scope selector should be shown (i.e. Role == State).</summary>
     public bool ShowScopeSelector => Role == BlackboardVariableRole.State;
@@ -70,15 +75,40 @@ public sealed record BlackboardWindowViewModel(
 /// The drawing logic delegates to a testable static view-model builder so that unit
 /// tests never touch ImGui.
 /// </summary>
-public sealed class BlackboardAuthoringWindow : ManagedWindow
+public sealed class BlackboardAuthoringWindow : ManagedWindow, Shell.IDetailsViewSource
 {
+    /// <summary>
+    /// ⭐ <c>U-obs-5</c> — THE KIND. ⛔ Single-host: no other assembly shows this exact panel, so it stays
+    /// a LOCAL literal rather than a <c>PanelIds</c> constant (📄 the queue's identity rule — cross-host
+    /// kinds live in <c>PanelIds</c>, single-host kinds stay local).
+    /// </summary>
+    internal const string Kind = "blackboard-authoring";
+
     private readonly EditorSelectionStore _store;
     private readonly IRefactorService _refactorService;
     private readonly ComparisonToolbarAction? _comparisonToolbar;
     private readonly ComparisonSessionRegistry? _sessionRegistry;
     private readonly BlackboardAggregatorService? _aggregatorService;
     private IActionSchemaExporter? _actionSchemaExporter;
+
+    /// <summary>
+    /// ⭐⭐ <c>DEBT-AIB-009</c> — whether this window actually received a schema exporter.
+    /// ⛔ <b>Exists so the rail can ask the OBJECT instead of guessing from the call site's IL.</b>
+    /// 🔴 An earlier version of that rail inspected the caller's SIGNATURE, which
+    /// <c>PerspectiveWorkspaceRegistrar</c> satisfies whether or not it passes the argument on —
+    /// so the probe did not redden and the rail was vacuous.
+    /// </summary>
+    internal bool HasSchemaExporter => _actionSchemaExporter is not null;
     private readonly ILiveBlackboardValueProvider? _liveValueProvider;
+
+    /// <summary>
+    /// ⭐⭐ <c>88a</c> — whether this window actually received a live-value provider.
+    /// ⛔ <b>Same shape and same reason as <see cref="HasSchemaExporter"/> above</b>: 📌 <c>R-67</c>,
+    /// the omission IS the defect, and it is invisible from the call site's signature. 🔴 Blueprint
+    /// shipped with <c>null</c> here while BTree and HSM did not, and the Value column's
+    /// <c>(pending)</c> — the DESIGNED output for a source with no reader — made that look intended.
+    /// </summary>
+    internal bool HasLiveValueProvider => _liveValueProvider is not null;
 
     // Inline rename state
     
@@ -147,6 +177,11 @@ public sealed class BlackboardAuthoringWindow : ManagedWindow
         _liveValueProvider = liveValueProvider;
         if (sanitizerRegistry != null && exportBuilder != null && sessionRegistry != null)
             _comparisonToolbar = new ComparisonToolbarAction(sanitizerRegistry, exportBuilder, sessionRegistry);
+
+        // ⭐⭐⭐ U-obs-5 — DECLARED AT CONSTRUCTION, ALWAYS, ungated on CaptureEnabled. Mirrors
+        //    EntityBlueprintsPanel (the pilot) / AiVariablesWindow / AiWatchWindow — the address is this
+        //    window's own id, unique among the per-perspective instances (idOverride).
+        PanelSnapshot.DeclareInstrumented(Id);
     }
 
     // ---- View-model building (unit-testable) --------------------------------
@@ -302,7 +337,9 @@ public sealed class BlackboardAuthoringWindow : ManagedWindow
                 IsAutoManaged: v.IsAutoManaged,
                 IsReadOnly:    false,
                 Role:          v.Role,
-                Scope:         v.Scope));
+                Scope:         v.Scope,
+                // ⭐ Row 58 — the INITIAL arm's source for the AI hosts.
+                DefaultValueJson: v.DefaultValueJson));
         }
 
         return new BlackboardWindowViewModel(
@@ -374,11 +411,64 @@ public sealed class BlackboardAuthoringWindow : ManagedWindow
     private VariablesPanelControl? _variablesControl;
     private IEditableAsset? _lastAssetBase;
 
-    protected override void DrawClientArea()
+    protected override void DrawClientArea() => DrawContent();
+
+    /// <summary>
+    /// ⭐⭐⭐ <b><c>L3.3</c> — THE CONTENT, split from the WINDOW so a Details view can host it.</b>
+    /// 📄 <c>DESIGN_Details_Panel_View_Switching.md</c> §6 <c>L3</c>'s table.
+    /// ⭐ Same ROUTING move as <c>L3.2</c>'s <c>GraphSignatureWindow.DrawContent</c>: the body is
+    /// unchanged and there is still exactly ONE of it — ⛔ not a duplicate.
+    /// </summary>
+    /// <summary>
+    /// ⭐⭐⭐ <b><c>L3.3</c> — this window CONTRIBUTES the Blackboard view to its perspective's
+    /// catalogue.</b> 📄 §6 <c>L3</c> · §6 <c>L1.2</c>'s claim chain *(<c>R-67</c> — no new root
+    /// argument)*.
+    /// <para>⚠ Built in the registrar's CONSTRUCTOR *(<c>:288</c>)*, like <c>Details</c>, so its arm is
+    /// mirrored there rather than reached through <c>RegisterExtraWindow</c> — ⭐ the SAME
+    /// <c>_viewSources</c> guard covers both paths, so a window reaching both registers once.</para>
+    /// </summary>
+    public IEnumerable<Shell.DetailsViewDescriptor> DetailsViews
+    {
+        get { yield return Shell.BlackboardDetailsViewDescriptor.For(this); }
+    }
+
+    /// <summary>
+    /// ⭐⭐⭐ <b>U-obs-5: BUILD · CAPTURE.</b> 📄 <c>docs/DESIGN_UI_Observability_Snapshot.md</c> §Example,
+    /// mirroring <c>EntityBlueprintsPanel.DrawUI</c> / <c>AiVariablesWindow.BuildAndPublish</c>.
+    ///
+    /// <para>⛔⛔ Extracted from <see cref="DrawContent"/> so it runs with NO ImGui context required — the
+    /// prune + aggregation + <see cref="BuildViewModel"/> calls below are ImGui-free; capture is
+    /// published <b>before</b> the render guard so a headless run still observes this window. 📌 Same
+    /// deviation as §Example's AS-BUILT ①.</para>
+    /// </summary>
+    private BlackboardWindowViewModel BuildAndPublish()
     {
         // Prune stale alias bindings before building the view-model (DEBT-06).
         if (_store.ActiveAsset is IBlackboardManagedAsset bbAssetForPrune)
             bbAssetForPrune.PruneStaleAliasBindings(bbAssetForPrune.GetKnownSubAssetIds());
+
+        // AIE-052: aggregate sub-tree DTO requirements so bin-packing can surface budget warnings.
+        var aggregationResult = (_aggregatorService != null && _store.ActiveAsset != null)
+            ? _aggregatorService.Aggregate(_store.ActiveAsset)
+            : (AggregationResult?)null;
+
+        var vm = BuildViewModel(_store.ActiveAsset, aggregationResult: aggregationResult, actionSchemaExporter: _actionSchemaExporter);
+
+        if (PanelSnapshot.CaptureEnabled)
+            PanelSnapshot.Register(new BlackboardWindowPanelViewModel(Id, Kind, vm));
+
+        return vm;
+    }
+
+    /// <summary>⭐ Test hook — the BUILD + CAPTURE portion, callable with no live ImGui context. 📌 Mirrors
+    /// <c>AiGraphCanvasWindow.SimulateDrawClientArea</c> / <c>AiWatchWindow.DrawContent</c>.</summary>
+    internal BlackboardWindowViewModel SimulateDrawContent() => BuildAndPublish();
+
+    public void DrawContent()
+    {
+        var vm = BuildAndPublish();
+
+        if (ImGuiNET.ImGui.GetCurrentContext() == IntPtr.Zero) return;
 
         // Comparison toolbar (shown when comparison services are available).
         if (_comparisonToolbar != null && _store.ActiveAsset != null)
@@ -401,13 +491,8 @@ public sealed class BlackboardAuthoringWindow : ManagedWindow
             return;
         }
 
-        // AIE-052: aggregate sub-tree DTO requirements so bin-packing can surface budget warnings.
-        var aggregationResult = (_aggregatorService != null && _store.ActiveAsset != null)
-            ? _aggregatorService.Aggregate(_store.ActiveAsset)
-            : (AggregationResult?)null;
-
-        var vm = BuildViewModel(_store.ActiveAsset, aggregationResult: aggregationResult, actionSchemaExporter: _actionSchemaExporter);
-
+        // ⭐ vm already built + captured in BuildAndPublish() above — reused here, not rebuilt, so the
+        //    dump and the draw can never see two different frames' state.
         if (!vm.HasActiveAsset)
         {
             ImGuiNET.ImGui.TextDisabled("Select an asset to begin.");
@@ -519,5 +604,96 @@ public sealed class BlackboardAuthoringWindow : ManagedWindow
                 ImGuiNET.ImGui.PopStyleVar();
             }
         }
+    }
+}
+
+/// <summary>
+/// ⭐⭐⭐ <b>U-obs-5 — THE THIN WRAPPER that makes <see cref="BlackboardWindowViewModel"/> dumpable.</b>
+/// 📄 <c>docs/DESIGN_UI_Observability_Snapshot.md</c> §Adoption, mirroring
+/// <c>VariableTablePanelViewModel</c>'s shape exactly: the identity the model itself cannot carry.
+///
+/// <para>⛔⛔ <b>Hand-written <see cref="Dump"/>, not <c>PanelDump.Of(this)</c> — and it is load-bearing,
+/// not a style choice.</b> 📐 <see cref="VariableViewModel"/> carries a <c>Type FieldType</c> field ⇒
+/// reflecting over it either throws or emits noise no assertion could use. ⇒ ⭐ the dump projects the
+/// DISPLAYED shape by hand — the same gotcha the queue names, the same fix
+/// <c>VariableTablePanelViewModel.Dump</c> already uses.</para>
+/// </summary>
+public sealed class BlackboardWindowPanelViewModel : IPanelViewModel
+{
+    private readonly BlackboardWindowViewModel _vm;
+
+    /// <param name="panelId">⭐ The ADDRESS — the host window's own id, unique among live instances.</param>
+    /// <param name="panelKind">⭐ The KIND — <see cref="BlackboardAuthoringWindow.Kind"/>.</param>
+    /// <param name="vm">The frame's built view-model. ⚠ Wrapped, never copied.</param>
+    public BlackboardWindowPanelViewModel(string panelId, string panelKind, BlackboardWindowViewModel vm)
+    {
+        if (string.IsNullOrWhiteSpace(panelId))   throw new ArgumentException("A panel address is required.", nameof(panelId));
+        if (string.IsNullOrWhiteSpace(panelKind)) throw new ArgumentException("A panel kind is required.", nameof(panelKind));
+
+        PanelId   = panelId;
+        PanelKind = panelKind;
+        _vm       = vm ?? throw new ArgumentNullException(nameof(vm));
+    }
+
+    /// <inheritdoc/>
+    public string PanelId { get; }
+
+    /// <inheritdoc/>
+    public string PanelKind { get; }
+
+    /// <summary>⭐ The wrapped model, for a host that needs it back.</summary>
+    public BlackboardWindowViewModel Model => _vm;
+
+    /// <inheritdoc/>
+    public JsonNode Dump()
+    {
+        var variables = new JsonArray();
+        foreach (var v in _vm.Variables)
+        {
+            variables.Add(new JsonObject
+            {
+                ["name"]             = v.Name,
+                ["typeName"]         = v.TypeName,
+                ["byteSize"]         = v.ByteSize,
+                ["comment"]          = v.Comment,
+                ["isUnused"]         = v.IsUnused,
+                ["isAutoManaged"]    = v.IsAutoManaged,
+                ["isReadOnly"]       = v.IsReadOnly,
+                ["role"]             = v.Role.ToString(),
+                ["scope"]            = v.Scope.ToString(),
+                ["aliasCount"]       = v.AliasedBy.Count,
+                ["defaultValueJson"] = v.DefaultValueJson,
+            });
+        }
+
+        var unbound = new JsonArray();
+        foreach (var u in _vm.UnboundRequirements)
+        {
+            unbound.Add(new JsonObject
+            {
+                ["dtoTypeName"]    = u.DtoTypeName,
+                ["requiredByPath"] = u.RequiredByPath,
+                ["assetName"]      = u.RequiringAssetName,
+            });
+        }
+
+        return new JsonObject
+        {
+            ["panelId"]                   = PanelId,
+            ["panelKind"]                 = PanelKind,
+            ["hasActiveAsset"]            = _vm.HasActiveAsset,
+            ["isBlackboardEditorManaged"] = _vm.IsBlackboardEditorManaged,
+            ["totalInlineBytes"]          = _vm.TotalInlineBytes,
+            ["totalHeavyBytes"]           = _vm.TotalHeavyBytes,
+            ["inlineBudget"]              = _vm.InlineBudget,
+            ["heavyBudget"]               = _vm.HeavyBudget,
+            ["requiresHeavyComponent"]    = _vm.RequiresHeavyComponent,
+            ["warning"]                   = _vm.Warning.ToString(),
+            ["variableCount"]             = _vm.Variables.Count,
+            ["variables"]                 = variables,
+            ["unboundRequirementCount"]   = _vm.UnboundRequirements.Count,
+            ["unboundRequirements"]       = unbound,
+            ["hardcodedDtoFieldCount"]    = _vm.HardcodedDtoFields?.Count ?? 0,
+        };
     }
 }

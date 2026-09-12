@@ -1,8 +1,19 @@
+using System.Text.Json.Nodes;
 using ImGuiNET;
 using System.Numerics;
+using Fdp.Diagnostics.Contracts.Panels;
 using Hrot.UI.Common.Facades;
 
 namespace Hrot.UI.Common.Panels;
+
+/// <summary>⭐⭐⭐ U-obs-5 — the whole of what <see cref="PreviewPanel"/> shows, this frame. ⚠ See
+/// <c>ConfigPanel</c>'s remarks for the group-5 twin finding (same shape here — this is the SHIPPED
+/// copy, the <c>Hrot.UI.Common</c> project's copy is dead).</summary>
+public sealed record PreviewPanelViewModel(string PanelId, string PanelKind, bool IsInPreviewMode) : IPanelViewModel
+{
+    /// <inheritdoc/>
+    public JsonNode Dump() => PanelDump.Of(this);
+}
 
 /// <summary>
 /// Lightweight panel for switching between Edit and Preview modes.
@@ -22,6 +33,11 @@ public sealed class PreviewPanel
 
     private static readonly Vector4 ColorEditGreen  = new(0.18f, 0.80f, 0.18f, 1.0f);
     private static readonly Vector4 ColorPreviewAmber = new(1.00f, 0.65f, 0.00f, 1.0f);
+
+    // ── Public BUILD entry point (U-obs-5) ───────────────────────────────
+    /// <summary>⭐⭐⭐ BUILD — a pure projection of the controller's mode. No ImGui.</summary>
+    public PreviewPanelViewModel BuildViewModel(IPreviewController ctrl, string panelId, string panelKind) =>
+        new(panelId, panelKind, ctrl.IsInPreviewMode);
 
     // ── Render ────────────────────────────────────────────────────────────────
 

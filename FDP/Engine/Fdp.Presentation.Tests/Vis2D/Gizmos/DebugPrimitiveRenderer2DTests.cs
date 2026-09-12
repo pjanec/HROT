@@ -1,3 +1,4 @@
+using Fdp.Presentation.Tests.Vis2D;
 using System.Collections.Generic;
 using System.Numerics;
 using Fdp.Core;
@@ -10,19 +11,12 @@ using Xunit;
 
 namespace Fdp.Toolkit.Vis2D.Tests.Gizmos
 {
-    // ---------------------------------------------------------------------------
-    // Test double: overrides DispatchShape to capture primitives without Raylib.
-    // Defined at namespace level so DebugGizmoLayerGizmoTests can also use it.
-    // ---------------------------------------------------------------------------
-    internal sealed class CapturingRenderer2D : DebugPrimitiveRenderer2D
-    {
-        public readonly List<DebugPrimitive> Dispatched = new();
-
-        public CapturingRenderer2D(ISimulationView? view = null) : base(view) { }
-
-        protected override void DispatchShape(in DebugPrimitive prim, RenderContext ctx)
-            => Dispatched.Add(prim);
-    }
+    // 🔴 CapturingRenderer2D and GeomScaleCapturingRenderer2D MOVED 2026-09-10 to
+    //   Vis2D/Gizmos/CapturingRenderers.cs, and re-based onto the REAL renderer's seam.
+    //   ⛔ They used to subclass the 43-line Fdp wrapper and override a DispatchShape hook it had
+    //     invented, which fired BEFORE any filtering and left Raylib running underneath ⇒ these rails
+    //     were vacuous where they passed and SIGSEGV where a primitive reached a draw call.
+    //   📄 docs/DESIGN_Gizmo_Renderer_Seam.md §2 rows ②③④ · defect E1 · CE-259aa.
 
     // ---------------------------------------------------------------------------
     // Helper factories shared by tests in this file.
@@ -32,7 +26,9 @@ namespace Fdp.Toolkit.Vis2D.Tests.Gizmos
         /// <summary>Builds a RenderContext with the given zoom and layer mask.</summary>
         public static RenderContext MakeCtx(float zoom = 1f, uint layerMask = 0xFFFF_FFFFu)
         {
-            return new RenderContext { Zoom = zoom, VisibleLayersMask = layerMask };
+            return new RenderContext { Zoom = zoom, VisibleLayersMask = layerMask,
+                                       // 91d: production ALWAYS supplies a provider (MapCanvas:119).
+                                       Resources = HeadlessResourceProvider.Instance };
         }
 
         /// <summary>Creates a Map2D Line primitive on the given layer / ZIndex.</summary>
@@ -73,30 +69,88 @@ namespace Fdp.Toolkit.Vis2D.Tests.Gizmos
             Assert.Equal(0, renderer.Dispatched.Count);
         }
 
-        // SC-GZ011-2: Layer-5 primitive, bit-5 set in mask => dispatched.
+        // ⭐⭐⭐ SC-GZ011-2/3 RE-HOMED 2026-09-10 (R2, DESIGN_Gizmo_Renderer_Seam.md §6).
+        //   ⛔ They used to call `renderer.SetLayerMask(...)` on the Fdp WRAPPER — a method with an
+        //     EMPTY BODY. So neither rail ever set a mask, and SC-GZ011-3 "passed" only because the
+        //     wrapper's pre-filter hook happened to give the count it wanted for other reasons.
+        //   🔒 The authority is the BACKEND'S `LayerControlMask` PRIMITIVE, by ruling:
+        //     docs/UX/Architect_Question_28_Map_Layers.md:20 — "the only filter that reaches drawn
+        //     primitives. Default SetAll(); a backend LayerControlMask primitive asserts authority for
+        //     the frame." ⇒ these now assert THAT, which is the mechanism the product actually uses.
+
+        // SC-GZ011-2: layer-5 primitive, bit 5 SET in the frame's LayerControlMask => dispatched.
         [Fact]
         public void SC_GZ011_2_Layer5_MaskBitSet_Dispatched()
         {
             var renderer = new CapturingRenderer2D();
-            renderer.SetLayerMask(0xFFFF);
+            var mask = new LayerMask256();
+            mask.SetAll();
             var prim = RenderTestHelpers.MakeLine(layer: 5);
 
-            renderer.Render(new[] { prim }, RenderTestHelpers.MakeCtx());
+            renderer.Render(
+                new[] { DebugPrimitive.MakeLayerControlMask(mask), prim },
+                RenderTestHelpers.MakeCtx());
 
             Assert.Equal(1, renderer.Dispatched.Count);
         }
 
-        // SC-GZ011-3: Layer-5 primitive, bit-5 clear in mask => skipped.
+        // SC-GZ011-3: layer-5 primitive, bit 5 CLEAR => skipped.
+        // ⛔ RED-PROOF SHAPE: this is the rail that was impossible before — with the no-op SetLayerMask
+        //    there was no way to express "bit 5 off" at all.
         [Fact]
         public void SC_GZ011_3_Layer5_MaskBitClear_Skipped()
         {
             var renderer = new CapturingRenderer2D();
-            renderer.SetLayerMask(unchecked((ushort)~(1u << 5))); // bit 5 off
+            // ⭐ Build UP from zero — LayerMask256 has SetAll/SetBit/IsSet and deliberately no ClearBit;
+            //   the backend asserts which layers ARE visible, it does not subtract.
+            var mask = new LayerMask256();
+            mask.SetBit(0);
+            mask.SetBit(4);
+            mask.SetBit(6);      // ⛔ 5 is NOT set
             var prim = RenderTestHelpers.MakeLine(layer: 5);
 
-            renderer.Render(new[] { prim }, RenderTestHelpers.MakeCtx());
+            renderer.Render(
+                new[] { DebugPrimitive.MakeLayerControlMask(mask), prim },
+                RenderTestHelpers.MakeCtx());
 
             Assert.Equal(0, renderer.Dispatched.Count);
+        }
+
+        // SC-GZ011-3c: the mask is indexed BY LAYER, not merely on/off. Only bit 5 set ⇒ the layer-5
+        // primitive draws and the layer-0 one does not. ⭐ This is the assertion the no-op SetLayerMask
+        // made unreachable, and it is the one that would catch an off-by-one in the bit indexing.
+        [Fact]
+        public void SC_GZ011_3c_OnlyBit5Set_Layer5Draws_Layer0Skipped()
+        {
+            var renderer = new CapturingRenderer2D();
+            var mask = new LayerMask256();
+            mask.SetBit(5);
+
+            renderer.Render(
+                new[]
+                {
+                    DebugPrimitive.MakeLayerControlMask(mask),
+                    RenderTestHelpers.MakeLine(layer: 0),
+                    RenderTestHelpers.MakeLine(layer: 5),
+                },
+                RenderTestHelpers.MakeCtx());
+
+            Assert.Equal(1, renderer.Dispatched.Count);
+            Assert.Equal((byte)5, renderer.Dispatched[0].DebugLayer);
+        }
+
+        // SC-GZ011-3b: absent LayerControlMask => the renderer defaults to ALL layers visible.
+        // 🔒 docs/projects/FDP/ExtDeps/GizmoMap/GizmoMap.Example.md:517-518 — "Emit LayerControlMask
+        //    every frame. The renderer treats each frame as authoritative. If LayerControlMask is
+        //    absent, the renderer defaults to all layers visible."
+        [Fact]
+        public void SC_GZ011_3b_NoLayerControlMask_DefaultsToAllVisible()
+        {
+            var renderer = new CapturingRenderer2D();
+
+            renderer.Render(new[] { RenderTestHelpers.MakeLine(layer: 5) }, RenderTestHelpers.MakeCtx());
+
+            Assert.Equal(1, renderer.Dispatched.Count);
         }
 
         // SC-GZ011-6: ZIndex 1 pushed before ZIndex 0; after Render, ZIndex 0 is dispatched first.
@@ -163,75 +217,156 @@ namespace Fdp.Toolkit.Vis2D.Tests.Gizmos
         }
     }
 
-    // ── GZ012 — EntityLocal resolution ────────────────────────────────────────
+    // ── GZ012 / GZ027 — EntityLocal resolution ────────────────────────────────
+    //
+    // 🔴🔴 REWRITTEN 2026-09-10 (R4 + constraint C4, docs/DESIGN_Gizmo_Renderer_Seam.md §6).
+    //   ⛔ These seven rails built an `EntityRepository`, stamped `AnchorIndex`/`AnchorGeneration` as an
+    //     ECS handle, and expected the renderer to resolve `SimTransform` and skip dead entities. That
+    //     is a RETIRED mechanism, and the design record shows it superseded TWICE:
+    //       ① `.dev/_DONE/gizmos-1/design-talk.md:2778-2791` — add an `Entity Anchor` field, resolve
+    //          SimTransform via the ECS;
+    //       ② `feedback2.md:479` — "the DebugPrimitiveRenderer2D must STOP CASTING RAW NETWORK INTEGERS
+    //          INTO LOCAL Entity HANDLES"; resolve through NetworkEntityMap instead;
+    //       ③ 🔒 `feedback2.md:742-798` — the SpatialAnchor TWO-PASS, which "completely severs the
+    //          presentation layer's reliance on the heavy simulation ECS (like SimTransform or
+    //          NetworkEntityMap)", and `:871` "Eradicating Entity".
+    //   ⭐⭐ Mechanism ③ is what is BUILT, and it has production producers:
+    //     `EntityPresentationGizmo.cs:95` → `EntityPresentationGizmoShared.cs:18`
+    //     `draw.DrawSpatialAnchor(networkId, …)`, cached at `DebugPrimitiveRenderer2D.cs:63` and
+    //     resolved at `:102-106`. ⇒ 🔴 `CE-259y`'s premise — "the whole EntityLocal path is inert
+    //     because the wrapper discards its ISimulationView" — is REFUTED: no view is wanted.
+    //   ⭐ So these now drive the real mechanism, and they are the only rails that cover it here.
 
     public class DebugPrimitiveRenderer2DEntityLocalTests
     {
-        // SC-GZ012-1: EntityLocal Line resolves to entity world position + local offset.
+        /// <summary>The anchor the backend prepends for any entity emitting local graphics.</summary>
+        private static DebugPrimitive Anchor(long networkId, float x, float y, float headingDeg = 0f)
+            => DebugPrimitive.MakeSpatialAnchor(networkId, x, y, 0f, headingDeg, target: PipelineTarget.Map2D);
+
+        /// <summary>
+        /// An EntityLocal primitive keyed to <paramref name="networkId"/>. ⭐ Offset 8 carries the
+        /// SpatialAnchor cache KEY here, not an ECS index — exactly what
+        /// <c>DebugPrimitiveBuffer.DrawSemanticShape</c> writes (`(int)networkId`), and the 32-bit
+        /// narrowing that constraint C7 / CE-259z pins.
+        /// </summary>
+        private static DebugPrimitive Local(DebugPrimitiveShape shape, long networkId)
+        {
+            var p = default(DebugPrimitive);
+            p.Shape       = shape;
+            p.Space       = CoordinateSpace.EntityLocal;
+            p.Color       = Rgba32.Red;
+            p.TargetView  = PipelineTarget.Map2D;
+            p.AnchorIndex = (int)networkId;
+            return p;
+        }
+
+        // SC-GZ012-1: an EntityLocal Line resolves to anchor position + local offset.
         [Fact]
         public void SC_GZ012_1_EntityLocal_Line_TranslatesPosition()
         {
-            // Use EntityRepository as the real ISimulationView.
-            var world = new EntityRepository();
-            world.RegisterComponent<SimTransform>();
+            var renderer = new CapturingRenderer2D();
+            var p = Local(DebugPrimitiveShape.Line, 42L);
+            p.LineStart = new Vector3(1f, 0f, 0f);
+            p.LineEnd   = new Vector3(2f, 0f, 0f);
 
-            var entity = world.CreateEntity();
-            world.SetComponent(entity, new SimTransform
-            {
-                Position = new Vector3(10f, 20f, 0f),
-                Rotation = Quaternion.Identity,
-            });
-
-            var renderer = new CapturingRenderer2D(world);
-
-            var prim = default(DebugPrimitive);
-            prim.Shape            = DebugPrimitiveShape.Line;
-            prim.Space            = CoordinateSpace.EntityLocal;
-            prim.Color            = Rgba32.Red;
-            prim.TargetView       = PipelineTarget.Map2D;
-            prim.DebugLayer       = 0;
-            prim.AnchorIndex      = entity.Index;
-            prim.AnchorGeneration = entity.Generation;
-            prim.LineStart        = new Vector3(1f, 0f, 0f); // Local offset
-            prim.LineEnd          = new Vector3(2f, 0f, 0f);
-
-            renderer.Render(new[] { prim }, RenderTestHelpers.MakeCtx());
+            renderer.Render(new[] { Anchor(42L, 10f, 20f), p }, RenderTestHelpers.MakeCtx());
 
             Assert.Equal(1, renderer.Dispatched.Count);
-            // World start = tf.Position + Transform(localStart, Identity) = (10+1, 20+0, 0)
+            Assert.Equal(11f, renderer.Dispatched[0].LineStart.X, precision: 3);
+            Assert.Equal(20f, renderer.Dispatched[0].LineStart.Y, precision: 3);
+            // ⭐ and the space is REWRITTEN to World, which is how the draw path knows it is resolved.
+            Assert.Equal(CoordinateSpace.World, renderer.Dispatched[0].Space);
+        }
+
+        // SC-GZ012-2: an EntityLocal primitive whose anchor is ABSENT from the frame is SKIPPED.
+        // ⭐⭐ This is the live equivalent of the old "dead entity" rail: the backend stops emitting the
+        //   SpatialAnchor when the entity goes away, so absence IS the liveness signal.
+        // ⛔ RED-PROOF SHAPE: drop the `continue` at DebugPrimitiveRenderer2D.cs:106 and an unresolved
+        //    primitive draws at its raw LOCAL coordinates — i.e. near the world origin.
+        [Fact]
+        public void SC_GZ012_2_EntityLocal_MissingAnchor_Skipped()
+        {
+            var renderer = new CapturingRenderer2D();
+            var p = Local(DebugPrimitiveShape.Line, 42L);
+            p.LineStart = Vector3.Zero;
+            p.LineEnd   = Vector3.One;
+
+            // No SpatialAnchor for 42 in this frame.
+            renderer.Render(new[] { p }, RenderTestHelpers.MakeCtx());
+
+            Assert.Equal(0, renderer.Dispatched.Count);
+        }
+
+        // SC-GZ012-2b: an anchor for a DIFFERENT network id does not resolve this one. ⭐ Pins that the
+        // cache is keyed, not merely present/absent.
+        [Fact]
+        public void SC_GZ012_2b_EntityLocal_WrongAnchorId_Skipped()
+        {
+            var renderer = new CapturingRenderer2D();
+            var p = Local(DebugPrimitiveShape.Line, 42L);
+            p.LineStart = Vector3.Zero;
+            p.LineEnd   = Vector3.One;
+
+            renderer.Render(new[] { Anchor(999L, 10f, 20f), p }, RenderTestHelpers.MakeCtx());
+
+            Assert.Equal(0, renderer.Dispatched.Count);
+        }
+    }
+
+    // ── CE-259z — DrawEntityLocal end-to-end against the renderer ─────────────
+
+    public class DrawEntityLocalResolvesEndToEndTests
+    {
+        // ⭐⭐⭐ THE RAIL THAT WOULD HAVE CAUGHT CE-259z, and nothing had it: drive the PRODUCTION
+        //   helper into the PRODUCTION renderer and check the primitive actually arrives.
+        //   ⛔ RED-PROOF SHAPE: restore `p.AnchorIndex = anchor.Index` in
+        //      DebugPrimitiveBuffer.DrawEntityLocal and pass an entity whose index differs from its
+        //      network id — the cache lookup misses and Dispatched is EMPTY. That was the shipped
+        //      behaviour: drawn nowhere, no error.
+        [Fact]
+        public void CE259z_DrawEntityLocal_ResolvesAgainstItsSpatialAnchor()
+        {
+            const long netId = 90210L;
+            var buffer = new DebugPrimitiveBuffer(16);
+            buffer.DrawSpatialAnchor(netId, worldX: 10f, worldY: 20f, worldZ: 0f, headingDeg: 0f);
+            buffer.DrawEntityLocal(netId, new Vector3(1f, 0f, 0f), new Vector3(2f, 0f, 0f), Rgba32.Red);
+
+            var renderer = new CapturingRenderer2D();
+            renderer.Render(buffer.GetFrame(), RenderTestHelpers.MakeCtx());
+
+            // The anchor is not dispatched (it is frame state), the line is — resolved to world.
+            Assert.Equal(1, renderer.Dispatched.Count);
+            Assert.Equal(CoordinateSpace.World, renderer.Dispatched[0].Space);
             Assert.Equal(11f, renderer.Dispatched[0].LineStart.X, precision: 3);
             Assert.Equal(20f, renderer.Dispatched[0].LineStart.Y, precision: 3);
         }
 
-        // SC-GZ012-2: EntityLocal primitive for a non-alive (destroyed) entity is skipped.
+        // CE-259z-b: DrawEntityLocalInteractive sets the cache key and the sub-element, and 🔒 CANNOT
+        // set an identity: for a Line, BoxAnchorId (long @44-51) OVERLAPS LineEnd.Z (@44-47) and
+        // EndColor (@48-51). ⭐⭐ That is the STRUCTURAL reason behind CE-259ac — stronger than "the
+        // hit-test does not handle Line" — and it means the row cannot be closed by teaching the
+        // hit-test about lines: the primitive could not carry what it routes on.
+        // 📌 Found by trying it: the first version of this rail stamped BoxAnchorId and read back 0,
+        //    because `p.LineEnd = localEnd` had overwritten it.
         [Fact]
-        public void SC_GZ012_2_EntityLocal_DeadEntity_Skipped()
+        public void CE259z_DrawEntityLocalInteractive_HasNoRoomForAnIdentity()
         {
-            var world = new EntityRepository();
-            world.RegisterComponent<SimTransform>();
+            const long netId = 90210L;
+            var buffer = new DebugPrimitiveBuffer(16);
+            buffer.DrawEntityLocalInteractive(netId, Vector3.Zero, new Vector3(1f, 2f, 3f), Rgba32.Red,
+                subElementId: 3);
 
-            var entity = world.CreateEntity();
-            world.SetComponent(entity, new SimTransform { Position = Vector3.Zero, Rotation = Quaternion.Identity });
+            var prim = buffer.GetFrame()[0];
+            Assert.Equal((int)netId, prim.AnchorIndex);    // the SpatialAnchor cache key
+            Assert.Equal((ushort)3,  prim.SubElementId);    // offset 52 — unaffected by the overlap
 
-            // Destroy the entity so IsAlive returns false.
-            world.DestroyEntity(entity);
+            // ⭐ The geometry is intact precisely BECAUSE no identity was written over it.
+            Assert.Equal(3f, prim.LineEnd.Z, precision: 3);
 
-            var renderer = new CapturingRenderer2D(world);
-
-            var prim = default(DebugPrimitive);
-            prim.Shape            = DebugPrimitiveShape.Line;
-            prim.Space            = CoordinateSpace.EntityLocal;
-            prim.Color            = Rgba32.Red;
-            prim.TargetView       = PipelineTarget.Map2D;
-            prim.DebugLayer       = 0;
-            prim.AnchorIndex      = entity.Index;
-            prim.AnchorGeneration = entity.Generation;
-            prim.LineStart        = Vector3.Zero;
-            prim.LineEnd          = Vector3.One;
-
-            renderer.Render(new[] { prim }, RenderTestHelpers.MakeCtx());
-
-            Assert.Equal(0, renderer.Dispatched.Count);
+            // 🔒 And the overlap is real, not folklore — write the identity and the geometry dies.
+            var corrupted = prim;
+            corrupted.BoxAnchorId = netId;
+            Assert.NotEqual(3f, corrupted.LineEnd.Z);
         }
     }
 
@@ -239,179 +374,122 @@ namespace Fdp.Toolkit.Vis2D.Tests.Gizmos
 
     public class DebugPrimitiveRenderer2DEntityLocalAllShapesTests
     {
-        private static (EntityRepository world, Entity entity) MakeWorld(Vector3 pos)
+        private static DebugPrimitive Anchor(long networkId, Vector3 pos, float headingDeg = 0f)
+            => DebugPrimitive.MakeSpatialAnchor(networkId, pos.X, pos.Y, pos.Z, headingDeg,
+                                                target: PipelineTarget.Map2D);
+
+        private static DebugPrimitive Local(DebugPrimitiveShape shape, long networkId = 7L)
         {
-            var world = new EntityRepository();
-            world.RegisterComponent<SimTransform>();
-            var entity = world.CreateEntity();
-            world.SetComponent(entity, new SimTransform
-            {
-                Position = pos,
-                Rotation = Quaternion.Identity,
-            });
-            return (world, entity);
+            var p = default(DebugPrimitive);
+            p.Shape       = shape;
+            p.Space       = CoordinateSpace.EntityLocal;
+            p.TargetView  = PipelineTarget.Map2D;
+            p.AnchorIndex = (int)networkId;
+            return p;
         }
 
-        // SC-GZ027-1: EntityLocal Sphere at local offset (5,0,0) renders at entity.Position + (5,0,0).
+        // SC-GZ027-1: an EntityLocal Sphere at local (5,0,0) renders at anchor + (5,0,0).
         [Fact]
         public void SC_GZ027_1_EntityLocal_Sphere_TranslatesCenter()
         {
-            var (world, entity) = MakeWorld(new Vector3(10f, 20f, 0f));
-            var renderer = new CapturingRenderer2D(world);
+            var renderer = new CapturingRenderer2D();
+            var p = Local(DebugPrimitiveShape.Sphere);
+            p.SphereCenter = new Vector3(5f, 0f, 0f);
+            p.SphereRadius = 1f;
 
-            var p = default(DebugPrimitive);
-            p.Shape            = DebugPrimitiveShape.Sphere;
-            p.Space            = CoordinateSpace.EntityLocal;
-            p.TargetView       = PipelineTarget.Map2D;
-            p.SphereCenter     = new Vector3(5f, 0f, 0f);
-            p.SphereRadius     = 1f;
-            p.AnchorIndex      = entity.Index;
-            p.AnchorGeneration = entity.Generation;
-
-            renderer.Render(new[] { p }, RenderTestHelpers.MakeCtx());
+            renderer.Render(
+                new[] { Anchor(7L, new Vector3(10f, 20f, 0f)), p },
+                RenderTestHelpers.MakeCtx());
 
             Assert.Equal(1, renderer.Dispatched.Count);
-            // Expected world center = (10+5, 20+0, 0) = (15, 20, 0)
             Assert.Equal(15f, renderer.Dispatched[0].SphereCenter.X, precision: 3);
             Assert.Equal(20f, renderer.Dispatched[0].SphereCenter.Y, precision: 3);
         }
 
-        // SC-GZ027-2: EntityLocal Arrow rotates with the entity (90 degrees around Z).
+        // SC-GZ027-2: an EntityLocal Arrow ROTATES with the anchor's heading. A 90° anchor turns a
+        // local +X arrow into a world +Y one.
         [Fact]
-        public void SC_GZ027_2_EntityLocal_Arrow_RotatesWithEntity()
+        public void SC_GZ027_2_EntityLocal_Arrow_RotatesWithAnchorHeading()
         {
-            var world = new EntityRepository();
-            world.RegisterComponent<SimTransform>();
-            var entity = world.CreateEntity();
-            // 90-degree rotation around Z axis.
-            var rot90 = Quaternion.CreateFromAxisAngle(Vector3.UnitZ, MathF.PI / 2f);
-            world.SetComponent(entity, new SimTransform
-            {
-                Position = Vector3.Zero,
-                Rotation = rot90,
-            });
-            var renderer = new CapturingRenderer2D(world);
+            var renderer = new CapturingRenderer2D();
+            var p = Local(DebugPrimitiveShape.Arrow);
+            p.ArrowFrom = new Vector3(0f, 0f, 0f);
+            p.ArrowTo   = new Vector3(10f, 0f, 0f);
 
-            var p = default(DebugPrimitive);
-            p.Shape            = DebugPrimitiveShape.Arrow;
-            p.Space            = CoordinateSpace.EntityLocal;
-            p.TargetView       = PipelineTarget.Map2D;
-            p.ArrowFrom        = new Vector3(0f, 0f, 0f);
-            p.ArrowTo          = new Vector3(1f, 0f, 0f); // Local +X
-            p.AnchorIndex      = entity.Index;
-            p.AnchorGeneration = entity.Generation;
-
-            renderer.Render(new[] { p }, RenderTestHelpers.MakeCtx());
+            renderer.Render(
+                new[] { Anchor(7L, Vector3.Zero, headingDeg: 90f), p },
+                RenderTestHelpers.MakeCtx());
 
             Assert.Equal(1, renderer.Dispatched.Count);
-            // After 90-deg rotation around Z: local +X maps to world +Y.
-            var dispatched = renderer.Dispatched[0];
-            Assert.Equal(0f, dispatched.ArrowFrom.X, precision: 3);
-            Assert.Equal(0f, dispatched.ArrowFrom.Y, precision: 3);
-            // To: rotated (1,0,0) => (0,1,0) in world
-            Assert.Equal(0f, dispatched.ArrowTo.X, precision: 3);
-            Assert.Equal(1f, dispatched.ArrowTo.Y, precision: 3);
+            Assert.Equal(0f,  renderer.Dispatched[0].ArrowTo.X, precision: 3);
+            Assert.Equal(10f, renderer.Dispatched[0].ArrowTo.Y, precision: 3);
         }
 
-        // SC-GZ027-3: EntityLocal Text at local (0,2,0) renders 2 units above entity position.
+        // SC-GZ027-3: a Box2D's CENTRE translates with the anchor; its extents do not.
         [Fact]
-        public void SC_GZ027_3_EntityLocal_Text_TranslatesAnchor()
+        public void SC_GZ027_3_EntityLocal_Box2D_TranslatesCenter_NotExtents()
         {
-            var (world, entity) = MakeWorld(new Vector3(0f, 5f, 0f));
-            var renderer = new CapturingRenderer2D(world);
+            var renderer = new CapturingRenderer2D();
+            var p = Local(DebugPrimitiveShape.Box2D);
+            p.BoxCenterX = 2f;
+            p.BoxCenterY = 3f;
+            p.BoxExtentX = 4f;
+            p.BoxExtentY = 5f;
 
-            var p = default(DebugPrimitive);
-            p.Shape            = DebugPrimitiveShape.Text;
-            p.Space            = CoordinateSpace.EntityLocal;
-            p.TargetView       = PipelineTarget.Map2D;
-            p.TextX            = 0f;
-            p.TextY            = 2f;   // local Y offset
-            p.TextContent      = new Fdp.Toolkit.Diagnostics.Gizmos.FixedString32("hi");
-            p.AnchorIndex      = entity.Index;
-            p.AnchorGeneration = entity.Generation;
-
-            renderer.Render(new[] { p }, RenderTestHelpers.MakeCtx());
+            renderer.Render(
+                new[] { Anchor(7L, new Vector3(100f, 200f, 0f)), p },
+                RenderTestHelpers.MakeCtx());
 
             Assert.Equal(1, renderer.Dispatched.Count);
-            // world Y = entity.Y + localY = 5 + 2 = 7
-            Assert.Equal(7f, renderer.Dispatched[0].TextY, precision: 3);
-            Assert.Equal(0f, renderer.Dispatched[0].TextX, precision: 3);
+            Assert.Equal(102f, renderer.Dispatched[0].BoxCenterX, precision: 3);
+            Assert.Equal(203f, renderer.Dispatched[0].BoxCenterY, precision: 3);
+            Assert.Equal(4f,   renderer.Dispatched[0].BoxExtentX, precision: 3);
+            Assert.Equal(5f,   renderer.Dispatched[0].BoxExtentY, precision: 3);
         }
 
-        // SC-GZ027-4: EntityLocal primitive for a dead entity is silently skipped.
+        // SC-GZ027-4: Text position translates with the anchor.
         [Fact]
-        public void SC_GZ027_4_EntityLocal_DeadEntity_Skipped()
+        public void SC_GZ027_4_EntityLocal_Text_TranslatesPosition()
         {
-            var (world, entity) = MakeWorld(Vector3.Zero);
-            world.DestroyEntity(entity);
-            var renderer = new CapturingRenderer2D(world);
+            var renderer = new CapturingRenderer2D();
+            var p = Local(DebugPrimitiveShape.Text);
+            p.TextX = 1f;
+            p.TextY = 2f;
 
-            var p = default(DebugPrimitive);
-            p.Shape            = DebugPrimitiveShape.Sphere;
-            p.Space            = CoordinateSpace.EntityLocal;
-            p.TargetView       = PipelineTarget.Map2D;
-            p.SphereCenter     = new Vector3(1f, 0f, 0f);
-            p.AnchorIndex      = entity.Index;
-            p.AnchorGeneration = entity.Generation;
-
-            renderer.Render(new[] { p }, RenderTestHelpers.MakeCtx());
-
-            Assert.Equal(0, renderer.Dispatched.Count);
-        }
-
-        // SC-GZ027-5 (regression): Existing EntityLocal Line behaviour still works.
-        [Fact]
-        public void SC_GZ027_5_EntityLocal_Line_Regression()
-        {
-            var (world, entity) = MakeWorld(new Vector3(3f, 4f, 0f));
-            var renderer = new CapturingRenderer2D(world);
-
-            var p = default(DebugPrimitive);
-            p.Shape            = DebugPrimitiveShape.Line;
-            p.Space            = CoordinateSpace.EntityLocal;
-            p.TargetView       = PipelineTarget.Map2D;
-            p.LineStart        = new Vector3(0f, 0f, 0f);
-            p.LineEnd          = new Vector3(1f, 0f, 0f);
-            p.AnchorIndex      = entity.Index;
-            p.AnchorGeneration = entity.Generation;
-
-            renderer.Render(new[] { p }, RenderTestHelpers.MakeCtx());
+            renderer.Render(
+                new[] { Anchor(7L, new Vector3(30f, 40f, 0f)), p },
+                RenderTestHelpers.MakeCtx());
 
             Assert.Equal(1, renderer.Dispatched.Count);
-            Assert.Equal(3f, renderer.Dispatched[0].LineStart.X, precision: 3);
-            Assert.Equal(4f, renderer.Dispatched[0].LineStart.Y, precision: 3);
-            Assert.Equal(4f, renderer.Dispatched[0].LineEnd.X, precision: 3);
+            Assert.Equal(31f, renderer.Dispatched[0].TextX, precision: 3);
+            Assert.Equal(42f, renderer.Dispatched[0].TextY, precision: 3);
+        }
+
+        // SC-GZ027-5: a zero-heading anchor translates without rotating — the identity case, which is
+        // what catches a rotation applied in the wrong direction or in the wrong units.
+        [Fact]
+        public void SC_GZ027_5_EntityLocal_ZeroHeading_TranslatesOnly()
+        {
+            var renderer = new CapturingRenderer2D();
+            var p = Local(DebugPrimitiveShape.Line);
+            p.LineStart = new Vector3(1f, 2f, 0f);
+            p.LineEnd   = new Vector3(3f, 4f, 0f);
+
+            renderer.Render(
+                new[] { Anchor(7L, new Vector3(10f, 10f, 0f), headingDeg: 0f), p },
+                RenderTestHelpers.MakeCtx());
+
+            Assert.Equal(1, renderer.Dispatched.Count);
+            Assert.Equal(11f, renderer.Dispatched[0].LineStart.X, precision: 3);
+            Assert.Equal(12f, renderer.Dispatched[0].LineStart.Y, precision: 3);
+            Assert.Equal(13f, renderer.Dispatched[0].LineEnd.X, precision: 3);
+            Assert.Equal(14f, renderer.Dispatched[0].LineEnd.Y, precision: 3);
         }
     }
 
     // ── GZ028 — SizeMode.ScreenPixels scales geom dimensions ─────────────────
 
-    // Captures the effective geometric parameters (post geomScale) passed to each dispatch.
-    internal sealed class GeomScaleCapturingRenderer2D : DebugPrimitiveRenderer2D
-    {
-        public record DrawRecord(
-            DebugPrimitiveShape Shape,
-            float EffectiveRadius,
-            float EffectiveHeadSize,
-            float EffectiveExtentX,
-            float EffectiveExtentY);
-
-        public readonly List<DrawRecord> Records = new();
-
-        public GeomScaleCapturingRenderer2D(ISimulationView? view = null) : base(view) { }
-
-        protected override void DispatchShape(in DebugPrimitive prim, RenderContext ctx)
-        {
-            float zoom = ctx.Zoom > 0f ? ctx.Zoom : 1f;
-            float gs   = prim.SizeMode == SizeMode.ScreenPixels ? 1f / zoom : 1f;
-            Records.Add(new DrawRecord(
-                prim.Shape,
-                prim.SphereRadius   * gs,
-                prim.ArrowHeadSize  * gs,
-                prim.BoxExtentX     * gs,
-                prim.BoxExtentY     * gs));
-        }
-    }
+    // (GeomScaleCapturingRenderer2D also lives in Vis2D/Gizmos/CapturingRenderers.cs now.)
 
     public class DebugPrimitiveRenderer2DSizeModeTests
     {

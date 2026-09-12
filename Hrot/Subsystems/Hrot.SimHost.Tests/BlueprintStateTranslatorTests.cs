@@ -15,7 +15,13 @@ namespace Hrot.SimHost.Tests
     /// <summary>
     /// BSA-202: Tests for BlueprintStateTranslator — Extract, Inject,
     /// GetOutputDomKeys, CanTranslate, and legacy black-hole.
+    ///
+    /// <para>⭐ <c>QA-008</c>: this class calls <c>ComponentTypeRegistry.Clear()</c> in its constructor,
+    /// which wipes a PROCESS-GLOBAL dictionary. It therefore joins the serial collection — see
+    /// <see cref="ComponentTypeRegistryMutatorCollection"/> for the measurement that made this necessary.
+    /// ⛔ Do not remove the attribute; a rail asserts it is present.</para>
     /// </summary>
+    [Collection(ComponentTypeRegistryMutatorCollection.Name)]
     public sealed class BlueprintStateTranslatorTests : IDisposable
     {
         private readonly EntityRepository _repo;

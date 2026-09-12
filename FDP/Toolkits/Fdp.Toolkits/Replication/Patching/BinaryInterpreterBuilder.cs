@@ -68,6 +68,52 @@ public sealed class BinaryInterpreterBuilder<TRecord> where TRecord : struct
     }
 
     /// <summary>
+    /// ⭐⭐⭐ <b><c>UXI-30</c> — registers a handler that CANNOT write a component this node does not own.
+    /// The authority gate is applied by the registration, not by the handler body.</b>
+    ///
+    /// <para>📄 <c>docs/DESIGN_Cgf_AxisB_Rotation_Slice.md</c> §6 ① ·
+    /// <c>UX_Feature_Authority_Aware_Writes.md</c> §3.3b-c.</para>
+    ///
+    /// <para>⛔⛔ <b>What `UXI-30` actually is, measured <c>2026-08-25</c> — and it is NOT *"the binary path
+    /// has no gate"*.</b> 📐 Both production installers
+    /// *(<c>SimTransformAttributeInstaller</c>, <c>EntityDataAttributeInstaller</c>)</b> ALREADY open every
+    /// handler with <c>if (!ctx.PatchContext.CanWrite&lt;T&gt;()) return;</c>. ⇒ ⭐ the binary path IS
+    /// authority-gated today, per handler — exactly mirroring the JSON path, whose gate also lives in the
+    /// typed <c>ValueInvoker&lt;T&gt;</c> rather than in the router.</para>
+    ///
+    /// <para>⭐⭐⭐ <b>The real defect is that the gate is PER-INSTALLER and therefore FORGETTABLE.</b>
+    /// Nothing made it structural: a third installer that omits the line writes unowned components
+    /// silently, and *"silently"* is the whole problem — 📌 the same silent-default shape this codebase has
+    /// a standing rule about. ⇒ this overload moves the gate to the place that cannot be skipped, and the
+    /// existing installers are migrated onto it so there is ONE implementation of the check.</para>
+    ///
+    /// <para>⚠ <b>Only for CHANGE-REQUEST appliers.</b> ⛔ Replication ingress writes unowned components
+    /// BY DESIGN — that is the inverse direction, and gating it would corrupt every ghost
+    /// *(<c>HROT-PROGRAMMERS-GUIDE</c> Part 0 rule 8)*. Replication does not go through this builder.</para>
+    /// </summary>
+    /// <typeparam name="TComponent">
+    /// The unmanaged ECS component this handler writes — the type whose authority is checked.
+    /// </typeparam>
+    /// <param name="id">The 16-bit attribute ID to route.</param>
+    /// <param name="handler">
+    /// Handler body. ⭐ It may assume authority has already been checked, so it needs no guard of its own.
+    /// </param>
+    public BinaryInterpreterBuilder<TRecord> RegisterHandler<TComponent>(
+        ushort id,
+        Action<BinaryPatchContext, TRecord> handler)
+        where TComponent : struct
+    {
+        ArgumentNullException.ThrowIfNull(handler);
+
+        return RegisterHandler(id, (ctx, record) =>
+        {
+            // ⭐ The gate, in the one place an installer cannot forget it.
+            if (!ctx.PatchContext.CanWrite<TComponent>()) return;
+            handler(ctx, record);
+        });
+    }
+
+    /// <summary>
     /// Registers a delegate that is invoked once per <see cref="BinaryInterpreter{TRecord}.Apply"/>
     /// call, <em>after</em> the scratchpad has been zeroed but <em>before</em> the dispatch
     /// loop begins.  Use this to pre-populate installer scratchpad fields from the entity's

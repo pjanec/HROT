@@ -31,24 +31,35 @@ public class SelectionInteractionSystemTests
         _system = new SelectionInteractionSystem(_world, _world.Bus);
     }
 
+    /// <summary>⭐⭐ §6.7 — ids must be UNIQUE now. Selection resolves the token's anchor id against the
+    /// world, so two entities sharing <c>NetworkIdentity.Value = 1</c> (which is what this used to do)
+    /// would make the second one unaddressable — the resolve answers with the first match.
+    /// 📄 docs/DESIGN_Gizmo_Anchor_Identity.md §6.7.</summary>
+    private long _nextNetId = 7041L;
+
     private Entity CreateSelectableEntity()
     {
         var e = _world.CreateEntity();
         _world.AddComponent(e, default(SimTransform));
-        _world.AddComponent(e, new NetworkIdentity { Value = 1L });
+        _world.AddComponent(e, new NetworkIdentity { Value = _nextNetId++ });
         _world.AddComponent(e, new SelectionState());
         return e;
     }
 
+    /// <summary>⭐ §6.7 — the token carries the target's NETWORK id; <c>Entity.Null</c> maps to 0,
+    /// which is exactly the "empty canvas" signal the rubber-band arm reads.</summary>
     private void PublishStartedEvent(Entity target, Vector3 worldPos = default)
     {
         _world.Bus.Publish(new GizmoInteractionStartedEvent
         {
-            Token    = new PickToken { Target = target },
+            Token    = new PickToken { AnchorId = AnchorIdOf(target) },
             WorldPos = worldPos,
         });
         _world.Bus.SwapBuffers();
     }
+
+    private long AnchorIdOf(Entity target)
+        => Fdp.Toolkit.Replication.Services.NetworkIdResolver.RuntimeNetworkIdOf(_world, target);
 
     private void PublishKeyEvent(MapKeyboardKey key, bool isPressed)
     {
@@ -89,7 +100,7 @@ public class SelectionInteractionSystemTests
         Assert.True(_world.GetComponent<SelectionState>(entity).IsSelected);
 
         // Step 2: commit without any drag event -> tiny drag path -> clears selection
-        _world.Bus.Publish(new GizmoInteractionCommitEvent { Token = new PickToken { Target = Entity.Null } });
+        _world.Bus.Publish(new GizmoInteractionCommitEvent { Token = default });
         _world.Bus.SwapBuffers();
         _system.Tick(0f);
 
@@ -133,7 +144,11 @@ public class SelectionInteractionSystemTests
         foreach (var cmd in _world.Bus.ReadManaged<DestroyEntityCommand>())
             commands.Add(cmd);
         Assert.Single(commands);
-        Assert.Equal(1L, commands[0].NetworkId);
+        // ⭐ §6.7 — CreateSelectableEntity now allocates a UNIQUE network id per entity (it used to
+        //   hard-code 1 for every one of them, which the id-based resolve makes unusable).
+        Assert.Equal(
+            Fdp.Toolkit.Replication.Services.NetworkIdResolver.RuntimeNetworkIdOf(_world, entity),
+            commands[0].NetworkId);
     }
 
     // SIS-005: GizmoKeyEvent(Delete, isPressed=true) is ignored.
@@ -193,7 +208,7 @@ public class SelectionInteractionSystemTests
         Assert.Null(callbackEntity); // not yet fired
 
         // Commit without drag = tiny drag = deselect all
-        _world.Bus.Publish(new GizmoInteractionCommitEvent { Token = new PickToken { Target = Entity.Null } });
+        _world.Bus.Publish(new GizmoInteractionCommitEvent { Token = default });
         _world.Bus.SwapBuffers();
         _system.Tick(0f);
 

@@ -1,3 +1,14 @@
+<!--STATUS
+state: LIVE
+updated: 2026-08-18
+current-answer: the whole file. This is the DESIGNER-facing document; the engineering
+  record for parameter binding is Blackboard_Authoring_Addendum_v3_ActionParamAuthoring.md
+  and DESIGN_Parameter_Model.md.
+stale-below: nothing.
+known-rot: the "Static Parameters" panel is now labelled "DEFAULT VALUE - {var}" in
+  the Inspector (Batch 74). The old name survives only in comments and this file's
+  history; the section below uses the new one.
+-->
 # Behavior Variables — Designer Quickstart
 
 > **Who this is for:** anyone authoring BTree / blueprint behaviors who is *not* thinking about
@@ -69,8 +80,53 @@ what you're storing.
 ## How each kind looks in the editor
 
 - **① Parameter** — Add a variable, set its **Role** to *Input*, and bind it as the node's
-  parameters. Its starting values are editable in the Inspector's **Static Parameters** panel
-  (applied once when the behavior is assigned, then left alone).
+  parameters. Its starting values are editable in the Inspector's **DEFAULT VALUE — {var}** panel
+  (applied once when the behavior is assigned, then left alone). See *"Why do parameters need a
+  variable at all?"* below — you usually don't create this variable by hand.
+
+---
+
+## Why do parameters need a variable at all?
+
+**The short answer: so that "fixed setting" and "something else drives this" are the same thing,
+and switching between them costs you nothing.**
+
+You might expect to just type values onto the node. You effectively do — but they are stored in a
+variable, and that buys you one thing that node-local values could never give you:
+
+> **A setting becomes live-driven without re-authoring the node.** Point a second node at the same
+> variable, or flip its Scope, and the value the action reads is now whatever that other thing
+> writes. The node did not change. Nothing was rewired.
+
+If parameters lived on the node, "make this speed react to the situation" would mean deleting the
+literal, adding a variable, and rebinding. Here it means *pointing something at the variable you
+already have.*
+
+### You do not create it by hand — **promote**
+
+In the node's parameter dropdown, pick **"+ Promote to new variable"**. It creates the variable,
+gives it the right type, binds it to the node, and hides it under **Node-Owned Allocations**
+(dimmed, read-only). Delete the node and the variable goes with it. You get "values on the node"
+without any variable bookkeeping.
+
+Pick an **existing** variable instead when you *want* the sharing.
+
+### The one rule that will surprise you
+
+**A node binds its whole parameter bundle to ONE variable — never field-by-field.** You cannot say
+*"Target from variable A, Speed a fixed 4"*. Both live in the same bundle, in the same variable.
+
+This is not an oversight; it is what keeps parameter reads free at runtime. And it costs less than
+it sounds: whatever writes that variable can still update **one field** and leave the rest at their
+authored defaults. You just can't declare it per field in the editor.
+
+### What it costs you
+
+| ⚠ | |
+|---|---|
+| **Values apply once, at assignment** | changing a default mid-run does nothing until the behavior is re-assigned |
+| **All-or-nothing per node** | see the rule above |
+| **An extra concept** | the variable exists even when you only ever wanted a knob |
 - **② Private scratch** — When you drop a composed node it already gets a private memory variable
   (Role *State*, Scope *Node*). You usually don't touch it.
 - **③ Behavior shared** — Change that memory variable's **Scope** to *Behavior* (the dropdown in the

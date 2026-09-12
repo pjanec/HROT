@@ -1,0 +1,17 @@
+{
+  "hardcodedDtoFieldCount": 0,
+  "hasActiveAsset": false,
+  "heavyBudget": 928,
+  "inlineBudget": 100,
+  "isBlackboardEditorManaged": false,
+  "panelId": "ai_blackboard_variables_btree",
+  "panelKind": "blackboard-authoring",
+  "requiresHeavyComponent": false,
+  "totalHeavyBytes": 0,
+  "totalInlineBytes": 0,
+  "unboundRequirementCount": 0,
+  "unboundRequirements": [],
+  "variableCount": 0,
+  "variables": [],
+  "warning": "None"
+}

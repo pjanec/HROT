@@ -10,6 +10,22 @@
     <!-- InformationalVersion is extended with the git commit hash by Directory.Build.targets. -->
   </PropertyGroup>
 
+  <!-- ⭐⭐⭐ CE-217 / §16 Tier 1 — WHAT LETS THE STRIDE TREE LIVE IN THE MAIN SOLUTION.
+       📐 Off Windows a net8.0-windows project fails restore with
+          NETSDK1073: The FrameworkReference 'Microsoft.WindowsDesktop.App' was not recognized.
+       ⭐ That is why stride-check.sh passed -p:EnableWindowsTargeting=true on the command line — a
+          property of THE MACHINE, which is why it was never written into the csproj files. Declaring
+          it here, conditioned on non-Windows, makes the flag unnecessary and lets a Linux/CI session
+          restore and COMPILE the Stride projects as part of an ordinary solution build.
+       ⚠ Conditioned rather than unconditional: on Windows the property is meaningless, and setting it
+          there would be stating something untrue about the machine.
+       ⛔ It does NOT make Stride tests RUNNABLE off Windows — the test host wants the
+          Microsoft.WindowsDesktop.App RUNTIME and reports "No frameworks were found"
+          (DESIGN_Stride_Port.md §6.6). Compiling is the whole point; see §16.2. -->
+  <PropertyGroup Condition="'$([System.Runtime.InteropServices.RuntimeInformation]::IsOSPlatform($([System.Runtime.InteropServices.OSPlatform]::Windows)))' != 'true'">
+    <EnableWindowsTargeting>true</EnableWindowsTargeting>
+  </PropertyGroup>
+
   <PropertyGroup Condition="'$(IsTestProject)' == 'true' Or $([System.String]::Copy('$(MSBuildProjectName)').EndsWith('.Tests'))">
     <NoWarn>$(NoWarn);CS8600;CS8601;CS8602;CS8603;CS8604;CS8605;CS8618;CS8620;CS8625;CS8634;CS8669</NoWarn>
   </PropertyGroup>

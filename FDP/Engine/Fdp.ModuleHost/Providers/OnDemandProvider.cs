@@ -137,9 +137,15 @@ namespace Fdp.ModuleHost.Providers
             }
         }
         
+        // QA-006: every snapshot this provider ever created — pooled OR currently leased out through
+        // AcquireView. Disposing only the stack misses whatever is on loan when teardown happens, and
+        // a snapshot that is never released back is exactly the one that leaks.
+        private readonly ConcurrentBag<EntityRepository> _created = new();
+
         private EntityRepository CreateSnapshot()
         {
             var snapshot = new EntityRepository();
+            _created.Add(snapshot);
             
             // TODO: Register component types matching live world schema
             // For now, assume schema set up externally or lazily via SyncFrom (if SyncFrom handles registration, which it likely doesn't for unmanaged)
@@ -148,10 +154,19 @@ namespace Fdp.ModuleHost.Providers
             return snapshot;
         }
         
+        /// <summary>
+        /// ⭐ <c>QA-006</c> — disposes every snapshot this provider created, pooled or leased.
+        /// <see cref="EntityRepository.Dispose"/> is idempotent, so draining the pool as well costs
+        /// nothing and keeps the pool empty for anyone still holding a reference to this provider.
+        /// </summary>
         public void Dispose()
         {
-            // Dispose all pooled snapshots
-            while (_pool.TryPop(out var snapshot))
+            while (_pool.TryPop(out var pooled))
+            {
+                pooled.Dispose();
+            }
+
+            foreach (var snapshot in _created)
             {
                 snapshot.Dispose();
             }

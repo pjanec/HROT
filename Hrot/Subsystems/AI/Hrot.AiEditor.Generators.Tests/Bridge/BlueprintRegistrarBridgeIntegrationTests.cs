@@ -650,6 +650,54 @@ public sealed class BlueprintRegistrarBridgeIntegrationTests : IDisposable
         first.Should().Be(second, "HsmBridgeEmitCore.EmitBridge must be deterministic");
     }
 
+    /// <summary>
+    /// ⭐⭐⭐ <b>W3 (Batch 59) — the bridge registers NOTHING with the dispatcher, and must not start again.</b>
+    ///
+    /// <para>
+    /// ⛔⛔ <b>What was here.</b> The emitter wrote a no-op local function and registered it at literal
+    /// counters from <b>100</b> (actions) and <b>200</b> (guards):
+    /// <c>HsmActionDispatcher.RegisterAction(100++, &amp;__hsActionStub)</c>. ⚠
+    /// <c>HsmActionDispatcher.RegisterAction</c> is <c>ActionTable[id] = ptr</c> — last writer wins,
+    /// silently — while <c>HsmActionGenerator</c> allocates <c>ComputeHash(name)</c> over the
+    /// <b>whole</b> <c>0…65535</c> range. 🔴🔴 A real action whose name hashed into that window was
+    /// replaced by an empty body: no crash, no log, one state that quietly did nothing, forever.
+    /// </para>
+    ///
+    /// <para>
+    /// ⭐ <b>And nothing ever read them.</b> <c>HsmFlattener:111</c> builds
+    /// <c>actionTable[name] = ComputeHash(name)</c> and every <c>…ActionId</c> in the blob comes from
+    /// THAT table ⇒ the counter ids were unreachable as well as dangerous. ⭐ Deleting them costs
+    /// nothing: the bodies registered were empty, so even the hot-reload case the old comment invoked
+    /// was "the id is known, and it does nothing".
+    /// </para>
+    ///
+    /// <para>
+    /// ⚠ <b>Stated as an absence, deliberately.</b> A test naming the old constants would pass again
+    /// the moment someone reintroduced the mechanism at 300. ⭐ <c>BHU_020</c> is the other half — it
+    /// ranges over the FINAL id set, so a reintroduced counter colliding with a hashed id fails the
+    /// build rather than silently winning.
+    /// </para>
+    /// </summary>
+    [Fact]
+    public void Hsm_EmitBridge_RegistersNoCounterAllocatedStubs()
+    {
+        // ⚠ `HsmShowcase`, not `SampleGuard`: the latter declares no actions or guards at all, so it
+        //   never emitted stubs and would make this test vacuously green.
+        var dto = HsmAssetMapper.ToDto(LoadHsm("HsmShowcase"));
+        dto.States.Should().NotBeEmpty("the fixture asset must carry states, or this test checks nothing");
+
+        string bridge = HsmBridgeEmitCore.EmitBridge(dto);
+
+        bridge.Should().NotContain("HsmActionDispatcher.RegisterAction",
+            "W3: the bridge must not write into the dispatcher's id space at all");
+        bridge.Should().NotContain("HsmActionDispatcher.RegisterGuard",
+            "W3: the bridge must not write into the dispatcher's id space at all");
+        bridge.Should().NotContain("__hsActionStub",
+            "the no-op stub bodies went with the registrations");
+        bridge.Should().NotContain("__hsGuardStub",
+            "the no-op stub bodies went with the registrations");
+    }
+
     // ─────────────────────────────────────────────────────────────────────────────
     // ALC unload helper (DEBT-009 pattern)
     // ─────────────────────────────────────────────────────────────────────────────

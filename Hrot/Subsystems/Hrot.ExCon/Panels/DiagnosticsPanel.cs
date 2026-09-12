@@ -1,8 +1,20 @@
+using System.Text.Json.Nodes;
 using ImGuiNET;
+using Fdp.Diagnostics.Contracts.Panels;
 using Fdp.Toolkit.DER;
 using Hrot.ExCon.Services;
 
 namespace Hrot.ExCon.Panels;
+
+/// <summary>⭐⭐⭐ U-obs-5 — the whole of what <see cref="DiagnosticsPanel"/> shows, this frame.
+/// <see cref="PendingRequest"/> is dumped as-is (already a flat, delegate-free DTO).</summary>
+public sealed record DiagnosticsPanelViewModel(
+    string PanelId, string PanelKind, int EntityCount,
+    IReadOnlyList<PendingRequest> PendingRequests, float EventsPerSecond) : IPanelViewModel
+{
+    /// <inheritdoc/>
+    public JsonNode Dump() => PanelDump.Of(this);
+}
 
 /// <summary>
 /// ExCon UI panel that exposes runtime diagnostics:
@@ -90,6 +102,11 @@ public sealed class DiagnosticsPanel
         ArgumentNullException.ThrowIfNull(txMgr);
         return txMgr.GetPendingRequests().ToList().AsReadOnly();
     }
+
+    // ── Public BUILD entry point (U-obs-5) ───────────────────────────────
+    /// <summary>⭐⭐⭐ BUILD — a pure projection of current state. No ImGui.</summary>
+    public DiagnosticsPanelViewModel BuildViewModel(IExConLogic logic, string panelId, string panelKind) => new(
+        panelId, panelKind, GetEntityCount(logic.Repo), GetPendingRequestSnapshot(logic.TransactionManager), _committedRate);
 
     // ── Draw stub ─────────────────────────────────────────────────────────────
 

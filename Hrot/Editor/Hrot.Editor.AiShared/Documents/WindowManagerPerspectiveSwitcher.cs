@@ -55,6 +55,16 @@ public sealed class WindowManagerPerspectiveSwitcher : IPerspectiveSwitcher
     public void SwitchPerspective(string perspectiveName)
         => _windowManager.SwitchPerspective(perspectiveName);
 
+    /// <inheritdoc />
+    /// <remarks>
+    /// ⭐ <c>N0</c> — a straight delegation. ⛔ <b>No caching:</b> the set is derived from the registered
+    /// windows and a registrar can add one at any time, so a cached copy would go stale silently.
+    /// </remarks>
+    public IReadOnlyList<string> GetPerspectives() => _windowManager.GetPerspectives();
+
+    /// <inheritdoc />
+    public string CurrentPerspective => _windowManager.CurrentPerspective;
+
     // ── WindowManager.OnPerspectiveChanged handler ────────────────────────────
 
     private void OnPerspectiveChanged(string oldPerspective, string newPerspective)

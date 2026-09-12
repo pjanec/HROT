@@ -1,0 +1,108 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 980 640" width="980" height="640" font-family="Segoe UI, Helvetica, Arial, sans-serif">
+  <style>
+    .h1 { font-size:15px; fill:#1b1f24; font-weight:700; }
+    .h2 { font-size:12px; fill:#ffffff; font-weight:700; }
+    .t  { font-size:12px; fill:#1b1f24; }
+    .tb { font-size:12px; fill:#1b1f24; font-weight:600; }
+    .s  { font-size:10.5px; fill:#57606a; }
+    .m  { font-size:11px; fill:#0a3069; font-family:ui-monospace, Consolas, monospace; }
+    .lane{ fill:#f6f8fa; stroke:#8c959f; stroke-width:1; rx:4; }
+    .ok  { fill:#e9f5e9; stroke:#4a8a3c; stroke-width:1.4; rx:4; }
+    .bad { fill:#fdecea; stroke:#c0392b; stroke-width:1.4; rx:4; }
+    .warn{ fill:#fff4e0; stroke:#bf8700; stroke-width:1.4; rx:4; }
+    .arr { stroke:#57606a; stroke-width:1.5; fill:none; marker-end:url(#a); }
+    .red { stroke:#c0392b; stroke-width:1.8; fill:none; marker-end:url(#r); }
+    .tick{ stroke:#8c959f; stroke-width:1; stroke-dasharray:3 3; }
+  </style>
+  <defs>
+    <marker id="a" markerWidth="9" markerHeight="9" refX="8" refY="3" orient="auto"><path d="M0,0 L8,3 L0,6 z" fill="#57606a"/></marker>
+    <marker id="r" markerWidth="9" markerHeight="9" refX="8" refY="3" orient="auto"><path d="M0,0 L8,3 L0,6 z" fill="#c0392b"/></marker>
+  </defs>
+  <rect width="980" height="640" fill="#ffffff"/>
+
+  <text x="16" y="24" class="h1">C5 — where does a value edited at a breakpoint actually go?</text>
+  <text x="16" y="42" class="s">Blackboard1024 is [DataPolicy(NoSave)] — NOT NoRecord, NOT NoSnapshot. So it IS snapshotted and IS recorded. The objection applies to it.</text>
+
+  <!-- OPTION A -->
+  <rect x="16" y="58" width="948" height="238" class="lane"/>
+  <rect x="16" y="58" width="948" height="18" fill="#4a8a3c" rx="4"/>
+  <text x="24" y="71" class="h2">A — WHAT SHIPS TODAY (staged). Designed, built, and tested.</text>
+
+  <text x="28" y="96" class="tb">_preTickSnapshot</text><text x="28" y="110" class="s">what the panels SHOW while paused</text>
+  <text x="28" y="150" class="tb">_liveRepo</text><text x="28" y="164" class="s">what actually resumes</text>
+  <text x="28" y="204" class="tb">_postTickSnapshot</text><text x="28" y="218" class="s">end-of-tick truth, kept aside</text>
+
+  <line x1="230" y1="84" x2="230" y2="286" class="tick"/>
+  <line x1="440" y1="84" x2="440" y2="286" class="tick"/>
+  <line x1="700" y1="84" x2="700" y2="286" class="tick"/>
+  <text x="196" y="284" class="s">breakpoint hits</text>
+  <text x="416" y="284" class="s">you edit</text>
+  <text x="672" y="284" class="s">Step / Continue</text>
+
+  <rect x="244" y="88" width="180" height="30" class="ok"/><text x="252" y="107" class="t">panels read from here</text>
+  <rect x="244" y="142" width="180" height="30" class="warn"/><text x="252" y="161" class="t">rewound to pre-tick</text>
+  <rect x="244" y="196" width="180" height="30" class="ok"/><text x="252" y="215" class="t">captured</text>
+
+  <rect x="452" y="142" width="232" height="30" class="bad"/><text x="460" y="161" class="t">edit is NOT written here</text>
+  <rect x="452" y="88" width="232" height="30" class="bad"/><text x="460" y="107" class="t">edit is NOT written here either</text>
+  <rect x="452" y="196" width="232" height="30" class="warn"/><text x="460" y="215" class="t">edit STAGED in a queue</text>
+
+  <rect x="712" y="142" width="240" height="46" class="ok"/>
+  <text x="720" y="160" class="t">1. restore from postTick</text>
+  <text x="720" y="178" class="t">2. drain the queue into the ECB</text>
+  <text x="712" y="205" class="s">⇒ the edit lands at the boundary of tick N+1</text>
+  <text x="712" y="222" class="s">⇒ nothing is lost — but nothing is VISIBLE either</text>
+
+  <text x="28" y="252" class="tb" fill="#c0392b">Cost, named by the design itself:</text>
+  <text x="220" y="252" class="t">"the 1-tick latency compromise" — surfaced only as a pending-mutations count.</text>
+  <text x="28" y="272" class="tb">Why it was chosen:</text>
+  <text x="160" y="272" class="t">Flight Recorder stays linear with zero recorder awareness; no DataPolicy divergence; no resimulation path.</text>
+
+  <!-- OPTION B -->
+  <rect x="16" y="310" width="948" height="150" class="lane"/>
+  <rect x="16" y="310" width="948" height="18" fill="#bf8700" rx="4"/>
+  <text x="24" y="323" class="h2">B — WHAT YOU ASKED FOR (rulings 12 + 16): write BOTH copies, immediately</text>
+
+  <rect x="244" y="338" width="440" height="30" class="ok"/><text x="252" y="357" class="t">edit written straight into _preTickSnapshot ⇒ panels update THIS frame</text>
+  <rect x="244" y="380" width="440" height="30" class="ok"/><text x="252" y="399" class="t">edit written straight into _liveRepo ⇒ survives the resume</text>
+  <text x="28" y="357" class="tb">immediacy</text>
+  <text x="28" y="399" class="tb">persistence</text>
+
+  <rect x="700" y="338" width="252" height="72" class="bad"/>
+  <text x="708" y="356" class="tb" fill="#c0392b">…but it writes the live world</text>
+  <text x="708" y="374" class="s">during a pause, which is exactly what</text>
+  <text x="708" y="390" class="s">the recorder's linearity assumes never</text>
+  <text x="708" y="404" class="s">happens. Recording is now a fiction.</text>
+
+  <text x="28" y="436" class="tb">Also unresolved:</text>
+  <text x="144" y="436" class="t">a whole-component staged write already reverts a tick of OTHER subsystems (the surgical-write fix), and</text>
+  <text x="28" y="452" class="t">two write mechanisms for one act is ruling 9's own prohibition.</text>
+
+  <!-- THE CHOICE -->
+  <rect x="16" y="474" width="948" height="150" class="lane"/>
+  <rect x="16" y="474" width="948" height="18" fill="#57606a" rx="4"/>
+  <text x="24" y="487" class="h2">THE CHOICE — three ways out, none free</text>
+
+  <rect x="28" y="502" width="298" height="110" class="ok"/>
+  <text x="38" y="520" class="tb">1 · Accept the 1-tick delay</text>
+  <text x="38" y="540" class="s">Keep staging. Show the edit as</text>
+  <text x="38" y="556" class="s">"pending" in the cell until Continue.</text>
+  <text x="38" y="578" class="s">✔ recorder stays honest, one mechanism</text>
+  <text x="38" y="594" class="s">✘ contradicts your immediacy ruling</text>
+
+  <rect x="341" y="502" width="298" height="110" class="warn"/>
+  <text x="351" y="520" class="tb">2 · Optimistic display</text>
+  <text x="351" y="540" class="s">Stage as today, but paint the NEW</text>
+  <text x="351" y="556" class="s">value in the panel right away.</text>
+  <text x="351" y="578" class="s">✔ looks immediate, recorder untouched</text>
+  <text x="351" y="594" class="s">✘ panel briefly shows a value the sim</text>
+  <text x="351" y="608" class="s">   has not accepted yet</text>
+
+  <rect x="654" y="502" width="298" height="110" class="bad"/>
+  <text x="664" y="520" class="tb">3 · Override the record</text>
+  <text x="664" y="540" class="s">Write both copies as ruled 12/16.</text>
+  <text x="664" y="556" class="s">Needs a recorder answer first.</text>
+  <text x="664" y="578" class="s">✔ exactly what you asked for</text>
+  <text x="664" y="594" class="s">✘ replay past an edit is no longer</text>
+  <text x="664" y="608" class="s">   faithful — needs its own design</text>
+</svg>

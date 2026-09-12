@@ -50,7 +50,7 @@ public static class BlackboardTypeChoiceBuilder
             primitives.Add(new VariableTypeChoice(BlackboardTypeHelper.GetDisplayName(t), t));
         }
 
-        foreach (var t in DiscoverBlackboardDtoStructTypes())
+        foreach (var t in DiscoverBlackboardDtoStructTypesCore())
         {
             if (!seen.Add(t)) continue;
             structs.Add(new VariableTypeChoice(BlackboardTypeHelper.GetDisplayName(t), t));
@@ -79,7 +79,27 @@ public static class BlackboardTypeChoiceBuilder
     /// types decorated with <see cref="BlackboardDtoStructAttribute"/>. Same predicate as
     /// <see cref="BlackboardFieldClassifier"/>'s <c>IsKnownType</c> check.
     /// </summary>
-    private static IReadOnlyList<Type> DiscoverBlackboardDtoStructTypes()
+    /// <summary>
+    /// U-8 — every <c>[BlackboardDtoStruct]</c> type in the loaded assemblies.
+    ///
+    /// <para>
+    /// ⭐ <b>Made public so the Blueprint type picker can offer the same set the Variables panel
+    /// does.</b> Those were two disjoint lists: this one (primitives + structs) and
+    /// <c>BlueprintTypeSystem.SelectableTypeIds</c> (13 hardcoded primitive FQNs, <b>no structs at
+    /// all</b>) — so a designer could declare a struct variable in one window and not the other.
+    /// </para>
+    ///
+    /// <para>
+    /// ⭐⭐ <b>Discovery IS the existence proof.</b> These types are found by reflecting over loaded
+    /// assemblies, so an offered entry cannot name a type that does not exist — which is a stronger
+    /// guarantee than checking a hand-written list against an oracle, and it is why <c>U-8</c> needs no
+    /// editor-side type oracle (<c>BP-228</c>'s rail guards the build, where the defect actually bit).
+    /// </para>
+    /// </summary>
+    public static IReadOnlyList<Type> DiscoverBlackboardDtoStructTypes()
+        => DiscoverBlackboardDtoStructTypesCore();
+
+    private static IReadOnlyList<Type> DiscoverBlackboardDtoStructTypesCore()
     {
         var result = new List<Type>();
 

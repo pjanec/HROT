@@ -2,7 +2,6 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using Microsoft.CodeAnalysis;
-using Hrot.AiEditor.Persistence.Emit;
 
 namespace Hrot.AiEditor.Generators;
 
@@ -14,6 +13,32 @@ namespace Hrot.AiEditor.Generators;
 /// Uses managed layout rules: bool=1, enum=underlying, nested structs recursive,
 /// sequential alignment cap = 8. This matches the size the <c>Unsafe.As</c> projection
 /// assumes — NOT <c>Marshal.SizeOf</c> which uses unmanaged bool=4.
+///
+/// <para>
+/// ⭐⭐ <b><c>S2</c> — this file is SHARED BY LINK, not copied.</b> <c>Hrot.Blueprints.Generators</c>
+/// compiles this same source (<c>&lt;Compile Include=… Link="Shared/StructSizeResolver.cs" /&gt;</c>) so the
+/// blueprint compiler's struct-size oracle and the BTree/HSM packer's are one algorithm, not two that
+/// a comment promises to keep in step. ⛔ <b>That is why this file must have NO project dependency:</b>
+/// it references Roslyn and nothing else — no <c>Hrot.AiEditor.Persistence</c>, no <c>…Schema</c>.
+/// ⚠ Keep it that way, or the link breaks the other assembly's build.
+/// </para>
+///
+/// <para>
+/// 📌 <b>The triplication is real and was NEVER ACTUALLY FILED.</b>
+/// <c>.dev/_DONE/btree-ai-action-binding/reports/BATCH-03-REPORT.md:100</c> describes it and proposes the id
+/// <b><i>"DEBT-AIB-012 (suggested)"</i></b> — ⛔ but that number was already taken: the programme's
+/// <c>DEBT-TRACKER.md</c> gives <c>DEBT-AIB-012</c> to <i>"inspector multi-DTO read"</i>, <b>RESOLVED
+/// BATCH-05</b>. ⇒ the debt has a description, a suggestion and no row. ⚠ <b>Do not cite it by that
+/// id</b>; cite the report line.
+/// </para>
+///
+/// <para>
+/// ⭐ Three OTHER copies still exist — <c>Fbt.SourceGen.BTreeActionGenerator</c>,
+/// <c>Fdp.Toolkits.Analyzers.BTreeActionGenerator</c>/<c>HsmActionGenerator</c>, and
+/// <c>BehaviorParameterSizeAnalyzer</c> — held in step by a "keep in sync" comment. The same link
+/// mechanism would absorb them; they are in <c>FDP/</c>, a different ownership tree, so that is not
+/// this batch's to take.
+/// </para>
 /// </summary>
 internal static class StructSizeResolver
 {
@@ -21,7 +46,7 @@ internal static class StructSizeResolver
 
     /// <summary>
     /// Known primitive / common-vector managed sizes.
-    /// Mirrors <see cref="BTreeBlackboardPackHelper"/> <c>KnownSizes</c>.
+    /// Mirrors <c>BTreeBlackboardPackHelper.KnownSizes</c>.
     /// </summary>
     private static readonly Dictionary<string, int> KnownSizes =
         new Dictionary<string, int>(StringComparer.Ordinal)
@@ -97,11 +122,34 @@ internal static class StructSizeResolver
 
     /// <summary>
     /// Builds a resolver delegate suitable for injection into
-    /// <see cref="BTreeBlackboardPackHelper.Pack(System.Collections.Generic.IReadOnlyList{Hrot.AiEditor.Persistence.BTree.BlackboardVariableDto},System.Func{string,int?},out int)"/>.
+    /// <c>BTreeBlackboardPackHelper.Pack(vars, Func&lt;string,int?&gt;, out total)</c> — and, since
+    /// <c>S2</c>, into <c>CompileOptions.StructSizeOracle</c>, which is the same shipped shape.
     /// </summary>
     public static Func<string, int?> MakeDelegate(Compilation compilation)
     {
         return typeId => Resolve(typeId, compilation);
+    }
+
+    /// <summary>
+    /// ⭐ <c>S2</c> — the FIELD-size flavour, for <c>CompileOptions.StructSizeOracle</c>.
+    ///
+    /// <para>
+    /// ⚠ <b>Deliberately <see cref="ResolveFieldSize"/> and not <see cref="Resolve"/>.</b> The blueprint
+    /// compiler's <c>global::</c> arm accepts an ENUM as readily as a struct (that is what it was built
+    /// for — <c>ENUM-DESIGN.md §RESOLVED</c>), and <see cref="Resolve"/> returns <c>null</c> for one
+    /// because it demands <c>TypeKind.Struct</c>. ⇒ using it here would leave every enum on the guessed
+    /// 4 bytes, ⛔ <b>including a <c>byte</c>- or <c>long</c>-backed one, where 4 is simply wrong.</b>
+    /// </para>
+    ///
+    /// <para>⚠ Accepts either the bare FQN or the editor's <c>global::</c>-prefixed form.</para>
+    /// </summary>
+    public static Func<string, int?> MakeFieldSizeDelegate(Compilation compilation)
+    {
+        return typeId => ResolveFieldSize(
+            typeId != null && typeId.StartsWith("global::", StringComparison.Ordinal)
+                ? typeId.Substring("global::".Length)
+                : typeId!,
+            compilation);
     }
 
     /// <summary>

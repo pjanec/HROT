@@ -1,24 +1,23 @@
 {
   "$meta": {
     "docType": "Hrot.Blueprints",
-    "schemaVersion": 1
+    "schemaVersion": 2
   },
-  "Header": {
-    "SubsystemType": "Hrot.Blueprints",
-    "SchemaVersion": "1.0"
-  },
+  "Header": {},
   "AssetId": "683ec005-3013-4f22-9b2a-98c0a942080e",
   "Name": "HillAssault2_ReverseToBaseline",
   "Dispatch": "AiPrimitive",
   "TierHint": "Auto",
+  "IsWorldSingleton": false,
   "Primitive": {
     "Intent": "Action",
     "Hostings": [
       "BTreeAction"
     ]
   },
-  "Parameters": [
+  "Declarations": [
     {
+      "Kind": "Parameter",
       "Id": "93428fb0-b4af-4c79-8270-f3578e925a66",
       "Name": "BaselineX",
       "Type": {
@@ -26,9 +25,12 @@
         "IsArray": false,
         "GenericArgs": []
       },
-      "DefaultValueJson": "0"
+      "DefaultValueJson": "0",
+      "Tooltip": null,
+      "Comment": null
     },
     {
+      "Kind": "Parameter",
       "Id": "c64e7b26-4b01-426c-9021-df66cedd65cd",
       "Name": "BaselineY",
       "Type": {
@@ -36,11 +38,14 @@
         "IsArray": false,
         "GenericArgs": []
       },
-      "DefaultValueJson": "0"
+      "DefaultValueJson": "0",
+      "Tooltip": null,
+      "Comment": null
     }
   ],
-  "WorkingState": [],
-  "Variables": [],
+  "ParameterOrder": null,
+  "WorkingStateOrder": null,
+  "VariableOrder": null,
   "EventDispatchers": [],
   "CustomEvents": [],
   "CallablePeers": [],
@@ -51,86 +56,95 @@
       "Kind": "Function",
       "Inputs": [],
       "Outputs": [],
+      "ExecOutputs": [],
+      "ExecInputs": [],
       "Nodes": [
         {
           "kind": "EventEntry",
-          "Id": "7b883ca9-3442-4514-9a51-3570a787dbac",
           "EventTypeId": "",
+          "Id": "7b883ca9-3442-4514-9a51-3570a787dbac",
           "Pins": [],
           "EditorMetadata": {
-            "X": 80.0,
-            "Y": 260.0
+            "X": 80,
+            "Y": 260,
+            "Comment": null
           }
         },
         {
           "kind": "Literal",
-          "Id": "6747bb64-4bde-4b8e-ba17-9d70e28e47af",
           "TypeId": "System.Single",
           "ValueJson": "0f",
+          "Id": "6747bb64-4bde-4b8e-ba17-9d70e28e47af",
           "Pins": [],
           "EditorMetadata": {
-            "X": 80.0,
-            "Y": 200.0
+            "X": 80,
+            "Y": 200,
+            "Comment": null
           }
         },
         {
           "kind": "FunctionCall",
-          "Id": "bf60847a-6e01-4d7a-ba3e-2dd9dc8637d8",
           "TargetTypeId": "Hrot.AI.Behaviors.Brains.VectorOps",
           "MethodName": "Vec3",
           "IsPure": true,
           "TargetGraphId": "",
           "TrailingContext": "None",
+          "Id": "bf60847a-6e01-4d7a-ba3e-2dd9dc8637d8",
           "Pins": [],
           "EditorMetadata": {
-            "X": 340.0,
-            "Y": 120.0
+            "X": 340,
+            "Y": 120,
+            "Comment": null
           }
         },
         {
           "kind": "ChannelCommand",
-          "Id": "69491024-afb9-41aa-bc91-5b25ff28874e",
           "ChannelType": "LocomotionChannel",
           "ActionId": "MoveTo",
+          "Id": "69491024-afb9-41aa-bc91-5b25ff28874e",
+          "Pins": [],
+          "EditorMetadata": {
+            "X": 620,
+            "Y": 200,
+            "Comment": null
+          },
           "PinDefaults": {
             "Speed": "12",
             "ArrivalRadius": "5",
             "ReverseAllowed": "1"
-          },
-          "Pins": [],
-          "EditorMetadata": {
-            "X": 620.0,
-            "Y": 200.0
           }
         },
         {
           "kind": "WaitForChannel",
-          "Id": "04000011-50bc-4baa-b091-ff21a4f0101d",
           "ChannelType": "LocomotionChannel",
+          "Id": "04000011-50bc-4baa-b091-ff21a4f0101d",
           "Pins": [],
           "EditorMetadata": {
-            "X": 900.0,
-            "Y": 260.0
+            "X": 900,
+            "Y": 260,
+            "Comment": null
           }
         },
         {
           "kind": "PublishEvent",
-          "Id": "cf033591-aa1a-4e18-bf98-cc7b58a1dc30",
           "EventId": "ClearBehaviorEvent",
+          "Id": "cf033591-aa1a-4e18-bf98-cc7b58a1dc30",
           "Pins": [],
           "EditorMetadata": {
-            "X": 1180.0,
-            "Y": 260.0
+            "X": 1180,
+            "Y": 260,
+            "Comment": null
           }
         },
         {
           "kind": "Return",
-          "Id": "3d0f7a2b-8e2a-4d3e-9d1a-6b5c7e9f0a11",
           "Status": "Success",
+          "Id": "3d0f7a2b-8e2a-4d3e-9d1a-6b5c7e9f0a11",
           "Pins": [],
           "EditorMetadata": {
-            "X": 1460.0,
-            "Y": 260.0
+            "X": 1460,
+            "Y": 260,
+            "Comment": null
           }
         },
         {
@@ -139,27 +153,30 @@
           "Pins": [],
           "EditorMetadata": {
             "X": 80,
-            "Y": 40
+            "Y": 40,
+            "Comment": null
           }
         },
         {
           "kind": "PublishEvent",
-          "Id": "f09556e3-8807-5058-bedd-2c8e6cc0c551",
           "EventId": "ClearBehaviorEvent",
+          "Id": "f09556e3-8807-5058-bedd-2c8e6cc0c551",
           "Pins": [],
           "EditorMetadata": {
             "X": 1180,
-            "Y": 440
+            "Y": 440,
+            "Comment": null
           }
         },
         {
           "kind": "Return",
-          "Id": "bb95ed57-e0c4-0757-944f-00f4fe92e8e1",
           "Status": "Failure",
+          "Id": "bb95ed57-e0c4-0757-944f-00f4fe92e8e1",
           "Pins": [],
           "EditorMetadata": {
             "X": 1460,
-            "Y": 440
+            "Y": 440,
+            "Comment": null
           }
         }
       ],
@@ -225,6 +242,8 @@
           "ToPinId": "b2b97b90-407c-c95b-a590-5eff96988046"
         }
       ],
+      "LocalVariables": [],
+      "Comments": [],
       "EditorMetadata": {
         "ViewportX": 0,
         "ViewportY": 0,
@@ -233,7 +252,7 @@
     }
   ],
   "EditorMetadata": {
-    "Description": "Migration slice 2 (docs/blueprints/ReverseToBaseline_Slice_Design.md): blueprint-authored rebuild of the C# oracle HillAttackTankNodes.Action_ReverseToBaseline (~line 456) -- an AiPrimitive BTreeAction. Graph: EventEntry -> ChannelCommand(LocomotionChannel/MoveTo) [explicit data-in pins Destination/Speed/ArrivalRadius/ReverseAllowed; Destination wired from a pure FunctionCall VectorOps.Vec3(GetParameter(BaselineX), GetParameter(BaselineY), Literal 0f); Speed/ArrivalRadius/ReverseAllowed baked via PinDefaults] -> WaitForChannel(LocomotionChannel) [AiPrimitive latent lowering: issues the command once, suspends: Running while channel Running, auto-Failure on channel Failure, continues to Out on channel Success] -> PublishEvent(ClearBehaviorEvent, Target pin left unwired => self-default, Entity=self) -> Return(Success). Q#13 UPDATE (deviation removed): WaitForChannel's OnFailure exec-out is now wired to PublishEvent(ClearBehaviorEvent) -> Return(Failure), so the blueprint publishes ClearBehaviorEvent on BOTH the Success and Failure paths, exactly matching the C# oracle. (Previously the failure path auto-returned Failure without publishing -- the accepted simplification once documented in design doc §2, now resolved by the Q#13 failure split.) New curated helper: Hrot.AI.Behaviors.Brains.VectorOps.Vec3/Vec2 (reflection-free Vector3 construction; no vector-literal node exists). Does not modify the C# oracle.",
+    "Description": "Migration slice 2 (docs/blueprints/ReverseToBaseline_Slice_Design.md): blueprint-authored rebuild of the C# oracle HillAttackTankNodes.Action_ReverseToBaseline (~line 456) -- an AiPrimitive BTreeAction. Graph: EventEntry -\u003E ChannelCommand(LocomotionChannel/MoveTo) [explicit data-in pins Destination/Speed/ArrivalRadius/ReverseAllowed; Destination wired from a pure FunctionCall VectorOps.Vec3(GetParameter(BaselineX), GetParameter(BaselineY), Literal 0f); Speed/ArrivalRadius/ReverseAllowed baked via PinDefaults] -\u003E WaitForChannel(LocomotionChannel) [AiPrimitive latent lowering: issues the command once, suspends: Running while channel Running, auto-Failure on channel Failure, continues to Out on channel Success] -\u003E PublishEvent(ClearBehaviorEvent, Target pin left unwired =\u003E self-default, Entity=self) -\u003E Return(Success). Q#13 UPDATE (deviation removed): WaitForChannel\u0027s OnFailure exec-out is now wired to PublishEvent(ClearBehaviorEvent) -\u003E Return(Failure), so the blueprint publishes ClearBehaviorEvent on BOTH the Success and Failure paths, exactly matching the C# oracle. (Previously the failure path auto-returned Failure without publishing -- the accepted simplification once documented in design doc \u00A72, now resolved by the Q#13 failure split.) New curated helper: Hrot.AI.Behaviors.Brains.VectorOps.Vec3/Vec2 (reflection-free Vector3 construction; no vector-literal node exists). Does not modify the C# oracle.",
     "Category": null,
     "Recipe": null
   }

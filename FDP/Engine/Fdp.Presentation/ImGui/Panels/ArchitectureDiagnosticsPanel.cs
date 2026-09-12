@@ -1,6 +1,8 @@
 ﻿using System.Collections.Generic;
 using System.Linq;
 using System.Numerics;
+using System.Text.Json.Nodes;
+using Fdp.Diagnostics.Contracts.Panels;
 using Fdp.ModuleHost;
 using Fdp.ModuleHost.Diagnostics;
 using Fdp.ModuleHost.Resilience;
@@ -10,6 +12,34 @@ using ImGuiApi = ImGuiNET.ImGui;
 
 namespace Fdp.Presentation.Panels;
 
+/// <summary>⭐ A system/translator profile row, projected by hand rather than embedding
+/// <see cref="SystemProfileData"/> directly — that type carries a <c>LastError</c> (<c>Exception?</c>)
+/// which is not a clean dump shape. 📄 mirrors the gotcha table's "project the displayed shape by hand".</summary>
+public sealed record ArchDiagProfileViewModel(double LastMs, double AverageMs, double MaxMs, double TotalMs, int ErrorCount);
+
+public sealed record ArchDiagSystemRowViewModel(string Phase, string ModuleName, string SystemName, ArchDiagProfileViewModel Profile);
+
+public sealed record ArchDiagTranslatorRowViewModel(
+    string SystemName, string Direction, string TopicName, long DescriptorOrdinal,
+    ArchDiagProfileViewModel Profile, long ReceivedSamples, long SentSamples);
+
+/// <summary>
+/// ⭐⭐⭐ <b>U-obs-5 — the whole of what <see cref="ArchitectureDiagnosticsPanel"/> shows, this frame.</b>
+/// 📄 <c>docs/DESIGN_UI_Observability_Snapshot.md</c> §Example. ⭐ <see cref="Modules"/> is dumped as-is
+/// (<c>ModuleDiagnosticsDto</c> is already a flat, delegate-free DTO); systems/translators are
+/// hand-projected — see <see cref="ArchDiagProfileViewModel"/>.
+/// </summary>
+public sealed record ArchitectureDiagnosticsPanelViewModel(
+    string PanelId,
+    string PanelKind,
+    IReadOnlyList<ModuleDiagnosticsDto> Modules,
+    IReadOnlyList<ArchDiagSystemRowViewModel> Systems,
+    IReadOnlyList<ArchDiagTranslatorRowViewModel> Translators) : IPanelViewModel
+{
+    /// <inheritdoc/>
+    public JsonNode Dump() => PanelDump.Of(this);
+}
+
 public sealed class ArchitectureDiagnosticsPanel
 {
     private readonly IArchitectureDiagnosticsService _service;
@@ -17,6 +47,27 @@ public sealed class ArchitectureDiagnosticsPanel
     public ArchitectureDiagnosticsPanel(IArchitectureDiagnosticsService service)
     {
         _service = service ?? throw new System.ArgumentNullException(nameof(service));
+    }
+
+    // ── Public BUILD entry point (U-obs-5) ───────────────────────────────
+    /// <summary>⭐⭐⭐ BUILD — a pure projection of the service's snapshot. No ImGui, no sorting (the
+    /// table's column sort is transient ImGui state, not part of the model).</summary>
+    public ArchitectureDiagnosticsPanelViewModel BuildViewModel(string panelId, string panelKind)
+    {
+        var snapshot = _service.GetSnapshot();
+
+        var systems = snapshot.Systems.Select(s => new ArchDiagSystemRowViewModel(
+            s.Phase, s.ModuleName, s.Profile.SystemName,
+            new ArchDiagProfileViewModel(s.Profile.LastMs, s.Profile.AverageMs, s.Profile.MaxMs, s.Profile.TotalMs, s.Profile.ErrorCount)))
+            .ToList();
+
+        var translators = snapshot.Translators.Select(t => new ArchDiagTranslatorRowViewModel(
+            t.SystemName, t.Direction, t.TopicName, t.DescriptorOrdinal,
+            new ArchDiagProfileViewModel(t.Profile.LastMs, t.Profile.AverageMs, t.Profile.MaxMs, t.Profile.TotalMs, t.Profile.ErrorCount),
+            t.ReceivedSamples, t.SentSamples))
+            .ToList();
+
+        return new ArchitectureDiagnosticsPanelViewModel(panelId, panelKind, snapshot.Modules, systems, translators);
     }
 
     public void DrawContent()

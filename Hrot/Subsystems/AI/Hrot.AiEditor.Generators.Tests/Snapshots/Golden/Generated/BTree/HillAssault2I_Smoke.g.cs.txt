@@ -1,0 +1,25 @@
+// HROT_EDITOR_GENERATED - manual edits to this file will be overwritten by the AI editor on next save.
+// AssetId: bb000041-0000-0000-0000-000000000000
+
+using System;
+using System.Numerics;
+
+using Fbt;
+using Fbt.Compiler;
+using Fdp.Toolkit.Behavior;
+using Fdp.Toolkit.Behavior.Components;
+using Hrot.AI.Behaviors.Generated;
+
+namespace Hrot.AI.Behaviors.Trees;
+
+public static class HillAssault2I_Smoke
+{
+    public static BTreeBuilder<BrainBlackboard, BTreeContext> CreateBuilder() =>
+        new BTreeBuilder<BrainBlackboard, BTreeContext>()
+            .Action("Hrot.AI.Behaviors.Generated.HillAssault2ICalculateSegments_C870810D_Bp.TickCore@0@417370615",
+                visualId: new Guid("bb410000-0000-0000-0000-000000000002"));
+
+    [BTreeDefinition("HillAssault2I_Smoke", AssetId = "bb000041-0000-0000-0000-000000000000")]
+    public static BehaviorTreeBlob Build() =>
+        CreateBuilder().Compile("HillAssault2I_Smoke");
+}

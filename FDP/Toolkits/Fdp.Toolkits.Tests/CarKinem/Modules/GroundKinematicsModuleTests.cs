@@ -1,3 +1,4 @@
+using System.Numerics;
 using CarKinem.Formation;
 using CarKinem.Road;
 using CarKinem.Systems;
@@ -49,9 +50,63 @@ namespace CarKinem.Tests.Modules
         [Fact]
         public void GroundKinematicsModule_CreatesDefaultPoolAndTemplatesWhenNull()
         {
-            var module = new GroundKinematicsModule();
+            using var module = new GroundKinematicsModule();
             Assert.NotNull(module.TrajectoryPool);
             Assert.NotNull(module.FormationTemplates);
+        }
+
+        // ── B3: the pool is a RESOURCE with an owner, not a field ─────────────
+
+        /// <summary>
+        /// <b>The rail the split exists for.</b> A node selecting both <c>MuscleGround</c> and
+        /// <c>NavigationSolver</c> must share ONE trajectory pool: <c>PathfindingSolverSystem</c> writes
+        /// resolved routes into it and <c>FormationTargetSystem</c>/<c>CarKinematicsSystem</c> read them
+        /// back by handle. Two pools mean routes resolve and vehicles never follow them — silently.
+        /// </summary>
+        [Fact]
+        public void BothCapabilitiesHandedOnePool_ShareIt_AndNeitherOwnsIt()
+        {
+            using var pool = new TrajectoryPoolManager();
+
+            var muscleGround     = new GroundKinematicsModule(default, pool, null);
+            var navigationSolver = new Fdp.Toolkit.Navigation.Modules.NavigationSolverModule(default, pool);
+
+            Assert.Same(pool, muscleGround.TrajectoryPool);
+            Assert.Same(pool, navigationSolver.TrajectoryPool);
+
+            // The route the SOLVER resolves must be readable by the KINEMATICS side — same pool, one handle.
+            var route = new[] { new Vector3(0, 0, 0), new Vector3(10, 0, 0), new Vector3(20, 0, 0) };
+            navigationSolver.TrajectoryPool.RegisterTrajectoryWithKey(route, key: 77);
+            Assert.True(muscleGround.TrajectoryPool.TryGetTrajectory(77, out _));
+
+            // Borrowed, so the borrower must not free it — the half that CORRUPTS rather than merely leaks.
+            Assert.False(muscleGround.OwnsTrajectoryPool);
+            muscleGround.Dispose();
+            Assert.True(pool.TryGetTrajectory(77, out _));   // still live after the borrower disposed
+        }
+
+        /// <summary>
+        /// <c>NavigationSolverModule</c> used to read <c>trajectoryPool ?? new TrajectoryPoolManager()</c>.
+        /// It must now REFUSE rather than quietly hand itself a private pool — the silent-default pattern,
+        /// caught before role composition switches this module on (it has no production caller today).
+        /// </summary>
+        [Fact]
+        public void ANavigationSolverWithNoPoolIsRefused_NotSilentlyGivenItsOwn()
+        {
+            Assert.Throws<System.ArgumentNullException>(
+                () => new Fdp.Toolkit.Navigation.Modules.NavigationSolverModule(default, null!));
+        }
+
+        /// <summary>A module that allocated its own pool owns it, and Dispose is idempotent.</summary>
+        [Fact]
+        public void AModuleWithNoPoolOwnsAndFreesItsOwn()
+        {
+            var module = new GroundKinematicsModule();
+            Assert.True(module.OwnsTrajectoryPool);
+            Assert.True(module.OwnsFormationTemplates);
+
+            module.Dispose();
+            module.Dispose();   // a double free would corrupt the allocator
         }
     }
 }

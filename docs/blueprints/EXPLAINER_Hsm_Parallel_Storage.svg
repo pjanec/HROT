@@ -1,0 +1,119 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1000 600" width="1000" height="600" font-family="Segoe UI, Helvetica, Arial, sans-serif">
+  <style>
+    .h1 { font-size:15px; fill:#1b1f24; font-weight:700; }
+    .h2 { font-size:11.5px; fill:#ffffff; font-weight:700; letter-spacing:.3px; }
+    .t  { font-size:11.5px; fill:#1b1f24; }
+    .tb { font-size:11.5px; fill:#1b1f24; font-weight:600; }
+    .s  { font-size:10px; fill:#57606a; }
+    .m  { font-size:10.5px; fill:#0a3069; font-family:ui-monospace, Consolas, monospace; }
+    .box { fill:#ffffff; stroke:#8c959f; stroke-width:1.1; rx:4; }
+    .reg { fill:#eef4fb; stroke:#2f6fbf; stroke-width:1.4; rx:4; }
+    .bad { fill:#fdecea; stroke:#c0392b; stroke-width:1.6; rx:4; }
+    .ok  { fill:#e9f5e9; stroke:#4a8a3c; stroke-width:1.4; rx:4; }
+    .warn{ fill:#fff4e0; stroke:#bf8700; stroke-width:1.4; rx:4; }
+    .arr { stroke:#57606a; stroke-width:1.6; fill:none; marker-end:url(#a); }
+    .red { stroke:#c0392b; stroke-width:2; fill:none; marker-end:url(#r); }
+  </style>
+  <defs>
+    <marker id="a" markerWidth="9" markerHeight="9" refX="8" refY="3" orient="auto"><path d="M0,0 L8,3 L0,6 z" fill="#57606a"/></marker>
+    <marker id="r" markerWidth="9" markerHeight="9" refX="8" refY="3" orient="auto"><path d="M0,0 L8,3 L0,6 z" fill="#c0392b"/></marker>
+  </defs>
+  <rect width="1000" height="600" fill="#ffffff"/>
+
+  <text x="16" y="24" class="h1">HSM parallel regions — where does each action's data go?</text>
+  <text x="16" y="42" class="s">The kernel really does run several leaf states per tick. The storage addressing does not know that.</text>
+
+  <!-- KERNEL -->
+  <rect x="16" y="58" width="470" height="222" class="reg"/>
+  <rect x="16" y="58" width="470" height="18" fill="#2f6fbf" rx="4"/>
+  <text x="24" y="71" class="h2">THE KERNEL — genuinely concurrent</text>
+
+  <text x="26" y="94" class="m">[FieldOffset(16)] fixed ushort ActiveLeafIds[4];   // max 4 regions</text>
+
+  <rect x="26" y="106" width="140" height="58" class="box"/>
+  <text x="34" y="123" class="tb">Region 0</text>
+  <text x="34" y="140" class="s">leaf: WorkA</text>
+  <text x="34" y="156" class="m">Activity → Patrol()</text>
+
+  <rect x="176" y="106" width="140" height="58" class="box"/>
+  <text x="184" y="123" class="tb">Region 1</text>
+  <text x="184" y="140" class="s">leaf: WorkB</text>
+  <text x="184" y="156" class="m">Activity → Patrol()</text>
+
+  <rect x="326" y="106" width="148" height="58" class="box"/>
+  <text x="334" y="123" class="tb">Region 2</text>
+  <text x="334" y="140" class="s">leaf: WorkC</text>
+  <text x="334" y="156" class="s">…</text>
+
+  <text x="26" y="186" class="s">ProcessActivityPhase loops every region, then walks each leaf's</text>
+  <text x="26" y="200" class="s">ancestor chain — all their Activity actions fire in ONE tick.</text>
+
+  <text x="26" y="224" class="tb">Per-region storage exists — but only for bookkeeping:</text>
+  <text x="26" y="240" class="m">ActiveLeafIds[r] · TimerDeadlines[r] · HistorySlots[]</text>
+  <text x="26" y="258" class="s">⇒ which state is active, and timers. ⛔ NOT action data.</text>
+  <text x="26" y="274" class="s">Each state has 4 slots — Entry / Exit / Activity / Timer — all four dispatch identically.</text>
+
+  <path class="red" d="M96 168 L96 300 L470 300 L470 322"/>
+  <path class="red" d="M246 168 L246 300"/>
+
+  <!-- DISPATCH -->
+  <rect x="500" y="58" width="484" height="222" class="box"/>
+  <rect x="500" y="58" width="484" height="18" fill="#57606a" rx="4"/>
+  <text x="508" y="71" class="h2">THE ADDRESSING — knows nothing about regions</text>
+
+  <rect x="512" y="86" width="460" height="46" class="box"/>
+  <text x="520" y="103" class="tb">Slot key = hash(method name @ compile-time field offset)</text>
+  <text x="520" y="122" class="m">CompoundKey = sym.Name + "@" + offset      // FNV-1a → ushort</text>
+
+  <path class="arr" d="M742 136 L742 156"/>
+
+  <rect x="512" y="160" width="460" height="46" class="box"/>
+  <text x="520" y="177" class="tb">One shared table, keyed by that hash alone</text>
+  <text x="520" y="196" class="m">Dictionary&lt;ushort, IntPtr&gt; ActionTable</text>
+
+  <path class="arr" d="M742 210 L742 230"/>
+
+  <rect x="512" y="234" width="460" height="40" class="box"/>
+  <text x="520" y="251" class="m">ref Unsafe.AddByteOffset(ref bb.BehaviorParameters[0], (IntPtr)Offset)</text>
+  <text x="520" y="267" class="s">⛔ no region index, no state id, no instance id anywhere in the path</text>
+
+  <!-- COLLISION -->
+  <rect x="16" y="322" width="968" height="104" class="bad"/>
+  <rect x="16" y="322" width="968" height="18" fill="#c0392b" rx="4"/>
+  <text x="24" y="335" class="h2">⇒ TWO CONCURRENT REGIONS RUNNING THE SAME ACTION WRITE THE SAME BYTES</text>
+
+  <rect x="28" y="350" width="300" height="62" class="box"/>
+  <text x="36" y="368" class="tb">BrainBlackboard — ONE per entity</text>
+  <text x="36" y="384" class="s">an ECS component, not an array</text>
+  <text x="36" y="400" class="s">not indexed by state, region or slot</text>
+
+  <rect x="344" y="350" width="300" height="62" class="box"/>
+  <text x="352" y="368" class="tb">Blackboard1024 — same class of risk</text>
+  <text x="352" y="384" class="s">its own doc admits the addressing is manual:</text>
+  <text x="352" y="400" class="s">"each subsystem projects at a disjoint offset"</text>
+
+  <rect x="660" y="350" width="312" height="62" class="ok"/>
+  <text x="668" y="368" class="tb">BTree does NOT have this problem</text>
+  <text x="668" y="384" class="s">it provisions per-scope partition slots via</text>
+  <text x="668" y="400" class="s">ResolveStatefulSlotKey — Node/Behavior/Entity</text>
+
+  <!-- GUARDS -->
+  <rect x="16" y="440" width="968" height="146" class="warn"/>
+  <rect x="16" y="440" width="968" height="18" fill="#bf8700" rx="4"/>
+  <text x="24" y="453" class="h2">THE GUARDS EXIST — AND TWO OF THEM NEVER FIRE</text>
+
+  <rect x="28" y="468" width="466" height="102" class="box"/>
+  <text x="36" y="486" class="tb">Rule 8 · ConcurrentStatefulSubtree</text>
+  <text x="36" y="502" class="s">"produces synthetic key collisions and race-write corruption"</text>
+  <text x="36" y="522" class="tb">Rule 8b · ConcurrentSharedScopeKey</text>
+  <text x="36" y="538" class="s">"orthogonal regions race and corrupt the slot" — this is exactly it</text>
+  <text x="36" y="560" class="s">Both are ERRORS. Both are correct. Both are unreachable.</text>
+
+  <rect x="510" y="468" width="462" height="102" class="bad"/>
+  <text x="518" y="486" class="tb">Why they never fire</text>
+  <text x="518" y="504" class="m">_isStatefulSubtree = isStatefulSubtree ?? (_ =&gt; false);</text>
+  <text x="518" y="520" class="m">_sharedScopeKeys   = sharedScopeKeys   ?? (_ =&gt; Empty);</text>
+  <text x="518" y="540" class="s">Both production call sites use the default ctor. The XML doc itself</text>
+  <text x="518" y="554" class="s">says "Production should wire this" — so it is unfinished wiring,</text>
+  <text x="518" y="568" class="s">not a dead rule. Only unit tests pass real resolvers.</text>
+</svg>

@@ -34,7 +34,7 @@ public sealed class ZoneScenarioLoadIntegrationTests : IDisposable
     // ── Single integration test with 8 assertions ─────────────────────────────
 
     [Fact]
-    public void LoadScenario_WithZoneDefinition_PopulatesRoadNetworkAndObstacles()
+    public void A_zone_definition_populates_the_road_network_and_obstacles()
     {
         // ── Step 1: Build HrotScenarioEnvelopeDto in code ────────────────────
         var envelope = new HrotScenarioEnvelopeDto
@@ -64,7 +64,18 @@ public sealed class ZoneScenarioLoadIntegrationTests : IDisposable
 
         // ── Step 3: Load via EditorHarness ────────────────────────────────────
         using var harness = new EditorHarness();
-        harness.Editor.LoadScenario(_tempFile);
+
+        // ⭐ HN-037 Part B: the direct file→repo load is gone. The zone pipeline itself is NOT — it is the
+        //   same `IZoneManagerService.LoadZones(repo, envelope.Zones)` call the genesis path makes
+        //   (HrotEditLoadHandler:167), which is what this test's eight assertions are really about.
+        //   ⇒ the driver changes; the pipeline under test does not.
+        // ⛔ Deliberately NOT retargeted at the by-name genesis load: that would need the file staged into a
+        //   scenarios root under a name and a 2PC transition, turning a focused zone test into an
+        //   orchestration test — and the orchestration is covered elsewhere.
+        var loaded = JsonSerializer.Deserialize<HrotScenarioEnvelopeDto>(
+            File.ReadAllText(_tempFile), HrotSerializerOptions.HrotJsonOptions);
+        Assert.NotNull(loaded?.Zones);
+        harness.ZoneService.LoadZones(harness.Repo, loaded!.Zones!);
         harness.PumpFrames(5);
 
         var repo = harness.Repo;

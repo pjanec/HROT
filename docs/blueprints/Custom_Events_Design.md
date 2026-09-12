@@ -1,5 +1,17 @@
 # Blueprint Custom Events + Pub/Sub — Implementation Design
 
+> ⚠ **Naming trap — two different things are called "custom event".**
+> This document is about **bus events**: `[BlueprintEvent]` C# structs plus editor-authored event
+> definitions, published with `PublishEvent` and subscribed via an `EventEntry` graph. They are
+> *engine-scoped* and cross blueprint boundaries.
+> A **`CustomEventDecl`** is something else entirely: a *blueprint-local* declaration on
+> `BlueprintAsset.CustomEvents`, called with `CallCustomEvent`, lowered to a direct
+> `Event_{Name}(...)` call inside the same generated class. It never touches the bus.
+> Confusing the two is a real, recorded mistake — the gap audit told the `CallCustomEvent` picker to
+> source from `UnifiedEventDiscovery` (this document's vocabulary), which would have produced a
+> picker whose every choice failed to resolve. See **BP-07 / BP-12c** in
+> [Blueprint_Issues_Detail.md](Blueprint_Issues_Detail.md).
+
 **Status: ✅ APPROVED (architect + user) — cleared to build.** §7 open details finalized by the architect (below).
 Decisions: **Q#14 APPROVED** (Option 2b + infrastructure); dispatch trace committed. This doc is the *how*.
 

@@ -111,26 +111,39 @@ namespace Hrot.ClusterRunner.Tests.Configuration
             }
         }
 
-        // ── SM-007: StrideMock wiring ─────────────────────────────────────────
+        // ── ST-015: the retired StrideMock mode ───────────────────────────────
+        //
+        // This block used to be "SM-007: StrideMock wiring" and asserted the mode WORKED. The mock
+        // subsystem is gone, so the two mode tests are INVERTED rather than deleted: the valuable
+        // assertion is no longer "stridemock composes" but "stridemock is refused, and the refusal
+        // does not go on offering it". Two further tests here took `typeof(StrideMockSubsystem)`
+        // directly and could not survive the type's removal at all.
 
         [Fact]
-        public void Validate_StrideMockMode_DoesNotThrow()
+        public void Validate_StrideMockMode_NowThrows()
         {
-            // SC_SM007_1
+            // ST-015 (was SC_SM007_1, inverted): the token is no longer a valid mode.
             var cfg = new HrotRunnerConfiguration { ModeString = "stridemock", NoWait = true };
-            cfg.Validate(); // must not throw
-            Assert.Contains("stridemock", cfg.RequestedSubsystems);
+            var ex = Assert.Throws<InvalidOperationException>(() => cfg.Validate());
+
+            // The message enumerates the valid modes, so that list must not still advertise this one
+            // -- a stale list is a lie the user reads straight off their terminal.
+            //
+            // Assert on the OFFERED LIST, not the whole message: the message quotes the rejected
+            // input back at the user ("Invalid mode: 'stridemock'. Use: ..."), so a naive
+            // DoesNotContain over ex.Message can never pass for this input and would be asserting
+            // the wrong thing.
+            var offered = ex.Message[(ex.Message.IndexOf("Use:", StringComparison.Ordinal) + 4)..];
+            Assert.DoesNotContain("stridemock", offered, StringComparison.OrdinalIgnoreCase);
         }
 
         [Fact]
-        public void Validate_OrchestratorCgfStrideMock_DoesNotThrow()
+        public void Validate_OrchestratorCgfStrideMock_NowThrows()
         {
-            // SC_SM007_2
+            // ST-015 (was SC_SM007_2, inverted): one dead token poisons an otherwise valid combo,
+            // rather than being silently dropped from it.
             var cfg = new HrotRunnerConfiguration { ModeString = "orchestrator,cgf,stridemock", NoWait = true };
-            cfg.Validate(); // must not throw
-            Assert.Contains("stridemock",   cfg.RequestedSubsystems);
-            Assert.Contains("orchestrator", cfg.RequestedSubsystems);
-            Assert.Contains("cgf",          cfg.RequestedSubsystems);
+            Assert.Throws<InvalidOperationException>(() => cfg.Validate());
         }
 
         [Fact]
@@ -145,32 +158,19 @@ namespace Hrot.ClusterRunner.Tests.Configuration
         }
 
         [Fact]
-        public void StrideMockSubsystem_ImplementsISubsystem()
+        public void Validate_AllMode_ExpandsToTheFiveSubsystems()
         {
-            // SC_SM007_4: ResolveAppNodeId("StrideMock", 0) == 700 is verified indirectly.
-            // ResolveAppNodeId is private static in Program.cs; the offset is tested in
-            // integration (SC_SM007_6/7). We document the agreed offset here for traceability.
-            // SC_SM007_5: Verify StrideMockSubsystem is discoverable as ISubsystem via reflection.
-            var type = typeof(Hrot.StrideMock.StrideMockSubsystem);
-            Assert.True(typeof(Fdp.Toolkit.Runner.ISubsystem).IsAssignableFrom(type));
-            Assert.False(type.IsAbstract);
-        }
-
-        [Fact]
-        public void StrideMockSubsystem_ImplementsIMapCameraProvider()
-        {
-            // SC_SM007_5 (extended): StrideMock also provides map camera integration
-            var type = typeof(Hrot.StrideMock.StrideMockSubsystem);
-            Assert.True(typeof(Fdp.Toolkit.Runner.IMapCameraProvider).IsAssignableFrom(type));
-        }
-
-        [Fact]
-        public void Validate_AllMode_DoesNotContainStrideMock()
-        {
-            // StrideMock is NOT part of "all" or "demo" expansion — it is a standalone mode.
+            // ST-015: replaces Validate_AllMode_DoesNotContainStrideMock, which asserted that "all"
+            // omits a token that no longer exists anywhere -- trivially true, and it would have read
+            // like a live guard. The invariant worth holding is what "all" DOES expand to, which is
+            // also the fact the programme charter had to measure by hand: five subsystems, and
+            // there is no "--mode cluster".
             var cfg = new HrotRunnerConfiguration { ModeString = "all", NoWait = true };
             cfg.Validate();
-            Assert.False(cfg.RequestedSubsystems.Contains("stridemock"));
+
+            Assert.Equal(
+                new[] { "cgf", "excon", "ig", "orchestrator", "simhost" },
+                cfg.RequestedSubsystems.OrderBy(s => s, StringComparer.Ordinal).ToArray());
         }
     }
 }

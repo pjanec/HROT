@@ -1,3 +1,4 @@
+using System;
 namespace Fdp.Core
 {
     /// <summary>
@@ -102,6 +103,38 @@ namespace Fdp.Core
         /// Set to true in production entry-points to guarantee all events are known to the schema.
         /// </summary>
         public static bool EnforceExplicitEventRegistration { get; set; } = false;
+
+        /// <summary>
+        /// When <c>true</c>, the module host RETHROWS any exception a module or system raises during a
+        /// frame instead of catching and reporting it. The node dies at the first fault, with the
+        /// original stack.
+        /// </summary>
+        /// <remarks>
+        /// <para><b>Why this exists.</b> The kernel catches per-module exceptions so one faulty module
+        /// cannot take down a distributed simulation — correct for production, and exactly wrong while
+        /// debugging: a system that throws on its first frame keeps "running" forever, every system
+        /// after it in the same phase group is skipped, and the node still answers healthy. Measured:
+        /// <c>StatelessGizmoSystem</c> threw on every frame of every editor run and nothing failed
+        /// (<c>CE-188</c>).</para>
+        ///
+        /// <para>⭐ <b>Default <c>TRUE</c>.</b> 🔒 User ruling, <c>2026-09-04</c>: <i>"the fail fast should
+        /// be on by default as we are still in a wild development phase, not even close to
+        /// production."</i> A module fault is a bug to fix now, not a condition to survive — and the
+        /// resilience this suspends only ever bought the ability to keep running past one.</para>
+        ///
+        /// <para><b>Turning it OFF without a rebuild:</b> set <c>FDP_FAIL_FAST=0</c> (or
+        /// <c>false</c>/<c>off</c>) at process start, or assign the property in a host that genuinely
+        /// must survive a faulty module. ⛔ Flip this back to <c>false</c> as a default only when the
+        /// project is actually near production — the switch exists so that decision is explicit and
+        /// dated, not inherited.</para>
+        ///
+        /// <para>⚠ <b>This is not a substitute for the fault being visible.</b> Fail-fast only helps when
+        /// you are watching. The kernel therefore also records every fault against the module's circuit
+        /// breaker and reports repeats as a COUNT rather than a line each — a fault printed ten thousand
+        /// times is hidden just as effectively as one that was never printed.</para>
+        /// </remarks>
+        public static bool FailFastOnModuleException { get; set; } =
+            Environment.GetEnvironmentVariable("FDP_FAIL_FAST") is not ("0" or "false" or "FALSE" or "off" or "OFF");
 
         /// <summary>
         /// Global switch to control CPU usage for parallel operations.

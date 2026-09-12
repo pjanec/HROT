@@ -3,6 +3,7 @@ using System.Numerics;
 using Fdp.Core;
 using Fbt;
 using Hrot.MuscleCharacter.Animation.Components;
+using Fdp.Toolkit.Tkb.Domain;
 
 namespace Hrot.MuscleCharacter.Animation.Events
 {

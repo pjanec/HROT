@@ -81,9 +81,29 @@ namespace Fdp.Toolkit.Behavior.Systems
 
         public string ProfileName => $"HsmTickSystem<{typeof(T).Name}>";
 
-        public HsmTickSystem(BehaviorRegistry registry)
+
+        /// <summary>
+        /// ⭐⭐⭐ <b><c>P3</c> step <c>3b</c> — the EXECUTION gate.</b> When true, this system processes only
+        /// entities whose cognitive state THIS node owns. 📄 <c>docs/DESIGN_Role_Affinity_Ownership.md</c>
+        /// §3.5.
+        ///
+        /// <para>⛔⛔ <b>Authority gates REPLICATION, not EXECUTION</b> — every egress translator checks
+        /// <c>HasAuthority</c>, but a query does not. ⇒ without this flag, declining the brain components
+        /// stops a node PUBLISHING the brain and does not stop it RUNNING one, and two nodes tick the same
+        /// tree. ⭐ That is what would have made the whole design cosmetic.</para>
+        ///
+        /// <para>⚠ <b>Defaults to <c>false</c>, and that is load-bearing rather than cautious.</b> A
+        /// promoted ghost owns nothing until a role policy or an explicit grant says otherwise, so turning
+        /// this on before the node has a policy would stop it processing every entity it did not create —
+        /// reproducing <c>CE-256</c> while fixing it. ⇒ the host turns it on in the same breath as handing
+        /// over the policy (step 4).</para>
+        /// </summary>
+        private readonly bool _gateOnAuthority;
+
+        public HsmTickSystem(BehaviorRegistry registry, bool gateOnAuthority = false)
         {
             _registry = registry ?? throw new ArgumentNullException(nameof(registry));
+            _gateOnAuthority = gateOnAuthority;
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
@@ -107,8 +127,11 @@ namespace Fdp.Toolkit.Behavior.Systems
                     $"{nameof(HsmTickSystem<T>)} requires direct EntityRepository access " +
                     $"and cannot run on a read-only snapshot ({view.GetType().Name}).");
 
+            // ⭐⭐⭐ P3 step 3b — the NON-NEGOTIABLE sibling of BTreeTickSystem: BehaviorState.BrainTier
+            //   selects the tier, so gating only the BTree system would leave every HSM-tier ghost
+            //   double-ticked. 📄 §3.5.
             var q = repo.Query()
-                .With<BehaviorState>()
+                .WithOwnedWhen<BehaviorState>(_gateOnAuthority)
                 .With<T>()
                 .Build();
 

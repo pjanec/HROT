@@ -87,6 +87,64 @@ public sealed class HsmAsset : IEditableAsset, IBlackboardManagedAsset, IStitcha
     /// Replaces the current variable list and fires Changed.
     /// Call this when the editor commits an updated set of variables.
     /// </summary>
+    /// <summary>
+    /// ⭐⭐⭐ <b><c>E4</c> — the HSM equivalent of <c>BehaviorTreeAsset.HasAnyStatefulNode()</c>,</b>
+    /// which <c>DEBT-AIB-028</c>'s activation recipe asks for by name.
+    ///
+    /// <para>
+    /// ⚠ <b>An HSM has no per-node delegate SHAPE to inspect</b> — there is no
+    /// <c>ThreeParamReusableStateful</c> on a state. ⇒ the honest equivalent is the one Batch 67's
+    /// <c>E1</c> already established: an HSM asset maintains per-instance working state exactly when it
+    /// declares a <c>Role = State</c> variable scoped <c>Behavior</c> or <c>Entity</c>, because that is
+    /// precisely the set <c>HsmBridgeEmitCore</c> emits <c>StatefulSlotInfo</c> entries for.
+    /// </para>
+    ///
+    /// <para>
+    /// ⭐ <b>Same predicate, one definition.</b> ⛔ Inventing a different notion of "stateful" here
+    /// would let the validator and the emitter disagree about which assets own a partition slot —
+    /// which is the disagreement the whole slot-key discipline exists to prevent. ⚠ <c>Node</c> scope
+    /// is excluded for the same reason it is skipped at emission: it keys off a node id the HSM has
+    /// nothing to supply.
+    /// </para>
+    /// </summary>
+    public bool HasAnyStatefulNode() => GetSharedScopeKeys().Count > 0;
+
+    /// <summary>
+    /// ⭐⭐⭐ <b><c>E4</c> completion (Batch 69) — the SHARED (<c>Behavior</c>/<c>Entity</c>) scope keys
+    /// this asset's stateful variables resolve to,</b> which is what rule 8b compares across parallel
+    /// regions.
+    ///
+    /// <para>
+    /// ⭐⭐ <b>ONE definition of "the shared state set", and three callers now share it:</b> this
+    /// method, <see cref="HasAnyStatefulNode"/> above (which is now literally "is that set non-empty"),
+    /// and <c>HsmBridgeEmitCore</c>'s slot emission, which filters identically. ⛔ Three copies of a
+    /// filter that decides which variables own a partition slot is exactly the drift the slot-key
+    /// discipline exists to prevent.
+    /// </para>
+    ///
+    /// <para>
+    /// ⭐ <b>The key is <c>BTreeBridgeEmitCore.ComputeStatefulSlotKey</c>, CALLED — not
+    /// reimplemented.</b> A second key algorithm would make the validator's idea of "these two regions
+    /// touch the same shared slot" disagree with the allocator's, which is the one thing rule 8b must
+    /// not get wrong.
+    /// </para>
+    /// </summary>
+    public IReadOnlyCollection<int> GetSharedScopeKeys()
+    {
+        HashSet<int>? keys = null;
+        foreach (var v in _blackboardVariables)
+        {
+            if (v.Role != Hrot.AiEditor.Persistence.BlackboardVariableRole.State) continue;
+            if (v.Scope != Hrot.AiEditor.Persistence.WorkingStateScope.Behavior
+             && v.Scope != Hrot.AiEditor.Persistence.WorkingStateScope.Entity) continue;
+
+            (keys ??= new HashSet<int>()).Add(
+                Hrot.AiEditor.Persistence.Emit.BTreeBridgeEmitCore.ComputeStatefulSlotKey(
+                    AssetId, v.Scope, System.Guid.Empty, v.Name));
+        }
+        return (IReadOnlyCollection<int>?)keys ?? System.Array.Empty<int>();
+    }
+
     public void SetBlackboardVariables(IEnumerable<BlackboardVariableEntry> vars)
     {
         _blackboardVariables.Clear();
@@ -196,14 +254,87 @@ public sealed class HsmAsset : IEditableAsset, IBlackboardManagedAsset, IStitcha
         MarkDirty();
     }
 
-    /// <summary>Returns 0; HSM does not use ExpressionTargetField in this phase.</summary>
-    public int CountNodesReferencingVariable(string name) => 0;
+    /// <summary>
+    /// ⭐⭐⭐ <b><c>E7b</c> — a REAL count over <c>ExpressionTargetField</c> bindings.</b>
+    ///
+    /// <para>
+    /// 🔴 <b>It returned a hardcoded <c>0</c>, with the comment <i>"HSM does not use
+    /// ExpressionTargetField in this phase"</i> — and that was false when it was written.</b>
+    /// <c>ExpressionTargetField</c> is an <b>OUTPUT binding</b> (<i>"blackboard field that receives
+    /// the expression result of <c>ActionFunction</c>"</i>): <c>HsmAssetMapper</c> round-trips it,
+    /// <c>HsmCommandSink</c> maintains it, and <c>HsmValidator</c> already reads it as a writer style.
+    /// ⚠ <c>FIX-01-REPORT:43</c>'s <i>"no per-node"</i> meant per-<b>NODE</b>, not <i>absent</i>.
+    /// </para>
+    ///
+    /// <para>
+    /// ⛔ <b>The consequence, and it is trap #5 again:</b>
+    /// <c>BlueprintLocalVariableSchemaSource</c> computes <c>IsUnused: Count… == 0</c>, so a variable
+    /// written through <c>ExpressionTargetField</c> read as <b>UNUSED</b> — offered for deletion with
+    /// a clean conscience. A member reporting success while doing nothing.
+    /// </para>
+    ///
+    /// <para>
+    /// ⭐ <b>Both transition kinds count.</b> A global transition is excluded from the validator's
+    /// cross-region conflict rule because it belongs to no region — ⛔ but it is still a <b>writer</b>,
+    /// so excluding it here would resurrect the same wrong answer for a narrower case.
+    /// </para>
+    ///
+    /// <para>
+    /// ⚠ Comparison is <see cref="StringComparison.OrdinalIgnoreCase"/> via
+    /// <see cref="IsExpressionTargetOf"/> — ⭐ ONE predicate, shared with <c>HsmValidator</c>, so the
+    /// count and the conflict rule cannot disagree about what "bound to this variable" means.
+    /// </para>
+    /// </summary>
+    public int CountNodesReferencingVariable(string name)
+    {
+        int count = 0;
+        foreach (var t in AllTransitions)
+            if (IsExpressionTargetOf(t.ExpressionTargetField, name)) count++;
+        foreach (var g in AllGlobalTransitions)
+            if (IsExpressionTargetOf(g.ExpressionTargetField, name)) count++;
+        return count;
+    }
+
+    /// <summary>
+    /// ⭐ <b>The ONE definition of "this <c>ExpressionTargetField</c> names that variable".</b>
+    /// <c>HsmValidator.IsLocallyBoundTo</c> delegates here rather than repeating the comparison —
+    /// two spellings of one predicate is how the count and the conflict rule drift apart.
+    /// </summary>
+    public static bool IsExpressionTargetOf(string? expressionTargetField, string variableName)
+        => !string.IsNullOrEmpty(expressionTargetField)
+        && string.Equals(expressionTargetField, variableName, StringComparison.OrdinalIgnoreCase);
 
     /// <summary>Returns all alias bindings recorded against the named variable. Empty list if none.</summary>
     public IReadOnlyList<BlackboardAliasBinding> GetAliasesFor(string variableName) =>
         _aliases.TryGetValue(variableName, out var list)
             ? list.AsReadOnly()
             : Array.Empty<BlackboardAliasBinding>();
+
+    /// <summary>
+    /// ⭐⭐⭐ <b>Batch 91 (<c>91b</c>) — the whole alias map, for the MAPPER.</b> ⛔ Deliberately shaped
+    /// like <c>GetAllSyncBindings</c> above: 📌 the persistence design lists aliases and sync bindings
+    /// in the same breath, and a different shape here would be a third mechanism for one idea.
+    /// </summary>
+    public IReadOnlyDictionary<string, IReadOnlyList<BlackboardAliasBinding>> GetAllAliases() =>
+        _aliases.ToDictionary(
+            kv => kv.Key,
+            kv => (IReadOnlyList<BlackboardAliasBinding>)kv.Value.AsReadOnly());
+
+    /// <summary>
+    /// ⭐⭐ <b>Rehydrates the alias map on LOAD — the call that never existed.</b>
+    /// 🔴 Measured Batch 91: the only writers to <c>_aliases</c> were rename, <c>AddAlias</c> and
+    /// prune ⇒ <b>nothing on the load path touched them</b>, so every authored alias died with the
+    /// editor session. ⚠ The DTO header even filed <c>_aliases</c> under <i>"runtime hydration"</i> —
+    /// ⭐ a hydration that was never written.
+    /// </summary>
+    public void LoadAliases(IReadOnlyDictionary<string, IReadOnlyList<BlackboardAliasBinding>>? aliases)
+    {
+        _aliases.Clear();
+        if (aliases is null) return;
+        foreach (var kv in aliases)
+            _aliases[kv.Key] = new List<BlackboardAliasBinding>(kv.Value);
+    }
+
 
     /// <summary>Binds an unbound sub-tree requirement to a defined variable. Fires Changed.</summary>
     public void AddAlias(string variableName, BlackboardAliasBinding binding)
@@ -279,6 +410,28 @@ public sealed class HsmAsset : IEditableAsset, IBlackboardManagedAsset, IStitcha
         if (wasSuppressed == suppressed) return;
         if (suppressed) _conflictSuppressions.Add((variableName, writerPairKey));
         else            _conflictSuppressions.Remove((variableName, writerPairKey));
+        MarkDirty();
+    }
+
+    // ── W7b (§9.4) — "Allow concurrent writes", PER VARIABLE ────────────────────
+    //
+    // ⛔⛔ A SEPARATE SET from _conflictSuppressions on purpose. §9.3's suppression is per
+    // (variable, writer-PAIR) so that "a new aliasing relationship on the same variable would
+    // surface a fresh diagnostic"; §9.4's allowance is per VARIABLE, so it covers pairs that do
+    // not exist yet. ⇒ merging the two would silence future writers the designer never reviewed.
+    private readonly HashSet<string> _concurrentWritesAllowed = new();
+
+    public bool IsConcurrentWritesAllowed(string variableName) =>
+        _concurrentWritesAllowed.Contains(variableName);
+
+    public IEnumerable<string> GetConcurrentWritesAllowed() => _concurrentWritesAllowed;
+
+    public void SetConcurrentWritesAllowed(string variableName, bool allowed)
+    {
+        bool was = _concurrentWritesAllowed.Contains(variableName);
+        if (was == allowed) return;
+        if (allowed) _concurrentWritesAllowed.Add(variableName);
+        else         _concurrentWritesAllowed.Remove(variableName);
         MarkDirty();
     }
 

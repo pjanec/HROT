@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using Fdp.Core;
 using Fdp.Core.Logging;
@@ -33,6 +33,35 @@ namespace Fdp.Toolkit.NetworkSpawning.Systems
         /// <param name="elm">Entity lifecycle module that manages construction/destruction handshakes.</param>
         /// <param name="networkMap">Entity ↔ network-ID registry.</param>
         /// <param name="idAllocator">Network-ID allocator (stub or DDS-backed).</param>
+        /// <param name="translators">
+        /// 🔴🔴 <b>The node's TKB→ECS projection list. Omitting it means "spawn entities with NO TKB
+        /// template components at all" — not "spawn a default set".</b>
+        ///
+        /// <para>⚠⚠ <b>This parameter is optional and defaults to <c>Array.Empty</c>, which is a
+        /// SILENT no-op:</b> step 4 of <c>ProcessSpawn</c> is <c>foreach (var t in _translators)
+        /// t.Inject(...)</c> — the only writer of descriptor-derived components in this system — so an
+        /// empty list turns it into a zero-iteration loop. The entity still gets its
+        /// <c>NetworkIdentity</c>, <c>NetworkOwnership</c>, <c>TkbIdentity</c> and DIS header, so it
+        /// looks spawned; it simply carries none of its type's kinematics, combat, perception,
+        /// behaviour or presentation. 📌 Measured 2026-08-30 (<c>CE-138</c>): one host reached
+        /// production this way.</para>
+        ///
+        /// <para>⛔⛔ <b>Do NOT use a short list to narrow what a host materialises.</b> That is not the
+        /// narrowing lever. Every <see cref="ITkbEntityTranslator"/> is contractually required to guard
+        /// each write with <c>repo.IsComponentTypeRegistered&lt;T&gt;()</c>, so a translator whose
+        /// components this host never registered is already a no-op. ⇒ ⭐ <b>the per-host difference is
+        /// the REGISTRATION SET; the translator list should be the node's full projection set.</b>
+        /// A component the host does not want is excluded by not registering it, which fails loudly at
+        /// one place, rather than by omitting a translator, which fails silently everywhere.</para>
+        ///
+        /// <para>⭐ Pass the SAME instance to <see cref="EntityLifecycleModule"/> and
+        /// <c>GhostPromotionSystem</c> — <c>docs/designs/tkb-1/DESIGN.md</c> §6.5 calls that the node's
+        /// "single point of truth".</para>
+        /// </param>
+        /// <param name="onEntitySpawned">
+        /// Optional post-spawn hook: <c>(world, entity, isLocalAuthority)</c>, invoked after components
+        /// and authority bits are set and before the entity is registered in the network map.
+        /// </param>
         /// <param name="localNodeId">This node's logical ID, used to fill NetworkOwnership.</param>
         public NetworkSpawningSystem(
             ITkbDatabase tkbDb,
@@ -41,7 +70,8 @@ namespace Fdp.Toolkit.NetworkSpawning.Systems
             INetworkIdAllocator idAllocator,
             int localNodeId,
             IReadOnlyList<ITkbEntityTranslator>? translators = null,
-            Action<EntityRepository, Entity, bool>? onEntitySpawned = null)
+            Action<EntityRepository, Entity, bool>? onEntitySpawned = null,
+            Fdp.Toolkit.Replication.Abstractions.IRoleAffinityPolicy? roleAffinity = null)
         {
             _tkbDb            = tkbDb       ?? throw new ArgumentNullException(nameof(tkbDb));
             _elm              = elm         ?? throw new ArgumentNullException(nameof(elm));
@@ -50,7 +80,25 @@ namespace Fdp.Toolkit.NetworkSpawning.Systems
             _localNodeId      = localNodeId;
             _translators      = translators ?? System.Array.Empty<ITkbEntityTranslator>();
             _onEntitySpawned  = onEntitySpawned;
+            _roleAffinity     = roleAffinity;
         }
+
+        /// <summary>
+        /// ⭐⭐⭐ <b><c>P3</c> step 2 — <i>"which of these components are actually MINE?"</i></b>
+        /// 📄 <c>docs/DESIGN_Role_Affinity_Ownership.md</c> §3.2.
+        ///
+        /// <para>⚠ <b>NULL IS A FIRST-CLASS STATE, not the silent-default defect.</b> A node with no policy
+        /// keeps today's behaviour exactly — own everything you materialised — so adoption is incremental
+        /// and nothing changes until a host is handed one. ⭐ That is also what makes the NETWORKLESS host
+        /// correct for free.</para>
+        ///
+        /// <para>⛔ <b>Do not hand this in per host.</b> It comes from <c>EntityCreationContext</c> through
+        /// <c>EntityCreationPack.Build</c>, which builds BOTH consumers of the policy — this system and
+        /// <c>GhostPromotionSystem</c> — so they share one instance BY CONSTRUCTION rather than by
+        /// convention (§3.7). A per-host constructor argument would be the silent-default shape: one
+        /// caller passes it and the next host forgets.</para>
+        /// </summary>
+        private readonly Fdp.Toolkit.Replication.Abstractions.IRoleAffinityPolicy? _roleAffinity;
 
         /// <inheritdoc />
         public void Execute(ISimulationView view, float deltaTime)
@@ -92,7 +140,12 @@ namespace Fdp.Toolkit.NetworkSpawning.Systems
                 return;
             }
 
-            // 4. Create ECS entity and apply TKB blueprint defaults
+            // 4. Create ECS entity and apply TKB blueprint defaults.
+            // ⚠ This loop IS the "Apply TKB template components" step of the spawn flow in
+            //   docs/projects/relationships/Hrot-Simulation-Pipeline.md §4.3, and it is the ONLY writer
+            //   of descriptor-derived components in this method. With an empty _translators it is a
+            //   zero-iteration loop and the entity is born with identity but no type — see the
+            //   `translators` ctor doc.
             var entity = world.CreateEntity();
             // Set lifecycle header immediately so queries that filter by Constructing
             // can find this entity even before all peer ACKs arrive.
@@ -125,6 +178,16 @@ namespace Fdp.Toolkit.NetworkSpawning.Systems
             if (cmd.InitType != ReliableInitType.None)
                 world.AddComponent(entity, new PendingNetworkAck { ExpectedType = cmd.InitType });
 
+            // 7b. ⭐⭐⭐ D2 — a THROWAWAY entity is stamped so the scenario serializer skips it.
+            //   Every node that materialises the entity runs this, so the sketch is excluded from the
+            //   save on the SAVING node too -- which is the whole point: the creator (e.g. an IG) never
+            //   answers the cluster-wide save, but its entity still replicates into worlds that do.
+            //   ⛔ Derived HERE rather than replicated as component state: the decision must survive the
+            //   authoring node disconnecting, and a receiver cannot resolve a departed node's role.
+            //   📄 docs/DESIGN_Node_Roles_And_Policies.md §7.3 (R-140).
+            if (cmd.IsTransient)
+                world.AddComponent(entity, new Fdp.Toolkit.Scenario.ScenarioIgnoreTag());
+
             // 8. Apply caller-supplied component overrides on top of TKB defaults.
             // Fast path: explicitly typed fields, no boxing, no reflection.
             if (cmd.InitialTransform.HasValue)
@@ -145,6 +208,34 @@ namespace Fdp.Toolkit.NetworkSpawning.Systems
                 ref var compNS = ref world.GetComponentMask(entity.Index);
                 ref var metaNS = ref world.GetMetadata(entity.Index);
                 metaNS.AuthorityMask = compNS;
+
+                // ⭐⭐⭐ P3 step 2 — ROLE AFFINITY: decline what this node's role does not cover.
+                //   📄 docs/DESIGN_Role_Affinity_Ownership.md §3.1, §3.2.
+                //
+                //   🔒 User, 2026-09-01: "i do not have brain role -> i will not own brain components, the
+                //   brain will". ⇒ ownership stops being something a creator HANDS OUT and becomes
+                //   something every node DERIVES with the same function — and two nodes running the same
+                //   function over the same entity cannot disagree. That is the whole safety property.
+                //
+                //   ⭐ isCreator: TRUE here by construction — this IS the create leg, so the template's
+                //   birth-critical components are kept WHATEVER this node's role. ⛔ Without that the
+                //   architect's correction bites: a Brain-role creator would produce SimTransform unowned,
+                //   still write the spawn coordinate (SetComponent is not authority-gated), and never
+                //   PUBLISH it, because every egress translator gates on HasAuthority. Every peer's ghost
+                //   would then sit at the origin, silently.
+                //
+                //   ⚠ The intersection is with the LIVE component mask, so naming a component the entity
+                //   never received contributes nothing — which is what makes over-declaring safe.
+                if (_roleAffinity != null)
+                {
+                    var ownable = _roleAffinity.OwnableMask(
+                        template,
+                        isCreator: true,
+                        new Fdp.Toolkit.Replication.Abstractions.RoleShardKey(
+                            networkId, cmd.TkbType, new DISEntityType { Value = disValue }));
+
+                    metaNS.AuthorityMask.BitwiseAnd(in ownable);
+                }
             }
             _onEntitySpawned?.Invoke(world, entity, isLocalAuthority);
 

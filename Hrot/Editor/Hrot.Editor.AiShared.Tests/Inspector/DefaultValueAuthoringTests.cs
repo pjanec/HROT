@@ -284,7 +284,7 @@ public sealed class DefaultValueAuthoringTests
     // ── CT0: PerspectiveWorkspaceRegistrar forwards the accessor ─────────────
 
     [Fact]
-    public void PerspectiveRegistrar_ForwardsExpressionTargetFieldAccessor_ToInspector()
+    public void PerspectiveRegistrar_ForwardsExpressionTargetFieldAccessor_ToNodeProperties()
     {
         Func<object?, string?> accessor = BuildAccessor();
 
@@ -296,12 +296,14 @@ public sealed class DefaultValueAuthoringTests
             debugRegistry:                 new Hrot.Editor.AiShared.Debug.DebugSessionRegistry(),
             expressionTargetFieldAccessor: accessor);
 
-        reg.Inspector.HasExpressionTargetFieldAccessor.Should().BeTrue(
-            "the expressionTargetFieldAccessor passed to the registrar must reach the Inspector");
+        // ⭐ S2: the forwarding target moved from Inspector to NodeProperties — the B-3 default-value
+        //   arm is part of details.nodeproperties now (BP-431). ⚠ The forwarding claim is unchanged.
+        reg.NodeProperties.HasExpressionTargetFieldAccessor.Should().BeTrue(
+            "the expressionTargetFieldAccessor passed to the registrar must reach the node-properties source");
     }
 
     [Fact]
-    public void PerspectiveRegistrar_WithoutAccessor_InspectorHasNone()
+    public void PerspectiveRegistrar_WithoutAccessor_NodePropertiesHasNone()
     {
         var reg = new PerspectiveWorkspaceRegistrar(
             perspectiveName: "BTree",
@@ -310,8 +312,8 @@ public sealed class DefaultValueAuthoringTests
             refactorService: new _StubRefactor(),
             debugRegistry:   new Hrot.Editor.AiShared.Debug.DebugSessionRegistry());
 
-        reg.Inspector.HasExpressionTargetFieldAccessor.Should().BeFalse(
-            "without an accessor, the Inspector's flag must be false");
+        reg.NodeProperties.HasExpressionTargetFieldAccessor.Should().BeFalse(
+            "without an accessor, the node-properties source's flag must be false");
     }
 
     // ── B-5: static-vs-dynamic tooltip constant ───────────────────────────────

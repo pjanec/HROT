@@ -1,6 +1,6 @@
 using Fdp.Core.Serialization.Migrations;
 using Fdp.Core.Serialization.Migrations.Adapters;
-using Hrot.Editor.Migration;
+using Hrot.Editor.AiShared.Scenarios;
 using Xunit;
 
 namespace Hrot.Editor.Tests.Migration;

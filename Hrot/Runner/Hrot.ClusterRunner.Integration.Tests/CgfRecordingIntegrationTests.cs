@@ -42,9 +42,16 @@ public sealed class CgfRecordingIntegrationTests
         string? exerciseId,
         int timeoutFrames = 4000)
     {
+        // ⭐⭐ QA-027 — the enum NAME, not its integer. TransitionPayloadDto's TargetState carries
+        //    [JsonConverter(typeof(StrictStringEnumConverter))] and OrchestrationJsonOptions documents
+        //    itself as rejecting integer enum values "to avoid silent integer-as-enum bugs". An int here
+        //    deserialised to null ⇒ the adapter threw ⇒ ClusterMaster caught it into a Warn log ⇒ the
+        //    cluster silently stayed at state 0 and every wait in this class timed out.
+        string targetStateName = ((Hrot.NED.Descriptors.Orchestration.ClusterState)targetStateId).ToString();
+
         string payloadJson = exerciseId != null
-            ? JsonSerializer.Serialize(new { TargetState = targetStateId, ExerciseId = exerciseId })
-            : JsonSerializer.Serialize(new { TargetState = targetStateId });
+            ? JsonSerializer.Serialize(new { TargetState = targetStateName, ExerciseId = exerciseId })
+            : JsonSerializer.Serialize(new { TargetState = targetStateName });
 
         await harness.OrchestratorSvc.TestHook_ClusterMaster!
             .HandleClusterOpRequestAsync(new ClusterOpRequest

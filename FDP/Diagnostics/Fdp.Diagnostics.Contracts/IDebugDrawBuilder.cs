@@ -78,12 +78,43 @@ namespace Fdp.Toolkit.Diagnostics.Gizmos
             Entity target, FixedString32 richText,
             PipelineTarget targetPipeline = PipelineTarget.All);
 
+        /// <summary>
+        /// ⭐⭐⭐ <b>Takes a NETWORK id, not an <c>Entity</c> — finished 2026-09-10 (CE-259z).</b>
+        ///
+        /// <para>🔒 This is the step <c>.dev/_DONE/gizmos-1/feedback2.md:871</c> specified and nobody
+        /// built: <i>"The Builder Interface: IDebugDrawBuilder is stripped of ECS awareness. Methods like
+        /// DrawEntityLocal will now accept <c>long anchorNetworkId</c> instead of an <c>Entity</c>."</i></para>
+        ///
+        /// <para>⛔⛔ It used to take an <c>Entity</c> and write <c>anchor.Index</c> into offset 8 — but the
+        /// renderer resolves an <c>EntityLocal</c> primitive against a <c>SpatialAnchor</c> cache
+        /// <b>keyed by network id</b> (<c>DebugPrimitiveRenderer2D.cs:63</c> fills it from
+        /// <c>SpatialAnchor.NetworkId</c>, <c>:105</c> probes it with <c>(long)AnchorIndex</c>). ⇒ an ECS
+        /// index missed the cache and the primitive was <b>SILENTLY SKIPPED</b> — drawn nowhere, with no
+        /// error. ⭐ Measured harmless only because it had <b>zero production callers</b>: it was a trap
+        /// for the next author, not a live outage.</para>
+        ///
+        /// <para>⚠ <c>anchorNetworkId</c> must be ≤ <c>int.MaxValue</c> — constraint <c>C7</c>: the cache
+        /// key is 32 bits and cannot be widened (the payload union is full and 64 bytes is a DDS
+        /// invariant). The implementation asserts it rather than wrapping in silence.</para>
+        /// </summary>
         void DrawEntityLocal(
-            Entity anchor, Vector3 localStart, Vector3 localEnd,
+            long anchorNetworkId, Vector3 localStart, Vector3 localEnd,
             Rgba32 color, float thickness = 1f, byte layer = 0);
 
+        /// <summary>
+        /// ⭐ As <see cref="DrawEntityLocal"/>, plus a <paramref name="subElementId"/>.
+        ///
+        /// <para>⛔⛔ <b>"Interactive" IS A MISNOMER FOR THIS SHAPE, and not just because the hit-test
+        /// declines it.</b> It emits a <c>Line</c>, and a Line <b>has no slot for an identity</b>:
+        /// measured 2026-09-10, its payload is <c>LineStart</c> @24-35 + <c>LineEnd</c> @36-47 with
+        /// <c>EndColor</c> @48-51, while <c>BoxAnchorId</c> is a <c>long</c> @44-51 — it OVERLAPS both.
+        /// ⇒ anything pickable must be <c>Box2D</c> or <c>Sphere</c>, whose payloads leave offset 44
+        /// free. That is the structural reason behind <c>CE-259ac</c>, and it means the row cannot be
+        /// closed by teaching the hit-test about lines: the primitive could not carry what it routes on.
+        /// ⭐ <paramref name="subElementId"/> at offset 52 is unaffected and still round-trips.</para>
+        /// </summary>
         void DrawEntityLocalInteractive(
-            Entity anchor, Vector3 localStart, Vector3 localEnd,
+            long anchorNetworkId, Vector3 localStart, Vector3 localEnd,
             Rgba32 color, ushort subElementId,
             float thickness = 1f, byte layer = 0);
 
@@ -148,13 +179,19 @@ namespace Fdp.Toolkit.Diagnostics.Gizmos
         void EmitRaw(in DebugPrimitive prim) { }
 
         /// <summary>
-        /// Emits a world-space sphere primitive anchored to <paramref name="anchor"/>.
+        /// Emits a world-space sphere primitive identified by <paramref name="anchorNetworkId"/>.
         /// The sphere is hit-testable by <c>DebugGizmoLayer</c> -- clicking it triggers
-        /// <c>GizmoInteractionStartedEvent { Token.Target = anchor }</c>.
+        /// <c>GizmoInteractionStartedEvent { Token.AnchorId = anchorNetworkId }</c>.
         /// Default no-op so existing stub implementations compile without changes.
+        ///
+        /// <para>⛔⛔ §6.7 — this took an <c>Entity anchor</c> and stamped its index+generation into
+        /// offsets 8/12. ⚠ That made the sphere UNPICKABLE once the hit-test routed on
+        /// <c>BoxAnchorId</c>: the primitive passed the interactivity pre-filter and then yielded a token
+        /// with <c>AnchorId == 0</c>. ⇒ this is the capability KEPT, not a signature tidied
+        /// (<c>R-137</c>). 📄 <c>docs/DESIGN_Gizmo_Anchor_Identity.md</c> §6.7.</para>
         /// </summary>
         void DrawEntitySphere(
-            Entity anchor,
+            long    anchorNetworkId,
             Vector3 worldCenter,
             float   radius,
             Rgba32  color,

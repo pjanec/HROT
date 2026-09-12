@@ -1,0 +1,1356 @@
+{
+  "perspectives": {
+    "BTree": {
+      "captured": [
+        "ai_blackboard_variables_btree",
+        "ai_breakpoints_btree",
+        "ai_canvas_btree",
+        "ai_details_btree",
+        "ai_diagnostics_btree",
+        "ai_my_blueprint_btree",
+        "ai_runtime_inspector_btree",
+        "editor/_gizmo",
+        "fdp_message_log",
+        "global_menu",
+        "main_toolbar"
+      ],
+      "kinds": {
+        "_gizmo": [
+          "editor/_gizmo"
+        ],
+        "ai-breakpoints": [
+          "ai_breakpoints_btree"
+        ],
+        "blackboard-authoring": [
+          "ai_blackboard_variables_btree"
+        ],
+        "details": [
+          "ai_details_btree"
+        ],
+        "diagnostics": [
+          "ai_diagnostics_btree"
+        ],
+        "global-menu": [
+          "global_menu"
+        ],
+        "graph-canvas": [
+          "ai_canvas_btree"
+        ],
+        "main-toolbar": [
+          "main_toolbar"
+        ],
+        "message-log": [
+          "fdp_message_log"
+        ],
+        "my-blueprint": [
+          "ai_my_blueprint_btree"
+        ],
+        "runtime-inspector": [
+          "ai_runtime_inspector_btree"
+        ]
+      },
+      "models": {
+        "ai_blackboard_variables_btree": {
+          "panelKind": "blackboard-authoring",
+          "shape": [
+            "hardcodedDtoFieldCount: int",
+            "hasActiveAsset: bool",
+            "heavyBudget: int",
+            "inlineBudget: int",
+            "isBlackboardEditorManaged: bool",
+            "panelId: str",
+            "panelKind: str",
+            "requiresHeavyComponent: bool",
+            "totalHeavyBytes: int",
+            "totalInlineBytes: int",
+            "unboundRequirementCount: int",
+            "unboundRequirements[] (empty)",
+            "variableCount: int",
+            "variables[] (empty)",
+            "warning: str"
+          ]
+        },
+        "ai_breakpoints_btree": {
+          "panelKind": "ai-breakpoints",
+          "shape": [
+            "activeCount: int",
+            "panelId: str",
+            "panelKind: str",
+            "totalCount: int"
+          ]
+        },
+        "ai_canvas_btree": {
+          "panelKind": "graph-canvas",
+          "shape": [
+            "activeDocumentDirty: bool",
+            "activeDocumentName: NoneType",
+            "assetKind: str",
+            "breadcrumb: NoneType",
+            "hasActiveDocument: bool",
+            "openDocumentCount: int",
+            "panelId: str",
+            "panelKind: str"
+          ]
+        },
+        "ai_details_btree": {
+          "panelKind": "details",
+          "shape": [
+            "assetId: NoneType",
+            "assetName: NoneType",
+            "chosenViewId: NoneType",
+            "emptyState: str",
+            "entityCount: int",
+            "focus: str",
+            "mode: str",
+            "offeredViewIds[] (empty)",
+            "panelId: str",
+            "panelKind: str",
+            "perspective: str",
+            "selectionCount: int",
+            "showsFloatAndPin: bool",
+            "showsViewSwitch: bool"
+          ]
+        },
+        "ai_diagnostics_btree": {
+          "panelKind": "diagnostics",
+          "shape": [
+            "assetCount: int",
+            "diagnostics[].assetId: str",
+            "diagnostics[].assetName: str",
+            "diagnostics[].code: str",
+            "diagnostics[].message: str",
+            "diagnostics[].severity: str",
+            "hasSchemaDiagnostics: bool",
+            "hasValidators: bool",
+            "panelId: str",
+            "panelKind: str",
+            "totalCount: int"
+          ]
+        },
+        "ai_my_blueprint_btree": {
+          "panelKind": "my-blueprint",
+          "shape": [
+            "emptyReason: str",
+            "hasPanel: bool",
+            "host: NoneType",
+            "panelId: str",
+            "panelKind: str",
+            "sections[] (empty)"
+          ]
+        },
+        "ai_runtime_inspector_btree": {
+          "panelKind": "runtime-inspector",
+          "shape": [
+            "activePaneKind: NoneType",
+            "emptyState: str",
+            "panelId: str",
+            "panelKind: str",
+            "registeredPaneCount: int"
+          ]
+        },
+        "editor/_gizmo": {
+          "panelKind": "gizmoFrame",
+          "shape": [
+            "shape:LayerControlMask",
+            "shape:Line",
+            "shape:MainMenuBinding"
+          ]
+        },
+        "fdp_message_log": {
+          "panelKind": "message-log",
+          "shape": [
+            "panelId: str",
+            "panelKind: str",
+            "showLogger: bool",
+            "showTimestamp: bool",
+            "tabs[].displayName: str",
+            "tabs[].filterText: str",
+            "tabs[].filteredCount: int",
+            "tabs[].filteredMessages[] (empty)",
+            "tabs[].filteredMessages[].loggerName: str",
+            "tabs[].filteredMessages[].message: str",
+            "tabs[].filteredMessages[].severity: str",
+            "tabs[].filteredMessages[].timestamp: str",
+            "tabs[].hasUnobservedAttention: bool",
+            "tabs[].hiddenSeverities[]: str",
+            "tabs[].notificationsEnabled: bool",
+            "tabs[].sourceId: str",
+            "tabs[].totalCount: int"
+          ]
+        },
+        "global_menu": {
+          "panelKind": "global-menu",
+          "shape": [
+            "currentPerspective: str",
+            "items[].kind: str",
+            "items[].path: str",
+            "items[].scopes[]: str",
+            "items[].visible: bool",
+            "panelId: str",
+            "panelKind: str"
+          ]
+        },
+        "main_toolbar": {
+          "panelKind": "main-toolbar",
+          "shape": [
+            "currentPerspective: str",
+            "entries[].id: str",
+            "entries[].kind: str",
+            "entries[].perspective: NoneType",
+            "entries[].sortOrder: int",
+            "entries[].visible: bool",
+            "panelId: str",
+            "panelKind: str"
+          ]
+        }
+      },
+      "registered": [
+        "ai_asset_browser",
+        "ai_asset_browser_find_results",
+        "ai_blackboard_variables_blueprint",
+        "ai_blackboard_variables_btree",
+        "ai_blackboard_variables_hsm",
+        "ai_bookmarks_blueprint",
+        "ai_breakpoints_blueprint",
+        "ai_breakpoints_btree",
+        "ai_breakpoints_hsm",
+        "ai_canvas_blueprint",
+        "ai_canvas_btree",
+        "ai_canvas_hsm",
+        "ai_comparison_changes_blueprint",
+        "ai_comparison_changes_btree",
+        "ai_comparison_changes_hsm",
+        "ai_comparison_summary_blueprint",
+        "ai_comparison_summary_btree",
+        "ai_comparison_summary_hsm",
+        "ai_details_blueprint",
+        "ai_details_btree",
+        "ai_details_hsm",
+        "ai_diagnostics_blueprint",
+        "ai_diagnostics_btree",
+        "ai_diagnostics_hsm",
+        "ai_find_results_blueprint",
+        "ai_find_results_btree",
+        "ai_find_results_hsm",
+        "ai_graph_signature_blueprint",
+        "ai_my_blueprint_blueprint",
+        "ai_my_blueprint_btree",
+        "ai_my_blueprint_hsm",
+        "ai_runtime_inspector_blueprint",
+        "ai_runtime_inspector_btree",
+        "ai_runtime_inspector_hsm",
+        "ai_trace_timeline_blueprint",
+        "ai_trace_timeline_btree",
+        "ai_trace_timeline_hsm",
+        "ai_variable_values_blueprint",
+        "ai_variable_values_btree",
+        "ai_variable_values_hsm",
+        "ai_watch_blueprint",
+        "ai_watch_btree",
+        "ai_watch_hsm",
+        "editor/_gizmo",
+        "editor_architecture_diagnostics",
+        "editor_bp_manager",
+        "editor_config",
+        "editor_fdp_events",
+        "editor_fdp_inspector",
+        "editor_mission",
+        "editor_preview",
+        "editor_shared_orbat",
+        "editor_spawner",
+        "editor_system_profiler",
+        "editor_toolbar",
+        "editor_zone_editor",
+        "entity-blueprints",
+        "entity_blueprints",
+        "excon_cluster_control",
+        "fdp_message_log",
+        "global_menu",
+        "main_toolbar",
+        "orchestrator_diagnostics",
+        "scenario_details"
+      ],
+      "switched": true
+    },
+    "Blueprint": {
+      "captured": [
+        "ai_blackboard_variables_blueprint",
+        "ai_bookmarks_blueprint",
+        "ai_breakpoints_blueprint",
+        "ai_canvas_blueprint",
+        "ai_details_blueprint",
+        "ai_graph_signature_blueprint",
+        "ai_my_blueprint_blueprint",
+        "ai_runtime_inspector_blueprint",
+        "ai_variable_values_blueprint",
+        "ai_watch_blueprint",
+        "editor/_gizmo",
+        "entity-blueprints",
+        "fdp_message_log",
+        "global_menu",
+        "main_toolbar"
+      ],
+      "kinds": {
+        "_gizmo": [
+          "editor/_gizmo"
+        ],
+        "ai-breakpoints": [
+          "ai_breakpoints_blueprint"
+        ],
+        "blackboard-authoring": [
+          "ai_blackboard_variables_blueprint"
+        ],
+        "bookmarks": [
+          "ai_bookmarks_blueprint"
+        ],
+        "details": [
+          "ai_details_blueprint"
+        ],
+        "entity-blueprints": [
+          "entity-blueprints"
+        ],
+        "global-menu": [
+          "global_menu"
+        ],
+        "graph-canvas": [
+          "ai_canvas_blueprint"
+        ],
+        "graph-signature": [
+          "ai_graph_signature_blueprint"
+        ],
+        "main-toolbar": [
+          "main_toolbar"
+        ],
+        "message-log": [
+          "fdp_message_log"
+        ],
+        "my-blueprint": [
+          "ai_my_blueprint_blueprint"
+        ],
+        "runtime-inspector": [
+          "ai_runtime_inspector_blueprint"
+        ],
+        "variables": [
+          "ai_variable_values_blueprint"
+        ],
+        "watch": [
+          "ai_watch_blueprint"
+        ]
+      },
+      "models": {
+        "ai_blackboard_variables_blueprint": {
+          "panelKind": "blackboard-authoring",
+          "shape": [
+            "hardcodedDtoFieldCount: int",
+            "hasActiveAsset: bool",
+            "heavyBudget: int",
+            "inlineBudget: int",
+            "isBlackboardEditorManaged: bool",
+            "panelId: str",
+            "panelKind: str",
+            "requiresHeavyComponent: bool",
+            "totalHeavyBytes: int",
+            "totalInlineBytes: int",
+            "unboundRequirementCount: int",
+            "unboundRequirements[] (empty)",
+            "variableCount: int",
+            "variables[] (empty)",
+            "warning: str"
+          ]
+        },
+        "ai_bookmarks_blueprint": {
+          "panelKind": "bookmarks",
+          "shape": [
+            "bookmarkCount: int",
+            "hasBlueprintOpen: bool",
+            "labels[] (empty)",
+            "panelId: str",
+            "panelKind: str"
+          ]
+        },
+        "ai_breakpoints_blueprint": {
+          "panelKind": "ai-breakpoints",
+          "shape": [
+            "activeCount: int",
+            "panelId: str",
+            "panelKind: str",
+            "totalCount: int"
+          ]
+        },
+        "ai_canvas_blueprint": {
+          "panelKind": "graph-canvas",
+          "shape": [
+            "activeDocumentDirty: bool",
+            "activeDocumentName: NoneType",
+            "assetKind: str",
+            "breadcrumb: NoneType",
+            "hasActiveDocument: bool",
+            "openDocumentCount: int",
+            "panelId: str",
+            "panelKind: str"
+          ]
+        },
+        "ai_details_blueprint": {
+          "panelKind": "details",
+          "shape": [
+            "assetId: NoneType",
+            "assetName: NoneType",
+            "chosenViewId: NoneType",
+            "emptyState: str",
+            "entityCount: int",
+            "focus: str",
+            "mode: str",
+            "offeredViewIds[] (empty)",
+            "panelId: str",
+            "panelKind: str",
+            "perspective: str",
+            "selectionCount: int",
+            "showsFloatAndPin: bool",
+            "showsViewSwitch: bool"
+          ]
+        },
+        "ai_graph_signature_blueprint": {
+          "panelKind": "graph-signature",
+          "shape": [
+            "graphCount: int",
+            "hasAsset: bool",
+            "inputCount: int",
+            "outputCount: int",
+            "panelId: str",
+            "panelKind: str",
+            "selectedGraphKind: NoneType",
+            "selectedGraphName: NoneType"
+          ]
+        },
+        "ai_my_blueprint_blueprint": {
+          "panelKind": "my-blueprint",
+          "shape": [
+            "emptyReason: str",
+            "hasEditableAsset: bool",
+            "hasPanel: bool",
+            "panelId: str",
+            "panelKind: str",
+            "sections[].canCreateItems: bool",
+            "sections[].displayName: str",
+            "sections[].id: str",
+            "sections[].items[] (empty)",
+            "sections[].sortOrder: int"
+          ]
+        },
+        "ai_runtime_inspector_blueprint": {
+          "panelKind": "runtime-inspector",
+          "shape": [
+            "activePaneKind: NoneType",
+            "emptyState: str",
+            "panelId: str",
+            "panelKind: str",
+            "registeredPaneCount: int"
+          ]
+        },
+        "ai_variable_values_blueprint": {
+          "panelKind": "variables",
+          "shape": [
+            "columns: str",
+            "groups[] (empty)",
+            "panelId: str",
+            "panelKind: str",
+            "rowCount: int",
+            "rows[] (empty)",
+            "selectedPath: NoneType",
+            "valueMode: str"
+          ]
+        },
+        "ai_watch_blueprint": {
+          "panelKind": "watch",
+          "shape": [
+            "columns: str",
+            "groups[] (empty)",
+            "panelId: str",
+            "panelKind: str",
+            "rowCount: int",
+            "rows[] (empty)",
+            "selectedPath: NoneType",
+            "valueMode: str"
+          ]
+        },
+        "editor/_gizmo": {
+          "panelKind": "gizmoFrame",
+          "shape": [
+            "shape:LayerControlMask",
+            "shape:Line",
+            "shape:MainMenuBinding"
+          ]
+        },
+        "entity-blueprints": {
+          "panelKind": "entity-blueprints",
+          "shape": [
+            "addOptions[] (empty)",
+            "canApply: bool",
+            "canRevert: bool",
+            "emptyMessage: str",
+            "hasEntity: bool",
+            "panelId: str",
+            "panelKind: str",
+            "projectionLabel: str",
+            "projectionStatus: str",
+            "rows[] (empty)",
+            "simState: str",
+            "tier: str",
+            "title: str"
+          ]
+        },
+        "fdp_message_log": {
+          "panelKind": "message-log",
+          "shape": [
+            "panelId: str",
+            "panelKind: str",
+            "showLogger: bool",
+            "showTimestamp: bool",
+            "tabs[].displayName: str",
+            "tabs[].filterText: str",
+            "tabs[].filteredCount: int",
+            "tabs[].filteredMessages[] (empty)",
+            "tabs[].filteredMessages[].loggerName: str",
+            "tabs[].filteredMessages[].message: str",
+            "tabs[].filteredMessages[].severity: str",
+            "tabs[].filteredMessages[].timestamp: str",
+            "tabs[].hasUnobservedAttention: bool",
+            "tabs[].hiddenSeverities[]: str",
+            "tabs[].notificationsEnabled: bool",
+            "tabs[].sourceId: str",
+            "tabs[].totalCount: int"
+          ]
+        },
+        "global_menu": {
+          "panelKind": "global-menu",
+          "shape": [
+            "currentPerspective: str",
+            "items[].kind: str",
+            "items[].path: str",
+            "items[].scopes[]: str",
+            "items[].visible: bool",
+            "panelId: str",
+            "panelKind: str"
+          ]
+        },
+        "main_toolbar": {
+          "panelKind": "main-toolbar",
+          "shape": [
+            "currentPerspective: str",
+            "entries[].id: str",
+            "entries[].kind: str",
+            "entries[].perspective: NoneType",
+            "entries[].sortOrder: int",
+            "entries[].visible: bool",
+            "panelId: str",
+            "panelKind: str"
+          ]
+        }
+      },
+      "registered": [
+        "ai_asset_browser",
+        "ai_asset_browser_find_results",
+        "ai_blackboard_variables_blueprint",
+        "ai_blackboard_variables_btree",
+        "ai_blackboard_variables_hsm",
+        "ai_bookmarks_blueprint",
+        "ai_breakpoints_blueprint",
+        "ai_breakpoints_btree",
+        "ai_breakpoints_hsm",
+        "ai_canvas_blueprint",
+        "ai_canvas_btree",
+        "ai_canvas_hsm",
+        "ai_comparison_changes_blueprint",
+        "ai_comparison_changes_btree",
+        "ai_comparison_changes_hsm",
+        "ai_comparison_summary_blueprint",
+        "ai_comparison_summary_btree",
+        "ai_comparison_summary_hsm",
+        "ai_details_blueprint",
+        "ai_details_btree",
+        "ai_details_hsm",
+        "ai_diagnostics_blueprint",
+        "ai_diagnostics_btree",
+        "ai_diagnostics_hsm",
+        "ai_find_results_blueprint",
+        "ai_find_results_btree",
+        "ai_find_results_hsm",
+        "ai_graph_signature_blueprint",
+        "ai_my_blueprint_blueprint",
+        "ai_my_blueprint_btree",
+        "ai_my_blueprint_hsm",
+        "ai_runtime_inspector_blueprint",
+        "ai_runtime_inspector_btree",
+        "ai_runtime_inspector_hsm",
+        "ai_trace_timeline_blueprint",
+        "ai_trace_timeline_btree",
+        "ai_trace_timeline_hsm",
+        "ai_variable_values_blueprint",
+        "ai_variable_values_btree",
+        "ai_variable_values_hsm",
+        "ai_watch_blueprint",
+        "ai_watch_btree",
+        "ai_watch_hsm",
+        "editor/_gizmo",
+        "editor_architecture_diagnostics",
+        "editor_bp_manager",
+        "editor_config",
+        "editor_fdp_events",
+        "editor_fdp_inspector",
+        "editor_mission",
+        "editor_preview",
+        "editor_shared_orbat",
+        "editor_spawner",
+        "editor_system_profiler",
+        "editor_toolbar",
+        "editor_zone_editor",
+        "entity-blueprints",
+        "entity_blueprints",
+        "excon_cluster_control",
+        "fdp_message_log",
+        "global_menu",
+        "main_toolbar",
+        "orchestrator_diagnostics",
+        "scenario_details"
+      ],
+      "switched": true
+    },
+    "HSM": {
+      "captured": [
+        "ai_blackboard_variables_hsm",
+        "ai_breakpoints_hsm",
+        "ai_canvas_hsm",
+        "ai_my_blueprint_hsm",
+        "ai_variable_values_hsm",
+        "editor/_gizmo",
+        "fdp_message_log",
+        "global_menu",
+        "main_toolbar"
+      ],
+      "kinds": {
+        "_gizmo": [
+          "editor/_gizmo"
+        ],
+        "ai-breakpoints": [
+          "ai_breakpoints_hsm"
+        ],
+        "blackboard-authoring": [
+          "ai_blackboard_variables_hsm"
+        ],
+        "global-menu": [
+          "global_menu"
+        ],
+        "graph-canvas": [
+          "ai_canvas_hsm"
+        ],
+        "main-toolbar": [
+          "main_toolbar"
+        ],
+        "message-log": [
+          "fdp_message_log"
+        ],
+        "my-blueprint": [
+          "ai_my_blueprint_hsm"
+        ],
+        "variables": [
+          "ai_variable_values_hsm"
+        ]
+      },
+      "models": {
+        "ai_blackboard_variables_hsm": {
+          "panelKind": "blackboard-authoring",
+          "shape": [
+            "hardcodedDtoFieldCount: int",
+            "hasActiveAsset: bool",
+            "heavyBudget: int",
+            "inlineBudget: int",
+            "isBlackboardEditorManaged: bool",
+            "panelId: str",
+            "panelKind: str",
+            "requiresHeavyComponent: bool",
+            "totalHeavyBytes: int",
+            "totalInlineBytes: int",
+            "unboundRequirementCount: int",
+            "unboundRequirements[] (empty)",
+            "variableCount: int",
+            "variables[] (empty)",
+            "warning: str"
+          ]
+        },
+        "ai_breakpoints_hsm": {
+          "panelKind": "ai-breakpoints",
+          "shape": [
+            "activeCount: int",
+            "panelId: str",
+            "panelKind: str",
+            "totalCount: int"
+          ]
+        },
+        "ai_canvas_hsm": {
+          "panelKind": "graph-canvas",
+          "shape": [
+            "activeDocumentDirty: bool",
+            "activeDocumentName: NoneType",
+            "assetKind: str",
+            "breadcrumb: NoneType",
+            "hasActiveDocument: bool",
+            "openDocumentCount: int",
+            "panelId: str",
+            "panelKind: str"
+          ]
+        },
+        "ai_my_blueprint_hsm": {
+          "panelKind": "my-blueprint",
+          "shape": [
+            "emptyReason: str",
+            "hasPanel: bool",
+            "host: NoneType",
+            "panelId: str",
+            "panelKind: str",
+            "sections[] (empty)"
+          ]
+        },
+        "ai_variable_values_hsm": {
+          "panelKind": "variables",
+          "shape": [
+            "columns: str",
+            "groups[] (empty)",
+            "panelId: str",
+            "panelKind: str",
+            "rowCount: int",
+            "rows[] (empty)",
+            "selectedPath: NoneType",
+            "valueMode: str"
+          ]
+        },
+        "editor/_gizmo": {
+          "panelKind": "gizmoFrame",
+          "shape": [
+            "shape:LayerControlMask",
+            "shape:Line",
+            "shape:MainMenuBinding"
+          ]
+        },
+        "fdp_message_log": {
+          "panelKind": "message-log",
+          "shape": [
+            "panelId: str",
+            "panelKind: str",
+            "showLogger: bool",
+            "showTimestamp: bool",
+            "tabs[].displayName: str",
+            "tabs[].filterText: str",
+            "tabs[].filteredCount: int",
+            "tabs[].filteredMessages[] (empty)",
+            "tabs[].filteredMessages[].loggerName: str",
+            "tabs[].filteredMessages[].message: str",
+            "tabs[].filteredMessages[].severity: str",
+            "tabs[].filteredMessages[].timestamp: str",
+            "tabs[].hasUnobservedAttention: bool",
+            "tabs[].hiddenSeverities[]: str",
+            "tabs[].notificationsEnabled: bool",
+            "tabs[].sourceId: str",
+            "tabs[].totalCount: int"
+          ]
+        },
+        "global_menu": {
+          "panelKind": "global-menu",
+          "shape": [
+            "currentPerspective: str",
+            "items[].kind: str",
+            "items[].path: str",
+            "items[].scopes[]: str",
+            "items[].visible: bool",
+            "panelId: str",
+            "panelKind: str"
+          ]
+        },
+        "main_toolbar": {
+          "panelKind": "main-toolbar",
+          "shape": [
+            "currentPerspective: str",
+            "entries[].id: str",
+            "entries[].kind: str",
+            "entries[].perspective: NoneType",
+            "entries[].sortOrder: int",
+            "entries[].visible: bool",
+            "panelId: str",
+            "panelKind: str"
+          ]
+        }
+      },
+      "registered": [
+        "ai_asset_browser",
+        "ai_asset_browser_find_results",
+        "ai_blackboard_variables_blueprint",
+        "ai_blackboard_variables_btree",
+        "ai_blackboard_variables_hsm",
+        "ai_bookmarks_blueprint",
+        "ai_breakpoints_blueprint",
+        "ai_breakpoints_btree",
+        "ai_breakpoints_hsm",
+        "ai_canvas_blueprint",
+        "ai_canvas_btree",
+        "ai_canvas_hsm",
+        "ai_comparison_changes_blueprint",
+        "ai_comparison_changes_btree",
+        "ai_comparison_changes_hsm",
+        "ai_comparison_summary_blueprint",
+        "ai_comparison_summary_btree",
+        "ai_comparison_summary_hsm",
+        "ai_details_blueprint",
+        "ai_details_btree",
+        "ai_details_hsm",
+        "ai_diagnostics_blueprint",
+        "ai_diagnostics_btree",
+        "ai_diagnostics_hsm",
+        "ai_find_results_blueprint",
+        "ai_find_results_btree",
+        "ai_find_results_hsm",
+        "ai_graph_signature_blueprint",
+        "ai_my_blueprint_blueprint",
+        "ai_my_blueprint_btree",
+        "ai_my_blueprint_hsm",
+        "ai_runtime_inspector_blueprint",
+        "ai_runtime_inspector_btree",
+        "ai_runtime_inspector_hsm",
+        "ai_trace_timeline_blueprint",
+        "ai_trace_timeline_btree",
+        "ai_trace_timeline_hsm",
+        "ai_variable_values_blueprint",
+        "ai_variable_values_btree",
+        "ai_variable_values_hsm",
+        "ai_watch_blueprint",
+        "ai_watch_btree",
+        "ai_watch_hsm",
+        "editor/_gizmo",
+        "editor_architecture_diagnostics",
+        "editor_bp_manager",
+        "editor_config",
+        "editor_fdp_events",
+        "editor_fdp_inspector",
+        "editor_mission",
+        "editor_preview",
+        "editor_shared_orbat",
+        "editor_spawner",
+        "editor_system_profiler",
+        "editor_toolbar",
+        "editor_zone_editor",
+        "entity-blueprints",
+        "entity_blueprints",
+        "excon_cluster_control",
+        "fdp_message_log",
+        "global_menu",
+        "main_toolbar",
+        "orchestrator_diagnostics",
+        "scenario_details"
+      ],
+      "switched": true
+    },
+    "Scenario": {
+      "captured": [
+        "editor/_gizmo",
+        "editor_bp_manager",
+        "editor_config",
+        "editor_fdp_events",
+        "editor_fdp_inspector",
+        "editor_mission",
+        "editor_preview",
+        "editor_shared_orbat",
+        "editor_spawner",
+        "editor_toolbar",
+        "editor_zone_editor",
+        "fdp_message_log",
+        "global_menu",
+        "main_toolbar"
+      ],
+      "kinds": {
+        "_gizmo": [
+          "editor/_gizmo"
+        ],
+        "config": [
+          "editor_config"
+        ],
+        "data-breakpoint-manager": [
+          "editor_bp_manager"
+        ],
+        "editor-toolbar": [
+          "editor_toolbar"
+        ],
+        "entity-inspector": [
+          "editor_fdp_inspector"
+        ],
+        "event-browser": [
+          "editor_fdp_events"
+        ],
+        "global-menu": [
+          "global_menu"
+        ],
+        "main-toolbar": [
+          "main_toolbar"
+        ],
+        "message-log": [
+          "fdp_message_log"
+        ],
+        "mission": [
+          "editor_mission"
+        ],
+        "preview": [
+          "editor_preview"
+        ],
+        "shared-orbat": [
+          "editor_shared_orbat"
+        ],
+        "spawner": [
+          "editor_spawner"
+        ],
+        "zone-editor": [
+          "editor_zone_editor"
+        ]
+      },
+      "models": {
+        "editor/_gizmo": {
+          "panelKind": "gizmoFrame",
+          "shape": [
+            "shape:LayerControlMask",
+            "shape:Line",
+            "shape:MainMenuBinding"
+          ]
+        },
+        "editor_bp_manager": {
+          "panelKind": "data-breakpoint-manager",
+          "shape": [
+            "banner.shouldRender: bool",
+            "banner.statusText: str",
+            "breakpoints[] (empty)",
+            "panelId: str",
+            "panelKind: str",
+            "selectedId: NoneType"
+          ]
+        },
+        "editor_config": {
+          "panelKind": "config",
+          "shape": [
+            "airUnits: bool",
+            "grid: bool",
+            "groundUnits: bool",
+            "iconScale: int",
+            "panelId: str",
+            "panelKind: str",
+            "roadGraphs: bool",
+            "satelliteLayer: bool",
+            "tacticalGraphics: bool",
+            "vehicles: bool"
+          ]
+        },
+        "editor_fdp_events": {
+          "panelKind": "event-browser",
+          "shape": [
+            "currentFrameOnly: bool",
+            "disabledTypes[] (empty)",
+            "events[] (empty)",
+            "panelId: str",
+            "panelKind: str",
+            "paused: bool",
+            "selectedCount: int",
+            "selectedEventTypeName: NoneType",
+            "selectedProvider: str",
+            "totalEventCount: int",
+            "visibleEventCount: int"
+          ]
+        },
+        "editor_fdp_inspector": {
+          "panelKind": "entity-inspector",
+          "shape": [
+            "entities[].label: str",
+            "entities[].name: NoneType",
+            "entities[].networkId: NoneType",
+            "panelId: str",
+            "panelKind: str",
+            "searchFilter: str",
+            "selectedComponentTypeNames[] (empty)",
+            "selectedCount: int",
+            "selectedEntityLabel: NoneType",
+            "totalEntityCount: int"
+          ]
+        },
+        "editor_mission": {
+          "panelKind": "mission",
+          "shape": [
+            "activeTaskId: NoneType",
+            "commitButtonEnabled: bool",
+            "commitInFlight: bool",
+            "conflictMessage: NoneType",
+            "hasConflictAlert: bool",
+            "isEntityPickPending: bool",
+            "isLocationPickPending: bool",
+            "panelId: str",
+            "panelKind: str",
+            "selectedEntityId: int",
+            "tasks[] (empty)"
+          ]
+        },
+        "editor_preview": {
+          "panelKind": "preview",
+          "shape": [
+            "isInPreviewMode: bool",
+            "panelId: str",
+            "panelKind: str"
+          ]
+        },
+        "editor_shared_orbat": {
+          "panelKind": "shared-orbat",
+          "shape": [
+            "expandedNodeIds[] (empty)",
+            "filterText: str",
+            "nodes[] (empty)",
+            "panelId: str",
+            "panelKind: str"
+          ]
+        },
+        "editor_spawner": {
+          "panelKind": "spawner",
+          "shape": [
+            "filteredEntries[].name: str",
+            "filteredEntries[].tkbId: int",
+            "panelId: str",
+            "panelKind: str",
+            "searchFilter: str",
+            "selectedAffiliation: str",
+            "selectedType: int"
+          ]
+        },
+        "editor_toolbar": {
+          "panelKind": "editor-toolbar",
+          "shape": [
+            "currentMode: str",
+            "panelId: str",
+            "panelKind: str"
+          ]
+        },
+        "editor_zone_editor": {
+          "panelKind": "zone-editor",
+          "shape": [
+            "obstacleRadius: int",
+            "panelId: str",
+            "panelKind: str",
+            "roadNetworkPath: str",
+            "zoneName: str"
+          ]
+        },
+        "fdp_message_log": {
+          "panelKind": "message-log",
+          "shape": [
+            "panelId: str",
+            "panelKind: str",
+            "showLogger: bool",
+            "showTimestamp: bool",
+            "tabs[].displayName: str",
+            "tabs[].filterText: str",
+            "tabs[].filteredCount: int",
+            "tabs[].filteredMessages[] (empty)",
+            "tabs[].filteredMessages[].loggerName: str",
+            "tabs[].filteredMessages[].message: str",
+            "tabs[].filteredMessages[].severity: str",
+            "tabs[].filteredMessages[].timestamp: str",
+            "tabs[].hasUnobservedAttention: bool",
+            "tabs[].hiddenSeverities[]: str",
+            "tabs[].notificationsEnabled: bool",
+            "tabs[].sourceId: str",
+            "tabs[].totalCount: int"
+          ]
+        },
+        "global_menu": {
+          "panelKind": "global-menu",
+          "shape": [
+            "currentPerspective: str",
+            "items[].kind: str",
+            "items[].path: str",
+            "items[].scopes[]: str",
+            "items[].visible: bool",
+            "panelId: str",
+            "panelKind: str"
+          ]
+        },
+        "main_toolbar": {
+          "panelKind": "main-toolbar",
+          "shape": [
+            "currentPerspective: str",
+            "entries[].id: str",
+            "entries[].kind: str",
+            "entries[].perspective: NoneType",
+            "entries[].sortOrder: int",
+            "entries[].visible: bool",
+            "panelId: str",
+            "panelKind: str"
+          ]
+        }
+      },
+      "registered": [
+        "ai_asset_browser",
+        "ai_asset_browser_find_results",
+        "ai_blackboard_variables_blueprint",
+        "ai_blackboard_variables_btree",
+        "ai_blackboard_variables_hsm",
+        "ai_bookmarks_blueprint",
+        "ai_breakpoints_blueprint",
+        "ai_breakpoints_btree",
+        "ai_breakpoints_hsm",
+        "ai_canvas_blueprint",
+        "ai_canvas_btree",
+        "ai_canvas_hsm",
+        "ai_comparison_changes_blueprint",
+        "ai_comparison_changes_btree",
+        "ai_comparison_changes_hsm",
+        "ai_comparison_summary_blueprint",
+        "ai_comparison_summary_btree",
+        "ai_comparison_summary_hsm",
+        "ai_details_blueprint",
+        "ai_details_btree",
+        "ai_details_hsm",
+        "ai_diagnostics_blueprint",
+        "ai_diagnostics_btree",
+        "ai_diagnostics_hsm",
+        "ai_find_results_blueprint",
+        "ai_find_results_btree",
+        "ai_find_results_hsm",
+        "ai_graph_signature_blueprint",
+        "ai_my_blueprint_blueprint",
+        "ai_my_blueprint_btree",
+        "ai_my_blueprint_hsm",
+        "ai_runtime_inspector_blueprint",
+        "ai_runtime_inspector_btree",
+        "ai_runtime_inspector_hsm",
+        "ai_trace_timeline_blueprint",
+        "ai_trace_timeline_btree",
+        "ai_trace_timeline_hsm",
+        "ai_variable_values_blueprint",
+        "ai_variable_values_btree",
+        "ai_variable_values_hsm",
+        "ai_watch_blueprint",
+        "ai_watch_btree",
+        "ai_watch_hsm",
+        "editor/_gizmo",
+        "editor_architecture_diagnostics",
+        "editor_bp_manager",
+        "editor_config",
+        "editor_fdp_events",
+        "editor_fdp_inspector",
+        "editor_mission",
+        "editor_preview",
+        "editor_shared_orbat",
+        "editor_spawner",
+        "editor_system_profiler",
+        "editor_toolbar",
+        "editor_zone_editor",
+        "entity-blueprints",
+        "entity_blueprints",
+        "excon_cluster_control",
+        "fdp_message_log",
+        "global_menu",
+        "main_toolbar",
+        "orchestrator_diagnostics",
+        "scenario_details"
+      ],
+      "switched": true
+    }
+  },
+  "union": {
+    "captured": [
+      "ai_blackboard_variables_blueprint",
+      "ai_blackboard_variables_btree",
+      "ai_blackboard_variables_hsm",
+      "ai_bookmarks_blueprint",
+      "ai_breakpoints_blueprint",
+      "ai_breakpoints_btree",
+      "ai_breakpoints_hsm",
+      "ai_canvas_blueprint",
+      "ai_canvas_btree",
+      "ai_canvas_hsm",
+      "ai_details_blueprint",
+      "ai_details_btree",
+      "ai_diagnostics_btree",
+      "ai_graph_signature_blueprint",
+      "ai_my_blueprint_blueprint",
+      "ai_my_blueprint_btree",
+      "ai_my_blueprint_hsm",
+      "ai_runtime_inspector_blueprint",
+      "ai_runtime_inspector_btree",
+      "ai_variable_values_blueprint",
+      "ai_variable_values_hsm",
+      "ai_watch_blueprint",
+      "editor/_gizmo",
+      "editor_bp_manager",
+      "editor_config",
+      "editor_fdp_events",
+      "editor_fdp_inspector",
+      "editor_mission",
+      "editor_preview",
+      "editor_shared_orbat",
+      "editor_spawner",
+      "editor_toolbar",
+      "editor_zone_editor",
+      "entity-blueprints",
+      "fdp_message_log",
+      "global_menu",
+      "main_toolbar"
+    ],
+    "kinds": {
+      "_gizmo": [
+        "editor/_gizmo"
+      ],
+      "ai-breakpoints": [
+        "ai_breakpoints_blueprint",
+        "ai_breakpoints_btree",
+        "ai_breakpoints_hsm"
+      ],
+      "blackboard-authoring": [
+        "ai_blackboard_variables_blueprint",
+        "ai_blackboard_variables_btree",
+        "ai_blackboard_variables_hsm"
+      ],
+      "bookmarks": [
+        "ai_bookmarks_blueprint"
+      ],
+      "config": [
+        "editor_config"
+      ],
+      "data-breakpoint-manager": [
+        "editor_bp_manager"
+      ],
+      "details": [
+        "ai_details_blueprint",
+        "ai_details_btree"
+      ],
+      "diagnostics": [
+        "ai_diagnostics_btree"
+      ],
+      "editor-toolbar": [
+        "editor_toolbar"
+      ],
+      "entity-blueprints": [
+        "entity-blueprints"
+      ],
+      "entity-inspector": [
+        "editor_fdp_inspector"
+      ],
+      "event-browser": [
+        "editor_fdp_events"
+      ],
+      "global-menu": [
+        "global_menu"
+      ],
+      "graph-canvas": [
+        "ai_canvas_blueprint",
+        "ai_canvas_btree",
+        "ai_canvas_hsm"
+      ],
+      "graph-signature": [
+        "ai_graph_signature_blueprint"
+      ],
+      "main-toolbar": [
+        "main_toolbar"
+      ],
+      "message-log": [
+        "fdp_message_log"
+      ],
+      "mission": [
+        "editor_mission"
+      ],
+      "my-blueprint": [
+        "ai_my_blueprint_blueprint",
+        "ai_my_blueprint_btree",
+        "ai_my_blueprint_hsm"
+      ],
+      "preview": [
+        "editor_preview"
+      ],
+      "runtime-inspector": [
+        "ai_runtime_inspector_blueprint",
+        "ai_runtime_inspector_btree"
+      ],
+      "shared-orbat": [
+        "editor_shared_orbat"
+      ],
+      "spawner": [
+        "editor_spawner"
+      ],
+      "variables": [
+        "ai_variable_values_blueprint",
+        "ai_variable_values_hsm"
+      ],
+      "watch": [
+        "ai_watch_blueprint"
+      ],
+      "zone-editor": [
+        "editor_zone_editor"
+      ]
+    },
+    "registered": [
+      "ai_asset_browser",
+      "ai_asset_browser_find_results",
+      "ai_blackboard_variables_blueprint",
+      "ai_blackboard_variables_btree",
+      "ai_blackboard_variables_hsm",
+      "ai_bookmarks_blueprint",
+      "ai_breakpoints_blueprint",
+      "ai_breakpoints_btree",
+      "ai_breakpoints_hsm",
+      "ai_canvas_blueprint",
+      "ai_canvas_btree",
+      "ai_canvas_hsm",
+      "ai_comparison_changes_blueprint",
+      "ai_comparison_changes_btree",
+      "ai_comparison_changes_hsm",
+      "ai_comparison_summary_blueprint",
+      "ai_comparison_summary_btree",
+      "ai_comparison_summary_hsm",
+      "ai_details_blueprint",
+      "ai_details_btree",
+      "ai_details_hsm",
+      "ai_diagnostics_blueprint",
+      "ai_diagnostics_btree",
+      "ai_diagnostics_hsm",
+      "ai_find_results_blueprint",
+      "ai_find_results_btree",
+      "ai_find_results_hsm",
+      "ai_graph_signature_blueprint",
+      "ai_my_blueprint_blueprint",
+      "ai_my_blueprint_btree",
+      "ai_my_blueprint_hsm",
+      "ai_runtime_inspector_blueprint",
+      "ai_runtime_inspector_btree",
+      "ai_runtime_inspector_hsm",
+      "ai_trace_timeline_blueprint",
+      "ai_trace_timeline_btree",
+      "ai_trace_timeline_hsm",
+      "ai_variable_values_blueprint",
+      "ai_variable_values_btree",
+      "ai_variable_values_hsm",
+      "ai_watch_blueprint",
+      "ai_watch_btree",
+      "ai_watch_hsm",
+      "editor/_gizmo",
+      "editor_architecture_diagnostics",
+      "editor_bp_manager",
+      "editor_config",
+      "editor_fdp_events",
+      "editor_fdp_inspector",
+      "editor_mission",
+      "editor_preview",
+      "editor_shared_orbat",
+      "editor_spawner",
+      "editor_system_profiler",
+      "editor_toolbar",
+      "editor_zone_editor",
+      "entity-blueprints",
+      "entity_blueprints",
+      "excon_cluster_control",
+      "fdp_message_log",
+      "global_menu",
+      "main_toolbar",
+      "orchestrator_diagnostics",
+      "scenario_details"
+    ]
+  }
+}

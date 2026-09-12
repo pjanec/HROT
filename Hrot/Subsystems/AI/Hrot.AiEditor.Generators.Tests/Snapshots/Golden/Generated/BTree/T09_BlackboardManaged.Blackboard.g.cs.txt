@@ -1,0 +1,16 @@
+// HROT_EDITOR_GENERATED - manual edits to this file will be overwritten by the AI editor on next save.
+// AssetId: bb000009-0000-0000-0000-000000000000
+
+using System.Runtime.InteropServices;
+
+namespace Hrot.AI.Behaviors.Trees;
+
+[StructLayout(LayoutKind.Sequential)]
+public struct T09_BlackboardManaged_Blackboard
+{
+    public float AttackRange;
+    public global::System.Numerics.Vector3 HomePosition;
+    public int PatrolLoops;
+    [MarshalAs(UnmanagedType.I1)]
+    public bool IsAlerted;
+}

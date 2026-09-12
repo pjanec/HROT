@@ -78,11 +78,13 @@ namespace Hrot.SimHost.Serializers
             EntityRepository repo, Entity entity,
             Dictionary<string, object> scenarioData, IGuidResolver resolver)
         {
-            if (scenarioData.TryGetValue(OutputKey, out var rawValue)
-                && rawValue is JsonArray jsonArray)
+            // ⭐ QA-023 (MX-033) — the assignments value can arrive as a JsonArray (JsonNode DOM, the shape
+            //    Extract emits) OR a JsonElement of kind Array (e.g. a scenario loaded through a
+            //    System.Text.Json reader). Matching only JsonArray dropped the intent on the JsonElement
+            //    path (Test5b, the mixed legacy+new-key case). Accept every JSON-array shape.
+            if (scenarioData.TryGetValue(OutputKey, out var rawValue))
             {
-                var dtos = JsonSerializer.Deserialize<List<BlueprintAssignmentDto>>(
-                    jsonArray, FdpJsonOptionsRegistry.DefaultRelaxed);
+                var dtos = DeserializeAssignments(rawValue);
                 if (dtos != null && dtos.Count > 0)
                 {
                     var intent = new InitialBlueprintsIntent();
@@ -92,6 +94,26 @@ namespace Hrot.SimHost.Serializers
             }
 
             // Legacy keys: no-op — consumed by GetOutputDomKeys black-hole.
+        }
+
+        /// <summary>
+        /// Deserializes the <c>BlueprintAssignments</c> value into DTOs regardless of the JSON shape it
+        /// arrives in — a <see cref="JsonArray"/> (the DOM shape <see cref="Extract"/> emits), a
+        /// <see cref="JsonElement"/> of kind Array (a reader-loaded scenario), or a raw JSON string.
+        /// Returns <c>null</c> for anything that is not a JSON array (QA-023).
+        /// </summary>
+        private static List<BlueprintAssignmentDto>? DeserializeAssignments(object? rawValue)
+        {
+            var opts = FdpJsonOptionsRegistry.DefaultRelaxed;
+            return rawValue switch
+            {
+                JsonArray jsonArray => JsonSerializer.Deserialize<List<BlueprintAssignmentDto>>(jsonArray, opts),
+                JsonElement je when je.ValueKind == JsonValueKind.Array
+                    => je.Deserialize<List<BlueprintAssignmentDto>>(opts),
+                string s when !string.IsNullOrWhiteSpace(s)
+                    => JsonSerializer.Deserialize<List<BlueprintAssignmentDto>>(s, opts),
+                _ => null,
+            };
         }
 
         public IEnumerable<string> GetOutputDomKeys()
@@ -160,14 +182,39 @@ namespace Hrot.SimHost.Serializers
                     continue;
 
                 Guid assetId = Guid.Empty;
+                BlueprintDefinition? def = null;
                 if (_registry != null
-                    && _registry.TryGetById(slot.BlueprintId, out var def)
-                    && def != null)
+                    && _registry.TryGetById(slot.BlueprintId, out var d)
+                    && d != null)
                 {
-                    assetId = def.AssetId;
+                    assetId = d.AssetId;
+                    def     = d;
                 }
 
-                dtos.Add(new BlueprintAssignmentDto { AssetId = assetId });
+                // ⭐⭐ MX-031 — persist the RESOLVED PARAM BYTES (the resolver shape, not an Overrides dict:
+                //    EXPLAINER §"two supply shapes"). Only when they DIFFER from InitDefault, so a
+                //    default assignment stays { AssetId } only. The bytes are layout-versioned, so the
+                //    def's StructureHash rides along for the load-time guard.
+                byte[]? paramsBytes = null;
+                ulong?  paramsHash  = null;
+                if (def != null && def.ParamsSize > 0)
+                {
+                    byte* payload = memory + slot.PayloadOffset;
+                    var live = BlueprintInstanceService.ReadParamsRegion(payload, def);
+                    var dflt = BlueprintInstanceService.GetDefaultParamsRegion(def);
+                    if (!live.AsSpan().SequenceEqual(dflt))
+                    {
+                        paramsBytes = live;
+                        paramsHash  = def.StructureHash;
+                    }
+                }
+
+                dtos.Add(new BlueprintAssignmentDto
+                {
+                    AssetId             = assetId,
+                    Params              = paramsBytes,
+                    ParamsStructureHash = paramsHash,
+                });
             }
         }
 

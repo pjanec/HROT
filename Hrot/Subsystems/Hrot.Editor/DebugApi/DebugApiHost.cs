@@ -1,0 +1,1920 @@
+using System;
+using System.Collections.Generic;
+using System.Diagnostics;
+using System.IO;
+using System.Linq;
+using System.Net;
+using System.Text;
+using System.Text.Json;
+using System.Text.Json.Nodes;
+using System.Threading.Tasks;
+
+namespace Hrot.Editor.DebugApi
+{
+    /// <summary>
+    /// Lightweight <see cref="HttpListener"/>-based HTTP host for the AI Debug API.
+    /// No ASP.NET Core / generic host dependency.
+    ///
+    /// <para>
+    /// Routing is table-driven (<see cref="RouteEntry"/>). World-touching handlers run on the
+    /// main thread via <see cref="MainThreadJobQueue"/>; the payload they return is a
+    /// <see cref="JsonNode"/> that is embedded verbatim in the response envelope so it is never
+    /// re-cased by the host's CamelCase options (the keys inside a JsonNode are written as-is).
+    /// </para>
+    /// </summary>
+    public sealed class DebugApiHost : IDisposable
+    {
+        private readonly int _port;
+        private readonly MainThreadJobQueue _jobQueue;
+        private readonly Action _shutdownCallback;
+        private readonly HttpListener _listener = new HttpListener();
+        private readonly List<RouteEntry> _routes = new();
+        private DebugApiService? _service;
+        private bool _disposed;
+
+        /// <summary>Maximum wall-clock seconds to wait for a scenario load to reach OperatingEdit.</summary>
+        private const double ScenarioReadyTimeoutSeconds = 30.0;
+
+        /// <summary>
+        /// ⚠⚠ <b><c>HN-015</c> — REGISTERING THE SAFE-FLOAT CONVERTERS HERE DOES NOT FIX THE 500. Measured,
+        /// and recorded so nobody repeats the attempt.</b>
+        ///
+        /// <para>📐 <b>The symptom:</b> spawn one entity at runtime, then <c>GET /entities</c> ⇒ HTTP 500,
+        /// <i>"positive and negative infinity cannot be written as valid JSON"</i>. ⇒ one entity with a
+        /// non-finite float takes down the WHOLE listing.</para>
+        ///
+        /// <para>⛔⛔ <b>But the throw is UPSTREAM of this options object.</b> 📐 The payload reaches the host
+        /// as an already-built <c>JsonNode</c> *(see the class remarks — deliberately, so keys are not
+        /// re-cased)*, and the write that fails happens inside
+        /// <c>EntityStateExtractionService.ExtractEntities</c> → <c>ScenarioSerializer.SerializeEntity</c>.
+        /// ⇒ ⛔ converters added to the HOST's options are never consulted for it. 📌 <b>Tried and measured
+        /// on `2026-08-23`: the 500 was unchanged</b>, so the registration was reverted rather than left in
+        /// place looking like a fix.</para>
+        ///
+        /// <para>⭐⭐ <b>Where the real fix has to go, and why it is not a drive-by:</b> either the SCENARIO
+        /// SERIALIZER learns sentinels *(⚠ that changes the on-disk scenario format — persistence blast
+        /// radius)*, or <c>ExtractEntities</c> becomes resilient PER ENTITY so one bad row cannot kill the
+        /// listing *(⭐ the containment fix, and the disproportionate part of the defect)*, or the
+        /// un-initialised transform that carries the <c>Infinity</c> is fixed at the source. ⇒ ⭐ a design
+        /// call, not a serialisation tweak — 📌 <c>DebugApiSafeFloatConverters.cs</c> still has ZERO
+        /// application sites, and that remains a real finding.</para>
+        /// </summary>
+        private static readonly JsonSerializerOptions _jsonOptions = new JsonSerializerOptions
+        {
+            PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
+            WriteIndented = false
+        };
+
+        /// <summary>⭐ How this process was started — reported by <c>GET /capabilities</c>. See its remarks.</summary>
+        private readonly string _mode;
+
+        /// <summary>⭐ Cluster mode only: supplies the MEASURED per-perspective capability matrix.</summary>
+        private Hrot.Presentation.DebugApi.PerspectiveScopedDispatcher? _dispatcher;
+
+        public DebugApiHost(int port, MainThreadJobQueue jobQueue, Action shutdownCallback, string mode = "editor")
+        {
+            _port = port;
+            _jobQueue = jobQueue;
+            _shutdownCallback = shutdownCallback;
+            _mode = mode;
+        }
+
+        /// <summary>
+        /// ⭐⭐ Cluster mode: hands the host the dispatcher so <c>GET /capabilities</c> can report the
+        /// per-perspective matrix it MEASURES. ⛔ Not needed in editor mode *(one context)*.
+        /// </summary>
+        public void AttachDispatcher(Hrot.Presentation.DebugApi.PerspectiveScopedDispatcher dispatcher)
+            => _dispatcher = dispatcher;
+
+        /// <summary>
+        /// Supplies the service layer once the editor has finished initializing. Until this is
+        /// called, capability endpoints return 503; <c>/status</c> and <c>/shutdown</c> still work.
+        /// </summary>
+        public void AttachService(DebugApiService service) => _service = service;
+
+        /// <summary>Starts the HTTP listener and the background accept loop.</summary>
+        public void Start()
+        {
+            BuildRoutes();
+            _listener.Prefixes.Add($"http://localhost:{_port}/");
+            _listener.Start();
+            _ = Task.Run(AcceptLoopAsync);
+        }
+
+        // ── Route table ─────────────────────────────────────────────────────────
+
+        private delegate Task<RouteResult> RouteHandler(RequestContext ctx);
+
+        /// <param name="NeedsService">
+        /// ⭐ <see langword="false"/> for a route that answers without the service layer, so the
+        /// *"Debug API not ready"* 503 gate below does not apply to it. ⛔ Only <c>/shutdown</c> today.
+        /// </param>
+        /// <param name="AfterResponse">
+        /// ⭐⭐ Runs AFTER the response has been written. ⛔ Exists for exactly one reason: <c>/shutdown</c>
+        /// must answer <b>before</b> it tears the process down, and a handler that shut down first would kill
+        /// the process with the client still waiting for its 200.
+        /// </param>
+        private sealed record RouteEntry(
+            string Method,
+            string Template,
+            RouteHandler Handler,
+            bool NeedsService = true,
+            Action? AfterResponse = null);
+
+        /// <param name="Fault">
+        /// ⭐⭐ <c>CE-190</c> — where an unhandled exception actually happened. Set only on the 500 paths;
+        /// see <see cref="DebugApiFault"/> for why the site travels in BOTH this field and the
+        /// <see cref="Error"/> string.
+        /// </param>
+        private readonly record struct RouteResult(
+            int Status, JsonNode? Data, string? Error, JsonNode? Hint = null, JsonNode? Fault = null);
+
+        private static RouteResult Ok(JsonNode? data) => new(200, data, null);
+
+        /// <summary>
+        /// ⭐⭐ <c>CE-107</c> — a SUCCESS that still carries advice. ⛔ Not an error: the request was served,
+        /// but the caller may not have got what they meant *(a filter that was silently ignored, a default
+        /// that is wrong for this host)*. ⚠ Leniency is right for a diagnostic endpoint; going SILENT about
+        /// it is not.
+        /// </summary>
+        private static RouteResult OkWithHint(JsonNode? data, string why)
+            => new(200, data, null, new JsonObject { ["why"] = why });
+
+        /// <summary>
+        /// Fails a request, optionally attaching the machine-readable pointer for
+        /// <paramref name="hintCategory"/> (<c>MX8</c>). ⭐ Pass a category wherever the caller could
+        /// have got the input right by asking the API first — a bad condition, an unknown entity, an
+        /// unregistered component. ⛔ Never hand-write a <c>seeEndpoint</c> here; the map owns them.
+        /// </summary>
+        private static RouteResult Fail(int status, string error, string? hintCategory = null)
+            => new(status, null, error, DebugApiHints.For(hintCategory));
+
+        /// <summary>
+        /// ⭐⭐ <c>CE-190</c> — <see cref="Fail"/> for a route that CAUGHT an exception: same envelope, plus
+        /// the throw site in <c>fault</c>.
+        /// </summary>
+        /// <remarks>
+        /// ⛔ The <paramref name="error"/> string stays the caller's own sentence — a route that has built a
+        /// better explanation than the raw exception (<i>"the mission verb threw before it acknowledged"</i>)
+        /// must keep it. ⭐ This only adds the location the sentence could never carry.
+        /// </remarks>
+        private static RouteResult FailFault(int status, string error, Exception ex, string? hintCategory = null)
+            => new(status, null, error, DebugApiHints.For(hintCategory), DebugApiFault.Describe(ex));
+
+        /// <summary>
+        /// ⭐⭐ The status classification the AUTHORING routes share *(Group W)*, in one place so six
+        /// handlers cannot disagree about what a given refusal MEANS.
+        /// </summary>
+        /// <remarks>
+        /// ⭐ Three distinct causes, three codes — 📌 the <c>/perspective</c> lesson: collapsing them makes
+        /// a wiring defect look like a bad request.
+        /// <list type="bullet">
+        ///   <item><b>503</b> — the host wires no asset shell / no create path. A COMPOSITION defect; the
+        ///   caller could not have avoided it.</item>
+        ///   <item><b>404</b> — the asset is not open, or the id names nothing. An addressing mistake the
+        ///   caller fixes by opening the asset or re-reading the graph.</item>
+        ///   <item><b>400</b> — the body is malformed, or the EDITOR ITSELF refused the edit *(an invalid
+        ///   wire, an unknown node kind, a value the pin cannot hold)*. ⚠ A refusal by the validator is a
+        ///   legitimate answer, ⛔ not a server error.</item>
+        /// </list>
+        /// </remarks>
+        private static RouteResult AuthoringResult(JsonNode? result, string? error, string? hintCategory)
+        {
+            if (error == null) return Ok(result);
+
+            if (error.StartsWith("No AI-asset shell", StringComparison.Ordinal)
+             || error.StartsWith("This host wires no", StringComparison.Ordinal))
+                return Fail(503, error, hintCategory);
+
+            if (error.StartsWith("No OPEN document", StringComparison.Ordinal)
+             || error.Contains("is not a pin in this graph", StringComparison.Ordinal)
+             || error.StartsWith("Not in this graph", StringComparison.Ordinal))
+                return Fail(404, error, hintCategory);
+
+            return Fail(400, error, hintCategory);
+        }
+
+        /// <summary>
+        /// ⭐⭐⭐ <b>The route table, without binding a port or booting anything</b> — <c>HN-030</c>'s enabling
+        /// seam, and the reason generation is cheap.
+        ///
+        /// <para>📐 <see cref="BuildRoutes"/> only CREATES closures; nothing in it touches the service, the
+        /// world or the listener. ⇒ ⭐ a throwaway host can enumerate the complete table in-process, which is
+        /// what both <c>EveryRouteIsDocumentedTests</c> and <c>--mode dump-api</c> need. ⛔ Neither has to run
+        /// an editor to ask what the API looks like.</para>
+        /// </summary>
+        public static IReadOnlyList<(string Method, string Template)> EnumerateRouteTemplates()
+        {
+            var probe = new DebugApiHost(0, new MainThreadJobQueue(), static () => { });
+            probe.BuildRoutes();
+            return probe._routes.Select(r => (r.Method, r.Template)).ToList();
+        }
+
+        /// <summary>
+        /// ⭐⭐⭐ <b>The manifest as a JSON string, for <c>--mode dump-api</c></b> — the artefact
+        /// <c>tools/ai-debug-mcp</c> generates its catalog from.
+        ///
+        /// <para>⭐ The DESCRIPTION half *(endpoints + their <see cref="RouteDoc"/>s)* is all the generator
+        /// reads, and it is host-independent. ⚠ The AVAILABILITY half is deliberately reported as
+        /// <c>"dump"</c> mode with every editor cell <see langword="true"/>: a dump is not a running host and
+        /// must not be mistaken for one. ⛔ Ask a LIVE <c>GET /capabilities</c> for what a host can actually
+        /// do.</para>
+        /// </summary>
+        public static string DumpManifestJson()
+        {
+            var caps = new Dictionary<string, bool>(StringComparer.Ordinal);
+            foreach (var key in new[]
+                     {
+                         Hrot.Presentation.DebugApi.DebugCapabilities.WorldRead,
+                         Hrot.Presentation.DebugApi.DebugCapabilities.EntityMap,
+                         Hrot.Presentation.DebugApi.DebugCapabilities.TimeDrive,
+                         Hrot.Presentation.DebugApi.DebugCapabilities.Panels,
+                         Hrot.Presentation.DebugApi.DebugCapabilities.GizmoFrame,
+                         Hrot.Presentation.DebugApi.DebugCapabilities.Preview,
+                         Hrot.Presentation.DebugApi.DebugCapabilities.EditorAuthoring,
+                         Hrot.Presentation.DebugApi.DebugCapabilities.ScenarioLoad,
+                     })
+                caps[key] = true;
+
+            var manifest = CapabilityManifest.Build(
+                EnumerateRouteTemplates(), "dump", dispatcher: null, editorCapabilities: caps);
+
+            // ⚠ JsonSerializer.Serialize, NOT node.ToJsonString(options). 📐 Measured: passing a fresh
+            //   JsonSerializerOptions to ToJsonString marks it read-only WITHOUT attaching the default
+            //   reflection-based TypeInfoResolver, and the write then throws
+            //   "JsonSerializerOptions instance must specify a TypeInfoResolver". ⭐ Going through
+            //   JsonSerializer attaches it. 📌 Which is why the HTTP path, which serializes the same nodes
+            //   through JsonSerializer, never hit this.
+            return JsonSerializer.Serialize(manifest, new JsonSerializerOptions { WriteIndented = true });
+        }
+
+        private void BuildRoutes()
+        {
+            // Group A — status
+            _routes.Add(new("GET", "/status", _ => RunMain(s => s.GetStatus())));
+
+            // ⭐⭐ /shutdown IS A ROUTE. 📌 It used to be handled inline before route dispatch, which made it
+            //    invisible to GET /capabilities — a real endpoint the manifest did not list, in the very
+            //    surface whose whole claim is "enumerated from the live route table, so it cannot drift".
+            // ⭐ Two flags carry what the inline path was really doing: it answers with no service attached,
+            //    and it tears the process down only AFTER the 200 has been written.
+            _routes.Add(new("POST", "/shutdown", _ => Task.FromResult(Ok(null)),
+                NeedsService:   false,
+                AfterResponse:  () => _shutdownCallback?.Invoke()));
+
+            // ⭐⭐⭐ GET /capabilities — D4's teaching surface. 📄 Architect_Question_54 § Manifest scope.
+            // ⛔ The DESCRIPTION is enumerated from `_routes` itself, so it cannot drift from the code; the
+            //    AVAILABILITY matrix is measured from wired dependencies. ⚠ Registered here but evaluated
+            //    per request, so it always describes the COMPLETE table (including routes added below).
+            _routes.Add(new("GET", "/capabilities", _ => Task.FromResult(Ok(
+                CapabilityManifest.Build(
+                    _routes.Select(r => (r.Method, r.Template)),
+                    _mode,
+                    _dispatcher,
+                    // ⭐ Editor mode: one context, and every cell is measured from the service being
+                    //   constructible with those deps at all.
+                    _dispatcher is null
+                        ? new Dictionary<string, bool>(StringComparer.Ordinal)
+                          {
+                              [Hrot.Presentation.DebugApi.DebugCapabilities.WorldRead]        = true,
+                              [Hrot.Presentation.DebugApi.DebugCapabilities.EntityMap]        = true,
+                              [Hrot.Presentation.DebugApi.DebugCapabilities.TimeDrive]        = true,
+                              [Hrot.Presentation.DebugApi.DebugCapabilities.Panels]           = true,
+                              [Hrot.Presentation.DebugApi.DebugCapabilities.GizmoFrame]       = true,
+                              [Hrot.Presentation.DebugApi.DebugCapabilities.Preview]          = true,
+                              [Hrot.Presentation.DebugApi.DebugCapabilities.EditorAuthoring]  = true,
+                              // ⭐ HN-029: the editor is a ONE-NODE cluster and its own ClusterMaster reads
+                              //   the bus the composition root hands over ⇒ it can request a transition.
+                              [Hrot.Presentation.DebugApi.DebugCapabilities.ScenarioLoad]     = true,
+                          }
+                        : null)))));
+
+            // Group B — entities (with optional ?component= and ?near= filters)
+            _routes.Add(new("GET", "/entities", ctx =>
+            {
+                var comp = ctx.Query("component");
+                var near = ctx.Query("near");
+                return RunMain(s => s.ListEntities(comp, near));
+            }));
+            _routes.Add(new("GET", "/entities/{networkId}", async ctx =>
+            {
+                if (!long.TryParse(ctx.RouteValue("networkId"), out var id))
+                    return Fail(400, "Invalid networkId.");
+                var node = await _jobQueue.RunOnMainThread(() => Service().DumpEntity(id)).ConfigureAwait(false);
+                return node is null
+                    ? Fail(404, $"Entity {id} not found. List entities with GET /entities.", DebugApiHints.Entity)
+                    : Ok(node);
+            }));
+
+            // Group C — event history (retrieval + DTO mapping are thread-safe → no marshalling)
+            _routes.Add(new("GET", "/events", ctx =>
+            {
+                var bus   = ctx.Query("bus") ?? "world";
+                var type  = ctx.Query("type");
+                uint.TryParse(ctx.Query("since"), out var since);
+                int max   = int.TryParse(ctx.Query("max"), out var m) ? m : DebugApiService.DefaultMaxEvents;
+                return Task.FromResult(Ok(Service().GetEvents(bus, type, since, max)));
+            }));
+
+            // Group J — Logs (off-thread: sinks are lock-guarded, no RunMain needed)
+            _routes.Add(new("GET", "/logs", ctx =>
+            {
+                var level  = ctx.Query("level");
+                var logger = ctx.Query("logger");
+                var since  = ctx.Query("since");
+                int max    = int.TryParse(ctx.Query("max"), out var m) ? m : DebugApiService.DefaultMaxLogs;
+
+                var logs = Service().GetLogs(level, logger, since, max);
+
+                // ⭐⭐⭐ CE-107 — SAY WHAT WAS UNDERSTOOD. 📐 Measured `2026-08-28`: a call written as
+                //    `/logs?limit=400` returned the WHOLE unfiltered ring — `limit` is not a parameter (it is
+                //    `max`) and nothing said so — and on a cluster that ring is ~90% time-sync Trace chatter.
+                //    ⇒ 🔴 the answer looked plausible and was to a different question; it produced a
+                //    fabricated root cause before anyone noticed. ⛔ Still lenient (no 400): the fix is
+                //    TELLING the caller, not refusing them.
+                var unknown = ctx.QueryKeys
+                    .Where(k => k is not ("level" or "logger" or "since" or "max"))
+                    .ToArray();
+
+                var advice = new List<string>();
+                if (unknown.Length > 0)
+                    advice.Add($"ignored unknown query key(s) [{string.Join(", ", unknown)}] — "
+                             + "this endpoint reads level, logger, since, max");
+                if (!string.IsNullOrWhiteSpace(level)
+                 && !Enum.TryParse<Fdp.Core.Logging.LogSeverity>(level, ignoreCase: true, out _))
+                    advice.Add($"level '{level}' is not a severity — the level filter was NOT applied "
+                             + "(Trace|Debug|Info|Warning|Error|Critical)");
+                if (string.IsNullOrWhiteSpace(level))
+                    advice.Add("no level filter: on a cluster this ring is dominated by Trace-level "
+                             + "time-sync entries — pass level=Info to see application logs");
+
+                return Task.FromResult(advice.Count == 0
+                    ? Ok(logs)
+                    : OkWithHint(logs, string.Join("; ", advice)));
+            }));
+
+            // Group D — sim / preview / time
+            _routes.Add(new("GET",  "/sim/state",     _   => RunMain(s => s.GetSimState())));
+            _routes.Add(new("POST", "/sim/play",      _   => RunMain(s => s.Play())));
+            // ⭐⭐⭐ CE-104 — THE PAUSE ACK MEANS *APPLIED*, NOT *ACCEPTED*.
+            //
+            // 📐 Measured `2026-08-28` on --mode all: pause answered ok:true and the very next /status still
+            //    read isPaused:false, with the clock running a FURTHER ~0.2 s before the flag flipped. ⛔ That
+            //    is not a bug in the pause — a cluster-wide pause is a FUTURE BARRIER, so every node stops at
+            //    the same simTime rather than whenever its own frame lands (see MasterSyncController's
+            //    BarrierPending state). ⚠ The defect is that the CALLER could not tell "queued" from "done",
+            //    which is the silent-success family this API keeps producing.
+            //
+            // ⭐⭐ Same shape as /sim/step's gate and for the same stated reason (Q54-2: issue where the user
+            //    is, confirm where the truth is): the wait cannot live inside Pause() — the drain runs on the
+            //    main thread — so it lives here on the HTTP thread and polls across frames.
+            _routes.Add(new("POST", "/sim/pause",     async _ =>
+            {
+                var issued = await RunMain(s => s.Pause()).ConfigureAwait(false);
+                if (issued.Status != 200) return issued;
+
+                var settled = await AwaitPausedAsync().ConfigureAwait(false);
+                return settled ?? issued;
+            }));
+            // ⭐⭐⭐ THE ACK-GATED STEP. 📄 DESIGN_Headless_Testability.md §6b/§6c · Architect_Question_54 Q54-2.
+            //
+            // ⛔⛔ A step is ASYNCHRONOUS under the hood: `Step()` publishes a StepTimeIntent, the master
+            //    fans out AdvanceFrameIntent, and the tick is complete only when every roster node has
+            //    published FrameStepCompletedEvent. ⇒ 🔴 returning as soon as the intent is published lets
+            //    the next read observe a HALF-STEPPED cluster — "a golden of a race" (§6c).
+            //
+            // ⭐⭐ So this route returns only when the step has LANDED — the master is not mid-barrier AND the
+            //    clock has moved. ⛔ NOT a sleep and NOT a fixed settle: those are what §6c names as the thing
+            //    to replace. ⚠ And NOT the ACK flag alone: 📐 measured, that flag reads `false` before the
+            //    master has even begun, so waiting on it confirmed nothing (see AwaitStepLandedAsync).
+            //
+            // ⚠⚠ The wait CANNOT live inside `Step()` — see DebugApiService.IsAwaitingStepAcks: the drain
+            //    runs on the main thread, so blocking a main-thread job would deadlock the loop that clears
+            //    the flag. ⭐ Here we are on the HTTP thread and can await across frames, which keeps the
+            //    design's return contract while being executable.
+            _routes.Add(new("POST", "/sim/step",      async ctx =>
+            {
+                int count = ctx.Body?["count"]?.GetValue<int>() ?? 1;
+                if (count < 1) count = 1;
+
+                // ⭐⭐⭐ CE-105 — ONE STEP PER FRAME, GATED EACH TIME. ⛔ `count` used to be looped INSIDE the
+                //    single main-thread job (`Service().Step(count)` → N × `_time.Step()`), which cannot work on
+                //    a lockstep cluster: 📐 measured `2026-08-28` on --mode all, `count:120` advanced simTime by
+                //    **0.0167 s — exactly ONE 1/60 frame** — and still answered ok:true. The master retires at
+                //    most one step per frame *(it must not run ahead of its slaves)*, so the other 119 hit
+                //    `MaxQueuedSteps` and were dropped with warnings nobody reads.
+                //    ⭐⭐ The gate for ONE step already existed; the loop simply has to live OUTSIDE it, here on
+                //      the HTTP thread where we can await across frames. ⇒ N steps = N gated frames.
+                //    ⚠ Deliberately NOT a host-type gate: the editor's standalone master has an empty roster so
+                //      `AwaitStepLandedAsync` returns as soon as its clock moves. Same code, both hosts.
+                RouteResult issued = default!;
+
+                for (int i = 0; i < count; i++)
+                {
+                    // ⭐⭐ The pre-step clock is the gate's PROGRESS ANCHOR — read BEFORE issuing, on the main
+                    //    thread, so it cannot already include the step. 📄 See AwaitStepLandedAsync: the ACK
+                    //    flag alone cannot tell "drained" from "not begun", and in --mode all it is reliably
+                    //    the latter. ⚠ Re-read per iteration: step i+1's anchor is step i's result.
+                    double? before = await _jobQueue.RunOnMainThread(() => Service().TotalTimeOrNull())
+                                                    .ConfigureAwait(false);
+
+                    issued = await RunMain(s => s.Step(1)).ConfigureAwait(false);
+                    if (issued.Status != 200) return issued;
+
+                    var settled = await AwaitStepLandedAsync(before).ConfigureAwait(false);
+                    if (settled is { } failure) return failure;
+                }
+
+                // ⚠⚠ THE PAYLOAD IS THE ISSUING JOB'S STATE, deliberately — ⛔ NOT a second
+                //    `GetSimState()` read after the gate. 📐 Measured `2026-08-24`: adding that extra
+                //    main-thread round trip reddened `DeterminismRails.A_reload_*`, because
+                //    `POST /scenario/load`'s readiness check is LEVEL-triggered on `OperatingEdit` and a
+                //    RELOAD can satisfy it before the new world exists (filed as a finding). ⇒ ⭐ the gate
+                //    itself is what the design asks for; a second read buys nothing and perturbs the very
+                //    timing that exposes an unrelated defect.
+                return issued;
+            }));
+            _routes.Add(new("POST", "/sim/timescale", ctx =>
+            {
+                var scale = ctx.Body?["scale"]?.GetValue<float>() ?? 1f;
+                return RunMain(s => s.SetTimeScale(scale));
+            }));
+            _routes.Add(new("POST", "/preview/enter", ctx =>
+            {
+                bool startPaused = ctx.Body?["startPaused"]?.GetValue<bool>() ?? false;
+                return RunMain(s => s.EnterPreview(startPaused));
+            }));
+            _routes.Add(new("POST", "/preview/exit",  _ => RunMain(s => s.ExitPreview())));
+
+            // Group E — scenarios
+            _routes.Add(new("GET",  "/scenarios", _ => RunMain(s => s.ListScenarios())));
+            // ⭐⭐⭐ TWO LOAD MODES, BOTH CLUSTER-WIDE (HN-029). 📄 MCP_Integration.md § Group U.
+            //
+            // 🔒 User, 2026-08-24: "scenario/load is wrong abstraction. there are 2 load modes — live and
+            //    edit … both should be cluster wide. editor is not special, also uses 2pc for its single
+            //    process."
+            //
+            // ⛔⛔ THERE IS NO MODE-LESS `/scenario/load` — 🔒 user, `2026-08-24`: *"there should be no
+            //    alias."* ⭐ A caller must say which of the two loads it means; the batch that introduced
+            //    these endpoints kept an alias for one revision and the 14 harness call sites were migrated
+            //    to `load/edit` explicitly instead. ⚠ An old client calling `/scenario/load` now gets a clean
+            //    404, which is the honest answer — ⛔ better than silently choosing a mode for it.
+            _routes.Add(new("POST", "/scenario/load/edit", ctx => HandleScenarioLoad(ctx, Fdp.Toolkit.Orchestration.ClusterState.OperatingEdit)));
+            _routes.Add(new("POST", "/scenario/load/live", ctx => HandleScenarioLoad(ctx, Fdp.Toolkit.Orchestration.ClusterState.OperatingLive)));
+            _routes.Add(new("POST", "/scenario/save", ctx =>
+            {
+                var name = ctx.Body?["name"]?.GetValue<string>();
+                if (string.IsNullOrWhiteSpace(name)) return Task.FromResult(Fail(400, "name is required.", DebugApiHints.Scenario));
+                return RunMain(s => s.SaveScenario(name!));
+            }));
+
+            // Group F — commands + discovery + spawn
+            _routes.Add(new("GET", "/commands", _ =>
+                // Registry is safe off-thread (read-only after boot), but marshalling to
+                // main thread avoids any race on late-registering event types.
+                RunMain(s => s.ListCommands())));
+
+            _routes.Add(new("GET", "/components", _ =>
+                RunMain(s => s.ListComponents())));
+
+            _routes.Add(new("POST", "/entities/command", async ctx =>
+            {
+                var eventType = ctx.Body?["eventType"]?.GetValue<string>();
+                if (string.IsNullOrWhiteSpace(eventType))
+                    return Fail(400, "eventType is required.", DebugApiHints.Event);
+                var payload = ctx.Body?["payload"];
+                bool wait   = ctx.Body?["wait"]?.GetValue<bool>() ?? false;
+
+                var (result, error) = await _jobQueue.RunOnMainThread(() =>
+                    Service().SendCommand(eventType!, payload, wait)).ConfigureAwait(false);
+
+                if (error != null)
+                    return Fail(400, error, DebugApiHints.Event);
+                return Ok(result);
+            }));
+
+            _routes.Add(new("POST", "/entities/spawn", async ctx =>
+            {
+                if (!long.TryParse(ctx.Body?["tkbType"]?.ToString(), out var tkbType))
+                    return Fail(400, "tkbType (long) is required.", DebugApiHints.TkbType);
+
+                var transform      = ctx.Body?["transform"];
+                var components     = ctx.Body?["components"];
+                var attributesJson = ctx.Body?["attributesJson"]?.GetValue<string>();
+
+                // ⭐ CE-191 — the spawn now REFUSES a malformed transform or component list instead of
+                //   quietly dropping it; 400, because the caller can fix their own body.
+                var (node, error) = await _jobQueue.RunOnMainThread(() =>
+                    Service().SpawnEntity(tkbType, transform, components, attributesJson))
+                    .ConfigureAwait(false);
+                return error != null ? Fail(400, error, DebugApiHints.TkbType) : Ok(node);
+            }));
+
+            // Group P.0 / S — discovery WITH SCHEMA (MX4a, MX7). These exist so an agent never has
+            // to author a behaviour's params or a breakpoint condition blind; DebugApiHints points
+            // every schema-shaped rejection back at them.
+            _routes.Add(new("GET", "/behaviors", ctx =>
+            {
+                long? tkbType  = long.TryParse(ctx.Query("tkbType"),  out var t) ? t : null;
+                long? entityId = long.TryParse(ctx.Query("entityId"), out var e) ? e : null;
+
+                return RunMainResult(s =>
+                {
+                    var (result, error, hintCategory) = s.GetBehaviors(tkbType, entityId);
+                    // The right pointer depends on WHAT was wrong — a bad entity id sends the caller
+                    // to /entities, not to the behaviour catalog — so the service names the category.
+                    return error != null
+                        ? Fail(hintCategory == DebugApiHints.Entity ? 404 : 400, error, hintCategory ?? DebugApiHints.Behavior)
+                        : Ok(result);
+                });
+            }));
+
+            _routes.Add(new("GET", "/breakpoint-types", _ => RunMain(s => s.GetBreakpointTypes())));
+
+            // Group P — mission editing (MX4b). Missions are the PROPER way a behaviour attaches to an
+            // entity (as a task). Every write is snapshot → modify → CommitMissionAsync(id, plan, version)
+            // through the same IMissionEditorService the editor's Mission panel commits through — the
+            // commit resolves ACROSS FRAMES (the editor loop's PollAcks reads the ack), so the write routes
+            // publish on the main thread and then await the returned task OFF it, with a bounded timeout.
+            _routes.Add(new("GET", "/missions/{networkId}", ctx =>
+            {
+                if (!long.TryParse(ctx.RouteValue("networkId"), out var id))
+                    return Task.FromResult(Fail(400, "Invalid networkId."));
+                return RunMainResult(s =>
+                {
+                    var (result, error, hint) = s.GetMission(id);
+                    return error != null ? MissionError(error, hint) : Ok(result);
+                });
+            }));
+
+            _routes.Add(new("POST", "/missions/{networkId}/task", async ctx =>
+            {
+                if (!long.TryParse(ctx.RouteValue("networkId"), out var id))
+                    return Fail(400, "Invalid networkId.");
+                var behavior = ctx.Body?["behavior"]?.GetValue<string>();
+                var pars     = ctx.Body?["params"];
+                var triggers = ctx.Body?["triggers"];
+
+                var (commit, meta, error, hint) = await _jobQueue
+                    .RunOnMainThread(() => Service().BeginAddMissionTask(id, behavior, pars, triggers))
+                    .ConfigureAwait(false);
+                if (commit is null)
+                    return MissionError(error ?? "Mission task could not be added.", hint);
+                return await AwaitMissionCommitAsync(commit, meta, "add-task").ConfigureAwait(false);
+            }));
+
+            _routes.Add(new("DELETE", "/missions/{networkId}/tasks", async ctx =>
+            {
+                if (!long.TryParse(ctx.RouteValue("networkId"), out var id))
+                    return Fail(400, "Invalid networkId.");
+
+                var (commit, meta, error, hint) = await _jobQueue
+                    .RunOnMainThread(() => Service().BeginClearMissionTasks(id))
+                    .ConfigureAwait(false);
+                if (commit is null)
+                    return MissionError(error ?? "Mission tasks could not be cleared.", hint);
+                return await AwaitMissionCommitAsync(commit, meta, "clear").ConfigureAwait(false);
+            }));
+
+            _routes.Add(new("POST", "/missions/{networkId}/run", async ctx =>
+            {
+                if (!long.TryParse(ctx.RouteValue("networkId"), out var id))
+                    return Fail(400, "Invalid networkId.");
+                bool restart = ctx.Body?["restart"]?.GetValue<bool>() ?? false;
+
+                var (commit, meta, error, hint) = await _jobQueue
+                    .RunOnMainThread(() => Service().BeginRunMission(id, restart))
+                    .ConfigureAwait(false);
+                if (commit is null)
+                    return MissionError(error ?? "Mission could not be run.", hint);
+                return await AwaitMissionCommitAsync(commit, meta, restart ? "restart" : "run").ConfigureAwait(false);
+            }));
+
+            // Group M — TKB catalog
+            _routes.Add(new("GET", "/tkb/types", ctx =>
+            {
+                var category = ctx.Query("category");
+                return Task.FromResult(Ok(Service().ListTkbTypes(category)));
+            }));
+
+            _routes.Add(new("GET", "/tkb/types/{tkbType}", ctx =>
+            {
+                if (!long.TryParse(ctx.RouteValue("tkbType"), out var tkbType))
+                    return Task.FromResult(Fail(400, "Invalid tkbType."));
+                var node = Service().GetTkbType(tkbType);
+                return Task.FromResult(node is null
+                    ? Fail(404, $"TKB type {tkbType} not found.", DebugApiHints.TkbType)
+                    : Ok(node));
+            }));
+
+            // Group N — world/coordinate info
+            _routes.Add(new("GET", "/world/info", _ =>
+                Task.FromResult(Ok(Service().GetWorldInfo()))));
+
+            _routes.Add(new("POST", "/world/geo-to-local", ctx =>
+            {
+                double lat = ctx.Body?["lat"]?.GetValue<double>() ?? 0;
+                double lon = ctx.Body?["lon"]?.GetValue<double>() ?? 0;
+                double alt = ctx.Body?["alt"]?.GetValue<double>() ?? 0;
+                float? headingDeg = ctx.Body?["headingDeg"] is JsonNode hNode
+                    ? hNode.GetValue<float>()
+                    : (float?)null;
+                return Task.FromResult(Ok(Service().GeoToLocal(lat, lon, alt, headingDeg)));
+            }));
+
+            _routes.Add(new("POST", "/world/local-to-geo", ctx =>
+            {
+                float x = ctx.Body?["x"]?.GetValue<float>() ?? 0;
+                float y = ctx.Body?["y"]?.GetValue<float>() ?? 0;
+                float z = ctx.Body?["z"]?.GetValue<float>() ?? 0;
+                System.Numerics.Quaternion? rotation = null;
+                if (ctx.Body?["rotation"] is JsonObject rotObj)
+                {
+                    rotation = new System.Numerics.Quaternion(
+                        rotObj["x"]?.GetValue<float>() ?? 0,
+                        rotObj["y"]?.GetValue<float>() ?? 0,
+                        rotObj["z"]?.GetValue<float>() ?? 0,
+                        rotObj["w"]?.GetValue<float>() ?? 1);
+                }
+                return Task.FromResult(Ok(Service().LocalToGeo(x, y, z, rotation)));
+            }));
+
+            // Group G — Breakpoints (ADA-BATCH-07)
+            // NOTE: GET /breakpoints/hits must be registered BEFORE DELETE /breakpoints/{id}
+            // to avoid ambiguity. The GET /breakpoints/hits route has two literal segments
+            // so it matches before the parameterized DELETE route.
+            _routes.Add(new("GET", "/breakpoints/hits", _ => RunMain(s => s.GetBreakpointStatus())));
+
+            // ⭐ Resume after a hit. Measured while building MX1/MX9: the API could ENTER the paused
+            // state (arm a breakpoint, let it fire) and had no way OUT of it — and the staged-write
+            // drain is gated on the debugger not being rewound, so every later live write was queued
+            // and never applied. Deleting the breakpoint does NOT resume; only these do. See MX-009.
+            _routes.Add(new("POST", "/breakpoints/continue", _ => RunMainResult(s =>
+            {
+                var (result, error, hintCategory) = s.ContinueFromBreakpoint(step: false);
+                return error != null ? Fail(400, error, hintCategory ?? DebugApiHints.Breakpoint) : Ok(result);
+            })));
+
+            _routes.Add(new("POST", "/breakpoints/step", _ => RunMainResult(s =>
+            {
+                var (result, error, hintCategory) = s.ContinueFromBreakpoint(step: true);
+                return error != null ? Fail(400, error, hintCategory ?? DebugApiHints.Breakpoint) : Ok(result);
+            })));
+
+            _routes.Add(new("POST", "/breakpoints", async ctx =>
+            {
+                var (node, error) = await _jobQueue.RunOnMainThread<(JsonNode?, string?)>(() =>
+                {
+                    try { return (Service().AddBreakpoint(ctx.Body), null); }
+                    catch (ArgumentException ex) { return (null, ex.Message); }
+                }).ConfigureAwait(false);
+                // MX8: authoring a SearchPredicateDto blind is the mistake this hint exists for.
+                return error != null ? Fail(400, error, DebugApiHints.Condition) : Ok(node);
+            }));
+
+            _routes.Add(new("GET", "/breakpoints", _ => RunMain(s => s.ListBreakpoints())));
+
+            _routes.Add(new("DELETE", "/breakpoints/{id}", async ctx =>
+            {
+                var idStr = ctx.RouteValue("id");
+                if (string.IsNullOrWhiteSpace(idStr)) return Fail(400, "breakpoint id is required.", DebugApiHints.Breakpoint);
+                var error = await _jobQueue.RunOnMainThread<string?>(() =>
+                {
+                    try { Service().RemoveBreakpoint(idStr!); return null; }
+                    catch (ArgumentException ex) { return ex.Message; }
+                }).ConfigureAwait(false);
+                return error != null ? Fail(404, error, DebugApiHints.Breakpoint) : Ok(new JsonObject { ["removed"] = idStr });
+            }));
+
+            // Group H — Checkpoint / Restore / Diff (ADA-BATCH-08)
+            _routes.Add(new("POST", "/checkpoint", async ctx =>
+            {
+                var (node, error) = await _jobQueue.RunOnMainThread<(JsonNode?, string?)>(() =>
+                {
+                    try { return (Service().Checkpoint(), null); }
+                    catch (InvalidOperationException ex) { return (null, ex.Message); }
+                }).ConfigureAwait(false);
+                if (error != null)
+                {
+                    // 409 for live-run conflict, 400 for already-in-preview
+                    int status = error.Contains("live run") ? 409 : 400;
+                    return Fail(status, error);
+                }
+                return Ok(node);
+            }));
+
+            _routes.Add(new("POST", "/checkpoint/restore", async ctx =>
+            {
+                var (node, error) = await _jobQueue.RunOnMainThread<(JsonNode?, string?)>(() =>
+                {
+                    try { return (Service().RestoreCheckpoint(), null); }
+                    catch (InvalidOperationException ex) { return (null, ex.Message); }
+                }).ConfigureAwait(false);
+                return error != null ? Fail(400, error) : Ok(node);
+            }));
+
+            _routes.Add(new("POST", "/diff/capture", async ctx =>
+            {
+                List<long>? ids = null;
+                if (ctx.Body?["entities"] is JsonArray eArr)
+                {
+                    ids = new List<long>();
+                    foreach (var item in eArr)
+                        ids.Add(item!.GetValue<long>());
+                }
+                var (node, error) = await _jobQueue.RunOnMainThread<(JsonNode?, string?)>(() =>
+                {
+                    try { return (Service().CaptureBaseline(ids), null); }
+                    catch (Exception ex) { return (null, ex.Message); }
+                }).ConfigureAwait(false);
+                return error != null ? Fail(400, error) : Ok(node);
+            }));
+
+            _routes.Add(new("POST", "/diff/compare", async ctx =>
+            {
+                var baselineId = ctx.Body?["baselineId"]?.GetValue<string>();
+                if (string.IsNullOrWhiteSpace(baselineId))
+                    return Fail(400, "baselineId is required.", DebugApiHints.Baseline);
+                List<long>? ids = null;
+                if (ctx.Body?["entities"] is JsonArray eArr2)
+                {
+                    ids = new List<long>();
+                    foreach (var item in eArr2)
+                        ids.Add(item!.GetValue<long>());
+                }
+                var (node, error) = await _jobQueue.RunOnMainThread<(JsonNode?, string?)>(() =>
+                {
+                    try { return (Service().CompareBaseline(baselineId!, ids), null); }
+                    catch (ArgumentException ex) { return (null, ex.Message); }
+                    catch (Exception ex) { return (null, ex.Message); }
+                }).ConfigureAwait(false);
+                return error != null ? Fail(400, error, DebugApiHints.Baseline) : Ok(node);
+            }));
+
+            // Group I — Recording + Replay (ADA-BATCH-10)
+            //
+            // IMPORTANT: PrepareRecordingAsync / FinalizeRecordingAsync internally call
+            // InstallModuleAsync / UninstallModuleAsync which await swapTcs.Task — a
+            // TaskCompletionSource that is only fulfilled when the main thread reaches its
+            // next BeforeSync boundary. Therefore these async calls MUST run from the
+            // background HTTP thread (i.e. from this async lambda) and MUST NOT be called
+            // from inside RunOnMainThread (which would block the main thread, preventing
+            // swapTcs from ever completing → permanent deadlock).
+            //
+            // Pattern: phase-1 sync (via RunOnMainThread) → phase-2 async (background thread).
+            _routes.Add(new("POST", "/recording/start", async ctx =>
+            {
+                var mode = ctx.Body?["mode"]?.GetValue<string>() ?? "preview";
+
+                // Phase 1 (main thread): validate state, enter preview, set exercise ID + fdpPath.
+                var (fdpPath, phase1Error) = await _jobQueue.RunOnMainThread<(string?, string?)>(() =>
+                {
+                    try   { return (Service().BeginRecordingStart(mode), null); }
+                    catch (InvalidOperationException ex) { return (null, ex.Message); }
+                    catch (ArgumentException ex)          { return (null, ex.Message); }
+                }).ConfigureAwait(false);
+
+                if (phase1Error != null)
+                    return Fail(409, phase1Error);
+
+                // Phase 2 (background thread): install recording kernel module — must NOT be
+                // inside RunOnMainThread to avoid deadlock with swapTcs.
+                try
+                {
+                    await Service().CompleteRecordingStartAsync().ConfigureAwait(false);
+                }
+                catch (Exception ex)
+                {
+                    return FailFault(500, $"Recording module install failed: {DebugApiFault.OneLine(ex)}", ex);
+                }
+
+                return Ok(new JsonObject
+                {
+                    ["recording"] = true,
+                    ["mode"]      = mode,
+                    ["fdpPath"]   = fdpPath,
+                });
+            }));
+
+            _routes.Add(new("POST", "/recording/stop", async ctx =>
+            {
+                // Phase 1 (background thread): finalize recording kernel module — must NOT be
+                // inside RunOnMainThread for same swapTcs deadlock reason as /recording/start.
+                string? fdpPath;
+                try
+                {
+                    fdpPath = await Service().CompleteRecordingStopAsync().ConfigureAwait(false);
+                }
+                catch (InvalidOperationException ex) { return Fail(400, ex.Message, DebugApiHints.Recording); }
+                catch (Exception ex) { return FailFault(500, DebugApiFault.OneLine(ex), ex); }
+
+                // Phase 2 (main thread): exit preview (triggers rewind), return status.
+                var node = await _jobQueue.RunOnMainThread(() => Service().FinishRecordingStop())
+                    .ConfigureAwait(false);
+                return Ok(node);
+            }));
+
+            _routes.Add(new("POST", "/replay/load", async ctx =>
+            {
+                var fdpPath = ctx.Body?["fdpPath"]?.GetValue<string>();
+                if (string.IsNullOrWhiteSpace(fdpPath)) return Fail(400, "fdpPath is required.", DebugApiHints.Recording);
+                var (node, error) = await _jobQueue.RunOnMainThread<(JsonNode?, string?)>(() =>
+                {
+                    try { return (Service().LoadReplay(fdpPath!), null); }
+                    catch (ArgumentException ex) { return (null, ex.Message); }
+                    catch (InvalidOperationException ex) { return (null, ex.Message); }
+                }).ConfigureAwait(false);
+                return error != null ? Fail(400, error) : Ok(node);
+            }));
+
+            _routes.Add(new("POST", "/replay/seek", async ctx =>
+            {
+                int frame = ctx.Body?["frame"]?.GetValue<int>() ?? 0;
+                var (node, error) = await _jobQueue.RunOnMainThread<(JsonNode?, string?)>(() =>
+                {
+                    try { return (Service().SeekReplay(frame), null); }
+                    catch (InvalidOperationException ex) { return (null, ex.Message); }
+                }).ConfigureAwait(false);
+                return error != null ? Fail(400, error) : Ok(node);
+            }));
+
+            _routes.Add(new("POST", "/replay/step", async ctx =>
+            {
+                var dir = ctx.Body?["dir"]?.GetValue<string>() ?? "forward";
+                var (node, error) = await _jobQueue.RunOnMainThread<(JsonNode?, string?)>(() =>
+                {
+                    try { return (Service().StepReplay(dir), null); }
+                    catch (InvalidOperationException ex) { return (null, ex.Message); }
+                }).ConfigureAwait(false);
+                return error != null ? Fail(400, error) : Ok(node);
+            }));
+
+            _routes.Add(new("GET", "/replay/status", _ =>
+                RunMain(s => new JsonObject
+                {
+                    ["replayActive"] = s.IsReplayActive,
+                    ["currentFrame"] = s.ReplayCurrentFrame,
+                    ["totalFrames"]  = s.ReplayTotalFrames,
+                })
+            ));
+
+            _routes.Add(new("GET", "/replay/entities", _ =>
+                RunMain(s =>
+                {
+                    if (!s.IsReplayActive)
+                        return (JsonNode)new JsonObject { ["error"] = "No replay loaded" };
+                    return s.ListReplayEntities();
+                })
+            ));
+
+            _routes.Add(new("POST", "/replay/unload", _ => RunMain(s => s.UnloadReplay())));
+
+            // Group K — AI Behavior Traces (ADA-BATCH-12)
+            _routes.Add(new("POST", "/trace/observe", async ctx =>
+            {
+                long networkId = ctx.Body?["networkId"]?.GetValue<long>() ?? 0;
+                bool on        = ctx.Body?["on"]?.GetValue<bool>() ?? false;
+                if (networkId == 0) return Fail(400, "networkId is required.");
+                var (node, error) = await _jobQueue.RunOnMainThread<(JsonNode?, string?)>(() =>
+                {
+                    var result = Service().ObserveTrace(networkId, on);
+                    if (result is JsonObject obj && obj["error"] is not null)
+                        return (null, obj["error"]!.GetValue<string>());
+                    return (result, null);
+                }).ConfigureAwait(false);
+                return error != null ? Fail(400, error) : Ok(node);
+            }));
+
+            _routes.Add(new("GET", "/entities/{networkId}/trace", async ctx =>
+            {
+                if (!long.TryParse(ctx.RouteValue("networkId"), out var id))
+                    return Fail(400, "Invalid networkId.");
+                var node = await _jobQueue.RunOnMainThread(() => Service().GetEntityTrace(id)).ConfigureAwait(false);
+                return Ok(node);
+            }));
+
+            // Group L — Live Mutation / Fault Injection (ADA-BATCH-13)
+            _routes.Add(new("GET", "/attributes/schema", _ =>
+                Task.FromResult(Ok(Service().GetAttributesSchema()))));
+
+            _routes.Add(new("POST", "/entities/{networkId}/attribute", async ctx =>
+            {
+                if (!long.TryParse(ctx.RouteValue("networkId"), out var id))
+                    return Fail(400, "Invalid networkId.");
+
+                // Accept patchJson as EITHER a JSON string OR a nested JSON object.
+                string? patchJson = null;
+                var patchJsonNode = ctx.Body?["patchJson"];
+                if (patchJsonNode is System.Text.Json.Nodes.JsonValue jv)
+                {
+                    try { patchJson = jv.GetValue<string>(); }
+                    catch { return Fail(400, "patchJson must be a JSON string or a JSON object."); }
+                }
+                else if (patchJsonNode is System.Text.Json.Nodes.JsonObject || patchJsonNode is System.Text.Json.Nodes.JsonArray)
+                {
+                    patchJson = patchJsonNode.ToJsonString();
+                }
+
+                if (string.IsNullOrWhiteSpace(patchJson))
+                    return Fail(400, "patchJson is required.");
+                var (node, error) = await _jobQueue.RunOnMainThread(() =>
+                    Service().PatchEntityAttribute(id, patchJson!)).ConfigureAwait(false);
+                return error != null ? Fail(400, error) : Ok(node);
+            }));
+
+            _routes.Add(new("POST", "/entities/{networkId}/component", async ctx =>
+            {
+                if (!long.TryParse(ctx.RouteValue("networkId"), out var id))
+                    return Fail(400, "Invalid networkId.");
+                var componentType = ctx.Body?["componentType"]?.GetValue<string>();
+                var patch         = ctx.Body?["patch"];
+                if (string.IsNullOrWhiteSpace(componentType))
+                    return Fail(400, "componentType is required.", DebugApiHints.Component);
+                var (node, error) = await _jobQueue.RunOnMainThread(() =>
+                    Service().EditEntityComponent(id, componentType!, patch)).ConfigureAwait(false);
+                return error != null ? Fail(400, error, DebugApiHints.Component) : Ok(node);
+            }));
+
+            // ── Group O — Variable addressing (MX1): the watch's own tuple, over HTTP ─────────
+            //
+            // A variable is addressed as (entity, asset, path) — never as a component and a byte
+            // offset — so an agent reads and writes what the designer sees in the Details panel.
+            // `asset` accepts the blueprint's NAME or its asset Guid, and may be omitted when the
+            // entity carries exactly one blueprint.
+            _routes.Add(new("GET", "/entities/{networkId}/variables", ctx =>
+            {
+                if (!long.TryParse(ctx.RouteValue("networkId"), out var id))
+                    return Task.FromResult(Fail(400, "Invalid networkId.", DebugApiHints.Entity));
+                var asset = ctx.Query("asset");
+                return RunMainResult(s =>
+                {
+                    var (result, error, hintCategory) = s.GetEntityVariables(id, asset);
+                    return error != null
+                        ? Fail(hintCategory == DebugApiHints.Entity ? 404 : 400, error, hintCategory ?? DebugApiHints.Variable)
+                        : Ok(result);
+                });
+            }));
+
+            _routes.Add(new("GET", "/entities/{networkId}/variable", ctx =>
+            {
+                if (!long.TryParse(ctx.RouteValue("networkId"), out var id))
+                    return Task.FromResult(Fail(400, "Invalid networkId.", DebugApiHints.Entity));
+                var asset = ctx.Query("asset");
+                var path  = ctx.Query("path");
+                return RunMainResult(s =>
+                {
+                    var (result, error, hintCategory) = s.GetEntityVariable(id, asset, path);
+                    return error != null
+                        ? Fail(hintCategory == DebugApiHints.Entity ? 404 : 400, error, hintCategory ?? DebugApiHints.Variable)
+                        : Ok(result);
+                });
+            }));
+
+            // ⭐ STAGES, never writes through: the value lands on the next advancing tick, exactly as
+            //   a Details-panel edit does. Answering 200 with pending:true is the honest report.
+            _routes.Add(new("POST", "/entities/{networkId}/variable", ctx =>
+            {
+                if (!long.TryParse(ctx.RouteValue("networkId"), out var id))
+                    return Task.FromResult(Fail(400, "Invalid networkId.", DebugApiHints.Entity));
+                var asset = ctx.Body?["asset"]?.GetValue<string>();
+                var path  = ctx.Body?["path"]?.GetValue<string>();
+                var value = ctx.Body?["value"];
+                return RunMainResult(s =>
+                {
+                    var (result, error, hintCategory) = s.StageEntityVariable(id, asset, path, value);
+                    return error != null
+                        ? Fail(hintCategory == DebugApiHints.Entity ? 404 : 400, error, hintCategory ?? DebugApiHints.Variable)
+                        : Ok(result);
+                });
+            }));
+
+            // ── Group Q — blueprint hot-attach (MX2) ──────────────────────────────────────────
+            //
+            // The runtime mechanism already exists; these publish the same lifecycle events the ingress
+            // system consumes, so an attach behaves exactly as one authored in the editor would.
+            _routes.Add(new("GET", "/blueprints", _ => RunMainResult(s =>
+            {
+                var (result, error, hintCategory) = s.GetBlueprints();
+                return error != null ? Fail(400, error, hintCategory ?? DebugApiHints.Blueprint) : Ok(result);
+            })));
+
+            _routes.Add(new("POST", "/entities/{networkId}/attach-blueprint", ctx =>
+            {
+                if (!long.TryParse(ctx.RouteValue("networkId"), out var id))
+                    return Task.FromResult(Fail(400, "Invalid networkId.", DebugApiHints.Entity));
+                var blueprint  = ctx.Body?["blueprint"]?.GetValue<string>();
+                var paramsJson = ctx.Body?["paramsJson"]?.ToJsonString();
+                // A JSON object is accepted as well as a string — an agent should not have to escape.
+                if (ctx.Body?["paramsJson"] is System.Text.Json.Nodes.JsonValue pv
+                    && pv.TryGetValue<string>(out var raw)) paramsJson = raw;
+                return RunMainResult(s =>
+                {
+                    var (result, error, hintCategory) = s.AttachBlueprint(id, blueprint, paramsJson);
+                    return error != null
+                        ? Fail(hintCategory == DebugApiHints.Entity ? 404 : 400, error, hintCategory ?? DebugApiHints.Blueprint)
+                        : Ok(result);
+                });
+            }));
+
+            _routes.Add(new("POST", "/entities/{networkId}/detach-blueprint", ctx =>
+            {
+                if (!long.TryParse(ctx.RouteValue("networkId"), out var id))
+                    return Task.FromResult(Fail(400, "Invalid networkId.", DebugApiHints.Entity));
+                var blueprint = ctx.Body?["blueprint"]?.GetValue<string>();
+                return RunMainResult(s =>
+                {
+                    var (result, error, hintCategory) = s.DetachBlueprint(id, blueprint);
+                    return error != null
+                        ? Fail(hintCategory == DebugApiHints.Entity ? 404 : 400, error, hintCategory ?? DebugApiHints.Blueprint)
+                        : Ok(result);
+                });
+            }));
+
+            // Q61-B/MX-035 — the instance blueprints currently attached to the entity (the slot table).
+            _routes.Add(new("GET", "/entities/{networkId}/blueprints", ctx =>
+            {
+                if (!long.TryParse(ctx.RouteValue("networkId"), out var id))
+                    return Task.FromResult(Fail(400, "Invalid networkId.", DebugApiHints.Entity));
+                return RunMainResult(s =>
+                {
+                    var (result, error, hintCategory) = s.GetEntityBlueprints(id);
+                    return error != null
+                        ? Fail(hintCategory == DebugApiHints.Entity ? 404 : 400, error, hintCategory ?? DebugApiHints.Blueprint)
+                        : Ok(result);
+                });
+            }));
+
+            // ── Group R — the entity state dump (MX3) ─────────────────────────────────────────
+            _routes.Add(new("GET", "/entities/{networkId}/state", ctx =>
+            {
+                if (!long.TryParse(ctx.RouteValue("networkId"), out var id))
+                    return Task.FromResult(Fail(400, "Invalid networkId.", DebugApiHints.Entity));
+                return RunMainResult(s =>
+                {
+                    var (result, error, hintCategory) = s.GetEntityState(id);
+                    return error != null ? Fail(404, error, hintCategory ?? DebugApiHints.Entity) : Ok(result);
+                });
+            }));
+
+            // ── Group T — the panel snapshot, read (MX9) ──────────────────────────────────────
+            //
+            // The UI made machine-readable without pixels. ⚠ ROUTE ORDER MATTERS: TryMatch takes the
+            // FIRST template whose segment count and literals match, so "_gizmo" must be registered
+            // BEFORE "{panelId}" or it would be captured as a panel id.
+            _routes.Add(new("GET", "/panels", _ => RunMain(s => s.GetPanels())));
+
+            _routes.Add(new("GET", "/panels/_gizmo", ctx =>
+            {
+                int max = int.TryParse(ctx.Query("max"), out var m) ? m : 500;
+                return RunMainResult(s =>
+                {
+                    var (result, error, hintCategory) = s.GetGizmoFrame(max);
+                    return error != null ? Fail(404, error, hintCategory ?? DebugApiHints.Panel) : Ok(result);
+                });
+            }));
+
+            _routes.Add(new("GET", "/panels/{panelId}", ctx =>
+            {
+                var panelId = ctx.RouteValue("panelId");
+                return RunMainResult(s =>
+                {
+                    var (result, error, hintCategory) = s.GetPanel(panelId);
+                    return error != null ? Fail(404, error, hintCategory ?? DebugApiHints.Panel) : Ok(result);
+                });
+            }));
+
+            // ── Group V — the AI-ASSET drive surface (cgf==editor slice 2) ────────────────────
+            //
+            // ⭐⭐⭐ 📄 DESIGN_Cgf_Editor_Sharing_Slice2_Open_Asset.md §3/§3a/§5. Discover · open ·
+            //    switch tab · focus — the four verbs that make a POPULATED authoring panel reachable
+            //    headlessly. ⛔ Before these, every asset panel could only ever be captured EMPTY.
+            // ⚠ ROUTE ORDER: "/assets/open" (a literal) is registered BEFORE "/assets/{assetId}/open"
+            //    — different segment counts, so neither can shadow the other, but the literal form is
+            //    written first to make the intent obvious to the next reader.
+            // ⭐⭐⭐ MD-006/MD-007 — the CLUSTER-WIDE dump, a second SURFACE on the built dump-diag
+            //    pipeline. ⛔ Nothing is collected here; the intent is what the ExCon's Execute button
+            //    publishes, and the status is the read model its results section renders.
+            // ⚠ ROUTE ORDER: 3-segment literals; no "/cluster/{x}" pattern exists to shadow them.
+            _routes.Add(new("POST", "/cluster/diagnostics/dump", ctx => RunMainResult(s =>
+            {
+                var (result, error, hintCategory) = s.TriggerClusterDump(ctx.Body);
+                if (error == null) return Ok(result);
+                // ⭐ 503 = this host cannot ask at all; 400 = the caller's request was malformed.
+                return Fail(error.StartsWith("This host cannot", StringComparison.Ordinal) ? 503 : 400,
+                            error, hintCategory);
+            })));
+
+            _routes.Add(new("GET", "/cluster/diagnostics/status", _ => RunMainResult(s =>
+            {
+                var (result, error, hintCategory) = s.GetClusterDumpStatus();
+                return error != null ? Fail(503, error, hintCategory) : Ok(result);
+            })));
+
+            // ⭐⭐ MD-002 — diagnostics live on the SHARED service so a cluster-limited node (a SimHost
+            //    node) answers for its OWN kernel. 📄 DESIGN_Mcp_Diagnostics_Federation §1/§2.2.
+            _routes.Add(new("GET", "/diagnostics/architecture", ctx => RunMainResult(s =>
+            {
+                var (result, error, hintCategory) = s.GetArchitecture(ctx.Query("subsystem"));
+                if (error == null) return Ok(result);
+                // ⭐ 503 = this host reports none at all; 404 = it reports some, but not the one asked for.
+                return Fail(error.StartsWith("This host reports no", StringComparison.Ordinal) ? 503 : 404,
+                            error, hintCategory);
+            })));
+
+            _routes.Add(new("GET", "/assets", _ => RunMainResult(s =>
+            {
+                var (result, error, hintCategory) = s.ListAssets();
+                return error != null ? Fail(503, error, hintCategory) : Ok(result);
+            })));
+
+            // ⭐⭐ MA-020 — the recipes POST /assets can create from. ⚠ ROUTE ORDER: a 2-segment LITERAL,
+            //    and no "GET /assets/{assetId}" exists to shadow it (the id-addressed reads are all 3+).
+            _routes.Add(new("GET", "/assets/recipes", ctx => RunMainResult(s =>
+            {
+                var (result, error, hintCategory) = s.ListRecipes(ctx.Query("kind"));
+                if (error == null) return Ok(result);
+                return Fail(error.StartsWith("This host wires no", StringComparison.Ordinal) ? 503 : 400,
+                            error, hintCategory);
+            })));
+
+            _routes.Add(new("POST", "/assets/open", ctx => RunMainResult(s =>
+            {
+                var (result, error, hintCategory) = s.OpenAssetByPath(ctx.Body);
+                if (error == null) return Ok(result);
+                // ⭐ 503 = not wired; 400 = the caller's address was wrong or ambiguous. ⛔ Collapsing
+                //   them would make a composition defect look like a bad request (the /perspective note).
+                return Fail(error.StartsWith("No AI-asset shell", StringComparison.Ordinal) ? 503 : 400,
+                            error, hintCategory);
+            })));
+
+            _routes.Add(new("POST", "/assets/{assetId}/open", ctx => RunMainResult(s =>
+            {
+                var (result, error, hintCategory) = s.OpenAssetById(ctx.RouteValue("assetId"));
+                if (error == null) return Ok(result);
+                return Fail(error.StartsWith("No AI-asset shell", StringComparison.Ordinal) ? 503 : 404,
+                            error, hintCategory);
+            })));
+
+            _routes.Add(new("GET", "/documents", _ => RunMainResult(s =>
+            {
+                var (result, error, hintCategory) = s.ListDocuments();
+                return error != null ? Fail(503, error, hintCategory) : Ok(result);
+            })));
+
+            _routes.Add(new("POST", "/documents/{assetId}/activate", ctx => RunMainResult(s =>
+            {
+                var (result, error, hintCategory) = s.ActivateDocument(ctx.RouteValue("assetId"));
+                if (error == null) return Ok(result);
+                return Fail(error.StartsWith("No AI-asset shell", StringComparison.Ordinal) ? 503 : 404,
+                            error, hintCategory);
+            })));
+
+            // ⭐⭐ Slice 3 — save + reload. ⛔ THE COLLISION BOUNDARY (§8): node-authoring routes go in
+            //    AQ56's own file and its own registration block, ⛔ never here.
+            _routes.Add(new("POST", "/assets/{assetId}/save", ctx => RunMainResult(s =>
+            {
+                var (result, error, hintCategory) = s.SaveAsset(ctx.RouteValue("assetId"));
+                if (error == null) return Ok(result);
+                return Fail(error.StartsWith("This host wires no", StringComparison.Ordinal) ? 503 : 404,
+                            error, hintCategory);
+            })));
+
+            _routes.Add(new("POST", "/assets/{assetId}/reload", ctx => RunMainResult(s =>
+            {
+                var (result, error, hintCategory) = s.ReloadAsset(ctx.RouteValue("assetId"));
+                if (error == null) return Ok(result);
+                return Fail(error.StartsWith("This host wires no", StringComparison.Ordinal) ? 503 : 404,
+                            error, hintCategory);
+            })));
+
+            // ── Group W — the AI-ASSET AUTHORING surface (AQ56 / DESIGN_Mcp_Authoring.md) ────
+            //
+            // ⭐⭐⭐ Read-then-edit-by-guid: GET the graph with its IN-MEMORY ids, then mutate through the
+            //    SAME command sink human editing uses. 📄 DESIGN_Mcp_Authoring.md §5/§6/§7.
+            // ⚠ ROUTE ORDER: "/assets/{assetId}/graph" (3 segments) cannot shadow
+            //    "/assets/{assetId}/graph/{verb}" (4 segments) — different lengths — but the read is
+            //    written first because it is the one an agent must call before any of the others.
+            // ⛔⛔ THE COLLISION BOUNDARY (§8), from this side: every handler below lives in
+            //    DebugApiService.Authoring.cs. ⛔ Nothing here touches DebugApiService.Assets.cs.
+
+            _routes.Add(new("GET", "/assets/{assetId}/graph", ctx => RunMainResult(s =>
+            {
+                var (result, error, hintCategory) = s.ReadGraph(ctx.RouteValue("assetId"));
+                if (error == null) return Ok(result);
+                return Fail(error.StartsWith("No AI-asset shell", StringComparison.Ordinal) ? 503 : 404,
+                            error, hintCategory);
+            })));
+
+            _routes.Add(new("GET", "/assets/{assetId}/graph/catalog", ctx => RunMainResult(s =>
+            {
+                var (result, error, hintCategory) =
+                    s.ListGraphNodeKinds(ctx.RouteValue("assetId"), ctx.Query("filter"));
+                if (error == null) return Ok(result);
+                return Fail(error.StartsWith("No AI-asset shell", StringComparison.Ordinal) ? 503 : 404,
+                            error, hintCategory);
+            })));
+
+            _routes.Add(new("POST", "/assets/{assetId}/graph/nodes", ctx => RunMainResult(s =>
+            {
+                var (result, error, hintCategory) = s.AddGraphNode(ctx.RouteValue("assetId"), ctx.Body);
+                return AuthoringResult(result, error, hintCategory);
+            })));
+
+            _routes.Add(new("POST", "/assets/{assetId}/graph/links", ctx => RunMainResult(s =>
+            {
+                var (result, error, hintCategory) = s.AddGraphLink(ctx.RouteValue("assetId"), ctx.Body);
+                return AuthoringResult(result, error, hintCategory);
+            })));
+
+            _routes.Add(new("POST", "/assets/{assetId}/graph/params", ctx => RunMainResult(s =>
+            {
+                var (result, error, hintCategory) = s.SetGraphParam(ctx.RouteValue("assetId"), ctx.Body);
+                return AuthoringResult(result, error, hintCategory);
+            })));
+
+            _routes.Add(new("POST", "/assets/{assetId}/graph/remove", ctx => RunMainResult(s =>
+            {
+                var (result, error, hintCategory) = s.RemoveGraphElements(ctx.RouteValue("assetId"), ctx.Body);
+                return AuthoringResult(result, error, hintCategory);
+            })));
+
+            // ── Group X — the UNION backbone, discovery and the editor command bus ───────────
+            //
+            // ⭐⭐⭐ 📄 DESIGN_Mcp_Authoring.md §10 (discovery) · §10.7 (UI commands) · §11 (the union).
+            // ⚠ ROUTE ORDER: "/assets/{assetId}/graph/command" and "/assets/{assetId}/graph/catalog" are
+            //   both 4 segments with distinct literals in the last one, so neither can shadow the other;
+            //   "/assets/{assetId}/graph/catalog/{kind}" is 5 and cannot shadow either.
+
+            _routes.Add(new("GET", "/assets/{assetId}/graph/command", ctx => RunMainResult(s =>
+            {
+                var (result, error, hintCategory) = s.DescribeGraphCommands(ctx.RouteValue("assetId"));
+                return AuthoringResult(result, error, hintCategory);
+            })));
+
+            _routes.Add(new("POST", "/assets/{assetId}/graph/command", ctx => RunMainResult(s =>
+            {
+                var (result, error, hintCategory) = s.ApplyGraphCommand(ctx.RouteValue("assetId"), ctx.Body);
+                return AuthoringResult(result, error, hintCategory);
+            })));
+
+            _routes.Add(new("GET", "/assets/{assetId}/graph/catalog/{kind}", ctx => RunMainResult(s =>
+            {
+                var (result, error, hintCategory) =
+                    s.GetNodeKindSchema(ctx.RouteValue("assetId"), ctx.RouteValue("kind"));
+                return AuthoringResult(result, error, hintCategory);
+            })));
+
+            _routes.Add(new("GET", "/assets/{assetId}/graph/nodes/{nodeId}/properties", ctx => RunMainResult(s =>
+            {
+                var (result, error, hintCategory) =
+                    s.GetNodeProperties(ctx.RouteValue("assetId"), ctx.RouteValue("nodeId"));
+                return AuthoringResult(result, error, hintCategory);
+            })));
+
+            // ⛔⛔ `/editor/commands`, NOT `/commands` — the latter has enumerated publishable FDP event
+            //    types since Group F and `send_entity_command` depends on it. See the service's remarks.
+            _routes.Add(new("GET", "/editor/commands", ctx => RunMainResult(s =>
+            {
+                var (result, error, hintCategory) = s.ListEditorCommands(ctx.Query("category"));
+                return error != null ? Fail(503, error, hintCategory) : Ok(result);
+            })));
+
+            _routes.Add(new("GET", "/editor/commands/{commandId}", ctx => RunMainResult(s =>
+            {
+                var (result, error, hintCategory) = s.DescribeEditorCommandById(ctx.RouteValue("commandId"));
+                if (error == null) return Ok(result);
+                return Fail(error.StartsWith("No editor-command dispatcher", StringComparison.Ordinal) ? 503 : 404,
+                            error, hintCategory);
+            })));
+
+            _routes.Add(new("POST", "/editor/commands/{commandId}/invoke", ctx => RunMainResult(s =>
+            {
+                var (result, error, hintCategory) =
+                    s.InvokeEditorCommand(ctx.RouteValue("commandId"), ctx.Body);
+                if (error == null) return Ok(result);
+                if (error.StartsWith("No editor-command dispatcher", StringComparison.Ordinal))
+                    return Fail(503, error, hintCategory);
+                if (error.StartsWith("No editor command", StringComparison.Ordinal))
+                    return Fail(404, error, hintCategory);
+                // ⭐ A DISABLED command is a 409, not a 400: the request was well-formed and the id real —
+                //   the editor's live state refuses it, and a caller can retry after changing that state.
+                return Fail(error.Contains("is DISABLED right now", StringComparison.Ordinal) ? 409 : 400,
+                            error, hintCategory);
+            })));
+
+            _routes.Add(new("POST", "/assets", ctx => RunMainResult(s =>
+            {
+                var (result, error, hintCategory) = s.CreateAsset(ctx.Body);
+                if (error == null) return Ok(result);
+                return Fail(error.StartsWith("This host wires no", StringComparison.Ordinal) ? 503 : 400,
+                            error, hintCategory);
+            })));
+
+            // ⭐ Scenario authoring = world manipulation (Q56-C). This is the ONE op the existing
+            //   /entities/* set was missing — place/configure/assign already had routes, delete did not.
+            _routes.Add(new("DELETE", "/entities/{networkId}", ctx => RunMainResult(s =>
+            {
+                if (!long.TryParse(ctx.RouteValue("networkId"), out var netId))
+                    return Fail(400, "networkId must be a number. List entities with GET /entities.",
+                                DebugApiHints.Entity);
+                var (result, error, hintCategory) = s.DeleteEntity(netId);
+                return error != null ? Fail(404, error, hintCategory) : Ok(result);
+            })));
+
+            _routes.Add(new("POST", "/panels/{panelId}/focus", ctx => RunMainResult(s =>
+            {
+                var (result, error, hintCategory) = s.FocusPanel(ctx.RouteValue("panelId"));
+                if (error == null) return Ok(result);
+                return Fail(error.StartsWith("No AI-asset shell", StringComparison.Ordinal) ? 503 : 404,
+                            error, hintCategory);
+            })));
+
+            // ── N0 — the perspective, read and switched ───────────────────────────────────────
+            //
+            // ⭐⭐⭐ This is what makes three of the four editor perspectives reachable at all: a panel
+            //    publishes only when its draw runs, and only the ACTIVE perspective draws.
+            // ⚠ ROUTE ORDER: "/perspectives" (GET, plural) and "/perspective" (POST, singular) are
+            //    different templates with different verbs, so neither can shadow the other.
+            _routes.Add(new("GET", "/perspectives", _ => RunMainResult(s =>
+            {
+                var (result, error, hintCategory) = s.GetPerspectives();
+                return error != null ? Fail(503, error, hintCategory) : Ok(result);
+            })));
+
+            _routes.Add(new("POST", "/perspective", ctx => RunMainResult(s =>
+            {
+                var (result, error, hintCategory) = s.SwitchPerspective(ctx.Body);
+                // ⭐ 503 means "not wired" and 400 means "you asked for a perspective that does not
+                //   exist" — ⛔ collapsing them would make a composition-root defect look like a bad
+                //   request, which is the reading error that costs an afternoon.
+                if (error == null) return Ok(result);
+                return Fail(error.StartsWith("No perspective access", StringComparison.Ordinal) ? 503 : 400,
+                            error, hintCategory);
+            })));
+
+            // Group M — Focus + Annotations (ADA-BATCH-14)
+            _routes.Add(new("POST", "/entities/{networkId}/focus", async ctx =>
+            {
+                if (!long.TryParse(ctx.RouteValue("networkId"), out var id))
+                    return Fail(400, "Invalid networkId.");
+                var node = await _jobQueue.RunOnMainThread(() => Service().FocusEntity(id)).ConfigureAwait(false);
+                return Ok(node);
+            }));
+
+            _routes.Add(new("POST", "/annotations", async ctx =>
+            {
+                var (node, error) = await _jobQueue.RunOnMainThread(() =>
+                    Service().AddAnnotation(ctx.Body)).ConfigureAwait(false);
+                return error != null ? Fail(400, error) : Ok(node);
+            }));
+        }
+
+        /// <summary>
+        /// ⭐⭐⭐ <b>One handler, two modes</b> — <c>target</c> is <c>OperatingEdit</c> or <c>OperatingLive</c>.
+        /// 📄 <c>MCP_Integration.md</c> § Group U. ⛔ Not two handlers: the readiness contract is identical and
+        /// duplicating it is how the two modes would drift apart.
+        /// </summary>
+        private async Task<RouteResult> HandleScenarioLoad(RequestContext ctx, Fdp.Toolkit.Orchestration.ClusterState target)
+        {
+            var name = ctx.Body?["name"]?.GetValue<string>();
+            if (string.IsNullOrWhiteSpace(name))
+                return Fail(400, "name is required.");
+
+            bool waitForReady = ctx.Body?["waitForReady"]?.GetValue<bool>() ?? false;
+
+            var requested = await _jobQueue.RunOnMainThread(() =>
+                target == Fdp.Toolkit.Orchestration.ClusterState.OperatingLive
+                    ? Service().LoadScenarioLive(name!)
+                    : Service().LoadScenarioEdit(name!)).ConfigureAwait(false);
+
+            if (!waitForReady)
+                return Ok(new JsonObject
+                {
+                    ["loading"] = name,
+                    ["awaited"] = false,
+                    ["target"]  = target.ToString(),
+                    ["via"]     = requested?["via"]?.GetValue<string>(),
+                });
+
+            // ⭐⭐⭐ READINESS IS AN EDGE, NOT A LEVEL. 📄 See DebugApiService.WorldEntityCount for the
+            //    measurement: the TARGET state is where a RELOAD starts, so a level check can answer "ready"
+            //    while the PREVIOUS world is still standing — and the two DeterminismRails reload cases
+            //    were passing on a one-frame margin because of it.
+            //
+            // ⭐⭐ So: the state must be `target` AND the world must have been observed CHANGING since
+            //    the request (a load SoftClears and re-creates, so the count moves) AND then settling.
+            //
+            // ⚠ The grace fallback exists for the one case the edge cannot see: loading a scenario whose
+            //   entity count never differs from the current one at any polled frame (e.g. empty → empty).
+            //   ⛔ It is a FALLBACK, not the mechanism — it only relaxes the edge requirement, never the
+            //   OperatingEdit one.
+            const double EdgeGraceSeconds = 2.0;
+
+            var sw = System.Diagnostics.Stopwatch.StartNew();
+            int pollCount = 0;
+            int? countAtRequest = await _jobQueue.RunOnMainThread(() => Service().WorldEntityCountOrNull())
+                                                .ConfigureAwait(false);
+            int? previous = countAtRequest;
+            bool sawChange = false;
+
+            // ⚠ A host with NO world (ExCon) has no count to watch, so the edge is unobservable there and the
+            //   state is all there is. ⛔ Reported in the payload rather than silently treated as an edge.
+            bool haveAnchor = countAtRequest is not null;
+
+            while (sw.Elapsed.TotalSeconds < ScenarioReadyTimeoutSeconds)
+            {
+                var (ready, count) = await _jobQueue
+                    .RunOnMainThread(() => (Service().PollClusterStateIs(target), Service().WorldEntityCountOrNull()))
+                    .ConfigureAwait(false);
+                pollCount++;
+
+                if (count != countAtRequest) sawChange = true;
+                bool settled = count == previous;
+                previous = count;
+
+                if (ready && settled && (sawChange || !haveAnchor || sw.Elapsed.TotalSeconds > EdgeGraceSeconds))
+                    return Ok(new JsonObject
+                    {
+                        ["loaded"]      = name,
+                        ["awaited"]     = true,
+                        ["target"]      = target.ToString(),
+                        ["entityCount"] = count,
+                        // ⭐ Reported so a caller can tell a genuine edge from the grace fallback — a load
+                        //   that only ever passed on grace is worth knowing about.
+                        ["sawWorldChange"] = sawChange,
+                        ["hadWorldAnchor"] = haveAnchor,
+                    });
+            }
+            return Fail(504, $"Scenario '{name}' did not reach a settled {target} within "
+                           + $"{ScenarioReadyTimeoutSeconds}s ({pollCount} polls, entityCount {previous}, "
+                           + $"sawWorldChange={sawChange}, hadWorldAnchor={haveAnchor}).");
+        }
+
+        private DebugApiService Service()
+            => _service ?? throw new InvalidOperationException("Debug API service not attached yet.");
+
+        /// <summary>⭐ How long the ack-gate waits before calling the cluster stuck. Generous: a lockstep tick
+        /// over DDS is milliseconds, so anything near this is a real stall, not slowness.</summary>
+        private const double StepAckTimeoutSeconds = 20.0;
+
+        /// <summary>
+        /// ⭐⭐⭐ <b>Waits until the master reports the step acknowledged cluster-wide.</b> Returns
+        /// <see langword="null"/> on success, or the failure result to send.
+        ///
+        /// <para>⭐ <b>Polled through the main-thread queue</b>, so each read is a consistent observation
+        /// between frames — ⛔ never a direct cross-thread field read of the controller.</para>
+        ///
+        /// <para>⭐⭐ <b>In editor mode the first read is already <c>false</c></b> *(empty slave roster)*, so
+        /// this costs one queued job and returns — ⚠ the same code path in both modes, deliberately.</para>
+        ///
+        /// <para>⛔⛔ A timeout is a <b>FAILURE</b>, not a shrug: it means a roster node never acknowledged,
+        /// and every read after it would describe a half-stepped cluster. 📌 Reporting it as 504 with the
+        /// elapsed time is what makes that visible instead of flaky.</para>
+        /// </summary>
+        /// <summary>
+        /// ⭐⭐⭐ <b>Blocks until the issued step has LANDED: the master is not mid-barrier AND the clock moved.</b>
+        ///
+        /// <para>⛔⛔ <b>Why the ACK flag alone is not a gate.</b> 📐 Measured <c>2026-08-24</c>, <c>--mode all</c>,
+        /// paused, one step: <c>isAwaitingStepAcks</c> read <c>false</c> 2 ms after issuing and <c>totalTime</c>
+        /// was UNCHANGED; the tick appeared ~0.5 s later. ⇒ the flag was <c>false</c> because the master had not
+        /// STARTED — the step is published as an intent that crosses DDS. ⭐ A wait on
+        /// <c>!IsAwaitingStepAcks</c> therefore returned having confirmed nothing at all, which is worse than no
+        /// gate: it looks like a guarantee. 📌 The same level-vs-edge defect as the scenario-load readiness race,
+        /// found the same way.</para>
+        ///
+        /// <para>⭐⭐ <b>The fix is an AND with a MONOTONE observable</b> rather than an edge on the flag. An
+        /// edge-trigger *("wait for awaiting to go true, then false")* cannot work in both hosts: the editor's
+        /// standalone master has an EMPTY roster and is never observably awaiting, so phase one would always
+        /// time out. ⭐ Clock progress is the one signal that means the same thing in both — a step that landed
+        /// moved it.</para>
+        ///
+        /// <para>⚠ <b>Degrades deliberately:</b> when the host offers no clock *(IG / ExCon — <c>TotalTimeOrNull</c>
+        /// is <see langword="null"/>)* there is no progress to anchor on, so this falls back to the flag alone and
+        /// says so in the timeout text. ⛔ Those perspectives answer <c>501</c> before reaching here today; the
+        /// fallback exists so a future clockless-but-drivable host degrades rather than hanging for 20 s.</para>
+        ///
+        /// <para>⚠ <c>count &gt; 1</c> is gated as "at least one tick, and the barrier drained" — the master
+        /// stays in <c>Stepping</c> until every requested tick is acknowledged, so the flag covers the remainder
+        /// without this needing to know the tick length.</para>
+        /// </summary>
+        /// <summary>
+        /// ⭐⭐⭐ <b><c>CE-104</c> — waits until the pause has actually taken effect cluster-wide.</b> Returns
+        /// <see langword="null"/> on success, or the failure result to send.
+        ///
+        /// <para>⭐ <b>The observable is <c>isPaused</c> itself</b>, polled through the main-thread queue so each
+        /// read is a consistent between-frames observation. ⛔ Not the clock: a paused clock and a stalled clock
+        /// look identical, so clock-progress cannot prove a pause the way it proves a step.</para>
+        ///
+        /// <para>⚠ <b>Degrades deliberately:</b> a host that cannot report <c>isPaused</c> *(no time controller —
+        /// the read answers <see langword="null"/>)* has nothing to confirm, so this returns immediately rather
+        /// than hanging for the timeout. ⛔ Such hosts answer 501 before reaching here today.</para>
+        ///
+        /// <para>⛔ A timeout is a FAILURE with the elapsed time named — a pause that never lands means the
+        /// barrier is stuck, and every later read would describe a cluster that is neither running nor
+        /// paused.</para>
+        /// </summary>
+        private async Task<RouteResult?> AwaitPausedAsync()
+        {
+            var sw = Stopwatch.StartNew();
+
+            while (true)
+            {
+                var paused = await _jobQueue
+                    .RunOnMainThread(() => Service().IsPausedOrNull())
+                    .ConfigureAwait(false);
+
+                if (paused is null) return null;   // nothing to confirm on this host
+                if (paused.Value)   return null;
+
+                if (sw.Elapsed.TotalSeconds > StepAckTimeoutSeconds)
+                    return Fail(504,
+                        $"Pause was issued but isPaused was still false after {StepAckTimeoutSeconds:0}s — "
+                      + "the cluster pause barrier appears stuck (see GET /logs?level=Warning).");
+
+                await Task.Delay(15).ConfigureAwait(false);
+            }
+        }
+
+        private async Task<RouteResult?> AwaitStepLandedAsync(double? before)
+        {
+            var sw = Stopwatch.StartNew();
+            bool sawBarrier = false;
+
+            while (true)
+            {
+                var (awaiting, now) = await _jobQueue
+                    .RunOnMainThread(() => (Service().IsAwaitingStepAcks, Service().TotalTimeOrNull()))
+                    .ConfigureAwait(false);
+
+                if (awaiting) sawBarrier = true;
+
+                // ⭐ No anchor (clockless host, or the clock vanished mid-step) ⇒ the flag is all there is.
+                bool advanced = before is null || now is null || now.Value > before.Value;
+
+                if (!awaiting && advanced) return null;
+
+                if (sw.Elapsed.TotalSeconds > StepAckTimeoutSeconds)
+                    return Fail(504,
+                        $"The step was issued but did not land within {StepAckTimeoutSeconds:0}s — "
+                      + (awaiting
+                            ? "the master still reports awaitingStepAcks, so a roster node (SimHost/IG/CGF) is "
+                            + "not advancing"
+                            : sawBarrier
+                                ? "the barrier drained but the clock never advanced past "
+                                + $"{before?.ToString() ?? "(no anchor)"}, so the tick was acknowledged without "
+                                + "being executed"
+                                : "the master never entered the step barrier and the clock never advanced, so "
+                                + "the step intent appears not to have reached it")
+                      + ". Any read now would describe a half-stepped cluster.");
+
+                await Task.Delay(2).ConfigureAwait(false);
+            }
+        }
+
+        private Task<RouteResult> RunMain(Func<DebugApiService, JsonNode?> fn)
+            => _jobQueue.RunOnMainThread(() => Ok(fn(Service())));
+
+        /// <summary>
+        /// Like <see cref="RunMain"/>, but the handler builds its OWN <see cref="RouteResult"/> —
+        /// for world-touching endpoints that can fail with a status and a hint rather than only
+        /// returning a payload.
+        /// </summary>
+        private Task<RouteResult> RunMainResult(Func<DebugApiService, RouteResult> fn)
+            => _jobQueue.RunOnMainThread(() => fn(Service()));
+
+        // ── mission editing (MX4b) ────────────────────────────────────────────
+
+        /// <summary>
+        /// ⭐ How long a mission commit/run may wait for its <c>MissionControlAckEvent</c> before the route
+        /// gives up. The ack normally lands within a frame or two (the execution system runs in the Input
+        /// phase every editor tick, and <c>PollAcks</c> runs right after), so a timeout means the host is
+        /// not pumping the mission-control system at all — a real, reportable condition, not a slow tick.
+        /// </summary>
+        private const double MissionAckTimeoutSeconds = 15.0;
+
+        /// <summary>
+        /// The three-code classification the mission routes share: a missing service is a COMPOSITION
+        /// defect (503) the caller could not avoid; an unknown entity is an addressing mistake (404); any
+        /// other refusal is a bad request (400). ⭐ Mirrors <see cref="AuthoringResult"/>'s intent for the
+        /// mission seam.
+        /// </summary>
+        private static RouteResult MissionError(string error, string? hintCategory)
+            => Fail(
+                hintCategory == DebugApiHints.Entity ? 404
+                    : error.StartsWith("No mission service", StringComparison.Ordinal) ? 503
+                    : 400,
+                error, hintCategory);
+
+        /// <summary>
+        /// Awaits an in-flight mission commit/control task off the main thread, bounded by
+        /// <see cref="MissionAckTimeoutSeconds"/>. Maps the resolved <c>MissionCommitResult</c>: success →
+        /// 200 with the new OCC version merged into <paramref name="meta"/>; a rejected commit (e.g.
+        /// <c>ERR_VERSION_CONFLICT</c>) → 409 — ⛔ never a silent overwrite; a timeout → 504 pointing at the
+        /// sim controls.
+        /// </summary>
+        private static async Task<RouteResult> AwaitMissionCommitAsync(
+            Task<Hrot.UI.Common.Models.MissionCommitResult> commit, JsonNode? meta, string verb)
+        {
+            var finished = await Task.WhenAny(
+                commit, Task.Delay(TimeSpan.FromSeconds(MissionAckTimeoutSeconds))).ConfigureAwait(false);
+
+            if (!ReferenceEquals(finished, commit))
+                return Fail(504,
+                    $"The mission {verb} was published but the engine did not acknowledge it within "
+                    + $"{MissionAckTimeoutSeconds:0}s — advance the sim (POST /sim/play or POST /sim/step) so "
+                    + "the mission-control system processes it.",
+                    DebugApiHints.MissionTask);
+
+            Hrot.UI.Common.Models.MissionCommitResult result;
+            try
+            {
+                result = await commit.ConfigureAwait(false);
+            }
+            catch (Exception ex)
+            {
+                return FailFault(500, $"The mission {verb} threw before it acknowledged: {DebugApiFault.OneLine(ex)}", ex, DebugApiHints.MissionTask);
+            }
+
+            if (!result.Success)
+                return Fail(409,
+                    $"The mission {verb} was rejected: {result.ErrorMessage ?? "version conflict"}. "
+                    + "Re-read GET /missions/{networkId} for the current version and retry.",
+                    DebugApiHints.MissionTask);
+
+            var data = meta as JsonObject ?? new JsonObject();
+            data["committed"] = true;
+            data["version"]   = result.NewVersion;
+            return Ok(data);
+        }
+
+        // ── Accept / dispatch loop ────────────────────────────────────────────
+
+        private async Task AcceptLoopAsync()
+        {
+            while (_listener.IsListening)
+            {
+                HttpListenerContext ctx;
+                try
+                {
+                    ctx = await _listener.GetContextAsync().ConfigureAwait(false);
+                }
+                catch (HttpListenerException) { break; }
+                catch (ObjectDisposedException) { break; }
+
+                _ = Task.Run(() => HandleRequestAsync(ctx));
+            }
+        }
+
+        private async Task HandleRequestAsync(HttpListenerContext ctx)
+        {
+            try
+            {
+                var method = ctx.Request.HttpMethod.ToUpperInvariant();
+                var path   = ctx.Request.Url?.AbsolutePath ?? "/";
+
+                // Before the service is attached (early startup, or foundation-only hosting),
+                // /status answers with a minimal { ok:true } so liveness checks succeed.
+                if (method == "GET" && path == "/status" && _service is null)
+                {
+                    await WriteResponseAsync(ctx, 200, new ApiResponse(true)).ConfigureAwait(false);
+                    return;
+                }
+
+                if (!TryMatch(method, path, out var entry, out var routeValues))
+                {
+                    await WriteResponseAsync(ctx, 404, new ApiResponse(false, Error: "Not found")).ConfigureAwait(false);
+                    return;
+                }
+
+                if (_service is null && entry.NeedsService)
+                {
+                    await WriteResponseAsync(ctx, 503, new ApiResponse(false, Error: "Debug API not ready")).ConfigureAwait(false);
+                    return;
+                }
+
+                JsonNode? body = await ReadBodyAsync(ctx).ConfigureAwait(false);
+                var reqCtx = new RequestContext(ctx.Request, routeValues, body);
+
+                RouteResult result;
+                try
+                {
+                    result = await entry.Handler(reqCtx).ConfigureAwait(false);
+                }
+                catch (Hrot.Presentation.DebugApi.NotSupportedHereException nsh)
+                {
+                    // ⭐⭐⭐ THE TYPED ABSENCE. 📄 Architect_Question_54 Q54-1 Option C.
+                    // ⛔ NOT a 404 ("a 404 to interpret" — a broken panel and an unported one look the same)
+                    //    and ⛔ NOT an empty model (the false green D4 exists to kill).
+                    // ⭐ 501 + the capability KEY, so conformance can read absence instead of inferring it.
+                    result = new RouteResult(501, new JsonObject
+                    {
+                        ["code"]       = "NOT_SUPPORTED_HERE",
+                        ["capability"] = nsh.Capability,
+                    }, nsh.Message);
+                }
+                catch (AggregateException agg)
+                    when (agg.InnerException is Hrot.Presentation.DebugApi.NotSupportedHereException inner)
+                {
+                    // ⚠ The main-thread job queue surfaces a job's throw wrapped; unwrap so a capability
+                    //   absence does not read as a 500 just because it crossed a Task boundary.
+                    result = new RouteResult(501, new JsonObject
+                    {
+                        ["code"]       = "NOT_SUPPORTED_HERE",
+                        ["capability"] = inner.Capability,
+                    }, inner.Message);
+                }
+                catch (Exception ex)
+                {
+                    // ⭐⭐⭐ CE-190 — an unhandled route fault reports WHERE it happened, not just what it
+                    //   said. `ex.Message` alone is unusable for the types that actually turn up mid-refactor
+                    //   (a NullReferenceException's message names no type, no method, no file, no line), and
+                    //   the caller is an agent on the far side of MCP with no debugger.
+                    // ⚠ The site goes in BOTH places on purpose: the node client reads `envelope.error` as
+                    //   the tool-error message (index.mjs:215) and separately spreads the whole envelope
+                    //   (:296), so a caller that only ever sees the string still gets the location.
+                    result = new RouteResult(500, null, DebugApiFault.OneLine(ex), null, DebugApiFault.Describe(ex));
+                }
+
+                // ⭐⭐⭐ CE-107 — THE SUCCESS BRANCH CARRIES THE HINT TOO. ⛔ It used to drop it, so an
+                //    endpoint could not advise a caller that had been served but had asked the wrong
+                //    question — the envelope was structurally incapable of saying "ok, but…". 📐 That is why
+                //    `/logs?limit=400` could return the whole unfiltered ring in silence.
+                // ⭐⭐⭐ CE-112 — `?perspective=` IS NOT IMPLEMENTED, SO SAY SO ON EVERY ROUTE.
+                //
+                // 📐 Measured `2026-08-28`: `PerspectiveScopedDispatcher.Resolve(perspective)` exists and its
+                //    own doc-comment calls it *"Q54-2's optional ?perspective= override"* — ⛔ and it has
+                //    **ZERO CALLERS**. No route ever consults the query key, so passing it silently reads the
+                //    ACTIVE perspective instead.
+                //
+                // 🔴🔴 **This cost a wrong diagnosis, and it is the third instrument fault in one
+                //    investigation** (after `CE-107`'s ignored `/logs` key and `CE-110`'s empty TKB). Reading
+                //    entity 1001 on `--mode all` with `?perspective=` set to SimHost, Scenario, IG and even
+                //    **ExCon — which has no world at all** — returned FOUR IDENTICAL non-empty answers. ⚠ That
+                //    is what proved the key was ignored: ExCon cannot answer, so an answer from ExCon is a lie.
+                //    ⭐ The truth, found by `POST /perspective` instead: CGF holds `Class: Tank, AccelGain 1.8`
+                //    and SimHost holds `PersonalCar, AccelGain 0` — the two worlds DISAGREE, and the ignored
+                //    key had been hiding exactly the difference `CE-103` was hunting.
+                //
+                // ⛔ Deliberately NOT a 400, following `CE-107`'s ruling: leniency is right for a diagnostic
+                //    endpoint, and going SILENT was the defect. ⚠ But the advice names the WORKING route, so a
+                //    caller is never left with a plausible answer to a different question.
+                // ⭐ ONE guard at the single envelope site rather than per-route: no route implements the
+                //   override, so a per-route list would rot the moment one did. 📌 When a route DOES implement
+                //   it, that route's own hint supersedes this — the check is skipped when a hint is present.
+                var perspectiveOverride = reqCtx.Query("perspective");
+                if (!string.IsNullOrWhiteSpace(perspectiveOverride) && result.Hint is null)
+                {
+                    result = result with
+                    {
+                        Hint = new JsonObject
+                        {
+                            ["why"] = $"the '?perspective={perspectiveOverride}' override is NOT implemented "
+                                    + "on any route and was IGNORED — this answer is for the ACTIVE "
+                                    + "perspective, which may be a DIFFERENT node with different state. "
+                                    + "Switch first, then read.",
+                            ["seeEndpoint"] = "POST /perspective",
+                        },
+                    };
+                }
+
+                // ⭐⭐⭐ CE-107 — THE SUCCESS BRANCH CARRIES THE HINT TOO. ⛔ It used to drop it, so an
+                //    endpoint could not advise a caller that had been served but had asked the wrong
+                //    question — the envelope was structurally incapable of saying "ok, but…". 📐 That is why
+                //    `/logs?limit=400` could return the whole unfiltered ring in silence.
+                var envelope = result.Error is null
+                    ? new ApiResponse(true, Data: result.Data, Hint: result.Hint)
+                    : new ApiResponse(false, Error: result.Error, Hint: result.Hint, Fault: result.Fault);
+                await WriteResponseAsync(ctx, result.Status, envelope).ConfigureAwait(false);
+
+                // ⭐ Post-response hook — see RouteEntry.AfterResponse. Only /shutdown uses it, and only
+                //   because tearing the process down must not race the 200 it just promised.
+                if (result.Status == 200) entry.AfterResponse?.Invoke();
+            }
+            catch (Exception ex)
+            {
+                // ⭐ CE-190 — the OUTER catch too. This one fires for failures OUTSIDE any route handler
+                //   (body parsing, routing, serializing the response), which are precisely the ones whose
+                //   message names nothing recognisable. ⛔ It was the harder of the two to diagnose and had
+                //   exactly the same one-line report.
+                try { await WriteResponseAsync(ctx, 500,
+                          new ApiResponse(false, Error: DebugApiFault.OneLine(ex), Fault: DebugApiFault.Describe(ex)))
+                          .ConfigureAwait(false); }
+                catch { /* response already started */ }
+            }
+        }
+
+        private bool TryMatch(string method, string path, out RouteEntry entry, out Dictionary<string, string> routeValues)
+        {
+            routeValues = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+            var segs = path.Trim('/').Split('/', StringSplitOptions.RemoveEmptyEntries);
+
+            foreach (var r in _routes)
+            {
+                if (!string.Equals(r.Method, method, StringComparison.OrdinalIgnoreCase)) continue;
+
+                var tSegs = r.Template.Trim('/').Split('/', StringSplitOptions.RemoveEmptyEntries);
+                if (tSegs.Length != segs.Length) continue;
+
+                bool match = true;
+                var captured = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+                for (int i = 0; i < tSegs.Length; i++)
+                {
+                    if (tSegs[i].StartsWith("{") && tSegs[i].EndsWith("}"))
+                        captured[tSegs[i].Trim('{', '}')] = Uri.UnescapeDataString(segs[i]);
+                    else if (!string.Equals(tSegs[i], segs[i], StringComparison.OrdinalIgnoreCase))
+                    {
+                        match = false;
+                        break;
+                    }
+                }
+                if (match)
+                {
+                    entry = r;
+                    routeValues = captured;
+                    return true;
+                }
+            }
+            entry = null!;
+            return false;
+        }
+
+        private static async Task<JsonNode?> ReadBodyAsync(HttpListenerContext ctx)
+        {
+            if (!ctx.Request.HasEntityBody) return null;
+            using var reader = new StreamReader(ctx.Request.InputStream, ctx.Request.ContentEncoding ?? Encoding.UTF8);
+            var text = await reader.ReadToEndAsync().ConfigureAwait(false);
+            if (string.IsNullOrWhiteSpace(text)) return null;
+            try { return JsonNode.Parse(text); }
+            catch { return null; }
+        }
+
+        private static async Task WriteResponseAsync(HttpListenerContext ctx, int statusCode, ApiResponse obj)
+        {
+            var json  = JsonSerializer.Serialize(obj, _jsonOptions);
+            var bytes = Encoding.UTF8.GetBytes(json);
+            ctx.Response.StatusCode = statusCode;
+            ctx.Response.ContentType = "application/json; charset=utf-8";
+            ctx.Response.ContentLength64 = bytes.Length;
+            await ctx.Response.OutputStream.WriteAsync(bytes, 0, bytes.Length).ConfigureAwait(false);
+            ctx.Response.Close();
+        }
+
+        public void Dispose()
+        {
+            if (_disposed) return;
+            _disposed = true;
+            try { _listener.Stop(); } catch { /* ignore */ }
+            try { _listener.Close(); } catch { /* ignore */ }
+        }
+
+        // ── Per-request context ───────────────────────────────────────────────
+
+        private sealed class RequestContext
+        {
+            private readonly HttpListenerRequest _request;
+            private readonly Dictionary<string, string> _routeValues;
+
+            public JsonNode? Body { get; }
+
+            public RequestContext(HttpListenerRequest request, Dictionary<string, string> routeValues, JsonNode? body)
+            {
+                _request = request;
+                _routeValues = routeValues;
+                Body = body;
+            }
+
+            public string? RouteValue(string key) => _routeValues.TryGetValue(key, out var v) ? v : null;
+            public string? Query(string key) => _request.QueryString[key];
+
+            /// <summary>
+            /// ⭐⭐ <c>CE-107</c> — every query key the caller actually sent, so a route can tell them which
+            /// ones it did not understand. ⛔ Without this a typo'd filter is invisible: the value is simply
+            /// never read and the endpoint answers a question nobody asked.
+            /// </summary>
+            public IEnumerable<string> QueryKeys
+            {
+                get
+                {
+                    foreach (var k in _request.QueryString.AllKeys)
+                        if (!string.IsNullOrEmpty(k)) yield return k!;
+                }
+            }
+        }
+    }
+
+    /// <summary>
+    /// Standard API response envelope. <c>Data</c> is a <see cref="JsonNode"/> embedded verbatim.
+    ///
+    /// <para><c>Hint</c> (<c>MX8</c>) is the machine-readable half of an error: where a caller that
+    /// got the input wrong should look — <c>{ seeEndpoint, why }</c>, filled from
+    /// <see cref="DebugApiHints"/>. ⭐ The prose in <c>Error</c> is unchanged and still carries the
+    /// human explanation; this spares an agent parsing an endpoint name out of a sentence.</para>
+    /// </summary>
+    /// <param name="Fault">
+    /// ⭐⭐⭐ <c>CE-190</c> — the throw site, frames and inner chain of an unhandled exception, so an MCP
+    /// caller can locate a 500 instead of only reading its message. Null on every non-500 response.
+    /// ⭐ It reaches the agent with no client change: <c>ai-debug-mcp/src/index.mjs:296</c> spreads the
+    /// whole envelope into the tool's error payload.
+    /// </param>
+    public record ApiResponse(bool Ok, JsonNode? Data = null, string? Error = null, bool? Awaited = null, JsonNode? Hint = null, JsonNode? Fault = null);
+}

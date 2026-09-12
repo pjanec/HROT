@@ -312,7 +312,7 @@ namespace Hrot.SimHost.Tests
             var spawner     = new NetworkSpawningSystem(tkb, elm, entityMap, idAllocator, 1);
 
             // Note: SimHostModule constructor only receives the spawner â€” no participant, no systems.
-            var ex = Record.Exception(() => new SimHostModule(spawner));
+            var ex = Record.Exception(() => new Fdp.ModuleHost.Scheduling.SingleSystemModule("NetworkSpawning", spawner));
 
             Assert.Null(ex);
         }

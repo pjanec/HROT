@@ -76,16 +76,29 @@ namespace Hrot.ClusterRunner.Integration.Tests
             HsmEventQueue.TryEnqueue(ptr, evt);
         }
 
-        // IT-BHU-E1: CognitiveRuntimeModule registers exactly 6 systems in the required order.
-        // CognitiveInterruptSystem and CognitiveCleanupSystem are internal types; their type
-        // names are compared as strings. Public types use Assert.IsType<>.
+        // IT-BHU-E1: CognitiveRuntimeModule registers exactly 7 systems in the required order.
+        // CognitiveInterruptSystem, CognitiveCleanupSystem and BehaviorFrameSystem are internal
+        // types; their type names are compared as strings. Public types use Assert.IsType<>.
+        //
+        // ⭐⭐⭐ AX-018 — THIS ASSERT WAS STALE, AND THE CORRECT VALUE WAS ALREADY IN THE REPO.
+        //    📐 Measured 2026-08-26: the module registers SEVEN systems — BehaviorFrameSystem was added
+        //    at index 6 ("advances the global behaviour-frame pulse", Q46 rule 2b) and this copy of the
+        //    claim was never updated, so it asserted 6 and had been red ever since.
+        //
+        // ⛔ It is a STALE TEST, not a defect in the module — established rather than assumed:
+        //    Fdp.Toolkits.Tests/Behavior/Modules/CognitiveRuntimeModuleTests already asserts 7 with
+        //    BehaviorFrameSystem at index 6, and is GREEN. ⇒ the module is right and this copy was wrong.
+        //
+        // ⚠ The claim is therefore asserted TWICE, and the OWNING project's test is the better home —
+        //    it can name the internal types directly instead of comparing type-name strings. ⭐ Filed
+        //    rather than removed here: deleting a rail is a separate, reviewable act (see AX-018 notes).
         [Fact]
-        public void E1_CognitiveRuntimeModule_RegistersExactlySixSystemsInOrder()
+        public void E1_CognitiveRuntimeModule_RegistersExactlySevenSystemsInOrder()
         {
             var registry = new BehaviorRegistry();
             var module   = new CognitiveRuntimeModule(registry);
 
-            Assert.Equal(6, module.SimulationSystems.Count);
+            Assert.Equal(7, module.SimulationSystems.Count);
 
             Assert.IsType<ChannelArbitrationSystem>(module.SimulationSystems[0]);
 
@@ -98,6 +111,9 @@ namespace Hrot.ClusterRunner.Integration.Tests
 
             // CognitiveCleanupSystem is internal to Fdp.Toolkits -- compare by type name.
             Assert.Equal("CognitiveCleanupSystem", module.SimulationSystems[5].GetType().Name);
+
+            // ⭐ BehaviorFrameSystem is internal to Fdp.Toolkits -- compare by type name.
+            Assert.Equal("BehaviorFrameSystem", module.SimulationSystems[6].GetType().Name);
 
             // Confirm no HsmDamageBridgeSystem anywhere (BHU-010 requirement).
             foreach (var sys in module.SimulationSystems)

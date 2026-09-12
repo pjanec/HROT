@@ -1,3 +1,4 @@
+using Fdp.Toolkit.Combat.Components;
 using System.Reflection;
 using Fdp.Core;
 using Fdp.Toolkit.Diagnostics.Gizmos;
@@ -39,7 +40,7 @@ namespace Hrot.IG.Tests.Gizmos
         [Fact]
         public void SC_GZ020_3_RegisterHealthBarGizmo_DoesNotThrow()
         {
-            // IgHealthState is registered during InitializeEmbedded (world.RegisterComponent<IgHealthState>).
+            // Health is registered during InitializeEmbedded (world.RegisterComponent<Health>).
             // StatelessGizmoRegistry.Register resolves the type via ComponentTypeRegistry.GetId -- must not throw.
             var settings          = new GizmoSettingsRegistry();
             var gizmo             = new HealthBarGizmo(settings);

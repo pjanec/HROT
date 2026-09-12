@@ -37,16 +37,31 @@ public sealed class BlueprintMyBlueprintModelTests
 
         var sections = model.Sections;
 
-        // Must have exactly 6 sections.
-        Assert.Equal(6, sections.Count);
+        // BP-12c: the Event Dispatchers section is gone. Dispatchers were superseded by
+        // PublishEvent/EventEntry (BP-09 deleted their node kinds); the section was display-only
+        // over a field nothing consumes and no shipped asset populates.
+        // BP-57: six — Local Variables appended, so the five above keep the D.6.2 sort order.
+        // ⭐⭐ C-sections: EIGHT — Inputs and Working State appended for the same reason, and in the
+        //    same way. ⛔ The five D.6.2 sections and Local Variables keep their positions exactly;
+        //    a section split must not silently reorder the ones that were already there.
+        //    ⚠ Reading order would prefer Inputs FIRST. That is a presentation change worth making
+        //    deliberately, with this test rewritten to match — not as a side effect of the split.
+        // ⭐⭐⭐ Batch 86 — RESTATED to SEVEN. R-01 retires the Working State section (one concept, one
+        //    surface), and it was the LAST descriptor, so ⛔ nothing above it moved: positions 0–6 and
+        //    every SortOrder are byte-for-byte what they were. ⚠ That is exactly what this test exists
+        //    to prove, and it is a stronger statement about the retirement than a deletion would be.
+        Assert.Equal(7, sections.Count);
 
-        // Fixed order: Graphs, Functions, Macros, Custom Events, Variables, Event Dispatchers.
-        Assert.Equal(BlueprintMyBlueprintModel.SectionGraphs,       sections[0].Id);
-        Assert.Equal(BlueprintMyBlueprintModel.SectionFunctions,    sections[1].Id);
-        Assert.Equal(BlueprintMyBlueprintModel.SectionMacros,       sections[2].Id);
-        Assert.Equal(BlueprintMyBlueprintModel.SectionCustomEvents, sections[3].Id);
-        Assert.Equal(BlueprintMyBlueprintModel.SectionVariables,    sections[4].Id);
-        Assert.Equal(BlueprintMyBlueprintModel.SectionDispatchers,  sections[5].Id);
+        // Fixed order: Graphs, Functions, Macros, Custom Events, Variables, Local Variables, Inputs.
+        Assert.Equal(BlueprintMyBlueprintModel.SectionGraphs,         sections[0].Id);
+        Assert.Equal(BlueprintMyBlueprintModel.SectionFunctions,      sections[1].Id);
+        Assert.Equal(BlueprintMyBlueprintModel.SectionMacros,         sections[2].Id);
+        Assert.Equal(BlueprintMyBlueprintModel.SectionCustomEvents,   sections[3].Id);
+        Assert.Equal(BlueprintMyBlueprintModel.SectionVariables,      sections[4].Id);
+        Assert.Equal(BlueprintMyBlueprintModel.SectionLocalVariables, sections[5].Id);
+        Assert.Equal(BlueprintMyBlueprintModel.SectionParameters,     sections[6].Id);
+        Assert.DoesNotContain(sections, s => s.Id == BlueprintMyBlueprintModel.SectionWorkingState);
+        Assert.DoesNotContain(sections, s => s.Id == "dispatchers");
 
         // SortOrder must match position.
         for (int i = 0; i < sections.Count; i++)
@@ -102,38 +117,52 @@ public sealed class BlueprintMyBlueprintModelTests
         asset.Graphs.Add(new Graph { Id = Guid.NewGuid(), Name = "UpdateGraph", Kind = GraphKind.Function });
 
         var model = MakeModel(asset);
-        var items = model.GetItems(BlueprintMyBlueprintModel.SectionGraphs);
 
-        Assert.Equal(2, items.Count);
-        Assert.Equal("EventGraph",  items[0].DisplayName);
-        Assert.Equal("UpdateGraph", items[1].DisplayName);
+        // BP-24 split the graph rows Unreal-style: Function graphs live in the Functions
+        // section (real since graphs became creatable), everything else stays under Graphs.
+        var graphItems = model.GetItems(BlueprintMyBlueprintModel.SectionGraphs);
+        Assert.Equal("EventGraph", Assert.Single(graphItems).DisplayName);
+
+        var functionItems = model.GetItems(BlueprintMyBlueprintModel.SectionFunctions);
+        Assert.Equal("UpdateGraph", Assert.Single(functionItems).DisplayName);
 
         // Graphs are host-defined, not user-deletable.
-        Assert.True(items[0].IsHostDefined);
-        Assert.False(items[0].IsDeletable);
+        Assert.True(graphItems[0].IsHostDefined);
+        Assert.False(graphItems[0].IsDeletable);
     }
 
-    // ── AIE-047 SC4: custom events + dispatchers projected ───────────────────
+    // ── AIE-047 SC4: custom events projected ─────────────────────────────────
 
     [Fact]
-    public void MyBlueprintModel_CustomEvents_AndDispatchers_Projected()
+    public void MyBlueprintModel_CustomEvents_Projected()
     {
         var asset = MakeAsset();
-        asset.CustomEvents.Add(new CustomEventDecl    { Id = Guid.NewGuid(), Name = "OnEnemyKilled" });
-        asset.CustomEvents.Add(new CustomEventDecl    { Id = Guid.NewGuid(), Name = "OnLevelUp" });
+        asset.CustomEvents.Add(new CustomEventDecl { Id = Guid.NewGuid(), Name = "OnEnemyKilled" });
+        asset.CustomEvents.Add(new CustomEventDecl { Id = Guid.NewGuid(), Name = "OnLevelUp" });
+
+        var model = MakeModel(asset);
+
+        var evtItems = model.GetItems(BlueprintMyBlueprintModel.SectionCustomEvents);
+
+        Assert.Equal(2, evtItems.Count);
+        Assert.Equal("OnEnemyKilled", evtItems[0].DisplayName);
+        Assert.Equal("OnLevelUp",     evtItems[1].DisplayName);
+    }
+
+    /// <summary>
+    /// BP-12c — a dispatcher declaration on a hand-authored asset must not resurrect the section.
+    /// The field still round-trips; the panel simply no longer offers the abandoned concept.
+    /// </summary>
+    [Fact]
+    public void MyBlueprintModel_Dispatchers_AreNotProjected()
+    {
+        var asset = MakeAsset();
         asset.EventDispatchers.Add(new EventDispatcherDecl { Id = Guid.NewGuid(), Name = "OnHealthChanged" });
 
         var model = MakeModel(asset);
 
-        var evtItems  = model.GetItems(BlueprintMyBlueprintModel.SectionCustomEvents);
-        var dispItems = model.GetItems(BlueprintMyBlueprintModel.SectionDispatchers);
-
-        Assert.Equal(2, evtItems.Count);
-        Assert.Equal("OnEnemyKilled",   evtItems[0].DisplayName);
-        Assert.Equal("OnLevelUp",       evtItems[1].DisplayName);
-
-        Assert.Single(dispItems);
-        Assert.Equal("OnHealthChanged", dispItems[0].DisplayName);
+        Assert.Empty(model.GetItems("dispatchers"));
+        Assert.DoesNotContain(model.Sections, s => s.CreateCommandId == "editor.create-event-dispatcher");
     }
 
     // ── AIE-047 SC5: faked sections return empty, no throw ───────────────────
@@ -222,17 +251,50 @@ public sealed class BlueprintMyBlueprintModelTests
 
     // ── Section count does not change after Retarget ──────────────────────────
 
+    /// <summary>
+    /// ⭐⭐ <b>A section is scoped in its CONTENTS, not in its existence.</b> A retarget changes what
+    /// the sections HOLD; it must never change which sections there ARE — ⛔ a section that appears
+    /// and disappears reads as a broken feature.
+    ///
+    /// <para>⚠ <b>Batch 81 — this was <c>Assert.Same</c> on the returned list.</b> That was the cheap
+    /// proxy for the invariant while the list was <c>static readonly</c>. The list is now PROJECTED
+    /// per read so a section's "+" can carry a <c>CreateDisabledReason</c> that follows the canvas
+    /// (2026-08-17 user ruling) — ⇒ ⛔ <b>same-container-instance pins the implementation, not the
+    /// property.</b> ⭐ The property is stated directly instead, which is strictly more than
+    /// <c>Assert.Same</c> said: identical ids, in identical order, at an identical count.</para>
+    /// </summary>
     [Fact]
-    public void MyBlueprintModel_Sections_SameInstanceAlways()
+    public void MyBlueprintModel_Sections_AreTheSameSetAcrossARetarget()
     {
         var model = new BlueprintMyBlueprintModel();
 
-        var sectionsA = model.Sections;
-        model.Retarget(new FakeEditableAsset(Guid.NewGuid(), "X"), MakeAsset());
-        var sectionsB = model.Sections;
+        var before = model.Sections;
+        var idsBefore = before.Select(s => s.Id).ToArray();
+        var orderBefore = before.Select(s => s.SortOrder).ToArray();
 
-        Assert.Same(sectionsA, sectionsB);
-        Assert.Equal(6, sectionsB.Count);
+        model.Retarget(new FakeEditableAsset(Guid.NewGuid(), "X"), MakeAsset());
+        var after = model.Sections;
+
+        Assert.Equal(idsBefore,   after.Select(s => s.Id));
+        Assert.Equal(orderBefore, after.Select(s => s.SortOrder));
+        // BP-57: six → C-sections: eight. ⭐ Batch 86 — SEVEN: R-01 retires the Working State section,
+        // and the point of this test is that a RETARGET changes nothing, which it still asserts above
+        // by comparing the id and sort-order sequences before and after.
+        Assert.Equal(7, after.Count);
+    }
+
+    /// <summary>
+    /// ⭐ The allocation guarantee <c>Assert.Same</c> used to give, kept where it is still true:
+    /// two reads with nothing changed in between return the same list. ⛔ The panel reads
+    /// <c>Sections</c> every frame, so rebuilding it per read would allocate for nothing.
+    /// </summary>
+    [Fact]
+    public void MyBlueprintModel_Sections_AreNotRebuiltWhenNothingChanged()
+    {
+        var model = new BlueprintMyBlueprintModel();
+        model.Retarget(new FakeEditableAsset(Guid.NewGuid(), "X"), MakeAsset());
+
+        Assert.Same(model.Sections, model.Sections);
     }
 
     // ── Inner fake ────────────────────────────────────────────────────────────
