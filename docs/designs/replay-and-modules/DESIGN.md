@@ -526,11 +526,60 @@ two `Entity`-keyed dictionaries are.
 ⭐⭐ **Why the per-blueprint set exists at all:** not every entity type gives every module work to do. A
 vehicle may need physics and turret setup to finish before it goes `Active`; a marker needs neither. Without
 the per-blueprint set, **every** entity would wait for **every** registered module, making the slowest module
-the floor for every spawn. ⇒ 📌 an **opt-in capability**, not a vestige — the `BTreeTick` shape in `CLAUDE.md`.
-⛔ **Do not propose deleting it**; ⛔ and this session did **not** find a design record of its intent
-*(searched `docs/` and `.dev/` for `RegisterRequirement`/`blueprintRequirement`/per-blueprint acks — the only
-hits are `hill-attack`'s unrelated "TKB Blueprint Requirements" and the `DESIGN_Deterministic_Network_Ids.md`
-row above)*.
+the floor for every spawn.
+
+##### ⭐⭐⭐ THE DESIGN RECORD EXISTS — **and finding it took a TOPICAL search, not a name search** *(user, `2026-09-11`)*
+
+> 🔒 **User:** *"search blueprint requirements in docs. they must have a good reason and maybe it is a bug
+> they are not written today."* ⛔⛔ **An earlier version of this section said *"searched `docs/` and `.dev/`,
+> no design record found."* That was WRONG** — and wrong in the exact way `CLAUDE.md` warns about: the search
+> was anchored on the IDENTIFIER (`RegisterRequirement`, `blueprintRequirement`, "per-blueprint ack"). 📐 The
+> record is in **`FDP/Engine/Fdp.ModuleHost/docs/ModuleHost-network-ELM-design-talk.md`** and never uses any
+> of those words. ⇒ 📌 **search the TOPIC — "what must happen before an entity goes Active" — not the name.**
+
+📐 **The intent, verbatim** *(§1, "The Interaction Model: Local ELM + Network Triggers")*:
+
+| node | the design says |
+|---|---|
+| **originator (A)** | *"**Local ELM:** Node A's ELM coordinates local modules (Physics, AI). **Activation:** Once local modules ACK, the entity becomes `Active` locally."* |
+| **replica (B)** | *"**Local Initialization:** Node B's Physics/Renderer modules initialize resources. **Activation:** Once Node B's local modules ACK, the entity becomes `Active` on Node B."* |
+| **partial ownership** *(§2)* | the node must know *"**a priori** (via configuration or logic based on `DisType`) that it is supposed to own the Weapon"* — ⭐ **the per-entity-TYPE axis `_blueprintRequirements` implements** |
+| **the peer barrier** *(§Part 1)* | *"To support the 'Reliable' option where Node A waits for Node B, we need to integrate the Network Gateway into the local ELM loop as a **blocking participant**."* |
+
+⇒ ⭐⭐⭐ **The barrier exists so nothing simulates, draws or publishes a half-initialised entity**, and the
+per-blueprint set is the refinement that stops a marker waiting on the physics module.
+
+#### 2.1j 🔴🔴🔴 THE CONSTRUCTION BARRIER IS INERT IN PRODUCTION — **BOTH AXES. NOTHING EVER ACKS A CONSTRUCTION** *(`2026-09-11`)*
+
+⛔⛔ **It is not that `_blueprintRequirements` is unwritten. The whole handshake is unwired.**
+
+| # | measured | ⇒ |
+|---|---|---|
+| **①** | `RegisterRequirement` — **zero callers** | the per-blueprint union at `BeginConstruction:172-175` is a no-op |
+| **②** | both production ctor sites pass an **empty** participant list — `EditorSubsystem.cs:1384`, `HrotNodeBuilder.cs:238` | `_globalParticipants` starts empty |
+| **③** | the **only** production `RegisterModule` caller is `NetworkGatewaySystem.cs:88` … | …and 🔴 **`NetworkGatewaySystem` IS NEVER CONSTRUCTED IN PRODUCTION** — `new NetworkGatewaySystem(...)` appears **only** in `NetworkGatewaySystemTests.cs:74/100/126` |
+| **④** | ⇒ `EntityLifecycleModule.AcknowledgeConstruction` — the sole publisher of `ConstructionAck` — is called by **nothing in production** *(all five call sites are inside the never-built gateway)* | 🔒 **no construction is ever acked** |
+| **⑤** | ⇒ every `BeginConstruction` takes the **zero-ack branch** (`:185-198`) and `DrainInstantComplete:325` promotes to `Active` on the next frame | ⭐ **construction is a ONE-FRAME formality, not a handshake** |
+| **⑥** | the PEER axis is inert too: `PendingNetworkAck` is added at `NetworkSpawningSystem.cs:159-160` and **consumed only by the gateway** | ⇒ `ReliableInitType.AllPeers` — set by IG at `IgApplication.cs:3614`/`:3714`, and made per-request by the **fixed** `CE-143` — **has no effect** |
+| **⑦** | `ConstructionOrder`'s other production readers are `BlueprintApplicationSystem.cs:33` *(applies the TKB template — the real work)* and `DataDrivenGizmoSystem.cs:304`. **Neither acks.** | ⇒ the order is used as a **notification**, never as a barrier |
+
+##### ⚠⚠ TWO GREEN RAILS SIT OVER THIS — **`R-142` ③ again**
+
+| rail | what it actually proves |
+|---|---|
+| `NetworkGatewayIntegrationTests` *(`PACK3-N004`)* | it asserts a `SpawnEntityCommand` with `ReliableInitType.AllPeers` **reaches `Active` on both nodes**. ⛔ With the barrier inert the entity reaches `Active` **whatever** the `InitType` — it would pass with `None`, and it passes with the gateway absent. 📌 Its own summary says it passed *after* *"PACK3-N002 (deletion of legacy `NetworkGatewaySystem` clones)"* — ⇒ **it passed BECAUSE the deletion left nothing wired**, and read that as confirmation of correct wiring |
+| `NetworkGatewaySystemTests` *(3 tests)* | they construct the gateway directly ⇒ **they test a system no host runs** |
+
+##### ⭐ What this does and does NOT license
+
+| | |
+|---|---|
+| ⭐⭐ **the framing changes** | ⛔ an earlier version of this section called `_blueprintRequirements` *"an opt-in capability, not a vestige"* (the `BTreeTick` shape). ⚠ **Too generous:** the design shows a barrier that was **specified and never wired**, which is a different thing from a capability deliberately left dormant |
+| ⛔⛔ **do NOT claim this breaks the product today** | ⚠ **NOT MEASURED:** whether an entity going `Active` one frame after creation — before physics/render set up resources — causes visible harm. Many ECS designs tolerate it (systems pick the entity up on their next tick). ⭐ The `TwoAck-DESIGN.md` §1 *"half-baked entity"* complaint is evidence the problem was FELT, but it is about the **IOS ack**, not local module readiness |
+| ⛔ **and do NOT delete anything** | 🔒 `CLAUDE.md`: *"prefer ROUTING to DELETING"*. ⭐ The right question is whether to **wire** the barrier, and that is a user/architect call with cluster-wide blast radius |
+| ⭐ **effect on the replay work** | it **simplifies** the reconstruction *(`RemainingAcks` is always empty ⇒ recomputation is trivially correct)* — ⚠ **but if the barrier is ever wired, recovering `BlueprintId` stops being theoretical and becomes load-bearing** |
+
+📄 Filed as `CE-259au`.
 
 ⇒ ⭐⭐⭐ **THIS IS WHY THE RECONSTRUCTION NEEDS `TkbIdentity.TkbType` AND NOT JUST "re-open with the global
 set".** `_globalParticipants` is pure node state and survives the rewind untouched; `_blueprintRequirements`
