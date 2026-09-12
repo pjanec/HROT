@@ -11,10 +11,17 @@ build-state: BUILDING - the NON-UI half is BUILT (2026-09-12); the UI half is no
   its own gizmo and IgEntityCreationRequests dies, StrideHrotGame's 12-line DTO, ScenarioSpawnAdapter as
   a thin caller closing G1+G2, SimHost + ReplayBrowser gaining the adapter).
 as-built: TWO deviations from the dispatched design, both folded in where they stood -
-  (a) the signature has NINE parameters, not eight: `disType` was added because CreateEntityRequestSystem
-      copies request.DisType VERBATIM and derives nothing from TkbType, so an 8-parameter affordance would
-      have stripped the DIS type off every authored entity once the adapter became a thin caller (R-137).
-      §3 carries the measurement as its own row.
+  (a) the signature has NINE parameters, not eight: `disType`.
+      ⛔⛔ THE REASON ORIGINALLY GIVEN HERE WAS WRONG AND IS RETRACTED (2026-09-12). It read: "added
+      because CreateEntityRequestSystem copies request.DisType VERBATIM and derives nothing from TkbType,
+      so an 8-parameter affordance would have stripped the DIS type off every authored entity (R-137)".
+      FALSE — I measured CreateEntityRequestSystem and stopped one hop short of where the value LANDS.
+      NetworkSpawningSystem.cs:154 stamps `cmd.DisType != 0 ? cmd.DisType : template.DisType.Value`, a
+      template fallback that recovers a zero; and the only other consumer, GetInitialGrants, never reads
+      the parameter in its one production implementation. Passing 0 loses nothing.
+      The parameter STAYS as an explicit template OVERRIDE (optional, defaulted, costs no caller
+      anything, and removing shipped surface would be churn) — but R-137 must not be cited for it.
+      §3's disType row carries the full retraction.
   (b) §4 claimed "creation.NodeId is already on it" and §6's classDiagram drew it as an existing member.
       FALSE - EntityCreation had no NodeId; it was added in the same commit. §4's row and §6's new caption
       carry the correction, and the caption states the general trap: a <<EXISTS>> stereotype labels the
@@ -187,7 +194,7 @@ appear in the producer table. **Two are in, one is out.**
 | `initType` | ✅ **already designed** | §3.4: *"both affordances take an explicit `initType`, defaulted to `AllPeers` so adoption changes nothing"*, and *"IG's drawings pass `None`"*. ⭐ §4c shows what it buys: it is the `PendingNetworkAck` that makes `NetworkGatewaySystem` wait for peers |
 | `initialAttributesJson` | ✅ **IN** | 📐 the operator's placement command carries property JSON — `MapCommandController.ActivatePlacementCommand(…, initialPropertiesJson)` → `EntityPlacementGizmo.cs:219`, railed as `EPG-006`. ⭐ It is an **authoring input**: the human typed it |
 | `requestId` | ✅ **IN** | 📐 `MapCommandController` correlates the two-phase ACK through `_pendingEntityRequests[RequestId]`; it cannot let the affordance mint one. ⭐ An **author that must be told the outcome** needs to name its request |
-| ⭐ `disType` | ✅ **IN — added while BUILDING, `2026-09-12`** ⚠ | ⛔ **This row did not exist when the design was dispatched, and its absence was a capability loss waiting to happen.** 📐 Measured at build time: `CreateEntityRequestSystem` copies `request.DisType` **verbatim** onto the entity's metadata *(`:221` → `:490`)* and **derives nothing from `TkbType`** — it discards the template it just looked up. ⇒ an 8-parameter signature would have silently stripped the DIS type off every authored entity the moment `ScenarioSpawnAdapter` became a thin caller *(`:223` passes `cmd.DisType` today)*, which is `R-137`: **unification may not cost a capability.** ⭐ It is a legitimate authoring input by §3's own rule — `EntityPresentationGizmoShared.cs:174` already resolves `template.DisType.Value` at authoring time. ⚠ **A cheaper fix exists and was deliberately NOT taken**: the request system could default it from the template it already loads. That is a behaviour change for the two translators that pass `0` on purpose, so it is a separate finding, not a drive-by |
+| ⭐ `disType` | ✅ **IN — but the JUSTIFICATION below was WRONG and is retracted** ⚠ | ⛔⛔ **RETRACTED `2026-09-12`.** This row said: *"`CreateEntityRequestSystem` copies `request.DisType` VERBATIM and derives nothing from `TkbType`, so an 8-parameter affordance would have stripped the DIS type off every authored entity once `ScenarioSpawnAdapter` became a thin caller (`R-137`)."* 🔴 **FALSE, and I stopped measuring one hop too early.** 📐 Re-measured, following the value to where it LANDS: ① the entity's DIS header is stamped by **`NetworkSpawningSystem.cs:154`**, which reads `cmd.DisType != 0 ? cmd.DisType : template.DisType.Value` — ⭐ **a template fallback, so a zero is recovered**; ② the only other consumer is `BuildOwnershipGrants` → `IOwnershipDistributionStrategy.GetInitialGrants(disType, …)`, and the one production implementation *(`BrainMuscleOwnershipStrategy.cs:40-55`)* **never reads that parameter at all** — it keys purely on the cluster cache. ⇒ ⭐ **passing `0` loses NOTHING, on either arm.** ✅ **WHY IT STAYS ANYWAY** *(decide-and-log, not R-137)*: it is an **explicit OVERRIDE** of the template's DIS type — a coherent authoring choice for a variant of one TKB template — it is optional and defaulted `0`, so it costs no caller anything, and removing a shipped parameter would be churn for no functional gain. ⚠ **But it carries no capability anyone uses today**: measured, both producers that pass it *(`ScenarioSpawnAdapter:223`, `IgEntityCreationRequests:67`)* pass a value the gizmo already resolved FROM the template, so it equals the fallback. ⛔ **Do not cite `R-137` for it** |
 | `preAllocatedNetworkId` | ⛔ **OUT** | 📐 one producer only — ① the scenario **extractor**, a translator. ⚠ ⑤ passes it today and it is **dead**: every IG tool sets `NetworkId = 0` *(`IgApplication.cs:3562`, `:3662`)* |
 | `childComponentOverrides` | ⛔ **OUT** | 📐 one producer only — ① again. Bulk scenario shape, not an authoring choice |
 
