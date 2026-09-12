@@ -502,6 +502,29 @@ calls first; a slower, measured first answer is the deliverable.**
 - **⭐ Always give GitHub links to DOCS *and* TASK IDS** *(user, `2026-08-17`: "i am on mobile"; extended `2026-08-26`: "write task ids like QA-006 and docs like architect questions or handoffs as github links so i can quickly take a look")*. Whenever chat mentions a **document** *(design, architect question, handoff, report, plan)* **OR a task id** *(`QA-006`, `CE-046`, `MX4b`, `BP-###`, `AX-###`, …)*, render it as a GitHub **blob link on the current working branch**:
   `https://github.com/pjanec/HROT/blob/<branch>/<path>` — a doc links to its file *(e.g. `…/docs/blueprints/PLAN_Remaining_Work.md`)*; ⭐ **a task id links to its owning doc** — the tracker row it lives in *(`…/docs/blueprints/Blueprint_Issues_Tracker.md`)*, or the design/report that defines it. ⛔ Do NOT print a bare id with no link — the user is on mobile and cannot grep for it.
   ⚠ **Push first** — a link to an unpushed commit 404s. ⭐ **SVGs too**; GitHub renders them from the blob page.
+- ### ⭐⭐⭐ RUN ANYTHING SLOW IN THE BACKGROUND — **so the user is never locked out of the conversation** *(user, `2026-09-12`; ⚠ asked TWICE — the first time it was agreed to and never written down, which is why it is a RULE now and not a habit)*
+  > 🔒 **User, verbatim:** *"can you run the potentially long like builds and sezrches as backgrounf tasks so that i can keep talkin with you without interrupting what you arr waiting for?"*
+
+  ⛔⛔ **A foreground long-running command BLOCKS THE USER, not just me.** ⭐ They cannot add a correction,
+  change scope, or ask a question until it returns — and on this repo the corrections are where most of
+  the value has come from. ⇒ 🔒 **the cost of a foreground build is not its wall-clock, it is the round
+  trip the user could not make.**
+
+  | ⭐ run in the BACKGROUND *(`run_in_background: true`)* | ⭐ foreground is fine |
+  |---|---|
+  | ⛔ **any `dotnet build`** — even one project *(~8–30 s measured)* | a single `grep` / `scripts/find.sh` *(sub-second)* |
+  | ⛔ **any `dotnet test` / `quick-check.sh`** *(8 s … 180 s)* | `Read`, `Edit`, a targeted `sed -n` |
+  | ⛔⛔ **`run-system-tests.sh` / anything E2E** — `T3` already says never a foreground blocker | `git status` / `git log` / a gate script *(`tracker-counts.py`, `rulings-check.py`, `design-digest.py` — all sub-second)* |
+  | ⛔ **a repo-wide sweep** — an unbounded `grep -r` over `Hrot/ FDP/ Stride/`, a `find` over `.dev/`'s ~2900 files | a scoped grep under one project |
+  | ⛔ **`dotnet restore`, `index_repository`, a cold Roslyn workspace** *(~59 s)* | `search_graph` / `search_code` *(sub-second)* |
+
+  | ⭐ the habit | |
+  |---|---|
+  | ⭐⭐⭐ **START the slow thing, then KEEP WORKING** — read the next file, draft the design edit, prepare the next measurement **while it runs** | ⛔ do not start a background task and then idle waiting for it; ⭐ that is the same block with extra steps |
+  | ⭐⭐ **BATCH the independent ones** — kick off the build AND the wide search in the same turn | ⛔ never serialise two things that do not depend on each other |
+  | ⚠ **the ONE exception** | ⭐ when the very next action depends on the result **and** there is genuinely nothing else to do — ⛔ and even then, say so, so the user knows they are waiting and why |
+  | ⭐ **a user message arriving mid-task is NOT an interruption to apologise for** | ⭐ it is the whole point of running it in the background — read it and fold it in |
+
 - **Model delegation (token thrift):** keep Opus for orchestration and hard reviews; delegate heavier work that does not need Opus-level intelligence (mirror-an-existing-pattern slices, mechanical edits, broad searches) to a **Sonnet** subagent. Opus reviews the real diff and re-runs the gates. Do novel scheduler/IR/compiler work hands-on.
 - **Build general, not just minimal (round-out):** when a task needs a generic node, implement the whole obvious set rather than only the one value the immediate task needs — e.g. the `Compare` node ships every `ComparisonOperator`, not just `==`; an operator/enum-keyed node covers the full enum. Proactively add closely-similar, generally-useful companions (the arithmetic/boolean peers of a comparison node) when they reuse the same machinery and are plausibly usable. Default toward completeness over minimalism. Balance against the architect's demand-driven caution: if a round-out means a whole new *speculative* vocabulary or contradicts an explicit architect ruling, flag it for a quick nod first rather than silently building it — but don't be stingy with cheap, obvious generality.
 - **Prior-art discipline (the seam law):** in this codebase a *"we need a shared X"* almost always means **X already exists and is under-adopted** — 24 measured instances so far. So every design opens with a prior-art pass, and that pass **starts with `search_graph`, not grep** (see the Codebase Memory section above — this is the rule that keeps getting skipped). Two failure modes to name explicitly: ⚠ **never read a reference *count* as adoption** — open the call sites; and ⚠ *"the seam is unused"* has two very different meanings — an interface nobody calls, versus one called every frame with a dead parameter. The fixes differ completely.

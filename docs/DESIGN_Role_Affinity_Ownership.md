@@ -630,6 +630,64 @@ and `PreviousCapabilities` — for **ten** droppable on SimHost.
 | `BrainBlackboardTranslator` · `Blackboard1024Translator` · the two trace translators stop producing a **clipboard dump** of brain state on SimHost | ⭐ **acceptable, arguably correct** — dumping a blackboard from a node that never ticks a brain shows a value nothing on that node produced |
 | `AiTraceContextMenu.cs:26` gates its `ToggleAiTrace` on `HasComponent<BehaviorState>` ⇒ the SimHost menu item silently stops appearing | 🔴 **the SAME defect as `CE-259bg`'s `brainActive`** — a local component answering a cluster question. ⛔ Toggling a brain's trace from a node that has no brain was already meaningless; it must become a request to the node that runs the brain. ⇒ **file it with `CE-259bg`, do not let it block the narrowing** |
 
+### 3.9b ⭐⭐⭐ REGISTRATION IS ALREADY ROLE-DERIVED — **it is ~80% BUILT AND UNDER-ADOPTED** *(user question, `2026-09-12`)*
+
+> 🔒 **User:** *"SimHostComponentRegistry and CgfComponentRegistry — i think this should be superseded by
+> role-derive component sets, no?"* ⇒ ✅ **Yes, and the seam already exists.** 📌 The house pattern again:
+> *"we need a shared X"* almost always means **X exists and is under-adopted**.
+
+#### 📐 INVENTORY — **14 component registries, and FOUR are already ROLE registries**
+
+⚠ *Measured by grep over `Hrot/`+`FDP/` on `class .*ComponentRegistry`; the codebase-memory MCP was
+disconnected at the time, so this is a grep-only inventory and `check_index_coverage` could not be run.*
+
+| registry | keyed by | ↔ `NodeRole` |
+|---|---|---|
+| ⭐⭐ `IgRoleComponentRegistry` — *"ECS registration contract for nodes fulfilling the **IG role**"* | ✅ **ROLE** | `ImageGenerator` |
+| ⭐⭐ `MuscleRoleComponentRegistry` — *"…the **Muscle role**"* | ✅ **ROLE** | `MuscleGround` |
+| ⭐ `NavigationSolverComponentRegistry` | ✅ **ROLE** | `NavigationSolver` |
+| ⚠⚠ `CognitiveComponentRegistry` | ✅ **ROLE — misnamed.** It *is* the Brain role's registry | `Brain` |
+| ⛔ **nothing** | 🔴 **MISSING** | **`Perception`** |
+| ⛔ `CgfComponentRegistry` · `SimHostComponentRegistry` | 🔴 **HOST** — hand-written unions | — |
+| `HrotShared` · `Kinematic` · `Combat` · `Hierarchy` · `Presentation` · `Mission` · `Zone` · `Route` | domain sets, role-neutral | — |
+
+#### 🔴🔴 THE MISSING `Perception` REGISTRY IS **WHY** SIMHOST CALLS THE BRAIN'S — **this is the root cause, not sloppiness**
+
+⛔⛔ **`CognitiveComponentRegistry` holds the EQS trio** *(`EqsSensor`, `EqsCognitiveBuffer`,
+`SensorEvalState`)* **plus the raycast events** — and those are **Perception**, which is a role SimHost
+DECLARES and CGF does not run *(`SimHostCapabilities.cs:79` registers `EqsModule`)*.
+⇒ ⭐⭐⭐ **SimHost calls the Brain's registry because its OWN role's components are filed inside it.**
+⚠ Same for `PassengerBuffer`/`IsEmbarkedTag` *(written by SimHost's `GenesisMaterializationSystem`)* and
+`ActorCapabilityState` *(Combat)*. ⇒ 🔒 **`CE-259bf` is not "delete six lines" — it is EXTRACT THE ROLES
+THAT ARE HIDING IN A FILE NAMED AFTER ONE OF THEM.**
+
+#### ⭐⭐ THE TARGET SHAPE — **and what does NOT disappear**
+
+```
+SimHostComponentRegistry(world) =
+      HrotSharedComponentRegistry            // role-neutral floor
+    ⋃ { roleRegistry[R] : R ∈ declaredRoles } // Muscle ⋃ Perception ⋃ NavigationSolver
+    ⋃ hostExtras                              // ⭐ REAL and legitimate — see below
+```
+
+| ⭐ | |
+|---|---|
+| ⭐⭐⭐ **the host registry does NOT vanish** | ⛔ Do not over-promise this. `ActivePerspective`, `GizmoComponentActivatedEvent`, `GlobalActionRequestedEvent`, `CmdSpawnVehicle`/`CmdCreateFormation`… are **UI and host-shell concerns, not role concerns** — they belong to *"this process has an operator window"*, which no `NodeRole` expresses. ⇒ the host registry SHRINKS to `roles + host extras` |
+| ⭐⭐ **`RegisterComponentSet` (§3.9, built `CE-259bh`) becomes the AUDIT, not the mechanism** | ⛔ A `BitMask512` cannot *drive* `RegisterComponent<T>()` — there is no id→`Type` map. ⭐ But at boot it can CHECK: *"this node registered a component its roles can never own and never read"* ⇒ exactly step 3c's diagnostic, and it makes the split self-policing instead of a one-off tidy |
+
+#### ⚠⚠ AND THE SAME QUESTION FOR THE LOGIC PACKS — **role in intent, host in fact, citing a type that does not exist**
+
+| pack | what its OWN doc-comment says | ⛔ measured |
+|---|---|---|
+| `CgfLogicPack` | *"groups the three **Brain-tier** modules … in registration order **matching the Brain role**"*, *"Execution order: matches the production order used by `SimulationLogicModule` for the **`Brain` role**"* | ⛔ also carries `HealthApplicationSystem` *(Combat)*, `ActiveSensorTracksUpdateSystem` *(Perception)*, `RouteContextSystem` *(Navigation)* |
+| `SimHostCoreLogicPack` | *"groups the four **Muscle-tier** simulation modules"*, *"…`SimulationLogicModule` for the **`MuscleGround` role**"* | ⛔ also carries the nav-intent bridge and route authoring |
+| 🔴🔴 **both** | cite **`SimulationLogicModule`** as the canonical per-role order | 🔴 **`SimulationLogicModule` DOES NOT EXIST — zero occurrences in the tree.** ⇒ the role ordering they claim to mirror has **no owner**, so nothing can detect when one drifts from the other |
+
+⇒ ⭐⭐ **Answer: they are ROLE packs wearing HOST names, and they have drifted** — each is *"one role, plus
+whatever that host also needed."* ⛔ **They are not redundant today** *(a composition root needs a named
+bundle to register)*, ⭐ but the right end state is **one pack per role, composed by declared roles**, with
+the host adding only its shell systems — the exact mirror of the registry shape above.
+
 #### ⭐⭐ WHAT THIS BUYS — **"can this node EVER own X?" becomes answerable statically**
 
 🔒 The user's other observation: *"technicly the 'can ever have authority' question coukd be asked."*
