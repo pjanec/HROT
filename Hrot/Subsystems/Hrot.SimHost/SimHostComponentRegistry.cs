@@ -18,6 +18,10 @@ public static class SimHostComponentRegistry
 
         CognitiveComponentRegistry.RegisterAll(world);
         MuscleRoleComponentRegistry.RegisterAll(world);
+        // ⭐ SimHost declares MuscleGround + Perception + NavigationSolver, never Brain
+        //   (design §3.9a). This is the Perception half, extracted 2026-09-12 from
+        //   CognitiveComponentRegistry where it was mislabelled "Brain-tier".
+        PerceptionRoleComponentRegistry.RegisterAll(world);
         CombatComponentRegistry.RegisterAll(world);
 
         MissionComponentRegistry.RegisterAll(world);

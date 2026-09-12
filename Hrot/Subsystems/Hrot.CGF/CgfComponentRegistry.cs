@@ -15,6 +15,12 @@ public static class CgfComponentRegistry
         HrotSharedComponentRegistry.RegisterAll(world);
 
         CognitiveComponentRegistry.RegisterAll(world);
+        // ⭐⭐ BEHAVIOUR-PRESERVING (2026-09-12, CE-259bf): the EQS trio + raycast events moved OUT of
+        //   CognitiveComponentRegistry into the Perception role's own registry. CGF obtained them via
+        //   the cognitive set before, so it calls the new one to keep its registered set IDENTICAL.
+        // ⚠ Whether CGF actually NEEDS Perception is a separate question with its own evidence —
+        //   ⛔ do not drop this line as "obvious cleanup" without measuring what CGF schedules.
+        PerceptionRoleComponentRegistry.RegisterAll(world);
         HierarchyComponentRegistry.RegisterAll(world);
 
         KinematicComponentRegistry.RegisterAll(world);

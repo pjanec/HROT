@@ -66,20 +66,13 @@ namespace Hrot.SimHost
             world.RegisterManagedEvent<AssignTacticalIntentEvent>();
             world.RegisterManagedEvent<AssignBehaviorEvent>();
 
-            // EQS Brain-tier components and update event.
-            world.RegisterComponent<EqsSensor>();
-            world.RegisterComponent<EqsCognitiveBuffer>();
-            world.RegisterManagedEvent<EqsResultUpdateEvent>();
-
-            // EQS Phase 5: per-sensor cross-tick evaluation state.
-            world.RegisterComponent<SensorEvalState>();
-
-            // EQS Phase 5: EqsSolverSystem submits RaycastRequestEvents via command buffer
-            // playback.  RaycastSolverSystem (Combat/Input) resolves them and publishes
-            // RaycastResultEvents.  Both must be registered in every world that hosts these
-            // systems so that FdpEventBus.PublishRaw does not throw during harvest/flush.
-            world.RegisterEvent<RaycastRequestEvent>();
-            world.RegisterEvent<RaycastResultEvent>();
+            // ⭐⭐⭐ MOVED 2026-09-12 to PerceptionRoleComponentRegistry (CE-259bf, design §3.9a/§3.9b).
+            //   The EQS trio + the raycast events are the PERCEPTION role's, not the Brain's:
+            //   SimHostCapabilities.cs:79 registers EqsModule and EqsSolverSystem is SimHost's own.
+            //   ⛔ They lived here under a "Brain-tier" comment, which is why SimHost — a node that
+            //   runs NO cognitive system — had to call this registry to get its own role's components.
+            //   ⚠ Both hosts now call PerceptionRoleComponentRegistry, so the registered set per host
+            //   is unchanged by that move.
         }
     }
 }

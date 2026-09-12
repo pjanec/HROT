@@ -1111,6 +1111,48 @@ sequenceDiagram
 | ⭐ **3c** | 🆕 **the BOOT WARNING** *(§5 ② — user-approved `2026-09-10`)*: at the composition root, warn once if `IClusterStateCache.GetLeastLoadedNode(NodeRole.Brain)` is `null`. ⛔ **WARN, never throw** *(a pure-Muscle test cluster is legitimate)*, and ⛔ **at the root, not in the policy** — it is NED-only and the policy stays network-agnostic *(§2.3)* | rail: the warning fires on a roster with no Brain and is **silent** when one is present |
 | **4** | hand CGF a Brain policy and SimHost a Muscle policy at their composition roots, ⭐ **each with a `SingleNodePerRoleShardProvider` over the role that host already declares** *(`SimHostApp.DefaultRole:182` · `CgfSubsystem.DefaultRole`)* | ⭐⭐ **the acceptance test:** a SimHost-created brain-enabled entity ends with `HasAuthority<BehaviorState>` **false on SimHost and true on CGF**, and `TacticalIntentResolutionSystem`'s gate passes |
 
+## 6h. ✅✅ AS-BUILT — **the PERCEPTION role gets its own registry, shipped `2026-09-12`** *(`CE-259bf` slice 1, obligation ⑤)*
+
+⭐⭐⭐ **What shipped: the missing role, not the narrowing.** §3.9b measured that four role registries
+already existed and **`Perception` had none** — its components were filed inside
+`CognitiveComponentRegistry`, which **is** the Brain role's set under a name that does not say so.
+⇒ 🔒 **that is why SimHost, a node that runs NO cognitive system, had to call the BRAIN's registry: its own
+role's components were hiding in it.**
+
+| where | as-built |
+|---|---|
+| ⭐⭐ **NEW** `Hrot.SimHost/PerceptionRoleComponentRegistry.cs` | `EqsSensor` · `EqsCognitiveBuffer` · `SensorEvalState` · `EqsResultUpdateEvent` · `RaycastRequestEvent` · `RaycastResultEvent` |
+| `CognitiveComponentRegistry` | those six **removed**, with a comment naming where they went and why the old *"EQS Brain-tier"* label was wrong |
+| `SimHostComponentRegistry` · `CgfComponentRegistry` | **both** now call the new registry |
+| rails | **4** into `Hrot.SimHost.Tests/ComponentRegistryTests.cs` + **1** into `CgfComponentRegistryTests` — ⭐ each feature's OWN suite *(`R-142` ④)*, no parallel class |
+
+### ⛔⛔ THE DEVIATION, ARGUED — **this slice does NOT narrow anything** *(obligation ③)*
+
+⚠ **`CE-259bf` is written as *"drop the ten from SimHost"*. This slice deliberately drops NOTHING**, and
+the reason is a hazard the row does not carry:
+
+| ⭐ | |
+|---|---|
+| ⛔⛔ **the remaining strays cannot move the same way** | `PassengerBuffer` · `IsEmbarkedTag` · `ActorCapabilityState` · `MissionPlanQueue` are Muscle/Combat-owned, but **CGF does NOT call `MuscleRoleComponentRegistry`** ⇒ moving them there **silently removes them from CGF**. ⭐ The EQS set was safe **only because both hosts could call the new registry** |
+| ⭐⭐ **so the safe order is: create the role · move the strays to homes BOTH hosts compose · only then stop SimHost calling the Brain's registry** | ⛔ doing all three at once means a silent per-host loss is indistinguishable from a passing build |
+| ⭐ **and the loss IS silent** | nothing throws at registration — the solver finds no sensors and every query returns empty. ⇒ 📌 that is exactly why the extraction rail asserts the **HOST's** composed set, not the new registry's |
+
+### 📐 RED-PROOFS — **inverse edits, both reverted**
+
+| the inverse edit | ⭐ what reddened |
+|---|---|
+| drop `PerceptionRoleComponentRegistry.RegisterAll` from `SimHostComponentRegistry` | **1 rail** — `SimHostComponentRegistry_StillRegistersTheEqsSet_AfterTheExtraction` |
+| re-add `RegisterComponent<EqsSensor>()` to `CognitiveComponentRegistry` | **1 rail** — `CognitiveComponentRegistry_NoLongerRegistersPerceptionComponents` |
+
+⇒ ⭐ **each reddened exactly its own rail and nothing else**, which is what says the two assertions are
+testing different properties rather than one property twice.
+
+### ⚠ A FINDING THE WORK TURNED UP — **`CgfComponentRegistryTests` had ZERO EQS coverage**
+
+⛔ CGF's own registry suite asserted `BrainBTreeState`, `VehicleState` and `EntityInfo` and **nothing
+about perception** ⇒ **dropping CGF's Perception call would have gone uncaught in CGF's own suite.**
+⭐ A rail was added there *(`R-142` ③: fix the blindness in place, do not route around it)*.
+
 ## 6g. ✅✅✅ AS-BUILT — **§3.9's TWO-SET ROLE MODEL, shipped `2026-09-12`** *(`CE-259bh`, obligation ⑤)*
 
 ⭐⭐⭐ **What changed: the role model itself, not a step of the plan.** §3.9 established that a role has two

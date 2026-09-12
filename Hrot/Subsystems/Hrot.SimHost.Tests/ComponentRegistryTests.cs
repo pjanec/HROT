@@ -50,6 +50,71 @@ namespace Hrot.SimHost.Tests
             Assert.Null(Record.Exception(() => world.GetComponentTable<BrainHsm64>()));
         }
 
+        // ── PerceptionRoleComponentRegistry ───────────────────────────────────
+        // 📄 docs/DESIGN_Role_Affinity_Ownership.md §3.9a/§3.9b. Extracted 2026-09-12 (CE-259bf):
+        //    Perception was the ONE role with no registry, and its components were filed inside the
+        //    BRAIN's — which is why SimHost, a node that runs no cognitive system, had to call the
+        //    Brain's registry to get its own role's components.
+
+        [Fact]
+        public void PerceptionRoleComponentRegistry_RegisterAll_DoesNotThrow()
+        {
+            using var world = new EntityRepository();
+            var ex = Record.Exception(() => PerceptionRoleComponentRegistry.RegisterAll(world));
+            Assert.Null(ex);
+        }
+
+        [Fact]
+        public void PerceptionRoleComponentRegistry_RegistersTheEqsSet()
+        {
+            using var world = new EntityRepository();
+            PerceptionRoleComponentRegistry.RegisterAll(world);
+
+            Assert.Null(Record.Exception(() => world.GetComponentTable<EqsSensor>()));
+            Assert.Null(Record.Exception(() => world.GetComponentTable<EqsCognitiveBuffer>()));
+            Assert.Null(Record.Exception(() => world.GetComponentTable<SensorEvalState>()));
+        }
+
+        /// <summary>
+        /// ⭐⭐⭐ <b>THE EXTRACTION RAIL — the host's registered set is UNCHANGED.</b>
+        ///
+        /// <para>⛔⛔ This is the one that matters. Moving the EQS set out of
+        /// <c>CognitiveComponentRegistry</c> is only safe if every host that USED to get it still does.
+        /// ⚠ A host loses EQS silently: nothing throws at registration, the solver simply finds no
+        /// components and every sensor query returns empty — the failure surfaces as "perception does
+        /// nothing", frames later and far from the cause.</para>
+        /// </summary>
+        [Fact]
+        public void SimHostComponentRegistry_StillRegistersTheEqsSet_AfterTheExtraction()
+        {
+            using var world = new EntityRepository();
+            SimHostComponentRegistry.RegisterAll(world);
+
+            Assert.Null(Record.Exception(() => world.GetComponentTable<EqsSensor>()));
+            Assert.Null(Record.Exception(() => world.GetComponentTable<EqsCognitiveBuffer>()));
+            Assert.Null(Record.Exception(() => world.GetComponentTable<SensorEvalState>()));
+        }
+
+        /// <summary>
+        /// ⭐⭐ <b>The structural claim: the BRAIN's registry no longer owns PERCEPTION.</b>
+        ///
+        /// <para>⭐ Asserted as an ABSENCE on the cognitive set alone — ⛔ not on a host, because every
+        /// host still composes both registries. ⚠ If someone re-adds the EQS set here "to fix"
+        /// something, this reddens and points at the real fix: call the Perception registry.</para>
+        /// </summary>
+        [Fact]
+        public void CognitiveComponentRegistry_NoLongerRegistersPerceptionComponents()
+        {
+            using var world = new EntityRepository();
+            CognitiveComponentRegistry.RegisterAll(world);
+
+            Assert.ThrowsAny<System.Exception>(() => world.GetComponentTable<EqsSensor>());
+
+            // ⛔ Anti-vacuity: the cognitive set itself must still be there, or this would pass on a
+            //    registry that had been emptied entirely.
+            Assert.Null(Record.Exception(() => world.GetComponentTable<BrainHsm128>()));
+        }
+
         // ── KinematicComponentRegistry ────────────────────────────────────────
 
         [Fact]
