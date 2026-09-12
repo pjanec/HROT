@@ -1,177 +1,118 @@
 <!--STATUS
 state: LIVE
 updated: 2026-09-12
-current-answer: ⚠⚠ THERE ARE NOW **THREE** LIVE STRANDS ON THIS LANE. Read the one you are continuing.
-  ══ STRAND 0 — ENTITY CREATION PROGRAMME. Read this whole block; it is the live work. ══
-  ✅✅✅ DONE THIS SESSION (2026-09-12) — the ELM rewind programme is COMPLETE.
-  docs/designs/replay-and-modules/DESIGN.md §2.1m is build-state: BUILT. All three steps landed in
-  commits ea659a581 (steps 1+2) and 4e7d2285f (step 3); as-built folded in 2b0ffed02.
-  The ELM is cleared at EVERY world replacement (PrepareReplay, every seek, FinalizeReplay/PrepareLive,
-  and the editor preview via PreviewStateBracket); the re-derive is armed ONLY when resuming to a live
-  world; LifecycleSystem AND GhostPromotionSystem are both gated during replay.
-  HN-018 CLOSED. CE-259aq CLOSED. CE-259ar closed by step 3 (see its row).
-  ⛔ ONE RESIDUE, tracked: CE-259av — GhostCreationSystem.BypassLifecycle is STILL not honoured inside
-  CreateGhost, so mgmt-1/DESIGN.md §8.10's "new arrivals materialise directly into Active" is still a
-  specification. Do NOT build it as a drive-by: it changes replay behaviour on every host, and four rails
-  assert the flag flips while none asserts it has an effect.
+current-answer: ⚠⚠ THREE LIVE STRANDS. Read the one you are continuing. ⭐ STRAND 0 is the live work as of
+  2026-09-12 and its head is branch claude/reset-working-branch-qd1qpv @ 0f7388422.
+  ══ STRAND 0 — ENTITY CREATION + ROLE-AFFINITY OWNERSHIP. This whole block is the live work. ══
+  BRANCH claude/reset-working-branch-qd1qpv @ 0f7388422. Tree clean, all gates green.
 
-  ⭐⭐⭐ THE NEXT WORK, IN THE ORDER THE USER SET (2026-09-12, verbatim: "best do the non ui half of
-  authoring surface first, then p3, then the ui"). ⭐ (a) IS DONE — START AT (b).
+  ✅✅✅ DONE 2026-09-12 — TWO PROGRAMMES CLOSED OR ADVANCED IN ONE SESSION.
 
-  (a) ✅✅✅ NON-UI HALF OF THE AUTHORING SURFACE — **DONE 2026-09-12**, tracker row CE-259aw.
-      docs/DESIGN_Entity_Authoring_Surface.md is now build-state: BUILDING (non-UI half BUILT); its §8
-      says which half owns each acceptance row, and its STATUS block carries the two as-built deviations.
-      BUILT: EntityCreation.RequestEntityCreation (NINE parameters) · EntityCreation.NodeId ·
-      EntityCreationRouting.DefaultEntityCreationRequestProcessor replacing :49's literal 0 ·
-      the AUTHOR vs TRANSLATOR rule written onto the affordance and at BOTH translator sites (ledger
-      R-145) · four rails in Hrot.SimHost.Tests/EntityCreationPackRails.cs, inverse-edit red-proofed.
-      ⚠ TWO DEVIATIONS worth knowing before touching it: ① the signature has NINE parameters, not §4's
-      eight — `disType` had to be added because CreateEntityRequestSystem copies request.DisType
-      VERBATIM (:221→:490) and derives nothing from TkbType, so an eight-parameter affordance would have
-      stripped the DIS type off every authored entity as soon as ScenarioSpawnAdapter became a thin
-      caller (R-137). ⛔ A cheaper fix was deliberately NOT taken — the request system could default it
-      from the template it already loads, but that changes behaviour for the two translators that pass 0
-      on purpose. ② §4 said "creation.NodeId is already on it" and §6's classDiagram drew it as existing;
-      both FALSE, and the reason is general enough to have been written into the diagram's caption: a
-      <<EXISTS>> stereotype labels the BOX, so a NEW member on an OLD class inherits "exists" silently.
+  ── (A) THE AUTHORING SURFACE, NON-UI HALF — DONE (CE-259aw), commit 2bec75080 ──
+  docs/DESIGN_Entity_Authoring_Surface.md is build-state: BUILDING (non-UI half BUILT).
+  EntityCreation.RequestEntityCreation(...) exists — ONE method, `owner` is an int with THREE legal
+  values. Plus EntityCreationRouting.DefaultEntityCreationRequestProcessor, EntityCreation.NodeId, §2's
+  AUTHOR-vs-TRANSLATOR rule written at the affordance and both translator sites (ledger R-145), and four
+  rails in Hrot.SimHost.Tests/EntityCreationPackRails.cs.
+  ⚠ TWO DESIGN CLAIMS WERE FALSE AND ARE CORRECTED IN PLACE: (a) §4's "creation.NodeId is already on it"
+  — it was not, and §6's classDiagram drew it as existing (the caption now states the general trap: a
+  <<EXISTS>> stereotype labels the BOX, so a NEW member on an OLD class inherits "exists" silently);
+  (b) my OWN justification for the 9th parameter `disType` was WRONG and is retracted in §3 — I claimed
+  R-137 capability loss, but NetworkSpawningSystem.cs:154 falls back to template.DisType.Value and the one
+  production IOwnershipDistributionStrategy never reads the parameter. The parameter stays as an explicit
+  override; ⛔ do NOT cite R-137 for it.
+  ⛔ THE UI HALF IS NOT STARTED — CE-259ax. §5/§5b per-host tails. Read that row before starting: it
+  carries the §5b.3 hazard (delegating to ScenarioSpawnAdapter as it stands HANGS IG).
 
-  (b) ⭐⭐ P3 — AUTO-TAKEOVER (role-affinity ownership), docs/DESIGN_Role_Affinity_Ownership.md.
-      This is what the user meant by "auto promotion". build-state: BUILDING — steps 0a AND 0 done.
-      ✅ STEP 0 DONE 2026-09-12 (CE-259ay): TkbTemplate.BirthCriticalComponents +
-      AddBirthCriticalComponent<T>(), seeded on every production template, four rails in TkbTemplateTests
-      plus a catalogue-wide rail in HrotEnvironmentTests (red-proofed by un-seeding one template).
-      ✅ STEP 1a DONE 2026-09-12 (CE-259ba): the role-shard seam — IRoleShardProvider + RoleShardKey +
-      SingleNodePerRoleShardProvider in Fdp.Toolkits/Replication, 6 rails, contract rail red-proofed.
-      ✅ STEP 1 DONE 2026-09-12 (CE-259bc): IRoleAffinityPolicy + RoleAffinityPolicy, NO deviation,
-      7 rails, TWO red-proofs each isolating one rail. §6d is its as-built.
-      ⚠ NodeRole MOVED Hrot.Common -> Fdp.Core on 2026-09-12 (user ruling: "roles has nothing to do with
-      concrete network... roles can be defined in fdp if needed as they are pretty generic"). §6c's
-      "opaque int role bits" deviation was RETRACTED the same day and is marked as such — do not build on
-      it. The engine holds the role LABEL only; the role->components BitMask512 table stays the
-      application's ("fdp should not understand what a brain and muscle really mean").
-      ✅ STEPS 2 AND 3 DONE 2026-09-12 (CE-259bd): both insertion points, 10 rails, FOUR inverse-edit
-      red-proofs. §6e is the as-built and carries three choices the design did not spell out (the
-      promote leg is ADDITIVE so explicit grants survive; it re-reads the component mask because the
-      translator loop adds components after the earlier ref; the policy is threaded through
-      EntityCreationContext so both consumers share one instance).
-      ⚠ §3.2's line citations were BOTH stale: create leg is NetworkSpawningSystem.cs:191 (not :181),
-      promote leg is GhostPromotionSystem:208/:211-214 (not :122/:129).
-      ✅✅ STEP 3b's QUERY-FILTER HALF DONE 2026-09-12 (CE-259be). §6f is its as-built.
-      🔴 IT DEVIATED TWICE, and both matter to whoever does step 4:
-        ① THE GATE IS CONDITIONAL (gateOnAuthority, default false). §6 lists 3b BEFORE step 4, but an
-          UNCONDITIONAL filter would make a node stop processing every entity it did not create — a
-          promoted ghost owns NOTHING until a policy or grant says so, which is CE-256 verbatim. So the
-          gate follows the POLICY: turn it on in the SAME change that hands over the policy (step 4).
-          WithOwnedWhen<T>(gate) in Fdp.Core is exactly With<T>() when off, so the off-path is identical.
-        ② SIX systems gated, not §3.5's two, each on a component it ALREADY required. Two of them
-          (CognitiveInterrupt, CognitiveCleanup) never queried BehaviorState — gating them on it would
-          have NARROWED the matched set even with the gate OFF.
-      ⚠ HONEST SCOPE: the live double-tick §3.5 describes may not exist today — all six systems come from
-      CgfLogicPack, used only by CGF and the Editor, and the Editor is offline so it gets no ghosts. The
-      gate is what makes the design non-cosmetic for multi-Brain / all-in-one / R-138 Muscle-runs-brains.
-      🔴🔴 READ §3.9 BEFORE TOUCHING REGISTRATION OR THE ROLE TABLE — CE-259bh. A role has TWO component
-      sets and this design only ever modelled one:
-          REGISTER = ownedComponentSet ∪ readComponentSet     AUTHORITY = ownedComponentSet
-      User ruling 2026-09-12: "intents are brain owned components that must be replicated to muscle so
-      musle can read and act on them. so muscle cant simply stop registwring them because they are brain
-      ones." MEASURED: NavigationIntent has 16 wire refs and MissionPlanQueue 9 — both Brain-OWNED and
-      Muscle-READ. A Muscle node that stopped registering "brain components" would STOP RECEIVING ITS OWN
-      ORDERS. This killed my "split the bundle along the role line" proposal before it was built.
-      ⇒ rename the shipped componentsPerRole -> ownedComponentsPerRole, add readComponentsPerRole.
-      ⭐ It also makes "can this node EVER own X" a COMPOSITION-TIME question — the right driver for
-      registration and for a boot diagnostic. NOT the same as WithOwned<T>() (this entity's copy, now).
+  ── (B) P3 ROLE-AFFINITY OWNERSHIP — steps 0a, 0, 1a, 1, 2, 3, 3b(b) BUILT ──
+  docs/DESIGN_Role_Affinity_Ownership.md, build-state: BUILDING. §6b..§6f are the as-builts.
+    step 0   CE-259ay  TkbTemplate.BirthCriticalComponents + AddBirthCriticalComponent<T>(), seeded on
+                       every production template, + a catalogue-wide rail that makes the NEXT unseeded
+                       template loud.  commit 6362bfee1
+    step 1a  CE-259ba  IRoleShardProvider + RoleShardKey + SingleNodePerRoleShardProvider. 6 rails.
+                       commit 983a1e2b6
+    (NodeRole moved Hrot.Common -> Fdp.Core, commit 92fb39771 — see the ruling below)
+    step 1   CE-259bc  IRoleAffinityPolicy + RoleAffinityPolicy, NO deviation. 7 rails, 2 red-proofs.
+                       commit 6180203ab
+    steps 2+3 CE-259bd Both ownership insertion points, shipped as a PAIR. 10 rails, 4 red-proofs.
+                       commit 47534a456
+    step 3b(b) CE-259be The EXECUTION gate — the step that stops the design being cosmetic. 2 module-level
+                       rails. commit f474a48f3
 
-      🔴 STEP 3b's HALF (a) IS NOT DONE — CE-259bf, now BLOCKED on CE-259bh and CE-259bg. Narrowing IS the
-      primary fix (user ruling; and WithOwned<T>() implies With<T>(), so you cannot ask about authority on
-      a component that was never added — the gate is the RESIDUAL for nodes that legitimately HAVE the
-      components). MECHANISM: BehaviorTkbTranslator.cs:52 gates materialisation on IsComponentTypeRegistered
-      alone, which is why SimHost's own spawns carry the whole brain tier (the inversion recorded at
-      NedReplicationModule.cs:396-403). Precedent: StrideNodeBootstrapper.cs:304 already excludes it.
-      ⛔ MEASURED SAFE-TO-DROP SET IS SIX, not fourteen: BrainBTreeState, BrainBlackboard, Blackboard1024,
+  ⭐⭐⭐ NEXT, IN ORDER — and the first item now BLOCKS the rest of P3:
+
+  (1) CE-259bh — THE ROLE MODEL ITSELF IS INCOMPLETE. §3.9 (NEW) is the corrected model, READ IT FIRST.
+      REGISTER = ownedComponentSet ∪ readComponentSet     AUTHORITY = ownedComponentSet
+      A role has TWO component sets; IRoleAffinityPolicy models only the first. Rename the shipped
+      `componentsPerRole` -> `ownedComponentsPerRole`, add `readComponentsPerRole`.
+      🔒 User 2026-09-12: "intents are brain owned components that must be replicated to muscle so musle
+      can read and act on them." MEASURED: NavigationIntent 16 wire refs, MissionPlanQueue 9 — both
+      Brain-OWNED and Muscle-READ. A Muscle node that stopped registering "brain components" would STOP
+      RECEIVING ITS OWN ORDERS. This killed my "split the bundle along the role line" proposal before it
+      was built. ⇒ blocks CE-259bf.
+
+  (2) CE-259bg — SimHostVisualization.cs:385's brainActive asks the LOCAL world a CLUSTER question to
+      decide whether an operator right-click routes through the MISSION machinery or bypasses it. Already
+      wrong; false for everything after narrowing. "Could it have a brain" comes from the TKB
+      (BehaviorProfileDto.BrainTier); "is its brain ACTIVE" does NOT replicate. ⚠ SimHostVisualization has
+      NO TKB in scope — that needs plumbing.
+
+  (3) CE-259bf — narrow SimHost's CognitiveComponentRegistry. Blocked on (1) and (2).
+      🔒 User: SimHost is DEFINED as never-Brain; narrowing is correct. My "it removes a capability
+      (R-138)" objection is WITHDRAWN. THE DECISIVE POINT: WithOwned<T>() IMPLIES With<T>(), so you cannot
+      ask about authority on a component that was never added ⇒ the gate is the RESIDUAL, narrowing is the
+      PRIMARY fix, exactly as §3.5 always said.
+      MECHANISM: BehaviorTkbTranslator.cs:52 gates materialisation on IsComponentTypeRegistered ALONE,
+      which is why SimHost's own spawns carry the whole brain tier — the inversion recorded at
+      NedReplicationModule.cs:396-403 ("SimHost had all 35 components including the entire brain tier"
+      while the CGF ghost had 12 and none). Precedent: StrideNodeBootstrapper.cs:304 ALREADY excludes it.
+      ⛔ SAFE-TO-DROP SET IS SIX, not fourteen: BrainBTreeState, BrainBlackboard, Blackboard1024,
       BrainHsm128, BrainHsm64, BehaviorState — all ZERO wire refs. Nine more UNCLASSIFIED, and zero wire
-      refs does NOT prove nothing local reads them: classify per component against the systems the role
-      RUNS, never against a grep of Hrot.SimHost.
-      ⛔ CE-259bg: SimHostVisualization.cs:385's brainActive uses LOCAL HasComponent<BehaviorState> to
-      decide whether an operator right-click routes through the MISSION machinery or bypasses it — a local
-      answer to a cluster question, already wrong, and false for everything after narrowing. "Could it have
-      a brain" comes from the TKB (BehaviorProfileDto.BrainTier); "is its brain ACTIVE" does not replicate.
-      ⭐⭐⭐ NEXT: STEP 4 — hand CGF a Brain policy and SimHost a Muscle policy at their composition roots
-      (SimHostApp.DefaultRole / CgfSubsystem.DefaultRole), each with a SingleNodePerRoleShardProvider over
-      the role that host already declares, AND set gateOnAuthority: true in the same change (see ① above).
-      Its acceptance test: a SimHost-created brain-enabled entity ends with HasAuthority<BehaviorState>
-      FALSE on SimHost and TRUE on CGF. ⚠ This is the FIRST step that changes observable behaviour —
-      everything before it is inert by construction.
-      ⭐ ALSO OPEN: step 3c (the boot warning — §5 ②, user-approved: warn once if
-      IClusterStateCache.GetLeastLoadedNode(NodeRole.Brain) is null, at the composition root, never throw).
-      ⚠⚠ CORRECTION 2026-09-12: an earlier version of this block said STEP 2 IS HARD-BLOCKED on
-      CE-259az. WRONG — the blocker was attached to the wrong step. Step 2 injects NO policy (its own
-      gate: "with no policy, the mask is unchanged"; §3.3: "nothing changes until a host is handed one"),
-      and hosts are handed one in STEP 4. So BirthCriticalComponents is never READ until step 4, and
-      step 2 is inert by construction.
-      ✅ CE-259az BLOCKS NOTHING — corrected 2026-09-12 after the user challenged it TWICE. Measured: the
-      file-loading branch NEVER EXECUTES today. requestedTkb comes from a scenario header's TkbName
-      (TkbLoadClusterStateHandler.cs:65), ScenarioHeader defaults it to null, NO scenario in the repo sets
-      it, and NO TKB .zip artifact exists. Every host falls through to NedTkbCatalog.RegisterAll() — the
-      catalogue step 0 seeded. It is a LATENT gap that opens when file-based TKB goes live.
-      ✅ AND THE FIX IS ~3 LINES IN THE RIGHT LAYER (not the "schema question" the row first claimed):
-      TkbLoadClusterStateHandler is in Hrot.SimHost, the APP layer, and is the ONLY production caller of
-      ParseAndRegister — so it applies the same AddBirthCriticalComponent<SimTransform>() convention the
-      app catalogues do. Nothing enters Fdp.Toolkits, no file-format change.
-      ⚠ NOTE FOR WHOEVER DOES IT: the convention would then live at FOUR app sites (NedTkbBuilder,
-      UrbanCombatTkbCatalog, BdcTkbCatalog, this loader). One seam would be better than four, and the
-      CreateTkb rail only covers the programmatic half.
-      ⭐ STEP 2 is ONE line: NetworkSpawningSystem.cs:191 `metaNS.AuthorityMask = compNS;` becomes an
-      intersection with policy.OwnableMask(...), null policy keeping today's behaviour. NOTE the line is
-      :191, NOT §3.2's stale ":181".
-      ⭐ STEP 3 (GhostPromotionSystem claims after the translator loop) is also free: the promote leg does
-      not use BirthCriticalComponents. Insertion point :208 (translator loop) / :211-214 (promote) —
-      NOT the :122/:129 §3.2 used to name.
-      ⛔ ALSO OPEN, filed 2026-09-12: CE-259bb — delete --role and SimHostApp.ParseRole (user ruling:
-      "--role shoukd be deleted. selecetd --mode shoukld hardcide the role"). ParseRole has ZERO
-      production callers; every host already hardcodes its DefaultRole.
-      ⛔⛔ HARD BLOCKER ON STEP 2, FILED AS CE-259az — DO NOT SHIP STEP 2 BEFORE ANSWERING IT.
-      TkbDeserializer builds templates purely from descriptor keys and declares NO components, so a
-      FILE-LOADED template has an empty BirthCriticalComponents — and CreateTkb() is the DEV default
-      while files are the PRODUCTION path. Step 2 would turn every file-loaded template into the exact
-      origin-flash defect §3.1 exists to prevent, on the production path only. It is a SCHEMA question
-      (does the TKB file format declare birth-criticality?), not a seeding one.
-      ✅ NOT BLOCKED ON THE USER otherwise: §5's three decisions are all resolved (① /①b 2026-09-01;
-      ② approved and ③ ruled 2026-09-10). What remains in §5 is a per-system REVIEW, not a decision.
-      ⚠⚠ STEP 3b IS BIGGER THAN ITS OWN §3.5 SAYS, and §3.5's own numbers are soft — RE-ENUMERATE, do
-      not trust them. The design says "SEVEN un-gated" while its own table names eight beyond
-      BTreeTickSystem, and a 10th file (Fdp.Examples.UrbanCombat/TelemetryReporterSystem.cs) matches the
-      same query. Three of them WRITE cognitive state; HsmTickSystem:110-113 is the non-negotiable second
-      (BehaviorState.BrainTier selects the tier, so gating only BTreeTickSystem leaves every HSM-tier
-      ghost double-ticked). The filter is WithOwned<T>() at QueryBuilder.cs:93 — and it has NINE
-      production call sites, not the three §3.5 claims (six are in Stride/Hrot.Stride.Core, which that
-      grep never scoped). So P3 needs BOTH the narrowed Muscle-only registration AND the query filter.
-      ⭐ THE DESIGN WAS FULLY RE-VERIFIED 2026-09-12 at the user's instruction — its STATUS block's
-      `verified:` field lists every locator that had rotted and is now corrected in place, so do not
-      redo that sweep. §4.1b is a NEW module-relationship diagram; read it before step 3b, it is the
-      one that shows the red band of un-gated tick systems.
+      refs does NOT prove nothing local reads them (a component can be produced by a system this node
+      schedules). Classify per component against the systems the role RUNS, never a grep of Hrot.SimHost.
 
-  (c) ⭐ THE UI HALF of the authoring surface — §5/§5b's per-host tails, tracker row CE-259ax, which
-      lists all four pieces AND the §5b.3 hazard that must be built first: delegating to
-      ScenarioSpawnAdapter as it stands HANGS IG (the adapter swallows both notifications IG's remote
-      session needs, so _toolFinished never flips, Finished is never published, ClearSession never runs,
-      and every subsequent placement is then refused by the guard at the top of ActivatePlacementCommand).
-      The affordance it calls now exists, so nothing here is blocked.
+  (4) P3 step 4 — hand CGF a Brain policy and SimHost a Muscle policy at their composition roots
+      (CgfSubsystem.DefaultRole / SimHostApp.DefaultRole), each with a SingleNodePerRoleShardProvider,
+      AND set gateOnAuthority: true IN THE SAME CHANGE. ⛔ THE ORDER MATTERS AND §6 GETS IT WRONG: an
+      unconditional gate before step 4 makes a node stop processing every entity it did not create,
+      because a promoted ghost owns nothing — CE-256 reproduced by its own fix. That is why
+      gateOnAuthority defaults false. Acceptance: a SimHost-created brain-enabled entity ends
+      HasAuthority<BehaviorState> FALSE on SimHost and TRUE on CGF. ⚠ FIRST step that changes observable
+      behaviour; everything before it is inert by construction.
 
-  ✅ SEQUENCING CHECK DONE 2026-09-12, so do not redo it: (a) and (b) are INDEPENDENT. Measured in both
-  directions — the authoring surface has ZERO references to role-affinity / auto-takeover / RoleShard /
-  BirthCritical, and P3 has ZERO references to RequestEntityCreation or that design. They act on different
-  axes: the surface is the CALLER side (who asks, whom they nominate as owner), P3 decides component-level
-  authority AFTER the entity exists.
+  (5) P3 step 3c — the boot warning (§5 ②, user-approved): warn once if
+      IClusterStateCache.GetLeastLoadedNode(NodeRole.Brain) is null, at the composition root, NEVER throw.
 
-  ⛔ ALSO OPEN, NOT IN THIS ORDER: CE-259au (the construction barrier is vacuous — the module barrier is
-  correct but nobody registers, and the PEER barrier is genuinely dangling) and CE-259as (the unwritten
-  initiator) both wait on Architect_Question_69's asks B and D. Q69 is WRITTEN but only ask B/C/D exist on
-  paper — the relay was used this session for two evidence-only asks (results folded into Q69 §7), and the
-  procedure is docs/consulting-the-architect.md in pjanec/NotebookLmTools (clone ~/nlm-ops and that repo;
-  use notebook "HROT - 279", project simhost, and DO NOT REFRESH — a refresh ingests docs/ and the answer
-  then cites our own question document back).
-  ⛔ ALSO: CE-259at — tracker-counts.py counts only BP- rows, so every CE- row is invisible to it and a
-  green check is NOT evidence a CE- row registered.
+  ⛔ ALSO OPEN, NOT IN THIS ORDER:
+    CE-259ax  the UI half of the authoring surface (see (A))
+    CE-259av  GhostCreationSystem.BypassLifecycle still not honoured inside CreateGhost
+    CE-259az  file-loaded TKB templates carry an EMPTY BirthCriticalComponents. ⚠ BLOCKS NOTHING — the
+              branch NEVER EXECUTES today (TkbName is null in every scenario, no .zip artifact exists).
+              Fix is ~3 lines at TkbLoadClusterStateHandler (Hrot.SimHost — the APP layer).
+    CE-259bb  delete --role and SimHostApp.ParseRole (user ruling). ParseRole has ZERO production callers.
+    CE-259au / CE-259as   await Architect_Question_69 asks B and D
+    CE-259at  tracker-counts.py counts only BP- rows, so a green check is NOT evidence a CE- row registered
+    CE-212    NodeRole.ImageGenerator -> Map2D rename (owned by DESIGN_Stride_Node_Modes.md §S10; needs
+              Roslyn run TWICE and unioned — these names are a CLI surface)
+
+  ⭐⭐ USER RULINGS MADE THIS SESSION — do not re-litigate:
+    • Roles are NOT a networking concept. NodeRole lives in Fdp.Core now. The engine holds the LABEL
+      only; which components a role owns is a BitMask512 the APPLICATION supplies ("fdp should not
+      understand what a brain and muscle really mean").
+    • --role should be deleted; the selected --mode hardcodes the role (each host hardcodes its mask).
+    • SimHost is DEFINED as Muscle+Perception+Navigation and never Brain. Narrowing is correct there.
+    • A role has an ownedComponentSet AND a readComponentSet (their naming).
+
+  ⚠⚠ PROCESS NOTE FOR THE NEXT SESSION — I GOT THE SAME THING WRONG THREE TIMES TODAY, and each time the
+  user caught it. The pattern: I found a real latent gap and inflated "this will matter when X becomes
+  live" into "this BLOCKS work now", without measuring whether the path executes at all. CE-259az was
+  called a hard blocker on step 2, then on step 4, and blocks neither. Separately I twice concluded from a
+  grep COUNT without opening the sites ("SimHost reads BehaviorState at 11 sites" — all eleven are
+  HasComponent-guarded and only see anything because the tier is wrongly materialised). ⇒ before calling
+  anything blocked: measure whether the code path RUNS, and open the sites behind any count.
+
+  ✅ SEQUENCING CHECK DONE 2026-09-12, do not redo: the authoring surface and P3 are INDEPENDENT —
+  measured in both directions, zero references either way.
 
   ══ STRAND 1 — MAP INTERACTION / SELECTION / TOOLS (the live one as of 2026-09-10) ══
   ✅✅✅ READ docs/SNAPSHOT_Map_Interaction_Architecture.md FIRST. It is a SNAPSHOT, not an owning
