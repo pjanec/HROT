@@ -55,11 +55,18 @@ current-answer: ⚠⚠ THERE ARE NOW **THREE** LIVE STRANDS ON THIS LANE. Read t
       gate: "with no policy, the mask is unchanged"; §3.3: "nothing changes until a host is handed one"),
       and hosts are handed one in STEP 4. So BirthCriticalComponents is never READ until step 4, and
       step 2 is inert by construction.
-      ⛔ CE-259az GATES STEP 4, and then only on a deployment that loads a NAMED TKB zip:
-      TkbLoadClusterStateHandler Clear()s the catalogue (:95) then reloads from the zip, so those
-      templates carry an empty BirthCriticalComponents — while with no TKB requested it falls back to
-      NedTkbCatalog.RegisterAll() (:72), the programmatic path step 0 seeded. Development is unaffected.
-      It is a SCHEMA question (does the TKB file format declare birth-criticality?), not a seeding one.
+      ✅ CE-259az BLOCKS NOTHING — corrected 2026-09-12 after the user challenged it TWICE. Measured: the
+      file-loading branch NEVER EXECUTES today. requestedTkb comes from a scenario header's TkbName
+      (TkbLoadClusterStateHandler.cs:65), ScenarioHeader defaults it to null, NO scenario in the repo sets
+      it, and NO TKB .zip artifact exists. Every host falls through to NedTkbCatalog.RegisterAll() — the
+      catalogue step 0 seeded. It is a LATENT gap that opens when file-based TKB goes live.
+      ✅ AND THE FIX IS ~3 LINES IN THE RIGHT LAYER (not the "schema question" the row first claimed):
+      TkbLoadClusterStateHandler is in Hrot.SimHost, the APP layer, and is the ONLY production caller of
+      ParseAndRegister — so it applies the same AddBirthCriticalComponent<SimTransform>() convention the
+      app catalogues do. Nothing enters Fdp.Toolkits, no file-format change.
+      ⚠ NOTE FOR WHOEVER DOES IT: the convention would then live at FOUR app sites (NedTkbBuilder,
+      UrbanCombatTkbCatalog, BdcTkbCatalog, this loader). One seam would be better than four, and the
+      CreateTkb rail only covers the programmatic half.
       ⭐ STEP 2 is ONE line: NetworkSpawningSystem.cs:191 `metaNS.AuthorityMask = compNS;` becomes an
       intersection with policy.OwnableMask(...), null policy keeping today's behaviour. NOTE the line is
       :191, NOT §3.2's stale ":181".
