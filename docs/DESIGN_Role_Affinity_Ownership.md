@@ -138,6 +138,10 @@ related-designs:
     decides component-level AUTHORITY after the entity exists, that one decides nothing about it.
   - DESIGN_Entity_Creation_Unification.md — owns the pack this design's step 0a moved GhostPromotionSystem
     into.
+  - designs/brain-death/BD1-DESIGN.md — owns the brain-death LIFECYCLE and the brain-vs-muscle command
+    routing rule. It is the design §3.9's narrowing would break: its §2.1 predicate reads BehaviorState
+    locally, which a Muscle-only node cannot answer. ⚠ Measured 2026-09-12: that routing has no
+    production caller today (CE-259bg), so the breakage is latent, not live.
 -->
 # ⭐⭐⭐ Role-Affinity Ownership — **every node decides locally what it owns, so no two nodes ever claim the same component**
 
