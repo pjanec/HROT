@@ -1,23 +1,77 @@
 <!--STATUS
 state: LIVE
-updated: 2026-09-11
+updated: 2026-09-12
 current-answer: ⚠⚠ THERE ARE NOW **THREE** LIVE STRANDS ON THIS LANE. Read the one you are continuing.
-  ══ STRAND 0 — ⭐⭐⭐ IN FLIGHT: steps 1+2 BUILT 2026-09-12 (ea659a581), STEP 3 IS NEXT ══
-  ✅ DONE: step 2 — HN-018 is CLOSED (the ELM is the third rewind participant, clearing and re-deriving).
-  ⚠ PARTIAL: step 1 — the replay gate exists on LifecycleSystem with real producers, but
-  GhostPromotionSystem is NOT gated and BypassLifecycle is still not honoured inside CreateGhost.
-  ⛔ NEXT — STEP 3, NOT STARTED: clear the ELM at PrepareReplay, at EVERY SEEK, and at
-  FinalizeReplay/PrepareLive. Today the clear runs ONLY where a PreviewStateBracket is driven, so the
-  replay triggers are still uncovered. Plus CE-259aq's one-liner (AfterSeekCallback → null).
-  ⭐ START AT docs/designs/replay-and-modules/DESIGN.md §2.1m — read its AS-BUILT table FIRST, then the
-  four-step table. Three diagrams (module / class / sequence) are in §2.1m and all parse.
-  ⭐ READ FIRST, in this order: §2.1m (the plan + diagrams) → §2.1k (the owning design, mgmt-1 §8.10)
-  → §2.1l (PreviewStateBracket — the seam that ALREADY EXISTS; do not build a parallel one).
-  ⛔ STEP 1 DEVIATES from mgmt-1 §8.10 on purpose (relocating into NetworkLifecycleSystemGroup is unsafe:
-  ExecuteGroup has ONE caller, so the group never ticks on the editor or BDC). Argue it in the report and
-  fold the as-built back into §8.10.
-  ⛔ NOT in scope: CE-259au (the vacuous construction barrier) and CE-259as — both wait on
-  Architect_Question_69 asks B/D, which are written but whose relay needs a session that can reach it.
+  ══ STRAND 0 — ENTITY CREATION PROGRAMME. Read this whole block; it is the live work. ══
+  ✅✅✅ DONE THIS SESSION (2026-09-12) — the ELM rewind programme is COMPLETE.
+  docs/designs/replay-and-modules/DESIGN.md §2.1m is build-state: BUILT. All three steps landed in
+  commits ea659a581 (steps 1+2) and 4e7d2285f (step 3); as-built folded in 2b0ffed02.
+  The ELM is cleared at EVERY world replacement (PrepareReplay, every seek, FinalizeReplay/PrepareLive,
+  and the editor preview via PreviewStateBracket); the re-derive is armed ONLY when resuming to a live
+  world; LifecycleSystem AND GhostPromotionSystem are both gated during replay.
+  HN-018 CLOSED. CE-259aq CLOSED. CE-259ar closed by step 3 (see its row).
+  ⛔ ONE RESIDUE, tracked: CE-259av — GhostCreationSystem.BypassLifecycle is STILL not honoured inside
+  CreateGhost, so mgmt-1/DESIGN.md §8.10's "new arrivals materialise directly into Active" is still a
+  specification. Do NOT build it as a drive-by: it changes replay behaviour on every host, and four rails
+  assert the flag flips while none asserts it has an effect.
+
+  ⭐⭐⭐ THE NEXT WORK, IN THE ORDER THE USER SET (2026-09-12, verbatim: "best do the non ui half of
+  authoring surface first, then p3, then the ui"):
+
+  (a) ⭐ NON-UI HALF OF THE AUTHORING SURFACE — docs/DESIGN_Entity_Authoring_Surface.md
+      (build-state: READY-TO-BUILD, updated 2026-09-03). NOT a UI design: it is ONE engine-side method,
+      RequestEntityCreation(tkbType, transform, initialComponents, owner, initType,
+      initialAttributesJson, isTransient, requestId) on the EntityCreation pack result (§4), replacing
+      hand-rolled EntityCreationRequest DTO construction at AUTHORING call sites.
+      Its load-bearing rule is §2 AUTHOR vs TRANSLATOR: a site where a NEW INTENT ORIGINATES must use it;
+      a site mapping in an EXISTING representation (scenario file, DDS sample) constructs the DTO directly
+      and that is CORRECT and not a loophole. §7 Q1 asks for that rule to be ratified — it is currently
+      inferred and written down nowhere else.
+      SCOPE (§7b): networked entities only. The trigger is "does this entity need a network identity?",
+      NOT "am I creating an entity" — the AI's EQS sensor children must NOT be routed through it.
+      MEASURED 2026-09-11 and re-confirmed 2026-09-12: RequestEntityCreation has ZERO occurrences in .cs,
+      while three doc comments already promise it (EntityCreation.cs:55-56, EntityCreationPack.cs:52).
+      It SUPERSEDES DESIGN_Entity_Creation_Unification.md §3.4's two-method shape.
+      THE NON-UI HALF = the API itself + the author/translator ratification + the pack/engine plumbing.
+      THE UI HALF, deferred to (c) = §5's per-host authoring tails: IG builds its own EntityPlacementGizmo
+      and bypasses the shared adapter, the Stride editor hand-rolls a 12-line DTO, ScenarioSpawnAdapter
+      becomes a thin caller, and SimHost + ReplayBrowser gain an affordance by sharing.
+      It closes defects G1 (an authored AREA never reaches the request source) and G2 (_ = _nameResolver,
+      a resolved name discarded). 12 acceptance criteria in §8.
+
+  (b) ⭐⭐ P3 — AUTO-TAKEOVER (role-affinity ownership), docs/DESIGN_Role_Affinity_Ownership.md.
+      This is what the user meant by "auto promotion". build-state: BUILDING — STEP 0a ONLY.
+      Step 0a (the GhostPromotionSystem relocation) was done 2026-09-11; §6a is its as-built.
+      STEPS 0, 1a, 1, 2, 3, 3b, 3c, 4 ARE ENTIRELY UNBUILT — measured: BirthCriticalComponents,
+      IRoleShardProvider, RoleShardKey, SingleNodePerRoleShardProvider, IRoleAffinityPolicy and
+      RoleAffinityPolicy all have ZERO occurrences in .cs.
+      ✅ NOT BLOCKED ON THE USER: §5's three decisions are all resolved (① /①b 2026-09-01; ② approved and
+      ③ ruled 2026-09-10). What remains in §5 is a per-system REVIEW, not a decision.
+      ⚠⚠ STEP 3b IS BIGGER THAN ITS OWN §3.5 SAYS: that section named ONE un-gated tick system and there
+      are SEVEN, three of which WRITE cognitive state (HsmTickSystem:110-113 the non-negotiable second).
+      And no production system uses QueryBuilder's .WithAuthority<T>(), while BTreeTickSystem:62-65 has no
+      authority filter — so P3 needs BOTH the narrowed Muscle-only registration AND the query filter, or
+      the whole design is cosmetic. Suggested start: step 0 (TkbTemplate.BirthCriticalComponents +
+      AddBirthCriticalComponent<T>(), mirroring AddMandatoryComponent<T>(), seeding SimTransform).
+
+  (c) ⭐ THE UI HALF of the authoring surface — §5/§5b's per-host tails, listed under (a).
+
+  ✅ SEQUENCING CHECK DONE 2026-09-12, so do not redo it: (a) and (b) are INDEPENDENT. Measured in both
+  directions — the authoring surface has ZERO references to role-affinity / auto-takeover / RoleShard /
+  BirthCritical, and P3 has ZERO references to RequestEntityCreation or that design. They act on different
+  axes: the surface is the CALLER side (who asks, whom they nominate as owner), P3 decides component-level
+  authority AFTER the entity exists.
+
+  ⛔ ALSO OPEN, NOT IN THIS ORDER: CE-259au (the construction barrier is vacuous — the module barrier is
+  correct but nobody registers, and the PEER barrier is genuinely dangling) and CE-259as (the unwritten
+  initiator) both wait on Architect_Question_69's asks B and D. Q69 is WRITTEN but only ask B/C/D exist on
+  paper — the relay was used this session for two evidence-only asks (results folded into Q69 §7), and the
+  procedure is docs/consulting-the-architect.md in pjanec/NotebookLmTools (clone ~/nlm-ops and that repo;
+  use notebook "HROT - 279", project simhost, and DO NOT REFRESH — a refresh ingests docs/ and the answer
+  then cites our own question document back).
+  ⛔ ALSO: CE-259at — tracker-counts.py counts only BP- rows, so every CE- row is invisible to it and a
+  green check is NOT evidence a CE- row registered.
+
   ══ STRAND 1 — MAP INTERACTION / SELECTION / TOOLS (the live one as of 2026-09-10) ══
   ✅✅✅ READ docs/SNAPSHOT_Map_Interaction_Architecture.md FIRST. It is a SNAPSHOT, not an owning
   design: §1 the block map, §2 the data flows, §3 remote map control, §4 the FINDINGS LEDGER,
