@@ -820,11 +820,11 @@ of the COMPONENT, not of the entity, the template, or a "kind".
 | attribute, on the COMPONENT TYPE | replaces |
 |---|---|
 | `[BirthCritical]` — *"the creator must own this at birth"* | the constant in `TkbComponentConventions`, **and** `TkbTemplate.BirthCriticalComponents` itself |
-| `[ValueFromInstance]` — *"the authoritative value is authored or replicated, never the template default"* | the hand-written `AddMandatoryComponent` calls |
+| `[PerInstanceValue]` — *"the authoritative value is authored or replicated, never the template default"* | the hand-written `AddMandatoryComponent` calls |
 
 ```
 birthCritical = componentsWith[BirthCritical]                         // no template, no host, no class
-mandatory     = componentsWith[ValueFromInstance]
+mandatory     = componentsWith[PerInstanceValue]
               ∩ ⋃ produced(t)  for host translators t whose consumed
                                descriptors this template carries       // "will this entity have it?"
               ∩ componentsThisHostRegisters                            // the deadlock guard
@@ -918,7 +918,7 @@ the same choke point:**
 
 ```
 [BirthCritical]      on a component ⇒ template.BirthCriticalComponents   (derived, read-only)
-[ValueFromInstance]  on a component ⇒ template.MandatoryComponents       (derived, read-only, SOFT)
+[PerInstanceValue]  on a component ⇒ template.MandatoryComponents       (derived, read-only, SOFT)
                                       both filled in ITkbDatabase.Register
 ```
 
@@ -936,13 +936,13 @@ never happen. ⇒ ⭐ **hard requirements, and the derivation must be EXACT.**
 set on all 15 templates:**
 
 ```
-mandatory = componentsWith[ValueFromInstance]
+mandatory = componentsWith[PerInstanceValue]
           ∩ ⋃ produced(t)  for host translators t whose consumed descriptors
                            this template carries
           ∩ componentsThisHostRegisters                    // HARD, no timeout
 ```
 
-| template shape | descriptors | ⇒ produced ∩ `[ValueFromInstance]` | today's hand-written value |
+| template shape | descriptors | ⇒ produced ∩ `[PerInstanceValue]` | today's hand-written value |
 |---|---|---|---|
 | NED vehicles | `TkbMasterDto` *(→ `SpatialCore` → `SimTransform`)* + `BehaviorProfileDto`/`VisualDefinitionDto` *(→ `EntityInfo`)* | `{SimTransform, EntityInfo}` | ✅ **exactly** `EntityInfo`+`SimTransform` hard |
 | `UrbanCombat` ×5 | same two descriptor families | `{SimTransform, EntityInfo}` | 🔴 **none** — the drift this fixes |
@@ -963,16 +963,44 @@ one host is produced on every host that composes the same translators** — so r
 | a **creator** host that does not register the component never publishes it ⇒ a receiver waits forever | ⭐ **THIS is where `SoftTimeoutFrames` belongs — as the emergency escape, never the design.** 🔒 The user's own framing: *"an emergency (hopefully avoidable) case which i do not want to promote to usual case"* |
 | ⛔ it deserves a LOUD diagnostic, not a silent timeout | a ghost still un-promoted after `N` frames is a **configuration error**, and `GhostPromotionSystem` says nothing today |
 
-##### ⚠⚠ `[ValueFromInstance]` MEANS "REPLICATED", NOT "SETTABLE AT SPAWN" — **the distinction is load-bearing**
+##### ⭐⭐ THE FOURTH INTERSECTION — **what this host can INGRESS** *(user ruling, `2026-09-13`)*
 
-📐 `SpatialCoreTkbTranslator` produces **both** `SimTransform` and `SimVelocity`, and `SpawnEntityCommand`
-carries `InitialTransform` **and** `InitialVelocity` ⇒ both look per-instance. 🔴 **But the wire carries
-`WorldPos` and the ingress writes `NetworkVelocity`, not `SimVelocity`** ⇒ marking `SimVelocity`
-`[ValueFromInstance]` would make a hard requirement that **never arrives**.
+⛔⛔ **An earlier version of this section said `[PerInstanceValue]` must mean *"arrives over the wire"*. That
+is WITHDRAWN — it smuggled a NETWORK fact onto a component type in `Fdp.Core`,** which is what §2.3 exists to
+prevent.
 
-⇒ 🔒 **the attribute means: *the authoritative initial value ARRIVES OVER THE WIRE*.** ⛔ Not *"can be set at
-spawn"*. Today that is exactly two components — `SimTransform` and `EntityInfo` — which is why today's
-hand-written list is those two and nothing else.
+⭐ **The attribute states the network-agnostic fact**: *"this component's authoritative initial value is
+PER-INSTANCE — the template cannot know it."* ⭐ The wire is merely **how it arrives when there is one**; a
+networkless node has no ghosts, so the mandatory gate never runs there at all.
+
+📐 **The case that forces the separation.** `SpatialCoreTkbTranslator` produces **both** `SimTransform` and
+`SimVelocity`, and `SpawnEntityCommand` carries `InitialTransform` **and** `InitialVelocity` ⇒ both are
+genuinely per-instance and both would carry the attribute. 🔴 **But the wire carries `WorldPos` and the
+ingress writes `NetworkVelocity`, not `SimVelocity`** ⇒ a hard requirement on `SimVelocity` would **never be
+satisfied**. ⇒ ⛔ it must be excluded for the RIGHT reason — *nothing ingresses it* — ⛔ **not** by
+mislabelling the component as "not per-instance".
+
+⇒ ⭐⭐⭐ **so the derivation takes a fourth intersection, and the seam ALREADY EXISTS** *(the seam law again —
+it was under-adopted, not missing)*:
+
+```
+mandatory = componentsWith[PerInstanceValue]                   // Fdp.Core, network-agnostic
+          ∩ ⋃ produced(t)  for host translators t whose consumed descriptors
+                           this template carries                // "will this entity have it?"
+          ∩ componentsThisHostCanINGRESS                        // ⭐ DescriptorOwnershipMap
+          ∩ componentsThisHostRegisters                         // the deadlock guard
+                                                                // HARD, no timeout
+```
+
+| ⭐ the ingress set, measured | |
+|---|---|
+| **it is already built and already populated** | `DescriptorOwnershipMap` holds `_descriptorToComponentIds`, filled by `RegisterFromTranslator(t.DescriptorOrdinal, t.TargetComponentIds)` — `NedReplicationModule.cs:472,475` and `AttributeInterpreterProvider.cs:101` |
+| ⚠ **one small addition** | it exposes `GetComponentIdsForDescriptor(ordinal)`; the derivation wants the **union over all registered translators**. That accessor does not exist yet |
+| ⭐⭐ **per HOST and per STACK, which is exactly right here** | NED fills it from NED translators, BDC differently, an offline node not at all ⇒ each node derives what IT can actually receive |
+| 🔒 **and this does NOT contradict §2.3** | §2.3 forbids keying **OWNERSHIP** on `DescriptorOwnershipMap`, because ownership must mean the same thing on every stack and offline. ⛔ **Mandatory is the opposite kind of question** — it asks *"what will arrive over THIS wire"*, which is meaningless without one. ⇒ the network-keyed input belongs here and nowhere in P3 |
+
+⇒ 📐 **Today that yields exactly `SimTransform` and `EntityInfo`** — which is precisely the hand-written list
+on NED vehicles, and precisely what `UrbanCombat` drifted out of.
 
 ⛔ **HISTORY — the question this replaced:** whether `[BirthCritical]` contradicts the `2026-09-01` ruling
 *"TKB should define what components are birth critical"*. ⭐ It does not: the TKB record still defines it,
