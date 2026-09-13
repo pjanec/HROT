@@ -80,6 +80,60 @@ namespace Hrot.Map.Common.Tests
             Assert.True(brainClaims.IsSet(behaviorState));
         }
 
+        // ── MAP2D — CE-271 seam ③ (§4.1) ────────────────────────────────────────────────────────────
+
+        private static IRoleAffinityPolicy Map2D() => HrotRoleComponentSets.CreatePolicy(NodeRole.Map2D);
+
+        /// <summary>
+        /// ⭐⭐⭐ <b><c>CE-271</c> — a Map2D node OWNS its overlay/route authorship, and NOTHING dynamic.</b>
+        /// 🔒 <c>R-138</c>: a Map2D node is a real creating owner, so its owned set must be NON-EMPTY
+        /// (an empty row is <c>CE-256</c> — a Map2D-created overlay would own only <c>SimTransform</c> and
+        /// its egress <c>HasAuthority</c> gate would fail, so overlays silently stop publishing). ⛔ And it
+        /// must exclude everything combat/muscle/brain so a Map2D-created TANK declines those. This is the
+        /// precise set the Map2D egress translators gate on. 📄 <c>DESIGN_Node_Roles_And_Policies.md</c> §4.1.
+        /// </summary>
+        [Fact]
+        public void Map2DOwns_ItsOverlayAndRouteAuthorship_AndNothingDynamic()
+        {
+            var owned = Map2D().OwnedComponentSet;
+
+            // ⭐ Non-empty, and owns exactly the overlay/route authorship components.
+            //   ⚠ EditablePolyline/RoutePlan are managed → identified by their [ComponentId] constants,
+            //   not ComponentType<T>.ID (unmanaged-only).
+            Assert.True(owned.IsSet(GlobalComponentIds.EditablePolyline),
+                "a Map2D node must own EditablePolyline so MapVisualOverlayEgress can publish its overlays");
+            Assert.True(owned.IsSet((int)Hrot.Map.Definitions.HrotComponentIds.RoutePlan),
+                "a Map2D node must own RoutePlan (route authorship)");
+
+            // ⛔ Owns NOTHING a tank needs distributed — those go to the Brain/Muscle on promotion.
+            foreach (int id in new[] { ComponentType<BehaviorState>.ID,
+                                       ComponentType<SimVelocity>.ID })
+            {
+                Assert.False(owned.IsSet(id),
+                    $"a Map2D node must NOT own dynamic component id {id} — a Map2D-created tank declines it");
+            }
+        }
+
+        /// <summary>
+        /// ⭐⭐⭐ <b>The equal-creation acceptance, Map2D leg.</b> A brain-enabled entity CREATED on a Map2D
+        /// node keeps ONLY its <c>SimTransform</c> birthright — it declines <c>BehaviorState</c> (Brain
+        /// claims it on promotion) and <c>SimVelocity</c> (Muscle claims it), and its kinematics
+        /// <c>SimTransform</c> is then handed to a Muscle by the auto-takeover grant (<c>CE-271</c> seam ①).
+        /// </summary>
+        [Fact]
+        public void AMap2DCreatedBrainEntity_KeepsOnlyItsSimTransformBirthright()
+        {
+            var template = BirthCriticalTemplate();
+            var creatorKeeps = Map2D().OwnableMask(template, isCreator: true, default);
+
+            Assert.True(creatorKeeps.IsSet(ComponentType<SimTransform>.ID),
+                "the creator keeps SimTransform (birthright) whatever its role, else the spawn position is never published");
+            Assert.False(creatorKeeps.IsSet(ComponentType<BehaviorState>.ID),
+                "a Map2D creator must decline BehaviorState — the Brain owns it");
+            Assert.False(creatorKeeps.IsSet(ComponentType<SimVelocity>.ID),
+                "a Map2D creator must decline SimVelocity — the Muscle owns it");
+        }
+
         // ── THE TWO-SET MODEL (§3.9) ──────────────────────────────────────────────────────────────
 
         /// <summary>

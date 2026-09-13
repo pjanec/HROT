@@ -1,6 +1,6 @@
 <!--STATUS
 state: LIVE
-updated: 2026-09-10
+updated: 2026-09-13
 current-answer: §3 is the role table and §3.1 is entity-creation uniformity (a role never denies a
   capability), §4 is ownership, §5 is persistence, §5a is which nodes must carry an ORBAT (operator
   surfaces), §6 is where an entity should be created. §7 is the honest list of what is ENFORCED versus
@@ -143,7 +143,7 @@ pipeline instead, the capability would be gone and §6's second arm could not ex
 
 ### 4.1 ⭐⭐⭐ ANY node distributes — **completing the wiring behind `R-138`** *(`2026-09-13`)*
 
-> `build-state: BUILDING` — seam ① built + railed; ②–⑤ pending.
+> `build-state: BUILDING` — seams ①–④ built + railed; ⑤ (routing choice + live run) pending.
 
 ⛔⛔ **The residue.** `R-138` (canon) says every ECS node can create an entity it OWNS and distributes that
 entity's **non-role** components. But several seams were wired on the assumption that **the broadcast
@@ -161,10 +161,10 @@ retired by `R-138`. The distribution uses **two** mechanisms, and both must fire
 | # | seam | today | file:line | build-state |
 |---|---|---|---|---|
 | **①** | grant publish gated on the arbiter | non-arbiter owner hands off nothing | `CreateEntityRequestSystem.cs:348,459` | ✅ **BUILT `CE-271`** — gate is now `_ownershipStrategy != null`; red→green rail `ProcessRequest_NonArbiterLocalOwner_PublishesDeferredTakeOwnership` |
-| **②** | IG runs a **null** role policy | create-leg never declines non-role ⇒ IG keeps `SimVelocity` etc. while promoters also claim → two owners | IG passes no `RoleAffinity`; `NetworkSpawningSystem.cs:229` | ⛔ pending — needs seam ③'s Map2D set |
-| **③** | Map2D **owned component set** undefined | ② has nothing to install | `HrotRoleComponentSets.cs` — no `Map2D` row | ⛔ pending — **the one genuine design sub-item** (below) |
-| **④** | cluster cache never pumped on IG | `GetLeastLoadedNode(Muscle)` returns null ⇒ empty grants even with ① | `PollNetwork` sole caller `CgfSubsystem.cs:982` | ⛔ pending |
-| **⑤** | routing choice hard-coded | IG can't choose local ownership | `IgEntityCreationRequests.cs:65` `OwnerAppInstanceId = 0` | ⛔ pending — + product call (which affordances go local, `R-140`) |
+| **②** | IG runs a **null** role policy | create-leg never declines non-role ⇒ IG keeps `SimVelocity` etc. while promoters also claim → two owners | `IgNodeBootstrapper.cs` now passes `RoleAffinity = CreatePolicy(Map2D)` | ✅ **BUILT** — unit `AMap2DCreatedBrainEntity_KeepsOnlyItsSimTransformBirthright` |
+| **③** | Map2D **owned component set** undefined | ② has nothing to install | `HrotRoleComponentSets.cs` — `[NodeRole.Map2D] = {EditablePolyline, RoutePlan}` | ✅ **BUILT** — unit `Map2DOwns_ItsOverlayAndRouteAuthorship_AndNothingDynamic` |
+| **④** | cluster cache never pumped on IG | `GetLeastLoadedNode(Muscle)` returns null ⇒ empty grants even with ① | `IgNodeBootstrapper.NetworkPolling` → invoked in `IgApplication.Update` | ✅ **BUILT** — covered by the live run (wiring, not unit-testable in isolation) |
+| **⑤** | routing choice hard-coded | IG can't choose local ownership | `IgEntityCreationRequests.cs:65` `OwnerAppInstanceId = 0` | ⛔ pending — + the request-path debug route for the live run, + product call (which affordances go local, `R-140`) |
 
 #### ⚠ The one design sub-item — Map2D's owned set
 

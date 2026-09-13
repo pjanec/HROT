@@ -166,6 +166,34 @@ public static class HrotRoleComponentSets
         var muscleOwned = brainOwned;
         muscleOwned.BitwiseAndNot(in brainOnly);
 
+        // ── ⭐⭐⭐ Map2D OWNED — CE-271 seam ③ (2026-09-13) ───────────────────────────────────────────
+        // 🔒 R-138 (canon): every ECS node creates entities it owns and distributes the rest. A Map2D
+        //   node (IG) is a real creating owner, so it needs an OWNED set — WITHOUT one it runs a null
+        //   policy, keeps every component it materialises, and a Muscle promoting a Map2D-created tank
+        //   would fight it for authority (two owners). WITH this set, a Map2D-created TANK owns only its
+        //   SimTransform birthright (kept whatever the role) and DECLINES combat/muscle/brain, which the
+        //   Brain/Muscle then claim on promotion — exactly the equal-creation contract.
+        //
+        // ⭐ The set is the overlay/route geometry a Map2D node AUTHORS and replicates OUT — precisely the
+        //   TargetComponentIds its own egress translators gate on:
+        //     · EditablePolyline — MapVisualOverlayEgressTranslator (dtMapVisualOverlay). Overlay STYLE
+        //       (MapOverlayStyle) rides on the same sample under this authority, so it needs no own bit.
+        //     · RoutePlan        — MapRouteEgressTranslator (dtEntityMission/route).
+        // ⛔ It is deliberately NON-EMPTY: an empty row (CE-256) would make a Map2D-created OVERLAY own
+        //   only SimTransform, so MapVisualOverlayEgress's HasAuthority gate fails and overlays silently
+        //   stop publishing. ⛔ It deliberately excludes everything combat/brain/muscle/kinematic so a
+        //   Map2D-created tank declines those. 📄 DESIGN_Node_Roles_And_Policies.md §4.1.
+        // ⚠ A PURE Map2D node does not yet run MapRouteEgress (it lives in KinematicTranslatorPack,
+        //   gated _roleHasMuscle) — owning RoutePlan is correct-in-principle but inert until that
+        //   translator reaches Map2D; that move is a separate seam, out of scope here.
+        // ⚠ EditablePolyline and RoutePlan are MANAGED components (classes), so ComponentType<T>.ID —
+        //   which is unmanaged-only — cannot be used; their ids come from the same [ComponentId] constants
+        //   the egress translators use (GlobalComponentIds.EditablePolyline = 117, HrotComponentIds
+        //   .RoutePlan = 168), exactly as the birth-critical loop above sets bits by raw id.
+        var map2dOwned = default(BitMask512);
+        map2dOwned.SetBit(GlobalComponentIds.EditablePolyline);
+        map2dOwned.SetBit((int)Hrot.Map.Definitions.HrotComponentIds.RoutePlan);
+
         BrainOnlyComponents     = brainOnly;
         BirthCriticalComponents = birthCritical;
         MuscleReadComponents    = muscleRead;
@@ -174,6 +202,7 @@ public static class HrotRoleComponentSets
         {
             [NodeRole.Brain]        = brainOwned,
             [NodeRole.MuscleGround] = muscleOwned,
+            [NodeRole.Map2D]        = map2dOwned,
         };
 
         Read = new Dictionary<NodeRole, BitMask512>
