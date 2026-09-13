@@ -1321,7 +1321,29 @@ with DDS between them, so it is a split topology too.
 | ✏ **`SimHostNodeBootstrapper.cs`** | `RoleAffinity = HrotRoleComponentSets.CreatePolicy(SimHostApp.DefaultRole)` — ⭐ the SAME constant that resolves this host's capability set *(`CE-197`)*, so the ownership rule and the module set cannot disagree about what the node is |
 | ✏ **`CgfSubsystem.cs`** | the Brain policy **and** `gateOnAuthority: true`, two statements apart |
 | 🆕 **`Hrot.Core.Tests/HrotRoleComponentSetsTests.cs`** | **10 rails, 10 green.** ⭐ `RoleAffinityPolicyTests`' own header says *"a green here does not mean CGF and SimHost are configured correctly — that is step 4's acceptance test"* ⇒ this file is that test, over the real tables |
-| ⛔ **NOT touched** | `IgNodeBootstrapper` · `StrideNodeBootstrapper` · `EditorSubsystem` · the test harnesses. They keep `null` *(today's behaviour)*. ⭐ The two-node Brain/Muscle case is the one the ruling is about and the one that can be proven; the others get policies once it is proven live |
+| ⛔ **NOT touched** | `IgNodeBootstrapper` · `StrideNodeBootstrapper` · `EditorSubsystem` · the test harnesses. They keep `null` *(today's behaviour — own everything you create)*. ⭐ The two-node Brain/Muscle case is the one the ruling is about and the one that can be proven; the others get policies once it is proven live. ⚠ **That one-liner is too coarse — see §6i-b** |
+
+#### ⚠⚠ 6i-b. WHY THE OTHER HOSTS RUN `null`, PER HOST — **and one of them MUST NOT be switched on** *(`2026-09-13`)*
+
+> 🔒 **Asked directly: *"why the hosts were null policy?"*** ⭐ The row above answers *"scope"*, which is
+> true for two of them and **dangerously incomplete for a third.**
+
+⭐⭐ **`null` means "own every component of every entity you create"** — today's behaviour, and the safe
+default. ⛔ The blanket reason *"once it is proven live"* is now SATISFIED *(§6i-a proved it on a real
+3-process cluster)*, so the honest per-host answer matters:
+
+| host | declared role | 📐 what a policy would actually do |
+|---|---|---|
+| ⭐⭐⭐ **Stride** *(`StrideCapabilities.DefaultRole`)* | `MuscleGround \| Perception` | ✅ **exactly SimHost's shape minus `NavigationSolver`** ⇒ it would get the real Muscle table. ⭐ **The strongest candidate, and arguably overdue**: mode 2 REPLACES SimHost, so a Stride node today owns brain components SimHost declines |
+| ⭐ **Editor** *(`EditorCapabilities.DefaultRole`)* | `Brain \| MuscleGround \| Perception \| NavigationSolver` | ⚠ **effectively a NO-OP** — the union of the Brain and Muscle owned sets is `ALL − birthCritical`, and the editor is genuinely both roles in ONE world. Harmless, and buys nothing |
+| 🔴🔴 **IG** *(`NodeRole.ImageGenerator`)* | `ImageGenerator` | ⛔⛔ **WOULD BE ACTIVELY HARMFUL TODAY.** `Owned` has entries for **`Brain` and `MuscleGround` ONLY**, and `CreatePolicy`'s own contract is *"roles with no entry contribute nothing"* ⇒ `CreatePolicy(ImageGenerator)` yields an **EMPTY owned set**, so an IG-created entity would own **nothing but its birthright**. 📌 That is `CE-256` verbatim |
+| **test harnesses** | — | deliberately `null` so tests keep today's behaviour; a harness is not a deployment |
+
+⇒ 🔒 **THE RULE THIS ESTABLISHES:** ⛔ **a host may only be given a policy once its declared role has a ROW
+in `Owned`.** ⭐ For `Stride` that is already true *(it declares `MuscleGround`)*; for **IG it is not**, and
+giving `ImageGenerator` a row is a design question in its own right — *what does an image generator own?* —
+⛔ **not a wiring task.** ⚠ The blanket *"the others get policies once it is proven live"* must not be read
+as licence to switch IG on.
 
 ### 🔴🔴 THE DEVIATION — **the tables are COMPLEMENTS, not the per-role LISTS §6's row implies**
 
