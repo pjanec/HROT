@@ -69,7 +69,14 @@ namespace Hrot.Core.Tkb
             //       and NO mandatory components at all
             //     · BdcTkbCatalog area/route — no descriptors, no mandatory components
             //   ⇒ the same descriptor set yields different answers, so no predicate over the file's
-            //   contents can reproduce it. It is genuinely per-template AUTHORED policy.
+            //   contents reproduces it AS THE CATALOGUES STAND.
+            //
+            // ⚠⚠ BUT DO NOT READ THAT AS "per-template policy was intended" — that is an inference, and it
+            //   is NOT established. 📐 What is measured: HrotEnvironment.CreateTkb() registers BOTH
+            //   catalogues into ONE database (:35, :39), so the disagreement is live in one cluster in
+            //   front of one GhostPromotionSystem — and no design record says which answer is right.
+            //   ⇒ the prior question is "is it meant to vary at all?". If UrbanCombat's omission is DRIFT,
+            //   making the catalogues agree turns this into a convention like the one above. CE-265.
             //
             // 🔴 AND GUESSING IS THE WORSE FAILURE. MandatoryComponents is the PROMOTION GATE
             //   (GhostPromotionSystem: a HARD requirement that never arrives means `return`, every frame,

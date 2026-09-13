@@ -693,7 +693,7 @@ format has no way to express either one.
 | | ⭐ birth-critical | ⛔ mandatory |
 |---|---|---|
 | **does it vary per template?** | ⛔ **no** — 📐 all 8 production sites declare `SimTransform` and nothing else: `BdcTkbBuilder.cs:44` *(every vehicle)* · `BdcTkbCatalog.cs:247` *(area)* · `:255` *(route)* · `UrbanCombatTkbCatalog` ×5 | ✅ **yes** — 📐 `NedTkbBuilder.DefineVehicle` declares `EntityInfo`+`SimTransform` **hard**; `UrbanCombatTkbCatalog`'s five templates carry the **same descriptors** and declare **none** |
-| **can a rule derive it?** | ✅ **yes — apply it unconditionally** | 🔴 **no.** The two catalogues already DISAGREE for identically-shaped templates ⇒ no predicate over the file's contents can reproduce it |
+| **can a rule derive it?** | ✅ **yes — apply it unconditionally** | 🔴 **not as the catalogues stand.** They DISAGREE for identically-shaped templates ⇒ no predicate over the file reproduces it. ⚠⚠ **But that does not prove per-template policy was INTENDED** — 📐 `HrotEnvironment.CreateTkb()` registers **both** catalogues into **one** database *(`:35`, `:39`)*, so the disagreement is live in one cluster and no design record says which side is right. ⇒ **the prior question is whether it is meant to vary at all** |
 | **what if the rule is wrong?** | ⭐ nothing: the create leg intersects with the entity's **live component mask**, so naming a component it never receives contributes no bits | 🔴 **a ghost that NEVER PROMOTES** — a hard requirement that never arrives is `return`, every frame, forever |
 | **so** | ✅ **convention, applied in the app layer** — `TkbComponentConventions.ApplyTo`, called by `TkbLoadClusterStateHandler` | ⛔ **left empty, and FILED as `CE-265`** — it needs a design answer, not a guess |
 
