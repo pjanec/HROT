@@ -24,13 +24,10 @@ namespace Hrot.Map.Common.Tests
         private static IRoleAffinityPolicy SimHost() => HrotRoleComponentSets.CreatePolicy(SimHostRoles);
         private static IRoleAffinityPolicy Cgf()     => HrotRoleComponentSets.CreatePolicy(NodeRole.Brain);
 
-        /// <summary>A template whose birth-critical list carries <c>SimTransform</c>, as step 0 seeds.</summary>
-        private static TkbTemplate BirthCriticalTemplate()
-        {
-            var t = new TkbTemplate("RoleTableRail", 9901);
-            t.BirthCriticalComponents.Add(ComponentType<SimTransform>.ID);
-            return t;
-        }
+        /// <summary>⭐ Any template — birth-criticality is DERIVED from <c>[BirthCritical]</c> on the
+        /// component type, so every template reports <c>SimTransform</c> without declaring it
+        /// (<c>2026-09-13</c>, <c>docs/designs/tkb-1/DESIGN.md</c> §6.6a).</summary>
+        private static TkbTemplate BirthCriticalTemplate() => new TkbTemplate("RoleTableRail", 9901);
 
         /// <summary>Every component id this rail file names, so the "unclassified" sweep can skip them.</summary>
         private static BitMask512 ClassifiedOrBirthCritical()

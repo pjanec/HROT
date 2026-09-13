@@ -221,9 +221,11 @@ public class TkbLoadClusterStateHandlerTests : IDisposable
     /// on the node that made it, and <c>GeoSpatialIngressTranslator.cs:90</c> then treats it as remote and
     /// overwrites the position from the wire.</para>
     ///
-    /// <para>⚠ The zip's entity carries an unknown descriptor key, so this also pins the important half:
-    /// the convention is applied to EVERY loaded template, ⛔ not only to ones whose descriptors the
-    /// parser recognised.</para>
+    /// <para>⭐⭐ <b>Closed by DERIVATION, not by an app-layer convention</b> (<c>2026-09-13</c>): the set is
+    /// a read-only view of <c>[BirthCritical]</c> on the component type, so a file-loaded template carries
+    /// it BY CONSTRUCTION. ⚠ The zip's entity carries an unknown descriptor key, which pins the important
+    /// half: this holds for EVERY loaded template, ⛔ not only ones whose descriptors the parser
+    /// recognised. 📄 <c>docs/designs/tkb-1/DESIGN.md</c> §6.6a.</para>
     /// </summary>
     [Fact]
     public async Task AFileLoadedTemplate_DeclaresSimTransformBirthCritical()
@@ -244,10 +246,10 @@ public class TkbLoadClusterStateHandlerTests : IDisposable
     }
 
     /// <summary>
-    /// ⭐⭐ <b>The fallback path keeps its own seeding</b> — the convention must not be the only thing
-    /// holding the invariant up. ⚠ With no <c>TkbName</c> the handler loads <c>NedTkbCatalog</c>, which
-    /// declares birth-criticality itself at <c>BdcTkbBuilder.cs:44</c>; this rail fails if either half is
-    /// removed.
+    /// ⭐⭐ <b>The programmatic fallback gets the SAME answer</b> — which is the half an app-layer
+    /// convention in this handler could never have reached. ⚠ With no <c>TkbName</c> the handler loads
+    /// <c>NedTkbCatalog</c>, whose templates no longer declare birth-criticality at all; they report it
+    /// because the derivation is a property of the COMPONENT.
     /// </summary>
     [Fact]
     public async Task TheProgrammaticFallback_AlsoDeclaresIt()

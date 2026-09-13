@@ -108,20 +108,26 @@ namespace Fdp.Interfaces
         /// intersects with the live mask, and since P3 step 4 both CGF and SimHost hold real role
         /// policies ⇒ <b>a missing entry now changes behaviour on a live cluster.</b></para>
         ///
-        /// <para>⛔⛔ <b>A TKB FILE CANNOT FILL THIS LIST.</b> 📄 <c>docs/designs/tkb-1/DESIGN.md</c> §6.6:
-        /// a TKB file describes an entity's <b>descriptors</b>, and this is a statement about what those
-        /// descriptors — and the spawn request — will PRODUCE. ⇒ a file-loaded template arrives EMPTY, and
-        /// the app layer applies the convention (<c>Hrot.Core/Tkb/TkbComponentConventions.cs</c>, called by
-        /// <c>TkbLoadClusterStateHandler</c>) — <c>CE-259az</c>.</para>
+        /// <para>⭐⭐⭐ <b>DERIVED, NOT AUTHORED</b> (<c>2026-09-13</c>). This is a read-only view of every
+        /// component type declaring <see cref="BirthCriticalAttribute"/> — it is not stored per template and
+        /// cannot be edited. 📄 <c>docs/designs/tkb-1/DESIGN.md</c> §6.6a.</para>
         ///
-        /// <para>⚠ <b>The convention is UNCONDITIONAL, and deliberately not keyed on a descriptor.</b>
-        /// <c>SimTransform</c> reaches an entity two ways: <c>SpatialCoreTkbTranslator.cs:24</c> (needs
-        /// <c>TkbMasterDto</c>) <b>and</b> <c>NetworkSpawningSystem</c>'s <c>cmd.InitialTransform</c> (any
-        /// template). 📌 The area and route templates carry <b>no</b> <c>TkbMasterDto</c> and still need the
-        /// birthright ⇒ a <c>HasDescriptor</c> predicate would MISS them, which is the unsafe direction.
-        /// ⭐ Over-declaring is free (the intersection above); under-declaring is silent.</para>
+        /// <para>🔒 User ruling: <i>"if it can be derived or defined via component attribute and it works for
+        /// all todays or imaginable future use cases, the tkb in-memory record can be just a readonly
+        /// cache."</i> ⛔ The hand-authored version could not survive the file path — <c>TkbDeserializer</c>
+        /// builds templates purely from DESCRIPTOR keys, so a file-loaded template arrived EMPTY
+        /// (<c>CE-259az</c>) — and 8 authoring sites across 3 producers had already drifted apart.</para>
+        ///
+        /// <para>⚠ <b>The effective set IS per TKB type, and this still delivers that.</b> Over-declaring is
+        /// free because the create leg intersects with the entity's LIVE component mask, so a positionless
+        /// entity never receives a bit. ⇒ the per-type answer is computed exactly, per entity, at runtime —
+        /// which a stored list could only restate, and could restate wrongly.</para>
+        ///
+        /// <para>⭐ <b>This property is the seam for a future per-type OVERRIDE</b>, deliberately kept rather
+        /// than deleted: a TKB-record override would change only how this view is produced, with no
+        /// call-site churn. That override is DEFERRED, not rejected.</para>
         /// </summary>
-        public List<int> BirthCriticalComponents { get; } = new();
+        public IReadOnlyList<int> BirthCriticalComponents => ComponentAttributeSets.BirthCritical;
 
         /// <summary>
         /// List of child entities (sub-parts) to spawn when this template is instantiated.
@@ -172,26 +178,6 @@ namespace Fdp.Interfaces
                 IsHard            = isHard,
                 SoftTimeoutFrames = softTimeoutFrames
             });
-        }
-
-        /// <summary>
-        /// ⭐ Declares an ECS component type <b>birth-critical</b>: the node that CREATES an entity of
-        /// this template owns that component at birth regardless of its role.
-        /// See <see cref="BirthCriticalComponents"/> for why, and for why over-declaring is safe.
-        ///
-        /// <para>Mirrors <see cref="AddMandatoryComponent{T}"/> — same authoring style, same id
-        /// resolution (works for unmanaged structs and managed class components alike), and the same
-        /// independence from any network layer.</para>
-        ///
-        /// <para>⭐ Idempotent: declaring the same component twice does not duplicate the entry, so a
-        /// builder that both defines a template and later decorates it cannot double-register.</para>
-        /// </summary>
-        /// <typeparam name="T">The component type whose initial value the creator must own.</typeparam>
-        public void AddBirthCriticalComponent<T>()
-        {
-            int id = ComponentTypeRegistry.GetOrRegisterManaged(typeof(T));
-            if (!BirthCriticalComponents.Contains(id))
-                BirthCriticalComponents.Add(id);
         }
 
         /// <summary>

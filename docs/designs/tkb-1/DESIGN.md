@@ -1002,6 +1002,28 @@ mandatory = componentsWith[PerInstanceValue]                   // Fdp.Core, netw
 ⇒ 📐 **Today that yields exactly `SimTransform` and `EntityInfo`** — which is precisely the hand-written list
 on NED vehicles, and precisely what `UrbanCombat` drifted out of.
 
+##### ✅✅✅ AS-BUILT — **the BIRTH-CRITICAL half shipped `2026-09-13`** *(`CE-266`, obligation ⑤)*
+
+| | |
+|---|---|
+| 🆕 `Fdp.Core/BirthCriticalAttribute.cs` · `PerInstanceValueAttribute.cs` | both attributes, **both documented in full** — the test, the two failures each prevents, and for `[PerInstanceValue]` the addition rule. ⚠ The second has **no consumer yet**; it ships now so the vocabulary lands in one change |
+| 🆕 `Fdp.Core/ComponentAttributeSets.cs` | the resolver — one cached reflection pass over loaded assemblies, mirroring `RecordingExportService.cs:815-824`'s existing `[ComponentId]` scan |
+| ✏ `SimTransform` | `[BirthCritical]` + `[PerInstanceValue]` · `SimVelocity` and `EntityInfo` → `[PerInstanceValue]` only |
+| ✏ `TkbTemplate.BirthCriticalComponents` | `List<int>` → **`IReadOnlyList<int>`, derived**; `AddBirthCriticalComponent<T>()` **deleted** |
+| ⛔ **deleted** | 8 authoring sites · `TkbComponentConventions` + its `TkbLoadClusterStateHandler` call · `HrotRoleComponentSets`' hand-written `SimTransform` |
+| 📐 gates | `Fdp.Core.Tests` 6/6 *(new)* · `Fdp.Toolkits.Tests` `RoleAffinity`+`TkbTemplate` 32/32 · `Hrot.Core.Tests` 153/155 · `Hrot.SimHost.Tests` 950/955 — the 4 reds all pre-existing. **2 inverse-edit red-proofs** |
+
+🔴 **DEVIATION — the cache is a COMPUTED PROPERTY, not a field filled in `Register`.** §6.6a above prescribes
+filling it at `ITkbDatabase.Register`, argued as *"the single choke point no path can skip"*. 📐 While
+building, the simpler form proved strictly stronger: `BirthCriticalComponents` returns
+`ComponentAttributeSets.BirthCritical` directly, so **there is no filling step to skip and no `Register`
+change at all**. ⭐ The user's framing survives exactly — the record is a read-only cache — and the deferred
+per-type override still lands on this one property.
+
+⭐ **One addition the design did not ask for:** the resolver **THROWS** when either attribute sits on a type
+with no `[ComponentId]`. ⛔ The existing scan it mirrors uses a bare `catch { continue; }`; copying that here
+would turn an authoring slip into an entity that silently never moves.
+
 ##### ⭐⭐ WHICH COMPONENTS GET `[PerInstanceValue]`, AND THE RULE FOR ADDING A FOURTH
 
 📐 **Three, on measured evidence — the components production actually authors per instance:**

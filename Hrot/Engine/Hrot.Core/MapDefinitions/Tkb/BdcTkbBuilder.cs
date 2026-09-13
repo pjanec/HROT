@@ -36,12 +36,8 @@ namespace Hrot.Map.Definitions.Tkb
             template.AddMandatoryComponent<EntityInfo>(isHard: true);
             // SimTransform will be stamped by translator in Phase 6.
             template.AddMandatoryComponent<SimTransform>(isHard: true);
-            // ⭐⭐⭐ P3 step 0 — the CREATOR'S BIRTHRIGHT. 📄 docs/DESIGN_Role_Affinity_Ownership.md §3.1.
-            //   Under role-affinity ownership a Brain-role node creating this vehicle would otherwise
-            //   produce SimTransform UNOWNED — and every egress translator gates on HasAuthority, so the
-            //   spawn coordinate would be written correctly and NEVER PUBLISHED (peers see the origin).
-            //   ⛔ Nothing reads this yet; steps 1-3 of that design are the consumers.
-            template.AddBirthCriticalComponent<SimTransform>();
+            // ⭐ Birth-criticality is DERIVED from [BirthCritical] on the component type (2026-09-13) —
+            //   it is no longer declared per template. 📄 docs/designs/tkb-1/DESIGN.md §6.6a.
             _db.Register(template);
             return this;
         }

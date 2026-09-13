@@ -58,14 +58,13 @@ namespace Fdp.Toolkit.NetworkSpawning.Tests
             return repo;
         }
 
-        /// <summary>⭐ A template that declares <see cref="SimTransform"/> birth-critical — what
-        /// <c>P3</c> step 0 seeds onto every production template.</summary>
-        private static TkbDatabase Tkb(bool birthCritical = true)
+        /// <summary>⭐ Every template reports <see cref="SimTransform"/> birth-critical — it is DERIVED
+        /// from <c>[BirthCritical]</c> on the component type, not declared per template
+        /// (<c>2026-09-13</c>, <c>docs/designs/tkb-1/DESIGN.md</c> §6.6a).</summary>
+        private static TkbDatabase Tkb()
         {
             var tkb = new TkbDatabase();
-            var t   = new TkbTemplate("RoleAffinitySubject", TkbType);
-            if (birthCritical) t.AddBirthCriticalComponent<SimTransform>();
-            tkb.Register(t);
+            tkb.Register(new TkbTemplate("RoleAffinitySubject", TkbType));
             return tkb;
         }
 
@@ -212,19 +211,32 @@ namespace Fdp.Toolkit.NetworkSpawning.Tests
         }
 
         /// <summary>
-        /// ⭐⭐ <b>The birthright is the TEMPLATE's, not a constant.</b> A template that does not declare
-        /// <see cref="SimTransform"/> birth-critical gets no exemption — which is what makes step 0's
-        /// per-template declaration load-bearing rather than decorative.
+        /// ⭐⭐⭐ <b>THE BIRTHRIGHT IS NOW UNFORGETTABLE — and this rail replaces one that asserted the
+        /// opposite</b> <i>(<c>2026-09-13</c>)</i>.
+        ///
+        /// <para>⛔ It used to be <c>WithoutABirthCriticalDeclaration_TheBrainCreatorDeclinesTheTransformToo</c>,
+        /// building a template that omitted the declaration to prove the per-template list was load-bearing.
+        /// 🔴 <b>That state is no longer representable</b>: the set is derived from <c>[BirthCritical]</c> on
+        /// the component type, so no template can lack it — which is precisely the defect it used to be
+        /// possible to author (<c>CE-259az</c>: a file-loaded template had NO birth-critical components at
+        /// all). ⇒ the rail now asserts the unrepresentability, which is the stronger claim.</para>
         /// </summary>
         [Fact]
-        public void WithoutABirthCriticalDeclaration_TheBrainCreatorDeclinesTheTransformToo()
+        public void NoTemplateCanOmitTheBirthright_ItIsDerivedFromTheComponent()
         {
+            var bare = new TkbTemplate("NoDeclarationsAtAll", TkbType);
+
+            Assert.Contains(Id<SimTransform>(), bare.BirthCriticalComponents);
+
             var repo = CreateWorld();
             var map  = new NetworkEntityMap();
-            var e    = Spawn(repo, Spawner(Tkb(birthCritical: false), map, PolicyFor(NodeRole.Brain)),
-                             map, 704, LocalNodeId);
+            var tkb  = new TkbDatabase();
+            tkb.Register(bare);
+            var e = Spawn(repo, Spawner(tkb, map, PolicyFor(NodeRole.Brain)), map, 704, LocalNodeId);
 
-            Assert.False(Owns(repo, e, Id<SimTransform>()));
+            Assert.True(Owns(repo, e, Id<SimTransform>()),
+                "a template authored with no declarations still did not get the birthright — the " +
+                "derivation is not reaching the create leg.");
         }
 
         /// <summary>

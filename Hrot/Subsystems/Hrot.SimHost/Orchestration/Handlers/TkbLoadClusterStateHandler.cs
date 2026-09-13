@@ -11,7 +11,6 @@ using Fdp.Interfaces;
 using Fdp.Toolkit.Orchestration;
 using Fdp.Toolkit.Tkb;
 using Fdp.Toolkit.Tkb.Vfs;
-using Hrot.Core.Tkb;
 using Hrot.Map.Definitions.Tkb;
 
 namespace Hrot.SimHost.Orchestration.Handlers;
@@ -99,30 +98,11 @@ public sealed class TkbLoadClusterStateHandler : IClusterStateHandler
         foreach (var entityFile in loader.EnumerateEntityFiles())
             deserializer.ParseAndRegister(entityFile, _tkbDb);
 
-        {
-            // ⭐⭐⭐ CE-259az — A FILE-LOADED TEMPLATE CANNOT DECLARE ITS OWN COMPONENT CONVENTIONS.
-            //   📄 docs/designs/tkb-1/DESIGN.md §6.6 · docs/DESIGN_Role_Affinity_Ownership.md §3.1, §6b.
-            //
-            //   📐 TkbDeserializer builds the template purely from DESCRIPTOR keys, so
-            //   BirthCriticalComponents comes back EMPTY — while every programmatic catalogue declares
-            //   SimTransform birth-critical on every template. ⇒ before this call, a named-TKB deployment
-            //   produced templates whose creator did NOT own its own position.
-            //
-            //   🔴 What that costs, measured (and it is NOT the "origin flash" the older comments claim —
-            //   no egress translator reads the per-component AuthorityMask; see §3.6): the creator is
-            //   skipped by CarKinematicsSystem.cs:73's .WithOwned<SimTransform>() so THE ENTITY NEVER
-            //   MOVES ON THE NODE THAT MADE IT, and GeoSpatialIngressTranslator.cs:90 then treats it as
-            //   remote and overwrites its position from the wire.
-            //
-            //   ⭐ HERE rather than inside TkbDeserializer: the convention is HROT policy and the
-            //   deserializer is engine code (Fdp.Toolkits). This handler is the ONLY production caller of
-            //   ParseAndRegister, so one call covers the whole file path.
-            //
-            //   ⚠ Over the WHOLE database rather than per file: Clear() ran above, so GetAll() is exactly
-            //   the set this archive produced, and ParseAndRegister returns nothing to apply it to.
-            foreach (var loaded in _tkbDb.GetAll())
-                TkbComponentConventions.ApplyTo(loaded);
-        }
+        // ⭐ CE-259az is closed by DERIVATION, not by a convention applied here (2026-09-13):
+        //   TkbTemplate.BirthCriticalComponents is now a read-only view of [BirthCritical] on the
+        //   component type, so a file-loaded template carries it BY CONSTRUCTION — and so does every
+        //   programmatic catalogue, which an app-layer convention here could never reach.
+        //   📄 docs/designs/tkb-1/DESIGN.md §6.6a.
 
         _lastLoadedTkbName = requestedTkb;
         _lastLoadedTimestamp = currentFileTime;

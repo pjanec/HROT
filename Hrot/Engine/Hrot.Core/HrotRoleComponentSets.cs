@@ -150,8 +150,12 @@ public static class HrotRoleComponentSets
         //   is what puts them back into REGISTER without ever granting authority.
         brainOnly.BitwiseOr(in muscleRead);
 
+        // ⭐⭐ DERIVED from [BirthCritical] on the component type (2026-09-13) — this used to hand-list
+        //   SimTransform, making it a THIRD producer of one fact alongside the TKB templates and the
+        //   app-layer convention. 📄 docs/designs/tkb-1/DESIGN.md §6.6a.
         var birthCritical = default(BitMask512);
-        birthCritical.SetBit(ComponentType<SimTransform>.ID);
+        foreach (int id in ComponentAttributeSets.BirthCritical)
+            birthCritical.SetBit(id);
 
         var all = default(BitMask512);
         all.SetAll();

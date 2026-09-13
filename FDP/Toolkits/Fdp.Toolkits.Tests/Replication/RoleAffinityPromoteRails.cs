@@ -82,11 +82,11 @@ namespace Fdp.Toolkit.Replication.Tests
             return e;
         }
 
-        private static Entity Promote(EntityRepository repo, IRoleAffinityPolicy? policy,
-                                      bool birthCritical = true)
+        private static Entity Promote(EntityRepository repo, IRoleAffinityPolicy? policy)
         {
+            // ⭐ SimTransform is birth-critical by DERIVATION ([BirthCritical] on the component type),
+            //   so this template carries the exemption without declaring it — §6.6a.
             var template = new TkbTemplate("PromotionSubject", TkbType);
-            if (birthCritical) template.AddBirthCriticalComponent<SimTransform>();
 
             var tkb = new MockTkbDatabase { TemplateToReturn = template };
             var sys = new GhostPromotionSystem(
@@ -155,7 +155,7 @@ namespace Fdp.Toolkit.Replication.Tests
         public void APromotingNode_GetsNoBirthright_EvenForABirthCriticalComponent()
         {
             var repo = CreateWorld();
-            var e    = Promote(repo, PolicyFor(NodeRole.Brain), birthCritical: true);
+            var e    = Promote(repo, PolicyFor(NodeRole.Brain));
 
             Assert.False(Owns(repo, e, Id<SimTransform>()),
                 "a PROMOTER claimed a birth-critical component. The creator already owns it (step 2), " +
@@ -219,7 +219,6 @@ namespace Fdp.Toolkit.Replication.Tests
         public void TheCreateAndPromoteLegs_PartitionTheComponents()
         {
             var template = new TkbTemplate("PartitionSubject", TkbType);
-            template.AddBirthCriticalComponent<SimTransform>();
 
             var brainCreates  = PolicyFor(NodeRole.Brain)
                 .OwnableMask(template, isCreator: true,  default);

@@ -56,11 +56,12 @@ namespace Hrot.Map.Common.Tests
                 .ToList();
 
             Assert.True(missing.Count == 0,
-                "these catalogue templates do not declare SimTransform birth-critical, so once P3 " +
-                "steps 1-3 land their creator will write a spawn position it can never publish and " +
-                "every peer will see the entity at the origin: " + string.Join(" · ", missing) +
-                ". Add template.AddBirthCriticalComponent<SimTransform>() where the template is " +
-                "authored (docs/DESIGN_Role_Affinity_Ownership.md §3.1).");
+                "these catalogue templates do not report SimTransform birth-critical. Since 2026-09-13 " +
+                "that set is DERIVED from [BirthCritical] on the component type, so the only way to reach " +
+                "this is for the attribute to have been removed from SimTransform or the resolver to have " +
+                "stopped seeing it — in which case every creator writes a spawn position it does not own, " +
+                "CarKinematicsSystem's WithOwned filter skips the entity and it never moves: " +
+                string.Join(" · ", missing) + " (docs/designs/tkb-1/DESIGN.md §6.6a).");
         }
 
         [Fact]
