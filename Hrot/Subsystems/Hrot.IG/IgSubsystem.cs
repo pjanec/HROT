@@ -139,6 +139,19 @@ namespace Hrot.IG
         /// </summary>
         internal IgApplication App => _app ?? throw new InvalidOperationException("Not initialized");
 
+        /// <summary>
+        /// ⭐⭐⭐ <c>CE-271</c> seam ⑤ — enqueue an <see cref="Hrot.Core.Network.EntityCreationRequest"/>
+        /// onto THIS node's local creation source, so it flows through the REAL request path
+        /// (<c>ForwardingEntityCreationRequestSource</c> → <c>CreateEntityRequestSystem</c>) rather than a
+        /// raw <c>SpawnEntityCommand</c>. This is what lets the debug API demonstrate a Map2D node
+        /// creating an entity IT owns and distributing it via auto-takeover — the direct spawn route
+        /// bypasses routing and the grant path entirely. Null until the node is initialised.
+        /// </summary>
+        public System.Action<Hrot.Core.Network.EntityCreationRequest>? CreationRequestEnqueuer
+            => _app?.LocalEntityCreationRequests is { } src
+                 ? new System.Action<Hrot.Core.Network.EntityCreationRequest>(src.Enqueue)
+                 : null;
+
         /// <inheritdoc/>
         public MapCameraView? GetCameraView() => _app?.GetMapCamera()?.GetCameraView();
 

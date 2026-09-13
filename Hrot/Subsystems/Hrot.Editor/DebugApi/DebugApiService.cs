@@ -71,6 +71,7 @@ namespace Hrot.Editor.DebugApi
         private readonly IDiagnosticEventHistoryService?  _editorEventHistory;
         private readonly MasterSyncController?            _timeController;
         private readonly Func<ClusterState>?             _clusterStateGetter;
+        private readonly Func<Action<Hrot.Core.Network.EntityCreationRequest>?>? _creationRequestEnqueuerGetter;   // CE-271 seam ⑤
 
         /// <summary>⭐ Set only in the CLUSTER shape; null in the editor. See the block above.</summary>
         private readonly Hrot.Presentation.DebugApi.PerspectiveScopedDispatcher? _dispatcher;
@@ -612,10 +613,16 @@ namespace Hrot.Editor.DebugApi
             Func<IReadOnlyList<IMessageLogSource>>?       logSinks          = null,
             // ⭐ CE-169 — a Func, not a value: CGF's registry is built during subsystem boot, which
             //   happens AFTER this service is constructed. See the field comment for the measurement.
-            Func<Fdp.Toolkit.Behavior.BehaviorRegistry?>? behaviorRegistry  = null)
+            Func<Fdp.Toolkit.Behavior.BehaviorRegistry?>? behaviorRegistry  = null,
+            // ⭐⭐⭐ CE-271 seam ⑤ — a Func for the same boot-order reason: the node's local creation
+            //   source exists only after its subsystem builds the EntityCreationPack. When present, the
+            //   node can create entities THROUGH the request path (routing + auto-takeover grant), which
+            //   the raw /entities/spawn route deliberately bypasses.
+            Func<Action<Hrot.Core.Network.EntityCreationRequest>?>? creationRequestEnqueuer = null)
         {
             _dispatcher         = dispatcher ?? throw new ArgumentNullException(nameof(dispatcher));
             _clusterStateGetter = clusterState;
+            _creationRequestEnqueuerGetter = creationRequestEnqueuer;
 
             // ⭐⭐⭐ CE-110 — ⛔⛔ NO `?? new TkbDatabase()` HERE. That default is what made /tkb/* answer
             //    `[]` on every cluster node: the composition root passes nothing, so the service latched a
@@ -1582,6 +1589,69 @@ namespace Hrot.Editor.DebugApi
                 ["tkbType"]  = tkbType,
                 ["awaited"]  = false,
                 ["reason"]   = timeAdvancing ? null : (JsonNode?)"sim not running — time only advances in preview while unpaused; call POST /preview/enter then POST /sim/play, or POST /sim/step to advance.",
+            }, null);
+        }
+
+        /// <summary>
+        /// ⭐⭐⭐ <c>CE-271</c> seam ⑤ — <c>POST /entities/create-request {tkbType, ownerNodeId, transform?,
+        /// attributesJson?}</c>. Enqueues an <see cref="Hrot.Core.Network.EntityCreationRequest"/> onto the
+        /// node's LOCAL creation source, so it flows through the real request path
+        /// (<c>ForwardingEntityCreationRequestSource</c> → <c>CreateEntityRequestSystem</c>).
+        ///
+        /// <para>⛔ <b>Unlike <see cref="SpawnEntity"/>, this exercises routing and the auto-takeover grant.</b>
+        /// With <c>ownerNodeId</c> = this node, the node creates + owns the entity and hands off its non-role
+        /// components (kinematics → a Muscle) via <c>DeferredTakeOwnership</c>; with <c>ownerNodeId = 0</c> the
+        /// request is forwarded to the broadcast arbiter. <see cref="SpawnEntity"/> publishes a raw
+        /// <c>SpawnEntityCommand</c> and bypasses both.</para>
+        /// </summary>
+        public (JsonNode? Node, string? Error) CreateEntityViaRequestPath(
+            long      tkbType,
+            int       ownerNodeId,
+            JsonNode? transform      = null,
+            string?   attributesJson = null)
+        {
+            var enqueue = _creationRequestEnqueuerGetter?.Invoke();
+            if (enqueue == null)
+                return (null,
+                    "This node has no local entity-creation request source wired into the debug API. Only a "
+                  + "node that composes EntityCreationPack (IG/CGF/SimHost) exposes one. Use POST /entities/spawn "
+                  + "for a direct SpawnEntityCommand (which bypasses routing and the auto-takeover grant).");
+
+            List<object>? initialComponents = null;
+            if (transform != null)
+            {
+                try
+                {
+                    var simTransform = JsonSerializer.Deserialize<SimTransform>(
+                        transform.ToJsonString(), SpawnTransformJsonOptions);
+                    initialComponents = new List<object> { simTransform };
+                }
+                catch (Exception ex)
+                {
+                    return (null,
+                        $"'transform' could not be read as a SimTransform: {ex.GetType().Name}: {ex.Message}. "
+                      + "Nothing was enqueued.");
+                }
+            }
+
+            var request = new Hrot.Core.Network.EntityCreationRequest
+            {
+                RequestId             = Guid.NewGuid(),
+                OwnerAppInstanceId    = ownerNodeId,
+                TkbType               = tkbType,
+                InitialAttributesJson = attributesJson,
+                InitialComponents     = initialComponents,
+            };
+
+            enqueue(request);
+            return (new JsonObject
+            {
+                ["enqueued"]           = true,
+                ["requestId"]          = request.RequestId.ToString(),
+                ["ownerAppInstanceId"] = ownerNodeId,
+                ["tkbType"]            = tkbType,
+                ["note"]               = "Routed through CreateEntityRequestSystem. Advance the sim to process; "
+                                       + "read back with GET /entities on each node to see ownership distribution.",
             }, null);
         }
 

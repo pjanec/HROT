@@ -515,6 +515,24 @@ namespace Hrot.Editor.DebugApi
                 return error != null ? Fail(400, error, DebugApiHints.TkbType) : Ok(node);
             }));
 
+            // ⭐⭐⭐ CE-271 seam ⑤ — create THROUGH the request path (routing + auto-takeover grant),
+            //   unlike /entities/spawn which publishes a raw SpawnEntityCommand and bypasses both.
+            _routes.Add(new("POST", "/entities/create-request", async ctx =>
+            {
+                if (!long.TryParse(ctx.Body?["tkbType"]?.ToString(), out var tkbType))
+                    return Fail(400, "tkbType (long) is required.", DebugApiHints.TkbType);
+
+                // ownerNodeId: this node's id ⇒ create + own locally; 0 ⇒ forward to the broadcast arbiter.
+                int ownerNodeId = int.TryParse(ctx.Body?["ownerNodeId"]?.ToString(), out var onid) ? onid : 0;
+                var transform      = ctx.Body?["transform"];
+                var attributesJson = ctx.Body?["attributesJson"]?.GetValue<string>();
+
+                var (node, error) = await _jobQueue.RunOnMainThread(() =>
+                    Service().CreateEntityViaRequestPath(tkbType, ownerNodeId, transform, attributesJson))
+                    .ConfigureAwait(false);
+                return error != null ? Fail(400, error, DebugApiHints.TkbType) : Ok(node);
+            }));
+
             // Group P.0 / S — discovery WITH SCHEMA (MX4a, MX7). These exist so an agent never has
             // to author a behaviour's params or a breakpoint condition blind; DebugApiHints points
             // every schema-shaped rejection back at them.
