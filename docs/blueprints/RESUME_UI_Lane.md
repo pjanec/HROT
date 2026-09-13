@@ -27,7 +27,7 @@ current-answer: ⚠⚠ THREE LIVE STRANDS. Read the one you are continuing. ⭐ 
                      6 new rails, 2 red-proofs — removing [BirthCritical] from SimTransform reddens
                      9 rails across 4 files.
 
-  CE-265  <this commit>  THE MANDATORY HALF SHIPPED. The promotion gate is DERIVED PER HOST and the file
+  CE-265  74438cb7f  THE MANDATORY HALF SHIPPED. The promotion gate is DERIVED PER HOST and the file
                      path has one for the first time. ITkbEntityTranslator gains GetProducedComponents()
                      (no default impl — all 9 production translators, compiler-enumerated);
                      NEW MandatoryComponentResolver does the four-way intersection; GhostPromotionSystem
