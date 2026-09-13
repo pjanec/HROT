@@ -141,6 +141,46 @@ pipeline instead, the capability would be gone and §6's second arm could not ex
 📄 The role-derived default is designed in
 [`DESIGN_Role_Affinity_Ownership.md`](DESIGN_Role_Affinity_Ownership.md) — ⚠ **designed, not built.**
 
+### 4.1 ⭐⭐⭐ ANY node distributes — **completing the wiring behind `R-138`** *(`2026-09-13`)*
+
+> `build-state: BUILDING` — seam ① built + railed; ②–⑤ pending.
+
+⛔⛔ **The residue.** `R-138` (canon) says every ECS node can create an entity it OWNS and distributes that
+entity's **non-role** components. But several seams were wired on the assumption that **the broadcast
+arbiter is the only creator/owner** — valid *before* auto-takeover (`DeferredTakeOwnership`) existed, and
+retired by `R-138`. The distribution uses **two** mechanisms, and both must fire for a non-arbiter owner:
+
+| component class | how it leaves the creator | mechanism |
+|---|---|---|
+| non-role, **non**-birth-critical (brain, nav, sensors, `SimVelocity`) | creator **declines at CREATE** (`AuthorityMask &= OwnableMask`), role-holders **claim on PROMOTE** | P3 role-affinity **derivation** — no grant |
+| birth-critical (`SimTransform` only) | creator **keeps at birth** (avoids origin-flash), then **hands off** | **auto-takeover grant** (`DeferredTakeOwnership`) |
+
+⭐ **The five seams — each the same assumption in a different place** *(measured `2026-09-13` on the
+`IG`/`Map2D` node)*:
+
+| # | seam | today | file:line | build-state |
+|---|---|---|---|---|
+| **①** | grant publish gated on the arbiter | non-arbiter owner hands off nothing | `CreateEntityRequestSystem.cs:348,459` | ✅ **BUILT `CE-271`** — gate is now `_ownershipStrategy != null`; red→green rail `ProcessRequest_NonArbiterLocalOwner_PublishesDeferredTakeOwnership` |
+| **②** | IG runs a **null** role policy | create-leg never declines non-role ⇒ IG keeps `SimVelocity` etc. while promoters also claim → two owners | IG passes no `RoleAffinity`; `NetworkSpawningSystem.cs:229` | ⛔ pending — needs seam ③'s Map2D set |
+| **③** | Map2D **owned component set** undefined | ② has nothing to install | `HrotRoleComponentSets.cs` — no `Map2D` row | ⛔ pending — **the one genuine design sub-item** (below) |
+| **④** | cluster cache never pumped on IG | `GetLeastLoadedNode(Muscle)` returns null ⇒ empty grants even with ① | `PollNetwork` sole caller `CgfSubsystem.cs:982` | ⛔ pending |
+| **⑤** | routing choice hard-coded | IG can't choose local ownership | `IgEntityCreationRequests.cs:65` `OwnerAppInstanceId = 0` | ⛔ pending — + product call (which affordances go local, `R-140`) |
+
+#### ⚠ The one design sub-item — Map2D's owned set
+
+Seam ③ is the only piece that is a *decision*, not wiring, and it has a trap already hit once (`CE-256`): an
+**empty** `Map2D` owned row makes an IG-created overlay own only `SimTransform` (the sole `[BirthCritical]`
+type) — so `MapVisualOverlayEgressTranslator`'s `HasAuthority` gate fails and overlays **silently stop
+publishing**. ⇒ the Map2D owned set must be **non-empty**: the presentation/overlay/route family a Map2D
+node legitimately owns, and nothing combat/brain/muscle (so a Map2D-created *tank* declines those, leaving
+them for the Brain/Muscle to claim). ⭐ **Lean:** enumerate it from `IgRoleComponentRegistry`'s
+overlay/route registrations, cross-checked against what actually replicates from a Map2D node — **awaiting a
+nod before hard-coding**, because a wrong set here breaks overlays or double-owns.
+
+📄 Full mechanism + measurements: [`DESIGN_Role_Affinity_Ownership.md`](DESIGN_Role_Affinity_Ownership.md)
+§6i-b. ⚠ Stale statement corrected `2026-09-13`: `EntityCreationContext.OwnershipStrategy`'s remark
+("only consulted when arbiter") — superseded by seam ①.
+
 ---
 
 ## 5. ⭐⭐⭐ PERSISTENCE — **the policy that had no home**
