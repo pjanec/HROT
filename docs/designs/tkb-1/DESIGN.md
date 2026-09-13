@@ -778,28 +778,75 @@ interface member**: a translator can say which descriptors it CONSUMES, but noth
 components it PRODUCES — that is knowable only by running `Inject`. ⭐ Add
 `GetProducedComponents()` beside `GetConsumedDescriptors()`.
 
-⛔⛔ **BUT `mandatory = produced` IS WRONG, and an earlier version of this section said exactly that.**
-📐 A translator that PRODUCES a component is the reason you might not need to wait for it. ⇒ produced is
-the **CANDIDATE** set, not the answer.
+#### 6.6a 🔒 THE GROUNDED DESIGN — **derive BOTH lists with NO entity-class vocabulary anywhere** *(user ruling, `2026-09-13`)*
 
-⭐⭐⭐ **The filter, and it is already visible in the code:** every fallback-stamping translator guards with
-`!repo.HasComponent<T>(entity)` — `SpatialCoreTkbTranslator.cs:26,29` is the model, adding a **zeroed**
-`SimTransform`/`SimVelocity` only when none is present. ⇒ 🔒 **a component is MANDATORY exactly when a
-translator would stamp a DEFAULT that must not beat the replicated value.** That is what
-`EntityInfo`+`SimTransform` hard-mandatory on a vehicle has always meant: *wait for the wire value, or the
-zeroed default wins and the ghost promotes at the origin.*
+> 🔒 **User, verbatim:** *"for the file loading path, no DefineVehicle and similar helper are needed… These
+> are only good to build the 'default' TKB when file load path is not in use. I would like to avoid the
+> hosts to hardcode anything per entity class (so hosts do not basically need to know that entity IS a
+> vehicle, the components the entity have makes the entity a vehicle (movable and navigable etc.)"*
 
-⇒ ⭐ **the derivation in full:**
+✅ **Both halves of that are confirmed by the code.** `DefineVehicle` and its `With…` siblings are pure
+AUTHORING helpers for the programmatic catalogue — the file path never touches them, and a template loaded
+from a file is a bag of descriptors with no "kind". ⇒ ⛔ **any rule keyed on *"is this a vehicle"* — such as
+the `TkbMasterDto ⇒ vehicle bundle` this section first proposed — is a per-class hardcode and is
+WITHDRAWN.**
+
+##### ⛔⛔ TWO EARLIER SKETCHES IN THIS SECTION WERE WRONG. BOTH ARE SUPERSEDED, AND THE SECOND ONE IS INSTRUCTIVE
+
+| sketch | why it fails |
+|---|---|
+| `mandatory = produced(translators)` | ⛔ backwards — a translator that PRODUCES a component is the reason you might not need to WAIT for it |
+| `mandatory = produced ∧ "stamps a default" (the !HasComponent guard)` | 🔴 **the guard does not discriminate.** 📐 Measured over all 8 production translators: **~25 of ~30** produced components carry `!repo.HasComponent<T>(entity)` — it is an IDEMPOTENCY guard, present on `TargetMemory`, `BrainBlackboard`, `NavState`, `WeaponState` and everything else. ⇒ it selects nearly everything, and only **2** components are actually mandatory |
+
+##### 📐 WHAT ACTUALLY SEPARATES THE TWO MANDATORY COMPONENTS FROM THE ~25 THAT ARE NOT
+
+| component | the translator's stamped value | per-instance? |
+|---|---|---|
+| ⭐ `SimTransform` | `new SimTransform()` — **zeroed and meaningless** | ✅ the real value comes from `SpawnEntityCommand.InitialTransform` or the wire |
+| ⭐ `EntityInfo` | `new EntityInfo { ForceId = dto.Faction }` — a template default | ✅ **but faction is authored PER SPAWN**, so the template default must not beat it |
+| ⛔ `VehicleParams` · `Health` · `PerceptionReceptor` · `WeaponState` | derived from the descriptor | ⛔ identical on every instance of the template |
+| ⛔ `VehicleState` · `NavState` · `TargetMemory` · `BrainBlackboard` · the channels | empty runtime state | ⛔ legitimately starts empty |
+
+⇒ 🔒 **THE DISCRIMINATOR: a component is mandatory exactly when its AUTHORITATIVE value is PER-INSTANCE —
+authored at spawn or replicated in — so the template's default would silently win.** ⛔ That is a property
+of the COMPONENT, not of the entity, the template, or a "kind".
+
+##### ⭐⭐⭐ THE DESIGN — **one mechanism, both lists, and it is the house pattern already**
+
+⭐ Per-component-type metadata already travels as an **attribute**: `[ComponentId]`
+*(`ComponentIdAttribute.cs:30`, mandatory since auto-assignment was removed)* and `[DataPolicy]`
+*(`DataPolicyAttribute.cs:79`)*. ⇒ declare both properties the same way:
+
+| attribute, on the COMPONENT TYPE | replaces |
+|---|---|
+| `[BirthCritical]` — *"the creator must own this at birth"* | the constant in `TkbComponentConventions`, **and** `TkbTemplate.BirthCriticalComponents` itself |
+| `[ValueFromInstance]` — *"the authoritative value is authored or replicated, never the template default"* | the hand-written `AddMandatoryComponent` calls |
+
 ```
-candidates = ⋃ produced(t)   for each translator t THIS HOST composes
-                             whose consumed descriptors the template carries
-mandatory  = { c ∈ candidates : t stamps a DEFAULT for c (the !HasComponent guard)
-                                AND c is replicated for this entity }
-           ∩ componentsThisHostRegisters        // the deadlock guard
+birthCritical = componentsWith[BirthCritical]                         // no template, no host, no class
+mandatory     = componentsWith[ValueFromInstance]
+              ∩ ⋃ produced(t)  for host translators t whose consumed
+                               descriptors this template carries       // "will this entity have it?"
+              ∩ componentsThisHostRegisters                            // the deadlock guard
 ```
-⚠ **The second conjunct is the open one** — *"is it replicated"* is per network stack, and §2.3 forbids
-keying simulation rules on one. 📐 The `!HasComponent` guard is measurable today *(98 occurrences)*; the
-replication half needs the design call. 📄 `CE-265`.
+
+⭐ **`GetProducedComponents()` is still needed — but as the TEMPLATE FILTER, not the discriminator.** ⛔
+Requiring a component this template will never produce is the deadlock; requiring one the host does not
+register is the same deadlock *(`GhostPromotionSystem.cs:211` has no registration guard)*.
+
+| ⭐ what this buys | |
+|---|---|
+| ⭐⭐⭐ **no host knows what a vehicle is** | the rule reads only component attributes, the template's descriptors, and this host's own translator + registry sets |
+| ⭐⭐ **the file path needs NOTHING** | no field, no names-as-strings, no validation — the file stays pure descriptors, which is §6.6's principle |
+| ⭐⭐ **identical on both paths** | the programmatic catalogue gets the same derivation, so the `NedTkbBuilder` / `UrbanCombat` drift becomes unrepresentable rather than merely fixed |
+| ⭐ **host asymmetry is handled by construction** | each node derives from ITS translator list, which is what `§6.5b` already says the registration set is for |
+| ⭐ **`TkbTemplate.BirthCriticalComponents` can be DELETED** | 📐 measured: **one** production read — `RoleAffinityPolicy.cs:189`. Everything else is the setter, tests, or comments |
+
+⚠⚠ **THE ONE OPEN DECISION, and it is the user's:** `[BirthCritical]` on the component type contradicts the
+letter of the `2026-09-01` ruling *"TKB should define what components are birth critical"*. 📐 The CONTRAST
+in that ruling was TKB-versus-**DESCRIPTOR** *("there are networkless systems as well")*, and a component
+attribute honours that contrast completely — it is network-agnostic and needs no participant. ⛔ But it does
+move the declaration off the template, so it must be confirmed, not assumed. 📄 `CE-265`.
 
 ##### 🔒 THE PRINCIPLE, STATED ONCE
 
