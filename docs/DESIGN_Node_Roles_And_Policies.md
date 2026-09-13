@@ -143,8 +143,10 @@ pipeline instead, the capability would be gone and §6's second arm could not ex
 
 ### 4.1 ⭐⭐⭐ ANY node distributes — **completing the wiring behind `R-138`** *(`2026-09-13`)*
 
-> `build-state: BUILDING` — seams ①–⑥ built; equal-creation distribution verified live. Remaining: the
-> production affordance routing choice (`R-140` product call) and a re-run confirming seam ⑥ drops IG's bit.
+> `build-state: BUILT` — seams ①–⑥ built and the full equal-creation chain verified live end to end
+> (IG creates+owns → declines non-role → grants → SimHost takes `dtWorldPos` → IG receives the yield and
+> drops its bit; 0 exceptions on 4 nodes). Remaining is only the PRODUCTION affordance routing choice —
+> which IG tools create locally vs forward — a `R-140` product call, not wiring.
 
 ⛔⛔ **The residue.** `R-138` (canon) says every ECS node can create an entity it OWNS and distributes that
 entity's **non-role** components. But several seams were wired on the assumption that **the broadcast
@@ -179,6 +181,12 @@ Through `POST /entities/create-request {tkbType:100, ownerNodeId:100}` on IG (no
 | IG's grant named a real Muscle (seam ④ cache pump worked) | grant `NewOwner=1` = SimHost |
 | **SimHost took `dtWorldPos`** — equal-creation distribution | `[Node-1] DeferredTakeover executed: EntityNetId=1200 GrantCount=2` → `OwnershipUpdate egress EntityId=1200 TypeId=2 NewOwner=1` |
 | 🔴 **but IG never dropped its own bit** — the gap seam ⑥ fixes | IG `OwnershipUpdate` recv=0, `grep OwnershipUpdate n-ig.log` = 0 |
+
+⭐⭐ **After seam ⑥, re-run `2026-09-13`:** IG `OwnershipUpdate` recv **0 → 18**, and
+`[Node-100] OwnershipUpdate ingress: EntityId=1200 TypeId=2 NewOwner=1` — IG receives SimHost's yield and
+drops its own `dtWorldPos` bit, so kinematics has a **single owner** (SimHost). 0 exceptions on all 4 nodes.
+⇒ **equal creation verified end to end: a Map2D node creates a brain-enabled entity it owns, and the
+cluster distributes it correctly (Brain derives cognition, Muscle owns kinematics) via auto-takeover.**
 
 #### ⚠ The one design sub-item — Map2D's owned set
 
