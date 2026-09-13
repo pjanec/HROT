@@ -3,122 +3,94 @@ state: LIVE
 updated: 2026-09-13
 current-answer: ⚠⚠ THREE LIVE STRANDS. Read the one you are continuing. ⭐ STRAND 0 is the live work as of
   2026-09-13.
-  ══ STRAND 0 — ROLE-AFFINITY OWNERSHIP (P3). This whole block is the live work. ══
+  ══ STRAND 0 — ROLE-AFFINITY OWNERSHIP (P3) + THE TKB COMPONENT-SET DERIVATION. The live work. ══
   BRANCH claude/reset-working-branch-qd1qpv, head = the commit carrying this doc.
   Tree clean. Gates: design-digest --check clean · rulings 34/34 · tracker-counts OK.
 
-  ✅✅✅ 2026-09-13 — **P3 STEP 4 SHIPPED (CE-264). THE DESIGN IS NOW LIVE, NOT A MECHANISM.**
-  Everything before it built machinery that every node ran with a NULL policy — measurably a no-op.
-  · NEW Hrot.Core/HrotRoleComponentSets.cs — the cluster's role→component tables, authored ONCE.
-    CreatePolicy(NodeRole) takes a role AND NOTHING ELSE, so two hosts cannot hold two tables.
-  · CgfSubsystem gets a Brain policy AND gateOnAuthority: true, two statements apart (§6f's hazard,
-    closed by construction rather than by remembering). SimHostNodeBootstrapper gets a Muscle policy
-    keyed on SimHostApp.DefaultRole — the SAME constant that resolves its capability set (CE-197).
-  · 10 rails (Hrot.Core.Tests/HrotRoleComponentSetsTests.cs — the acceptance test §6 asks for, over the
-    REAL tables), 4 inverse-edit red-proofs, all reverted.
-  ⭐⭐ TWO DEVIATIONS WORTH READING BEFORE TOUCHING THIS (both in design §6i):
-    (a) THE TABLES ARE COMPLEMENTS, NOT ENUMERATIONS. NetworkSpawningSystem.cs:237 REPLACES the blanket
-        grant, so an enumerated muscle set would leave a SimHost-created tank owning the twenty
-        components §3.9a names and NOTHING ELSE — CE-256 reproduced by its own fix. The positive
-        enumeration is the upgrade path; EveryUnclassifiedComponentStaysOwnedByBothRoles is the rail it
-        has to argue with.
-    (b) NO ROLE MAY OWN A BIRTH-CRITICAL COMPONENT, on either leg. A promoting node that claimed
-        SimTransform by role would tell GeoSpatialIngressTranslator.cs:90 it owns a position it does not
-        simulate, and every ghost on it would FREEZE.
-  🔴🔴 AND A DESIGN PREMISE WAS RETRACTED — read design §3.6 before reasoning about authority again.
-    §3.6 said the per-component AuthorityMask is read by "all egress translators". IT IS READ BY NONE OF
-    THEM: every production egress calls the EXTENSION ISimulationView.HasAuthority(entity, packedKey)
-    (AuthorityExtensions.cs:16-56), which reads DescriptorOwnership/NetworkAuthority. The overload
-    resolution hides it — packedKey is a long, so the extension wins over the mask method.
-    ⇒ the mask's ENTIRE production readership is SimTransform, BehaviorState, BrainBlackboard, and a
-    Position query that matches ZERO HROT entities. NARROWING THE MASK CHANGES WHAT A NODE EXECUTES,
-    NEVER WHAT IT PUBLISHES. That makes step 4 much smaller and safer than §3.1's prose implied — and it
-    also means P3 was never going to fix replication by itself.
-  ⛔ DELIBERATELY NOT GIVEN POLICIES: IG · Stride · the Editor · the test harnesses. ⚠ SimHostInstance is
-    an ALL-IN-ONE harness running both packs in one world, so a Muscle-only policy would be wrong there
-    by construction — that is a reason, not an oversight.
-  ⚠ PRE-EXISTING REDS AT BASE b8e2a99b1, all verified by stash-and-rerun, none mine: EcsPatchContextTests
-    (2) · MapPresentationParityRails[EditorStrideSubsystem.cs] (1) · FullBranchPipelineTests (1) ·
-    OrchestratorSubsystemTests (3).
-  ⭐ NEXT: step 3c (the boot warning) → CE-259bk (role-derived registration) → CE-259bl → CE-259bm.
-    ⚠ CE-259bm's PREMISE IS NOW STALE: FdpConfig.EnforceExplicitComponentIds is read by NOTHING —
-    ComponentType.cs:138-147 THROWS unconditionally for a type with no [ComponentId], so explicit ids
-    are ALREADY mandatory everywhere. Re-scope that programme before running it.
+  ⭐⭐⭐ READ FIRST, in this order:
+    1. docs/DESIGN_Role_Affinity_Ownership.md — its STATUS current-answer names §3.9c (the tables are
+       COMPLEMENTS) and §6i (step 4's as-built). ⛔ AND §3.6, which was RETRACTED this session.
+    2. docs/designs/tkb-1/DESIGN.md §6.6 / §6.6a — the whole TKB component-set design and its as-built.
 
-  ⭐⭐⭐ READ FIRST: docs/DESIGN_Role_Affinity_Ownership.md — §3.9 (the two-set model), §3.9a (the
-  per-component classification), §3.9b (registration is role-derived), §6h (the as-built for everything
-  below). Its STATUS build-state is the one-line truth of what is built.
+  ✅✅✅ SHIPPED 2026-09-13
+  CE-264  9943c6c9c  P3 STEP 4 — CGF holds a Brain policy, SimHost a Muscle policy, and gateOnAuthority
+                     comes ON in the same change (§6f's ordering hazard closed by construction).
+                     NEW Hrot.Core/HrotRoleComponentSets.cs — the cluster role tables, authored ONCE;
+                     CreatePolicy(NodeRole) takes a role and NOTHING else. 10 rails, 4 red-proofs.
+                     ⭐ P3 went from "a mechanism every node ran with a null policy" to LIVE.
+  CE-259az 603a05248 file-loaded TKB templates had an EMPTY BirthCriticalComponents. Fixed via an
+                     app-layer convention — ⚠ then SUPERSEDED the same day by CE-266, see below.
+  CE-266  c101e2cc2  [BirthCritical] + [PerInstanceValue] in Fdp.Core, and
+                     TkbTemplate.BirthCriticalComponents becomes a DERIVED READ-ONLY view.
+                     Deleted 8 authoring sites, TkbComponentConventions + its loader call, and
+                     HrotRoleComponentSets' hand-written SimTransform (three producers of one fact).
+                     6 new rails, 2 red-proofs — removing [BirthCritical] from SimTransform reddens
+                     9 rails across 4 files.
 
-  ✅✅✅ DONE THIS SESSION (2026-09-12) — P3 ADVANCED FROM "the model is wrong" TO "SimHost has no brain".
+  ⭐⭐⭐ NEXT: CE-265 — THE MANDATORY HALF. It is fully designed (§6.6a) and is now WIRING:
+      mandatory = componentsWith[PerInstanceValue]                    ← attribute EXISTS, no consumer yet
+                ∩ produced(host translators matching the template's descriptors)   ← NEEDS
+                                       GetProducedComponents() on ITkbEntityTranslator (2 members today)
+                ∩ componentsThisHostCanINGRESS   ← DescriptorOwnershipMap EXISTS; needs a UNION accessor
+                                                   (it exposes GetComponentIdsForDescriptor only)
+                ∩ componentsThisHostRegisters    ← HARD, no timeout
+    📐 Verified against all 15 hardcoded templates: NED vehicles and UrbanCombat ⇒ {SimTransform,
+    EntityInfo}; TacGraphic_Area/_Route carry NO descriptors ⇒ ∅. Matches today's hand-written NED pair
+    and fixes UrbanCombat's drift, with NO added latency anywhere.
 
-  ── CODE ──────────────────────────────────────────────────────────────────────────────────────────
-  CE-259bh  d9c82c445  THE TWO-SET ROLE MODEL. REGISTER = ownedComponentSet ∪ readComponentSet,
-                       AUTHORITY = ownedComponentSet. IRoleAffinityPolicy gained OwnedComponentSet /
-                       ReadComponentSet / RegisterComponentSet; `componentsPerRole` renamed
-                       `ownedComponentsPerRole`; `readComponentsPerRole` added as an OPTIONAL 4th ctor
-                       arg (null ⇒ REGISTER == OWNED ⇒ every existing call site byte-identical).
-                       6 rails, 3 red-proofs. ⛔ NO HOST FILLS THE READ TABLE YET — that is step 4.
-  CE-259bf  4d22f5057  SLICE 1 — PerceptionRoleComponentRegistry created. Perception was the ONE role
-            854c3679a  with no registry and its components sat in the BRAIN's, which is WHY SimHost had
-            667f78543  to call the Brain's registry at all. SLICE 2 — MissionPlanQueue → Mission,
-            0cda0caf9  ActorCapabilityState → Combat (each on a measured precedent; PreviousCapabilities
-                       deliberately stayed). SLICE 3a — EmbarkationComponentRegistry +
-                       BehaviorDiagnosticsComponentRegistry. SLICE 3b — SimHost STOPS calling
-                       CognitiveComponentRegistry: 13 components + 6 events gone from a node that ticks
-                       none of them. CGF untouched. 32/32 rails, 5 red-proofs.
-
-  ── TOOLING (matters more than it looks) ──────────────────────────────────────────────────────────
-  20bff87e0  scripts/find.sh NEVER REACHED THE GRAPH. It used a CLI form this build does not parse and
-             grepped the output for '^{', so it printed "graph: 0 files PARSE FAILED" on EVERY call —
-             and sessions (me included) read that as "the graph is unavailable" and used grep alone.
-             THAT is the mechanism behind the grep-only misses the user kept hitting. FIXED + verified.
-             The binary is at /opt/codebase-memory-mcp/codebase-memory-mcp and is NOT on PATH — a bare
-             `codebase-memory-mcp …` failing with "command not found" is NOT the graph being down.
-             scripts/session-design-brief.sh (runs on startup AND compact) now PROBES graph health, so
-             a broken graph is loud at the one moment guaranteed to be read.
-
-  ⭐⭐⭐ NEXT, IN DEPENDENCY ORDER
-  (1) P3 STEP 4 — hand CGF a Brain policy and SimHost a Muscle policy at their composition roots AND set
-      gateOnAuthority: true IN THE SAME CHANGE. ⛔⛔ THE ORDERING HAZARD, still live: an unconditional
-      execution gate BEFORE the policies makes a node stop processing every entity it did not create —
-      CE-256 reproduced by its own fix. §6 step 4 + QueryBuilderAuthorityExtensions' header carry it.
-      ⭐ Most of SimHost's owned/read table is ALREADY WRITTEN — §3.9a's classification is it.
-  (2) P3 STEP 3c — the boot warning. RegisterComponentSet (CE-259bh) now makes the real diagnostic
-      buildable: "this node registered a component its roles can never own AND never read".
-  (3) CE-259bk — the rest of the role-derived registration story (§3.9b). CE-259bl (logic packs) AFTER
-      it: components before systems.
-  (4) CE-259bm — PROGRAMME_Explicit_Component_Ids.md. Runnable as its OWN session. Step 1 is an EXACT
-      inventory and must NOT be grep.
+  ⛔⛔ FIVE THINGS THAT WILL BE RE-DERIVED WRONG IF NOT READ FIRST
+  · THE AUTHORITY MASK IS READ BY NO EGRESS TRANSLATOR (§3.6, re-measured). Every production egress calls
+    the ISimulationView EXTENSION, which reads DescriptorOwnership/NetworkAuthority; the overload
+    resolution hides it (packedKey is a long). The mask's WHOLE production readership is SimTransform,
+    BehaviorState, BrainBlackboard, plus a Position query matching ZERO HROT entities. ⇒ narrowing the
+    mask changes what a node EXECUTES, never what it PUBLISHES.
+  · THE ROLE TABLES ARE COMPLEMENTS (§3.9c). Brain = ALL − birthCritical; Muscle = that − brainOnly. An
+    enumerated set is a WHITELIST and reproduces CE-256. EveryUnclassifiedComponentStaysOwnedByBothRoles
+    is the rail a future positive enumeration must argue with.
+  · NO ROLE MAY OWN A BIRTH-CRITICAL COMPONENT, on EITHER leg. GeoSpatialIngressTranslator.cs:90 applies
+    an incoming position only when HasAuthority<SimTransform> is FALSE ⇒ a promoting node that claimed it
+    by role freezes every ghost on that node.
+  · SimTransform PRESENCE IS THE "is this spatial?" PREDICATE — 42 production .With<SimTransform>()
+    filters across 37 files. ⛔ Do NOT make it universal (the Unity-Transform idea): a positionless entity
+    would enter the spatial hash at the origin and become a perception/EQS/ballistics candidate. Global
+    data belongs in SetSingleton, which is not an entity at all.
+  · MANDATORY REQUIREMENTS ARE HOST-DEPENDENT. GhostPromotionSystem.cs:211 has NO registration guard, so a
+    HARD requirement for a component the local host never registers aborts promotion every frame forever,
+    silently. ⇒ a shared TKB FILE may never carry them.
 
   ⭐⭐ USER RULINGS THIS SESSION — do not re-litigate
-  · "capability only. leave commanding for later." → CE-259bi's predicate is BehaviorProfileDto.BrainTier
-    != 0 and nothing else; the shift-waypoint affordance is an ACCEPTED loss. DEFERRED, do not build.
-  · "why are you using CE-259{xy}, can't we incrementing the number?" → ids are PLAIN INCREMENTS from
-    CE-263. Existing suffixed ids are NOT renumbered (they are cited from designs and commits).
-  · "lets do (a)" → the by-id registrar uses the existing production path (reflect RegisterComponent,
-    MakeGenericMethod) WITH the bare catch removed. (c), a generated switch, is the recorded upgrade path.
-  · "Simhost has no ai(brain). So it does not need" → slice 3b, done.
-  · "Ai debug toggle was meant host local, no routing tje toggle elsewhere needed" → the toggle no-opping
-    on a brainless host is CORRECT. ⛔ I had proposed routing it to the brain's node; RETRACTED.
-  · "run builds/searches as background tasks" → now a CLAUDE.md rule (asked TWICE before it was written).
+  · "the components the entity have makes the entity a vehicle" → ⛔ NO per-entity-class vocabulary
+    anywhere. That killed a TkbMasterDto⇒vehicle-bundle proposal. DefineVehicle and friends are AUTHORING
+    helpers for the default catalogue only; the file path needs none of them.
+  · "we can add TKB record override any time later … the tkb in-memory record can be just a readonly
+    cache" → the component ATTRIBUTE is the source of truth; the per-type override is DEFERRED, not
+    rejected, and TkbTemplate's property is the seam it lands on.
+  · "i do not want to wait 10 frames by design" → ⛔ SOFT-by-design REJECTED. SoftTimeoutFrames is an
+    EMERGENCY escape only. Requirements are HARD and the derivation must be EXACT.
+  · "sending state on change is what actually happens … almost nothing is sent unconditionally" → the
+    addition rule for [PerInstanceValue] is GUARANTEED BASELINE for a newly spawned entity, ⛔ not
+    "unconditional egress".
+  · "PerInstanceValue" → the attribute's name, chosen by the user over my alternatives.
+  · "ghosting is a deployment property, not content" → UrbanCombat is just a dev/test scenario; whether
+    its entities arrive as ghosts is NOT a property of the content, so the catalogue divergence is DRIFT.
 
-  ⚠⚠ MY FAILURE MODES THIS SESSION — five corrections, all the same shape: I ASSERTED WHERE A file:line
-  BELONGED, and the user or the suite did the measuring.
-  · "persistence requires BehaviorState/BrainBlackboard on SimHost" — FALSE. I read the serializer
-    factory's REGISTRATION LIST and inferred purpose; the three translators each say in their own
-    <remarks> that Inject is a no-op existing "solely to produce a readable clipboard dump". The answer
-    was in the first 25 lines of each file.
-  · "a BitMask512 cannot drive RegisterComponent<T>() — there is no id→Type map" — FALSE twice over.
-    ComponentType.cs:75 holds Dictionary<int,Type>, :342 exposes GetType(int), and
-    RecordingExportService.cs:815-850 ALREADY registers by id in production.
-  · "the graph is unavailable" — FALSE. find.sh was broken; the CLI worked all along at its absolute path.
-  · "the cost of slice 3b is one menu item" — FALSE. 13 components + 6 events, and the real cost is the
-    SimHost half of the AI-trace feature.
-  · "slice 3b is safe" — measured PRODUCTION consumers only. 18 TEST files source their world from
-    SimHostComponentRegistry; two brain-tier fixtures went red. The suite caught what I did not.
-  ⇒ 🔒 THE HABIT THAT WOULD HAVE CAUGHT ALL FIVE: when the reason for a claim is a principle rather than
-  a file:line, the work is NOT done — and "the test surface" is part of the blast radius, not an
-  afterthought.
+  ⚠⚠ MY FAILURE MODE THIS SESSION, AND IT REPEATED SEVEN TIMES: I PROPOSED A MECHANISM BEFORE MEASURING
+  WHETHER THE EXACT ANSWER WAS ALREADY AVAILABLE. Each was caught by the user, not by me:
+  · "derive birth-critical from TkbMasterDto" — misses area/route, which carry no descriptors yet still
+    need the birthright.
+  · "mandatory = what translators produce" — backwards; producing it is the reason you need NOT wait.
+  · "mandatory = produced ∧ the !HasComponent guard" — the guard is IDEMPOTENCY and sits on ~25 of ~30
+    produced components. It selects nearly everything.
+  · "the catalogues disagree ⇒ per-template policy was intended" — an INFERENCE stated as a measurement.
+  · "the egress must be unconditional" — change-driven egress is the norm AND the point.
+  · "unify the catalogues and it becomes derivable" — unifying makes it UNIFORM; uniform is what makes a
+    CONSTANT safe. Different thing.
+  · relayed-architect claim "translators derive mandatory at load time" — VERIFIED FALSE against source
+    (ITkbEntityTranslator has two members and Inject takes an ENTITY). ⭐ But its CONCLUSION was right for
+    a reason it never stated, which is how the host-dependence fact was found.
+  ⇒ 🔒 AND THE TOOL HALF: I used grep for enumeration claims most of this session and only re-ran them
+  through search_graph when challenged. They held — that was luck, not method. GRAPH FIRST for any
+  complete-set or absence claim; CLAUDE.md says so and it was not followed.
 
   ══ STRAND 1 — MAP INTERACTION / SELECTION / TOOLS (the live one as of 2026-09-10) ══
   ✅✅✅ READ docs/SNAPSHOT_Map_Interaction_Architecture.md FIRST. It is a SNAPSHOT, not an owning
