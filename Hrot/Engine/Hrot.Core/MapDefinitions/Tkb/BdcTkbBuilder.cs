@@ -33,11 +33,15 @@ namespace Hrot.Map.Definitions.Tkb
         {
             var template = new TkbTemplate(name, tkbId);
             template.AddDescriptor(new TkbMasterDto { CustomName = name });
-            template.AddMandatoryComponent<EntityInfo>(isHard: true);
-            // SimTransform will be stamped by translator in Phase 6.
-            template.AddMandatoryComponent<SimTransform>(isHard: true);
             // ⭐ Birth-criticality is DERIVED from [BirthCritical] on the component type (2026-09-13) —
             //   it is no longer declared per template. 📄 docs/designs/tkb-1/DESIGN.md §6.6a.
+            //
+            // ⭐⭐⭐ CE-265 — and so are the MANDATORY (promotion-gate) components. This method used to
+            //   declare EntityInfo + SimTransform hard by hand; MandatoryComponentResolver now derives
+            //   exactly that pair for this template shape, from [PerInstanceValue] ∩ what these descriptors
+            //   produce ∩ what the host can ingress ∩ what it registers. ⛔ Restating them here would be
+            //   the drift the derivation removes — UrbanCombatTkbCatalog's five identically-shaped
+            //   templates declared NONE of it. 📄 §6.6b.
             _db.Register(template);
             return this;
         }
@@ -283,12 +287,12 @@ namespace Hrot.Map.Definitions.Tkb
             if (template == null)
                 throw new InvalidOperationException($"Template {tkbId} not found");
 
-            var entityInfoTypeId = ComponentTypeRegistry.GetOrRegisterManaged(typeof(EntityInfo));
-            if (!template.MandatoryComponents.Exists(c => c.ComponentTypeId == entityInfoTypeId))
-            {
-                template.AddMandatoryComponent<EntityInfo>(isHard: true);
-            }
-            
+            // ⭐⭐ CE-265 — the "ensure EntityInfo is mandatory" block that stood here is GONE. It existed
+            //   because a composite could be built on a template that DefineVehicle had not touched; the
+            //   derivation is keyed on the template's DESCRIPTORS rather than on which builder method ran,
+            //   so it covers that case without the existence check — and without the drift a hand-written
+            //   check invites. 📄 docs/designs/tkb-1/DESIGN.md §6.6b.
+
             // Evaluate composition immediately to populate TkbTemplate metadata.
             var compositionDef = new TkbCompositionDef();
             configure(compositionDef);

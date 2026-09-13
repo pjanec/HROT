@@ -147,5 +147,128 @@ namespace Fdp.Toolkit.Replication.Tests
             Assert.True(repo.HasComponent<TkbIdentity>(entity));
             Assert.NotEqual(EntityLifecycle.Constructing, repo.GetLifecycleState(entity));
         }
+
+        // ═══ CE-265 — THE DERIVED GATE ══════════════════════════════════════════════════════════════
+        //  📄 docs/designs/tkb-1/DESIGN.md §6.6a (design) · §6.6b (as-built).
+        //  ⭐ These live HERE, in this system's own suite, rather than in a new class: the unit-level
+        //    derivation has its own rails in MandatoryComponentResolverTests; what is asserted below is
+        //    that THIS SYSTEM actually gates on them.
+
+        private sealed class SpatialLikeTranslator : ITkbEntityTranslator
+        {
+            public IEnumerable<Type> GetConsumedDescriptors()
+            { yield return typeof(Fdp.Toolkit.Tkb.Domain.TkbMasterDto); }
+            public IEnumerable<Type> GetProducedComponents() { yield return typeof(SimTransform); }
+            public void Inject(EntityRepository repo, Entity entity, TkbTemplate template) { }
+        }
+
+        /// <summary>The vehicle shape plus the one descriptor pairing that makes <c>SimTransform</c>
+        /// ingressible, mirroring <c>GeoSpatialEgressTranslator.TargetComponentIds</c>.</summary>
+        private static (EntityRepository repo, GhostPromotionSystem sys, Entity ghost) GatedGhost()
+        {
+            var template = new TkbTemplate("VehicleShaped", 4242);
+            template.AddDescriptor(new Fdp.Toolkit.Tkb.Domain.TkbMasterDto { CustomName = "VehicleShaped" });
+
+            var mockTkb = new MockTkbDatabase { TemplateToReturn = template };
+            var elm = new Fdp.Toolkit.Lifecycle.EntityLifecycleModule(mockTkb, Array.Empty<int>());
+            var sys = new GhostPromotionSystem(
+                mockTkb, elm, new ITkbEntityTranslator[] { new SpatialLikeTranslator() });
+
+            var repo = new EntityRepository();
+            repo.RegisterComponent<TkbIdentity>();
+            repo.RegisterComponent<GhostStateTracker>();
+            repo.RegisterComponent<SimTransform>();
+            repo.RegisterEvent<ConstructionOrder>();
+
+            Fdp.Toolkit.Replication.Attributes.AttributeInterpreterProvider
+                .GetDescriptorMap(repo)
+                .RegisterFromTranslator(10L, new[] { ComponentType<SimTransform>.ID });
+
+            var ghost = repo.CreateEntity();
+            repo.AddComponent(ghost, new TkbIdentity { TkbType = 4242 });
+            repo.AddComponent(ghost, new GhostStateTracker { FirstSeenFrame = 0 });
+            repo.SetLifecycleState(ghost, EntityLifecycle.Ghost);
+
+            return (repo, sys, ghost);
+        }
+
+        /// <summary>
+        /// ⭐⭐⭐ <b>The gate now exists WITHOUT anyone authoring it.</b> This template's
+        /// <c>MandatoryComponents</c> list is EMPTY — exactly what <c>TkbDeserializer</c> produces for a
+        /// file-loaded template — and the ghost is still held back until its position arrives.
+        ///
+        /// <para>🔴 Before <c>CE-265</c> this promoted immediately: the file path could author no
+        /// requirements, so every file-loaded entity promoted at the origin and then jumped. ⛔ The failure
+        /// was SILENT, which is why the assertion message names it.</para>
+        /// </summary>
+        [Fact]
+        public void AGhostMissingADerivedComponent_IsHeldBack_EvenWithNoAuthoredRequirements()
+        {
+            var (repo, sys, ghost) = GatedGhost();
+            using (repo)
+            {
+                sys.Execute(repo, 0f);
+
+                Assert.Equal(EntityLifecycle.Ghost, repo.GetLifecycleState(ghost));
+            }
+        }
+
+        /// <summary>
+        /// ⭐⭐ <b>…and it is a GATE, not a block.</b> The same ghost promotes the moment the component the
+        /// derivation asked for actually arrives. ⛔ Without this half the rail above would also pass on a
+        /// resolver that simply never promotes anything.
+        /// </summary>
+        [Fact]
+        public void TheSameGhost_PromotesOnceTheDerivedComponentArrives()
+        {
+            var (repo, sys, ghost) = GatedGhost();
+            using (repo)
+            {
+                sys.Execute(repo, 0f);
+                Assert.Equal(EntityLifecycle.Ghost, repo.GetLifecycleState(ghost));
+
+                repo.AddComponent(ghost, new SimTransform());
+                sys.Execute(repo, 0f);
+
+                Assert.Equal(EntityLifecycle.Constructing, repo.GetLifecycleState(ghost));
+            }
+        }
+
+        /// <summary>
+        /// ⛔⛔ <b>A host that does not REGISTER the component must not be gated on it</b> —
+        /// <c>GhostPromotionSystem</c> has no registration guard of its own, so a derived requirement it
+        /// could never satisfy would abort promotion every frame, forever. ⚠ This is the same repository
+        /// and template as the rail above, differing only in the registration.
+        /// </summary>
+        [Fact]
+        public void AHostThatDoesNotRegisterTheComponent_PromotesImmediately()
+        {
+            var template = new TkbTemplate("VehicleShaped", 4243);
+            template.AddDescriptor(new Fdp.Toolkit.Tkb.Domain.TkbMasterDto { CustomName = "VehicleShaped" });
+
+            var mockTkb = new MockTkbDatabase { TemplateToReturn = template };
+            var elm = new Fdp.Toolkit.Lifecycle.EntityLifecycleModule(mockTkb, Array.Empty<int>());
+            var sys = new GhostPromotionSystem(
+                mockTkb, elm, new ITkbEntityTranslator[] { new SpatialLikeTranslator() });
+
+            using var repo = new EntityRepository();
+            repo.RegisterComponent<TkbIdentity>();
+            repo.RegisterComponent<GhostStateTracker>();
+            repo.RegisterEvent<ConstructionOrder>();
+            // ⛔ SimTransform deliberately NOT registered.
+
+            Fdp.Toolkit.Replication.Attributes.AttributeInterpreterProvider
+                .GetDescriptorMap(repo)
+                .RegisterFromTranslator(10L, new[] { ComponentType<SimTransform>.ID });
+
+            var ghost = repo.CreateEntity();
+            repo.AddComponent(ghost, new TkbIdentity { TkbType = 4243 });
+            repo.AddComponent(ghost, new GhostStateTracker { FirstSeenFrame = 0 });
+            repo.SetLifecycleState(ghost, EntityLifecycle.Ghost);
+
+            sys.Execute(repo, 0f);
+
+            Assert.Equal(EntityLifecycle.Constructing, repo.GetLifecycleState(ghost));
+        }
     }
 }

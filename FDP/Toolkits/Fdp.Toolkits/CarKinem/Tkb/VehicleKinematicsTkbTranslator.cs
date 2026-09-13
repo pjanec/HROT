@@ -25,6 +25,22 @@ namespace CarKinem.Tkb
             yield return typeof(VehicleParametersDto);
         }
 
+        /// <summary>⭐ Every entry is a template constant or empty runtime state, so none carries
+        /// <c>[PerInstanceValue]</c> and this translator adds nothing to a promotion gate. ⚠ Note
+        /// <see cref="NavigationIntent"/> in particular: it is Brain-OWNED and replicated to Muscle, but its
+        /// initial value is legitimately empty ⇒ waiting for it would be wrong.</summary>
+        public IEnumerable<Type> GetProducedComponents()
+        {
+            yield return typeof(VehicleParams);
+            yield return typeof(VehicleState);
+            yield return typeof(NavState);
+            yield return typeof(PhysicsCollider);
+            yield return typeof(NavigationIntent);
+            yield return typeof(NavigationStatus);
+            yield return typeof(FrustrationTicks);
+            yield return typeof(FormationController);
+        }
+
         public void Inject(EntityRepository repo, Entity entity, TkbTemplate template)
         {
             var dto = template.GetDescriptor<VehicleParametersDto>();

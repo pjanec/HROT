@@ -31,6 +31,20 @@ namespace Hrot.SimHost.Diagnostics
     {
         public IEnumerable<Type> GetConsumedDescriptors() => Array.Empty<Type>();
 
+        /// <summary>
+        /// ⭐ The OBSERVER shape: an empty consumed set means this translator runs for EVERY template, so
+        /// its products count toward every template's derivation. ⚠ All three are debug-only and none carries
+        /// <c>[PerInstanceValue]</c>, so it contributes nothing to any promotion gate — ⛔ but the declaration
+        /// must still be honest, because the consumer cannot tell "produces nothing relevant" from "forgot to
+        /// declare".
+        /// </summary>
+        public IEnumerable<Type> GetProducedComponents()
+        {
+            yield return typeof(BTreeTraceWorkingMemory1024);
+            yield return typeof(HsmTraceWorkingMemory1024);
+            yield return typeof(DebugState);
+        }
+
         public void Inject(EntityRepository repo, Entity entity, TkbTemplate template)
         {
             // Singleton check: skip entirely when the flag is off or absent.

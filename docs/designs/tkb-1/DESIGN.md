@@ -4,12 +4,18 @@ updated: 2026-09-13
 current-answer: the whole document is the TKB design and is BUILT. §6.5b is the section added on
   2026-08-30 and is the one to read before composing a node's translator list — it states the
   consequence of §6.1's registration guard, which the rest of the document leaves implicit.
-  ⭐⭐⭐ §6.6 (added 2026-09-13) IS THE OTHER ONE TO READ BEFORE TOUCHING THE FILE PATH: a TKB file
-  describes an entity's DESCRIPTORS, so TkbTemplate's two COMPONENT lists (MandatoryComponents,
-  BirthCriticalComponents) arrive EMPTY from a file and the application must supply them. It says which
-  half is a convention (birth-critical — unconditional, applied by TkbComponentConventions) and which is
-  NOT derivable at all (mandatory — the catalogues disagree; filed as CE-265), and what a real file field
-  would cost if the answer ever varies.
+  ⭐⭐⭐ §6.6 / §6.6a / §6.6b (added 2026-09-13) ARE THE OTHERS TO READ BEFORE TOUCHING THE FILE PATH OR
+  EITHER COMPONENT LIST. §6.6 states the principle (a TKB file describes DESCRIPTORS, so both component
+  lists arrive EMPTY from a file); §6.6a is the DESIGN that derives both without any per-entity-class
+  vocabulary; §6.6b is the AS-BUILT for the mandatory half, with the class + sequence UML.
+  ⚠⚠ STALE-BELOW inside §6.6: it says the mandatory half is "NOT derivable at all (the catalogues
+  disagree)". SUPERSEDED — the user ruled that disagreement is DRIFT, not policy, and CE-265 shipped the
+  derivation. Do not quote §6.6's "not derivable" sentence as current.
+  ⚠ Also stale: every reference to TkbComponentConventions — it and its loader call are DELETED (CE-266);
+  birth-criticality is now [BirthCritical] on the component type.
+stale-below: §6.6's "NOT derivable at all" verdict on MandatoryComponents, and all references to
+  TkbComponentConventions (deleted 2026-09-13). §6.6a's "filled at ITkbDatabase.Register" prescription —
+  neither half was built that way; see §6.6b's DEVIATION and §6.6a's own AS-BUILT block.
 related-designs:
   - ../../DESIGN_Role_Affinity_Ownership.md — owns what BirthCriticalComponents MEANS (the creator's
     birthright, the role tables, why no role may own one). This document owns where the list comes from.
@@ -1080,8 +1086,145 @@ the record is just no longer hand-authored. 📄 `CE-265`.
 > translators: the application.** ⛔ Put a convention in the app layer while the answer is uniform; add a
 > file field the moment it genuinely varies, and pay for the validation when you do.
 
-📄 Applied at `Hrot.Core/Tkb/TkbComponentConventions.cs`, called from
-`TkbLoadClusterStateHandler.PrepareAsync`. Rails: `Hrot.SimHost.Tests/TkbLoadClusterStateHandlerTests.cs`.
+⚠ **Superseded in its IMPLEMENTATION, not in its content** — `TkbComponentConventions` and its
+`TkbLoadClusterStateHandler` call are **deleted** (`CE-266`); the principle now lands one level deeper, on the
+component type itself and in `MandatoryComponentResolver`. See §6.6b.
+
+#### 6.6b ✅✅✅ AS-BUILT — **the MANDATORY half shipped `2026-09-13`** *(`CE-265`, obligation ⑤)*
+
+⭐⭐⭐ **What the picture shows that the prose cannot: WHERE each of the four inputs comes from, and that
+three of them are HOST-LOCAL while only one is shared.** That asymmetry is the entire reason this list could
+never live on `TkbTemplate` or in a TKB file.
+
+```mermaid
+classDiagram
+    class TkbTemplate {
+        <<SHARED record — same object on every node>>
+        +long TkbType
+        +IReadOnlyList~int~ BirthCriticalComponents
+        +List~MandatoryComponent~ MandatoryComponents
+        +GetAllDescriptors() IEnumerable
+    }
+    class ComponentAttributeSets {
+        <<EXISTS — Fdp.Core, CE-266>>
+        +IReadOnlyList~int~ PerInstanceValue
+    }
+    class ITkbEntityTranslator {
+        <<seam — Fdp.Core>>
+        +GetConsumedDescriptors() IEnumerable~Type~
+        +GetProducedComponents() IEnumerable~Type~
+        +Inject(repo, entity, template)
+    }
+    class DescriptorOwnershipMap {
+        <<EXISTS — Fdp.Toolkits>>
+        +CoveredComponentIds IEnumerable~int~
+    }
+    class EntityRepository {
+        <<EXISTS — Fdp.Core>>
+        +TryGetTable(Type, out table) bool
+    }
+    class MandatoryComponentResolver {
+        <<NEW — Fdp.Toolkits.Replication.Services>>
+        -Dictionary~long,int[]~ _cache
+        -int _ingressGeneration
+        +Resolve(template, repo, translators, ingressMap) IReadOnlyList~int~
+    }
+    class GhostPromotionSystem {
+        <<EXISTS — gates on derived ∪ explicit>>
+        -MandatoryComponentResolver _mandatoryResolver
+        -ReportStallIfOverdue(tkbType, componentId, tick, firstSeen)
+    }
+
+    GhostPromotionSystem --> MandatoryComponentResolver : owns one, per node
+    MandatoryComponentResolver ..> ComponentAttributeSets : ① [PerInstanceValue] — SHARED
+    MandatoryComponentResolver ..> TkbTemplate : ② descriptors — SHARED
+    MandatoryComponentResolver ..> ITkbEntityTranslator : ② produced — HOST-LOCAL
+    MandatoryComponentResolver ..> DescriptorOwnershipMap : ③ ingressible — HOST-LOCAL
+    MandatoryComponentResolver ..> EntityRepository : ④ registered — HOST-LOCAL
+    GhostPromotionSystem --> TkbTemplate : explicit escape hatch only
+```
+
+*Caption: only `ComponentAttributeSets` and the template's descriptor bag are node-independent. ⇒ the result
+is a per-node answer and **has no home on the shared record** — the fact §6.6 stated about a TKB FILE, one
+level down.*
+
+```mermaid
+sequenceDiagram
+    participant NED as NedReplicationModule
+    participant GPS as GhostPromotionSystem
+    participant R as MandatoryComponentResolver
+    participant MAP as DescriptorOwnershipMap (world)
+    participant E as ghost entity
+
+    Note over NED,MAP: first tick only — ContributeDescriptorPairings()
+    NED->>MAP: RegisterFromTranslator(ordinal, TargetComponentIds)
+
+    loop every frame, per ready ghost
+        GPS->>R: Resolve(template, repo, translators, map)
+        alt map still EMPTY (GPS scheduled before NED ticked)
+            R-->>GPS: ∅  (cache key includes map SIZE — self-corrects)
+        else map populated
+            R->>MAP: CoveredComponentIds
+            R-->>GPS: {SimTransform, EntityInfo}  (cached per TkbType)
+        end
+        GPS->>E: componentMask.IsSet(id)?
+        alt a derived id is missing
+            GPS-->>GPS: return — HARD, no timeout
+            opt waited >= 600 frames
+                GPS-->>GPS: report the stall ONCE per (TkbType, component)
+            end
+        else all present
+            GPS->>E: Inject translators, claim role affinity, promote
+        end
+    end
+```
+
+*Caption: the `alt` on an empty map is the ordering hazard — `GhostPromotionSystem` and the module that fills
+the map are registered by different composition roots, so the derivation must survive running first. Prose
+could state "the map is populated at startup" without ever asking **by whom, relative to this system**.*
+
+##### 📐 WHAT SHIPPED
+
+| | |
+|---|---|
+| ✏ `ITkbEntityTranslator` | **`GetProducedComponents()`** added — 2 members → 3. ⛔ **No default implementation**, deliberately: a defaulted `Array.Empty` would let a new translator silently narrow every derived gate on its host *(the SILENT-DEFAULT pattern)*. Implemented on **all 9 production translators** + 2 test doubles; the compiler enumerated them |
+| 🆕 `Fdp.Toolkits/Replication/Services/MandatoryComponentResolver.cs` | the four-way intersection, cached per `TkbType` |
+| ✏ `GhostPromotionSystem` | gates on **derived ∪ explicit**; derived entries are always HARD. ⭐ **Needed no new constructor argument** — `AttributeInterpreterProvider.GetDescriptorMap(repo)` already exposes the world's map, and `Translators` was already resolved |
+| 🆕 the STALL DIAGNOSTIC | `ReportStallIfOverdue` — after `600` frames, ONCE per (TKB type, component), naming the component that never came. ⛔ **Not a timeout**; the ghost keeps waiting. This is §6.6a's *"it deserves a LOUD diagnostic, not a silent timeout"*, which this system previously had **nothing** of |
+| ⛔ **deleted** | `NedTkbBuilder.DefineVehicle`'s `AddMandatoryComponent<EntityInfo>` + `<SimTransform>`, and `AsComposite`'s *"ensure `EntityInfo` is mandatory"* existence check — all three reproduced by the derivation |
+| ✏ `TkbTemplate.MandatoryComponents` | **kept**, re-documented as the AUTHORING ESCAPE HATCH for components no translator produces *(managed state such as `ActiveMissionPlan`, a host-specific network gate)*. ⛔ Its header now forbids restating a derived requirement |
+
+##### 🔴 DEVIATION — **NOT a read-only field on `TkbTemplate`, and NOT filled at `ITkbDatabase.Register`**
+
+📐 §6.6a prescribed *"both records become read-only caches filled at the same choke point"*. ⛔ **Measured
+while building: that is not buildable for this half, and the reason is the design's own central fact.**
+
+| | |
+|---|---|
+| ⛔ **`TkbDatabase.Register` has ZERO host context** | 📐 `TkbDatabase.cs:20-32` is two dictionary writes. It has no translator list, no `EntityRepository`, no `DescriptorOwnershipMap` — and **three of the four inputs are exactly those** |
+| ⛔ **a `TkbTemplate` is a SHARED record** | the same object serves CGF, SimHost, IG and the editor. A host-local answer stored on it is wrong for every other reader ⇒ the storage location itself would reintroduce the drift |
+| ✅ **birth-critical was different, and that is why it worked** | its answer is identical on every node, so a static derived property was not merely adequate but strictly simpler *(it ended up needing no `Register` change at all)* |
+
+⇒ ⭐⭐ **The user's ruling survives in substance:** the set is DERIVED rather than authored, and no producer
+can drift from another. ⛔ What changed is that the cache lives with the CONSUMER, because the answer is the
+consumer's, not the record's. ⭐ The deferred per-type override still has a home — `MandatoryComponents` is
+the seam it lands on, now documented as such.
+
+##### ⚠ THREE MEASURED FACTS THE NEXT SESSION WILL OTHERWISE RE-DERIVE WRONG
+
+| | |
+|---|---|
+| ⭐⭐⭐ **the union accessor ALREADY EXISTED** | `DescriptorOwnershipMap.CoveredComponentIds` *(`:173`)*. 📌 `CE-265`'s own scoping note said it *"needs a UNION accessor"* — **wrong**; the seam law again, 25th measured instance. ⛔ Read the class before adding to it |
+| 🔴🔴 **DIRECTION MUST NOT BE FILTERED** | 📐 in `Hrot.Network.NED`, **ZERO** translators under `Replication/Map/Ingress/` declare `TargetComponentIds` — `IDescriptorTranslator` defaults it to empty and only the EGRESS side overrides. ⇒ an *"ingress-only"* filter yields **∅** and collapses the whole derivation. `GeoSpatialEgressTranslator._targetIds` is the **only** pairing `SimTransform` has |
+| ⭐⭐ **`SimVelocity` is excluded by an ACCIDENT OF OVERLOAD, so rail it** | it reaches the map only through `RegisterMapping(long, int[])`, which fills `_descriptorToComponentIds` but **not** the reverse `_componentIdToDescriptors` that `CoveredComponentIds` reads. ⚠ The distinction is genuine *(that call is an AUTHORITY block, not a wire pairing)*, ⛔ but it is nowhere stated as an invariant — a future tidy-up that "fixed" `RegisterMapping` to fill both would create a hard requirement for a component nothing ingresses. 📌 Pinned by `SimVelocity_IsPerInstanceAndProduced_YetExcluded_BecauseNothingIngressesIt` |
+
+##### ⚠ THE RESIDUAL RISK, NAMED
+
+⭐ A hard requirement cannot hang on the happy path *(§6.6a, "arrival is guaranteed by SYMMETRY")*.
+⛔ **The one shape that still can:** a CREATOR host that does not register the component never publishes it,
+so a receiver that does register it waits forever. ⇒ that is a cluster configuration error, and it is now
+**reported** rather than absorbed — `600` frames, once per pair, naming the component. ⛔ It is still not
+promoted, deliberately: 🔒 *"soft sounds like allowing for 10 frames latency by design. i do not like it."*
 
 ---
 

@@ -18,6 +18,18 @@ namespace Fdp.Toolkit.Perception.Translators
             yield return typeof(SensorCapabilitiesDto);
         }
 
+        /// <summary>⭐ None of these carries <c>[PerInstanceValue]</c> — a receptor is a template constant and
+        /// the three memories legitimately start empty — so this translator contributes nothing to any
+        /// promotion gate. ⚠ It is still declared: the set is a statement about the TRANSLATOR, not about
+        /// today's attribute list, and a later <c>[PerInstanceValue]</c> must find it already here.</summary>
+        public IEnumerable<Type> GetProducedComponents()
+        {
+            yield return typeof(PerceptionReceptor);
+            yield return typeof(TargetMemory);
+            yield return typeof(SensorContactList);
+            yield return typeof(ActiveSensorTracks);
+        }
+
         public void Inject(EntityRepository repo, Entity entity, TkbTemplate template)
         {
             var dto = template.GetDescriptor<SensorCapabilitiesDto>();

@@ -43,5 +43,33 @@ namespace Fdp.Interfaces
         /// <c>repo.AddComponent&lt;T&gt;()</c> call.
         /// </summary>
         void Inject(EntityRepository repo, Entity entity, TkbTemplate template);
+
+        /// <summary>
+        /// ⭐⭐⭐ <b>The component types <see cref="Inject"/> can ADD — the declaration half of what this
+        /// translator does.</b> 📄 <c>docs/designs/tkb-1/DESIGN.md</c> §6.6a, §6.6b.
+        ///
+        /// <para>⭐⭐ <b>Why it exists, and it is NOT an optimisation.</b> It is the TEMPLATE FILTER in the
+        /// derivation of a template's mandatory (ghost-promotion) components:
+        /// <c>[PerInstanceValue] ∩ produced ∩ ingressible ∩ registered</c>. ⛔ Without it the derivation
+        /// could require a component this template will never carry, and a HARD requirement that never
+        /// arrives is a ghost that <b>never promotes, every frame, forever</b>. ⇒ this member is what makes
+        /// a hard requirement SAFE to derive.</para>
+        ///
+        /// <para>⛔⛔ <b>DECLARE WHAT THIS TRANSLATOR ADDS, NOT WHAT IT READS OR REMOVES.</b> Components the
+        /// implementation only reads, or explicitly strips, are NOT produced — declaring them would widen the
+        /// mandatory set toward the deadlock above. ⭐ A translator that adds nothing returns an empty
+        /// sequence, and that is a correct answer *(the observer and strip shapes both do)*.</para>
+        ///
+        /// <para>⚠ <b>DECLARE IT UNCONDITIONALLY, even when <see cref="Inject"/> adds it only under a
+        /// branch.</b> The consumer intersects with what the host REGISTERS and with what its network stack
+        /// can deliver, so a component named here but not added on some path costs nothing. ⛔ The dangerous
+        /// direction is the other one: a component OMITTED here is silently dropped from the gate, and the
+        /// symptom is a ghost promoted before its real position arrived — an origin flash, not an error.</para>
+        ///
+        /// <para>⛔ <b>No default implementation, deliberately.</b> A defaulted <c>Array.Empty</c> would let a
+        /// new translator silently narrow every derived gate on its host — the SILENT-DEFAULT pattern this
+        /// repo has measured three times. ⇒ the compiler asks every implementer the question.</para>
+        /// </summary>
+        IEnumerable<Type> GetProducedComponents();
     }
 }

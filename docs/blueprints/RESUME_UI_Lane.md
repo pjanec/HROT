@@ -27,16 +27,35 @@ current-answer: ⚠⚠ THREE LIVE STRANDS. Read the one you are continuing. ⭐ 
                      6 new rails, 2 red-proofs — removing [BirthCritical] from SimTransform reddens
                      9 rails across 4 files.
 
-  ⭐⭐⭐ NEXT: CE-265 — THE MANDATORY HALF. It is fully designed (§6.6a) and is now WIRING:
-      mandatory = componentsWith[PerInstanceValue]                    ← attribute EXISTS, no consumer yet
-                ∩ produced(host translators matching the template's descriptors)   ← NEEDS
-                                       GetProducedComponents() on ITkbEntityTranslator (2 members today)
-                ∩ componentsThisHostCanINGRESS   ← DescriptorOwnershipMap EXISTS; needs a UNION accessor
-                                                   (it exposes GetComponentIdsForDescriptor only)
-                ∩ componentsThisHostRegisters    ← HARD, no timeout
-    📐 Verified against all 15 hardcoded templates: NED vehicles and UrbanCombat ⇒ {SimTransform,
-    EntityInfo}; TacGraphic_Area/_Route carry NO descriptors ⇒ ∅. Matches today's hand-written NED pair
-    and fixes UrbanCombat's drift, with NO added latency anywhere.
+  CE-265  <this commit>  THE MANDATORY HALF SHIPPED. The promotion gate is DERIVED PER HOST and the file
+                     path has one for the first time. ITkbEntityTranslator gains GetProducedComponents()
+                     (no default impl — all 9 production translators, compiler-enumerated);
+                     NEW MandatoryComponentResolver does the four-way intersection; GhostPromotionSystem
+                     gates on derived ∪ explicit and gained a STALL DIAGNOSTIC (600 frames, once per
+                     (TkbType, component) — ⛔ not a timeout, the ghost still waits).
+                     Deleted DefineVehicle's 2 AddMandatoryComponent calls + AsComposite's EntityInfo
+                     check. 13 rails (10 new + 3 into GhostProtocolTests), 5 red-proofs.
+                     📄 tkb-1/DESIGN.md §6.6b carries the as-built AND the class + sequence UML.
+
+  ⛔⛔ THREE THINGS CE-265 MEASURED THAT THIS DOC PREVIOUSLY GOT WRONG — do not re-derive them:
+  · "DescriptorOwnershipMap needs a UNION accessor" — FALSE. CoveredComponentIds (:173) already was it.
+    The seam law, 25th instance. I wrote that line myself from the class's summary without opening it.
+  · DIRECTION MUST NOT BE FILTERED on the ingress set. ZERO translators under NED's Replication/Map/
+    Ingress/ declare TargetComponentIds — only the EGRESS side overrides the interface default. An
+    "ingress-only" filter yields ∅ and collapses the derivation; GeoSpatialEgressTranslator._targetIds
+    is the ONLY pairing SimTransform has.
+  · §6.6a's "fill both at ITkbDatabase.Register" is NOT BUILDABLE for mandatory. TkbDatabase.cs:20-32 is
+    two dictionary writes with zero host context, and 3 of the 4 inputs are host-local. A TkbTemplate is
+    a SHARED record (one object serves CGF, SimHost, IG, editor) ⇒ a host-local answer has no home on
+    it. The cache lives with the CONSUMER. Same fact as "a TKB file may not carry it", one level down.
+
+  ⭐⭐⭐ NEXT: nothing in this strand is in flight. The nearest open items are P3 step 3c (the boot
+    warning) and CE-259bk/bl (role-derived registration, logic packs). ⚠ CE-259bm's premise is STALE:
+    EnforceExplicitComponentIds is read by nothing and ComponentType.cs throws unconditionally.
+    ⚠ Still open from CE-265's original row, on its own merits: the promote-leg role claim is ONE-SHOT
+    (GhostPromotionSystem fires it at promotion, then the entity leaves the query), so components
+    arriving afterwards are never claimed. A real gate makes that far less likely to bite; it does not
+    remove it.
 
   ⛔⛔ FIVE THINGS THAT WILL BE RE-DERIVED WRONG IF NOT READ FIRST
   · THE AUTHORITY MASK IS READ BY NO EGRESS TRANSLATOR (§3.6, re-measured). Every production egress calls

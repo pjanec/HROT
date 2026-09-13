@@ -33,6 +33,22 @@ namespace Hrot.Map.Definitions.Tkb
             yield return typeof(VisualDefinitionDto);
         }
 
+        /// <summary>
+        /// ⚠⚠ <b>The <see cref="EntityInfo"/> entry is declared even though <see cref="Inject"/> returns
+        /// EARLY when <c>VisualData</c> is unregistered</b> — a host that registers <c>EntityInfo</c> but not
+        /// <c>VisualData</c> therefore produces neither at runtime. ⭐ That over-declaration is the safe
+        /// direction *(the consumer still intersects with what the host can INGRESS and what it REGISTERS)*,
+        /// and on every such template <c>BehaviorTkbTranslator</c> supplies <c>EntityInfo</c> anyway.
+        /// ⛔ The residual case — a host registering neither <c>VisualData</c> nor <c>BehaviorProfileDto</c>'s
+        /// components while its peers do — is the configuration error the stall diagnostic in
+        /// <c>GhostPromotionSystem</c> reports rather than silently absorbs.
+        /// </summary>
+        public IEnumerable<Type> GetProducedComponents()
+        {
+            yield return typeof(VisualData);
+            yield return typeof(EntityInfo);
+        }
+
         public void Inject(EntityRepository repo, Entity entity, TkbTemplate template)
         {
             if (!repo.IsComponentTypeRegistered<VisualData>()) return;

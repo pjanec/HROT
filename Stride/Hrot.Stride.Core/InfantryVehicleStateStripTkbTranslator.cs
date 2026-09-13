@@ -41,6 +41,15 @@ public sealed class InfantryVehicleStateStripTkbTranslator : ITkbEntityTranslato
         yield return typeof(VehicleParametersDto);
     }
 
+    /// <summary>
+    /// ⛔⛔ <b>EMPTY, and that is the whole point of this translator.</b> It only ever REMOVES
+    /// (<c>VehicleState</c>, <c>VehicleParams</c>) — it adds nothing. ⚠ Declaring what it strips would be
+    /// exactly backwards: the produced set feeds a "will this entity have it?" filter, so naming a component
+    /// this translator DELETES could create a hard promotion requirement for something guaranteed absent.
+    /// 📄 the interface's contract, "declare what this translator ADDS".
+    /// </summary>
+    public IEnumerable<Type> GetProducedComponents() => Array.Empty<Type>();
+
     /// <inheritdoc/>
     public void Inject(EntityRepository repo, Entity entity, TkbTemplate template)
     {

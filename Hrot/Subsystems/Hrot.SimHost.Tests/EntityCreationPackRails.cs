@@ -502,6 +502,7 @@ namespace Hrot.SimHost.Tests
         private sealed class CountingTranslator : ITkbEntityTranslator
         {
             public IEnumerable<Type> GetConsumedDescriptors() => Array.Empty<Type>();
+            public IEnumerable<Type> GetProducedComponents() => Array.Empty<Type>();
             public void Inject(EntityRepository repo, Entity entity, TkbTemplate template) { }
         }
 

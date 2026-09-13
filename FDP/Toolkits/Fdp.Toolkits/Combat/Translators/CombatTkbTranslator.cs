@@ -31,6 +31,19 @@ namespace Fdp.Toolkit.Combat.Translators
             yield return typeof(WeaponSuiteDto);
         }
 
+        /// <summary>⚠ Includes the components this translator stamps on CHILD entities
+        /// (<see cref="WeaponMountInfo"/>, <see cref="PartMetadata"/>, and <see cref="WeaponState"/> on a
+        /// mount) — they are produced by this translator's run even though the write lands on a different
+        /// entity, and a consumer that filters them out would be reasoning about the parent alone.</summary>
+        public IEnumerable<Type> GetProducedComponents()
+        {
+            yield return typeof(Health);
+            yield return typeof(PhysicsCollider);
+            yield return typeof(WeaponState);
+            yield return typeof(WeaponMountInfo);
+            yield return typeof(PartMetadata);
+        }
+
         public void Inject(EntityRepository repo, Entity entity, TkbTemplate template)
         {
             // ── Health ────────────────────────────────────────────────────────────

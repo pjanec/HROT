@@ -37,20 +37,35 @@ namespace Fdp.Interfaces
         /// <para><c>TkbIdentity</c> is always implicitly a hard requirement and does not
         /// need to be listed here explicitly.</para>
         ///
-        /// <para>⛔⛔ <b>A TKB FILE CANNOT FILL THIS LIST, AND NOTHING DERIVES IT.</b> 📄 The principle is
-        /// <c>docs/designs/tkb-1/DESIGN.md</c> §6.6: a TKB file describes an entity's <b>descriptors</b>;
-        /// this is a statement about what those descriptors will PRODUCE, so it belongs to whoever knows
-        /// the translators — the application. <c>TkbDeserializer</c> builds a template purely from
-        /// descriptor keys, so a file-loaded template arrives with this list <b>EMPTY</b>.</para>
+        /// <para>⛔⛔ <b>A TKB FILE CANNOT FILL THIS LIST.</b> 📄 <c>docs/designs/tkb-1/DESIGN.md</c> §6.6: a
+        /// TKB file describes an entity's <b>descriptors</b>; this is a statement about what those descriptors
+        /// will PRODUCE <i>on a particular host</i>. <c>TkbDeserializer</c> builds a template purely from
+        /// descriptor keys, so a file-loaded template arrives with this list <b>EMPTY</b> — deliberately.</para>
         ///
-        /// <para>🔴 <b>And unlike <see cref="BirthCriticalComponents"/>, no convention may fill it in.</b>
-        /// 📐 Measured <c>2026-09-13</c>: the programmatic catalogues already DISAGREE for
-        /// identically-shaped templates — <c>NedTkbBuilder.DefineVehicle</c> declares
-        /// <c>EntityInfo</c>+<c>SimTransform</c> hard, while <c>UrbanCombatTkbCatalog</c>'s five templates
-        /// carry the same descriptors and declare none ⇒ no predicate over the file's contents can
-        /// reproduce it. ⛔ <b>Guessing is the worse failure:</b> this is the PROMOTION GATE, so a hard
-        /// requirement that never arrives means a ghost that <b>never promotes</b>, every frame, forever.
-        /// ⇒ the file path leaves it empty deliberately; the consequences are filed as <c>CE-265</c>.</para>
+        /// <para>✅✅✅ <b>THIS IS NO LONGER THE PRIMARY SOURCE</b> <i>(<c>CE-265</c>, <c>2026-09-13</c>; an
+        /// earlier version of this comment said "NOTHING DERIVES IT")</i>. <c>MandatoryComponentResolver</c>
+        /// now DERIVES the requirements per host — <c>[PerInstanceValue] ∩ produced ∩ ingressible ∩
+        /// registered</c> — and <c>GhostPromotionSystem</c> gates on <b>derived ∪ this list</b>.
+        /// 📄 §6.6a (design) and §6.6b (as-built).</para>
+        ///
+        /// <para>⛔⛔ <b>WHY THE DERIVED SET IS NOT STORED HERE, unlike
+        /// <see cref="BirthCriticalComponents"/>.</b> Three of its four inputs are HOST-LOCAL — this node's
+        /// translators, its network stack, its component registry — while a <see cref="TkbTemplate"/> is a
+        /// SHARED record: the same object serves CGF, SimHost, IG and the editor. ⇒ a host-local answer
+        /// stored on it would be wrong for every other reader. 🔒 That is the same fact that rules a TKB file
+        /// out, stated one level down.</para>
+        ///
+        /// <para>⭐ <b>WHAT THIS LIST IS FOR NOW — the AUTHORING ESCAPE HATCH.</b> It carries requirements the
+        /// derivation cannot see: a component <b>no translator produces</b> (managed state such as
+        /// <c>ActiveMissionPlan</c>), or a host-specific network gate. ⛔ Do NOT restate a derived
+        /// requirement here — 📐 measured <c>2026-09-13</c>, that is exactly how the catalogues drifted:
+        /// <c>NedTkbBuilder.DefineVehicle</c> declared <c>EntityInfo</c>+<c>SimTransform</c> hard while
+        /// <c>UrbanCombatTkbCatalog</c>'s five identically-shaped templates declared none.</para>
+        ///
+        /// <para>🔴 <b>OVER-DECLARING HERE IS FATAL, and in the opposite direction to every other list on this
+        /// type.</b> This is the PROMOTION GATE: a hard requirement that never arrives means a ghost that
+        /// <b>never promotes</b>, every frame, forever. ⚠ <c>GhostPromotionSystem</c> now reports such a stall
+        /// after <c>600</c> frames instead of failing silently — but it still does not promote.</para>
         /// </summary>
         public List<MandatoryComponent> MandatoryComponents { get; } = new();
 

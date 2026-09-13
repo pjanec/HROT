@@ -268,19 +268,21 @@ public class TkbLoadClusterStateHandlerTests : IDisposable
     }
 
     /// <summary>
-    /// ⛔⛔ <b><c>CE-265</c> — mandatory components are DELIBERATELY left empty on the file path, and this
-    /// rail exists so that stays a DECISION rather than drift.</b>
+    /// ⭐⭐ <b>The LOADER invents no mandatory components — and after <c>CE-265</c> that is a STRONGER
+    /// statement, not a gap.</b> 📄 <c>docs/designs/tkb-1/DESIGN.md</c> §6.6b.
     ///
-    /// <para>📐 There is no derivable rule: the programmatic catalogues already DISAGREE for
-    /// identically-shaped templates — <c>NedTkbBuilder.DefineVehicle</c> declares
-    /// <c>EntityInfo</c>+<c>SimTransform</c> hard-mandatory, while <c>UrbanCombatTkbCatalog</c>'s five
-    /// templates carry the same descriptors and declare none. 🔴 And guessing is the worse failure:
-    /// <c>MandatoryComponents</c> is the PROMOTION GATE, so a wrong hard requirement means a ghost that
-    /// never promotes, forever.</para>
+    /// <para>✅✅ <b>UPDATED <c>2026-09-13</c>.</b> An earlier version of this header said the emptiness was
+    /// an unavoidable hole because <i>"there is no derivable rule — the catalogues DISAGREE"</i>, and that
+    /// <c>CE-265</c> <i>"needs a design answer"</i>. 🔒 The user ruled that disagreement was DRIFT, not
+    /// policy, and the derivation shipped: <c>MandatoryComponentResolver</c> computes the gate PER HOST
+    /// from <c>[PerInstanceValue] ∩ produced ∩ ingressible ∩ registered</c>. ⇒ a file-loaded template is
+    /// now gated exactly like a programmatic one.</para>
     ///
-    /// <para>⚠ The status quo is not harmless either — an empty list promotes on frame 1 and the P3
-    /// promote-leg role claim fires ONCE. That is <c>CE-265</c>, and it needs a design answer, not a
-    /// convention.</para>
+    /// <para>⛔⛔ <b>So why must this list still be EMPTY?</b> Because three of the derivation's four inputs
+    /// are HOST-LOCAL while a <c>TkbTemplate</c> is a SHARED record. ⇒ the answer has no home on the
+    /// template at all, and a loader that wrote one here would be asserting one node's answer on every
+    /// node. ⭐ The remaining purpose of the field is the AUTHORING ESCAPE HATCH for components no
+    /// translator produces — ⛔ which a file, knowing nothing of translators, can never identify.</para>
     /// </summary>
     [Fact]
     public async Task AFileLoadedTemplate_GetsNoInventedMandatoryComponents()
