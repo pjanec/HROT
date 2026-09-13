@@ -143,6 +143,10 @@ design-basis: docs/blueprints/RULINGS.md R-138 (fully distributed, ownership per
   §0 (no capability removal by design), §5.3 (mechanism vs policy) - docs/designs/tkb-1/DESIGN.md
   §6.5b gate 2 (registration is the narrowing lever).
 related-designs:
+  - DESIGN_Entity_Genesis_End_To_End.md — ⭐ THE LANDING PAGE. Owns the END-TO-END STAGE SEQUENCE
+    (request → spawn → grant → ghost → promotion → takeover → Active) and nothing else; every stage
+    routes back to its owner, including this one. Read it FIRST if you do not already know where in
+    the genesis path your question sits.
   - DESIGN_Entity_Authoring_Surface.md — owns the CALLER side of creation (who asks for an entity and whom
     they nominate as owner). Measured 2026-09-12: INDEPENDENT of this design in both directions — this one
     decides component-level AUTHORITY after the entity exists, that one decides nothing about it.

@@ -17,6 +17,10 @@ stale-below: §6.6's "NOT derivable at all" verdict on MandatoryComponents, and 
   TkbComponentConventions (deleted 2026-09-13). §6.6a's "filled at ITkbDatabase.Register" prescription —
   neither half was built that way; see §6.6b's DEVIATION and §6.6a's own AS-BUILT block.
 related-designs:
+  - ../../DESIGN_Entity_Genesis_End_To_End.md — ⭐ THE LANDING PAGE. Owns the END-TO-END STAGE SEQUENCE
+    (request → spawn → grant → ghost → promotion → takeover → Active) and nothing else; every stage
+    routes back to its owner, including this one. Read it FIRST if you do not already know where in
+    the genesis path your question sits.
   - ../../DESIGN_Role_Affinity_Ownership.md — owns what BirthCriticalComponents MEANS (the creator's
     birthright, the role tables, why no role may own one). This document owns where the list comes from.
 known-rot: §6.5's closing sentence ("an IG node would include BIG-specific translators; a SimHost

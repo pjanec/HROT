@@ -97,6 +97,10 @@ mechanism: §3.4a (new 2026-08-31) explains WHY double consumption is possible �
   broadcast double-buffer (ManagedEventStream.Read() returns _front; only Swap() clears), so every
   reader of an event type gets the full list. Read it before touching any order-consuming system.
 related-designs:
+  - DESIGN_Entity_Genesis_End_To_End.md — ⭐ THE LANDING PAGE. Owns the END-TO-END STAGE SEQUENCE
+    (request → spawn → grant → ghost → promotion → takeover → Active) and nothing else; every stage
+    routes back to its owner, including this one. Read it FIRST if you do not already know where in
+    the genesis path your question sits.
   - DESIGN_Entity_Authoring_Surface.md — owns the CALLER-side surface (EntityCreation.RequestEntityCreation,
     the AUTHOR vs TRANSLATOR rule, the per-host authoring tails). It SUPERSEDES §3.4's two-method API shape
     here; §3.4's owner TABLE and its ReliableInitType reasoning stay live in THIS document.
