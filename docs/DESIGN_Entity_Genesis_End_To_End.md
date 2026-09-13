@@ -8,6 +8,13 @@ verified: 2026-09-13 — every stage below read from source this session, file:l
 current-answer: §1 IS THE DOCUMENT. Read the four diagrams in order and you have the whole genesis
   path. §2 is the stage table — it is a ROUTING TABLE to the owning designs, nothing more. §3 is the
   one question this document answers that no owner does. §4 is scope. §5 is rot found elsewhere.
+  §6 is CHILD GENESIS (stage ⑪) and its three partial owners.
+known-rot: ⛔ ONE, ITS OWN, corrected the same day it was written: the first version of §4 said child
+  entities had "no owning design found". FALSE — that sentence was ASSERTED, not measured.
+  designs/cgf-scn/DESIGN.md Decisions 5 + 11 and designs/commander-subordinates/DESIGN.md §7.2 both
+  cover child genesis in substance. §6 now routes to them and records why a topical search reached
+  neither. The retracted claim is named in §4 and §6 rather than deleted, because WHY it was wrong is
+  the argument for this file existing. ⭐ §5 records rot found in OTHER documents.
 owns: ⭐ EXACTLY ONE THING — THE END-TO-END STAGE SEQUENCE AND ITS VOCABULARY. No owning design has
   it, because each owns one stage. If a stage moves, THIS FILE IS WRONG and must be updated with it.
 owns-nothing-else: ⛔ Do NOT cite this document to justify a change to any mechanism it draws.
@@ -26,7 +33,13 @@ related-designs:
     uniform pipeline rather than role-selected halves. This file draws the pipeline that ruling chose.
   - projects/Hrot/Network/Hrot.Network.NED.md — owns the NED wire: topics, QoS, the translator
     inventory, and "Diagram 3", the deferred-takeover protocol at DDS level.
-known-rot: none of its own. §5 records rot found in OTHER documents.
+  - designs/cgf-scn/DESIGN.md — Decisions 5 + 11 own CHILD ENTITIES most deeply: PartMetadata as the
+    child marker, the double-spawn hazard, ChildComponentOverrides and PreAllocatedNetworkId. ⚠ Filed
+    under "CGF scenario loading", so a topical search for "child entity" does not reach it.
+  - designs/commander-subordinates/DESIGN.md — §7.2 owns COMPOSITE AUTHORING: TkbCompositionDef's
+    subordinate slots, InitialUnitSubordinateIntent, GenesisMaterializationSystem.
+  - designs/replication-fixes/REPL-DESIGN.md — §4.4 owns SubEntityCleanupSystem (child TEARDOWN, not
+    genesis).
 -->
 
 # ⭐⭐⭐ ENTITY GENESIS, END TO END — **the landing page**
@@ -38,6 +51,23 @@ known-rot: none of its own. §5 records rot found in OTHER documents.
 
 > ⛔⛔ **It is a MAP, not a territory.** Every mechanism here has an owner in §2. If this file and an
 > owning design disagree, **the owner wins and this file is the bug.**
+
+---
+
+## 0. 📐 INVENTORY — **the enumerations the diagrams rest on** *(`2026-09-13`)*
+
+⚠ **`check_index_coverage` is NOT reachable through the codebase-memory CLI** *(`unknown tool`)*, so no
+coverage attestation is claimed. Every set below was run through **both** the graph and grep, and they agree.
+
+| # | query | total | what it settled |
+|---|---|---|---|
+| ① | `search_graph(name_pattern="(Ghost\|Ownership\|Takeover\|TakeOwnership\|NetworkSpawning\|CreateEntityRequest\|EntityRequestFinalization\|Construction).*System", label="Class")` | **12** — 9 production, 3 test classes | the complete system cast of §1.3. Production: `NetworkSpawningSystem`, `GhostCreationSystem`, `GhostPromotionSystem`, `GhostTimeoutSystem`, `OwnershipEgressSystem`, `OwnershipIngressSystem`, `CreateEntityRequestSystem`, `EntityRequestFinalizationSystem`, `DeferredTakeoverSystem` |
+| ② | `grep -rn "CreateGhost("` over `FDP/ Hrot/ Stride/`, minus tests | **8** production call sites, **0** from a scheduler | ⭐ `GhostCreationSystem.Execute` is a **no-op**; every ghost is made by a direct call from an ingress translator. This is why §1.3 colours it |
+| ③ | `grep -rn "ExecuteGroup"`, minus tests | **1** production caller — `NedReplicationModule.cs:509` | 🔴 the dead edge in §1.3: `DeferredTakeoverSystem` is unreachable without the NED module |
+| ④ | `grep -rl "GhostPromotion\|ghost promotion"` over `docs/ FDP/Docs/` | **38** documents | ⛔ none is an end-to-end explainer — the finding that produced this file |
+| ⑤ | `grep -c "promote\|Promotion"` on `Hrot-Simulation-Pipeline.md` | **0** | §5's first row: the only other end-to-end narrative has no promotion stage at all |
+| ⑥ | `grep -rli` over `docs/ .dev/ FDP/Docs/` for **8** child terms — `ChildBlueprint`, `SubEntity`, `sub-entity`, `PartMetadata`, `TkbCompositionDef`, `AsComposite`, `child entit`, `sub-part` | hits in **3** substantive designs | 🔴 **this is the one that corrected §4** — it was run only after the first version asserted "no owning design found". 📄 §6 |
+| ⑦ | `grep -rn "ChildBlueprints"` over `FDP/ Hrot/ Stride/`, minus tests | **7** sites; the only ITERATOR is `CreateEntityRequestSystem.cs:363-400` | stage ⑪ is a loop inside ①, not a later stage |
 
 ---
 
@@ -225,6 +255,11 @@ classDiagram
 | ⑧ | explicit takeover | `DeferredTakeoverSystem.cs` — queries `Constructing`, `[UpdateAfter(GhostPromotionSystem)]` | [`DESIGN_Role_Affinity_Ownership.md`](DESIGN_Role_Affinity_Ownership.md) §3.4 *(explicit grants still win)* |
 | ⑨ | `Constructing` → `Active` | `EntityLifecycleModule.ProcessConstructionAck` | [`designs/two-ack/TwoAck-DESIGN.md`](designs/two-ack/TwoAck-DESIGN.md) · `FDP/Docs/projects/toolkits/FDP.Toolkit.Lifecycle.md` |
 | ⑩ | ACK back to the requester | `EntityRequestFinalizationSystem.cs` | [`DESIGN_Entity_Creation_Unification.md`](DESIGN_Entity_Creation_Unification.md) |
+| ⑪ | **CHILD entities / sub-parts** | `CreateEntityRequestSystem.cs:363-400` iterates `parentTemplate.ChildBlueprints` **inside stage ①**, before any spawn command is issued | see §6 — **three** partial owners, no single one |
+
+⭐ **Stage ⑪ is not a later stage — it is a LOOP INSIDE ①.** A composite's children are spawned by the
+same system that handled the parent's request, each getting its own network id and its own trip through
+②–⑩. ⇒ everything above applies to a turret exactly as it does to its hull.
 
 ---
 
@@ -255,7 +290,7 @@ entity**, which is why the tables live in one place and take a role and nothing 
 | **replay** | genesis is *suppressed* during playback rather than performed — [`designs/mgmt-1/DESIGN.md`](designs/mgmt-1/DESIGN.md) §8.10 |
 | **which components are legitimate state** | [`DESIGN_Entity_State_Sourcing.md`](DESIGN_Entity_State_Sourcing.md) |
 | **the DDS topics, QoS and translator inventory** | [`projects/Hrot/Network/Hrot.Network.NED.md`](projects/Hrot/Network/Hrot.Network.NED.md) |
-| **child entities / sub-parts** | `TkbTemplate.ChildBlueprints`, `PartMetadata`, `SubEntityCleanupSystem` — no owning design found; ⚠ searched `docs/` and `.dev/` by topic |
+| **child entities / sub-parts** | ⛔⛔ **an earlier version of this row said "no owning design found". THAT WAS FALSE** — see §2 stage ⑪ and §6. Three documents cover it; none is findable by topic |
 
 ---
 
@@ -268,3 +303,43 @@ entity**, which is why the tables live in one place and take a role and nothing 
 
 📌 **Both were found by asking *"is the genesis path described anywhere?"*** — and the answer being *"in
 eleven places, none of them joined up"* is what produced this file.
+
+---
+
+## 6. ⭐⭐⭐ CHILD GENESIS — **stage ⑪, and the case that proves this file's point**
+
+> 🔴🔴 **An earlier version of this document said *"no owning design found"* for child entities.**
+> ⛔ **That was FALSE, and it was an ASSERTION rather than a measurement** — it is recorded here rather
+> than quietly deleted because the *reason* it was false is the whole argument for a landing page.
+
+📐 **Measured `2026-09-13` — child genesis is covered in THREE documents, and not one is reachable by a
+topical search for "child entity":**
+
+| what it owns | where | ⚠ why nobody finds it |
+|---|---|---|
+| ⭐⭐⭐ **the deepest treatment** — `PartMetadata` *(id 55)* is the child MARKER, attached by `NetworkSpawningSystem`; the double-spawn hazard; `ChildComponentOverrides` keyed by `PartMetadata.InstanceId`; `PreAllocatedNetworkId` so a child's id survives a scenario round-trip; ⛔ and **why `EntityInfo.CommanderId` must NOT be the child test** *(it would silently drop every subordinate unit)* | [`designs/cgf-scn/DESIGN.md`](designs/cgf-scn/DESIGN.md) **Decision 5** + **Decision 11** | it is filed under a programme named *"CGF scenario loading"* and reaches children only because extraction must **avoid** them |
+| ⭐ **composite AUTHORING and the ORBAT angle** — `TkbCompositionDef`'s subordinate slots, `InitialUnitSubordinateIntent` on each spawned child, and `GenesisMaterializationSystem` resolving it once both ends are alive | [`designs/commander-subordinates/DESIGN.md`](designs/commander-subordinates/DESIGN.md) **§7.2** | filed under *"commander/subordinates"*; it says *"the system that processes `TkbCompositionDef`"* without naming it |
+| ⚠ **TEARDOWN, not genesis** — `SubEntityCleanupSystem` | [`designs/replication-fixes/REPL-DESIGN.md`](designs/replication-fixes/REPL-DESIGN.md) **§4.4** | a `2026-03` bug-fix programme |
+
+### ⭐ The shape, in one line
+
+⭐⭐ **`CreateEntityRequestSystem` spawns children itself, inside stage ①** *(`:363-400`)*: for each
+`ChildBlueprintDefinition` it allocates an id *(or takes `PreAllocatedId` from an override)*, resolves the
+child's own TKB type, and issues a separate `SpawnEntityCommand`. ⇒ **a child is a first-class entity** —
+it runs ②–⑩ exactly like its parent, and everything §3 says about ownership applies to it unchanged.
+
+⚠ **One branch worth knowing about, because it looks like a bug and is not:**
+`if (isScenarioLoad && !hasOverride) continue;` ⭐ On a scenario load, tactical subordinates were already
+extracted as ROOT entities, so re-spawning them from the parent's blueprint list would duplicate them.
+📄 That is Decision 5's rationale, stated from the extractor's side.
+
+### 🔒 What was actually missing — and it is NOT a design
+
+⛔ **No new design should be written for this.** The mechanism is specified, the hazards are named, and a
+fourth document would be a fourth place to rot. ⭐ **What was missing was REACHABILITY**, which is exactly
+what `CLAUDE.md`'s `related-designs` rule exists for — *"a design that does not name its NEIGHBOURS will be
+missed"* — and the miss that produced that rule *(`mgmt-1` §8.10, found only via an architect relay)* has
+the same shape: **the owning document lives under a programme name no topical search reaches.**
+
+⇒ ✅ **The fix applied:** stage ⑪ above, plus reciprocal `related-designs` links between this file and
+both owners — so the next reader finds them from the word *"child"* rather than from the word *"scenario"*.

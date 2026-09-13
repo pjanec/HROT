@@ -1,3 +1,16 @@
+<!--STATUS
+state: LIVE
+updated: 2026-09-13
+owns-beyond-its-title: ⭐ §7.2 "Composite-Spawning Update" is one of only three places child/composite
+  ENTITY GENESIS is described — TkbCompositionDef's subordinate slots, InitialUnitSubordinateIntent on
+  each spawned child, and GenesisMaterializationSystem resolving it once both ends are alive.
+  ⚠ A topical search for "child entity" does not reach it.
+related-designs:
+  - ../../DESIGN_Entity_Genesis_End_To_End.md — ⭐ THE LANDING PAGE for entity genesis; its §6 routes
+    child/composite questions here and to ../cgf-scn/DESIGN.md.
+  - ../cgf-scn/DESIGN.md — Decisions 5 + 11 own the child MARKER (PartMetadata), the double-spawn
+    hazard and the scenario-override round-trip.
+-->
 ﻿# Commander-Subordinate Infrastructure — Design
 
 ## Background
