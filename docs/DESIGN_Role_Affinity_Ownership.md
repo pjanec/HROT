@@ -141,8 +141,11 @@ related-designs:
   - DESIGN_Entity_Authoring_Surface.md — owns the CALLER side of creation (who asks for an entity and whom
     they nominate as owner). Measured 2026-09-12: INDEPENDENT of this design in both directions — this one
     decides component-level AUTHORITY after the entity exists, that one decides nothing about it.
-  - DESIGN_Entity_Creation_Unification.md — owns the pack this design's step 0a moved GhostPromotionSystem
-    into.
+  - DESIGN_Entity_Creation_Unification.md — owns the PACK this design's step 0a moved GhostPromotionSystem
+    into, and the invariant that EVERY ecs node may create entities. ⭐ Its §4.1 (added 2026-09-13) answers
+    the question a reader of THAT file asks — "any node can create an entity, so who owns its EntityInfo?"
+    — from this design's tables: the creator, because the role masks are COMPLEMENTS. ⛔ Keep the two in
+    step: if the tables ever become positive enumerations, §4.1's answer changes.
   - PROGRAMME_Explicit_Component_Ids.md — owns whether every component actually carries an explicit
     [ComponentId]. §3.9b's mask-driven registration is only COMPLETE if it does, so that programme is a
     prerequisite for this one's registration half.

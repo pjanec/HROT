@@ -18,12 +18,16 @@ current-answer: §5 is the plan. Steps 1, 2 and 4 are BUILT. Step 1 + 2 (2026-08
     P2 = relocate GhostPromotionSystem from NedReplicationModule into EntityCreationPack, add+remove in
          ONE commit — UNBLOCKED, the next buildable step; it also closes "a BDC node never promotes its
          ghosts" (BdcReplicationModule.cs:66).
-    P3 = AUTO-TAKEOVER / role-affinity ownership — 📄 docs/DESIGN_Role_Affinity_Ownership.md,
-         build-state READY-TO-BUILD, "Nothing here is built yet", §6 steps 0→3b. ⚠ Its §5 holds THREE
-         OPEN DECISIONS that are the USER's to settle first (①c the execution gate · ② nobody holds the
-         role · ③ multiple Brain nodes).
-  ⛔⛔ "P1 done" DOES NOT MEAN ENTITY-CREATION UNIFICATION IS DONE — P3 is the unimplemented half, and a
+    P2 = ✅ DONE 2026-09-11 (Role_Affinity §6a).
+    P3 = AUTO-TAKEOVER / role-affinity ownership — 📄 docs/DESIGN_Role_Affinity_Ownership.md.
+         ⛔⛔ THIS LINE SAID "build-state READY-TO-BUILD, nothing here is built yet, §6 steps 0→3b" AND
+         THAT IS SUPERSEDED (2026-09-13): P3 steps 0a→4 ARE BUILT, its three §5 decisions are all SETTLED
+         by the user, and CGF/SimHost now hold real role policies with the execution gate on. What remains
+         there is step 3c (a boot warning) and the follow-on registration work. Read ITS §6i first.
+  ⛔⛔ "P1 done" DOES NOT MEAN ENTITY-CREATION UNIFICATION IS DONE — P3 was the unimplemented half, and a
   reader who stops at this file will conclude the opposite. That is exactly what happened on 2026-09-10.
+  ⭐ 2026-09-13: §4.1 below now answers the ownership question a reader of THIS file actually asks, so the
+  pointer is no longer the only thing standing between them and a wrong assumption.
   ⚠ ALSO: §3.4's TWO-METHOD API shape is SUPERSEDED by docs/DESIGN_Entity_Authoring_Surface.md
   (READY-TO-BUILD, ONE method RequestEntityCreation with an owner parameter). See this block's
   'supersedes' note in that file.
@@ -96,6 +100,10 @@ related-designs:
   - DESIGN_Entity_Authoring_Surface.md — owns the CALLER-side surface (EntityCreation.RequestEntityCreation,
     the AUTHOR vs TRANSLATOR rule, the per-host authoring tails). It SUPERSEDES §3.4's two-method API shape
     here; §3.4's owner TABLE and its ReliableInitType reasoning stay live in THIS document.
+  - DESIGN_Role_Affinity_Ownership.md — owns WHO OWNS WHICH COMPONENT once the entity exists (the role
+    tables, the creator's birthright, the promote-leg claim). This document owns the PACK that builds the
+    two systems that apply it. ⇒ §4.1 here answers only the question a reader of THIS file asks — "any node
+    can create an entity, so who owns its EntityInfo?" — and points there for everything else.
 -->
 # DESIGN — entity creation is assembled by hand at six sites; make it a pack
 
@@ -1728,6 +1736,70 @@ sequenceDiagram
 
 ⭐⭐ **Read the two together and the design is one sentence:** ⭐⭐⭐ **the pack builds the same boxes on
 every node, and the authoring code picks which sequence it wants by setting one field.**
+
+### 4.1 ⭐⭐⭐ WHO OWNS WHAT AT BIRTH — **the creator keeps everything no ROLE claims** *(`2026-09-13`)*
+
+> 🔒 **The question this section exists to answer**, asked by the user after `P3` step 4 shipped:
+> *"if any node now can create entity, who owns entityInfo component of such entity? it needs to be the
+> creator, because entity info is not a role bound component, right?"*
+> ⭐⭐⭐ **Yes.** ⛔ And it is **not** a happy accident — it is the property the role tables are SHAPED to
+> preserve, and the shape is the non-obvious part.
+
+⚠ **This design's own invariant creates the question.** The pack has **no opt-out** *(§3.1)* — 🔒 *"should
+not restrict any ecs enabled node from creating own networked entities"* — so **every** node reaches
+`NetworkSpawningSystem`. ⇒ if role affinity narrowed ownership naively, the very capability this document
+exists to guarantee would be the thing it broke.
+
+#### 📐 The mask arithmetic, which is the whole answer
+
+```mermaid
+flowchart LR
+    subgraph SPACE["the 512 component ids"]
+        BC["birth-critical<br/>SimTransform"]
+        BO["brain-only<br/>BehaviorState, blackboards,<br/>channels, intents"]
+        UN["EVERYTHING ELSE<br/>EntityInfo, health,<br/>map display, hierarchy"]
+    end
+    BO --> BRAIN["Brain owned<br/>= ALL − birth-critical"]
+    UN --> BRAIN
+    UN --> MUSCLE["MuscleGround owned<br/>= ALL − birth-critical − brain-only"]
+    BC --> BIRTH["creator's birthright<br/>whatever its role"]
+    BIRTH --> BRAIN
+    BIRTH --> MUSCLE
+```
+
+*What the picture shows that the prose hid: `EntityInfo` is in the **unclassified** bucket, and the
+unclassified bucket feeds **BOTH** role masks. There is no third arrow for it to take.*
+
+| the leg | what happens to `EntityInfo` |
+|---|---|
+| ⭐⭐ **CREATE** — `NetworkSpawningSystem.cs:237`, `AuthorityMask &= OwnableMask(...)` | the creator's role mask **contains** it ⇒ the bit survives the intersection ⇒ ✅ **the creator owns it**, on any node, unchanged from before `P3` |
+| ⚠ **PROMOTE** — `GhostPromotionSystem.cs:261`, a bare `BitwiseOr` with no "is it already owned elsewhere" guard | the promoting node **also** sets the bit on its ghost. ⛔ Two nodes, one bit — see the honesty note below |
+
+#### ⛔⛔ WHY A COMPLEMENT AND NOT A LIST — **an enumeration would break exactly this document's invariant**
+
+📐 `NetworkSpawningSystem` **REPLACES** the blanket *"I own everything I materialised"* grant; it does not
+refine it. ⇒ a positive per-role list is a **whitelist**, and anything not on it becomes **unowned**.
+📌 The classification names ~20 components; the codebase has hundreds. 🔴 **A SimHost-created tank would
+own twenty components and nothing else — no `EntityInfo`, no health, no map display** — which is `CE-256`
+verbatim: *"owns nothing, so nothing it is responsible for ever moves."*
+
+⇒ ⭐⭐⭐ **the tables invert the default: unclassified stays owned, and only the named exclusions are
+removed.** ⭐ The blast radius of role affinity is then exactly *"a Muscle node does not own brain
+components"* — the ruling, and nothing else.
+
+#### ⚠ THE HONESTY NOTE — **the mask says "both", and that is tolerated, not correct**
+
+⛔ On the promote leg both nodes end up with the `EntityInfo` bit set. 📐 It is harmless **today**, for two
+measured reasons *(`DESIGN_Role_Affinity_Ownership.md` §3.6)*:
+
+| | |
+|---|---|
+| ⭐⭐ **replication does not read that bit** | `EntityInfoEgressTranslator.cs:116` gates on the **entity-level** `NetworkAuthority`/`DescriptorOwnership` via `ISimulationView.HasAuthority(entity, packedKey)` — ⛔ **no egress translator reads the per-component `AuthorityMask` at all.** The promoting node is not `PrimaryOwner`, so it publishes nothing |
+| ⭐ **nothing else reads it either** | the mask's entire production readership is `SimTransform`, `BehaviorState`, `BrainBlackboard` — plus a `Position` query that matches zero HROT entities |
+
+⇒ ⭐ **for anything that acts on it, the creator owns `EntityInfo`.** ⚠ The duplicated bit is the
+imprecision the complement accepts in exchange for not un-owning hundreds of unclassified components, and
+it is what a future positive enumeration would tighten — ⛔ **not before every component has a row.**
 
 ## 5. ⭐ Sequencing
 
