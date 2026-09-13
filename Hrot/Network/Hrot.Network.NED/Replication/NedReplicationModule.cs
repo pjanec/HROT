@@ -338,6 +338,24 @@ public sealed class NedReplicationModule : INedReplicationModule
                     PackRole.Ingress, _participant, _entityMap, _localNodeId, _eventBus,
                     GhostCreationSystem, _geoTransform);
                 igPack.RegisterSystems(registry);
+
+                // ⭐⭐⭐ CE-271 seam ⑥ — pure IG must run the OwnershipUpdate INGRESS too.
+                //   OwnershipIngressSystem (registered below) consumes the OwnershipUpdate BUS event; its
+                //   producer is OwnershipUpdateTranslator.PollIngress (DDS→bus), which for every OTHER node
+                //   runs inside the CycloneNetworkIngressSystem that the `!pureIg` guard SKIPS for pure IG.
+                //   ⛔ Without it, a Map2D node that GRANTS a descriptor away (DeferredTakeOwnership under
+                //   CE-271 seam ①) never receives the grantee's SYMMETRIC YIELD, so it never drops its own
+                //   authority bit — two owners of the same descriptor. 📐 Measured on the live cluster:
+                //   IG granted dtWorldPos to SimHost, SimHost took it and published OwnershipUpdate, but
+                //   IG's OwnershipUpdate recv stayed 0. 📄 DESIGN_Node_Roles_And_Policies.md §4.1.
+                //   ⭐ Reuse the shared-pack instance — do NOT construct a second reader/writer on the one
+                //   SST_OwnershipUpdate topic.
+                var ownershipUpdate = _sharedTranslators
+                    .OfType<Hrot.Map.Common.Replication.OwnershipUpdateTranslator>()
+                    .FirstOrDefault();
+                if (ownershipUpdate != null)
+                    registry.RegisterSystem(new CycloneNetworkIngressSystem(
+                        new INetworkTranslator[] { ownershipUpdate }));
             }
 
             // IG ghost lifecycle: ownership tracking + promotion + sub-entity cleanup.

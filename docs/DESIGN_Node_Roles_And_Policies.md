@@ -143,7 +143,8 @@ pipeline instead, the capability would be gone and §6's second arm could not ex
 
 ### 4.1 ⭐⭐⭐ ANY node distributes — **completing the wiring behind `R-138`** *(`2026-09-13`)*
 
-> `build-state: BUILDING` — seams ①–④ built + railed; ⑤ (routing choice + live run) pending.
+> `build-state: BUILDING` — seams ①–⑥ built; equal-creation distribution verified live. Remaining: the
+> production affordance routing choice (`R-140` product call) and a re-run confirming seam ⑥ drops IG's bit.
 
 ⛔⛔ **The residue.** `R-138` (canon) says every ECS node can create an entity it OWNS and distributes that
 entity's **non-role** components. But several seams were wired on the assumption that **the broadcast
@@ -164,7 +165,20 @@ retired by `R-138`. The distribution uses **two** mechanisms, and both must fire
 | **②** | IG runs a **null** role policy | create-leg never declines non-role ⇒ IG keeps `SimVelocity` etc. while promoters also claim → two owners | `IgNodeBootstrapper.cs` now passes `RoleAffinity = CreatePolicy(Map2D)` | ✅ **BUILT** — unit `AMap2DCreatedBrainEntity_KeepsOnlyItsSimTransformBirthright` |
 | **③** | Map2D **owned component set** undefined | ② has nothing to install | `HrotRoleComponentSets.cs` — `[NodeRole.Map2D] = {EditablePolyline, RoutePlan}` | ✅ **BUILT** — unit `Map2DOwns_ItsOverlayAndRouteAuthorship_AndNothingDynamic` |
 | **④** | cluster cache never pumped on IG | `GetLeastLoadedNode(Muscle)` returns null ⇒ empty grants even with ① | `IgNodeBootstrapper.NetworkPolling` → invoked in `IgApplication.Update` | ✅ **BUILT** — covered by the live run (wiring, not unit-testable in isolation) |
-| **⑤** | routing choice hard-coded | IG can't choose local ownership | `IgEntityCreationRequests.cs:65` `OwnerAppInstanceId = 0` | ⛔ pending — + the request-path debug route for the live run, + product call (which affordances go local, `R-140`) |
+| **⑤** | routing choice (debug route for the live run) | `POST /entities/create-request` drives the real request path | `DebugApiHost` + `IgSubsystem.CreationRequestEnqueuer` | ✅ **BUILT** — live run below. ⚠ the PRODUCTION affordance choice (`IgEntityCreationRequests.cs:65`, which IG tools go local vs forward) is a separate product call (`R-140`), not done |
+| **⑥** | pure IG runs no `OwnershipUpdate` INGRESS | after granting a descriptor away, IG never receives the grantee's symmetric yield ⇒ never drops its own bit ⇒ two owners | pure-IG block in `NedReplicationModule.cs` now registers the shared `OwnershipUpdateTranslator` ingress | ✅ **BUILT** — ⭐ **found by the live run**: IG granted `dtWorldPos` to SimHost, SimHost took it, but IG's `OwnershipUpdate` recv stayed 0 |
+
+#### ⭐⭐⭐ Live run — `2026-09-13`, 4-process cluster (orch/CGF/SimHost/IG)
+
+Through `POST /entities/create-request {tkbType:100, ownerNodeId:100}` on IG (node 100):
+
+| observation | evidence |
+|---|---|
+| IG created the tank via the **request path** and OWNED it | `[Node-100] ProcessSpawn NetworkId=1200`; replicated to SimHost |
+| IG published the auto-takeover grant (seam ①, from a **non-arbiter**) | `[Node-100] DeferredTakeOwnership egress: EntityId=1200 Grants=2` |
+| IG's grant named a real Muscle (seam ④ cache pump worked) | grant `NewOwner=1` = SimHost |
+| **SimHost took `dtWorldPos`** — equal-creation distribution | `[Node-1] DeferredTakeover executed: EntityNetId=1200 GrantCount=2` → `OwnershipUpdate egress EntityId=1200 TypeId=2 NewOwner=1` |
+| 🔴 **but IG never dropped its own bit** — the gap seam ⑥ fixes | IG `OwnershipUpdate` recv=0, `grep OwnershipUpdate n-ig.log` = 0 |
 
 #### ⚠ The one design sub-item — Map2D's owned set
 
