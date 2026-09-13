@@ -1002,6 +1002,51 @@ mandatory = componentsWith[PerInstanceValue]                   // Fdp.Core, netw
 ⇒ 📐 **Today that yields exactly `SimTransform` and `EntityInfo`** — which is precisely the hand-written list
 on NED vehicles, and precisely what `UrbanCombat` drifted out of.
 
+##### ⭐⭐ WHICH COMPONENTS GET `[PerInstanceValue]`, AND THE RULE FOR ADDING A FOURTH
+
+📐 **Three, on measured evidence — the components production actually authors per instance:**
+
+| component | evidence | ⇒ mandatory? |
+|---|---|---|
+| `SimTransform` | `SpawnEntityCommand.InitialTransform` *(typed field)* · `ScenarioSpawnAdapter.cs:206,317,390` · `SimHostApp.cs:820` | ✅ |
+| `EntityInfo` | `ScenarioSpawnAdapter.cs:189` · child spawns in `CreateEntityRequestSystem` | ✅ |
+| `SimVelocity` | `SpawnEntityCommand.InitialVelocity` · `ScenarioSpawnAdapter.cs:210` | ⛔ **the INGRESS intersection drops it** — the wire writes `NetworkVelocity` |
+
+⇒ ⭐ **the effective mandatory set is TWO**, matching today's hand-written NED pair exactly.
+
+⛔⛔ **AND THE SCENARIO PATH IS NOT EVIDENCE, which is the trap.**
+`StagingEntityExtractor.ExtractEntityComponents` walks **every registered table** and takes whatever is
+present, minus an exclusion mask ⇒ on a scenario load *almost every* component's value is per-instance
+*(a damaged tank restores its `Health`)*. 🔴 Deriving the attribute from *"what gets authored per
+instance"* would attribute nearly everything. ⭐ **The distinction that resolves it:**
+
+| | leg | arrives |
+|---|---|---|
+| `InitialComponents` | **create** | synchronously, **before anything runs** ⇒ no gate is ever needed |
+| the mandatory list | **promote** | asynchronously over the wire, **after the ghost exists** ⇒ the only thing a gate can be about |
+
+##### ⛔⛔ THE ADDITION RULE — **"unconditional egress" was WRONG; it is "GUARANTEED BASELINE"** *(user correction, `2026-09-13`)*
+
+> 🔒 **User:** *"sending state on change is what actually happens and what makes sense to eliminate
+> redundant traffic. almost nothing is sent unconditionally."*
+
+✅ **Correct, and an earlier version of this rule said "unconditional for owned entities" — WITHDRAWN.**
+📐 Change-driven egress is the norm here and is deliberate. ⭐ **The property a hard requirement actually
+needs is a guaranteed FIRST publish for a newly spawned entity**, and this codebase already provides it by
+**two** different mechanisms plus a backstop:
+
+| mechanism | evidence |
+|---|---|
+| ⭐ **`SmartEgressUtil`'s "Guaranteed First Publish"** — its own headline feature: *"tracks whether a descriptor has ever been sent for a newly spawned entity (`!state.LastPublishedTickMap.ContainsKey`)"* | covers `EntityInfo`, `EntityMaster`, `EntityMission`, `WeaponState` |
+| ⭐ **the zeroed shadow** — `GeoSpatialEgressTranslator` deliberately does NOT use SmartEgress *(too costly at 60 Hz)*; it diffs `SimTransform` against a `NetworkTransform` shadow **seeded to zeros**, and its own comment calls that *"a BEHAVIOURAL REQUIREMENT, not a detail … Zeros force a first publish"* | covers `SimTransform`. ⚠ Even an entity spawned at the origin publishes, because the zeroed shadow's rotation is `(0,0,0,0)`, not identity, so the rotation comparison fires |
+| ⭐ **the heartbeat** — `REFRESH_INTERVAL = 600` *(10 s at 60 Hz)* | the eventual-consistency backstop for dropped UDP |
+
+⇒ 🔒 **THE RULE:** a component may carry `[PerInstanceValue]` **only if its descriptor's egress guarantees a
+baseline sample for a newly spawned entity.** ⛔ Change-driven thereafter is expected and correct.
+⚠ **The shape that would break it:** a purely diff-driven egress whose shadow is seeded from the live value
+— the first comparison says *"unchanged"*, no baseline is sent, and a hard requirement waits for the
+heartbeat or forever. 📌 That is exactly the trap `GeoSpatialEgressTranslator` documents having avoided.
+
 ⛔ **HISTORY — the question this replaced:** whether `[BirthCritical]` contradicts the `2026-09-01` ruling
 *"TKB should define what components are birth critical"*. ⭐ It does not: the TKB record still defines it,
 the record is just no longer hand-authored. 📄 `CE-265`.
