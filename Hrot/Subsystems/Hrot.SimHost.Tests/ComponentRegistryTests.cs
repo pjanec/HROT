@@ -524,5 +524,95 @@ namespace Hrot.SimHost.Tests
             var uniqueCount = new System.Collections.Generic.HashSet<int>(ids).Count;
             Assert.Equal(ids.Length, uniqueCount);
         }
+
+
+        // ═══ P3 — THE ROLE TABLE AND THE HAND-AUTHORED REGISTRY MUST NOT DRIFT ═════════════════
+        //  📄 docs/DESIGN_Role_Affinity_Ownership.md §3.9 (REGISTER = owned ∪ read), §6h, §6j.
+        //
+        //  🔴 WHY THESE EXIST. P3's narrowing is real — SimHostComponentRegistry deliberately does NOT
+        //    call CognitiveComponentRegistry, and calls MuscleRoleComponentRegistry instead. ⛔ But WHAT
+        //    it registers is HAND-AUTHORED, while HrotRoleComponentSets.BrainOnlyComponents states the
+        //    same fact declaratively. That is TWO PRODUCERS OF ONE FACT, and until the role tables become
+        //    positive enumerations nothing can derive one from the other:
+        //    📐 the tables are COMPLEMENTS (owned = ALL − birthCritical − brainOnly ≈ 496 of 512 bits), so
+        //    IRoleAffinityPolicy.RegisterComponentSet is ~498 bits and CANNOT drive registration. It is
+        //    computed, correct, and read by NOTHING in production — measured 2026-09-13.
+        //  ⇒ ⭐ these rails are the only thing keeping the two in step. They pass TODAY; that is the point.
+
+        /// <summary>⭐ Registration is checked by TYPE because that is what the repository keys on;
+        /// the role table speaks in component IDS. This bridges the two the same way the policy does.</summary>
+        private static bool IsRegistered(EntityRepository world, int componentId)
+        {
+            var type = ComponentTypeRegistry.GetType(componentId);
+            return type != null && world.TryGetTable(type, out _);
+        }
+
+        /// <summary>
+        /// 🔴🔴 <b>A Muscle node must REGISTER every component its role READS.</b>
+        /// 🔒 User, <c>2026-09-12</c>: <i>"intents are brain owned components that must be replicated to
+        /// muscle so musle can read and act on them. so muscle cant simply stop registwring them because
+        /// they are brain ones."</i>
+        ///
+        /// <para>⛔ This is the failure the narrowing could cause and the one that would hurt most: a
+        /// SimHost that stopped registering <c>NavigationIntent</c>/<c>MissionPlanQueue</c> would
+        /// <b>stop receiving its own orders</b>, silently — registration is the only gate on
+        /// materialisation (<c>BehaviorTkbTranslator.cs:52</c>), so the component would simply never
+        /// appear and every intent would land on nothing.</para>
+        /// </summary>
+        [Fact]
+        public void SimHostRegistersEveryComponentItsRoleREADS()
+        {
+            using var world = new EntityRepository();
+            SimHostComponentRegistry.RegisterAll(world);
+
+            var read = HrotRoleComponentSets.MuscleReadComponents;
+            for (int id = 0; id < FdpConfig.MAX_COMPONENT_TYPES; id++)
+            {
+                if (!read.IsSet(id)) continue;
+                Assert.True(IsRegistered(world, id),
+                    $"SimHost must REGISTER read-only component id {id} " +
+                    $"({ComponentTypeRegistry.GetType(id)?.Name}) — it is Brain-OWNED but replicated IN " +
+                    "and consumed here. Without registration the node stops receiving its own orders.");
+            }
+        }
+
+        /// <summary>
+        /// ⭐⭐⭐ <b>…and must register NONE of the brain-only ones.</b> That is the narrowing itself,
+        /// asserted against the declarative table rather than against the registry's own source.
+        ///
+        /// <para>⚠ <c>BrainOnlyComponents</c> deliberately INCLUDES the read pair (the table ORs
+        /// <c>muscleRead</c> into it so those ids stay out of the Muscle OWNED set), so the read set is
+        /// subtracted here. ⛔ Without that subtraction this rail would contradict the one above.</para>
+        /// </summary>
+        [Fact]
+        public void SimHostRegistersNoBrainOnlyComponent()
+        {
+            using var world = new EntityRepository();
+            SimHostComponentRegistry.RegisterAll(world);
+
+            var brainOnly = HrotRoleComponentSets.BrainOnlyComponents;
+            var read      = HrotRoleComponentSets.MuscleReadComponents;
+
+            for (int id = 0; id < FdpConfig.MAX_COMPONENT_TYPES; id++)
+            {
+                if (!brainOnly.IsSet(id) || read.IsSet(id)) continue;
+                Assert.False(IsRegistered(world, id),
+                    $"SimHost must NOT register brain-only component id {id} " +
+                    $"({ComponentTypeRegistry.GetType(id)?.Name}). P3's narrowing says a Muscle node does " +
+                    "not materialise the brain tier; registration is the only gate on materialisation.");
+            }
+        }
+
+        /// <summary>
+        /// ⛔⛔ <b>ANTI-VACUITY.</b> Both rails above iterate a mask; if either mask were ever empty they
+        /// would pass over nothing and keep passing forever while the narrowing rotted away.
+        /// 📌 The same trap <c>ComponentAttributeSetsTests.NeitherSetIsEmpty</c> exists for.
+        /// </summary>
+        [Fact]
+        public void TheRoleMasksTheseRailsIterateAreNotEmpty()
+        {
+            Assert.False(HrotRoleComponentSets.BrainOnlyComponents.IsEmpty());
+            Assert.False(HrotRoleComponentSets.MuscleReadComponents.IsEmpty());
+        }
     }
 }

@@ -1,7 +1,7 @@
 <!--STATUS
 state: LIVE
 updated: 2026-09-13
-build-state: BUILT (for the two-node Brain/Muscle case) — steps 0a, 0, 1a, 1, 2, 3, 3b(b), §3.9's two-set model AND ⭐⭐⭐ STEP 4 (§6i: CGF holds a Brain policy, SimHost a Muscle policy, and gateOnAuthority is ON) are done. ⛔⛔ CORRECTED 2026-09-13: an earlier version of THIS LINE listed "3b(a) THE REGISTRATION NARROWING (§6h)" as DONE. That is FALSE and it contradicted both the step table's 3b row and §6h's own headline — §6h shipped the missing PERCEPTION REGISTRY, i.e. the PREREQUISITE for the narrowing, not the narrowing. ⛔ STILL OPEN: 3b(a) THE REGISTRATION NARROWING — §3.5/§6f call it the PRIMARY fix ("without this the whole design is cosmetic"), and what remains is that CognitiveComponentRegistry is SHARED with CGF so the narrowing must move to a MuscleRoleComponentRegistry; step 3c (the boot warning); IG / Stride / the Editor / the test harnesses still run a null policy DELIBERATELY (§6i says why); the role tables are COMPLEMENTS, and the positive enumeration is future work that §6i's rail guards. ⛔⛔ AND READ §3.6 BEFORE REASONING ABOUT WHAT AUTHORITY DOES: re-measured 2026-09-13, the per-component AuthorityMask is read by NO egress translator — only by SimTransform/BehaviorState/BrainBlackboard checks and WithOwned<T> queries. An earlier version of §3.1 and §3.6 said "every egress translator gates on HasAuthority"; that was FALSE and both now carry the correction. ⛔⛔ §3.9 IS LOAD-BEARING AND IS NOW MODELLED IN CODE: REGISTER = ownedComponentSet ∪ readComponentSet, AUTHORITY = ownedComponentSet — read it before touching registration, and note NO HOST FILLS THE READ TABLE YET (step 4). ✅ §3.9a IS NEW (2026-09-12): the per-component classification for SimHost is MEASURED and CONFIRMS the set of six, adding four more (the three channels + PreviousCapabilities) for TEN droppable. ⚠ It carries a RETRACTION — an intermediate version claimed scenario persistence required three of them; that was false (DataPolicy.NoSave governs scenario exclusion, and three of the translators are extract-only clipboard dumps). ⛔ 3b(a) is NOT blocked on persistence; what remains is that CognitiveComponentRegistry is SHARED with CGF, so the narrowing must move to MuscleRoleComponentRegistry. ⛔ NOT "BUILT": open-risk below still binds (§3.5 / step 3b).
+build-state: BUILT (for the two-node Brain/Muscle case) — steps 0a, 0, 1a, 1, 2, 3, 3b(b), §3.9's two-set model AND ⭐⭐⭐ STEP 4 (§6i: CGF holds a Brain policy, SimHost a Muscle policy, and gateOnAuthority is ON) are done. ⛔⛔ CORRECTED 2026-09-13: an earlier version of THIS LINE listed "3b(a) THE REGISTRATION NARROWING (§6h)" as DONE. That is FALSE and it contradicted both the step table's 3b row and §6h's own headline — §6h shipped the missing PERCEPTION REGISTRY, i.e. the PREREQUISITE for the narrowing, not the narrowing. ⛔⛔ CORRECTED AGAIN 2026-09-13 (§6j): the line above ALSO mis-stated 3b(a) as open. 📐 MEASURED: SimHostComponentRegistry does NOT call CognitiveComponentRegistry and DOES call MuscleRoleComponentRegistry — the narrowing IS BUILT; and muscleRead = {NavigationIntent, MissionPlanQueue} IS populated, so the READ table is filled too. ⇒ ✅ 3b(a) and the read table are DONE. ⛔ STILL OPEN: step 3c (the boot warning); IG / Stride / the Editor / the test harnesses still run a null policy DELIBERATELY (§6i says why); the role tables are COMPLEMENTS, and the positive enumeration is future work that §6i's rail guards. ⛔⛔ AND READ §3.6 BEFORE REASONING ABOUT WHAT AUTHORITY DOES: re-measured 2026-09-13, the per-component AuthorityMask is read by NO egress translator — only by SimTransform/BehaviorState/BrainBlackboard checks and WithOwned<T> queries. An earlier version of §3.1 and §3.6 said "every egress translator gates on HasAuthority"; that was FALSE and both now carry the correction. ⛔⛔ §3.9 IS LOAD-BEARING AND IS NOW MODELLED IN CODE: REGISTER = ownedComponentSet ∪ readComponentSet, AUTHORITY = ownedComponentSet — read it before touching registration, and ⛔⛔ an earlier version said "NO HOST FILLS THE READ TABLE YET" — FALSE, HrotRoleComponentSets fills it (§6j). ⚠ What IS true: RegisterComponentSet is READ BY NOTHING in production and cannot drive registration while the tables are COMPLEMENTS — see §6j. ✅ §3.9a IS NEW (2026-09-12): the per-component classification for SimHost is MEASURED and CONFIRMS the set of six, adding four more (the three channels + PreviousCapabilities) for TEN droppable. ⚠ It carries a RETRACTION — an intermediate version claimed scenario persistence required three of them; that was false (DataPolicy.NoSave governs scenario exclusion, and three of the translators are extract-only clipboard dumps). ⛔ 3b(a) is NOT blocked on persistence; what remains is that CognitiveComponentRegistry is SHARED with CGF, so the narrowing must move to MuscleRoleComponentRegistry. ⛔ NOT "BUILT": open-risk below still binds (§3.5 / step 3b).
 verified: ⭐⭐ THE WHOLE DESIGN WAS RE-MEASURED AGAINST THE TREE ON 2026-09-12 before step 0 was built
   (user: "verify design before, might be stale"). VERDICT: every DECISION holds and nothing load-bearing
   is stale — the six unbuilt types are still at ZERO .cs occurrences, the blanket grant is byte-identical,
@@ -1345,6 +1345,65 @@ narrowing makes that translator correct **by construction** rather than by luck.
 | drop `brainOnly.BitwiseOr(in muscleRead)` | `TheReadSetNeverBecomesAuthority_OnEitherLeg` |
 | drop the `Read` argument from `CreatePolicy` | `TheMuscleRolesREGISTERWhatTheyRead_WithoutEverOwningIt` |
 | `muscleOwned = brainOwned` *(no `BitwiseAndNot`)* | `TheMuscleRolesOwnNoBrainComponent_AndTheBrainRoleOwnsThemAll` · `ASimHostCreatedBrainEntity_LeavesBehaviorStateForTheBrainNode` |
+
+
+## 6j. ⚠⚠ AS-BUILT + CORRECTION — **3b(a) and the READ table were ALREADY BUILT; the real gap is TWO PRODUCERS** *(`2026-09-13`)*
+
+> 🔒 **Asked to build "fill the read table, then move the narrowing to a Muscle registry".** 📐 Both were
+> **already done**. This section records what was actually measured, because this document's STATUS block
+> had now mis-stated P3's remaining work **three times in one day**.
+
+| claimed OPEN | 📐 measured | evidence |
+|---|---|---|
+| *"no host fills the READ table"* | 🔴 **FALSE** | `HrotRoleComponentSets` sets `muscleRead = {NavigationIntent, MissionPlanQueue}` and ORs it into `brainOnly`, so those two are out of the Muscle OWNED set and back in REGISTER |
+| *"3b(a) the narrowing is not done"* | 🔴 **FALSE** | `SimHostComponentRegistry` carries `⛔⛔⛔ CognitiveComponentRegistry is NOT called — SimHost HAS NO BRAIN` and calls `MuscleRoleComponentRegistry` instead |
+| *"steps 3c and 4 remain unbuilt"* | ⚠ half false | step 4 shipped (§6i) |
+
+⭐⭐ **And the live run had already shown it:** §6i-a records SimHost carrying no `BehaviorState`,
+`BrainBlackboard` or `BrainBTreeState`. ⛔ That was the narrowing working in production, mis-attributed to
+§6h — which shipped only its PREREQUISITE, the Perception registry.
+
+### 🔴🔴 THE GAP THAT IS REAL — **the narrowing and the role table are TWO PRODUCERS OF ONE FACT**
+
+⭐ `HrotRoleComponentSets.BrainOnlyComponents` states *"a Muscle node must not have these"* **declaratively**.
+⛔ `MuscleRoleComponentRegistry` / `SimHostComponentRegistry` state the same thing **by hand**, in code.
+⇒ ⚠ **they agree today and NOTHING checks that they keep agreeing** — the exact shape `CE-265`/`CE-266`
+removed from the TKB component lists.
+
+📐 **And it cannot be collapsed by derivation yet, which is the load-bearing measurement:**
+
+| | |
+|---|---|
+| ⛔⛔ **`IRoleAffinityPolicy.RegisterComponentSet` is READ BY NOTHING in production** | every hit is a declaration, a doc-comment or the computation itself. ⭐ Same shape as §3.6's authority-mask finding: computed, correct, unconsumed |
+| 🔴 **and it CANNOT drive registration while the tables are COMPLEMENTS** | `muscleOwned = ALL − birthCritical − brainOnly` ⇒ ~**496 of 512** bits, so `RegisterComponentSet` ≈ **498** bits. Registering from it would register **almost everything** — meaningless |
+| ⇒ ⭐⭐ **`REGISTER = owned ∪ read` only becomes actionable with POSITIVE enumerations** | i.e. it is blocked on the future work §6i's rail guards, not on effort here |
+
+### ✅ WHAT SHIPPED INSTEAD — **the drift detector**
+
+⭐ 3 rails into **`Hrot.SimHost.Tests/ComponentRegistryTests.cs`** *(the feature's own suite — T-1; §6h put its
+rails there too)*, asserting the hand-authored registry against the declarative table:
+
+| rail | pins |
+|---|---|
+| `SimHostRegistersEveryComponentItsRoleREADS` | 🔒 *"muscle cant simply stop registwring them because they are brain ones"* — losing this means the node **stops receiving its own orders**, silently |
+| `SimHostRegistersNoBrainOnlyComponent` | the narrowing itself. ⚠ Subtracts the read set, because `BrainOnlyComponents` deliberately CONTAINS it |
+| `TheRoleMasksTheseRailsIterateAreNotEmpty` | ⭐⭐ **anti-vacuity** — both rails above iterate a mask; an empty mask makes both pass over nothing, forever |
+
+📐 **3 inverse-edit red-proofs, all reddening:** stop registering `NavigationIntent` → **4 red**; call
+`CognitiveComponentRegistry` again → **2 red**; empty the brain-only mask → **1 red**.
+📐 **Gates:** `ComponentRegistryTests` 35/35 · with the registry-CLEARING class 47/47 · full
+`Hrot.SimHost.Tests` **953/958**, the same **2** pre-existing reds as the day's baseline *(950/955 + 3 new)*.
+✅ **Re-verified on the live 3-process cluster**: both hostiles destroyed by `t≈50`, all four attackers within
+**0.69–1.52 m** of their OWN `NavigationIntent.FinalDestination`, `LocomotionChannel.Status: Success`,
+`Ammo 41`, **0 faults** on all three nodes.
+
+### ⛔⛔ A PROCESS TRAP THIS BATCH WALKED INTO — *worth more than the rails*
+
+🔴 After a red-proof run, **the LAST thing built is the DEFECTIVE binary** — the script reverts the SOURCE,
+not the output. ⚠ A following `dotnet test --no-build` then tests the defect and reports failures that look
+like real regressions. 📌 It cost a full diagnostic detour here: the anti-vacuity rail "failed", and the
+inference *"my other two rails pass VACUOUSLY"* was built on a stale DLL. ⇒ ⭐⭐ **always REBUILD the test
+project after a red-proof sweep, before believing any suite result.**
 
 ## 6h. ✅✅ AS-BUILT — **the PERCEPTION role gets its own registry, shipped `2026-09-12`** *(`CE-259bf` slice 1, obligation ⑤)*
 
