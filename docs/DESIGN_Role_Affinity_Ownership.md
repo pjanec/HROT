@@ -1,7 +1,7 @@
 <!--STATUS
 state: LIVE
 updated: 2026-09-13
-build-state: BUILT (for the two-node Brain/Muscle case) — steps 0a, 0, 1a, 1, 2, 3, 3b(b), §3.9's two-set model AND ⭐⭐⭐ STEP 4 (§6i: CGF holds a Brain policy, SimHost a Muscle policy, and gateOnAuthority is ON) are done. ⛔⛔ CORRECTED 2026-09-13: an earlier version of THIS LINE listed "3b(a) THE REGISTRATION NARROWING (§6h)" as DONE. That is FALSE and it contradicted both the step table's 3b row and §6h's own headline — §6h shipped the missing PERCEPTION REGISTRY, i.e. the PREREQUISITE for the narrowing, not the narrowing. ⛔⛔ CORRECTED AGAIN 2026-09-13 (§6j): the line above ALSO mis-stated 3b(a) as open. 📐 MEASURED: SimHostComponentRegistry does NOT call CognitiveComponentRegistry and DOES call MuscleRoleComponentRegistry — the narrowing IS BUILT; and muscleRead = {NavigationIntent, MissionPlanQueue} IS populated, so the READ table is filled too. ⇒ ✅ 3b(a) and the read table are DONE. ⛔ STILL OPEN: step 3c (the boot warning); IG / Stride / the Editor / the test harnesses still run a null policy DELIBERATELY (§6i says why); the role tables are COMPLEMENTS, and the positive enumeration is future work that §6i's rail guards. ⛔⛔ AND READ §3.6 BEFORE REASONING ABOUT WHAT AUTHORITY DOES: re-measured 2026-09-13, the per-component AuthorityMask is read by NO egress translator — only by SimTransform/BehaviorState/BrainBlackboard checks and WithOwned<T> queries. An earlier version of §3.1 and §3.6 said "every egress translator gates on HasAuthority"; that was FALSE and both now carry the correction. ⛔⛔ §3.9 IS LOAD-BEARING AND IS NOW MODELLED IN CODE: REGISTER = ownedComponentSet ∪ readComponentSet, AUTHORITY = ownedComponentSet — read it before touching registration, and ⛔⛔ an earlier version said "NO HOST FILLS THE READ TABLE YET" — FALSE, HrotRoleComponentSets fills it (§6j). ⚠ What IS true: RegisterComponentSet is READ BY NOTHING in production and cannot drive registration while the tables are COMPLEMENTS — see §6j. ✅ §3.9a IS NEW (2026-09-12): the per-component classification for SimHost is MEASURED and CONFIRMS the set of six, adding four more (the three channels + PreviousCapabilities) for TEN droppable. ⚠ It carries a RETRACTION — an intermediate version claimed scenario persistence required three of them; that was false (DataPolicy.NoSave governs scenario exclusion, and three of the translators are extract-only clipboard dumps). ⛔ 3b(a) is NOT blocked on persistence; what remains is that CognitiveComponentRegistry is SHARED with CGF, so the narrowing must move to MuscleRoleComponentRegistry. ⛔ NOT "BUILT": open-risk below still binds (§3.5 / step 3b).
+build-state: BUILT (for the two-node Brain/Muscle case) — steps 0a, 0, 1a, 1, 2, 3, 3b(b), §3.9's two-set model AND ⭐⭐⭐ STEP 4 (§6i: CGF holds a Brain policy, SimHost a Muscle policy, and gateOnAuthority is ON) are done. ⛔⛔ CORRECTED 2026-09-13: an earlier version of THIS LINE listed "3b(a) THE REGISTRATION NARROWING (§6h)" as DONE. That is FALSE and it contradicted both the step table's 3b row and §6h's own headline — §6h shipped the missing PERCEPTION REGISTRY, i.e. the PREREQUISITE for the narrowing, not the narrowing. ⛔⛔ CORRECTED AGAIN 2026-09-13 (§6j): the line above ALSO mis-stated 3b(a) as open. 📐 MEASURED: SimHostComponentRegistry does NOT call CognitiveComponentRegistry and DOES call MuscleRoleComponentRegistry — the narrowing IS BUILT; and muscleRead = {NavigationIntent, MissionPlanQueue} IS populated, so the READ table is filled too. ⇒ ✅ 3b(a) and the read table are DONE. ⛔ STILL OPEN: step 3c (the boot warning); IG / Stride / the Editor / the test harnesses still run a null policy DELIBERATELY (§6i says why); the role tables are COMPLEMENTS and that is now a RULING, not a stopgap (§3.9c, 2026-09-13): the positive enumeration is NOT the upgrade path and NOT a gating item — it fails toward UN-ownership (CE-256) where the complement fails toward inert over-ownership. Revisit ONLY on the trigger §3.9c names. ⛔⛔ AND READ §3.6 BEFORE REASONING ABOUT WHAT AUTHORITY DOES: re-measured 2026-09-13, the per-component AuthorityMask is read by NO egress translator — only by SimTransform/BehaviorState/BrainBlackboard checks and WithOwned<T> queries. An earlier version of §3.1 and §3.6 said "every egress translator gates on HasAuthority"; that was FALSE and both now carry the correction. ⛔⛔ §3.9 IS LOAD-BEARING AND IS NOW MODELLED IN CODE: REGISTER = ownedComponentSet ∪ readComponentSet, AUTHORITY = ownedComponentSet — read it before touching registration, and ⛔⛔ an earlier version said "NO HOST FILLS THE READ TABLE YET" — FALSE, HrotRoleComponentSets fills it (§6j). ⚠ What IS true: RegisterComponentSet is READ BY NOTHING in production and cannot drive registration while the tables are COMPLEMENTS — see §6j. ✅ §3.9a IS NEW (2026-09-12): the per-component classification for SimHost is MEASURED and CONFIRMS the set of six, adding four more (the three channels + PreviousCapabilities) for TEN droppable. ⚠ It carries a RETRACTION — an intermediate version claimed scenario persistence required three of them; that was false (DataPolicy.NoSave governs scenario exclusion, and three of the translators are extract-only clipboard dumps). ⛔ 3b(a) is NOT blocked on persistence; what remains is that CognitiveComponentRegistry is SHARED with CGF, so the narrowing must move to MuscleRoleComponentRegistry. ⛔ NOT "BUILT": open-risk below still binds (§3.5 / step 3b).
 verified: ⭐⭐ THE WHOLE DESIGN WAS RE-MEASURED AGAINST THE TREE ON 2026-09-12 before step 0 was built
   (user: "verify design before, might be stale"). VERDICT: every DECISION holds and nothing load-bearing
   is stale — the six unbuilt types are still at ZERO .cs occurrences, the blanket grant is byte-identical,
@@ -875,9 +875,39 @@ citing.**
 
 ⇒ ⭐⭐⭐ **So the tables invert the default: unclassified stays owned, and only NAMED exclusions are
 removed.** ⭐ The blast radius of role affinity is then exactly the ruling — *"a Muscle node does not own
-brain components"* — and nothing else. ⚠ **The positive enumeration is the upgrade path**, strictly more
-precise and strictly more dangerous; ⛔ it must not be taken before every component has a row, and
-`EveryUnclassifiedComponentStaysOwnedByBothRoles` is the rail it has to argue with.
+brain components"* — and nothing else.
+
+#### ✅✅✅ RULED `2026-09-13` — **THE COMPLEMENT IS THE STEADY STATE, NOT A STOPGAP**
+
+> 🔒 **User:** *"what is positive enumeration good for, what are we losing without it, the complementary
+> one wasnt looking bad"*
+
+⛔⛔ **An earlier version of this paragraph called the positive enumeration *"the upgrade path"*, and a
+`2026-09-13` session repeated that as *"the gating item"* for P3. ⚠ BOTH OVERSTATED IT** — the label was
+inherited, not weighed. 📐 **Weighed now:**
+
+| ⭐ what a positive enumeration would BUY | 📐 measured worth |
+|---|---|
+| tighten the ONE imprecision: `Brain ∩ Muscle ≠ ∅` over the unclassified bucket, so the promote leg's bare `BitwiseOr` lets **two nodes set one bit** | ⚠ **INERT.** Re-measured `2026-09-13`, excluding doc-comments: the per-component mask's entire production readership is **`HasAuthority<SimTransform>` ×4 · `HasAuthority<BehaviorState>` ×2 · `WithOwned<SimTransform>` ×7 · one `WithOwned<Position>` query matching ZERO HROT entities**. ⇒ **zero reads on any UNCLASSIFIED component** |
+| make `IRoleAffinityPolicy.RegisterComponentSet` meaningful, so registration DERIVES from the role instead of being hand-authored | ⭐ real, but §6j's rails already detect the drift, and the derivation is not otherwise needed |
+| force every NEW component to be classified deliberately | ⚠ ALSO its biggest cost — see below |
+
+| 🔴 what it would COST | |
+|---|---|
+| **~496 of 512 bits are unclassified today** | a positive table means classifying **every** component **per role**, by hand |
+| ⛔⛔ **and every NEW component must be added or it becomes UNOWNED — silently** | that is `CE-256` verbatim: *"owns nothing, so nothing it is responsible for ever moves"* |
+
+⇒ 🔒 **THE ASYMMETRY THAT DECIDES IT.** The complement fails toward **OVER**-ownership — currently inert,
+and a duplicated bit is detectable. A positive enumeration fails toward **UN**-ownership — catastrophic,
+silent, and triggered by the most routine act in the codebase: adding a component.
+⇒ ⭐⭐⭐ **Keep the complement. It is not a stopgap awaiting an upgrade; it is the safer default, and the
+imprecision it accepts is the price of never un-owning the third bucket.**
+
+⭐⭐ **THE TRIGGER TO REVISIT — concrete, and it replaces the vague "future work" label:** revisit ONLY if
+something starts reading the per-component `AuthorityMask` *(`HasAuthority<T>` / `WithOwned<T>`)* for a
+component that is **NOT** in `BrainOnlyComponents` ∪ `BirthCriticalComponents`. ⛔ Until then the duplicated
+bit cannot be observed by anything, so tightening it buys nothing and risks `CE-256`.
+⚠ `EveryUnclassifiedComponentStaysOwnedByBothRoles` remains the rail any such change must argue with.
 
 #### ⚠ THE CONSEQUENCE, STATED HONESTLY — **Brain ∩ Muscle ≠ ∅, and the promote leg over-claims**
 
