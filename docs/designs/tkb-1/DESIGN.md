@@ -776,9 +776,30 @@ in the file would ship one node's answer to all of them.
 ⚠ **What the architect described as existing is therefore the right TARGET, and it needs one new
 interface member**: a translator can say which descriptors it CONSUMES, but nothing tells you which
 components it PRODUCES — that is knowable only by running `Inject`. ⭐ Add
-`GetProducedComponents()` beside `GetConsumedDescriptors()` and the derivation becomes real:
-`mandatory = ⋃ produced(t) for each translator t this HOST composes whose consumed descriptors the
-template carries`, intersected with what the host registers. 📄 `CE-265`.
+`GetProducedComponents()` beside `GetConsumedDescriptors()`.
+
+⛔⛔ **BUT `mandatory = produced` IS WRONG, and an earlier version of this section said exactly that.**
+📐 A translator that PRODUCES a component is the reason you might not need to wait for it. ⇒ produced is
+the **CANDIDATE** set, not the answer.
+
+⭐⭐⭐ **The filter, and it is already visible in the code:** every fallback-stamping translator guards with
+`!repo.HasComponent<T>(entity)` — `SpatialCoreTkbTranslator.cs:26,29` is the model, adding a **zeroed**
+`SimTransform`/`SimVelocity` only when none is present. ⇒ 🔒 **a component is MANDATORY exactly when a
+translator would stamp a DEFAULT that must not beat the replicated value.** That is what
+`EntityInfo`+`SimTransform` hard-mandatory on a vehicle has always meant: *wait for the wire value, or the
+zeroed default wins and the ghost promotes at the origin.*
+
+⇒ ⭐ **the derivation in full:**
+```
+candidates = ⋃ produced(t)   for each translator t THIS HOST composes
+                             whose consumed descriptors the template carries
+mandatory  = { c ∈ candidates : t stamps a DEFAULT for c (the !HasComponent guard)
+                                AND c is replicated for this entity }
+           ∩ componentsThisHostRegisters        // the deadlock guard
+```
+⚠ **The second conjunct is the open one** — *"is it replicated"* is per network stack, and §2.3 forbids
+keying simulation rules on one. 📐 The `!HasComponent` guard is measurable today *(98 occurrences)*; the
+replication half needs the design call. 📄 `CE-265`.
 
 ##### 🔒 THE PRINCIPLE, STATED ONCE
 
