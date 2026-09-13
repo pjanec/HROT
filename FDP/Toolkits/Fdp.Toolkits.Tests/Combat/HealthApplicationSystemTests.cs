@@ -240,27 +240,29 @@ namespace Fdp.Toolkit.Combat.Tests
         }
 
         /// <summary>
-        /// ⭐⭐⭐ <b><c>CE-267</c> — a lethal hit must publish <see cref="DestroyEntityCommand"/>.</b>
+        /// ⛔⛔ <b><c>CE-267</c> REVERTED — a lethal hit must NOT destroy the entity; the dead body stays.</b>
         ///
-        /// <para>🔴 <b>The defect this pins, measured live on <c>hill-attack-close</c>.</b> This system used
-        /// to clamp health to 0 and stop — its own comment said <i>"entity destruction is deferred to a
-        /// separate workstream task"</i>. ⛔ <c>AimAndFireExecutor</c>'s ONLY success condition is
-        /// <c>!world.IsAlive(target)</c>, so a target that was dead but not DESTROYED never ended the fire
-        /// action: the behaviour tree could not leave its engage node and the attacking platoon cycled
-        /// advance→fire→withdraw <b>forever</b>, draining ammo into a corpse *(42 → 19 over ten minutes)*.
-        /// ⇒ the scenario had a terminal condition and could never reach it.</para>
+        /// <para>🔒 User ruling <c>2026-09-13</c>: <i>"dead entity should not vanish, it should stay dead in
+        /// the world, every entity (no magic dead body vanishing)."</i> CE-267 had this system publish a
+        /// <c>DestroyEntityCommand</c> at 0 HP so that downstream <c>!world.IsAlive(target)</c> checks came
+        /// true — but <c>IsAlive</c> is ECS EXISTENCE, not combat-death; deleting the body to satisfy it was
+        /// the wrong fix. ⭐ Combat-death is the STATE <c>Health.Current &lt;= 0</c> (+ capabilities
+        /// stripped), which the target now carries while REMAINING alive as an ECS entity. This rail pins
+        /// that: no destroy is published, the entity still exists, health is 0, and CanShoot is cleared.</para>
         /// </summary>
         [Fact]
-        public void ALethalHit_PublishesADestroyCommand()
+        public void ALethalHit_DoesNotDestroyTheEntity_TheBodyStays()
         {
             var target = SpawnTarget(currentHealth: 10f, addCapabilities: true);
             PublishEvent(target, totalDamage: 25f);
 
             _sys.Execute(_world, 0.016f);
 
-            var destroys = DrainDestroys();
-            Assert.Single(destroys);
-            Assert.Equal(_world.GetComponentRO<NetworkIdentity>(target).Value, destroys[0].NetworkId);
+            Assert.Empty(DrainDestroys());                              // ⛔ no vanishing
+            Assert.True(_world.IsAlive(target));                        // the body still exists
+            Assert.Equal(0f, _world.GetComponentRO<Health>(target).Current);   // but combat-dead
+            var caps = _world.GetComponentRO<ActorCapabilityState>(target).Capabilities;
+            Assert.False(caps.HasFlag(ActorCapabilities.CanShoot));     // dead can't shoot
         }
 
         /// <summary>
@@ -280,26 +282,23 @@ namespace Fdp.Toolkit.Combat.Tests
         }
 
         /// <summary>
-        /// ⭐⭐⭐ <b>EXACTLY ONCE — the command is published on the 0-HP TRANSITION, not on the STATE.</b>
-        ///
-        /// <para>🔴 This is not hypothetical: the shooters do not stop until the entity is gone, so further
-        /// <c>DamageAssessedEvent</c>s against a corpse keep arriving while the two-ack teardown runs. ⛔ A
-        /// test on <c>Current &lt;= 0</c> alone would re-publish a destroy for every one of them.</para>
+        /// ⛔ <b>Repeated hits on a corpse still never destroy it, and health stays clamped at 0.</b>
+        /// Further <c>DamageAssessedEvent</c>s against a dead-but-present target keep arriving (shooters do
+        /// not know it is dead until their own fire action reads <c>Health &lt;= 0</c>); none of them may
+        /// remove the body.
         /// </summary>
         [Fact]
-        public void RepeatedHitsOnACorpse_PublishTheDestroyExactlyOnce()
+        public void RepeatedHitsOnACorpse_NeverDestroyIt()
         {
             var target = SpawnTarget(currentHealth: 10f, addCapabilities: true);
 
-            PublishEvent(target, totalDamage: 25f);
-            _sys.Execute(_world, 0.016f);
-            Assert.Single(DrainDestroys());
-
-            for (int i = 0; i < 3; i++)
+            for (int i = 0; i < 4; i++)
             {
                 PublishEvent(target, totalDamage: 25f);
                 _sys.Execute(_world, 0.016f);
                 Assert.Empty(DrainDestroys());
+                Assert.True(_world.IsAlive(target));
+                Assert.Equal(0f, _world.GetComponentRO<Health>(target).Current);
             }
         }
 
