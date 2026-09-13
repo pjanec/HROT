@@ -868,11 +868,42 @@ orthogonal to the simplification; do not couple the two decisions.**
 ⇒ ⭐ **Keep presence meaningful.** If some future entity kind genuinely needs a guaranteed transform, that is
 a per-template AUTHORING decision *(add the descriptor)*, ⛔ never an engine-wide invariant.
 
-⚠⚠ **THE ONE OPEN DECISION, and it is the user's:** `[BirthCritical]` on the component type contradicts the
-letter of the `2026-09-01` ruling *"TKB should define what components are birth critical"*. 📐 The CONTRAST
-in that ruling was TKB-versus-**DESCRIPTOR** *("there are networkless systems as well")*, and a component
-attribute honours that contrast completely — it is network-agnostic and needs no participant. ⛔ But it does
-move the declaration off the template, so it must be confirmed, not assumed. 📄 `CE-265`.
+##### ✅✅✅ RULED `2026-09-13` — **the attribute is the SOURCE OF TRUTH; the template's list becomes a DERIVED READ-ONLY CACHE**
+
+> 🔒 **User, verbatim:** *"we can add TKB record override any time later. so if it can be derived or defined
+> via component attribute and it works for all todays or imaginable future use cases, the tkb in-memory
+> record can be just a readonly cache."*
+
+⭐⭐ **This resolves the "component property vs TKB-type property" question without choosing sides, and it is
+better than either option offered.** The user's earlier objection — *"birthcritical does not seem to me to be
+a property of a component, rather tkb type"* — is right about the SEMANTICS *(the effective set is per
+type)*; the attribute is right about the SOURCE *(whether a component can start empty is a component fact)*.
+⇒ ⭐ **the record keeps the per-type field, and that field is DERIVED rather than AUTHORED.**
+
+| ⭐ the shape | |
+|---|---|
+| **source of truth** | `[BirthCritical]` on the component TYPE — same house pattern as `[ComponentId]` *(`ComponentIdAttribute.cs:30`)* and `[DataPolicy]` *(`DataPolicyAttribute.cs:79`)* |
+| ⭐⭐⭐ **population point** | 📐 **`ITkbDatabase.Register(TkbTemplate)` is the SINGLE choke point** *(measured: `TkbDatabase.cs:20`; every producer goes through it — `TkbDeserializer.cs:54`, `BdcTkbBuilder.cs:45`, `BdcTkbCatalog.cs:248,256`, `UrbanCombatTkbCatalog` ×5, and the `FDP/Examples` setups)*. ⇒ fill the cache there and **no path can skip it**, file or programmatic |
+| **the field** | `TkbTemplate.BirthCriticalComponents` becomes `IReadOnlyList<int>`; `AddBirthCriticalComponent<T>()` goes away |
+| ⭐⭐ **why keep the field at all** | ⛔ it is currently identical for every template, so it is *technically* a global constant — ⭐ **but it is the SEAM where the deferred TKB-record override lands.** Keeping it means that override changes only HOW the cache is filled, with **zero call-site churn**; and `RoleAffinityPolicy.cs:189`'s hot-path read is unchanged |
+| ⚠ **the override is DEFERRED, not rejected** | 🔒 *"we can add TKB record override any time later."* ⇒ ⛔ do not build it now, and ⛔ do not design the file syntax for it now |
+
+⭐ **What this SUPERSEDES, including work shipped earlier the same day:** `TkbComponentConventions`'
+birth-critical half and its call from `TkbLoadClusterStateHandler` *(`CE-259az`)* become **redundant** — the
+choke point is one level deeper and covers the programmatic catalogues too, which the app-layer convention
+never did. ⚠ **That is a strictly better outcome, not a regression**: the convention fixed the file path;
+this fixes the *invariant*. ⭐ It also collapses a second producer — `HrotRoleComponentSets`
+*(`:BirthCriticalComponents`)* hand-lists `SimTransform` as well, so today **three** places assert one fact.
+
+📐 **Blast radius, measured:** `Fdp.Core` *(new attribute, field becomes read-only)* · population in
+`TkbDatabase.Register` · **one** production read stays as-is *(`RoleAffinityPolicy.cs:189`)* · **8** authoring
+sites deleted · `TkbComponentConventions` + its loader call deleted · `HrotRoleComponentSets` derives instead
+of listing · rails to update in `TkbTemplateTests`, `HrotEnvironmentTests`, `TkbLoadClusterStateHandlerTests`,
+`RoleAffinityPolicyTests`, `RoleAffinityPromoteRails`, `RoleAffinitySpawnRails`, `HrotRoleComponentSetsTests`.
+
+⛔ **HISTORY — the question this replaced:** whether `[BirthCritical]` contradicts the `2026-09-01` ruling
+*"TKB should define what components are birth critical"*. ⭐ It does not: the TKB record still defines it,
+the record is just no longer hand-authored. 📄 `CE-265`.
 
 ##### 🔒 THE PRINCIPLE, STATED ONCE
 
