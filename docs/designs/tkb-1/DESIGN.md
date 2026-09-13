@@ -901,6 +901,41 @@ sites deleted · `TkbComponentConventions` + its loader call deleted · `HrotRol
 of listing · rails to update in `TkbTemplateTests`, `HrotEnvironmentTests`, `TkbLoadClusterStateHandlerTests`,
 `RoleAffinityPolicyTests`, `RoleAffinityPromoteRails`, `RoleAffinitySpawnRails`, `HrotRoleComponentSetsTests`.
 
+##### ✅✅✅ …AND THE SAME APPLIES TO **MANDATORY** — **the blocker was `IsHard`, not the derivation** *(user challenge, `2026-09-13`)*
+
+> 🔒 **User:** *"why mandatory stays open? can't it be derived making the tkb in memory record read only same
+> as birth critical field"*
+
+⛔⛔ **CORRECTED — it was called open for a reason that does not hold.** This section treated *"over-declaring
+is fatal"* as intrinsic to `MandatoryComponents`. 📐 It is intrinsic to **HARD** requirements only:
+`GhostPromotionSystem.cs:215-219` — a hard requirement that never arrives is `return` forever, ⭐ **but a
+SOFT one waits `SoftTimeoutFrames` and then proceeds without the component.** The soft mode has existed all
+along *(`MandatoryComponent.IsHard` / `SoftTimeoutFrames`, a single consumer, already exercised at
+`SimHostInstance.cs:1001` with `isHard: false, softTimeoutFrames: 10`)*.
+
+⇒ ⭐⭐⭐ **Mandatory derives exactly like birth-critical, and BOTH records become read-only caches filled at
+the same choke point:**
+
+```
+[BirthCritical]      on a component ⇒ template.BirthCriticalComponents   (derived, read-only)
+[ValueFromInstance]  on a component ⇒ template.MandatoryComponents       (derived, read-only, SOFT)
+                                      both filled in ITkbDatabase.Register
+```
+
+| ⛔ what dissolves once the requirement is SOFT | |
+|---|---|
+| **the deadlock class** | a requirement for something that never arrives costs `N` frames, not forever |
+| **the template filter** *(`GetProducedComponents()`)* | ⭐ **demoted from PREREQUISITE to OPTIONAL PRECISION** — it would let you skip the wait for components a template can never have, and promote soft→hard where one is guaranteed. ⛔ Not needed for correctness |
+| **the *"is it replicated?"* conjunct** | ⭐ **gone.** If it is not replicated you wait `N` and proceed ⇒ nothing must know in advance, which also removes §2.3's objection to keying a simulation rule on one network stack |
+
+📐 **The behaviour delta, all three directions, stated honestly:**
+
+| | today | after |
+|---|---|---|
+| NED vehicles | `EntityInfo`+`SimTransform` **hard** | **soft** ⇒ one whose `EntityInfo` never arrives promotes after `N` instead of **hanging forever**. ⭐ Strictly better |
+| `UrbanCombat` ×5 | **none** *(the drift)* | soft ⇒ they wait for the per-instance values instead of promoting on template defaults. ⭐ The fix |
+| ⚠ `TacGraphic_Area` / `_Route` | none | soft ⇒ **`N` frames of extra spawn latency** for entities that will never receive those components. 🔒 **The one real cost, and the only open choice: the value of `N`** |
+
 ⛔ **HISTORY — the question this replaced:** whether `[BirthCritical]` contradicts the `2026-09-01` ruling
 *"TKB should define what components are birth critical"*. ⭐ It does not: the TKB record still defines it,
 the record is just no longer hand-authored. 📄 `CE-265`.
