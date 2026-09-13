@@ -1469,17 +1469,25 @@ namespace Hrot.Editor.DebugApi
         /// ⭐⭐⭐ <c>CE-191</c> — returns <c>(node, error)</c> rather than a bare node, because the two
         /// optional parses below <b>used to be discarded silently</b>. See their comments.
         /// </remarks>
+        /// <param name="ownerNodeId">
+        /// ⚠ <b>EXPERIMENT KNOB (<c>CE-269</c>) — default <c>0</c> preserves today's behaviour exactly.</b>
+        /// <c>NetworkSpawningSystem.ProcessSpawn</c> computes <c>isLocalAuthority = cmd.OwnerNodeId ==
+        /// _localNodeId</c>, so with the default the spawning node claims NO authority and the P3 create-leg
+        /// block never runs. Passing this node's own id is what makes the host the CREATOR, which is the
+        /// only way to observe what a given role actually owns at birth.
+        /// </param>
         public (JsonNode? Node, string? Error) SpawnEntity(
             long     tkbType,
             JsonNode? transform      = null,
             JsonNode? components     = null,
-            string?  attributesJson = null)
+            string?  attributesJson = null,
+            int      ownerNodeId    = 0)
         {
             var cmd = new SpawnEntityCommand
             {
                 TkbType             = tkbType,
                 NetworkId           = 0,          // 0 = allocate a new ID
-                OwnerNodeId         = 0,
+                OwnerNodeId         = ownerNodeId,
                 InitType            = ReliableInitType.None,
                 InitialAttributesJson = attributesJson,
             };
