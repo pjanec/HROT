@@ -842,6 +842,32 @@ register is the same deadlock *(`GhostPromotionSystem.cs:211` has no registratio
 | ⭐ **host asymmetry is handled by construction** | each node derives from ITS translator list, which is what `§6.5b` already says the registration set is for |
 | ⭐ **`TkbTemplate.BirthCriticalComponents` can be DELETED** | 📐 measured: **one** production read — `RoleAffinityPolicy.cs:189`. Everything else is the setter, tests, or comments |
 
+##### ⛔⛔ A QUESTION THIS DESIGN DOES **NOT** RAISE — **"should every entity always have a `SimTransform`?"** *(asked `2026-09-13`)*
+
+> 🔒 **User:** *"we could theoretically have entities not having position, for example for Global Weather the
+> SimTransform means nothing; also some child entities … might not need SimTransform; the question is
+> whether keeping SimTransform as something every entity ALWAYS has (like a GameObject in Unity 3d) is an
+> acceptable compromise making everything simpler."*
+
+⭐⭐⭐ **The derivation does not need it answered.** `birthCritical = componentsWith[BirthCritical]` means
+*"IF this entity has one, its creator owns it at birth"* — and the create leg intersects with the entity's
+**live component mask**, so a positionless entity simply never gets the bit. ⇒ ⛔ **universality is
+orthogonal to the simplification; do not couple the two decisions.**
+
+📐 **And measured, the answer to the question on its own merits is NO:**
+
+| | |
+|---|---|
+| 🔴🔴 **`SimTransform` PRESENCE is the engine's *"is this spatial?"* predicate** | 📐 **42 production `.With<SimTransform>()` query filters across 37 files** — `SpatialHashSystem`, `LocalGridBuilderSystem`, `VisionBroadphaseSystem`, `BallisticsSystem`, `TerrainQuerySubmitSystem`, `MapCullingSystem`, `PhysicsBodyLifecycleSystem`, the egress translators … ⇒ universality silently WIDENS all 42 |
+| ⛔ **the concrete failure** | `LocalGridBuilderSystem.cs:94` / `SpatialHashSystem` insert every matched entity into the spatial structure ⇒ a Global-Weather entity would become a **perception, EQS and ballistics candidate sitting at (0,0,0)** |
+| ⚠ **why Unity gets away with it** | a Unity `Transform` doubles as the **scene-graph node** — it has a structural job beyond *"I am somewhere"*. Here it has none; presence is **pure semantics**, and that is exactly what universality would destroy |
+| ⭐ **memory is NOT the argument** | `SimTransform` is `Vector3 + Quaternion` = **28 bytes** |
+| ⭐⭐ **the codebase already has the right home for positionless global data** | `SetSingleton` / `SetSingletonManaged` — world-level storage that is **not an entity at all** *(`ZoneEnvironmentData`, `TerrainQueryBatchData`, `INavmeshProvider`, `ActivePerspective`)*. ⇒ **Global Weather is a SINGLETON, not a positionless entity** |
+| ⭐ **positionless CHILDREN are already anticipated** | `AuthorityExtensions.cs:23-29` resolves authority through `PartMetadata.ParentEntity`, so a child with no `SimTransform` already inherits its parent's answer |
+
+⇒ ⭐ **Keep presence meaningful.** If some future entity kind genuinely needs a guaranteed transform, that is
+a per-template AUTHORING decision *(add the descriptor)*, ⛔ never an engine-wide invariant.
+
 ⚠⚠ **THE ONE OPEN DECISION, and it is the user's:** `[BirthCritical]` on the component type contradicts the
 letter of the `2026-09-01` ruling *"TKB should define what components are birth critical"*. 📐 The CONTRAST
 in that ruling was TKB-versus-**DESCRIPTOR** *("there are networkless systems as well")*, and a component
