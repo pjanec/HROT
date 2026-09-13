@@ -1340,10 +1340,37 @@ default. ⛔ The blanket reason *"once it is proven live"* is now SATISFIED *(§
 | **test harnesses** | — | deliberately `null` so tests keep today's behaviour; a harness is not a deployment |
 
 ⇒ 🔒 **THE RULE THIS ESTABLISHES:** ⛔ **a host may only be given a policy once its declared role has a ROW
-in `Owned`.** ⭐ For `Stride` that is already true *(it declares `MuscleGround`)*; for **IG it is not**, and
-giving `ImageGenerator` a row is a design question in its own right — *what does an image generator own?* —
-⛔ **not a wiring task.** ⚠ The blanket *"the others get policies once it is proven live"* must not be read
-as licence to switch IG on.
+in `Owned`.** ⭐ For `Stride` that is already true *(it declares `MuscleGround`)*; for **IG it is not.**
+⚠ The blanket *"the others get policies once it is proven live"* must not be read as licence to switch IG on.
+
+##### ⚠ AND THE RENAME REFRAMES IT — **`ImageGenerator` is really `Map2D`** *(`CE-212`, still OPEN)*
+
+⛔ **IG is NOT roleless** — it declares `NodeRole.ImageGenerator` *(`NodeRole.cs:77`, `1 << 2`)*. ⭐ What it
+lacks is a **ROW in `Owned`**, which holds `Brain` and `MuscleGround` only. ⚠ Those are different things and
+the distinction matters: a role with no row is not an oversight in the host, it is a gap in the TABLE.
+
+🔒 **User, via `CE-212`:** *"'IG' role in this code base is way about 2d map, which stride doesn't do."*
+📐 Measured in `DESIGN_Stride_Node_Modes.md` §6.2: the flag gates `IgCapabilities.Presentation` →
+`StyleResolutionModule`, `MapCullingModule`, `MapLayerModule`, `HistoryTrailModule`, `EventEffectModule`
+plus `PresentationComponentRegistry` — ⭐ **all of it the 2-D MAP STACK**, no simulation logic at all.
+
+⇒ ⭐⭐⭐ **With the right name the question stops being *"what does an image generator own?"* and becomes
+*"what does a 2-D MAP PRESENTATION node own?"* — and the natural answer is NOTHING.** A presentation role
+is a pure CONSUMER of replicated state. ⇒ ⚠ **the empty owned set may be SEMANTICALLY CORRECT rather than a
+missing row**, which inverts this section's first reading.
+
+⛔ **What still has to be answered before switching it on**, and it is now a narrow question:
+📐 `IgApplication.cs:302` publishes creation **INTENTS**, not `SpawnEntityCommand` ORDERS, and IG is
+`IsBroadcastArbiter: false` ⇒ it services only requests **explicitly targeted at its node id**. ⭐ So the
+question is just: *on that rare path, should a Map2D node own what it creates, or should it not be creating
+simulation entities at all?* ⚠ Until that is answered, `null` — own what you create — is the safe answer,
+and it is what ships.
+
+📄 `CE-212` is a **pure code rename** — `Q4` measured `NodeRole` is **not persisted** *(zero occurrences in
+any `.json`/`.idl`/`.xml`/`.yaml`; the externally visible thing is the subsystem NAME string `"IG"`, mapped
+by `NedNetworkFactory.MapSubsystemNameToRole`, and the rename does not touch it)*.
+⛔⛔ It needs **Roslyn**, run twice and unioned *(in-solution + `Stride/HrotStrideApp.Game.csproj`)* —
+⛔ never a text replace.
 
 ### 🔴🔴 THE DEVIATION — **the tables are COMPLEMENTS, not the per-role LISTS §6's row implies**
 
