@@ -722,6 +722,64 @@ true of `MandatoryComponents`. ⛔ But it is a real schema change, not a field:
 | 🔴 the deserializer **silently skips** unknown keys | ⇒ a typo'd component name vanishes **without a word**, and the failure surfaces as an entity that does not move, on the production path only ⇒ **loud load-time validation is part of the change**, not an extra *(cf. `CE-119`)* |
 | ⭐ parser thunks are **app-registerable** | ⇒ a HROT-specific key need **not** enter `Fdp.Toolkits`. ⚠ The real cost is handing content authors a correctness-critical engine invariant |
 
+##### 📐 HOW THE 15 HARDCODED TEMPLATES ACTUALLY DIFFER — *(enumerated via the graph, `2026-09-13`)*
+
+⭐ Three producers, and **the differences are mostly DRIFT, not content**:
+
+| | `NedTkbCatalog` — 8, via `NedTkbBuilder` | `UrbanCombatTkbCatalog` — 5, hand-built | `TacGraphic_Area`/`_Route` — 2, hand-built |
+|---|---|---|---|
+| construction | ⭐ **fluent builder** | `new TkbTemplate` + `AddDescriptor` | bare `new TkbTemplate` |
+| `TkbMasterDto` | ✅ | ✅ | ⛔ **none** |
+| **mandatory** | ✅ `EntityInfo`+`SimTransform` **hard** | 🔴 **none** | ⛔ none |
+| **birth-critical** | ✅ `SimTransform` | ✅ `SimTransform` | ✅ `SimTransform` |
+| **`DisType`** | ✅ all 8 | 🔴 **none** ⇒ falls back to `0` | ⛔ none |
+| visual | `VisualDefinitionDto` | `StrideRenderModelDefDto` | ⛔ |
+| combat | + `WeaponCapabilitiesDto` | 🔴 no `WeaponCapabilitiesDto` | ⛔ |
+
+⭐⭐ **Only the VISUAL row is real content.** `StrideNodeShell.cs:264` states it: the Ned catalogue carries no
+Stride-specific descriptors, so a Stride node renders nothing for its templates — that is why both
+catalogues exist. ⛔ **Mandatory, `DisType` and `WeaponCapabilitiesDto` are drift**, and the mechanism is
+visible: `DefineVehicle` **BUNDLES** the invariants *(`TkbMasterDto` + the mandatory pair +
+birth-critical, one method)*, while the hand-built path re-decides per template — and five of them decided
+differently.
+
+⇒ ⭐⭐⭐ **Unification is NOT merging the catalogues** *(the content legitimately differs)*. It is
+**"every hardcoded template goes through the builder, and the builder's bundle is the same one the file
+loader applies."** Today there are **three** producers of that decision; `R-132` says there should be one.
+
+##### 🔴🔴 WHERE MANDATORY COMPONENTS COME FROM — **exactly ONE place, and it is not the file, the translators, or a convention**
+
+⛔⛔ **A relayed architect answer** *(`2026-09-13`)* **claimed three sources. Verified against source, one is
+right, one is half right, and the load-bearing one is INVENTED:**
+
+| the claim | verdict |
+|---|---|
+| *"`TkbIdentity` is always implicitly hard-mandatory, enforced at ghost promotion"* | ✅ **TRUE and STRUCTURAL** — `GhostPromotionSystem.cs:280-282` builds `_readyGhostQuery` as `.With<TkbIdentity>().WithLifecycle(Ghost)`, so an entity without it is never a promotion candidate at all |
+| *"programmatic catalogues declare them explicitly — e.g. `NedTkbBuilder` **or `UrbanCombatTkbCatalog`**"* | ⚠ **HALF.** True of `NedTkbBuilder` *(`BdcTkbBuilder.cs:36,38`)*; ⛔ **`UrbanCombatTkbCatalog` declares NONE** — it is cited as an example of the very thing it does not do. ⚠ It also calls them *"birth-critical structural components … added with `AddMandatoryComponent`"*, conflating the two separate lists |
+| 🔴 *"translators derive and populate mandatory component requirements at load time"* | ⛔⛔ **FALSE — the mechanism does not exist.** `ITkbEntityTranslator` has exactly **two** members: `GetConsumedDescriptors()` and `Inject(repo, **entity**, template)` ⇒ it adds components to an ENTITY at spawn/promote time, and has no way to add a requirement to a TEMPLATE. 📐 Repo-wide there are **7** `AddMandatoryComponent` occurrences and **ZERO** are in a translator. ⚠ And the ordering forbids it anyway: `GhostPromotionSystem` checks the mandatory list **before** the translator loop runs |
+
+⇒ 📐 **The complete, measured answer: `NedTkbBuilder.DefineVehicle` (`:36,:38`) and `AsComposite`
+(`:293`). That is all.** Three call sites, one file, one builder method family. ⛔ Not files, not
+translators, not conventions.
+
+##### ⭐⭐⭐ BUT THE ARCHITECT'S *CONCLUSION* IS RIGHT, FOR A REASON IT DID NOT STATE — **the list is HOST-DEPENDENT**
+
+🔴🔴 **Measured: `GhostPromotionSystem.cs:211` tests `compGP.IsSet(req.ComponentTypeId)` with NO
+registration guard.** ⇒ a **hard** requirement naming a component the local host never registers can never
+become true, so that host's ghosts **abort promotion every frame, forever, silently.**
+
+⇒ ⭐⭐ **That settles where mandatory requirements may NOT live: a shared TKB FILE.** A file is one artefact
+synced to every node, and *"which components must be present"* differs per host because *"which components
+this host registers"* differs per host *(§6.5b's registration set — the same asymmetry)*. ⛔ Authoring them
+in the file would ship one node's answer to all of them.
+
+⚠ **What the architect described as existing is therefore the right TARGET, and it needs one new
+interface member**: a translator can say which descriptors it CONSUMES, but nothing tells you which
+components it PRODUCES — that is knowable only by running `Inject`. ⭐ Add
+`GetProducedComponents()` beside `GetConsumedDescriptors()` and the derivation becomes real:
+`mandatory = ⋃ produced(t) for each translator t this HOST composes whose consumed descriptors the
+template carries`, intersected with what the host registers. 📄 `CE-265`.
+
 ##### 🔒 THE PRINCIPLE, STATED ONCE
 
 > ⭐⭐⭐ **A TKB file describes an entity's DESCRIPTORS. The component lists are statements about what
