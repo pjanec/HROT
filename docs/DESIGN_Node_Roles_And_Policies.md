@@ -89,7 +89,7 @@ a deployment is described by a *set* of roles, not by a node "type".
 | `None` | `0` | no role assigned |
 | ⭐ `Brain` | `1<<0` | MissionControl · CognitiveRuntime · ActionDispatch · Combat. ⛔ **no ground kinematics** — it commands movement as `NavigationIntent` to a Muscle |
 | ⭐ `MuscleGround` | `1<<1` | ActionDispatch · GroundKinematics · Combat. ⛔ **no behaviour/BTree** — orders arrive as `NavigationIntent` from a Brain |
-| ⭐ `ImageGenerator` | `1<<2` | presentation only, **no simulation logic** |
+| ⭐ `Map2D` | `1<<2` | presentation only, **no simulation logic** *(renamed from `ImageGenerator`, `CE-212`)* |
 | `Perception` | `1<<3` | LOS · broadphase · threat evaluation |
 | `NavigationSolver` | `1<<4` | on-demand pathfinding |
 
@@ -218,7 +218,7 @@ nod before hard-coding**, because a wrong set here breaks overlays or double-own
 | role | may hold persistent state? | rationale |
 |---|---|---|
 | ⭐ `Brain` / `MuscleGround` | ✅ **yes** — these are the simulation tiers whose state *is* the scenario | |
-| 🔴 `ImageGenerator` **(IG)** | ⛔ **NO** | **many IGs, added and removed at runtime** ⇒ none may affect the scenario being edited. An IG crash must cost nothing |
+| 🔴 `Map2D` **(IG)** | ⛔ **NO** | **many IGs, added and removed at runtime** ⇒ none may affect the scenario being edited. An IG crash must cost nothing |
 | **ExCon** *(operator console)* | ⛔ no — it is not an ECS node; it issues **unowned** requests (`Owner == 0`) | |
 
 ⇒ ⭐⭐ **An IG-owned entity is TEMPORARY BY DEFINITION.** A working sketch or shared mark, possibly
