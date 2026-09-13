@@ -265,6 +265,24 @@ your defect:
 ⭐ **Stopping without acquiring is out of spec** — the entities are supposed to keep closing until they
 see. ⛔ Do not explain a halt away as "out of range".
 
+#### ⚠⚠ AND THE CHAIN HAS NO LINK ⑤ — **the engagement never ENDS** *(measured `2026-09-13`, `CE-267`)*
+
+📐 **Both topologies, same result:** `--mode all` killed both hostiles at `t=40.3` and was still cycling at
+`t=535`; distributed CGF+SimHost killed them at `t=44.4`/`t=161.0` and was still cycling at `t=747`.
+⇒ ⛔ **do NOT wait for the platoon to settle — it never will**, and a run that is "still going" is not
+therefore broken.
+
+| ⭐ so when you drive this scenario | |
+|---|---|
+| ⭐⭐⭐ **stop at link ④** *(`Health.Current == 0` on both hostiles)* | that is the whole of the working spec today |
+| ⚠ **the shuttling baseline↔firing-line is BY DESIGN** | the hull-down maneuver; `BrainBlackboard.BaselineX/Y` names the fallback point *(`527.5, 474.5`)*, and `DESIGN_Stride_Node_Modes.md` §4.1ad records *"15 waves"* as healthy |
+| ⭐ **the tell for `CE-267`, if you need it** | `WeaponChannel.Status` stays `Running` forever *(never `Success`)* while `WeaponState.Ammo` drains — the fire action never completes |
+| ⛔ **a dead entity is NOT removed** | hp `0`, still carries `PhysicsCollider`, still listed in `TargetMemory` / `ActiveSensorTracks` ⇒ *"no live target"* is not an observable state |
+
+⭐⭐ **Typical timings, for orientation only** *(⛔ NOT assertions — §8's whole point)*: first kill `t≈35–45`,
+second kill `t≈40–161`. 📌 The `t=161` sample was distributed; `--mode all` matched the `2026-09-09`
+baseline at `t=40`. ⚠ **n=1 each — treat a slow second kill as a number to watch, not a regression.**
+
 ### 8.1 ⛔⛔⛔ READ THE RUNTIME VALUE OFF THE ENTITY — **never off a source file**
 
 > 🔒 **User, `2026-09-04`:** *"you have the way of dumping any entity so pls use it instead of

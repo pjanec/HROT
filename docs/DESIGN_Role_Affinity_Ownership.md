@@ -1252,6 +1252,31 @@ sequenceDiagram
 `null` policy — ⛔ measurably a no-op. ⭐ §4.2/§4.3's sequences are now the sequences production runs;
 they are not redrawn here.
 
+#### ✅✅✅ 6i-a. VERIFIED ON A LIVE DISTRIBUTED CLUSTER — **`2026-09-13`, CGF and SimHost in SEPARATE PROCESSES**
+
+> 🔒 **The question this answers** — user: *"there were many structural changes, we need to check if the
+> 'hill attack close' scenario still works … especially in multi node distributed mode."*
+
+📐 **Three processes, one node each** *(`orchestrator:8100`, `cgf:8101`, `simhost:8102`, `--no-wait`)*,
+`hill-attack-close` loaded via `POST /scenario/load/live` on CGF, driven over the plain HTTP debug API.
+
+| ⭐ what was measured | result |
+|---|---|
+| **distributed genesis** | `entityCount: 8` on **BOTH** nodes, `sawWorldChange`+`hadWorldAnchor` true ⇒ CGF created, SimHost ghosted **and promoted** all 8 |
+| ⭐⭐⭐ **the role split, as component sets** | SimHost carries `VehicleParams`/`NavState`/`FormationController`/`PhysicsCollider`/`WeaponState`/`Health` and **NO** `BehaviorState`, `BrainBlackboard` or `BrainBTreeState`. CGF carries the cognitive set. ⇒ §6h's registration narrowing is visible in production, per entity |
+| ⭐⭐ **the creator's birthright, on the wire** | `WorldPos` on CGF: **egress exactly `8`** *(one guaranteed baseline per entity)*, then **ingress `18 064`** as SimHost's kinematics take over. ⭐ That is `[PerInstanceValue]`'s ADDITION RULE *(§6.6a of `designs/tkb-1`)* observable end to end |
+| ⭐⭐ **deferred takeover** | `DeferredTakeOwnership` recv `8` · `SST_OwnershipUpdate` `16` · per-entity `DescriptorOwnership.Map` names SimHost as owner of 2 descriptors |
+| ⭐ **the full kill chain** | advance → `SensorContactList.Count` 2 → `ActiveSensorTracks` → `WeaponChannel.Status: Running` → `WeaponFireRequest` egress `84` → `EntityHitDamage` SimHost→CGF `47/47` → **both hostiles `Health.Current == 0`** *(`t=44.4` and `t=161.0`)* |
+| ⭐⭐⭐ **faults** | **ZERO** `Exception` / `Unhandled` / `Strict Mode Violation` on **all three** node logs ⚠ *(checked explicitly — the module host SWALLOWS system exceptions, so a clean `/status` is not evidence)* |
+
+⇒ ✅✅ **Step 4 holds under real distribution.** ⛔ Nothing in `CE-264`/`CE-265`/`CE-266` broke the
+scenario: both targets die, and the platoon performs its hull-down advance/withdraw cycle throughout.
+
+⚠⚠ **ONE DEFECT WAS FOUND, AND IT IS NOT THIS DESIGN'S** — `CE-267`: the engagement has **no terminal
+condition**, so the platoon cycles forever after both targets are dead. 🔴 **It reproduces IDENTICALLY in
+`--mode all`** *(one process, one world, NO replication)* ⇒ **not a distribution or ownership defect.**
+⛔ Do not read it as P3 fallout.
+
 ### 📐 WHAT SHIPPED
 
 | | |
