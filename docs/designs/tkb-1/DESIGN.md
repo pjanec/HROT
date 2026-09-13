@@ -922,19 +922,57 @@ the same choke point:**
                                       both filled in ITkbDatabase.Register
 ```
 
-| ⛔ what dissolves once the requirement is SOFT | |
+##### ⛔⛔⛔ SOFT-BY-DESIGN IS REJECTED — **the requirement is HARD and EXACTLY DERIVED** *(user ruling, `2026-09-13`)*
+
+> 🔒 **User, verbatim:** *"i do not want to wait 10 frames by design - this looks like an emergency
+> (hopefully avoidable) case which i do not want to promote to usual case, i need all configured that no
+> extra 10 frames needed. Soft sounds like allowing for 10 frames latency by design. i do not like it."*
+
+✅ **Correct, and the soft proposal above is WITHDRAWN.** `SoftTimeoutFrames` is a **recovery** path for a
+producer that failed; using it as the normal path makes every entity pay latency for a case that should
+never happen. ⇒ ⭐ **hard requirements, and the derivation must be EXACT.**
+
+⭐⭐⭐ **It CAN be exact, and `GetProducedComponents()` is the filter — measured, it reproduces today's correct
+set on all 15 templates:**
+
+```
+mandatory = componentsWith[ValueFromInstance]
+          ∩ ⋃ produced(t)  for host translators t whose consumed descriptors
+                           this template carries
+          ∩ componentsThisHostRegisters                    // HARD, no timeout
+```
+
+| template shape | descriptors | ⇒ produced ∩ `[ValueFromInstance]` | today's hand-written value |
+|---|---|---|---|
+| NED vehicles | `TkbMasterDto` *(→ `SpatialCore` → `SimTransform`)* + `BehaviorProfileDto`/`VisualDefinitionDto` *(→ `EntityInfo`)* | `{SimTransform, EntityInfo}` | ✅ **exactly** `EntityInfo`+`SimTransform` hard |
+| `UrbanCombat` ×5 | same two descriptor families | `{SimTransform, EntityInfo}` | 🔴 **none** — the drift this fixes |
+| `TacGraphic_Area`/`_Route` | ⛔ **no descriptors at all** | **∅** | ✅ none |
+
+⇒ ⭐⭐ **`GetProducedComponents()` returns to being a PREREQUISITE, not an optimisation** — and it is the
+thing that makes HARD safe.
+
+##### 🔒 WHY HARD CANNOT HANG ON THE HAPPY PATH — **arrival is guaranteed by SYMMETRY**
+
+⭐ The creator ran **the same translator set over the same template**, so it HAS the component; its egress
+publishes every owned component it has *(`EntityInfoEgressTranslator.cs:104-118`,
+`GeoSpatialEgressTranslator`)*; the receiver's ingress writes it. ⇒ **a component this template produces on
+one host is produced on every host that composes the same translators** — so requiring it cannot deadlock.
+
+| ⚠ the residual risk, named | |
 |---|---|
-| **the deadlock class** | a requirement for something that never arrives costs `N` frames, not forever |
-| **the template filter** *(`GetProducedComponents()`)* | ⭐ **demoted from PREREQUISITE to OPTIONAL PRECISION** — it would let you skip the wait for components a template can never have, and promote soft→hard where one is guaranteed. ⛔ Not needed for correctness |
-| **the *"is it replicated?"* conjunct** | ⭐ **gone.** If it is not replicated you wait `N` and proceed ⇒ nothing must know in advance, which also removes §2.3's objection to keying a simulation rule on one network stack |
+| a **creator** host that does not register the component never publishes it ⇒ a receiver waits forever | ⭐ **THIS is where `SoftTimeoutFrames` belongs — as the emergency escape, never the design.** 🔒 The user's own framing: *"an emergency (hopefully avoidable) case which i do not want to promote to usual case"* |
+| ⛔ it deserves a LOUD diagnostic, not a silent timeout | a ghost still un-promoted after `N` frames is a **configuration error**, and `GhostPromotionSystem` says nothing today |
 
-📐 **The behaviour delta, all three directions, stated honestly:**
+##### ⚠⚠ `[ValueFromInstance]` MEANS "REPLICATED", NOT "SETTABLE AT SPAWN" — **the distinction is load-bearing**
 
-| | today | after |
-|---|---|---|
-| NED vehicles | `EntityInfo`+`SimTransform` **hard** | **soft** ⇒ one whose `EntityInfo` never arrives promotes after `N` instead of **hanging forever**. ⭐ Strictly better |
-| `UrbanCombat` ×5 | **none** *(the drift)* | soft ⇒ they wait for the per-instance values instead of promoting on template defaults. ⭐ The fix |
-| ⚠ `TacGraphic_Area` / `_Route` | none | soft ⇒ **`N` frames of extra spawn latency** for entities that will never receive those components. 🔒 **The one real cost, and the only open choice: the value of `N`** |
+📐 `SpatialCoreTkbTranslator` produces **both** `SimTransform` and `SimVelocity`, and `SpawnEntityCommand`
+carries `InitialTransform` **and** `InitialVelocity` ⇒ both look per-instance. 🔴 **But the wire carries
+`WorldPos` and the ingress writes `NetworkVelocity`, not `SimVelocity`** ⇒ marking `SimVelocity`
+`[ValueFromInstance]` would make a hard requirement that **never arrives**.
+
+⇒ 🔒 **the attribute means: *the authoritative initial value ARRIVES OVER THE WIRE*.** ⛔ Not *"can be set at
+spawn"*. Today that is exactly two components — `SimTransform` and `EntityInfo` — which is why today's
+hand-written list is those two and nothing else.
 
 ⛔ **HISTORY — the question this replaced:** whether `[BirthCritical]` contradicts the `2026-09-01` ruling
 *"TKB should define what components are birth critical"*. ⭐ It does not: the TKB record still defines it,
