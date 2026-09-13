@@ -24,7 +24,12 @@ verified: ⭐⭐ THE WHOLE DESIGN WAS RE-MEASURED AGAINST THE TREE ON 2026-09-12
   ⛔ AND A STRUCTURAL GAP, now fixed: this design carried a classDiagram and two sequenceDiagrams but NO
   module-relationship diagram, despite §3.5 being made entirely of "which systems tick, on which host,
   registered by whom". §4.1b is that diagram.
-current-answer: ⭐⭐⭐ START AT §6i — it is the NEWEST as-built (step 4, 2026-09-13) and it is the one that
+current-answer: ⭐⭐⭐ IF YOUR QUESTION IS "WHO OWNS COMPONENT X", START AT §3.9c — the tables are
+  COMPLEMENTS (ALL minus the named exclusions), so a component no role claims stays owned by whoever
+  CREATED the entity. That section owns the rule; DESIGN_Entity_Creation_Unification.md §4.1 asks the same
+  question from the creation side and points here. ⛔ A positive per-role enumeration would be a whitelist
+  and would reproduce CE-256 — §3.9c says why, and names the rail a future enumeration must argue with.
+  ⭐⭐⭐ THEN §6i — it is the NEWEST as-built (step 4, 2026-09-13) and it is the one that
   made the design live; it also carries the two deviations that matter (the tables are COMPLEMENTS, and no
   role may own a birth-critical component) and an honest statement of how big the change actually is.
   ⛔ Read §3.6 with it: the mask's real readership was re-measured that day and it is four component types,
@@ -815,6 +820,80 @@ RUNS.
 
 ---
 
+### 3.9c ⭐⭐⭐ THE TABLES ARE COMPLEMENTS — **the creator keeps everything NO ROLE claims** *(user question, `2026-09-13`)*
+
+> 🔒 **User, verbatim:** *"if any node now can create entity, who owns entityInfo component of such entity?
+> it needs to be the creator, because entity info is not a role bound component, right?"*
+> ⭐⭐⭐ **Yes** — and this section exists because that answer is **not** readable from §3.9/§3.9a. Those two
+> say what a role OWNS and READS; ⛔ **neither says what happens to the hundreds of components no role
+> mentions**, and getting that wrong breaks the cluster rather than the feature.
+
+⚠ **This is the canonical statement of the table SHAPE.** 📌 §6i records what shipped and cites this; ⛔ do
+not re-argue it there.
+
+#### 📐 The rule, and it is one line of set arithmetic
+
+```
+Brain        owned = ALL − birthCritical
+MuscleGround owned = ALL − birthCritical − brainOnly
+read (Muscle)      = { NavigationIntent, MissionPlanQueue }
+```
+
+| bucket | example | Brain owns? | Muscle owns? |
+|---|---|---|---|
+| ⭐ **birth-critical** | `SimTransform` | ⛔ no — §3.1's **creator birthright**, then the explicit `DeferredTakeOwnership` handoff | ⛔ no |
+| ⭐ **brain-only** *(§3.9a)* | `BehaviorState` · the blackboards · the three channels · the intents | ✅ yes | ⛔ **no — the ruling** |
+| ⭐⭐⭐ **everything else** | `EntityInfo` · health · map display · hierarchy · route | ✅ **yes** | ✅ **yes** |
+
+⇒ ⭐⭐ **`EntityInfo` is in the third bucket, which feeds BOTH masks** ⇒ the intersection at
+`NetworkSpawningSystem.cs:237` never removes it ⇒ **whichever node created the entity keeps it**, on any
+host, exactly as before this design existed.
+
+#### ⛔⛔ WHY NOT A POSITIVE LIST — **an enumeration is a WHITELIST, and it reproduces `CE-256`**
+
+📐 The decisive property is that the create leg **REPLACES** the blanket grant rather than refining it:
+
+| | |
+|---|---|
+| `NetworkSpawningSystem.cs:237` | `metaNS.AuthorityMask.BitwiseAnd(in ownable)` — applied to a mask that was just set to the **whole** component mask |
+| §3.9a classified | **~20** components |
+| the codebase has | **hundreds** |
+
+⇒ 🔴 **a positive Muscle list would leave a SimHost-created tank owning twenty components and NOTHING
+ELSE** — no `EntityInfo`, no health, no map display — which is `CE-256` verbatim *(§0a)*: *"owns nothing,
+so nothing it is responsible for ever moves."* ⛔ **The design would have re-created the bug it opens by
+citing.**
+
+⇒ ⭐⭐⭐ **So the tables invert the default: unclassified stays owned, and only NAMED exclusions are
+removed.** ⭐ The blast radius of role affinity is then exactly the ruling — *"a Muscle node does not own
+brain components"* — and nothing else. ⚠ **The positive enumeration is the upgrade path**, strictly more
+precise and strictly more dangerous; ⛔ it must not be taken before every component has a row, and
+`EveryUnclassifiedComponentStaysOwnedByBothRoles` is the rail it has to argue with.
+
+#### ⚠ THE CONSEQUENCE, STATED HONESTLY — **Brain ∩ Muscle ≠ ∅, and the promote leg over-claims**
+
+⛔ The two role masks are **disjoint only over the CLASSIFIED set**; they deliberately OVERLAP over the
+third bucket. ⇒ on the promote leg `GhostPromotionSystem.cs:261` is a bare `BitwiseOr` with **no
+"is it owned elsewhere" guard**, so the promoting node also sets `EntityInfo`'s bit on its ghost.
+**Two nodes, one bit.**
+
+📐 **Harmless today, for two measured reasons — both in §3.6:**
+
+| | |
+|---|---|
+| ⭐⭐ **replication never reads that bit** | `EntityInfoEgressTranslator.cs:116` gates on the **entity-level** `NetworkAuthority`/`DescriptorOwnership`; ⛔ **no egress translator reads the per-component `AuthorityMask` at all.** The promoter is not `PrimaryOwner`, so it publishes nothing |
+| ⭐ **nothing else reads it either** | the mask's whole production readership is `SimTransform`, `BehaviorState`, `BrainBlackboard` |
+
+⇒ ⭐ **for anything that ACTS on it, the creator owns `EntityInfo`.** ⚠ The duplicated bit is the
+imprecision the complement accepts in exchange for not un-owning the third bucket — ⛔ **tolerated, not
+correct**, and the first thing a positive enumeration would tighten.
+
+📄 **The same answer, aimed at a reader who arrived from the other side** *(*"the pack has no opt-out, so
+every node creates entities — who owns what?"*)*, is
+[`DESIGN_Entity_Creation_Unification.md`](DESIGN_Entity_Creation_Unification.md) **§4.1**. ⚠ It is a
+POINTER pair, not a copy: **this section owns the rule**, §4.1 owns the creation-side framing. ⛔ If these
+tables ever become positive enumerations, §4.1's answer changes and must be updated in the same commit.
+
 ### 3.4 ⛔ What this does NOT retire
 
 ⭐ **Explicit `DeferredTakeOwnership` grants still win.** Role affinity is the **default**; a creator that
@@ -1175,26 +1254,18 @@ they are not redrawn here.
 | 🆕 **`Hrot.Core.Tests/HrotRoleComponentSetsTests.cs`** | **10 rails, 10 green.** ⭐ `RoleAffinityPolicyTests`' own header says *"a green here does not mean CGF and SimHost are configured correctly — that is step 4's acceptance test"* ⇒ this file is that test, over the real tables |
 | ⛔ **NOT touched** | `IgNodeBootstrapper` · `StrideNodeBootstrapper` · `EditorSubsystem` · the test harnesses. They keep `null` *(today's behaviour)*. ⭐ The two-node Brain/Muscle case is the one the ruling is about and the one that can be proven; the others get policies once it is proven live |
 
-### 🔴🔴 THE DEVIATION, ARGUED — **the tables are COMPLEMENTS, and an enumeration would have reproduced `CE-256`**
+### 🔴🔴 THE DEVIATION — **the tables are COMPLEMENTS, not the per-role LISTS §6's row implies**
 
-⛔⛔ **§6's row reads as though a role's owned set is a LIST of that role's components.** 📐 Measured, and it
-does not survive contact with the create leg:
+📄 **The rule and the full argument are §3.9c** *(written the next day, when the user asked the question it
+answers)*. ⛔ **Not restated here** — one structural fact, one home.
 
-| | |
-|---|---|
-| `NetworkSpawningSystem.cs:237` does `AuthorityMask &= OwnableMask(...)` | it **REPLACES** the blanket *"I own everything I materialised"* grant — it does not refine it |
-| §3.9a classified **~20** components | the codebase has **hundreds** |
-| ⇒ an enumerated Muscle set | 🔴 a SimHost-created tank would own **twenty components and nothing else** — no `EntityInfo`, no health, no map display — which is `CE-256` verbatim: *"owns nothing, so nothing it is responsible for ever moves"* |
-
-⇒ ⭐⭐⭐ **`Brain` owned = `ALL − birthCritical` · `MuscleGround` owned = `ALL − birthCritical − brainOnly`.**
-⭐ The blast radius is then **exactly the ruling**: a Muscle node's authority differs from today's by
-precisely the brain set, and by nothing else. ⚠ **The positive enumeration is the upgrade path** — strictly
-more precise and strictly more dangerous — ⛔ and it must not be taken before every component has a row.
-📌 `EveryUnclassifiedComponentStaysOwnedByBothRoles` is the rail a future enumeration has to argue with.
-
-⚠ **So Brain and Muscle are disjoint over the CLASSIFIED set only**, and deliberately OVERLAP over the
-unclassified remainder — that remainder is what each host legitimately owns for the entities it creates.
-⛔ Step 1's `BrainAndMuscle_OwnDisjointSets` rail is about representative masks, not about this claim.
+⭐ **What this as-built adds:** the deviation was found while building, not designed in. §6's row reads as
+though a role's owned set is a list of that role's components; the create leg **REPLACES** the blanket
+grant, so a list is a whitelist and a SimHost-created tank would have owned twenty components and nothing
+else. ⇒ shipped as `Brain = ALL − birthCritical` and `MuscleGround = ALL − birthCritical − brainOnly`, with
+`EveryUnclassifiedComponentStaysOwnedByBothRoles` as the rail a future positive enumeration must argue
+with. ⚠ **Consequence to carry:** Brain and Muscle are disjoint over the CLASSIFIED set only — ⛔ step 1's
+`BrainAndMuscle_OwnDisjointSets` rail is about representative masks, not about this claim.
 
 ### 🔴 THE SECOND DEVIATION — **birth-critical components are in NO role's set, and that is a correction to §3.1's reasoning**
 

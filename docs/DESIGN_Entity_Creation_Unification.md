@@ -1775,31 +1775,27 @@ unclassified bucket feeds **BOTH** role masks. There is no third arrow for it to
 | ⭐⭐ **CREATE** — `NetworkSpawningSystem.cs:237`, `AuthorityMask &= OwnableMask(...)` | the creator's role mask **contains** it ⇒ the bit survives the intersection ⇒ ✅ **the creator owns it**, on any node, unchanged from before `P3` |
 | ⚠ **PROMOTE** — `GhostPromotionSystem.cs:261`, a bare `BitwiseOr` with no "is it already owned elsewhere" guard | the promoting node **also** sets the bit on its ghost. ⛔ Two nodes, one bit — see the honesty note below |
 
-#### ⛔⛔ WHY A COMPLEMENT AND NOT A LIST — **an enumeration would break exactly this document's invariant**
+#### ⛔⛔ WHY A COMPLEMENT AND NOT A LIST — **because an enumeration would break THIS document's invariant**
 
-📐 `NetworkSpawningSystem` **REPLACES** the blanket *"I own everything I materialised"* grant; it does not
-refine it. ⇒ a positive per-role list is a **whitelist**, and anything not on it becomes **unowned**.
-📌 The classification names ~20 components; the codebase has hundreds. 🔴 **A SimHost-created tank would
-own twenty components and nothing else — no `EntityInfo`, no health, no map display** — which is `CE-256`
-verbatim: *"owns nothing, so nothing it is responsible for ever moves."*
+📐 The create leg **REPLACES** the blanket *"I own everything I materialised"* grant; it does not refine
+it. ⇒ a positive per-role list is a **whitelist**, and everything off it becomes **unowned** — a
+SimHost-created tank owning the ~20 classified components and **nothing else**, which is `CE-256`.
+🔒 **That is why "any node may create an entity" and "ownership is role-derived" can both be true.**
 
-⇒ ⭐⭐⭐ **the tables invert the default: unclassified stays owned, and only the named exclusions are
-removed.** ⭐ The blast radius of role affinity is then exactly *"a Muscle node does not own brain
-components"* — the ruling, and nothing else.
+📄 **The rule, the full argument and the upgrade path live in
+[`DESIGN_Role_Affinity_Ownership.md`](DESIGN_Role_Affinity_Ownership.md) §3.9c** — ⛔ **that section owns
+them; this one owns only the creation-side question.** ⚠ If those tables ever become positive
+enumerations, **§4.1's answer changes** and must be updated in the same commit.
 
 #### ⚠ THE HONESTY NOTE — **the mask says "both", and that is tolerated, not correct**
 
-⛔ On the promote leg both nodes end up with the `EntityInfo` bit set. 📐 It is harmless **today**, for two
-measured reasons *(`DESIGN_Role_Affinity_Ownership.md` §3.6)*:
+⛔ On the promote leg both nodes end up with the `EntityInfo` bit set *(a bare `BitwiseOr`, no
+"is it owned elsewhere" guard)*. 📐 Harmless **today** because `EntityInfoEgressTranslator.cs:116` gates on
+the **entity-level** `NetworkAuthority`/`DescriptorOwnership` — ⛔ **no egress translator reads the
+per-component `AuthorityMask` at all** *(measured: `Role_Affinity` §3.6)* — and the promoter is not
+`PrimaryOwner`, so it publishes nothing.
 
-| | |
-|---|---|
-| ⭐⭐ **replication does not read that bit** | `EntityInfoEgressTranslator.cs:116` gates on the **entity-level** `NetworkAuthority`/`DescriptorOwnership` via `ISimulationView.HasAuthority(entity, packedKey)` — ⛔ **no egress translator reads the per-component `AuthorityMask` at all.** The promoting node is not `PrimaryOwner`, so it publishes nothing |
-| ⭐ **nothing else reads it either** | the mask's entire production readership is `SimTransform`, `BehaviorState`, `BrainBlackboard` — plus a `Position` query that matches zero HROT entities |
-
-⇒ ⭐ **for anything that acts on it, the creator owns `EntityInfo`.** ⚠ The duplicated bit is the
-imprecision the complement accepts in exchange for not un-owning hundreds of unclassified components, and
-it is what a future positive enumeration would tighten — ⛔ **not before every component has a row.**
+⇒ ⭐ **for anything that ACTS on it, the creator owns `EntityInfo`.**
 
 ## 5. ⭐ Sequencing
 

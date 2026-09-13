@@ -76,6 +76,11 @@ public static class HrotRoleComponentSets
     /// ⭐⭐⭐ <b>The <c>ownedComponentSet</c> per role — expressed as a COMPLEMENT, and that is a decision,
     /// not a shortcut.</b>
     ///
+    /// <para>📄 <b>The owning section is <c>DESIGN_Role_Affinity_Ownership.md</c> §3.9c</b>, and
+    /// <c>DESIGN_Entity_Creation_Unification.md</c> §4.1 asks the same question from the creation side
+    /// (<i>"any node may create an entity — so who owns its <c>EntityInfo</c>?"</i>). ⛔ If this table ever
+    /// becomes a positive enumeration, BOTH sections' answers change.</para>
+    ///
     /// <para>⛔⛔ <b>An ENUMERATED muscle set would silently un-own everything nobody has classified yet.</b>
     /// <c>NetworkSpawningSystem.cs:237</c> does <c>AuthorityMask &amp;= OwnableMask(...)</c> — it REPLACES
     /// the blanket "I own everything I materialised" grant. ⇒ a positive list containing the twenty
