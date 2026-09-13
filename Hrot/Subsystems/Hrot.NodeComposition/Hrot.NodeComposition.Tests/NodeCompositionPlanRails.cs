@@ -156,7 +156,7 @@ public sealed class NodeCompositionPlanRails
 
         Assert.Equal(new[] { CapabilityKeys.Brain }, plan.Resolve(NodeRole.Brain).Select(c => c.Key));
         Assert.Empty(plan.Resolve(NodeRole.None));
-        Assert.Empty(plan.Resolve(NodeRole.ImageGenerator));
+        Assert.Empty(plan.Resolve(NodeRole.Map2D));
     }
 
     // ── Resources follow NEEDS, not role names ────────────────────────────────
@@ -182,7 +182,7 @@ public sealed class NodeCompositionPlanRails
             new[] { ResourceKeys.TrajectoryPool },
             plan.RequiredResources(NodeRole.MuscleGround).Select(p => p.Key));
 
-        Assert.Empty(plan.RequiredResources(NodeRole.ImageGenerator));
+        Assert.Empty(plan.RequiredResources(NodeRole.Map2D));
     }
 
     /// <summary>
@@ -264,9 +264,9 @@ public sealed class NodeCompositionPlanRails
 
         var plan = new NodeCompositionPlan()
             .Provider(provider)
-            .Capability(NodeRole.ImageGenerator, new FakeCapability("cap:presentation"));
+            .Capability(NodeRole.Map2D, new FakeCapability("cap:presentation"));
 
-        Assert.Empty(plan.RequiredResources(NodeRole.ImageGenerator));
+        Assert.Empty(plan.RequiredResources(NodeRole.Map2D));
         Assert.Equal(0, provider.Allocations);
     }
 

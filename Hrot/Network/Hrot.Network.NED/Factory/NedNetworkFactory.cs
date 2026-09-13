@@ -425,7 +425,7 @@ internal sealed class NedCgfEntityLifecycleAdapters : ICgfEntityLifecycleAdapter
         {
             "SimHost" => NodeRole.MuscleGround,
             "CGF"     => NodeRole.Brain,
-            "IG"      => NodeRole.ImageGenerator,
+            "IG"      => NodeRole.Map2D,
             _         => NodeRole.None,
         };
 }

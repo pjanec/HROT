@@ -79,7 +79,7 @@ namespace Hrot.SimHost.Integration.Tests
             // ImageGenerator role does not participate in orchestration — null participant allowed.
             var bootstrapper = new NodeBootstrapper();
             var clusterSlave   = bootstrapper.BuildOrchestration(
-                NodeRole.ImageGenerator, _kernel, _world, nodeId: 2);
+                NodeRole.Map2D, _kernel, _world, nodeId: 2);
 
             Assert.False(clusterSlave.IsHandlerRegistered<ReferenceReplayLoadHandler>(),
                 "ImageGenerator role must NOT register a ReferenceReplayLoadHandler.");

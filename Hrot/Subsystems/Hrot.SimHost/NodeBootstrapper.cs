@@ -81,7 +81,7 @@ namespace Hrot.SimHost
         {
             MigrationServices ms;
 
-            if (role.HasFlag(NodeRole.ImageGenerator))
+            if (role.HasFlag(NodeRole.Map2D))
                 ms = HrotMigrationBootstrap.BuildIg();
             else
                 ms = HrotMigrationBootstrap.BuildSimHostCgf(

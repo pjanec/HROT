@@ -49,7 +49,7 @@ namespace Hrot.IG;
 /// <summary>
 /// Concrete <see cref="SharedApplicationBootstrapper"/> for the IG (Image Generator) node.
 /// Implements all abstract hooks to produce a visualization-only node with role
-/// <see cref="NodeRole.ImageGenerator"/>.
+/// <see cref="NodeRole.Map2D"/>.
 /// </summary>
 internal sealed class IgNodeBootstrapper : SharedApplicationBootstrapper
 {
@@ -249,7 +249,7 @@ internal sealed class IgNodeBootstrapper : SharedApplicationBootstrapper
 
         var plan = new NodeCompositionPlan()
             .Capability(
-                NodeRole.ImageGenerator,
+                NodeRole.Map2D,
                 new IgCapabilities.Presentation(
                     _userConfig, _effectiveInstanceId, _cameraViewport, _headless))
             // ⭐ CE-221 — cross-role infrastructure, declared LAST so it keeps its tail-of-Simulation
@@ -257,10 +257,10 @@ internal sealed class IgNodeBootstrapper : SharedApplicationBootstrapper
             //    a Brain+Muscle node register it ONCE instead of twice.
             //    ⚠ IG carries UnitHierarchy only: it never had EqsResultUpdateSystem, and Hrot.IG does
             //    not reference Hrot.SimHost where that system lives. Its system set is unchanged.
-            .Capability(NodeRole.ImageGenerator, new Hrot.Common.Infrastructure.CoreInfrastructureCapabilities.UnitHierarchy());
+            .Capability(NodeRole.Map2D, new Hrot.Common.Infrastructure.CoreInfrastructureCapabilities.UnitHierarchy());
 
         // ⭐⭐⭐ CE-197 — resolved from the DECLARED role, not a constant (B4b step 3).
-        //    📐 Provably a no-op here: IgApplication.cs:923 passes the literal NodeRole.ImageGenerator,
+        //    📐 Provably a no-op here: IgApplication.cs:923 passes the literal NodeRole.Map2D,
         //    which is exactly what the capability above is declared for. ⚠ Unlike SimHost — whose
         //    declared role was MISSING NavigationSolver and had to be corrected before this swap was
         //    safe — IG's declaration was already true.
@@ -295,7 +295,7 @@ internal sealed class IgNodeBootstrapper : SharedApplicationBootstrapper
     private IReadOnlyList<INodeCapability>? _capabilities;
 
     /// <summary>The role this node was bootstrapped with, captured in <see cref="BuildContext"/>.</summary>
-    private NodeRole _declaredRole = NodeRole.ImageGenerator;
+    private NodeRole _declaredRole = NodeRole.Map2D;
 
     // ── Phase 5: Build orchestration ─────────────────────────────────────────
 

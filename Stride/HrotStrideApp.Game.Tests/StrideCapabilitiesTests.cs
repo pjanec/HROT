@@ -87,7 +87,7 @@ public class StrideCapabilitiesTests
     public void ImageGeneratorContributesNothing()
     {
         IReadOnlyList<INodeCapability> resolved =
-            StrideCapabilities.Build(BuildMuscleSet()).Resolve(NodeRole.ImageGenerator);
+            StrideCapabilities.Build(BuildMuscleSet()).Resolve(NodeRole.Map2D);
 
         Assert.Empty(resolved);
     }

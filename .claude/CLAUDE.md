@@ -226,9 +226,25 @@ lines across 17 `Stride/` files)*:
 | `Stride/HrotStrideApp.Game/…csproj` | ✅ true | **20 refs** — engine + ⭐ **all 12 Stride Game sites**, ⛔ no `Game.Tests` |
 | `Stride/HrotStrideApp.Game.Tests/…csproj` | ✅ true | ⛔ **`Symbol not found`** — ⭐ **CAUSE FOUND: the project was never RESTORED.** After `dotnet restore` *(9.5 s)* the same query returns **49 refs, 29 of them in `Game.Tests`** |
 
-⇒ ⭐⭐⭐ **`Stride/` is NOT inherently invisible — it just is not in `IOS-IG-SimHost.sln`** *(149 projects,
-zero `HrotStrideApp` entries)*. **Point the query at `Stride/HrotStrideApp.Game.csproj` and the Stride
-references come back.** ⚠ *(An earlier version of this section said Stride was invisible to the tool. That
+⛔⛔ **SUPERSEDED `2026-09-13` — `Stride/` IS IN THE ROOT SOLUTION NOW.** 📐 Measured during the `CE-212`
+rename: `IOS-IG-SimHost.sln` holds **156** projects and **six** Stride entries — `Hrot.Stride.Core(.Tests)`,
+`Hrot.Stride.Animation(.Tests)`, `HrotStrideApp.Game(.Tests)`. ⇒ ⭐ **one workspace opened from any
+root-solution project now covers Stride too** *(verified: a rename from `Hrot.IG.csproj` found all 31
+references including `Stride/HrotStrideApp.Game.Tests`, and the full 156-project build was clean)*.
+⚠ **The union rule still has ONE target left:** ⛔ **`HrotStrideApp.Windows` is in `Stride/HrotStrideApp.sln`
+ONLY** — it is the single project outside the root solution, so a symbol query must still check it
+separately. *(For `CE-212` it was measured clean: one `.cs` file, zero `NodeRole` references.)*
+
+⚠ **The paragraph below is the ORIGINAL finding and its MECHANISM is still true** — a project's workspace is
+the solution discovered by walking UP from it. 📌 That bit me on `CE-212`: pointing at
+`FDP/Engine/Fdp.Core/Fdp.Core.csproj` discovered **`FDP/FDP.sln`** *(41 projects, no Hrot)* and
+`find_references` returned **3** where grep saw **31** — a silent, plausible, WRONG answer.
+⇒ ⭐⭐⭐ **ALWAYS sanity-check a reference count against grep before acting on it**, and point renames at a
+project inside the solution you actually mean.
+
+⛔ **HISTORY:** *"`Stride/` is NOT inherently invisible — it just is not in `IOS-IG-SimHost.sln` (149
+projects, zero `HrotStrideApp` entries). Point the query at `Stride/HrotStrideApp.Game.csproj` and the
+Stride references come back."* ⚠ *(An earlier version of this section said Stride was invisible to the tool. That
 was true of the query, not of the tool — SUPERSEDED.)*
 
 📐 **The observed scoping rule** *(inferred, not measured directly)*: it opens the solution discovered at the

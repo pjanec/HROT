@@ -957,7 +957,7 @@ public class IgApplication : IDisposable
             ctx.Kernel.RegisterGlobalSystem(new Hrot.Presentation.Systems.CanvasMenuUpdateSystem());
         };
 
-        _context = _igBootstrapper.BootstrapNode(igConfig, NodeRole.ImageGenerator, _networkFactory);
+        _context = _igBootstrapper.BootstrapNode(igConfig, NodeRole.Map2D, _networkFactory);
 
         _world     = _context.World;
         _entityMap = _context.EntityMap;

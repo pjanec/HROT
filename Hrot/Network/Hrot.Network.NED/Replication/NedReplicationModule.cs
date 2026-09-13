@@ -41,7 +41,7 @@ namespace Hrot.Network.Replication;
 ///     <description>Shared + kinematic packs; GhostCreationSystem; SmartEgressSystem; cleanup.</description>
 ///   </item>
 ///   <item>
-///     <term><see cref="NodeRole.ImageGenerator"/></term>
+///     <term><see cref="NodeRole.Map2D"/></term>
 ///     <description>Shared pack + EntityStatesIngressPack; GhostCreationSystem; DeadReckoningSyncSystem (driveFromNetwork=true).</description>
 ///   </item>
 ///   <item>
@@ -133,7 +133,7 @@ public sealed class NedReplicationModule : INedReplicationModule
     /// Whether dead-reckoning is configured to run on all remote entities (<c>true</c>)
     /// or only on entities still in <c>EntityLifecycle.Ghost</c> state (<c>false</c>).
     /// <para>
-    /// <c>true</c> for pure <see cref="NodeRole.ImageGenerator"/>; <c>false</c> for
+    /// <c>true</c> for pure <see cref="NodeRole.Map2D"/>; <c>false</c> for
     /// combined roles that also own entities locally (e.g. <see cref="NodeRole.AllInOne"/>).
     /// </para>
     /// </summary>
@@ -197,7 +197,7 @@ public sealed class NedReplicationModule : INedReplicationModule
 
         // Validate role
         _roleHasMuscle = role.HasFlag(NodeRole.MuscleGround);
-        _roleHasIG     = role.HasFlag(NodeRole.ImageGenerator);
+        _roleHasIG     = role.HasFlag(NodeRole.Map2D);
         _roleHasBrain  = role.HasFlag(NodeRole.Brain);
 
         if (!_roleHasMuscle && !_roleHasIG && !_roleHasBrain)

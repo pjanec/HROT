@@ -27,5 +27,5 @@ internal static class IgTestFactory
             geoTransform: HrotEnvironment.CreateGeoTransform(),
             eventBus:     new FdpEventBus(),
             localNodeId:  0,
-            role:         NodeRole.ImageGenerator);
+            role:         NodeRole.Map2D);
 }

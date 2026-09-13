@@ -836,7 +836,7 @@ call **reaches a service**, not that the bracket calls the method.
 | **S7** | dead inspector view-model deleted; class renamed | `CE-213` | ⭐ no | `stride-check.sh` green; `StrideInspectorViewModelTests` gone |
 | **S8** | animation duplicate investigated | `CE-216` | ⭐ no *(reading)* | `.dev/_DONE/anim-ctrl/DD-1` §15–16 read; a decision recorded HERE |
 | **S9** | retire self-contained mode | `CE-209` | ✅ | ✅✅ **BUILT `2026-09-09` — §13.8.** ⭐ `STRIDE_SELFTEST` **survives, measured on Windows**: it reaches its verdict *(`initialHold=PASS repos=FAIL pausedFreeze=FAIL drive=PASS`)* and exits clean with the flag deleted — the two FAILs are `CE-222`, pre-existing and named |
-| **S10** | `ImageGenerator` → `Map2D` rename | `CE-212` | ⭐ no, **but needs Roslyn** | Roslyn rename run TWICE and unioned; no text replace |
+| **S10** | ✅✅ **DONE `2026-09-13`** — ~~`ImageGenerator` → `Map2D` rename~~ | `CE-212` | ⭐ Roslyn via STDIO *(the MCP server is unregistered; the binary is installed — `CLAUDE.md`'s fallback)* | ⭐ **18 files, 31 references, full 156-project build clean.** ⚠ ONE workspace sufficed — Stride is IN the root solution now; only `HrotStrideApp.Windows` sits outside and is clean. 🔴 First attempt pointed at `Fdp.Core.csproj`, hit `FDP/FDP.sln` and found **3 of 31** — caught by comparing against grep |
 
 ### The gate story — say it up front
 

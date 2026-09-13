@@ -103,7 +103,7 @@ namespace Hrot.SimHost.Tests
         /// <summary>
         /// When replay params (<paramref name="simGroup"/>) are absent,
         /// <see cref="ReplayLoadClusterOpHandler"/> must <em>not</em> be registered.
-        /// Uses <see cref="NodeRole.ImageGenerator"/> which does not require DDS and does
+        /// Uses <see cref="NodeRole.Map2D"/> which does not require DDS and does
         /// not create an <see cref="EcsRecordReplayController"/> — the guard condition
         /// <c>controller != null</c> in <see cref="NodeBootstrapper.BuildOrchestration"/>
         /// ensures no partial-wired handler is constructed.
@@ -113,7 +113,7 @@ namespace Hrot.SimHost.Tests
         {
             var bootstrapper = new NodeBootstrapper();
             var slave = bootstrapper.BuildOrchestration(
-                NodeRole.ImageGenerator,
+                NodeRole.Map2D,
                 _kernel,
                 _world,
                 nodeId: 1);
