@@ -207,4 +207,92 @@ public class TkbLoadClusterStateHandlerTests : IDisposable
 
         Assert.Equal("TestTkb", db.ActiveTkbName);
     }
+
+    // ── CE-259az — the file path applies HROT's component conventions ─────────────────────────────
+
+    /// <summary>
+    /// ⭐⭐⭐ <b><c>CE-259az</c> — a template loaded from a TKB FILE must still declare
+    /// <c>SimTransform</c> birth-critical.</b>
+    ///
+    /// <para>📐 <c>TkbDeserializer</c> builds a template purely from descriptor keys, so the list comes
+    /// back EMPTY — while every programmatic catalogue declares it on every template. ⛔ Without the
+    /// convention, a named-TKB deployment produces entities whose CREATOR does not own its own position:
+    /// <c>CarKinematicsSystem.cs:73</c> filters <c>.WithOwned&lt;SimTransform&gt;()</c> so it never moves
+    /// on the node that made it, and <c>GeoSpatialIngressTranslator.cs:90</c> then treats it as remote and
+    /// overwrites the position from the wire.</para>
+    ///
+    /// <para>⚠ The zip's entity carries an unknown descriptor key, so this also pins the important half:
+    /// the convention is applied to EVERY loaded template, ⛔ not only to ones whose descriptors the
+    /// parser recognised.</para>
+    /// </summary>
+    [Fact]
+    public async Task AFileLoadedTemplate_DeclaresSimTransformBirthCritical()
+    {
+        var db  = new TkbDatabase();
+        var h   = new TkbLoadClusterStateHandler(db, _stagingRoot);
+        var zip = Path.Combine(_tkbDir, "Conv.zip");
+
+        WriteScenarioHeader("Conv");
+        CreateMinimalTkbZip(zip, "Conv");
+
+        await h.PrepareAsync(MakeIntent(), CancellationToken.None);
+
+        var template = Assert.Single(db.GetAll());
+        Assert.Contains(
+            Fdp.Core.ComponentType<Fdp.Core.SimTransform>.ID,
+            template.BirthCriticalComponents);
+    }
+
+    /// <summary>
+    /// ⭐⭐ <b>The fallback path keeps its own seeding</b> — the convention must not be the only thing
+    /// holding the invariant up. ⚠ With no <c>TkbName</c> the handler loads <c>NedTkbCatalog</c>, which
+    /// declares birth-criticality itself at <c>BdcTkbBuilder.cs:44</c>; this rail fails if either half is
+    /// removed.
+    /// </summary>
+    [Fact]
+    public async Task TheProgrammaticFallback_AlsoDeclaresIt()
+    {
+        var db = new TkbDatabase();
+        var h  = new TkbLoadClusterStateHandler(db, _stagingRoot);
+
+        WriteScenarioHeader(null);
+
+        await h.PrepareAsync(MakeIntent(), CancellationToken.None);
+
+        Assert.NotEmpty(db.GetAll());
+        Assert.All(db.GetAll(), t => Assert.Contains(
+            Fdp.Core.ComponentType<Fdp.Core.SimTransform>.ID,
+            t.BirthCriticalComponents));
+    }
+
+    /// <summary>
+    /// ⛔⛔ <b><c>CE-265</c> — mandatory components are DELIBERATELY left empty on the file path, and this
+    /// rail exists so that stays a DECISION rather than drift.</b>
+    ///
+    /// <para>📐 There is no derivable rule: the programmatic catalogues already DISAGREE for
+    /// identically-shaped templates — <c>NedTkbBuilder.DefineVehicle</c> declares
+    /// <c>EntityInfo</c>+<c>SimTransform</c> hard-mandatory, while <c>UrbanCombatTkbCatalog</c>'s five
+    /// templates carry the same descriptors and declare none. 🔴 And guessing is the worse failure:
+    /// <c>MandatoryComponents</c> is the PROMOTION GATE, so a wrong hard requirement means a ghost that
+    /// never promotes, forever.</para>
+    ///
+    /// <para>⚠ The status quo is not harmless either — an empty list promotes on frame 1 and the P3
+    /// promote-leg role claim fires ONCE. That is <c>CE-265</c>, and it needs a design answer, not a
+    /// convention.</para>
+    /// </summary>
+    [Fact]
+    public async Task AFileLoadedTemplate_GetsNoInventedMandatoryComponents()
+    {
+        var db  = new TkbDatabase();
+        var h   = new TkbLoadClusterStateHandler(db, _stagingRoot);
+        var zip = Path.Combine(_tkbDir, "Conv2.zip");
+
+        WriteScenarioHeader("Conv2");
+        CreateMinimalTkbZip(zip, "Conv2");
+
+        await h.PrepareAsync(MakeIntent(), CancellationToken.None);
+
+        var template = Assert.Single(db.GetAll());
+        Assert.Empty(template.MandatoryComponents);
+    }
 }

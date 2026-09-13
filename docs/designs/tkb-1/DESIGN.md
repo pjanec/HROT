@@ -1,9 +1,18 @@
 <!--STATUS
 state: LIVE
-updated: 2026-08-30
+updated: 2026-09-13
 current-answer: the whole document is the TKB design and is BUILT. §6.5b is the section added on
   2026-08-30 and is the one to read before composing a node's translator list — it states the
   consequence of §6.1's registration guard, which the rest of the document leaves implicit.
+  ⭐⭐⭐ §6.6 (added 2026-09-13) IS THE OTHER ONE TO READ BEFORE TOUCHING THE FILE PATH: a TKB file
+  describes an entity's DESCRIPTORS, so TkbTemplate's two COMPONENT lists (MandatoryComponents,
+  BirthCriticalComponents) arrive EMPTY from a file and the application must supply them. It says which
+  half is a convention (birth-critical — unconditional, applied by TkbComponentConventions) and which is
+  NOT derivable at all (mandatory — the catalogues disagree; filed as CE-265), and what a real file field
+  would cost if the answer ever varies.
+related-designs:
+  - ../../DESIGN_Role_Affinity_Ownership.md — owns what BirthCriticalComponents MEANS (the creator's
+    birthright, the role tables, why no role may own one). This document owns where the list comes from.
 known-rot: §6.5's closing sentence ("an IG node would include BIG-specific translators; a SimHost
   node would not") reads as if per-node LIST curation were the intended narrowing lever. It is not;
   §6.5b corrects that reading. Do not quote that sentence without §6.5b.
@@ -656,6 +665,72 @@ that for free.
 *"entity spawning authority"*, and whose §4.3 step reads **"Apply TKB template components"** — passes
 translators on **none** of the three seams. Rails:
 `Hrot.SimHost.Tests/TkbTranslatorSpawnParityRails.cs`.
+
+---
+
+#### 6.6 ⭐⭐⭐ WHAT A TKB FILE CANNOT SAY — **the two COMPONENT lists are not descriptor-shaped** *(added `2026-09-13`)*
+
+> 🔒 **The question that produced this section** *(user, `2026-09-13`)*: *"There are mandatory components
+> and birth critical components lists in tkb template. Are you saying they are not needed in the file
+> because they can be derived using some hardcoded rules? Meaning we do not need to add anything to the
+> file data?"*
+
+📐 **The measured shape of the gap.** `TkbDeserializer.ParseAndRegister` reads `$guid` and then treats
+**every** JSON property as a **descriptor key**, dispatching it to a `TkbDescriptorRegistry` parser thunk —
+and ⛔ **silently skipping anything it does not recognise** *(§4.2)*. Meanwhile `TkbTemplate` carries two
+**component** lists, both `List<int>` of component ids:
+
+| list | what it means | who fills it today |
+|---|---|---|
+| `MandatoryComponents` | *"do not PROMOTE the ghost until these are present"* — the promotion gate | ⛔ **only the programmatic builders** |
+| `BirthCriticalComponents` | *"the CREATOR must OWN these at birth"* — `DESIGN_Role_Affinity_Ownership.md` §3.1 | ⛔ **only the programmatic builders** |
+
+⇒ ⭐⭐ **A file-loaded template gets BOTH lists EMPTY**, because neither is descriptor-shaped and the file
+format has no way to express either one.
+
+##### ⭐ The answer, and the two halves differ — **that is the whole content of this section**
+
+| | ⭐ birth-critical | ⛔ mandatory |
+|---|---|---|
+| **does it vary per template?** | ⛔ **no** — 📐 all 8 production sites declare `SimTransform` and nothing else: `BdcTkbBuilder.cs:44` *(every vehicle)* · `BdcTkbCatalog.cs:247` *(area)* · `:255` *(route)* · `UrbanCombatTkbCatalog` ×5 | ✅ **yes** — 📐 `NedTkbBuilder.DefineVehicle` declares `EntityInfo`+`SimTransform` **hard**; `UrbanCombatTkbCatalog`'s five templates carry the **same descriptors** and declare **none** |
+| **can a rule derive it?** | ✅ **yes — apply it unconditionally** | 🔴 **no.** The two catalogues already DISAGREE for identically-shaped templates ⇒ no predicate over the file's contents can reproduce it |
+| **what if the rule is wrong?** | ⭐ nothing: the create leg intersects with the entity's **live component mask**, so naming a component it never receives contributes no bits | 🔴 **a ghost that NEVER PROMOTES** — a hard requirement that never arrives is `return`, every frame, forever |
+| **so** | ✅ **convention, applied in the app layer** — `TkbComponentConventions.ApplyTo`, called by `TkbLoadClusterStateHandler` | ⛔ **left empty, and FILED as `CE-265`** — it needs a design answer, not a guess |
+
+##### ⛔⛔ WHY BIRTH-CRITICAL IS **NOT** DERIVED FROM A DESCRIPTOR — *(the instinct that was wrong)*
+
+⭐ It looks derivable: `SpatialCoreTkbTranslator.cs:24` stamps `SimTransform` **only** for templates
+carrying `TkbMasterDto`, so *"has `TkbMasterDto`"* seems to be the predicate. 🔴 **It is not**, because
+`SimTransform` reaches an entity by **two** routes:
+
+1. that translator, **and**
+2. `NetworkSpawningSystem`'s `cmd.InitialTransform`, available to **any** template.
+
+📌 Route 2 is how the **area** and **route** templates get a position — they carry **no `TkbMasterDto` at
+all**, and `BdcTkbCatalog.cs:243-246` declares birth-criticality for them anyway, saying so in its own
+comment. ⇒ ⛔ **a `HasDescriptor` predicate would MISS exactly those two**, which is the one direction
+that is unsafe.
+
+##### ⚠ WHEN A FILE FIELD *WOULD* BE THE RIGHT ANSWER, and what it costs
+
+⭐ The moment a template legitimately needs a **different** answer from its neighbours — which is already
+true of `MandatoryComponents`. ⛔ But it is a real schema change, not a field:
+
+| | |
+|---|---|
+| ids come from `[ComponentId]`; `ComponentTypeRegistry` is keyed by **`Type`** | ⇒ a file naming components as STRINGS needs a **name→Type** map built by reflection *(the scan `RecordingExportService.cs:815-850` already does)* |
+| 🔴 the deserializer **silently skips** unknown keys | ⇒ a typo'd component name vanishes **without a word**, and the failure surfaces as an entity that does not move, on the production path only ⇒ **loud load-time validation is part of the change**, not an extra *(cf. `CE-119`)* |
+| ⭐ parser thunks are **app-registerable** | ⇒ a HROT-specific key need **not** enter `Fdp.Toolkits`. ⚠ The real cost is handing content authors a correctness-critical engine invariant |
+
+##### 🔒 THE PRINCIPLE, STATED ONCE
+
+> ⭐⭐⭐ **A TKB file describes an entity's DESCRIPTORS. The component lists are statements about what
+> those descriptors — and the spawn request — will PRODUCE, so they belong to whoever knows the
+> translators: the application.** ⛔ Put a convention in the app layer while the answer is uniform; add a
+> file field the moment it genuinely varies, and pay for the validation when you do.
+
+📄 Applied at `Hrot.Core/Tkb/TkbComponentConventions.cs`, called from
+`TkbLoadClusterStateHandler.PrepareAsync`. Rails: `Hrot.SimHost.Tests/TkbLoadClusterStateHandlerTests.cs`.
 
 ---
 

@@ -36,6 +36,21 @@ namespace Fdp.Interfaces
         ///
         /// <para><c>TkbIdentity</c> is always implicitly a hard requirement and does not
         /// need to be listed here explicitly.</para>
+        ///
+        /// <para>⛔⛔ <b>A TKB FILE CANNOT FILL THIS LIST, AND NOTHING DERIVES IT.</b> 📄 The principle is
+        /// <c>docs/designs/tkb-1/DESIGN.md</c> §6.6: a TKB file describes an entity's <b>descriptors</b>;
+        /// this is a statement about what those descriptors will PRODUCE, so it belongs to whoever knows
+        /// the translators — the application. <c>TkbDeserializer</c> builds a template purely from
+        /// descriptor keys, so a file-loaded template arrives with this list <b>EMPTY</b>.</para>
+        ///
+        /// <para>🔴 <b>And unlike <see cref="BirthCriticalComponents"/>, no convention may fill it in.</b>
+        /// 📐 Measured <c>2026-09-13</c>: the programmatic catalogues already DISAGREE for
+        /// identically-shaped templates — <c>NedTkbBuilder.DefineVehicle</c> declares
+        /// <c>EntityInfo</c>+<c>SimTransform</c> hard, while <c>UrbanCombatTkbCatalog</c>'s five templates
+        /// carry the same descriptors and declare none ⇒ no predicate over the file's contents can
+        /// reproduce it. ⛔ <b>Guessing is the worse failure:</b> this is the PROMOTION GATE, so a hard
+        /// requirement that never arrives means a ghost that <b>never promotes</b>, every frame, forever.
+        /// ⇒ the file path leaves it empty deliberately; the consequences are filed as <c>CE-265</c>.</para>
         /// </summary>
         public List<MandatoryComponent> MandatoryComponents { get; } = new();
 
@@ -44,13 +59,27 @@ namespace Fdp.Interfaces
         /// whatever role that creator holds.</b> 📄 <c>docs/DESIGN_Role_Affinity_Ownership.md</c> §3.1.
         ///
         /// <para>⭐⭐ <b>Why this exists.</b> Role-affinity ownership says <i>"a node owns a component
-        /// only if it holds the role that component belongs to"</i>. ⛔ Applied to spatial state that
-        /// rule is WRONG, and the architect named the failure exactly: a Brain-role node creating a unit
-        /// would produce <c>SimTransform</c> UNOWNED, and since <b>every egress translator gates on
-        /// <c>HasAuthority</c></b>, the creator would write a correct spawn coordinate that is
-        /// <b>never published</b> — every peer's ghost sits at the origin. ⇒ birth-critical components
-        /// are the CREATOR'S BIRTHRIGHT; it keeps them and hands them off later through the existing
-        /// <c>DeferredTakeOwnership</c> → <c>OwnershipUpdate</c> path.</para>
+        /// only if it holds the role that component belongs to"</i>. ⛔ Applied to spatial state that rule
+        /// is WRONG: a Brain-role node creating a unit would produce <c>SimTransform</c> UNOWNED.
+        /// ⇒ birth-critical components are the CREATOR'S BIRTHRIGHT; it keeps them and hands them off
+        /// later through the existing <c>DeferredTakeOwnership</c> → <c>OwnershipUpdate</c> path.</para>
+        ///
+        /// <para>⛔⛔ <b>THE MECHANISM THIS COMMENT USED TO CITE IS RETRACTED</b> <i>(re-measured
+        /// <c>2026-09-13</c>, <c>DESIGN_Role_Affinity_Ownership.md</c> §3.6)</i>. It said <i>"every egress
+        /// translator gates on <c>HasAuthority</c>, so the coordinate is written and never published —
+        /// every peer's ghost sits at the origin."</i> 🔴 <b>No egress translator reads the per-component
+        /// <c>AuthorityMask</c> at all</b> — they call the <c>ISimulationView</c> extension, which consults
+        /// <c>DescriptorOwnership</c>/<c>NetworkAuthority</c>. ⇒ declining a mask bit does not stop
+        /// publication. ⭐ <b>What actually breaks is quieter:</b> <c>CarKinematicsSystem.cs:73</c> filters
+        /// <c>.WithOwned&lt;SimTransform&gt;()</c> so <b>the entity never moves on the node that created
+        /// it</b>, and <c>GeoSpatialIngressTranslator.cs:90</c> then treats it as remote and overwrites its
+        /// position from the wire. ⚠ <b>The conclusion is unchanged; only the reason was wrong.</b></para>
+        ///
+        /// <para>⛔ <b>And no role may own one on the PROMOTE leg either</b> — the same
+        /// <c>GeoSpatialIngressTranslator</c> check, mirrored: a promoting node that claimed
+        /// <c>SimTransform</c> by role would declare itself owner of a position it does not simulate and
+        /// stop accepting the real owner's updates ⇒ every ghost on it freezes. That is why the role
+        /// tables exclude these ids entirely (<c>HrotRoleComponentSets</c>).</para>
         ///
         /// <para>⭐ <b>The test is "can this component start empty?"</b> An idle blackboard on tick 0 is
         /// correct, so cognitive state is role-affine. <c>(0,0,0)</c> is an origin flash, a wrong
@@ -74,10 +103,23 @@ namespace Fdp.Interfaces
         /// birth-critical-but-not-promotion-gating component to change promotion semantics in order to
         /// carry the flag.</para>
         ///
-        /// <para>⚠ <b>Nothing READS this yet.</b> The consumers are steps 1–3 of that design
-        /// (<c>IRoleAffinityPolicy</c>, then <c>NetworkSpawningSystem</c> and
-        /// <c>GhostPromotionSystem</c>). Until they land this list is declarative only and ownership
-        /// behaviour is unchanged.</para>
+        /// <para>✅ <b>THIS IS NOW LIVE</b> <i>(updated <c>2026-09-13</c>; an earlier version said "nothing
+        /// READS this yet")</i>. <c>NetworkSpawningSystem.cs:237</c> ORs this set in for the creator and
+        /// intersects with the live mask, and since P3 step 4 both CGF and SimHost hold real role
+        /// policies ⇒ <b>a missing entry now changes behaviour on a live cluster.</b></para>
+        ///
+        /// <para>⛔⛔ <b>A TKB FILE CANNOT FILL THIS LIST.</b> 📄 <c>docs/designs/tkb-1/DESIGN.md</c> §6.6:
+        /// a TKB file describes an entity's <b>descriptors</b>, and this is a statement about what those
+        /// descriptors — and the spawn request — will PRODUCE. ⇒ a file-loaded template arrives EMPTY, and
+        /// the app layer applies the convention (<c>Hrot.Core/Tkb/TkbComponentConventions.cs</c>, called by
+        /// <c>TkbLoadClusterStateHandler</c>) — <c>CE-259az</c>.</para>
+        ///
+        /// <para>⚠ <b>The convention is UNCONDITIONAL, and deliberately not keyed on a descriptor.</b>
+        /// <c>SimTransform</c> reaches an entity two ways: <c>SpatialCoreTkbTranslator.cs:24</c> (needs
+        /// <c>TkbMasterDto</c>) <b>and</b> <c>NetworkSpawningSystem</c>'s <c>cmd.InitialTransform</c> (any
+        /// template). 📌 The area and route templates carry <b>no</b> <c>TkbMasterDto</c> and still need the
+        /// birthright ⇒ a <c>HasDescriptor</c> predicate would MISS them, which is the unsafe direction.
+        /// ⭐ Over-declaring is free (the intersection above); under-declaring is silent.</para>
         /// </summary>
         public List<int> BirthCriticalComponents { get; } = new();
 

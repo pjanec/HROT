@@ -151,6 +151,10 @@ related-designs:
     the question a reader of THAT file asks — "any node can create an entity, so who owns its EntityInfo?"
     — from this design's tables: the creator, because the role masks are COMPLEMENTS. ⛔ Keep the two in
     step: if the tables ever become positive enumerations, §4.1's answer changes.
+  - designs/tkb-1/DESIGN.md — owns WHERE BirthCriticalComponents comes from. Its §6.6 (2026-09-13) states
+    why a TKB FILE cannot declare it (the file is descriptor-shaped; the component lists are statements
+    about what descriptors PRODUCE) and how the app layer supplies it. This design owns what the list
+    MEANS; that one owns how a file-loaded template gets one.
   - PROGRAMME_Explicit_Component_Ids.md — owns whether every component actually carries an explicit
     [ComponentId]. §3.9b's mask-driven registration is only COMPLETE if it does, so that programme is a
     prerequisite for this one's registration half.
