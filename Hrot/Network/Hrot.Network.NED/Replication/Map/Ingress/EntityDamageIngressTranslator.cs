@@ -68,6 +68,17 @@ namespace Hrot.Map.Common.Replication.Ingress
                 entity = _ghostCreationSystem.CreateGhost(repo, netId);
             }
 
+            // Guard: do NOT overwrite Health on an entity this node OWNS — matches
+            // GeoSpatialIngressTranslator's loopback guard. In a combined Brain+Muscle process
+            // (or AllInOne) DDS delivers this node's own EntityDamage samples back to it; without
+            // the guard the authority's freshly-applied Health (e.g. 0 after a kill) would be
+            // overwritten by an older replicated sample. A non-owning node (a ghost, e.g. the Muscle
+            // for a Brain-owned target) has no Health authority, so it DOES apply the sample —
+            // which is the whole point of CE-272: the Muscle's EQS reads Health<=0 and stops
+            // re-engaging a dead target.
+            if (view is EntityRepository ownerCheck && ownerCheck.HasAuthority<Health>(entity))
+                return;
+
             cmd.SetComponent(entity, new Health { Current = data.Current, Max = data.Max });
         }
 
@@ -76,6 +87,10 @@ namespace Hrot.Map.Common.Replication.Ingress
         public override void ApplyToEntity(Entity entity, object data, EntityRepository repo)
         {
             if (data is not EntityDamage health)
+                return;
+
+            // Same owner guard as Decode — never clobber Health this node has authority over.
+            if (repo.HasAuthority<Health>(entity))
                 return;
 
             repo.SetComponent(entity, new Health { Current = health.Current, Max = health.Max });
