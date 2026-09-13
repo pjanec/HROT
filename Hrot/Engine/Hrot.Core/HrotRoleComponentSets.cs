@@ -1,0 +1,192 @@
+using System.Collections.Generic;
+using Fdp.Core;
+using Fdp.Toolkit.Behavior.Components;
+using Fdp.Toolkit.Behavior.Diagnostics;
+using Fdp.Toolkit.Navigation;
+using Fdp.Toolkit.Replication.Abstractions;
+using Fdp.Toolkit.Replication.Services;
+
+namespace Hrot.Map.Common;
+
+/// <summary>
+/// ⭐⭐⭐ <b><c>P3</c> step <c>4</c> — THE CLUSTER'S role→component tables, authored ONCE.</b>
+///
+/// <para>📄 <c>docs/DESIGN_Role_Affinity_Ownership.md</c> §3.9 (the two-set model), §3.9a (the measured
+/// per-component classification), §6 step <c>4</c>, §6i (the as-built).</para>
+///
+/// <para>⛔⛔ <b>THE ENGINE NEVER LEARNS WHAT A ROLE MEANS.</b> 🔒 User, <c>2026-09-12</c>: <i>"the bitmask
+/// for components is correct approach, fdp should not understand what a brain and muscle really
+/// mean."</i> ⇒ <c>Fdp.Toolkits</c> holds the MECHANISM (<see cref="RoleAffinityPolicy"/>); THIS file —
+/// in the application layer — holds the MEANING. Nothing below <c>Hrot</c> knows that
+/// <c>BehaviorState</c> is a brain component.</para>
+///
+/// <para>⭐⭐⭐ <b>ONE table, handed to every host.</b> The safety property of the whole design is that two
+/// nodes evaluating the same function over the same entity cannot disagree — ⛔ which is false the moment
+/// two hosts author their own tables. <see cref="CreatePolicy"/> exists so a host supplies only its
+/// DECLARED ROLE and can never supply a different table.</para>
+/// </summary>
+public static class HrotRoleComponentSets
+{
+    /// <summary>
+    /// ⛔⛔ <b>The components a node WITHOUT the Brain role must not own</b> — §3.9a's classification,
+    /// measured <c>2026-09-12</c>.
+    ///
+    /// <para>⚠ <b>Two different relationships live in here, deliberately.</b> Most rows are ABSENT on a
+    /// Muscle node (no system touches them, zero wire references); <c>NavigationIntent</c> and
+    /// <c>MissionPlanQueue</c> are READ (Brain-owned, replicated IN, consumed by Muscle systems). ⭐ Both
+    /// are excluded from the Muscle OWNED set for the same reason — the Brain owns them — and the READ pair
+    /// is added back to <see cref="Read"/>, which drives REGISTRATION and never authority (§3.9).</para>
+    ///
+    /// <para>⛔ <b>Nothing UNCLASSIFIED is in here.</b> §3.9a classified ~20 components; the codebase has
+    /// hundreds. A component nobody has classified stays owned by whoever creates it, exactly as today —
+    /// see <see cref="Owned"/> for why that is expressed as a COMPLEMENT rather than an enumeration.</para>
+    /// </summary>
+    public static BitMask512 BrainOnlyComponents { get; }
+
+    /// <summary>
+    /// ⭐⭐⭐ <b>Excluded from EVERY role's owned set</b> — the creator keeps these by BIRTHRIGHT and hands
+    /// them off through the existing <c>DeferredTakeOwnership</c> path (§3.1).
+    ///
+    /// <para>🔴🔴 <b>This exclusion is load-bearing, and the failure it prevents is measured.</b>
+    /// <c>GeoSpatialIngressTranslator.cs:90</c> asks <c>repo.HasAuthority&lt;SimTransform&gt;(entity)</c>
+    /// and SKIPS applying the incoming position when the answer is true. ⇒ if a PROMOTING node claimed
+    /// <c>SimTransform</c> by role, it would declare itself the owner of a position it does not simulate
+    /// and stop accepting the owner's updates — <b>every ghost on that node would freeze</b>. ⛔ The
+    /// handover is explicit, not role-derived, and that is the whole point of the birthright category.</para>
+    ///
+    /// <para>⚠ It mirrors what step <c>0</c> seeds into <c>TkbTemplate.BirthCriticalComponents</c>. The two
+    /// are asserted to agree by a rail rather than shared, because the template's list is per-TEMPLATE and
+    /// this one is per-CLUSTER.</para>
+    /// </summary>
+    public static BitMask512 BirthCriticalComponents { get; }
+
+    /// <summary>
+    /// 🔴 <b>The Muscle role's <c>readComponentSet</c></b> — owned by the Brain, replicated IN, consumed
+    /// here. 🔒 User, <c>2026-09-12</c>: <i>"intents are brain owned components that must be replicated to
+    /// muscle so musle can read and act on them. so muscle cant simply stop registwring them because they
+    /// are brain ones."</i>
+    ///
+    /// <para>📐 Measured: <c>NavigationIntent</c> has 16 wire references and
+    /// <c>NavigationIntentBridgeSystem</c> consumes it in <c>SimHostCoreLogicPack</c>;
+    /// <c>MissionPlanQueue</c> has 9 and <c>MissionPlanTranslator</c> genuinely persists it.</para>
+    /// </summary>
+    public static BitMask512 MuscleReadComponents { get; }
+
+    /// <summary>
+    /// ⭐⭐⭐ <b>The <c>ownedComponentSet</c> per role — expressed as a COMPLEMENT, and that is a decision,
+    /// not a shortcut.</b>
+    ///
+    /// <para>⛔⛔ <b>An ENUMERATED muscle set would silently un-own everything nobody has classified yet.</b>
+    /// <c>NetworkSpawningSystem.cs:237</c> does <c>AuthorityMask &amp;= OwnableMask(...)</c> — it REPLACES
+    /// the blanket "I own everything I materialised" grant. ⇒ a positive list containing the twenty
+    /// components §3.9a names would leave a SimHost-created tank owning twenty components and nothing else:
+    /// no <c>EntityInfo</c>, no health, no map display. 🔴 That is <c>CE-256</c> — <i>"owns nothing, so
+    /// nothing it is responsible for ever moves"</i> — reproduced by this design's own step 4.</para>
+    ///
+    /// <para>⭐ The complement makes the change's blast radius EXACTLY the ruling and nothing else: a Muscle
+    /// node's authority differs from today's by precisely <see cref="BrainOnlyComponents"/>. ⚠ The positive
+    /// enumeration is the upgrade path once the classification is complete — it is strictly more precise
+    /// and strictly more dangerous, and it must not be taken before every component has a row.</para>
+    ///
+    /// <para>⭐⭐ <b>Brain and Muscle are still DISJOINT over the classified set</b>, which is the property
+    /// step 1's rail asserts: the Muscle mask is the Brain mask minus <see cref="BrainOnlyComponents"/>, so
+    /// no Muscle node can ever claim a component the Brain node claims. ⛔ They deliberately OVERLAP over
+    /// the unclassified remainder, because that remainder is what both hosts legitimately own for the
+    /// entities they each create.</para>
+    ///
+    /// <para>⚠ <b><c>Perception</c> and <c>NavigationSolver</c> have NO entry, deliberately.</b> A declared
+    /// role absent from the table contributes nothing (<see cref="RoleAffinityPolicy"/> documents this), and
+    /// every host that declares them also declares <c>MuscleGround</c>, whose complement already covers the
+    /// EQS and navigation components. ⛔ Giving them positive sets would be the enumeration trap above, one
+    /// role at a time.</para>
+    /// </summary>
+    public static IReadOnlyDictionary<NodeRole, BitMask512> Owned { get; }
+
+    /// <summary>
+    /// 🔴 <b>The <c>readComponentSet</c> per role.</b> Contributes to
+    /// <see cref="IRoleAffinityPolicy.RegisterComponentSet"/> and to nothing else — ⛔ it can never grant
+    /// authority (§3.9).
+    /// </summary>
+    public static IReadOnlyDictionary<NodeRole, BitMask512> Read { get; }
+
+    static HrotRoleComponentSets()
+    {
+        // ⭐ Ids come from [ComponentId] attributes, so touching ComponentType<T>.ID here is
+        //   order-independent and cannot drift between nodes. ⛔ Auto-assignment no longer exists —
+        //   ComponentType.cs:138-147 THROWS for a type with no [ComponentId] — which is what makes a
+        //   composition-time mask of component ids safe to build before any world is registered.
+        var brainOnly = default(BitMask512);
+
+        // ── ABSENT on a Muscle node: no SimHost system touches them, zero wire references ──────────
+        brainOnly.SetBit(ComponentType<BehaviorState>.ID);
+        brainOnly.SetBit(ComponentType<BrainBlackboard>.ID);
+        brainOnly.SetBit(ComponentType<Blackboard1024>.ID);
+        brainOnly.SetBit(ComponentType<BrainBTreeState>.ID);
+        brainOnly.SetBit(ComponentType<BrainHsm128>.ID);
+        brainOnly.SetBit(ComponentType<BrainHsm64>.ID);
+        // ⭐ The three channels: their only consumers are ActionDispatchModule and
+        //   ChannelArbitrationSystem, both registered by CgfLogicPack alone (§3.9a).
+        brainOnly.SetBit(ComponentType<LocomotionChannel>.ID);
+        brainOnly.SetBit(ComponentType<WeaponChannel>.ID);
+        brainOnly.SetBit(ComponentType<InteractionChannel>.ID);
+        // ⭐ Read only by CognitiveInterruptSystem (Brain) and the Stride animation reactor.
+        brainOnly.SetBit(ComponentType<PreviousCapabilities>.ID);
+        // ⭐ Written only by TraceBufferLifecycleSystem, which runs in the Brain's pack. SimHost's
+        //   readers are extract-only diagnostic translators, and they read the COMPONENT, not its
+        //   authority bit.
+        brainOnly.SetBit(ComponentType<BTreeTraceWorkingMemory1024>.ID);
+        brainOnly.SetBit(ComponentType<HsmTraceWorkingMemory1024>.ID);
+
+        // ── READ on a Muscle node: Brain-OWNED, replicated IN, consumed here (§3.9) ────────────────
+        var muscleRead = default(BitMask512);
+        muscleRead.SetBit(ComponentType<NavigationIntent>.ID);
+        muscleRead.SetBit(ComponentType<MissionPlanQueue>.ID);
+        // ⛔ They are Brain-owned, so they are excluded from the Muscle OWNED set too — the READ table
+        //   is what puts them back into REGISTER without ever granting authority.
+        brainOnly.BitwiseOr(in muscleRead);
+
+        var birthCritical = default(BitMask512);
+        birthCritical.SetBit(ComponentType<SimTransform>.ID);
+
+        var all = default(BitMask512);
+        all.SetAll();
+
+        var brainOwned = all;
+        brainOwned.BitwiseAndNot(in birthCritical);
+
+        var muscleOwned = brainOwned;
+        muscleOwned.BitwiseAndNot(in brainOnly);
+
+        BrainOnlyComponents     = brainOnly;
+        BirthCriticalComponents = birthCritical;
+        MuscleReadComponents    = muscleRead;
+
+        Owned = new Dictionary<NodeRole, BitMask512>
+        {
+            [NodeRole.Brain]        = brainOwned,
+            [NodeRole.MuscleGround] = muscleOwned,
+        };
+
+        Read = new Dictionary<NodeRole, BitMask512>
+        {
+            [NodeRole.MuscleGround] = muscleRead,
+        };
+    }
+
+    /// <summary>
+    /// ⭐⭐⭐ <b>The ONE way a host gets a policy.</b> A host supplies its declared role and nothing else, so
+    /// two hosts cannot be handed two different tables — the safety property of the design stated as an
+    /// API. 📄 §6 step <c>4</c>.
+    /// </summary>
+    /// <param name="declaredRoles">
+    /// The host's own constant — <c>CgfSubsystem.DefaultRole</c>, <c>SimHostApp.DefaultRole</c>, … .
+    /// ⭐ Roles with no entry in <see cref="Owned"/> contribute nothing, so passing the host's full
+    /// declaration is always correct.
+    /// </param>
+    public static IRoleAffinityPolicy CreatePolicy(NodeRole declaredRoles)
+        => new RoleAffinityPolicy(
+            declaredRoles,
+            Owned,
+            new SingleNodePerRoleShardProvider(declaredRoles),
+            Read);
+}

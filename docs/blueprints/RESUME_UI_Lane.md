@@ -1,11 +1,49 @@
 <!--STATUS
 state: LIVE
-updated: 2026-09-12
+updated: 2026-09-13
 current-answer: ⚠⚠ THREE LIVE STRANDS. Read the one you are continuing. ⭐ STRAND 0 is the live work as of
-  2026-09-12 and its head is branch claude/reset-working-branch-qd1qpv @ 0cda0caf9.
+  2026-09-13.
   ══ STRAND 0 — ROLE-AFFINITY OWNERSHIP (P3). This whole block is the live work. ══
-  BRANCH claude/reset-working-branch-qd1qpv @ 0cda0caf9 + the commit carrying this doc.
+  BRANCH claude/reset-working-branch-qd1qpv, head = the commit carrying this doc.
   Tree clean. Gates: design-digest --check clean · rulings 34/34 · tracker-counts OK.
+
+  ✅✅✅ 2026-09-13 — **P3 STEP 4 SHIPPED (CE-264). THE DESIGN IS NOW LIVE, NOT A MECHANISM.**
+  Everything before it built machinery that every node ran with a NULL policy — measurably a no-op.
+  · NEW Hrot.Core/HrotRoleComponentSets.cs — the cluster's role→component tables, authored ONCE.
+    CreatePolicy(NodeRole) takes a role AND NOTHING ELSE, so two hosts cannot hold two tables.
+  · CgfSubsystem gets a Brain policy AND gateOnAuthority: true, two statements apart (§6f's hazard,
+    closed by construction rather than by remembering). SimHostNodeBootstrapper gets a Muscle policy
+    keyed on SimHostApp.DefaultRole — the SAME constant that resolves its capability set (CE-197).
+  · 10 rails (Hrot.Core.Tests/HrotRoleComponentSetsTests.cs — the acceptance test §6 asks for, over the
+    REAL tables), 4 inverse-edit red-proofs, all reverted.
+  ⭐⭐ TWO DEVIATIONS WORTH READING BEFORE TOUCHING THIS (both in design §6i):
+    (a) THE TABLES ARE COMPLEMENTS, NOT ENUMERATIONS. NetworkSpawningSystem.cs:237 REPLACES the blanket
+        grant, so an enumerated muscle set would leave a SimHost-created tank owning the twenty
+        components §3.9a names and NOTHING ELSE — CE-256 reproduced by its own fix. The positive
+        enumeration is the upgrade path; EveryUnclassifiedComponentStaysOwnedByBothRoles is the rail it
+        has to argue with.
+    (b) NO ROLE MAY OWN A BIRTH-CRITICAL COMPONENT, on either leg. A promoting node that claimed
+        SimTransform by role would tell GeoSpatialIngressTranslator.cs:90 it owns a position it does not
+        simulate, and every ghost on it would FREEZE.
+  🔴🔴 AND A DESIGN PREMISE WAS RETRACTED — read design §3.6 before reasoning about authority again.
+    §3.6 said the per-component AuthorityMask is read by "all egress translators". IT IS READ BY NONE OF
+    THEM: every production egress calls the EXTENSION ISimulationView.HasAuthority(entity, packedKey)
+    (AuthorityExtensions.cs:16-56), which reads DescriptorOwnership/NetworkAuthority. The overload
+    resolution hides it — packedKey is a long, so the extension wins over the mask method.
+    ⇒ the mask's ENTIRE production readership is SimTransform, BehaviorState, BrainBlackboard, and a
+    Position query that matches ZERO HROT entities. NARROWING THE MASK CHANGES WHAT A NODE EXECUTES,
+    NEVER WHAT IT PUBLISHES. That makes step 4 much smaller and safer than §3.1's prose implied — and it
+    also means P3 was never going to fix replication by itself.
+  ⛔ DELIBERATELY NOT GIVEN POLICIES: IG · Stride · the Editor · the test harnesses. ⚠ SimHostInstance is
+    an ALL-IN-ONE harness running both packs in one world, so a Muscle-only policy would be wrong there
+    by construction — that is a reason, not an oversight.
+  ⚠ PRE-EXISTING REDS AT BASE b8e2a99b1, all verified by stash-and-rerun, none mine: EcsPatchContextTests
+    (2) · MapPresentationParityRails[EditorStrideSubsystem.cs] (1) · FullBranchPipelineTests (1) ·
+    OrchestratorSubsystemTests (3).
+  ⭐ NEXT: step 3c (the boot warning) → CE-259bk (role-derived registration) → CE-259bl → CE-259bm.
+    ⚠ CE-259bm's PREMISE IS NOW STALE: FdpConfig.EnforceExplicitComponentIds is read by NOTHING —
+    ComponentType.cs:138-147 THROWS unconditionally for a type with no [ComponentId], so explicit ids
+    are ALREADY mandatory everywhere. Re-scope that programme before running it.
 
   ⭐⭐⭐ READ FIRST: docs/DESIGN_Role_Affinity_Ownership.md — §3.9 (the two-set model), §3.9a (the
   per-component classification), §3.9b (registration is role-derived), §6h (the as-built for everything

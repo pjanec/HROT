@@ -1,7 +1,7 @@
 <!--STATUS
 state: LIVE
-updated: 2026-09-12
-build-state: BUILDING — steps 0a, 0, 1a, 1, 2, 3, 3b(b), §3.9's two-set model AND 3b(a) THE REGISTRATION NARROWING (§6h: SimHost no longer registers the brain tier) done. ⛔ NOT BUILT: step 4 supplies no policy yet, so every node still runs null; 3b(a) NOT done. ⛔⛔ §3.9 IS LOAD-BEARING AND IS NOW MODELLED IN CODE: REGISTER = ownedComponentSet ∪ readComponentSet, AUTHORITY = ownedComponentSet — read it before touching registration, and note NO HOST FILLS THE READ TABLE YET (step 4). ✅ §3.9a IS NEW (2026-09-12): the per-component classification for SimHost is MEASURED and CONFIRMS the set of six, adding four more (the three channels + PreviousCapabilities) for TEN droppable. ⚠ It carries a RETRACTION — an intermediate version claimed scenario persistence required three of them; that was false (DataPolicy.NoSave governs scenario exclusion, and three of the translators are extract-only clipboard dumps). ⛔ 3b(a) is NOT blocked on persistence; what remains is that CognitiveComponentRegistry is SHARED with CGF, so the narrowing must move to MuscleRoleComponentRegistry. ⛔ NOT "BUILT": open-risk below still binds (§3.5 / step 3b).
+updated: 2026-09-13
+build-state: BUILT (for the two-node Brain/Muscle case) — steps 0a, 0, 1a, 1, 2, 3, 3b(b), §3.9's two-set model, 3b(a) THE REGISTRATION NARROWING (§6h) AND ⭐⭐⭐ STEP 4 (§6i: CGF holds a Brain policy, SimHost a Muscle policy, and gateOnAuthority is ON) are done. ⛔ STILL OPEN: step 3c (the boot warning); IG / Stride / the Editor / the test harnesses still run a null policy DELIBERATELY (§6i says why); the role tables are COMPLEMENTS, and the positive enumeration is future work that §6i's rail guards. ⛔⛔ AND READ §3.6 BEFORE REASONING ABOUT WHAT AUTHORITY DOES: re-measured 2026-09-13, the per-component AuthorityMask is read by NO egress translator — only by SimTransform/BehaviorState/BrainBlackboard checks and WithOwned<T> queries. An earlier version of §3.1 and §3.6 said "every egress translator gates on HasAuthority"; that was FALSE and both now carry the correction. ⛔⛔ §3.9 IS LOAD-BEARING AND IS NOW MODELLED IN CODE: REGISTER = ownedComponentSet ∪ readComponentSet, AUTHORITY = ownedComponentSet — read it before touching registration, and note NO HOST FILLS THE READ TABLE YET (step 4). ✅ §3.9a IS NEW (2026-09-12): the per-component classification for SimHost is MEASURED and CONFIRMS the set of six, adding four more (the three channels + PreviousCapabilities) for TEN droppable. ⚠ It carries a RETRACTION — an intermediate version claimed scenario persistence required three of them; that was false (DataPolicy.NoSave governs scenario exclusion, and three of the translators are extract-only clipboard dumps). ⛔ 3b(a) is NOT blocked on persistence; what remains is that CognitiveComponentRegistry is SHARED with CGF, so the narrowing must move to MuscleRoleComponentRegistry. ⛔ NOT "BUILT": open-risk below still binds (§3.5 / step 3b).
 verified: ⭐⭐ THE WHOLE DESIGN WAS RE-MEASURED AGAINST THE TREE ON 2026-09-12 before step 0 was built
   (user: "verify design before, might be stale"). VERDICT: every DECISION holds and nothing load-bearing
   is stale — the six unbuilt types are still at ZERO .cs occurrences, the blanket grant is byte-identical,
@@ -24,7 +24,12 @@ verified: ⭐⭐ THE WHOLE DESIGN WAS RE-MEASURED AGAINST THE TREE ON 2026-09-12
   ⛔ AND A STRUCTURAL GAP, now fixed: this design carried a classDiagram and two sequenceDiagrams but NO
   module-relationship diagram, despite §3.5 being made entirely of "which systems tick, on which host,
   registered by whom". §4.1b is that diagram.
-current-answer: §3 is the design; §4 carries the UML; §6 is the sequencing; ⭐⭐ §6a IS THE AS-BUILT and
+current-answer: ⭐⭐⭐ START AT §6i — it is the NEWEST as-built (step 4, 2026-09-13) and it is the one that
+  made the design live; it also carries the two deviations that matter (the tables are COMPLEMENTS, and no
+  role may own a birth-critical component) and an honest statement of how big the change actually is.
+  ⛔ Read §3.6 with it: the mask's real readership was re-measured that day and it is four component types,
+  none of them an egress gate.
+  Then: §3 is the design; §4 carries the UML; §6 is the sequencing; ⭐⭐ §6a IS THE AS-BUILT and
   wins over §3.7 where they differ (§3.7 is unchanged and still right; §6a ADDS the two attributes the
   build needed).
   ✅✅✅ STEP 0a IS DONE, 2026-09-11 — the GhostPromotionSystem relocation into EntityCreationPack.
@@ -328,13 +333,26 @@ network layer."* ⇒ ⭐ the same structure, the same authoring style, the same 
 | ⭐ **the initial content is ONE entry: `SimTransform`** | 🔒 the user's answer. ⛔ Everything else is role-affine until a measurement says otherwise |
 | ⚠ **why a SECOND list rather than a flag on `MandatoryComponent`** | ⛔ they answer different questions — *"must be PRESENT before promotion"* vs *"the creator must OWN it at birth"*. Overloading the first would force a birth-critical-but-not-promotion-gating component to change promotion semantics to carry the flag. ⭐ Two lists for two concepts is not the duplicate-implementation trap; conflating them is §3.6's mistake in miniature |
 
-📐 **Why the birthright is about REPLICATION, not the write itself** *(measured, and it sharpens the
-architect's reasoning)*: `EntityRepository.SetComponent` is **not** authority-gated, so a creator can
-always write the spawn coordinate locally. ⛔ But **every egress translator gates on `HasAuthority`** —
-`EntityMasterEgressTranslator:73`, `EntityInfoEgressTranslator`, `MapVisualOverlayEgressTranslator:77`,
-and the rest. ⇒ ⭐⭐ **a creator that declines `dtWorldPos` would write a correct position that is NEVER
-PUBLISHED**, and every peer's ghost would sit at the origin. That is the real mechanism behind the
-origin flash.
+#### 📐 WHY THE BIRTHRIGHT IS LOAD-BEARING — ⛔⛔ **the CONCLUSION stands; the MECHANISM stated here was WRONG** *(re-measured `2026-09-13`)*
+
+> ⛔ **SUPERSEDED text, kept because it was quoted into three other sections:** *"every egress translator
+> gates on `HasAuthority` — `EntityMasterEgressTranslator:73`, `EntityInfoEgressTranslator`,
+> `MapVisualOverlayEgressTranslator:77`, and the rest ⇒ a creator that declines `dtWorldPos` would write a
+> correct position that is NEVER PUBLISHED."*
+> 🔴 **False.** Those three call the **extension** `ISimulationView.HasAuthority(entity, packedKey)`, which
+> reads `DescriptorOwnership`/`NetworkAuthority` and **never touches `AuthorityMask`** — §3.6 carries the
+> full measurement. ⇒ **declining a mask bit does not stop publication of anything.**
+
+⭐⭐ **The birthright is still required, for TWO different and measured reasons** — both from the mask's
+real readership *(§3.6)*, and both of them worse than an origin flash because they are silent:
+
+| if a node lacked authority over `SimTransform` | what breaks |
+|---|---|
+| `CarKinematicsSystem.cs:73` filters `.WithOwned<SimTransform>()` | ⛔ **the entity never moves on that node** — `CE-256` in miniature |
+| 🔴 `GeoSpatialIngressTranslator.cs:90` applies the incoming position **only when `HasAuthority<SimTransform>` is false** | ⛔⛔ and the mirror image is the dangerous one: **a node that CLAIMS `SimTransform` by role stops accepting the real owner's updates** ⇒ every ghost on it freezes. ⇒ ⭐⭐⭐ **birth-critical components must be in NO role's owned set at all**, not merely added back for the creator |
+
+⭐ `EntityRepository.SetComponent` is **not** authority-gated either way, so a creator can always write the
+spawn coordinate locally; the failure was never the write.
 
 ⭐⭐ **Within each category conflict is still impossible by construction** — for cognitive descriptors the
 creator declines exactly what the role-holder claims; for kinematic descriptors exactly one node owns at
@@ -851,10 +869,37 @@ never registers is skipped by the translator, so the query never matches and not
 
 ### 3.6 ⚠ TWO different "authority" concepts — do not confuse them
 
-| concept | where | who reads it |
+> ⛔⛔⛔ **RE-MEASURED `2026-09-13`, AND THE ROW BELOW WAS WRONG IN THE ONE WAY THAT MATTERS.** An earlier
+> version of this table said the per-component `AuthorityMask` is read by *"all egress translators"*.
+> 🔴 **It is read by NONE of them.** 📐 Every production egress translator calls the **extension**
+> `ISimulationView.HasAuthority(entity, packedKey)` *(`AuthorityExtensions.cs:16-56`)*, which consults
+> **`DescriptorOwnership`** and then falls back to **`NetworkAuthority.PrimaryOwnerId == LocalNodeId`** —
+> ⛔ **it never touches `AuthorityMask`.** ⚠ The overload resolution hides this: `repo.HasAuthority(entity,
+> packedKey)` looks like the mask method `EntityRepository.HasAuthority(Entity, int)`, but `packedKey` is a
+> `long`, so the extension wins.
+
+| concept | where | ⭐ who ACTUALLY reads it — measured `2026-09-13` |
 |---|---|---|
-| ⭐ **per-component `AuthorityMask`** — `EntityRepository.HasAuthority(entity, componentId)` | `EntityMetadataCold.AuthorityMask` | all egress translators · `EcsPatchContext` · `TacticalIntentResolutionSystem` · **this design** |
-| ⚠ **entity-level `NetworkAuthority`** — a component whose `HasAuthority => PrimaryOwnerId == LocalNodeId` | `Replication/Components/NetworkAuthority.cs:26` | `DamageSystem:51` · `HealthApplicationSystem:64` · `FireProcessingSystem:71` · `CycloneNetworkCleanupSystem:53` |
+| ⭐ **per-component `AuthorityMask`** — `EntityRepository.HasAuthority(entity, componentId)` / `HasAuthority<T>()` / `QueryBuilder.WithOwned<T>()` | `EntityMetadataCold.AuthorityMask` | ⭐⭐ **exactly four component types, listed below** · `EcsPatchContext` · **this design** |
+| ⚠ **entity-level `NetworkAuthority` + `DescriptorOwnership`** — `ISimulationView.HasAuthority(entity, packedKey)` | `AuthorityExtensions.cs:16` · `NetworkAuthority.cs:26` | 🔴 **every egress translator** *(15 call sites across NED, BDC and `Hrot.Animation.Replication`)* · `DamageSystem:51` · `HealthApplicationSystem:64` · `FireProcessingSystem:71` · `CycloneNetworkCleanupSystem:53` |
+
+#### 📐 THE MASK'S ENTIRE PRODUCTION READERSHIP — **four component types, and one of them matches nothing**
+
+| component | reader | host |
+|---|---|---|
+| ⭐ `SimTransform` | `CarKinematicsSystem.cs:73` · four Stride physics systems · **`GeoSpatialIngressTranslator.cs:90`** | SimHost · Stride · any NED node |
+| ⭐ `BehaviorState` | `TacticalIntentEgressTranslator.cs:72` · `TacticalIntentResolutionSystem.cs:95` · 4 of the 6 gated cognitive systems | SimHost · CGF |
+| ⭐ `BrainBlackboard` | `CognitiveInterruptSystem` · `CognitiveCleanupSystem` *(gated)* | CGF |
+| ⛔ `Position` *(geographic)* | `CoordinateTransformSystem.cs:29` | ⚠ **matches ZERO HROT entities** — `PositionGeodetic` has **0** production references in `Hrot/`+`Stride/`, and the query requires it |
+
+⇒ ⭐⭐⭐ **THE CONSEQUENCE FOR THIS DESIGN, STATED PLAINLY: narrowing the `AuthorityMask` does NOT change
+what any node PUBLISHES.** ⛔ It changes what a node **EXECUTES** *(`WithOwned<T>` — step `3b`)* and the
+three specific checks above. ⚠⚠ **This makes step 4 far smaller and safer than §3.1's prose implies — and
+it also means the design was never going to fix replication by itself.** ⭐ The handover that DOES move
+publication is `DeferredTakeOwnership` → `OwnershipUpdate`, which writes **both** faces
+*(`OwnershipIngressSystem.cs:79` and `DeferredTakeoverSystem.cs:97,118` set `DescriptorOwnership` **and**
+call `SetAuthority`)* — ⛔ the blanket grant at spawn writes only the MASK, which is why the two faces
+disagree at birth and agree after a handover.
 
 ⛔ **Role affinity operates on the MASK.** Declining mask bits does **not** change `NetworkAuthority`, so
 combat systems are unaffected — ⭐ which is correct here, but it must not be assumed the other way round.
@@ -1109,7 +1154,84 @@ sequenceDiagram
 | **3** | ✅✅✅ **DONE `2026-09-12` — see §6e AS-BUILT.** ~~`GhostPromotionSystem` claims after the translator loop~~ ⚠ the insertion point is **`:208`/`:211-214`**, not the `:122`/`:129` §3.2 named | ✅ met, plus three the row did not ask for: no-policy passthrough, **no birthright for a promoter**, and an explicit grant surviving |
 | **3b** | ✅✅ **THE QUERY-FILTER HALF DONE `2026-09-12` — see §6f AS-BUILT.** ⛔ The REGISTRATION-narrowing half (a) is NOT done and is now a QUESTION, not a task — §6f says why it would remove a capability |  rail: a node holding brain components it does **not** own ticks them **zero** times. ⛔ **Without this the whole design is cosmetic** — authority would gate replication while both nodes still ran the tree |
 | ⭐ **3c** | 🆕 **the BOOT WARNING** *(§5 ② — user-approved `2026-09-10`)*: at the composition root, warn once if `IClusterStateCache.GetLeastLoadedNode(NodeRole.Brain)` is `null`. ⛔ **WARN, never throw** *(a pure-Muscle test cluster is legitimate)*, and ⛔ **at the root, not in the policy** — it is NED-only and the policy stays network-agnostic *(§2.3)* | rail: the warning fires on a roster with no Brain and is **silent** when one is present |
-| **4** | hand CGF a Brain policy and SimHost a Muscle policy at their composition roots, ⭐ **each with a `SingleNodePerRoleShardProvider` over the role that host already declares** *(`SimHostApp.DefaultRole:182` · `CgfSubsystem.DefaultRole`)* | ⭐⭐ **the acceptance test:** a SimHost-created brain-enabled entity ends with `HasAuthority<BehaviorState>` **false on SimHost and true on CGF**, and `TacticalIntentResolutionSystem`'s gate passes |
+| **4** | ✅✅✅ **DONE `2026-09-13` — see §6i AS-BUILT.** ~~hand CGF a Brain policy and SimHost a Muscle policy at their composition roots, each with a `SingleNodePerRoleShardProvider` over the role that host already declares~~ ⭐ **AND `gateOnAuthority: true` in the same change** — §6f's ordering hazard. ⚠ **DEVIATION: the tables are COMPLEMENTS, not enumerations** — §6i says why an enumeration reproduces `CE-256` | ✅ met, plus nine more the row did not ask for. ⭐⭐ **And the acceptance test is now a UNIT rail over the PRODUCTION tables** *(`HrotRoleComponentSetsTests`)*, not only an integration claim |
+
+## 6i. ✅✅✅ AS-BUILT — **step `4`: the two hosts get their policies, and the gate comes on with them** *(`2026-09-13`, obligation ⑤)*
+
+⭐⭐⭐ **This is the step that makes P3 live.** Steps `0`–`3b` built a mechanism every host ran with a
+`null` policy — ⛔ measurably a no-op. ⭐ §4.2/§4.3's sequences are now the sequences production runs;
+they are not redrawn here.
+
+### 📐 WHAT SHIPPED
+
+| | |
+|---|---|
+| 🆕 **`Hrot/Engine/Hrot.Core/HrotRoleComponentSets.cs`** | ⭐⭐ **the cluster's role→component tables, authored ONCE.** `Fdp.Toolkits` holds the MECHANISM; this file — in the application layer — holds the MEANING. 🔒 *"fdp should not understand what a brain and muscle really mean."* ⭐ `CreatePolicy(NodeRole)` takes a role **and nothing else**, so two hosts cannot be handed two different tables: the design's safety property stated as an API |
+| ✏ **`SimHostNodeBootstrapper.cs`** | `RoleAffinity = HrotRoleComponentSets.CreatePolicy(SimHostApp.DefaultRole)` — ⭐ the SAME constant that resolves this host's capability set *(`CE-197`)*, so the ownership rule and the module set cannot disagree about what the node is |
+| ✏ **`CgfSubsystem.cs`** | the Brain policy **and** `gateOnAuthority: true`, two statements apart |
+| 🆕 **`Hrot.Core.Tests/HrotRoleComponentSetsTests.cs`** | **10 rails, 10 green.** ⭐ `RoleAffinityPolicyTests`' own header says *"a green here does not mean CGF and SimHost are configured correctly — that is step 4's acceptance test"* ⇒ this file is that test, over the real tables |
+| ⛔ **NOT touched** | `IgNodeBootstrapper` · `StrideNodeBootstrapper` · `EditorSubsystem` · the test harnesses. They keep `null` *(today's behaviour)*. ⭐ The two-node Brain/Muscle case is the one the ruling is about and the one that can be proven; the others get policies once it is proven live |
+
+### 🔴🔴 THE DEVIATION, ARGUED — **the tables are COMPLEMENTS, and an enumeration would have reproduced `CE-256`**
+
+⛔⛔ **§6's row reads as though a role's owned set is a LIST of that role's components.** 📐 Measured, and it
+does not survive contact with the create leg:
+
+| | |
+|---|---|
+| `NetworkSpawningSystem.cs:237` does `AuthorityMask &= OwnableMask(...)` | it **REPLACES** the blanket *"I own everything I materialised"* grant — it does not refine it |
+| §3.9a classified **~20** components | the codebase has **hundreds** |
+| ⇒ an enumerated Muscle set | 🔴 a SimHost-created tank would own **twenty components and nothing else** — no `EntityInfo`, no health, no map display — which is `CE-256` verbatim: *"owns nothing, so nothing it is responsible for ever moves"* |
+
+⇒ ⭐⭐⭐ **`Brain` owned = `ALL − birthCritical` · `MuscleGround` owned = `ALL − birthCritical − brainOnly`.**
+⭐ The blast radius is then **exactly the ruling**: a Muscle node's authority differs from today's by
+precisely the brain set, and by nothing else. ⚠ **The positive enumeration is the upgrade path** — strictly
+more precise and strictly more dangerous — ⛔ and it must not be taken before every component has a row.
+📌 `EveryUnclassifiedComponentStaysOwnedByBothRoles` is the rail a future enumeration has to argue with.
+
+⚠ **So Brain and Muscle are disjoint over the CLASSIFIED set only**, and deliberately OVERLAP over the
+unclassified remainder — that remainder is what each host legitimately owns for the entities it creates.
+⛔ Step 1's `BrainAndMuscle_OwnDisjointSets` rail is about representative masks, not about this claim.
+
+### 🔴 THE SECOND DEVIATION — **birth-critical components are in NO role's set, and that is a correction to §3.1's reasoning**
+
+⭐ §3.1 says a creator keeps birth-critical components *"whatever its role"*, and `OwnedComponentSet`'s own
+doc-comment says it excludes them. ⛔ **What neither said is that a role must never own one on the PROMOTE
+leg either** — and that is the half with teeth: `GeoSpatialIngressTranslator.cs:90` applies an incoming
+position **only when `HasAuthority<SimTransform>` is false**, so a promoting node that claimed
+`SimTransform` by role would stop accepting the real owner's updates and **every ghost on it would
+freeze**. ⇒ §3.1 now carries the corrected mechanism, and the old one — *"every egress translator gates on
+`HasAuthority`"* — is marked SUPERSEDED there and measured in §3.6.
+
+### ⚠⚠ HOW BIG THIS ACTUALLY IS — **stated honestly, because §3.6's correction shrinks it**
+
+⛔ **Narrowing the `AuthorityMask` changes what a node EXECUTES, not what it PUBLISHES.** 📐 §3.6: the mask's
+entire production readership is `SimTransform`, `BehaviorState`, `BrainBlackboard`, and a `Position` query
+that matches zero HROT entities. ⇒ ⭐ the observable delta of this step is:
+
+| | |
+|---|---|
+| ✅ SimHost stops owning `BehaviorState`/`BrainBlackboard` on entities it creates | the ruling |
+| ✅ CGF claims them when it promotes the ghost | ⇒ exactly one node owns them, and `TacticalIntentResolutionSystem.cs:95` passes on that one |
+| ✅ CGF's six cognitive systems now gate on authority | so a future second Brain, an all-in-one host, or `R-138`'s Muscle-runs-brains case cannot double-tick |
+| ⚠ CGF's promote leg also claims the unclassified remainder on ghosts | ⛔ **no observable effect** — nothing reads those bits *(§3.6)*, and the two that would are excluded |
+| ⛔ **CGF's CREATE leg is byte-identical to today** | `ALL − birthCritical`, then the birthright adds the birth-critical components straight back |
+
+⚠ **And one thing this does NOT do, contrary to an earlier reading:** it does not change any egress. 📌 A
+related hope was also checked and is **not** a live defect — `TacticalIntentEgressTranslator.cs:72` skips
+forwarding an intent when the local node owns `BehaviorState`, which on a pre-step-4 SimHost would have
+dropped the intent entirely; 📐 but **every publisher of `AssignTacticalIntentEvent` is Brain-tier**
+*(`MissionAdapterSystem`, the commander BTree nodes)*, so no such event is ever raised on SimHost. ⇒ the
+narrowing makes that translator correct **by construction** rather than by luck.
+
+### 📐 RED-PROOFS — **inverse edits, all reverted**
+
+| inverse edit | rail that reddened |
+|---|---|
+| drop `SimTransform` from `BirthCriticalComponents` | `NoRoleOwnsABirthCriticalComponent` · `TheCreatorKeepsSimTransform_WhateverItsRole_AndOnlyAsCreator` |
+| drop `brainOnly.BitwiseOr(in muscleRead)` | `TheReadSetNeverBecomesAuthority_OnEitherLeg` |
+| drop the `Read` argument from `CreatePolicy` | `TheMuscleRolesREGISTERWhatTheyRead_WithoutEverOwningIt` |
+| `muscleOwned = brainOwned` *(no `BitwiseAndNot`)* | `TheMuscleRolesOwnNoBrainComponent_AndTheBrainRoleOwnsThemAll` · `ASimHostCreatedBrainEntity_LeavesBehaviorStateForTheBrainNode` |
 
 ## 6h. ✅✅ AS-BUILT — **the PERCEPTION role gets its own registry, shipped `2026-09-12`** *(`CE-259bf` slice 1, obligation ⑤)*
 

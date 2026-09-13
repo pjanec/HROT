@@ -482,6 +482,20 @@ public sealed class SimHostNodeBootstrapper : SharedApplicationBootstrapper
             //    ⚠ This does NOT stop SimHost creating entities: a request targeted at this node is
             //    processed regardless of the flag (CreateEntityRequestSystem.cs:151-156, Q65 §1).
             IsBroadcastArbiter = false,
+
+            // ⭐⭐⭐ P3 step 4 — ROLE AFFINITY. 🔒 User ruling 2026-09-12: "Simhost has no ai(brain)."
+            //    ⇒ this node declines the brain's components instead of owning them because it happened
+            //    to materialise the entity first. 📄 docs/DESIGN_Role_Affinity_Ownership.md §3.9a, §6i.
+            //
+            //    ⭐ SimHostApp.DefaultRole is the SAME constant that resolves this host's capability set
+            //    (CE-197), so the ownership rule and the module set can never disagree about what this
+            //    node is. ⛔ Do not pass a narrower role here "because only Muscle matters" — Perception
+            //    and NavigationSolver contribute nothing to the table today, and a second declaration of
+            //    the node's role is exactly the copy a careful edit misses.
+            //
+            //    ⚠ The pack hands the SAME instance to NetworkSpawningSystem (create leg) and
+            //    GhostPromotionSystem (promote leg), so the two legs cannot be configured apart.
+            RoleAffinity = Hrot.Map.Common.HrotRoleComponentSets.CreatePolicy(SimHostApp.DefaultRole),
         });
 
         var spawningSystem = creation.SpawnSystem;
