@@ -265,23 +265,26 @@ your defect:
 ⭐ **Stopping without acquiring is out of spec** — the entities are supposed to keep closing until they
 see. ⛔ Do not explain a halt away as "out of range".
 
-#### ⚠⚠ AND THE CHAIN HAS NO LINK ⑤ — **the engagement never ENDS** *(measured `2026-09-13`, `CE-267`)*
+#### ⭐⭐⭐ LINK ⑤ — **the run must END** *(added `2026-09-13` with `CE-267`'s fix)*
 
-📐 **Both topologies, same result:** `--mode all` killed both hostiles at `t=40.3` and was still cycling at
-`t=535`; distributed CGF+SimHost killed them at `t=44.4`/`t=161.0` and was still cycling at `t=747`.
-⇒ ⛔ **do NOT wait for the platoon to settle — it never will**, and a run that is "still going" is not
-therefore broken.
+| # | link | observable |
+|---|---|---|
+| ⑤ | the targets are **DESTROYED**, not merely at 0 HP | they **disappear from `GET /entities`** |
+| ⑥ | every attacker is **home on the baseline** and stationary | `LocomotionChannel.Status: Success`, `NavigationIntent.FinalDestination` ≈ its own position, `WeaponState.Ammo` STOPS changing |
 
-| ⭐ so when you drive this scenario | |
-|---|---|
-| ⭐⭐⭐ **stop at link ④** *(`Health.Current == 0` on both hostiles)* | that is the whole of the working spec today |
-| ⚠ **the shuttling baseline↔firing-line is BY DESIGN** | the hull-down maneuver; `BrainBlackboard.BaselineX/Y` names the fallback point *(`527.5, 474.5`)*, and `DESIGN_Stride_Node_Modes.md` §4.1ad records *"15 waves"* as healthy |
-| ⭐ **the tell for `CE-267`, if you need it** | `WeaponChannel.Status` stays `Running` forever *(never `Success`)* while `WeaponState.Ammo` drains — the fire action never completes |
-| ⛔ **a dead entity is NOT removed** | hp `0`, still carries `PhysicsCollider`, still listed in `TargetMemory` / `ActiveSensorTracks` ⇒ *"no live target"* is not an observable state |
+⛔⛔ **DO NOT measure "on the baseline" as distance to ONE POINT.** 📌 That mistake was made on
+`2026-09-13` and read as a half-failure: `BrainBlackboard.BaselineX/Y` *(`527.5, 474.5`)* is the **centre of
+a line**, and four tanks park abreast along it ~50 m apart, so the outer two are legitimately **~75 m** from
+that point. ⭐ **Compare each tank to its OWN `NavigationIntent.FinalDestination` instead** — it matches its
+position within a metre when the tank is home.
 
-⭐⭐ **Typical timings, for orientation only** *(⛔ NOT assertions — §8's whole point)*: first kill `t≈35–45`,
-second kill `t≈40–161`. 📌 The `t=161` sample was distributed; `--mode all` matched the `2026-09-09`
-baseline at `t=40`. ⚠ **n=1 each — treat a slow second kill as a number to watch, not a regression.**
+⭐⭐ **The cheapest completion check is AMMO.** It drains while engaging and freezes when the run ends.
+📐 Measured after the fix: `42 → 41` *(one round each, matching the blueprint's `MaxRounds: 1`)* and
+unchanged over 30 s. ⛔ Before the fix it ran `42 → 19` and never stopped.
+
+📐 **Reference run, distributed CGF+SimHost, `2026-09-13` post-fix:** both hostiles destroyed by `t≈37`,
+all four attackers stationary on the baseline by `t≈59`. ⚠ **Orientation only, NOT an assertion** — §8's
+whole point is that this scenario is non-deterministic.
 
 ### 8.1 ⛔⛔⛔ READ THE RUNTIME VALUE OFF THE ENTITY — **never off a source file**
 

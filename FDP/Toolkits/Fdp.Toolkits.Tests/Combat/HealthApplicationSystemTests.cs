@@ -4,6 +4,7 @@ using Fdp.Toolkit.Behavior.Components;
 using Fdp.Toolkit.Combat.Components;
 using Fdp.Toolkit.Combat.Events;
 using Fdp.Toolkit.Combat.Systems;
+using Fdp.Toolkit.NetworkSpawning.Events;
 using Fdp.Toolkit.Replication.Components;
 using Xunit;
 
@@ -23,7 +24,9 @@ namespace Fdp.Toolkit.Combat.Tests
             _world.RegisterComponent<Health>();
             _world.RegisterComponent<ActorCapabilityState>();
             _world.RegisterComponent<NetworkAuthority>();
+            _world.RegisterComponent<NetworkIdentity>();
             _world.RegisterEvent<DamageAssessedEvent>();
+            _world.RegisterManagedEvent<DestroyEntityCommand>();   // CE-267
 
             _sys = new HealthApplicationSystem();
         }
@@ -43,6 +46,9 @@ namespace Fdp.Toolkit.Combat.Tests
             _world.AddComponent(entity, new NetworkAuthority(
                 primaryOwnerId: authoritative ? 1 : 2,
                 localNodeId: 1));
+
+            // CE-267 — the destroy path addresses the entity by NETWORK id, so every target needs one.
+            _world.AddComponent(entity, new NetworkIdentity(9000 + entity.Index));
 
             if (addCapabilities)
                 _world.AddComponent(entity, new ActorCapabilityState
@@ -220,6 +226,98 @@ namespace Fdp.Toolkit.Combat.Tests
 
             var health = _world.GetComponent<Health>(entity);
             Assert.Equal(150f, health.Current);
+        }
+
+        // ── CE-267: the KILL must DESTROY, and it must replicate ──────────────────────────────
+
+        /// <summary>⭐ Drains whatever destroy commands the system published this frame.</summary>
+        private System.Collections.Generic.List<DestroyEntityCommand> DrainDestroys()
+        {
+            _world.Bus.SwapBuffers();
+            var got = new System.Collections.Generic.List<DestroyEntityCommand>();
+            foreach (var c in _world.Bus.ReadManaged<DestroyEntityCommand>()) got.Add(c);
+            return got;
+        }
+
+        /// <summary>
+        /// ⭐⭐⭐ <b><c>CE-267</c> — a lethal hit must publish <see cref="DestroyEntityCommand"/>.</b>
+        ///
+        /// <para>🔴 <b>The defect this pins, measured live on <c>hill-attack-close</c>.</b> This system used
+        /// to clamp health to 0 and stop — its own comment said <i>"entity destruction is deferred to a
+        /// separate workstream task"</i>. ⛔ <c>AimAndFireExecutor</c>'s ONLY success condition is
+        /// <c>!world.IsAlive(target)</c>, so a target that was dead but not DESTROYED never ended the fire
+        /// action: the behaviour tree could not leave its engage node and the attacking platoon cycled
+        /// advance→fire→withdraw <b>forever</b>, draining ammo into a corpse *(42 → 19 over ten minutes)*.
+        /// ⇒ the scenario had a terminal condition and could never reach it.</para>
+        /// </summary>
+        [Fact]
+        public void ALethalHit_PublishesADestroyCommand()
+        {
+            var target = SpawnTarget(currentHealth: 10f, addCapabilities: true);
+            PublishEvent(target, totalDamage: 25f);
+
+            _sys.Execute(_world, 0.016f);
+
+            var destroys = DrainDestroys();
+            Assert.Single(destroys);
+            Assert.Equal(_world.GetComponentRO<NetworkIdentity>(target).Value, destroys[0].NetworkId);
+        }
+
+        /// <summary>
+        /// ⛔⛔ <b>…and a NON-lethal hit must publish NOTHING.</b> ⚠ Without this the rail above passes on a
+        /// system that destroys on every hit — which would be a far worse defect than the one being fixed.
+        /// </summary>
+        [Fact]
+        public void ANonLethalHit_PublishesNoDestroyCommand()
+        {
+            var target = SpawnTarget(currentHealth: 100f, addCapabilities: true);
+            PublishEvent(target, totalDamage: 25f);
+
+            _sys.Execute(_world, 0.016f);
+
+            Assert.Empty(DrainDestroys());
+            Assert.Equal(75f, _world.GetComponentRO<Health>(target).Current);
+        }
+
+        /// <summary>
+        /// ⭐⭐⭐ <b>EXACTLY ONCE — the command is published on the 0-HP TRANSITION, not on the STATE.</b>
+        ///
+        /// <para>🔴 This is not hypothetical: the shooters do not stop until the entity is gone, so further
+        /// <c>DamageAssessedEvent</c>s against a corpse keep arriving while the two-ack teardown runs. ⛔ A
+        /// test on <c>Current &lt;= 0</c> alone would re-publish a destroy for every one of them.</para>
+        /// </summary>
+        [Fact]
+        public void RepeatedHitsOnACorpse_PublishTheDestroyExactlyOnce()
+        {
+            var target = SpawnTarget(currentHealth: 10f, addCapabilities: true);
+
+            PublishEvent(target, totalDamage: 25f);
+            _sys.Execute(_world, 0.016f);
+            Assert.Single(DrainDestroys());
+
+            for (int i = 0; i < 3; i++)
+            {
+                PublishEvent(target, totalDamage: 25f);
+                _sys.Execute(_world, 0.016f);
+                Assert.Empty(DrainDestroys());
+            }
+        }
+
+        /// <summary>
+        /// ⛔ <b>A NON-AUTHORITATIVE node must not destroy anything</b> — it does not own the entity, and two
+        /// nodes publishing the same teardown is the duplicate-destroy shape. ⚠ The existing authority gate
+        /// already covered the health write; this pins that it covers the destroy too.
+        /// </summary>
+        [Fact]
+        public void ANonAuthoritativeNode_PublishesNoDestroyCommand()
+        {
+            var target = SpawnTarget(currentHealth: 10f, authoritative: false, addCapabilities: true);
+            PublishEvent(target, totalDamage: 25f);
+
+            _sys.Execute(_world, 0.016f);
+
+            Assert.Empty(DrainDestroys());
+            Assert.Equal(10f, _world.GetComponentRO<Health>(target).Current);
         }
     }
 }

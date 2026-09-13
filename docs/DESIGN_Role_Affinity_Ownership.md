@@ -1272,10 +1272,15 @@ they are not redrawn here.
 ⇒ ✅✅ **Step 4 holds under real distribution.** ⛔ Nothing in `CE-264`/`CE-265`/`CE-266` broke the
 scenario: both targets die, and the platoon performs its hull-down advance/withdraw cycle throughout.
 
-⚠⚠ **ONE DEFECT WAS FOUND, AND IT IS NOT THIS DESIGN'S** — `CE-267`: the engagement has **no terminal
-condition**, so the platoon cycles forever after both targets are dead. 🔴 **It reproduces IDENTICALLY in
-`--mode all`** *(one process, one world, NO replication)* ⇒ **not a distribution or ownership defect.**
-⛔ Do not read it as P3 fallout.
+⚠⚠ **ONE DEFECT WAS FOUND, AND IT IS NOT THIS DESIGN'S — `CE-267`, now FIXED.** The distributed damage
+path *(`HealthApplicationSystem`)* applied damage but never DESTROYED at 0 HP — its own comment said
+destruction was *"deferred to a separate workstream task"* — while the local path *(`DamageSystem`)* did.
+⛔ `AimAndFireExecutor` succeeds only on `!IsAlive(target)`, so the engagement could never end. ✅ Fixed by
+publishing `DestroyEntityCommand` on the 0-HP transition; `hill-attack-close` now terminates *(both targets
+removed by `t≈37`, all attackers home by `t≈59`)*. ⛔ **Not P3 fallout** — the deferred task predates
+`CE-264`/`CE-265`/`CE-266`. ⚠ An earlier version of this paragraph argued it was *"not a distribution
+defect"* because `--mode all` reproduced it; that reasoning was WRONG — `--mode all` runs several kernels
+with DDS between them, so it is a split topology too.
 
 ### 📐 WHAT SHIPPED
 
