@@ -3,9 +3,11 @@ state: LIVE
 updated: 2026-09-14
 build-state: DESIGN
 current-answer: §4 is the unified save flow, §5 the load flow, §6 the ONE gate
-  (view.HasAuthority(entity)), §7 the NetworkAuthority/NetworkOwnership merge, §8 the OPEN
-  QUESTIONS that MUST be closed before build. ⛔ Nothing here is READY-TO-BUILD yet — §8 has
-  load-bearing open questions (global/zone data ownership OQ1, multi-file manifest OQ3).
+  (view.HasAuthority(entity)), §6a global/non-entity data (brain-owned), §7 the
+  NetworkAuthority/NetworkOwnership merge, §8 the OPEN QUESTIONS. ⭐ The three original blockers
+  (OQ1 globals, OQ3 manifest, OQ5 handler) and OQ9 (no editor exception) are DECIDED `2026-09-14`.
+  ⛔ Still not READY-TO-BUILD: OQ2/OQ4/OQ6/OQ10 need a one-line nod, OQ7/OQ8 are verify/rail, and OQ9
+  raised a larger build item (editor gains an in-process single-node orchestrator — cgf==editor).
 stale-below: nothing yet (new document).
 known-rot: nothing known.
 known-conflict: DESIGN_Node_Roles_And_Policies.md §7.1 says IG-persistence is enforced "by an
@@ -235,6 +237,22 @@ save/keep entity  ⇔  view.HasAuthority(entity)  AND  NOT ScenarioIgnoreTag(ent
 ⚠ **Placement:** the gate goes in `CollectSaveableEntities` (one site, both editor and cluster inherit
 it). `HasAuthority` lives in `Fdp.Toolkits`, same assembly as `ScenarioSerializer` ⇒ no new dependency.
 
+### 6a. ⭐⭐ GLOBAL / NON-ENTITY DATA — the complete set, owned by the brain file *(ruling `2026-09-14`)*
+
+📐 **Measured — a scenario carries exactly this much that is NOT a per-entity component:**
+
+| datum | where it lives today | owner under this design |
+|---|---|---|
+| `$meta` (`docType`, `schemaVersion`) | DOM envelope (`ScenarioSerializer.Serialize:200`) | **brain file** |
+| `Header.TkbName` (active TKB database) | DOM `Header` (`:198-199`) | **brain file** |
+| `Zones` (tactical zones) | DOM `Zones`, from `IZoneManagerService` (`ScenarioFileService:124`) — ⛔ **editor-only today**; CGF passes `zoneService: null` | ⭐⭐ **brain** *(user ruling: "zones should for sure be handled by brain")* ⇒ the brain node must compose a real `IZoneManagerService` |
+| scenario **sim-time** | already **cluster/manifest** level (`GlobalContextClusterOpHandler.ScenarioTimeSeconds`), **not** in any per-node DOM | **orchestrator context** — already global, no change |
+
+⭐ **The rule:** all per-node-DOM globals ride the **brain-role file** (the canonical scenario), because
+the brain is the node that owns the scenario as a whole. ⛔ **The one build consequence:** the brain node
+(CGF) must gain a real `IZoneManagerService` — today only the editor has one, so a headless-CGF save would
+drop zones. Sim-time needs nothing — it is already orchestrator-owned.
+
 ---
 
 ## 7. ⭐⭐ THE MERGE — delete `NetworkOwnership`, keep `NetworkAuthority`
@@ -263,20 +281,23 @@ buys only cosmetics — optional later follow-up).
 
 | # | question / flaw | severity | lean |
 |---|---|---|---|
-| **OQ1** | **Global / non-entity data (zones, `$meta`, sim time) has no owner.** The gate is per-entity, but `Zones` is a file section, and **only the editor has a zone service** (INVENTORY ⑩) — a distributed CGF save would **lose zones**. | 🔴 **blocker** | the **brain-role file** carries all globals; give the brain node a real `IZoneManagerService` (or make zones entity-backed so they gate like everything else). Decide: globals = "owned by the scenario-singleton owner" = brain. |
+| **OQ1** | ✅ **DECIDED `2026-09-14`** — global data (the complete set: `$meta`, `Header.TkbName`, `Zones`; sim-time is already orchestrator-owned — §6a) rides the **brain-role file**. 🔒 User: *"zones should for sure be handled by brain."* ⛔ **Build consequence:** the brain node (CGF) must compose a real `IZoneManagerService` — today only the editor has one (INVENTORY ⑩). | ✅ closed | brain owns all per-node-DOM globals; give CGF a zone service. |
 | **OQ2** | **Orphaned persistable entity.** If a persistable entity's primary owner has **left/crashed**, every survivor sees a ghost ⇒ **nobody saves it** (silent data loss). | 🟠 | accept for transient (R-140); for persistable, make it an **invariant**: persistable entities are owned by a stable persisting role (brain). Optionally a "reclaim orphan before save" rule later. |
-| **OQ3** | **Multi-file scenario identity & manifest.** A distributed-saved scenario is a **set** of per-node files. Need a manifest and a load rule (each node loads its own; brain file canonical). Does the existing exercise/NAS manifest suffice, or is a scenario-manifest schema needed? | 🔴 **blocker** | reuse the exercise manifest machinery (INVENTORY ③) with a scenario `$meta` linking the set; brain file is the addressable "the scenario". |
+| **OQ3** | ✅ **DECIDED `2026-09-14`** — a distributed scenario is a **set** of per-node files; **reuse the existing cluster-wide collection** (`FileManifestResult`/NAS-pull is file-agnostic — INVENTORY ③), **brain file is canonical "the scenario"**, each node loads its own slice. 🔒 User: *"nothing new… the design as well as implementation is counting with that already."* | ✅ closed | verify at build that the collection path is truly format-agnostic (it pulls whatever file the handler reports — it is). |
 | **OQ4** | **Editor-file ⇄ distributed-set compatibility.** Editor writes ONE file; distributed writes N. Loading an editor file distributed = brain loads it, others empty (works today). Loading a distributed set in the editor = editor loads **the brain file** (others empty). Confirm this is THE rule and old single-file scenarios remain loadable unchanged. | 🟠 | brain file ≡ editor file; others are additive and usually empty ⇒ backward-compatible. State explicitly. |
-| **OQ5** | **The per-node scenario-serialize handler does not exist** (INVENTORY ③). Must add a `NodeScenarioSerializeHandler` (or extend `ReferenceArchiveHandler`) that runs the gated `ScenarioSerializer` over the node's world, wired into `FanOutSerializeLocal`, distinct from the checkpoint recorder. | 🔴 **core build** | new handler; reuse the archive/NAS collection; editor keeps its direct path as the degenerate single-node case. |
+| **OQ5** | ✅ **APPROVED `2026-09-14`** — add a per-node scenario-serialize handler that runs the gated `ScenarioSerializer` over the node's world, wired into `FanOutSerializeLocal`, distinct from the checkpoint recorder; reuse the archive/NAS collection. ⚠ Runs on **every** host including the editor (see OQ9). | ✅ core build | new handler, no editor exception. |
 | **OQ6** | **No entity-level ownership TRANSFER exists** (INVENTORY ⑥). Persistence ownership is fixed at creation. Cross-node persistence (IG authors, CGF must persist) requires **request-to-owner** (`Node_Roles §5/§6`), not a handover. | 🟢 boundary | keep request-to-owner; do NOT add entity-ownership transfer now. Revisit only if a real need appears. |
 | **OQ7** | **Parent/child parts under the gate.** `HasAuthority` resolves child→parent, so a multi-part entity gates as a unit — but verify the **save side** (`ScenarioSerializer.Serialize`) emits parent+children coherently when the gate is applied per-entity. | 🟠 verify | almost certainly fine (children ride the parent), but must be measured before build. |
 | **OQ8** | **Editor "saves everything" is by construction but unproven.** Editor localNodeId / `HasAuthority=true` for editor scenario entities not directly measured this session. | 🟢 rail | airtight by construction (single node has no ghosts); add a rail asserting the editor saves the full set. |
-| **OQ9** | **Does the "unified" op route the editor through cluster orchestration, or only share the gate + format?** User: "editor should follow, being just a special all-in-one case." | 🟠 decision | **share the gate + file format + load semantics**; the editor keeps its direct single-node write (no orchestrator needed in `--mode editor`). Confirm this reading. |
+| **OQ9** | ✅ **DECIDED `2026-09-14` — NO editor exception; unified BY CONSTRUCTION.** 🔒 User: *"no direct write in the editor… same code everywhere, driven by role/host config… the plumbing resulting naturally from using the same (unified) code (orchestration handlers etc.)."* ⇒ the editor runs the **same orchestration** as a single-node, all-roles cluster; scenario save goes through the fan-out + per-node handler, never `ScenarioFileService.SaveScenario` directly. ⛔ **Build consequence (measured):** `--mode editor` has **no orchestrator today** (`Program.cs:404`, "a mode without it passes null") ⇒ the editor must host an **in-process single-node orchestrator**. ⭐ This fits the existing **cgf==editor** unification trajectory already in the runner (`Program.cs` "cgf==editor SLICE 2/3", `DESIGN_Perspective_Unification`). | 🟠 **build implication** | editor = single-node all-roles cluster; add the in-process orchestrator, retire the direct save path. Larger than a handler; on the intended trajectory. |
 | **OQ10** | **Load-time re-ownership across roles.** Today CGF owns ALL persistable at load and grants per-component authority at runtime; muscles never own persistable entities. Confirm this stays the model (vs. role-affinity creating muscle-owned persistable entities directly at load). | 🟠 confirm | keep brain-owns-all-at-load + runtime grants; it is what makes the brain file the whole scenario. |
 
-⭐ **Blockers (🔴): OQ1, OQ3, OQ5.** The design is buildable only once OQ1 (globals owner) and OQ3
-(manifest) have a decided rule and OQ5 (the handler) has a shape. OQ2/OQ4/OQ7/OQ9/OQ10 need a one-line
-ruling each; OQ6/OQ8 are a boundary and a rail.
+⭐ **All three original blockers are CLOSED (`2026-09-14`):** OQ1 (globals → brain file), OQ3 (reuse
+cluster collection, brain canonical), OQ5 (add the per-node handler), and OQ9 ruled *no editor exception*.
+**Remaining before READY-TO-BUILD:** a one-line nod on OQ2 (orphan invariant), OQ4 (file compat), OQ6
+(no ownership transfer — boundary), OQ10 (brain-owns-all-at-load), and the verify/rail items OQ7, OQ8.
+⚠ **OQ9 raised a larger build item** — the editor gains an in-process single-node orchestrator — which is
+on the cgf==editor trajectory but is more than a handler; sequence it explicitly in the build plan.
 
 ---
 
