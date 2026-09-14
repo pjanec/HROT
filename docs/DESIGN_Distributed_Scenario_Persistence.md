@@ -303,8 +303,34 @@ route:
 | **provider** | each subsystem contributes `RequestSaveScenarioJson` via `SubsystemDebugProvider.SavesScenarioJsonVia(bus)`, publishing `ExecuteStorageOpIntent{ SaveScenarioJson, ScenarioName }` on its OWN control-plane bus (SimHost · IG · CGF · ExCon) — the same shape as `TransitionsVia`/`DumpsVia` |
 | **network route** | when the HTTP-hit node is NOT the master, `ClusterOpEgressTranslator` maps `SaveScenarioJson` and serialises the name as `{"ScenarioName": …}` (⛔ the `ArchivePayloadDto` other storage ops use has no name field); `ClusterOpMasterTranslator` reconstructs `ExecuteStorageOpIntent{ SaveScenarioJson, ScenarioName }`. On the master node the intent is read directly by `ClusterMaster`. Both master-side paths (this networked one and the in-process `ClusterOpRequestAdapter`) read the name identically |
 
-⇒ ⭐ any perspective's HTTP port now triggers the **same** fan-out + merge pipeline; the name (never a path) is
-preserved end to end.
+⇒ ⭐ any perspective's HTTP port now triggers the fan-out; the name (never a path) is preserved end to end.
+
+#### ⛔ T-B LIVE VERIFICATION `2026-09-14` — c0 trigger PROVEN, but the fan-out produces NO slice (two measured defects, CE-277 c3)
+
+Ran `--mode all` (`simhost,ig,excon,cgf`), loaded `hill-attack` live (8 entities), `POST /scenario/save`:
+
+- ✅ **c0 works.** Response `{"saved":…,"via":"cluster-intent"}` (no 501); log:
+  `ClusterMaster: SaveScenarioJson '<name>' → SerializeLocal fan-out to 5 node(s)`. The HTTP trigger →
+  intent → master → fan-out chain is confirmed end to end.
+- ⛔ **No merged `scenario.json` produced; no node wrote a scenario slice** (per-node `nodes/*/scenarios/`
+  held only the loaded `hill-attack`, never the save name). Two measured root causes:
+  1. **Payload-blind `SerializeLocal` handler selection.** `IClusterStateHandler.CanHandle(intent)` defaults
+     to `CanHandle(intent.Operation)` (`IClusterStateHandler.cs:29`); neither `ReferenceArchiveHandler`
+     (`:47`) nor `HrotScenarioSaveHandler` (`:66`) overrides the payload-aware overload (only
+     `HrotEditLoadHandler:92` does). `ClusterSlave` dispatches to the **FIRST** `CanHandle`-true handler and
+     returns (`ClusterSlave.cs:362-364`). ⇒ on every node `ReferenceArchiveHandler` (registered for the
+     `.fdp` archive) **shadows** `HrotScenarioSaveHandler`/`ExConScenarioSaveHandler`: it receives the
+     `ScenarioSaveHandlerPayload`, its `PrepareAsync` sees it is not an `ArchiveHandlerPayload`, returns null
+     → `NodeOpCompleted(Success, null)` → no slice, and the scenario handler never runs. **Fix:** make
+     `CanHandle(ExecuteNodeOpIntent)` payload-aware in all three (archive⇒`ArchiveHandlerPayload` only;
+     scenario handlers⇒their payload only), mirroring `HrotEditLoadHandler`.
+  2. **SimHost never registers the scenario handler.** `NodeBootstrapper.cs` registers
+     `ReferenceArchiveHandler` (`:292`) but not `HrotScenarioSaveHandler` — contradicting this doc's earlier
+     C3 claim ("registered on all four hosts"; only CGF `CgfSubsystem:1151`, IG `IgNodeBootstrapper:392`,
+     editor `EditorSubsystem:1440` actually do). **Fix:** register it in SimHost's `NodeBootstrapper`.
+
+⇒ **c0 (the HTTP trigger) is DONE and proven.** The end-to-end distributed save (T-B) is blocked on the two
+CE-277(c3) defects above — both in the per-node handler wiring, both with exact fixes. Tracked under CE-277(c).
 
 ### 4a. ⭐⭐⭐ R-A DISTRIBUTED SAVE — **orchestrated pull + compatible-merge** *(user ruling `2026-09-14`)*
 
