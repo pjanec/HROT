@@ -3,11 +3,11 @@ state: LIVE
 doc-type: coordinator resumption snapshot — point-in-time state for picking up AFTER COMPACTION. ⚠ A STATE
   doc, not canon: every "in flight"/"merged" line is a snapshot dated below — ⛔ VERIFY against git before
   acting, never quote it as settled truth (per "THE LEDGER MAY NOT ASSERT WHAT THE CODE IS").
-updated: 2026-09-12
+updated: 2026-09-14
 current-answer: the whole file — read it, then re-derive the live state with the commands in §0.
-  §3 HEAD is now `79bf753b` (the two-week UI-lane merge, CE-259*).
+  §3 HEAD is now `8abaf896` (UI merge: P3 ownership complete + distributed scenario persistence).
 -->
-# COORDINATOR RESUMPTION — `2026-09-12`
+# COORDINATOR RESUMPTION — `2026-09-14`
 
 RELEARN
 
@@ -50,7 +50,20 @@ parity)* = later, gated on the **UXI-30** engine-authority design *(the ONE genu
 | ⭐⭐ **Axis-B cross-node change-request egress under R-134** *(FDP-internal EntityAttributeChange + EntityWriteRouter in Fdp.Toolkits; egress translator SOLE DDS boundary; drag gizmo on same router; CE-018/035/036; merged `2026-08-26`)* | AX-005..010 · CE-018/035/036 | `DESIGN_Cgf_AxisB_Rotation_Slice.md` §11-§12 *(AS-BUILT)* |
 | ⭐⭐⭐ **AX-009 RESOLVED + Q59 attribute-vocabulary single source** *(SimHost→IG replication fixed via NetworkTransform-shadow-at-birth ⇒ `--mode all` round-trip 3/3 GREEN; one attribute declaration + derived edge table + truthful schema; R-134 overclaim corrected; JSON/binary apply paths consistent; apply stack moved out of the DDS assembly; merged `45d1da666`)* | AX-009..024 · AQ59 | `DESIGN_Cgf_AxisB_Rotation_Slice.md` §13-§16 *(AS-BUILT)* · `Architect_Question_59` |
 
-## 3. ⭐ STATE — coordinator HEAD `79bf753b` *(snapshot `2026-09-12`; confirm by git)*
+## 3. ⭐ STATE — coordinator HEAD `8abaf896` *(snapshot `2026-09-14`; confirm by git)*
+> ✅✅✅ **UI LANE — P3 OWNERSHIP COMPLETE + DISTRIBUTED SCENARIO PERSISTENCE, MERGED `2026-09-14`** *(merge `8abaf896`; **96-commit** continuation `CE-259az..CE-277` on top of the two-week run; clean `--no-ff`, zero conflicts; **all 4 hosts build 0/0** on the merged tree with dotnet 8.0.425; rulings **34/34** verify — 5 re-read WARNs on docs the lane changed after the ledger date, quotes still match; design-digest --check OK across 63 changed designs; tracker-counts OK — BP-scope caveat)*. **Four arcs:**
+> - **(1) P3 role-affinity ownership COMPLETED** — steps 2/3/3b/4 shipped; `CreatePolicy(NodeRole)` takes a role and nothing else (`Hrot.Core/HrotRoleComponentSets.cs`); the role tables are **COMPLEMENTS** not whitelists (Brain = ALL − birthCritical; Muscle = that − brainOnly); `[BirthCritical]`/`[PerInstanceValue]` are now **declared on the component** in `Fdp.Core`, `TkbTemplate.BirthCriticalComponents` a derived read-only view (`CE-266` deleted 8 authoring sites + 3 duplicate producers of SimTransform); the **mandatory-promotion gate is derived per host** via `MandatoryComponentResolver` + `ITkbEntityTranslator.GetProducedComponents()` (`CE-265`). `NodeRole.ImageGenerator → Map2D` (Roslyn rename).
+> - **(2) Distributed death/damage fixes** — `CE-267` a killed entity is now destroyed on the distributed path; `CE-272` Health replicated to every node so the Muscle sees deaths (entity-level authority guard, not per-component).
+> - **(3) `CE-271` auto-takeover** — IG (Map2D) is a role-affinity **creating owner**; `POST /entities/create-request` is the real request path; equal creation verified live on a distributed cluster.
+> - **(4) `CE-275/276/277` DISTRIBUTED SCENARIO PERSISTENCE** — unified **per-node staging → orchestrated pull → compatible-merge** save (editor included); `PrimaryOwnerId` (in `NetworkAuthority`) is the network-agnostic ownership truth; the save gate is `IsPrimaryOwner AND NOT ScenarioIgnoreTag` in `CollectSaveableEntities`; `ScenarioMergeCore` + ExCon foreign-format observer + a distributed-save integration rail (`CE-277 T-B`). 📄 `DESIGN_Distributed_Scenario_Persistence.md`.
+>
+> **⛔ OPEN / GATED on the UI lane (this run)** *(verify before acting)*:
+>   - ⭐ **Stage E of the persistence build is NOT yet landed** — spot-verified: `NetworkOwnership` struct still coexists with `NetworkAuthority` (35 files reference the old one). The feature is built on `NetworkAuthority`; deleting the duplicate `NetworkOwnership` (ruling-9 cleanup, ~9 prod + ~22 test refs) is the deferred "do LAST" mechanical stage.
+>   - ⚠ **Lane-hygiene lag:** `RESUME_Distributed_Scenario_Persistence.md` STATUS still reads *"NO code written yet"* while Stages A–C3 + `CE-277` are built — the STATUS block wasn't refreshed after the build. The DESIGN doc carries the decided facts; re-derive live state from git, not that STATUS line.
+>   - 🔒 **`CE-276` deferred transfer** (the ownership-transfer INITIATION side) + **`CE-259au`/`CE-259as`** still wait on `Architect_Question_69`.
+>   - ⭐ **`R-A` distributed-save model** and the §1 decided-facts table were **user-ruled `2026-09-14`** (per-entity network-agnostic save gate; editor is already a single-node cluster; load model R-A; merge is field-identical-safe).
+>
+### ⛔ HISTORY — §3 snapshot `79bf753b` *(two-week UI run CE-259*, `2026-09-12`)*
 > ✅✅✅ **UI LANE — TWO-WEEK RUN MERGED `2026-09-12`** *(merge `79bf753b`; **435-commit** run `CE-259*`, Aug 30 → Sep 12; 1307 files, +63182/−9163; clean `--no-ff`, coordinator was a clean ancestor, zero conflicts; **Hrot.Editor + Hrot.CGF + Hrot.IG + Hrot.SimHost all build 0/0** on the merged tree with dotnet 8.0.425; rulings **34/34**, design-digest --check OK across 35 changed designs, mermaid parses on the key new designs; tracker-counts OK — BP-scope, `CE-073`/`CE-259at` caveat)*. ⚠ **Coordinator verification note:** the SDK was ABSENT on this fresh cloud VM; my first build pass was a **false-green** (`| tail` masked `dotnet: command not found`) — caught, `scripts/cloud-bootstrap.sh` run, all four hosts then rebuilt for real with explicit exit codes before this record + push. **Three strands:**
 > - **(1) Entity-creation / ownership programme** — `DESIGN_Entity_Authoring_Surface.md` non-UI half BUILT (`EntityCreation.RequestEntityCreation`, NINE params — `disType` added so `ScenarioSpawnAdapter` as a thin caller does not strip DIS type, `R-137`); **P3 role-affinity ownership** steps 0/0a/1/1a BUILT (`DESIGN_Role_Affinity_Ownership.md`); ⭐ **`NodeRole` MOVED `Hrot.Common` → `Fdp.Core`** (user ruling — roles are generic; engine holds the LABEL only, the role→components table stays the app's). Spot-verified: `NodeRole` defined ONCE in `Fdp.Core` (clean move, ruling 9).
 > - **(2) Map interaction / gizmo anchor-identity refactor** — a gizmo anchor is its **NETWORK id end-to-end**, the **ECS handle is GONE** from the pick path (`DESIGN_Gizmo_Anchor_Identity.md` §6.7 / §6.2 as-built); the invented second `DispatchShape` hook removed (`DESIGN_Gizmo_Renderer_Seam.md`, 4th seam-law instance); **`Fdp.Presentation.Tests` SIGSEGV fixed** (`CE-259aa`) → now runs **544 tests (535/8/1)** vs the ~54 that `CE-088` reported — same crash, not a discovery bug.
