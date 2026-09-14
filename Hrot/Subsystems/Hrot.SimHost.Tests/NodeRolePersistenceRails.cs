@@ -47,29 +47,53 @@ namespace Hrot.SimHost.Tests
         {
             "ReferenceArchiveHandler",
             "GlobalContextClusterOpHandler",
+            // ⭐⭐⭐ CE-275 ③ — the declarative scenario save handler now also answers SerializeLocal, and it is
+            //   registered by EVERY host (IG included). It is a SAVE-capable handler for the completeness
+            //   rail, but — unlike the two above — it is GATED (owner-only), so holding it is NOT a
+            //   persistence-policy violation. IG holding it is CORRECT: its file is empty by the gate.
+            "HrotScenarioSaveHandler",
         };
 
         /// <summary>
-        /// 🔴🔴🔴 <b>IG MUST NOT HANDLE THE CLUSTER-WIDE SAVE.</b>
+        /// ⭐⭐ CE-275 ③ — the subset a PASSIVE/frame-less node (IG) must NOT hold: the CHECKPOINT / global-context
+        /// save handlers, which write EVERYTHING with no ownership gate. ⛔ <c>HrotScenarioSaveHandler</c> is
+        /// deliberately NOT here — it is gated, so R-140 (IG's transient state stays out of the scenario) is now
+        /// enforced by the OWNERSHIP GATE, not by IG lacking the handler. 📄 DESIGN_Node_Roles_And_Policies §7.1.
+        /// </summary>
+        private static readonly string[] CheckpointSaveHandlersAPassiveNodeMustNotHold =
+        {
+            "ReferenceArchiveHandler",
+            "GlobalContextClusterOpHandler",
+        };
+
+        /// <summary>
+        /// 🔴🔴🔴 <b>IG MUST NOT HOLD A CHECKPOINT / GLOBAL-CONTEXT SAVE HANDLER.</b>
         ///
-        /// <para>⭐ Asserted on the composition root's own registration set, because that — not a role
-        /// flag — is where the decision actually lives.</para>
+        /// <para>⚠⚠ <b>REWRITTEN `2026-09-14` (CE-275 ③) — the old rule "IG registers NO save handler" is
+        /// RETIRED.</b> 🔒 User ruling: <i>"IG is a host and can create entities so it needs to be able to save
+        /// them to a scenario; IG must share the same scenario save handler as other hosts, it just rarely
+        /// saves anything."</i> ⇒ IG now DOES register the ONE gated <c>HrotScenarioSaveHandler</c> like every
+        /// host, and R-140 (IG's transient state stays out of the scenario) is enforced by the OWNERSHIP GATE —
+        /// IG's file is empty because it owns nothing savable, not because it lacks the handler.</para>
+        ///
+        /// <para>⭐ What SURVIVES is a narrower, still-true invariant: IG carries no ECS frame data and no
+        /// global orchestrator context, so it must not hold a <b>checkpoint / global-context</b> save handler
+        /// (<see cref="CheckpointSaveHandlersAPassiveNodeMustNotHold"/>), which write EVERYTHING ungated.</para>
         /// </summary>
         [Fact]
-        public void IgCompositionRoot_RegistersNoSaveCapableClusterHandler()
+        public void IgCompositionRoot_RegistersNoCheckpointSaveHandler()
         {
             var code = CompositionRootSource.StripComments(
                 CompositionRootSource.ReadRepoSource(IgRoot));
 
-            foreach (var handler in SaveCapableHandlers)
+            foreach (var handler in CheckpointSaveHandlersAPassiveNodeMustNotHold)
             {
                 Assert.False(code.Contains(handler),
-                    $"{IgRoot} registers {handler}, which handles NodeOpType.SerializeLocal. IG is a " +
-                    "PASSIVE, NON-PERSISTING node (R-140): it may create only temporary entities, and if " +
-                    "it disappears they are gone and nobody cares. Letting it answer the cluster-wide " +
-                    "save makes an IG's transient state part of the scenario every other node reloads. " +
-                    "If this is deliberate, the ruling has to change first — see " +
-                    "docs/DESIGN_Node_Roles_And_Policies.md §5 and §7.1.");
+                    $"{IgRoot} registers {handler}, an UNGATED checkpoint/global-context save handler. IG " +
+                    "carries no ECS frame data and no global orchestrator context, so it must not record " +
+                    "either. ⚠ Note this is NOT about the scenario save: IG DOES register the gated " +
+                    "HrotScenarioSaveHandler (CE-275), whose ownership gate keeps IG's scenario file empty. " +
+                    "See docs/DESIGN_Node_Roles_And_Policies.md §7.1.");
             }
         }
 

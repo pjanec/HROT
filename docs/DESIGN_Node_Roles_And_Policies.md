@@ -338,14 +338,24 @@ which is what keeps the next reader honest.
 | an unowned (`Owner == 0`) request is serviced once | ✅ **CODE** — the `isDefaultProcessor` tiebreaker |
 | a node cannot hold both a local spawner and a spawn-forwarder | ✅ **RAIL** — `EntityGenesisHazardRails` *(`CE-160`)*, red-proved |
 | ownership is per-component and transferable | ✅ **CODE** — `AuthorityMask` + the `OwnershipUpdate` topic |
-| ⭐⭐ **IG entities are never persisted to the scenario** | ✅ **COMPOSITION** — ⛔ **IG registers no scenario-SAVE handler**, so it never runs an extractor. ⚠ **Enforced by an ABSENCE, and nothing checks the absence** — see §7.1 |
+| ⭐⭐ **IG entities are never persisted to the scenario** | ✅⛔ **SUPERSEDED `2026-09-14` (CE-275 ③).** ~~IG registers no scenario-SAVE handler~~ — 🔒 the user reversed this: IG now registers the SAME gated `HrotScenarioSaveHandler` as every host, and R-140 is enforced by the OWNERSHIP GATE (IG's file is empty because it owns nothing savable), NOT by a missing handler. 📄 [`DESIGN_Distributed_Scenario_Persistence.md`](DESIGN_Distributed_Scenario_Persistence.md) §4/§6; see §7.1 for the retired enforcement |
 | 🔴 **a persistable entity is not IG-owned** | ⛔ **convention only** |
 | 🔴 **a node with an operator-facing force view carries an ORBAT** *(§5a)* | ⛔ **convention only** — ⚠ **and it is satisfied INCIDENTALLY**, by four hosts' independent wiring. ⛔ **Not railable as stated**: the predicate is *"has an operator"*, which no code expresses; the nearest checkable form is *"each host that registers a scenario panel set also registers an ORBAT"*, ⚠ **not proposed here** — it would fire on Stride mode 1, whose registration path is unmeasured |
 
 ### 7.1 ✅⭐⭐ HOW THE RULE IS ACTUALLY ENFORCED — **by NOT HANDLING THE OPERATION** *(user, `2026-09-02`)*
 
-> 🔒 **User, verbatim:** *"IG not saving to scenario is as simple as not letting the IG subsystem handle
-> the clusterwide scenario save operation."*
+> ⛔⛔⛔ **SUPERSEDED `2026-09-14` (CE-275 ③) — the enforcement moved from "IG doesn't handle the op" to
+> "the ownership GATE".** 🔒 **User, `2026-09-14`, verbatim:** *"IG is a host and each host can create entities
+> so it needs to be able to save them to scenario, IG must share same scenario save handler with other hosts,
+> it just rarely saves anything! Unification is our goal."* ⇒ IG now registers the ONE gated
+> `HrotScenarioSaveHandler` like every host; its scenario file is empty because it OWNS nothing savable (the
+> gate — `CollectSaveableEntities` on `HasAuthority`, CE-275 ②), not because it lacks the handler. The rail
+> `NodeRolePersistenceRails` was rewritten to match: IG must not hold a CHECKPOINT save handler (ungated), but
+> DOES hold the gated scenario handler. 📄 [`DESIGN_Distributed_Scenario_Persistence.md`](DESIGN_Distributed_Scenario_Persistence.md) §4.
+> The `2026-09-02` reasoning below is retained as HISTORY.
+
+> 🔒 **User, verbatim (`2026-09-02`, now superseded):** *"IG not saving to scenario is as simple as not letting
+> the IG subsystem handle the clusterwide scenario save operation."*
 
 ⭐⭐⭐ **Correct, and it is already true.** ⚠ **This CORRECTS an earlier draft of this section**, which said
 the rule was *"enforced by NOTHING."* ⛔ **That was too pessimistic** — it looked for a per-entity filter

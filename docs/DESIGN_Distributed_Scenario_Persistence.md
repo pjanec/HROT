@@ -14,8 +14,13 @@ build-progress: Stage A (CE-275 ④ / OQ12) + Stage B (CE-275 ② the save gate)
   EditorScenarioSession.SaveAs/SaveCurrent reroute (editor AND CGF go through the cluster, no local write);
   handler registered on editor + CGF. Rails: HrotScenarioSaveHandlerTests 3, EditorScenarioSessionSaveTests 3,
   ScenarioFileService shim tests green, orchestration struct tests 55/55.
-  REMAINING: Stage C3 (register on SimHost + IG + NodeRolePersistenceRails update; retire raw-path SaveTo;
-  OQ1 CGF zone service), Stage E (merge — ⛔ NO NoSave, §7). Multi-node staging+pull is a scoped follow-on.
+  Stage C3 BUILT & GREEN `2026-09-14`: the SAME handler now registered on ALL FOUR hosts (editor, CGF, SimHost,
+  IG — IG included per user ruling, its file empty by the gate not a missing handler); NodeRolePersistenceRails
+  rewritten (IG must not hold an UNGATED checkpoint handler, but DOES hold the gated scenario handler; R-140
+  enforced by the gate) — 10/10; Node_Roles §7.1 marked superseded. IG + SimHost + editor + CGF build clean.
+  ⇒ scenario save is UNIFIED across every host; there is no editor-only save path.
+  REMAINING: CE-277 follow-ons (OQ1 CGF zone service; retire raw-path SaveTo; multi-process staging+NAS pull;
+  T3 --mode all E2E), Stage E (NetworkOwnership→NetworkAuthority merge — ⛔ NO NoSave, §7).
 current-answer: §4 save flow, §5 load flow (R-A, ruled §8.1), §6 the ONE gate — keyed on the
   NETWORK-AGNOSTIC primary-owner fact (NetworkAuthority.PrimaryOwnerId, entity-level HasAuthority;
   absent⇒owned), NEVER a wire descriptor, §6a globals (brain-owned), §6b format recognition, §6c the

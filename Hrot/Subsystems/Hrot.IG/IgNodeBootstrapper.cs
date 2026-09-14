@@ -381,6 +381,18 @@ internal sealed class IgNodeBootstrapper : SharedApplicationBootstrapper
         // CGF1-S0309: wire dry-run snapshot/rewind handler (IG carries no ECS state in ClusterSlave).
         slave.RegisterHandler(new ReferencePreviewHandler(liveRepo: null));
 
+        // ⭐⭐⭐ CE-275 ③ — IG registers the SAME scenario SAVE handler as every other host. 🔒 User ruling:
+        //   IG is a host that can create entities, so it must be able to save them; it just rarely owns
+        //   anything savable. When the cluster fans out SaveScenarioJson, this writes IG's OWNED slice via the
+        //   shared ScenarioSaveCore — usually empty (IG's authored entities carry ScenarioIgnoreTag / IG owns
+        //   no persistable), but a persistable entity IG owns IS saved. ⛔ There is no "IG registers no save
+        //   handler" rule any more; passivity is emergent from the ownership gate, not a missing handler.
+        //   ⚠ zoneService: null — IG composes no zone manager (IgZoneDummyHandler above).
+        //   📄 docs/DESIGN_Distributed_Scenario_Persistence.md §4 · DESIGN_Node_Roles_And_Policies §7.1.
+        slave.RegisterHandler(new Hrot.ScenarioEditor.Handlers.HrotScenarioSaveHandler(
+            serializer, zoneService: null, context.TkbDb, context.World,
+            () => OrchestrationConstants.GetSharedScenariosRoot(), _effectiveInstanceId));
+
         // Diagnostics dump support: IG must ACK CollectDiagnostics in cluster 2PC.
         var archService = new ArchitectureDiagnosticsService(context.Kernel);
         var entityService = new EntityStateExtractionService(context.World, context.EntityMap);

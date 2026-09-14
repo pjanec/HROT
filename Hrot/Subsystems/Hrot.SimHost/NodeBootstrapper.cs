@@ -323,6 +323,15 @@ namespace Hrot.SimHost
 
                 clusterSlave.RegisterHandler(
                     new ReferenceEpisodeLoadHandler(scenarioSerializer, scenarioLoader, world: null));
+
+                // ⭐⭐⭐ CE-275 ③ — the ONE scenario SAVE handler (same class the editor/CGF/IG register). On a
+                //   SaveScenarioJson fan-out it writes this node's OWNED slice via the shared ScenarioSaveCore.
+                //   A SimHost (muscle) usually owns nothing persistable, so its file is empty BY THE GATE —
+                //   uniform code, no role branch. 📄 DESIGN_Distributed_Scenario_Persistence.md §4.
+                clusterSlave.RegisterHandler(
+                    new Hrot.ScenarioEditor.Handlers.HrotScenarioSaveHandler(
+                        scenarioSerializer, zoneService, tkbDb, world,
+                        () => OrchestrationConstants.GetSharedScenariosRoot(), nodeId));
             }
 
             // Wire ReferenceLiveLoadHandler AFTER the scenario handler so it only claims
