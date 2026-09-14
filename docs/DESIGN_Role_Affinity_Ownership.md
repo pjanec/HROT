@@ -163,6 +163,12 @@ related-designs:
   - PROGRAMME_Explicit_Component_Ids.md — owns whether every component actually carries an explicit
     [ComponentId]. §3.9b's mask-driven registration is only COMPLETE if it does, so that programme is a
     prerequisite for this one's registration half.
+  - DESIGN_Distributed_Scenario_Persistence.md — owns SCENARIO SAVE/LOAD ownership gating (each host
+    saves only what it primary-owns), the NetworkAuthority/NetworkOwnership component MERGE, and the
+    ECS↔network ownership seam (PrimaryOwnerId is the network-agnostic owner; EntityMaster is derived).
+    It READS the ownership THIS design decides; it does not decide who owns what. ⚠ Its axis ② (per-component
+    runtime authority = AuthorityMask) is exactly this design's domain; its axis ① (entity PrimaryOwnerId)
+    is the save owner.
   - designs/brain-death/BD1-DESIGN.md — owns the brain-death LIFECYCLE and the brain-vs-muscle command
     routing rule. It is the design §3.9's narrowing would break: its §2.1 predicate reads BehaviorState
     locally, which a Muscle-only node cannot answer. ⚠ Measured 2026-09-12: that routing has no

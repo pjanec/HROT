@@ -34,6 +34,16 @@ related-designs:
     THIS doc owns which FILE(S) each node loads and re-ownership at load.
   - DESIGN_Entity_Creation_Unification.md — owns the CREATION pipeline whose OwnerNodeId stamps the
     save-ownership THIS doc gates on.
+  - DESIGN_Role_Affinity_Ownership.md — owns WHO OWNS WHICH COMPONENT (the role-affinity tables
+    REGISTER = owned ∪ read, AUTHORITY = owned; the per-component AuthorityMask). It DECIDES the
+    per-component/per-entity ownership; THIS doc only READS the primary-owner fact at save time and
+    never decides it. The per-component AuthorityMask it owns is axis ② here (§3); PrimaryOwnerId is axis ①.
+  - DESIGN_Entity_Genesis_End_To_End.md — owns the end-to-end genesis STAGE SEQUENCE and vocabulary
+    (request → spawn → grant → ghost → takeover → Active). Its takeover stage is where per-component
+    authority moves and where a future primary-ownership transfer (§6c) would sit; THIS doc consumes the
+    resulting owner at save time, it does not move it.
+  - UX_Feature_Authority_Aware_Writes.md — owns the AUTHORITY-GATED WRITE UX and first named the
+    NetworkAuthority/NetworkOwnership duplication (§335/§342); §7 here is the merge it deferred.
 -->
 
 # ⭐⭐⭐ Unified Distributed Scenario Persistence & the Single Ownership Component

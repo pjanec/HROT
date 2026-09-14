@@ -40,6 +40,10 @@ related-designs:
     subordinate slots, InitialUnitSubordinateIntent, GenesisMaterializationSystem.
   - designs/replication-fixes/REPL-DESIGN.md — §4.4 owns SubEntityCleanupSystem (child TEARDOWN, not
     genesis).
+  - DESIGN_Distributed_Scenario_Persistence.md — owns what the primary owner (set at the spawn stage,
+    movable at the takeover stage) MEANS for scenario SAVE/LOAD: the per-entity save gate, the
+    NetworkAuthority/NetworkOwnership merge, and the ECS↔network ownership seam. It consumes the owner
+    this sequence establishes; it does not add a genesis stage.
 -->
 
 # ⭐⭐⭐ ENTITY GENESIS, END TO END — **the landing page**
