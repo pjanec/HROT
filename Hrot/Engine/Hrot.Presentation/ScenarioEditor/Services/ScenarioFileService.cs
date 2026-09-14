@@ -44,28 +44,12 @@ public sealed class ScenarioFileService
     private readonly MigrationServices? _migrationServices;
     private Action? _worldResetObservers;
 
-    private MigrationLoadResult? _lastLoadResult;
-    private string? _lastLoadPath;
-
-    /// <summary>
-    /// Comparison to use for filesystem path equality: case-insensitive on Windows
-    /// (NTFS default), case-sensitive (Ordinal) elsewhere, since case-differing paths
-    /// are distinct files on Linux.
-    /// </summary>
-    private static StringComparison PlatformPathComparison =>
-        OperatingSystem.IsWindows() ? StringComparison.OrdinalIgnoreCase : StringComparison.Ordinal;
-
-    /// <summary>
-    /// The <see cref="MigrationLoadResult"/> from the most recent migration-aware load, or <c>null</c>.
-    /// <para>⚠⚠ <b>Always <c>null</c> since HN-037 Part B, and it was already inert before it.</b> Only the
-    /// removed <c>LoadScenario</c> ever set it — and 📐 measured, production builds this service with
-    /// <c>migrationServices: null</c> (<c>EditorSubsystem</c>), so the persistent adapter never ran in the
-    /// editor anyway. ⇒ <see cref="SaveScenario"/>'s round-trip-journal branch is unreachable in production
-    /// and was before this change. ⛔ Left standing rather than cascaded into a deletion: re-wiring the
-    /// migration adapter to the genesis load path is a design question, not a mechanical consequence of
-    /// removing a facade. Filed as an open finding.</para>
-    /// </summary>
-    public MigrationLoadResult? LastLoadResult => _lastLoadResult;
+    // ⚠ CE-275 — the migration round-trip journal (`_lastLoadResult` / `_lastLoadPath` / the `LastLoadResult`
+    //   property) was removed here. It had been inert since HN-037 Part B (only the deleted `LoadScenario`
+    //   ever set the last-load state, so both fields were permanently null and `SaveScenario`'s journal branch
+    //   was unreachable), and folding `SaveScenario` onto the shared `ScenarioSaveCore` made the dead fields a
+    //   compile error under warnings-as-errors. Re-wiring a migration-aware genesis load path is still a
+    //   separate design question if it is ever wanted.
 
     public ScenarioFileService(
         ScenarioSerializer serializer,
@@ -116,36 +100,13 @@ public sealed class ScenarioFileService
         if (repo == null)     throw new ArgumentNullException(nameof(repo));
         if (filePath == null) throw new ArgumentNullException(nameof(filePath));
 
-        var header  = new ScenarioHeader("Hrot.Scenario", TkbName: _tkbDb?.ActiveTkbName);
-        var fdpDom  = _serializer.Serialize(repo, header); // stamps $meta
-
-        var activeZones = _zoneService?.GetActiveZones();
-        if (activeZones != null && activeZones.Count > 0)
-            fdpDom["Zones"] = System.Text.Json.JsonSerializer
-                .SerializeToNode(activeZones, HrotSerializerOptions.HrotJsonOptions)!;
-
-        if (_migrationServices != null
-            && _lastLoadResult != null
-            && string.Equals(filePath, _lastLoadPath, PlatformPathComparison))
-        {
-            // Use the persistent adapter so that any round-trip journal is applied
-            // (restoring higher-version-only fields) and cleaned up on success.
-            _migrationServices.Persistent
-                .SaveAsync(filePath, fdpDom, _lastLoadResult)
-                .GetAwaiter().GetResult();
-            _lastLoadResult = null;  // consumed; next load will refresh
-            _lastLoadPath   = null;
-        }
-        else
-        {
-            // Direct write path for fresh saves or saves without a prior load result.
-            var minifiedOptions = new System.Text.Json.JsonSerializerOptions(HrotSerializerOptions.HrotJsonOptions)
-            {
-                WriteIndented = false,
-            };
-            var minifiedJson = System.Text.Json.JsonSerializer.Serialize(fdpDom, minifiedOptions);
-            File.WriteAllText(filePath, JsonAestheticFormatter.FlattenNumericArrays(minifiedJson));
-        }
+        // ⭐⭐⭐ CE-275 — delegates to the ONE host-neutral save implementation (ScenarioSaveCore). This
+        //   service is now a THIN SHIM: there is no editor-specific scenario save, and the exact same core
+        //   runs on every host through HrotScenarioSaveHandler. ⚠ The former migration-journal branch was
+        //   unreachable in production (LastLoadResult has been permanently null since HN-037 removed the only
+        //   writer), so collapsing it here is behaviour-preserving.
+        var header = new ScenarioHeader("Hrot.Scenario", TkbName: _tkbDb?.ActiveTkbName);
+        ScenarioSaveCore.Write(_serializer, repo, filePath, header, _zoneService);
     }
 
     // ⛔⛔ `LoadScenario(EntityRepository, string)` was REMOVED `2026-08-24` (HN-037 Part B).
@@ -165,14 +126,14 @@ public sealed class ScenarioFileService
     /// loaded file. Returns an empty list when no migration-aware load has
     /// occurred or when no migration services are configured.
     /// </summary>
-    public async Task<IReadOnlyList<SidecarFileInfo>> GetSidecarsForLastLoadAsync(
+    public Task<IReadOnlyList<SidecarFileInfo>> GetSidecarsForLastLoadAsync(
         CancellationToken ct = default)
     {
-        if (_migrationServices == null || _lastLoadPath == null)
-            return Array.Empty<SidecarFileInfo>();
-        return await _migrationServices.Persistent
-            .ListSidecarsAsync(_lastLoadPath, ct)
-            .ConfigureAwait(false);
+        // ⚠ CE-275 — inert since HN-037: no last-loaded scenario path is recorded any more (the load that did
+        //   so was removed), so there is never a file to list sidecars for. Returns empty; the migration
+        //   service handle is retained so the wiring survives for a future migration-aware load path.
+        _ = _migrationServices;
+        return Task.FromResult<IReadOnlyList<SidecarFileInfo>>(Array.Empty<SidecarFileInfo>());
     }
 
     // ── Helpers ──────────────────────────────────────────────────────────────

@@ -1431,6 +1431,14 @@ namespace Hrot.Editor
                 scenarioSerializer, scenarioLoader, zoneService, extractor, scenarioLoadSource, idAllocator, _world,
                 controller: rrController,
                 storageDirectory: isolatedTempRoot));
+
+            // ⭐⭐⭐ CE-275 ③ — the ONE scenario SAVE handler (the SAME class CGF/SimHost/IG register). When the
+            //   cluster fans out SaveScenarioJson, this writes the editor's owned slice via the shared
+            //   ScenarioSaveCore. There is NO editor-only save path: identical everywhere, differing only by
+            //   the injected serializer / zone service / world. 📄 DESIGN_Distributed_Scenario_Persistence.md §4.
+            clusterSlave.RegisterHandler(new Hrot.ScenarioEditor.Handlers.HrotScenarioSaveHandler(
+                scenarioSerializer, zoneService, tkbDb, _world!,
+                () => EditorBootstrap.ScenariosRoot, EditorNodeId));
             clusterSlave.RegisterHandler(new DiagnosticsDumpClusterOpHandler(
                 _fdpEventHistory,
                 new ArchitectureDiagnosticsService(() => _kernel),

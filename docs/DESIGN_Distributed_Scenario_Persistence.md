@@ -9,8 +9,13 @@ build-progress: Stage A (CE-275 ④ / OQ12) + Stage B (CE-275 ② the save gate)
   HasAuthority (absent⇒owned) as well as ScenarioIgnoreTag; OQ7 (parts ride parent) + OQ8 (editor saves all)
   RESOLVED with rails in AuthorityExtensionsTests + ScenarioSerializerTests. Fdp.Toolkits.Tests 82/82,
   Hrot.Network.NED build clean.
-  REMAINING: Stage C (distributed wiring — per-node handler + editor reroute + CGF zone service),
-  Stage E (merge — ⛔ NO NoSave, §7).
+  Stage C1+C2 BUILT & GREEN `2026-09-14` (see §4 AS-BUILT): one host-neutral ScenarioSaveCore; the ONE
+  HrotScenarioSaveHandler; ScenarioFileService reduced to a shim; ClusterMaster SaveScenarioJson routing;
+  EditorScenarioSession.SaveAs/SaveCurrent reroute (editor AND CGF go through the cluster, no local write);
+  handler registered on editor + CGF. Rails: HrotScenarioSaveHandlerTests 3, EditorScenarioSessionSaveTests 3,
+  ScenarioFileService shim tests green, orchestration struct tests 55/55.
+  REMAINING: Stage C3 (register on SimHost + IG + NodeRolePersistenceRails update; retire raw-path SaveTo;
+  OQ1 CGF zone service), Stage E (merge — ⛔ NO NoSave, §7). Multi-node staging+pull is a scoped follow-on.
 current-answer: §4 save flow, §5 load flow (R-A, ruled §8.1), §6 the ONE gate — keyed on the
   NETWORK-AGNOSTIC primary-owner fact (NetworkAuthority.PrimaryOwnerId, entity-level HasAuthority;
   absent⇒owned), NEVER a wire descriptor, §6a globals (brain-owned), §6b format recognition, §6c the
@@ -225,7 +230,7 @@ collapses this to one node that owns everything ⇒ one non-empty file.
 graph TD
     subgraph SGsave["Scenario save · ownership-gated · THIS design"]
       CM["ClusterMaster<br/>FanOutSerializeLocal(all nodes)"]
-      H["NodeScenarioSerializeHandler (NEW)<br/>CanHandle(SerializeLocal)<br/>runs gated ScenarioSerializer"]
+      H["HrotScenarioSaveHandler (NEW, one class every host registers)<br/>CanHandle(SerializeLocal) on a ScenarioSaveHandlerPayload<br/>writes via the shared host-neutral ScenarioSaveCore (gated)"]
       G["view.HasAuthority(entity)<br/>the ONE gate"]
       CM -->|SerializeLocal| H
       H --> G
@@ -244,6 +249,27 @@ that ignores ownership; do not fold it in. ⭐ **Every host — IG included — 
 no role branch**; the content of each file is purely *what that host owns*. This retires
 `Node_Roles §7.1`'s "enforce by a missing IG handler": there is no missing handler and no IG special case
 (§1a). An IG file is empty *when* the IG owns nothing savable, not *because* it is an IG.
+
+#### ⭐ AS-BUILT (Stage C, `2026-09-14`)
+
+- **One host-neutral save core.** `ScenarioSaveCore.Write` (`Hrot.Core`, namespace `Hrot.Map.Common.Scenario`)
+  is the ONLY scenario-save implementation — gated `ScenarioSerializer` + `$meta` + this host's zones. ⛔ There
+  is NO editor-specific save: `ScenarioFileService.SaveScenario` is now a THIN SHIM over the same core, and
+  every host's one `HrotScenarioSaveHandler` calls it. *(The §4 diagram's `NodeScenarioSerializeHandler` frame
+  name is realised as `HrotScenarioSaveHandler` reusing the shared core.)*
+- **Trigger → orchestrator.** `EditorScenarioSession.SaveAs/SaveCurrent` (the ONE session class — editor AND
+  CGF) publish `ExecuteStorageOpIntent{ Operation=SaveScenarioJson, ScenarioName }`;
+  `ClusterMaster.ProcessStorageOpIntent` fans `SerializeLocal` out with a `ScenarioSaveHandlerPayload`
+  (distinct from the `.fdp` archive payload, so `ReferenceArchiveHandler` and the scenario handler coexist).
+- **Name, not path.** The operator picks a relative name / subfolder under the NAS scenarios root; no
+  filesystem path is ever chosen. The raw-path `EditorScenarioSession.SaveTo` has no production caller and is
+  scheduled for removal (C3).
+- **File target.** For the single-authoritative-node case (editor / CGF brain owning all persistable, R-A) the
+  handler writes `<scenariosRoot>/<name>/scenario.json` in place and reports NO manifest (nothing to pull).
+  ⚠ Multi-process staging + NAS pull + per-node file names remain a follow-on for a true multi-owner save.
+- **Registered by every host** (unification, no IG exception): editor + CGF built `2026-09-14`; SimHost + IG
+  land in C3 with the `NodeRolePersistenceRails` update (IG carries the handler; the gate — not a missing
+  handler — keeps its file empty).
 
 ---
 

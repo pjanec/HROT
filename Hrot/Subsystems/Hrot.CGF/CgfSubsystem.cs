@@ -1140,6 +1140,16 @@ public sealed class CgfSubsystem : ISubsystem, Fdp.Toolkit.Runner.IMapCameraProv
             extractor, _scenarioSource!, cgfIdAllocator,
             world: _context.World));
 
+        // ⭐⭐⭐ CE-275 ③ — CGF registers the SAME scenario SAVE handler as the editor (CGF == editor). On a
+        //   SaveScenarioJson fan-out it writes CGF's owned slice via the shared ScenarioSaveCore, using CGF's
+        //   own scenarios root (the shared staging root, matching CGF's load path — the editor uses its NAS
+        //   root; each host's root is config, the handler class and save core are identical).
+        //   ⚠ zoneService: null today — CGF composes no zone manager (:1139); OQ1 (give CGF a real zone
+        //   service so globals/zones ride the brain file, §6a) is a scoped follow-on.
+        newClusterSlave.RegisterHandler(new Hrot.ScenarioEditor.Handlers.HrotScenarioSaveHandler(
+            scenarioSerializer, zoneService: null, _context.TkbDb, _context.World,
+            () => Fdp.Toolkit.Orchestration.OrchestrationConstants.GetSharedScenariosRoot(), _context.NodeId));
+
         newClusterSlave.RegisterHandler(new Hrot.CGF.Orchestration.Handlers.CgfEpisodeLoadHandler(
             scenarioSerializer, scenarioLoader, extractor, _scenarioSource!, cgfIdAllocator, _context.World, behaviorRemapper));
 

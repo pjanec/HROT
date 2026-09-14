@@ -63,8 +63,8 @@ public sealed class HrotScenarioSaveHandlerTests : IDisposable
         repo.SetComponent(foreign, new SaveMarker { X = 2f });
         repo.AddComponent(foreign, new NetworkAuthority(primaryOwnerId: 2, localNodeId: 1));
 
-        var fileService = new ScenarioFileService(new ScenarioSerializerBuilder("Hrot.Scenario").Build());
-        var handler     = new HrotScenarioSaveHandler(fileService, repo, () => _root, nodeId: 1);
+        var serializer = new ScenarioSerializerBuilder("Hrot.Scenario").Build();
+        var handler    = new HrotScenarioSaveHandler(serializer, zoneService: null, tkbDb: null, repo, () => _root, nodeId: 1);
 
         var intent = new ExecuteNodeOpIntent
         {
@@ -92,8 +92,8 @@ public sealed class HrotScenarioSaveHandlerTests : IDisposable
     public void PrepareAsync_IgnoresNonScenarioPayload_SoItCoexistsWithTheArchiveHandler()
     {
         var repo        = BuildWorld();
-        var fileService = new ScenarioFileService(new ScenarioSerializerBuilder("Hrot.Scenario").Build());
-        var handler     = new HrotScenarioSaveHandler(fileService, repo, () => _root, nodeId: 1);
+        var serializer = new ScenarioSerializerBuilder("Hrot.Scenario").Build();
+        var handler    = new HrotScenarioSaveHandler(serializer, zoneService: null, tkbDb: null, repo, () => _root, nodeId: 1);
 
         var intent = new ExecuteNodeOpIntent
         {
@@ -112,8 +112,8 @@ public sealed class HrotScenarioSaveHandlerTests : IDisposable
     public void CanHandle_OnlySerializeLocal()
     {
         var repo        = BuildWorld();
-        var fileService = new ScenarioFileService(new ScenarioSerializerBuilder("Hrot.Scenario").Build());
-        var handler     = new HrotScenarioSaveHandler(fileService, repo, () => _root, nodeId: 1);
+        var serializer = new ScenarioSerializerBuilder("Hrot.Scenario").Build();
+        var handler    = new HrotScenarioSaveHandler(serializer, zoneService: null, tkbDb: null, repo, () => _root, nodeId: 1);
 
         Assert.True(handler.CanHandle(NodeOpType.SerializeLocal));
         Assert.False(handler.CanHandle(NodeOpType.PrepareState));
