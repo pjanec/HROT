@@ -332,6 +332,97 @@ single-file scenario the brain (or a fresh editor) loads with **zero** new load 
 already proven in the editor test. The distribution boundary is the **format tag**, exactly §6b: our hosts
 unify into one file; a foreign host keeps its own.
 
+### 4b. ⭐⭐⭐ THE MERGE — detailed design *(why it is trivial, proven — `2026-09-14`)*
+
+📐 **The scenario DOM, measured** *(`ScenarioSerializer.Serialize:120-202`, `ScenarioSaveCore.BuildDom:33-45`)*:
+
+```json
+{ "$meta":  { "docType": "Hrot.Scenario", "schemaVersion": 2 },
+  "Header": { "TkbName": "<active TKB>" },
+  "Entities": { "<random-guid>": { "<Component>": { … }, … }, … },
+  "Zones":  [ … ] }              // present ONLY on a host with a zone service (brain, §6a)
+```
+
+#### The merge is a disjoint dict-union + brain-sourced globals — and here is the PROOF
+
+| # | invariant | why it holds | code |
+|---|---|---|---|
+| **I1** | **one entity → one slice** (semantic disjointness) | the save gate is `save ⇔ IsPrimaryOwner(entity)`; every entity has exactly ONE primary owner, so it is serialized by exactly one node | `ScenarioSerializer.CollectSaveableEntities` (CE-275 ②) |
+| **I2** | **entity keys never collide** (syntactic disjointness) | the DOM key is `Guid.NewGuid()` generated **per save**, not the network id — two slices' key sets are disjoint whatever they contain | `ScenarioSerializer.cs:127` |
+| **I3** | **references stay intra-slice** (no renumbering on union) | a parent and its child parts share ONE owner (parts ride parent, OQ7), so every in-file GUID reference resolves inside the same slice; the union carries each slice's keys unchanged | `ScenarioSerializer.cs:539` · OQ7 |
+| **I4** | **globals have ONE authoritative source** | `TkbName` is cluster-wide identical (one active TKB); `Zones` are written ONLY by a host with a zone service, i.e. the brain (§6a — muscle/IG pass `zoneService:null`) | `ScenarioSaveCore.cs:41-43` · §6a |
+
+⇒ ⭐⭐⭐ **given I1–I4 the merge is literally:**
+
+```
+compatible = slices where $meta.docType == "Hrot.Scenario"     // §6b tag
+merged = {
+  "$meta":    compatible[any].$meta,                            // I4 + assert equal schemaVersion
+  "Header":   brainSlice.Header,                                // I4 (TkbName; assert equal across compatible)
+  "Entities": ⋃ compatible[i].Entities,                         // I1+I2 ⇒ disjoint union, no overwrite
+  "Zones":    brainSlice.Zones                                  // I4 (the only slice that has any)
+}
+write merged → <sharedNAS>/scenarios/<name>/scenario.json
+```
+
+⭐ **No id remapping, no reference fix-up, no entity reconciliation** — that is the whole content of the
+"trivial" claim, and I1–I3 are exactly why. ⚠ The steady state is even smaller: after any load every entity
+is brain-owned (§5), so a later save has ONE non-empty slice and the union is `{brain} ∪ {∅,∅}`. The merge
+does real work ONLY for a **non-brain live-authored** entity (IG draws) between loads — the case §8.1 R-A
+folds into the brain anyway; here it folds at save.
+
+#### ⛔ Fail-loud guards (a merge must never silently corrupt)
+
+| guard | on violation |
+|---|---|
+| `schemaVersion` differs across compatible slices | **reject** the save — a version skew needs migration, not a blind union |
+| `Header.TkbName` differs across compatible slices | **reject** — a cluster runs ONE TKB; a mismatch is a config fault |
+| a GUID key appears in two slices (I2 impossible) | **reject** — signals a broken save, never overwrite |
+| `Zones` present on a non-brain slice | **warn**, keep the brain's (I4 says brain is the source) |
+| zero compatible slices (all foreign) | **valid** — no canonical file written; only the foreign set (c3) |
+
+#### The incompatible set (c3) — routing, never parsing
+
+⭐ A pulled slice whose `$meta.docType` ≠ `"Hrot.Scenario"` is **copied verbatim** to
+`<name>/foreign/node_<id>.scn` and indexed `{ originNodeId, docType }`. ⛔ **It is never opened, parsed or
+merged.** On LOAD the index drives `StorageGatewayModule.PushToNodesAsync` to return each foreign file to its
+origin node, which loads it with its own editor (§6b). ⭐⭐ **This is genuinely simpler than the merge** — no
+JSON touched — which is why it ships WITH c2, not after *(user ruling `2026-09-14`: no deferral)*.
+
+⚠ **ONE open sub-question, with a lean** — *how does a foreign slice enter the pulled set?* (a) a foreign
+host runs a minimal FDP node shell that deposits its file into per-node staging like any node **(lean — it
+matches "each node uses orchestrated pull" and keeps the classify step uniform)**, or (b) the foreign host
+writes to NAS entirely out-of-band and the orchestrator only avoids clobbering + routes on load. ⭐ I lean
+(a); it needs confirming before c3 is coded, because it decides whether the pull enumerates foreign nodes.
+
+#### Where it lives — one host-neutral helper, mirroring `ScenarioSaveCore`
+
+```mermaid
+classDiagram
+    class ScenarioMergeCore {
+        +MergeCompatible(slices) MergeResult$
+    }
+    class SliceInput {
+        +int OriginNodeId
+        +string FilePath
+        +string DocType
+    }
+    class MergeResult {
+        +JsonObject CanonicalDom
+        +IReadOnlyList~ForeignSlice~ Foreign
+    }
+    class StorageProcessManager {
+        +OnClusterOpCompleted(manifests)
+    }
+    StorageProcessManager --> ScenarioMergeCore : after PullToNasAsync
+    ScenarioMergeCore --> SliceInput : reads N
+    ScenarioMergeCore --> MergeResult : writes 1 + foreign set
+```
+
+*Caption:* `ScenarioMergeCore` is a pure JSON transform (no ECS, no engine) beside `ScenarioSaveCore` in
+`Hrot.Core`; `StorageProcessManager` calls it after the existing `PullToNasAsync`. ⭐ The only NEW code is
+this one class + its registration; every arrow into it already exists.
+
 ---
 
 ## 5. ⭐⭐ LOAD — per-node file, brain canonical  ✅ R-A (ruled §8.1)
