@@ -8,7 +8,11 @@ current-answer: §4 save flow, §5 load flow (R-A, ruled §8.1), §6 the ONE gat
   ECS↔network seam (primary owner is an ECS fact; transport DERIVES EntityMaster from it; transfer
   updates PrimaryOwnerId ⇒ save follows), §7 the NetworkAuthority/NetworkOwnership merge, §1a paradigm
   correction. ⭐ ALL blockers + OQ6 closed `2026-09-14`; OQ9 corrected (editor is ALREADY a single-node
-  cluster). Remaining minor: OQ7 (verify parts, build step 1), OQ8 (rail). ⇒ BUILDABLE; awaiting go-ahead.
+  cluster). §6c reconciled with the BDC/NED spec: EntityMaster ownership (transferable via the generic
+  OwnershipUpdate, possibly EXTERNAL) IS the primary owner; PrimaryOwnerId is its ECS mirror — a named
+  COMPLIANCE GAP (OQ12: the OwnershipUpdate→PrimaryOwnerId sync) is folded into the deferred transfer
+  feature, not needed for the immediate build. Remaining minor: OQ7 (verify parts, build step 1), OQ8
+  (rail). ⇒ BUILDABLE; awaiting go-ahead.
 stale-below: nothing yet (new document).
 known-rot: nothing known.
 known-conflict: DESIGN_Node_Roles_And_Policies.md §7.1 says IG-persistence is enforced "by an
@@ -25,6 +29,9 @@ design-basis:
   - docs/UX/UX_Feature_Authority_Aware_Writes.md §335/§342/§343 (the NetworkAuthority/NetworkOwnership
     duplication named as debt; "pick NetworkAuthority"; absent-component = owned)
   - docs/blueprints/RULINGS.md R-138 (fully distributed), R-140 (IG passive/non-persisting)
+  - docs/reference/BDC_NED_SST_Descriptor_Rules.md (AUTHORITATIVE wire spec: entities-as-descriptors,
+    EntityMaster lifecycle, per-descriptor ownership, the generic OwnershipUpdate transfer — §6c maps it
+    onto our ECS and records the PrimaryOwnerId-mirror compliance gap)
 related-designs:
   - DESIGN_Node_Roles_And_Policies.md — owns the ROLE/ownership POLICY (who may own what, R-138/R-140);
     THIS doc owns the SAVE/LOAD MECHANISM that enforces it and the ownership-component unification.
@@ -326,9 +333,12 @@ not match the loader's `_subsystemType` (`ScenarioSerializer.cs:327-343`, `retur
 | ⭐⭐ **replication toolkit — transport-agnostic** | `Fdp.Toolkits/Replication` | **`NetworkAuthority.PrimaryOwnerId`** (the owner **node-id** — plain int, no DDS knowledge) and **`DescriptorOwnership.Map`** (per-descriptor override). This is where *"who is the primary owner"* actually lives |
 | ⛔ **transport — NED/BDC** | `Hrot.Network.NED` | the **`EntityMaster`** DDS descriptor + translators. The **only** layer that knows the word "EntityMaster" |
 
-⭐⭐⭐ **The correcting insight (and it reverses an earlier draft of this doc):** the primary owner is a
-**network-agnostic ECS fact** — `NetworkAuthority.PrimaryOwnerId` (an int, transport-agnostic). **`EntityMaster`
-is the NETWORK's *representation* of that fact, DERIVED from it — not the source of truth.** So:
+⭐⭐⭐ **The correcting insight:** the primary owner has **two faces of ONE fact** — the **network-agnostic ECS
+mirror** `NetworkAuthority.PrimaryOwnerId` (an int, transport-agnostic) and the **wire owner** of the
+`EntityMaster` descriptor (BDC-authoritative). They are kept in sync **bidirectionally**: for an entity we own,
+the wire is **published from** `PrimaryOwnerId`; for an **incoming** transfer, the `OwnershipUpdate` is the
+source and **writes** `PrimaryOwnerId` (the compliance sync, §6c rule 3). The **save gate reads the ECS mirror**
+so it stays network-agnostic. So:
 
 - **Q1 — where is it stored?** As component data: the owner **node-id** in `NetworkAuthority.PrimaryOwnerId`
   (toolkit, transport-agnostic), and the per-component **authority bits** in the core `AuthorityMask`
@@ -361,56 +371,74 @@ is the NETWORK's *representation* of that fact, DERIVED from it — not the sour
 2. ⭐⭐ **The transport DERIVES `EntityMaster` ownership from `PrimaryOwnerId`** (publish + delete-order), and
    an **entity transfer UPDATES `PrimaryOwnerId`** cluster-wide — the transport re-derives from it.
    ⇒ **the save gate follows a transfer automatically**, because both read the same ECS fact.
-3. ⛔ **Do NOT transfer primary ownership by writing a per-descriptor `DescriptorOwnership` override for
-   EntityMaster** — that path (the generic `OwnershipUpdate` / `DeferredTakeover`) is for **per-COMPONENT**
-   authority (the Muscle taking `SimTransform`). Using it for the entity would let the descriptor owner and
-   `PrimaryOwnerId` **diverge**. Entity-level transfer moves `PrimaryOwnerId`; component grants move `AuthorityMask`.
+3. ⭐⭐ **`EntityMaster` ownership transfer is a FIRST-CLASS BDC operation, and our ECS must MIRROR it into
+   `PrimaryOwnerId`.** The BDC/NED spec ([`reference/BDC_NED_SST_Descriptor_Rules.md`](reference/BDC_NED_SST_Descriptor_Rules.md))
+   defines a generic **`OwnershipUpdate{EntityId, DescrTypeId, DescrInstanceId, NewOwner}`** message that
+   transfers ownership of **any** descriptor — including `EntityMaster` — and it **may originate from ANY node,
+   including an EXTERNAL system handing an entity to us.** ⇒ this is *the* compliant way to move the primary
+   owner (not a per-component `DescriptorOwnership` override we invent). Our rule: an `EntityMaster`
+   `OwnershipUpdate` **is** the primary-ownership transfer, and applying it **must write `PrimaryOwnerId`** so
+   the ECS mirror (and the save gate) stays consistent with who now owns/publishes `EntityMaster`.
+   ⚠ **Per-component grants are different** — a non-master descriptor's ownership (the Muscle taking `SimTransform`)
+   moves `AuthorityMask` only and does **not** change entity ownership (spec §Disposal: a non-master dispose
+   *returns* ownership to the master's owner).
 
-#### ⚠⚠ RECONCILIATION — does "we don't move `PrimaryOwnerId`" collide with NED's "EntityMaster owner = primary owner"?
+#### ⚠⚠ RECONCILIATION with the BDC/NED spec — and the COMPLIANCE GAP *(measured `2026-09-14`)*
 
-**No collision today, and here is the precise reason** *(measured `2026-09-14`)*:
+🔒 **The spec is authoritative** *(user-provided, [`reference/BDC_NED_SST_Descriptor_Rules.md`](reference/BDC_NED_SST_Descriptor_Rules.md))*:
+> *"EntityMaster descriptor controls the life of the entity."* · *"Owner is the one updating the entity… the
+> owner is whoever published the current value."* · `OwnershipUpdate` is *"for the current and the new owner
+> only"*: current owner stops writing (does **not** dispose); new owner writes to confirm.
 
-- ⭐ **EntityMaster ownership is NEVER transferred today.** `EntityMaster` *is* a registered descriptor
-  (`EntityMasterEgressTranslator : IDescriptorTranslator`, `TargetComponentIds = {NetworkIdentity, TkbIdentity}`
-  — note: **not** `NetworkAuthority`), so the generic mechanism *could* carry it — but **nothing grants or
-  overrides `dtEntityMaster`** (grep of `DeferredTakeoverSystem` / `NedReplicationModule` / grants: none). ⇒
-  no `DescriptorOwnership.Map[EntityMasterKey]` is ever set, so `HasAuthority(entity, EntityMasterKey)` **always
-  falls back to `PrimaryOwnerId`**.
-- ⇒ ⭐⭐ **"EntityMaster owner" and "`PrimaryOwnerId`" are the SAME node — two views of ONE fact.** The NED rule
-  *(the node that owns/disposes `EntityMaster` is the primary owner)* **holds**, precisely because EntityMaster
-  ownership is **derived from `PrimaryOwnerId`** via that fallback. There is **no independent EntityMaster
-  ownership** that could disagree. We transfer neither today; both are fixed at creation.
-- ⭐ **The collision your instinct senses is the FUTURE hazard, and rule 3 is exactly what avoids it:** if a
-  transfer moved the *EntityMaster descriptor override* without moving `PrimaryOwnerId`, the lifecycle owner
-  and the save owner would split. So entity transfer moves `PrimaryOwnerId` (the `NetworkAuthority` component,
-  Q3), and EntityMaster **stays derived** — never overridden independently.
+⇒ **The primary owner IS the `EntityMaster` owner, per the spec** — there is **no** contradiction with "we
+don't move `PrimaryOwnerId`"; rather, `PrimaryOwnerId` is the **ECS mirror** of the `EntityMaster` owner, and
+the two must be **kept in sync at the NED boundary.** The save gate reads the network-agnostic `PrimaryOwnerId`
+(§6) and is thereby **spec-compliant** — *provided the mirror is maintained.*
 
-**How hosts respond to an EntityMaster ownership-transfer request NOW:** ⛔ **they don't — no such request is
-ever issued.** `OwnershipEgressSystem` only emits an `OwnershipUpdate` when an entity's `DescriptorOwnership.Map`
-*changes*, and nothing writes an EntityMaster entry. There is **no DDS `OWNERSHIP` QoS** on the topic either
-(arbitration is application-level: the egress `HasAuthority` check + the `_publishedNetIds` exactly-once dedup).
-⇒ if a `DeferredTakeover` *did* include `dtEntityMaster`, `OwnershipIngressSystem` would set the map + flip the
-`{NetworkIdentity, TkbIdentity}` `AuthorityMask` bits and the new node would start publishing — but
-`PrimaryOwnerId` would stay stale **and** the DDS instance would have no defined handoff. That incompleteness
-(not a working feature) is why the transfer feature is deferred and must move `PrimaryOwnerId` + define the
-instance handoff.
+⛔⛔ **The current gap — our mirror is NOT maintained today:**
+
+| what happens on an incoming `OwnershipUpdate{EntityMaster, NewOwner}` | measured |
+|---|---|
+| the message is delivered generically (no descriptor-type filter) | ✅ `OwnershipUpdateTranslator` ingress, `OwnershipIngressSystem` |
+| `DescriptorOwnership.Map[EntityMasterKey] = NewOwner` + `AuthorityMask` for `{NetworkIdentity, TkbIdentity}` flipped ⇒ the **egress follows** (new node publishes, old stops) | ✅ `OwnershipIngressSystem.cs:27/42` |
+| ⛔ **`NetworkAuthority.PrimaryOwnerId` is NOT written** ⇒ the **save gate stays stale** — we'd publish `EntityMaster` as the new owner but *not save the entity* | 🔴 `OwnershipIngressSystem` never touches `PrimaryOwnerId` |
+
+⇒ 🔴 **Today our system is only PARTIALLY compliant for an `EntityMaster` transfer:** it honours the egress
+side but not the ECS primary-owner mirror. **The fix (compliance requirement, folded into the deferred transfer
+feature): when an `OwnershipUpdate` for the `EntityMaster` descriptor is applied, also write
+`NetworkAuthority.PrimaryOwnerId = NewOwner`** (and, per spec, the new owner writes `EntityMaster` to confirm;
+the old owner stops without disposing). Then an **externally-originated** transfer lands the entity — including
+its save-ownership — on us correctly, with no code above the NED boundary needing to know a transfer happened.
+
+⭐ **This does not change the save gate** (still the network-agnostic `PrimaryOwnerId`, §6) — the BDC mapping
+lives exactly where it should, at the `OwnershipUpdate` ingress on the NED boundary. ⚠ It also does **not**
+block the immediate scenario-save build: no external transfer occurs in our current runs, so the mirror is
+never stale today; but the sync is a **named compliance requirement** so we are ready when one does.
 
 ⚠ **Deferred-feature sub-items (NOT built now — the transfer FEATURE is a later design):**
-- **Make `NetworkAuthority` ownership-tracked / replicated** — register it as a descriptor target (so the
-  generic `OwnershipUpdate`/`DeferredTakeover` can move its authority) and replicate its `PrimaryOwnerId`
-  value (today the ghost carries the `-1` sentinel, not the real owner id). This is the enabling change; once
-  done, "transfer entity ownership" = transfer the `NetworkAuthority` component, no new primitive.
-- **DDS instance-ownership handoff** — two publishers of one keyed `EntityMaster` across the switch (OWNERSHIP
-  QoS / exactly-once `_publishedNetIds`); needs a defined handoff.
-- **Does transfer also move per-component authority?** Independent axis; the feature decides whether taking
-  `NetworkAuthority` drags the other components' `AuthorityMask` bits along or leaves them as separate grants.
+- ⭐⭐ **Sync `PrimaryOwnerId` at the `EntityMaster` `OwnershipUpdate` ingress** — the one compliance fix: when
+  `OwnershipIngressSystem` applies an update whose `DescrTypeId == dtEntityMaster`, write
+  `NetworkAuthority.PrimaryOwnerId = NewOwner` (today it writes only `DescriptorOwnership.Map` + `AuthorityMask`).
+  This is what makes an **external** transfer land save-ownership on us. ⚠ Also replicate/repair the ghost's
+  `PrimaryOwnerId` (it carries the `-1` sentinel, not the real owner id) so a receiving node knows the owner.
+- **The instance handoff must follow the spec, not dispose** — BDC §Ownership updates: the old owner **stops
+  writing** `EntityMaster` (must NOT dispose it — a dispose means *entity deleted*, spec §Disposal); the new
+  owner **writes `EntityMaster` to confirm**. Our egress stops via `HasAuthority` and dedups via
+  `_publishedNetIds`; the feature must ensure the losing node does not dispose and the gaining node re-publishes.
+- **`NodeId` mapping** — the spec's `NewOwner` is a `{Domain, Node}` (`{AppDomainId, AppInstanceId}`); our
+  `PrimaryOwnerId` is a single int. The ingress must map one to the other.
+- **Does transfer also move per-component authority?** Independent axis; the feature decides whether an
+  `EntityMaster` transfer drags the other descriptors' `AuthorityMask` bits along or leaves them as separate
+  grants (spec allows partial owners).
 
 ✅ **DECIDED `2026-09-14` — `PrimaryOwnerId` stays in the `NetworkAuthority` component** (not promoted into
-the `Fdp.Core` header). 🔒 User: *"leave PrimaryOwnerId in NetworkAuthority."* ⭐ This is what makes the
-native transfer coherent: entity ownership = ownership of the `NetworkAuthority` component, moved by the
-generic per-component mechanism (Q3 above). ⇒ **for THIS design, nothing to build for transfer** — the one
-requirement, "do not prevent it," is met by rule 1 (the gate reads the ECS `PrimaryOwnerId` fact); the
-enabling change (make `NetworkAuthority` ownership-tracked) belongs to the later transfer feature.
+the `Fdp.Core` header). 🔒 User: *"leave PrimaryOwnerId in NetworkAuthority."* ⭐ Reconciled with the BDC spec:
+the **wire** mechanism is the `EntityMaster` `OwnershipUpdate` (spec-authoritative, possibly external); the
+**ECS** effect is that `NetworkAuthority.PrimaryOwnerId` moves to match. "Transfer the `NetworkAuthority`
+component" and "`OwnershipUpdate` on `EntityMaster`" are the ECS and wire faces of the **same** transfer, joined
+by the ingress sync (deferred sub-item 1). ⇒ **for THIS design, nothing to build for transfer** — the
+requirement "do not prevent it" is met by rule 1 (the gate reads the ECS `PrimaryOwnerId` fact); the
+`OwnershipUpdate→PrimaryOwnerId` sync is the later transfer feature's compliance fix.
 
 ---
 
@@ -451,6 +479,7 @@ buys only cosmetics — optional later follow-up).
 | **OQ8** | **Editor "saves everything" is by construction but unproven.** Editor localNodeId / `HasAuthority=true` for editor scenario entities not directly measured this session. | 🟢 rail | airtight by construction (single node has no ghosts); add a rail asserting the editor saves the full set. |
 | **OQ9** | ✅ **DECIDED `2026-09-14` — NO editor exception; unified BY CONSTRUCTION.** 🔒 User: *"no direct write in the editor… same code everywhere, driven by role/host config… the plumbing resulting naturally from using the same (unified) code (orchestration handlers etc.)."* ⇒ the editor runs the **same orchestration** as a single-node, all-roles cluster; scenario save goes through the fan-out + per-node handler, never `ScenarioFileService.SaveScenario` directly. ✅ **CORRECTED `2026-09-14` — the editor is ALREADY a single-node cluster.** An earlier draft here claimed the editor "has no orchestrator" and would need one built; that was WRONG — it read the mode roster, not the EditorSubsystem's internals. Measured: `EditorSubsystem` self-hosts `ClusterMaster` (`:318`, `:2074` `new ClusterMaster(_orchestrationBus, offlineConfig)` — "offline single-node orchestrator"), `StorageGatewayModule` (`:323/:2092`), and a `ClusterSlave` (`:1301`) on which it registers cluster handlers (`:1422-1623`), ticked at `:2590`. The config's "no editor + orchestrator" ban (`HrotRunnerConfiguration.cs:181-187`) merely prevents a **second** orchestrator, not a missing one. ⇒ **the real build is small:** the editor's slave registers only LOAD handlers today; save still bypasses the orchestrator via `IEditorLogic.SaveScenarioAs` (`:3864/:3958`). Work = **register the new save handler on every slave (editor included)** + **route the editor save through `_clusterMaster`** instead of the direct call. | 🟢 **small build, plumbing exists** | register the save handler uniformly; reroute the editor save trigger; retire the direct `ScenarioFileService.SaveScenario`. |
 | **OQ10** | ✅ **CLOSED via R-A** — CGF/brain owns ALL persistable at load; per-component authority granted at runtime; muscles never own persistable entities. | ✅ closed | R-A. |
+| **OQ12** | ⭐ **BDC COMPLIANCE — the `EntityMaster` `OwnershipUpdate` → `PrimaryOwnerId` sync (§6c).** An `OwnershipUpdate` for the EntityMaster descriptor (generic, per spec, possibly EXTERNAL) transfers the primary owner; today `OwnershipIngressSystem` moves the egress authority but **not** `PrimaryOwnerId`, so the save gate would go stale after an external transfer. | 🟠 deferred (compliance) | fold into the transfer feature: on an `EntityMaster` `OwnershipUpdate` write `PrimaryOwnerId = NewOwner`; map `NodeId{Domain,Node}`; don't dispose on loss. ⚠ Not needed for the immediate build (no external transfer occurs in current runs), but named so we are compliant when one does. |
 
 ⭐⭐ **ALL BLOCKERS CLOSED `2026-09-14`.** OQ1 (globals → brain), OQ2 (orphan loss accepted), OQ3 (reuse
 collection, brain canonical), OQ4/OQ10/OQ11 (R-A round-trip), OQ5 (per-node handler), OQ9 (editor is
