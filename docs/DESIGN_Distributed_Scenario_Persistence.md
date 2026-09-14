@@ -271,12 +271,66 @@ no role branch**; the content of each file is purely *what that host owns*. This
 - **Name, not path.** The operator picks a relative name / subfolder under the NAS scenarios root; no
   filesystem path is ever chosen. The raw-path `EditorScenarioSession.SaveTo` has no production caller and is
   scheduled for removal (C3).
-- **File target.** For the single-authoritative-node case (editor / CGF brain owning all persistable, R-A) the
-  handler writes `<scenariosRoot>/<name>/scenario.json` in place and reports NO manifest (nothing to pull).
-  ⚠ Multi-process staging + NAS pull + per-node file names remain a follow-on for a true multi-owner save.
+- **File target (INTERIM shortcut — see §4a for the ruled target).** For the single-authoritative-node case
+  (editor / CGF brain owning all persistable, R-A) the handler writes `<scenariosRoot>/<name>/scenario.json` in
+  place and reports NO manifest. ⚠ This **under-adopts a seam that already exists**: the per-node staging +
+  `FileManifestResult` + `StorageGatewayModule.PullToNasAsync` transport is BUILT and used by the `.fdp` archive
+  path (`ReferenceArchiveHandler`). ⛔ Writing direct-to-shared **collides** if two nodes ever own persistable
+  entities (both write the same `<name>/scenario.json`, last-writer-wins). Safe today only because the sole
+  trigger is the editor (one node) and R-A means only the brain owns. **§4a is the ruled multi-owner target.**
 - **Registered by every host** (unification, no IG exception): editor + CGF built `2026-09-14`; SimHost + IG
   land in C3 with the `NodeRolePersistenceRails` update (IG carries the handler; the gate — not a missing
   handler — keeps its file empty).
+
+### 4a. ⭐⭐⭐ R-A DISTRIBUTED SAVE — **orchestrated pull + compatible-merge** *(user ruling `2026-09-14`)*
+
+> 🔒 **User, verbatim:** *"R-A as agreed. Each node uses orchestrated pull. Aggregator merges compatible
+> scenario files to one as if brain owned all and saved (later loaded by brain) and leaves the non-compatible
+> ones (later distributed to original nodes and loaded by them)."*
+
+⭐⭐ **This REUSES the existing archive transport instead of the direct-to-shared shortcut**, and adds ONE new
+step (a scenario merge-aggregator). The compatible/incompatible split is the §6b format tag (`$meta.docType`).
+
+```mermaid
+sequenceDiagram
+    autonumber
+    participant CM as ClusterMaster
+    participant Brain as Brain (CGF, our format)
+    participant IGx as External host (own format)
+    participant SPM as StorageProcessManager
+    participant GW as StorageGatewayModule
+    participant NAS as Shared NAS store
+    CM->>Brain: SerializeLocal (ScenarioSaveHandlerPayload)
+    CM->>IGx: SerializeLocal
+    Brain->>Brain: write owned slice to node staging<br/>GetNodeScenariosRoot(nodeId)
+    Brain-->>CM: FileManifestResult{ source, docType=Hrot.Scenario }
+    IGx->>IGx: write its slice to node staging
+    IGx-->>CM: FileManifestResult{ source, docType=Foreign }
+    CM->>SPM: ClusterOpCompletedEvent{ aggregated manifests }
+    SPM->>GW: PullToNasAsync(all slices)
+    Note over SPM,GW: NEW merge-aggregator step
+    SPM->>NAS: COMPATIBLE slices → MERGE into ONE<br/>scenarios/<name>/scenario.json (brain-canonical union)
+    SPM->>NAS: INCOMPATIBLE slices → keep as-is<br/>scenarios/<name>/foreign/node_<id>.scn
+```
+
+*Caption — what the picture shows that prose can't:* two DIFFERENT fates for a pulled slice keyed on its
+format tag — the compatible ones **collapse to one file** (as if the brain had owned all and saved it), the
+incompatible ones **stay separate**. The merge is the one genuinely new component; everything else
+(`FanOutSerializeLocal`, per-node staging, `FileManifestResult`, `PullToNasAsync`) already exists.
+
+| ⭐ the ruled model | mechanism | built? |
+|---|---|---|
+| each node writes its owned slice to **its own** staging dir | `HrotScenarioSaveHandler` → `GetNodeScenariosRoot(nodeId)` + return `FileManifestResult` | ⛔ handler change (drop the direct-to-shared shortcut) |
+| orchestrator **pulls** every slice to NAS | `PullToNasAsync` | ✅ exists |
+| **merge** the format-compatible slices into ONE `<name>/scenario.json` | ⭐⭐ NEW scenario merge-aggregator (`INodeResponseAggregator` for the scenario op, or a merge in `StorageProcessManager`) | ⛔ NEW |
+| **leave** incompatible-format slices as separate per-node files | keyed on `$meta.docType` ≠ our type (§6b) | ⛔ NEW (a filter) |
+| LOAD: brain loads the merged canonical file, owns all | §5 · genesis re-stamps owner = loader | ✅ exists (single file) |
+| LOAD: incompatible files **pushed back** to their origin nodes, loaded there | `StorageGatewayModule.PushToNodesAsync` + each node's own load | ⛔ wiring (push-back exists; per-node load of a foreign file is that host's own editor, §6b) |
+
+⭐ **Why merge-on-pull and not merge-on-load:** the canonical `<name>/scenario.json` becomes a normal
+single-file scenario the brain (or a fresh editor) loads with **zero** new load logic — the round-trip
+already proven in the editor test. The distribution boundary is the **format tag**, exactly §6b: our hosts
+unify into one file; a foreign host keeps its own.
 
 ---
 
@@ -302,6 +356,9 @@ sequenceDiagram
 ownership (INVENTORY ⑨) and the genesis pipeline stamps `OwnerNodeId = loader`. A muscle's empty file is
 correct — it receives entities by **replication**, and per-component authority arrives later by **grant**,
 never changing `PrimaryOwnerId`. This is why the round-trip is stable: *save-owner in = save-owner out*.
+⭐ **Format-incompatible slices (§4a) do NOT funnel here** — they are pushed back to their origin nodes
+(`PushToNodesAsync`) and loaded by *that* host's own editor, the one place "each host loads its own content"
+still literally holds (§6b).
 
 ---
 
