@@ -330,11 +330,19 @@ is the NETWORK's *representation* of that fact, DERIVED from it — not the sour
   the authority state — it publishes/deletes `EntityMaster` for entities this node is authoritative over
   (`EntityMasterEgressTranslator.cs:67-74`). The mapping *"primary owner → publish EntityMaster"* is **entirely
   in the transport layer**; the ECS core never names the descriptor.
-- **Q3 — how does an ECS host initiate a transfer?** By changing the **network-agnostic** owner fact; the
-  transport layer then re-derives `EntityMaster` ownership to match. The right shape is a **transport-agnostic
-  intent** — a command like the existing `DeferredTakeOwnershipCommand` (`Fdp.Toolkits/NetworkSpawning/Events/`,
-  a plain ECS event any node raises) — that updates `PrimaryOwnerId` cluster-wide; NED carries it as a DDS
-  message (`DeferredTakeOwnership` + its translators) and hands off the `EntityMaster` DDS instance.
+- **Q3 — how does an ECS host initiate a transfer?** ⭐⭐⭐ **The native, consistent way: transfer OWNERSHIP
+  OF THE `NetworkAuthority` COMPONENT** — since `PrimaryOwnerId` is a field of `NetworkAuthority`, entity
+  ownership is just *"who owns the `NetworkAuthority` component,"* and it moves by the **same generic
+  per-component authority-transfer** mechanism as everything else (`DeferredTakeOwnershipCommand` →
+  `OwnershipUpdate` → `AuthorityMask`). **No special "entity transfer" primitive.** The new owner then holds
+  authority over `NetworkAuthority` and reflects it in `PrimaryOwnerId`; the save gate and the derived
+  `EntityMaster` wire ownership both follow.
+  ⚠ **Measured gap (so this is a FEATURE, not a claim it works today):** `NetworkAuthority` is **not** a
+  replicated descriptor and is **not** a `TargetComponent` of any translator (so the generic mechanism can't
+  yet reach it), and its VALUE is set locally (owner at spawn `NetworkSpawningSystem:158`; ghost `= -1`
+  `EntityMasterIngress:149`), never replicated. ⇒ the transfer feature must make `NetworkAuthority`
+  **ownership-tracked / replicated** (register it as a descriptor target, or replicate its value) so the
+  generic transfer moves it and the new `PrimaryOwnerId` propagates.
 
 #### ⭐ The rule this design commits to — so transfer is ENABLED, not prevented
 
@@ -349,19 +357,21 @@ is the NETWORK's *representation* of that fact, DERIVED from it — not the sour
    `PrimaryOwnerId` **diverge**. Entity-level transfer moves `PrimaryOwnerId`; component grants move `AuthorityMask`.
 
 ⚠ **Deferred-feature sub-items (NOT built now — the transfer FEATURE is a later design):**
-- **Propagating a `PrimaryOwnerId` change** cluster-wide needs a message (today nothing updates `PrimaryOwnerId`
-  after spawn) — a small `DeferredTakeOwnershipCommand`-shaped addition, or extend it to carry the entity-level
-  owner.
+- **Make `NetworkAuthority` ownership-tracked / replicated** — register it as a descriptor target (so the
+  generic `OwnershipUpdate`/`DeferredTakeover` can move its authority) and replicate its `PrimaryOwnerId`
+  value (today the ghost carries the `-1` sentinel, not the real owner id). This is the enabling change; once
+  done, "transfer entity ownership" = transfer the `NetworkAuthority` component, no new primitive.
 - **DDS instance-ownership handoff** — two publishers of one keyed `EntityMaster` across the switch (OWNERSHIP
   QoS / exactly-once `_publishedNetIds`); needs a defined handoff.
-- **Does transfer also move per-component authority?** Independent axis; the feature decides.
+- **Does transfer also move per-component authority?** Independent axis; the feature decides whether taking
+  `NetworkAuthority` drags the other components' `AuthorityMask` bits along or leaves them as separate grants.
 
-⭐ **Open design choice (record, don't decide now):** `PrimaryOwnerId` currently lives in the
-`NetworkAuthority` **component** (toolkit). It could be **promoted into the `Fdp.Core` entity header** (beside
-`AuthorityMask`) to make the primary owner a first-class *core* fact rather than a toolkit component. Lean:
-**leave it in `NetworkAuthority` for now** (already transport-agnostic; moving it touches ~57 readers and the
-§7 merge); revisit if a core-level owner-id proves needed. ⇒ **for THIS design, nothing to build for
-transfer** — the one requirement, "do not prevent it," is met by rule 1 (the gate reads the ECS fact).
+✅ **DECIDED `2026-09-14` — `PrimaryOwnerId` stays in the `NetworkAuthority` component** (not promoted into
+the `Fdp.Core` header). 🔒 User: *"leave PrimaryOwnerId in NetworkAuthority."* ⭐ This is what makes the
+native transfer coherent: entity ownership = ownership of the `NetworkAuthority` component, moved by the
+generic per-component mechanism (Q3 above). ⇒ **for THIS design, nothing to build for transfer** — the one
+requirement, "do not prevent it," is met by rule 1 (the gate reads the ECS `PrimaryOwnerId` fact); the
+enabling change (make `NetworkAuthority` ownership-tracked) belongs to the later transfer feature.
 
 ---
 
