@@ -2,12 +2,13 @@
 state: LIVE
 updated: 2026-09-14
 build-state: READY-TO-BUILD
-current-answer: §4 save flow, §5 load flow (R-A, ruled §8.1), §6 the ONE gate (view.HasAuthority),
-  §6a globals (brain-owned), §6b format recognition ($meta.docType graceful-skip), §7 the
-  NetworkAuthority/NetworkOwnership merge, §1a paradigm correction (passivity is emergent, no IG
-  special case). ⭐ ALL blockers closed `2026-09-14` (OQ1/OQ2/OQ3/OQ4/OQ5/OQ9/OQ10/OQ11); OQ9 corrected —
-  the editor is ALREADY a single-node cluster (has ClusterMaster/StorageGateway/ClusterSlave). Remaining
-  are minor: OQ6 (nod), OQ7 (verify parts, build step 1), OQ8 (rail). ⇒ BUILDABLE; awaiting go-ahead.
+current-answer: §4 save flow, §5 load flow (R-A, ruled §8.1), §6 the ONE gate — keyed on the
+  EntityMaster/lifecycle descriptor owner (HasAuthority(entity, EntityMasterKey), lifecycleKey injected
+  by the Hrot-layer caller), §6a globals (brain-owned), §6b format recognition, §6c primary-ownership
+  TRANSFER (enabled by construction — the gate follows it), §7 the NetworkAuthority/NetworkOwnership
+  merge, §1a paradigm correction. ⭐ ALL blockers + OQ6 closed `2026-09-14`; OQ9 corrected (editor is
+  ALREADY a single-node cluster). Remaining minor: OQ7 (verify parts, build step 1), OQ8 (rail).
+  ⇒ BUILDABLE; awaiting go-ahead.
 stale-below: nothing yet (new document).
 known-rot: nothing known.
 known-conflict: DESIGN_Node_Roles_And_Policies.md §7.1 says IG-persistence is enforced "by an
@@ -97,7 +98,7 @@ consequence of its role assignment, NOT a hard rule the save path enforces.** �
 | ③ | the distributed cluster save today | `ClusterMaster.SaveScenario` → `FanOutSerializeLocal(all active nodes)` (`ClusterMaster.cs:983-987`) → each node's `SerializeLocal` handler is **`ReferenceArchiveHandler`**, which only **reports** an existing per-node `node_{id}.fdp` — ⛔ **it does NOT run the scenario-JSON serializer.** ⇒ there is **no per-node gated scenario-JSON writer today**; the fan-out collects **checkpoint recordings** |
 | ④ | the save-ownership helper (already exists) | `AuthorityExtensions.HasAuthority(view, entity)` (`Fdp.Toolkits/Replication/Extensions/AuthorityExtensions.cs:9`): resolves part→parent, skips the per-descriptor override at key 0, returns `NetworkAuthority.HasAuthority`; **absent component ⇒ true (owned)** (`:33-40`) |
 | ⑤ | the two ownership structs | `NetworkAuthority` (`.../Components/NetworkAuthority.cs`) and `NetworkOwnership` (`.../Components/NetworkComponents.cs:20`) are **field-identical** `{PrimaryOwnerId, LocalNodeId, HasAuthority}`; `NetworkOwnership`'s per-descriptor `Map` was removed (BATCH-07) |
-| ⑥ | `PrimaryOwnerId` writers | **write-once at spawn only**: `NetworkSpawningSystem.cs:160/163` (owner), `EntityMasterIngressTranslator.cs:149` (ghost = `-1`). **No reassignment anywhere** — transfers write the *separate* `AuthorityMask` (`OwnershipIngressSystem.cs:67-80`) |
+| ⑥ | `PrimaryOwnerId` writers | **write-once at spawn**: `NetworkSpawningSystem.cs:160/163` (owner), `EntityMasterIngressTranslator.cs:149` (ghost = `-1`). ⚠ **But `PrimaryOwnerId` is only the DEFAULT** — the *effective* lifecycle/primary owner is the **EntityMaster descriptor owner** (`DescriptorOwnership.Map[EntityMasterKey]`, else `PrimaryOwnerId`), which IS transferable via `OwnershipUpdate` (`OwnershipIngressSystem.cs:64` writes `Map`; `DeferredTakeoverSystem.cs:107/122`). See §6c — this corrects an earlier "no transfer" claim |
 | ⑦ | `NetworkAuthority` readers | **~57** production sites via `.HasAuthority`; present on owner AND ghost |
 | ⑧ | `NetworkOwnership` readers | **2** production sites — `CycloneNetworkCleanupSystem.cs:47/52` (query then `if(!HasAuthority) continue`) and `OwnershipExtensions.OwnsDescriptor*` (absent ⇒ false) |
 | ⑨ | LOAD authority | `CgfScenarioLoadHandler` / `CgfEpisodeLoadHandler` call `StagingEntityExtractor.Extract(serializer, json, idAllocator)` → `EntityCreationRequest[]` → genesis pipeline; the extractor **strips** `NetworkAuthority`/`NetworkOwnership`/`NetworkIdentity` (`HROT-Engine-Guide §166`, `StagingEntityExtractor:52/56`) |
@@ -130,7 +131,7 @@ classDiagram
     class DescriptorOwnership {
         <<managed>>
         +Map~long,int~ Map
-        note "per-COMPONENT runtime authority. Transferable via grant."
+        note "per-DESCRIPTOR owner override. Map[EntityMasterKey] = the EFFECTIVE primary/save owner (transferable). Also drives per-component AuthorityMask."
     }
     class AuthorityMask {
         <<entity-header bits>>
@@ -141,16 +142,19 @@ classDiagram
     NetworkAuthority --> AuthorityMask : entity-level vs per-component (independent)
 ```
 
-*Caption — what the picture shows that prose hid:* there are **two independent axes**, not one.
-`NetworkAuthority.PrimaryOwnerId` (entity, stable, = who saves) and `DescriptorOwnership`/`AuthorityMask`
-(per-component, transferable, = who simulates this frame). The Muscle taking `SimTransform` authority
-flips an `AuthorityMask` bit and **never touches `PrimaryOwnerId`** — so a per-entity save gate is immune
-to runtime authority moves. `NetworkOwnership` was a redundant copy of the *entity* axis and is deleted.
+*Caption — what the picture shows that prose hid:* two distinct axes. **① entity/lifecycle/save
+ownership** = the **EntityMaster descriptor owner** (`DescriptorOwnership.Map[EntityMasterKey]`, else the
+`NetworkAuthority.PrimaryOwnerId` default) — *who deletes and who saves*, **transferable** via the generic
+`OwnershipUpdate` (§6c). **② per-component runtime authority** = `AuthorityMask` — *who simulates a
+component this frame*, moved by the grant. The Muscle taking `SimTransform` flips an `AuthorityMask` bit
+and touches **neither** axis-① store — so the save gate is immune to runtime authority moves, yet still
+**follows a genuine primary-owner transfer** because it keys on axis ①. `NetworkOwnership` was a redundant
+copy of the `PrimaryOwnerId` *default* and is deleted.
 
-| axis | component (after merge) | mutated by | answers |
+| axis | store(s) | mutated by | answers |
 |---|---|---|---|
-| **entity / save ownership** | `NetworkAuthority` | set once at spawn | *do I save this entity? do I own its lifecycle?* |
-| **per-component runtime authority** | `DescriptorOwnership` + `AuthorityMask` | grant / auto-takeover | *do I simulate this component this frame?* |
+| **① entity / lifecycle / SAVE ownership** | `DescriptorOwnership.Map[EntityMasterKey]` → else `NetworkAuthority.PrimaryOwnerId` | **transfer** via `OwnershipUpdate` (rare); default at spawn | *do I delete this entity? do I save it?* |
+| **② per-component runtime authority** | `AuthorityMask` (+ `DescriptorOwnership` for other descriptors) | grant / auto-takeover (per frame) | *do I simulate this component now?* |
 
 ---
 
@@ -171,7 +175,7 @@ sequenceDiagram
     CM->>Muscle: SerializeLocal
     CM->>IG: SerializeLocal
     Note over Brain,IG: SAME gated code on every host
-    Brain->>Brain: for each live entity:<br/>keep iff HasAuthority(entity)<br/>AND not ScenarioIgnoreTag
+    Brain->>Brain: for each live entity:<br/>keep iff HasAuthority(entity, lifecycleKey)<br/>AND not ScenarioIgnoreTag
     Brain->>NAS: node_brain.scn (owned slice + globals)
     Muscle->>Muscle: owns nothing persistable
     Muscle->>NAS: node_muscle.scn (EMPTY — fine)
@@ -242,18 +246,30 @@ never changing `PrimaryOwnerId`. This is why the round-trip is stable: *save-own
 ## 6. ⭐⭐⭐ THE ONE GATE
 
 ```
-save/keep entity  ⇔  view.HasAuthority(entity)  AND  NOT ScenarioIgnoreTag(entity)
+save/keep entity  ⇔  view.HasAuthority(entity, lifecycleKey)  AND  NOT ScenarioIgnoreTag(entity)
+                       // lifecycleKey = PackKey(EntityMaster descriptor ordinal, 0)
 ```
 
-- `HasAuthority(entity)` (INVENTORY ④) = entity-level primary ownership, **absent ⇒ owned**.
+- ⭐⭐⭐ **Key on the LIFECYCLE descriptor owner, NOT raw `PrimaryOwnerId`** — see §6c. The node that owns
+  the **EntityMaster** descriptor is the one that publishes births/deaths and processes the delete order
+  (`EntityMasterEgressTranslator.cs:67-74` already gates on exactly this). Making the save gate read the
+  **same** authority means *the node that deletes the entity is the node that saves it*, and — critically
+  — **save-ownership follows an ownership TRANSFER** (§6c), which raw `PrimaryOwnerId` would not.
+- `HasAuthority(entity, key)` (INVENTORY ④) resolves: **absent `NetworkAuthority` ⇒ owned** (editor);
+  else a `DescriptorOwnership` override for `key` if present (post-transfer); else falls back to
+  `PrimaryOwnerId`. ⇒ today, with no EntityMaster override, it **equals** `PrimaryOwnerId` — no behaviour
+  change until a transfer happens.
 - **Editor / AllInOne** ⇒ owns everything ⇒ saves everything. No mode flag; the gate is always on.
-- **Ghost** ⇒ `HasAuthority` false ⇒ skipped ⇒ no duplication across per-node files.
+- **Ghost** ⇒ false ⇒ skipped ⇒ no duplication across per-node files.
 - `ScenarioIgnoreTag` still gates **my own transient** entities (a sketch I own but must not persist).
-  The ownership gate makes the *ghost* ScenarioIgnoreTag case redundant, but the *own-transient* case
-  keeps it necessary — both remain.
+  The ownership gate makes the *ghost* case redundant, but the *own-transient* case keeps it necessary.
 
-⚠ **Placement:** the gate goes in `CollectSaveableEntities` (one site, both editor and cluster inherit
-it). `HasAuthority` lives in `Fdp.Toolkits`, same assembly as `ScenarioSerializer` ⇒ no new dependency.
+⚠ **Placement & the ONE layer seam:** the gate goes in `CollectSaveableEntities` (one site, editor and
+cluster both inherit it). `HasAuthority` is in `Fdp.Toolkits` (same assembly). ⛔ **But the EntityMaster
+ordinal lives in `Hrot.Network.NED` (`AllDescriptors.cs`), which `Fdp.Toolkits` may not reference.** ⇒
+the **`lifecycleKey` is INJECTED by the Hrot-layer caller** (the save handler / `ScenarioFileService`)
+into `CollectSaveableEntities` — a small, clean seam that keeps the engine layer ignorant of NED
+descriptors. *(Alternative rejected: hard-coding the ordinal in the engine layer — a layer violation.)*
 
 ### 6a. ⭐⭐ GLOBAL / NON-ENTITY DATA — the complete set, owned by the brain file *(ruling `2026-09-14`)*
 
@@ -290,6 +306,65 @@ not match the loader's `_subsystemType` (`ScenarioSerializer.cs:327-343`, `retur
 
 ⇒ ⭐ **R-A unifies the SAME-format hosts; the format tag is the boundary** past which a host is on its own.
 
+### 6c. ⭐⭐⭐ ENTITY PRIMARY-OWNERSHIP TRANSFER — the design ENABLES it, does not prevent it *(ruling `2026-09-14`)*
+
+> 🔒 **User:** *"in NED/BDC the primary owner of the entity (the one who processed the entity deletion
+> order) is defined by the ownership of the EntityMaster network descriptor… if we transfer the ownership
+> of [it] to another node, the primaryOwner should change by that, including the 'save ownership'. This
+> entity transfer is a desired although not immediately required feature, i just need the design to not
+> prevent it."*
+
+⛔ **CORRECTION to an earlier claim in this doc's history:** I wrote "no entity-ownership transfer exists;
+`PrimaryOwnerId` never moves." That was **too shallow** — it described the *default* field, not the real
+source of truth. The correct model:
+
+📐 **Measured — three stores, one effective answer:**
+
+| store | scope | role | moved by |
+|---|---|---|---|
+| `NetworkAuthority.PrimaryOwnerId` | entity | the **DEFAULT** owner, stamped at creation | nothing today (the fallback) |
+| `DescriptorOwnership.Map[key]` | per **descriptor** (incl. **EntityMaster**) | the **OVERRIDE** — the effective owner of that descriptor | the generic transfer (below) |
+| `metadata.AuthorityMask` bits | per **component** | who *simulates* a component this frame | the grant / auto-takeover |
+
+⭐⭐ **The effective primary/lifecycle owner = `HasAuthority(entity, EntityMasterKey)`** = the
+`DescriptorOwnership` override for EntityMaster if present, else `PrimaryOwnerId`. It is **NOT** `EntityInfo`
+(that carries only `Name`/`ForceId`). It is the authority `EntityMasterEgressTranslator` already uses to
+decide who publishes births/deaths and processes the delete order.
+
+**The transfer mechanism already exists and is generic** *(so the design must key on it, not fight it)*:
+
+```mermaid
+sequenceDiagram
+    autonumber
+    participant New as New owner
+    participant Bus as OwnershipEgress → DDS OwnershipUpdate
+    participant All as Every host · OwnershipIngressSystem
+    New->>New: DescriptorOwnership.SetOwner EntityMasterKey, me<br/>DeferredTakeoverSystem:107
+    New->>Bus: publish OwnershipUpdate EntityMasterKey, NewOwner
+    Bus->>All: deliver
+    All->>All: set Map for EntityMasterKey to NewOwner, flip AuthorityMask
+    Note over All: HasAuthority(entity, EntityMasterKey) now = NewOwner everywhere<br/>so births/deaths, delete order, AND save all follow
+```
+
+*Caption:* `DeferredTakeoverSystem` already does exactly this for granted descriptors
+(`:107 SetOwner`, `:122 publish OwnershipUpdate`); pointing it at the **EntityMaster** descriptor
+transfers the primary owner. Because §6's save gate reads `HasAuthority(entity, EntityMasterKey)`, **save
+ownership moves for free** — the design *enables* transfer rather than preventing it.
+
+⚠ **Deferred-feature sub-items (NOT built now; recorded so the gate choice above stays sound):**
+1. **`PrimaryOwnerId` stays the stale default after a descriptor transfer.** The 57 entity-level
+   `HasAuthority(entity)` (key 0) readers would still see the old owner. A full transfer feature should
+   also update `PrimaryOwnerId` on all hosts (or those readers should key on the lifecycle descriptor).
+   ⭐ The save gate is **already safe** because it keys on the EntityMaster key, not key 0.
+2. **DDS instance-ownership handoff** — two publishers of one keyed `EntityMaster` instance across the
+   switch (OWNERSHIP QoS / exactly-once `_publishedNetIds`); needs a defined handoff, not solved here.
+3. **Does the transfer also move per-component authority?** Independent axis; a transfer feature decides
+   whether it drags `AuthorityMask` along or leaves component grants as-is.
+
+⇒ ⭐ **For THIS design: nothing to build for transfer. The single requirement — "do not prevent it" — is
+met by keying the save gate on the EntityMaster descriptor owner** (§6). The transfer feature itself is a
+separate, later design that this one is now compatible with by construction.
+
 ---
 
 ## 7. ⭐⭐ THE MERGE — delete `NetworkOwnership`, keep `NetworkAuthority`
@@ -324,7 +399,7 @@ buys only cosmetics — optional later follow-up).
 | **OQ4** | ✅ **CLOSED via R-A (§8.1)** — editor file ≡ the loaded union; old single-file scenarios load unchanged; distributed set loads with the brain file canonical. | ✅ closed | — |
 | **OQ11** | ✅ **RESOLVED `2026-09-14` = R-A (§8.1).** Loading brain owns all persistable at load; multi-file reconverges; per-node/role ownership preservation (R-B) deferred as a future feature. Plus §6b format recognition. | ✅ closed | R-A accepted in full. |
 | **OQ5** | ✅ **APPROVED `2026-09-14`** — add a per-node scenario-serialize handler that runs the gated `ScenarioSerializer` over the node's world, wired into `FanOutSerializeLocal`, distinct from the checkpoint recorder; reuse the archive/NAS collection. ⚠ Runs on **every** host including the editor (see OQ9). | ✅ core build | new handler, no editor exception. |
-| **OQ6** | **No entity-level ownership TRANSFER exists** (INVENTORY ⑥). Persistence ownership is fixed at creation. Cross-node persistence (IG authors, CGF must persist) requires **request-to-owner** (`Node_Roles §5/§6`), not a handover. | 🟢 boundary | keep request-to-owner; do NOT add entity-ownership transfer now. Revisit only if a real need appears. |
+| **OQ6** | ✅ **RESOLVED `2026-09-14` — transfer is ENABLED by construction (§6c).** Earlier "no transfer / fixed at creation" was wrong: the primary owner **is** the EntityMaster descriptor owner (`HasAuthority(entity, EntityMasterKey)`), and the generic `DeferredTakeover`/`OwnershipUpdate` mechanism already transfers any descriptor. Because §6 keys the save gate on that, **save-ownership follows a transfer for free.** The full transfer *feature* is deferred (§6c sub-items), but this design does **not prevent it**. `request-to-owner` (`Node_Roles §5/§6`) remains the way to pick an owner *at creation*. | ✅ closed | key the save gate on the EntityMaster descriptor owner (done, §6); build no transfer machinery now. |
 | **OQ7** | **Parent/child parts under the gate.** `HasAuthority` resolves child→parent, so a multi-part entity gates as a unit — but verify the **save side** (`ScenarioSerializer.Serialize`) emits parent+children coherently when the gate is applied per-entity. | 🟠 verify | almost certainly fine (children ride the parent), but must be measured before build. |
 | **OQ8** | **Editor "saves everything" is by construction but unproven.** Editor localNodeId / `HasAuthority=true` for editor scenario entities not directly measured this session. | 🟢 rail | airtight by construction (single node has no ghosts); add a rail asserting the editor saves the full set. |
 | **OQ9** | ✅ **DECIDED `2026-09-14` — NO editor exception; unified BY CONSTRUCTION.** 🔒 User: *"no direct write in the editor… same code everywhere, driven by role/host config… the plumbing resulting naturally from using the same (unified) code (orchestration handlers etc.)."* ⇒ the editor runs the **same orchestration** as a single-node, all-roles cluster; scenario save goes through the fan-out + per-node handler, never `ScenarioFileService.SaveScenario` directly. ✅ **CORRECTED `2026-09-14` — the editor is ALREADY a single-node cluster.** An earlier draft here claimed the editor "has no orchestrator" and would need one built; that was WRONG — it read the mode roster, not the EditorSubsystem's internals. Measured: `EditorSubsystem` self-hosts `ClusterMaster` (`:318`, `:2074` `new ClusterMaster(_orchestrationBus, offlineConfig)` — "offline single-node orchestrator"), `StorageGatewayModule` (`:323/:2092`), and a `ClusterSlave` (`:1301`) on which it registers cluster handlers (`:1422-1623`), ticked at `:2590`. The config's "no editor + orchestrator" ban (`HrotRunnerConfiguration.cs:181-187`) merely prevents a **second** orchestrator, not a missing one. ⇒ **the real build is small:** the editor's slave registers only LOAD handlers today; save still bypasses the orchestrator via `IEditorLogic.SaveScenarioAs` (`:3864/:3958`). Work = **register the new save handler on every slave (editor included)** + **route the editor save through `_clusterMaster`** instead of the direct call. | 🟢 **small build, plumbing exists** | register the save handler uniformly; reroute the editor save trigger; retire the direct `ScenarioFileService.SaveScenario`. |
