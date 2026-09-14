@@ -64,6 +64,17 @@ namespace Fdp.Toolkit.Orchestration
         Export,
         Import,
         SaveScenario,
+
+        /// <summary>
+        /// ⭐⭐⭐ CE-275 ③ — the DECLARATIVE scenario save (per-node gated <c>ScenarioSerializer</c> JSON),
+        /// distinct from <see cref="SaveScenario"/> which drives the per-node <c>.fdp</c> checkpoint/archive
+        /// recording. Carries a <see cref="ExecuteStorageOpIntent.ScenarioName"/>; the fan-out runs the ONE
+        /// gated scenario save handler on EVERY host (IG included — it can author persistable entities; it
+        /// just usually owns nothing savable, so its file is empty BY THE GATE, not by a missing handler) so
+        /// each host writes exactly the slice it owns.
+        /// 📄 docs/DESIGN_Distributed_Scenario_Persistence.md §4.
+        /// </summary>
+        SaveScenarioJson,
     }
 
     /// <summary>
@@ -78,6 +89,14 @@ namespace Fdp.Toolkit.Orchestration
         public Guid RequestId;
         public StorageOpType Operation;
         public Guid ExerciseId;
+
+        /// <summary>
+        /// The relative scenario name / subfolder under the NAS scenarios root to write to. Used ONLY by
+        /// <see cref="StorageOpType.SaveScenarioJson"/> (CE-275 ③). ⛔ The operator never picks a full
+        /// filesystem path — at most a subfolder of the standard scenarios folder — so this is a name, not
+        /// a path. Null/ignored for every other operation.
+        /// </summary>
+        public string? ScenarioName;
     }
 
     /// <summary>
