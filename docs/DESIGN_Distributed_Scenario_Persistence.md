@@ -75,6 +75,10 @@ related-designs:
     resulting owner at save time, it does not move it.
   - UX_Feature_Authority_Aware_Writes.md — owns the AUTHORITY-GATED WRITE UX and first named the
     NetworkAuthority/NetworkOwnership duplication (§335/§342); §7 here is the merge it deferred.
+  - DESIGN_SaveScenario_Legacy_Op_Retirement.md — owns the RETIREMENT of the legacy binary
+    SaveScenario=2 op (CE-278), the half-built stub whose *intended* purpose THIS doc's SaveScenarioJson=17
+    replaces; it also documents the exercise-recording/checkpoint enumeration and the Orchestrator.json
+    sidecar. THIS doc owns the replacement; that doc owns removing the predecessor.
 -->
 
 # ⭐⭐⭐ Unified Distributed Scenario Persistence & the Single Ownership Component
