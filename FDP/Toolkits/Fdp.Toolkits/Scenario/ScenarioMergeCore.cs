@@ -3,7 +3,7 @@ using System.Collections.Generic;
 using System.Text.Json.Nodes;
 using Fdp.Core.Serialization.Migrations;
 
-namespace Hrot.Map.Common.Scenario;
+namespace Fdp.Toolkit.Scenario;
 
 /// <summary>One node's contribution to a distributed save. <paramref name="Dom"/> is the parsed
 /// scenario DOM for a FORMAT-COMPATIBLE slice; it is <c>null</c> for a foreign slice (foreign files

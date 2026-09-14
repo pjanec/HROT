@@ -61,6 +61,20 @@ internal struct ExportArchiveBegunEvent
 }
 
 /// <summary>
+/// CE-277(c2) — published by <see cref="ClusterMaster"/> when a <c>SaveScenarioJson</c> SerializeLocal
+/// fan-out is initiated. Carries the transaction id → scenario name mapping so
+/// <see cref="StorageProcessManager"/> can, after the NAS pull, run <c>ScenarioMergeCore</c> on the pulled
+/// per-node slices and write the one canonical <c>scenarios/&lt;name&gt;/scenario.json</c>.
+/// </summary>
+internal struct SaveScenarioJsonBegunEvent
+{
+    /// <summary>SerializeLocal fan-out transaction ID (matches the ClusterOpCompletedEvent.RequestId).</summary>
+    public Guid TransactionId;
+    /// <summary>Relative scenario name / subfolder under the NAS scenarios root (never a filesystem path).</summary>
+    public string ScenarioName;
+}
+
+/// <summary>
 /// Published by <see cref="ClusterMaster"/> when an ImportArchive operation is initiated.
 /// Consumed by <see cref="StorageProcessManager"/> to perform the NAS-to-node prefetch via
 /// <see cref="StorageGatewayModule.PrefetchArchiveAsync"/>.

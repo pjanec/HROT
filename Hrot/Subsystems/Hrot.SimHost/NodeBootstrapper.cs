@@ -331,7 +331,7 @@ namespace Hrot.SimHost
                 clusterSlave.RegisterHandler(
                     new Hrot.ScenarioEditor.Handlers.HrotScenarioSaveHandler(
                         scenarioSerializer, zoneService, tkbDb, world,
-                        () => OrchestrationConstants.GetSharedScenariosRoot(), nodeId));
+                        nodeId));
             }
 
             // Wire ReferenceLiveLoadHandler AFTER the scenario handler so it only claims

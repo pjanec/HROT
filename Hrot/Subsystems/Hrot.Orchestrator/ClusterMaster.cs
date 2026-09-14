@@ -1005,6 +1005,15 @@ public sealed class ClusterMaster : IDisposable
 
                 var scnNodeIds = new List<int>(_roster.ActiveNodes.Keys);
                 var scnTxId    = Guid.NewGuid();
+
+                // CE-277(c2): map this fan-out's tx → scenario name so StorageProcessManager can merge the
+                // pulled per-node slices into the one canonical scenario.json after the NAS pull.
+                _eventBus.PublishManaged(new SaveScenarioJsonBegunEvent
+                {
+                    TransactionId = scnTxId,
+                    ScenarioName  = intent.ScenarioName!,
+                });
+
                 FanOutSerializeLocal(scnTxId, scnNodeIds,
                     new Fdp.Toolkit.Orchestration.Handlers.ScenarioSaveHandlerPayload(intent.ScenarioName!));
 

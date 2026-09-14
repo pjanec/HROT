@@ -1,10 +1,14 @@
 using System;
 using System.Collections.Generic;
+using System.IO;
 using System.Linq;
+using System.Text.Json;
+using System.Text.Json.Nodes;
 using System.Threading;
 using Fdp.Core;
 using Fdp.Core.Logging;
 using Fdp.Toolkit.Orchestration;
+using Fdp.Toolkit.Scenario;
 using Hrot.Network.Orchestration;
 
 namespace Hrot.Orchestrator;
@@ -32,6 +36,13 @@ public sealed class StorageProcessManager
     private readonly Dictionary<Guid, (Guid ArchiveRequestId, CancellationTokenSource Cts)>
         _pendingArchiveExports = new();
     private readonly HashSet<Guid> _pendingSaveScenarios = new();
+
+    // CE-277(c2): SerializeLocal tx id → scenario name, for the SaveScenarioJson pull+merge path.
+    private readonly Dictionary<Guid, string> _pendingSaveScenarioJson = new();
+
+    /// <summary>The <c>$meta.docType</c> our hosts stamp on a scenario slice — matches
+    /// <c>HrotScenarioSaveHandler.ScenarioDocType</c>. A slice with any other tag is foreign (e.g. ExCon).</summary>
+    private const string ScenarioDocType = "Hrot.Scenario";
 
     /// <param name="bus">Shared event bus.</param>
     /// <param name="gateway">Storage gateway for NAS pull operations.</param>
@@ -67,6 +78,10 @@ public sealed class StorageProcessManager
             if (sev.Operation == StorageOpType.SaveScenario)
                 _pendingSaveScenarios.Add(sev.RequestId);
         }
+
+        // CE-277(c2): map SaveScenarioJson fan-out tx → scenario name for the pull+merge path.
+        foreach (var jev in _bus.ReadManaged<SaveScenarioJsonBegunEvent>())
+            _pendingSaveScenarioJson[jev.TransactionId] = jev.ScenarioName;
 
         // ImportArchive: prefetch files from NAS to per-node staging directories.
         foreach (var iev in _bus.ReadManaged<ImportArchiveBegunEvent>())
@@ -163,6 +178,41 @@ public sealed class StorageProcessManager
                 continue;
             }
 
+            // CE-277(c2) SaveScenarioJson path: pull the per-node slices to NAS, then merge the
+            // format-compatible ones into the one canonical scenario.json and route the foreign ones.
+            if (_pendingSaveScenarioJson.TryGetValue(ev.RequestId, out var scenarioName))
+            {
+                _pendingSaveScenarioJson.Remove(ev.RequestId);
+                var scnManifest = new List<FileManifestEntry>(manifest);
+                _ = _gateway.PullToNasAsync(scnManifest, _nasBasePath)
+                    .ContinueWith(pullTask =>
+                    {
+                        if (pullTask.IsCompletedSuccessfully && pullTask.Result.IsFullSuccess)
+                        {
+                            try { MergeScenarioSlices(scenarioName, scnManifest); }
+                            catch (Exception ex)
+                            {
+                                FdpLog<StorageProcessManager>.Error(
+                                    "[StorageProcessManager] scenario merge '{0}' failed: {1}",
+                                    scenarioName, ex.Message);
+                            }
+                        }
+                        else if (pullTask.IsFaulted)
+                        {
+                            FdpLog<StorageProcessManager>.Error(
+                                "[StorageProcessManager] SaveScenarioJson NAS pull failed: {0}",
+                                pullTask.Exception?.GetBaseException().Message ?? "unknown error");
+                        }
+                        else if (pullTask.IsCompletedSuccessfully)
+                        {
+                            FdpLog<StorageProcessManager>.Error(
+                                "[StorageProcessManager] SaveScenarioJson NAS pull partial failure: {0} file(s) failed",
+                                pullTask.Result.FailureCount);
+                        }
+                    }, System.Threading.Tasks.TaskScheduler.Default);
+                continue;
+            }
+
             // SaveScenario path only: prepend orchestrator entry if available and pull to NAS.
             if (!_pendingSaveScenarios.Remove(ev.RequestId))
                 continue;
@@ -197,5 +247,84 @@ public sealed class StorageProcessManager
                     }
                 }, System.Threading.Tasks.TaskScheduler.Default);
         }
+    }
+
+    /// <summary>
+    /// CE-277(c2) — after the pull, combine the format-compatible per-node slices into the one canonical
+    /// <c>scenarios/&lt;name&gt;/scenario.json</c> via <see cref="ScenarioMergeCore"/>, keep the foreign slices
+    /// under <c>foreign/</c> for load-side push-back, and clean up the staging <c>.slices/</c>.
+    /// </summary>
+    private void MergeScenarioSlices(string scenarioName, List<FileManifestEntry> manifest)
+    {
+        var scenarioDir = Path.Combine(_nasBasePath, OrchestrationConstants.ScenariosDirectoryName, scenarioName);
+        var slicesDir   = Path.Combine(scenarioDir, ".slices");
+        var foreignDir  = Path.Combine(scenarioDir, "foreign");
+
+        var slices       = new List<ScenarioSlice>();
+        var foreignFiles = new Dictionary<int, string>();   // nodeId → pulled foreign file path
+
+        foreach (var entry in manifest)
+        {
+            if (string.IsNullOrEmpty(entry.DocType)) continue;  // non-scenario (e.g. .fdp) — not this merge
+            var pulledPath = Path.Combine(_nasBasePath, entry.RelativeDest);
+            int nodeId     = ParseNodeId(entry.RelativeDest);
+
+            if (string.Equals(entry.DocType, ScenarioDocType, StringComparison.Ordinal))
+            {
+                if (!File.Exists(pulledPath)) continue;
+                if (JsonNode.Parse(File.ReadAllText(pulledPath)) is JsonObject dom)
+                    slices.Add(new ScenarioSlice(nodeId, entry.DocType, dom));
+            }
+            else
+            {
+                // ⛔ Foreign: never parsed — routed by tag (§4c).
+                slices.Add(new ScenarioSlice(nodeId, entry.DocType, null));
+                foreignFiles[nodeId] = pulledPath;
+            }
+        }
+
+        if (slices.Count == 0) return;
+
+        var result = ScenarioMergeCore.Merge(slices, ScenarioDocType);
+
+        if (result.CanonicalDom != null)
+        {
+            var canonicalFile = Path.Combine(scenarioDir, "scenario.json");
+            File.WriteAllText(canonicalFile,
+                result.CanonicalDom.ToJsonString(new JsonSerializerOptions { WriteIndented = false }));
+            FdpLog<StorageProcessManager>.Info(
+                "[StorageProcessManager] merged {0} slice(s) → '{1}/scenario.json'.", slices.Count, scenarioName);
+        }
+
+        if (result.Foreign.Count > 0)
+        {
+            Directory.CreateDirectory(foreignDir);
+            var index = new JsonArray();
+            foreach (var f in result.Foreign)
+            {
+                if (foreignFiles.TryGetValue(f.OriginNodeId, out var src) && File.Exists(src))
+                    File.Copy(src, Path.Combine(foreignDir, $"node_{f.OriginNodeId}.json"), overwrite: true);
+                index.Add(new JsonObject { ["OriginNodeId"] = f.OriginNodeId, ["DocType"] = f.DocType });
+            }
+            File.WriteAllText(Path.Combine(foreignDir, "index.json"), index.ToJsonString());
+            FdpLog<StorageProcessManager>.Info(
+                "[StorageProcessManager] kept {0} foreign slice(s) under '{1}/foreign'.", result.Foreign.Count, scenarioName);
+        }
+
+        // The canonical + foreign files are the durable output; the staging slices are transient.
+        try { if (Directory.Exists(slicesDir)) Directory.Delete(slicesDir, recursive: true); }
+        catch (Exception ex)
+        {
+            FdpLog<StorageProcessManager>.Warn(
+                "[StorageProcessManager] could not clean staging slices for '{0}': {1}", scenarioName, ex.Message);
+        }
+    }
+
+    /// <summary>Parses the node id from a per-node slice RelativeDest (<c>.../.slices/node_&lt;id&gt;.json</c>).</summary>
+    private static int ParseNodeId(string relativeDest)
+    {
+        var name = Path.GetFileNameWithoutExtension(relativeDest);   // node_<id>
+        var us   = name.LastIndexOf('_');
+        return us >= 0 && int.TryParse(name.AsSpan(us + 1), out var id) ? id : -1;
     }
 }

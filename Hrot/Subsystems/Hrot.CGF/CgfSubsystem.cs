@@ -1148,7 +1148,7 @@ public sealed class CgfSubsystem : ISubsystem, Fdp.Toolkit.Runner.IMapCameraProv
         //   service so globals/zones ride the brain file, §6a) is a scoped follow-on.
         newClusterSlave.RegisterHandler(new Hrot.ScenarioEditor.Handlers.HrotScenarioSaveHandler(
             scenarioSerializer, zoneService: null, _context.TkbDb, _context.World,
-            () => Fdp.Toolkit.Orchestration.OrchestrationConstants.GetSharedScenariosRoot(), _context.NodeId));
+            _context.NodeId));
 
         newClusterSlave.RegisterHandler(new Hrot.CGF.Orchestration.Handlers.CgfEpisodeLoadHandler(
             scenarioSerializer, scenarioLoader, extractor, _scenarioSource!, cgfIdAllocator, _context.World, behaviorRemapper));

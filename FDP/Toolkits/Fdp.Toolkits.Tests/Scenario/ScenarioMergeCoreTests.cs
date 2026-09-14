@@ -1,10 +1,10 @@
 using System.Collections.Generic;
 using System.Text.Json.Nodes;
 using Fdp.Core.Serialization.Migrations;
-using Hrot.Map.Common.Scenario;
+using Fdp.Toolkit.Scenario;
 using Xunit;
 
-namespace Hrot.Map.Common.Tests
+namespace Fdp.Toolkit.Scenario.Tests
 {
     /// <summary>
     /// CE-277(c2) — rails for the distributed-save merge. Proves the four §4b invariants as executable

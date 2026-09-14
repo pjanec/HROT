@@ -46,7 +46,6 @@ public sealed class HrotScenarioSaveHandler : IClusterStateHandler
     private readonly IZoneManagerService? _zoneService;
     private readonly ITkbDatabase?        _tkbDb;
     private readonly EntityRepository     _world;
-    private readonly Func<string>         _scenariosRoot;
     private readonly int                  _nodeId;
 
     public HrotScenarioSaveHandler(
@@ -54,14 +53,12 @@ public sealed class HrotScenarioSaveHandler : IClusterStateHandler
         IZoneManagerService? zoneService,
         ITkbDatabase?        tkbDb,
         EntityRepository     world,
-        Func<string>         scenariosRoot,
         int                  nodeId)
     {
         _serializer    = serializer    ?? throw new ArgumentNullException(nameof(serializer));
         _zoneService   = zoneService;   // ⭐ optional — a host may compose none (ruling 49); zones are then skipped.
         _tkbDb         = tkbDb;
         _world         = world          ?? throw new ArgumentNullException(nameof(world));
-        _scenariosRoot = scenariosRoot  ?? throw new ArgumentNullException(nameof(scenariosRoot));
         _nodeId        = nodeId;
     }
 
@@ -70,14 +67,13 @@ public sealed class HrotScenarioSaveHandler : IClusterStateHandler
 
     /// <inheritdoc />
     /// <remarks>
-    /// Writes this node's owned slice to <c>&lt;scenariosRoot&gt;/&lt;name&gt;/scenario.json</c> via
-    /// <see cref="ScenarioSaveCore"/>.
-    /// <para>⭐ The scenarios root is the SHARED store (the editor's root already IS the NAS scenarios folder),
-    /// so the file is written to its final location and NO manifest is reported — there is nothing to pull.
-    /// ⚠ <b>Follow-on (multi-process distributed cluster):</b> when several remote processes each own a slice,
-    /// the design's per-node staging + NAS pull + per-node file names apply (§4); this handler would then write
-    /// to a local staging root and return a <see cref="FileManifestResult"/>. The single-authoritative-node
-    /// case (editor / CGF brain owning all persistable, R-A) needs neither and is what runs today.</para>
+    /// CE-277(c1) — writes this node's owned slice to its OWN per-node staging root
+    /// (<see cref="OrchestrationConstants.GetNodeScenariosRoot(int)"/> → <c>nodes/node-N/scenarios/&lt;name&gt;/scenario.json</c>)
+    /// via the shared <see cref="ScenarioSaveCore"/>, and returns a <see cref="FileManifestResult"/> so the
+    /// orchestrator PULLS it to the NAS staging slice <c>scenarios/&lt;name&gt;/.slices/node_N.json</c>. The
+    /// per-node <see cref="ScenarioMergeCore"/> then combines the format-compatible slices into the one canonical
+    /// <c>scenarios/&lt;name&gt;/scenario.json</c> (§4a/§4b). ⭐ EVERY host does this identically, editor included —
+    /// on a single box the pull is a local copy and the merge of one slice is the identity no-op.
     /// </remarks>
     public Task<object?> PrepareAsync(ExecuteNodeOpIntent intent, CancellationToken ct)
     {
@@ -89,19 +85,25 @@ public sealed class HrotScenarioSaveHandler : IClusterStateHandler
             return Task.FromResult<object?>(null);
         }
 
-        var dir = Path.Combine(_scenariosRoot(), payload.ScenarioName);
+        // Write this node's slice to its OWN staging root (never the shared store directly).
+        var dir = Path.Combine(OrchestrationConstants.GetNodeScenariosRoot(_nodeId), payload.ScenarioName);
         Directory.CreateDirectory(dir);
-        var file = Path.Combine(dir, ScenarioFileName);
+        var localFile = Path.Combine(dir, ScenarioFileName);
 
         // The ONE host-neutral save implementation — gated ScenarioSerializer + this host's zones.
         var header = new ScenarioHeader(ScenarioDocType, TkbName: _tkbDb?.ActiveTkbName);
-        ScenarioSaveCore.Write(_serializer, _world, file, header, _zoneService);
+        ScenarioSaveCore.Write(_serializer, _world, localFile, header, _zoneService);
+
+        // The orchestrator pulls this to a per-node NAS slice; the merge combines slices → scenario.json.
+        var relativeDest = Path.Combine(
+            OrchestrationConstants.ScenariosDirectoryName, payload.ScenarioName, ".slices", $"node_{_nodeId}.json");
 
         FdpLog<HrotScenarioSaveHandler>.Info(
-            "[HrotScenarioSaveHandler] node {0} wrote scenario slice '{1}'.", _nodeId, payload.ScenarioName);
+            "[HrotScenarioSaveHandler] node {0} wrote scenario slice '{1}' ({2}).",
+            _nodeId, payload.ScenarioName, ScenarioDocType);
 
-        // No manifest: the file is already at its final shared location, so there is nothing to pull.
-        return Task.FromResult<object?>(null);
+        return Task.FromResult<object?>(
+            new[] { new FileManifestResult(localFile, relativeDest, ScenarioDocType) });
     }
 
     /// <inheritdoc />

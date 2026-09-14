@@ -391,7 +391,7 @@ internal sealed class IgNodeBootstrapper : SharedApplicationBootstrapper
         //   📄 docs/DESIGN_Distributed_Scenario_Persistence.md §4 · DESIGN_Node_Roles_And_Policies §7.1.
         slave.RegisterHandler(new Hrot.ScenarioEditor.Handlers.HrotScenarioSaveHandler(
             serializer, zoneService: null, context.TkbDb, context.World,
-            () => OrchestrationConstants.GetSharedScenariosRoot(), _effectiveInstanceId));
+            _effectiveInstanceId));
 
         // Diagnostics dump support: IG must ACK CollectDiagnostics in cluster 2PC.
         var archService = new ArchitectureDiagnosticsService(context.Kernel);
