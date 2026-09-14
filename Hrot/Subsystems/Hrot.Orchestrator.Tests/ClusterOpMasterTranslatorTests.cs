@@ -202,6 +202,45 @@ public sealed class ClusterOpMasterTranslatorTests
         Assert.True(master.BootstrapComplete); // no mandatory nodes → bootstrap complete immediately
     }
 
+    // ── CE-277(c0, HTTP): SaveScenarioJson carries the name across the network ──
+
+    /// <summary>
+    /// ⭐⭐ A remote node's <c>POST /scenario/save</c> reaches the master as a
+    /// <c>SaveScenarioJson</c> request whose <c>{"ScenarioName": …}</c> payload MUST survive the trip. ⛔ The
+    /// regression this guards: routing it through the name-less <c>ArchivePayloadDto</c> (as every other
+    /// storage op uses) would drop the name and the fan-out would target null.
+    /// </summary>
+    [Fact(Timeout = 10_000)]
+    public void ClusterOpRequest_SaveScenarioJson_PublishesIntentWithScenarioName()
+    {
+        using var participant   = new DdsParticipant(TestDomain);
+        using var requestWriter = new DdsWriter<ClusterOpRequest>(participant);
+        using var requestReader = new DdsReader<ClusterOpRequest>(participant);
+        using var statusReader  = new DdsReader<ClusterOpStatus>(participant);
+        using var statusWriter  = new DdsWriter<ClusterOpStatus>(participant);
+
+        var bus        = new FdpEventBus();
+        var translator = new ClusterOpMasterTranslator(requestReader, statusWriter, bus);
+
+        Thread.Sleep(400); // DDS discovery
+
+        requestWriter.Write(new ClusterOpRequest
+        {
+            RequestId     = Guid.NewGuid(),
+            OperationType = NedClusterOpType.SaveScenarioJson,
+            PayloadJson   = "{\"ScenarioName\":\"my-scn\"}",
+        });
+
+        Thread.Sleep(300);
+        translator.Tick();
+        bus.SwapBuffers();
+
+        var intents = bus.ReadManaged<ExecuteStorageOpIntent>();
+        Assert.Single(intents);
+        Assert.Equal(StorageOpType.SaveScenarioJson, intents[0].Operation);
+        Assert.Equal("my-scn", intents[0].ScenarioName);
+    }
+
     // ── Time-control intent tests (HEXAG2-S010) ───────────────────────────────
 
     [Fact(Timeout = 10_000)]

@@ -228,6 +228,14 @@ public interface ISubsystemDebugProvider
     Action<ExecuteDiagnosticDumpIntent>? RequestDiagnosticDump { get; }
 
     /// <summary>
+    /// ⭐ CE-277(c0, HTTP) — trigger a distributed JSON scenario save by publishing
+    /// <c>ExecuteStorageOpIntent{SaveScenarioJson, name}</c> on this node's orchestration bus.
+    /// <see langword="null"/> when this subsystem has no orchestration bus. The argument is the relative
+    /// scenario name (never a filesystem path).
+    /// </summary>
+    Action<string>? RequestSaveScenarioJson { get; }
+
+    /// <summary>
     /// ⭐⭐ <b><c>MD-007</c> — the last dump's outcome, from whichever node caches it.</b>
     ///
     /// <para>⭐⭐⭐ <b>The read model is <c>ClusterUiCache</c>, and this is exactly what the panel renders</b>
@@ -298,6 +306,7 @@ public sealed class SubsystemDebugProvider : ISubsystemDebugProvider
     private readonly Func<Fdp.ModuleHost.Diagnostics.IArchitectureDiagnosticsService?>? _architecture;
     private readonly Func<Action<ExecuteDiagnosticDumpIntent>?>? _requestDiagnosticDump;
     private readonly Func<DiagnosticDumpStatus?>? _dumpStatus;
+    private readonly Func<Action<string>?>? _requestSaveScenarioJson;   // CE-277(c0, HTTP)
 
     /// <summary>
     /// ⭐⭐⭐ <b>THE ACCESSORS ARE LAZY, AND THAT IS MEASURED — NOT DEFENSIVE STYLE.</b>
@@ -336,7 +345,8 @@ public sealed class SubsystemDebugProvider : ISubsystemDebugProvider
         Func<IReadOnlyList<string>?>? availableScenarios = null,
         Func<Fdp.ModuleHost.Diagnostics.IArchitectureDiagnosticsService?>? architecture = null,
         Func<Action<ExecuteDiagnosticDumpIntent>?>? requestDiagnosticDump = null,
-        Func<DiagnosticDumpStatus?>? dumpStatus = null)
+        Func<DiagnosticDumpStatus?>? dumpStatus = null,
+        Func<Action<string>?>? requestSaveScenarioJson = null)
     {
         SubsystemName = subsystemName ?? throw new ArgumentNullException(nameof(subsystemName));
         Perspective   = perspective   ?? throw new ArgumentNullException(nameof(perspective));
@@ -353,6 +363,7 @@ public sealed class SubsystemDebugProvider : ISubsystemDebugProvider
         _architecture = architecture;
         _requestDiagnosticDump = requestDiagnosticDump;
         _dumpStatus = dumpStatus;
+        _requestSaveScenarioJson = requestSaveScenarioJson;
     }
 
     /// <summary>
@@ -393,6 +404,26 @@ public sealed class SubsystemDebugProvider : ISubsystemDebugProvider
         {
             var bus = orchestrationBus();
             return bus is null ? null : intent => bus.PublishManaged(intent);
+        };
+    }
+
+    /// <summary>
+    /// ⭐ CE-277(c0, HTTP) — the ONE way a subsystem contributes <see cref="ISubsystemDebugProvider.RequestSaveScenarioJson"/>:
+    /// publishes <c>ExecuteStorageOpIntent{SaveScenarioJson, name}</c> on its orchestration bus (re-read each
+    /// access, like <see cref="DumpsVia"/>, because subsystem buses are nulled in <c>Shutdown</c>).
+    /// </summary>
+    public static Func<Action<string>?> SavesScenarioJsonVia(Func<FdpEventBus?> orchestrationBus)
+    {
+        if (orchestrationBus == null) throw new ArgumentNullException(nameof(orchestrationBus));
+        return () =>
+        {
+            var bus = orchestrationBus();
+            return bus is null ? null : name => bus.PublishManaged(new Fdp.Toolkit.Orchestration.ExecuteStorageOpIntent
+            {
+                RequestId    = Guid.NewGuid(),
+                Operation    = Fdp.Toolkit.Orchestration.StorageOpType.SaveScenarioJson,
+                ScenarioName = name,
+            });
         };
     }
 
@@ -503,6 +534,7 @@ public sealed class SubsystemDebugProvider : ISubsystemDebugProvider
     public Fdp.ModuleHost.Diagnostics.IArchitectureDiagnosticsService? Architecture => _architecture?.Invoke();
     public Action<ExecuteDiagnosticDumpIntent>? RequestDiagnosticDump => _requestDiagnosticDump?.Invoke();
     public DiagnosticDumpStatus? DumpStatus => _dumpStatus?.Invoke();
+    public Action<string>? RequestSaveScenarioJson => _requestSaveScenarioJson?.Invoke();
 
     /// <summary>
     /// ⭐⭐⭐ <b>MEASURED from what is wired</b> — ⛔ never declared. 📌 Q54's one real risk: a hand-authored
@@ -520,6 +552,8 @@ public sealed class SubsystemDebugProvider : ISubsystemDebugProvider
         [DebugCapabilities.ArchitectureDiagnostics] = Architecture is not null,
         // ⭐ MD-006 — measured from the orchestration bus being reachable, exactly like ScenarioLoad.
         [DebugCapabilities.ClusterDiagnosticsDump] = RequestDiagnosticDump is not null,
+        // ⭐ CE-277(c0, HTTP) — measured from the orchestration bus being reachable, like ClusterDiagnosticsDump.
+        [DebugCapabilities.SaveScenarioJson] = RequestSaveScenarioJson is not null,
 
         // ⭐⭐⭐ BP-487 — the gizmo frame IS per-provider, and saying otherwise was a MANIFEST LIE.
         // ⚠⚠ THIS COMMENT USED TO READ: *"Panels and the gizmo frame are PROCESS-WIDE statics
@@ -576,6 +610,8 @@ public static class DebugCapabilities
 
     /// <summary>⭐ MD-006 — this subsystem can trigger the cluster-wide diagnostic dump from its own bus.</summary>
     public const string ClusterDiagnosticsDump = "diagnostics.clusterDump";
+    /// <summary>CE-277(c0, HTTP): a node that can publish a distributed JSON scenario save intent.</summary>
+    public const string SaveScenarioJson = "scenario.saveJson";
 
     /// <summary>
     /// ⭐⭐ <b>Requesting a cluster-wide scenario load</b> — <c>scenario/load/live</c> · <c>scenario/load/edit</c>.

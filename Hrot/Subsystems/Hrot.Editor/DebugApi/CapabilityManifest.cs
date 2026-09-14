@@ -87,6 +87,12 @@ public static class CapabilityManifest
         //    scenarios", which is false: it loads them all the time, through 2PC. ⛔ Ordered BEFORE the
         //    /scenario prefix below, which still covers save/list.
         if (path.StartsWith("/scenario/load", StringComparison.Ordinal)) return DebugCapabilities.ScenarioLoad;
+        // ⭐⭐ CE-277(c0): SAVE gets its OWN capability, exactly like /scenario/load above (HN-029).
+        //    📌 While /scenario/save was hardwired to IEditorLogic (editor.authoring), a cluster refusal read
+        //    "authoring is absent here" — true of the editor's DRIVER, but misread as "a cluster cannot save
+        //    scenarios", which is false: any node can trigger the cluster-wide JSON save via
+        //    ExecuteStorageOpIntent{SaveScenarioJson}. ⛔ Ordered BEFORE the /scenario prefix below.
+        if (path.StartsWith("/scenario/save", StringComparison.Ordinal)) return DebugCapabilities.SaveScenarioJson;
         if (path.StartsWith("/scenario", StringComparison.Ordinal))    return DebugCapabilities.EditorAuthoring;
         if (path.StartsWith("/scenarios", StringComparison.Ordinal))   return DebugCapabilities.EditorAuthoring;
         if (path.StartsWith("/recording", StringComparison.Ordinal))   return DebugCapabilities.EditorAuthoring;

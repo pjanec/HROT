@@ -125,7 +125,13 @@ namespace Hrot.ExCon
                                           : new Hrot.Presentation.DebugApi.DiagnosticDumpStatus(
                                                 _uiCache.HasInFlightTransaction,
                                                 _uiCache.LastDiagnosticManifest
-                                                        .Select(e => e.RelativeDest).ToList()));
+                                                        .Select(e => e.RelativeDest).ToList()),
+                // ⭐⭐ CE-277(c0, HTTP) — POST /scenario/save on ExCon triggers the cluster-wide JSON save
+                //    by publishing ExecuteStorageOpIntent{SaveScenarioJson} on ExCon's own control-plane bus.
+                //    ⭐ ExCon is a legitimate trigger even though its OWN slice (ExCon.Observer) is the
+                //    intentionally-incompatible one routed to foreign/ — the save it kicks off is cluster-wide.
+                requestSaveScenarioJson: Hrot.Presentation.DebugApi.SubsystemDebugProvider
+                                             .SavesScenarioJsonVia(() => _bus));
 
         /// <inheritdoc/>
         /// <remarks>Violet — distinct from IG (green) and SimHost (red).</remarks>

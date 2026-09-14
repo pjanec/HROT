@@ -448,6 +448,8 @@ public sealed class CgfSubsystem : ISubsystem, Fdp.Toolkit.Runner.IMapCameraProv
             // ⭐⭐ MD-006 — same bus, same argument as requestTransition above.
             requestDiagnosticDump: Hrot.Presentation.DebugApi.SubsystemDebugProvider
                                        .DumpsVia(() => _context?.EventBus),
+            requestSaveScenarioJson: Hrot.Presentation.DebugApi.SubsystemDebugProvider
+                                       .SavesScenarioJsonVia(() => _context?.EventBus),
             architecture:  () => _context?.Kernel is null
                                  ? null
                                  : new Fdp.ModuleHost.Diagnostics.ArchitectureDiagnosticsService(

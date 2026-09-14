@@ -103,6 +103,8 @@ namespace Hrot.IG
                 // ⭐⭐ MD-006 — same bus, same argument as requestTransition above.
                 requestDiagnosticDump: Hrot.Presentation.DebugApi.SubsystemDebugProvider
                                            .DumpsVia(() => _app?.OrchestrationBus),
+                requestSaveScenarioJson: Hrot.Presentation.DebugApi.SubsystemDebugProvider
+                                           .SavesScenarioJsonVia(() => _app?.OrchestrationBus),
                 architecture:  () => _app?.Kernel is null
                                      ? null
                                      : new Fdp.ModuleHost.Diagnostics.ArchitectureDiagnosticsService(

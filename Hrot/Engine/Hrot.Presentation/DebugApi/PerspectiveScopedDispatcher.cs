@@ -201,6 +201,12 @@ public sealed class PerspectiveScopedDispatcher
         => Active()?.RequestDiagnosticDump
            ?? _providers.Select(p => p.RequestDiagnosticDump).FirstOrDefault(a => a is not null);
 
+    /// <summary>⭐ CE-277(c0, HTTP) — trigger a distributed JSON scenario save from whichever node can publish
+    /// it (active perspective preferred, else any provider with an orchestration bus); cluster-wide like the dump.</summary>
+    public Action<string>? RequestSaveScenarioJsonAnyNode
+        => Active()?.RequestSaveScenarioJson
+           ?? _providers.Select(p => p.RequestSaveScenarioJson).FirstOrDefault(a => a is not null);
+
     /// <summary>⭐ <c>MD-007</c> — the last dump's outcome from whichever node caches it; same one-cluster-one-fact rationale as <see cref="ClusterStateAnyNode"/>.</summary>
     public DiagnosticDumpStatus? DumpStatusAnyNode
         => Active()?.DumpStatus

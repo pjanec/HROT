@@ -282,6 +282,26 @@ no role branch**; the content of each file is purely *what that host owns*. This
   land in C3 with the `NodeRolePersistenceRails` update (IG carries the handler; the gate — not a missing
   handler — keeps its file empty).
 
+#### ⭐ AS-BUILT — the HTTP trigger is the EXISTING `/scenario/save`, not a new route (c0, `2026-09-14`)
+
+> 🔒 **User:** *"how comes saving a scenario is not accessible via HTTP? isn't there a save scenario endpoint
+> implemented? it should be triggering the cluster-wide save."*
+
+⭐⭐ `POST /scenario/save {name}` already existed; it was **editor-only** because the route was gated on
+`editor.authoring` and its handler called `IEditorLogic.SaveScenarioAs` directly — so on a cluster node it
+returned **501**. The fix mirrors HN-029's `/scenario/load` split exactly — ⛔ NOT a parallel `/cluster/...`
+route:
+
+| piece | as-built |
+|---|---|
+| **capability** | `/scenario/save` gets its OWN key `DebugCapabilities.SaveScenarioJson` (`"scenario.saveJson"`), ordered before the `/scenario` catch-all in `CapabilityManifest.cs` — a node that CAN trigger the save advertises it honestly instead of reading as "authoring absent" |
+| **endpoint** | `DebugApiService.SaveScenario` is now symmetric with `LoadScenarioEdit`: editor-driver arm (`_editorLogic.SaveScenarioAs`, which already publishes the `SaveScenarioJson` intent via `EditorScenarioSession`) OR cluster-intent arm (`_dispatcher.RequestSaveScenarioJsonAnyNode(name)`) on a headless node |
+| **provider** | each subsystem contributes `RequestSaveScenarioJson` via `SubsystemDebugProvider.SavesScenarioJsonVia(bus)`, publishing `ExecuteStorageOpIntent{ SaveScenarioJson, ScenarioName }` on its OWN control-plane bus (SimHost · IG · CGF · ExCon) — the same shape as `TransitionsVia`/`DumpsVia` |
+| **network route** | when the HTTP-hit node is NOT the master, `ClusterOpEgressTranslator` maps `SaveScenarioJson` and serialises the name as `{"ScenarioName": …}` (⛔ the `ArchivePayloadDto` other storage ops use has no name field); `ClusterOpMasterTranslator` reconstructs `ExecuteStorageOpIntent{ SaveScenarioJson, ScenarioName }`. On the master node the intent is read directly by `ClusterMaster`. Both master-side paths (this networked one and the in-process `ClusterOpRequestAdapter`) read the name identically |
+
+⇒ ⭐ any perspective's HTTP port now triggers the **same** fan-out + merge pipeline; the name (never a path) is
+preserved end to end.
+
 ### 4a. ⭐⭐⭐ R-A DISTRIBUTED SAVE — **orchestrated pull + compatible-merge** *(user ruling `2026-09-14`)*
 
 > 🔒 **User, verbatim:** *"R-A as agreed. Each node uses orchestrated pull. Aggregator merges compatible
