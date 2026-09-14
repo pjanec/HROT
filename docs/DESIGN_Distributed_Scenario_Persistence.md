@@ -462,6 +462,32 @@ NOT entity-shaped — the perfect incompatible case.
 save**. It also gives ExCon a first real persistence surface. ⚠ **Scope guard:** the camera state is
 deliberately minimal — it is a *fixture for the routing path*, not a new ExCon feature; keep it a few fields.
 
+#### ⭐⭐ HOW ExCon's foreign part is PROVEN read (the observability answer)
+
+🔒 **User:** *"ExCon should read the incompatible part — but how you can read/prove?"* — ExCon has **no ECS
+world**, so `/entities` proves nothing. ⇒ ExCon's restored state MUST have a **readable debug surface**:
+
+| ExCon does | proof over HTTP |
+|---|---|
+| on load, restore the camera into a **dumpable panel model** (ExCon panels already dump their model — the smoke suite asserts on exactly this) | `POST /perspective {name:"ExCon"}` → `GET /panel/<observerPanelId>` returns the restored camera; the rail asserts it equals the saved position |
+
+⛔ Without a readable surface a "load" that silently did nothing is indistinguishable from success — the same
+trap as the whole `intent-vs-status` discipline. ⭐ So the fixture is not done until `get_panel` shows the
+camera; that assertion IS the c3 proof.
+
+#### ⭐⭐⭐ TEST MATRIX — nothing is done until every cell is green *(user, `2026-09-14`)*
+
+| # | scenario | proof |
+|---|---|---|
+| **T-A** | editor round-trip on the UNIFIED path (save → fresh editor load) | entities + ids identical (re-run the harness from the single-node proof) |
+| **T-B** | `--mode all` SAVE, two owners (CGF ECS + ExCon foreign) | on NAS: ONE `<name>/scenario.json` (CGF entities, merged) **and** `<name>/foreign/node_<exconId>.json` (untouched) |
+| **T-C** | load the multi-saved scenario **to the cluster** | CGF perspective: entities present + owned by the loader; ExCon perspective: `get_panel` shows the restored camera |
+| **T-D** | load the multi-saved scenario **to the editor** | editor loads the ECS canonical (entities present); the ExCon foreign file is **ignored** (§6b — the editor has no ExCon; it loads only what it recognises), no error |
+| **T-E** | unit: `ScenarioMergeCore` | ✅ done — 9 rails |
+
+⚠ **T-D's "ignored, no error" is a real assertion**, not an absence — the editor must skip a foreign file by
+its `$meta.docType`, exactly today's `Deserialize` graceful-skip (§6b), and prove it loaded the rest.
+
 ---
 
 ## 5. ⭐⭐ LOAD — per-node file, brain canonical  ✅ R-A (ruled §8.1)
