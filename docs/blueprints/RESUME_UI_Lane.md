@@ -1,8 +1,14 @@
 <!--STATUS
 state: LIVE
-updated: 2026-09-13
-current-answer: ⚠⚠ THREE LIVE STRANDS. Read the one you are continuing. ⭐ STRAND 0 is the live work as of
-  2026-09-13.
+updated: 2026-09-14
+current-answer: ⚠⚠ THE LIVE WORK as of 2026-09-14 is the DISTRIBUTED SCENARIO PERSISTENCE build
+  (CE-275) — design DONE and READY-TO-BUILD, implementation NOT started. ⭐⭐⭐ READ
+  docs/blueprints/RESUME_Distributed_Scenario_Persistence.md — it carries the decided facts (do NOT
+  re-derive), the user-approved staged plan (feature-first: A OQ12 → B save gate → C distributed wiring
+  → E merge last, Sonnet-delegated mechanical + Opus hard-check), and the first action. Branch unchanged
+  (claude/reset-working-branch-qd1qpv). ⛔ The older STRANDS below are HISTORY unless you were explicitly
+  told to continue one.
+  ══ (older) STRAND 0 — ROLE-AFFINITY OWNERSHIP (P3) + THE TKB COMPONENT-SET DERIVATION ══
   ══ STRAND 0 — ROLE-AFFINITY OWNERSHIP (P3) + THE TKB COMPONENT-SET DERIVATION. The live work. ══
   BRANCH claude/reset-working-branch-qd1qpv, head = the commit carrying this doc.
   Tree clean. Gates: design-digest --check clean · rulings 34/34 · tracker-counts OK.
