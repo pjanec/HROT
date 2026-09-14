@@ -4,6 +4,7 @@ using System.Runtime.CompilerServices;
 using System.Text.Json.Nodes;
 using Fdp.Core;
 using Fdp.Core.Serialization.Migrations;
+using Fdp.Toolkit.Replication.Extensions;
 
 namespace Fdp.Toolkit.Scenario
 {
@@ -519,7 +520,29 @@ namespace Fdp.Toolkit.Scenario
 
         // ── Helpers ──────────────────────────────────────────────────────────────
 
-        /// <summary>Collects all active entities that do NOT carry <see cref="ScenarioIgnoreTag"/>.</summary>
+        /// <summary>
+        /// Collects the entities this host must write to a scenario save: those that do NOT carry
+        /// <see cref="ScenarioIgnoreTag"/> AND that this host is the network-agnostic PRIMARY OWNER of.
+        /// </summary>
+        /// <remarks>
+        /// ⭐⭐⭐ <b><c>CE-275</c> ② — the unified ownership save gate.</b> A distributed scenario save is
+        /// one cluster-orchestrated operation in which every host runs the SAME gate and writes only the
+        /// slice it owns; the brain file is the canonical scenario, each node contributing its own entities.
+        /// <para>The owner test is <c>ISimulationView.HasAuthority(entity)</c> — the entity-level
+        /// <see cref="Replication.Components.NetworkAuthority.PrimaryOwnerId"/> <c>== LocalNodeId</c>, with
+        /// <b>absent NetworkAuthority ⇒ owned</b>. That single rule makes:
+        /// <list type="bullet">
+        ///   <item>the <b>editor / AllInOne</b> single-node cluster save EVERYTHING (no NetworkAuthority, or
+        ///     all locally owned) — the R-A load model then re-owns to the loading brain;</item>
+        ///   <item>a <b>peer</b> skip an entity it merely replicates but does not own (e.g. an IG-authored
+        ///     persistable sketch), closing the gap that <c>ScenarioIgnoreTag</c>-only filtering left open;</item>
+        ///   <item><b>child parts</b> follow their parent's ownership — <c>HasAuthority</c> resolves a
+        ///     <c>PartMetadata</c> child to its root entity before reading authority.</item>
+        /// </list></para>
+        /// ⚠ This is the SCENARIO save only. Checkpoint save/load is a different path: every host writes and
+        /// reloads EVERYTHING regardless of ownership, and does not pass through this gate.
+        /// 📄 <c>docs/DESIGN_Distributed_Scenario_Persistence.md</c> §6.
+        /// </remarks>
         private static List<Entity> CollectSaveableEntities(EntityRepository repo)
         {
             int ignoreTagId = ComponentTypeRegistry.GetId(typeof(ScenarioIgnoreTag));
@@ -530,8 +553,13 @@ namespace Fdp.Toolkit.Scenario
                 var entity = new Entity(i, repo.GetMetadata(i).Generation);
                 if (!repo.IsAlive(entity)) continue;
 
-                // Skip entities tagged ScenarioIgnoreTag.
+                // Skip entities tagged ScenarioIgnoreTag (transient / throwaway).
                 if (ignoreTagId >= 0 && repo.GetComponentMask(i).IsSet(ignoreTagId))
+                    continue;
+
+                // The ownership gate: save only what this host is the primary owner of.
+                // Absent NetworkAuthority ⇒ owned, so editor / AllInOne saves everything.
+                if (!repo.HasAuthority(entity))
                     continue;
 
                 result.Add(entity);

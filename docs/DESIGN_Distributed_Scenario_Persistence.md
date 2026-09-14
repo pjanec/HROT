@@ -2,12 +2,15 @@
 state: LIVE
 updated: 2026-09-14
 build-state: BUILDING
-build-progress: Stage A (CE-275 ④ / OQ12 — the OwnershipUpdate→PrimaryOwnerId compliance sync)
-  BUILT & GREEN `2026-09-14` (OwnershipIngressSystem mirrors an EntityMaster-ordinal transfer into
-  NetworkAuthority.PrimaryOwnerId; the master ordinal is injected network-agnostically via
-  DescriptorOwnershipMap.PrimaryOwnerDescriptorOrdinal, set by NedReplicationModule; 3 rails in
-  OwnershipTests; Fdp.Toolkits.Tests replication suite 82/82, Hrot.Network.NED build clean).
-  REMAINING: Stage B (save gate), Stage C (distributed wiring), Stage E (merge — ⛔ NO NoSave, §7).
+build-progress: Stage A (CE-275 ④ / OQ12) + Stage B (CE-275 ② the save gate) BUILT & GREEN `2026-09-14`.
+  Stage A: OwnershipIngressSystem mirrors an EntityMaster-ordinal transfer into NetworkAuthority.PrimaryOwnerId
+  (master ordinal injected network-agnostically via DescriptorOwnershipMap.PrimaryOwnerDescriptorOrdinal,
+  set by NedReplicationModule; 3 rails in OwnershipTests). Stage B: CollectSaveableEntities now gates on
+  HasAuthority (absent⇒owned) as well as ScenarioIgnoreTag; OQ7 (parts ride parent) + OQ8 (editor saves all)
+  RESOLVED with rails in AuthorityExtensionsTests + ScenarioSerializerTests. Fdp.Toolkits.Tests 82/82,
+  Hrot.Network.NED build clean.
+  REMAINING: Stage C (distributed wiring — per-node handler + editor reroute + CGF zone service),
+  Stage E (merge — ⛔ NO NoSave, §7).
 current-answer: §4 save flow, §5 load flow (R-A, ruled §8.1), §6 the ONE gate — keyed on the
   NETWORK-AGNOSTIC primary-owner fact (NetworkAuthority.PrimaryOwnerId, entity-level HasAuthority;
   absent⇒owned), NEVER a wire descriptor, §6a globals (brain-owned), §6b format recognition, §6c the
@@ -495,8 +498,8 @@ buys only cosmetics — optional later follow-up).
 | **OQ11** | ✅ **RESOLVED `2026-09-14` = R-A (§8.1).** Loading brain owns all persistable at load; multi-file reconverges; per-node/role ownership preservation (R-B) deferred as a future feature. Plus §6b format recognition. | ✅ closed | R-A accepted in full. |
 | **OQ5** | ✅ **APPROVED `2026-09-14`** — add a per-node scenario-serialize handler that runs the gated `ScenarioSerializer` over the node's world, wired into `FanOutSerializeLocal`, distinct from the checkpoint recorder; reuse the archive/NAS collection. ⚠ Runs on **every** host including the editor (see OQ9). | ✅ core build | new handler, no editor exception. |
 | **OQ6** | ✅ **RESOLVED `2026-09-14` — transfer is ENABLED by construction (§6c).** The primary owner is a **network-agnostic ECS fact** (`NetworkAuthority.PrimaryOwnerId`); the transport **derives** `EntityMaster` ownership from it. The save gate reads that fact (§6, entity-level), so an entity transfer — which updates `PrimaryOwnerId` cluster-wide — **carries save-ownership with it for free**. The transfer *feature* (a propagation message + DDS handoff) is deferred (§6c). ⛔ Rule: transfer moves `PrimaryOwnerId`, **not** a per-descriptor override. `request-to-owner` (`Node_Roles §5/§6`) picks an owner *at creation*. | ✅ closed | gate reads the ECS primary-owner fact (done, §6); build no transfer machinery now; do not couple the gate to a wire descriptor. |
-| **OQ7** | **Parent/child parts under the gate.** `HasAuthority` resolves child→parent, so a multi-part entity gates as a unit — but verify the **save side** (`ScenarioSerializer.Serialize`) emits parent+children coherently when the gate is applied per-entity. | 🟠 verify | almost certainly fine (children ride the parent), but must be measured before build. |
-| **OQ8** | **Editor "saves everything" is by construction but unproven.** Editor localNodeId / `HasAuthority=true` for editor scenario entities not directly measured this session. | 🟢 rail | airtight by construction (single node has no ghosts); add a rail asserting the editor saves the full set. |
+| **OQ7** | ✅ **RESOLVED `2026-09-14` (Stage B).** `HasAuthority` resolves a `PartMetadata` child to its root entity before reading authority, so a multi-part entity gates as a UNIT: parent owned ⇒ parent+children saved; parent foreign ⇒ both skipped. No orphan part is ever emitted (a saved part always rides a saved parent). Rail: `AuthorityExtensionsTests.HasAuthority_ChildPart_FollowsParentOwnership`. | ✅ closed | children ride the parent — proven at the `HasAuthority` layer the gate calls. |
+| **OQ8** | ✅ **RESOLVED `2026-09-14` (Stage B).** The absent-`NetworkAuthority` ⇒ owned arm is what makes the editor / AllInOne save everything; proven directly by `ScenarioSerializerTests.Serialize_AppliesTheOwnershipGate_SavingOnlyOwnedEntities` (an entity with no `NetworkAuthority` is saved, a foreign-owned one is dropped, a locally-owned one is saved). | ✅ closed | rail added; editor-saves-all is the absent-authority arm. |
 | **OQ9** | ✅ **DECIDED `2026-09-14` — NO editor exception; unified BY CONSTRUCTION.** 🔒 User: *"no direct write in the editor… same code everywhere, driven by role/host config… the plumbing resulting naturally from using the same (unified) code (orchestration handlers etc.)."* ⇒ the editor runs the **same orchestration** as a single-node, all-roles cluster; scenario save goes through the fan-out + per-node handler, never `ScenarioFileService.SaveScenario` directly. ✅ **CORRECTED `2026-09-14` — the editor is ALREADY a single-node cluster.** An earlier draft here claimed the editor "has no orchestrator" and would need one built; that was WRONG — it read the mode roster, not the EditorSubsystem's internals. Measured: `EditorSubsystem` self-hosts `ClusterMaster` (`:318`, `:2074` `new ClusterMaster(_orchestrationBus, offlineConfig)` — "offline single-node orchestrator"), `StorageGatewayModule` (`:323/:2092`), and a `ClusterSlave` (`:1301`) on which it registers cluster handlers (`:1422-1623`), ticked at `:2590`. The config's "no editor + orchestrator" ban (`HrotRunnerConfiguration.cs:181-187`) merely prevents a **second** orchestrator, not a missing one. ⇒ **the real build is small:** the editor's slave registers only LOAD handlers today; save still bypasses the orchestrator via `IEditorLogic.SaveScenarioAs` (`:3864/:3958`). Work = **register the new save handler on every slave (editor included)** + **route the editor save through `_clusterMaster`** instead of the direct call. | 🟢 **small build, plumbing exists** | register the save handler uniformly; reroute the editor save trigger; retire the direct `ScenarioFileService.SaveScenario`. |
 | **OQ10** | ✅ **CLOSED via R-A** — CGF/brain owns ALL persistable at load; per-component authority granted at runtime; muscles never own persistable entities. | ✅ closed | R-A. |
 | **OQ12** | ✅ **PULLED INTO THE INITIAL BUILD `2026-09-14`** (🔒 user). BDC compliance: on an incoming `OwnershipUpdate` whose `DescrTypeId == dtEntityMaster`, `OwnershipIngressSystem` must also write `NetworkAuthority.PrimaryOwnerId = NewOwner` (mapping `NodeId{Domain,Node}` → our int) so the save gate follows an EXTERNAL transfer. The egress already stops-without-disposing on authority loss, so this one write is self-contained. Tracked: **CE-275**. | ✅ in build | build step 2c + a rail (external EntityMaster `OwnershipUpdate` → receiving node saves, prior owner stops). The transfer INITIATION side stays deferred → **CE-276**. |
@@ -504,9 +507,10 @@ buys only cosmetics — optional later follow-up).
 ⭐⭐ **ALL BLOCKERS CLOSED `2026-09-14`.** OQ1 (globals → brain), OQ2 (orphan loss accepted), OQ3 (reuse
 collection, brain canonical), OQ4/OQ10/OQ11 (R-A round-trip), OQ5 (per-node handler), OQ9 (editor is
 **already** a single-node cluster — small build), plus §6b format recognition (mechanism exists).
-**Remaining before the first commit — all minor:** OQ6 (a one-line nod on the no-transfer boundary),
-OQ7 (verify parent/child parts under the gate — build step 1), OQ8 (add the editor-saves-all rail).
-⇒ **the design is BUILDABLE.**
+⭐ **BUILD-TIME QUESTIONS NOW CLOSED (Stage B, `2026-09-14`):** OQ7 (parent/child parts ride the gate — proven
+at the `HasAuthority` layer) and OQ8 (editor saves all — the absent-authority arm, railed). ⇒ the only OPEN
+items are the **later features**: OQ12's initiation half (**CE-276**) and Stage C's distributed wiring.
+⇒ **the design is BUILDABLE**; Stages A+B are BUILT.
 
 ### 8.1 ✅ OQ11 — THE ROUND-TRIP: **RESOLVED `2026-09-14` = R-A**
 
