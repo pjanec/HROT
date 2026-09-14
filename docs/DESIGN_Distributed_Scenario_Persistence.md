@@ -423,6 +423,45 @@ classDiagram
 `Hrot.Core`; `StorageProcessManager` calls it after the existing `PullToNasAsync`. ⭐ The only NEW code is
 this one class + its registration; every arrow into it already exists.
 
+#### ⭐ WHY `Zones` is a DOM PEER of `Entities`, not entities-like-anything-else *(measured — answers I4)*
+
+📐 A **zone is a DEFINITION, not entity data** — `ZoneDefinitionDto` = `{ RoadNetworkPath, TerrainDatabaseId,
+Obstacles }`, keyed by **name** (`Dictionary<string, ZoneDefinitionDto>`, an authoring identity, not a
+network id). On load `ZoneManagerService.LoadZones` **generates** two very different things from it:
+
+| the definition produces | kind | is it an entity? |
+|---|---|---|
+| the **road network** (from `RoadNetworkPath`) | a **singleton** `ZoneEnvironmentData` blob (navmesh/roads) | ⛔ **no entity exists for it** — it is world environment data |
+| **obstacles** | ordinary entities with `SimTransform`+`PhysicsCollider` | ✅ yes — saved as entities like anything else |
+
+⇒ ⭐⭐ **Zones can't be "just entities" because half of what a zone yields (the road-network singleton) has no
+entity to be.** The definition is a compact **generator** edited as a named unit; storing it beats storing its
+generated output. So `Zones` is a legitimately different KIND — a named environment/authoring layer — and its
+brain-single-source (§6a) is what makes I4 hold: name-keyed zones **could** collide across slices (unlike
+random-GUID entities), and the only thing preventing it is that **only the brain writes them.** ⚠ That makes
+"zones = brain-only" a load-bearing invariant, not a convenience — the merge asserts a single Zones source.
+
+### 4c. ⭐⭐⭐ c3 REALISED — **ExCon saves an intentionally-incompatible slice** *(user, `2026-09-14`)*
+
+> 🔒 **User:** *"what about making ExCon save its scenario (something fake, but let's pretend ExCon has
+> something real to save, for example initial location of observer's camera) in intentionally incompatible
+> format?"*
+
+⭐⭐ **This makes c3 a REAL participant, not a mock — and it settles the open sub-question as (a):** ExCon is a
+node in the roster, so it takes the `SerializeLocal` fan-out like any host and **deposits a foreign slice into
+its own per-node staging.** ExCon has **no ECS world** (it is the observer/console), so its slice is genuinely
+NOT entity-shaped — the perfect incompatible case.
+
+| step | ExCon does | orchestrator does |
+|---|---|---|
+| SAVE | its NEW `ExConScenarioSaveHandler` writes observer state *(fake: camera position/look-at)* to `GetNodeScenariosRoot(exconId)/<name>/excon.observer.json` with `$meta.docType = "ExCon.Observer"` (≠ `Hrot.Scenario`); returns a `FileManifestResult{ docType="ExCon.Observer" }` | classifies it INCOMPATIBLE → copies verbatim to `<name>/foreign/node_<exconId>.json`, indexes `{ exconId, "ExCon.Observer" }`; **never parses it** |
+| LOAD | its own reader restores the camera from the pushed-back file | `PushToNodesAsync` returns `foreign/node_<exconId>.json` to ExCon |
+
+⭐ **Why it is the right test:** it exercises every c3 edge with a host that *cannot* be merged by construction
+(no entities, foreign tag), and it proves the compatible-merge and the foreign-route run **side by side in one
+save**. It also gives ExCon a first real persistence surface. ⚠ **Scope guard:** the camera state is
+deliberately minimal — it is a *fixture for the routing path*, not a new ExCon feature; keep it a few fields.
+
 ---
 
 ## 5. ⭐⭐ LOAD — per-node file, brain canonical  ✅ R-A (ruled §8.1)
