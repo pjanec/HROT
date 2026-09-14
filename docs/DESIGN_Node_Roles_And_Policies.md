@@ -30,6 +30,11 @@ related-designs:
   - DESIGN_Entity_Authoring_Surface.md — owns the authoring affordance whose `isTransient` argument is the
     CARRIER for R-140's "an IG entity is disposable". Its §7c parks the product question — are IG's map
     drawings disposable or persistent? — and names THIS document (§5, §8) as the owner of the answer.
+  - DESIGN_Distributed_Scenario_Persistence.md — owns the SAVE/LOAD MECHANISM that enforces this
+    document's ownership POLICY: the uniform per-entity save gate (`HasAuthority`), the per-node file
+    model, and the `NetworkAuthority`/`NetworkOwnership` merge. ⭐ It SUPERSEDES §7.2's "ownership is
+    discarded at save time" for the distributed case and ANSWERS §8 ①. This document keeps the policy
+    (who may own what, R-138/R-140); that one keeps the mechanism.
 -->
 
 # ⭐⭐⭐ Node Roles, Policies and Conventions
@@ -357,6 +362,13 @@ simply does not answer it.** ⭐ **The entity-level question does not arise, bec
 | ⚠ **STILL OPEN — a DIFFERENT question from the one this closes** | ⛔ if an IG-owned temporary entity **replicates to a SAVING node**, that node's extractor sees it in **its own** world, and *(per §7.2)* cannot tell it apart. ⇒ **the question is no longer "does IG save?" but "does IG's sketch reach CGF?"** |
 
 ### 7.2 The save path cannot distinguish an owner, measured `2026-09-02`
+
+> ⛔⛔ **SUPERSEDED FOR DISTRIBUTED SAVE (`2026-09-14`) by
+> [`DESIGN_Distributed_Scenario_Persistence.md`](DESIGN_Distributed_Scenario_Persistence.md) §6.**
+> ⭐ The "good half" below — *"ownership is DISCARDED at save time, so choosing an owner is safe"* — held
+> only while there was ONE saver (the editor, which owns everything). The unified distributed save now
+> **CONSULTS** ownership: each host saves only entities it primary-owns (`view.HasAuthority(entity)`).
+> ⚠ The measurement below is still TRUE of today's *ungated* code; it is the very gap the new design closes.
 
 📐 `StagingEntityExtractor.BuildStaticMask()` **STRIPS** `NetworkOwnership`, `NetworkAuthority`,
 `NetworkIdentity`, `DescriptorOwnership`, `TkbIdentity`, `GhostStateTracker` and `PendingNetworkAck`

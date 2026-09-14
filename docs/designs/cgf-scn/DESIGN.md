@@ -17,6 +17,9 @@ related-designs:
   - ../commander-subordinates/DESIGN.md — §7.2 owns composite AUTHORING (TkbCompositionDef's
     subordinate slots, InitialUnitSubordinateIntent) where this file owns the scenario round-trip.
   - ../replication-fixes/REPL-DESIGN.md — §4.4 owns SubEntityCleanupSystem (child TEARDOWN).
+  - ../../DESIGN_Distributed_Scenario_Persistence.md — owns which FILE(S) each node LOADS in a
+    distributed run (per-node files, brain-canonical) and re-ownership at load. This file owns the
+    genesis PIPELINE that materialises them.
 -->
 # Design: CGF Scenario Loading via Genesis Pipeline
 

@@ -1,5 +1,11 @@
 # Design: CGF Scenario Serialization Correctness (cgf-scn-2)
 
+> ⭐ **Related (`2026-09-14`):** this document owns per-**component-TYPE** save correctness (which
+> components are `NoSave`, serializer truncation). **Per-ENTITY save selection** — which entities each
+> node writes in a distributed save — is owned by
+> [`../../DESIGN_Distributed_Scenario_Persistence.md`](../../DESIGN_Distributed_Scenario_Persistence.md)
+> (the `HasAuthority` gate, per-node files, and the `NetworkAuthority`/`NetworkOwnership` merge).
+
 ## Overview
 
 This workstream addresses five tightly related gaps discovered during scenario-authoring testing

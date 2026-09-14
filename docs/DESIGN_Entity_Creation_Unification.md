@@ -108,6 +108,9 @@ related-designs:
     tables, the creator's birthright, the promote-leg claim). This document owns the PACK that builds the
     two systems that apply it. ⇒ §4.1 here answers only the question a reader of THIS file asks — "any node
     can create an entity, so who owns its EntityInfo?" — and points there for everything else.
+  - DESIGN_Distributed_Scenario_Persistence.md — the `OwnerNodeId` this pipeline stamps at creation IS the
+    entity-level SAVE ownership that the distributed scenario save gates on (`HasAuthority`). That doc owns
+    the save/load mechanism; this one owns the creation that sets the owner.
 -->
 # DESIGN — entity creation is assembled by hand at six sites; make it a pack
 
