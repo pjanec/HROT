@@ -7,10 +7,13 @@ using Xunit;
 namespace Fdp.Toolkit.Scenario.Tests;
 
 /// <summary>
-/// ⭐ MEASUREMENT (CE-275 / DataPolicy) — which SAVE CONTEXT each ownership component lands in. Settles the
-/// "does scenario save write NetworkAuthority, and does NoSave affect the checkpoint?" question the corpus
-/// (R-140) flagged as unmeasured. Scenario save = <c>GetSaveableMask</c> (excludes <c>NoSave</c>); the .fdp
-/// checkpoint recording = <c>GetRecordableMask</c> (excludes <c>NoRecord</c>) — they are INDEPENDENT bits.
+/// ⭐ CE-277(e) POLICY RAIL (was the CE-275/DataPolicy measurement) — asserts the APPLIED policy: the
+/// network-managed identity/ownership components carry <c>[DataPolicy(NoScenario)]</c> so scenario save
+/// never writes them, while remaining independent of the .fdp checkpoint (<c>NoReplay</c>) axis.
+///
+/// Scenario save  = <c>GetSaveableMask</c>  (excludes <c>NoScenario</c>).
+/// .fdp checkpoint = <c>GetRecordableMask</c> (excludes <c>NoReplay</c>).
+/// The two bits are INDEPENDENT — a component may be excluded from one and kept in the other.
 /// </summary>
 public sealed class DataPolicySaveContextMeasurement
 {
@@ -18,36 +21,39 @@ public sealed class DataPolicySaveContextMeasurement
     private struct PlainPos { public float X; }
 
     [Fact]
-    public void NetworkAuthority_vs_NetworkOwnership_LandInDifferentSaveContexts()
+    public void OwnershipComponents_AreExcludedFromScenario_ButKeptForCheckpoint()
     {
         ComponentTypeRegistry.Clear();
         using var repo = new EntityRepository();
-        repo.RegisterComponent<NetworkAuthority>();   // no DataPolicy attribute
-        repo.RegisterComponent<NetworkOwnership>();    // [DataPolicy(NoSave)]
-        repo.RegisterComponent<PlainPos>();
+        repo.RegisterComponent<NetworkAuthority>();   // [DataPolicy(NoScenario)]  (CE-277(e))
+        repo.RegisterComponent<NetworkOwnership>();    // [DataPolicy(NoScenario)]
+        repo.RegisterComponent<PlainPos>();            // no policy → plain saveable
 
         int authId  = ComponentTypeRegistry.GetId(typeof(NetworkAuthority));
         int ownId   = ComponentTypeRegistry.GetId(typeof(NetworkOwnership));
+        int plainId = ComponentTypeRegistry.GetId(typeof(PlainPos));
 
-        var saveable   = repo.GetSaveableMask();     // SCENARIO persist (NoSave excluded)
-        var recordable = repo.GetRecordableMask();   // .fdp CHECKPOINT recording (NoRecord excluded)
+        var saveable   = repo.GetSaveableMask();     // SCENARIO persist (NoScenario excluded)
+        var recordable = repo.GetRecordableMask();   // .fdp CHECKPOINT recording (NoReplay excluded)
 
-        // ── Scenario save context (GetSaveableMask / NoSave) ──────────────────────
-        Assert.True(saveable.IsSet(authId),
-            "MEASURED: NetworkAuthority IS in the scenario saveable mask (no NoSave) → scenario save WRITES it.");
+        // ── Scenario save context (GetSaveableMask / NoScenario) ──────────────────────
+        Assert.False(saveable.IsSet(authId),
+            "CE-277(e): NetworkAuthority now carries [DataPolicy(NoScenario)] → excluded from scenario save.");
         Assert.False(saveable.IsSet(ownId),
-            "MEASURED: NetworkOwnership is NOT in the scenario saveable mask (it has [DataPolicy(NoSave)]).");
+            "NetworkOwnership has [DataPolicy(NoScenario)] → excluded from scenario save.");
+        Assert.True(saveable.IsSet(plainId),
+            "A component with no policy is saveable — proving the exclusion above is the flag, not a blanket drop.");
 
-        // ── .fdp checkpoint context (GetRecordableMask / NoRecord) ────────────────
+        // ── .fdp checkpoint context (GetRecordableMask / NoReplay) — INDEPENDENT bit ──
         Assert.True(recordable.IsSet(authId),
-            "MEASURED: NetworkAuthority IS in the .fdp recordable mask (no NoRecord).");
+            "NetworkAuthority has NoScenario but NOT NoReplay → still recorded in the .fdp checkpoint. "
+          + "⇒ scenario (NoScenario) and checkpoint (NoReplay) are INDEPENDENT flags.");
         Assert.True(recordable.IsSet(ownId),
-            "MEASURED: NetworkOwnership IS in the .fdp recordable mask too — NoSave does NOT remove it from the "
-          + "checkpoint recording. ⇒ scenario (NoSave) and checkpoint (.fdp/NoRecord) are INDEPENDENT flags.");
+            "NetworkOwnership is likewise kept in the checkpoint — NoScenario does not remove it from recording.");
     }
 
     [Fact]
-    public void ScenarioSave_RoundTrip_WritesNetworkAuthority_ButNotNetworkOwnership()
+    public void ScenarioSave_RoundTrip_ExcludesOwnershipComponents()
     {
         ComponentTypeRegistry.Clear();
         using var repo = new EntityRepository();
@@ -64,9 +70,11 @@ public sealed class DataPolicySaveContextMeasurement
                         .Serialize(repo, new ScenarioHeader("Hrot.Scenario"));
         var json = dom.ToJsonString();
 
-        // MEASURED end-to-end: the live scenario save path (ScenarioSerializer) DOES emit NetworkAuthority,
-        // and DOES exclude NetworkOwnership (NoSave). So today's scenario.json genuinely carries NetworkAuthority.
-        Assert.Contains("NetworkAuthority", json);
+        // MEASURED end-to-end: after CE-277(e) the live scenario save path (ScenarioSerializer) emits
+        // NEITHER NetworkAuthority NOR NetworkOwnership — both are [DataPolicy(NoScenario)] — while the
+        // plain component still round-trips.
+        Assert.Contains("PlainPos", json);
+        Assert.DoesNotContain("NetworkAuthority", json);
         Assert.DoesNotContain("NetworkOwnership", json);
     }
 }

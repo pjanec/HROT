@@ -61,7 +61,7 @@ namespace Fdp.Toolkit.Diagnostics
 
             // ⭐⭐⭐ CE-171 follow-up — ALWAYS resolve the registered types, even on the serializer path.
             //    ⛔⛔ The serializer honours the SNAPSHOTABLE mask, which is correct for writing a scenario
-            //    and WRONG for a diagnostic dump: a transient/NoSave component simply vanishes. 📐 Measured
+            //    and WRONG for a diagnostic dump: a transient/NoScenario component simply vanishes. 📐 Measured
             //    on `--mode all` entity 1000 — adopting the serializer path alone took the dump from 34
             //    components to 29, silently losing `MissionPlanQueue`, `MissionAdapterState` and
             //    `ActiveMissionPlan`, i.e. exactly the mission state a behaviour investigation needs.

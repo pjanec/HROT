@@ -38,7 +38,7 @@ namespace Fdp.Toolkit.Scenario.Tests
             repo.RegisterComponent<TestPhysicsCollider>();
             repo.RegisterComponent<GuidedTarget>();
             repo.RegisterComponent<CachedSpeedComponent>();
-            repo.RegisterComponent<NoSaveVelocity>(); // [DataPolicy(DataPolicy.NoSave)]
+            repo.RegisterComponent<NoSaveVelocity>(); // [DataPolicy(DataPolicy.NoScenario)]
             repo.RegisterComponent<ScenarioIgnoreTag>();
             repo.RegisterComponent<Fdp.Core.EpisodeTag>();   // canonical episode-membership tag (Guid)
         }
@@ -272,7 +272,7 @@ namespace Fdp.Toolkit.Scenario.Tests
         // �� DataPolicyNoSave_ComponentExcluded �����������������������������������
 
         /// <summary>
-        /// <c>NoSaveVelocity</c> is marked <c>[DataPolicy(DataPolicy.NoSave)]</c> and
+        /// <c>NoSaveVelocity</c> is marked <c>[DataPolicy(DataPolicy.NoScenario)]</c> and
         /// must be absent from the serialized DOM.
         /// </summary>
         [Fact]
@@ -289,7 +289,7 @@ namespace Fdp.Toolkit.Scenario.Tests
             var entityNode   = (JsonObject)entitiesNode.First().Value!;
 
             Assert.False(entityNode.ContainsKey("NoSaveVelocity"),
-                "NoSave component must be absent from the DOM.");
+                "NoScenario component must be absent from the DOM.");
             Assert.True(entityNode.ContainsKey("DummyPosition"),
                 "Saveable component must still appear in the DOM.");
         }

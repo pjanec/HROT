@@ -38,7 +38,7 @@ namespace Hrot.MuscleCharacter.Animation.Components
     /// </summary>
     [StructLayout(LayoutKind.Sequential)]
     [ComponentId(GlobalComponentIds.AnimationChannel)]
-    [DataPolicy(DataPolicy.NoSave)]
+    [DataPolicy(DataPolicy.NoScenario)]
     public unsafe struct AnimationChannel
     {
         /// <summary>Current action ID (see AnimationActionIds). 0 = no action pending.</summary>
@@ -70,7 +70,7 @@ namespace Hrot.MuscleCharacter.Animation.Components
     /// </summary>
     [StructLayout(LayoutKind.Sequential)]
     [ComponentId(GlobalComponentIds.LookAtChannel)]
-    [DataPolicy(DataPolicy.NoSave)]
+    [DataPolicy(DataPolicy.NoScenario)]
     public unsafe struct LookAtChannel
     {
         /// <summary>Current action ID (see LookAtActionIds). 0 = no action pending.</summary>
@@ -102,7 +102,7 @@ namespace Hrot.MuscleCharacter.Animation.Components
     /// </summary>
     [StructLayout(LayoutKind.Sequential)]
     [ComponentId(GlobalComponentIds.StanceIntent)]
-    [DataPolicy(DataPolicy.NoSave)]
+    [DataPolicy(DataPolicy.NoScenario)]
     public struct StanceIntent
     {
         /// <summary>Target stance (Standing, Crouched, Prone).</summary>
@@ -122,7 +122,7 @@ namespace Hrot.MuscleCharacter.Animation.Components
     /// </summary>
     [StructLayout(LayoutKind.Sequential)]
     [ComponentId(GlobalComponentIds.StanceStatus)]
-    [DataPolicy(DataPolicy.NoSave)]
+    [DataPolicy(DataPolicy.NoScenario)]
     public struct StanceStatus
     {
         /// <summary>Current stable stance (Standing, Crouched, Prone).</summary>
@@ -170,7 +170,7 @@ namespace Hrot.MuscleCharacter.Animation.Components
     /// </summary>
     [StructLayout(LayoutKind.Sequential)]
     [ComponentId(GlobalComponentIds.AnimationMontageQueue)]
-    [DataPolicy(DataPolicy.NoSave)]
+    [DataPolicy(DataPolicy.NoScenario)]
     public unsafe struct AnimationMontageQueue
     {
         /// <summary>Number of valid entries in Entries (0 = empty queue).</summary>
@@ -195,7 +195,7 @@ namespace Hrot.MuscleCharacter.Animation.Components
     /// </summary>
     [StructLayout(LayoutKind.Sequential)]
     [ComponentId(GlobalComponentIds.AnimationMontageQueueState)]
-    [DataPolicy(DataPolicy.NoSave)]
+    [DataPolicy(DataPolicy.NoScenario)]
     public struct AnimationMontageQueueState
     {
         /// <summary>Index of the currently-playing queue entry (0xFF = no entry active / queue idle).</summary>

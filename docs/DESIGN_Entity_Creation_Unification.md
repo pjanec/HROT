@@ -1522,10 +1522,18 @@ than as source-reading. ⭐ Cheap; do it before anyone re-opens this.
 > in the DOM, `NetworkOwnership` — which has `NoSave` — absent). The shipped files were not an artefact of a
 > dead path; the live scenario save genuinely emits it. `StagingEntityExtractor.BuildStaticMask` is a
 > **different** (CGF-staging / load-side) path, so it does NOT cover the `ScenarioSerializer` save. ⇒ there is
-> a **GAP**, not a duplicate. ⭐ **Therefore `[DataPolicy(NoSave)]` on `NetworkAuthority` is a clean,
+> a **GAP**, not a duplicate. ⭐ **Therefore `[DataPolicy(NoScenario)]` on `NetworkAuthority` is a clean,
 > checkpoint-safe scenario-only exclusion** — the *"attribute that prevents saving to scenario"* the user ruled
-> for `2026-09-04`. Tracked as **CE-277(e)**; ⚠ a decision to confirm with the user, and still OUT of the
-> mechanical `NetworkOwnership`→`NetworkAuthority` merge. 📄 `DESIGN_Distributed_Scenario_Persistence.md` §7.
+> for `2026-09-04`. Tracked as **CE-277(e)**; still OUT of the mechanical merge.
+> 📄 `DESIGN_Distributed_Scenario_Persistence.md` §7.
+>
+> ✅✅ **APPLIED `2026-09-14`, WITH A MEASURED SCOPE CORRECTION.** The flag went on **`NetworkAuthority` +
+> `DescriptorOwnership` ONLY** (the process-local pair). ⛔ It was FIRST applied to `NetworkIdentity`/
+> `TkbIdentity` too and **10 `StagingEntityExtractorTests` went red**: the load path READS the network id +
+> TkbType back out of the scenario DOM (`StagingEntityExtractor.cs:239/280/298/305`), so those two MUST stay in
+> the file. ⇒ ⭐⭐ `BuildStaticMask`'s strip-from-`InitialComponents` is a DIFFERENT concern from save-exclusion,
+> and the *"no hardcoded exclusion needed"* idea (CE-277(e) part 2) is **DISPROVEN** — the consume-and-strip
+> pair is its irreducible core.
 
 ⇒ ⭐⭐ **Consequence for `D5`:** unchanged in substance — the node-id widening has **no scenario-format
 impact** — but for a *better* reason: the extractor already keeps the component out, so `D5` never needed

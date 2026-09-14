@@ -108,8 +108,8 @@ public sealed class EntityCreationRequest
     /// time.</para>
     ///
     /// <para>⭐⭐ <b>The mechanism already existed and had ZERO production writers.</b>
-    /// <c>ScenarioIgnoreTag</c> is a per-<i>entity</i> filter (unlike <c>DataPolicy.NoSave</c>, which is
-    /// per component <i>type</i>) and is itself <c>NoSave</c>, so it never round-trips. This flag is only
+    /// <c>ScenarioIgnoreTag</c> is a per-<i>entity</i> filter (unlike <c>DataPolicy.NoScenario</c>, which is
+    /// per component <i>type</i>) and is itself <c>NoScenario</c>, so it never round-trips. This flag is only
     /// the CARRIER that lets it be stamped; no save-side machinery changes.</para>
     ///
     /// <para>⛔ <b>Why the REQUEST carries it rather than the receiver deriving it from the owner's

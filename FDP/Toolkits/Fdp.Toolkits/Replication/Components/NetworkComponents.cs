@@ -16,7 +16,7 @@ namespace Fdp.Toolkit.Replication.Components
     /// Unmanaged component (can be used in Queries).
     /// </summary>
     [ComponentId(GlobalComponentIds.NetworkOwnership)]
-    [DataPolicy(DataPolicy.NoSave)]
+    [DataPolicy(DataPolicy.NoScenario)]
     public struct NetworkOwnership
     {
         public int PrimaryOwnerId; // Default owner (EntityMaster)

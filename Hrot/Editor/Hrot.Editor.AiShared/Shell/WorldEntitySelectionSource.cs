@@ -32,7 +32,7 @@ namespace Hrot.Editor.AiShared.Shell;
 /// steady selection costs one query walk and no allocation — ⭐ which is what makes it safe to call
 /// once per frame from <see cref="LiveContextSource"/>.</para>
 ///
-/// <para>⛔ <b><c>SelectionState</c> is <c>[DataPolicy(DataPolicy.NoSave)]</c></b> — ⚠ so the selection
+/// <para>⛔ <b><c>SelectionState</c> is <c>[DataPolicy(DataPolicy.NoScenario)]</c></b> — ⚠ so the selection
 /// does not survive a scenario reload. 📄 §6's limits table calls that out and calls it <b>correct</b>
 /// *(consistent with <c>94g</c>)*; ⭐ stated here so a later reader does not "fix" it.</para>
 /// </summary>

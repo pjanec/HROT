@@ -25,7 +25,7 @@ namespace Fdp.Toolkit.Behavior.Components
     /// </summary>
     [StructLayout(LayoutKind.Sequential)]
     [ComponentId(GlobalComponentIds.PreviousCapabilities)]
-    [DataPolicy(DataPolicy.NoSave)]
+    [DataPolicy(DataPolicy.NoScenario)]
     public struct PreviousCapabilities
     {
         public ActorCapabilities Capabilities;
@@ -40,7 +40,7 @@ namespace Fdp.Toolkit.Behavior.Components
 
     [StructLayout(LayoutKind.Sequential)]
     [ComponentId(GlobalComponentIds.BehaviorState)]
-    [DataPolicy(DataPolicy.NoSave)]
+    [DataPolicy(DataPolicy.NoScenario)]
     public struct BehaviorState
     {
         public int ActiveBehaviorHash;
@@ -57,7 +57,7 @@ namespace Fdp.Toolkit.Behavior.Components
 
     [StructLayout(LayoutKind.Explicit, Size = BehaviorConstants.BrainBlackboardByteSize)]
     [ComponentId(GlobalComponentIds.BrainBlackboard)]
-    [DataPolicy(DataPolicy.NoSave)]
+    [DataPolicy(DataPolicy.NoScenario)]
     public unsafe struct BrainBlackboard
     {
         /// <summary>
@@ -99,7 +99,7 @@ namespace Fdp.Toolkit.Behavior.Components
     /// </summary>
     [StructLayout(LayoutKind.Sequential)]
     [ComponentId(GlobalComponentIds.Blackboard1024)]
-    [DataPolicy(DataPolicy.NoSave)]
+    [DataPolicy(DataPolicy.NoScenario)]
     public unsafe struct Blackboard1024
     {
         public const int ByteSize = 1024;

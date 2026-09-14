@@ -359,9 +359,9 @@ namespace Fdp.Core.FlightRecorder
                 var attr = type.GetCustomAttribute<EventIdAttribute>();
                 if (attr == null || type.IsEnum) continue;
                 
-                // Enforce the DataPolicy.NoRecord contract.
+                // Enforce the DataPolicy.NoReplay contract.
                 var policyAttr = type.GetCustomAttribute<DataPolicyAttribute>();
-                if (policyAttr != null && policyAttr.Policy.HasFlag(DataPolicy.NoRecord))
+                if (policyAttr != null && policyAttr.Policy.HasFlag(DataPolicy.NoReplay))
                 {
                     continue;
                 }

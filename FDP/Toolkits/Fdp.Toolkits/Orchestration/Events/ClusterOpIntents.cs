@@ -7,7 +7,7 @@ namespace Fdp.Toolkit.Orchestration
     /// with <c>OperationType == TransitionState</c> arrives. Consumed by <c>ClusterMaster</c>.
     /// </summary>
     [EventId(9050)]
-    [DataPolicy(DataPolicy.NoRecord)]
+    [DataPolicy(DataPolicy.NoReplay)]
     public struct TransitionStateIntent
     {
         public Guid TransactionId;
@@ -24,7 +24,7 @@ namespace Fdp.Toolkit.Orchestration
     /// with <c>OperationType == ManageEpisode</c> arrives. Consumed by <c>ClusterMaster</c>.
     /// </summary>
     [EventId(9051)]
-    [DataPolicy(DataPolicy.NoRecord)]
+    [DataPolicy(DataPolicy.NoReplay)]
     public struct ManageEpisodeIntent
     {
         public Guid TransactionId;
@@ -38,7 +38,7 @@ namespace Fdp.Toolkit.Orchestration
     /// with <c>OperationType == ReplaySeek</c> arrives. Consumed by <c>ClusterMaster</c>.
     /// </summary>
     [EventId(9052)]
-    [DataPolicy(DataPolicy.NoRecord)]
+    [DataPolicy(DataPolicy.NoReplay)]
     public struct SeekReplayIntent
     {
         public Guid RequestId;
@@ -50,7 +50,7 @@ namespace Fdp.Toolkit.Orchestration
     /// with <c>OperationType == CancelOperation</c> arrives. Consumed by <c>ClusterMaster</c>.
     /// </summary>
     [EventId(9053)]
-    [DataPolicy(DataPolicy.NoRecord)]
+    [DataPolicy(DataPolicy.NoReplay)]
     public struct CancelOperationIntent
     {
         public Guid TargetRequestId;
@@ -83,7 +83,7 @@ namespace Fdp.Toolkit.Orchestration
     /// Consumed by <c>ClusterMaster</c>.
     /// </summary>
     [EventId(9054)]
-    [DataPolicy(DataPolicy.NoRecord)]
+    [DataPolicy(DataPolicy.NoReplay)]
     public struct ExecuteStorageOpIntent
     {
         public Guid RequestId;
@@ -104,7 +104,7 @@ namespace Fdp.Toolkit.Orchestration
     /// Consumed by translators to write the DDS <c>ClusterOpStatus</c> topic.
     /// </summary>
     [EventId(9055)]
-    [DataPolicy(DataPolicy.NoRecord)]
+    [DataPolicy(DataPolicy.NoReplay)]
     public struct StorageOpCompletedEvent
     {
         public Guid RequestId;
@@ -119,7 +119,7 @@ namespace Fdp.Toolkit.Orchestration
     /// beyond <see cref="RequestId"/> — the checkpoint operation requires no parameters.
     /// </summary>
     [EventId(9056)]
-    [DataPolicy(DataPolicy.NoRecord)]
+    [DataPolicy(DataPolicy.NoReplay)]
     public struct TakeCheckpointIntent
     {
         public Guid RequestId;
@@ -130,7 +130,7 @@ namespace Fdp.Toolkit.Orchestration
     /// with <c>OperationType == LoadZone</c> arrives. Consumed by <c>ClusterMaster</c>.
     /// </summary>
     [EventId(9057)]
-    [DataPolicy(DataPolicy.NoRecord)]
+    [DataPolicy(DataPolicy.NoReplay)]
     public struct LoadZoneIntent
     {
         public Guid RequestId;
@@ -144,7 +144,7 @@ namespace Fdp.Toolkit.Orchestration
     /// <para><c>PayloadJson</c> is a JSON-serialised <c>DiagnosticDumpPayloadDto</c>.</para>
     /// </summary>
     [EventId(9058)]
-    [DataPolicy(DataPolicy.NoRecord)]
+    [DataPolicy(DataPolicy.NoReplay)]
     public struct ExecuteDiagnosticDumpIntent
     {
         public Guid   RequestId;

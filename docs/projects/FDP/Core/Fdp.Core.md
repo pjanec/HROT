@@ -511,7 +511,7 @@ Fdp.Core Dependency Tree
   `CreateEntity()`, `DestroyEntity()`, `AddComponent<T>()`, `SetComponent<T>()`,
   `RemoveComponent<T>()`, and managed variants. `Playback(repo)` replays commands in order.
 - **`EpisodeTag.cs`** — `[ComponentId(84)]` tag marking entities belonging to a specific
-  episode (Guid). `[DataPolicy(DataPolicy.NoSave)]`.
+  episode (Guid). `[DataPolicy(DataPolicy.NoScenario)]`.
 - **`DISEntityType.cs`** — `[StructLayout(Explicit, Size=8)]` overlay struct allowing access
   as both a `ulong` and named DIS fields (Kind, Domain, Country, Category, Subcategory,
   Specific, Extra).
@@ -942,11 +942,15 @@ and registered in `GlobalComponentIds`. Collision detected at registration time.
 #### `DataPolicyAttribute` (class)
 
 ```csharp
-[DataPolicy(DataPolicy.NoSave)]
+[DataPolicy(DataPolicy.NoScenario)]
 ```
 
-Controls how the engine pipeline handles a component type: `NoSnapshot`, `SnapshotViaClone`,
-`NoRecord`, `NoSave`, or `Transient` (all three exclusions).
+Controls how the engine pipeline handles a component type: `NoPreview` (excluded from the live
+snapshot/rewind mask), `SnapshotViaClone`, `NoReplay` (excluded from the `.fdp` checkpoint
+recording), `NoScenario` (excluded from scenario-file persistence), or `Transient` (all three
+exclusions). The three exclusion bits are **independent** — a component may opt out of one context
+and stay in the others. *(Renamed `2026-09-14`, CE-275: `NoSnapshot`→`NoPreview`,
+`NoRecord`→`NoReplay`, `NoSave`→`NoScenario`.)*
 
 #### `EventIdAttribute` (class)
 

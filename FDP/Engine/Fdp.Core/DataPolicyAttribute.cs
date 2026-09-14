@@ -23,7 +23,7 @@ namespace Fdp.Core
         /// Accessing this component in background modules returns null/default.
         /// Safe for mutable classes.
         /// </summary>
-        NoSnapshot = 1 << 0,
+        NoPreview = 1 << 0,
         
         /// <summary>
         /// Include in background snapshots via Deep Clone.
@@ -38,14 +38,14 @@ namespace Fdp.Core
         /// Exclude from Flight Recorder and Binary Checkpoints. Use for debug-only data
         /// or metrics that should not pollute binary state snapshots.
         /// </summary>
-        NoRecord = 1 << 2,
+        NoReplay = 1 << 2,
         
         /// <summary>
         /// Exclude from Scenario JSON serialization. Use for runtime execution state
         /// (e.g., BTree pointers, active weapon channels) that should be preserved in
         /// binary checkpoints but omitted from declarative authoring templates.
         /// </summary>
-        NoSave = 1 << 3,
+        NoScenario = 1 << 3,
         
         // ━━━ Convenience Presets ━━━
         
@@ -54,7 +54,7 @@ namespace Fdp.Core
         /// Replaces [TransientComponent] attribute.
         /// Use for: UI caches, temporary buffers, debug metrics.
         /// </summary>
-        Transient = NoSnapshot | NoRecord | NoSave
+        Transient = NoPreview | NoReplay | NoScenario
     }
     
     /// <summary>
@@ -63,7 +63,7 @@ namespace Fdp.Core
     /// <example>
     /// <code>
     /// // Mutable class: Record but don't share with background threads
-    /// [DataPolicy(DataPolicy.NoSnapshot)]
+    /// [DataPolicy(DataPolicy.NoPreview)]
     /// public class CombatHistory { /* mutable state */ }
     /// 
     /// // Completely transient

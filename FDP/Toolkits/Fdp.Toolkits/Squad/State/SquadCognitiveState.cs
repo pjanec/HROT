@@ -195,7 +195,7 @@ namespace Fdp.Toolkit.Squad
     /// </list>
     /// </remarks>
     [StructLayout(LayoutKind.Sequential)]
-    [DataPolicy(DataPolicy.NoSave)]
+    [DataPolicy(DataPolicy.NoScenario)]
     public struct SquadCognitiveState
     {
         // ---- Scalars (offset 0, 16 bytes) ----

@@ -20,7 +20,7 @@ build-progress: Stage A (CE-275 ④ / OQ12) + Stage B (CE-275 ② the save gate)
   enforced by the gate) — 10/10; Node_Roles §7.1 marked superseded. IG + SimHost + editor + CGF build clean.
   ⇒ scenario save is UNIFIED across every host; there is no editor-only save path.
   REMAINING: CE-277 follow-ons (OQ1 CGF zone service; retire raw-path SaveTo; multi-process staging+NAS pull;
-  T3 --mode all E2E), Stage E (NetworkOwnership→NetworkAuthority merge — ⛔ NO NoSave, §7).
+  T3 --mode all E2E), Stage E (NetworkOwnership→NetworkAuthority merge — ⛔ NO NoScenario flag, §7).
 current-answer: §4 save flow, §5 load flow (R-A, ruled §8.1), §6 the ONE gate — keyed on the
   NETWORK-AGNOSTIC primary-owner fact (NetworkAuthority.PrimaryOwnerId, entity-level HasAuthority;
   absent⇒owned), NEVER a wire descriptor, §6a globals (brain-owned), §6b format recognition, §6c the
@@ -43,7 +43,7 @@ superseded-by: —
 design-basis:
   - docs/DESIGN_Node_Roles_And_Policies.md §4 (ownership axes), §5 (persistence policy R-140),
     §7.2/§7.3 (the ungated save, measured), §8 ① (the parked save question)
-  - docs/designs/cgf-scn-2/DESIGN.md (scenario serialization correctness; DataPolicy.NoSave)
+  - docs/designs/cgf-scn-2/DESIGN.md (scenario serialization correctness; DataPolicy.NoScenario)
   - docs/designs/cgf-scn/DESIGN.md (CGF as authoritative genesis source on LOAD)
   - docs/DESIGN_Entity_Creation_Unification.md (the shared creation pipeline; §3.4b level mismatch)
   - docs/UX/UX_Feature_Authority_Aware_Writes.md §335/§342/§343 (the NetworkAuthority/NetworkOwnership
@@ -56,13 +56,15 @@ related-designs:
   - DESIGN_Node_Roles_And_Policies.md — owns the ROLE/ownership POLICY (who may own what, R-138/R-140);
     THIS doc owns the SAVE/LOAD MECHANISM that enforces it and the ownership-component unification.
   - docs/designs/cgf-scn-2/DESIGN.md — owns per-COMPONENT-TYPE save correctness (which components are
-    NoSave, serializer truncation); THIS doc owns per-ENTITY save selection (which entities each node saves).
+    NoScenario, serializer truncation); THIS doc owns per-ENTITY save selection (which entities each node saves).
   - docs/designs/cgf-scn/DESIGN.md — owns the LOAD genesis pipeline (scenario JSON → creation requests);
     THIS doc owns which FILE(S) each node loads and re-ownership at load.
   - DESIGN_Entity_Creation_Unification.md — owns the CREATION pipeline whose OwnerNodeId stamps the
     save-ownership THIS doc gates on. ⭐ ALSO owns the measured analysis that `NetworkAuthority` is
-    runtime-only and its scenario-save exclusion is the extractor's context-mask (bit 51), NOT a global
-    `[DataPolicy(NoSave)]` (WITHDRAWN `2026-09-02`) — load-bearing for §7's merge (Stage E must NOT add NoSave).
+    runtime-only. ⚠ SUPERSEDED `2026-09-14`: the `2026-09-02` withdrawal (which said "use the extractor
+    context-mask, NOT a global flag") is REVERSED by CE-277(e) — `[DataPolicy(DataPolicy.NoScenario)]` IS now
+    applied to `NetworkAuthority` + `DescriptorOwnership` (the process-local pair; NOT `NetworkIdentity`/
+    `TkbIdentity`, whose data the LOAD path reads from the file — measured, 10 rails). Stage E adds NO flag; §7.
   - DESIGN_Role_Affinity_Ownership.md — owns WHO OWNS WHICH COMPONENT (the role-affinity tables
     REGISTER = owned ∪ read, AUTHORITY = owned; the per-component AuthorityMask). It DECIDES the
     per-component/per-entity ownership; THIS doc only READS the primary-owner fact at save time and
@@ -509,30 +511,55 @@ static mask. Whether `NetworkAuthority` should be *scenario*-excluded is a **sep
 ⭐⭐⭐ **MEASURED `2026-09-14` — `DataPolicy` has THREE disjoint bits, one per save context**, so "checkpoint"
 and "scenario" do NOT share a flag *(rail: `Fdp.Toolkits.Tests/Scenario/DataPolicySaveContextMeasurement.cs`)*:
 
-| bit | mask | ONLY production consumer | context |
+| bit *(name from `2026-09-14`)* | mask | ONLY production consumer | context |
 |---|---|---|---|
-| `NoSnapshot` | `GetSnapshotableMask` | live rewind/preview | in-memory snapshot |
-| `NoRecord` | `GetRecordableMask` | **`RecorderSystem` → `.fdp`** | the CHECKPOINT recording |
-| `NoSave` | `GetSaveableMask` | **`ScenarioSerializer` (only)** | the SCENARIO persist |
+| `NoPreview` *(was `NoSnapshot`)* | `GetSnapshotableMask` | live rewind/preview | in-memory snapshot |
+| `NoReplay` *(was `NoRecord`)* | `GetRecordableMask` | **`RecorderSystem` → `.fdp`** | the CHECKPOINT recording |
+| `NoScenario` *(was `NoSave`)* | `GetSaveableMask` | **`ScenarioSerializer` (only)** | the SCENARIO persist |
 
-⇒ **`NoSave` is scenario-ONLY** — it cannot touch the `.fdp` checkpoint (that keys on `NoRecord`). So the
-earlier claim *"a global `NoSave` would break the Checkpoint pipeline"* is **measurably FALSE**, and the claim
-*"the scenario-save exclusion already lives in the extractor mask"* is also false for THIS save path:
+⇒ **`NoScenario` is scenario-ONLY** — it cannot touch the `.fdp` checkpoint (that keys on `NoReplay`). So the
+earlier claim *"a global scenario-exclusion would break the Checkpoint pipeline"* is **measurably FALSE**, and
+the claim *"the scenario-save exclusion already lives in the extractor mask"* is also false for THIS save path:
 `StagingEntityExtractor.BuildStaticMask` is a **different** (CGF staging / load-side) path; the
-`ScenarioSerializer` path this design uses has **no** exclusion for `NetworkAuthority`, so scenario save
-genuinely **writes** it today (measured round-trip). ⇒ there is a GAP, not a duplicate.
+`ScenarioSerializer` path this design uses had **no** exclusion for `NetworkAuthority`, so scenario save
+genuinely **wrote** it before this change (measured round-trip). ⇒ there was a GAP, not a duplicate.
 
-⭐ **Consequence for CE-277:** marking `NetworkAuthority` (and the other runtime ownership/identity components)
-`[DataPolicy(NoSave)]` is a **clean, measured-safe** fix for "runtime state in scenario JSON" — it excludes
-them from the scenario without touching the `.fdp` checkpoint — and it is exactly the *"attribute that prevents
-saving to scenario"* the user ruled for on `2026-09-04`. ⚠ This **reverses the stated reason** of the
-`2026-09-02` withdrawal in [`DESIGN_Entity_Creation_Unification.md` §"THE ONE REAL COST"](DESIGN_Entity_Creation_Unification.md)
-(*"Checkpoint needs it"*), so it is offered as a **decision to confirm**, not a unilateral flip — and it is
-still **out of the mechanical merge**.
+##### ✅ APPLIED `2026-09-14` (CE-275) — **the rename, and CE-277(e) part 1 (TWO flags, not four)**
 
-⚠ **Roslyn only** (never text-replace a C# symbol); grep sweep afterward for `HrotStrideApp.Windows`
-(out-of-solution). Frees component id `140`. ⭐ Keep the **name** `NetworkAuthority` (renaming ~57 sites
-buys only cosmetics — optional later follow-up).
+⭐⭐ **Two changes landed together:**
+1. **Rename** (Roslyn, root solution + out-of-solution sed for `Hrot.MuscleCharacter.Animation.Tests`;
+   `Stride/` has **0** references, `HrotStrideApp.Windows` verified 0): `NoSnapshot`→`NoPreview` ·
+   `NoRecord`→`NoReplay` · `NoSave`→`NoScenario`. Full-solution build green.
+2. **CE-277(e) part 1 — the declarative flags on the PROCESS-LOCAL pair only:**
+   `[DataPolicy(DataPolicy.NoScenario)]` added to **`NetworkAuthority`** and **`DescriptorOwnership`** —
+   network-managed ownership re-established from the live topology on load, never read back from the file.
+   Rail: `DataPolicySaveContextMeasurement.cs` asserts the applied policy (excluded from scenario, kept in
+   checkpoint — independence proven).
+
+⛔⛔ **MEASURED CORRECTION `2026-09-14` — the flag does NOT go on all seven `BuildStaticMask` members.**
+📌 The `BuildStaticMask` 7 split into TWO kinds, and this was proven by **10 red `StagingEntityExtractorTests`**:
+
+| kind | members | in scenario file? | why |
+|---|---|---|---|
+| ⭐ process-local runtime state | `NetworkAuthority` · `DescriptorOwnership` (+ already-flagged `GhostStateTracker`/`NetworkOwnership`/`PendingNetworkAck`) | ⛔ NO → `NoScenario` | re-established by spawn/replication systems; the file value is meaningless |
+| 🔴 **CONSUME-AND-STRIP data** | **`NetworkIdentity`** · **`TkbIdentity`** | ✅ **YES — must be saved** | the LOAD path READS them out of the DOM (`StagingEntityExtractor.cs:239/280/298/305`) to recover the network id + TkbType, THEN strips them from `InitialComponents`. `NoScenario` on them read the id/type back as `0` and broke 10 rails |
+
+⇒ ⭐⭐ **`BuildStaticMask` (strip-from-`InitialComponents`) is NOT the same set as the non-saveable mask** —
+two of its members must be *in the file*. **The load-side strip and the save-side exclusion are different
+concerns.**
+
+##### ⛔ CE-277(e) part 2 — **DISPROVEN: the hardcoded exclusion CANNOT be replaced by `NoScenario`**
+
+⭐⭐⭐ The user's question — *"if proper flags are used, no special hardcoded exclusion would be necessary?"* —
+is answered **NO, by measurement.** `BuildStaticMask` must keep `NetworkIdentity`/`TkbIdentity` **in the
+scenario file** while stripping them from a loaded entity's `InitialComponents` (their id/type is consumed to
+build the creation request). A `NoScenario`-derived mask would drop them from the file and break load. ⇒ the
+consume-and-strip pair is the **irreducible core** of the hardcoded list; it does something `NoScenario`
+cannot. *(The other 5 members are redundant with their `NoScenario`/`Transient` flags and could be trimmed
+from `BuildStaticMask` as belt-and-suspenders cleanup — cosmetic, not required.)*
+
+⚠ ⭐ Keep the **name** `NetworkAuthority` (renaming ~57 sites buys only cosmetics — optional later follow-up).
+Stage E (the `NetworkOwnership`→`NetworkAuthority` merge) is still separate and adds **no** flag.
 
 ---
 

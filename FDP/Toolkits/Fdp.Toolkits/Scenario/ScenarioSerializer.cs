@@ -212,7 +212,7 @@ namespace Fdp.Toolkit.Scenario
         /// </summary>
         /// <remarks>
         /// Use this for clipboard / diagnostic dumps.  Pass
-        /// <c>repo.GetSnapshotableMask()</c> to include <c>NoSave</c> execution-state
+        /// <c>repo.GetSnapshotableMask()</c> to include <c>NoScenario</c> execution-state
         /// components (e.g. <see cref="Fdp.Toolkit.Behavior.Components.BrainBlackboard"/>),
         /// or <c>repo.GetSaveableMask()</c> to limit output to persistable components.
         /// </remarks>
@@ -615,7 +615,7 @@ namespace Fdp.Toolkit.Scenario
                 throw new InvalidOperationException(
                     $"[ScenarioSerializer] SaveResolver: entity {entity} is not in the save map. " +
                     "This is a programmer error — ensure all cross-referenced entities are included " +
-                    "in the saveable entity set (not tagged with ScenarioIgnoreTag or DataPolicy.NoSave).");
+                    "in the saveable entity set (not tagged with ScenarioIgnoreTag or DataPolicy.NoScenario).");
             }
 
             public Entity Resolve(string guidStr)
