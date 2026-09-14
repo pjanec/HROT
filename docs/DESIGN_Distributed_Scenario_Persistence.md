@@ -2,12 +2,12 @@
 state: LIVE
 updated: 2026-09-14
 build-state: DESIGN
-current-answer: §4 is the unified save flow, §5 the load flow, §6 the ONE gate
-  (view.HasAuthority(entity)), §6a global/non-entity data (brain-owned), §7 the
-  NetworkAuthority/NetworkOwnership merge, §8 the OPEN QUESTIONS. ⭐ The three original blockers
-  (OQ1 globals, OQ3 manifest, OQ5 handler) and OQ9 (no editor exception) are DECIDED `2026-09-14`.
-  ⛔ Still not READY-TO-BUILD: OQ2/OQ4/OQ6/OQ10 need a one-line nod, OQ7/OQ8 are verify/rail, and OQ9
-  raised a larger build item (editor gains an in-process single-node orchestrator — cgf==editor).
+current-answer: §4 is the unified save flow (SOUND), §6 the ONE gate (view.HasAuthority(entity)),
+  §6a globals (brain-owned), §7 the NetworkAuthority/NetworkOwnership merge (SOUND), §1a the paradigm
+  correction (passivity is emergent, no IG special case). ⛔ §5 (LOAD) is PROVISIONAL — it assumes
+  model R-A. The SAVE half + merge are ready; the LOAD half hinges on §8.1 OQ11 (the central open
+  question: does a round-trip PRESERVE or RE-ASSIGN entity ownership?). Closed `2026-09-14`:
+  OQ1/OQ2/OQ3/OQ5/OQ9. ⛔ NOT READY-TO-BUILD until OQ11 is ruled.
 stale-below: nothing yet (new document).
 known-rot: nothing known.
 known-conflict: DESIGN_Node_Roles_And_Policies.md §7.1 says IG-persistence is enforced "by an
@@ -55,15 +55,33 @@ named "debt" in `UX_Feature_Authority_Aware_Writes.md` but never merged.
 
 ## 1. ⭐⭐ THE MODEL IN ONE PARAGRAPH
 
-Every host runs the **same** gated save. A host writes to its **own** per-node scenario file **only the
-entities it is the entity-level primary owner of** (`view.HasAuthority(entity)`); a host that owns
-nothing writes an empty file — harmless. The **editor** is a single-node cluster that owns everything
-(absent authority ⇒ owned), so it writes the whole scenario as **one** file — the **brain-role file**,
-consumed by the brain node (CGF) in a distributed run. **Load** is the mirror: each node loads its own
-file; the brain file is canonical and CGF distributes its entities through the genesis pipeline, owning
-them and replicating ghosts to the muscles (whose own files are empty). **One rule — save/keep an entity
-iff you are its primary owner — makes the editor, the brain and every future partition fall out of the
-same code.**
+Every host runs the **same** gated save with **no role exceptions**. A host writes to its **own**
+per-node scenario file **exactly the non-transient entities it is the entity-level primary owner of**
+(`view.HasAuthority(entity)`), whatever its role — a host owns an entity because it *created* it, and a
+host creates entities because of the roles it was assigned, **not** because it is "a brain" or "passive".
+⛔ There is **no** "IG never persists" special case: if any host owns a savable (non-transient) entity —
+e.g. the editor's or an IG's 2D-map role authored a persistable tactical drawing — that host saves it,
+full stop (see §1a). A host that happens to own nothing savable writes an empty file — harmless. The
+**editor** is the degenerate single node that hosts **all** roles, so it owns everything and writes the
+whole scenario as **one** file; that file equals a brain-role file **only circumstantially** — because
+the other roles usually own little that is savable, not by definition. **One rule — save an entity iff
+you are its non-transient primary owner — makes the editor, the brain, the IG and every future partition
+fall out of the same code.** ⚠ **The multi-file ↔ single-file LOAD round-trip is NOT yet fully resolved —
+see §8 OQ11, the central open question.**
+
+### 1a. ⭐⭐⭐ PARADIGM CORRECTION `2026-09-14` — passivity is EMERGENT, not designed
+
+> 🔒 **User, verbatim:** *"'IG is passive, non-persisting' — this is the old paradigm. Hosts are not
+> passive by design; passivity results from whether they create their own entities, which comes from the
+> roles they are assigned. Any single host can create entities (thus be their primary owner) so if that
+> happens and the entity is savable to scenario (non transient) also the IG must save it to the scenario,
+> no exceptions, no differences, unified rules and implementation."*
+
+⛔ This **refines `R-140`** (`DESIGN_Node_Roles §5`, "IG is passive and non-persisting"): R-140's
+*behaviour* still usually holds — an IG typically owns only transient entities — but as an **emergent
+consequence of its role assignment, NOT a hard rule the save path enforces.** ⇒ the save path is
+**uniform**; the only gate is ownership + transience. `DESIGN_Node_Roles §5/§7` must be updated to say
+"passivity is emergent" rather than "IG may not persist" (recorded as a follow-up there).
 
 ---
 
@@ -184,19 +202,19 @@ graph TD
       RC["ReferenceCheckpointHandler<br/>+ CheckpointIOWorker"]
       RC -->|"node_id.fdp · EVERYTHING, no gate"| NAS
     end
-    IGX["IG node"] -. "runs the SAME gated save;<br/>file empty by the GATE, not by a missing handler" .-> H
+    IGX["IG node · SAME handler, no exception"] -. "saves whatever it OWNS<br/>(often nothing savable → empty; a savable drawing → saved)" .-> H
     style RC fill:#eee,stroke:#999,stroke-dasharray:5 5
-    style IGX fill:#fdd,stroke:#c33
 ```
 
-*Caption — the dead/never-non-empty edges drawn on purpose:* the checkpoint lane (grey) is a **separate**
-mechanism that ignores ownership; do not fold it in. The IG edge (red) is the design's key simplification
-— **IG participates uniformly** and its file is empty **by the gate**, retiring `Node_Roles §7.1`'s
-"enforce by a missing handler".
+*Caption — what the picture shows that prose hid:* the checkpoint lane (grey) is a **separate** mechanism
+that ignores ownership; do not fold it in. ⭐ **Every host — IG included — runs the identical handler with
+no role branch**; the content of each file is purely *what that host owns*. This retires
+`Node_Roles §7.1`'s "enforce by a missing IG handler": there is no missing handler and no IG special case
+(§1a). An IG file is empty *when* the IG owns nothing savable, not *because* it is an IG.
 
 ---
 
-## 5. ⭐⭐ LOAD — per-node file, brain canonical
+## 5. ⭐⭐ LOAD — per-node file, brain canonical  ⛔ PROVISIONAL (assumes model R-A — see §8.1 OQ11)
 
 ```mermaid
 sequenceDiagram
@@ -282,22 +300,68 @@ buys only cosmetics — optional later follow-up).
 | # | question / flaw | severity | lean |
 |---|---|---|---|
 | **OQ1** | ✅ **DECIDED `2026-09-14`** — global data (the complete set: `$meta`, `Header.TkbName`, `Zones`; sim-time is already orchestrator-owned — §6a) rides the **brain-role file**. 🔒 User: *"zones should for sure be handled by brain."* ⛔ **Build consequence:** the brain node (CGF) must compose a real `IZoneManagerService` — today only the editor has one (INVENTORY ⑩). | ✅ closed | brain owns all per-node-DOM globals; give CGF a zone service. |
-| **OQ2** | **Orphaned persistable entity.** If a persistable entity's primary owner has **left/crashed**, every survivor sees a ghost ⇒ **nobody saves it** (silent data loss). | 🟠 | accept for transient (R-140); for persistable, make it an **invariant**: persistable entities are owned by a stable persisting role (brain). Optionally a "reclaim orphan before save" rule later. |
+| **OQ2** | ✅ **DECIDED `2026-09-14`** — **crash of the primary owner = the entity dies with it; no resolution; silent loss ACCEPTED.** 🔒 User: *"crash of primary owner means the entity dies with it, it has no resolution, silent loss accepted (no idea how to make brain nodes more stable than others)."* ⇒ **no** "reclaim orphan" rule, **no** brain-stability assumption. | ✅ closed | none — accepted risk, documented. |
 | **OQ3** | ✅ **DECIDED `2026-09-14`** — a distributed scenario is a **set** of per-node files; **reuse the existing cluster-wide collection** (`FileManifestResult`/NAS-pull is file-agnostic — INVENTORY ③), **brain file is canonical "the scenario"**, each node loads its own slice. 🔒 User: *"nothing new… the design as well as implementation is counting with that already."* | ✅ closed | verify at build that the collection path is truly format-agnostic (it pulls whatever file the handler reports — it is). |
-| **OQ4** | **Editor-file ⇄ distributed-set compatibility.** Editor writes ONE file; distributed writes N. Loading an editor file distributed = brain loads it, others empty (works today). Loading a distributed set in the editor = editor loads **the brain file** (others empty). Confirm this is THE rule and old single-file scenarios remain loadable unchanged. | 🟠 | brain file ≡ editor file; others are additive and usually empty ⇒ backward-compatible. State explicitly. |
+| **OQ4** | ⛔ **SUBSUMED by OQ11 (§8.1)** — the editor↔distributed file relationship is not a compat footnote; it is the central unresolved question. See §8.1. | ⛔ open | — |
+| **OQ11** | 🔴🔴 **CENTRAL OPEN QUESTION — the multi-file ↔ single-file LOAD round-trip and whether entity ownership is PRESERVED or RE-ASSIGNED across it.** 🔒 User: *"how to load these into editor? load all in sequence, likely, or integrating the IG saved stuff into the 'master' scenario file… This needs some thinking, i feel it is still incomplete and needs clearer rules."* Full treatment: **§8.1**. | 🔴 **blocker** | see §8.1 — lean is R-A (re-converge on load) but genuinely open. |
 | **OQ5** | ✅ **APPROVED `2026-09-14`** — add a per-node scenario-serialize handler that runs the gated `ScenarioSerializer` over the node's world, wired into `FanOutSerializeLocal`, distinct from the checkpoint recorder; reuse the archive/NAS collection. ⚠ Runs on **every** host including the editor (see OQ9). | ✅ core build | new handler, no editor exception. |
 | **OQ6** | **No entity-level ownership TRANSFER exists** (INVENTORY ⑥). Persistence ownership is fixed at creation. Cross-node persistence (IG authors, CGF must persist) requires **request-to-owner** (`Node_Roles §5/§6`), not a handover. | 🟢 boundary | keep request-to-owner; do NOT add entity-ownership transfer now. Revisit only if a real need appears. |
 | **OQ7** | **Parent/child parts under the gate.** `HasAuthority` resolves child→parent, so a multi-part entity gates as a unit — but verify the **save side** (`ScenarioSerializer.Serialize`) emits parent+children coherently when the gate is applied per-entity. | 🟠 verify | almost certainly fine (children ride the parent), but must be measured before build. |
 | **OQ8** | **Editor "saves everything" is by construction but unproven.** Editor localNodeId / `HasAuthority=true` for editor scenario entities not directly measured this session. | 🟢 rail | airtight by construction (single node has no ghosts); add a rail asserting the editor saves the full set. |
-| **OQ9** | ✅ **DECIDED `2026-09-14` — NO editor exception; unified BY CONSTRUCTION.** 🔒 User: *"no direct write in the editor… same code everywhere, driven by role/host config… the plumbing resulting naturally from using the same (unified) code (orchestration handlers etc.)."* ⇒ the editor runs the **same orchestration** as a single-node, all-roles cluster; scenario save goes through the fan-out + per-node handler, never `ScenarioFileService.SaveScenario` directly. ⛔ **Build consequence (measured):** `--mode editor` has **no orchestrator today** (`Program.cs:404`, "a mode without it passes null") ⇒ the editor must host an **in-process single-node orchestrator**. ⭐ This fits the existing **cgf==editor** unification trajectory already in the runner (`Program.cs` "cgf==editor SLICE 2/3", `DESIGN_Perspective_Unification`). | 🟠 **build implication** | editor = single-node all-roles cluster; add the in-process orchestrator, retire the direct save path. Larger than a handler; on the intended trajectory. |
-| **OQ10** | **Load-time re-ownership across roles.** Today CGF owns ALL persistable at load and grants per-component authority at runtime; muscles never own persistable entities. Confirm this stays the model (vs. role-affinity creating muscle-owned persistable entities directly at load). | 🟠 confirm | keep brain-owns-all-at-load + runtime grants; it is what makes the brain file the whole scenario. |
+| **OQ9** | ✅ **DECIDED `2026-09-14` — NO editor exception; unified BY CONSTRUCTION.** 🔒 User: *"no direct write in the editor… same code everywhere, driven by role/host config… the plumbing resulting naturally from using the same (unified) code (orchestration handlers etc.)."* ⇒ the editor runs the **same orchestration** as a single-node, all-roles cluster; scenario save goes through the fan-out + per-node handler, never `ScenarioFileService.SaveScenario` directly. ⛔ **Build consequence (measured `2026-09-14`):** `--mode editor` has **no orchestrator**, and the config validator **actively FORBIDS** combining editor with orchestrator/cgf/ig/excon (`HrotRunnerConfiguration.cs:181-187`, *"Editor must not be combined with distributed flags"*). ⇒ unifying requires either a **single-node in-process orchestration** in editor mode, or refactoring so the editor invokes the same `NodeScenarioSerializeHandler` via the same dispatch without a full ClusterMaster. Not merely wiring — a deliberate architectural change on the **cgf==editor** trajectory (`Program.cs` "cgf==editor SLICE 2/3", `DESIGN_Perspective_Unification`). | 🟠 **build implication** | editor = single node hosting all roles; run the SAME handler path, retire the direct `ScenarioFileService.SaveScenario` call. Larger than a handler; sequence it explicitly. |
+| **OQ10** | **Load-time re-ownership across roles** — a **sub-question of OQ11 (§8.1).** Today CGF owns ALL persistable at load; is that the rule (R-A), or does each role re-own its slice (R-B)? | ⛔ folded into OQ11 | see §8.1. |
 
-⭐ **All three original blockers are CLOSED (`2026-09-14`):** OQ1 (globals → brain file), OQ3 (reuse
-cluster collection, brain canonical), OQ5 (add the per-node handler), and OQ9 ruled *no editor exception*.
-**Remaining before READY-TO-BUILD:** a one-line nod on OQ2 (orphan invariant), OQ4 (file compat), OQ6
-(no ownership transfer — boundary), OQ10 (brain-owns-all-at-load), and the verify/rail items OQ7, OQ8.
-⚠ **OQ9 raised a larger build item** — the editor gains an in-process single-node orchestrator — which is
-on the cgf==editor trajectory but is more than a handler; sequence it explicitly in the build plan.
+⭐ **Blockers now: OQ11 (§8.1) is the one that keeps this out of READY-TO-BUILD.** Closed
+`2026-09-14`: OQ1 (globals → brain file), OQ2 (orphan loss accepted), OQ3 (reuse collection, brain
+canonical), OQ5 (per-node handler), OQ9 (no editor exception, editor gets single-node orchestration).
+**Remaining:** 🔴 **OQ11 — the round-trip/ownership model (needs a user ruling)**; then the small items
+OQ6 (boundary), OQ7 (verify parts), OQ8 (editor-saves-all rail). ⚠ OQ9 is a larger build item (editor
+in-process orchestration) — sequence explicitly.
+
+### 8.1 🔴🔴🔴 OQ11 — THE ROUND-TRIP: multi-file distributed save ↔ single-file editor
+
+> 🔒 **User, verbatim:** *"The distributed saving on CGF and IG nodes when both produce their own partial
+> save file for their owned entities is not yet resolved — how to load these into editor? load all in
+> sequence, likely, or integrating the IG saved stuff into the 'master' scenario file, and when saving the
+> scenario loaded this way from editor, the tactical drawings natively become saved to the single editor
+> saved scenario file. This needs some thinking, i feel it is still incomplete and needs clearer rules."*
+
+**The asymmetry that must be ruled on.** SAVE splits by owner → N partial files. The EDITOR is one world
+that owns everything. So a load must funnel N partials into that one world — and the question is **what
+owns each entity after a load**, which decides whether an IG-authored drawing stays IG-owned or becomes
+brain/editor-owned across a round-trip.
+
+| | ⭐ **R-A — re-converge on load** *(lean)* | **R-B — preserve ownership by role** |
+|---|---|---|
+| who owns a loaded entity | the **loading brain** (editor: the editor; distributed: CGF) owns **all** persistable; per-component authority granted to muscles at runtime | each entity is re-owned by **the host whose ROLE owns it** — the drawing reloads IG-owned, the tank brain-owned |
+| load of N partials | **load all partials in sequence** into the loader's world (or merge into one master first) — the editor and CGF both just ingest the union | each node loads **only the partials for the roles it hosts**; the editor hosts all roles ⇒ loads all |
+| editor round-trip | ✅ natural — editor owns all ⇒ re-saves as one file; a drawing "natively" lands in the single editor file | ⚠ editor still collapses to one owner (it IS all roles), so a re-save loses the per-role split unless it re-derives roles per entity |
+| matches current code | ✅ **yes** — CGF genesis owns all at load today (INVENTORY ⑨) | ⛔ **no** — needs role-driven per-entity ownership at load; a substantial load-pipeline change |
+| cost of the model | cheap; the multi-file save is a save-time distribution detail that reconverges on load | the "truly distributed, each host loads its own content" ideal, but a real redesign of the genesis pipeline |
+| what it loses | **entity-level authorship is not preserved** across a round-trip (IG drawing → brain-owned after reload) | nothing — authorship survives, at the cost of complexity |
+
+⭐ **My lean: R-A** — it matches the editor (which is unavoidably one owner), matches today's brain-centric
+genesis, and makes "load all partials in sequence" + "editor re-saves the union as one file" fall out
+exactly as you described. ⛔ **The cost is explicit and must be accepted:** a drawing authored+owned on an
+IG, once it passes through an editor save, reloads **brain-owned**, not IG-owned. In a purely distributed
+run (no editor in the loop) R-A still means the **loading brain owns everything** — a non-brain partial
+file is only produced by **runtime** authorship (e.g. an IG draws live), and on the next load that content
+folds into brain ownership too.
+
+⚠ **What would push to R-B:** a requirement that a host **reload and re-own its own authored content**
+without a central brain — i.e. each host is truly responsible for loading its slice and owning it. Your
+earlier "different hosts are responsible for loading their content" leans this way; R-A contradicts it for
+the *ownership* half while honouring it for the *file* half. **This is the tension to rule on.**
+
+**Sub-questions inside OQ11, once R-A vs R-B is chosen:**
+1. **Load mechanism** — load partials *in sequence* into one world, or *merge* them into a master file
+   first? (R-A works with either; sequence is simpler and needs no merge step.)
+2. **Is there a persistent "master" file** distinct from the per-role partials, or is "the scenario" always
+   just the manifest-linked set with the brain file as its head?
+3. **Editor re-save shape** — always one file (R-A), or re-split per role on save (only meaningful under R-B)?
+
+⇒ 🔴 **Until OQ11 is ruled, the LOAD half of §5 is provisional** — §5's diagram currently assumes R-A
+(brain owns all, muscles get ghosts). If you choose R-B, §5 and the genesis pipeline change materially.
 
 ---
 
@@ -305,7 +369,7 @@ on the cgf==editor trajectory but is more than a handler; sequence it explicitly
 
 | document | what changes |
 |---|---|
-| `DESIGN_Node_Roles_And_Policies.md` §7.1/§7.2/§7.3, §8 ① | §7.2 "ownership is DISCARDED at save time (the good half)" is **superseded for distributed save** — ownership IS now consulted (§6). §7.1's "enforce by a missing IG handler" becomes belt-and-suspenders behind the uniform gate. §8 ① (the parked question) is **answered here**. |
+| `DESIGN_Node_Roles_And_Policies.md` §5, §7.1/§7.2/§7.3, §8 ① | §7.2 "ownership is DISCARDED at save time (the good half)" is **superseded for distributed save** — ownership IS now consulted (§6). §7.1's "enforce by a missing IG handler" is retired — there is no IG special case (§1a). ⭐ **§5's R-140 "IG is passive and non-persisting" is REFINED (§1a): passivity is EMERGENT from role-driven creation, not a save-path rule** — needs a follow-up edit in that file. §8 ① (the parked question) is **answered here**. |
 | `docs/designs/cgf-scn-2/DESIGN.md` | unchanged in scope (per-component-TYPE correctness); gains a pointer — per-ENTITY selection lives HERE. |
 | `docs/designs/cgf-scn/DESIGN.md` | unchanged (LOAD genesis); gains a pointer — which FILE each node loads lives HERE. |
 | `docs/UX/UX_Feature_Authority_Aware_Writes.md` §335/§342 | the "do not merge them here" debt is **scheduled here**; §7 is the merge. |

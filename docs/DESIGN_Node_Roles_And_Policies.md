@@ -212,6 +212,17 @@ nod before hard-coding**, because a wrong set here breaks overlays or double-own
 
 ## 5. ⭐⭐⭐ PERSISTENCE — **the policy that had no home**
 
+> ⭐⭐⭐ **REFINED `2026-09-14`** by
+> [`DESIGN_Distributed_Scenario_Persistence.md`](DESIGN_Distributed_Scenario_Persistence.md) §1a.
+> 🔒 **User:** *"'IG is passive, non-persisting' is the OLD paradigm. Hosts are not passive by design;
+> passivity results from whether they create their own entities, which comes from the roles they are
+> assigned. Any single host can create entities (thus be their primary owner) so if that happens and the
+> entity is savable (non-transient), also the IG must save it — no exceptions, unified rules."*
+> ⇒ ⭐ The table below still describes the **usual** outcome (an IG typically owns only transient
+> entities), but as an **EMERGENT** consequence of role-driven creation — **NOT** a rule the save path
+> enforces. The save path is uniform: the only gate is *ownership + non-transient*. Read "⛔ NO" below as
+> "in practice owns nothing savable", not "the code forbids it".
+
 > 🔒 **`R-140`, user `2026-09-02`, verbatim:** *"by convention it is considered passive listening node,
 > not maintaining any persistent state. If IG creates entities, then only temporary ones, possibly shared
 > with other IGs, but never persisted to scenario. If IG crashes, its entities are gone, but no one cares,
