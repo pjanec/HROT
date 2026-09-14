@@ -418,6 +418,7 @@ public sealed class ClusterMaster : IDisposable
                 break;
 
             case ClusterOpType.SaveScenario:
+            case ClusterOpType.SaveScenarioJson:   // CE-277(c0): distributed JSON scenario save
             case ClusterOpType.ExportArchive:
             case ClusterOpType.ImportArchive:
                 ProcessStorageOpIntent(ClusterOpRequestAdapter.ToExecuteStorageOpIntent(req));

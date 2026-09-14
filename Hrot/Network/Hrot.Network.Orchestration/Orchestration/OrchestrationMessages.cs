@@ -39,6 +39,7 @@ namespace Hrot.NED.Descriptors.Orchestration
         StepTime        = 14,
         SetTimeScale    = 15,
         DumpDiagnostics = 16,
+        SaveScenarioJson = 17,   // CE-277(c0): distributed JSON scenario save; name in PayloadJson {"ScenarioName":...}
     }
 
     /// <summary>Wire value 13 is replay seek on nodes; C# name avoids IDL literal clash with <see cref="ClusterOpType.ReplaySeek"/>.</summary>
