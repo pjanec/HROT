@@ -501,16 +501,34 @@ via `if(!HasAuthority) continue`; `OwnsDescriptor`'s `absent⇒false` becomes `g
 | drop registration | `HrotSharedComponentRegistry.cs:41` (+ example `DistributedTankScenario.cs:320`) |
 | doc/comment fixes | `DebugApiRouteDocs.cs:713`, `GroundKinematicsModule.cs:34`, dds-to-ecs/mgmt docs |
 
-⛔⛔ **DO NOT add `[DataPolicy(NoSave)]` to `NetworkAuthority`** *(corrected `2026-09-14`; an earlier
-draft of this table said to)*. 🔒 **Architect ruling + design record:** [`docs/designs/cgf-scn/DESIGN.md:62`](designs/cgf-scn/DESIGN.md)
-— *"these components must NOT be marked globally as non-saveable; they are required by the Checkpoint
-pipeline."* The scenario-save exclusion is the **context-specific static mask** owned by the extractor —
-`StagingEntityExtractor.BuildStaticMask()` already sets bit **51 = `NetworkAuthority`** (alongside 50/59/65/66/140/141)
-— so deleting `NetworkOwnership` loses **no** exclusion, and a global `NoSave` would (a) break the Checkpoint
-pipeline that needs `NetworkAuthority`, and (b) be a **second** mechanism for one concept *(ruling 9)*.
-📄 Full analysis: [`DESIGN_Entity_Creation_Unification.md` §"THE ONE REAL COST"](DESIGN_Entity_Creation_Unification.md)
-*(the `NoSave` proposal is WITHDRAWN there, `2026-09-02`)*. ⇒ the merge is a pure delete-and-repoint; the
-save-exclusion already lives in the extractor mask, not in a component attribute.
+⛔ **The merge does NOT change any `DataPolicy` flag** — it just deletes `NetworkOwnership`, repoints its 2
+readers to `NetworkAuthority`, and drops `NetworkOwnership`'s bit-140 entry from `StagingEntityExtractor`'s
+static mask. Whether `NetworkAuthority` should be *scenario*-excluded is a **separate deliberate decision**
+(CE-277), not a rider on a struct deletion.
+
+⭐⭐⭐ **MEASURED `2026-09-14` — `DataPolicy` has THREE disjoint bits, one per save context**, so "checkpoint"
+and "scenario" do NOT share a flag *(rail: `Fdp.Toolkits.Tests/Scenario/DataPolicySaveContextMeasurement.cs`)*:
+
+| bit | mask | ONLY production consumer | context |
+|---|---|---|---|
+| `NoSnapshot` | `GetSnapshotableMask` | live rewind/preview | in-memory snapshot |
+| `NoRecord` | `GetRecordableMask` | **`RecorderSystem` → `.fdp`** | the CHECKPOINT recording |
+| `NoSave` | `GetSaveableMask` | **`ScenarioSerializer` (only)** | the SCENARIO persist |
+
+⇒ **`NoSave` is scenario-ONLY** — it cannot touch the `.fdp` checkpoint (that keys on `NoRecord`). So the
+earlier claim *"a global `NoSave` would break the Checkpoint pipeline"* is **measurably FALSE**, and the claim
+*"the scenario-save exclusion already lives in the extractor mask"* is also false for THIS save path:
+`StagingEntityExtractor.BuildStaticMask` is a **different** (CGF staging / load-side) path; the
+`ScenarioSerializer` path this design uses has **no** exclusion for `NetworkAuthority`, so scenario save
+genuinely **writes** it today (measured round-trip). ⇒ there is a GAP, not a duplicate.
+
+⭐ **Consequence for CE-277:** marking `NetworkAuthority` (and the other runtime ownership/identity components)
+`[DataPolicy(NoSave)]` is a **clean, measured-safe** fix for "runtime state in scenario JSON" — it excludes
+them from the scenario without touching the `.fdp` checkpoint — and it is exactly the *"attribute that prevents
+saving to scenario"* the user ruled for on `2026-09-04`. ⚠ This **reverses the stated reason** of the
+`2026-09-02` withdrawal in [`DESIGN_Entity_Creation_Unification.md` §"THE ONE REAL COST"](DESIGN_Entity_Creation_Unification.md)
+(*"Checkpoint needs it"*), so it is offered as a **decision to confirm**, not a unilateral flip — and it is
+still **out of the mechanical merge**.
 
 ⚠ **Roslyn only** (never text-replace a C# symbol); grep sweep afterward for `HrotStrideApp.Windows`
 (out-of-solution). Frees component id `140`. ⭐ Keep the **name** `NetworkAuthority` (renaming ~57 sites

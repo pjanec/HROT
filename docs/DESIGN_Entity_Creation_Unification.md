@@ -1512,6 +1512,21 @@ evidence the live save path writes `NetworkAuthority` at all, so there was nothi
 ⚠ **Still unmeasured:** a round-trip *(save a scenario, grep the output)* would settle it as proof rather
 than as source-reading. ⭐ Cheap; do it before anyone re-opens this.
 
+> ✅⭐⭐⭐ **MEASURED `2026-09-14` (CE-275) — THE ROUND-TRIP IS DONE, AND IT REVERSES THE PREMISE.**
+> Rail: `FDP/Toolkits/Fdp.Toolkits.Tests/Scenario/DataPolicySaveContextMeasurement.cs` (green). Findings:
+> ① `DataPolicy` has THREE disjoint bits — `NoSnapshot` / `NoRecord` / `NoSave` — with disjoint consumers:
+> `GetSaveableMask`(`NoSave`) is read ONLY by `ScenarioSerializer` (scenario), `GetRecordableMask`(`NoRecord`)
+> ONLY by `RecorderSystem` (the `.fdp` checkpoint). ⇒ **`NoSave` is scenario-ONLY and CANNOT affect the
+> checkpoint** — so *"these components are required by the Checkpoint pipeline"* does not hold for `NoSave`.
+> ② The **`ScenarioSerializer` save path DOES write `NetworkAuthority`** (round-trip: `NetworkAuthority` present
+> in the DOM, `NetworkOwnership` — which has `NoSave` — absent). The shipped files were not an artefact of a
+> dead path; the live scenario save genuinely emits it. `StagingEntityExtractor.BuildStaticMask` is a
+> **different** (CGF-staging / load-side) path, so it does NOT cover the `ScenarioSerializer` save. ⇒ there is
+> a **GAP**, not a duplicate. ⭐ **Therefore `[DataPolicy(NoSave)]` on `NetworkAuthority` is a clean,
+> checkpoint-safe scenario-only exclusion** — the *"attribute that prevents saving to scenario"* the user ruled
+> for `2026-09-04`. Tracked as **CE-277(e)**; ⚠ a decision to confirm with the user, and still OUT of the
+> mechanical `NetworkOwnership`→`NetworkAuthority` merge. 📄 `DESIGN_Distributed_Scenario_Persistence.md` §7.
+
 ⇒ ⭐⭐ **Consequence for `D5`:** unchanged in substance — the node-id widening has **no scenario-format
 impact** — but for a *better* reason: the extractor already keeps the component out, so `D5` never needed
 a migration **and** never needed the attribute.
