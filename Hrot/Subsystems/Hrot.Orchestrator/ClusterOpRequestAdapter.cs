@@ -139,17 +139,31 @@ internal static class ClusterOpRequestAdapter
 
         var opType = req.OperationType switch
         {
-            ClusterOpType.ExportArchive  => StorageOpType.Export,
-            ClusterOpType.ImportArchive  => StorageOpType.Import,
-            ClusterOpType.SaveScenario   => StorageOpType.SaveScenario,
+            ClusterOpType.ExportArchive    => StorageOpType.Export,
+            ClusterOpType.ImportArchive    => StorageOpType.Import,
+            ClusterOpType.SaveScenario     => StorageOpType.SaveScenario,
+            ClusterOpType.SaveScenarioJson => StorageOpType.SaveScenarioJson,
             _ => StorageOpType.SaveScenario,
         };
 
+        // CE-277(c0): the distributed JSON scenario save carries its relative name in PayloadJson.
+        string? scenarioName = null;
+        if (opType == StorageOpType.SaveScenarioJson && !string.IsNullOrWhiteSpace(req.PayloadJson))
+        {
+            try
+            {
+                var node = System.Text.Json.Nodes.JsonNode.Parse(req.PayloadJson);
+                scenarioName = node?["ScenarioName"]?.GetValue<string>();
+            }
+            catch (JsonException) { }
+        }
+
         return new ExecuteStorageOpIntent
         {
-            RequestId  = req.RequestId,
-            Operation  = opType,
-            ExerciseId = exerciseId,
+            RequestId    = req.RequestId,
+            Operation    = opType,
+            ExerciseId   = exerciseId,
+            ScenarioName = scenarioName,
         };
     }
 

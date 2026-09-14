@@ -139,7 +139,7 @@ owns. ⛔ No time-lane file.
 ## 7. ⚠⚠ FOR THE COORDINATOR / USER — **a write-model contradiction this batch does NOT touch**
 
 📌 **`DESIGN_..._Editing.md` §6 (`:451`):** *"running/paused ⇒ optimistic display, then **stage**…
-⛔ **Do NOT write `_liveRepo` during a pause** — `Blackboard1024` is `[DataPolicy(NoSave)]`, so a
+⛔ **Do NOT write `_liveRepo` during a pause** — `Blackboard1024` is `[DataPolicy(NoScenario)]`, so a
 non-simulation write breaks Flight Recorder linearity."*
 ⛔ **MIN's `WriteFieldNow` writes `_liveRepo` directly during a toolbar pause.** ⇒ ⚠ **MIN and this
 design ruling disagree on the WRITE**, though they agree on the DISPLAY.

@@ -229,6 +229,6 @@ public class EditorCapabilitiesTests : IDisposable
         Assert.True(EditorCapabilities.DefaultRole.HasFlag(NodeRole.MuscleGround));
         Assert.True(EditorCapabilities.DefaultRole.HasFlag(NodeRole.Perception));
         Assert.True(EditorCapabilities.DefaultRole.HasFlag(NodeRole.NavigationSolver));
-        Assert.False(EditorCapabilities.DefaultRole.HasFlag(NodeRole.ImageGenerator));
+        Assert.False(EditorCapabilities.DefaultRole.HasFlag(NodeRole.Map2D));
     }
 }

@@ -275,7 +275,7 @@ Note: `repo.Query<WeaponMountInfo>()` — use whatever query API `EntityReposito
 - Mutating one mount's `Ammo` doesn't affect others
 - `WeaponMountInfo.EffectiveRange` matches `WeaponCapabilitiesDto.EffectiveRange` when present; 0 when absent
 
-**Important:** `WeaponMountInfo` has `[DataPolicy(DataPolicy.NoSave)]` is NOT applied — mount configuration should persist with scenarios. Check how similar components are declared and follow the same pattern.
+**Important:** `WeaponMountInfo` has `[DataPolicy(DataPolicy.NoScenario)]` is NOT applied — mount configuration should persist with scenarios. Check how similar components are declared and follow the same pattern.
 
 ---
 

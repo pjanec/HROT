@@ -321,6 +321,7 @@ namespace Hrot.Editor
         private AssetInventoryProcessManager?  _assetInventoryProcessManager;
         private AssetPrefetchProcessManager?   _assetPrefetchProcessManager;
         private StorageGatewayModule?          _storageGateway;
+        private StorageProcessManager?         _storageProcessManager;   // CE-277(c2): unified save merge in the editor too
         private ClusterUiCache?                _uiCache;
         private ClusterScenarioPanel?          _clusterPanel;
         private ClusterDiagnosticsPanel?       _clusterDiagnosticsPanel;
@@ -1431,6 +1432,14 @@ namespace Hrot.Editor
                 scenarioSerializer, scenarioLoader, zoneService, extractor, scenarioLoadSource, idAllocator, _world,
                 controller: rrController,
                 storageDirectory: isolatedTempRoot));
+
+            // ⭐⭐⭐ CE-275 ③ — the ONE scenario SAVE handler (the SAME class CGF/SimHost/IG register). When the
+            //   cluster fans out SaveScenarioJson, this writes the editor's owned slice via the shared
+            //   ScenarioSaveCore. There is NO editor-only save path: identical everywhere, differing only by
+            //   the injected serializer / zone service / world. 📄 DESIGN_Distributed_Scenario_Persistence.md §4.
+            clusterSlave.RegisterHandler(new Hrot.ScenarioEditor.Handlers.HrotScenarioSaveHandler(
+                scenarioSerializer, zoneService, tkbDb, _world!,
+                EditorNodeId));
             clusterSlave.RegisterHandler(new DiagnosticsDumpClusterOpHandler(
                 _fdpEventHistory,
                 new ArchitectureDiagnosticsService(() => _kernel),
@@ -2090,6 +2099,14 @@ namespace Hrot.Editor
             _clusterMaster.RegisterAggregator(_replayProcessManager.CreateAggregator());
 
             _storageGateway = new StorageGatewayModule();
+            // ⭐ CE-277(c2) — the editor runs the SAME save-completion pipeline as the cluster (no exception):
+            //   after its single-node SerializeLocal fan-out, StorageProcessManager pulls the node-staging
+            //   slice and ScenarioMergeCore writes the canonical scenario.json (merge of one slice = identity).
+            _storageProcessManager = new StorageProcessManager(
+                _orchestrationBus!, _storageGateway, ClusterConfiguration.Default.NasBasePath);
+            // The storage aggregator turns each node's FileManifestResult[] into the FileManifestEntry
+            // manifest StorageProcessManager consumes — orchestrator-registered on a cluster, needed here too.
+            _clusterMaster.RegisterAggregator(new StorageConsensusAggregator());
             _assetInventoryProcessManager = new AssetInventoryProcessManager(
                 _orchestrationBus!,
                 _storageGateway,
@@ -2588,6 +2605,7 @@ namespace Hrot.Editor
             // are readable by ClusterMaster/ClusterUiCache on the orchestration bus.
             _orchestrationBus?.SwapBuffers();
             _clusterMaster?.Tick();
+            _storageProcessManager?.Tick();   // CE-277(c2): pull + merge the scenario slice after the fan-out
             _seekProcessManager?.Tick(); // Pump the seek Saga
             _replayProcessManager?.Tick(); // Pump the replay manager for duration extraction
             _assetInventoryProcessManager?.Tick();

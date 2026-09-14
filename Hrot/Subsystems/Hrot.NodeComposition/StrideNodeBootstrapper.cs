@@ -46,7 +46,7 @@ namespace Hrot.NodeComposition;
 /// <see cref="NodeRole.MuscleGround"/> |
 /// <see cref="NodeRole.Perception"/> |
 /// <see cref="NodeRole.NavigationSolver"/> |
-/// <see cref="NodeRole.ImageGenerator"/>.
+/// <see cref="NodeRole.Map2D"/>.
 /// </para>
 ///
 /// <para>
@@ -65,7 +65,7 @@ public sealed class StrideNodeBootstrapper : SharedApplicationBootstrapper, IDis
     /// <summary>Combined node role for all Stride-hosted node responsibilities.</summary>
     public static readonly NodeRole Role =
         NodeRole.MuscleGround | NodeRole.Perception |
-        NodeRole.NavigationSolver | NodeRole.ImageGenerator;
+        NodeRole.NavigationSolver | NodeRole.Map2D;
 
     /// <summary>
     /// The capabilities this node composes, handed in by whichever shell boots it.

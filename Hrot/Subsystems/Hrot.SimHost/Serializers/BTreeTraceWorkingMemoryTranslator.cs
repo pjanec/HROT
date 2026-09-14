@@ -17,7 +17,7 @@ namespace Hrot.SimHost.Serializers
     /// </summary>
     /// <remarks>
     /// <see cref="Inject"/> is intentionally a no-op: trace memory is transient execution
-    /// state (<c>DataPolicy.NoSave</c>) and must never be reconstructed from a scenario file.
+    /// state (<c>DataPolicy.NoScenario</c>) and must never be reconstructed from a scenario file.
     /// </remarks>
     public sealed class BTreeTraceWorkingMemoryTranslator : IEntityScenarioTranslator
     {

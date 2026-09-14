@@ -56,7 +56,7 @@ coverage check backs the negative claims — they rest on grep plus `search_code
 | **①** | The ELM **is** the construction barrier and every part works: `Constructing` hold · `RemainingAcks` wait-set · `ProcessConstructionAck:283-293` promotes on empty · `CheckTimeouts:364-373` destroys on failure |
 | **②** | Its participant registry is **empty in production** ⇒ the wait is satisfied **vacuously** and `DrainInstantComplete:325` promotes on the next frame |
 | **③** | **"TKB template injected before `Active`" holds BY CONSTRUCTION** — `RegisterSystems:92-94` registers `BlueprintApplicationSystem` then `LifecycleSystem`, both `[UpdateInPhase(BeforeSync)]`, and the scheduler uses registration order absent an `[UpdateAfter]` edge; the drain additionally requires `currentFrame > StartFrame` |
-| **④** | `PendingNetworkAck` is `[DataPolicy(DataPolicy.Transient)]` ⇒ **`ExpectedType` is not recorded** *(`Transient = NoSnapshot \| NoRecord \| NoSave`)* |
+| **④** | `PendingNetworkAck` is `[DataPolicy(DataPolicy.Transient)]` ⇒ **`ExpectedType` is not recorded** *(`Transient = NoPreview \| NoReplay \| NoScenario`)* |
 | **⑤** | The peer barrier's wiring lived inside `CycloneNetworkModule`; that module was already unreferenced in C# before `AX-021` deleted it ⇒ **the capability was lost when production moved to the per-domain replication modules (`NedReplicationModule`/`BdcReplicationModule`), which never carried it across** |
 | **⑥** | The ELM's `_pendingConstruction`/`_pendingDestruction` are plain non-recorded dictionaries keyed by `Entity`; the module has **no** `Clear()`/`Reset()`, and nothing in the replay/seek/teardown path references it |
 

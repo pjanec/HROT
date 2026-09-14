@@ -34,7 +34,7 @@
 | | measured |
 |---|---|
 | ✅ **hardcoded behaviours would NOT be harmed** | 📐 **every direct `bb.BehaviorParameters[0]` reference in the repo is inside an EMITTER.** Hand-written node methods take `ref dto`; hand-written resolvers take a destination `byte*`. ⭐ **Both are already base-agnostic** — 📄 `DESIGN_Parameter_Model.md` §4.2 says so and the code matches ⇒ **the change is "emitters emit a different base expression"** |
-| ✅ **replay / snapshot is unaffected** | `BrainBlackboard` **and** all three `BlueprintBlackboard{1024,4096,16384}` are `[DataPolicy(NoSave)]` — **snapshotted AND recorded alike** |
+| ✅ **replay / snapshot is unaffected** | `BrainBlackboard` **and** all three `BlueprintBlackboard{1024,4096,16384}` are `[DataPolicy(NoScenario)]` — **snapshotted AND recorded alike** |
 
 ### ⚠ The two costs that are real
 

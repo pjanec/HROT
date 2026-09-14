@@ -19,13 +19,13 @@ _scratchRepo.SyncFrom(_liveRepo);
 // Seed registrations + live baseline so PlaybackSystem.ApplyFrame finds all tables.
 // Use includeTransient: true so SyncFrom uses GetSnapshotableMask(true) = all registered
 // component types, which is a superset of the recordable types the keyframe contains.
-// Without this, components marked [DataPolicy(DataPolicy.NoSnapshot)] are recordable but
+// Without this, components marked [DataPolicy(DataPolicy.NoPreview)] are recordable but
 // NOT snapshotable — the keyframe captures them but the scratch repo never registered
 // the type → PlaybackSystem.ApplyChunkData throws "type ID not found".
 _scratchRepo.SyncFrom(_liveRepo, includeTransient: true);
 ```
 
-**Rationale:** `SyncFrom` with no `includeTransient` uses `GetSnapshotableMask(false)`, which returns only snapshotable type IDs. Components marked `[DataPolicy(DataPolicy.NoSnapshot)]` are recordable (captured by `RecordKeyframe` → `GetRecordableMask()`) but NOT snapshotable — so the keyframe contains them but the scratch repo never registers the type. `PlaybackSystem.ApplyChunkData` then throws `InvalidOperationException`. With `includeTransient: true`, `GetSnapshotableMask(true)` returns `ComponentTypeRegistry.GetAllIds()` — all registered types, a superset of recordable types.
+**Rationale:** `SyncFrom` with no `includeTransient` uses `GetSnapshotableMask(false)`, which returns only snapshotable type IDs. Components marked `[DataPolicy(DataPolicy.NoPreview)]` are recordable (captured by `RecordKeyframe` → `GetRecordableMask()`) but NOT snapshotable — so the keyframe contains them but the scratch repo never registers the type. `PlaybackSystem.ApplyChunkData` then throws `InvalidOperationException`. With `includeTransient: true`, `GetSnapshotableMask(true)` returns `ComponentTypeRegistry.GetAllIds()` — all registered types, a superset of recordable types.
 
 **No other files touched.** No changes to FlightRecorder, masks, or any other batch's code.
 
@@ -39,7 +39,7 @@ One test: `RestoreTo_IncludeTransient_RegistersRecordableNonSnapshotableTypes`
 
 ### What it proves
 
-1. **Mask-level proof (step 4):** Defines `[ComponentId(504)] [DataPolicy(DataPolicy.NoSnapshot)] struct NoSnapshotProbe` — recordable but NOT snapshotable. Asserts `GetSnapshotableMask(false)` does NOT contain its type ID, proving the mask difference the fix relies on.
+1. **Mask-level proof (step 4):** Defines `[ComponentId(504)] [DataPolicy(DataPolicy.NoPreview)] struct NoSnapshotProbe` — recordable but NOT snapshotable. Asserts `GetSnapshotableMask(false)` does NOT contain its type ID, proving the mask difference the fix relies on.
 
 2. **Runtime proof (step 4 alt):** A scratch repo seeded with `SyncFrom(repo)` (OLD, no `includeTransient`) → `RestoreTo` throws `InvalidOperationException`, reproducing the exact crash.
 

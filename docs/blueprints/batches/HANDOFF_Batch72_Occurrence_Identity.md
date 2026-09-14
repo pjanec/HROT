@@ -94,7 +94,7 @@ same bytes)* — ⛔ **an occurrence key that changes per tick is worse than non
 | ⭐ **the cost** | slot tables **64 / 128 / 256 → 80 / 160 / 320** ⇒ payload **928 / 3936 / 16096 → 912 / 3904 / 16032**. ⛔ **`SlotEntrySize`, `Initialize`, `Migrate` and the three tier `const`s + their doc comments all state 16 today** |
 | ⭐⭐⭐ **`AlreadyAttached` must become PER KEY** | 📐 `TryFindExistingTier(world, entity, blueprintId, …)` is what makes a second attach a no-op ⇒ ⛔ **if you widen the entry and leave this, multi-occurrence is still refused and the rail passes vacuously.** ⚠ **This is the "ask the artefact" trap in its natural habitat** |
 | ⚠ **`DetachFromEntity` scans three tiers by `blueprintId`** | ⇒ it must take the key too, or it detaches **an arbitrary occurrence** |
-| ⭐ **the recorded frame grows** | tiers are `[DataPolicy(NoSave)]` = **snapshotted AND recorded**. ⭐ **Expected and accepted** — say the delta out loud |
+| ⭐ **the recorded frame grows** | tiers are `[DataPolicy(NoScenario)]` = **snapshotted AND recorded**. ⭐ **Expected and accepted** — say the delta out loud |
 
 **rails:** ⭐⭐ 📄 **`DESIGN_Parameter_Model.md` §8's *"params are occurrence-scoped"* rail is finally
 buildable** — *"two occurrences of one asset on one entity ⇒ **distinct param bytes**"*, and §8 says

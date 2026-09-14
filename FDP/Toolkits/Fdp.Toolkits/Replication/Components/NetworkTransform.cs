@@ -25,7 +25,7 @@ namespace Fdp.Toolkit.Replication.Components
     /// saving one component-ID slot over maintaining separate position and rotation components.
     /// </para>
     /// </summary>
-    [DataPolicy(DataPolicy.NoRecord)]
+    [DataPolicy(DataPolicy.NoReplay)]
     [ComponentId(GlobalComponentIds.NetworkTransform)]
     public struct NetworkTransform
     {

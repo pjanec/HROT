@@ -144,11 +144,17 @@ namespace Hrot.Common.EntityCreation
         /// ⚠ The receiver stamps <c>ScenarioIgnoreTag</c> locally at spawn, so nothing depends on the
         /// author still being alive.</param>
         /// <param name="disType">
-        /// ⚠ The packed DIS entity type stamped onto the entity's metadata. ⛔ <b>It is NOT derived from
-        /// <paramref name="tkbType"/> anywhere downstream</b> — <c>CreateEntityRequestSystem</c> copies
-        /// this value verbatim, so leaving it <c>0</c> leaves the entity with no DIS type. ⭐ An author
-        /// that has the TKB template to hand passes <c>template.DisType.Value</c>, exactly as
-        /// <c>EntityPresentationGizmoShared</c> already resolves it.
+        /// ⭐ An explicit OVERRIDE of the TKB template's DIS entity type. <b>Leaving it <c>0</c> is correct
+        /// and safe</b>: <c>NetworkSpawningSystem</c> stamps
+        /// <c>cmd.DisType != 0 ? cmd.DisType : template.DisType.Value</c>, so the template's value is used
+        /// unless an author deliberately supplies a different one (a variant of one template).
+        ///
+        /// <para>⚠ An earlier version of this remark claimed the value is copied VERBATIM and that leaving
+        /// it <c>0</c> leaves the entity with no DIS type. ⛔ That was measured one hop too early —
+        /// <c>CreateEntityRequestSystem</c> does copy it verbatim, but the SPAWN system it feeds falls back
+        /// to the template, and the only other consumer
+        /// (<c>IOwnershipDistributionStrategy.GetInitialGrants</c>) never reads the parameter in its one
+        /// production implementation. 📄 <c>docs/DESIGN_Entity_Authoring_Surface.md</c> §3.</para>
         /// </param>
         /// <param name="requestId">Supply one to correlate the two-phase ACK yourself; omit it and one
         /// is minted. ⭐ Either way the value actually used is RETURNED.</param>

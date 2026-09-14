@@ -23,11 +23,26 @@ namespace Fdp.Core
     /// model if it needs to (<c>NodeCapability</c> does), ⛔ but nothing here depends on a participant, a
     /// descriptor or a heartbeat, and a networkless node has roles like any other.</para>
     ///
-    /// <para>⚠ <b>The <see cref="ImageGenerator"/> NAME IS KNOWN-WRONG and its rename is OWNED
-    /// ELSEWHERE</b> — <c>CE-212</c> / <c>docs/DESIGN_Stride_Node_Modes.md</c> §S10 renames it to
-    /// <c>Map2D</c> (semantics unchanged; a vocabulary fix). ⛔ Do not rename it opportunistically: these
-    /// names are a CLI surface (<c>SimHostApp.ParseRole</c> does <c>Enum.TryParse</c> on
-    /// <c>--role &lt;value&gt;</c>), and that design requires a Roslyn rename run twice and unioned.</para>
+    /// <para>✅ <b><see cref="Map2D"/> WAS <c>ImageGenerator</c> until <c>2026-09-13</c></b> — <c>CE-212</c> /
+    /// <c>docs/DESIGN_Stride_Node_Modes.md</c> §S10, a VOCABULARY fix with semantics unchanged. 🔒 User:
+    /// <i>"'IG' role in this code base is way about 2d map, which stride doesn't do."</i> 📐 The flag gates
+    /// the 2-D MAP STACK and nothing else — <c>StyleResolutionModule</c>, <c>MapCullingModule</c>,
+    /// <c>MapLayerModule</c>, <c>HistoryTrailModule</c>, <c>EventEffectModule</c>,
+    /// <c>PresentationComponentRegistry</c> — so the old name promised a 3-D renderer this role has never
+    /// been.</para>
+    ///
+    /// <para>⚠ <b>THESE NAMES ARE STILL A CLI SURFACE</b> — <c>SimHostApp.ParseRole</c> does
+    /// <c>Enum.TryParse</c> on <c>--role &lt;value&gt;</c> and ⛔ <b>falls back to
+    /// <c>MuscleGround | Perception</c> when the parse FAILS</b>, so an unrecognised value boots the WRONG
+    /// ROLE silently rather than erroring. ⇒ <c>--role ImageGenerator</c> no longer resolves.
+    /// 🔒 Accepted deliberately: <c>--role</c> itself is slated for removal *(<c>R-S11</c>, "CLI args + ctor
+    /// slots die")*, so the surface is going away rather than being versioned.</para>
+    ///
+    /// <para>⛔⛔ <b>IF ANOTHER MEMBER IS EVER RENAMED: Roslyn ONLY, never a text replace.</b> 📐 Measured
+    /// here: the repo held <b>66</b> textual <c>ImageGenerator</c> occurrences in C#, of which only
+    /// <b>31</b> were this symbol — a text replace would have hit capability keys
+    /// (<c>NodeCapability.ImageGenerator</c>, a DIFFERENT concept whose string value is matched at runtime)
+    /// and dozens of test names and comments.</para>
     ///
     /// <para>Roles determine which simulation modules and translator packs are
     /// instantiated by <see cref="NodeBootstrapper"/>:</para>
@@ -46,7 +61,7 @@ namespace Fdp.Core
     ///     from a remote Brain node.</description>
     ///   </item>
     ///   <item>
-    ///     <term><see cref="ImageGenerator"/></term>
+    ///     <term><see cref="Map2D"/></term>
     ///     <description>Presentation-only node (IG renderer, no simulation logic).</description>
     ///   </item>
     ///   <item>
@@ -73,8 +88,10 @@ namespace Fdp.Core
         /// <summary>Muscle tier: ground kinematics and navigation execution.</summary>
         MuscleGround = 1 << 1,
 
-        /// <summary>Image-generator presentation node; no simulation logic.</summary>
-        ImageGenerator = 1 << 2,
+        /// <summary>2-D map presentation node (the IG renderer's map stack); no simulation logic.
+        /// ⚠ Named <c>ImageGenerator</c> before <c>CE-212</c>; the subsystem NAME string <c>"IG"</c> is
+        /// unchanged and is still what <c>NedNetworkFactory.MapSubsystemNameToRole</c> matches.</summary>
+        Map2D = 1 << 2,
 
         /// <summary>Perception solver node: LOS, broadphase, and threat evaluation.</summary>
         Perception = 1 << 3,

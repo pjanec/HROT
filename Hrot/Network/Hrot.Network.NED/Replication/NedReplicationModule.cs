@@ -41,7 +41,7 @@ namespace Hrot.Network.Replication;
 ///     <description>Shared + kinematic packs; GhostCreationSystem; SmartEgressSystem; cleanup.</description>
 ///   </item>
 ///   <item>
-///     <term><see cref="NodeRole.ImageGenerator"/></term>
+///     <term><see cref="NodeRole.Map2D"/></term>
 ///     <description>Shared pack + EntityStatesIngressPack; GhostCreationSystem; DeadReckoningSyncSystem (driveFromNetwork=true).</description>
 ///   </item>
 ///   <item>
@@ -133,7 +133,7 @@ public sealed class NedReplicationModule : INedReplicationModule
     /// Whether dead-reckoning is configured to run on all remote entities (<c>true</c>)
     /// or only on entities still in <c>EntityLifecycle.Ghost</c> state (<c>false</c>).
     /// <para>
-    /// <c>true</c> for pure <see cref="NodeRole.ImageGenerator"/>; <c>false</c> for
+    /// <c>true</c> for pure <see cref="NodeRole.Map2D"/>; <c>false</c> for
     /// combined roles that also own entities locally (e.g. <see cref="NodeRole.AllInOne"/>).
     /// </para>
     /// </summary>
@@ -197,7 +197,7 @@ public sealed class NedReplicationModule : INedReplicationModule
 
         // Validate role
         _roleHasMuscle = role.HasFlag(NodeRole.MuscleGround);
-        _roleHasIG     = role.HasFlag(NodeRole.ImageGenerator);
+        _roleHasIG     = role.HasFlag(NodeRole.Map2D);
         _roleHasBrain  = role.HasFlag(NodeRole.Brain);
 
         if (!_roleHasMuscle && !_roleHasIG && !_roleHasBrain)
@@ -338,6 +338,24 @@ public sealed class NedReplicationModule : INedReplicationModule
                     PackRole.Ingress, _participant, _entityMap, _localNodeId, _eventBus,
                     GhostCreationSystem, _geoTransform);
                 igPack.RegisterSystems(registry);
+
+                // ⭐⭐⭐ CE-271 seam ⑥ — pure IG must run the OwnershipUpdate INGRESS too.
+                //   OwnershipIngressSystem (registered below) consumes the OwnershipUpdate BUS event; its
+                //   producer is OwnershipUpdateTranslator.PollIngress (DDS→bus), which for every OTHER node
+                //   runs inside the CycloneNetworkIngressSystem that the `!pureIg` guard SKIPS for pure IG.
+                //   ⛔ Without it, a Map2D node that GRANTS a descriptor away (DeferredTakeOwnership under
+                //   CE-271 seam ①) never receives the grantee's SYMMETRIC YIELD, so it never drops its own
+                //   authority bit — two owners of the same descriptor. 📐 Measured on the live cluster:
+                //   IG granted dtWorldPos to SimHost, SimHost took it and published OwnershipUpdate, but
+                //   IG's OwnershipUpdate recv stayed 0. 📄 DESIGN_Node_Roles_And_Policies.md §4.1.
+                //   ⭐ Reuse the shared-pack instance — do NOT construct a second reader/writer on the one
+                //   SST_OwnershipUpdate topic.
+                var ownershipUpdate = _sharedTranslators
+                    .OfType<Hrot.Map.Common.Replication.OwnershipUpdateTranslator>()
+                    .FirstOrDefault();
+                if (ownershipUpdate != null)
+                    registry.RegisterSystem(new CycloneNetworkIngressSystem(
+                        new INetworkTranslator[] { ownershipUpdate }));
             }
 
             // IG ghost lifecycle: ownership tracking + promotion + sub-entity cleanup.
@@ -500,6 +518,15 @@ public sealed class NedReplicationModule : INedReplicationModule
         _descriptorOwnershipMap.RegisterMapping(
             (long)EDescriptorType.dtNavigationStatus,
             NavigationContractsComponentIds.NavigationStatus);
+
+        // ⭐⭐⭐ OQ12 / CE-275 ④ — BDC compliance: the EntityMaster descriptor DEFINES entity /
+        // primary (save) ownership. Record its ordinal so the transport-agnostic
+        // OwnershipIngressSystem can mirror an incoming EntityMaster OwnershipUpdate into the
+        // network-agnostic NetworkAuthority.PrimaryOwnerId (the save-gate fact) — without the
+        // toolkit ever naming "EntityMaster". This is the compliant receive-side of a primary-
+        // ownership transfer, which may originate from an EXTERNAL system handing us an entity.
+        // 📄 docs/DESIGN_Distributed_Scenario_Persistence.md §6c.
+        _descriptorOwnershipMap.PrimaryOwnerDescriptorOrdinal = (long)EDescriptorType.dtEntityMaster;
     }
 
     public void Tick(ISimulationView view, float dt)

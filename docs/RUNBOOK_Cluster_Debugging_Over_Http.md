@@ -265,6 +265,27 @@ your defect:
 ⭐ **Stopping without acquiring is out of spec** — the entities are supposed to keep closing until they
 see. ⛔ Do not explain a halt away as "out of range".
 
+#### ⭐⭐⭐ LINK ⑤ — **the run must END** *(added `2026-09-13` with `CE-267`'s fix)*
+
+| # | link | observable |
+|---|---|---|
+| ⑤ | the targets are **DESTROYED**, not merely at 0 HP | they **disappear from `GET /entities`** |
+| ⑥ | every attacker is **home on the baseline** and stationary | `LocomotionChannel.Status: Success`, `NavigationIntent.FinalDestination` ≈ its own position, `WeaponState.Ammo` STOPS changing |
+
+⛔⛔ **DO NOT measure "on the baseline" as distance to ONE POINT.** 📌 That mistake was made on
+`2026-09-13` and read as a half-failure: `BrainBlackboard.BaselineX/Y` *(`527.5, 474.5`)* is the **centre of
+a line**, and four tanks park abreast along it ~50 m apart, so the outer two are legitimately **~75 m** from
+that point. ⭐ **Compare each tank to its OWN `NavigationIntent.FinalDestination` instead** — it matches its
+position within a metre when the tank is home.
+
+⭐⭐ **The cheapest completion check is AMMO.** It drains while engaging and freezes when the run ends.
+📐 Measured after the fix: `42 → 41` *(one round each, matching the blueprint's `MaxRounds: 1`)* and
+unchanged over 30 s. ⛔ Before the fix it ran `42 → 19` and never stopped.
+
+📐 **Reference run, distributed CGF+SimHost, `2026-09-13` post-fix:** both hostiles destroyed by `t≈37`,
+all four attackers stationary on the baseline by `t≈59`. ⚠ **Orientation only, NOT an assertion** — §8's
+whole point is that this scenario is non-deterministic.
+
 ### 8.1 ⛔⛔⛔ READ THE RUNTIME VALUE OFF THE ENTITY — **never off a source file**
 
 > 🔒 **User, `2026-09-04`:** *"you have the way of dumping any entity so pls use it instead of

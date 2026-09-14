@@ -43,7 +43,7 @@ public sealed class DeadReckoningSyncSystemIntegrationTests : System.IDisposable
     /// <c>EntityLifecycle.Ghost</c> entities (that was the wrong old default).
     /// After the MODINIT-S302 migration, NedReplicationModule.RegisterSystems creates
     /// <c>DeadReckoningSyncSystem(_driveFromNetwork)</c> where <c>_driveFromNetwork = true</c>
-    /// for <c>NodeRole.ImageGenerator</c> — no lifecycle filter applied.
+    /// for <c>NodeRole.Map2D</c> — no lifecycle filter applied.
     /// </para>
     /// </summary>
     [Fact]

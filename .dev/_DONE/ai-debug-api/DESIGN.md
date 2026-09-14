@@ -405,7 +405,7 @@ ExerciseId/dir come from `ClusterStateUpdateEvent.ExerciseId` + `OrchestrationCo
    no-op in the base, so confirm/implement the editor override that actually sets the flags, and register
    a blueprint `DebugMap` for field decoding. Note blueprints trace via `DebugProbe.Sink`, not
    `AiTracerCoordinator` — handle per asset type. **Live tracing only — replay traces need no arming**
-   (trace components are `[DataPolicy(NoSave)]`, flight-recorded and restored on seek).
+   (trace components are `[DataPolicy(NoScenario)]`, flight-recorded and restored on seek).
 2. **CLR→JSON-schema helper** for `/commands` and `/components` (enumeration exists; only field-shape
    emission is missing — walk `GetSortedMembers(Type)`, map CLR types to JSON primitives).
 3. **Log filtering** (level/logger/since/max) over the sinks' `GetMessages()` snapshot.

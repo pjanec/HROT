@@ -1,3 +1,4 @@
+using System.Linq;
 using Xunit;
 using Fdp.Interfaces;
 using System;
@@ -27,53 +28,64 @@ namespace Fdp.Toolkit.Tkb.Tests
         //     list it does not report it; the list is network-free".
 
         /// <summary>
-        /// ⭐⭐ <b>Step 0's gate, first half — opt-in, so *"only for entities having one"* is automatic.</b>
-        /// ⛔ If this ever defaulted to non-empty, every template in the system would claim a creator
-        /// birthright it was never authored to have.
+        /// ⭐⭐⭐ <b>DERIVED, NOT AUTHORED — every template reports the same set, and that set comes from
+        /// <c>[BirthCritical]</c> on the COMPONENT TYPE</b> <i>(rewritten <c>2026-09-13</c>)</i>.
+        ///
+        /// <para>⛔⛔ <b>This rail used to assert the opposite</b> — <c>BirthCriticalComponents_IsEmpty_ByDefault</c>,
+        /// guarding an opt-in per-template list. 🔴 That list could not survive the FILE path:
+        /// <c>TkbDeserializer</c> builds templates purely from descriptor keys, so a file-loaded template
+        /// arrived EMPTY (<c>CE-259az</c>), while 8 authoring sites across 3 producers had drifted apart.
+        /// 📄 <c>docs/designs/tkb-1/DESIGN.md</c> §6.6a.</para>
+        ///
+        /// <para>⚠ <b>"Only for entities having one" is still honoured</b> — but by the CREATE LEG's
+        /// intersection with the entity's live component mask, not by an empty list. A positionless entity
+        /// receives no bit no matter what this reports.</para>
         /// </summary>
         [Fact]
-        public void BirthCriticalComponents_IsEmpty_ByDefault()
+        public void BirthCriticalComponents_AreDerivedFromTheComponentAttribute()
         {
             var template = new TkbTemplate("Test", 1);
-            Assert.Empty(template.BirthCriticalComponents);
+
+            int simTransform = Fdp.Core.ComponentTypeRegistry.GetOrRegisterManaged(typeof(Fdp.Core.SimTransform));
+            Assert.Contains(simTransform, template.BirthCriticalComponents);
+            Assert.Equal(Fdp.Core.ComponentAttributeSets.BirthCritical, template.BirthCriticalComponents);
         }
 
         /// <summary>
-        /// ⭐⭐⭐ <b>Step 0's gate, second half — the list is NETWORK-FREE.</b>
+        /// ⭐⭐⭐ <b>The set is NETWORK-FREE.</b>
         ///
         /// <para>🔒 User, <c>2026-09-01</c>: <i>"there are networkless systems as well… TKB should
         /// define what components are birth critical."</i> ⛔ The whole reason birth-criticality is a
         /// COMPONENT property and not a descriptor one is that a node with no DDS participant has no
         /// descriptor mapping — a descriptor-keyed definition would be undefined exactly where the
-        /// component still exists. ⇒ this rail declares and reads the set with no database, no
-        /// participant, no <c>DescriptorOwnershipMap</c> and no translator in sight, which is what
-        /// "holds on a networkless node" means operationally.</para>
+        /// component still exists. ⇒ this rail reads the set with no database, no participant, no
+        /// <c>DescriptorOwnershipMap</c> and no translator in sight.</para>
+        ///
+        /// <para>⭐ The ruling still holds under the attribute: the TKB record still DEFINES the set, it is
+        /// simply no longer hand-authored.</para>
         /// </summary>
         [Fact]
-        public void BirthCriticalComponents_AreDeclaredAndReadWithNoNetworkingInvolved()
+        public void BirthCriticalComponents_AreReadWithNoNetworkingInvolved()
         {
             var template = new TkbTemplate("Test", 1);
 
-            template.AddBirthCriticalComponent<Fdp.Core.SimTransform>();
-
             int expected = Fdp.Core.ComponentTypeRegistry.GetOrRegisterManaged(typeof(Fdp.Core.SimTransform));
-            Assert.Equal(new[] { expected }, template.BirthCriticalComponents);
+            Assert.Contains(expected, template.BirthCriticalComponents);
         }
 
         /// <summary>
-        /// ⭐ Idempotent, so a builder that both DEFINES a template and later DECORATES it cannot
-        /// double-register — and a duplicate id would later contribute the same mask bit twice, hiding
-        /// an authoring mistake behind a harmless-looking result.
+        /// ⭐ No duplicates — a duplicate id would contribute the same mask bit twice and hide an
+        /// authoring mistake behind a harmless-looking result. ⚠ Now structural rather than guarded: the
+        /// resolver builds a <c>SortedSet</c>, so duplication is unrepresentable.
         /// </summary>
         [Fact]
-        public void AddBirthCriticalComponent_IsIdempotent()
+        public void BirthCriticalComponents_ContainNoDuplicates()
         {
             var template = new TkbTemplate("Test", 1);
 
-            template.AddBirthCriticalComponent<Fdp.Core.SimTransform>();
-            template.AddBirthCriticalComponent<Fdp.Core.SimTransform>();
-
-            Assert.Single(template.BirthCriticalComponents);
+            Assert.Equal(
+                template.BirthCriticalComponents.Count,
+                template.BirthCriticalComponents.Distinct().Count());
         }
 
         /// <summary>
@@ -87,9 +99,7 @@ namespace Fdp.Toolkit.Tkb.Tests
         {
             var template = new TkbTemplate("Test", 1);
 
-            template.AddBirthCriticalComponent<Fdp.Core.SimTransform>();
-
-            Assert.Single(template.BirthCriticalComponents);
+            Assert.NotEmpty(template.BirthCriticalComponents);
             Assert.Empty(template.MandatoryComponents);
         }
 

@@ -30,16 +30,16 @@ the diff, not the agent's report. To count:
 
 ## Phase 1 — Core foundation (`Fdp.Toolkits.Blueprints`)
 
-### BSA-101: Mark blackboard components `NoSave`
+### BSA-101: Mark blackboard components `NoScenario`
 
 **Design:** §2. **Touches:** `FDP/Toolkits/Fdp.Toolkits/Blueprints/Components/BlueprintBlackboard{1024,4096,16384}.cs`.
 
-Add `[DataPolicy(DataPolicy.NoSave)]` to all three `BlueprintBlackboard*` structs (mirrors the AiPrimitive
+Add `[DataPolicy(DataPolicy.NoScenario)]` to all three `BlueprintBlackboard*` structs (mirrors the AiPrimitive
 `Blackboard1024`). This stops volatile runtime bytes leaking into scenario JSON; checkpoints/recorder still capture
 them.
 
 **Success conditions:**
-- Unit test: reflection over each of the three components asserts the `DataPolicy.NoSave` flag is present.
+- Unit test: reflection over each of the three components asserts the `DataPolicy.NoScenario` flag is present.
 - Serialization test: an entity carrying a `BlueprintBlackboard1024` is scenario-serialized → the produced JSON does
   **not** contain a `"BlueprintBlackboard1024"` key.
 - Build 0 errors; existing blueprint runtime/partition tests unchanged.

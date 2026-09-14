@@ -825,7 +825,7 @@ propagated four times** *(`DEBT-AIB-012`, below)*.
 
 | decision | ruling |
 |---|---|
-| ① **the write path** | ✅ **OPTIMISTIC DISPLAY.** Paint the new value immediately, then **stage** through the existing path. ⛔ **Do NOT write `_liveRepo` while paused** — `Blackboard1024` is `[DataPolicy(NoSave)]`, i.e. **snapshotted AND recorded**, so a non-simulation write breaks Flight Recorder linearity |
+| ① **the write path** | ✅ **OPTIMISTIC DISPLAY.** Paint the new value immediately, then **stage** through the existing path. ⛔ **Do NOT write `_liveRepo` while paused** — `Blackboard1024` is `[DataPolicy(NoScenario)]`, i.e. **snapshotted AND recorded**, so a non-simulation write breaks Flight Recorder linearity |
 | ② **the gesture** | ✅ **two menu items = the two `EditScope`s.** *"Edit value…"* (`ForField`, double-click the **value** cell) · *"Properties…"* (`WholeComponent`, double-click the **name** cell). ⭐ **Run state decides WRITABILITY, not which dialog** |
 | ③ **table or form** | ✅ **TABLE**, filtered by section — ⛔ **never a single-variable form.** `D7`'s field list becomes **the dialog's** contents |
 
@@ -1995,6 +1995,6 @@ story** by user instruction, minus the HSM-emitter slice above.
 
 | | |
 |---|---|
-| ✅ **safe to park** | `Q33-D`'s widening is **runtime-only** — the slot table is `[DataPolicy(NoSave)]` and the scenario format is already a per-assignment list ⇒ **a later change, not a migration** |
+| ✅ **safe to park** | `Q33-D`'s widening is **runtime-only** — the slot table is `[DataPolicy(NoScenario)]` and the scenario format is already a per-assignment list ⇒ **a later change, not a migration** |
 | ⚠ **one carry-forward** | ⭐ **Track C's row identity `(AssetId, Entity, VariablePath)` gains a fourth component if `D2` ever happens.** Note it in the design; **do not build for it** |
 | 🔴 **the finding that drives it** | **latent REQUIRES Instance dispatch** — `StateStructBase` is 8 (AiPrimitive) vs 16 (Instance), and the 16 **is** the `BlueprintLatentCursor` ⇒ **a blueprint hosted as an action node cannot suspend** |

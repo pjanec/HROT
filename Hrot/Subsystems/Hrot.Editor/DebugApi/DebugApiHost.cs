@@ -502,10 +502,33 @@ namespace Hrot.Editor.DebugApi
                 var components     = ctx.Body?["components"];
                 var attributesJson = ctx.Body?["attributesJson"]?.GetValue<string>();
 
+                // ⚠ CE-269 — optional, defaults to 0 (today's behaviour: the spawning node claims no
+                //   authority). Pass this node's own id to make it the CREATOR and exercise the P3
+                //   create-leg role-affinity block.
+                int ownerNodeId = int.TryParse(ctx.Body?["ownerNodeId"]?.ToString(), out var onid) ? onid : 0;
+
                 // ⭐ CE-191 — the spawn now REFUSES a malformed transform or component list instead of
                 //   quietly dropping it; 400, because the caller can fix their own body.
                 var (node, error) = await _jobQueue.RunOnMainThread(() =>
-                    Service().SpawnEntity(tkbType, transform, components, attributesJson))
+                    Service().SpawnEntity(tkbType, transform, components, attributesJson, ownerNodeId))
+                    .ConfigureAwait(false);
+                return error != null ? Fail(400, error, DebugApiHints.TkbType) : Ok(node);
+            }));
+
+            // ⭐⭐⭐ CE-271 seam ⑤ — create THROUGH the request path (routing + auto-takeover grant),
+            //   unlike /entities/spawn which publishes a raw SpawnEntityCommand and bypasses both.
+            _routes.Add(new("POST", "/entities/create-request", async ctx =>
+            {
+                if (!long.TryParse(ctx.Body?["tkbType"]?.ToString(), out var tkbType))
+                    return Fail(400, "tkbType (long) is required.", DebugApiHints.TkbType);
+
+                // ownerNodeId: this node's id ⇒ create + own locally; 0 ⇒ forward to the broadcast arbiter.
+                int ownerNodeId = int.TryParse(ctx.Body?["ownerNodeId"]?.ToString(), out var onid) ? onid : 0;
+                var transform      = ctx.Body?["transform"];
+                var attributesJson = ctx.Body?["attributesJson"]?.GetValue<string>();
+
+                var (node, error) = await _jobQueue.RunOnMainThread(() =>
+                    Service().CreateEntityViaRequestPath(tkbType, ownerNodeId, transform, attributesJson))
                     .ConfigureAwait(false);
                 return error != null ? Fail(400, error, DebugApiHints.TkbType) : Ok(node);
             }));

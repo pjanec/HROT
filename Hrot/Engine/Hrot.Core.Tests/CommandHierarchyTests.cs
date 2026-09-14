@@ -81,7 +81,7 @@ namespace Hrot.Map.Common.Tests
                 .GetCustomAttributes(typeof(DataPolicyAttribute), false)
                 .Cast<DataPolicyAttribute>()
                 .Single();
-            Assert.True((attr.Policy & DataPolicy.NoSave) != 0);
+            Assert.True((attr.Policy & DataPolicy.NoScenario) != 0);
         }
 
         [Fact]

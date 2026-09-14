@@ -27,7 +27,7 @@ namespace Fdp.Toolkit.Orchestration
     /// safety-critical mapping in the system)*. ⭐ <b>Only the map is published.</b></para>
     /// </summary>
     [EventId(9059)]
-    [DataPolicy(DataPolicy.NoRecord)]
+    [DataPolicy(DataPolicy.NoReplay)]
     public struct StagingRemapPublishedEvent
     {
         /// <summary>

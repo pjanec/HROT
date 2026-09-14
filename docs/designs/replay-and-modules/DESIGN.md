@@ -238,7 +238,7 @@ POLICY, and there is a cheaper option that fixes the part gating misses.**
 |---|---|
 | replay is **state-RESTORE**, not re-execution | `PlaybackSystem.ApplyFrame` restores raw chunks; §2.1 disables input/sim/post-sim — physics *"would overwrite restored positions"* |
 | lifecycle **is** recorded | cold chunk, `EntityMetadataCold.LifecycleState` @ offset 84 |
-| ⭐⭐ **the ghost's promotion bookkeeping is DELIBERATELY NOT recorded** | `GhostStateTracker` carries **`[DataPolicy(DataPolicy.Transient)]`**, and `Transient = NoSnapshot \| NoRecord \| NoSave` — the enum's own doc: *"Completely transient… UI caches, temporary buffers, debug metrics"* |
+| ⭐⭐ **the ghost's promotion bookkeeping is DELIBERATELY NOT recorded** | `GhostStateTracker` carries **`[DataPolicy(DataPolicy.Transient)]`**, and `Transient = NoPreview \| NoReplay \| NoScenario` — the enum's own doc: *"Completely transient… UI caches, temporary buffers, debug metrics"* |
 | `_pendingConstruction` is not ECS state at all | a plain `Dictionary<Entity, PendingConstruction>`, holding a `HashSet<int>` of module ids — ⛔ not blittable, so not chunk-recordable as-is |
 | ⛔ **a restored `Constructing` entity is a ZOMBIE** | `QueryBuilder.WithLifecycle`: *"Default: **Active** (excludes Constructing and TearDown)"* ⇒ invisible to every default query |
 | ⭐ the codebase already reconciles non-recorded state at a boundary | `EcsRecordReplayController._afterSeek` → `NetworkEntityMap.RebuildFromWorld` |
@@ -286,13 +286,13 @@ user before building either.
 after a replay is a shipped path (`LiveFromReplayTests`), so **the restored frame must be a VALID LIVE
 STARTING STATE**, which is a far stronger requirement than "scrubbing looks right".
 
-📐 **Enumerated: everything the Flight Recorder omits** *(`DataPolicy.NoRecord`/`Transient`, components
+📐 **Enumerated: everything the Flight Recorder omits** *(`DataPolicy.NoReplay`/`Transient`, components
 only — event types are replaced wholesale by `ReadAndInjectEvents`)*. ⭐⭐ **The useful split is NOT
 transient-vs-recorded, it is SELF-HEALING vs NOT:**
 
 | omitted state | policy | does live traffic refill it on resume? |
 |---|---|---|
-| `NetworkTransform` · `NetworkVelocity` | `NoRecord` | ✅ **yes** — the owner republishes and dead reckoning drives from it. Recording them would be waste |
+| `NetworkTransform` · `NetworkVelocity` | `NoReplay` | ✅ **yes** — the owner republishes and dead reckoning drives from it. Recording them would be waste |
 | `EgressPublicationState` | `Transient` | ✅ yes — a *"have I published"* cache; worst case one redundant republish |
 | `ForceNetworkPublish` | `Transient` | ✅ a one-shot tag; absent IS the normal state |
 | `GlobalDebugSettings` · `DebugState` | `Transient` | ✅ irrelevant to simulation |

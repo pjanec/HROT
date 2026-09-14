@@ -1,9 +1,28 @@
 <!--STATUS
 state: LIVE
-updated: 2026-08-30
+updated: 2026-09-13
 current-answer: the whole document is the TKB design and is BUILT. §6.5b is the section added on
   2026-08-30 and is the one to read before composing a node's translator list — it states the
   consequence of §6.1's registration guard, which the rest of the document leaves implicit.
+  ⭐⭐⭐ §6.6 / §6.6a / §6.6b (added 2026-09-13) ARE THE OTHERS TO READ BEFORE TOUCHING THE FILE PATH OR
+  EITHER COMPONENT LIST. §6.6 states the principle (a TKB file describes DESCRIPTORS, so both component
+  lists arrive EMPTY from a file); §6.6a is the DESIGN that derives both without any per-entity-class
+  vocabulary; §6.6b is the AS-BUILT for the mandatory half, with the class + sequence UML.
+  ⚠⚠ STALE-BELOW inside §6.6: it says the mandatory half is "NOT derivable at all (the catalogues
+  disagree)". SUPERSEDED — the user ruled that disagreement is DRIFT, not policy, and CE-265 shipped the
+  derivation. Do not quote §6.6's "not derivable" sentence as current.
+  ⚠ Also stale: every reference to TkbComponentConventions — it and its loader call are DELETED (CE-266);
+  birth-criticality is now [BirthCritical] on the component type.
+stale-below: §6.6's "NOT derivable at all" verdict on MandatoryComponents, and all references to
+  TkbComponentConventions (deleted 2026-09-13). §6.6a's "filled at ITkbDatabase.Register" prescription —
+  neither half was built that way; see §6.6b's DEVIATION and §6.6a's own AS-BUILT block.
+related-designs:
+  - ../../DESIGN_Entity_Genesis_End_To_End.md — ⭐ THE LANDING PAGE. Owns the END-TO-END STAGE SEQUENCE
+    (request → spawn → grant → ghost → promotion → takeover → Active) and nothing else; every stage
+    routes back to its owner, including this one. Read it FIRST if you do not already know where in
+    the genesis path your question sits.
+  - ../../DESIGN_Role_Affinity_Ownership.md — owns what BirthCriticalComponents MEANS (the creator's
+    birthright, the role tables, why no role may own one). This document owns where the list comes from.
 known-rot: §6.5's closing sentence ("an IG node would include BIG-specific translators; a SimHost
   node would not") reads as if per-node LIST curation were the intended narrowing lever. It is not;
   §6.5b corrects that reading. Do not quote that sentence without §6.5b.
@@ -656,6 +675,560 @@ that for free.
 *"entity spawning authority"*, and whose §4.3 step reads **"Apply TKB template components"** — passes
 translators on **none** of the three seams. Rails:
 `Hrot.SimHost.Tests/TkbTranslatorSpawnParityRails.cs`.
+
+---
+
+#### 6.6 ⭐⭐⭐ WHAT A TKB FILE CANNOT SAY — **the two COMPONENT lists are not descriptor-shaped** *(added `2026-09-13`)*
+
+> 🔒 **The question that produced this section** *(user, `2026-09-13`)*: *"There are mandatory components
+> and birth critical components lists in tkb template. Are you saying they are not needed in the file
+> because they can be derived using some hardcoded rules? Meaning we do not need to add anything to the
+> file data?"*
+
+📐 **The measured shape of the gap.** `TkbDeserializer.ParseAndRegister` reads `$guid` and then treats
+**every** JSON property as a **descriptor key**, dispatching it to a `TkbDescriptorRegistry` parser thunk —
+and ⛔ **silently skipping anything it does not recognise** *(§4.2)*. Meanwhile `TkbTemplate` carries two
+**component** lists, both `List<int>` of component ids:
+
+| list | what it means | who fills it today |
+|---|---|---|
+| `MandatoryComponents` | *"do not PROMOTE the ghost until these are present"* — the promotion gate | ⛔ **only the programmatic builders** |
+| `BirthCriticalComponents` | *"the CREATOR must OWN these at birth"* — `DESIGN_Role_Affinity_Ownership.md` §3.1 | ⛔ **only the programmatic builders** |
+
+⇒ ⭐⭐ **A file-loaded template gets BOTH lists EMPTY**, because neither is descriptor-shaped and the file
+format has no way to express either one.
+
+##### ⭐ The answer, and the two halves differ — **that is the whole content of this section**
+
+| | ⭐ birth-critical | ⛔ mandatory |
+|---|---|---|
+| **does it vary per template?** | ⛔ **no** — 📐 all 8 production sites declare `SimTransform` and nothing else: `BdcTkbBuilder.cs:44` *(every vehicle)* · `BdcTkbCatalog.cs:247` *(area)* · `:255` *(route)* · `UrbanCombatTkbCatalog` ×5 | ✅ **yes** — 📐 `NedTkbBuilder.DefineVehicle` declares `EntityInfo`+`SimTransform` **hard**; `UrbanCombatTkbCatalog`'s five templates carry the **same descriptors** and declare **none** |
+| **can a rule derive it?** | ✅ **yes — apply it unconditionally** | 🔴 **not as the catalogues stand.** They DISAGREE for identically-shaped templates ⇒ no predicate over the file reproduces it. ⚠⚠ **But that does not prove per-template policy was INTENDED** — 📐 `HrotEnvironment.CreateTkb()` registers **both** catalogues into **one** database *(`:35`, `:39`)*, so the disagreement is live in one cluster and no design record says which side is right. ⇒ **the prior question is whether it is meant to vary at all** |
+| **what if the rule is wrong?** | ⭐ nothing: the create leg intersects with the entity's **live component mask**, so naming a component it never receives contributes no bits | 🔴 **a ghost that NEVER PROMOTES** — a hard requirement that never arrives is `return`, every frame, forever |
+| **so** | ✅ **convention, applied in the app layer** — `TkbComponentConventions.ApplyTo`, called by `TkbLoadClusterStateHandler` | ⛔ **left empty, and FILED as `CE-265`** — it needs a design answer, not a guess |
+
+##### ⛔⛔ WHY BIRTH-CRITICAL IS **NOT** DERIVED FROM A DESCRIPTOR — *(the instinct that was wrong)*
+
+⭐ It looks derivable: `SpatialCoreTkbTranslator.cs:24` stamps `SimTransform` **only** for templates
+carrying `TkbMasterDto`, so *"has `TkbMasterDto`"* seems to be the predicate. 🔴 **It is not**, because
+`SimTransform` reaches an entity by **two** routes:
+
+1. that translator, **and**
+2. `NetworkSpawningSystem`'s `cmd.InitialTransform`, available to **any** template.
+
+📌 Route 2 is how the **area** and **route** templates get a position — they carry **no `TkbMasterDto` at
+all**, and `BdcTkbCatalog.cs:243-246` declares birth-criticality for them anyway, saying so in its own
+comment. ⇒ ⛔ **a `HasDescriptor` predicate would MISS exactly those two**, which is the one direction
+that is unsafe.
+
+##### ⚠ WHEN A FILE FIELD *WOULD* BE THE RIGHT ANSWER, and what it costs
+
+⭐ The moment a template legitimately needs a **different** answer from its neighbours — which is already
+true of `MandatoryComponents`. ⛔ But it is a real schema change, not a field:
+
+| | |
+|---|---|
+| ids come from `[ComponentId]`; `ComponentTypeRegistry` is keyed by **`Type`** | ⇒ a file naming components as STRINGS needs a **name→Type** map built by reflection *(the scan `RecordingExportService.cs:815-850` already does)* |
+| 🔴 the deserializer **silently skips** unknown keys | ⇒ a typo'd component name vanishes **without a word**, and the failure surfaces as an entity that does not move, on the production path only ⇒ **loud load-time validation is part of the change**, not an extra *(cf. `CE-119`)* |
+| ⭐ parser thunks are **app-registerable** | ⇒ a HROT-specific key need **not** enter `Fdp.Toolkits`. ⚠ The real cost is handing content authors a correctness-critical engine invariant |
+
+##### 📐 HOW THE 15 HARDCODED TEMPLATES ACTUALLY DIFFER — *(enumerated via the graph, `2026-09-13`)*
+
+⭐ Three producers, and **the differences are mostly DRIFT, not content**:
+
+| | `NedTkbCatalog` — 8, via `NedTkbBuilder` | `UrbanCombatTkbCatalog` — 5, hand-built | `TacGraphic_Area`/`_Route` — 2, hand-built |
+|---|---|---|---|
+| construction | ⭐ **fluent builder** | `new TkbTemplate` + `AddDescriptor` | bare `new TkbTemplate` |
+| `TkbMasterDto` | ✅ | ✅ | ⛔ **none** |
+| **mandatory** | ✅ `EntityInfo`+`SimTransform` **hard** | 🔴 **none** | ⛔ none |
+| **birth-critical** | ✅ `SimTransform` | ✅ `SimTransform` | ✅ `SimTransform` |
+| **`DisType`** | ✅ all 8 | 🔴 **none** ⇒ falls back to `0` | ⛔ none |
+| visual | `VisualDefinitionDto` | `StrideRenderModelDefDto` | ⛔ |
+| combat | + `WeaponCapabilitiesDto` | 🔴 no `WeaponCapabilitiesDto` | ⛔ |
+
+⭐⭐ **Only the VISUAL row is real content.** `StrideNodeShell.cs:264` states it: the Ned catalogue carries no
+Stride-specific descriptors, so a Stride node renders nothing for its templates — that is why both
+catalogues exist. ⛔ **Mandatory, `DisType` and `WeaponCapabilitiesDto` are drift**, and the mechanism is
+visible: `DefineVehicle` **BUNDLES** the invariants *(`TkbMasterDto` + the mandatory pair +
+birth-critical, one method)*, while the hand-built path re-decides per template — and five of them decided
+differently.
+
+⇒ ⭐⭐⭐ **Unification is NOT merging the catalogues** *(the content legitimately differs)*. It is
+**"every hardcoded template goes through the builder, and the builder's bundle is the same one the file
+loader applies."** Today there are **three** producers of that decision; `R-132` says there should be one.
+
+##### 🔴🔴 WHERE MANDATORY COMPONENTS COME FROM — **exactly ONE place, and it is not the file, the translators, or a convention**
+
+⛔⛔ **A relayed architect answer** *(`2026-09-13`)* **claimed three sources. Verified against source, one is
+right, one is half right, and the load-bearing one is INVENTED:**
+
+| the claim | verdict |
+|---|---|
+| *"`TkbIdentity` is always implicitly hard-mandatory, enforced at ghost promotion"* | ✅ **TRUE and STRUCTURAL** — `GhostPromotionSystem.cs:280-282` builds `_readyGhostQuery` as `.With<TkbIdentity>().WithLifecycle(Ghost)`, so an entity without it is never a promotion candidate at all |
+| *"programmatic catalogues declare them explicitly — e.g. `NedTkbBuilder` **or `UrbanCombatTkbCatalog`**"* | ⚠ **HALF.** True of `NedTkbBuilder` *(`BdcTkbBuilder.cs:36,38`)*; ⛔ **`UrbanCombatTkbCatalog` declares NONE** — it is cited as an example of the very thing it does not do. ⚠ It also calls them *"birth-critical structural components … added with `AddMandatoryComponent`"*, conflating the two separate lists |
+| 🔴 *"translators derive and populate mandatory component requirements at load time"* | ⛔⛔ **FALSE — the mechanism does not exist.** `ITkbEntityTranslator` has exactly **two** members: `GetConsumedDescriptors()` and `Inject(repo, **entity**, template)` ⇒ it adds components to an ENTITY at spawn/promote time, and has no way to add a requirement to a TEMPLATE. 📐 Repo-wide there are **7** `AddMandatoryComponent` occurrences and **ZERO** are in a translator. ⚠ And the ordering forbids it anyway: `GhostPromotionSystem` checks the mandatory list **before** the translator loop runs |
+
+⇒ 📐 **The complete, measured answer: `NedTkbBuilder.DefineVehicle` (`:36,:38`) and `AsComposite`
+(`:293`). That is all.** Three call sites, one file, one builder method family. ⛔ Not files, not
+translators, not conventions.
+
+##### ⭐⭐⭐ BUT THE ARCHITECT'S *CONCLUSION* IS RIGHT, FOR A REASON IT DID NOT STATE — **the list is HOST-DEPENDENT**
+
+🔴🔴 **Measured: `GhostPromotionSystem.cs:211` tests `compGP.IsSet(req.ComponentTypeId)` with NO
+registration guard.** ⇒ a **hard** requirement naming a component the local host never registers can never
+become true, so that host's ghosts **abort promotion every frame, forever, silently.**
+
+⇒ ⭐⭐ **That settles where mandatory requirements may NOT live: a shared TKB FILE.** A file is one artefact
+synced to every node, and *"which components must be present"* differs per host because *"which components
+this host registers"* differs per host *(§6.5b's registration set — the same asymmetry)*. ⛔ Authoring them
+in the file would ship one node's answer to all of them.
+
+⚠ **What the architect described as existing is therefore the right TARGET, and it needs one new
+interface member**: a translator can say which descriptors it CONSUMES, but nothing tells you which
+components it PRODUCES — that is knowable only by running `Inject`. ⭐ Add
+`GetProducedComponents()` beside `GetConsumedDescriptors()`.
+
+#### 6.6a 🔒 THE GROUNDED DESIGN — **derive BOTH lists with NO entity-class vocabulary anywhere** *(user ruling, `2026-09-13`)*
+
+> 🔒 **User, verbatim:** *"for the file loading path, no DefineVehicle and similar helper are needed… These
+> are only good to build the 'default' TKB when file load path is not in use. I would like to avoid the
+> hosts to hardcode anything per entity class (so hosts do not basically need to know that entity IS a
+> vehicle, the components the entity have makes the entity a vehicle (movable and navigable etc.)"*
+
+✅ **Both halves of that are confirmed by the code.** `DefineVehicle` and its `With…` siblings are pure
+AUTHORING helpers for the programmatic catalogue — the file path never touches them, and a template loaded
+from a file is a bag of descriptors with no "kind". ⇒ ⛔ **any rule keyed on *"is this a vehicle"* — such as
+the `TkbMasterDto ⇒ vehicle bundle` this section first proposed — is a per-class hardcode and is
+WITHDRAWN.**
+
+##### ⛔⛔ TWO EARLIER SKETCHES IN THIS SECTION WERE WRONG. BOTH ARE SUPERSEDED, AND THE SECOND ONE IS INSTRUCTIVE
+
+| sketch | why it fails |
+|---|---|
+| `mandatory = produced(translators)` | ⛔ backwards — a translator that PRODUCES a component is the reason you might not need to WAIT for it |
+| `mandatory = produced ∧ "stamps a default" (the !HasComponent guard)` | 🔴 **the guard does not discriminate.** 📐 Measured over all 8 production translators: **~25 of ~30** produced components carry `!repo.HasComponent<T>(entity)` — it is an IDEMPOTENCY guard, present on `TargetMemory`, `BrainBlackboard`, `NavState`, `WeaponState` and everything else. ⇒ it selects nearly everything, and only **2** components are actually mandatory |
+
+##### 📐 WHAT ACTUALLY SEPARATES THE TWO MANDATORY COMPONENTS FROM THE ~25 THAT ARE NOT
+
+| component | the translator's stamped value | per-instance? |
+|---|---|---|
+| ⭐ `SimTransform` | `new SimTransform()` — **zeroed and meaningless** | ✅ the real value comes from `SpawnEntityCommand.InitialTransform` or the wire |
+| ⭐ `EntityInfo` | `new EntityInfo { ForceId = dto.Faction }` — a template default | ✅ **but faction is authored PER SPAWN**, so the template default must not beat it |
+| ⛔ `VehicleParams` · `Health` · `PerceptionReceptor` · `WeaponState` | derived from the descriptor | ⛔ identical on every instance of the template |
+| ⛔ `VehicleState` · `NavState` · `TargetMemory` · `BrainBlackboard` · the channels | empty runtime state | ⛔ legitimately starts empty |
+
+⇒ 🔒 **THE DISCRIMINATOR: a component is mandatory exactly when its AUTHORITATIVE value is PER-INSTANCE —
+authored at spawn or replicated in — so the template's default would silently win.** ⛔ That is a property
+of the COMPONENT, not of the entity, the template, or a "kind".
+
+##### ⭐⭐⭐ THE DESIGN — **one mechanism, both lists, and it is the house pattern already**
+
+⭐ Per-component-type metadata already travels as an **attribute**: `[ComponentId]`
+*(`ComponentIdAttribute.cs:30`, mandatory since auto-assignment was removed)* and `[DataPolicy]`
+*(`DataPolicyAttribute.cs:79`)*. ⇒ declare both properties the same way:
+
+| attribute, on the COMPONENT TYPE | replaces |
+|---|---|
+| `[BirthCritical]` — *"the creator must own this at birth"* | the constant in `TkbComponentConventions`, **and** `TkbTemplate.BirthCriticalComponents` itself |
+| `[PerInstanceValue]` — *"the authoritative value is authored or replicated, never the template default"* | the hand-written `AddMandatoryComponent` calls |
+
+```
+birthCritical = componentsWith[BirthCritical]                         // no template, no host, no class
+mandatory     = componentsWith[PerInstanceValue]
+              ∩ ⋃ produced(t)  for host translators t whose consumed
+                               descriptors this template carries       // "will this entity have it?"
+              ∩ componentsThisHostRegisters                            // the deadlock guard
+```
+
+⭐ **`GetProducedComponents()` is still needed — but as the TEMPLATE FILTER, not the discriminator.** ⛔
+Requiring a component this template will never produce is the deadlock; requiring one the host does not
+register is the same deadlock *(`GhostPromotionSystem.cs:211` has no registration guard)*.
+
+| ⭐ what this buys | |
+|---|---|
+| ⭐⭐⭐ **no host knows what a vehicle is** | the rule reads only component attributes, the template's descriptors, and this host's own translator + registry sets |
+| ⭐⭐ **the file path needs NOTHING** | no field, no names-as-strings, no validation — the file stays pure descriptors, which is §6.6's principle |
+| ⭐⭐ **identical on both paths** | the programmatic catalogue gets the same derivation, so the `NedTkbBuilder` / `UrbanCombat` drift becomes unrepresentable rather than merely fixed |
+| ⭐ **host asymmetry is handled by construction** | each node derives from ITS translator list, which is what `§6.5b` already says the registration set is for |
+| ⭐ **`TkbTemplate.BirthCriticalComponents` can be DELETED** | 📐 measured: **one** production read — `RoleAffinityPolicy.cs:189`. Everything else is the setter, tests, or comments |
+
+##### ⛔⛔ A QUESTION THIS DESIGN DOES **NOT** RAISE — **"should every entity always have a `SimTransform`?"** *(asked `2026-09-13`)*
+
+> 🔒 **User:** *"we could theoretically have entities not having position, for example for Global Weather the
+> SimTransform means nothing; also some child entities … might not need SimTransform; the question is
+> whether keeping SimTransform as something every entity ALWAYS has (like a GameObject in Unity 3d) is an
+> acceptable compromise making everything simpler."*
+
+⭐⭐⭐ **The derivation does not need it answered.** `birthCritical = componentsWith[BirthCritical]` means
+*"IF this entity has one, its creator owns it at birth"* — and the create leg intersects with the entity's
+**live component mask**, so a positionless entity simply never gets the bit. ⇒ ⛔ **universality is
+orthogonal to the simplification; do not couple the two decisions.**
+
+📐 **And measured, the answer to the question on its own merits is NO:**
+
+| | |
+|---|---|
+| 🔴🔴 **`SimTransform` PRESENCE is the engine's *"is this spatial?"* predicate** | 📐 **42 production `.With<SimTransform>()` query filters across 37 files** — `SpatialHashSystem`, `LocalGridBuilderSystem`, `VisionBroadphaseSystem`, `BallisticsSystem`, `TerrainQuerySubmitSystem`, `MapCullingSystem`, `PhysicsBodyLifecycleSystem`, the egress translators … ⇒ universality silently WIDENS all 42 |
+| ⛔ **the concrete failure** | `LocalGridBuilderSystem.cs:94` / `SpatialHashSystem` insert every matched entity into the spatial structure ⇒ a Global-Weather entity would become a **perception, EQS and ballistics candidate sitting at (0,0,0)** |
+| ⚠ **why Unity gets away with it** | a Unity `Transform` doubles as the **scene-graph node** — it has a structural job beyond *"I am somewhere"*. Here it has none; presence is **pure semantics**, and that is exactly what universality would destroy |
+| ⭐ **memory is NOT the argument** | `SimTransform` is `Vector3 + Quaternion` = **28 bytes** |
+| ⭐⭐ **the codebase already has the right home for positionless global data** | `SetSingleton` / `SetSingletonManaged` — world-level storage that is **not an entity at all** *(`ZoneEnvironmentData`, `TerrainQueryBatchData`, `INavmeshProvider`, `ActivePerspective`)*. ⇒ **Global Weather is a SINGLETON, not a positionless entity** |
+| ⭐ **positionless CHILDREN are already anticipated** | `AuthorityExtensions.cs:23-29` resolves authority through `PartMetadata.ParentEntity`, so a child with no `SimTransform` already inherits its parent's answer |
+
+⇒ ⭐ **Keep presence meaningful.** If some future entity kind genuinely needs a guaranteed transform, that is
+a per-template AUTHORING decision *(add the descriptor)*, ⛔ never an engine-wide invariant.
+
+##### ✅✅✅ RULED `2026-09-13` — **the attribute is the SOURCE OF TRUTH; the template's list becomes a DERIVED READ-ONLY CACHE**
+
+> 🔒 **User, verbatim:** *"we can add TKB record override any time later. so if it can be derived or defined
+> via component attribute and it works for all todays or imaginable future use cases, the tkb in-memory
+> record can be just a readonly cache."*
+
+⭐⭐ **This resolves the "component property vs TKB-type property" question without choosing sides, and it is
+better than either option offered.** The user's earlier objection — *"birthcritical does not seem to me to be
+a property of a component, rather tkb type"* — is right about the SEMANTICS *(the effective set is per
+type)*; the attribute is right about the SOURCE *(whether a component can start empty is a component fact)*.
+⇒ ⭐ **the record keeps the per-type field, and that field is DERIVED rather than AUTHORED.**
+
+| ⭐ the shape | |
+|---|---|
+| **source of truth** | `[BirthCritical]` on the component TYPE — same house pattern as `[ComponentId]` *(`ComponentIdAttribute.cs:30`)* and `[DataPolicy]` *(`DataPolicyAttribute.cs:79`)* |
+| ⭐⭐⭐ **population point** | 📐 **`ITkbDatabase.Register(TkbTemplate)` is the SINGLE choke point** *(measured: `TkbDatabase.cs:20`; every producer goes through it — `TkbDeserializer.cs:54`, `BdcTkbBuilder.cs:45`, `BdcTkbCatalog.cs:248,256`, `UrbanCombatTkbCatalog` ×5, and the `FDP/Examples` setups)*. ⇒ fill the cache there and **no path can skip it**, file or programmatic |
+| **the field** | `TkbTemplate.BirthCriticalComponents` becomes `IReadOnlyList<int>`; `AddBirthCriticalComponent<T>()` goes away |
+| ⭐⭐ **why keep the field at all** | ⛔ it is currently identical for every template, so it is *technically* a global constant — ⭐ **but it is the SEAM where the deferred TKB-record override lands.** Keeping it means that override changes only HOW the cache is filled, with **zero call-site churn**; and `RoleAffinityPolicy.cs:189`'s hot-path read is unchanged |
+| ⚠ **the override is DEFERRED, not rejected** | 🔒 *"we can add TKB record override any time later."* ⇒ ⛔ do not build it now, and ⛔ do not design the file syntax for it now |
+
+⭐ **What this SUPERSEDES, including work shipped earlier the same day:** `TkbComponentConventions`'
+birth-critical half and its call from `TkbLoadClusterStateHandler` *(`CE-259az`)* become **redundant** — the
+choke point is one level deeper and covers the programmatic catalogues too, which the app-layer convention
+never did. ⚠ **That is a strictly better outcome, not a regression**: the convention fixed the file path;
+this fixes the *invariant*. ⭐ It also collapses a second producer — `HrotRoleComponentSets`
+*(`:BirthCriticalComponents`)* hand-lists `SimTransform` as well, so today **three** places assert one fact.
+
+📐 **Blast radius, measured:** `Fdp.Core` *(new attribute, field becomes read-only)* · population in
+`TkbDatabase.Register` · **one** production read stays as-is *(`RoleAffinityPolicy.cs:189`)* · **8** authoring
+sites deleted · `TkbComponentConventions` + its loader call deleted · `HrotRoleComponentSets` derives instead
+of listing · rails to update in `TkbTemplateTests`, `HrotEnvironmentTests`, `TkbLoadClusterStateHandlerTests`,
+`RoleAffinityPolicyTests`, `RoleAffinityPromoteRails`, `RoleAffinitySpawnRails`, `HrotRoleComponentSetsTests`.
+
+##### ✅✅✅ …AND THE SAME APPLIES TO **MANDATORY** — **the blocker was `IsHard`, not the derivation** *(user challenge, `2026-09-13`)*
+
+> 🔒 **User:** *"why mandatory stays open? can't it be derived making the tkb in memory record read only same
+> as birth critical field"*
+
+⛔⛔ **CORRECTED — it was called open for a reason that does not hold.** This section treated *"over-declaring
+is fatal"* as intrinsic to `MandatoryComponents`. 📐 It is intrinsic to **HARD** requirements only:
+`GhostPromotionSystem.cs:215-219` — a hard requirement that never arrives is `return` forever, ⭐ **but a
+SOFT one waits `SoftTimeoutFrames` and then proceeds without the component.** The soft mode has existed all
+along *(`MandatoryComponent.IsHard` / `SoftTimeoutFrames`, a single consumer, already exercised at
+`SimHostInstance.cs:1001` with `isHard: false, softTimeoutFrames: 10`)*.
+
+⇒ ⭐⭐⭐ **Mandatory derives exactly like birth-critical, and BOTH records become read-only caches filled at
+the same choke point:**
+
+```
+[BirthCritical]      on a component ⇒ template.BirthCriticalComponents   (derived, read-only)
+[PerInstanceValue]  on a component ⇒ template.MandatoryComponents       (derived, read-only, SOFT)
+                                      both filled in ITkbDatabase.Register
+```
+
+##### ⛔⛔⛔ SOFT-BY-DESIGN IS REJECTED — **the requirement is HARD and EXACTLY DERIVED** *(user ruling, `2026-09-13`)*
+
+> 🔒 **User, verbatim:** *"i do not want to wait 10 frames by design - this looks like an emergency
+> (hopefully avoidable) case which i do not want to promote to usual case, i need all configured that no
+> extra 10 frames needed. Soft sounds like allowing for 10 frames latency by design. i do not like it."*
+
+✅ **Correct, and the soft proposal above is WITHDRAWN.** `SoftTimeoutFrames` is a **recovery** path for a
+producer that failed; using it as the normal path makes every entity pay latency for a case that should
+never happen. ⇒ ⭐ **hard requirements, and the derivation must be EXACT.**
+
+⭐⭐⭐ **It CAN be exact, and `GetProducedComponents()` is the filter — measured, it reproduces today's correct
+set on all 15 templates:**
+
+```
+mandatory = componentsWith[PerInstanceValue]
+          ∩ ⋃ produced(t)  for host translators t whose consumed descriptors
+                           this template carries
+          ∩ componentsThisHostRegisters                    // HARD, no timeout
+```
+
+| template shape | descriptors | ⇒ produced ∩ `[PerInstanceValue]` | today's hand-written value |
+|---|---|---|---|
+| NED vehicles | `TkbMasterDto` *(→ `SpatialCore` → `SimTransform`)* + `BehaviorProfileDto`/`VisualDefinitionDto` *(→ `EntityInfo`)* | `{SimTransform, EntityInfo}` | ✅ **exactly** `EntityInfo`+`SimTransform` hard |
+| `UrbanCombat` ×5 | same two descriptor families | `{SimTransform, EntityInfo}` | 🔴 **none** — the drift this fixes |
+| `TacGraphic_Area`/`_Route` | ⛔ **no descriptors at all** | **∅** | ✅ none |
+
+⇒ ⭐⭐ **`GetProducedComponents()` returns to being a PREREQUISITE, not an optimisation** — and it is the
+thing that makes HARD safe.
+
+##### 🔒 WHY HARD CANNOT HANG ON THE HAPPY PATH — **arrival is guaranteed by SYMMETRY**
+
+⭐ The creator ran **the same translator set over the same template**, so it HAS the component; its egress
+publishes every owned component it has *(`EntityInfoEgressTranslator.cs:104-118`,
+`GeoSpatialEgressTranslator`)*; the receiver's ingress writes it. ⇒ **a component this template produces on
+one host is produced on every host that composes the same translators** — so requiring it cannot deadlock.
+
+| ⚠ the residual risk, named | |
+|---|---|
+| a **creator** host that does not register the component never publishes it ⇒ a receiver waits forever | ⭐ **THIS is where `SoftTimeoutFrames` belongs — as the emergency escape, never the design.** 🔒 The user's own framing: *"an emergency (hopefully avoidable) case which i do not want to promote to usual case"* |
+| ⛔ it deserves a LOUD diagnostic, not a silent timeout | a ghost still un-promoted after `N` frames is a **configuration error**, and `GhostPromotionSystem` says nothing today |
+
+##### ⭐⭐ THE FOURTH INTERSECTION — **what this host can INGRESS** *(user ruling, `2026-09-13`)*
+
+⛔⛔ **An earlier version of this section said `[PerInstanceValue]` must mean *"arrives over the wire"*. That
+is WITHDRAWN — it smuggled a NETWORK fact onto a component type in `Fdp.Core`,** which is what §2.3 exists to
+prevent.
+
+⭐ **The attribute states the network-agnostic fact**: *"this component's authoritative initial value is
+PER-INSTANCE — the template cannot know it."* ⭐ The wire is merely **how it arrives when there is one**; a
+networkless node has no ghosts, so the mandatory gate never runs there at all.
+
+📐 **The case that forces the separation.** `SpatialCoreTkbTranslator` produces **both** `SimTransform` and
+`SimVelocity`, and `SpawnEntityCommand` carries `InitialTransform` **and** `InitialVelocity` ⇒ both are
+genuinely per-instance and both would carry the attribute. 🔴 **But the wire carries `WorldPos` and the
+ingress writes `NetworkVelocity`, not `SimVelocity`** ⇒ a hard requirement on `SimVelocity` would **never be
+satisfied**. ⇒ ⛔ it must be excluded for the RIGHT reason — *nothing ingresses it* — ⛔ **not** by
+mislabelling the component as "not per-instance".
+
+⇒ ⭐⭐⭐ **so the derivation takes a fourth intersection, and the seam ALREADY EXISTS** *(the seam law again —
+it was under-adopted, not missing)*:
+
+```
+mandatory = componentsWith[PerInstanceValue]                   // Fdp.Core, network-agnostic
+          ∩ ⋃ produced(t)  for host translators t whose consumed descriptors
+                           this template carries                // "will this entity have it?"
+          ∩ componentsThisHostCanINGRESS                        // ⭐ DescriptorOwnershipMap
+          ∩ componentsThisHostRegisters                         // the deadlock guard
+                                                                // HARD, no timeout
+```
+
+| ⭐ the ingress set, measured | |
+|---|---|
+| **it is already built and already populated** | `DescriptorOwnershipMap` holds `_descriptorToComponentIds`, filled by `RegisterFromTranslator(t.DescriptorOrdinal, t.TargetComponentIds)` — `NedReplicationModule.cs:472,475` and `AttributeInterpreterProvider.cs:101` |
+| ⚠ **one small addition** | it exposes `GetComponentIdsForDescriptor(ordinal)`; the derivation wants the **union over all registered translators**. That accessor does not exist yet |
+| ⭐⭐ **per HOST and per STACK, which is exactly right here** | NED fills it from NED translators, BDC differently, an offline node not at all ⇒ each node derives what IT can actually receive |
+| 🔒 **and this does NOT contradict §2.3** | §2.3 forbids keying **OWNERSHIP** on `DescriptorOwnershipMap`, because ownership must mean the same thing on every stack and offline. ⛔ **Mandatory is the opposite kind of question** — it asks *"what will arrive over THIS wire"*, which is meaningless without one. ⇒ the network-keyed input belongs here and nowhere in P3 |
+
+⇒ 📐 **Today that yields exactly `SimTransform` and `EntityInfo`** — which is precisely the hand-written list
+on NED vehicles, and precisely what `UrbanCombat` drifted out of.
+
+##### ✅✅✅ AS-BUILT — **the BIRTH-CRITICAL half shipped `2026-09-13`** *(`CE-266`, obligation ⑤)*
+
+| | |
+|---|---|
+| 🆕 `Fdp.Core/BirthCriticalAttribute.cs` · `PerInstanceValueAttribute.cs` | both attributes, **both documented in full** — the test, the two failures each prevents, and for `[PerInstanceValue]` the addition rule. ⚠ The second has **no consumer yet**; it ships now so the vocabulary lands in one change |
+| 🆕 `Fdp.Core/ComponentAttributeSets.cs` | the resolver — one cached reflection pass over loaded assemblies, mirroring `RecordingExportService.cs:815-824`'s existing `[ComponentId]` scan |
+| ✏ `SimTransform` | `[BirthCritical]` + `[PerInstanceValue]` · `SimVelocity` and `EntityInfo` → `[PerInstanceValue]` only |
+| ✏ `TkbTemplate.BirthCriticalComponents` | `List<int>` → **`IReadOnlyList<int>`, derived**; `AddBirthCriticalComponent<T>()` **deleted** |
+| ⛔ **deleted** | 8 authoring sites · `TkbComponentConventions` + its `TkbLoadClusterStateHandler` call · `HrotRoleComponentSets`' hand-written `SimTransform` |
+| 📐 gates | `Fdp.Core.Tests` 6/6 *(new)* · `Fdp.Toolkits.Tests` `RoleAffinity`+`TkbTemplate` 32/32 · `Hrot.Core.Tests` 153/155 · `Hrot.SimHost.Tests` 950/955 — the 4 reds all pre-existing. **2 inverse-edit red-proofs** |
+
+🔴 **DEVIATION — the cache is a COMPUTED PROPERTY, not a field filled in `Register`.** §6.6a above prescribes
+filling it at `ITkbDatabase.Register`, argued as *"the single choke point no path can skip"*. 📐 While
+building, the simpler form proved strictly stronger: `BirthCriticalComponents` returns
+`ComponentAttributeSets.BirthCritical` directly, so **there is no filling step to skip and no `Register`
+change at all**. ⭐ The user's framing survives exactly — the record is a read-only cache — and the deferred
+per-type override still lands on this one property.
+
+⭐ **One addition the design did not ask for:** the resolver **THROWS** when either attribute sits on a type
+with no `[ComponentId]`. ⛔ The existing scan it mirrors uses a bare `catch { continue; }`; copying that here
+would turn an authoring slip into an entity that silently never moves.
+
+##### ⭐⭐ WHICH COMPONENTS GET `[PerInstanceValue]`, AND THE RULE FOR ADDING A FOURTH
+
+📐 **Three, on measured evidence — the components production actually authors per instance:**
+
+| component | evidence | ⇒ mandatory? |
+|---|---|---|
+| `SimTransform` | `SpawnEntityCommand.InitialTransform` *(typed field)* · `ScenarioSpawnAdapter.cs:206,317,390` · `SimHostApp.cs:820` | ✅ |
+| `EntityInfo` | `ScenarioSpawnAdapter.cs:189` · child spawns in `CreateEntityRequestSystem` | ✅ |
+| `SimVelocity` | `SpawnEntityCommand.InitialVelocity` · `ScenarioSpawnAdapter.cs:210` | ⛔ **the INGRESS intersection drops it** — the wire writes `NetworkVelocity` |
+
+⇒ ⭐ **the effective mandatory set is TWO**, matching today's hand-written NED pair exactly.
+
+⛔⛔ **AND THE SCENARIO PATH IS NOT EVIDENCE, which is the trap.**
+`StagingEntityExtractor.ExtractEntityComponents` walks **every registered table** and takes whatever is
+present, minus an exclusion mask ⇒ on a scenario load *almost every* component's value is per-instance
+*(a damaged tank restores its `Health`)*. 🔴 Deriving the attribute from *"what gets authored per
+instance"* would attribute nearly everything. ⭐ **The distinction that resolves it:**
+
+| | leg | arrives |
+|---|---|---|
+| `InitialComponents` | **create** | synchronously, **before anything runs** ⇒ no gate is ever needed |
+| the mandatory list | **promote** | asynchronously over the wire, **after the ghost exists** ⇒ the only thing a gate can be about |
+
+##### ⛔⛔ THE ADDITION RULE — **"unconditional egress" was WRONG; it is "GUARANTEED BASELINE"** *(user correction, `2026-09-13`)*
+
+> 🔒 **User:** *"sending state on change is what actually happens and what makes sense to eliminate
+> redundant traffic. almost nothing is sent unconditionally."*
+
+✅ **Correct, and an earlier version of this rule said "unconditional for owned entities" — WITHDRAWN.**
+📐 Change-driven egress is the norm here and is deliberate. ⭐ **The property a hard requirement actually
+needs is a guaranteed FIRST publish for a newly spawned entity**, and this codebase already provides it by
+**two** different mechanisms plus a backstop:
+
+| mechanism | evidence |
+|---|---|
+| ⭐ **`SmartEgressUtil`'s "Guaranteed First Publish"** — its own headline feature: *"tracks whether a descriptor has ever been sent for a newly spawned entity (`!state.LastPublishedTickMap.ContainsKey`)"* | covers `EntityInfo`, `EntityMaster`, `EntityMission`, `WeaponState` |
+| ⭐ **the zeroed shadow** — `GeoSpatialEgressTranslator` deliberately does NOT use SmartEgress *(too costly at 60 Hz)*; it diffs `SimTransform` against a `NetworkTransform` shadow **seeded to zeros**, and its own comment calls that *"a BEHAVIOURAL REQUIREMENT, not a detail … Zeros force a first publish"* | covers `SimTransform`. ⚠ Even an entity spawned at the origin publishes, because the zeroed shadow's rotation is `(0,0,0,0)`, not identity, so the rotation comparison fires |
+| ⭐ **the heartbeat** — `REFRESH_INTERVAL = 600` *(10 s at 60 Hz)* | the eventual-consistency backstop for dropped UDP |
+
+⇒ 🔒 **THE RULE:** a component may carry `[PerInstanceValue]` **only if its descriptor's egress guarantees a
+baseline sample for a newly spawned entity.** ⛔ Change-driven thereafter is expected and correct.
+⚠ **The shape that would break it:** a purely diff-driven egress whose shadow is seeded from the live value
+— the first comparison says *"unchanged"*, no baseline is sent, and a hard requirement waits for the
+heartbeat or forever. 📌 That is exactly the trap `GeoSpatialEgressTranslator` documents having avoided.
+
+⛔ **HISTORY — the question this replaced:** whether `[BirthCritical]` contradicts the `2026-09-01` ruling
+*"TKB should define what components are birth critical"*. ⭐ It does not: the TKB record still defines it,
+the record is just no longer hand-authored. 📄 `CE-265`.
+
+##### 🔒 THE PRINCIPLE, STATED ONCE
+
+> ⭐⭐⭐ **A TKB file describes an entity's DESCRIPTORS. The component lists are statements about what
+> those descriptors — and the spawn request — will PRODUCE, so they belong to whoever knows the
+> translators: the application.** ⛔ Put a convention in the app layer while the answer is uniform; add a
+> file field the moment it genuinely varies, and pay for the validation when you do.
+
+⚠ **Superseded in its IMPLEMENTATION, not in its content** — `TkbComponentConventions` and its
+`TkbLoadClusterStateHandler` call are **deleted** (`CE-266`); the principle now lands one level deeper, on the
+component type itself and in `MandatoryComponentResolver`. See §6.6b.
+
+#### 6.6b ✅✅✅ AS-BUILT — **the MANDATORY half shipped `2026-09-13`** *(`CE-265`, obligation ⑤)*
+
+⭐⭐⭐ **What the picture shows that the prose cannot: WHERE each of the four inputs comes from, and that
+three of them are HOST-LOCAL while only one is shared.** That asymmetry is the entire reason this list could
+never live on `TkbTemplate` or in a TKB file.
+
+```mermaid
+classDiagram
+    class TkbTemplate {
+        <<SHARED record — same object on every node>>
+        +long TkbType
+        +IReadOnlyList~int~ BirthCriticalComponents
+        +List~MandatoryComponent~ MandatoryComponents
+        +GetAllDescriptors() IEnumerable
+    }
+    class ComponentAttributeSets {
+        <<EXISTS — Fdp.Core, CE-266>>
+        +IReadOnlyList~int~ PerInstanceValue
+    }
+    class ITkbEntityTranslator {
+        <<seam — Fdp.Core>>
+        +GetConsumedDescriptors() IEnumerable~Type~
+        +GetProducedComponents() IEnumerable~Type~
+        +Inject(repo, entity, template)
+    }
+    class DescriptorOwnershipMap {
+        <<EXISTS — Fdp.Toolkits>>
+        +CoveredComponentIds IEnumerable~int~
+    }
+    class EntityRepository {
+        <<EXISTS — Fdp.Core>>
+        +TryGetTable(Type, out table) bool
+    }
+    class MandatoryComponentResolver {
+        <<NEW — Fdp.Toolkits.Replication.Services>>
+        -Dictionary~long,int[]~ _cache
+        -int _ingressGeneration
+        +Resolve(template, repo, translators, ingressMap) IReadOnlyList~int~
+    }
+    class GhostPromotionSystem {
+        <<EXISTS — gates on derived ∪ explicit>>
+        -MandatoryComponentResolver _mandatoryResolver
+        -ReportStallIfOverdue(tkbType, componentId, tick, firstSeen)
+    }
+
+    GhostPromotionSystem --> MandatoryComponentResolver : owns one, per node
+    MandatoryComponentResolver ..> ComponentAttributeSets : ① [PerInstanceValue] — SHARED
+    MandatoryComponentResolver ..> TkbTemplate : ② descriptors — SHARED
+    MandatoryComponentResolver ..> ITkbEntityTranslator : ② produced — HOST-LOCAL
+    MandatoryComponentResolver ..> DescriptorOwnershipMap : ③ ingressible — HOST-LOCAL
+    MandatoryComponentResolver ..> EntityRepository : ④ registered — HOST-LOCAL
+    GhostPromotionSystem --> TkbTemplate : explicit escape hatch only
+```
+
+*Caption: only `ComponentAttributeSets` and the template's descriptor bag are node-independent. ⇒ the result
+is a per-node answer and **has no home on the shared record** — the fact §6.6 stated about a TKB FILE, one
+level down.*
+
+```mermaid
+sequenceDiagram
+    participant NED as NedReplicationModule
+    participant GPS as GhostPromotionSystem
+    participant R as MandatoryComponentResolver
+    participant MAP as DescriptorOwnershipMap (world)
+    participant E as ghost entity
+
+    Note over NED,MAP: first tick only — ContributeDescriptorPairings()
+    NED->>MAP: RegisterFromTranslator(ordinal, TargetComponentIds)
+
+    loop every frame, per ready ghost
+        GPS->>R: Resolve(template, repo, translators, map)
+        alt map still EMPTY (GPS scheduled before NED ticked)
+            R-->>GPS: ∅  (cache key includes map SIZE — self-corrects)
+        else map populated
+            R->>MAP: CoveredComponentIds
+            R-->>GPS: {SimTransform, EntityInfo}  (cached per TkbType)
+        end
+        GPS->>E: componentMask.IsSet(id)?
+        alt a derived id is missing
+            GPS-->>GPS: return — HARD, no timeout
+            opt waited >= 600 frames
+                GPS-->>GPS: report the stall ONCE per (TkbType, component)
+            end
+        else all present
+            GPS->>E: Inject translators, claim role affinity, promote
+        end
+    end
+```
+
+*Caption: the `alt` on an empty map is the ordering hazard — `GhostPromotionSystem` and the module that fills
+the map are registered by different composition roots, so the derivation must survive running first. Prose
+could state "the map is populated at startup" without ever asking **by whom, relative to this system**.*
+
+##### 📐 WHAT SHIPPED
+
+| | |
+|---|---|
+| ✏ `ITkbEntityTranslator` | **`GetProducedComponents()`** added — 2 members → 3. ⛔ **No default implementation**, deliberately: a defaulted `Array.Empty` would let a new translator silently narrow every derived gate on its host *(the SILENT-DEFAULT pattern)*. Implemented on **all 9 production translators** + 2 test doubles; the compiler enumerated them |
+| 🆕 `Fdp.Toolkits/Replication/Services/MandatoryComponentResolver.cs` | the four-way intersection, cached per `TkbType` |
+| ✏ `GhostPromotionSystem` | gates on **derived ∪ explicit**; derived entries are always HARD. ⭐ **Needed no new constructor argument** — `AttributeInterpreterProvider.GetDescriptorMap(repo)` already exposes the world's map, and `Translators` was already resolved |
+| 🆕 the STALL DIAGNOSTIC | `ReportStallIfOverdue` — after `600` frames, ONCE per (TKB type, component), naming the component that never came. ⛔ **Not a timeout**; the ghost keeps waiting. This is §6.6a's *"it deserves a LOUD diagnostic, not a silent timeout"*, which this system previously had **nothing** of |
+| ⛔ **deleted** | `NedTkbBuilder.DefineVehicle`'s `AddMandatoryComponent<EntityInfo>` + `<SimTransform>`, and `AsComposite`'s *"ensure `EntityInfo` is mandatory"* existence check — all three reproduced by the derivation |
+| ✏ `TkbTemplate.MandatoryComponents` | **kept**, re-documented as the AUTHORING ESCAPE HATCH for components no translator produces *(managed state such as `ActiveMissionPlan`, a host-specific network gate)*. ⛔ Its header now forbids restating a derived requirement |
+
+##### 🔴 DEVIATION — **NOT a read-only field on `TkbTemplate`, and NOT filled at `ITkbDatabase.Register`**
+
+📐 §6.6a prescribed *"both records become read-only caches filled at the same choke point"*. ⛔ **Measured
+while building: that is not buildable for this half, and the reason is the design's own central fact.**
+
+| | |
+|---|---|
+| ⛔ **`TkbDatabase.Register` has ZERO host context** | 📐 `TkbDatabase.cs:20-32` is two dictionary writes. It has no translator list, no `EntityRepository`, no `DescriptorOwnershipMap` — and **three of the four inputs are exactly those** |
+| ⛔ **a `TkbTemplate` is a SHARED record** | the same object serves CGF, SimHost, IG and the editor. A host-local answer stored on it is wrong for every other reader ⇒ the storage location itself would reintroduce the drift |
+| ✅ **birth-critical was different, and that is why it worked** | its answer is identical on every node, so a static derived property was not merely adequate but strictly simpler *(it ended up needing no `Register` change at all)* |
+
+⇒ ⭐⭐ **The user's ruling survives in substance:** the set is DERIVED rather than authored, and no producer
+can drift from another. ⛔ What changed is that the cache lives with the CONSUMER, because the answer is the
+consumer's, not the record's. ⭐ The deferred per-type override still has a home — `MandatoryComponents` is
+the seam it lands on, now documented as such.
+
+##### ⚠ THREE MEASURED FACTS THE NEXT SESSION WILL OTHERWISE RE-DERIVE WRONG
+
+| | |
+|---|---|
+| ⭐⭐⭐ **the union accessor ALREADY EXISTED** | `DescriptorOwnershipMap.CoveredComponentIds` *(`:173`)*. 📌 `CE-265`'s own scoping note said it *"needs a UNION accessor"* — **wrong**; the seam law again, 25th measured instance. ⛔ Read the class before adding to it |
+| 🔴🔴 **DIRECTION MUST NOT BE FILTERED** | 📐 in `Hrot.Network.NED`, **ZERO** translators under `Replication/Map/Ingress/` declare `TargetComponentIds` — `IDescriptorTranslator` defaults it to empty and only the EGRESS side overrides. ⇒ an *"ingress-only"* filter yields **∅** and collapses the whole derivation. `GeoSpatialEgressTranslator._targetIds` is the **only** pairing `SimTransform` has |
+| ⭐⭐ **`SimVelocity` is excluded by an ACCIDENT OF OVERLOAD, so rail it** | it reaches the map only through `RegisterMapping(long, int[])`, which fills `_descriptorToComponentIds` but **not** the reverse `_componentIdToDescriptors` that `CoveredComponentIds` reads. ⚠ The distinction is genuine *(that call is an AUTHORITY block, not a wire pairing)*, ⛔ but it is nowhere stated as an invariant — a future tidy-up that "fixed" `RegisterMapping` to fill both would create a hard requirement for a component nothing ingresses. 📌 Pinned by `SimVelocity_IsPerInstanceAndProduced_YetExcluded_BecauseNothingIngressesIt` |
+
+##### ⚠ THE RESIDUAL RISK, NAMED
+
+⭐ A hard requirement cannot hang on the happy path *(§6.6a, "arrival is guaranteed by SYMMETRY")*.
+⛔ **The one shape that still can:** a CREATOR host that does not register the component never publishes it,
+so a receiver that does register it waits forever. ⇒ that is a cluster configuration error, and it is now
+**reported** rather than absorbed — `600` frames, once per pair, naming the component. ⛔ It is still not
+promoted, deliberately: 🔒 *"soft sounds like allowing for 10 frames latency by design. i do not like it."*
 
 ---
 

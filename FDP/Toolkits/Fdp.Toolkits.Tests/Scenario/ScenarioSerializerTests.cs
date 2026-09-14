@@ -38,7 +38,7 @@ namespace Fdp.Toolkit.Scenario.Tests
             repo.RegisterComponent<TestPhysicsCollider>();
             repo.RegisterComponent<GuidedTarget>();
             repo.RegisterComponent<CachedSpeedComponent>();
-            repo.RegisterComponent<NoSaveVelocity>(); // [DataPolicy(DataPolicy.NoSave)]
+            repo.RegisterComponent<NoSaveVelocity>(); // [DataPolicy(DataPolicy.NoScenario)]
             repo.RegisterComponent<ScenarioIgnoreTag>();
             repo.RegisterComponent<Fdp.Core.EpisodeTag>();   // canonical episode-membership tag (Guid)
         }
@@ -52,6 +52,50 @@ namespace Fdp.Toolkit.Scenario.Tests
             var builder = new ScenarioSerializerBuilder(subsystemType);
             foreach (var t in translators) builder.RegisterTranslator(t);
             return builder.Build();
+        }
+
+        // ── CE-275 ② — the ownership save gate ────────────────────────────────
+
+        /// <summary>
+        /// ⭐⭐⭐ <b>CE-275 ② / OQ8 — a host writes ONLY the entities it is the network-agnostic primary
+        /// owner of.</b> <c>CollectSaveableEntities</c> now gates on <c>HasAuthority</c>
+        /// (<c>NetworkAuthority.PrimaryOwnerId == LocalNodeId</c>, absent ⇒ owned) as well as
+        /// <c>ScenarioIgnoreTag</c>. This proves all three arms in one save:
+        /// a locally-owned entity is saved; a REMOTELY-owned one (e.g. a replicated IG-authored persistable
+        /// sketch) is EXCLUDED — the gap that <c>ScenarioIgnoreTag</c>-only filtering left open; and an entity
+        /// with NO <c>NetworkAuthority</c> is saved (the editor / AllInOne single-node cluster writes
+        /// everything). 📄 <c>docs/DESIGN_Distributed_Scenario_Persistence.md</c> §6.
+        /// </summary>
+        [Fact]
+        public void Serialize_AppliesTheOwnershipGate_SavingOnlyOwnedEntities()
+        {
+            _repo.RegisterComponent<Fdp.Toolkit.Replication.Components.NetworkAuthority>();
+
+            // Locally owned (PrimaryOwnerId == LocalNodeId) → saved.
+            var owned = _repo.CreateEntity();
+            _repo.SetComponent(owned, new DummyPosition { X = 1f, Y = 0f, Z = 0f });
+            _repo.AddComponent(owned, new Fdp.Toolkit.Replication.Components.NetworkAuthority(primaryOwnerId: 1, localNodeId: 1));
+
+            // Owned by a FOREIGN node → excluded (we replicate it but do not own it).
+            var foreign = _repo.CreateEntity();
+            _repo.SetComponent(foreign, new DummyPosition { X = 2f, Y = 0f, Z = 0f });
+            _repo.AddComponent(foreign, new Fdp.Toolkit.Replication.Components.NetworkAuthority(primaryOwnerId: 2, localNodeId: 1));
+
+            // No NetworkAuthority at all (editor / AllInOne) → owned by construction → saved.
+            var editorLike = _repo.CreateEntity();
+            _repo.SetComponent(editorLike, new DummyPosition { X = 3f, Y = 0f, Z = 0f });
+
+            var dom      = BuildSerializer().Serialize(_repo, new ScenarioHeader("TestSubsystem"));
+            var entities = dom["Entities"]!.AsObject();
+
+            // owned + editorLike are written; the foreign one is dropped.
+            Assert.Equal(2, entities.Count);
+
+            var savedX = entities
+                .Select(kv => kv.Value!["DummyPosition"]!["X"]!.GetValue<float>())
+                .OrderBy(x => x)
+                .ToArray();
+            Assert.Equal(new[] { 1f, 3f }, savedX);   // non-vacuous: the X=2 foreign entity is the one dropped
         }
 
         // �� RoundTrip_1to1_PreservesAllFields ������������������������������������
@@ -228,7 +272,7 @@ namespace Fdp.Toolkit.Scenario.Tests
         // �� DataPolicyNoSave_ComponentExcluded �����������������������������������
 
         /// <summary>
-        /// <c>NoSaveVelocity</c> is marked <c>[DataPolicy(DataPolicy.NoSave)]</c> and
+        /// <c>NoSaveVelocity</c> is marked <c>[DataPolicy(DataPolicy.NoScenario)]</c> and
         /// must be absent from the serialized DOM.
         /// </summary>
         [Fact]
@@ -245,7 +289,7 @@ namespace Fdp.Toolkit.Scenario.Tests
             var entityNode   = (JsonObject)entitiesNode.First().Value!;
 
             Assert.False(entityNode.ContainsKey("NoSaveVelocity"),
-                "NoSave component must be absent from the DOM.");
+                "NoScenario component must be absent from the DOM.");
             Assert.True(entityNode.ContainsKey("DummyPosition"),
                 "Saveable component must still appear in the DOM.");
         }

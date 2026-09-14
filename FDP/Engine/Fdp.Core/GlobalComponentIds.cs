@@ -351,7 +351,7 @@
 
         // â”€â”€ Commander-Subordinate hierarchy components (AI tier, IDs 182-184 reserved in HrotComponentIds) â”€
 
-        /// <summary><c>UnitRoster</c> â€” fixed-capacity subordinate list on the commanding entity (AI tier); NoSave (derived from UnitSubordinate records).</summary>
+        /// <summary><c>UnitRoster</c> â€” fixed-capacity subordinate list on the commanding entity (AI tier); NoScenario (derived from UnitSubordinate records).</summary>
         public const int UnitRoster = 182;
 
         /// <summary><c>UnitSubordinate</c> â€” generation-safe commander reference and tactical designation on subordinate entities (AI tier).</summary>
@@ -420,34 +420,34 @@
         // Animation components: replicated channels, internal executors, queues.
         // DD-Fake §11.1 allocation block.
 
-        /// <summary><c>AnimationChannel</c> – animation playback intent channel (replicable, NoSave).</summary>
+        /// <summary><c>AnimationChannel</c> – animation playback intent channel (replicable, NoScenario).</summary>
         public const int AnimationChannel = 220;
 
-        /// <summary><c>LookAtChannel</c> – aim/look-at targeting overlay (replicable, NoSave).</summary>
+        /// <summary><c>LookAtChannel</c> – aim/look-at targeting overlay (replicable, NoScenario).</summary>
         public const int LookAtChannel = 221;
 
-        /// <summary><c>StanceIntent</c> – desired stance transition descriptor (replicable, NoSave).</summary>
+        /// <summary><c>StanceIntent</c> – desired stance transition descriptor (replicable, NoScenario).</summary>
         public const int StanceIntent = 222;
 
-        /// <summary><c>StanceStatus</c> – current stance and transition progress (replicable, NoSave).</summary>
+        /// <summary><c>StanceStatus</c> – current stance and transition progress (replicable, NoScenario).</summary>
         public const int StanceStatus = 223;
 
-        /// <summary><c>AnimationMontageQueue</c> – chained montage sequence buffer (replicable, NoSave).</summary>
+        /// <summary><c>AnimationMontageQueue</c> – chained montage sequence buffer (replicable, NoScenario).</summary>
         public const int AnimationMontageQueue = 224;
 
-        /// <summary><c>AnimationMontageQueueState</c> – queue playback progress (replicable, NoSave).</summary>
+        /// <summary><c>AnimationMontageQueueState</c> – queue playback progress (replicable, NoScenario).</summary>
         public const int AnimationMontageQueueState = 225;
 
-        /// <summary><c>LookAtExecutorState</c> – internal look-at execution state (not replicable, NoSave).</summary>
+        /// <summary><c>LookAtExecutorState</c> – internal look-at execution state (not replicable, NoScenario).</summary>
         public const int LookAtExecutorState = 237;
 
-        /// <summary><c>CharacterAnimationDefRuntime</c> – baked animation definition handle (not replicable, NoSave).</summary>
+        /// <summary><c>CharacterAnimationDefRuntime</c> – baked animation definition handle (not replicable, NoScenario).</summary>
         public const int CharacterAnimationDefRuntime = 238;
 
-        /// <summary><c>AnimationExecutorState</c> – internal animation slot table (not replicable, NoSave).</summary>
+        /// <summary><c>AnimationExecutorState</c> – internal animation slot table (not replicable, NoScenario).</summary>
         public const int AnimationExecutorState = 239;
 
-        /// <summary><c>FakeAnimBackendState</c> – fake backend per-entity state (not replicable, NoSave). Placeholder for Phase 1.</summary>
+        /// <summary><c>FakeAnimBackendState</c> – fake backend per-entity state (not replicable, NoScenario). Placeholder for Phase 1.</summary>
         public const int FakeAnimBackendState = 240;
 
         // IDs 215–219, 226–236, 241–255 are reserved for future animation/toolkit components.

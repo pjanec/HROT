@@ -174,6 +174,7 @@ namespace Hrot.ExCon
         // ── HEXAG2-S012: factory-managed slave orchestration handles ──────────
         private ISlaveOrchestrationTranslator?        _slaveTranslator;
         private IOrchestrationObserver?               _observer;
+        private Hrot.ExCon.Observer.ExConObserverState? _observerState;   // CE-277(c3): ExCon's persistable console state
         private ClusterUiCache?                   _uiCache;
         private ClusterScenarioPanel?             _clusterPanel;
         private Hrot.Orchestrator.Panels.ClusterDiagnosticsPanel? _clusterDiagnosticsPanel;
@@ -374,6 +375,15 @@ namespace Hrot.ExCon
             _clusterSlave.RegisterHandler(new ReferenceArchiveHandler(
                 OrchestrationConstants.ResolveStagingRoot(), iosNodeId));
 
+            // ⭐ CE-277(c3) — ExCon DOES contribute to a distributed scenario save, in its OWN
+            //   intentionally-incompatible format (observer camera state; $meta.docType="ExCon.Observer").
+            //   The orchestrator merge routes it to foreign/ verbatim and pushes it back to ExCon on load.
+            //   (This refines the "ExCon does not save scenario fragments" note above: it saves its console
+            //   state, not an ECS slice.)
+            _observerState = new Hrot.ExCon.Observer.ExConObserverState();
+            _clusterSlave.RegisterHandler(
+                new Hrot.ExCon.Observer.ExConScenarioSaveHandler(_observerState, iosNodeId));
+
             // Diagnostic dumps: ExCon contributes logs and ACKs CollectDiagnostics.
             var exConArchService = new ArchitectureDiagnosticsService(() => null);
             var exConEntityService = new NullEntityStateExtractionService();
@@ -535,6 +545,11 @@ namespace Hrot.ExCon
             _observer?.Tick();
             _uiCache?.Update();
             _clusterPanel?.Update(deltaTime);
+
+            // CE-277(c3): publish the observer state so GET /panels/excon_observer can prove a restore.
+            if (_observerState != null && Fdp.Diagnostics.Contracts.Panels.PanelSnapshot.CaptureEnabled)
+                Fdp.Diagnostics.Contracts.Panels.PanelSnapshot.Register(
+                    new Hrot.ExCon.Observer.ExConObserverPanelViewModel(_observerState));
 
             _mock?.Update(deltaTime);
         }

@@ -30,9 +30,12 @@ namespace Fdp.Toolkit.NetworkSpawning.Tests
     /// flag reaches the published command; ⛔ only this one proves the flag <b>does something</b>.</para>
     ///
     /// <para>⭐ It runs the REAL <see cref="NetworkSpawningSystem"/> and the REAL
-    /// <see cref="ScenarioSerializer"/>, so it also pins the two facts §7.3 rests on:
-    /// <c>ProcessSpawn</c> has no owner filter, and <c>CollectSaveableEntities</c> filters on
-    /// <see cref="ScenarioIgnoreTag"/> alone.</para>
+    /// <see cref="ScenarioSerializer"/>, so it pins that <c>ProcessSpawn</c> has no owner filter and that
+    /// <see cref="ScenarioIgnoreTag"/> alone excludes the transient sketch here. ⚠ These entities are
+    /// LOCALLY owned (<c>OwnerNodeId == LocalNodeId</c>), so they pass the ownership arm of the gate;
+    /// <c>CollectSaveableEntities</c> ALSO gates on ownership now (<c>CE-275</c> ② — a non-owner drops a
+    /// replicated entity), covered by the ownership rails in <c>ScenarioSerializerTests</c> and
+    /// <c>AuthorityExtensionsTests</c>. 📄 <c>docs/DESIGN_Distributed_Scenario_Persistence.md</c> §6.</para>
     /// </summary>
     public class TransientSpawnTagRails
     {

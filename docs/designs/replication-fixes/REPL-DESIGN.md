@@ -1,3 +1,18 @@
+<!--STATUS
+state: LIVE, DATED (2026-03) — read against newer designs before quoting
+updated: 2026-09-13
+known-rot: ⚠ NOT RE-VERIFIED as a whole. §4.1's account of ghost creation and promotion predates P2
+  (2026-09-11), which moved GhostPromotionSystem's registrar out of NedReplicationModule into
+  EntityCreationPack, and predates the DERIVED promotion gate (CE-265, 2026-09-13).
+owns: ⭐ §4.4 SubEntityCleanupSystem — child/sub-entity TEARDOWN, which no newer design covers.
+known-conflict: ⚠ this file's own header links to ./design-talk.md, ./REPL-TASK-DETAIL.md and
+  ./REPL-TASK-TRACKER.md — ALL THREE 404 here. Only REPL-DESIGN.md was copied into docs/designs/;
+  the siblings live in .dev/_DONE/replication-fixes/. Pre-existing, measured 2026-09-13.
+related-designs:
+  - ../../DESIGN_Entity_Genesis_End_To_End.md — ⭐ THE LANDING PAGE for the CURRENT genesis path; read
+    it before §4.1. Its §6 names this file as the owner of child teardown.
+  - ../tkb-1/DESIGN.md — §6.6a/§6.6b own the promotion gate as it works now.
+-->
 # Replication Fixes Design
 
 **Version:** 2.0  

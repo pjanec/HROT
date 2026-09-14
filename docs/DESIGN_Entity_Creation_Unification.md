@@ -18,12 +18,16 @@ current-answer: §5 is the plan. Steps 1, 2 and 4 are BUILT. Step 1 + 2 (2026-08
     P2 = relocate GhostPromotionSystem from NedReplicationModule into EntityCreationPack, add+remove in
          ONE commit — UNBLOCKED, the next buildable step; it also closes "a BDC node never promotes its
          ghosts" (BdcReplicationModule.cs:66).
-    P3 = AUTO-TAKEOVER / role-affinity ownership — 📄 docs/DESIGN_Role_Affinity_Ownership.md,
-         build-state READY-TO-BUILD, "Nothing here is built yet", §6 steps 0→3b. ⚠ Its §5 holds THREE
-         OPEN DECISIONS that are the USER's to settle first (①c the execution gate · ② nobody holds the
-         role · ③ multiple Brain nodes).
-  ⛔⛔ "P1 done" DOES NOT MEAN ENTITY-CREATION UNIFICATION IS DONE — P3 is the unimplemented half, and a
+    P2 = ✅ DONE 2026-09-11 (Role_Affinity §6a).
+    P3 = AUTO-TAKEOVER / role-affinity ownership — 📄 docs/DESIGN_Role_Affinity_Ownership.md.
+         ⛔⛔ THIS LINE SAID "build-state READY-TO-BUILD, nothing here is built yet, §6 steps 0→3b" AND
+         THAT IS SUPERSEDED (2026-09-13): P3 steps 0a→4 ARE BUILT, its three §5 decisions are all SETTLED
+         by the user, and CGF/SimHost now hold real role policies with the execution gate on. What remains
+         there is step 3c (a boot warning) and the follow-on registration work. Read ITS §6i first.
+  ⛔⛔ "P1 done" DOES NOT MEAN ENTITY-CREATION UNIFICATION IS DONE — P3 was the unimplemented half, and a
   reader who stops at this file will conclude the opposite. That is exactly what happened on 2026-09-10.
+  ⭐ 2026-09-13: §4.1 below now answers the ownership question a reader of THIS file actually asks, so the
+  pointer is no longer the only thing standing between them and a wrong assumption.
   ⚠ ALSO: §3.4's TWO-METHOD API shape is SUPERSEDED by docs/DESIGN_Entity_Authoring_Surface.md
   (READY-TO-BUILD, ONE method RequestEntityCreation with an owner parameter). See this block's
   'supersedes' note in that file.
@@ -93,9 +97,20 @@ mechanism: §3.4a (new 2026-08-31) explains WHY double consumption is possible �
   broadcast double-buffer (ManagedEventStream.Read() returns _front; only Swap() clears), so every
   reader of an event type gets the full list. Read it before touching any order-consuming system.
 related-designs:
+  - DESIGN_Entity_Genesis_End_To_End.md — ⭐ THE LANDING PAGE. Owns the END-TO-END STAGE SEQUENCE
+    (request → spawn → grant → ghost → promotion → takeover → Active) and nothing else; every stage
+    routes back to its owner, including this one. Read it FIRST if you do not already know where in
+    the genesis path your question sits.
   - DESIGN_Entity_Authoring_Surface.md — owns the CALLER-side surface (EntityCreation.RequestEntityCreation,
     the AUTHOR vs TRANSLATOR rule, the per-host authoring tails). It SUPERSEDES §3.4's two-method API shape
     here; §3.4's owner TABLE and its ReliableInitType reasoning stay live in THIS document.
+  - DESIGN_Role_Affinity_Ownership.md — owns WHO OWNS WHICH COMPONENT once the entity exists (the role
+    tables, the creator's birthright, the promote-leg claim). This document owns the PACK that builds the
+    two systems that apply it. ⇒ §4.1 here answers only the question a reader of THIS file asks — "any node
+    can create an entity, so who owns its EntityInfo?" — and points there for everything else.
+  - DESIGN_Distributed_Scenario_Persistence.md — the `OwnerNodeId` this pipeline stamps at creation IS the
+    entity-level SAVE ownership that the distributed scenario save gates on (`HasAuthority`). That doc owns
+    the save/load mechanism; this one owns the creation that sets the owner.
 -->
 # DESIGN — entity creation is assembled by hand at six sites; make it a pack
 
@@ -1497,6 +1512,29 @@ evidence the live save path writes `NetworkAuthority` at all, so there was nothi
 ⚠ **Still unmeasured:** a round-trip *(save a scenario, grep the output)* would settle it as proof rather
 than as source-reading. ⭐ Cheap; do it before anyone re-opens this.
 
+> ✅⭐⭐⭐ **MEASURED `2026-09-14` (CE-275) — THE ROUND-TRIP IS DONE, AND IT REVERSES THE PREMISE.**
+> Rail: `FDP/Toolkits/Fdp.Toolkits.Tests/Scenario/DataPolicySaveContextMeasurement.cs` (green). Findings:
+> ① `DataPolicy` has THREE disjoint bits — `NoSnapshot` / `NoRecord` / `NoSave` — with disjoint consumers:
+> `GetSaveableMask`(`NoSave`) is read ONLY by `ScenarioSerializer` (scenario), `GetRecordableMask`(`NoRecord`)
+> ONLY by `RecorderSystem` (the `.fdp` checkpoint). ⇒ **`NoSave` is scenario-ONLY and CANNOT affect the
+> checkpoint** — so *"these components are required by the Checkpoint pipeline"* does not hold for `NoSave`.
+> ② The **`ScenarioSerializer` save path DOES write `NetworkAuthority`** (round-trip: `NetworkAuthority` present
+> in the DOM, `NetworkOwnership` — which has `NoSave` — absent). The shipped files were not an artefact of a
+> dead path; the live scenario save genuinely emits it. `StagingEntityExtractor.BuildStaticMask` is a
+> **different** (CGF-staging / load-side) path, so it does NOT cover the `ScenarioSerializer` save. ⇒ there is
+> a **GAP**, not a duplicate. ⭐ **Therefore `[DataPolicy(NoScenario)]` on `NetworkAuthority` is a clean,
+> checkpoint-safe scenario-only exclusion** — the *"attribute that prevents saving to scenario"* the user ruled
+> for `2026-09-04`. Tracked as **CE-277(e)**; still OUT of the mechanical merge.
+> 📄 `DESIGN_Distributed_Scenario_Persistence.md` §7.
+>
+> ✅✅ **APPLIED `2026-09-14`, WITH A MEASURED SCOPE CORRECTION.** The flag went on **`NetworkAuthority` +
+> `DescriptorOwnership` ONLY** (the process-local pair). ⛔ It was FIRST applied to `NetworkIdentity`/
+> `TkbIdentity` too and **10 `StagingEntityExtractorTests` went red**: the load path READS the network id +
+> TkbType back out of the scenario DOM (`StagingEntityExtractor.cs:239/280/298/305`), so those two MUST stay in
+> the file. ⇒ ⭐⭐ `BuildStaticMask`'s strip-from-`InitialComponents` is a DIFFERENT concern from save-exclusion,
+> and the *"no hardcoded exclusion needed"* idea (CE-277(e) part 2) is **DISPROVEN** — the consume-and-strip
+> pair is its irreducible core.
+
 ⇒ ⭐⭐ **Consequence for `D5`:** unchanged in substance — the node-id widening has **no scenario-format
 impact** — but for a *better* reason: the extractor already keeps the component out, so `D5` never needed
 a migration **and** never needed the attribute.
@@ -1728,6 +1766,66 @@ sequenceDiagram
 
 ⭐⭐ **Read the two together and the design is one sentence:** ⭐⭐⭐ **the pack builds the same boxes on
 every node, and the authoring code picks which sequence it wants by setting one field.**
+
+### 4.1 ⭐⭐⭐ WHO OWNS WHAT AT BIRTH — **the creator keeps everything no ROLE claims** *(`2026-09-13`)*
+
+> 🔒 **The question this section exists to answer**, asked by the user after `P3` step 4 shipped:
+> *"if any node now can create entity, who owns entityInfo component of such entity? it needs to be the
+> creator, because entity info is not a role bound component, right?"*
+> ⭐⭐⭐ **Yes.** ⛔ And it is **not** a happy accident — it is the property the role tables are SHAPED to
+> preserve, and the shape is the non-obvious part.
+
+⚠ **This design's own invariant creates the question.** The pack has **no opt-out** *(§3.1)* — 🔒 *"should
+not restrict any ecs enabled node from creating own networked entities"* — so **every** node reaches
+`NetworkSpawningSystem`. ⇒ if role affinity narrowed ownership naively, the very capability this document
+exists to guarantee would be the thing it broke.
+
+#### 📐 The mask arithmetic, which is the whole answer
+
+```mermaid
+flowchart LR
+    subgraph SPACE["the 512 component ids"]
+        BC["birth-critical<br/>SimTransform"]
+        BO["brain-only<br/>BehaviorState, blackboards,<br/>channels, intents"]
+        UN["EVERYTHING ELSE<br/>EntityInfo, health,<br/>map display, hierarchy"]
+    end
+    BO --> BRAIN["Brain owned<br/>= ALL − birth-critical"]
+    UN --> BRAIN
+    UN --> MUSCLE["MuscleGround owned<br/>= ALL − birth-critical − brain-only"]
+    BC --> BIRTH["creator's birthright<br/>whatever its role"]
+    BIRTH --> BRAIN
+    BIRTH --> MUSCLE
+```
+
+*What the picture shows that the prose hid: `EntityInfo` is in the **unclassified** bucket, and the
+unclassified bucket feeds **BOTH** role masks. There is no third arrow for it to take.*
+
+| the leg | what happens to `EntityInfo` |
+|---|---|
+| ⭐⭐ **CREATE** — `NetworkSpawningSystem.cs:237`, `AuthorityMask &= OwnableMask(...)` | the creator's role mask **contains** it ⇒ the bit survives the intersection ⇒ ✅ **the creator owns it**, on any node, unchanged from before `P3` |
+| ⚠ **PROMOTE** — `GhostPromotionSystem.cs:261`, a bare `BitwiseOr` with no "is it already owned elsewhere" guard | the promoting node **also** sets the bit on its ghost. ⛔ Two nodes, one bit — see the honesty note below |
+
+#### ⛔⛔ WHY A COMPLEMENT AND NOT A LIST — **because an enumeration would break THIS document's invariant**
+
+📐 The create leg **REPLACES** the blanket *"I own everything I materialised"* grant; it does not refine
+it. ⇒ a positive per-role list is a **whitelist**, and everything off it becomes **unowned** — a
+SimHost-created tank owning the ~20 classified components and **nothing else**, which is `CE-256`.
+🔒 **That is why "any node may create an entity" and "ownership is role-derived" can both be true.**
+
+📄 **The rule, the full argument and the upgrade path live in
+[`DESIGN_Role_Affinity_Ownership.md`](DESIGN_Role_Affinity_Ownership.md) §3.9c** — ⛔ **that section owns
+them; this one owns only the creation-side question.** ⚠ If those tables ever become positive
+enumerations, **§4.1's answer changes** and must be updated in the same commit.
+
+#### ⚠ THE HONESTY NOTE — **the mask says "both", and that is tolerated, not correct**
+
+⛔ On the promote leg both nodes end up with the `EntityInfo` bit set *(a bare `BitwiseOr`, no
+"is it owned elsewhere" guard)*. 📐 Harmless **today** because `EntityInfoEgressTranslator.cs:116` gates on
+the **entity-level** `NetworkAuthority`/`DescriptorOwnership` — ⛔ **no egress translator reads the
+per-component `AuthorityMask` at all** *(measured: `Role_Affinity` §3.6)* — and the promoter is not
+`PrimaryOwner`, so it publishes nothing.
+
+⇒ ⭐ **for anything that ACTS on it, the creator owns `EntityInfo`.**
 
 ## 5. ⭐ Sequencing
 

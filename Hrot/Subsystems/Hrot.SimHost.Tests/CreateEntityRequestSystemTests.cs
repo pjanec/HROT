@@ -579,6 +579,59 @@ namespace Hrot.SimHost.Tests
             Assert.Contains(dtoCommands[0].Grants, g => g.DescriptorTypeId == DescriptorTypeOrdinals.NavigationStatus && g.NodeId == 11);
         }
 
+        /// <summary>
+        /// ⭐⭐⭐ <c>CE-271</c> — <b>a NON-ARBITER local owner distributes its non-role components via
+        /// the auto-takeover grant, exactly as the arbiter does.</b>
+        ///
+        /// <para>🔒 <c>R-138</c> (canon): <i>"THE SYSTEM IS FULLY DISTRIBUTED: EVERY ECS NODE CAN CREATE
+        /// ENTITIES … a node that originates its own entity … authority moves at runtime over the
+        /// <c>OwnershipUpdate</c> topic, with the previous owner symmetrically yielding."</i> A request
+        /// TARGETED AT THIS NODE (<c>OwnerAppInstanceId == LocalNodeId</c>) is serviced locally and this
+        /// node OWNS the entity — so it must hand off the components its role does not cover, the same
+        /// birth-critical handoff the design names (<c>DESIGN_Role_Affinity_Ownership.md</c> §3.1).</para>
+        ///
+        /// <para>⛔ <b>The defect this rail reproduces:</b> grant publication was gated on
+        /// <c>isDefaultProcessor</c> — the broadcast TIEBREAKER for <c>Owner == 0</c> requests, NOT an
+        /// authority gate (<c>Q65</c> §4). That is the pre-auto-takeover <i>"the arbiter is the sole
+        /// owner"</i> assumption, valid only before <c>DeferredTakeOwnership</c> existed. A non-arbiter
+        /// creator (e.g. IG under <c>R-138</c>) therefore kept every component and handed off nothing, so
+        /// a Muscle could never take <c>dtWorldPos</c> and the entity was frozen from the cluster's view.</para>
+        ///
+        /// <para>⚠ It is impossible for two nodes to publish grants for one entity: exactly one node
+        /// services a given creation (the level-1 routing guard, <c>IsHandledLocally</c>), and that node
+        /// is the one publishing here. So un-gating cannot double-grant.</para>
+        /// </summary>
+        [Fact]
+        public void ProcessRequest_NonArbiterLocalOwner_PublishesDeferredTakeOwnership()
+        {
+            var repo    = CreateWorld();
+            var tkb     = CreateTkb();
+            var source  = new StubRequestSource();
+            source.Enqueue(MakeValidRequest());   // OwnerAppInstanceId == LocalNodeId ⇒ handled locally, this node owns it
+
+            var ackSink = new StubAckSink();
+            var idAlloc = new StubIdAllocator(startId: 100);
+            var ownershipStrategy = new StubOwnershipStrategy();
+            ownershipStrategy.AddGrant(DescriptorTypeOrdinals.WorldPos, 11);
+            ownershipStrategy.AddGrant(DescriptorTypeOrdinals.NavigationStatus, 11);
+
+            var system = new CreateEntityRequestSystem(
+                source, ackSink, tkb, idAlloc, LocalNodeId,
+                jsonAttributeCompiler: null,
+                finalizationSystem: null,
+                isDefaultProcessor: false,          // ⛔ NOT the arbiter — a plain local creating owner
+                ownershipStrategy: ownershipStrategy);
+
+            system.Execute(repo, 0f);
+
+            repo.Bus.SwapBuffers();
+            var dtoCommands = ((ISimulationView)repo).ReadManagedEvents<DeferredTakeOwnershipCommand>();
+
+            Assert.Single(dtoCommands);
+            Assert.Contains(dtoCommands[0].Grants, g => g.DescriptorTypeId == DescriptorTypeOrdinals.WorldPos && g.NodeId == 11);
+            Assert.Contains(dtoCommands[0].Grants, g => g.DescriptorTypeId == DescriptorTypeOrdinals.NavigationStatus && g.NodeId == 11);
+        }
+
         // -- C013: PreAllocatedNetworkId and ChildComponentOverrides ──────────────────────────
 
         private static TkbDatabase CreateTkbWithChild(int childInstanceId = 2, long childTkbType = 43L)

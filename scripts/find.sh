@@ -72,8 +72,17 @@ except Exception:
   if [ -z "$PROJ" ]; then
     GRAPH_NOTE="NO INDEXED PROJECT -- run: $BIN cli index_repository --repo-path \"$PWD\"  (tens of seconds)"
   else
-    ARGS=(cli search_code --project "$PROJ" --pattern "$PATTERN" --limit "$LIMIT")
-    [ -n "$GLOB" ] && ARGS+=(--file-pattern "$GLOB")
+    # ⭐⭐⭐ MEASURED 2026-09-12: this build of the CLI prints a HUMAN-READABLE TABLE, not
+    #   JSON, and the flag-form (--project/--pattern) is not what it parses. The JSON-args
+    #   form + the GLOBAL --json flag is what produces machine-readable output.
+    # ⛔⛔ The previous invocation produced "PARSE FAILED -- no JSON returned" on EVERY call,
+    #   for weeks, and a session read that as "the graph is unavailable" and silently used
+    #   grep alone. That is the exact failure this script exists to prevent, so the parser
+    #   below now understands BOTH shapes and the note says which one it got.
+    CM_JSON="{\"project\":\"$PROJ\",\"pattern\":\"$PATTERN\",\"limit\":$LIMIT"
+    [ -n "$GLOB" ] && CM_JSON="$CM_JSON,\"file_pattern\":\"$GLOB\""
+    CM_JSON="$CM_JSON}"
+    ARGS=(cli --json search_code "$CM_JSON")
     # The binary logs level=... lines to stdout alongside the JSON, and an error is
     # itself JSON -- so take the last {...} line and let python classify it.
     PARSED="$("$BIN" "${ARGS[@]}" 2>/dev/null | grep '^{' | tail -1 | python3 -c '
@@ -87,6 +96,29 @@ except Exception as e:
     print("NOTE\tPARSE FAILED -- %s" % e); raise SystemExit
 if d.get("error"):
     print("NOTE\t%s -- %s" % (d["error"], d.get("hint", ""))); raise SystemExit
+# ⭐ SHAPE B (measured 2026-09-12): the MCP envelope {"content":[{"type":"text","text":...}]}
+#   carrying a TEXT TABLE. Unwrap it into the same fields shape A uses, so one parser below
+#   handles both and neither shape can silently look like an absence.
+if "content" in d and "results" not in d:
+    txt = "".join(c.get("text", "") for c in d.get("content", []) if isinstance(c, dict))
+    rows, tg, tr = [], None, None
+    for line in txt.splitlines():
+        st = line.strip()
+        if st.startswith("total_grep_matches:"):
+            try: tg = int(st.split(":", 1)[1].strip())
+            except Exception: pass
+            continue
+        if st.startswith("total_results:"):
+            try: tr = int(st.split(":", 1)[1].strip())
+            except Exception: pass
+            continue
+        if not line.startswith("  ") or st.startswith("(") or ":" in st.split(" ")[0]:
+            continue
+        parts = st.split()
+        # cols: qn label file lines matches in out  -> the path is field 3
+        if len(parts) >= 3:
+            rows.append({"file": parts[2]})
+    d = {"results": rows, "total_grep_matches": tg, "total_results": tr}
 # raw_matches[].file is NOT always a path -- on markdown hits it can carry a prose
 # fragment, which then prints as a bogus "file the graph found that grep missed".
 # Keep only values that actually look like repo-relative paths.

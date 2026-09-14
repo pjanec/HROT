@@ -1,3 +1,32 @@
+<!--STATUS
+state: LIVE
+updated: 2026-09-12
+current-answer: §1 (Phase 1, the brain-death lifecycle) is LIVE and BUILT — it is the event architecture
+  every behavior/mission system still runs on.
+known-rot: ⛔⛔ §2 / Phase 2 — "Right-Click Mission UX" — IS SPECIFIED HERE AND IS NOT LIVE IN PRODUCTION.
+  📐 Measured 2026-09-12 (CE-259bg): SimHostVisualization.HandleRightClickForEntity has ZERO production
+  callers (grep: 1 declaration + 4 test call sites; search_graph in-degree 4, all tests), and no
+  `OnWorldClick` exists anywhere in Hrot.SimHost — the lambda its doc-comment says it was extracted from
+  is gone. ⇒ the two-path brain-aware routing §2.1 prescribes does not run, and because
+  SimHostVisualization.cs:422 is the ONLY production call of ISimHostMissionSender.SendNavigateToPoint,
+  NO live path from the SimHost map reaches the mission machinery at all.
+  ⭐ THE GESTURE MOVED, it was not abandoned: right-click on the canvas is now owned by the entity /
+  canvas context menu (see related-designs), which DOES project a "Move Here" item — but nothing
+  registers a handler for GlobalActionIds.MoveHere, so the item is inert (tracked as CE-259bi).
+  ⇒ ⛔ Do NOT quote §2.1 as describing current behaviour; ⛔ and do NOT delete the handler — it is
+  UNREFERENCED, NOT UNINTENTIONAL, and the fix is to ROUTE it into the MoveHere action handler.
+  ⚠ §2.1's brain-ACTIVE predicate is also the wrong question for a Muscle-only node (CE-259bg): liveness
+  does not replicate, so only "could this entity have a brain" (BehaviorProfileDto.BrainTier) is
+  answerable there. Step 16 of the end-to-end lifecycle below is the capability that a capability-only
+  rule would cost.
+related-designs:
+  - ../gizmos-1/canvas-context-menu-design.md — owns the RIGHT-CLICK GESTURE this document's §2 assumed:
+    hit-test → interned JSON → popup, with no presentation-tier branching. It supersedes §2.1's gesture
+    while leaving §2.1's ROUTING RULE unhomed.
+  - ../../DESIGN_Role_Affinity_Ownership.md — owns which components a node's ROLE lets it materialise at
+    all. §3.9 is why §2.1's BehaviorState predicate cannot survive on a Muscle-only node.
+-->
+
 # BD1 — Brain-Death & Mission-Lifecycle Fixes: Design Document
 
 ## Overview

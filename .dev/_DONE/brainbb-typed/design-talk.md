@@ -31,7 +31,7 @@ You can safely remove the `BlackboardMemoryLayout` overlay struct and redefine `
 ```
 [StructLayout(LayoutKind.Explicit, Size = BehaviorConstants.BrainBlackboardByteSize)]
 [ComponentId(GlobalComponentIds.BrainBlackboard)]
-[DataPolicy(DataPolicy.NoSave)]
+[DataPolicy(DataPolicy.NoScenario)]
 public unsafe struct BrainBlackboard
 {
     [FieldOffset(0)]

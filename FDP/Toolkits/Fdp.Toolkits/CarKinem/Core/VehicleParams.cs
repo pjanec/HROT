@@ -9,7 +9,7 @@ namespace CarKinem.Core
     /// Stored in global NativeArray<VehicleParams> table.
     /// </summary>
     /// <remarks>
-    /// <b>Data policy:</b> marked <see cref="DataPolicy.NoSave"/> -- this component is
+    /// <b>Data policy:</b> marked <see cref="DataPolicy.NoScenario"/> -- this component is
     /// entirely <i>derived</i>, built by <c>VehicleKinematicsTkbTranslator</c> from the
     /// TKB's <c>Gen.VehicleParameters</c> descriptor at entity creation.  The TKB is the
     /// single source of vehicle parameters and is present on every node offline, so
@@ -21,13 +21,13 @@ namespace CarKinem.Core
     /// through save/load looking meaningful while changing nothing.
     /// </para>
     /// <para>
-    /// Same reasoning as <c>UnitRoster</c>, which is <c>NoSave</c> because it is derived
+    /// Same reasoning as <c>UnitRoster</c>, which is <c>NoScenario</c> because it is derived
     /// from <c>UnitSubordinate</c> records.
     /// </para>
     /// </remarks>
     [StructLayout(LayoutKind.Sequential)]
     [ComponentId(GlobalComponentIds.VehicleParams)]
-    [DataPolicy(DataPolicy.NoSave)]
+    [DataPolicy(DataPolicy.NoScenario)]
     public struct VehicleParams
     {
         public VehicleClass Class;   // Vehicle classification

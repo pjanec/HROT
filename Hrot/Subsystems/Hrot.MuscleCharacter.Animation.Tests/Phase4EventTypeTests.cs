@@ -109,19 +109,19 @@ namespace Hrot.MuscleCharacter.Animation.Tests
             Assert.Equal(8213, GetEventId<AnimNotifyEvent>());
         }
 
-        // ---- ANC-P4-01: All events have [DataPolicy(NoRecord)] -------------
+        // ---- ANC-P4-01: All events have [DataPolicy(NoReplay)] -------------
 
         [Fact]
         public void AllAnimationEvents_HaveDataPolicyNoRecord()
         {
-            Assert.True(HasDataPolicy<MontageStartedEvent>(DataPolicy.NoRecord));
-            Assert.True(HasDataPolicy<MontageEndedEvent>(DataPolicy.NoRecord));
-            Assert.True(HasDataPolicy<MontageSectionAdvancedEvent>(DataPolicy.NoRecord));
-            Assert.True(HasDataPolicy<StanceChangedEvent>(DataPolicy.NoRecord));
-            Assert.True(HasDataPolicy<FootstepEvent>(DataPolicy.NoRecord));
-            Assert.True(HasDataPolicy<HitWindowOpenedEvent>(DataPolicy.NoRecord));
-            Assert.True(HasDataPolicy<HitWindowClosedEvent>(DataPolicy.NoRecord));
-            Assert.True(HasDataPolicy<AnimNotifyEvent>(DataPolicy.NoRecord));
+            Assert.True(HasDataPolicy<MontageStartedEvent>(DataPolicy.NoReplay));
+            Assert.True(HasDataPolicy<MontageEndedEvent>(DataPolicy.NoReplay));
+            Assert.True(HasDataPolicy<MontageSectionAdvancedEvent>(DataPolicy.NoReplay));
+            Assert.True(HasDataPolicy<StanceChangedEvent>(DataPolicy.NoReplay));
+            Assert.True(HasDataPolicy<FootstepEvent>(DataPolicy.NoReplay));
+            Assert.True(HasDataPolicy<HitWindowOpenedEvent>(DataPolicy.NoReplay));
+            Assert.True(HasDataPolicy<HitWindowClosedEvent>(DataPolicy.NoReplay));
+            Assert.True(HasDataPolicy<AnimNotifyEvent>(DataPolicy.NoReplay));
         }
 
         // ---- ANC-P4-01: Target field is first field on each event ----------

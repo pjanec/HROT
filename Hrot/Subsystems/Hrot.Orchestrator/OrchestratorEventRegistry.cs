@@ -15,6 +15,7 @@ public static class OrchestratorEventRegistry
         bus.RegisterManaged<ExecutePrefetchIntent>();
         bus.RegisterManaged<PrefetchStagingCompletedEvent>();
         bus.RegisterManaged<ExportArchiveBegunEvent>();
+        bus.RegisterManaged<SaveScenarioJsonBegunEvent>();
         bus.RegisterManaged<ImportArchiveBegunEvent>();
         bus.RegisterManaged<MergeLogsIntent>();
         bus.RegisterManaged<LogMergeCompletedEvent>();

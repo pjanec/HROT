@@ -1,109 +1,121 @@
 <!--STATUS
 state: LIVE
-updated: 2026-09-12
-current-answer: ⚠⚠ THERE ARE NOW **THREE** LIVE STRANDS ON THIS LANE. Read the one you are continuing.
-  ══ STRAND 0 — ENTITY CREATION PROGRAMME. Read this whole block; it is the live work. ══
-  ✅✅✅ DONE THIS SESSION (2026-09-12) — the ELM rewind programme is COMPLETE.
-  docs/designs/replay-and-modules/DESIGN.md §2.1m is build-state: BUILT. All three steps landed in
-  commits ea659a581 (steps 1+2) and 4e7d2285f (step 3); as-built folded in 2b0ffed02.
-  The ELM is cleared at EVERY world replacement (PrepareReplay, every seek, FinalizeReplay/PrepareLive,
-  and the editor preview via PreviewStateBracket); the re-derive is armed ONLY when resuming to a live
-  world; LifecycleSystem AND GhostPromotionSystem are both gated during replay.
-  HN-018 CLOSED. CE-259aq CLOSED. CE-259ar closed by step 3 (see its row).
-  ⛔ ONE RESIDUE, tracked: CE-259av — GhostCreationSystem.BypassLifecycle is STILL not honoured inside
-  CreateGhost, so mgmt-1/DESIGN.md §8.10's "new arrivals materialise directly into Active" is still a
-  specification. Do NOT build it as a drive-by: it changes replay behaviour on every host, and four rails
-  assert the flag flips while none asserts it has an effect.
+updated: 2026-09-14
+current-answer: ⚠⚠ THE LIVE WORK as of 2026-09-14 is the DISTRIBUTED SCENARIO PERSISTENCE build
+  (CE-275) — design DONE and READY-TO-BUILD, implementation NOT started. ⭐⭐⭐ READ
+  docs/blueprints/RESUME_Distributed_Scenario_Persistence.md — it carries the decided facts (do NOT
+  re-derive), the user-approved staged plan (feature-first: A OQ12 → B save gate → C distributed wiring
+  → E merge last, Sonnet-delegated mechanical + Opus hard-check), and the first action. Branch unchanged
+  (claude/reset-working-branch-qd1qpv). ⛔ The older STRANDS below are HISTORY unless you were explicitly
+  told to continue one.
+  ══ (older) STRAND 0 — ROLE-AFFINITY OWNERSHIP (P3) + THE TKB COMPONENT-SET DERIVATION ══
+  ══ STRAND 0 — ROLE-AFFINITY OWNERSHIP (P3) + THE TKB COMPONENT-SET DERIVATION. The live work. ══
+  BRANCH claude/reset-working-branch-qd1qpv, head = the commit carrying this doc.
+  Tree clean. Gates: design-digest --check clean · rulings 34/34 · tracker-counts OK.
 
-  ⭐⭐⭐ THE NEXT WORK, IN THE ORDER THE USER SET (2026-09-12, verbatim: "best do the non ui half of
-  authoring surface first, then p3, then the ui"). ⭐ (a) IS DONE — START AT (b).
+  ⭐⭐⭐ READ FIRST, in this order:
+    1. docs/DESIGN_Role_Affinity_Ownership.md — its STATUS current-answer names §3.9c (the tables are
+       COMPLEMENTS) and §6i (step 4's as-built). ⛔ AND §3.6, which was RETRACTED this session.
+    2. docs/designs/tkb-1/DESIGN.md §6.6 / §6.6a — the whole TKB component-set design and its as-built.
 
-  (a) ✅✅✅ NON-UI HALF OF THE AUTHORING SURFACE — **DONE 2026-09-12**, tracker row CE-259aw.
-      docs/DESIGN_Entity_Authoring_Surface.md is now build-state: BUILDING (non-UI half BUILT); its §8
-      says which half owns each acceptance row, and its STATUS block carries the two as-built deviations.
-      BUILT: EntityCreation.RequestEntityCreation (NINE parameters) · EntityCreation.NodeId ·
-      EntityCreationRouting.DefaultEntityCreationRequestProcessor replacing :49's literal 0 ·
-      the AUTHOR vs TRANSLATOR rule written onto the affordance and at BOTH translator sites (ledger
-      R-145) · four rails in Hrot.SimHost.Tests/EntityCreationPackRails.cs, inverse-edit red-proofed.
-      ⚠ TWO DEVIATIONS worth knowing before touching it: ① the signature has NINE parameters, not §4's
-      eight — `disType` had to be added because CreateEntityRequestSystem copies request.DisType
-      VERBATIM (:221→:490) and derives nothing from TkbType, so an eight-parameter affordance would have
-      stripped the DIS type off every authored entity as soon as ScenarioSpawnAdapter became a thin
-      caller (R-137). ⛔ A cheaper fix was deliberately NOT taken — the request system could default it
-      from the template it already loads, but that changes behaviour for the two translators that pass 0
-      on purpose. ② §4 said "creation.NodeId is already on it" and §6's classDiagram drew it as existing;
-      both FALSE, and the reason is general enough to have been written into the diagram's caption: a
-      <<EXISTS>> stereotype labels the BOX, so a NEW member on an OLD class inherits "exists" silently.
+  ✅✅✅ SHIPPED 2026-09-13
+  CE-264  9943c6c9c  P3 STEP 4 — CGF holds a Brain policy, SimHost a Muscle policy, and gateOnAuthority
+                     comes ON in the same change (§6f's ordering hazard closed by construction).
+                     NEW Hrot.Core/HrotRoleComponentSets.cs — the cluster role tables, authored ONCE;
+                     CreatePolicy(NodeRole) takes a role and NOTHING else. 10 rails, 4 red-proofs.
+                     ⭐ P3 went from "a mechanism every node ran with a null policy" to LIVE.
+  CE-259az 603a05248 file-loaded TKB templates had an EMPTY BirthCriticalComponents. Fixed via an
+                     app-layer convention — ⚠ then SUPERSEDED the same day by CE-266, see below.
+  CE-266  c101e2cc2  [BirthCritical] + [PerInstanceValue] in Fdp.Core, and
+                     TkbTemplate.BirthCriticalComponents becomes a DERIVED READ-ONLY view.
+                     Deleted 8 authoring sites, TkbComponentConventions + its loader call, and
+                     HrotRoleComponentSets' hand-written SimTransform (three producers of one fact).
+                     6 new rails, 2 red-proofs — removing [BirthCritical] from SimTransform reddens
+                     9 rails across 4 files.
 
-  (b) ⭐⭐ P3 — AUTO-TAKEOVER (role-affinity ownership), docs/DESIGN_Role_Affinity_Ownership.md.
-      This is what the user meant by "auto promotion". build-state: BUILDING — steps 0a AND 0 done.
-      ✅ STEP 0 DONE 2026-09-12 (CE-259ay): TkbTemplate.BirthCriticalComponents +
-      AddBirthCriticalComponent<T>(), seeded on every production template, four rails in TkbTemplateTests
-      plus a catalogue-wide rail in HrotEnvironmentTests (red-proofed by un-seeding one template).
-      ✅ STEP 1a DONE 2026-09-12 (CE-259ba): the role-shard seam — IRoleShardProvider + RoleShardKey +
-      SingleNodePerRoleShardProvider in Fdp.Toolkits/Replication, 6 rails, contract rail red-proofed.
-      ✅ STEP 1 DONE 2026-09-12 (CE-259bc): IRoleAffinityPolicy + RoleAffinityPolicy, NO deviation,
-      7 rails, TWO red-proofs each isolating one rail. §6d is its as-built.
-      ⚠ NodeRole MOVED Hrot.Common -> Fdp.Core on 2026-09-12 (user ruling: "roles has nothing to do with
-      concrete network... roles can be defined in fdp if needed as they are pretty generic"). §6c's
-      "opaque int role bits" deviation was RETRACTED the same day and is marked as such — do not build on
-      it. The engine holds the role LABEL only; the role->components BitMask512 table stays the
-      application's ("fdp should not understand what a brain and muscle really mean").
-      ⭐⭐⭐ NEXT: STEP 3 or STEP 3b — ⛔ NOT step 2.
-      ⛔⛔ STEP 2 IS HARD-BLOCKED ON CE-259az. TkbDeserializer builds templates purely from descriptor
-      keys and declares NO components, so a FILE-LOADED template has an empty BirthCriticalComponents —
-      and CreateTkb() is the DEV default while files are the PRODUCTION path. Shipping step 2 first turns
-      every file-loaded template into the origin-flash defect §3.1 exists to prevent, on production only.
-      It is a SCHEMA question (does the TKB file format declare birth-criticality?), not a seeding one.
-      ⭐ STEP 3 (GhostPromotionSystem claims after the translator loop) is NOT blocked: the promote leg
-      does not use BirthCriticalComponents. Its insertion point is :208 (translator loop) / :211-214
-      (promote) — NOT the :122/:129 §3.2 used to name.
-      ⛔ ALSO OPEN, filed 2026-09-12: CE-259bb — delete --role and SimHostApp.ParseRole (user ruling:
-      "--role shoukd be deleted. selecetd --mode shoukld hardcide the role"). ParseRole has ZERO
-      production callers; every host already hardcodes its DefaultRole.
-      ⛔⛔ HARD BLOCKER ON STEP 2, FILED AS CE-259az — DO NOT SHIP STEP 2 BEFORE ANSWERING IT.
-      TkbDeserializer builds templates purely from descriptor keys and declares NO components, so a
-      FILE-LOADED template has an empty BirthCriticalComponents — and CreateTkb() is the DEV default
-      while files are the PRODUCTION path. Step 2 would turn every file-loaded template into the exact
-      origin-flash defect §3.1 exists to prevent, on the production path only. It is a SCHEMA question
-      (does the TKB file format declare birth-criticality?), not a seeding one.
-      ✅ NOT BLOCKED ON THE USER otherwise: §5's three decisions are all resolved (① /①b 2026-09-01;
-      ② approved and ③ ruled 2026-09-10). What remains in §5 is a per-system REVIEW, not a decision.
-      ⚠⚠ STEP 3b IS BIGGER THAN ITS OWN §3.5 SAYS, and §3.5's own numbers are soft — RE-ENUMERATE, do
-      not trust them. The design says "SEVEN un-gated" while its own table names eight beyond
-      BTreeTickSystem, and a 10th file (Fdp.Examples.UrbanCombat/TelemetryReporterSystem.cs) matches the
-      same query. Three of them WRITE cognitive state; HsmTickSystem:110-113 is the non-negotiable second
-      (BehaviorState.BrainTier selects the tier, so gating only BTreeTickSystem leaves every HSM-tier
-      ghost double-ticked). The filter is WithOwned<T>() at QueryBuilder.cs:93 — and it has NINE
-      production call sites, not the three §3.5 claims (six are in Stride/Hrot.Stride.Core, which that
-      grep never scoped). So P3 needs BOTH the narrowed Muscle-only registration AND the query filter.
-      ⭐ THE DESIGN WAS FULLY RE-VERIFIED 2026-09-12 at the user's instruction — its STATUS block's
-      `verified:` field lists every locator that had rotted and is now corrected in place, so do not
-      redo that sweep. §4.1b is a NEW module-relationship diagram; read it before step 3b, it is the
-      one that shows the red band of un-gated tick systems.
+  CE-265  74438cb7f  THE MANDATORY HALF SHIPPED. The promotion gate is DERIVED PER HOST and the file
+                     path has one for the first time. ITkbEntityTranslator gains GetProducedComponents()
+                     (no default impl — all 9 production translators, compiler-enumerated);
+                     NEW MandatoryComponentResolver does the four-way intersection; GhostPromotionSystem
+                     gates on derived ∪ explicit and gained a STALL DIAGNOSTIC (600 frames, once per
+                     (TkbType, component) — ⛔ not a timeout, the ghost still waits).
+                     Deleted DefineVehicle's 2 AddMandatoryComponent calls + AsComposite's EntityInfo
+                     check. 13 rails (10 new + 3 into GhostProtocolTests), 5 red-proofs.
+                     📄 tkb-1/DESIGN.md §6.6b carries the as-built AND the class + sequence UML.
 
-  (c) ⭐ THE UI HALF of the authoring surface — §5/§5b's per-host tails, tracker row CE-259ax, which
-      lists all four pieces AND the §5b.3 hazard that must be built first: delegating to
-      ScenarioSpawnAdapter as it stands HANGS IG (the adapter swallows both notifications IG's remote
-      session needs, so _toolFinished never flips, Finished is never published, ClearSession never runs,
-      and every subsequent placement is then refused by the guard at the top of ActivatePlacementCommand).
-      The affordance it calls now exists, so nothing here is blocked.
+  ⛔⛔ THREE THINGS CE-265 MEASURED THAT THIS DOC PREVIOUSLY GOT WRONG — do not re-derive them:
+  · "DescriptorOwnershipMap needs a UNION accessor" — FALSE. CoveredComponentIds (:173) already was it.
+    The seam law, 25th instance. I wrote that line myself from the class's summary without opening it.
+  · DIRECTION MUST NOT BE FILTERED on the ingress set. ZERO translators under NED's Replication/Map/
+    Ingress/ declare TargetComponentIds — only the EGRESS side overrides the interface default. An
+    "ingress-only" filter yields ∅ and collapses the derivation; GeoSpatialEgressTranslator._targetIds
+    is the ONLY pairing SimTransform has.
+  · §6.6a's "fill both at ITkbDatabase.Register" is NOT BUILDABLE for mandatory. TkbDatabase.cs:20-32 is
+    two dictionary writes with zero host context, and 3 of the 4 inputs are host-local. A TkbTemplate is
+    a SHARED record (one object serves CGF, SimHost, IG, editor) ⇒ a host-local answer has no home on
+    it. The cache lives with the CONSUMER. Same fact as "a TKB file may not carry it", one level down.
 
-  ✅ SEQUENCING CHECK DONE 2026-09-12, so do not redo it: (a) and (b) are INDEPENDENT. Measured in both
-  directions — the authoring surface has ZERO references to role-affinity / auto-takeover / RoleShard /
-  BirthCritical, and P3 has ZERO references to RequestEntityCreation or that design. They act on different
-  axes: the surface is the CALLER side (who asks, whom they nominate as owner), P3 decides component-level
-  authority AFTER the entity exists.
+  ⭐⭐⭐ NEXT: nothing in this strand is in flight. The nearest open items are P3 step 3c (the boot
+    warning) and CE-259bk/bl (role-derived registration, logic packs). ⚠ CE-259bm's premise is STALE:
+    EnforceExplicitComponentIds is read by nothing and ComponentType.cs throws unconditionally.
+    ⚠ Still open from CE-265's original row, on its own merits: the promote-leg role claim is ONE-SHOT
+    (GhostPromotionSystem fires it at promotion, then the entity leaves the query), so components
+    arriving afterwards are never claimed. A real gate makes that far less likely to bite; it does not
+    remove it.
 
-  ⛔ ALSO OPEN, NOT IN THIS ORDER: CE-259au (the construction barrier is vacuous — the module barrier is
-  correct but nobody registers, and the PEER barrier is genuinely dangling) and CE-259as (the unwritten
-  initiator) both wait on Architect_Question_69's asks B and D. Q69 is WRITTEN but only ask B/C/D exist on
-  paper — the relay was used this session for two evidence-only asks (results folded into Q69 §7), and the
-  procedure is docs/consulting-the-architect.md in pjanec/NotebookLmTools (clone ~/nlm-ops and that repo;
-  use notebook "HROT - 279", project simhost, and DO NOT REFRESH — a refresh ingests docs/ and the answer
-  then cites our own question document back).
-  ⛔ ALSO: CE-259at — tracker-counts.py counts only BP- rows, so every CE- row is invisible to it and a
-  green check is NOT evidence a CE- row registered.
+  ⛔⛔ FIVE THINGS THAT WILL BE RE-DERIVED WRONG IF NOT READ FIRST
+  · THE AUTHORITY MASK IS READ BY NO EGRESS TRANSLATOR (§3.6, re-measured). Every production egress calls
+    the ISimulationView EXTENSION, which reads DescriptorOwnership/NetworkAuthority; the overload
+    resolution hides it (packedKey is a long). The mask's WHOLE production readership is SimTransform,
+    BehaviorState, BrainBlackboard, plus a Position query matching ZERO HROT entities. ⇒ narrowing the
+    mask changes what a node EXECUTES, never what it PUBLISHES.
+  · THE ROLE TABLES ARE COMPLEMENTS (§3.9c). Brain = ALL − birthCritical; Muscle = that − brainOnly. An
+    enumerated set is a WHITELIST and reproduces CE-256. EveryUnclassifiedComponentStaysOwnedByBothRoles
+    is the rail a future positive enumeration must argue with.
+  · NO ROLE MAY OWN A BIRTH-CRITICAL COMPONENT, on EITHER leg. GeoSpatialIngressTranslator.cs:90 applies
+    an incoming position only when HasAuthority<SimTransform> is FALSE ⇒ a promoting node that claimed it
+    by role freezes every ghost on that node.
+  · SimTransform PRESENCE IS THE "is this spatial?" PREDICATE — 42 production .With<SimTransform>()
+    filters across 37 files. ⛔ Do NOT make it universal (the Unity-Transform idea): a positionless entity
+    would enter the spatial hash at the origin and become a perception/EQS/ballistics candidate. Global
+    data belongs in SetSingleton, which is not an entity at all.
+  · MANDATORY REQUIREMENTS ARE HOST-DEPENDENT. GhostPromotionSystem.cs:211 has NO registration guard, so a
+    HARD requirement for a component the local host never registers aborts promotion every frame forever,
+    silently. ⇒ a shared TKB FILE may never carry them.
+
+  ⭐⭐ USER RULINGS THIS SESSION — do not re-litigate
+  · "the components the entity have makes the entity a vehicle" → ⛔ NO per-entity-class vocabulary
+    anywhere. That killed a TkbMasterDto⇒vehicle-bundle proposal. DefineVehicle and friends are AUTHORING
+    helpers for the default catalogue only; the file path needs none of them.
+  · "we can add TKB record override any time later … the tkb in-memory record can be just a readonly
+    cache" → the component ATTRIBUTE is the source of truth; the per-type override is DEFERRED, not
+    rejected, and TkbTemplate's property is the seam it lands on.
+  · "i do not want to wait 10 frames by design" → ⛔ SOFT-by-design REJECTED. SoftTimeoutFrames is an
+    EMERGENCY escape only. Requirements are HARD and the derivation must be EXACT.
+  · "sending state on change is what actually happens … almost nothing is sent unconditionally" → the
+    addition rule for [PerInstanceValue] is GUARANTEED BASELINE for a newly spawned entity, ⛔ not
+    "unconditional egress".
+  · "PerInstanceValue" → the attribute's name, chosen by the user over my alternatives.
+  · "ghosting is a deployment property, not content" → UrbanCombat is just a dev/test scenario; whether
+    its entities arrive as ghosts is NOT a property of the content, so the catalogue divergence is DRIFT.
+
+  ⚠⚠ MY FAILURE MODE THIS SESSION, AND IT REPEATED SEVEN TIMES: I PROPOSED A MECHANISM BEFORE MEASURING
+  WHETHER THE EXACT ANSWER WAS ALREADY AVAILABLE. Each was caught by the user, not by me:
+  · "derive birth-critical from TkbMasterDto" — misses area/route, which carry no descriptors yet still
+    need the birthright.
+  · "mandatory = what translators produce" — backwards; producing it is the reason you need NOT wait.
+  · "mandatory = produced ∧ the !HasComponent guard" — the guard is IDEMPOTENCY and sits on ~25 of ~30
+    produced components. It selects nearly everything.
+  · "the catalogues disagree ⇒ per-template policy was intended" — an INFERENCE stated as a measurement.
+  · "the egress must be unconditional" — change-driven egress is the norm AND the point.
+  · "unify the catalogues and it becomes derivable" — unifying makes it UNIFORM; uniform is what makes a
+    CONSTANT safe. Different thing.
+  · relayed-architect claim "translators derive mandatory at load time" — VERIFIED FALSE against source
+    (ITkbEntityTranslator has two members and Inject takes an ENTITY). ⭐ But its CONCLUSION was right for
+    a reason it never stated, which is how the host-dependence fact was found.
+  ⇒ 🔒 AND THE TOOL HALF: I used grep for enumeration claims most of this session and only re-ran them
+  through search_graph when challenged. They held — that was luck, not method. GRAPH FIRST for any
+  complete-set or absence claim; CLAUDE.md says so and it was not followed.
 
   ══ STRAND 1 — MAP INTERACTION / SELECTION / TOOLS (the live one as of 2026-09-10) ══
   ✅✅✅ READ docs/SNAPSHOT_Map_Interaction_Architecture.md FIRST. It is a SNAPSHOT, not an owning
@@ -983,14 +995,14 @@ three grep misses — ⛔ **search the METHOD name, never the file name.**
 |---|---|---|
 | **`B1`** | **Widen `VehicleParametersDto` by `Height`, `TurnRate`, `Mobility`** ⭐ **UNBLOCKED — format-safety measured, see below.** ⚠ **and the drop is FIVE fields, not three** *(+`FuelCapacity`/`FuelConsumption`, latent)* | `FDP/Toolkits/Fdp.Toolkits/Tkb/Domain/VehicleParametersDto.cs` — a `record` with `[TkbDescriptor("Gen.VehicleParameters")]`, **6 fields** *(Mass·Length·Width·MaxSpeedFwd·MaxSpeedRev·MaxAccel)*. ⭐ The source already HAS the three: `Hrot/Engine/Hrot.Core/MapDefinitions/Tkb/SimVehicleDef.cs` carries `Height`, `TurnRate`, `Mobility` *(+FuelCapacity/FuelConsumption)*, and `NedTkbBuilder.WithPhysics` *(`BdcTkbBuilder.cs:78`)* **drops them** under the comment *"Height, TurnRate, Mobility mapped to VehicleParams by translator in Phase 6."* ⛔ **Phase 6 never happened** |
 | **`B2`** | **Route the already-written mapping into the translator** | ⭐⭐ `NedTkbBuilder.BuildVehicleParams(SimVehicleDef)` — `BdcTkbBuilder.cs:271`, **`private static`, ZERO callers**: maps `Mobility→VehicleClass` *(Tracked→Tank · Wheeled→Truck · Infantry→Pedestrian)*, bases on `VehiclePresets.GetPreset` *(`FDP/Toolkits/Fdp.Toolkits/CarKinem/Core/VehicleClass.cs:75-91` is the Tank preset)*, overrides Length/`WheelBase=Length×0.6`/Width/MaxSpeedFwd/MaxSpeedRev/MaxAccel, and computes `MaxSteerRate = TurnRate × π/180`. 🔒 **ROUTE it, do NOT rewrite or delete** *(`CLAUDE.md`: unreferenced is not unintentional)*. Target: `FDP/Toolkits/Fdp.Toolkits/CarKinem/Tkb/VehicleKinematicsTkbTranslator.cs:33-41`, which today writes only 5 fields |
-| **`B3`** | **Stop the scenario saving translator-derived components** *(start with `VehicleParams`)* ⭐⭐ **UNBLOCKED — and it is a ONE-ATTRIBUTE change** | 🔒 ruling ②: they are **stale TKB duplicates, not overrides**. 📐 `scenarios/hill-attack/scenario.json` stores a full 15-field `VehicleParams` on **6 of 8** entities. ✅ **MEASURED: add `[DataPolicy(DataPolicy.NoSave)]` to `FDP/Toolkits/Fdp.Toolkits/CarKinem/Core/VehicleParams.cs`** — the save set is `repo.GetSaveableMask()`, so a component opts OUT by declaration. 🔒 **This does NOT touch the hand-tested scenario save path at all** *(the user's warning)*. Precedent: `UnitRoster.cs:26` |
+| **`B3`** | **Stop the scenario saving translator-derived components** *(start with `VehicleParams`)* ⭐⭐ **UNBLOCKED — and it is a ONE-ATTRIBUTE change** | 🔒 ruling ②: they are **stale TKB duplicates, not overrides**. 📐 `scenarios/hill-attack/scenario.json` stores a full 15-field `VehicleParams` on **6 of 8** entities. ✅ **MEASURED: add `[DataPolicy(DataPolicy.NoScenario)]` to `FDP/Toolkits/Fdp.Toolkits/CarKinem/Core/VehicleParams.cs`** — the save set is `repo.GetSaveableMask()`, so a component opts OUT by declaration. 🔒 **This does NOT touch the hand-tested scenario save path at all** *(the user's warning)*. Precedent: `UnitRoster.cs:26` |
 
 #### ✅ WHAT I NEEDED TO KNOW — **ALL FOUR MEASURED `2026-08-28`. BOTH BLOCKERS CLEARED.**
 
 | measured | verdict |
 |---|---|
 | ✅ **Does widening a `[TkbDescriptor]` `record` break the ZIP-loaded path?** | ⭐⭐ **NO — it is format-safe in BOTH directions, and `B1` is unblocked.** 📐 The generated thunk is `JsonSerializer.Deserialize<TDto>(jsonElement, FdpJsonOptionsRegistry.DefaultRelaxed)` — emitted by `FDP/Toolkits/Fdp.Toolkit.Tkb.SourceGen/TkbDescriptorGenerator.cs:137`, which **re-emits on every build**, so a widened record needs no hand edit. `UnmappedMemberHandling` is unset ⇒ default `Skip` ⇒ an OLD binary reading NEW json ignores the extra members; a NEW binary reading OLD json defaults them. ⚠⚠ **The real hazard is not a break, it is a SILENT ZERO:** a `Gen.VehicleParameters` block with no `Mobility` yields `Mobility = 0` = `TerrainMobility.Tracked`… which is *accidentally* right for tanks and wrong for everything else. ⛔ **`B1` must make absence recoverable, not silently `Tracked`.** ⚠ And `DefaultRelaxed` registers `StrictStringEnumConverter` ⇒ **an enum authored as an INTEGER in TKB json THROWS** — the widened `Mobility` must be authored as a string |
-| ✅ **Where does the scenario SAVE path write `VehicleParams`?** | ⭐⭐⭐ **NOWHERE EXPLICITLY — and this makes `B3` a ONE-ATTRIBUTE change that does NOT touch the hand-tested path.** 📐 `ScenarioSerializer.SerializeEntity` *(`FDP/Toolkits/Fdp.Toolkits/Scenario/ScenarioSerializer.cs:218`)* walks a **caller-supplied `BitMask512`** — `repo.GetSaveableMask()` *(`FDP/Engine/Fdp.Core/EntityRepository.Sync.cs:213`)* — and `FdpAutoSerializer` handles every remaining bit generically. ⇒ `VehicleParams` is saved **because it is registered and carries NO `[DataPolicy]`** *(`FDP/Toolkits/Fdp.Toolkits/CarKinem/Core/VehicleParams.cs:11-13` — only `[StructLayout]` + `[ComponentId]`)*. ⇒ ⭐ **`B3` = add `[DataPolicy(DataPolicy.NoSave)]`.** 🔒 **EXACT PRECEDENT ALREADY IN-TREE:** `FDP/Engine/Fdp.Core/CommandHierarchy/UnitRoster.cs:11,26` — *"not saved (`DataPolicy.NoSave`) because it is entirely derived"* — **the same argument, already accepted** |
+| ✅ **Where does the scenario SAVE path write `VehicleParams`?** | ⭐⭐⭐ **NOWHERE EXPLICITLY — and this makes `B3` a ONE-ATTRIBUTE change that does NOT touch the hand-tested path.** 📐 `ScenarioSerializer.SerializeEntity` *(`FDP/Toolkits/Fdp.Toolkits/Scenario/ScenarioSerializer.cs:218`)* walks a **caller-supplied `BitMask512`** — `repo.GetSaveableMask()` *(`FDP/Engine/Fdp.Core/EntityRepository.Sync.cs:213`)* — and `FdpAutoSerializer` handles every remaining bit generically. ⇒ `VehicleParams` is saved **because it is registered and carries NO `[DataPolicy]`** *(`FDP/Toolkits/Fdp.Toolkits/CarKinem/Core/VehicleParams.cs:11-13` — only `[StructLayout]` + `[ComponentId]`)*. ⇒ ⭐ **`B3` = add `[DataPolicy(DataPolicy.NoScenario)]`.** 🔒 **EXACT PRECEDENT ALREADY IN-TREE:** `FDP/Engine/Fdp.Core/CommandHierarchy/UnitRoster.cs:11,26` — *"not saved (`DataPolicy.NoScenario`) because it is entirely derived"* — **the same argument, already accepted** |
 | ✅ **Does `Mobility` reach `WithPhysics` for tkbType 100?** | ⭐⭐⭐ **YES — all three dropped fields ARE authored.** 📐 `BdcTkbCatalog.cs:26-37`, inside `WithPhysics(TkbEntityTypes.Tank_M1Abrams, …)`: `p.Height = 2.44f` · `p.TurnRate = 15.0f` · `p.Mobility = TerrainMobility.Tracked`. And `TkbEntityTypes.cs:6` ⇒ `Tank_M1Abrams = 100`. ⇒ **the data exists at the source and `BdcTkbBuilder.cs:87-96` discards it one line later.** ⭐ `B1`+`B2` are a real fix, not a speculative one |
 | ✅ **Which TKB source did the live run actually use?** *(NOT on the original list — it turned out to decide whether `B1`'s builder half fixes anything)* | ⭐⭐ **the code-built catalog.** 📐 **TWO sources exist:** ① `HrotEnvironment.CreateTkb()` → `NedTkbCatalog.RegisterAll` → `NedTkbBuilder` *(`HrotNodeBuilder.cs:197`, `HrotNodeBuilderReplicationExtensions.cs:115,178`)*; ② `TkbUnifiedLoader` — **exactly ONE production caller**, `Hrot.SimHost/Orchestration/Handlers/TkbLoadClusterStateHandler.cs:96`, which **`_tkbDb.Clear()`s and REPLACES the code catalog** when the staged scenario names a `TkbName`. 🔴 **But `find` shows NO TKB `.zip` and NO TKB `.json` anywhere in the repo** ⇒ ② cannot have run ⇒ ① is live. ⭐ **So fixing `WithPhysics` fixes the running system** — ⚠ **and when a real TKB zip IS staged one day, the authored json must carry the three fields or the bug returns via `Mobility = 0`** |
 | ⚠ **Are the other translator-derived components ALSO degraded?** | ⭐⭐ **MEASURED — 33 components across the 6 cluster translators, and the answer is bigger than `VehicleParams`: the "Phase 6" migration is UNFINISHED IN FIVE PLACES IN ONE FILE.** ⛔⛔ **DO NOT fold these into `CE-113`** — see the table below and `CE-117`/`CE-118` |

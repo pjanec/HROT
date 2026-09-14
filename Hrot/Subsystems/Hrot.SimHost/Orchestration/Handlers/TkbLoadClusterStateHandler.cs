@@ -98,6 +98,12 @@ public sealed class TkbLoadClusterStateHandler : IClusterStateHandler
         foreach (var entityFile in loader.EnumerateEntityFiles())
             deserializer.ParseAndRegister(entityFile, _tkbDb);
 
+        // ⭐ CE-259az is closed by DERIVATION, not by a convention applied here (2026-09-13):
+        //   TkbTemplate.BirthCriticalComponents is now a read-only view of [BirthCritical] on the
+        //   component type, so a file-loaded template carries it BY CONSTRUCTION — and so does every
+        //   programmatic catalogue, which an app-layer convention here could never reach.
+        //   📄 docs/designs/tkb-1/DESIGN.md §6.6a.
+
         _lastLoadedTkbName = requestedTkb;
         _lastLoadedTimestamp = currentFileTime;
         _tkbDb.ActiveTkbName = requestedTkb;

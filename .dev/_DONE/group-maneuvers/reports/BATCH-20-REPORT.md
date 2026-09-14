@@ -73,7 +73,7 @@ Verified by `FakeDangerAreaProvider_FeatureId_PinsForStreetEast01`.
 
 | Issue | Resolution |
 |-------|-----------|
-| Batch instructions referenced `DataPolicyKind.NoSave` but enum is `DataPolicy.NoSave` | Used `[DataPolicy(DataPolicy.NoSave)]` per existing codebase pattern |
+| Batch instructions referenced `DataPolicyKind.NoScenario` but enum is `DataPolicy.NoScenario` | Used `[DataPolicy(DataPolicy.NoScenario)]` per existing codebase pattern |
 | `SquadContactPool` math: 10 ulongs would give 600B not 592B | Used 9 ulongs (72B) + Count(4)+LastMergeTick(4)+Contacts(512) = 592B |
 | `AssignmentSlotArray` `SetAssignment` takes `ulong` but `AssignedTargetHandle` is `long` | Test uses `unchecked((long)0xDEADBEEF_CAFEBABE)` for the literal |
 | Zero-alloc test was reported as flaky failure when run with parallel unrelated failing tests | Runs clean in isolation and in Squad-filtered run; pre-existing parallel test pollution from RecordingExportServiceTests |

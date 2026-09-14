@@ -1,6 +1,6 @@
 <!--STATUS
 state: LIVE
-updated: 2026-09-10
+updated: 2026-09-13
 current-answer: §3 is the role table and §3.1 is entity-creation uniformity (a role never denies a
   capability), §4 is ownership, §5 is persistence, §5a is which nodes must carry an ORBAT (operator
   surfaces), §6 is where an entity should be created. §7 is the honest list of what is ENFORCED versus
@@ -30,6 +30,11 @@ related-designs:
   - DESIGN_Entity_Authoring_Surface.md — owns the authoring affordance whose `isTransient` argument is the
     CARRIER for R-140's "an IG entity is disposable". Its §7c parks the product question — are IG's map
     drawings disposable or persistent? — and names THIS document (§5, §8) as the owner of the answer.
+  - DESIGN_Distributed_Scenario_Persistence.md — owns the SAVE/LOAD MECHANISM that enforces this
+    document's ownership POLICY: the uniform per-entity save gate (`HasAuthority`), the per-node file
+    model, and the `NetworkAuthority`/`NetworkOwnership` merge. ⭐ It SUPERSEDES §7.2's "ownership is
+    discarded at save time" for the distributed case and ANSWERS §8 ①. This document keeps the policy
+    (who may own what, R-138/R-140); that one keeps the mechanism.
 -->
 
 # ⭐⭐⭐ Node Roles, Policies and Conventions
@@ -89,7 +94,7 @@ a deployment is described by a *set* of roles, not by a node "type".
 | `None` | `0` | no role assigned |
 | ⭐ `Brain` | `1<<0` | MissionControl · CognitiveRuntime · ActionDispatch · Combat. ⛔ **no ground kinematics** — it commands movement as `NavigationIntent` to a Muscle |
 | ⭐ `MuscleGround` | `1<<1` | ActionDispatch · GroundKinematics · Combat. ⛔ **no behaviour/BTree** — orders arrive as `NavigationIntent` from a Brain |
-| ⭐ `ImageGenerator` | `1<<2` | presentation only, **no simulation logic** |
+| ⭐ `Map2D` | `1<<2` | presentation only, **no simulation logic** *(renamed from `ImageGenerator`, `CE-212`)* |
 | `Perception` | `1<<3` | LOS · broadphase · threat evaluation |
 | `NavigationSolver` | `1<<4` | on-demand pathfinding |
 
@@ -141,9 +146,82 @@ pipeline instead, the capability would be gone and §6's second arm could not ex
 📄 The role-derived default is designed in
 [`DESIGN_Role_Affinity_Ownership.md`](DESIGN_Role_Affinity_Ownership.md) — ⚠ **designed, not built.**
 
+### 4.1 ⭐⭐⭐ ANY node distributes — **completing the wiring behind `R-138`** *(`2026-09-13`)*
+
+> `build-state: BUILT` — seams ①–⑥ built and the full equal-creation chain verified live end to end
+> (IG creates+owns → declines non-role → grants → SimHost takes `dtWorldPos` → IG receives the yield and
+> drops its bit; 0 exceptions on 4 nodes). Remaining is only the PRODUCTION affordance routing choice —
+> which IG tools create locally vs forward — a `R-140` product call, not wiring.
+
+⛔⛔ **The residue.** `R-138` (canon) says every ECS node can create an entity it OWNS and distributes that
+entity's **non-role** components. But several seams were wired on the assumption that **the broadcast
+arbiter is the only creator/owner** — valid *before* auto-takeover (`DeferredTakeOwnership`) existed, and
+retired by `R-138`. The distribution uses **two** mechanisms, and both must fire for a non-arbiter owner:
+
+| component class | how it leaves the creator | mechanism |
+|---|---|---|
+| non-role, **non**-birth-critical (brain, nav, sensors, `SimVelocity`) | creator **declines at CREATE** (`AuthorityMask &= OwnableMask`), role-holders **claim on PROMOTE** | P3 role-affinity **derivation** — no grant |
+| birth-critical (`SimTransform` only) | creator **keeps at birth** (avoids origin-flash), then **hands off** | **auto-takeover grant** (`DeferredTakeOwnership`) |
+
+⭐ **The five seams — each the same assumption in a different place** *(measured `2026-09-13` on the
+`IG`/`Map2D` node)*:
+
+| # | seam | today | file:line | build-state |
+|---|---|---|---|---|
+| **①** | grant publish gated on the arbiter | non-arbiter owner hands off nothing | `CreateEntityRequestSystem.cs:348,459` | ✅ **BUILT `CE-271`** — gate is now `_ownershipStrategy != null`; red→green rail `ProcessRequest_NonArbiterLocalOwner_PublishesDeferredTakeOwnership` |
+| **②** | IG runs a **null** role policy | create-leg never declines non-role ⇒ IG keeps `SimVelocity` etc. while promoters also claim → two owners | `IgNodeBootstrapper.cs` now passes `RoleAffinity = CreatePolicy(Map2D)` | ✅ **BUILT** — unit `AMap2DCreatedBrainEntity_KeepsOnlyItsSimTransformBirthright` |
+| **③** | Map2D **owned component set** undefined | ② has nothing to install | `HrotRoleComponentSets.cs` — `[NodeRole.Map2D] = {EditablePolyline, RoutePlan}` | ✅ **BUILT** — unit `Map2DOwns_ItsOverlayAndRouteAuthorship_AndNothingDynamic` |
+| **④** | cluster cache never pumped on IG | `GetLeastLoadedNode(Muscle)` returns null ⇒ empty grants even with ① | `IgNodeBootstrapper.NetworkPolling` → invoked in `IgApplication.Update` | ✅ **BUILT** — covered by the live run (wiring, not unit-testable in isolation) |
+| **⑤** | routing choice (debug route for the live run) | `POST /entities/create-request` drives the real request path | `DebugApiHost` + `IgSubsystem.CreationRequestEnqueuer` | ✅ **BUILT** — live run below. ⚠ the PRODUCTION affordance choice (`IgEntityCreationRequests.cs:65`, which IG tools go local vs forward) is a separate product call (`R-140`), not done |
+| **⑥** | pure IG runs no `OwnershipUpdate` INGRESS | after granting a descriptor away, IG never receives the grantee's symmetric yield ⇒ never drops its own bit ⇒ two owners | pure-IG block in `NedReplicationModule.cs` now registers the shared `OwnershipUpdateTranslator` ingress | ✅ **BUILT** — ⭐ **found by the live run**: IG granted `dtWorldPos` to SimHost, SimHost took it, but IG's `OwnershipUpdate` recv stayed 0 |
+
+#### ⭐⭐⭐ Live run — `2026-09-13`, 4-process cluster (orch/CGF/SimHost/IG)
+
+Through `POST /entities/create-request {tkbType:100, ownerNodeId:100}` on IG (node 100):
+
+| observation | evidence |
+|---|---|
+| IG created the tank via the **request path** and OWNED it | `[Node-100] ProcessSpawn NetworkId=1200`; replicated to SimHost |
+| IG published the auto-takeover grant (seam ①, from a **non-arbiter**) | `[Node-100] DeferredTakeOwnership egress: EntityId=1200 Grants=2` |
+| IG's grant named a real Muscle (seam ④ cache pump worked) | grant `NewOwner=1` = SimHost |
+| **SimHost took `dtWorldPos`** — equal-creation distribution | `[Node-1] DeferredTakeover executed: EntityNetId=1200 GrantCount=2` → `OwnershipUpdate egress EntityId=1200 TypeId=2 NewOwner=1` |
+| 🔴 **but IG never dropped its own bit** — the gap seam ⑥ fixes | IG `OwnershipUpdate` recv=0, `grep OwnershipUpdate n-ig.log` = 0 |
+
+⭐⭐ **After seam ⑥, re-run `2026-09-13`:** IG `OwnershipUpdate` recv **0 → 18**, and
+`[Node-100] OwnershipUpdate ingress: EntityId=1200 TypeId=2 NewOwner=1` — IG receives SimHost's yield and
+drops its own `dtWorldPos` bit, so kinematics has a **single owner** (SimHost). 0 exceptions on all 4 nodes.
+⇒ **equal creation verified end to end: a Map2D node creates a brain-enabled entity it owns, and the
+cluster distributes it correctly (Brain derives cognition, Muscle owns kinematics) via auto-takeover.**
+
+#### ⚠ The one design sub-item — Map2D's owned set
+
+Seam ③ is the only piece that is a *decision*, not wiring, and it has a trap already hit once (`CE-256`): an
+**empty** `Map2D` owned row makes an IG-created overlay own only `SimTransform` (the sole `[BirthCritical]`
+type) — so `MapVisualOverlayEgressTranslator`'s `HasAuthority` gate fails and overlays **silently stop
+publishing**. ⇒ the Map2D owned set must be **non-empty**: the presentation/overlay/route family a Map2D
+node legitimately owns, and nothing combat/brain/muscle (so a Map2D-created *tank* declines those, leaving
+them for the Brain/Muscle to claim). ⭐ **Lean:** enumerate it from `IgRoleComponentRegistry`'s
+overlay/route registrations, cross-checked against what actually replicates from a Map2D node — **awaiting a
+nod before hard-coding**, because a wrong set here breaks overlays or double-owns.
+
+📄 Full mechanism + measurements: [`DESIGN_Role_Affinity_Ownership.md`](DESIGN_Role_Affinity_Ownership.md)
+§6i-b. ⚠ Stale statement corrected `2026-09-13`: `EntityCreationContext.OwnershipStrategy`'s remark
+("only consulted when arbiter") — superseded by seam ①.
+
 ---
 
 ## 5. ⭐⭐⭐ PERSISTENCE — **the policy that had no home**
+
+> ⭐⭐⭐ **REFINED `2026-09-14`** by
+> [`DESIGN_Distributed_Scenario_Persistence.md`](DESIGN_Distributed_Scenario_Persistence.md) §1a.
+> 🔒 **User:** *"'IG is passive, non-persisting' is the OLD paradigm. Hosts are not passive by design;
+> passivity results from whether they create their own entities, which comes from the roles they are
+> assigned. Any single host can create entities (thus be their primary owner) so if that happens and the
+> entity is savable (non-transient), also the IG must save it — no exceptions, unified rules."*
+> ⇒ ⭐ The table below still describes the **usual** outcome (an IG typically owns only transient
+> entities), but as an **EMERGENT** consequence of role-driven creation — **NOT** a rule the save path
+> enforces. The save path is uniform: the only gate is *ownership + non-transient*. Read "⛔ NO" below as
+> "in practice owns nothing savable", not "the code forbids it".
 
 > 🔒 **`R-140`, user `2026-09-02`, verbatim:** *"by convention it is considered passive listening node,
 > not maintaining any persistent state. If IG creates entities, then only temporary ones, possibly shared
@@ -156,7 +234,7 @@ pipeline instead, the capability would be gone and §6's second arm could not ex
 | role | may hold persistent state? | rationale |
 |---|---|---|
 | ⭐ `Brain` / `MuscleGround` | ✅ **yes** — these are the simulation tiers whose state *is* the scenario | |
-| 🔴 `ImageGenerator` **(IG)** | ⛔ **NO** | **many IGs, added and removed at runtime** ⇒ none may affect the scenario being edited. An IG crash must cost nothing |
+| 🔴 `Map2D` **(IG)** | ⛔ **NO** | **many IGs, added and removed at runtime** ⇒ none may affect the scenario being edited. An IG crash must cost nothing |
 | **ExCon** *(operator console)* | ⛔ no — it is not an ECS node; it issues **unowned** requests (`Owner == 0`) | |
 
 ⇒ ⭐⭐ **An IG-owned entity is TEMPORARY BY DEFINITION.** A working sketch or shared mark, possibly
@@ -260,14 +338,24 @@ which is what keeps the next reader honest.
 | an unowned (`Owner == 0`) request is serviced once | ✅ **CODE** — the `isDefaultProcessor` tiebreaker |
 | a node cannot hold both a local spawner and a spawn-forwarder | ✅ **RAIL** — `EntityGenesisHazardRails` *(`CE-160`)*, red-proved |
 | ownership is per-component and transferable | ✅ **CODE** — `AuthorityMask` + the `OwnershipUpdate` topic |
-| ⭐⭐ **IG entities are never persisted to the scenario** | ✅ **COMPOSITION** — ⛔ **IG registers no scenario-SAVE handler**, so it never runs an extractor. ⚠ **Enforced by an ABSENCE, and nothing checks the absence** — see §7.1 |
+| ⭐⭐ **IG entities are never persisted to the scenario** | ✅⛔ **SUPERSEDED `2026-09-14` (CE-275 ③).** ~~IG registers no scenario-SAVE handler~~ — 🔒 the user reversed this: IG now registers the SAME gated `HrotScenarioSaveHandler` as every host, and R-140 is enforced by the OWNERSHIP GATE (IG's file is empty because it owns nothing savable), NOT by a missing handler. 📄 [`DESIGN_Distributed_Scenario_Persistence.md`](DESIGN_Distributed_Scenario_Persistence.md) §4/§6; see §7.1 for the retired enforcement |
 | 🔴 **a persistable entity is not IG-owned** | ⛔ **convention only** |
 | 🔴 **a node with an operator-facing force view carries an ORBAT** *(§5a)* | ⛔ **convention only** — ⚠ **and it is satisfied INCIDENTALLY**, by four hosts' independent wiring. ⛔ **Not railable as stated**: the predicate is *"has an operator"*, which no code expresses; the nearest checkable form is *"each host that registers a scenario panel set also registers an ORBAT"*, ⚠ **not proposed here** — it would fire on Stride mode 1, whose registration path is unmeasured |
 
 ### 7.1 ✅⭐⭐ HOW THE RULE IS ACTUALLY ENFORCED — **by NOT HANDLING THE OPERATION** *(user, `2026-09-02`)*
 
-> 🔒 **User, verbatim:** *"IG not saving to scenario is as simple as not letting the IG subsystem handle
-> the clusterwide scenario save operation."*
+> ⛔⛔⛔ **SUPERSEDED `2026-09-14` (CE-275 ③) — the enforcement moved from "IG doesn't handle the op" to
+> "the ownership GATE".** 🔒 **User, `2026-09-14`, verbatim:** *"IG is a host and each host can create entities
+> so it needs to be able to save them to scenario, IG must share same scenario save handler with other hosts,
+> it just rarely saves anything! Unification is our goal."* ⇒ IG now registers the ONE gated
+> `HrotScenarioSaveHandler` like every host; its scenario file is empty because it OWNS nothing savable (the
+> gate — `CollectSaveableEntities` on `HasAuthority`, CE-275 ②), not because it lacks the handler. The rail
+> `NodeRolePersistenceRails` was rewritten to match: IG must not hold a CHECKPOINT save handler (ungated), but
+> DOES hold the gated scenario handler. 📄 [`DESIGN_Distributed_Scenario_Persistence.md`](DESIGN_Distributed_Scenario_Persistence.md) §4.
+> The `2026-09-02` reasoning below is retained as HISTORY.
+
+> 🔒 **User, verbatim (`2026-09-02`, now superseded):** *"IG not saving to scenario is as simple as not letting
+> the IG subsystem handle the clusterwide scenario save operation."*
 
 ⭐⭐⭐ **Correct, and it is already true.** ⚠ **This CORRECTS an earlier draft of this section**, which said
 the rule was *"enforced by NOTHING."* ⛔ **That was too pessimistic** — it looked for a per-entity filter
@@ -295,6 +383,13 @@ simply does not answer it.** ⭐ **The entity-level question does not arise, bec
 | ⚠ **STILL OPEN — a DIFFERENT question from the one this closes** | ⛔ if an IG-owned temporary entity **replicates to a SAVING node**, that node's extractor sees it in **its own** world, and *(per §7.2)* cannot tell it apart. ⇒ **the question is no longer "does IG save?" but "does IG's sketch reach CGF?"** |
 
 ### 7.2 The save path cannot distinguish an owner, measured `2026-09-02`
+
+> ⛔⛔ **SUPERSEDED FOR DISTRIBUTED SAVE (`2026-09-14`) by
+> [`DESIGN_Distributed_Scenario_Persistence.md`](DESIGN_Distributed_Scenario_Persistence.md) §6.**
+> ⭐ The "good half" below — *"ownership is DISCARDED at save time, so choosing an owner is safe"* — held
+> only while there was ONE saver (the editor, which owns everything). The unified distributed save now
+> **CONSULTS** ownership: each host saves only entities it primary-owns (`view.HasAuthority(entity)`).
+> ⚠ The measurement below is still TRUE of today's *ungated* code; it is the very gap the new design closes.
 
 📐 `StagingEntityExtractor.BuildStaticMask()` **STRIPS** `NetworkOwnership`, `NetworkAuthority`,
 `NetworkIdentity`, `DescriptorOwnership`, `TkbIdentity`, `GhostStateTracker` and `PendingNetworkAck`
@@ -342,7 +437,7 @@ nothing logs, and it is visible only by opening the saved scenario.
 
 📐 **`ScenarioIgnoreTag`** *(`Fdp.Toolkits/Scenario/ScenarioIgnoreTag.cs`, component id `200`)* — an
 empty tag whose doc says *"instructs the scenario serializer to skip the entire entity bearing it."*
-⭐⭐ It is **per-ENTITY**, and it is itself `[DataPolicy(DataPolicy.NoSave)]` so the tag never serializes —
+⭐⭐ It is **per-ENTITY**, and it is itself `[DataPolicy(DataPolicy.NoScenario)]` so the tag never serializes —
 it is **purely a filter**.
 
 📐 **Production writers: ZERO.** *(grep + `search_graph`: one unit test — `ScenarioSerializerTests.ScenarioIgnoreTag_EntitySkipped` — and no production `AddComponent`/`SetComponent` anywhere.)*
@@ -371,7 +466,7 @@ property of the entity *("only temporary ones… never persisted to scenario")*.
 
 | # | question | why it matters |
 |---|---|---|
-| ① | ✅ **DECIDED AND BUILT `2026-09-02`** — the user approved option (b) *(`D2`)*, and it is implemented: `EntityCreationRequest.IsTransient` carries the intent, `NetworkSpawningSystem` stamps `ScenarioIgnoreTag` at spawn on every receiver, with rails in `TransientSpawnTagRails` + `NodeRolePersistenceRails`. ⛔ **The approval line further down this row is SUPERSEDED — it says "awaiting approval; nothing is implemented" and that is no longer true.** ⚠ What REMAINS open is only the wider *"what else must be kept out of scenario JSON"* question, whose home is [`docs/designs/cgf-scn-2/DESIGN.md`](designs/cgf-scn-2/DESIGN.md) per §8.1. ⭐ HISTORY of how it was decided follows: **ANSWERED `2026-09-02` in §7.3**: ~~does IG save?~~ **no (§7.1)**; ~~does the sketch reach a saving node?~~ 🔴 **YES, measured — the fan-out is roster-wide, `ProcessSpawn` is unconditional, and `CollectSaveableEntities` filters only on `ScenarioIgnoreTag`, which nothing in production sets.** ⇒ ⛔ **`R-140` does NOT hold by topology.** ⭐ **§7.3 recommends option (b)** — the request carries a transient flag, each receiver derives `ScenarioIgnoreTag` at spawn. ⚠ **Awaiting approval; nothing is implemented.** 🔒 **User, `2026-09-02`:** *"saving replicated entities is not yet resolved so it should stay as open question. very likely in a design document dedicated to scenario saving."* ⭐⭐ **AND SUCH DOCUMENTS DO EXIST — see §8.1. The owning home is [`docs/designs/cgf-scn-2/DESIGN.md`](designs/cgf-scn-2/DESIGN.md)** *(scenario serialization correctness — what belongs in scenario JSON and what must be kept out)*. ⇒ ⭐ **this question is PARKED here and belongs there** | it decides whether §5's rule is safe **by topology** or needs a rule on the saving side. ⛔ **It is a SCENARIO-SAVING question, not a node-role one** — this document only records that the role policy depends on its answer |
+| ① | ✅ **DECIDED AND BUILT `2026-09-02`** — the user approved option (b) *(`D2`)*, and it is implemented: `EntityCreationRequest.IsTransient` carries the intent, `NetworkSpawningSystem` stamps `ScenarioIgnoreTag` at spawn on every receiver, with rails in `TransientSpawnTagRails` + `NodeRolePersistenceRails`. ⛔ **The approval line further down this row is SUPERSEDED — it says "awaiting approval; nothing is implemented" and that is no longer true.** ⚠ What REMAINS open is only the wider *"what else must be kept out of scenario JSON"* question, whose home is [`docs/designs/cgf-scn-2/DESIGN.md`](designs/cgf-scn-2/DESIGN.md) per §8.1. ⭐ **UPDATE `2026-09-14`: the SAVE-SIDE ownership gate is now BUILT** — [`DESIGN_Distributed_Scenario_Persistence.md`](DESIGN_Distributed_Scenario_Persistence.md) §6, `CE-275` ②: `ScenarioSerializer.CollectSaveableEntities` gates on `HasAuthority` (absent⇒owned), so a non-owner no longer writes a replicated entity it does not own — the general form of the `ScenarioIgnoreTag` mechanism. The residual at cgf-scn-2 is component-level JSON correctness + which node SHOULD own a persistable. ⭐ HISTORY of how it was decided follows: **ANSWERED `2026-09-02` in §7.3**: ~~does IG save?~~ **no (§7.1)**; ~~does the sketch reach a saving node?~~ 🔴 **YES, measured — the fan-out is roster-wide, `ProcessSpawn` is unconditional, and `CollectSaveableEntities` filters only on `ScenarioIgnoreTag`, which nothing in production sets.** ⇒ ⛔ **`R-140` does NOT hold by topology.** ⭐ **§7.3 recommends option (b)** — the request carries a transient flag, each receiver derives `ScenarioIgnoreTag` at spawn. ⚠ **Awaiting approval; nothing is implemented.** 🔒 **User, `2026-09-02`:** *"saving replicated entities is not yet resolved so it should stay as open question. very likely in a design document dedicated to scenario saving."* ⭐⭐ **AND SUCH DOCUMENTS DO EXIST — see §8.1. The owning home is [`docs/designs/cgf-scn-2/DESIGN.md`](designs/cgf-scn-2/DESIGN.md)** *(scenario serialization correctness — what belongs in scenario JSON and what must be kept out)*. ⇒ ⭐ **this question is PARKED here and belongs there** | it decides whether §5's rule is safe **by topology** or needs a rule on the saving side. ⛔ **It is a SCENARIO-SAVING question, not a node-role one** — this document only records that the role policy depends on its answer |
 | ①b | ⛔ **CLOSED — NOT BUILT, by user ruling `2026-09-03`.** 🔒 *"1b - rail possible but not really necessary; adding full save handler hardly happens by accident"* ⇒ ⭐ **the reasoning, stated so it is not re-proposed:** a rail earns its keep against a hazard that arrives SILENTLY *(the `EntityGenesisHazardRails` pair guard exactly that — a system registration whose effect is invisible on the node that changed it)*. ⛔ Registering a scenario-save handler on IG is a **deliberate, visible act**, not a slip ⇒ the rail would guard a mistake nobody makes. ⚠ **If IG ever grows a persistence path for another reason, this row comes back** | ~~§7.1 — turns an ABSENCE into a checked invariant~~ |
 | ② | ✅ **ANSWERED `2026-09-03` — the DDS instance lifecycle removes them, and `CE-144` is what makes it work.** 🔒 **User, verbatim:** *"DDS published entity master disappears, recipients get dispose sample, and because EntityMaster existence == entity existence, the entity gets deleted everywhere."* ⭐ 📐 **Confirmed end to end:** `EntityMasterIngressTranslator.ProcessDispose` *(`:110`)* publishes `DestroyEntityCommand` on each receiving node → its single consumer `NetworkSpawningSystem.ProcessDestroy` runs the ELM teardown → the entity is destroyed and `DisposalMonitoringSystem` prunes the map. ⇒ ⭐⭐ **the propagation is a LOOP through one command type.** ⛔⛔ **And this row was the PEER-SIDE HALF of `CE-144`:** while IG's private `GhostDestructionSystem` bypassed the ELM, an IG-owned entity's dispose was **never written**, so the loop never started and peers kept the drawing forever. ⇒ 📄 **fixed by [`DESIGN_Entity_Creation_Unification.md`](DESIGN_Entity_Creation_Unification.md) §3.4c** — one consumer, on every host. ⚠ **What this does NOT cover:** a HARD-CRASHED IG writes no dispose at all; that is DDS liveliness/QoS, a different mechanism, and it is not claimed here | 🔒 the ruling says its entities are *"gone, and no one cares"* — ⭐ and now they are, on the peers too |
 | ③ | should `RequestFromDefaultProcessor` remain reachable from IG once it can create locally? | §6 says yes — it is the only way IG can author something persistable. ⭐⭐ **OWNED ELSEWHERE `2026-09-02`: [`DESIGN_Entity_Creation_Unification.md`](DESIGN_Entity_Creation_Unification.md) §3.4b** — the level mismatch and its option (b) *(the forwarder subscribes to the REQUEST, and fires when the owner is someone else)*. ⛔ **That is a CROSS-HOST change of principle, not an IG fix**; this row is a pointer, not the decision |
@@ -390,7 +485,7 @@ false is worth recording because `CLAUDE.md` warns about it in exactly these wor
 
 | document | what it covers |
 |---|---|
-| ⭐⭐ [`docs/designs/cgf-scn-2/DESIGN.md`](designs/cgf-scn-2/DESIGN.md) | **CGF Scenario Serialization Correctness** — ⭐ **the closest thing to a scenario-SAVING design**: what belongs in scenario JSON, `[DataPolicy(DataPolicy.NoSave)]` guards, `IEntityScenarioTranslator`, and the serializer's silent-truncation defects ⇒ **the owning home for §8 ①** |
+| ⭐⭐ [`docs/designs/cgf-scn-2/DESIGN.md`](designs/cgf-scn-2/DESIGN.md) | **CGF Scenario Serialization Correctness** — ⭐ **the closest thing to a scenario-SAVING design**: what belongs in scenario JSON, `[DataPolicy(DataPolicy.NoScenario)]` guards, `IEntityScenarioTranslator`, and the serializer's silent-truncation defects ⇒ **the owning home for §8 ①** |
 | [`docs/designs/cgf-scn/DESIGN.md`](designs/cgf-scn/DESIGN.md) | **CGF Scenario Loading via Genesis Pipeline** — makes CGF the *authoritative entity genesis source* for scenario load. ⭐ Directly relevant to §3.1 and §4 |
 | `.dev/_DONE/cgf-scn-3/DESIGN.md` | scenario save producing wrong JSON — missing missions, and **runtime-tier state leaking into declarative initial conditions** ⇒ ⭐ **the same DISEASE as §8 ①, one level down** |
 
@@ -403,7 +498,7 @@ conclusion is FALSE, because it enumerated only two of the three mechanisms.**
 
 | # | mechanism | granularity | can it say *"THIS entity is a sketch"*? |
 |---|---|---|---|
-| ① | `[DataPolicy(DataPolicy.NoSave)]` *(`FDP/Engine/Fdp.Core/DataPolicyAttribute.cs:48`)* | ⛔ **component TYPE** | ⛔ **no** — it says *"`UnitRoster` is never saved"* |
+| ① | `[DataPolicy(DataPolicy.NoScenario)]` *(`FDP/Engine/Fdp.Core/DataPolicyAttribute.cs:48`)* | ⛔ **component TYPE** | ⛔ **no** — it says *"`UnitRoster` is never saved"* |
 | ② | `StagingEntityExtractor.BuildStaticMask()` | ⛔ **component TYPE**, statically | ⛔ **no** |
 | ⭐⭐⭐ **③** | **`ScenarioIgnoreTag`** *(`Fdp.Toolkits/Scenario/ScenarioIgnoreTag.cs`, id `200`)* — honoured by `ScenarioSerializer.CollectSaveableEntities` *(`:523-541`)* | ⭐⭐ **per ENTITY** | ✅ **YES — that is literally its stated purpose** |
 

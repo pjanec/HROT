@@ -94,7 +94,6 @@ namespace Hrot.Core.Tkb
                 t.AddDescriptor(new VehicleParametersDto { Length = 0.6f, Width = 0.4f, MaxSpeedFwd = 2.0f, MaxAccel = 1.0f });
                 t.AddDescriptor(new BehaviorProfileDto { SimTier = BehaviorConstants.SimTierCivilian, BrainTier = 0, CanMove = true });
                 t.AddDescriptor(new SensorCapabilitiesDto { VisionRange = CivilianVisionRange, HearingRange = CivilianHearingRange, FieldOfViewDegrees = 360f });
-                t.AddBirthCriticalComponent<SimTransform>();
                 tkb.Register(t);
             }
 
@@ -105,7 +104,6 @@ namespace Hrot.Core.Tkb
                 t.AddDescriptor(new StrideRenderModelDefDto { ModelAssetRef = "Models/Box2x1x1", ShapeKind = CollisionShapeKind.OrientedBox, ShapeHeight = 1.5f });
                 t.AddDescriptor(new VehicleParametersDto { Length = 4.5f, Width = 2.0f, MaxSpeedFwd = 25.0f, MaxAccel = 3.0f });
                 t.AddDescriptor(new BehaviorProfileDto { SimTier = BehaviorConstants.SimTierCivilian, BrainTier = 0, CanMove = true });
-                t.AddBirthCriticalComponent<SimTransform>();
                 tkb.Register(t);
             }
 
@@ -117,7 +115,6 @@ namespace Hrot.Core.Tkb
                 t.AddDescriptor(new VehicleParametersDto { Length = 7.0f, Width = 3.5f, MaxSpeedFwd = 12.0f, MaxAccel = 2.0f });
                 t.AddDescriptor(new BehaviorProfileDto { SimTier = BehaviorConstants.SimTierTactical, BrainTier = BehaviorConstants.BrainTierHsm, CanMove = true, CanInteract = true });
                 t.AddDescriptor(new CombatPlatformDefDto { MaxHealth = ApcMaxHealth });
-                t.AddBirthCriticalComponent<SimTransform>();
                 tkb.Register(t);
             }
 
@@ -132,7 +129,6 @@ namespace Hrot.Core.Tkb
                 t.AddDescriptor(new WeaponSuiteDto { Mounts = { new WeaponMountDto { InitialAmmunition = RifleAmmo, MuzzleVelocity = RifleMuzzleVelocity } } });
                 t.AddDescriptor(new SensorCapabilitiesDto { VisionRange = SoldierVisionRange, HearingRange = SoldierHearingRange, FieldOfViewDegrees = 360f });
                 t.AddDescriptor(BuildMannequinAnimationDef());  // ST-011
-                t.AddBirthCriticalComponent<SimTransform>();
                 tkb.Register(t);
             }
 
@@ -147,7 +143,6 @@ namespace Hrot.Core.Tkb
                 t.AddDescriptor(new WeaponSuiteDto { Mounts = { new WeaponMountDto { InitialAmmunition = RpgAmmo, MuzzleVelocity = RpgMuzzleVelocity } } });
                 t.AddDescriptor(new SensorCapabilitiesDto { VisionRange = SoldierVisionRange, HearingRange = SoldierHearingRange, FieldOfViewDegrees = 360f });
                 t.AddDescriptor(BuildMannequinAnimationDef());  // ST-011
-                t.AddBirthCriticalComponent<SimTransform>();
                 tkb.Register(t);
             }
         }

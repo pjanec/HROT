@@ -341,11 +341,24 @@ namespace Hrot.Common.Systems
                         RequestId         = pending.Request.RequestId,
                     });
 
-                    // 4b  When this node is the default processor it MUST broadcast the
-                    //     pre-genesis routing table BEFORE the EntityMaster is published
-                    //     (strict egress ordering per Rule 1).  The routing table is built
-                    //     by the injected IOwnershipDistributionStrategy.
-                    if (_isDefaultProcessor && _ownershipStrategy != null)
+                    // 4b  The node servicing this creation OWNS the entity, so it MUST broadcast the
+                    //     pre-genesis routing table BEFORE the EntityMaster is published (strict egress
+                    //     ordering per Rule 1). The table is built by the injected
+                    //     IOwnershipDistributionStrategy.
+                    //
+                    // ⭐⭐⭐ CE-271 — the gate is `_ownershipStrategy != null`, NOT `_isDefaultProcessor`.
+                    //   🔒 R-138 (canon): the system is fully distributed; ANY ECS node that creates an
+                    //   entity it owns hands off the components its role does not cover — that is what
+                    //   auto-takeover (DeferredTakeOwnership) is FOR. Gating on `_isDefaultProcessor` was
+                    //   the pre-auto-takeover "the broadcast arbiter is the sole owner" assumption — the
+                    //   flag is a broadcast TIEBREAKER for Owner==0 requests (Q65 §4), not an authority
+                    //   gate. A non-arbiter local owner (e.g. IG under R-138) kept everything and handed
+                    //   off nothing, so a Muscle could never take dtWorldPos and the entity was frozen.
+                    //   ⚠ Cannot double-grant: exactly one node services a given creation (the level-1
+                    //   IsHandledLocally guard above), and only that node reaches this line. Reproduced
+                    //   red then green by CreateEntityRequestSystemTests
+                    //   .ProcessRequest_NonArbiterLocalOwner_PublishesDeferredTakeOwnership.
+                    if (_ownershipStrategy != null)
                     {
                         var grants = BuildOwnershipGrants(pending, assignedOwner);
                         if (grants.Count > 0)
@@ -443,8 +456,12 @@ namespace Hrot.Common.Systems
                                 RequestId         = Guid.NewGuid(), 
                             });
 
-                            // Broadcast pre-genesis routing table for auto-spawned children
-                            if (_isDefaultProcessor && _ownershipStrategy != null)
+                            // Broadcast pre-genesis routing table for auto-spawned children.
+                            // ⭐ CE-271 — same gate change as the parent above: any local owner hands off
+                            //   its children's non-role components, not only the arbiter. A child inherits
+                            //   its parent's owner (assignedOwner), so the same "exactly one servicer"
+                            //   argument makes double-grant impossible.
+                            if (_ownershipStrategy != null)
                             {
                                 var childGrants = _ownershipStrategy.GetInitialGrants(
                                     new Fdp.Core.DISEntityType { Value = childDisType }, 

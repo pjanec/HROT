@@ -42,7 +42,7 @@ the outcome this time. Batches 67 and 68 each caught a red on the second sample;
 | placement | verdict |
 |---|---|
 | ⛔ **`BlueprintSlotEntry.InstanceVersion`** | it is the **latent-cursor staleness token** — bumped on hard reload, compared against `BlueprintLatentCursor.InstanceVersion`. ⛔⛔ **A second meaning on one field is the trap this programme keeps finding**, and the handoff named it first |
-| ⛔ **a NEW field on `BlueprintSlotEntry`** | the entry is **exactly 16 bytes with a documented budget** — `StructureHash` is already *"truncated from ulong to fit"*. Growing it shrinks usable payload in **every** tier and moves the tier-fit arithmetic, ⚠ **for a counter no simulation code reads** — and it would enter the recorded snapshot (`[DataPolicy(NoSave)]` means snapshotted **and recorded**) |
+| ⛔ **a NEW field on `BlueprintSlotEntry`** | the entry is **exactly 16 bytes with a documented budget** — `StructureHash` is already *"truncated from ulong to fit"*. Growing it shrinks usable payload in **every** tier and moves the tier-fit arithmetic, ⚠ **for a counter no simulation code reads** — and it would enter the recorded snapshot (`[DataPolicy(NoScenario)]` means snapshotted **and recorded**) |
 | ⛔ **`BlueprintBlackboardHeader.Reserved`** | **wrong granularity** — the header is per **entity-tier**, and one entity hosts many slots. The ruling wants per `(asset, entity)` |
 | ⭐ **a SIDE TABLE, owned by `Fdp.Toolkits`** | the counter is **editor telemetry, not simulation state**: nothing in the sim reads it, so it should cost the sim nothing and must not appear in a recorded frame |
 

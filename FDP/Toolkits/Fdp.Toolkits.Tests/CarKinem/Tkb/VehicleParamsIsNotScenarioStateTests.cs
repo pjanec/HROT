@@ -37,7 +37,7 @@ namespace CarKinem.Tkb.Tests
         }
 
         /// <summary>
-        /// The other half of the claim: NoSave must not have cost us the component's
+        /// The other half of the claim: NoScenario must not have cost us the component's
         /// runtime behaviour.  It still has to be a real, registered, readable component --
         /// only its persistence changes.
         /// </summary>

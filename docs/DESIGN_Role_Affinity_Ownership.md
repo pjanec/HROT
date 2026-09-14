@@ -1,7 +1,7 @@
 <!--STATUS
 state: LIVE
-updated: 2026-09-12
-build-state: BUILDING — steps 0a, 0, 1a and 1 done. ⛔ NOT "BUILT": open-risk below still binds (§3.5 / step 3b).
+updated: 2026-09-13
+build-state: BUILT (for the two-node Brain/Muscle case) — steps 0a, 0, 1a, 1, 2, 3, 3b(b), §3.9's two-set model AND ⭐⭐⭐ STEP 4 (§6i: CGF holds a Brain policy, SimHost a Muscle policy, and gateOnAuthority is ON) are done. ⛔⛔ CORRECTED 2026-09-13: an earlier version of THIS LINE listed "3b(a) THE REGISTRATION NARROWING (§6h)" as DONE. That is FALSE and it contradicted both the step table's 3b row and §6h's own headline — §6h shipped the missing PERCEPTION REGISTRY, i.e. the PREREQUISITE for the narrowing, not the narrowing. ⛔⛔ CORRECTED AGAIN 2026-09-13 (§6j): the line above ALSO mis-stated 3b(a) as open. 📐 MEASURED: SimHostComponentRegistry does NOT call CognitiveComponentRegistry and DOES call MuscleRoleComponentRegistry — the narrowing IS BUILT; and muscleRead = {NavigationIntent, MissionPlanQueue} IS populated, so the READ table is filled too. ⇒ ✅ 3b(a) and the read table are DONE. ⛔ STILL OPEN: step 3c (the boot warning); IG / Stride / the Editor / the test harnesses still run a null policy DELIBERATELY (§6i says why); the role tables are COMPLEMENTS and that is now a RULING, not a stopgap (§3.9c, 2026-09-13): the positive enumeration is NOT the upgrade path and NOT a gating item — it fails toward UN-ownership (CE-256) where the complement fails toward inert over-ownership. Revisit ONLY on the trigger §3.9c names. ⛔⛔ AND READ §3.6 BEFORE REASONING ABOUT WHAT AUTHORITY DOES: re-measured 2026-09-13, the per-component AuthorityMask is read by NO egress translator — only by SimTransform/BehaviorState/BrainBlackboard checks and WithOwned<T> queries. An earlier version of §3.1 and §3.6 said "every egress translator gates on HasAuthority"; that was FALSE and both now carry the correction. ⛔⛔ §3.9 IS LOAD-BEARING AND IS NOW MODELLED IN CODE: REGISTER = ownedComponentSet ∪ readComponentSet, AUTHORITY = ownedComponentSet — read it before touching registration, and ⛔⛔ an earlier version said "NO HOST FILLS THE READ TABLE YET" — FALSE, HrotRoleComponentSets fills it (§6j). ⚠ What IS true: RegisterComponentSet is READ BY NOTHING in production and cannot drive registration while the tables are COMPLEMENTS — see §6j. ✅ §3.9a IS NEW (2026-09-12): the per-component classification for SimHost is MEASURED and CONFIRMS the set of six, adding four more (the three channels + PreviousCapabilities) for TEN droppable. ⚠ It carries a RETRACTION — an intermediate version claimed scenario persistence required three of them; that was false (DataPolicy.NoScenario governs scenario exclusion, and three of the translators are extract-only clipboard dumps). ⛔ 3b(a) is NOT blocked on persistence; what remains is that CognitiveComponentRegistry is SHARED with CGF, so the narrowing must move to MuscleRoleComponentRegistry. ⛔ NOT "BUILT": open-risk below still binds (§3.5 / step 3b).
 verified: ⭐⭐ THE WHOLE DESIGN WAS RE-MEASURED AGAINST THE TREE ON 2026-09-12 before step 0 was built
   (user: "verify design before, might be stale"). VERDICT: every DECISION holds and nothing load-bearing
   is stale — the six unbuilt types are still at ZERO .cs occurrences, the blanket grant is byte-identical,
@@ -24,7 +24,17 @@ verified: ⭐⭐ THE WHOLE DESIGN WAS RE-MEASURED AGAINST THE TREE ON 2026-09-12
   ⛔ AND A STRUCTURAL GAP, now fixed: this design carried a classDiagram and two sequenceDiagrams but NO
   module-relationship diagram, despite §3.5 being made entirely of "which systems tick, on which host,
   registered by whom". §4.1b is that diagram.
-current-answer: §3 is the design; §4 carries the UML; §6 is the sequencing; ⭐⭐ §6a IS THE AS-BUILT and
+current-answer: ⭐⭐⭐ IF YOUR QUESTION IS "WHO OWNS COMPONENT X", START AT §3.9c — the tables are
+  COMPLEMENTS (ALL minus the named exclusions), so a component no role claims stays owned by whoever
+  CREATED the entity. That section owns the rule; DESIGN_Entity_Creation_Unification.md §4.1 asks the same
+  question from the creation side and points here. ⛔ A positive per-role enumeration would be a whitelist
+  and would reproduce CE-256 — §3.9c says why, and names the rail a future enumeration must argue with.
+  ⭐⭐⭐ THEN §6i — it is the NEWEST as-built (step 4, 2026-09-13) and it is the one that
+  made the design live; it also carries the two deviations that matter (the tables are COMPLEMENTS, and no
+  role may own a birth-critical component) and an honest statement of how big the change actually is.
+  ⛔ Read §3.6 with it: the mask's real readership was re-measured that day and it is four component types,
+  none of them an egress gate.
+  Then: §3 is the design; §4 carries the UML; §6 is the sequencing; ⭐⭐ §6a IS THE AS-BUILT and
   wins over §3.7 where they differ (§3.7 is unchanged and still right; §6a ADDS the two attributes the
   build needed).
   ✅✅✅ STEP 0a IS DONE, 2026-09-11 — the GhostPromotionSystem relocation into EntityCreationPack.
@@ -42,9 +52,34 @@ current-answer: §3 is the design; §4 carries the UML; §6 is the sequencing; �
   ✅✅✅ STEP 1 IS DONE, 2026-09-12 — IRoleAffinityPolicy + RoleAffinityPolicy, NO deviation. §6d is its
   as-built. ⚠ §6c's int-role-bit deviation was REVERTED the same day: NodeRole moved into Fdp.Core on the
   user's ruling, so the seam carries the typed signature the design always specified.
-  ⛔⛔ Steps 2, 3, 3b, 3c and 4 remain unbuilt. NEXT IS STEP 3 or 3b — ⛔ NOT step 2: STEP 2 IS BLOCKED
-  until CE-259az (file-loaded templates carry an EMPTY BirthCriticalComponents, and files are the
-  PRODUCTION path while CreateTkb() is only the dev default) is answered.
+  ✅✅✅ STEPS 2 AND 3 ARE DONE, 2026-09-12 — both insertion points. §6e is their as-built.
+  ✅✅ STEP 3b's QUERY-FILTER HALF IS DONE, 2026-09-12 — §6f is its as-built and carries TWO deviations:
+  the gate is CONDITIONAL (§6's own ordering would have broken the cluster — an unconditional filter makes
+  a node stop processing every entity it did not create, because a promoted ghost owns nothing), and it
+  covers SIX systems rather than §3.5's two, each gated on a component it ALREADY required.
+  🔴 3b's half (a) is NOT done and narrowing IS the primary fix — user ruling 2026-09-12, and the
+  decisive point: WithOwned<T>() implies With<T>(), so you cannot ask about authority on a component that
+  was never added. The gate is the RESIDUAL for nodes that legitimately have brain components.
+  Registration is the ONLY gate on materialisation (BehaviorTkbTranslator.cs:52), which is why SimHost's
+  spawns carry the whole brain tier. §6f has the measurement and my two withdrawn objections.
+  ⛔ Step 3c remains unbuilt. ✅ Step 4 SHIPPED 2026-09-13 (§6i) and is VERIFIED on a live 3-process
+  cluster (§6i-a) — an earlier version of this line said "steps 3c and 4 remain unbuilt".
+  🔴🔴 §3.9 ADDED 2026-09-12 AND IT CORRECTS THE ROLE MODEL ITSELF: a role has TWO component sets —
+  ownedComponentSet (authority, what IRoleAffinityPolicy already models) and readComponentSet (owned
+  elsewhere, replicated IN, consumed here). REGISTER = owned ∪ read; AUTHORITY = owned. Measured:
+  NavigationIntent (16 wire refs) and MissionPlanQueue (9) are Brain-OWNED and Muscle-READ, so a Muscle
+  node that stopped registering "brain components" would stop receiving its own orders.
+  ✅ BUILT 2026-09-12 (CE-259bh, as-built §6g): `componentsPerRole` → `ownedComponentsPerRole`,
+  `readComponentsPerRole` added as an OPTIONAL 4th constructor argument, and the interface now carries
+  OwnedComponentSet / ReadComponentSet / RegisterComponentSet. 6 rails, 3 red-proofs.
+  ⛔ NO HOST FILLS THE READ TABLE YET — that is step 4. 3b(a) remains blocked on CE-259bg (the brainActive
+  proxy) and on that classification work, no longer on the model. ⚠⚠ CORRECTION 2026-09-12 (user challenge: "what actually
+  blocks step 2?"): an earlier version of this block said STEP 2 IS BLOCKED on CE-259az. THAT WAS WRONG —
+  the blocker was attached to the wrong step. Step 2 injects no policy (its own gate: "with no policy the
+  mask is unchanged"), so it is INERT by construction and free to ship. CE-259az gates STEP 4, where
+  hosts are actually handed a policy, and then only on a deployment that loads a NAMED TKB zip —
+  TkbLoadClusterStateHandler Clear()s the catalogue before loading, so those templates carry an empty
+  BirthCriticalComponents, while the programmatic fallback step 0 seeded is unaffected.
   ⭐ §5's three decisions are all RESOLVED (① / ①b 2026-09-01; ② user-approved and ③ user-ruled
   2026-09-10; ①c "nothing measurable remains"). What is left in §5 is a per-system REVIEW for step 3b,
   not a decision — so this design is NOT blocked on the user.
@@ -109,11 +144,35 @@ design-basis: docs/blueprints/RULINGS.md R-138 (fully distributed, ownership per
   §0 (no capability removal by design), §5.3 (mechanism vs policy) - docs/designs/tkb-1/DESIGN.md
   §6.5b gate 2 (registration is the narrowing lever).
 related-designs:
+  - DESIGN_Entity_Genesis_End_To_End.md — ⭐ THE LANDING PAGE. Owns the END-TO-END STAGE SEQUENCE
+    (request → spawn → grant → ghost → promotion → takeover → Active) and nothing else; every stage
+    routes back to its owner, including this one. Read it FIRST if you do not already know where in
+    the genesis path your question sits.
   - DESIGN_Entity_Authoring_Surface.md — owns the CALLER side of creation (who asks for an entity and whom
     they nominate as owner). Measured 2026-09-12: INDEPENDENT of this design in both directions — this one
     decides component-level AUTHORITY after the entity exists, that one decides nothing about it.
-  - DESIGN_Entity_Creation_Unification.md — owns the pack this design's step 0a moved GhostPromotionSystem
-    into.
+  - DESIGN_Entity_Creation_Unification.md — owns the PACK this design's step 0a moved GhostPromotionSystem
+    into, and the invariant that EVERY ecs node may create entities. ⭐ Its §4.1 (added 2026-09-13) answers
+    the question a reader of THAT file asks — "any node can create an entity, so who owns its EntityInfo?"
+    — from this design's tables: the creator, because the role masks are COMPLEMENTS. ⛔ Keep the two in
+    step: if the tables ever become positive enumerations, §4.1's answer changes.
+  - designs/tkb-1/DESIGN.md — owns WHERE BirthCriticalComponents comes from. Its §6.6 (2026-09-13) states
+    why a TKB FILE cannot declare it (the file is descriptor-shaped; the component lists are statements
+    about what descriptors PRODUCE) and how the app layer supplies it. This design owns what the list
+    MEANS; that one owns how a file-loaded template gets one.
+  - PROGRAMME_Explicit_Component_Ids.md — owns whether every component actually carries an explicit
+    [ComponentId]. §3.9b's mask-driven registration is only COMPLETE if it does, so that programme is a
+    prerequisite for this one's registration half.
+  - DESIGN_Distributed_Scenario_Persistence.md — owns SCENARIO SAVE/LOAD ownership gating (each host
+    saves only what it primary-owns), the NetworkAuthority/NetworkOwnership component MERGE, and the
+    ECS↔network ownership seam (PrimaryOwnerId is the network-agnostic owner; EntityMaster is derived).
+    It READS the ownership THIS design decides; it does not decide who owns what. ⚠ Its axis ② (per-component
+    runtime authority = AuthorityMask) is exactly this design's domain; its axis ① (entity PrimaryOwnerId)
+    is the save owner.
+  - designs/brain-death/BD1-DESIGN.md — owns the brain-death LIFECYCLE and the brain-vs-muscle command
+    routing rule. It is the design §3.9's narrowing would break: its §2.1 predicate reads BehaviorState
+    locally, which a Muscle-only node cannot answer. ⚠ Measured 2026-09-12: that routing has no
+    production caller today (CE-259bg), so the breakage is latent, not live.
 -->
 # ⭐⭐⭐ Role-Affinity Ownership — **every node decides locally what it owns, so no two nodes ever claim the same component**
 
@@ -297,13 +356,26 @@ network layer."* ⇒ ⭐ the same structure, the same authoring style, the same 
 | ⭐ **the initial content is ONE entry: `SimTransform`** | 🔒 the user's answer. ⛔ Everything else is role-affine until a measurement says otherwise |
 | ⚠ **why a SECOND list rather than a flag on `MandatoryComponent`** | ⛔ they answer different questions — *"must be PRESENT before promotion"* vs *"the creator must OWN it at birth"*. Overloading the first would force a birth-critical-but-not-promotion-gating component to change promotion semantics to carry the flag. ⭐ Two lists for two concepts is not the duplicate-implementation trap; conflating them is §3.6's mistake in miniature |
 
-📐 **Why the birthright is about REPLICATION, not the write itself** *(measured, and it sharpens the
-architect's reasoning)*: `EntityRepository.SetComponent` is **not** authority-gated, so a creator can
-always write the spawn coordinate locally. ⛔ But **every egress translator gates on `HasAuthority`** —
-`EntityMasterEgressTranslator:73`, `EntityInfoEgressTranslator`, `MapVisualOverlayEgressTranslator:77`,
-and the rest. ⇒ ⭐⭐ **a creator that declines `dtWorldPos` would write a correct position that is NEVER
-PUBLISHED**, and every peer's ghost would sit at the origin. That is the real mechanism behind the
-origin flash.
+#### 📐 WHY THE BIRTHRIGHT IS LOAD-BEARING — ⛔⛔ **the CONCLUSION stands; the MECHANISM stated here was WRONG** *(re-measured `2026-09-13`)*
+
+> ⛔ **SUPERSEDED text, kept because it was quoted into three other sections:** *"every egress translator
+> gates on `HasAuthority` — `EntityMasterEgressTranslator:73`, `EntityInfoEgressTranslator`,
+> `MapVisualOverlayEgressTranslator:77`, and the rest ⇒ a creator that declines `dtWorldPos` would write a
+> correct position that is NEVER PUBLISHED."*
+> 🔴 **False.** Those three call the **extension** `ISimulationView.HasAuthority(entity, packedKey)`, which
+> reads `DescriptorOwnership`/`NetworkAuthority` and **never touches `AuthorityMask`** — §3.6 carries the
+> full measurement. ⇒ **declining a mask bit does not stop publication of anything.**
+
+⭐⭐ **The birthright is still required, for TWO different and measured reasons** — both from the mask's
+real readership *(§3.6)*, and both of them worse than an origin flash because they are silent:
+
+| if a node lacked authority over `SimTransform` | what breaks |
+|---|---|
+| `CarKinematicsSystem.cs:73` filters `.WithOwned<SimTransform>()` | ⛔ **the entity never moves on that node** — `CE-256` in miniature |
+| 🔴 `GeoSpatialIngressTranslator.cs:90` applies the incoming position **only when `HasAuthority<SimTransform>` is false** | ⛔⛔ and the mirror image is the dangerous one: **a node that CLAIMS `SimTransform` by role stops accepting the real owner's updates** ⇒ every ghost on it freezes. ⇒ ⭐⭐⭐ **birth-critical components must be in NO role's owned set at all**, not merely added back for the creator |
+
+⭐ `EntityRepository.SetComponent` is **not** authority-gated either way, so a creator can always write the
+spawn coordinate locally; the failure was never the write.
 
 ⭐⭐ **Within each category conflict is still impossible by construction** — for cognitive descriptors the
 creator declines exactly what the role-holder claims; for kinematic descriptors exactly one node owns at
@@ -340,7 +412,7 @@ public interface IRoleAffinityPolicy
 
 | ⭐ where each bit comes from | |
 |---|---|
-| ⭐⭐ **the ROLE's assigned mask** | a `BitMask512` of component ids **declared per role**, plain configuration. ⛔ Not derived from any wire vocabulary — a `NodeRole` → mask table, and nothing else. ⚠ **`2026-09-10`: the table is now consulted PER ROLE and gated by `IRoleShardProvider.ServesRole` — §3.8.** A single flat union is no longer correct |
+| ⭐⭐ **the ROLE's assigned mask** | ⚠⚠ **this is the `ownedComponentSet` — see §3.9.** A role has a SECOND set, `readComponentSet` *(owned elsewhere, replicated in, consumed here — e.g. Muscle ↔ `NavigationIntent`)*, which REGISTRATION needs and AUTHORITY must never see. ✅ **Both are modelled since `2026-09-12` (§6g)** — the parameter below is `ownedComponentsPerRole`, and `readComponentsPerRole` sits beside it. A `BitMask512` of component ids **declared per role**, plain configuration. ⛔ Not derived from any wire vocabulary — a `NodeRole` → mask table, and nothing else. ⚠ **`2026-09-10`: the table is now consulted PER ROLE and gated by `IRoleShardProvider.ServesRole` — §3.8.** A single flat union is no longer correct |
 | ⭐⭐ **∪ the template's `BirthCriticalComponents`, when `isCreator`** | §3.1's birthright. ⭐ The creator keeps these **whatever its role**, which is precisely the architect's correction |
 
 ⭐ **The whole rule is then:** `AuthorityMask = componentMask ∧ OwnableMask(template, isCreator)` —
@@ -494,6 +566,379 @@ which **logs once and does not fall back.** ⇒ the two decisions compose.
 ships **the interface, the key, the single-node implementation, and the per-role mask table** — nothing
 else.
 
+### 3.9 🔴🔴🔴 REGISTER ≠ OWN — **a role has TWO component sets, and this design only ever modelled one** *(user, `2026-09-12`)*
+
+> 🔒 **User, verbatim:** *"intents are brain owned components that must be replicated to muscle so musle
+> can read and act on them. so muscle cant simply stop registwring them because they are brain ones."*
+> 🔒 **And on naming:** *"maybe renaming to ownedComponentSet and readComponentSet would make it more
+> clear."*
+
+⛔⛔ **THIS INVALIDATES A PROPOSAL THIS SESSION HAD ALREADY FORMED** — *"a role registers the components it
+owns; split the cognitive bundle along the role line."* 🔴 **Wrong, and wrong in a way that would have
+broken the cluster:** `NavigationIntent` is **Brain-OWNED** and **replicated to Muscle**, which reads it and
+acts on it. A Muscle node that stopped registering *"brain components"* would stop receiving its own orders.
+
+⭐⭐⭐ **The correct model: every component stands in ONE of THREE relationships to a role.**
+
+| relationship | example *(measured)* | REGISTER? | OWN? |
+|---|---|---|---|
+| ⭐ **OWNED** — I have authority; I write it, I publish it | Muscle ↔ `SimTransform` · Brain ↔ `BrainBlackboard` | ✅ | ✅ |
+| 🔴 **READ** — owned elsewhere, **replicated IN**, my systems consume it | ⭐⭐ **Muscle ↔ `NavigationIntent`, `MissionPlanQueue`** | ✅ **MUST** | ⛔ **never** |
+| ⛔ **ABSENT** — never mine, never arrives, nothing here reads it | Muscle ↔ `BrainBTreeState`, `BrainHsm128` | ⛔ | ⛔ |
+
+> ### ⭐⭐⭐ `REGISTER = ownedComponentSet ∪ readComponentSet`   ·   `AUTHORITY = ownedComponentSet`
+
+⚠⚠ **`IRoleAffinityPolicy`'s table WAS the OWNED set only, under a name that did not say so.**
+✅ **BUILT `2026-09-12` — `CE-259bh`, as-built in §6g:** `componentsPerRole` → `ownedComponentsPerRole`,
+`readComponentsPerRole` added beside it, and the interface now answers the registration question directly
+*(`OwnedComponentSet` · `ReadComponentSet` · `RegisterComponentSet`)* instead of leaving callers to OR two
+tables — ⛔ **a caller that has to OR them is a caller that can forget the second half, which is the
+mistake above.**
+
+⚠ **What is still NOT done:** no host supplies a read table yet *(step 4)*, and the nine **unclassified**
+rows below are still unclassified. ⇒ ⭐ the MODEL no longer blocks the narrowing chain; the
+CLASSIFICATION does.
+
+#### 📐 THE MEASUREMENT THAT FORCED THIS — **wire references per cognitive component, `2026-09-12`**
+
+| component | wire refs | ⇒ for a MUSCLE node |
+|---|---|---|
+| ⭐⭐ **`NavigationIntent`** | **16** *(`NavigationIntentIngressTranslator` + `…EgressTranslator`)* | 🔴 **READ — must register** |
+| ⭐ **`MissionPlanQueue`** | **9** *(`EntityMissionIngressTranslator` writes the component)* | 🔴 **READ — must register** |
+| `BehaviorState` | 1 — ⚠ and it is `TacticalIntentEgressTranslator`'s `HasAuthority<>` **gate**, not a replication | ⛔ never arrives over the wire |
+| `BrainBTreeState` · `BrainBlackboard` · `Blackboard1024` · `BrainHsm128` · `BrainHsm64` | **0** | ⛔ **ABSENT — safe to drop** *(confirmed §3.9a: all four are `DataPolicy.NoScenario`, so none reaches a scenario)* |
+| the three channels · `ActorCapabilityState` · `PreviousCapabilities` · `SimTier` · `PassengerBuffer` · `IsEmbarkedTag` | **0** | ⚠ unclassified here; ✅ **CLASSIFIED in §3.9a** |
+
+⇒ ✅ **The SAFE-TO-DROP set for a Muscle node is these six** — the five brain internals plus
+`BehaviorState` — ✅ **CONFIRMED by the full classification in §3.9a, which adds four more.**
+⛔ **Not the whole cognitive bundle**, and ⛔ **not derivable from *"is it a brain component"*** —
+`NavigationIntent` is a brain component and must stay.
+
+#### ⚠ WHY "zero wire references" IS NECESSARY BUT NOT SUFFICIENT
+
+⛔ A component can be **produced locally** by a system this node schedules, with no wire involvement at
+all. ⇒ the classification must be **per component, against the systems a role actually RUNS**, not against
+a grep.
+
+### 3.9a ✅ THE CLASSIFICATION, MEASURED `2026-09-12` — **SimHost (`MuscleGround` + `Perception` + `NavigationSolver`, never `Brain`)**
+
+> ⛔⛔ **A RETRACTION FIRST, BECAUSE IT WAS PUBLISHED FOR ONE COMMIT.** An earlier version of this section
+> claimed *"the safe-to-drop set is THREE, not six — `BehaviorState`, `BrainBlackboard` and `Blackboard1024`
+> are REQUIRED for scenario persistence."* 🔴 **FALSE, and the design said so in the very files I cited.**
+> 📄 [`docs/designs/cgf-scn-3/DESIGN.md`](designs/cgf-scn-3/DESIGN.md) Architectural Boundary 3 — *"Runtime
+> execution scratch-pads (`BrainBlackboard`, channel arbitration state) **must be excluded from scenario
+> serialization**. They are deterministically reconstructed from the `ActiveMissionPlan` during load"* — and
+> [`cgf-scn-2`](designs/cgf-scn-2/DESIGN.md) §Phase 1: *"`DataPolicy.NoScenario` governs scenario exclusion."*
+> 📐 **In code:** `BehaviorState` *(`BehaviorComponents.cs:43`)*, `BrainBlackboard` *(`:60`)*,
+> `Blackboard1024` *(`:102`)* and `PreviousCapabilities` *(`:28`)* all carry `[DataPolicy(NoScenario)]`, and
+> each of the three translators states in its own `<remarks>` that **`Inject` is a deliberate no-op** and it
+> *"exists solely to produce a readable clipboard dump."*
+>
+> ⭐⭐⭐ **THE MISTAKE, NAMED:** I read the serializer factory's REGISTRATION LIST and inferred that a
+> registered translator means persistence. ⛔ **A translator is not a persistence path** — three of these are
+> EXTRACT-ONLY diagnostic dumps. 🔒 The answer was in the first 25 lines of each file. ⇒ **the same
+> WHOLE-FIELD-READ failure `CLAUDE.md` already records: I read the thing next to my question, not the thing
+> that would falsify it.**
+
+#### 📐 WHAT SIMHOST ACTUALLY RUNS — **the premise the classification rests on**
+
+| | measured |
+|---|---|
+| ⭐⭐⭐ **SimHost runs NO cognitive system** | ✅ zero references to `BTreeTickSystem` · `HsmTickSystem` · `BehaviorIngressSystem` · `ChannelArbitrationSystem` · `MissionDirectorSystem` · `CognitiveInterruptSystem` · `CognitiveCleanupSystem` in `Hrot.SimHost` *(the one hit is a doc-comment in dead code)*. `SimHostCoreLogicPack`'s own summary says it groups the **Muscle-tier** modules "for the `MuscleGround` role"; `StrideNodeBootstrapper.cs:306` states the same intent — *"no `BTreeTickSystem`, no `TacticalIntentResolutionSystem` — both are CGF's"* |
+| ⭐⭐ **the channels' only consumers are CGF's** | ✅ `ActionDispatchModule` *(which constructs `LocomotionDispatcherSystem`)* is registered by **`CgfLogicPack` only**; `Hrot.SimHost/Modules/ActionDispatchModule.cs` is a relocation stub |
+| ⭐⭐ **EQS is SimHost's, not CGF's** | ✅ `SimHostCapabilities.cs:79` registers `EqsModule` ⇒ the EQS trio is **owned** by SimHost's Perception role |
+| ⭐⭐ **persistence does NOT constrain this** | ✅ scenario saving is **distributed by design** and `DataPolicy.NoScenario` — not the node's registry — governs what reaches the JSON. ⇒ a node that holds no brain state contributes none, which is **correct, not lossy** |
+| ⛔⛔ **the registry is SHARED with CGF** | 🔴 `CgfComponentRegistry.cs:17` **and** `SimHostComponentRegistry.cs:19` both call `CognitiveComponentRegistry.RegisterAll` ⇒ **editing that file narrows the BRAIN too.** The narrowing cannot be done there |
+
+#### ⭐⭐⭐ THE CLASSIFICATION
+
+| component | relationship | why — the measured reason |
+|---|---|---|
+| `NavigationIntent` | 🔴 **READ** | `NavigationIntentBridgeSystem` runs in `SimHostCoreLogicPack`; 16 wire refs. ⭐ Already registered by `MuscleRoleComponentRegistry` too |
+| `MissionPlanQueue` | 🔴 **READ** | wire ingress writes it (9 refs) **and** `MissionPlanTranslator` has a REAL `Inject` ⇒ genuinely persisted |
+| `PassengerBuffer` · `IsEmbarkedTag` | ✅ **OWNED** | `GenesisMaterializationSystem` *(SimHost's own)* writes them; both have real scenario translators |
+| `ActorCapabilityState` | ✅ **OWNED** | `HealthApplicationSystem` + `DamageSystem` read it and SimHost runs `CombatModule`; ⭐ **not** `NoScenario`, so it is saved |
+| `EqsSensor` · `EqsCognitiveBuffer` · `SensorEvalState` | ✅ **OWNED** | SimHost registers `EqsModule` — the Perception role |
+| ⛔ `BehaviorState` · `BrainBlackboard` · `Blackboard1024` · `BrainBTreeState` · `BrainHsm128` · `BrainHsm64` | ⛔ **ABSENT** | no SimHost system · 0 wire refs · `NoScenario` ⇒ never in a scenario. ⚠ **The only cost is named below** |
+| ⛔ the three channels *(`Locomotion` · `Weapon` · `Interaction`)* | ⛔ **ABSENT** | only `ActionDispatchModule` + `ChannelArbitrationSystem` touch them, both CGF-only |
+| ⛔ `PreviousCapabilities` | ⛔ **ABSENT** | `NoScenario`; read only by `CognitiveInterruptSystem` *(CGF)* and the Stride animation reactor |
+| ⚠ `SimTier` | ⚠ **WRITE-ONLY** | stamped by `BehaviorTkbTranslator:30`, and its **only** reader anywhere is `TrafficBrainSystem` in `FDP/Examples` ⇒ nothing in production reads it on any node. ⛔ A finding in its own right *(`CE-259bj`)*, not a narrowing decision |
+
+⇒ ✅ **§3.9's ORIGINAL SET OF SIX STANDS**, and the classification adds **four more** — the three channels
+and `PreviousCapabilities` — for **ten** droppable on SimHost.
+
+#### ⚠ THE TWO THINGS NARROWING ACTUALLY COSTS — **both diagnostics on a node with no brain**
+
+| what | ⭐ verdict |
+|---|---|
+| `BrainBlackboardTranslator` · `Blackboard1024Translator` · the two trace translators stop producing a **clipboard dump** of brain state on SimHost | ⭐ **acceptable, arguably correct** — dumping a blackboard from a node that never ticks a brain shows a value nothing on that node produced |
+| `AiTraceContextMenu.cs:26` gates its `ToggleAiTrace` on `HasComponent<BehaviorState>` ⇒ the toggle no-ops on SimHost | ✅ **CORRECT BEHAVIOUR, NOT A DEFECT — 🔒 user ruling `2026-09-12`: *"Ai debug toggle was meant host local, no routing tje toggle elsewhere needed"*.** ⛔⛔ **RETRACTED:** an earlier version of this row called it *"the same defect as `CE-259bg`'s `brainActive`"* and said *"it must become a request to the node that runs the brain"*. 🔴 **Wrong, and the two cases are NOT alike:** `brainActive` used a local component to answer a **CLUSTER** question *(does this entity's brain — wherever it runs — have a behaviour?)*; the trace toggle asks a **HOST-LOCAL** question *(trace the brain running HERE)*. ⇒ ⭐ on a node with no brain there is nothing to trace, so the toggle having no effect is the **right** answer and no routing work exists. ⚠ `HasComponent<T>` on an unregistered type returns **false**, it does not throw — `HasUnmanagedComponent` reads a mask bit via `ComponentType<T>.ID` *(`EntityRepository.cs:1010`)* ⇒ a clean no-op |
+
+### 3.9b ⭐⭐⭐ REGISTRATION IS ALREADY ROLE-DERIVED — **it is ~80% BUILT AND UNDER-ADOPTED** *(user question, `2026-09-12`)*
+
+> 🔒 **User:** *"SimHostComponentRegistry and CgfComponentRegistry — i think this should be superseded by
+> role-derive component sets, no?"* ⇒ ✅ **Yes, and the seam already exists.** 📌 The house pattern again:
+> *"we need a shared X"* almost always means **X exists and is under-adopted**.
+
+#### 📐 INVENTORY — **14 component registries, and FOUR are already ROLE registries**
+
+⚠ *Measured by grep over `Hrot/`+`FDP/` on `class .*ComponentRegistry`; the codebase-memory MCP was
+disconnected at the time, so this is a grep-only inventory and `check_index_coverage` could not be run.*
+
+| registry | keyed by | ↔ `NodeRole` |
+|---|---|---|
+| ⭐⭐ `IgRoleComponentRegistry` — *"ECS registration contract for nodes fulfilling the **IG role**"* | ✅ **ROLE** | `ImageGenerator` |
+| ⭐⭐ `MuscleRoleComponentRegistry` — *"…the **Muscle role**"* | ✅ **ROLE** | `MuscleGround` |
+| ⭐ `NavigationSolverComponentRegistry` | ✅ **ROLE** | `NavigationSolver` |
+| ⚠⚠ `CognitiveComponentRegistry` | ✅ **ROLE — misnamed.** It *is* the Brain role's registry | `Brain` |
+| ⛔ **nothing** | 🔴 **MISSING** | **`Perception`** |
+| ⛔ `CgfComponentRegistry` · `SimHostComponentRegistry` | 🔴 **HOST** — hand-written unions | — |
+| `HrotShared` · `Kinematic` · `Combat` · `Hierarchy` · `Presentation` · `Mission` · `Zone` · `Route` | domain sets, role-neutral | — |
+
+#### 🔴🔴 THE MISSING `Perception` REGISTRY IS **WHY** SIMHOST CALLS THE BRAIN'S — **this is the root cause, not sloppiness**
+
+⛔⛔ **`CognitiveComponentRegistry` holds the EQS trio** *(`EqsSensor`, `EqsCognitiveBuffer`,
+`SensorEvalState`)* **plus the raycast events** — and those are **Perception**, which is a role SimHost
+DECLARES and CGF does not run *(`SimHostCapabilities.cs:79` registers `EqsModule`)*.
+⇒ ⭐⭐⭐ **SimHost calls the Brain's registry because its OWN role's components are filed inside it.**
+⚠ Same for `PassengerBuffer`/`IsEmbarkedTag` *(written by SimHost's `GenesisMaterializationSystem`)* and
+`ActorCapabilityState` *(Combat)*. ⇒ 🔒 **`CE-259bf` is not "delete six lines" — it is EXTRACT THE ROLES
+THAT ARE HIDING IN A FILE NAMED AFTER ONE OF THEM.**
+
+#### ⭐⭐ THE TARGET SHAPE — **and what does NOT disappear**
+
+```
+SimHostComponentRegistry(world) =
+      HrotSharedComponentRegistry            // role-neutral floor
+    ⋃ { roleRegistry[R] : R ∈ declaredRoles } // Muscle ⋃ Perception ⋃ NavigationSolver
+    ⋃ hostExtras                              // ⭐ REAL and legitimate — see below
+```
+
+| ⭐ | |
+|---|---|
+| ⭐⭐⭐ **the host registry does NOT vanish** | ⛔ Do not over-promise this. `ActivePerspective`, `GizmoComponentActivatedEvent`, `GlobalActionRequestedEvent`, `CmdSpawnVehicle`/`CmdCreateFormation`… are **UI and host-shell concerns, not role concerns** — they belong to *"this process has an operator window"*, which no `NodeRole` expresses. ⇒ the host registry SHRINKS to `roles + host extras` |
+| ⚠⚠ **`RegisterComponentSet` (§3.9, built `CE-259bh`) can be EITHER the audit OR the mechanism** | ⛔⛔ **RETRACTED `2026-09-12`: an earlier version of this row said *"a `BitMask512` cannot drive `RegisterComponent<T>()` — there is no id→`Type` map."* 🔴 FALSE, and it was asserted without opening the file.** 📐 `ComponentTypeRegistry` holds **`Dictionary<int, Type> _idToType`** *(`ComponentType.cs:75`)* and exposes **`public static Type? GetType(int id)`** *(`:342`)*, plus `GetAllTypeIds()` / `GetAllTypes()`. ⇒ ⭐ the map exists and is public. See the feasibility note below for what IS true |
+
+#### 📐 CAN A MASK DRIVE REGISTRATION? — **YES. The two real constraints, measured**
+
+| # | the constraint | ⭐ measured |
+|---|---|---|
+| **①** | `_idToType` is populated **as types register**, so it cannot be read BEFORE registration to decide what to register | ✅ `ComponentType.cs:115-135` — the id is resolved inside the registration path |
+| **②** | ⭐⭐⭐ **but the id is DECLARED ON THE TYPE, so a pre-registration map needs no registry at all** | ✅ `[ComponentId(int)]` *(`ComponentIdAttribute.cs:30`)*, read at `ComponentType.cs:121`. ⭐⭐ **And it is MANDATORY in production:** `FdpConfig.EnforceExplicitComponentIds` *(`FdpConfig.cs:98`)* — *"Set to `true` in production entry-points (SimHost, IG, ExCon `Program.cs`)… Registration of any struct without the attribute throws"* ⇒ **a reflection scan over the loaded assemblies yields a COMPLETE id→`Type` map before anything is registered** |
+| **③** | ⚠ the only genuine gap: the entry point is **generic-only** | ✅ `EntityRepository.RegisterComponent<T>(DataPolicy?)` *(`EntityRepository.cs:626`)* is the sole public registration method — no `RegisterComponent(Type)` overload. ⇒ mask-driven registration needs **either** a non-generic overload **or** `MakeGenericMethod` |
+
+⇒ ⭐⭐ **So it is FEASIBLE, and the choice is a real design decision rather than a capability limit.**
+⭐ **The lean stays AUDIT-FIRST, but now for honest reasons:** ⛔ a reflection scan + `MakeGenericMethod`
+at boot trades an explicit, greppable list of `RegisterComponent<T>()` calls for a dynamic one, and this
+codebase's ids are load-bearing across processes *(`R-44`: 256 slots, globally unique, partitioned)* —
+⭐ a wrong bit would register the wrong TYPE silently. ⚠ **What would change the lean:** if the role masks
+become the single source of truth anyway *(step 4)*, keeping a hand-written registry beside them is the
+duplicate-producer shape `R-132` warns about ⇒ then generating registration FROM the mask is the
+consistent answer, and the audit becomes redundant rather than complementary.
+
+#### 🔴🔴🔴 ID-DRIVEN REGISTRATION IS ALREADY BUILT AND RUNNING IN PRODUCTION — **`RecordingExportService`** *(measured `2026-09-12`)*
+
+> 🔒 **User:** *"how do hosts define their component masks, do they at all? if they do, nothing prevents
+> the component mask to drive the registration, right? can we do it?"*
+
+⭐⭐⭐ **`FDP/Toolkits/Fdp.Toolkits/ReplayBrowser/RecordingExportService.cs:815-850` does the WHOLE mechanism
+already**, and it is the seam law again — the thing I said had to be built exists and is under-adopted:
+
+| step | ⭐ the existing code |
+|---|---|
+| **①** build id→`Type` **without registering anything** | scans loaded types, `if (type.GetCustomAttributes(typeof(ComponentIdAttribute), false).Length == 0) continue;` → `ComponentTypeRegistry.GetOrRegisterManaged(type)` |
+| **②** find the generic entry point | reflects `EntityRepository`'s *"single public generic instance method named `RegisterComponent` with exactly one parameter"* and caches the `MethodInfo` *(`RecordingSearchService.cs:20` caches the same handle)* |
+| **③** ⭐⭐ **register BY ID** | `foreach (int typeId in ComponentTypeRegistry.GetAllTypeIds()) { Type? type = ComponentTypeRegistry.GetType(typeId); registerMethod.MakeGenericMethod(type).Invoke(repo, new object?[] { null }); }` |
+
+⇒ ⭐⭐⭐ **A mask-driven registrar is THAT LOOP WITH ONE LINE ADDED — `if (!mask.IsSet(typeId)) continue;`.**
+⛔⛔ **So "a `BitMask512` cannot drive `RegisterComponent<T>()`" was wrong twice: the id→`Type` map exists
+AND the id-driven registration loop exists.**
+
+#### ⭐⭐ "DO WE NEED `MakeGenericMethod` MAGIC?" — **the engine ALREADY does it, one hop below** *(user, `2026-09-12`)*
+
+📐 `EntityRepository.RegisterComponent<T>` *(`:626`)* uses `T` for **exactly one line** —
+`UnsafeShim.RegisterUnmanaged<T>(this)`; everything after it works from `Type` and `typeId` and is already
+non-generic. ⭐⭐⭐ **And that one line is itself reflection:** `UnsafeShim`'s own header says it *"uses
+cached open delegates created via Reflection to bypass compile-time constraints"*, and
+`UnmanagedAccessor<T>`'s static ctor builds them with **`GetMethod(...).MakeGenericMethod(typeT)` +
+`Delegate.CreateDelegate`** *(`UnsafeShim.cs:187-194`)*, cached `static readonly` per `T`.
+
+⇒ ⛔ **A by-id registrar does not INTRODUCE a technique — it reuses the one the registration path is
+already built on.** ⭐ Three shapes are available, and the choice is about checkability, not feasibility:
+
+| shape | ⭐ |
+|---|---|
+| **(a)** reflect + `MakeGenericMethod` per id | ⭐ what `RecordingExportService` already does; zero new machinery. ⛔ resolution errors are runtime |
+| **(b)** a `Dictionary<int, Action<EntityRepository>>` primed at type-init | ⭐ no reflection at the CALL site — the same cached-delegate trick `UnsafeShim` uses. ⚠ chicken-and-egg: the delegate exists only once `ComponentType<T>` has been touched, so something must still prime it once |
+| **(c)** ⭐⭐ **a generated `switch (id) { case N: repo.RegisterComponent<Foo>(); … }`** | ⭐ fully native, **compile-time checked**, and this repo already generates code. ⛔ needs a generator step and regenerates on every new component |
+
+✅✅ **RULED `2026-09-12` (user): SHAPE (a).** 🔒 *"lets do (a)."* ⇒ ⭐ the by-id registrar reuses the
+existing production path — reflect the generic `RegisterComponent`, resolve `ComponentTypeRegistry.GetType(id)`,
+`MakeGenericMethod(...).Invoke(...)` — ⛔ **with the bare `catch` REMOVED**: a DECLARED role bit that fails
+to register is a configuration error and must be loud *(see the scope-limit table above)*.
+⚠ **(c) stays the documented upgrade path**, not a rejected option: if the registration set ever becomes
+the single source of truth, a generated `switch` turns a missing entry into a COMPILE error instead of a
+boot warning. ⛔ Do not treat that as settled against — it is sequenced behind, not dismissed.
+
+#### 📐 DO HOSTS DEFINE COMPONENT MASKS TODAY? — **NO. Not one.**
+
+| | measured |
+|---|---|
+| ⛔ **no host declares a component set** | registration is **273 `RegisterComponent<T>` + 26 `RegisterManagedComponent<T>`** call sites across **46 production files**, composed by hand into the host registries of §3.9b |
+| ⚠ every `BitMask512` in the host projects is **per-TRANSLATOR**, not per-host | `GetConsumedComponentsMask()` on each `IEntityScenarioTranslator`; CGF's one static mask is `StagingEntityExtractor.BuildStaticMask()` — a save-time EXCLUSION mask |
+| ⭐ **but id-SETS already drive engine behaviour** | `ComponentTypeRegistry.GetSaveableTypeIds()` · `GetRecordableTypeIds()` · `GetSnapshotableTypeIds()` — per-type policy, consumed as id sets. ⇒ the pattern is native here, not foreign |
+
+#### ⭐⭐⭐ THE INSIGHT THAT DECIDES THE SHAPE — **a role mask is AUTHORED IN TYPES, so one artefact can serve both**
+
+⚠ A `BitMask512` is not hand-authored as bit numbers — it is built as `mask.SetBit(ComponentType<T>.ID)`.
+⇒ ⭐⭐ **the role's "mask" IS a typed list.** So the choice is not *"types vs ids"*; it is **whether ONE
+typed role manifest produces BOTH the registration and the authority mask, or whether two hand-kept lists
+are expected to agree.**
+
+⇒ 🔒 **Deriving registration FROM the mask makes `REGISTER = ownedComponentSet ∪ readComponentSet` TRUE BY
+CONSTRUCTION** rather than true by review — ⛔ and two hand-kept lists for one fact is exactly the
+two-producers shape `R-132` warns about, which is how SimHost came to register the brain tier in the first
+place.
+
+#### ⚠⚠ WHAT A COMPONENT MASK CANNOT DO — **the scope limit, measured**
+
+| ⛔ | |
+|---|---|
+| ⛔⛔ **EVENTS ARE NOT COMPONENTS** | the registries also carry **116 `RegisterEvent<T>` + 23 `RegisterManagedEvent<T>`**. `ComponentTypeRegistry` ids are COMPONENT ids ⇒ **a component mask cannot express an event**. ⭐ The role registries therefore do not vanish; they shrink to *events + host extras* |
+| ⚠ **`DataPolicy` override** | `RegisterComponent<T>(DataPolicy? policyOverride = null)` — the existing reflection path passes `null`, and 📐 the only production call passing a policy is in `FDP/Examples` ⇒ **not a blocker**, but a mask carries no policy and that must be said out loud |
+| ⚠ **explicit ids must hold** | the scan skips types without `[ComponentId]`. ⭐ `FdpConfig.EnforceExplicitComponentIds` is set `true` in production entry points ⇒ complete THERE; ⛔ tests run with it `false`, so a mask-driven path is production-shaped and tests keep the explicit calls |
+| 🔴🔴 **the existing loop SWALLOWS failures** | *"Skip types that cannot be registered"* — a bare `catch`. ⛔ **A production registrar must NOT inherit that.** A DECLARED bit that fails to register is a configuration error and must throw or log loudly: a silently-skipped role component is precisely the silent-default family this codebase keeps producing |
+
+#### ⚠⚠ AND THE SAME QUESTION FOR THE LOGIC PACKS — **role in intent, host in fact, citing a type that does not exist**
+
+| pack | what its OWN doc-comment says | ⛔ measured |
+|---|---|---|
+| `CgfLogicPack` | *"groups the three **Brain-tier** modules … in registration order **matching the Brain role**"*, *"Execution order: matches the production order used by `SimulationLogicModule` for the **`Brain` role**"* | ⛔ also carries `HealthApplicationSystem` *(Combat)*, `ActiveSensorTracksUpdateSystem` *(Perception)*, `RouteContextSystem` *(Navigation)* |
+| `SimHostCoreLogicPack` | *"groups the four **Muscle-tier** simulation modules"*, *"…`SimulationLogicModule` for the **`MuscleGround` role**"* | ⛔ also carries the nav-intent bridge and route authoring |
+| 🔴🔴 **both** | cite **`SimulationLogicModule`** as the canonical per-role order | 🔴 **`SimulationLogicModule` DOES NOT EXIST — zero occurrences in the tree.** ⇒ the role ordering they claim to mirror has **no owner**, so nothing can detect when one drifts from the other |
+
+⇒ ⭐⭐ **Answer: they are ROLE packs wearing HOST names, and they have drifted** — each is *"one role, plus
+whatever that host also needed."* ⛔ **They are not redundant today** *(a composition root needs a named
+bundle to register)*, ⭐ but the right end state is **one pack per role, composed by declared roles**, with
+the host adding only its shell systems — the exact mirror of the registry shape above.
+
+#### ⭐⭐ WHAT THIS BUYS — **"can this node EVER own X?" becomes answerable statically**
+
+🔒 The user's other observation: *"technicly the 'can ever have authority' question coukd be asked."*
+⭐ With `ownedComponentSet` declared per role, that is a **composition-time** question — no entity, no
+runtime state. ⇒ it is the right driver for **registration** and for a **boot-time diagnostic**
+*(⚠ "this node registers a component its role can never own **and** never reads" is a configuration error
+worth naming out loud — and it is exactly SimHost's current state)*.
+⛔ **It is NOT the same question as `WithOwned<T>()`**, which asks *"do I own THIS ENTITY's copy right
+now?"* — §3.5's execution gate. ⭐ Static "could ever" drives what EXISTS; runtime "do now" drives what
+RUNS.
+
+---
+
+### 3.9c ⭐⭐⭐ THE TABLES ARE COMPLEMENTS — **the creator keeps everything NO ROLE claims** *(user question, `2026-09-13`)*
+
+> 🔒 **User, verbatim:** *"if any node now can create entity, who owns entityInfo component of such entity?
+> it needs to be the creator, because entity info is not a role bound component, right?"*
+> ⭐⭐⭐ **Yes** — and this section exists because that answer is **not** readable from §3.9/§3.9a. Those two
+> say what a role OWNS and READS; ⛔ **neither says what happens to the hundreds of components no role
+> mentions**, and getting that wrong breaks the cluster rather than the feature.
+
+⚠ **This is the canonical statement of the table SHAPE.** 📌 §6i records what shipped and cites this; ⛔ do
+not re-argue it there.
+
+#### 📐 The rule, and it is one line of set arithmetic
+
+```
+Brain        owned = ALL − birthCritical
+MuscleGround owned = ALL − birthCritical − brainOnly
+read (Muscle)      = { NavigationIntent, MissionPlanQueue }
+```
+
+| bucket | example | Brain owns? | Muscle owns? |
+|---|---|---|---|
+| ⭐ **birth-critical** | `SimTransform` | ⛔ no — §3.1's **creator birthright**, then the explicit `DeferredTakeOwnership` handoff | ⛔ no |
+| ⭐ **brain-only** *(§3.9a)* | `BehaviorState` · the blackboards · the three channels · the intents | ✅ yes | ⛔ **no — the ruling** |
+| ⭐⭐⭐ **everything else** | `EntityInfo` · health · map display · hierarchy · route | ✅ **yes** | ✅ **yes** |
+
+⇒ ⭐⭐ **`EntityInfo` is in the third bucket, which feeds BOTH masks** ⇒ the intersection at
+`NetworkSpawningSystem.cs:237` never removes it ⇒ **whichever node created the entity keeps it**, on any
+host, exactly as before this design existed.
+
+#### ⛔⛔ WHY NOT A POSITIVE LIST — **an enumeration is a WHITELIST, and it reproduces `CE-256`**
+
+📐 The decisive property is that the create leg **REPLACES** the blanket grant rather than refining it:
+
+| | |
+|---|---|
+| `NetworkSpawningSystem.cs:237` | `metaNS.AuthorityMask.BitwiseAnd(in ownable)` — applied to a mask that was just set to the **whole** component mask |
+| §3.9a classified | **~20** components |
+| the codebase has | **hundreds** |
+
+⇒ 🔴 **a positive Muscle list would leave a SimHost-created tank owning twenty components and NOTHING
+ELSE** — no `EntityInfo`, no health, no map display — which is `CE-256` verbatim *(§0a)*: *"owns nothing,
+so nothing it is responsible for ever moves."* ⛔ **The design would have re-created the bug it opens by
+citing.**
+
+⇒ ⭐⭐⭐ **So the tables invert the default: unclassified stays owned, and only NAMED exclusions are
+removed.** ⭐ The blast radius of role affinity is then exactly the ruling — *"a Muscle node does not own
+brain components"* — and nothing else.
+
+#### ✅✅✅ RULED `2026-09-13` — **THE COMPLEMENT IS THE STEADY STATE, NOT A STOPGAP**
+
+> 🔒 **User:** *"what is positive enumeration good for, what are we losing without it, the complementary
+> one wasnt looking bad"*
+
+⛔⛔ **An earlier version of this paragraph called the positive enumeration *"the upgrade path"*, and a
+`2026-09-13` session repeated that as *"the gating item"* for P3. ⚠ BOTH OVERSTATED IT** — the label was
+inherited, not weighed. 📐 **Weighed now:**
+
+| ⭐ what a positive enumeration would BUY | 📐 measured worth |
+|---|---|
+| tighten the ONE imprecision: `Brain ∩ Muscle ≠ ∅` over the unclassified bucket, so the promote leg's bare `BitwiseOr` lets **two nodes set one bit** | ⚠ **INERT.** Re-measured `2026-09-13`, excluding doc-comments: the per-component mask's entire production readership is **`HasAuthority<SimTransform>` ×4 · `HasAuthority<BehaviorState>` ×2 · `WithOwned<SimTransform>` ×7 · one `WithOwned<Position>` query matching ZERO HROT entities**. ⇒ **zero reads on any UNCLASSIFIED component** |
+| make `IRoleAffinityPolicy.RegisterComponentSet` meaningful, so registration DERIVES from the role instead of being hand-authored | ⭐ real, but §6j's rails already detect the drift, and the derivation is not otherwise needed |
+| force every NEW component to be classified deliberately | ⚠ ALSO its biggest cost — see below |
+
+| 🔴 what it would COST | |
+|---|---|
+| **~496 of 512 bits are unclassified today** | a positive table means classifying **every** component **per role**, by hand |
+| ⛔⛔ **and every NEW component must be added or it becomes UNOWNED — silently** | that is `CE-256` verbatim: *"owns nothing, so nothing it is responsible for ever moves"* |
+
+⇒ 🔒 **THE ASYMMETRY THAT DECIDES IT.** The complement fails toward **OVER**-ownership — currently inert,
+and a duplicated bit is detectable. A positive enumeration fails toward **UN**-ownership — catastrophic,
+silent, and triggered by the most routine act in the codebase: adding a component.
+⇒ ⭐⭐⭐ **Keep the complement. It is not a stopgap awaiting an upgrade; it is the safer default, and the
+imprecision it accepts is the price of never un-owning the third bucket.**
+
+⭐⭐ **THE TRIGGER TO REVISIT — concrete, and it replaces the vague "future work" label:** revisit ONLY if
+something starts reading the per-component `AuthorityMask` *(`HasAuthority<T>` / `WithOwned<T>`)* for a
+component that is **NOT** in `BrainOnlyComponents` ∪ `BirthCriticalComponents`. ⛔ Until then the duplicated
+bit cannot be observed by anything, so tightening it buys nothing and risks `CE-256`.
+⚠ `EveryUnclassifiedComponentStaysOwnedByBothRoles` remains the rail any such change must argue with.
+
+#### ⚠ THE CONSEQUENCE, STATED HONESTLY — **Brain ∩ Muscle ≠ ∅, and the promote leg over-claims**
+
+⛔ The two role masks are **disjoint only over the CLASSIFIED set**; they deliberately OVERLAP over the
+third bucket. ⇒ on the promote leg `GhostPromotionSystem.cs:261` is a bare `BitwiseOr` with **no
+"is it owned elsewhere" guard**, so the promoting node also sets `EntityInfo`'s bit on its ghost.
+**Two nodes, one bit.**
+
+📐 **Harmless today, for two measured reasons — both in §3.6:**
+
+| | |
+|---|---|
+| ⭐⭐ **replication never reads that bit** | `EntityInfoEgressTranslator.cs:116` gates on the **entity-level** `NetworkAuthority`/`DescriptorOwnership`; ⛔ **no egress translator reads the per-component `AuthorityMask` at all.** The promoter is not `PrimaryOwner`, so it publishes nothing |
+| ⭐ **nothing else reads it either** | the mask's whole production readership is `SimTransform`, `BehaviorState`, `BrainBlackboard` |
+
+⇒ ⭐ **for anything that ACTS on it, the creator owns `EntityInfo`.** ⚠ The duplicated bit is the
+imprecision the complement accepts in exchange for not un-owning the third bucket — ⛔ **tolerated, not
+correct**, and the first thing a positive enumeration would tighten.
+
+📄 **The same answer, aimed at a reader who arrived from the other side** *(*"the pack has no opt-out, so
+every node creates entities — who owns what?"*)*, is
+[`DESIGN_Entity_Creation_Unification.md`](DESIGN_Entity_Creation_Unification.md) **§4.1**. ⚠ It is a
+POINTER pair, not a copy: **this section owns the rule**, §4.1 owns the creation-side framing. ⛔ If these
+tables ever become positive enumerations, §4.1's answer changes and must be updated in the same commit.
+
 ### 3.4 ⛔ What this does NOT retire
 
 ⭐ **Explicit `DeferredTakeOwnership` grants still win.** Role affinity is the **default**; a creator that
@@ -551,10 +996,37 @@ never registers is skipped by the translator, so the query never matches and not
 
 ### 3.6 ⚠ TWO different "authority" concepts — do not confuse them
 
-| concept | where | who reads it |
+> ⛔⛔⛔ **RE-MEASURED `2026-09-13`, AND THE ROW BELOW WAS WRONG IN THE ONE WAY THAT MATTERS.** An earlier
+> version of this table said the per-component `AuthorityMask` is read by *"all egress translators"*.
+> 🔴 **It is read by NONE of them.** 📐 Every production egress translator calls the **extension**
+> `ISimulationView.HasAuthority(entity, packedKey)` *(`AuthorityExtensions.cs:16-56`)*, which consults
+> **`DescriptorOwnership`** and then falls back to **`NetworkAuthority.PrimaryOwnerId == LocalNodeId`** —
+> ⛔ **it never touches `AuthorityMask`.** ⚠ The overload resolution hides this: `repo.HasAuthority(entity,
+> packedKey)` looks like the mask method `EntityRepository.HasAuthority(Entity, int)`, but `packedKey` is a
+> `long`, so the extension wins.
+
+| concept | where | ⭐ who ACTUALLY reads it — measured `2026-09-13` |
 |---|---|---|
-| ⭐ **per-component `AuthorityMask`** — `EntityRepository.HasAuthority(entity, componentId)` | `EntityMetadataCold.AuthorityMask` | all egress translators · `EcsPatchContext` · `TacticalIntentResolutionSystem` · **this design** |
-| ⚠ **entity-level `NetworkAuthority`** — a component whose `HasAuthority => PrimaryOwnerId == LocalNodeId` | `Replication/Components/NetworkAuthority.cs:26` | `DamageSystem:51` · `HealthApplicationSystem:64` · `FireProcessingSystem:71` · `CycloneNetworkCleanupSystem:53` |
+| ⭐ **per-component `AuthorityMask`** — `EntityRepository.HasAuthority(entity, componentId)` / `HasAuthority<T>()` / `QueryBuilder.WithOwned<T>()` | `EntityMetadataCold.AuthorityMask` | ⭐⭐ **exactly four component types, listed below** · `EcsPatchContext` · **this design** |
+| ⚠ **entity-level `NetworkAuthority` + `DescriptorOwnership`** — `ISimulationView.HasAuthority(entity, packedKey)` | `AuthorityExtensions.cs:16` · `NetworkAuthority.cs:26` | 🔴 **every egress translator** *(15 call sites across NED, BDC and `Hrot.Animation.Replication`)* · `DamageSystem:51` · `HealthApplicationSystem:64` · `FireProcessingSystem:71` · `CycloneNetworkCleanupSystem:53` |
+
+#### 📐 THE MASK'S ENTIRE PRODUCTION READERSHIP — **four component types, and one of them matches nothing**
+
+| component | reader | host |
+|---|---|---|
+| ⭐ `SimTransform` | `CarKinematicsSystem.cs:73` · four Stride physics systems · **`GeoSpatialIngressTranslator.cs:90`** | SimHost · Stride · any NED node |
+| ⭐ `BehaviorState` | `TacticalIntentEgressTranslator.cs:72` · `TacticalIntentResolutionSystem.cs:95` · 4 of the 6 gated cognitive systems | SimHost · CGF |
+| ⭐ `BrainBlackboard` | `CognitiveInterruptSystem` · `CognitiveCleanupSystem` *(gated)* | CGF |
+| ⛔ `Position` *(geographic)* | `CoordinateTransformSystem.cs:29` | ⚠ **matches ZERO HROT entities** — `PositionGeodetic` has **0** production references in `Hrot/`+`Stride/`, and the query requires it |
+
+⇒ ⭐⭐⭐ **THE CONSEQUENCE FOR THIS DESIGN, STATED PLAINLY: narrowing the `AuthorityMask` does NOT change
+what any node PUBLISHES.** ⛔ It changes what a node **EXECUTES** *(`WithOwned<T>` — step `3b`)* and the
+three specific checks above. ⚠⚠ **This makes step 4 far smaller and safer than §3.1's prose implies — and
+it also means the design was never going to fix replication by itself.** ⭐ The handover that DOES move
+publication is `DeferredTakeOwnership` → `OwnershipUpdate`, which writes **both** faces
+*(`OwnershipIngressSystem.cs:79` and `DeferredTakeoverSystem.cs:97,118` set `DescriptorOwnership` **and**
+call `SetAuthority`)* — ⛔ the blanket grant at spawn writes only the MASK, which is why the two faces
+disagree at birth and agree after a handover.
 
 ⛔ **Role affinity operates on the MASK.** Declining mask bits does **not** change `NetworkAuthority`, so
 combat systems are unaffected — ⭐ which is correct here, but it must not be assumed the other way round.
@@ -570,12 +1042,19 @@ classDiagram
     class IRoleAffinityPolicy {
         <<interface>>
         +OwnableMask(template, isCreator, key) BitMask512
+        +OwnedComponentSet BitMask512
+        +ReadComponentSet BitMask512
+        +RegisterComponentSet BitMask512
     }
     class RoleAffinityPolicy {
         -NodeRole declaredRoles
-        -Dictionary~NodeRole,BitMask512~ componentsPerRole
+        -Dictionary~NodeRole,BitMask512~ ownedComponentsPerRole
+        -Dictionary~NodeRole,BitMask512~ readComponentsPerRole
         -IRoleShardProvider shard
         +OwnableMask(template, isCreator, key) BitMask512
+        +OwnedComponentSet BitMask512
+        +ReadComponentSet BitMask512
+        +RegisterComponentSet BitMask512
     }
     class IRoleShardProvider {
         <<interface>>
@@ -626,6 +1105,7 @@ classDiagram
     NetworkSpawningSystem --> IRoleAffinityPolicy : declines what role excludes
     NetworkSpawningSystem --> TkbTemplate : birth-critical always kept
     RoleAffinityPolicy --> TkbTemplate : reads BirthCriticalComponents
+    note for RoleAffinityPolicy "BOTH SETS BUILT 2026-09-12 (CE-259bh, 6g). REGISTER = owned + read is a MEMBER, not a caller's OR. The three set properties are shard-FREE: registration is per NODE, the shard is per ENTITY"
     GhostPromotionSystem --> IRoleAffinityPolicy : claims what role includes
     NetworkSpawningSystem --> EntityRepository
     GhostPromotionSystem --> EntityRepository
@@ -797,11 +1277,621 @@ sequenceDiagram
 | **0** | ✅✅✅ **DONE `2026-09-12` — see §6b AS-BUILT.** ~~`TkbTemplate.BirthCriticalComponents` + `AddBirthCriticalComponent<T>()`, mirroring `AddMandatoryComponent<T>()`; seed **`SimTransform`** on the templates that carry one~~ | ✅ both gate halves met *(`TkbTemplateTests`)*, ⭐ plus a catalogue-wide rail the step did not ask for. ⚠ **ONE GAP, recorded not closed: file-loaded templates** — §6b |
 | ⭐⭐ **1a** | ✅✅✅ **DONE `2026-09-12` — see §6c AS-BUILT.** ~~`IRoleShardProvider` + `RoleShardKey` + `SingleNodePerRoleShardProvider` in `Fdp.Toolkits/Replication`~~ — ⚠ **the signature DEVIATED: roles are opaque `int` bits, because `NodeRole` lives in `Hrot.Core` and the dependency cannot run this way** | unit: the default provider answers `true` for every DECLARED role and `false` otherwise, **for any key** *(incl. `NetworkId == 0`, the networkless case)*; ⭐ **a rail that the default IGNORES the key** — red-proof: make it read `NetworkId` and the "identical on every node" contract rail reddens |
 | **1** | ✅✅✅ **DONE `2026-09-12` — see §6d AS-BUILT.** ~~`IRoleAffinityPolicy` + `RoleAffinityPolicy` in `Fdp.Toolkits/Replication`, taking the provider and a mask PER ROLE~~ ⭐ **Shipped as specified — no deviation.** | unit: Brain and Muscle masks are **disjoint** over the brain/kinematic sets, **and** birth-critical components are in **both**. ⭐⭐ **AND the shard rail: with a stub provider answering `false` for `Brain`, a Brain-declaring node's mask contains NO brain components** — this is the one that proves the seam is real rather than decorative |
-| **2** | `NetworkSpawningSystem:181` intersects with the policy; **null policy keeps today's behaviour** | rail: with no policy, the mask is unchanged *(red-proof: inject a policy, assert the bits drop)*. ⭐⭐ **AND the birthright rail: a creator ALWAYS keeps `dtWorldPos`, whatever its role** — this is the one the architect's correction exists to protect, so it is written before step 2's code |
-| **3** | `GhostPromotionSystem` claims after the translator loop | rail: a promoted ghost owns exactly the role's descriptors |
-| **3b** | 🔴 **the execution gate** — §3.5: `.WithAuthority<BehaviorState>()` on `BTreeTickSystem`, and narrow the Muscle-only registration | rail: a node holding brain components it does **not** own ticks them **zero** times. ⛔ **Without this the whole design is cosmetic** — authority would gate replication while both nodes still ran the tree |
+| **2** | ✅✅✅ **DONE `2026-09-12` — see §6e AS-BUILT.** ~~`NetworkSpawningSystem` intersects with the policy; null policy keeps today's behaviour~~ ⚠ the line is **`:191`**, not the `:181` this row named | rail: with no policy, the mask is unchanged *(red-proof: inject a policy, assert the bits drop)*. ⭐⭐ **AND the birthright rail: a creator ALWAYS keeps `dtWorldPos`, whatever its role** — this is the one the architect's correction exists to protect, so it is written before step 2's code |
+| **3** | ✅✅✅ **DONE `2026-09-12` — see §6e AS-BUILT.** ~~`GhostPromotionSystem` claims after the translator loop~~ ⚠ the insertion point is **`:208`/`:211-214`**, not the `:122`/`:129` §3.2 named | ✅ met, plus three the row did not ask for: no-policy passthrough, **no birthright for a promoter**, and an explicit grant surviving |
+| **3b** | ✅✅ **THE QUERY-FILTER HALF DONE `2026-09-12` — see §6f AS-BUILT.** ⛔ The REGISTRATION-narrowing half (a) is NOT done and is now a QUESTION, not a task — §6f says why it would remove a capability |  rail: a node holding brain components it does **not** own ticks them **zero** times. ⛔ **Without this the whole design is cosmetic** — authority would gate replication while both nodes still ran the tree |
 | ⭐ **3c** | 🆕 **the BOOT WARNING** *(§5 ② — user-approved `2026-09-10`)*: at the composition root, warn once if `IClusterStateCache.GetLeastLoadedNode(NodeRole.Brain)` is `null`. ⛔ **WARN, never throw** *(a pure-Muscle test cluster is legitimate)*, and ⛔ **at the root, not in the policy** — it is NED-only and the policy stays network-agnostic *(§2.3)* | rail: the warning fires on a roster with no Brain and is **silent** when one is present |
-| **4** | hand CGF a Brain policy and SimHost a Muscle policy at their composition roots, ⭐ **each with a `SingleNodePerRoleShardProvider` over the role that host already declares** *(`SimHostApp.DefaultRole:182` · `CgfSubsystem.DefaultRole`)* | ⭐⭐ **the acceptance test:** a SimHost-created brain-enabled entity ends with `HasAuthority<BehaviorState>` **false on SimHost and true on CGF**, and `TacticalIntentResolutionSystem`'s gate passes |
+| **4** | ✅✅✅ **DONE `2026-09-13` — see §6i AS-BUILT.** ~~hand CGF a Brain policy and SimHost a Muscle policy at their composition roots, each with a `SingleNodePerRoleShardProvider` over the role that host already declares~~ ⭐ **AND `gateOnAuthority: true` in the same change** — §6f's ordering hazard. ⚠ **DEVIATION: the tables are COMPLEMENTS, not enumerations** — §6i says why an enumeration reproduces `CE-256` | ✅ met, plus nine more the row did not ask for. ⭐⭐ **And the acceptance test is now a UNIT rail over the PRODUCTION tables** *(`HrotRoleComponentSetsTests`)*, not only an integration claim |
+
+## 6i. ✅✅✅ AS-BUILT — **step `4`: the two hosts get their policies, and the gate comes on with them** *(`2026-09-13`, obligation ⑤)*
+
+⭐⭐⭐ **This is the step that makes P3 live.** Steps `0`–`3b` built a mechanism every host ran with a
+`null` policy — ⛔ measurably a no-op. ⭐ §4.2/§4.3's sequences are now the sequences production runs;
+they are not redrawn here.
+
+#### ✅✅✅ 6i-a. VERIFIED ON A LIVE DISTRIBUTED CLUSTER — **`2026-09-13`, CGF and SimHost in SEPARATE PROCESSES**
+
+> 🔒 **The question this answers** — user: *"there were many structural changes, we need to check if the
+> 'hill attack close' scenario still works … especially in multi node distributed mode."*
+
+📐 **Three processes, one node each** *(`orchestrator:8100`, `cgf:8101`, `simhost:8102`, `--no-wait`)*,
+`hill-attack-close` loaded via `POST /scenario/load/live` on CGF, driven over the plain HTTP debug API.
+
+| ⭐ what was measured | result |
+|---|---|
+| **distributed genesis** | `entityCount: 8` on **BOTH** nodes, `sawWorldChange`+`hadWorldAnchor` true ⇒ CGF created, SimHost ghosted **and promoted** all 8 |
+| ⭐⭐⭐ **the role split, as component sets** | SimHost carries `VehicleParams`/`NavState`/`FormationController`/`PhysicsCollider`/`WeaponState`/`Health` and **NO** `BehaviorState`, `BrainBlackboard` or `BrainBTreeState`. CGF carries the cognitive set. ⇒ §6h's registration narrowing is visible in production, per entity |
+| ⭐⭐ **the creator's birthright, on the wire** | `WorldPos` on CGF: **egress exactly `8`** *(one guaranteed baseline per entity)*, then **ingress `18 064`** as SimHost's kinematics take over. ⭐ That is `[PerInstanceValue]`'s ADDITION RULE *(§6.6a of `designs/tkb-1`)* observable end to end |
+| ⭐⭐ **deferred takeover** | `DeferredTakeOwnership` recv `8` · `SST_OwnershipUpdate` `16` · per-entity `DescriptorOwnership.Map` names SimHost as owner of 2 descriptors |
+| ⭐ **the full kill chain** | advance → `SensorContactList.Count` 2 → `ActiveSensorTracks` → `WeaponChannel.Status: Running` → `WeaponFireRequest` egress `84` → `EntityHitDamage` SimHost→CGF `47/47` → **both hostiles `Health.Current == 0`** *(`t=44.4` and `t=161.0`)* |
+| ⭐⭐⭐ **faults** | **ZERO** `Exception` / `Unhandled` / `Strict Mode Violation` on **all three** node logs ⚠ *(checked explicitly — the module host SWALLOWS system exceptions, so a clean `/status` is not evidence)* |
+
+⇒ ✅✅ **Step 4 holds under real distribution.** ⛔ Nothing in `CE-264`/`CE-265`/`CE-266` broke the
+scenario: both targets die, and the platoon performs its hull-down advance/withdraw cycle throughout.
+
+⚠⚠ **ONE DEFECT WAS FOUND, AND IT IS NOT THIS DESIGN'S — `CE-267`, now FIXED.** The distributed damage
+path *(`HealthApplicationSystem`)* applied damage but never DESTROYED at 0 HP — its own comment said
+destruction was *"deferred to a separate workstream task"* — while the local path *(`DamageSystem`)* did.
+⛔ `AimAndFireExecutor` succeeds only on `!IsAlive(target)`, so the engagement could never end. ✅ Fixed by
+publishing `DestroyEntityCommand` on the 0-HP transition; `hill-attack-close` now terminates *(both targets
+removed by `t≈37`, all attackers home by `t≈59`)*. ⛔ **Not P3 fallout** — the deferred task predates
+`CE-264`/`CE-265`/`CE-266`. ⚠ An earlier version of this paragraph argued it was *"not a distribution
+defect"* because `--mode all` reproduced it; that reasoning was WRONG — `--mode all` runs several kernels
+with DDS between them, so it is a split topology too.
+
+### 📐 WHAT SHIPPED
+
+| | |
+|---|---|
+| 🆕 **`Hrot/Engine/Hrot.Core/HrotRoleComponentSets.cs`** | ⭐⭐ **the cluster's role→component tables, authored ONCE.** `Fdp.Toolkits` holds the MECHANISM; this file — in the application layer — holds the MEANING. 🔒 *"fdp should not understand what a brain and muscle really mean."* ⭐ `CreatePolicy(NodeRole)` takes a role **and nothing else**, so two hosts cannot be handed two different tables: the design's safety property stated as an API |
+| ✏ **`SimHostNodeBootstrapper.cs`** | `RoleAffinity = HrotRoleComponentSets.CreatePolicy(SimHostApp.DefaultRole)` — ⭐ the SAME constant that resolves this host's capability set *(`CE-197`)*, so the ownership rule and the module set cannot disagree about what the node is |
+| ✏ **`CgfSubsystem.cs`** | the Brain policy **and** `gateOnAuthority: true`, two statements apart |
+| 🆕 **`Hrot.Core.Tests/HrotRoleComponentSetsTests.cs`** | **10 rails, 10 green.** ⭐ `RoleAffinityPolicyTests`' own header says *"a green here does not mean CGF and SimHost are configured correctly — that is step 4's acceptance test"* ⇒ this file is that test, over the real tables |
+| ⛔ **NOT touched** | `IgNodeBootstrapper` · `StrideNodeBootstrapper` · `EditorSubsystem` · the test harnesses. They keep `null` *(today's behaviour — own everything you create)*. ⭐ The two-node Brain/Muscle case is the one the ruling is about and the one that can be proven; the others get policies once it is proven live. ⚠ **That one-liner is too coarse — see §6i-b** |
+
+#### ⚠⚠ 6i-b. WHY THE OTHER HOSTS RUN `null`, PER HOST — **and one of them MUST NOT be switched on** *(`2026-09-13`)*
+
+> 🔒 **Asked directly: *"why the hosts were null policy?"*** ⭐ The row above answers *"scope"*, which is
+> true for two of them and **dangerously incomplete for a third.**
+
+⭐⭐ **`null` means "own every component of every entity you create"** — today's behaviour, and the safe
+default. ⛔ The blanket reason *"once it is proven live"* is now SATISFIED *(§6i-a proved it on a real
+3-process cluster)*, so the honest per-host answer matters:
+
+| host | declared role | 📐 what a policy would actually do |
+|---|---|---|
+| ⭐⭐⭐ **Stride** *(`StrideCapabilities.DefaultRole`)* | `MuscleGround \| Perception` | ✅ **exactly SimHost's shape minus `NavigationSolver`** ⇒ it would get the real Muscle table. ⭐ **The strongest candidate, and arguably overdue**: mode 2 REPLACES SimHost, so a Stride node today owns brain components SimHost declines |
+| ⭐ **Editor** *(`EditorCapabilities.DefaultRole`)* | `Brain \| MuscleGround \| Perception \| NavigationSolver` | ⚠ **effectively a NO-OP** — the union of the Brain and Muscle owned sets is `ALL − birthCritical`, and the editor is genuinely both roles in ONE world. Harmless, and buys nothing |
+| 🔴🔴 **IG** *(`NodeRole.ImageGenerator`)* | `ImageGenerator` | ⛔⛔ **WOULD BE ACTIVELY HARMFUL TODAY.** `Owned` has entries for **`Brain` and `MuscleGround` ONLY**, and `CreatePolicy`'s own contract is *"roles with no entry contribute nothing"* ⇒ `CreatePolicy(ImageGenerator)` yields an **EMPTY owned set**, so an IG-created entity would own **nothing but its birthright**. 📌 That is `CE-256` verbatim |
+| **test harnesses** | — | deliberately `null` so tests keep today's behaviour; a harness is not a deployment |
+
+⇒ 🔒 **THE RULE THIS ESTABLISHES:** ⛔ **a host may only be given a policy once its declared role has a ROW
+in `Owned`.** ⭐ For `Stride` that is already true *(it declares `MuscleGround`)*; for **IG it is not.**
+⚠ The blanket *"the others get policies once it is proven live"* must not be read as licence to switch IG on.
+
+##### ⚠ AND THE RENAME REFRAMES IT — **`ImageGenerator` is really `Map2D`** *(`CE-212`, still OPEN)*
+
+⛔ **IG is NOT roleless** — it declares `NodeRole.ImageGenerator` *(`NodeRole.cs:77`, `1 << 2`)*. ⭐ What it
+lacks is a **ROW in `Owned`**, which holds `Brain` and `MuscleGround` only. ⚠ Those are different things and
+the distinction matters: a role with no row is not an oversight in the host, it is a gap in the TABLE.
+
+🔒 **User, via `CE-212`:** *"'IG' role in this code base is way about 2d map, which stride doesn't do."*
+📐 Measured in `DESIGN_Stride_Node_Modes.md` §6.2: the flag gates `IgCapabilities.Presentation` →
+`StyleResolutionModule`, `MapCullingModule`, `MapLayerModule`, `HistoryTrailModule`, `EventEffectModule`
+plus `PresentationComponentRegistry` — ⭐ **all of it the 2-D MAP STACK**, no simulation logic at all.
+
+⇒ ⭐⭐⭐ **With the right name the question stops being *"what does an image generator own?"* and becomes
+*"what does a 2-D MAP PRESENTATION node own?"* — and the natural answer is NOTHING.** A presentation role
+is a pure CONSUMER of replicated state. ⇒ ⚠ **the empty owned set may be SEMANTICALLY CORRECT rather than a
+missing row**, which inverts this section's first reading.
+
+⛔ **What still has to be answered before switching it on**, and it is now a narrow question:
+📐 `IgApplication.cs:302` publishes creation **INTENTS**, not `SpawnEntityCommand` ORDERS, and IG is
+`IsBroadcastArbiter: false` ⇒ it services only requests **explicitly targeted at its node id**. ⭐ So the
+question is just: *on that rare path, should a Map2D node own what it creates, or should it not be creating
+simulation entities at all?* ⚠ Until that is answered, `null` — own what you create — is the safe answer,
+and it is what ships.
+
+📄 `CE-212` is a **pure code rename** — `Q4` measured `NodeRole` is **not persisted** *(zero occurrences in
+any `.json`/`.idl`/`.xml`/`.yaml`; the externally visible thing is the subsystem NAME string `"IG"`, mapped
+by `NedNetworkFactory.MapSubsystemNameToRole`, and the rename does not touch it)*.
+⛔⛔ It needs **Roslyn**, run twice and unioned *(in-solution + `Stride/HrotStrideApp.Game.csproj`)* —
+⛔ never a text replace.
+
+### 🔴🔴 THE DEVIATION — **the tables are COMPLEMENTS, not the per-role LISTS §6's row implies**
+
+📄 **The rule and the full argument are §3.9c** *(written the next day, when the user asked the question it
+answers)*. ⛔ **Not restated here** — one structural fact, one home.
+
+⭐ **What this as-built adds:** the deviation was found while building, not designed in. §6's row reads as
+though a role's owned set is a list of that role's components; the create leg **REPLACES** the blanket
+grant, so a list is a whitelist and a SimHost-created tank would have owned twenty components and nothing
+else. ⇒ shipped as `Brain = ALL − birthCritical` and `MuscleGround = ALL − birthCritical − brainOnly`, with
+`EveryUnclassifiedComponentStaysOwnedByBothRoles` as the rail a future positive enumeration must argue
+with. ⚠ **Consequence to carry:** Brain and Muscle are disjoint over the CLASSIFIED set only — ⛔ step 1's
+`BrainAndMuscle_OwnDisjointSets` rail is about representative masks, not about this claim.
+
+### 🔴 THE SECOND DEVIATION — **birth-critical components are in NO role's set, and that is a correction to §3.1's reasoning**
+
+⭐ §3.1 says a creator keeps birth-critical components *"whatever its role"*, and `OwnedComponentSet`'s own
+doc-comment says it excludes them. ⛔ **What neither said is that a role must never own one on the PROMOTE
+leg either** — and that is the half with teeth: `GeoSpatialIngressTranslator.cs:90` applies an incoming
+position **only when `HasAuthority<SimTransform>` is false**, so a promoting node that claimed
+`SimTransform` by role would stop accepting the real owner's updates and **every ghost on it would
+freeze**. ⇒ §3.1 now carries the corrected mechanism, and the old one — *"every egress translator gates on
+`HasAuthority`"* — is marked SUPERSEDED there and measured in §3.6.
+
+### ⚠⚠ HOW BIG THIS ACTUALLY IS — **stated honestly, because §3.6's correction shrinks it**
+
+⛔ **Narrowing the `AuthorityMask` changes what a node EXECUTES, not what it PUBLISHES.** 📐 §3.6: the mask's
+entire production readership is `SimTransform`, `BehaviorState`, `BrainBlackboard`, and a `Position` query
+that matches zero HROT entities. ⇒ ⭐ the observable delta of this step is:
+
+| | |
+|---|---|
+| ✅ SimHost stops owning `BehaviorState`/`BrainBlackboard` on entities it creates | the ruling |
+| ✅ CGF claims them when it promotes the ghost | ⇒ exactly one node owns them, and `TacticalIntentResolutionSystem.cs:95` passes on that one |
+| ✅ CGF's six cognitive systems now gate on authority | so a future second Brain, an all-in-one host, or `R-138`'s Muscle-runs-brains case cannot double-tick |
+| ⚠ CGF's promote leg also claims the unclassified remainder on ghosts | ⛔ **no observable effect** — nothing reads those bits *(§3.6)*, and the two that would are excluded |
+| ⛔ **CGF's CREATE leg is byte-identical to today** | `ALL − birthCritical`, then the birthright adds the birth-critical components straight back |
+
+⚠ **And one thing this does NOT do, contrary to an earlier reading:** it does not change any egress. 📌 A
+related hope was also checked and is **not** a live defect — `TacticalIntentEgressTranslator.cs:72` skips
+forwarding an intent when the local node owns `BehaviorState`, which on a pre-step-4 SimHost would have
+dropped the intent entirely; 📐 but **every publisher of `AssignTacticalIntentEvent` is Brain-tier**
+*(`MissionAdapterSystem`, the commander BTree nodes)*, so no such event is ever raised on SimHost. ⇒ the
+narrowing makes that translator correct **by construction** rather than by luck.
+
+### 📐 RED-PROOFS — **inverse edits, all reverted**
+
+| inverse edit | rail that reddened |
+|---|---|
+| drop `SimTransform` from `BirthCriticalComponents` | `NoRoleOwnsABirthCriticalComponent` · `TheCreatorKeepsSimTransform_WhateverItsRole_AndOnlyAsCreator` |
+| drop `brainOnly.BitwiseOr(in muscleRead)` | `TheReadSetNeverBecomesAuthority_OnEitherLeg` |
+| drop the `Read` argument from `CreatePolicy` | `TheMuscleRolesREGISTERWhatTheyRead_WithoutEverOwningIt` |
+| `muscleOwned = brainOwned` *(no `BitwiseAndNot`)* | `TheMuscleRolesOwnNoBrainComponent_AndTheBrainRoleOwnsThemAll` · `ASimHostCreatedBrainEntity_LeavesBehaviorStateForTheBrainNode` |
+
+
+## 6j. ⚠⚠ AS-BUILT + CORRECTION — **3b(a) and the READ table were ALREADY BUILT; the real gap is TWO PRODUCERS** *(`2026-09-13`)*
+
+> 🔒 **Asked to build "fill the read table, then move the narrowing to a Muscle registry".** 📐 Both were
+> **already done**. This section records what was actually measured, because this document's STATUS block
+> had now mis-stated P3's remaining work **three times in one day**.
+
+| claimed OPEN | 📐 measured | evidence |
+|---|---|---|
+| *"no host fills the READ table"* | 🔴 **FALSE** | `HrotRoleComponentSets` sets `muscleRead = {NavigationIntent, MissionPlanQueue}` and ORs it into `brainOnly`, so those two are out of the Muscle OWNED set and back in REGISTER |
+| *"3b(a) the narrowing is not done"* | 🔴 **FALSE** | `SimHostComponentRegistry` carries `⛔⛔⛔ CognitiveComponentRegistry is NOT called — SimHost HAS NO BRAIN` and calls `MuscleRoleComponentRegistry` instead |
+| *"steps 3c and 4 remain unbuilt"* | ⚠ half false | step 4 shipped (§6i) |
+
+⭐⭐ **And the live run had already shown it:** §6i-a records SimHost carrying no `BehaviorState`,
+`BrainBlackboard` or `BrainBTreeState`. ⛔ That was the narrowing working in production, mis-attributed to
+§6h — which shipped only its PREREQUISITE, the Perception registry.
+
+### 🔴🔴 THE GAP THAT IS REAL — **the narrowing and the role table are TWO PRODUCERS OF ONE FACT**
+
+⭐ `HrotRoleComponentSets.BrainOnlyComponents` states *"a Muscle node must not have these"* **declaratively**.
+⛔ `MuscleRoleComponentRegistry` / `SimHostComponentRegistry` state the same thing **by hand**, in code.
+⇒ ⚠ **they agree today and NOTHING checks that they keep agreeing** — the exact shape `CE-265`/`CE-266`
+removed from the TKB component lists.
+
+📐 **And it cannot be collapsed by derivation yet, which is the load-bearing measurement:**
+
+| | |
+|---|---|
+| ⛔⛔ **`IRoleAffinityPolicy.RegisterComponentSet` is READ BY NOTHING in production** | every hit is a declaration, a doc-comment or the computation itself. ⭐ Same shape as §3.6's authority-mask finding: computed, correct, unconsumed |
+| 🔴 **and it CANNOT drive registration while the tables are COMPLEMENTS** | `muscleOwned = ALL − birthCritical − brainOnly` ⇒ ~**496 of 512** bits, so `RegisterComponentSet` ≈ **498** bits. Registering from it would register **almost everything** — meaningless |
+| ⇒ ⭐⭐ **`REGISTER = owned ∪ read` only becomes actionable with POSITIVE enumerations** | i.e. it is blocked on the future work §6i's rail guards, not on effort here |
+
+### ✅ WHAT SHIPPED INSTEAD — **the drift detector**
+
+⭐ 3 rails into **`Hrot.SimHost.Tests/ComponentRegistryTests.cs`** *(the feature's own suite — T-1; §6h put its
+rails there too)*, asserting the hand-authored registry against the declarative table:
+
+| rail | pins |
+|---|---|
+| `SimHostRegistersEveryComponentItsRoleREADS` | 🔒 *"muscle cant simply stop registwring them because they are brain ones"* — losing this means the node **stops receiving its own orders**, silently |
+| `SimHostRegistersNoBrainOnlyComponent` | the narrowing itself. ⚠ Subtracts the read set, because `BrainOnlyComponents` deliberately CONTAINS it |
+| `TheRoleMasksTheseRailsIterateAreNotEmpty` | ⭐⭐ **anti-vacuity** — both rails above iterate a mask; an empty mask makes both pass over nothing, forever |
+
+📐 **3 inverse-edit red-proofs, all reddening:** stop registering `NavigationIntent` → **4 red**; call
+`CognitiveComponentRegistry` again → **2 red**; empty the brain-only mask → **1 red**.
+📐 **Gates:** `ComponentRegistryTests` 35/35 · with the registry-CLEARING class 47/47 · full
+`Hrot.SimHost.Tests` **953/958**, the same **2** pre-existing reds as the day's baseline *(950/955 + 3 new)*.
+✅ **Re-verified on the live 3-process cluster**: both hostiles destroyed by `t≈50`, all four attackers within
+**0.69–1.52 m** of their OWN `NavigationIntent.FinalDestination`, `LocomotionChannel.Status: Success`,
+`Ammo 41`, **0 faults** on all three nodes.
+
+### ⛔⛔ A PROCESS TRAP THIS BATCH WALKED INTO — *worth more than the rails*
+
+🔴 After a red-proof run, **the LAST thing built is the DEFECTIVE binary** — the script reverts the SOURCE,
+not the output. ⚠ A following `dotnet test --no-build` then tests the defect and reports failures that look
+like real regressions. 📌 It cost a full diagnostic detour here: the anti-vacuity rail "failed", and the
+inference *"my other two rails pass VACUOUSLY"* was built on a stale DLL. ⇒ ⭐⭐ **always REBUILD the test
+project after a red-proof sweep, before believing any suite result.**
+
+## 6h. ✅✅ AS-BUILT — **the PERCEPTION role gets its own registry, shipped `2026-09-12`** *(`CE-259bf` slice 1, obligation ⑤)*
+
+⭐⭐⭐ **What shipped: the missing role, not the narrowing.** §3.9b measured that four role registries
+already existed and **`Perception` had none** — its components were filed inside
+`CognitiveComponentRegistry`, which **is** the Brain role's set under a name that does not say so.
+⇒ 🔒 **that is why SimHost, a node that runs NO cognitive system, had to call the BRAIN's registry: its own
+role's components were hiding in it.**
+
+| where | as-built |
+|---|---|
+| ⭐⭐ **NEW** `Hrot.SimHost/PerceptionRoleComponentRegistry.cs` | `EqsSensor` · `EqsCognitiveBuffer` · `SensorEvalState` · `EqsResultUpdateEvent` · `RaycastRequestEvent` · `RaycastResultEvent` |
+| `CognitiveComponentRegistry` | those six **removed**, with a comment naming where they went and why the old *"EQS Brain-tier"* label was wrong |
+| `SimHostComponentRegistry` · `CgfComponentRegistry` | **both** now call the new registry |
+| rails | **4** into `Hrot.SimHost.Tests/ComponentRegistryTests.cs` + **1** into `CgfComponentRegistryTests` — ⭐ each feature's OWN suite *(`R-142` ④)*, no parallel class |
+
+### ✅ SLICE 2 — **the strays move to homes BOTH hosts already compose** *(same commit family)*
+
+| component | new home | ⭐ the PRECEDENT that made it the honest home, not a guess |
+|---|---|---|
+| `MissionPlanQueue` | `MissionComponentRegistry` | ⭐ **`ActiveMissionPlan` already lives there** — same tier, same lifecycle. SimHost READS the queue: the wire ingress writes it and `MissionPlanTranslator` persists it |
+| `ActorCapabilityState` | `CombatComponentRegistry` | ⭐⭐ **`EntityInfo` already lives there and `BehaviorTkbTranslator` stamps BOTH in the same block** *(`:34-44`)*; `HealthApplicationSystem` + `DamageSystem` read it and SimHost runs them via `CombatModule` |
+| ⛔ `PreviousCapabilities` | **stays in the Brain registry** | ⚠ **deliberately NOT moved with its sibling** — its only readers are `CognitiveInterruptSystem` *(Brain)* and the Stride animation reactor ⇒ **ABSENT** for SimHost |
+
+⭐⭐ **Both target registries are already called by BOTH hosts** ⇒ behaviour-preserving, like slice 1.
+
+#### ⚠⚠ A HAZARD CHECKED RATHER THAN ASSUMED — **registration order can shift ids**
+
+⛔ Moving `RegisterComponent<T>` calls between registries **changes registration ORDER**, and when
+`FdpConfig.EnforceExplicitComponentIds` is `false` — **which is every test** — ids are **sequentially
+auto-assigned** ⇒ a move can silently renumber a component in tests but not in production. 📄 That is
+`PROGRAMME_Explicit_Component_Ids.md`'s hazard ⓐ, hit for real here.
+✅ **Measured:** every component moved in slices 1 and 2 carries an explicit
+`[ComponentId(GlobalComponentIds.…)]` — `EqsSensor`, `EqsCognitiveBuffer`, `SensorEvalState`,
+`MissionPlanQueue`, `ActorCapabilityState` — ⇒ **their ids are fixed regardless of order and the hazard
+cannot bite.** ⛔ **A future slice that moves an UN-attributed type must re-run this check.**
+
+### ✅ SLICE 3a — **the two cross-role sets get their own homes** *(the blocker below is CLOSED)*
+
+| new registry | holds | ⭐ why its own file, not a line in an existing one |
+|---|---|---|
+| `EmbarkationComponentRegistry` | `PassengerBuffer` · `IsEmbarkedTag` · `EmbarkEntityCommand` · `DisembarkEntityCommand` | embarkation spans **SimHost** *(`GenesisMaterializationSystem`)*, the **Brain** *(`EmbarkExecutor`/`EjectPassengersExecutor`)* and the **Editor** *(`EditorCargoSystem`)* ⇒ it belongs to no single role. ⛔ `GenesisIntentRegistry` is the nearest NAME and is wrong — it holds scenario-load INTENT DTOs; these are the RUNTIME components those intents materialise into |
+| `BehaviorDiagnosticsComponentRegistry` | `DebugState` · `PatchDebugStateCommand` | ⭐ SimHost's **own** `ToggleAiTrace` action writes them *(`SimHostApp.cs:443`)* — a node with no brain still records the operator's request |
+
+⚠⚠ **The COMMANDS travel with their components, deliberately.**
+`FdpConfig.EnforceExplicitEventRegistration` makes an unregistered publish **THROW** ⇒ splitting an event
+from the state it mutates would convert a registry omission into a **runtime crash on whichever host
+publishes first**. ⛔ That is a different and worse failure than the silent-absence one the component rails
+guard.
+
+⛔ **The trace RING BUFFERS deliberately stay in the Brain's registry** — written only by
+`TraceBufferLifecycleSystem` *(Brain)*, and their SimHost readers are extract-only translators whose
+`CanTranslate` also demands `BehaviorState` ⇒ on a brainless node they can never populate or dump.
+
+### ✅ AND THE LAST SLICE-3b BLOCKER IS MEASURED AWAY — **SimHost publishes NO Brain event**
+
+📐 **Measured `2026-09-12`:** of the six events still in the Brain's registry — `CognitiveInterruptEvent`,
+`ClearBehaviorEvent`, `BehaviorFinishedEvent`, `AssignBehaviorHashEvent`, `AssignTacticalIntentEvent`,
+`AssignBehaviorEvent` — **not one is referenced anywhere in `Hrot.SimHost` except the registry line
+itself.**
+
+⚠ **The obvious objection, checked rather than waved away:** `BD1-DESIGN.md` says
+`Hrot.SimHost.Systems.MissionControlRequestSystem` publishes `ClearBehaviorEvent` on `CMD_ABORT_ALL`.
+🔴 **That class does not exist** — the only matches are a TEST named after it and stale doc-comments in
+`ClearBehaviorEvent.cs:13` and `BehaviorIngressSystem.cs:175`. ⇒ the same BD1-half that `CE-259bg` found
+missing. ⭐ So dropping those events from SimHost cannot throw.
+
+### 📐 WHAT SLICE 3b ACTUALLY COSTS — **MEASURED per component, `2026-09-12`** *(user: "is that really just about one single menu item?")*
+
+⛔⛔ **An earlier version of this section said "ten components, one live consumer — a menu item." BOTH
+numbers were wrong.** ⭐ The registry holds **13 components + 6 events** after slices 1–3a, and the honest
+answer is that the loss is the **SimHost half of the AI-TRACE / diagnostics feature**, not one item.
+
+| what SimHost loses | consumer | ⭐ verdict |
+|---|---|---|
+| ⛔ `SimTier` · `LocomotionChannel` · `WeaponChannel` · `InteractionChannel` · `PreviousCapabilities` · `BrainBTreeState` · `BrainHsm64` | **NONE** — zero references in `Hrot.SimHost` | ✅ free |
+| ⚠ `BrainHsm128` | `Modules/CombatModule.cs` — ⭐ **a DOC-COMMENT only**, saying `HsmDamageBridgeSystem` was RELOCATED to the Brain | ✅ free |
+| 🔴 `BehaviorState` | `AiTraceContextMenu.cs:26` gates `ToggleAiTrace` on it ⇒ **the toggle silently no-ops** · 4 scenario translators use it as their `CanTranslate` gate · `SimHostVisualization`'s **dead** `HandleRightClickForEntity` | ⚠ the real cost |
+| 🔴 `BTreeTraceWorkingMemory1024` · `HsmTraceWorkingMemory1024` | **`AiDiagnosticsTkbTranslator.cs:47-58` STAMPS them on every SimHost spawn** *(guarded by `IsComponentTypeRegistered`, so it silently skips)* — plus their two dump translators | ⚠ the real cost |
+| 🔴 `BrainBlackboard` · `Blackboard1024` | their two **extract-only** clipboard-dump translators | ⚠ the real cost |
+| ⛔ all **6 events** | **NONE** | ✅ free |
+
+⇒ ⭐⭐⭐ **The loss is exactly ONE FEATURE, in four places: AI-trace on SimHost** — the menu toggle, the
+per-spawn buffer stamping, and the brain-state clipboard dumps.
+
+#### ⭐⭐ AND EVERY PART OF IT IS ALREADY INERT THERE — **three independent sources**
+
+| 📐 | |
+|---|---|
+| **①** | `SimHostCoreLogicPack`'s own summary: it groups the **Muscle-tier** modules *"for the `MuscleGround` role"* |
+| **②** | `SimHostCapabilities` registers `EqsModule`, the navigation module and `CognitiveSpatialModule` *(spatial PERCEPTION despite the name)* — ⛔ **no `CgfLogicPack`, no `CognitiveRuntimeModule`, no `MissionControlModule`** |
+| **③** | `StrideNodeBootstrapper.cs:304-312` already EXCLUDES this very registry, in those words: *"This node has no brain systems (no `BTreeTickSystem`, no `TacticalIntentResolutionSystem` — both are CGF's)"* |
+
+⇒ 🔒 **nothing on SimHost ever WRITES a trace buffer** *(`TraceBufferLifecycleSystem` is the Brain's)* and
+nothing ticks a tree ⇒ **the buffers stamped there are always empty and the dumps always dump nothing.**
+⭐⭐ So slice 3b does not remove a working feature — **it removes the SCAFFOLDING of a feature that cannot
+work on this node**, which is the `CE-259bg` `brainActive` defect in another costume.
+
+⚠⚠ **The one stale INTENT to retire with it:** `SimHostScenarioManager`'s header claims each spawned entity
+carries `BehaviorState` + `BrainBlackboard` *"so the BTree cognitive tier drives its behaviour autonomously
+from the first frame."* 📐 **No SimHost composition delivers that** — same shape as `BD1`'s dead routing.
+
+### ✅✅✅ SLICE 3b SHIPPED — **SimHost no longer registers a brain** *(user ruling, `2026-09-12`)*
+
+> 🔒 **User:** *"Simhost has no ai(brain). So it does not need"* · *"Ai debug toggle was meant host local,
+> no routing tje toggle elsewhere needed"*
+
+⭐⭐⭐ **`SimHostComponentRegistry` no longer calls `CognitiveComponentRegistry`.** 13 components and 6
+events stop existing on a node that runs nothing which would tick them — the defect §3.9a's opening ruling
+names, closed. ⛔ CGF is untouched and still composes the whole brain tier.
+
+| ⭐ what made it safe, in order | |
+|---|---|
+| slices 1–3a | every component SimHost genuinely uses was FIRST moved to a registry SimHost calls |
+| ⭐ the events | measured: **not one** of the six is referenced in `Hrot.SimHost` |
+| ⭐⭐ `HasComponent<T>` on an unregistered type | **returns `false`, does not throw** — `HasUnmanagedComponent` reads a mask bit via `ComponentType<T>.ID` *(`EntityRepository.cs:1010`)* ⇒ the surviving `HasComponent<BehaviorState>` guards are clean no-ops, not crashes |
+| ⭐ spawning | `TkbTemplate.ApplyTo()` silently skips missing components — the same reason `StrideNodeBootstrapper` already excludes this registry |
+
+#### ⛔⛔ AN EXISTING RAIL REDDENED, AND THAT WAS THE POINT — **the claim was RE-HOMED, not deleted**
+
+📌 `SimHostComponentRegistry_RegisterAll_StillProvidesCognitiveComponents` failed. ⭐ It is a **delegation**
+rail — *"composing the sub-registries still yields the set SimHost needs"* — and it merely **sampled**
+`BehaviorState`, which the ruling above makes the wrong sample.
+⇒ ⭐⭐ **renamed to `…StillProvidesTheDelegatedSet` and the sample swapped to `MissionPlanQueue`**, a
+component that now reaches SimHost through a *different* sub-registry, so the delegation claim is still
+exercised across a boundary that actually moved. ⛔ **The brain half did not vanish — it moved, INVERTED,
+into `SimHostComponentRegistry_DoesNotRegisterTheBrainTier`.**
+
+#### 🔴🔴 THE BLAST RADIUS I MEASURED IN THE WRONG PLACE — **TEST FIXTURES, not production**
+
+⛔⛔ **I measured production consumers per component and called the cost "one feature". The suite
+disagreed: `HillAttackNodeTests` went red** — 📌 `SC_HA008_1_AimAndFireSpecific_WritesWeaponChannel…`
+and three siblings.
+
+📐 **Cause, and it is not a surprise once seen:** `HillAttackNodeTests.cs:65` builds its world with
+`SimHostComponentRegistry.RegisterAll(repo)` and then exercises **BRAIN-TIER** nodes. ⇒ it obtained the
+brain tier **IMPLICITLY, from SimHost's debt.** ⭐ The fixture now calls
+`CognitiveComponentRegistry.RegisterAll(repo)` itself — ⛔ **not a workaround: a test of brain behaviour
+needs a world with a brain in it, and it was only ever green because a Muscle node carried one.**
+
+| ⚠ the rule this broke | |
+|---|---|
+| 🔒 **"before calling any deletion simple/mechanical, MEASURE THE TEST SURFACE, not just production callers"** | ⛔ I measured `Hrot.SimHost` production only. 📐 **18 test files across 2 projects** call `SimHostComponentRegistry.RegisterAll` — 10 in `Hrot.SimHost.Tests`, 8 EQS files in `ClusterRunner.Integration.Tests` |
+| ⭐ what saved it | the suite ran before the commit. ⚠ **That is luck turning into process, not process working** — the per-component sweep should have included the test assemblies from the start |
+
+### ⛔ HISTORY — **why 3b was held for a decision**
+
+⚠ Every slice so far has been provably behaviour-preserving. ⛔ **3b is not**: SimHost stops calling
+`CognitiveComponentRegistry`, so **ten components stop existing there** — and one has a live consumer:
+
+| ⭐ the cost | |
+|---|---|
+| 🔴 `AiTraceContextMenu.cs:26` gates `ToggleAiTrace` on `HasComponent<BehaviorState>` | ⇒ **the SimHost menu item silently stops appearing.** ⚠ It was already meaningless — toggling a brain's trace on a node with no brain — and it is the SAME wrong-node defect as `CE-259bg`'s `brainActive`, ⛔ but the disappearance is a visible behaviour change and belongs to a decision, not to a refactor |
+| ⭐ the brain-state clipboard dump stops on SimHost | ⭐ already named as an accepted cost in §3.9a |
+
+### ⛔ HISTORY — **the slice-3 blocker as it stood before 3a** *(CLOSED `2026-09-12`)*
+
+⛔ SimHost cannot stop calling the Brain's registry until these have somewhere to live that **both** hosts
+compose:
+
+| still in the Brain's registry, still needed by SimHost | ⭐ why no existing registry fits |
+|---|---|
+| `PassengerBuffer` · `IsEmbarkedTag` *(+ `EmbarkEntityCommand` / `DisembarkEntityCommand`)* | embarkation RUNTIME state, written by SimHost's `GenesisMaterializationSystem` and by the Brain's `EmbarkExecutor` / `EjectPassengersExecutor`. ⛔ `GenesisIntentRegistry` is the nearest name and is **wrong** — it holds scenario-load INTENT DTOs *(`InitialPassengersIntent`)*, not runtime state |
+| `DebugState` *(+ `PatchDebugStateCommand`)* | SimHost's own `ToggleAiTrace` action writes it *(`SimHostApp.cs:443`)*, so SimHost genuinely needs it — ⛔ but there is no diagnostics registry to put it in |
+
+⇒ ⭐ **Lean: one small registry each, named for what it owns, and called by both hosts** — the shape slice 1
+proved. ⚠ The alternative *(fold them into `MissionComponentRegistry`)* buys one less file and costs the
+honest name, which is how `CognitiveComponentRegistry` came to hold Perception in the first place.
+
+### ⛔⛔ THE DEVIATION, ARGUED — **this slice does NOT narrow anything** *(obligation ③)*
+
+⚠ **`CE-259bf` is written as *"drop the ten from SimHost"*. This slice deliberately drops NOTHING**, and
+the reason is a hazard the row does not carry:
+
+| ⭐ | |
+|---|---|
+| ⛔⛔ **the remaining strays cannot move the same way** | `PassengerBuffer` · `IsEmbarkedTag` · `ActorCapabilityState` · `MissionPlanQueue` are Muscle/Combat-owned, but **CGF does NOT call `MuscleRoleComponentRegistry`** ⇒ moving them there **silently removes them from CGF**. ⭐ The EQS set was safe **only because both hosts could call the new registry** |
+| ⭐⭐ **so the safe order is: create the role · move the strays to homes BOTH hosts compose · only then stop SimHost calling the Brain's registry** | ⛔ doing all three at once means a silent per-host loss is indistinguishable from a passing build |
+| ⭐ **and the loss IS silent** | nothing throws at registration — the solver finds no sensors and every query returns empty. ⇒ 📌 that is exactly why the extraction rail asserts the **HOST's** composed set, not the new registry's |
+
+### 📐 RED-PROOFS — **inverse edits, both reverted**
+
+| the inverse edit | ⭐ what reddened |
+|---|---|
+| drop `PerceptionRoleComponentRegistry.RegisterAll` from `SimHostComponentRegistry` | **1 rail** — `SimHostComponentRegistry_StillRegistersTheEqsSet_AfterTheExtraction` |
+| re-add `RegisterComponent<EqsSensor>()` to `CognitiveComponentRegistry` | **1 rail** — `CognitiveComponentRegistry_NoLongerRegistersPerceptionComponents` |
+
+⇒ ⭐ **each reddened exactly its own rail and nothing else**, which is what says the two assertions are
+testing different properties rather than one property twice.
+
+### ⚠ A FINDING THE WORK TURNED UP — **`CgfComponentRegistryTests` had ZERO EQS coverage**
+
+⛔ CGF's own registry suite asserted `BrainBTreeState`, `VehicleState` and `EntityInfo` and **nothing
+about perception** ⇒ **dropping CGF's Perception call would have gone uncaught in CGF's own suite.**
+⭐ A rail was added there *(`R-142` ③: fix the blindness in place, do not route around it)*.
+
+## 6g. ✅✅✅ AS-BUILT — **§3.9's TWO-SET ROLE MODEL, shipped `2026-09-12`** *(`CE-259bh`, obligation ⑤)*
+
+⭐⭐⭐ **What changed: the role model itself, not a step of the plan.** §3.9 established that a role has two
+component sets and that this design only ever modelled one. ⛔ Until this landed, **registration could not
+be derived from a role at all** — and deriving it from the owned set alone is the measured mistake that
+would stop a Muscle node receiving its own orders.
+
+| where | the as-built |
+|---|---|
+| ⭐⭐ `IRoleAffinityPolicy` | **three new members**, all composition-time: `OwnedComponentSet` · `ReadComponentSet` · `RegisterComponentSet`. ⭐ `OwnableMask(...)` is unchanged |
+| ⭐⭐ `RoleAffinityPolicy` | `componentsPerRole` → **`ownedComponentsPerRole`**; **`readComponentsPerRole` added as an OPTIONAL 4th argument** *(`null` ⇒ `REGISTER == OWNED`, so every existing 3-argument call site compiles and behaves identically)*. The three sets are **precomputed in the constructor** |
+| ⭐ rails | **6 added to `RoleAffinityPolicyTests`** *(the feature's own suite — `R-142` ④, no parallel class)*; suite 23/23, project **2123/2123** |
+
+### ⭐⭐⭐ THREE DECISIONS WORTH THE NAME — **each is a place the obvious implementation is wrong**
+
+| # | the decision | ⛔ why the obvious thing is wrong |
+|---|---|---|
+| **①** | ⭐⭐ **`RegisterComponentSet` is a MEMBER, not a caller's `owned │ read`** | ⛔ a caller that must OR two sets is a caller that can forget the second one — **and forgetting the second one is the exact measured failure §3.9 opens with.** ⇒ the union is exposed so the mistake is unrepresentable, not merely documented |
+| **②** | 🔴🔴 **the three sets are SHARD-FREE** | ⛔⛔ `OwnableMask` consults `IRoleShardProvider`, so the tempting implementation of *"what can I own?"* is to call it with a `default` key. ⚠ **That is wrong: the shard answers PER ENTITY** *("does another node serve Brain for THIS one?")* **and registration has no entity.** A node that deregistered a component because it does not serve that role for ONE entity could not handle the next. ⭐ Railed directly — `TheRegistrationSets_AreNotNarrowedByTheShard` |
+| **③** | ⚠⚠ **`OwnedComponentSet` EXCLUDES the creator's birthright** | ⭐ `BirthCriticalComponents` are per TEMPLATE and this property has no template ⇒ **a node genuinely can own a component absent from this set** *(every entity it creates)*. ⛔ **A boot diagnostic reading "can never own" off it alone would be wrong for exactly the components where being wrong is loudest** — the origin-flash failure §3.1 exists to prevent. ⭐ Railed, because the tempting "fix" *(fold the birthright in)* turns a per-template fact into a node-wide claim |
+
+### 📐 RED-PROOFS — **inverse edits, all three reverted**
+
+| the inverse edit | ⭐ what reddened |
+|---|---|
+| drop the `BitwiseOr` that unions `read` into `RegisterComponentSet` | **2 rails** — the register half of `AReadComponent_IsRegistered_AndNeverOwned`, and the equation rail |
+| `OwnableMask` also ORs the read table | **1 rail** — the authority half of the same rail ⇒ ⭐⭐ **the two halves fail in OPPOSITE directions**, which is precisely why one set could never express both |
+| shard-gate `UnionOverDeclaredRoles` | **1 rail** — `TheRegistrationSets_AreNotNarrowedByTheShard`, i.e. decision ② above is load-bearing, not a comment |
+
+### ⛔ WHAT THIS DOES **NOT** DO
+
+⛔⛔ **No host fills the read table** — that is step 4, and until then every node still runs a `null` policy
+and registers exactly what it registers today. ⇒ ⭐ **this ships inert, like every step before it.**
+⚠ **And `CE-259bf`** *(narrowing SimHost's `CognitiveComponentRegistry`)* **is no longer blocked on the
+MODEL** — it is blocked on `CE-259bg` *(the `brainActive` routing proxy)* and on classifying §3.9's nine
+**unclassified** components, which is per-component work against the systems each role actually runs.
+
+## 6f. ✅✅ AS-BUILT — **step `3b`'s QUERY FILTER, shipped `2026-09-12`** *(obligation ⑤)*
+
+⭐⭐⭐ **This is the step that stops the design being cosmetic.** Authority gates REPLICATION — every egress
+translator checks it — ⛔ but a QUERY does not. Without this, a node could decline the brain components,
+publish nothing, and **still run the tree**.
+
+### 🔴🔴 DEVIATION ① — **THE GATE IS CONDITIONAL, AND §6's ORDERING WOULD HAVE BROKEN THE CLUSTER**
+
+⛔⛔ **§6 lists `3b` BEFORE step 4, and an unconditional filter shipped in that order reproduces the very
+bug §0a opens with.** 📐 Measured, and it follows from this design's own rails:
+
+| | |
+|---|---|
+| `WithOwned<T>()` requires local authority over `T` | `QueryBuilder.cs:93-98` |
+| a promoted ghost owns **NOTHING** today | railed in step 3 — `WithNoPolicy_APromotedGhostClaimsNothing` |
+| nothing supplies a policy until **step 4** | every node runs `null` |
+| ⇒ an unconditional filter makes a node **stop processing every entity it did not create itself** | 🔴 which is `CE-256` verbatim: *"owns nothing, so nothing it is responsible for ever moves"* |
+
+⇒ ⭐⭐⭐ **The gate follows the POLICY, not the step number.** A host handed an `IRoleAffinityPolicy` has by
+that act said *"I know which components are mine"* — and only then does *"do not touch what is not mine"*
+mean anything. ⭐ Same opt-in discipline that made steps 2 and 3 safe to ship early; `gateOnAuthority`
+defaults to `false` and one flag threads to both cognitive modules from `CgfLogicPack`.
+
+⚠ **`WithOwnedWhen<T>(gate)`** *(`Fdp.Core`)* is what makes the off-path provably identical: it is exactly
+`With<T>()` when the gate is off.
+
+### ⚠ DEVIATION ② — **SIX systems, not the two §3.5 names, and the gate component differs per system**
+
+⛔ §3.5 prescribes `.WithOwned<BehaviorState>()` on `BTreeTickSystem` and `HsmTickSystem`. 📐 Two problems:
+
+| | |
+|---|---|
+| ⭐⭐ **the other writers make it half a fix** | `ChannelArbitrationSystem`, `CognitiveInterruptSystem` and `CognitiveCleanupSystem` all **WRITE** cognitive state on un-gated queries. ⛔ Gating only the ticks leaves a node clobbering a brain another node owns — and the red-proof confirms it: leaving **one** system un-gated reddens the gate rail |
+| 🔴 **two of them never queried `BehaviorState` at all** | `CognitiveInterruptSystem` and `CognitiveCleanupSystem` key on `BrainBlackboard`. ⇒ gating them on `BehaviorState` would have added a `With<BehaviorState>` they did not have and **silently NARROWED the matched set even with the gate OFF** — a behaviour change wearing a feature flag. ⭐ **The rule applied instead: gate each system on a component it ALREADY requires**, so the only change is the authority bit |
+
+⭐ **Gated (6):** `BTreeTickSystem`, `HsmTickSystem<T>`, `ChannelArbitrationSystem` *(both queries)* and
+`MissionDirectorSystem` on `BehaviorState`; `CognitiveInterruptSystem` *(both queries)* and
+`CognitiveCleanupSystem` on `BrainBlackboard`.
+⛔ **Deliberately NOT gated:** `TraceBufferLifecycleSystem` and `BehaviorFrameSystem` *(diagnostics /
+pulse, no cognitive writes)*; `MissionAdapterSystem` and `RouteContextSystem` *(in `Hrot.CGF`, so they can
+only ever run on a Brain host)*; `Fdp.Examples`' `TelemetryReporterSystem` *(not production)*.
+
+### 📐 THE ENUMERATION — **§3.5's numbers were soft, as warned**
+
+📐 Re-measured `2026-09-12`: **10 production files** match the cognitive-query pattern, not the "SEVEN"
+§3.5 claims *(its own table already named eight beyond `BTreeTickSystem`)*. ⭐ And the composition matters
+more than the count: **five of the six gated systems are installed by exactly one thing** —
+`CognitiveRuntimeModule`, itself installed only by `CgfLogicPack`, itself used only by **CGF and the
+Editor**. `MissionDirectorSystem` comes from `MissionControlModule`, same pack.
+
+⚠⚠ **Which means the LIVE double-tick §3.5 describes may not exist today** — stated plainly rather than
+implied: no production host runs these systems without being a Brain, and the Editor is offline
+*(`NullReplicationModule`)*, so it receives no ghosts. ⇒ ⭐ the gate is correct and cheap and it is what
+makes the design non-cosmetic **for the multi-Brain, all-in-one and `R-138` Muscle-runs-brains cases** —
+⛔ but it is **not** repairing a defect measured in today's cluster.
+
+### 🔴🔴 §3.5's HALF (a) — **NARROWING IS THE PRIMARY FIX. MY TWO OBJECTIONS ARE BOTH WITHDRAWN.**
+
+> 🔒 **User, `2026-09-12`:** *"only brain role runs cognitive syatem and simhost was never a brain and
+> nevwr will be, it is a definiton of simhost node that it is nuscel perception and navigation but not
+> brain. narrowing is correct there."*
+> 🔒 **And, when I still argued the gate could substitute:** *"how can we ask about authority if entity
+> does not have such a compone t at all because it was never added? simhist does not read brai state
+> because no brain exists there."*
+
+⛔⛔ **THE SECOND CHALLENGE IS DECISIVE AND IT SETTLES THE STRUCTURE OF THIS WHOLE STEP.**
+📐 `WithOwned<T>()` **implies `With<T>()`** *(`QueryBuilder.cs:93-98`)* ⇒ an entity without the component is
+excluded **before authority is ever consulted.** You cannot ask *"do I own it"* about something that was
+never added. ⇒ ⭐⭐⭐ **the gate is the RESIDUAL, not an alternative** — it covers only a node that
+legitimately HAS brain components *(all-in-one, multi-Brain, `R-138` Muscle-runs-brains)*. **§3.5 was right
+to call registration the PRIMARY closure.**
+
+### ⭐⭐⭐ THE MECHANISM, MEASURED — **registration is the ONLY gate on materialisation**
+
+📐 `BehaviorTkbTranslator.cs:52`:
+`if (repo.IsComponentTypeRegistered<BehaviorState>() && !HasComponent) AddComponent(...)`.
+⇒ SimHost registers the 14 cognitive components, so **SimHost's own spawns materialise the full brain
+tier.** 🔴 That is the inversion this repo already recorded at `NedReplicationModule.cs:396-403`:
+*"the SimHost copy of the same entity had all 35 components including the entire brain tier"* while the CGF
+ghost carried 12 and **none** of it — *"the tiers were exactly inverted."*
+⇒ ⭐ `tkb-1/DESIGN.md` §6.5b gate ② working exactly as designed; SimHost simply has not been narrowed.
+
+### ⛔ MY TWO WITHDRAWN OBJECTIONS — **recorded, because the second is the instructive one**
+
+| # | what I argued | why it was wrong |
+|---|---|---|
+| ① | *"narrowing removes SimHost's ability to run brains (`R-138`)"* | ⛔ SimHost is **DEFINED** as never-Brain. No capability is at stake and `R-138` was the wrong rule to reach for |
+| 🔴 **②** | *"SimHost READS `BehaviorState` at 11 sites"* | ⚠ **the count was real and the conclusion was not.** 📐 Opening every site: 2 doc comments, 8 AI-trace serializers, 1 context menu — **every one `HasComponent`-guarded**, and they only ever see anything **BECAUSE the tier is wrongly materialised.** ⇒ **I measured the SYMPTOM and argued it was a requirement** |
+
+⭐⭐ **Precedent already in the tree:** `StrideNodeBootstrapper.cs:304-312` excludes
+`CognitiveComponentRegistry` deliberately, cites this design and this ruling, and calls SimHost's
+registration *"debt"* it refuses to import. ⇒ narrowing SimHost makes the two hosts consistent rather than
+inventing a new policy.
+
+### ⚠ THE ONE REAL CONSEQUENCE — **and it is a wrong proxy, not an objection** *(`CE-259bg`)*
+
+📐 `SimHostVisualization.cs:385` decides whether an operator's right-click routes through the **MISSION
+machinery** or **bypasses it** using LOCAL `HasComponent<BehaviorState>` + `ActiveBehaviorHash != None`.
+⛔ After narrowing that is `false` for every entity. ⚠ **But the proxy is already wrong** — it asks the
+local world a cluster question. ⭐ *"Could this entity have a brain"* is answerable from the TKB
+*(`BehaviorProfileDto.BrainTier != 0`)*; ⛔ *"is its brain currently ACTIVE"* is runtime state that **does
+not replicate** *(measured: no TKB translator projects `BehaviorState`, no wire translator writes it)*.
+⇒ that half is genuinely lost unless something publishes it, which is a product decision.
+
+### ⛔⛔ AND A PROPOSAL THIS SESSION FORMED WAS INVALIDATED BEFORE IT WAS BUILT — **read §3.9 first**
+
+⚠ I proposed *"a role registers the components it OWNS; split the cognitive bundle along the role line."*
+🔴 **The user killed it:** *"intents are brain owned components that must be replicated to muscle so musle
+can read and act on them."* 📐 Measured: `NavigationIntent` has **16** wire references and
+`MissionPlanQueue` **9** — a Muscle node that stopped registering *"brain components"* would **stop
+receiving its own orders.**
+
+⇒ ⭐⭐⭐ **`REGISTER = ownedComponentSet ∪ readComponentSet`, and this design only ever modelled the first.**
+📄 **§3.9 is the corrected model and is the thing to read before touching registration.**
+
+⇒ ⭐ **Order when this is built:** ① add `readComponentSet` to the role model *(§3.9)* · ② re-home the
+routing proxy *(`CE-259bg`)* · ③ then narrow *(`CE-259bf`)*.
+⛔ **The measured SAFE-TO-DROP set for Muscle is SIX, not fourteen:** `BrainBTreeState`,
+`BrainBlackboard`, `Blackboard1024`, `BrainHsm128`, `BrainHsm64` and `BehaviorState` — all with **zero**
+wire references. ⚠ Nine more are **unclassified**, and zero wire references does NOT prove nothing local
+reads them: a component can be produced by a system this node schedules. ⇒ classify **per component
+against the systems the role RUNS**, never against a grep of `Hrot.SimHost`.
+
+---
+
+## 6e. ✅✅✅ AS-BUILT — **steps `2` and `3`, both insertion points, shipped `2026-09-12`** *(obligation ⑤)*
+
+⭐⭐ **The two legs shipped together on purpose**, because the design's safety property is a property of the
+PAIR: the creator declines exactly what the role-holder claims. ⛔ Shipping one leg alone would leave a
+window in which an entity is owned twice or not at all.
+
+| leg | where | what it does |
+|---|---|---|
+| **CREATE** — step 2 | `NetworkSpawningSystem.cs:191` *(⚠ **not** §3.2's `:181`)*, inside the existing `isLocalAuthority` branch | `AuthorityMask = compNS` then `BitwiseAnd(ownable)` with **`isCreator: true`** |
+| **PROMOTE** — step 3 | `GhostPromotionSystem`, right after the translator loop *(⚠ **`:208`**, not §3.2's `:122`)* | `BitwiseOr` of `ownable ∧ liveMask` with **`isCreator: false`** |
+
+### ⭐⭐⭐ THREE CHOICES THE DESIGN DID NOT SPELL OUT, AND WHY EACH IS THE WAY IT IS
+
+| | |
+|---|---|
+| ⭐⭐⭐ **the promote leg is ADDITIVE (`BitwiseOr`), never an assignment** | 📄 §3.4: this design does **not** retire `DeferredTakeOwnership` — *"explicit grants still win"*. ⛔ An assignment would silently **revoke** authority a node was granted over the wire, a regression no existing rail would have caught. ⭐ Railed directly *(`AnExplicitGrantAlreadyOnTheGhost_IsNotRevokedByTheClaim`)* and red-proofed by making it an assignment |
+| ⭐⭐ **the promote leg re-reads the component mask** | ⚠ the `compGP` ref is taken **before** the mandatory-component check, and the translator loop then ADDS components. ⇒ intersecting with the stale ref would drop every component the translators had just materialised — the exact bits the claim is for |
+| ⭐⭐ **the policy is threaded through `EntityCreationContext`, not per-system by each host** | 📄 §3.7. Both consumers are built by `EntityCreationPack`, so one context property gives them the **same instance** by construction. ⛔ A per-host constructor argument would be the silent-default shape the pack's own header warns about — one caller passes it, the next host forgets, and the two legs then disagree about who owns what |
+
+### 📐 THE GATES
+
+⭐ **10 rails** — 5 in `NetworkSpawning/RoleAffinitySpawnRails.cs`, 5 in `Replication/RoleAffinityPromoteRails.cs`.
+⭐ **Four inverse-edit red-proofs, each isolating exactly the rails it should:**
+
+| inverse edit | reddens |
+|---|---|
+| create leg: `isCreator: false` | **only** the birthright rail |
+| create leg: consult the policy, discard the result | the three policy rails, **not** the no-policy one |
+| promote leg: `isCreator: true` | **only** the no-birthright-for-a-promoter rail |
+| promote leg: assignment instead of `BitwiseOr` | **only** the explicit-grant rail |
+
+⭐⭐ **The rail the design did not ask for and that matters most:**
+`TheCreateAndPromoteLegs_PartitionTheComponents` — ⛔ neither leg's own rails can see complementarity;
+each is green in isolation while the pair double-owns or orphans a component.
+
+### ⚠⚠ WHAT IS STILL TRUE AFTER STEPS 2 AND 3 — **the design is NOT yet doing its job**
+
+⛔⛔ **Authority gates REPLICATION, not EXECUTION.** Every egress translator checks `HasAuthority`, so the
+bits now decide what a node PUBLISHES — ⛔ but the cognitive tick systems carry **no authority filter**, so
+a node that declines brain components still **ticks the brain**. 📄 §3.5. ⇒ ⭐ **step 3b is what makes this
+design more than cosmetic**, and `build-state` stays `BUILDING` until it lands.
+⚠ And nothing supplies a policy yet — **step 4** hands hosts their tables; until then every node runs
+`null` and behaves exactly as before.
+
+---
 
 ## 6d. ✅✅✅ AS-BUILT — **step `1`, the policy, shipped `2026-09-12`** *(obligation ⑤)*
 
@@ -947,7 +2037,8 @@ path is the dev path and the unseeded path is the production one.**
 |---|---|
 | ⛔ **it is not a seeding problem, it is a SCHEMA question** | either the TKB file format gains a way to say *"birth-critical"*, or the deserializer applies a convention. ⭐ The first is authoring design; the second puts a HROT policy inside an engine assembly *(`Fdp.Toolkits`)*, which is the wrong layer |
 | ⭐ **it is not yet load-bearing** | nothing reads the list until step 2. ⇒ fixing it now would be guessing at a schema before the consumer exists |
-| ⛔ **but it MUST be answered before step 2 ships** | otherwise step 2 turns every file-loaded template into the exact origin-flash defect §3.1's architect correction exists to prevent — on the production path only, which is the worst possible place for it to be discovered |
+| ⚠⚠ **CORRECTED `2026-09-12` — IT GATES STEP 4, NOT STEP 2** | 🔴 An earlier version of this row said *"it MUST be answered before STEP 2 ships"*, and the resume doc called step 2 hard-blocked. **Both were wrong, and the error was attaching the blocker to the wrong step.** 📐 **Step 2 injects NOTHING:** its own gate is *"with no policy, the mask is unchanged"*, and §3.3 says *"nothing changes until a host is handed one."* Hosts are handed a policy in **step 4**. ⇒ ⭐ `BirthCriticalComponents` is never READ until step 4, so step 2 is inert by construction and free to ship |
+| ✅✅ **CORRECTED AGAIN — IT GATES NOTHING.** 📐 The file-loading branch **never executes today**: `requestedTkb` comes from a scenario header's `TkbName`, `ScenarioHeader` defaults it to `null`, **no scenario sets it** and **no TKB `.zip` exists** ⇒ every host takes the programmatic fallback. ⭐ A LATENT gap, not a blocker — and the fix is ~3 lines at `TkbLoadClusterStateHandler` *(which is in `Hrot.SimHost`, the APP layer, and is the only production caller of `ParseAndRegister`)*, ⛔ **not** the TKB-schema change this section first claimed. ⚠ The mechanism below is still accurate | 📐 Measured `2026-09-12`: `TkbLoadClusterStateHandler` calls **`_tkbDb.Clear()`** *(`:95`)* and then loads every template from the zip ⇒ a named TKB **REPLACES** the seeded catalogue wholesale and every template has an EMPTY `BirthCriticalComponents`. ⚠ But that branch only runs when a TKB is **requested by name**; with none requested it falls back to `NedTkbCatalog.RegisterAll()` *(`:72`)* — the programmatic path step 0 seeded. ⇒ ⭐ **development, on the hardcoded catalogue, is unaffected.** ⚠⚠ **UPDATED `2026-09-13`: step 4 has SHIPPED (§6i), so the exposure is no longer "at step 4" — it is live the day a named TKB is used.** 🔴 **And the failure it causes is NOT the origin flash this row used to name** *(that mechanism is retracted — §3.6: no egress translator reads the mask)*: a creator that loses its birthright over `SimTransform` is skipped by `CarKinematicsSystem.cs:73`'s `.WithOwned<SimTransform>()` ⇒ **the entity never moves on the node that made it**, and `GeoSpatialIngressTranslator.cs:90` then treats it as remote and overwrites its position from the wire. ⇒ ⭐ fix `TkbLoadClusterStateHandler` *(~3 lines, app layer)* BEFORE enabling a file-based TKB deployment — `CE-259az` |
 
 ---
 

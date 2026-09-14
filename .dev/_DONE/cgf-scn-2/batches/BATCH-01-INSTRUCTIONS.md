@@ -31,10 +31,10 @@ file deletion.
 
 | File | Change |
 |---|---|
-| `FDP/Engine/Fdp.Core/DataPolicyAttribute.cs` | Fix XML comments on `NoSave` and `NoRecord` |
-| `FDP/Toolkits/Fdp.Toolkits/Behavior/Components/ChannelComponents.cs` | Add `[DataPolicy(DataPolicy.NoSave)]` to 3 structs |
-| `FDP/Toolkits/Fdp.Toolkits/Behavior/Components/BrainComponents.cs` | Add `[DataPolicy(DataPolicy.NoSave)]` to 3 structs |
-| `FDP/Toolkits/Fdp.Toolkits/Perception/Components/PerceptionComponents.cs` | Add `[DataPolicy(DataPolicy.NoSave)]` to 2 structs |
+| `FDP/Engine/Fdp.Core/DataPolicyAttribute.cs` | Fix XML comments on `NoScenario` and `NoReplay` |
+| `FDP/Toolkits/Fdp.Toolkits/Behavior/Components/ChannelComponents.cs` | Add `[DataPolicy(DataPolicy.NoScenario)]` to 3 structs |
+| `FDP/Toolkits/Fdp.Toolkits/Behavior/Components/BrainComponents.cs` | Add `[DataPolicy(DataPolicy.NoScenario)]` to 3 structs |
+| `FDP/Toolkits/Fdp.Toolkits/Perception/Components/PerceptionComponents.cs` | Add `[DataPolicy(DataPolicy.NoScenario)]` to 2 structs |
 | `Hrot/Subsystems/Hrot.SimHost/Serializers/WeaponChannelTranslator.cs` | DELETE the file |
 | `Hrot/Subsystems/Hrot.SimHost/SimHostApp.cs` | Remove `.RegisterTranslator(new Hrot.SimHost.Serializers.WeaponChannelTranslator())` |
 
@@ -64,17 +64,17 @@ If you have questions, create:
 This is the first batch of the cgf-scn-2 workstream. Runtime execution components
 (`WeaponChannel`, `BrainBTreeState`, etc.) currently pollute scenario JSON with volatile
 mid-tick state that must never persist. The fix is to decorate them with
-`[DataPolicy(DataPolicy.NoSave)]` so `ScenarioSerializer` / `FdpAutoSerializer` excludes
+`[DataPolicy(DataPolicy.NoScenario)]` so `ScenarioSerializer` / `FdpAutoSerializer` excludes
 them via `ComponentTypeRegistry.GetSaveableTypeIds()`.
 
 Once `WeaponChannel` is excluded from serialization, the custom `WeaponChannelTranslator`
 (which existed to work around the auto-serializer's truncation of its `fixed byte` buffers)
 is no longer visited by the serializer pipeline and must be deleted to avoid dead code.
 
-The `DataPolicy.NoSave` XML comment currently reads "Exclude from Save Game / Checkpoints"
+The `DataPolicy.NoScenario` XML comment currently reads "Exclude from Save Game / Checkpoints"
 which is wrong — it applies only to scenario JSON, not binary checkpoints. Fix this first.
 
-**Key concept:** `NoSave` = exclude from scenario JSON. `NoRecord` = exclude from binary
+**Key concept:** `NoScenario` = exclude from scenario JSON. `NoReplay` = exclude from binary
 checkpoints. `Transient` = both. These are entirely separate paths. See DESIGN.md Phase 1
 Background section.
 
@@ -83,7 +83,7 @@ Background section.
 ## Batch Objectives
 
 - Correct misleading `DataPolicy` XML documentation
-- Tag all runtime execution components with `[DataPolicy(DataPolicy.NoSave)]`
+- Tag all runtime execution components with `[DataPolicy(DataPolicy.NoScenario)]`
 - Delete the now-dead `WeaponChannelTranslator`
 - Verify with unit tests that tagged components are absent from `GetSaveableTypeIds()`
   but remain in `GetRecordableTypeIds()`
@@ -97,7 +97,7 @@ Background section.
 **File:** `FDP/Engine/Fdp.Core/DataPolicyAttribute.cs` (UPDATE)
 **Task Definition:** See [TASK-DETAIL.md — TASK-S101](../TASK-DETAIL.md#task-s101-fix-datapolicynosave-xml-comment)
 
-Replace the XML `<summary>` on `DataPolicy.NoSave`:
+Replace the XML `<summary>` on `DataPolicy.NoScenario`:
 
 **CURRENT (wrong):**
 ```
@@ -105,7 +105,7 @@ Replace the XML `<summary>` on `DataPolicy.NoSave`:
 /// Exclude from Save Game / Checkpoints.
 /// Use for runtime-only data that doesn't persist across sessions.
 /// </summary>
-NoSave = 1 << 3,
+NoScenario = 1 << 3,
 ```
 
 **REQUIRED:**
@@ -115,10 +115,10 @@ NoSave = 1 << 3,
 /// (e.g., BTree pointers, active weapon channels) that should be preserved in
 /// binary checkpoints but omitted from declarative authoring templates.
 /// </summary>
-NoSave = 1 << 3,
+NoScenario = 1 << 3,
 ```
 
-Replace the XML `<summary>` on `DataPolicy.NoRecord`:
+Replace the XML `<summary>` on `DataPolicy.NoReplay`:
 
 **CURRENT (wrong):**
 ```
@@ -126,7 +126,7 @@ Replace the XML `<summary>` on `DataPolicy.NoRecord`:
 /// Exclude from Flight Recorder (.fdp replay files).
 /// Use for debug-only data that shouldn't be in recordings.
 /// </summary>
-NoRecord = 1 << 2,
+NoReplay = 1 << 2,
 ```
 
 **REQUIRED:**
@@ -135,22 +135,22 @@ NoRecord = 1 << 2,
 /// Exclude from Flight Recorder and Binary Checkpoints. Use for debug-only data
 /// or metrics that should not pollute binary state snapshots.
 /// </summary>
-NoRecord = 1 << 2,
+NoReplay = 1 << 2,
 ```
 
-**Do NOT change** any enum values, flag bits, `DataPolicy.Transient`, `NoSnapshot`,
+**Do NOT change** any enum values, flag bits, `DataPolicy.Transient`, `NoPreview`,
 or `SnapshotViaClone`.
 
 **Success:** No unit test required for a comment change. Build must succeed without errors.
 
 ---
 
-### Task 2: Add DataPolicy.NoSave to Execution Channel Components (TASK-S102)
+### Task 2: Add DataPolicy.NoScenario to Execution Channel Components (TASK-S102)
 
 **File:** `FDP/Toolkits/Fdp.Toolkits/Behavior/Components/ChannelComponents.cs` (UPDATE)
 **Task Definition:** See [TASK-DETAIL.md — TASK-S102](../TASK-DETAIL.md#task-s102-add-datapolicynosave-to-execution-channel-components)
 
-Add `[DataPolicy(DataPolicy.NoSave)]` to `LocomotionChannel`, `WeaponChannel`, and
+Add `[DataPolicy(DataPolicy.NoScenario)]` to `LocomotionChannel`, `WeaponChannel`, and
 `InteractionChannel`. Place the attribute immediately after the existing
 `[ComponentId(...)]` line (or after `[StructLayout(...)]` — consistent ordering is
 `[StructLayout] [ComponentId] [DataPolicy]`).
@@ -159,7 +159,7 @@ Example for `LocomotionChannel`:
 ```csharp
 [StructLayout(LayoutKind.Sequential)]
 [ComponentId(GlobalComponentIds.LocomotionChannel)]
-[DataPolicy(DataPolicy.NoSave)]
+[DataPolicy(DataPolicy.NoScenario)]
 public unsafe struct LocomotionChannel
 {
     // ... unchanged ...
@@ -185,15 +185,15 @@ the `ComponentTypeRegistry.Clear()` / `repo.RegisterComponent<T>()` pattern.
 
 ---
 
-### Task 3: Add DataPolicy.NoSave to Brain Execution Components (TASK-S103)
+### Task 3: Add DataPolicy.NoScenario to Brain Execution Components (TASK-S103)
 
 **File:** `FDP/Toolkits/Fdp.Toolkits/Behavior/Components/BrainComponents.cs` (UPDATE)
 **Task Definition:** See [TASK-DETAIL.md — TASK-S103](../TASK-DETAIL.md#task-s103-add-datapolicynosave-to-brain-execution-components)
 
-Add `[DataPolicy(DataPolicy.NoSave)]` to `BrainBTreeState`, `BrainHsm64`, and
+Add `[DataPolicy(DataPolicy.NoScenario)]` to `BrainBTreeState`, `BrainHsm64`, and
 `BrainHsm128`. Same placement as Task 2 — after existing `[ComponentId(...)]`.
 
-**Critical constraint: Do NOT add `NoRecord`.** Brain execution state must still appear
+**Critical constraint: Do NOT add `NoReplay`.** Brain execution state must still appear
 in binary checkpoints (`GetRecordableTypeIds()`).
 
 **Tests Required:**
@@ -204,13 +204,13 @@ in binary checkpoints (`GetRecordableTypeIds()`).
 
 ---
 
-### Task 4: Add DataPolicy.NoSave to Transient Perception Components (TASK-S104)
+### Task 4: Add DataPolicy.NoScenario to Transient Perception Components (TASK-S104)
 
 **File:** `FDP/Toolkits/Fdp.Toolkits/Perception/Components/PerceptionComponents.cs` (UPDATE)
 **Task Definition:** See [TASK-DETAIL.md — TASK-S104](../TASK-DETAIL.md#task-s104-add-datapolicynosave-to-transient-perception-components)
 
 The structs `SensorContactList` (line ~217) and `ActiveSensorTracks` (line ~266) need
-`[DataPolicy(DataPolicy.NoSave)]`. Do NOT touch `TargetMemory`, `PerceptionReceptor`,
+`[DataPolicy(DataPolicy.NoScenario)]`. Do NOT touch `TargetMemory`, `PerceptionReceptor`,
 or any other type in this file.
 
 **Tests Required:**
@@ -226,7 +226,7 @@ or any other type in this file.
 **File to UPDATE:** `Hrot/Subsystems/Hrot.SimHost/SimHostApp.cs`
 **Task Definition:** See [TASK-DETAIL.md — TASK-S105](../TASK-DETAIL.md#task-s105-delete-weaponchanneltranslator-and-unregister-it)
 
-**TASK-S102 must be complete first** (WeaponChannel must carry `[DataPolicy(DataPolicy.NoSave)]`
+**TASK-S102 must be complete first** (WeaponChannel must carry `[DataPolicy(DataPolicy.NoScenario)]`
 before you remove the translator that was working around the serializer limitation).
 
 Step 1: Delete the file.
@@ -259,7 +259,7 @@ This must return zero results.
 **CRITICAL: You MUST complete tasks in sequence with passing tests:**
 
 1. **Task 1 (S101):** Edit XML comments -> Build -> Build succeeds. **Then proceed.**
-2. **Task 2 (S102):** Add `[DataPolicy(DataPolicy.NoSave)]` to channels -> Write tests ->
+2. **Task 2 (S102):** Add `[DataPolicy(DataPolicy.NoScenario)]` to channels -> Write tests ->
    **ALL tests pass.** Then proceed.
 3. **Task 3 (S103):** Brain components -> Write tests -> **ALL tests pass.** Then proceed.
 4. **Task 4 (S104):** Perception components -> Write tests -> **ALL tests pass.** Then proceed.
@@ -273,7 +273,7 @@ Work autonomously until all 5 tasks are done and all tests pass, then write your
 
 ## Testing Requirements
 
-- Minimum **6 new unit tests** covering the NoSave/NoRecord assertions for all 8 tagged
+- Minimum **6 new unit tests** covering the NoScenario/NoReplay assertions for all 8 tagged
   components (channels x3, brain x3, perception x2). Tests may be grouped by task.
 - All existing tests in `Fdp.Toolkits.Tests` and `Hrot.SimHost.Tests` must continue
   to pass.
@@ -290,10 +290,10 @@ without invoking the registry query.
 
 ## Success Criteria
 
-- [ ] `DataPolicy.NoSave` and `NoRecord` XML comments corrected (TASK-S101)
-- [ ] `LocomotionChannel`, `WeaponChannel`, `InteractionChannel` carry `[DataPolicy(DataPolicy.NoSave)]` (TASK-S102)
-- [ ] `BrainBTreeState`, `BrainHsm64`, `BrainHsm128` carry `[DataPolicy(DataPolicy.NoSave)]` (TASK-S103)
-- [ ] `SensorContactList`, `ActiveSensorTracks` carry `[DataPolicy(DataPolicy.NoSave)]` (TASK-S104)
+- [ ] `DataPolicy.NoScenario` and `NoReplay` XML comments corrected (TASK-S101)
+- [ ] `LocomotionChannel`, `WeaponChannel`, `InteractionChannel` carry `[DataPolicy(DataPolicy.NoScenario)]` (TASK-S102)
+- [ ] `BrainBTreeState`, `BrainHsm64`, `BrainHsm128` carry `[DataPolicy(DataPolicy.NoScenario)]` (TASK-S103)
+- [ ] `SensorContactList`, `ActiveSensorTracks` carry `[DataPolicy(DataPolicy.NoScenario)]` (TASK-S104)
 - [ ] `WeaponChannelTranslator.cs` deleted; no references remain (TASK-S105)
 - [ ] All new tests pass
 - [ ] All existing tests pass
@@ -303,9 +303,9 @@ without invoking the registry query.
 
 ## Common Pitfalls
 
-- Do NOT add `[DataPolicy(DataPolicy.NoRecord)]` to brain or channel components — they
+- Do NOT add `[DataPolicy(DataPolicy.NoReplay)]` to brain or channel components — they
   must remain in binary checkpoints.
-- Do NOT add `[DataPolicy(DataPolicy.NoSave)]` to `TargetMemory`, `PerceptionReceptor`,
+- Do NOT add `[DataPolicy(DataPolicy.NoScenario)]` to `TargetMemory`, `PerceptionReceptor`,
   or `BrainBlackboard` — those are out of scope for this batch.
 - When removing the `WeaponChannelTranslator` registration in `SimHostApp.cs`, ensure you
   preserve all other translator registrations on the same `ScenarioSerializerBuilder` chain.
@@ -320,7 +320,7 @@ When writing your report, answer these questions:
 
 **Q1:** What issues did you encounter during implementation? How did you resolve them?
 
-**Q2:** Did you spot any other execution-state components that should have `[DataPolicy(DataPolicy.NoSave)]`
+**Q2:** Did you spot any other execution-state components that should have `[DataPolicy(DataPolicy.NoScenario)]`
 but currently don't?
 
 **Q3:** Were there any unexpected dependencies on `WeaponChannelTranslator` that required

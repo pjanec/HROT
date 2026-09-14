@@ -28,6 +28,11 @@ namespace Fdp.Toolkit.Replication.Tests
         private const int KinematicA       = 20;   // stands for SimTransform
         private const int KinematicB       = 21;   // stands for SimVelocity
 
+        /// ⭐⭐ Stands for <c>NavigationIntent</c> — the measured case that forced §3.9: <b>Brain-OWNED and
+        /// Muscle-READ</b>. ⛔ It is the ONE id that appears in two roles' sets, in two different
+        /// relationships, and every §3.9 rail below turns on it.
+        private const int IntentComponent  = 12;
+
         private static BitMask512 Mask(params int[] bits)
         {
             var m = default(BitMask512);
@@ -37,21 +42,36 @@ namespace Fdp.Toolkit.Replication.Tests
 
         private static bool Has(in BitMask512 mask, int bit) => BitMask512.HasAll(in mask, Mask(bit));
 
+        /// ⭐ The <c>ownedComponentSet</c> table — what each role has AUTHORITY over (§3.9).
         private static Dictionary<NodeRole, BitMask512> StandardTable() => new()
         {
-            [NodeRole.Brain]        = Mask(BrainComponentA, BrainComponentB),
+            [NodeRole.Brain]        = Mask(BrainComponentA, BrainComponentB, IntentComponent),
             [NodeRole.MuscleGround] = Mask(KinematicA, KinematicB),
         };
 
-        private static TkbTemplate TemplateWithBirthCritical(params int[] ids)
+        /// 🔴 The <c>readComponentSet</c> table — owned elsewhere, replicated in, consumed here (§3.9).
+        /// ⚠ The Muscle role READS the intent the Brain role OWNS; that is the whole measured case.
+        private static Dictionary<NodeRole, BitMask512> StandardReadTable() => new()
         {
-            var t = new TkbTemplate("RailTemplate", 4242);
-            foreach (var id in ids) t.BirthCriticalComponents.Add(id);
-            return t;
-        }
+            [NodeRole.MuscleGround] = Mask(IntentComponent),
+        };
+
+        /// ⭐ Birth-criticality is DERIVED from <c>[BirthCritical]</c> on the component type
+        /// (<c>2026-09-13</c>, §6.6a), so a template cannot be built with or without it. ⇒ these rails use
+        /// the REAL <c>SimTransform</c> id for the birthright and keep plain ints for the role masks —
+        /// which preserves the original intent (this assembly must not know what "component 10" means)
+        /// while testing the real exemption.
+        private static int BirthCriticalId => Fdp.Core.ComponentType<Fdp.Core.SimTransform>.ID;
+
+        private static TkbTemplate Template() => new TkbTemplate("RailTemplate", 4242);
 
         private static RoleAffinityPolicy Policy(NodeRole declared, IRoleShardProvider? shard = null)
             => new(declared, StandardTable(), shard ?? new SingleNodePerRoleShardProvider(declared));
+
+        /// ⭐ The same node, additionally told what its roles READ (§3.9's fourth constructor argument).
+        private static RoleAffinityPolicy PolicyWithReads(NodeRole declared, IRoleShardProvider? shard = null)
+            => new(declared, StandardTable(), shard ?? new SingleNodePerRoleShardProvider(declared),
+                   StandardReadTable());
 
         /// <summary>
         /// ⭐⭐⭐ <b>Step 1's gate, first half — Brain and Muscle masks are DISJOINT.</b>
@@ -64,8 +84,8 @@ namespace Fdp.Toolkit.Replication.Tests
         [Fact]
         public void BrainAndMuscle_OwnDisjointSets()
         {
-            var brain  = Policy(NodeRole.Brain).OwnableMask(TemplateWithBirthCritical(), isCreator: false, default);
-            var muscle = Policy(NodeRole.MuscleGround).OwnableMask(TemplateWithBirthCritical(), isCreator: false, default);
+            var brain  = Policy(NodeRole.Brain).OwnableMask(Template(), isCreator: false, default);
+            var muscle = Policy(NodeRole.MuscleGround).OwnableMask(Template(), isCreator: false, default);
 
             Assert.True(Has(brain, BrainComponentA));
             Assert.True(Has(brain, BrainComponentB));
@@ -83,9 +103,11 @@ namespace Fdp.Toolkit.Replication.Tests
         ///
         /// <para>⛔⛔ This is the architect's correction, and the rail exists because getting it wrong is
         /// SILENT: applied symmetrically, role affinity would make a Brain-role creator produce
-        /// <c>SimTransform</c> unowned. Every egress translator gates on <c>HasAuthority</c>, so the spawn
-        /// coordinate would be written correctly and <b>never published</b> — every peer's ghost at the
-        /// origin, with no error anywhere.</para>
+        /// <c>SimTransform</c> unowned — and then <c>CarKinematicsSystem</c>'s <c>.WithOwned&lt;SimTransform&gt;()</c>
+        /// filter skips it, so the entity never moves on the node that created it, while
+        /// <c>GeoSpatialIngressTranslator</c> treats it as remote and overwrites its position from the wire.
+        /// ⚠ An earlier version of this comment said "every egress translator gates on HasAuthority so it is
+        /// never published" — RETRACTED, no egress reads the per-component mask (§3.6).</para>
         ///
         /// <para>⚠ Note <c>isCreator: false</c> must NOT grant it: a node promoting someone else's ghost
         /// has no birthright, or the two nodes would both own the position.</para>
@@ -93,18 +115,20 @@ namespace Fdp.Toolkit.Replication.Tests
         [Fact]
         public void TheCreatorKeepsBirthCriticalComponents_WhateverItsRole_AndOnlyAsCreator()
         {
-            var template = TemplateWithBirthCritical(KinematicA);
+            var template = Template();
 
             foreach (var role in new[] { NodeRole.Brain, NodeRole.MuscleGround, NodeRole.None })
             {
                 var asCreator  = Policy(role).OwnableMask(template, isCreator: true,  default);
                 var asPromoter = Policy(role).OwnableMask(template, isCreator: false, default);
 
-                Assert.True(Has(asCreator, KinematicA));
+                Assert.True(Has(asCreator, BirthCriticalId));
 
-                // ⛔ The Brain node must NOT keep it when it is merely promoting an arrived ghost.
-                if (role != NodeRole.MuscleGround)
-                    Assert.False(Has(asPromoter, KinematicA));
+                // ⛔ NO role may keep it when merely promoting an arrived ghost — and since 2026-09-13
+                //   birth-critical ids are excluded from every role's owned set, that now holds for the
+                //   Muscle role too (it used to be exempted here because KinematicA stood in for
+                //   SimTransform inside the Muscle mask).
+                Assert.False(Has(asPromoter, BirthCriticalId));
             }
         }
 
@@ -124,7 +148,7 @@ namespace Fdp.Toolkit.Replication.Tests
 
             var mask = new RoleAffinityPolicy(
                 NodeRole.Brain | NodeRole.MuscleGround, StandardTable(), declineBrain)
-                .OwnableMask(TemplateWithBirthCritical(), isCreator: false, default);
+                .OwnableMask(Template(), isCreator: false, default);
 
             // ⛔ Declared Brain, but this shard says another node serves Brain for this entity.
             Assert.False(Has(mask, BrainComponentA));
@@ -145,7 +169,7 @@ namespace Fdp.Toolkit.Replication.Tests
         public void AMultiRoleNode_OwnsTheUnion()
         {
             var mask = Policy(NodeRole.Brain | NodeRole.MuscleGround)
-                .OwnableMask(TemplateWithBirthCritical(), isCreator: false, default);
+                .OwnableMask(Template(), isCreator: false, default);
 
             Assert.True(Has(mask, BrainComponentA));
             Assert.True(Has(mask, KinematicA));
@@ -163,7 +187,7 @@ namespace Fdp.Toolkit.Replication.Tests
             var alwaysYes = new StubShard(_ => true);
 
             var mask = new RoleAffinityPolicy(NodeRole.MuscleGround, StandardTable(), alwaysYes)
-                .OwnableMask(TemplateWithBirthCritical(), isCreator: false, default);
+                .OwnableMask(Template(), isCreator: false, default);
 
             Assert.False(Has(mask, BrainComponentA));
             Assert.True(Has(mask, KinematicA));
@@ -178,7 +202,7 @@ namespace Fdp.Toolkit.Replication.Tests
         public void ARoleLessNode_OwnsNothingByRole()
         {
             var mask = Policy(NodeRole.None)
-                .OwnableMask(TemplateWithBirthCritical(), isCreator: false, default);
+                .OwnableMask(Template(), isCreator: false, default);
 
             Assert.False(Has(mask, BrainComponentA));
             Assert.False(Has(mask, KinematicA));
@@ -194,7 +218,7 @@ namespace Fdp.Toolkit.Replication.Tests
         public void TheSameInputsAlwaysGiveTheSameAnswer()
         {
             var policy   = Policy(NodeRole.Brain);
-            var template = TemplateWithBirthCritical(KinematicA);
+            var template = Template();
 
             var first = policy.OwnableMask(template, isCreator: true, default);
 
@@ -207,6 +231,168 @@ namespace Fdp.Toolkit.Replication.Tests
             {
                 Assert.Equal(first, policy.OwnableMask(template, isCreator: true, key));
             }
+        }
+
+        // ═══════════════════════════════════════════════════════════════════════════════════════════════
+        // §3.9 — THE TWO-SET MODEL.  REGISTER = ownedComponentSet ∪ readComponentSet,  AUTHORITY = owned.
+        // ═══════════════════════════════════════════════════════════════════════════════════════════════
+
+        /// <summary>
+        /// 🔴🔴🔴 <b>THE §3.9 RAIL — a Muscle node REGISTERS the intent it must never OWN.</b>
+        ///
+        /// <para>🔒 User, <c>2026-09-12</c>: <i>"intents are brain owned components that must be replicated
+        /// to muscle so musle can read and act on them. so muscle cant simply stop registwring them because
+        /// they are brain ones."</i> 📐 Measured: <c>NavigationIntent</c> 16 wire references,
+        /// <c>MissionPlanQueue</c> 9 — both Brain-owned and Muscle-read.</para>
+        ///
+        /// <para>⛔⛔ <b>If this reddens on the REGISTER half, a Muscle node has stopped receiving its own
+        /// orders</b> — the failure that killed the "split the cognitive bundle along the role line"
+        /// proposal before it was built. ⛔⛔ <b>If it reddens on the AUTHORITY half, the Brain and the
+        /// Muscle both own the intent</b> and their egress translators fight — the two-owner conflict this
+        /// whole design exists to remove. ⇒ the two halves fail in OPPOSITE directions, which is exactly
+        /// why one set could never have expressed both.</para>
+        /// </summary>
+        [Fact]
+        public void AReadComponent_IsRegistered_AndNeverOwned()
+        {
+            var muscle = PolicyWithReads(NodeRole.MuscleGround);
+
+            Assert.True(Has(muscle.RegisterComponentSet, IntentComponent),
+                "the Muscle node does not REGISTER the Brain-owned intent, so the ingress translator has " +
+                "no component to write and the node stops receiving its own orders (§3.9).");
+
+            Assert.False(Has(muscle.OwnedComponentSet, IntentComponent),
+                "the Muscle node claims AUTHORITY over a component it merely reads — the Brain owns it, " +
+                "so both nodes would publish it (§3.9).");
+
+            Assert.False(Has(muscle.OwnableMask(Template(), isCreator: false, default),
+                             IntentComponent),
+                "the per-entity authority answer leaked the READ set. readComponentSet must contribute to " +
+                "registration and to nothing else.");
+        }
+
+        /// <summary>
+        /// ⭐⭐⭐ <b>The headline equation, asserted as an equation: <c>REGISTER = owned ∪ read</c>.</b>
+        ///
+        /// <para>⭐ Both contributors are checked present and the union is checked to add nothing else, so
+        /// the rail fails whichever way the implementation drifts — dropping a half, or quietly widening
+        /// the set.</para>
+        /// </summary>
+        [Fact]
+        public void RegisterComponentSet_IsExactlyTheUnionOfTheTwoSets()
+        {
+            var muscle = PolicyWithReads(NodeRole.MuscleGround);
+
+            var expected = muscle.OwnedComponentSet;
+            var read     = muscle.ReadComponentSet;
+            expected.BitwiseOr(in read);
+
+            Assert.Equal(expected, muscle.RegisterComponentSet);
+
+            // ⛔ Anti-vacuity: an implementation returning empty masks everywhere would satisfy the
+            //    equation above and nothing else. Both halves must actually carry something, and they
+            //    must carry DIFFERENT things — or the two sets are not being kept apart at all.
+            Assert.True(Has(muscle.OwnedComponentSet, KinematicA));
+            Assert.True(Has(muscle.ReadComponentSet,  IntentComponent));
+            Assert.False(Has(muscle.ReadComponentSet, KinematicA));
+        }
+
+        /// <summary>
+        /// ⭐⭐ <b>The opt-in guarantee — with NO read table, <c>REGISTER == OWNED</c> and every existing
+        /// three-argument call site behaves exactly as it did.</b>
+        ///
+        /// <para>⛔ The fourth constructor argument is optional, and this is what makes that safe to ship
+        /// ahead of the composition roots that will fill it (step 4). ⚠ It is also the rail that would
+        /// catch a "helpful" default — a read table inferred from the owned table, say — which would hand
+        /// every node a wider registry than its host asked for.</para>
+        /// </summary>
+        [Fact]
+        public void WithNoReadTable_RegisterEqualsOwned()
+        {
+            var muscle = Policy(NodeRole.MuscleGround);
+
+            Assert.Equal(default(BitMask512), muscle.ReadComponentSet);
+            Assert.Equal(muscle.OwnedComponentSet, muscle.RegisterComponentSet);
+            Assert.True(Has(muscle.RegisterComponentSet, KinematicA));   // anti-vacuity
+        }
+
+        /// <summary>
+        /// 🔴🔴 <b>REGISTRATION IS PER NODE; THE SHARD IS PER ENTITY — so the shard must NOT narrow these
+        /// sets.</b>
+        ///
+        /// <para>⛔⛔ The trap this rail exists for: <see cref="RoleAffinityPolicy.OwnableMask"/> consults
+        /// <see cref="IRoleShardProvider"/>, so the obvious implementation of "which components can I own?"
+        /// is to call it with a default key. ⚠ That is WRONG — the shard answers <i>"does another node
+        /// serve Brain for THIS entity?"</i>, and a node that deregistered a component because it does not
+        /// serve that role for ONE entity could not handle the next one. ⇒ these sets are deliberately
+        /// shard-free, and a declining shard changes nothing.</para>
+        /// </summary>
+        [Fact]
+        public void TheRegistrationSets_AreNotNarrowedByTheShard()
+        {
+            var declineEverything = new StubShard(_ => false);
+
+            var node = new RoleAffinityPolicy(
+                NodeRole.Brain | NodeRole.MuscleGround, StandardTable(), declineEverything,
+                StandardReadTable());
+
+            Assert.True(Has(node.OwnedComponentSet,    BrainComponentA));
+            Assert.True(Has(node.OwnedComponentSet,    KinematicA));
+            Assert.True(Has(node.RegisterComponentSet, IntentComponent));
+
+            // ⛔ Anti-vacuity, and the other half of the contract: the shard DOES still strip the
+            //    per-entity AUTHORITY answer. If this ever goes true, the shard seam has gone decorative.
+            Assert.False(Has(node.OwnableMask(Template(), isCreator: false, default),
+                             BrainComponentA));
+        }
+
+        /// <summary>
+        /// ⭐⭐ Roles this node does not declare contribute nothing to EITHER set — the same structural rule
+        /// the authority path already keeps (<see cref="AnUndeclaredRole_IsNeverConsulted_EvenIfTheShardSaysYes"/>),
+        /// now asserted for registration.
+        ///
+        /// <para>⭐ This is what lets ONE shared pair of tables be handed to every host in the cluster: a
+        /// host's registry follows from the roles IT declares, not from the size of the table it was
+        /// given.</para>
+        /// </summary>
+        [Fact]
+        public void AnUndeclaredRolesComponents_AreNeitherOwnedNorRegistered()
+        {
+            var brainOnly = PolicyWithReads(NodeRole.Brain);
+
+            Assert.True(Has(brainOnly.OwnedComponentSet, IntentComponent));       // Brain OWNS the intent
+            Assert.Equal(default(BitMask512), brainOnly.ReadComponentSet);        // ⛔ and reads nothing
+            Assert.False(Has(brainOnly.RegisterComponentSet, KinematicA),
+                "a Brain-only node registered a component only the Muscle role declares.");
+        }
+
+        /// <summary>
+        /// ⚠⚠ <b>The birthright is NOT in <c>OwnedComponentSet</c>, and that is deliberate — so a
+        /// diagnostic must never read "can never own" off it alone.</b>
+        ///
+        /// <para>📄 §3.9. <c>BirthCriticalComponents</c> are per TEMPLATE, and this property has no
+        /// template — so a node genuinely CAN own a component absent from it (every entity it creates).
+        /// ⛔ A boot check that flagged such a component as a configuration error would be wrong for
+        /// exactly the case where being wrong is loudest: the origin-flash failure §3.1 exists to
+        /// prevent.</para>
+        ///
+        /// <para>⭐ Railed rather than only commented because the tempting "fix" — folding the birthright
+        /// in — silently turns a per-template fact into a node-wide claim.</para>
+        /// </summary>
+        [Fact]
+        public void OwnedComponentSet_ExcludesTheCreatorsBirthright()
+        {
+            var brain    = PolicyWithReads(NodeRole.Brain);
+            var template = Template();
+
+            Assert.False(Has(brain.OwnedComponentSet, BirthCriticalId),
+                "the role-derived owned set absorbed a birth-critical component, turning a CREATOR-only " +
+                "exemption into a node-wide claim — which on the PROMOTE leg means a node declaring itself " +
+                "owner of a position it does not simulate (§3.9).");
+
+            // ⭐ And the creator really does own it — so the exclusion above is a genuine gap between the
+            //   static set and the per-entity answer, not an artefact of an empty set.
+            Assert.True(Has(brain.OwnableMask(template, isCreator: true, default), BirthCriticalId));
         }
 
         private sealed class StubShard : IRoleShardProvider

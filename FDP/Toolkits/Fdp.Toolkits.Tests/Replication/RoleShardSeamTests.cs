@@ -29,12 +29,11 @@ namespace Fdp.Toolkit.Replication.Tests
     /// </summary>
     public class RoleShardSeamTests
     {
-        // ⚠ ImageGenerator is a KNOWN-WRONG name whose rename to Map2D is owned by CE-212
-        //   (docs/DESIGN_Stride_Node_Modes.md §S10, "needs Roslyn, run twice and unioned"). These rails
-        //   name it only because the enum does; nothing here depends on the spelling.
+        // ✅ Map2D was Map2D until CE-212 (2026-09-13) — a vocabulary fix, semantics unchanged.
+        //   These rails name the roles only because the enum does; nothing here depends on the spelling.
         private const NodeRole Brain            = NodeRole.Brain;
         private const NodeRole MuscleGround     = NodeRole.MuscleGround;
-        private const NodeRole ImageGenerator   = NodeRole.ImageGenerator;
+        private const NodeRole Map2D            = NodeRole.Map2D;
         private const NodeRole Perception       = NodeRole.Perception;
         private const NodeRole NavigationSolver = NodeRole.NavigationSolver;
 
@@ -67,7 +66,7 @@ namespace Fdp.Toolkit.Replication.Tests
                 Assert.True(provider.ServesRole(Perception, key));
 
                 Assert.False(provider.ServesRole(MuscleGround, key));
-                Assert.False(provider.ServesRole(ImageGenerator, key));
+                Assert.False(provider.ServesRole(Map2D, key));
                 Assert.False(provider.ServesRole(NavigationSolver, key));
             }
         }
@@ -117,7 +116,7 @@ namespace Fdp.Toolkit.Replication.Tests
             {
                 Assert.False(provider.ServesRole(Brain, key));
                 Assert.False(provider.ServesRole(MuscleGround, key));
-                Assert.False(provider.ServesRole(ImageGenerator, key));
+                Assert.False(provider.ServesRole(Map2D, key));
             }
         }
 
@@ -131,7 +130,7 @@ namespace Fdp.Toolkit.Replication.Tests
         public void Default_TheEmptyRole_IsServedByNobody()
         {
             var all = new SingleNodePerRoleShardProvider(
-                Brain | MuscleGround | ImageGenerator | Perception | NavigationSolver);
+                Brain | MuscleGround | Map2D | Perception | NavigationSolver);
 
             Assert.False(all.ServesRole(NodeRole.None, default));
         }

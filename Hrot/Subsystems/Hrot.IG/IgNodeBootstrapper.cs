@@ -49,7 +49,7 @@ namespace Hrot.IG;
 /// <summary>
 /// Concrete <see cref="SharedApplicationBootstrapper"/> for the IG (Image Generator) node.
 /// Implements all abstract hooks to produce a visualization-only node with role
-/// <see cref="NodeRole.ImageGenerator"/>.
+/// <see cref="NodeRole.Map2D"/>.
 /// </summary>
 internal sealed class IgNodeBootstrapper : SharedApplicationBootstrapper
 {
@@ -61,6 +61,14 @@ internal sealed class IgNodeBootstrapper : SharedApplicationBootstrapper
     /// <see cref="RegisterSpawningPipeline"/> has run.
     /// </summary>
     public ScenarioEntityCreationRequestSource? LocalEntityCreationRequests { get; private set; }
+
+    /// <summary>
+    /// ⭐⭐⭐ <c>CE-271</c> seam ④ — the DDS <c>NodeHeartbeat</c> pump that keeps the cluster cache the
+    /// <c>BrainMuscleOwnershipStrategy</c> reads from up to date. Invoked once per frame by
+    /// <c>IgApplication.Update</c>, mirroring <c>CgfSubsystem</c>'s <c>_cgfNetworkPolling</c>. Null when
+    /// the node is offline / has no participant.
+    /// </summary>
+    public System.Action? NetworkPolling { get; private set; }
     private readonly int _effectiveInstanceId;
     private readonly bool _headless;
     private readonly IIgTranslators? _igTranslatorsProvider;
@@ -249,7 +257,7 @@ internal sealed class IgNodeBootstrapper : SharedApplicationBootstrapper
 
         var plan = new NodeCompositionPlan()
             .Capability(
-                NodeRole.ImageGenerator,
+                NodeRole.Map2D,
                 new IgCapabilities.Presentation(
                     _userConfig, _effectiveInstanceId, _cameraViewport, _headless))
             // ⭐ CE-221 — cross-role infrastructure, declared LAST so it keeps its tail-of-Simulation
@@ -257,10 +265,10 @@ internal sealed class IgNodeBootstrapper : SharedApplicationBootstrapper
             //    a Brain+Muscle node register it ONCE instead of twice.
             //    ⚠ IG carries UnitHierarchy only: it never had EqsResultUpdateSystem, and Hrot.IG does
             //    not reference Hrot.SimHost where that system lives. Its system set is unchanged.
-            .Capability(NodeRole.ImageGenerator, new Hrot.Common.Infrastructure.CoreInfrastructureCapabilities.UnitHierarchy());
+            .Capability(NodeRole.Map2D, new Hrot.Common.Infrastructure.CoreInfrastructureCapabilities.UnitHierarchy());
 
         // ⭐⭐⭐ CE-197 — resolved from the DECLARED role, not a constant (B4b step 3).
-        //    📐 Provably a no-op here: IgApplication.cs:923 passes the literal NodeRole.ImageGenerator,
+        //    📐 Provably a no-op here: IgApplication.cs:923 passes the literal NodeRole.Map2D,
         //    which is exactly what the capability above is declared for. ⚠ Unlike SimHost — whose
         //    declared role was MISSING NavigationSolver and had to be corrected before this swap was
         //    safe — IG's declaration was already true.
@@ -295,7 +303,7 @@ internal sealed class IgNodeBootstrapper : SharedApplicationBootstrapper
     private IReadOnlyList<INodeCapability>? _capabilities;
 
     /// <summary>The role this node was bootstrapped with, captured in <see cref="BuildContext"/>.</summary>
-    private NodeRole _declaredRole = NodeRole.ImageGenerator;
+    private NodeRole _declaredRole = NodeRole.Map2D;
 
     // ── Phase 5: Build orchestration ─────────────────────────────────────────
 
@@ -373,6 +381,18 @@ internal sealed class IgNodeBootstrapper : SharedApplicationBootstrapper
         // CGF1-S0309: wire dry-run snapshot/rewind handler (IG carries no ECS state in ClusterSlave).
         slave.RegisterHandler(new ReferencePreviewHandler(liveRepo: null));
 
+        // ⭐⭐⭐ CE-275 ③ — IG registers the SAME scenario SAVE handler as every other host. 🔒 User ruling:
+        //   IG is a host that can create entities, so it must be able to save them; it just rarely owns
+        //   anything savable. When the cluster fans out SaveScenarioJson, this writes IG's OWNED slice via the
+        //   shared ScenarioSaveCore — usually empty (IG's authored entities carry ScenarioIgnoreTag / IG owns
+        //   no persistable), but a persistable entity IG owns IS saved. ⛔ There is no "IG registers no save
+        //   handler" rule any more; passivity is emergent from the ownership gate, not a missing handler.
+        //   ⚠ zoneService: null — IG composes no zone manager (IgZoneDummyHandler above).
+        //   📄 docs/DESIGN_Distributed_Scenario_Persistence.md §4 · DESIGN_Node_Roles_And_Policies §7.1.
+        slave.RegisterHandler(new Hrot.ScenarioEditor.Handlers.HrotScenarioSaveHandler(
+            serializer, zoneService: null, context.TkbDb, context.World,
+            _effectiveInstanceId));
+
         // Diagnostics dump support: IG must ACK CollectDiagnostics in cluster 2PC.
         var archService = new ArchitectureDiagnosticsService(context.Kernel);
         var entityService = new EntityStateExtractionService(context.World, context.EntityMap);
@@ -443,6 +463,16 @@ internal sealed class IgNodeBootstrapper : SharedApplicationBootstrapper
             JsonAttributeCompiler = adapters?.JsonCompiler,
             OwnershipStrategy     = adapters?.OwnershipStrategy,
 
+            // ⭐⭐⭐ CE-271 seam ② — the ROLE-AFFINITY policy for Map2D. WITHOUT it IG ran a null policy
+            //    and kept every component it materialised, so a Muscle promoting a Map2D-created tank
+            //    fought it for authority (two owners). WITH it, IG's create-leg intersects its authority
+            //    with Map2D's OWNED set: a Map2D-created tank keeps only its SimTransform birthright and
+            //    declines combat/muscle/brain, which the Brain/Muscle then claim on promotion; a
+            //    Map2D-created overlay keeps its EditablePolyline/RoutePlan so IG's own egress publishes
+            //    it. Same instance reaches NetworkSpawningSystem (create) and GhostPromotionSystem
+            //    (promote) via the pack. 📄 DESIGN_Node_Roles_And_Policies.md §4.1.
+            RoleAffinity          = Hrot.Map.Common.HrotRoleComponentSets.CreatePolicy(NodeRole.Map2D),
+
             // ⭐⭐⭐ D1: the forwarding half. Without it a request addressed elsewhere is silently
             //    dropped by the Level-1 guard, which is the other half of the level mismatch.
             RequestEgress         = adapters?.RequestEgress,
@@ -450,6 +480,13 @@ internal sealed class IgNodeBootstrapper : SharedApplicationBootstrapper
             // ⛔ NOT the cluster's broadcast arbiter — that is CGF, and exactly one node may be it.
             IsBroadcastArbiter = false,
         });
+
+        // ⭐⭐⭐ CE-271 seam ④ — pump the cluster cache from DDS NodeHeartbeat, exactly as
+        //    CgfSubsystem:982 does. WITHOUT this the BrainMuscleOwnershipStrategy IG carries has an
+        //    empty cache, GetLeastLoadedNode(MuscleGround) returns null, and seam ①'s grant path
+        //    produces an EMPTY grant set — so a Map2D-created tank's SimTransform never reaches a Muscle.
+        //    IG constructs the adapters (reader + cache) but was the one host that never pumped them.
+        NetworkPolling = adapters != null ? adapters.PollNetwork : (System.Action?)null;
 
         // ⭐ The tools' sink. RegisterSpawningPipeline runs BEFORE RegisterApplicationSystems
         //    (SharedApplicationBootstrapper.cs:111 vs :139), so the registrar callback that constructs

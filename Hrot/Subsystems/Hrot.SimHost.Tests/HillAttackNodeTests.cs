@@ -63,6 +63,14 @@ namespace Hrot.SimHost.Tests
         {
             var repo = new EntityRepository();
             SimHostComponentRegistry.RegisterAll(repo);
+            // ⭐⭐⭐ CE-259bf slice 3b (2026-09-12): this fixture exercises BRAIN-TIER nodes — AimAndFire
+            //   writes a WeaponChannel, the wave dispatcher reads cognitive state — and it used to obtain
+            //   that tier IMPLICITLY, because SimHostComponentRegistry registered the whole brain.
+            //   🔒 User ruling: "Simhost has no ai(brain). So it does not need [them]" ⇒ SimHost no longer
+            //   does, and this fixture must declare the dependency its SUBJECT actually has.
+            // ⚠ This is the debt becoming visible, not a workaround: a test of brain behaviour needs a
+            //   world with a brain in it, and it was only ever green because a Muscle node carried one.
+            CognitiveComponentRegistry.RegisterAll(repo);
             repo.RegisterComponent<Fdp.Toolkit.Replication.Components.NetworkIdentity>();
             // S3-G: PlatoonHillAttack's Behavior-scoped working state is provisioned into a
             // BlueprintBlackboard* partition tier (registered in production by BlueprintRuntimeWiring).

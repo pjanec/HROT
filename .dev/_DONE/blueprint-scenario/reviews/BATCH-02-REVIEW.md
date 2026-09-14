@@ -9,7 +9,7 @@
 
 ## Summary
 
-Marked 3 blackboard components `NoSave`, created `BlueprintAssignmentDto` + `InitialBlueprintsIntent`, fixed compiler AssetId emit, built `BlueprintStateTranslator` with legacy key black-holing, registered in serializer factory. 25 new tests, 0 net-new failures.
+Marked 3 blackboard components `NoScenario`, created `BlueprintAssignmentDto` + `InitialBlueprintsIntent`, fixed compiler AssetId emit, built `BlueprintStateTranslator` with legacy key black-holing, registered in serializer factory. 25 new tests, 0 net-new failures.
 
 ---
 
@@ -25,7 +25,7 @@ All 25 tests verified by running. Key tests reviewed in source:
 
 | Test | What it verifies | Assessment |
 |------|-----------------|------------|
-| NoSave reflection (×3) | `DataPolicy.NoSave` attribute present on each tier | ✅ Concrete |
+| NoScenario reflection (×3) | `DataPolicy.NoScenario` attribute present on each tier | ✅ Concrete |
 | Serialization exclusion | JSON output excludes `BlueprintBlackboard1024` key | ✅ String-based, valid for this case |
 | DTO round-trip (×2) | JSON serialization with/without Overrides | ✅ Values verified |
 | Intent round-trip | SetManagedComponent → GetManagedComponentRO | ✅ Full round-trip |
@@ -50,9 +50,9 @@ All tests drive real production paths, assert concrete values.
 ## 📝 Commit Message
 
 ```
-feat: BSA-101 NoSave blackboard + BSA-202 BlueprintStateTranslator + AssetId emit fix
+feat: BSA-101 NoScenario blackboard + BSA-202 BlueprintStateTranslator + AssetId emit fix
 
-- Mark BlueprintBlackboard{1024,4096,16384} [DataPolicy(DataPolicy.NoSave)]
+- Mark BlueprintBlackboard{1024,4096,16384} [DataPolicy(DataPolicy.NoScenario)]
 - Create BlueprintAssignmentDto (Fdp.Toolkit.Blueprints) + InitialBlueprintsIntent
   ([Transient], HrotComponentIds.InitialBlueprintsIntent = 187)
 - Fix CSharpEmitter to populate BlueprintDefinition.AssetId from asset.AssetId

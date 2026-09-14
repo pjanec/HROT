@@ -36,6 +36,36 @@ namespace Fdp.Interfaces
         ///
         /// <para><c>TkbIdentity</c> is always implicitly a hard requirement and does not
         /// need to be listed here explicitly.</para>
+        ///
+        /// <para>⛔⛔ <b>A TKB FILE CANNOT FILL THIS LIST.</b> 📄 <c>docs/designs/tkb-1/DESIGN.md</c> §6.6: a
+        /// TKB file describes an entity's <b>descriptors</b>; this is a statement about what those descriptors
+        /// will PRODUCE <i>on a particular host</i>. <c>TkbDeserializer</c> builds a template purely from
+        /// descriptor keys, so a file-loaded template arrives with this list <b>EMPTY</b> — deliberately.</para>
+        ///
+        /// <para>✅✅✅ <b>THIS IS NO LONGER THE PRIMARY SOURCE</b> <i>(<c>CE-265</c>, <c>2026-09-13</c>; an
+        /// earlier version of this comment said "NOTHING DERIVES IT")</i>. <c>MandatoryComponentResolver</c>
+        /// now DERIVES the requirements per host — <c>[PerInstanceValue] ∩ produced ∩ ingressible ∩
+        /// registered</c> — and <c>GhostPromotionSystem</c> gates on <b>derived ∪ this list</b>.
+        /// 📄 §6.6a (design) and §6.6b (as-built).</para>
+        ///
+        /// <para>⛔⛔ <b>WHY THE DERIVED SET IS NOT STORED HERE, unlike
+        /// <see cref="BirthCriticalComponents"/>.</b> Three of its four inputs are HOST-LOCAL — this node's
+        /// translators, its network stack, its component registry — while a <see cref="TkbTemplate"/> is a
+        /// SHARED record: the same object serves CGF, SimHost, IG and the editor. ⇒ a host-local answer
+        /// stored on it would be wrong for every other reader. 🔒 That is the same fact that rules a TKB file
+        /// out, stated one level down.</para>
+        ///
+        /// <para>⭐ <b>WHAT THIS LIST IS FOR NOW — the AUTHORING ESCAPE HATCH.</b> It carries requirements the
+        /// derivation cannot see: a component <b>no translator produces</b> (managed state such as
+        /// <c>ActiveMissionPlan</c>), or a host-specific network gate. ⛔ Do NOT restate a derived
+        /// requirement here — 📐 measured <c>2026-09-13</c>, that is exactly how the catalogues drifted:
+        /// <c>NedTkbBuilder.DefineVehicle</c> declared <c>EntityInfo</c>+<c>SimTransform</c> hard while
+        /// <c>UrbanCombatTkbCatalog</c>'s five identically-shaped templates declared none.</para>
+        ///
+        /// <para>🔴 <b>OVER-DECLARING HERE IS FATAL, and in the opposite direction to every other list on this
+        /// type.</b> This is the PROMOTION GATE: a hard requirement that never arrives means a ghost that
+        /// <b>never promotes</b>, every frame, forever. ⚠ <c>GhostPromotionSystem</c> now reports such a stall
+        /// after <c>600</c> frames instead of failing silently — but it still does not promote.</para>
         /// </summary>
         public List<MandatoryComponent> MandatoryComponents { get; } = new();
 
@@ -44,13 +74,27 @@ namespace Fdp.Interfaces
         /// whatever role that creator holds.</b> 📄 <c>docs/DESIGN_Role_Affinity_Ownership.md</c> §3.1.
         ///
         /// <para>⭐⭐ <b>Why this exists.</b> Role-affinity ownership says <i>"a node owns a component
-        /// only if it holds the role that component belongs to"</i>. ⛔ Applied to spatial state that
-        /// rule is WRONG, and the architect named the failure exactly: a Brain-role node creating a unit
-        /// would produce <c>SimTransform</c> UNOWNED, and since <b>every egress translator gates on
-        /// <c>HasAuthority</c></b>, the creator would write a correct spawn coordinate that is
-        /// <b>never published</b> — every peer's ghost sits at the origin. ⇒ birth-critical components
-        /// are the CREATOR'S BIRTHRIGHT; it keeps them and hands them off later through the existing
-        /// <c>DeferredTakeOwnership</c> → <c>OwnershipUpdate</c> path.</para>
+        /// only if it holds the role that component belongs to"</i>. ⛔ Applied to spatial state that rule
+        /// is WRONG: a Brain-role node creating a unit would produce <c>SimTransform</c> UNOWNED.
+        /// ⇒ birth-critical components are the CREATOR'S BIRTHRIGHT; it keeps them and hands them off
+        /// later through the existing <c>DeferredTakeOwnership</c> → <c>OwnershipUpdate</c> path.</para>
+        ///
+        /// <para>⛔⛔ <b>THE MECHANISM THIS COMMENT USED TO CITE IS RETRACTED</b> <i>(re-measured
+        /// <c>2026-09-13</c>, <c>DESIGN_Role_Affinity_Ownership.md</c> §3.6)</i>. It said <i>"every egress
+        /// translator gates on <c>HasAuthority</c>, so the coordinate is written and never published —
+        /// every peer's ghost sits at the origin."</i> 🔴 <b>No egress translator reads the per-component
+        /// <c>AuthorityMask</c> at all</b> — they call the <c>ISimulationView</c> extension, which consults
+        /// <c>DescriptorOwnership</c>/<c>NetworkAuthority</c>. ⇒ declining a mask bit does not stop
+        /// publication. ⭐ <b>What actually breaks is quieter:</b> <c>CarKinematicsSystem.cs:73</c> filters
+        /// <c>.WithOwned&lt;SimTransform&gt;()</c> so <b>the entity never moves on the node that created
+        /// it</b>, and <c>GeoSpatialIngressTranslator.cs:90</c> then treats it as remote and overwrites its
+        /// position from the wire. ⚠ <b>The conclusion is unchanged; only the reason was wrong.</b></para>
+        ///
+        /// <para>⛔ <b>And no role may own one on the PROMOTE leg either</b> — the same
+        /// <c>GeoSpatialIngressTranslator</c> check, mirrored: a promoting node that claimed
+        /// <c>SimTransform</c> by role would declare itself owner of a position it does not simulate and
+        /// stop accepting the real owner's updates ⇒ every ghost on it freezes. That is why the role
+        /// tables exclude these ids entirely (<c>HrotRoleComponentSets</c>).</para>
         ///
         /// <para>⭐ <b>The test is "can this component start empty?"</b> An idle blackboard on tick 0 is
         /// correct, so cognitive state is role-affine. <c>(0,0,0)</c> is an origin flash, a wrong
@@ -74,12 +118,31 @@ namespace Fdp.Interfaces
         /// birth-critical-but-not-promotion-gating component to change promotion semantics in order to
         /// carry the flag.</para>
         ///
-        /// <para>⚠ <b>Nothing READS this yet.</b> The consumers are steps 1–3 of that design
-        /// (<c>IRoleAffinityPolicy</c>, then <c>NetworkSpawningSystem</c> and
-        /// <c>GhostPromotionSystem</c>). Until they land this list is declarative only and ownership
-        /// behaviour is unchanged.</para>
+        /// <para>✅ <b>THIS IS NOW LIVE</b> <i>(updated <c>2026-09-13</c>; an earlier version said "nothing
+        /// READS this yet")</i>. <c>NetworkSpawningSystem.cs:237</c> ORs this set in for the creator and
+        /// intersects with the live mask, and since P3 step 4 both CGF and SimHost hold real role
+        /// policies ⇒ <b>a missing entry now changes behaviour on a live cluster.</b></para>
+        ///
+        /// <para>⭐⭐⭐ <b>DERIVED, NOT AUTHORED</b> (<c>2026-09-13</c>). This is a read-only view of every
+        /// component type declaring <see cref="BirthCriticalAttribute"/> — it is not stored per template and
+        /// cannot be edited. 📄 <c>docs/designs/tkb-1/DESIGN.md</c> §6.6a.</para>
+        ///
+        /// <para>🔒 User ruling: <i>"if it can be derived or defined via component attribute and it works for
+        /// all todays or imaginable future use cases, the tkb in-memory record can be just a readonly
+        /// cache."</i> ⛔ The hand-authored version could not survive the file path — <c>TkbDeserializer</c>
+        /// builds templates purely from DESCRIPTOR keys, so a file-loaded template arrived EMPTY
+        /// (<c>CE-259az</c>) — and 8 authoring sites across 3 producers had already drifted apart.</para>
+        ///
+        /// <para>⚠ <b>The effective set IS per TKB type, and this still delivers that.</b> Over-declaring is
+        /// free because the create leg intersects with the entity's LIVE component mask, so a positionless
+        /// entity never receives a bit. ⇒ the per-type answer is computed exactly, per entity, at runtime —
+        /// which a stored list could only restate, and could restate wrongly.</para>
+        ///
+        /// <para>⭐ <b>This property is the seam for a future per-type OVERRIDE</b>, deliberately kept rather
+        /// than deleted: a TKB-record override would change only how this view is produced, with no
+        /// call-site churn. That override is DEFERRED, not rejected.</para>
         /// </summary>
-        public List<int> BirthCriticalComponents { get; } = new();
+        public IReadOnlyList<int> BirthCriticalComponents => ComponentAttributeSets.BirthCritical;
 
         /// <summary>
         /// List of child entities (sub-parts) to spawn when this template is instantiated.
@@ -130,26 +193,6 @@ namespace Fdp.Interfaces
                 IsHard            = isHard,
                 SoftTimeoutFrames = softTimeoutFrames
             });
-        }
-
-        /// <summary>
-        /// ⭐ Declares an ECS component type <b>birth-critical</b>: the node that CREATES an entity of
-        /// this template owns that component at birth regardless of its role.
-        /// See <see cref="BirthCriticalComponents"/> for why, and for why over-declaring is safe.
-        ///
-        /// <para>Mirrors <see cref="AddMandatoryComponent{T}"/> — same authoring style, same id
-        /// resolution (works for unmanaged structs and managed class components alike), and the same
-        /// independence from any network layer.</para>
-        ///
-        /// <para>⭐ Idempotent: declaring the same component twice does not duplicate the entry, so a
-        /// builder that both defines a template and later decorates it cannot double-register.</para>
-        /// </summary>
-        /// <typeparam name="T">The component type whose initial value the creator must own.</typeparam>
-        public void AddBirthCriticalComponent<T>()
-        {
-            int id = ComponentTypeRegistry.GetOrRegisterManaged(typeof(T));
-            if (!BirthCriticalComponents.Contains(id))
-                BirthCriticalComponents.Add(id);
         }
 
         /// <summary>

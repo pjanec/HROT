@@ -71,7 +71,7 @@ section. ⛔ **No new variable owner is needed.**
 | `BlueprintBlackboard{1024,4096,16384}` | ⭐ **Instance state — the allocator**: header 32 + slot table 4×16 + payload | **928 / 3936 / 16368 B** |
 | a managed heavy component | `[SharedAiHeavyAction]` managed state | unbounded |
 
-⭐ **All are `[DataPolicy(NoSave)]`** ⇒ nothing here is serialised; **inputs are re-supplied at every
+⭐ **All are `[DataPolicy(NoScenario)]`** ⇒ nothing here is serialised; **inputs are re-supplied at every
 activation.** ⇒ **the tier question is about ADDRESSING, never persistence.**
 
 ⚠ **`FieldLayout` lays parameters at `startOffset: 0`.** Safe today **only** because Instances have

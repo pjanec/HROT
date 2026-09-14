@@ -383,17 +383,17 @@ namespace Fdp.Tests
         }
 
         /// <summary>
-        /// TASK-E008 SC-4: A component registered with DataPolicy.NoRecord must have its
+        /// TASK-E008 SC-4: A component registered with DataPolicy.NoReplay must have its
         /// bit cleared in the recorded hot chunk data, even when the entity carries that component.
         /// </summary>
         [Fact]
         public void DualStream_RecordableMaskFilter_NonRecordableBitIsCleared()
         {
             // Use a dedicated component (ID 240) that is not registered by any other test,
-            // so we can safely register it with NoRecord here without affecting global registry state.
+            // so we can safely register it with NoReplay here without affecting global registry state.
             using var repo = new EntityRepository();
             // Register NoRecordTestComponent (ID 240) as non-recordable.
-            repo.RegisterComponent<NoRecordTestComponent>(DataPolicy.NoRecord);
+            repo.RegisterComponent<NoRecordTestComponent>(DataPolicy.NoReplay);
 
             var recorder = new RecorderSystem();
             using var stream = new MemoryStream();

@@ -26,7 +26,11 @@ namespace Fdp.Toolkit.Behavior.Modules
         /// <summary>Systems that run in the Simulation phase.</summary>
         public IReadOnlyList<IEcsModuleSystem> SimulationSystems { get; }
 
-        public MissionControlModule(BehaviorRegistry registry)
+        /// <param name="gateOnAuthority">⭐ <c>P3</c> step <c>3b</c> — process only missions whose
+        /// entity's cognitive state this node owns. ⚠ Defaults to <c>false</c>; see
+        /// <c>CognitiveRuntimeModule</c>'s parameter of the same name for why the default is
+        /// load-bearing.</param>
+        public MissionControlModule(BehaviorRegistry registry, bool gateOnAuthority = false)
         {
             _registry = registry;
             InputSystems = new IEcsModuleSystem[]
@@ -35,7 +39,7 @@ namespace Fdp.Toolkit.Behavior.Modules
             };
             SimulationSystems = new IEcsModuleSystem[]
             {
-                new MissionDirectorSystem(),
+                new MissionDirectorSystem(gateOnAuthority),
             };
         }
     }

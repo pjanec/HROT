@@ -181,18 +181,39 @@ public sealed class EditorScenarioSession : IScenarioSession
     public void SaveCurrent()
     {
         if (string.IsNullOrEmpty(_loadedScenarioName)) return;
-        WriteScenarioDirectory(_loadedScenarioName!);
+        PublishScenarioSave(_loadedScenarioName!);
     }
 
     /// <inheritdoc/>
     public void SaveAs(string scenarioName)
     {
         if (string.IsNullOrWhiteSpace(scenarioName)) return;
-        WriteScenarioDirectory(scenarioName);
+        PublishScenarioSave(scenarioName);
         _loadedScenarioName = scenarioName;
     }
 
+    /// <summary>
+    /// ⭐⭐⭐ CE-275 — routes the scenario save through the cluster orchestrator, IDENTICALLY on every host
+    /// (this one class is instantiated by the editor AND CGF). ⛔ There is no local/direct file write and no
+    /// editor-only save path: the master fans <c>SerializeLocal</c> out to every node, and each node's
+    /// <c>HrotScenarioSaveHandler</c> writes the slice it owns through the shared <c>ScenarioSaveCore</c>. The
+    /// operator picks a NAME / subfolder under the NAS scenarios root, never a filesystem path.
+    /// 📄 docs/DESIGN_Distributed_Scenario_Persistence.md §4.
+    /// </summary>
+    private void PublishScenarioSave(string scenarioName)
+    {
+        _orchestrationBus.PublishManaged(new ExecuteStorageOpIntent
+        {
+            RequestId    = Guid.NewGuid(),
+            Operation    = StorageOpType.SaveScenarioJson,
+            ScenarioName = scenarioName,
+        });
+    }
+
     /// <inheritdoc/>
+    /// <remarks>⚠ CE-275 — the ONLY remaining raw-path writer, and it has no production caller (the facade
+    /// method that reaches it is unreferenced). Scheduled for removal; all real saves go through
+    /// <see cref="SaveAs"/>/<see cref="SaveCurrent"/> and the cluster handler.</remarks>
     public void SaveTo(string filePath) => _fileService.SaveScenario(_world, filePath);
 
     /// <inheritdoc/>

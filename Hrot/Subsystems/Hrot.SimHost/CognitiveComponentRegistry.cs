@@ -34,16 +34,24 @@ namespace Hrot.SimHost
             world.RegisterComponent<LocomotionChannel>();
             world.RegisterComponent<WeaponChannel>();
             world.RegisterComponent<InteractionChannel>();
-            world.RegisterComponent<ActorCapabilityState>();
+            // ⭐ MOVED 2026-09-12 to CombatComponentRegistry (CE-259bf slice 2): ActorCapabilityState
+            //   is stamped by BehaviorTkbTranslator alongside EntityInfo — which ALREADY lives in the
+            //   combat registry — and is read by HealthApplicationSystem / DamageSystem, both of which
+            //   SimHost runs via CombatModule. ⛔ PreviousCapabilities stays HERE: its only readers are
+            //   CognitiveInterruptSystem (Brain) and the Stride animation reactor (design §3.9a).
             world.RegisterComponent<PreviousCapabilities>();
             world.RegisterComponent<BrainBTreeState>();
             world.RegisterComponent<BrainBlackboard>();
             world.RegisterComponent<Blackboard1024>();
             world.RegisterComponent<BrainHsm128>();
             world.RegisterComponent<BrainHsm64>();
-            world.RegisterComponent<MissionPlanQueue>();
-            world.RegisterComponent<PassengerBuffer>();
-            world.RegisterComponent<IsEmbarkedTag>();
+            // ⭐ MOVED 2026-09-12 to MissionComponentRegistry (CE-259bf slice 2) — ActiveMissionPlan
+            //   already lives there, and MissionPlanQueue is the same tier's queue. SimHost READS it:
+            //   EntityMissionIngressTranslator writes it over the wire and MissionPlanTranslator
+            //   persists it (design §3.9a).
+            // ⭐ MOVED 2026-09-12 to EmbarkationComponentRegistry (CE-259bf slice 3a): embarkation
+            //   runtime state spans SimHost (GenesisMaterializationSystem), the Brain (EmbarkExecutor)
+            //   and the Editor (EditorCargoSystem) — it belongs to no single role and was parked here.
 
             // CQRS navigation command — written by the Brain tier (MoveToExecutor)
             // and read by the Muscle tier (NavigationIntentBridgeSystem).
@@ -51,14 +59,15 @@ namespace Hrot.SimHost
 
             // BTree/HSM diagnostic tracing — opt-in 1024-byte ring buffers per entity,
             // plus the generic transient DebugState driving them, and the patch event.
+            // ⚠ The ring buffers STAY: written only by TraceBufferLifecycleSystem (Brain), and their
+            //   SimHost readers are extract-only translators gated on BehaviorState (design §3.9a).
             world.RegisterComponent<BTreeTraceWorkingMemory1024>();
             world.RegisterComponent<HsmTraceWorkingMemory1024>();
-            world.RegisterComponent<DebugState>();
-            world.RegisterManagedEvent<PatchDebugStateCommand>();
+            // ⭐ DebugState + PatchDebugStateCommand MOVED 2026-09-12 to
+            //   BehaviorDiagnosticsComponentRegistry — SimHost's OWN ToggleAiTrace action writes them.
 
             // Embarkation commands (edit-1/EDIT1-E001)
-            world.RegisterEvent<EmbarkEntityCommand>();
-            world.RegisterEvent<DisembarkEntityCommand>();
+            // ⭐ Embark/Disembark commands MOVED with their components (see above).
             world.RegisterEvent<CognitiveInterruptEvent>();
             world.RegisterEvent<ClearBehaviorEvent>();
             world.RegisterEvent<BehaviorFinishedEvent>();
@@ -66,20 +75,13 @@ namespace Hrot.SimHost
             world.RegisterManagedEvent<AssignTacticalIntentEvent>();
             world.RegisterManagedEvent<AssignBehaviorEvent>();
 
-            // EQS Brain-tier components and update event.
-            world.RegisterComponent<EqsSensor>();
-            world.RegisterComponent<EqsCognitiveBuffer>();
-            world.RegisterManagedEvent<EqsResultUpdateEvent>();
-
-            // EQS Phase 5: per-sensor cross-tick evaluation state.
-            world.RegisterComponent<SensorEvalState>();
-
-            // EQS Phase 5: EqsSolverSystem submits RaycastRequestEvents via command buffer
-            // playback.  RaycastSolverSystem (Combat/Input) resolves them and publishes
-            // RaycastResultEvents.  Both must be registered in every world that hosts these
-            // systems so that FdpEventBus.PublishRaw does not throw during harvest/flush.
-            world.RegisterEvent<RaycastRequestEvent>();
-            world.RegisterEvent<RaycastResultEvent>();
+            // ⭐⭐⭐ MOVED 2026-09-12 to PerceptionRoleComponentRegistry (CE-259bf, design §3.9a/§3.9b).
+            //   The EQS trio + the raycast events are the PERCEPTION role's, not the Brain's:
+            //   SimHostCapabilities.cs:79 registers EqsModule and EqsSolverSystem is SimHost's own.
+            //   ⛔ They lived here under a "Brain-tier" comment, which is why SimHost — a node that
+            //   runs NO cognitive system — had to call this registry to get its own role's components.
+            //   ⚠ Both hosts now call PerceptionRoleComponentRegistry, so the registered set per host
+            //   is unchanged by that move.
         }
     }
 }

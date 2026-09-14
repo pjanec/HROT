@@ -332,7 +332,7 @@ simply moves one level down.
 | Changing the DDS schema | pose IDs exist (`AttributeIds` 100-199); `dtWorldPos` exists |
 | Optimistic prediction / rollback | §3.4 chooses preview-only instead — simpler and flicker-free |
 | Ownership transfer on demand (*"let me edit it here"*) | a real feature, unfiled; `DeferredTakeOwnership` would be the vehicle |
-| The `NetworkAuthority` vs `NetworkOwnership` duplication | ⚠ **pre-existing debt**, noted in the repo's own batch notes — do not chase it here |
+| The `NetworkAuthority` vs `NetworkOwnership` duplication | ⚠ **pre-existing debt**, noted in the repo's own batch notes — do not chase it here. ⭐ **NOW SCHEDULED (`2026-09-14`) in [`DESIGN_Distributed_Scenario_Persistence.md`](../DESIGN_Distributed_Scenario_Persistence.md) §7** — merge into `NetworkAuthority`, exactly as §342 below elects |
 
 ## 6. Risks
 

@@ -17,7 +17,7 @@ The engine implements commander-subordinate relationships using a pure data-orie
 
 **Data Structures** The hierarchy is modeled using two unmanaged components:
 
--   `UnitSubordinate`: Assigned to child entities, this 12-byte component stores a generation-safe `Entity` handle to the commander alongside the subordinate's `TacticalDesignation` (e.g., Wingman, SquadLeader).-   `UnitRoster`: Assigned to commanding entities, this 168-byte component acts as a fixed-capacity inline array supporting up to 16 subordinates. To prevent conflicting sources of truth during serialization, `UnitRoster` is decorated with `[DataPolicy(DataPolicy.NoSave)]`. It is completely transient and is rebuilt dynamically from bottom-up `UnitSubordinate` records upon scenario load.
+-   `UnitSubordinate`: Assigned to child entities, this 12-byte component stores a generation-safe `Entity` handle to the commander alongside the subordinate's `TacticalDesignation` (e.g., Wingman, SquadLeader).-   `UnitRoster`: Assigned to commanding entities, this 168-byte component acts as a fixed-capacity inline array supporting up to 16 subordinates. To prevent conflicting sources of truth during serialization, `UnitRoster` is decorated with `[DataPolicy(DataPolicy.NoScenario)]`. It is completely transient and is rebuilt dynamically from bottom-up `UnitSubordinate` records upon scenario load.
 
 **Event-Driven Mutations** Structural ECS modifications are never performed directly by game logic. Instead, behaviors and external systems publish unmanaged `CmdAssignSubordinate` and `CmdRemoveSubordinate` events.
 
@@ -1192,7 +1192,7 @@ Here is the clean architecture implementation for the asynchronous EQS pipeline.
 
 1\. The CQRS Query Components
 
-We define a purely structural request component and a managed result component. The managed result component must be decorated with `[DataPolicy(DataPolicy.NoSave | DataPolicy.NoRecord | DataPolicy.NoSnapshot)]`. This guarantees the massive `List<Entity>` payload remains strictly transient and will not crash the `RecorderSystem` or pollute binary checkpoints.
+We define a purely structural request component and a managed result component. The managed result component must be decorated with `[DataPolicy(DataPolicy.NoScenario | DataPolicy.NoReplay | DataPolicy.NoPreview)]`. This guarantees the massive `List<Entity>` payload remains strictly transient and will not crash the `RecorderSystem` or pollute binary checkpoints.
 
 ```
 [StructLayout(LayoutKind.Sequential)]
@@ -1204,7 +1204,7 @@ public struct AreaQueryRequest
 }
 
 [ComponentId(246)]
-[DataPolicy(DataPolicy.Transient)] // Expands to NoSave | NoRecord | NoSnapshot
+[DataPolicy(DataPolicy.Transient)] // Expands to NoScenario | NoReplay | NoPreview
 public class AreaQueryResult
 {
     public List<Entity> Targets { get; set; } = new();

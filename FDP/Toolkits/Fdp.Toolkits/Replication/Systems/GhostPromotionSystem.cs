@@ -90,6 +90,42 @@ namespace Fdp.Toolkit.Replication.Systems
         private IReadOnlyList<ITkbEntityTranslator> Translators
             => _explicitTranslators ?? _lifecycleModule.Translators;
 
+        /// <summary>
+        /// ⭐⭐⭐ <b><c>CE-265</c> — derives each template's HARD promotion requirements from this host's own
+        /// facts.</b> 📄 <c>docs/designs/tkb-1/DESIGN.md</c> §6.6a. ⭐ Per-SYSTEM, and this system is
+        /// <c>[SingleInstance]</c> per node, so the resolver's cache is per-node — which is what the answer
+        /// is scoped to. ⛔ A shared/static cache would be wrong: two worlds in one process (the editor's
+        /// in-process cluster, the integration harness) register different components.
+        /// </summary>
+        private readonly Services.MandatoryComponentResolver _mandatoryResolver = new();
+
+        /// <summary>
+        /// ⭐⭐ <b>A ghost that is still un-promoted after this many frames is a CONFIGURATION ERROR, and the
+        /// design says so in as many words</b> — <i>"it deserves a LOUD diagnostic, not a silent timeout"</i>
+        /// *(§6.6a, "WHY HARD CANNOT HANG ON THE HAPPY PATH")*. 🔴 Until now this system said NOTHING: a ghost
+        /// blocked forever was indistinguishable from one that had simply not arrived yet.
+        ///
+        /// <para>⛔ This is NOT a timeout — the ghost keeps waiting. The one and only effect is a message, once
+        /// per (TKB type, component) pair, so the operator learns WHICH component never came instead of
+        /// finding an entity that silently never appeared.</para>
+        /// </summary>
+        private const uint STALL_REPORT_FRAMES = 600;
+
+        private readonly HashSet<(long, int)> _reportedStalls = new();
+
+        private void ReportStallIfOverdue(long tkbType, int componentId, uint tick, uint firstSeenFrame)
+        {
+            if (tick - firstSeenFrame < STALL_REPORT_FRAMES) return;
+            if (!_reportedStalls.Add((tkbType, componentId))) return;
+
+            var name = ComponentTypeRegistry.GetType(componentId)?.Name ?? $"id {componentId}";
+            Console.Error.WriteLine(
+                $"[GhostPromotionSystem] STALLED: ghosts of TKB type {tkbType} have waited " +
+                $"{STALL_REPORT_FRAMES}+ frames for component '{name}' and cannot be promoted. " +
+                "The owning node is not publishing it — most likely it does not register the component, " +
+                "so its egress has nothing to send. This is a cluster configuration error, not a delay.");
+        }
+
         private readonly Queue<Entity> _promotionQueue = new();
         private readonly HashSet<Entity> _inQueue = new();
         private readonly Stopwatch _stopwatch = new();
@@ -102,12 +138,31 @@ namespace Fdp.Toolkit.Replication.Systems
         public GhostPromotionSystem(
             ITkbDatabase tkbDatabase,
             EntityLifecycleModule lifecycleModule,
-            IReadOnlyList<ITkbEntityTranslator>? translators = null)
+            IReadOnlyList<ITkbEntityTranslator>? translators = null,
+            Fdp.Toolkit.Replication.Abstractions.IRoleAffinityPolicy? roleAffinity = null)
         {
             _tkbDatabase = tkbDatabase ?? throw new ArgumentNullException(nameof(tkbDatabase));
             _lifecycleModule = lifecycleModule ?? throw new ArgumentNullException(nameof(lifecycleModule));
             _explicitTranslators = translators;
+            _roleAffinity = roleAffinity;
         }
+
+        /// <summary>
+        /// ⭐⭐⭐ <b><c>P3</c> step 3 — the PROMOTE leg of role affinity: <i>"an entity another node created
+        /// has arrived; which of its components are MINE to simulate?"</i></b>
+        /// 📄 <c>docs/DESIGN_Role_Affinity_Ownership.md</c> §3.1, §3.2.
+        ///
+        /// <para>⭐⭐ <b>This is the half that makes the design work without a handshake.</b> The creator
+        /// DECLINES exactly what the role-holder CLAIMS — both evaluating the same function over the same
+        /// entity — so the two answers are complementary by construction and no node has to ask another
+        /// what it may own.</para>
+        ///
+        /// <para>⚠ <b><c>null</c> keeps today's behaviour</b> — an arrived ghost claims nothing and waits
+        /// for an explicit <c>OwnershipUpdate</c>, exactly as before. ⭐ Supplied through
+        /// <c>EntityCreationContext.RoleAffinity</c>, so this system and <c>NetworkSpawningSystem</c>
+        /// share ONE instance by construction (§3.7).</para>
+        /// </summary>
+        private readonly Fdp.Toolkit.Replication.Abstractions.IRoleAffinityPolicy? _roleAffinity;
 
         /// <summary>
         /// ⭐⭐⭐ <b>The replay gate</b> — asked once per <see cref="Execute"/>; <c>true</c> makes this system
@@ -187,6 +242,29 @@ namespace Fdp.Toolkit.Replication.Systems
             // Evaluate mandatory components defined by the template.
             if (_tkbDatabase.TryGetByType(tkbIdentity.TkbType, out var template))
             {
+                // ⭐⭐⭐ CE-265 — the DERIVED half of the gate. 📄 docs/designs/tkb-1/DESIGN.md §6.6a/§6.6b.
+                //   [PerInstanceValue] ∩ produced(this template's translators) ∩ ingressible ∩ registered,
+                //   all HARD and with no timeout (user ruling: "i do not want to wait 10 frames by design").
+                //   ⛔ This replaces hand-authored AddMandatoryComponent calls that had already DRIFTED:
+                //   NedTkbBuilder declared {EntityInfo, SimTransform} while UrbanCombat's five
+                //   identically-shaped templates declared none, and the file-loading path could author
+                //   nothing at all.
+                var derived = _mandatoryResolver.Resolve(
+                    template,
+                    _world!,
+                    Translators,
+                    Fdp.Toolkit.Replication.Attributes.AttributeInterpreterProvider.GetDescriptorMap(_world!));
+
+                for (int i = 0; i < derived.Count; i++)
+                {
+                    if (compGP.IsSet(derived[i])) continue;
+
+                    ReportStallIfOverdue(tkbIdentity.TkbType, derived[i], tick, tracker.FirstSeenFrame);
+                    return; // Abort — a derived requirement is always hard.
+                }
+
+                // ⭐ …and the EXPLICIT half, kept as the authoring escape hatch for components NO translator
+                //   produces (managed state, a host-specific network gate). 📄 TkbTemplate.MandatoryComponents.
                 foreach (var req in template.MandatoryComponents)
                 {
                     bool hasComponent = compGP.IsSet(req.ComponentTypeId);
@@ -194,7 +272,11 @@ namespace Fdp.Toolkit.Replication.Systems
                     if (!hasComponent)
                     {
                         if (req.IsHard)
+                        {
+                            ReportStallIfOverdue(tkbIdentity.TkbType, req.ComponentTypeId, tick,
+                                                 tracker.FirstSeenFrame);
                             return; // Abort — hard requirement not yet satisfied.
+                        }
 
                         // Soft requirement: wait until timeout expires.
                         if (tick - tracker.FirstSeenFrame <= req.SoftTimeoutFrames)
@@ -206,6 +288,41 @@ namespace Fdp.Toolkit.Replication.Systems
                 // All requirements satisfied: apply blueprint defaults.
                 foreach (var t in Translators)
                     t.Inject(_world!, entity, template);
+
+                // ⭐⭐⭐ P3 step 3 — ROLE AFFINITY, the PROMOTE leg: claim the components this node's role
+                //   covers. 📄 docs/DESIGN_Role_Affinity_Ownership.md §3.1, §3.2.
+                //
+                //   ⭐ ORDER IS LOAD-BEARING and already correct: the translator loop above has just
+                //   MATERIALISED the template's components, so intersecting with the live mask below can
+                //   actually see them. Claiming before the loop would silently claim nothing.
+                //
+                //   ⭐⭐ isCreator: FALSE — this node did not create the entity, so it gets NO birthright.
+                //   ⛔ Granting one here would be the two-owner bug wearing the fix's clothes: the CREATOR
+                //   keeps the birth-critical components (step 2), and if a promoter claimed them too, both
+                //   nodes would own the position and their egress would fight.
+                //
+                //   ⭐ ADDITIVE (BitwiseOr), not an assignment: an explicit DeferredTakeOwnership grant
+                //   that already landed on this ghost must survive. §3.4 — explicit grants still win; this
+                //   design only makes the DEFAULT declarative and local.
+                if (_roleAffinity != null)
+                {
+                    long netId = _world!.HasComponent<NetworkIdentity>(entity)
+                        ? _world!.GetComponent<NetworkIdentity>(entity).Value
+                        : 0L;
+
+                    var claim = _roleAffinity.OwnableMask(
+                        template,
+                        isCreator: false,
+                        new Fdp.Toolkit.Replication.Abstractions.RoleShardKey(
+                            netId, tkbIdentity.TkbType, _world!.GetDisType(entity)));
+
+                    // ⚠ Re-read the mask: the translator loop added components, so the `compGP` ref taken
+                    //   before the requirement check is not a safe basis for the intersection.
+                    claim.BitwiseAnd(in _world!.GetComponentMask(entity.Index));
+
+                    ref var metaGP = ref _world!.GetMetadata(entity.Index);
+                    metaGP.AuthorityMask.BitwiseOr(in claim);
+                }
             }
 
             // Promote: Ghost → Constructing.

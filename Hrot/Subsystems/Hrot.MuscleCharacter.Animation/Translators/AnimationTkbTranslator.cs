@@ -41,6 +41,25 @@ namespace Hrot.MuscleCharacter.Animation.Translators
         }
 
         /// <summary>
+        /// ⚠ Includes the two components <see cref="Inject"/> adds only when <c>AimConfig</c> is present
+        /// (<see cref="LookAtChannel"/>, <see cref="LookAtExecutorState"/>) — over-declaring is the safe
+        /// direction; see the interface's contract. ⭐ None carries <c>[PerInstanceValue]</c>: animation
+        /// channels and executor state legitimately start empty on tick 0.
+        /// </summary>
+        public IEnumerable<Type> GetProducedComponents()
+        {
+            yield return typeof(AnimationChannel);
+            yield return typeof(LookAtChannel);
+            yield return typeof(StanceIntent);
+            yield return typeof(StanceStatus);
+            yield return typeof(AnimationMontageQueue);
+            yield return typeof(AnimationMontageQueueState);
+            yield return typeof(CharacterAnimationDefRuntime);
+            yield return typeof(AnimationExecutorState);
+            yield return typeof(LookAtExecutorState);
+        }
+
+        /// <summary>
         /// Project animation descriptor onto a promoted entity.
         /// Injects replicated channel components, stance components, queue components,
         /// and internal executor state components. All injections are guarded by

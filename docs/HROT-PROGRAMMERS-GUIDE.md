@@ -568,7 +568,7 @@ noted. All are named constants in code (cite shown).
 - 🔴 **Managed recordable classes need a public parameterless ctor**, ≥1 public serializable
   member (else warmup throws), and **no circular references** (stack-overflow) and **no
   interface-typed fields** (shallow-copied only). `FDP/Engine/Fdp.Core/FlightRecorder/FdpAutoSerializer.cs:56-300`
-- 🟡 **`.fdp` format is version-locked** — no migration; mismatched `FORMAT_VERSION` throws. `DataPolicy.NoRecord` events never appear in replay. Don't set `RecordingConfiguration.Blocking=true` in production (stalls the main thread). `FDP/Engine/Fdp.Core/FlightRecorder/PlaybackController.cs:92-98`
+- 🟡 **`.fdp` format is version-locked** — no migration; mismatched `FORMAT_VERSION` throws. `DataPolicy.NoReplay` events never appear in replay. Don't set `RecordingConfiguration.Blocking=true` in production (stalls the main thread). `FDP/Engine/Fdp.Core/FlightRecorder/PlaybackController.cs:92-98`
 - 🔵 **Delta gap:** cold-chunk field changes via direct `GetMetadata()` ref-access don't stamp
   `LastChangeTick` and are dropped from delta frames (DEBT D004). After a dropped frame the
   recorder auto-forces the next keyframe — don't also request one. `FDP/Engine/Fdp.Core/FlightRecorder/RecorderSystem.cs:117-122`

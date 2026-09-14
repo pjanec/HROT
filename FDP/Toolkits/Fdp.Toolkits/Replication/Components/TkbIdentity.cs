@@ -19,6 +19,10 @@ namespace Fdp.Toolkit.Replication.Components
     /// 96-byte <see cref="EntityHeader.DisType"/> field of every entity header.</para>
     /// </summary>
     [ComponentId(GlobalComponentIds.TkbIdentity)]
+    // CE-277(e): NOT [DataPolicy(NoScenario)]. Measured (StagingEntityExtractor.cs:298): the LOAD
+    // path READS TkbType back out of the scenario DOM to build the EntityCreationRequest, so this
+    // component MUST be written to the scenario file. BuildStaticMask strips it from InitialComponents
+    // AFTER its TkbType is consumed. Marking it NoScenario broke the extractor's TkbType rail.
     public struct TkbIdentity
     {
         /// <summary>

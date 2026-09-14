@@ -451,12 +451,22 @@ class Program
                 //    2026-09-08: one GeographicTransform, shared by the debug API, the scenario loader
                 //    and the JSON parameter interpreter alike. ⛔ Null here is not a silent fallback any
                 //    more — the service then resolves the world singleton, and refuses if there is none.
+                // ⭐⭐⭐ CE-271 seam ⑤ — the local creation-request enqueuer, resolved from whichever
+                //   subsystem on this process composed an EntityCreationPack and exposes one (IG today;
+                //   the shape generalises to any node). Lets POST /entities/create-request drive the real
+                //   request path on this node instead of a raw SpawnEntityCommand.
+                Func<Action<Hrot.Core.Network.EntityCreationRequest>?> creationEnqueuerGetter =
+                    () => subsystems.OfType<Hrot.IG.IgSubsystem>()
+                                    .Select(s => s.CreationRequestEnqueuer)
+                                    .FirstOrDefault(e => e != null);
+
                 clusterApiService = new Hrot.Editor.DebugApi.DebugApiService(
                     dispatcher,
                     logSinks: () => Fdp.Core.Logging.MessageLogSinks.ForDiagnostics(
                         windowCtrl?.WindowManager?.MessageLogRegistry),
                     behaviorRegistry: behaviorRegistryGetter,
-                    geoTransform: HrotEnvironment.CreateGeoTransform());
+                    geoTransform: HrotEnvironment.CreateGeoTransform(),
+                    creationRequestEnqueuer: creationEnqueuerGetter);
                 clusterApiHost.AttachService(clusterApiService);
                 clusterApiHost.Start();
 

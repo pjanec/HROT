@@ -71,4 +71,4 @@ Co-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>
 
 ---
 
-**Next Batch:** BSA-101 + BSA-202 (mark blackboard components `NoSave` + `BlueprintStateTranslator`) — per implementation order: "(BSA-101 + BSA-202 together)"
+**Next Batch:** BSA-101 + BSA-202 (mark blackboard components `NoScenario` + `BlueprintStateTranslator`) — per implementation order: "(BSA-101 + BSA-202 together)"

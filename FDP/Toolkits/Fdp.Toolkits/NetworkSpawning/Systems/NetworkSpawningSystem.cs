@@ -70,7 +70,8 @@ namespace Fdp.Toolkit.NetworkSpawning.Systems
             INetworkIdAllocator idAllocator,
             int localNodeId,
             IReadOnlyList<ITkbEntityTranslator>? translators = null,
-            Action<EntityRepository, Entity, bool>? onEntitySpawned = null)
+            Action<EntityRepository, Entity, bool>? onEntitySpawned = null,
+            Fdp.Toolkit.Replication.Abstractions.IRoleAffinityPolicy? roleAffinity = null)
         {
             _tkbDb            = tkbDb       ?? throw new ArgumentNullException(nameof(tkbDb));
             _elm              = elm         ?? throw new ArgumentNullException(nameof(elm));
@@ -79,7 +80,25 @@ namespace Fdp.Toolkit.NetworkSpawning.Systems
             _localNodeId      = localNodeId;
             _translators      = translators ?? System.Array.Empty<ITkbEntityTranslator>();
             _onEntitySpawned  = onEntitySpawned;
+            _roleAffinity     = roleAffinity;
         }
+
+        /// <summary>
+        /// ⭐⭐⭐ <b><c>P3</c> step 2 — <i>"which of these components are actually MINE?"</i></b>
+        /// 📄 <c>docs/DESIGN_Role_Affinity_Ownership.md</c> §3.2.
+        ///
+        /// <para>⚠ <b>NULL IS A FIRST-CLASS STATE, not the silent-default defect.</b> A node with no policy
+        /// keeps today's behaviour exactly — own everything you materialised — so adoption is incremental
+        /// and nothing changes until a host is handed one. ⭐ That is also what makes the NETWORKLESS host
+        /// correct for free.</para>
+        ///
+        /// <para>⛔ <b>Do not hand this in per host.</b> It comes from <c>EntityCreationContext</c> through
+        /// <c>EntityCreationPack.Build</c>, which builds BOTH consumers of the policy — this system and
+        /// <c>GhostPromotionSystem</c> — so they share one instance BY CONSTRUCTION rather than by
+        /// convention (§3.7). A per-host constructor argument would be the silent-default shape: one
+        /// caller passes it and the next host forgets.</para>
+        /// </summary>
+        private readonly Fdp.Toolkit.Replication.Abstractions.IRoleAffinityPolicy? _roleAffinity;
 
         /// <inheritdoc />
         public void Execute(ISimulationView view, float deltaTime)
@@ -189,6 +208,34 @@ namespace Fdp.Toolkit.NetworkSpawning.Systems
                 ref var compNS = ref world.GetComponentMask(entity.Index);
                 ref var metaNS = ref world.GetMetadata(entity.Index);
                 metaNS.AuthorityMask = compNS;
+
+                // ⭐⭐⭐ P3 step 2 — ROLE AFFINITY: decline what this node's role does not cover.
+                //   📄 docs/DESIGN_Role_Affinity_Ownership.md §3.1, §3.2.
+                //
+                //   🔒 User, 2026-09-01: "i do not have brain role -> i will not own brain components, the
+                //   brain will". ⇒ ownership stops being something a creator HANDS OUT and becomes
+                //   something every node DERIVES with the same function — and two nodes running the same
+                //   function over the same entity cannot disagree. That is the whole safety property.
+                //
+                //   ⭐ isCreator: TRUE here by construction — this IS the create leg, so the template's
+                //   birth-critical components are kept WHATEVER this node's role. ⛔ Without that the
+                //   architect's correction bites: a Brain-role creator would produce SimTransform unowned,
+                //   still write the spawn coordinate (SetComponent is not authority-gated), and never
+                //   PUBLISH it, because every egress translator gates on HasAuthority. Every peer's ghost
+                //   would then sit at the origin, silently.
+                //
+                //   ⚠ The intersection is with the LIVE component mask, so naming a component the entity
+                //   never received contributes nothing — which is what makes over-declaring safe.
+                if (_roleAffinity != null)
+                {
+                    var ownable = _roleAffinity.OwnableMask(
+                        template,
+                        isCreator: true,
+                        new Fdp.Toolkit.Replication.Abstractions.RoleShardKey(
+                            networkId, cmd.TkbType, new DISEntityType { Value = disValue }));
+
+                    metaNS.AuthorityMask.BitwiseAnd(in ownable);
+                }
             }
             _onEntitySpawned?.Invoke(world, entity, isLocalAuthority);
 

@@ -14,6 +14,10 @@ known-conflict: docs/designs/others/DESIGN-NetworkSpawning.md:112 says "Initial 
   the LIFECYCLE ESSENTIALS only (things that are also published descriptors). ⛔ It must NOT be read as
   licence for arbitrary scenario-authored overrides — see §1.
 related-designs:
+  - DESIGN_Entity_Genesis_End_To_End.md — ⭐ THE LANDING PAGE. Owns the END-TO-END STAGE SEQUENCE
+    (request → spawn → grant → ghost → promotion → takeover → Active) and nothing else; every stage
+    routes back to its owner, including this one. Read it FIRST if you do not already know where in
+    the genesis path your question sits.
   - docs/DESIGN_Deterministic_Network_Ids.md — §2b/§4c — what happens to non-repository state across an editor preview rewind (the participant seam).
   - docs/designs/replay-and-modules/DESIGN.md — §2.1f–§2.1m — the same question for REPLAY and SEEK, incl. which caches self-heal and which protocols must be re-derived.
   - docs/designs/mgmt-1/DESIGN.md — §8.10 — entity lifecycle during replay.

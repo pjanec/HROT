@@ -1,3 +1,20 @@
+<!--STATUS
+state: LIVE, WITH KNOWN ROT
+updated: 2026-09-13
+current-answer: §1–§3 (topology, the Brain/Muscle split, DDS topic grouping) are still a good
+  orientation. ⛔ §4.3 IS NOT — see known-rot.
+known-rot: 🔴 §4.3 "Entity spawning flow" DESCRIBES A PIPELINE THAT NO LONGER EXISTS, and it reads as
+  current because it is the only end-to-end narrative in the repo. Measured 2026-09-13: this FILE
+  contains ZERO occurrences of "promote"/"promotion", so the GhostPromotionSystem stage — the gate a
+  ghost must pass before it becomes Constructing — is absent from the chain entirely. It also still
+  shows CGF as the `isDefaultProcessor` creator (every ECS node may create entities now, Q65 §4), has
+  no EntityCreationPack (adopted on all six hosts by 2026-09-03), and no role-affinity ownership
+  (P3, live on CGF and SimHost since 2026-09-13).
+  ⇒ ⭐⭐⭐ FOR THE GENESIS PATH READ ../../DESIGN_Entity_Genesis_End_To_End.md INSTEAD. It supersedes
+  §4.3 and routes each stage to its owning design.
+  ⚠ §4.3 is kept rather than rewritten: it is an accurate picture of the 2026-05 pipeline and several
+  batch reports cite it. Do not quote it as current.
+-->
 # Hrot Simulation Pipeline - IOS/IG/SimHost Architecture
 
 **Date:** 2026-05-23
@@ -353,6 +370,11 @@ On CGF the equivalent tick drives the AI pipeline:
 ```
 
 ### 4.3 Entity spawning flow
+
+> 🔴🔴 **SUPERSEDED — this is the `2026-05` pipeline.** ⛔ It has **no promotion stage**, shows CGF as the
+> sole `isDefaultProcessor` creator, and predates `EntityCreationPack` and role-affinity ownership.
+> ⭐⭐⭐ **The current path is [`DESIGN_Entity_Genesis_End_To_End.md`](../../DESIGN_Entity_Genesis_End_To_End.md)**,
+> which draws it end to end and names the owning design for each stage. ⚠ Kept below as history.
 
 Full chain from ExCon click to entity live in SimHost and IG:
 

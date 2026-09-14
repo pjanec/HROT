@@ -71,7 +71,7 @@ runtime event has no node id.**
 |---|---|
 | ✅ **`StructureHash`** | the slot entry is **runtime storage**, not compiled asset shape ⇒ ⛔ **a widening must NOT move `StructureHash` or `persistence-shape.txt`.** If it does, something else changed |
 | ✅ **the scenario format** | `BlueprintAssignmentDto` is already a **per-assignment list** ⇒ a second assignment of one asset is a **format-compatible** addition *(`Q33-D`'s note)* |
-| ⚠ **the recorded frame** | tier components are `[DataPolicy(NoSave)]` = **snapshotted AND recorded** ⇒ **the recorded component grows by the slot-table delta.** Small, but say it out loud |
+| ⚠ **the recorded frame** | tier components are `[DataPolicy(NoScenario)]` = **snapshotted AND recorded** ⇒ **the recorded component grows by the slot-table delta.** Small, but say it out loud |
 | ⚠ **Track C row identity** | `(AssetId, Entity, VariablePath)` gains a **fourth** component. ⭐ Already noted as a carry-forward in the plan; **do not build for it until this lands** |
 
 ---

@@ -8,7 +8,7 @@ using Xunit;
 namespace Fdp.Toolkit.Scenario.Tests
 {
     /// <summary>
-    /// Verifies that runtime execution components tagged with [DataPolicy(DataPolicy.NoSave)]
+    /// Verifies that runtime execution components tagged with [DataPolicy(DataPolicy.NoScenario)]
     /// are excluded from GetSaveableTypeIds() but remain in GetRecordableTypeIds().
     ///
     /// Success conditions for TASK-S102, TASK-S103, TASK-S104.

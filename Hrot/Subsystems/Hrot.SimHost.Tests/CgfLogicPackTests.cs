@@ -412,7 +412,7 @@ namespace Hrot.SimHost.Tests
             // would make the flags decorative, which is the defect CE-197 measured on SimHost.
             var resolved = new Hrot.Common.Infrastructure.NodeCompositionPlan()
                 .Capability(CgfSubsystem.DefaultRole, new CgfCapabilities.Brain(NewPack()))
-                .Resolve(NodeRole.ImageGenerator);
+                .Resolve(NodeRole.Map2D);
 
             Assert.Empty(resolved);
         }

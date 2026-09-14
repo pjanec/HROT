@@ -53,7 +53,7 @@ Debt row in `DEBT-TRACKER.md` closed.
 **Problem:** `FDP.Toolkit.Scenario.StoryTag` (class, `string` StoryId, ID 201) and `FDP.Toolkit.Replay.StoryTag` (struct, `Guid` StoryId, ID 84) were two distinct types for the same ECS concept.
 
 **Resolution:**
-- Created `Fdp.Kernel/StoryTag.cs` — single canonical `struct` with `[ComponentId(84)]`, `[DataPolicy(DataPolicy.NoSave)]`, `public Guid StoryId`.
+- Created `Fdp.Kernel/StoryTag.cs` — single canonical `struct` with `[ComponentId(84)]`, `[DataPolicy(DataPolicy.NoScenario)]`, `public Guid StoryId`.
 - Cleared `FDP.Toolkit.Replay/StoryTag.cs` and `FDP.Toolkit.Scenario/StoryTag.cs` (redirect comments only).
 - Removed `ScenarioComponentIds.StoryTag = 201`; ID 201 is free.
 - Changed `ScenarioSerializer.Deserialize` signature: `string? storyId` → `Guid? storyId`; `asStory=true` requires non-empty `Guid` or throws.

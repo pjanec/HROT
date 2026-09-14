@@ -36,7 +36,7 @@ Each behavior-aware entity may optionally carry:
 - **`HsmTraceWorkingMemory1024`** — 1024-byte unmanaged ECS component. Ring buffer of `TraceRecord`s. Lives only on entities currently executing an HSM.
 - **`DebugState`** — small unmanaged transient component carrying generic debug bitflags (one group per subsystem). Whether tracing is *active* for a given entity is decided by `DebugState.Behavior` bits, not by the presence of the buffer alone.
 
-Both ring buffers are pure unmanaged structs that fit the 1024-byte `MaxComponentSize` ceiling enforced by [EntityCommandBuffer.cs:34](FDP/Engine/Fdp.Core/EntityCommandBuffer.cs#L34). They are decorated with `[DataPolicy(DataPolicy.NoSave)]` so the JSON scenario serializer ignores them while the Flight Recorder still snapshots their byte contents into `.fdp` recordings.
+Both ring buffers are pure unmanaged structs that fit the 1024-byte `MaxComponentSize` ceiling enforced by [EntityCommandBuffer.cs:34](FDP/Engine/Fdp.Core/EntityCommandBuffer.cs#L34). They are decorated with `[DataPolicy(DataPolicy.NoScenario)]` so the JSON scenario serializer ignores them while the Flight Recorder still snapshots their byte contents into `.fdp` recordings.
 
 ### 2.2 Data Flow
 
@@ -140,7 +140,7 @@ We deliberately omit the variable-length `FixedString32` opcode for this iterati
 ```csharp
 [StructLayout(LayoutKind.Sequential, Size = 1024)]
 [ComponentId(BehaviorApplicationComponentIds.BTreeTraceWorkingMemory)]
-[DataPolicy(DataPolicy.NoSave)]
+[DataPolicy(DataPolicy.NoScenario)]
 public unsafe struct BTreeTraceWorkingMemory1024
 {
     public const int RecordStride    = 16;
@@ -167,7 +167,7 @@ Identical layout to BTree. Same wrap semantics — `WritePos` is pre-wrapped in 
 ```csharp
 [StructLayout(LayoutKind.Sequential, Size = 1024)]
 [ComponentId(BehaviorApplicationComponentIds.HsmTraceWorkingMemory)]
-[DataPolicy(DataPolicy.NoSave)]
+[DataPolicy(DataPolicy.NoScenario)]
 public unsafe struct HsmTraceWorkingMemory1024
 {
     public const int RecordStride    = 16;

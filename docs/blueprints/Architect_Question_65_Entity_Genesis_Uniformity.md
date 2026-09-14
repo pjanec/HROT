@@ -30,6 +30,10 @@ known-rot: §5.4's headline answer "the target is Hrot.Core/Network" is WRONG an
 known-rot: §5.1's and DESIGN §5.1's "IG keeps GhostDestructionSystem + IgUnitHierarchyModule and gains
   the full genesis pipeline" is WRONG — keeping GhostDestructionSystem beside NetworkSpawningSystem is
   the destroy-side double-consumption bug. Corrected 2026-08-31 in §5.6 (CE-144).
+related-designs:
+  - ../DESIGN_Entity_Genesis_End_To_End.md — ⭐ THE LANDING PAGE for the pipeline this question
+    RULED on. It draws the uniform path end to end and routes each stage to its owner; this
+    document owns the ruling that the path is uniform rather than role-selected halves.
 -->
 # Architect Question 65 — is entity genesis UNIFORM across ECS nodes? — ✅ **RESOLVED: yes, and no contract change is needed**
 

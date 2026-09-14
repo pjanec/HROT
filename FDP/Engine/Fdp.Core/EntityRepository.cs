@@ -616,7 +616,7 @@ namespace Fdp.Core
         /// <list type="bullet">
         /// <item>Structs: Default true (Snapshotable)</item>
         /// <item>Records: Default true (Snapshotable)</item>
-        /// <item>Classes: Default to DataPolicy.NoSnapshot (Safe safety rail)</item>
+        /// <item>Classes: Default to DataPolicy.NoPreview (Safe safety rail)</item>
         /// </list>
         /// </param>
         /// <summary>
@@ -657,9 +657,9 @@ namespace Fdp.Core
                     }
                 }
                 
-                bool snapshot = !effectivePolicy.HasFlag(DataPolicy.NoSnapshot);
-                bool record = !effectivePolicy.HasFlag(DataPolicy.NoRecord);
-                bool save = !effectivePolicy.HasFlag(DataPolicy.NoSave);
+                bool snapshot = !effectivePolicy.HasFlag(DataPolicy.NoPreview);
+                bool record = !effectivePolicy.HasFlag(DataPolicy.NoReplay);
+                bool save = !effectivePolicy.HasFlag(DataPolicy.NoScenario);
                 bool clone = effectivePolicy.HasFlag(DataPolicy.SnapshotViaClone);
                 
                 ComponentTypeRegistry.SetSnapshotable(typeId, snapshot);
@@ -679,9 +679,9 @@ namespace Fdp.Core
                 {
                     DataPolicy policy = policyOverride.Value;
                     
-                    bool snapshot = !policy.HasFlag(DataPolicy.NoSnapshot);
-                    bool record = !policy.HasFlag(DataPolicy.NoRecord);
-                    bool save = !policy.HasFlag(DataPolicy.NoSave);
+                    bool snapshot = !policy.HasFlag(DataPolicy.NoPreview);
+                    bool record = !policy.HasFlag(DataPolicy.NoReplay);
+                    bool save = !policy.HasFlag(DataPolicy.NoScenario);
                     bool clone = policy.HasFlag(DataPolicy.SnapshotViaClone);
                     
                     // If SnapshotViaClone is set, force snapshot=true
@@ -715,19 +715,19 @@ namespace Fdp.Core
                     }
                     else
                     {
-                        // Mutable Class → Auto-default to NoSnapshot
-                        effectivePolicy = DataPolicy.NoSnapshot;
+                        // Mutable Class → Auto-default to NoPreview
+                        effectivePolicy = DataPolicy.NoPreview;
                         
                         #if DEBUG
-                        // Console.WriteLine($"WARNING: Mutable class '{type.Name}' registered without [DataPolicy]. Defaulting to NoSnapshot.");
+                        // Console.WriteLine($"WARNING: Mutable class '{type.Name}' registered without [DataPolicy]. Defaulting to NoPreview.");
                         #endif
                     }
                 }
                 
                 // Apply flags
-                bool finalSnapshot = !effectivePolicy.HasFlag(DataPolicy.NoSnapshot);
-                bool finalRecord = !effectivePolicy.HasFlag(DataPolicy.NoRecord);
-                bool finalSave = !effectivePolicy.HasFlag(DataPolicy.NoSave);
+                bool finalSnapshot = !effectivePolicy.HasFlag(DataPolicy.NoPreview);
+                bool finalRecord = !effectivePolicy.HasFlag(DataPolicy.NoReplay);
+                bool finalSave = !effectivePolicy.HasFlag(DataPolicy.NoScenario);
                 bool finalClone = effectivePolicy.HasFlag(DataPolicy.SnapshotViaClone);
                 
                 // If SnapshotViaClone is set, force snapshot=true

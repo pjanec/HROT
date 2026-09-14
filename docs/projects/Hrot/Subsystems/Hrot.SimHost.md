@@ -1040,8 +1040,8 @@ via `IEntityCommandBuffer.PublishEvent`.
 ### 6. Scenario serializers are for persistence, not runtime state
 
 `BrainBlackboardTranslator.Inject` is intentionally a no-op because `BrainBlackboard`
-is transient execution state (`DataPolicy.NoSave`). Do not attempt to restore
-blackboard state from a scenario file. Add `DataPolicy.NoSave` annotations to any
+is transient execution state (`DataPolicy.NoScenario`). Do not attempt to restore
+blackboard state from a scenario file. Add `DataPolicy.NoScenario` annotations to any
 new translator that serializes transient runtime state.
 
 ### 7. Config file over code for deployment changes

@@ -115,7 +115,8 @@ namespace Hrot.CGF
             NetworkEntityMap                     entityMap,
             ScenarioEntityCreationRequestSource  scenarioSource,
             TacticalIntentMapperRegistry         mapperRegistry,
-            VehicleAPI?                          vehicleApi = null)
+            VehicleAPI?                          vehicleApi = null,
+            bool                                 gateOnAuthority = false)
         {
             if (behaviorRegistry == null) throw new ArgumentNullException(nameof(behaviorRegistry));
             if (entityMap        == null) throw new ArgumentNullException(nameof(entityMap));
@@ -124,8 +125,14 @@ namespace Hrot.CGF
 
             ScenarioSource = scenarioSource;
 
-            _missionControlModule   = new MissionControlModule(behaviorRegistry);
-            _cognitiveRuntimeModule = new CognitiveRuntimeModule(behaviorRegistry);
+            // ⭐⭐⭐ P3 step 3b — the EXECUTION gate, threaded to BOTH cognitive modules from ONE flag so
+            //   they cannot disagree. 📄 docs/DESIGN_Role_Affinity_Ownership.md §3.5.
+            //   ⚠ false today on every host: the gate follows the POLICY, and nothing supplies one until
+            //   step 4. Turning it on earlier would stop this node processing every entity it did not
+            //   create, because a promoted ghost owns nothing — CE-256's own failure, reproduced by its
+            //   own fix.
+            _missionControlModule   = new MissionControlModule(behaviorRegistry, gateOnAuthority);
+            _cognitiveRuntimeModule = new CognitiveRuntimeModule(behaviorRegistry, gateOnAuthority);
             _missionExecutionSystem              = new MissionControlExecutionSystem(entityMap, behaviorRegistry, mapperRegistry);
             _missionAdapterSystem                = new MissionAdapterSystem();
             _tacticalIntentResolutionSystem      = new TacticalIntentResolutionSystem(mapperRegistry, behaviorRegistry);

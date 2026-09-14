@@ -84,7 +84,7 @@ public sealed class NedReplicationModuleTests
     [Fact]
     public void ImageGenerator_RegistersDeadReckoningSystem()
     {
-        var module   = BuildModule(NodeRole.ImageGenerator);
+        var module   = BuildModule(NodeRole.Map2D);
         var registry = new CapturingRegistry();
         module.RegisterSystems(registry);
 
@@ -99,7 +99,7 @@ public sealed class NedReplicationModuleTests
     [Fact]
     public void AllInOne_RegistersBothSmartEgressAndDeadReckoning_WithDriveFromNetworkFalse()
     {
-        var module   = BuildModule(NodeRole.MuscleGround | NodeRole.ImageGenerator);
+        var module   = BuildModule(NodeRole.MuscleGround | NodeRole.Map2D);
         var registry = new CapturingRegistry();
         module.RegisterSystems(registry);
 

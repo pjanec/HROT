@@ -25,7 +25,7 @@
 |--:|---|---|
 | 1 | `MissionControlCommand { EntityId, eMissionCommandType, MissionPlan?, TaskId, BaseVersion }` — *"wrapper for a mission plan **or imperative**"* | `Hrot.Core/Network/Commands.cs:27-34` |
 | 2 | `MissionControlExecutionSystem` applies it. ⚠ Requires a **live** `EntityRepository`; waits **10 frames** for the entity then NAKs `EntityNotFound` | `Hrot.Common/Systems/MissionControlExecutionSystem.cs:42-46,87-90` |
-| 3 | `MissionPlanQueue` — **≤ 8 phases**, `DataPolicy.NoSave` | `Fdp.Toolkits/Behavior/Components/MissionComponents.cs:140-163` |
+| 3 | `MissionPlanQueue` — **≤ 8 phases**, `DataPolicy.NoScenario` | `Fdp.Toolkits/Behavior/Components/MissionComponents.cs:140-163` |
 | 4 | `MissionDirectorSystem` evaluates the phase trigger and publishes the transition | `Fdp.Toolkits/Behavior/Systems/MissionDirectorSystem.cs:27-41` |
 | 5 | `MissionAdapterSystem` detects the phase change and publishes an **`AssignTacticalIntentEvent`**. 🔒 It *"intentionally does **not** mutate `BehaviorState` or `BrainBlackboard` directly"* | `Hrot.CGF/Systems/MissionAdapterSystem.cs` |
 | 6 | ⭐ **`AssignTacticalIntentEvent { Entity, string IntentId, string JsonParams }`** — the choke point | `Fdp.Toolkits/Behavior/Events/AssignTacticalIntentEvent.cs:23-43` |
@@ -208,7 +208,7 @@ field filled, not a protocol change.** No DDS schema edit, no id-space growth.
 rendered. The callback signature is what throws them away.
 
 ⚠ **Hop 7 is the only real design choice.** `GlobalActionRequestedEvent` is a blittable struct with
-`[DataPolicy(NoRecord)]`; adding a `string` breaks that. Options:
+`[DataPolicy(NoReplay)]`; adding a `string` breaks that. Options:
 
 | | | |
 |---|---|---|

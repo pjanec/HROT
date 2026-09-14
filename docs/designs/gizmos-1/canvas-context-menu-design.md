@@ -1,3 +1,19 @@
+<!--STATUS
+state: LIVE
+updated: 2026-09-12
+current-answer: §1-§3 — the hit-test → interned JSON → popup path, which is what SimHost and the Editor
+  run today for both canvas and entity right-click.
+known-rot: ⚠ The ENTITY menu projects items nothing handles. 📐 Measured 2026-09-12 (CE-259bi):
+  ContextMenuProjectorGizmo.cs:46 offers "Move Here" (GlobalActionIds.MoveHere), "Engage" and "Stop" on a
+  healthy unit, and NO host registers a handler for any of the three — so they are inert. ⚠ Note :60
+  disables "Move Here" with a tooltip for a DEGRADED unit, which is what a deliberately unavailable item
+  looks like ⇒ the healthy one is meant to work.
+related-designs:
+  - ../brain-death/BD1-DESIGN.md — owns the ROUTING RULE behind "Move Here" (brain-active ⇒ mission,
+    brain-dead ⇒ direct muscle command). Its §2 put that rule on the raw right-click gesture THIS design
+    now owns, so the rule is currently unhomed — see its known-rot.
+-->
+
 # Canvas & Entity Context Menus — Design Document
 
 ## 1. Context

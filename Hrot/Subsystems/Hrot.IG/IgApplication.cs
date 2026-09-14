@@ -221,6 +221,7 @@ public class IgApplication : IDisposable
 
     // -- ClusterSlave (CGF1-S0104 / CMC-S016) ? wired in InitializeNetwork ------
     private Fdp.Toolkit.Orchestration.ClusterSlave? _clusterSlave;
+    private System.Action? _networkPolling;   // CE-271 seam ④ — cluster-cache heartbeat pump
     // CMC-S016: orchestration bus + slave translator (Option C).
     // ⛔ CE-164 — `_igOrchestrationBus` is GONE. There is ONE orchestration bus, `_context.EventBus`,
     //    swapped ONCE per frame at the end of Update() (see the swap there). Two swaps of one
@@ -957,7 +958,7 @@ public class IgApplication : IDisposable
             ctx.Kernel.RegisterGlobalSystem(new Hrot.Presentation.Systems.CanvasMenuUpdateSystem());
         };
 
-        _context = _igBootstrapper.BootstrapNode(igConfig, NodeRole.ImageGenerator, _networkFactory);
+        _context = _igBootstrapper.BootstrapNode(igConfig, NodeRole.Map2D, _networkFactory);
 
         _world     = _context.World;
         _entityMap = _context.EntityMap;
@@ -968,6 +969,7 @@ public class IgApplication : IDisposable
         _networkEnabled      = _igBootstrapper.NetworkEnabled;
         _networkAdapter      = _igBootstrapper.NetworkAdapter;
         _commandGateway      = _igBootstrapper.CommandGateway;
+        _networkPolling      = _igBootstrapper.NetworkPolling;   // CE-271 seam ④ — pump the cluster cache each frame
         _clusterSlave        = _context.ClusterSlave;
         // ⭐⭐⭐ CE-164 — the node's OWN slave translator, from the context, exactly as SimHostApp:504 does.
         //    ⛔ Was `_igBootstrapper.IgSlaveTranslator` — a second, ingress-only translator on a second bus.
@@ -1023,6 +1025,7 @@ public class IgApplication : IDisposable
         //    discarding anything published in between. 📄 DESIGN_Subsystem_Composition_Unification §4.1b.
         _slaveTranslator?.Tick();
         _clusterSlave?.Tick();
+        _networkPolling?.Invoke();   // CE-271 seam ④ — refresh cluster cache from NodeHeartbeat (BrainMuscleOwnershipStrategy reads it)
 
         if (!_headless)
 

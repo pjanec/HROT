@@ -123,13 +123,45 @@ namespace Hrot.Common.EntityCreation
         public JsonAttributeCompiler? JsonAttributeCompiler { get; init; }
 
         /// <summary>
-        /// Optional ownership-distribution POLICY, e.g. <c>BrainMuscleOwnershipStrategy</c>. ⚠ Only
-        /// consulted when <see cref="IsBroadcastArbiter"/> is true — a non-arbiter creator keeps every
-        /// component, which is exactly right for a node creating something it owns outright.
+        /// Optional ownership-distribution POLICY, e.g. <c>BrainMuscleOwnershipStrategy</c>. Consulted by
+        /// the node that SERVICES a creation — i.e. the entity's owner — to hand off the components its
+        /// role does not cover (the birth-critical handoff of <c>DESIGN_Role_Affinity_Ownership.md</c> §3.1).
+        ///
+        /// <para>⭐⭐⭐ <c>CE-271</c> — <b>consulted for ANY local owner, not only the broadcast arbiter.</b>
+        /// 🔒 <c>R-138</c> (canon): the system is fully distributed; every ECS node can create entities it
+        /// owns, and it distributes their non-role components via auto-takeover. ⚠⚠ <b>An earlier version
+        /// of this remark said "only consulted when <see cref="IsBroadcastArbiter"/> is true — a
+        /// non-arbiter creator keeps every component" — that was the PRE-auto-takeover "the arbiter is the
+        /// sole owner" assumption and is SUPERSEDED.</b> <c>CreateEntityRequestSystem</c> now publishes the
+        /// grant whenever a strategy is present, gated by the level-1 <c>IsHandledLocally</c> guard that
+        /// already guarantees exactly one node services (and thus grants for) a given entity.</para>
         /// </summary>
         public IOwnershipDistributionStrategy? OwnershipStrategy { get; init; }
 
-        
+        /// <summary>
+        /// ⭐⭐⭐ <b><c>P3</c> — the ROLE-AFFINITY policy: <i>"which components should THIS node own?"</i></b>
+        /// 📄 <c>docs/DESIGN_Role_Affinity_Ownership.md</c> §3.3, §3.7.
+        ///
+        /// <para>⚠ <b>The SIBLING of <see cref="OwnershipStrategy"/>, and they must not be confused.</b>
+        /// That one answers <i>"which grants do I hand OUT?"</i> and is consulted only by a broadcast
+        /// arbiter; this one answers <i>"which do I KEEP?"</i> and is consulted by every creator. 📌 They
+        /// are also not alternatives — an explicit <c>DeferredTakeOwnership</c> grant still wins; this
+        /// makes the DEFAULT declarative and local, which removes the need for a grant in the common case
+        /// (§3.4).</para>
+        ///
+        /// <para>⭐⭐ <b>Why it lives HERE and not on a host's system constructor.</b> The pack builds BOTH
+        /// consumers — <c>NetworkSpawningSystem</c> (create) and <c>GhostPromotionSystem</c> (promote) —
+        /// so setting it once here gives them the SAME INSTANCE by construction, exactly as the translator
+        /// list already does. ⛔ A per-host constructor argument would be the silent-default shape: one
+        /// caller passes it, the next host forgets, and the two legs disagree about who owns what.</para>
+        ///
+        /// <para>⚠ <b><c>null</c> keeps today's behaviour exactly</b> — own everything you materialised —
+        /// so adoption is incremental and nothing changes until a host is handed a policy (step 4). ⭐ It
+        /// is also what makes a networkless host correct for free.</para>
+        /// </summary>
+        public Fdp.Toolkit.Replication.Abstractions.IRoleAffinityPolicy? RoleAffinity { get; init; }
+
+
         /// <summary>Throws when a required input is missing, naming the field.</summary>
         internal void Validate()
         {

@@ -86,7 +86,7 @@ namespace Hrot.Map.Definitions
 
         // ── Commander-Subordinate hierarchy components (commander-subordinates workstream) ──
 
-        /// <summary><c>UnitRoster</c> — fixed-capacity subordinate list on the commanding entity (AI tier); NoSave (derived from UnitSubordinate records).</summary>
+        /// <summary><c>UnitRoster</c> — fixed-capacity subordinate list on the commanding entity (AI tier); NoScenario (derived from UnitSubordinate records).</summary>
         public const byte UnitRoster = 182;
 
         /// <summary><c>UnitSubordinate</c> — generation-safe commander reference and tactical designation on subordinate entities (AI tier).</summary>

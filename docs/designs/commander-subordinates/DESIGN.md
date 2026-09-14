@@ -1,3 +1,16 @@
+<!--STATUS
+state: LIVE
+updated: 2026-09-13
+owns-beyond-its-title: ⭐ §7.2 "Composite-Spawning Update" is one of only three places child/composite
+  ENTITY GENESIS is described — TkbCompositionDef's subordinate slots, InitialUnitSubordinateIntent on
+  each spawned child, and GenesisMaterializationSystem resolving it once both ends are alive.
+  ⚠ A topical search for "child entity" does not reach it.
+related-designs:
+  - ../../DESIGN_Entity_Genesis_End_To_End.md — ⭐ THE LANDING PAGE for entity genesis; its §6 routes
+    child/composite questions here and to ../cgf-scn/DESIGN.md.
+  - ../cgf-scn/DESIGN.md — Decisions 5 + 11 own the child MARKER (PartMetadata), the double-spawn
+    hazard and the scenario-override round-trip.
+-->
 ﻿# Commander-Subordinate Infrastructure — Design
 
 ## Background
@@ -43,7 +56,7 @@ Network (DDS)                  ACL Layer                        ECS (local)
 EntityInfo                     EntityInfoIngressTranslator      UnitSubordinate
   CommanderId (int)   ──────>    resolve via NetworkEntityMap     Commander (Entity 8B)
   TacticalDesignation           write CmdAssignSubordinate >─>    Designation (ushort)
-                                                                 UnitRoster (NoSave cache)
+                                                                 UnitRoster (NoScenario cache)
 EntityInfo              <─────  EntityInfoEgressTranslator        Count, SubordinateEntities[]
   CommanderId (int)              read UnitSubordinate.Commander
   TacticalDesignation            map to network ID
@@ -100,11 +113,11 @@ public struct UnitSubordinate
 
 ### 1.3 UnitRoster Component
 
-Unsafe struct placed on **commander entities**. Marked `NoSave` because it is entirely
+Unsafe struct placed on **commander entities**. Marked `NoScenario` because it is entirely
 derived from the bottom-up `UnitSubordinate` records and is rebuilt on scenario load.
 
 ```csharp
-[DataPolicy(DataPolicy.NoSave)]
+[DataPolicy(DataPolicy.NoScenario)]
 [StructLayout(LayoutKind.Sequential)]
 [ComponentId(HrotComponentIds.UnitRoster)]        // ID 182
 public unsafe struct UnitRoster
@@ -609,7 +622,7 @@ Direct attachment of `UnitSubordinate` or publishing `CmdAssignSubordinate` from
 
 | Decision | Rationale |
 |----------|-----------|
-| `UnitRoster` is `NoSave` | It is fully derived; saving fixed buffers with entity handles would corrupt on reload |
+| `UnitRoster` is `NoScenario` | It is fully derived; saving fixed buffers with entity handles would corrupt on reload |
 | `UnitSubordinate.Commander` is `Entity` (8 bytes) | Prevents zombie references from entity index recycling |
 | Bottom-up (`UnitSubordinate`) is the truth; top-down (`UnitRoster`) is a cache | Network sends 1 field per subordinate (not an array); matches DDS EntityInfo protocol |
 | CommanderId removed from `Fdp.Core.EntityInfo` | Eliminates duplicate of the same relationship across two components |
@@ -670,7 +683,7 @@ the absolute ECS truth for the AI tier. The DDS `EntityInfo` descriptor carries 
 
 ### 8.4 Scenario Serialization (Genesis Pipeline)
 
-- `UnitRoster` carries `[DataPolicy(DataPolicy.NoSave)]` and is dynamically reconstructed from
+- `UnitRoster` carries `[DataPolicy(DataPolicy.NoScenario)]` and is dynamically reconstructed from
   `UnitSubordinate` records after load.
 - `UnitSubordinateTranslator` converts `Entity` handles to GUID strings on save and attaches
   `InitialUnitSubordinateIntent` on load.

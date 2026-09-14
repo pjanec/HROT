@@ -1,3 +1,26 @@
+<!--STATUS
+state: LIVE
+updated: 2026-09-13
+current-answer: the Decisions section is the design; Phases 1-3 are the build breakdown.
+owns-beyond-its-title: ⭐⭐⭐ THIS DOCUMENT IS THE DEEPEST TREATMENT OF CHILD-ENTITY GENESIS IN THE REPO,
+  and its title does not say so. Decision 5 ("Root-entity-only extraction") establishes PartMetadata
+  (id 55) as the CHILD MARKER, who attaches it (NetworkSpawningSystem), the double-spawn hazard, and
+  why EntityInfo.CommanderId must NOT be the child test. Decision 11 establishes
+  ChildComponentOverrides (keyed by PartMetadata.InstanceId) and PreAllocatedNetworkId.
+  ⚠ Measured 2026-09-13: a topical search for "child entity genesis" does not reach this file, because
+  it is filed under a CGF-scenario-loading programme and reaches children only because extraction must
+  AVOID them. That is exactly the miss shape the related-designs rule exists for.
+related-designs:
+  - ../../DESIGN_Entity_Genesis_End_To_End.md — ⭐ THE LANDING PAGE. Draws request → spawn → grant →
+    ghost → promotion → takeover → Active end to end and routes each stage to its owner. Its §6 and
+    stage ⑪ point HERE for children.
+  - ../commander-subordinates/DESIGN.md — §7.2 owns composite AUTHORING (TkbCompositionDef's
+    subordinate slots, InitialUnitSubordinateIntent) where this file owns the scenario round-trip.
+  - ../replication-fixes/REPL-DESIGN.md — §4.4 owns SubEntityCleanupSystem (child TEARDOWN).
+  - ../../DESIGN_Distributed_Scenario_Persistence.md — owns which FILE(S) each node LOADS in a
+    distributed run (per-node files, brain-canonical) and re-ownership at load. This file owns the
+    genesis PIPELINE that materialises them.
+-->
 # Design: CGF Scenario Loading via Genesis Pipeline
 
 ## Context
@@ -347,7 +370,7 @@ Responsibilities:
      `ComponentMask` IS set for that ID, call `table.GetRawObject(entity.Index)`
      and add to `initialComponents`.
    - If `episodeId.HasValue`, append `new EpisodeTag { EpisodeId = episodeId.Value }`
-     to `initialComponents` (this component has `[DataPolicy.NoSave]` so it is
+     to `initialComponents` (this component has `[DataPolicy.NoScenario]` so it is
      never in the staging repo itself).
    - If `behaviorRemapper != null`, intercept any `ActiveMissionPlan` component
      in `initialComponents` and remap its task `BehaviorParams` JSON strings

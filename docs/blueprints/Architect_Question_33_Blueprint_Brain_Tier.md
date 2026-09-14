@@ -25,7 +25,7 @@
 > | | disposition |
 > |---|---|
 > | ⭐⭐ **`Q33-E`'s first slice — *"HSM emitter consumes `Role`/`Scope`"*** | ⛔ **PULLED OUT — it is parameter work.** BTree's `BTreeBridgeEmitCore` has **45** `Role`/`Scope` refs; both HSM emitters have **0** ⇒ *"multi-field editor-authored inputs for BTree **and HSM**"* **cannot work on HSM** until this lands, and it needs none of `A`–`D` |
-> | **`Q33-D`** | ⭐ **answered provisionally: `D1`** *(keep `blueprintId` identity)*. ✅ **Safe to postpone `D2`:** `BlueprintBlackboard*` is `[DataPolicy(NoSave)]` so the slot table **never hits disk**, and `InitialBlueprintsIntent.Blueprints` is already a `List<BlueprintAssignmentDto>` with per-entry `Overrides` ⇒ two entries for one `AssetId` are **already expressible on disk**; only the idempotent attach collapses them. ⇒ **widening later is a RUNTIME change, not a migration** |
+> | **`Q33-D`** | ⭐ **answered provisionally: `D1`** *(keep `blueprintId` identity)*. ✅ **Safe to postpone `D2`:** `BlueprintBlackboard*` is `[DataPolicy(NoScenario)]` so the slot table **never hits disk**, and `InitialBlueprintsIntent.Blueprints` is already a `List<BlueprintAssignmentDto>` with per-entry `Overrides` ⇒ two entries for one `AssetId` are **already expressible on disk**; only the idempotent attach collapses them. ⇒ **widening later is a RUNTIME change, not a migration** |
 >
 > ⚠ **One carry-forward for Track C:** its row identity `(AssetId, Entity, VariablePath)` gains a
 > **fourth component** if `D2` ever happens. ⭐ **Note it in the design; do not build for it.**
@@ -122,7 +122,7 @@ three-way — too wide instead of too narrow.**
 ⚖️ **Keep the root as a DISCRIMINANT.** If presence is genuinely needed *(trace-buffer allocation is the
 plausible consumer)*, ⭐ **derive it from the composition** — the root asset's subtree references already
 say which interpreters are involved — **or add a separate mask.** ⛔ **Do not overload one field.**
-📌 `BehaviorState` is `[DataPolicy(NoSave)]` ⇒ **deferring costs nothing.**
+📌 `BehaviorState` is `[DataPolicy(NoScenario)]` ⇒ **deferring costs nothing.**
 
 ### 1.5.2 ⭐⭐⭐ "In what way are latent nodes a problem?" — **not at all for Instance dispatch**
 
