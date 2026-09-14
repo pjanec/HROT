@@ -366,6 +366,35 @@ is the NETWORK's *representation* of that fact, DERIVED from it — not the sour
    authority (the Muscle taking `SimTransform`). Using it for the entity would let the descriptor owner and
    `PrimaryOwnerId` **diverge**. Entity-level transfer moves `PrimaryOwnerId`; component grants move `AuthorityMask`.
 
+#### ⚠⚠ RECONCILIATION — does "we don't move `PrimaryOwnerId`" collide with NED's "EntityMaster owner = primary owner"?
+
+**No collision today, and here is the precise reason** *(measured `2026-09-14`)*:
+
+- ⭐ **EntityMaster ownership is NEVER transferred today.** `EntityMaster` *is* a registered descriptor
+  (`EntityMasterEgressTranslator : IDescriptorTranslator`, `TargetComponentIds = {NetworkIdentity, TkbIdentity}`
+  — note: **not** `NetworkAuthority`), so the generic mechanism *could* carry it — but **nothing grants or
+  overrides `dtEntityMaster`** (grep of `DeferredTakeoverSystem` / `NedReplicationModule` / grants: none). ⇒
+  no `DescriptorOwnership.Map[EntityMasterKey]` is ever set, so `HasAuthority(entity, EntityMasterKey)` **always
+  falls back to `PrimaryOwnerId`**.
+- ⇒ ⭐⭐ **"EntityMaster owner" and "`PrimaryOwnerId`" are the SAME node — two views of ONE fact.** The NED rule
+  *(the node that owns/disposes `EntityMaster` is the primary owner)* **holds**, precisely because EntityMaster
+  ownership is **derived from `PrimaryOwnerId`** via that fallback. There is **no independent EntityMaster
+  ownership** that could disagree. We transfer neither today; both are fixed at creation.
+- ⭐ **The collision your instinct senses is the FUTURE hazard, and rule 3 is exactly what avoids it:** if a
+  transfer moved the *EntityMaster descriptor override* without moving `PrimaryOwnerId`, the lifecycle owner
+  and the save owner would split. So entity transfer moves `PrimaryOwnerId` (the `NetworkAuthority` component,
+  Q3), and EntityMaster **stays derived** — never overridden independently.
+
+**How hosts respond to an EntityMaster ownership-transfer request NOW:** ⛔ **they don't — no such request is
+ever issued.** `OwnershipEgressSystem` only emits an `OwnershipUpdate` when an entity's `DescriptorOwnership.Map`
+*changes*, and nothing writes an EntityMaster entry. There is **no DDS `OWNERSHIP` QoS** on the topic either
+(arbitration is application-level: the egress `HasAuthority` check + the `_publishedNetIds` exactly-once dedup).
+⇒ if a `DeferredTakeover` *did* include `dtEntityMaster`, `OwnershipIngressSystem` would set the map + flip the
+`{NetworkIdentity, TkbIdentity}` `AuthorityMask` bits and the new node would start publishing — but
+`PrimaryOwnerId` would stay stale **and** the DDS instance would have no defined handoff. That incompleteness
+(not a working feature) is why the transfer feature is deferred and must move `PrimaryOwnerId` + define the
+instance handoff.
+
 ⚠ **Deferred-feature sub-items (NOT built now — the transfer FEATURE is a later design):**
 - **Make `NetworkAuthority` ownership-tracked / replicated** — register it as a descriptor target (so the
   generic `OwnershipUpdate`/`DeferredTakeover` can move its authority) and replicate its `PrimaryOwnerId`
