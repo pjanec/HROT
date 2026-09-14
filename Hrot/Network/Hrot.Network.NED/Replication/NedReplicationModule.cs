@@ -518,6 +518,15 @@ public sealed class NedReplicationModule : INedReplicationModule
         _descriptorOwnershipMap.RegisterMapping(
             (long)EDescriptorType.dtNavigationStatus,
             NavigationContractsComponentIds.NavigationStatus);
+
+        // ⭐⭐⭐ OQ12 / CE-275 ④ — BDC compliance: the EntityMaster descriptor DEFINES entity /
+        // primary (save) ownership. Record its ordinal so the transport-agnostic
+        // OwnershipIngressSystem can mirror an incoming EntityMaster OwnershipUpdate into the
+        // network-agnostic NetworkAuthority.PrimaryOwnerId (the save-gate fact) — without the
+        // toolkit ever naming "EntityMaster". This is the compliant receive-side of a primary-
+        // ownership transfer, which may originate from an EXTERNAL system handing us an entity.
+        // 📄 docs/DESIGN_Distributed_Scenario_Persistence.md §6c.
+        _descriptorOwnershipMap.PrimaryOwnerDescriptorOrdinal = (long)EDescriptorType.dtEntityMaster;
     }
 
     public void Tick(ISimulationView view, float dt)

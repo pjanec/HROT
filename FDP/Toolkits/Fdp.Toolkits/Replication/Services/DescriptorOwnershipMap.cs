@@ -61,6 +61,22 @@ namespace Fdp.Toolkit.Replication.Services
         /// </remarks>
         private readonly Dictionary<int, long[]> _componentIdToDescriptors = new();
 
+        /// <summary>
+        /// ⭐⭐⭐ The descriptor ordinal whose ownership DEFINES entity / primary (save) ownership —
+        /// the NED <c>EntityMaster</c> descriptor, recorded here as a plain ordinal so the
+        /// transport-agnostic <c>OwnershipIngressSystem</c> can mirror an incoming ownership transfer
+        /// into the network-agnostic <see cref="Components.NetworkAuthority.PrimaryOwnerId"/> WITHOUT this toolkit
+        /// ever naming "EntityMaster" (that word lives only in <c>Hrot.Network.NED</c>).
+        ///
+        /// <para><c>null</c> when no such descriptor is configured — editor / AllInOne / pure-toolkit
+        /// hosts that carry no NED transport. In that case no primary-owner mirroring occurs, which is
+        /// correct: those hosts see no external <c>OwnershipUpdate</c> and own everything by construction.</para>
+        ///
+        /// <para>📄 <c>docs/DESIGN_Distributed_Scenario_Persistence.md</c> §6c — the BDC
+        /// <c>OwnershipUpdate</c> → <c>PrimaryOwnerId</c> compliance sync (OQ12 / <c>CE-275</c> ④).</para>
+        /// </summary>
+        public long? PrimaryOwnerDescriptorOrdinal { get; set; }
+
         // -- Registration ---------------------------------------------------------
 
         /// <summary>

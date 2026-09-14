@@ -1,7 +1,13 @@
 <!--STATUS
 state: LIVE
 updated: 2026-09-14
-build-state: READY-TO-BUILD
+build-state: BUILDING
+build-progress: Stage A (CE-275 ④ / OQ12 — the OwnershipUpdate→PrimaryOwnerId compliance sync)
+  BUILT & GREEN `2026-09-14` (OwnershipIngressSystem mirrors an EntityMaster-ordinal transfer into
+  NetworkAuthority.PrimaryOwnerId; the master ordinal is injected network-agnostically via
+  DescriptorOwnershipMap.PrimaryOwnerDescriptorOrdinal, set by NedReplicationModule; 3 rails in
+  OwnershipTests; Fdp.Toolkits.Tests replication suite 82/82, Hrot.Network.NED build clean).
+  REMAINING: Stage B (save gate), Stage C (distributed wiring), Stage E (merge — ⛔ NO NoSave, §7).
 current-answer: §4 save flow, §5 load flow (R-A, ruled §8.1), §6 the ONE gate — keyed on the
   NETWORK-AGNOSTIC primary-owner fact (NetworkAuthority.PrimaryOwnerId, entity-level HasAuthority;
   absent⇒owned), NEVER a wire descriptor, §6a globals (brain-owned), §6b format recognition, §6c the
@@ -41,7 +47,9 @@ related-designs:
   - docs/designs/cgf-scn/DESIGN.md — owns the LOAD genesis pipeline (scenario JSON → creation requests);
     THIS doc owns which FILE(S) each node loads and re-ownership at load.
   - DESIGN_Entity_Creation_Unification.md — owns the CREATION pipeline whose OwnerNodeId stamps the
-    save-ownership THIS doc gates on.
+    save-ownership THIS doc gates on. ⭐ ALSO owns the measured analysis that `NetworkAuthority` is
+    runtime-only and its scenario-save exclusion is the extractor's context-mask (bit 51), NOT a global
+    `[DataPolicy(NoSave)]` (WITHDRAWN `2026-09-02`) — load-bearing for §7's merge (Stage E must NOT add NoSave).
   - DESIGN_Role_Affinity_Ownership.md — owns WHO OWNS WHICH COMPONENT (the role-affinity tables
     REGISTER = owned ∪ read, AUTHORITY = owned; the per-component AuthorityMask). It DECIDES the
     per-component/per-entity ownership; THIS doc only READS the primary-owner fact at save time and
@@ -457,8 +465,18 @@ via `if(!HasAuthority) continue`; `OwnsDescriptor`'s `absent⇒false` becomes `g
 | repoint 2 readers → `NetworkAuthority` | `CycloneNetworkCleanupSystem.cs:47/52`, `OwnershipExtensions.cs:36/38/69/71` |
 | drop from the static save mask (NetworkAuthority already masked) | `StagingEntityExtractor.cs:56` |
 | drop registration | `HrotSharedComponentRegistry.cs:41` (+ example `DistributedTankScenario.cs:320`) |
-| add `[DataPolicy(NoSave)]` to `NetworkAuthority` | so save-exclusion no longer relies only on the static mask |
 | doc/comment fixes | `DebugApiRouteDocs.cs:713`, `GroundKinematicsModule.cs:34`, dds-to-ecs/mgmt docs |
+
+⛔⛔ **DO NOT add `[DataPolicy(NoSave)]` to `NetworkAuthority`** *(corrected `2026-09-14`; an earlier
+draft of this table said to)*. 🔒 **Architect ruling + design record:** [`docs/designs/cgf-scn/DESIGN.md:62`](designs/cgf-scn/DESIGN.md)
+— *"these components must NOT be marked globally as non-saveable; they are required by the Checkpoint
+pipeline."* The scenario-save exclusion is the **context-specific static mask** owned by the extractor —
+`StagingEntityExtractor.BuildStaticMask()` already sets bit **51 = `NetworkAuthority`** (alongside 50/59/65/66/140/141)
+— so deleting `NetworkOwnership` loses **no** exclusion, and a global `NoSave` would (a) break the Checkpoint
+pipeline that needs `NetworkAuthority`, and (b) be a **second** mechanism for one concept *(ruling 9)*.
+📄 Full analysis: [`DESIGN_Entity_Creation_Unification.md` §"THE ONE REAL COST"](DESIGN_Entity_Creation_Unification.md)
+*(the `NoSave` proposal is WITHDRAWN there, `2026-09-02`)*. ⇒ the merge is a pure delete-and-repoint; the
+save-exclusion already lives in the extractor mask, not in a component attribute.
 
 ⚠ **Roslyn only** (never text-replace a C# symbol); grep sweep afterward for `HrotStrideApp.Windows`
 (out-of-solution). Frees component id `140`. ⭐ Keep the **name** `NetworkAuthority` (renaming ~57 sites
