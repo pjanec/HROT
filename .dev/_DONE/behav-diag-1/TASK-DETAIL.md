@@ -69,7 +69,7 @@ Every task below has a unique ID and verifiable success conditions, usually expr
 - `NextRecord()` zeros the 16-byte slot before returning, stamps `record->InstanceId = LastInstanceId`, and returns the typed pointer.
 
 **Constraints:**
-- Component decorated `[ComponentId(BehaviorApplicationComponentIds.BTreeTraceWorkingMemory)]` `[DataPolicy(DataPolicy.NoSave)]`.
+- Component decorated `[ComponentId(BehaviorApplicationComponentIds.BTreeTraceWorkingMemory)]` `[DataPolicy(DataPolicy.NoScenario)]`.
 - `sizeof(BTreeTraceWorkingMemory1024) == 1024` and `sizeof(BTreeTraceRecord) == 16` — assert via static unit test.
 
 **Success conditions:**
@@ -90,7 +90,7 @@ Every task below has a unique ID and verifiable success conditions, usually expr
 **Scope:**
 - New file `Fdp.Toolkit.Behavior.Diagnostics/HsmTraceWorkingMemory1024.cs`.
 - Identical 1024-byte layout to BTree variant (`WritePos`, `RecordCount`, `LastInstanceId` header, 1016-byte buffer).
-- Decorated `[ComponentId(BehaviorApplicationComponentIds.HsmTraceWorkingMemory)]` `[DataPolicy(DataPolicy.NoSave)]`.
+- Decorated `[ComponentId(BehaviorApplicationComponentIds.HsmTraceWorkingMemory)]` `[DataPolicy(DataPolicy.NoScenario)]`.
 
 **Success conditions:**
 - Unit test `HsmTraceWorkingMemory1024_SizeIs1024_Test` in `Fdp.Toolkits.Tests`.

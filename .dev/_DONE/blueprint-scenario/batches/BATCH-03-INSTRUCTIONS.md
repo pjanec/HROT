@@ -5,7 +5,7 @@
 **Phase:** Phase 2 — Static scenario assignment (CGF genesis)  
 **Estimated Effort:** 3-5 hours  
 **Priority:** HIGH  
-**Dependencies:** BATCH-01 (core seam), BATCH-02 (NoSave + translator + Intent component)
+**Dependencies:** BATCH-01 (core seam), BATCH-02 (NoScenario + translator + Intent component)
 
 ---
 

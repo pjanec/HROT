@@ -220,7 +220,7 @@ then non-zero defaults). But **WorkingState** slots reached via the manifest/par
 (`BehaviorIngressSystem.AttachSlotsToMemory`) and the inline `BlueprintCall` path (`InlineActionLowering`) **never
 run init and never re-zero on slot reuse** — a reused slot holds a *previous occupant's* bytes. A garbage `Count`
 feeding an `[InlineArray]` indexer (**no bounds check**) is an unbounded OOB read/corruption — a memory-safety bug,
-not a wrong number. Save/replication is a non-issue (`NoSave`; only the assignment persists). Record/playback is
+not a wrong number. Save/replication is a non-issue (`NoScenario`; only the assignment persists). Record/playback is
 genuine field-agnostic memcpy (confirmed). The *causal story* ("blob is zeroed") is wrong; the guarantee comes
 from the `InitDefault` hook.
 - **DELTA (belt + braces):** (a) **defensive clamp** — every list op uses effective length `min(Count, N)` and

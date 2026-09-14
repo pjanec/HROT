@@ -34,9 +34,9 @@ Scenario JSON is a **declarative authoring template**; live blackboard memory (l
 mid-execution phase) is volatile runtime state that belongs in **checkpoints / Flight-Recorder**, not scenarios.
 
 **Current bug:** `BlueprintBlackboard{1024,4096,16384}` carry `[ComponentId]` but **no `[DataPolicy]`**, so they
-serialize into scenario JSON by default (the AiPrimitive blackboards are correctly `[DataPolicy(DataPolicy.NoSave)]`).
+serialize into scenario JSON by default (the AiPrimitive blackboards are correctly `[DataPolicy(DataPolicy.NoScenario)]`).
 
-**Fix:** mark the three `BlueprintBlackboard*` components `[DataPolicy(DataPolicy.NoSave)]`, and persist a
+**Fix:** mark the three `BlueprintBlackboard*` components `[DataPolicy(DataPolicy.NoScenario)]`, and persist a
 **declarative assignment** (which blueprints, + optional variable overrides) via the engine's established
 **intent-component + translator + genesis-materialization** pattern. Checkpoints/recorder continue to capture the
 live bytes unchanged.
@@ -94,7 +94,7 @@ Uses the intent pattern (mirrors `InitialPassengersIntent` + `GenesisMaterializa
     `"BlueprintBlackboard1024"`/`"4096"`/`"16384"` keys claimed as a **black hole** (no-op `Inject`).
     `ScenarioSerializer` (`:389`) routes only declared keys to translators; anything else falls through to
     `FdpAutoSerializer`, which throws `InvalidOperationException` on (a) the unmapped custom array key and (b) old
-    scenarios still carrying the now-`NoSave` blackboard keys. This mirrors `BrainBlackboardTranslator`/
+    scenarios still carrying the now-`NoScenario` blackboard keys. This mirrors `BrainBlackboardTranslator`/
     `Blackboard1024Translator` (claim-key + no-op `Inject`).
 - **Register the managed intent (REQUIRED):** add `RegisterManagedComponent<InitialBlueprintsIntent>()` to the
   genesis intent registry (`GenesisIntentRegistry.RegisterAll`, where `InitialPassengersIntent`/
@@ -121,7 +121,7 @@ Uses the intent pattern (mirrors `InitialPassengersIntent` + `GenesisMaterializa
 3. For each entity, `BlueprintStateTranslator.Extract` scans every `BlueprintBlackboard*` tier
    (`GetSlotCount`/`GetSlot` → `BlueprintId` → `registry.TryGetById(id).AssetId`) and writes a
    `BlueprintAssignmentDto[]` under the `"BlueprintAssignments"` DOM key.
-4. The blackboard components are `[DataPolicy(NoSave)]` → **not** byte-serialized; the translator also black-holes
+4. The blackboard components are `[DataPolicy(NoScenario)]` → **not** byte-serialized; the translator also black-holes
    their keys. **Result:** clean declarative JSON (`BlueprintAssignments` = list of `AssetId`s), zero runtime bytes.
 
 **LOAD (open scenario / test):** the reverse, funneling through the same core attach seam (§3).
@@ -244,7 +244,7 @@ No authoring-UX unification is needed: there is no TKB editing UI today (behavio
 | `BlueprintStateTranslator : IEntityScenarioTranslator` (declares `BlueprintAssignments` + black-holes legacy blackboard keys) | **CGF** scenario path |
 | `RegisterManagedComponent<InitialBlueprintsIntent>()` | `GenesisIntentRegistry.RegisterAll` (genesis bootstrap) |
 | `BlueprintMaterializationSystem` (intent → preprovision → attach → remove intent) | **CGF** genesis |
-| `[DataPolicy(NoSave)]` on `BlueprintBlackboard{1024,4096,16384}` | `Fdp.Toolkits.Blueprints` (edit in place) |
+| `[DataPolicy(NoScenario)]` on `BlueprintBlackboard{1024,4096,16384}` | `Fdp.Toolkits.Blueprints` (edit in place) |
 | Editor `BlueprintAttachService` → thin forwarder to the core seam | `Hrot.Blueprints.Editor.Runtime` |
 | Entity "Blueprints" authoring inspector (§12) | Editor (Details/Inspector; mirrors `ComponentEditDrawer`/`InspectorWindow`) |
 
@@ -267,7 +267,7 @@ No authoring-UX unification is needed: there is no TKB editing UI today (behavio
   `BlueprintDefinition` (and any in-memory registration path). One field in the emitter, not a schema change.
   (The architect flagged this as "property missing"; it's actually "population missing.")
 - **Per-instance override authoring UX (§6):** deferred; revisit before building overrides.
-- **`NoSave` migration: RESOLVED — it does NOT tolerate them by default.** Old scenarios carrying
+- **`NoScenario` migration: RESOLVED — it does NOT tolerate them by default.** Old scenarios carrying
   `BlueprintBlackboard*` keys would hit `FdpAutoSerializer` and throw. Fixed by `BlueprintStateTranslator.
   GetOutputDomKeys` claiming the three legacy blackboard keys as a black hole with a no-op `Inject` (§4).
 

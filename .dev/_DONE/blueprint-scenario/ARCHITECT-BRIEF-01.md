@@ -17,8 +17,8 @@ AiPrimitive (behavior) assignment is a separate, already-working path (TKB `Defa
 ## Decisions made (please align to these)
 
 1. **Do not serialize blackboard bytes into scenarios — confirmed a current bug.** `BlueprintBlackboard1024/4096/
-   16384` carry `[ComponentId]` but **no `[DataPolicy]`** (the behavior blackboards *are* `NoSave`), so today they
-   serialize latent cursors/tick counters into scenario JSON. We will mark them `[DataPolicy(DataPolicy.NoSave)]`
+   16384` carry `[ComponentId]` but **no `[DataPolicy]`** (the behavior blackboards *are* `NoScenario`), so today they
+   serialize latent cursors/tick counters into scenario JSON. We will mark them `[DataPolicy(DataPolicy.NoScenario)]`
    and persist a **declarative assignment** instead. Checkpoints/Flight-Recorder still capture the live bytes.
 2. **Declarative path = the engine's intent pattern.** A `[DataPolicy(DataPolicy.Transient)]` managed
    `InitialBlueprintsIntent` component holding a **list** of `BlueprintAssignmentDto`, written/read by a

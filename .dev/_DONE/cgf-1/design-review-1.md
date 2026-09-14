@@ -152,7 +152,7 @@ Here is an evaluation of the missing implementation details and the gaps we must
 
 3\. "Simplified State" Serialization Logic
 
-**The Concept:** The spec states that "state can be saved in simplified form and re-calculated to full form on load" to reduce scenario file size and decouple from internal memory formats. **The Gap:** The current FDP `DataPolicy` attribute only provides a binary inclusion/exclusion filter (`[DataPolicy(DataPolicy.NoSave)]`). There is no established interface for a component to provide a "simplified" JSON representation of itself. **How to resolve it:** We need to specify an `IScenarioSerializable` interface or rely entirely on dedicated JSON DTOs for complex components. When the CGF saves a scenario, it shouldn't just dump the `BehaviorState` or `BrainBlackboard` structs. Instead, it should map them into a simplified string representation (e.g., converting the 128-byte blackboard array back into the named JSON variables the AI expects).
+**The Concept:** The spec states that "state can be saved in simplified form and re-calculated to full form on load" to reduce scenario file size and decouple from internal memory formats. **The Gap:** The current FDP `DataPolicy` attribute only provides a binary inclusion/exclusion filter (`[DataPolicy(DataPolicy.NoScenario)]`). There is no established interface for a component to provide a "simplified" JSON representation of itself. **How to resolve it:** We need to specify an `IScenarioSerializable` interface or rely entirely on dedicated JSON DTOs for complex components. When the CGF saves a scenario, it shouldn't just dump the `BehaviorState` or `BrainBlackboard` structs. Instead, it should map them into a simplified string representation (e.g., converting the 128-byte blackboard array back into the named JSON variables the AI expects).
 
 4\. Distributed Multi-File Loading Routing
 
@@ -238,7 +238,7 @@ Here is an evaluation of your ideas and how they map to the existing FDP archite
 
 Using a separate set of custom attributes (e.g., `[ScenarioProperty]`, `[ScenarioIgnore]`) is the correct architectural choice. It keeps the scenario representation format-agnostic and completely decoupled from whatever specific serialization library (JSON, MessagePack, XML) you use underneath.
 
--   **Component-Level Filtering:** You can already leverage the existing FDP `[DataPolicy(DataPolicy.NoSave)]` attribute to completely exclude transient or runtime-only components from the save process.-   **Field-Level Filtering:** Your new custom attributes will handle the granular filtering for components that _are_ saved, but contain volatile runtime caches (e.g., ignoring a `CurrentSpeed` field while saving `MaxSpeed`).
+-   **Component-Level Filtering:** You can already leverage the existing FDP `[DataPolicy(DataPolicy.NoScenario)]` attribute to completely exclude transient or runtime-only components from the save process.-   **Field-Level Filtering:** Your new custom attributes will handle the granular filtering for components that _are_ saved, but contain volatile runtime caches (e.g., ignoring a `CurrentSpeed` field while saving `MaxSpeed`).
 
 2\. Custom Serialization Interface for "Simplifying" State
 
@@ -422,7 +422,7 @@ Here is how this architecture should be structured, where it lives, who calls it
 
 **The Toolkit Level (****FDP.Toolkit.Scenario****):** This is the infrastructure layer. It has absolutely zero knowledge of JSON, XML, or file paths. It is responsible solely for translating raw ECS memory into an intermediate, format-agnostic DOM (like `JObject` or nested `Dictionary<string, object>`). It houses:
 
--   The JIT-compiled Expression Tree engine that avoids reflection on the hot path.-   The custom attributes (e.g., `[ScenarioProperty]`, `[ScenarioIgnore]`) and the `[DataPolicy(DataPolicy.NoSave)]` evaluations.-   The `IScenarioSerializable` interface used by components to "simplify" their state for persistence.-   The Two-Pass GUID-to-Entity resolution mechanism.
+-   The JIT-compiled Expression Tree engine that avoids reflection on the hot path.-   The custom attributes (e.g., `[ScenarioProperty]`, `[ScenarioIgnore]`) and the `[DataPolicy(DataPolicy.NoScenario)]` evaluations.-   The `IScenarioSerializable` interface used by components to "simplify" their state for persistence.-   The Two-Pass GUID-to-Entity resolution mechanism.
 
 **The Application Level (****Hrot.SimHost** **and** **Hrot.CGF****):** This layer manages the concrete file formats and the business logic of saving. It houses:
 
@@ -763,7 +763,7 @@ Here is the architectural blueprint for combining the 1:1 default mappings with 
 
 Since FDP already uses a highly optimized `BitMask256` to track component presence on an entity, we can use the exact same bitmask concept to track _serialization consumption_.
 
-When you process an entity for saving, you start with its live `EntityHeader.ComponentMask` and filter it against the global saveable mask (ignoring `[DataPolicy(DataPolicy.NoSave)]` components). As your custom translators process specific components, they clear those bits from the mask, effectively telling the default 1:1 serializer: _"I already handled these; ignore them."_
+When you process an entity for saving, you start with its live `EntityHeader.ComponentMask` and filter it against the global saveable mask (ignoring `[DataPolicy(DataPolicy.NoScenario)]` components). As your custom translators process specific components, they clear those bits from the mask, effectively telling the default 1:1 serializer: _"I already handled these; ignore them."_
 
 2\. The Custom Entity-Level Translator Contract
 
@@ -846,11 +846,11 @@ Yes, we absolutely should use them. From a clean architecture perspective, relyi
 
 Here is how these persistence attributes fit into the overall pipeline and drastically simplify the translation process:
 
-**1\. Component-Level Exclusion (The Native FDP Way)** We do not need to invent a new mechanism for wholesale component exclusion, because FDP already provides the `[DataPolicy(DataPolicy.NoSave)]` attribute. When you apply this to a component struct, the framework's `ComponentTypeRegistry` flags it as strictly runtime-only memory. When your scenario saver begins its execution, it calls `EntityRepository.GetSaveableMask()` to generate an optimized bitmask. This automatically filters out all transient physics caches, volatile network acks, or rendering states across the entire ECS chunk table with zero custom logic required from your application layer.
+**1\. Component-Level Exclusion (The Native FDP Way)** We do not need to invent a new mechanism for wholesale component exclusion, because FDP already provides the `[DataPolicy(DataPolicy.NoScenario)]` attribute. When you apply this to a component struct, the framework's `ComponentTypeRegistry` flags it as strictly runtime-only memory. When your scenario saver begins its execution, it calls `EntityRepository.GetSaveableMask()` to generate an optimized bitmask. This automatically filters out all transient physics caches, volatile network acks, or rendering states across the entire ECS chunk table with zero custom logic required from your application layer.
 
 **2\. Field-Level Exclusion (Simplifying the 1:1 Fallback)** For components that _are_ saveable but contain runtime noise (e.g., a component that tracks maximum speed but also caches the current wheel steering angle), field-level attributes like `[ScenarioIgnore]` are a massive force multiplier. Instead of writing a custom `IEntityScenarioTranslator` for every single component in your game, you let the generic 1:1 Auto-Serializer handle the 90% of your data. At application startup, the expression-tree builder reflects over the struct, sees the `[ScenarioIgnore]` attributes, and JIT-compiles a delegate that simply skips emitting those specific fields. This gives you extremely fast, zero-allocation serialization without forcing you to maintain hundreds of custom serializer classes.
 
-**3\. Entity-Level Exclusion (Composition over Inheritance)** In a pure ECS, we do not mark an "Entity" as non-persistable; an entity is just an integer ID. Its persistence is dictated entirely by its composition. If an entity is spawned purely for a visual effect and contains only `[DataPolicy(DataPolicy.NoSave)]` components, its saveable component mask evaluates to zero and the serializer naturally skips it. If you have a specific domain requirement to explicitly exclude otherwise-saveable entities (like dynamically spawned civilian traffic that shouldn't be in the master scenario file), you simply create an empty `[DataPolicy(DataPolicy.NoSave)] public struct ScenarioIgnoreTag {}` component and attach it to the entity. Your saver's base `EntityQuery` can then just chain `.Without<ScenarioIgnoreTag>()` to cleanly bypass them during the iteration loop.
+**3\. Entity-Level Exclusion (Composition over Inheritance)** In a pure ECS, we do not mark an "Entity" as non-persistable; an entity is just an integer ID. Its persistence is dictated entirely by its composition. If an entity is spawned purely for a visual effect and contains only `[DataPolicy(DataPolicy.NoScenario)]` components, its saveable component mask evaluates to zero and the serializer naturally skips it. If you have a specific domain requirement to explicitly exclude otherwise-saveable entities (like dynamically spawned civilian traffic that shouldn't be in the master scenario file), you simply create an empty `[DataPolicy(DataPolicy.NoScenario)] public struct ScenarioIgnoreTag {}` component and attach it to the entity. Your saver's base `EntityQuery` can then just chain `.Without<ScenarioIgnoreTag>()` to cleanly bypass them during the iteration loop.
 
 **The Architectural Sweet Spot** By leveraging these attributes, you create a perfectly balanced pipeline:
 
@@ -868,7 +868,7 @@ The `[DataPolicy]` attribute on a component acts only as a convention-based defa
 
 When you call `RegisterComponent<T>(DataPolicy? policyOverride = null)`, the explicit `policyOverride` takes absolute priority over any attributes decorating the struct.
 
--   If a shared toolkit component is marked `[DataPolicy(DataPolicy.NoSave)]`, but your specific CGF application needs it persisted to reconstruct AI state, you simply register it with `RegisterComponent<MyComponent>(DataPolicy.Default)`.-   The kernel updates its internal `ComponentTypeRegistry` using your application's override.-   When the fallback 1:1 auto-serializer calls `GetSaveableMask()` later, it uses your injected policy, ensuring the component is included in the default save pass.
+-   If a shared toolkit component is marked `[DataPolicy(DataPolicy.NoScenario)]`, but your specific CGF application needs it persisted to reconstruct AI state, you simply register it with `RegisterComponent<MyComponent>(DataPolicy.Default)`.-   The kernel updates its internal `ComponentTypeRegistry` using your application's override.-   When the fallback 1:1 auto-serializer calls `GetSaveableMask()` later, it uses your injected policy, ensuring the component is included in the default save pass.
 
 2\. Custom Translator Pipeline Authority
 
@@ -904,7 +904,7 @@ public struct GuidedTarget {
 }
 
 // Completely Ignored (Never saved to scenario)
-[DataPolicy(DataPolicy.NoSave)]
+[DataPolicy(DataPolicy.NoScenario)]
 public struct SimVelocity { public Vector3 Linear; public Vector3 Angular; }
 ```
 
@@ -989,7 +989,7 @@ var scenarioSerializer = new ScenarioSerializerBuilder()
 
 **How the Pipeline Executes:** When the Drill State Machine orchestrates a save, the serialization pipeline processes the `SmartMissile` entity:
 
--   It reads the entity's full `ComponentMask`. `SimVelocity` is instantly excluded because of `[DataPolicy(DataPolicy.NoSave)]`.-   It evaluates `MissileOrdnanceTranslator`. The translator consumes `BallisticProjectile` and `PhysicsCollider`, clearing their bits from the mask and emitting the `"OrdnanceDef"` JSON object.-   The pipeline falls back to the JIT-compiled 1:1 auto-serializer for the remaining bits. It sees `SimTransform` and `GuidedTarget`.-   For `GuidedTarget`, the auto-serializer identifies the `Entity` field, queries the `IGuidResolver`, and patches the volatile memory index into a persistent GUID string seamlessly.
+-   It reads the entity's full `ComponentMask`. `SimVelocity` is instantly excluded because of `[DataPolicy(DataPolicy.NoScenario)]`.-   It evaluates `MissileOrdnanceTranslator`. The translator consumes `BallisticProjectile` and `PhysicsCollider`, clearing their bits from the mask and emitting the `"OrdnanceDef"` JSON object.-   The pipeline falls back to the JIT-compiled 1:1 auto-serializer for the remaining bits. It sees `SimTransform` and `GuidedTarget`.-   For `GuidedTarget`, the auto-serializer identifies the `Entity` field, queries the `IGuidResolver`, and patches the volatile memory index into a persistent GUID string seamlessly.
 
 This architecture strictly enforces the Open/Closed Principle. The core ECS memory layout remains heavily optimized for CPU cache lines, while the scenario saving mechanism remains infinitely extensible without ever polluting the domain models.
 

@@ -23,7 +23,7 @@ The following constraints govern every change in this workstream:
 2. **Managed vs. unmanaged ECS API boundary.** `repo.SetComponent<T>` is strictly for unmanaged
    structs. Managed classes (`ActiveMissionPlan`) must use `repo.SetManagedComponent<T>` and
    `repo.RemoveManagedComponent<T>`.
-3. **`[DataPolicy(DataPolicy.NoSave)]` boundary.** Runtime execution scratch-pads
+3. **`[DataPolicy(DataPolicy.NoScenario)]` boundary.** Runtime execution scratch-pads
    (`BrainBlackboard`, channel arbitration state) must be excluded from scenario serialization.
    They are deterministically reconstructed from the `ActiveMissionPlan` during load.
 4. **Zero-delta-time freeze.** The offline editor freezes time by setting `dt = 0` through the
@@ -78,9 +78,9 @@ opaque execution-tier memory to the authoring domain and violates the State vs. 
 
 **Files:** `FDP/Toolkits/Fdp.Toolkits/Behavior/Components/BehaviorComponents.cs`
 
-Add `[DataPolicy(DataPolicy.NoSave)]` to `BrainBlackboard`. The `FdpAutoSerializer` will exclude
+Add `[DataPolicy(DataPolicy.NoScenario)]` to `BrainBlackboard`. The `FdpAutoSerializer` will exclude
 the struct entirely. Binary checkpoint recording (LZ4 `.fdp` payloads) is unaffected because
-`DataPolicy.NoSave` only suppresses scenario serialization, not `CheckpointIOWorker` recording.
+`DataPolicy.NoScenario` only suppresses scenario serialization, not `CheckpointIOWorker` recording.
 
 ### 1.4 SteppingTimeController Mode Reporting
 

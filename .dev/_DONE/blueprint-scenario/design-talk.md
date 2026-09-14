@@ -36,11 +36,11 @@ You are absolutely correct. Storing volatile runtime execution state in a scenar
 
 Here is the architectural evaluation of why saving live blackboard state into scenarios is a bad fit, and how the engine is specifically designed to handle this separation.
 
-### 1. The `DataPolicy.NoSave` Paradigm
-The engine explicitly differentiates between declarative scenario data and volatile runtime data using the `DataPolicy` attributes. The `DataPolicy.NoSave` flag is explicitly designed to exclude components from Scenario JSON serialization. Its documented purpose is to omit "runtime execution state" from scenario files while allowing that exact same state to be safely captured by binary checkpoints and recording pipelines. 
+### 1. The `DataPolicy.NoScenario` Paradigm
+The engine explicitly differentiates between declarative scenario data and volatile runtime data using the `DataPolicy` attributes. The `DataPolicy.NoScenario` flag is explicitly designed to exclude components from Scenario JSON serialization. Its documented purpose is to omit "runtime execution state" from scenario files while allowing that exact same state to be safely captured by binary checkpoints and recording pipelines. 
 
 ### 2. How AiPrimitive Blackboards Handle This
-The architecture for `AiPrimitive` blueprints and standard behaviors already strictly enforces your recommendation. Both the `BrainBlackboard` (inline parameters) and `Blackboard1024` (heavy working memory) components are decorated with `[DataPolicy(DataPolicy.NoSave)]`. 
+The architecture for `AiPrimitive` blueprints and standard behaviors already strictly enforces your recommendation. Both the `BrainBlackboard` (inline parameters) and `Blackboard1024` (heavy working memory) components are decorated with `[DataPolicy(DataPolicy.NoScenario)]`. 
 
 Furthermore, their scenario integration pipelines (`BrainBlackboardTranslator` and `Blackboard1024Translator`) are explicitly designed so that their `Inject` (load) operations are complete no-ops. The design documentation for these translators notes that this memory is "transient execution state and must never be written back from a scenario file". They only provide an `Extract` (save) implementation to allow developers to dump readable JSON to the clipboard during active debugging sessions. 
 

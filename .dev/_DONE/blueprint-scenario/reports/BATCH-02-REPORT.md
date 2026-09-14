@@ -8,7 +8,7 @@
 
 ## Summary
 
-Marked all three `BlueprintBlackboard{1024,4096,16384}` components `[DataPolicy(DataPolicy.NoSave)]`, created `BlueprintAssignmentDto` + `InitialBlueprintsIntent` with a unique `ComponentId` (187), fixed the compiler emitter to populate `BlueprintDefinition.AssetId`, and built `BlueprintStateTranslator : IEntityScenarioTranslator` registered in `HrotScenarioSerializerFactory`. All 4 tasks implemented with tests.
+Marked all three `BlueprintBlackboard{1024,4096,16384}` components `[DataPolicy(DataPolicy.NoScenario)]`, created `BlueprintAssignmentDto` + `InitialBlueprintsIntent` with a unique `ComponentId` (187), fixed the compiler emitter to populate `BlueprintDefinition.AssetId`, and built `BlueprintStateTranslator : IEntityScenarioTranslator` registered in `HrotScenarioSerializerFactory`. All 4 tasks implemented with tests.
 
 ---
 
@@ -111,9 +111,9 @@ This is the only snapshot regeneration allowed per the instructions (Test 6).
 ## Q7: Suggested commit message
 
 ```
-feat: BSA-101 NoSave blackboard + BSA-202 BlueprintStateTranslator + AssetId emit fix
+feat: BSA-101 NoScenario blackboard + BSA-202 BlueprintStateTranslator + AssetId emit fix
 
-- Mark BlueprintBlackboard{1024,4096,16384} [DataPolicy(DataPolicy.NoSave)]
+- Mark BlueprintBlackboard{1024,4096,16384} [DataPolicy(DataPolicy.NoScenario)]
 - Create BlueprintAssignmentDto (Fdp.Toolkit.Blueprints) + InitialBlueprintsIntent
   ([Transient], HrotComponentIds.InitialBlueprintsIntent = 187)
 - Fix CSharpEmitter to populate BlueprintDefinition.AssetId from asset.AssetId
@@ -171,7 +171,7 @@ Co-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>
 | Project | Pass | Fail | Pre-existing |
 |---------|------|------|--------------|
 | `Hrot.Blueprints.Tests` | 1683 | 8 | ✅ All compiler golden/PDB/ALC/perf (same as BATCH-01 baseline) |
-| `Hrot.SimHost.Tests` | 582 | 43 | ✅ Various — HillAttack, Checkpoint, SimHost init, etc. (none reference BlueprintStateTranslator or NoSave) |
+| `Hrot.SimHost.Tests` | 582 | 43 | ✅ Various — HillAttack, Checkpoint, SimHost init, etc. (none reference BlueprintStateTranslator or NoScenario) |
 | `Fdp.Toolkits.Tests` | 1839 | 33 | ✅ Navigation, Combat, ReplayBrowser, Gizmos (none related to blueprints) |
 
 **0 net-new failures in all touched projects.**

@@ -32,7 +32,7 @@ known-rot: none as of 2026-08-18; the BP1031 claims were repaired in Batch 82 (B
 | `BlueprintBlackboard{1024,4096,16384}` | ⭐ **Instance blueprint state — the allocatable one** | payload **928 / 3936 / 16368 B**, 4 slots | `BlueprintInstanceService.AttachToEntity` |
 | a managed heavy component | `[SharedAiHeavyAction]` managed state | unbounded (a class) | the action itself |
 
-⭐ **All four are `[DataPolicy(NoSave)]`.** Nothing here is serialised — inputs are **re-supplied at
+⭐ **All four are `[DataPolicy(NoScenario)]`.** Nothing here is serialised — inputs are **re-supplied at
 each activation**, which is why the tier question is about *addressing*, not persistence.
 
 ### The three things people get wrong

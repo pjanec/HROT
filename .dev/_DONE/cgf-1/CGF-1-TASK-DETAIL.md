@@ -694,7 +694,7 @@ Duplicating complex memory serialization logic would be a massive architectural 
 
 The architecture avoids code duplication by pushing the shared mechanics down into the core ECS memory layer, specifically through the `NativeChunkTable<T>` and the `IUnmanagedComponentTable` interface. Both the async flight recorder and the checkpointing system rely on the exact same zero-allocation primitives for memory extraction, such as `CopyChunkToBuffer`, `SyncDirtyChunks`, and `SanitizeChunk` (which explicitly zeros out dead entity slots in unmanaged memory to maximize LZ4 compression efficiency). 
 
-Furthermore, both pipelines respect the exact same declarative attribute system to filter out transient data. Whether you are recording or saving a checkpoint, the engine generates an optimized `BitMask256` from `[DataPolicy(DataPolicy.NoSave)]` or `[DataPolicy(DataPolicy.NoRecord)]` and applies it using the exact same bitwise filtering mechanisms to ensure temporary runtime states never hit the disk.
+Furthermore, both pipelines respect the exact same declarative attribute system to filter out transient data. Whether you are recording or saving a checkpoint, the engine generates an optimized `BitMask256` from `[DataPolicy(DataPolicy.NoScenario)]` or `[DataPolicy(DataPolicy.NoReplay)]` and applies it using the exact same bitwise filtering mechanisms to ensure temporary runtime states never hit the disk.
 
 Where the two mechanisms diverge is strictly in how they compose these shared blocks to satisfy their different performance profiles. The checkpointing mechanism needs to capture a single, perfect frame instantly, so it uses `EntityRepository.SyncFrom()` to perform a ~2 ms synchronous `memcpy` of the live chunk tables into an isolated, secondary `EntityRepository` living in RAM. It then passes this entire cloned repository to the background `CheckpointIOWorker` for compression, freeing the main thread immediately. 
 
@@ -860,7 +860,7 @@ By keeping the low-level chunk manipulation, sanitization, and policy masking co
      - `Action<object, JsonObject, IGuidResolver>` (inject: writes struct fields, patches
        guid strings back to `Entity` via `guidResolver.Resolve(guidStr)`).
    - No `Type.GetProperties()` or `PropertyInfo.GetValue` on the hot path.
-   - Components flagged `DataPolicy.NoSave` in the `ComponentTypeRegistry` are excluded
+   - Components flagged `DataPolicy.NoScenario` in the `ComponentTypeRegistry` are excluded
      from delegate compilation entirely (they will never appear in the consumption mask).
 5. Implement `ScenarioSerializerBuilder`:
    - `RegisterTranslator(IEntityScenarioTranslator translator)` stores the translator.
@@ -871,7 +871,7 @@ By keeping the low-level chunk manipulation, sanitization, and policy masking co
      - Pass 1: enumerate all entities **not** carrying `ScenarioIgnoreTag`; build
        `IGuidResolver` (save variant).
      - Pass 2: for each entity, run the consumption-mask pipeline:
-       1. `remainingMask = repo.GetSaveableMask(entity)` (already excludes `DataPolicy.NoSave`).
+       1. `remainingMask = repo.GetSaveableMask(entity)` (already excludes `DataPolicy.NoScenario`).
        2. For each registered translator: if `CanTranslate` → `Extract` → add named
           entries to entity DOM → `remainingMask.BitwiseAndNot(consumedMask)`.
        3. `FdpAutoSerializer` processes remaining set bits (with `[ScenarioIgnore]` skips
@@ -887,10 +887,10 @@ By keeping the low-level chunk manipulation, sanitization, and policy masking co
    public record ScenarioHeader(string SubsystemType, int SchemaVersion = 1);
    ```
 8. Add `[ScenarioIgnore]` attribute for field-level exclusion.
-   Add `ScenarioIgnoreTag` empty component (`[DataPolicy(DataPolicy.NoSave)]`) for
+   Add `ScenarioIgnoreTag` empty component (`[DataPolicy(DataPolicy.NoScenario)]`) for
    entity-level exclusion; queries chain `.Without<ScenarioIgnoreTag>()` to skip them.
 
-**Note on `[DataPolicy(DataPolicy.NoSave)]`:** This is an existing FDP mechanism;
+**Note on `[DataPolicy(DataPolicy.NoScenario)]`:** This is an existing FDP mechanism;
 `EntityRepository.GetSaveableMask()` already filters excluded components automatically.
 Do not reinvent it — just call `GetSaveableMask()` as the starting point.
 
@@ -907,7 +907,7 @@ Do not reinvent it — just call `GetSaveableMask()` as the starting point.
 **Success conditions (unit tests in `FDP.Toolkit.Scenario.Tests`):**
 - `ScenarioSerializerTests.RoundTrip_1to1_PreservesAllFields`:
   - Register no custom translators. Create 3 entities each with a `DummyPosition`
-    component (not `NoSave`). Serialize; deserialize into fresh repo.
+    component (not `NoScenario`). Serialize; deserialize into fresh repo.
   - Assert each entity's `DummyPosition` matches original via `FdpAutoSerializer`.
 - `ScenarioSerializerTests.NtoM_CustomTranslator_CompressesComponents`:
   - Register `MissileOrdnanceTranslator` (consumes `BallisticProjectile` + `PhysicsCollider`;
@@ -926,7 +926,7 @@ Do not reinvent it — just call `GetSaveableMask()` as the starting point.
   - Deserialize into fresh repo; assert resolved handle is valid and refers to an
     entity whose component data matches original Entity B.
 - `ScenarioSerializerTests.DataPolicyNoSave_ComponentExcluded`:
-  - Create an entity with `SimVelocity` (`[DataPolicy(DataPolicy.NoSave)]`).
+  - Create an entity with `SimVelocity` (`[DataPolicy(DataPolicy.NoScenario)]`).
   - Serialize; assert DOM has no `"SimVelocity"` key for that entity.
 - `ScenarioSerializerTests.ScenarioIgnore_FieldExcluded`:
   - Component `CachedSpeedComponent` has `float MaxSpeed` (saved) and

@@ -379,7 +379,7 @@ Managed event published when the operator selects a context-menu action.
 ### `Hrot.Common.Events.GlobalActionRequestedEvent`
 
 Unmanaged ECS event (blittable struct) published by `ContextActionIngressSystem`.
-Event ID: `8059`. Data policy: `NoRecord`.
+Event ID: `8059`. Data policy: `NoReplay`.
 
 | Member     | Type     | Description                                                              |
 |------------|----------|--------------------------------------------------------------------------|

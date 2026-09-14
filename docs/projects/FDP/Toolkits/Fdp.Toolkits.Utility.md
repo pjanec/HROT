@@ -501,7 +501,7 @@ UtilityAutoDiscovery.ScanAndRegister();
 
 ## UtilityResultBuffer
 
-**ECS component** (`ComponentId` = 151, `DataPolicy.NoSave`). Stores the ranked output of
+**ECS component** (`ComponentId` = 151, `DataPolicy.NoScenario`). Stores the ranked output of
 one `UtilityScorer.Evaluate` call.
 
 ```
@@ -544,7 +544,7 @@ to bypass the C# `[InlineArray]` defensive-copy trap.
 
 ### UtilityDebugFlags
 
-**ECS component** (`ComponentId` = 149, `DataPolicy.NoSave`). Per-entity opt-in flag:
+**ECS component** (`ComponentId` = 149, `DataPolicy.NoScenario`). Per-entity opt-in flag:
 
 ```csharp
 [ComponentId(UtilityApplicationComponentIds.UtilityDebugFlags)]
@@ -556,7 +556,7 @@ public struct UtilityDebugFlags
 
 ### UtilityTraceWorkingMemory1024
 
-**ECS component** (`ComponentId` = 150, `DataPolicy.NoSave`). 1024-byte unmanaged ring buffer
+**ECS component** (`ComponentId` = 150, `DataPolicy.NoScenario`). 1024-byte unmanaged ring buffer
 of 32-byte `UtilityTraceRecord` entries (32 records maximum).
 
 Each `UtilityTraceRecord` captures one step of the evaluation:
@@ -747,9 +747,9 @@ var (handle, score, valid) = UtilityBlueprintBridge.ReadRankedResult(view, self,
 
 | Component | ID | DataPolicy | Size | Purpose |
 |---|---|---|---|---|
-| `UtilityDebugFlags` | 149 | NoSave | 1 byte | Per-entity trace enable flag |
-| `UtilityTraceWorkingMemory1024` | 150 | NoSave | 1024 bytes | Scoring trace ring buffer (32 x 32-byte records) |
-| `UtilityResultBuffer` | 151 | NoSave | ~260 bytes | Ranked scoring output (16 entries + count + margin) |
+| `UtilityDebugFlags` | 149 | NoScenario | 1 byte | Per-entity trace enable flag |
+| `UtilityTraceWorkingMemory1024` | 150 | NoScenario | 1024 bytes | Scoring trace ring buffer (32 x 32-byte records) |
+| `UtilityResultBuffer` | 151 | NoScenario | ~260 bytes | Ranked scoring output (16 entries + count + margin) |
 
 ---
 

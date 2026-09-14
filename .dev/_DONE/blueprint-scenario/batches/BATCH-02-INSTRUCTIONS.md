@@ -1,7 +1,7 @@
-# BATCH-02: NoSave Blackboard Components + BlueprintStateTranslator (BSA-101 + BSA-202)
+# BATCH-02: NoScenario Blackboard Components + BlueprintStateTranslator (BSA-101 + BSA-202)
 
 **Batch Number:** BATCH-02  
-**Tasks:** BSA-101 (Mark blackboard components `NoSave`), BSA-202 (`BlueprintStateTranslator` + legacy black-hole + AssetId emit fix)  
+**Tasks:** BSA-101 (Mark blackboard components `NoScenario`), BSA-202 (`BlueprintStateTranslator` + legacy black-hole + AssetId emit fix)  
 **Phase:** Phase 1 (BSA-101) + Phase 2 (BSA-202)  
 **Estimated Effort:** 6-8 hours  
 **Priority:** HIGH  
@@ -12,10 +12,10 @@
 ## 📋 Onboarding & Workflow
 
 ### Developer Instructions
-Mark the three `BlueprintBlackboard*` ECS components as `[DataPolicy(DataPolicy.NoSave)]` so volatile runtime bytes stop leaking into scenario JSON. Then create the `BlueprintStateTranslator` that extracts/loads declarative blueprint assignments instead, with legacy-key black-holing so old scenarios don't crash. Also fix the compiler emitter to populate `BlueprintDefinition.AssetId` — it exists but is never set.
+Mark the three `BlueprintBlackboard*` ECS components as `[DataPolicy(DataPolicy.NoScenario)]` so volatile runtime bytes stop leaking into scenario JSON. Then create the `BlueprintStateTranslator` that extracts/loads declarative blueprint assignments instead, with legacy-key black-holing so old scenarios don't crash. Also fix the compiler emitter to populate `BlueprintDefinition.AssetId` — it exists but is never set.
 
 ### Required Reading (IN ORDER)
-1. **Design Document:** `.dev/_DONE/blueprint-scenario/BLUEPRINT-SCENARIO-DESIGN.md` — §2 (NoSave principle), §4 (static assignment / translator), §11 (AssetId fix)
+1. **Design Document:** `.dev/_DONE/blueprint-scenario/BLUEPRINT-SCENARIO-DESIGN.md` — §2 (NoScenario principle), §4 (static assignment / translator), §11 (AssetId fix)
 2. **Task Details:** `.dev/_DONE/blueprint-scenario/TASK-DETAIL.md` — BSA-101 and BSA-202 sections
 3. **Task Tracker:** `.dev/_DONE/blueprint-scenario/TASK-TRACKER.md`
 4. **Previous Review:** `.dev/_DONE/blueprint-scenario/reviews/BATCH-01-REVIEW.md`
@@ -57,9 +57,9 @@ Mark the three `BlueprintBlackboard*` ECS components as `[DataPolicy(DataPolicy.
 
 ## Context
 
-Today `BlueprintBlackboard{1024,4096,16384}` carry `[ComponentId]` but **no `[DataPolicy]`**, so they serialize into scenario JSON by default — this is the original bug. The fix is two-fold and must land together: (1) mark them `NoSave`, (2) provide a translator that black-holes the legacy keys so old scenarios load without error.
+Today `BlueprintBlackboard{1024,4096,16384}` carry `[ComponentId]` but **no `[DataPolicy]`**, so they serialize into scenario JSON by default — this is the original bug. The fix is two-fold and must land together: (1) mark them `NoScenario`, (2) provide a translator that black-holes the legacy keys so old scenarios load without error.
 
-**BSA-101 must not ship without BSA-202's legacy black-hole** — old scenarios with `BlueprintBlackboard*` keys would hit `FdpAutoSerializer` (which doesn't know about the now-`NoSave` components) and throw `InvalidOperationException`.
+**BSA-101 must not ship without BSA-202's legacy black-hole** — old scenarios with `BlueprintBlackboard*` keys would hit `FdpAutoSerializer` (which doesn't know about the now-`NoScenario` components) and throw `InvalidOperationException`.
 
 BSA-202 also **must fix the AssetId emit** first — the `Extract` method maps `BlueprintId` → `AssetId` via the registry, but `def.AssetId` is always `Guid.Empty` because the compiler never sets it (Design §11).
 
@@ -67,7 +67,7 @@ BSA-202 also **must fix the AssetId emit** first — the `Extract` method maps `
 
 ## 🎯 Batch Objectives
 
-1. Mark 3 blackboard components `[DataPolicy(DataPolicy.NoSave)]`
+1. Mark 3 blackboard components `[DataPolicy(DataPolicy.NoScenario)]`
 2. Create `BlueprintAssignmentDto` (simple DTO) + `InitialBlueprintsIntent` (transient managed component)
 3. Fix compiler emitter to populate `BlueprintDefinition.AssetId`
 4. Create `BlueprintStateTranslator : IEntityScenarioTranslator` (Extract assignments, Inject intent, black-hole legacy keys)
@@ -77,26 +77,26 @@ BSA-202 also **must fix the AssetId emit** first — the `Extract` method maps `
 
 ## ✅ Tasks
 
-### Task 1: Mark blackboard components `NoSave` (BSA-101)
+### Task 1: Mark blackboard components `NoScenario` (BSA-101)
 
 **Files:** 
 - `FDP/Toolkits/Fdp.Toolkits/Blueprints/Components/BlueprintBlackboard1024.cs` (EDIT)
 - `FDP/Toolkits/Fdp.Toolkits/Blueprints/Components/BlueprintBlackboard4096.cs` (EDIT)
 - `FDP/Toolkits/Fdp.Toolkits/Blueprints/Components/BlueprintBlackboard16384.cs` (EDIT)
 
-**Description:** Add `[DataPolicy(DataPolicy.NoSave)]` attribute to all three structs. Mirrors the pattern used on `Blackboard1024`, `BrainBlackboard`, etc. in `FDP/Toolkits/Fdp.Toolkits/Behavior/Components/BehaviorComponents.cs`.
+**Description:** Add `[DataPolicy(DataPolicy.NoScenario)]` attribute to all three structs. Mirrors the pattern used on `Blackboard1024`, `BrainBlackboard`, etc. in `FDP/Toolkits/Fdp.Toolkits/Behavior/Components/BehaviorComponents.cs`.
 
 ```csharp
 [StructLayout(LayoutKind.Sequential)]
 [ComponentId(GlobalComponentIds.BlueprintBlackboard1024)]
-[DataPolicy(DataPolicy.NoSave)]  // ← ADD THIS LINE
+[DataPolicy(DataPolicy.NoScenario)]  // ← ADD THIS LINE
 public unsafe struct BlueprintBlackboard1024
 ```
 
 Add `using Fdp.Core;` if not already present (the attribute lives in `Fdp.Core`).
 
 **Tests required:**
-- **Test 1 — Reflection:** Verify each of the three structs has the `DataPolicyAttribute` with value `DataPolicy.NoSave`. Use `typeof(BlueprintBlackboard1024).GetCustomAttribute<DataPolicyAttribute>()` and assert `.Policy == DataPolicy.NoSave`.
+- **Test 1 — Reflection:** Verify each of the three structs has the `DataPolicyAttribute` with value `DataPolicy.NoScenario`. Use `typeof(BlueprintBlackboard1024).GetCustomAttribute<DataPolicyAttribute>()` and assert `.Policy == DataPolicy.NoScenario`.
 - **Test 2 — Serialization exclusion:** Create an entity with `BlueprintBlackboard1024`, serialize via `ScenarioSerializer.SerializeEntity` (or the full serializer), assert the JSON does NOT contain the string `"BlueprintBlackboard1024"`.
 
 Note: Test 2 may fail until Task 4's translator is in place (the serializer might throw without a handler). That's fine — it verifies the coupling between BSA-101 and BSA-202. Just document it.
@@ -194,7 +194,7 @@ public sealed class BlueprintStateTranslator : IEntityScenarioTranslator
     private const string OutputKey = "BlueprintAssignments";
     
     // Legacy blackboard keys — claimed so FdpAutoSerializer doesn't try to
-    // deserialize old scenarios that still carry these after NoSave migration.
+    // deserialize old scenarios that still carry these after NoScenario migration.
     private static readonly string[] LegacyBlackboardKeys =
     {
         "BlueprintBlackboard1024",
@@ -308,7 +308,7 @@ All tests should use the real production path — no mocks for the unit under te
 ## 🎯 Success Criteria
 
 This batch is DONE when:
-- [ ] All three `BlueprintBlackboard*` structs have `[DataPolicy(DataPolicy.NoSave)]`
+- [ ] All three `BlueprintBlackboard*` structs have `[DataPolicy(DataPolicy.NoScenario)]`
 - [ ] `BlueprintAssignmentDto` created in `Fdp.Toolkit.Blueprints`
 - [ ] `InitialBlueprintsIntent` created with unique `ComponentId` + `[Transient]`
 - [ ] `CSharpEmitter.EmitInstanceRegistration` populates `AssetId`
@@ -323,7 +323,7 @@ This batch is DONE when:
 
 ## ⚠️ Common Pitfalls to Avoid
 
-1. **BSA-101 ALONE WILL BREAK SCENARIO LOAD.** Do not commit the `NoSave` attributes without the translator. They are a single commit.
+1. **BSA-101 ALONE WILL BREAK SCENARIO LOAD.** Do not commit the `NoScenario` attributes without the translator. They are a single commit.
 2. **`ComponentId` collision.** When adding `InitialBlueprintsIntent` to `GlobalComponentIds`, pick a value that doesn't collide. Search the file for the highest used value.
 3. **Serializer routing.** Verify that `GetOutputDomKeys()` is sufficient for the deserialization routing. If `CanTranslate()` is also checked during inject, the legacy keys won't route correctly. Read `ScenarioSerializer.cs` around line 389 to confirm.
 4. **`HrotScenarioSerializerFactory.Build()` callers.** You must find and update all call sites. Use grep: `HrotScenarioSerializerFactory\.Build`.
@@ -350,7 +350,7 @@ This batch is DONE when:
 - **Task Details:** `.dev/_DONE/blueprint-scenario/TASK-DETAIL.md` — BSA-101 and BSA-202
 - **Pattern — black-hole translator:** `Hrot/Subsystems/Hrot.SimHost/Serializers/Blackboard1024Translator.cs`
 - **Pattern — intent component:** `Hrot/Engine/Hrot.Common/Serializers/InitialPassengersIntent.cs`
-- **Pattern — NoSave components:** `FDP/Toolkits/Fdp.Toolkits/Behavior/Components/BehaviorComponents.cs` (line 58-60, `BrainBlackboard`)
+- **Pattern — NoScenario components:** `FDP/Toolkits/Fdp.Toolkits/Behavior/Components/BehaviorComponents.cs` (line 58-60, `BrainBlackboard`)
 - **Interface:** `FDP/Toolkits/Fdp.Toolkits/Scenario/IEntityScenarioTranslator.cs`
 - **Serializer factory:** `Hrot/Subsystems/Hrot.SimHost/Serializers/HrotScenarioSerializerFactory.cs`
 - **Compiler emitter:** `Hrot/Subsystems/Blueprints/Hrot.Blueprints.Compiler/Compiler/Emit/CSharpEmitter.cs`

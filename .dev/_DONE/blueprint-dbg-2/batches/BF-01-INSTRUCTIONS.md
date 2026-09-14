@@ -21,7 +21,7 @@ Ensure all component types are registered before playback.'
 **snapshotable** component types (`GetSnapshotableMask(false)` → `ComponentTypeRegistry.GetSnapshotableTypeIds()`).
 But the per-node snapshot is a full Flight Recorder **keyframe** (`SubTickSnapshotRecorder.RecordNodeEntry` →
 `RecorderSystem.RecordKeyframe` → `RecordAllChunks`), which captures **recordable** types
-(`GetRecordableMask()`). A component marked `[DataPolicy(DataPolicy.NoSnapshot)]` is **recordable but NOT
+(`GetRecordableMask()`). A component marked `[DataPolicy(DataPolicy.NoPreview)]` is **recordable but NOT
 snapshotable** — so the keyframe contains it (e.g. type 162) but `SyncFrom` never registered it in the
 scratch → `PlaybackSystem.ApplyChunkData` throws.
 
@@ -36,7 +36,7 @@ FlightRecorder code; do NOT change the snapshotable/recordable masks.)
 ## Test (prescribed — assert the discriminating behavior, do not invent your own)
 Add ONE regression test (new file `Hrot/Subsystems/Blueprints/Hrot.Blueprints.Tests/Debug/SubTickRestoreRegistrationTests.cs`) that **reproduces the recordable-but-not-snapshotable mismatch** at the recorder/repo level (no editor/ImGui needed):
 
-1. Define a test component marked `[ComponentId(<unused id>)] [DataPolicy(DataPolicy.NoSnapshot)] struct NoSnapshotProbe { public int V; }` — this is recordable but excluded from the snapshotable mask (mirrors type 162).
+1. Define a test component marked `[ComponentId(<unused id>)] [DataPolicy(DataPolicy.NoPreview)] struct NoSnapshotProbe { public int V; }` — this is recordable but excluded from the snapshotable mask (mirrors type 162).
 2. Build an `EntityRepository`, register `NoSnapshotProbe` (+ a normal int component), create an entity, set both component values.
 3. `var rec = new SubTickSnapshotRecorder(); rec.BeginTick(repo); rec.RecordNodeEntry(repo, "n0");` (the keyframe now includes `NoSnapshotProbe`).
 4. **Reproduce the bug:** a scratch seeded with the OLD seeding — `var bad = new EntityRepository(); bad.SyncFrom(repo);` then `Assert.Throws<InvalidOperationException>(() => rec.RestoreTo(0, bad));` (proves the default mask omits the recordable-non-snapshotable type).

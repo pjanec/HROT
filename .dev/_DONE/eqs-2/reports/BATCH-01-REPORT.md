@@ -23,7 +23,7 @@
   - `GetSpanRO()` via `MemoryMarshal.CreateReadOnlySpan(...)`
   - `IsReady` property (`LastUpdateTick > 0`)
   - `GetTop()` returning `ref readonly EqsResult` at index 0
-  - `[DataPolicy(DataPolicy.NoSave)]` applied (transient Brain-side cache)
+  - `[DataPolicy(DataPolicy.NoScenario)]` applied (transient Brain-side cache)
 - `EqsSensor` — `[ComponentId(GlobalComponentIds.EqsSensor)]` with `BlueprintId` (uint),
   `Epoch` (uint), `SearchRadius` (float), `FactionFilter` (uint), `ThreatThreshold` (float),
   `PublishPolicy` (byte), `Priority` (byte).

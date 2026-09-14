@@ -12,7 +12,7 @@ builds 0 errors; 0 net-new test failures in touched projects.
 
 **Goal:** stop persisting volatile blackboard bytes, and establish one run-mode-agnostic attach/detach seam in core.
 
-- [x] **BSA-101** Mark `BlueprintBlackboard{1024,4096,16384}` `[DataPolicy(NoSave)]` [details](./TASK-DETAIL.md#bsa-101-mark-blackboard-components-nosave) — *land with BSA-202*
+- [x] **BSA-101** Mark `BlueprintBlackboard{1024,4096,16384}` `[DataPolicy(NoScenario)]` [details](./TASK-DETAIL.md#bsa-101-mark-blackboard-components-nosave) — *land with BSA-202*
 - [x] **BSA-102** Unified attach/detach seam in core, keyed by `BlueprintId`; editor service → forwarder [details](./TASK-DETAIL.md#bsa-102-unified-attachdetach-seam-in-core-keyed-by-blueprintid)
 
 ## Phase 2 — Static scenario assignment (CGF genesis)
