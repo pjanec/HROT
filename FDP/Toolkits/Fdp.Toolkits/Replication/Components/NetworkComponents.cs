@@ -48,6 +48,18 @@ namespace Fdp.Toolkit.Replication.Components
     }
 
     /// <summary>
+    /// Transient tag placed on a REMOTE ghost whose <see cref="EntityMaster"/> arrived with the
+    /// reliable-init <c>WaitForAcks</c> flag set. It marks the ghost <i>report-on-Active</i>: when
+    /// the ghost's local construction completes (<c>Constructing → Active</c>), the peer publishes
+    /// an <c>EntityLifecycleStatusDescriptor</c> so the creator can release its barrier
+    /// (docs/DESIGN_Cross_Node_Construction_Barrier.md §2/§3a.2). Only reliable remote ghosts carry
+    /// it — never a locally-owned entity or a fast-mode ghost.
+    /// </summary>
+    [ComponentId(GlobalComponentIds.ReportLifecycleOnActive)]
+    [DataPolicy(DataPolicy.Transient)]
+    public struct ReportLifecycleOnActive { }
+
+    /// <summary>
     /// Tag component to force immediate network publication of owned descriptors,
     /// bypassing normal change detection. Used for ownership transfer confirmations.
     /// </summary>

@@ -339,7 +339,10 @@
         /// <summary><c>NetworkAckPeerSet</c> â€” managed sibling of PendingNetworkAck carrying the immutable snapshot of peer node ids the creator must collect Active acks from (reliable-init barrier). See DESIGN_Cross_Node_Construction_Barrier.md §3a.3.</summary>
         public const int NetworkAckPeerSet       = 145;
 
-        // IDs 146â€“159 are reserved for future ModuleHost network components.
+        /// <summary><c>ReportLifecycleOnActive</c> â€” transient tag on a reliable remote ghost: publish its lifecycle status when it reaches Active (reliable-init barrier peer side). See DESIGN_Cross_Node_Construction_Barrier.md §3a.2.</summary>
+        public const int ReportLifecycleOnActive = 146;
+
+        // IDs 147â€“159 are reserved for future ModuleHost network components.
 
         // â”€â”€ Application-level Descriptors (160â€“199) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
         // These IDs are now declared in project specific ComponentIds.
