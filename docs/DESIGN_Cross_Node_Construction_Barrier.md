@@ -9,7 +9,9 @@ current-answer: §1 IS THE DESIGN — the three diagrams (1.1 sequence, 1.2 clas
   §2 says only WHY — incl. §2a late-joiner durability, §2b node-id consistency, §2c generic NED/BDC
   protocol (all user hard-requirements `2026-09-15`). §3 is NEW vs EXISTS vs CHANGE. §4 the receiver gate
   (reuse). §5 the prerequisites and their order (P1–P3 BUILT). §6 acceptance.
-known-rot: nothing yet — new document.
+known-rot: §2a/§3 name the DDS attrs as `[DdsStruct]`/`[DdsKey]`/`[DdsQos]` — SUPERSEDED by §3a.1 (the real
+  convention is a `partial struct` with `[DdsTopic]`+`[DdsQos]`+`[DdsKey,DdsId]`; no `[DdsStruct]` exists here).
+  §2 called `EntityMaster.Flags` `ulong` — it is `int` (fixed inline). Both from the Step-0 gate (`2026-09-15`).
 related-designs:
   - docs/DESIGN_Entity_Genesis_End_To_End.md — the landing page; this design is stage ⑨'s reliable variant. It owns the end-to-end sequence; this owns the cross-node WAIT.
   - docs/designs/others/DESIGN-NetworkSpawning.md — owns ReliableInitType / PendingNetworkAck (the dormant handshake this design revives and reshapes).
@@ -200,7 +202,9 @@ graph TD
   ⛔⛔ **BUT the ELIGIBILITY — "which entities publish at all" — is NOT sourced on the peer today.** Reliability
   *(`ReliableInitType`)* is a CREATE-time fact that lives only on the creator *(`SpawnEntityCommand.InitType`,
   the creator's `PendingNetworkAck`)*; it never travels. `EntityMaster` *(the wire descriptor that makes the
-  peer's ghost)* has a general `ulong Flags` field, but the sole egress producer writes **`Flags = 0`**
+  peer's ghost)* has a general `int Flags` field *(⚠ measured `2026-09-15`: `int`, not `ulong` as an earlier
+  draft said — `EntityMasterTopic.cs:29` `[DdsId(3)] public int Flags`; a reserved bit fits fine)*, but the
+  sole egress producer writes **`Flags = 0`**
   *(`EntityMasterEgressTranslator.cs:103`)*. ⇒ **the reliable bit must ride `EntityMaster.Flags`** *(exactly
   the design-talk's `Flags = WaitForAcks`)*: the peer reads it at ghost creation, tags the ghost
   *"report-on-Active"*, and the producer publishes for tagged, not-yet-reported entities. **This wire-plumbing
@@ -216,8 +220,9 @@ the last sample)* and build a ghost, **with no idea the entity is still mid-init
 "half-baked entity" the user forbids.
 
 ⇒ ⭐⭐⭐ **`EntityLifecycleStatusDescriptor` must be a FIRST-CLASS DURABLE DESCRIPTOR, not an event.** Measured
-today it is a plain Cyclone topic type with **no `[DdsStruct]`, no `[DdsKey]`, no `[DdsQos]`** — so this is real
-work, not a flag flip.
+today it is a plain `class` with `{get;set;}` properties and **no DDS attributes at all** — so this is real
+work, not a flag flip. ⭐ **The exact converted shape (a `partial struct` with `[DdsTopic]`+`[DdsQos]`+`[DdsKey,
+DdsId]`) is in §3a.1** — the attribute names in the table just below are shorthand, superseded by §3a.1.
 
 | what it must become | why |
 |---|---|
@@ -260,7 +265,7 @@ when it owns"*.
 ### 2c. ⭐ GENERIC NED/BDC PROTOCOL — reliable init leaks no Hrot specifics *(user check, `2026-09-15`; confirmed viable)*
 Both new wire pieces sit in the **generic** layer and carry no engine-specific meaning, so any external BDC/NED
 host can implement them:
-- **The reliable bit rides `EntityMaster.Flags`** *(`ulong`, already documented "entity type specific flags")* —
+- **The reliable bit rides `EntityMaster.Flags`** *(`int`, already documented "entity flags and metadata")* —
   one reserved bit `WaitForAcks`. A host that ignores it simply behaves as fast-mode; the field already exists on
   the generic descriptor.
 - **`EntityLifecycleStatusDescriptor` is already in the generic `Fdp.Network.Cyclone` layer** and its
@@ -296,6 +301,87 @@ implements neither is a valid fast-mode-only host. *(Spec edit is its own small 
 | `EntityMaster.Flags` + `EntityMasterEgressTranslator` | ⚠ CHANGE — carry the reliable bit on the wire *(the egress writes `Flags=0` today)* so the peer knows to report-on-`Active`; the peer tags its ghost from it. **Dependency of piece A** |
 | heartbeat/roster role mask | ⚠ CHANGE — P1/P2/P3 *(§5)* |
 | `INetworkTopology.GetExpectedPeers(tkbType)` | ⛔ RETIRE as the peer source — type-only, no prod impl |
+
+## 3a. 🔧 SLICE A — AS-VERIFIED BUILDABLE DETAIL *(H-ui, `2026-09-15`, Step-0 verified)*
+> The Step-0 gate (V1–V9) confirmed every seam. This section pins the exact type shapes the build uses and
+> **supersedes** two approximations in §2a/§3 above; the superseded text is marked inline.
+
+### 3a.1 The durable descriptor — real DDS convention *(supersedes §2a's `[DdsStruct]` shorthand)*
+⛔ **There is NO `[DdsStruct]` attribute in this codebase.** Measured on the sibling `EntityMasterTopic.cs`:
+a Cyclone topic is a **`public partial struct`** with `[DdsTopic(name)]` + a type-level `[DdsQos(…)]`, and
+`[DdsKey, DdsId(n)]` on each field. `EntityLifecycleStatusDescriptor` today is a **`class` with `{get;set;}`
+properties and zero DDS attributes** (V1) — A1 **converts it to a struct with fields**. Zero refs (V1) → the
+conversion breaks nothing.
+
+```csharp
+[DdsTopic("SST_EntityLifecycleStatus")]
+[DdsQos(Reliability = DdsReliability.Reliable,
+        Durability  = DdsDurability.TransientLocal,   // ⭐ retained → late joiners (§2a)
+        HistoryKind = DdsHistoryKind.KeepLast,
+        HistoryDepth = 1)]                             // one retained sample per instance
+public partial struct EntityLifecycleStatusDescriptor
+{
+    [DdsKey, DdsId(0)] public long EntityId;   // network entity id
+    [DdsKey, DdsId(1)] public int  NodeId;     // §2b: the OwnershipUpdate node-id, NOT the roster id
+    [DdsId(2)]         public int  StateValue; // EntityLifecycle as int — see note
+    [DdsId(3)]         public long Timestamp;  // WallTicksUtc / GlobalVersion
+}
+```
+⭐ **`State` travels as `int StateValue`, cast to/from `EntityLifecycle`** — the same wire-precedent CE-282
+(role propagation) set for `RolesMask`: keep the DDS codegen free of a cross-assembly enum dependency. The
+composite `[DdsKey]` on `(EntityId, NodeId)` gives one retained instance per (entity, reporting node), exactly
+as §2a requires.
+
+### 3a.2 The reliable bit on `EntityMaster.Flags` *(the field is `int` — V2)*
+```csharp
+// Fdp.Network.Cyclone (generic layer) — one reserved bit, host-ignorable.
+[Flags] public enum EntityMasterFlags { None = 0, WaitForAcks = 1 << 0 }
+```
+- **Egress (A2):** `EntityMasterEgressTranslator.cs:103` stops writing `Flags = 0`; it writes
+  `WaitForAcks` when the source entity's `PendingNetworkAck.ExpectedType != None`.
+- **Peer read (A2):** at ghost creation the peer reads `(EntityMasterFlags)master.Flags`; if `WaitForAcks`
+  is set it tags the ghost *report-on-Active* (a transient tag component, e.g. `ReportLifecycleOnActive`).
+
+### 3a.3 `ExpectedAckPeers` carrier *(supersedes §1.2's `int[]` on the struct)*
+`PendingNetworkAck` is a **transient struct component** (`NetworkComponents.cs:27`). Rather than a mutable
+`int[]` that shrinks (awkward in a blittable component), the component carries an **immutable snapshot** and
+the gateway keeps the shrinking set in its own `_pendingPeerAcks` dict (which already exists):
+```csharp
+public struct PendingNetworkAck {
+    public ReliableInitType ExpectedType;
+    public PeerSetHandle     ExpectedAckPeers; // A5: snapshot from NodeRoster.NodesWithRole(mask) minus local
+}
+```
+⚠ **Component-array caveat:** ECS transient components are ideally blittable; an `int[]` is a managed ref. A5
+stamps the peer set via a **side table keyed by the creator's local spawn** (the same shape the gateway's
+`_pendingPeerAcks` uses) OR a small fixed inline buffer — the build picks the one that keeps `PendingNetworkAck`
+blittable; the peer-set VALUE is what matters, not its carrier. Documented as an open build choice, resolved in
+the report.
+
+### 3a.4 The creator waiter reslot *(A6 — retire `INetworkTopology` as the peer source)*
+`NetworkGatewaySystem` already has the whole pending-set + timeout + destruction-cleanup machine
+(`_pendingPeerAcks`, `ReceiveLifecycleStatus`, `CheckPendingAckTimeouts`). Today it seeds the set from
+`_topology.GetExpectedPeers((long)ExpectedType)` (`:125`). ⛔ `INetworkTopology` has **no production impl**
+(§0). A6 seeds `peerSet` from `pendingInfo.ExpectedAckPeers` (§3a.3) instead; the reactive
+`ReceiveLifecycleStatus`, the timeout and the cleanup are unchanged. The ctor drops the `INetworkTopology`
+dependency (or accepts `null` in production).
+
+### 3a.5 `DeferredConstructionParticipant` base (B) — the shared shape
+The gateway hand-rolls: register-with-ELM · on `ConstructionOrder` decide ack-now/defer · hold a pending set ·
+ack on empty-or-timeout · `DestructionAck` cleanup. The base lifts exactly that; two completion modes:
+| mode | who | how it becomes ready |
+|---|---|---|
+| **reactive** | `NetworkGatewaySystem` | external `ReceiveLifecycleStatus` drops peers from the set |
+| **poll** | synthetic test participant (slice A) · navmesh/model (piece C) | base calls `bool TryComplete(entity)` each frame; ack when true |
+Base owns: `RegisterModule`, `_pendingStartFrame` timeout, `DestructionOrder` cleanup + `DestructionAck`, the
+`AcknowledgeConstruction` plumbing. Subclass owns: seed-the-pending-state on construction + the ready signal
+(reactive override OR `TryComplete`). ⭐ Slice A proves the base with a **synthetic poll participant**; piece C
+adds the real navmesh/model subclasses without copying the machine (ruling 9).
+
+### 3a.6 `RegisterRequirement` — zero callers *(V6 correction)*
+`EntityLifecycleModule.RegisterRequirement(long tkbType, int moduleId):158` has **zero callers, not "tests
+only"** as the handoff said. It is the per-type participant-registration seam the poll participants (synthetic
+here, navmesh/model in C) will be its first callers of — dormant-by-design, revived here.
 
 ## 4. ✅ THE RECEIVER-SIDE GATE IS REUSE
 The peer's "is my data ready?" gate already exists: `GhostPromotionSystem`'s mandatory-components gate *(HARD,
