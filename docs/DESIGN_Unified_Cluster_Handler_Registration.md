@@ -99,11 +99,17 @@ graph TD
 
 ## 6. ⭐ LAYER A — READY-TO-BUILD design
 
-**Where it lives:** a new static `ClusterHandlerRegistrar` in the shared composition assembly
-`Hrot.Common` (beside `SharedApplicationBootstrapper`, `Hrot/Engine/Hrot.Common/Infrastructure/`) — reachable
-from every host (SimHost, IG, CGF, ExCon, Editor). It takes a **deps record** and one `ClusterSlave`, and
-registers the full set deterministically. Each host builds its deps and calls it once, replacing its bespoke
-`RegisterHandler` sequence.
+**Where it lives — CORRECTED `2026-09-15` (layering verified):** a new static `ClusterHandlerRegistrar` in
+**`Hrot.Presentation`** (NOT `Hrot.Common`). Measured: no assembly sits above all five hosts and reaches all
+handlers. `Hrot.Presentation` is referenced by all five hosts AND reaches `Fdp.Toolkits`/`Fdp.Core`/`Hrot.Core`,
+so it can CONSTRUCT the 7 `Fdp.Toolkits` `Reference*` handlers + its own `HrotScenarioSaveHandler`/`HrotEditLoadHandler`.
+⛔ It CANNOT reach **four** handlers (backward refs): `ExConScenarioSaveHandler` (Hrot.ExCon),
+`TkbLoadClusterStateHandler` + `HrotScenarioLoadHandler` (Hrot.SimHost), `DiagnosticsDumpClusterOpHandler`
+(Hrot.Common); nor deps `EcsRecordReplayController` (Hrot.SimHost) / `ExConObserverState` (Hrot.ExCon).
+⇒ **those four are passed in as PRE-BUILT `IClusterStateHandler?` instances**; the registrar places them in the
+canonical order. The unification is of the SELECTION + ORDER (one code path decides the set and its order for
+every host) — a few host-specific handler INSTANCES remain host-constructed inputs. (A future cleanup could
+move the SimHost/Common handlers down into a shared assembly to shrink the pass-in set; out of scope for A.)
 
 **The discriminant is dep-presence, which IS the node's role** — an ECS host supplies `World`+`Serializer`; the
 observer host (ExCon) supplies `ObserverState` and no `World`. `NodeRole` is passed for the genuinely
@@ -192,7 +198,27 @@ sequenceDiagram
 ```
 *Caption: the only per-host variation is the deps a host can supply; the registrar turns deps into the same set the same way everywhere — the class diagram shows there is exactly ONE registrar, the sequence shows every host funnels through it.*
 
-### 6.4 Build steps (repoint one host at a time, gate each)
+### 6.3a ⚠ FEASIBILITY FINDING `2026-09-15` — a full "one registrar constructs everything" is NOT cheap
+
+Measured against SimHost's real `NodeBootstrapper.BuildOrchestration` (`:163-352`): the handlers are not just in
+unreachable assemblies (§6 "Where it lives"), they are **constructed from deeply host-specific inputs**. E.g.
+`ReferenceReplayLoadHandler` (`:247`) takes SimHost's `inputGroup/simGroup/postSimGroup/lifecycleGroup`
+scheduling groups, `kernel.Suspend/ResumeGlobalTimePush` callbacks, the ELM's `OnWorldReplaced`, and a
+ghost-bypass toggle — SimHost-only types the registrar cannot see. ⇒ a registrar that constructs the FULL set
+would need most handlers passed in as pre-built instances, which dilutes the "unify construction" goal to
+"unify ordering." ⇒ **two scopes:**
+
+| scope | what it unifies | cost / risk | fixes the T-B bug? |
+|---|---|---|---|
+| ⭐ **A1 (narrow, LEAN)** — a shared `SerializeLocalRegistrar` helper each host calls with its **archive** + **scenario-save** handler instances | the ORDER + payload-aware SELECTION of the two `SerializeLocal`-family handlers (the ones that actually diverge/shadow), in one place | small, low risk; ~1 helper + 5 two-line host edits + the `CanHandle` override (Layer C folds in) | ✅ yes — this IS the divergence that broke T-B |
+| **A2 (full)** — move `TkbLoad/HrotScenarioLoad` (Hrot.SimHost), `DiagnosticsDump` (Hrot.Common), and the reply/live/preview handlers' host deps into shared assemblies, then one mega-registrar | all handler registration | large, cross-assembly, high regression risk; the load handlers were **not** buggy | ✅ but with far more blast radius |
+
+⭐⭐ **LEAN: A1.** It unifies exactly the part that diverged and broke (`SerializeLocal` save placement/order/shadowing)
+and makes every ECS host place its save handler the same way, at low risk. A2's extra uniformity has low marginal
+value (load handlers weren't the problem) and high cost. **Pending user confirm before building** — the two scopes
+build very different amounts of code.
+
+### 6.4 Build steps (A2 form — see 6.3a; A1 is a strict subset)
 1. Add `ClusterHandlerRegistrar` + `ClusterHandlerDeps` in `Hrot.Common`; unit-test its output per deps shape (ECS-with-serializer, observer, load-only).
 2. Repoint **SimHost** first (`NodeBootstrapper.BuildOrchestration` → build deps + call registrar; **supply a real `Serializer`** so the save handler is present — the ruled fix). Gate: SimHost boots, `SimHost` registration test asserts the save handler is present.
 3. Repoint IG, CGF, ExCon, Editor in turn; rewrite `CgfHandlerRegistrationTests`/`ExConHandlerRegistrationTests` to assert the registrar's output.
