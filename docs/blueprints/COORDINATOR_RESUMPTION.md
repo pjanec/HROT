@@ -5,7 +5,9 @@ doc-type: coordinator resumption snapshot — point-in-time state for picking up
   acting, never quote it as settled truth (per "THE LEDGER MAY NOT ASSERT WHAT THE CODE IS").
 updated: 2026-09-15
 current-answer: the whole file — read it, then re-derive the live state with the commands in §0.
-  §3 HEAD is now `ff8ebbb6` (UI merge: Stage E NetworkOwnership merge + CE-276 transfer + CE-279).
+  §3 HEAD is now `52658973` (UI merge: CE-282 node-role propagation P1-P3 + CE-278 legacy save-op retirement).
+  ⭐ NEW WORKFLOW: H - ui (session_01HAuqWX…) is the DEV/implementation session; this session (H - coord)
+  frames + dispatches + verifies/merges. Dispatch by firing a message into H-ui; it reports back here.
 -->
 # COORDINATOR RESUMPTION — `2026-09-15`
 
@@ -50,7 +52,15 @@ parity)* = later, gated on the **UXI-30** engine-authority design *(the ONE genu
 | ⭐⭐ **Axis-B cross-node change-request egress under R-134** *(FDP-internal EntityAttributeChange + EntityWriteRouter in Fdp.Toolkits; egress translator SOLE DDS boundary; drag gizmo on same router; CE-018/035/036; merged `2026-08-26`)* | AX-005..010 · CE-018/035/036 | `DESIGN_Cgf_AxisB_Rotation_Slice.md` §11-§12 *(AS-BUILT)* |
 | ⭐⭐⭐ **AX-009 RESOLVED + Q59 attribute-vocabulary single source** *(SimHost→IG replication fixed via NetworkTransform-shadow-at-birth ⇒ `--mode all` round-trip 3/3 GREEN; one attribute declaration + derived edge table + truthful schema; R-134 overclaim corrected; JSON/binary apply paths consistent; apply stack moved out of the DDS assembly; merged `45d1da666`)* | AX-009..024 · AQ59 | `DESIGN_Cgf_AxisB_Rotation_Slice.md` §13-§16 *(AS-BUILT)* · `Architect_Question_59` |
 
-## 3. ⭐ STATE — coordinator HEAD `ff8ebbb6` *(snapshot `2026-09-15`; confirm by git)*
+## 3. ⭐ STATE — coordinator HEAD `52658973` *(snapshot `2026-09-15`; confirm by git)*
+> ✅✅✅ **UI LANE — CE-282 NODE-ROLE PROPAGATION (P1–P3) + CE-278 LEGACY SAVE-OP RETIREMENT, MERGED `2026-09-15`** *(merge `52658973`; first task dispatched to H-ui as the dev session; 3-way merge, git auto-merged the design doc — my §2/§3 data-source edits + their §5 as-built sat in different sections, zero conflicts; **all 4 hosts build 0/0** on the merged tree; rulings **34/34**, design-digest OK across 67, tracker OK)*. **Arcs:**
+> - **`CE-282` — NODE-ROLE CLUSTER PROPAGATION (P1–P3)**, the first buildable slice of the cross-node construction barrier. The `NodeRole` **mask** now travels on `NodeHeartbeatEvent.Roles` → `NodeHealthProfile.Roles` (orchestrator roster) + `NodeCapability`, with a new `NodeRoster.NodesWithRole(NodeRole)` query. ⭐ The **lossy `NedNetworkFactory.MapSubsystemNameToRole` switch is DELETED** (seam law) + a latent `HrotNodeBuilder.WithRole` role-drop fixed. Spot-verified all three; multi-role masks preserved end-to-end. Gate contract: Orchestrator.Tests 150/3 (3 reds pre-existing on base `b7dadd62`, Prefetch/StorageGateway, stash-proven), NodeRosterTests ×2 new, ClusterSlaveHeartbeatTests 1 (multi-role survives). 📄 `DESIGN_Cross_Node_Construction_Barrier.md` §5 "P1–P3 AS-BUILT".
+> - **`CE-278` — LEGACY `SaveScenario=2` OP RETIRED** (done earlier this H-ui session at the user's direction, rode in on the same branch): op renamed `SaveScenarioJson(17) → SaveScenario`, exercise sidecar re-homed onto Export. 📄 `DESIGN_SaveScenario_Legacy_Op_Retirement.md`.
+> - ⚠ **Minor stale-doc residue** (not blocking): `NodeRole.cs:93` + `StrideNodeShell.cs` comments still name the now-deleted `MapSubsystemNameToRole` — flag to H-ui on the next touch.
+>
+> **⛔ NEXT on the cross-node barrier** (design `DESIGN_Cross_Node_Construction_Barrier.md`): P1–P3 done ⇒ pieces A–C buildable, still gated on the user's fast/reliable nod. Piece A now also depends on carrying the reliable bit on `EntityMaster.Flags` (egress writes `Flags=0` today) — recorded in the design §2/§3.
+>
+### ⛔ HISTORY — §3 snapshot `ff8ebbb6` *(Stage E + transfer + unified save, `2026-09-15`)*
 > ✅✅✅ **UI LANE — STAGE E MERGE + TRANSFER INITIATION + UNIFIED SAVE REGISTRATION, MERGED `2026-09-15`** *(merge `ff8ebbb6`; **18-commit** continuation `CE-276..CE-281`; clean `--no-ff`, zero conflicts; **all 4 hosts build 0/0** on the merged tree; rulings **34/34** verify — 6 re-read WARNs; design-digest OK across 66 designs; tracker-counts OK)*. ⭐ **This run closed the two items I flagged deferred last merge.** **Arcs:**
 > - **`CE-281` STAGE E — `NetworkOwnership` RETIRED**, merged into `NetworkAuthority` (the ruling-9 duplicate is gone). Spot-verified: `struct NetworkOwnership` deleted; the 18 residual mentions are all comments / the RESERVED component-id-140 constant (kept so the id is never recycled) / repointed extension helpers — zero live type refs. Builds 0/0 across all 8 affected projects.
 > - **`CE-276` ENTITY OWNERSHIP TRANSFER — INITIATION side built** (descriptor-level, NED-initiated) + the receive side unified so **every NED host can receive an `EntityMaster` transfer**; ai-debug HTTP surface to drive+verify; live `--mode all` proof. 📄 `DESIGN_Entity_Ownership_Transfer.md`.
