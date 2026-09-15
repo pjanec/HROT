@@ -874,7 +874,6 @@ namespace Hrot.SimHost.Integration.Tests.Infrastructure
 
             // â”€â”€ Network components â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
             world.RegisterComponent<NetworkIdentity>();
-            world.RegisterComponent<NetworkOwnership>();
             world.RegisterComponent<NetworkAuthority>();
             world.RegisterComponent<TkbIdentity>();
             world.RegisterComponent<GhostStateTracker>();

@@ -187,5 +187,10 @@ namespace Fdp.Toolkit.Replication.Services
 
         /// <summary>⭐ The component ids any translator declared — for coverage rails and diagnostics.</summary>
         public IEnumerable<int> CoveredComponentIds => _componentIdToDescriptors.Keys;
+
+        /// <summary>⭐ CE-276 — every registered descriptor ordinal (the full set an entity could carry). Used
+        /// by <c>OwnershipTransferInitiationSystem</c> to resolve <c>AllOwnedByThisNode</c> and by the ai-debug
+        /// <c>GET /entities/{id}/ownership</c> endpoint to name an entity's descriptors.</summary>
+        public IEnumerable<long> RegisteredDescriptors => _descriptorToComponentIds.Keys;
     }
 }

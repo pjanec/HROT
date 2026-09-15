@@ -85,6 +85,11 @@ public sealed class NedReplicationModule : INedReplicationModule
     // SetAuthority(entity, exactComponentId, bool) without try/catch.
     private readonly DescriptorOwnershipMap _descriptorOwnershipMap = new();
 
+    /// <summary>⭐ CE-276 — the node's descriptor↔component ownership map (populated from the registered
+    /// translators). Exposed so the ai-debug HTTP surface can name an entity's descriptors and resolve a
+    /// transfer scope. Read-only handle; the module owns its lifetime.</summary>
+    public DescriptorOwnershipMap DescriptorOwnershipMap => _descriptorOwnershipMap;
+
     // ── Pre-genesis routing translators (Brain egress / Muscle ingress) ────────
     private readonly DeferredTakeOwnershipEgressTranslator?  _dtoEgress;
     private readonly DeferredTakeOwnershipIngressTranslator? _dtoIngress;
@@ -358,9 +363,8 @@ public sealed class NedReplicationModule : INedReplicationModule
                         new INetworkTranslator[] { ownershipUpdate }));
             }
 
-            // IG ghost lifecycle: ownership tracking + promotion + sub-entity cleanup.
-            // These replace the legacy ReplicationLogicModule for pure IG nodes.
-            registry.RegisterSystem(new OwnershipIngressSystem(_entityMap, _localNodeId, _descriptorOwnershipMap));
+            // IG ghost lifecycle: sub-entity cleanup. (OwnershipIngressSystem is now registered
+            // role-independently below — CE-276 — so it is not registered here.)
             registry.RegisterSystem(new SubEntityCleanupSystem());
 
         }
@@ -377,6 +381,21 @@ public sealed class NedReplicationModule : INedReplicationModule
         // 📄 docs/DESIGN_Dead_Reckoning.md rule R1 + §5.1.
         registry.RegisterSystem(new DeadReckoningSyncSystem(_driveFromNetwork));
 
+        // ── Ownership RECEIVE — EVERY node (CE-276 unification) ──────────────
+        // Applies an incoming OwnershipUpdate: DescriptorOwnership.Map + AuthorityMask, and — for the
+        // EntityMaster descriptor — the PrimaryOwnerId mirror (OQ12). Previously registered only on
+        // pure-Brain + pure-IG, so a MUSCLE received the wire ingress but never APPLIED it and could not
+        // receive an EntityMaster transfer (measured live 2026-09-15). Now role-independent so every NED
+        // host can receive. Consuming this node's OWN takeover loopback is idempotent (isAuth = NewOwner
+        // == local, same SetAuthority/SetOwner the takeover already did).
+        registry.RegisterSystem(new OwnershipIngressSystem(_entityMap, _localNodeId, _descriptorOwnershipMap));
+
+        // ── Ownership transfer INITIATION — EVERY node (CE-276) ──────────────
+        // The push/hand-away counterpart of DeferredTakeoverSystem. Any node may hand an entity
+        // (or a subset of its descriptors) it owns to another node; the system is a no-op on a
+        // node that owns none of the requested descriptors, so it is safe to register everywhere.
+        registry.RegisterSystem(new OwnershipTransferInitiationSystem(_entityMap, _localNodeId, _descriptorOwnershipMap));
+
         // ── Role-specific systems ────────────────────────────────────────────
         if (_roleHasMuscle || _roleHasBrain)
             registry.RegisterSystem(new SmartEgressSystem());
@@ -392,14 +411,13 @@ public sealed class NedReplicationModule : INedReplicationModule
         // DISPOSE publication to DDS (and thus the IG ghost would never be removed).
         bool pureBrainRole = _roleHasBrain && !_roleHasMuscle && !_roleHasIG;
 
-        // ── OwnershipIngressSystem (pure-Brain only) ─────────────────────────
-        // When running split-authority (Brain + Muscle), the Muscle's DeferredTakeoverSystem
-        // publishes OwnershipUpdate bus events that OwnershipUpdateTranslator writes to DDS.
-        // On the Brain, OwnershipUpdateTranslator.PollIngress re-publishes them onto the local
-        // bus, and this system consumes them to drop the Brain's own authority bits.
+        // ── LocalAuthorityYieldSystem (pure-Brain only) ──────────────────────
+        // (OwnershipIngressSystem was pure-Brain-here + pure-IG-above; it is now registered
+        // role-independently below — CE-276 — so ANY node can APPLY an incoming ownership update,
+        // which is what lets a Muscle receive an EntityMaster transfer. LocalAuthorityYieldSystem
+        // stays pure-Brain: it is the Brain yielding its bits when a Muscle takes over.)
         if (pureBrainRole)
         {
-            registry.RegisterSystem(new OwnershipIngressSystem(_entityMap, _localNodeId, _descriptorOwnershipMap));
             registry.RegisterSystem(new LocalAuthorityYieldSystem(_entityMap, _localNodeId, _descriptorOwnershipMap));
         }
 

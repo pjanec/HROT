@@ -11,25 +11,13 @@ namespace Fdp.Toolkit.Replication.Components
     
     // === FDP COMPONENTS ===
     
-    /// <summary>
-    /// Tracks primary network type ownership.
-    /// Unmanaged component (can be used in Queries).
-    /// </summary>
-    [ComponentId(GlobalComponentIds.NetworkOwnership)]
-    [DataPolicy(DataPolicy.NoScenario)]
-    public struct NetworkOwnership
-    {
-        public int PrimaryOwnerId; // Default owner (EntityMaster)
-        public int LocalNodeId;    // To verify ownership quickly
+    // NetworkOwnership RETIRED (CE-281) — it was a byte-for-byte duplicate of NetworkAuthority
+    // (same PrimaryOwnerId/LocalNodeId/HasAuthority) written on the same line at
+    // NetworkSpawningSystem, and every reader repoints to NetworkAuthority with identical
+    // behaviour. Component id 140 stays RESERVED (see GlobalComponentIds.NetworkOwnership) and
+    // is not reused. Ownership is now the single NetworkAuthority component
+    // (docs/DESIGN_Distributed_Scenario_Persistence.md §7; UX_Authority_Aware_Writes §342).
 
-        /// <summary>
-        /// True if the local node has authority over this entity.
-        /// Replaces direct <c>PrimaryOwnerId == LocalNodeId</c> comparisons in systems
-        /// (DB-MOD1-03 -- standardize to the authority-check API).
-        /// </summary>
-        public bool HasAuthority => PrimaryOwnerId == LocalNodeId;
-    }
-    
     /// <summary>
     /// Transient tag component for entities awaiting network acknowledgment
     /// in reliable initialization mode. Removed after publishing lifecycle status.

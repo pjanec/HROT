@@ -389,9 +389,13 @@ internal sealed class IgNodeBootstrapper : SharedApplicationBootstrapper
         //   handler" rule any more; passivity is emergent from the ownership gate, not a missing handler.
         //   ⚠ zoneService: null — IG composes no zone manager (IgZoneDummyHandler above).
         //   📄 docs/DESIGN_Distributed_Scenario_Persistence.md §4 · DESIGN_Node_Roles_And_Policies §7.1.
-        slave.RegisterHandler(new Hrot.ScenarioEditor.Handlers.HrotScenarioSaveHandler(
-            serializer, zoneService: null, context.TkbDb, context.World,
-            _effectiveInstanceId));
+        //   CE-279 Layer A — registered via the shared registrar. IG reports no .fdp archive today, so its
+        //   archive handler is null; the save handler is placed first uniformly, payload-aware.
+        Fdp.Toolkit.Orchestration.SerializeLocalRegistrar.Register(
+            slave,
+            new Hrot.ScenarioEditor.Handlers.HrotScenarioSaveHandler(
+                serializer, zoneService: null, context.TkbDb, context.World, _effectiveInstanceId),
+            archiveHandler: null);
 
         // Diagnostics dump support: IG must ACK CollectDiagnostics in cluster 2PC.
         var archService = new ArchitectureDiagnosticsService(context.Kernel);

@@ -81,7 +81,6 @@ namespace Hrot.SimHost.Tests
             HrotSharedComponentRegistry.RegisterAll(repo);
 
             repo.RegisterComponent<NetworkIdentity>();
-            repo.RegisterComponent<NetworkOwnership>();
             repo.RegisterComponent<NetworkAuthority>();
             repo.RegisterComponent<TkbIdentity>();
             repo.RegisterComponent<PendingNetworkAck>();
@@ -131,7 +130,7 @@ namespace Hrot.SimHost.Tests
             var (world, entity) = SpawnWith(Array.Empty<ITkbEntityTranslator>());
 
             Assert.True(world.HasComponent<NetworkIdentity>(entity));
-            Assert.True(world.HasComponent<NetworkOwnership>(entity));
+            Assert.True(world.HasComponent<NetworkAuthority>(entity));
             Assert.True(world.HasComponent<TkbIdentity>(entity));
             Assert.Equal(TestTkbType, world.GetComponentRO<TkbIdentity>(entity).TkbType);
 

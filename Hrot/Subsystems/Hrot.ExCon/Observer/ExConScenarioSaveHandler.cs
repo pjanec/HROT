@@ -37,6 +37,13 @@ public sealed class ExConScenarioSaveHandler : IClusterStateHandler
 
     public bool CanHandle(NodeOpType operation) => operation == NodeOpType.SerializeLocal;
 
+    /// <summary>
+    /// ⭐ CE-279 Layer C — payload-aware so ExCon's co-registered <c>ReferenceArchiveHandler</c> does not shadow
+    /// this handler on the scenario fan-out. Claims ONLY a <see cref="ScenarioSaveHandlerPayload"/>.
+    /// </summary>
+    public bool CanHandle(ExecuteNodeOpIntent intent)
+        => intent.Operation == NodeOpType.SerializeLocal && intent.DomainPayload is ScenarioSaveHandlerPayload;
+
     public Task<object?> PrepareAsync(ExecuteNodeOpIntent intent, CancellationToken ct)
     {
         if (intent.DomainPayload is not ScenarioSaveHandlerPayload payload)

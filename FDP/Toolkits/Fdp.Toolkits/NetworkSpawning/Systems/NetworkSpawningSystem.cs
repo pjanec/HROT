@@ -41,7 +41,7 @@ namespace Fdp.Toolkit.NetworkSpawning.Systems
         /// SILENT no-op:</b> step 4 of <c>ProcessSpawn</c> is <c>foreach (var t in _translators)
         /// t.Inject(...)</c> — the only writer of descriptor-derived components in this system — so an
         /// empty list turns it into a zero-iteration loop. The entity still gets its
-        /// <c>NetworkIdentity</c>, <c>NetworkOwnership</c>, <c>TkbIdentity</c> and DIS header, so it
+        /// <c>NetworkIdentity</c>, <c>NetworkAuthority</c>, <c>TkbIdentity</c> and DIS header, so it
         /// looks spawned; it simply carries none of its type's kinematics, combat, perception,
         /// behaviour or presentation. 📌 Measured 2026-08-30 (<c>CE-138</c>): one host reached
         /// production this way.</para>
@@ -62,7 +62,7 @@ namespace Fdp.Toolkit.NetworkSpawning.Systems
         /// Optional post-spawn hook: <c>(world, entity, isLocalAuthority)</c>, invoked after components
         /// and authority bits are set and before the entity is registered in the network map.
         /// </param>
-        /// <param name="localNodeId">This node's logical ID, used to fill NetworkOwnership.</param>
+        /// <param name="localNodeId">This node's logical ID, used to fill NetworkAuthority.</param>
         public NetworkSpawningSystem(
             ITkbDatabase tkbDb,
             EntityLifecycleModule elm,
@@ -155,11 +155,8 @@ namespace Fdp.Toolkit.NetworkSpawning.Systems
 
             // 5. Core network components (order matches design doc §4.3)
             world.SetComponent(entity, new NetworkIdentity(networkId));
-            world.SetComponent(entity, new NetworkOwnership
-            {
-                PrimaryOwnerId = cmd.OwnerNodeId,
-                LocalNodeId    = _localNodeId
-            });
+            // NetworkAuthority is the single ownership component (CE-281 — NetworkOwnership retired,
+            // it was a byte-identical duplicate written on the line below).
             world.AddComponent(entity, new NetworkAuthority(cmd.OwnerNodeId, _localNodeId));
 
             // Permanent identity component — lives on the entity forever and drives

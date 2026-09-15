@@ -53,7 +53,7 @@ namespace Hrot.CGF.Orchestration
             mask.SetBit(GlobalComponentIds.DescriptorOwnership);   // 59
             mask.SetBit(GlobalComponentIds.TkbIdentity);           // 65
             mask.SetBit(GlobalComponentIds.GhostStateTracker);     // 66
-            mask.SetBit(GlobalComponentIds.NetworkOwnership);      // 140
+            // CE-281: NetworkOwnership (140) retired — merged into NetworkAuthority (51, already masked above).
             mask.SetBit(GlobalComponentIds.PendingNetworkAck);     // 141
             return mask;
         }

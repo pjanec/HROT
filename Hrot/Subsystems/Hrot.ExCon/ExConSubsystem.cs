@@ -125,7 +125,13 @@ namespace Hrot.ExCon
                                           : new Hrot.Presentation.DebugApi.DiagnosticDumpStatus(
                                                 _uiCache.HasInFlightTransaction,
                                                 _uiCache.LastDiagnosticManifest
-                                                        .Select(e => e.RelativeDest).ToList()));
+                                                        .Select(e => e.RelativeDest).ToList()),
+                // ⭐⭐ CE-277(c0, HTTP) — POST /scenario/save on ExCon triggers the cluster-wide JSON save
+                //    by publishing ExecuteStorageOpIntent{SaveScenarioJson} on ExCon's own control-plane bus.
+                //    ⭐ ExCon is a legitimate trigger even though its OWN slice (ExCon.Observer) is the
+                //    intentionally-incompatible one routed to foreign/ — the save it kicks off is cluster-wide.
+                requestSaveScenarioJson: Hrot.Presentation.DebugApi.SubsystemDebugProvider
+                                             .SavesScenarioJsonVia(() => _bus));
 
         /// <inheritdoc/>
         /// <remarks>Violet — distinct from IG (green) and SimHost (red).</remarks>
@@ -368,21 +374,27 @@ namespace Hrot.ExCon
             // CGF1-S0309: wire dry-run snapshot/rewind handler (ExCon carries no ECS state).
             _clusterSlave.RegisterHandler(new ReferencePreviewHandler(liveRepo: null));
 
-            // Wire ReferencePrefetchHandler / ReferenceArchiveHandler so ExCon ACKs
-            // background file fan-outs (PrefetchFiles / SerializeLocal) and cannot stall 2PC UI tracking.
-            var exConStorageProvider = new LocalDiskStorageProvider(OrchestrationConstants.ResolveStagingRoot());
-            _clusterSlave.RegisterHandler(new ReferencePrefetchHandler(exConStorageProvider));
-            _clusterSlave.RegisterHandler(new ReferenceArchiveHandler(
-                OrchestrationConstants.ResolveStagingRoot(), iosNodeId));
-
             // ⭐ CE-277(c3) — ExCon DOES contribute to a distributed scenario save, in its OWN
             //   intentionally-incompatible format (observer camera state; $meta.docType="ExCon.Observer").
             //   The orchestrator merge routes it to foreign/ verbatim and pushes it back to ExCon on load.
             //   (This refines the "ExCon does not save scenario fragments" note above: it saves its console
             //   state, not an ECS slice.)
             _observerState = new Hrot.ExCon.Observer.ExConObserverState();
-            _clusterSlave.RegisterHandler(
-                new Hrot.ExCon.Observer.ExConScenarioSaveHandler(_observerState, iosNodeId));
+
+            // ⭐⭐⭐ CE-280 — ExCon's PrefetchFiles handler. Replaces the bare ReferencePrefetchHandler: it
+            //   ensures the per-node staging directory + ACKs (same as the reference), AND on load restores
+            //   the observer state from the foreign slice routed back to this node (§4c/§6b T-C). ClusterSlave
+            //   is first-match-wins, so this is ExCon's ONE PrefetchFiles handler — it subsumes the reference.
+            _clusterSlave.RegisterHandler(new Hrot.ExCon.Observer.ExConScenarioLoadHandler(
+                _observerState, iosNodeId, OrchestrationConstants.ResolveStagingRoot()));
+
+            // CE-279 Layer A — register the SerializeLocal pair (ExCon's observer save + .fdp archive) uniformly:
+            //   observer-save FIRST, archive SECOND, payload-aware. (Was Archive-before-Save here — the flip that
+            //   the shadowing bug depended on; the registrar makes the order identical to every other host.)
+            Fdp.Toolkit.Orchestration.SerializeLocalRegistrar.Register(
+                _clusterSlave,
+                new Hrot.ExCon.Observer.ExConScenarioSaveHandler(_observerState, iosNodeId),
+                new ReferenceArchiveHandler(OrchestrationConstants.ResolveStagingRoot(), iosNodeId));
 
             // Diagnostic dumps: ExCon contributes logs and ACKs CollectDiagnostics.
             var exConArchService = new ArchitectureDiagnosticsService(() => null);

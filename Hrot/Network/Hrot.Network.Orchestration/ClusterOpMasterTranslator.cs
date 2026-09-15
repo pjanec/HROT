@@ -208,6 +208,32 @@ public sealed class ClusterOpMasterTranslator
                 break;
             }
 
+            // ⭐⭐ CE-277(c0, HTTP): a remote node's /scenario/save reached the master as this request. Reconstruct
+            //    the intent WITH the relative name (carried as {"ScenarioName": ...} by the egress translator),
+            //    so ClusterMaster.ProcessStorageOpIntent fans the JSON save out to every node. ⛔ Without the
+            //    name the save would target null and produce nothing.
+            case NedClusterOpType.SaveScenarioJson:
+            {
+                string? scenarioName = null;
+                if (!string.IsNullOrWhiteSpace(req.PayloadJson))
+                {
+                    try
+                    {
+                        var node = System.Text.Json.Nodes.JsonNode.Parse(req.PayloadJson);
+                        scenarioName = node?["ScenarioName"]?.GetValue<string>();
+                    }
+                    catch (JsonException) { }
+                }
+                _bus.PublishManaged(new ExecuteStorageOpIntent
+                {
+                    RequestId    = req.RequestId,
+                    Operation    = StorageOpType.SaveScenarioJson,
+                    ExerciseId   = Guid.Empty,
+                    ScenarioName = scenarioName,
+                });
+                break;
+            }
+
             case NedClusterOpType.TakeCheckpoint:
             {
                 _bus.PublishManaged(new TakeCheckpointIntent

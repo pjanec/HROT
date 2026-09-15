@@ -710,7 +710,7 @@ namespace Hrot.Editor.DebugApi
               + "empty => nothing issued the order; intent set + status ABSENT => the consumer never ran; "
               + "intent set + status PRESENT + zero velocity => the consumer ran and produced no motion. "
               + "Worked example: NavigationIntent{Mode,TargetSpeed} against NavigationStatus.",
-                "AUTHORITY FIRST: NetworkOwnership/NetworkAuthority carry HasAuthority, PrimaryOwnerId and "
+                "AUTHORITY FIRST: NetworkAuthority carry HasAuthority, PrimaryOwnerId and "
               + "LocalNodeId. On a cluster a write to an entity this node does not own is legitimately dropped, "
               + "so check HasAuthority before filing 'the write did nothing'.",
                 "MEASURE MOTION AS A POSITION DELTA OVER A simTime DELTA, never over wall-clock. Sample "
@@ -1714,6 +1714,76 @@ namespace Hrot.Editor.DebugApi
             },
             ExampleArgsJson: "{\"networkId\":1000,\"patchJson\":{\"Name\":\"Alpha\"}}",
             ExampleGist: "rename entity 1000 to Alpha"),
+
+        [("POST", "/entities/create-request")] = new RouteDoc(
+            Tool:    "create_entity_request",
+            Group:   "B — Queries",
+            Summary: "Create an entity THROUGH the request path (routing + auto-takeover grant).",
+            Returns: "{ networkId, ... } for the created entity, or a 400 on a malformed body.",
+            Hint:    "Req: tkbType (long). Unlike spawn_entity this goes through the create-request pipeline. Example: create_entity_request({tkbType:123, ownerNodeId:1})",
+            Params: new RouteParam[]
+            {
+                new("tkbType", "integer", true, "TKB entity type id (long)"),
+                new("ownerNodeId", "integer", false, "This node's id ⇒ create + own locally; 0 ⇒ forward to the broadcast arbiter", DefaultJson: "0"),
+                new("transform", "object", false, "Optional initial transform"),
+                new("attributesJson", "string", false, "Optional initial attributes as a JSON string"),
+            },
+            Notes: new[]
+            {
+                "CE-271 seam ⑤: unlike POST /entities/spawn (a raw SpawnEntityCommand), this uses the "
+              + "create-request pipeline, so routing and the auto-takeover grant both run.",
+            }),
+
+        [("GET", "/entities/{networkId}/ownership")] = new RouteDoc(
+            Tool:    "get_entity_ownership",
+            Group:   "B — Queries",
+            Summary: "Per-descriptor network ownership of one entity (NED nodes only).",
+            Returns: "{ networkId, primaryOwnerId, localNodeId, descriptors:[{ descriptorTypeId, isMaster, ownedByThisNode, ownerNodeId, components:[..] }] }.",
+            Hint:    "Req: networkId (number/long). 503 on a host with no NED transport (editor/AllInOne). Example: get_entity_ownership({networkId:1000})",
+            Params: new RouteParam[]
+            {
+                new("networkId", "number", true, "Network entity ID (long)"),
+            },
+            Notes: new[]
+            {
+                "Ownership is DESCRIPTOR-level (a NED network concept), not component-level: each descriptorTypeId "
+              + "binds a set of components, and one component may belong to several descriptors. isMaster marks the "
+              + "EntityMaster descriptor whose owner is the entity's primary/save owner.",
+                "ownedByThisNode is the authority fact this node acts on; ownerNodeId is the explicit per-descriptor "
+              + "override when one exists (null ⇒ follows the primary owner).",
+                "VERIFICATION SURFACE for transfer_entity_ownership: read ownership, POST the transfer, read again.",
+                "PERSPECTIVE-SCOPED on --mode all: reports the ACTIVE perspective node's view. Read on both the "
+              + "giving and receiving node to confirm a transfer landed.",
+            }),
+
+        [("POST", "/entities/{networkId}/ownership/transfer")] = new RouteDoc(
+            Tool:    "transfer_entity_ownership",
+            Group:   "B — Queries",
+            Summary: "Hand an entity (or a subset of its descriptors) to another node (NED nodes only).",
+            Returns: "{ requested:true, networkId, newOwnerNodeId, scope, note } — fire-and-forget; verify with GET .../ownership.",
+            Hint:    "Req: networkId (path), newOwnerNodeId (int). scope defaults AllOwnedByThisNode. 503 on a host with no NED transport. Example: transfer_entity_ownership({networkId:1000, newOwnerNodeId:2, scope:\"MasterOnly\"})",
+            Params: new RouteParam[]
+            {
+                new("networkId", "number", true, "Network entity ID (long)"),
+                new("newOwnerNodeId", "integer", true, "The node to hand the descriptors to"),
+                new("scope", "string", false, "Which descriptors move", DefaultJson: "\"AllOwnedByThisNode\"",
+                    EnumJson: "[\"MasterOnly\",\"AllOwnedByThisNode\",\"SpecificDescriptors\"]"),
+                new("descriptors", "array", false, "NED descriptor type ids (required only for SpecificDescriptors)",
+                    ItemsJson: "{\"type\":\"number\"}"),
+            },
+            Notes: new[]
+            {
+                "DESCRIPTOR-level and NED-initiated (ruling 2026-09-15): 'descriptors' are network descriptor type "
+              + "ids (get them from get_entity_ownership), never ECS component types.",
+                "Only descriptors THIS node owns move — so on a native cluster AllOwnedByThisNode hands off the "
+              + "brain's descriptors but leaves the muscle-owned world-position descriptor where it is.",
+                "Save ownership (primaryOwnerId) moves IFF EntityMaster is in the set (MasterOnly and "
+              + "AllOwnedByThisNode include it; a SpecificDescriptors set that omits master leaves it here).",
+                "The old owner stops publishing without disposing (entity never blinks out); the new owner "
+              + "confirms by re-publishing EntityMaster. Verify with get_entity_ownership on the new owner.",
+            },
+            ExampleArgsJson: "{\"networkId\":1000,\"newOwnerNodeId\":2,\"scope\":\"AllOwnedByThisNode\"}",
+            ExampleGist: "hand entity 1000 to node 2"),
 
         [("POST", "/entities/{networkId}/component")] = new RouteDoc(
             Tool:    "edit_component",

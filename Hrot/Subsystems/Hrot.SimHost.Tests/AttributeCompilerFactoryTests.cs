@@ -168,7 +168,7 @@ namespace Hrot.SimHost.Tests
             repo.RegisterComponent<SimTransform>();
             repo.RegisterComponent<Fdp.Core.EntityInfo>();
             repo.RegisterComponent<NetworkIdentity>();
-            repo.RegisterComponent<NetworkOwnership>();
+            repo.RegisterComponent<NetworkAuthority>();
             repo.RegisterComponent<TkbIdentity>();
             repo.RegisterComponent<GhostStateTracker>();
             repo.RegisterEvent<Fdp.Toolkit.Lifecycle.Events.ConstructionOrder>();

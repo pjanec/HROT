@@ -239,9 +239,9 @@ namespace Fdp.ModuleHost.Abstractions
         /// public void Tick(ISimulationView view, float deltaTime)
         /// {
         ///     // Systems already executed - now gather statistics
-        ///     _totalEntities = view.Query().With&lt;NetworkOwnership&gt;().Build().Count();
-        ///     _ownedCount = view.Query().With&lt;NetworkOwnership&gt;().Build()
-        ///         .Count(e => view.GetComponentRO&lt;NetworkOwnership&gt;(e).PrimaryOwnerId == _localNodeId);
+        ///     _totalEntities = view.Query().With&lt;NetworkAuthority&gt;().Build().Count();
+        ///     _ownedCount = view.Query().With&lt;NetworkAuthority&gt;().Build()
+        ///         .Count(e => view.GetComponentRO&lt;NetworkAuthority&gt;(e).PrimaryOwnerId == _localNodeId);
         /// }
         /// </code>
         /// </example>

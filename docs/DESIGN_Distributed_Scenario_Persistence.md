@@ -19,8 +19,14 @@ build-progress: Stage A (CE-275 ④ / OQ12) + Stage B (CE-275 ② the save gate)
   rewritten (IG must not hold an UNGATED checkpoint handler, but DOES hold the gated scenario handler; R-140
   enforced by the gate) — 10/10; Node_Roles §7.1 marked superseded. IG + SimHost + editor + CGF build clean.
   ⇒ scenario save is UNIFIED across every host; there is no editor-only save path.
+  CE-280 BUILT & GREEN `2026-09-15` (see §5a): the LOAD-side foreign round-trip — PrefetchScenarioAsync routes
+  foreign/node_<id>.json to its origin node; ExConScenarioLoadHandler restores observer state (RestoredFromScenario
+  ⇒ GET /panels/excon_observer). Rails: ExConScenarioLoadHandlerTests 3, StorageGatewayTests foreign-route 1.
+  T-C ExCon-part + T-D mechanism DONE; live --mode all confirm still pending.
+  Stage E DONE `2026-09-15` (CE-281, see §7 as-built): NetworkOwnership retired, merged into NetworkAuthority
+  (2 readers repointed, 17 test files fixed; id 140 reserved). Ownership is now the single NetworkAuthority component.
   REMAINING: CE-277 follow-ons (OQ1 CGF zone service; retire raw-path SaveTo; multi-process staging+NAS pull;
-  T3 --mode all E2E), Stage E (NetworkOwnership→NetworkAuthority merge — ⛔ NO NoScenario flag, §7).
+  T3 --mode all E2E).
 current-answer: §4 save flow, §5 load flow (R-A, ruled §8.1), §6 the ONE gate — keyed on the
   NETWORK-AGNOSTIC primary-owner fact (NetworkAuthority.PrimaryOwnerId, entity-level HasAuthority;
   absent⇒owned), NEVER a wire descriptor, §6a globals (brain-owned), §6b format recognition, §6c the
@@ -75,6 +81,16 @@ related-designs:
     resulting owner at save time, it does not move it.
   - UX_Feature_Authority_Aware_Writes.md — owns the AUTHORITY-GATED WRITE UX and first named the
     NetworkAuthority/NetworkOwnership duplication (§335/§342); §7 here is the merge it deferred.
+  - DESIGN_SaveScenario_Legacy_Op_Retirement.md — owns the RETIREMENT of the legacy binary
+    SaveScenario=2 op (CE-278), the half-built stub whose *intended* purpose THIS doc's SaveScenarioJson=17
+    replaces; it also documents the exercise-recording/checkpoint enumeration and the Orchestrator.json
+    sidecar. THIS doc owns the replacement; that doc owns removing the predecessor.
+  - DESIGN_Entity_Ownership_Transfer.md — owns the INITIATION side of an entity-ownership transfer (CE-276,
+    descriptor-level, NED-initiated); THIS doc owns the save gate and the RECEIVE side (§6c, OQ12). §6c's
+    "make NetworkAuthority replicated" gap note is SUPERSEDED by it. Reciprocal.
+  - DESIGN_Unified_Cluster_Handler_Registration.md — CE-279; owns the role-based unification of cluster-handler
+    registration + payload-agnostic SerializeLocal wire. THIS doc's T-B distributed save is BLOCKED on that
+    unification (§4 T-B block); that doc owns the fix.
 -->
 
 # ⭐⭐⭐ Unified Distributed Scenario Persistence & the Single Ownership Component
@@ -282,6 +298,73 @@ no role branch**; the content of each file is purely *what that host owns*. This
   land in C3 with the `NodeRolePersistenceRails` update (IG carries the handler; the gate — not a missing
   handler — keeps its file empty).
 
+#### ⭐ AS-BUILT — the HTTP trigger is the EXISTING `/scenario/save`, not a new route (c0, `2026-09-14`)
+
+> 🔒 **User:** *"how comes saving a scenario is not accessible via HTTP? isn't there a save scenario endpoint
+> implemented? it should be triggering the cluster-wide save."*
+
+⭐⭐ `POST /scenario/save {name}` already existed; it was **editor-only** because the route was gated on
+`editor.authoring` and its handler called `IEditorLogic.SaveScenarioAs` directly — so on a cluster node it
+returned **501**. The fix mirrors HN-029's `/scenario/load` split exactly — ⛔ NOT a parallel `/cluster/...`
+route:
+
+| piece | as-built |
+|---|---|
+| **capability** | `/scenario/save` gets its OWN key `DebugCapabilities.SaveScenarioJson` (`"scenario.saveJson"`), ordered before the `/scenario` catch-all in `CapabilityManifest.cs` — a node that CAN trigger the save advertises it honestly instead of reading as "authoring absent" |
+| **endpoint** | `DebugApiService.SaveScenario` is now symmetric with `LoadScenarioEdit`: editor-driver arm (`_editorLogic.SaveScenarioAs`, which already publishes the `SaveScenarioJson` intent via `EditorScenarioSession`) OR cluster-intent arm (`_dispatcher.RequestSaveScenarioJsonAnyNode(name)`) on a headless node |
+| **provider** | each subsystem contributes `RequestSaveScenarioJson` via `SubsystemDebugProvider.SavesScenarioJsonVia(bus)`, publishing `ExecuteStorageOpIntent{ SaveScenarioJson, ScenarioName }` on its OWN control-plane bus (SimHost · IG · CGF · ExCon) — the same shape as `TransitionsVia`/`DumpsVia` |
+| **network route** | when the HTTP-hit node is NOT the master, `ClusterOpEgressTranslator` maps `SaveScenarioJson` and serialises the name as `{"ScenarioName": …}` (⛔ the `ArchivePayloadDto` other storage ops use has no name field); `ClusterOpMasterTranslator` reconstructs `ExecuteStorageOpIntent{ SaveScenarioJson, ScenarioName }`. On the master node the intent is read directly by `ClusterMaster`. Both master-side paths (this networked one and the in-process `ClusterOpRequestAdapter`) read the name identically |
+
+⇒ ⭐ any perspective's HTTP port now triggers the fan-out; the name (never a path) is preserved end to end.
+
+#### ✅ T-B GREEN `2026-09-15` — the distributed save works end to end (after CE-279 A+B)
+Live `--mode all` (`simhost,ig,excon,cgf`), loaded `hill-attack`, `POST /scenario/save`:
+`{"saved":…,"via":"cluster-intent"}` → on NAS `shared/scenarios/<name>/`: a merged **`scenario.json`**
+(docType `Hrot.Scenario`, **9 entities**) **and** `foreign/node_200.json` (docType `ExCon.Observer`) **and**
+`foreign/index.json`. Log: `SaveScenarioJson → fan-out to 5 node(s)` → nodes 100 & 400 wrote `Hrot.Scenario`
+slices, node 200 (ExCon) wrote the foreign observer slice → `StorageProcessManager merged 3 slice(s) →
+scenario.json` + `kept 1 foreign slice`. ⇒ the R-A compatible-merge + foreign-route runs side by side in one
+save, triggered over HTTP. The two remaining "No handler for SerializeLocal" nodes are the ones with no save
+handler (e.g. SimHost's null serializer) — benign: the payload-aware archive handler correctly declines the
+scenario payload. What unblocked it: **CE-279 Layer A** (unified registration + payload-aware selection) +
+**Layer B** (the wire carries the scenario payload). 📄 `DESIGN_Unified_Cluster_Handler_Registration.md`.
+
+#### ⛔ HISTORY — T-B `2026-09-14`: c0 trigger PROVEN, but the fan-out produced NO slice (defects since fixed by CE-279)
+
+Ran `--mode all` (`simhost,ig,excon,cgf`), loaded `hill-attack` live (8 entities), `POST /scenario/save`:
+
+- ✅ **c0 works.** Response `{"saved":…,"via":"cluster-intent"}` (no 501); log:
+  `ClusterMaster: SaveScenarioJson '<name>' → SerializeLocal fan-out to 5 node(s)`. The HTTP trigger →
+  intent → master → fan-out chain is confirmed end to end.
+- ⛔ **No merged `scenario.json` produced; no node wrote a scenario slice.** Re-run `2026-09-15` after a
+  first attempted fix showed the payload-aware `CanHandle` patch was **necessary but NOT sufficient** — the
+  real cause is a family of defects, all symptoms of **NON-UNIFIED, per-host cluster-handler registration**.
+  ⭐ Root cause + full plan: 📄 **`DESIGN_Unified_Cluster_Handler_Registration.md` (CE-279)**. The measured
+  defects:
+  1. **Payload-blind `SerializeLocal` handler selection.** `SerializeLocal` is shared by the `.fdp` archive
+     and the scenario-JSON save; `ClusterSlave` dispatches to the FIRST `CanHandle`-true handler
+     (`ClusterSlave.cs:362-364`), and `CanHandle(intent)` defaults to operation-only
+     (`IClusterStateHandler.cs:29`; only `HrotEditLoadHandler:92` overrides it). ⇒ where `ReferenceArchiveHandler`
+     is registered before the scenario handler it SWALLOWS the scenario payload. **But registration order is
+     itself divergent** (see #3), so the shadowing manifests differently per host.
+  2. **The wire drops the scenario payload.** `NodeOpSlaveTranslator.cs:174-178` hardcodes `SerializeLocal` →
+     `ArchiveHandlerPayload` (and the egress `NodeOpMasterTranslator` has no `ScenarioSaveHandlerPayload` arm).
+     So on every DDS hop to a remote node the scenario payload — and its `ScenarioName` — is lost/rebuilt as an
+     empty archive payload. The distributed scenario save cannot cross the wire at all.
+  3. **Divergent registration (measured `2026-09-15`).** There is no shared role-driven registration: SimHost
+     via `NodeBootstrapper.BuildOrchestration` (param-gated, **prod passes `scenarioSerializer: null` ⇒ SimHost
+     registers NO save handler**); IG/CGF/ExCon/Editor hand-roll inline. IG + Editor register **no**
+     `ReferenceArchiveHandler`; CGF registers Save **before** Archive while SimHost/ExCon do Archive **before**
+     Save (opposite order → #1 bites differently); ExCon substitutes `ExConScenarioSaveHandler`. `NodeRole`
+     (`Fdp.Core/Abstractions/NodeRole.cs`) exists but drives none of this.
+
+⇒ **c0 (the HTTP trigger) is DONE and proven.** The end-to-end distributed save (T-B) is blocked on the
+non-unification above and is retargeted as **CE-279** (unify handler registration + payload-agnostic
+`SerializeLocal` wire). ⚠ The first payload-aware `CanHandle` patch was **reverted** `2026-09-15` — it is
+correct but belongs inside the unified fix, not as five hand-edited handlers (and one edit tripped a
+pre-existing path-mismatch in `ReferenceArchiveHandlerTests.Commit_ProducesManifestJson`, to be handled with
+CE-279).
+
 ### 4a. ⭐⭐⭐ R-A DISTRIBUTED SAVE — **orchestrated pull + compatible-merge** *(user ruling `2026-09-14`)*
 
 > 🔒 **User, verbatim:** *"R-A as agreed. Each node uses orchestrated pull. Aggregator merges compatible
@@ -325,7 +408,7 @@ incompatible ones **stay separate**. The merge is the one genuinely new componen
 | **merge** the format-compatible slices into ONE `<name>/scenario.json` | ⭐⭐ NEW scenario merge-aggregator (`INodeResponseAggregator` for the scenario op, or a merge in `StorageProcessManager`) | ⛔ NEW |
 | **leave** incompatible-format slices as separate per-node files | keyed on `$meta.docType` ≠ our type (§6b) | ⛔ NEW (a filter) |
 | LOAD: brain loads the merged canonical file, owns all | §5 · genesis re-stamps owner = loader | ✅ exists (single file) |
-| LOAD: incompatible files **pushed back** to their origin nodes, loaded there | `StorageGatewayModule.PushToNodesAsync` + each node's own load | ⛔ wiring (push-back exists; per-node load of a foreign file is that host's own editor, §6b) |
+| LOAD: incompatible files **routed back** to their origin nodes, loaded there | ✅ **CE-280 (AS-BUILT):** `PrefetchScenarioAsync` routes `foreign/node_<id>.json` to the matching node's staging (not `PushToNodesAsync` — see §5a); each node's own load handler reads it. ExCon: `ExConScenarioLoadHandler` on `PrefetchFiles` | ✅ built (§5a) |
 
 ⭐ **Why merge-on-pull and not merge-on-load:** the canonical `<name>/scenario.json` becomes a normal
 single-file scenario the brain (or a fresh editor) loads with **zero** new load logic — the round-trip
@@ -455,7 +538,7 @@ NOT entity-shaped — the perfect incompatible case.
 | step | ExCon does | orchestrator does |
 |---|---|---|
 | SAVE | its NEW `ExConScenarioSaveHandler` writes observer state *(fake: camera position/look-at)* to `GetNodeScenariosRoot(exconId)/<name>/excon.observer.json` with `$meta.docType = "ExCon.Observer"` (≠ `Hrot.Scenario`); returns a `FileManifestResult{ docType="ExCon.Observer" }` | classifies it INCOMPATIBLE → copies verbatim to `<name>/foreign/node_<exconId>.json`, indexes `{ exconId, "ExCon.Observer" }`; **never parses it** |
-| LOAD | its own reader restores the camera from the pushed-back file | `PushToNodesAsync` returns `foreign/node_<exconId>.json` to ExCon |
+| LOAD | its own reader restores the camera from the routed-back file | ✅ AS-BUILT (§5a): `PrefetchScenarioAsync` routes `foreign/node_<exconId>.json` to ExCon's staging; `ExConScenarioLoadHandler` restores it |
 
 ⭐ **Why it is the right test:** it exercises every c3 edge with a host that *cannot* be merged by construction
 (no entities, foreign tag), and it proves the compatible-merge and the foreign-route run **side by side in one
@@ -481,8 +564,8 @@ camera; that assertion IS the c3 proof.
 |---|---|---|
 | **T-A** | editor round-trip on the UNIFIED path (save → fresh editor load) | entities + ids identical (re-run the harness from the single-node proof) |
 | **T-B** | `--mode all` SAVE, two owners (CGF ECS + ExCon foreign) | on NAS: ONE `<name>/scenario.json` (CGF entities, merged) **and** `<name>/foreign/node_<exconId>.json` (untouched) |
-| **T-C** | load the multi-saved scenario **to the cluster** | CGF perspective: entities present + owned by the loader; ExCon perspective: `get_panel` shows the restored camera |
-| **T-D** | load the multi-saved scenario **to the editor** | editor loads the ECS canonical (entities present); the ExCon foreign file is **ignored** (§6b — the editor has no ExCon; it loads only what it recognises), no error |
+| **T-C** | load the multi-saved scenario **to the cluster** | CGF perspective: entities present + owned by the loader; ExCon perspective: `get_panel` shows the restored camera. ⭐ **ExCon foreign-restore wiring BUILT & rail-GREEN `2026-09-15` (CE-280, §5a);** ECS-side via `DistributedScenarioLoadTests`; live `--mode all` confirm pending |
+| **T-D** | load the multi-saved scenario **to the editor** | editor loads the ECS canonical (entities present); the ExCon foreign file is **ignored** (§6b — the editor has no ExCon; it loads only what it recognises), no error. ⭐ mechanism = `Deserialize` skip-unknown (§6b), no code; live confirm pending |
 | **T-E** | unit: `ScenarioMergeCore` | ✅ done — 9 rails |
 
 ⚠ **T-D's "ignored, no error" is a real assertion**, not an absence — the editor must skip a foreign file by
@@ -512,9 +595,52 @@ sequenceDiagram
 ownership (INVENTORY ⑨) and the genesis pipeline stamps `OwnerNodeId = loader`. A muscle's empty file is
 correct — it receives entities by **replication**, and per-component authority arrives later by **grant**,
 never changing `PrimaryOwnerId`. This is why the round-trip is stable: *save-owner in = save-owner out*.
-⭐ **Format-incompatible slices (§4a) do NOT funnel here** — they are pushed back to their origin nodes
-(`PushToNodesAsync`) and loaded by *that* host's own editor, the one place "each host loads its own content"
-still literally holds (§6b).
+⭐ **Format-incompatible slices (§4a) do NOT funnel here** — they are routed back to their origin nodes and
+loaded by *that* host's own load handler, the one place "each host loads its own content" still literally
+holds (§6b). ⭐⭐ **As-built mechanism: §5a.**
+
+---
+
+## 5a. ✅ LOAD — the foreign slice returns to its origin node  *(CE-280 AS-BUILT `2026-09-15`)*
+
+```mermaid
+sequenceDiagram
+    autonumber
+    participant APM as AssetPrefetchProcessManager
+    participant GW as StorageGatewayModule
+    participant ECS as ECS node (CGF/SimHost)
+    participant ExCon as ExCon node
+    APM->>GW: PrefetchScenarioAsync(name, targets, NAS)
+    GW->>ECS: copy shared/scenarios/name/*.json → node staging (every node)
+    GW->>ExCon: copy shared/scenarios/name/*.json → node staging (every node)
+    GW->>ExCon: route foreign/node_<exconId>.json → ExCon staging ONLY<br/>(id in filename ⇒ one node)
+    APM->>ECS: PrefetchFiles → HrotScenarioLoadHandler reads scenario.json (§5)
+    APM->>ExCon: PrefetchFiles → ExConScenarioLoadHandler reads foreign/node_<id>.json<br/>restores camera+marker, RestoredFromScenario=true
+    Note over ExCon: GET /panels/excon_observer shows restored state (T-C)
+```
+
+*Caption:* what the picture shows that prose hid — **the foreign slice rides the SAME prefetch rail as the
+canonical `scenario.json`, but is delivered to exactly one node** (the id encoded in `node_<id>.json`),
+whereas `scenario.json` goes to every node. No change to the 2PC load sequence; the restore hooks the
+`PrefetchFiles` phase, where the file has just arrived.
+
+| ⭐ as-built | site |
+|---|---|
+| route each `foreign/node_<id>.json` to the target whose `NodeId` matches (defensive: no `foreign/` ⇒ no-op) | `StorageGatewayModule.PrefetchScenarioAsync` (foreign-routing arm) + `TryParseForeignNodeId` |
+| ExCon's ONE `PrefetchFiles` handler: ensure staging + ACK (subsumes `ReferencePrefetchHandler`), then restore observer state from the routed slice | `Hrot.ExCon.Observer.ExConScenarioLoadHandler` |
+| the restore target is the shared `ExConObserverState` the panel dumps | `ExConObserverPanelViewModel` (`GET /panels/excon_observer`) |
+
+⛔⛔ **DEVIATION from the earlier plan's literal `StorageGatewayModule.PushToNodesAsync` (§4c/old §5):**
+the foreign return is done **inside the existing `PrefetchScenarioAsync`/`PrefetchFiles` rail**, not as a
+separate `PushToNodesAsync` call. ⭐ **Why:** it reuses the proven prefetch ACK/fan-out (`AssetPrefetchProcessManager`)
+— no new async saga, no new node op, no touch to the 2PC load sequence — so the blast radius is one gateway
+method + one ExCon handler. `PushToNodesAsync` is retained (multi-machine push primitive; unit-tested) but is
+**not** the load-side foreign path. ⚠ **The prior "pushed back via `PushToNodesAsync`" wording in §4c and the
+old §5 note is SUPERSEDED by this section.**
+
+⭐ **Rails:** `ExConScenarioLoadHandlerTests` (save→route→restore round-trip, marker is the value-level proof;
++ panel dump = the T-C surface; + no-foreign no-op) · `StorageGatewayTests.PrefetchScenario_RoutesForeignSlice_ToOriginNodeOnly`
+(foreign goes to origin node only, canonical to all). ECS load unchanged — `DistributedScenarioLoadTests`.
 
 ---
 
@@ -615,12 +741,17 @@ so it stays network-agnostic. So:
   `OwnershipUpdate` → `AuthorityMask`). **No special "entity transfer" primitive.** The new owner then holds
   authority over `NetworkAuthority` and reflects it in `PrimaryOwnerId`; the save gate and the derived
   `EntityMaster` wire ownership both follow.
-  ⚠ **Measured gap (so this is a FEATURE, not a claim it works today):** `NetworkAuthority` is **not** a
-  replicated descriptor and is **not** a `TargetComponent` of any translator (so the generic mechanism can't
-  yet reach it), and its VALUE is set locally (owner at spawn `NetworkSpawningSystem:158`; ghost `= -1`
-  `EntityMasterIngress:149`), never replicated. ⇒ the transfer feature must make `NetworkAuthority`
-  **ownership-tracked / replicated** (register it as a descriptor target, or replicate its value) so the
-  generic transfer moves it and the new `PrimaryOwnerId` propagates.
+  ⛔⛔ **SUPERSEDED `2026-09-15` by [`DESIGN_Entity_Ownership_Transfer.md`](DESIGN_Entity_Ownership_Transfer.md)
+  (CE-276).** The paragraph below claimed the transfer feature must make `NetworkAuthority` a **replicated
+  descriptor / `TargetComponent`**. ⭐ **It does not.** Transfer is **per-DESCRIPTOR at the NED level** (the
+  `2026-09-15` ruling): initiation emits an `EntityMaster` `OwnershipUpdate`, and `PrimaryOwnerId` is
+  **derived** from that descriptor's ownership on **both** sides (receive = OQ12 mirror below; initiate =
+  CE-276's mirror), so the owner id never travels as a replicated component value. ⇒ ⛔ do NOT replicate
+  `NetworkAuthority`. See CE-276 §1/§6.
+  ⚠ **HISTORY (the superseded claim):** ~~`NetworkAuthority` is not a replicated descriptor / `TargetComponent`,
+  its value is set locally (spawn `NetworkSpawningSystem`; ghost `-1` `EntityMasterIngress`), so the transfer
+  feature must make it ownership-tracked / replicated.~~ The *mechanism* facts are still true; the
+  *prescription* is not.
 
 #### ⭐ The rule this design commits to — so transfer is ENABLED, not prevented
 
@@ -679,6 +810,15 @@ never stale today; but the sync is a **named compliance requirement** so we are 
   (today it writes only `DescriptorOwnership.Map` + `AuthorityMask`) so the save gate follows. Map the spec's
   `NewOwner` `NodeId{Domain, Node}` → our int. The egress already stops-without-disposing on authority loss
   (spec-correct: a dispose would mean *entity deleted*), so no handoff change is needed just to RECEIVE.
+
+✅ **RECEIVE-SIDE UNIFIED `2026-09-15` (CE-276) — the mirror now runs on EVERY NED host.** It was originally
+registered only on pure-Brain / pure-IG, so a Muscle received the wire ingress but never APPLIED it (measured:
+`CGF→SimHost(Muscle)` left `primaryOwnerId=-1`; `CGF→IG` applied). `OwnershipIngressSystem` is now registered
+**role-independently** in `NedReplicationModule` (one unconditional registration replacing the two role-gated
+ones; the own-takeover loopback it now also consumes is idempotent). `LocalAuthorityYieldSystem` stays
+pure-Brain. Live re-proof: `CGF→SimHost(Muscle) MasterOnly` now lands (SimHost `primaryOwnerId=1`, master
+owned). ⇒ both faces of an `EntityMaster` transfer — initiate and receive — are host-agnostic. 📄
+`DESIGN_Entity_Ownership_Transfer.md`.
 
 ⚠ **DEFERRED — the transfer INITIATION feature (`CE-276`, a later design):**
 - **Make `NetworkAuthority` ownership-tracked so WE can initiate a transfer** — register it / replicate its
@@ -773,6 +913,33 @@ from `BuildStaticMask` as belt-and-suspenders cleanup — cosmetic, not required
 
 ⚠ ⭐ Keep the **name** `NetworkAuthority` (renaming ~57 sites buys only cosmetics — optional later follow-up).
 Stage E (the `NetworkOwnership`→`NetworkAuthority` merge) is still separate and adds **no** flag.
+
+##### ✅ STAGE E APPLIED `2026-09-15` (CE-281) — **`NetworkOwnership` retired, merged into `NetworkAuthority`**
+
+⭐⭐ **Safety re-verified by measurement before the cut** (not assumed): the two structs are byte-identical
+(`PrimaryOwnerId`/`LocalNodeId`/`HasAuthority`); `NetworkSpawningSystem` wrote **both** on adjacent lines with
+the same values; `NetworkAuthority` has **3** writers (`NetworkSpawningSystem`, `OwnershipIngressSystem`,
+`EntityMasterIngressTranslator` with the `-1` ghost sentinel) vs `NetworkOwnership`'s **1**, so they are NOT
+always co-present — ghosts carry `NetworkAuthority` alone. The two readers repoint with identical behaviour:
+`CycloneNetworkCleanupSystem`'s query gains ghost matches but its `if(!HasAuthority) continue` drops them
+(and it now correctly tracks a transferred-to-us entity — a latent *fix*); `OwnershipExtensions.OwnsDescriptor*`
+has **only test callers** and `GetDescriptorOwner*` has **ZERO** callers, so the `absent⇒0` vs `ghost(-1)`
+difference is inert.
+
+| as-built change | site |
+|---|---|
+| struct + `[ComponentId(140)]` + `[DataPolicy]` deleted | `NetworkComponents.cs` (id 140 kept RESERVED in `GlobalComponentIds`) |
+| dropped the duplicate write; kept the `NetworkAuthority` add | `NetworkSpawningSystem.cs:158` |
+| 2 readers repointed → `NetworkAuthority` | `CycloneNetworkCleanupSystem.cs`, `OwnershipExtensions.cs` (both methods) |
+| dropped registration (×2) + static-mask bit 140 | `HrotSharedComponentRegistry.cs`, `DistributedTankScenario.cs`, `StagingEntityExtractor.cs` |
+
+⛔⛔ **CORRECTION to the §7 step table above — the TEST surface was UNDER-COUNTED.** The table listed only
+production sites + 1 example. Measured `2026-09-15`: **17 test files** referenced `NetworkOwnership` (mostly
+`RegisterComponent<NetworkOwnership>()` setup lines + a handful of asserts + the `DataPolicySaveContextMeasurement`
+rail). All repointed to `NetworkAuthority` (delete the registration where `NetworkAuthority` was already
+registered, else rename; asserts swap the shape-identical type). ⭐ This is the HN-037 lesson: **measure the
+test surface, not just production callers, before calling a deletion "mechanical."** Production build green;
+test repoint mechanical.
 
 ---
 

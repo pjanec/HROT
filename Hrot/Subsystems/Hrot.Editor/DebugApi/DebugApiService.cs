@@ -1249,13 +1249,38 @@ namespace Hrot.Editor.DebugApi
         /// </summary>
         public int WorldEntityCount => _world.EntityCount;
 
-        /// <summary><c>POST /scenario/save {name}</c> — persists the authored world (main thread).</summary>
+        /// <summary>
+        /// ⭐⭐⭐ <b><c>POST /scenario/save {name}</c> — persists the authored world, cluster-wide.</b>
+        ///
+        /// <para>⭐⭐ Symmetric with <see cref="LoadScenarioEdit"/>: two arms ending in the SAME cluster save.
+        /// When the editor driver is present (<c>--mode all</c>'s brain, or the standalone editor),
+        /// <see cref="IEditorLogic.SaveScenarioAs"/> is used — it already publishes
+        /// <c>ExecuteStorageOpIntent{SaveScenarioJson}</c> through <c>EditorScenarioSession</c>, so the fan-out
+        /// + merge pipeline runs the same everywhere (proved by <c>T-A</c>). ⛔ On a cluster NODE with no editor
+        /// driver (a headless SimHost/CGF/IG/ExCon serving its own debug port), the intent is published directly
+        /// on that node's control-plane bus via the dispatcher — mirroring <c>LoadScenarioEdit</c>'s
+        /// <c>cluster-intent</c> arm — so <c>/scenario/save</c> is no longer editor-only.</para>
+        ///
+        /// <para>⚠ The old behaviour on a cluster node was a <b>501</b> (<c>/scenario</c> gated on
+        /// <c>editor.authoring</c>). <c>CE-277(c0)</c> gives the route its OWN capability
+        /// (<see cref="Hrot.Presentation.DebugApi.DebugCapabilities.SaveScenarioJson"/>) so a node that CAN
+        /// trigger the save advertises it honestly.</para>
+        /// </summary>
         public JsonNode SaveScenario(string name)
         {
             if (string.IsNullOrWhiteSpace(name))
                 throw new ArgumentException("Scenario name is required.", nameof(name));
-            _editor.SaveScenarioAs(name);
-            return new JsonObject { ["saved"] = name };
+
+            if (_editorLogic is not null)
+            {
+                _editorLogic.SaveScenarioAs(name);
+                return new JsonObject { ["saved"] = name, ["via"] = "editor-driver" };
+            }
+
+            var trigger = _dispatcher?.RequestSaveScenarioJsonAnyNode
+                ?? throw NotSupportedHere(Hrot.Presentation.DebugApi.DebugCapabilities.SaveScenarioJson);
+            trigger(name);
+            return new JsonObject { ["saved"] = name, ["via"] = "cluster-intent" };
         }
 
         // ── Group F — Commands + discovery + spawn ─────────────────────────────

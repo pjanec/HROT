@@ -448,6 +448,13 @@ public sealed class CgfSubsystem : ISubsystem, Fdp.Toolkit.Runner.IMapCameraProv
             // ⭐⭐ MD-006 — same bus, same argument as requestTransition above.
             requestDiagnosticDump: Hrot.Presentation.DebugApi.SubsystemDebugProvider
                                        .DumpsVia(() => _context?.EventBus),
+            requestSaveScenarioJson: Hrot.Presentation.DebugApi.SubsystemDebugProvider
+                                       .SavesScenarioJsonVia(() => _context?.EventBus),
+            // ⭐⭐⭐ CE-276 — CGF's OWN world bus (the ECS bus OwnershipTransferInitiationSystem reads) + its
+            //    OWN NED descriptor map, so GET/POST /entities/{id}/ownership act on the node that owns the entity.
+            requestOwnershipTransfer: Hrot.Presentation.DebugApi.SubsystemDebugProvider
+                                       .TransfersOwnershipVia(() => _context?.World),
+            descriptorMap: () => _context?.NedReplication?.DescriptorOwnershipMap,
             architecture:  () => _context?.Kernel is null
                                  ? null
                                  : new Fdp.ModuleHost.Diagnostics.ArchitectureDiagnosticsService(
@@ -919,7 +926,7 @@ public sealed class CgfSubsystem : ISubsystem, Fdp.Toolkit.Runner.IMapCameraProv
         //
         // 📐 Measured 2026-08-30: NetworkSpawningSystem's `translators` argument was omitted (⇒
         //    Array.Empty) and elm.SetTranslators was never called, so BOTH projection routes were
-        //    zero-iteration loops. CGF-spawned entities carried NetworkIdentity, NetworkOwnership,
+        //    zero-iteration loops. CGF-spawned entities carried NetworkIdentity, NetworkAuthority,
         //    TkbIdentity and a DIS header — and none of their type's kinematics, combat, perception,
         //    behaviour or presentation. Rails: Hrot.SimHost.Tests/TkbTranslatorSpawnParityRails.cs.
         // 🔒 User ruling 2026-08-30: "the tkb idea is very simple and I think the usage rules should be
@@ -1146,9 +1153,10 @@ public sealed class CgfSubsystem : ISubsystem, Fdp.Toolkit.Runner.IMapCameraProv
         //   root; each host's root is config, the handler class and save core are identical).
         //   ⚠ zoneService: null today — CGF composes no zone manager (:1139); OQ1 (give CGF a real zone
         //   service so globals/zones ride the brain file, §6a) is a scoped follow-on.
-        newClusterSlave.RegisterHandler(new Hrot.ScenarioEditor.Handlers.HrotScenarioSaveHandler(
+        //   CE-279 Layer A — built here, registered below via SerializeLocalRegistrar with CGF's archive handler.
+        var cgfScenarioSaveHandler = new Hrot.ScenarioEditor.Handlers.HrotScenarioSaveHandler(
             scenarioSerializer, zoneService: null, _context.TkbDb, _context.World,
-            _context.NodeId));
+            _context.NodeId);
 
         newClusterSlave.RegisterHandler(new Hrot.CGF.Orchestration.Handlers.CgfEpisodeLoadHandler(
             scenarioSerializer, scenarioLoader, extractor, _scenarioSource!, cgfIdAllocator, _context.World, behaviorRemapper));
@@ -1192,8 +1200,11 @@ public sealed class CgfSubsystem : ISubsystem, Fdp.Toolkit.Runner.IMapCameraProv
             cgfRewindables.Add(Fdp.Toolkit.Orchestration.Preview.PreviewParticipants.LifecycleModule(cgfElm));
         newClusterSlave.RegisterHandler(new ReferencePreviewHandler(_context.World, cgfRewindables));
         newClusterSlave.RegisterHandler(new ReferencePrefetchHandler(storageProvider));
-        newClusterSlave.RegisterHandler(new ReferenceArchiveHandler(
-            isolatedTempRoot, _context.NodeId));
+        // CE-279 Layer A — register the SerializeLocal pair (scenario-save + .fdp archive) uniformly.
+        Fdp.Toolkit.Orchestration.SerializeLocalRegistrar.Register(
+            newClusterSlave,
+            cgfScenarioSaveHandler,
+            new ReferenceArchiveHandler(isolatedTempRoot, _context.NodeId));
         var cgfArchService = new Fdp.ModuleHost.Diagnostics.ArchitectureDiagnosticsService(_context.Kernel);
         var cgfEntityService = new Fdp.Toolkit.Diagnostics.EntityStateExtractionService(_context.World, _context.EntityMap, scenarioSerializer);
         _fdpEntityInspector.ExtractionService = cgfEntityService;

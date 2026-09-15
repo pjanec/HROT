@@ -102,7 +102,7 @@ namespace Hrot.SimHost.Tests
             var repo = new EntityRepository();
             // Register component types that SpawnEntityCommand will carry through the bus
             repo.RegisterComponent<NetworkIdentity>();
-            repo.RegisterComponent<NetworkOwnership>();
+            repo.RegisterComponent<NetworkAuthority>();
             repo.RegisterComponent<TkbIdentity>();
             repo.RegisterComponent<GhostStateTracker>();
             // Register events used by NetworkSpawningSystem if it were running

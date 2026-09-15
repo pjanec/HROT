@@ -103,6 +103,14 @@ namespace Hrot.IG
                 // ⭐⭐ MD-006 — same bus, same argument as requestTransition above.
                 requestDiagnosticDump: Hrot.Presentation.DebugApi.SubsystemDebugProvider
                                            .DumpsVia(() => _app?.OrchestrationBus),
+                requestSaveScenarioJson: Hrot.Presentation.DebugApi.SubsystemDebugProvider
+                                           .SavesScenarioJsonVia(() => _app?.OrchestrationBus),
+                // ⭐⭐⭐ CE-276 — IG's OWN world bus (the ECS bus OwnershipTransferInitiationSystem reads) + its
+                //    OWN NED descriptor map, so GET/POST /entities/{id}/ownership act on the node that owns
+                //    the entity. Mirrors CgfSubsystem.CreateDebugProvider() exactly.
+                requestOwnershipTransfer: Hrot.Presentation.DebugApi.SubsystemDebugProvider
+                                           .TransfersOwnershipVia(() => _app?.World),
+                descriptorMap: () => _app?.NedReplication?.DescriptorOwnershipMap,
                 architecture:  () => _app?.Kernel is null
                                      ? null
                                      : new Fdp.ModuleHost.Diagnostics.ArchitectureDiagnosticsService(

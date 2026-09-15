@@ -16,4 +16,11 @@ public interface INedReplicationModule : IReplicationModule
     /// Returns null when no network cleanup system is wired (e.g. headless tests).
     /// </summary>
     Action? AfterSeekCallback { get; }
+
+    /// <summary>
+    /// ⭐ CE-276 — the node's descriptor↔component ownership map (populated from the registered translators).
+    /// Exposed so the ai-debug ownership surface can name an entity's descriptors and resolve a transfer scope.
+    /// <see langword="null"/> on a module that carries no descriptor mapping.
+    /// </summary>
+    Fdp.Toolkit.Replication.Services.DescriptorOwnershipMap? DescriptorOwnershipMap { get; }
 }

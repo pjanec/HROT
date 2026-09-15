@@ -44,12 +44,15 @@ namespace Fdp.Network.Cyclone.Systems
             var query = view.Query()
                 .WithLifecycle(EntityLifecycle.All)
                 .With<NetworkIdentity>()
-                .With<NetworkOwnership>()
+                .With<NetworkAuthority>()
                 .Build();
-            
+
             foreach (var entity in query)
             {
-                 ref readonly var ownership = ref view.GetComponentRO<NetworkOwnership>(entity);
+                 // CE-281: repointed from the retired NetworkOwnership to NetworkAuthority (identical shape).
+                 // The query now also matches ghosts (NetworkAuthority-only), but the HasAuthority guard
+                 // below drops them exactly as before (ghost PrimaryOwnerId != LocalNodeId).
+                 ref readonly var ownership = ref view.GetComponentRO<NetworkAuthority>(entity);
                  if (!ownership.HasAuthority) continue; // DB-MOD1-03: replaced PrimaryOwnerId != LocalNodeId
                  
                  ref readonly var identity = ref view.GetComponentRO<NetworkIdentity>(entity);

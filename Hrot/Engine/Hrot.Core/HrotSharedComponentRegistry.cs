@@ -38,8 +38,7 @@ public static class HrotSharedComponentRegistry
     {
         // ── Network replication components ────────────────────────────────────
         world.RegisterComponent<NetworkIdentity>();
-        world.RegisterComponent<NetworkOwnership>();
-        world.RegisterComponent<NetworkAuthority>();
+        world.RegisterComponent<NetworkAuthority>();   // CE-281: NetworkOwnership retired (merged into NetworkAuthority)
         world.RegisterComponent<TkbIdentity>();
         world.RegisterComponent<GhostStateTracker>();
         world.RegisterComponent<PendingNetworkAck>();
@@ -88,6 +87,7 @@ public static class HrotSharedComponentRegistry
         world.RegisterManagedEvent<UpdateEntityCommand>();
         world.RegisterManagedEvent<DestroyEntityCommand>();
         world.RegisterManagedEvent<DeferredTakeOwnershipCommand>();
+        world.RegisterManagedEvent<Fdp.Toolkit.Replication.Messages.TransferEntityOwnershipRequest>();   // CE-276
         world.RegisterEvent<SwitchTimeModeEvent>();
         world.RegisterEvent<TimeSyncRequest>();
         world.RegisterEvent<TimeSyncResponse>();

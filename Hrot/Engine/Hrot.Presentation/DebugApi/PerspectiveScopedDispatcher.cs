@@ -118,6 +118,17 @@ public sealed class PerspectiveScopedDispatcher
     /// <summary>⭐ The active perspective's entity map, or <see langword="null"/>.</summary>
     public NetworkEntityMap? EntityMap => Active()?.EntityMap;
 
+    /// <summary>⭐ CE-276 — the active perspective node's descriptor↔component ownership map, or
+    /// <see langword="null"/> (no NED transport ⇒ the ownership endpoints answer 503). Perspective-scoped
+    /// because ownership is a per-node fact.</summary>
+    public Fdp.Toolkit.Replication.Services.DescriptorOwnershipMap? DescriptorMap => Active()?.DescriptorMap;
+
+    /// <summary>⭐⭐ CE-276 — publish a TransferEntityOwnershipRequest onto the active perspective node's bus,
+    /// or <see langword="null"/> when that node has no NED transport. Perspective-scoped (NOT any-node): the
+    /// entity and its ownership live on the node whose world this dispatcher reads.</summary>
+    public Action<Fdp.Toolkit.Replication.Messages.TransferEntityOwnershipRequest>? RequestOwnershipTransfer
+        => Active()?.RequestOwnershipTransfer;
+
     /// <summary>
     /// ⭐ The ACTIVE perspective's own extraction service, or <see langword="null"/> when that subsystem
     /// has none. ⛔ <c>CE-171</c>: consumers must PREFER this over building their own — a self-built one
@@ -200,6 +211,12 @@ public sealed class PerspectiveScopedDispatcher
     public Action<ExecuteDiagnosticDumpIntent>? RequestDiagnosticDumpAnyNode
         => Active()?.RequestDiagnosticDump
            ?? _providers.Select(p => p.RequestDiagnosticDump).FirstOrDefault(a => a is not null);
+
+    /// <summary>⭐ CE-277(c0, HTTP) — trigger a distributed JSON scenario save from whichever node can publish
+    /// it (active perspective preferred, else any provider with an orchestration bus); cluster-wide like the dump.</summary>
+    public Action<string>? RequestSaveScenarioJsonAnyNode
+        => Active()?.RequestSaveScenarioJson
+           ?? _providers.Select(p => p.RequestSaveScenarioJson).FirstOrDefault(a => a is not null);
 
     /// <summary>⭐ <c>MD-007</c> — the last dump's outcome from whichever node caches it; same one-cluster-one-fact rationale as <see cref="ClusterStateAnyNode"/>.</summary>
     public DiagnosticDumpStatus? DumpStatusAnyNode
