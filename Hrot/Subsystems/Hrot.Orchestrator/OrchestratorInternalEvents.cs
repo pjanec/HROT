@@ -4,16 +4,8 @@ using Hrot.Network.Orchestration;
 
 namespace Hrot.Orchestrator;
 
-/// <summary>
-/// Published by <see cref="GlobalContextProcessManager"/> after the local
-/// Orchestrator.json has been serialized and committed.
-/// Consumed by <see cref="StorageProcessManager"/> to prepend the orchestrator's
-/// own manifest entry before the NAS pull.
-/// </summary>
-internal struct GlobalContextManifestReadyEvent
-{
-    public FileManifestEntry Entry;
-}
+// CE-278: GlobalContextManifestReadyEvent retired — it carried the SaveScenario=2 Orchestrator.json
+// manifest entry from GlobalContextProcessManager to StorageProcessManager; both ends are removed.
 
 /// <summary>
 /// Published by <see cref="ClusterMaster"/> when a PrefetchScenario operation step is

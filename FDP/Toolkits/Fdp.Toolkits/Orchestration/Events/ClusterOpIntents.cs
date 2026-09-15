@@ -63,18 +63,21 @@ namespace Fdp.Toolkit.Orchestration
     {
         Export,
         Import,
-        SaveScenario,
+
+        // CE-278: the legacy .fdp-archive scenario-save op (op=2) was retired; the name is reclaimed below
+        // by the declarative JSON scenario save (formerly SaveScenarioJson), the operation CGF-1 always meant.
 
         /// <summary>
-        /// ⭐⭐⭐ CE-275 ③ — the DECLARATIVE scenario save (per-node gated <c>ScenarioSerializer</c> JSON),
-        /// distinct from <see cref="SaveScenario"/> which drives the per-node <c>.fdp</c> checkpoint/archive
-        /// recording. Carries a <see cref="ExecuteStorageOpIntent.ScenarioName"/>; the fan-out runs the ONE
-        /// gated scenario save handler on EVERY host (IG included — it can author persistable entities; it
-        /// just usually owns nothing savable, so its file is empty BY THE GATE, not by a missing handler) so
+        /// ⭐⭐⭐ CE-275 ③ — the DECLARATIVE scenario save (per-node gated <c>ScenarioSerializer</c> JSON).
+        /// CE-278: reclaims the name <c>SaveScenario</c> (was <c>SaveScenarioJson</c>) after the legacy
+        /// .fdp-archive op=2 was retired — this is the operation CGF-1 always meant by "SaveScenario".
+        /// Carries a <see cref="ExecuteStorageOpIntent.ScenarioName"/>; the fan-out runs the ONE gated
+        /// scenario save handler on EVERY host (IG included — it can author persistable entities; it just
+        /// usually owns nothing savable, so its file is empty BY THE GATE, not by a missing handler) so
         /// each host writes exactly the slice it owns.
         /// 📄 docs/DESIGN_Distributed_Scenario_Persistence.md §4.
         /// </summary>
-        SaveScenarioJson,
+        SaveScenario,
     }
 
     /// <summary>
@@ -92,7 +95,7 @@ namespace Fdp.Toolkit.Orchestration
 
         /// <summary>
         /// The relative scenario name / subfolder under the NAS scenarios root to write to. Used ONLY by
-        /// <see cref="StorageOpType.SaveScenarioJson"/> (CE-275 ③). ⛔ The operator never picks a full
+        /// <see cref="StorageOpType.SaveScenario"/> (CE-275 ③). ⛔ The operator never picks a full
         /// filesystem path — at most a subfolder of the standard scenarios folder — so this is a name, not
         /// a path. Null/ignored for every other operation.
         /// </summary>

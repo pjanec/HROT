@@ -1,7 +1,8 @@
 <!--STATUS
 state: LIVE
-build-state: DESIGN — diagrams + inventory complete; NOT yet READY-TO-BUILD. Gated on prerequisites
-  P1–P3 (§5) and a user nod on the fast/reliable default. The reliable path is OPT-IN; fast stays default.
+build-state: DESIGN — the barrier itself (pieces A–C) NOT yet READY-TO-BUILD. ✅ Prerequisites P1–P3
+  (role propagation, §5) are BUILT `2026-09-15` — see §5 "P1–P3 AS-BUILT". Still gated on a user nod on the
+  fast/reliable default before the barrier is built. The reliable path is OPT-IN; fast stays default.
 updated: 2026-09-15
 current-answer: §1 IS THE DESIGN — the three diagrams (1.1 sequence, 1.2 classes, 1.3 module map).
   §2 says only WHY. §3 is what is NEW vs EXISTS vs CHANGE. §4 the receiver gate (reuse). §5 the
@@ -239,6 +240,32 @@ the moment `PeerLifecycleStatusEgressSystem` publishes.
 3. **P3** — add `NodeRoster.NodesWithRole(NodeRole)` *(and a cache equivalent)*.
 4. **User nod:** confirm reliable is opt-in and that display replicas are in scope of the wait *(both are the
    current rulings)*.
+
+### ✅ P1–P3 AS-BUILT (`2026-09-15`) — role propagation done; the barrier itself is still DESIGN
+> The §0 INVENTORY sites were accurate and unchanged; the §1.2 class diagram's P1/P2/P3 boxes are the
+> as-built shape. The wire gained one field (a field, not a new shape) → no new diagram.
+
+- **P1 — role on the heartbeat + wire; switch retired.** `NodeHeartbeatEvent` gained `NodeRole Roles`
+  (`ClusterCqrsEvents.cs`); the DDS `NodeHeartbeat` topic gained `int RolesMask` (`OrchestrationMessages.cs`
+  — carried as the `[Flags]` int to keep the wire free of a cross-assembly enum codegen dep). `ClusterSlave`
+  takes the mask (`_roles`, both ctors default `None`) and stamps it on every heartbeat; the egress
+  (`NodeOpSlaveTranslator`) writes `RolesMask`, both ingress bridges (`OrchestrationObserverTranslator`,
+  `NedOrchestrationTranslator`) read it back. **`NedNetworkFactory.MapSubsystemNameToRole` is DELETED** —
+  `PollNetwork` reads `(NodeRole)sample.Data.RolesMask` into `NodeCapability.Role` (seam law; an un-set/foreign
+  node reads `None`, the correct "unknown role", so no name fallback). ⭐ The 4 role-bearing producers are
+  wired at their `ClusterSlave` sites: CGF `DefaultRole`(Brain) · SimHost `role` (the full mask, multi-role
+  preserved) · IG `Map2D` · `HrotNodeBuilder._role`. The orchestrator stays `None`.
+  ⚠ **Latent bug fixed in passing:** `HrotNodeBuilder.WithRole` **silently discarded** its `role` arg — the
+  same "role dropped" disease one level up; it now retains `_role` and publishes it.
+- **P2 — roster stores the mask.** `NodeHealthProfile` gained `NodeRole Roles`; `ClusterMaster.IngestHeartbeats`
+  sets it from `hb.Roles`. `NodeCapability.Role` is populated from the real mask via P1's factory change.
+- **P3 — membership query.** `NodeRoster.NodesWithRole(NodeRole)` yields active ids where `mask & role != 0`
+  (`[Flags]` intersect, so a multi-role node matches EITHER role). No cache accessor added — the roster is the
+  orchestrator's membership authority for this slice; a `SimpleClusterStateCache` equivalent lands with the
+  barrier consumer that needs it.
+- **Rails:** `NodeRosterTests` (new — P2/P3, incl. a multi-role `&`-vs-`==` red-proof); `ClusterSlaveHeartbeatTests`
+  extended to assert a `MuscleGround|Perception` mask survives the heartbeat un-collapsed (P1).
+- ⛔ **Stopped at the P1–P3 boundary** — the barrier / gateway / participants (pieces A–C) are untouched, still DESIGN.
 
 ## 6. ⭐ ACCEPTANCE — the proof, not a green gate
 `--mode all`, reliable entity: spawn a spatial type in an **uncached** area on a Muscle peer → the CREATOR

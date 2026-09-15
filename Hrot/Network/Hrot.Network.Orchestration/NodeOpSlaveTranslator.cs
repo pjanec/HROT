@@ -94,6 +94,7 @@ public sealed class NodeOpSlaveTranslator : IOrchestrationTranslator
                 RamUsedBytes      = 0L,
                 SimTickAdvancing  = false,
                 SubsystemsJson    = string.Empty,
+                RolesMask         = (int)hb.Roles,   // P1: carry the declared role mask on the wire.
             });
         }
 

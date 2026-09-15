@@ -412,22 +412,16 @@ internal sealed class NedCgfEntityLifecycleAdapters : ICgfEntityLifecycleAdapter
             _clusterCache.UpdateNode(new NodeCapability
             {
                 NodeId             = sample.Data.NodeId,
-                Role               = MapSubsystemNameToRole(sample.Data.SubsystemName),
+                // P1: read the node's declared role mask off the heartbeat (seam law — the source carries it).
+                // Replaces the lossy MapSubsystemNameToRole switch (3 names → ONE role); preserves multi-role
+                // [Flags] masks, and an un-set/foreign node reads None, which is the correct "unknown role".
+                Role               = (NodeRole)sample.Data.RolesMask,
                 CpuUsagePercent    = sample.Data.CpuUsagePercent,
                 RamUsedBytes       = sample.Data.RamUsedBytes,
                 LastSeenUtcSeconds = (double)sample.Data.WallTicksUtc / TimeSpan.TicksPerSecond,
             });
         }
     }
-
-    private static NodeRole MapSubsystemNameToRole(string? name) =>
-        name switch
-        {
-            "SimHost" => NodeRole.MuscleGround,
-            "CGF"     => NodeRole.Brain,
-            "IG"      => NodeRole.Map2D,
-            _         => NodeRole.None,
-        };
 }
 
 /// <summary>No-op stub for ISimHostMissionSender.</summary>

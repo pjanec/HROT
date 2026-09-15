@@ -44,33 +44,10 @@ public sealed class GlobalContextProcessManager
             CommitContextLoad(loadState.Value, intent.ScenarioId, intent.ExerciseId);
         }
 
-        // 2. On SaveScenario: PrepareAsync + Commit + publish manifest entry.
-        foreach (var intent in _bus.ReadManaged<ExecuteStorageOpIntent>())
-        {
-            if (intent.Operation != StorageOpType.SaveScenario) continue;
-
-            var exerciseIdJson = intent.ExerciseId != Guid.Empty
-                ? JsonSerializer.Serialize(new { ExerciseId = intent.ExerciseId })
-                : string.Empty;
-            var localCmd = ClusterNodeOpBuilder.LocalContextCmd(
-                NodeOpType.SerializeLocal, Guid.NewGuid(), exerciseIdJson);
-
-            _ = _handler.PrepareAsync(localCmd, CancellationToken.None)
-                .ContinueWith(t =>
-                {
-                    if (!t.IsFaulted)
-                    {
-                        _handler.Commit(localCmd, null);
-                        PublishManifestReady(_handler.CommitManifestEntry);
-                    }
-                    else
-                    {
-                        FdpLog<GlobalContextProcessManager>.Error(
-                            "[GlobalContextProcessManager] PrepareAsync faulted: {0}",
-                            t.Exception?.GetBaseException().Message ?? "unknown");
-                    }
-                }, System.Threading.Tasks.TaskScheduler.Default);
-        }
+        // CE-278: the SaveScenario=2 SAVE branch (PrepareAsync + Commit + PublishManifestReady, which wrote
+        // exercises/<id>/Orchestrator.json) is retired. Only the LOAD branch above remains — the transition
+        // context restore, unrelated to the retired op. The exercise sidecar is now written on the Export
+        // path by AssetInventoryProcessManager (§5).
     }
 
     /// <summary>
@@ -103,11 +80,5 @@ public sealed class GlobalContextProcessManager
         FdpLog<GlobalContextProcessManager>.Info(
             "[GlobalContextProcessManager] CommitLoad executed for scenario '{0}' (loadState={1}).",
             scenarioId, loadState);
-    }
-
-    private void PublishManifestReady(FileManifestEntry? entry)
-    {
-        if (entry == null) return;
-        _bus.PublishManaged(new GlobalContextManifestReadyEvent { Entry = entry });
     }
 }

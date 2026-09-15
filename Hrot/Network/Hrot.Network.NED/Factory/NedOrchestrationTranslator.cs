@@ -61,6 +61,7 @@ internal sealed class NedOrchestrationTranslator : Hrot.Core.Network.IOrchestrat
                 LocalStateId  = (int)sample.Data.LocalClusterState,
                 WallTicksUtc  = sample.Data.WallTicksUtc,
                 SubsystemName = sample.Data.SubsystemName ?? string.Empty,
+                Roles         = (Fdp.Core.NodeRole)sample.Data.RolesMask,   // P1: read the mask off the wire.
             });
         }
 

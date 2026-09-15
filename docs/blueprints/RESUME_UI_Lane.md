@@ -1,13 +1,11 @@
 <!--STATUS
 state: LIVE
-updated: 2026-09-14
-current-answer: ⚠⚠ THE LIVE WORK as of 2026-09-14 is the DISTRIBUTED SCENARIO PERSISTENCE build
-  (CE-275) — design DONE and READY-TO-BUILD, implementation NOT started. ⭐⭐⭐ READ
-  docs/blueprints/RESUME_Distributed_Scenario_Persistence.md — it carries the decided facts (do NOT
-  re-derive), the user-approved staged plan (feature-first: A OQ12 → B save gate → C distributed wiring
-  → E merge last, Sonnet-delegated mechanical + Opus hard-check), and the first action. Branch unchanged
-  (claude/reset-working-branch-qd1qpv). ⛔ The older STRANDS below are HISTORY unless you were explicitly
-  told to continue one.
+updated: 2026-09-15
+current-answer: ⭐⭐⭐ THE DISTRIBUTED-PERSISTENCE + OWNERSHIP PROGRAMME IS BUILT & LIVE-PROVEN as of
+  2026-09-15. Nothing is in flight — read the "SESSION 2026-09-15" block at the TOP of this file for what
+  shipped, what is deferred, and the decided facts. Branch claude/reset-working-branch-qd1qpv, HEAD
+  4b0cb5285, tree clean, all gates green. The 2026-09-14 note (CE-275 "not started") and the older STRANDS
+  below are HISTORY — do NOT act on them unless explicitly told to continue one.
   ══ (older) STRAND 0 — ROLE-AFFINITY OWNERSHIP (P3) + THE TKB COMPONENT-SET DERIVATION ══
   ══ STRAND 0 — ROLE-AFFINITY OWNERSHIP (P3) + THE TKB COMPONENT-SET DERIVATION. The live work. ══
   BRANCH claude/reset-working-branch-qd1qpv, head = the commit carrying this doc.
@@ -602,6 +600,43 @@ known-conflict: ⛔ HANDOFF_Cgf_Bootstrap_Unification.md (the dispatched frame) 
   deliberately. The handoff is NOT edited (rule 1: never amend a dispatched handoff).
 -->
 # ⭐⭐⭐ RESUME — **the UI / variable implementation lane**
+
+## ⭐⭐⭐ SESSION 2026-09-15 — DISTRIBUTED PERSISTENCE + OWNERSHIP: BUILT & LIVE-PROVEN
+
+**Branch** `claude/reset-working-branch-qd1qpv`, **HEAD `4b0cb5285`**, tree clean. Gates green:
+`design-digest --check`, `rulings-check` 34/34, `tracker-counts`, mermaid. ⚠ This session took the **MCP
+lane's role** too (user: "MCP lane not active now, you take its role") — the ai-debug HTTP surface work is ours.
+
+⚠ **Environment note:** the `hrot-ai-debug` MCP and (intermittently) `codebase-memory-mcp` were DOWN. All
+live cluster testing was done over **raw HTTP** per `docs/RUNBOOK_Cluster_Debugging_Over_Http.md`. ⛔ RUNBOOK
+trap that bit repeatedly: **do NOT combine `pkill` + `setsid nohup` launch + a foreground wait-loop in ONE
+Bash call** — the tool-exit tears down the detached process (exit 144). Run cleanup, launch, and the HTTP-up
+wait as **separate** Bash calls. `--mode all` node ids seen live: CGF=400 (Brain/Scenario), SimHost=1
+(Muscle), IG=100, ExCon=200.
+
+### What shipped this session (all committed + pushed)
+
+| id | what | commits |
+|---|---|---|
+| **CE-280** | Load-side foreign round-trip (T-C ExCon): `PrefetchScenarioAsync` routes `foreign/node_<id>.json` to its origin node; `ExConScenarioLoadHandler` restores observer state. Live-proven (T-C/T-D over HTTP, tampered-file value proof). | `66b24d79b` |
+| **CE-281** | Retire `NetworkOwnership`, merge into `NetworkAuthority` (byte-identical dup). Struct deleted (id 140 reserved), 2 readers repointed, 17 test files fixed. Full solution + affected suites green. | `7838c20c4` |
+| **CE-276** | Entity ownership **transfer**, descriptor-level & NED-initiated (ruling: descriptors are a NED concept, use `EDescriptorType`, NOT ECS components). `OwnershipTransferInitiationSystem` (NED) + `TransferEntityOwnershipRequest`/`TransferScope`; ai-debug `GET/POST /entities/{id}/ownership[/transfer]` (503 off-NED); wired CGF/SimHost/IG. **Receive side unified** — `OwnershipIngressSystem` now role-independent so a MUSCLE can receive (was Brain/IG-only). Rails `OwnershipTransferInitiationTests` 4/4; live CGF→IG **and** CGF→SimHost(Muscle) transfers proven. | `95909583e`→`4b0cb5285` |
+
+**Designs (authoritative, all folded to as-built):**
+- `docs/DESIGN_Entity_Ownership_Transfer.md` (CE-276) — build-state BUILT; class+sequence+module+HTTP UML; §5a HTTP surface; the receive-side unification note.
+- `docs/DESIGN_Distributed_Scenario_Persistence.md` — §5a (CE-280 as-built), §6c (receive side, now unified), §7 (CE-281 as-built). §6c's "replicate NetworkAuthority" idea is SUPERSEDED (PrimaryOwnerId is derived from the EntityMaster descriptor on both sides — do NOT replicate NetworkAuthority).
+- Tracker rows CE-276/278/279/280/281 in `Blueprint_Issues_Tracker.md`.
+
+**Live product check:** `hill-attack-close` on `--mode all` — both Hostile targets destroyed (HP 50→0 by sim~45s) AND platoon returned to the authored baseline (tanks settled x≈523–531 = baseline local 523–532, via `/world/geo-to-local`; firing line 580–582). Combat+mission loop intact after all ownership changes. `SplitAuthoritySpawnTests` 3/3.
+
+### Deferred (not started) — the only open follow-ons
+1. **Whole-entity-to-external multi-node orchestration** (CE-276 follow-on): consolidate an entity whose descriptors are split across Brain+Muscle onto ONE external all-roles node — each current owner transfers its share; needs ordering (EntityMaster last on publish / first on unpublish). The per-node primitive is done; this is the coordinator on top.
+2. **CE-278** — retire legacy `SaveScenario`=2 op (design `DESIGN_SaveScenario_Legacy_Op_Retirement.md`, do NOT re-derive; prerequisite: re-home the `Orchestrator.json` sidecar write onto the Export path first).
+3. **CE-279 A2** — full mega-registrar move-down (low value, high blast radius).
+4. Cosmetic: ai-debug `GET /entities/{id}/ownership` reports component **ids** for translator-registered descriptors (type names only for manual `RegisterMapping`) — fine, noted.
+
+---
+
 
 > 🔒🔒 **Branch: `claude/reset-working-branch-qd1qpv`** *(re-pointed by the USER, `2026-08-23`)*. ⛔ Push
 > nowhere else. ⭐ **CURRENT quest ids: `CE-` (next free `CE-110`)**; ⚠ `BP-` are this lane's HISTORICAL

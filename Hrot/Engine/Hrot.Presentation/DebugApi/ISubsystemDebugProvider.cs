@@ -440,7 +440,7 @@ public sealed class SubsystemDebugProvider : ISubsystemDebugProvider
             return bus is null ? null : name => bus.PublishManaged(new Fdp.Toolkit.Orchestration.ExecuteStorageOpIntent
             {
                 RequestId    = Guid.NewGuid(),
-                Operation    = Fdp.Toolkit.Orchestration.StorageOpType.SaveScenarioJson,
+                Operation    = Fdp.Toolkit.Orchestration.StorageOpType.SaveScenario,
                 ScenarioName = name,
             });
         };

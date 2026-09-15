@@ -24,7 +24,7 @@ namespace Hrot.NED.Descriptors.Orchestration
 	public enum ClusterOpType : int
     {
         TransitionState = 1,
-        SaveScenario = 2,
+        // 2 — RESERVED gap: the legacy SaveScenario op (CE-278) was retired; wire value 2 is not reused.
         LoadZone = 3,
         TakeCheckpoint = 4,
         CollectCheckpoint = 5,
@@ -39,7 +39,7 @@ namespace Hrot.NED.Descriptors.Orchestration
         StepTime        = 14,
         SetTimeScale    = 15,
         DumpDiagnostics = 16,
-        SaveScenarioJson = 17,   // CE-277(c0): distributed JSON scenario save; name in PayloadJson {"ScenarioName":...}
+        SaveScenario = 17,   // CE-277(c0): distributed JSON scenario save; name in PayloadJson {"ScenarioName":...}. CE-278: renamed from SaveScenarioJson (wire value 17 unchanged).
     }
 
     /// <summary>Wire value 13 is replay seek on nodes; C# name avoids IDL literal clash with <see cref="ClusterOpType.ReplaySeek"/>.</summary>
@@ -175,6 +175,9 @@ namespace Hrot.NED.Descriptors.Orchestration
         public long RamUsedBytes;
         public bool SimTickAdvancing;
         [DdsManaged] public string SubsystemsJson;
+        /// <summary>P1: the node's declared NodeRole [Flags] mask, carried as its int value so the wire
+        /// stays free of a cross-assembly enum codegen dependency. 0 = None (e.g. the orchestrator).</summary>
+        public int RolesMask;
     }
 
     [DdsTopic("OrchestratorContext")]

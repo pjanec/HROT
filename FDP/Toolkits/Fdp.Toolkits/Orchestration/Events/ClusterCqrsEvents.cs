@@ -80,6 +80,10 @@ namespace Fdp.Toolkit.Orchestration
         public int    LocalStateId;
         public long   WallTicksUtc;
         public string SubsystemName;
+        /// <summary>P1 (cross-node construction barrier): the node's declared <see cref="NodeRole"/> mask
+        /// ([Flags], possibly multi-role). Carried from the node's own boot config so the orchestrator
+        /// roster + cluster cache read the real mask instead of re-deriving one role from the display name.</summary>
+        public NodeRole Roles;
     }
 
     /// <summary>

@@ -417,8 +417,8 @@ public sealed class ClusterMaster : IDisposable
                 }
                 break;
 
-            case ClusterOpType.SaveScenario:
-            case ClusterOpType.SaveScenarioJson:   // CE-277(c0): distributed JSON scenario save
+            // CE-278: ClusterOpType.SaveScenario (=2) retired — not routed to ProcessStorageOpIntent.
+            case ClusterOpType.SaveScenario:   // CE-277(c0): distributed JSON scenario save
             case ClusterOpType.ExportArchive:
             case ClusterOpType.ImportArchive:
                 ProcessStorageOpIntent(ClusterOpRequestAdapter.ToExecuteStorageOpIntent(req));
@@ -465,6 +465,7 @@ public sealed class ClusterMaster : IDisposable
                 SubsystemName           = hb.SubsystemName ?? string.Empty,
                 LocalClusterState       = (ClusterState)(int)hb.LocalStateId,
                 LastHeartbeatUtcSeconds = UtcNowSeconds(),
+                Roles                   = hb.Roles,   // P2: store the declared role mask on the roster profile.
             };
             _roster.Upsert(profile);
         }
@@ -980,26 +981,20 @@ public sealed class ClusterMaster : IDisposable
     {
         switch (intent.Operation)
         {
-            case StorageOpType.SaveScenario:
-            {
-                var nodeIds = new List<int>(_roster.ActiveNodes.Keys);
-                var txId    = Guid.NewGuid();
-                FanOutSerializeLocal(txId, nodeIds, new ArchiveHandlerPayload(intent.ExerciseId));
-
-                FdpLog<ClusterMaster>.Info("[Orchestrator] SaveScenario → SerializeLocal fan-out to {0} node(s).", nodeIds.Count);
-                break;
-            }
+            // CE-278: StorageOpType.SaveScenario (=2) retired — the half-built .fdp-archive stub whose only
+            // real output (the Orchestrator.json exercise sidecar) is now written on the Export path
+            // (AssetInventoryProcessManager §5). The declarative scenario save is SaveScenarioJson below.
 
             // ⭐⭐⭐ CE-275 ③ — the DECLARATIVE scenario save. Same SerializeLocal fan-out mechanism as the
             //   .fdp archive above, but carrying a ScenarioSaveHandlerPayload so the per-host
             //   HrotScenarioSaveHandler runs the gated ScenarioSerializer and writes each node's owned slice.
             //   Distinct transaction + payload type, so ReferenceArchiveHandler and the scenario save handler
             //   never collide on the shared SerializeLocal op. 📄 DESIGN_Distributed_Scenario_Persistence.md §4.
-            case StorageOpType.SaveScenarioJson:
+            case StorageOpType.SaveScenario:
             {
                 if (string.IsNullOrWhiteSpace(intent.ScenarioName))
                 {
-                    FdpLog<ClusterMaster>.Warn("[Orchestrator] SaveScenarioJson missing ScenarioName — rejected (requestId={0}).", intent.RequestId);
+                    FdpLog<ClusterMaster>.Warn("[Orchestrator] SaveScenario missing ScenarioName — rejected (requestId={0}).", intent.RequestId);
                     PublishOpStatus(intent.RequestId, OrchestrationStatusCode.Rejected);
                     return;
                 }
@@ -1018,7 +1013,7 @@ public sealed class ClusterMaster : IDisposable
                 FanOutSerializeLocal(scnTxId, scnNodeIds,
                     new Fdp.Toolkit.Orchestration.Handlers.ScenarioSaveHandlerPayload(intent.ScenarioName!));
 
-                FdpLog<ClusterMaster>.Info("[Orchestrator] SaveScenarioJson '{0}' → SerializeLocal fan-out to {1} node(s).",
+                FdpLog<ClusterMaster>.Info("[Orchestrator] SaveScenario '{0}' → SerializeLocal fan-out to {1} node(s).",
                     intent.ScenarioName, scnNodeIds.Count);
                 break;
             }

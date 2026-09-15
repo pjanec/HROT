@@ -334,7 +334,7 @@ internal sealed class IgNodeBootstrapper : SharedApplicationBootstrapper
         // Use _effectiveInstanceId (= _nodeIdOverride when set, else IgNetworkConstants.InstanceId=300)
         // so the IG ClusterSlave always registers on a cluster-unique node ID.
         // Using IgNetworkConstants.LocalNodeId (1) caused collision with SimHost when --node-id 0.
-        var slave = new ClusterSlave(_effectiveInstanceId, "IG", orchestrationBus);
+        var slave = new ClusterSlave(_effectiveInstanceId, "IG", orchestrationBus, Fdp.Core.NodeRole.Map2D);   // P1: publish the declared role mask.
 
         // ⛔ CE-164 — the hand-built `new NodeOpSlaveTranslator(...)` that stood here is DELETED.
         //    context.SlaveTranslator already IS a NodeOpSlaveTranslator + ClusterOpEgressTranslator on this

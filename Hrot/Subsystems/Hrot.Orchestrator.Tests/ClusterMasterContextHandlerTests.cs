@@ -186,32 +186,9 @@ public sealed class ClusterMasterContextHandlerTests : IDisposable
         Assert.Null(ex);
     }
 
-    /// <summary>
-    /// After CommitSerializeLocal, the written Orchestrator.json must contain a
-    /// Phase 2 <c>$meta</c> envelope and must NOT contain a naked <c>schemaVersion</c>.
-    /// </summary>
-    [Fact]
-    public async Task CommitSerializeLocal_ProducesPhase2Envelope()
-    {
-        using var participant = new DdsParticipant(15);
-        var handler = new GlobalContextClusterOpHandler(participant, "test-scenario");
-        handler.LocalTempRoot = _tempDir;
-        handler.ScenarioTimeSeconds = 42.0;
-        var cmd = new NodeOpCommand { Operation = NodeOpType.SerializeLocal };
-        await handler.PrepareAsync(cmd, CancellationToken.None);
-        handler.Commit(cmd, null);
-
-        var writtenPath = handler.CommitManifestEntry!.SourceUnc;
-        var json = File.ReadAllText(writtenPath);
-        using var doc = JsonDocument.Parse(json);
-        var root = doc.RootElement;
-
-        Assert.True(root.TryGetProperty("$meta", out var meta), "$meta envelope must be present");
-        Assert.Equal("Hrot.OrchestratorContext", meta.GetProperty("docType").GetString());
-        Assert.Equal(2, meta.GetProperty("schemaVersion").GetInt32());
-        Assert.False(root.TryGetProperty("schemaVersion", out _), "naked schemaVersion must not be present");
-        Assert.True(root.TryGetProperty("startWallTicks", out _), "startWallTicks payload must be present");
-    }
+    // CE-278: CommitSerializeLocal_ProducesPhase2Envelope removed — CommitSerializeLocal (the SaveScenario=2
+    // exercises/<id>/Orchestrator.json writer) is retired. The $meta-envelope contract for the sidecar is now
+    // exercised on the Export path by AssetInventoryProcessManagerTests.ExportComplete_WritesExerciseSidecar.
 
     /// <summary>
     /// OnContextLoaded must NOT fire for transitions that do not pass through

@@ -17,10 +17,9 @@ namespace Hrot.Orchestrator;
 /// Process Manager (Saga) that handles NAS storage pulls for SerializeLocal operations.
 /// Reacts to <see cref="ClusterOpCompletedEvent"/> carrying aggregated file manifests
 /// and coordinates the pull to NAS via <see cref="StorageGatewayModule"/>.
-/// Prepends the orchestrator's own manifest entry received via
-/// <see cref="GlobalContextManifestReadyEvent"/> (TASK-P001).
-/// Also handles the ExportArchive NAS pull path, distinguished via
-/// <see cref="ExportArchiveBegunEvent"/> published by <see cref="ClusterMaster"/>.
+/// Handles the ExportArchive NAS pull path, distinguished via
+/// <see cref="ExportArchiveBegunEvent"/> published by <see cref="ClusterMaster"/>,
+/// and the SaveScenarioJson pull+merge path.
 /// </summary>
 public sealed class StorageProcessManager
 {
@@ -28,14 +27,10 @@ public sealed class StorageProcessManager
     private readonly StorageGatewayModule _gateway;
     private readonly string _nasBasePath;
 
-    // Latest orchestrator manifest entry received from GlobalContextProcessManager (TASK-P001).
-    private FileManifestEntry? _pendingOrchestratorEntry;
-
     // Archive export contexts keyed by the SerializeLocal transaction ID.
     // Set via ExportArchiveBegunEvent; consumed when the matching ClusterOpCompletedEvent arrives.
     private readonly Dictionary<Guid, (Guid ArchiveRequestId, CancellationTokenSource Cts)>
         _pendingArchiveExports = new();
-    private readonly HashSet<Guid> _pendingSaveScenarios = new();
 
     // CE-277(c2): SerializeLocal tx id → scenario name, for the SaveScenarioJson pull+merge path.
     private readonly Dictionary<Guid, string> _pendingSaveScenarioJson = new();
@@ -64,20 +59,9 @@ public sealed class StorageProcessManager
     /// </summary>
     public void Tick()
     {
-        // Capture orchestrator manifest entry published by GlobalContextProcessManager (TASK-P001).
-        foreach (var mev in _bus.ReadManaged<GlobalContextManifestReadyEvent>())
-            _pendingOrchestratorEntry = mev.Entry;
-
         // Capture archive export contexts so we can route ClusterOpCompletedEvent correctly.
         foreach (var aev in _bus.ReadManaged<ExportArchiveBegunEvent>())
             _pendingArchiveExports[aev.TransactionId] = (aev.ArchiveRequestId, aev.Cts);
-
-        // Track SaveScenario lifecycles so unrelated manifest payloads are not misrouted.
-        foreach (var sev in _bus.ReadManaged<ExecuteStorageOpIntent>())
-        {
-            if (sev.Operation == StorageOpType.SaveScenario)
-                _pendingSaveScenarios.Add(sev.RequestId);
-        }
 
         // CE-277(c2): map SaveScenarioJson fan-out tx → scenario name for the pull+merge path.
         foreach (var jev in _bus.ReadManaged<SaveScenarioJsonBegunEvent>())
@@ -200,52 +184,22 @@ public sealed class StorageProcessManager
                         else if (pullTask.IsFaulted)
                         {
                             FdpLog<StorageProcessManager>.Error(
-                                "[StorageProcessManager] SaveScenarioJson NAS pull failed: {0}",
+                                "[StorageProcessManager] SaveScenario (JSON) NAS pull failed: {0}",
                                 pullTask.Exception?.GetBaseException().Message ?? "unknown error");
                         }
                         else if (pullTask.IsCompletedSuccessfully)
                         {
                             FdpLog<StorageProcessManager>.Error(
-                                "[StorageProcessManager] SaveScenarioJson NAS pull partial failure: {0} file(s) failed",
+                                "[StorageProcessManager] SaveScenario (JSON) NAS pull partial failure: {0} file(s) failed",
                                 pullTask.Result.FailureCount);
                         }
                     }, System.Threading.Tasks.TaskScheduler.Default);
                 continue;
             }
 
-            // SaveScenario path only: prepend orchestrator entry if available and pull to NAS.
-            if (!_pendingSaveScenarios.Remove(ev.RequestId))
-                continue;
-
-            var fullManifest = new List<FileManifestEntry>(manifest);
-            if (_pendingOrchestratorEntry != null)
-            {
-                fullManifest.Insert(0, _pendingOrchestratorEntry);
-                _pendingOrchestratorEntry = null;
-            }
-
-            if (fullManifest.Count == 0) continue;
-
-            _ = _gateway.PullToNasAsync(fullManifest, _nasBasePath)
-                .ContinueWith(pullTask =>
-                {
-                    if (pullTask.IsCompletedSuccessfully && pullTask.Result.IsFullSuccess)
-                    {
-                        _ = _gateway.WriteScenarioManifestAsync(fullManifest, _nasBasePath);
-                    }
-                    else if (pullTask.IsFaulted)
-                    {
-                        FdpLog<StorageProcessManager>.Error(
-                            "[StorageProcessManager] NAS pull failed: {0}",
-                            pullTask.Exception?.GetBaseException().Message ?? "unknown error");
-                    }
-                    else if (pullTask.IsCompletedSuccessfully)
-                    {
-                        FdpLog<StorageProcessManager>.Error(
-                            "[StorageProcessManager] NAS pull partial failure: {0} file(s) failed",
-                            pullTask.Result.FailureCount);
-                    }
-                }, System.Threading.Tasks.TaskScheduler.Default);
+            // CE-278: the SaveScenario=2 pull path (prepend the orchestrator Orchestrator.json entry, pull
+            // to NAS, then WriteScenarioManifestAsync) is retired. Export and SaveScenarioJson are the only
+            // manifest-carrying completions handled here now; a non-matching completion is ignored.
         }
     }
 
