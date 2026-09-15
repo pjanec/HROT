@@ -1,7 +1,9 @@
 <!--STATUS
 state: LIVE
-updated: 2026-09-14
-current-answer: §4 (the retirement plan) — §5 is the prerequisite re-home that MUST land first
+updated: 2026-09-15
+current-answer: §4 (the retirement plan) — §5 is the prerequisite re-home that MUST land first. Both §4/§5 open
+  decisions are now RESOLVED (2026-09-15): scenario_manifest.json is a confirmed drop (§4), and the
+  Orchestrator.json sim-time restore relies on nothing and is droppable (§5) — see §5 "RESOLVED".
 stale-below: —
 superseded-by: —
 known-rot: —
@@ -126,7 +128,7 @@ actually consumes what `SaveScenario` writes.
 | symbol | why dead |
 |---|---|
 | `GlobalContextManifestReadyEvent` (`OrchestratorInternalEvents.cs:13-16`) | producer (`GlobalContextProcessManager` SaveScenario branch) and consumer (`StorageProcessManager._pendingOrchestratorEntry`, SaveScenario path only) both removed above |
-| `WriteScenarioManifestAsync` (`StorageGatewayModule.cs:500-515`) + its call (`StorageProcessManager.cs:234`) | `scenario_manifest.json` has **zero in-repo readers** (graph: writer `callers_total: 4`, no reader symbol; grep: no file read). ⚠ external NAS tools cannot be excluded from the repo — confirm no external contract before dropping |
+| `WriteScenarioManifestAsync` (`StorageGatewayModule.cs:500-515`) + its call (`StorageProcessManager.cs:234`) | `scenario_manifest.json` has **zero in-repo readers** (graph: writer `callers_total: 4`, no reader symbol; grep: no file read). ✅ **CONFIRMED DROP** (user, `2026-09-15`: no external NAS tools exist) |
 
 **Tests to update/remove:** `ScenarioSaveLoadTests` (OrchestratorContext restore), `StorageProcessManagerTests`
 (`ProcessManager_OrchestratorEntry_IsPrepended`, `Orchestrator.json` on NAS), `ClusterMasterArchiveTests`,
@@ -149,12 +151,30 @@ The data already exists in the ledger; `Export` is the op that archives exercise
   - Alternative site: `StorageProcessManager` export branch (`:129-177`), which already runs
     `PullToNasAsync` for the export manifest.
 
-### Open sub-question (decide before executing §5)
-Does any **resume-a-recording** (replay/live-from-replay) flow depend on the `scenarioTimeSeconds`
-sim-time restore via `CommitLoad`? If yes, that restore must be preserved on the replay/import path (not the
-scenario-load path). If no (the graceful t=0 fallback is always what fires for scenario loads), the sim-time
-half of `Orchestrator.json` is droppable. **Trace target:** who invokes `CommitLoad`/`CommitState(Loading*)`
-with a `scenarioId` whose `Orchestrator.json` exists on the load-read path (`scenarios/<scenarioId>/`).
+### ✅ RESOLVED (`2026-09-15`, graph-CLI + grep) — nothing relies on the sim-time restore; it is droppable
+The sub-question was *"does any resume-a-recording (replay/live-from-replay) flow depend on the
+`scenarioTimeSeconds` sim-time restore via `CommitLoad`?"* — **answer: NO.**
+
+Resume-a-recording seeds its clock from a **separate, purpose-built path**, not `CommitLoad`:
+`LiveBranchProcessManager.Tick()` owns the `OperatingReplay → LoadingLive` temporal interlock (CGF1-S0305) —
+`ReplayMasterModule.FreezeTime()` before the PrepareLive fan-out (`LiveBranchProcessManager.cs:59-62`), then
+`RestoreTime()` + `MasterSyncController.SnapAndPause(lbr.HistoricalTime.TotalWallTicks, …TotalTime, …)` on
+`ClusterOpCompletedEvent` (`:66-76`). Sim-time comes from `LiveBranchResult.HistoricalTime` (the replay's
+current frame), not from `Orchestrator.json`.
+
+Moreover the `Orchestrator.json` sim-time half is **already dead in production** (the §2 path mismatch):
+the sole writer writes `exercises/<exerciseId>/` (`GlobalContextClusterOpHandler.cs:143-147`,`:224-227`) while
+`CommitLoad` reads `scenarios/<scenarioId>/` (`:259-263`); nothing writes the latter path (grep `Orchestrator.json`
+over all `*.cs`: `SaveScenarioJson`=17 writes none, merge writes `scenario.json`), so `CommitLoad` always takes
+the t=0 fallback (`:264-277`) for scenario loads. And `LiveBranchProcessManager` ticks *before* `ClusterMaster`
+(`:19`) and `SnapAndPause`s *after* the branch op completes, so even a stray seed would be superseded.
+
+⇒ **The sim-time restore needs NO preservation on any path.** §5's re-home preserves ONLY the
+**exercise-inventory sidecar** (`ScanNasExercises` from `exercises/<exerciseId>/`).
+
+> ⚠ Tooling: codebase-memory MCP was down; drove its CLI (`trace_path`/`search_graph`/`search_code`) per
+> CLAUDE.md. `check_index_coverage` is unavailable via CLI, so the absence claim above rests on grep over
+> `*.cs`, not on index-coverage proof.
 
 ## 6. Checkpoints — untouched (recorded here so it isn't re-investigated)
 Checkpoints are **not** an enumerated collection. `CheckpointIOWorker` (`CGF1-S0303`) writes
