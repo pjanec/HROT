@@ -392,7 +392,9 @@ public sealed class StrideNodeBootstrapper : SharedApplicationBootstrapper, IDis
             participant:         context.Participant,
             subsystemName:       _savedConfig!.SubsystemName,
             eventBus:            context.EventBus,
-            scenarioSerializer:  null,    // this node does not load/save scenarios
+            // CE-279 — pass the serializer this override already receives (was null): the Stride SimHost saves
+            //   its owned slice via the shared serializer like every ECS host. Load handlers stay off here.
+            scenarioSerializer:  serializer,
             localTempRoot:       _savedConfig.LocalTempRoot,
             simGroup:            simGroup,
             postSimGroup:        postSimGroup,

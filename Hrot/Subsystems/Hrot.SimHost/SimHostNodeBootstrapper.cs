@@ -418,7 +418,9 @@ public sealed class SimHostNodeBootstrapper : SharedApplicationBootstrapper
             participant:          context.Participant,
             subsystemName:        "SimHost",
             eventBus:             context.EventBus,
-            scenarioSerializer:   null,
+            // CE-279 — pass the serializer this override already receives (was null); every ECS host saves
+            //   its owned slice via the shared serializer. Load handlers stay off (no authoring deps here).
+            scenarioSerializer:   serializer,
             localTempRoot:        _localTempRoot,
             tkbDb:                _tkbDb,         // TKB-020
             checkpointWorker:     CheckpointWorker,

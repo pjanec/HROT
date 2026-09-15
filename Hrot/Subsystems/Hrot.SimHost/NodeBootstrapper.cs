@@ -298,41 +298,40 @@ namespace Hrot.SimHost
             if (tkbDb != null)
                 clusterSlave.RegisterHandler(new TkbLoadClusterStateHandler(tkbDb, localTempRoot));
 
-            // Wire scenario/episode handlers when a serializer is provided.
+            // Scenario handlers when a serializer is provided.
             if (scenarioSerializer != null)
             {
-                if (scenarioExtractor == null) throw new ArgumentNullException(nameof(scenarioExtractor),
-                    "scenarioExtractor is required when scenarioSerializer is provided.");
-                if (scenarioSource == null) throw new ArgumentNullException(nameof(scenarioSource),
-                    "scenarioSource is required when scenarioSerializer is provided.");
-                if (scenarioIdAllocator == null) throw new ArgumentNullException(nameof(scenarioIdAllocator),
-                    "scenarioIdAllocator is required when scenarioSerializer is provided.");
+                var zoneService = new ZoneManagerService();
 
-                var scenarioLoader = new HrotScenarioLoader(storageProvider, scenarioSerializer.SubsystemType);
-                var zoneService    = new ZoneManagerService();
-
-                clusterSlave.RegisterHandler(
-                    new HrotScenarioLoadHandler(scenarioSerializer, scenarioLoader, zoneService,
-                        scenarioExtractor, scenarioSource, scenarioIdAllocator,
-                        world: world,
-                        controller: controller,
-                        storageDirectory: localTempRoot));
-
-                clusterSlave.RegisterHandler(
-                    new Hrot.ScenarioEditor.Handlers.HrotEditLoadHandler(scenarioSerializer, scenarioLoader, zoneService,
-                        scenarioExtractor, scenarioSource, scenarioIdAllocator,
-                        world: world));
-
-                clusterSlave.RegisterHandler(
-                    new ReferenceEpisodeLoadHandler(scenarioSerializer, scenarioLoader, world: null));
-
-                // ⭐⭐⭐ CE-275 ③ — the ONE scenario SAVE handler (same class the editor/CGF/IG register). On a
-                //   SaveScenarioJson fan-out it writes this node's OWNED slice via the shared ScenarioSaveCore.
-                //   A SimHost (muscle) usually owns nothing persistable, so its file is empty BY THE GATE —
-                //   uniform code, no role branch. 📄 DESIGN_Distributed_Scenario_Persistence.md §4.
-                //   CE-279: built here, registered below via SerializeLocalRegistrar.
+                // ⭐⭐⭐ CE-275 ③ / CE-279 — the ONE scenario SAVE handler (same class every host registers). It
+                //   needs ONLY the serializer (+ world/tkb/zone), so it is built here INDEPENDENT of the LOAD
+                //   deps: every ECS host — muscle included — saves its OWNED slice (empty by the gate when it
+                //   owns nothing). Registered below via SerializeLocalRegistrar.
+                //   📄 DESIGN_Distributed_Scenario_Persistence.md §4 · DESIGN_Unified_Cluster_Handler_Registration.md.
                 scenarioSaveHandler = new Hrot.ScenarioEditor.Handlers.HrotScenarioSaveHandler(
                     scenarioSerializer, zoneService, tkbDb, world, nodeId);
+
+                // Scenario/episode LOAD handlers need the full authoring deps (extractor/source/id-allocator).
+                //   A muscle node that only replicates (and passes none) gets SAVE without LOAD — no throw.
+                if (scenarioExtractor != null && scenarioSource != null && scenarioIdAllocator != null)
+                {
+                    var scenarioLoader = new HrotScenarioLoader(storageProvider, scenarioSerializer.SubsystemType);
+
+                    clusterSlave.RegisterHandler(
+                        new HrotScenarioLoadHandler(scenarioSerializer, scenarioLoader, zoneService,
+                            scenarioExtractor, scenarioSource, scenarioIdAllocator,
+                            world: world,
+                            controller: controller,
+                            storageDirectory: localTempRoot));
+
+                    clusterSlave.RegisterHandler(
+                        new Hrot.ScenarioEditor.Handlers.HrotEditLoadHandler(scenarioSerializer, scenarioLoader, zoneService,
+                            scenarioExtractor, scenarioSource, scenarioIdAllocator,
+                            world: world));
+
+                    clusterSlave.RegisterHandler(
+                        new ReferenceEpisodeLoadHandler(scenarioSerializer, scenarioLoader, world: null));
+                }
             }
 
             // CE-279 Layer A — register the SerializeLocal pair uniformly (save before archive; payload-aware

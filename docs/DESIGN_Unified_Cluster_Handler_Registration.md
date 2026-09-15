@@ -230,10 +230,14 @@ build very different amounts of code.
 - **Rail:** `ReferenceArchiveHandlerTests.SerializeLocalRegistrar_RoutesByPayload_ArchiveDoesNotShadowScenario`;
   also fixed the pre-existing stale `Commit_ProducesManifestJson` (its expected path omitted the `exercises/`
   segment the handler emits — measured red on the clean tree, unrelated to this change).
-- ⚠ **SimHost still passes `scenarioSerializer: null` in production**, so its save handler stays null (the
-  registrar handles null gracefully). A1 unifies the PATH + selection; giving SimHost a serializer so it
-  actively saves is a separate behaviour change, and cross-node slices still need **Layer B** (the wire) before
-  T-B is green.
+- ✅ **SimHost + Stride SimHost serializer wired `2026-09-15`** — was `scenarioSerializer: null`; both
+  composition roots already RECEIVE the shared serializer as a `BuildOrchestration` override param (built by
+  `HrotScenarioSerializerFactory` — the same factory CGF/Editor/IG use) and simply passed `null`. Now they pass
+  it. `NodeBootstrapper.BuildOrchestration` was decoupled so the SAVE handler registers whenever a serializer is
+  present, independent of the LOAD deps (a muscle node that only replicates gets SAVE without LOAD — no throw).
+  ⇒ every ECS host now registers the scenario save handler; a muscle node's slice is empty by the gate. Verified
+  live: `--mode all` save now writes 3 `Hrot.Scenario` slices (up from 2) + ExCon foreign; merged still 9
+  entities (SimHost owns nothing persistable). The one remaining "No handler" is the orchestrator (no ECS world).
 
 ### 6.3c ✅ LAYER B AS-BUILT `2026-09-15` — the SerializeLocal wire carries the scenario payload
 The NodeOp wire (`NodeOpMasterTranslator` egress / `NodeOpSlaveTranslator` ingress) reused
