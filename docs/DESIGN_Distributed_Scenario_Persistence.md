@@ -23,8 +23,10 @@ build-progress: Stage A (CE-275 ④ / OQ12) + Stage B (CE-275 ② the save gate)
   foreign/node_<id>.json to its origin node; ExConScenarioLoadHandler restores observer state (RestoredFromScenario
   ⇒ GET /panels/excon_observer). Rails: ExConScenarioLoadHandlerTests 3, StorageGatewayTests foreign-route 1.
   T-C ExCon-part + T-D mechanism DONE; live --mode all confirm still pending.
+  Stage E DONE `2026-09-15` (CE-281, see §7 as-built): NetworkOwnership retired, merged into NetworkAuthority
+  (2 readers repointed, 17 test files fixed; id 140 reserved). Ownership is now the single NetworkAuthority component.
   REMAINING: CE-277 follow-ons (OQ1 CGF zone service; retire raw-path SaveTo; multi-process staging+NAS pull;
-  T3 --mode all E2E), Stage E (NetworkOwnership→NetworkAuthority merge — ⛔ NO NoScenario flag, §7).
+  T3 --mode all E2E).
 current-answer: §4 save flow, §5 load flow (R-A, ruled §8.1), §6 the ONE gate — keyed on the
   NETWORK-AGNOSTIC primary-owner fact (NetworkAuthority.PrimaryOwnerId, entity-level HasAuthority;
   absent⇒owned), NEVER a wire descriptor, §6a globals (brain-owned), §6b format recognition, §6c the
@@ -894,6 +896,33 @@ from `BuildStaticMask` as belt-and-suspenders cleanup — cosmetic, not required
 
 ⚠ ⭐ Keep the **name** `NetworkAuthority` (renaming ~57 sites buys only cosmetics — optional later follow-up).
 Stage E (the `NetworkOwnership`→`NetworkAuthority` merge) is still separate and adds **no** flag.
+
+##### ✅ STAGE E APPLIED `2026-09-15` (CE-281) — **`NetworkOwnership` retired, merged into `NetworkAuthority`**
+
+⭐⭐ **Safety re-verified by measurement before the cut** (not assumed): the two structs are byte-identical
+(`PrimaryOwnerId`/`LocalNodeId`/`HasAuthority`); `NetworkSpawningSystem` wrote **both** on adjacent lines with
+the same values; `NetworkAuthority` has **3** writers (`NetworkSpawningSystem`, `OwnershipIngressSystem`,
+`EntityMasterIngressTranslator` with the `-1` ghost sentinel) vs `NetworkOwnership`'s **1**, so they are NOT
+always co-present — ghosts carry `NetworkAuthority` alone. The two readers repoint with identical behaviour:
+`CycloneNetworkCleanupSystem`'s query gains ghost matches but its `if(!HasAuthority) continue` drops them
+(and it now correctly tracks a transferred-to-us entity — a latent *fix*); `OwnershipExtensions.OwnsDescriptor*`
+has **only test callers** and `GetDescriptorOwner*` has **ZERO** callers, so the `absent⇒0` vs `ghost(-1)`
+difference is inert.
+
+| as-built change | site |
+|---|---|
+| struct + `[ComponentId(140)]` + `[DataPolicy]` deleted | `NetworkComponents.cs` (id 140 kept RESERVED in `GlobalComponentIds`) |
+| dropped the duplicate write; kept the `NetworkAuthority` add | `NetworkSpawningSystem.cs:158` |
+| 2 readers repointed → `NetworkAuthority` | `CycloneNetworkCleanupSystem.cs`, `OwnershipExtensions.cs` (both methods) |
+| dropped registration (×2) + static-mask bit 140 | `HrotSharedComponentRegistry.cs`, `DistributedTankScenario.cs`, `StagingEntityExtractor.cs` |
+
+⛔⛔ **CORRECTION to the §7 step table above — the TEST surface was UNDER-COUNTED.** The table listed only
+production sites + 1 example. Measured `2026-09-15`: **17 test files** referenced `NetworkOwnership` (mostly
+`RegisterComponent<NetworkOwnership>()` setup lines + a handful of asserts + the `DataPolicySaveContextMeasurement`
+rail). All repointed to `NetworkAuthority` (delete the registration where `NetworkAuthority` was already
+registered, else rename; asserts swap the shape-identical type). ⭐ This is the HN-037 lesson: **measure the
+test surface, not just production callers, before calling a deletion "mechanical."** Production build green;
+test repoint mechanical.
 
 ---
 

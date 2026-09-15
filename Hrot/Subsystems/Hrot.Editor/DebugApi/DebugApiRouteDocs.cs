@@ -710,7 +710,7 @@ namespace Hrot.Editor.DebugApi
               + "empty => nothing issued the order; intent set + status ABSENT => the consumer never ran; "
               + "intent set + status PRESENT + zero velocity => the consumer ran and produced no motion. "
               + "Worked example: NavigationIntent{Mode,TargetSpeed} against NavigationStatus.",
-                "AUTHORITY FIRST: NetworkOwnership/NetworkAuthority carry HasAuthority, PrimaryOwnerId and "
+                "AUTHORITY FIRST: NetworkAuthority carry HasAuthority, PrimaryOwnerId and "
               + "LocalNodeId. On a cluster a write to an entity this node does not own is legitimately dropped, "
               + "so check HasAuthority before filing 'the write did nothing'.",
                 "MEASURE MOTION AS A POSITION DELTA OVER A simTime DELTA, never over wall-clock. Sample "

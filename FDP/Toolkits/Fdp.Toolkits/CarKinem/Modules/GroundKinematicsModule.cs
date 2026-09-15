@@ -31,7 +31,7 @@ namespace Fdp.Toolkit.CarKinem.Modules
     /// <para>
     /// All queries within <see cref="CarKinematicsSystem"/> use
     /// <c>.WithOwned&lt;SimTransform&gt;()</c> rather than manual
-    /// <c>NetworkOwnership</c> checks, ensuring correct distributed split-authority
+    /// <c>NetworkAuthority</c> checks, ensuring correct distributed split-authority
     /// behavior (MOD1 §3.2.5).
     /// </para>
     /// </summary>

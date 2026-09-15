@@ -921,7 +921,7 @@ public sealed class CgfSubsystem : ISubsystem, Fdp.Toolkit.Runner.IMapCameraProv
         //
         // 📐 Measured 2026-08-30: NetworkSpawningSystem's `translators` argument was omitted (⇒
         //    Array.Empty) and elm.SetTranslators was never called, so BOTH projection routes were
-        //    zero-iteration loops. CGF-spawned entities carried NetworkIdentity, NetworkOwnership,
+        //    zero-iteration loops. CGF-spawned entities carried NetworkIdentity, NetworkAuthority,
         //    TkbIdentity and a DIS header — and none of their type's kinematics, combat, perception,
         //    behaviour or presentation. Rails: Hrot.SimHost.Tests/TkbTranslatorSpawnParityRails.cs.
         // 🔒 User ruling 2026-08-30: "the tkb idea is very simple and I think the usage rules should be

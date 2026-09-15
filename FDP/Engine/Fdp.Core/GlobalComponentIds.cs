@@ -320,7 +320,8 @@
         // â”€â”€ ModuleHost Network (140â€“159) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
         // Network ownership and coordination components managed by CycloneNetworkModule.
 
-        /// <summary><c>NetworkOwnership</c> â€” tracks primary network owner and local node ID.</summary>
+        // RESERVED — id 140 held the retired NetworkOwnership component (CE-281, merged into
+        // NetworkAuthority). Kept reserved so the id is never reused; no live component maps to it.
         public const int NetworkOwnership        = 140;
 
         /// <summary><c>PendingNetworkAck</c> â€” transient tag for entities awaiting reliable-init acknowledgment.</summary>

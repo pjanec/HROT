@@ -38,8 +38,7 @@ public static class HrotSharedComponentRegistry
     {
         // ── Network replication components ────────────────────────────────────
         world.RegisterComponent<NetworkIdentity>();
-        world.RegisterComponent<NetworkOwnership>();
-        world.RegisterComponent<NetworkAuthority>();
+        world.RegisterComponent<NetworkAuthority>();   // CE-281: NetworkOwnership retired (merged into NetworkAuthority)
         world.RegisterComponent<TkbIdentity>();
         world.RegisterComponent<GhostStateTracker>();
         world.RegisterComponent<PendingNetworkAck>();
