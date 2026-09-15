@@ -268,9 +268,12 @@ node-set is the distinct `NodeId`s in `DeferredTakeOwnershipCommand.Grants` *(tr
 + `CgfSubsystem:544`; load-balanced per-instance, so a type lookup can't match)*. ⛔ The REAL open item is now
 piece A: **the live genesis pipeline threads ownership across nodes via `DeferredTakeOwnership → GhostPromotion
 gate → DeferredTakeoverSystem → OwnershipUpdate`, NOT the dormant `PendingNetworkAck`/`NetworkGatewaySystem`
-path** — so reliable-init must first be checked against the existing `OwnershipUpdate` return signal (seam law)
-before any parallel peer mechanism is built, and the receiver-side "data ready" gate already exists
-(`GhostPromotionSystem` + the receiver ELM). See the frame §2b.
+path** — and the receiver-side "data ready" gate already exists (`GhostPromotionSystem` + the receiver ELM) so that
+half IS reuse. ⛔ **The seam-law check is RESOLVED by measurement `2026-09-15`: `OwnershipUpdate` does NOT
+subsume the peer barrier** — it fires at *claim* (`DeferredTakeoverSystem` queries `WithLifecycle(Constructing)`,
+`:154`), only from grant recipients (`:106`), and the creator never gates on it; and no peer-`Active` ack
+producer exists (`EntityLifecycleStatusDescriptor` is an orphan DTO). ⇒ **reliable-init is genuine new work**
+(a peer-`Active` ack producer + creator-side waiter). See the frame §2b/piece A.
 ⭐ **Corrected `2026-09-15` (user):** ELM-participant *(construction ACK gate)* and `WithOwned` *(steady-state
 tick filter)* are ORTHOGONAL — no "source of truth" conflict *(the earlier D1 was withdrawn)*. And
 rewind-safety is **already built + wired** *(`OnWorldReplaced`/`ResumeFromRestoredWorld`/

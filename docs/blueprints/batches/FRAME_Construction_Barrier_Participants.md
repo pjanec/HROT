@@ -66,13 +66,17 @@ it before building a parallel one.
 - ⭐⭐ **The receiver-side "data ready" gate ALREADY EXISTS** — `GhostPromotionSystem`'s mandatory-components
   gate, plus the receiver's local ELM *(§1.4: the ELM owns `Constructing→Active` on BOTH legs)*. So the
   navmesh/IG-model participants *(piece C)* extend **that** existing receiver gate — they are NOT a new path.
-- ⭐⭐ **A peer-ack-like signal may ALREADY EXIST** — the receiver's `OwnershipUpdate` return *(step 5→6)*
-  is a "peer has the entity and claimed its part" signal the creator already receives. ⇒ 🔒 **before building
-  the dormant `PendingNetworkAck`/`NetworkGatewaySystem`/`EntityAcknowledge` peer path, the session MUST
-  evaluate whether reliable-init can ride the existing `DeferredTakeOwnership → OwnershipUpdate` round-trip**
-  *(the seam law)*. ⚠ Caveat to weigh: `OwnershipUpdate` fires at receiver-`Constructing`+claim, not
-  receiver-`Active` — so it may be "claimed" not "fully ready"; that gap is the real design question, not
-  "which peer-list to query."
+- ⛔⛔ **SEAM-LAW CHECK RESOLVED BY MEASUREMENT `2026-09-15` — `OwnershipUpdate` does NOT subsume the peer
+  barrier; it is genuine new work.** Three measured reasons: ① **wrong moment** — `DeferredTakeoverSystem`
+  emits `OwnershipUpdate` at `WithLifecycle(Constructing)` *(`DeferredTakeoverSystem.cs:154/125`)*, i.e. at
+  *claim*, before the receiver is `Active`/ready; ② **wrong coverage** — it is emitted only by grant
+  recipients *(`:106` `if (ownerNodeId != _localNodeId) continue`)*, so **display-only replicas that own
+  nothing — exactly the IG-model case — emit none**; ③ **no peer-Active ack exists** — `OwnershipIngressSystem`
+  only sets authority bits + `PrimaryOwnerId` *(no lifecycle gate)*, and `EntityLifecycleStatusDescriptor` is
+  an orphan DTO with no producer. ⇒ **reliable-init needs its own peer-Active ack** *(give
+  `EntityLifecycleStatusDescriptor` a producer-on-`Active` + a consumer, ≈ the dormant `EntityAcknowledge`
+  concept; `PendingNetworkAck` is already stamped by `NetworkSpawningSystem:175`)*. ⭐ What IS reuse: the
+  RECEIVER-side gate above; ⛔ the CROSS-node creator-wait is real.
 
 ⚠ **HOST-REACHABILITY HAZARD (§1.3):** `DeferredTakeoverSystem` and `NetworkLifecycleSystemGroup` are
 **dead on non-NED hosts** *(private group, one caller = `NedReplicationModule.Tick`; unreachable on the
@@ -83,7 +87,7 @@ ticks on the hosts that need it.
 ## 3. 🔧 WHAT TO BUILD *(the session designs the detail + UML per piece)*
 | # | piece | note |
 |---|---|---|
-| **A** | **Resolve the PEER-barrier mechanism (reconcile, don't assume)** | ⛔ first the §2b seam-law check: can reliable-init ride the **existing** `DeferredTakeOwnership → OwnershipUpdate` round-trip? If yes, the dormant `NetworkGatewaySystem`/`PendingNetworkAck` path may be UNNEEDED (retire it) — if no, construct the gateway and stamp the expected-peer set per D2. ⛔ Do NOT build a parallel path before this is decided |
+| **A** | **Build the PEER-Active ack (MEASURED necessary — §2b, seam-law check done)** | `OwnershipUpdate` does NOT subsume it *(wrong moment: claim-not-ready; wrong coverage: grant-recipients only, no display replicas)*. Give `EntityLifecycleStatusDescriptor` a **producer that fires when a peer's copy reaches `Active`** + a **consumer on the creator** that clears the pending set; `PendingNetworkAck` is already stamped at `NetworkSpawningSystem:175`. Construct the creator-side waiter *(the gateway, or an equivalent `DeferredConstructionParticipant`)*. This IS genuine new work |
 | **B** | **Extract a reusable `DeferredConstructionParticipant` base** | the gateway hand-rolls pending-set / defer-ack / timeout / destruction-cleanup; navmesh + IG-model must not copy it *(ruling 9 / seam law)*. Hook: `TryComplete(entity) → bool`. If piece A keeps a gateway, it becomes a thin subclass |
 | **C** | **Wire the two receiver-side participants — extending the EXISTING gate, not a new path** | navmesh/altitude on the muscle node, model-load on IG, each blocking only for entities requiring it *(`RegisterRequirement` per-type; "which types" from the TKB template — `SimTransform`/a component attribute, `[BirthCritical]` shape, CE-266)*. ⭐ These extend the receiver readiness gate that already exists *(GhostPromotion mandatory-components gate + the receiver's local ELM, §2b)* |
 | **D** | **Integration proof** | on `--mode all`: spawn a spatial type in an *uncached* area → stays `Constructing` → data arrives → `Active`; plus timeout path + IG model-load. T-1: extend `EntityLifecycleModuleTests` + `NetworkGatewaySystemTests`, add an integration rail |
@@ -104,6 +108,13 @@ initialize it)*. Traced end-to-end:
 so it cannot match a per-instance load-balanced grant. Retire it as the peer source; keep `INetworkTopology`
 for `LocalNodeId`/`GetAllNodes` only. ⛔ **NOT `BrainMuscleOwnershipStrategy` directly** *(role-pair-specific,
 NED layer)* — tap the **command it feeds**, which both producers share.
+
+⚠ **D2 SCOPE, refined by measurement `2026-09-15`:** the grant node-set is the correct source for the
+**delegated-owner** peers *(the muscle node)*. It does **NOT** cover **display-only replicas that own nothing
+but must still initialise a copy** — the IG-model case — which are not in any grant and are discovered
+dynamically via DDS subscription, not decided at creation. ⇒ for the full `AllPeers` reliable set, the
+display-replica membership is a **genuinely-open topology question** *(the design-talk hand-waved "all known
+simulation nodes")* — resolve it in the design; the grant node-set answers only the owned-part subset.
 
 ⭐ **The one remaining HOW (session design detail, grounded):** the grant is computed in
 `CreateEntityRequestSystem` but `PendingNetworkAck` is stamped later in `NetworkSpawningSystem:159`. Carry
