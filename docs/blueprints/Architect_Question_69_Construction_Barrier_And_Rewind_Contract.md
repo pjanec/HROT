@@ -231,3 +231,60 @@ would have overturned a correct local measurement**. 🔒 **Rule 3 of the proced
 ⭐ Per `CLAUDE.md`'s three non-negotiables: a relayed answer is **one input** to the joint working session —
 ⛔ never a ruling, and never a reason to start building. 🔒 **The user decides.** ⭐ Answers will be folded
 into this document as evidence, attributed, with the verification result noted per claim.
+
+## 9. ⭐ RECONCILIATION — measured `2026-09-15`, and the user's rulings this session
+
+⭐ **Coordinator measurement (facts, lean-free).** Prompted by the user's question *"isn't the ELM
+cross-node? then the peer wait is free"* — read the ELM API + design-talk + `NetworkGatewaySystem`:
+- 📐 **The ELM is LOCAL per-node BY DESIGN** — design-talk:137 *"No, you do not need a 'Master ELM
+  Controller' that coordinates ACKs across the network"*; :139 cross-node `Constructing` sync *"would
+  introduce massive latency"*; *"Local ELM Instances running independently on each node."*
+- 📐 **The cross-node dimension IS the peer barrier** — `NetworkGatewaySystem` is a *local* participant
+  that withholds its ack until DDS `EntityAcknowledge` from peers; a peer reports `Active` only after its
+  own local barrier cleared ⇒ local barriers + peer barrier = cross-node readiness, **no master**. So the
+  peer barrier is **not a superseded relic — it is the (unbuilt) cross-node half**, and the Brain/Muscle
+  node split (`DESIGN_Role_Affinity_Ownership` §6i, built) makes it a real need, not optional polish.
+- 📐 **The "block only for entities that require it" mechanism already exists** — `BeginConstruction`:
+  `RemainingAcks = _globalParticipants ∪ _blueprintRequirements[tkbType]`; `RegisterRequirement`
+  (`:158`) is the per-type knob and has **zero callers**. *When* a participant acks is its own per-entity
+  choice (the gateway defers via `_pendingPeerAcks`). ⇒ navmesh/altitude and IG model-load fit this
+  exactly, as node-local deferring participants.
+
+🔒 **User rulings, `2026-09-15` (DECISIONS, not leans):**
+1. **Fast mode stays the default** until reliable init is requested.
+2. **`GetExpectedPeers` derives from the role/ownership model** (`BrainMuscleOwnershipStrategy`), not
+   "all known simulation nodes."
+3. **Decentralised, non-master** is the intended solution.
+4. **Real node-local participants are wanted:** navmesh/altitude on the muscle node (may defer during a
+   deferred `SimTransform` handover), IG model-load on the IG node — each blocking only for entities that
+   require it. *"we need to register the systems on the nodes to be part of ELM to be able to prove it works."*
+
+⇒ **This reframes ask B:** the question is no longer *"is the peer barrier a relic?"* (it is required) but
+*"scope the wiring"* — captured in the FRAME:
+📄 [`batches/FRAME_Construction_Barrier_Participants.md`](batches/FRAME_Construction_Barrier_Participants.md)
+*(pieces A–D, the reusable `DeferredConstructionParticipant` base)*. ⭐ **Updated `2026-09-15` after reading
+`DESIGN_Entity_Genesis_End_To_End.md`:** D2 *(expected-peer source)* is RESOLVED — the per-entity owner
+node-set is the distinct `NodeId`s in `DeferredTakeOwnershipCommand.Grants` *(traced: `CreateEntityRequestSystem:363`
++ `CgfSubsystem:544`; load-balanced per-instance, so a type lookup can't match)*. ⛔ The REAL open item is now
+piece A: **the live genesis pipeline threads ownership across nodes via `DeferredTakeOwnership → GhostPromotion
+gate → DeferredTakeoverSystem → OwnershipUpdate`, NOT the dormant `PendingNetworkAck`/`NetworkGatewaySystem`
+path** — and the receiver-side "data ready" gate already exists (`GhostPromotionSystem` + the receiver ELM) so that
+half IS reuse. ⛔ **The seam-law check is RESOLVED by measurement `2026-09-15`: `OwnershipUpdate` does NOT
+subsume the peer barrier** — it fires at *claim* (`DeferredTakeoverSystem` queries `WithLifecycle(Constructing)`,
+`:154`), only from grant recipients (`:106`), and the creator never gates on it; and no peer-`Active` ack
+producer exists (`EntityLifecycleStatusDescriptor` is an orphan DTO). ⇒ **reliable-init is genuine new work**
+(a peer-`Active` ack producer + creator-side waiter). See the frame §2b/piece A.
+⭐ **Peer membership RESOLVED `2026-09-15` (user + measurement):** the set is the orchestrator's present nodes
+whose `NodeRole` **mask** *(measured `[Flags]`)* marks them a participant — display replicas included by role,
+not by any grant; block until each publishes a peer-`Active` ack. ⛔ Grounded prerequisite: the role mask is
+NOT in the orchestrator today *(`NodeHeartbeatEvent` carries only `SubsystemName`; role re-derived by the lossy
+`NedNetworkFactory.MapSubsystemNameToRole` switch; `NodeHealthProfile` stores no role)* ⇒ carry the mask on the
+heartbeat and store it (frame §4a P1–P3). See the frame §4a.
+⭐ **Corrected `2026-09-15` (user):** ELM-participant *(construction ACK gate)* and `WithOwned` *(steady-state
+tick filter)* are ORTHOGONAL — no "source of truth" conflict *(the earlier D1 was withdrawn)*. And
+rewind-safety is **already built + wired** *(`OnWorldReplaced`/`ResumeFromRestoredWorld`/
+`PreviewParticipants.LifecycleModule` on CGF+SimHost+Editor; `HN-018` closed; §2.1m BUILT)* — replay does
+not run the ELM at all *(full snapshot restore, `mgmt-1` §8.10)*, so new participants inherit rewind-safety
+for free rather than being a dependency.
+⚠ **These facts are coordinator measurements — if this document is ever relayed, they are NOT to be cited
+back as architect evidence** *(rule ③).*

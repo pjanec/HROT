@@ -7,7 +7,7 @@
 **⚠️ INFRASTRUCTURE AUDIT:** This document reflects the new `FDP.Toolkit.NetworkSpawning` toolkit design derived from the design talk. It sits on top of existing FDP infrastructure (ELM, TKB, Replication). Components marked ✅ EXIST are dependencies. The toolkit itself is marked ❌ NEW.
 
 **Parent Document**: [TASK-TRACKER.md](./TASK-TRACKER.md)  
-**Related Documents**: [DESIGN-SIMHOST.md](./DESIGN-SIMHOST.md) | [DESIGN-IG.md](./DESIGN-IG.md)
+**Related Documents**: [DESIGN-SIMHOST.md](./DESIGN-SIMHOST.md) | [DESIGN-IG.md](./DESIGN-IG.md) | [DESIGN_Cross_Node_Construction_Barrier.md](../../DESIGN_Cross_Node_Construction_Barrier.md) — revives & reshapes this doc's `ReliableInitType`/`PendingNetworkAck` into the cross-node peer barrier (the reliable-init handshake, wired).
 
 ## Table of Contents
 

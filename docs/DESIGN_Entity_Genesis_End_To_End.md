@@ -40,6 +40,9 @@ related-designs:
     subordinate slots, InitialUnitSubordinateIntent, GenesisMaterializationSystem.
   - designs/replication-fixes/REPL-DESIGN.md — §4.4 owns SubEntityCleanupSystem (child TEARDOWN, not
     genesis).
+  - DESIGN_Cross_Node_Construction_Barrier.md — owns stage ⑨'s RELIABLE variant: how the creator holds
+    Constructing until peer nodes report Active (reliable distributed init; the cross-node wait). Fast
+    mode — the default this page draws — skips it.
   - DESIGN_Distributed_Scenario_Persistence.md — owns what the primary owner (set at the spawn stage,
     movable at the takeover stage) MEANS for scenario SAVE/LOAD: the per-entity save gate, the
     NetworkAuthority/NetworkOwnership merge, and the ECS↔network ownership seam. It consumes the owner
