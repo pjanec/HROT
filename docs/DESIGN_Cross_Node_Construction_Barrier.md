@@ -1,8 +1,9 @@
 <!--STATUS
 state: LIVE
-build-state: DESIGN — the barrier itself (pieces A–C) NOT yet READY-TO-BUILD. ✅ Prerequisites P1–P3
-  (role propagation, §5) are BUILT `2026-09-15` — see §5 "P1–P3 AS-BUILT". Still gated on a user nod on the
-  fast/reliable default before the barrier is built. The reliable path is OPT-IN; fast stays default.
+build-state: BUILDING — slice A (peer-Active ack wire + creator waiter, +B) DISPATCHED to the UI/CGF lane
+  `2026-09-15` via HANDOFF_Reliable_Init_Peer_Ack.md (step 0 = design-verification gate). ✅ Prerequisites
+  P1–P3 (role propagation, §5) BUILT `2026-09-15`. Piece C (real navmesh/IG participants) is a follow-up.
+  Fast stays default (user); the reliable path is OPT-IN.
 updated: 2026-09-15
 current-answer: §1 IS THE DESIGN — the three diagrams (1.1 sequence, 1.2 classes, 1.3 module map).
   §2 says only WHY — incl. §2a late-joiner durability, §2b node-id consistency, §2c generic NED/BDC
