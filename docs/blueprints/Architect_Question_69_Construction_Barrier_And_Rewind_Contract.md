@@ -231,3 +231,37 @@ would have overturned a correct local measurement**. 🔒 **Rule 3 of the proced
 ⭐ Per `CLAUDE.md`'s three non-negotiables: a relayed answer is **one input** to the joint working session —
 ⛔ never a ruling, and never a reason to start building. 🔒 **The user decides.** ⭐ Answers will be folded
 into this document as evidence, attributed, with the verification result noted per claim.
+
+## 9. ⭐ RECONCILIATION — measured `2026-09-15`, and the user's rulings this session
+
+⭐ **Coordinator measurement (facts, lean-free).** Prompted by the user's question *"isn't the ELM
+cross-node? then the peer wait is free"* — read the ELM API + design-talk + `NetworkGatewaySystem`:
+- 📐 **The ELM is LOCAL per-node BY DESIGN** — design-talk:137 *"No, you do not need a 'Master ELM
+  Controller' that coordinates ACKs across the network"*; :139 cross-node `Constructing` sync *"would
+  introduce massive latency"*; *"Local ELM Instances running independently on each node."*
+- 📐 **The cross-node dimension IS the peer barrier** — `NetworkGatewaySystem` is a *local* participant
+  that withholds its ack until DDS `EntityAcknowledge` from peers; a peer reports `Active` only after its
+  own local barrier cleared ⇒ local barriers + peer barrier = cross-node readiness, **no master**. So the
+  peer barrier is **not a superseded relic — it is the (unbuilt) cross-node half**, and the Brain/Muscle
+  node split (`DESIGN_Role_Affinity_Ownership` §6i, built) makes it a real need, not optional polish.
+- 📐 **The "block only for entities that require it" mechanism already exists** — `BeginConstruction`:
+  `RemainingAcks = _globalParticipants ∪ _blueprintRequirements[tkbType]`; `RegisterRequirement`
+  (`:158`) is the per-type knob and has **zero callers**. *When* a participant acks is its own per-entity
+  choice (the gateway defers via `_pendingPeerAcks`). ⇒ navmesh/altitude and IG model-load fit this
+  exactly, as node-local deferring participants.
+
+🔒 **User rulings, `2026-09-15` (DECISIONS, not leans):**
+1. **Fast mode stays the default** until reliable init is requested.
+2. **`GetExpectedPeers` derives from the role/ownership model** (`BrainMuscleOwnershipStrategy`), not
+   "all known simulation nodes."
+3. **Decentralised, non-master** is the intended solution.
+4. **Real node-local participants are wanted:** navmesh/altitude on the muscle node (may defer during a
+   deferred `SimTransform` handover), IG model-load on the IG node — each blocking only for entities that
+   require it. *"we need to register the systems on the nodes to be part of ELM to be able to prove it works."*
+
+⇒ **This reframes ask B:** the question is no longer *"is the peer barrier a relic?"* (it is required) but
+*"scope the wiring"* — captured in the FRAME:
+📄 [`batches/FRAME_Construction_Barrier_Participants.md`](batches/FRAME_Construction_Barrier_Participants.md)
+*(pieces A–D, the reusable `DeferredConstructionParticipant` base, decisions D1/D2, the replay dependency)*.
+⚠ **These facts are coordinator measurements — if this document is ever relayed, they are NOT to be cited
+back as architect evidence** *(rule ③).*
