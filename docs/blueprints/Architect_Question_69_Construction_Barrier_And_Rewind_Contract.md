@@ -262,6 +262,12 @@ cross-node? then the peer wait is free"* — read the ELM API + design-talk + `N
 ⇒ **This reframes ask B:** the question is no longer *"is the peer barrier a relic?"* (it is required) but
 *"scope the wiring"* — captured in the FRAME:
 📄 [`batches/FRAME_Construction_Barrier_Participants.md`](batches/FRAME_Construction_Barrier_Participants.md)
-*(pieces A–D, the reusable `DeferredConstructionParticipant` base, decisions D1/D2, the replay dependency)*.
+*(pieces A–D, the reusable `DeferredConstructionParticipant` base, the one open decision D2 = `GetExpectedPeers`-from-ownership)*.
+⭐ **Corrected `2026-09-15` (user):** ELM-participant *(construction ACK gate)* and `WithOwned` *(steady-state
+tick filter)* are ORTHOGONAL — no "source of truth" conflict *(the earlier D1 was withdrawn)*. And
+rewind-safety is **already built + wired** *(`OnWorldReplaced`/`ResumeFromRestoredWorld`/
+`PreviewParticipants.LifecycleModule` on CGF+SimHost+Editor; `HN-018` closed; §2.1m BUILT)* — replay does
+not run the ELM at all *(full snapshot restore, `mgmt-1` §8.10)*, so new participants inherit rewind-safety
+for free rather than being a dependency.
 ⚠ **These facts are coordinator measurements — if this document is ever relayed, they are NOT to be cited
 back as architect evidence** *(rule ③).*

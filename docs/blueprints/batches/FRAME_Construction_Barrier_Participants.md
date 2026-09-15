@@ -1,7 +1,7 @@
 <!--STATUS
 state: LIVE
-build-state: FRAME — DRAFT, NOT DISPATCHED. UI/CGF lane (`CE-`). Awaiting the user's go + the two
-  open decisions (§4) resolved before the session writes the design and builds.
+build-state: FRAME — DRAFT, NOT DISPATCHED. UI/CGF lane (`CE-`). Awaiting the user's go + the one
+  open decision D2 (§4) resolved before the session writes the design and builds.
 updated: 2026-09-15
 current-answer: this is the coordinator FRAME. The session authors the owning design (inventory + UML)
   in DESIGN-NetworkSpawning.md (or a new DESIGN_Construction_Barrier.md) before any code.
@@ -53,19 +53,33 @@ The ELM already carries the two-knob model this needs; `RegisterRequirement` has
 | **C** | **Wire the two real participants via `RegisterRequirement`** | navmesh/altitude on SimHost (muscle) for spatial types; model-load on IG for types with a model. "Which types require it" derived from the TKB template *(SimTransform presence / a component attribute — same shape as `[BirthCritical]`, CE-266)* |
 | **D** | **Integration proof** | on `--mode all`: spawn a spatial type in an *uncached* area → stays `Constructing` → data arrives → `Active`; plus timeout path + IG model-load. T-1: extend `EntityLifecycleModuleTests` + `NetworkGatewaySystemTests`, add an integration rail |
 
-## 4. ⛔ TWO DECISIONS TO RESOLVE BEFORE BUILD *(architect/user — cluster-wide activation timing)*
+## 4. ⛔ ONE DECISION TO RESOLVE BEFORE BUILD *(architect/user)*
 | # | decision | coordinator lean |
 |---|---|---|
-| **D1** | **Participant vs gated-system source of truth.** Physics/nav on the muscle node is today a `WithOwned` **gated ECS system** (`DESIGN_Role_Affinity_Ownership` §3.6/§6i), NOT an ELM participant. Two mechanisms answer "is this node's part ready?" | pick ONE per node; do not run both. Lean: the ELM participant is the *readiness gate*, the `WithOwned` filter is the *steady-state tick* — the participant acks once, then the gated system takes over. Needs the session's measurement |
 | **D2** | **`GetExpectedPeers` membership** | derive from the ownership grants (the nodes that will own a part of this entity), not "all known nodes" — user-approved; the session designs the exact seam into `BrainMuscleOwnershipStrategy`/`IClusterStateCache` |
 
-## 5. ⚠ THE DEPENDENCY THAT GOES LIVE
-Today the ELM pending queues are always empty ⇒ replay/preview reconstruction is trivially safe. **The
-moment the barrier actually blocks, the queues go non-empty and `CE-259au`/`HN-018` (the ELM is not
-rewind-safe; `Entity`-keyed dictionaries survive no seek/replay/preview) stop being theoretical.** Fix
-shape is already named: **re-derive** in-flight construction from the recorded `LifecycleState` +
-`TkbIdentity` at a rewind boundary rather than snapshotting handles *(designs/replay-and-modules §2.1i)*.
-Budget it as part of this, not after.
+⭐ **NOT a decision — corrected `2026-09-15` (user).** Being an ELM participant *(does this system ACK
+construction, gating entry to `Active`)* and `WithOwned<T>` *(which entities a system's steady-state query
+returns each tick)* are **orthogonal**. A system can be both — it acks once when its data is ready, and
+independently ticks its owned entities thereafter. There is no "source of truth" conflict; the earlier
+**D1 was a false dichotomy** and is withdrawn.
+
+## 5. ✅ REWIND-SAFETY IS ALREADY BUILT — new participants inherit it *(corrected `2026-09-15`)*
+⛔ **An earlier version of this section claimed rewind-safety "goes live once the queues are non-empty" and
+told the session to budget it. That was WRONG**, and the user corrected the premise: **replay restores the
+full ECS snapshot in sync on all nodes and ELM systems do not run during replay** *(`mgmt-1/DESIGN.md`
+§8.10 — entities materialise `Active` from the recorded chunk; `NetworkLifecycleSystemGroup.Enabled=false`;
+`GhostCreationSystem.BypassLifecycle=true`)*. **Preview is live mode where the ELM blocks normally**; only
+the discard-rewind clears.
+- ⭐ The ELM's transient queues are **cleared + re-derived at every world-replacement boundary** —
+  `OnWorldReplaced` + `ResumeFromRestoredWorld`, wired at `CgfSubsystem`, SimHost `NodeBootstrapper`,
+  `EditorSubsystem`; preview via `PreviewParticipants.LifecycleModule` on the same three hosts *(`HN-018`
+  CLOSED `2026-09-12`; `CE-259ap`/`CE-259ar` replay-boundary clears landed in step 3;
+  `replay-and-modules/DESIGN.md` §2.1m BUILT)*. It **re-derives** from recorded `LifecycleState` +
+  `TkbIdentity`, so no `Entity` handle crosses the boundary.
+- ⭐⭐ **A new deferring participant (navmesh / IG-model) inherits this for free:** on resume-to-live
+  `ResumeFromRestoredWorld` re-publishes `ConstructionOrder` for still-`Constructing` entities and the
+  participant simply re-blocks and re-acks when its data is ready. **Nothing to budget here.**
 
 ## 6. ⭐ ACCEPTANCE + PROCESS
 - Owning design (extend `DESIGN-NetworkSpawning.md` or new `DESIGN_Construction_Barrier.md`) carries the
