@@ -174,7 +174,12 @@ public sealed class NodeOpSlaveTranslator : IOrchestrationTranslator
             case NedNodeOpType.SerializeLocal:
             {
                 if (!hasPayload) return null;
-                var dto = JsonSerializer.Deserialize<ArchivePayloadDto>(payloadJson!, OrchestrationJsonOptions.Default);
+                // ⭐ CE-279 Layer B — SerializeLocal carries EITHER the scenario save (ScenarioId = the scenario
+                //   name) OR the .fdp archive (ExerciseId). Discriminate so the scenario payload survives the wire
+                //   as a ScenarioSaveHandlerPayload instead of being flattened to an empty ArchiveHandlerPayload.
+                var dto = JsonSerializer.Deserialize<NodeTransitionPayloadDto>(payloadJson!, OrchestrationJsonOptions.Default);
+                if (!string.IsNullOrWhiteSpace(dto?.ScenarioId))
+                    return new Fdp.Toolkit.Orchestration.Handlers.ScenarioSaveHandlerPayload(dto!.ScenarioId!);
                 return new ArchiveHandlerPayload(dto?.ExerciseId ?? Guid.Empty);
             }
 

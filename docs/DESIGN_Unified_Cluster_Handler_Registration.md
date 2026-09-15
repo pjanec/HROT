@@ -235,6 +235,16 @@ build very different amounts of code.
   actively saves is a separate behaviour change, and cross-node slices still need **Layer B** (the wire) before
   T-B is green.
 
+### 6.3c ✅ LAYER B AS-BUILT `2026-09-15` — the SerializeLocal wire carries the scenario payload
+The NodeOp wire (`NodeOpMasterTranslator` egress / `NodeOpSlaveTranslator` ingress) reused
+`NodeTransitionPayloadDto` (which already has `ScenarioId` + `ExerciseId`) as the `SerializeLocal` wire shape,
+discriminated: **`ScenarioId` set ⇒ `ScenarioSaveHandlerPayload`** (carrying the scenario name);
+**`ExerciseId` set ⇒ `ArchiveHandlerPayload`**. Previously ingress hardcoded `ArchiveHandlerPayload`, so the
+scenario payload (+name) was dropped on every DDS hop to a remote node — the reason no cross-node slice was
+written. Rails: `NodeOpSlaveTranslatorTests.DeserializeNodePayload_SerializeLocal_{ScenarioId,ExerciseId}_*`.
+⇒ with A + B the fan-out reaches every ECS node with the correct payload; the node's unified registrar +
+payload-aware `CanHandle` route it to the scenario save handler, which writes the slice.
+
 ### 6.4 Build steps (A2 form — see 6.3a; A1 is a strict subset)
 1. Add `ClusterHandlerRegistrar` + `ClusterHandlerDeps` in `Hrot.Common`; unit-test its output per deps shape (ECS-with-serializer, observer, load-only).
 2. Repoint **SimHost** first (`NodeBootstrapper.BuildOrchestration` → build deps + call registrar; **supply a real `Serializer`** so the save handler is present — the ruled fix). Gate: SimHost boots, `SimHost` registration test asserts the save handler is present.
