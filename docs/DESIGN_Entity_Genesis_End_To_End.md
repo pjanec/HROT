@@ -21,6 +21,9 @@ owns-nothing-else: ⛔ Do NOT cite this document to justify a change to any mech
   Every box belongs to an owner named in §2; the owner decides, this file only says where it sits.
   ⛔ And no structural fact here may be restated in an owning design, or the two will rot apart.
 related-designs:
+  - DESIGN_Cross_Node_Construction_Barrier.md — owns the RELIABLE-INIT variant of stage ⑨: how a creator
+    holds an entity Constructing until peer nodes report ready (opt-in per entity), the timeout=abort-via-
+    EntityMaster-dispose path, and the local poll-store result (§3b). Fast mode (this file's default) is unchanged.
   - DESIGN_Entity_Creation_Unification.md — owns the CREATE leg and EntityCreationPack: who may
     request an entity, which systems every host composes, and the authoring affordances.
   - DESIGN_Role_Affinity_Ownership.md — owns WHO OWNS WHAT: the role tables, the creator's

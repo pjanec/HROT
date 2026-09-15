@@ -8,22 +8,29 @@ build-state: BUILT (primary barrier LIVE-PROVEN) `2026-09-15` (CE-283). ✅ The 
   carries a non-empty stamped peer set) + 7/7 gateway unit rails + no-regression across the existing gateway
   and split-authority rails. ⚠ REMAINING (follow-ons, not the primary barrier): A7 late-joiner durability +
   §2b node-id as EXPLICIT rails (the durable descriptor + node-id are built and exercised, not separately
-  asserted); a synthetic delay participant (the natural DDS round-trip proved the hold without one); and
-  piece C's role-filtered peer set (option A is proof-correct, not production-correct — §3a.7). Full status
-  in §3a.7. Prereqs P1–P3 (§5) BUILT. Fast stays default (user); the reliable path is OPT-IN.
+  asserted); a synthetic delay participant (the natural DDS round-trip proved the hold without one). ⭐ PIECE C
+  (production model) is DESIGNED in §3b and NOT yet dispatched: creation-request wait-list + timeout, mandatory
+  reply, timeout=abort-via-EntityMaster-dispose, and the LOCAL poll-store result. Slice A's option-A "all present
+  peers" is superseded-for-production by §3b. Prereqs P1–P3 (§5) BUILT. Fast stays default (user); reliable is OPT-IN.
 updated: 2026-09-15
-current-answer: §1 IS THE DESIGN — the three diagrams (1.1 sequence, 1.2 classes, 1.3 module map).
-  §2 says only WHY — incl. §2a late-joiner durability, §2b node-id consistency, §2c generic NED/BDC
-  protocol (all user hard-requirements `2026-09-15`). §3 is NEW vs EXISTS vs CHANGE. §4 the receiver gate
-  (reuse). §5 the prerequisites and their order (P1–P3 BUILT). §6 acceptance.
-known-rot: §2a/§3 name the DDS attrs as `[DdsStruct]`/`[DdsKey]`/`[DdsQos]` — SUPERSEDED by §3a.1 (the real
-  convention is a `partial struct` with `[DdsTopic]`+`[DdsQos]`+`[DdsKey,DdsId]`; no `[DdsStruct]` exists here).
-  ⚠ The Step-0 V2 note ("Flags is `int`") measured the CYCLONE `EntityMasterTopic` by mistake — the
-  `--mode all` entity-replication descriptor is the NED `EntityMaster` whose `Flags` is `ulong` (§3a.0); the
-  design's original "`ulong`" stands. Corrected `2026-09-15` in §3a.0.
+current-answer: ⭐ §3b IS THE PIECE-C PRODUCTION MODEL — the resolved, measured contract (creation-request
+  fields, mandatory reply, timeout=abort-via-EntityMaster-dispose, and the LOCAL poll-store result). §1 is the
+  original diagrams (1.1 sequence, 1.2 classes, 1.3 module map). §2 says WHY — incl. §2a late-joiner durability,
+  §2b node-id, §2c generic protocol. §3a is slice-A as-built. §4 receiver gate. §5 prereqs (P1–P3 BUILT). §6 acceptance.
+known-rot: ⛔⛔ The role→init derivation floated in an earlier piece-C handoff — a `[RequiresPeerInit]` COMPONENT
+  ATTRIBUTE + a role→init-capability set + a creator-side type→roles filter — is RETRACTED (user, `2026-09-15`):
+  the peer's wait condition is host/type-specific and OPAQUE to the creator; the creator sets a bit + an optional
+  node list, and each node decides its own wait locally. §3b is the resolved model; wherever §1.1/§2/§3 imply a
+  creator-computed role filter or a component-attribute contract, §3b supersedes them.
+  ⚠ Also: §2a/§3 name the DDS attrs as `[DdsStruct]`/`[DdsKey]`/`[DdsQos]` — SUPERSEDED by §3a.1 (real convention
+  is a `partial struct` with `[DdsTopic]`+`[DdsQos]`+`[DdsKey,DdsId]`; no `[DdsStruct]` exists). And the Step-0 V2
+  note ("Flags is `int`") measured the CYCLONE type by mistake — the `--mode all` NED `EntityMaster.Flags` is
+  `ulong` (§3a.0); the original "`ulong`" stands.
 related-designs:
-  - docs/DESIGN_Entity_Genesis_End_To_End.md — the landing page; this design is stage ⑨'s reliable variant. It owns the end-to-end sequence; this owns the cross-node WAIT.
-  - docs/designs/others/DESIGN-NetworkSpawning.md — owns ReliableInitType / PendingNetworkAck (the dormant handshake this design revives and reshapes).
+  - docs/DESIGN_Entity_Genesis_End_To_End.md — the landing page; this design is stage ⑨'s reliable variant. It owns the end-to-end sequence; this owns the cross-node WAIT. (reciprocal: genesis §"reliable init" links back here.)
+  - docs/designs/others/DESIGN-NetworkSpawning.md — owns ReliableInitType / PendingNetworkAck / the SpawnEntityCommand→NetworkSpawningSystem local-create pipeline this rides.
+  - docs/designs/SIM/DESIGN-SIMHOST.md — owns the CreateEntityRequestSystem PRODUCER + the (remote) CreateEntityAck; §3b's local poll-store is the LOCAL sibling of that remote ack (kept separate).
+  - docs/designs/IG/DESIGN-IG.md — owns the remote requestor form (DdsCommandClient<CreateEntityRequest,CreateEntityAck>); §3b's poll-store is the LOCAL-requestor equivalent.
   - docs/reference/BDC_NED_SST_Descriptor_Rules.md — owns the BDC/NED wire contract; §2a/§2b/§2c fold the durable EntityLifecycleStatusDescriptor + EntityMaster.Flags reliable bit into it as OPTIONAL generic descriptors (reciprocal link to add when that spec is edited for piece A).
   - docs/DESIGN_Role_Affinity_Ownership.md — owns WHO OWNS WHAT (the grant node-set = the owner subset of the peer set) and the role tables.
   - FDP/Docs/projects/toolkits/FDP.Toolkit.Lifecycle.md — owns the ELM participant/ack mechanism this builds on.
@@ -430,17 +437,106 @@ At spawn the creator resolves the peer set through an injected **`IExpectedPeers
 cache `NodeCapability` list minus the local node); the real **type→required-roles** filtering is deferred to
 piece C with the actual navmesh/model participants.
 
-⚠⚠ **PROOF-CORRECT, NOT PRODUCTION-CORRECT — recorded per the coordinator's instruction.** "All peers wait"
-is correct for the synthetic proof but **would, in production, block a creator on peers that never
-initialise the entity type**. ⛔ **Piece C's role-filtering (only the roles that register a participant for
-the type) is the required follow-up before this goes live.** The agreed sequencing is: **A now (proof), C
-before production.** The membership view is the NED cluster cache `NodeCapability.Role`
-(`NedNetworkFactory.cs:412`, CE-282), NOT the orchestrator `NodeRoster` (master-side).
+⚠⚠ **PROOF-CORRECT, NOT PRODUCTION-CORRECT.** "All peers wait" is correct for the synthetic proof.
+⛔⛔ **SUPERSEDED-FOR-PRODUCTION by §3b (user, `2026-09-15`).** The earlier framing here — "piece C role-FILTERS
+the peer set by which roles initialise the type" — was RETRACTED: the peer's wait is host/type-specific and
+opaque to the creator, so there is no creator-side role→type filter. §3b is the real production model: the
+**creator supplies an OPTIONAL wait-node-list** (unset ⇒ all present; the creator MAY narrow it by role as its
+own policy) **+ a timeout**, and **every listed node replies** (immediately if it isn't waiting). The membership
+source is still the NED cluster cache `NodeCapability.Role` (`NedNetworkFactory.cs:412`, CE-282) when the creator
+chooses to narrow.
 
 ### 3a.6 `RegisterRequirement` — zero callers *(V6 correction)*
 `EntityLifecycleModule.RegisterRequirement(long tkbType, int moduleId):158` has **zero callers, not "tests
 only"** as the handoff said. It is the per-type participant-registration seam the poll participants (synthetic
 here, navmesh/model in C) will be its first callers of — dormant-by-design, revived here.
+
+## 3b. ⭐⭐⭐ PIECE C — THE PRODUCTION MODEL *(resolved with the user, `2026-09-15`)*
+> This section is the **authoritative contract** for piece C. It supersedes, for production: slice A's option-A
+> "all present peers" (§3a.5) and the retracted `[RequiresPeerInit]`/role→type-filter machinery (STATUS
+> `known-rot`). It is **DESIGNED, not yet dispatched.**
+
+⭐ **The governing principle (user):** the requestor sets a **bit** ("this entity needs reliable init") and, at
+most, a **node list + timeout**. It does **NOT** know or specify *what* each node waits for — the wait condition
+is **host-specific and entity-type-driven, decided entirely on each receiver, and opaque to the creator**
+(navmesh tile, textures, model — anything). The creator never computes a role→type filter.
+
+### 3b.1 The creation request *(fields on the local `SpawnEntityCommand`)*
+| field | meaning | default |
+|---|---|---|
+| `InitType = AllPeers` | engage the barrier (EXISTS) | `None` (fast mode) |
+| `RequestId` | correlation for the result store (EXISTS) | — |
+| 🆕 `ReliableInitPeers : int[]?` | the node ids to wait for; the creator **may** narrow this by role *(its own policy, from the NED cache `NodeCapability.Role`, CE-282)* | **null ⇒ wait for ALL present nodes** at request time |
+| 🆕 `ReliableInitTimeout : TimeSpan?` | creator-supplied bound *(honours "wait as long as necessary" — a slow type sets a longer bound)* | a sane default |
+
+### 3b.2 Mandatory reply — every listed node replies exactly once
+On receiving a reliable `EntityMaster` (the `WaitForAcks` bit), a node **must** send exactly one reply:
+- ghosted + local condition → reply when it clears; ghosted + no condition → reply immediately *(slice A does this via the `Constructing→Active` egress)*;
+- ⭐ **NOT ghosting / not applicable → reply immediately anyway** *(the NEW branch — from the `EntityMaster` ingress, since there is no ghost to drive the egress)*. The reply means *"I'm not blocking,"* whatever the reason. ⇒ the creator never hangs on a non-participant.
+
+### 3b.3 Timeout = ABORT via `EntityMaster` dispose *(supersedes the inherited force-ack)*
+The **creator owns one authoritative timeout** (`ReliableInitTimeout`). On expiry with the wait-set unsatisfied:
+the creator **disposes the `EntityMaster` DDS instance** *(`EntityMasterEgressTranslator.Dispose`)* → every
+receiver gets the `NotAliveDisposed` sample → the existing `EntityMasterIngressTranslator.ProcessDispose`
+removes the ghost + `DeferredConstructionParticipant.OnDestroyed` cancels the local wait. **No `DestroyEntityCommand`
+crosses DDS** — the disposal sample is the teardown. ⭐ Bonus: the ingress fires on `InstanceState != Alive`,
+covering **writer-death (liveliness)** too, so a creator crash also cleans up. ⛔ The receiver **never
+self-force-activates** a reliable ghost — it waits for its condition or the creator's disposal.
+
+### 3b.4 The result — a LOCAL poll-store *(mimics `PathfindingBatchData`; NOT the remote `CreateEntityAck`)*
+⛔ **Two different paths — do not conflate** *(the mistake that produced this section)*:
+- **Remote** creation *(explicit DDS `CreateEntityRequest` from a tool)* → replied by the two-phase
+  `CreateEntityAck`/`EntityLifecycleAckDto` *(owned by DESIGN-SIMHOST/DESIGN-IG)*. **Not this.**
+- **Local** creation *(a code call on the owning node)* → the result is written to a **store the local requestor
+  polls** — the pattern `PathfindingBatchData`/`GetPathResult` already uses for "async result in a ticked system."
+
+| the store | spec |
+|---|---|
+| **what** | a **singleton ECS component** on the creator's world *(like `PathfindingBatchData`)* holding `ConstructionResult { NetworkId, Outcome: Pending\|Success\|Failed, Reason: None\|Timeout\|PeerRejected }` |
+| **where** | the generic replication toolkit *(`Fdp.Toolkits`)*, beside the barrier systems |
+| **keyed by** | the entity's **`NetworkId`** *(the local owner allocates it at the create call, so the requestor holds it immediately)* |
+| **retention** | ⭐ **a dictionary keyed by `NetworkId` + TTL, evict-on-read** *(user choice — a lost creation-FAILURE must not be silently overwritten; creation volume is low, so a dict is affordable, unlike Pathfinding's collision-tolerant ring)* |
+| **written by** | the creator-side gateway on barrier resolution: pending-set empties → `Success`; timeout → `Failed(Timeout)` *(it already knows both — today it force-acks instead)* |
+| **read by** | the local requestor: `ConstructionResults.Get(world, networkId)` each tick → `Pending` until resolved *(survives slow/irregular ticking — the reason it is a store, not a transient event)* |
+
+```mermaid
+sequenceDiagram
+    autonumber
+    participant REQ as Local requestor (code)
+    participant CR as Creator (ECS + gateway)
+    participant W as DDS wire
+    participant PX as Peer node
+    participant ST as ConstructionResults store
+    REQ->>CR: SpawnEntityCommand WaitForAcks RequestId Peers? Timeout?
+    CR->>CR: create entity allocate NetworkId BeginConstruction
+    CR->>ST: NetworkId = Pending
+    CR-->>W: EntityMaster with WaitForAcks flag plus baseline
+    W-->>PX: ghost then reply now if not waiting else hold on local condition
+    PX-->>W: EntityLifecycleStatusDescriptor Active
+    W-->>CR: status ingress drops peer from wait-set
+    alt all listed peers replied
+        CR->>ST: NetworkId = Success
+    else timeout expires
+        CR-->>W: dispose EntityMaster instance
+        W-->>PX: disposal sample removes ghost and cancels wait
+        CR->>ST: NetworkId = Failed Timeout
+    end
+    REQ->>ST: poll Get NetworkId each tick returns Pending or Success or Failed
+```
+*Caption: what this shows that §1.1 could not — the LOCAL result path (store + poll) and the abort-by-dispose leg; the peer's wait condition is a black box (`hold on local condition`), never a creator-computed filter.*
+
+### 3b.5 The API the creator calls
+```csharp
+var reqId = Guid.NewGuid();
+eventBus.PublishManaged(new SpawnEntityCommand {
+    TkbType = tkbType, InitType = ReliableInitType.AllPeers, RequestId = reqId,
+    ReliableInitPeers   = null,                       // null ⇒ all present; or a (role-narrowed) id list
+    ReliableInitTimeout = TimeSpan.FromSeconds(10),   // 0/unset ⇒ default
+    InitialTransform = ...,
+});
+// later, at the requestor's OWN cadence — keyed by the NetworkId it got at the call:
+var r = ConstructionResults.Get(world, networkId);   // Pending → Success | Failed(Timeout)
+```
 
 ## 4. ✅ THE RECEIVER-SIDE GATE IS REUSE
 The peer's "is my data ready?" gate already exists: `GhostPromotionSystem`'s mandatory-components gate *(HARD,
