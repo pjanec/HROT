@@ -274,6 +274,12 @@ subsume the peer barrier** — it fires at *claim* (`DeferredTakeoverSystem` que
 `:154`), only from grant recipients (`:106`), and the creator never gates on it; and no peer-`Active` ack
 producer exists (`EntityLifecycleStatusDescriptor` is an orphan DTO). ⇒ **reliable-init is genuine new work**
 (a peer-`Active` ack producer + creator-side waiter). See the frame §2b/piece A.
+⭐ **Peer membership RESOLVED `2026-09-15` (user + measurement):** the set is the orchestrator's present nodes
+whose `NodeRole` **mask** *(measured `[Flags]`)* marks them a participant — display replicas included by role,
+not by any grant; block until each publishes a peer-`Active` ack. ⛔ Grounded prerequisite: the role mask is
+NOT in the orchestrator today *(`NodeHeartbeatEvent` carries only `SubsystemName`; role re-derived by the lossy
+`NedNetworkFactory.MapSubsystemNameToRole` switch; `NodeHealthProfile` stores no role)* ⇒ carry the mask on the
+heartbeat and store it (frame §4a P1–P3). See the frame §4a.
 ⭐ **Corrected `2026-09-15` (user):** ELM-participant *(construction ACK gate)* and `WithOwned` *(steady-state
 tick filter)* are ORTHOGONAL — no "source of truth" conflict *(the earlier D1 was withdrawn)*. And
 rewind-safety is **already built + wired** *(`OnWorldReplaced`/`ResumeFromRestoredWorld`/

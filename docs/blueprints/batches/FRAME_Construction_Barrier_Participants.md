@@ -87,7 +87,7 @@ ticks on the hosts that need it.
 ## 3. 🔧 WHAT TO BUILD *(the session designs the detail + UML per piece)*
 | # | piece | note |
 |---|---|---|
-| **A** | **Build the PEER-Active ack (MEASURED necessary — §2b, seam-law check done)** | `OwnershipUpdate` does NOT subsume it *(wrong moment: claim-not-ready; wrong coverage: grant-recipients only, no display replicas)*. Give `EntityLifecycleStatusDescriptor` a **producer that fires when a peer's copy reaches `Active`** + a **consumer on the creator** that clears the pending set; `PendingNetworkAck` is already stamped at `NetworkSpawningSystem:175`. Construct the creator-side waiter *(the gateway, or an equivalent `DeferredConstructionParticipant`)*. This IS genuine new work |
+| **A** | **Build the PEER-Active ack (MEASURED necessary — §2b, seam-law check done)** | `OwnershipUpdate` does NOT subsume it *(wrong moment: claim-not-ready; wrong coverage: grant-recipients only, no display replicas)*. Give `EntityLifecycleStatusDescriptor` a **producer that fires when a peer's copy reaches `Active`** + a **consumer on the creator** that clears the pending set; `PendingNetworkAck` is already stamped at `NetworkSpawningSystem:175`. Construct the creator-side waiter *(the gateway, or an equivalent `DeferredConstructionParticipant`)*. This IS genuine new work. ⚠ Depends on **§4a P1–P3** — the orchestrator must carry the node role mask before membership can be resolved |
 | **B** | **Extract a reusable `DeferredConstructionParticipant` base** | the gateway hand-rolls pending-set / defer-ack / timeout / destruction-cleanup; navmesh + IG-model must not copy it *(ruling 9 / seam law)*. Hook: `TryComplete(entity) → bool`. If piece A keeps a gateway, it becomes a thin subclass |
 | **C** | **Wire the two receiver-side participants — extending the EXISTING gate, not a new path** | navmesh/altitude on the muscle node, model-load on IG, each blocking only for entities requiring it *(`RegisterRequirement` per-type; "which types" from the TKB template — `SimTransform`/a component attribute, `[BirthCritical]` shape, CE-266)*. ⭐ These extend the receiver readiness gate that already exists *(GhostPromotion mandatory-components gate + the receiver's local ELM, §2b)* |
 | **D** | **Integration proof** | on `--mode all`: spawn a spatial type in an *uncached* area → stays `Constructing` → data arrives → `Active`; plus timeout path + IG model-load. T-1: extend `EntityLifecycleModuleTests` + `NetworkGatewaySystemTests`, add an integration rail |
@@ -109,12 +109,26 @@ so it cannot match a per-instance load-balanced grant. Retire it as the peer sou
 for `LocalNodeId`/`GetAllNodes` only. ⛔ **NOT `BrainMuscleOwnershipStrategy` directly** *(role-pair-specific,
 NED layer)* — tap the **command it feeds**, which both producers share.
 
-⚠ **D2 SCOPE, refined by measurement `2026-09-15`:** the grant node-set is the correct source for the
-**delegated-owner** peers *(the muscle node)*. It does **NOT** cover **display-only replicas that own nothing
-but must still initialise a copy** — the IG-model case — which are not in any grant and are discovered
-dynamically via DDS subscription, not decided at creation. ⇒ for the full `AllPeers` reliable set, the
-display-replica membership is a **genuinely-open topology question** *(the design-talk hand-waved "all known
-simulation nodes")* — resolve it in the design; the grant node-set answers only the owned-part subset.
+### 4a. ✅ PEER MEMBERSHIP RESOLVED — user ruling + measurement `2026-09-15`
+🔒 **User:** *"cluster orchestrator should know what nodes are present and what role mask they have. display
+replica does not need to own anything to block entity creation until all display-replica nodes registered as
+ELM participant are ready."*
+⇒ **Membership = the present nodes (from the orchestrator roster) whose role mask marks them a participant
+for this entity; the creator blocks until each such node publishes its peer-`Active` ack.** The grant node-set
+is then just the *owner* subset; display replicas *(IG/Map2D)* are included by their role mask, not by any grant.
+
+📐 **Measured — `NodeRole` is a `[Flags]` mask** *(`Brain=1<<0, MuscleGround=1<<1, Map2D=1<<2, Perception=1<<3,
+NavigationSolver=1<<4`; used via `HasFlag`, combined as `MuscleGround|Perception`)*, so "role mask" is real.
+⛔⛔ **BUT the orchestrator does NOT hold it today** — three grounded PREREQUISITES:
+| # | gap (measured) | fix |
+|---|---|---|
+| **P1** | `NodeHeartbeatEvent` carries `{ NodeId, LocalStateId, WallTicksUtc, SubsystemName }` — **no role mask**; role is re-derived downstream by a lossy hardcoded switch `NedNetworkFactory.MapSubsystemNameToRole` *(3 names → a SINGLE role, else `None`)* | **carry the node's `NodeRole` mask on the heartbeat** — the node knows its own mask at boot *(consistent with `CE-259bb`: `--mode` fixes the role)*. ⭐ Retires `MapSubsystemNameToRole` — the seam law: the source already has the mask, stop reconstructing it from a display string |
+| **P2** | the orchestrator roster `NodeHealthProfile` stores `SubsystemName` only, **no role**; `SimpleClusterStateCache.NodeCapability.Role` exists but is fed by the lossy switch | **store the role mask** in the roster (and/or the cache) so the authority the user names actually holds it |
+| **P3** | neither registry answers *"present nodes whose mask intersects role R"* — `SimpleClusterStateCache` exposes only `GetLeastLoadedNode`; `NodeRoster` exposes `ActiveNodes` (no role) | **add the membership query** — a small accessor over the existing dictionaries |
+
+⇒ with P1–P3, the creator resolves expected-peers = `roster nodes where mask ∩ {roles that register a
+participant for this entity type} ≠ ∅`, minus local. The role→"registers a participant" mapping is
+application config *(same shape as the role→components table)*, never engine knowledge.
 
 ⭐ **The one remaining HOW (session design detail, grounded):** the grant is computed in
 `CreateEntityRequestSystem` but `PendingNetworkAck` is stamped later in `NetworkSpawningSystem:159`. Carry
