@@ -79,6 +79,9 @@ related-designs:
     SaveScenario=2 op (CE-278), the half-built stub whose *intended* purpose THIS doc's SaveScenarioJson=17
     replaces; it also documents the exercise-recording/checkpoint enumeration and the Orchestrator.json
     sidecar. THIS doc owns the replacement; that doc owns removing the predecessor.
+  - DESIGN_Unified_Cluster_Handler_Registration.md — CE-279; owns the role-based unification of cluster-handler
+    registration + payload-agnostic SerializeLocal wire. THIS doc's T-B distributed save is BLOCKED on that
+    unification (§4 T-B block); that doc owns the fix.
 -->
 
 # ⭐⭐⭐ Unified Distributed Scenario Persistence & the Single Ownership Component
@@ -312,25 +315,34 @@ Ran `--mode all` (`simhost,ig,excon,cgf`), loaded `hill-attack` live (8 entities
 - ✅ **c0 works.** Response `{"saved":…,"via":"cluster-intent"}` (no 501); log:
   `ClusterMaster: SaveScenarioJson '<name>' → SerializeLocal fan-out to 5 node(s)`. The HTTP trigger →
   intent → master → fan-out chain is confirmed end to end.
-- ⛔ **No merged `scenario.json` produced; no node wrote a scenario slice** (per-node `nodes/*/scenarios/`
-  held only the loaded `hill-attack`, never the save name). Two measured root causes:
-  1. **Payload-blind `SerializeLocal` handler selection.** `IClusterStateHandler.CanHandle(intent)` defaults
-     to `CanHandle(intent.Operation)` (`IClusterStateHandler.cs:29`); neither `ReferenceArchiveHandler`
-     (`:47`) nor `HrotScenarioSaveHandler` (`:66`) overrides the payload-aware overload (only
-     `HrotEditLoadHandler:92` does). `ClusterSlave` dispatches to the **FIRST** `CanHandle`-true handler and
-     returns (`ClusterSlave.cs:362-364`). ⇒ on every node `ReferenceArchiveHandler` (registered for the
-     `.fdp` archive) **shadows** `HrotScenarioSaveHandler`/`ExConScenarioSaveHandler`: it receives the
-     `ScenarioSaveHandlerPayload`, its `PrepareAsync` sees it is not an `ArchiveHandlerPayload`, returns null
-     → `NodeOpCompleted(Success, null)` → no slice, and the scenario handler never runs. **Fix:** make
-     `CanHandle(ExecuteNodeOpIntent)` payload-aware in all three (archive⇒`ArchiveHandlerPayload` only;
-     scenario handlers⇒their payload only), mirroring `HrotEditLoadHandler`.
-  2. **SimHost never registers the scenario handler.** `NodeBootstrapper.cs` registers
-     `ReferenceArchiveHandler` (`:292`) but not `HrotScenarioSaveHandler` — contradicting this doc's earlier
-     C3 claim ("registered on all four hosts"; only CGF `CgfSubsystem:1151`, IG `IgNodeBootstrapper:392`,
-     editor `EditorSubsystem:1440` actually do). **Fix:** register it in SimHost's `NodeBootstrapper`.
+- ⛔ **No merged `scenario.json` produced; no node wrote a scenario slice.** Re-run `2026-09-15` after a
+  first attempted fix showed the payload-aware `CanHandle` patch was **necessary but NOT sufficient** — the
+  real cause is a family of defects, all symptoms of **NON-UNIFIED, per-host cluster-handler registration**.
+  ⭐ Root cause + full plan: 📄 **`DESIGN_Unified_Cluster_Handler_Registration.md` (CE-279)**. The measured
+  defects:
+  1. **Payload-blind `SerializeLocal` handler selection.** `SerializeLocal` is shared by the `.fdp` archive
+     and the scenario-JSON save; `ClusterSlave` dispatches to the FIRST `CanHandle`-true handler
+     (`ClusterSlave.cs:362-364`), and `CanHandle(intent)` defaults to operation-only
+     (`IClusterStateHandler.cs:29`; only `HrotEditLoadHandler:92` overrides it). ⇒ where `ReferenceArchiveHandler`
+     is registered before the scenario handler it SWALLOWS the scenario payload. **But registration order is
+     itself divergent** (see #3), so the shadowing manifests differently per host.
+  2. **The wire drops the scenario payload.** `NodeOpSlaveTranslator.cs:174-178` hardcodes `SerializeLocal` →
+     `ArchiveHandlerPayload` (and the egress `NodeOpMasterTranslator` has no `ScenarioSaveHandlerPayload` arm).
+     So on every DDS hop to a remote node the scenario payload — and its `ScenarioName` — is lost/rebuilt as an
+     empty archive payload. The distributed scenario save cannot cross the wire at all.
+  3. **Divergent registration (measured `2026-09-15`).** There is no shared role-driven registration: SimHost
+     via `NodeBootstrapper.BuildOrchestration` (param-gated, **prod passes `scenarioSerializer: null` ⇒ SimHost
+     registers NO save handler**); IG/CGF/ExCon/Editor hand-roll inline. IG + Editor register **no**
+     `ReferenceArchiveHandler`; CGF registers Save **before** Archive while SimHost/ExCon do Archive **before**
+     Save (opposite order → #1 bites differently); ExCon substitutes `ExConScenarioSaveHandler`. `NodeRole`
+     (`Fdp.Core/Abstractions/NodeRole.cs`) exists but drives none of this.
 
-⇒ **c0 (the HTTP trigger) is DONE and proven.** The end-to-end distributed save (T-B) is blocked on the two
-CE-277(c3) defects above — both in the per-node handler wiring, both with exact fixes. Tracked under CE-277(c).
+⇒ **c0 (the HTTP trigger) is DONE and proven.** The end-to-end distributed save (T-B) is blocked on the
+non-unification above and is retargeted as **CE-279** (unify handler registration + payload-agnostic
+`SerializeLocal` wire). ⚠ The first payload-aware `CanHandle` patch was **reverted** `2026-09-15` — it is
+correct but belongs inside the unified fix, not as five hand-edited handlers (and one edit tripped a
+pre-existing path-mismatch in `ReferenceArchiveHandlerTests.Commit_ProducesManifestJson`, to be handled with
+CE-279).
 
 ### 4a. ⭐⭐⭐ R-A DISTRIBUTED SAVE — **orchestrated pull + compatible-merge** *(user ruling `2026-09-14`)*
 

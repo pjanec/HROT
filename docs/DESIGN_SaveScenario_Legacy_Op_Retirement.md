@@ -10,6 +10,9 @@ related-designs:
   - docs/DESIGN_Distributed_Scenario_Persistence.md — owns the NEW gated JSON scenario save (SaveScenarioJson=17) that replaces this stub's *intended* purpose; this doc owns the retirement of the legacy SaveScenario=2 op
   - docs/designs/cgf-1/CGF-1-DESIGN.md — the ORIGINAL design SaveScenario=2 half-implements (§"Multi-File Scenario Save Flow", §"Orchestrator's Own ClusterSlave")
   - docs/designs/cluster-master-refact/DESIGN.md — TASK-P001 = GlobalContextProcessManager (the orchestrator-context save/load split)
+  - docs/DESIGN_Unified_Cluster_Handler_Registration.md — CE-279; unifies registration of the SerializeLocal
+    handlers (incl. this op's ReferenceArchiveHandler) across hosts. THIS doc owns retiring the legacy op; that
+    one owns making the surviving handlers register uniformly.
 -->
 
 # Retiring the legacy `SaveScenario` (op = 2)
