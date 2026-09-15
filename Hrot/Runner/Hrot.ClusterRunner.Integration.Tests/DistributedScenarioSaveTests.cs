@@ -49,7 +49,7 @@ public sealed class DistributedScenarioSaveTests : IDisposable
         await master.HandleClusterOpRequestAsync(new ClusterOpRequest
         {
             RequestId     = Guid.NewGuid(),
-            OperationType = ClusterOpType.SaveScenarioJson,
+            OperationType = ClusterOpType.SaveScenario,
             PayloadJson   = new JsonObject { ["ScenarioName"] = _name }.ToJsonString(),
         });
 

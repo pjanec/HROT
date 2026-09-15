@@ -2,7 +2,7 @@ namespace Fdp.Toolkit.Orchestration.Handlers;
 
 /// <summary>
 /// Domain payload for the DECLARATIVE scenario save (CE-275 ③), carried on the
-/// <see cref="NodeOpType.SerializeLocal"/> fan-out that <c>StorageOpType.SaveScenarioJson</c> triggers.
+/// <see cref="NodeOpType.SerializeLocal"/> fan-out that <c>StorageOpType.SaveScenario</c> triggers.
 ///
 /// <para>Discriminates the scenario-JSON save from the <c>.fdp</c> checkpoint/archive recording that
 /// shares the same <see cref="NodeOpType.SerializeLocal"/> op: <c>ReferenceArchiveHandler</c> acts only on

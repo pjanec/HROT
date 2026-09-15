@@ -204,7 +204,7 @@ public sealed class ClusterOpMasterTranslator
             //    the intent WITH the relative name (carried as {"ScenarioName": ...} by the egress translator),
             //    so ClusterMaster.ProcessStorageOpIntent fans the JSON save out to every node. ⛔ Without the
             //    name the save would target null and produce nothing.
-            case NedClusterOpType.SaveScenarioJson:
+            case NedClusterOpType.SaveScenario:
             {
                 string? scenarioName = null;
                 if (!string.IsNullOrWhiteSpace(req.PayloadJson))
@@ -219,7 +219,7 @@ public sealed class ClusterOpMasterTranslator
                 _bus.PublishManaged(new ExecuteStorageOpIntent
                 {
                     RequestId    = req.RequestId,
-                    Operation    = StorageOpType.SaveScenarioJson,
+                    Operation    = StorageOpType.SaveScenario,
                     ExerciseId   = Guid.Empty,
                     ScenarioName = scenarioName,
                 });

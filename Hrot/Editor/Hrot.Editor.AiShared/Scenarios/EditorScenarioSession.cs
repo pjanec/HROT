@@ -205,7 +205,7 @@ public sealed class EditorScenarioSession : IScenarioSession
         _orchestrationBus.PublishManaged(new ExecuteStorageOpIntent
         {
             RequestId    = Guid.NewGuid(),
-            Operation    = StorageOpType.SaveScenarioJson,
+            Operation    = StorageOpType.SaveScenario,
             ScenarioName = scenarioName,
         });
     }

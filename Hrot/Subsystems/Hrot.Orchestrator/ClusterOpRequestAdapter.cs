@@ -141,7 +141,7 @@ internal static class ClusterOpRequestAdapter
         {
             ClusterOpType.ExportArchive    => StorageOpType.Export,
             ClusterOpType.ImportArchive    => StorageOpType.Import,
-            ClusterOpType.SaveScenarioJson => StorageOpType.SaveScenarioJson,
+            ClusterOpType.SaveScenario => StorageOpType.SaveScenario,
             // CE-278: SaveScenario=2 retired; reject an unmapped cluster op instead of silently
             // mapping it to the dead SaveScenario storage op (previous default).
             _ => throw new ArgumentOutOfRangeException(
@@ -151,7 +151,7 @@ internal static class ClusterOpRequestAdapter
 
         // CE-277(c0): the distributed JSON scenario save carries its relative name in PayloadJson.
         string? scenarioName = null;
-        if (opType == StorageOpType.SaveScenarioJson && !string.IsNullOrWhiteSpace(req.PayloadJson))
+        if (opType == StorageOpType.SaveScenario && !string.IsNullOrWhiteSpace(req.PayloadJson))
         {
             try
             {

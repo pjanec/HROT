@@ -418,7 +418,7 @@ public sealed class ClusterMaster : IDisposable
                 break;
 
             // CE-278: ClusterOpType.SaveScenario (=2) retired — not routed to ProcessStorageOpIntent.
-            case ClusterOpType.SaveScenarioJson:   // CE-277(c0): distributed JSON scenario save
+            case ClusterOpType.SaveScenario:   // CE-277(c0): distributed JSON scenario save
             case ClusterOpType.ExportArchive:
             case ClusterOpType.ImportArchive:
                 ProcessStorageOpIntent(ClusterOpRequestAdapter.ToExecuteStorageOpIntent(req));
@@ -989,11 +989,11 @@ public sealed class ClusterMaster : IDisposable
             //   HrotScenarioSaveHandler runs the gated ScenarioSerializer and writes each node's owned slice.
             //   Distinct transaction + payload type, so ReferenceArchiveHandler and the scenario save handler
             //   never collide on the shared SerializeLocal op. 📄 DESIGN_Distributed_Scenario_Persistence.md §4.
-            case StorageOpType.SaveScenarioJson:
+            case StorageOpType.SaveScenario:
             {
                 if (string.IsNullOrWhiteSpace(intent.ScenarioName))
                 {
-                    FdpLog<ClusterMaster>.Warn("[Orchestrator] SaveScenarioJson missing ScenarioName — rejected (requestId={0}).", intent.RequestId);
+                    FdpLog<ClusterMaster>.Warn("[Orchestrator] SaveScenario missing ScenarioName — rejected (requestId={0}).", intent.RequestId);
                     PublishOpStatus(intent.RequestId, OrchestrationStatusCode.Rejected);
                     return;
                 }
@@ -1012,7 +1012,7 @@ public sealed class ClusterMaster : IDisposable
                 FanOutSerializeLocal(scnTxId, scnNodeIds,
                     new Fdp.Toolkit.Orchestration.Handlers.ScenarioSaveHandlerPayload(intent.ScenarioName!));
 
-                FdpLog<ClusterMaster>.Info("[Orchestrator] SaveScenarioJson '{0}' → SerializeLocal fan-out to {1} node(s).",
+                FdpLog<ClusterMaster>.Info("[Orchestrator] SaveScenario '{0}' → SerializeLocal fan-out to {1} node(s).",
                     intent.ScenarioName, scnNodeIds.Count);
                 break;
             }

@@ -12,7 +12,7 @@ namespace Hrot.Editor.AiShared.Tests.Scenarios;
 /// <summary>
 /// ⭐⭐⭐ CE-275 ③ — the editor (and CGF, via this same class) SAVES THROUGH THE CLUSTER, never with a local
 /// direct file write. Proves <see cref="EditorScenarioSession.SaveAs"/> / <see cref="EditorScenarioSession.SaveCurrent"/>
-/// publish a <see cref="StorageOpType.SaveScenarioJson"/> storage-op intent carrying a scenario NAME (not a
+/// publish a <see cref="StorageOpType.SaveScenario"/> storage-op intent carrying a scenario NAME (not a
 /// path) and touch no filesystem. 📄 docs/DESIGN_Distributed_Scenario_Persistence.md §4.
 /// </summary>
 public sealed class EditorScenarioSessionSaveTests
@@ -37,7 +37,7 @@ public sealed class EditorScenarioSessionSaveTests
         bus.SwapBuffers();
 
         var intent = Assert.Single(bus.ReadManaged<ExecuteStorageOpIntent>());
-        Assert.Equal(StorageOpType.SaveScenarioJson, intent.Operation);
+        Assert.Equal(StorageOpType.SaveScenario, intent.Operation);
         Assert.Equal("area/my_scenario", intent.ScenarioName);
 
         // ⛔ No local/direct write: the scenarios root must be untouched — the cluster handler writes, not this.
@@ -58,7 +58,7 @@ public sealed class EditorScenarioSessionSaveTests
         bus.SwapBuffers();
 
         var intent = Assert.Single(bus.ReadManaged<ExecuteStorageOpIntent>());
-        Assert.Equal(StorageOpType.SaveScenarioJson, intent.Operation);
+        Assert.Equal(StorageOpType.SaveScenario, intent.Operation);
         Assert.Equal("keeper", intent.ScenarioName);
     }
 

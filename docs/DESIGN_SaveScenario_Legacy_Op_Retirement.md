@@ -256,9 +256,16 @@ makes the hazard legible.
 (`ProcessManager_OrchestratorEntry_IsPrepended`, `Orchestrator.json` on NAS), `ClusterMasterArchiveTests`,
 `ClusterMasterContextHandlerTests`.
 
-**Rename that pairs with this** (separate change, `DESIGN_Distributed_Scenario_Persistence.md`): once value 2
-is retired, Roslyn-rename `SaveScenarioJson`(17) → `SaveScenario` (keep wire value 17). It reclaims the name
-the CGF-1 design always used for this operation.
+**Rename that pairs with this — ✅ DONE (`2026-09-15`):** `SaveScenarioJson`(17) → `SaveScenario`, keeping wire
+value 17, reclaiming the name CGF-1 always used for this operation. Renamed the enum member in both
+`StorageOpType` and the NED wire `ClusterOpType` (and every reference/cref). ⚠ **Interaction with §4a:** the
+reserved `SaveScenario` **name** at value 2 had to be freed first — the enums now carry a bare `// 2 —
+RESERVED gap` comment (value 2 still not reused; only the name moved to value 17). ⛔ The `DebugCapabilities
+.SaveScenarioJson` capability constant, the `SaveScenarioJsonBegunEvent` event, and the
+`RequestSaveScenarioJson`/`SavesScenarioJsonVia` provider members are DISTINCT symbols and were intentionally
+left unchanged (the JSON-save feature machinery keeps its descriptive names). Verified: 0-error full-solution
+build (156 projects) + Roslyn `find_references` (driven over stdio — MCP was down) shows `SaveScenario` → 13
+refs and `SaveScenarioJson` → "symbol not found".
 
 ## 4a. As-built (`2026-09-15`) — deviations from §4/§5, folded back
 

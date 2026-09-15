@@ -184,13 +184,13 @@ public sealed class StorageProcessManager
                         else if (pullTask.IsFaulted)
                         {
                             FdpLog<StorageProcessManager>.Error(
-                                "[StorageProcessManager] SaveScenarioJson NAS pull failed: {0}",
+                                "[StorageProcessManager] SaveScenario (JSON) NAS pull failed: {0}",
                                 pullTask.Exception?.GetBaseException().Message ?? "unknown error");
                         }
                         else if (pullTask.IsCompletedSuccessfully)
                         {
                             FdpLog<StorageProcessManager>.Error(
-                                "[StorageProcessManager] SaveScenarioJson NAS pull partial failure: {0} file(s) failed",
+                                "[StorageProcessManager] SaveScenario (JSON) NAS pull partial failure: {0} file(s) failed",
                                 pullTask.Result.FailureCount);
                         }
                     }, System.Threading.Tasks.TaskScheduler.Default);

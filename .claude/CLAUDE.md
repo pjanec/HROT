@@ -181,6 +181,39 @@ comments, strings and unrelated same-named symbols.**
 model**. 📐 Chosen by measuring it against `RoslynMcp.Server`+`Cli` *(JoshuaRamirez)* and **Serena** on this
 solution; the two losers are unregistered and the rejection reasons are in `install_roslynmcp()`.
 
+### ⛔⛔⛔ ②a — **MCP NOT CONNECTED ≠ ROSLYN UNAVAILABLE: DRIVE THE DLL OVER STDIO** *(user, `2026-09-15`)*
+
+> 🔒 **User, verbatim:** *"you use roslyn via CLI stdio if MCP not available."*
+
+⛔⛔ **When the `roslyn` MCP tools are NOT connected this session, that is NOT licence to fall back to a text
+rename.** 📌 Measured `2026-09-15`: the MCP was down, I did a *qualified* text rename instead — it happened to
+be correct *(0-error full-solution build + later Roslyn agreed: `SaveScenario` → 13 refs, old name "not
+found")*, but it **violated the never-text-rename rule and was luck, not method.** ⭐ **`RoslynMcp.dll` is the
+SAME MCP server — drive it directly over stdio** *(exactly the codebase-memory CLI story: the binary is there
+even when the tool isn't)*.
+
+⭐ **The working invocation** *(measured; `madq-roslynmcp v0.8.1-beta`)* — `dotnet /opt/roslynmcp/RoslynMcp.dll`
+speaks **newline-delimited JSON-RPC (MCP) on stdio**; a pipe that CLOSES stdin gets no answer — keep it open:
+
+```python
+# /tmp/roslyn_cli.py — spawn, hold stdin open, read newline-delimited replies on a thread
+p=subprocess.Popen(["dotnet","/opt/roslynmcp/RoslynMcp.dll"],stdin=PIPE,stdout=PIPE,stderr=DEVNULL,bufsize=0)
+send({"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2024-11-05","capabilities":{},"clientInfo":{"name":"cli","version":"1"}}})
+send({"jsonrpc":"2.0","method":"notifications/initialized"})
+send({"jsonrpc":"2.0","id":2,"method":"tools/list"})                       # 40 tools: roslyn_preview_rename, roslyn_apply_rename, roslyn_find_references, …
+send({"jsonrpc":"2.0","id":3,"method":"tools/call","params":{"name":"roslyn_find_references",
+     "arguments":{"symbolName":"SaveScenario","containingType":"StorageOpType","projectPath":"<root-solution .csproj>","take":100}}})
+```
+
+| ⚠ the traps, all measured | |
+|---|---|
+| ⛔ **stdin must stay open** | a `printf … \| dotnet …` one-shot returns NOTHING — the server sees EOF and exits before answering. Use a client that holds the pipe *(python `Popen`, reader thread)* |
+| ⛔ **`roslyn_find_references` keys on `symbolName`+`containingType`+`projectPath`**, NOT file/line/column | wrong params ⇒ *"An error occurred"*. Point `projectPath` at a **root-solution** `.csproj` *(union rule ⑤)*, not an FDP-only one |
+| ⚠ **cold `MSBuildWorkspace` load is ~60 s on the FIRST tool call** | the process survives; over your own stdio you set the timeout *(150 s+), so no 60 s-MCP-timeout dance* |
+| ⭐ **the rename flow is unchanged** | `roslyn_preview_rename` → read diff → `roslyn_apply_rename`, then grep + build. Renaming ONE enum member of an N-member enum is per-symbol; a wire enum's IDL regenerates on build |
+
+⇒ ⛔⛔ **"roslyn MCP was not connected, so I text-renamed" is now a MISS** — the stdio path was available; use it and say so.
+
 ### ⛔⛔⛔ ③ A ZERO RESULT IS USUALLY A DEAD WORKSPACE — **and the failure is SILENT**
 
 ⛔⛔ **The workspace failing to load does not raise.** 📌 That is exactly how candidate A was disqualified: our

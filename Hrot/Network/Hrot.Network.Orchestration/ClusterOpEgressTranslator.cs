@@ -110,7 +110,7 @@ public sealed class ClusterOpEgressTranslator : IDisposable
             {
                 StorageOpType.Export           => NedClusterOpType.ExportArchive,
                 StorageOpType.Import           => NedClusterOpType.ImportArchive,
-                StorageOpType.SaveScenarioJson => NedClusterOpType.SaveScenarioJson,
+                StorageOpType.SaveScenario => NedClusterOpType.SaveScenario,
                 // CE-278: SaveScenario=2 retired; reject an unmapped storage op instead of silently
                 // routing it to the dead op (previously the default fell through to SaveScenario).
                 _ => throw new System.ArgumentOutOfRangeException(
@@ -123,7 +123,7 @@ public sealed class ClusterOpEgressTranslator : IDisposable
             //    in-process ClusterOpRequestAdapter.ToExecuteStorageOpIntent and the networked
             //    ClusterOpMasterTranslator below. ⛔ The ArchivePayloadDto used by Export/Import has
             //    no name field, so a SaveScenarioJson routed through it would silently lose the target name.
-            string payload = intent.Operation == StorageOpType.SaveScenarioJson
+            string payload = intent.Operation == StorageOpType.SaveScenario
                 ? new System.Text.Json.Nodes.JsonObject { ["ScenarioName"] = intent.ScenarioName }.ToJsonString()
                 : JsonSerializer.Serialize(new ArchivePayloadDto(ExerciseId: intent.ExerciseId), OrchestrationJsonOptions.Default);
 

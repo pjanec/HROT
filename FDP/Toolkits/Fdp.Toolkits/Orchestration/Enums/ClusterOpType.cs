@@ -8,7 +8,7 @@ namespace Fdp.Toolkit.Orchestration
     public enum ClusterOpType : int
     {
         TransitionState = 1,
-        SaveScenario = 2,   // CE-278: RETIRED — wire value 2 reserved, do NOT reuse. No producer/consumer.
+        // 2 — RESERVED gap: the legacy SaveScenario op (CE-278) was retired; wire value 2 is not reused.
         LoadZone = 3,
         TakeCheckpoint = 4,
         CollectCheckpoint = 5,

@@ -227,7 +227,7 @@ public sealed class ClusterOpMasterTranslatorTests
         requestWriter.Write(new ClusterOpRequest
         {
             RequestId     = Guid.NewGuid(),
-            OperationType = NedClusterOpType.SaveScenarioJson,
+            OperationType = NedClusterOpType.SaveScenario,
             PayloadJson   = "{\"ScenarioName\":\"my-scn\"}",
         });
 
@@ -237,7 +237,7 @@ public sealed class ClusterOpMasterTranslatorTests
 
         var intents = bus.ReadManaged<ExecuteStorageOpIntent>();
         Assert.Single(intents);
-        Assert.Equal(StorageOpType.SaveScenarioJson, intents[0].Operation);
+        Assert.Equal(StorageOpType.SaveScenario, intents[0].Operation);
         Assert.Equal("my-scn", intents[0].ScenarioName);
     }
 
