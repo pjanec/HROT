@@ -25,6 +25,23 @@ related-designs:
 
 ---
 
+## 0. INVENTORY — every `SaveScenario` op site *(graph + grep, `2026-09-15`)*
+
+⭐ A retirement must enumerate ALL consumers before deletion — grep confirms a guess, only the full set is safe.
+
+```
+StorageOpType enum members (FDP/Toolkits/…/Events/ClusterOpIntents.cs:62): Export, Import, SaveScenario, SaveScenarioJson  → total 4
+grep -rln "StorageOpType.SaveScenario|ClusterOpType.SaveScenario" --include=*.cs FDP Hrot | grep -iv test           → 8 files
+```
+
+**The 8 non-test consumer files** (the deletion surface §4 must clear): `GlobalContextProcessManager`,
+`EventDrivenStorageGateway`, `StorageProcessManager`, `ClusterOpRequestAdapter`, `ClusterMaster`,
+`ClusterScenarioPanel` (the "Save Scenario" button) — all in `Hrot.Orchestrator` — plus
+`ClusterOpEgressTranslator`, `ClusterOpMasterTranslator` (`Hrot.Network.Orchestration`). ⚠ `Orchestrator.json`
+is the sole consumed output (§2); it must be re-homed (§5) before any of these arms are cut.
+
+---
+
 ## 1. What `SaveScenario`=2 actually is (measured)
 
 It is a **half-built stub** of the CGF-1 "Multi-File Scenario Save Flow" (`CGF-1-DESIGN.md:1132-1146`).

@@ -374,17 +374,19 @@ namespace Hrot.ExCon
             // CGF1-S0309: wire dry-run snapshot/rewind handler (ExCon carries no ECS state).
             _clusterSlave.RegisterHandler(new ReferencePreviewHandler(liveRepo: null));
 
-            // Wire ReferencePrefetchHandler / ReferenceArchiveHandler so ExCon ACKs
-            // background file fan-outs (PrefetchFiles / SerializeLocal) and cannot stall 2PC UI tracking.
-            var exConStorageProvider = new LocalDiskStorageProvider(OrchestrationConstants.ResolveStagingRoot());
-            _clusterSlave.RegisterHandler(new ReferencePrefetchHandler(exConStorageProvider));
-
             // ⭐ CE-277(c3) — ExCon DOES contribute to a distributed scenario save, in its OWN
             //   intentionally-incompatible format (observer camera state; $meta.docType="ExCon.Observer").
             //   The orchestrator merge routes it to foreign/ verbatim and pushes it back to ExCon on load.
             //   (This refines the "ExCon does not save scenario fragments" note above: it saves its console
             //   state, not an ECS slice.)
             _observerState = new Hrot.ExCon.Observer.ExConObserverState();
+
+            // ⭐⭐⭐ CE-280 — ExCon's PrefetchFiles handler. Replaces the bare ReferencePrefetchHandler: it
+            //   ensures the per-node staging directory + ACKs (same as the reference), AND on load restores
+            //   the observer state from the foreign slice routed back to this node (§4c/§6b T-C). ClusterSlave
+            //   is first-match-wins, so this is ExCon's ONE PrefetchFiles handler — it subsumes the reference.
+            _clusterSlave.RegisterHandler(new Hrot.ExCon.Observer.ExConScenarioLoadHandler(
+                _observerState, iosNodeId, OrchestrationConstants.ResolveStagingRoot()));
 
             // CE-279 Layer A — register the SerializeLocal pair (ExCon's observer save + .fdp archive) uniformly:
             //   observer-save FIRST, archive SECOND, payload-aware. (Was Archive-before-Save here — the flip that

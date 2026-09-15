@@ -19,6 +19,10 @@ build-progress: Stage A (CE-275 ④ / OQ12) + Stage B (CE-275 ② the save gate)
   rewritten (IG must not hold an UNGATED checkpoint handler, but DOES hold the gated scenario handler; R-140
   enforced by the gate) — 10/10; Node_Roles §7.1 marked superseded. IG + SimHost + editor + CGF build clean.
   ⇒ scenario save is UNIFIED across every host; there is no editor-only save path.
+  CE-280 BUILT & GREEN `2026-09-15` (see §5a): the LOAD-side foreign round-trip — PrefetchScenarioAsync routes
+  foreign/node_<id>.json to its origin node; ExConScenarioLoadHandler restores observer state (RestoredFromScenario
+  ⇒ GET /panels/excon_observer). Rails: ExConScenarioLoadHandlerTests 3, StorageGatewayTests foreign-route 1.
+  T-C ExCon-part + T-D mechanism DONE; live --mode all confirm still pending.
   REMAINING: CE-277 follow-ons (OQ1 CGF zone service; retire raw-path SaveTo; multi-process staging+NAS pull;
   T3 --mode all E2E), Stage E (NetworkOwnership→NetworkAuthority merge — ⛔ NO NoScenario flag, §7).
 current-answer: §4 save flow, §5 load flow (R-A, ruled §8.1), §6 the ONE gate — keyed on the
@@ -399,7 +403,7 @@ incompatible ones **stay separate**. The merge is the one genuinely new componen
 | **merge** the format-compatible slices into ONE `<name>/scenario.json` | ⭐⭐ NEW scenario merge-aggregator (`INodeResponseAggregator` for the scenario op, or a merge in `StorageProcessManager`) | ⛔ NEW |
 | **leave** incompatible-format slices as separate per-node files | keyed on `$meta.docType` ≠ our type (§6b) | ⛔ NEW (a filter) |
 | LOAD: brain loads the merged canonical file, owns all | §5 · genesis re-stamps owner = loader | ✅ exists (single file) |
-| LOAD: incompatible files **pushed back** to their origin nodes, loaded there | `StorageGatewayModule.PushToNodesAsync` + each node's own load | ⛔ wiring (push-back exists; per-node load of a foreign file is that host's own editor, §6b) |
+| LOAD: incompatible files **routed back** to their origin nodes, loaded there | ✅ **CE-280 (AS-BUILT):** `PrefetchScenarioAsync` routes `foreign/node_<id>.json` to the matching node's staging (not `PushToNodesAsync` — see §5a); each node's own load handler reads it. ExCon: `ExConScenarioLoadHandler` on `PrefetchFiles` | ✅ built (§5a) |
 
 ⭐ **Why merge-on-pull and not merge-on-load:** the canonical `<name>/scenario.json` becomes a normal
 single-file scenario the brain (or a fresh editor) loads with **zero** new load logic — the round-trip
@@ -529,7 +533,7 @@ NOT entity-shaped — the perfect incompatible case.
 | step | ExCon does | orchestrator does |
 |---|---|---|
 | SAVE | its NEW `ExConScenarioSaveHandler` writes observer state *(fake: camera position/look-at)* to `GetNodeScenariosRoot(exconId)/<name>/excon.observer.json` with `$meta.docType = "ExCon.Observer"` (≠ `Hrot.Scenario`); returns a `FileManifestResult{ docType="ExCon.Observer" }` | classifies it INCOMPATIBLE → copies verbatim to `<name>/foreign/node_<exconId>.json`, indexes `{ exconId, "ExCon.Observer" }`; **never parses it** |
-| LOAD | its own reader restores the camera from the pushed-back file | `PushToNodesAsync` returns `foreign/node_<exconId>.json` to ExCon |
+| LOAD | its own reader restores the camera from the routed-back file | ✅ AS-BUILT (§5a): `PrefetchScenarioAsync` routes `foreign/node_<exconId>.json` to ExCon's staging; `ExConScenarioLoadHandler` restores it |
 
 ⭐ **Why it is the right test:** it exercises every c3 edge with a host that *cannot* be merged by construction
 (no entities, foreign tag), and it proves the compatible-merge and the foreign-route run **side by side in one
@@ -555,8 +559,8 @@ camera; that assertion IS the c3 proof.
 |---|---|---|
 | **T-A** | editor round-trip on the UNIFIED path (save → fresh editor load) | entities + ids identical (re-run the harness from the single-node proof) |
 | **T-B** | `--mode all` SAVE, two owners (CGF ECS + ExCon foreign) | on NAS: ONE `<name>/scenario.json` (CGF entities, merged) **and** `<name>/foreign/node_<exconId>.json` (untouched) |
-| **T-C** | load the multi-saved scenario **to the cluster** | CGF perspective: entities present + owned by the loader; ExCon perspective: `get_panel` shows the restored camera |
-| **T-D** | load the multi-saved scenario **to the editor** | editor loads the ECS canonical (entities present); the ExCon foreign file is **ignored** (§6b — the editor has no ExCon; it loads only what it recognises), no error |
+| **T-C** | load the multi-saved scenario **to the cluster** | CGF perspective: entities present + owned by the loader; ExCon perspective: `get_panel` shows the restored camera. ⭐ **ExCon foreign-restore wiring BUILT & rail-GREEN `2026-09-15` (CE-280, §5a);** ECS-side via `DistributedScenarioLoadTests`; live `--mode all` confirm pending |
+| **T-D** | load the multi-saved scenario **to the editor** | editor loads the ECS canonical (entities present); the ExCon foreign file is **ignored** (§6b — the editor has no ExCon; it loads only what it recognises), no error. ⭐ mechanism = `Deserialize` skip-unknown (§6b), no code; live confirm pending |
 | **T-E** | unit: `ScenarioMergeCore` | ✅ done — 9 rails |
 
 ⚠ **T-D's "ignored, no error" is a real assertion**, not an absence — the editor must skip a foreign file by
@@ -586,9 +590,52 @@ sequenceDiagram
 ownership (INVENTORY ⑨) and the genesis pipeline stamps `OwnerNodeId = loader`. A muscle's empty file is
 correct — it receives entities by **replication**, and per-component authority arrives later by **grant**,
 never changing `PrimaryOwnerId`. This is why the round-trip is stable: *save-owner in = save-owner out*.
-⭐ **Format-incompatible slices (§4a) do NOT funnel here** — they are pushed back to their origin nodes
-(`PushToNodesAsync`) and loaded by *that* host's own editor, the one place "each host loads its own content"
-still literally holds (§6b).
+⭐ **Format-incompatible slices (§4a) do NOT funnel here** — they are routed back to their origin nodes and
+loaded by *that* host's own load handler, the one place "each host loads its own content" still literally
+holds (§6b). ⭐⭐ **As-built mechanism: §5a.**
+
+---
+
+## 5a. ✅ LOAD — the foreign slice returns to its origin node  *(CE-280 AS-BUILT `2026-09-15`)*
+
+```mermaid
+sequenceDiagram
+    autonumber
+    participant APM as AssetPrefetchProcessManager
+    participant GW as StorageGatewayModule
+    participant ECS as ECS node (CGF/SimHost)
+    participant ExCon as ExCon node
+    APM->>GW: PrefetchScenarioAsync(name, targets, NAS)
+    GW->>ECS: copy shared/scenarios/name/*.json → node staging (every node)
+    GW->>ExCon: copy shared/scenarios/name/*.json → node staging (every node)
+    GW->>ExCon: route foreign/node_<exconId>.json → ExCon staging ONLY<br/>(id in filename ⇒ one node)
+    APM->>ECS: PrefetchFiles → HrotScenarioLoadHandler reads scenario.json (§5)
+    APM->>ExCon: PrefetchFiles → ExConScenarioLoadHandler reads foreign/node_<id>.json<br/>restores camera+marker, RestoredFromScenario=true
+    Note over ExCon: GET /panels/excon_observer shows restored state (T-C)
+```
+
+*Caption:* what the picture shows that prose hid — **the foreign slice rides the SAME prefetch rail as the
+canonical `scenario.json`, but is delivered to exactly one node** (the id encoded in `node_<id>.json`),
+whereas `scenario.json` goes to every node. No change to the 2PC load sequence; the restore hooks the
+`PrefetchFiles` phase, where the file has just arrived.
+
+| ⭐ as-built | site |
+|---|---|
+| route each `foreign/node_<id>.json` to the target whose `NodeId` matches (defensive: no `foreign/` ⇒ no-op) | `StorageGatewayModule.PrefetchScenarioAsync` (foreign-routing arm) + `TryParseForeignNodeId` |
+| ExCon's ONE `PrefetchFiles` handler: ensure staging + ACK (subsumes `ReferencePrefetchHandler`), then restore observer state from the routed slice | `Hrot.ExCon.Observer.ExConScenarioLoadHandler` |
+| the restore target is the shared `ExConObserverState` the panel dumps | `ExConObserverPanelViewModel` (`GET /panels/excon_observer`) |
+
+⛔⛔ **DEVIATION from the earlier plan's literal `StorageGatewayModule.PushToNodesAsync` (§4c/old §5):**
+the foreign return is done **inside the existing `PrefetchScenarioAsync`/`PrefetchFiles` rail**, not as a
+separate `PushToNodesAsync` call. ⭐ **Why:** it reuses the proven prefetch ACK/fan-out (`AssetPrefetchProcessManager`)
+— no new async saga, no new node op, no touch to the 2PC load sequence — so the blast radius is one gateway
+method + one ExCon handler. `PushToNodesAsync` is retained (multi-machine push primitive; unit-tested) but is
+**not** the load-side foreign path. ⚠ **The prior "pushed back via `PushToNodesAsync`" wording in §4c and the
+old §5 note is SUPERSEDED by this section.**
+
+⭐ **Rails:** `ExConScenarioLoadHandlerTests` (save→route→restore round-trip, marker is the value-level proof;
++ panel dump = the T-C surface; + no-foreign no-op) · `StorageGatewayTests.PrefetchScenario_RoutesForeignSlice_ToOriginNodeOnly`
+(foreign goes to origin node only, canonical to all). ECS load unchanged — `DistributedScenarioLoadTests`.
 
 ---
 

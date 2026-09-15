@@ -29,6 +29,27 @@ related-designs:
 
 ---
 
+## 0. INVENTORY — the full cluster-handler set *(graph + grep, `2026-09-15`)*
+
+⭐ A unification decides WHERE registration lives, so it needs the complete set of handlers, not a sample.
+
+```
+search_graph(project="home-user-HROT", name_pattern=".*ClusterStateHandler.*", label="Class")  → total 2 (interface-named only)
+grep -rln ": IClusterStateHandler|: ITickableClusterStateHandler" --include=*.cs Hrot FDP | grep -iv test   → 21 files
+```
+
+⚠ **Graph under-reports interface implementations** (C# dispatch, per CLAUDE.md) — grep is the exhaustive set here.
+Of the 21: 2 are the interface/marker defs (`ClusterSlave.cs`, `ITickableClusterStateHandler.cs`), 1 is new this
+turn (`ExConScenarioLoadHandler`, CE-280). The **~18 implementations**: reference handlers in `Fdp.Toolkits`
+(`ReferenceArchive/Checkpoint/EditLoad/EpisodeLoad/LiveLoad/Prefetch/Preview/ReplayLoad/ScenarioLoad`), and
+host-specific ones NOT reachable downward — `DiagnosticsDumpClusterOpHandler` (Hrot.Common), `HrotEditLoadHandler`
+/ `HrotScenarioSaveHandler` (Hrot.Presentation), `CgfEpisodeLoadHandler` / `CgfScenarioLoadHandler` (Hrot.CGF),
+`ExConScenarioSaveHandler` / `ExConScenarioLoadHandler` (Hrot.ExCon), `IgZoneDummyHandler` (Hrot.IG),
+`HrotScenarioLoadHandler` / `TkbLoadClusterStateHandler` (Hrot.SimHost). ⇒ the `SerializeLocal` pair (Save +
+Archive) is the one Layer A unifies; the rest is A2's move-down (deferred).
+
+---
+
 ## 1. The problem
 
 Each ECS host hand-rolls its own `ClusterSlave` handler registration, so the sets, the ORDER, and the
