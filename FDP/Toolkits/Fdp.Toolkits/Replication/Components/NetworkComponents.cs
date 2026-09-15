@@ -24,10 +24,27 @@ namespace Fdp.Toolkit.Replication.Components
     /// </summary>
     [ComponentId(GlobalComponentIds.PendingNetworkAck)]
     [DataPolicy(DataPolicy.Transient)]
-    public struct PendingNetworkAck 
-    { 
+    public struct PendingNetworkAck
+    {
         /// <summary>Reliable Init type required to determine expected peers</summary>
         public ReliableInitType ExpectedType;
+    }
+
+    /// <summary>
+    /// Managed sibling of <see cref="PendingNetworkAck"/> carrying the immutable snapshot of
+    /// peer node ids the creator must collect an <c>Active</c> ack from before its own entity
+    /// leaves <c>Constructing</c> (reliable-init cross-node barrier). Stamped at spawn from the
+    /// membership set (<c>NodeRoster.NodesWithRole</c> / the NED cluster cache, minus the local
+    /// node); read once by <see cref="Systems.NetworkGatewaySystem"/> when it defers the entity.
+    /// Kept a managed component (an <c>int[]</c>) so the peer count is unbounded without a fixed
+    /// inline buffer; the value is what matters, not the carrier
+    /// (DESIGN_Cross_Node_Construction_Barrier.md §3a.3).
+    /// </summary>
+    [ComponentId(GlobalComponentIds.NetworkAckPeerSet)]
+    public class NetworkAckPeerSet
+    {
+        /// <summary>The peer node ids to wait for. Empty ⇒ no cross-node wait (immediate ack).</summary>
+        public int[] ExpectedAckPeers = Array.Empty<int>();
     }
 
     /// <summary>

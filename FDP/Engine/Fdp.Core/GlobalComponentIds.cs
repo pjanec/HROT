@@ -336,7 +336,10 @@
         /// <summary><c>PendingAuthorityGrants</c> â€” transient component caching descriptor ownership intents from a DeferredTakeOwnership message. Stripped once the entity enters Constructing.</summary>
         public const int PendingAuthorityGrants  = 144;
 
-        // IDs 145â€“159 are reserved for future ModuleHost network components.
+        /// <summary><c>NetworkAckPeerSet</c> â€” managed sibling of PendingNetworkAck carrying the immutable snapshot of peer node ids the creator must collect Active acks from (reliable-init barrier). See DESIGN_Cross_Node_Construction_Barrier.md §3a.3.</summary>
+        public const int NetworkAckPeerSet       = 145;
+
+        // IDs 146â€“159 are reserved for future ModuleHost network components.
 
         // â”€â”€ Application-level Descriptors (160â€“199) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
         // These IDs are now declared in project specific ComponentIds.
