@@ -1,12 +1,16 @@
 <!--STATUS
 state: LIVE
-build-state: BUILDING — slice A partially built `2026-09-15` (CE-283). ✅ BUILT+unit-proven: item B base +
-  A6 gateway reslot + A5 carrier (7/7 rails). ✅ BUILT+compiles: A1 durable descriptor, A2 flag bit +
-  peer tag, A4 status egress, creator status ingress. ⛔ PENDING: A6 gateway construction + translator
-  registration in NedReplicationModule, A5 membership stamp (OPEN design question — see §3a.7), A7
-  late-joiner, synthetic participant, the live --mode all proof (the acceptance crux). Full status table
-  in §3a.7. Prereqs P1–P3 (§5) BUILT. Piece C (real navmesh/IG participants) is a follow-up.
-  Fast stays default (user); the reliable path is OPT-IN.
+build-state: BUILT (primary barrier LIVE-PROVEN) `2026-09-15` (CE-283). ✅ The reliable-init cross-node
+  barrier engages and releases over CycloneDDS: item B base, A1 durable descriptor, A2 flag bit + peer tag,
+  A4 status egress, creator ingress, A5 provider-stamp (option A), A6 gateway construction/registration in
+  NedReplicationModule. Proven by `NetworkGatewayIntegrationTests.ReliableInitBarrier_EngagesAndReleases…`
+  (CGF creator held Constructing → SimHost peer reports Active over the wire → creator released; the entity
+  carries a non-empty stamped peer set) + 7/7 gateway unit rails + no-regression across the existing gateway
+  and split-authority rails. ⚠ REMAINING (follow-ons, not the primary barrier): A7 late-joiner durability +
+  §2b node-id as EXPLICIT rails (the durable descriptor + node-id are built and exercised, not separately
+  asserted); a synthetic delay participant (the natural DDS round-trip proved the hold without one); and
+  piece C's role-filtered peer set (option A is proof-correct, not production-correct — §3a.7). Full status
+  in §3a.7. Prereqs P1–P3 (§5) BUILT. Fast stays default (user); the reliable path is OPT-IN.
 updated: 2026-09-15
 current-answer: §1 IS THE DESIGN — the three diagrams (1.1 sequence, 1.2 classes, 1.3 module map).
   §2 says only WHY — incl. §2a late-joiner durability, §2b node-id consistency, §2c generic NED/BDC
@@ -411,10 +415,13 @@ adds the real navmesh/model subclasses without copying the machine (ruling 9).
 | **A2** `WaitForAcks` bit — egress write + peer tag | ✅ **BUILT + compiles** | egress `EntityMasterEgressTranslator.cs:103`; peer tag `EntityMasterIngressTranslator` → `ReportLifecycleOnActive` (id 146) |
 | **A4** `PeerLifecycleStatusEgressSystem` | ✅ **BUILT + compiles**; ⛔ **not registered** | `…/Egress/PeerLifecycleStatusEgressSystem.cs` |
 | creator status ingress | ✅ **BUILT + compiles**; ⛔ **not registered** | `…/Ingress/PeerLifecycleStatusIngressTranslator.cs` |
-| **A6** gateway CONSTRUCTION in prod + register the 2 translators | ⛔ **PENDING** | `NedReplicationModule.cs` — the connective wiring |
-| **A5** membership SOURCE (creator → peer set) | ⛔ **PENDING + open design question** (below) | `NedNetworkFactory._clusterCache` (`NodeCapability.Role`) vs `NodeRoster.NodesWithRole` |
-| **A7** late-joiner read path | ⛔ **PENDING** | needs the wire live first |
-| synthetic peer participant + **live `--mode all` proof** | ⛔ **PENDING** — the acceptance crux | §6 |
+| **A6** gateway CONSTRUCTION in prod + register the 2 translators | ✅ **BUILT + no-regression proven** | `NedReplicationModule.cs`; the gateway is a GLOBAL ELM participant (id 918273) on every NED node; the existing gateway + 6 split-authority rails pass |
+| **A5** membership SOURCE (creator → peer set) | ✅ **BUILT** (option A: all present peers except local) | `ClusterCacheExpectedPeersProvider` on the CGF adapters' cluster cache → `EntityCreationContext.ExpectedPeers` → the spawn stamp; ⚠ CGF-only for now (SimHost/IG-as-creator is a follow-on) |
+| **live barrier proof** | ✅ **PROVEN** (integration, real CycloneDDS) | `NetworkGatewayIntegrationTests.ReliableInitBarrier_EngagesAndReleases…` — creator held → peer Active over the wire → released; non-empty stamped peer set asserted |
+| **A7** late-joiner read path | ⚠ **partial** — descriptor is durable (built + delivered), but the "hold ghost until owner Active" JOIN and an explicit late-subscribe rail are NOT built | §2a — follow-on |
+| §2b node-id EXPLICIT rail | ⚠ **built + exercised, not separately asserted** | the peer stamps its own node id; the creator correlates it — proven implicitly by the release, not by a dedicated node-id assertion |
+| synthetic delay participant | ⚠ **not built** — the natural DDS round-trip proved the hold without an artificial delay | piece C brings the real navmesh/model participants |
+| ⛔ id-collision lesson | 📌 `ReportLifecycleOnActive` first took id 146, which COLLIDED with `BehaviorApplicationComponentIds.BTreeTraceWorkingMemory` — the `GlobalComponentIds` "reserved" comment lied; Behavior/Utility allocate from the same space. Caught by RUNNING the feature's rail (a runtime static-init check). Moved to 152. **Enumerate real `[ComponentId]` usage; never trust a range comment.** |
 
 ✅ **A5 DECISION — OPTION A APPROVED** *(user, `2026-09-15`, via H-coord relay: "A, go with the lean").*
 At spawn the creator resolves the peer set through an injected **`IExpectedPeersProvider`** seam
