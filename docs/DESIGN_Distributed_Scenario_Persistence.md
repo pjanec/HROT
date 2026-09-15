@@ -308,7 +308,19 @@ route:
 
 ⇒ ⭐ any perspective's HTTP port now triggers the fan-out; the name (never a path) is preserved end to end.
 
-#### ⛔ T-B LIVE VERIFICATION `2026-09-14` — c0 trigger PROVEN, but the fan-out produces NO slice (two measured defects, CE-277 c3)
+#### ✅ T-B GREEN `2026-09-15` — the distributed save works end to end (after CE-279 A+B)
+Live `--mode all` (`simhost,ig,excon,cgf`), loaded `hill-attack`, `POST /scenario/save`:
+`{"saved":…,"via":"cluster-intent"}` → on NAS `shared/scenarios/<name>/`: a merged **`scenario.json`**
+(docType `Hrot.Scenario`, **9 entities**) **and** `foreign/node_200.json` (docType `ExCon.Observer`) **and**
+`foreign/index.json`. Log: `SaveScenarioJson → fan-out to 5 node(s)` → nodes 100 & 400 wrote `Hrot.Scenario`
+slices, node 200 (ExCon) wrote the foreign observer slice → `StorageProcessManager merged 3 slice(s) →
+scenario.json` + `kept 1 foreign slice`. ⇒ the R-A compatible-merge + foreign-route runs side by side in one
+save, triggered over HTTP. The two remaining "No handler for SerializeLocal" nodes are the ones with no save
+handler (e.g. SimHost's null serializer) — benign: the payload-aware archive handler correctly declines the
+scenario payload. What unblocked it: **CE-279 Layer A** (unified registration + payload-aware selection) +
+**Layer B** (the wire carries the scenario payload). 📄 `DESIGN_Unified_Cluster_Handler_Registration.md`.
+
+#### ⛔ HISTORY — T-B `2026-09-14`: c0 trigger PROVEN, but the fan-out produced NO slice (defects since fixed by CE-279)
 
 Ran `--mode all` (`simhost,ig,excon,cgf`), loaded `hill-attack` live (8 entities), `POST /scenario/save`:
 

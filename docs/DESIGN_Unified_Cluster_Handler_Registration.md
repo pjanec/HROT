@@ -245,6 +245,12 @@ written. Rails: `NodeOpSlaveTranslatorTests.DeserializeNodePayload_SerializeLoca
 ⇒ with A + B the fan-out reaches every ECS node with the correct payload; the node's unified registrar +
 payload-aware `CanHandle` route it to the scenario save handler, which writes the slice.
 
+**✅ T-B VERIFIED GREEN `2026-09-15`** on live `--mode all`: `POST /scenario/save` → merged `scenario.json`
+(`Hrot.Scenario`, 9 entities) + `foreign/node_200.json` (`ExCon.Observer`) on the NAS. Log: fan-out to 5 nodes
+→ 2 nodes wrote `Hrot.Scenario` slices, ExCon wrote the foreign slice → `merged 3 slice(s)` + `kept 1 foreign`.
+The distributed save that CE-277 could not complete now works end to end. 📄
+`DESIGN_Distributed_Scenario_Persistence.md` §4.
+
 ### 6.4 Build steps (A2 form — see 6.3a; A1 is a strict subset)
 1. Add `ClusterHandlerRegistrar` + `ClusterHandlerDeps` in `Hrot.Common`; unit-test its output per deps shape (ECS-with-serializer, observer, load-only).
 2. Repoint **SimHost** first (`NodeBootstrapper.BuildOrchestration` → build deps + call registrar; **supply a real `Serializer`** so the save handler is present — the ruled fix). Gate: SimHost boots, `SimHost` registration test asserts the save handler is present.
