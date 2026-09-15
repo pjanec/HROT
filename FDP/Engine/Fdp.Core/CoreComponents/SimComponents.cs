@@ -13,6 +13,11 @@ namespace Fdp.Core
     // ⭐ …and the real value is authored (SpawnEntityCommand.InitialTransform) or replicated, never
     //   derivable from the template. 📄 PerInstanceValueAttribute.
     [PerInstanceValue]
+    // ⭐ A spatially-located entity needs a sim (Muscle) peer to place it on terrain / navmesh before it is
+    //   fully live — so the reliable-init barrier waits on the roles that provide that init
+    //   (HrotRoleComponentSets.Initialises). Role-agnostic marker; CE-283 piece C §3b. Read ONLY by the
+    //   barrier's role-filter, so it changes nothing for non-reliable entities.
+    [RequiresPeerInit]
     public struct SimTransform
     {
         // Flat-Earth Cartesian (meters)

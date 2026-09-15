@@ -31,6 +31,7 @@ namespace Fdp.Core
         private static readonly object _gate = new object();
         private static int[]? _birthCritical;
         private static int[]? _perInstanceValue;
+        private static int[]? _requiresPeerInit;
 
         /// <summary>
         /// ⭐ Component ids declared <see cref="BirthCriticalAttribute"/> — <b>the creator owns these at
@@ -59,25 +60,39 @@ namespace Fdp.Core
         }
 
         /// <summary>
+        /// ⭐ Component ids declared <see cref="RequiresPeerInitAttribute"/> — <b>a peer node must initialise
+        /// these</b> before the entity is fully live (the reliable-init barrier's role-filter, CE-283 §3b).
+        /// Ascending, never null, safe to hold.
+        ///
+        /// <para>⚠ The WHOLE set, unfiltered by template — the creator's role-filter intersects it with the
+        /// entity's live component mask, exactly as the birth-critical create leg does.</para>
+        /// </summary>
+        public static IReadOnlyList<int> RequiresPeerInit
+        {
+            get { EnsureScanned(); return _requiresPeerInit!; }
+        }
+
+        /// <summary>
         /// ⚠ <b>Tests only.</b> Drops the cache so the next read rescans. ⛔ Production code must never call
         /// this — the sets are compile-time facts and a mid-run change means a template's derived view
         /// silently changes meaning.
         /// </summary>
         public static void Invalidate()
         {
-            lock (_gate) { _birthCritical = null; _perInstanceValue = null; }
+            lock (_gate) { _birthCritical = null; _perInstanceValue = null; _requiresPeerInit = null; }
         }
 
         private static void EnsureScanned()
         {
-            if (_birthCritical != null && _perInstanceValue != null) return;
+            if (_birthCritical != null && _perInstanceValue != null && _requiresPeerInit != null) return;
 
             lock (_gate)
             {
-                if (_birthCritical != null && _perInstanceValue != null) return;
+                if (_birthCritical != null && _perInstanceValue != null && _requiresPeerInit != null) return;
 
                 var birth = new SortedSet<int>();
                 var perInstance = new SortedSet<int>();
+                var requiresPeerInit = new SortedSet<int>();
 
                 foreach (var assembly in AppDomain.CurrentDomain.GetAssemblies())
                 {
@@ -102,7 +117,8 @@ namespace Fdp.Core
 
                         bool isBirth = type.GetCustomAttribute<BirthCriticalAttribute>(inherit: false) != null;
                         bool isPerInstance = type.GetCustomAttribute<PerInstanceValueAttribute>(inherit: false) != null;
-                        if (!isBirth && !isPerInstance) continue;
+                        bool isPeerInit = type.GetCustomAttribute<RequiresPeerInitAttribute>(inherit: false) != null;
+                        if (!isBirth && !isPerInstance && !isPeerInit) continue;
 
                         // ⛔⛔ LOUD, not skipped. Either attribute on a type with no [ComponentId] is a
                         //   programmer error whose symptom would otherwise be an entity that silently does
@@ -111,19 +127,25 @@ namespace Fdp.Core
                         //   `catch { continue; }` must NOT be copied.
                         var idAttr = type.GetCustomAttribute<ComponentIdAttribute>(inherit: false);
                         if (idAttr == null)
+                        {
+                            string which = isBirth ? nameof(BirthCriticalAttribute)
+                                         : isPerInstance ? nameof(PerInstanceValueAttribute)
+                                         : nameof(RequiresPeerInitAttribute);
                             throw new InvalidOperationException(
-                                $"Component type '{type.FullName}' declares " +
-                                $"[{(isBirth ? nameof(BirthCriticalAttribute) : nameof(PerInstanceValueAttribute))}] " +
-                                "but has no [ComponentId]. Both attributes resolve to component IDS, so the " +
-                                "type must declare one.");
+                                $"Component type '{type.FullName}' declares [{which}] but has no " +
+                                "[ComponentId]. These attributes resolve to component IDS, so the type " +
+                                "must declare one.");
+                        }
 
                         if (isBirth) birth.Add(idAttr.Id);
                         if (isPerInstance) perInstance.Add(idAttr.Id);
+                        if (isPeerInit) requiresPeerInit.Add(idAttr.Id);
                     }
                 }
 
                 _birthCritical = birth.ToArray();
                 _perInstanceValue = perInstance.ToArray();
+                _requiresPeerInit = requiresPeerInit.ToArray();
             }
         }
     }

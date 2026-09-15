@@ -177,26 +177,11 @@ namespace Fdp.Toolkit.NetworkSpawning.Systems
             ulong disValue = cmd.DisType != 0 ? cmd.DisType : template.DisType.Value;
             world.SetDisType(entity, new DISEntityType { Value = disValue });
 
-            // 7. Optional reliable-init handshake component
+            // 7. Optional reliable-init handshake component. The role-filtered peer set (NetworkAckPeerSet)
+            //    is stamped further down — once the entity's FULL component mask exists — so the barrier can
+            //    intersect it with the [RequiresPeerInit] set (CE-283 §3b). Both land before BeginConstruction.
             if (cmd.InitType != ReliableInitType.None)
-            {
                 world.AddComponent(entity, new PendingNetworkAck { ExpectedType = cmd.InitType });
-
-                // Cross-node construction barrier (CE-283, §3a.4): stamp the peer set the creator must
-                // collect Active acks from, in the SAME frame as PendingNetworkAck so the gateway sees it
-                // when it processes the ConstructionOrder BeginConstruction publishes below. A null provider
-                // (or an empty set) leaves the entity fast-mode: the gateway acks it immediately.
-                if (_expectedPeers != null)
-                {
-                    var peers = _expectedPeers.GetExpectedPeers(cmd.TkbType, _localNodeId);
-                    if (peers != null && peers.Count > 0)
-                    {
-                        var arr = new int[peers.Count];
-                        for (int i = 0; i < peers.Count; i++) arr[i] = peers[i];
-                        world.AddComponent(entity, new NetworkAckPeerSet { ExpectedAckPeers = arr });
-                    }
-                }
-            }
 
             // 7b. ⭐⭐⭐ D2 — a THROWAWAY entity is stamped so the scenario serializer skips it.
             //   Every node that materialises the entity runs this, so the sketch is excluded from the
@@ -263,6 +248,23 @@ namespace Fdp.Toolkit.NetworkSpawning.Systems
             // 9. Register BEFORE starting lifecycle so any system that responds to
             //    ConstructionOrder can already resolve the entity via the map.
             _networkMap.Register(networkId, entity);
+
+            // 9b. Reliable-init construction barrier — stamp the ROLE-FILTERED peer set (CE-283 §3b).
+            //     The entity's full component mask now exists, so the provider intersects it with the
+            //     [RequiresPeerInit] set and keeps only present peers whose role INITIALISES one of those
+            //     components. Must precede BeginConstruction (below), so the creator's gateway sees the set
+            //     when it processes the ConstructionOrder. null provider / empty set ⇒ fast-mode (no wait).
+            if (cmd.InitType != ReliableInitType.None && _expectedPeers != null)
+            {
+                var mask = world.GetComponentMask(entity.Index);
+                var peers = _expectedPeers.GetExpectedPeers(in mask, _localNodeId);
+                if (peers != null && peers.Count > 0)
+                {
+                    var arr = new int[peers.Count];
+                    for (int i = 0; i < peers.Count; i++) arr[i] = peers[i];
+                    world.AddComponent(entity, new NetworkAckPeerSet { ExpectedAckPeers = arr });
+                }
+            }
 
             // 10. ELM BeginConstruction — must be the very last call
             _elm.BeginConstruction(entity, cmd.TkbType, tick, cmdBuffer);

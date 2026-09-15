@@ -47,6 +47,15 @@ namespace Hrot.Network.Routing
         }
 
         /// <inheritdoc/>
+        public IReadOnlyList<NodeCapability> AllNodes()
+        {
+            lock (_lock)
+            {
+                return _nodes.Values.ToList();
+            }
+        }
+
+        /// <inheritdoc/>
         public void UpdateNode(NodeCapability capability)
         {
             if (capability == null) throw new ArgumentNullException(nameof(capability));

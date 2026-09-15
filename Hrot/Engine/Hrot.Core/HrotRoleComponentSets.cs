@@ -114,6 +114,16 @@ public static class HrotRoleComponentSets
     /// </summary>
     public static IReadOnlyDictionary<NodeRole, BitMask512> Read { get; }
 
+    /// <summary>
+    /// ⭐⭐ <b>The role→"initialises" set</b> — which components a role does node-local INIT for (terrain
+    /// clamp, navmesh), distinct from <see cref="Owned"/> (authority) and <see cref="Read"/> (consumption).
+    /// The peer-side half of the reliable-init construction barrier's role-filter: expected-peers(X) =
+    /// present nodes whose role's <c>Initialises</c> intersects X's <c>[RequiresPeerInit]</c> components
+    /// (CE-283 piece C; DESIGN_Cross_Node_Construction_Barrier.md §3b). A role absent from the table
+    /// initialises nothing for other nodes, so it is never waited on.
+    /// </summary>
+    public static IReadOnlyDictionary<NodeRole, BitMask512> Initialises { get; }
+
     static HrotRoleComponentSets()
     {
         // ⭐ Ids come from [ComponentId] attributes, so touching ComponentType<T>.ID here is
@@ -208,6 +218,21 @@ public static class HrotRoleComponentSets
         Read = new Dictionary<NodeRole, BitMask512>
         {
             [NodeRole.MuscleGround] = muscleRead,
+        };
+
+        // ── ⭐⭐ Initialises — role → the components it does node-local INIT for (CE-283 piece C §3b) ──
+        // The peer-side half of the reliable-init barrier's role-filter: a creator waits for a present peer
+        // only if that peer's role INITIALISES one of the entity's [RequiresPeerInit] components. ⭐ Distinct
+        // from Owned/Read (authority/consumption) — this is "who does the blocking node-local setup".
+        // MuscleGround provides the spatial init (terrain-clamp / navmesh) for SimTransform-bearing entities
+        // (§3b.4 — the real init is terrain/altitude; navmesh is faked). Brain and Map2D initialise nothing
+        // for other nodes, so they are absent (an absent role contributes an empty set → never waited on).
+        var muscleInitialises = default(BitMask512);
+        muscleInitialises.SetBit(ComponentType<Fdp.Core.SimTransform>.ID);
+
+        Initialises = new Dictionary<NodeRole, BitMask512>
+        {
+            [NodeRole.MuscleGround] = muscleInitialises,
         };
     }
 

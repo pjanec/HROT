@@ -442,6 +442,64 @@ before production.** The membership view is the NED cluster cache `NodeCapabilit
 only"** as the handoff said. It is the per-type participant-registration seam the poll participants (synthetic
 here, navmesh/model in C) will be its first callers of — dormant-by-design, revived here.
 
+## 3b. 🔧 PIECE C — PRODUCTION-CORRECT: role-filtered peers + a real per-type participant *(user-approved `2026-09-15`)*
+> ⭐⭐ **SUPERSEDES slice A's option A for production** *(obligation ⑤)*. §3a.7's A5 note "all present peers
+> except local" was PROOF-correct only; piece C makes the peer set role-filtered so a creator never blocks on
+> a peer whose role does not initialise the type. Contract approved by the user (H-coord relay `2026-09-15`).
+
+### 3b.1 The type→roles derivation — *the load-bearing new picture*
+*What it shows that prose hides: the peer set is DERIVED, not configured per-type — a component attribute
+marks what needs peer init, a role→capability set says who provides it, and the two compose per entity type.*
+
+```mermaid
+graph TD
+    ATTR["[RequiresPeerInit] on a component type<br/>(role-agnostic; aggregated by ComponentAttributeSets)"] --> REQ["X's required-init components<br/>= X's components ∩ RequiresPeerInit set"]
+    TYPE["entity type X<br/>(TkbTemplate component mask)"] --> REQ
+    CAP["HrotRoleComponentSets.Initialises<br/>role → components it initialises (NEW, beside Owned/Read)"] --> INT["roles-that-init-X<br/>= roles whose Initialises ∩ X's required-init ≠ ∅"]
+    REQ --> INT
+    ROSTER["present nodes + NodeCapability.Role<br/>(NED cluster cache, CE-282)"] --> PEERS["expected peers(X)<br/>= present nodes whose role ∈ roles-that-init-X, minus local"]
+    INT --> PEERS
+    PEERS --> STAMP["NetworkAckPeerSet stamp<br/>(role-filtered IExpectedPeersProvider — replaces option A)"]
+```
+
+### 3b.2 Which participant registers on which host — *and that it ticks there*
+*What it shows: the real receiver participant registers per-type on the role that provides the init; the
+creator reads the SAME contract, so creator and peer cannot disagree about who must init X.*
+
+```mermaid
+graph TD
+    subgraph CR["CREATOR node (any owner)"]
+        PROV["role-filtered IExpectedPeersProvider<br/>reads Initialises + RequiresPeerInit"]
+        GW["NetworkGatewaySystem (waiter, CE-283)"]
+        PROV --> GW
+    end
+    subgraph MU["MUSCLE node (init provider)"]
+        PART["PeerInitReadinessParticipant : DeferredConstructionParticipant<br/>RegisterRequirement(X) for X with a RequiresPeerInit component it provides<br/>TryComplete = node-local init ready"]
+    end
+    CONTRACT["ONE contract: [RequiresPeerInit] + Initialises[role]"] --> PROV
+    CONTRACT --> PART
+    PART -.->|"Active status (CE-283 A4)"| GW
+```
+
+### 3b.3 The contract — four parts *(user-approved)*
+- **(a)** a **role-agnostic `[RequiresPeerInit]`** component attribute, aggregated by `ComponentAttributeSets`
+  exactly as `[BirthCritical]` is *(`ComponentAttributeSets.cs` scan; `HrotRoleComponentSets.cs:157` pattern)*.
+  ⛔ **No `NodeRole` in the attribute** *(roles-are-labels — `DESIGN_Role_Affinity_Ownership` opener)*.
+- **(b)** a **role→init-capability set `Initialises`** beside `Owned`/`Read` in `HrotRoleComponentSets`
+  *(`Hrot.Core` — the app-config home)*: which role provides the init for which components.
+- **(c)** **role-filtered `IExpectedPeersProvider`**: expected-peers(X) = present nodes (`NodeCapability.Role`,
+  CE-282) whose `Initialises` ∩ X's `[RequiresPeerInit]` components ≠ ∅, minus local. Replaces option A.
+- **(d)** each C2 participant `RegisterRequirement(tkbType)` for the types whose `[RequiresPeerInit]`
+  components it handles — creator and participant read the SAME contract.
+
+### 3b.4 ⚠ C2 REALITY — the navmesh is FAKED; the real per-entity init is TERRAIN/ALTITUDE *(measured `2026-09-15`)*
+📌 `FDP/Toolkits/Fdp.Toolkits/Navigation/` is a **fake** (`Fake/NavTestMap`, `MusclePathRegistry` — route
+handles, no tile loader), so a "real navmesh tile load" participant has **no genuine readiness to gate on**.
+⭐ The genuine per-entity node-local init that DOES exist is **terrain/altitude**: `ITerrainProvider` +
+`TerrainClampBaseline`/`GroundClampingConfig` *(`Fdp.Toolkits/Geographic`)* — a Muscle samples terrain height
+at the entity's position. ⇒ **C2 builds a real participant gating on the terrain-clamp readiness** *(the
+honest available signal)*; a genuine navmesh-solver participant is a follow-on when a real nav solver exists.
+
 ## 4. ✅ THE RECEIVER-SIDE GATE IS REUSE
 The peer's "is my data ready?" gate already exists: `GhostPromotionSystem`'s mandatory-components gate *(HARD,
 no timeout)* + the receiver's local ELM. The navmesh/model participants are **additional local participants

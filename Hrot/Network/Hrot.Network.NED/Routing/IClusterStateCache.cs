@@ -31,6 +31,13 @@ namespace Hrot.Network.Routing
         System.Collections.Generic.IReadOnlyList<int> AllNodeIds();
 
         /// <summary>
+        /// A point-in-time snapshot of every currently-known present node with its role capability.
+        /// Used by the reliable-init barrier's role-filter (piece C §3b) to keep only the peers whose
+        /// role INITIALISES one of the entity's <c>[RequiresPeerInit]</c> components.
+        /// </summary>
+        System.Collections.Generic.IReadOnlyList<NodeCapability> AllNodes();
+
+        /// <summary>
         /// Updates (or inserts) the capability record for a specific node.
         /// Called by the heartbeat bridge from the event-bus subscription.
         /// </summary>
