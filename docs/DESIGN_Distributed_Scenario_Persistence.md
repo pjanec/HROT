@@ -85,6 +85,9 @@ related-designs:
     SaveScenario=2 op (CE-278), the half-built stub whose *intended* purpose THIS doc's SaveScenarioJson=17
     replaces; it also documents the exercise-recording/checkpoint enumeration and the Orchestrator.json
     sidecar. THIS doc owns the replacement; that doc owns removing the predecessor.
+  - DESIGN_Entity_Ownership_Transfer.md — owns the INITIATION side of an entity-ownership transfer (CE-276,
+    descriptor-level, NED-initiated); THIS doc owns the save gate and the RECEIVE side (§6c, OQ12). §6c's
+    "make NetworkAuthority replicated" gap note is SUPERSEDED by it. Reciprocal.
   - DESIGN_Unified_Cluster_Handler_Registration.md — CE-279; owns the role-based unification of cluster-handler
     registration + payload-agnostic SerializeLocal wire. THIS doc's T-B distributed save is BLOCKED on that
     unification (§4 T-B block); that doc owns the fix.
@@ -738,12 +741,17 @@ so it stays network-agnostic. So:
   `OwnershipUpdate` → `AuthorityMask`). **No special "entity transfer" primitive.** The new owner then holds
   authority over `NetworkAuthority` and reflects it in `PrimaryOwnerId`; the save gate and the derived
   `EntityMaster` wire ownership both follow.
-  ⚠ **Measured gap (so this is a FEATURE, not a claim it works today):** `NetworkAuthority` is **not** a
-  replicated descriptor and is **not** a `TargetComponent` of any translator (so the generic mechanism can't
-  yet reach it), and its VALUE is set locally (owner at spawn `NetworkSpawningSystem:158`; ghost `= -1`
-  `EntityMasterIngress:149`), never replicated. ⇒ the transfer feature must make `NetworkAuthority`
-  **ownership-tracked / replicated** (register it as a descriptor target, or replicate its value) so the
-  generic transfer moves it and the new `PrimaryOwnerId` propagates.
+  ⛔⛔ **SUPERSEDED `2026-09-15` by [`DESIGN_Entity_Ownership_Transfer.md`](DESIGN_Entity_Ownership_Transfer.md)
+  (CE-276).** The paragraph below claimed the transfer feature must make `NetworkAuthority` a **replicated
+  descriptor / `TargetComponent`**. ⭐ **It does not.** Transfer is **per-DESCRIPTOR at the NED level** (the
+  `2026-09-15` ruling): initiation emits an `EntityMaster` `OwnershipUpdate`, and `PrimaryOwnerId` is
+  **derived** from that descriptor's ownership on **both** sides (receive = OQ12 mirror below; initiate =
+  CE-276's mirror), so the owner id never travels as a replicated component value. ⇒ ⛔ do NOT replicate
+  `NetworkAuthority`. See CE-276 §1/§6.
+  ⚠ **HISTORY (the superseded claim):** ~~`NetworkAuthority` is not a replicated descriptor / `TargetComponent`,
+  its value is set locally (spawn `NetworkSpawningSystem`; ghost `-1` `EntityMasterIngress`), so the transfer
+  feature must make it ownership-tracked / replicated.~~ The *mechanism* facts are still true; the
+  *prescription* is not.
 
 #### ⭐ The rule this design commits to — so transfer is ENABLED, not prevented
 
