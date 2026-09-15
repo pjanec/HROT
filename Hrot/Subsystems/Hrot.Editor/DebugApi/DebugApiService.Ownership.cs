@@ -59,9 +59,14 @@ namespace Hrot.Editor.DebugApi
                 if (overrides != null && overrides.TryGetOwner(packedKey, out int o))
                     explicitOwner = o;
 
+                // Prefer component TYPE NAMES when the map has them (manual RegisterMapping); translators
+                // register component IDS only, so fall back to the ids so the field is never silently empty.
                 var components = new JsonArray();
-                foreach (var t in map.GetComponentsForDescriptor(ordinal))
-                    components.Add(t.Name);
+                var types = map.GetComponentsForDescriptor(ordinal);
+                if (types.Length > 0)
+                    foreach (var t in types) components.Add(t.Name);
+                else
+                    foreach (int cid in map.GetComponentIdsForDescriptor(ordinal)) components.Add(cid);
 
                 descriptors.Add(new JsonObject
                 {

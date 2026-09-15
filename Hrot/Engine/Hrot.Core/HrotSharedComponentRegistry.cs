@@ -87,6 +87,7 @@ public static class HrotSharedComponentRegistry
         world.RegisterManagedEvent<UpdateEntityCommand>();
         world.RegisterManagedEvent<DestroyEntityCommand>();
         world.RegisterManagedEvent<DeferredTakeOwnershipCommand>();
+        world.RegisterManagedEvent<Fdp.Toolkit.Replication.Messages.TransferEntityOwnershipRequest>();   // CE-276
         world.RegisterEvent<SwitchTimeModeEvent>();
         world.RegisterEvent<TimeSyncRequest>();
         world.RegisterEvent<TimeSyncResponse>();
