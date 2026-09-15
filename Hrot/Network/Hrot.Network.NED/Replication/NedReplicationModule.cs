@@ -85,6 +85,11 @@ public sealed class NedReplicationModule : INedReplicationModule
     // SetAuthority(entity, exactComponentId, bool) without try/catch.
     private readonly DescriptorOwnershipMap _descriptorOwnershipMap = new();
 
+    /// <summary>⭐ CE-276 — the node's descriptor↔component ownership map (populated from the registered
+    /// translators). Exposed so the ai-debug HTTP surface can name an entity's descriptors and resolve a
+    /// transfer scope. Read-only handle; the module owns its lifetime.</summary>
+    public DescriptorOwnershipMap DescriptorOwnershipMap => _descriptorOwnershipMap;
+
     // ── Pre-genesis routing translators (Brain egress / Muscle ingress) ────────
     private readonly DeferredTakeOwnershipEgressTranslator?  _dtoEgress;
     private readonly DeferredTakeOwnershipIngressTranslator? _dtoIngress;
@@ -376,6 +381,12 @@ public sealed class NedReplicationModule : INedReplicationModule
         // character-for-character the one BdcReplicationModule has always used.
         // 📄 docs/DESIGN_Dead_Reckoning.md rule R1 + §5.1.
         registry.RegisterSystem(new DeadReckoningSyncSystem(_driveFromNetwork));
+
+        // ── Ownership transfer INITIATION — EVERY node (CE-276) ──────────────
+        // The push/hand-away counterpart of DeferredTakeoverSystem. Any node may hand an entity
+        // (or a subset of its descriptors) it owns to another node; the system is a no-op on a
+        // node that owns none of the requested descriptors, so it is safe to register everywhere.
+        registry.RegisterSystem(new OwnershipTransferInitiationSystem(_entityMap, _localNodeId, _descriptorOwnershipMap));
 
         // ── Role-specific systems ────────────────────────────────────────────
         if (_roleHasMuscle || _roleHasBrain)

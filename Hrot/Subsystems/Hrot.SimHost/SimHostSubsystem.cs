@@ -87,6 +87,12 @@ namespace Hrot.SimHost
                 //    bus as requestTransition/DumpsVia. Any node may ask; the fan-out + merge is cluster-wide.
                 requestSaveScenarioJson: Hrot.Presentation.DebugApi.SubsystemDebugProvider
                                              .SavesScenarioJsonVia(() => _app?.OrchestrationBus),
+                // ⭐⭐⭐ CE-276 — SimHost's OWN world bus (the ECS bus OwnershipTransferInitiationSystem reads) +
+                //    its OWN NED descriptor map, so GET/POST /entities/{id}/ownership act on the node that owns
+                //    the entity. Mirrors CgfSubsystem.CreateDebugProvider() exactly.
+                requestOwnershipTransfer: Hrot.Presentation.DebugApi.SubsystemDebugProvider
+                                           .TransfersOwnershipVia(() => _app?.WorldOrNull),
+                descriptorMap: () => _app?.NedReplication?.DescriptorOwnershipMap,
                 architecture:  () => _app?.Kernel is null
                                      ? null
                                      : new ArchitectureDiagnosticsService(() => _app?.Kernel));

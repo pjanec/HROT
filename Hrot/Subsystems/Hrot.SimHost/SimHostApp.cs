@@ -200,6 +200,10 @@ namespace Hrot.SimHost
         /// <summary>Internal test hook: exposes the NedReplicationModule after initialization.</summary>
         internal Hrot.Common.Abstractions.INedReplicationModule? TestHook_NedReplication => _context?.NedReplication;
 
+        /// <summary>⭐ CE-276 — the node's NED replication module (for the ai-debug ownership surface's
+        /// descriptor map). Same handle as the test hook above, under a production-appropriate name.</summary>
+        internal Hrot.Common.Abstractions.INedReplicationModule? NedReplication => _context?.NedReplication;
+
         /// <summary>
         /// ⭐⭐ <b>This node's CONTROL-PLANE bus</b> — the one its <c>ClusterSlave</c> and
         /// <c>ClusterOpEgressTranslator</c> sit on *(`NodeBootstrapper:194-200`)*, so a

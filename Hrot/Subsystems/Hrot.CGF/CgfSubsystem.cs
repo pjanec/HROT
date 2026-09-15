@@ -450,6 +450,11 @@ public sealed class CgfSubsystem : ISubsystem, Fdp.Toolkit.Runner.IMapCameraProv
                                        .DumpsVia(() => _context?.EventBus),
             requestSaveScenarioJson: Hrot.Presentation.DebugApi.SubsystemDebugProvider
                                        .SavesScenarioJsonVia(() => _context?.EventBus),
+            // ⭐⭐⭐ CE-276 — CGF's OWN world bus (the ECS bus OwnershipTransferInitiationSystem reads) + its
+            //    OWN NED descriptor map, so GET/POST /entities/{id}/ownership act on the node that owns the entity.
+            requestOwnershipTransfer: Hrot.Presentation.DebugApi.SubsystemDebugProvider
+                                       .TransfersOwnershipVia(() => _context?.World),
+            descriptorMap: () => _context?.NedReplication?.DescriptorOwnershipMap,
             architecture:  () => _context?.Kernel is null
                                  ? null
                                  : new Fdp.ModuleHost.Diagnostics.ArchitectureDiagnosticsService(

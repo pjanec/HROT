@@ -1765,6 +1765,10 @@ public class IgApplication : IDisposable
     internal Hrot.Common.Abstractions.INedReplicationModule? TestHook_NedReplication
         => _context?.NedReplication;
 
+    /// <summary>⭐ CE-276 — the node's NED replication module (for the ai-debug ownership surface's descriptor
+    /// map). Same handle as the test hook above, under a production-appropriate name.</summary>
+    internal Hrot.Common.Abstractions.INedReplicationModule? NedReplication => _context?.NedReplication;
+
     /// <summary>
     /// Internal test hook to simulate a map click without Raylib input.
     /// </summary>

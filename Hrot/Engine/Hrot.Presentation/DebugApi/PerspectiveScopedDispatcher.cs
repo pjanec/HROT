@@ -118,6 +118,17 @@ public sealed class PerspectiveScopedDispatcher
     /// <summary>⭐ The active perspective's entity map, or <see langword="null"/>.</summary>
     public NetworkEntityMap? EntityMap => Active()?.EntityMap;
 
+    /// <summary>⭐ CE-276 — the active perspective node's descriptor↔component ownership map, or
+    /// <see langword="null"/> (no NED transport ⇒ the ownership endpoints answer 503). Perspective-scoped
+    /// because ownership is a per-node fact.</summary>
+    public Fdp.Toolkit.Replication.Services.DescriptorOwnershipMap? DescriptorMap => Active()?.DescriptorMap;
+
+    /// <summary>⭐⭐ CE-276 — publish a TransferEntityOwnershipRequest onto the active perspective node's bus,
+    /// or <see langword="null"/> when that node has no NED transport. Perspective-scoped (NOT any-node): the
+    /// entity and its ownership live on the node whose world this dispatcher reads.</summary>
+    public Action<Fdp.Toolkit.Replication.Messages.TransferEntityOwnershipRequest>? RequestOwnershipTransfer
+        => Active()?.RequestOwnershipTransfer;
+
     /// <summary>
     /// ⭐ The ACTIVE perspective's own extraction service, or <see langword="null"/> when that subsystem
     /// has none. ⛔ <c>CE-171</c>: consumers must PREFER this over building their own — a self-built one

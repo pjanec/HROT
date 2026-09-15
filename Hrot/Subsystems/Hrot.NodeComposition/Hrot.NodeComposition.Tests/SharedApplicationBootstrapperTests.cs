@@ -208,6 +208,7 @@ public sealed class SharedApplicationBootstrapperTests
         public bool DriveFromNetwork => false;
         public NetworkLifecycleSystemGroup NetworkLifecycleGroup { get; } = new NetworkLifecycleSystemGroup();
         public Action? AfterSeekCallback => null;
+        public Fdp.Toolkit.Replication.Services.DescriptorOwnershipMap? DescriptorOwnershipMap => null;
 
         public string Name => "MockNedReplication";
         public ExecutionPolicy Policy => ExecutionPolicy.Synchronous();

@@ -194,6 +194,19 @@ namespace Hrot.Editor.DebugApi
             return Fail(400, error, hintCategory);
         }
 
+        /// <summary>CE-276 — map an ownership endpoint's (result, error) to an HTTP result: 503 when the host
+        /// wires no NED transport, 404 when the entity is unknown (both null), 400 on a bad request, else 200.</summary>
+        private static RouteResult OwnershipResult(JsonNode? result, string? error, long id)
+        {
+            if (error == null)
+                return result is null
+                    ? Fail(404, $"Entity {id} not found. List entities with GET /entities.", DebugApiHints.Entity)
+                    : Ok(result);
+            if (error.StartsWith("This host wires no", StringComparison.Ordinal))
+                return Fail(503, error);
+            return Fail(400, error);
+        }
+
         /// <summary>
         /// ⭐⭐⭐ <b>The route table, without binding a port or booting anything</b> — <c>HN-030</c>'s enabling
         /// seam, and the reason generation is cheap.
@@ -956,6 +969,24 @@ namespace Hrot.Editor.DebugApi
                 var (node, error) = await _jobQueue.RunOnMainThread(() =>
                     Service().EditEntityComponent(id, componentType!, patch)).ConfigureAwait(false);
                 return error != null ? Fail(400, error, DebugApiHints.Component) : Ok(node);
+            }));
+
+            // ── CE-276 — descriptor ownership: read + transfer (NED nodes only) ───────────────
+            _routes.Add(new("GET", "/entities/{networkId}/ownership", async ctx =>
+            {
+                if (!long.TryParse(ctx.RouteValue("networkId"), out var id))
+                    return Fail(400, "Invalid networkId.");
+                var (node, error) = await _jobQueue.RunOnMainThread(() =>
+                    Service().GetEntityOwnership(id)).ConfigureAwait(false);
+                return OwnershipResult(node, error, id);
+            }));
+            _routes.Add(new("POST", "/entities/{networkId}/ownership/transfer", async ctx =>
+            {
+                if (!long.TryParse(ctx.RouteValue("networkId"), out var id))
+                    return Fail(400, "Invalid networkId.");
+                var (node, error) = await _jobQueue.RunOnMainThread(() =>
+                    Service().TransferEntityOwnership(id, ctx.Body)).ConfigureAwait(false);
+                return OwnershipResult(node, error, id);
             }));
 
             // ── Group O — Variable addressing (MX1): the watch's own tuple, over HTTP ─────────

@@ -236,6 +236,19 @@ public interface ISubsystemDebugProvider
     Action<string>? RequestSaveScenarioJson { get; }
 
     /// <summary>
+    /// ⭐⭐⭐ CE-276 — hand an entity (or a chosen subset of its descriptors) to another node by publishing a
+    /// <c>TransferEntityOwnershipRequest</c> on this node's bus. <see langword="null"/> when this host has no
+    /// NED transport (editor / AllInOne) — the ownership-transfer endpoint then answers <c>503</c>.
+    /// </summary>
+    Action<Fdp.Toolkit.Replication.Messages.TransferEntityOwnershipRequest>? RequestOwnershipTransfer { get; }
+
+    /// <summary>
+    /// ⭐ CE-276 — the node's descriptor↔component ownership map, for naming an entity's descriptors and
+    /// resolving a transfer scope. <see langword="null"/> when this host has no NED transport.
+    /// </summary>
+    Fdp.Toolkit.Replication.Services.DescriptorOwnershipMap? DescriptorMap { get; }
+
+    /// <summary>
     /// ⭐⭐ <b><c>MD-007</c> — the last dump's outcome, from whichever node caches it.</b>
     ///
     /// <para>⭐⭐⭐ <b>The read model is <c>ClusterUiCache</c>, and this is exactly what the panel renders</b>
@@ -307,6 +320,8 @@ public sealed class SubsystemDebugProvider : ISubsystemDebugProvider
     private readonly Func<Action<ExecuteDiagnosticDumpIntent>?>? _requestDiagnosticDump;
     private readonly Func<DiagnosticDumpStatus?>? _dumpStatus;
     private readonly Func<Action<string>?>? _requestSaveScenarioJson;   // CE-277(c0, HTTP)
+    private readonly Func<Action<Fdp.Toolkit.Replication.Messages.TransferEntityOwnershipRequest>?>? _requestOwnershipTransfer;   // CE-276
+    private readonly Func<Fdp.Toolkit.Replication.Services.DescriptorOwnershipMap?>? _descriptorMap;   // CE-276
 
     /// <summary>
     /// ⭐⭐⭐ <b>THE ACCESSORS ARE LAZY, AND THAT IS MEASURED — NOT DEFENSIVE STYLE.</b>
@@ -346,7 +361,9 @@ public sealed class SubsystemDebugProvider : ISubsystemDebugProvider
         Func<Fdp.ModuleHost.Diagnostics.IArchitectureDiagnosticsService?>? architecture = null,
         Func<Action<ExecuteDiagnosticDumpIntent>?>? requestDiagnosticDump = null,
         Func<DiagnosticDumpStatus?>? dumpStatus = null,
-        Func<Action<string>?>? requestSaveScenarioJson = null)
+        Func<Action<string>?>? requestSaveScenarioJson = null,
+        Func<Action<Fdp.Toolkit.Replication.Messages.TransferEntityOwnershipRequest>?>? requestOwnershipTransfer = null,
+        Func<Fdp.Toolkit.Replication.Services.DescriptorOwnershipMap?>? descriptorMap = null)
     {
         SubsystemName = subsystemName ?? throw new ArgumentNullException(nameof(subsystemName));
         Perspective   = perspective   ?? throw new ArgumentNullException(nameof(perspective));
@@ -364,6 +381,8 @@ public sealed class SubsystemDebugProvider : ISubsystemDebugProvider
         _requestDiagnosticDump = requestDiagnosticDump;
         _dumpStatus = dumpStatus;
         _requestSaveScenarioJson = requestSaveScenarioJson;
+        _requestOwnershipTransfer = requestOwnershipTransfer;
+        _descriptorMap = descriptorMap;
     }
 
     /// <summary>
@@ -424,6 +443,26 @@ public sealed class SubsystemDebugProvider : ISubsystemDebugProvider
                 Operation    = Fdp.Toolkit.Orchestration.StorageOpType.SaveScenarioJson,
                 ScenarioName = name,
             });
+        };
+    }
+
+    /// <summary>
+    /// ⭐⭐⭐ CE-276 — the ONE way a subsystem contributes
+    /// <see cref="ISubsystemDebugProvider.RequestOwnershipTransfer"/>: publishes a
+    /// <c>TransferEntityOwnershipRequest</c> on its OWN WORLD event bus (not the orchestration bus — the
+    /// <c>OwnershipTransferInitiationSystem</c> reads it as an ECS event), re-read each access because the
+    /// world is null until <c>Initialize</c>.
+    /// </summary>
+    public static Func<Action<Fdp.Toolkit.Replication.Messages.TransferEntityOwnershipRequest>?> TransfersOwnershipVia(
+        Func<Fdp.Core.EntityRepository?> world)
+    {
+        if (world == null) throw new ArgumentNullException(nameof(world));
+        return () =>
+        {
+            var w = world();
+            return w is null
+                ? null
+                : (Action<Fdp.Toolkit.Replication.Messages.TransferEntityOwnershipRequest>)(req => w.Bus.PublishManaged(req));
         };
     }
 
@@ -535,6 +574,8 @@ public sealed class SubsystemDebugProvider : ISubsystemDebugProvider
     public Action<ExecuteDiagnosticDumpIntent>? RequestDiagnosticDump => _requestDiagnosticDump?.Invoke();
     public DiagnosticDumpStatus? DumpStatus => _dumpStatus?.Invoke();
     public Action<string>? RequestSaveScenarioJson => _requestSaveScenarioJson?.Invoke();
+    public Action<Fdp.Toolkit.Replication.Messages.TransferEntityOwnershipRequest>? RequestOwnershipTransfer => _requestOwnershipTransfer?.Invoke();
+    public Fdp.Toolkit.Replication.Services.DescriptorOwnershipMap? DescriptorMap => _descriptorMap?.Invoke();
 
     /// <summary>
     /// ⭐⭐⭐ <b>MEASURED from what is wired</b> — ⛔ never declared. 📌 Q54's one real risk: a hand-authored

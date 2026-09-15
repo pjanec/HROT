@@ -43,7 +43,12 @@ related-designs:
 > descriptor types, not underlying ECS component types."* · *"master only must be possible… but usually we
 > move almost all at once… options should be available (transfer selected set OR transfer all)."*
 
-**build-state: READY-TO-BUILD** — §2 carries the class + sequence + module UML; §3 the scope model.
+**build-state: BUILT** `2026-09-15` — §2 carries the class + sequence + module + HTTP UML; §3 the scope model.
+AS-BUILT matches the design: `OwnershipTransferInitiationSystem` (NED, role-independent), the three-scope
+resolver keyed on `HasAuthority(entity, PackKey(ordinal,0))`, the loser-mirror + wire publish reusing the
+existing `OwnershipUpdate` egress, and the two ai-debug endpoints (§5a). Rails: `OwnershipTransferInitiationTests`
+4/4. Full solution builds clean; route-doc gate green; ai-debug catalog + SKILL regenerated (101 tools).
+⚠ Live `--mode all` proof still pending (T3).
 
 ---
 
