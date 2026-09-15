@@ -67,6 +67,15 @@ public sealed class HrotScenarioSaveHandler : IClusterStateHandler
 
     /// <inheritdoc />
     /// <remarks>
+    /// ⭐ CE-279 Layer C — payload-aware so this scenario handler is not shadowed by the co-registered
+    /// <c>ReferenceArchiveHandler</c> (both claim <c>SerializeLocal</c>; the slave picks the FIRST
+    /// <c>CanHandle</c>-true handler). Claims ONLY a <see cref="ScenarioSaveHandlerPayload"/>.
+    /// </remarks>
+    public bool CanHandle(ExecuteNodeOpIntent intent)
+        => intent.Operation == NodeOpType.SerializeLocal && intent.DomainPayload is ScenarioSaveHandlerPayload;
+
+    /// <inheritdoc />
+    /// <remarks>
     /// CE-277(c1) — writes this node's owned slice to its OWN per-node staging root
     /// (<see cref="OrchestrationConstants.GetNodeScenariosRoot(int)"/> → <c>nodes/node-N/scenarios/&lt;name&gt;/scenario.json</c>)
     /// via the shared <see cref="ScenarioSaveCore"/>, and returns a <see cref="FileManifestResult"/> so the

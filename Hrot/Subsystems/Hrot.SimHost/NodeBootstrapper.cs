@@ -288,8 +288,10 @@ namespace Hrot.SimHost
             // Wire ReferencePrefetchHandler so this node can stage scenario files and ACK.
             clusterSlave.RegisterHandler(new ReferencePrefetchHandler(storageProvider));
 
-            // Wire ReferenceArchiveHandler so this node can report .fdp archives to ClusterMaster (CGF1-S0505).
-            clusterSlave.RegisterHandler(new ReferenceArchiveHandler(localTempRoot, nodeId));
+            // CE-279 Layer A — build the SerializeLocal-family handlers as locals and register them TOGETHER,
+            // in canonical order, via SerializeLocalRegistrar (below) — the ONE way every host does it.
+            var archiveHandler = new ReferenceArchiveHandler(localTempRoot, nodeId);
+            IClusterStateHandler? scenarioSaveHandler = null;
 
             // Wire TkbLoadClusterStateHandler to populate ITkbDatabase before HrotScenarioLoadHandler
             // deserializes entities. Must be registered BEFORE the scenario handler block (TKB-020).
@@ -328,11 +330,14 @@ namespace Hrot.SimHost
                 //   SaveScenarioJson fan-out it writes this node's OWNED slice via the shared ScenarioSaveCore.
                 //   A SimHost (muscle) usually owns nothing persistable, so its file is empty BY THE GATE —
                 //   uniform code, no role branch. 📄 DESIGN_Distributed_Scenario_Persistence.md §4.
-                clusterSlave.RegisterHandler(
-                    new Hrot.ScenarioEditor.Handlers.HrotScenarioSaveHandler(
-                        scenarioSerializer, zoneService, tkbDb, world,
-                        nodeId));
+                //   CE-279: built here, registered below via SerializeLocalRegistrar.
+                scenarioSaveHandler = new Hrot.ScenarioEditor.Handlers.HrotScenarioSaveHandler(
+                    scenarioSerializer, zoneService, tkbDb, world, nodeId);
             }
+
+            // CE-279 Layer A — register the SerializeLocal pair uniformly (save before archive; payload-aware
+            //   CanHandle makes order non-load-bearing, but every host's slave is now identical here).
+            SerializeLocalRegistrar.Register(clusterSlave, scenarioSaveHandler, archiveHandler);
 
             // Wire ReferenceLiveLoadHandler AFTER the scenario handler so it only claims
             // FinalizeLive and cold PrepareLive (when no scenario serializer was registered).

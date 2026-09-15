@@ -49,6 +49,17 @@ public sealed class ReferenceArchiveHandler : IClusterStateHandler
 
     /// <inheritdoc />
     /// <remarks>
+    /// ⭐ CE-279 Layer C — <c>SerializeLocal</c> is SHARED with the scenario-JSON save. Selection is payload-aware:
+    /// this handler claims ONLY an <see cref="ArchiveHandlerPayload"/> (the <c>.fdp</c> archive), so it never
+    /// shadows a scenario save handler on a <see cref="ScenarioSaveHandlerPayload"/> fan-out, regardless of
+    /// registration order. ⛔ The default operation-only overload let the first-registered handler win regardless
+    /// of payload — measured: it swallowed every scenario slice.
+    /// </remarks>
+    public bool CanHandle(ExecuteNodeOpIntent intent)
+        => intent.Operation == NodeOpType.SerializeLocal && intent.DomainPayload is ArchiveHandlerPayload;
+
+    /// <inheritdoc />
+    /// <remarks>
     /// Locates the local .fdp file and returns a <see cref="FileManifestResult"/> array as the
     /// task result so that <c>ClusterSlave.DispatchIntent</c> can include it in the
     /// <see cref="NodeOpCompletedEvent.ResultPayload"/> published to the event bus.

@@ -20,7 +20,9 @@ public sealed class ReferenceArchiveHandlerTests
         new()
         {
             TransactionId = txId ?? Guid.NewGuid(),
-            TargetNodeId  = 1,
+            // 0 = broadcast: a fixed non-zero id was dropped by any slave whose nodeId differed
+            //   (ClusterSlave.Tick's TargetNodeId filter) — the pre-existing reason Commit saw an empty result.
+            TargetNodeId  = 0,
             Operation     = NodeOpType.SerializeLocal,
             DomainPayload = new ArchiveHandlerPayload(exerciseId),
         };
@@ -40,7 +42,9 @@ public sealed class ReferenceArchiveHandlerTests
         const int    nodeId  = 5;
         var exerciseIdText = exerciseId.ToString();
 
-        var exerciseDir  = Path.Combine(tempRoot, exerciseIdText);
+        // CE-279: the handler reads/reports under the `exercises/` segment (OrchestrationConstants); the test
+        //   fixture must mirror that. (Pre-existing stale test — it omitted the segment the handler adopted.)
+        var exerciseDir  = Path.Combine(tempRoot, OrchestrationConstants.ExercisesDirectoryName, exerciseIdText);
         var fdpFile   = Path.Combine(exerciseDir, $"node_{nodeId}.fdp");
         Directory.CreateDirectory(exerciseDir);
         File.WriteAllText(fdpFile, "fake-fdp-data");
@@ -75,7 +79,7 @@ public sealed class ReferenceArchiveHandlerTests
             Assert.Single(entries!);
             var entry = entries![0];
             Assert.Equal(fdpFile, entry.SourceUnc);
-            Assert.Equal(Path.Combine(exerciseIdText, $"node_{nodeId}.fdp"), entry.RelativeDest);
+            Assert.Equal(Path.Combine(OrchestrationConstants.ExercisesDirectoryName, exerciseIdText, $"node_{nodeId}.fdp"), entry.RelativeDest);
         }
         finally
         {
@@ -97,7 +101,8 @@ public sealed class ReferenceArchiveHandlerTests
         const int    nodeId  = 3;
         var exerciseIdText = exerciseId.ToString();
 
-        var exerciseDir = Path.Combine(tempRoot, exerciseIdText);
+        // CE-279: mirror the handler's `exercises/` segment (Abort deletes under it too).
+        var exerciseDir = Path.Combine(tempRoot, OrchestrationConstants.ExercisesDirectoryName, exerciseIdText);
         var fdpFile  = Path.Combine(exerciseDir, $"node_{nodeId}.fdp");
         Directory.CreateDirectory(exerciseDir);
         File.WriteAllText(fdpFile, "partial-data");
@@ -151,6 +156,57 @@ public sealed class ReferenceArchiveHandlerTests
         var handler = new ReferenceArchiveHandler(@"C:\FDP_Temp", 1);
         Assert.False(handler.CanHandle(NodeOpType.TakeSnapshot));   // TakeSnapshot
         Assert.False(handler.CanHandle((NodeOpType)0));
+    }
+
+    // ── CE-279 Layer A/C — payload-aware SerializeLocal selection via SerializeLocalRegistrar ────────────
+
+    /// <summary>
+    /// ⭐⭐⭐ REGRESSION: `SerializeLocal` is shared by the `.fdp` archive and the scenario-JSON save; the slave
+    /// dispatches to the FIRST `CanHandle`-true handler. A payload-BLIND `CanHandle` let the archive handler
+    /// SWALLOW every scenario slice (measured live 2026-09-14). This proves the CE-279 fix: registered together
+    /// via <see cref="SerializeLocalRegistrar"/>, a scenario payload goes to the scenario handler and an archive
+    /// payload goes to the archive handler — regardless of the archive handler being registered.
+    /// </summary>
+    [Fact]
+    public void SerializeLocalRegistrar_RoutesByPayload_ArchiveDoesNotShadowScenario()
+    {
+        var archive  = new ReferenceArchiveHandler(Path.GetTempPath(), nodeId: 1);
+        var scenario = new ScenarioPayloadClaimer();
+
+        // The registrar puts scenario-save first, archive second — the canonical order every host now uses.
+        var eventBus = new FdpEventBus();
+        using var slave = new ClusterSlave(1, "Test", eventBus);
+        SerializeLocalRegistrar.Register(slave, scenario, archive);
+
+        // Payload-aware selection: a scenario payload is claimed by the scenario handler, NOT the archive one.
+        Assert.False(archive.CanHandle(new ExecuteNodeOpIntent
+        {
+            Operation = NodeOpType.SerializeLocal,
+            DomainPayload = new Fdp.Toolkit.Orchestration.Handlers.ScenarioSaveHandlerPayload("scn"),
+        }), "archive handler must DECLINE a scenario payload");
+        Assert.True(archive.CanHandle(new ExecuteNodeOpIntent
+        {
+            Operation = NodeOpType.SerializeLocal,
+            DomainPayload = new ArchiveHandlerPayload(Guid.NewGuid()),
+        }), "archive handler must still claim its OWN archive payload");
+        Assert.True(scenario.CanHandle(new ExecuteNodeOpIntent
+        {
+            Operation = NodeOpType.SerializeLocal,
+            DomainPayload = new Fdp.Toolkit.Orchestration.Handlers.ScenarioSaveHandlerPayload("scn"),
+        }), "scenario handler must claim the scenario payload");
+    }
+
+    /// <summary>Minimal handler claiming ONLY a <c>ScenarioSaveHandlerPayload</c> (mirrors the real scenario
+    /// save handlers' CE-279 override), to prove the archive handler yields to it.</summary>
+    private sealed class ScenarioPayloadClaimer : IClusterStateHandler
+    {
+        public bool CanHandle(NodeOpType operation) => operation == NodeOpType.SerializeLocal;
+        public bool CanHandle(ExecuteNodeOpIntent intent) =>
+            intent.Operation == NodeOpType.SerializeLocal
+            && intent.DomainPayload is Fdp.Toolkit.Orchestration.Handlers.ScenarioSaveHandlerPayload;
+        public Task<object?> PrepareAsync(ExecuteNodeOpIntent intent, CancellationToken ct) => Task.FromResult<object?>(null);
+        public void Commit(ExecuteNodeOpIntent intent, EntityRepository? repo) { }
+        public void Abort(ExecuteNodeOpIntent intent, EntityRepository? repo) { }
     }
 
 }

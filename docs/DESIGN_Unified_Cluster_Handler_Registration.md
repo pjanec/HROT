@@ -218,6 +218,23 @@ and makes every ECS host place its save handler the same way, at low risk. A2's 
 value (load handlers weren't the problem) and high cost. **Pending user confirm before building** — the two scopes
 build very different amounts of code.
 
+### 6.3b ✅ A1 AS-BUILT `2026-09-15`
+- **`SerializeLocalRegistrar`** (`FDP/Toolkits/Fdp.Toolkits/Orchestration/SerializeLocalRegistrar.cs`): the one
+  place that registers the SerializeLocal pair — **scenario-save first, archive second** — either nullable.
+- **Payload-aware `CanHandle(ExecuteNodeOpIntent)`** added to `ReferenceArchiveHandler` (⇒ `ArchiveHandlerPayload`
+  only), `HrotScenarioSaveHandler` and `ExConScenarioSaveHandler` (⇒ `ScenarioSaveHandlerPayload` only). Selection
+  no longer depends on registration order (Layer C, folded into A1).
+- **All five hosts repointed** to `SerializeLocalRegistrar.Register(...)`: SimHost (`NodeBootstrapper`), IG
+  (`IgNodeBootstrapper`, archive null), CGF (`CgfSubsystem`), ExCon (`ExConSubsystem`, was Archive-before-Save →
+  now uniform), Editor (`EditorSubsystem`, archive null). The bespoke separate registrations are gone.
+- **Rail:** `ReferenceArchiveHandlerTests.SerializeLocalRegistrar_RoutesByPayload_ArchiveDoesNotShadowScenario`;
+  also fixed the pre-existing stale `Commit_ProducesManifestJson` (its expected path omitted the `exercises/`
+  segment the handler emits — measured red on the clean tree, unrelated to this change).
+- ⚠ **SimHost still passes `scenarioSerializer: null` in production**, so its save handler stays null (the
+  registrar handles null gracefully). A1 unifies the PATH + selection; giving SimHost a serializer so it
+  actively saves is a separate behaviour change, and cross-node slices still need **Layer B** (the wire) before
+  T-B is green.
+
 ### 6.4 Build steps (A2 form — see 6.3a; A1 is a strict subset)
 1. Add `ClusterHandlerRegistrar` + `ClusterHandlerDeps` in `Hrot.Common`; unit-test its output per deps shape (ECS-with-serializer, observer, load-only).
 2. Repoint **SimHost** first (`NodeBootstrapper.BuildOrchestration` → build deps + call registrar; **supply a real `Serializer`** so the save handler is present — the ruled fix). Gate: SimHost boots, `SimHost` registration test asserts the save handler is present.

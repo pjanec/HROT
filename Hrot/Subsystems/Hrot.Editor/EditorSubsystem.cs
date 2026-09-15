@@ -1437,9 +1437,13 @@ namespace Hrot.Editor
             //   cluster fans out SaveScenarioJson, this writes the editor's owned slice via the shared
             //   ScenarioSaveCore. There is NO editor-only save path: identical everywhere, differing only by
             //   the injected serializer / zone service / world. 📄 DESIGN_Distributed_Scenario_Persistence.md §4.
-            clusterSlave.RegisterHandler(new Hrot.ScenarioEditor.Handlers.HrotScenarioSaveHandler(
-                scenarioSerializer, zoneService, tkbDb, _world!,
-                EditorNodeId));
+            //   CE-279 Layer A — registered via the shared registrar. The editor reports no .fdp archive today,
+            //   so its archive handler is null; the save handler is placed uniformly, payload-aware.
+            Fdp.Toolkit.Orchestration.SerializeLocalRegistrar.Register(
+                clusterSlave,
+                new Hrot.ScenarioEditor.Handlers.HrotScenarioSaveHandler(
+                    scenarioSerializer, zoneService, tkbDb, _world!, EditorNodeId),
+                archiveHandler: null);
             clusterSlave.RegisterHandler(new DiagnosticsDumpClusterOpHandler(
                 _fdpEventHistory,
                 new ArchitectureDiagnosticsService(() => _kernel),

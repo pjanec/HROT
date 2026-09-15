@@ -378,8 +378,6 @@ namespace Hrot.ExCon
             // background file fan-outs (PrefetchFiles / SerializeLocal) and cannot stall 2PC UI tracking.
             var exConStorageProvider = new LocalDiskStorageProvider(OrchestrationConstants.ResolveStagingRoot());
             _clusterSlave.RegisterHandler(new ReferencePrefetchHandler(exConStorageProvider));
-            _clusterSlave.RegisterHandler(new ReferenceArchiveHandler(
-                OrchestrationConstants.ResolveStagingRoot(), iosNodeId));
 
             // ⭐ CE-277(c3) — ExCon DOES contribute to a distributed scenario save, in its OWN
             //   intentionally-incompatible format (observer camera state; $meta.docType="ExCon.Observer").
@@ -387,8 +385,14 @@ namespace Hrot.ExCon
             //   (This refines the "ExCon does not save scenario fragments" note above: it saves its console
             //   state, not an ECS slice.)
             _observerState = new Hrot.ExCon.Observer.ExConObserverState();
-            _clusterSlave.RegisterHandler(
-                new Hrot.ExCon.Observer.ExConScenarioSaveHandler(_observerState, iosNodeId));
+
+            // CE-279 Layer A — register the SerializeLocal pair (ExCon's observer save + .fdp archive) uniformly:
+            //   observer-save FIRST, archive SECOND, payload-aware. (Was Archive-before-Save here — the flip that
+            //   the shadowing bug depended on; the registrar makes the order identical to every other host.)
+            Fdp.Toolkit.Orchestration.SerializeLocalRegistrar.Register(
+                _clusterSlave,
+                new Hrot.ExCon.Observer.ExConScenarioSaveHandler(_observerState, iosNodeId),
+                new ReferenceArchiveHandler(OrchestrationConstants.ResolveStagingRoot(), iosNodeId));
 
             // Diagnostic dumps: ExCon contributes logs and ACKs CollectDiagnostics.
             var exConArchService = new ArchitectureDiagnosticsService(() => null);

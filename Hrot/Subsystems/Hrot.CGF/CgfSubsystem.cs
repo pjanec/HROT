@@ -1148,9 +1148,10 @@ public sealed class CgfSubsystem : ISubsystem, Fdp.Toolkit.Runner.IMapCameraProv
         //   root; each host's root is config, the handler class and save core are identical).
         //   ⚠ zoneService: null today — CGF composes no zone manager (:1139); OQ1 (give CGF a real zone
         //   service so globals/zones ride the brain file, §6a) is a scoped follow-on.
-        newClusterSlave.RegisterHandler(new Hrot.ScenarioEditor.Handlers.HrotScenarioSaveHandler(
+        //   CE-279 Layer A — built here, registered below via SerializeLocalRegistrar with CGF's archive handler.
+        var cgfScenarioSaveHandler = new Hrot.ScenarioEditor.Handlers.HrotScenarioSaveHandler(
             scenarioSerializer, zoneService: null, _context.TkbDb, _context.World,
-            _context.NodeId));
+            _context.NodeId);
 
         newClusterSlave.RegisterHandler(new Hrot.CGF.Orchestration.Handlers.CgfEpisodeLoadHandler(
             scenarioSerializer, scenarioLoader, extractor, _scenarioSource!, cgfIdAllocator, _context.World, behaviorRemapper));
@@ -1194,8 +1195,11 @@ public sealed class CgfSubsystem : ISubsystem, Fdp.Toolkit.Runner.IMapCameraProv
             cgfRewindables.Add(Fdp.Toolkit.Orchestration.Preview.PreviewParticipants.LifecycleModule(cgfElm));
         newClusterSlave.RegisterHandler(new ReferencePreviewHandler(_context.World, cgfRewindables));
         newClusterSlave.RegisterHandler(new ReferencePrefetchHandler(storageProvider));
-        newClusterSlave.RegisterHandler(new ReferenceArchiveHandler(
-            isolatedTempRoot, _context.NodeId));
+        // CE-279 Layer A — register the SerializeLocal pair (scenario-save + .fdp archive) uniformly.
+        Fdp.Toolkit.Orchestration.SerializeLocalRegistrar.Register(
+            newClusterSlave,
+            cgfScenarioSaveHandler,
+            new ReferenceArchiveHandler(isolatedTempRoot, _context.NodeId));
         var cgfArchService = new Fdp.ModuleHost.Diagnostics.ArchitectureDiagnosticsService(_context.Kernel);
         var cgfEntityService = new Fdp.Toolkit.Diagnostics.EntityStateExtractionService(_context.World, _context.EntityMap, scenarioSerializer);
         _fdpEntityInspector.ExtractionService = cgfEntityService;
