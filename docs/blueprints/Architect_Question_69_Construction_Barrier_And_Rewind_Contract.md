@@ -262,7 +262,15 @@ cross-node? then the peer wait is free"* — read the ELM API + design-talk + `N
 ⇒ **This reframes ask B:** the question is no longer *"is the peer barrier a relic?"* (it is required) but
 *"scope the wiring"* — captured in the FRAME:
 📄 [`batches/FRAME_Construction_Barrier_Participants.md`](batches/FRAME_Construction_Barrier_Participants.md)
-*(pieces A–D, the reusable `DeferredConstructionParticipant` base, the one open decision D2 = `GetExpectedPeers`-from-ownership)*.
+*(pieces A–D, the reusable `DeferredConstructionParticipant` base)*. ⭐ **Updated `2026-09-15` after reading
+`DESIGN_Entity_Genesis_End_To_End.md`:** D2 *(expected-peer source)* is RESOLVED — the per-entity owner
+node-set is the distinct `NodeId`s in `DeferredTakeOwnershipCommand.Grants` *(traced: `CreateEntityRequestSystem:363`
++ `CgfSubsystem:544`; load-balanced per-instance, so a type lookup can't match)*. ⛔ The REAL open item is now
+piece A: **the live genesis pipeline threads ownership across nodes via `DeferredTakeOwnership → GhostPromotion
+gate → DeferredTakeoverSystem → OwnershipUpdate`, NOT the dormant `PendingNetworkAck`/`NetworkGatewaySystem`
+path** — so reliable-init must first be checked against the existing `OwnershipUpdate` return signal (seam law)
+before any parallel peer mechanism is built, and the receiver-side "data ready" gate already exists
+(`GhostPromotionSystem` + the receiver ELM). See the frame §2b.
 ⭐ **Corrected `2026-09-15` (user):** ELM-participant *(construction ACK gate)* and `WithOwned` *(steady-state
 tick filter)* are ORTHOGONAL — no "source of truth" conflict *(the earlier D1 was withdrawn)*. And
 rewind-safety is **already built + wired** *(`OnWorldReplaced`/`ResumeFromRestoredWorld`/
