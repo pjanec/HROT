@@ -3,9 +3,10 @@ state: LIVE
 updated: 2026-09-15
 build-state: READY-TO-BUILD
 current-answer: §1 the level ruling (descriptor-level, NED-initiated), §2 the diagrams (class +
-  sequence + module), §3 the scope model, §4 the save-ownership rule, §5 native-vs-external + the
-  multi-node follow-on. The RECEIVE side is already built (OQ12 / CE-275 ④, see the persistence design
-  §6c); THIS doc is the INITIATION side (CE-276).
+  sequence + module + §2.4 HTTP surface), §3 the scope model, §4 the save-ownership rule, §5
+  native-vs-external + the multi-node follow-on, §5a the ai-debug HTTP endpoints (drive + verify). The
+  RECEIVE side is already built (OQ12 / CE-275 ④, see the persistence design §6c); THIS doc is the
+  INITIATION side (CE-276) PLUS its HTTP surface, built as one feature.
 stale-below: nothing yet (new document).
 known-rot: nothing known.
 known-conflict: DESIGN_Distributed_Scenario_Persistence.md §6c's "measured gap" note prescribes making
@@ -221,6 +222,34 @@ no NED transport, `PrimaryOwnerDescriptorOrdinal` is `null`, and `OwnershipTrans
 registered, so a transfer request is a **no-op** and that is CORRECT (a single-node host owns everything by
 construction, sees no peers). Transfer only means anything where NED runs.
 
+### 2.4 HTTP surface — the ai-debug endpoints that drive AND verify it
+
+```mermaid
+graph LR
+    subgraph http [ai-debug HTTP API - Hrot.Editor, MCP surface]
+      RO[GET /entities/id/ownership - READ]
+      RT[POST /entities/id/ownership/transfer - WRITE]
+    end
+    subgraph prov [ISubsystemDebugProvider - per node/perspective]
+      DOMg[DescriptorOwnershipMap accessor - NEW seam]
+      REQg[requestOwnershipTransfer Action - NEW seam]
+      WLD[World - EntityRepository - existing]
+    end
+    RO -->|reads| WLD
+    RO -->|names + bindings| DOMg
+    RT -->|publishes TransferEntityOwnershipRequest| REQg
+    REQg --> BUS[node bus]
+    BUS --> OTIS[OwnershipTransferInitiationSystem]
+    DOMg -.exposes.-> DOM[DescriptorOwnershipMap - from NedReplicationModule]
+```
+
+*Caption:* the two endpoints are **thin** — a read that joins the `EntityRepository` (already reachable) with
+the newly-exposed `DescriptorOwnershipMap` for descriptor *names/bindings*, and a write that publishes the
+§2.2 request through a new provider seam (mirroring the existing `requestSaveScenarioJson` seam). The read is
+the **verification surface** for the write: query ownership per descriptor before, transfer, query after —
+the same raw-HTTP proof pattern used for T-C when the MCP was down. Both are **capability-gated**: on a host
+with no NED (`DescriptorOwnershipMap`/seam null) they answer `503`, exactly as the module dead-edge predicts.
+
 ---
 
 ## 3. THE SCOPE MODEL — expressed in DESCRIPTOR TYPES
@@ -279,6 +308,36 @@ ownerless mid-transfer.
 
 ---
 
+## 5a. THE HTTP SURFACE (ai-debug) — how the feature is driven and tested
+
+⭐ The ai-debug HTTP API is the way to exercise and *verify* the transfer on a live `--mode all` cluster
+(and the only way when the MCP server is down). Two endpoints, both **capability-gated** on NED presence.
+
+| endpoint | reads / does | reachability |
+|---|---|---|
+| **`GET /entities/{id}/ownership`** | per-descriptor owner (`DescriptorOwnership.Map` + `AuthorityMask`), `PrimaryOwnerId`, and — via the newly-exposed `DescriptorOwnershipMap` — each descriptor's **name (`EDescriptorType`) + bound component ids**, and whether *this* node owns it | `EntityRepository` (already held) + `DescriptorOwnershipMap` (new provider seam) |
+| **`POST /entities/{id}/ownership/transfer`** `{ newOwnerNodeId, scope, descriptors?[] }` | publishes a `TransferEntityOwnershipRequest` (§2.2) on the node's bus; `scope` ∈ `MasterOnly`/`AllOwnedByThisNode`/`SpecificDescriptors`; `descriptors` are `EDescriptorType` names (never components — §1/§3) | new `requestOwnershipTransfer` provider seam |
+
+**Plumbing (the standard seam-per-dependency pattern):**
+- `NedReplicationModule` exposes its `DescriptorOwnershipMap` (a getter — today it is private).
+- `ISubsystemDebugProvider` gains two members: the `DescriptorOwnershipMap` accessor and a
+  `requestOwnershipTransfer` `Action<TransferEntityOwnershipRequest>` (mirrors the existing
+  `requestSaveScenarioJson` seam).
+- Each NED-transport subsystem (`Hrot.IG` · `Hrot.CGF` · `Hrot.SimHost` · `Hrot.ExCon`) passes both into its
+  `CreateDebugProvider(...)`. The editor / AllInOne passes `null` → the endpoints answer `503`
+  (`"This host wires no NED transport"`), consistent with the §2.3 dead edge.
+- A new `DebugApiService.Ownership.cs` partial + two `_routes.Add` entries + `RouteDoc`s + the
+  `tools/ai-debug-mcp` tool-catalog / SKILL regen.
+
+⛔ **The transfer endpoint is a THIN publisher** — it owns no transfer logic; it just triggers the §2.2
+primitive. So it cannot exist before build items 1–3.
+
+⚠ **Cross-lane note:** this feature spans the **MCP lane** (`Hrot.Editor/DebugApi`), the shared
+`Hrot.Presentation` provider, four subsystems, and the NED/toolkit primitive — built together as one feature
+(the MCP lane being inactive, the persistence/NED session carries it).
+
+---
+
 ## 6. WHAT THIS SUPERSEDES
 
 `DESIGN_Distributed_Scenario_Persistence.md` §6c's "measured gap" note said the transfer feature must make
@@ -294,5 +353,6 @@ superseded on this point in the same change, with a pointer here.
 1. `TransferEntityOwnershipRequest` (bus event) + `TransferScope` enum + optional `DescriptorTypeIds`.
 2. `OwnershipTransferInitiationSystem` (Hrot.Network.NED, Input phase): drain requests → `ResolveOwnedDescriptors(entity, scope)` → per descriptor: `SetOwner(key, newOwner)`, clear our `AuthorityMask` for its components, publish `OwnershipUpdate{…, OriginNodeId=local}`, and if `descriptorOrdinal == PrimaryOwnerDescriptorOrdinal` mirror `NetworkAuthority.PrimaryOwnerId = newOwner`.
 3. Register it in `NedReplicationModule`; no-op safe when `PrimaryOwnerDescriptorOrdinal` is null.
-4. Rails (into the ownership feature suite): `OwnershipTests` — initiate `MasterOnly` (PrimaryOwnerId + master authority leave us; other descriptors untouched), `AllOwnedByThisNode` (all our descriptors leave, a foreign-owned one is untouched), `SpecificDescriptors` excluding master (descriptors move, PrimaryOwnerId stays); an integration rail on `ClusterRunner.Integration.Tests` proving B publishes `EntityMaster` after and A goes quiet without the entity disappearing.
-5. Fold the §6c supersession + reciprocal `related-designs` links.
+4. **HTTP surface (§5a):** expose `DescriptorOwnershipMap` from `NedReplicationModule`; add the two `ISubsystemDebugProvider` seams (map accessor + `requestOwnershipTransfer`); wire them in IG/CGF/SimHost/ExCon `CreateDebugProvider` (editor → null → 503); add `DebugApiService.Ownership.cs` with `GET /entities/{id}/ownership` + `POST /entities/{id}/ownership/transfer`, the `_routes` entries, `RouteDoc`s, and the `tools/ai-debug-mcp` catalog/SKILL regen.
+5. Rails (into the ownership feature suite): `OwnershipTests` — initiate `MasterOnly` (PrimaryOwnerId + master authority leave us; other descriptors untouched), `AllOwnedByThisNode` (all our descriptors leave, a foreign-owned one is untouched), `SpecificDescriptors` excluding master (descriptors move, PrimaryOwnerId stays); an integration rail on `ClusterRunner.Integration.Tests` proving B publishes `EntityMaster` after and A goes quiet without the entity disappearing; a live `--mode all` proof over the new HTTP endpoints (`GET /entities/{id}/ownership` before/after a `POST …/transfer`).
+6. Fold the §6c supersession + reciprocal `related-designs` links.
