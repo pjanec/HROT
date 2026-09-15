@@ -1,8 +1,8 @@
 <!--STATUS
 state: LIVE
 updated: 2026-09-15
-build-state: DESIGN
-current-answer: §3 the divergence map (measured, do not re-derive) → §4 the unification plan
+build-state: READY-TO-BUILD (Layer A)
+current-answer: §6 Layer A READY-TO-BUILD (registrar + deps + role table + UML); §3 the divergence map (measured, do not re-derive)
 stale-below: —
 superseded-by: —
 known-rot: —
@@ -25,7 +25,7 @@ related-designs:
 > can be built later **without re-deriving** it.
 > 🔒 **User ruling `2026-09-15`:** *"If all ecs hosts use same code, it must work same way everywhere. Role based…"*
 
-**build-state: DESIGN** (analysis complete; promote to READY-TO-BUILD with class+sequence UML before dispatch)
+**build-state: READY-TO-BUILD (Layer A)** — §6 carries the registrar API, role/deps table, class + sequence UML.
 
 ---
 
@@ -96,3 +96,105 @@ graph TD
 - Touches all five hosts' composition roots + the NodeOp wire translators — large but mechanical once the registrar exists. Gate with `CgfHandlerRegistrationTests` / `ExConHandlerRegistrationTests` (they already assert per-host handler sets) rewritten to assert the unified registrar's output per role.
 - ⛔ Do NOT fold this into the CE-277 scenario-save commit — it is a cross-cutting refactor of its own.
 - Promote to READY-TO-BUILD with a `classDiagram` (the registrar + the handler interfaces) and a `sequenceDiagram` (fan-out → wire → slave dispatch → handler) before dispatch, per the NO-IMPLEMENTATION-WITHOUT-UML rule.
+
+## 6. ⭐ LAYER A — READY-TO-BUILD design
+
+**Where it lives:** a new static `ClusterHandlerRegistrar` in the shared composition assembly
+`Hrot.Common` (beside `SharedApplicationBootstrapper`, `Hrot/Engine/Hrot.Common/Infrastructure/`) — reachable
+from every host (SimHost, IG, CGF, ExCon, Editor). It takes a **deps record** and one `ClusterSlave`, and
+registers the full set deterministically. Each host builds its deps and calls it once, replacing its bespoke
+`RegisterHandler` sequence.
+
+**The discriminant is dep-presence, which IS the node's role** — an ECS host supplies `World`+`Serializer`; the
+observer host (ExCon) supplies `ObserverState` and no `World`. `NodeRole` is passed for the genuinely
+role-specific handlers (checkpoint recording).
+
+### 6.1 The deps record
+```
+public sealed record ClusterHandlerDeps(
+    int                          NodeId,
+    string                       LocalTempRoot,
+    NodeRole                     Role,
+    EntityRepository?            World,             // null ⇒ no-ECS host (ExCon)
+    ScenarioSerializer?          Serializer,        // present ⇒ ECS host authors/loads scenarios
+    IZoneManagerService?         ZoneService,       // optional (CGF/IG null today; Editor real)
+    ITkbDatabase?                TkbDb,
+    IStorageProvider?            StorageProvider,
+    EcsRecordReplayController?   Controller,
+    CheckpointIOWorker?          CheckpointWorker,
+    ExConObserverState?          ObserverState,     // present ⇒ observer host (ExCon)
+    DiagnosticsDumpClusterOpHandler? DiagnosticsHandler,
+    IScenarioExtractor?          ScenarioExtractor, // load-side deps (present with Serializer)
+    IScenarioSource?             ScenarioSource,
+    IIdAllocator?                ScenarioIdAllocator);
+```
+
+### 6.2 Role/deps → handler set (the ONE table that replaces five files)
+| handler | registered when | notes |
+|---|---|---|
+| `ReferenceReplayLoadHandler` | `Controller != null` | load-side |
+| `ReferenceLiveLoadHandler` | always | load-side (claims FinalizeLive + cold PrepareLive) |
+| `ReferencePreviewHandler` | always | `World`-or-null tolerant |
+| `ReferencePrefetchHandler` | `StorageProvider != null` | |
+| `ReferenceCheckpointHandler` | `CheckpointWorker != null` | recording roles |
+| `TkbLoadClusterStateHandler` | `TkbDb != null` | before scenario load |
+| `HrotScenarioLoadHandler` / `HrotEditLoadHandler` / `ReferenceEpisodeLoadHandler` | `Serializer != null` | ECS load-side |
+| `ReferenceArchiveHandler(LocalTempRoot, NodeId)` | always | `.fdp` exercise-recording collect; null-safe if no recording |
+| **`HrotScenarioSaveHandler`** | **`World != null && Serializer != null`** | ⭐ **the fix — uniform on EVERY ECS host** (ruled: no role exceptions). SimHost now supplies a real `Serializer` |
+| **`ExConScenarioSaveHandler`** | **`World == null && ObserverState != null`** | the no-ECS observer variant |
+| `DiagnosticsDumpClusterOpHandler` | `DiagnosticsHandler != null` | |
+
+⭐ **Order is fixed in the registrar** so it is identical everywhere: **scenario-save handler registered
+BEFORE `ReferenceArchiveHandler`** — belt-and-suspenders even before Layer C's payload-aware `CanHandle`
+lands (so the scenario payload is never shadowed regardless of C).
+
+### 6.3 UML
+
+```mermaid
+classDiagram
+    class ClusterHandlerRegistrar {
+        +Register(ClusterSlave slave, ClusterHandlerDeps d)$ void
+    }
+    class ClusterHandlerDeps {
+        +int NodeId
+        +NodeRole Role
+        +EntityRepository World
+        +ScenarioSerializer Serializer
+        +ExConObserverState ObserverState
+    }
+    class IClusterStateHandler {
+        <<interface>>
+        +CanHandle(ExecuteNodeOpIntent) bool
+        +PrepareAsync(...) Task
+    }
+    class ClusterSlave {
+        +RegisterHandler(IClusterStateHandler)
+    }
+    ClusterHandlerRegistrar ..> ClusterHandlerDeps : reads
+    ClusterHandlerRegistrar ..> ClusterSlave : registers into
+    ClusterHandlerRegistrar ..> IClusterStateHandler : constructs by dep-presence
+    HrotScenarioSaveHandler ..|> IClusterStateHandler
+    ExConScenarioSaveHandler ..|> IClusterStateHandler
+    ReferenceArchiveHandler ..|> IClusterStateHandler
+```
+
+```mermaid
+sequenceDiagram
+    participant Host as "each host composition root"
+    participant Reg as ClusterHandlerRegistrar
+    participant Slave as ClusterSlave
+    Host->>Host: build ClusterHandlerDeps (its own inputs = its role)
+    Host->>Reg: Register(slave, deps)
+    Reg->>Slave: RegisterHandler(load-side…)
+    Reg->>Slave: RegisterHandler(scenario-save)  // ECS→Hrot, observer→ExCon
+    Reg->>Slave: RegisterHandler(ReferenceArchiveHandler)
+    Note over Reg,Slave: same order + same set on every host, from one code path
+```
+*Caption: the only per-host variation is the deps a host can supply; the registrar turns deps into the same set the same way everywhere — the class diagram shows there is exactly ONE registrar, the sequence shows every host funnels through it.*
+
+### 6.4 Build steps (repoint one host at a time, gate each)
+1. Add `ClusterHandlerRegistrar` + `ClusterHandlerDeps` in `Hrot.Common`; unit-test its output per deps shape (ECS-with-serializer, observer, load-only).
+2. Repoint **SimHost** first (`NodeBootstrapper.BuildOrchestration` → build deps + call registrar; **supply a real `Serializer`** so the save handler is present — the ruled fix). Gate: SimHost boots, `SimHost` registration test asserts the save handler is present.
+3. Repoint IG, CGF, ExCon, Editor in turn; rewrite `CgfHandlerRegistrationTests`/`ExConHandlerRegistrationTests` to assert the registrar's output.
+4. Delete the five bespoke `RegisterHandler` sequences.
+⚠ Layer A makes save-handler PRESENCE uniform; the cross-node wire (Layer B) and payload selection (Layer C) still land before T-B is green.
