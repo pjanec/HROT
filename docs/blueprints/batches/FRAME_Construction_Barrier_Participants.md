@@ -1,25 +1,27 @@
 <!--STATUS
 state: LIVE
-build-state: FRAME — DRAFT, NOT DISPATCHED. UI/CGF lane (`CE-`). Awaiting the user's go + the one
-  open decision D2 (§4) resolved before the session writes the design and builds.
+build-state: FRAME — DRAFT, NOT DISPATCHED. UI/CGF lane (`CE-`). §4/§4a decisions RESOLVED; the owning
+  DESIGN is now written (see current-answer). Awaiting the user's go + prerequisites P1–P3 (§4a) before dispatch.
 updated: 2026-09-15
-current-answer: this is the coordinator FRAME. The session authors the owning design (inventory + UML)
-  in DESIGN-NetworkSpawning.md (or a new DESIGN_Construction_Barrier.md) before any code.
+current-answer: this FRAME scopes the work; the owning DESIGN with the three diagrams is now authored at
+  ../../DESIGN_Cross_Node_Construction_Barrier.md (§1 diagrams · §5 the P1–P3 order). D2 (§4) and peer
+  membership (§4a) are RESOLVED by measurement; the ELM two-knob mechanism (§2) and rewind (§5) stand.
 related-designs:
-  - ../../DESIGN_Entity_Genesis_End_To_End.md — ⭐⭐⭐ THE LANDING PAGE: the built genesis pipeline (§1.2 sequence, §1.3 who-ticks-what, §1.4 participants). READ FIRST — the peer/ownership flow here is the LIVE mechanism this work must reconcile with, not the dormant gateway path.
-  - ../../DESIGN_Role_Affinity_Ownership.md — §3 the ownership legs (create/promote/explicit-grant) + §3.9c the complement rule.
+  - ../../DESIGN_Cross_Node_Construction_Barrier.md — ⭐ THE OWNING DESIGN (diagram-first) this frame produced.
+  - ../../DESIGN_Entity_Genesis_End_To_End.md — ⭐⭐⭐ THE LANDING PAGE: the built genesis pipeline (§1.2 sequence, §1.3 who-ticks-what, §1.4 participants). READ FIRST — the peer/ownership flow here is the LIVE mechanism this work reconciled with, not the dormant gateway path.
+  - ../../DESIGN_Role_Affinity_Ownership.md — §3 the ownership legs + §3.9c the complement rule; the Brain/Muscle node split + the grant node-set (the owner subset of the peer set).
   - ../../designs/tkb-1/DESIGN.md — §6.6a/§6.6b the GhostPromotion mandatory-components gate (the receiver-side readiness gate that ALREADY exists).
   - ../../designs/others/DESIGN-NetworkSpawning.md — owns ReliableInitType / PendingNetworkAck / the reliable-init handshake (the DORMANT path).
-  - Architect_Question_69_Construction_Barrier_And_Rewind_Contract.md — asks B/D (peer barrier + ReliableInit source); §7 the reconciliation this frame builds on.
-  - ../../DESIGN_Role_Affinity_Ownership.md — the Brain/Muscle node split + BrainMuscleOwnershipStrategy (the source for GetExpectedPeers).
-  - ../../designs/replay-and-modules/DESIGN.md — §2.1i/§2.1j the ELM rewind dependency (HN-018 / CE-259au).
+  - Architect_Question_69_Construction_Barrier_And_Rewind_Contract.md — asks B/D + §7/§9 the reconciliation this frame builds on.
+  - ../../designs/replay-and-modules/DESIGN.md — §2.1m the ELM rewind boundary (HN-018 CLOSED); new participants inherit it.
   - FDP/Engine/Fdp.ModuleHost/docs/ModuleHost-network-ELM-design-talk.md — §1/§2/Part 1 the origin of the barrier.
 -->
 # FRAME — real ELM construction-barrier participants *(local module readiness + peer barrier)*
 
-> ⭐⭐⭐ **FRAME, not a design.** Per WHO-DESIGNS: the SESSION authors the inventory + class/sequence/module
-> UML in the owning DESIGN, then builds against it. The coordinator verifies design+UML on return.
-> ⛔ **NOT DISPATCHED** — the user is still resolving §4. Stamp `Dispatched at <sha>` when it goes.
+> ⭐⭐⭐ **FRAME + its owning DESIGN.** The coordinator wrote the design (`DESIGN_Cross_Node_Construction_Barrier.md`)
+> at the user's instruction *(WHO-DESIGNS blanket rule — coordinator authors when directed / single lane)*;
+> the implementing session builds against its diagrams and folds the as-built.
+> ⛔ **NOT DISPATCHED** — awaiting the user's go + P1–P3. Stamp `Dispatched at <sha>` when it goes.
 
 ## 1. 🎯 GOAL — user-approved direction (`2026-09-15`)
 Make the entity **construction barrier real**: systems on a node register as ELM participants and hold an
