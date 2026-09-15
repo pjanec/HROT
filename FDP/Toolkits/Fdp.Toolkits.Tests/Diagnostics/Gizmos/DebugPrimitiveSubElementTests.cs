@@ -21,10 +21,10 @@ namespace Fdp.Toolkit.Diagnostics.Gizmos.Tests
         [Fact]
         public void SC_GZ030_2_DrawEntityLocalInteractive_SetsSubElementId()
         {
-            var buf    = new DebugPrimitiveBuffer(16);
-            var entity = new CoreEntity(1, 1);
+            var buf = new DebugPrimitiveBuffer(16);
+            // ⭐ CE-259z — a NETWORK id, not an Entity: offset 8 is the SpatialAnchor cache key.
             buf.DrawEntityLocalInteractive(
-                entity, Vector3.Zero, Vector3.UnitX,
+                anchorNetworkId: 90210L, Vector3.Zero, Vector3.UnitX,
                 Rgba32.Red, subElementId: 3);
 
             var frame = buf.GetFrame();
@@ -37,10 +37,10 @@ namespace Fdp.Toolkit.Diagnostics.Gizmos.Tests
         [Fact]
         public void SC_GZ030_3_TwoCalls_DifferentSubElementIds_AreDistinguishable()
         {
-            var buf    = new DebugPrimitiveBuffer(16);
-            var entity = new CoreEntity(2, 1);
-            buf.DrawEntityLocalInteractive(entity, Vector3.Zero, Vector3.UnitX, Rgba32.Red, subElementId: 1);
-            buf.DrawEntityLocalInteractive(entity, Vector3.Zero, Vector3.UnitY, Rgba32.Red, subElementId: 2);
+            var buf = new DebugPrimitiveBuffer(16);
+            const long netId = 90210L;
+            buf.DrawEntityLocalInteractive(netId, Vector3.Zero, Vector3.UnitX, Rgba32.Red, subElementId: 1);
+            buf.DrawEntityLocalInteractive(netId, Vector3.Zero, Vector3.UnitY, Rgba32.Red, subElementId: 2);
 
             var frame = buf.GetFrame();
             Assert.Equal(2, frame.Length);
@@ -60,9 +60,8 @@ namespace Fdp.Toolkit.Diagnostics.Gizmos.Tests
         [Fact]
         public void SC_GZ030_5_DrawEntityLocal_SubElementIdIsZero()
         {
-            var buf    = new DebugPrimitiveBuffer(16);
-            var entity = new CoreEntity(3, 1);
-            buf.DrawEntityLocal(entity, Vector3.Zero, Vector3.UnitX, Rgba32.Green);
+            var buf = new DebugPrimitiveBuffer(16);
+            buf.DrawEntityLocal(anchorNetworkId: 90210L, Vector3.Zero, Vector3.UnitX, Rgba32.Green);
 
             var frame = buf.GetFrame();
             Assert.Equal(1, frame.Length);

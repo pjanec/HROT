@@ -74,6 +74,27 @@ namespace Fdp.Toolkit.Navigation.Executors
                 return;
 
             var intent = world.GetComponent<NavigationIntent>(entity);
+
+            // ── CE-229: NO NavigationStatus YET (or ever) is the SAME situation as a stale one ──
+            //
+            // NavigationStatus is written by the MUSCLE layer. This executor runs on the BRAIN, so on
+            // an entity with no muscle tier the component is simply never there — measured on a platoon
+            // commander, which carries NavigationIntent but not NavigationStatus. GetComponent threw,
+            // the exception escaped ModuleHostKernel.UpdateInternal, and the whole HOST died on the
+            // frame after a mission task named MoveToLocation for that entity.
+            //
+            // ⭐ Tolerating it is not a new policy — it is the policy two lines below. The stale-check
+            //   already returns "keep Running; Muscle layer hasn't caught up yet" for a status that
+            //   exists but reports a different intent; a status that does not exist yet is that same
+            //   condition one step earlier. HillAttackCommanderNodes.cs:155 already treats a missing
+            //   NavigationStatus exactly this way (trace + NodeStatus.Running), and the generator proof
+            //   test notes the same shape. This executor was the outlier that threw.
+            //
+            // ⛔ It does NOT silently succeed: the channel stays Running, so a behaviour waiting on
+            //   arrival keeps waiting rather than being told it arrived.
+            if (!world.HasComponent<NavigationStatus>(entity))
+                return;   // keep Running; no muscle layer has reported on this entity
+
             var status = world.GetComponent<NavigationStatus>(entity);
 
             // ── Stale-check: ignore status reports for a different intent ──────────────────────

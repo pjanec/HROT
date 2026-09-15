@@ -1,0 +1,195 @@
+{
+  "$meta": {
+    "docType": "Hrot.Hsm",
+    "schemaVersion": 1
+  },
+  "AssetId": "e0710001-0000-0000-0000-000000000001",
+  "Name": "HsmVariableShowcase",
+  "TargetNamespace": "Hrot.AI.Behaviors.Machines",
+  "BlackboardTypeName": "HsmVariableShowcase_Blackboard",
+  "States": [
+    {
+      "StableId": "e0710001-1000-0000-0000-000000000001",
+      "Name": "__Root",
+      "ChildStableIds": [
+        "e0710001-1000-0000-0000-000000000002",
+        "e0710001-1000-0000-0000-000000000003"
+      ],
+      "ParentStableId": null,
+      "IsInitial": false,
+      "IsHistory": false,
+      "IsDeepHistory": false,
+      "IsParallel": false,
+      "IsFinal": false,
+      "OnEntryAction": null,
+      "OnExitAction": null,
+      "ActivityAction": null,
+      "TimerAction": null,
+      "RegionIndex": 0,
+      "DeferredEventNames": [],
+      "X": 0,
+      "Y": 0,
+      "SizeOverrideX": null,
+      "SizeOverrideY": null,
+      "Comment": null,
+      "IsCollapsed": false,
+      "ColorOverride": null
+    },
+    {
+      "StableId": "e0710001-1000-0000-0000-000000000002",
+      "Name": "Waiting",
+      "ChildStableIds": [],
+      "ParentStableId": "e0710001-1000-0000-0000-000000000001",
+      "IsInitial": true,
+      "IsHistory": false,
+      "IsDeepHistory": false,
+      "IsParallel": false,
+      "IsFinal": false,
+      "OnEntryAction": null,
+      "OnExitAction": null,
+      "ActivityAction": null,
+      "TimerAction": null,
+      "RegionIndex": 0,
+      "DeferredEventNames": [],
+      "X": 100,
+      "Y": 100,
+      "SizeOverrideX": null,
+      "SizeOverrideY": null,
+      "Comment": "E0 seed: the state the Input variable is read in",
+      "IsCollapsed": false,
+      "ColorOverride": null
+    },
+    {
+      "StableId": "e0710001-1000-0000-0000-000000000003",
+      "Name": "Working",
+      "ChildStableIds": [],
+      "ParentStableId": "e0710001-1000-0000-0000-000000000001",
+      "IsInitial": false,
+      "IsHistory": false,
+      "IsDeepHistory": false,
+      "IsParallel": false,
+      "IsFinal": false,
+      "OnEntryAction": "Hrot.AI.Behaviors.CgfHsmNodes.StubIdle",
+      "OnExitAction": null,
+      "ActivityAction": null,
+      "TimerAction": null,
+      "RegionIndex": 0,
+      "DeferredEventNames": [],
+      "X": 400,
+      "Y": 100,
+      "SizeOverrideX": null,
+      "SizeOverrideY": null,
+      "Comment": "E0 seed: the state the State variable is carried across",
+      "IsCollapsed": false,
+      "ColorOverride": null
+    }
+  ],
+  "Regions": [
+    {
+      "StableId": "e0710001-2000-0000-0000-000000000001",
+      "RegionIndex": 0,
+      "Name": "Region0",
+      "Priority": 0,
+      "InitialChildStableId": "e0710001-1000-0000-0000-000000000001",
+      "Comment": null,
+      "ColorOverride": null
+    }
+  ],
+  "Transitions": [
+    {
+      "VisualId": "e0710001-3000-0000-0000-000000000001",
+      "SourceStableId": "e0710001-1000-0000-0000-000000000002",
+      "TargetStableId": "e0710001-1000-0000-0000-000000000003",
+      "EventName": "Begin",
+      "GuardFunction": null,
+      "ActionFunction": "Fdp.Toolkit.Behavior.Demo.DemoSharedActions.AlertNearbyUnits",
+      "ExpressionTargetField": "Threshold",
+      "Priority": 0,
+      "Kind": "External",
+      "SyncGroupId": 0,
+      "Waypoints": [],
+      "Comment": null
+    },
+    {
+      "VisualId": "e0710001-3000-0000-0000-000000000002",
+      "SourceStableId": "e0710001-1000-0000-0000-000000000003",
+      "TargetStableId": "e0710001-1000-0000-0000-000000000002",
+      "EventName": "Finish",
+      "GuardFunction": null,
+      "ActionFunction": null,
+      "Priority": 0,
+      "Kind": "External",
+      "SyncGroupId": 0,
+      "Waypoints": [],
+      "Comment": null
+    }
+  ],
+  "GlobalTransitions": [],
+  "Events": [
+    {
+      "Name": "Begin",
+      "PayloadSize": 0,
+      "IsIndirect": false,
+      "IsDeferrable": false,
+      "EventId": 1
+    },
+    {
+      "Name": "Finish",
+      "PayloadSize": 0,
+      "IsIndirect": false,
+      "IsDeferrable": false,
+      "EventId": 2
+    }
+  ],
+  "Canvas": {
+    "PanX": 0,
+    "PanY": 0,
+    "Zoom": 1
+  },
+  "Suppressions": {
+    "Conflict": [],
+    "Unused": []
+  },
+  "Blackboard": {
+    "Managed": true,
+    "TypeName": "HsmVariableShowcase_Blackboard",
+    "HeavyDtoType": null,
+    "Variables": [
+      {
+        "Name": "Threshold",
+        "Type": {
+          "TypeId": "System.Single",
+          "IsArray": false,
+          "FixedLength": null
+        },
+        "DefaultValueJson": "1.5",
+        "Comment": "E0 seed: Role=Input — a supplied parameter. Carries a default so the ParseParams overlay is in the baseline too.",
+        "IsAutoManaged": false
+      },
+      {
+        "Name": "Cursor",
+        "Type": {
+          "TypeId": "System.Int32",
+          "IsArray": false,
+          "FixedLength": null
+        },
+        "Comment": "E0 seed: Role=State at Behavior scope — E1's stateful slot, so the manifest is in the baseline.",
+        "IsAutoManaged": false,
+        "Role": "State",
+        "Scope": "Behavior"
+      },
+      {
+        "Name": "Ticks",
+        "Type": {
+          "TypeId": "System.Int32",
+          "IsArray": false,
+          "FixedLength": null
+        },
+        "Comment": "E0 seed: Role=State at Entity scope — the wider-sharing arm of the same filter.",
+        "IsAutoManaged": false,
+        "Role": "State",
+        "Scope": "Entity"
+      }
+    ]
+  }
+}

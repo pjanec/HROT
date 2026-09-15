@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Numerics;
 using Hrot.Core.Network;
 using Hrot.IG.Components;
+using Hrot.IG.EntityCreation;
 using Fdp.Core;
 using Fdp.Modules.Geographic;
 using Fdp.Core.Logging;
@@ -94,6 +95,9 @@ public class MapCommandController
     /// </summary>
     private readonly Dictionary<Guid, bool> _pendingEntityRequests = new();
 
+    /// <summary>The local creation-request seam this controller posts INTENTS onto (host (f)).</summary>
+    private readonly ScenarioEntityCreationRequestSource _requests = null!;
+
     // ── Constructor ───────────────────────────────────────────────────────────
 
     /// <param name="canvas">The <see cref="MapCanvas"/> on which tools may be pushed and popped.</param>
@@ -107,19 +111,51 @@ public class MapCommandController
     /// Manager used to register/unregister the <see cref="EntityPlacementGizmo"/> for each
     /// placement session. When <c>null</c> the gizmo is not activated.
     /// </param>
+    /// <param name="requests">
+    /// ⭐⭐⭐ The node's LOCAL entity-creation request source — the seam the shared pipeline drains, and
+    /// the same one the Editor's scenario path enqueues onto. ⛔ REQUIRED, deliberately: an optional
+    /// sink here would be the silent-default pattern that has cost this programme nine wiring defects.
+    /// 📄 <c>DESIGN_Entity_Creation_Unification.md</c> §3.4b, host (f).
+    /// </param>
     public MapCommandController(
-        MapCanvas                  canvas,
-        FdpEventBus                eventBus,
-        Action<MapCommandAckDto>   ackCallback,
-        long                       localNodeId        = 0,
-        GlobalGizmoManager?        globalGizmoManager = null)
+        MapCanvas                          canvas,
+        FdpEventBus                        eventBus,
+        Action<MapCommandAckDto>           ackCallback,
+        ScenarioEntityCreationRequestSource requests,
+        long                               localNodeId        = 0,
+        GlobalGizmoManager?                globalGizmoManager = null,
+        // ⭐⭐⭐ UXI-07 step 4a — the host's ONE tool arbiter (MapInteraction.Tools). §4.8's inventory
+        //   named this file as a bypass the design never listed: it arms an EntityPlacementGizmo, which
+        //   declares RequiresExclusiveFocus AND WantsRawInput, so before this it could take the raw input
+        //   stream while a tool still believed it held focus.
+        // ⛔ Optional so existing callers compile; ⚠ a host that HAS one must pass it.
+        Hrot.ScenarioEditor.Tools.ToolController? tools = null)
     {
         _canvas             = canvas      ?? throw new ArgumentNullException(nameof(canvas));
         _eventBus           = eventBus    ?? throw new ArgumentNullException(nameof(eventBus));
         _ackCallback        = ackCallback ?? throw new ArgumentNullException(nameof(ackCallback));
+        _requests           = requests    ?? throw new ArgumentNullException(nameof(requests));
         _localNodeId        = localNodeId;
         _globalGizmoManager = globalGizmoManager;
+        _tools              = tools;
+
+        // ⭐ Registered ONCE — ⛔ not per session, or the duplicate-id guard throws on the second request.
+        _tools?.Register(
+            new Hrot.ScenarioEditor.Tools.ToolDescriptor(
+                Hrot.ScenarioEditor.Tools.ScenarioToolIds.PlaceRemoteEntity,
+                "Place Entity (remote request)",
+                Hrot.ScenarioEditor.Tools.ToolModality.Modal,
+                Hrot.ScenarioEditor.Tools.ToolArbiter.Global),
+            _ => ArmPlacementGizmo());
     }
+
+    /// <summary>⭐ <c>UXI-07</c> step 4a — the host's ONE arbiter; see the constructor parameter.</summary>
+    private readonly Hrot.ScenarioEditor.Tools.ToolController? _tools;
+
+    // ⚠ Per-session parameters, held between Activate() and the arm body — the same shape the Spawn tool
+    //   already uses (its arm calls back into the adapter, which holds "what is being placed").
+    private long    _pendingTkbType;
+    private string? _pendingPropertiesJson;
 
     // ── Public API ────────────────────────────────────────────────────────────
 
@@ -169,11 +205,51 @@ public class MapCommandController
         _toolFinished     = false;
         _nameGenerator    = nameGenerator;
 
+        _pendingTkbType        = tkbType;
+        _pendingPropertiesJson = initialPropertiesJson;
+
+        // ⭐⭐⭐ UXI-07 step 4a — ACTIVATE through the arbiter rather than arming it directly.
+        //   🔴 The direct Register was §4.8's bypass. ⭐ Going through the controller also means an
+        //   incoming remote creation request now DISPLACES whatever tool the operator had armed, rather
+        //   than fighting it for the raw input stream.
+        if (_tools != null)
+        {
+            _tools.Activate(Hrot.ScenarioEditor.Tools.ScenarioToolIds.PlaceRemoteEntity);
+        }
+        else
+        {
+            // ⚠ No arbiter wired ⇒ arm anyway and SAY SO (R-137: do not cost a capability; ⛔ but do not
+            //   hide the bypass either).
+            Hrot.ScenarioEditor.Tools.ToolReport.Say(null,
+                "remote entity placement armed WITHOUT an arbiter — MapCommandController was constructed "
+              + "with no ToolController, so this modal cannot displace another (UXI-07 step 4a).");
+            ArmPlacementGizmo();
+        }
+
+        FdpLog<MapCommandController>.Info(
+            "[Node-{0}] PlacementTool activated. RequestId={1} ContextId={2} TKB={3}",
+            _localNodeId, requestId, contextId, tkbType);
+    }
+
+    /// <summary>
+    /// ⭐ <c>UXI-07</c> step 4a — the arm body, behaviour unchanged. Reached through
+    /// <c>ToolController.Activate</c> in production, or directly when no arbiter was wired.
+    /// ⚠ Reads the per-session parameters stashed by <c>ActivatePlacementCommand</c>.
+    /// </summary>
+    private Hrot.ScenarioEditor.Tools.ToolActivationOutcome ArmPlacementGizmo()
+    {
+        if (_globalGizmoManager == null)
+        {
+            Hrot.ScenarioEditor.Tools.ToolReport.Unserviceable(
+                null, "Place Entity (remote request)", "this host composes no global gizmo manager");
+            return Hrot.ScenarioEditor.Tools.ToolActivationOutcome.Unserviceable;
+        }
+
         var id = GlobalGizmoManager.NewId();
         var gizmo = new EntityPlacementGizmo(
             onEntityCreated:       OnEntityCreatedByTool,
-            tkbType:               tkbType,
-            initialPropertiesJson: initialPropertiesJson,
+            tkbType:               _pendingTkbType,
+            initialPropertiesJson: _pendingPropertiesJson,
             autoPopOnPlace:        true,
             nameResolver:          _nameGenerator,
             onRemove:              () =>
@@ -182,11 +258,8 @@ public class MapCommandController
                 OnCreationToolExited();
             });
         _activePlacementId = id;
-        _globalGizmoManager?.Register(id, gizmo);
-
-        FdpLog<MapCommandController>.Info(
-            "[Node-{0}] PlacementTool activated. RequestId={1} ContextId={2} TKB={3}",
-            _localNodeId, requestId, contextId, tkbType);
+        _globalGizmoManager.Register(id, gizmo);
+        return Hrot.ScenarioEditor.Tools.ToolActivationOutcome.Armed;
     }
 
     /// <summary>
@@ -227,7 +300,9 @@ public class MapCommandController
             return;
         }
 
-        _eventBus.PublishManaged(cmd);
+        // host (f): post the INTENT, not the node-local ORDER. Publishing SpawnEntityCommand here is what
+        // made the egress translator and the spawn system read the same non-draining bus.
+        _requests.Enqueue(IgEntityCreationRequests.FromSpawnCommand(cmd));
         _pendingEntityRequests[cmd.RequestId] = true;
 
         if (isToolDone)
@@ -305,11 +380,11 @@ public class MapCommandController
     /// </summary>
     private void OnEntityCreatedByTool(SpawnEntityCommand cmd)
     {
-        _eventBus.PublishManaged(cmd);
+        _requests.Enqueue(IgEntityCreationRequests.FromSpawnCommand(cmd));
         _pendingEntityRequests[cmd.RequestId] = true;
 
         FdpLog<MapCommandController>.Debug(
-            "[Node-{0}] Published SpawnEntityCommand req={1}", _localNodeId, cmd.RequestId);
+            "[Node-{0}] Enqueued EntityCreationRequest req={1}", _localNodeId, cmd.RequestId);
     }
 
     /// <summary>

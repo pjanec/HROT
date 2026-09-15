@@ -69,7 +69,9 @@ internal delegate Vector2 SpatialPositionDelegate<T>(ref T component) where T : 
 ///   0 → 1: calls <see cref="DebugSnapshotProvider.SetEnabled(bool)"/> with true.
 ///   1 → 0: calls SetEnabled with false.
 /// </summary>
-public sealed class DataBreakpointManager : IDataBreakpointManager, IActiveViewProvider, IMutationInterceptor
+public sealed class DataBreakpointManager
+    : IDataBreakpointManager, IActiveViewProvider, IMutationInterceptor,
+      Fdp.ModuleHost.Abstractions.IStagedWrites, IDisposable
 {
     private readonly EntityRepository _liveRepo;
     private readonly EntityRepository _preTickSnapshot;
@@ -108,6 +110,12 @@ public sealed class DataBreakpointManager : IDataBreakpointManager, IActiveViewP
     private int _activeBreakpointCount;
     private bool _isPaused;
     private long _pausedTick;
+
+    /// ⭐⭐ <c>MX-009</c> — WHICH breakpoint is holding the pause. Meaningful only while
+    /// <see cref="_isPaused"/>; <see cref="BreakpointId.Invalid"/> otherwise. ⛔ Set in exactly one
+    /// place (<see cref="OnHit"/>) and cleared in exactly one place (<see cref="ClearPausedState"/>),
+    /// so it cannot drift out of step with <see cref="_isPaused"/>.
+    private BreakpointId _pausedBy = BreakpointId.Invalid;
     private readonly Queue<PendingDebugMutation> _pendingMutations = new();
 
     // Cache of component type -> CLR managed size (Unsafe.SizeOf<T>() via ComponentType<T>.Size).
@@ -241,6 +249,16 @@ public sealed class DataBreakpointManager : IDataBreakpointManager, IActiveViewP
         _postTickSnapshot      = new EntityRepository();
     }
 
+    /// <summary>
+    /// ⭐ <c>QA-005</c> — releases the one repository this manager OWNS.
+    ///
+    /// <para>⛔ <c>_liveRepo</c> and <c>_preTickSnapshot</c> are passed IN and belong to the host
+    /// subsystem; only <c>_postTickSnapshot</c> is constructed here, and until this existed it was
+    /// leaked on every node teardown — a whole <see cref="EntityRepository"/> per CGF or editor
+    /// lifetime (<c>QA-004</c>'s <c>LiveInstanceCount</c> is how that became visible).</para>
+    /// </summary>
+    public void Dispose() => _postTickSnapshot.Dispose();
+
     // ---- Internal test seams --------------------------------------------
 
     /// <summary>
@@ -304,6 +322,10 @@ public sealed class DataBreakpointManager : IDataBreakpointManager, IActiveViewP
 
         if (bp.Enabled)
             AdjustGate(-1);
+
+        // ⭐⭐⭐ MX-009 — the breakpoint that was HOLDING the pause is gone ⇒ nothing holds it.
+        //    See the ReleaseIfHeldBy note below for why this is a full resume and not a flag clear.
+        ReleaseIfHeldBy(id);
     }
 
     /// <inheritdoc/>
@@ -326,7 +348,73 @@ public sealed class DataBreakpointManager : IDataBreakpointManager, IActiveViewP
         {
             UnmountDelegate(id);
             AdjustGate(-1);
+
+            // ⭐⭐ MX-009 — disabling the holder is the same act as removing it, from the
+            //    simulation's point of view: it can no longer fire, so it can no longer hold.
+            ReleaseIfHeldBy(id);
         }
+    }
+
+    // ────────────────────────────────────────────────────────────────────────────────────────────
+    // ⭐⭐⭐ MX-009 — **THE PAUSE IS HELD BY A SPECIFIC BREAKPOINT, AND ONLY IT CAN STOP HOLDING IT.**
+    //
+    // 🔴 THE BUG, measured by the time lane (HN-122): after ANY breakpoint fired, `_isPaused` stayed
+    //    true unless RequestStep/RequestContinue were called explicitly. Removing the breakpoint —
+    //    the natural operator gesture for "I'm done with this one" — left it set. `IsRewound` is
+    //    `_isPaused`, and the kernel's ResumeAndDrainSystem returns early on `IsRewound` ⇒ ⛔ EVERY
+    //    later staged write reported `pending = true` FOREVER. 📌 That is M-41's "accepted and
+    //    silently discarded" in its worst form: the write is accepted, shown as pending, and the
+    //    thing that would apply it is switched off with no way back.
+    //
+    // ⭐⭐ WHY A FULL RESUME AND NOT `_isPaused = false`. ⛔ The flag is not the state; it is a LABEL
+    //    for the state. When it is set, `_liveRepo` has been rewound to `_preTickSnapshot` (OnHit)
+    //    and the clock is halted. Clearing the flag alone would leave the world silently rewound and
+    //    time stopped — ⚠ a worse bug than the one being fixed, and one that looks fixed from the
+    //    drain's point of view. ⇒ ⭐ RequestContinue IS the release: restore post-tick, resume the
+    //    clock, clear the flags, raise OnPauseStateChanged. One implementation, per ruling 9.
+    //
+    // ⭐⭐ WHY *HELD-BY* AND NOT "no enabled breakpoints remain". 📐 Both fix the reported repro
+    //    (arm one, fire, delete it). They differ when TWO are armed: you are stopped at A, and you
+    //    delete B. ⛔ "None remain" keeps you stuck — the same bug, just rarer and harder to find.
+    //    ⛔ "Any removal resumes" would rip the world out from under an operator still reading it.
+    //    ⭐ Held-by is the only rule that is right in both: it resumes exactly when the thing you
+    //    are stopped AT stops existing. 📐 Safe because EVERY pause goes through OnHit with a
+    //    registered breakpoint — OnExternalHit routes through it too (:823), so the holder is never
+    //    unknown.
+    //
+    // ⚠ NO DESIGN RECORD COVERS THIS CASE. Searched `docs/designs/breakpoints-1/DESIGN.md` §9.1
+    //    ("Routing during a pause"), `universal-breakpoints-DESIGN.md`, and
+    //    `docs/UX/Design_Question_30_Debug_Pause_Resume.md` (which answers the CLUSTER question, not
+    //    this one): the design names exactly two release paths, Clean Step and Continue, and is
+    //    silent on removal. ⇒ ⭐ this rule is NEW, and it is recorded in the design by this batch
+    //    rather than left implicit in the code (obligation ⑤).
+    // ────────────────────────────────────────────────────────────────────────────────────────────
+
+    /// <summary>
+    /// ⭐⭐ Releases the pause if — and only if — <paramref name="id"/> is the breakpoint currently
+    /// holding it. ⛔ A no-op when not paused, or when some OTHER breakpoint is the holder.
+    /// </summary>
+    private void ReleaseIfHeldBy(BreakpointId id)
+    {
+        if (!_isPaused || _pausedBy != id) return;
+
+        // ⭐ RequestContinue clears _pausedBy via ClearPausedState — the single release path.
+        RequestContinue();
+    }
+
+    /// <summary>
+    /// ⭐⭐⭐ <c>MX-009</c> — <b>THE ONE PLACE THE PAUSED STATE IS CLEARED.</b> ⛔ Both
+    /// <see cref="RequestStep"/> and <see cref="RequestContinue"/> route through it, so
+    /// <see cref="_pausedBy"/> can never survive a resume and strand a later
+    /// <see cref="ReleaseIfHeldBy"/> against a stale id. ⚠ It clears the BOOKKEEPING only — the
+    /// snapshot restore and the clock call belong to the caller, because they differ between step
+    /// and continue.
+    /// </summary>
+    private void ClearPausedState()
+    {
+        _isPaused   = false;
+        _pausedTick = 0L;
+        _pausedBy   = BreakpointId.Invalid;
     }
 
     /// <inheritdoc/>
@@ -475,6 +563,8 @@ public sealed class DataBreakpointManager : IDataBreakpointManager, IActiveViewP
         // Halt the clock.
         _timeController.RequestPause();
         _isPaused = true;
+        // ⭐⭐ MX-009 — record the HOLDER. The only write to this field.
+        _pausedBy = updated.Id;
         _pausedTick = _liveRepo.HasSingletonUnmanaged<GlobalTime>()
             ? _liveRepo.GetSingletonUnmanaged<GlobalTime>().TotalWallTicks
             : (long)_preTickSnapshot.SimulationTick; // fallback: frame clock (not memory clock)
@@ -486,6 +576,41 @@ public sealed class DataBreakpointManager : IDataBreakpointManager, IActiveViewP
 
     // ---- Step / Continue ------------------------------------------------
 
+    // ────────────────────────────────────────────────────────────────────────────────────────────
+    // ⭐⭐⭐ W5 — THE RESUME PATH IS NO LONGER A WRITE PATH. It restores; it does not drain.
+    //
+    // 📄 DESIGN_Staged_Live_Write.md §6's W5 row · DESIGN_Time_Architecture.md §10; 📌 R-63.
+    //
+    // 🔴 What stood here: BOTH methods restored the post-tick snapshot AND called
+    //    DrainPendingMutations. ⛔ After the kernel's PreFrame ResumeAndDrainSystem was wired
+    //    (design §8) that made TWO implementations of "apply the staged bytes" — ruling 9's exact
+    //    shape, and the one that is easy to miss because both were correct in isolation.
+    //
+    // ⭐⭐ Removing the drain here changes NO observable timing. 📐 Measured: DrainPendingMutations
+    //    writes into `((ISimulationView)repo).GetCommandBuffer()`, which the kernel plays back during
+    //    the tick — so the bytes already landed at the START OF THE NEXT TICK, which is exactly where
+    //    the PreFrame drain puts them. ⇒ same boundary, one implementation.
+    //
+    // ⭐⭐⭐ And it is what makes the TOOLBAR pause work at all (W3). A toolbar pause never calls
+    //    RequestStep/RequestContinue — no breakpoint is holding — so a drain that lived only here
+    //    could never apply that designer's edit. 📌 R-126's reason for making the drain a PULL:
+    //    "no path can forget to raise what is never raised."
+    //
+    // ⛔⛔ THE RESTORE STAYS, and that half of W5 is REPORTED rather than built. Three measured
+    //    reasons, in the order they were found:
+    //    ① 📐 THE SEAM IT WOULD MOVE THROUGH NO LONGER EXISTS. DESIGN_Time_Architecture.md §10 once
+    //       drew `ResumeAndDrainSystem --> IStagedWrites : restore-then-drain` with a
+    //       `RestorePostTick()` member — and that member was DELIBERATELY TRIMMED on 2026-08-21 while
+    //       W1/W2 were built. The shipped IStagedWrites is HasPending · IsRewound · DrainInto ·
+    //       TryGetPending. Putting it back means editing Fdp.Core AND ResumeAndDrainSystem.
+    //    ② ⛔ THAT IS A CROSS-LANE EDIT (R-128) — ResumeAndDrainSystem is the TIME lane's, and a
+    //       cross-lane edit is a STOP-and-report, not a judgement call.
+    //    ③ ⭐⭐ AND IT IS NOT A STAGED-WRITE CONCERN. The restore undoes THIS class's OWN rewind
+    //       (OnHit rewound _liveRepo to _preTickSnapshot); it is the manager's bookkeeping, not the
+    //       editor's write. R-63 reads "the resume path restores the post-tick snapshot AND DRAINS
+    //       ITSELF" — ⭐ the duplicate is the second half, and that is the half this batch removed.
+    // ────────────────────────────────────────────────────────────────────────────────────────────
+
     /// <inheritdoc/>
     public void RequestStep()
     {
@@ -494,33 +619,60 @@ public sealed class DataBreakpointManager : IDataBreakpointManager, IActiveViewP
         // Restore end-of-tick state (clean step -- no resimulation, no event injection).
         _liveRepo.SyncFrom(_postTickSnapshot);
 
-        // Apply staged mutations at the N+1 boundary.
-        DrainPendingMutations(_liveRepo);
-
         _timeController.RequestStepOneTick();
-        _isPaused = false;
-        _pausedTick = 0L;
-        // _pendingMutations is empty after drain; no explicit clear needed.
+        ClearPausedState();
 
+        // ⭐ Anything staged is drained by the kernel's PreFrame system on the tick this steps into.
+        //   ⛔ Not here: see the W5 note above.
         OnPauseStateChanged?.Invoke(false);
     }
+
+    // ────────────────────────────────────────────────────────────────────────────────────────────
+    // ⭐⭐⭐ CE-035 — **CONTINUE AFTER A STEP WAS A NO-OP, AND THE OPERATOR STAYED HALTED.**
+    //
+    // 🔴 Measured `2026-08-25` by the CE-029 barrier rail, which had to write `controller.RequestResume()`
+    //    instead of `bp.RequestContinue()` and say so in a comment: `RequestStep` calls
+    //    `ClearPausedState()`, so `_isPaused` is FALSE immediately afterwards — while the CLOCK is not
+    //    running. 📐 The rail asserts exactly that: after a step, `SimGroupsEnabled == false` and
+    //    `ClusterPauseRequested == true`. ⇒ the guard below returned early on the one gesture that
+    //    matters most: *step, look, continue*.
+    //
+    // ⭐⭐ WHY NOT "make RequestStep leave _isPaused true". ⛔ Because the flag is a LABEL for the rewound
+    //    world (see MX-009 above): while it is set, `_liveRepo` is rewound to `_preTickSnapshot` and
+    //    `IsRewound` switches the kernel's drain off. A step deliberately restores the POST-tick state and
+    //    advances ⇒ the world is NOT rewound and the flag is correctly false. ⭐ The bug was never the
+    //    flag; it was `RequestContinue` reading it as *"is time running?"* when it means *"is the world
+    //    rewound?"*.
+    //
+    // ⇒ ⭐⭐ The split below: the REWIND-UNDO half is conditional on `_isPaused`; the RESUME half is
+    //    unconditional, because the time controller is the thing that knows whether it is halted
+    //    (`RequestResume` is idempotent — it publishes a ResumeTimeIntent, or re-enables the sim groups
+    //    on an offline node). ⛔ A `RequestContinue` on a genuinely running world stays a no-op in effect,
+    //    which is what it always was.
+    // ────────────────────────────────────────────────────────────────────────────────────────────
 
     /// <inheritdoc/>
     public void RequestContinue()
     {
-        if (!_isPaused) return;
-
-        // Restore end-of-tick state before resuming.
-        _liveRepo.SyncFrom(_postTickSnapshot);
-
-        // Apply staged mutations at the N+1 boundary.
-        DrainPendingMutations(_liveRepo);
+        if (_isPaused)
+        {
+            // Restore end-of-tick state before resuming — only meaningful while the world is rewound.
+            _liveRepo.SyncFrom(_postTickSnapshot);
+        }
 
         _timeController.RequestResume();
-        _isPaused = false;
-        _pausedTick = 0L;
-        // _pendingMutations is empty after drain; no explicit clear needed.
 
+        if (!_isPaused)
+        {
+            // ⭐ CE-035 — the after-a-step path: nothing to restore, nothing to clear, and no state
+            //   change to announce. The resume above is the whole act.
+            return;
+        }
+
+        ClearPausedState();
+
+        // ⭐ Anything staged is drained by the kernel's PreFrame system on the next advancing tick.
+        //   ⛔ Not here: see the W5 note above.
         OnPauseStateChanged?.Invoke(false);
     }
 
@@ -540,11 +692,209 @@ public sealed class DataBreakpointManager : IDataBreakpointManager, IActiveViewP
             entity, typeId, isManaged, componentValue, sizeBytes));
     }
 
+    /// <inheritdoc/>
+    public void StageMutation(Entity entity, Type componentType, object componentValue, object? baseline)
+    {
+        if (componentType  == null) throw new ArgumentNullException(nameof(componentType));
+        if (componentValue == null) throw new ArgumentNullException(nameof(componentValue));
+
+        // ⛔ A managed component has no byte layout to diff, and a null baseline means the caller
+        //    cannot say what the designer changed — both fall back to the whole-component write.
+        if (baseline == null || !componentType.IsValueType)
+        {
+            StageMutation(entity, componentType, componentValue);
+            return;
+        }
+
+        int typeId    = ComponentTypeRegistry.GetId(componentType);
+        int sizeBytes = GetEcsComponentSize(componentType);
+
+        var after  = ToBytes(componentValue, sizeBytes);
+        var before = ToBytes(baseline,       sizeBytes);
+
+        int runs = 0;
+        int i = 0;
+        while (i < sizeBytes)
+        {
+            if (after[i] == before[i]) { i++; continue; }
+
+            int start = i;
+            while (i < sizeBytes && after[i] != before[i]) i++;
+            int length = i - start;
+
+            var payload = new byte[length];
+            Buffer.BlockCopy(after, start, payload, 0, length);
+            _pendingMutations.Enqueue(new PendingDebugMutation(
+                entity, typeId, isManaged: false, payload, length, byteOffset: start));
+            runs++;
+        }
+
+        // ⭐ An edit that changed nothing stages nothing — and that is a real case: the OK button
+        //   commits whether or not the designer altered a value.
+        _ = runs;
+    }
+
+    /// <inheritdoc/>
+    public void StageFieldMutation(Entity entity, Type componentType, int byteOffset, ReadOnlySpan<byte> bytes)
+    {
+        int typeId = GuardFieldWrite(componentType, byteOffset, bytes.Length);
+
+        // ⭐ COPIED, not aliased: the caller's span is very often a stack buffer or a slice of a
+        //   rented array, and the queue outlives this call by at least one step.
+        _pendingMutations.Enqueue(new PendingDebugMutation(
+            entity,
+            typeId,
+            isManaged:  false,
+            payload:    bytes.ToArray(),
+            sizeBytes:  bytes.Length,
+            byteOffset: byteOffset));
+    }
+
+    /// <inheritdoc/>
+    /// <remarks>
+    /// ⭐⭐ <c>MIN</c> — <c>AS-1b</c>: the LIVE WORLD's singleton, never the controller's
+    /// <c>GetCurrentState()</c>.
+    /// <para>⚠ <b>No clock at all ⇒ HALTED</b>, deliberately and not as a fallback: a world with no
+    /// <c>GlobalTime</c> has no source of ticks, so nothing can overwrite a direct write. ⛔ The other
+    /// answer would refuse every edit in such a world and blame the designer for a running simulation
+    /// that does not exist.</para>
+    /// </remarks>
+    public bool IsClockHalted()
+        => !_liveRepo.HasSingletonUnmanaged<GlobalTime>()
+           || _liveRepo.GetSingletonUnmanaged<GlobalTime>().DeltaTime <= 0f;
+
+    // ⛔⛔⛔ W3 — `WriteFieldNow` IS GONE. 📄 DESIGN_Staged_Live_Write.md §1's run-state table and §6's
+    //    W3 row; 📌 R-130, verbatim: "yellow is an indication of staged change. makes no sense if value
+    //    is directly written now."
+    // 📐 It was MIN's stopgap for a missing drain: with nothing emptying the pending queue, a
+    //    toolbar-paused edit had to land immediately or be lost. ⭐ The kernel's PreFrame
+    //    ResumeAndDrainSystem now pulls staged writes at the next advancing tick (design §8), so the
+    //    stopgap's precondition is gone and keeping it would leave TWO ways a designer's edit reaches
+    //    the repository — one of which is invisible to the yellow.
+    // ⚠ The scratch-buffer trick it used (a private EntityCommandBuffer, played back synchronously) is
+    //    NOT lost knowledge: TheToolbarPauseWriteLandsTests still measures the kernel's dt=0 flush
+    //    behaviour it was built against.
+
+    /// <summary>
+    /// ⛔⛔ <b>The corruption gate, owned ONCE.</b> 📌 <c>Q32</c> §2.1: <i>"an out-of-range offset/size
+    /// is MEMORY CORRUPTION, not a wrong value. Bounds-check against the registered component size and
+    /// fail LOUDLY."</i>
+    ///
+    /// <para>⚠ The engine DOES check, in <c>ComponentTable.SetRawAt</c> — but that runs at PLAYBACK,
+    /// on the sim thread, where nothing remains to attribute it to. ⭐ Checking here fails at the
+    /// designer's OK button, naming the component and the range.</para>
+    ///
+    /// <para>⭐ <c>MIN</c> extracted this from <see cref="StageFieldMutation"/> so the staging arm and
+    /// the write-now arm cannot drift into two different notions of "in range".</para>
+    /// </summary>
+    /// <returns>The registered component type id, which both callers need next.</returns>
+    private static int GuardFieldWrite(Type componentType, int byteOffset, int length)
+    {
+        if (componentType == null) throw new ArgumentNullException(nameof(componentType));
+
+        // ⛔ A managed component has no byte layout to patch. ⭐ Loud, not a fallback: forwarding to
+        //    the whole-component path is R-65's clobber wearing the surgical path's name.
+        if (!componentType.IsValueType)
+            throw new ArgumentException(
+                $"{componentType.Name} is a managed component and has no byte layout to patch. "
+                + "Replace the object through StageMutation instead.", nameof(componentType));
+
+        int componentSize = GetEcsComponentSize(componentType);
+        if (byteOffset < 0 || length <= 0 || byteOffset + length > componentSize)
+            throw new ArgumentOutOfRangeException(nameof(byteOffset),
+                $"Field write [{byteOffset}, {byteOffset + length}) is outside "
+                + $"{componentType.Name}, which is {componentSize} bytes.");
+
+        return ComponentTypeRegistry.GetId(componentType);
+    }
+
+    /// <summary>
+    /// ⭐ The managed byte image of a boxed unmanaged component — the same layout the ECS stores, so a
+    /// diff over it names real component offsets. ⚠ <c>Marshal.StructureToPtr</c> is deliberately not
+    /// used: it writes the MARSHALLED layout, which differs from the managed one on <c>bool</c>.
+    /// </summary>
+    /// <remarks>
+    /// ⭐ BATCH 84 — the body moved to <see cref="ComponentBytes.Of"/> so the editor's live write and
+    /// this diff produce the SAME image. ⛔ Two copies would be two answers to "what are this value's
+    /// bytes?", and the wrong one is wrong only for <c>bool</c>.
+    /// </remarks>
+    private static byte[] ToBytes(object boxed, int sizeBytes) => ComponentBytes.Of(boxed, sizeBytes);
+
     /// <summary>
     /// Plays back all staged mutations into the repository via its command buffer.
     /// The ECB will be applied at the next tick boundary (when the kernel calls Tick()).
     /// No-op when the queue is empty.
     /// </summary>
+    // ────────────────────────────────────────────────────────────────────────────────────────────
+    // ⭐⭐⭐ W4 — IStagedWrites. 📄 DESIGN_Staged_Live_Write.md §5 (the seam) · §4 (fork A).
+    //    ⭐ This type ALREADY owned the staged set; W4 does not add a store, it EXPOSES the one that
+    //      exists — 📌 R-13 "route, don't duplicate", and the whole reason fork A was chosen.
+    // ────────────────────────────────────────────────────────────────────────────────────────────
+
+    /// <inheritdoc/>
+    public bool HasPending => _pendingMutations.Count > 0;
+
+    /// <inheritdoc/>
+    /// <remarks>
+    /// ⭐⭐ <b>This IS <see cref="IsPaused"/></b>, and the seam names it <c>IsRewound</c> because that is
+    /// what the drain cares about: 📌 <c>R-63</c> — while a breakpoint holds, the LIVE repo has been
+    /// REWOUND to the pre-tick snapshot, and <c>RequestContinue</c> restores the post-tick one and
+    /// drains itself. ⛔ A drain here would be overwritten by that restore.
+    /// <para>⚠ Two names for one fact is deliberate: <c>IsPaused</c> is what the EDITOR asks,
+    /// <c>IsRewound</c> is what the DRAIN asks, and they mean the same thing only because this
+    /// implementation pauses by rewinding.</para>
+    /// </remarks>
+    public bool IsRewound => _isPaused;
+
+    /// <inheritdoc/>
+    /// <remarks>
+    /// ⭐ The public face of the existing private drain. ⛔ Not a second implementation — 📌 <c>M-41</c>
+    /// measured <c>DrainPendingMutations</c> as having no production caller OUTSIDE this class; this is
+    /// the seam that finally gives it one.
+    /// </remarks>
+    public void DrainInto(Fdp.ModuleHost.Abstractions.ISimulationView view)
+    {
+        if (view is null) throw new ArgumentNullException(nameof(view));
+        if (view is EntityRepository repo) { DrainPendingMutations(repo); return; }
+
+        throw new ArgumentException(
+            $"DrainInto expects the live EntityRepository; got {view.GetType().Name}.", nameof(view));
+    }
+
+    /// <inheritdoc/>
+    /// <remarks>
+    /// ⭐⭐⭐ <b>THE QUERY BEHIND THE YELLOW</b> — 📄 §4's fork A, and 📌 <c>R-130</c> in one line:
+    /// <i>pending ⟺ a mutation for this field sits un-drained.</i>
+    ///
+    /// <para>⭐⭐ <b>LAST WRITE WINS, and that is not an accident.</b> The queue may hold several
+    /// mutations for one field *(a designer edits, then edits again, before the drain)*. ⛔ The FIRST
+    /// match is the OLDEST — showing it would put a superseded number on screen in yellow. ⭐ The drain
+    /// applies them in order, so the LAST one is what the field will actually become ⇒ that is what the
+    /// panel must show.</para>
+    ///
+    /// <para>⚠ <b>Whole-component writes never match</b> *(<c>ByteOffset == -1</c>)*: this asks about a
+    /// FIELD, and a whole-component stage does not tell us which fields the designer meant. ⛔ Claiming
+    /// them all would yellow rows nobody touched.</para>
+    /// </remarks>
+    public bool TryGetPending(Entity entity, int typeId, int byteOffset, out byte[] bytes)
+    {
+        bytes = Array.Empty<byte>();
+        if (_pendingMutations.Count == 0) return false;
+
+        bool found = false;
+        foreach (var m in _pendingMutations)
+        {
+            if (!m.IsFieldWrite) continue;
+            if (m.ComponentTypeId != typeId || m.ByteOffset != byteOffset) continue;
+            if (!m.Target.Equals(entity)) continue;
+            if (m.Payload is not byte[] payload) continue;
+
+            bytes = payload;   // ⭐ keep going — the LAST match wins
+            found = true;
+        }
+        return found;
+    }
+
     private unsafe void DrainPendingMutations(EntityRepository repo)
     {
         if (_pendingMutations.Count == 0) return;
@@ -562,10 +912,23 @@ public sealed class DataBreakpointManager : IDataBreakpointManager, IActiveViewP
                     m.Payload, GCHandleType.Pinned);
                 try
                 {
-                    ecb.SetComponentRaw(
-                        m.Target, m.ComponentTypeId,
-                        (void*)handle.AddrOfPinnedObject(),
-                        m.SizeBytes);
+                    if (m.IsFieldWrite)
+                    {
+                        // ⭐⭐ Ruling 14 — the surgical write. Only the bytes the designer actually
+                        //    changed are addressed, so the fields the SIM changed during the paused
+                        //    tick survive the drain instead of reverting to their pre-tick values.
+                        ecb.SetComponentFieldRaw(
+                            m.Target, m.ComponentTypeId, m.ByteOffset,
+                            (void*)handle.AddrOfPinnedObject(),
+                            m.SizeBytes);
+                    }
+                    else
+                    {
+                        ecb.SetComponentRaw(
+                            m.Target, m.ComponentTypeId,
+                            (void*)handle.AddrOfPinnedObject(),
+                            m.SizeBytes);
+                    }
                 }
                 finally
                 {
@@ -649,6 +1012,15 @@ public sealed class DataBreakpointManager : IDataBreakpointManager, IActiveViewP
                 break;
             }
 
+            // ⛔ Do NOT add a "ComponentType is null -> skip mounting" arm here. It looks like the
+            //    natural third guard against the empty-breakpoint crash, and it is wrong: skipping
+            //    the compile also skips the throw that LoadWatches catches to mark the entry
+            //    BROKEN, so a watch whose component no longer resolves would come back silently
+            //    unmounted instead of visibly broken. That convention is deliberate and test-locked
+            //    (WatchPersistenceTests.Watches_Restore_FailsGracefullyOnDriftedSchema:
+            //    "present but marked broken, not silently discarded"). The crash is prevented
+            //    upstream instead -- PredicateCompiler.AddIfResolvable keeps the null out of
+            //    MandatoryComponents, and ComponentTypeRegistry.GetId tolerates null.
             case PropertyMatchDto _:
             case CompoundPredicateDto _:
             case BehaviorParamPredicateDto _:
@@ -1001,10 +1373,33 @@ public sealed class DataBreakpointManager : IDataBreakpointManager, IActiveViewP
         return cur is float f ? f : (cur is double d ? (float)d : 0f);
     }
 
-    /// <exception cref="NotSupportedException">
-    /// Thrown when <paramref name="dto"/> uses <see cref="EntityIdentifierType.NetworkId"/>,
-    /// which requires an <c>INetworkEntityMap</c> that is not yet wired into this manager.
-    /// </exception>
+    /// <summary>
+    /// ⭐⭐⭐ <b><c>BP-512</c> — all three identifier kinds now ANSWER; none throws.</b>
+    /// 📄 <c>DESIGN_Variable_Watch_Pinning.md</c> §8a's open decision.
+    ///
+    /// <para>⛔⛔ <b>The <c>NetworkId</c> arm used to <c>throw NotSupportedException</c></b>, with a comment
+    /// prescribing *"pass an <c>INetworkEntityMap</c> to the constructor"*. ⚠⚠ <b>Measured
+    /// <c>2026-08-25</c>: <c>INetworkEntityMap</c> DOES NOT EXIST</b> — that name appears only in this
+    /// file's own comments. ⇒ ⭐ the prescription was a lead, never a seam.</para>
+    ///
+    /// <para>⭐⭐⭐ <b>THE DECISION §8a asked for, and it is NEITHER option it offered.</b> The design named
+    /// two candidates — the consolidated <c>NetworkIdResolver</c> scan, or the maintained
+    /// <c>NetworkEntityMap</c> index — and asked which the call site wants.
+    /// 📐 <b>Measured:</b> <see cref="EvaluateLifecycleTrackers"/> calls this <b>once per active entity,
+    /// per tracker, per tick</b>. ⇒ ⛔ <b>the scan is out</b> *(O(entities²) per tick)</b>, and
+    /// ⭐⭐ <b>the index is unnecessary</b>: this predicate does not ask *"which entity has id N?"* — it
+    /// asks *"is THIS entity the one with id N?"*, which the entity's own <c>NetworkIdentity</c> answers in
+    /// <b>O(1)</b> with no map to keep in step and nothing to go stale.</para>
+    ///
+    /// <para>⭐ It is also the shape the other two arms already have: <c>EcsHandle</c> compares the handle,
+    /// <c>NameSubstring</c> reads the entity's own name component. ⇒ ⛔ a lookup service here would have
+    /// been the only arm that reached outside the entity it was handed.</para>
+    ///
+    /// <para>⚠ <b><c>TargetValue</c> is a string</b>, as it is for every arm. A value that is not a
+    /// <c>long</c> matches nothing — ⛔ it does not throw: a malformed DTO must not take down the tick
+    /// loop, and 📄 <c>FINDINGS_Empty_Breakpoint_Bricks_The_Editor.md</c> is what happens when a
+    /// half-authored breakpoint reaches this path.</para>
+    /// </summary>
     private static bool MatchesLifecycleCriteria(EntityRepository repo, Entity entity, LifecyclePredicateDto dto)
     {
         return dto.IdentifierType switch
@@ -1019,13 +1414,15 @@ public sealed class DataBreakpointManager : IDataBreakpointManager, IActiveViewP
                       n.Contains(dto.TargetValue, StringComparison.OrdinalIgnoreCase)
                     : entity.ToString().Contains(dto.TargetValue, StringComparison.OrdinalIgnoreCase),
 
-            // Network-id lookup requires INetworkEntityMap, which is not injected into this manager.
-            // To support this, pass an INetworkEntityMap to the DataBreakpointManager constructor
-            // and resolve the entity in this branch. Until then, using NetworkId as identifier will throw.
-            EntityIdentifierType.NetworkId => throw new NotSupportedException(
-                "LifecyclePredicateDto with EntityIdentifierType.NetworkId requires an INetworkEntityMap " +
-                "injected into DataBreakpointManager. Wire the network map via the constructor, " +
-                "or use EcsHandle or NameSubstring instead."),
+            // ⭐⭐⭐ BP-512 — asked of the ENTITY, not of a map. See the method remarks for why this is
+            //    neither of the two options the design offered: the predicate is "is THIS entity id N?",
+            //    which is O(1) off the entity's own component, and this runs per-entity-per-tick.
+            EntityIdentifierType.NetworkId =>
+                long.TryParse(dto.TargetValue, out long wanted) &&
+                wanted != 0 &&
+                repo.HasComponent<Fdp.Toolkit.Replication.Components.NetworkIdentity>(entity) &&
+                repo.GetComponentRO<Fdp.Toolkit.Replication.Components.NetworkIdentity>(entity).Value == wanted,
+
             _ => false
         };
     }

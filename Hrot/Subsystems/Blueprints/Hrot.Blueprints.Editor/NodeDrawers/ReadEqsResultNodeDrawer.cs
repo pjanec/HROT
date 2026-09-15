@@ -29,9 +29,9 @@ internal sealed class ReadEqsResultNodeSession : INodeEditSession
     /// Internal test hook (InternalsVisibleTo Hrot.Blueprints.Tests).
     /// </summary>
     internal string[] GetSensorVariableNamesForTest()
-        => _parent.Variables
-            .Where(v => v.Type.TypeId == "FDP.Eqs.EqsSensorHandle")
-            .Select(v => v.Name)
+        => _parent.Declarations.Of(DeclarationKind.Variable)
+            .Where(d => d.Type.TypeId == "FDP.Eqs.EqsSensorHandle")
+            .Select(d => d.Name)
             .ToArray();
 
     public void Draw()

@@ -40,9 +40,9 @@ All enum integer values MUST be identical to the corresponding `Hrot.NED` enum v
 **What to build:**  
 Create `FDP/Toolkits/FDP.Toolkit.Orchestration/Events/ClusterCqrsEvents.cs` containing the three core event structs:
 
-- `ClusterOpCompletedEvent` — EventId 9011, DataPolicy.NoRecord  
-- `ExecuteNodeOpIntent` — EventId 9012, DataPolicy.NoRecord  
-- `NodeOpCompletedEvent` — EventId 9013, DataPolicy.NoRecord  
+- `ClusterOpCompletedEvent` — EventId 9011, DataPolicy.NoReplay  
+- `ExecuteNodeOpIntent` — EventId 9012, DataPolicy.NoReplay  
+- `NodeOpCompletedEvent` — EventId 9013, DataPolicy.NoReplay  
 
 **There is no `ExecuteClusterOpIntent`.** High-level cluster operations are routed via operation-specific intent structs (CMC-S003). The `ExecuteNodeOpIntent` is the only generic intent and is used exclusively for the 2PC Node Ops fan-out loop.
 
@@ -54,7 +54,7 @@ All three structs are managed (may contain `object?` fields) and must be routed 
 
 **Success Conditions:**
 
-1. Unit test: all three structs are annotated with `[DataPolicy(DataPolicy.NoRecord)]` (reflection check).
+1. Unit test: all three structs are annotated with `[DataPolicy(DataPolicy.NoReplay)]` (reflection check).
 2. Unit test: all three structs have unique `[EventId(...)]` values with no collision with existing event IDs in the codebase.
 3. `FdpEventBus.PublishManaged<ExecuteNodeOpIntent>(...)` and `FdpEventBus.ConsumeManaged<ExecuteNodeOpIntent>()` compile and execute in a test without exception.
 4. The structs are `public` and reside in the `FDP.Toolkit.Orchestration` namespace.
@@ -83,11 +83,11 @@ Create `FDP/Toolkits/FDP.Toolkit.Orchestration/Events/ClusterOpIntents.cs` conta
 - `TakeCheckpointIntent` — EventId 9056 (no payload fields beyond `RequestId`)  
 - `LoadZoneIntent` — EventId 9057  
 
-All structs: `[DataPolicy(DataPolicy.NoRecord)]`, managed (may contain `string?`), reside in `FDP.Toolkit.Orchestration` namespace, no `Hrot.NED` references.
+All structs: `[DataPolicy(DataPolicy.NoReplay)]`, managed (may contain `string?`), reside in `FDP.Toolkit.Orchestration` namespace, no `Hrot.NED` references.
 
 **Success Conditions:**
 
-1. Unit test: all nine types have `[DataPolicy(DataPolicy.NoRecord)]`.
+1. Unit test: all nine types have `[DataPolicy(DataPolicy.NoReplay)]`.
 2. Unit test: `TransitionStateIntent` has field `ClusterState TargetState` (using FDP enum, not Hrot enum).
 3. Unit test: `ManageEpisodeIntent` has `bool IsStart`, `Guid EpisodeId`, `string? ScenarioId`.
 4. Unit test: `TakeCheckpointIntent` has only `Guid RequestId` (no other fields).

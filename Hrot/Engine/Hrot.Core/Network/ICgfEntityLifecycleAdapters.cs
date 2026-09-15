@@ -20,6 +20,17 @@ public interface ICgfEntityLifecycleAdapters
     IEntityAckSink AckSink { get; }
 
     /// <summary>
+    /// ⭐⭐ Sends a creation request OUTWARD, to the node that should service it — the mirror of
+    /// <see cref="RequestSource"/>. Consumed by <c>ForwardingEntityCreationRequestSource</c> via
+    /// <c>EntityCreationContext.RequestEgress</c> (D1).
+    ///
+    /// <para>⚠ <b>Null on a stack that cannot forward</b>, in which case the pack composes no forwarder
+    /// and every locally-enqueued request is serviced locally — today's behaviour for every host that
+    /// has not adopted forwarding.</para>
+    /// </summary>
+    IEntityCreationRequestEgress? RequestEgress { get; }
+
+    /// <summary>
     /// Optional strategy that distributes initial descriptor ownership across Muscle nodes.
     /// When null the Brain node retains full ownership of all descriptors.
     /// </summary>
@@ -30,6 +41,14 @@ public interface ICgfEntityLifecycleAdapters
     /// When null, InitialAttributesJson is ignored.
     /// </summary>
     JsonAttributeCompiler? JsonCompiler { get; }
+
+    /// <summary>
+    /// Optional resolver of the peer node set a creator must wait for in reliable-init mode
+    /// (the cross-node construction barrier, CE-283). When null the barrier stamps no peers, so a
+    /// reliable entity acks immediately (fast-mode behaviour). See
+    /// DESIGN_Cross_Node_Construction_Barrier.md §3a.4/§3a.7.
+    /// </summary>
+    IExpectedPeersProvider? ExpectedPeers { get; }
 
     /// <summary>
     /// Poll the underlying network transport once per update frame.

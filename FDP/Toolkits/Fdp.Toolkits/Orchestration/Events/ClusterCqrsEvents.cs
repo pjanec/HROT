@@ -10,7 +10,7 @@ namespace Fdp.Toolkit.Orchestration
     /// Consumed by translators to write the DDS <c>ClusterOpStatus</c> topic.
     /// </summary>
     [EventId(9011)]
-    [DataPolicy(DataPolicy.NoRecord)]
+    [DataPolicy(DataPolicy.NoReplay)]
     public struct ClusterOpCompletedEvent
     {
         public Guid RequestId;
@@ -29,7 +29,7 @@ namespace Fdp.Toolkit.Orchestration
     /// contains a managed <c>object?</c> field.
     /// </summary>
     [EventId(9012)]
-    [DataPolicy(DataPolicy.NoRecord)]
+    [DataPolicy(DataPolicy.NoReplay)]
     public struct ExecuteNodeOpIntent
     {
         public Guid TransactionId;
@@ -49,7 +49,7 @@ namespace Fdp.Toolkit.Orchestration
     /// also consumed by <c>ClusterMaster</c> to correlate 2PC ACKs.
     /// </summary>
     [EventId(9013)]
-    [DataPolicy(DataPolicy.NoRecord)]
+    [DataPolicy(DataPolicy.NoReplay)]
     public struct NodeOpCompletedEvent
     {
         public Guid TransactionId;
@@ -73,13 +73,17 @@ namespace Fdp.Toolkit.Orchestration
     /// Consumed by <c>NodeOpSlaveTranslator</c> to write <c>NodeHeartbeat</c> DDS topic.
     /// </summary>
     [EventId(9014)]
-    [DataPolicy(DataPolicy.NoRecord)]
+    [DataPolicy(DataPolicy.NoReplay)]
     public struct NodeHeartbeatEvent
     {
         public int    NodeId;
         public int    LocalStateId;
         public long   WallTicksUtc;
         public string SubsystemName;
+        /// <summary>P1 (cross-node construction barrier): the node's declared <see cref="NodeRole"/> mask
+        /// ([Flags], possibly multi-role). Carried from the node's own boot config so the orchestrator
+        /// roster + cluster cache read the real mask instead of re-deriving one role from the display name.</summary>
+        public NodeRole Roles;
     }
 
     /// <summary>
@@ -87,7 +91,7 @@ namespace Fdp.Toolkit.Orchestration
     /// Consumed by translators to write the DDS <c>ClusterStateTopic</c> topic.
     /// </summary>
     [EventId(9015)]
-    [DataPolicy(DataPolicy.NoRecord)]
+    [DataPolicy(DataPolicy.NoReplay)]
     public struct ClusterStateTransitionedEvent
     {
         /// <summary>New cluster state.</summary>
@@ -103,7 +107,7 @@ namespace Fdp.Toolkit.Orchestration
     /// Consumed by <c>ClusterUiCache</c> to update <c>CurrentState</c>.
     /// </summary>
     [EventId(9016)]
-    [DataPolicy(DataPolicy.NoRecord)]
+    [DataPolicy(DataPolicy.NoReplay)]
     public struct ClusterStateUpdateEvent
     {
         /// <summary>New cluster state.</summary>
@@ -118,7 +122,7 @@ namespace Fdp.Toolkit.Orchestration
     /// <c>ClusterUiCache</c> to update <c>AvailableScenarios</c> / <c>AvailableExercises</c>.
     /// </summary>
     [EventId(9017)]
-    [DataPolicy(DataPolicy.NoRecord)]
+    [DataPolicy(DataPolicy.NoReplay)]
     public struct AssetInventoryUpdateEvent
     {
         public string[] LocalScenarios;
@@ -133,7 +137,7 @@ namespace Fdp.Toolkit.Orchestration
     /// reading internal state from any process manager.
     /// </summary>
     [EventId(9018)]
-    [DataPolicy(DataPolicy.NoRecord)]
+    [DataPolicy(DataPolicy.NoReplay)]
     public struct EpisodeStateChangedEvent
     {
         /// <summary>Snapshot of all currently active episode IDs at time of publication.</summary>
@@ -150,7 +154,7 @@ namespace Fdp.Toolkit.Orchestration
     /// <see cref="DomainPayload"/> is a managed reference.</para>
     /// </summary>
     [EventId(9019)]
-    [DataPolicy(DataPolicy.NoRecord)]
+    [DataPolicy(DataPolicy.NoReplay)]
     public sealed class ClusterOpIntent
     {
         /// <summary>Unique identifier that links this command to its status reply.</summary>

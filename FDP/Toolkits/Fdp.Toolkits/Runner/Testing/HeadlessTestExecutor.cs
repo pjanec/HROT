@@ -30,6 +30,19 @@ namespace Fdp.Toolkit.Runner.Testing
         private readonly List<string> _assertionFailures = new();
 
         /// <summary>
+        /// Every reason <see cref="RunAsync"/> will return a non-zero exit code, in the order they
+        /// were recorded.  Empty exactly when the run passed.
+        ///
+        /// <para>⭐ <b>QA-028 — why this is public.</b> <see cref="RunAsync"/> collapses every failure
+        /// into the integer <c>1</c>, and the messages went only to the injected
+        /// <see cref="ILogger"/>.  A caller that passes <c>NullLogger</c> — as the cluster-transition
+        /// integration tests do — therefore asserts <c>Assert.Equal(0, result)</c> and learns nothing
+        /// but <i>"expected 0, actual 1"</i>.  ⛔ A red with no repro is the thing `R-131` forbids, so
+        /// the reasons are exposed rather than left to depend on the caller's logger choice.</para>
+        /// </summary>
+        public IReadOnlyList<string> AssertionFailures => _assertionFailures;
+
+        /// <summary>
         /// Stores the return values of steps that specify <see cref="TestStep.SaveResult"/>.
         /// Steps in later script entries can resolve an <c>entity_ref</c> argument to the
         /// corresponding saved <c>entity_id</c> by looking up the key here.

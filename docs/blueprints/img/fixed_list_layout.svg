@@ -1,0 +1,48 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="760" height="240" viewBox="0 0 760 240" font-family="Segoe UI, sans-serif" font-size="13">
+  <style>
+    .hdr { fill:#4a5568; }
+    .box { stroke:#4a5568; stroke-width:1.2; }
+    .lbl { fill:#1a202c; }
+    .dim { fill:#718096; font-size="11"; }
+    .mono { font-family:Consolas,monospace; }
+  </style>
+
+  <text x="10" y="22" class="lbl" font-weight="bold">__List_System_Int32_4 — blittable fixed-list wrapper (state bytes)</text>
+
+  <!-- Count cell -->
+  <rect x="10" y="40" width="110" height="52" class="box" fill="#bee3f8"/>
+  <text x="65" y="62" text-anchor="middle" class="mono lbl">int Count</text>
+  <text x="65" y="80" text-anchor="middle" class="dim">4 B</text>
+
+  <!-- Items[0..1] used -->
+  <rect x="120" y="40" width="110" height="52" class="box" fill="#c6f6d5"/>
+  <text x="175" y="62" text-anchor="middle" class="mono lbl">Items[0]</text>
+  <text x="175" y="80" text-anchor="middle" class="dim">element</text>
+  <rect x="230" y="40" width="110" height="52" class="box" fill="#c6f6d5"/>
+  <text x="285" y="62" text-anchor="middle" class="mono lbl">Items[1]</text>
+  <text x="285" y="80" text-anchor="middle" class="dim">element</text>
+
+  <!-- tail always default -->
+  <rect x="340" y="40" width="110" height="52" class="box" fill="#edf2f7"/>
+  <text x="395" y="62" text-anchor="middle" class="mono dim">Items[2]</text>
+  <text x="395" y="80" text-anchor="middle" class="dim">= default</text>
+  <rect x="450" y="40" width="110" height="52" class="box" fill="#edf2f7"/>
+  <text x="505" y="62" text-anchor="middle" class="mono dim">Items[3]</text>
+  <text x="505" y="80" text-anchor="middle" class="dim">= default</text>
+
+  <!-- InlineArray brace -->
+  <path d="M120 100 L120 108 L560 108 L560 100" fill="none" stroke="#718096" stroke-width="1"/>
+  <text x="340" y="124" text-anchor="middle" class="dim">[InlineArray(4)] Items — capacity N fixed at declare time</text>
+
+  <!-- annotations -->
+  <line x1="175" y1="34" x2="285" y2="34" stroke="#38a169" stroke-width="3"/>
+  <text x="230" y="26" text-anchor="middle" fill="#38a169">used window = min(Count, N)  (F2 clamp)</text>
+  <line x1="395" y1="34" x2="505" y2="34" stroke="#a0aec0" stroke-width="3"/>
+  <text x="450" y="26" text-anchor="middle" fill="#718096">tail always zero (G6)</text>
+
+  <!-- invariants strip -->
+  <rect x="10" y="150" width="730" height="72" rx="6" class="box" fill="#fffaf0"/>
+  <text x="24" y="174" class="lbl" font-weight="bold">Invariants</text>
+  <text x="24" y="194" class="lbl">• every read/write clamps the working count to min(Count, N) — a stale Count can never drive an out-of-range access</text>
+  <text x="24" y="212" class="lbl">• RemoveAt / Clear / Resize-shrink re-zero every vacated slot — the tail beyond Count is always default bytes</text>
+</svg>

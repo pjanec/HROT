@@ -455,6 +455,56 @@ Output Clamping:
 
 **Implementation**: `NavState.SpeedErrorInt` stores the integral term. The controller runs every frame in `CarKinematicsSystem`.
 
+> ⚠ **AS-BUILT DIVERGENCE, measured `2026-09-04`.** The shipped
+> `SpeedController.CalculateAcceleration(currentSpeed, targetSpeed, gain, maxAccel, maxDecel)`
+> is **P-only**: no integral term, no `dt`, no anti-windup. `NavState.SpeedErrorInt` exists as a
+> field and **nothing writes it**. The PI law above is INTENT, not as-built. Recorded, not
+> "fixed" — the P law is adequate for tracking the approach profile below, and adding an
+> integral term is a separate, unmeasured change.
+
+### Approach braking — the target-speed envelope *(added `2026-09-04`, `CE-167`)*
+
+⛔⛔ **`MaxDecel` / `MaxBraking` is a CONTROL INPUT, not merely an output clamp.** Clamping the
+acceleration alone does not stop a vehicle on its destination: it only limits how *hard* it may
+brake once the target speed has already dropped.
+
+📌 **The defect this records.** In the `Direct` arm, `targetSpeed` was a **step function of
+distance** — full `NavState.TargetSpeed` right up to `ArrivalRadius`, then `0`:
+
+| | |
+|---|---|
+| cruise speed | 15 m/s |
+| `MaxDecel` | 4 m/s² |
+| stopping distance needed | v²/2a = **28 m** |
+| distance available | `ArrivalRadius` = **5 m** |
+| ⇒ measured overshoot | **23.6 m** *(rail red-proof)* · **20.1–21.3 m** *(live cluster)* |
+
+⭐ **The rule, as built** (`CarKinematicsSystem.cs`, the `Direct`/`None` arm):
+
+```
+v_max(d) = sqrt(2 · MaxDecel · max(0, d − ArrivalRadius))
+targetSpeed = min(NavState.TargetSpeed, v_max(d))
+```
+
+so braking begins ~28 m out rather than never, and the vehicle comes to rest **inside** the
+arrival radius.
+
+| ⚠ boundary conditions that are deliberate | |
+|---|---|
+| **`MaxDecel <= 0` caps NOTHING** | a default-constructed `VehicleParams` *(`CE-103`'s shape)* would otherwise be pinned at zero speed forever — a freeze is worse than an overshoot |
+| **scoped to the `Direct`/`None` arm** | ⛔ `RoadGraph` and `CustomTrajectory` are UNMEASURED. A **Euclidean** cap is wrong for a winding route: the straight-line distance to the final destination can be small while the path remaining is long, so the vehicle would crawl its last leg |
+| **the envelope is exact, with no safety factor** | the `ArrivalRadius` margin already absorbs the P-controller's tracking lag |
+
+⭐ **Rail:** `CarKinematicsSystemTests.VehicleBrakesOnApproachAndStopsNearTheDestination_WithoutOvershooting`
+— it asserts arrival *and* rest *and* final distance, because a cap that merely froze the vehicle
+would also "not overshoot".
+
+⛔ **Known code/doc conflict, NOT fixed:** `CarKinematicsSystem`'s switch puts `case None:` and
+`default:` in the **same branch as `case Direct:`**, under the comment *"drive to point"* — which
+contradicts `NavigationEnums.cs`'s own `None = 0, // No active navigation (stationary or manual
+control)`. It is latent: every production writer pairs `Mode = None` with `TargetSpeed = 0`, and
+only FDP-Examples scenarios rely on `None` meaning "drive".
+
 ---
 
 ## Formation System Details

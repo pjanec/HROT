@@ -1,0 +1,13 @@
+StructureHash: 0x94809BF1C0E897B5
+Parameters:
+  (empty)
+WorkingState:
+  (empty)
+Variables:
+  OutHealth : System.Int32 @16 size=4
+  OutAmmo : System.Int32 @20 size=4
+  OutFound : System.Boolean @24 size=1
+GraphLocalSlots:
+  (empty)
+Diagnostics:
+  (none)

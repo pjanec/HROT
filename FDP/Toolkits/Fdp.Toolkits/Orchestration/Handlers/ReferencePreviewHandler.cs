@@ -3,6 +3,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using Fdp.Core;
 using Fdp.Core.Logging;
+using Fdp.Toolkit.Orchestration.Preview;
 
 namespace Fdp.Toolkit.Orchestration.Handlers
 {
@@ -42,6 +43,15 @@ namespace Fdp.Toolkit.Orchestration.Handlers
         private readonly EntityRepository? _liveRepo;
         private EntityRepository? _snap;
 
+        // ⭐⭐⭐ HN-017 — the SAME bracket the editor's handler uses. 📄 DESIGN_Deterministic_Network_Ids.md §4c.
+        // ⭐⭐ This is the handler on the 2PC path — registered on FIVE production ClusterSlaves (IG, CGF ×2,
+        //    SimHost, ExCon) — so the master's PrepareState broadcast makes the restore CLUSTER-WIDE with no
+        //    new protocol: every node puts back its OWN reservation. 🔒 The user's requirement, `2026-08-23`.
+        // ⛔ It shares PreviewStateBracket rather than reimplementing it: HN-016 records that two preview
+        //    handlers exist and have already diverged once (includeTransient) — one more divergence is one
+        //    too many.
+        private readonly PreviewStateBracket? _bracket;
+
         /// <param name="liveRepo">
         /// The subsystem's authoritative entity repository.
         /// Pass <see langword="null"/> for subsystems that carry no ECS state
@@ -49,10 +59,24 @@ namespace Fdp.Toolkit.Orchestration.Handlers
         /// both LoadingPreview and UnloadingPreview while remaining registered
         /// so the ClusterSlave can ACK the two-phase commit correctly.
         /// </param>
-        public ReferencePreviewHandler(EntityRepository? liveRepo)
+        /// <param name="rewindables">
+        /// ⭐⭐ The non-ECS state this NODE must also put back — its id allocator and entity map.
+        /// 📄 <c>DESIGN_Deterministic_Network_Ids.md</c> §2b/§4c.
+        /// <para>⛔⛔ <b>Pass BOTH or neither</b> — restoring the allocator alone guarantees a duplicate-id
+        /// throw from <c>NetworkEntityMap.Register</c> on the second preview.</para>
+        /// <para>⚠ Null/empty for the nodes that pass <c>liveRepo: null</c> — they carry no ECS state and no
+        /// allocator to rewind.</para>
+        /// </param>
+        public ReferencePreviewHandler(
+            EntityRepository? liveRepo,
+            System.Collections.Generic.IEnumerable<IPreviewRewindable>? rewindables = null)
         {
             _liveRepo = liveRepo;
+            _bracket  = rewindables is null ? null : new PreviewStateBracket(rewindables);
         }
+
+        /// <summary>⭐ Exposed for rails — a rail must reach the CONSTRUCTED object.</summary>
+        public PreviewStateBracket? TestHook_Bracket => _bracket;
 
         /// <inheritdoc />
         public bool CanHandle(NodeOpType operation) => operation == NodeOpType.PrepareState;
@@ -95,6 +119,8 @@ namespace Fdp.Toolkit.Orchestration.Handlers
         {
             _snap?.Dispose();
             _snap = null;
+            // ⭐ Nothing was rewound ⇒ nothing is restored. Drop the capture rather than applying it.
+            _bracket?.Discard();
         }
 
         // ── Internal test accessor ─────────────────────────────────────────────
@@ -122,6 +148,8 @@ namespace Fdp.Toolkit.Orchestration.Handlers
             snap.SyncFrom(_liveRepo);
             _snap = snap;
 
+            _bracket?.Capture();
+
             FdpLog<ReferencePreviewHandler>.Info(
                 "[ReferencePreviewHandler] LoadingPreview: snapshot captured.");
         }
@@ -148,6 +176,9 @@ namespace Fdp.Toolkit.Orchestration.Handlers
             _liveRepo.SyncFrom(_snap);
             _snap.Dispose();
             _snap = null;
+
+            // ⭐ AFTER the repo rewind — the map describes entities the rewind has just restored.
+            _bracket?.Restore();
 
             FdpLog<ReferencePreviewHandler>.Info(
                 "[ReferencePreviewHandler] UnloadingPreview: live repo rewound to snapshot.");

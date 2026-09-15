@@ -864,6 +864,41 @@ public sealed class DemoShell
         },
         defaultKey: new KeyBinding(EditorKey.E, KeyModifiers.Ctrl),
         isEnabled: () => _view.Selection.Nodes.Any());
+        // ⭐ BP-76 — the demo registers its own Expand handler, and this is where the "predict the
+        // ids the backend will mint" trick BELONGS: this shell owns FakeCommandSink, so it knows
+        // that backend expands to exactly `{node}_exp1`/`{node}_exp2` and can pair a precise inverse
+        // with it. The same code in NodeEditor.UI was wrong for every other host — it hardcoded THIS
+        // backend's scheme in shared production UI, so a real macro's expansion (N nodes, different
+        // ids) got an undo that removed two nodes which never existed.
+        reg.Add(CommandCatalog.ExpandNode, "Expand Node", "Refactor", _ =>
+        {
+            var nodeId = _view.Selection.Nodes.FirstOrDefault();
+            var node   = _graph.FindNode(nodeId);
+            if (node == null) return;
+
+            var externalLinks = _graph.Links
+                .Where(l => _graph.FindPin(l.FromPin)?.OwnerNodeId == nodeId ||
+                            _graph.FindPin(l.ToPin)?.OwnerNodeId == nodeId)
+                .ToList();
+
+            var invs = new List<GraphCommand>
+            {
+                new GraphCommand.RemoveNodes(new[]
+                {
+                    IdGenerator.DeterministicNodeId(nodeId.Value.ToString() + "_exp1"),
+                    IdGenerator.DeterministicNodeId(nodeId.Value.ToString() + "_exp2"),
+                }),
+                new GraphCommand.AddNode(node.Id, node.Kind, node.Position,
+                    new Dictionary<string, object?> { ["PinIds"] = node.Pins.Select(p => p.Id).ToList() }),
+            };
+            foreach (var l in externalLinks)
+                invs.Add(new GraphCommand.AddLink(l.Id, l.FromPin, l.ToPin));
+
+            _view.Execute(new GraphCommand.ExpandNode(nodeId),
+                          new GraphCommand.Batch("Undo Expand", invs), "Expand Node");
+        },
+        isEnabled: () => _view.Selection.Nodes.Count() == 1);
+
         reg.Add(CommandCatalog.GoToDefinition, "Go to Definition", "Find", _ =>
         {
             var primaryNodeId = _view.Selection.Nodes.FirstOrDefault();

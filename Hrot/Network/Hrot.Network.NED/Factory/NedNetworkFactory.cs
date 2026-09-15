@@ -1,4 +1,4 @@
-using System.Collections.Generic;
+﻿using System.Collections.Generic;
 using System;
 using CycloneDDS.Runtime;
 using Fdp.Interfaces;
@@ -11,6 +11,7 @@ using Fdp.Toolkit.Lifecycle;
 using Fdp.Toolkit.NetworkSpawning;
 using Fdp.Toolkit.Replication.Systems;
 using Fdp.Toolkit.Replication.Patching;
+using Fdp.Toolkit.Replication.Attributes;
 using Hrot.Common;
 using Hrot.Common.Abstractions;
 using Hrot.Common.Infrastructure;
@@ -136,11 +137,14 @@ public sealed class NedNetworkFactory : INetworkFactory
     public IReadOnlyList<Fdp.ModuleHost.Abstractions.IEcsModuleSystem> CreateSimHostAttributeUpdateSystems()
     {
         if (_participant == null) return System.Array.Empty<Fdp.ModuleHost.Abstractions.IEcsModuleSystem>();
-        var jsonAttributeCompiler = Hrot.SimHost.AttributeCompilerFactory.Build(_geoTransform);
         return new Fdp.ModuleHost.Abstractions.IEcsModuleSystem[]
         {
+            // ⭐⭐ AX-014 — the JSON compiler is no longer built here. 📌 It used to be, while the BINARY
+            //    interpreter was not built at all (AX-012) — one factory line supplying one arm and silently
+            //    omitting its sibling. ⇒ the constructor now defaults BOTH from `_geoTransform`, so this call
+            //    site cannot disable either by omission. ⛔ Do not "helpfully" pass them back in.
             new Hrot.Map.Common.Systems.UpdateEntityAttributeRequestSystem(
-                _participant, _entityMap, _geoTransform, jsonAttributeCompiler),
+                _participant, _entityMap, _geoTransform),
             new Hrot.Map.Common.Replication.Ingress.UpdateEntityDescriptorRequestSystem(
                 _participant, _entityMap, _geoTransform),
         };
@@ -242,9 +246,25 @@ public sealed class NedNetworkFactory : INetworkFactory
         IGeographicTransform geoTransform,
         long nodeId)
     {
+        // ⛔⛔ SpawnEntityCommandEgressTranslator is NO LONGER REGISTERED (host (f), 2026-09-02).
+        //
+        // 🔴 It subscribed to SpawnEntityCommand — the node-local ORDER — which is one level below the
+        //    cross-node INTENT. Because FdpEventBus is a broadcast and not a work queue, that put it on
+        //    the same non-draining stream as the spawn system, so a host that both materialises and
+        //    forwards produced TWO entities for one gesture; and a request addressed to a remote owner
+        //    published no order at all, so nothing was forwarded. ⇒ neither owner value worked.
+        //
+        // ⭐ Its job is now NedEntityCreationRequestEgress, reached through
+        //    ICgfEntityLifecycleAdapters.RequestEgress and driven by ForwardingEntityCreationRequestSource,
+        //    which sees the request BEFORE the routing decision. The descriptor construction both used is
+        //    shared in CreateEntityRequestDescriptorBuilder, so no encoding capability was lost (R-137).
+        //
+        // ⚠ The CLASS is deliberately still present and still tested: two ClusterRunner integration tests
+        //    use it as a standalone INSTRUMENT (never kernel-registered) to assert the offline editor makes
+        //    no network calls. Deleting it is a separate, mechanical step once host (f) has been seen
+        //    running — "no rush removals". 📄 DESIGN_Entity_Creation_Unification.md §3.4b.
         return new IDescriptorTranslator[]
         {
-            new SpawnEntityCommandEgressTranslator(participant, bus, geoTransform, nodeId),
             new UpdateEntityCommandEgressTranslator(participant, bus, _entityMap, geoTransform, nodeId),
             new DestroyEntityCommandEgressTranslator(participant, bus, nodeId),
         };
@@ -262,6 +282,9 @@ public sealed class NedNetworkFactory : INetworkFactory
             requestSource:     new NedEntityCreationRequestSource(_participant, _geoTransform),
             deleteSource:      new NedEntityDeletionRequestSource(_participant),
             ackSink:           new NedEntityAckSink(_participant),
+            // D1: the forwarding half. Present on every NED host, so a request addressed elsewhere
+            // leaves the node instead of being silently dropped by the Level-1 guard.
+            requestEgress:     new NedEntityCreationRequestEgress(_participant, _geoTransform),
             ownershipStrategy: new BrainMuscleOwnershipStrategy(clusterCache),
             jsonCompiler:      AttributeCompilerFactory.Build(_geoTransform),
             clusterCache:      clusterCache,
@@ -355,13 +378,18 @@ internal sealed class NedCgfEntityLifecycleAdapters : ICgfEntityLifecycleAdapter
     public IEntityCreationRequestSource       RequestSource     { get; }
     public IEntityDeletionRequestSource       DeleteSource      { get; }
     public IEntityAckSink                     AckSink           { get; }
+    public IEntityCreationRequestEgress?      RequestEgress     { get; }
     public IOwnershipDistributionStrategy?    OwnershipStrategy { get; }
     public JsonAttributeCompiler?             JsonCompiler      { get; }
+    // CE-283 (reliable-init barrier §3a.7): the creator's peer set, backed by the SAME cache
+    // PollNetwork populates — so it sees exactly the present peers the ownership strategy does.
+    public Fdp.Toolkit.Replication.Abstractions.IExpectedPeersProvider? ExpectedPeers { get; }
 
     public NedCgfEntityLifecycleAdapters(
         IEntityCreationRequestSource    requestSource,
         IEntityDeletionRequestSource    deleteSource,
         IEntityAckSink                  ackSink,
+        IEntityCreationRequestEgress?   requestEgress,
         IOwnershipDistributionStrategy? ownershipStrategy,
         JsonAttributeCompiler?          jsonCompiler,
         SimpleClusterStateCache         clusterCache,
@@ -370,10 +398,12 @@ internal sealed class NedCgfEntityLifecycleAdapters : ICgfEntityLifecycleAdapter
         RequestSource     = requestSource;
         DeleteSource      = deleteSource;
         AckSink           = ackSink;
+        RequestEgress     = requestEgress;
         OwnershipStrategy = ownershipStrategy;
         JsonCompiler      = jsonCompiler;
         _clusterCache     = clusterCache;
         _heartbeatReader  = heartbeatReader;
+        ExpectedPeers     = new Hrot.Network.Routing.ClusterCacheExpectedPeersProvider(clusterCache);
     }
 
     /// <inheritdoc/>
@@ -386,22 +416,16 @@ internal sealed class NedCgfEntityLifecycleAdapters : ICgfEntityLifecycleAdapter
             _clusterCache.UpdateNode(new NodeCapability
             {
                 NodeId             = sample.Data.NodeId,
-                Role               = MapSubsystemNameToRole(sample.Data.SubsystemName),
+                // P1: read the node's declared role mask off the heartbeat (seam law — the source carries it).
+                // Replaces the lossy MapSubsystemNameToRole switch (3 names → ONE role); preserves multi-role
+                // [Flags] masks, and an un-set/foreign node reads None, which is the correct "unknown role".
+                Role               = (NodeRole)sample.Data.RolesMask,
                 CpuUsagePercent    = sample.Data.CpuUsagePercent,
                 RamUsedBytes       = sample.Data.RamUsedBytes,
                 LastSeenUtcSeconds = (double)sample.Data.WallTicksUtc / TimeSpan.TicksPerSecond,
             });
         }
     }
-
-    private static NodeRole MapSubsystemNameToRole(string? name) =>
-        name switch
-        {
-            "SimHost" => NodeRole.MuscleGround,
-            "CGF"     => NodeRole.Brain,
-            "IG"      => NodeRole.ImageGenerator,
-            _         => NodeRole.None,
-        };
 }
 
 /// <summary>No-op stub for ISimHostMissionSender.</summary>

@@ -27,8 +27,10 @@ namespace Hrot.SimHost.Integration.Tests
             var simHostBus = new FdpEventBus();
             var cgfBus     = new FdpEventBus();
 
-            using var simHostSlave = new ClusterSlave(SimHostNodeId, "SimHost", simHostBus);
-            using var cgfSlave     = new ClusterSlave(CgfNodeId,     "CGF",     cgfBus);
+            // P1: SimHost declares a MULTI-role mask; the heartbeat must preserve it end to end.
+            const NodeRole simHostRoles = NodeRole.MuscleGround | NodeRole.Perception;
+            using var simHostSlave = new ClusterSlave(SimHostNodeId, "SimHost", simHostBus, simHostRoles);
+            using var cgfSlave     = new ClusterSlave(CgfNodeId,     "CGF",     cgfBus, NodeRole.Brain);
 
             // Wait for the heartbeat timer to elapse (> 1 second).
             await Task.Delay(1200);
@@ -49,10 +51,15 @@ namespace Hrot.SimHost.Integration.Tests
             Assert.Single(simHostHeartbeats);
             Assert.Equal(SimHostNodeId, simHostHeartbeats[0].NodeId);
             Assert.Equal("SimHost",     simHostHeartbeats[0].SubsystemName);
+            // P1: the declared multi-role mask survives, not collapsed to one role.
+            Assert.Equal(simHostRoles, simHostHeartbeats[0].Roles);
+            Assert.True(simHostHeartbeats[0].Roles.HasFlag(NodeRole.MuscleGround));
+            Assert.True(simHostHeartbeats[0].Roles.HasFlag(NodeRole.Perception));
 
             Assert.Single(cgfHeartbeats);
             Assert.Equal(CgfNodeId, cgfHeartbeats[0].NodeId);
             Assert.Equal("CGF",     cgfHeartbeats[0].SubsystemName);
+            Assert.Equal(NodeRole.Brain, cgfHeartbeats[0].Roles);
         }
     }
 }

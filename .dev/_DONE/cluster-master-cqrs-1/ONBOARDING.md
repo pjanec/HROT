@@ -103,7 +103,7 @@ In **AllInOne mode** (no network): translators are simply not registered. Master
 
 1. **No Hrot.NED references inside FDP.Toolkit.Orchestration.** The FDP domain defines its own duplicate enums (Dual-Enum Pattern). Integer values must match.
 2. **No JSON parsing inside ClusterMaster or ClusterSlave.** All deserialization happens in translators.
-3. **Control-plane events are `[DataPolicy(DataPolicy.NoRecord)]`.** They must never appear in `.fdprec` exercise recordings.
+3. **Control-plane events are `[DataPolicy(DataPolicy.NoReplay)]`.** They must never appear in `.fdprec` exercise recordings.
 4. **1 ECS World = 1 FdpEventBus = 1 ClusterSlave.** In AllInOne, register all handlers into a single slave instance.
 5. **Translators are stateless.** They must not hold transaction state or track in-flight requests.
 

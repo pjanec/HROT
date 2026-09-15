@@ -46,9 +46,22 @@ public abstract class FdpApplication : IDisposable
         // 1. User Initialization
         OnLoad();
 
+        // Remote-desktop clicks (TeamViewer / Parsec / RDP) inject WM_*BUTTONDOWN and
+        // WM_*BUTTONUP microseconds apart, so both land in one glfwPollEvents() drain and the
+        // polled button state ends where it started -- the press is never observed and the click
+        // is silently lost. The latch replays a lost click held across frames. Inert for local
+        // input and a no-op off Windows; kill switch: HROT_DISABLE_CLICK_LATCH=1.
+        using var clickLatch = Input.ClickLatch.Create();
+
         // 2. Main Loop
         while (!Raylib_cs.Raylib.WindowShouldClose() && !_shouldQuit)
         {
+            // Before input is polled: replay anything the previous frame dropped.
+            clickLatch.Tick(
+                Raylib_cs.Raylib.IsMouseButtonDown(Raylib_cs.MouseButton.Left),
+                Raylib_cs.Raylib.IsMouseButtonDown(Raylib_cs.MouseButton.Right),
+                Raylib_cs.Raylib.IsMouseButtonDown(Raylib_cs.MouseButton.Middle));
+
             float dt = Raylib_cs.Raylib.GetFrameTime();
 
             // A. Logic Update
@@ -87,10 +100,13 @@ public abstract class FdpApplication : IDisposable
             var io = ImGuiNET.ImGui.GetIO();
             io.ConfigFlags |= ImGuiNET.ImGuiConfigFlags.DockingEnable;
 
-            string appData = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
-            string configDir = Path.Combine(appData, "HROT");
-            Directory.CreateDirectory(configDir);
-            string iniPath = Path.Combine(configDir, "imgui.ini");
+            // ⭐⭐ Batch 103 (103a) — ONE owner of the convention. 📐 This block and
+            //    RaylibPresentationShell.SetupImGui computed the same path INDEPENDENTLY, byte for byte:
+            //    "two apps, one convention, no shared helper." ⛔ Two copies of a path is how a reset
+            //    ends up resetting one of them.
+            // ⭐ The NAME stays here, the CONVENTION moves — Fdp.Presentation must not learn what
+            //   "HROT" is (the design's constraint 1), so it travels as an argument.
+            string iniPath = Fdp.Presentation.WindowManager.LayoutPaths.UserIniPath("HROT");
             _iniFilenamePtr = Marshal.StringToHGlobalAnsi(iniPath);
             unsafe
             {

@@ -1,13 +1,41 @@
 using Hrot.Core.Mission;
 using Fdp.Core.Logging;
 using ImGuiNET;
+using System.Collections.Generic;
+using System.Linq;
 using System.Text.Json;
+using System.Text.Json.Nodes;
+using Fdp.Diagnostics.Contracts.Panels;
 using Hrot.UI.Common.Facades;
 using Hrot.UI.Common.Models;
 using Hrot.Presentation.Behavior;
 using Fdp.Toolkit.Behavior.Params;
 
 namespace Hrot.UI.Common.Panels;
+
+/// <summary>⭐ One mission task row, projected by hand (the DTO is already flat, but
+/// <c>Triggers</c> is flattened to a count rather than embedded — the task-level state is
+/// what a test asserts against; per-trigger detail is a deeper drill than this sweep covers).</summary>
+public sealed record MissionTaskRowViewModel(string TaskId, string ExecutingEngine, string BehaviorId, string State, int TriggerCount);
+
+/// <summary>
+/// ⭐⭐⭐ <b>U-obs-5 — the whole of what <see cref="MissionPanel"/> shows, this frame.</b>
+/// 📄 <c>docs/DESIGN_UI_Observability_Snapshot.md</c> §Example. ⚠ See <c>ConfigPanel</c>'s remarks for
+/// the group-5 twin finding (same shape — this is the SHIPPED copy). ⚠⚠ <b>Deliberately does NOT call
+/// <see cref="PollCommitCompletion"/>/<see cref="PollPickCompletion"/></b> — those are side-effecting
+/// (they null out and consume the pending task on completion), so calling them a second time ahead of
+/// <see cref="DrawContent"/> would change which frame observes a completed pick/commit. The dump reads
+/// whatever state this frame's <c>DrawContent</c> has already settled, one BUILD-CAPTURE-RENDER cycle
+/// behind the completion — the same tradeoff <c>MessageLogPanelViewModel</c> documents for its own
+/// "superset, not exact frame" deviation.</summary>
+public sealed record MissionPanelViewModel(
+    string PanelId, string PanelKind, int SelectedEntityId, bool CommitInFlight, bool CommitButtonEnabled,
+    bool HasConflictAlert, string? ConflictMessage, bool IsLocationPickPending, bool IsEntityPickPending,
+    string? ActiveTaskId, IReadOnlyList<MissionTaskRowViewModel> Tasks) : IPanelViewModel
+{
+    /// <inheritdoc/>
+    public JsonNode Dump() => PanelDump.Of(this);
+}
 
 /// <summary>
 /// Shared UI panel that displays the currently selected entity's mission plan
@@ -339,6 +367,22 @@ public sealed class MissionPanel : IPickInteractionContext
 
     /// <summary>Clears the active conflict alert.</summary>
     public void DismissConflict() => _conflictMessage = null;
+
+    // ── Public BUILD entry point (U-obs-5) ───────────────────────────────
+    /// <summary>⭐⭐⭐ BUILD — a pure projection of current state. No ImGui, no side effects — see the
+    /// view-model's own remarks on why <c>Poll*Completion</c> is deliberately not called here.</summary>
+    public MissionPanelViewModel BuildViewModel(string panelId, string panelKind)
+    {
+        var tasks = (_draftPlan?.Tasks ?? new List<MissionTask>())
+            .Select(t => new MissionTaskRowViewModel(
+                t.TaskId.ToString(), t.ExecutingEngine, t.BehaviorId, t.State.ToString(), t.Triggers.Count))
+            .ToList();
+
+        return new MissionPanelViewModel(
+            panelId, panelKind, _selectedEntityId, _commitInFlight, CommitButtonEnabled,
+            HasConflictAlert, _conflictMessage, IsLocationPickPending, IsEntityPickPending,
+            _draftPlan != null ? _draftPlan.ActiveTaskId.ToString() : null, tasks);
+    }
 
     // ── Map-pick handlers (public for testability) ────────────────────────────
 

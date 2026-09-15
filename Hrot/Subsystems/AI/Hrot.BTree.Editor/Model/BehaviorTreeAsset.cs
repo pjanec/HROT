@@ -424,10 +424,102 @@ public sealed class BehaviorTreeAsset : IEditableAsset, IBlackboardManagedAsset,
     }
 
     /// <summary>Returns all alias bindings recorded against the named variable. Empty list if none.</summary>
+    /// <summary>
+    /// ⭐⭐⭐ <b><c>E4</c> — "does this asset maintain per-instance working state?"</b>
+    ///
+    /// <para>
+    /// 📄 <c>DEBT-AIB-028</c>'s activation recipe names this method by name: <i>"a
+    /// <c>BehaviorTreeAsset.HasAnyStatefulNode()</c> (any <c>ThreeParamReusableStateful</c> action) +
+    /// HSM equivalent, wire <c>id => catalog.TryFind(id, out a) &amp;&amp; a.HasAnyStatefulNode()</c>
+    /// through the production validator ctor."</i> ⛔ Not re-derived here — the recipe was already
+    /// filed, and Batch 67's <c>W7c</c> boundary is what found it.
+    /// </para>
+    ///
+    /// <para>
+    /// ⚠ <b>TWO shapes count, not one.</b> The recipe names <c>ThreeParamReusableStateful</c>, but
+    /// <c>AiPrimitiveTickCore</c> also carries a WorkingState — <c>BTreeBridgeEmitCore</c> emits a
+    /// partition slot for <b>both</b> (<i>"both ride the partition-slot rail"</i>, I2/I3/E2). ⇒
+    /// checking only the named one would call a composed blueprint action stateless and let two of
+    /// them run concurrently unreported, which is the defect this predicate exists to prevent.
+    /// </para>
+    ///
+    /// <para>
+    /// 📌 <b><c>ThreeParamReusableStateful</c> has no NAMED member on the editor enum</b> — the DTO
+    /// enum pins it to <c>2</c> and the editor casts numerically (see the note at the top of this
+    /// file). Hence the explicit cast rather than a member reference: an invented member would be a
+    /// second spelling of a value that already round-trips.
+    /// </para>
+    /// </summary>
+    public bool HasAnyStatefulNode()
+    {
+        const BTreeActionDelegateShape ThreeParamReusableStateful = (BTreeActionDelegateShape)2;
+
+        foreach (var node in _nodes)
+        {
+            var shape = node.Action?.DelegateShape ?? node.Condition?.DelegateShape;
+            if (shape is null) continue;
+            if (shape == ThreeParamReusableStateful
+             || shape == BTreeActionDelegateShape.AiPrimitiveTickCore) return true;
+        }
+        return false;
+    }
+
+    /// <summary>
+    /// ⭐ <b><c>E4</c> completion (Batch 69) — the SHARED (<c>Behavior</c>/<c>Entity</c>) scope keys
+    /// this asset's stateful variables resolve to.</b> The BTree twin of
+    /// <c>HsmAsset.GetSharedScopeKeys()</c>, using the SAME key algorithm.
+    /// </summary>
+    /// <remarks>
+    /// ⚠ <b>Distinct from <see cref="HasAnyStatefulNode"/> here, unlike on HSM.</b> A BTree can be
+    /// stateful through a node's DELEGATE SHAPE while declaring no shared blackboard variable at all —
+    /// the two questions genuinely differ on this host, and collapsing them would answer the wrong one.
+    /// </remarks>
+    public IReadOnlyCollection<int> GetSharedScopeKeys()
+    {
+        HashSet<int>? keys = null;
+        foreach (var v in _blackboardVariables)
+        {
+            if (v.Role != Hrot.AiEditor.Persistence.BlackboardVariableRole.State) continue;
+            if (v.Scope != Hrot.AiEditor.Persistence.WorkingStateScope.Behavior
+             && v.Scope != Hrot.AiEditor.Persistence.WorkingStateScope.Entity) continue;
+
+            (keys ??= new HashSet<int>()).Add(
+                Hrot.AiEditor.Persistence.Emit.BTreeBridgeEmitCore.ComputeStatefulSlotKey(
+                    AssetId, v.Scope, Guid.Empty, v.Name));
+        }
+        return (IReadOnlyCollection<int>?)keys ?? Array.Empty<int>();
+    }
+
     public IReadOnlyList<BlackboardAliasBinding> GetAliasesFor(string variableName) =>
         _aliases.TryGetValue(variableName, out var list)
             ? list.AsReadOnly()
             : Array.Empty<BlackboardAliasBinding>();
+
+    /// <summary>
+    /// ⭐⭐⭐ <b>Batch 91 (<c>91b</c>) — the whole alias map, for the MAPPER.</b> ⛔ Deliberately shaped
+    /// like <c>GetAllSyncBindings</c> above: 📌 the persistence design lists aliases and sync bindings
+    /// in the same breath, and a different shape here would be a third mechanism for one idea.
+    /// </summary>
+    public IReadOnlyDictionary<string, IReadOnlyList<BlackboardAliasBinding>> GetAllAliases() =>
+        _aliases.ToDictionary(
+            kv => kv.Key,
+            kv => (IReadOnlyList<BlackboardAliasBinding>)kv.Value.AsReadOnly());
+
+    /// <summary>
+    /// ⭐⭐ <b>Rehydrates the alias map on LOAD — the call that never existed.</b>
+    /// 🔴 Measured Batch 91: the only writers to <c>_aliases</c> were rename, <c>AddAlias</c> and
+    /// prune ⇒ <b>nothing on the load path touched them</b>, so every authored alias died with the
+    /// editor session. ⚠ The DTO header even filed <c>_aliases</c> under <i>"runtime hydration"</i> —
+    /// ⭐ a hydration that was never written.
+    /// </summary>
+    public void LoadAliases(IReadOnlyDictionary<string, IReadOnlyList<BlackboardAliasBinding>>? aliases)
+    {
+        _aliases.Clear();
+        if (aliases is null) return;
+        foreach (var kv in aliases)
+            _aliases[kv.Key] = new List<BlackboardAliasBinding>(kv.Value);
+    }
+
 
     /// <summary>Binds an unbound sub-tree requirement to a defined variable. Fires Changed.</summary>
     public void AddAlias(string variableName, BlackboardAliasBinding binding)
@@ -503,6 +595,28 @@ public sealed class BehaviorTreeAsset : IEditableAsset, IBlackboardManagedAsset,
 
     public bool IsUnusedWarningSuppressed(string variableName) =>
         _unusedSuppressions.Contains(variableName);
+
+    // ── W7b (§9.4) — "Allow concurrent writes", PER VARIABLE ────────────────────
+    //
+    // ⛔⛔ A SEPARATE SET from _conflictSuppressions on purpose. §9.3's suppression is per
+    // (variable, writer-PAIR) so that "a new aliasing relationship on the same variable would
+    // surface a fresh diagnostic"; §9.4's allowance is per VARIABLE, so it covers pairs that do
+    // not exist yet. ⇒ merging the two would silence future writers the designer never reviewed.
+    private readonly HashSet<string> _concurrentWritesAllowed = new();
+
+    public bool IsConcurrentWritesAllowed(string variableName) =>
+        _concurrentWritesAllowed.Contains(variableName);
+
+    public IEnumerable<string> GetConcurrentWritesAllowed() => _concurrentWritesAllowed;
+
+    public void SetConcurrentWritesAllowed(string variableName, bool allowed)
+    {
+        bool was = _concurrentWritesAllowed.Contains(variableName);
+        if (was == allowed) return;
+        if (allowed) _concurrentWritesAllowed.Add(variableName);
+        else         _concurrentWritesAllowed.Remove(variableName);
+        MarkDirty();
+    }
 
     public IEnumerable<(string VariableName, string WriterPairKey)> GetConflictSuppressions() => _conflictSuppressions;
     public IEnumerable<string> GetUnusedSuppressions() => _unusedSuppressions;
@@ -585,6 +699,58 @@ public sealed class BehaviorTreeAsset : IEditableAsset, IBlackboardManagedAsset,
     /// <summary>Records sub-tree identity metadata for a Subtree node.</summary>
     public void RecordSubtreeNodeMeta(Guid nodeVisualId, string subTreeName, string subDtoTypeName, string? subDtoTypeNs)
         => _syncNodeMeta[nodeVisualId] = (subTreeName, subDtoTypeName, subDtoTypeNs);
+
+    /// <summary>
+    /// ⭐⭐⭐ <b><c>Q49</c> OPTION C — RECOMPUTE the sub-tree identity from the resolved callee.</b>
+    /// 📄 <c>Architect_Question_49_Subtree_Sync_Identity_Survives_Reload.md</c>, approved by the user
+    /// <c>2026-08-22</c>. Closes <c>BP-342</c> gap ① for the EDITOR arm.
+    ///
+    /// <para>⛔⛔ <b>The defect:</b> <see cref="_syncNodeMeta"/>'s only writer was a UI draw
+    /// *(<c>InspectorWindow:194</c>)* ⇒ after a reload <see cref="GetApproachBSyncGroups"/> skipped every
+    /// node and Approach-B emitted <b>nothing</b> until a designer re-opened the panel on each one.</para>
+    ///
+    /// <para>⭐⭐ <b>Why RECOMPUTE and not PERSIST</b> *(option A, rejected)*: <c>SubDtoTypeName</c>/<c>Ns</c>
+    /// describe the <b>CALLEE</b>. Persisting them in the CALLER duplicates the subtree's own DTO type and
+    /// can <b>drift</b> when the subtree changes — and it would redden
+    /// <c>BTreeDtoRuntimeFieldExclusionTests</c>, which was <b>right</b> to keep derived data out of the
+    /// DTO. ⇒ ⭐ nothing is persisted and the rail is untouched.</para>
+    ///
+    /// <para>⚠ <b>ORDERING — the one real constraint</b>, and it is why this is a METHOD rather than
+    /// something the deserialiser does: the callee must already be LOADED. ⇒ ⛔ this cannot run inside
+    /// this asset's own deserialisation; it runs once the catalog is populated, from the composition root
+    /// that already holds the resolver.</para>
+    ///
+    /// <para>⭐ <b>Idempotent and additive</b> — it overwrites only what it can resolve. ⚠ A node whose
+    /// subtree is MISSING is left ALONE rather than cleared: a designer's in-session identity must not be
+    /// destroyed by a catalog that has not finished loading.</para>
+    /// </summary>
+    /// <param name="resolve">
+    /// ⭐⭐ Answers <i>"what are this subtree asset's name and blackboard type?"</i> — in production
+    /// <c>catalog.FindByAssetId(id)</c> *(see <c>PerspectiveWorkspaceRegistrar</c>)*.
+    /// ⛔ <b>REQUIRED</b>: 📌 the silent-default rule — a caller that HAS the resolver must pass it, and a
+    /// <c>null</c> arm here would silently restore exactly the do-nothing behaviour this fixes.
+    /// </param>
+    /// <returns>How many nodes had their identity recomputed — ⭐ the value a rail asserts.</returns>
+    public int RecomputeSubtreeSyncIdentity(Func<Guid, (string Name, string BlackboardTypeName)?> resolve)
+    {
+        if (resolve is null) throw new ArgumentNullException(nameof(resolve));
+
+        int recomputed = 0;
+        foreach (var nodeId in _syncBindings.Keys)
+        {
+            var info = GetSubtreeNodeInfo(nodeId);
+            if (info is null || info.SubtreeAssetId == Guid.Empty) continue;
+
+            var sub = resolve(info.SubtreeAssetId);
+            if (sub is null) continue;   // ⚠ missing callee: leave any in-session identity alone.
+
+            var (name, dtoType, dtoNs) = Hrot.AiEditor.Persistence.Emit.SubtreeSyncIdentity.Derive(
+                sub.Value.Name, sub.Value.BlackboardTypeName);
+            RecordSubtreeNodeMeta(nodeId, name, dtoType, dtoNs);
+            recomputed++;
+        }
+        return recomputed;
+    }
 
     /// <summary>
     /// Returns Approach B sync groups: subtree nodes with at least one active sync binding

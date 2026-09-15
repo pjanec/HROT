@@ -9,6 +9,9 @@ namespace Fdp.Toolkit.Replication.Components
     /// Used for split-authority scenarios where different nodes simulate different parts of an entity.
     /// </summary>
     [ComponentId(GlobalComponentIds.DescriptorOwnership)]
+    // CE-277(e): per-descriptor network ownership, reconstructed from the live topology on load;
+    // declarative replacement for StagingEntityExtractor's hardcoded static-exclusion bit.
+    [DataPolicy(DataPolicy.NoScenario)]
     public class DescriptorOwnership
     {
         /// <summary>

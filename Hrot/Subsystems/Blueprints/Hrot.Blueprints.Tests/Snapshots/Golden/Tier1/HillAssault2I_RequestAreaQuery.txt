@@ -1,0 +1,11 @@
+StructureHash: 0x07DB067C79F20733
+Parameters:
+  TargetAreaEntity : Fdp.Core.Entity @0 size=8
+WorkingState:
+  (empty)
+Variables:
+  (empty)
+GraphLocalSlots:
+  (empty)
+Diagnostics:
+  (none)

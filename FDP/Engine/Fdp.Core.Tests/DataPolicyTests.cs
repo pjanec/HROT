@@ -16,12 +16,12 @@ namespace Fdp.Tests
         [ComponentId(178)]
         private record NormalRecord(int Value);
         
-        // 3. Class (Default: NoSnapshot + Record + Save)
+        // 3. Class (Default: NoPreview + Record + Save)
         [ComponentId(179)]
         private class MutableClass { public int Value; }
         
         // 4. Attributes
-        [DataPolicy(DataPolicy.NoSnapshot)]
+        [DataPolicy(DataPolicy.NoPreview)]
         [ComponentId(180)]
         private struct NoSnapshotStruct { public int Value; }
         
@@ -29,15 +29,15 @@ namespace Fdp.Tests
         [ComponentId(181)]
         private class CloneableClass { public int Value; }
         
-        [DataPolicy(DataPolicy.NoRecord)]
+        [DataPolicy(DataPolicy.NoReplay)]
         [ComponentId(182)]
         private struct NoRecordStruct { public int Value; }
         
-        [DataPolicy(DataPolicy.NoSave)]
+        [DataPolicy(DataPolicy.NoScenario)]
         [ComponentId(183)]
         private struct NoSaveStruct { public int Value; }
         
-        [DataPolicy(DataPolicy.Transient)] // NoSnapshot | NoRecord | NoSave
+        [DataPolicy(DataPolicy.Transient)] // NoPreview | NoReplay | NoScenario
         [ComponentId(184)]
         private class TransientClass { public int Value; }
 
@@ -136,10 +136,10 @@ namespace Fdp.Tests
         public void Override_ExplicitArgument_WinsOverAttribute()
         {
             var repo = new EntityRepository();
-            // Force Transient class to be Recordable (but still NoSnapshot)
+            // Force Transient class to be Recordable (but still NoPreview)
             // Wait, we need to pass a specific policy.
-            // If we want NoSnapshot + Record + NoSave.
-            repo.RegisterManagedComponent<TransientClass>(DataPolicy.NoSnapshot | DataPolicy.NoSave);
+            // If we want NoPreview + Record + NoScenario.
+            repo.RegisterManagedComponent<TransientClass>(DataPolicy.NoPreview | DataPolicy.NoScenario);
             
             int id = ManagedComponentType<TransientClass>.ID;
             

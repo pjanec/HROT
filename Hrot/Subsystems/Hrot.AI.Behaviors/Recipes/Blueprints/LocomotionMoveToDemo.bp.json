@@ -1,7 +1,7 @@
 {
   "$meta": {
     "docType": "Hrot.Blueprints",
-    "schemaVersion": 1
+    "schemaVersion": 2
   },
   "Header": {},
   "AssetId": "00000000-aaaa-0001-0000-000000000006",
@@ -15,11 +15,9 @@
       "BTreeAction"
     ]
   },
-  "Parameters": [],
+  "Declarations": [],
   "ParameterOrder": null,
-  "WorkingState": [],
   "WorkingStateOrder": null,
-  "Variables": [],
   "VariableOrder": null,
   "EventDispatchers": [],
   "CustomEvents": [],
@@ -31,6 +29,8 @@
       "Kind": "Function",
       "Inputs": [],
       "Outputs": [],
+      "ExecOutputs": [],
+      "ExecInputs": [],
       "Nodes": [
         {
           "kind": "EventEntry",
@@ -86,6 +86,8 @@
           "ToPinId": "e5ee0006-0003-b001-0001-000000000001"
         }
       ],
+      "LocalVariables": [],
+      "Comments": [],
       "EditorMetadata": {
         "ViewportX": 0,
         "ViewportY": 0,
@@ -103,9 +105,9 @@
       "Difficulty": "Beginner",
       "ConceptsTaught": [
         "AiPrimitive dispatch with ChannelCommand (not valid in Instance blueprints)",
-        "ChannelCommand ChannelType + ActionId projection of param pins",
-        "EventEntry → ChannelCommand → Return exec wiring",
-        "Details panel: ChannelCommandNodeDrawer action combo + projected param pins"
+        "ChannelCommand ChannelType \u002B ActionId projection of param pins",
+        "EventEntry \u2192 ChannelCommand \u2192 Return exec wiring",
+        "Details panel: ChannelCommandNodeDrawer action combo \u002B projected param pins"
       ]
     }
   }

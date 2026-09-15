@@ -7,7 +7,7 @@ namespace Fdp.Toolkit.Behavior.Components
 {
     [StructLayout(LayoutKind.Sequential)]
     [ComponentId(GlobalComponentIds.LocomotionChannel)]
-    [DataPolicy(DataPolicy.NoSave)]
+    [DataPolicy(DataPolicy.NoScenario)]
     public unsafe struct LocomotionChannel
     {
         public ushort ActiveAction;
@@ -22,7 +22,7 @@ namespace Fdp.Toolkit.Behavior.Components
 
     [StructLayout(LayoutKind.Sequential)]
     [ComponentId(GlobalComponentIds.WeaponChannel)]
-    [DataPolicy(DataPolicy.NoSave)]
+    [DataPolicy(DataPolicy.NoScenario)]
     public unsafe struct WeaponChannel
     {
         public ushort ActiveAction;
@@ -37,7 +37,7 @@ namespace Fdp.Toolkit.Behavior.Components
 
     [StructLayout(LayoutKind.Sequential)]
     [ComponentId(GlobalComponentIds.InteractionChannel)]
-    [DataPolicy(DataPolicy.NoSave)]
+    [DataPolicy(DataPolicy.NoScenario)]
     public unsafe struct InteractionChannel
     {
         public ushort ActiveAction;

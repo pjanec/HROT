@@ -1,4 +1,5 @@
 using Hrot.Common;
+using Fdp.Core;
 
 namespace Hrot.Network.Routing
 {
@@ -21,6 +22,20 @@ namespace Hrot.Network.Routing
         /// </summary>
         /// <param name="requiredRole">The capability role the target node must fulfil.</param>
         int? GetLeastLoadedNode(NodeRole requiredRole);
+
+        /// <summary>
+        /// The node ids of every currently-known present node (a point-in-time snapshot).
+        /// Used by the reliable-init construction barrier to resolve the peer set a creator
+        /// must wait for (CE-283; DESIGN_Cross_Node_Construction_Barrier.md §3a.4).
+        /// </summary>
+        System.Collections.Generic.IReadOnlyList<int> AllNodeIds();
+
+        /// <summary>
+        /// A point-in-time snapshot of every currently-known present node with its role capability.
+        /// Used by the reliable-init barrier's role-filter (piece C §3b) to keep only the peers whose
+        /// role INITIALISES one of the entity's <c>[RequiresPeerInit]</c> components.
+        /// </summary>
+        System.Collections.Generic.IReadOnlyList<NodeCapability> AllNodes();
 
         /// <summary>
         /// Updates (or inserts) the capability record for a specific node.

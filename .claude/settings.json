@@ -4,9 +4,38 @@
       "Bash(*)",
       "PowerShell(*)",
       "mcp__codebase-memory-mcp",
-      "mcp__codebase-memory-mcp__*"
+      "mcp__codebase-memory-mcp__*",
+      "mcp__Claude_Code_Remote__list_repos",
+      "mcp__Claude_Code_Remote__add_repo",
+      "mcp__Claude_Code_Remote__register_repo_root"
     ]
   },
   "defaultMode": "dangerously-skip-permissions",
-  "enabledMcpjsonServers": ["codebase-memory-mcp"]
+  "enabledMcpjsonServers": [
+    "codebase-memory-mcp"
+  ],
+  "hooks": {
+    "SessionStart": [
+      {
+        "matcher": "startup",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash scripts/session-design-brief.sh",
+            "timeout": 30
+          }
+        ]
+      },
+      {
+        "matcher": "compact",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash scripts/session-design-brief.sh",
+            "timeout": 30
+          }
+        ]
+      }
+    ]
+  }
 }

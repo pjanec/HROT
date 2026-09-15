@@ -30,10 +30,21 @@ public sealed class EcsPatchContext : IEntityPatchContext
     private readonly Entity _entity;
 
     /// <summary>
-    /// Maps component type → descriptor ordinal, derived from the routing table at construction.
-    /// Used to look up which ordinal to dirty when a component is accessed.
+    /// ⭐⭐⭐ <b><c>Q59-E</c> — the world's component→descriptor map, supplied by the NETWORK layer.</b>
+    ///
+    /// <para>🔒 User ruling <c>2026-08-26</c>: *"attributes are entity-related, network agnostic. In contrary,
+    /// descriptors are Ned network concept."</para>
+    ///
+    /// <para>⛔ This used to be a <c>Dictionary&lt;Type, long&gt;</c> built from the JSON routing table's
+    /// <c>descriptorOrdinal:</c> argument — i.e. FDP code naming a NED grouping. ⭐ Now the applier records the
+    /// COMPONENT it wrote and <see cref="DescriptorOwnershipMap"/> — the EXISTING single source of truth,
+    /// fed by <c>IDescriptorTranslator.{DescriptorOrdinal, TargetComponentIds}</c> — says which descriptors
+    /// cover it. ⇒ <c>Fdp.Toolkit.Replication.DescriptorOrdinal</c> and its conversion were deleted outright.</para>
+    ///
+    /// <para>⚠ A component maps to a SET of ordinals — measured: <c>SimTransform</c> is covered by both
+    /// <c>BdcWorldPosTranslator</c> and <c>GeoSpatialEgressTranslator</c>.</para>
     /// </summary>
-    private readonly Dictionary<Type, long> _ordinalByType;
+    private readonly Services.DescriptorOwnershipMap _descriptorMap;
 
     /// <summary>
     /// Ordinals that have been touched during this compilation session.
@@ -59,13 +70,16 @@ public sealed class EcsPatchContext : IEntityPatchContext
         new Dictionary<ulong, RoutingEntry>(0);
 
     /// <summary>
-    /// Creates a bare <see cref="EcsPatchContext"/> bound to the specified entity,
-    /// with no ordinal mappings.  Suitable for binary-interpreter paths where
-    /// ordinal tracking and egress flushing are handled by the interpreter's own
-    /// flushers (<see cref="BinaryInterpreter.Apply"/> calls
-    /// <see cref="FlushDirtyMarks"/> via the <c>IEntityPatchContext</c> contract,
-    /// but the ordinal map is empty so the call is a no-op for dirty-descriptor
-    /// propagation — the installers drive <c>SmartEgress</c> themselves).
+    /// ⭐ Creates a bare <see cref="EcsPatchContext"/> for the binary-interpreter path.
+    ///
+    /// <para>⭐⭐⭐ <b><c>Q59-E</c> — this is no longer the crippled factory it was.</b> Its doc used to say
+    /// *"the ordinal map is empty so the call is a no-op for dirty-descriptor propagation — the installers
+    /// drive SmartEgress themselves"*. 🔴 That described the <c>AX-015</c> DEFECT as if it were the design:
+    /// nothing reached SmartEgress and a binary rename was never republished.</para>
+    ///
+    /// <para>⭐ Both factories now resolve the SAME per-world map, so the binary and JSON paths are identical
+    /// in this respect — there is no longer a "with routing table" and a "without" variant as far as egress
+    /// is concerned.</para>
     /// </summary>
     /// <param name="repo">Live ECS world.</param>
     /// <param name="entity">Entity being patched.</param>
@@ -92,13 +106,10 @@ public sealed class EcsPatchContext : IEntityPatchContext
         _repo = repo;
         _entity = entity;
 
-        // Pre-compute a type→ordinal lookup from the routing table.
-        _ordinalByType = new Dictionary<Type, long>();
-        foreach (var (_, entry) in routes)
-        {
-            if (entry.DescriptorOrdinal != 0)
-                _ordinalByType[entry.ComponentType] = entry.DescriptorOrdinal;
-        }
+        // ⭐⭐⭐ Q59-E — the ordinals come from the WORLD (contributed by the network layer), not from the
+        //    routing table. ⛔ The `routes` argument no longer carries any descriptor information; it is
+        //    retained only because the JSON compiler hands its table in for future use.
+        _descriptorMap = Attributes.AttributeInterpreterProvider.GetDescriptorMap(repo);
     }
 
     // ── IEntityPatchContext ──────────────────────────────────
@@ -142,6 +153,7 @@ public sealed class EcsPatchContext : IEntityPatchContext
             SmartEgressUtil.MarkDirty(_repo, _entity, ordinal);
     }
 
+
     /// <inheritdoc/>
     /// <remarks>
     /// Looks up the ECS component type ID via the registry (O(1) cached fast-path) and
@@ -178,9 +190,15 @@ public sealed class EcsPatchContext : IEntityPatchContext
 
     // ── Helpers ──────────────────────────────────────────────
 
+    /// <summary>
+    /// ⭐⭐ Records every descriptor that covers <paramref name="componentType"/>.
+    /// ⚠ Zero matches is normal — a networkless host has no translators, so nothing is republishable.
+    /// </summary>
     private void RecordOrdinal(Type componentType)
     {
-        if (_ordinalByType.TryGetValue(componentType, out long ordinal))
+        int componentId = ComponentTypeRegistry.GetOrRegisterManaged(componentType);
+
+        foreach (long ordinal in _descriptorMap.GetDescriptorsForComponentId(componentId))
             _touchedOrdinals.Add(ordinal);
     }
 }

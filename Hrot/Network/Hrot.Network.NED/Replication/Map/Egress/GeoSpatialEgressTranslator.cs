@@ -96,12 +96,30 @@ namespace Hrot.Map.Common.Replication.Egress
             // supplies the live world; bail out safely if this ever changes.
             if (view is not EntityRepository repo) return;
 
-            // Only entities that have a NetworkTransform shadow can participate in
-            // change-detection egress.  Entities spawned through NedTkbBuilder always
-            // receive this component; older/test entities without it are skipped.
+            // Sampled ONCE per scan, so every entity published in this frame carries the same stamp —
+            // which is what makes a receiver's `simNow - stamp` age comparable across entities.
+            double simNowSeconds = Fdp.Toolkit.Time.SimClock.Of(view).TotalTime;
+
+            // ⭐⭐⭐ CE-147 — THE SHADOW IS ATTACHED HERE, BY ITS OWN CONSUMER.
+            //
+            // ⚠ This comment used to claim "entities spawned through NedTkbBuilder always receive this
+            //   component". 🔴 That was FALSE: the production TKB catalog never declared it, so this query
+            //   matched ZERO entities and SimHost published no WorldPos at all (AX-011). The shadow was
+            //   then attached by SimHostNodeBootstrapper's per-host onEntitySpawned hook — which fixed the
+            //   symptom on ONE host and left every future owning host to remember the same wiring.
+            //
+            // ⭐⭐ So NetworkTransform is no longer a REQUIREMENT of this query; it is an OUTPUT of this
+            //   loop. Below the authority check we upsert it when absent, which makes the invariant
+            //   "whenever this node egresses an entity, the shadow exists" true BY CONSTRUCTION rather
+            //   than by every spawn path remembering to provide it.
+            //
+            // ⭐ This is not a new pattern — it COMPLETES an existing one. GeoSpatialIngressTranslator
+            //   already upserts the same component via SetComponent on first receipt (:75, :116), so the
+            //   replica side has always been self-healing. Egress was the asymmetric half.
+            //
+            // 📄 docs/DESIGN_Cgf_AxisB_Rotation_Slice.md §13.7 (supersedes §13.3's placement ruling).
             var query = view.Query()
                 .With<SimTransform>()
-                .With<NetworkTransform>()
                 .With<NetworkIdentity>()
                 .WithLifecycle(EntityLifecycle.All)
                 .Build();
@@ -117,6 +135,37 @@ namespace Hrot.Map.Common.Replication.Egress
                 // Authority check: only publish if this node owns geospatial data for this entity.
                 if (!view.HasAuthority(entity, packedKey))
                     continue;
+
+                // ⭐⭐⭐ CE-147 — attach the shadow on first sight, AFTER the authority gate.
+                //
+                // ⚠ Deliberately below the gate: a REPLICA must not get one from here. Its shadow is
+                //   written by GeoSpatialIngressTranslator on first receipt, and attaching one to every
+                //   ghost would spend 28 bytes duplicating what the ingress path already provisions.
+                //
+                // ⚠⚠ SEEDED TO `default` — ZEROS — and that is a BEHAVIOURAL REQUIREMENT, not a detail.
+                //   The change detection below publishes only when the live pose differs from this
+                //   shadow, or when the salted heartbeat fires at % 600 ticks. ⛔ Seeding from the
+                //   entity's CURRENT SimTransform would make the very first comparison say "has not
+                //   moved", leaving a stationary spawned entity invisible to every other node for up to
+                //   600 ticks — 10 s at 60 Hz. Zeros force a first publish.
+                //   📄 §13.4 — this requirement is now satisfied by construction, not by a convention
+                //   the attaching host had to know about.
+                //
+                // ⚠ The registration guard mirrors SpatialCoreTkbTranslator: a bare AddComponent throws
+                //   "Component NetworkTransform is not registered" on a world that never registered it.
+                //   A world that cannot hold the component cannot egress either, so skipping is correct.
+                if (!repo.HasComponent<NetworkTransform>(entity))
+                {
+                    if (!repo.IsComponentTypeRegistered<NetworkTransform>())
+                        continue;
+
+                    repo.AddComponent(entity, default(NetworkTransform));
+
+                    // ⭐ AddComponent does not touch the AuthorityMask (EntityRepository.cs:762), and the
+                    //   spawn path snapshots that mask at one instant which has already passed. Grant it
+                    //   explicitly so the owner owns the shadow it writes every tick.
+                    repo.SetAuthority<NetworkTransform>(entity, true);
+                }
 
                 ref readonly var simTf = ref view.GetComponentRO<SimTransform>(entity);
                 ref var          netTf = ref repo.GetComponentRW<NetworkTransform>(entity);
@@ -166,7 +215,14 @@ namespace Hrot.Map.Common.Replication.Egress
                 Publish(new WorldPos
                 {
                     EntityId = (int)netId.Value,
-                    Time     = DateTime.UtcNow,
+                    // Cluster-synced SIMULATION time, not wall time (CE-211). The receiver ages this
+                    // sample as `simNow - stamp` to extrapolate; that subtraction only means anything
+                    // if both terms come from the same synced clock. A UtcNow stamp re-introduced the
+                    // node-to-node skew the time sync exists to remove, and kept advancing while the
+                    // cluster was paused. This also restores the field's own documented intent —
+                    // "Sync timestamp (exercise FILETIME)" is exercise time.
+                    // 📄 docs/DESIGN_Dead_Reckoning.md rule R4 + §"Encoding".
+                    Time     = SimStampCodec.Encode(simNowSeconds),
                     Pos = new GeoPoint
                     {
                         Latitude  = lat,

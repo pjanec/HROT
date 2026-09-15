@@ -21,6 +21,31 @@ namespace Fdp.Toolkit.Behavior.Translators
             yield return typeof(BehaviorProfileDto);
         }
 
+        /// <summary>
+        /// ⚠ Declared UNCONDITIONALLY, including the branch-selected pair
+        /// (<see cref="BrainBTreeState"/> / <see cref="BrainHsm128"/>, chosen by
+        /// <c>BrainTier</c>) — see the interface's contract for why over-declaring here is free and
+        /// omitting is not. ⭐ <see cref="EntityInfo"/> is the one entry carrying
+        /// <c>[PerInstanceValue]</c>: its <c>ForceId</c> is a TEMPLATE default that a per-spawn faction
+        /// must beat, which is exactly what the promotion gate protects.
+        /// </summary>
+        public IEnumerable<Type> GetProducedComponents()
+        {
+            yield return typeof(SimTier);
+            yield return typeof(EntityInfo);
+            yield return typeof(ActorCapabilityState);
+            yield return typeof(PreviousCapabilities);
+            yield return typeof(BehaviorState);
+            yield return typeof(LocomotionChannel);
+            yield return typeof(WeaponChannel);
+            yield return typeof(InteractionChannel);
+            yield return typeof(MissionPlanQueue);
+            yield return typeof(PassengerBuffer);
+            yield return typeof(BrainBTreeState);
+            yield return typeof(BrainHsm128);
+            yield return typeof(BrainBlackboard);
+        }
+
         public void Inject(EntityRepository repo, Entity entity, TkbTemplate template)
         {
             var dto = template.GetDescriptor<BehaviorProfileDto>();

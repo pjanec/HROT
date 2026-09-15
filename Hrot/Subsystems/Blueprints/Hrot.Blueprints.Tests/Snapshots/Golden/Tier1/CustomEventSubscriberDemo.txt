@@ -1,0 +1,12 @@
+StructureHash: 0x6E674DA994A18398
+Parameters:
+  (empty)
+WorkingState:
+  (empty)
+Variables:
+  LastValue : System.Int32 @16 size=4
+  LastStrength : System.Single @20 size=4
+GraphLocalSlots:
+  (empty)
+Diagnostics:
+  (none)

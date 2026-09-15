@@ -6,7 +6,7 @@
     {
       "Time": 2.0,
       "Action": "assert_slave_transition",
-      "Args": { "TargetState": "OperatingLive", "ExerciseId": "e2e-cycle-01", "TimeoutSeconds": 15.0 }
+      "Args": { "TargetState": "OperatingLive", "ExerciseId": "c1c1c1c1-0000-4000-8000-000000000001", "TimeoutSeconds": 15.0 }
     },
     {
       "Time": 12.0,
@@ -16,7 +16,7 @@
     {
       "Time": 22.0,
       "Action": "assert_slave_transition",
-      "Args": { "TargetState": "OperatingLive", "ExerciseId": "e2e-cycle-02", "TimeoutSeconds": 15.0 }
+      "Args": { "TargetState": "OperatingLive", "ExerciseId": "c1c1c1c1-0000-4000-8000-000000000002", "TimeoutSeconds": 15.0 }
     },
     {
       "Time": 32.0,

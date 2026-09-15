@@ -49,6 +49,21 @@ public sealed class ScenarioSaveLoadTests : IDisposable
 
     public void Dispose() => _participant.Dispose();
 
+    /// <summary>
+    /// CE-278: writes the scenario global-context file at the exact path
+    /// <see cref="GlobalContextClusterOpHandler"/>'s load transition reads
+    /// (<c>&lt;tempRoot&gt;/scenarios/&lt;scenarioId&gt;/Orchestrator.json</c>). Replaces the retired
+    /// SaveScenario=2 save handler as the arrange step for the load-side rails below.
+    /// </summary>
+    private static void WriteScenarioContext(string tempRoot, string scenarioId, GlobalContextDto dto)
+    {
+        var dir = Path.Combine(tempRoot, OrchestrationConstants.ScenariosDirectoryName, scenarioId);
+        Directory.CreateDirectory(dir);
+        File.WriteAllText(
+            Path.Combine(dir, "Orchestrator.json"),
+            JsonSerializer.Serialize(dto, new JsonSerializerOptions { WriteIndented = true }));
+    }
+
     // ── Test 1 ────────────────────────────────────────────────────────────────
 
     /// <summary>
@@ -135,30 +150,17 @@ public sealed class ScenarioSaveLoadTests : IDisposable
 
         try
         {
-            // ── Save ─────────────────────────────────────────────────────────────
-            var saveHandler = new GlobalContextClusterOpHandler(_participant, expectedSceneId);
-            saveHandler.LocalTempRoot = tempRoot;
-
-            var exerciseId = Guid.NewGuid();
-            var saveCmd = new NodeOpCommand
+            // ── Arrange: write the scenario context CommitLoad reads (scenarios/<id>/Orchestrator.json) ──
+            // CE-278: the SaveScenario=2 save handler is retired; the load path is exercised directly.
+            var scenarioId = Guid.NewGuid().ToString("N");
+            WriteScenarioContext(tempRoot, scenarioId, new GlobalContextDto
             {
-                TransactionId = exerciseId,
-                Operation     = NodeOpType.SerializeLocal,
-                PayloadJson   = JsonSerializer.Serialize(
-                    new ArchivePayloadDto(ExerciseId: exerciseId),
-                    OrchestrationJsonOptions.Default),
-            };
-
-            saveHandler.PrepareAsync(saveCmd, CancellationToken.None).Wait();
-            saveHandler.Commit(saveCmd, null);
-
-            Assert.NotNull(saveHandler.CommitManifestEntry);
-            Assert.True(File.Exists(saveHandler.CommitManifestEntry!.SourceUnc),
-                "Orchestrator.json was not written to disk.");
+                SceneId        = expectedSceneId,
+                ScenarioId     = scenarioId,
+                StartWallTicks = DateTime.UtcNow.Ticks,
+            });
 
             // ── Load ─────────────────────────────────────────────────────────────
-            // CommitLoad reads {LocalTempRoot}/{ScenarioId}/Orchestrator.json.
-            // We saved to {tempRoot}/{exerciseId:N}/Orchestrator.json, so ScenarioId == exerciseId:N.
             var loadHandler = new GlobalContextClusterOpHandler(_participant, string.Empty);
             loadHandler.LocalTempRoot = tempRoot;
 
@@ -169,7 +171,7 @@ public sealed class ScenarioSaveLoadTests : IDisposable
                 PayloadJson   = JsonSerializer.Serialize(
                     new NodeTransitionPayloadDto(
                         TargetState: ClusterState.LoadingLive,
-                        ScenarioId:  exerciseId.ToString("N"),
+                        ScenarioId:  scenarioId,
                         ExerciseId:  Guid.Empty),
                     OrchestrationJsonOptions.Default),
             };
@@ -204,24 +206,16 @@ public sealed class ScenarioSaveLoadTests : IDisposable
 
         try
         {
-            // ── Save ─────────────────────────────────────────────────────────────
-            var saveHandler = new GlobalContextClusterOpHandler(_participant, expectedSceneId);
-            saveHandler.LocalTempRoot       = tempRoot;
-            saveHandler.ScenarioTimeSeconds = expectedSimTime;
-
-            var exerciseId = Guid.NewGuid();
-            var saveCmd = new NodeOpCommand
+            // ── Arrange: write the scenario context CommitLoad reads (scenarios/<id>/Orchestrator.json) ──
+            // CE-278: the SaveScenario=2 save handler is retired; the load path is exercised directly.
+            var scenarioId = Guid.NewGuid().ToString("N");
+            WriteScenarioContext(tempRoot, scenarioId, new GlobalContextDto
             {
-                TransactionId = exerciseId,
-                Operation     = NodeOpType.SerializeLocal,
-                PayloadJson   = JsonSerializer.Serialize(
-                    new ArchivePayloadDto(ExerciseId: exerciseId),
-                    OrchestrationJsonOptions.Default),
-            };
-            saveHandler.PrepareAsync(saveCmd, CancellationToken.None).Wait();
-            saveHandler.Commit(saveCmd, null);
-
-            Assert.NotNull(saveHandler.CommitManifestEntry);
+                SceneId             = expectedSceneId,
+                ScenarioId          = scenarioId,
+                StartWallTicks      = DateTime.UtcNow.Ticks,
+                ScenarioTimeSeconds = expectedSimTime,
+            });
 
             // ── Load — subscribe BEFORE Commit ────────────────────────────────────
             var loadHandler = new GlobalContextClusterOpHandler(_participant, string.Empty);
@@ -244,7 +238,7 @@ public sealed class ScenarioSaveLoadTests : IDisposable
                 PayloadJson   = JsonSerializer.Serialize(
                     new NodeTransitionPayloadDto(
                         TargetState: ClusterState.LoadingLive,
-                        ScenarioId:  exerciseId.ToString("N"),
+                        ScenarioId:  scenarioId,
                         ExerciseId:  Guid.Empty),
                     OrchestrationJsonOptions.Default),
             };

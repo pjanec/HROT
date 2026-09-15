@@ -156,7 +156,7 @@ namespace Fdp.Diagnostics.Contracts.Tests
             Assert.Equal(4, (int)DebugPrimitiveShape.Text);
             Assert.Equal(5, (int)DebugPrimitiveShape.EntityBadge);
             Assert.Equal(6, (int)DebugPrimitiveShape.Icon);
-            Assert.Equal(7, (int)DebugPrimitiveShape.ComponentInspector);
+            Assert.Equal(7, (int)DebugPrimitiveShape.StructInspector);
             Assert.Equal(64, Marshal.SizeOf<DebugPrimitive>());
         }
 
@@ -167,7 +167,7 @@ namespace Fdp.Diagnostics.Contracts.Tests
         public void SC_GZ051_1_InspNetworkId_FieldRoundTrips()
         {
             var prim = new DebugPrimitive();
-            prim.Shape         = DebugPrimitiveShape.ComponentInspector;
+            prim.Shape         = DebugPrimitiveShape.StructInspector;
             prim.InspNetworkId = 12345L;
 
             Assert.Equal(12345L, prim.InspNetworkId);
@@ -176,14 +176,14 @@ namespace Fdp.Diagnostics.Contracts.Tests
         // SC-GZ051-2: Verified by the build succeeding (InspTargetIndex and InspComponentTypeId
         // no longer exist on DebugPrimitive -- any reference would be a compile error).
 
-        // SC-GZ051-3: InspSchemaHash matches GizmoSettingsRegistry.ComputeHash for a sample type name.
+        // SC-GZ051-3: StructSchemaHash matches GizmoSettingsRegistry.ComputeHash for a sample type name.
         [Fact]
-        public void SC_GZ051_3_InspSchemaHash_MatchesComputeHash()
+        public void SC_GZ051_3_StructSchemaHash_MatchesComputeHash()
         {
             uint expected = ComputeHash("MyNamespace.MyType");
             var prim = new DebugPrimitive();
-            prim.InspSchemaHash = expected;
-            Assert.Equal(expected, prim.InspSchemaHash);
+            prim.StructSchemaHash = expected;
+            Assert.Equal(expected, prim.StructSchemaHash);
         }
 
         // SC-GZ051-4: Marshal.SizeOf<DebugPrimitive>() == 64 after field relayout.
@@ -193,26 +193,26 @@ namespace Fdp.Diagnostics.Contracts.Tests
             Assert.Equal(64, Marshal.SizeOf<DebugPrimitive>());
         }
 
-        // SC-GZ051-5: Remote viewer can reconstruct display label from InspNetworkId and InspSchemaHash
+        // SC-GZ051-5: Remote viewer can reconstruct display label from InspNetworkId and StructSchemaHash
         // without any ECS dependency.
         [Fact]
         public void SC_GZ051_5_DisplayLabel_ConstructableFromStructFields()
         {
             var prim = new DebugPrimitive();
             prim.InspNetworkId  = 99L;
-            prim.InspSchemaHash = 0xABCD1234u;
+            prim.StructSchemaHash = 0xABCD1234u;
 
-            string label = $"Entity:{prim.InspNetworkId} Schema:{prim.InspSchemaHash:X8}";
+            string label = $"Entity:{prim.InspNetworkId} Schema:{prim.StructSchemaHash:X8}";
 
             Assert.Equal("Entity:99 Schema:ABCD1234", label);
         }
 
-        // SC-GZ051-6: InspNetworkId is at FieldOffset(24) and InspSchemaHash is at FieldOffset(32).
+        // SC-GZ051-6: InspNetworkId is at FieldOffset(24) and StructSchemaHash is at FieldOffset(32).
         [Fact]
         public void SC_GZ051_6_FieldOffsets_AreCorrect()
         {
             int networkIdOffset   = (int)Marshal.OffsetOf<DebugPrimitive>(nameof(DebugPrimitive.InspNetworkId));
-            int schemaHashOffset  = (int)Marshal.OffsetOf<DebugPrimitive>(nameof(DebugPrimitive.InspSchemaHash));
+            int schemaHashOffset  = (int)Marshal.OffsetOf<DebugPrimitive>(nameof(DebugPrimitive.StructSchemaHash));
 
             Assert.Equal(24, networkIdOffset);
             Assert.Equal(32, schemaHashOffset);
@@ -344,6 +344,99 @@ namespace Fdp.Diagnostics.Contracts.Tests
 
             Assert.Equal(DebugPrimitiveShape.Text, prim.Shape);
             Assert.Equal((ushort)9, prim.ThicknessU16);
+        }
+
+        // ---- S6: LineOffsetPx, the signed alias at offset 12 --------------------
+        // 📄 docs/DESIGN_Gizmo_Anchor_Identity.md §6 (S6). Added into this suite rather than a new
+        //    class -- SC-FONT-TEXT-* already owns the text primitive (R-142 ④).
+
+        // SC-FONT-TEXT-6: the editor's 3-line entity label stacking survives S6. The four live
+        // offsets are EntityEditorLabelGizmo.cs:57/:77/:82/:96 => -16, -30, -30, -44 px.
+        // ⛔ RED-PROOF SHAPE: reintroduce `unchecked((ushort)(short)lineOffsetPx)` on write while the
+        //    reader uses the signed alias and these come back as 65520 / 65506 / 65492.
+        [Theory]
+        [InlineData(-16f)]
+        [InlineData(-30f)]
+        [InlineData(-44f)]
+        [InlineData(0f)]
+        [InlineData(12f)]
+        public void SC_FONT_TEXT_6_MakeText_LineOffsetPx_RoundTripsSigned(float offsetPx)
+        {
+            var prim = DebugPrimitive.MakeText(0f, 0f,
+                new Fdp.Toolkit.Diagnostics.Gizmos.FixedString32("L"),
+                new Rgba32(255, 255, 255, 255),
+                lineOffsetPx: offsetPx);
+
+            Assert.Equal((short)offsetPx, prim.LineOffsetPx);
+        }
+
+        // SC-FONT-TEXT-6b: DrawText goes through the same slot, so a buffered line stacks identically.
+        [Fact]
+        public void SC_FONT_TEXT_6b_DrawText_LineOffsetPx_RoundTripsSigned()
+        {
+            var buffer = new DebugPrimitiveBuffer(capacity: 4);
+            buffer.DrawText(0f, 0f, "line2", new Rgba32(255, 255, 255, 255), lineOffsetPx: -30f);
+            buffer.DrawTextLong(0f, 0f, "a longer interned line", new Rgba32(255, 255, 255, 255),
+                lineOffsetPx: -44f);
+
+            var frame = buffer.GetFrame();
+            Assert.Equal(2, frame.Length);
+            Assert.Equal((short)-30, frame[0].LineOffsetPx);
+            Assert.Equal((short)-44, frame[1].LineOffsetPx);
+        }
+
+        // SC-FONT-TEXT-6c: the alias IS AnchorGeneration -- the same two bytes at offset 12, read
+        // signed vs unsigned. ⛔ If these ever stop aliasing, every Text primitive silently loses its
+        // stacking and every ECS-anchored primitive silently loses its generation.
+        [Fact]
+        public void SC_FONT_TEXT_6c_LineOffsetPx_AliasesAnchorGeneration_AtOffset12()
+        {
+            var p = default(DebugPrimitive);
+            p.LineOffsetPx = -16;
+            Assert.Equal(unchecked((ushort)(short)-16), p.AnchorGeneration);
+
+            p.AnchorGeneration = 7;              // an ECS generation
+            Assert.Equal((short)7, p.LineOffsetPx);
+
+            // ...and neither may grow the struct: 64 bytes is a DDS-marshalled invariant (C1).
+            Assert.Equal(64, Marshal.SizeOf<DebugPrimitive>());
+        }
+
+        // ---- S7: the EntityLocal anchor key is 32 bits wide ---------------------
+        // 📄 docs/DESIGN_Gizmo_Anchor_Identity.md §6 (S7); CE-259z.
+
+        // SC-GZ-ANCHOR32-1: DrawSemanticShape puts the NETWORK id in the anchor-key slot, which is
+        // what DebugPrimitiveRenderer2D:105 probes the SpatialAnchor cache with.
+        [Fact]
+        public void SC_GZ_ANCHOR32_1_DrawSemanticShape_AnchorKeyIsTheNetworkId()
+        {
+            var buffer = new DebugPrimitiveBuffer(capacity: 4);
+            buffer.DrawSemanticShape(networkId: 90210L, profileId: 7UL);
+
+            var frame = buffer.GetFrame();
+            Assert.Equal(1, frame.Length);
+            Assert.Equal(DebugPrimitiveShape.SemanticShape, frame[0].Shape);
+            Assert.Equal(CoordinateSpace.EntityLocal, frame[0].Space);
+            Assert.Equal(90210, frame[0].AnchorIndex);
+        }
+
+        // SC-GZ-ANCHOR32-2: THE HARD LIMIT, pinned. The key slot is `int`, so int.MaxValue is the
+        // largest id that survives; the disjoint TOOL range sits ABOVE it, which is why no tool may
+        // emit an EntityLocal primitive. ⛔ This is a CONSTRAINT rail, not a bug rail: the struct is
+        // 64 DDS-marshalled bytes and SemanticShape's payload union is full, so there is no wider slot
+        // to move to. If someone ever finds one, this rail is the thing that should change.
+        [Fact]
+        public void SC_GZ_ANCHOR32_2_EntityLocalAnchorKey_IsThirtyTwoBits()
+        {
+            var buffer = new DebugPrimitiveBuffer(capacity: 4);
+            buffer.DrawSemanticShape(networkId: int.MaxValue, profileId: 1UL);
+            Assert.Equal(int.MaxValue, buffer.GetFrame()[0].AnchorIndex);
+
+            // GlobalGizmoManager.ToolAnchorIdBase, restated here because Fdp.Toolkits is deliberately
+            // not referenced by this project (see the csproj).
+            const long toolAnchorIdBase = 1L << 40;
+            Assert.True(toolAnchorIdBase > int.MaxValue,
+                "the tool range must stay OUTSIDE the 32-bit EntityLocal anchor key");
         }
 
         // ---- Helpers -----------------------------------------------------------

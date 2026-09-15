@@ -21,7 +21,19 @@ namespace Hrot.Network.NED.SimHost
     /// <see cref="AreaQueryRequestBatch"/> to the Muscle node via DDS.
     /// Reads from the previous frame's event buffer (1-frame latency is negligible
     /// given the 100 ms solver cycle on the Muscle).
-    /// Only forwards requests whose <c>SourceNodeId</c> matches <c>_localNodeId</c>.
+    /// <para>
+    /// <b>Routing (CE-172).</b> Forwards requests whose <c>SourceNodeId</c> matches
+    /// <c>_localNodeId</c> <i>or is 0</i>. Zero means "published locally, unstamped": a Brain
+    /// BTree node calls <c>AreaQueryBatchHelper.RequestAreaQuery</c> without a
+    /// <c>sourceNodeId</c> because no world singleton carries the local node id, so the helper's
+    /// <c>sourceNodeId = 0</c> default is what production actually publishes. Treating 0 as a
+    /// mismatch dropped every real request before it ever reached DDS. The outgoing
+    /// <see cref="DdsAreaQueryRequest.SourceNodeId"/> is <b>stamped</b> with
+    /// <c>_localNodeId</c> here — this translator is the only component in the chain that knows
+    /// it — so the Muscle egress groups the response by a real node id and it routes home.
+    /// The sibling <see cref="AreaQueryBrainIngressTranslator"/> already applies the same
+    /// "0 means unspecified" tolerance to <c>TargetNodeId</c>.
+    /// </para>
     /// </summary>
     public sealed class AreaQueryBrainEgressTranslator : IDescriptorTranslator
     {
@@ -66,8 +78,10 @@ namespace Hrot.Network.NED.SimHost
             {
                 ref readonly var req = ref requests[i];
 
-                // Authority filter: only forward requests originating from this node.
-                if (req.SourceNodeId != _localNodeId) continue;
+                // Authority filter: forward requests originating from this node. 0 means
+                // "published locally, unstamped" — the shape every production BTree caller
+                // actually produces (CE-172); see the class remarks.
+                if (req.SourceNodeId != _localNodeId && req.SourceNodeId != 0) continue;
 
                 if (!_entityMap.TryGetNetworkId(req.TargetAreaEntity, out long areaNetworkId)) continue;
 
@@ -75,7 +89,9 @@ namespace Hrot.Network.NED.SimHost
                 {
                     RequestId           = req.RequestId,
                     TargetAreaNetworkId = areaNetworkId,
-                    SourceNodeId        = req.SourceNodeId,
+                    // Stamp, never echo: the Muscle egress groups responses by this id, so an
+                    // unstamped 0 would address the reply to a node that does not exist.
+                    SourceNodeId        = _localNodeId,
                     ForceId             = (int)req.TargetForce,
                 });
             }

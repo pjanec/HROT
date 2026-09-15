@@ -110,6 +110,45 @@ public sealed class BufferViewRequest
         return new BufferViewResult { ViewName = viewName, ViewType = viewType, Node = node };
     }
 
+    /// <summary>
+    /// Projects the buffer as a bounded ELEMENT WINDOW: a <see cref="EditNodeKind.BufferView"/>
+    /// node with one child per element index <c>[0, count)</c>, each bound natively at
+    /// <c>elementSize</c> strides. Designed for <see cref="EditNodeKind.InlineArray"/> buffers
+    /// whose logical length is smaller than their fixed capacity (e.g. a count-prefixed fixed
+    /// list) — the caller supplies the window size, typically read from a sibling count field
+    /// via <see cref="ReadSibling{T}"/>. <paramref name="count"/> is clamped to
+    /// <c>[0, capacity]</c> when <paramref name="capacity"/> is positive. Only works when the
+    /// buffer is native (unmanaged blittable struct); otherwise returns a childless view node.
+    /// </summary>
+    public BufferViewResult ProjectBufferAsElements(
+        Type elementType, int count, string viewName, int capacity = 0)
+    {
+        var nodeId = new EditNodeId(IdAlloc.Next());
+        var children = new List<EditNode>();
+        IValueBinding? viewBinding = null;
+
+        if (Buffer.IsNative && Buffer is NativeStructEditBuffer native
+            && TryGetSizeOf(elementType, out int elemSize))
+        {
+            viewBinding = BufferBinding;
+
+            int window = capacity > 0 ? Math.Min(Math.Max(count, 0), capacity) : Math.Max(count, 0);
+            var elemKind = SimpleKindOf(elementType);
+            for (int i = 0; i < window; i++)
+            {
+                var binding = new NativeFieldBinding(
+                    native, NativeOffset + i * elemSize, elemSize, elementType);
+                var childId = new EditNodeId(IdAlloc.Next());
+                children.Add(new EditNode(childId, $"[{i}]",
+                    $"{BufferPath.Value}[{i}]", elemKind, elementType, binding));
+            }
+        }
+
+        var node = new EditNode(nodeId, viewName, BufferPath.Value,
+            EditNodeKind.BufferView, elementType, viewBinding, children);
+        return new BufferViewResult { ViewName = viewName, ViewType = elementType, Node = node };
+    }
+
     // ── Private helpers ────────────────────────────────────────────────────
 
     private static bool TryGetSizeOf(Type t, out int size)

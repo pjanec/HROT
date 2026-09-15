@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using Hrot.Common;
+using Fdp.Core;
 
 namespace Hrot.Network.Routing
 {
@@ -33,6 +34,24 @@ namespace Hrot.Network.Routing
                         best = cap;
                 }
                 return best?.NodeId;
+            }
+        }
+
+        /// <inheritdoc/>
+        public IReadOnlyList<int> AllNodeIds()
+        {
+            lock (_lock)
+            {
+                return _nodes.Keys.ToList();
+            }
+        }
+
+        /// <inheritdoc/>
+        public IReadOnlyList<NodeCapability> AllNodes()
+        {
+            lock (_lock)
+            {
+                return _nodes.Values.ToList();
             }
         }
 

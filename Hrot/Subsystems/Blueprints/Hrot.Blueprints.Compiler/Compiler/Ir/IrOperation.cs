@@ -5,8 +5,48 @@ public abstract record IrOperation;
 // Constants and references
 public sealed record IrOp_Const(string CSharpLiteral, IrTypeRef Type) : IrOperation;
 public sealed record IrOp_ReadParam(int ParamIndex) : IrOperation;
-public sealed record IrOp_ReadVariable(int VariableIndex) : IrOperation;
-public sealed record IrOp_WriteVariable(int VariableIndex, IrValue Value) : IrOperation;
+// U-3 / BP-226: the target carries its KIND. ⛔ It used to be a bare `int` whose meaning Stage 5 and
+// Stage 7 disagreed about — see VariableRef for what that cost.
+public sealed record IrOp_ReadVariable(VariableRef Target) : IrOperation;
+public sealed record IrOp_WriteVariable(VariableRef Target, IrValue Value) : IrOperation;
+
+/// <summary>
+/// BP-57 / Q27-A1 — reads a <b>function-local</b> variable: a plain C# local, not a
+/// <c>State</c> field.
+///
+/// <para>
+/// ⭐ <b>Why this is not <see cref="IrOp_ReadVariable"/> with a flag.</b> That op emits
+/// <c>{stateVar}.{VarFieldName(index)}</c> — a field access on the state struct — and its index lives
+/// in an asset-level union of Variables/WorkingState/Parameters. A local is neither a field nor a
+/// member of that union, so representing one there would mean teaching every reader of that index
+/// space about a fourth list whose entries are not fields at all. Q27-D ruled for a separate op, and
+/// this is what forces it.
+/// </para>
+///
+/// <para>⚠ <see cref="LocalIndex"/> indexes <c>IrGraph.Locals</c> — <b>per graph</b>, never the asset union.</para>
+/// </summary>
+public sealed record IrOp_ReadLocal(int LocalIndex) : IrOperation;
+
+/// <summary>BP-57 — writes a function-local variable. See <see cref="IrOp_ReadLocal"/>.</summary>
+public sealed record IrOp_WriteLocal(int LocalIndex, IrValue Value) : IrOperation;
+
+/// <summary>
+/// BP-57 / ⭐⭐ <b>Q27-A3</b> — resets every local of the current graph to its declared default.
+///
+/// <para>
+/// ⭐ <b>Only ever appears in a suspending graph's ENTRY block</b>, injected by
+/// <c>LocalStorage.PromoteSuspendingGraphLocals</c>. There the locals are blackboard slots that
+/// outlive the method frame, so the "reset on entry" half of Q27-E has to be an explicit statement
+/// rather than a C# initialiser — and it has to sit in the one block reached only when
+/// <c>__phase == 0</c>, so it fires once per invocation and not once per frame.
+/// </para>
+///
+/// <para>
+/// ⚠ Carries no payload: the fields, their defaults and the slot prefix all come from
+/// <c>EmissionContext.CurrentGraph</c>, so a local added or renamed cannot leave a stale copy here.
+/// </para>
+/// </summary>
+public sealed record IrOp_ResetLocals : IrOperation;
 public sealed record IrOp_ReadInputArg(int ArgIndex) : IrOperation;
 public sealed record IrOp_Self : IrOperation;
 public sealed record IrOp_Time : IrOperation;
@@ -170,6 +210,83 @@ public sealed record IrOp_SetManagedComponent(
     IrValue? Value
 ) : IrOperation;
 
+/// <summary>
+/// FC-1 (Q#20) -- component-collection element write through a curated
+/// <c>[BlueprintCollectionWrite]</c> static accessor. Same guarded write-if-present shape as
+/// <see cref="IrOp_WriteComponentFields"/> (the <c>HasComponent&lt;T&gt;</c> bool drives BOTH the
+/// guard and this op's ResultValue), but the ResultValue is then REASSIGNED to the accessor's own
+/// bool inside the guard, so it carries "component present AND op applied" -- the emitting
+/// <see cref="Assets.CollectionWriteNode"/>'s "Ok" data-out (Stage5 ALWAYS allocates it):
+/// <code>
+/// var __tN = wv.HasComponent&lt;global::{ComponentTypeFqn}&gt;(self);
+/// if (__tN)
+/// {
+///     ref var __wcN = ref wv.GetComponentRW&lt;global::{ComponentTypeFqn}&gt;(self);
+///     __tN = global::{WriteAccessorFqn}(ref __wcN[, intArg][, value]);   // Clear: plain call, __tN stays true
+/// }
+/// </code>
+/// Raw buffer mutation NEVER appears in generated code (Q#5-C / Q#20 G1) -- the accessor owns the
+/// <c>Span&lt;T&gt;</c> pattern, Count maintenance, and the tail-always-default invariant. In
+/// non-Release mode with <c>self</c> in scope, a refused op / absent component additionally emits
+/// <c>DebugProbe.CollectionWriteFailed(self, nodeId, verb, reason)</c> (the never-silent
+/// false-on-overflow contract; reasons: "op-rejected" / "component-absent").
+/// </summary>
+/// <param name="ComponentTypeFqn">FQN of the component carrying the collection. Baked string -- no reflection.</param>
+/// <param name="Entity">ALWAYS the resolved <c>self</c> (an <see cref="IrOp_Self"/> value) -- the "Collection" wire is author-time binding only, never the write entity (Q#16/Q#20 self-only; Stage2 BP2069/BP2070 enforce).</param>
+/// <param name="WriteAccessorFqn">Baked FQN of the curated write-accessor static for <paramref name="Verb"/>.</param>
+/// <param name="Verb">The op name ("Add"/"SetAt"/"InsertAt"/"RemoveAt"/"Clear"/"Resize") -- probe argument only; arity is driven by <paramref name="IntArg"/>/<paramref name="Value"/>/<paramref name="ReturnsBool"/>.</param>
+/// <param name="NodeId">The authoring node's id -- probe argument (mirrors <c>IrOp_DebugProbe_NodeEnter</c>'s "D" format).</param>
+/// <param name="IntArg">The int operand (Index for SetAt/InsertAt/RemoveAt, Length for Resize), or null (Add/Clear). Passed AFTER the ref receiver, BEFORE <paramref name="Value"/>.</param>
+/// <param name="Value">The element operand (Add/SetAt/InsertAt), or null.</param>
+/// <param name="ReturnsBool">False only for Clear (a void accessor -- the ResultValue keeps the guard bool).</param>
+public sealed record IrOp_CollectionWrite(
+    string ComponentTypeFqn,
+    IrValue Entity,
+    string WriteAccessorFqn,
+    string Verb,
+    Guid NodeId,
+    IrValue? IntArg,
+    IrValue? Value,
+    bool ReturnsBool
+) : IrOperation;
+
+/// <summary>
+/// FC-2/LV-2 (Q#19-A/F1) -- binds a WRITABLE `ref` local to a State/WorkingState FIELD:
+/// <c>ref var __tN = ref {s|ws}.{FieldName};</c>. The list-variable analog of the component path's
+/// <c>IrOp_GetComponentRO</c> roster read: the collection consumers' RosterValue/Component argument
+/// references this local and <c>RenderCollectionAccessors</c>' BlackboardFixedList branch renders
+/// <c>__tN.Count</c>/<c>__tN.Items[i]</c> off it -- ref-bind (zero-copy, sees same-tick writes),
+/// per the decided read-binding contract. A writable ref (not `ref readonly`) so element reads use
+/// the inline array's direct element access, never the readonly defensive-copy path.
+/// </summary>
+public sealed record IrOp_StateFieldRef(string FieldName, IrTypeRef Type) : IrOperation;
+
+/// <summary>
+/// FC-2/LV-3 (Q#19-C/D) -- in-place fixed-list VARIABLE mutation, the blackboard sibling of
+/// <see cref="IrOp_CollectionWrite"/> (they share the verb vocabulary, NOT machinery -- review R1).
+/// Emits a scoped block that ref-binds the state field, applies the F2 clamp, mutates through the
+/// <c>Span&lt;T&gt;</c> cast (never the naive inline-array indexer -- the amended Q#19-D emit), keeps
+/// the G6 tail-always-default invariant (RemoveAt/Clear/Resize-shrink zero vacated slots; grow never
+/// fills), and drives the "Ok" ResultValue per the false-on-overflow contract (+ a Debug-mode
+/// <c>DebugProbe.CollectionWriteFailed</c> on refusal). Clear has no ResultValue semantics beyond
+/// completing (its node has no "Ok" pin).
+/// </summary>
+/// <param name="FieldName">The state field (variable name) -- rendered off the s/ws local.</param>
+/// <param name="ElementTypeFqn">Element type for the Span cast / default().</param>
+/// <param name="Capacity">Declared capacity N (bounds + clamp).</param>
+/// <param name="Verb">"Add"/"SetAt"/"InsertAt"/"RemoveAt"/"Clear"/"Resize" -- probe arg + emit dispatch.</param>
+/// <param name="NodeId">Authoring node id -- probe arg.</param>
+/// <param name="IntArg">Index (SetAt/InsertAt/RemoveAt) or Length (Resize); null for Add/Clear.</param>
+/// <param name="Value">Element operand (Add/SetAt/InsertAt); null otherwise.</param>
+public sealed record IrOp_ListWrite(
+    string FieldName,
+    string ElementTypeFqn,
+    int Capacity,
+    string Verb,
+    Guid NodeId,
+    IrValue? IntArg,
+    IrValue? Value) : IrOperation;
+
 // ECS write via ECB (impure)
 public sealed record IrOp_AddComponent(string ComponentTypeFqn, IrValue Entity, IrValue Value) : IrOperation;
 public sealed record IrOp_RemoveComponent(string ComponentTypeFqn, IrValue Entity) : IrOperation;
@@ -232,7 +349,8 @@ public sealed record IrOp_ForEach(
     IrValue? CountVar = null,
     IrValue? IndexVar = null,
     Hrot.Blueprints.Core.Assets.CollectionKind Kind = Hrot.Blueprints.Core.Assets.CollectionKind.CuratedStatic,
-    string ManagedFieldName = "") : IrOperation;
+    string ManagedFieldName = "",
+    int Capacity = 0) : IrOperation;
 
 /// <summary>
 /// P1b (GAP-1) -- structured, inline <c>if</c>/<c>else</c>. Emitted ONLY by Stage5 for a
@@ -358,7 +476,8 @@ public sealed record IrOp_FieldRead(IrValue Source, string FieldName, IrTypeRef 
 public sealed record IrOp_ComponentAccessorCall(
     string AccessorFqn, IrValue Component, IrValue? Index, IrTypeRef ResultType,
     Hrot.Blueprints.Core.Assets.CollectionKind Kind = Hrot.Blueprints.Core.Assets.CollectionKind.CuratedStatic,
-    string ManagedFieldName = "", string ElementTypeFqn = "") : IrOperation;
+    string ManagedFieldName = "", string ElementTypeFqn = "",
+    int Capacity = 0) : IrOperation;
 
 /// <summary>
 /// CA-07d-1 -- bounded linear search over a component collection, sharing the SAME curated
@@ -387,7 +506,8 @@ public sealed record IrOp_ComponentCollectionSearch(
     IrValue? FindIndex = null,
     IrValue? FindFound = null,
     Hrot.Blueprints.Core.Assets.CollectionKind Kind = Hrot.Blueprints.Core.Assets.CollectionKind.CuratedStatic,
-    string ManagedFieldName = "") : IrOperation;
+    string ManagedFieldName = "",
+    int Capacity = 0) : IrOperation;
 
 /// <summary>
 /// GAP-12 -- native <c>CompareNode</c> lowering. Emits a single infix C# comparison expression:
@@ -439,6 +559,33 @@ public sealed record IrOp_BooleanOp(
 /// Stage5_Schedule's NotNode case).
 /// </summary>
 public sealed record IrOp_Not(IrValue Operand) : IrOperation;
+
+/// <summary>
+/// BP-108 — <c>Print String</c>. <paramref name="Format"/> is the ALREADY-REWRITTEN body of a C#
+/// interpolated string (placeholders replaced with <c>{__tN}</c> temp references by Stage 5), so emit is
+/// a pure string paste with no runtime formatting machinery.
+///
+/// <para>
+/// ⭐ Emitted <b>inside a level probe</b>: <c>if (BlueprintLog.IsInfoEnabled) BlueprintLog.Info($"…")</c>.
+/// The interpolation — and therefore every allocation — is skipped entirely when the level is off.
+/// </para>
+/// </summary>
+public sealed record IrOp_PrintString(string InterpolatedBody, string Level) : IrOperation;
+
+/// <summary>
+/// BP-108 — <c>Format String</c>. Same rewritten interpolated body as <see cref="IrOp_PrintString"/>,
+/// but the result is written into a <c>stackalloc</c> buffer and converted to a <c>FixedString</c>.
+///
+/// <para>
+/// ⚖️ <b>Zero-allocation by user ruling</b> (<i>"favor zero alloc path, it is always better"</i>). Unlike
+/// Print String this node is <b>pure</b>, so it has no level probe to hide behind — a naive
+/// <c>string.Format</c> here would allocate every tick for every entity. Emitting
+/// <c>MemoryExtensions.TryWrite</c> into a stack buffer and then the <c>ReadOnlySpan&lt;char&gt;</c>
+/// FixedString constructor keeps it allocation-free.
+/// </para>
+/// </summary>
+public sealed record IrOp_FormatString(
+    string InterpolatedBody, string ResultTypeFqn, int BufferChars) : IrOperation;
 
 // Debug probes (Debug/Trace modes)
 public sealed record IrOp_DebugProbe_NodeEnter(Guid NodeId, string NodeKind) : IrOperation;
@@ -702,3 +849,32 @@ public sealed record IrOp_SetMembers(
     IrValue Input,
     IReadOnlyList<(string FieldName, IrValue Value)> Fields
 ) : IrOperation;
+
+/// <summary>
+/// BP-73: packs N function-graph outputs into the <b>carrier</b> a multi-output
+/// <c>Func_X</c> returns — <c>var __t{result} = (__t{a}, __t{b});</c>.
+/// <para>
+/// The carrier is a <b>ValueTuple</b>, not a synthesized struct. Deciding constraint:
+/// <c>CSharpEmitter.IsReferencableStateFieldType</c> treats a <c>'_'</c>-prefixed synthesized type as
+/// NOT referencable outside the generated class and excludes it from <c>StateFields</c>, so a
+/// <c>_FuncOut_X</c> return would be invisible to the debugger/watch; a ValueTuple is a BCL type.
+/// </para>
+/// <para>
+/// ⚠ The carrier deliberately has <b>no <see cref="IrTypeRef"/> representation</b>. Temps are emitted
+/// as <c>var __tN = …</c>, so C# infers it; only the three method-DECLARATION sites need a composed
+/// type string, and each builds it from <c>graph.Outputs</c> via
+/// <c>LibraryEmitter.CSharpReturnType</c>. That keeps N-output out of the type system entirely.
+/// </para>
+/// </summary>
+public sealed record IrOp_MakeTuple(IReadOnlyList<IrValue> Values) : IrOperation;
+
+/// <summary>
+/// BP-73: reads one element back out of a multi-output carrier —
+/// <c>var __t{result} = __t{Source}.Item{Index + 1};</c>.
+/// <para>
+/// Accessed positionally (<c>ItemN</c>) rather than by element name: <c>ItemN</c> is always present on
+/// a ValueTuple regardless of whether the declaration names its elements, so the fan-out cannot break
+/// on an output whose name is not a valid C# identifier.
+/// </para>
+/// </summary>
+public sealed record IrOp_TupleField(IrValue Source, int Index) : IrOperation;

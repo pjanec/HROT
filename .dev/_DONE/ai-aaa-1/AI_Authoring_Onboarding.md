@@ -44,7 +44,7 @@ In priority order. Read at least the first four before engaging.
 
 8. **`Blueprint_Subsystem_Runtime_Detailed_Design.md`** — runtime systems for Blueprint dispatch. Partition allocator for multi-Blueprint blackboards. `BlueprintTickSystem`, `BlueprintMaintenanceSystem`. Zero-allocation hot path.
 
-9. **`Blackboard1024`** (the project doc file) — the heavy-state blackboard component. 1024 bytes inline per entity. Used by AiPrimitive working state. Decorated `[DataPolicy(DataPolicy.NoSave)]` for transient cognitive state.
+9. **`Blackboard1024`** (the project doc file) — the heavy-state blackboard component. 1024 bytes inline per entity. Used by AiPrimitive working state. Decorated `[DataPolicy(DataPolicy.NoScenario)]` for transient cognitive state.
 
 10. **`Sharing_blackboard_across_whole_behavior__btree_`** (the project doc file) — earlier architect discussion about BTree blackboard sharing. Shows the existing `BrainBlackboard.BehaviorParameters` (100 bytes inline) projection model and the `ReusableActionDelegate<TValue, TContext>` pattern with expression-based field binding.
 

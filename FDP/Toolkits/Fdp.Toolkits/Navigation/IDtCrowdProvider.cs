@@ -13,6 +13,15 @@ namespace Fdp.Toolkit.Navigation
         /// <summary>Add an agent. Returns false if the entity is already registered.</summary>
         bool RegisterAgent(Entity entity, in CrowdAgentParams parameters);
 
+        /// <summary>
+        /// Add an agent, placing it at the nearest navmesh polygon to
+        /// <paramref name="startPositionFdp"/>.  Returns false if the entity is already
+        /// registered or the crowd is not yet initialized.
+        /// Implementations that do not support navmesh-snapped placement should fall back to
+        /// the no-position overload.
+        /// </summary>
+        bool RegisterAgent(Entity entity, in CrowdAgentParams parameters, Vector3 startPositionFdp);
+
         /// <summary>Remove an agent. Safe to call if not registered.</summary>
         void UnregisterAgent(Entity entity);
 

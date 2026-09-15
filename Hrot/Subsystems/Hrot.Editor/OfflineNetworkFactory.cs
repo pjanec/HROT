@@ -70,7 +70,7 @@ public sealed class OfflineNetworkFactory : INetworkFactory
     /// <inheritdoc/>
     public INetworkFactory ConfigureForNode(
         Hrot.Common.Infrastructure.HrotNodeContext       context,
-        Hrot.Common.NodeRole                             role,
+        Fdp.Core.NodeRole                             role,
         Fdp.Toolkit.Behavior.BehaviorRegistry?           behaviorRegistry = null)
         => this;
 
@@ -78,7 +78,7 @@ public sealed class OfflineNetworkFactory : INetworkFactory
     public INetworkFactory ConfigureForNode(
         CycloneDDS.Runtime.DdsParticipant? participant,
         int                                nodeId,
-        Hrot.Common.NodeRole               role)
+        Fdp.Core.NodeRole               role)
         => this;
 
     /// <inheritdoc/>

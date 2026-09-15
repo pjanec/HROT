@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using Fhsm.Kernel.Data;
 using Hrot.Editor.AiShared.Blackboard;
 using Hrot.Hsm.Editor.Model;
@@ -21,7 +22,8 @@ public sealed class HsmValidatorBlackboardConflictTests
     private static HsmAsset MakeAsset(
         StateNode rootState,
         List<StateNode> allStates,
-        List<RegionNode>? allRegions = null)
+        List<RegionNode>? allRegions = null,
+        List<TransitionNode>? allTransitions = null)
     {
         return new HsmAsset(
             Guid.NewGuid(), "TestAsset", "", false, "",
@@ -29,7 +31,7 @@ public sealed class HsmValidatorBlackboardConflictTests
             new MachineMetadata(),
             rootState,
             allStates,
-            new List<TransitionNode>(),
+            allTransitions ?? new List<TransitionNode>(),
             new List<GlobalTransitionNode>(),
             allRegions ?? new List<RegionNode>(),
             new List<EventDefinition>());
@@ -305,6 +307,325 @@ public sealed class HsmValidatorBlackboardConflictTests
 
         Assert.DoesNotContain(diagnostics, d => d.Code == HsmDiagnosticCode.CrossRegionBlackboardConflict);
     }
+    // ────────────────────────────────────────────────────────────────────────
+    // ⭐⭐⭐ W7c — the LOCALLY-BOUND writer style, which rule 9 could not see
+    // ────────────────────────────────────────────────────────────────────────
+
+    /// <summary>
+    /// 🔴🔴 <b>RED before <c>W7c</c>.</b> Two transitions, one in each region of the same parallel
+    /// composite, both writing the variable <b>directly</b> via <c>ExpressionTargetField</c> — the
+    /// locally-bound style. ⛔ <b>Neither records an alias</b>, so the rule saw <b>nothing</b> and the
+    /// panel reported the machine as clean.
+    ///
+    /// <para>
+    /// ⭐ §9.2 says the writer set is <i>"every action method that mutates this variable"</i> — not
+    /// "every alias". ⚠ <c>BP-240</c>'s shape a third time: a rule that is green because of what it
+    /// happens to look at.
+    /// </para>
+    /// </summary>
+    [Fact]
+    public void Validate_TwoRegionsWriteViaExpressionTargetField_ProducesConflict()
+    {
+        var (asset, parallel) = MakeParallelAssetWithTransitions(
+            ("speed", 0), ("speed", 1));
+
+        var bb = new StubBlackboardAsset();
+        bb.AddVariable("speed", typeof(float));
+
+        var diagnostics = new HsmValidator().Validate(asset, bb);
+
+        var conflict = Assert.Single(
+            diagnostics, d => d.Code == HsmDiagnosticCode.CrossRegionBlackboardConflict);
+        Assert.Equal(HsmDiagnosticSeverity.Warning, conflict.Severity);
+        Assert.Contains(parallel.StableId, conflict.TargetStableIds);
+    }
+
+    /// <summary>
+    /// ⭐ <b>The union really is a union:</b> one writer of each style, in different regions, still
+    /// conflicts. ⚠ Without this, an implementation that swapped one enumeration for the other rather
+    /// than combining them would pass both single-style tests.
+    /// </summary>
+    [Fact]
+    public void Validate_OneAliasWriterAndOneExpressionTargetWriter_ProducesConflict()
+    {
+        var (asset, parallel, child0, _) = MakeParallelAsset();
+
+        // A transition out of the region-1 child, locally bound to "speed".
+        var child1 = asset.AllStates.Single(s => s.Name == "C1");
+        var t = new TransitionNode
+        {
+            VisualId              = Guid.NewGuid(),
+            Source                = child1,
+            Target                = child1,
+            ActionFunction        = "Some.Action",
+            ExpressionTargetField = "speed",
+        };
+        var withTransition = MakeAsset(
+            RootOf(parallel), new List<StateNode> { parallel, child0, child1 },
+            new List<RegionNode>(parallel.RegionNodes),
+            new List<TransitionNode> { t });
+
+        var bb = new StubBlackboardAsset();
+        bb.AddVariable("speed", typeof(float));
+        bb.AddAlias("speed", MakeBinding(Guid.NewGuid(), child0.StableId));   // region 0, alias style
+
+        var diagnostics = new HsmValidator().Validate(withTransition, bb);
+
+        Assert.Single(diagnostics, d => d.Code == HsmDiagnosticCode.CrossRegionBlackboardConflict);
+    }
+
+    /// <summary>
+    /// ⭐ <b>Same region ⇒ no conflict</b>, whichever style. ⚠ The rule is about CONCURRENCY, not about
+    /// two writers — an implementation that fired on any two writers would pass the tests above.
+    /// </summary>
+    [Fact]
+    public void Validate_TwoExpressionTargetWritersInTheSameRegion_ProducesNoConflict()
+    {
+        var (asset, _) = MakeParallelAssetWithTransitions(("speed", 0), ("speed", 0));
+
+        var bb = new StubBlackboardAsset();
+        bb.AddVariable("speed", typeof(float));
+
+        Assert.DoesNotContain(new HsmValidator().Validate(asset, bb),
+            d => d.Code == HsmDiagnosticCode.CrossRegionBlackboardConflict);
+    }
+
+    /// <summary>
+    /// ⭐ <b>A different variable is a different conflict.</b> ⚠ Guards against matching on
+    /// "has an ExpressionTargetField" rather than on the variable's own name.
+    /// </summary>
+    [Fact]
+    public void Validate_ExpressionTargetWritersOfDifferentVariables_ProduceNoConflict()
+    {
+        var (asset, _) = MakeParallelAssetWithTransitions(("speed", 0), ("heading", 1));
+
+        var bb = new StubBlackboardAsset();
+        bb.AddVariable("speed", typeof(float));
+        bb.AddVariable("heading", typeof(float));
+
+        Assert.DoesNotContain(new HsmValidator().Validate(asset, bb),
+            d => d.Code == HsmDiagnosticCode.CrossRegionBlackboardConflict);
+    }
+
+    // ────────────────────────────────────────────────────────────────────────
+    // ⭐⭐⭐ W7a — the suppression the rule never read
+    // ────────────────────────────────────────────────────────────────────────
+
+    /// <summary>
+    /// 🔴 <b>RED before <c>W7a</c>.</b> The suppression is authored, persisted, round-tripped and
+    /// emitted — and <c>IsConflictSuppressed</c> was consulted <b>only</b> by
+    /// <c>BlackboardAliasDropValidator</c>. ⇒ clicking <i>Suppress</i> silenced the DROP TARGET while
+    /// the PANEL WARNING stayed. ⚠ An affordance that half-works is worse than one that is absent.
+    /// </summary>
+    [Fact]
+    public void Validate_SuppressedWriterPair_ProducesNoConflict()
+    {
+        var (asset, _, child0, child1) = MakeParallelAsset();
+
+        var bb = new StubBlackboardAsset();
+        bb.AddVariable("speed", typeof(float));
+        bb.AddAlias("speed", MakeBinding(Guid.NewGuid(), child0.StableId));
+        bb.AddAlias("speed", MakeBinding(Guid.NewGuid(), child1.StableId));
+        bb.SetConflictSuppressed(
+            "speed", BlackboardConflictKey.ForWriterPair(child0.StableId, child1.StableId), true);
+
+        Assert.DoesNotContain(new HsmValidator().Validate(asset, bb),
+            d => d.Code == HsmDiagnosticCode.CrossRegionBlackboardConflict);
+    }
+
+    /// <summary>
+    /// ⭐⭐ <b>§9.3: suppression is PER-PAIR, not per-variable.</b> ⛔ <i>"A new aliasing relationship
+    /// on the same variable would surface a fresh diagnostic."</i> ⚠ This is the test that stops the
+    /// obvious simplification — collapsing the key to the variable name would pass the test above and
+    /// silently disable the rule for that variable forever.
+    /// </summary>
+    [Fact]
+    public void Validate_SuppressingOnePair_LeavesAnotherPairOnTheSameVariableReported()
+    {
+        var (asset, _, child0, child1) = MakeParallelAsset();
+
+        // A third writer, in region 1, bound through the locally-bound style.
+        var t = new TransitionNode
+        {
+            VisualId              = Guid.NewGuid(),
+            Source                = child1,
+            Target                = child1,
+            ActionFunction        = "Some.Action",
+            ExpressionTargetField = "speed",
+        };
+        var withThird = MakeAsset(
+            child0.Parent!.Parent!, new List<StateNode> { child0.Parent!, child0, child1 },
+            new List<RegionNode>(child0.Parent!.RegionNodes),
+            new List<TransitionNode> { t });
+
+        var bb = new StubBlackboardAsset();
+        bb.AddVariable("speed", typeof(float));
+        bb.AddAlias("speed", MakeBinding(Guid.NewGuid(), child0.StableId));
+        bb.AddAlias("speed", MakeBinding(Guid.NewGuid(), child1.StableId));
+        // Suppress only the alias/alias pair; the alias/expression-target pair is untouched.
+        bb.SetConflictSuppressed(
+            "speed", BlackboardConflictKey.ForWriterPair(child0.StableId, child1.StableId), true);
+
+        Assert.Single(new HsmValidator().Validate(withThird, bb),
+            d => d.Code == HsmDiagnosticCode.CrossRegionBlackboardConflict);
+    }
+
+    /// <summary>
+    /// ⭐ <b>The key is ONE function, and both surfaces call it.</b> ⛔ The format was built inline in
+    /// <c>BlackboardAliasDropValidator</c>; a second construction is the sharpest version of this bug —
+    /// one surface goes quiet, the other does not, and nothing fails. ⚠ Order-independence is asserted
+    /// because a pair is unordered and the two callers see the two ids in opposite orders.
+    /// </summary>
+    [Fact]
+    public void TheWriterPairKeyIsOrderIndependent()
+    {
+        var a = Guid.NewGuid();
+        var b = Guid.NewGuid();
+
+        Assert.Equal(BlackboardConflictKey.ForWriterPair(a, b),
+                     BlackboardConflictKey.ForWriterPair(b, a));
+    }
+
+    // ---- helpers for the W7c cases -----------------------------------------
+
+    private static StateNode RootOf(StateNode parallel) => parallel.Parent!;
+
+    /// <summary>
+    /// A parallel composite with one child per region, plus one self-transition per
+    /// <c>(variableName, regionIndex)</c> pair, each locally bound via <c>ExpressionTargetField</c>.
+    /// </summary>
+    private static (HsmAsset Asset, StateNode Parallel) MakeParallelAssetWithTransitions(
+        params (string Variable, int Region)[] writers)
+    {
+        var root     = new StateNode("__root__");
+        var parallel = new StateNode("Parallel") { IsParallel = true, Parent = root };
+        root.Children.Add(parallel);
+
+        var regions = new List<RegionNode>();
+        var states  = new List<StateNode> { parallel };
+        var byRegion = new Dictionary<int, StateNode>();
+
+        foreach (int region in writers.Select(w => w.Region).Distinct().OrderBy(r => r))
+        {
+            var rn = new RegionNode($"R{region}") { RegionIndex = (byte)region };
+            parallel.RegionNodes.Add(rn);
+            regions.Add(rn);
+
+            var child = new StateNode($"C{region}") { RegionIndex = region, Parent = parallel };
+            parallel.Children.Add(child);
+            states.Add(child);
+            byRegion[region] = child;
+        }
+
+        var transitions = writers.Select(w => new TransitionNode
+        {
+            VisualId              = Guid.NewGuid(),
+            Source                = byRegion[w.Region],
+            Target                = byRegion[w.Region],
+            ActionFunction        = "Some.Action",   // ⚠ unknown FQN ⇒ conservatively a writer (§9.6)
+            ExpressionTargetField = w.Variable,
+        }).ToList();
+
+        return (MakeAsset(root, states, regions, transitions), parallel);
+    }
+
+    // ── W7b (§9.4) — "Allow concurrent writes", PER VARIABLE ────────────────────
+
+    /// <summary>
+    /// ⭐⭐⭐ <b><c>W7b</c>: the explicit-enable path for a designer who WANTS the race.</b> §9.4 —
+    /// <i>"they go to the variable's ⋮ menu → 'Allow concurrent writes' → checkbox."</i>
+    /// </summary>
+    [Fact]
+    public void Validate_ConcurrentWritesAllowedOnTheVariable_ProducesNoConflict()
+    {
+        var (asset, _, child0, child1) = MakeParallelAsset();
+
+        var bb = new StubBlackboardAsset();
+        bb.AddVariable("speed", typeof(float));
+        bb.AddAlias("speed", MakeBinding(Guid.NewGuid(), child0.StableId));
+        bb.AddAlias("speed", MakeBinding(Guid.NewGuid(), child1.StableId));
+
+        // 🔴 Red without the flag -- the conflict is real, so the green below means something.
+        Assert.Contains(new HsmValidator().Validate(asset, bb),
+            d => d.Code == HsmDiagnosticCode.CrossRegionBlackboardConflict);
+
+        bb.SetConcurrentWritesAllowed("speed", true);
+
+        Assert.DoesNotContain(new HsmValidator().Validate(asset, bb),
+            d => d.Code == HsmDiagnosticCode.CrossRegionBlackboardConflict);
+    }
+
+    /// <summary>
+    /// ⭐⭐⭐ <b>The distinction that must not be collapsed — this is <c>W7b</c>'s reason to exist.</b>
+    ///
+    /// <para>
+    /// ⛔⛔ A per-PAIR suppression (§9.3, <c>W7a</c>) is deliberately narrow: <i>"a new aliasing
+    /// relationship on the same variable would surface a fresh diagnostic."</i> ⭐ <c>W7b</c> is the
+    /// WIDE one and covers pairs that <b>do not exist yet</b>. ⇒ a THIRD writer added after the
+    /// designer allowed concurrent writes must stay silent, whereas after a pair suppression it must
+    /// speak up. 🔴 <b>Collapsing the two into one flag makes exactly one of those behaviours
+    /// impossible</b>, and nothing else in the suite would notice.
+    /// </para>
+    /// </summary>
+    [Fact]
+    public void Validate_AllowingTheVariable_AlsoCoversAWriterAddedLater()
+    {
+        var (asset, _, child0, child1) = MakeParallelAsset();
+
+        var bb = new StubBlackboardAsset();
+        bb.AddVariable("speed", typeof(float));
+        bb.AddAlias("speed", MakeBinding(Guid.NewGuid(), child0.StableId));
+        bb.AddAlias("speed", MakeBinding(Guid.NewGuid(), child1.StableId));
+
+        // ⭐ The WIDE allowance, granted while only two writers existed.
+        bb.SetConcurrentWritesAllowed("speed", true);
+
+        // A third writer appears afterwards, in region 1, through the locally-bound style --
+        // exactly the shape W7a's per-pair suppression deliberately does NOT cover.
+        var t = new TransitionNode
+        {
+            VisualId              = Guid.NewGuid(),
+            Source                = child1,
+            Target                = child1,
+            ActionFunction        = "Some.Action",
+            ExpressionTargetField = "speed",
+        };
+        var withThird = MakeAsset(
+            child0.Parent!.Parent!, new List<StateNode> { child0.Parent!, child0, child1 },
+            new List<RegionNode>(child0.Parent!.RegionNodes),
+            new List<TransitionNode> { t });
+
+        // ⛔ Still silent -- the designer said the race on this VARIABLE is intended.
+        Assert.DoesNotContain(new HsmValidator().Validate(withThird, bb),
+            d => d.Code == HsmDiagnosticCode.CrossRegionBlackboardConflict);
+    }
+
+    /// <summary>
+    /// ⭐ <b>The allowance is per variable, not global.</b> Another variable in the same composite is
+    /// still reported — otherwise the checkbox would be a rule-wide off switch.
+    /// </summary>
+    [Fact]
+    public void Validate_AllowingOneVariable_LeavesAnotherReported()
+    {
+        var (asset, _, child0, child1) = MakeParallelAsset();
+
+        var bb = new StubBlackboardAsset();
+        foreach (var name in new[] { "speed", "ammo" })
+        {
+            bb.AddVariable(name, typeof(float));
+            bb.AddAlias(name, MakeBinding(Guid.NewGuid(), child0.StableId));
+            bb.AddAlias(name, MakeBinding(Guid.NewGuid(), child1.StableId));
+        }
+
+        bb.SetConcurrentWritesAllowed("speed", true);
+
+        var diags = new HsmValidator().Validate(asset, bb)
+            .Where(d => d.Code == HsmDiagnosticCode.CrossRegionBlackboardConflict)
+            .ToList();
+
+        Assert.Single(diags);
+        Assert.Contains("ammo", diags[0].Message);
+    }
 }
 
 // ---- Stubs ------------------------------------------
@@ -359,6 +680,18 @@ file sealed class StubBlackboardAsset : IBlackboardManagedAsset
             ? list.AsReadOnly()
             : Array.Empty<BlackboardAliasBinding>();
 
+    // ---- W7a: per-pair conflict suppression --------------------------------
+    private readonly HashSet<(string, string)> _suppressed = new();
+
+    public bool IsConflictSuppressed(string variableName, string writerPairKey) =>
+        _suppressed.Contains((variableName, writerPairKey));
+
+    public void SetConflictSuppressed(string variableName, string writerPairKey, bool suppressed)
+    {
+        if (suppressed) _suppressed.Add((variableName, writerPairKey));
+        else            _suppressed.Remove((variableName, writerPairKey));
+    }
+
     // ---- Required interface members (unused in these tests) ----------------
     public void AddVariable(BlackboardVariableEntry entry) => _vars.Add(entry);
     public void RemoveVariable(string name) { }
@@ -369,4 +702,17 @@ file sealed class StubBlackboardAsset : IBlackboardManagedAsset
     public int CountNodesReferencingVariable(string name) => 0;
     public void RemoveAlias(string variableName, Guid requiringAssetId, Guid requiringElementId) { }
     public void RemoveVariables(IReadOnlyList<string> names) { }
+
+    // ---- W7b: per-VARIABLE "allow concurrent writes" -----------------------
+    // ⛔⛔ A SEPARATE SET from _suppressed, deliberately. One stub field for both would make the
+    //     tests unable to tell the two mechanisms apart, which is the whole point of W7b.
+    private readonly HashSet<string> _concurrentAllowed = new();
+
+    public bool IsConcurrentWritesAllowed(string variableName) => _concurrentAllowed.Contains(variableName);
+
+    public void SetConcurrentWritesAllowed(string variableName, bool allowed)
+    {
+        if (allowed) _concurrentAllowed.Add(variableName);
+        else         _concurrentAllowed.Remove(variableName);
+    }
 }

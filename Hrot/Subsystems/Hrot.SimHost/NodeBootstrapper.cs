@@ -81,7 +81,7 @@ namespace Hrot.SimHost
         {
             MigrationServices ms;
 
-            if (role.HasFlag(NodeRole.ImageGenerator))
+            if (role.HasFlag(NodeRole.Map2D))
                 ms = HrotMigrationBootstrap.BuildIg();
             else
                 ms = HrotMigrationBootstrap.BuildSimHostCgf(
@@ -182,7 +182,13 @@ namespace Hrot.SimHost
             Fdp.Toolkit.Replication.Systems.GhostCreationSystem? ghostCreationSystem = null,
             Fdp.Core.EventAccumulator? eventAccumulator = null,
             Action? afterSeek = null,
-            Hrot.Common.Diagnostics.DiagnosticsDumpClusterOpHandler? diagnosticsDumpHandler = null)
+            Hrot.Common.Diagnostics.DiagnosticsDumpClusterOpHandler? diagnosticsDumpHandler = null,
+            // ⭐ HN-018 — the THIRD rewind participant (§2b): the ELM's in-flight construction/destruction
+            //   queues, which a world replacement invalidates and nothing else resets.
+            //   ⛔ A caller that HAS an ELM must PASS it — an unpassed one is the silent-default defect, and
+            //   the preview/replay boundary then leaves stale entries behind (CE-259ar) and restored
+            //   Constructing entities undriven. 📄 docs/designs/replay-and-modules/DESIGN.md §2.1m step 2.
+            Fdp.Toolkit.Lifecycle.EntityLifecycleModule? elm = null)
         {
             if (participant == null && role.HasFlag(NodeRole.Brain))
                 throw new ArgumentNullException(nameof(participant),
@@ -191,7 +197,7 @@ namespace Hrot.SimHost
 
             localTempRoot ??= OrchestrationConstants.ResolveStagingRoot();
 
-            var clusterSlave = new ClusterSlave(nodeId, subsystemName, eventBus);
+            var clusterSlave = new ClusterSlave(nodeId, subsystemName, eventBus, role);   // P1: publish the full declared role mask (may be multi-role).
             SlaveTranslator = null;
             if (participant != null && eventBus != null)
             {
@@ -205,11 +211,30 @@ namespace Hrot.SimHost
             // Create EcsRecordReplayController for Brain-tier and MuscleGround nodes.
             // MuscleGround (SimHost) must also handle PrepareReplay/FinalizeReplay so that
             // replay transitions can ACK back to ClusterMaster and not time out.
+            // ⭐⭐ §2.1m step 3 — A SEEK IS A WORLD REPLACEMENT TOO. Composed into the existing afterSeek
+            //   chain, right beside the NetworkEntityMap.RebuildFromWorld that already lives there for
+            //   exactly this reason (a non-recorded index that time travel invalidates).
+            //   ⛔ Clear only — a seek stays inside the replay, so the re-derive is NOT armed.
+            Action<bool>? elmWorldReplaced = elm == null ? null : elm.OnWorldReplaced;
+            Action? afterSeekWithLifecycle = elm == null
+                ? afterSeek
+                : () => { elm.OnWorldReplaced(resumingToLive: false); afterSeek?.Invoke(); };
+
             EcsRecordReplayController? controller = null;
             if (role.HasFlag(NodeRole.Brain) || role.HasFlag(NodeRole.MuscleGround))
                 controller = new EcsRecordReplayController(kernel, nodeId, world,
-                    afterSeek: afterSeek);
+                    afterSeek: afterSeekWithLifecycle);
             RecordReplayController = controller;
+
+            // ⭐⭐ Step 1 of DESIGN.md §2.1m: gate the ELM during replay, so LifecycleSystem's
+            //    CheckTimeouts cannot run while a seek has rewound the frame counter behind a recorded
+            //    StartFrame (the unsigned wrap of CE-259ar). ⭐ The producer already existed —
+            //    IRecordReplayController.IsReplayActive — so no new state type was introduced.
+            //    ⛔ Gated IN PLACE rather than relocated into NetworkLifecycleSystemGroup: that group's
+            //    ExecuteGroup has exactly ONE caller (NedReplicationModule.Tick), so it never ticks on the
+            //    editor or on BDC nodes. Authorised deviation from mgmt-1/DESIGN.md §8.10.
+            if (elm != null && controller != null)
+                elm.IsReplayActive = () => controller.IsReplayActive;
 
             // Wire ReferenceReplayLoadHandler BEFORE ReferenceLiveLoadHandler so the
             // dispatch loop considers the Live-from-Replay branch first (CGF1-S0305).
@@ -223,7 +248,10 @@ namespace Hrot.SimHost
                     controller, inputGroup, simGroup, postSimGroup, lifecycleGroup, bypassToggle,
                     localTempRoot,
                     suspendGlobalTimePush: kernel.SuspendGlobalTimePush,
-                    resumeGlobalTimePush:  kernel.ResumeGlobalTimePush));
+                    resumeGlobalTimePush:  kernel.ResumeGlobalTimePush,
+                    // ⭐⭐⭐ §2.1m step 3 — the ELM's bookkeeping is discarded at EVERY world replacement,
+                    //   and the re-derive armed only when resuming to a LIVE world.
+                    worldReplaced: elmWorldReplaced));
             }
 
             // Wire ReferenceCheckpointHandler when a checkpoint worker is provided (CGF1-S0303).
@@ -232,47 +260,83 @@ namespace Hrot.SimHost
                     checkpointWorker, world, eventAccumulator ?? new Fdp.Core.EventAccumulator()));
 
             // Wire ReferencePreviewHandler for LoadingPreview / UnloadingPreview (CGF1-S0309).
-            clusterSlave.RegisterHandler(new ReferencePreviewHandler(world));
+            // ⭐⭐⭐ HN-017 — and this node restores its OWN id pool and entity map.
+            // 📄 docs/DESIGN_Deterministic_Network_Ids.md §2b (the enumeration) · §4c (the approach) · §4d
+            //    (as-built). 🔒 User `2026-08-23`: "the reset must be cluster wide" — the master's
+            //    PrepareState broadcast reaches every node and each commits LOCALLY, so a per-node
+            //    capture/restore here IS the cluster-wide reset. ⛔ No new protocol, and ⛔ nothing here
+            //    talks to the central id authority.
+            // ⚠⚠ THIS SITE HAD BOTH DEPENDENCIES AND PASSED NEITHER — the 2026-08-16 silent-default shape:
+            //    `scenarioIdAllocator` is a parameter of this very method (used at the scenario handlers
+            //    below) and the map is reachable through `world`. Leaving them out would have shipped a
+            //    capability that does nothing on the one production node that runs the 2PC preview with a
+            //    real repo.
+            // ⚠ The map is resolved LATE (see EntityMapFromRepository): SimHostApp sets the singleton AFTER
+            //   this method returns, so an eager lookup here would throw.
+            var previewRewindables = new List<Fdp.Toolkit.Orchestration.Preview.IPreviewRewindable>();
+            if (scenarioIdAllocator != null)
+                previewRewindables.Add(
+                    Fdp.Toolkit.Orchestration.Preview.PreviewParticipants.IdAllocator(scenarioIdAllocator));
+            previewRewindables.Add(
+                Fdp.Toolkit.Orchestration.Preview.PreviewParticipants.EntityMapFromRepository(world));
+            // ⭐ HN-018 — the third participant. Independent of the map: an ELM exists on every node.
+            if (elm != null)
+                previewRewindables.Add(
+                    Fdp.Toolkit.Orchestration.Preview.PreviewParticipants.LifecycleModule(elm));
+            clusterSlave.RegisterHandler(new ReferencePreviewHandler(world, previewRewindables));
 
             // Wire ReferencePrefetchHandler so this node can stage scenario files and ACK.
             clusterSlave.RegisterHandler(new ReferencePrefetchHandler(storageProvider));
 
-            // Wire ReferenceArchiveHandler so this node can report .fdp archives to ClusterMaster (CGF1-S0505).
-            clusterSlave.RegisterHandler(new ReferenceArchiveHandler(localTempRoot, nodeId));
+            // CE-279 Layer A — build the SerializeLocal-family handlers as locals and register them TOGETHER,
+            // in canonical order, via SerializeLocalRegistrar (below) — the ONE way every host does it.
+            var archiveHandler = new ReferenceArchiveHandler(localTempRoot, nodeId);
+            IClusterStateHandler? scenarioSaveHandler = null;
 
             // Wire TkbLoadClusterStateHandler to populate ITkbDatabase before HrotScenarioLoadHandler
             // deserializes entities. Must be registered BEFORE the scenario handler block (TKB-020).
             if (tkbDb != null)
                 clusterSlave.RegisterHandler(new TkbLoadClusterStateHandler(tkbDb, localTempRoot));
 
-            // Wire scenario/episode handlers when a serializer is provided.
+            // Scenario handlers when a serializer is provided.
             if (scenarioSerializer != null)
             {
-                if (scenarioExtractor == null) throw new ArgumentNullException(nameof(scenarioExtractor),
-                    "scenarioExtractor is required when scenarioSerializer is provided.");
-                if (scenarioSource == null) throw new ArgumentNullException(nameof(scenarioSource),
-                    "scenarioSource is required when scenarioSerializer is provided.");
-                if (scenarioIdAllocator == null) throw new ArgumentNullException(nameof(scenarioIdAllocator),
-                    "scenarioIdAllocator is required when scenarioSerializer is provided.");
+                var zoneService = new ZoneManagerService();
 
-                var scenarioLoader = new HrotScenarioLoader(storageProvider, scenarioSerializer.SubsystemType);
-                var zoneService    = new ZoneManagerService();
+                // ⭐⭐⭐ CE-275 ③ / CE-279 — the ONE scenario SAVE handler (same class every host registers). It
+                //   needs ONLY the serializer (+ world/tkb/zone), so it is built here INDEPENDENT of the LOAD
+                //   deps: every ECS host — muscle included — saves its OWNED slice (empty by the gate when it
+                //   owns nothing). Registered below via SerializeLocalRegistrar.
+                //   📄 DESIGN_Distributed_Scenario_Persistence.md §4 · DESIGN_Unified_Cluster_Handler_Registration.md.
+                scenarioSaveHandler = new Hrot.ScenarioEditor.Handlers.HrotScenarioSaveHandler(
+                    scenarioSerializer, zoneService, tkbDb, world, nodeId);
 
-                clusterSlave.RegisterHandler(
-                    new HrotScenarioLoadHandler(scenarioSerializer, scenarioLoader, zoneService,
-                        scenarioExtractor, scenarioSource, scenarioIdAllocator,
-                        world: world,
-                        controller: controller,
-                        storageDirectory: localTempRoot));
+                // Scenario/episode LOAD handlers need the full authoring deps (extractor/source/id-allocator).
+                //   A muscle node that only replicates (and passes none) gets SAVE without LOAD — no throw.
+                if (scenarioExtractor != null && scenarioSource != null && scenarioIdAllocator != null)
+                {
+                    var scenarioLoader = new HrotScenarioLoader(storageProvider, scenarioSerializer.SubsystemType);
 
-                clusterSlave.RegisterHandler(
-                    new Hrot.ScenarioEditor.Handlers.HrotEditLoadHandler(scenarioSerializer, scenarioLoader, zoneService,
-                        scenarioExtractor, scenarioSource, scenarioIdAllocator,
-                        world: world));
+                    clusterSlave.RegisterHandler(
+                        new HrotScenarioLoadHandler(scenarioSerializer, scenarioLoader, zoneService,
+                            scenarioExtractor, scenarioSource, scenarioIdAllocator,
+                            world: world,
+                            controller: controller,
+                            storageDirectory: localTempRoot));
 
-                clusterSlave.RegisterHandler(
-                    new ReferenceEpisodeLoadHandler(scenarioSerializer, scenarioLoader, world: null));
+                    clusterSlave.RegisterHandler(
+                        new Hrot.ScenarioEditor.Handlers.HrotEditLoadHandler(scenarioSerializer, scenarioLoader, zoneService,
+                            scenarioExtractor, scenarioSource, scenarioIdAllocator,
+                            world: world));
+
+                    clusterSlave.RegisterHandler(
+                        new ReferenceEpisodeLoadHandler(scenarioSerializer, scenarioLoader, world: null));
+                }
             }
+
+            // CE-279 Layer A — register the SerializeLocal pair uniformly (save before archive; payload-aware
+            //   CanHandle makes order non-load-bearing, but every host's slave is now identical here).
+            SerializeLocalRegistrar.Register(clusterSlave, scenarioSaveHandler, archiveHandler);
 
             // Wire ReferenceLiveLoadHandler AFTER the scenario handler so it only claims
             // FinalizeLive and cold PrepareLive (when no scenario serializer was registered).

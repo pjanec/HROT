@@ -18,15 +18,14 @@ using Fdp.Core.Serialization.Migrations.Adapters;
 namespace Hrot.Orchestrator;
 
 /// <summary>
-/// Cluster handler that serializes/deserializes the Orchestrator node's own global context
-/// as part of a scenario save/load round.
+/// Cluster handler that restores the Orchestrator node's own global context as part of a scenario
+/// load round.
 ///
 /// <para>
-/// <b>Save path</b> (<see cref="NodeOpType.SerializeLocal"/>): Writes
-/// <c>GlobalContextDto</c> (simulation start wall ticks, scene identifier) to
-/// <c>&lt;LocalTempRoot&gt;\&lt;ExerciseId&gt;\Orchestrator.json</c>.
-/// Returns the file path as a single-entry <see cref="FileManifestEntry"/>
-/// in <c>NodeOpStatus.ResultJson</c>.
+/// CE-278: the <b>save path</b> (<see cref="NodeOpType.SerializeLocal"/>, which wrote
+/// <c>exercises/&lt;id&gt;/Orchestrator.json</c> for the retired SaveScenario=2 op) is removed. The
+/// archived-exercise metadata sidecar is now written on the Export path by
+/// <c>AssetInventoryProcessManager</c>. This handler serves only the load transition below.
 /// </para>
 ///
 /// <para>
@@ -51,7 +50,8 @@ public sealed class GlobalContextClusterOpHandler : IClusterOpHandler
     public string LocalTempRoot { get; set; } = Fdp.Toolkit.Orchestration.OrchestrationConstants.ResolveStagingRoot();
 
     private readonly DdsWriter<OrchestratorContextTopic> _contextWriter;
-    private readonly string _scenarioId;
+    // CE-278: _scenarioId (the save-side scene id) retired with the SerializeLocal save arm; the load path
+    // reads the scenario id from the command payload (ParseScenarioId), not from ctor state.
     private readonly ReadOnlyMigrationAdapter? _readOnlyAdapter;
 
     // ── Seed state exposed for injection ────────────────────────────────────────
@@ -88,18 +88,10 @@ public sealed class GlobalContextClusterOpHandler : IClusterOpHandler
     /// </summary>
     public event Action<long, double>? OnContextLoaded;
 
-    /// <summary>
-    /// Elapsed simulation time in seconds at the point of the pending save.
-    /// Set by callers (e.g. <c>OrchestratorSubsystem</c>) before
-    /// <see cref="NodeOpType.SerializeLocal"/> is dispatched.
-    /// </summary>
-    public double ScenarioTimeSeconds { get; set; }
-
-    /// <summary>Pending save ticks — populated during <see cref="PrepareAsync"/>.</summary>
-    private long _pendingSaveWallTicks;
-    private string? _pendingSaveSceneId;
-    private double _pendingSaveScenarioTimeSeconds;
-    private string? _pendingFilePath;
+    // CE-278: the save-side state (the ScenarioTimeSeconds input + the _pendingSave* fields) is retired
+    // together with the SaveScenario=2 SerializeLocal arm. This handler now serves only the CommitState
+    // load transition (CommitLoad); the exercise sidecar is written on the Export path by
+    // AssetInventoryProcessManager (§5).
 
     /// <summary>
     /// Creates a <see cref="GlobalContextClusterOpHandler"/> for the given DDS participant
@@ -111,7 +103,6 @@ public sealed class GlobalContextClusterOpHandler : IClusterOpHandler
     public GlobalContextClusterOpHandler(DdsParticipant participant, string scenarioId, ReadOnlyMigrationAdapter? readOnlyAdapter = null)
     {
         _contextWriter  = new DdsWriter<OrchestratorContextTopic>(participant);
-        _scenarioId     = scenarioId ?? string.Empty;
         _readOnlyAdapter = readOnlyAdapter;
     }
 
@@ -119,54 +110,29 @@ public sealed class GlobalContextClusterOpHandler : IClusterOpHandler
     internal GlobalContextClusterOpHandler(DdsWriter<OrchestratorContextTopic> contextWriter, string scenarioId, ReadOnlyMigrationAdapter? readOnlyAdapter = null)
     {
         _contextWriter  = contextWriter;
-        _scenarioId     = scenarioId ?? string.Empty;
         _readOnlyAdapter = readOnlyAdapter;
     }
 
     /// <inheritdoc />
     public bool CanHandle(NodeOpType op)
-        => op == NodeOpType.SerializeLocal
-        || op == NodeOpType.CommitState;
+        => op == NodeOpType.CommitState;   // CE-278: SerializeLocal (SaveScenario=2 save) arm retired.
 
     /// <inheritdoc />
-    /// <remarks>
-    /// For <see cref="NodeOpType.SerializeLocal"/>: snapshots the current wall ticks and
-    /// scene identifier; computes the output file path but defers I/O to <see cref="Commit"/>.
-    /// For other operations: returns <see langword="null"/> immediately (success, no pre-work).
-    /// </remarks>
+    /// <remarks>CE-278: no pre-work — the SerializeLocal (save) arm is retired. Always returns
+    /// <see langword="null"/>.</remarks>
     public Task<string?> PrepareAsync(NodeOpCommand cmd, CancellationToken ct)
-    {
-        if (cmd.Operation == NodeOpType.SerializeLocal)
-        {
-            // Determine the exercise ID from the payload (if provided) or generate one.
-            var exerciseId = ParseExerciseId(cmd.PayloadJson);
-            var dir     = Path.Combine(
-                LocalTempRoot,
-                Fdp.Toolkit.Orchestration.OrchestrationConstants.ExercisesDirectoryName,
-                exerciseId.ToString("N"));
-            _pendingFilePath                  = Path.Combine(dir, "Orchestrator.json");
-            _pendingSaveWallTicks             = DateTimeOffset.UtcNow.Ticks;   // wall-clock snapshot at prepare time
-            _pendingSaveSceneId               = _scenarioId;
-            _pendingSaveScenarioTimeSeconds   = ScenarioTimeSeconds;
-        }
-        return Task.FromResult<string?>(null);
-    }
+        => Task.FromResult<string?>(null);   // CE-278: SerializeLocal (save) arm retired; nothing to prepare.
 
     /// <inheritdoc />
     /// <remarks>
-    /// For <see cref="NodeOpType.SerializeLocal"/>: writes <c>Orchestrator.json</c> and
-    /// returns the manifest entry path via a side-channel (callers read <see cref="CommitManifestEntry"/>).
     /// For <see cref="NodeOpType.CommitState"/> heading to <see cref="ClusterState.LoadingLive"/> or
     /// <see cref="ClusterState.LoadingEdit"/>: loads the pre-fetched <c>Orchestrator.json</c> and
-    /// publishes <see cref="OrchestratorContextTopic"/>.
+    /// publishes <see cref="OrchestratorContextTopic"/>. (CE-278: the SerializeLocal save arm is retired.)
     /// </remarks>
     public void Commit(NodeOpCommand cmd, EntityRepository? repo)
     {
-        if (cmd.Operation == NodeOpType.SerializeLocal)
-        {
-            CommitSerializeLocal();
-        }
-        else if (cmd.Operation == NodeOpType.CommitState)
+        // CE-278: the SerializeLocal (SaveScenario=2) arm is retired; only the load transition remains.
+        if (cmd.Operation == NodeOpType.CommitState)
         {
             var targetState = ParseTargetState(cmd.PayloadJson);
             if (targetState == ClusterState.LoadingLive || targetState == ClusterState.LoadingEdit)
@@ -177,72 +143,13 @@ public sealed class GlobalContextClusterOpHandler : IClusterOpHandler
     /// <inheritdoc />
     public void Abort(NodeOpCommand cmd, EntityRepository? repo)
     {
-        // Reset pending state; no I/O was committed.
-        _pendingFilePath                = null;
-        _pendingSaveWallTicks           = 0;
-        _pendingSaveSceneId             = null;
-        _pendingSaveScenarioTimeSeconds = 0;
+        // CE-278: no pending save state to reset (the SerializeLocal save arm is retired).
     }
-
-    // ── Manifest output (read by ClusterMaster after Commit) ───────────────────────
-
-    /// <summary>
-    /// Set by <see cref="Commit"/> after a successful <see cref="NodeOpType.SerializeLocal"/>
-    /// operation.  <see cref="Hrot.Orchestrator.ClusterMaster"/> reads this to build the
-    /// global manifest entry for the storage gateway.
-    /// </summary>
-    public FileManifestEntry? CommitManifestEntry { get; private set; }
 
     // ── Private helpers ──────────────────────────────────────────────────────────
-
-    private void CommitSerializeLocal()
-    {
-        if (_pendingFilePath == null) return;
-
-        try
-        {
-            var dir = Path.GetDirectoryName(_pendingFilePath)!;
-            Directory.CreateDirectory(dir);
-
-            var dto = new GlobalContextDto
-            {
-                StartWallTicks        = _pendingSaveWallTicks,
-                SceneId               = _pendingSaveSceneId ?? string.Empty,
-                ScenarioId            = _scenarioId,
-                ScenarioTimeSeconds   = _pendingSaveScenarioTimeSeconds,
-            };
-
-            var serializeOpts = new JsonSerializerOptions { WriteIndented = true };
-            var dom = JsonSerializer.SerializeToNode(dto, serializeOpts)!.AsObject();
-            JsonEnvelope.Write(dom, new DocumentMeta(HrotDocumentTypes.OrchestratorContext, 2));
-            File.WriteAllText(_pendingFilePath, dom.ToJsonString(serializeOpts));
-            var exerciseIdText = new DirectoryInfo(Path.GetDirectoryName(_pendingFilePath)!).Name;
-
-            CommitManifestEntry = new FileManifestEntry
-            {
-                SourceUnc    = _pendingFilePath,
-                RelativeDest = Path.Combine(
-                    Fdp.Toolkit.Orchestration.OrchestrationConstants.ExercisesDirectoryName,
-                    exerciseIdText,
-                    Path.GetFileName(_pendingFilePath)),
-            };
-
-            FdpLog<GlobalContextClusterOpHandler>.Info(
-                "[Orchestrator] GlobalContext serialized → {0}", _pendingFilePath);
-        }
-        catch (Exception ex)
-        {
-            FdpLog<GlobalContextClusterOpHandler>.Error(
-                "[Orchestrator] GlobalContext serialize failed: {0}", ex.Message);
-            throw;
-        }
-        finally
-        {
-            _pendingFilePath     = null;
-            _pendingSaveWallTicks = 0;
-            _pendingSaveSceneId  = null;
-        }
-    }
+    // CE-278: CommitSerializeLocal + CommitManifestEntry (the SaveScenario=2 writer of
+    // exercises/<id>/Orchestrator.json) are retired. The exercise metadata sidecar is now written on the
+    // Export path by AssetInventoryProcessManager (§5); this handler keeps only the CommitLoad read path.
 
     private void CommitLoad(NodeOpCommand cmd)
     {
@@ -329,17 +236,7 @@ public sealed class GlobalContextClusterOpHandler : IClusterOpHandler
         }
     }
 
-    private static Guid ParseExerciseId(string? payloadJson)
-    {
-        if (string.IsNullOrWhiteSpace(payloadJson)) return Guid.NewGuid();
-        try
-        {
-            var dto = JsonSerializer.Deserialize<ArchivePayloadDto>(payloadJson, OrchestrationJsonOptions.Default);
-            if (dto != null && dto.ExerciseId != Guid.Empty) return dto.ExerciseId;
-        }
-        catch { }
-        return Guid.NewGuid();
-    }
+    // CE-278: ParseExerciseId retired with the SerializeLocal (SaveScenario=2) save arm.
 
     private static string? ParseScenarioId(string? payloadJson)
     {

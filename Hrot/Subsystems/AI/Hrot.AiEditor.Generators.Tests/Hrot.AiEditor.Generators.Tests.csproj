@@ -38,6 +38,11 @@
     <ProjectReference Include="..\..\Blueprints\Hrot.Blueprints.Compiler\Hrot.Blueprints.Compiler.csproj" />
     <!-- FDP Toolkits: BehaviorRegistry, BrainBlackboard, AiHotReloadCoordinator, BehaviorConstants. -->
     <ProjectReference Include="..\..\..\..\FDP\Toolkits\Fdp.Toolkits\Fdp.Toolkits.csproj" />
+    <!-- W5 (Batch 61): referenced as an ORDINARY LIBRARY, not OutputItemType="Analyzer".
+         BehaviorParameterSizeAnalyzer inlines a copy of BehaviorConstants.MaxBehaviorParamByteSize
+         because it targets netstandard2.0 and cannot reference the net8.0 runtime assembly; the
+         mirror is forced, so the DRIFT is the defect. Tests are net8.0 and can see both sides. -->
+    <ProjectReference Include="..\..\..\..\FDP\Toolkits\Fdp.Toolkits.Analyzers\Fdp.Toolkits.Analyzers.csproj" />
   </ItemGroup>
 
 </Project>

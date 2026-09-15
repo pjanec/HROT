@@ -14,6 +14,9 @@
     <InternalsVisibleTo Include="Hrot.BTree.Editor.Tests" />
     <InternalsVisibleTo Include="Hrot.Hsm.Editor.Tests" />
     <InternalsVisibleTo Include="Hrot.Editor.Tests" />
+    <!-- U-obs-4: the smoke suite's T2 drives each panel's own DrawContent/SimulateDrawClientArea
+         publish hook, so it reads the snapshot the panel wrote rather than a lookalike model. -->
+    <InternalsVisibleTo Include="Hrot.Smoke.Tests" />
   </ItemGroup>
 
   <ItemGroup>
@@ -26,9 +29,18 @@
     <!-- Emit core (netstandard2.0): marker, header, SortUsings, WriteAtomic — shared with Phase-2 generator. Design §6.1. -->
     <ProjectReference Include="..\..\Subsystems\AI\Hrot.AiEditor.Persistence\Hrot.AiEditor.Persistence.csproj" />
     <ProjectReference Include="..\..\..\FDP\Engine\Fdp.Core\Fdp.Core.csproj" />
+    <!-- L0.4 (R-122): SelectionState, the ECS component the Details context reads. Already a
+         TRANSITIVE dependency; made explicit so the entity source cannot break silently. -->
+    <ProjectReference Include="..\..\Engine\Hrot.Core\Hrot.Core.csproj" />
+    <!-- CE-046 (Axis-C E1): EditorScenarioSession saves through ScenarioFileService, which lives here.
+         ⭐ Measured acyclic: Hrot.Presentation references Hrot.Core / Fdp.* only — never AiShared. -->
+    <ProjectReference Include="..\..\Engine\Hrot.Presentation\Hrot.Presentation.csproj" />
     <ProjectReference Include="..\..\..\FDP\Engine\Fdp.Presentation\Fdp.Presentation.csproj" />
     <ProjectReference Include="..\..\..\FDP\ExtDeps\FastBTree\src\Fbt.Kernel\Fbt.Kernel.csproj" />
     <ProjectReference Include="..\..\..\FDP\ExtDeps\FastHSM\src\Fhsm.Kernel\Fhsm.Kernel.csproj" />
+    <!-- FC-3c: IBufferViewProvider for the fixed-list inspector view (StructEdit is an
+         independent library; the HROT-specific provider lives HERE, deps flow host→StructEdit). -->
+    <ProjectReference Include="..\..\..\FDP\ExtDeps\StructEdit\src\StructEdit.Core\StructEdit.Core.csproj" />
     <ProjectReference Include="..\..\..\FDP\ExtDeps\NodeEdit\src\NodeEditor.Core\NodeEditor.Core.csproj" />
     <ProjectReference Include="..\..\..\FDP\ExtDeps\NodeEdit\src\NodeEditor.Primitives\NodeEditor.Primitives.csproj" />
     <ProjectReference Include="..\..\..\FDP\ExtDeps\NodeEdit\src\NodeEditor.UI\NodeEditor.UI.csproj" />

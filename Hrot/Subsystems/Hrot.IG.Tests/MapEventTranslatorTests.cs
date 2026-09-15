@@ -1,6 +1,7 @@
 ﻿﻿using System.Collections.Generic;
 using System.Numerics;
 using Hrot.IG.Components;
+using Hrot.Core.Network;
 using Hrot.ScenarioEditor.Tools;
 using Hrot.IG.UI;
 using Fdp.Core;
@@ -62,17 +63,17 @@ public class MapEventTranslatorTests
     /// events â€” verifies that the no-op path is truly a no-op.
     /// </summary>
     [Fact]
-    public void SubmitViaGateway_WithNullGateway_DoesNotFire_OnCommandPublished()
+    public void SubmitViaGateway_WithNullGateway_DoesNotFire_OnRequestEnqueued()
     {
         var state = new MiniExConPanelState { TkbType = 100L };
 
         bool eventFired = false;
-        state.OnCommandPublished += _ => eventFired = true;
+        state.OnRequestEnqueued += _ => eventFired = true;
 
         state.SubmitViaGateway(null);
 
         Assert.False(eventFired,
-            "OnCommandPublished must not fire when gateway is null.");
+            "OnRequestEnqueued must not fire when gateway is null.");
     }
 
     // â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
@@ -88,18 +89,18 @@ public class MapEventTranslatorTests
     /// the correct TKB type â€” Task 5 changes must not break this path.
     /// </summary>
     [Fact]
-    public void MiniExConPanelState_Submit_StillPublishesCommand()
+    public void MiniExConPanelState_Submit_EnqueuesTheRequest()
     {
         const long expectedTkb = 100L;
-        var state   = new MiniExConPanelState { TkbType = expectedTkb };
-        var bus     = new FdpEventBus();
+        var state    = new MiniExConPanelState { TkbType = expectedTkb };
+        var requests = new ScenarioEntityCreationRequestSource();
 
-        Fdp.Toolkit.NetworkSpawning.Events.SpawnEntityCommand? captured = null;
-        state.OnCommandPublished += cmd => captured = cmd;
+        EntityCreationRequest? captured = null;
+        state.OnRequestEnqueued += cmd => captured = cmd;
 
-        state.Submit(bus);
+        state.Submit(requests);
 
         Assert.NotNull(captured);
-        Assert.Equal(expectedTkb, captured!.Value.TkbType);
+        Assert.Equal(expectedTkb, captured!.TkbType);
     }
 }

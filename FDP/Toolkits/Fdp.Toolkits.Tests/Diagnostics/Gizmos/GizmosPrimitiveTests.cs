@@ -139,17 +139,28 @@ namespace Fdp.Toolkit.Diagnostics.Gizmos.Tests
         }
 
         [Fact]
-        public void PickToken_IsValid_FalseWhenTargetIsNull()
+        public void PickToken_IsValid_FalseWhenThereIsNoAnchor()
         {
-            var t = default(PickToken);
-            Assert.False(t.IsValid);
+            Assert.False(default(PickToken).IsValid);
         }
 
         [Fact]
-        public void PickToken_IsValid_TrueForNonNullEntity()
+        public void PickToken_IsValid_TrueForARealAnchorId()
         {
-            var t = new PickToken { Target = new Entity(1, 1), SubElementId = 42 };
+            var t = new PickToken { AnchorId = 7041L, SubElementId = 42 };
             Assert.True(t.IsValid);
+        }
+
+        // ⭐⭐⭐ §6.7 — THE CANVAS SENTINEL IS NOT A VALID ANCHOR, which is why IsValid tests `> 0` and
+        //   not `!= 0`. GizmoMap.Presentation.DebugGizmoLayer uses -1 for the canvas context menu, and
+        //   the only production reader of this flag picks EntityLocal vs World for a drag position —
+        //   so calling -1 valid would put a canvas drag in an entity's local frame.
+        // ⛔ RED-PROOF SHAPE: change IsValid to `AnchorId != 0` and this reddens.
+        // 📄 docs/DESIGN_Gizmo_Anchor_Identity.md §6.7; PickToken.cs.
+        [Fact]
+        public void PickToken_IsValid_FalseForTheCanvasSentinel()
+        {
+            Assert.False(new PickToken { AnchorId = -1L }.IsValid);
         }
     }
 
@@ -244,15 +255,24 @@ namespace Fdp.Toolkit.Diagnostics.Gizmos.Tests
             Assert.Equal(0u, p.StringHash);
         }
 
+        // 🔴🔴 DELETED 2026-09-11 (§6.7): AnchorProperty_ReconstructsEntity.
+        //   It asserted `p.GetAnchor()` rebuilt Entity(7, 3) from offsets 8/12 — i.e. it railed the
+        //   FABRICATION itself, on a field pair that for most shapes holds a narrowed network id, a
+        //   StringHash or a signed pixel offset. `GetAnchor` had no production caller and is deleted.
+        //   📄 docs/DESIGN_Gizmo_Anchor_Identity.md §6.7.
+        // ⭐ Replaced by the property that matters: the primitive's pick token carries its IDENTITY.
         [Fact]
-        public void AnchorProperty_ReconstructsEntity()
+        public void GetPickToken_CarriesTheAnchorIdentity_NotAnEcsHandle()
         {
             var p = default(DebugPrimitive);
-            p.AnchorIndex      = 7;
-            p.AnchorGeneration = 3;
-            var anchor = p.GetAnchor();
-            Assert.Equal(7, anchor.Index);
-            Assert.Equal(3, anchor.Generation);
+            p.BoxAnchorId      = 7041L;
+            p.AnchorIndex      = 7;    // whatever offset 8 holds for this shape
+            p.AnchorGeneration = 3;    // ...and offset 12
+
+            var token = p.GetPickToken();
+
+            Assert.Equal(7041L, token.AnchorId);
+            Assert.True(token.IsValid);
         }
 
         [Fact]
@@ -384,17 +404,25 @@ namespace Fdp.Toolkit.Diagnostics.Gizmos.Tests
             Assert.Equal("test",                   frame[0].TextContent.ToString());
         }
 
+        // ⭐⭐⭐ REWRITTEN 2026-09-10 (CE-259z). It used to pass `new Entity(3, 2)` and assert
+        //   AnchorIndex==3 / AnchorGeneration==2 — i.e. it RAILED THE DEFECT: offset 8 on an EntityLocal
+        //   primitive is the SpatialAnchor cache KEY, which the renderer fills from
+        //   SpatialAnchor.NetworkId (DebugPrimitiveRenderer2D.cs:63) and probes as
+        //   `(long)AnchorIndex` (:105). An ECS index missed the cache ⇒ the primitive was SILENTLY
+        //   SKIPPED. 🔒 .dev/_DONE/gizmos-1/feedback2.md:871 specified the fix — "DrawEntityLocal will
+        //   now accept `long anchorNetworkId` instead of an `Entity`" — and it was never built.
         [Fact]
-        public void Buffer_DrawEntityLocal_SetsAnchorAndSpace()
+        public void Buffer_DrawEntityLocal_SetsAnchorKeyAndSpace()
         {
-            var buf    = new DebugPrimitiveBuffer(16);
-            var anchor = new Entity(3, 2);
-            buf.DrawEntityLocal(anchor, Vector3.Zero, Vector3.UnitZ, Rgba32.Red);
+            var buf = new DebugPrimitiveBuffer(16);
+            buf.DrawEntityLocal(anchorNetworkId: 90210L, Vector3.Zero, Vector3.UnitZ, Rgba32.Red);
 
             var frame = buf.GetFrame();
             Assert.Equal(CoordinateSpace.EntityLocal, frame[0].Space);
-            Assert.Equal(3, frame[0].AnchorIndex);
-            Assert.Equal(2, (int)frame[0].AnchorGeneration);
+            Assert.Equal(90210, frame[0].AnchorIndex);
+            // ⛔ And NO generation: it is not part of the key, and stamping it here is what made
+            //   offset 12 look like an identity component in the first place.
+            Assert.Equal(0, (int)frame[0].AnchorGeneration);
         }
 
         [Fact]
@@ -632,7 +660,11 @@ namespace Fdp.Toolkit.Diagnostics.Gizmos.Tests
         public void SC_GZ065_5_ContextMenuBinding_Stamped()
         {
             var buf = new DebugPrimitiveBuffer(16);
-            buf.Append(MakeShape(DebugPrimitiveShape.ContextMenuBinding));
+            // ⭐ §6.8 — a binding is keyed by StructNetworkId; a 0 there can never be routed to, and the
+            //   identity invariant now says so. This rail is about STAMPING, so give it a real anchor.
+            var binding = MakeShape(DebugPrimitiveShape.ContextMenuBinding);
+            binding.StructNetworkId = 7041L;
+            buf.Append(binding);
 
             buf.StampGizmoTypeId(0, 99u);
 

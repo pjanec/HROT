@@ -1,0 +1,13 @@
+// HROT_EDITOR_GENERATED - manual edits to this file will be overwritten by the AI editor on next save.
+// AssetId: bb000010-0000-0000-0000-000000000000
+
+using System.Runtime.InteropServices;
+
+namespace Hrot.AI.Behaviors.Trees;
+
+[StructLayout(LayoutKind.Sequential)]
+public struct T10_MultiAction_FdpToolkitBehaviorComponentsBrainBlackboard
+{
+    public global::Hrot.AI.Behaviors.Brains.DemoCounterNodes.DemoCounterParams counter;
+    public global::Hrot.AI.Behaviors.Brains.DemoCounterNodes.DemoAccumParams accum;
+}

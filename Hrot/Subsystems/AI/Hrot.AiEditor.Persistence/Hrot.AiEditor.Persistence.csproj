@@ -15,4 +15,13 @@
     <PackageReference Include="System.Text.Json" Version="8.0.5" />
   </ItemGroup>
 
+  <ItemGroup>
+    <!-- BP-306: ONE home for the params-region expression, shared with Fdp.Toolkits.Analyzers.
+         LINKED, not referenced: the analyzer is a Roslyn component and must not enter this
+         assembly's dependency graph. Both projects are netstandard2.0 and the type is internal
+         on both sides, so no CS0436 arises for a project referencing both. -->
+    <Compile Include="..\..\..\..\FDP\Toolkits\Fdp.Toolkits.Analyzers\Shared\BlackboardParamsExpression.cs"
+             Link="Emit\Shared\BlackboardParamsExpression.cs" />
+  </ItemGroup>
+
 </Project>

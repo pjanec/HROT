@@ -4,11 +4,11 @@ using Fdp.Toolkit.Diagnostics.Gizmos;
 // Disambiguate from GizmoMap.Contracts.Fdp.Toolkit.Diagnostics.Gizmos.FixedString32.
 using FixedString32 = Fdp.Core.FixedString32;
 using Fdp.Toolkit.Diagnostics.Gizmos.Settings;
-using Hrot.IG.Components;
+using Fdp.Toolkit.Combat.Components;
 
 namespace Hrot.Common.Diagnostics.Gizmos
 {
-    [GizmoProjector(typeof(IgHealthState))]
+    [GizmoProjector(typeof(Health))]
     public sealed class HealthBarGizmo : IStatelessGizmo
     {
         private readonly GizmoSettingsRegistry _settings;
@@ -21,11 +21,20 @@ namespace Hrot.Common.Diagnostics.Gizmos
 
         public void Draw(ISimulationView view, Entity entity, IDebugDrawBuilder drawBuilder)
         {
-            if (!view.HasComponent<IgHealthState>(entity)) return;
+            if (!view.HasComponent<Health>(entity)) return;
 
-            ref readonly var health = ref view.GetComponentRO<IgHealthState>(entity);
-            float damage    = health.Damage;
-            float healthPct = 1f - (damage / 100f);
+            // ⭐ Derived HERE, from the authority's own Current/Max, rather than read from a
+            //   precomputed percentage. The pair travels on the EntityDamage descriptor and the
+            //   fraction is a rendering concern — one representation of health, derived at each
+            //   consumer. 🔒 User ruling, 2026-09-05: "no precalculated percentages".
+            // ⚠ Max <= 0 would make the fraction meaningless (or divide by zero); treat such an
+            //   entity as undamaged rather than drawing a bar computed from nonsense.
+            ref readonly var health = ref view.GetComponentRO<Health>(entity);
+            if (health.Max <= 0f) return;
+
+            float healthPct = health.Current / health.Max;
+            if (healthPct < 0f) healthPct = 0f;
+            if (healthPct > 1f) healthPct = 1f;
 
             // Read settings for bar dimensions (defaults used if not yet written).
             float barWidth  = _settings.Read(GizmoSettingsRegistry.ComputeHash(HealthBarGizmoSettings.BarWidthKey)).FloatValue;

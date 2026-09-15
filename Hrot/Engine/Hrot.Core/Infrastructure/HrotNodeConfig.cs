@@ -15,7 +15,7 @@ public sealed class HrotNodeConfig
     /// <summary>Logical node identifier used in DDS heartbeats, entity IDs, and recording file names.</summary>
     public int NodeId { get; set; }
 
-    /// <summary>Human-readable subsystem name published in heartbeats (e.g. "EyesAndMuscle").</summary>
+    /// <summary>Human-readable subsystem name published in heartbeats (e.g. "SimHost").</summary>
     public string SubsystemName { get; set; } = string.Empty;
 
     /// <summary>

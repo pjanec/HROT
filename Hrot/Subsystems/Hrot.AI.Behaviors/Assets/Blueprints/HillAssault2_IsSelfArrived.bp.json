@@ -1,23 +1,24 @@
 {
   "$meta": {
     "docType": "Hrot.Blueprints",
-    "schemaVersion": 1
+    "schemaVersion": 2
   },
-  "Header": {
-    "SubsystemType": "Hrot.Blueprints",
-    "SchemaVersion": "1.0"
-  },
+  "Header": {},
   "AssetId": "7206bd2d-e8ac-48a6-a52e-e575fb9655b0",
   "Name": "HillAssault2_IsSelfArrived",
   "Dispatch": "AiPrimitive",
   "TierHint": "Auto",
+  "IsWorldSingleton": false,
   "Primitive": {
     "Intent": "Condition",
-    "Hostings": ["BTreeCondition"]
+    "Hostings": [
+      "BTreeCondition"
+    ]
   },
-  "Parameters": [],
-  "WorkingState": [],
-  "Variables": [],
+  "Declarations": [],
+  "ParameterOrder": null,
+  "WorkingStateOrder": null,
+  "VariableOrder": null,
   "EventDispatchers": [],
   "CustomEvents": [],
   "CallablePeers": [],
@@ -28,59 +29,85 @@
       "Kind": "Function",
       "Inputs": [],
       "Outputs": [],
+      "ExecOutputs": [],
+      "ExecInputs": [],
       "Nodes": [
         {
           "kind": "EventEntry",
-          "Id": "bfaaa0f8-b23b-4c78-afd7-d1151361a4c3",
           "EventTypeId": "",
+          "Id": "bfaaa0f8-b23b-4c78-afd7-d1151361a4c3",
           "Pins": [],
-          "EditorMetadata": { "X": 80.0, "Y": 220.0 }
+          "EditorMetadata": {
+            "X": 80,
+            "Y": 220,
+            "Comment": null
+          }
         },
         {
           "kind": "GetComponent",
-          "Id": "01cc27bd-fc0e-4938-914a-8b24629f813a",
           "ComponentTypeFqn": "Fdp.Toolkit.Navigation.NavigationStatus",
           "FieldName": "Result",
           "FieldTypeFqn": "Fdp.Toolkit.Navigation.NavigationResult",
+          "Id": "01cc27bd-fc0e-4938-914a-8b24629f813a",
           "Pins": [
             {
               "Id": "cdc47ca0-bd42-438c-ab67-f9ec857af4d2",
               "Name": "Value",
               "Direction": "Out",
-              "TypeRef": { "TypeId": "global::Fdp.Toolkit.Navigation.NavigationResult", "IsArray": false, "GenericArgs": [] },
+              "TypeRef": {
+                "TypeId": "global::Fdp.Toolkit.Navigation.NavigationResult",
+                "IsArray": false,
+                "GenericArgs": []
+              },
               "IsExec": false,
               "LinkedToIds": []
             }
           ],
-          "EditorMetadata": { "X": 80.0, "Y": 60.0 }
+          "EditorMetadata": {
+            "X": 80,
+            "Y": 60,
+            "Comment": null
+          }
         },
         {
           "kind": "Literal",
-          "Id": "ff600c08-3d7d-4889-a1c5-3f957f4fb44e",
           "TypeId": "global::Fdp.Toolkit.Navigation.NavigationResult",
           "ValueJson": "global::Fdp.Toolkit.Navigation.NavigationResult.Arrived",
+          "Id": "ff600c08-3d7d-4889-a1c5-3f957f4fb44e",
           "Pins": [
             {
               "Id": "b917af9e-db29-4421-8a5f-15c09a593c0d",
               "Name": "Value",
               "Direction": "Out",
-              "TypeRef": { "TypeId": "global::Fdp.Toolkit.Navigation.NavigationResult", "IsArray": false, "GenericArgs": [] },
+              "TypeRef": {
+                "TypeId": "global::Fdp.Toolkit.Navigation.NavigationResult",
+                "IsArray": false,
+                "GenericArgs": []
+              },
               "IsExec": false,
               "LinkedToIds": []
             }
           ],
-          "EditorMetadata": { "X": 80.0, "Y": 140.0 }
+          "EditorMetadata": {
+            "X": 80,
+            "Y": 140,
+            "Comment": null
+          }
         },
         {
           "kind": "Compare",
-          "Id": "44f9506b-a51e-4cc9-8431-5138bcc72f45",
           "Operator": "Equal",
+          "Id": "44f9506b-a51e-4cc9-8431-5138bcc72f45",
           "Pins": [
             {
               "Id": "7b693723-a48a-409a-b93e-41593b0b3d1d",
               "Name": "A",
               "Direction": "In",
-              "TypeRef": { "TypeId": "global::Fdp.Toolkit.Navigation.NavigationResult", "IsArray": false, "GenericArgs": [] },
+              "TypeRef": {
+                "TypeId": "global::Fdp.Toolkit.Navigation.NavigationResult",
+                "IsArray": false,
+                "GenericArgs": []
+              },
               "IsExec": false,
               "LinkedToIds": []
             },
@@ -88,7 +115,11 @@
               "Id": "7f439fad-3b7e-4dd6-8d42-fb88db500926",
               "Name": "B",
               "Direction": "In",
-              "TypeRef": { "TypeId": "global::Fdp.Toolkit.Navigation.NavigationResult", "IsArray": false, "GenericArgs": [] },
+              "TypeRef": {
+                "TypeId": "global::Fdp.Toolkit.Navigation.NavigationResult",
+                "IsArray": false,
+                "GenericArgs": []
+              },
               "IsExec": false,
               "LinkedToIds": []
             },
@@ -96,32 +127,52 @@
               "Id": "3ceab38c-97cc-48df-b62d-fcae68e3294a",
               "Name": "Result",
               "Direction": "Out",
-              "TypeRef": { "TypeId": "System.Boolean", "IsArray": false, "GenericArgs": [] },
+              "TypeRef": {
+                "TypeId": "System.Boolean",
+                "IsArray": false,
+                "GenericArgs": []
+              },
               "IsExec": false,
               "LinkedToIds": []
             }
           ],
-          "EditorMetadata": { "X": 340.0, "Y": 60.0 }
+          "EditorMetadata": {
+            "X": 340,
+            "Y": 60,
+            "Comment": null
+          }
         },
         {
           "kind": "Branch",
           "Id": "af6fe19d-8fe8-4be9-aa39-9a02a9d8115a",
           "Pins": [],
-          "EditorMetadata": { "X": 420.0, "Y": 220.0 }
+          "EditorMetadata": {
+            "X": 420,
+            "Y": 220,
+            "Comment": null
+          }
         },
         {
           "kind": "Return",
-          "Id": "1357efc2-ff3e-40cc-a9c6-8c05612b833f",
           "Status": "Success",
+          "Id": "1357efc2-ff3e-40cc-a9c6-8c05612b833f",
           "Pins": [],
-          "EditorMetadata": { "X": 700.0, "Y": 140.0 }
+          "EditorMetadata": {
+            "X": 700,
+            "Y": 140,
+            "Comment": null
+          }
         },
         {
           "kind": "Return",
-          "Id": "c89a73f3-7d58-4c2d-b0b6-9a84d4ca8a4e",
           "Status": "Failure",
+          "Id": "c89a73f3-7d58-4c2d-b0b6-9a84d4ca8a4e",
           "Pins": [],
-          "EditorMetadata": { "X": 700.0, "Y": 300.0 }
+          "EditorMetadata": {
+            "X": 700,
+            "Y": 300,
+            "Comment": null
+          }
         }
       ],
       "Links": [
@@ -162,11 +213,17 @@
           "ToPinId": "5ca024c7-ca8c-447b-9a28-c2ca49bd62d6"
         }
       ],
-      "EditorMetadata": { "ViewportX": 0, "ViewportY": 0, "ViewportZoom": 0 }
+      "LocalVariables": [],
+      "Comments": [],
+      "EditorMetadata": {
+        "ViewportX": 0,
+        "ViewportY": 0,
+        "ViewportZoom": 0
+      }
     }
   ],
   "EditorMetadata": {
-    "Description": "P2/GAP-12 proof (Hill-attack -> Blueprints migration): a from-scratch, blueprint-authored AiPrimitive BTreeCondition proving the NEW visually-native GetComponent + Compare nodes end-to-end -- an ECS component field read plus a native comparison, with NO CLR reflection at generation time. Graph: EventEntry -> Branch, fed by GetComponent(self, Fdp.Toolkit.Navigation.NavigationStatus.Result) [no 'Target' pin wired -- self-default, emits IrOp_Self] -> Compare.A, Literal(NavigationResult.Arrived) -> Compare.B, Operator=Equal -> Compare.Result -> Branch.Condition -> Return(Success)/Return(Failure). GAP-12: the enum-equality check (NavigationResult == NavigationResult.Arrived) that turns the GetComponent field read into a bool condition is now fully visual (native Compare node, IrOp_Compare emits the infix '==' inline) -- retiring the former HillAssault2NavOps.IsArrived stopgap helper (deleted). Does not modify the C# oracle. See HillAssault2_IsSelfArrived_ProofTests.cs, which reflects the real generated Hrot.AI.Behaviors.Generated.HillAssault2IsSelfArrived_*_Bp type out of the built Hrot.AI.Behaviors.dll and asserts the generated TickCore body contains 'GetComponentRO<global::Fdp.Toolkit.Navigation.NavigationStatus>', '.Result', and the inline compare '== global::Fdp.Toolkit.Navigation.NavigationResult.Arrived', and that it no longer contains 'HillAssault2NavOps.IsArrived('.",
+    "Description": "P2/GAP-12 proof (Hill-attack -\u003E Blueprints migration): a from-scratch, blueprint-authored AiPrimitive BTreeCondition proving the NEW visually-native GetComponent \u002B Compare nodes end-to-end -- an ECS component field read plus a native comparison, with NO CLR reflection at generation time. Graph: EventEntry -\u003E Branch, fed by GetComponent(self, Fdp.Toolkit.Navigation.NavigationStatus.Result) [no \u0027Target\u0027 pin wired -- self-default, emits IrOp_Self] -\u003E Compare.A, Literal(NavigationResult.Arrived) -\u003E Compare.B, Operator=Equal -\u003E Compare.Result -\u003E Branch.Condition -\u003E Return(Success)/Return(Failure). GAP-12: the enum-equality check (NavigationResult == NavigationResult.Arrived) that turns the GetComponent field read into a bool condition is now fully visual (native Compare node, IrOp_Compare emits the infix \u0027==\u0027 inline) -- retiring the former HillAssault2NavOps.IsArrived stopgap helper (deleted). Does not modify the C# oracle. See HillAssault2_IsSelfArrived_ProofTests.cs, which reflects the real generated Hrot.AI.Behaviors.Generated.HillAssault2IsSelfArrived_*_Bp type out of the built Hrot.AI.Behaviors.dll and asserts the generated TickCore body contains \u0027GetComponentRO\u003Cglobal::Fdp.Toolkit.Navigation.NavigationStatus\u003E\u0027, \u0027.Result\u0027, and the inline compare \u0027== global::Fdp.Toolkit.Navigation.NavigationResult.Arrived\u0027, and that it no longer contains \u0027HillAssault2NavOps.IsArrived(\u0027.",
     "Category": null,
     "Recipe": null
   }

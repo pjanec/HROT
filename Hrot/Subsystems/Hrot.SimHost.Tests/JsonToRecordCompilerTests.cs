@@ -206,15 +206,19 @@ namespace Hrot.SimHost.Tests
                 compiler.Compile(utf8, emitter);
             }
 
+            // ⭐⭐⭐ Q59 — THE INSTRUMENT, corrected. This measured GC.GetTotalAllocatedBytes, which counts
+            //    EVERY thread in the process, so xunit's own parallel machinery lands inside the window.
+            // 📐 Measured 2026-08-26: it reds in a full-suite run and passes in isolation — the 1024-byte
+            //    threshold was not a tolerance, it was a coin flip, and no value of it could have worked.
+            // ⭐ GC.GetAllocatedBytesForCurrentThread() is thread-local, which is exactly what a zero-alloc
+            //    claim needs ⇒ the assert can be EXACT, i.e. stricter than the threshold it replaces.
+            // 📌 Same root cause and same fix as DangerAreaProviderTests.…ZeroAllocAfterWarmup.
             emitter.Reset(buffer);
-            long before = GC.GetTotalAllocatedBytes(precise: true);
+            long before = GC.GetAllocatedBytesForCurrentThread();
             compiler.Compile(utf8, emitter);
-            long after  = GC.GetTotalAllocatedBytes(precise: true);
-            long delta  = after - before;
+            long delta  = GC.GetAllocatedBytesForCurrentThread() - before;
 
-            Assert.True(delta <= 1024,
-                $"Compile() allocated {delta} bytes on the GC heap (threshold 1024 b). " +
-                "Check for strings, collections, or boxing on the hot path.");
+            Assert.Equal(0, delta);
         }
 
         // ── Builder validation ────────────────────────────────────────────────────

@@ -75,6 +75,8 @@ namespace Fdp.Toolkit.Orchestration.Handlers
         private readonly string                       _storageDirectory;
         private readonly Action? _suspendGlobalTimePush;
         private readonly Action? _resumeGlobalTimePush;
+        /// <summary>⭐ §2.1m step 3 — see the ctor parameter's remarks.</summary>
+        private readonly Action<bool>? _worldReplaced;
 
         /// <param name="controller">Record/replay lifecycle controller.</param>
         /// <param name="inputGroup">
@@ -103,6 +105,12 @@ namespace Fdp.Toolkit.Orchestration.Handlers
         /// <param name="storageDirectory">
         /// Root directory where exercise recording files are staged.
         /// </param>
+        /// <param name="worldReplaced">
+        /// ⭐⭐⭐ §2.1m step 3 — the WORLD-REPLACEMENT hook. Invoked with <c>false</c> on entering a replay
+        /// and <c>true</c> on leaving it for a live world. ⛔ The SEEK boundary is NOT routed through here:
+        /// it is composed into the controller's <c>afterSeek</c> chain, beside the
+        /// <c>NetworkEntityMap.RebuildFromWorld</c> that already lives there for the same reason.
+        /// </param>
         public ReferenceReplayLoadHandler(
             IRecordReplayController       controller,
             TogglableInputGroup?          inputGroup,
@@ -112,7 +120,12 @@ namespace Fdp.Toolkit.Orchestration.Handlers
             Action<bool>?                 bypassLifecycleToggle,
             string                        storageDirectory,
             Action?                       suspendGlobalTimePush = null,
-            Action?                       resumeGlobalTimePush  = null)
+            Action?                       resumeGlobalTimePush  = null,
+            // ⭐⭐⭐ Step 3 of docs/designs/replay-and-modules/DESIGN.md §2.1m — THE WORLD-REPLACEMENT HOOK.
+            //   Invoked with resumingToLive:false when ENTERING a replay and true when leaving it for a
+            //   live world. The implementation clears the ELM's in-flight queues and, on a resume, arms the
+            //   re-derive. ⚠ Unset = the previous behaviour exactly.
+            Action<bool>?                 worldReplaced         = null)
         {
             _controller            = controller       ?? throw new ArgumentNullException(nameof(controller));
             _inputGroup            = inputGroup;
@@ -120,6 +133,7 @@ namespace Fdp.Toolkit.Orchestration.Handlers
             _postSimGroup          = postSimGroup;
             _lifecycleGroup        = lifecycleGroup;
             _bypassLifecycleToggle = bypassLifecycleToggle;
+            _worldReplaced         = worldReplaced;
             _storageDirectory      = storageDirectory ?? throw new ArgumentNullException(nameof(storageDirectory));
             _suspendGlobalTimePush = suspendGlobalTimePush;
             _resumeGlobalTimePush  = resumeGlobalTimePush;
@@ -236,6 +250,9 @@ namespace Fdp.Toolkit.Orchestration.Handlers
                 SetSystemsEnabled(false);
                 _suspendGlobalTimePush?.Invoke();
                 _bypassLifecycleToggle?.Invoke(true);
+                // ⭐ The log is about to own the world: discard bookkeeping keyed by handles it invalidates.
+                //   ⛔ Do NOT arm the re-derive — re-opening protocols the log will overwrite is waste.
+                _worldReplaced?.Invoke(false);
 
                 FdpLog<ReferenceReplayLoadHandler>.Info(
                     "[ReferenceReplayLoadHandler] Commit(PrepareReplay) — sim+lifecycle disabled.");
@@ -245,6 +262,10 @@ namespace Fdp.Toolkit.Orchestration.Handlers
                 SetSystemsEnabled(true);
                 _resumeGlobalTimePush?.Invoke();
                 _bypassLifecycleToggle?.Invoke(false);
+                // ⭐⭐ Resuming to a LIVE world: clear, then ARM the re-derive so the next tick re-opens
+                //   every protocol the restored world still implies (else restored Constructing/TearDown
+                //   entities are zombies nothing drives).
+                _worldReplaced?.Invoke(true);
 
                 FdpLog<ReferenceReplayLoadHandler>.Info(
                     "[ReferenceReplayLoadHandler] Commit(FinalizeReplay) — sim+lifecycle re-enabled.");
@@ -254,6 +275,9 @@ namespace Fdp.Toolkit.Orchestration.Handlers
                 SetSystemsEnabled(true);
                 _resumeGlobalTimePush?.Invoke();
                 _bypassLifecycleToggle?.Invoke(false);
+                // ⭐⭐ Branch-to-live: same as FinalizeReplay — clear and arm. This is the path that left
+                //   restored Constructing entities permanently invisible to every default query.
+                _worldReplaced?.Invoke(true);
 
                 FdpLog<ReferenceReplayLoadHandler>.Info(
                     "[ReferenceReplayLoadHandler] Commit(PrepareLive/branch) — sim+lifecycle re-enabled.");

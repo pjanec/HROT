@@ -277,7 +277,7 @@ field, throw `InvalidOperationException`.
 1. Struct with a `[InlineArray(3)]` of `float`; serialize; assert JSON array length is 3
    with correct values.
 2. Inject from JSON array; assert all 3 values are restored.
-3. `MissionPlanQueue` auto-serialization round-trip (WITHOUT `DataPolicy.NoSave`): create
+3. `MissionPlanQueue` auto-serialization round-trip (WITHOUT `DataPolicy.NoScenario`): create
    a queue with 2 phases; serialize; inject into a fresh component; assert all
    `BehaviorId`, `Trigger`, `CurrentPhase`, `PhaseElapsedSeconds` match.
 

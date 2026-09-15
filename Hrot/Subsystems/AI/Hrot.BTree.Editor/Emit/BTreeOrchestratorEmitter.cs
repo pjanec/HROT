@@ -1,10 +1,8 @@
-using System;
 using System.Collections.Generic;
 using System.IO;
-using System.Linq;
-using System.Text;
+using Hrot.AiEditor.Persistence.Emit;
 using Hrot.BTree.Editor.Model;
-using Hrot.Editor.AiShared.Blackboard;
+using Hrot.BTree.Editor.Persistence;
 using Hrot.Editor.AiShared.Emit;
 
 namespace Hrot.BTree.Editor.Emit;
@@ -14,169 +12,78 @@ namespace Hrot.BTree.Editor.Emit;
 /// has aliased sub-tree variable bindings.
 /// One <c>[BTreeAction]</c> static method is generated per unique (variable, sub-tree) pair.
 /// Returns <c>null</c> when the asset has no alias bindings — the caller should skip writing.
+///
+/// <para>⭐⭐⭐ <b>Batch 92 (<c>92c</c>) — this is now a THIN CALLER.</b> The emit body lives in
+/// <see cref="BTreeOrchestratorEmitCore"/>, in the netstandard2.0 persistence assembly, so the
+/// generator (<c>92b</c>) and this sidecar path emit from <b>one body</b> — 📌 ruling 9.</para>
+///
+/// <para>⭐⭐⭐ <b><c>Q49</c> (<c>2026-08-22</c>) — THE IDENTITY IS NO LONGER SESSION-LOCAL HERE.</b>
+/// ⛔ <i>(was: "<c>_syncNodeMeta</c> is written only by a UI draw and is deliberately not persisted"
+/// — true of the WRITE, and it meant this emitter produced nothing after a reload.)</i>
+/// ⭐ <see cref="Emit"/> now takes a <b>required</b> sub-asset resolver and <b>recomputes</b> the
+/// identity before reading the groups — 📌 <c>R-126</c>'s pull. Nothing is persisted; the DTO exclusion
+/// rail stays correct. 📄 <c>Architect_Question_49_Subtree_Sync_Identity_Survives_Reload.md</c>.
+/// ⚠ <b>This closes <c>BP-342</c> gap ① for the EDITOR arm only</b> — the generator arm is option D,
+/// and <b>gap ②</b> *(the master blackboard does not declare the auto-allocated slice)* still stands.</para>
+///
+/// <para>⭐⭐ <b><c>WriteOrchestratorFile</c> STAYS</b> — the Category-1 hand-authored path
+/// (<c>EditorSubsystem:3136</c>), and ⛔ deliberately unwired to anything new.</para>
 /// </summary>
 public static class BTreeOrchestratorEmitter
 {
-    private const string Indent = "    ";
-    // Namespace used in the generated file for BTreeAction, NodeStatus, BehaviorTreeState, BTreeContext.
-    private const string FbtNamespace         = "Fbt";
-    private const string BTreeContextNs       = "Fdp.Toolkit.Behavior";
-    private const string RuntimeCompilerServNs = "System.Runtime.CompilerServices";
-
     /// <summary>
     /// Generates the orchestrator source text for <paramref name="asset"/>.
-    /// Returns <c>null</c> when there are no alias bindings.
+    /// Returns <c>null</c> when there is nothing to emit.
     /// </summary>
-    public static string? Emit(BehaviorTreeAsset asset)
+    /// <remarks>
+    /// ⭐ Projects through the SAME <c>ToDto</c> the save path uses — ⛔ not a second projection.
+    /// </remarks>
+    /// <param name="resolveSubAsset">
+    /// ⭐⭐⭐ <b><c>Q49</c> option C, as a PULL.</b> Answers <i>"what are this subtree asset's name and
+    /// blackboard type?"</i> — the identity is <b>recomputed from it before the groups are read</b>.
+    ///
+    /// <para>⛔⛔ <b>REQUIRED, and that is the whole point</b> — 📌 <c>R-126</c>: <i>"no path can forget
+    /// to raise what is never raised."</i> ⚠ The defect being fixed is precisely that the identity was
+    /// written by <b>one optional caller</b> *(a UI draw)*; an optional parameter here would rebuild
+    /// that failure mode one level up. ⇒ ⭐ a caller with no catalog passes <c>_ =&gt; null</c> and says
+    /// so — an explicit *"I cannot resolve"*, not a silent default.</para>
+    /// </param>
+    public static string? Emit(
+        BehaviorTreeAsset asset,
+        System.Func<System.Guid, (string Name, string BlackboardTypeName)?> resolveSubAsset)
     {
-        // Collect unique (variableName, subTreeName) pairs and associated DTO types.
-        var seen = new HashSet<string>(StringComparer.Ordinal);
-        var methods = new List<(string varName, string subTreeName, string dtoTypeName, string? dtoTypeNs)>();
+        if (resolveSubAsset is null) throw new System.ArgumentNullException(nameof(resolveSubAsset));
 
-        foreach (var v in asset.BlackboardVariables)
+        // ⭐⭐ RECOMPUTE FIRST, then read. ⛔ Reading first would emit the pre-reload (empty) identity,
+        //    which is the bug. See BehaviorTreeAsset.RecomputeSubtreeSyncIdentity.
+        asset.RecomputeSubtreeSyncIdentity(resolveSubAsset);
+
+        return BTreeOrchestratorEmitCore.Emit(
+            BehaviorTreeAssetMapper.ToDto(asset), ApproachBGroupsOf(asset));
+    }
+
+    /// <summary>
+    /// Maps the editor's <c>ApproachBSyncGroup</c>s onto the core's assembly-neutral shape.
+    /// ⛔ The core cannot reference <c>Hrot.Editor.AiShared</c> (net8 + ImGui), so the shapes are
+    /// mirrored rather than shared.
+    /// </summary>
+    private static IReadOnlyList<OrchestratorSyncGroup> ApproachBGroupsOf(BehaviorTreeAsset asset)
+    {
+        var groups = asset.GetApproachBSyncGroups();
+        var result = new List<OrchestratorSyncGroup>(groups.Count);
+
+        foreach (var g in groups)
         {
-            var aliases = asset.GetAliasesFor(v.Name);
-            foreach (var binding in aliases)
-            {
-                string subTreeName = SanitizeIdentifier(binding.RequiringAssetName);
-                // Unit-separator (0x1F) is not a legal C# identifier char so it cannot appear in
-                // either part, making this key unambiguous.
-                string key = v.Name + "\x1F" + subTreeName;
-                if (!seen.Add(key)) continue;
+            var bindings = new List<OrchestratorSyncBinding>(g.Bindings.Count);
+            foreach (var b in g.Bindings)
+                bindings.Add(new OrchestratorSyncBinding(
+                    b.FieldName, b.MasterVariableName, b.SyncIn, b.SyncOut));
 
-                string dtoTypeName = binding.DtoType.Name;
-                string? dtoTypeNs  = binding.DtoType.Namespace;
-                methods.Add((v.Name, subTreeName, dtoTypeName, dtoTypeNs));
-            }
+            result.Add(new OrchestratorSyncGroup(
+                g.SubtreeName, g.SubtreeDtoTypeName, g.SubtreeDtoTypeNs, bindings));
         }
 
-        if (methods.Count == 0 && asset.GetApproachBSyncGroups().Count == 0) return null;
-
-        // Collect usings.
-        var usingsSet = new HashSet<string>(StringComparer.Ordinal)
-        {
-            RuntimeCompilerServNs,
-            FbtNamespace,
-            BTreeContextNs,
-        };
-        foreach (var (_, _, _, dtoNs) in methods)
-        {
-            if (!string.IsNullOrEmpty(dtoNs)
-                && !string.Equals(dtoNs, asset.TargetNamespace, StringComparison.Ordinal))
-            {
-                usingsSet.Add(dtoNs);
-            }
-        }
-
-        string targetNs = string.IsNullOrEmpty(asset.TargetNamespace)
-            ? "Hrot.AI.Behaviors"
-            : asset.TargetNamespace;
-
-        // Approach B: subtree nodes with field-level sync bindings.
-        var syncGroups = asset.GetApproachBSyncGroups();
-        var approachBMethods = new List<ApproachBSyncGroup>();
-        foreach (var group in syncGroups)
-        {
-            string key = SanitizeIdentifier(group.SubtreeName);
-            // Skip if already covered by Approach A.
-            if (methods.Any(m => m.subTreeName == key)) continue;
-            // Collect effective sync-in and sync-out bindings.
-            var syncIn  = group.Bindings
-                .Where(b => b.SyncIn  && b.MasterVariableName != null)
-                .ToList();
-            var syncOut = group.Bindings
-                .Where(b => b.SyncOut && b.MasterVariableName != null)
-                .ToList();
-            if (syncIn.Count == 0 && syncOut.Count == 0) continue;
-            approachBMethods.Add(group);
-            // Collect using directives.
-            if (!string.IsNullOrEmpty(group.SubtreeDtoTypeNs)
-                && !string.Equals(group.SubtreeDtoTypeNs, targetNs, StringComparison.Ordinal))
-                usingsSet.Add(group.SubtreeDtoTypeNs!);
-        }
-
-        if (methods.Count == 0 && approachBMethods.Count == 0) return null;
-
-        var sortedUsings = FluentCSharpEmitterBase.SortUsings(usingsSet);
-
-        string bbShort  = ShortTypeName(asset.BlackboardTypeName);
-        string ctxShort = ShortTypeName(asset.ContextTypeName);
-        string className = SanitizeIdentifier(asset.Name);
-
-        var sb = new StringBuilder();
-
-        // Header
-        sb.Append(FluentCSharpEmitterBase.BuildHeader(asset.AssetId));
-        sb.AppendLine("// Auto-generated orchestrator actions for aliased sub-trees.");
-        sb.AppendLine($"// OwningAssetName: {asset.Name}");
-        sb.AppendLine();
-
-        // Usings
-        foreach (var ns in sortedUsings)
-        {
-            if (ns.Length == 0)
-                sb.AppendLine();
-            else
-                sb.AppendLine($"using {ns};");
-        }
-        sb.AppendLine();
-
-        sb.AppendLine($"namespace {targetNs};");
-        sb.AppendLine();
-        sb.AppendLine($"public static class {className}_Orchestrators");
-        sb.AppendLine("{");
-
-        for (int i = 0; i < methods.Count; i++)
-        {
-            var (varName, subTreeName, dtoTypeName, _) = methods[i];
-
-            sb.AppendLine($"{Indent}[BTreeAction(Name = \"Orchestrate_{subTreeName}\")]");
-            sb.AppendLine($"{Indent}public static NodeStatus Orchestrate_{subTreeName}_Tick(");
-            sb.AppendLine($"{Indent}{Indent}ref {bbShort} master,");
-            sb.AppendLine($"{Indent}{Indent}ref BehaviorTreeState state,");
-            sb.AppendLine($"{Indent}{Indent}ref {ctxShort} ctx,");
-            sb.AppendLine($"{Indent}{Indent}int paramIndex)");
-            sb.AppendLine($"{Indent}{{");
-            sb.AppendLine($"{Indent}{Indent}ref var subBb = ref Unsafe.As<{dtoTypeName}, {dtoTypeName}>(ref master.{varName});");
-            sb.AppendLine($"{Indent}{Indent}return {subTreeName}.GetInterpreter().Tick(ref subBb, ref state, ref ctx);");
-            sb.AppendLine($"{Indent}}}");
-
-            if (i < methods.Count - 1 || approachBMethods.Count > 0)
-                sb.AppendLine();
-        }
-
-        // Approach B orchestrator methods
-        foreach (var group in approachBMethods)
-        {
-            string subTreeId = SanitizeIdentifier(group.SubtreeName);
-            string sliceField = $"{subTreeId}_{group.SubtreeDtoTypeName}";
-            var syncIn  = group.Bindings
-                .Where(b => b.SyncIn  && b.MasterVariableName != null)
-                .OrderBy(b => b.FieldName, StringComparer.Ordinal).ToList();
-            var syncOut = group.Bindings
-                .Where(b => b.SyncOut && b.MasterVariableName != null)
-                .OrderBy(b => b.FieldName, StringComparer.Ordinal).ToList();
-
-            sb.AppendLine($"{Indent}[BTreeAction(Name = \"Orchestrate_{subTreeId}\")]");
-            sb.AppendLine($"{Indent}public static NodeStatus Orchestrate_{subTreeId}_Tick(");
-            sb.AppendLine($"{Indent}{Indent}ref {bbShort} master,");
-            sb.AppendLine($"{Indent}{Indent}ref BehaviorTreeState state,");
-            sb.AppendLine($"{Indent}{Indent}ref {ctxShort} ctx,");
-            sb.AppendLine($"{Indent}{Indent}int paramIndex)");
-            sb.AppendLine($"{Indent}{{");
-            sb.AppendLine($"{Indent}{Indent}ref var subDto = ref master.{sliceField};");
-            foreach (var b in syncIn)
-                sb.AppendLine($"{Indent}{Indent}subDto.{b.FieldName} = master.{b.MasterVariableName};");
-            sb.AppendLine($"{Indent}{Indent}var result = {subTreeId}.GetInterpreter().Tick(ref subDto, ref state, ref ctx);");
-            foreach (var b in syncOut)
-                sb.AppendLine($"{Indent}{Indent}master.{b.MasterVariableName} = subDto.{b.FieldName};");
-            sb.AppendLine($"{Indent}{Indent}return result;");
-            sb.AppendLine($"{Indent}}}");
-        }
-
-        sb.AppendLine("}");
-
-        return sb.ToString();
+        return result;
     }
 
     /// <summary>
@@ -188,23 +95,5 @@ public static class BTreeOrchestratorEmitter
         if (sidecarContent is null) return;
         string path = Path.ChangeExtension(asset.SourceFilePath, null) + ".Orchestrators.g.cs";
         FluentCSharpEmitterBase.WriteAtomic(path, sidecarContent);
-    }
-
-    // ---- Helpers ----
-
-    private static string SanitizeIdentifier(string name)
-    {
-        var sb = new StringBuilder();
-        foreach (char c in name)
-            if (char.IsLetterOrDigit(c) || c == '_') sb.Append(c);
-        if (sb.Length == 0) return "BTreeAsset";
-        if (char.IsDigit(sb[0])) sb.Insert(0, '_');
-        return sb.ToString();
-    }
-
-    private static string ShortTypeName(string fqn)
-    {
-        int last = fqn.LastIndexOf('.');
-        return last >= 0 ? fqn[(last + 1)..] : fqn;
     }
 }

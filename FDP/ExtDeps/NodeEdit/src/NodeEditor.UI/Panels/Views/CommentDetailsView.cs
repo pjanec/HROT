@@ -1,4 +1,5 @@
 using ImGuiNET;
+using System.Linq;
 using NodeEditor.Core.Commands;
 using NodeEditor.Core.Interfaces;
 using NodeEditor.Primitives;
@@ -35,30 +36,70 @@ internal sealed class CommentDetailsView : IDetailsView
     /// <inheritdoc/>
     public bool IsDirty => _isDirty;
 
-    /// <inheritdoc/>
+    /// <summary>
+    /// BP-63 — commits through <see cref="IDetailsContext.Execute"/> with a matching inverse built
+    /// from the comment's pre-edit state, so a Details-panel comment edit is undoable like every
+    /// other edit. It used to call <c>CommandSink.Apply</c> raw: the sink applies, it does not
+    /// record, so the change reached the graph and nothing reached the undo stack.
+    /// </summary>
     public void Commit()
     {
         if (!_isDirty) return;
 
-        _ctx.CommandSink.Apply(new GraphCommand.UpdateComment(
+        var forward = new GraphCommand.UpdateComment(
             _commentId,
             Text: _text,
             Position: _position,
             Size: _size,
             Color: _color,
             ZOrder: null,
-            MoveWithContents: _moveWithContents));
+            MoveWithContents: _moveWithContents);
 
+        var before = FindComment();
+        if (before is null)
+        {
+            // Comment vanished (deleted elsewhere) — apply and let the sink decide; there is no
+            // prior state to invert to.
+            _ctx.CommandSink.Apply(forward);
+            _isDirty = false;
+            return;
+        }
+
+        var inverse = new GraphCommand.UpdateComment(
+            _commentId,
+            Text: before.Text,
+            Position: before.Position,
+            Size: before.Size,
+            Color: before.Color,
+            ZOrder: null,
+            MoveWithContents: before.MoveWithContents);
+
+        _ctx.Execute(forward, inverse, "Edit Comment");
         _isDirty = false;
     }
 
-    /// <inheritdoc/>
+    /// <summary>
+    /// BP-63 — reloads the editable fields from the model, discarding uncommitted edits. Previously
+    /// a no-op that only cleared the dirty flag, because the context carried no model: "Revert" left
+    /// the stale values on screen and relied on the host rebuilding the view later.
+    /// </summary>
     public void Revert()
     {
         _isDirty = false;
-        // Re-load from model not possible here (no IGraphModel reference).
-        // The host will rebuild the view on the next target switch.
+
+        var current = FindComment();
+        if (current is null) return;   // nothing to reload; host rebuilds on the next target switch
+
+        _text             = current.Text;
+        _position         = current.Position;
+        _size             = current.Size;
+        _color            = current.Color;
+        _moveWithContents = current.MoveWithContents;
     }
+
+    /// <summary>The comment as the model currently holds it, or null when unavailable.</summary>
+    private ICommentModel? FindComment()
+        => _ctx.Model?.Comments.FirstOrDefault(c => c.Id == _commentId);
 
     /// <inheritdoc/>
     public void Draw(IDetailsRenderContext ctx)

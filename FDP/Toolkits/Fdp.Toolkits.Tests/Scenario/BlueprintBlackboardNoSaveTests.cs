@@ -10,7 +10,7 @@ namespace Fdp.Toolkit.Scenario.Tests
 {
     /// <summary>
     /// BSA-101: Verifies that BlueprintBlackboard{1024,4096,16384} carry
-    /// [DataPolicy(DataPolicy.NoSave)] so volatile runtime bytes don't leak into scenario JSON.
+    /// [DataPolicy(DataPolicy.NoScenario)] so volatile runtime bytes don't leak into scenario JSON.
     /// </summary>
     public sealed class BlueprintBlackboardNoSaveTests : IDisposable
     {
@@ -31,7 +31,7 @@ namespace Fdp.Toolkit.Scenario.Tests
         {
             var attr = typeof(BlueprintBlackboard1024).GetCustomAttribute<DataPolicyAttribute>();
             Assert.NotNull(attr);
-            Assert.Equal(DataPolicy.NoSave, attr!.Policy);
+            Assert.Equal(DataPolicy.NoScenario, attr!.Policy);
         }
 
         [Fact]
@@ -39,7 +39,7 @@ namespace Fdp.Toolkit.Scenario.Tests
         {
             var attr = typeof(BlueprintBlackboard4096).GetCustomAttribute<DataPolicyAttribute>();
             Assert.NotNull(attr);
-            Assert.Equal(DataPolicy.NoSave, attr!.Policy);
+            Assert.Equal(DataPolicy.NoScenario, attr!.Policy);
         }
 
         [Fact]
@@ -47,7 +47,7 @@ namespace Fdp.Toolkit.Scenario.Tests
         {
             var attr = typeof(BlueprintBlackboard16384).GetCustomAttribute<DataPolicyAttribute>();
             Assert.NotNull(attr);
-            Assert.Equal(DataPolicy.NoSave, attr!.Policy);
+            Assert.Equal(DataPolicy.NoScenario, attr!.Policy);
         }
 
         // ── Test 2: Serialization exclusion ────────────────────────────────────
@@ -57,7 +57,7 @@ namespace Fdp.Toolkit.Scenario.Tests
         /// produce a "BlueprintBlackboard1024" key in the JSON.
         ///
         /// NOTE: This test may fail until Task 4's BlueprintStateTranslator is in place,
-        /// because the serializer may throw if the NoSave component isn't claimed by any
+        /// because the serializer may throw if the NoScenario component isn't claimed by any
         /// translator and FdpAutoSerializer tries to process it.
         /// This is expected — it verifies the coupling between BSA-101 and BSA-202.
         /// </summary>

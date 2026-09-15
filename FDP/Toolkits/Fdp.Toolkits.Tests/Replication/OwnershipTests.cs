@@ -102,6 +102,121 @@ namespace Fdp.Toolkit.Replication.Tests
             Assert.True(found, "Should have fired DescriptorAuthorityChanged event");
         }
 
+        // ── OQ12 / CE-275 ④ — BDC compliance: an EntityMaster OwnershipUpdate mirrors into
+        //    NetworkAuthority.PrimaryOwnerId (the save-gate fact). The "master" descriptor is
+        //    identified network-agnostically via DescriptorOwnershipMap.PrimaryOwnerDescriptorOrdinal.
+        //    📄 docs/DESIGN_Distributed_Scenario_Persistence.md §6c.
+        private const int MasterOrdinal = 7;   // stand-in for the NED dtEntityMaster ordinal
+
+        [Fact]
+        public void IngressSystem_MirrorsPrimaryOwner_OnMasterDescriptorTransfer_ToUs()
+        {
+            using var repo = new EntityRepository();
+            repo.RegisterComponent<NetworkIdentity>();
+            repo.RegisterComponent<NetworkAuthority>();
+            repo.RegisterManagedComponent<DescriptorOwnership>();
+            repo.RegisterEvent<OwnershipUpdate>();
+
+            var map    = new NetworkEntityMap();
+            var ownMap = new DescriptorOwnershipMap { PrimaryOwnerDescriptorOrdinal = MasterOrdinal };
+            var sys    = new OwnershipIngressSystem(map, localNodeId: 1, descriptorMap: ownMap);
+
+            var entity = repo.CreateEntity();
+            long netId = 555;
+            repo.AddComponent(entity, new NetworkIdentity(netId));
+            // Ghost on THIS node (1), currently owned by remote node 2.
+            repo.AddComponent(entity, new NetworkAuthority(primaryOwnerId: 2, localNodeId: 1));
+            map.Register(netId, entity);
+
+            // External EntityMaster OwnershipUpdate hands the entity to us (node 1).
+            repo.Bus.Publish(new OwnershipUpdate
+            {
+                NetworkId      = new NetworkIdentity(netId),
+                PackedKey      = PackedKey.Create(MasterOrdinal, 0),
+                NewOwnerNodeId = 1
+            });
+            repo.Bus.SwapBuffers();
+
+            sys.Execute(repo, 0f);
+
+            var netAuth = ((ISimulationView)repo).GetComponentRO<NetworkAuthority>(entity);
+            Assert.Equal(1, netAuth.PrimaryOwnerId);
+            Assert.True(netAuth.HasAuthority);      // save gate now sees us as owner
+        }
+
+        [Fact]
+        public void IngressSystem_MirrorsPrimaryOwner_OnMasterDescriptorTransfer_AwayFromUs()
+        {
+            using var repo = new EntityRepository();
+            repo.RegisterComponent<NetworkIdentity>();
+            repo.RegisterComponent<NetworkAuthority>();
+            repo.RegisterManagedComponent<DescriptorOwnership>();
+            repo.RegisterEvent<OwnershipUpdate>();
+
+            var map    = new NetworkEntityMap();
+            var ownMap = new DescriptorOwnershipMap { PrimaryOwnerDescriptorOrdinal = MasterOrdinal };
+            var sys    = new OwnershipIngressSystem(map, localNodeId: 1, descriptorMap: ownMap);
+
+            var entity = repo.CreateEntity();
+            long netId = 556;
+            repo.AddComponent(entity, new NetworkIdentity(netId));
+            // We (node 1) currently own it.
+            repo.AddComponent(entity, new NetworkAuthority(primaryOwnerId: 1, localNodeId: 1));
+            map.Register(netId, entity);
+
+            // EntityMaster OwnershipUpdate hands the entity to node 2.
+            repo.Bus.Publish(new OwnershipUpdate
+            {
+                NetworkId      = new NetworkIdentity(netId),
+                PackedKey      = PackedKey.Create(MasterOrdinal, 0),
+                NewOwnerNodeId = 2
+            });
+            repo.Bus.SwapBuffers();
+
+            sys.Execute(repo, 0f);
+
+            var netAuth = ((ISimulationView)repo).GetComponentRO<NetworkAuthority>(entity);
+            Assert.Equal(2, netAuth.PrimaryOwnerId);
+            Assert.False(netAuth.HasAuthority);     // save gate now excludes us
+        }
+
+        [Fact]
+        public void IngressSystem_LeavesPrimaryOwner_OnNonMasterDescriptor()
+        {
+            // Axis separation (design fact 8): a per-component grant — e.g. a Muscle claiming
+            // SimTransform — moves AuthorityMask only and must NOT change entity/save ownership.
+            using var repo = new EntityRepository();
+            repo.RegisterComponent<NetworkIdentity>();
+            repo.RegisterComponent<NetworkAuthority>();
+            repo.RegisterManagedComponent<DescriptorOwnership>();
+            repo.RegisterEvent<OwnershipUpdate>();
+
+            var map    = new NetworkEntityMap();
+            var ownMap = new DescriptorOwnershipMap { PrimaryOwnerDescriptorOrdinal = MasterOrdinal };
+            var sys    = new OwnershipIngressSystem(map, localNodeId: 1, descriptorMap: ownMap);
+
+            var entity = repo.CreateEntity();
+            long netId = 557;
+            repo.AddComponent(entity, new NetworkIdentity(netId));
+            repo.AddComponent(entity, new NetworkAuthority(primaryOwnerId: 1, localNodeId: 1));
+            map.Register(netId, entity);
+
+            // A NON-master descriptor (ordinal 3) is granted to node 2.
+            repo.Bus.Publish(new OwnershipUpdate
+            {
+                NetworkId      = new NetworkIdentity(netId),
+                PackedKey      = PackedKey.Create(3, 0),
+                NewOwnerNodeId = 2
+            });
+            repo.Bus.SwapBuffers();
+
+            sys.Execute(repo, 0f);
+
+            var netAuth = ((ISimulationView)repo).GetComponentRO<NetworkAuthority>(entity);
+            Assert.Equal(1, netAuth.PrimaryOwnerId);   // entity/save ownership unchanged
+            Assert.True(netAuth.HasAuthority);
+        }
+
         [Fact]
         public void EgressSystem_PublishesEvent_WhenOwnershipChanged()
         {

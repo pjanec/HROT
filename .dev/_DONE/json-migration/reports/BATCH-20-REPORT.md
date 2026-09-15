@@ -71,7 +71,7 @@ All 7 assigned tasks completed. All previously failing tests now pass.
 **Files changed:**
 
 - `FDP/Toolkits/Fdp.Toolkits.Tests/Scenario/FdpAutoSerializerFixedBufferTests.cs`
-  - Added `[DataPolicy(DataPolicy.NoSnapshot | DataPolicy.NoSave | DataPolicy.NoRecord)]` to `EntityInlineComp` so `AutoRegisterAllComponentTypes` registers it as non-snapshotable.
+  - Added `[DataPolicy(DataPolicy.NoPreview | DataPolicy.NoScenario | DataPolicy.NoReplay)]` to `EntityInlineComp` so `AutoRegisterAllComponentTypes` registers it as non-snapshotable.
   - Updated `Build_ComponentWithEntityInInlineArray_Throws` to pass `DataPolicy.Default` when registering `EntityInlineComp` so it becomes snapshotable for that specific test, preserving the throw.
 
 - `FDP/Toolkits/Fdp.Toolkits.Tests/ReplayBrowser/Export/RecordingExportServiceTests.cs`
@@ -127,7 +127,7 @@ All 7 assigned tasks completed. All previously failing tests now pass.
 
 3. **Changelog baseline logic was incomplete**: The initial implementation of `ExportChangelogToJson` called `ComputeTreeDiff(null, current)` on first appearance (producing spurious "Set everything" entries) and `ComputeTreeDiff(baseline, null)` on destruction (producing spurious "Remove everything" entries). Both needed skip guards.
 
-4. **`DataPolicy.Default` override needed in test**: When `EntityInlineComp` is marked `[DataPolicy(DataPolicy.NoSnapshot)]`, calling `RegisterComponent<EntityInlineComp>()` with no override also makes it non-snapshotable — which would cause `Build_ComponentWithEntityInInlineArray_Throws` to silently stop testing the right thing. The fix required passing `DataPolicy.Default` explicitly in that test so it becomes snapshotable for the throw test.
+4. **`DataPolicy.Default` override needed in test**: When `EntityInlineComp` is marked `[DataPolicy(DataPolicy.NoPreview)]`, calling `RegisterComponent<EntityInlineComp>()` with no override also makes it non-snapshotable — which would cause `Build_ComponentWithEntityInInlineArray_Throws` to silently stop testing the right thing. The fix required passing `DataPolicy.Default` explicitly in that test so it becomes snapshotable for the throw test.
 
 ### Weak Points Spotted
 
@@ -139,6 +139,6 @@ All 7 assigned tasks completed. All previously failing tests now pass.
 
 ### Design Decisions Made
 
-- Used `[DataPolicy(DataPolicy.NoSnapshot | DataPolicy.NoSave | DataPolicy.NoRecord)]` rather than a new `[ScenarioTestOnly]` attribute to mark `EntityInlineComp`. This avoids introducing new infrastructure and reuses the existing `DataPolicy` system.
+- Used `[DataPolicy(DataPolicy.NoPreview | DataPolicy.NoScenario | DataPolicy.NoReplay)]` rather than a new `[ScenarioTestOnly]` attribute to mark `EntityInlineComp`. This avoids introducing new infrastructure and reuses the existing `DataPolicy` system.
 - Added `FormatMode = ExportFormatMode.AbsoluteState` to each individual failing test rather than relying on the default change, so that each test's intent is explicit.
 - Added baseline skip guards to `ExportChangelogToJson` in production code (not just tests) because the current behaviour (emitting entries for first appearance and destruction) is fundamentally wrong for a changelog that tracks mutations between states.

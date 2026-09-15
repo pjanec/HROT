@@ -869,7 +869,7 @@ When a behavior requires far more working memory — a full AI search context, p
 ```csharp
 [StructLayout(LayoutKind.Sequential)]
 [ComponentId(GlobalComponentIds.Blackboard1024)]
-[DataPolicy(DataPolicy.NoSave)]
+[DataPolicy(DataPolicy.NoScenario)]
 public unsafe struct Blackboard1024
 {
     public const int ByteSize = 1024;

@@ -111,7 +111,7 @@ UnitRoster (capacity 16) + UnitSubordinate.Commander
 
 Commander Blackboard1024
     projected via Unsafe.As into SquadCognitiveState
-    [DataPolicy.NoSave] -- transient cognitive state
+    [DataPolicy.NoScenario] -- transient cognitive state
 
 AssignTacticalIntentEvent rail
     --> TacticalIntentResolutionSystem

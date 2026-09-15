@@ -52,6 +52,13 @@ namespace Hrot.CGF.Configuration
             var bpStaging = new BlueprintRegistryStaging();
             BlueprintRegistrarScanner.Scan(aiAssembly, bpStaging, behaviorRegistry);
             (blueprintRegistry ?? new BlueprintRegistry()).CommitStaging(bpStaging);
+
+            // ⭐⭐ CE-235 — bind each behaviour's AUTHORED JSON CONTRACT, so GET /behaviors publishes
+            //   the shape a scenario or an agent actually writes rather than the blackboard layout.
+            //   Deliberately here and not in the registrars: [BehaviorContract] on the DTOs in
+            //   Hrot.Core is the one producer (R-132), and this is the one loader every host and test
+            //   goes through, so no caller can forget it. Order-independent, so it is safe after Scan.
+            Hrot.Presentation.Behavior.BehaviorSchemaDiscovery.BindJsonParamsDtoTypes(behaviorRegistry);
         }
 
         /// <summary>

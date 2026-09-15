@@ -89,6 +89,7 @@ public sealed class OrchestrationObserverTranslator : IDisposable
                         LocalStateId  = (int)s.Data.LocalClusterState,
                         WallTicksUtc  = s.Data.WallTicksUtc,
                         SubsystemName = s.Data.SubsystemName ?? string.Empty,
+                        Roles         = (Fdp.Core.NodeRole)s.Data.RolesMask,   // P1: read the mask off the wire.
                     });
 
         // SwitchTimeModeWireDto → SwitchTimeModeEvent (unmanaged — use Publish, not PublishManaged)

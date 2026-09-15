@@ -15,6 +15,53 @@ public sealed class DebugSessionFile
     public List<NodeBreakpointEntry> NodeBreakpoints { get; set; } = new();
     public List<DataBreakpointEntry> DataBreakpoints { get; set; } = new();
     public List<WatchEntry> Watches { get; set; } = new();
+
+    /// <summary>
+    /// ⭐⭐ <b><c>BP-502</c> — the PINNED VARIABLE rows of the Watch window.</b>
+    /// 📄 <c>DESIGN_Variable_Watch_Pinning.md</c> §5.
+    ///
+    /// <para>⛔ A FOURTH list, deliberately — ⚠ <see cref="Watches"/> is the blueprint PIN watch
+    /// *(<c>AssetId/GraphId/PinId</c>)* and <see cref="DataBreakpoints"/> carries the breakpoint watches
+    /// *(<c>IsWatch</c>)*. 📌 <c>AiWatchWindow</c>'s own remarks count <b>three</b> watch-shaped things in
+    /// this codebase; a pinned variable row is the fourth, and merging any of them is a design question,
+    /// not a persistence one.</para>
+    ///
+    /// <para>⭐ Same file, no new one — §5: <i>"do not invent a second file"</i>.</para>
+    /// </summary>
+    public List<PinnedVariableEntry> PinnedVariables { get; set; } = new();
+}
+
+/// <summary>
+/// ⭐⭐⭐ <b>One pinned variable row — <c>BP-502</c>, keyed by what SURVIVES a session.</b>
+/// 📄 §5 *(<c>R-75</c>)* · §3 *(the two binding kinds)*.
+///
+/// <para>⛔⛔ <b>No <c>Entity</c> here, and that is the whole design.</b> An <c>Entity</c> is a
+/// slot+generation handle that the repository <b>recycles</b> — writing one to a file and reading it back
+/// would point the row at whatever now occupies that slot. ⇒ ⭐ a concrete pin stores
+/// <see cref="NetworkId"/>; a chameleon stores nothing at all, because it is bound to a ROLE
+/// *("whoever is selected")* rather than to an entity.</para>
+///
+/// <para>⚠⚠ <b>A concrete pin does NOT yet survive a scenario RESTART.</b> §5 keys it on the STAGING id
+/// and re-resolves through <c>StagingEntityExtractor</c>'s <c>oldToNewMap</c>; that map is still a local
+/// inside the extractor. ⇒ this stores the RUNTIME <c>NetworkIdentity</c>, which survives a save/reload of
+/// the session but not a re-load of the scenario. ⭐ Stated here because a reader must not mistake
+/// *"persisted"* for *"restart-proof"*.</para>
+/// </summary>
+public sealed class PinnedVariableEntry
+{
+    public Guid   AssetId      { get; set; }
+    public string Section      { get; set; } = "";
+    public string VariablePath { get; set; } = "";
+
+    /// <summary>⚠ Display text, restored so a stale row can still name itself. ⛔ Not identity.</summary>
+    public string AssetName    { get; set; } = "";
+
+    /// <summary>⭐ <c>"Concrete"</c> or <c>"Chameleon"</c> — the string, so an unknown future kind
+    /// round-trips instead of silently becoming the enum's zero value.</summary>
+    public string BindingKind  { get; set; } = "Concrete";
+
+    /// <summary>⭐ The durable entity id for a concrete pin; <c>0</c> for a chameleon.</summary>
+    public long   NetworkId    { get; set; }
 }
 
 /// <summary>
@@ -76,13 +123,23 @@ public static class DebugSessionPersistence
     /// <param name="nodeBreakpoints">Node breakpoints from <c>BlueprintDebugSession.GetBreakpoints()</c>.</param>
     /// <param name="watches">Watches from <c>BlueprintDebugSession.GetWatches()</c>.</param>
     /// <param name="dbmBreakpoints">All breakpoints from <c>DataBreakpointManager.AllBreakpoints</c>.</param>
+    /// <param name="pinnedVariables">
+    /// ⭐⭐ <b><c>BP-502</c> — the Watch window's pinned variable rows</b>, from
+    /// <c>PinnedVariableRowSource.PinnedWithBindings()</c> mapped to <see cref="PinnedVariableEntry"/>.
+    /// ⚠ Optional so the existing three-list callers keep working unchanged — ⛔ but a caller that HAS a
+    /// pin source must pass it *(the silent-default rule)*.
+    /// </param>
     public static void Save(
         IReadOnlyList<Hrot.Blueprints.Core.Debug.Breakpoint> nodeBreakpoints,
         IReadOnlyList<Hrot.Blueprints.Core.Debug.Watch> watches,
         IReadOnlyList<Breakpoint> dbmBreakpoints,
-        string path)
+        string path,
+        IReadOnlyList<PinnedVariableEntry>? pinnedVariables = null)
     {
         var file = new DebugSessionFile();
+
+        if (pinnedVariables != null)
+            file.PinnedVariables.AddRange(pinnedVariables);
 
         // Collect node breakpoints.
         foreach (var bp in nodeBreakpoints)

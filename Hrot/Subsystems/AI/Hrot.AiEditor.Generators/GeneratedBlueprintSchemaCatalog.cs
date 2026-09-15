@@ -101,18 +101,32 @@ internal static class GeneratedBlueprintSchemaCatalog
                     isAiPrimitive = string.Equals(dispProp.GetString(), "AiPrimitive", StringComparison.OrdinalIgnoreCase);
             }
 
+            // ⭐⭐ U-10 step 3 — v2 stores declarations as ONE tagged array, so the parameters live
+            //   under `Declarations` filtered by Kind == "Parameter". v1's `parameters` is still read
+            //   so a not-yet-migrated file keeps working.
+            //
+            // ⛔⛔ This catalog is a SECOND, independent parser of *.bp.json — it does not go through
+            //   BlueprintJsonServices. When the corpus moved to v2 it did not fail: it returned a
+            //   schema with ZERO parameters, so StructSizeResolver sized the Params struct wrong and
+            //   a composed BTree wrote shared state at the wrong slot count. ⚠ "Silently skipped"
+            //   understates what the class does — it silently returns a WRONG schema. See BP-242.
             var parameters = new List<(string Name, string TypeId)>();
-            if (TryGetPropCI(root, "parameters", out var paramsProp) && paramsProp.ValueKind == JsonValueKind.Array)
+            if (TryGetPropCI(root, Hrot.Blueprints.Core.BlueprintSchemaV2.DeclarationsProperty,
+                             out var declProp) && declProp.ValueKind == JsonValueKind.Array)
+            {
+                var parameterTag = Hrot.Blueprints.Core.BlueprintSchemaV2.DeclarationTags[0];
+                foreach (var item in declProp.EnumerateArray())
+                {
+                    if (!TryGetPropCI(item, Hrot.Blueprints.Core.BlueprintSchemaV2.KindProperty, out var kp))
+                        continue;
+                    if (!string.Equals(kp.GetString(), parameterTag, StringComparison.Ordinal)) continue;
+                    AddParameter(item, parameters);
+                }
+            }
+            else if (TryGetPropCI(root, "parameters", out var paramsProp) && paramsProp.ValueKind == JsonValueKind.Array)
             {
                 foreach (var item in paramsProp.EnumerateArray())
-                {
-                    string pName = TryGetPropCI(item, "name", out var np) ? (np.GetString() ?? "") : "";
-                    string pType = "System.Object";
-                    if (TryGetPropCI(item, "type", out var tp) && TryGetPropCI(tp, "typeid", out var tid))
-                        pType = tid.GetString() ?? "System.Object";
-                    if (!string.IsNullOrEmpty(pName))
-                        parameters.Add((pName, pType));
-                }
+                    AddParameter(item, parameters);
             }
 
             return new GeneratedBlueprintSchema(sanitizedName, blueprintId, isAiPrimitive, parameters);
@@ -121,6 +135,15 @@ internal static class GeneratedBlueprintSchemaCatalog
         {
             return null;
         }
+    }
+
+    private static void AddParameter(JsonElement item, List<(string Name, string TypeId)> into)
+    {
+        string pName = TryGetPropCI(item, "name", out var np) ? (np.GetString() ?? "") : "";
+        string pType = "System.Object";
+        if (TryGetPropCI(item, "type", out var tp) && TryGetPropCI(tp, "typeid", out var tid))
+            pType = tid.GetString() ?? "System.Object";
+        if (!string.IsNullOrEmpty(pName)) into.Add((pName, pType));
     }
 
     /// <summary>

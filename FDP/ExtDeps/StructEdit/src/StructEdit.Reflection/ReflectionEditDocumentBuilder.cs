@@ -121,6 +121,30 @@ public sealed class ReflectionEditDocumentBuilder : IEditDocumentBuilder
                 {
                     var cb = new InlineArrayBinding((NativeStructEditBuffer)buffer, nativeOffset, elemType, elemSize, attr.Length);
                     binding = cb;
+
+                    // Provider check: parity with the FixedBuffer path below — an
+                    // IBufferViewProvider may claim an [InlineArray] buffer and present a
+                    // custom view (e.g. a count-bounded list window) instead of the raw
+                    // fixed-count element expansion.
+                    if (providers.Count > 0)
+                    {
+                        var request = new BufferViewRequest
+                        {
+                            ComponentType = buffer.ComponentType,
+                            BufferPath = EditPath.Parse(jsonPath),
+                            BufferBinding = cb,
+                            ExternalContext = context,
+                            Buffer = buffer,
+                            NativeOffset = nativeOffset,
+                            IdAlloc = idAlloc,
+                        };
+                        foreach (var provider in providers)
+                        {
+                            if (provider.CanCreateView(request))
+                                return provider.CreateView(request).Node;
+                        }
+                    }
+
                     children = BuildArrayElements(buffer, jsonPath, cb, elemType, idAlloc,
                         visited, providers, fieldEditors, context,
                         containerNativeOffset: nativeOffset, elementSize: elemSize);

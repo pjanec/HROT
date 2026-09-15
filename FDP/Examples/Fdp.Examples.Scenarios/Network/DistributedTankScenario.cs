@@ -317,7 +317,6 @@ namespace Fdp.Examples.Scenarios.Network
             _muscleWorld.RegisterComponent<NetworkIdentity>();
             _muscleWorld.RegisterComponent<GhostStateTracker>();
             _muscleWorld.RegisterComponent<TkbIdentity>();
-            _muscleWorld.RegisterComponent<NetworkOwnership>();
             _muscleWorld.RegisterComponent<PartMetadata>();
             _muscleWorld.RegisterEvent<ConstructionOrder>();
             _muscleWorld.RegisterEvent<ConstructionAck>();

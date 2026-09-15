@@ -16,6 +16,12 @@ namespace Fdp.Toolkit.Vis2D.Defaults
 
         public IReadOnlyCollection<Entity> SelectedEntities => _selectedEntities;
 
+        /// <summary>
+        /// Monotonically-increasing counter. Bumped every time <see cref="PrimarySelected"/> changes
+        /// or <see cref="ClearSelection"/> is called. Used by BATCH-S2-R selection sync.
+        /// </summary>
+        public int Version { get; private set; }
+
         public Entity? PrimarySelected
         {
             get => _primarySelected;
@@ -31,12 +37,13 @@ namespace Fdp.Toolkit.Vis2D.Defaults
                     {
                         _selectedEntities.Add(value.Value);
                     }
+                    Version++;
                 }
             }
         }
 
         public Entity? HoveredEntity { get; set; }
-        
+
         // Additional methods for multi-selection can be added to the implementation
         // and used if casted, but the interface contract is what matters for decoupling.
         public void AddSelection(Entity entity)
@@ -44,12 +51,14 @@ namespace Fdp.Toolkit.Vis2D.Defaults
              _selectedEntities.Add(entity);
              // Logic for primary? Maybe last added?
              _primarySelected = entity;
+             Version++;
         }
 
         public void ClearSelection()
         {
             _selectedEntities.Clear();
             _primarySelected = null;
+            Version++;
         }
     }
 }

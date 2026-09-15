@@ -4,6 +4,7 @@ using System.Text.Json;
 using Hrot.Core.Network;
 using Hrot.IG.Systems;
 using Fdp.Core.Logging;
+using Hrot.Presentation.Map;
 
 namespace Hrot.IG.Services;
 

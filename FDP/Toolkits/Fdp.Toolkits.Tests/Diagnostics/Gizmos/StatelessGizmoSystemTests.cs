@@ -48,21 +48,32 @@ namespace Fdp.Toolkit.Diagnostics.Gizmos.Tests
         }
 
         // SC-GZ022-2: Register with an unregistered component type → InvalidOperationException.
-        // STABILITY(Flaky): Order-dependent — passes in isolation but fails in full suite when static ComponentTypeRegistry has UnregisteredComp[249] registered by a prior test in the process
-        [Trait("Stability", "Flaky")]
+        /// ⭐ <c>QA-009</c> — the STABILITY(Flaky) trait and its order-dependence note are GONE: the
+        /// sentinel no longer carries a <c>[ComponentId]</c>, so no prior test in the process can put it
+        /// in the registry. See the type's own comment for why that is the invariant.
         [Fact]
         public void SC_GZ022_2_Register_UnregisteredType_Throws()
         {
             var registry  = new StatelessGizmoRegistry();
             var projector = new MockStatelessGizmo();
 
+            // ⭐ State the precondition — see the sibling case in GizmosSystemTests for why.
+            Assert.Equal(-1, ComponentTypeRegistry.GetId(typeof(UnregisteredComp)));
+
             Assert.Throws<InvalidOperationException>(() =>
                 registry.Register(projector, new[] { typeof(UnregisteredComp) }));
         }
     }
 
-    // Sentinel type never registered with any EntityRepository.
-    [ComponentId(249)]
+    // ⭐⭐⭐ QA-009 — a sentinel that CANNOT be registered, by construction.
+    //
+    // ⛔ This used to carry [ComponentId(249)], which made it registerable — and something in a full
+    //    suite run registered it, after which GetId returned 249 and SC_GZ022_2 could not throw. That
+    //    is exactly what the STABILITY(Flaky) note above described and never fixed.
+    //
+    // ⭐ ComponentTypeRegistry.GetOrRegisterManaged REQUIRES a [ComponentId] and throws without one, so
+    //    an attribute-less struct can never enter the registry by ANY path. The ABSENCE of the
+    //    attribute is the invariant — do not add one back.
     internal struct UnregisteredComp { }
 
     // ==========================================================================
@@ -203,5 +214,91 @@ namespace Fdp.Toolkit.Diagnostics.Gizmos.Tests
 
             Assert.Equal(0, projector.DrawCount);
         }
+
+        // ── CE-188: a rule registered AFTER construction ──────────────────────
+        //
+        // ⚠ Named MockGlobalStatelessGizmo: this assembly already has a MockGlobalGizmo, and it
+        // implements a DIFFERENT interface (IEntityStatefulGizmo).
+
+
+        /// <summary>
+        /// <b>The live defect: this system threw once per frame in every editor run.</b>
+        ///
+        /// <para>The visibility caches are sized in the constructor from the registry's counts, and the
+        /// constructor's own documentation states that everything must be registered first. Production
+        /// violates that: the registry is mutable (<c>Register</c>/<c>RegisterGlobal</c> append) and
+        /// projectors arrive later, including on every AI hot-reload. The second global-rules loop then
+        /// indexed the stale cache without a bounds check and threw
+        /// <c>IndexOutOfRangeException</c>.</para>
+        ///
+        /// <para>⛔ The cost was not the throw. <c>TogglablePostSimulationGroup.Execute</c> is a plain
+        /// <c>foreach</c> with no <c>try</c>, so <b>every system after this one in the group was skipped,
+        /// every frame</b> — and <c>ModuleHostKernel</c> swallowed the exception, so the node kept
+        /// answering healthy.</para>
+        ///
+        /// <para>⚠ Guarding the loop would have stopped the throw and left late-registered gizmos
+        /// silently never drawing. The caches are grown instead, so registration order stops mattering.</para>
+        /// </summary>
+        [Fact]
+        public void CE188_AGlobalRuleRegisteredAfterConstruction_DrawsInsteadOfThrowing()
+        {
+            var (repo, buf, registry) = CreateContext();
+
+            // Constructed while the registry is EMPTY — exactly the production sequence.
+            var sys = new StatelessGizmoSystem(registry, buf);
+
+            var late = new MockGlobalStatelessGizmo();
+            registry.RegisterGlobal(late);
+
+            sys.Execute(repo, 0f);
+
+            Assert.Equal(1, late.DrawCount);
+        }
+
+        /// <summary>The same for entity-scoped rules — one cache, one defect, two arms.</summary>
+        [Fact]
+        public void CE188_AnEntityRuleRegisteredAfterConstruction_DrawsInsteadOfBeingSkipped()
+        {
+            var (repo, buf, registry) = CreateContext();
+
+            var sys = new StatelessGizmoSystem(registry, buf);
+
+            var late = new MockStatelessGizmo();
+            registry.Register(late, new[] { typeof(GizmoTestCompA) });
+
+            var e = repo.CreateEntity();
+            repo.AddComponent(e, new GizmoTestCompA { Value = 7 });
+
+            sys.Execute(repo, 0f);
+
+            Assert.Equal(1, late.DrawCount);
+        }
+
+        /// <summary>And repeated growth keeps working — hot reload registers more than once.</summary>
+        [Fact]
+        public void CE188_RulesRegisteredAcrossSeveralFramesAllDraw()
+        {
+            var (repo, buf, registry) = CreateContext();
+            var sys = new StatelessGizmoSystem(registry, buf);
+
+            var first = new MockGlobalStatelessGizmo();
+            registry.RegisterGlobal(first);
+            sys.Execute(repo, 0f);
+
+            var second = new MockGlobalStatelessGizmo();
+            registry.RegisterGlobal(second);
+            sys.Execute(repo, 0f);
+
+            Assert.Equal(2, first.DrawCount);
+            Assert.Equal(1, second.DrawCount);
+        }
+    }
+
+    /// <summary>A global (entity-less) stateless projector double.</summary>
+    internal sealed class MockGlobalStatelessGizmo : IGlobalStatelessGizmo
+    {
+        public int DrawCount;
+
+        public void Draw(ISimulationView view, IDebugDrawBuilder drawBuilder) => DrawCount++;
     }
 }

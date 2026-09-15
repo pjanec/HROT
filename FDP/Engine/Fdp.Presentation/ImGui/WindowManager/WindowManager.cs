@@ -2,6 +2,7 @@ using System.Diagnostics.CodeAnalysis;
 using System.Linq;
 using System.Text;
 using System.Text.Json;
+using Fdp.Core.Logging;
 using Fdp.Presentation.Abstractions;
 using Fdp.Presentation.Icons;
 using Fdp.Presentation.Panels;
@@ -36,6 +37,42 @@ public class WindowManager
     private bool _openSettingsModal;
     private IFileDialogService? _fileDialogService;
 
+    private readonly List<Action> _frameOverlays = new();
+
+    /// <summary>
+    /// Everything registered to draw in the final per-frame slot, in registration order.
+    /// <para>
+    /// Exposed so a test can assert on the CONSTRUCTED manager — that a given object's draw
+    /// really is in the per-frame path — rather than on the source of whoever registered it.
+    /// That distinction is the whole reason this hook exists: <c>VariableEditModal</c> shipped
+    /// complete, constructed in all three perspectives, with zero callers of its <c>Draw</c>,
+    /// and every test of it was green because each one constructed the modal itself.
+    /// </para>
+    /// </summary>
+    public IReadOnlyList<Action> FrameOverlays => _frameOverlays;
+
+    /// <summary>
+    /// Registers a delegate drawn each frame AFTER all windows and the status bar, in the same
+    /// final slot as the file dialog — so a modal it opens overlays every other window.
+    /// <para>
+    /// This is the slot a MODAL needs and a window cannot provide: <see cref="ManagedWindow.Render"/>
+    /// returns early when the window is closed or belongs to another perspective, so a modal drawn
+    /// inside a window's client area vanishes with that window. A modal that survives a perspective
+    /// switch is correct; its own open-state is what gates it.
+    /// </para>
+    /// <para>
+    /// Registration is idempotent by delegate equality, so a caller that registers the same method
+    /// group on the same target twice does not draw twice.
+    /// </para>
+    /// </summary>
+    /// <param name="draw">The per-frame draw call. Must not be null.</param>
+    public void RegisterFrameOverlay(Action draw)
+    {
+        if (draw is null) throw new ArgumentNullException(nameof(draw));
+        if (_frameOverlays.Contains(draw)) return;
+        _frameOverlays.Add(draw);
+    }
+
     /// <summary>
     /// Editor font pipeline, injected by the presentation shell. When set, the Settings
     /// window's UI-scale slider drives live rescaling; null in headless / test hosts.
@@ -62,6 +99,15 @@ public class WindowManager
     public WindowManager(IconAtlas atlas)
     {
         _atlas = atlas;
+
+        // ⭐⭐⭐ VC-2 — THE ONE `Settings` MENU, and it lives in GlobalMenu.
+        // 📐 Measured 2026-08-22: the menu bar renders TWO independent models side by side —
+        //    RenderGlobalMenu(GlobalMenu.Root) and ImGuiMenuRenderer.DrawMenus(BuildHostMenuDtos()).
+        //    `Settings` used to be a DTO block here, so a host registering "Settings/…" through
+        //    GlobalMenu would have produced a SECOND top-level menu with the same name, side by side.
+        // ⇒ ⭐ this item moves into GlobalMenu (route, don't duplicate) so `Settings` is ONE menu that
+        //    hosts can extend — which is what the layout items now do.
+        GlobalMenu.RegisterItem("Settings/UI Scale & Fonts…", () => _openSettingsModal = true);
     }
 
     /// <summary>The icon atlas supplied at construction time.</summary>
@@ -73,9 +119,39 @@ public class WindowManager
     /// Registers a window with this manager, keyed by <see cref="ManagedWindow.Id"/>.
     /// Re-registering the same Id overwrites the previous entry.
     /// </summary>
+    /// <remarks>
+    /// ⭐⭐⭐ <b><c>VC-1</c> — registration NOTIFIES the window</b> *(<see cref="ManagedWindow.OnRegistered"/>)*.
+    /// 📐 Measured <c>2026-08-22</c>: <c>DetailsWindow.AttachWindowManager</c> had exactly ONE caller
+    /// *(<c>PerspectiveWorkspaceRegistrar</c>)*, so the Scenario Details host — built directly at the
+    /// composition root — never got a manager and its float/pin buttons could not draw at all.
+    /// ⇒ ⭐ a window that needs its manager now RECEIVES it, and ⛔ no registration path can forget:
+    /// 📌 the same PULL argument <c>R-126</c> makes for the staged-write drain — <i>"no path can forget
+    /// to raise what is never raised."</i>
+    /// </remarks>
     public void RegisterWindow(ManagedWindow window)
     {
         _windows[window.Id] = window;
+        window.OnRegistered(this);
+
+        // ⭐⭐⭐ CE-076 (user-approved `2026-08-27`) — EVERY registered window is visible to `/panels`
+        //    BY CONSTRUCTION, so the phase-2 UI baseline cannot be blind to one.
+        //
+        // 📐 THE GAP THIS CLOSES: `PanelSnapshot.DeclareInstrumented` was per-window OPT-IN — neither
+        //    `ManagedWindow`'s ctor nor this method called it — so a window that never opted in was
+        //    INVISIBLE to `TheUiBaselineIsPinnedPerHostRails`, and the size of that blind spot was
+        //    UNMEASURED (no route reported the true registered total). ⇒ a window could be dropped or
+        //    renamed by a unification slice with the baseline still GREEN.
+        //
+        // ⚠⚠ THIS WIDENS WHAT `registered[]` MEANS, deliberately: it was "every panel that is
+        //    INSTRUMENTED at all" and is now "every registered WINDOW, plus every panel that declared
+        //    itself". ⭐ The field is named `registered`, and completeness is the property the baseline
+        //    needs. ⛔ What did NOT change: `TryGet` still returns null for a window that publishes no
+        //    model (exactly as for an un-instrumented panel), and `captured[]`/`kinds{}` are untouched
+        //    because they derive from what actually drew.
+        // 📌 `tools/ai-debug-mcp`'s `list_panels` doc still says "instrumented at all" — that text lives
+        //    in the MCP lane's `skill-parts/` (⛔ never the generated SKILL.md) and is filed as CE-085.
+        // 📄 docs/DESIGN_Subsystem_Composition_Unification.md §5c.4e.
+        Fdp.Diagnostics.Contracts.Panels.PanelSnapshot.DeclareInstrumented(window.Id);
     }
 
     /// <summary>
@@ -84,6 +160,21 @@ public class WindowManager
     /// <param name="id">The window id to look up.</param>
     /// <param name="window">The found window, or <c>null</c> when not found.</param>
     /// <returns><c>true</c> if a window with <paramref name="id"/> is registered; otherwise <c>false</c>.</returns>
+    /// <summary>
+    /// ⭐⭐ <b>Batch 103 (<c>103b</c>) — every registered window id.</b>
+    ///
+    /// <para>⭐ A RAIL SURFACE on the CONSTRUCTED manager: the shipped default layout names 55 window
+    /// ids, and ⛔ <b>a renamed or retired window silently ORPHANS its entry</b> — the layout still
+    /// loads, that window just never appears, and nothing says so. ⇒ ⭐ a rail needs to ask what was
+    /// actually registered, not re-derive the ids from a naming convention that could itself be the
+    /// thing that moved.</para>
+    ///
+    /// <para>⚠ <c>TryGetWindow</c> answers the other direction *(is this id real?)*; ⛔ it cannot answer
+    /// <i>"is every real id in the file?"</i>, which is the half that catches a NEW window nobody added
+    /// to the default.</para>
+    /// </summary>
+    public IReadOnlyCollection<string> RegisteredWindowIds => _windows.Keys.ToList();
+
     public bool TryGetWindow(string id, [MaybeNullWhen(false)] out ManagedWindow window)
         => _windows.TryGetValue(id, out window);
 
@@ -160,15 +251,47 @@ public class WindowManager
     /// <summary>
     /// Switches to <paramref name="newPerspective"/> and fires <see cref="OnPerspectiveChanged"/>.
     /// No-op (event not fired) if <paramref name="newPerspective"/> equals <see cref="CurrentPerspective"/>.
+    ///
+    /// <para>⭐⭐⭐ <b><c>A0</c> — AN UNKNOWN PERSPECTIVE IS REFUSED: logged once, then a no-op.</b>
+    /// 📄 <c>DESIGN_Perspective_Unification.md</c> §3 <c>A0</c> · <c>UX/UX_Feature_Perspective_Restore.md</c>
+    /// §3 <i>("Log and no-op instead of silently hiding every bound window")</i>.</para>
+    ///
+    /// <para>⛔⛔ <b>Why this is a prerequisite and not a nicety.</b> A perspective exists only because a
+    /// window CLAIMS it *(§2)*, so a name no window claims fails every
+    /// <see cref="ManagedWindow"/>'s visibility gate — 🔴 <b>the UI comes up BLANK, with no error and no
+    /// log line.</b> 📐 The reachable path is a stored <c>ActivePerspective</c> that a rename has orphaned,
+    /// or a hand-edited layout file.</para>
+    ///
+    /// <para>⚠ <b>The refusal is logged ONCE per name</b> — the caller may be a per-frame toolbar, and a
+    /// refusal that floods the log is a refusal nobody reads.</para>
     /// </summary>
     public void SwitchPerspective(string newPerspective)
     {
         if (newPerspective == CurrentPerspective) return;
 
+        // ⭐⭐⭐ A0 — the claimed set is the only legal set. ⛔ Do NOT relax this to "non-empty string":
+        //    the whole defect is that an unclaimed name is syntactically fine and semantically blank.
+        if (!GetPerspectives().Contains(newPerspective))
+        {
+            if (_refusedPerspectives.Add(newPerspective))
+                FdpLog<WindowManager>.Warn(
+                    "[WindowManager] Refused to switch to unknown perspective '{0}' — "
+                    + "no registered window claims it. Staying on '{1}'. Claimed: [{2}].",
+                    newPerspective,
+                    CurrentPerspective,
+                    string.Join(", ", GetPerspectives()));
+            return;
+        }
+
         var old = CurrentPerspective;
         CurrentPerspective = newPerspective;
         OnPerspectiveChanged?.Invoke(old, newPerspective);
     }
+
+    /// <summary>
+    /// ⭐ <c>A0</c> — names already refused, so the warning is logged once each rather than per frame.
+    /// </summary>
+    private readonly HashSet<string> _refusedPerspectives = new();
 
     /// <summary>
     /// Returns the distinct <see cref="ManagedWindow.OwningPerspective"/> values of all
@@ -479,6 +602,11 @@ public class WindowManager
 
         if (Gui.BeginMainMenuBar())
         {
+            // ⭐⭐⭐ UXI-05 item ⑤ — PUBLISH THE MENU MODEL, for exactly the reason the toolbar's
+            //    PublishSnapshot sits outside its draw guard (see below): a host that registers NO menu
+            //    items must be distinguishable from a host whose menu was never instrumented.
+            GlobalMenu.PublishSnapshot(CurrentPerspective);
+
             RenderGlobalMenu(GlobalMenu.Root);
             RenderPerspectiveMenu();
             var hostMenus = BuildHostMenuDtos();
@@ -491,6 +619,14 @@ public class WindowManager
             // to the right of the menus. Graphical separators are drawn by
             // MainToolbarManager.DrawSeparator (registered via RegisterSeparator);
             // no ImGui.Separator() pipe character is added here.
+            // ⭐⭐⭐ cgf==editor slice 2 (CE-016) — PUBLISH THE TOOLBAR MODEL EVERY FRAME, ⛔ outside the
+            //    draw guard. 📐 Measured: only EditorSubsystem registers entries, so on a cluster host
+            //    Height is 0 and the guard below skips the render — which would have left `main-toolbar`
+            //    unpublished and made "this host offers no toolbar entries" look identical to "nobody
+            //    instrumented the toolbar". ⭐ See PublishSnapshot's own remarks for why this is a
+            //    deliberate departure from the usual publish-inside-the-draw rule.
+            _mainToolbar.PublishSnapshot(CurrentPerspective);
+
             if (_mainToolbar.Height > 0f)
                 _mainToolbar.RenderInline(CurrentPerspective);
 
@@ -550,6 +686,16 @@ public class WindowManager
 
         // Draw file dialog service last so the modal overlays all other windows.
         (_fileDialogService as ImGuiFileDialogService)?.Draw();
+
+        // Registered frame overlays share that same final slot, for the same reason. Iterate a copy
+        // so an overlay that registers another one (or unregisters itself) cannot invalidate this
+        // enumeration mid-frame.
+        //
+        // NOTE: the file dialog above is deliberately NOT moved onto this list. It is a behaviour
+        // change in another subsystem — its draw is conditional on a service cast — and nothing in
+        // this batch needs it. Folding it in is a follow-up, not a side effect.
+        foreach (var overlay in _frameOverlays.ToList())
+            overlay();
     }
 
     /// <summary>
@@ -581,6 +727,8 @@ public class WindowManager
         {
             if (child.IsSeparator)
             {
+                // ⭐ UXI-05: a separator scoped to another perspective is skipped with its group.
+                if (child.ResolveBinding(CurrentPerspective) == null) continue;
                 Gui.Separator();
                 continue;
             }
@@ -590,6 +738,11 @@ public class WindowManager
 
             if (child.Children.Count > 0)
             {
+                // ⛔⛔ UXI-05's named RISK: a submenu whose every leaf is filtered away would still draw
+                //    its header, so the bar grows DEAD HEADERS that open onto nothing. ⇒ skip an
+                //    intermediate node with no visible descendant. 📄 design §3 ②.
+                if (!HasVisibleDescendant(child)) continue;
+
                 string subLabel = reserve
                     ? GizmoMap.Presentation.MenuIconRenderer.Pad(child.Name, out gutter)
                     : child.Name;
@@ -607,32 +760,67 @@ public class WindowManager
                 ? GizmoMap.Presentation.MenuIconRenderer.Pad(child.ResolveLabel(), out gutter)
                 : child.ResolveLabel();
 
+            // ⭐⭐⭐ UXI-05 — THE RESOLUTION: this perspective's binding, else the global one, else the
+            //    leaf is NOT DRAWN. ⛔ Not greyed: ruling 49, absent rather than dead-clickable.
+            // ⚠ Read from CurrentPerspective at DRAW time, never cached — the whole feature is that it
+            //   changes when focus does, and an immediate-mode bar re-resolves every frame anyway.
+            var binding = child.ResolveBinding(CurrentPerspective);
+            if (binding == null) continue;
+
             // Leaf: checkable item.
-            if (child.GetCheckedState != null && child.OnCheckedChanged != null)
+            if (binding.GetChecked != null && binding.OnCheckedChanged != null)
             {
-                bool checkedState = child.GetCheckedState();
+                bool checkedState = binding.GetChecked();
                 bool enabled = child.GetEnabled?.Invoke() ?? true;
                 bool clicked = Gui.MenuItem(label, child.Shortcut ?? "", ref checkedState, enabled);
                 GizmoMap.Presentation.MenuIconRenderer.DrawIcon(MenuIcons, child.Icon, p0, gutter);
                 if (clicked)
                 {
-                    child.OnCheckedChanged(checkedState);
+                    binding.OnCheckedChanged(checkedState);
                 }
                 continue;
             }
 
             // Leaf: plain action item.
-            if (child.OnClick != null)
+            if (binding.OnClick != null)
             {
                 bool enabled = child.GetEnabled?.Invoke() ?? true;
                 bool clicked = Gui.MenuItem(label, child.Shortcut ?? "", false, enabled);
                 GizmoMap.Presentation.MenuIconRenderer.DrawIcon(MenuIcons, child.Icon, p0, gutter);
                 if (clicked)
                 {
-                    child.OnClick();
+                    binding.OnClick();
                 }
             }
         }
+    }
+
+    /// <summary>
+    /// ⭐⭐ <b><c>UXI-05</c> — does any leaf under <paramref name="node"/> resolve a binding for the
+    /// current perspective?</b>
+    ///
+    /// <para>⛔⛔ Without this, a submenu whose every leaf is filtered away still draws its header — a
+    /// DEAD HEADER that opens onto an empty popup. 📄 UXI-05 names it as the risk of the model; the
+    /// design's §3 ② makes the skip mandatory.</para>
+    ///
+    /// <para>⚠ Recursive and per-frame. ⭐ Cheap: the trie is a handful of nodes deep and a few dozen
+    /// wide, and it short-circuits on the first visible descendant.</para>
+    /// </summary>
+    internal bool HasVisibleDescendant(MenuItemNode node)
+    {
+        foreach (var child in node.Children.Values)
+        {
+            if (child.IsSeparator) continue;   // ⛔ a separator alone never justifies a submenu
+
+            if (child.Children.Count > 0)
+            {
+                if (HasVisibleDescendant(child)) return true;
+                continue;
+            }
+
+            if (child.ResolveBinding(CurrentPerspective) != null) return true;
+        }
+        return false;
     }
 
     /// <summary>
@@ -655,6 +843,10 @@ public class WindowManager
             _openAboutModal = true;
             return;
         }
+        // ⚠ VC-2: no DTO produces ActionSettings any more — the Settings item is a GlobalMenu entry,
+        //   which calls the same flag directly. ⛔ NOT deleted on my own initiative: it is DORMANT, not
+        //   harmful (a unique id that overwrites nothing), and 📌 "unreferenced is not unintentional" —
+        //   the three-way call is the user's. A host wanting a DTO-driven Settings item still works.
         if (actionId == ActionSettings)
         {
             _openSettingsModal = true;
@@ -670,6 +862,17 @@ public class WindowManager
             }
         }
     }
+    /// <summary>
+    /// ⭐⭐ <b><c>VC-2</c> — the TOP-LEVEL labels the DTO half of the menu bar contributes.</b>
+    ///
+    /// <para>⭐ A RAIL SURFACE, and a narrow one on purpose: the bar is drawn by two independent
+    /// models, so <i>"is there exactly one <c>Settings</c> menu?"</i> cannot be answered from
+    /// <c>GlobalMenu</c> alone. ⛔ Exposing the DTOs themselves would invite rails about their shape;
+    /// ⭐ the labels are the only part another model can COLLIDE with.</para>
+    /// </summary>
+    public IReadOnlyList<string> HostMenuLabelsForRail()
+        => BuildHostMenuDtos().Select(m => m.Label ?? "").ToList();
+
     private IReadOnlyList<Fdp.Toolkit.Diagnostics.Gizmos.Interaction.ContextMenuItemDto> BuildHostMenuDtos()
     {
         var menus = new List<Fdp.Toolkit.Diagnostics.Gizmos.Interaction.ContextMenuItemDto>();
@@ -708,17 +911,11 @@ public class WindowManager
             Icon = "folder",
             Children = winChildren.ToArray()
         });
-        menus.Add(new Fdp.Toolkit.Diagnostics.Gizmos.Interaction.ContextMenuItemDto
-        {
-            Label = "Settings",
-            Priority = 95,
-            Icon = "asset/utility",
-            Children = new[]
-            {
-                new Fdp.Toolkit.Diagnostics.Gizmos.Interaction.ContextMenuItemDto
-                { Id = ActionSettings, Label = "UI Scale & Fonts…", Icon = "asset/utility" }
-            }
-        });
+        // ⛔⛔ VC-2 — the `Settings` DTO block that used to sit HERE is GONE. It is now a GlobalMenu
+        //    item registered in the constructor, so `Settings` is ONE extensible menu rather than a
+        //    fixed framework block that a host's "Settings/…" registration would sit BESIDE.
+        //    ⚠ Visible consequence, stated: RenderGlobalMenu runs before these DTOs, so `Settings` now
+        //      appears to the LEFT of `Windows` instead of between `Windows` and `Help`.
         menus.Add(new Fdp.Toolkit.Diagnostics.Gizmos.Interaction.ContextMenuItemDto
         {
             Label = "Help",

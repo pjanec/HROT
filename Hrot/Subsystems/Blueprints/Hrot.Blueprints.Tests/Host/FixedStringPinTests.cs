@@ -29,6 +29,7 @@ public sealed class FixedStringPinTests
     [Theory]
     [InlineData("Fdp.Core.FixedString32", 32)]
     [InlineData("Fdp.Core.FixedString64", 64)]
+    [InlineData("Fdp.Core.FixedString128", 128)]
     public void StaticTypeRegistry_Resolves_FixedStringTypes(string typeId, int expectedSize)
     {
         var typeRef = new Hrot.Blueprints.Core.Assets.BlueprintTypeRef { TypeId = typeId };
@@ -44,12 +45,14 @@ public sealed class FixedStringPinTests
     [Theory]
     [InlineData("Fdp.Core.FixedString32")]
     [InlineData("Fdp.Core.FixedString64")]
+    [InlineData("Fdp.Core.FixedString128")]
     public void EditorRegistry_ReturnsNonNullEditor_ForFixedStringTypes(string typeId)
     {
         // Simulate the host-side wiring done in BlueprintDocumentFactory.Build.
         var registry = PinDefaultValueEditorRegistry.CreateWithBuiltins();
         registry.Register(new TypeKey(BlueprintTypeSystem.FixedString32), new StringPinEditor());
         registry.Register(new TypeKey(BlueprintTypeSystem.FixedString64), new StringPinEditor());
+        registry.Register(new TypeKey(BlueprintTypeSystem.FixedString128), new StringPinEditor());
 
         var editor = registry.GetEditor(new TypeKey(typeId));
 
@@ -62,6 +65,7 @@ public sealed class FixedStringPinTests
     [Theory]
     [InlineData("Fdp.Core.FixedString32")]
     [InlineData("Fdp.Core.FixedString64")]
+    [InlineData("Fdp.Core.FixedString128")]
     public void ParseValue_NullOrEmpty_ReturnsEmptyString(string typeId)
     {
         var resultNull  = BlueprintPinDefaultValue.ParseValue(typeId, null);
@@ -74,6 +78,7 @@ public sealed class FixedStringPinTests
     [Theory]
     [InlineData("Fdp.Core.FixedString32", "hello")]
     [InlineData("Fdp.Core.FixedString64", "a longer label")]
+    [InlineData("Fdp.Core.FixedString128", "an even longer label for the pin default")]
     public void ParseValue_NonEmpty_ReturnsRawString(string typeId, string raw)
     {
         var result = BlueprintPinDefaultValue.ParseValue(typeId, raw);

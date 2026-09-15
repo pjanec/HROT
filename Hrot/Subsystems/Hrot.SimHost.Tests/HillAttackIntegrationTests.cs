@@ -68,6 +68,11 @@ namespace Hrot.SimHost.Tests
         {
             _repo = new EntityRepository();
             SimHostComponentRegistry.RegisterAll(_repo);
+            // ⭐⭐⭐ CE-259bf slice 3b (2026-09-12) — same reason as HillAttackNodeTests: this fixture
+            //   drives the BTree/behaviour-ingress chain end to end, so its world needs a BRAIN. It used
+            //   to get one implicitly because SimHostComponentRegistry registered the whole brain tier.
+            //   🔒 User ruling: "Simhost has no ai(brain). So it does not need [them]."
+            CognitiveComponentRegistry.RegisterAll(_repo);
             _repo.RegisterComponent<Fdp.Toolkit.Replication.Components.NetworkIdentity>();
             // S3-G: PlatoonHillAttack's Behavior-scoped working state is provisioned into a
             // BlueprintBlackboard* partition tier (registered in production by BlueprintRuntimeWiring).

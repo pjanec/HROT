@@ -41,68 +41,62 @@ public sealed class CanvasMapPickAdapter : IMapPickService
     /// Optional gizmo manager used to host picker gizmos.  When <see langword="null"/>
     /// the pick operations are not available.
     /// </param>
+    /// <param name="tools">
+    /// 🔒 <b><c>UXI-07</c> step 4b — the host's arbiter.</b> ⛔ Optional so an unconverted host still
+    /// picks, but a production caller that HAS it must PASS it: without it a pick arms beside the active
+    /// tool instead of suspending it (§4.8's bypass — and 🔴 <c>CE-254</c> is this adapter).
+    /// </param>
     public CanvasMapPickAdapter(
         MapCanvas canvas,
         EntityRepository? repo = null,
         IEntityFilterFactory? filterFactory = null,
-        GlobalGizmoManager? globalGizmoManager = null)
+        GlobalGizmoManager? globalGizmoManager = null,
+        Func<Hrot.ScenarioEditor.Tools.ToolController?>? tools = null)
     {
         _canvas             = canvas ?? throw new ArgumentNullException(nameof(canvas));
         _repo               = repo;
         _filterFactory      = filterFactory ?? DefaultFactory;
         _globalGizmoManager = globalGizmoManager;
+        _pickers            = new Hrot.ScenarioEditor.Tools.PickerToolHost(
+            tools ?? (() => null), () => _globalGizmoManager);
     }
+
+    /// <summary>⭐ The ONE picker-modal protocol — see <c>PickerToolHost</c>.</summary>
+    private readonly Hrot.ScenarioEditor.Tools.PickerToolHost _pickers;
 
     /// <inheritdoc/>
     public Task<GeoPoint> PickLocationAsync(CancellationToken ct = default)
-    {
-        var tcs = new TaskCompletionSource<GeoPoint>(TaskCreationOptions.RunContinuationsAsynchronously);
-        var id  = GlobalGizmoManager.NewId();
-        var gizmo = new Fdp.Toolkit.Vis2D.Gizmos.FdpLocationPickerGizmo(
-            onPicked: worldPos => tcs.TrySetResult(new GeoPoint(worldPos.X, worldPos.Y, 0)),
-            onRemove: () => _globalGizmoManager!.Unregister(id));
-
-        ct.Register(() =>
-        {
-            _globalGizmoManager!.Unregister(id);
-            tcs.TrySetCanceled(ct);
-        });
-
-        _globalGizmoManager!.Register(id, gizmo);
-        return tcs.Task;
-    }
+        => _pickers.RunPickAsync<GeoPoint>(
+            Hrot.ScenarioEditor.Tools.ScenarioToolIds.PickLocation,
+            (tcs, remove) => new Fdp.Toolkit.Vis2D.Gizmos.FdpLocationPickerGizmo(
+                onPicked: worldPos => tcs.TrySetResult(new GeoPoint(worldPos.X, worldPos.Y, 0)),
+                onRemove: remove),
+            ct);
 
     /// <inheritdoc/>
     public Task<int> PickEntityAsync(string[]? filterPresets = null, CancellationToken ct = default)
     {
-        var tcs    = new TaskCompletionSource<int>(TaskCreationOptions.RunContinuationsAsynchronously);
-        var id     = GlobalGizmoManager.NewId();
         var filter = _filterFactory.CreateFilter(filterPresets ?? Array.Empty<string>());
-        var gizmo  = new Fdp.Toolkit.Vis2D.Gizmos.EntityPickerGizmo(
-            hitTest:     pos => _canvas.PickTopmostEntity(pos) ?? Fdp.Core.Entity.Null,
-            filter:      filter,
-            onPicked:    entity =>
-            {
-                int networkId = -1;
-                if (_repo != null
-                    && _repo.IsAlive(entity)
-                    && _repo.HasComponent<NetworkIdentity>(entity))
+
+        return _pickers.RunPickAsync<int>(
+            Hrot.ScenarioEditor.Tools.ScenarioToolIds.PickEntity,
+            (tcs, remove) => new Fdp.Toolkit.Vis2D.Gizmos.EntityPickerGizmo(
+                hitTest:     pos => _canvas.PickTopmostEntity(pos) ?? Fdp.Core.Entity.Null,
+                filter:      filter,
+                onPicked:    entity =>
                 {
-                    networkId = (int)_repo.GetComponentRO<NetworkIdentity>(entity).Value;
-                }
-                tcs.TrySetResult(networkId);
-            },
-            onCancelled: () => tcs.TrySetCanceled(),
-            onRemove:    () => _globalGizmoManager!.Unregister(id));
-
-        ct.Register(() =>
-        {
-            _globalGizmoManager!.Unregister(id);
-            tcs.TrySetCanceled(ct);
-        });
-
-        _globalGizmoManager!.Register(id, gizmo);
-        return tcs.Task;
+                    int networkId = -1;
+                    if (_repo != null
+                        && _repo.IsAlive(entity)
+                        && _repo.HasComponent<NetworkIdentity>(entity))
+                    {
+                        networkId = (int)_repo.GetComponentRO<NetworkIdentity>(entity).Value;
+                    }
+                    tcs.TrySetResult(networkId);
+                },
+                onCancelled: () => tcs.TrySetCanceled(),
+                onRemove:    remove),
+            ct);
     }
 
     /// <inheritdoc/>

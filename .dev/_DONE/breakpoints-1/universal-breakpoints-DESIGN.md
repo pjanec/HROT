@@ -170,9 +170,9 @@ _liveRepo.SyncFrom(_postTickSnapshot);   // byte-for-byte restoration of tick N 
 _timeController.RequestStepOneTick();    // engine advances normally
 ```
 
-**Zero resimulation. Zero replay logic. Zero `EventAccumulator` injection.** Components flagged `DataPolicy.NoRecord` or `DataPolicy.NoSnapshot` cannot diverge because the past is never re-executed.
+**Zero resimulation. Zero replay logic. Zero `EventAccumulator` injection.** Components flagged `DataPolicy.NoReplay` or `DataPolicy.NoPreview` cannot diverge because the past is never re-executed.
 
-> **Why the talk's earlier "destructive SyncFrom" concern was real:** the snapshot's `EntityHeader.ComponentMask` strips `NoSnapshot`/`Transient` bits. Restoring it into `_liveRepo` would orphan transient memory. The forward-snapshot approach sidesteps this entirely by capturing the post-tick state (which *includes* the transient bits as they exist at end-of-tick) and writing it back byte-for-byte. The pre-tick snapshot is used only by **the editor UI for inspection**, never assigned back to live memory while transient data could be lost — see §7 (Virtual Snapshot).
+> **Why the talk's earlier "destructive SyncFrom" concern was real:** the snapshot's `EntityHeader.ComponentMask` strips `NoPreview`/`Transient` bits. Restoring it into `_liveRepo` would orphan transient memory. The forward-snapshot approach sidesteps this entirely by capturing the post-tick state (which *includes* the transient bits as they exist at end-of-tick) and writing it back byte-for-byte. The pre-tick snapshot is used only by **the editor UI for inspection**, never assigned back to live memory while transient data could be lost — see §7 (Virtual Snapshot).
 
 ---
 
@@ -260,7 +260,7 @@ Compilation extension: `IPredicateCompiler` gets a new branch that recognises th
 - **BTree** — `BTreeTraceRecord` (16 bytes; opcode at offset 0, `NodeIndex` at 8, `Status` at 10).
 - **HSM** — `TraceRecord` (16 bytes; opcode at offset 0, `StateIndex`/`EventId`/`ActionId`/`GuardId` at 8, `TargetStateIndex`/`GuardResult` at 10, `TriggerEventId` at 12).
 
-Both components are decorated `[DataPolicy(DataPolicy.NoSave)]` and have `RecordCount` headers, so the JIT-compiled scan loops `i = 0 .. RecordCount` with `bufferPtr + (i * 16)` pointer arithmetic. Output is `true` iff any record matches.
+Both components are decorated `[DataPolicy(DataPolicy.NoScenario)]` and have `RecordCount` headers, so the JIT-compiled scan loops `i = 0 .. RecordCount` with `bufferPtr + (i * 16)` pointer arithmetic. Output is `true` iff any record matches.
 
 ### 6.5 Blueprint variable breakpoints
 

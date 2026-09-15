@@ -1,0 +1,35 @@
+// HROT_EDITOR_GENERATED - manual edits to this file will be overwritten by the AI editor on next save.
+// AssetId: bb000010-0000-0000-0000-000000000000
+
+using System;
+using System.Numerics;
+
+using Fbt;
+using Fbt.Compiler;
+using Fdp.Toolkit.Behavior;
+using Fdp.Toolkit.Behavior.Components;
+using Hrot.AI.Behaviors.Brains;
+
+namespace Hrot.AI.Behaviors.Trees;
+
+public static class T10_MultiAction
+{
+    public static BTreeBuilder<BrainBlackboard, BTreeContext> CreateBuilder() =>
+        new BTreeBuilder<BrainBlackboard, BTreeContext>()
+            .Sequence(seq =>
+            {
+                seq.Condition("Hrot.AI.Behaviors.Brains.DemoCounterNodes.Condition_CounterBelowThreshold@0",
+                    visualId: new Guid("ba030000-0000-0000-0000-000000000001"));
+                seq.Repeater(1, d4 => d4
+                    .Action("Hrot.AI.Behaviors.Brains.DemoCounterNodes.Action_IncrementCounter@0",
+                        visualId: new Guid("ba040000-0000-0000-0000-000000000001")),
+                    visualId: new Guid("ba110000-0000-0000-0000-000000000001"));
+                seq.Action("Hrot.AI.Behaviors.Brains.DemoCounterNodes.Action_AddStepToSum@8",
+                    visualId: new Guid("ba050000-0000-0000-0000-000000000001"));
+            },
+                visualId: new Guid("ba020000-0000-0000-0000-000000000001"));
+
+    [BTreeDefinition("T10_MultiAction", AssetId = "bb000010-0000-0000-0000-000000000000")]
+    public static BehaviorTreeBlob Build() =>
+        CreateBuilder().Compile("T10_MultiAction");
+}

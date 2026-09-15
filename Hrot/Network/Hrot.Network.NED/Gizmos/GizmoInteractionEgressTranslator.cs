@@ -24,6 +24,9 @@ namespace Hrot.Network.NED.Gizmos
         private readonly IDdsWriter<GizmoInteractionBatch>? _writer;
         private readonly FdpEventBus _interactionBus;
         private uint _sequenceNumber;
+
+        // 🔴 §6.7 — `NetworkEntityMap? _entityMap` DELETED. S2 used it for the Entity -> network id
+        //   direction; the token now carries the network id, so there is nothing to look up.
         public string TopicName => "GizmoInteractionBatch";
         public TranslatorDirection Direction => TranslatorDirection.Egress;
         public long ReceivedSampleCount { get; private set; }
@@ -67,6 +70,8 @@ namespace Hrot.Network.NED.Gizmos
                 WriteStructUpdate(evt.AnchorId, evt.GizmoTypeId, evt.PayloadJson);
         }
 
+        // 🔴 §6.7 — `private long NetworkIdOf(Entity)` DELETED with the map it read.
+
         private void WriteRecord(
             GizmoInteractionEventKind kind,
             PickToken token,
@@ -78,8 +83,16 @@ namespace Hrot.Network.NED.Gizmos
                 SourceNodeId         = _nodeId,
                 SequenceNumber       = _sequenceNumber++,
                 Kind                 = kind,
-                PickAnchorId         = token.Target.Index,
-                PickStreamId         = (uint)token.Target.Generation,
+                // ⭐⭐⭐ S2/§6.7 — send the NETWORK id, which is what the record documents (:21) and what
+                //   the token now already holds.
+                //   ⛔ HISTORY: this sent `token.Target.Index`/`.Generation` (a PROCESS-LOCAL handle,
+                //     meaningless on the receiver — defect D2); S2 then made it `NetworkIdOf(token.Target)`,
+                //     a NetworkEntityMap lookup back UP from the handle. §6.7 deleted the handle from the
+                //     token, so the id travels from the picked primitive to the wire untouched — ⭐ and a
+                //     node with no map can now SEND, where before `NetworkIdOf` returned 0 and the
+                //     interaction went out anchored to nothing.
+                PickAnchorId         = token.AnchorId,
+                PickStreamId         = 0u,   // reserved: "publisher stream discriminator" (GizmoPickToken.cs:10)
                 PickSubElementId     = token.SubElementId,
                 PickGizmoTypeId      = token.GizmoTypeId,
                 WorldX               = worldPos.X,

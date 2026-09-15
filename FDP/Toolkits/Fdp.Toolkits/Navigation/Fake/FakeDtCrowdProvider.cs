@@ -81,6 +81,11 @@ namespace Fdp.Toolkit.Navigation.Fake
         }
 
         /// <inheritdoc/>
+        /// <remarks>Start position is ignored by the fake; falls back to the no-position overload.</remarks>
+        public bool RegisterAgent(Entity entity, in CrowdAgentParams parameters, Vector3 startPositionFdp)
+            => RegisterAgent(entity, in parameters);
+
+        /// <inheritdoc/>
         public void UnregisterAgent(Entity entity)
         {
             _agents.Remove(entity.Index);

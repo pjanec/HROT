@@ -2,7 +2,7 @@
 
 P1b (Hill-attack → Blueprints migration), architect [`Architect_Question_8_Wave_Core.md`](Architect_Question_8_Wave_Core.md)
 (all five leans A–E approved 2026-07-17). Mirrors the shipped-slice conventions in
-[`HANDOFF_Blueprint_Migration_State.md`](HANDOFF_Blueprint_Migration_State.md).
+[`HANDOFF_Blueprint_Migration_State.md`](batches/HANDOFF_Blueprint_Migration_State.md).
 
 ## Status
 

@@ -18,6 +18,35 @@ namespace Fdp.Interfaces
     }
 
     /// <summary>
+    /// ⭐⭐⭐ <b>Which traffic class a translator carries — the one genuinely new artefact of
+    /// <c>DQ30-C</c>.</b>
+    ///
+    /// <para>📄 <c>docs/UX/Design_Question_30_Debug_Pause_Resume.md</c> §C ·
+    /// <c>docs/UX/UX_Feature_Cgf_Brain_Diagnostics.md</c> §4.</para>
+    ///
+    /// <para>⛔⛔ <b>Why a per-translator category and not a per-system switch.</b> While a debugger
+    /// holds a node's world frozen, world-state ingress must stop — brain state at tick T read
+    /// against replicated state at T+k is the exact confusion a debugger exists to prevent — but
+    /// control-plane ingress must keep polling, because <b>this node's own resume arrives through
+    /// it</b>. 📐 Measured: a single ingress system can hold both classes at once (the auxiliary
+    /// pack carries combat and mission-control traffic), so gating whole systems cannot express the
+    /// split. Gating the control plane by accident is <c>DQ30-A</c>'s deadlock.</para>
+    ///
+    /// <para>🔒 <b><see cref="WorldState"/> is 0, i.e. the default, and that is the fail-safe
+    /// direction.</b> A control-plane translator left unmarked fails LOUDLY and immediately —
+    /// *"resume does not work"* — whereas the opposite default would leak live world data into a
+    /// frozen snapshot SILENTLY.</para>
+    /// </summary>
+    public enum TranslatorClass : byte
+    {
+        /// <summary>Entity/component replication, descriptor, mission and intent ingress. Stops with the sim.</summary>
+        WorldState   = 0,
+
+        /// <summary>Time-mode, lockstep, time-sync and orchestration traffic. ⭐ Keeps polling while frozen.</summary>
+        ControlPlane = 1,
+    }
+
+    /// <summary>
     /// Translates between network descriptors and ECS components.
     /// </summary>
     public interface IDescriptorTranslator : INetworkTranslator

@@ -194,7 +194,6 @@ Hrot.SimHost
 Hrot.SimHost.Modules
   SimHostModule                  -- NetworkSpawningSystem host
   CombatModule                   -- FireProcessing, RaycastSolver, HitResolution, Ballistics
-  EyesAndMuscleModule            -- async SoD PoC (60 Hz background, Eyes + Muscle)
   CognitiveSpatialModule         -- spatial hash, LOS/vision broadphase, EQS at 10 Hz
   EqsModule                      -- EQS solver at 10 Hz (standalone background)
   SimPresentationModule          -- SimMapRenderSystem registration + IMapCameraProvider
@@ -435,20 +434,6 @@ EQS solver at 10 Hz on a background thread.
 |---|---|
 | `Name` | `"Eqs"` |
 | `Policy` | `ExecutionPolicy.SlowBackground(10)` |
-
-#### `EyesAndMuscleModule : IEcsModule`
-
-Async SoD proof-of-concept module at 60 Hz.
-
-| Member | Description |
-|---|---|
-| `Name` | `"EyesAndMuscle"` |
-| `Policy` | `ExecutionPolicy.SlowBackground(60)` |
-| `EyesTicks` | Count of all Tick calls |
-| `MuscleTicks` | Count of Tick calls when `MuscleGround` is active |
-| `LastTickThreadId` | Thread ID of the last Tick call |
-
-Constructor: `EyesAndMuscleModule(NodeRole role)`
 
 #### `SimHostModule : IEcsModule`
 
@@ -1055,8 +1040,8 @@ via `IEntityCommandBuffer.PublishEvent`.
 ### 6. Scenario serializers are for persistence, not runtime state
 
 `BrainBlackboardTranslator.Inject` is intentionally a no-op because `BrainBlackboard`
-is transient execution state (`DataPolicy.NoSave`). Do not attempt to restore
-blackboard state from a scenario file. Add `DataPolicy.NoSave` annotations to any
+is transient execution state (`DataPolicy.NoScenario`). Do not attempt to restore
+blackboard state from a scenario file. Add `DataPolicy.NoScenario` annotations to any
 new translator that serializes transient runtime state.
 
 ### 7. Config file over code for deployment changes

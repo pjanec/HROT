@@ -15,7 +15,7 @@ namespace Hrot.Common.Diagnostics.Gizmos
     // "View > Tactical Map Layers..." from the main menu bar.
     // Consumed by LayerControlGizmo.UpdateAndDraw to toggle the StructInspector panel.
     [EventId(8061)]
-    [DataPolicy(DataPolicy.NoRecord)]
+    [DataPolicy(DataPolicy.NoReplay)]
     public struct OpenLayerEditorEvent { }
 
     // DTO that matches the StructEdit schema used by the StructInspector panel.

@@ -1,3 +1,4 @@
+using Hrot.Common;
 using Fdp.Toolkit.DER;
 using Hrot.Editor;
 using Hrot.Editor.AiShared;
@@ -23,7 +24,6 @@ public sealed class WorkspaceMenuTests
         public void Update() { }
         public void NewScenario() { }
         public void SaveScenario(string filePath) { }
-        public void LoadScenario(string filePath) { }
         public void LoadScenarioByName(string scenarioName) { }
         public void SaveCurrentScenario() { }
         public void SaveScenarioAs(string scenarioName) { }

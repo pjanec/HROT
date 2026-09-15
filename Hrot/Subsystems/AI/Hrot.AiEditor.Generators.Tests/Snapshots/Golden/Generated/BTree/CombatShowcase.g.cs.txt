@@ -1,0 +1,41 @@
+// HROT_EDITOR_GENERATED - manual edits to this file will be overwritten by the AI editor on next save.
+// AssetId: aaaaaaaa-0000-0000-0000-000000000001
+
+using System;
+using System.Numerics;
+
+using Fbt;
+using Fbt.Compiler;
+using Fdp.Toolkit.Behavior;
+using Fdp.Toolkit.Behavior.Components;
+using Hrot.AI.Behaviors.Brains;
+
+namespace Hrot.AI.Behaviors.Trees;
+
+public static class CombatShowcase
+{
+    public static BTreeBuilder<BrainBlackboard, BTreeContext> CreateBuilder() =>
+        new BTreeBuilder<BrainBlackboard, BTreeContext>()
+            .ObserverSelector(obs =>
+            {
+                obs.Sequence(seq =>
+                {
+                    seq.Cooldown(2f, d5 => d5
+                        .Repeater(3, d6 => d6
+                            .Action(CgfNodes.Action_Wander,
+                                visualId: new Guid("50000000-0000-0000-0000-000000000001")),
+                            visualId: new Guid("51000000-0000-0000-0000-000000000001")),
+                        visualId: new Guid("52000000-0000-0000-0000-000000000001"));
+                    seq.Wait(1.5f,
+                        visualId: new Guid("60000000-0000-0000-0000-000000000001"));
+                    seq.Subtree("SampleScout",
+                        visualId: new Guid("70000000-0000-0000-0000-000000000001"));
+                },
+                    visualId: new Guid("40000000-0000-0000-0000-000000000001"));
+            },
+                visualId: new Guid("20000000-0000-0000-0000-000000000001"));
+
+    [BTreeDefinition("CombatShowcase", AssetId = "aaaaaaaa-0000-0000-0000-000000000001")]
+    public static BehaviorTreeBlob Build() =>
+        CreateBuilder().Compile("CombatShowcase");
+}

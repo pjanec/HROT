@@ -40,7 +40,8 @@ namespace Fdp.Core.Serialization
         ///         files.</item>
         ///   <item><c>DefaultIgnoreCondition = WhenWritingNull</c> — keeps output concise.</item>
         ///   <item>Custom converters: <see cref="FixedString32Converter"/>,
-        ///         <see cref="FixedString64Converter"/>, <see cref="Vector2ArrayConverter"/>,
+        ///         <see cref="FixedString64Converter"/>, <see cref="FixedString128Converter"/>,
+        ///         <see cref="Vector2ArrayConverter"/>,
         ///         <see cref="Vector3ArrayConverter"/>, <see cref="Vector4ArrayConverter"/>,
         ///         <see cref="QuaternionArrayConverter"/>, <see cref="StrictStringEnumConverter"/>.
         ///         <see cref="StrictStringEnumConverter"/> is used instead of the standard
@@ -68,11 +69,16 @@ namespace Fdp.Core.Serialization
             };
             relaxed.Converters.Add(new FixedString32Converter());
             relaxed.Converters.Add(new FixedString64Converter());
+            relaxed.Converters.Add(new FixedString128Converter());
             relaxed.Converters.Add(new Vector2ArrayConverter());
             relaxed.Converters.Add(new Vector3ArrayConverter());
             relaxed.Converters.Add(new Vector4ArrayConverter());
             relaxed.Converters.Add(new QuaternionArrayConverter());
             relaxed.Converters.Add(new StrictStringEnumConverter());
+            // FC-3b (Q#21-C3/C1): fixed-list wrapper structs author as plain arrays; the
+            // factory recurses per-element through THESE options, so element support tracks
+            // the converter list above automatically.
+            relaxed.Converters.Add(new FixedListJsonConverterFactory());
             // TypeInfoResolver must be set before MakeReadOnly() in .NET 8+.
             relaxed.TypeInfoResolver = new DefaultJsonTypeInfoResolver();
             relaxed.MakeReadOnly();

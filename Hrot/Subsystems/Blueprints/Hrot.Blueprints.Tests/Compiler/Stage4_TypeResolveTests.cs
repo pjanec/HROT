@@ -22,6 +22,15 @@ public sealed class Stage4_TypeResolveTests
 
     // ---- BP1500: Unresolvable type ref ---------------------------------
 
+    /// <summary>
+    /// BP1500 fires for a variable type the registry cannot resolve AND the AN2 "trust the dotted
+    /// project FQN" fallback cannot claim (see <c>Stage4_TypeResolve.TryResolveFieldType</c>) --
+    /// i.e. a DOTLESS unknown id. This test originally patched in a DOTTED unknown
+    /// ("Not.A.Real.Type") and went stale when the deliberate Q#14 Option B fallback started
+    /// resolving any dotted FQN by trust (the reflection-less compiler cannot verify a project
+    /// struct; a truly nonexistent type fails later at the Roslyn compile with CS0246). The dotted
+    /// case is pinned by <see cref="TypeResolve_DottedUnknownFieldType_ResolvesByTrust_NoBP1500"/>.
+    /// </summary>
     [Fact]
     [CoversDiagnosticCode("BP1500")]
     public void TypeResolve_UnknownFieldType_EmitsBP1500()
@@ -31,13 +40,34 @@ public sealed class Stage4_TypeResolveTests
             .WithVariable("bad", typeof(int))  // we'll patch the type ID after build
             .Build();
 
-        // Patch the variable type to something that won't resolve.
-        asset.Variables[0].Type.TypeId = "Not.A.Real.Type";
+        // Dotless => neither the registry nor the AN2 dotted-FQN fallback resolves it.
+        asset.Variables[0].Type.TypeId = "NotARealType";
 
         var sink = new DiagnosticSink();
         Stage4_TypeResolve.Run(asset, new ValidationContext(sink, DefaultOptions()));
 
         Assert.Contains(sink.All, d => d.Code == DiagnosticCodes.BP1500);
+    }
+
+    /// <summary>
+    /// The AN2 fallback contract (Q#14 Option B): a DOTTED unknown FQN is trusted as a project
+    /// struct -- it resolves (no BP1500) with <c>SizeReliable = false</c>, so State layout must use
+    /// runtime offsets instead of baked size sums. A genuinely nonexistent type is caught later by
+    /// the Roslyn compile (CS0246), never silently executed.
+    /// </summary>
+    [Fact]
+    public void TypeResolve_DottedUnknownFieldType_ResolvesByTrust_NoBP1500()
+    {
+        var asset = BlueprintAssetBuilder
+            .Instance("I")
+            .WithVariable("maybeProjectStruct", typeof(int))
+            .Build();
+        asset.Variables[0].Type.TypeId = "Not.A.Real.Type";
+
+        var sink = new DiagnosticSink();
+        Stage4_TypeResolve.Run(asset, new ValidationContext(sink, DefaultOptions()));
+
+        Assert.DoesNotContain(sink.All, d => d.Code == DiagnosticCodes.BP1500);
     }
 
     // ---- BP1501: Link type mismatch ------------------------------------

@@ -30,6 +30,28 @@ public sealed class UndoStack
         _maxEntries = maxEntries;
     }
 
+    /// <summary>
+    /// BP-24 — optional editing-context capture for hosts whose sink can retarget (e.g. a
+    /// multi-graph document whose canvas switches between graphs). Sampled once per
+    /// <see cref="ApplyAndRecord"/>; the value is stored on the entry, opaque to this class.
+    ///
+    /// <para>
+    /// Why entries need this: the sink is a single fixed reference, so an entry recorded while
+    /// the sink pointed at graph A would otherwise be replayed into whatever graph the sink
+    /// points at during undo — silently mutating the wrong graph.
+    /// </para>
+    /// </summary>
+    public Func<object?>? ContextProvider { get; set; }
+
+    /// <summary>
+    /// BP-24 — invoked before applying an entry whose captured context differs from the current
+    /// one (as reported by <see cref="ContextProvider"/>). The host restores that context —
+    /// typically by switching the canvas to the graph the entry belongs to, which is also the
+    /// UX designers expect: undo navigates to where the edit happened.
+    /// Never invoked when either hook is null or the entry's context is null.
+    /// </summary>
+    public Action<object?>? ContextRestorer { get; set; }
+
     /// <summary>Total entries in undo direction.</summary>
     public int UndoCount => _undo.Count;
 
@@ -61,7 +83,7 @@ public sealed class UndoStack
         var result = _sink.Apply(forward);
         if (!result.Success) return result;
 
-        _undo.Push(new UndoEntry(label, forward, inverse));
+        _undo.Push(new UndoEntry(label, forward, inverse, ContextProvider?.Invoke()));
         _redo.Clear();
         TrimToMax();
         return result;
@@ -71,6 +93,7 @@ public sealed class UndoStack
     public bool Undo()
     {
         if (!_undo.TryPop(out var entry)) return false;
+        RestoreContext(entry);
         var r = _sink.Apply(entry.Inverse);
         if (!r.Success)
         {
@@ -87,6 +110,7 @@ public sealed class UndoStack
     public bool Redo()
     {
         if (!_redo.TryPop(out var entry)) return false;
+        RestoreContext(entry);
         var r = _sink.Apply(entry.Forward);
         if (!r.Success)
         {
@@ -96,6 +120,18 @@ public sealed class UndoStack
 
         _undo.Push(entry);
         return true;
+    }
+
+    /// <summary>
+    /// Restores the entry's captured editing context before its command is replayed, when the
+    /// current context differs. See <see cref="ContextProvider"/> for why this must happen
+    /// before <c>_sink.Apply</c> and not after.
+    /// </summary>
+    private void RestoreContext(in UndoEntry entry)
+    {
+        if (entry.Context is null || ContextRestorer is null) return;
+        if (Equals(ContextProvider?.Invoke(), entry.Context)) return;
+        ContextRestorer(entry.Context);
     }
 
     /// <summary>Clear both stacks. Called when external wholesale change occurs.</summary>
@@ -120,5 +156,6 @@ public sealed class UndoStack
         foreach (var e in keep.Reverse()) _undo.Push(e);
     }
 
-    private readonly record struct UndoEntry(string Label, GraphCommand Forward, GraphCommand Inverse);
+    private readonly record struct UndoEntry(
+        string Label, GraphCommand Forward, GraphCommand Inverse, object? Context = null);
 }

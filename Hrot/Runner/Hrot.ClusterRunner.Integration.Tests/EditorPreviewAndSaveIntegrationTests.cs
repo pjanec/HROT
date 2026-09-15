@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.IO;
+using Fdp.Toolkit.Scenario;
 using System.Numerics;
 using Fdp.Core;
 using Fdp.Toolkit.NetworkSpawning.Events;
@@ -123,7 +124,10 @@ public sealed class EditorPreviewAndSaveIntegrationTests : IDisposable
         Assert.Equal(0, harness.Repo.EntityCount);
 
         // â”€â”€ Step 12: LoadScenario â€” assert entity restored â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-        harness.Editor.LoadScenario(_tempFile);
+        // ⭐ HN-037 Part B: the raw file→repo load belongs to the SERIALIZER, and the claim here is the
+        //   file round-trip (save → wipe → the entity comes back), not the editor's load pipeline.
+        new ScenarioSerializerBuilder("Hrot.Scenario").Build()
+            .Deserialize(harness.Repo, File.ReadAllText(_tempFile));
         harness.PumpFrames(5);
 
         Assert.Equal(1, harness.Repo.EntityCount);
