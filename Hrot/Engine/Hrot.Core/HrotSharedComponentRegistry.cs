@@ -42,6 +42,7 @@ public static class HrotSharedComponentRegistry
         world.RegisterComponent<TkbIdentity>();
         world.RegisterComponent<GhostStateTracker>();
         world.RegisterComponent<PendingNetworkAck>();
+        world.RegisterComponent<ReportLifecycleOnActive>();   // CE-283: reliable-init barrier peer tag
         world.RegisterComponent<NetworkTransform>();
         world.RegisterComponent<NetworkVelocity>();
 
@@ -62,6 +63,7 @@ public static class HrotSharedComponentRegistry
         // PendingAuthorityGrants: pre-genesis routing intent (Muscle role).
         world.RegisterManagedComponent<DescriptorOwnership>();
         world.RegisterManagedComponent<PendingAuthorityGrants>();
+        world.RegisterManagedComponent<NetworkAckPeerSet>();   // CE-283: reliable-init barrier peer set
 
         // ── Lifecycle events (network entity construction / destruction) ──────
         world.RegisterEvent<ConstructionOrder>();

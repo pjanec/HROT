@@ -43,6 +43,14 @@ public interface ICgfEntityLifecycleAdapters
     JsonAttributeCompiler? JsonCompiler { get; }
 
     /// <summary>
+    /// Optional resolver of the peer node set a creator must wait for in reliable-init mode
+    /// (the cross-node construction barrier, CE-283). When null the barrier stamps no peers, so a
+    /// reliable entity acks immediately (fast-mode behaviour). See
+    /// DESIGN_Cross_Node_Construction_Barrier.md §3a.4/§3a.7.
+    /// </summary>
+    IExpectedPeersProvider? ExpectedPeers { get; }
+
+    /// <summary>
     /// Poll the underlying network transport once per update frame.
     /// Typically reads node heartbeats and refreshes the cluster state cache used
     /// by <see cref="OwnershipStrategy"/>.

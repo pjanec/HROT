@@ -71,7 +71,8 @@ namespace Fdp.Toolkit.NetworkSpawning.Systems
             int localNodeId,
             IReadOnlyList<ITkbEntityTranslator>? translators = null,
             Action<EntityRepository, Entity, bool>? onEntitySpawned = null,
-            Fdp.Toolkit.Replication.Abstractions.IRoleAffinityPolicy? roleAffinity = null)
+            Fdp.Toolkit.Replication.Abstractions.IRoleAffinityPolicy? roleAffinity = null,
+            Fdp.Toolkit.Replication.Abstractions.IExpectedPeersProvider? expectedPeers = null)
         {
             _tkbDb            = tkbDb       ?? throw new ArgumentNullException(nameof(tkbDb));
             _elm              = elm         ?? throw new ArgumentNullException(nameof(elm));
@@ -81,7 +82,12 @@ namespace Fdp.Toolkit.NetworkSpawning.Systems
             _translators      = translators ?? System.Array.Empty<ITkbEntityTranslator>();
             _onEntitySpawned  = onEntitySpawned;
             _roleAffinity     = roleAffinity;
+            _expectedPeers    = expectedPeers;
         }
+
+        // Resolves the peer set a reliable-init entity must wait for (null ⇒ no cross-node wait).
+        // See DESIGN_Cross_Node_Construction_Barrier.md §3a.4/§3a.7.
+        private readonly Fdp.Toolkit.Replication.Abstractions.IExpectedPeersProvider? _expectedPeers;
 
         /// <summary>
         /// ⭐⭐⭐ <b><c>P3</c> step 2 — <i>"which of these components are actually MINE?"</i></b>
@@ -173,7 +179,24 @@ namespace Fdp.Toolkit.NetworkSpawning.Systems
 
             // 7. Optional reliable-init handshake component
             if (cmd.InitType != ReliableInitType.None)
+            {
                 world.AddComponent(entity, new PendingNetworkAck { ExpectedType = cmd.InitType });
+
+                // Cross-node construction barrier (CE-283, §3a.4): stamp the peer set the creator must
+                // collect Active acks from, in the SAME frame as PendingNetworkAck so the gateway sees it
+                // when it processes the ConstructionOrder BeginConstruction publishes below. A null provider
+                // (or an empty set) leaves the entity fast-mode: the gateway acks it immediately.
+                if (_expectedPeers != null)
+                {
+                    var peers = _expectedPeers.GetExpectedPeers(cmd.TkbType, _localNodeId);
+                    if (peers != null && peers.Count > 0)
+                    {
+                        var arr = new int[peers.Count];
+                        for (int i = 0; i < peers.Count; i++) arr[i] = peers[i];
+                        world.AddComponent(entity, new NetworkAckPeerSet { ExpectedAckPeers = arr });
+                    }
+                }
+            }
 
             // 7b. ⭐⭐⭐ D2 — a THROWAWAY entity is stamped so the scenario serializer skips it.
             //   Every node that materialises the entity runs this, so the sketch is excluded from the

@@ -161,6 +161,17 @@ namespace Hrot.Common.EntityCreation
         /// </summary>
         public Fdp.Toolkit.Replication.Abstractions.IRoleAffinityPolicy? RoleAffinity { get; init; }
 
+        /// <summary>
+        /// Optional resolver of the peer node set a creator must collect Active acks from before a
+        /// reliable-init entity leaves Constructing (the cross-node construction barrier, CE-283).
+        /// Forwarded to <c>NetworkSpawningSystem</c>, which stamps <c>NetworkAckPeerSet</c> alongside
+        /// <c>PendingNetworkAck</c> at spawn — the SAME frame, so the creator's gateway sees the peer
+        /// set when it processes the ConstructionOrder. ⚠ <c>null</c> keeps today's behaviour exactly:
+        /// a reliable entity acks immediately (no cross-node wait). Wired from the CGF adapters'
+        /// <c>ExpectedPeers</c>. See DESIGN_Cross_Node_Construction_Barrier.md §3a.4/§3a.7.
+        /// </summary>
+        public Fdp.Toolkit.Replication.Abstractions.IExpectedPeersProvider? ExpectedPeers { get; init; }
+
 
         /// <summary>Throws when a required input is missing, naming the field.</summary>
         internal void Validate()

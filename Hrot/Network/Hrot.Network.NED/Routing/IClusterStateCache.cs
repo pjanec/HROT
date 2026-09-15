@@ -24,6 +24,13 @@ namespace Hrot.Network.Routing
         int? GetLeastLoadedNode(NodeRole requiredRole);
 
         /// <summary>
+        /// The node ids of every currently-known present node (a point-in-time snapshot).
+        /// Used by the reliable-init construction barrier to resolve the peer set a creator
+        /// must wait for (CE-283; DESIGN_Cross_Node_Construction_Barrier.md §3a.4).
+        /// </summary>
+        System.Collections.Generic.IReadOnlyList<int> AllNodeIds();
+
+        /// <summary>
         /// Updates (or inserts) the capability record for a specific node.
         /// Called by the heartbeat bridge from the event-bus subscription.
         /// </summary>

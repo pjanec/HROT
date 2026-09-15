@@ -174,7 +174,11 @@ namespace Hrot.Common.EntityCreation
                 //   norm today and keeps today's behaviour exactly; step 4 is where hosts supply one.
                 //   ⛔ This is NOT the onEntitySpawned hole re-opened: that was an invariant a single host
                 //   happened to pass, whereas this is a POLICY the pack hands to both of its consumers.
-                roleAffinity: ctx.RoleAffinity);
+                roleAffinity: ctx.RoleAffinity,
+                // CE-283 (reliable-init barrier §3a.4): the creator's peer-set resolver. Same rationale as
+                // roleAffinity — a POLICY the pack hands its consumer, not a per-host invariant. null keeps
+                // today's behaviour (a reliable entity acks immediately, no cross-node wait).
+                expectedPeers: ctx.ExpectedPeers);
 
             // ⭐⭐⭐ P2 — GHOST PROMOTION IS BUILT HERE NOW. 📄 DESIGN_Role_Affinity_Ownership.md §3.7,
             //   §6 step 0a. It was registered by NedReplicationModule.RegisterSystems — ONE network

@@ -416,15 +416,19 @@ adds the real navmesh/model subclasses without copying the machine (ruling 9).
 | **A7** late-joiner read path | ⛔ **PENDING** | needs the wire live first |
 | synthetic peer participant + **live `--mode all` proof** | ⛔ **PENDING** — the acceptance crux | §6 |
 
-⛔⛔ **OPEN DESIGN QUESTION (A5) — the creator↔membership seam, a cross-node contract (not delegated).**
-At spawn the creator must resolve *which peers must init a copy of this entity type* to stamp
-`NetworkAckPeerSet`. Two facts to reconcile: (a) the **membership** view on the creator is the NED cluster
-cache `NodeCapability.Role` (`NedNetworkFactory.cs:412`, CE-282) — NOT the orchestrator `NodeRoster` (which
-lives on the master); (b) the **type→required-roles** mapping does not exist yet. ⭐ **Lean for slice A's
-synthetic proof:** stamp *all present peers except local* (every peer waits), deferring the real
-type→roles map to piece C with the actual navmesh/model participants. ⚠ This needs a nod because it sets
-the wire/membership contract; `NetworkSpawningSystem` (generic, `Fdp.Toolkits`) must reach the NED cache
-through an injected `IExpectedPeersProvider` seam, not a direct dependency.
+✅ **A5 DECISION — OPTION A APPROVED** *(user, `2026-09-15`, via H-coord relay: "A, go with the lean").*
+At spawn the creator resolves the peer set through an injected **`IExpectedPeersProvider`** seam
+(so `NetworkSpawningSystem`, generic in `Fdp.Toolkits`, takes no NED dependency) and stamps
+`NetworkAckPeerSet`. For this slice the provider yields **all present peers except local** (the NED cluster
+cache `NodeCapability` list minus the local node); the real **type→required-roles** filtering is deferred to
+piece C with the actual navmesh/model participants.
+
+⚠⚠ **PROOF-CORRECT, NOT PRODUCTION-CORRECT — recorded per the coordinator's instruction.** "All peers wait"
+is correct for the synthetic proof but **would, in production, block a creator on peers that never
+initialise the entity type**. ⛔ **Piece C's role-filtering (only the roles that register a participant for
+the type) is the required follow-up before this goes live.** The agreed sequencing is: **A now (proof), C
+before production.** The membership view is the NED cluster cache `NodeCapability.Role`
+(`NedNetworkFactory.cs:412`, CE-282), NOT the orchestrator `NodeRoster` (master-side).
 
 ### 3a.6 `RegisterRequirement` — zero callers *(V6 correction)*
 `EntityLifecycleModule.RegisterRequirement(long tkbType, int moduleId):158` has **zero callers, not "tests

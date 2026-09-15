@@ -381,6 +381,9 @@ internal sealed class NedCgfEntityLifecycleAdapters : ICgfEntityLifecycleAdapter
     public IEntityCreationRequestEgress?      RequestEgress     { get; }
     public IOwnershipDistributionStrategy?    OwnershipStrategy { get; }
     public JsonAttributeCompiler?             JsonCompiler      { get; }
+    // CE-283 (reliable-init barrier §3a.7): the creator's peer set, backed by the SAME cache
+    // PollNetwork populates — so it sees exactly the present peers the ownership strategy does.
+    public Fdp.Toolkit.Replication.Abstractions.IExpectedPeersProvider? ExpectedPeers { get; }
 
     public NedCgfEntityLifecycleAdapters(
         IEntityCreationRequestSource    requestSource,
@@ -400,6 +403,7 @@ internal sealed class NedCgfEntityLifecycleAdapters : ICgfEntityLifecycleAdapter
         JsonCompiler      = jsonCompiler;
         _clusterCache     = clusterCache;
         _heartbeatReader  = heartbeatReader;
+        ExpectedPeers     = new Hrot.Network.Routing.ClusterCacheExpectedPeersProvider(clusterCache);
     }
 
     /// <inheritdoc/>
