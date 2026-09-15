@@ -182,7 +182,23 @@ graph TD
 - **Why a new `PeerLifecycleStatusEgressSystem`.** `ProcessConstructionAck` sets `Active` but **publishes no
   event** *(measured, `:305`)*, so nothing today can react to "my copy became `Active`". The producer must
   OBSERVE the `Constructing → Active` transition for reliable entities and publish the ack. ⚠ It emits only
-  for entities the local node treats as reliable *(a tag/`ReliableInitType`)*, never for every activation.
+  for entities the local node treats as reliable, never for every activation.
+- **Where `EntityLifecycleStatusDescriptor` is filled from — measured `2026-09-15`.** The four fields are all
+  **local peer state** at the moment the copy reaches `Active`:
+  | field | source |
+  |---|---|
+  | `EntityId` | the peer entity's `NetworkIdentity.Value` *(written at ghost creation from `EntityMaster.EntityId`)* |
+  | `NodeId` | the reporting node's own local id |
+  | `State` | `Active` — the observed transition |
+  | `Timestamp` | wall clock *(same `WallTicksUtc` source as the heartbeat)* or the frame `GlobalVersion` |
+  ⛔⛔ **BUT the ELIGIBILITY — "which entities publish at all" — is NOT sourced on the peer today.** Reliability
+  *(`ReliableInitType`)* is a CREATE-time fact that lives only on the creator *(`SpawnEntityCommand.InitType`,
+  the creator's `PendingNetworkAck`)*; it never travels. `EntityMaster` *(the wire descriptor that makes the
+  peer's ghost)* has a general `ulong Flags` field, but the sole egress producer writes **`Flags = 0`**
+  *(`EntityMasterEgressTranslator.cs:103`)*. ⇒ **the reliable bit must ride `EntityMaster.Flags`** *(exactly
+  the design-talk's `Flags = WaitForAcks`)*: the peer reads it at ghost creation, tags the ghost
+  *"report-on-Active"*, and the producer publishes for tagged, not-yet-reported entities. **This wire-plumbing
+  is a dependency of piece A and does not exist yet.**
 - **Why the participant base is one class.** `NetworkGatewaySystem` already hand-rolls pending-set +
   defer-ack + timeout + destruction-cleanup; navmesh and model-load need the identical shape. One
   `DeferredConstructionParticipant` (hook `TryComplete(entity)`) or the gateway becomes three copies *(ruling 9)*.
@@ -206,6 +222,7 @@ graph TD
 | `NavmeshReadinessParticipant` / `ModelLoadReadinessParticipant` | 🆕 NEW — `RegisterRequirement` per type |
 | `PeerLifecycleStatusEgressSystem` | 🆕 NEW — observe `Constructing→Active`, publish the ack |
 | `PendingNetworkAck` | ⚠ CHANGE — carry `ExpectedAckPeers` *(or a sibling component)* |
+| `EntityMaster.Flags` + `EntityMasterEgressTranslator` | ⚠ CHANGE — carry the reliable bit on the wire *(the egress writes `Flags=0` today)* so the peer knows to report-on-`Active`; the peer tags its ghost from it. **Dependency of piece A** |
 | heartbeat/roster role mask | ⚠ CHANGE — P1/P2/P3 *(§5)* |
 | `INetworkTopology.GetExpectedPeers(tkbType)` | ⛔ RETIRE as the peer source — type-only, no prod impl |
 
