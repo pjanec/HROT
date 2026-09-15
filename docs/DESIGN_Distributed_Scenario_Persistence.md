@@ -811,16 +811,14 @@ never stale today; but the sync is a **named compliance requirement** so we are 
   `NewOwner` `NodeId{Domain, Node}` → our int. The egress already stops-without-disposing on authority loss
   (spec-correct: a dispose would mean *entity deleted*), so no handoff change is needed just to RECEIVE.
 
-⛔⛔ **RECEIVE-SIDE GAP measured live `2026-09-15` (during CE-276's proof) — the mirror runs only on
-pure-Brain / pure-IG nodes, NOT on a Muscle.** `OwnershipIngressSystem` (which carries this OQ12 mirror) is
-registered at `NedReplicationModule.cs:368` (pure-IG block) and `:413` (pure-Brain block) only. A live
-`CGF→SimHost(Muscle)` `EntityMaster` transfer egressed and SimHost RECEIVED the wire ingress
-(`[Node-1] OwnershipUpdate ingress … NewOwner=1`) but never APPLIED it — `primaryOwnerId` stayed `-1`; the
-`CGF→IG` transfer applied fully. ⇒ a Muscle cannot currently receive an `EntityMaster` transfer. This is
-correct for the native model (a Muscle owns per-component authority, not `EntityMaster`), but a whole-entity
-handover to a Muscle-bearing external host needs the ingress on every NED node. **FOLLOW-ON:** register
-`OwnershipIngressSystem` role-independently (as `OwnershipTransferInitiationSystem` now is). 📄 See
-`DESIGN_Entity_Ownership_Transfer.md` build-state (CE-276).
+✅ **RECEIVE-SIDE UNIFIED `2026-09-15` (CE-276) — the mirror now runs on EVERY NED host.** It was originally
+registered only on pure-Brain / pure-IG, so a Muscle received the wire ingress but never APPLIED it (measured:
+`CGF→SimHost(Muscle)` left `primaryOwnerId=-1`; `CGF→IG` applied). `OwnershipIngressSystem` is now registered
+**role-independently** in `NedReplicationModule` (one unconditional registration replacing the two role-gated
+ones; the own-takeover loopback it now also consumes is idempotent). `LocalAuthorityYieldSystem` stays
+pure-Brain. Live re-proof: `CGF→SimHost(Muscle) MasterOnly` now lands (SimHost `primaryOwnerId=1`, master
+owned). ⇒ both faces of an `EntityMaster` transfer — initiate and receive — are host-agnostic. 📄
+`DESIGN_Entity_Ownership_Transfer.md`.
 
 ⚠ **DEFERRED — the transfer INITIATION feature (`CE-276`, a later design):**
 - **Make `NetworkAuthority` ownership-tracked so WE can initiate a transfer** — register it / replicate its

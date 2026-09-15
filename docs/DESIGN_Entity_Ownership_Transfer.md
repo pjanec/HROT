@@ -54,19 +54,15 @@ IG (100, receiver) `primaryOwnerId=100`, master `ownedByThisNode=true`. Wire log
 (initiation → egress `EntityId=1000 TypeId=0 NewOwner=1` → ingress on peers). `GET …/ownership` is the
 verification surface, exactly as designed.
 
-⛔⛔ **RECEIVE-SIDE FINDING (investigation-updates-design, measured live `2026-09-15`) — a MUSCLE node cannot
-receive an `EntityMaster` transfer today.** `OwnershipIngressSystem` (which carries the OQ12
-`OwnershipUpdate→PrimaryOwnerId` mirror) is registered ONLY on **pure-Brain** and **pure-IG** nodes
-(`NedReplicationModule.cs:368` IG-block, `:413` pure-Brain), NOT on a Muscle. Measured: a `CGF→SimHost`
-(Muscle) transfer egressed correctly and SimHost *received the wire ingress* (`[Node-1] OwnershipUpdate
-ingress … NewOwner=1`) but never APPLIED it — its `primaryOwnerId` stayed `-1`. The `CGF→IG` transfer
-applied fully because IG runs the ingress. ⇒ this is a **receive-side (OQ12) role-gating limitation, not a
-CE-276 initiation defect** (initiation is proven). It matches the native model (a Muscle owns per-component
-authority, not `EntityMaster`), so it is not wrong for the native case — but a whole-entity handover to a
-Muscle-bearing external host needs the ingress on every NED node. **FOLLOW-ON:** register
-`OwnershipIngressSystem` role-independently (like `OwnershipTransferInitiationSystem` now is), or scope it to
-"any node that can own." Folded into `DESIGN_Distributed_Scenario_Persistence.md` §6c (the receive side's
-home).
+✅ **RECEIVE-SIDE UNIFIED `2026-09-15` — every NED host can now receive an `EntityMaster` transfer.**
+Originally `OwnershipIngressSystem` (the OQ12 `OwnershipUpdate→PrimaryOwnerId` mirror) was registered ONLY on
+pure-Brain + pure-IG nodes, so a Muscle received the wire ingress but never APPLIED it (measured: `CGF→SimHost`
+left SimHost at `primaryOwnerId=-1`, while `CGF→IG` applied). ⇒ it is now registered **role-independently** in
+`NedReplicationModule` (one unconditional registration replacing the two role-gated ones; consuming a node's own
+takeover loopback is idempotent). `LocalAuthorityYieldSystem` stays pure-Brain (separate concern). **LIVE
+RE-PROOF:** the same `CGF→SimHost (Muscle) MasterOnly` transfer now lands — SimHost `primaryOwnerId=1`, master
+`ownedByThisNode=true`. ⇒ initiation AND receive are both host-agnostic; a whole-entity handover to a
+Muscle-bearing external host is unblocked.
 
 ---
 
