@@ -545,28 +545,8 @@ public sealed class StorageGatewayModule
         return result;
     }
 
-    /// <summary>
-    /// Writes a <c>scenario_manifest.json</c> file to
-    /// <c>&lt;nasBasePath&gt;\scenario_manifest.json</c> listing the
-    /// <see cref="FileManifestEntry.RelativeDest"/> of every entry in
-    /// <paramref name="manifests"/>.
-    /// </summary>
-    public async Task WriteScenarioManifestAsync(
-        IReadOnlyList<FileManifestEntry> manifests,
-        string nasBasePath)
-    {
-        if (manifests == null)                      throw new ArgumentNullException(nameof(manifests));
-        if (string.IsNullOrWhiteSpace(nasBasePath)) throw new ArgumentNullException(nameof(nasBasePath));
-
-        var names = manifests.Select(m => m.RelativeDest).ToArray();
-        var json  = System.Text.Json.JsonSerializer.Serialize(
-            new { files = names },
-            new System.Text.Json.JsonSerializerOptions { WriteIndented = true });
-
-        var manifestPath = Path.Combine(nasBasePath, "scenario_manifest.json");
-        Directory.CreateDirectory(nasBasePath);
-        await File.WriteAllTextAsync(manifestPath, json).ConfigureAwait(false);
-    }
+    // CE-278: WriteScenarioManifestAsync (scenario_manifest.json) retired — it was written only by the
+    // SaveScenario=2 pull path and had zero readers (in-repo or external NAS tools, confirmed).
 
     // ── TkbName consensus helpers ──────────────────────────────────────────────
 

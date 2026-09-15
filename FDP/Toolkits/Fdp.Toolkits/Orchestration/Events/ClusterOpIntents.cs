@@ -63,6 +63,10 @@ namespace Fdp.Toolkit.Orchestration
     {
         Export,
         Import,
+
+        /// <summary>CE-278: RETIRED (was the .fdp-archive scenario save stub). Reserved — do NOT reuse
+        /// this position. Kept so the internal bus discriminator stays aligned with the wire enum mirrors;
+        /// no producer sets it and no consumer handles it any more.</summary>
         SaveScenario,
 
         /// <summary>

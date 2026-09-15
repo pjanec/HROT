@@ -121,8 +121,8 @@ internal static class ClusterOpRequestAdapter
     }
 
     /// <summary>
-    /// Converts a <see cref="ClusterOpRequest"/> with <c>OperationType == ExportArchive</c>
-    /// or <c>ImportArchive</c> or <c>SaveScenario</c> to an <see cref="ExecuteStorageOpIntent"/>.
+    /// Converts a <see cref="ClusterOpRequest"/> with <c>OperationType == ExportArchive</c>,
+    /// <c>ImportArchive</c> or <c>SaveScenarioJson</c> to an <see cref="ExecuteStorageOpIntent"/>.
     /// </summary>
     public static ExecuteStorageOpIntent ToExecuteStorageOpIntent(ClusterOpRequest req)
     {
@@ -141,9 +141,12 @@ internal static class ClusterOpRequestAdapter
         {
             ClusterOpType.ExportArchive    => StorageOpType.Export,
             ClusterOpType.ImportArchive    => StorageOpType.Import,
-            ClusterOpType.SaveScenario     => StorageOpType.SaveScenario,
             ClusterOpType.SaveScenarioJson => StorageOpType.SaveScenarioJson,
-            _ => StorageOpType.SaveScenario,
+            // CE-278: SaveScenario=2 retired; reject an unmapped cluster op instead of silently
+            // mapping it to the dead SaveScenario storage op (previous default).
+            _ => throw new ArgumentOutOfRangeException(
+                     nameof(req.OperationType), req.OperationType,
+                     "Unsupported cluster op for storage intent (SaveScenario=2 retired, CE-278)."),
         };
 
         // CE-277(c0): the distributed JSON scenario save carries its relative name in PayloadJson.

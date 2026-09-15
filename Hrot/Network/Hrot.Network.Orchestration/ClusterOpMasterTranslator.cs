@@ -197,16 +197,8 @@ public sealed class ClusterOpMasterTranslator
                 break;
             }
 
-            case NedClusterOpType.SaveScenario:
-            {
-                _bus.PublishManaged(new ExecuteStorageOpIntent
-                {
-                    RequestId  = req.RequestId,
-                    Operation  = StorageOpType.SaveScenario,
-                    ExerciseId = Guid.Empty,
-                });
-                break;
-            }
+            // CE-278: NedClusterOpType.SaveScenario (=2) retired — no master-side case. A stray legacy
+            // op=2 on the wire falls through to the default and is ignored/rejected rather than fanned out.
 
             // ⭐⭐ CE-277(c0, HTTP): a remote node's /scenario/save reached the master as this request. Reconstruct
             //    the intent WITH the relative name (carried as {"ScenarioName": ...} by the egress translator),

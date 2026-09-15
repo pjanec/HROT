@@ -23,7 +23,7 @@ related-designs:
 > consumption trace (2026-09-14) so the retirement can be executed later without re-investigating.
 > **Prerequisite:** §5 must land before §4 (the op is NOT safe to blind-delete).
 
-**build-state: READY-TO-BUILD** (both open decisions resolved `2026-09-15`; UML in §3a)
+**build-state: BUILT** (`2026-09-15`; UML in §3a; as-built corrections in §4a / §5)
 
 ---
 
@@ -259,6 +259,27 @@ makes the hazard legible.
 **Rename that pairs with this** (separate change, `DESIGN_Distributed_Scenario_Persistence.md`): once value 2
 is retired, Roslyn-rename `SaveScenarioJson`(17) → `SaveScenario` (keep wire value 17). It reclaims the name
 the CGF-1 design always used for this operation.
+
+## 4a. As-built (`2026-09-15`) — deviations from §4/§5, folded back
+
+1. **Enums kept as a reserved comment, not `[Obsolete]`.** All three `SaveScenario` members (`StorageOpType`,
+   the FDP-toolkit `ClusterOpType`, the NED wire `ClusterOpType`) stay **defined** with a `// CE-278: RETIRED
+   — reserved, do NOT reuse` comment. This preserves every wire value with zero positional shift and keeps the
+   two `ClusterOpType` mirrors in sync (test-verified), and avoids any risk of the CycloneDDS schema generator
+   tripping on an attribute. Retirement is achieved by removing every **use-site**, not by attributing the member.
+2. **Switch defaults now REJECT.** `ClusterOpEgressTranslator` and `ClusterOpRequestAdapter` switch expressions
+   `throw ArgumentOutOfRangeException` on an unmapped op (previously the `_ =>` default silently mapped to
+   SaveScenario). `ClusterOpMasterTranslator` / `ClusterMaster` simply drop the case; a stray legacy op=2 on the
+   wire falls through and is ignored.
+3. **Handler split as designed:** `CommitLoad` + the `CommitState` arm kept; `CommitSerializeLocal`,
+   `CommitManifestEntry`, `ScenarioTimeSeconds`, the `_pendingSave*` fields, the now-unread `_scenarioId`, and
+   `ParseExerciseId` removed (all dead once the op-2 SerializeLocal fan-out is gone). `CanHandle` now returns
+   `CommitState` only.
+4. **Tests:** `ClusterMasterContextHandlerTests.CommitSerializeLocal_ProducesPhase2Envelope` and
+   `StorageProcessManagerTests` SC1 (the `GlobalContextManifestReadyEvent` prepend) removed; the two save-driven
+   `ScenarioSaveLoadTests` rewritten to write the context file directly at the path `CommitLoad` reads (which
+   also corrects the old setup's `exercises/` vs `scenarios/` path confusion); the `$meta`-envelope contract is
+   re-homed to the new `AssetInventoryProcessManagerTests.ExportComplete_WritesExerciseSidecar_*` rail.
 
 ## 5. Prerequisite — re-home the archived-exercise sidecar onto `Export`
 

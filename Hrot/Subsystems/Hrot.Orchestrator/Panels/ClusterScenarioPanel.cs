@@ -102,14 +102,7 @@ public sealed class ClusterScenarioPanel
                 break;
             }
 
-            case FdpClusterOpType.SaveScenario:
-                _bus!.PublishManaged(new ExecuteStorageOpIntent
-                {
-                    RequestId  = req.RequestId,
-                    Operation  = StorageOpType.SaveScenario,
-                    ExerciseId = ExtractGuidField(req.PayloadJson),
-                });
-                break;
+            // CE-278: FdpClusterOpType.SaveScenario (=2) retired — no local intent published.
 
             case FdpClusterOpType.ExportArchive:
                 _bus!.PublishManaged(new ExecuteStorageOpIntent
@@ -224,9 +217,6 @@ public sealed class ClusterScenarioPanel
         => _master?.GetReachableTargets() ?? _uiCache.ReachableTargets;
     private IReadOnlyCollection<Guid> EffectiveEpisodes
         => _uiCache.ActiveEpisodes;
-
-    // ── Scenario section state ────────────────────────────────────────────
-    private string _saveScenarioId  = string.Empty;
 
     // ── Asset combo state (S0504 / S0506) ────────────────────────────────
     private int _selectedLoadScenarioIdx = -1;
@@ -665,20 +655,8 @@ public sealed class ClusterScenarioPanel
             if (_selectedLoadScenarioIdx >= _uiCache.AvailableScenarios.Length)
                 _selectedLoadScenarioIdx = -1;
 
-            // Save Scenario
-            ImGui.InputText("Save Scenario ID##OrcSaveId", ref _saveScenarioId, 128);
-            ImGui.SameLine();
-            if (ImGui.Button("Save Scenario##OrcBtn") && !string.IsNullOrWhiteSpace(_saveScenarioId))
-                SendRequest(new ClusterOpRequest
-                {
-                    RequestId     = Guid.NewGuid(),
-                    OperationType = ClusterOpType.SaveScenario,
-                    PayloadJson   = JsonSerializer.Serialize(
-                        new ArchivePayloadDto(ExerciseId: Guid.TryParse(_saveScenarioId, out var g) ? g : Guid.Empty),
-                        OrchestrationJsonOptions.Default),
-                });
-
-            ImGui.Spacing();
+            // CE-278: the "Save Scenario" (op=2) control is retired — the .fdp-archive scenario save stub
+            // is gone. Use "Export to NAS ▶" below to archive an exercise, or the JSON scenario save.
 
             // Load Scenario
             ImGui.Combo("Select Scenario##OrcLoadId", ref _selectedLoadScenarioIdx,
