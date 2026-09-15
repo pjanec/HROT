@@ -11,7 +11,9 @@ current-answer: §1 IS THE DESIGN — the three diagrams (1.1 sequence, 1.2 clas
   (reuse). §5 the prerequisites and their order (P1–P3 BUILT). §6 acceptance.
 known-rot: §2a/§3 name the DDS attrs as `[DdsStruct]`/`[DdsKey]`/`[DdsQos]` — SUPERSEDED by §3a.1 (the real
   convention is a `partial struct` with `[DdsTopic]`+`[DdsQos]`+`[DdsKey,DdsId]`; no `[DdsStruct]` exists here).
-  §2 called `EntityMaster.Flags` `ulong` — it is `int` (fixed inline). Both from the Step-0 gate (`2026-09-15`).
+  ⚠ The Step-0 V2 note ("Flags is `int`") measured the CYCLONE `EntityMasterTopic` by mistake — the
+  `--mode all` entity-replication descriptor is the NED `EntityMaster` whose `Flags` is `ulong` (§3a.0); the
+  design's original "`ulong`" stands. Corrected `2026-09-15` in §3a.0.
 related-designs:
   - docs/DESIGN_Entity_Genesis_End_To_End.md — the landing page; this design is stage ⑨'s reliable variant. It owns the end-to-end sequence; this owns the cross-node WAIT.
   - docs/designs/others/DESIGN-NetworkSpawning.md — owns ReliableInitType / PendingNetworkAck (the dormant handshake this design revives and reshapes).
@@ -202,9 +204,9 @@ graph TD
   ⛔⛔ **BUT the ELIGIBILITY — "which entities publish at all" — is NOT sourced on the peer today.** Reliability
   *(`ReliableInitType`)* is a CREATE-time fact that lives only on the creator *(`SpawnEntityCommand.InitType`,
   the creator's `PendingNetworkAck`)*; it never travels. `EntityMaster` *(the wire descriptor that makes the
-  peer's ghost)* has a general `int Flags` field *(⚠ measured `2026-09-15`: `int`, not `ulong` as an earlier
-  draft said — `EntityMasterTopic.cs:29` `[DdsId(3)] public int Flags`; a reserved bit fits fine)*, but the
-  sole egress producer writes **`Flags = 0`**
+  peer's ghost)* has a general `ulong Flags` field *(the NED `Hrot.NED.Descriptors.EntityMaster`,
+  `GenericDescriptors.cs:102` — see §3a.0 on the two EntityMaster types)*, but the sole egress producer writes
+  **`Flags = 0`**
   *(`EntityMasterEgressTranslator.cs:103`)*. ⇒ **the reliable bit must ride `EntityMaster.Flags`** *(exactly
   the design-talk's `Flags = WaitForAcks`)*: the peer reads it at ghost creation, tags the ghost
   *"report-on-Active"*, and the producer publishes for tagged, not-yet-reported entities. **This wire-plumbing
@@ -265,9 +267,9 @@ when it owns"*.
 ### 2c. ⭐ GENERIC NED/BDC PROTOCOL — reliable init leaks no Hrot specifics *(user check, `2026-09-15`; confirmed viable)*
 Both new wire pieces sit in the **generic** layer and carry no engine-specific meaning, so any external BDC/NED
 host can implement them:
-- **The reliable bit rides `EntityMaster.Flags`** *(`int`, already documented "entity flags and metadata")* —
-  one reserved bit `WaitForAcks`. A host that ignores it simply behaves as fast-mode; the field already exists on
-  the generic descriptor.
+- **The reliable bit rides `EntityMaster.Flags`** *(the NED descriptor's `ulong`, documented "entity type
+  specific flags")* — one reserved bit `WaitForAcks`. A host that ignores it simply behaves as fast-mode; the
+  field already exists on the generic descriptor.
 - **`EntityLifecycleStatusDescriptor` is already in the generic `Fdp.Network.Cyclone` layer** and its
   `EntityLifecycle` enum *(`Fdp.Core`: `Constructing/Active/TearDown/Ghost`)* is a generic lifecycle vocabulary —
   no Hrot type names. The SST rules doc *(`BDC_NED_SST_Descriptor_Rules.md`)* already contemplates *"the app may
@@ -306,6 +308,24 @@ implements neither is a valid fast-mode-only host. *(Spec edit is its own small 
 > The Step-0 gate (V1–V9) confirmed every seam. This section pins the exact type shapes the build uses and
 > **supersedes** two approximations in §2a/§3 above; the superseded text is marked inline.
 
+### 3a.0 ⛔⛔ TWO `EntityMaster` TYPES — the barrier lives on the NED one *(measured `2026-09-15`, corrects the Step-0 V2 note)*
+There are **two parallel DDS descriptor families**, both on `CycloneDDS.Runtime`, in **separate topic namespaces**:
+| family | `EntityMaster` type | topic | `Flags` | used by |
+|---|---|---|---|---|
+| ⭐ **NED** | `Hrot.NED.Descriptors.EntityMaster` (`GenericDescriptors.cs:78`) | `"EntityMaster"` | **`ulong`** (`:102`), `[DdsQos(Reliable, TransientLocal, KeepLast 1)]` — durable | ⭐⭐ **`--mode all` entity replication** (`NedNetworkFactory`; CGF/SimHost/IG via `CreateReplicationModule()` → `INedReplicationModule`) |
+| Cyclone/SST | `Fdp.Network.Cyclone.Topics.EntityMasterTopic` (`:17`) | `"SST_EntityMaster"` | `int` (`:29`) | the SST/BDC + examples path — **NOT** `--mode all` entity replication |
+
+⛔⛔ **The Step-0 V2 note ("Flags is `int` not `ulong`") measured the CYCLONE type by mistake.** The descriptor
+that makes the peer's ghost in `--mode all` is the **NED** `EntityMaster`, whose `Flags` is **`ulong`** — so the
+design's original "`ulong`" was correct, and the reserved `WaitForAcks` bit rides the **NED** `EntityMaster.Flags`.
+⇒ **A2's egress edit is `EntityMasterEgressTranslator.cs:103`** (which writes the NED `EntityMaster`, `Flags = 0`
+today), registered by the NED `SharedTranslatorPack`.
+
+⭐ **The status descriptor stays the Cyclone orphan `EntityLifecycleStatusDescriptor`** *(§2a/§3a.1)*: it lives in
+the generic `Fdp.Network.Cyclone` layer, which **`Hrot.Network.NED` references** (`csproj:39`), so a NED system
+publishes/subscribes it on the NED participant. That is exactly §2c's "one generic type, both transports" — the
+seam-law adoption of the orphan, in the shared layer, is what makes the protocol generic across NED and BDC.
+
 ### 3a.1 The durable descriptor — real DDS convention *(supersedes §2a's `[DdsStruct]` shorthand)*
 ⛔ **There is NO `[DdsStruct]` attribute in this codebase.** Measured on the sibling `EntityMasterTopic.cs`:
 a Cyclone topic is a **`public partial struct`** with `[DdsTopic(name)]` + a type-level `[DdsQos(…)]`, and
@@ -332,10 +352,10 @@ public partial struct EntityLifecycleStatusDescriptor
 composite `[DdsKey]` on `(EntityId, NodeId)` gives one retained instance per (entity, reporting node), exactly
 as §2a requires.
 
-### 3a.2 The reliable bit on `EntityMaster.Flags` *(the field is `int` — V2)*
+### 3a.2 The reliable bit on the NED `EntityMaster.Flags` *(the field is `ulong` — §3a.0)*
 ```csharp
-// Fdp.Network.Cyclone (generic layer) — one reserved bit, host-ignorable.
-[Flags] public enum EntityMasterFlags { None = 0, WaitForAcks = 1 << 0 }
+// Hrot.Network.NED generic layer — one reserved bit, host-ignorable.
+[Flags] public enum EntityMasterFlags : ulong { None = 0, WaitForAcks = 1UL << 0 }
 ```
 - **Egress (A2):** `EntityMasterEgressTranslator.cs:103` stops writing `Flags = 0`; it writes
   `WaitForAcks` when the source entity's `PendingNetworkAck.ExpectedType != None`.
