@@ -465,6 +465,7 @@ public sealed class ClusterMaster : IDisposable
                 SubsystemName           = hb.SubsystemName ?? string.Empty,
                 LocalClusterState       = (ClusterState)(int)hb.LocalStateId,
                 LastHeartbeatUtcSeconds = UtcNowSeconds(),
+                Roles                   = hb.Roles,   // P2: store the declared role mask on the roster profile.
             };
             _roster.Upsert(profile);
         }

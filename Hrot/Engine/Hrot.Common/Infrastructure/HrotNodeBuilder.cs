@@ -74,8 +74,13 @@ public sealed class HrotNodeBuilder
     public HrotNodeBuilder WithRole(string subsystemName, Fdp.Core.NodeRole role)
     {
         _subsystemName = subsystemName;
+        _role          = role;   // P1: was silently discarded — the node's declared role mask is now retained and published on the heartbeat.
         return this;
     }
+
+    /// <summary>P1: the node's declared <see cref="Fdp.Core.NodeRole"/> mask, set by <see cref="WithRole"/>
+    /// and published on every heartbeat via <c>ClusterSlave</c>.</summary>
+    private Fdp.Core.NodeRole _role;
 
     /// <summary>
     /// Declares the node's TIME role. Omit it and the node is a time <see cref="TimeRole.Slave"/>,
@@ -223,7 +228,7 @@ public sealed class HrotNodeBuilder
         }
 
         // Step 8 — ClusterSlave + SlaveTranslator
-        var clusterSlave = new ClusterSlave(_config.NodeId, _subsystemName, eventBus);
+        var clusterSlave = new ClusterSlave(_config.NodeId, _subsystemName, eventBus, _role);   // P1: publish the declared role mask.
         
         Hrot.Core.Network.ISlaveOrchestrationTranslator? slaveTranslator = null;
         if (participant != null && _networkFactory != null)

@@ -175,6 +175,9 @@ namespace Hrot.NED.Descriptors.Orchestration
         public long RamUsedBytes;
         public bool SimTickAdvancing;
         [DdsManaged] public string SubsystemsJson;
+        /// <summary>P1: the node's declared NodeRole [Flags] mask, carried as its int value so the wire
+        /// stays free of a cross-assembly enum codegen dependency. 0 = None (e.g. the orchestrator).</summary>
+        public int RolesMask;
     }
 
     [DdsTopic("OrchestratorContext")]

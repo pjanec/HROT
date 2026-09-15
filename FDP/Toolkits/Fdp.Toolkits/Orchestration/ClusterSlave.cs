@@ -29,6 +29,7 @@ namespace Fdp.Toolkit.Orchestration
     {
         private readonly int    _nodeId;
         private readonly string _subsystemName;
+        private readonly NodeRole _roles;   // P1: the node's declared role mask, published on every heartbeat.
         private readonly FdpEventBus? _eventBus;
 
         private readonly List<IClusterStateHandler> _handlers = new();
@@ -65,11 +66,13 @@ namespace Fdp.Toolkit.Orchestration
         public ClusterSlave(
             int    nodeId,
             string subsystemName,
-            FdpEventBus? eventBus = null)
+            FdpEventBus? eventBus = null,
+            NodeRole roles = NodeRole.None)
         {
             _nodeId        = nodeId;
             _subsystemName = subsystemName ?? throw new ArgumentNullException(nameof(subsystemName));
             _eventBus      = eventBus;
+            _roles         = roles;
             EnsureOrchestrationEventsRegistered(eventBus);
         }
 
@@ -79,11 +82,13 @@ namespace Fdp.Toolkit.Orchestration
         /// Creates a ClusterSlave for tests.
         /// Use <see cref="EnqueueIntentForTest"/> to inject intents directly.
         /// </summary>
-        public ClusterSlave(FdpEventBus? eventBus = null, int nodeId = 0, string subsystemName = "TestNode")
+        public ClusterSlave(FdpEventBus? eventBus = null, int nodeId = 0, string subsystemName = "TestNode",
+            NodeRole roles = NodeRole.None)
         {
             _nodeId        = nodeId;
             _subsystemName = subsystemName;
             _eventBus      = eventBus;
+            _roles         = roles;
             EnsureOrchestrationEventsRegistered(eventBus);
         }
 
@@ -156,6 +161,7 @@ namespace Fdp.Toolkit.Orchestration
                     LocalStateId  = _localStateId,
                     WallTicksUtc  = DateTimeOffset.UtcNow.Ticks,
                     SubsystemName = _subsystemName,
+                    Roles         = _roles,
                 });
             }
 

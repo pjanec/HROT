@@ -197,7 +197,7 @@ namespace Hrot.SimHost
 
             localTempRoot ??= OrchestrationConstants.ResolveStagingRoot();
 
-            var clusterSlave = new ClusterSlave(nodeId, subsystemName, eventBus);
+            var clusterSlave = new ClusterSlave(nodeId, subsystemName, eventBus, role);   // P1: publish the full declared role mask (may be multi-role).
             SlaveTranslator = null;
             if (participant != null && eventBus != null)
             {
