@@ -48,7 +48,25 @@ AS-BUILT matches the design: `OwnershipTransferInitiationSystem` (NED, role-inde
 resolver keyed on `HasAuthority(entity, PackKey(ordinal,0))`, the loser-mirror + wire publish reusing the
 existing `OwnershipUpdate` egress, and the two ai-debug endpoints (§5a). Rails: `OwnershipTransferInitiationTests`
 4/4. Full solution builds clean; route-doc gate green; ai-debug catalog + SKILL regenerated (101 tools).
-⚠ Live `--mode all` proof still pending (T3).
+✅ **LIVE `--mode all` PROOF `2026-09-15`:** over the new HTTP endpoints — `POST /entities/1001/ownership/transfer
+{newOwnerNodeId:100, MasterOnly}` from CGF (400) → CGF `primaryOwnerId 400→100`, master `ownedByThisNode=false`;
+IG (100, receiver) `primaryOwnerId=100`, master `ownedByThisNode=true`. Wire log confirms the full chain
+(initiation → egress `EntityId=1000 TypeId=0 NewOwner=1` → ingress on peers). `GET …/ownership` is the
+verification surface, exactly as designed.
+
+⛔⛔ **RECEIVE-SIDE FINDING (investigation-updates-design, measured live `2026-09-15`) — a MUSCLE node cannot
+receive an `EntityMaster` transfer today.** `OwnershipIngressSystem` (which carries the OQ12
+`OwnershipUpdate→PrimaryOwnerId` mirror) is registered ONLY on **pure-Brain** and **pure-IG** nodes
+(`NedReplicationModule.cs:368` IG-block, `:413` pure-Brain), NOT on a Muscle. Measured: a `CGF→SimHost`
+(Muscle) transfer egressed correctly and SimHost *received the wire ingress* (`[Node-1] OwnershipUpdate
+ingress … NewOwner=1`) but never APPLIED it — its `primaryOwnerId` stayed `-1`. The `CGF→IG` transfer
+applied fully because IG runs the ingress. ⇒ this is a **receive-side (OQ12) role-gating limitation, not a
+CE-276 initiation defect** (initiation is proven). It matches the native model (a Muscle owns per-component
+authority, not `EntityMaster`), so it is not wrong for the native case — but a whole-entity handover to a
+Muscle-bearing external host needs the ingress on every NED node. **FOLLOW-ON:** register
+`OwnershipIngressSystem` role-independently (like `OwnershipTransferInitiationSystem` now is), or scope it to
+"any node that can own." Folded into `DESIGN_Distributed_Scenario_Persistence.md` §6c (the receive side's
+home).
 
 ---
 

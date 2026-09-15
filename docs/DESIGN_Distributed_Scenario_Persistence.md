@@ -811,6 +811,17 @@ never stale today; but the sync is a **named compliance requirement** so we are 
   `NewOwner` `NodeId{Domain, Node}` → our int. The egress already stops-without-disposing on authority loss
   (spec-correct: a dispose would mean *entity deleted*), so no handoff change is needed just to RECEIVE.
 
+⛔⛔ **RECEIVE-SIDE GAP measured live `2026-09-15` (during CE-276's proof) — the mirror runs only on
+pure-Brain / pure-IG nodes, NOT on a Muscle.** `OwnershipIngressSystem` (which carries this OQ12 mirror) is
+registered at `NedReplicationModule.cs:368` (pure-IG block) and `:413` (pure-Brain block) only. A live
+`CGF→SimHost(Muscle)` `EntityMaster` transfer egressed and SimHost RECEIVED the wire ingress
+(`[Node-1] OwnershipUpdate ingress … NewOwner=1`) but never APPLIED it — `primaryOwnerId` stayed `-1`; the
+`CGF→IG` transfer applied fully. ⇒ a Muscle cannot currently receive an `EntityMaster` transfer. This is
+correct for the native model (a Muscle owns per-component authority, not `EntityMaster`), but a whole-entity
+handover to a Muscle-bearing external host needs the ingress on every NED node. **FOLLOW-ON:** register
+`OwnershipIngressSystem` role-independently (as `OwnershipTransferInitiationSystem` now is). 📄 See
+`DESIGN_Entity_Ownership_Transfer.md` build-state (CE-276).
+
 ⚠ **DEFERRED — the transfer INITIATION feature (`CE-276`, a later design):**
 - **Make `NetworkAuthority` ownership-tracked so WE can initiate a transfer** — register it / replicate its
   `PrimaryOwnerId` value (today the ghost carries the `-1` sentinel, not the real owner id) so a node can hand
