@@ -1,8 +1,11 @@
 <!--STATUS
 state: LIVE
-build-state: BUILDING — slice A (peer-Active ack wire + creator waiter, +B) DISPATCHED to the UI/CGF lane
-  `2026-09-15` via HANDOFF_Reliable_Init_Peer_Ack.md (step 0 = design-verification gate). ✅ Prerequisites
-  P1–P3 (role propagation, §5) BUILT `2026-09-15`. Piece C (real navmesh/IG participants) is a follow-up.
+build-state: BUILDING — slice A partially built `2026-09-15` (CE-283). ✅ BUILT+unit-proven: item B base +
+  A6 gateway reslot + A5 carrier (7/7 rails). ✅ BUILT+compiles: A1 durable descriptor, A2 flag bit +
+  peer tag, A4 status egress, creator status ingress. ⛔ PENDING: A6 gateway construction + translator
+  registration in NedReplicationModule, A5 membership stamp (OPEN design question — see §3a.7), A7
+  late-joiner, synthetic participant, the live --mode all proof (the acceptance crux). Full status table
+  in §3a.7. Prereqs P1–P3 (§5) BUILT. Piece C (real navmesh/IG participants) is a follow-up.
   Fast stays default (user); the reliable path is OPT-IN.
 updated: 2026-09-15
 current-answer: §1 IS THE DESIGN — the three diagrams (1.1 sequence, 1.2 classes, 1.3 module map).
@@ -397,6 +400,31 @@ Base owns: `RegisterModule`, `_pendingStartFrame` timeout, `DestructionOrder` cl
 `AcknowledgeConstruction` plumbing. Subclass owns: seed-the-pending-state on construction + the ready signal
 (reactive override OR `TryComplete`). ⭐ Slice A proves the base with a **synthetic poll participant**; piece C
 adds the real navmesh/model subclasses without copying the machine (ruling 9).
+
+### 3a.7 ⭐ AS-BUILT STATUS — slice A, session `2026-09-15` *(obligation ⑤)*
+| item | state | where |
+|---|---|---|
+| **B** `DeferredConstructionParticipant` base | ✅ **BUILT + unit-proven** | `Fdp.Toolkits/Replication/Systems/DeferredConstructionParticipant.cs`; poll-mode rail green |
+| **A6** gateway reslot onto the base + `NetworkAckPeerSet` peer source | ✅ **BUILT + unit-proven** (7/7 `NetworkGatewaySystemTests`) | `NetworkGatewaySystem.cs`; `INetworkTopology` retired as the gateway peer source (kept for Ownership systems) |
+| **A5** carrier `NetworkAckPeerSet` (managed, id 145) | ✅ **BUILT** (carrier); ⛔ **production STAMP pending** | `NetworkComponents.cs`; the stamp at `NetworkSpawningSystem.cs:184` needs the membership source — see the open question below |
+| **A1** durable `EntityLifecycleStatusDescriptor` | ✅ **BUILT + compiles** | `Fdp.Network.Cyclone/Topics/…`; keyed `(EntityId,NodeId)`, Reliable+TransientLocal+KeepLast1 |
+| **A2** `WaitForAcks` bit — egress write + peer tag | ✅ **BUILT + compiles** | egress `EntityMasterEgressTranslator.cs:103`; peer tag `EntityMasterIngressTranslator` → `ReportLifecycleOnActive` (id 146) |
+| **A4** `PeerLifecycleStatusEgressSystem` | ✅ **BUILT + compiles**; ⛔ **not registered** | `…/Egress/PeerLifecycleStatusEgressSystem.cs` |
+| creator status ingress | ✅ **BUILT + compiles**; ⛔ **not registered** | `…/Ingress/PeerLifecycleStatusIngressTranslator.cs` |
+| **A6** gateway CONSTRUCTION in prod + register the 2 translators | ⛔ **PENDING** | `NedReplicationModule.cs` — the connective wiring |
+| **A5** membership SOURCE (creator → peer set) | ⛔ **PENDING + open design question** (below) | `NedNetworkFactory._clusterCache` (`NodeCapability.Role`) vs `NodeRoster.NodesWithRole` |
+| **A7** late-joiner read path | ⛔ **PENDING** | needs the wire live first |
+| synthetic peer participant + **live `--mode all` proof** | ⛔ **PENDING** — the acceptance crux | §6 |
+
+⛔⛔ **OPEN DESIGN QUESTION (A5) — the creator↔membership seam, a cross-node contract (not delegated).**
+At spawn the creator must resolve *which peers must init a copy of this entity type* to stamp
+`NetworkAckPeerSet`. Two facts to reconcile: (a) the **membership** view on the creator is the NED cluster
+cache `NodeCapability.Role` (`NedNetworkFactory.cs:412`, CE-282) — NOT the orchestrator `NodeRoster` (which
+lives on the master); (b) the **type→required-roles** mapping does not exist yet. ⭐ **Lean for slice A's
+synthetic proof:** stamp *all present peers except local* (every peer waits), deferring the real
+type→roles map to piece C with the actual navmesh/model participants. ⚠ This needs a nod because it sets
+the wire/membership contract; `NetworkSpawningSystem` (generic, `Fdp.Toolkits`) must reach the NED cache
+through an injected `IExpectedPeersProvider` seam, not a direct dependency.
 
 ### 3a.6 `RegisterRequirement` — zero callers *(V6 correction)*
 `EntityLifecycleModule.RegisterRequirement(long tkbType, int moduleId):158` has **zero callers, not "tests
