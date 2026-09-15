@@ -339,10 +339,15 @@
         /// <summary><c>NetworkAckPeerSet</c> â€” managed sibling of PendingNetworkAck carrying the immutable snapshot of peer node ids the creator must collect Active acks from (reliable-init barrier). See DESIGN_Cross_Node_Construction_Barrier.md §3a.3.</summary>
         public const int NetworkAckPeerSet       = 145;
 
-        /// <summary><c>ReportLifecycleOnActive</c> â€” transient tag on a reliable remote ghost: publish its lifecycle status when it reaches Active (reliable-init barrier peer side). See DESIGN_Cross_Node_Construction_Barrier.md §3a.2.</summary>
-        public const int ReportLifecycleOnActive = 146;
+        // ⚠ IDs 146â€“151 are NOT free despite the historical "145â€“159 reserved" note: the Behavior
+        // (BehaviorApplicationComponentIds: 146 BTreeTrace, 147 HsmTrace, 148 DebugState) and Utility
+        // (UtilityApplicationComponentIds: 149â€“151) subsystems allocate their own component ids from
+        // this same shared space. Enumerate real [ComponentId] usage, never trust this comment's range.
 
-        // IDs 147â€“159 are reserved for future ModuleHost network components.
+        /// <summary><c>ReportLifecycleOnActive</c> â€” transient tag on a reliable remote ghost: publish its lifecycle status when it reaches Active (reliable-init barrier peer side). See DESIGN_Cross_Node_Construction_Barrier.md §3a.2.</summary>
+        public const int ReportLifecycleOnActive = 152;
+
+        // IDs 153â€“159 are the next free block (152 taken above; 146â€“151 taken by Behavior/Utility).
 
         // â”€â”€ Application-level Descriptors (160â€“199) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
         // These IDs are now declared in project specific ComponentIds.

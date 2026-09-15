@@ -14,6 +14,8 @@ using Fdp.Toolkit.Replication.Systems;
 using Hrot.Common.Systems;
 using Hrot.Map.Common;
 using Hrot.Map.Common.Translators;
+using Hrot.Map.Common.Replication.Egress;
+using Hrot.Map.Common.Replication.Ingress;
 using Hrot.Network.Systems;
 using Hrot.Network.Translators;
 using Hrot.Common;
@@ -78,6 +80,16 @@ public sealed class NedReplicationModule : INedReplicationModule
     private readonly IEnumerable<INetworkTranslator> _sharedTranslators;
     private readonly IEnumerable<FdpIDescriptorTranslator>? _kinematicTranslators;
     private readonly IEnumerable<FdpIDescriptorTranslator>? _cognitiveTranslators;
+
+    // ── Reliable-init construction barrier (CE-283, §3a.4) ────────────────────
+    // The creator waiter (a GLOBAL ELM participant: acks fast-mode entities immediately, holds a
+    // reliable entity until its peers report Active) + the peer status egress/ingress. Present only
+    // with a participant AND an ELM. The gateway is registered on every NED node so any node can be
+    // creator (waits) or peer (reports) — symmetric.
+    private const int RELIABLE_GATEWAY_MODULE_ID = 918273;
+    private readonly NetworkGatewaySystem? _reliableGateway;
+    private readonly INetworkTranslator? _reliableStatusEgress;
+    private readonly INetworkTranslator? _reliableStatusIngress;
 
     // ── Descriptor → ECS component mapping (Single Source of Truth) ───────────
     // Populated from FdpIDescriptorTranslator.TargetComponentIds during construction
@@ -276,6 +288,17 @@ public sealed class NedReplicationModule : INedReplicationModule
             _dtoEgress  = new DeferredTakeOwnershipEgressTranslator(participant, localNodeId: localNodeId);
             _dtoIngress = new DeferredTakeOwnershipIngressTranslator(
                 participant, entityMap, GhostCreationSystem, localNodeId);
+
+            // ── Reliable-init construction barrier (CE-283) ──
+            // The gateway needs the ELM to register as a construction participant; the peer status
+            // egress/ingress carry the Active-ack over DDS. Without an ELM (headless) there is no
+            // construction pipeline, so the barrier does not exist.
+            if (lifecycleModule != null)
+            {
+                _reliableGateway = new NetworkGatewaySystem(RELIABLE_GATEWAY_MODULE_ID, localNodeId, lifecycleModule);
+                _reliableStatusEgress  = new PeerLifecycleStatusEgressSystem(participant, entityMap, localNodeId);
+                _reliableStatusIngress = new PeerLifecycleStatusIngressTranslator(participant, entityMap, _reliableGateway, localNodeId);
+            }
         }
         else
         {
@@ -295,12 +318,20 @@ public sealed class NedReplicationModule : INedReplicationModule
         // ── Ghost lifecycle systems (all roles) ─────────────────────────────
         registry.RegisterSystem(GhostCreationSystem);
 
+        // ── Reliable-init barrier: the creator waiter runs in the sim loop (CE-283) ──
+        if (_reliableGateway != null)
+            registry.RegisterSystem(_reliableGateway);
+
         // ── Translator routing systems ───────────────────────────────────────
         var allTranslators = new List<INetworkTranslator>(_sharedTranslators);
         if (_roleHasMuscle && _kinematicTranslators != null)
             allTranslators.AddRange(_kinematicTranslators);
         if (_roleHasBrain && _cognitiveTranslators != null)
             allTranslators.AddRange(_cognitiveTranslators);
+        // The peer status egress (publishes Active) + creator status ingress (drives the gateway) are
+        // routed by Direction like any other translator. CE-283 §3a.4.
+        if (_reliableStatusEgress != null)  allTranslators.Add(_reliableStatusEgress);
+        if (_reliableStatusIngress != null) allTranslators.Add(_reliableStatusIngress);
 
         // DeferredTakeOwnership translators are inserted FIRST on Muscle (ingress before EntityMaster)
         // and added at the end on Brain (egress after cognitive pack).
