@@ -23,7 +23,7 @@ related-designs:
 > consumption trace (2026-09-14) so the retirement can be executed later without re-investigating.
 > **Prerequisite:** §5 must land before §4 (the op is NOT safe to blind-delete).
 
-**build-state: DESIGN** (not yet scheduled)
+**build-state: READY-TO-BUILD** (both open decisions resolved `2026-09-15`; UML in §3a)
 
 ---
 
@@ -94,6 +94,122 @@ Save writes `exercises/<exerciseId>/Orchestrator.json` (`:143-147`); the sim-tim
 sim-time read side never meet. Only the **exercise-inventory** read (from `exercises/<exerciseId>/`)
 actually consumes what `SaveScenario` writes.
 
+## 3a. UML — the retirement in three diagrams
+
+> Diagram-first: the pictures carry *what changes*; §4 carries the exact `file:line`. Read the pictures,
+> then §4 is the checklist. Colours: 🔴 red = deleted, 🟢 green = survives, 🔵 blue = new (§5).
+
+### Module / data-flow — before → after (the load-bearing diagram: what becomes dead)
+
+```mermaid
+graph TD
+  subgraph REMOVED["op=2 SaveScenario chain — DELETED by §4"]
+    Panel["ClusterScenarioPanel<br/>Save Scenario button"]
+    Egress["ClusterOpEgressTranslator<br/>case SaveScenario"]
+    MasterT["ClusterOpMasterTranslator<br/>case SaveScenario"]
+    Adapter["ClusterOpRequestAdapter<br/>case SaveScenario"]
+    CM2["ClusterMaster :987<br/>FanOutSerializeLocal(Archive)"]
+    GPMsave["GlobalContextProcessManager :48-73<br/>SAVE branch"]
+    CSL["GlobalContextClusterOpHandler<br/>CommitSerializeLocal<br/>writes exercises/Orchestrator.json"]
+    Evt["GlobalContextManifestReadyEvent"]
+    SPM["StorageProcessManager :216-248<br/>_pendingSaveScenarios path"]
+    Manifest["WriteScenarioManifestAsync<br/>scenario_manifest.json (0 readers)"]
+    Panel --> Egress --> MasterT --> Adapter --> CM2 --> GPMsave --> CSL
+    GPMsave --> Evt --> SPM --> Manifest
+  end
+
+  subgraph KEEP["survives the cut"]
+    CMjson["ClusterMaster :1018<br/>SaveScenarioJson=17 fan-out"]
+    CMexp["ClusterMaster :1055<br/>Export=6 fan-out"]
+    Scan["StorageGatewayModule.ScanNasExercises<br/>reads exercises/&lt;id&gt;/Orchestrator.json"]
+    Inv["AssetInventoryProcessManager<br/>Archived Exercises list"]
+    GPMload["GlobalContextProcessManager :39-45<br/>LOAD branch → CommitLoad<br/>(sim-time seed now always t=0)"]
+    Scan --> Inv
+  end
+
+  subgraph NEW["§5 re-home — sidecar moves onto the Export path"]
+    Rehome["AssetInventoryProcessManager.Tick :91-99<br/>on export-complete, BEFORE ledger evict:<br/>write sidecar into exercises/&lt;id&gt;/"]
+  end
+  CMexp --> Rehome --> Scan
+
+  classDef dead fill:#fdd,stroke:#c00,color:#900;
+  classDef keep fill:#dfd,stroke:#080,color:#060;
+  classDef fresh fill:#dde,stroke:#00a,color:#008;
+  class Panel,Egress,MasterT,Adapter,CM2,GPMsave,CSL,Evt,SPM,Manifest dead;
+  class CMjson,CMexp,Scan,Inv,GPMload keep;
+  class Rehome fresh;
+```
+
+**Caption — what the picture shows that prose hid:** the whole op=2 chain (10 boxes) is a dead subgraph
+after the cut, and its ONLY surviving consumer — `ScanNasExercises`' exercise-inventory read — is re-fed by
+a single new blue edge from the already-live `Export` path. `CommitLoad` is deliberately NOT in the removed
+set: it is reached by the load transition, not op=2.
+
+### Class — which members die, which survive
+
+```mermaid
+classDiagram
+  class GlobalContextClusterOpHandler {
+    +CanHandle(NodeOpType) bool
+    +PrepareAsync(cmd) Task
+    +Commit(cmd, repo) void
+    +CommitLoad(cmd) void
+    +double ScenarioTimeSeconds
+  }
+  class GlobalContextProcessManager {
+    +Tick() void
+  }
+  class StorageProcessManager {
+    +Tick() void
+  }
+  class AssetInventoryProcessManager {
+    +Tick() void
+  }
+  class StorageGatewayModule {
+    +ScanNasExercises() list
+    +WriteScenarioManifestAsync() Task
+  }
+  GlobalContextProcessManager --> GlobalContextClusterOpHandler : drives
+  AssetInventoryProcessManager --> StorageGatewayModule : ScanNasExercises
+  StorageProcessManager --> StorageGatewayModule : WriteScenarioManifestAsync
+
+  note for GlobalContextClusterOpHandler "REMOVE: CommitSerializeLocal, the SerializeLocal arm of PrepareAsync/Commit/CanHandle, and the _pendingSave* fields (dead once the op=2 SAVE fan-out is gone). KEEP: CommitLoad + CommitState arm."
+  note for GlobalContextProcessManager "REMOVE the SAVE branch (:48-73). KEEP the LOAD branch (:39-45)."
+  note for StorageProcessManager "REMOVE _pendingSaveScenarios + the SaveScenario path (:75-80,:216-248)."
+  note for AssetInventoryProcessManager "ADD (§5): write the exercise sidecar on export-complete before evicting _unarchivedLedger."
+  note for StorageGatewayModule "REMOVE WriteScenarioManifestAsync (0 readers). ScanNasExercises stays (now fed by §5)."
+```
+
+**Caption:** the two handlers that look wholly op-2 are actually *split* — `GlobalContextClusterOpHandler`
+and `GlobalContextProcessManager` each keep their LOAD half and lose only their SAVE half; drawing the
+members is what makes that boundary explicit (a blind class-level delete would break scenario loading).
+
+### Sequence — the one new behaviour (§5 re-home onto Export)
+
+```mermaid
+sequenceDiagram
+  participant Op as Export op (=6)
+  participant CM as ClusterMaster
+  participant Nodes as per-node SerializeLocal
+  participant GW as StorageGateway
+  participant AInv as AssetInventoryProcessManager.Tick
+  participant NAS as NAS exercises dir
+  Op->>CM: Export(exerciseId)
+  CM->>Nodes: FanOutSerializeLocal (:1055)
+  Nodes->>GW: .fdp recordings
+  GW->>NAS: pull recordings
+  Note over AInv: export-complete branch (:91-99)
+  AInv->>NAS: NEW §5 - write sidecar {scenarioId, startTime, duration} into the exercise dir
+  AInv->>AInv: evict _unarchivedLedger[exerciseId]
+  Note over AInv,NAS: later: ScanNasExercises reads the sidecar → Archived Exercises list
+```
+
+**Caption:** the ordering is the whole point — the sidecar write must land **before** the ledger eviction
+(same tick), because after eviction the source fields are gone; prose can assert that, only the sequence
+makes the hazard legible.
+
+---
+
 ## 4. The retirement plan — exact edit sites
 
 ⚠ **Do §5 (re-home) FIRST.** Deleting before re-homing loses the archived-exercise sidecar.
@@ -115,6 +231,12 @@ actually consumes what `SaveScenario` writes.
 | `GlobalContextProcessManager.cs:48-73` (`if op != SaveScenario continue` → writes `Orchestrator.json` + `PublishManifestReady`) | remove (its load-side branch `:39-45` stays — that's the transition load, unrelated) |
 | `StorageProcessManager.cs:75-80` (`_pendingSaveScenarios` capture) & `:216-248` (SaveScenario path: prepend orch entry + `PullToNasAsync` + `WriteScenarioManifestAsync`) | remove |
 | `EventDrivenStorageGateway.cs:87-89` (`case StorageOpType.SaveScenario`) | remove — note: whole class is **test-only / unwired in production** (`new EventDrivenStorageGateway` only in its test) |
+
+> ⚠ **Dead-after-cut (remove in the same batch):** once the `GlobalContextProcessManager` SAVE branch is gone,
+> `GlobalContextClusterOpHandler.CommitSerializeLocal` + the `SerializeLocal` arm of `PrepareAsync`/`Commit`/
+> `CanHandle` + the `_pendingSave*` / `ScenarioTimeSeconds` save fields have **no caller** (the handler is driven
+> ONLY by that process manager — it is not a generic registered `SerializeLocal` handler, so Export=6 /
+> SaveScenarioJson=17 never reach it). ⭐ KEEP `CommitLoad` and the `CommitState` arm — that is the live load path.
 
 **Enum members — retire, keep wire value reserved (do NOT reuse):**
 
