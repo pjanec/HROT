@@ -37,6 +37,8 @@ related-designs:
   - docs/designs/replay-and-modules/DESIGN.md — §2.1m the ELM rewind boundary (OnWorldReplaced/ResumeFromRestoredWorld) that new participants inherit.
   - docs/blueprints/batches/FRAME_Construction_Barrier_Participants.md — the frame that scoped this (pieces A–D, prerequisites P1–P3).
   - docs/blueprints/Architect_Question_69_Construction_Barrier_And_Rewind_Contract.md — the asks + §9 reconciliation this design answers.
+  - docs/blueprints/Architect_Question_70_Host_Capabilities_And_Reliable_Init_Degradation.md — §3c consumer view; owns the host-capability token facility + the non-supporting-host degradation.
+  - docs/designs/two-ack/TwoAck-DESIGN.md — the REMOTE requestor's two-phase view (SstStatusCode InProgress/NotSupported); this barrier is the mechanism its ack sits on (its STATUS notes the pre-barrier "vacuous" gap this fills).
 -->
 # DESIGN — the cross-node construction barrier *(reliable distributed init)*
 
@@ -537,6 +539,24 @@ eventBus.PublishManaged(new SpawnEntityCommand {
 // later, at the requestor's OWN cadence — keyed by the NetworkId it got at the call:
 var r = ConstructionResults.Get(world, networkId);   // Pending → Success | Failed(Timeout)
 ```
+
+## 3c. ⭐ GRACEFUL DEGRADATION — a host that does not support reliable init *(AQ-70, `2026-09-16`)*
+> Full design + the decision: **[`Architect_Question_70_Host_Capabilities_And_Reliable_Init_Degradation.md`](blueprints/Architect_Question_70_Host_Capabilities_And_Reliable_Init_Degradation.md)**. This is the consumer summary.
+
+A peer that does not support reliable init never publishes `EntityLifecycleStatusDescriptor`. It must never make a
+creator block forever. Two composed mechanisms:
+- **① capability filter (proactive):** hosts advertise capabilities as an **OpenGL-extension-style namespaced token
+  set** *(`fdp.reliable-init`, …)* on a durable `NodeCapabilities` descriptor gathered by the orchestrator into the
+  roster/cache *(beside CE-282's role mask)*. The creator's wait-set *(§3b.1)* includes **only** nodes advertising
+  `fdp.reliable-init`. A non-advertising host is never waited for.
+- **② short phase-1 probe (reactive, self-healing):** a supporting host publishes `State=Constructing` **promptly**
+  on receipt *(the §3b.2 mandatory reply, now as the fast phase-1 ack)*, then `Active`. The creator arms a **short
+  phase-1 timeout**; missing phase-1 ⇒ the host doesn't support reliable init ⇒ **drop it from the wait-set + record
+  a `!fdp.reliable-init` override** on its roster entry so later creates skip it. The **long** `ReliableInitTimeout`
+  *(§3b.3)* still governs phase-2 *(Constructing-but-never-Active ⇒ abort-via-dispose)*.
+
+⭐ Requestor-facing status reuses `SstStatusCode.NotSupported`/`InProgress` *(two-ack §3.2)* — not reinvented. The
+capability facility is **general**; `fdp.reliable-init` is its first token.
 
 ## 4. ✅ THE RECEIVER-SIDE GATE IS REUSE
 The peer's "is my data ready?" gate already exists: `GhostPromotionSystem`'s mandatory-components gate *(HARD,

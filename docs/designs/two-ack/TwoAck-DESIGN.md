@@ -8,7 +8,14 @@ known-rot: ⚠ §1 and §2.1 describe the ELM handshake as "a distributed multi-
   that would register — is never constructed outside tests), so no construction is ever ACKed and the
   barrier completes vacuously on the next frame. The two-phase ack this document specifies is therefore
   built on a handshake that currently waits for nobody. See CE-259au.
+  ⭐ UPDATE `2026-09-16`: the "waits for nobody" gap is being CLOSED by the cross-node construction barrier —
+  `DESIGN_Cross_Node_Construction_Barrier.md` (CE-283 built the mechanism: gateway constructed in production, a
+  real peer-Active ack over the wire; piece C adds real receiver participants). This document is the REMOTE
+  requestor's two-phase view of that mechanism; `SstStatusCode.InProgress`/`NotSupported` are reused by AQ-70's
+  graceful-degradation design. Once piece C lands, revisit §1/§2.1 — the handshake will no longer be vacuous.
 related-designs:
+  - ../../DESIGN_Cross_Node_Construction_Barrier.md — the cross-node barrier MECHANISM this ack sits on (§3b local result, §3c degradation); reciprocal.
+  - ../../blueprints/Architect_Question_70_Host_Capabilities_And_Reliable_Init_Degradation.md — reuses this doc's SstStatusCode {InProgress, NotSupported}.
   - FDP/Engine/Fdp.ModuleHost/docs/ModuleHost-network-ELM-design-talk.md — §1/§2/Part 1: the ELM
     construction barrier this document sits on top of, and why the gateway is a blocking participant.
   - docs/designs/replay-and-modules/DESIGN.md — §2.1i/§2.1j: the measured state of that barrier.
