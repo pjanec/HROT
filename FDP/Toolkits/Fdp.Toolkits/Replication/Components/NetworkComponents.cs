@@ -45,6 +45,10 @@ namespace Fdp.Toolkit.Replication.Components
     {
         /// <summary>The peer node ids to wait for. Empty ⇒ no cross-node wait (immediate ack).</summary>
         public int[] ExpectedAckPeers = Array.Empty<int>();
+
+        /// <summary>CE-287 (C1): the creator's authoritative timeout for this wait, in seconds. 0 ⇒ the
+        /// gateway's default. On expiry the creator ABORTS via <c>EntityMaster</c> dispose (§3b.3, C3).</summary>
+        public double TimeoutSeconds;
     }
 
     /// <summary>

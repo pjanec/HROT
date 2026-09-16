@@ -188,12 +188,18 @@ namespace Fdp.Toolkit.NetworkSpawning.Systems
                 // (or an empty set) leaves the entity fast-mode: the gateway acks it immediately.
                 if (_expectedPeers != null)
                 {
+                    // CE-287 (C1): the provider yields the capability-filtered present peers (advertising
+                    // fdp.reliable-init) minus local. Intersect with the creator's OPTIONAL narrowing list
+                    // (its own role policy) — null ⇒ wait for all of them (§3b.1).
                     var peers = _expectedPeers.GetExpectedPeers(cmd.TkbType, _localNodeId);
-                    if (peers != null && peers.Count > 0)
+                    var arr = IntersectReliablePeers(peers, cmd.ReliableInitPeers);
+                    if (arr.Length > 0)
                     {
-                        var arr = new int[peers.Count];
-                        for (int i = 0; i < peers.Count; i++) arr[i] = peers[i];
-                        world.AddComponent(entity, new NetworkAckPeerSet { ExpectedAckPeers = arr });
+                        world.AddComponent(entity, new NetworkAckPeerSet
+                        {
+                            ExpectedAckPeers = arr,
+                            TimeoutSeconds   = cmd.ReliableInitTimeout?.TotalSeconds ?? 0.0,
+                        });
                     }
                 }
             }
@@ -266,6 +272,25 @@ namespace Fdp.Toolkit.NetworkSpawning.Systems
 
             // 10. ELM BeginConstruction — must be the very last call
             _elm.BeginConstruction(entity, cmd.TkbType, tick, cmdBuffer);
+        }
+
+        /// <summary>CE-287 (C1): the effective reliable-init wait-set. <paramref name="capabilityFiltered"/> is
+        /// the provider's capability-filtered present peers (already minus local); <paramref name="creatorList"/>
+        /// is the creator's OPTIONAL narrowing (its own role policy). null ⇒ wait for all of the filtered set;
+        /// otherwise the intersection. Empty ⇒ no cross-node wait (the gateway acks immediately, fast-mode).</summary>
+        private static int[] IntersectReliablePeers(IReadOnlyList<int>? capabilityFiltered, int[]? creatorList)
+        {
+            if (capabilityFiltered == null || capabilityFiltered.Count == 0)
+                return Array.Empty<int>();
+            if (creatorList == null)
+                return capabilityFiltered is int[] a ? a : System.Linq.Enumerable.ToArray(capabilityFiltered);
+
+            var narrow = new HashSet<int>(creatorList);
+            var result = new List<int>(capabilityFiltered.Count);
+            foreach (var id in capabilityFiltered)
+                if (narrow.Contains(id))
+                    result.Add(id);
+            return result.ToArray();
         }
 
         // ─── Update ───────────────────────────────────────────────────────────
