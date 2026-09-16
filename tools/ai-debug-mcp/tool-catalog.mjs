@@ -1239,6 +1239,24 @@ export const TOOLS_CATALOG = [
         "type": "string",
         "required": false,
         "description": "JSON string of attribute overrides (JsonAttributeCompiler patch)"
+      },
+      {
+        "name": "ownerNodeId",
+        "type": "number",
+        "required": false,
+        "description": "This node's id ⇒ the host becomes the CREATOR (claims authority); 0 ⇒ no authority"
+      },
+      {
+        "name": "reliable",
+        "type": "boolean",
+        "required": false,
+        "description": "CE-292: true ⇒ engage the cross-node construction barrier (InitType=AllPeers); pair with ownerNodeId=<this node>"
+      },
+      {
+        "name": "reliableTimeoutSeconds",
+        "type": "number",
+        "required": false,
+        "description": "CE-292: creator's reliable-init abort timeout in seconds (0 ⇒ gateway default)"
       }
     ],
     "returns": "ok:true envelope. Spawn is processed on the next tick (step to realize it).",

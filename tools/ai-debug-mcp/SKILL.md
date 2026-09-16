@@ -5,6 +5,19 @@ description: Drive and inspect a running Hrot ECS simulation (the FDP editor) ov
 
 # AI Debug & Test API — Agent Guide
 
+> ⛔⛔ **THIS FILE (`SKILL.md`) IS GENERATED — DO NOT HAND-EDIT IT.** The command reference below is built
+> from the C# route table, so a manual edit is silently overwritten on the next regen. To CHANGE what a
+> command does or how it is documented, edit the **ground truth** and regenerate:
+> 1. **Endpoint behaviour + params + notes** → the `RouteDoc`/`RouteParam` records in
+>    `Hrot/Subsystems/Hrot.Editor/DebugApi/DebugApiRouteDocs.cs` *(these flow out through `GET /capabilities`)*.
+>    *(C# XML `<summary>` comments on the handler do NOT feed the docs — they are for code readers only.)*
+> 2. **Tools with no HTTP endpoint** *(e.g. `start_simulation`)* → `tools/ai-debug-mcp/catalog-supplement.mjs`.
+> 3. **This guide's prose sections** *(mental model, workflows, gotchas)* → `tools/ai-debug-mcp/skill-parts/*.md`.
+>
+> Then regenerate: `node tools/ai-debug-mcp/gen-catalog.mjs` *(runs the built runner to dump `GET /capabilities` →
+> writes `tool-catalog.mjs`)* then `node tools/ai-debug-mcp/generate-skill.mjs` *(assembles `SKILL.md`)*.
+> `generate-skill.mjs --check` / `gen-catalog.mjs --dump <m> --check` fail if the committed output is stale.
+
 You are driving a **single-process FDP simulation** (the ClusterRunner in `-m editor` mode) through the
 `ai-debug` MCP server. Every tool is a thin 1:1 proxy onto an HTTP endpoint; the simulation owns all the
 real logic. This guide teaches the mental model, the canonical workflows, and every command.
@@ -300,7 +313,7 @@ Conventions: **Req** = required param. Coordinates are local ECS metres unless s
 - **`send_entity_command`** — Publish an FDP event by type name. Req `eventType` (string), `payload?` (object), `wait?` (boolean). Returns ok:true envelope. awaited:false if sim not running (not an error).
   Notes: Set wait:true to attempt correlated-ack wait — only effective while time advances, else awaited:false.; awaited:false is NOT an error — it means time was not advancing..
   Example: `send_entity_command({"eventType":"MissionControlIntent","payload":{"targetId":1000},"wait":false})` — publish MissionControlIntent event.
-- **`spawn_entity`** — Spawn an entity from a TKB type. Req `tkbType` (number), `transform?` (object), `components?` (array), `attributesJson?` (string). Returns ok:true envelope. Spawn is processed on the next tick (step to realize it).
+- **`spawn_entity`** — Spawn an entity from a TKB type. Req `tkbType` (number), `transform?` (object), `components?` (array), `attributesJson?` (string), `ownerNodeId?` (number), `reliable?` (boolean), `reliableTimeoutSeconds?` (number). Returns ok:true envelope. Spawn is processed on the next tick (step to realize it).
   Notes: Spawn is queued and processed on the next tick — call step to realize it.; Use list_entity_types to discover valid tkbType values..
   Example: `spawn_entity({"tkbType":1001,"transform":{"position":{"x":100,"y":0,"z":50},"rotation":{"x":0,"y":0,"z":0,"w":1}}})` — spawn entity type 1001 at position (100,0,50).
 
