@@ -322,8 +322,10 @@ install_cyclonedds_config() {
     # DDS to lo while lo has no multicast breaks cross-process discovery UNIFORMLY
     # and SILENTLY — the worst outcome. So: fail LOUD, and do NOT export the URI
     # (leaving default discovery, which works on a multicast-capable eth0).
+    # LO_FLAGS_FILE override exists only so the error path is testable; it
+    # defaults to the real sysfs file, so production behaviour is unchanged.
     local lo_flags
-    lo_flags="$(cat /sys/class/net/lo/flags 2>/dev/null || echo 0x0)"
+    lo_flags="$(cat "${LO_FLAGS_FILE:-/sys/class/net/lo/flags}" 2>/dev/null || echo 0x0)"
     if [ $(( lo_flags & 0x1000 )) -eq 0 ]; then
         log "########################################################################"
         log "# ERROR: loopback (lo) has NO MULTICAST flag and it could not be turned #"
