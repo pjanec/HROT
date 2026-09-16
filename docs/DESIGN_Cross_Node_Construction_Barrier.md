@@ -669,8 +669,16 @@ capability facility is **general**; `fdp.reliable-init` is its first token.
 > CycloneDDS.NET process** on the DDS bus that follows base DDS/BDC rules but NOT the reliable-init extension,
 > exercising the CREATOR-side degradation (§3b/§3c) against a real foreign process. 🔒 User rulings
 > (`2026-09-16`): **separate process, not in-process** *(the in-process variant is redundant with the
-> `NetworkGatewaySystemTests` prune rails)*; **NED≡BDC** *(both follow the same base rules → one fake host
-> covers both)*; **fake-waiting must be exercised for Map2d (IG) + MuscleGround (SimHost)**.
+> `NetworkGatewaySystemTests` prune rails)*; **fake-waiting must be exercised for Map2d (IG) + MuscleGround
+> (SimHost)**.
+>
+> ⛔ **NED WIRE ONLY — BDC is OUT OF SCOPE** *(coordinator clarification `2026-09-16`, SUPERSEDES an earlier
+> "NED≡BDC, one host covers both" line).* The fake host is a raw CycloneDDS.NET participant speaking the shared
+> **NED** descriptors. 📐 Measured: `Hrot.Network.BDC` is a thin ~861-LOC skeleton with `EntityMaster`+`WorldPos`
+> translators only and **zero reliable-init surface**, so it cannot exercise the barrier and is not a stand-in.
+> ⭐ We test on NED because it is the only working protocol on the bus; the proof is that the barrier degrades
+> gracefully when a **NED-speaking** peer does not honour the reliable-init extension — the real
+> external-system interop concern.
 
 <!--INVENTORY (CE-294, 2026-09-16) — search_graph + grep; codebase-memory MCP connected
 - Raw foreign-participant prior art: DragDropIntegrationTests.cs:112 — `new CycloneDDS.Runtime.DdsParticipant((uint)domain)` + `new DdsReader<Hrot.NED.Descriptors.WorldPos>(participant)`; write side `new DdsWriter<T>(participant,"Topic")` (NedIgNetworkAdapter.cs:61, BdcEntityMasterTranslator.cs:54). `new DdsParticipant` grep: 193 sites (tests/examples/headless hosts) — the pattern is well-worn.
@@ -746,13 +754,13 @@ sequenceDiagram
 *Caption: the decisive per-mode assertion — UNAWARE: FH absent from `NetworkAckPeerSet`; AWARE_SILENT: creator
 `Success` + FH marked `!fdp.reliable-init`, no dispose; STUCK: `NotAliveDisposed` on the wire.*
 
-### 3d.3 Wire types — REUSED READ-ONLY, no new protocol *(NED≡BDC)*
+### 3d.3 Wire types — REUSED READ-ONLY, no new protocol *(NED wire only)*
 | type | assembly | fake host role |
 |---|---|---|
 | `NodeHeartbeat` · `NodeCapabilitiesTopic` | `Hrot.NED.Descriptors.Orchestration` | **writes** — presence + (per mode) the `fdp.reliable-init` token |
 | `EntityMaster` | `Hrot.NED.Descriptors` | **reads** — detects a `WaitForAcks` create to respond to |
 | `EntityLifecycleStatusDescriptor` | `Fdp.Network.Cyclone.Topics` | **writes** (STUCK only) — phase-1 `Constructing`, never `Active` |
-⭐ No engine reference, no new wire type — a foreign BDC/NED host implements exactly this. The reserved
+⭐ No engine reference, no new wire type — a foreign **NED**-speaking host implements exactly this. The reserved
 `EntityMaster.Flags` `WaitForAcks` bit + the optional status descriptor ARE the whole extension surface (§2c).
 
 ### 3d.4 Fake-waiting role check *(user ruling b)* — INVENTORY finding
