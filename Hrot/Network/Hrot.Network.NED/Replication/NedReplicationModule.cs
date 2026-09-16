@@ -93,6 +93,12 @@ public sealed class NedReplicationModule : INedReplicationModule
     private readonly INetworkTranslator? _reliableStatusEgress;
     private readonly INetworkTranslator? _reliableStatusIngress;
 
+    // CE-291 (piece C, C5): the peer-side FAKE local-init participant. Holds a reliable ghost in
+    // Constructing for a simulated navmesh/model-load window (no real subsystem exists — user steer
+    // 2026-09-16), then acks. Off unless FDP_FAKE_INIT_FRAMES > 0, so production timing is unchanged.
+    private const int SIMULATED_INIT_MODULE_ID = 918274;
+    private readonly SimulatedInitReadinessParticipant? _simulatedInitParticipant;
+
     // ── Descriptor → ECS component mapping (Single Source of Truth) ───────────
     // Populated from FdpIDescriptorTranslator.TargetComponentIds during construction
     // so that OwnershipIngressSystem and DeferredTakeoverSystem can call
@@ -303,6 +309,18 @@ public sealed class NedReplicationModule : INedReplicationModule
                                                             onPeerUnsupported: _onPeerUnsupported);
                 _reliableStatusEgress  = new PeerLifecycleStatusEgressSystem(participant, entityMap, localNodeId);
                 _reliableStatusIngress = new PeerLifecycleStatusIngressTranslator(participant, entityMap, _reliableGateway, localNodeId);
+
+                // CE-291 (C5): the peer-side FAKE local-init participant, opt-in via FDP_FAKE_INIT_FRAMES.
+                // It holds a reliable ghost in Constructing for the simulated window, standing in for the
+                // not-yet-real navmesh (muscle) / model-load (IG) waits. Off (unregistered) unless the env
+                // asks for it, so it never changes production reliable-init timing.
+                int fakeInitFrames = ParseFakeInitFrames();
+                if (fakeInitFrames > 0)
+                {
+                    string label = _roleHasMuscle ? "navmesh" : "model-load";
+                    _simulatedInitParticipant = new SimulatedInitReadinessParticipant(
+                        SIMULATED_INIT_MODULE_ID, lifecycleModule, fakeInitFrames, label);
+                }
             }
         }
         else
@@ -326,6 +344,10 @@ public sealed class NedReplicationModule : INedReplicationModule
         // ── Reliable-init barrier: the creator waiter runs in the sim loop (CE-283) ──
         if (_reliableGateway != null)
             registry.RegisterSystem(_reliableGateway);
+
+        // ── Reliable-init barrier: the peer-side fake local-init participant (CE-291, C5) ──
+        if (_simulatedInitParticipant != null)
+            registry.RegisterSystem(_simulatedInitParticipant);
 
         // ── Translator routing systems ───────────────────────────────────────
         var allTranslators = new List<INetworkTranslator>(_sharedTranslators);
@@ -537,6 +559,14 @@ public sealed class NedReplicationModule : INedReplicationModule
     }
 
     // ── DescriptorOwnershipMap population ────────────────────────────────────
+
+    // CE-291 (C5): the simulated local-init window, in frames, from FDP_FAKE_INIT_FRAMES.
+    // ≤0 / unset / unparseable ⇒ 0 ⇒ the fake participant is not registered (production timing intact).
+    private static int ParseFakeInitFrames()
+    {
+        var raw = System.Environment.GetEnvironmentVariable("FDP_FAKE_INIT_FRAMES");
+        return int.TryParse(raw, out var n) && n > 0 ? n : 0;
+    }
 
     private void PopulateDescriptorOwnershipMap()
     {
