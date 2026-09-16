@@ -47,6 +47,15 @@ namespace Hrot.Network.Routing
         }
 
         /// <inheritdoc/>
+        public bool Supports(int nodeId, string token)
+        {
+            lock (_lock)
+            {
+                return _nodes.TryGetValue(nodeId, out var cap) && cap.Capabilities.Contains(token);
+            }
+        }
+
+        /// <inheritdoc/>
         public void UpdateNode(NodeCapability capability)
         {
             if (capability == null) throw new ArgumentNullException(nameof(capability));

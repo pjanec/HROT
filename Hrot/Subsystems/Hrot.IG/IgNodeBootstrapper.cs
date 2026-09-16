@@ -334,7 +334,10 @@ internal sealed class IgNodeBootstrapper : SharedApplicationBootstrapper
         // Use _effectiveInstanceId (= _nodeIdOverride when set, else IgNetworkConstants.InstanceId=300)
         // so the IG ClusterSlave always registers on a cluster-unique node ID.
         // Using IgNetworkConstants.LocalNodeId (1) caused collision with SimHost when --node-id 0.
-        var slave = new ClusterSlave(_effectiveInstanceId, "IG", orchestrationBus, Fdp.Core.NodeRole.Map2D);   // P1: publish the declared role mask.
+        // P1/CE-285: advertise the declared role (as fdp.role.* tokens, derived back to the mask at ingest —
+        // CE-286) + the fdp.reliable-init feature token, since every NED node runs the reliable-init gateway.
+        var slave = new ClusterSlave(_effectiveInstanceId, "IG", orchestrationBus, Fdp.Core.NodeRole.Map2D,
+            capabilities: new[] { Fdp.Toolkit.Replication.CapabilityTokens.ReliableInit });
 
         // ⛔ CE-164 — the hand-built `new NodeOpSlaveTranslator(...)` that stood here is DELETED.
         //    context.SlaveTranslator already IS a NodeOpSlaveTranslator + ClusterOpEgressTranslator on this

@@ -1014,7 +1014,9 @@ public sealed class CgfSubsystem : ISubsystem, Fdp.Toolkit.Runner.IMapCameraProv
 
         // ── Wire ClusterSlave with EcsRecordReplayController (CGF-Point-4) ────────
         // Create a fresh ClusterSlave manually to strictly control handler registration order.
-        var newClusterSlave = new ClusterSlave(_context.NodeId, "CGF", _context.EventBus, DefaultRole);   // P1: publish the declared role mask.
+        // P1/CE-285: advertise the declared role (fdp.role.* tokens → derived mask, CE-286) + fdp.reliable-init.
+        var newClusterSlave = new ClusterSlave(_context.NodeId, "CGF", _context.EventBus, DefaultRole,
+            capabilities: new[] { Fdp.Toolkit.Replication.CapabilityTokens.ReliableInit });
 
         var nedModuleForAfterSeek = replicationModule as Hrot.Common.Abstractions.INedReplicationModule;
         Action? afterSeekAction = nedModuleForAfterSeek?.AfterSeekCallback;

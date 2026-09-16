@@ -33,6 +33,7 @@ public sealed class OrchestrationObserverTranslator : IDisposable
     private readonly DdsReader<ClusterOpStatus>       _sysOpStatusReader;
     private readonly DdsReader<NodeOpCommand>         _nodeOpCmdReader;
     private readonly DdsReader<NodeOpStatus>          _nodeOpStatusReader;
+    private readonly DdsReader<NodeCapabilitiesTopic> _capabilitiesReader;   // CE-285 (C-cap)
     private readonly FdpEventBus                      _bus;
 
     /// <summary>
@@ -49,6 +50,7 @@ public sealed class OrchestrationObserverTranslator : IDisposable
         _sysOpStatusReader  = new DdsReader<ClusterOpStatus>(participant);
         _nodeOpCmdReader    = new DdsReader<NodeOpCommand>(participant);
         _nodeOpStatusReader = new DdsReader<NodeOpStatus>(participant);
+        _capabilitiesReader = new DdsReader<NodeCapabilitiesTopic>(participant);
     }
 
     /// <summary>
@@ -89,7 +91,17 @@ public sealed class OrchestrationObserverTranslator : IDisposable
                         LocalStateId  = (int)s.Data.LocalClusterState,
                         WallTicksUtc  = s.Data.WallTicksUtc,
                         SubsystemName = s.Data.SubsystemName ?? string.Empty,
-                        Roles         = (Fdp.Core.NodeRole)s.Data.RolesMask,   // P1: read the mask off the wire.
+                        // CE-286 (C-roles): roles are derived from the NodeCapabilities tokens, not the heartbeat.
+                    });
+
+        // NodeCapabilities → NodeCapabilitiesEvent (CE-285 — durable static attributes, gathered by ClusterMaster)
+        using (var l = _capabilitiesReader.Take())
+            foreach (var s in l)
+                if (s.IsValid)
+                    _bus.PublishManaged(new NodeCapabilitiesEvent
+                    {
+                        NodeId       = s.Data.NodeId,
+                        Capabilities = DeserializeStringArray(s.Data.CapabilitiesJson),
                     });
 
         // SwitchTimeModeWireDto → SwitchTimeModeEvent (unmanaged — use Publish, not PublishManaged)
@@ -168,6 +180,7 @@ public sealed class OrchestrationObserverTranslator : IDisposable
         _sysOpStatusReader.Dispose();
         _nodeOpCmdReader.Dispose();
         _nodeOpStatusReader.Dispose();
+        _capabilitiesReader.Dispose();
     }
 
     private static string[] DeserializeStringArray(string? json)

@@ -277,18 +277,20 @@ public sealed class NedNetworkFactory : INetworkFactory
 
         var clusterCache    = new SimpleClusterStateCache();
         var heartbeatReader = new DdsReader<NodeHeartbeat>(_participant);
+        var capabilitiesReader = new DdsReader<NodeCapabilitiesTopic>(_participant);   // CE-285 (C-cap)
 
         return new NedCgfEntityLifecycleAdapters(
-            requestSource:     new NedEntityCreationRequestSource(_participant, _geoTransform),
-            deleteSource:      new NedEntityDeletionRequestSource(_participant),
-            ackSink:           new NedEntityAckSink(_participant),
+            requestSource:      new NedEntityCreationRequestSource(_participant, _geoTransform),
+            deleteSource:       new NedEntityDeletionRequestSource(_participant),
+            ackSink:            new NedEntityAckSink(_participant),
             // D1: the forwarding half. Present on every NED host, so a request addressed elsewhere
             // leaves the node instead of being silently dropped by the Level-1 guard.
-            requestEgress:     new NedEntityCreationRequestEgress(_participant, _geoTransform),
-            ownershipStrategy: new BrainMuscleOwnershipStrategy(clusterCache),
-            jsonCompiler:      AttributeCompilerFactory.Build(_geoTransform),
-            clusterCache:      clusterCache,
-            heartbeatReader:   heartbeatReader);
+            requestEgress:      new NedEntityCreationRequestEgress(_participant, _geoTransform),
+            ownershipStrategy:  new BrainMuscleOwnershipStrategy(clusterCache),
+            jsonCompiler:       AttributeCompilerFactory.Build(_geoTransform),
+            clusterCache:       clusterCache,
+            heartbeatReader:    heartbeatReader,
+            capabilitiesReader: capabilitiesReader);
     }
 
     /// <inheritdoc/>
@@ -374,6 +376,11 @@ internal sealed class NedCgfEntityLifecycleAdapters : ICgfEntityLifecycleAdapter
 {
     private readonly SimpleClusterStateCache   _clusterCache;
     private readonly DdsReader<NodeHeartbeat>  _heartbeatReader;
+    // CE-285 (C-cap): the durable NodeCapabilities descriptor + a side-store of the last token set per node,
+    // so PollNetwork can stamp NodeCapability.Capabilities and DERIVE NodeCapability.Role from the fdp.role.*
+    // subset (CE-286) even though the two topics arrive on different reads.
+    private readonly DdsReader<NodeCapabilitiesTopic> _capabilitiesReader;
+    private readonly System.Collections.Generic.Dictionary<int, string[]> _nodeCapabilities = new();
 
     public IEntityCreationRequestSource       RequestSource     { get; }
     public IEntityDeletionRequestSource       DeleteSource      { get; }
@@ -393,7 +400,8 @@ internal sealed class NedCgfEntityLifecycleAdapters : ICgfEntityLifecycleAdapter
         IOwnershipDistributionStrategy? ownershipStrategy,
         JsonAttributeCompiler?          jsonCompiler,
         SimpleClusterStateCache         clusterCache,
-        DdsReader<NodeHeartbeat>        heartbeatReader)
+        DdsReader<NodeHeartbeat>        heartbeatReader,
+        DdsReader<NodeCapabilitiesTopic> capabilitiesReader)
     {
         RequestSource     = requestSource;
         DeleteSource      = deleteSource;
@@ -403,28 +411,47 @@ internal sealed class NedCgfEntityLifecycleAdapters : ICgfEntityLifecycleAdapter
         JsonCompiler      = jsonCompiler;
         _clusterCache     = clusterCache;
         _heartbeatReader  = heartbeatReader;
+        _capabilitiesReader = capabilitiesReader;
         ExpectedPeers     = new Hrot.Network.Routing.ClusterCacheExpectedPeersProvider(clusterCache);
     }
 
     /// <inheritdoc/>
     public void PollNetwork()
     {
+        // CE-285 (C-cap): gather the durable capability tokens FIRST, so the heartbeat build below derives the
+        // role mask from the latest known token set. Retained samples arrive immediately for present + late nodes.
+        using (var capLoan = _capabilitiesReader.Take())
+            foreach (var sample in capLoan)
+            {
+                if (!sample.IsValid) continue;
+                _nodeCapabilities[sample.Data.NodeId] = DeserializeTokens(sample.Data.CapabilitiesJson);
+            }
+
         using var loan = _heartbeatReader.Take();
         foreach (var sample in loan)
         {
             if (!sample.IsValid) continue;
+            var tokens = _nodeCapabilities.TryGetValue(sample.Data.NodeId, out var t) ? t : System.Array.Empty<string>();
             _clusterCache.UpdateNode(new NodeCapability
             {
                 NodeId             = sample.Data.NodeId,
-                // P1: read the node's declared role mask off the heartbeat (seam law — the source carries it).
-                // Replaces the lossy MapSubsystemNameToRole switch (3 names → ONE role); preserves multi-role
-                // [Flags] masks, and an un-set/foreign node reads None, which is the correct "unknown role".
-                Role               = (NodeRole)sample.Data.RolesMask,
+                // CE-286 (C-roles): the role mask is DERIVED from the fdp.role.* subset of the node's capability
+                // tokens (AQ-70 §Q70-C) — the heartbeat no longer carries RolesMask. An un-advertising / foreign
+                // node reads None, the correct "unknown role"; multi-role [Flags] masks survive.
+                Role               = NodeRoleTokens.MaskFromTokens(tokens),
+                Capabilities       = new System.Collections.Generic.HashSet<string>(tokens),
                 CpuUsagePercent    = sample.Data.CpuUsagePercent,
                 RamUsedBytes       = sample.Data.RamUsedBytes,
                 LastSeenUtcSeconds = (double)sample.Data.WallTicksUtc / TimeSpan.TicksPerSecond,
             });
         }
+    }
+
+    private static string[] DeserializeTokens(string? json)
+    {
+        if (string.IsNullOrWhiteSpace(json)) return System.Array.Empty<string>();
+        try { return System.Text.Json.JsonSerializer.Deserialize<string[]>(json) ?? System.Array.Empty<string>(); }
+        catch { return System.Array.Empty<string>(); }
     }
 }
 

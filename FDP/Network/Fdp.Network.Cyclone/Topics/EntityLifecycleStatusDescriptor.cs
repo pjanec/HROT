@@ -19,7 +19,7 @@ namespace Fdp.Network.Cyclone.Topics
     /// <c>OwnershipUpdate.NewOwner</c>), so a joiner can correlate the owner it learns from
     /// ownership with the owner's readiness instance (§2b). <c>StateValue</c> carries
     /// <c>Fdp.Core.EntityLifecycle</c> as an <c>int</c> to keep the DDS codegen free of a
-    /// cross-assembly enum dependency — the CE-282 <c>RolesMask</c> wire precedent.</para>
+    /// cross-assembly enum dependency (the established convention for carrying an enum over the wire).</para>
     /// </summary>
     [DdsTopic("EntityLifecycleStatus")]
     [DdsQos(

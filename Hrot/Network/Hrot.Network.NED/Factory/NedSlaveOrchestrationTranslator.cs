@@ -24,11 +24,12 @@ internal sealed class NedSlaveOrchestrationTranslator : ISlaveOrchestrationTrans
         if (bus == null)         throw new ArgumentNullException(nameof(bus));
 
         _nodeOpTranslator = new NodeOpSlaveTranslator(
-            commandReader:   new DdsReader<NodeOpCommand>(participant),
-            statusWriter:    new DdsWriter<NodeOpStatus>(participant),
-            heartbeatWriter: new DdsWriter<NodeHeartbeat>(participant),
-            bus:             bus,
-            nodeId:          nodeId);
+            commandReader:      new DdsReader<NodeOpCommand>(participant),
+            statusWriter:       new DdsWriter<NodeOpStatus>(participant),
+            heartbeatWriter:    new DdsWriter<NodeHeartbeat>(participant),
+            bus:                bus,
+            nodeId:             nodeId,
+            capabilitiesWriter: new DdsWriter<NodeCapabilitiesTopic>(participant));   // CE-285 (C-cap)
 
         _egressTranslator = new ClusterOpEgressTranslator(bus, participant);
     }

@@ -175,9 +175,30 @@ namespace Hrot.NED.Descriptors.Orchestration
         public long RamUsedBytes;
         public bool SimTickAdvancing;
         [DdsManaged] public string SubsystemsJson;
-        /// <summary>P1: the node's declared NodeRole [Flags] mask, carried as its int value so the wire
-        /// stays free of a cross-assembly enum codegen dependency. 0 = None (e.g. the orchestrator).</summary>
-        public int RolesMask;
+        // CE-286 (C-roles): the per-tick RolesMask field was REMOVED — roles are static and now travel as
+        // fdp.role.* tokens on the durable NodeCapabilities descriptor (AQ-70 §Q70-C). The heartbeat is
+        // telemetry-only again. History: CE-282 carried `int RolesMask` here.
+    }
+
+    /// <summary>
+    /// Host static attributes — the OpenGL-extension-style namespaced capability token set a node advertises
+    /// ONCE at join (AQ-70 §Q70-B, cluster-master §8). Durable (Reliable + TransientLocal + KeepLast 1) so the
+    /// last set per node is retained and delivered to late joiners and to the orchestrator whenever it polls.
+    /// ⛔ Deliberately SEPARATE from the per-tick <see cref="NodeHeartbeat"/>: capabilities are static, so they
+    /// must not ride a per-tick message. Carries <c>fdp.role.*</c> role tokens (the bit-backed subset, derived to
+    /// a <c>NodeRole</c> mask at ingest — superseding CE-282's <see cref="NodeHeartbeat.RolesMask"/>) plus feature
+    /// tokens such as <c>fdp.reliable-init</c>.
+    /// </summary>
+    [DdsTopic("NodeCapabilities")]
+    [DdsIdlFile("hrot-orchestration")]
+    [DdsQos(Reliability = DdsReliability.Reliable, Durability = DdsDurability.TransientLocal, HistoryKind = DdsHistoryKind.KeepLast, HistoryDepth = 1)]
+    public partial struct NodeCapabilitiesTopic
+    {
+        [DdsKey] public int NodeId;
+        /// <summary>JSON-serialised <c>string[]</c> of namespaced capability tokens (same wire convention as
+        /// <see cref="NodeHeartbeat.SubsystemsJson"/> / <see cref="AssetInventoryTopic"/>). Empty JSON array for a
+        /// node that advertises nothing (a valid fast-mode-only host).</summary>
+        [DdsManaged] public string CapabilitiesJson;
     }
 
     [DdsTopic("OrchestratorContext")]

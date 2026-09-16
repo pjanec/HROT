@@ -565,6 +565,13 @@ The roster gathers each host's **static attributes** from a durable `NodeCapabil
 - **Query:** `caps.Supports(nodeId, "fdp.reliable-init")` for features; `NodesWithRole(mask)` for role membership
   *(now over the derived mask)*.
 
+> ✅ **AS-BUILT `2026-09-16` (CE-285/286).** `ClusterMaster` gathers the durable `NodeCapabilities` descriptor
+> (via `NedOrchestrationTranslator`/`OrchestrationObserverTranslator` → `NodeCapabilitiesEvent`) into a side-store,
+> stamps `NodeHealthProfile.Capabilities` on every heartbeat, and DERIVES `NodeHealthProfile.Roles` from the
+> `fdp.role.*` subset via `Fdp.Core.NodeRoleTokens.MaskFromTokens`. `NodeHeartbeat.RolesMask` was REMOVED (the
+> heartbeat is telemetry-only). `NodeRoster.NodesWithRole` + `Supports(nodeId, token)` are the queries. Full model +
+> the NED-cache twin: [DESIGN_Cross_Node_Construction_Barrier.md §3c](../../DESIGN_Cross_Node_Construction_Barrier.md).
+
 ## 9. Implementation Phases
 
 ### Phase 1 — FDP Domain Enums and Event DTOs

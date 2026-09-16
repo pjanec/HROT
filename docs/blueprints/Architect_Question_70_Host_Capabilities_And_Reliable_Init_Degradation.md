@@ -1,7 +1,11 @@
 <!--STATUS
 state: LIVE
-build-state: DESIGN — RESOLVED with the user (`2026-09-16`). Not dispatched. The facility (host capabilities)
-  is general; its first consumer is reliable-init graceful degradation.
+build-state: BUILT `2026-09-16` (CE-285 C-cap + CE-286 C-roles) — the facility + roles-from-tokens are BUILT.
+  Q70-B (namespaced token set on the durable `NodeCapabilities` descriptor) and Q70-C (roles DERIVED from the
+  `fdp.role.*` subset via the closed `NodeRoleTokens` table in `Fdp.Core`; `NodeHeartbeat.RolesMask` /
+  `NodeHeartbeatEvent.Roles` REMOVED — heartbeat telemetry-only) are as-built. Q70-A mechanism ① (capability
+  filter) is BUILT; mechanism ② (short phase-1 probe self-heal) ships with the barrier's C2. As-built folded into
+  DESIGN_Cross_Node_Construction_Barrier.md §3c and cluster-master §8.
 updated: 2026-09-16
 current-answer: §3 is the resolution — Q70-A (degradation via capabilities + a short phase-1 probe),
   Q70-B (representation = an OpenGL-extension-style namespaced token set), and Q70-C (roles ARE the

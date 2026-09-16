@@ -197,7 +197,9 @@ namespace Hrot.SimHost
 
             localTempRoot ??= OrchestrationConstants.ResolveStagingRoot();
 
-            var clusterSlave = new ClusterSlave(nodeId, subsystemName, eventBus, role);   // P1: publish the full declared role mask (may be multi-role).
+            // P1/CE-285: advertise the full declared role (fdp.role.* tokens → derived mask, CE-286) + fdp.reliable-init.
+            var clusterSlave = new ClusterSlave(nodeId, subsystemName, eventBus, role,
+                capabilities: new[] { Fdp.Toolkit.Replication.CapabilityTokens.ReliableInit });
             SlaveTranslator = null;
             if (participant != null && eventBus != null)
             {

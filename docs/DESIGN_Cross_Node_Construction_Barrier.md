@@ -543,6 +543,50 @@ var r = ConstructionResults.Get(world, networkId);   // Pending → Success | Fa
 ## 3c. ⭐ GRACEFUL DEGRADATION — a host that does not support reliable init *(AQ-70, `2026-09-16`)*
 > Full design + the decision: **[`Architect_Question_70_Host_Capabilities_And_Reliable_Init_Degradation.md`](blueprints/Architect_Question_70_Host_Capabilities_And_Reliable_Init_Degradation.md)**. This is the consumer summary.
 
+> ✅ **AS-BUILT `2026-09-16` (CE-285 C-cap + CE-286 C-roles) — the host-capability facility + roles-from-tokens
+> are BUILT** (mechanism ① below; mechanism ② the short phase-1 probe ships with C2). What landed:
+> - **`NodeCapabilitiesTopic`** — a durable DDS descriptor (`[DdsQos(Reliable, TransientLocal, KeepLast 1)]`,
+>   keyed by `NodeId`, `CapabilitiesJson` = a JSON `string[]` of namespaced tokens), added to
+>   `OrchestrationMessages.cs` beside `NodeHeartbeat`. Published ONCE at join by `ClusterSlave`
+>   (`NodeCapabilitiesEvent`, EventId 9022), egressed by `NodeOpSlaveTranslator`, ingested by
+>   `OrchestrationObserverTranslator` + `NedOrchestrationTranslator` (orchestrator roster) and by
+>   `NedNetworkFactory.PollNetwork` (the NED cluster cache the barrier's wait-set reads).
+> - **Tokens:** `NodeRoleTokens` (`Fdp.Core`) is the closed enum↔token table (`fdp.role.brain`,
+>   `fdp.role.muscle-ground`, `fdp.role.map2d`, `fdp.role.perception`, `fdp.role.navigation-solver`);
+>   `CapabilityTokens.ReliableInit = "fdp.reliable-init"` (`Fdp.Toolkits.Replication`) is the first feature token.
+>   Every NED node (CGF/SimHost/IG/`HrotNodeBuilder`) advertises `fdp.reliable-init`; the orchestrator advertises nothing.
+> - **Roles-from-tokens (C-roles):** `NodeHeartbeat.RolesMask` and `NodeHeartbeatEvent.Roles` are **REMOVED** — the
+>   heartbeat is telemetry-only. `NodeHealthProfile.Roles` and `NodeCapability.Role` are now **DERIVED** at ingest via
+>   `NodeRoleTokens.MaskFromTokens` (supersedes CE-282). `NodesWithRole` + ownership (`GetLeastLoadedNode`) consume the derived mask, unchanged.
+> - **Query:** `IClusterStateCache.Supports(nodeId, token)` + `NodeRoster.Supports(nodeId, token)`.
+> - Rails: `NodeRoleTokensTests` (round-trip, degrade), `ClusterSlaveHeartbeatTests` re-homed to the capability event.
+> ⚠ Mechanism ② (short phase-1 probe + `!fdp.reliable-init` self-heal) is C2, not yet built.
+
+### 3c.1 The as-built capability flow — advertise once → gather → derive → filter *(CE-285/286)*
+*What this shows that §3c's prose cannot: the token set has ONE producer and TWO independent consumers on
+different reads (the orchestrator roster and the NED cache), the `NodeRole` mask is derived at BOTH ingests
+from the same `NodeRoleTokens` table, and the barrier's wait-set is filtered by `Supports(fdp.reliable-init)`
+— never by a creator-computed role→type map.*
+
+```mermaid
+sequenceDiagram
+    autonumber
+    participant SL as ClusterSlave (any node)
+    participant EG as NodeOpSlaveTranslator (egress)
+    participant W as DDS NodeCapabilities (durable)
+    participant OR as Orchestrator ingest (ClusterMaster)
+    participant NF as NedNetworkFactory PollNetwork (NED cache)
+    participant WS as Creator wait-set (C1)
+    SL->>EG: NodeCapabilitiesEvent once at join (fdp.role.* + fdp.reliable-init)
+    EG->>W: write retained sample (CapabilitiesJson)
+    W-->>OR: retained tokens
+    OR->>OR: NodeHealthProfile.Capabilities + Roles = NodeRoleTokens.MaskFromTokens
+    W-->>NF: retained tokens
+    NF->>NF: NodeCapability.Capabilities + Role = NodeRoleTokens.MaskFromTokens
+    WS->>NF: Supports(peer, fdp.reliable-init)?  (include only if true)
+```
+*Caption: a node advertising no `fdp.reliable-init` token is never in a wait-set — capability degradation (§3c ①) — and a node advertising no `fdp.role.*` token derives to `NodeRole.None`.*
+
 A peer that does not support reliable init never publishes `EntityLifecycleStatusDescriptor`. It must never make a
 creator block forever. Two composed mechanisms:
 - **① capability filter (proactive):** hosts advertise capabilities as an **OpenGL-extension-style namespaced token
@@ -575,11 +619,12 @@ the moment `PeerLifecycleStatusEgressSystem` publishes.
    current rulings)*.
 
 ### ✅ P1–P3 AS-BUILT (`2026-09-15`) — role propagation done; the barrier itself is still DESIGN
-> ⛔⛔ **TRANSPORT SUPERSEDED by AQ-70 §Q70-C (`2026-09-16`):** P1 below carries the role mask as
-> `NodeHeartbeat.RolesMask` (per-tick). The resolved model publishes `fdp.role.*` **capability tokens** on a
-> durable `NodeCapabilities` descriptor instead and **derives** the `NodeRole` mask at ingest; the heartbeat
-> returns to telemetry-only. The `NodesWithRole` query + ownership tables (P2/P3) are UNCHANGED — they consume
-> the derived mask. This rework is part of piece C. The P1 text below is the CE-282 as-built (HISTORY).
+> ✅⛔ **TRANSPORT SUPERSEDED AND REBUILT by CE-286 (C-roles, `2026-09-16`):** P1 below carried the role mask as
+> `NodeHeartbeat.RolesMask` (per-tick, CE-282). That field — and `NodeHeartbeatEvent.Roles` — are now **REMOVED**:
+> the host publishes `fdp.role.*` **capability tokens** on the durable `NodeCapabilities` descriptor (CE-285) and
+> the orchestrator/cache **DERIVE** the `NodeRole` mask at ingest via `NodeRoleTokens.MaskFromTokens`; the heartbeat
+> is telemetry-only. The `NodesWithRole` query + ownership tables (P2/P3) are UNCHANGED — they consume the derived
+> mask. Full as-built in §3c. The P1 text below is the CE-282 as-built (HISTORY — the RolesMask wire it describes is gone).
 > The §0 INVENTORY sites were accurate and unchanged; the §1.2 class diagram's P1/P2/P3 boxes are the
 > as-built shape. The wire gained one field (a field, not a new shape) → no new diagram.
 

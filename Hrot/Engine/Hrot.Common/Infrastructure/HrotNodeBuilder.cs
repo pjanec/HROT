@@ -228,7 +228,9 @@ public sealed class HrotNodeBuilder
         }
 
         // Step 8 — ClusterSlave + SlaveTranslator
-        var clusterSlave = new ClusterSlave(_config.NodeId, _subsystemName, eventBus, _role);   // P1: publish the declared role mask.
+        // P1/CE-285: advertise the declared role (fdp.role.* tokens → derived mask, CE-286) + fdp.reliable-init.
+        var clusterSlave = new ClusterSlave(_config.NodeId, _subsystemName, eventBus, _role,
+            capabilities: new[] { Fdp.Toolkit.Replication.CapabilityTokens.ReliableInit });
         
         Hrot.Core.Network.ISlaveOrchestrationTranslator? slaveTranslator = null;
         if (participant != null && _networkFactory != null)

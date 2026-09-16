@@ -34,6 +34,11 @@ public sealed class ClusterMaster : IDisposable
     // ── Roster ────────────────────────────────────────────────────────────
     private readonly NodeRoster _roster = new();
 
+    // CE-285/286 (C-cap/C-roles): the last capability token set advertised per node, gathered from the durable
+    // NodeCapabilities descriptor. Persisted here (not on the heartbeat-rebuilt profile) so every heartbeat can
+    // re-apply it. The NodeRole mask is DERIVED from the fdp.role.* subset — nobody publishes the mask (AQ-70 §Q70-C).
+    private readonly Dictionary<int, string[]> _nodeCapabilities = new();
+
     /// <summary>
     /// Unified 2PC transaction tracker used for ALL in-flight operations:
     /// <see cref="NodeOpType.SerializeLocal"/>, <see cref="ClusterOpType.ManageEpisode"/>,
@@ -270,6 +275,7 @@ public sealed class ClusterMaster : IDisposable
 
     public void Tick()
     {
+        IngestCapabilities();   // CE-285: gather static capability tokens BEFORE heartbeats derive roles from them.
         IngestHeartbeats();
         CheckBootstrapLatch();
         DetectAndEjectTimedOutNodes();
@@ -459,15 +465,38 @@ public sealed class ClusterMaster : IDisposable
     {
         foreach (var hb in _eventBus.ReadManaged<NodeHeartbeatEvent>())
         {
+            // CE-286 (C-roles): the heartbeat is telemetry-only now; roles are DERIVED from the node's
+            // capability tokens (gathered by IngestCapabilities), so a heartbeat re-applies the latest known
+            // capabilities + mask. Unknown-so-far ⇒ empty set / None until the capabilities advert lands.
+            var tokens = _nodeCapabilities.TryGetValue(hb.NodeId, out var t) ? t : System.Array.Empty<string>();
             var profile = new NodeHealthProfile
             {
                 NodeId                  = hb.NodeId,
                 SubsystemName           = hb.SubsystemName ?? string.Empty,
                 LocalClusterState       = (ClusterState)(int)hb.LocalStateId,
                 LastHeartbeatUtcSeconds = UtcNowSeconds(),
-                Roles                   = hb.Roles,   // P2: store the declared role mask on the roster profile.
+                Capabilities            = new System.Collections.Generic.HashSet<string>(tokens),
+                Roles                   = NodeRoleTokens.MaskFromTokens(tokens),
             };
             _roster.Upsert(profile);
+        }
+    }
+
+    /// <summary>CE-285 (C-cap): gather each node's durable capability token set. Stored in a side-map so every
+    /// heartbeat can re-apply it (the heartbeat rebuilds the profile). A late advert also immediately corrects
+    /// an already-present profile's <see cref="NodeHealthProfile.Capabilities"/> + derived
+    /// <see cref="NodeHealthProfile.Roles"/> without waiting for the next heartbeat.</summary>
+    private void IngestCapabilities()
+    {
+        foreach (var caps in _eventBus.ReadManaged<NodeCapabilitiesEvent>())
+        {
+            var tokens = caps.Capabilities ?? System.Array.Empty<string>();
+            _nodeCapabilities[caps.NodeId] = tokens;
+            if (_roster.ActiveNodes.TryGetValue(caps.NodeId, out var existing))
+            {
+                existing.Capabilities = new System.Collections.Generic.HashSet<string>(tokens);
+                existing.Roles        = NodeRoleTokens.MaskFromTokens(tokens);
+            }
         }
     }
 
