@@ -75,6 +75,8 @@ public sealed class NedReplicationModule : INedReplicationModule
     private readonly ITkbDatabase?         _tkbDb;
     private readonly EntityLifecycleModule? _lifecycleModule;
     private readonly IReadOnlyList<ITkbEntityTranslator>? _tkbEntityTranslators;
+    // CE-288 (C2): self-heal sink — records a peer that missed the short phase-1 probe as !fdp.reliable-init.
+    private readonly System.Action<int>? _onPeerUnsupported;
 
     // ── Translator lists ───────────────────────────────────────────────────────
     private readonly IEnumerable<INetworkTranslator> _sharedTranslators;
@@ -200,8 +202,10 @@ public sealed class NedReplicationModule : INedReplicationModule
         BehaviorRegistry?     behaviorRegistry  = null,
         ITkbDatabase?         tkbDb             = null,
         EntityLifecycleModule? lifecycleModule  = null,
-        IReadOnlyList<ITkbEntityTranslator>? tkbEntityTranslators = null)
+        IReadOnlyList<ITkbEntityTranslator>? tkbEntityTranslators = null,
+        System.Action<int>?   onPeerUnsupported = null)
     {
+        _onPeerUnsupported = onPeerUnsupported;   // CE-288 (C2): gateway self-heal sink.
         _participant     = participant;
         _role            = role;
         _entityMap       = entityMap  ?? throw new ArgumentNullException(nameof(entityMap));
@@ -295,7 +299,8 @@ public sealed class NedReplicationModule : INedReplicationModule
             // construction pipeline, so the barrier does not exist.
             if (lifecycleModule != null)
             {
-                _reliableGateway = new NetworkGatewaySystem(RELIABLE_GATEWAY_MODULE_ID, localNodeId, lifecycleModule);
+                _reliableGateway = new NetworkGatewaySystem(RELIABLE_GATEWAY_MODULE_ID, localNodeId, lifecycleModule,
+                                                            onPeerUnsupported: _onPeerUnsupported);
                 _reliableStatusEgress  = new PeerLifecycleStatusEgressSystem(participant, entityMap, localNodeId);
                 _reliableStatusIngress = new PeerLifecycleStatusIngressTranslator(participant, entityMap, _reliableGateway, localNodeId);
             }

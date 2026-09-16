@@ -39,6 +39,15 @@ namespace Hrot.Network.Routing
         bool Supports(int nodeId, string token);
 
         /// <summary>
+        /// CE-288 (C2): record that node <paramref name="nodeId"/> was OBSERVED not to actually support
+        /// <paramref name="token"/> — the self-heal from the creator's short phase-1 probe (§3c ②). It forces
+        /// <see cref="Supports"/> to <c>false</c> for that (node, token) regardless of what the node advertises,
+        /// so later reliable-init wait-sets skip a host that advertises <c>fdp.reliable-init</c> but never
+        /// delivers a status (an older/external build). Survives the cache rebuilding from the durable descriptor.
+        /// </summary>
+        void RecordUnsupported(int nodeId, string token);
+
+        /// <summary>
         /// Updates (or inserts) the capability record for a specific node.
         /// Called by the heartbeat bridge from the event-bus subscription.
         /// </summary>

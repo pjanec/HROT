@@ -540,20 +540,21 @@ eventBus.PublishManaged(new SpawnEntityCommand {
 var r = ConstructionResults.Get(world, networkId);   // Pending → Success | Failed(Timeout)
 ```
 
-### 3b.6 ✅ AS-BUILT — the CREATOR SIDE (C1 + C3 + C4), `2026-09-16` *(obligation ⑤)*
+### 3b.6 ✅ AS-BUILT — the CREATOR SIDE (C1 + C3 + C4) + C2, `2026-09-16` *(obligation ⑤)*
 | item | as-built |
 |---|---|
 | **C1** (CE-287) wait-set | `SpawnEntityCommand.ReliableInitPeers:int[]?` + `ReliableInitTimeout:TimeSpan?`. `ClusterCacheExpectedPeersProvider` filters present-minus-local to `Supports(fdp.reliable-init)` (§3c ① — non-supporting host never waited for). `NetworkSpawningSystem.IntersectReliablePeers` narrows by the optional creator list; stamps `NetworkAckPeerSet{ExpectedAckPeers, TimeoutSeconds}`. |
+| **C2** (CE-288) phase-1 probe + self-heal | **Peer side:** `PeerLifecycleStatusEgressSystem` now publishes `EntityLifecycleStatusDescriptor(Constructing)` PROMPTLY (phase-1) as soon as the tagged ghost exists, then `Active` (phase-2). **Creator side:** `NetworkGatewaySystem` tracks phase-1 receipt per peer (any status, Constructing or Active, marks it participating); a SHORT `PHASE1_TIMEOUT_FRAMES` (~1 s) prunes — once — every wait-set peer that never sent phase-1, invokes `onPeerUnsupported(nodeId)` self-heal, and completes the entity if the pruned set empties. **Self-heal:** `IClusterStateCache.RecordUnsupported(nodeId, token)` forces `Supports`→false for that (node, token), surviving `PollNetwork` rebuilds; wired via a shared cache instance the factory now hands both the wait-set provider and the gateway callback (`NedNetworkFactory.SharedClusterCache` → `NedReplicationModule.onPeerUnsupported`). ⭐ **Interaction finding:** the C2 SHORT prune (unsupported: never sent phase-1) and the C3 LONG abort (stuck: sent phase-1, never Active) are for DIFFERENT peers — a peer that sends nothing is UNSUPPORTED (pruned + healed → the create still succeeds if nothing supporting is left), not STUCK (aborted). ⚠ **§3b.2's non-ghosting immediate-reply branch is INERT in this homogeneous NED model** — `EntityMasterIngressTranslator` always ghosts an alive `EntityMaster`, so every wait-set peer ghosts + reports; the branch is only relevant to external/older hosts and is not built (folded here rather than shipping dead code). |
 | **C3** (CE-289) timeout=abort | New base hook `DeferredConstructionParticipant.OnTimeout` (default = legacy force-ack; per-entity timeout via `SetPendingTimeout`, seeded from `NetworkAckPeerSet.TimeoutSeconds` @ 60 fps). `NetworkGatewaySystem.OnTimeout` OVERRIDES to ABORT: write `Failed(Timeout)` + `_elm.BeginDestruction`. ⭐ **Measured finding folded here:** `BeginDestruction` emits a `DestructionOrder` that **`CycloneNetworkCleanupSystem` already turns into an `EntityMaster` dispose sample** (`translator.Dispose(netId)`) — so the abort disposes the wire instance with **no new cross-layer seam**; the receiver's existing `ProcessDispose` removes the ghost. The creator never force-acks a reliable entity. |
 | **C4** (CE-290) poll-store | `ConstructionResults` — a managed singleton (component id **153**, verified free) holding a `Dictionary<long,Entry>` keyed by `NetworkId`, evict-on-read of terminal results + TTL sweep. Gateway writes `Pending` on defer, `Success` in `ReceiveLifecycleStatus` when the wait-set empties, `Failed(Timeout)` on abort. ⚠ The reactive success path has no `view`, so the gateway caches the persistent `EntityRepository` at defer time. ⚠ `GetSingletonManaged` **throws** when unset — guarded with `HasSingletonManaged`. |
-| rails | `ClusterCacheExpectedPeersProviderTests` 2/2 · `ConstructionResultsTests` 5/5 (incl. a uint-underflow red-proof in the TTL sweep) · `NetworkGatewaySystemTests` 8/8 (+ the C3 abort rail; the 7 pre-existing green). |
-| ⛔ REMAINING | **C2** (CE-288, peer-side mandatory reply + short phase-1 probe + `!fdp.reliable-init` self-heal) and **C5** (CE-291, real navmesh/altitude Muscle participant) + the `--mode all` proof — the peer-side + live pieces. |
+| rails | `ClusterCacheExpectedPeersProviderTests` 2/2 · `ConstructionResultsTests` 5/5 (incl. a uint-underflow red-proof in the TTL sweep) · `NetworkGatewaySystemTests` 10/10 (C2 prune-one + prune-all-completes rails, the C3 abort rail — reworked so its peer sends phase-1 then stalls — and the 7 pre-existing green). |
+| ⛔ REMAINING | **C5** (CE-291, real navmesh/altitude Muscle participant) + the abort/timeout `--mode all` wire proof — the piece-C completion gate. ⭐ The happy-path barrier is LIVE-PROVEN on the wire (`EntityMaster WaitForAcks` → peer `Active` reports, wait-set = capability-filtered peers minus owner; ddsmonitor `--mode all`, `2026-09-16`). |
 
 ## 3c. ⭐ GRACEFUL DEGRADATION — a host that does not support reliable init *(AQ-70, `2026-09-16`)*
 > Full design + the decision: **[`Architect_Question_70_Host_Capabilities_And_Reliable_Init_Degradation.md`](blueprints/Architect_Question_70_Host_Capabilities_And_Reliable_Init_Degradation.md)**. This is the consumer summary.
 
 > ✅ **AS-BUILT `2026-09-16` (CE-285 C-cap + CE-286 C-roles) — the host-capability facility + roles-from-tokens
-> are BUILT** (mechanism ① below; mechanism ② the short phase-1 probe ships with C2). What landed:
+> are BUILT** (mechanism ① below; mechanism ② the short phase-1 probe + self-heal is BUILT with CE-288 C2 — see §3b.6). What landed:
 > - **`NodeCapabilitiesTopic`** — a durable DDS descriptor (`[DdsQos(Reliable, TransientLocal, KeepLast 1)]`,
 >   keyed by `NodeId`, `CapabilitiesJson` = a JSON `string[]` of namespaced tokens), added to
 >   `OrchestrationMessages.cs` beside `NodeHeartbeat`. Published ONCE at join by `ClusterSlave`
@@ -569,7 +570,9 @@ var r = ConstructionResults.Get(world, networkId);   // Pending → Success | Fa
 >   `NodeRoleTokens.MaskFromTokens` (supersedes CE-282). `NodesWithRole` + ownership (`GetLeastLoadedNode`) consume the derived mask, unchanged.
 > - **Query:** `IClusterStateCache.Supports(nodeId, token)` + `NodeRoster.Supports(nodeId, token)`.
 > - Rails: `NodeRoleTokensTests` (round-trip, degrade), `ClusterSlaveHeartbeatTests` re-homed to the capability event.
-> ⚠ Mechanism ② (short phase-1 probe + `!fdp.reliable-init` self-heal) is C2, not yet built.
+> ✅ Mechanism ② (short phase-1 probe + `!fdp.reliable-init` self-heal) is BUILT (CE-288 C2 — §3b.6): peers publish
+> `Constructing` promptly (phase-1); the creator's short probe prunes + records `!fdp.reliable-init` on the NED cache
+> the wait-set reads (`RecordUnsupported`), so later creates skip a non-delivering advertiser.
 
 ### 3c.1 The as-built capability flow — advertise once → gather → derive → filter *(CE-285/286)*
 *What this shows that §3c's prose cannot: the token set has ONE producer and TWO independent consumers on

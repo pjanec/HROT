@@ -49,6 +49,13 @@ public sealed class NedNetworkFactory : INetworkFactory
     private readonly int                  _localNodeId;
     private readonly NodeRole             _role;
     private readonly ITkbDatabase?        _tkbDb;
+
+    // CE-288 (C2): ONE cluster cache shared between the reliable-init wait-set provider
+    // (CreateCgfEntityLifecycleAdapters) and the gateway's self-heal callback (CreateReplicationModule), so a
+    // peer dropped by the short phase-1 probe is recorded on the SAME cache the next wait-set reads from.
+    private Hrot.Network.Routing.SimpleClusterStateCache? _sharedClusterCache;
+    private Hrot.Network.Routing.SimpleClusterStateCache SharedClusterCache
+        => _sharedClusterCache ??= new Hrot.Network.Routing.SimpleClusterStateCache();
     private readonly EntityLifecycleModule? _lifecycleModule;
     private readonly BehaviorRegistry?    _behaviorRegistry;
 
@@ -95,7 +102,11 @@ public sealed class NedNetworkFactory : INetworkFactory
                domainId:          0,
                tkbDb:             _tkbDb,
                lifecycleModule:   _lifecycleModule,
-               behaviorRegistry:  _behaviorRegistry);
+               behaviorRegistry:  _behaviorRegistry,
+               // CE-288 (C2): the gateway's short phase-1 probe records a non-delivering peer as
+               // !fdp.reliable-init on the SAME cache the wait-set provider reads, so later creates skip it.
+               onPeerUnsupported: nodeId => SharedClusterCache.RecordUnsupported(
+                                      nodeId, Fdp.Toolkit.Replication.CapabilityTokens.ReliableInit));
 
     /// <inheritdoc/>
     public ICommandGateway CreateCommandGateway()
@@ -275,7 +286,7 @@ public sealed class NedNetworkFactory : INetworkFactory
     {
         if (_participant == null) return null;
 
-        var clusterCache    = new SimpleClusterStateCache();
+        var clusterCache    = SharedClusterCache;   // CE-288: shared with the gateway self-heal callback.
         var heartbeatReader = new DdsReader<NodeHeartbeat>(_participant);
         var capabilitiesReader = new DdsReader<NodeCapabilitiesTopic>(_participant);   // CE-285 (C-cap)
 

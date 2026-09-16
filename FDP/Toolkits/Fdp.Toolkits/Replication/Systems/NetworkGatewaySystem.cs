@@ -35,12 +35,29 @@ namespace Fdp.Toolkit.Replication.Systems
         // Entity → the peer node ids we are still waiting for an Active ack from.
         private readonly Dictionary<Entity, HashSet<int>> _pendingPeerAcks = new();
 
+        // CE-288 (C2): per-entity phase-1 tracking — the peers that have sent a prompt Constructing status
+        // ("participating, in progress"), and the frame the entity was deferred (the phase-1 clock start).
+        private readonly Dictionary<Entity, HashSet<int>> _phase1Received = new();
+        private readonly Dictionary<Entity, uint> _deferFrame = new();
+        private readonly HashSet<Entity> _phase1Checked = new();   // the short-timeout prune runs once per entity.
+
         // CE-289/290 (C3/C4): the persistent creator world, cached at defer time so the reactive completion
         // path (ReceiveLifecycleStatus, called by the transport without a view) can reach the poll-store.
         private EntityRepository? _world;
 
+        // CE-288 (C2): self-heal sink — invoked with a peer node id that missed the short phase-1 probe, so the
+        // caller (NED layer) can record !fdp.reliable-init on the cluster cache and skip it next time. Null in
+        // tests / when self-heal is not wired.
+        private readonly System.Action<int>? _onPeerUnsupported;
+
         /// <summary>Sim tick rate used to convert the creator's <c>ReliableInitTimeout</c> (seconds) to frames.</summary>
         private const double FramesPerSecond = 60.0;
+
+        /// <summary>CE-288 (C2): the SHORT phase-1 window — a wait-set peer that has not sent a Constructing
+        /// status within this many frames of the entity being deferred is treated as not supporting reliable
+        /// init, dropped from the wait-set, and remembered via <see cref="_onPeerUnsupported"/> (§3c ②). Much
+        /// shorter than the long abort timeout, which still governs a peer that DID send phase-1 but never Active.</summary>
+        public const int PHASE1_TIMEOUT_FRAMES = 60;   // ~1 s @ 60 Hz
 
         /// <summary>Reliable init ACK timeout in frames (5 sec @ 60Hz)</summary>
         public const int RELIABLE_INIT_TIMEOUT_FRAMES = DEFAULT_TIMEOUT_FRAMES;
@@ -56,10 +73,12 @@ namespace Fdp.Toolkit.Replication.Systems
             int gatewayModuleId,
             int localNodeId,
             EntityLifecycleModule elm,
-            int reliableInitTimeoutFrames = -1)
+            int reliableInitTimeoutFrames = -1,
+            System.Action<int>? onPeerUnsupported = null)
             : base(gatewayModuleId, elm, reliableInitTimeoutFrames)
         {
             _localNodeId = localNodeId;
+            _onPeerUnsupported = onPeerUnsupported;
         }
 
         /// <summary>The gateway is a GLOBAL waiter — it inspects every constructed entity.</summary>
@@ -81,6 +100,10 @@ namespace Fdp.Toolkit.Replication.Systems
             _world = view as EntityRepository;   // C4: cache the persistent world for the reactive path.
             var peers = CollectPeers(view, entity);
             _pendingPeerAcks[entity] = peers;
+
+            // C2: start the phase-1 clock; no peer has reported Constructing yet.
+            _deferFrame[entity] = GetFrame(view);
+            _phase1Received[entity] = new HashSet<int>();
 
             // C3: honour the creator's per-entity ReliableInitTimeout (stamped on NetworkAckPeerSet as seconds).
             if (view.HasManagedComponent<NetworkAckPeerSet>(entity))
@@ -105,11 +128,63 @@ namespace Fdp.Toolkit.Replication.Systems
         protected override void OnCompleted(ISimulationView? view, Entity entity, IEntityCommandBuffer cmd)
         {
             _pendingPeerAcks.Remove(entity);
+            ClearPhase1State(entity);
             cmd.RemoveComponent<PendingNetworkAck>(entity);
         }
 
         /// <summary>Drop wait-state for an entity destroyed before it completed.</summary>
-        protected override void OnDestroyed(Entity entity) => _pendingPeerAcks.Remove(entity);
+        protected override void OnDestroyed(Entity entity)
+        {
+            _pendingPeerAcks.Remove(entity);
+            ClearPhase1State(entity);
+        }
+
+        private void ClearPhase1State(Entity entity)
+        {
+            _phase1Received.Remove(entity);
+            _deferFrame.Remove(entity);
+            _phase1Checked.Remove(entity);
+        }
+
+        /// <summary>
+        /// CE-288 (C2): the SHORT phase-1 probe. Polled each frame for a pending entity; once the phase-1 window
+        /// has elapsed it prunes — exactly ONCE — every wait-set peer that never sent a Constructing/Active
+        /// status (an older/external host that advertises <c>fdp.reliable-init</c> but does not deliver), records
+        /// the self-heal so later creates skip it, and completes the entity if the pruned wait-set is now empty.
+        /// A peer that DID report is left to the long abort timeout (§3b.3). Reactive Active acks still complete
+        /// via <see cref="ReceiveLifecycleStatus"/>; this only fires when the short window lapses with holdouts.
+        /// </summary>
+        protected override bool TryComplete(ISimulationView view, Entity entity)
+        {
+            if (_phase1Checked.Contains(entity)) return false;
+            if (!_pendingPeerAcks.TryGetValue(entity, out var pending)) return false;
+            if (!_deferFrame.TryGetValue(entity, out var start)) return false;
+
+            uint now = GetFrame(view);
+            if (now - start < (uint)PHASE1_TIMEOUT_FRAMES) return false;   // window not elapsed yet
+
+            _phase1Checked.Add(entity);   // prune once
+            _phase1Received.TryGetValue(entity, out var seen);
+            // Snapshot to avoid mutating the set under iteration.
+            foreach (var peer in new System.Collections.Generic.List<int>(pending))
+            {
+                if (seen != null && seen.Contains(peer)) continue;   // it did send phase-1 → keep (long timeout governs)
+                pending.Remove(peer);
+                _onPeerUnsupported?.Invoke(peer);   // self-heal: record !fdp.reliable-init on the cache
+                FdpLog<NetworkGatewaySystem>.Warn(
+                    "[Node-{0}] Entity {1}: peer {2} missed the phase-1 probe — dropped + marked !fdp.reliable-init.",
+                    _localNodeId, entity.Index, peer);
+            }
+
+            if (pending.Count != 0) return false;
+            // Pruned to empty ⇒ the entity is live and nothing supporting is left to wait for → Success.
+            var world = (view as EntityRepository) ?? _world;
+            long netId = TryGetNetworkId(view, entity);
+            if (netId != 0 && world != null)
+                ConstructionResults.GetOrCreate(world)
+                    .Resolve(netId, ConstructionOutcome.Success, ConstructionFailReason.None, GetFrame(view));
+            return true;   // base PollPending → Complete: ack + OnCompleted cleanup
+        }
 
         /// <summary>
         /// Called by the transport when a remote node reports a lifecycle status. Removes the
@@ -122,6 +197,11 @@ namespace Fdp.Toolkit.Replication.Systems
         {
             if (!_pendingPeerAcks.TryGetValue(entity, out var pendingPeers))
                 return; // not waiting for this entity
+
+            // C2: any status (Constructing phase-1 OR Active phase-2) proves the peer is participating, so it
+            // has passed the short phase-1 probe and must not be pruned as unsupported.
+            if (_phase1Received.TryGetValue(entity, out var seen))
+                seen.Add(nodeId);
 
             if (state != EntityLifecycle.Active)
                 return; // only Active confirmations complete the handshake

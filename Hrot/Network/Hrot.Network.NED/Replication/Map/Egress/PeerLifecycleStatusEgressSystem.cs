@@ -29,7 +29,8 @@ namespace Hrot.Map.Common.Replication.Egress
         private readonly DdsWriter<EntityLifecycleStatusDescriptor> _writer;
         private readonly NetworkEntityMap _entityMap;
         private readonly int _localNodeId;
-        private readonly HashSet<long> _reported = new();
+        private readonly HashSet<long> _reported = new();               // phase-2 Active published
+        private readonly HashSet<long> _reportedConstructing = new();   // CE-288 (C2): phase-1 Constructing published
 
         public string TopicName => "EntityLifecycleStatus";
         public long DescriptorOrdinal => -3; // not a per-entity descriptor; distinct from EntityMaster (-2)
@@ -52,7 +53,35 @@ namespace Hrot.Map.Common.Replication.Egress
         public void ScanAndPublish(ISimulationView view)
         {
             var repo = view as EntityRepository;
+            long ts = repo != null ? repo.GlobalVersion : 0;
 
+            // CE-288 (C2) — PHASE 1: publish Constructing PROMPTLY, once, as soon as the tagged ghost exists
+            // (still Constructing). This is the creator's "participating, in progress" signal (§3b.2 / §3c ②):
+            // it lets the creator's SHORT phase-1 timeout distinguish a supporting host that is simply slow to
+            // reach Active from an older/broken host that will never report at all.
+            var constructing = view.Query()
+                .With<NetworkIdentity>()
+                .With<ReportLifecycleOnActive>()
+                .WithLifecycle(EntityLifecycle.Constructing)
+                .Build();
+            foreach (var entity in constructing)
+            {
+                ref readonly var netId = ref view.GetComponentRO<NetworkIdentity>(entity);
+                if (_reportedConstructing.Contains(netId.Value)) continue;
+                _writer.Write(new EntityLifecycleStatusDescriptor
+                {
+                    EntityId   = netId.Value,
+                    NodeId     = _localNodeId,
+                    StateValue = (int)EntityLifecycle.Constructing,
+                    Timestamp  = ts,
+                });
+                _reportedConstructing.Add(netId.Value);
+                SentSampleCount++;
+                FdpLog<PeerLifecycleStatusEgressSystem>.Debug(
+                    "[Node-{0}] reliable-init: published Constructing (phase-1) for NetID={1}", _localNodeId, netId.Value);
+            }
+
+            // PHASE 2: publish Active once the ghost finishes local construction (the release signal).
             var query = view.Query()
                 .With<NetworkIdentity>()
                 .With<ReportLifecycleOnActive>()
@@ -65,7 +94,6 @@ namespace Hrot.Map.Common.Replication.Egress
                 if (_reported.Contains(netId.Value))
                     continue;
 
-                long ts = repo != null ? repo.GlobalVersion : 0;
                 _writer.Write(new EntityLifecycleStatusDescriptor
                 {
                     EntityId   = netId.Value,
@@ -83,6 +111,10 @@ namespace Hrot.Map.Common.Replication.Egress
 
         public void ApplyToEntity(Entity entity, object data, EntityRepository repo) { }
 
-        public void Dispose(long networkEntityId) => _reported.Remove(networkEntityId);
+        public void Dispose(long networkEntityId)
+        {
+            _reported.Remove(networkEntityId);
+            _reportedConstructing.Remove(networkEntityId);
+        }
     }
 }
