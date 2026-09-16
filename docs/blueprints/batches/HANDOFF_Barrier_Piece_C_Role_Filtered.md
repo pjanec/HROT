@@ -1,9 +1,10 @@
 <!--STATUS
-state: LIVE
-build-state: HANDOFF — dispatched to the UI/CGF lane (H - ui, `claude/reset-working-branch-qd1qpv`).
-  Piece C of the cross-node construction barrier: make it PRODUCTION-correct — role-filtered expected
-  peers (creator) + real per-type receiver participants — replacing slice A's synthetic "all peers".
-  ⛔ STEP 0 is a DESIGN-VERIFICATION gate (as for slice A) — verify the type→roles derivation before building.
+state: SUPERSEDED — by HANDOFF_Barrier_Piece_C_Production.md (`2026-09-16`).
+superseded-by: HANDOFF_Barrier_Piece_C_Production.md
+build-state: ⛔ WITHDRAWN. Its premise (derive a type→roles filter from HrotRoleComponentSets, via a
+  [RequiresPeerInit] component attribute) was RETRACTED by the user: the peer's wait condition is host-local and
+  OPAQUE to the creator. The production model is HANDOFF_Barrier_Piece_C_Production.md → DESIGN §3b/§3c + AQ-70.
+  The commit built against this (b0f05216) is discarded in the new handoff's STEP 0. Kept for history only.
 updated: 2026-09-15
 current-answer: this is the dispatch. Owning DESIGN: DESIGN_Cross_Node_Construction_Barrier.md (§1 diagrams,
   §3a.7 slice-A as-built + the CE-284 follow-ons this closes). Frame: FRAME_Construction_Barrier_Participants.md
