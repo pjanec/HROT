@@ -28,6 +28,7 @@ public sealed class NodeOpSlaveTranslator : IOrchestrationTranslator
     private readonly DdsReader<NodeOpCommand>   _commandReader;
     private readonly DdsWriter<NodeOpStatus>    _statusWriter;
     private readonly DdsWriter<NodeHeartbeat>   _heartbeatWriter;
+    private readonly DdsWriter<NodeCapabilitiesTopic>? _capabilitiesWriter;   // CE-285 (C-cap): null in tests / offline.
     private readonly FdpEventBus                _bus;
     private readonly int                        _nodeId;
     private readonly JsonSerializerOptions      _jsonOptions;
@@ -46,11 +47,13 @@ public sealed class NodeOpSlaveTranslator : IOrchestrationTranslator
         DdsWriter<NodeHeartbeat>   heartbeatWriter,
         FdpEventBus                bus,
         int                        nodeId,
-        JsonSerializerOptions?     jsonOptions = null)
+        JsonSerializerOptions?     jsonOptions = null,
+        DdsWriter<NodeCapabilitiesTopic>? capabilitiesWriter = null)
     {
         _commandReader   = commandReader   ?? throw new ArgumentNullException(nameof(commandReader));
         _statusWriter    = statusWriter    ?? throw new ArgumentNullException(nameof(statusWriter));
         _heartbeatWriter = heartbeatWriter ?? throw new ArgumentNullException(nameof(heartbeatWriter));
+        _capabilitiesWriter = capabilitiesWriter;
         _bus             = bus             ?? throw new ArgumentNullException(nameof(bus));
         _nodeId          = nodeId;
         _jsonOptions     = jsonOptions ?? DefaultOptions;
@@ -94,8 +97,23 @@ public sealed class NodeOpSlaveTranslator : IOrchestrationTranslator
                 RamUsedBytes      = 0L,
                 SimTickAdvancing  = false,
                 SubsystemsJson    = string.Empty,
-                RolesMask         = (int)hb.Roles,   // P1: carry the declared role mask on the wire.
+                // CE-286 (C-roles): heartbeat no longer carries the role mask — roles travel as fdp.role.*
+                // capability tokens on the durable NodeCapabilities descriptor.
             });
+        }
+
+        // ── Capabilities egress: Bus NodeCapabilitiesEvent → durable DDS NodeCapabilities (CE-285) ──
+        // Published once at join by ClusterSlave; the durable descriptor retains the last sample per node.
+        if (_capabilitiesWriter != null)
+        {
+            foreach (var caps in _bus.ReadManaged<NodeCapabilitiesEvent>())
+            {
+                _capabilitiesWriter.Write(new NodeCapabilitiesTopic
+                {
+                    NodeId           = caps.NodeId,
+                    CapabilitiesJson = JsonSerializer.Serialize(caps.Capabilities ?? Array.Empty<string>()),
+                });
+            }
         }
 
         // ── Status egress: Bus NodeOpCompletedEvent → DDS NodeOpStatus ───────
@@ -123,6 +141,7 @@ public sealed class NodeOpSlaveTranslator : IOrchestrationTranslator
         _commandReader.Dispose();
         _statusWriter.Dispose();
         _heartbeatWriter.Dispose();
+        _capabilitiesWriter?.Dispose();
     }
 
     // ── Private helpers ───────────────────────────────────────────────────────

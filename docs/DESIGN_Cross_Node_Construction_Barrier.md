@@ -164,6 +164,10 @@ classDiagram
     NodeRoster ..> NodeHealthProfile : holds
     NodeHealthProfile ..> NodeHeartbeatEvent : filled from
 ```
+⚠ **AS-BUILT (C5, `2026-09-16`):** `NavmeshReadinessParticipant` and `ModelLoadReadinessParticipant` above are
+**SUPERSEDED-by-fake** — built as ONE generic `SimulatedInitReadinessParticipant` because SimHost has no real
+navmesh and IG no real model loading *(user steer)*. It fakes the local-init wait; each real subsystem replaces
+its `TryComplete` poll later. Full as-built in **§3b.7**.
 
 ### 1.3 Who registers what, on which node — ⚠ *and what never ticks*
 *What it shows that neither of the above can: the creator waiter runs on Brain/CGF, the readiness
@@ -540,8 +544,107 @@ eventBus.PublishManaged(new SpawnEntityCommand {
 var r = ConstructionResults.Get(world, networkId);   // Pending → Success | Failed(Timeout)
 ```
 
+### 3b.6 ✅ AS-BUILT — the CREATOR SIDE (C1 + C3 + C4) + C2, `2026-09-16` *(obligation ⑤)*
+| item | as-built |
+|---|---|
+| **C1** (CE-287) wait-set | `SpawnEntityCommand.ReliableInitPeers:int[]?` + `ReliableInitTimeout:TimeSpan?`. `ClusterCacheExpectedPeersProvider` filters present-minus-local to `Supports(fdp.reliable-init)` (§3c ① — non-supporting host never waited for). `NetworkSpawningSystem.IntersectReliablePeers` narrows by the optional creator list; stamps `NetworkAckPeerSet{ExpectedAckPeers, TimeoutSeconds}`. |
+| **C2** (CE-288) phase-1 probe + self-heal | **Peer side:** `PeerLifecycleStatusEgressSystem` now publishes `EntityLifecycleStatusDescriptor(Constructing)` PROMPTLY (phase-1) as soon as the tagged ghost exists, then `Active` (phase-2). **Creator side:** `NetworkGatewaySystem` tracks phase-1 receipt per peer (any status, Constructing or Active, marks it participating); a SHORT `PHASE1_TIMEOUT_FRAMES` (~1 s) prunes — once — every wait-set peer that never sent phase-1, invokes `onPeerUnsupported(nodeId)` self-heal, and completes the entity if the pruned set empties. **Self-heal:** `IClusterStateCache.RecordUnsupported(nodeId, token)` forces `Supports`→false for that (node, token), surviving `PollNetwork` rebuilds; wired via a shared cache instance the factory now hands both the wait-set provider and the gateway callback (`NedNetworkFactory.SharedClusterCache` → `NedReplicationModule.onPeerUnsupported`). ⭐ **Interaction finding:** the C2 SHORT prune (unsupported: never sent phase-1) and the C3 LONG abort (stuck: sent phase-1, never Active) are for DIFFERENT peers — a peer that sends nothing is UNSUPPORTED (pruned + healed → the create still succeeds if nothing supporting is left), not STUCK (aborted). ⚠ **§3b.2's non-ghosting immediate-reply branch is INERT in this homogeneous NED model** — `EntityMasterIngressTranslator` always ghosts an alive `EntityMaster`, so every wait-set peer ghosts + reports; the branch is only relevant to external/older hosts and is not built (folded here rather than shipping dead code). |
+| **C3** (CE-289) timeout=abort | New base hook `DeferredConstructionParticipant.OnTimeout` (default = legacy force-ack; per-entity timeout via `SetPendingTimeout`, seeded from `NetworkAckPeerSet.TimeoutSeconds` @ 60 fps). `NetworkGatewaySystem.OnTimeout` OVERRIDES to ABORT: write `Failed(Timeout)` + `_elm.BeginDestruction`. ⭐ **Measured finding folded here:** `BeginDestruction` emits a `DestructionOrder` that **`CycloneNetworkCleanupSystem` already turns into an `EntityMaster` dispose sample** (`translator.Dispose(netId)`) — so the abort disposes the wire instance with **no new cross-layer seam**; the receiver's existing `ProcessDispose` removes the ghost. The creator never force-acks a reliable entity. |
+| **C4** (CE-290) poll-store | `ConstructionResults` — a managed singleton (component id **153**, verified free) holding a `Dictionary<long,Entry>` keyed by `NetworkId`, evict-on-read of terminal results + TTL sweep. Gateway writes `Pending` on defer, `Success` in `ReceiveLifecycleStatus` when the wait-set empties, `Failed(Timeout)` on abort. ⚠ The reactive success path has no `view`, so the gateway caches the persistent `EntityRepository` at defer time. ⚠ `GetSingletonManaged` **throws** when unset — guarded with `HasSingletonManaged`. |
+| rails | `ClusterCacheExpectedPeersProviderTests` 2/2 · `ConstructionResultsTests` 5/5 (incl. a uint-underflow red-proof in the TTL sweep) · `NetworkGatewaySystemTests` 10/10 (C2 prune-one + prune-all-completes rails, the C3 abort rail — reworked so its peer sends phase-1 then stalls — and the 7 pre-existing green). |
+| **C5** (CE-291) peer participant | ✅ **BUILT + unit-proven** *(the abort/timeout wire proof runs next)* — see §3b.7. `SimulatedInitReadinessParticipant` (`Fdp.Toolkits/Replication/Systems`) — the FIRST real peer-side participant, holding a reliable ghost in `Constructing` for a simulated navmesh/model-load window then acking. ⭐ **FAKED per user steer** (`2026-09-16`, *"no real navmesh in simhost, no real model loading in ig … fake the waiting"*) — ONE generic participant stands in for the design's `NavmeshReadinessParticipant`/`ModelLoadReadinessParticipant` until the real subsystems exist. |
+| ⛔ REMAINING | the abort/timeout `--mode all` wire proof — the last piece-C gate. ⭐ The happy-path barrier is LIVE-PROVEN on the wire (`EntityMaster WaitForAcks` → peer `Active` reports, wait-set = capability-filtered peers minus owner; ddsmonitor `--mode all`, `2026-09-16`). |
+
+### 3b.7 ✅ AS-BUILT — the PEER SIDE (C5), `2026-09-16` *(obligation ⑤)*
+> ⚠ **DEVIATION from §1.2's class diagram, folded here.** The diagram names TWO peer participants —
+> `NavmeshReadinessParticipant` (SimHost/muscle) and `ModelLoadReadinessParticipant` (IG). 🔒 **User steer
+> (`2026-09-16`):** *"there is no real navmesh in simhost and no real model loading in ig so … fake the
+> waiting for initializing them."* ⇒ built as **ONE generic `SimulatedInitReadinessParticipant`** that fakes
+> the local-init wait; the two named classes are **SUPERSEDED-by-fake** until the real navmesh/model
+> subsystems exist, at which point each replaces the `TryComplete` poll with a real readiness query and the
+> surrounding barrier plumbing is unchanged.
+
+| item | as-built |
+|---|---|
+| **the class** | `SimulatedInitReadinessParticipant : DeferredConstructionParticipant` (poll mode). A GLOBAL participant (`Participates`→true) that defers ONLY entities tagged `ReportLifecycleOnActive` (the reliable-ghost tag `EntityMasterIngressTranslator` sets from `EntityMaster.WaitForAcks`); a fast-mode ghost and the creator's own copy (neither tagged) are acked the same frame — nothing outside reliable init changes. `TryComplete` acks once a simulated window (frames) has elapsed. |
+| **never self-activates (§3b.3)** | `OnTimeout` is OVERRIDDEN to a no-op (keep waiting, one stall log) — a reliable ghost waits for its condition or the creator's `EntityMaster` dispose, never force-acking itself. ⭐ This is exactly the "stuck but participating" peer the abort leg needs: it sends the phase-1 `Constructing` status (so C2 does not prune it as unsupported) yet never reaches `Active`. |
+| **registration** | `NedReplicationModule` constructs + registers it beside the gateway, module id **918274**, guarded by `lifecycleModule != null` AND `FDP_FAKE_INIT_FRAMES > 0`. ⭐ **Off by default** — with no fake window there is nothing to wait for, so the barrier completes as soon as each peer ghosts + reports (production timing unchanged). Per-node label: `navmesh` on a muscle node, `model-load` elsewhere. |
+| **how the two wire legs are driven** | the fake window is FIXED per run (`FDP_FAKE_INIT_FRAMES`); both legs come from the creator's `reliableTimeoutSeconds` (ai-debug spawn knob) — **happy path**: `reliableTimeoutSeconds ≫ window` ⇒ peer holds (visible `Constructing` phase-1) then acks ⇒ `Active` ⇒ `Success`; **abort**: `reliableTimeoutSeconds < window` ⇒ creator times out while the peer still holds ⇒ `EntityMaster` dispose on the wire. No participant change between runs. |
+| rails | `SimulatedInitReadinessParticipantTests` — immediate-ack for a non-reliable ghost · defer-then-ack after the window · `OnTimeout` keeps waiting (never self-activates, §3b.3) · destruction clears state + acks teardown. |
+
+### 3b.8 ✅ AS-BUILT — SYMMETRIC CREATORS + the ABORT wire proof, `2026-09-16` *(obligation ⑤)*
+> 🔒 **User ruling (`2026-09-16`):** *"'--mode all' can never have empty wait set… only '--mode editor' is
+> networkless."* · *"we aim for unification and role-based approach; if something should work same way on all
+> ecs enabled nodes it should live in shared code called from individual hosts; the node-centric gating is
+> obsolete"* · *"don't forget the stride simhost node, it is no exception."*
+
+⛔ **The bug the C5 wire proof exposed.** The barrier's **creator half** — capability ingestion (fills the
+cluster cache) + the `ExpectedPeers` wait-set provider — was wired **per-host and only completely on CGF**:
+IG created the cache but never passed `ExpectedPeers`; **SimHost/Stride had none at all** (their own code
+flagged the "network half" as an unwired follow-up). So a SimHost-created reliable entity got an **empty
+wait-set** → the gateway immediate-completed → **no wait, no timeout, no abort.** This contradicted §3a.4's
+"any node can be creator — symmetric" and CGF's own comment *"Only the Brain creator stamps peers"*
+(now deleted).
+
+| ⭐ the unified as-built | |
+|---|---|
+| **shared ingest** | new `ClusterCapabilityIngestSystem` (`Hrot.Network.NED/Routing`) reads the durable `NodeCapabilitiesTopic`+`NodeHeartbeat` into the node's `SimpleClusterStateCache` every tick. **`NedReplicationModule` constructs + registers it** — and the module is built for EVERY ECS node by the shared bootstrapper — so ingestion is single-sourced, not per-host. |
+| **shared provider** | `NedReplicationModule.ExpectedPeers` (on `INedReplicationModule`) exposes the wait-set provider over that same cache. Every host wires `ExpectedPeers = context.NedReplication?.ExpectedPeers` — one shared expression, no node-centric gating. |
+| **all paths carry the cache** | the factory path (`CreateReplicationModule`, used by CGF/IG) AND the builder path (`.WithReplication` → `HrotNodeBuilderReplicationExtensions`, used by **SimHost/Stride**) now hand the module a `SimpleClusterStateCache`. The builder-path omission was the actual root cause of the empty wait-set. |
+| **removed** | CGF's per-host `adapters?.ExpectedPeers` gating (the "only Brain stamps peers" path). CGF/IG keep their `adapters.PollNetwork` for now (idempotent double-ingest into the same cache — a noted cleanup, not gating). |
+
+⭐⭐ **LIVE WIRE PROOF (`--mode all`, `FDP_FAKE_INIT_FRAMES=180` ≈ 6 s window, ddsmonitor, `2026-09-16`):**
+- **Happy path** *(spawn reliable, `reliableTimeoutSeconds=10`)*: `EntityMaster(WaitForAcks)` → peers 100+400 `Constructing` (phase-1, held ~6 s by `SimulatedInitReadinessParticipant`) → `Active` → creator `Success`.
+- **Abort path** *(spawn reliable, `reliableTimeoutSeconds=2` < window)*: SimHost creator's wait-set = **`[100,400]`** *(measured)*, timeout **2 s** *(propagated)*; peers held `Constructing`, never `Active`; creator logged *"reliable-init timeout — aborting via EntityMaster dispose"*; the wire showed **`EntityMaster … Flags=0 NotAliveDisposed`** at ~+4.6 s → every peer's `ProcessDispose` removes the ghost (§3b.3). ⛔ The `preview.control` error on the ai-debug spawn is a separate SimHost-perspective quirk; the entity is created and the barrier engages regardless.
+
 ## 3c. ⭐ GRACEFUL DEGRADATION — a host that does not support reliable init *(AQ-70, `2026-09-16`)*
 > Full design + the decision: **[`Architect_Question_70_Host_Capabilities_And_Reliable_Init_Degradation.md`](blueprints/Architect_Question_70_Host_Capabilities_And_Reliable_Init_Degradation.md)**. This is the consumer summary.
+
+> ✅ **AS-BUILT `2026-09-16` (CE-285 C-cap + CE-286 C-roles) — the host-capability facility + roles-from-tokens
+> are BUILT** (mechanism ① below; mechanism ② the short phase-1 probe + self-heal is BUILT with CE-288 C2 — see §3b.6). What landed:
+> - **`NodeCapabilitiesTopic`** — a durable DDS descriptor (`[DdsQos(Reliable, TransientLocal, KeepLast 1)]`,
+>   keyed by `NodeId`, `CapabilitiesJson` = a JSON `string[]` of namespaced tokens), added to
+>   `OrchestrationMessages.cs` beside `NodeHeartbeat`. Published ONCE at join by `ClusterSlave`
+>   (`NodeCapabilitiesEvent`, EventId 9022), egressed by `NodeOpSlaveTranslator`, ingested by
+>   `OrchestrationObserverTranslator` + `NedOrchestrationTranslator` (orchestrator roster) and by
+>   `NedNetworkFactory.PollNetwork` (the NED cluster cache the barrier's wait-set reads).
+> - **Tokens:** `NodeRoleTokens` (`Fdp.Core`) is the closed enum↔token table (`fdp.role.brain`,
+>   `fdp.role.muscle-ground`, `fdp.role.map2d`, `fdp.role.perception`, `fdp.role.navigation-solver`);
+>   `CapabilityTokens.ReliableInit = "fdp.reliable-init"` (`Fdp.Toolkits.Replication`) is the first feature token.
+>   Every NED node (CGF/SimHost/IG/`HrotNodeBuilder`) advertises `fdp.reliable-init`; the orchestrator advertises nothing.
+> - **Roles-from-tokens (C-roles):** `NodeHeartbeat.RolesMask` and `NodeHeartbeatEvent.Roles` are **REMOVED** — the
+>   heartbeat is telemetry-only. `NodeHealthProfile.Roles` and `NodeCapability.Role` are now **DERIVED** at ingest via
+>   `NodeRoleTokens.MaskFromTokens` (supersedes CE-282). `NodesWithRole` + ownership (`GetLeastLoadedNode`) consume the derived mask, unchanged.
+> - **Query:** `IClusterStateCache.Supports(nodeId, token)` + `NodeRoster.Supports(nodeId, token)`.
+> - Rails: `NodeRoleTokensTests` (round-trip, degrade), `ClusterSlaveHeartbeatTests` re-homed to the capability event.
+> ✅ Mechanism ② (short phase-1 probe + `!fdp.reliable-init` self-heal) is BUILT (CE-288 C2 — §3b.6): peers publish
+> `Constructing` promptly (phase-1); the creator's short probe prunes + records `!fdp.reliable-init` on the NED cache
+> the wait-set reads (`RecordUnsupported`), so later creates skip a non-delivering advertiser.
+
+### 3c.1 The as-built capability flow — advertise once → gather → derive → filter *(CE-285/286)*
+*What this shows that §3c's prose cannot: the token set has ONE producer and TWO independent consumers on
+different reads (the orchestrator roster and the NED cache), the `NodeRole` mask is derived at BOTH ingests
+from the same `NodeRoleTokens` table, and the barrier's wait-set is filtered by `Supports(fdp.reliable-init)`
+— never by a creator-computed role→type map.*
+
+```mermaid
+sequenceDiagram
+    autonumber
+    participant SL as ClusterSlave (any node)
+    participant EG as NodeOpSlaveTranslator (egress)
+    participant W as DDS NodeCapabilities (durable)
+    participant OR as Orchestrator ingest (ClusterMaster)
+    participant NF as NedNetworkFactory PollNetwork (NED cache)
+    participant WS as Creator wait-set (C1)
+    SL->>EG: NodeCapabilitiesEvent once at join (fdp.role.* + fdp.reliable-init)
+    EG->>W: write retained sample (CapabilitiesJson)
+    W-->>OR: retained tokens
+    OR->>OR: NodeHealthProfile.Capabilities + Roles = NodeRoleTokens.MaskFromTokens
+    W-->>NF: retained tokens
+    NF->>NF: NodeCapability.Capabilities + Role = NodeRoleTokens.MaskFromTokens
+    WS->>NF: Supports(peer, fdp.reliable-init)?  (include only if true)
+```
+*Caption: a node advertising no `fdp.reliable-init` token is never in a wait-set — capability degradation (§3c ①) — and a node advertising no `fdp.role.*` token derives to `NodeRole.None`.*
 
 A peer that does not support reliable init never publishes `EntityLifecycleStatusDescriptor`. It must never make a
 creator block forever. Two composed mechanisms:
@@ -564,7 +667,8 @@ capability facility is **general**; `fdp.reliable-init` is its first token.
 The peer's "is my data ready?" gate already exists: `GhostPromotionSystem`'s mandatory-components gate *(HARD,
 no timeout)* + the receiver's local ELM. The navmesh/model participants are **additional local participants
 on that existing gate**, not a new pipeline. A peer reaches `Active` only after they ack — which is precisely
-the moment `PeerLifecycleStatusEgressSystem` publishes.
+the moment `PeerLifecycleStatusEgressSystem` publishes. ⭐ **AS-BUILT (C5):** the single faked
+`SimulatedInitReadinessParticipant` is exactly such an additional participant on that gate — see §3b.7.
 
 ## 5. ⛔ PREREQUISITES — order before READY-TO-BUILD
 1. **P1** — carry `NodeRole` mask on `NodeHeartbeatEvent` *(the 3 producers know the node's boot role)*;
@@ -575,11 +679,12 @@ the moment `PeerLifecycleStatusEgressSystem` publishes.
    current rulings)*.
 
 ### ✅ P1–P3 AS-BUILT (`2026-09-15`) — role propagation done; the barrier itself is still DESIGN
-> ⛔⛔ **TRANSPORT SUPERSEDED by AQ-70 §Q70-C (`2026-09-16`):** P1 below carries the role mask as
-> `NodeHeartbeat.RolesMask` (per-tick). The resolved model publishes `fdp.role.*` **capability tokens** on a
-> durable `NodeCapabilities` descriptor instead and **derives** the `NodeRole` mask at ingest; the heartbeat
-> returns to telemetry-only. The `NodesWithRole` query + ownership tables (P2/P3) are UNCHANGED — they consume
-> the derived mask. This rework is part of piece C. The P1 text below is the CE-282 as-built (HISTORY).
+> ✅⛔ **TRANSPORT SUPERSEDED AND REBUILT by CE-286 (C-roles, `2026-09-16`):** P1 below carried the role mask as
+> `NodeHeartbeat.RolesMask` (per-tick, CE-282). That field — and `NodeHeartbeatEvent.Roles` — are now **REMOVED**:
+> the host publishes `fdp.role.*` **capability tokens** on the durable `NodeCapabilities` descriptor (CE-285) and
+> the orchestrator/cache **DERIVE** the `NodeRole` mask at ingest via `NodeRoleTokens.MaskFromTokens`; the heartbeat
+> is telemetry-only. The `NodesWithRole` query + ownership tables (P2/P3) are UNCHANGED — they consume the derived
+> mask. Full as-built in §3c. The P1 text below is the CE-282 as-built (HISTORY — the RolesMask wire it describes is gone).
 > The §0 INVENTORY sites were accurate and unchanged; the §1.2 class diagram's P1/P2/P3 boxes are the
 > as-built shape. The wire gained one field (a field, not a new shape) → no new diagram.
 

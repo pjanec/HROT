@@ -29,8 +29,15 @@ namespace Fdp.Toolkit.Orchestration
     {
         private readonly int    _nodeId;
         private readonly string _subsystemName;
-        private readonly NodeRole _roles;   // P1: the node's declared role mask, published on every heartbeat.
+        private readonly NodeRole _roles;   // P1: the node's declared role mask (now the SOURCE of fdp.role.* tokens).
         private readonly FdpEventBus? _eventBus;
+
+        // CE-285 (C-cap): the node's static capability token set — fdp.role.* tokens derived from _roles
+        // (AQ-70 §Q70-C: the mask is no longer published; its tokens are) UNION the feature tokens the
+        // composition root passed (e.g. CapabilityTokens.ReliableInit). Published ONCE at join on the durable
+        // NodeCapabilities descriptor, never on the per-tick heartbeat (§Q70-B).
+        private readonly string[] _capabilityTokens;
+        private bool _capabilitiesPublished;
 
         private readonly List<IClusterStateHandler> _handlers = new();
         private readonly Stopwatch _heartbeatTimer = Stopwatch.StartNew();
@@ -67,12 +74,14 @@ namespace Fdp.Toolkit.Orchestration
             int    nodeId,
             string subsystemName,
             FdpEventBus? eventBus = null,
-            NodeRole roles = NodeRole.None)
+            NodeRole roles = NodeRole.None,
+            IReadOnlyList<string>? capabilities = null)
         {
             _nodeId        = nodeId;
             _subsystemName = subsystemName ?? throw new ArgumentNullException(nameof(subsystemName));
             _eventBus      = eventBus;
             _roles         = roles;
+            _capabilityTokens = BuildCapabilityTokens(roles, capabilities);
             EnsureOrchestrationEventsRegistered(eventBus);
         }
 
@@ -83,13 +92,28 @@ namespace Fdp.Toolkit.Orchestration
         /// Use <see cref="EnqueueIntentForTest"/> to inject intents directly.
         /// </summary>
         public ClusterSlave(FdpEventBus? eventBus = null, int nodeId = 0, string subsystemName = "TestNode",
-            NodeRole roles = NodeRole.None)
+            NodeRole roles = NodeRole.None, IReadOnlyList<string>? capabilities = null)
         {
             _nodeId        = nodeId;
             _subsystemName = subsystemName;
             _eventBus      = eventBus;
             _roles         = roles;
+            _capabilityTokens = BuildCapabilityTokens(roles, capabilities);
             EnsureOrchestrationEventsRegistered(eventBus);
+        }
+
+        /// <summary>The full capability token set this node advertises: the <c>fdp.role.*</c> tokens for its
+        /// role mask (AQ-70 §Q70-C — the mask is derived back from these at ingest) unioned with the feature
+        /// tokens the composition root supplied. Order-stable and de-duplicated.</summary>
+        private static string[] BuildCapabilityTokens(NodeRole roles, IReadOnlyList<string>? featureTokens)
+        {
+            var set = new List<string>();
+            foreach (var t in NodeRoleTokens.TokensFromMask(roles))
+                if (!set.Contains(t)) set.Add(t);
+            if (featureTokens != null)
+                foreach (var t in featureTokens)
+                    if (!string.IsNullOrEmpty(t) && !set.Contains(t)) set.Add(t);
+            return set.ToArray();
         }
 
         /// <summary>
@@ -151,6 +175,18 @@ namespace Fdp.Toolkit.Orchestration
         /// </summary>
         public void Tick()
         {
+            // CE-285 (C-cap): advertise the static capability token set ONCE at join. Durable descriptor →
+            // one publish is retained + delivered to the orchestrator and any late joiner (§Q70-B).
+            if (!_capabilitiesPublished && _eventBus != null)
+            {
+                _capabilitiesPublished = true;
+                _eventBus.PublishManaged(new NodeCapabilitiesEvent
+                {
+                    NodeId       = _nodeId,
+                    Capabilities = _capabilityTokens,
+                });
+            }
+
             // Heartbeat at 1 Hz via FdpEventBus.
             if (_heartbeatTimer.Elapsed.TotalSeconds >= 1.0)
             {
@@ -161,7 +197,8 @@ namespace Fdp.Toolkit.Orchestration
                     LocalStateId  = _localStateId,
                     WallTicksUtc  = DateTimeOffset.UtcNow.Ticks,
                     SubsystemName = _subsystemName,
-                    Roles         = _roles,
+                    // CE-286 (C-roles): the heartbeat is telemetry-only; the role mask travels as fdp.role.*
+                    // tokens on the durable NodeCapabilities descriptor (published once at join above).
                 });
             }
 

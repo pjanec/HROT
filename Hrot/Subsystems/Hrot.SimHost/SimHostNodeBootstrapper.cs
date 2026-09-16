@@ -498,6 +498,13 @@ public sealed class SimHostNodeBootstrapper : SharedApplicationBootstrapper
             //    ⚠ The pack hands the SAME instance to NetworkSpawningSystem (create leg) and
             //    GhostPromotionSystem (promote leg), so the two legs cannot be configured apart.
             RoleAffinity = Hrot.Map.Common.HrotRoleComponentSets.CreatePolicy(SimHostApp.DefaultRole),
+
+            // ⭐⭐⭐ CE-291 (piece C) — the reliable-init wait-set provider, sourced UNIFORMLY from the shared
+            //    NED replication module (which hosts the cluster-membership ingest for every ECS node). 🔒 User
+            //    ruling 2026-09-16: the node-centric "only CGF stamps peers" gating is obsolete — SimHost is a
+            //    symmetric reliable creator. null ⇒ fast-mode (headless/editor with no cluster cache).
+            //    📄 docs/DESIGN_Cross_Node_Construction_Barrier.md §3a.4.
+            ExpectedPeers = context.NedReplication?.ExpectedPeers,
         });
 
         var spawningSystem = creation.SpawnSystem;

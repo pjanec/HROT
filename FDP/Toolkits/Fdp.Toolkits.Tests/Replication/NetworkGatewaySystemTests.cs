@@ -31,6 +31,7 @@ namespace Fdp.Toolkit.Replication.Tests
         {
             var repo = new EntityRepository();
             repo.RegisterComponent<PendingNetworkAck>();
+            repo.RegisterComponent<NetworkIdentity>();   // CE-289/290: gateway reads NetId for the poll-store.
             repo.RegisterManagedComponent<NetworkAckPeerSet>();
             repo.RegisterEvent<ConstructionOrder>();
             repo.RegisterEvent<ConstructionAck>();
@@ -152,6 +153,89 @@ namespace Fdp.Toolkit.Replication.Tests
             ((EntityCommandBuffer)cmd2).Playback(repo);
             repo.Bus.SwapBuffers();
             Assert.True(SawAck(repo, entity), "should ack once BOTH peers report Active");
+        }
+
+        // ── CE-288 (C2): the short phase-1 probe prunes a non-delivering peer + self-heals ─
+        [Fact]
+        public void Phase1Probe_PrunesSilentPeer_FiresSelfHeal_KeepsResponder()
+        {
+            using var repo = CreateRepo();
+            var dropped = new System.Collections.Generic.List<int>();
+            var gateway = new NetworkGatewaySystem(GatewayModuleId, LocalNodeId, NewElm(),
+                                                   reliableInitTimeoutFrames: -1, onPeerUnsupported: dropped.Add);
+            var entity = repo.CreateEntity();
+            repo.AddComponent(entity, new PendingNetworkAck { ExpectedType = ReliableInitType.AllPeers });
+            repo.AddComponent(entity, new NetworkIdentity { Value = 7000 });
+            StampPeers(repo, entity, 2, 3);   // wait for peers 2 and 3
+
+            PublishOrder(repo, entity);
+            RunTick(repo, gateway);           // deferred; phase-1 clock starts
+
+            // peer 2 reports Constructing (phase-1 = "participating"); peer 3 stays silent.
+            var cmd = (EntityCommandBuffer)((ISimulationView)repo).GetCommandBuffer();
+            gateway.ReceiveLifecycleStatus(entity, 2, EntityLifecycle.Constructing, cmd, 1);
+            cmd.Playback(repo); repo.Bus.SwapBuffers();
+
+            repo.ResetGlobalVersion((uint)(NetworkGatewaySystem.PHASE1_TIMEOUT_FRAMES + 50));
+            RunTick(repo, gateway);           // phase-1 window elapsed → prune the silent peer
+
+            Assert.Equal(new[] { 3 }, dropped.ToArray());   // only peer 3 (never sent phase-1) is self-healed
+            Assert.False(SawAck(repo, entity), "peer 2 sent phase-1 and hasn't reached Active — still waiting on it");
+        }
+
+        [Fact]
+        public void Phase1Probe_AllSilent_PrunesAll_CompletesWithSuccess()
+        {
+            using var repo = CreateRepo();
+            var dropped = new System.Collections.Generic.List<int>();
+            var gateway = new NetworkGatewaySystem(GatewayModuleId, LocalNodeId, NewElm(),
+                                                   reliableInitTimeoutFrames: -1, onPeerUnsupported: dropped.Add);
+            var entity = repo.CreateEntity();
+            repo.AddComponent(entity, new PendingNetworkAck { ExpectedType = ReliableInitType.AllPeers });
+            repo.AddComponent(entity, new NetworkIdentity { Value = 7001 });
+            StampPeers(repo, entity, 2, 3);
+
+            PublishOrder(repo, entity);
+            RunTick(repo, gateway);
+            repo.ResetGlobalVersion((uint)(NetworkGatewaySystem.PHASE1_TIMEOUT_FRAMES + 50));
+            RunTick(repo, gateway);           // both silent → both pruned → wait-set empties → complete
+
+            Assert.Equal(new[] { 2, 3 }, dropped.OrderBy(x => x).ToArray());
+            Assert.True(SawAck(repo, entity), "with no supporting peer left, the entity acks (does not hang)");
+            Assert.Equal(ConstructionOutcome.Success, ConstructionResults.Get(repo, 7001).Outcome);
+        }
+
+        // ── CE-289 (C3): timeout ABORTS a reliable entity, never force-acks it ─
+        [Fact]
+        public void OnTimeout_AbortsReliableEntity_WritesFailedTimeout_AndDoesNotAck()
+        {
+            using var repo = CreateRepo();
+            var gateway = NewGateway(NewElm(), timeoutFrames: 2);
+            var entity = repo.CreateEntity();
+            repo.AddComponent(entity, new PendingNetworkAck { ExpectedType = ReliableInitType.AllPeers });
+            repo.AddComponent(entity, new NetworkIdentity { Value = 5555 });
+            StampPeers(repo, entity, 2);   // one peer that never reports Active
+
+            PublishOrder(repo, entity);
+            RunTick(repo, gateway);        // frame 0: deferred; store = Pending
+            Assert.False(SawAck(repo, entity), "must not ack while still waiting for the peer");
+            Assert.Equal(ConstructionOutcome.Pending, ConstructionResults.Get(repo, 5555).Outcome);
+
+            // The peer sends phase-1 (Constructing) — so it is a SUPPORTING host that is merely stuck before
+            // Active, NOT an unsupported host (which the C2 short probe would prune instead). This is the case
+            // the long abort timeout governs.
+            var cmd0 = (EntityCommandBuffer)((ISimulationView)repo).GetCommandBuffer();
+            gateway.ReceiveLifecycleStatus(entity, 2, EntityLifecycle.Constructing, cmd0, 1);
+            cmd0.Playback(repo); repo.Bus.SwapBuffers();
+
+            repo.ResetGlobalVersion(100);  // advance well past the 2-frame timeout
+            RunTick(repo, gateway);        // timeout → abort (peer kept by phase-1, then stuck → aborted)
+
+            // A reliable entity is torn down, NOT force-activated (§3b.3).
+            Assert.False(SawAck(repo, entity), "reliable entity must be aborted, not force-acked, on timeout");
+            var r = ConstructionResults.Get(repo, 5555);
+            Assert.Equal(ConstructionOutcome.Failed, r.Outcome);
+            Assert.Equal(ConstructionFailReason.Timeout, r.Reason);
         }
 
         // ── A non-Active status never completes the handshake ─────────────────

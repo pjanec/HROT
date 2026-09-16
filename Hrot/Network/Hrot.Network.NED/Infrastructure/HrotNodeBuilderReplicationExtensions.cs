@@ -115,7 +115,13 @@ public sealed class HrotNodeBuilderWithReplication
             behaviorRegistry:     _behaviorRegistry,
             tkbDb:                HrotEnvironment.CreateTkb(),
             lifecycleModule:      elm,
-            tkbEntityTranslators: _translators);
+            tkbEntityTranslators: _translators,
+            // ⭐⭐⭐ CE-291 (piece C) — hand the module a cluster-state cache so it hosts the shared
+            //    cluster-membership ingest + the reliable-init wait-set provider on THIS builder path too
+            //    (SimHost / Stride use .WithReplication, not the factory's CreateReplicationModule). Without
+            //    it, a SimHost/Stride creator had ExpectedPeers=null and never engaged the barrier. 🔒 User
+            //    ruling 2026-09-16: no node-centric gating. 📄 DESIGN_Cross_Node_Construction_Barrier.md §3a.4.
+            clusterCache:         new Hrot.Network.Routing.SimpleClusterStateCache());
 
         return context with
         {

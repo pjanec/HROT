@@ -18,6 +18,11 @@ namespace Hrot.Network.Routing
     public sealed class SimpleClusterStateCache : IClusterStateCache
     {
         private readonly Dictionary<int, NodeCapability> _nodes = new();
+        // CE-288 (C2): observed "does NOT actually support this capability" overrides — the self-heal from the
+        // creator's short phase-1 probe (§3c ②). Kept SEPARATE from _nodes so it survives PollNetwork rebuilding
+        // NodeCapability from the durable descriptor each poll (the node still ADVERTISES the token; observation
+        // says it never delivers). Supports() forces false for an overridden (node, token).
+        private readonly HashSet<(int NodeId, string Token)> _unsupportedOverrides = new();
         private readonly object _lock = new();
 
         /// <inheritdoc/>
@@ -43,6 +48,26 @@ namespace Hrot.Network.Routing
             lock (_lock)
             {
                 return _nodes.Keys.ToList();
+            }
+        }
+
+        /// <inheritdoc/>
+        public bool Supports(int nodeId, string token)
+        {
+            lock (_lock)
+            {
+                if (_unsupportedOverrides.Contains((nodeId, token)))
+                    return false;   // CE-288: observed-unsupported override wins over the advertised token.
+                return _nodes.TryGetValue(nodeId, out var cap) && cap.Capabilities.Contains(token);
+            }
+        }
+
+        /// <inheritdoc/>
+        public void RecordUnsupported(int nodeId, string token)
+        {
+            lock (_lock)
+            {
+                _unsupportedOverrides.Add((nodeId, token));
             }
         }
 

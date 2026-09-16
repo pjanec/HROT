@@ -80,10 +80,26 @@ namespace Fdp.Toolkit.Orchestration
         public int    LocalStateId;
         public long   WallTicksUtc;
         public string SubsystemName;
-        /// <summary>P1 (cross-node construction barrier): the node's declared <see cref="NodeRole"/> mask
-        /// ([Flags], possibly multi-role). Carried from the node's own boot config so the orchestrator
-        /// roster + cluster cache read the real mask instead of re-deriving one role from the display name.</summary>
-        public NodeRole Roles;
+        // CE-286 (C-roles): the `NodeRole Roles` field was REMOVED. Roles are static and now travel as
+        // fdp.role.* tokens on the durable NodeCapabilities descriptor (NodeCapabilitiesEvent), from which the
+        // orchestrator/cache DERIVE the mask at ingest (AQ-70 §Q70-C). The heartbeat is telemetry-only again.
+    }
+
+    /// <summary>
+    /// Published ONCE at join by <c>ClusterSlave</c> — the node's static capability token set
+    /// (OpenGL-extension-style namespaced: <c>fdp.role.*</c> role tokens + feature tokens like
+    /// <c>fdp.reliable-init</c>). Consumed by the egress translator to write the durable
+    /// <c>NodeCapabilities</c> DDS topic, and (ingress) republished from that topic for the orchestrator/cache
+    /// gather (AQ-70 §Q70-B/C, cluster-master §8). The <see cref="NodeRole"/> mask is DERIVED from the
+    /// <c>fdp.role.*</c> subset at ingest via <see cref="NodeRoleTokens"/> — nobody publishes the mask, so it
+    /// cannot drift (supersedes CE-282 roles-on-heartbeat).
+    /// </summary>
+    [EventId(9022)]
+    [DataPolicy(DataPolicy.NoReplay)]
+    public struct NodeCapabilitiesEvent
+    {
+        public int      NodeId;
+        public string[] Capabilities;
     }
 
     /// <summary>

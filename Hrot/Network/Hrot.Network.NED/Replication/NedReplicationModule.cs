@@ -75,6 +75,8 @@ public sealed class NedReplicationModule : INedReplicationModule
     private readonly ITkbDatabase?         _tkbDb;
     private readonly EntityLifecycleModule? _lifecycleModule;
     private readonly IReadOnlyList<ITkbEntityTranslator>? _tkbEntityTranslators;
+    // CE-288 (C2): self-heal sink — records a peer that missed the short phase-1 probe as !fdp.reliable-init.
+    private readonly System.Action<int>? _onPeerUnsupported;
 
     // ── Translator lists ───────────────────────────────────────────────────────
     private readonly IEnumerable<INetworkTranslator> _sharedTranslators;
@@ -90,6 +92,25 @@ public sealed class NedReplicationModule : INedReplicationModule
     private readonly NetworkGatewaySystem? _reliableGateway;
     private readonly INetworkTranslator? _reliableStatusEgress;
     private readonly INetworkTranslator? _reliableStatusIngress;
+
+    // CE-291 (piece C, C5): the peer-side FAKE local-init participant. Holds a reliable ghost in
+    // Constructing for a simulated navmesh/model-load window (no real subsystem exists — user steer
+    // 2026-09-16), then acks. Off unless FDP_FAKE_INIT_FRAMES > 0, so production timing is unchanged.
+    private const int SIMULATED_INIT_MODULE_ID = 918274;
+    private readonly SimulatedInitReadinessParticipant? _simulatedInitParticipant;
+
+    // CE-291 (piece C): the SHARED cluster-membership machinery, hosted here so EVERY ECS node gets it (the
+    // node-centric gating — only CGF ingested capabilities + stamped peers — is obsolete, user 2026-09-16).
+    // ⭐ The cache, the capability-ingest system, and the wait-set provider all sit on ONE cache instance the
+    // factory shares with the gateway's C2 self-heal callback.
+    private readonly Hrot.Network.Routing.SimpleClusterStateCache? _clusterCache;
+    private readonly Hrot.Network.Routing.ClusterCapabilityIngestSystem? _capabilityIngest;
+    private readonly Fdp.Toolkit.Replication.Abstractions.IExpectedPeersProvider? _expectedPeers;
+
+    /// <summary>CE-291: the reliable-init wait-set provider over this node's shared cluster cache. Non-null on a
+    /// networked node (participant + cache present); the shared entity-creation wiring reads it uniformly so any
+    /// node can be a reliable creator.</summary>
+    public Fdp.Toolkit.Replication.Abstractions.IExpectedPeersProvider? ExpectedPeers => _expectedPeers;
 
     // ── Descriptor → ECS component mapping (Single Source of Truth) ───────────
     // Populated from FdpIDescriptorTranslator.TargetComponentIds during construction
@@ -200,8 +221,12 @@ public sealed class NedReplicationModule : INedReplicationModule
         BehaviorRegistry?     behaviorRegistry  = null,
         ITkbDatabase?         tkbDb             = null,
         EntityLifecycleModule? lifecycleModule  = null,
-        IReadOnlyList<ITkbEntityTranslator>? tkbEntityTranslators = null)
+        IReadOnlyList<ITkbEntityTranslator>? tkbEntityTranslators = null,
+        System.Action<int>?   onPeerUnsupported = null,
+        Hrot.Network.Routing.SimpleClusterStateCache? clusterCache = null)
     {
+        _onPeerUnsupported = onPeerUnsupported;   // CE-288 (C2): gateway self-heal sink.
+        _clusterCache      = clusterCache;        // CE-291: shared cluster-state cache (ingest + wait-set).
         _participant     = participant;
         _role            = role;
         _entityMap       = entityMap  ?? throw new ArgumentNullException(nameof(entityMap));
@@ -295,9 +320,22 @@ public sealed class NedReplicationModule : INedReplicationModule
             // construction pipeline, so the barrier does not exist.
             if (lifecycleModule != null)
             {
-                _reliableGateway = new NetworkGatewaySystem(RELIABLE_GATEWAY_MODULE_ID, localNodeId, lifecycleModule);
+                _reliableGateway = new NetworkGatewaySystem(RELIABLE_GATEWAY_MODULE_ID, localNodeId, lifecycleModule,
+                                                            onPeerUnsupported: _onPeerUnsupported);
                 _reliableStatusEgress  = new PeerLifecycleStatusEgressSystem(participant, entityMap, localNodeId);
                 _reliableStatusIngress = new PeerLifecycleStatusIngressTranslator(participant, entityMap, _reliableGateway, localNodeId);
+
+                // CE-291 (C5): the peer-side FAKE local-init participant, opt-in via FDP_FAKE_INIT_FRAMES.
+                // It holds a reliable ghost in Constructing for the simulated window, standing in for the
+                // not-yet-real navmesh (muscle) / model-load (IG) waits. Off (unregistered) unless the env
+                // asks for it, so it never changes production reliable-init timing.
+                int fakeInitFrames = ParseFakeInitFrames();
+                if (fakeInitFrames > 0)
+                {
+                    string label = _roleHasMuscle ? "navmesh" : "model-load";
+                    _simulatedInitParticipant = new SimulatedInitReadinessParticipant(
+                        SIMULATED_INIT_MODULE_ID, lifecycleModule, fakeInitFrames, label);
+                }
             }
         }
         else
@@ -306,6 +344,21 @@ public sealed class NedReplicationModule : INedReplicationModule
             _sharedTranslators    = System.Array.Empty<INetworkTranslator>();
             _kinematicTranslators = null;
             _cognitiveTranslators = null;
+        }
+
+        // CE-291 (piece C): the SHARED cluster-membership machinery. The wait-set provider works off the cache
+        // for any node; the ingest system fills that cache from the durable capability/heartbeat topics and runs
+        // on every ECS node (participant present). This replaces the CGF-only PollNetwork pumping so a SimHost /
+        // IG / Stride creator sees its peers and engages the barrier (user ruling 2026-09-16, symmetric creators).
+        if (_clusterCache != null)
+        {
+            _expectedPeers = new Hrot.Network.Routing.ClusterCacheExpectedPeersProvider(_clusterCache);
+            if (participant != null)
+            {
+                var hbReader  = new CycloneDDS.Runtime.DdsReader<Hrot.NED.Descriptors.Orchestration.NodeHeartbeat>(participant);
+                var capReader = new CycloneDDS.Runtime.DdsReader<Hrot.NED.Descriptors.Orchestration.NodeCapabilitiesTopic>(participant);
+                _capabilityIngest = new Hrot.Network.Routing.ClusterCapabilityIngestSystem(hbReader, capReader, _clusterCache);
+            }
         }
 
         // Populate DescriptorOwnershipMap from every translator's TargetComponentIds.
@@ -321,6 +374,14 @@ public sealed class NedReplicationModule : INedReplicationModule
         // ── Reliable-init barrier: the creator waiter runs in the sim loop (CE-283) ──
         if (_reliableGateway != null)
             registry.RegisterSystem(_reliableGateway);
+
+        // ── Reliable-init barrier: the peer-side fake local-init participant (CE-291, C5) ──
+        if (_simulatedInitParticipant != null)
+            registry.RegisterSystem(_simulatedInitParticipant);
+
+        // ── Shared cluster-membership ingest (CE-291): fills the cache the wait-set reads, on EVERY node ──
+        if (_capabilityIngest != null)
+            registry.RegisterSystem(_capabilityIngest);
 
         // ── Translator routing systems ───────────────────────────────────────
         var allTranslators = new List<INetworkTranslator>(_sharedTranslators);
@@ -532,6 +593,14 @@ public sealed class NedReplicationModule : INedReplicationModule
     }
 
     // ── DescriptorOwnershipMap population ────────────────────────────────────
+
+    // CE-291 (C5): the simulated local-init window, in frames, from FDP_FAKE_INIT_FRAMES.
+    // ≤0 / unset / unparseable ⇒ 0 ⇒ the fake participant is not registered (production timing intact).
+    private static int ParseFakeInitFrames()
+    {
+        var raw = System.Environment.GetEnvironmentVariable("FDP_FAKE_INIT_FRAMES");
+        return int.TryParse(raw, out var n) && n > 0 ? n : 0;
+    }
 
     private void PopulateDescriptorOwnershipMap()
     {

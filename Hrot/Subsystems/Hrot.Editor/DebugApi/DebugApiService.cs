@@ -1493,9 +1493,11 @@ namespace Hrot.Editor.DebugApi
             UnmappedMemberHandling      = System.Text.Json.Serialization.JsonUnmappedMemberHandling.Disallow,
         };
 
-        /// <c>POST /entities/spawn {tkbType, transform?, components?, attributesJson?}</c>
-        /// — builds and publishes a <see cref="SpawnEntityCommand"/>. Returns <c>awaited</c>
-        /// per the wait rule. Must run on the main thread.
+        /// <c>POST /entities/spawn</c> — builds and publishes a <see cref="SpawnEntityCommand"/>. Returns
+        /// <c>awaited</c> per the wait rule. Must run on the main thread.
+        /// ⛔ The API contract (params, notes, the <c>CE-292</c> reliable-init knob) is documented ONCE, in the
+        /// <c>DebugApiRouteDocs</c> entry for this route — do not restate it here (it would drift). This summary
+        /// is for code readers only.
         /// </summary>
         /// <remarks>
         /// ⭐⭐⭐ <c>CE-191</c> — returns <c>(node, error)</c> rather than a bare node, because the two
@@ -1513,14 +1515,22 @@ namespace Hrot.Editor.DebugApi
             JsonNode? transform      = null,
             JsonNode? components     = null,
             string?  attributesJson = null,
-            int      ownerNodeId    = 0)
+            int      ownerNodeId    = 0,
+            bool     reliable       = false,
+            double   reliableTimeoutSeconds = 0)
         {
             var cmd = new SpawnEntityCommand
             {
                 TkbType             = tkbType,
                 NetworkId           = 0,          // 0 = allocate a new ID
                 OwnerNodeId         = ownerNodeId,
-                InitType            = ReliableInitType.None,
+                // ⭐ CE-292 — reliable=true engages the cross-node construction barrier (§3b). The creator holds
+                //   the entity Constructing until the capability-filtered peers (advertising fdp.reliable-init)
+                //   report Active, or the timeout aborts via EntityMaster dispose.
+                InitType            = reliable ? ReliableInitType.AllPeers : ReliableInitType.None,
+                ReliableInitTimeout = (reliable && reliableTimeoutSeconds > 0)
+                                          ? TimeSpan.FromSeconds(reliableTimeoutSeconds)
+                                          : (TimeSpan?)null,
                 InitialAttributesJson = attributesJson,
             };
 
@@ -1612,6 +1622,7 @@ namespace Hrot.Editor.DebugApi
             {
                 ["spawned"]  = true,
                 ["tkbType"]  = tkbType,
+                ["reliable"] = reliable,
                 ["awaited"]  = false,
                 ["reason"]   = timeAdvancing ? null : (JsonNode?)"sim not running — time only advances in preview while unpaused; call POST /preview/enter then POST /sim/play, or POST /sim/step to advance.",
             }, null);

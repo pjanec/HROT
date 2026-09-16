@@ -809,10 +809,12 @@ public sealed class CgfSubsystem : ISubsystem, Fdp.Toolkit.Runner.IMapCameraProv
             AckSink              = adapters?.AckSink,
             JsonAttributeCompiler = adapters?.JsonCompiler,
             OwnershipStrategy     = adapters?.OwnershipStrategy,
-            // CE-283 (reliable-init barrier §3a.4): the creator's peer-set resolver, backed by the CGF
-            // adapters' cluster cache. Only the Brain creator stamps peers; peers (SimHost/IG) get the
-            // gateway + synthetic participant via NedReplicationModule. null ⇒ fast-mode (no wait).
-            ExpectedPeers         = adapters?.ExpectedPeers,
+            // ⭐⭐⭐ CE-291 (piece C) — the reliable-init wait-set provider, now sourced UNIFORMLY from the
+            //    shared NED replication module (same cluster cache the adapters used, but the module hosts the
+            //    membership ingest + provider for EVERY ECS node). 🔒 User ruling 2026-09-16: the prior
+            //    "Only the Brain creator stamps peers" gating is OBSOLETE — every ECS node is a symmetric
+            //    reliable creator. null ⇒ fast-mode. 📄 docs/DESIGN_Cross_Node_Construction_Barrier.md §3a.4.
+            ExpectedPeers         = _context.NedReplication?.ExpectedPeers,
 
             // ⭐ CE-138's list, unchanged: the ONE base set plus AiDiagnostics, which lives above
             //   Hrot.Core and so cannot be in Base(). ⛔ Never subtract to narrow — gate ②
@@ -1014,7 +1016,9 @@ public sealed class CgfSubsystem : ISubsystem, Fdp.Toolkit.Runner.IMapCameraProv
 
         // ── Wire ClusterSlave with EcsRecordReplayController (CGF-Point-4) ────────
         // Create a fresh ClusterSlave manually to strictly control handler registration order.
-        var newClusterSlave = new ClusterSlave(_context.NodeId, "CGF", _context.EventBus, DefaultRole);   // P1: publish the declared role mask.
+        // P1/CE-285: advertise the declared role (fdp.role.* tokens → derived mask, CE-286) + fdp.reliable-init.
+        var newClusterSlave = new ClusterSlave(_context.NodeId, "CGF", _context.EventBus, DefaultRole,
+            capabilities: new[] { Fdp.Toolkit.Replication.CapabilityTokens.ReliableInit });
 
         var nedModuleForAfterSeek = replicationModule as Hrot.Common.Abstractions.INedReplicationModule;
         Action? afterSeekAction = nedModuleForAfterSeek?.AfterSeekCallback;

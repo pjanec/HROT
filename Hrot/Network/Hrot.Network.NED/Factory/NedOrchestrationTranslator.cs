@@ -18,6 +18,7 @@ internal sealed class NedOrchestrationTranslator : Hrot.Core.Network.IOrchestrat
 {
     private readonly FdpEventBus                                       _bus;
     private readonly DdsReader<NodeHeartbeat>                          _heartbeatReader;
+    private readonly DdsReader<NodeCapabilitiesTopic>                  _capabilitiesReader;   // CE-285 (C-cap)
     private readonly Hrot.Network.Orchestration.ClusterOpMasterTranslator _clusterOpTranslator;
     private readonly Hrot.Network.Orchestration.NodeOpMasterTranslator    _nodeOpTranslator;
     // DDS readers/writers owned by this translator:
@@ -36,6 +37,7 @@ internal sealed class NedOrchestrationTranslator : Hrot.Core.Network.IOrchestrat
         _participant         = participant ?? throw new ArgumentNullException(nameof(participant));
         _bus                 = bus         ?? throw new ArgumentNullException(nameof(bus));
         _heartbeatReader     = new DdsReader<NodeHeartbeat>(_participant);
+        _capabilitiesReader  = new DdsReader<NodeCapabilitiesTopic>(_participant);
         _sysOpRequestReader  = new DdsReader<ClusterOpRequest>(_participant);
         _sysOpStatusWriter   = new DdsWriter<ClusterOpStatus>(_participant);
         _nodeOpStatusReader  = new DdsReader<NodeOpStatus>(_participant);
@@ -61,12 +63,31 @@ internal sealed class NedOrchestrationTranslator : Hrot.Core.Network.IOrchestrat
                 LocalStateId  = (int)sample.Data.LocalClusterState,
                 WallTicksUtc  = sample.Data.WallTicksUtc,
                 SubsystemName = sample.Data.SubsystemName ?? string.Empty,
-                Roles         = (Fdp.Core.NodeRole)sample.Data.RolesMask,   // P1: read the mask off the wire.
+                // CE-286 (C-roles): roles are derived from the NodeCapabilities tokens, not the heartbeat.
             });
         }
 
+        // Capabilities bridge: durable DDS NodeCapabilities -> bus NodeCapabilitiesEvent (CE-285).
+        using (var capScope = _capabilitiesReader.Take())
+            foreach (var sample in capScope)
+            {
+                if (!sample.IsValid) continue;
+                _bus.PublishManaged(new NodeCapabilitiesEvent
+                {
+                    NodeId       = sample.Data.NodeId,
+                    Capabilities = DeserializeTokens(sample.Data.CapabilitiesJson),
+                });
+            }
+
         _clusterOpTranslator.Tick();
         _nodeOpTranslator.Tick();
+    }
+
+    private static string[] DeserializeTokens(string? json)
+    {
+        if (string.IsNullOrWhiteSpace(json)) return Array.Empty<string>();
+        try { return System.Text.Json.JsonSerializer.Deserialize<string[]>(json) ?? Array.Empty<string>(); }
+        catch { return Array.Empty<string>(); }
     }
 
     /// <inheritdoc/>
@@ -76,6 +97,7 @@ internal sealed class NedOrchestrationTranslator : Hrot.Core.Network.IOrchestrat
         _disposed = true;
 
         _heartbeatReader.Dispose();
+        _capabilitiesReader.Dispose();
         _sysOpRequestReader.Dispose();
         _sysOpStatusWriter.Dispose();
         _nodeOpStatusReader.Dispose();

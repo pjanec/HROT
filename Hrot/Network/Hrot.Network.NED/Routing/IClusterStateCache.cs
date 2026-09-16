@@ -31,6 +31,23 @@ namespace Hrot.Network.Routing
         System.Collections.Generic.IReadOnlyList<int> AllNodeIds();
 
         /// <summary>
+        /// CE-285 (C-cap): does node <paramref name="nodeId"/> advertise the capability <paramref name="token"/>?
+        /// Membership test over the gathered token set — absence (unknown node or unknown token) = unsupported
+        /// (OpenGL-extension semantics, AQ-70 §Q70-B). The reliable-init wait-set includes only nodes for which
+        /// <c>Supports(nodeId, CapabilityTokens.ReliableInit)</c> is true (§3b.1 / §3c ①).
+        /// </summary>
+        bool Supports(int nodeId, string token);
+
+        /// <summary>
+        /// CE-288 (C2): record that node <paramref name="nodeId"/> was OBSERVED not to actually support
+        /// <paramref name="token"/> — the self-heal from the creator's short phase-1 probe (§3c ②). It forces
+        /// <see cref="Supports"/> to <c>false</c> for that (node, token) regardless of what the node advertises,
+        /// so later reliable-init wait-sets skip a host that advertises <c>fdp.reliable-init</c> but never
+        /// delivers a status (an older/external build). Survives the cache rebuilding from the durable descriptor.
+        /// </summary>
+        void RecordUnsupported(int nodeId, string token);
+
+        /// <summary>
         /// Updates (or inserts) the capability record for a specific node.
         /// Called by the heartbeat bridge from the event-bus subscription.
         /// </summary>
@@ -50,7 +67,17 @@ namespace Hrot.Network.Routing
     public sealed class NodeCapability
     {
         public int    NodeId          { get; set; }
+
+        /// <summary>CE-286 (C-roles): the node's <see cref="NodeRole"/> mask, DERIVED from the <c>fdp.role.*</c>
+        /// subset of <see cref="Capabilities"/> via <see cref="NodeRoleTokens"/> (AQ-70 §Q70-C — no longer read
+        /// off the heartbeat's <c>RolesMask</c>).</summary>
         public NodeRole Role          { get; set; }
+
+        /// <summary>CE-285 (C-cap): the node's static capability token set (namespaced), gathered from the
+        /// durable <c>NodeCapabilities</c> descriptor. Empty until that advertisement is seen.</summary>
+        public System.Collections.Generic.IReadOnlySet<string> Capabilities { get; set; }
+            = new System.Collections.Generic.HashSet<string>();
+
         public float  CpuUsagePercent { get; set; }
         public long   RamUsedBytes    { get; set; }
         public double LastSeenUtcSeconds { get; set; }

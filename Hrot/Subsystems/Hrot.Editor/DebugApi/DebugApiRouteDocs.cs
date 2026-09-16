@@ -1012,11 +1012,15 @@ namespace Hrot.Editor.DebugApi
                 new("transform", "object", false, "Transform: { position: {x,y,z}, rotation: {x,y,z,w} }"),
                 new("components", "array", false, "Additional component overrides"),
                 new("attributesJson", "string", false, "JSON string of attribute overrides (JsonAttributeCompiler patch)"),
+                new("ownerNodeId", "number", false, "This node's id ⇒ the host becomes the CREATOR (claims authority); 0 ⇒ no authority"),
+                new("reliable", "boolean", false, "CE-292: true ⇒ engage the cross-node construction barrier (InitType=AllPeers); pair with ownerNodeId=<this node>"),
+                new("reliableTimeoutSeconds", "number", false, "CE-292: creator's reliable-init abort timeout in seconds (0 ⇒ gateway default)"),
             },
             Notes: new[]
             {
                 "Spawn is queued and processed on the next tick — call step to realize it.",
                 "Use list_entity_types to discover valid tkbType values.",
+                "CE-292 — reliable:true (pair with ownerNodeId:<this node's id> so the host is the CREATOR) engages the cross-node construction barrier: the creator holds the entity Constructing until the capability-filtered peers (advertising fdp.reliable-init) report Active, or reliableTimeoutSeconds aborts it via an EntityMaster dispose. On the wire this shows as an EntityMaster carrying the WaitForAcks flag + EntityLifecycleStatusDescriptor samples (sniff with ddsmonitor).",
             },
             ExampleArgsJson: "{\"tkbType\":1001,\"transform\":{\"position\":{\"x\":100,\"y\":0,\"z\":50},\"rotation\":{\"x\":0,\"y\":0,\"z\":0,\"w\":1}}}",
             ExampleGist: "spawn entity type 1001 at position (100,0,50)"),

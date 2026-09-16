@@ -520,10 +520,20 @@ namespace Hrot.Editor.DebugApi
                 //   create-leg role-affinity block.
                 int ownerNodeId = int.TryParse(ctx.Body?["ownerNodeId"]?.ToString(), out var onid) ? onid : 0;
 
+                // ⭐ CE-292 — RELIABLE-INIT knob: reliable=true opts the spawn into the cross-node construction
+                //   barrier (InitType=AllPeers) so the creator holds the entity Constructing until the
+                //   capability-filtered peers report Active. Pair it with ownerNodeId=<this node> so the host is
+                //   the CREATOR (else it has no authority and the barrier never engages).
+                //   reliableTimeoutSeconds>0 sets the creator's abort timeout (0 ⇒ gateway default).
+                bool reliable = bool.TryParse(ctx.Body?["reliable"]?.ToString(), out var rel) && rel;
+                double reliableTimeoutSeconds =
+                    double.TryParse(ctx.Body?["reliableTimeoutSeconds"]?.ToString(), out var rts) ? rts : 0;
+
                 // ⭐ CE-191 — the spawn now REFUSES a malformed transform or component list instead of
                 //   quietly dropping it; 400, because the caller can fix their own body.
                 var (node, error) = await _jobQueue.RunOnMainThread(() =>
-                    Service().SpawnEntity(tkbType, transform, components, attributesJson, ownerNodeId))
+                    Service().SpawnEntity(tkbType, transform, components, attributesJson, ownerNodeId,
+                                          reliable, reliableTimeoutSeconds))
                     .ConfigureAwait(false);
                 return error != null ? Fail(400, error, DebugApiHints.TkbType) : Ok(node);
             }));

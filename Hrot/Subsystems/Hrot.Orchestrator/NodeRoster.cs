@@ -21,6 +21,14 @@ public sealed class NodeRoster
                 yield return kv.Key;
     }
 
+    /// <summary>CE-285 (C-cap): does the present node <paramref name="nodeId"/> advertise the capability
+    /// <paramref name="token"/>? Membership test over the gathered token set; an unknown node or unknown
+    /// token reads <c>false</c> (absence = unsupported), exactly the OpenGL-extension semantics (AQ-70 §Q70-B).
+    /// The creator's reliable-init wait-set includes only nodes for which <c>Supports(nodeId,
+    /// CapabilityTokens.ReliableInit)</c> is true.</summary>
+    public bool Supports(int nodeId, string token)
+        => _active.TryGetValue(nodeId, out var p) && p.Capabilities.Contains(token);
+
     public void Upsert(NodeHealthProfile profile)
     {
         _active[profile.NodeId] = profile;

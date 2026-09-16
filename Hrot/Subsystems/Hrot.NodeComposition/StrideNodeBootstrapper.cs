@@ -476,6 +476,12 @@ public sealed class StrideNodeBootstrapper : SharedApplicationBootstrapper, IDis
                 Elm         = (EntityLifecycleModule)context.BaseModules[0],
                 NodeId      = context.NodeId,
 
+                // ⭐⭐⭐ CE-291 (piece C) — the reliable-init wait-set provider, sourced UNIFORMLY from the
+                //    shared NED replication module (which hosts the cluster-membership ingest for every ECS
+                //    node). 🔒 User ruling 2026-09-16: the Stride SimHost node is no exception — symmetric
+                //    reliable creator, no node-centric gating. 📄 DESIGN_Cross_Node_Construction_Barrier.md §3a.4.
+                ExpectedPeers = context.NedReplication?.ExpectedPeers,
+
                 // ⛔ NOT the cluster's broadcast arbiter — that is CGF, and exactly one node may be it.
                 //    ⚠ This does NOT stop this node creating entities: a request targeted at this node is
                 //    processed regardless of the flag (Q65 §1).
