@@ -540,6 +540,15 @@ eventBus.PublishManaged(new SpawnEntityCommand {
 var r = ConstructionResults.Get(world, networkId);   // Pending → Success | Failed(Timeout)
 ```
 
+### 3b.6 ✅ AS-BUILT — the CREATOR SIDE (C1 + C3 + C4), `2026-09-16` *(obligation ⑤)*
+| item | as-built |
+|---|---|
+| **C1** (CE-287) wait-set | `SpawnEntityCommand.ReliableInitPeers:int[]?` + `ReliableInitTimeout:TimeSpan?`. `ClusterCacheExpectedPeersProvider` filters present-minus-local to `Supports(fdp.reliable-init)` (§3c ① — non-supporting host never waited for). `NetworkSpawningSystem.IntersectReliablePeers` narrows by the optional creator list; stamps `NetworkAckPeerSet{ExpectedAckPeers, TimeoutSeconds}`. |
+| **C3** (CE-289) timeout=abort | New base hook `DeferredConstructionParticipant.OnTimeout` (default = legacy force-ack; per-entity timeout via `SetPendingTimeout`, seeded from `NetworkAckPeerSet.TimeoutSeconds` @ 60 fps). `NetworkGatewaySystem.OnTimeout` OVERRIDES to ABORT: write `Failed(Timeout)` + `_elm.BeginDestruction`. ⭐ **Measured finding folded here:** `BeginDestruction` emits a `DestructionOrder` that **`CycloneNetworkCleanupSystem` already turns into an `EntityMaster` dispose sample** (`translator.Dispose(netId)`) — so the abort disposes the wire instance with **no new cross-layer seam**; the receiver's existing `ProcessDispose` removes the ghost. The creator never force-acks a reliable entity. |
+| **C4** (CE-290) poll-store | `ConstructionResults` — a managed singleton (component id **153**, verified free) holding a `Dictionary<long,Entry>` keyed by `NetworkId`, evict-on-read of terminal results + TTL sweep. Gateway writes `Pending` on defer, `Success` in `ReceiveLifecycleStatus` when the wait-set empties, `Failed(Timeout)` on abort. ⚠ The reactive success path has no `view`, so the gateway caches the persistent `EntityRepository` at defer time. ⚠ `GetSingletonManaged` **throws** when unset — guarded with `HasSingletonManaged`. |
+| rails | `ClusterCacheExpectedPeersProviderTests` 2/2 · `ConstructionResultsTests` 5/5 (incl. a uint-underflow red-proof in the TTL sweep) · `NetworkGatewaySystemTests` 8/8 (+ the C3 abort rail; the 7 pre-existing green). |
+| ⛔ REMAINING | **C2** (CE-288, peer-side mandatory reply + short phase-1 probe + `!fdp.reliable-init` self-heal) and **C5** (CE-291, real navmesh/altitude Muscle participant) + the `--mode all` proof — the peer-side + live pieces. |
+
 ## 3c. ⭐ GRACEFUL DEGRADATION — a host that does not support reliable init *(AQ-70, `2026-09-16`)*
 > Full design + the decision: **[`Architect_Question_70_Host_Capabilities_And_Reliable_Init_Degradation.md`](blueprints/Architect_Question_70_Host_Capabilities_And_Reliable_Init_Degradation.md)**. This is the consumer summary.
 

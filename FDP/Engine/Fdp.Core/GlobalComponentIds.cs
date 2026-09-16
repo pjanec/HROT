@@ -347,7 +347,12 @@
         /// <summary><c>ReportLifecycleOnActive</c> â€” transient tag on a reliable remote ghost: publish its lifecycle status when it reaches Active (reliable-init barrier peer side). See DESIGN_Cross_Node_Construction_Barrier.md §3a.2.</summary>
         public const int ReportLifecycleOnActive = 152;
 
-        // IDs 153â€“159 are the next free block (152 taken above; 146â€“151 taken by Behavior/Utility).
+        /// <summary><c>ConstructionResults</c> — CE-290 (C4): the creator-local poll-store singleton (dict keyed by
+        /// NetworkId, TTL + evict-on-read) the local requestor polls for a reliable spawn's Success/Failed outcome.
+        /// See DESIGN_Cross_Node_Construction_Barrier.md §3b.4.</summary>
+        public const int ConstructionResults = 153;
+
+        // IDs 154â€“159 are the next free block (152/153 taken above; 146â€“151 taken by Behavior/Utility).
 
         // â”€â”€ Application-level Descriptors (160â€“199) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
         // These IDs are now declared in project specific ComponentIds.

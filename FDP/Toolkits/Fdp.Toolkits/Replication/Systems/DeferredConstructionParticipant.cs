@@ -41,6 +41,8 @@ namespace Fdp.Toolkit.Replication.Systems
         // Entities this participant has deferred and not yet acked, with the frame they entered.
         private readonly HashSet<Entity> _pending = new();
         private readonly Dictionary<Entity, uint> _pendingStartFrame = new();
+        // CE-289 (C3): optional per-entity timeout override (frames). Absent ⇒ the ctor default.
+        private readonly Dictionary<Entity, int> _pendingTimeoutFrames = new();
 
         // Scratch buffers reused each tick to avoid per-frame allocation.
         private readonly List<Entity> _completeBuffer = new();
@@ -71,7 +73,16 @@ namespace Fdp.Toolkit.Replication.Systems
             ProcessConstructionOrders(view, cmd, currentFrame);
             PollPending(view, cmd, currentFrame);
             ProcessDestructionOrders(view, cmd);
-            CheckTimeouts(cmd, currentFrame);
+            CheckTimeouts(view, cmd, currentFrame);
+        }
+
+        /// <summary>CE-289 (C3): a subclass sets a per-entity timeout (frames) from its own state (e.g. the
+        /// gateway reads the creator's <c>ReliableInitTimeout</c> off the stamped peer set). Call from
+        /// <see cref="OnDeferred"/>. ≤0 keeps the ctor default.</summary>
+        protected void SetPendingTimeout(Entity entity, int timeoutFrames)
+        {
+            if (timeoutFrames > 0)
+                _pendingTimeoutFrames[entity] = timeoutFrames;
         }
 
         private void ProcessConstructionOrders(ISimulationView view, IEntityCommandBuffer cmd, uint currentFrame)
@@ -120,26 +131,26 @@ namespace Fdp.Toolkit.Replication.Systems
                 return; // not pending (already completed, or never deferred)
 
             _pendingStartFrame.Remove(entity);
+            _pendingTimeoutFrames.Remove(entity);
             _elm.AcknowledgeConstruction(entity, _moduleId, currentFrame, cmd);
             OnCompleted(view: null, entity, cmd);
         }
 
-        private void CheckTimeouts(IEntityCommandBuffer cmd, uint currentFrame)
+        private void CheckTimeouts(ISimulationView view, IEntityCommandBuffer cmd, uint currentFrame)
         {
             if (_pending.Count == 0)
                 return;
 
             _timedOutBuffer.Clear();
             foreach (var kv in _pendingStartFrame)
-                if (currentFrame - kv.Value > _timeoutFrames)
+            {
+                int limit = _pendingTimeoutFrames.TryGetValue(kv.Key, out var perEntity) ? perEntity : _timeoutFrames;
+                if (currentFrame - kv.Value > (uint)limit)
                     _timedOutBuffer.Add(kv.Key);
+            }
 
             foreach (var entity in _timedOutBuffer)
-            {
-                Console.Error.WriteLine(
-                    $"[{GetType().Name}] Entity {entity.Index}: force-ack after {_timeoutFrames} frame timeout.");
-                Complete(entity, cmd, currentFrame);
-            }
+                OnTimeout(view, entity, cmd, currentFrame);
         }
 
         private void ProcessDestructionOrders(ISimulationView view, IEntityCommandBuffer cmd)
@@ -148,6 +159,7 @@ namespace Fdp.Toolkit.Replication.Systems
             {
                 _pending.Remove(evt.Entity);
                 _pendingStartFrame.Remove(evt.Entity);
+                _pendingTimeoutFrames.Remove(evt.Entity);
                 OnDestroyed(evt.Entity);
 
                 cmd.PublishEvent(new DestructionAck
@@ -193,5 +205,19 @@ namespace Fdp.Toolkit.Replication.Systems
 
         /// <summary>Called when a pending entity is destroyed before completing.</summary>
         protected virtual void OnDestroyed(Entity entity) { }
+
+        /// <summary>
+        /// CE-289 (C3): the deferred entity's timeout expired. The DEFAULT is the legacy behaviour —
+        /// force-ack via <see cref="Complete"/>, so a synthetic/poll participant that stalls still unblocks.
+        /// ⭐ The creator gateway OVERRIDES this to ABORT instead (dispose the <c>EntityMaster</c> via a local
+        /// teardown, and record <c>Failed(Timeout)</c>) — a reliable entity is never force-activated
+        /// (DESIGN_Cross_Node_Construction_Barrier.md §3b.3). <paramref name="view"/> is the live world.
+        /// </summary>
+        protected virtual void OnTimeout(ISimulationView view, Entity entity, IEntityCommandBuffer cmd, uint currentFrame)
+        {
+            Console.Error.WriteLine(
+                $"[{GetType().Name}] Entity {entity.Index}: force-ack after timeout.");
+            Complete(entity, cmd, currentFrame);
+        }
     }
 }

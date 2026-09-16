@@ -31,6 +31,7 @@ namespace Fdp.Toolkit.Replication.Tests
         {
             var repo = new EntityRepository();
             repo.RegisterComponent<PendingNetworkAck>();
+            repo.RegisterComponent<NetworkIdentity>();   // CE-289/290: gateway reads NetId for the poll-store.
             repo.RegisterManagedComponent<NetworkAckPeerSet>();
             repo.RegisterEvent<ConstructionOrder>();
             repo.RegisterEvent<ConstructionAck>();
@@ -152,6 +153,32 @@ namespace Fdp.Toolkit.Replication.Tests
             ((EntityCommandBuffer)cmd2).Playback(repo);
             repo.Bus.SwapBuffers();
             Assert.True(SawAck(repo, entity), "should ack once BOTH peers report Active");
+        }
+
+        // ── CE-289 (C3): timeout ABORTS a reliable entity, never force-acks it ─
+        [Fact]
+        public void OnTimeout_AbortsReliableEntity_WritesFailedTimeout_AndDoesNotAck()
+        {
+            using var repo = CreateRepo();
+            var gateway = NewGateway(NewElm(), timeoutFrames: 2);
+            var entity = repo.CreateEntity();
+            repo.AddComponent(entity, new PendingNetworkAck { ExpectedType = ReliableInitType.AllPeers });
+            repo.AddComponent(entity, new NetworkIdentity { Value = 5555 });
+            StampPeers(repo, entity, 2);   // one peer that never reports Active
+
+            PublishOrder(repo, entity);
+            RunTick(repo, gateway);        // frame 0: deferred; store = Pending
+            Assert.False(SawAck(repo, entity), "must not ack while still waiting for the peer");
+            Assert.Equal(ConstructionOutcome.Pending, ConstructionResults.Get(repo, 5555).Outcome);
+
+            repo.ResetGlobalVersion(100);  // advance well past the 2-frame timeout
+            RunTick(repo, gateway);        // timeout → abort
+
+            // A reliable entity is torn down, NOT force-activated (§3b.3).
+            Assert.False(SawAck(repo, entity), "reliable entity must be aborted, not force-acked, on timeout");
+            var r = ConstructionResults.Get(repo, 5555);
+            Assert.Equal(ConstructionOutcome.Failed, r.Outcome);
+            Assert.Equal(ConstructionFailReason.Timeout, r.Reason);
         }
 
         // ── A non-Active status never completes the handshake ─────────────────
