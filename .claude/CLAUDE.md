@@ -540,6 +540,35 @@ was *first lean wrong · third lean right*, **because the USER'S CORRECTIONS WER
 ⚠⚠ **That is the wrong division of labour — the user was acting as the test suite.** ⇒ ⭐ **spend the tool
 calls first; a slower, measured first answer is the deliverable.**
 
+## ⛔⛔⛔ EXPLORE WIDE, DECIDE SHORT — **the output contract for "how does X work" / "how should X work"** *(user, `2026-09-16`)*
+
+> ⭐⭐⭐ **User, verbatim:** *"explore widely, then give me the decision in under a page with the rejected
+> alternatives as one line each" · "keep scanning until you've read every call site, not until you've found
+> an explanation that fits" · "name existing design docs that solved this and say why each does or doesn't
+> apply here."*
+
+⭐ **This governs both directions of the SAME task the rest of this section already gates** — investigating
+how something works, and suggesting how something should work. ⛔ It is not a new investigation method; it
+is the **stopping rule** and the **output shape** for one that already runs `search_graph` + grep + the
+design corpus. Three obligations:
+
+| # | obligation | ⭐ why |
+|---|---|---|
+| **①** | ⛔⛔⛔ **STOP ON COVERAGE, NEVER ON FIT.** Keep scanning — every call site, every implementation, every design doc a topic search turns up — **until the set is exhausted**, not until one reading produces an explanation that feels complete | ⭐⭐ **"found an explanation that fits" is exactly how a wrong lean gets formed** — see the claim-table section above: a plausible-sounding account from a partial read is the recurring failure mode here. Coverage is checkable *(a call-site count, a `has_more:false`)*; "it fits" is not |
+| **②** | ⭐⭐⭐ **NAME THE OWNING DESIGN DOCS — for EACH ONE, say why it does or does not settle this** | ⛔ not just cite one that agrees. ⭐ A doc that looks relevant and turns out NOT to apply is itself load-bearing information — it rules out a lean the reader would otherwise suspect. This is `R-129`'s search made explicit in the answer: the citation is not decoration, it is evidence the sweep happened |
+| **③** | ⭐⭐⭐ **THE ANSWER IS UNDER A PAGE.** State the decision, the reasoning that carries it, and **the rejected alternatives as ONE LINE EACH** — the alternative name + the one fact that killed it, not the full path that was walked to kill it | ⛔ the exploration in ① is wide **so the answer can be short** — breadth belongs in the tool calls, not in the reply. ⭐ This is the same economy as the `DESIGN BRIEF`'s `spot-check` line: the reader (on mobile, per the interaction preferences below) can check *"was X considered and why not"* in one line; they cannot audit a walkthrough |
+
+⭐ **The shape, concretely:**
+```
+Decision: <the answer, 1-3 sentences, with its file:line / design:§ basis>
+Rejected: <alt A> — <the one fact that ruled it out>
+          <alt B> — <the one fact that ruled it out>
+Design docs checked: <doc> — applies because <X> / doesn't apply because <Y>
+                      <doc> — applies because <X> / doesn't apply because <Y>
+```
+⛔ **A "decision" with no rejected-alternatives line is not this contract** — it means only one option was
+ever considered, which is what obligation ① exists to prevent.
+
 ## Assistant interaction preferences
 
 - ⛔⛔⛔ **UNDERSTAND FIRST, THEN ANSWER — and NEVER ask the user to decide without a LEAN** *(user, `2026-09-01`, verbatim)*: ⭐⭐ **the enforcement mechanism is the CLAIM TABLE — see the section directly above.** *"I expect you to understand the code and concepts. I do not see the code, I am on mobile. So when you ask me to decide something, i need your lean. And i expect you first of all study available design documents (as written in claude.md) and then study relevant code using both codebase memory and grep until you fully understand it and only then you derive some solutions or explanations. You shoudl NOT work from incomplete understaning, like shallow code searcg with grep only."*
