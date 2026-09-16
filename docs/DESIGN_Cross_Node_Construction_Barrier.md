@@ -663,6 +663,105 @@ creator block forever. Two composed mechanisms:
 ⭐ Requestor-facing status reuses `SstStatusCode.NotSupported`/`InProgress` *(two-ack §3.2)* — not reinvented. The
 capability facility is **general**; `fdp.reliable-init` is its first token.
 
+## 3d. ⭐⭐ EXTERNAL-HOST CONFORMANCE — a genuinely foreign, non-cooperating process *(CE-294, `2026-09-16`)*
+> The C5 fake (`SimulatedInitReadinessParticipant`) is *in-process* and speaks HROT's own protocol, so it can
+> only fake a supporting-but-slow/stuck peer. This section adds the missing half: a **standalone
+> CycloneDDS.NET process** on the DDS bus that follows base DDS/BDC rules but NOT the reliable-init extension,
+> exercising the CREATOR-side degradation (§3b/§3c) against a real foreign process. 🔒 User rulings
+> (`2026-09-16`): **separate process, not in-process** *(the in-process variant is redundant with the
+> `NetworkGatewaySystemTests` prune rails)*; **NED≡BDC** *(both follow the same base rules → one fake host
+> covers both)*; **fake-waiting must be exercised for Map2d (IG) + MuscleGround (SimHost)**.
+
+<!--INVENTORY (CE-294, 2026-09-16) — search_graph + grep; codebase-memory MCP connected
+- Raw foreign-participant prior art: DragDropIntegrationTests.cs:112 — `new CycloneDDS.Runtime.DdsParticipant((uint)domain)` + `new DdsReader<Hrot.NED.Descriptors.WorldPos>(participant)`; write side `new DdsWriter<T>(participant,"Topic")` (NedIgNetworkAdapter.cs:61, BdcEntityMasterTranslator.cs:54). `new DdsParticipant` grep: 193 sites (tests/examples/headless hosts) — the pattern is well-worn.
+- Barrier suites (the feature's own rails, run FIRST): NetworkGatewayIntegrationTests (Hrot.ClusterRunner.Integration.Tests — in-process harnesses on a real Cyclone loopback domain), NetworkGatewaySystemTests + ConstructionResultsTests + SimulatedInitReadinessParticipantTests (Fdp.Toolkits.Tests).
+- Wire descriptor types the fake host reuses READ-ONLY (no new wire types): `Hrot.NED.Descriptors.EntityMaster` (EntityId, TkbType, ulong Flags[WaitForAcks=1], DisType); `Hrot.NED.Descriptors.Orchestration.NodeHeartbeat` (NodeId, CpuUsagePercent, RamUsedBytes, WallTicksUtc) + `NodeCapabilitiesTopic` (NodeId, CapabilitiesJson=JSON string[]); `Fdp.Network.Cyclone.Topics.EntityLifecycleStatusDescriptor` ([DdsKey] long EntityId, [DdsKey] int NodeId, int StateValue{Constructing=0,Active=1}).
+- Wait-set source (what "present + supporting" means to the creator): ClusterCacheExpectedPeersProvider.GetExpectedPeers iterates `_cache.AllNodeIds()` (nodes seen via NodeHeartbeat→UpdateNode) filtered by `Supports(fdp.reliable-init)`. ⇒ the fake host is PRESENT via a heartbeat and INCLUDED only if its NodeCapabilities carries the token.
+- Fake-waiting role check: SimulatedInitReadinessParticipant is registered in NedReplicationModule.RegisterSystems (line 379-380) on EVERY NED node when FDP_FAKE_INIT_FRAMES>0 — role-AGNOSTIC, scoped to reliable ghosts (ReportLifecycleOnActive). IG(Map2d) + SimHost(MuscleGround) both build NedReplicationModule ⇒ both register it ⇒ it already fires for both when they ghost a reliable entity (label "model-load" on IG, "navmesh" on SimHost). ⇒ FINDING, likely no change — to be CONFIRMED concretely in the build (a peer-side defer on each role).
+-->
+
+### 3d.0 WHY these three modes, and WHERE the fake host lives *(the prose the diagrams cannot carry)*
+The creator has exactly **three** ways to not-hang on a peer that fails the extension, and each is a distinct
+mechanism already built (§3b/§3c). A conformance proof must force **each** from a real foreign process:
+**C1** (proactive capability filter), **C2** (reactive short-prune + self-heal), **C3** (authoritative
+abort). The fake host is the minimal instrument that can drive all three by choosing *what it advertises* and
+*whether/when it replies*.
+
+**Placement (decided):** a standalone console project **`FakeExternalHost`** *(net8.0, references
+`CycloneDds.NET` + the descriptor assemblies only — NOT the engine)*, args `--domain <id> --node-id <id>
+--mode <unaware|aware-silent|stuck>`. It is launched as a **subprocess** by a new rail in the barrier's own
+integration suite *(`NetworkGatewayIntegrationTests`)*, which runs the cluster in-process on the same Cyclone
+loopback domain — *"unit-test-driven but a separate process."* ⛔ Not an in-process participant (redundant
+with the prune unit rails). The STUCK dispose is asserted both in-process *(a `DdsReader<EntityMaster>` sees
+`InstanceState != Alive`)* and captured with **ddsmonitor** as the durable wire artifact *(RUNBOOK §5a)*.
+
+### 3d.1 The fake host's three modes — state diagram
+```mermaid
+stateDiagram-v2
+    [*] --> Joined : DdsParticipant(domain) + NodeHeartbeat
+    Joined --> Unaware : mode UNAWARE
+    Joined --> AwareSilent : mode AWARE_SILENT
+    Joined --> Stuck : mode STUCK
+    Unaware --> Unaware : NO fdp.reliable-init cap · ignore EntityMaster
+    AwareSilent --> AwareSilent : advertise fdp.reliable-init · never send phase-1
+    Stuck --> StuckHeld : on EntityMaster(WaitForAcks) send Constructing (phase-1)
+    StuckHeld --> StuckHeld : never send Active (phase-2)
+    StuckHeld --> [*] : creator disposes EntityMaster (abort)
+    Unaware --> [*] : creator completes (never blocked)
+    AwareSilent --> [*] : creator short-prunes + self-heals
+```
+*Caption: what the picture shows that prose hides — only STUCK ever emits a lifecycle sample; UNAWARE differs
+from AWARE_SILENT purely in the capability set it advertises, which is the whole point of separating C1 from C2.*
+
+### 3d.2 The creator-side outcome each mode forces — sequence
+```mermaid
+sequenceDiagram
+    autonumber
+    participant FH as Fake host (foreign process)
+    participant W as DDS wire
+    participant CR as Creator (cluster node)
+    participant ST as ddsmonitor
+    FH->>W: NodeHeartbeat (now present in AllNodeIds)
+    alt UNAWARE — C1 capability filter
+        Note over FH: advertises NO fdp.reliable-init
+        CR->>CR: GetExpectedPeers excludes FH (Supports=false)
+        CR-->>W: EntityMaster WaitForAcks (wait-set omits FH)
+        CR->>CR: completes normally — FH never blocks
+    else AWARE-BUT-SILENT — C2 short-prune + self-heal
+        FH->>W: NodeCapabilities [fdp.reliable-init]
+        CR-->>W: EntityMaster WaitForAcks (FH in wait-set)
+        Note over FH: never sends phase-1 Constructing
+        CR->>CR: PHASE1 short timeout — prune FH + RecordUnsupported
+        CR->>CR: wait-set empties — Success, no deadlock
+    else STUCK — C3 abort via dispose
+        FH->>W: NodeCapabilities [fdp.reliable-init]
+        CR-->>W: EntityMaster WaitForAcks (FH in wait-set)
+        FH->>W: EntityLifecycleStatus Constructing (phase-1)
+        Note over FH: never sends Active (phase-2)
+        CR->>CR: long ReliableInitTimeout expires
+        CR-->>W: EntityMaster Flags=0 NotAliveDisposed
+        W-->>ST: dispose sample captured
+    end
+```
+*Caption: the decisive per-mode assertion — UNAWARE: FH absent from `NetworkAckPeerSet`; AWARE_SILENT: creator
+`Success` + FH marked `!fdp.reliable-init`, no dispose; STUCK: `NotAliveDisposed` on the wire.*
+
+### 3d.3 Wire types — REUSED READ-ONLY, no new protocol *(NED≡BDC)*
+| type | assembly | fake host role |
+|---|---|---|
+| `NodeHeartbeat` · `NodeCapabilitiesTopic` | `Hrot.NED.Descriptors.Orchestration` | **writes** — presence + (per mode) the `fdp.reliable-init` token |
+| `EntityMaster` | `Hrot.NED.Descriptors` | **reads** — detects a `WaitForAcks` create to respond to |
+| `EntityLifecycleStatusDescriptor` | `Fdp.Network.Cyclone.Topics` | **writes** (STUCK only) — phase-1 `Constructing`, never `Active` |
+⭐ No engine reference, no new wire type — a foreign BDC/NED host implements exactly this. The reserved
+`EntityMaster.Flags` `WaitForAcks` bit + the optional status descriptor ARE the whole extension surface (§2c).
+
+### 3d.4 Fake-waiting role check *(user ruling b)* — INVENTORY finding
+`SimulatedInitReadinessParticipant` is registered by `NedReplicationModule.RegisterSystems` on **every** NED
+node (role-agnostic, `FDP_FAKE_INIT_FRAMES>0`), scoped to reliable ghosts. IG (Map2d) and SimHost
+(MuscleGround) both build the module ⇒ both already exercise the fake-waiting when they ghost a reliable
+entity. ⇒ **expected to be a finding, not a change** — the build phase confirms it concretely (a peer-side
+defer observed on each role) and fixes minimally only if a role turns out unwired.
+
 ## 4. ✅ THE RECEIVER-SIDE GATE IS REUSE
 The peer's "is my data ready?" gate already exists: `GhostPromotionSystem`'s mandatory-components gate *(HARD,
 no timeout)* + the receiver's local ELM. The navmesh/model participants are **additional local participants
