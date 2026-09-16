@@ -1,7 +1,8 @@
 <!--STATUS
 state: LIVE
-updated: 2026-09-04
-current-answer: the whole file — it is a procedure, not a design; every section is current
+updated: 2026-09-16
+current-answer: the whole file — it is a procedure, not a design; every section is current.
+  §5a (added 2026-09-16) is the DDS wire-capture recipe (ddsmonitor sniff-to-JSON).
 stale-below: nothing
 known-rot: nothing known
 known-conflict: none. tools/ai-debug-mcp/SKILL.md documents the SAME surface through the MCP
@@ -205,6 +206,72 @@ defect: here `SensorContactList.Count` was `0` on every observer, so publishing 
 
 ---
 
+## 5a. ⭐⭐ DDS WIRE CAPTURE — sniff the bus to JSON with `ddsmonitor`
+⭐ **This is NOT HTTP** — it is a separate CycloneDDS instrument. §5's translator counters answer *"did it
+leave?"*; `ddsmonitor` answers *"what EXACTLY crossed the wire, from which node, in what order"* — the sample
+payloads, the sender identity, and the `InstanceState` *(alive / disposed / no-writers)*. Reach for it when the
+HTTP diagnostics say a sample should have flowed but the receiver disagrees, or to see lifecycle/dispose traffic
+directly *(e.g. the reliable-init barrier: `EntityMaster` `WaitForAcks`, `EntityLifecycleStatusDescriptor`,
+`OwnershipUpdate`, `NodeCapabilities`, and the dispose sample of an aborted create)*.
+
+**Install:** it is a .NET global tool provisioned by `scripts/cloud-bootstrap.sh` *(pkg `cyclonedds.net.ddsmonitor`)*;
+`ddsmonitor` is on PATH via the `/usr/local/bin` wrapper. Full arg docs: **github.com/pjanec/CycloneDds.NET →
+`tools/DdsMonitor/README.md`**.
+
+**Record the bus to JSON** *(headless; runs until `Ctrl+C`; no browser)*:
+```bash
+ddsmonitor --DdsSettings:HeadlessMode=Record \
+           --DdsSettings:HeadlessFilePath=/tmp/cap.json \
+           --DdsSettings:DomainId=0 \                     # ⛔ MUST match the cluster's DDS domain
+           --AppSettings:TopicSources:0=/home/user/HROT/Hrot/Runner/Hrot.ClusterRunner/bin/Debug/net8.0
+# ...let the scenario run, then Ctrl+C. /tmp/cap.json is a JSON array of samples.
+```
+🔴🔴 **`--AppSettings:TopicSources:0=<dir-or-dll>` IS MANDATORY** *(measured `2026-09-16`)* — ddsmonitor is a
+GENERIC sniffer: it discovers every topic over SEDP but can only DECODE/record a topic whose `[DdsTopic]` type it
+has loaded. Point it at the cluster's **build-output dir** *(the message DLLs: `Hrot.Network.NED`, `Fdp.Network.Cyclone`,
+`Fdp.Core`, …)*. ⛔ **Without it the capture is an empty `[`** — it only knows its own self-test types. Multiple dirs/DLLs:
+`--AppSettings:TopicSources:0=… --AppSettings:TopicSources:1=…`. *(A persisted list also lives at `$APPDATA/DdsMonitor/assembly-sources.json`; the CLI list overrides it.)*
+Filter to just the barrier topics *(glob on the fully-qualified type name)*:
+```bash
+ddsmonitor --DdsSettings:HeadlessMode=Record --DdsSettings:HeadlessFilePath=/tmp/cap.json \
+  --AppSettings:IncludeTopics:0="*EntityMaster*" \
+  --AppSettings:IncludeTopics:1="*EntityLifecycleStatus*" \
+  --AppSettings:IncludeTopics:2="*OwnershipUpdate*"
+# drop noise instead: --AppSettings:ExcludeTopics:0="*Heartbeat*"
+# value filter (Dynamic-LINQ): --DdsSettings:FilterExpression="Payload.State ne 1"
+```
+⭐⭐ **DEFAULT TO A FILTER — capture-all is for rich diagnosis only.** 📌 Measured `2026-09-16`: an unfiltered
+capture was **93 MB / 2167 samples, of which 1801 (83 %) were `DebugPrimitivesBatch`** — pure gizmo-draw noise that
+buries the lifecycle traffic you actually came for. ⇒ start with `--AppSettings:IncludeTopics:*` scoped to the topics
+in question *(the barrier set above)*, or at minimum `ExcludeTopics *DebugPrimitives* / *Heartbeat* / *TimeSync*`.
+⛔ Only drop the filter when you genuinely need the full bus *(chasing an unknown flow, ordering across all topics)*.
+Multi-domain / partitioned capture: `--DdsSettings:Participants:0:DomainId=0`
+`--DdsSettings:Participants:1:DomainId=5 --DdsSettings:Participants:1:PartitionName="sim"`.
+Replay a capture back onto the bus: `--DdsSettings:HeadlessMode=Replay --DdsSettings:HeadlessFilePath=/tmp/cap.json [--DdsSettings:ReplayRate=2.0]`.
+
+**Each JSON entry:** `Ordinal` · `TopicTypeName` · `Timestamp` · `DomainId` · `PartitionName` ·
+`Sender` *(PID / process / machine IP)* · `InstanceState` · `Payload`.
+
+| ⚠ traps | |
+|---|---|
+| 🔴 **empty `[` capture** | **almost always missing `--AppSettings:TopicSources`** *(the type assemblies — see above)*; less often a `DomainId`/partition mismatch. Fix TopicSources first |
+| ⛔⛔ **run ONE instance, to a fresh file** | ddsmonitor starts a Kestrel web host on **`:5000`**; a leftover instance holds `:5000` and the next run **crashes at startup** *(`address already in use` → 0-byte capture)*. Kill stale instances *(`pkill -f 'Headless[M]ode=Record'` — bracket-trick so it can't match your own shell)*, or give each a distinct port `ASPNETCORE_URLS=http://127.0.0.1:5088`. ⚠ Two instances writing the SAME `HeadlessFilePath` interleave → corrupt/unclosed JSON |
+| ⚠ **the array closes on clean `Ctrl+C`/SIGINT** | an abrupt kill (or concurrent writers) leaves the JSON unclosed; grep `"TopicTypeName"` still works, or append `]` to parse |
+| ⛔ **it needs `DOTNET_ROOT`** | the `/usr/local/bin/ddsmonitor` wrapper sets it; if you run the raw `~/.dotnet/tools/ddsmonitor`, export `DOTNET_ROOT=$HOME/.dotnet` first |
+| ⚠ **run it BESIDE the cluster** | start the capture, then run the scenario *(§1/§3)*; a late-started capture misses the create/spawn burst unless the topic is durable |
+
+> ✅✅ **VERIFIED WORKING `2026-09-16`** *(corrects an earlier wrong note that claimed cross-process discovery was
+> blocked here — it is NOT)*. Against a live **multi-process** cluster *(§1.2: separate orchestrator/cgf/simhost/ig
+> processes)* on domain 0, a separate ddsmonitor process **captured 2167 fully-decoded samples** across 10 HROT
+> topics — `GizmoMap.Network.DebugPrimitivesBatch` (1801), `TimeSyncRequest`/`Response` (117 each), `NodeHeartbeat`
+> (115), `AssetInventoryTopic`, `ClusterStateTopic`, `EntityAttributeSchema`, `IdStatus`, … — with decoded payloads
+> and distinct sender PIDs *(cross-process proven)*. ⭐ The two things that made it work: **`--AppSettings:TopicSources`**
+> pointed at the build-output DLLs *(else empty)*, and **one instance / clean port** *(a stale `:5000` crashes the run)*.
+> ⚠ In `--mode all` (single process) there is little cross-process wire traffic to see — use the **multi-process**
+> launch (§1.2) for a meaningful capture.
+
+---
+
 ## 6. ⭐ Reading entities
 
 ```bash
@@ -233,13 +300,26 @@ grep -icE "Strict Mode Violation|Unhandled|Exception" /tmp/cluster.log
 grep -iE "DeferredTakeover|GhostPromotion|OwnershipUpdate" /tmp/cluster.log | tail
 ```
 
-⛔⛔ **The module host SWALLOWS system exceptions** and logs them as
-`[ModuleHost] Sync Module '<name>' exception: …`. A control plane can therefore throw **every frame,
-forever**, while the API answers `ok:true` and the run looks healthy.
+⚠ **The module host's fault handling CHANGED — verify which mode you are in** *(CE-188/CE-189; user
+ruling `2026-09-04`)*. `FdpConfig.FailFastOnModuleException` now ships **ON by default**
+(`FdpConfig.cs:136`), so a module `Tick` exception is **RE-THROWN** (`ModuleHostKernel.ReportModuleFault`
+→ `ExceptionDispatchInfo…Throw()`), not swallowed — a fault surfaces loudly on the first frame instead of
+hiding. The old swallow-every-frame behaviour is now **opt-in**: only when `FDP_FAIL_FAST=0` (or
+`false`/`off`) is set at process start.
 
-📌 **The find that justifies grepping first:** an unregistered `OwnershipUpdate` event threw inside
-`DeferredTakeoverSystem` on every tick. Nothing in `/status` or the entity dumps said so; **the log line
-was the only evidence**, and the fix took 0/8 entities moving to 4/8.
+⛔ **When swallowing IS enabled (`FDP_FAIL_FAST=0`)**, the log line is now
+`[ModuleHost] {Sync|Async} module '<name>' FAULT (frame N, T total for this module). FDP_FAIL_FAST=0 keeps
+the node alive instead.` followed by the exception — and it **de-duplicates**: the first occurrence of a
+fault signature prints, then repeats print only at powers of ten (10th, 100th, 1000th…). So a control
+plane throwing every frame under `FDP_FAIL_FAST=0` shows up as a handful of lines, not a flood, while the
+API still answers `ok:true`. ⚠ The old `[ModuleHost] Sync Module '<name>' exception:` string no longer
+exists — grep for `FAULT` and `FDP_FAIL_FAST`.
+
+📌 **The find that justifies grepping first** *(measured under the pre-`2026-09-04` swallow-by-default
+regime)*: an unregistered `OwnershipUpdate` event threw inside `DeferredTakeoverSystem` on every tick.
+Nothing in `/status` or the entity dumps said so; **the log line was the only evidence**, and the fix took
+0/8 entities moving to 4/8. Under today's fail-fast default the same bug would crash the node on frame 1 —
+still grep the log, but expect a throw, not a silent survivor, unless `FDP_FAIL_FAST=0` is set.
 
 ⭐ Over HTTP, `/logs` takes `level` — **always pass `level:"Info"` on a cluster**, or time-sync `Trace`
 chatter fills the whole window *(measured: 176 of 200 entries)*.
@@ -408,7 +488,7 @@ failing BTree node.
 3. Load the scenario, check `sawWorldChange`. → §3
 4. `POST /sim/play` with `-d '{}'`, confirm `simTime` advances. → §2.2
 5. Sample entity positions twice over a real `simTime` delta. → §6
-6. **Nothing moved?** → grep the log for swallowed exceptions **before** reading any more state. → §7
+6. **Nothing moved?** → grep the log for module `FAULT` lines / a re-thrown exception **before** reading any more state (§7 — fail-fast is ON by default now). → §7
 7. Read the entity from **every** perspective; compare authority and behaviour. → §4
 8. `/diagnostics/architecture`; find the silent topic and which side is silent. → §5
 9. Cross-check the same chain in `--mode editor` to split shared-code from wire. → §9
