@@ -106,7 +106,10 @@ public sealed class NedNetworkFactory : INetworkFactory
                // CE-288 (C2): the gateway's short phase-1 probe records a non-delivering peer as
                // !fdp.reliable-init on the SAME cache the wait-set provider reads, so later creates skip it.
                onPeerUnsupported: nodeId => SharedClusterCache.RecordUnsupported(
-                                      nodeId, Fdp.Toolkit.Replication.CapabilityTokens.ReliableInit));
+                                      nodeId, Fdp.Toolkit.Replication.CapabilityTokens.ReliableInit),
+               // CE-291: hand the module the SHARED cache so it hosts the cluster-membership ingest + the
+               // wait-set provider for EVERY ECS node (symmetric reliable creators; no CGF-only gating).
+               clusterCache:      SharedClusterCache);
 
     /// <inheritdoc/>
     public ICommandGateway CreateCommandGateway()

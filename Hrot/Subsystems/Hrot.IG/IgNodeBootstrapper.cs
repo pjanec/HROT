@@ -484,6 +484,12 @@ internal sealed class IgNodeBootstrapper : SharedApplicationBootstrapper
             //    dropped by the Level-1 guard, which is the other half of the level mismatch.
             RequestEgress         = adapters?.RequestEgress,
 
+            // ⭐⭐⭐ CE-291 (piece C) — the reliable-init wait-set provider, sourced UNIFORMLY from the shared
+            //    NED replication module. 🔒 User ruling 2026-09-16: no node-centric gating — IG is a symmetric
+            //    reliable creator. (IG already had the cache via adapters but never passed ExpectedPeers.)
+            //    📄 docs/DESIGN_Cross_Node_Construction_Barrier.md §3a.4.
+            ExpectedPeers         = context.NedReplication?.ExpectedPeers,
+
             // ⛔ NOT the cluster's broadcast arbiter — that is CGF, and exactly one node may be it.
             IsBroadcastArbiter = false,
         });

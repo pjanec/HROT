@@ -99,6 +99,19 @@ public sealed class NedReplicationModule : INedReplicationModule
     private const int SIMULATED_INIT_MODULE_ID = 918274;
     private readonly SimulatedInitReadinessParticipant? _simulatedInitParticipant;
 
+    // CE-291 (piece C): the SHARED cluster-membership machinery, hosted here so EVERY ECS node gets it (the
+    // node-centric gating — only CGF ingested capabilities + stamped peers — is obsolete, user 2026-09-16).
+    // ⭐ The cache, the capability-ingest system, and the wait-set provider all sit on ONE cache instance the
+    // factory shares with the gateway's C2 self-heal callback.
+    private readonly Hrot.Network.Routing.SimpleClusterStateCache? _clusterCache;
+    private readonly Hrot.Network.Routing.ClusterCapabilityIngestSystem? _capabilityIngest;
+    private readonly Fdp.Toolkit.Replication.Abstractions.IExpectedPeersProvider? _expectedPeers;
+
+    /// <summary>CE-291: the reliable-init wait-set provider over this node's shared cluster cache. Non-null on a
+    /// networked node (participant + cache present); the shared entity-creation wiring reads it uniformly so any
+    /// node can be a reliable creator.</summary>
+    public Fdp.Toolkit.Replication.Abstractions.IExpectedPeersProvider? ExpectedPeers => _expectedPeers;
+
     // ── Descriptor → ECS component mapping (Single Source of Truth) ───────────
     // Populated from FdpIDescriptorTranslator.TargetComponentIds during construction
     // so that OwnershipIngressSystem and DeferredTakeoverSystem can call
@@ -209,9 +222,11 @@ public sealed class NedReplicationModule : INedReplicationModule
         ITkbDatabase?         tkbDb             = null,
         EntityLifecycleModule? lifecycleModule  = null,
         IReadOnlyList<ITkbEntityTranslator>? tkbEntityTranslators = null,
-        System.Action<int>?   onPeerUnsupported = null)
+        System.Action<int>?   onPeerUnsupported = null,
+        Hrot.Network.Routing.SimpleClusterStateCache? clusterCache = null)
     {
         _onPeerUnsupported = onPeerUnsupported;   // CE-288 (C2): gateway self-heal sink.
+        _clusterCache      = clusterCache;        // CE-291: shared cluster-state cache (ingest + wait-set).
         _participant     = participant;
         _role            = role;
         _entityMap       = entityMap  ?? throw new ArgumentNullException(nameof(entityMap));
@@ -331,6 +346,21 @@ public sealed class NedReplicationModule : INedReplicationModule
             _cognitiveTranslators = null;
         }
 
+        // CE-291 (piece C): the SHARED cluster-membership machinery. The wait-set provider works off the cache
+        // for any node; the ingest system fills that cache from the durable capability/heartbeat topics and runs
+        // on every ECS node (participant present). This replaces the CGF-only PollNetwork pumping so a SimHost /
+        // IG / Stride creator sees its peers and engages the barrier (user ruling 2026-09-16, symmetric creators).
+        if (_clusterCache != null)
+        {
+            _expectedPeers = new Hrot.Network.Routing.ClusterCacheExpectedPeersProvider(_clusterCache);
+            if (participant != null)
+            {
+                var hbReader  = new CycloneDDS.Runtime.DdsReader<Hrot.NED.Descriptors.Orchestration.NodeHeartbeat>(participant);
+                var capReader = new CycloneDDS.Runtime.DdsReader<Hrot.NED.Descriptors.Orchestration.NodeCapabilitiesTopic>(participant);
+                _capabilityIngest = new Hrot.Network.Routing.ClusterCapabilityIngestSystem(hbReader, capReader, _clusterCache);
+            }
+        }
+
         // Populate DescriptorOwnershipMap from every translator's TargetComponentIds.
         // This is the Single Source of Truth for descriptor → ECS component ID mapping.
         PopulateDescriptorOwnershipMap();
@@ -348,6 +378,10 @@ public sealed class NedReplicationModule : INedReplicationModule
         // ── Reliable-init barrier: the peer-side fake local-init participant (CE-291, C5) ──
         if (_simulatedInitParticipant != null)
             registry.RegisterSystem(_simulatedInitParticipant);
+
+        // ── Shared cluster-membership ingest (CE-291): fills the cache the wait-set reads, on EVERY node ──
+        if (_capabilityIngest != null)
+            registry.RegisterSystem(_capabilityIngest);
 
         // ── Translator routing systems ───────────────────────────────────────
         var allTranslators = new List<INetworkTranslator>(_sharedTranslators);

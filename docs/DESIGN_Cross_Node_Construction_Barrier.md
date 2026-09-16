@@ -572,6 +572,31 @@ var r = ConstructionResults.Get(world, networkId);   // Pending → Success | Fa
 | **how the two wire legs are driven** | the fake window is FIXED per run (`FDP_FAKE_INIT_FRAMES`); both legs come from the creator's `reliableTimeoutSeconds` (ai-debug spawn knob) — **happy path**: `reliableTimeoutSeconds ≫ window` ⇒ peer holds (visible `Constructing` phase-1) then acks ⇒ `Active` ⇒ `Success`; **abort**: `reliableTimeoutSeconds < window` ⇒ creator times out while the peer still holds ⇒ `EntityMaster` dispose on the wire. No participant change between runs. |
 | rails | `SimulatedInitReadinessParticipantTests` — immediate-ack for a non-reliable ghost · defer-then-ack after the window · `OnTimeout` keeps waiting (never self-activates, §3b.3) · destruction clears state + acks teardown. |
 
+### 3b.8 ✅ AS-BUILT — SYMMETRIC CREATORS + the ABORT wire proof, `2026-09-16` *(obligation ⑤)*
+> 🔒 **User ruling (`2026-09-16`):** *"'--mode all' can never have empty wait set… only '--mode editor' is
+> networkless."* · *"we aim for unification and role-based approach; if something should work same way on all
+> ecs enabled nodes it should live in shared code called from individual hosts; the node-centric gating is
+> obsolete"* · *"don't forget the stride simhost node, it is no exception."*
+
+⛔ **The bug the C5 wire proof exposed.** The barrier's **creator half** — capability ingestion (fills the
+cluster cache) + the `ExpectedPeers` wait-set provider — was wired **per-host and only completely on CGF**:
+IG created the cache but never passed `ExpectedPeers`; **SimHost/Stride had none at all** (their own code
+flagged the "network half" as an unwired follow-up). So a SimHost-created reliable entity got an **empty
+wait-set** → the gateway immediate-completed → **no wait, no timeout, no abort.** This contradicted §3a.4's
+"any node can be creator — symmetric" and CGF's own comment *"Only the Brain creator stamps peers"*
+(now deleted).
+
+| ⭐ the unified as-built | |
+|---|---|
+| **shared ingest** | new `ClusterCapabilityIngestSystem` (`Hrot.Network.NED/Routing`) reads the durable `NodeCapabilitiesTopic`+`NodeHeartbeat` into the node's `SimpleClusterStateCache` every tick. **`NedReplicationModule` constructs + registers it** — and the module is built for EVERY ECS node by the shared bootstrapper — so ingestion is single-sourced, not per-host. |
+| **shared provider** | `NedReplicationModule.ExpectedPeers` (on `INedReplicationModule`) exposes the wait-set provider over that same cache. Every host wires `ExpectedPeers = context.NedReplication?.ExpectedPeers` — one shared expression, no node-centric gating. |
+| **all paths carry the cache** | the factory path (`CreateReplicationModule`, used by CGF/IG) AND the builder path (`.WithReplication` → `HrotNodeBuilderReplicationExtensions`, used by **SimHost/Stride**) now hand the module a `SimpleClusterStateCache`. The builder-path omission was the actual root cause of the empty wait-set. |
+| **removed** | CGF's per-host `adapters?.ExpectedPeers` gating (the "only Brain stamps peers" path). CGF/IG keep their `adapters.PollNetwork` for now (idempotent double-ingest into the same cache — a noted cleanup, not gating). |
+
+⭐⭐ **LIVE WIRE PROOF (`--mode all`, `FDP_FAKE_INIT_FRAMES=180` ≈ 6 s window, ddsmonitor, `2026-09-16`):**
+- **Happy path** *(spawn reliable, `reliableTimeoutSeconds=10`)*: `EntityMaster(WaitForAcks)` → peers 100+400 `Constructing` (phase-1, held ~6 s by `SimulatedInitReadinessParticipant`) → `Active` → creator `Success`.
+- **Abort path** *(spawn reliable, `reliableTimeoutSeconds=2` < window)*: SimHost creator's wait-set = **`[100,400]`** *(measured)*, timeout **2 s** *(propagated)*; peers held `Constructing`, never `Active`; creator logged *"reliable-init timeout — aborting via EntityMaster dispose"*; the wire showed **`EntityMaster … Flags=0 NotAliveDisposed`** at ~+4.6 s → every peer's `ProcessDispose` removes the ghost (§3b.3). ⛔ The `preview.control` error on the ai-debug spawn is a separate SimHost-perspective quirk; the entity is created and the barrier engages regardless.
+
 ## 3c. ⭐ GRACEFUL DEGRADATION — a host that does not support reliable init *(AQ-70, `2026-09-16`)*
 > Full design + the decision: **[`Architect_Question_70_Host_Capabilities_And_Reliable_Init_Degradation.md`](blueprints/Architect_Question_70_Host_Capabilities_And_Reliable_Init_Degradation.md)**. This is the consumer summary.
 

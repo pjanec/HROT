@@ -809,10 +809,12 @@ public sealed class CgfSubsystem : ISubsystem, Fdp.Toolkit.Runner.IMapCameraProv
             AckSink              = adapters?.AckSink,
             JsonAttributeCompiler = adapters?.JsonCompiler,
             OwnershipStrategy     = adapters?.OwnershipStrategy,
-            // CE-283 (reliable-init barrier §3a.4): the creator's peer-set resolver, backed by the CGF
-            // adapters' cluster cache. Only the Brain creator stamps peers; peers (SimHost/IG) get the
-            // gateway + synthetic participant via NedReplicationModule. null ⇒ fast-mode (no wait).
-            ExpectedPeers         = adapters?.ExpectedPeers,
+            // ⭐⭐⭐ CE-291 (piece C) — the reliable-init wait-set provider, now sourced UNIFORMLY from the
+            //    shared NED replication module (same cluster cache the adapters used, but the module hosts the
+            //    membership ingest + provider for EVERY ECS node). 🔒 User ruling 2026-09-16: the prior
+            //    "Only the Brain creator stamps peers" gating is OBSOLETE — every ECS node is a symmetric
+            //    reliable creator. null ⇒ fast-mode. 📄 docs/DESIGN_Cross_Node_Construction_Barrier.md §3a.4.
+            ExpectedPeers         = _context.NedReplication?.ExpectedPeers,
 
             // ⭐ CE-138's list, unchanged: the ONE base set plus AiDiagnostics, which lives above
             //   Hrot.Core and so cannot be in Base(). ⛔ Never subtract to narrow — gate ②
