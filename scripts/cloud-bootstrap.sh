@@ -246,9 +246,16 @@ install_roslynmcp() {
 
 # ============================================================================
 # 4. ddsmonitor — CycloneDDS network-message diagnostics (a .NET global tool)
-#    Web dashboard: `ddsmonitor` starts a local HTTP server (127.0.0.1:<port>)
-#    to inspect DDS topics/samples on the bus. Needs DOTNET_ROOT to find the
-#    runtime (install_dotnet already exports+persists it). From nuget.org.
+#    From nuget.org (pkg cyclonedds.net.ddsmonitor). Needs DOTNET_ROOT to find
+#    the runtime (install_dotnet already exports+persists it; the wrapper below
+#    bakes it in). Two modes — docs: github.com/pjanec/CycloneDds.NET tools/DdsMonitor:
+#      • interactive Blazor web UI (opens a browser; self-exits after 15s headless);
+#      • ⭐ HEADLESS RECORD — sniff the DDS bus to a JSON file (this is what helps
+#        analyze cluster comms), runs until Ctrl+C:
+#          ddsmonitor --DdsSettings:HeadlessMode=Record \
+#                     --DdsSettings:HeadlessFilePath=capture.json \
+#                     --DdsSettings:DomainId=<cluster domain>   # match the cluster
+#        Replay a capture back onto the bus: --DdsSettings:HeadlessMode=Replay.
 # ============================================================================
 install_ddsmonitor() {
     local pkg="cyclonedds.net.ddsmonitor"
