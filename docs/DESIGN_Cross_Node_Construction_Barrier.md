@@ -770,6 +770,46 @@ node (role-agnostic, `FDP_FAKE_INIT_FRAMES>0`), scoped to reliable ghosts. IG (M
 entity. ⇒ **expected to be a finding, not a change** — the build phase confirms it concretely (a peer-side
 defer observed on each role) and fixes minimally only if a role turns out unwired.
 
+### 3d.5 ✅ AS-BUILT (`2026-09-16`, CE-294) — three rails GREEN; two deviations from the design above
+📄 `Hrot/Runner/Hrot.ClusterRunner.Integration.Tests/ExternalHostConformanceTests.cs` (+ `CgfHarness.PumpUntil`
+sleep overload). Opt-in via `HROT_RUN_EXTERNAL_CONFORMANCE=1` (T3 — boots a subprocess + real DDS discovery).
+
+| mode | rail | creator-side outcome PROVEN (deterministic) |
+|---|---|---|
+| **UNAWARE** (C1) | `Unaware_ExcludedFromWaitSet_CreatorCompletes` | fake advertises no token ⇒ no `NetworkAckPeerSet` stamped ⇒ creator reaches `Active` without waiting |
+| **AWARE-SILENT** (C2) | `AwareSilent_ShortPruned_CreatorSucceeds` | fake IS stamped in the wait-set, never sends phase-1 ⇒ short-prune ⇒ creator reaches `Active`, no deadlock |
+| **STUCK** (C3) | `Stuck_LongAbort_EntityMasterDisposed` | fake sends phase-1 then stalls ⇒ creator holds `Constructing` ~300 frames then **tears the entity down** (abort, never force-acked) |
+
+**⛔ DEVIATION 1 — placement (SUPERSEDES §3d.0 "standalone `FakeExternalHost` console project").** 🔒 User ruling
+(`2026-09-16`): *"run it as a test case in a unit test project assembly, run as separate process … clusterrunner
+is not meant to be a test runner … do not create one more new app."* ⇒ the fake host is an **env-gated `[Fact]`
+`FakeExternalHostSubprocess`** in the test assembly, launched by the rail via `dotnet vstest --TestCaseFilter`
+with `FAKE_HOST_MODE/DOMAIN/NODE_ID/DURATION_MS` env; a normal suite run (no `FAKE_HOST_MODE`) makes it a no-op.
+No new project. The fake is still a genuinely FOREIGN OS process (raw `DdsParticipant`, NO engine reference).
+⭐ Two robustness facts the design could not foresee, both measured: **(a)** the creator publishes `EntityMaster`
+**exactly once** per entity (`_publishedNetIds` guard) and only the reactive phase-1 sample, so a single
+cross-process status write races DDS discovery and is lost ⇒ STUCK **re-publishes** phase-1 `Constructing`
+every loop for the latched netId (keyed topic → one instance) so it lands inside the ~60-frame phase-1 window;
+**(b)** the rail SLOW-pumps (25 ms/frame) so that window is ~1.5 s of wall-clock for the cross-process ack.
+
+**⛔ DEVIATION 2 — STUCK wire-dispose is a DIAGNOSTIC, not an in-test gate (§3d.2 seq step "NotAliveDisposed").**
+📌 Measured: the creator-side abort is deterministic and asserted (deferred `Constructing` → torn down). But an
+in-harness `DdsReader<EntityMaster>` (joined BEFORE the birth sample, key read via `DdsTypeSupport.FromNative`
+exactly as `EntityMasterIngressTranslator`) did **NOT** observe the abort's `EntityMaster` dispose for the
+aborted-while-`Constructing` entity — neither in-process nor from the foreign fake. The entity IS locally torn
+down; the wire dispose was not seen. ⚠ Whether the abort teardown SHOULD emit that dispose (so a peer that
+ghosted the entity removes it) is a **production-barrier question** — the frame forbids touching the merged
+barrier, so this is **reported as a finding**, not fixed here; the durable wire proof remains the **ddsmonitor**
+capture (§3d.0 / RUNBOOK §5a). ⇒ the rail hard-asserts the deterministic creator-side C3 outcome and logs
+`wireDisposed` as a diagnostic.
+
+**✅ ROLE CHECK (§2b / §3d.4) CONFIRMED — finding, no change.** `SimulatedInitReadinessParticipant` is registered
+purely on `FDP_FAKE_INIT_FRAMES>0` inside `if (lifecycleModule != null)` — **role-agnostic**; the role only
+selects the diagnostic `label` (`navmesh` on SimHost/MuscleGround, `model-load` on IG/Map2d). Both host paths
+(`NedNetworkFactory.CreateReplicationModule` for IG, `HrotNodeBuilderReplicationExtensions.WithReplication` for
+SimHost) pass a `lifecycleModule`, so both roles already exercise the fake-waiting when they ghost a reliable
+entity. No wiring change.
+
 ## 4. ✅ THE RECEIVER-SIDE GATE IS REUSE
 The peer's "is my data ready?" gate already exists: `GhostPromotionSystem`'s mandatory-components gate *(HARD,
 no timeout)* + the receiver's local ELM. The navmesh/model participants are **additional local participants

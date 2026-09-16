@@ -478,6 +478,14 @@ public sealed class CgfSubsystem : ISubsystem, Fdp.Toolkit.Runner.IMapCameraProv
     /// <summary>TestHook: exposes the CGF ECS world for integration tests.</summary>
     internal Fdp.Core.EntityRepository? World => _context?.World;
 
+    /// <summary>TestHook (CE-294): the reliable-init wait-set provider, so external-host conformance rails can
+    /// gate a spawn on the creator actually having ingested a foreign peer's capabilities.</summary>
+    internal Fdp.Toolkit.Replication.Abstractions.IExpectedPeersProvider? TestHook_ExpectedPeers
+        => _context?.NedReplication?.ExpectedPeers;
+
+    /// <summary>TestHook (CE-294): this node's local id (excluded from its own wait-set).</summary>
+    internal int TestHook_NodeId => _context?.NodeId ?? 0;
+
     /// <summary>
     /// TestHook: runtime type of the CGF kernel's time controller. Mirrors
     /// <c>SimHostApp.TestHook_TimeControllerType</c> so an integration test can assert both
