@@ -841,10 +841,13 @@ question.
 have flowed but the receiver disagrees, or you need to see the actual wire traffic *(lifecycle/dispose samples,
 sender identity, ordering)* — `ddsmonitor` is a CycloneDDS sniffer that dumps every sample to a JSON array.
 ⭐ Installed by `scripts/cloud-bootstrap.sh` *(pkg `cyclonedds.net.ddsmonitor`; on PATH via a `/usr/local/bin`
-wrapper that sets `DOTNET_ROOT`)*. ⭐ **Headless record:** `ddsmonitor --DdsSettings:HeadlessMode=Record
---DdsSettings:HeadlessFilePath=cap.json --DdsSettings:DomainId=<cluster domain>` *(runs until Ctrl+C; filter
-with `--AppSettings:IncludeTopics:0="*EntityMaster*"`)*. ⚠ the `DomainId` MUST match the running cluster or the
-capture is empty. 📄 **Recipe + full arg reference: [`docs/RUNBOOK_Cluster_Debugging_Over_Http.md`](../docs/RUNBOOK_Cluster_Debugging_Over_Http.md) §5a**
+wrapper that sets `DOTNET_ROOT`)*. ⭐ **Headless record** *(VERIFIED `2026-09-16`: captured 2167 decoded samples
+from a multi-process cluster)*: `ddsmonitor --DdsSettings:HeadlessMode=Record --DdsSettings:HeadlessFilePath=cap.json
+--DdsSettings:DomainId=<cluster domain> --AppSettings:TopicSources:0=<build-output-dir>` *(runs until Ctrl+C)*.
+🔴 **`--AppSettings:TopicSources` (the message-type DLLs, e.g. the ClusterRunner `bin/Debug/net8.0`) is MANDATORY** —
+without it the generic sniffer can't decode any topic and the capture is an empty `[`. ⚠ run ONE instance to a fresh
+file *(a stale `:5000` crashes the next run)*, and use the **multi-process** launch *(runbook §1.2)* — `--mode all`
+has little cross-process wire traffic. 📄 **Recipe + full arg reference: [`docs/RUNBOOK_Cluster_Debugging_Over_Http.md`](../docs/RUNBOOK_Cluster_Debugging_Over_Http.md) §5a**
 *(tool docs: github.com/pjanec/CycloneDds.NET `tools/DdsMonitor/README.md`)*. ⛔ **It complements, does not
 replace, the HTTP diagnostics** — HTTP says *"did it leave?"*, `ddsmonitor` says *"what exactly crossed the wire."*
 

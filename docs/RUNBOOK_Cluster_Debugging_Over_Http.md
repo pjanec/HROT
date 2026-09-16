@@ -222,9 +222,15 @@ directly *(e.g. the reliable-init barrier: `EntityMaster` `WaitForAcks`, `Entity
 ```bash
 ddsmonitor --DdsSettings:HeadlessMode=Record \
            --DdsSettings:HeadlessFilePath=/tmp/cap.json \
-           --DdsSettings:DomainId=0                       # ⛔ MUST match the cluster's DDS domain
+           --DdsSettings:DomainId=0 \                     # ⛔ MUST match the cluster's DDS domain
+           --AppSettings:TopicSources:0=/home/user/HROT/Hrot/Runner/Hrot.ClusterRunner/bin/Debug/net8.0
 # ...let the scenario run, then Ctrl+C. /tmp/cap.json is a JSON array of samples.
 ```
+🔴🔴 **`--AppSettings:TopicSources:0=<dir-or-dll>` IS MANDATORY** *(measured `2026-09-16`)* — ddsmonitor is a
+GENERIC sniffer: it discovers every topic over SEDP but can only DECODE/record a topic whose `[DdsTopic]` type it
+has loaded. Point it at the cluster's **build-output dir** *(the message DLLs: `Hrot.Network.NED`, `Fdp.Network.Cyclone`,
+`Fdp.Core`, …)*. ⛔ **Without it the capture is an empty `[`** — it only knows its own self-test types. Multiple dirs/DLLs:
+`--AppSettings:TopicSources:0=… --AppSettings:TopicSources:1=…`. *(A persisted list also lives at `$APPDATA/DdsMonitor/assembly-sources.json`; the CLI list overrides it.)*
 Filter to just the barrier topics *(glob on the fully-qualified type name)*:
 ```bash
 ddsmonitor --DdsSettings:HeadlessMode=Record --DdsSettings:HeadlessFilePath=/tmp/cap.json \
@@ -243,22 +249,21 @@ Replay a capture back onto the bus: `--DdsSettings:HeadlessMode=Replay --DdsSett
 
 | ⚠ traps | |
 |---|---|
-| **empty `[` capture** | the `DomainId` *(and partition)* did not match the running cluster — nothing was on that domain. Confirm the cluster's domain first |
-| **it also opens Kestrel on `:5000`** | harmless in Record mode; it does NOT self-exit after 15s the way the browser UI does |
+| 🔴 **empty `[` capture** | **almost always missing `--AppSettings:TopicSources`** *(the type assemblies — see above)*; less often a `DomainId`/partition mismatch. Fix TopicSources first |
+| ⛔⛔ **run ONE instance, to a fresh file** | ddsmonitor starts a Kestrel web host on **`:5000`**; a leftover instance holds `:5000` and the next run **crashes at startup** *(`address already in use` → 0-byte capture)*. Kill stale instances *(`pkill -f 'Headless[M]ode=Record'` — bracket-trick so it can't match your own shell)*, or give each a distinct port `ASPNETCORE_URLS=http://127.0.0.1:5088`. ⚠ Two instances writing the SAME `HeadlessFilePath` interleave → corrupt/unclosed JSON |
+| ⚠ **the array closes on clean `Ctrl+C`/SIGINT** | an abrupt kill (or concurrent writers) leaves the JSON unclosed; grep `"TopicTypeName"` still works, or append `]` to parse |
 | ⛔ **it needs `DOTNET_ROOT`** | the `/usr/local/bin/ddsmonitor` wrapper sets it; if you run the raw `~/.dotnet/tools/ddsmonitor`, export `DOTNET_ROOT=$HOME/.dotnet` first |
 | ⚠ **run it BESIDE the cluster** | start the capture, then run the scenario *(§1/§3)*; a late-started capture misses the create/spawn burst unless the topic is durable |
 
-> ⛔⛔ **MEASURED `2026-09-16` — a SEPARATE-process capture gets NOTHING in the cloud container.** Verified
-> end-to-end: the tool installs, runs, and writes a valid JSON array — but against a live `--mode all` cluster
-> it captured **0 samples** across three transport configs *(default multicast, a unicast-localhost
-> `CYCLONEDDS_URI`, and after enabling the `lo` MULTICAST flag)* while the cluster's own translator counters
-> showed real DDS activity *(110+ sent, 439 received)*. ⇒ **the blocker is cross-process DDS discovery in this
-> sandbox, not the tool.** `ip` is absent and `CAP_NET_ADMIN`/routes are restricted, so the loopback/eth0
-> multicast path a separate participant needs cannot be completed. ⭐ **What works here instead:** an
-> **IN-PROCESS observer participant** — the integration tests do exactly this *(`new DdsParticipant(domainId)`
-> inside the test process, e.g. `DragDropIntegrationTests.cs:112`)*. ⭐ ddsmonitor as a separate process works
-> normally on a **multicast-capable host / dev box**; reserve it for those, and use the in-process observer or
-> the HTTP `/diagnostics/architecture` counters *(§5)* inside this container.
+> ✅✅ **VERIFIED WORKING `2026-09-16`** *(corrects an earlier wrong note that claimed cross-process discovery was
+> blocked here — it is NOT)*. Against a live **multi-process** cluster *(§1.2: separate orchestrator/cgf/simhost/ig
+> processes)* on domain 0, a separate ddsmonitor process **captured 2167 fully-decoded samples** across 10 HROT
+> topics — `GizmoMap.Network.DebugPrimitivesBatch` (1801), `TimeSyncRequest`/`Response` (117 each), `NodeHeartbeat`
+> (115), `AssetInventoryTopic`, `ClusterStateTopic`, `EntityAttributeSchema`, `IdStatus`, … — with decoded payloads
+> and distinct sender PIDs *(cross-process proven)*. ⭐ The two things that made it work: **`--AppSettings:TopicSources`**
+> pointed at the build-output DLLs *(else empty)*, and **one instance / clean port** *(a stale `:5000` crashes the run)*.
+> ⚠ In `--mode all` (single process) there is little cross-process wire traffic to see — use the **multi-process**
+> launch (§1.2) for a meaningful capture.
 
 ---
 
