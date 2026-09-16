@@ -675,7 +675,7 @@ Here is the architectural execution for saving scenarios:
 
 **1\. Triggering the Capture** We wire a "Save Scenario" button in the bespoke Editor UI Pack. When activated, this acts as a pure command that invokes `ScenarioSerializer.Serialize(EntityRepository repo, ScenarioHeader header)` against the local repository.
 
-**2\. Pass 1: Entity Resolution (The GuidResolver)** Before serializing component data, the serializer enumerates all live entities, strictly filtering out any entities tagged with the `ScenarioIgnoreTag` or configured with `DataPolicy.NoSave`. For each valid entity, it generates a stable GUID and populates a save-side `IGuidResolver`. This guarantees that all volatile memory addresses and raw `Entity` indices are safely converted into persistent, cross-referenced identity strings.
+**2\. Pass 1: Entity Resolution (The GuidResolver)** Before serializing component data, the serializer enumerates all live entities, strictly filtering out any entities tagged with the `ScenarioIgnoreTag` or configured with `DataPolicy.NoScenario`. For each valid entity, it generates a stable GUID and populates a save-side `IGuidResolver`. This guarantees that all volatile memory addresses and raw `Entity` indices are safely converted into persistent, cross-referenced identity strings.
 
 **3\. Pass 2: The Serialization Pipeline** For each valid entity, the serializer constructs a pure JSON node using a strict, two-tiered pipeline:
 

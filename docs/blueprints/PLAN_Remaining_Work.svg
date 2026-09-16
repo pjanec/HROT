@@ -1,0 +1,137 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 980 700" width="980" height="700" font-family="Segoe UI, Helvetica, Arial, sans-serif">
+  <style>
+    .h1  { font-size:16px; fill:#1b1f24; font-weight:700; }
+    .h2  { font-size:12px; fill:#ffffff; font-weight:700; letter-spacing:.4px; }
+    .t   { font-size:12px; fill:#1b1f24; }
+    .tb  { font-size:12px; fill:#1b1f24; font-weight:600; }
+    .s   { font-size:10.5px; fill:#57606a; }
+    .m   { font-size:11px; fill:#0a3069; font-family:ui-monospace, Consolas, monospace; }
+    .done{ fill:#e9f5e9; stroke:#4a8a3c; stroke-width:1.3; rx:5; }
+    .now { fill:#fff4e0; stroke:#bf8700; stroke-width:1.6; rx:5; }
+    .next{ fill:#ffffff; stroke:#8c959f; stroke-width:1.2; rx:5; }
+    .cell{ fill:#eef4fb; stroke:#2f6fbf; stroke-width:1.3; rx:5; }
+    .blk { fill:#fdecea; stroke:#c0392b; stroke-width:1.3; rx:5; }
+    .arr { stroke:#57606a; stroke-width:1.6; fill:none; marker-end:url(#a); }
+  </style>
+  <defs>
+    <marker id="a" markerWidth="9" markerHeight="9" refX="8" refY="3" orient="auto"><path d="M0,0 L8,3 L0,6 z" fill="#57606a"/></marker>
+  </defs>
+  <rect width="980" height="700" fill="#ffffff"/>
+
+  <text x="16" y="24" class="h1">What is left — one programme, one model</text>
+  <text x="16" y="42" class="s">Parameters, working state and asset variables are ONE thing at two Role tiers. Every remaining task below is a facet of that.</text>
+
+  <!-- MODEL BAND -->
+  <rect x="16" y="56" width="948" height="118" class="next"/>
+  <rect x="16" y="56" width="948" height="18" fill="#2f6fbf" rx="5"/>
+  <text x="24" y="69" class="h2">THE UNIFIED CELL — Role × Scope. The cross-host design and the Q32 design reached this independently.</text>
+
+  <rect x="30" y="86" width="290" height="36" class="cell"/>
+  <text x="40" y="101" class="tb">Parameter = (Input, Asset)</text>
+  <text x="40" y="115" class="s">packed region @0 · scenario-writable · Pack, 100 B budget</text>
+
+  <rect x="336" y="86" width="290" height="36" class="cell"/>
+  <text x="346" y="101" class="tb">Variable ∪ WorkingState = (State, Asset)</text>
+  <text x="346" y="115" class="s">ONE cell — Batch 56 made the emitters agree</text>
+
+  <rect x="642" y="86" width="308" height="36" class="cell"/>
+  <text x="652" y="101" class="tb">graph locals = (State, Graph)</text>
+  <text x="652" y="115" class="s">same DeclarationKind tag; source, not tag, distinguishes</text>
+
+  <rect x="30" y="130" width="920" height="34" class="next"/>
+  <text x="40" y="145" class="tb">Consequence for the plan:</text>
+  <text x="176" y="145" class="t">one Details panel, one accessor, one layout description, one picker — never two of anything.</text>
+  <text x="40" y="159" class="s">The remaining tasks split by WHICH LAYER they touch, not by which host or which word the old model used.</text>
+
+  <!-- DONE -->
+  <rect x="16" y="192" width="300" height="150" class="done"/>
+  <rect x="16" y="192" width="300" height="18" fill="#4a8a3c" rx="5"/>
+  <text x="24" y="205" class="h2">✅ MERGED — bc79be664</text>
+  <text x="26" y="228" class="tb">56</text><text x="58" y="228" class="t">one cell, one emit path</text>
+  <text x="26" y="250" class="tb">58</text><text x="58" y="250" class="t">W1 — id collision gate</text>
+  <text x="26" y="272" class="tb">57</text><text x="58" y="272" class="t">S1 — AiPrimitive metadata</text>
+  <text x="26" y="294" class="tb">59</text><text x="58" y="294" class="t">W3 — stub registrations gone</text>
+  <text x="26" y="320" class="s">all 8 gates coordinator-run · Tier 1</text>
+  <text x="26" y="334" class="s">and persistence unchanged</text>
+
+  <!-- IN FLIGHT -->
+  <rect x="332" y="192" width="300" height="150" class="now"/>
+  <rect x="332" y="192" width="300" height="18" fill="#bf8700" rx="5"/>
+  <text x="340" y="205" class="h2">⏳ IN FLIGHT — dispatched, back to back</text>
+  <text x="342" y="228" class="tb">60</text><text x="374" y="228" class="t">W2 + W4 — runtime layout gate</text>
+  <text x="374" y="242" class="s">red-first; blast radius measured ZERO</text>
+  <text x="342" y="266" class="tb">61</text><text x="374" y="266" class="t">BP-247 · W5 · W6 · W7 · S2</text>
+  <text x="374" y="280" class="s">five items, per-item STOP conditions</text>
+  <text x="342" y="306" class="s">After these two, PHASE A (correctness)</text>
+  <text x="342" y="320" class="s">is COMPLETE and the layout/size story</text>
+  <text x="342" y="334" class="s">is closed for every type.</text>
+
+  <!-- OPEN DECISIONS -->
+  <rect x="648" y="192" width="316" height="150" class="blk"/>
+  <rect x="648" y="192" width="316" height="18" fill="#c0392b" rx="5"/>
+  <text x="656" y="205" class="h2">⛔ NEEDS YOU — not code questions</text>
+  <text x="658" y="228" class="tb">D2</text><text x="690" y="228" class="t">reserved input var → Variable?</text>
+  <text x="690" y="242" class="s">measured lean ready; wants a nod</text>
+  <text x="658" y="264" class="tb">D3</text><text x="690" y="264" class="t">orchestrator emitters: delete?</text>
+  <text x="690" y="278" class="s">proven dead; disposition is yours</text>
+  <text x="658" y="300" class="tb">VC</text><text x="690" y="300" class="t">visual check still SUSPENDED</text>
+  <text x="690" y="314" class="s">Track C cannot finish without it</text>
+  <text x="658" y="334" class="s">HSM reply to send? still held</text>
+
+  <!-- TRACKS -->
+  <text x="16" y="372" class="h1">Then three tracks — B and D are headless; C is the one that needs your eyes</text>
+
+  <rect x="16" y="384" width="300" height="196" class="next"/>
+  <rect x="16" y="384" width="300" height="18" fill="#57606a" rx="5"/>
+  <text x="24" y="397" class="h2">TRACK B — finish struct support</text>
+  <text x="26" y="420" class="tb">S3</text><text x="58" y="420" class="t">MarshalFromBytes struct arm</text>
+  <text x="58" y="434" class="s">+ assembly-qualified ResolveType</text>
+  <text x="58" y="448" class="s">⇒ closes BP-01's SEVEN missing types</text>
+  <text x="26" y="472" class="tb">S4</text><text x="58" y="472" class="t">fixed lists: stop dropping Capacity</text>
+  <text x="58" y="486" class="s">a list silently degrades to a scalar</text>
+  <text x="26" y="510" class="tb">S5</text><text x="58" y="510" class="t">ONE picker, not two</text>
+  <text x="58" y="524" class="s">a Parameter cannot be struct-typed</text>
+  <text x="58" y="538" class="s">by picker today — yet 4 ship</text>
+  <text x="26" y="562" class="s">⭐ pin the marshaller against the closed</text>
+  <text x="26" y="574" class="s">18-type set with a reflection test</text>
+
+  <rect x="332" y="384" width="300" height="196" class="next"/>
+  <rect x="332" y="384" width="300" height="18" fill="#57606a" rx="5"/>
+  <text x="340" y="397" class="h2">TRACK C — the panels (the user-visible half)</text>
+  <text x="342" y="420" class="t">Details hosts the shared control</text>
+  <text x="342" y="438" class="t">Value column + live provider</text>
+  <text x="342" y="456" class="t">StructEdit dialog · not-running write</text>
+  <text x="342" y="474" class="t">Watch: edit + blank before the run</text>
+  <text x="342" y="492" class="t">tier-2/3 write halves · BOTH copies</text>
+  <text x="342" y="510" class="t">retire BlueprintVariablesWindow</text>
+  <text x="342" y="528" class="t">shared outline across all 3 hosts</text>
+  <text x="342" y="552" class="s">⚠ Two prerequisites are NOT panel work:</text>
+  <text x="342" y="566" class="s">the surgical ECB field-write command,</text>
+  <text x="342" y="578" class="s">and the paused snapshot-vs-live pass.</text>
+
+  <rect x="648" y="384" width="316" height="196" class="next"/>
+  <rect x="648" y="384" width="316" height="18" fill="#57606a" rx="5"/>
+  <text x="656" y="397" class="h2">TRACK D — cross-host extensions</text>
+  <text x="658" y="420" class="tb">W13</text><text x="700" y="420" class="t">retire standalone stride path</text>
+  <text x="700" y="434" class="s">unblocked · one projection formula</text>
+  <text x="658" y="458" class="tb">W9</text><text x="700" y="458" class="t">FQN key unification + SlotKind</text>
+  <text x="700" y="472" class="s">UNBLOCKED — D1 ruled OPEN</text>
+  <text x="658" y="496" class="tb">W8</text><text x="700" y="496" class="t">reserved input var + deserialize</text>
+  <text x="700" y="510" class="s">needs D2 · closes DEBT-AIB-021</text>
+  <text x="658" y="534" class="tb">W10/11</text><text x="722" y="534" class="t">picker · HSM thunks</text>
+  <text x="658" y="558" class="tb">W12</text><text x="700" y="558" class="t">authored Construction initializer</text>
+  <text x="700" y="572" class="s">⛔ largest, UNBUDGETED — scope it first</text>
+
+  <path class="arr" d="M316 267 L330 267"/>
+  <path class="arr" d="M166 348 L166 380"/>
+  <path class="arr" d="M482 348 L482 380"/>
+  <path class="arr" d="M806 348 L806 380"/>
+
+  <rect x="16" y="596" width="948" height="88" class="next"/>
+  <text x="26" y="616" class="tb">Order, and the one real constraint:</text>
+  <text x="216" y="616" class="t">B → C is a dependency (the value column cannot render a struct until S3 lands).</text>
+  <text x="26" y="636" class="t">D is independent of both and can go any time — it is the natural filler whenever the visual check blocks C.</text>
+  <text x="26" y="656" class="tb">Still open, filed not fixed:</text>
+  <text x="182" y="656" class="t">BP-241 (--canonicalise) · BP-242 (schema catalog returns a silently wrong answer, not an error).</text>
+  <text x="26" y="674" class="s">Numbering note: the design doc's §8 labels 57–61 are ITEM labels and now collide with real batch numbers 56–61. Track C's items are renamed below.</text>
+</svg>

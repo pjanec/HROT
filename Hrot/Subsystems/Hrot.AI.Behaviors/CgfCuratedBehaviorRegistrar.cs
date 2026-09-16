@@ -58,7 +58,7 @@ namespace Hrot.AI.Behaviors
             {
                 Name             = BehaviorNames.MoveToLocation,
                 BrainTier        = BehaviorConstants.BrainTierBTree,
-                ParamsDtoType    = typeof(CgfNodes.MoveToLocationParams),
+                BlackboardLayoutType = typeof(CgfNodes.MoveToLocationParams),
                 BTreeInterpreter = new Interpreter<BrainBlackboard, BTreeContext>(
                     FbtTreeCatalog.GetMoveToLocation(isResourceOwning), actionRegistry),
             });
@@ -67,7 +67,7 @@ namespace Hrot.AI.Behaviors
             {
                 Name             = BehaviorNames.FollowRoute,
                 BrainTier        = BehaviorConstants.BrainTierBTree,
-                ParamsDtoType    = typeof(CgfNodes.FollowRouteParams),
+                BlackboardLayoutType = typeof(CgfNodes.FollowRouteParams),
                 BTreeInterpreter = new Interpreter<BrainBlackboard, BTreeContext>(
                     FbtTreeCatalog.GetFollowRoute(isResourceOwning), actionRegistry),
             });
@@ -76,7 +76,7 @@ namespace Hrot.AI.Behaviors
             {
                 Name             = BehaviorNames.JoinFormation,
                 BrainTier        = BehaviorConstants.BrainTierBTree,
-                ParamsDtoType    = typeof(CgfNodes.JoinFormationParams),
+                BlackboardLayoutType = typeof(CgfNodes.JoinFormationParams),
                 BTreeInterpreter = new Interpreter<BrainBlackboard, BTreeContext>(
                     FbtTreeCatalog.GetJoinFormation(isResourceOwning), actionRegistry),
             });
@@ -93,7 +93,7 @@ namespace Hrot.AI.Behaviors
             {
                 Name             = BehaviorNames.FireAtTarget,
                 BrainTier        = BehaviorConstants.BrainTierBTree,
-                ParamsDtoType    = typeof(CgfNodes.FireAtTargetParams),
+                BlackboardLayoutType = typeof(CgfNodes.FireAtTargetParams),
                 BTreeInterpreter = new Interpreter<BrainBlackboard, BTreeContext>(
                     FbtTreeCatalog.GetFireAtTarget(isResourceOwning), actionRegistry),
             });
@@ -119,14 +119,21 @@ namespace Hrot.AI.Behaviors
             // Bound to the topology defs by name (order-independent). For MoveToLocation/
             // FollowRoute/FireAtTarget the topology is registered above; for HullDownAttackRun
             // and PlatoonHillAttack the topology is owned by their generated registrars and the
-            // overlay carries the params DTO type the generated def expresses only via
+            // overlay carries the blackboard layout type the generated def expresses only via
             // ManagedBlackboardVariables.
+            //
+            // ⭐⭐ CE-235 — NOTE WHAT IS *NOT* SET HERE. Neither the definitions above nor these
+            //   overlays set JsonParamsDtoType. The authored JSON contract for these behaviours is
+            //   declared by [BehaviorContract] on the DTOs in Hrot.Core/MapDefinitions/Behavior/ and
+            //   bound by BehaviorSchemaDiscovery.AutoRegister. Setting it here would be a SECOND
+            //   producer for one slot (R-132) and would let the blackboard struct leak into the public
+            //   schema again — which was CE-224's defect.
             beh.RegisterResolver(BehaviorNames.MoveToLocation, CgfNodes.ResolveMoveToParams);
             beh.RegisterResolver(BehaviorNames.FollowRoute,
-                (json, ptr, world, self) => CgfNodes.ParseFollowRouteParams(json, ptr));
+                (json, ptr, world, self, host) => CgfNodes.ParseFollowRouteParams(json, ptr));
             beh.RegisterResolver(BehaviorNames.FireAtTarget, CgfNodes.ResolveFireAtTargetParams);
             beh.RegisterResolver(BehaviorNames.HullDownAttackRun,
-                (json, ptr, world, self) => HillAttackTankNodes.ParseHullDownAttackParams(json, ptr),
+                (json, ptr, world, self, host) => HillAttackTankNodes.ParseHullDownAttackParams(json, ptr),
                 typeof(HullDownAttackParams));
             beh.RegisterResolver(BehaviorNames.PlatoonHillAttack,
                 HillAttackCommanderNodes.ResolvePlatoonHillAttackParams,

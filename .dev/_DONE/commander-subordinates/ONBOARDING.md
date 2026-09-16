@@ -132,7 +132,7 @@ Before implementing, familiarise yourself with:
 
 3. **`ComponentId` + `DataPolicy` attributes** — every component must carry both. IDs 0–159 are
    FDP/toolkit-owned; 160–199 are application-owned (use `HrotComponentIds` for new values).
-   `DataPolicy.NoSave` excludes a component from scenario JSON serialization.
+   `DataPolicy.NoScenario` excludes a component from scenario JSON serialization.
 
 4. **Event bus pattern** — `repo.Bus.Read<TEvent>()` in a system; `_bus.Publish(new TEvent{...})`
    from UI/adapters. Events are processed in the same tick they are published.

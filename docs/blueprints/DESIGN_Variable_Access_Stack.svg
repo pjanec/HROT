@@ -1,0 +1,101 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 900 560" width="900" height="560" font-family="Segoe UI, Helvetica, Arial, sans-serif">
+  <style>
+    .t   { font-size:13px; fill:#1b1f24; }
+    .tb  { font-size:13px; fill:#1b1f24; font-weight:600; }
+    .s   { font-size:11px; fill:#57606a; }
+    .m   { font-size:11.5px; fill:#0a3069; font-family:ui-monospace, Consolas, monospace; }
+    .hd  { font-size:12px; fill:#ffffff; font-weight:700; letter-spacing:.4px; }
+    .box { fill:#ffffff; stroke:#8c959f; stroke-width:1.2; rx:5; }
+    .gen { fill:#fff8e6; stroke:#bf8700; stroke-width:1.4; rx:5; }
+    .hw  { fill:#eef6ff; stroke:#2f6fbf; stroke-width:1.4; rx:5; }
+    .mem { fill:#f0f6ec; stroke:#4a8a3c; stroke-width:1.4; rx:5; }
+    .arr { stroke:#57606a; stroke-width:1.6; fill:none; marker-end:url(#a); }
+    .arrw{ stroke:#bc4c00; stroke-width:2; fill:none; marker-end:url(#aw); }
+    .dash{ stroke:#bf8700; stroke-width:1.5; fill:none; stroke-dasharray:5 3; marker-end:url(#ag); }
+  </style>
+  <defs>
+    <marker id="a" markerWidth="9" markerHeight="9" refX="8" refY="3" orient="auto"><path d="M0,0 L8,3 L0,6 z" fill="#57606a"/></marker>
+    <marker id="aw" markerWidth="9" markerHeight="9" refX="8" refY="3" orient="auto"><path d="M0,0 L8,3 L0,6 z" fill="#bc4c00"/></marker>
+    <marker id="ag" markerWidth="9" markerHeight="9" refX="8" refY="3" orient="auto"><path d="M0,0 L8,3 L0,6 z" fill="#bf8700"/></marker>
+  </defs>
+
+  <text x="14" y="22" class="tb" font-size="15">The variable access stack — one path, three tiers</text>
+  <text x="14" y="40" class="s">generated = DATA only (amber) · hand-written = ONE generic accessor (blue) · no per-variable code anywhere</text>
+
+  <!-- Tier 0 : panels -->
+  <rect x="14" y="58" width="600" height="54" class="box"/>
+  <rect x="14" y="58" width="600" height="18" fill="#57606a" rx="5"/>
+  <text x="22" y="71" class="hd">TIER 0 — PANELS (chameleon: one provider per selection kind)</text>
+  <text x="26" y="97" class="t">Details — initial when stopped · current when running</text>
+  <text x="350" y="97" class="t">Watch — nothing before the run</text>
+
+  <!-- Tier 1 : StructEdit -->
+  <rect x="14" y="128" width="600" height="56" class="hw"/>
+  <rect x="14" y="128" width="600" height="18" fill="#2f6fbf" rx="5"/>
+  <text x="22" y="141" class="hd">TIER 1 — UI ⇄ object   (StructEdit, reflection over ClrType)</text>
+  <text x="26" y="167" class="m">IComponentEditService / IEditSession — edits ANY blittable struct</text>
+
+  <!-- Tier 2 : marshal -->
+  <rect x="14" y="200" width="600" height="70" class="hw"/>
+  <rect x="14" y="200" width="600" height="18" fill="#2f6fbf" rx="5"/>
+  <text x="22" y="213" class="hd">TIER 2 — object ⇄ bytes   (non-generic: the UI holds a Type, never a T)</text>
+  <text x="26" y="238" class="m">MarshalFromBytes(byte[], Type)   ✔ ships</text>
+  <text x="26" y="256" class="m">MarshalToBytes(object, Type)     ✚ build  — Marshal.StructureToPtr</text>
+  <text x="360" y="238" class="s">one generic arm for user structs</text>
+  <text x="360" y="256" class="s">replaces the 11-type if-chain (fixes BP-01)</text>
+
+  <!-- Tier 3 : field access -->
+  <rect x="14" y="286" width="600" height="86" class="hw"/>
+  <rect x="14" y="286" width="600" height="18" fill="#2f6fbf" rx="5"/>
+  <text x="22" y="299" class="hd">TIER 3 — bytes ⇄ blackboard   (surgical: offset + size, never whole-component)</text>
+  <text x="26" y="324" class="m">BlueprintStateView.TryGetFieldRaw(name, dest)   ✔ ships (as TryGetField&lt;T&gt;)</text>
+  <text x="26" y="342" class="m">BlueprintStateView.TrySetFieldRaw(name, src)    ✚ build</text>
+  <text x="26" y="362" class="s">guards: StructureHash match · size match · bounds check · TryGet/Set&lt;T&gt; are 1-line wrappers</text>
+
+  <!-- generated data (right column) -->
+  <rect x="632" y="128" width="254" height="244" class="gen"/>
+  <rect x="632" y="128" width="254" height="18" fill="#bf8700" rx="5"/>
+  <text x="640" y="141" class="hd">GENERATED — DATA, NOT CODE</text>
+  <text x="642" y="167" class="m">StateFields:</text>
+  <text x="642" y="184" class="m">  name → (ClrType,</text>
+  <text x="642" y="200" class="m">   OffsetBytes, SizeBytes)</text>
+  <text x="642" y="222" class="s">CSharpEmitter:413</text>
+  <text x="642" y="246" class="m">DebugMap.StateLayout</text>
+  <text x="642" y="262" class="s">CSharpEmitter:83</text>
+  <line x1="642" y1="278" x2="876" y2="278" stroke="#bf8700" stroke-width="1" stroke-dasharray="3 3"/>
+  <text x="642" y="298" class="tb" font-size="12">user structs — the gap</text>
+  <text x="642" y="316" class="m">emit Unsafe.SizeOf&lt;T&gt;()</text>
+  <text x="642" y="332" class="m">Marshal.OffsetOf&lt;State&gt;(n)</text>
+  <text x="642" y="352" class="s">generator can't reflect —</text>
+  <text x="642" y="366" class="s">so it emits code that asks</text>
+
+  <path class="dash" d="M632 330 L616 330"/>
+
+  <!-- memory -->
+  <rect x="14" y="404" width="292" height="88" class="mem"/>
+  <rect x="14" y="404" width="292" height="18" fill="#4a8a3c" rx="5"/>
+  <text x="22" y="417" class="hd">_preTickSnapshot — WHAT YOU SEE</text>
+  <text x="26" y="443" class="t">ActiveView while paused</text>
+  <text x="26" y="463" class="s">write here ⇒ the panels update</text>
+  <text x="26" y="480" class="s">within one frame (ruling 12)</text>
+
+  <rect x="322" y="404" width="292" height="88" class="mem"/>
+  <rect x="322" y="404" width="292" height="18" fill="#4a8a3c" rx="5"/>
+  <text x="330" y="417" class="hd">_liveRepo — WHAT RESUMES</text>
+  <text x="334" y="443" class="t">Blackboard1024 (shared!)</text>
+  <text x="334" y="463" class="s">write here ⇒ the sim uses it</text>
+  <text x="334" y="480" class="s">after Continue (ruling 16)</text>
+
+  <path class="arrw" d="M150 372 L150 400"/>
+  <path class="arrw" d="M460 372 L460 400"/>
+  <text x="176" y="392" class="s" fill="#bc4c00">BOTH — always</text>
+
+  <rect x="632" y="404" width="254" height="88" class="box"/>
+  <text x="642" y="424" class="tb" font-size="12">Why surgical, not whole:</text>
+  <text x="642" y="444" class="s">Blackboard1024 is ONE component</text>
+  <text x="642" y="460" class="s">shared by BTree + HSM + Blueprint,</text>
+  <text x="642" y="476" class="s">"each subsystem at a disjoint offset"</text>
+
+  <text x="14" y="522" class="tb" font-size="12">Write enabled ONLY when paused on a breakpoint or deterministic-stepping · never during replay · initial value ⇒ JSON when stopped</text>
+  <text x="14" y="544" class="s">Rail: assert Marshal.OffsetOf&lt;State&gt;(name) == descriptor.OffsetBytes at runtime — golden Tier 1 records the COMPUTED offset and cannot catch a disagreement.</text>
+</svg>

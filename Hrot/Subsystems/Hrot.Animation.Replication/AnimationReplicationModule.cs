@@ -2,6 +2,7 @@ using System.Collections.Generic;
 using CycloneDDS.Runtime;
 using CycloneDDS.Schema;
 using Fdp.Interfaces;
+using Fdp.Core;
 using Fdp.Toolkit.Replication.Services;
 using Hrot.Animation.Replication.Translators.Channels;
 using Hrot.Animation.Replication.Translators.Descriptors;

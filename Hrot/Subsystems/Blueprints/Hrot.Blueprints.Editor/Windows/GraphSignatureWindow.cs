@@ -1,9 +1,33 @@
+using System.Collections.Generic;
+using System.Text.Json.Nodes;
+using Fdp.Diagnostics.Contracts.Panels;
 using Fdp.Presentation.WindowManager;
 using Hrot.Blueprints.Core.Assets;
+using Hrot.Blueprints.Editor.NodeDrawers;
 using Hrot.Blueprints.Editor.Variables;
-using Hrot.Editor.AiShared.Blackboard;
 
 namespace Hrot.Blueprints.Editor.Windows;
+
+/// <summary>
+/// ⭐⭐⭐ <b>U-obs-5 (group 3) — this window's own state, dumped.</b>
+/// 📄 <c>docs/DESIGN_UI_Observability_Snapshot.md</c> §Example.
+///
+/// <para>⭐ <c>PanelKind</c> is a local literal — this is the only <c>GraphSignatureWindow</c>-shaped
+/// class in the repo (measured), so a cross-host constant would name a set of one.</para>
+/// </summary>
+public sealed record GraphSignatureWindowPanelViewModel(
+    string PanelId,
+    string PanelKind,
+    bool   HasAsset,
+    int    GraphCount,
+    string? SelectedGraphName,
+    string? SelectedGraphKind,
+    int    InputCount,
+    int    OutputCount) : IPanelViewModel
+{
+    /// <inheritdoc/>
+    public JsonNode Dump() => PanelDump.Of(this);
+}
 
 /// <summary>
 /// Editor window that lets an author edit a Function graph's signature:
@@ -32,8 +56,11 @@ namespace Hrot.Blueprints.Editor.Windows;
 /// <see cref="ResolveEditModels"/>.
 /// </para>
 /// </summary>
-public sealed class GraphSignatureWindow : ManagedWindow
+public sealed class GraphSignatureWindow : ManagedWindow, Hrot.Editor.AiShared.Shell.IDetailsViewSource
 {
+    /// <summary>⭐ <c>U-obs-5</c> — THE KIND. ⛔ Local literal — see the view-model's class remarks.</summary>
+    internal const string Kind = "graph-signature";
+
     private readonly EditorSelectionStore _selectionStore;
     private readonly DirtyTracker         _dirtyTracker;
 
@@ -42,6 +69,17 @@ public sealed class GraphSignatureWindow : ManagedWindow
 
     // ── cached asset ─────────────────────────────────────────────────────────
     private BlueprintAsset? _asset;
+
+    // ── BP-72: the graph the canvas is showing ───────────────────────────────
+    // Supplied by the composition root from AiCanvasContext.CurrentGraphId (which reads the
+    // BlueprintGraphSwitcher). Null for callers that have no canvas (headless tests, or before a
+    // document is open), in which case the window behaves exactly as it did pre-BP-72.
+    private Func<Guid>? _currentCanvasGraphId;
+
+    // Last canvas graph we snapped the picker to. The rule: follow the canvas whenever it MOVES,
+    // but let an explicit pick in the combo stick until it moves again. Without this the combo
+    // would fight the user every frame.
+    private Guid _lastSnappedCanvasGraphId;
 
     // ── ctor ─────────────────────────────────────────────────────────────────
 
@@ -57,11 +95,20 @@ public sealed class GraphSignatureWindow : ManagedWindow
     ///   Stable ImGui window id; defaults to <c>"ai_graph_signature_blueprint"</c>.
     /// </param>
     /// <param name="owningPerspective">Perspective name; defaults to <c>"Blueprint"</c>.</param>
+    /// <param name="editServiceAccessor">
+    /// BP-125: resolves the shared <see cref="NodeDrawers.IEditService"/>. ⭐ Without it this window's
+    /// edits only marked the asset dirty — the graph model was never rebuilt, so a declared output
+    /// NEVER became a pin on the Return node, and the edit was not undoable
+    /// (<c>BP-102</c>). A <b>delegate</b> rather than the service itself because the editor host
+    /// constructs this window before the edit service exists; resolving lazily avoids that ordering
+    /// coupling. Null (the default) preserves the pre-BP-125 behaviour for tests that do not care.
+    /// </param>
     public GraphSignatureWindow(
         EditorSelectionStore selectionStore,
         DirtyTracker         dirtyTracker,
         string?              idOverride        = null,
-        string?              owningPerspective = null)
+        string?              owningPerspective = null,
+        Func<NodeDrawers.IEditService?>? editServiceAccessor = null)
         : base(idOverride        ?? "ai_graph_signature_blueprint",
                "Graph Signature",
                owningPerspective ?? "Blueprint",
@@ -69,19 +116,64 @@ public sealed class GraphSignatureWindow : ManagedWindow
     {
         _selectionStore = selectionStore ?? throw new ArgumentNullException(nameof(selectionStore));
         _dirtyTracker   = dirtyTracker   ?? throw new ArgumentNullException(nameof(dirtyTracker));
+        _editServiceAccessor = editServiceAccessor;
+
+        // ⭐⭐⭐ U-obs-5 — DECLARED AT CONSTRUCTION, ALWAYS, ungated on CaptureEnabled.
+        PanelSnapshot.DeclareInstrumented(Id);
+    }
+
+    private readonly Func<NodeDrawers.IEditService?>? _editServiceAccessor;
+
+    /// <summary>
+    /// BP-125 — records one signature edit exactly as <c>ReturnNodeDrawer.RecordOutputsChange</c> does.
+    ///
+    /// <para>
+    /// ⭐ <b>`NotifyStructureChanged` is the missing half.</b> It reaches
+    /// <c>BlueprintDocumentFactory</c> ⇒ <c>graphModel.RebuildAndNotify()</c> ⇒ pins re-project. Marking
+    /// the asset dirty (all this window used to do) changes the model and leaves the canvas showing the
+    /// old pin set — which is why adding an output here appeared to do nothing at all.
+    /// </para>
+    ///
+    /// <para>
+    /// ⚠ <b>Deliberately byte-identical to the Return-node path.</b> The two surfaces edit the same
+    /// state, so they must produce indistinguishable undo entries; a second, subtly different writer is
+    /// what created this divergence in the first place.
+    /// </para>
+    /// </summary>
+    private void RecordSignatureChange(string label, Action apply, Action undo, BlueprintAsset asset)
+    {
+        var edit = _editServiceAccessor?.Invoke();
+        if (edit is null) { apply(); return; }
+
+        edit.RecordPropertyEdit(
+            asset, label,
+            apply: () => { apply(); edit.NotifyStructureChanged(asset); },
+            undo:  () => { undo();  edit.NotifyStructureChanged(asset); });
     }
 
     // ── Public API ────────────────────────────────────────────────────────────
 
     /// <summary>
     /// Retarget to a new active Blueprint asset (e.g. when the document changes).
-    /// Resets the graph picker so the next frame re-selects the first Function graph.
+    /// Resets the graph picker so the next frame re-selects the canvas graph (BP-72), falling back
+    /// to the first editable graph.
     /// </summary>
-    public void Retarget(BlueprintAsset? asset)
+    /// <param name="asset">The newly active blueprint, or <c>null</c> when switching away.</param>
+    /// <param name="currentCanvasGraphId">
+    ///   BP-72: provider for the graph the canvas is showing — pass
+    ///   <c>AiCanvasContext.CurrentGraphId</c>. When null the window keeps its pre-BP-72 behaviour
+    ///   (first editable graph, combo-only navigation).
+    /// </param>
+    public void Retarget(BlueprintAsset? asset, Func<Guid>? currentCanvasGraphId = null)
     {
+        // The provider is per-document, so it must be refreshed even when the asset instance is
+        // unchanged (e.g. the same asset reopened into a new document).
+        _currentCanvasGraphId = currentCanvasGraphId;
+
         if (_asset == asset) return;
-        _asset           = asset;
-        _selectedGraphId = Guid.Empty;
+        _asset                    = asset;
+        _selectedGraphId          = Guid.Empty;
+        _lastSnappedCanvasGraphId = Guid.Empty;
     }
 
     /// <summary>
@@ -104,38 +196,90 @@ public sealed class GraphSignatureWindow : ManagedWindow
         return BuildEditModels(graph, asset);
     }
 
-    // ── ManagedWindow ─────────────────────────────────────────────────────────
-
-    protected override void DrawClientArea()
+    /// <summary>
+    /// BP-80 — headless seam for the macro exec-declaration tables, mirroring
+    /// <see cref="ResolveEditModels"/>. Returns <c>null</c> when the selected graph is not a Macro,
+    /// since nothing else has exec declarations.
+    /// </summary>
+    public (ExecSignatureEditModel Entries, ExecSignatureEditModel Exits)? ResolveExecEditModels()
     {
         var asset = _asset ?? _selectionStore.SelectedAsset;
+        if (asset == null) return null;
+
+        var graph = ResolveSelectedGraph(asset);
+        if (graph is not { Kind: GraphKind.Macro }) return null;
+
+        return BuildExecEditModels(graph, asset);
+    }
+
+    // ── ManagedWindow ─────────────────────────────────────────────────────────
+
+    protected override void DrawClientArea() => DrawContent();
+
+    /// <summary>
+    /// ⭐⭐⭐ <b><c>L3.2</c> — THE CONTENT, split from the WINDOW so a Details view can host it.</b>
+    /// 📄 <c>DESIGN_Details_Panel_View_Switching.md</c> §6 <c>L3</c>'s table
+    /// *(<i>"Graph signature | <c>GraphSignatureWindow</c> (388 ln) | Blueprint ∧ a graph row"</i>)*.
+    ///
+    /// <para>⭐⭐ <b>This is the shape <c>L1.3</c> already relied on and did not have to build:</b>
+    /// <c>VariableDetailsSection</c> is deliberately window-less — <i>"the host draws it; it does not
+    /// own a window… that is what lets one Details panel per perspective host the same list."</i>
+    /// ⇒ ⛔ a <c>protected override</c> body is unreachable from a view, so the content must become
+    /// callable. ⭐ <b>ROUTING, not duplication:</b> the body is unchanged and there is still exactly
+    /// ONE of it — <see cref="DrawClientArea"/> and <c>GraphSignatureDetailsView</c> both call it.</para>
+    /// </summary>
+    /// <summary>
+    /// ⭐⭐⭐ U-obs-5: BUILD · CAPTURE. ⛔⛔ No ImGui — <see cref="EditableGraphs"/> and
+    /// <see cref="ResolveSelectedGraph"/> are already pure, published before <see cref="DrawContent"/>'s
+    /// first ImGui call (which, like several siblings in this family, carries no headless guard at all).
+    /// </summary>
+    private GraphSignatureWindowPanelViewModel BuildAndPublish(BlueprintAsset? asset)
+    {
+        var graphs   = asset != null ? EditableGraphs(asset) : new List<Graph>();
+        var selected = asset != null ? ResolveSelectedGraph(asset) : null;
+
+        var vm = new GraphSignatureWindowPanelViewModel(
+            Id, Kind, asset != null, graphs.Count,
+            selected?.Name, selected?.Kind.ToString(),
+            selected?.Inputs.Count ?? 0, selected?.Outputs.Count ?? 0);
+
+        if (PanelSnapshot.CaptureEnabled) PanelSnapshot.Register(vm);
+        return vm;
+    }
+
+    /// <summary>⭐ Test hook — the BUILD + CAPTURE portion, callable with no live ImGui context.</summary>
+    internal GraphSignatureWindowPanelViewModel SimulateDrawContent()
+        => BuildAndPublish(_asset ?? _selectionStore.SelectedAsset);
+
+    public void DrawContent()
+    {
+        var asset = _asset ?? _selectionStore.SelectedAsset;
+        BuildAndPublish(asset);
+
         if (asset == null)
         {
             ImGuiNET.ImGui.TextDisabled("No blueprint selected.");
             return;
         }
 
-        var functionGraphs = asset.Graphs
-            .Where(g => g.Kind == GraphKind.Function)
-            .ToList();
+        var graphs = EditableGraphs(asset);
 
-        if (functionGraphs.Count == 0)
+        if (graphs.Count == 0)
         {
-            ImGuiNET.ImGui.TextDisabled("No Function graphs in this blueprint.");
+            ImGuiNET.ImGui.TextDisabled("No Function, Event or Macro graphs in this blueprint.");
             return;
         }
 
-        // ── Graph-picker combo ────────────────────────────────────────────────
-        var selectedGraph = functionGraphs.FirstOrDefault(g => g.Id == _selectedGraphId)
-                            ?? functionGraphs[0];
+        // ── Graph-picker combo (BP-72: seeded from the canvas graph) ──────────
+        var selectedGraph = ResolveSelectedGraph(asset)!;
         _selectedGraphId = selectedGraph.Id;
 
-        if (ImGuiNET.ImGui.BeginCombo("##graph_picker", selectedGraph.Name))
+        if (ImGuiNET.ImGui.BeginCombo("##graph_picker", GraphLabel(selectedGraph)))
         {
-            foreach (var g in functionGraphs)
+            foreach (var g in graphs)
             {
                 bool isSelected = g.Id == _selectedGraphId;
-                if (ImGuiNET.ImGui.Selectable(g.Name, isSelected))
+                if (ImGuiNET.ImGui.Selectable(GraphLabel(g), isSelected))
                 {
                     _selectedGraphId = g.Id;
                     selectedGraph    = g;
@@ -151,119 +295,240 @@ public sealed class GraphSignatureWindow : ManagedWindow
         // ── Build edit models for selected graph ──────────────────────────────
         var (inputsModel, outputsModel) = BuildEditModels(selectedGraph, asset);
 
+        bool isEventGraph = selectedGraph.Kind == GraphKind.Event;
+
         // ── Inputs section ────────────────────────────────────────────────────
-        ImGuiNET.ImGui.TextUnformatted("Inputs");
-        DrawParameterRows("##inputs", selectedGraph.Inputs, inputsModel);
+        // For a custom-event body the inputs ARE the event's parameters — say so, because the
+        // designer declared them in the create modal and needs to know this is the same list.
+        ImGuiNET.ImGui.TextUnformatted(isEventGraph ? "Parameters" : "Inputs");
+        ParameterRowsView.Draw("##inputs", selectedGraph.Inputs, inputsModel);
 
         ImGuiNET.ImGui.Spacing();
 
         // ── Outputs section ───────────────────────────────────────────────────
+        // BP-72: an Event graph has no return value — the compiler emits Event_{Name} as void and
+        // never reads Graph.Outputs for Kind.Event. Offering an editable Outputs list here would be
+        // a fresh silent-discard of exactly the kind BP-71 just removed, so state the reason
+        // instead of showing a control that does nothing.
+        if (isEventGraph)
+        {
+            ImGuiNET.ImGui.TextDisabled("Outputs: n/a — a custom event does not return a value.");
+            return;
+        }
+
         ImGuiNET.ImGui.TextUnformatted("Outputs");
-        DrawParameterRows("##outputs", selectedGraph.Outputs, outputsModel);
+        ParameterRowsView.Draw("##outputs", selectedGraph.Outputs, outputsModel);
+
+        // ── Macro exec entries / exits (BP-80, Q26-A3) ────────────────────────
+        // ⭐ Until this, NOTHING in the editor declared ExecInputs/ExecOutputs — every reference in
+        // .Editor was projection (NodePinSchema). The only ways to get a macro with more than one
+        // entry or exit were collapse, or editing JSON by hand.
+        if (selectedGraph.Kind == GraphKind.Macro)
+        {
+            var (entriesModel, exitsModel) = BuildExecEditModels(selectedGraph, asset);
+
+            ImGuiNET.ImGui.Spacing();
+            ImGuiNET.ImGui.TextUnformatted("Exec entries");
+            ImGuiNET.ImGui.TextDisabled(
+                "Each entry is an exec pin on this macro's entry node and on every call site.");
+            ExecRowsView.Draw("##execin", entriesModel, "Entry");
+
+            ImGuiNET.ImGui.Spacing();
+            ImGuiNET.ImGui.TextUnformatted("Exec exits");
+            ImGuiNET.ImGui.TextDisabled(
+                "Each exit is an exec pin on this macro's Return node and on every call site.");
+            ExecRowsView.Draw("##execout", exitsModel, "Exit");
+
+            // ⚠ N=0 is legitimate, not a missing step — say so, or the empty tables read as broken.
+            if (selectedGraph.ExecInputs.Count == 0 && selectedGraph.ExecOutputs.Count == 0)
+            {
+                ImGuiNET.ImGui.TextDisabled(
+                    "None declared — the macro has one implicit entry and one implicit exit.");
+            }
+        }
+
+        // BP-73 shipped: N outputs compile. The old BP1656 gate warning here is gone; what remains
+        // is a plain statement of the resulting shape, because the Return node and every call site
+        // grow a pin per output and the designer should know that before adding a third.
+        if (selectedGraph.Outputs.Count > 1)
+        {
+            ImGuiNET.ImGui.TextDisabled(
+                $"{selectedGraph.Outputs.Count} outputs — returned together; the Return node and "
+                + "every call site show one pin each.");
+        }
     }
+
+    /// <summary>
+    /// Combo label. Event graphs are tagged so a custom-event body is not mistaken for a function —
+    /// they live in one flat list and only the Kind distinguishes them.
+    /// </summary>
+    private static string GraphLabel(Graph g)
+        => g.Kind == GraphKind.Event ? $"{g.Name}  (event)" : g.Name;
 
     // ── Private ───────────────────────────────────────────────────────────────
 
-    private Graph? ResolveSelectedGraph(BlueprintAsset asset)
+    /// <summary>
+    /// BP-72: the graphs whose signature is editable here — Function graphs (Inputs + Outputs) and
+    /// <b>Event</b> graphs (Inputs only).
+    /// <para>
+    /// Event graphs were excluded before, which meant a custom event's body graph — auto-created by
+    /// BP-24 — had its <c>Inputs</c> editable <em>nowhere</em>: the create modal sets the parameters
+    /// once and BP-12b only covers rename, so adding one afterwards meant hand-editing JSON.
+    /// </para>
+    /// <para>
+    /// ⚠ <b>BP-80: Macro graphs were excluded too</b>, which meant a macro's <c>Inputs</c>/<c>Outputs</c>
+    /// were editable nowhere either — not just its exec declarations. The picker simply never listed
+    /// one, so a macro produced by collapse could not have its signature touched without hand-editing
+    /// JSON. They are in now, and carry two extra sections nothing else has (§Entries/§Exits).
+    /// </para>
+    /// Construction graphs stay out: nothing in the runtime consumes them yet (Q23 scope guard).
+    /// </summary>
+    /// <summary>
+    /// ⭐⭐⭐ <b><c>L3.2</c> — this window CONTRIBUTES the Graph-signature view to Blueprint's
+    /// catalogue.</b> 📄 §6 <c>L3</c>'s table · §6 <c>L1.2</c>'s claim chain
+    /// *(<i>"registration through the existing claim chain, ⛔ no new root argument"</i> — <c>R-67</c>)*.
+    /// 📐 <c>EditorSubsystem:3190</c> already calls <c>RegisterExtraWindow</c> for this window, so the
+    /// root gains <b>nothing</b>.
+    /// </summary>
+    public IEnumerable<Hrot.Editor.AiShared.Shell.DetailsViewDescriptor> DetailsViews
     {
-        var functionGraphs = asset.Graphs
-            .Where(g => g.Kind == GraphKind.Function)
+        get { yield return GraphSignatureDetailsViewDescriptor.For(this); }
+    }
+
+    /// <summary>
+    /// ⭐⭐ <b><c>L3.2</c>'s predicate, as a value.</b> 📄 §6 <c>L3</c> asks for
+    /// <i>"Blueprint ∧ a graph row"</i>.
+    ///
+    /// <para>⚠⚠ <b>STATED DEVIATION — <i>"a graph row"</i> is NOT EXPRESSIBLE from the context, and I
+    /// measured that rather than inventing it.</b> 📐 <c>search_graph(".*Selection$", label="Class")</c>
+    /// returns <b>12</b> sub-selection types and <b>none of them is a graph</b>; the selected graph is
+    /// this window's OWN state *(<c>_selectedGraphId</c>, snapped from the canvas by
+    /// <c>ResolveSelectedGraph</c>)*, ⛔ not something the store publishes. ⇒ ⭐ inventing a 13th
+    /// <c>IAssetSubSelection</c> with no writer would be a dead seam, which is the exact shape
+    /// <c>CLAUDE.md</c> warns about.</para>
+    ///
+    /// <para>⭐ <b>What IS expressible, and is the honest reading:</b> a Blueprint document that HAS at
+    /// least one editable graph row to show. ⚠ With zero graphs the window's own body draws
+    /// <i>"No Function, Event or Macro graphs in this blueprint."</i> — 📌 <c>R-117</c>: a view that
+    /// claims the panel in order to apologise is the blank defect one level down, so it declines and
+    /// the shell's grey line answers instead.</para>
+    /// </summary>
+    public bool AppliesTo(Hrot.Editor.AiShared.Shell.DetailsContext context)
+    {
+        if (context.Asset?.Kind != Hrot.Editor.AiShared.AssetKind.Blueprint) return false;
+
+        // ⚠⚠ MEASURED: the shell's IEditableAsset and BlueprintAsset are DIFFERENT hierarchies —
+        //    `context.Asset is BlueprintAsset` does not even compile (CS8121). ⇒ the KIND is what the
+        //    context can answer, and WHICH blueprint is this window's own question, exactly as
+        //    ResolveSelectedGraph already treats it. ⛔ Bridging the two hierarchies to satisfy a
+        //    predicate would be a far larger change than L3 authorises.
+        var asset = _asset ?? _selectionStore.SelectedAsset;
+        return asset != null && EditableGraphs(asset).Count > 0;
+    }
+
+    private static List<Graph> EditableGraphs(BlueprintAsset asset)
+        => asset.Graphs
+            .Where(g => g.Kind is GraphKind.Function or GraphKind.Event or GraphKind.Macro)
             .ToList();
 
-        if (functionGraphs.Count == 0) return null;
+    /// <summary>
+    /// BP-72: picks the graph to edit — the canvas graph when the canvas has moved since we last
+    /// snapped, otherwise the designer's explicit combo choice, otherwise the first editable graph.
+    /// </summary>
+    private Graph? ResolveSelectedGraph(BlueprintAsset asset)
+    {
+        var graphs = EditableGraphs(asset);
+        if (graphs.Count == 0) return null;
 
-        return functionGraphs.FirstOrDefault(g => g.Id == _selectedGraphId)
-               ?? functionGraphs[0];
+        // Follow the canvas when it moves. An explicit pick then sticks until it moves again.
+        var canvasId = _currentCanvasGraphId?.Invoke() ?? Guid.Empty;
+        if (canvasId != Guid.Empty && canvasId != _lastSnappedCanvasGraphId
+            && graphs.Any(g => g.Id == canvasId))
+        {
+            _lastSnappedCanvasGraphId = canvasId;
+            _selectedGraphId          = canvasId;
+        }
+
+        return graphs.FirstOrDefault(g => g.Id == _selectedGraphId)
+               ?? graphs[0];
+    }
+
+    /// <summary>
+    /// BP-72: an Event graph's <c>Inputs</c> ARE the paired custom event's <c>Parameters</c> — the
+    /// compiler emits <c>Event_{Name}</c> from the graph and <c>Stage2.V_CustomEventHandlers</c>
+    /// (BP1408) requires the two counts to agree. Editing one side without the other turns a
+    /// parameter edit into a compile error, so mirror graph→declaration after every mutation.
+    /// <para>
+    /// Parameter <b>ids are preserved by name</b> where they still match, so an edit that renames or
+    /// reorders does not silently re-mint ids that something else might key on.
+    /// </para>
+    /// No-op for Function graphs and for Event graphs with no matching declaration (a hand-authored
+    /// Event graph that is not a custom-event body).
+    /// </summary>
+    internal static void MirrorEventGraphInputsToDecl(BlueprintAsset asset, Graph graph)
+    {
+        if (asset == null || graph == null) return;
+        if (graph.Kind != GraphKind.Event) return;
+
+        var decl = asset.CustomEvents.FirstOrDefault(
+            e => string.Equals(e.Name, graph.Name, StringComparison.Ordinal));
+        if (decl == null) return;
+
+        var byName = decl.Parameters.ToDictionary(p => p.Name, p => p.Id);
+
+        decl.Parameters = graph.Inputs
+            .Select(src => new ParameterDecl
+            {
+                Id   = byName.TryGetValue(src.Name, out var keptId) ? keptId : Guid.NewGuid(),
+                Name = src.Name,
+                Type = new BlueprintTypeRef { TypeId = src.Type?.TypeId ?? "" },
+            })
+            .ToList();
     }
 
     private (GraphSignatureEditModel Inputs, GraphSignatureEditModel Outputs)
         BuildEditModels(Graph graph, BlueprintAsset asset)
     {
         var assetId = asset.AssetId;
-        var inputs  = new GraphSignatureEditModel(graph, false, () => _dirtyTracker.MarkDirty(assetId));
-        var outputs = new GraphSignatureEditModel(graph, true,  () => _dirtyTracker.MarkDirty(assetId));
+
+        // BP-72: every Inputs mutation on an Event graph re-syncs the paired custom-event
+        // declaration before marking dirty, so the decl and the handler graph can never drift into
+        // a BP1408. Function graphs pay nothing — the mirror early-returns on Kind.
+        void OnInputsChanged()
+        {
+            MirrorEventGraphInputsToDecl(asset, graph);
+            _dirtyTracker.MarkDirty(assetId);
+        }
+
+        // BP-125: route BOTH tables through the edit service, so the pins re-project and the edit is
+        // undoable — the two things this window never did.
+        var inputs  = new GraphSignatureEditModel(
+            graph, false, OnInputsChanged,
+            record: (label, apply, undo) => RecordSignatureChange(label, apply, undo, asset));
+        var outputs = new GraphSignatureEditModel(
+            graph, true, () => _dirtyTracker.MarkDirty(assetId),
+            record: (label, apply, undo) => RecordSignatureChange(label, apply, undo, asset));
         return (inputs, outputs);
     }
 
     /// <summary>
-    /// Renders an editable table of parameter rows (Name text-input + Type combo +
-    /// Remove button) and a trailing "+ Add" row.  All ImGui calls are local to
-    /// this method; mutations are routed through <paramref name="model"/>.
+    /// BP-80 — the macro's two exec tables. Routed through the same recorder as the parameter
+    /// tables, so an exec edit is one undo entry and re-projects the pins exactly as a signature
+    /// edit does.
     /// </summary>
-    private static void DrawParameterRows(
-        string                          tableId,
-        IReadOnlyList<ParameterDecl>    parameters,
-        GraphSignatureEditModel         model)
+    private (ExecSignatureEditModel Entries, ExecSignatureEditModel Exits)
+        BuildExecEditModels(Graph graph, BlueprintAsset asset)
     {
-        const int    NameBufLen  = 256;
-        const float  RemoveWidth = 24f;
+        var assetId = asset.AssetId;
+        void OnChanged() => _dirtyTracker.MarkDirty(assetId);
 
-        string? toRemove = null;
-
-        if (ImGuiNET.ImGui.BeginTable(tableId, 3,
-            ImGuiNET.ImGuiTableFlags.BordersInnerV | ImGuiNET.ImGuiTableFlags.SizingStretchProp))
-        {
-            ImGuiNET.ImGui.TableSetupColumn("Name",   ImGuiNET.ImGuiTableColumnFlags.WidthStretch,  1.5f);
-            ImGuiNET.ImGui.TableSetupColumn("Type",   ImGuiNET.ImGuiTableColumnFlags.WidthStretch,  1.0f);
-            ImGuiNET.ImGui.TableSetupColumn("##del",  ImGuiNET.ImGuiTableColumnFlags.WidthFixed,    RemoveWidth);
-            ImGuiNET.ImGui.TableHeadersRow();
-
-            for (int i = 0; i < parameters.Count; i++)
-            {
-                var param = parameters[i];
-                ImGuiNET.ImGui.TableNextRow();
-
-                // ── Name column ───────────────────────────────────────────────
-                ImGuiNET.ImGui.TableSetColumnIndex(0);
-                var nameBuf = System.Text.Encoding.UTF8.GetBytes(param.Name + "\0");
-                Array.Resize(ref nameBuf, NameBufLen);
-                ImGuiNET.ImGui.PushID($"name_{tableId}_{i}");
-                if (ImGuiNET.ImGui.InputText("##n", nameBuf, (uint)nameBuf.Length))
-                {
-                    var newName = System.Text.Encoding.UTF8
-                        .GetString(nameBuf)
-                        .TrimEnd('\0');
-                    if (newName != param.Name)
-                        model.RenameParameter(param.Name, newName);
-                }
-                ImGuiNET.ImGui.PopID();
-
-                // ── Type column ───────────────────────────────────────────────
-                ImGuiNET.ImGui.TableSetColumnIndex(1);
-                var typeNames  = BlackboardTypeHelper.DefaultKnownTypeNames;
-                var typeId     = param.Type?.TypeId ?? "";
-                var currentIdx = Enumerable.Range(0, typeNames.Count)
-                    .FirstOrDefault(j => typeNames[j] == typeId, -1);
-                if (currentIdx < 0) currentIdx = 0;
-
-                ImGuiNET.ImGui.PushID($"type_{tableId}_{i}");
-                if (ImGuiNET.ImGui.Combo("##t", ref currentIdx,
-                    typeNames.ToArray(), typeNames.Count))
-                {
-                    model.RetypeParameter(param.Name, typeNames[currentIdx]);
-                }
-                ImGuiNET.ImGui.PopID();
-
-                // ── Remove column ─────────────────────────────────────────────
-                ImGuiNET.ImGui.TableSetColumnIndex(2);
-                ImGuiNET.ImGui.PushID($"del_{tableId}_{i}");
-                if (ImGuiNET.ImGui.SmallButton("X"))
-                    toRemove = param.Name;
-                ImGuiNET.ImGui.PopID();
-            }
-
-            ImGuiNET.ImGui.EndTable();
-        }
-
-        // Apply pending removal after iterating (avoid modifying list mid-loop).
-        if (toRemove != null)
-            model.RemoveParameter(toRemove);
-
-        // ── "+ Add" row ───────────────────────────────────────────────────────
-        if (ImGuiNET.ImGui.Button($"+##{tableId}_add"))
-        {
-            var defaultType = BlackboardTypeHelper.DefaultKnownTypeNames[0];
-            model.AddParameter($"Param{model.Parameters.Count}", defaultType);
-        }
+        var entries = new ExecSignatureEditModel(
+            asset, graph, isEntry: true, OnChanged,
+            record: (label, apply, undo) => RecordSignatureChange(label, apply, undo, asset));
+        var exits = new ExecSignatureEditModel(
+            asset, graph, isEntry: false, OnChanged,
+            record: (label, apply, undo) => RecordSignatureChange(label, apply, undo, asset));
+        return (entries, exits);
     }
+
 }

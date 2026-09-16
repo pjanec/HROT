@@ -20,7 +20,7 @@ namespace Hrot.SimHost.Serializers
     /// </summary>
     /// <remarks>
     /// <see cref="Inject"/> is intentionally a no-op: <see cref="Blackboard1024"/> is
-    /// <c>DataPolicy.NoSave</c> transient execution state and must never be written back
+    /// <c>DataPolicy.NoScenario</c> transient execution state and must never be written back
     /// from a scenario file.  This translator exists solely to produce a readable clipboard
     /// dump via <see cref="ScenarioSerializer.SerializeEntity"/>.
     /// </remarks>

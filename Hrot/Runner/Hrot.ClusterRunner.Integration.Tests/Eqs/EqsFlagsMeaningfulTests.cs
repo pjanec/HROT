@@ -90,13 +90,25 @@ public sealed class EqsFlagsMeaningfulTests : IDisposable
     // ── T-FM1: struct size unchanged ──────────────────────────────────────────
 
     /// <summary>
-    /// T-FM1: <see cref="EqsResult"/> struct size must remain 24 bytes after replacing
-    /// <c>_pad</c> with <see cref="EqsResult.FlagsMeaningful"/>.
+    /// T-FM1: replacing <c>_pad</c> with <see cref="EqsResult.FlagsMeaningful"/> must not GROW the
+    /// struct — the new field has to live in the tail padding.
+    ///
+    /// <para>⭐ <c>QA-014</c> — <b>the number is 32, not 24, and that is a deliberate change this
+    /// assertion never tracked.</b> 📐 <c>P3D-201</c> promoted the result to 3-D and added
+    /// <see cref="EqsResult.PositionZ"/>: <c>long</c>(8) + 4×<c>float</c>(16) + 2×<c>short</c>(4) = 28,
+    /// padded to <b>32</b> on the 8-byte alignment the <c>long</c> forces. Before <c>PositionZ</c> the
+    /// same arithmetic gave exactly 24. ⚠ This project's own csproj already carries
+    /// <c>EQS_HAS_POSITIONZ</c> for that promotion — only this one assertion was left behind.</para>
+    ///
+    /// <para>⭐⭐ <b>The invariant T-FM1 exists for still HOLDS</b>, and is now stated so it cannot drift
+    /// again: with <c>_pad</c> the struct was 8+16+2+2 = 28 → 32 as well, so <c>FlagsMeaningful</c> is
+    /// still free. ⛔ A jump to 40 would mean the field stopped fitting the padding — that is the
+    /// regression this guards, not the literal 24.</para>
     /// </summary>
     [Fact]
     public void EqsResult_FlagsMeaningful_StructSizeUnchanged()
     {
-        Assert.Equal(24, Marshal.SizeOf<EqsResult>());
+        Assert.Equal(32, Marshal.SizeOf<EqsResult>());
     }
 
     // ── T-FM2: bypass path does NOT set FlagsMeaningful ─────────────────────

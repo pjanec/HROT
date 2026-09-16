@@ -11,10 +11,10 @@ public static class OrchestratorEventRegistry
     /// </summary>
     public static void RegisterInternalEvents(FdpEventBus bus)
     {
-        bus.RegisterManaged<GlobalContextManifestReadyEvent>();
         bus.RegisterManaged<ExecutePrefetchIntent>();
         bus.RegisterManaged<PrefetchStagingCompletedEvent>();
         bus.RegisterManaged<ExportArchiveBegunEvent>();
+        bus.RegisterManaged<SaveScenarioJsonBegunEvent>();
         bus.RegisterManaged<ImportArchiveBegunEvent>();
         bus.RegisterManaged<MergeLogsIntent>();
         bus.RegisterManaged<LogMergeCompletedEvent>();

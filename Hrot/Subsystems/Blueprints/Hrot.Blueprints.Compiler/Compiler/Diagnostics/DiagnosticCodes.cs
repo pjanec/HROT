@@ -42,6 +42,17 @@ public static class DiagnosticCodes
     public const string BP1400 = "BP1400";
     public const string BP1401 = "BP1401";
     public const string BP1402 = "BP1402";
+    public const string BP1403 = "BP1403";  // BP-15: CallCustomEventNode.EventId references an unknown event
+    public const string BP1404 = "BP1404";  // BP-15: ScoreDecisionNode.AssetId missing or not a well-formed GUID
+    public const string BP1405 = "BP1405";  // BP-15: ReadRankedResultNode.Rank is negative (rank is 0-based)
+    public const string BP1406 = "BP1406";  // BP-15: CastNode.TargetTypeId is empty or unresolvable
+    public const string BP1407 = "BP1407";  // BP-12c: CallCustomEvent targets a declared event with no Event graph to handle it
+    public const string BP1408 = "BP1408";  // BP-12c: the handling Event graph's inputs do not match the custom event's parameters
+
+    // Stage 2 -- Validate (node kinds with no Stage5 lowering)
+    // BP-16: these compile clean today and yield a silent wrong value at runtime. Erroring in Stage 2
+    // converts silent data corruption into a build failure. See V_UnloweredNodeKinds.
+    public const string BP1420 = "BP1420";  // Node kind has no Stage5 lowering -- would emit default(T) with no diagnostic
 
     // Stage 2 -- Validate (exec-out connectivity)
     public const string BP1411 = "BP1411";  // ExecOutFanOut: exec-out pin drives more than one successor
@@ -55,6 +66,10 @@ public static class DiagnosticCodes
     public const string BP1501 = "BP1501";
     public const string BP1502 = "BP1502";  // UnresolvableWildcard
     public const string BP1503 = "BP1503";  // ManagedTypeInState
+    public const string BP1504 = "BP1504";  // FC-2/LV-1: fixed-list variable with InitialLength outside [0, Capacity]
+    public const string BP1505 = "BP1505";  // FC-2/LV-3: ListWriteNode target is not a declared fixed-list variable
+    public const string BP1506 = "BP1506";  // FC-2/LV-3: fixed-list variable wired to a pin that cannot accept a list (whole-list clone via SetVariable is the one exception)
+    public const string BP1507 = "BP1507";  // FC-3 (R5): fixed-list type on a Parameter declaration -- lists live on Variables/WorkingState/action DTOs, never Parameters/Shared (v1)
 
     // Stage 2 -- Validate (graph structure)
     public const string BP1600 = "BP1600";  // OrphanedNode (Stage 2 graph-structure)
@@ -67,6 +82,105 @@ public static class DiagnosticCodes
     public const string BP1652 = "BP1652";  // FunctionCallNode argument count mismatch (caller data-IN pin count ≠ target graph Inputs.Count)
     public const string BP1653 = "BP1653";  // FunctionCallNode argument type mismatch (positional: caller data-IN pin type incompatible with target Input type)
     public const string BP1654 = "BP1654";  // Function-graph call cycle detected (direct or transitive recursion)
+    public const string BP1655 = "BP1655";  // BP-71: Function graph declares an output but its Return node has no value wired
+    // RETIRED by BP-73 (N outputs now compile to a ValueTuple carrier). Kept so the number is
+    // never reused; no longer emitted anywhere.
+    public const string BP1656 = "BP1656";  // [retired] Function graph declares more than one output
+    // BP-117: C#'s own "not all code paths return a value", in blueprint terms. A Library graph that
+    // declares outputs but whose exec chain runs off the end with no Return node used to emit a bare
+    // `return;` -- CS0126 from Roslyn, attributed to generated code the author never wrote. The
+    // terminator now emits `return default;` so the generated C# is valid, and THIS says why.
+    // ⚖️ WARNING, not Error (user ruling, Batch 25): Unreal silently returns defaults on such a path.
+    // Warning also keeps the pipeline reaching emit, which is what lets the authoring-path matrix
+    // prove `return default;` through Roslyn -- as an Error that code path was unprovable.
+    public const string BP1657 = "BP1657";  // [Warning] Library graph declares outputs but an exec path ends with no Return node
+
+    // BP-80 / Macro_Implementation_Design §4. BP1660-BP1667 are RESERVED for the macro rails
+    // (BP-81/BP-82) and are deliberately not defined yet — the implementing slice defines them.
+    // BP1668 is allocated here, outside that reserved block, for the ONE macro diagnostic BP-80
+    // itself needs.
+    //
+    // ⚠⚠ Why this is an Error and why it must exist before the expansion pass does. Without it a
+    // MacroCallNode reaching Stage 5 falls into the "unknown impure node kind" arm, which emits
+    // BP4004 -- a WARNING that emits no IR and walks on. Under Hrot.AI.Behaviors' TreatWarningsAsErrors
+    // that breaks the build, but in ANY consumer without that flag the macro call would silently
+    // vanish from the exec chain: the graph compiles, runs, and quietly does less than it says.
+    // That single Error is what makes shipping BP-80 ahead of BP-81 safe.
+    //
+    // ⚠ Wording is load-bearing, mirroring the GraphKind.Macro decision: the error is about a call
+    // reaching Stage 5 *as a compilation target* -- i.e. surviving expansion. A macro-library asset
+    // (Q25-C2) that merely DECLARES macros with no call sites must stay compilable.
+    // ── The macro rails. ⭐ BP1664 became buildable in Batch 37: BP-57 gave Graph.LocalVariables,
+    // so "a macro declares a local" is finally a condition that can exist and be checked. It had been
+    // reserved-and-unbuildable since BP-82 was written. ──────────────
+    public const string BP1660 = "BP1660";  // MacroCallNode.TargetGraphId does not resolve to a Macro graph
+    public const string BP1661 = "BP1661";  // macro with a transitively latent body called from a Function graph
+    public const string BP1662 = "BP1662";  // macro call cycle, direct or mutual
+    public const string BP1663 = "BP1663";  // macro with >=2 exec-outs has a data output fed by an impure producer
+    public const string BP1664 = "BP1664";  // a Macro graph declares a function-local (BP-57 / Q27-B)
+    public const string BP1665 = "BP1665";  // macro expansion exceeded the depth cap
+
+    // BP-74 / Q26-A3. ⚠ The design's §4 table earmarked BP1666 for "a GraphKind.Macro graph reached
+    // Stage 5 as a compilation target". That case was settled differently in Batch 28 -- Stage 5 SKIPS
+    // macro graphs, so it can never error -- and the surviving unexpanded-CALL case took BP1668 in
+    // Batch 80. BP1666 was therefore vacant, and is reused here rather than reserved forever.
+    public const string BP1666 = "BP1666";  // macro entered through >=2 wired exec-ins has a data input fed by an impure producer
+    public const string BP1667 = "BP1667";  // [Warning] macro body is empty -- the call is a no-op
+
+    public const string BP1668 = "BP1668";  // MacroCallNode reached Stage 5 unexpanded
+
+    // BP-57 / Q27 §5 — the rail nobody had named until Batch 37: a macro BODY referencing a local.
+    // ⚠ Distinct from BP1664, which is about a macro DECLARING one. Both follow from the same fact —
+    // a macro is not a graph after expansion — approached from opposite ends.
+    public const string BP1669 = "BP1669";  // a Macro body reads/writes a graph-local variable
+
+    // BP-57 / Batch 38 §2 — pre-existing, but BP-57's delete gesture makes it reachable: an
+    // unresolvable Get/SetVariable emitted `s.__var_-1`, which is not a C# identifier, so the SOLUTION
+    // build broke with a CS error naming a generated file and no BP diagnostic named the node.
+    public const string BP1670 = "BP1670";  // Get/SetVariable targets a variable that does not exist
+
+    // U-7 / BP-228 — a declared field type that does not exist. ⛔ Distinct from BP1500 ("does not
+    // resolve"): the type id here RESOLVED, via the AN2 "dotted FQN ⇒ trust the string" fallback, and
+    // only a real type oracle can say it names nothing. Its own code because the cause and the fix
+    // differ — BP1500 means "the compiler does not know this shape", BP1671 means "this type is not
+    // there". ⚠ Fires only when an IClrSignatureResolver is supplied; see Stage4_TypeResolve.
+    public const string BP1671 = "BP1671";  // declared field type does not exist (oracle-checked)
+
+    // Batch 52 §1 — trap #5 in the COMPILER, not merely in a test. `EmitPdbWithEmbeddedSource: true`
+    // with no RoslynFinalizer installed produced NO pdb, NO pe, NO diagnostic and `Succeeded == true`:
+    // the caller asked for an artefact, did not get it, and was told nothing. The finalizer is injected
+    // by Hrot.Blueprints.Core's [ModuleInitializer], so its absence is a HOST-CONFIGURATION fact (this
+    // process never loaded that assembly) rather than anything the blueprint author can fix — hence a
+    // precondition checked before any stage runs, and reported alone.
+    // ⚠ Not a throw. `.Compiler` multi-targets netstandard2.0 and references Roslyn only under net8.0,
+    // so "cannot produce a PDB here" is a reachable, legitimate configuration, not an impossible state.
+    public const string BP1672 = "BP1672";  // a PDB was requested but no Roslyn finalizer is installed
+
+    // U-12 / Batch 52 — the rail that BP1024 and BP1031's WorkingState half were silently also
+    // providing, and which their removal takes away.
+    //
+    // ⛔ Stage5.FindVariableRef resolves a reference by PRIORITY ACROSS KINDS -- Variables, then
+    // WorkingState, then Parameters -- and falls back to matching by NAME, which is what
+    // hand-authored assets use. Two declarations sharing a name therefore bind to whichever kind the
+    // priority order reaches first, silently, with no diagnostic anywhere.
+    //
+    // ⭐ That was unreachable only because the mixture itself was illegal: BP1024 kept Variables off
+    // an AiPrimitive, BP1031 kept Parameters/WorkingState off an Instance. U-12 makes the mixture
+    // legal, so the collision becomes reachable and needs its own rail.
+    //
+    // ⚠ Case-INSENSITIVE, matching U-14's OrdinalIgnoreCase namer, so the compiler refuses exactly
+    // what the editor's auto-namer refuses. Covers same-kind duplicates too -- equally undiagnosed
+    // before, and the same defect.
+    public const string BP1673 = "BP1673";  // two asset-scope declarations share a name
+
+    // BP-247 -- a persisted default value that has no C# literal of the declared type.
+    //
+    // ⛔ The alternative was what shipped for the whole programme so far: pass the JSON text through
+    // verbatim and let ROSLYN complain. A float default of `0.5` emitted a `double` literal and came
+    // back as CS0664 naming a generated file the designer has never seen -- the same "diagnostic in
+    // the wrong language" shape as `__var_-1` (BP-228). This says it in the compiler's own language,
+    // against the declaration.
+    public const string BP1674 = "BP1674";  // default value is not a literal of the declared type
 
     // Stage 2 -- Validate (WhenNode rules)
     public const string BP2001 = "BP2001";  // WhenNode in unsupported dispatch
@@ -118,6 +232,19 @@ public static class DiagnosticCodes
     // Stage 2 -- Validate (component-collection consumer rules -- CA-07b)
     public const string BP2066 = "BP2066";  // ComponentForEach/ComponentItemGet/ComponentItemCount: "Collection" is wired but baked accessor FQNs are empty
 
+    // Stage 2 -- Validate (component-collection WRITE rules -- FC-1, Q#20)
+    public const string BP2067 = "BP2067";  // CollectionWriteNode: "Collection" is wired but ComponentTypeFqn/WriteAccessorFqn are empty or malformed (not baked at wire time)
+    public const string BP2068 = "BP2068";  // CollectionWriteNode bound to a ManagedMember collection -- managed collections are not element-writable (Q#20-C, snapshot aliasing)
+    public const string BP2069 = "BP2069";  // CollectionWriteNode carries a "Target" pin -- writes are self-only (Q#16/Q#20)
+    public const string BP2070 = "BP2070";  // CollectionWriteNode's producer GetComponent has "Target" wired -- cross-entity collection write is not permitted (G4)
+    public const string BP2071 = "BP2071";  // WARNING: CollectionWriteNode mutates the collection a surrounding ComponentForEach is iterating (G3 -- wire-dependent semantics)
+
+    // Stage 2 -- Validate (BP-108 -- Print String / Format String)
+    // ERROR, not Warning: a malformed Format yields NO derived arg pins (BuiltInNodeRegistry's
+    // AppendArgPins bails out on !parsed.IsValid), so the node still "compiles" and silently prints
+    // or formats the wrong thing -- trap #5's shape, worse than a build failure.
+    public const string BP2072 = "BP2072";  // PrintStringNode/FormatStringNode.Format fails BlueprintFormatString.Parse
+
     // Stage 3 -- Normalize
     public const string BP3010 = "BP3010";
     public const string BP3011 = "BP3011";
@@ -131,6 +258,26 @@ public static class DiagnosticCodes
     public const string BP4002 = "BP4002";
     public const string BP4003 = "BP4003";
     public const string BP4004 = "BP4004";
+
+    /// <summary>
+    /// Batch 28 — a data-OUT pin was pulled from a node kind that has no case in
+    /// <c>ResolveNodeOutput</c>, so nothing in the compiler can produce its value.
+    ///
+    /// <para>
+    /// ⭐ <b>Error, not Warning, and the reasoning matters.</b> This is not an authoring-in-progress
+    /// state like <c>BP4001</c> (a pin the designer has not wired yet) or <c>BP3010</c> (a node they
+    /// left disconnected) — both of which the user ruled should warn rather than block. It is a wire
+    /// the designer <b>did</b> draw, between two pins the editor offered, that <b>cannot ever work</b>:
+    /// the value read is <c>default(T)</c>, every tick, forever. A silent wrong value is the worst
+    /// outcome in this subsystem and the whole reason this programme exists.
+    /// </para>
+    ///
+    /// <para>
+    /// ⚠ It is also a <b>compiler gap, not a user error</b> — the editor projected the pin and accepted
+    /// the wire — so the message says so and the fix is ours, not theirs.
+    /// </para>
+    /// </summary>
+    public const string BP4005 = "BP4005";
 
     // Stage 6 -- Lower
     public const string BP5001 = "BP5001";

@@ -3,9 +3,13 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Text.Json;
+using System.Text.Json.Nodes;
 using Fdp.Core;
+using Fdp.Core.Logging;
 using Fdp.Core.Serialization;
+using Fdp.Core.Serialization.Migrations;
 using Fdp.Toolkit.Orchestration;
+using Hrot.Common.Scenario;
 
 namespace Hrot.Orchestrator;
 
@@ -88,11 +92,22 @@ public sealed class AssetInventoryProcessManager
                 _pendingExports[intent.RequestId] = intent.ExerciseId;
         }
 
-        foreach (var ev in _bus.ReadManaged<StorageOpCompletedEvent>())
+        // CE-278 §5: on export success, persist the archived-exercise metadata sidecar next to the pulled
+        // .fdp files on NAS BEFORE dropping the local ledger entry, then evict. This re-homes the
+        // Orchestrator.json sidecar onto the Export path (previously written only by the retired
+        // SaveScenario=2 op); StorageGatewayModule.ScanNasExercises reads it back for the Archived
+        // Exercises list. ⚠ Keyed on ClusterOpCompletedEvent — the real production completion signal
+        // (PublishOpStatus / StorageProcessManager). StorageOpCompletedEvent has NO production publisher
+        // (only the test-only EventDrivenStorageGateway), so the previous StorageOpCompletedEvent branch
+        // never fired outside tests and the ledger was never evicted in production. See CE-278 design §5.
+        foreach (var ev in _bus.ReadManaged<ClusterOpCompletedEvent>())
         {
             if (ev.StatusCode == OrchestrationStatusCode.Success &&
                 _pendingExports.TryGetValue(ev.RequestId, out var exerciseId))
             {
+                if (_unarchivedLedger.TryGetValue(exerciseId, out var ledgerEntry))
+                    WriteExerciseSidecar(exerciseId, ledgerEntry);
+
                 _unarchivedLedger.Remove(exerciseId);
                 DeleteLedgerEntry(exerciseId);
                 _pendingExports.Remove(ev.RequestId);
@@ -175,6 +190,46 @@ public sealed class AssetInventoryProcessManager
         }
         catch
         {
+        }
+    }
+
+    /// <summary>
+    /// CE-278 §5 — writes the archived-exercise metadata sidecar
+    /// (<c>&lt;nas&gt;/exercises/&lt;exerciseId&gt;/Orchestrator.json</c>) beside the pulled <c>.fdp</c>
+    /// files, in the <see cref="GlobalContextDto"/> shape <see cref="StorageGatewayModule.ScanNasExercises"/>
+    /// reads (start wall ticks + scenario id + duration). Best-effort: a failure must not abort the export
+    /// lifecycle. The exercise dir uses <c>exerciseId.ToString()</c> to match <c>ReferenceArchiveHandler</c>'s
+    /// NAS layout, so the sidecar lands in the same directory as the archived recordings.
+    /// </summary>
+    private void WriteExerciseSidecar(Guid exerciseId, RecordingLedgerEntry entry)
+    {
+        try
+        {
+            var dir = Path.Combine(
+                _nasBasePath, OrchestrationConstants.ExercisesDirectoryName, exerciseId.ToString());
+            Directory.CreateDirectory(dir);
+
+            var dto = new GlobalContextDto
+            {
+                StartWallTicks      = entry.StartTimeUtc.Ticks,
+                SceneId             = string.Empty,
+                ScenarioId          = entry.ScenarioId ?? string.Empty,
+                ScenarioTimeSeconds = entry.Duration.TotalSeconds,
+            };
+
+            var opts = new JsonSerializerOptions { WriteIndented = true };
+            var dom  = JsonSerializer.SerializeToNode(dto, opts)!.AsObject();
+            JsonEnvelope.Write(dom, new DocumentMeta(HrotDocumentTypes.OrchestratorContext, 2));
+            File.WriteAllText(Path.Combine(dir, "Orchestrator.json"), dom.ToJsonString(opts));
+
+            FdpLog<AssetInventoryProcessManager>.Info(
+                "[AssetInventory] wrote exercise sidecar for {0} (scenarioId='{1}', duration={2:F1}s).",
+                exerciseId, dto.ScenarioId, dto.ScenarioTimeSeconds);
+        }
+        catch (Exception ex)
+        {
+            FdpLog<AssetInventoryProcessManager>.Warn(
+                "[AssetInventory] failed to write exercise sidecar for {0}: {1}", exerciseId, ex.Message);
         }
     }
 }

@@ -5,6 +5,7 @@ using System.Threading.Tasks;
 using Hrot.Core.Mission;
 using Hrot.Core.Network;
 using Hrot.IG.Components;
+using Hrot.IG.EntityCreation;
 using Fdp.Core.Logging;
 using Fdp.Core;
 using Fdp.Modules.Geographic;
@@ -73,10 +74,10 @@ public class MiniExConPanelState
 
     /// <summary>
     /// Raised synchronously inside <see cref="Submit"/> immediately after the
-    /// <see cref="SpawnEntityCommand"/> is published, so tests can inspect the
-    /// command without consuming it from the bus.
+    /// <see cref="EntityCreationRequest"/> is enqueued, so tests can inspect the request without
+    /// draining the source.
     /// </summary>
-    public event Action<SpawnEntityCommand>? OnCommandPublished;
+    public event Action<EntityCreationRequest>? OnRequestEnqueued;
 
     /// <summary>
     /// Supplies the geodetic transform used to convert map-space spawn coordinates
@@ -88,8 +89,8 @@ public class MiniExConPanelState
     // ── Submit ────────────────────────────────────────────────────────────────
 
     /// <summary>
-    /// Constructs a <see cref="SpawnEntityCommand"/> from the current form fields
-    /// and publishes it to <paramref name="eventBus"/>.
+    /// Constructs the entity shape from the current form fields and enqueues it as an
+    /// <see cref="EntityCreationRequest"/> onto <paramref name="requests"/>.
     ///
     /// The command mirrors the <c>CreationTool</c> contract:
     /// <list type="bullet">
@@ -100,10 +101,13 @@ public class MiniExConPanelState
     ///         and an <see cref="Hrot.IG.Components.IgSymbolOverride"/> carrying the chosen affiliation.</item>
     /// </list>
     /// </summary>
-    /// <param name="eventBus">The application event bus; must not be <c>null</c>.</param>
-    public void Submit(FdpEventBus eventBus)
+    /// <param name="requests">
+    /// ⭐ The node's LOCAL entity-creation request source; must not be <c>null</c>. host (f): the panel
+    /// posts an INTENT here rather than publishing a node-local ORDER onto the event bus.
+    /// </param>
+    public void Submit(ScenarioEntityCreationRequestSource requests)
     {
-        if (eventBus is null) throw new ArgumentNullException(nameof(eventBus));
+        if (requests is null) throw new ArgumentNullException(nameof(requests));
 
         var transform = new SimTransform
         {
@@ -127,8 +131,9 @@ public class MiniExConPanelState
             RequestId         = Guid.NewGuid(),
         };
 
-        eventBus.PublishManaged(cmd);
-        OnCommandPublished?.Invoke(cmd);
+        var request = IgEntityCreationRequests.FromSpawnCommand(cmd);
+        requests.Enqueue(request);
+        OnRequestEnqueued?.Invoke(request);
     }
 
     // ── Submit via gateway (network path) ─────────────────────────────────────

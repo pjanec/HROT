@@ -15,6 +15,9 @@ namespace Fdp.Toolkit.Navigation.EngineBacked
         public bool RegisterAgent(Entity entity, in CrowdAgentParams parameters) => true;
 
         /// <inheritdoc/>
+        public bool RegisterAgent(Entity entity, in CrowdAgentParams parameters, Vector3 startPositionFdp) => true;
+
+        /// <inheritdoc/>
         public void UnregisterAgent(Entity entity) { }
 
         /// <inheritdoc/>

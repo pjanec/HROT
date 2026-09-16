@@ -1,0 +1,11 @@
+StructureHash: 0xF7C28C130EF5260A
+Parameters:
+  (empty)
+WorkingState:
+  (empty)
+Variables:
+  OutWritten : System.Boolean @16 size=1
+GraphLocalSlots:
+  (empty)
+Diagnostics:
+  (none)

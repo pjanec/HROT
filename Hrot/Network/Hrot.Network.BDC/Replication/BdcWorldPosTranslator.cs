@@ -54,8 +54,65 @@ namespace Hrot.BDC.Replication
             _reader       = new DdsReader<BdcWorldPos>(participant);
         }
 
+        /// <summary>
+        /// ENU linear velocity to the wire's azimuth/elevation/length form. Mirrors the NED stack's
+        /// <c>EnuToAngularVector</c> so a receiver decodes both wires with the same arithmetic.
+        /// </summary>
+        private static BdcAngularVector ToAngularVector(Vector3 enu)
+        {
+            float length = enu.Length();
+            if (length <= 1e-6f)
+                return new BdcAngularVector { Azimuth = 0, Elevation = 0, Length = 0 };
+
+            // Azimuth measured clockwise from north (+Y), elevation above the horizontal plane.
+            float azimuthDeg   = MathF.Atan2(enu.X, enu.Y) * (180f / MathF.PI);
+            float elevationDeg = MathF.Asin(Math.Clamp(enu.Z / length, -1f, 1f)) * (180f / MathF.PI);
+
+            return new BdcAngularVector
+            {
+                Azimuth   = azimuthDeg,
+                Elevation = elevationDeg,
+                Length    = length,
+            };
+        }
+
+        /// <summary>Inverse of <see cref="ToAngularVector"/>: wire form back to ENU linear velocity.</summary>
+        private static Vector3 FromAngularVector(BdcAngularVector v)
+        {
+            float speed   = v.Length;
+            float azimRad = v.Azimuth   * (MathF.PI / 180f);
+            float elevRad = v.Elevation * (MathF.PI / 180f);
+
+            return new Vector3(
+                speed * MathF.Cos(elevRad) * MathF.Sin(azimRad),
+                speed * MathF.Cos(elevRad) * MathF.Cos(azimRad),
+                speed * MathF.Sin(elevRad));
+        }
+
+        /// <summary>
+        /// Decodes the sample's simulation-time stamp, complaining loudly if it carries none.
+        /// The NED stack's translator has the same guard, for the same reason — see
+        /// <c>docs/DESIGN_Dead_Reckoning.md</c> rule R6.
+        /// </summary>
+        private double DecodeSimStampOrComplain(DateTime wireStamp, long entityId)
+        {
+            if (SimStampCodec.TryDecode(wireStamp, out double simStamp))
+                return simStamp;
+
+            FdpLog<BdcWorldPosTranslator>.Warn(
+                "[BDC Node-{0}] BDC_WorldPos for entity {1} arrived with NO simulation-time stamp. " +
+                "Dead reckoning cannot extrapolate it and will hold the raw sample. " +
+                "The publisher is not stamping — fix it there (docs/DESIGN_Dead_Reckoning.md R6).",
+                _localNodeId, entityId);
+
+            return 0.0;
+        }
+
         public void ScanAndPublish(ISimulationView view)
         {
+            // Sampled once per scan so every entity in this frame carries the same stamp.
+            double simNowSeconds = Fdp.Toolkit.Time.SimClock.Of(view).TotalTime;
+
             var query = view.Query()
                 .With<NetworkIdentity>()
                 .With<SimTransform>()
@@ -76,10 +133,23 @@ namespace Hrot.BDC.Replication
                 float heading = SimTransformBridgeSystem.RotationToHeadingDeg(simTf.Rotation);
                 SimTransformBridgeSystem.RotationToPitchRollDeg(simTf.Rotation, out float pitch, out float roll);
 
+                // Velocity is what dead reckoning extrapolates ALONG; publishing zeros made every
+                // receiver hold the last sample still until the next one arrived, which is the
+                // stutter DR exists to remove (CE-211). Encoded the same way the NED stack encodes
+                // it — azimuth/elevation/length in degrees and m/s — so the two wires agree.
+                var vel = new BdcAngularVector { Azimuth = 0, Elevation = 0, Length = 0 };
+                if (view.HasComponent<SimVelocity>(entity))
+                {
+                    ref readonly var simVel = ref view.GetComponentRO<SimVelocity>(entity);
+                    vel = ToAngularVector(simVel.Linear);
+                }
+
                 _writer!.Write(new BdcWorldPos
                 {
                     EntityId = (int)netId.Value,
-                    Time     = DateTime.UtcNow,
+                    // Cluster-synced SIMULATION time, never wall time — see SimStampCodec and
+                    // docs/DESIGN_Dead_Reckoning.md rule R4.
+                    Time     = SimStampCodec.Encode(simNowSeconds),
                     Pos      = new BdcGeoPoint
                     {
                         Latitude  = lat,
@@ -92,12 +162,7 @@ namespace Hrot.BDC.Replication
                         Pitch   = pitch,
                         Roll    = roll,
                     },
-                    Vel = new BdcAngularVector
-                    {
-                        Azimuth   = 0,
-                        Elevation = 0,
-                        Length    = 0,
-                    },
+                    Vel = vel,
                 });
 
                 SentSampleCount++;
@@ -134,6 +199,19 @@ namespace Hrot.BDC.Replication
 
                 var position = new Vector3((float)cartesian.X, (float)cartesian.Y, (float)cartesian.Z);
                 var rotation = SimTransformBridgeSystem.HeadingDegToRotation(msg.Ori.Heading);
+
+                // The sample and its stamp — the anchor dead reckoning extrapolates FROM. Until
+                // CE-211 this translator wrote SimTransform only, so on a BDC node the DR system
+                // registered at BdcReplicationModule:87 matched zero entities: its query requires
+                // NetworkTransform + NetworkVelocity and nothing here supplied either. The
+                // registration was real and the mechanism was inert.
+                cmd.SetComponent(entity, new NetworkTransform
+                {
+                    LastPosition = position,
+                    LastRotation = rotation,
+                    SimStamp     = DecodeSimStampOrComplain(msg.Time, msg.EntityId),
+                });
+                cmd.SetComponent(entity, new NetworkVelocity { Value = FromAngularVector(msg.Vel) });
 
                 cmd.SetComponent(entity, new SimTransform { Position = position, Rotation = rotation });
 

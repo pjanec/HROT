@@ -121,7 +121,7 @@ namespace Fdp.Toolkit.Scenario
 
         /// <summary>
         /// Returns the component name for the given type ID, or <see langword="null"/> if
-        /// not registered in this auto-serializer (e.g. <c>DataPolicy.NoSave</c> type).
+        /// not registered in this auto-serializer (e.g. <c>DataPolicy.NoScenario</c> type).
         /// </summary>
         public string? GetComponentName(int typeId)
             => _entries.TryGetValue(typeId, out var e) ? e.ComponentName : null;

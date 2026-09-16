@@ -57,7 +57,9 @@ namespace Fdp.Toolkit.Perception.Modules
         public ExecutionPolicy Policy => ExecutionPolicy.SlowBackground(10);
 
         // Module-private spatial grid. Shares native-memory pointers with the two grid systems.
+        // B3 -- RECEIVED, not allocated. See the constructor.
         private readonly SpatialHashGrid _localGrid;
+        private readonly PerceptionGridProvider? _ownedGridProvider;
 
         // Module-private event bus for inter-stage event passing.
         // Prevents global bus corruption when the pipeline runs synchronously in tests.
@@ -85,15 +87,21 @@ namespace Fdp.Toolkit.Perception.Modules
         /// LOS mode.  Pass <c>null</c> to treat all occluders as point entities.
         /// See <see cref="LosRequestBatchingSystem.ColliderRadiusReader"/>.
         /// </param>
+        /// <param name="gridProvider">
+        /// <b>B3</b> — the perception grid's owner. <b>Pass one.</b> The grid is a RESOURCE: one per world,
+        /// shared with <c>CognitiveSpatialModule</c>, which registers a superset of these systems. A node
+        /// selecting both capabilities by role must hand both the SAME provider or it allocates persistent
+        /// native memory twice. When <c>null</c> this module allocates a private one — the pre-B3 behaviour,
+        /// kept so existing tests and single-capability hosts work unchanged.
+        /// </param>
         public AutonomousPerceptionModule(
-            Func<ISimulationView, Entity, float>? colliderRadiusReader = null)
+            Func<ISimulationView, Entity, float>? colliderRadiusReader = null,
+            PerceptionGridProvider? gridProvider = null)
         {
-            _localGrid = SpatialHashGrid.Create(
-                PerceptionConstants.LocalGridWidth,
-                PerceptionConstants.LocalGridHeight,
-                PerceptionConstants.LocalGridCellSize,
-                PerceptionConstants.LocalGridMaxEntities,
-                Allocator.Persistent);
+            // Own one only if nobody handed us one; _ownedGridProvider records which case we are in so
+            // Dispose frees exactly what this module allocated and never what it borrowed.
+            _ownedGridProvider = gridProvider is null ? new PerceptionGridProvider() : null;
+            _localGrid         = (gridProvider ?? _ownedGridProvider!).Grid;
 
             _scopedBus = new FdpEventBus();
             _scopedBus.Register<LosCheckRequestEvent>();
@@ -164,10 +172,14 @@ namespace Fdp.Toolkit.Perception.Modules
             }
         }
 
-        /// <summary>Disposes the module-private <see cref="SpatialHashGrid"/> and scoped bus.</summary>
+        /// <summary>
+        /// Disposes the scoped bus, and the grid ONLY when this module allocated it (B3) — a borrowed
+        /// provider outlives us and is freed by its owner; disposing it here would free memory other
+        /// capabilities still read.
+        /// </summary>
         public void Dispose()
         {
-            _localGrid.Dispose();
+            _ownedGridProvider?.Dispose();
             _scopedBus.Dispose();
         }
 
@@ -276,6 +288,9 @@ namespace Fdp.Toolkit.Perception.Modules
             public void SetManagedComponent<T>(Entity entity, T? component) where T : class    => _realEcb.SetManagedComponent(entity, component);
             public void RemoveManagedComponent<T>(Entity entity) where T : class  => _realEcb.RemoveManagedComponent<T>(entity);
             public unsafe void SetComponentRaw(Entity entity, int typeId, void* ptr, int size) => _realEcb.SetComponentRaw(entity, typeId, ptr, size);
+            // Ruling 14 — a delegating wrapper must delegate this too, or the debug field write hits
+            // the interface's throwing default instead of the real buffer behind it.
+            public unsafe void SetComponentFieldRaw(Entity entity, int typeId, int byteOffset, void* ptr, int size) => _realEcb.SetComponentFieldRaw(entity, typeId, byteOffset, ptr, size);
             public void SetManagedComponentRaw(Entity entity, int typeId, object obj)          => _realEcb.SetManagedComponentRaw(entity, typeId, obj);
             public void SetLifecycleState(Entity entity, EntityLifecycle state)   => _realEcb.SetLifecycleState(entity, state);
         }

@@ -511,7 +511,7 @@ Fdp.Core Dependency Tree
   `CreateEntity()`, `DestroyEntity()`, `AddComponent<T>()`, `SetComponent<T>()`,
   `RemoveComponent<T>()`, and managed variants. `Playback(repo)` replays commands in order.
 - **`EpisodeTag.cs`** — `[ComponentId(84)]` tag marking entities belonging to a specific
-  episode (Guid). `[DataPolicy(DataPolicy.NoSave)]`.
+  episode (Guid). `[DataPolicy(DataPolicy.NoScenario)]`.
 - **`DISEntityType.cs`** — `[StructLayout(Explicit, Size=8)]` overlay struct allowing access
   as both a `ulong` and named DIS fields (Kind, Domain, Country, Category, Subcategory,
   Specific, Extra).
@@ -844,6 +844,29 @@ Byte-stream deferred command recorder. Thread-safe per buffer instance.
 | `void Playback(EntityRepository)` | Executes all recorded commands. |
 | `void Clear()` | Resets buffer for reuse. |
 
+#### 🔴 `ManagedComponentTable<T>` — **every payload mutation must bump the chunk version**
+
+⛔ **The invariant, and it fails SILENTLY when broken** *(measured `2026-08-22`, `HN-001`)*:
+`SyncDirtyChunks` **skips** any chunk whose version equals the source's, so a write or a **removal**
+that leaves the version untouched is **invisible to every version-gated consumer** — a preview
+snapshot, a preview rewind, an SoD replica, a flight-recorder delta.
+
+📐 **What that cost.** `ClearRaw` — the type-erased removal the **EntityCommandBuffer** plays back —
+nulled the payload without bumping. The entity index has no such escape *(`ApplyComponentFilter`
+bumps its chunk versions on **every** sync, so its versions never compare equal)* ⇒ the preview
+rewind restored a component's **PRESENCE bit without its payload**, and the next tick dereferenced
+the null: `GetManagedComponentRO<T>` returned null with `Has=true`, and the process aborted
+(SIGABRT) out of `GenesisMaterializationSystem`.
+
+⭐ **So:** `SetRawObject`, `ClearRaw` and `Clear(int)` all route through one `BumpChunkVersion`, and
+any new mutation path must too. ⚠ The bump never lands on `0` — a fresh table reads `0`, so a `0`
+would compare equal to *"never written"*. ⭐ Pinned by `Fdp.Tests.PreviewRewindManagedComponentTests`,
+which reproduces the crash exactly (`Has=true`, payload null) when the bump is removed.
+
+⚠ **The unmanaged `ComponentTable<T>.ClearRaw` deliberately does nothing** — an unmanaged read is
+guarded by the mask, so stale bytes behind a cleared bit are harmless. ⛔ For a MANAGED component the
+payload *is* the presence, which is why only this tier needs the rule.
+
 #### `NativeChunkTable<T>` (class)
 
 Per-component virtual memory page table.
@@ -919,11 +942,15 @@ and registered in `GlobalComponentIds`. Collision detected at registration time.
 #### `DataPolicyAttribute` (class)
 
 ```csharp
-[DataPolicy(DataPolicy.NoSave)]
+[DataPolicy(DataPolicy.NoScenario)]
 ```
 
-Controls how the engine pipeline handles a component type: `NoSnapshot`, `SnapshotViaClone`,
-`NoRecord`, `NoSave`, or `Transient` (all three exclusions).
+Controls how the engine pipeline handles a component type: `NoPreview` (excluded from the live
+snapshot/rewind mask), `SnapshotViaClone`, `NoReplay` (excluded from the `.fdp` checkpoint
+recording), `NoScenario` (excluded from scenario-file persistence), or `Transient` (all three
+exclusions). The three exclusion bits are **independent** — a component may opt out of one context
+and stay in the others. *(Renamed `2026-09-14`, CE-275: `NoSnapshot`→`NoPreview`,
+`NoRecord`→`NoReplay`, `NoSave`→`NoScenario`.)*
 
 #### `EventIdAttribute` (class)
 

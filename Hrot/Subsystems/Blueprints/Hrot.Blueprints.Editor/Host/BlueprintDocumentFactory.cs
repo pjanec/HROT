@@ -1,12 +1,15 @@
+using System.Numerics;
 using Hrot.Blueprints.Core;   // BlueprintJsonServices (in Hrot.Blueprints.Core namespace, Compiler assembly)
 using Hrot.Blueprints.Core.Assets;
 using Hrot.Blueprints.Core.Compiler;
 using Hrot.Blueprints.Core.Compiler.Catalogs;   // IChannelCommandCatalog
+using Hrot.Blueprints.Core.Compiler.Transform;   // CollapseTarget (BP-74)
 using Hrot.Blueprints.Core.Debug;
 using Hrot.Blueprints.Editor.Catalog;
 using Hrot.Blueprints.Editor.Debug;
 using Hrot.Blueprints.Editor.GraphEditor;
 using Hrot.Blueprints.Editor.NodeDrawers;
+using Hrot.Blueprints.Editor.Variables;   // BlueprintLocalVariableSchemaSource (BP-57)
 using Hrot.Blueprints.Editor.Visuals;
 using Hrot.Editor.AiShared;
 using Hrot.Editor.AiShared.Adapters;
@@ -15,6 +18,7 @@ using Hrot.Editor.AiShared.Windows;
 using NodeEditor.Core;
 using NodeEditor.Core.Action;
 using NodeEditor.Core.Bookmarks;
+using NodeEditor.Core.Commands;
 using NodeEditor.Core.Interfaces;
 using NodeEditor.Core.View;
 using NodeEditor.Primitives;
@@ -126,9 +130,14 @@ public static class BlueprintDocumentFactory
         // Resolve the underlying BlueprintAsset (loaded from the .bp.json file on demand).
         var bpAsset = LoadAsset(bpFile);
 
-        // ── 1. Resolve the event graph (fall back to first graph) ─────────────
-        var graph = bpAsset.Graphs.FirstOrDefault(g => g.Kind == GraphKind.Event)
-                 ?? bpAsset.Graphs.FirstOrDefault()
+        // ── 1. Resolve the graph to open on (BP-24 / Q23-C) ──────────────────
+        // Last-viewed graph for this asset when known, else the FIRST graph in authored order.
+        // The old rule *preferred an Event graph*, which silently moved the canvas off the main
+        // graph whenever an asset gained one (CustomEventSubscriberDemo opened on OnPing instead
+        // of Tick) — and would have made B2's auto-created event bodies steal the canvas.
+        // Cross-restart persistence belongs in BlueprintEditorPreferences once something actually
+        // composes/loads that file; today nothing does, so the memory is session-scoped.
+        var graph = ResolveInitialGraph(bpAsset)
                  ?? throw new InvalidOperationException(
                         $"Blueprint asset '{bpAsset.Name}' has no graphs.");
 
@@ -152,9 +161,10 @@ public static class BlueprintDocumentFactory
         // type-zero Default values on unset In-data pins (FIX-A: BF-BATCH-0607).
         Func<Guid, BlueprintSignature?>? peerLookup = BuildPeerSignatureLookup(peerAssetCatalog);
         var builtinRegistry = PinDefaultValueEditorRegistry.CreateWithBuiltins();
-        // Register FixedString32/64 as string-editor types (unmanaged; authored as plain text).
+        // Register FixedString32/64/128 as string-editor types (unmanaged; authored as plain text).
         builtinRegistry.Register(new TypeKey(BlueprintTypeSystem.FixedString32), new StringPinEditor());
         builtinRegistry.Register(new TypeKey(BlueprintTypeSystem.FixedString64), new StringPinEditor());
+        builtinRegistry.Register(new TypeKey(BlueprintTypeSystem.FixedString128), new StringPinEditor());
         // Wrap with the enum-sentinel interceptor so any TypeKey starting with "global::" returns
         // an EnumPinEditor backed by BlueprintEnumValueProvider (AN6).
         // The inner registry handles all non-enum (primitive / FixedString) TypeKeys.
@@ -182,9 +192,27 @@ public static class BlueprintDocumentFactory
         // field expansion) must re-project it — but the drawer must NOT reach across to the canvas
         // window. Instead the drawer emits a structural-change signal (EditService.NotifyStructureChanged)
         // and the composition root (here) subscribes the derived view so it rebuilds itself.
+        // BP-11 (Q22-A1/C2): property edits go on the SAME UndoStack as structural ones, so Ctrl+Z
+        // reverses a mixed sequence in the order the designer performed it. The view does not exist
+        // yet (§7 below), so the transport closes over this local and is assigned before any edit
+        // can be issued — a delegate, not a GraphView reference, keeps EditService canvas-agnostic
+        // exactly as onStructureChanged already does.
+        GraphView? undoTarget = null;
+        Action<string, Action, Action> recordUndoable = (label, apply, undo) =>
+        {
+            if (undoTarget is { } v)
+                v.Execute(
+                    new BlueprintEditCommand(label, apply),
+                    new BlueprintEditCommand(label, undo),
+                    label);
+            else
+                apply();   // no view yet — still perform the edit, just without a stack entry
+        };
+
         var ctx = new EditServiceContext(
             history, markDirty,
-            onStructureChanged: _ => graphModel.RebuildAndNotify());
+            onStructureChanged: _ => graphModel.RebuildAndNotify(),
+            recordUndoable: recordUndoable);
         if (editService != null)
             editService.Context = ctx;
 
@@ -235,8 +263,25 @@ public static class BlueprintDocumentFactory
             hostServices.NodeCatalog,
             hostServices);
 
+        // BP-11: close the loop on the transport declared at §4 — from here on, a drawer edit lands
+        // on this view's UndoStack alongside the structural edits.
+        undoTarget = view;
+
+        // BP-24: graph switching. Retargets the model + sink in place (the view and its undo
+        // stack survive), tags undo entries with the graph they were recorded in, and remembers
+        // per-graph viewport/selection. Everything below that needs "the current graph" must read
+        // it through this object rather than capturing `graph` — a captured local goes stale on
+        // the first switch.
+        var switcher = new BlueprintGraphSwitcher(
+            bpAsset, graphModel, commandSink, view, hostServices, debugSession);
+        BlueprintGraphViewMemory.SetLastViewed(bpAsset.AssetId, graph.Id);
+
         // ── 8. Picker sources (BCP-E) ─────────────────────────────────────────
-        BlueprintPickerSources.Register(bundle.PickerRegistry, nodeCatalog, bpAsset);
+        // BP-57: the last argument is what lets `variables.all` offer the current graph's LOCALS.
+        // ⚠ Read through `switcher`, never the captured `graph` — the same staleness trap BP-24 hit
+        // at five build-time capture sites.
+        BlueprintPickerSources.Register(
+            bundle.PickerRegistry, nodeCatalog, bpAsset, () => switcher.CurrentGraph);
 
         // ── 9. FindBar + IEditorCommands (BCP-F) ─────────────────────────────
         var commands = new EditorCommandsImpl();
@@ -258,7 +303,9 @@ public static class BlueprintDocumentFactory
             },
             isEnabled: () => bpDebugSession != null
                 && view.Selection.Nodes.Any(n =>
-                    bpDebugSession.IsNodeBreakpointable(bpAsset.AssetId, graph.Id, n.Value)),
+                    // BP-24: read the graph id through the switcher — a captured `graph.Id`
+                    // would evaluate breakpointability against the wrong graph after a switch.
+                    bpDebugSession.IsNodeBreakpointable(bpAsset.AssetId, switcher.CurrentGraphId, n.Value)),
             description: "Toggles a breakpoint on the selected node. Requires a compiled DebugMap entry (exec nodes only).",
             defaultKey: new KeyBinding(EditorKey.F9, KeyModifiers.None));
 
@@ -267,6 +314,31 @@ public static class BlueprintDocumentFactory
         // real handler that appends a VariableDecl to the asset so it shows up in the
         // Variables section. (Was a no-op since BATCH-13.)
         RegisterCreateVariableCommand(commands, bpAsset, () => bpFile.MarkDirty());
+
+        // BP-12a: My Blueprint → right-click a variable → "Get"/"Set". The context menu has always
+        // invoked editor.create-variable-get / -set, but nothing registered them, so the most-used
+        // motion in Unreal-style authoring silently did nothing. (The drag-to-canvas path already
+        // worked — CanvasRenderer.PlaceVariableNode handles the drop — so this closes the gap for
+        // the menu, which is the only route when the panel is docked away from the canvas.)
+        RegisterVariableGetSetCommands(commands, view, bpAsset);
+
+        // BP-60: the canvas's "Promote to Variable" modal. Until now the modal opened, took a name,
+        // and applied a GraphCommand this sink has no case for — landing on the default: arm that
+        // returns success. Nothing happened, and it reported that it worked.
+        RegisterPromoteToVariableCommand(
+            commands, view, bpAsset, nodeCatalog.KindRegistry, () => bpFile.MarkDirty());
+
+        // BP-23a: copy/cut/paste/duplicate. All four command ids were declared in CommandCatalog
+        // with no handler anywhere in the repo, and the canvas menu's Paste was hard-disabled.
+        // BP-24: the current graph is read through the switcher (was a captured `graph`, which
+        // would have pasted into the wrong graph after a switch).
+        RegisterClipboardCommands(
+            commands, view, () => switcher.CurrentGraph, hostServices.Clipboard, () => bpFile.MarkDirty());
+
+        // BP-24: graph switching + navigation (Q23-D1). One handler behind
+        // CommandCatalog.GoToGraph; the My Blueprint window invokes it on double-click and the
+        // bookmark jump below routes through the same switcher.
+        RegisterGoToGraphCommand(commands, bpAsset, switcher);
 
         // ── 10. Bookmarks (navigation aids) ──────────────────────────────────
         // Per-document BookmarkStore + the shared NodeEdit set/jump commands (Ctrl+1..9
@@ -277,23 +349,1309 @@ public static class BlueprintDocumentFactory
         // draw the off-screen edge-marker overlay (BlueprintEditorBootstrap.DrawBookmarkEdgeMarkers)
         // and, optionally, a Bookmarks panel window.
         var bookmarkStore = new BookmarkStore();
-        var bookmarkIndicators = new EditorIndicatorsImpl(new ToastQueue());
+        // BP-74 / BP-223: ONE indicators instance per document, shared by bookmarks and collapse and
+        // exposed on AiCanvasContext so the composition root can actually draw what is queued. It
+        // used to be a local built solely for BookmarkCommands, over a ToastQueue nothing ever
+        // drained — every bookmark notification since BP-24 has been enqueued and discarded.
+        var indicators = new EditorIndicatorsImpl(new ToastQueue());
         BookmarkCommands.RegisterAll(
-            commands, view, bookmarkStore, bookmarkIndicators,
-            // The Blueprint editor renders a single graph per open document (no in-document
-            // tab switching between the asset's other graphs yet), so every bookmark's
-            // TargetGraph is always this view's own graph id — cross-graph jump is a no-op.
-            navigateToGraph: _ => { });
+            commands, view, bookmarkStore, indicators,
+            // BP-24: a bookmark set in another of this asset's graphs first switches the canvas
+            // there (Bookmark.TargetGraph stores the view-level id, hence the mapping call).
+            // This was `_ => { }` for as long as the canvas couldn't switch.
+            navigateToGraph: viewId => switcher.SwitchToViewId(viewId));
+
+        // BP-74: collapse a selection into a new Macro/Function graph. Registered last because it
+        // is the only command here that both reads the selection and appends a graph.
+        RegisterCollapseCommands(
+            commands, view, bpAsset, () => switcher.CurrentGraph, indicators, () => bpFile.MarkDirty());
+
+        // BP-76: expand + go-to-definition. Both ids were declared with no handler, and the Expand
+        // item was gated in shared UI on kind ids no blueprint node carries.
+        RegisterExpandCommands(
+            commands, view, bpAsset, () => switcher.CurrentGraph,
+            goToGraph: id => switcher.SwitchTo(id), indicators, () => bpFile.MarkDirty());
 
         // Store the BlueprintAsset in AssetRef so the composition root can retarget
         // My Blueprint / Details / Variables windows without a kind-specific dependency.
         return new AiCanvasContext(view, AssetKind.Blueprint.ToString())
         {
-            AssetRef  = bpAsset,
-            FindBar   = findBar,
-            Commands  = commands,
-            Bookmarks = bookmarkStore,
+            AssetRef   = bpAsset,
+            FindBar    = findBar,
+            Commands   = commands,
+            Bookmarks  = bookmarkStore,
+            Indicators = indicators,
+            // BP-72: graph-scoped windows must follow the switched canvas. Read through the
+            // switcher, never a captured `graph` — that is the same staleness trap the five
+            // build-time capture sites hit in BP-24.
+            CurrentGraphId = () => switcher.CurrentGraphId,
         };
+    }
+
+    // ── Variable Get/Set placement commands (BP-12a) ──────────────────────────
+
+    /// <summary>
+    /// Registers <c>editor.create-variable-get</c> and <c>editor.create-variable-set</c>, which the
+    /// My Blueprint panel's variable context menu invokes with the variable id in
+    /// <c>ctx.Args["itemId"]</c> (see <c>MyBlueprintContextMenu.DrawVariableMenu</c>).
+    ///
+    /// <para>
+    /// The node is created through <c>view.Execute</c>, so placing one is undoable like any other
+    /// structural edit (BP-11's single stack). Placement goes at <c>ctx.CanvasPos</c> when the caller
+    /// supplied one, otherwise the centre of the current viewport — a menu invocation carries no
+    /// mouse position, and dropping the node at the graph origin would put it off-screen.
+    /// </para>
+    ///
+    /// <para>Exposed <c>internal</c> so tests can drive both commands without ImGui.</para>
+    /// </summary>
+    internal static void RegisterVariableGetSetCommands(
+        EditorCommandsImpl commands,
+        GraphView          view,
+        BlueprintAsset     asset)
+    {
+        ArgumentNullException.ThrowIfNull(commands);
+        ArgumentNullException.ThrowIfNull(view);
+        ArgumentNullException.ThrowIfNull(asset);
+
+        var reg = new CommandRegistration(commands);
+
+        reg.Add(
+            "editor.create-variable-get", "Get Variable", "Add",
+            ctx => PlaceVariableNode(view, asset, ctx, isGet: true),
+            description: "Places a Get node for the selected variable.");
+
+        reg.Add(
+            "editor.create-variable-set", "Set Variable", "Add",
+            ctx => PlaceVariableNode(view, asset, ctx, isGet: false),
+            description: "Places a Set node for the selected variable.");
+    }
+
+    /// <summary>
+    /// Places a <c>GetVariableNode</c>/<c>SetVariableNode</c> for the variable named in
+    /// <paramref name="ctx"/>. Mirrors <c>CanvasRenderer.PlaceVariableNode</c>'s kind ids and
+    /// property bag so both routes produce an identical node.
+    /// </summary>
+    private static void PlaceVariableNode(
+        GraphView view, BlueprintAsset asset, EditorCommandContext ctx, bool isGet)
+    {
+        var variableId = ctx.Args is not null && ctx.Args.TryGetValue("itemId", out var raw)
+            ? raw as string
+            : null;
+
+        // No variable in the context means the menu was invoked without a selection; do nothing
+        // rather than placing a node bound to nothing.
+        if (string.IsNullOrEmpty(variableId)) return;
+
+        // Prefer the declaration's own name for the display property; fall back to the id so a
+        // variable that has since been renamed still places something meaningful.
+        var variableName = asset.Declarations.Of(DeclarationKind.Variable)
+            .FirstOrDefault(d => string.Equals(d.Name, variableId, StringComparison.Ordinal))
+            ?.Name ?? variableId!;
+
+        var position = ctx.CanvasPos ?? ViewportCentre(view);
+
+        var kind  = new NodeKindKey(isGet ? "Util.GetVar" : "Util.SetVar");
+        var props = new Dictionary<string, object?>
+        {
+            ["VariableId"]   = variableId,
+            ["VariableName"] = variableName,
+        };
+
+        var cb = new CommandBuilder(view.Model);
+        var (fwd, inv) = cb.AddNode(kind, position, props);
+        view.Execute(fwd, inv, isGet ? "Add Get Variable" : "Add Set Variable");
+    }
+
+    // ── My Blueprint item rename / delete / duplicate (BP-12b) ────────────────
+
+    /// <summary>
+    /// BP-12b — registers <c>editor.rename-item</c>, <c>editor.delete-item</c> and
+    /// <c>editor.duplicate-item</c>, which the My Blueprint context menu has always invoked and
+    /// nothing ever handled. Consequence: a variable could be <b>created but never renamed or
+    /// removed</b>.
+    /// </summary>
+    /// <param name="view">
+    /// When supplied, each edit is recorded on this view's undo stack (BP-11's single stack).
+    /// Null applies the edit directly — for hosts with no open canvas.
+    /// </param>
+    /// <param name="promptForName">
+    /// Opens the rename prompt: <c>(currentName, onConfirm)</c>. Null makes rename require an
+    /// explicit <c>Args["newName"]</c>, which is how tests drive it.
+    /// </param>
+    /// <param name="locals">
+    /// BP-57 — the locals schema source, when the document has one. ⭐ <b>A <c>local:</c> item is
+    /// routed here and never to <see cref="RenameItem"/>/<see cref="DeleteItem"/>.</b> Two reasons,
+    /// both load-bearing: the source's delete <b>refuses while referenced</b> (which the asset-variable
+    /// path deliberately does not), and it records its own undo entry over
+    /// <see cref="Graph.LocalVariables"/> — the snapshot <see cref="RecordItemEdit"/> takes covers the
+    /// asset's declaration lists only, so putting locals through it would produce an undo that
+    /// restores nothing.
+    /// </param>
+    internal static void RegisterMyBlueprintItemCommands(
+        EditorCommandsImpl        commands,
+        BlueprintAsset            asset,
+        GraphView?                view          = null,
+        Action?                   markDirty     = null,
+        Action<string, Action<string>>? promptForName = null,
+        BlueprintLocalVariableSchemaSource? locals = null)
+    {
+        ArgumentNullException.ThrowIfNull(commands);
+        ArgumentNullException.ThrowIfNull(asset);
+
+        var reg = new CommandRegistration(commands);
+
+        reg.Add(
+            "editor.rename-item", "Rename", "Edit",
+            ctx =>
+            {
+                var itemId = ReadArg(ctx, "itemId") as string;
+                if (string.IsNullOrEmpty(itemId)) return;
+
+                // BP-57: locals first — same gesture, different list, different undo.
+                if (TryFindLocal(asset, itemId!) is { } local)
+                {
+                    if (locals is null) return;
+                    if (ReadArg(ctx, "newName") is string suppliedLocal)
+                    {
+                        locals.RenameVariable(local.Name, suppliedLocal);
+                        return;
+                    }
+                    if (promptForName is null) return;
+                    var currentLocal = local.Name;
+                    promptForName(currentLocal, entered => locals.RenameVariable(currentLocal, entered));
+                    return;
+                }
+
+                if (ReadArg(ctx, "newName") is string supplied)
+                {
+                    RecordItemEdit(view, asset, markDirty, "Rename",
+                        () => RenameItem(asset, itemId!, supplied));
+                    return;
+                }
+
+                if (promptForName is null) return;
+                var current = ItemDisplayName(asset, itemId!) ?? "";
+                promptForName(current, entered => RecordItemEdit(view, asset, markDirty, "Rename",
+                    () => RenameItem(asset, itemId!, entered)));
+            },
+            description: "Renames the selected item.");
+
+        reg.Add(
+            "editor.delete-item", "Delete", "Edit",
+            ctx =>
+            {
+                if (ReadArg(ctx, "itemId") is not string itemId || itemId.Length == 0) return;
+
+                // BP-57: the source refuses while referenced and says so, naming the count and the
+                // graphs — including graphs the designer cannot see from this canvas.
+                if (TryFindLocal(asset, itemId) is { } local)
+                {
+                    locals?.RemoveVariable(local.Name);
+                    return;
+                }
+
+                RecordItemEdit(view, asset, markDirty, "Delete", () => DeleteItem(asset, itemId));
+            },
+            description: "Deletes the selected item from this Blueprint.");
+
+        reg.Add(
+            "editor.duplicate-item", "Duplicate", "Edit",
+            ctx =>
+            {
+                if (ReadArg(ctx, "itemId") is not string itemId || itemId.Length == 0) return;
+
+                // BP-57. ⚠ NOT optional: MyBlueprintContextMenu offers "Duplicate" for every
+                // IsRenamable item, so without this arm a local would show the menu entry and
+                // silently do nothing — trap #5, and the exact shape BP-12b was filed for.
+                if (TryFindLocal(asset, itemId) is { } local)
+                {
+                    DuplicateLocal(view, asset, markDirty, local);
+                    return;
+                }
+
+                RecordItemEdit(view, asset, markDirty, "Duplicate",
+                    () => DuplicateItem(asset, itemId));
+            },
+            description: "Adds a copy of the selected item.");
+    }
+
+    /// <summary>
+    /// Runs an item edit as a snapshot-and-restore undo step. These are <b>asset-level</b> edits —
+    /// declarations, not graph elements — so the inverse cannot be expressed as a
+    /// <see cref="GraphCommand"/>; <see cref="BlueprintEditCommand"/> carries both halves onto the
+    /// same stack as everything else (BP-11).
+    ///
+    /// <para>
+    /// The inverse restores the declaration <i>lists</i> wholesale rather than reversing the
+    /// specific mutation. Rename, delete and duplicate each touch a different shape of state
+    /// (a field, a list entry, both), and a snapshot is one correct inverse for all three.
+    /// </para>
+    /// </summary>
+    private static void RecordItemEdit(
+        GraphView? view, BlueprintAsset asset, Action? markDirty, string label, Func<bool> mutate)
+    {
+        var beforeVariables = SnapshotVariables(asset);
+        var beforeEvents    = SnapshotEvents(asset);
+        var beforeNames     = SnapshotEventNaming(asset);
+
+        if (!mutate()) return;
+
+        var afterVariables = SnapshotVariables(asset);
+        var afterEvents    = SnapshotEvents(asset);
+        var afterNames     = SnapshotEventNaming(asset);
+
+        if (view is null)
+        {
+            markDirty?.Invoke();
+            return;
+        }
+
+        void Restore(
+            List<VariableDecl> variables, List<CustomEventDecl> events,
+            (Dictionary<Guid, string> GraphNames,
+             Dictionary<Guid, string> CallEventIds,
+             Dictionary<Guid, string> PeerFunctionRefs) naming)
+        {
+            // U-11: a snapshot RESTORE, so ReplaceAll — which deliberately leaves VariableOrder
+            // alone. The order list belongs to the same snapshot and is restored with it; dropping
+            // ids here would make undo lose the designer's ordering.
+            asset.Declarations.ReplaceAll(DeclarationKind.Variable,
+                variables.Select(v => BlueprintDeclaration.For(DeclarationKind.Variable, v)));
+            asset.CustomEvents.Clear();
+            asset.CustomEvents.AddRange(events);
+
+            // BP-24 fix to a BP-12b gap: renaming a custom event also renames its body graph and
+            // rewrites name-keyed CallCustomEvent refs (RenameItem), but the decl-list snapshots
+            // above never covered those two mutations — undoing a rename restored the declaration
+            // and left the graph/refs renamed, silently desyncing the Event_{Name} pairing into a
+            // BP1407. These two maps restore them.
+            foreach (var g in asset.Graphs)
+                if (naming.GraphNames.TryGetValue(g.Id, out var n)) g.Name = n;
+            foreach (var call in asset.Graphs.SelectMany(g => g.Nodes).OfType<CallCustomEventNode>())
+                if (naming.CallEventIds.TryGetValue(call.Id, out var id)) call.EventId = id;
+            foreach (var peer in asset.Graphs.SelectMany(g => g.Nodes).OfType<CallPeerBlueprintNode>())
+                if (naming.PeerFunctionRefs.TryGetValue(peer.Id, out var fn)) peer.FunctionRef = fn;
+        }
+
+        // The forward has already been applied above, so its Mutate re-applies the same end state
+        // on redo rather than repeating the operation (which would, e.g., duplicate twice).
+        view.Execute(
+            new BlueprintEditCommand(label, () => Restore(afterVariables,  afterEvents,  afterNames)),
+            new BlueprintEditCommand(label, () => Restore(beforeVariables, beforeEvents, beforeNames)),
+            label);
+
+        markDirty?.Invoke();
+    }
+
+    /// <summary>
+    /// BP-57 — the undo recorder for <c>BlueprintLocalVariableSchemaSource</c>: one entry per gesture,
+    /// snapshot-and-restore over <b>every</b> graph's <see cref="Graph.LocalVariables"/>.
+    ///
+    /// <para>
+    /// ⭐ <b>Snapshot, never prediction</b> — the same shape as <see cref="RecordItemEdit"/> and for the
+    /// same reason: an inverse computed from the forward has to be kept in step with it forever, and
+    /// this programme has already paid for that twice (<c>BP-225</c>, <c>BP-74</c>).
+    /// </para>
+    ///
+    /// <para>
+    /// ⚠ <b>All graphs, not just the current one.</b> The gesture is scoped to the open graph, but the
+    /// snapshot is not: scoping it would make undo depend on which graph happens to be open when
+    /// Ctrl+Z is pressed, and a BP-24 graph switch between the edit and the undo would silently
+    /// restore nothing.
+    /// </para>
+    ///
+    /// <para>
+    /// ⭐ <b>Deep copies, because rename mutates in place.</b> A shallow snapshot would hold the same
+    /// <see cref="VariableDecl"/> objects on both sides, so undoing a rename would restore the new
+    /// name — exactly the subtlety <see cref="SnapshotVariables"/> documents one list over.
+    /// </para>
+    ///
+    /// <para>
+    /// 📌 Delete needs nothing extra here <b>because the delete refuses while referenced</b>: no nodes
+    /// are ever removed, so there are no references for an undo to forget. Had the other ruling been
+    /// taken, this snapshot would have had to cover nodes and links too — <c>BP-225</c>'s trap.
+    /// </para>
+    /// </summary>
+    internal static Action<string, Func<bool>> LocalVariableUndoRecorder(
+        GraphView? view, BlueprintAsset asset, Action? markDirty)
+    {
+        return (label, mutate) =>
+        {
+            var before = SnapshotLocals(asset);
+            if (!mutate()) return;
+            var after = SnapshotLocals(asset);
+
+            if (view is null) { markDirty?.Invoke(); return; }
+
+            view.Execute(
+                new BlueprintEditCommand(label, () => RestoreLocals(asset, after)),
+                new BlueprintEditCommand(label, () => RestoreLocals(asset, before)),
+                label);
+
+            markDirty?.Invoke();
+        };
+    }
+
+    /// <summary>A deep per-graph copy of every locals list. See <see cref="LocalVariableUndoRecorder"/>.</summary>
+    private static Dictionary<Guid, List<VariableDecl>> SnapshotLocals(BlueprintAsset asset)
+        => asset.Graphs.ToDictionary(
+            g => g.Id,
+            g => g.LocalVariables.Select(v => CloneLocal(v, v.Id, v.Name)).ToList());
+
+    /// <summary>
+    /// A deep copy of one local declaration, optionally re-identified. ⚠ Deep because the snapshot
+    /// undo depends on it: a shallow copy would share the <see cref="VariableDecl"/> with the live
+    /// list, so undoing a rename would "restore" the new name.
+    /// </summary>
+    private static VariableDecl CloneLocal(VariableDecl v, Guid id, string name) => new()
+    {
+        Id   = id,
+        Name = name,
+        Type = new BlueprintTypeRef
+        {
+            TypeId        = v.Type.TypeId,
+            IsArray       = v.Type.IsArray,
+            Capacity      = v.Type.Capacity,
+            InitialLength = v.Type.InitialLength,
+            GenericArgs   = v.Type.GenericArgs.ToList(),
+        },
+        DefaultValueJson = v.DefaultValueJson,
+        IsEditable       = v.IsEditable,
+        IsExposedOnSpawn = v.IsExposedOnSpawn,
+        Category         = v.Category,
+        Tooltip          = v.Tooltip,
+        Comment          = v.Comment,
+    };
+
+    /// <summary>
+    /// BP-57 — resolves a <c>local:{guid}</c> My Blueprint item id to its declaration, searched across
+    /// every graph. ⚠ Across the asset rather than only the current graph: the id form is what tells
+    /// the item commands which list a gesture belongs to, and that question has one answer regardless
+    /// of which graph the canvas happens to be showing. Returns null for any other id form.
+    /// </summary>
+    internal static VariableDecl? TryFindLocal(BlueprintAsset asset, string itemId)
+    {
+        const string prefix = "local:";
+        if (!itemId.StartsWith(prefix, StringComparison.Ordinal)) return null;
+        if (!Guid.TryParse(itemId.AsSpan(prefix.Length), out var id)) return null;
+
+        return asset.Graphs.SelectMany(g => g.LocalVariables).FirstOrDefault(v => v.Id == id);
+    }
+
+    /// <summary>The graph that declares <paramref name="local"/>, or null when none does.</summary>
+    internal static Graph? OwningGraphOfLocal(BlueprintAsset asset, VariableDecl local)
+        => asset.Graphs.FirstOrDefault(g => g.LocalVariables.Any(v => v.Id == local.Id));
+
+    /// <summary>
+    /// BP-57 — a free name among <paramref name="graph"/>'s locals. ⭐ Scoped to the GRAPH, not the
+    /// asset: <c>Q27-C1</c> lets a local shadow an asset variable of the same name deliberately, so
+    /// checking against <see cref="BlueprintAsset.Variables"/> here would forbid a legal declaration.
+    /// </summary>
+    internal static string MakeUniqueLocalName(Graph graph, string baseName)
+    {
+        if (!graph.LocalVariables.Any(v => string.Equals(v.Name, baseName, StringComparison.OrdinalIgnoreCase)))
+            return baseName;
+
+        for (var i = 1; ; i++)
+        {
+            var candidate = $"{baseName}{i}";
+            if (!graph.LocalVariables.Any(v => string.Equals(v.Name, candidate, StringComparison.OrdinalIgnoreCase)))
+                return candidate;
+        }
+    }
+
+    /// <summary>
+    /// BP-57 — appends a copy of <paramref name="local"/> to its own graph under a free name, as one
+    /// undo entry. Type, category, tooltip, comment and default come along; the id does not — mirroring
+    /// <see cref="DuplicateItem"/>'s contract for asset variables.
+    /// </summary>
+    private static void DuplicateLocal(
+        GraphView? view, BlueprintAsset asset, Action? markDirty, VariableDecl local)
+    {
+        var graph = OwningGraphOfLocal(asset, local);
+        if (graph is null) return;
+
+        var record = LocalVariableUndoRecorder(view, asset, markDirty);
+        record($"Duplicate Local Variable '{local.Name}'", () =>
+        {
+            graph.LocalVariables.Add(
+                CloneLocal(local, Guid.NewGuid(), MakeUniqueLocalName(graph, local.Name)));
+            return true;
+        });
+    }
+
+    private static void RestoreLocals(
+        BlueprintAsset asset, Dictionary<Guid, List<VariableDecl>> snapshot)
+    {
+        foreach (var g in asset.Graphs)
+        {
+            if (!snapshot.TryGetValue(g.Id, out var decls)) continue;
+            g.LocalVariables.Clear();
+            g.LocalVariables.AddRange(decls);
+        }
+    }
+
+    /// <summary>Graph names + CallCustomEvent EventIds — the two things RenameItem mutates
+    /// outside the declaration lists. Strings only; cheap for any asset size.</summary>
+    private static (Dictionary<Guid, string> GraphNames,
+                    Dictionary<Guid, string> CallEventIds,
+                    Dictionary<Guid, string> PeerFunctionRefs)
+        SnapshotEventNaming(BlueprintAsset asset)
+        => (asset.Graphs.ToDictionary(g => g.Id, g => g.Name),
+            asset.Graphs.SelectMany(g => g.Nodes).OfType<CallCustomEventNode>()
+                 .ToDictionary(c => c.Id, c => c.EventId),
+            // BP-127: a graph rename also rewrites name-keyed CallPeerBlueprint.FunctionRef, so undo
+            // must restore those too. ⚠ Exactly the gap BP-24 closed for CallCustomEvent, one node
+            // kind over: restoring the graph name while leaving the refs renamed desyncs them into a
+            // silent BP1302 "no function graph named …".
+            asset.Graphs.SelectMany(g => g.Nodes).OfType<CallPeerBlueprintNode>()
+                 .ToDictionary(c => c.Id, c => c.FunctionRef));
+
+    /// <summary>
+    /// A <b>deep</b> copy of the declaration list. A shallow one would be wrong for rename: the
+    /// declarations are mutated in place, so both snapshots would hold the same object and undo
+    /// would restore the new name.
+    /// </summary>
+    private static List<VariableDecl> SnapshotVariables(BlueprintAsset asset)
+        => asset.Declarations.Of(DeclarationKind.Variable).Select(v => new VariableDecl
+        {
+            Id   = v.Id,
+            Name = v.Name,
+            Type = new BlueprintTypeRef
+            {
+                TypeId        = v.Type.TypeId,
+                IsArray       = v.Type.IsArray,
+                Capacity      = v.Type.Capacity,
+                InitialLength = v.Type.InitialLength,
+                GenericArgs   = v.Type.GenericArgs.ToList(),
+            },
+            DefaultValueJson = v.DefaultValueJson,
+            IsEditable       = v.IsEditable,
+            IsExposedOnSpawn = v.IsExposedOnSpawn,
+            Category         = v.Category,
+            Tooltip          = v.Tooltip,
+            Comment          = v.Comment,
+        }).ToList();
+
+    private static List<CustomEventDecl> SnapshotEvents(BlueprintAsset asset)
+        => asset.CustomEvents.Select(e => new CustomEventDecl
+        {
+            Id         = e.Id,
+            Name       = e.Name,
+            Parameters = e.Parameters.Select(p => new ParameterDecl
+            {
+                Id               = p.Id,
+                Name             = p.Name,
+                Type             = new BlueprintTypeRef { TypeId = p.Type.TypeId },
+                DefaultValueJson = p.DefaultValueJson,
+                Tooltip          = p.Tooltip,
+                Comment          = p.Comment,
+            }).ToList(),
+        }).ToList();
+
+    /// <summary>The declared name behind a My Blueprint item id, or null when it resolves to nothing.</summary>
+    internal static string? ItemDisplayName(BlueprintAsset asset, string itemId)
+    {
+        ArgumentNullException.ThrowIfNull(asset);
+        return FindDeclaration(asset, itemId)?.Name
+               ?? FindCustomEvent(asset, itemId)?.Name
+               ?? FindGraph(asset, itemId)?.Name
+               ?? TryFindLocal(asset, itemId)?.Name;   // BP-57
+    }
+
+    /// <summary>
+    /// Renames the variable or custom event named by <paramref name="itemId"/>. Returns false —
+    /// changing nothing — for a blank, invalid or already-taken name, and for an id that resolves
+    /// to nothing.
+    ///
+    /// <para>
+    /// Renaming a custom event also renames its paired <c>Event</c> handler graph and rewrites any
+    /// <b>name-keyed</b> <c>CallCustomEvent</c> reference. The editor writes GUIDs, which survive a
+    /// rename untouched, but Stage5 accepts a bare name and hand-authored assets use one — leaving
+    /// those behind would turn a rename into a silent BP1403.
+    /// </para>
+    /// </summary>
+    internal static bool RenameItem(BlueprintAsset asset, string itemId, string newName)
+    {
+        ArgumentNullException.ThrowIfNull(asset);
+        if (string.IsNullOrWhiteSpace(newName)) return false;
+
+        var trimmed = newName.Trim();
+
+        // ⭐ Any declaration kind: the facade's Name writes through to whichever backing shape holds it.
+        //   IsDuplicateVariableName already spans the WHOLE declaration list, so the uniqueness rule
+        //   needed no widening — only the lookup did.
+        if (FindDeclaration(asset, itemId) is { } decl)
+        {
+            if (string.Equals(decl.Name, trimmed, StringComparison.Ordinal)) return false;
+            if (IsDuplicateVariableName(asset, trimmed)) return false;
+            decl.Name = trimmed;
+            return true;
+        }
+
+        if (FindCustomEvent(asset, itemId) is { } evt)
+        {
+            if (string.Equals(evt.Name, trimmed, StringComparison.Ordinal)) return false;
+            // Same identifier rule as the create path: the compiler emits Event_{Name} verbatim.
+            if (!IsValidDeclarationName(trimmed)) return false;
+            if (IsDuplicateCustomEventName(asset, trimmed)) return false;
+
+            var oldName = evt.Name;
+            evt.Name = trimmed;
+
+            foreach (var graph in asset.Graphs)
+                if (graph.Kind == GraphKind.Event
+                    && string.Equals(graph.Name, oldName, StringComparison.Ordinal))
+                    graph.Name = trimmed;
+
+            foreach (var call in asset.Graphs.SelectMany(g => g.Nodes).OfType<CallCustomEventNode>())
+                if (string.Equals(call.EventId, oldName, StringComparison.Ordinal))
+                    call.EventId = trimmed;
+
+            return true;
+        }
+
+        // BP-127 -- renaming a graph. Settled by the authoring-UX decisions round: this lives in My
+        // Blueprint's context menu, where Unreal puts it, NOT on an empty-canvas Details surface.
+        if (FindGraph(asset, itemId) is { } target)
+        {
+            if (string.Equals(target.Name, trimmed, StringComparison.Ordinal)) return false;
+
+            // The compiler emits a method per Function graph and Event_{Name} per Event graph, so the
+            // name has to be a legal identifier -- the same rule the custom-event create path applies.
+            if (!IsValidDeclarationName(trimmed)) return false;
+            if (asset.Graphs.Any(g => g != target
+                    && string.Equals(g.Name, trimmed, StringComparison.OrdinalIgnoreCase)))
+                return false;
+
+            // ⚠ An Event graph is PAIRED with its declaration by name (see the custom-event branch
+            // above, which renames the graph when the decl is renamed). Renaming that graph directly
+            // would break the pairing into a BP1407, so it is refused -- rename the event instead.
+            if (target.Kind == GraphKind.Event
+                && asset.CustomEvents.Any(e =>
+                    string.Equals(e.Name, target.Name, StringComparison.Ordinal)))
+                return false;
+
+            var previousName = target.Name;
+            target.Name = trimmed;
+
+            // ⚠ A peer/local FunctionCall addresses a Function graph BY NAME as well as by id, and
+            // Stage5 accepts either -- so a rename that left those behind would turn into a silent
+            // BP1302 "no function graph named …". Same class of miss BP-24 fixed for custom events.
+            foreach (var call in asset.Graphs.SelectMany(g => g.Nodes))
+            {
+                if (call is CallPeerBlueprintNode peer
+                    && string.Equals(peer.FunctionRef, previousName, StringComparison.Ordinal))
+                    peer.FunctionRef = trimmed;
+            }
+
+            return true;
+        }
+
+        return false;
+    }
+
+    /// <summary>
+    /// Removes the declaration named by <paramref name="itemId"/>.
+    ///
+    /// <para>
+    /// Nodes that referenced it are <b>left in place</b>. They render as dangling references and the
+    /// compiler names them (BP1403 / BP1500), which is recoverable; silently deleting a designer's
+    /// wired-up nodes because a declaration went away is not.
+    /// </para>
+    /// </summary>
+    internal static bool DeleteItem(BlueprintAsset asset, string itemId)
+    {
+        ArgumentNullException.ThrowIfNull(asset);
+
+        // ⭐ The found declaration carries its own kind, so Remove searches the right bucket.
+        //   ⛔ The old code rebuilt the facade with a HARD-CODED DeclarationKind.Variable — wrong for
+        //   the other two kinds even once the lookup found them.
+        if (FindDeclaration(asset, itemId) is { } decl)
+            return asset.Declarations.Remove(decl);
+
+        if (FindCustomEvent(asset, itemId) is { } evt)
+            return asset.CustomEvents.Remove(evt);
+
+        return false;
+    }
+
+    /// <summary>
+    /// Adds a copy of the declaration named by <paramref name="itemId"/> under a free name
+    /// (<c>Health</c> → <c>Health1</c>). Parameters, type, category and tooltip come along; the id
+    /// does not.
+    /// </summary>
+    internal static bool DuplicateItem(BlueprintAsset asset, string itemId)
+    {
+        ArgumentNullException.ThrowIfNull(asset);
+
+        if (FindDeclaration(asset, itemId) is { } decl)
+        {
+            // ⭐ Create() picks the backing shape from the kind, so a Parameter duplicates as a
+            //   ParameterDecl and a WorkingState as a VariableDecl in the WorkingState bucket.
+            var copy = BlueprintDeclaration.Create(
+                decl.Kind,
+                Guid.NewGuid(),
+                // U-14: across all kinds, so a duplicate cannot land on a Parameter's name.
+                MakeUniqueName(asset.Declarations.Select(d => d.Name), decl.Name),
+                new BlueprintTypeRef
+                {
+                    TypeId        = decl.Type.TypeId,
+                    IsArray       = decl.Type.IsArray,
+                    Capacity      = decl.Type.Capacity,
+                    InitialLength = decl.Type.InitialLength,
+                });
+
+            copy.DefaultValueJson = decl.DefaultValueJson;
+            copy.Tooltip          = decl.Tooltip;
+            copy.Comment          = decl.Comment;
+
+            // ⭐ ASK the capability rather than testing the kind — writing Category on a Parameter
+            //   throws by design (RequireEditorPresentation), and both sides are the same kind here.
+            if (decl.CarriesEditorPresentation)
+            {
+                copy.IsEditable       = decl.IsEditable;
+                copy.IsExposedOnSpawn = decl.IsExposedOnSpawn;
+                copy.Category         = decl.Category;
+            }
+
+            asset.Declarations.Add(copy);
+            return true;
+        }
+
+        if (FindCustomEvent(asset, itemId) is { } evt)
+        {
+            asset.CustomEvents.Add(new CustomEventDecl
+            {
+                Id         = Guid.NewGuid(),
+                Name       = MakeUniqueName(asset.CustomEvents.Select(e => e.Name), evt.Name),
+                Parameters = evt.Parameters.Select(p => new ParameterDecl
+                {
+                    Id               = Guid.NewGuid(),
+                    Name             = p.Name,
+                    Type             = new BlueprintTypeRef { TypeId = p.Type.TypeId },
+                    DefaultValueJson = p.DefaultValueJson,
+                    Tooltip          = p.Tooltip,
+                }).ToList(),
+            });
+            return true;
+        }
+
+        return false;
+    }
+
+    /// <summary>
+    /// ⭐⭐⭐ Resolves a <c>var:{guid}</c> item id to its declaration, in <b>whichever kind list holds
+    /// it</b> — <c>Variable</c>, <c>Parameter</c> or <c>WorkingState</c>.
+    ///
+    /// <para>🔴 <b>Batch 81 — this was scoped to <c>DeclarationKind.Variable</c> alone</b>, while
+    /// <c>BuildDeclarationItems</c> emits the same <c>var:</c> prefix for all three kinds (C-sections).
+    /// ⇒ for an Inputs or Working-State row the id parsed, the lookup returned null, and <b>every row
+    /// command fell through to <c>return false</c></b>: Rename opened its dialog with an empty current
+    /// name and changed nothing, Delete did nothing, Duplicate did nothing. The user reported the first
+    /// two verbatim; ⚠ Duplicate was broken too and untested.</para>
+    ///
+    /// <para>⚠ <b>Why NOT a prefix per kind</b>, which is the rule <c>BuildLocalVariableItems</c>
+    /// states. 📐 Read why that rule exists: <i>"the declarations live in different lists and have
+    /// different delete rules."</i> True for locals (they live on <c>graph.LocalVariables</c>);
+    /// ⛔ <b>false for these three</b> — one list, one delete rule, and ids that are already unique
+    /// GUIDs. Two more prefixes would be two more places that know the kind→list mapping.</para>
+    ///
+    /// <para>⭐ <b>Returning the facade, not the backing decl, is what carries the kind into the
+    /// mutation.</b> <c>DeclarationList.Remove</c> searches <c>decl.Kind</c>'s bucket, so a hard-coded
+    /// <c>For(DeclarationKind.Variable, …)</c> could never have found a Parameter — and a Parameter is
+    /// backed by <c>ParameterDecl</c>, which <c>AsVariableDecl</c> reports as null anyway.</para>
+    /// </summary>
+    private static BlueprintDeclaration? FindDeclaration(BlueprintAsset asset, string itemId)
+        => TryItemGuid(itemId, "var:", out var id)
+            ? asset.Declarations.FirstOrDefault(d => d.Id == id)
+            : null;
+
+    private static CustomEventDecl? FindCustomEvent(BlueprintAsset asset, string itemId)
+        => TryItemGuid(itemId, "evt:", out var id)
+            ? asset.CustomEvents.FirstOrDefault(e => e.Id == id)
+            : null;
+
+    /// <summary>
+    /// BP-127 — resolves a <c>graph:{guid}</c> item id, the form the My Blueprint panel gives its
+    /// Graphs / Functions rows (<c>BlueprintMyBlueprintModel</c>).
+    /// </summary>
+    private static Graph? FindGraph(BlueprintAsset asset, string itemId)
+        => TryItemGuid(itemId, "graph:", out var id)
+            ? asset.Graphs.FirstOrDefault(g => g.Id == id)
+            : null;
+
+    private static bool TryItemGuid(string itemId, string prefix, out Guid id)
+    {
+        id = Guid.Empty;
+        if (string.IsNullOrEmpty(itemId)) return false;
+        if (!itemId.StartsWith(prefix, StringComparison.Ordinal)) return false;
+        return Guid.TryParse(itemId.Substring(prefix.Length), out id);
+    }
+
+    // ── Graph switching (BP-24 / Q23-D1) ──────────────────────────────────────
+
+    /// <summary>
+    /// BP-24 — registers <c>editor.go-to-graph</c>, the id that has been declared in
+    /// <c>CommandCatalog</c> with zero handlers since the catalog was written. Accepts either
+    /// <c>Args["itemId"]</c> in the My Blueprint panel's forms (<c>graph:{guid}</c> from the
+    /// Graphs/Functions sections, <c>evt:{guid}</c> from Custom Events — resolved to the event's
+    /// body graph by name), or <c>Args["graphId"]</c> as a GUID / GUID string.
+    ///
+    /// <para>Exposed <c>internal</c> so tests can drive switching without ImGui.</para>
+    /// </summary>
+    internal static void RegisterGoToGraphCommand(
+        EditorCommandsImpl    commands,
+        BlueprintAsset        asset,
+        BlueprintGraphSwitcher switcher)
+    {
+        ArgumentNullException.ThrowIfNull(commands);
+        ArgumentNullException.ThrowIfNull(asset);
+        ArgumentNullException.ThrowIfNull(switcher);
+
+        var reg = new CommandRegistration(commands);
+
+        reg.Add(
+            NodeEditor.Core.CommandCatalog.GoToGraph, "Go to Graph", "Navigate",
+            ctx =>
+            {
+                if (TryResolveTargetGraph(asset, ctx, out var graphId))
+                    switcher.SwitchTo(graphId);
+            },
+            description: "Shows the given graph on the canvas (double-click a graph in My Blueprint).");
+    }
+
+    /// <summary>Resolves the command context to an asset graph id; see the register doc.</summary>
+    private static bool TryResolveTargetGraph(
+        BlueprintAsset asset, EditorCommandContext ctx, out Guid graphId)
+    {
+        graphId = Guid.Empty;
+
+        if (ReadArg(ctx, "graphId") is { } rawId)
+        {
+            if (rawId is Guid g) { graphId = g; return true; }
+            if (rawId is string s && Guid.TryParse(s, out var parsed)) { graphId = parsed; return true; }
+        }
+
+        if (ReadArg(ctx, "itemId") is string itemId)
+        {
+            if (TryItemGuid(itemId, "graph:", out var direct)) { graphId = direct; return true; }
+
+            // A custom event navigates to its body graph — the Event graph carrying the decl's
+            // name (the same pairing rule the compiler's Event_{Name} emission uses).
+            if (FindCustomEvent(asset, itemId) is { } evt)
+            {
+                var body = asset.Graphs.FirstOrDefault(
+                    gr => gr.Kind == GraphKind.Event
+                       && string.Equals(gr.Name, evt.Name, StringComparison.Ordinal));
+                if (body is not null) { graphId = body.Id; return true; }
+            }
+        }
+
+        return false;
+    }
+
+    // ── Clipboard: copy / cut / paste / duplicate (BP-23a) ────────────────────
+
+    /// <summary>
+    /// BP-23a — registers <c>editor.copy</c>, <c>editor.cut</c>, <c>editor.paste</c> and
+    /// <c>editor.duplicate</c>. All four ids were declared in <c>CommandCatalog</c> with no handler
+    /// anywhere in the repo, and the canvas menu's Paste entry was hard-disabled.
+    ///
+    /// <para>
+    /// <b>Host-side, like BP-60.</b> A clipboard entry is a list of asset <see cref="Node"/>s, and
+    /// paste must add them <i>fully built</i>. Routing through <c>GraphCommand.AddNode</c> would
+    /// rebuild each node from its kind and then re-apply only the properties
+    /// <c>ApplyInitialProperties</c> knows — 8 node kinds of 50 — silently dropping the
+    /// configuration of the other 42. <see cref="BlueprintEditCommand"/> carries the built nodes
+    /// straight onto the graph instead, and gives the whole paste one undo entry.
+    /// </para>
+    ///
+    /// <para>Exposed <c>internal</c> so tests can drive all four without ImGui.</para>
+    /// </summary>
+    /// <param name="clipboard">
+    /// The host clipboard. Copy/cut/paste use it; <b>duplicate deliberately does not</b>, so
+    /// duplicating never clobbers what the designer had copied.
+    /// </param>
+    /// <param name="currentGraph">
+    /// BP-24 — resolved per invocation, not captured: after a canvas graph switch a captured
+    /// graph would copy from / paste into a graph the designer is no longer looking at. (Inside
+    /// <see cref="PasteFrom"/> the closures still bind the graph resolved at paste time — that is
+    /// correct, the undo stack's graph context switches back there before replaying.)
+    /// </param>
+    internal static void RegisterClipboardCommands(
+        EditorCommandsImpl commands,
+        GraphView          view,
+        Func<Graph>        currentGraph,
+        IClipboard?        clipboard,
+        Action?            markDirty = null)
+    {
+        ArgumentNullException.ThrowIfNull(commands);
+        ArgumentNullException.ThrowIfNull(view);
+        ArgumentNullException.ThrowIfNull(currentGraph);
+
+        var reg = new CommandRegistration(commands);
+
+        reg.Add(
+            NodeEditor.Core.CommandCatalog.Copy, "Copy", "Edit",
+            _ => CopySelection(view, currentGraph(), clipboard),
+            isEnabled: () => view.Selection.Nodes.Any(),
+            description: "Copies the selected nodes.",
+            defaultKey: new KeyBinding(EditorKey.C, KeyModifiers.Ctrl));
+
+        reg.Add(
+            NodeEditor.Core.CommandCatalog.Cut, "Cut", "Edit",
+            _ =>
+            {
+                // Copy first: the delete is undoable, so a failed copy must not lose the nodes.
+                // Deleting through the registered command reuses BP-59's undoable path (which also
+                // removes the orphaned links) rather than re-deriving it here.
+                if (CopySelection(view, currentGraph(), clipboard))
+                    commands.Invoke(NodeEditor.Core.CommandCatalog.DeleteSelection);
+            },
+            isEnabled: () => view.Selection.Nodes.Any(),
+            description: "Copies the selected nodes and deletes them.",
+            defaultKey: new KeyBinding(EditorKey.X, KeyModifiers.Ctrl));
+
+        reg.Add(
+            NodeEditor.Core.CommandCatalog.Paste, "Paste", "Edit",
+            ctx => PasteFrom(view, currentGraph(), clipboard?.GetText(), ctx.CanvasPos, markDirty),
+            isEnabled: () => BlueprintClipboard.TryParse(clipboard?.GetText(), out _),
+            description: "Pastes previously copied nodes.",
+            defaultKey: new KeyBinding(EditorKey.V, KeyModifiers.Ctrl));
+
+        reg.Add(
+            NodeEditor.Core.CommandCatalog.Duplicate, "Duplicate", "Edit",
+            _ =>
+            {
+                var g = currentGraph();
+                PasteFrom(view, g, BlueprintClipboard.Copy(g, SelectedNodeIds(view)),
+                          targetPosition: null, markDirty);
+            },
+            isEnabled: () => view.Selection.Nodes.Any(),
+            description: "Duplicates the selected nodes in place.",
+            defaultKey: new KeyBinding(EditorKey.D, KeyModifiers.Ctrl));
+    }
+
+    private static IReadOnlyCollection<Guid> SelectedNodeIds(GraphView view)
+        => view.Selection.Nodes.Select(n => n.Value).ToList();
+
+    // ── Expand Node + Go to Definition (BP-76) ────────────────────────────────
+
+    /// <summary>
+    /// BP-76 — registers <c>editor.expand-node</c> and <c>editor.go-to-definition</c>. Both ids were
+    /// declared in <c>CommandCatalog</c> with no handler; the Expand item was additionally gated in
+    /// shared UI on kind ids no blueprint node carries, which is what kept a <b>corrupting</b> path
+    /// unreachable rather than merely inert (see <see cref="BlueprintExpand"/>).
+    ///
+    /// <para>
+    /// ⭐⭐ <c>isEnabled</c> is <b>"is exactly one node selected"</b>, and nothing else — Q26-B2, the
+    /// rule Batch 34 proved out on collapse. Whether that node is an expandable macro call is decided
+    /// on invoke and reported by name. Putting it in the predicate would drag blueprint vocabulary
+    /// back into <c>NodeEditor.UI</c>, which is the whole defect being removed here.
+    /// </para>
+    /// </summary>
+    /// <param name="goToGraph">
+    /// ⭐ Go to Definition delegates to the already-registered <c>editor.go-to-graph</c> rather than
+    /// re-resolving anything: that handler owns every id form the panel and the canvas use, and a
+    /// second navigation path would be a second thing to keep in step.
+    /// </param>
+    internal static void RegisterExpandCommands(
+        EditorCommandsImpl  commands,
+        GraphView           view,
+        BlueprintAsset      asset,
+        Func<Graph>         currentGraph,
+        Action<Guid>        goToGraph,
+        IEditorIndicators?  indicators = null,
+        Action?             markDirty  = null)
+    {
+        ArgumentNullException.ThrowIfNull(commands);
+        ArgumentNullException.ThrowIfNull(view);
+        ArgumentNullException.ThrowIfNull(asset);
+        ArgumentNullException.ThrowIfNull(currentGraph);
+        ArgumentNullException.ThrowIfNull(goToGraph);
+
+        var reg = new CommandRegistration(commands);
+
+        reg.Add(
+            NodeEditor.Core.CommandCatalog.ExpandNode, "Expand Node", "Refactor",
+            _ =>
+            {
+                var graph = currentGraph();
+                var id    = SelectedNodeIds(view).FirstOrDefault();
+                var node  = graph.Nodes.FirstOrDefault(n => n.Id == id);
+                if (node is null) return;
+                BlueprintExpand.Run(view, asset, graph, node, markDirty, indicators);
+            },
+            isEnabled: () => view.Selection.Nodes.Count() == 1,
+            description: "Replaces a macro call with a copy of the macro's body.");
+
+        reg.Add(
+            NodeEditor.Core.CommandCatalog.GoToDefinition, "Go to Definition", "Navigate",
+            _ =>
+            {
+                var graph = currentGraph();
+                var id    = SelectedNodeIds(view).FirstOrDefault();
+                var node  = graph.Nodes.FirstOrDefault(n => n.Id == id);
+
+                var targetId = TargetGraphIdOf(node);
+                if (targetId is null)
+                {
+                    indicators?.Notify(new EditorNotification(
+                        Id:          "goto-definition.no-target",
+                        Severity:    NotificationSeverity.Warning,
+                        Title:       "No definition to go to",
+                        Body:        DescribeNoTarget(node),
+                        AutoDismiss: TimeSpan.FromSeconds(6),
+                        Actions:     null));
+                    return;
+                }
+
+                goToGraph(targetId.Value);
+            },
+            isEnabled: () => view.Selection.Nodes.Count() == 1,
+            description: "Opens the graph this call node targets.");
+    }
+
+    /// <summary>
+    /// BP-76 — the in-blueprint graph a call node points at, or null when it points outside the asset
+    /// or nowhere.
+    ///
+    /// <para>
+    /// ⚠ <b><c>CallCustomEventNode</c> deliberately returns null here.</b> It resolves by <i>name</i>
+    /// to an Event graph, not by <c>TargetGraphId</c> — and My Blueprint already navigates to a custom
+    /// event's body by double-clicking it, through <c>editor.go-to-graph</c>'s <c>evt:</c> arm. Making
+    /// this command re-derive that pairing would be a second copy of a rule the compiler also holds
+    /// (<c>Event_{Name}</c>), so it refuses and says where to go instead.
+    /// </para>
+    /// </summary>
+    private static Guid? TargetGraphIdOf(Node? node)
+    {
+        var raw = node switch
+        {
+            MacroCallNode m    => m.TargetGraphId,
+            FunctionCallNode f => f.TargetGraphId,
+            _                  => null,
+        };
+        return Guid.TryParse(raw, out var id) && id != Guid.Empty ? id : null;
+    }
+
+    private static string DescribeNoTarget(Node? node) => node switch
+    {
+        null                  => "Select a call node first.",
+        CallCustomEventNode   => "A custom event is opened from the My Blueprint panel — double-click "
+                                 + "it under Custom Events. It resolves by name, not by a graph id.",
+        FunctionCallNode      => "This node calls a library method, not a graph in this blueprint.",
+        _                     => "This node has no definition inside this blueprint.",
+    };
+
+    // ── Collapse selection: to Macro / to Function (BP-74) ────────────────────
+
+    /// <summary>
+    /// BP-74 — registers <c>editor.collapse-to-macro</c> and <c>editor.collapse-to-function</c>.
+    /// Both ids were already declared in <c>CommandCatalog</c> with no handler anywhere in the repo,
+    /// the same starting state <c>BP-23a</c>'s clipboard commands were in.
+    ///
+    /// <para>
+    /// ⭐⭐ <b><c>isEnabled</c> tests the selection and NOTHING else</b> — not latency, not the
+    /// exec-entry count, not the graph kind. Q26-B2: the item is offered whenever there is a
+    /// selection and <b>refuses on invoke</b>, naming the offending nodes. A greyed item does not say
+    /// why, and this repo already files greyed-with-no-explanation as a defect (<c>BP-76</c>,
+    /// <c>BP-77</c>). ⚠ Do not "help" by adding legality to this predicate: doing so would also drag
+    /// blueprint rules into the shared <c>NodeEditor.UI</c> menu, which is <c>BP-76</c>'s actual
+    /// mistake.
+    /// </para>
+    ///
+    /// <para>
+    /// Host-side rather than through <c>GraphCommand</c>, for <c>BP-60</c>'s reason: collapse
+    /// <b>creates a graph</b>, and <c>GraphCommand</c>'s vocabulary is node/link-only. The gesture
+    /// travels as a <see cref="BlueprintEditCommand"/> pair so it is one undo entry.
+    /// </para>
+    ///
+    /// <para>Exposed <c>internal</c> so tests can drive both without ImGui.</para>
+    /// </summary>
+    /// <param name="currentGraph">
+    /// BP-24 — resolved per invocation, not captured: after a canvas graph switch a captured graph
+    /// would collapse a selection out of a graph the designer is no longer looking at.
+    /// </param>
+    /// <param name="indicators">Refusal surface (toast). Null in headless tests that read the result.</param>
+    internal static void RegisterCollapseCommands(
+        EditorCommandsImpl  commands,
+        GraphView           view,
+        BlueprintAsset      asset,
+        Func<Graph>         currentGraph,
+        IEditorIndicators?  indicators = null,
+        Action?             markDirty  = null)
+    {
+        ArgumentNullException.ThrowIfNull(commands);
+        ArgumentNullException.ThrowIfNull(view);
+        ArgumentNullException.ThrowIfNull(asset);
+        ArgumentNullException.ThrowIfNull(currentGraph);
+
+        var reg = new CommandRegistration(commands);
+
+        reg.Add(
+            NodeEditor.Core.CommandCatalog.CollapseToMacro, "Collapse to Macro", "Refactor",
+            _ => BlueprintCollapse.Run(
+                    view, asset, currentGraph(), SelectedNodeIds(view),
+                    CollapseTarget.Macro, markDirty, indicators),
+            isEnabled: () => view.Selection.Nodes.Any(),
+            description: "Moves the selected nodes into a new macro and calls it.");
+
+        reg.Add(
+            NodeEditor.Core.CommandCatalog.CollapseToFunction, "Collapse to Function", "Refactor",
+            _ => BlueprintCollapse.Run(
+                    view, asset, currentGraph(), SelectedNodeIds(view),
+                    CollapseTarget.Function, markDirty, indicators),
+            isEnabled: () => view.Selection.Nodes.Any(),
+            description: "Moves the selected nodes into a new function and calls it.");
+    }
+
+    /// <summary>Writes the selection to the clipboard; false when there was nothing to write.</summary>
+    private static bool CopySelection(GraphView view, Graph graph, IClipboard? clipboard)
+    {
+        if (clipboard is null) return false;
+
+        var text = BlueprintClipboard.Copy(graph, SelectedNodeIds(view));
+        if (text is null) return false;
+
+        clipboard.SetText(text);
+        return true;
+    }
+
+    /// <summary>
+    /// Adds a clipboard fragment to the graph as one undoable step, and leaves the pasted nodes
+    /// selected — so paste-then-drag works, and a second Ctrl+V after a paste duplicates what was
+    /// just pasted rather than the original.
+    /// </summary>
+    /// <param name="targetPosition">
+    /// Graph-space position for the fragment's top-left corner (the canvas passes the cursor).
+    /// Null pastes at the original coordinates plus a small offset, so the copy is visibly distinct
+    /// from what it was copied from.
+    /// </param>
+    private static void PasteFrom(
+        GraphView view, Graph graph, string? text, Vector2? targetPosition, Action? markDirty)
+    {
+        if (!BlueprintClipboard.TryParse(text, out var payload)) return;
+
+        var offset = targetPosition is { } target
+            ? target - BlueprintClipboard.TopLeftOf(payload)
+            : BlueprintClipboard.DefaultPasteOffset;
+
+        var fragment = BlueprintClipboard.Rehydrate(payload, offset);
+        if (fragment.Nodes.Count == 0) return;
+
+        var pastedIds = fragment.Nodes.Select(n => new NodeId(n.Id)).ToList();
+
+        void Apply()
+        {
+            foreach (var node in fragment.Nodes) graph.Nodes.Add(node);
+            foreach (var link in fragment.Links) graph.Links.Add(link);
+        }
+
+        void Undo()
+        {
+            foreach (var link in fragment.Links) graph.Links.Remove(link);
+            foreach (var node in fragment.Nodes) graph.Nodes.Remove(node);
+        }
+
+        var label = fragment.Nodes.Count == 1 ? "Paste Node" : $"Paste {fragment.Nodes.Count} Nodes";
+        view.Execute(
+            new BlueprintEditCommand(label, Apply),
+            new BlueprintEditCommand(label, Undo),
+            label);
+
+        view.Selection.ReplaceWith(pastedIds.Select(SelectionEntry.OfNode).ToArray());
+        markDirty?.Invoke();
+    }
+
+    // ── Promote to Variable (BP-60) ───────────────────────────────────────────
+
+    /// <summary>Horizontal offset of the node promotion places beside the promoted pin's owner.</summary>
+    private const float PromoteNodeOffsetX = 240f;
+
+    /// <summary>
+    /// BP-60 — registers <c>editor.promote-to-variable</c>, which the canvas's promote modal invokes
+    /// with the pin and the entered name.
+    ///
+    /// <para>
+    /// <b>Why a host command and not a sink case.</b> <c>GraphCommand.PromoteToVariable</c> is a
+    /// single opaque command: whichever sink implements it allocates the new node's id internally,
+    /// so a caller cannot write the inverse — which is exactly why BP-02 left this one site on
+    /// <c>Commands.Apply</c>, and why it hit the sink's <c>default:</c> arm and silently reported
+    /// success. Promotion is not one primitive anyway; it is <i>declare a variable</i> + <i>place a
+    /// node</i> + <i>link it</i>. Composing it here from commands the sink already implements keeps
+    /// BP-11's invariant intact — <b>the sink applies, the stack records</b> — and makes the whole
+    /// gesture one undo entry, because the caller owns every id in it.
+    /// </para>
+    ///
+    /// <para>Exposed <c>internal</c> so tests can drive the whole gesture without ImGui.</para>
+    /// </summary>
+    /// <param name="commands">The editor command catalog.</param>
+    /// <param name="view">The document's view; promotion is recorded on its undo stack.</param>
+    /// <param name="asset">The asset that receives the new <see cref="VariableDecl"/>.</param>
+    /// <param name="kindRegistry">
+    /// Used to project the new node's canonical pins so the link can name the right one.
+    /// </param>
+    /// <param name="markDirty">Invoked when a promotion succeeds.</param>
+    internal static void RegisterPromoteToVariableCommand(
+        EditorCommandsImpl commands,
+        GraphView          view,
+        BlueprintAsset     asset,
+        NodeKindRegistry?  kindRegistry = null,
+        Action?            markDirty    = null)
+    {
+        ArgumentNullException.ThrowIfNull(commands);
+        ArgumentNullException.ThrowIfNull(view);
+        ArgumentNullException.ThrowIfNull(asset);
+
+        var reg = new CommandRegistration(commands);
+        reg.Add(
+            NodeEditor.Core.CommandCatalog.PromoteToVariable,
+            "Promote to Variable", "Refactor",
+            ctx => PromoteToVariable(view, asset, kindRegistry, markDirty, ctx),
+            description: "Creates a Blueprint variable from this pin and wires it up.");
+    }
+
+    /// <summary>
+    /// Performs the promotion described by <paramref name="ctx"/>'s arguments
+    /// (<c>pinId</c>, <c>name</c>, <c>isLocal</c>, <c>categoryPath</c>).
+    ///
+    /// <para>
+    /// An <b>input</b> pin gets a Get node placed to its left, feeding it; an <b>output</b> pin gets
+    /// a Set node to its right, fed by it. Same shape as the reference implementation in
+    /// <c>NodeEditor.Demo</c>'s <c>FakeCommandSink</c> — which was the only implementation that
+    /// existed.
+    /// </para>
+    /// </summary>
+    private static void PromoteToVariable(
+        GraphView            view,
+        BlueprintAsset       asset,
+        NodeKindRegistry?    kindRegistry,
+        Action?              markDirty,
+        EditorCommandContext ctx)
+    {
+        if (ReadArg(ctx, "pinId") is not PinId pinId) return;
+
+        var pin = view.Model.FindPin(pinId);
+        // Exec pins carry no value, so there is nothing to promote.
+        if (pin is null || pin.Kind != PinKind.Data) return;
+
+        var owner = view.Model.FindNode(pin.OwnerNodeId);
+        if (owner is null) return;
+
+        var rawName = ReadArg(ctx, "name") as string;
+        // The modal disables Confirm on a blank name, but the guard belongs here too.
+        if (string.IsNullOrWhiteSpace(rawName)) return;
+
+        // Never collide with an existing declaration: the designer asked to promote, not to
+        // overwrite, and CreateVariable would reject a duplicate outright.
+        var name     = MakeUniqueName(asset.Declarations.Select(d => d.Name), rawName!.Trim());
+        var category = ReadArg(ctx, "categoryPath") as string;
+
+        // BP-57: the data model has no per-graph variable scope, so "Promote to Local Variable"
+        // can only produce a Blueprint-scoped one. Say so rather than silently reinterpreting it.
+        if (ReadArg(ctx, "isLocal") is true)
+            view.Host.Diagnostics?.Log(DiagnosticSeverity.Info,
+                $"Promote: local variables are not supported yet (BP-57); '{name}' was created "
+                + "as a Blueprint variable.");
+
+        bool isInput = pin.Direction == PinDirection.Input;
+
+        var decl = new VariableDecl
+        {
+            Id       = Guid.NewGuid(),
+            Name     = name,
+            Type     = new BlueprintTypeRef { TypeId = PromotedTypeId(pin) },
+            Category = string.IsNullOrWhiteSpace(category) ? null : category!.Trim(),
+        };
+
+        // The variable id is stored in the "var:" form the compiler tolerates and the My Blueprint
+        // drag path already emits, so a promoted node is indistinguishable from a dragged one.
+        var variableId = $"var:{decl.Id:D}";
+        var nodeKind   = new NodeKindKey(isInput ? "Util.GetVar" : "Util.SetVar");
+
+        // Project the new node's pins here so the link can name the right one. The sink stamps
+        // InitialProperties["PinIds"] onto canonical pins in inputs-then-outputs order (ApplyPinIds),
+        // so mirroring that order is what makes the ids line up.
+        var probe = isInput
+            ? (Node)new GetVariableNode { VariableId = variableId }
+            : new SetVariableNode { VariableId = variableId };
+        var canonical = NodePinSchema.GetCanonicalPins(probe, kindRegistry, asset);
+        var ordered   = canonical.Where(p => p.Direction == "In")
+            .Concat(canonical.Where(p => p.Direction != "In"))
+            .ToList();
+
+        // The Value pin faces the promoted pin: a Get node feeds it (Value out), a Set node
+        // receives it (Value in).
+        var wantDirection = isInput ? "Out" : "In";
+        var valueIndex = ordered.FindIndex(p =>
+            !p.IsExec
+            && p.Direction == wantDirection
+            && string.Equals(p.Name, "Value", StringComparison.OrdinalIgnoreCase));
+        if (valueIndex < 0) return;
+
+        var pinIds = ordered.Select(_ => IdGenerator.NewPinId()).ToList();
+        var nodeId = IdGenerator.NewNodeId();
+        var linkId = IdGenerator.NewLinkId();
+
+        var position = owner.Position
+            + new Vector2(isInput ? -PromoteNodeOffsetX : PromoteNodeOffsetX, 0f);
+
+        var props = new Dictionary<string, object?>
+        {
+            ["VariableId"]   = variableId,
+            ["VariableName"] = name,
+            ["PinIds"]       = pinIds,
+        };
+
+        var (from, to) = isInput
+            ? (pinIds[valueIndex], pinId)
+            : (pinId, pinIds[valueIndex]);
+
+        // Three steps, one undo entry. CommandBuilder.Batch reverses the inverses, so undo runs
+        // unlink → remove node → undeclare, which is the only order that leaves no dangling
+        // reference at any point.
+        var steps = new List<(GraphCommand Forward, GraphCommand Inverse)>
+        {
+            // ⚠ U-11: `decl` is created by THIS command, so it is never in VariableOrder — the
+            //   Order-maintaining Remove is a no-op for it, and the pair stays an exact inverse.
+            (new BlueprintEditCommand("Declare Variable",
+                 () => asset.Declarations.Add(BlueprintDeclaration.For(DeclarationKind.Variable, decl))),
+             new BlueprintEditCommand("Undeclare Variable",
+                 () => asset.Declarations.Remove(BlueprintDeclaration.For(DeclarationKind.Variable, decl)))),
+
+            (new GraphCommand.AddNode(nodeId, nodeKind, position, props),
+             new GraphCommand.RemoveNodes(new[] { nodeId })),
+
+            (new GraphCommand.AddLink(linkId, from, to),
+             new GraphCommand.RemoveLinks(new[] { linkId })),
+        };
+
+        var cb = new CommandBuilder(view.Model);
+        var (forward, inverse) = cb.Batch("Promote to Variable", steps);
+        view.Execute(forward, inverse, "Promote to Variable");
+
+        markDirty?.Invoke();
+    }
+
+    /// <summary>
+    /// The declared type for a promoted pin. An untyped (wildcard) pin falls back to
+    /// <see cref="BlueprintTypeSystem.Bool"/> — the same default the "+ Variable" quick-add uses —
+    /// so promotion always produces a well-formed declaration the designer can retype.
+    /// </summary>
+    private static string PromotedTypeId(IPinModel pin)
+        => pin.Type is { IsEmpty: false } type ? type.Id : BlueprintTypeSystem.Bool;
+
+    private static object? ReadArg(EditorCommandContext ctx, string key)
+        => ctx.Args is not null && ctx.Args.TryGetValue(key, out var value) ? value : null;
+
+    /// <summary>Centre of the visible canvas in graph space; graph origin before the first layout.</summary>
+    private static Vector2 ViewportCentre(GraphView view)
+    {
+        var size = view.Viewport.CanvasScreenSize;
+        if (size.X <= 0f || size.Y <= 0f) return Vector2.Zero;
+        return view.Viewport.ScreenToGraph(view.Viewport.CanvasScreenOrigin + size * 0.5f);
     }
 
     // ── Create-variable command (BCP-BATCH-02-FIX Task 3) ─────────────────────
@@ -305,6 +1663,47 @@ public static class BlueprintDocumentFactory
     /// <c>System.Boolean</c> type (the user can retype it in the Variables panel).
     /// <para>Exposed <c>internal</c> so tests can verify the create path without ImGui.</para>
     /// </summary>
+    /// <summary>
+    /// ⭐⭐⭐ <b>Batch 98 (<c>98c</c>) — <c>editor.toggle-variable-watch</c>, which nothing registered.</b>
+    ///
+    /// <para>🔴 <c>BP-360</c>: <c>MyBlueprintContextMenu</c> has drawn <i>"Watch this variable"</i> since
+    /// Batch 94 and enabled it on <c>commands.Get(id) is not null</c> — 📐 and the only other mention of
+    /// that id in the repo was a test asserting the constant. ⇒ the entry was permanently greyed, so
+    /// Batch 94's <i>"ONE command, TWO entry points"</i> shipped with one.</para>
+    ///
+    /// <para>⭐ <b>The id is <c>VariableWatchGesture.CommandId</c>'s value, restated as a literal</b> —
+    /// exactly as <c>MyBlueprintContextMenu</c> does and for the same reason: 📌 <i>"kept as a literal so
+    /// this panel gains no dependency on the editor's variable assembly."</i> ⚠ A rail asserts the three
+    /// spellings agree, so a drift is caught rather than silently disabling the entry again.</para>
+    ///
+    /// <para>⛔ <b>The handler OWNS its refusal.</b> 📌 <c>Q26-B2</c>: a gesture that cannot proceed must
+    /// SAY so. ⚠ <c>CommandRegistration.Add</c> takes an <c>Action</c>, so there is no result channel
+    /// here — ⭐ the caller reports through its own indicator rather than returning a boolean this
+    /// method would have to discard.</para>
+    /// </summary>
+    public static void RegisterToggleVariableWatchCommand(
+        EditorCommandsImpl commands,
+        Action<string>     toggle)
+    {
+        ArgumentNullException.ThrowIfNull(commands);
+        ArgumentNullException.ThrowIfNull(toggle);
+
+        var reg = new CommandRegistration(commands);
+        reg.Add(
+            "editor.toggle-variable-watch",
+            "Watch this variable", "Debug",
+            ctx =>
+            {
+                // ⚠ EditorCommandContext is a non-nullable struct here, so Args is read directly.
+                var itemId = ctx.Args is { } args && args.TryGetValue("itemId", out var v)
+                    ? v as string
+                    : null;
+                // ⛔ A missing itemId is not this method's to explain — the handler reports.
+                if (itemId is not null) toggle(itemId);
+            },
+            description: "Pin or unpin this variable in the Watch panel.");
+    }
+
     internal static void RegisterCreateVariableCommand(
         EditorCommandsImpl commands,
         BlueprintAsset     asset,
@@ -338,6 +1737,139 @@ public static class BlueprintDocumentFactory
             "Create Variable", "Add",
             _ => openModal(),
             description: "Add a new variable to this blueprint.");
+    }
+
+    /// <summary>
+    /// BP-57 — registers <c>editor.create-local-variable</c>, the Local Variables section's "+".
+    ///
+    /// <para>
+    /// ⭐ <b>Mirrors the <c>editor.create-variable</c> modal overload deliberately.</b> The two
+    /// sections offer the same gesture over two different lists, so a designer should not have to
+    /// learn that one opens a name/type dialog and the other appends a <c>NewVar</c>.
+    /// </para>
+    ///
+    /// <para>
+    /// ⚠ <b><c>BP-12c</c>: a section that declares a create command nothing registers is an INERT
+    /// BUTTON.</b> That defect shipped twice (Custom Events, Macros) before it was caught, which is
+    /// why the section's test asserts <c>Invoke(...).Success</c> rather than that the descriptor
+    /// carries the id.
+    /// </para>
+    /// </summary>
+    /// <param name="openModal">Opens the local-variable create modal (e.g. <c>modal.Open</c>).</param>
+    /// <summary>
+    /// ⭐⭐⭐ <c>C-sections</c> — the Inputs and Working State sections' <b>"+"</b>.
+    ///
+    /// <para>
+    /// ⛔⛔ <b><c>BP-12c</c>: a section that declares a create command nothing registers is an INERT
+    /// BUTTON</b> — a defect that shipped twice (Custom Events, Macros) before it was caught. ⇒ these
+    /// are registered in the same call the sections are added in, and the rail invokes them rather
+    /// than checking that the descriptor carries an id.
+    /// </para>
+    ///
+    /// <para>
+    /// ⚠⚠ <b><c>2026-08-17</c> — the "quick-add, not a modal" choice recorded here was OVERRULED by
+    /// the user</b>: <i>"working state [+] opening no dialog is wrong, inconsistent. Must open new
+    /// variable dialog same as any other variable section."</i> ⇒ ⭐ <b>the production overload is
+    /// <see cref="RegisterCreateDeclarationCommands(EditorCommandsImpl, Action)"/></b>, which
+    /// opens the same name+type dialog every other variable section opens.
+    /// ⛔ This quick-add overload is retained for HEADLESS TESTS of the create path only — the same
+    /// split <see cref="RegisterCreateVariableCommand(EditorCommandsImpl, BlueprintAsset, Action)"/>
+    /// has always had — ⚠ <b>and it is not what the editor wires.</b>
+    /// </para>
+    /// </summary>
+    public static void RegisterCreateDeclarationCommands(
+        EditorCommandsImpl commands,
+        BlueprintAsset     asset,
+        Action?            markDirty)
+    {
+        ArgumentNullException.ThrowIfNull(commands);
+        ArgumentNullException.ThrowIfNull(asset);
+
+        var reg = new CommandRegistration(commands);
+        reg.Add(
+            Windows.BlueprintMyBlueprintModel.CommandCreateParameter,
+            "Create Input", "Add",
+            _ => AddDeclaration(asset, DeclarationKind.Parameter, "NewInput", markDirty),
+            description: "Add an input parameter to this blueprint.");
+    }
+
+    /// <summary>
+    /// ⭐⭐⭐ <b>The production wiring for the Inputs "+"</b>: it opens a name-and-type dialog, the
+    /// same gesture <c>editor.create-variable</c> and <c>editor.create-local-variable</c> already
+    /// offer.
+    ///
+    /// <para>📌 <b>User ruling, <c>2026-08-17</c></b> — see <see cref="CreateDeclaration"/> for the
+    /// reversal it records and why the superseded note's premise was false.</para>
+    ///
+    /// <para>⚠ <b><c>BP-12c</c>: a section that declares a create command nothing registers is an
+    /// INERT BUTTON</b>, which shipped twice before it was caught. The rails invoke these rather than
+    /// checking that the descriptor carries an id.</para>
+    /// </summary>
+    /// <param name="openParameterModal">Opens the Input create dialog.</param>
+    /// <remarks>
+    /// ⭐⭐ <b>Batch 86 — the <c>openWorkingStateModal</c> parameter is GONE, not merely unused.</b>
+    /// <c>R-01</c> retires that section, so the second delegate had nothing left to register — and an
+    /// argument a method silently drops is the SILENT-DEFAULT shape this programme has filed three
+    /// times. ⛔ <c>editor.create-variable</c> is <b>not</b> registered here: it has its own owner in
+    /// <see cref="RegisterCreateVariableCommand"/>, and registering it twice would be two
+    /// implementations of one concept — ruling 9, the thing this batch exists to remove.
+    /// </remarks>
+    public static void RegisterCreateDeclarationCommands(
+        EditorCommandsImpl commands,
+        Action             openParameterModal)
+    {
+        ArgumentNullException.ThrowIfNull(commands);
+        ArgumentNullException.ThrowIfNull(openParameterModal);
+
+        var reg = new CommandRegistration(commands);
+        reg.Add(
+            Windows.BlueprintMyBlueprintModel.CommandCreateParameter,
+            "Create Input", "Add",
+            _ => openParameterModal(),
+            description: "Add an input parameter to this blueprint.");
+    }
+
+    /// <summary>
+    /// ⭐ <c>C-sections</c> — the quick-add path for any declaration kind.
+    ///
+    /// <para>
+    /// ⚠ Routed through <c>BlueprintDeclaration.Create</c>, which is <i>"the one way to build one
+    /// without first knowing which concrete type to make"</i> — a <c>Parameter</c> is backed by
+    /// <c>ParameterDecl</c> and the other two by <c>VariableDecl</c>, and picking that here by hand
+    /// would be a fourth place that knows the mapping.
+    /// </para>
+    ///
+    /// <para>
+    /// ⭐ The unique-name search is across ALL kinds (<c>U-14</c>/<c>BP-232</c>): a <c>Parameter</c>
+    /// and a <c>Variable</c> may not share a name, because <c>Stage5</c>'s name fallback would let
+    /// list order decide which one a reference reached.
+    /// </para>
+    /// </summary>
+    internal static BlueprintDeclaration AddDeclaration(
+        BlueprintAsset asset, DeclarationKind kind, string baseName, Action? markDirty = null)
+    {
+        ArgumentNullException.ThrowIfNull(asset);
+
+        var decl = BlueprintDeclaration.Create(
+            kind, Guid.NewGuid(), MakeUniqueVariableName(asset, baseName),
+            new BlueprintTypeRef { TypeId = BlueprintTypeSystem.Bool });
+        asset.Declarations.Add(decl);
+        markDirty?.Invoke();
+        return decl;
+    }
+
+    public static void RegisterCreateLocalVariableCommand(
+        EditorCommandsImpl commands,
+        Action             openModal)
+    {
+        ArgumentNullException.ThrowIfNull(commands);
+        ArgumentNullException.ThrowIfNull(openModal);
+        var reg = new CommandRegistration(commands);
+        reg.Add(
+            Windows.BlueprintMyBlueprintModel.CommandCreateLocalVariable,
+            "Create Local Variable", "Add",
+            _ => openModal(),
+            description: "Add a variable scoped to the graph the canvas is showing.");
     }
 
     /// <summary>
@@ -377,12 +1909,57 @@ public static class BlueprintDocumentFactory
     /// <see cref="BlueprintTypeSystem.Bool"/>.
     /// </param>
     /// <param name="markDirty">Optional dirty-marking callback (invoked only on success).</param>
+    /// <param name="capacity">
+    /// FC-2/LV-4: <c>&gt; 0</c> declares a FIXED-LIST variable of this capacity (the
+    /// discriminator is <see cref="BlueprintTypeRef.Capacity"/>, never IsArray — F7);
+    /// <c>0</c> (default) declares an ordinary scalar. A list of a managed element type
+    /// (<c>System.String</c>) is rejected here (the compiler's BP1500 is the authoritative
+    /// backstop for hand-edited JSON).
+    /// </param>
+    /// <param name="initialLength">
+    /// FC-2/LV-4: the list's seeded logical length; clamped into <c>[0, capacity]</c>
+    /// (BP1504 remains the compile-time guard for out-of-range hand-edited JSON).
+    /// Ignored for scalars.
+    /// </param>
     /// <returns>The created declaration, or <see langword="null"/> if the name was rejected.</returns>
     internal static VariableDecl? CreateVariable(
         BlueprintAsset asset,
         string         name,
         string         typeId,
-        Action?        markDirty = null)
+        Action?        markDirty     = null,
+        int            capacity      = 0,
+        int            initialLength = 0)
+        // ⭐ ONE create path for all three kinds — see CreateDeclaration. This overload survives
+        //   because ~40 call sites want a VariableDecl back and DeclarationKind.Variable by default.
+        => CreateDeclaration(asset, DeclarationKind.Variable, name, typeId, markDirty,
+                             capacity, initialLength)?.AsVariableDecl;
+
+    /// <summary>
+    /// ⭐⭐⭐ <b>The create path for ANY declaration kind</b> — <c>Variable</c>, <c>Parameter</c> or
+    /// <c>WorkingState</c> — taking a <b>name and a TYPE</b>, exactly as the variable modal always has.
+    ///
+    /// <para>📌 <b>User ruling, <c>2026-08-17</c>, verbatim:</b> <i>"working state [+] opening no
+    /// dialog is <b>wrong, inconsistent</b>. Must open new variable dialog same as any other variable
+    /// section."</i></para>
+    ///
+    /// <para>⚠ <b>This REVERSES the "quick-add, not a modal" note</b> that stood here since
+    /// <c>C-sections</c>. That note weighed "a second modal" against nothing, and its stated premise —
+    /// <i>"the created declaration is renamable and retypable in place"</i> — was <b>false</b>: rename
+    /// on an Inputs or Working-State row was a silent no-op until Batch 81 fixed the row commands.
+    /// ⛔ The cost it skipped is a designer learning two different meanings for one button.</para>
+    ///
+    /// <para>⭐ Not a third modal — <c>VariableCreateModal</c> parameterised by <c>noun</c>, and this
+    /// one create path parameterised by kind. Rejection rules are unchanged and shared: blank name,
+    /// duplicate across ALL kinds (U-14), and no managed element type in a fixed list.</para>
+    /// </summary>
+    internal static BlueprintDeclaration? CreateDeclaration(
+        BlueprintAsset  asset,
+        DeclarationKind kind,
+        string          name,
+        string          typeId,
+        Action?         markDirty     = null,
+        int             capacity      = 0,
+        int             initialLength = 0)
     {
         ArgumentNullException.ThrowIfNull(asset);
 
@@ -396,36 +1973,74 @@ public static class BlueprintDocumentFactory
 
         var finalType = string.IsNullOrWhiteSpace(typeId) ? BlueprintTypeSystem.Bool : typeId.Trim();
 
-        var decl = new VariableDecl
-        {
-            Id   = Guid.NewGuid(),
-            Name = trimmed,
-            Type = new BlueprintTypeRef { TypeId = finalType },
-        };
-        asset.Variables.Add(decl);
+        // FC-2/LV-4: fixed-list element must be unmanaged (blittable state bytes).
+        if (capacity > 0 && finalType == BlueprintTypeSystem.String)
+            return null;
+
+        var decl = BlueprintDeclaration.Create(
+            kind, Guid.NewGuid(), trimmed,
+            capacity > 0
+                ? new BlueprintTypeRef
+                {
+                    TypeId        = finalType,
+                    Capacity      = capacity,
+                    InitialLength = Math.Clamp(initialLength, 0, capacity),
+                }
+                : new BlueprintTypeRef { TypeId = finalType });
+
+        asset.Declarations.Add(decl);
         markDirty?.Invoke();
         return decl;
     }
 
     /// <summary>
-    /// True when <paramref name="name"/> matches an existing variable name (case-insensitive).
+    /// True when <paramref name="name"/> matches an existing declaration name (case-insensitive).
     /// Exposed <c>internal</c> so the variable-create modal can validate the live input and
     /// disable Confirm before invoking <see cref="CreateVariable"/>.
+    ///
+    /// <para>
+    /// <b>U-14 / <c>BP-232</c> — the check is across ALL THREE KINDS.</b> ⛔ It read
+    /// <c>asset.Variables</c> alone, so a <c>Parameter</c> and a <c>Variable</c> could both be
+    /// <c>Health</c>. ⚠ <b>Reachable:</b> <c>Stage5.FindVariableRef</c>'s name fallback searches
+    /// <c>Variables → WorkingState → Parameters</c>, so which one such a name reached was decided by
+    /// list order.
+    /// </para>
+    ///
+    /// <para>
+    /// ⭐ One collection, not three — this is what <c>U-9</c> bought, and the plan's note that the rule
+    /// is *"trivial after `U-9`, awkward before"* is borne out: the fix is the receiver.
+    /// </para>
+    ///
+    /// <para>
+    /// ⭐⭐ <b>Graph locals are deliberately NOT consulted.</b> <c>Q27-C1</c> lets a local <b>legally
+    /// shadow</b> an asset variable — they are disjoint spaces resolving to disjoint IR ops — so
+    /// reaching into <c>Graph.LocalVariables</c> here would refuse the feature. Asserted by
+    /// <c>CrossKindUniquenessTests</c>.
+    /// </para>
     /// </summary>
     internal static bool IsDuplicateVariableName(BlueprintAsset asset, string name)
     {
         ArgumentNullException.ThrowIfNull(asset);
         if (string.IsNullOrWhiteSpace(name)) return false;
         var trimmed = name.Trim();
-        return asset.Variables.Any(v =>
-            string.Equals(v.Name, trimmed, StringComparison.OrdinalIgnoreCase));
+        return asset.Declarations.Any(d =>
+            string.Equals(d.Name, trimmed, StringComparison.OrdinalIgnoreCase));
     }
 
+    /// <summary>
+    /// U-14: uniquified against <b>every</b> declaration. ⛔ A refusal enforced on create but ignored
+    /// by auto-naming would hand back a name the same rule rejects.
+    /// </summary>
     private static string MakeUniqueVariableName(BlueprintAsset asset, string baseName)
+        => MakeUniqueName(asset.Declarations.Select(d => d.Name), baseName);
+
+    /// <summary>
+    /// <paramref name="baseName"/> if free, otherwise the first <c>baseName1</c>, <c>baseName2</c>, …
+    /// not already in <paramref name="existingNames"/> (case-insensitive).
+    /// </summary>
+    private static string MakeUniqueName(IEnumerable<string> existingNames, string baseName)
     {
-        var existing = new HashSet<string>(
-            asset.Variables.Select(v => v.Name),
-            StringComparer.OrdinalIgnoreCase);
+        var existing = new HashSet<string>(existingNames, StringComparer.OrdinalIgnoreCase);
 
         if (!existing.Contains(baseName)) return baseName;
         for (int i = 1; ; i++)
@@ -433,6 +2048,528 @@ public static class BlueprintDocumentFactory
             var candidate = $"{baseName}{i}";
             if (!existing.Contains(candidate)) return candidate;
         }
+    }
+
+    // ── Create-custom-event command (BP-12c) ──────────────────────────────────
+
+    /// <summary>
+    /// BP-12c — registers <c>editor.create-custom-event</c> as a <b>quick-add</b>: one click appends a
+    /// parameterless <see cref="CustomEventDecl"/> with a free default name. Mirrors the
+    /// <c>editor.create-variable</c> quick-add overload and exists for the same reason — so the create
+    /// path is drivable headlessly, without ImGui.
+    /// <para>
+    /// Production wiring uses the modal overload
+    /// (<see cref="RegisterCreateCustomEventCommand(EditorCommandsImpl, Action)"/>).
+    /// </para>
+    /// </summary>
+    internal static void RegisterCreateCustomEventCommand(
+        EditorCommandsImpl commands,
+        BlueprintAsset     asset,
+        Action?            markDirty = null)
+    {
+        ArgumentNullException.ThrowIfNull(commands);
+        ArgumentNullException.ThrowIfNull(asset);
+
+        var reg = new CommandRegistration(commands);
+        reg.Add(
+            NodeEditor.Core.CommandCatalog.CreateCustomEvent,
+            "Create Custom Event", "Add",
+            _ => AddCustomEvent(asset, markDirty),
+            description: "Declare a new custom event on this blueprint.");
+    }
+
+    /// <summary>
+    /// BP-12c — registers <c>editor.create-custom-event</c> so the My Blueprint panel's
+    /// "Custom Events +" opens the create modal (name + parameters) rather than appending a
+    /// default-named declaration. The modal's confirm callback calls
+    /// <see cref="CreateCustomEvent"/>.
+    /// </summary>
+    /// <param name="commands">The editor command catalog.</param>
+    /// <param name="openModal">Opens the custom-event-create modal (e.g. <c>modal.Open</c>).</param>
+    public static void RegisterCreateCustomEventCommand(
+        EditorCommandsImpl commands,
+        Action             openModal)
+    {
+        ArgumentNullException.ThrowIfNull(commands);
+        ArgumentNullException.ThrowIfNull(openModal);
+
+        var reg = new CommandRegistration(commands);
+        reg.Add(
+            NodeEditor.Core.CommandCatalog.CreateCustomEvent,
+            "Create Custom Event", "Add",
+            _ => openModal(),
+            description: "Declare a new custom event on this blueprint.");
+    }
+
+    /// <summary>
+    /// The "Custom Events +" quick-add path (no modal): appends a parameterless
+    /// <see cref="CustomEventDecl"/> with an auto-generated free name (<c>NewEvent</c>,
+    /// <c>NewEvent1</c>, …), so repeated clicks never collide. Never rejects.
+    /// </summary>
+    internal static CustomEventDecl AddCustomEvent(BlueprintAsset asset, Action? markDirty = null)
+    {
+        ArgumentNullException.ThrowIfNull(asset);
+
+        // BP-24: the free name must clear graph names too — the create now also adds the body
+        // Event graph, and rejects a name a non-Event graph already holds.
+        var name = MakeUniqueName(
+            asset.CustomEvents.Select(e => e.Name).Concat(asset.Graphs.Select(g => g.Name)),
+            "NewEvent");
+        return CreateCustomEvent(asset, name, parameters: null, markDirty)!;
+    }
+
+    /// <summary>
+    /// Headless-testable create path used by the custom-event modal: appends a
+    /// <see cref="CustomEventDecl"/> named <paramref name="name"/> with the supplied
+    /// <paramref name="parameters"/>.
+    ///
+    /// <para>
+    /// <b>Rejects</b> (returns <see langword="null"/>, adds nothing) when the event name — or any
+    /// parameter name — is blank, is not a C# identifier, or collides with a sibling
+    /// (case-insensitively). The name is not cosmetic: the compiler emits
+    /// <c>Event_{Name}(…)</c> verbatim (<c>InstanceEmitter.EmitEventMethod</c>) and each parameter
+    /// becomes a C# parameter, so a name with a space or a leading digit is a Roslyn error rather
+    /// than a validation message. The modal warns and disables Confirm up front; this method is the
+    /// authoritative guard. No silent renaming.
+    /// </para>
+    /// </summary>
+    /// <param name="asset">The asset to append the declaration to.</param>
+    /// <param name="name">The event name; must be a C# identifier and unique on the asset.</param>
+    /// <param name="parameters">
+    /// Ordered <c>(name, typeId)</c> payload parameters; these become the <c>CallCustomEvent</c>
+    /// node's data-in pins (<c>NodePinSchema.CallCustomEventPins</c>). Null/empty declares a
+    /// parameterless event.
+    /// </param>
+    /// <param name="markDirty">Optional dirty-marking callback (invoked only on success).</param>
+    /// <param name="view">
+    /// BP-24 — when supplied, the whole create (declaration <b>and</b> body graph) is one undoable
+    /// entry on the document stack. Null applies directly (headless hosts, quick-add).
+    /// </param>
+    /// <returns>The created declaration, or <see langword="null"/> if anything was rejected.</returns>
+    internal static CustomEventDecl? CreateCustomEvent(
+        BlueprintAsset asset,
+        string         name,
+        IReadOnlyList<(string Name, string TypeId)>? parameters = null,
+        Action?        markDirty = null,
+        GraphView?     view      = null)
+    {
+        ArgumentNullException.ThrowIfNull(asset);
+
+        if (!IsValidDeclarationName(name)) return null;
+        var trimmed = name.Trim();
+        if (IsDuplicateCustomEventName(asset, trimmed)) return null;
+
+        // BP-24 (Q23-B2): the event's body will be an Event graph of the same name. A non-Event
+        // graph already holding the name would leave the pairing ambiguous (and two graphs with
+        // one name once the body is added) — reject up front, same as a duplicate event name.
+        var existingBody = asset.Graphs.FirstOrDefault(g =>
+            string.Equals(g.Name, trimmed, StringComparison.OrdinalIgnoreCase));
+        if (existingBody is not null && existingBody.Kind != GraphKind.Event) return null;
+
+        var paramDecls = new List<ParameterDecl>();
+        if (parameters is not null)
+        {
+            var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            foreach (var (paramName, typeId) in parameters)
+            {
+                if (!IsValidDeclarationName(paramName)) return null;
+                var paramTrimmed = paramName.Trim();
+                if (!seen.Add(paramTrimmed)) return null;
+
+                paramDecls.Add(new ParameterDecl
+                {
+                    Id   = Guid.NewGuid(),
+                    Name = paramTrimmed,
+                    Type = new BlueprintTypeRef
+                    {
+                        TypeId = string.IsNullOrWhiteSpace(typeId)
+                            ? BlueprintTypeSystem.Bool
+                            : typeId.Trim(),
+                    },
+                });
+            }
+        }
+
+        var decl = new CustomEventDecl
+        {
+            Id         = Guid.NewGuid(),
+            Name       = trimmed,
+            Parameters = paramDecls,
+        };
+
+        // BP-24 (Q23-B2): declaring the event also creates its body — the Kind:Event graph whose
+        // Name matches, which is what the compiler emits Event_{Name} from. This closes the half
+        // BP-12c had to leave open (the canvas could not switch, so a created body was
+        // unreachable) and makes BP1407 reachable only from hand-authored JSON. An Event graph
+        // already carrying the name (hand-authored body-first) is adopted instead of duplicated.
+        var body = existingBody ?? new Graph
+        {
+            Id     = Guid.NewGuid(),
+            Name   = trimmed,
+            Kind   = GraphKind.Event,
+            // The Event_{Name} parameter list is emitted from graph Inputs
+            // (InstanceEmitter.EmitEventMethod), so the body mirrors the declaration. Fresh
+            // ids: these are separate declarations, paired by name; arity drift is BP1408's job.
+            Inputs = paramDecls.Select(p => new ParameterDecl
+            {
+                Id   = Guid.NewGuid(),
+                Name = p.Name,
+                Type = new BlueprintTypeRef { TypeId = p.Type.TypeId },
+            }).ToList(),
+            Nodes =
+            {
+                new EventEntryNode
+                {
+                    Id             = Guid.NewGuid(),
+                    EventTypeId    = "",
+                    EditorMetadata = new NodeMetadata { X = 120f, Y = 120f },
+                },
+            },
+        };
+        bool addBody = existingBody is null;
+
+        void Apply()
+        {
+            asset.CustomEvents.Add(decl);
+            if (addBody) asset.Graphs.Add(body);
+        }
+        void Undo()
+        {
+            if (addBody) asset.Graphs.Remove(body);
+            asset.CustomEvents.Remove(decl);
+        }
+
+        var label = $"Create Custom Event '{trimmed}'";
+        if (view is not null)
+            view.Execute(new BlueprintEditCommand(label, Apply),
+                         new BlueprintEditCommand(label, Undo), label);
+        else
+            Apply();
+
+        markDirty?.Invoke();
+        return decl;
+    }
+
+    /// <summary>
+    /// BP-24 — the Event graph that is <paramref name="decl"/>'s body: same Name, Kind Event
+    /// (the compiler's pairing rule). Null when the body does not exist (hand-authored JSON that
+    /// predates auto-creation — the BP1407 case).
+    /// </summary>
+    internal static Graph? FindCustomEventBodyGraph(BlueprintAsset asset, CustomEventDecl decl)
+    {
+        ArgumentNullException.ThrowIfNull(asset);
+        ArgumentNullException.ThrowIfNull(decl);
+        return asset.Graphs.FirstOrDefault(g =>
+            g.Kind == GraphKind.Event
+            && string.Equals(g.Name, decl.Name, StringComparison.Ordinal));
+    }
+
+    /// <summary>
+    /// True when <paramref name="name"/> matches an existing custom-event name (case-insensitive).
+    /// Exposed <c>internal</c> so the create modal can validate live input and disable Confirm.
+    /// </summary>
+    internal static bool IsDuplicateCustomEventName(BlueprintAsset asset, string name)
+    {
+        ArgumentNullException.ThrowIfNull(asset);
+        if (string.IsNullOrWhiteSpace(name)) return false;
+        var trimmed = name.Trim();
+        return asset.CustomEvents.Any(e =>
+            string.Equals(e.Name, trimmed, StringComparison.OrdinalIgnoreCase));
+    }
+
+    /// <summary>
+    /// True when <paramref name="name"/> can be emitted verbatim into generated C# — a non-keyword
+    /// identifier (letter or <c>_</c> first, then letters/digits/<c>_</c>). Exposed
+    /// <c>internal</c> so the create modal can warn before Confirm rather than after Roslyn.
+    /// </summary>
+    internal static bool IsValidDeclarationName(string? name)
+    {
+        if (string.IsNullOrWhiteSpace(name)) return false;
+        var trimmed = name.Trim();
+
+        if (!char.IsLetter(trimmed[0]) && trimmed[0] != '_') return false;
+        for (int i = 1; i < trimmed.Length; i++)
+            if (!char.IsLetterOrDigit(trimmed[i]) && trimmed[i] != '_') return false;
+
+        return !CSharpKeywords.Contains(trimmed);
+    }
+
+    /// <summary>
+    /// C# reserved words. A parameter named <c>class</c> is a well-formed identifier by shape but a
+    /// compile error once emitted, so shape alone is not enough.
+    /// </summary>
+    private static readonly HashSet<string> CSharpKeywords = new(StringComparer.Ordinal)
+    {
+        "abstract", "as", "base", "bool", "break", "byte", "case", "catch", "char", "checked",
+        "class", "const", "continue", "decimal", "default", "delegate", "do", "double", "else",
+        "enum", "event", "explicit", "extern", "false", "finally", "fixed", "float", "for",
+        "foreach", "goto", "if", "implicit", "in", "int", "interface", "internal", "is", "lock",
+        "long", "namespace", "new", "null", "object", "operator", "out", "override", "params",
+        "private", "protected", "public", "readonly", "ref", "return", "sbyte", "sealed", "short",
+        "sizeof", "stackalloc", "static", "string", "struct", "switch", "this", "throw", "true",
+        "try", "typeof", "uint", "ulong", "unchecked", "unsafe", "ushort", "using", "virtual",
+        "void", "volatile", "while",
+    };
+
+    // ── Graph switching support (BP-24 / Q23-C) ───────────────────────────────
+
+    /// <summary>
+    /// BP-24 — the graph an asset opens on: the last-viewed one when this session remembers it,
+    /// else the <b>first in authored order</b>. Null only for a graphless asset.
+    /// The pre-BP-24 rule preferred an Event graph, silently moving the canvas whenever an asset
+    /// gained one. Exposed <c>internal</c> for tests; <c>Build</c> is the caller.
+    /// </summary>
+    internal static Graph? ResolveInitialGraph(BlueprintAsset asset)
+    {
+        ArgumentNullException.ThrowIfNull(asset);
+        var lastViewed = BlueprintGraphViewMemory.GetLastViewed(asset.AssetId);
+        return asset.Graphs.FirstOrDefault(g => g.Id == lastViewed)
+            ?? asset.Graphs.FirstOrDefault();
+    }
+
+    // ── Graph create (BP-24 / Q23-B2) ─────────────────────────────────────────
+
+    /// <summary>
+    /// BP-24 — registers <c>editor.create-function</c> as a <b>quick-add</b>: one click appends an
+    /// empty Function graph with a free default name (<c>NewFunction</c>, <c>NewFunction1</c>, …).
+    /// Mirrors the variable/custom-event quick-add overloads so the path is drivable headlessly.
+    /// <para>Production wiring uses the modal overload
+    /// (<see cref="RegisterCreateFunctionCommand(EditorCommandsImpl, Action)"/>).</para>
+    /// </summary>
+    internal static void RegisterCreateFunctionCommand(
+        EditorCommandsImpl commands,
+        BlueprintAsset     asset,
+        Action?            markDirty = null,
+        GraphView?         view      = null)
+    {
+        ArgumentNullException.ThrowIfNull(commands);
+        ArgumentNullException.ThrowIfNull(asset);
+
+        var reg = new CommandRegistration(commands);
+        reg.Add(
+            NodeEditor.Core.CommandCatalog.CreateFunction,
+            "Create Function", "Add",
+            _ =>
+            {
+                var name = MakeUniqueName(asset.Graphs.Select(g => g.Name), "NewFunction");
+                CreateFunctionGraph(asset, name, markDirty, view);
+            },
+            description: "Adds a new Function graph to this blueprint.");
+    }
+
+    /// <summary>
+    /// BP-24 — registers <c>editor.create-function</c> so the My Blueprint panel's "Functions +"
+    /// (and the header's "+ Function") opens the name modal. The modal's confirm callback calls
+    /// <see cref="CreateFunctionGraph"/>.
+    /// </summary>
+    public static void RegisterCreateFunctionCommand(
+        EditorCommandsImpl commands,
+        Action             openModal)
+    {
+        ArgumentNullException.ThrowIfNull(commands);
+        ArgumentNullException.ThrowIfNull(openModal);
+
+        var reg = new CommandRegistration(commands);
+        reg.Add(
+            NodeEditor.Core.CommandCatalog.CreateFunction,
+            "Create Function", "Add",
+            _ => openModal(),
+            description: "Adds a new Function graph to this blueprint.");
+    }
+
+    /// <summary>
+    /// BP-77 — registers <c>editor.create-macro</c> as a <b>quick-add</b>: one click appends a macro
+    /// with a free name. Mirrors <see cref="RegisterCreateFunctionCommand(EditorCommandsImpl, BlueprintAsset, Action, GraphView)"/>
+    /// and exists for the same reason — so the create path is drivable headlessly, without ImGui.
+    ///
+    /// <para>Production wiring uses the modal overload below.</para>
+    /// </summary>
+    internal static void RegisterCreateMacroCommand(
+        EditorCommandsImpl commands,
+        BlueprintAsset     asset,
+        Action?            markDirty = null,
+        GraphView?         view      = null)
+    {
+        ArgumentNullException.ThrowIfNull(commands);
+        ArgumentNullException.ThrowIfNull(asset);
+
+        var reg = new CommandRegistration(commands);
+        reg.Add(
+            NodeEditor.Core.CommandCatalog.CreateMacro,
+            "Create Macro", "Add",
+            _ =>
+            {
+                var name = MakeUniqueName(asset.Graphs.Select(g => g.Name), "NewMacro");
+                CreateMacroGraph(asset, name, markDirty, view);
+            },
+            description: "Adds a new Macro graph to this blueprint.");
+    }
+
+    /// <summary>
+    /// BP-77 — registers <c>editor.create-macro</c> so the My Blueprint panel's <i>"Macros +"</i>
+    /// opens the name modal. ⭐ The id and the button have both existed since BP-12e; <b>only the
+    /// handler was missing</b>, so the item rendered permanently greyed — the same
+    /// declared-with-no-handler shape as BP-23a's clipboard commands and BP-74's collapse.
+    /// </summary>
+    public static void RegisterCreateMacroCommand(
+        EditorCommandsImpl commands,
+        Action             openModal)
+    {
+        ArgumentNullException.ThrowIfNull(commands);
+        ArgumentNullException.ThrowIfNull(openModal);
+
+        var reg = new CommandRegistration(commands);
+        reg.Add(
+            NodeEditor.Core.CommandCatalog.CreateMacro,
+            "Create Macro", "Add",
+            _ => openModal(),
+            description: "Adds a new Macro graph to this blueprint.");
+    }
+
+    /// <summary>
+    /// BP-24 — appends a new, empty <b>Function</b> graph to the asset. Until this, nothing in the
+    /// editor ever appended to <see cref="BlueprintAsset.Graphs"/>; Function graphs could only be
+    /// hand-written in JSON.
+    ///
+    /// <para>
+    /// The graph is born with one <see cref="EventEntryNode"/> whose <c>EventTypeId</c> is empty —
+    /// the explicit entry indicator the compiler's <c>Stage2_Validate.FindEntryNode</c> looks for,
+    /// and exactly how the shipped Function graphs (e.g. <c>CustomEventSubscriberDemo</c>'s
+    /// <c>Tick</c>) are shaped. Signature (inputs/outputs) is edited afterwards in the Graph
+    /// Signature window, which already does full CRUD.
+    /// </para>
+    ///
+    /// <para>
+    /// BP-126 — Unreal's "New Function" hands the author an already-wired entry + return; this one
+    /// used to hand back just the entry, so every new function needed a trip to the palette to find
+    /// Return, place it, and wire it — miss the wire and the compiler reports BP3010 (orphan) +
+    /// BP1657. The graph is now born with a <see cref="ReturnNode"/> too, exec-linked from the
+    /// entry's <c>Out</c> pin to the return's <c>In</c> pin, positioned apart on the canvas so the
+    /// wire is visible rather than a same-point overlap. Both nodes' pins are not yet materialised
+    /// (projection-only asset), so the link addresses them by <see cref="DeterministicIds.PinId"/> —
+    /// the same deterministic scheme Stage0_Rehydrate/<c>BlueprintGraphModel.Rebuild</c> use to
+    /// reconstruct pin GUIDs on load, so the link resolves correctly the moment pins materialise.
+    /// </para>
+    ///
+    /// <para>
+    /// <b>Rejects</b> (returns <see langword="null"/>) a name that is not a C# identifier or that
+    /// collides with any existing graph name (case-insensitive). When <paramref name="view"/> is
+    /// supplied the append is one undoable entry on the document stack.
+    /// </para>
+    /// </summary>
+    internal static Graph? CreateFunctionGraph(
+        BlueprintAsset asset,
+        string         name,
+        Action?        markDirty = null,
+        GraphView?     view      = null)
+        => CreateGraph(asset, name, GraphKind.Function, "Create Function Graph", markDirty, view);
+
+    /// <summary>
+    /// BP-77 — appends a new, empty <b>Macro</b> graph. Same shape as
+    /// <see cref="CreateFunctionGraph"/>, and deliberately the same code: a macro graph's boundary
+    /// is an <see cref="EventEntryNode"/> and a <see cref="ReturnNode"/> exactly as a function's is,
+    /// and BP-126's reason for wiring them together (a bare entry costs a palette trip and then
+    /// reports BP3010 + BP1657) applies unchanged.
+    ///
+    /// <para>
+    /// ⚠ The new macro declares <b>no</b> <c>ExecInputs</c>/<c>ExecOutputs</c>. That is the
+    /// wireable degenerate case, not an omission: <c>NodePinSchema</c> projects the single default
+    /// <c>Out</c>/<c>In</c> pin when either list is empty (Q26-A3's N=0), so the macro can be wired
+    /// and called immediately, and the designer declares extra entries/exits in the Graph Signature
+    /// window when they want them.
+    /// </para>
+    /// </summary>
+    internal static Graph? CreateMacroGraph(
+        BlueprintAsset asset,
+        string         name,
+        Action?        markDirty = null,
+        GraphView?     view      = null)
+        => CreateGraph(asset, name, GraphKind.Macro, "Create Macro Graph", markDirty, view);
+
+    private static Graph? CreateGraph(
+        BlueprintAsset asset,
+        string         name,
+        GraphKind      kind,
+        string         undoLabel,
+        Action?        markDirty,
+        GraphView?     view)
+    {
+        ArgumentNullException.ThrowIfNull(asset);
+
+        if (!IsValidDeclarationName(name)) return null;
+        var trimmed = name.Trim();
+        if (IsDuplicateGraphName(asset, trimmed)) return null;
+
+        var entryId  = Guid.NewGuid();
+        var returnId = Guid.NewGuid();
+
+        var graph = new Graph
+        {
+            Id   = Guid.NewGuid(),
+            Name = trimmed,
+            Kind = kind,
+            Nodes =
+            {
+                new EventEntryNode
+                {
+                    Id             = entryId,
+                    EventTypeId    = "",
+                    EditorMetadata = new NodeMetadata { X = 120f, Y = 120f },
+                },
+                new ReturnNode
+                {
+                    Id             = returnId,
+                    EditorMetadata = new NodeMetadata { X = 420f, Y = 120f },
+                },
+            },
+            Links =
+            {
+                new Link
+                {
+                    FromNodeId = entryId,
+                    FromPinId  = DeterministicIds.PinId(entryId, "Out", "Out"),
+                    ToNodeId   = returnId,
+                    ToPinId    = DeterministicIds.PinId(returnId, "In", "In"),
+                },
+            },
+        };
+
+        AppendGraph(asset, graph, undoLabel, markDirty, view);
+        return graph;
+    }
+
+    /// <summary>
+    /// True when <paramref name="name"/> matches an existing graph name (case-insensitive).
+    /// Exposed <c>internal</c> so the create modal can validate live input.
+    /// </summary>
+    internal static bool IsDuplicateGraphName(BlueprintAsset asset, string name)
+    {
+        ArgumentNullException.ThrowIfNull(asset);
+        if (string.IsNullOrWhiteSpace(name)) return false;
+        var trimmed = name.Trim();
+        return asset.Graphs.Any(g =>
+            string.Equals(g.Name, trimmed, StringComparison.OrdinalIgnoreCase));
+    }
+
+    /// <summary>
+    /// Appends <paramref name="graph"/> to the asset — through the view's undo stack when one is
+    /// supplied (one entry; the inverse removes the graph again), directly otherwise.
+    /// The undo entry's graph context is wherever the canvas was at create time, so replaying the
+    /// removal never runs while the canvas points at the graph being removed.
+    /// </summary>
+    private static void AppendGraph(
+        BlueprintAsset asset, Graph graph, string label, Action? markDirty, GraphView? view)
+    {
+        void Apply() => asset.Graphs.Add(graph);
+        void Undo()  => asset.Graphs.Remove(graph);
+
+        if (view is not null)
+            view.Execute(new BlueprintEditCommand(label, Apply),
+                         new BlueprintEditCommand(label, Undo), label);
+        else
+            Apply();
+
+        markDirty?.Invoke();
     }
 
     // ── Private helpers ───────────────────────────────────────────────────────

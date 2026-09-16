@@ -3,25 +3,16 @@ using System.Runtime.InteropServices;
 using Fbt;
 using Fdp.Core;
 using Fdp.Toolkit.Behavior;
+using Fdp.Toolkit.Tkb.Domain;
 
 namespace Hrot.MuscleCharacter.Animation.Components
 {
-    /// <summary>
-    /// Enumeration of supported stance modes for character locomotion and posture.
-    /// Maps to TKB animation descriptor stance definitions (DD-4 §3.2).
-    /// </summary>
-    [Serializable]
-    public enum StanceId : byte
-    {
-        /// <summary>Standing upright (default).</summary>
-        Standing = 0,
-
-        /// <summary>Crouched / half-height.</summary>
-        Crouched = 1,
-
-        /// <summary>Prone / fully horizontal.</summary>
-        Prone = 2,
-    }
+    // ⚠ `StanceId` MOVED OUT of this file on 2026-08-31 → FDP/Toolkits/Fdp.Toolkits/Tkb/Domain/StanceId.cs
+    //   and it is now in namespace `Fdp.Toolkit.Tkb.Domain` (CE-145, done 2026-08-31) — hence the
+    //   `using Fdp.Toolkit.Tkb.Domain;` above. It moved because CharacterAnimationDefDto (a TKB descriptor
+    //   DTO referencing it) had to sit beside the other TKB DTOs so Hrot.Core could host the UrbanCombat
+    //   catalogue without referencing this subsystem.
+    //   📄 docs/DESIGN_Entity_Creation_Unification.md §3.3.
 
     /// <summary>
     /// Stance transition phase tracking for multi-frame blend sequences.
@@ -47,7 +38,7 @@ namespace Hrot.MuscleCharacter.Animation.Components
     /// </summary>
     [StructLayout(LayoutKind.Sequential)]
     [ComponentId(GlobalComponentIds.AnimationChannel)]
-    [DataPolicy(DataPolicy.NoSave)]
+    [DataPolicy(DataPolicy.NoScenario)]
     public unsafe struct AnimationChannel
     {
         /// <summary>Current action ID (see AnimationActionIds). 0 = no action pending.</summary>
@@ -79,7 +70,7 @@ namespace Hrot.MuscleCharacter.Animation.Components
     /// </summary>
     [StructLayout(LayoutKind.Sequential)]
     [ComponentId(GlobalComponentIds.LookAtChannel)]
-    [DataPolicy(DataPolicy.NoSave)]
+    [DataPolicy(DataPolicy.NoScenario)]
     public unsafe struct LookAtChannel
     {
         /// <summary>Current action ID (see LookAtActionIds). 0 = no action pending.</summary>
@@ -111,7 +102,7 @@ namespace Hrot.MuscleCharacter.Animation.Components
     /// </summary>
     [StructLayout(LayoutKind.Sequential)]
     [ComponentId(GlobalComponentIds.StanceIntent)]
-    [DataPolicy(DataPolicy.NoSave)]
+    [DataPolicy(DataPolicy.NoScenario)]
     public struct StanceIntent
     {
         /// <summary>Target stance (Standing, Crouched, Prone).</summary>
@@ -131,7 +122,7 @@ namespace Hrot.MuscleCharacter.Animation.Components
     /// </summary>
     [StructLayout(LayoutKind.Sequential)]
     [ComponentId(GlobalComponentIds.StanceStatus)]
-    [DataPolicy(DataPolicy.NoSave)]
+    [DataPolicy(DataPolicy.NoScenario)]
     public struct StanceStatus
     {
         /// <summary>Current stable stance (Standing, Crouched, Prone).</summary>
@@ -179,7 +170,7 @@ namespace Hrot.MuscleCharacter.Animation.Components
     /// </summary>
     [StructLayout(LayoutKind.Sequential)]
     [ComponentId(GlobalComponentIds.AnimationMontageQueue)]
-    [DataPolicy(DataPolicy.NoSave)]
+    [DataPolicy(DataPolicy.NoScenario)]
     public unsafe struct AnimationMontageQueue
     {
         /// <summary>Number of valid entries in Entries (0 = empty queue).</summary>
@@ -204,7 +195,7 @@ namespace Hrot.MuscleCharacter.Animation.Components
     /// </summary>
     [StructLayout(LayoutKind.Sequential)]
     [ComponentId(GlobalComponentIds.AnimationMontageQueueState)]
-    [DataPolicy(DataPolicy.NoSave)]
+    [DataPolicy(DataPolicy.NoScenario)]
     public struct AnimationMontageQueueState
     {
         /// <summary>Index of the currently-playing queue entry (0xFF = no entry active / queue idle).</summary>

@@ -14,13 +14,13 @@ namespace Hrot.SimHost.Serializers
 {
     /// <summary>
     /// Scenario translator for <see cref="BrainBlackboard"/>.
-    /// When the entity has an active behavior with a <see cref="BehaviorDefinition.ParamsDtoType"/>,
+    /// When the entity has an active behavior with a <see cref="BehaviorDefinition.BlackboardLayoutType"/>,
     /// the raw memory block is projected into that typed DTO and serialized as a readable JSON
     /// object.  Falls back to an empty object when no DTO type is available.
     /// </summary>
     /// <remarks>
     /// <see cref="Inject"/> is intentionally a no-op: <see cref="BrainBlackboard"/> is
-    /// <c>DataPolicy.NoSave</c> transient execution state and must never be written back
+    /// <c>DataPolicy.NoScenario</c> transient execution state and must never be written back
     /// from a scenario file.  This translator exists solely to produce a readable clipboard
     /// dump via <see cref="ScenarioSerializer.SerializeEntity"/>.
     /// </remarks>
@@ -61,12 +61,12 @@ namespace Hrot.SimHost.Serializers
             };
 
             if (_registry.TryGetDefinition(state.ActiveBehaviorHash, out var def)
-                && def.ParamsDtoType != null)
+                && def.BlackboardLayoutType != null)
             {
                 fixed (byte* ptr = &bb.BehaviorParameters[0])
                 {
-                    object dto = Marshal.PtrToStructure((IntPtr)ptr, def.ParamsDtoType)!;
-                    var mapped   = DtoDiagnosticMapper.MapObject(dto, def.ParamsDtoType, new HashSet<object>(ReferenceEqualityComparer.Instance));
+                    object dto = Marshal.PtrToStructure((IntPtr)ptr, def.BlackboardLayoutType)!;
+                    var mapped   = DtoDiagnosticMapper.MapObject(dto, def.BlackboardLayoutType, new HashSet<object>(ReferenceEqualityComparer.Instance));
                     root["BehaviorParameters"] = JsonSerializer.SerializeToNode(mapped, FdpJsonOptionsRegistry.DefaultRelaxed) ?? new JsonObject();
                 }
             }

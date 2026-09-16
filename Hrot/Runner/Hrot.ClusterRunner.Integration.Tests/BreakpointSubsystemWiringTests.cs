@@ -233,7 +233,7 @@ public sealed class BreakpointSubsystemWiringTests
             subsystem.RegisterWindows(wm);
 
             Assert.True(wm.TryGetWindow("editor_bp_manager", out var win));
-            Assert.Equal("Editor", win!.OwningPerspective);
+            Assert.Equal("Scenario", win!.OwningPerspective);
             Assert.NotEqual("IG", win.OwningPerspective);
         }
         finally

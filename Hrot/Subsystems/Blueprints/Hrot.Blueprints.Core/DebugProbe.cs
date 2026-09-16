@@ -27,12 +27,31 @@ public static class DebugProbe
         => Sink?.OnPeerCallExit(self, peerAssetIdString, methodName);
 
     /// <summary>
+    /// FC-0 (Fixed Collections, Q#20) -- generated collection-write code calls this when an op is
+    /// refused (component absent / accessor returned false). All arguments are emit-time string
+    /// constants -- zero allocation, and a no-op when no sink is attached, so the emitter calls it
+    /// unconditionally (the "never silent" overflow contract costs nothing in production).
+    /// </summary>
+    public static void CollectionWriteFailed(Entity self, string nodeId, string op, string reason)
+        => Sink?.OnCollectionWriteFailed(self, nodeId, op, reason);
+
+    /// <summary>
     /// Called at the start of each simulation tick by the frame loop / fixture coordinator.
     /// Forwards to IBlueprintDebugSession.OnNewTick() when the current sink is a session.
     /// Resets the per-frame breakpoint dedup set (Debug DD §9.2).
     /// </summary>
     public static void NewTick()
-        => (Sink as IBlueprintDebugSession)?.OnNewTick();
+    {
+        // Read once -- Sink is a mutable static and could change between the test and the call.
+        var sink = Sink;
+
+        // BP-35: a MultiplexingProbeSink is a probe sink, not a session, so the `as` below would
+        // fail and every session behind it would silently stop receiving OnNewTick -- quietly
+        // breaking per-frame breakpoint dedup. Let it fan out to its own sessions instead.
+        if (sink is MultiplexingProbeSink mux) { mux.NotifyNewTick(); return; }
+
+        (sink as IBlueprintDebugSession)?.OnNewTick();
+    }
 }
 
 /// <summary>No-op sink used when a non-null sink is required but no session is attached.</summary>
@@ -44,4 +63,5 @@ public sealed class NullProbeSink : IBlueprintProbeSink
     public void OnPinValueChanged<T>(Entity self, string pinId, T value) where T : unmanaged { }
     public void OnPeerCallEnter(Entity self, string peerAssetIdString, string methodName) { }
     public void OnPeerCallExit(Entity self, string peerAssetIdString, string methodName) { }
+    public void OnCollectionWriteFailed(Entity self, string nodeId, string op, string reason) { }
 }

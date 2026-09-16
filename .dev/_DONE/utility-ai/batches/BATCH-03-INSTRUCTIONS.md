@@ -150,7 +150,7 @@ After this batch, headless scoring is complete (sans input readers — those com
 
 `UtilityDebugFlags`:
 - Component struct with a `bool TraceEnabled` field (or `byte` for unmanaged friendliness).
-- Add `[ComponentId(…)]` and `[DataPolicy(DataPolicy.NoSave)]` following existing component convention (see `BehaviorApplicationComponentIds` for how component IDs are declared; add a `UtilityComponentIds` class or similar).
+- Add `[ComponentId(…)]` and `[DataPolicy(DataPolicy.NoScenario)]` following existing component convention (see `BehaviorApplicationComponentIds` for how component IDs are declared; add a `UtilityComponentIds` class or similar).
 
 `UtilityTraceWorkingMemory1024`:
 - `[StructLayout(LayoutKind.Sequential, Size = 1024)]` unmanaged ring buffer, same physical layout as `BTreeTraceWorkingMemory1024` (8-byte header + payload).

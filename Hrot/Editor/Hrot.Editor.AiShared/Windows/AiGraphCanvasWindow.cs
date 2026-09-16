@@ -2,9 +2,12 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Numerics;
+using System.Text.Json.Nodes;
+using Fdp.Diagnostics.Contracts.Panels;
 using Fdp.Presentation.Fonts;
 using Fdp.Presentation.WindowManager;
 using Hrot.Editor.AiShared.Documents;
+using Hrot.Editor.AiShared.Identity;
 using NodeEditor.Core.Action;
 using NodeEditor.Core.Bookmarks;
 using NodeEditor.Core.Interfaces;
@@ -13,6 +16,30 @@ using NodeEditor.Primitives;
 using NodeEditor.UI.Find;
 
 namespace Hrot.Editor.AiShared.Windows;
+
+/// <summary>
+/// ⭐⭐⭐ <b>U-obs-5 — this window's own state, dumped.</b>
+/// 📄 <c>docs/DESIGN_UI_Observability_Snapshot.md</c> §Example.
+///
+/// <para>⚠ <b>Deliberately narrower than the hosted canvas's full paint</b> — the actual graph content
+/// (nodes, wires, layout) is rendered by the NodeEdit canvas pipeline through
+/// <see cref="ICanvasRenderSeam"/>, which is a THIRD-PARTY component (<c>FDP/ExtDeps/NodeEdit</c>) this
+/// sweep does not own or convert. ⭐ What IS this window's own decision — which document is active, how
+/// many tabs are open, and the breadcrumb it derives — is captured whole.</para>
+/// </summary>
+public sealed record AiGraphCanvasWindowPanelViewModel(
+    string PanelId,
+    string PanelKind,
+    string AssetKind,
+    bool   HasActiveDocument,
+    string? ActiveDocumentName,
+    bool   ActiveDocumentDirty,
+    int    OpenDocumentCount,
+    string? Breadcrumb) : IPanelViewModel
+{
+    /// <inheritdoc/>
+    public JsonNode Dump() => PanelDump.Of(this);
+}
 
 // ── Canvas context ────────────────────────────────────────────────────────────
 
@@ -59,6 +86,37 @@ public sealed class AiCanvasContext
     /// property only needs to be read by the rendering/overlay path.
     /// </summary>
     public BookmarkStore? Bookmarks { get; set; }
+
+    /// <summary>
+    /// Optional per-document notification surface built by the document factory. Commands report
+    /// refusals through <see cref="IEditorIndicators.Notify"/>; the composition root drains the
+    /// queue and draws the toasts.
+    ///
+    /// <para>
+    /// ⚠ BP-223 — before BP-74 this was a local inside the Blueprint document factory, over a
+    /// <c>ToastQueue</c> <b>nothing drained</b>: the only <c>TryDequeue</c> in the repo was
+    /// <c>NodeEditor.Demo</c>'s shell, so every bookmark notification was enqueued and discarded.
+    /// Exposing it here is what makes "refuse on invoke, and say why" (Q26-B2) reach the designer
+    /// rather than a queue nobody reads.
+    /// </para>
+    /// </summary>
+    public IEditorIndicators? Indicators { get; set; }
+
+    /// <summary>
+    /// Optional provider for the id of the graph the canvas is currently showing, set by document
+    /// factories whose asset holds more than one graph (Blueprint, since BP-24's graph switching).
+    /// <para>
+    /// A plain delegate rather than a typed reference, for the same reason <see cref="AssetRef"/> is
+    /// an <see cref="object"/>: this assembly is shared by BTree/HSM/Blueprint and must not depend
+    /// on any one of them. Kinds with a single graph per document leave it <c>null</c>.
+    /// </para>
+    /// <para>
+    /// BP-72: graph-scoped windows (the Graph Signature editor) need this to stay pointed at the
+    /// graph the designer is looking at. Asset-scoped windows — My Blueprint, Details, Variables —
+    /// do not, which is why Q23's retarget audit found no fan-out work and missed this one.
+    /// </para>
+    /// </summary>
+    public Func<Guid>? CurrentGraphId { get; set; }
 
     /// <summary>
     /// Creates a canvas context.
@@ -115,6 +173,12 @@ public interface ICanvasRenderSeam
 /// </summary>
 public sealed class AiGraphCanvasWindow : ManagedWindow
 {
+    /// <summary>⭐ <c>U-obs-5</c> — THE KIND. ⛔ Local literal, not a <c>PanelIds</c> constant: this
+    /// class is instantiated per-perspective (BTree/HSM/Blueprint each construct their own), so the
+    /// SAME kind already means "a graph canvas" without a cross-assembly constant — there is only one
+    /// class, so there is nothing two literals could drift apart on.</summary>
+    internal const string Kind = "graph-canvas";
+
     private readonly AiDocumentManager _docManager;
     private readonly string            _assetKind;
     private readonly ICanvasRenderSeam _renderer;
@@ -171,6 +235,17 @@ public sealed class AiGraphCanvasWindow : ManagedWindow
     /// requiring a subclass of the sealed window.
     /// </summary>
     public Action<AiCanvasContext>? AfterDraw { get; set; }
+
+    /// <summary>
+    /// ⭐⭐ <b>Invoked every frame this window holds focus</b>, so the selection store can record that
+    /// the designer is working in the CANVAS *(<c>SelectionOrigin.GraphCanvas</c>)*.
+    ///
+    /// <para>⭐ A callback rather than a store reference, matching <see cref="AfterDraw"/>: this window
+    /// is shared by Blueprint, BTree and HSM and must not grow a dependency on any one perspective's
+    /// selection store. ⛔ The registrar owns the wiring, so there is nothing for a composition root to
+    /// forget.</para>
+    /// </summary>
+    public Action? NotifyFocusClaim { get; set; }
 
     // BCP-BATCH-02-FIX Task 2: the document whose name is currently reflected in Title,
     // so we only rebuild the title string when the active document actually changes.
@@ -235,6 +310,9 @@ public sealed class AiGraphCanvasWindow : ManagedWindow
         _baseTitle    = $"{assetKind} Canvas";
 
         IsOpen = true;
+
+        // ⭐⭐⭐ U-obs-5 — DECLARED AT CONSTRUCTION, ALWAYS, ungated on CaptureEnabled.
+        PanelSnapshot.DeclareInstrumented(Id);
     }
 
     /// <summary>
@@ -270,6 +348,31 @@ public sealed class AiGraphCanvasWindow : ManagedWindow
 
     // ── ManagedWindow implementation ─────────────────────────────────────────
 
+    /// <summary>
+    /// ⭐⭐⭐ <b>U-obs-5: BUILD · CAPTURE.</b> 📄 <c>docs/DESIGN_UI_Observability_Snapshot.md</c> §Example.
+    /// ⛔⛔ No ImGui — every field is a plain read of <see cref="AiDocument"/>/<see cref="AiCanvasContext"/>
+    /// state, published before the render guard so a headless run still observes this window.
+    /// </summary>
+    private AiGraphCanvasWindowPanelViewModel BuildAndPublish(AiDocument? doc)
+    {
+        var context    = doc?.ViewState as AiCanvasContext;
+        var breadcrumb = doc != null ? BuildBreadcrumb(doc, context?.View.Model) : null;
+
+        var vm = new AiGraphCanvasWindowPanelViewModel(
+            Id, Kind, _assetKind,
+            HasActiveDocument:   doc != null,
+            ActiveDocumentName:  doc?.Asset.Name,
+            ActiveDocumentDirty: doc?.Asset.IsDirty ?? false,
+            OpenDocumentCount:   TabDocuments.Count,
+            Breadcrumb:          string.IsNullOrEmpty(breadcrumb) ? null : breadcrumb);
+
+        if (PanelSnapshot.CaptureEnabled) PanelSnapshot.Register(vm);
+        return vm;
+    }
+
+    /// <summary>⭐ Test hook — the BUILD + CAPTURE portion, callable with no live ImGui context.</summary>
+    internal AiGraphCanvasWindowPanelViewModel SimulateBuildAndPublish() => BuildAndPublish(ActiveDocument);
+
     /// <inheritdoc/>
     protected override void DrawClientArea()
     {
@@ -277,9 +380,20 @@ public sealed class AiGraphCanvasWindow : ManagedWindow
         // different from the last activation, call Activate.  Gate the ImGui call for
         // headless safety.
         var doc = ActiveDocument;
+        BuildAndPublish(doc);
 
         if (ImGuiAvailable())
+        {
+            // ⭐⭐⭐ Batch 87 — claim the Details panel for the CANVAS while this window holds focus
+            //    (user ruling, 2026-08-18). ⛔ A LEVEL, not an edge: HandleFocusActivation below is
+            //    edge-triggered (`doc == _lastActivatedDoc` returns early), and an edge is exactly what
+            //    B8 could not observe — re-entering the canvas with an unchanged selection IS the
+            //    failing gesture. ⭐ The store de-duplicates, so a per-frame call costs a comparison.
+            if (ImGuiNET.ImGui.IsWindowFocused(ImGuiNET.ImGuiFocusedFlags.ChildWindows))
+                NotifyFocusClaim?.Invoke();
+
             HandleFocusActivation(doc);
+        }
 
         // BCP-BATCH-02-FIX Task 2: reflect the active asset name in the window title,
         // keeping the stable "###id" so docking identity is preserved. Empty-state title
@@ -311,6 +425,13 @@ public sealed class AiGraphCanvasWindow : ManagedWindow
         }
 
         var context = ActiveContext;
+
+        // BP-85: name the graph the canvas is showing. Without this the tab shows only the asset
+        // name, so switching to a freshly created (empty) function graph read as "my graph has been
+        // emptied" — a false data-loss scare — and nothing on screen answered "is this an Instance
+        // blueprint?".
+        if (ImGuiAvailable())
+            DrawBreadcrumb(BuildBreadcrumb(doc, context.View.Model));
 
         // Render the cached GraphView via the seam, threading FindBar and Commands when present.
         _renderer.Render(context.View, context.FindBar, context.Commands);
@@ -366,6 +487,51 @@ public sealed class AiGraphCanvasWindow : ManagedWindow
         if (ReferenceEquals(doc, _titleDoc)) return;
         _titleDoc = doc;
         Title = _baseTitle;
+    }
+
+    // ── BP-85: canvas breadcrumb ──────────────────────────────────────────────
+
+    /// <summary>
+    /// Builds the one-line breadcrumb naming what the canvas is currently editing:
+    /// <c>{asset} · {dispatch}  ▸  {graph} ({graph kind})</c>.
+    ///
+    /// <para>
+    /// Kind-agnostic: the dispatch segment appears only for assets implementing
+    /// <see cref="IAssetSubtitleProvider"/>, and the graph-kind segment is dropped when it would
+    /// merely repeat the graph's name. Pure and static so the format is testable headlessly.
+    /// </para>
+    /// </summary>
+    internal static string BuildBreadcrumb(AiDocument? doc, IGraphModel? model)
+    {
+        if (doc == null) return string.Empty;
+
+        var sb = new System.Text.StringBuilder(doc.Asset.Name);
+
+        if (doc.Asset is IAssetSubtitleProvider s && !string.IsNullOrWhiteSpace(s.Subtitle))
+            sb.Append(" · ").Append(s.Subtitle);
+
+        var graphName = model?.DisplayName;
+        if (!string.IsNullOrWhiteSpace(graphName))
+        {
+            // ASCII separator on purpose: the editor's ImGui font atlas has no glyph for "▸"
+            // (U+25B8) and renders it as "?" — the same reason "? EDIT" shows elsewhere in the UI.
+            sb.Append("  >  ").Append(graphName);
+
+            var kindName = model!.Kind?.DisplayName;
+            if (!string.IsNullOrWhiteSpace(kindName) &&
+                !string.Equals(kindName, graphName, StringComparison.OrdinalIgnoreCase))
+                sb.Append(" (").Append(kindName).Append(')');
+        }
+
+        return sb.ToString();
+    }
+
+    /// <summary>Renders <paramref name="text"/> as a dimmed breadcrumb line above the canvas.</summary>
+    private static void DrawBreadcrumb(string text)
+    {
+        if (string.IsNullOrEmpty(text)) return;
+        ImGuiNET.ImGui.TextDisabled(text);
+        ImGuiNET.ImGui.Separator();
     }
 
     // ── MULTI-TAB: tab bar ────────────────────────────────────────────────────

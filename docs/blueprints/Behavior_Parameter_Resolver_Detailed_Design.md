@@ -1,5 +1,17 @@
 # Behavior Parameters & the Resolver — Detailed Design
 
+> ## ⛔⛔ `2026-08-16` — READ [`DESIGN_Parameter_Model.md`](DESIGN_Parameter_Model.md) FIRST
+>
+> ⭐ **This document's MODEL and PIPELINE still stand** and are quoted there as the authority —
+> especially **§3.2's ruling that the role enum is `{ Input, State }` with no separate "Param" role**,
+> and **§3.4's resolve-once-at-activation sequence**.
+>
+> ⛔ **But §6/§7 (ground truth + the `G1`–`G7` gap list) are STALE.** Re-measured `2026-08-16`:
+> **`G2`, `G5`, `G6` are DONE**, `G1` is half done, and `G3`/`G4`/`G7` remain open.
+> ⭐⭐ **Extended since:** Instance blueprints now use this same pipeline, params belong to the
+> **occurrence** rather than the entity, and **sections replace any `Role`/`Scope` control**.
+> ⇒ **`DESIGN_Parameter_Model.md` wins on any disagreement.**
+
 > **Status:** design draft (2026-07-13) — resolves the "how do JSON-authored behaviors parse/post-process parameters without a curated `AiBehaviorFactory`" question. Describes the **future state**; no code has been written for it yet. Supersedes the ad-hoc, factory-injected `ParseParams` closure model.
 > **Scope:** how a behavior (BTree or HSM, hardcoded or JSON-authored) declares its authored parameters, its runtime-usable parameters, and an optional **resolver** that bridges the two; how the resolver runs exactly once at activation; how behaviors register and are referenced **by name**; and the end-to-end authoring workflow. Does **not** re-specify blackboard bin-packing, variable roles/scopes, or blueprint compilation — those are owned by the docs cited below.
 > **Audience:** AI-behavior authors (editor users), engine/editor engineers implementing the resolver seam, and reviewers.
@@ -262,3 +274,35 @@ The maximal alternative — a fully general struct-typed Library call ABI with a
 - **Supersedes** the factory-injected `ParseParams` closure model described operationally in `AI-Behavior-Authoring.md` §7.4 and `docs/AI_DEV_GUIDE.md` "Writing the ParseParamsDelegate" — those describe the current state this design replaces.
 - **Builds on** `BTree_AiActionParameterBinding_Detailed_Design.md` §4.4 (the `Node`/`Behavior`/`Entity` scoped-variable model; this doc adds the authored↔usable resolver on top of it) and `Blackboard_Authoring_Addendum_v3_ActionParamAuthoring.md` §4 (the once-at-assignment runtime pipeline; this doc names the previously-inline resolve step and makes it pluggable).
 - **Coordinates with** `Blueprint_Subsystem_Architecture_v1.2.md` for Library-function dispatch and world singletons (gap G2/G3).
+
+## 10. ⭐⭐⭐ AS-BUILT `2026-08-23` — **A CURATED RESOLVER OUTRANKS A GENERATED ONE** *(user ruling)*
+
+> ⭐⭐⭐ **User, verbatim:** *"if curated (hand-authored) exists, then no other is needed - having
+> automatically generated is undesired in such a case."*
+
+⛔⛔ **SUPERSEDES the "never overwrite" binding rule** this document's pipeline implied. `ApplyResolverOverlay`
+used to read `if (def.ParseParams == null) def.ParseParams = overlay.Resolver;` ⇒ ⭐ **whatever registered
+FIRST won**, and a generated registrar usually registers first.
+
+📌 **The defect that produced the ruling — and it is a SILENT-DEFAULT / `default:`-arm case, the family
+`CLAUDE.md` names.** `PlatoonHillAttack`'s parameters are **geo-authored** *(the mission plan carries
+`firingLineStart` / `baselineStart` as `[lat, lon]`)*, and **only** the curated
+`HillAttackCommanderNodes.ResolvePlatoonHillAttackParams` knows that shape and runs it through
+`geoTransform.ToCartesian`. ⛔ **It never ran.** The BTree JSON source generator had emitted a `ParseParams`
+into the generated registrar *(because the asset declares a managed blackboard)*, and that took the slot.
+
+⭐⭐ **Why it failed SILENTLY, which is the transferable part:** the two resolvers expect **different wire
+formats**. The generated lambda switches on top-level keys matching blackboard **variable names**
+*(`"Params"`, `"State"`)*; the mission plan's keys are **flat and geo** ⇒ every key hit the deliberate
+`default: break` *("unknown key: IGNORED")* and **nothing was ever written.** ⇒ the params region stayed
+zeros: **no exception, no log line, the behaviour otherwise running normally** — the platoon drove to
+`(0,0)`.
+
+| ⭐ the rule now | |
+|---|---|
+| ⭐⭐ **the overlay WINS** | `RegisterResolver` is reached **only** from `CgfCuratedBehaviorRegistrar` *(every caller verified; no generated registrar calls it)* ⇒ ⭐ **the presence of an overlay IS the signal that a human wrote a resolver for this behavior** |
+| ⚠ **why it regressed** | `DEBT-AIB-021` *(Batch 70)* widened the generated-emit guard from *">=1 variable with a non-null `DefaultValueJson`"* to *">=1 packed managed variable"*. ⭐ Correct on its own terms, ⛔ but `PlatoonHillAttack`'s two variables have **no defaults**, so before that change no `ParseParams` was emitted and the curated resolver bound |
+| ⭐ **the generalisation** | ⛔ **two producers for one slot, bound by registration ORDER, is not a precedence rule — it is a race.** ⭐ Where a curated and a generated artefact can both fill a slot, **curated wins by declaration**, not by arriving first |
+
+⚠ **Found by a VISUAL check driven through the MCP debug API**, not by any suite — the params region was
+zeros and every rail was green.

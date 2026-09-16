@@ -60,7 +60,15 @@ public sealed class SelectionInteractionSystem
         // Selection from gizmo entity clicks / rubber-band start.
         foreach (ref readonly var evt in _interactionBus.Read<GizmoInteractionStartedEvent>())
         {
-            var entity = evt.Token.Target;
+            // ⭐⭐⭐ §6.7 (DESIGN_Gizmo_Anchor_Identity.md) — the token carries the anchor's NETWORK id;
+            //   this system holds the world, so this is where it becomes a handle.
+            //   ⛔ It used to read `evt.Token.Target` — an ECS handle the terminal had forwarded as a
+            //     token payload so that no lookup was needed here. See GizmoPickToken.cs for why that
+            //     payload is gone.
+            //   ⚠ Entity.Null still means "empty space" and still starts a rubber band: an AnchorId of
+            //     0 or -1 (the canvas sentinel) resolves to nothing, which is the same signal.
+            var entity = Fdp.Toolkit.Replication.Services.NetworkIdResolver.ResolveNetworkId(
+                _world, evt.Token.AnchorId);
 
             if (entity.IsNull)
             {

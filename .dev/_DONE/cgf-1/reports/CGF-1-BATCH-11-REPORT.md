@@ -78,13 +78,13 @@ Both added to `IOS-IG-SimHost.sln`.
 
 | Constant | ID | Notes |
 |----------|----|-------|
-| `ScenarioComponentIds.ScenarioIgnoreTag` | 200 | `[DataPolicy(NoSave)]` |
-| `ScenarioComponentIds.StoryTag` | 201 | Managed class component, `[DataPolicy(NoSave)]` |
+| `ScenarioComponentIds.ScenarioIgnoreTag` | 200 | `[DataPolicy(NoScenario)]` |
+| `ScenarioComponentIds.StoryTag` | 201 | Managed class component, `[DataPolicy(NoScenario)]` |
 | `DummyPosition` (test-only) | 210 | |
 | `TestBallisticProjectile` (test-only) | 211 | |
 | `TestPhysicsCollider` (test-only) | 212 | |
 | `GuidedTarget` (test-only) | 213 | contains `Entity TargetId` |
-| `NoSaveVelocity` (test-only) | 214 | `[DataPolicy(NoSave)]` |
+| `NoSaveVelocity` (test-only) | 214 | `[DataPolicy(NoScenario)]` |
 | `CachedSpeedComponent` (test-only) | 215 | has `[ScenarioIgnore] float CachedWheelAngle` |
 
 ---
@@ -92,10 +92,10 @@ Both added to `IOS-IG-SimHost.sln`.
 ### B.2 — Core API surface (`FDP.Toolkit.Scenario`)
 
 #### `ScenarioIgnoreTag`
-Unmanaged marker tag (ID 200, NoSave) — entities bearing this tag are skipped during
+Unmanaged marker tag (ID 200, NoScenario) — entities bearing this tag are skipped during
 `Serialize`.
 
-#### `StoryTag` (class, ID 201, NoSave)
+#### `StoryTag` (class, ID 201, NoScenario)
 Managed class component (required because `string?` fields are not `unmanaged`).  Stamped
 on every entity when `Deserialize(asStory: true, storyId: ...)` is called.  Never written
 to the scenario file.
@@ -158,7 +158,7 @@ Fluent builder; call `RegisterTranslator` for each custom translator, then `Buil
 The original spec described `StoryTag` with `string? StoryId` as a managed struct.
 `EntityRepository.RegisterManagedComponentInternal<T>()` carries a `where T : class`
 constraint; a struct containing a reference field violates it.  Changed to a class to
-satisfy the constraint while keeping the same public API.  Since `StoryTag` is `NoSave`
+satisfy the constraint while keeping the same public API.  Since `StoryTag` is `NoScenario`
 and in the test it is observed only via `HasComponent` / `GetComponent`, the change is
 transparent to callers.
 

@@ -158,6 +158,100 @@ public sealed class ReplayBrowserSubsystemTests : IDisposable
         }
     }
 
+    // ── U-obs-5 follow-up: FederationWindow — the composition-root registration rail ──────
+
+    /// <summary>
+    /// ⭐⭐⭐ <b>U-obs-5 follow-up.</b> 📄 <c>docs/DESIGN_UI_Observability_Snapshot.md</c> §Example ·
+    /// <c>docs/designs/replay-browser-frankenstein/DESIGN.md</c> §8. <c>FederationPanel</c> was one of
+    /// the six no-host panels measured by <c>BP-467</c> — its window is registered only when a
+    /// <c>FederationPanel</c> already exists (i.e. a replay group was already loaded before
+    /// <c>RegisterWindows</c> ran). With none loaded, <c>RegisterWindowsCore</c>'s default
+    /// <c>federationPanel: null</c> registers no sixth window — pinning FND-T12's original count.
+    /// </summary>
+    [Fact]
+    public void RegisterWindowsCore_WithNoGroupLoadedYet_RegistersOnlyFiveWindows()
+    {
+        _subsystem.Initialize(HeadlessConfig());
+
+        var atlas = new IconAtlas(IntPtr.Zero, 1, 1);
+        var wm    = new WindowManager(atlas);
+
+        var timelinePanel = new Fdp.Presentation.Panels.ReplayBrowser.ReplayTimelinePanel(
+            null, () => 0, new StubExportService(), new StubFileDialogService(),
+            new Fdp.Toolkit.ReplayBrowser.PlaybackHistoryTracker(), new InspectorState());
+        var inspectorPanel = new Fdp.Presentation.Panels.EntityInspectorPanel();
+        var diffPanel       = new Fdp.Presentation.Panels.ReplayBrowser.ComponentDiffPanel();
+        var eventPanel      = new Fdp.Presentation.Panels.EventBrowserPanel(new StubHistoryService());
+        var searchPanel     = new Fdp.Presentation.Panels.ReplayBrowser.ReplaySearchPanel(
+            new NopPanelEditService(), new NopPanelSearchService(), _ => { }, _ => { }, (_, _) => { });
+
+        _subsystem.RegisterWindowsCore(wm, timelinePanel, inspectorPanel, diffPanel, eventPanel, searchPanel);
+
+        var windowsField = typeof(WindowManager).GetField("_windows", BindingFlags.NonPublic | BindingFlags.Instance)!;
+        var windows = (Dictionary<string, ManagedWindow>)windowsField.GetValue(wm)!;
+
+        Assert.Equal(5, windows.Count);
+        Assert.False(windows.ContainsKey("rb_federation"));
+    }
+
+    /// <summary>
+    /// ⭐⭐⭐ <b>The whole point of this conversion</b> — the host is actually REGISTERED in the
+    /// production composition root, live, when a replay group is (re)loaded.
+    /// <see cref="ReplayBrowserSubsystem.LoadFdpGroupForTest"/> shares
+    /// <c>CreateOrReplaceFederationPanel</c> with the real <c>OnLoadGroup</c> delegate, so this
+    /// exercises the exact code path a live group load takes. <c>_windowManager</c> is set the same
+    /// way the real (non-headless) <c>RegisterWindows</c> would set it.
+    /// </summary>
+    [Fact]
+    public void LoadFdpGroupForTest_WithAWindowManagerAlreadyRegistered_RegistersTheFederationWindow()
+    {
+        _subsystem.Initialize(HeadlessConfig());
+
+        var atlas = new IconAtlas(IntPtr.Zero, 1, 1);
+        var wm    = new WindowManager(atlas);
+        var wmField = typeof(ReplayBrowserSubsystem).GetField("_windowManager", BindingFlags.NonPublic | BindingFlags.Instance)!;
+        wmField.SetValue(_subsystem, wm);
+
+        var exerciseId = Guid.NewGuid();
+        var path = MakeOneFrameRecording(nodeId: 1, exerciseId);
+        _subsystem.LoadFdpGroupForTest(new[] { path }, new TransientMasterBuilder(MakeTestSerializer()));
+
+        var windowsField = typeof(WindowManager).GetField("_windows", BindingFlags.NonPublic | BindingFlags.Instance)!;
+        var windows = (Dictionary<string, ManagedWindow>)windowsField.GetValue(wm)!;
+
+        Assert.True(windows.ContainsKey("rb_federation"));
+        Assert.IsType<Fdp.Presentation.Windows.ReplayBrowser.FederationWindow>(windows["rb_federation"]);
+        Assert.Equal(WindowScope.PerspectiveBound, windows["rb_federation"].Scope);
+        Assert.Equal("ReplayBrowser", windows["rb_federation"].OwningPerspective);
+    }
+
+    /// <summary>Reloading a SECOND group replaces the window under the same id rather than leaving a
+    /// stale one registered alongside a new one (dictionary-indexer replace-by-id semantics).</summary>
+    [Fact]
+    public void LoadFdpGroupForTest_CalledTwice_ReplacesTheFederationWindow_DoesNotDuplicateIt()
+    {
+        _subsystem.Initialize(HeadlessConfig());
+
+        var atlas = new IconAtlas(IntPtr.Zero, 1, 1);
+        var wm    = new WindowManager(atlas);
+        var wmField = typeof(ReplayBrowserSubsystem).GetField("_windowManager", BindingFlags.NonPublic | BindingFlags.Instance)!;
+        wmField.SetValue(_subsystem, wm);
+
+        var exerciseId = Guid.NewGuid();
+        var path1 = MakeOneFrameRecording(nodeId: 1, exerciseId);
+        _subsystem.LoadFdpGroupForTest(new[] { path1 }, new TransientMasterBuilder(MakeTestSerializer()));
+        var firstWindow = _subsystem.Manager;
+
+        var path2 = MakeOneFrameRecording(nodeId: 2, Guid.NewGuid());
+        _subsystem.LoadFdpGroupForTest(new[] { path2 }, new TransientMasterBuilder(MakeTestSerializer()));
+
+        var windowsField = typeof(WindowManager).GetField("_windows", BindingFlags.NonPublic | BindingFlags.Instance)!;
+        var windows = (Dictionary<string, ManagedWindow>)windowsField.GetValue(wm)!;
+
+        Assert.Single(windows.Keys, k => k == "rb_federation");   // still exactly one entry
+        Assert.NotSame(firstWindow, _subsystem.Manager);          // the manager really was replaced
+    }
+
     // ── FND-T15: selectIntent wiring ──────────────────────────────────────
 
     /// <summary>

@@ -140,6 +140,14 @@ public sealed record FileManifestEntry
     /// should be written (e.g. <c>exercises\2026-03-29\checkpoint_a.fdp</c>).
     /// </summary>
     public string RelativeDest { get; init; } = string.Empty;
+
+    /// <summary>
+    /// CE-277(c1): the slice's <c>$meta.docType</c>, carried from the node's
+    /// <c>FileManifestResult</c> through the JSON round-trip so the orchestrator can classify a pulled
+    /// scenario slice (merge our format, route a foreign one verbatim). <c>null</c> for non-scenario paths
+    /// (e.g. the <c>.fdp</c> archive), which are not merged.
+    /// </summary>
+    public string? DocType { get; init; }
 }
 
 /// <summary>

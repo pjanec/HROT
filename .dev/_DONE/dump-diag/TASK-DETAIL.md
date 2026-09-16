@@ -469,7 +469,7 @@ NOT included: Wiring into the EventBrowserPanel (DD-P2-T02).
 **Scope:**
 - Add `ExecuteDiagnosticDumpIntent` struct to
   `FDP/Toolkits/Fdp.Toolkits/Orchestration/Events/ClusterOpIntents.cs`.
-- `[EventId(9058)]` and `[DataPolicy(DataPolicy.NoRecord)]` attributes.
+- `[EventId(9058)]` and `[DataPolicy(DataPolicy.NoReplay)]` attributes.
 - Fields: `public Guid RequestId` and `public DiagnosticDumpPayloadDto Configuration`.
 
 **Constraints:**
@@ -1078,7 +1078,7 @@ processes (e.g., `SimHost` and `IG`) run on the same machine and happen to share
 
 **Scope:**
 - Add `MergeLogsIntent` struct (no EventId needed — it is a local bus event only, not
-  a DDS-carried event; `[DataPolicy(DataPolicy.NoRecord)]` is sufficient).
+  a DDS-carried event; `[DataPolicy(DataPolicy.NoReplay)]` is sufficient).
 - Add `LogMergeCompletedEvent` struct with `string NasPath` field.
 - Both defined in a new file
   `Hrot/Subsystems/Hrot.Orchestrator/Events/DiagnosticsMergeEvents.cs`.

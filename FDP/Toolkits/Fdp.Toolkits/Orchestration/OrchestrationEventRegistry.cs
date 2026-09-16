@@ -13,6 +13,7 @@ namespace Fdp.Toolkit.Orchestration
             bus.RegisterManaged<ExecuteNodeOpIntent>();
             bus.RegisterManaged<NodeOpCompletedEvent>();
             bus.RegisterManaged<NodeHeartbeatEvent>();
+            bus.RegisterManaged<NodeCapabilitiesEvent>();   // CE-285 (C-cap): static capability tokens, published once at join.
             bus.RegisterManaged<ClusterStateTransitionedEvent>();
             bus.RegisterManaged<ClusterStateUpdateEvent>();
             bus.RegisterManaged<AssetInventoryUpdateEvent>();
@@ -29,6 +30,9 @@ namespace Fdp.Toolkit.Orchestration
             bus.RegisterManaged<TakeCheckpointIntent>();
             bus.RegisterManaged<LoadZoneIntent>();
             bus.RegisterManaged<ExecuteDiagnosticDumpIntent>();
+
+            // ⭐ BP-509 — the scenario load's staging→runtime id table (a managed Dictionary).
+            bus.RegisterManaged<StagingRemapPublishedEvent>();
 
             // Time Control Intents (Domain)
             bus.RegisterManaged<PauseTimeIntent>();

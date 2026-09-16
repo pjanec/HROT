@@ -1,7 +1,9 @@
 using System;
 using System.Collections.Generic;
+using System.Text.Json.Nodes;
 using System.Threading.Tasks;
 using Fdp.Core;
+using Fdp.Diagnostics.Contracts.Panels;
 using Fdp.Presentation.Abstractions;
 using Fdp.Presentation.Icons;
 using Fdp.Toolkit.ReplayBrowser;
@@ -9,6 +11,29 @@ using Fdp.Toolkit.ReplayBrowser.Federation;
 using ImGuiNET;
 
 namespace Fdp.Presentation.Panels.ReplayBrowser;
+
+/// <summary>
+/// ⭐⭐⭐ <b>U-obs-5 — the whole of what <see cref="ReplayTimelinePanel"/> shows, this frame.</b>
+/// 📄 <c>docs/DESIGN_UI_Observability_Snapshot.md</c> §Example. ⭐ Mirrors <see cref="ReplayTimelinePanel.DrawRow2_TimeInfo"/>/
+/// <see cref="ReplayTimelinePanel.DrawRow3_Slider"/>'s own math by hand — kept in sync since it reads private state.
+/// </summary>
+public sealed record ReplayTimelinePanelViewModel(
+    string PanelId,
+    string PanelKind,
+    bool HasRecording,
+    int CurrentFrame,
+    int TotalFrames,
+    long WallClockTicks,
+    double RelativeWallSeconds,
+    double SimTimeSeconds,
+    bool IsPlaying,
+    float PlaybackRate,
+    string CurrentFdpPath,
+    string? LoadGroupRejectionReason) : IPanelViewModel
+{
+    /// <inheritdoc/>
+    public JsonNode Dump() => PanelDump.Of(this);
+}
 
 /// <summary>
 /// Transport control panel for the replay browser.
@@ -75,6 +100,35 @@ public sealed class ReplayTimelinePanel
 
     /// <summary>Binds a new manager after a successful group load.</summary>
     public void SetManager(FederatedReplayManager manager) { _manager = manager; }
+
+    // ── Public BUILD entry point (U-obs-5) ───────────────────────────────
+    /// <summary>⭐⭐⭐ BUILD — a pure projection of frame/timing state. No ImGui. ⭐ Reuses the SAME
+    /// null/negative-frame guards <see cref="DrawRow2_TimeInfo"/> and <see cref="DrawRow3_Slider"/>
+    /// apply, by hand.</summary>
+    public ReplayTimelinePanelViewModel BuildViewModel(string panelId, string panelKind)
+    {
+        bool hasRecording = ActiveContext?.Playback != null;
+        int currentFrame = (ActiveContext?.CurrentFrame ?? -1) < 0 ? 0 : ActiveContext!.CurrentFrame;
+        int totalFrames = ActiveContext?.Playback?.TotalFrames ?? 1;
+
+        long wallClockTicks = 0;
+        double relativeWallSec = 0.0;
+        double simTimeSec = 0.0;
+        if (hasRecording && (ActiveContext?.CurrentFrame ?? -1) >= 0)
+        {
+            var meta = ActiveContext!.Playback!.GetFrameMetadata(ActiveContext.CurrentFrame);
+            long firstFrameWallTicks = ActiveContext.Playback.GetFrameMetadata(0).WallClockTicks;
+            wallClockTicks = meta.WallClockTicks;
+            relativeWallSec = (meta.WallClockTicks - firstFrameWallTicks) / (double)TimeSpan.TicksPerSecond;
+            if (ActiveContext?.SandboxRepo?.HasSingletonUnmanaged<GlobalTime>() ?? false)
+                simTimeSec = ActiveContext.SandboxRepo.GetSingletonUnmanaged<GlobalTime>().TotalTime;
+        }
+
+        return new ReplayTimelinePanelViewModel(
+            panelId, panelKind, hasRecording, currentFrame, totalFrames, wallClockTicks,
+            relativeWallSec, simTimeSec, IsPlaying, PlaybackRate,
+            ActiveContext?.CurrentFdpPath ?? "(none)", LoadGroupRejectionReason);
+    }
 
     // ── Public draw entry point ───────────────────────────────────────────
 

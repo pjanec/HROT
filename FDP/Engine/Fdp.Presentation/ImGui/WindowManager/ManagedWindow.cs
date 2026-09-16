@@ -352,6 +352,21 @@ public abstract class ManagedWindow
     /// </summary>
     protected virtual void DrawLocalMenuBar() { }
 
+    /// <summary>
+    /// ⭐⭐⭐ <b><c>VC-1</c> — called by <see cref="WindowManager.RegisterWindow"/> the moment this
+    /// window joins a manager.</b> Default implementation does nothing.
+    ///
+    /// <para>⭐ For a window that needs the MANAGER itself — to open a second window, or to contribute
+    /// a global menu entry — this is where it self-wires. ⛔ The alternative is an explicit
+    /// <c>Attach…</c> call at every composition root, and 📐 measured <c>2026-08-22</c>: exactly that
+    /// shape left the Scenario Details host without a manager, because one of the two roots that build
+    /// a <c>DetailsWindow</c> made the call and the other did not.</para>
+    ///
+    /// <para>⚠ Called on EVERY registration, including a re-register that overwrites the same id — so an
+    /// override must be idempotent. ⛔ Do not draw here: registration happens outside a frame.</para>
+    /// </summary>
+    public virtual void OnRegistered(WindowManager manager) { }
+
     /// <summary>Render all content inside the window's client area.</summary>
     protected abstract void DrawClientArea();
 }

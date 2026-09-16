@@ -1,0 +1,69 @@
+// HROT_EDITOR_GENERATED - manual edits to this file will be overwritten by the AI editor on next save.
+// AssetId: b1a2b3c4-0000-0000-0000-000000000001
+
+using System;
+
+using Fhsm.Compiler;
+using Fhsm.Kernel.Attributes;
+using Fhsm.Kernel.Data;
+using Hrot.AI.Behaviors;
+
+namespace Hrot.AI.Behaviors.Machines;
+
+public static class HsmShowcase
+{
+    public static HsmBuilder CreateBuilder()
+    {
+        var builder = new HsmBuilder("HsmShowcase");
+
+        builder.Event("Alert", 1, 0, false, false);
+        builder.Event("Resolved", 2, 0, false, false);
+        builder.Event("Emergency", 3, 0, false, false);
+
+        builder.RegisterAction("Hrot.AI.Behaviors.CgfHsmNodes.StubIdle");
+
+        StateBuilder idle = null!;
+        StateBuilder scanning = null!;
+        StateBuilder alertState = null!;
+
+        var guardComposite = builder.State("GuardComposite", stableId: new Guid("02000000-0000-0000-0000-000000000001"))
+            .Initial();
+        guardComposite.Child("Idle", sb2 =>
+        {
+            idle = sb2;
+            sb2.Initial().OnEntry("Hrot.AI.Behaviors.CgfHsmNodes.StubIdle").Activity("Hrot.AI.Behaviors.CgfHsmNodes.StubIdle");
+        }, stableId: new Guid("03000000-0000-0000-0000-000000000001"));
+        guardComposite.Child("HistoryPseudo", sb2 =>
+        {
+            sb2.History();
+        }, stableId: new Guid("04000000-0000-0000-0000-000000000001"));
+        guardComposite.Child("Scanning", sb2 =>
+        {
+            scanning = sb2;
+        }, stableId: new Guid("05000000-0000-0000-0000-000000000001"));
+        guardComposite.Child("AlertState", sb2 =>
+        {
+            alertState = sb2;
+        }, stableId: new Guid("06000000-0000-0000-0000-000000000001"));
+        var parallelWork = builder.State("ParallelWork", stableId: new Guid("07000000-0000-0000-0000-000000000001"))
+            .Parallel();
+        parallelWork.Child("WorkA", sb2 =>
+        {
+            sb2.Initial();
+        }, stableId: new Guid("08000000-0000-0000-0000-000000000001"));
+        parallelWork.Child("WorkB", sb2 => { }, stableId: new Guid("09000000-0000-0000-0000-000000000001"));
+        parallelWork.Child("WorkC", sb2 => { }, stableId: new Guid("0a000000-0000-0000-0000-000000000001"));
+        builder.State("EndState", stableId: new Guid("0b000000-0000-0000-0000-000000000001"))
+            .Final();
+        idle.On("Alert").GoTo("Scanning", visualId: new Guid("20000000-0000-0000-0000-000000000001")).Action("Hrot.AI.Behaviors.CgfHsmNodes.StubIdle");
+        scanning.On("Alert").GoTo("AlertState", visualId: new Guid("21000000-0000-0000-0000-000000000001"));
+        alertState.On("Resolved").GoTo("HistoryPseudo", visualId: new Guid("22000000-0000-0000-0000-000000000001"));
+
+        builder.GlobalTransition("Emergency", "EndState", visualId: new Guid("30000000-0000-0000-0000-000000000001"));
+
+        return builder;
+    }
+
+    [HsmDefinition("HsmShowcase", AssetId = "b1a2b3c4-0000-0000-0000-000000000001")]
+    public static HsmDefinitionBlob Compile() => CreateBuilder().Build().Compile();
+}

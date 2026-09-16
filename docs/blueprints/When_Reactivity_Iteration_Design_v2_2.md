@@ -1,5 +1,15 @@
 # When-Node Reactivity Iteration — Design (v2.2)
 
+> ⚠ **Implementation status (2026-08-06) — the design shipped; the authoring surface only partly did.**
+> `WhenNode`, `ReadEqsResultNode` and `SpawnEqsSensorNode` all exist, lower and run. But of the
+> **four per-mode authoring forms** designed in §3, only **`EventFired`** was ever built (and it was a
+> `TextDisabled` stub until BP-10 in 2026-08). `ValueChanged`, `ConditionMet` and `EqsResult` are
+> still one-line stubs in `WhenNodeDrawer` — **so the node is effectively EventFired-only in the
+> editor**, whatever the graph JSON can express. Tracked as **BP-67**; see
+> [Blueprint_Issues_Tracker.md](Blueprint_Issues_Tracker.md).
+> `ReadEqsResultNode`'s own drawer *is* built, and its `EqsSensorHandle` variable picker is the
+> reusable piece for the EqsResult form.
+
 > **Status:** Detailed design for the next development iteration on top of the existing Blueprint subsystem (Architecture v1.2 + all subsequent detailed designs and inline patches), the AI Editor Shared Infrastructure, and the EQS v1.3 design. Architect-approved scope, fully resolved — ready for implementation.
 > **Version:** v2.2 supersedes v2.1. Changes from v2.1: `SpawnEqsSensorNode` simplified to use the engine's actual fixed `EqsSensor` struct shape (no dynamic-reflection per-template parameter struct; the parameters are a fixed set of universal `EqsSensor` fields exposed as standard typed input pins). Recipe 1's OnSpawn graph replaced with a first-tick pattern in the Tick graph (no dependency on a lifecycle event with filter syntax). All §17 open questions now resolved. The §17 section becomes "Resolutions Summary." Effort estimates tick down by ~1-2 days each on M4 and M5 (no dynamic-binding scaffolding needed).
 > **Version:** v2.1 superseded v2. Key changes were: introduction of **`SpawnEqsSensorNode`** as a third new node kind alongside `WhenNode` and `ReadEqsResultNode`, closing the spawn → observe → read pipeline. The §17 open questions from v2 were resolved via engine-source confirmation: `EqsResult` is a single 24-byte struct with `EntityId` (long) and `PositionX`/`PositionY` (floats); `view.IsAlive(Entity)` is the correct liveness API; `EqsSensorHandle` does not yet exist in the codebase and was declared here; `ReadEqsResultNode` outputs are named `Entity` / `Position` / `Score` (no "Top" prefix); the `EqsResult` field name is `EntityId`.

@@ -158,7 +158,7 @@ namespace Hrot.AI.Behaviors.Brains
         /// Resolver (ParseParamsDelegate shape): fetches the geographic transform from the world
         /// singleton and delegates to <see cref="ParseMoveToParams"/>. Null geo → Cartesian fallback.
         /// </summary>
-        public static unsafe void ResolveMoveToParams(string json, byte* ptr, EntityRepository world, Entity self)
+        public static unsafe void ResolveMoveToParams(string json, byte* ptr, EntityRepository world, Entity self, IHostVariableAccess? host)
         {
             var geo = world.HasSingletonManaged<Fdp.Modules.Geographic.IGeographicTransform>()
                 ? world.GetSingletonManaged<Fdp.Modules.Geographic.IGeographicTransform>()
@@ -170,7 +170,7 @@ namespace Hrot.AI.Behaviors.Brains
         /// Resolver (ParseParamsDelegate shape): fetches the NetworkEntityMap from the world
         /// singleton and delegates to <see cref="ParseFireAtTargetParams"/>.
         /// </summary>
-        public static unsafe void ResolveFireAtTargetParams(string json, byte* ptr, EntityRepository world, Entity self)
+        public static unsafe void ResolveFireAtTargetParams(string json, byte* ptr, EntityRepository world, Entity self, IHostVariableAccess? host)
         {
             var map = (world.HasSingletonManaged<Fdp.Toolkit.Replication.Services.NetworkEntityMap>()
                 ? world.GetSingletonManaged<Fdp.Toolkit.Replication.Services.NetworkEntityMap>()
@@ -437,8 +437,13 @@ namespace Hrot.AI.Behaviors.Brains
             {
                 // Pick a random destination in the square [-WanderRadius, +WanderRadius]^2
                 // centred on the world origin.
-                float x = (Random.Shared.NextSingle() * 2f - 1f) * WanderRadius;
-                float y = (Random.Shared.NextSingle() * 2f - 1f) * WanderRadius;
+                // ⭐ CE-202 — one generator, TWO draws. A stateless seed-per-call would have handed
+                //   x == y and sent every wanderer down the diagonal; SimRng advances per draw.
+                //   The salt (1) distinguishes this call site from the firing-slot pick, which is
+                //   seeded from the same entity and tick.
+                var wanderRng = SimRng.FromSim((int)ctx.Self.Index, 1, ctx.World.SimulationTime);
+                float x = (wanderRng.NextSingle() * 2f - 1f) * WanderRadius;
+                float y = (wanderRng.NextSingle() * 2f - 1f) * WanderRadius;
 
                 // Propagate behavior instance id so ChannelArbitrationSystem does not
                 // clear the channel on the same frame we pick a new target.

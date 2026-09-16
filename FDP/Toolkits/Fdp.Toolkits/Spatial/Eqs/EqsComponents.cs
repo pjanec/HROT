@@ -53,7 +53,7 @@ namespace Fdp.Toolkit.Spatial.Eqs
     /// </summary>
     [StructLayout(LayoutKind.Sequential)]
     [ComponentId(GlobalComponentIds.EqsCognitiveBuffer)]
-    [DataPolicy(DataPolicy.NoSave)]
+    [DataPolicy(DataPolicy.NoScenario)]
     public struct EqsCognitiveBuffer
     {
         /// <summary>Number of valid entries in <see cref="Results"/> (0–16).</summary>

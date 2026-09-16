@@ -48,6 +48,16 @@ namespace Fdp.Toolkit.Time.Controllers
         /// If exceeded, log warning (but still wait).
         /// </summary>
         public double LockstepTimeoutMs { get; set; } = 1000.0;  // 1 second
+
+        /// <summary>
+        /// How many step requests <c>MasterSyncController</c> may defer while the previous step's
+        /// ACKs are still outstanding (AS-14). A deferred step is applied as soon as the ACK set
+        /// clears, so an operator clicking Step faster than the cluster can answer gets every step
+        /// rather than one. The bound exists because a slave that has stopped ACKing entirely must
+        /// not accumulate an unbounded burst that all fires at once if it ever returns — past this
+        /// many, further requests are refused with a warning instead.
+        /// </summary>
+        public int MaxQueuedSteps { get; set; } = 8;
         
         /// <summary>
         /// Wall-clock lookahead (100-ns UTC ticks) for the Future Barrier protocol.

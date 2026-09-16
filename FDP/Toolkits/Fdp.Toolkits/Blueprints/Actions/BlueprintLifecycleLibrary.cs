@@ -71,7 +71,11 @@ public static class BlueprintLifecycleLibrary
     public static NodeStatus AttachInstanceBlueprint(
         ref AttachInstanceBlueprintParams dto, Entity self, EntityRepository world)
     {
-        world.Bus.Publish(new AttachInstanceBlueprintEvent
+        // ⭐ Batch 70 — PublishManaged, because the event now carries params JSON (a managed string).
+        //   ⚠ This node passes none: its DTO is a blittable action-params struct and cannot hold a
+        //   string, so an attach from a behaviour graph gets the blueprint's declared defaults. That
+        //   is the designed answer for "a caller with nothing to pass", not a gap.
+        world.Bus.PublishManaged(new AttachInstanceBlueprintEvent
         {
             Entity = ResolveTarget(dto.TargetEntityPacked, self),
             BlueprintId = dto.BlueprintId,
@@ -96,7 +100,7 @@ public static class BlueprintLifecycleLibrary
         ref ReplaceInstanceBlueprintParams dto, Entity self, EntityRepository world)
     {
         var target = ResolveTarget(dto.TargetEntityPacked, self);
-        world.Bus.Publish(new ReplaceInstanceBlueprintEvent
+        world.Bus.PublishManaged(new ReplaceInstanceBlueprintEvent
         {
             Entity = target,
             OldBlueprintId = dto.OldBlueprintId,

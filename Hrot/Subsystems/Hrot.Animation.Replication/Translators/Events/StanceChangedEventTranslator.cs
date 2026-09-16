@@ -3,6 +3,7 @@ using Fdp.Core;using Fdp.Interfaces;using Fdp.Network.Cyclone.Translators;
 using Fdp.Toolkit.Replication.Services;
 using Hrot.MuscleCharacter.Animation.Components;
 using Hrot.MuscleCharacter.Animation.Events;
+using Fdp.Toolkit.Tkb.Domain;
 
 namespace Hrot.Animation.Replication.Translators.Events;
 

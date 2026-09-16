@@ -1,7 +1,9 @@
 using System;
 using System.Collections.Generic;
 using System.Numerics;
+using System.Text.Json.Nodes;
 using Fdp.Core;
+using Fdp.Diagnostics.Contracts.Panels;
 using Fdp.Presentation.Abstractions;
 using Fdp.Presentation.WindowManager;
 using Fdp.Toolkit.Diagnostics.Gizmos;
@@ -11,6 +13,34 @@ using StructEdit.Core;
 namespace Fdp.Presentation.Editing;
 
 using ImGuiApi = ImGuiNET.ImGui;
+
+/// <summary>
+/// ⭐⭐⭐ <b>U-obs-5 — the whole of what <see cref="ComponentEditWindow"/> shows, this frame.</b>
+/// 📄 <c>docs/DESIGN_UI_Observability_Snapshot.md</c> §Example · the queue's caller-registers rule
+/// (mirrors <c>NodeEdit</c>'s inversion): <c>ComponentEditDrawer</c>/<c>StructEdit.Core</c>'s edit-node
+/// tree is a generic third-party document, not addressable on its own — this window is the caller that
+/// knows WHICH entity/component it edits.
+///
+/// <para>⚠ <b>Deliberately does not walk <c>Document.Root</c> field-by-field.</b> That tree is the
+/// generic <c>StructEdit.Core</c> edit-node structure — reflecting it recursively into a dump shape
+/// would be reimplementing a third-party editor's own model, out of scope here. ⇒ this VM captures the
+/// addressable/assertable state around the edit session: which entity/component, dirty/rebuild state,
+/// and the current validation error — the same shape of deviation as
+/// <c>EntityInspectorPanelViewModel</c>'s "types, not every reflected field".</para>
+/// </summary>
+internal sealed record ComponentEditWindowViewModel(
+    string PanelId,
+    string PanelKind,
+    int TargetEntityIndex,
+    int TargetEntityGeneration,
+    string ComponentTypeName,
+    bool IsDirty,
+    string RebuildState,
+    string? ErrorMessage) : IPanelViewModel
+{
+    /// <inheritdoc/>
+    public JsonNode Dump() => PanelDump.Of(this);
+}
 
 /// <summary>
 /// Volatile floating window that hosts the <see cref="ComponentEditDrawer"/> for a single
@@ -25,6 +55,17 @@ internal sealed class ComponentEditWindow : ManagedWindow
     private readonly Func<IInspectableSession?> _sessionGetter;
     private readonly ComponentEditDrawer _drawer;
     private readonly IMutationInterceptor? _interceptor;
+    /// <summary>
+    /// ⭐⭐ Ruling 14 — the component value the edit session was SEEDED with.
+    ///
+    /// <para>
+    /// 🔴 Without it a staged edit is a WHOLE-COMPONENT write built from what the paused editor saw,
+    /// i.e. the PRE-tick snapshot — and the drain lands it after the post-tick restore, so every field
+    /// the designer did not touch reverts by a tick. ⛔ Nothing at the drain can separate the
+    /// designer's change from the simulation's; only this baseline can.
+    /// </para>
+    /// </summary>
+    private readonly object? _baseline;
     private string? _errorMessage;
 
     internal ComponentEditWindow(
@@ -37,9 +78,11 @@ internal sealed class ComponentEditWindow : ManagedWindow
         Func<IInspectableSession?> sessionGetter,
         IComponentPickerContext? pickerCtx = null,
         IReadOnlyDictionary<Type, IImGuiFieldDrawer>? customDrawers = null,
-        IMutationInterceptor? interceptor = null)
+        IMutationInterceptor? interceptor = null,
+        object? baseline = null)
         : base(id, title, owningPerspective, WindowScope.PerspectiveBound)
     {
+        _baseline      = baseline;
         _session       = session;
         _targetEntity  = targetEntity;
         _componentType = componentType;
@@ -50,7 +93,31 @@ internal sealed class ComponentEditWindow : ManagedWindow
         IsVolatile = true;
         ShowInMenu = false;
         IsOpen     = true;
+
+        // ⭐⭐⭐ U-obs-5 — DECLARED AT CONSTRUCTION, ALWAYS, ungated on CaptureEnabled.
+        PanelSnapshot.DeclareInstrumented(Id);
     }
+
+    /// <summary>⭐ <c>U-obs-5</c> — THE KIND. Single host: stays a local literal.</summary>
+    internal const string Kind = "component-edit";
+
+    // ── U-obs-5: BUILD · CAPTURE ─────────────────────────────────────────────
+
+    /// <summary>⭐⭐⭐ BUILD — a pure projection of the edit session's addressable state. No ImGui.</summary>
+    internal ComponentEditWindowViewModel BuildViewModel() => new(
+        Id, Kind, _targetEntity.Index, _targetEntity.Generation, _componentType.Name,
+        _session.IsDirty, _session.RebuildState.ToString(), _errorMessage);
+
+    /// <summary>⭐⭐⭐ U-obs-5: CAPTURE. No ImGui here.</summary>
+    private ComponentEditWindowViewModel BuildAndPublish()
+    {
+        var vm = BuildViewModel();
+        if (PanelSnapshot.CaptureEnabled) PanelSnapshot.Register(vm);
+        return vm;
+    }
+
+    /// <summary>⭐ Test hook — the BUILD + CAPTURE portion, callable with no live ImGui context.</summary>
+    internal ComponentEditWindowViewModel SimulateDrawClientArea() => BuildAndPublish();
 
     // ── Internal test accessors ───────────────────────────────────────────────
 
@@ -90,7 +157,9 @@ internal sealed class ComponentEditWindow : ManagedWindow
 
             if (_interceptor != null && _interceptor.IsPaused)
             {
-                _interceptor.StageMutation(_targetEntity, _componentType, newState);
+                // ⭐ Ruling 14 — hand over the baseline so only the bytes the designer changed are
+                //   written. A null baseline degrades to the old whole-component write by contract.
+                _interceptor.StageMutation(_targetEntity, _componentType, newState, _baseline);
                 CloseAndCleanup();
                 return;
             }
@@ -124,6 +193,10 @@ internal sealed class ComponentEditWindow : ManagedWindow
         // 2. Rebuild if the document tree is stale.
         if (_session.RebuildState == EditRebuildState.RebuildRequired)
             _session.RebuildDocument();
+
+        // ⭐⭐⭐ U-obs-5 — BUILD · CAPTURE, after the rebuild (so RebuildState/dirty reflect this
+        // frame's truth) and before any ImGui call.
+        BuildAndPublish();
 
         // 3. Two-column property table (mirrors ImGuiPropertyTree style).
         if (ImGuiApi.BeginTable("##cedit", 2,

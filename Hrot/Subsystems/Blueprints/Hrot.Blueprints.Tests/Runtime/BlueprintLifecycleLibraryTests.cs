@@ -141,8 +141,8 @@ public sealed unsafe class BlueprintLifecycleLibraryTests : IDisposable
         Assert.Equal(NodeStatus.Success, status);
 
         _repo.Bus.SwapBuffers();
-        var readSpan = _repo.Bus.Read<AttachInstanceBlueprintEvent>();
-        Assert.Equal(1, readSpan.Length);
+        var readSpan = _repo.Bus.ReadManaged<AttachInstanceBlueprintEvent>();
+        Assert.Equal(1, readSpan.Count);
         Assert.Equal(entity, readSpan[0].Entity);
         Assert.Equal(FakeBpA_Id, readSpan[0].BlueprintId);
     }
@@ -186,8 +186,8 @@ public sealed unsafe class BlueprintLifecycleLibraryTests : IDisposable
         Assert.Equal(NodeStatus.Success, status);
 
         _repo.Bus.SwapBuffers();
-        var readSpan = _repo.Bus.Read<ReplaceInstanceBlueprintEvent>();
-        Assert.Equal(1, readSpan.Length);
+        var readSpan = _repo.Bus.ReadManaged<ReplaceInstanceBlueprintEvent>();
+        Assert.Equal(1, readSpan.Count);
         Assert.Equal(entity, readSpan[0].Entity);
         Assert.Equal(FakeBpA_Id, readSpan[0].OldBlueprintId);
         Assert.Equal(FakeBpB_Id, readSpan[0].NewBlueprintId);
@@ -208,8 +208,8 @@ public sealed unsafe class BlueprintLifecycleLibraryTests : IDisposable
         BlueprintLifecycleLibrary.AttachInstanceBlueprint(ref dto, self, _repo);
 
         _repo.Bus.SwapBuffers();
-        var readSpan = _repo.Bus.Read<AttachInstanceBlueprintEvent>();
-        Assert.Equal(1, readSpan.Length);
+        var readSpan = _repo.Bus.ReadManaged<AttachInstanceBlueprintEvent>();
+        Assert.Equal(1, readSpan.Count);
         Assert.Equal(self, readSpan[0].Entity);
     }
 
@@ -227,8 +227,8 @@ public sealed unsafe class BlueprintLifecycleLibraryTests : IDisposable
         BlueprintLifecycleLibrary.AttachInstanceBlueprint(ref dto, self, _repo);
 
         _repo.Bus.SwapBuffers();
-        var readSpan = _repo.Bus.Read<AttachInstanceBlueprintEvent>();
-        Assert.Equal(1, readSpan.Length);
+        var readSpan = _repo.Bus.ReadManaged<AttachInstanceBlueprintEvent>();
+        Assert.Equal(1, readSpan.Count);
         Assert.Equal(target, readSpan[0].Entity);
         Assert.NotEqual(self, readSpan[0].Entity);
     }
@@ -265,8 +265,8 @@ public sealed unsafe class BlueprintLifecycleLibraryTests : IDisposable
         BlueprintLifecycleLibrary.ReplaceInstanceBlueprint(ref dto, self, _repo);
 
         _repo.Bus.SwapBuffers();
-        var readSpan = _repo.Bus.Read<ReplaceInstanceBlueprintEvent>();
-        Assert.Equal(1, readSpan.Length);
+        var readSpan = _repo.Bus.ReadManaged<ReplaceInstanceBlueprintEvent>();
+        Assert.Equal(1, readSpan.Count);
         Assert.Equal(self, readSpan[0].Entity);
     }
 
@@ -285,8 +285,8 @@ public sealed unsafe class BlueprintLifecycleLibraryTests : IDisposable
         BlueprintLifecycleLibrary.ReplaceInstanceBlueprint(ref dto, self, _repo);
 
         _repo.Bus.SwapBuffers();
-        var readSpan = _repo.Bus.Read<ReplaceInstanceBlueprintEvent>();
-        Assert.Equal(1, readSpan.Length);
+        var readSpan = _repo.Bus.ReadManaged<ReplaceInstanceBlueprintEvent>();
+        Assert.Equal(1, readSpan.Count);
         Assert.Equal(target, readSpan[0].Entity);
         Assert.NotEqual(self, readSpan[0].Entity);
     }

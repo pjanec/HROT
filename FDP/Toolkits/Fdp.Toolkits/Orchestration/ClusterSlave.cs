@@ -29,7 +29,15 @@ namespace Fdp.Toolkit.Orchestration
     {
         private readonly int    _nodeId;
         private readonly string _subsystemName;
+        private readonly NodeRole _roles;   // P1: the node's declared role mask (now the SOURCE of fdp.role.* tokens).
         private readonly FdpEventBus? _eventBus;
+
+        // CE-285 (C-cap): the node's static capability token set — fdp.role.* tokens derived from _roles
+        // (AQ-70 §Q70-C: the mask is no longer published; its tokens are) UNION the feature tokens the
+        // composition root passed (e.g. CapabilityTokens.ReliableInit). Published ONCE at join on the durable
+        // NodeCapabilities descriptor, never on the per-tick heartbeat (§Q70-B).
+        private readonly string[] _capabilityTokens;
+        private bool _capabilitiesPublished;
 
         private readonly List<IClusterStateHandler> _handlers = new();
         private readonly Stopwatch _heartbeatTimer = Stopwatch.StartNew();
@@ -65,11 +73,16 @@ namespace Fdp.Toolkit.Orchestration
         public ClusterSlave(
             int    nodeId,
             string subsystemName,
-            FdpEventBus? eventBus = null)
+            FdpEventBus? eventBus = null,
+            NodeRole roles = NodeRole.None,
+            IReadOnlyList<string>? capabilities = null)
         {
             _nodeId        = nodeId;
             _subsystemName = subsystemName ?? throw new ArgumentNullException(nameof(subsystemName));
             _eventBus      = eventBus;
+            _roles         = roles;
+            _capabilityTokens = BuildCapabilityTokens(roles, capabilities);
+            EnsureOrchestrationEventsRegistered(eventBus);
         }
 
         // ── Test-only constructor ─────────────────────────────────────────────
@@ -78,11 +91,59 @@ namespace Fdp.Toolkit.Orchestration
         /// Creates a ClusterSlave for tests.
         /// Use <see cref="EnqueueIntentForTest"/> to inject intents directly.
         /// </summary>
-        public ClusterSlave(FdpEventBus? eventBus = null, int nodeId = 0, string subsystemName = "TestNode")
+        public ClusterSlave(FdpEventBus? eventBus = null, int nodeId = 0, string subsystemName = "TestNode",
+            NodeRole roles = NodeRole.None, IReadOnlyList<string>? capabilities = null)
         {
             _nodeId        = nodeId;
             _subsystemName = subsystemName;
             _eventBus      = eventBus;
+            _roles         = roles;
+            _capabilityTokens = BuildCapabilityTokens(roles, capabilities);
+            EnsureOrchestrationEventsRegistered(eventBus);
+        }
+
+        /// <summary>The full capability token set this node advertises: the <c>fdp.role.*</c> tokens for its
+        /// role mask (AQ-70 §Q70-C — the mask is derived back from these at ingest) unioned with the feature
+        /// tokens the composition root supplied. Order-stable and de-duplicated.</summary>
+        private static string[] BuildCapabilityTokens(NodeRole roles, IReadOnlyList<string>? featureTokens)
+        {
+            var set = new List<string>();
+            foreach (var t in NodeRoleTokens.TokensFromMask(roles))
+                if (!set.Contains(t)) set.Add(t);
+            if (featureTokens != null)
+                foreach (var t in featureTokens)
+                    if (!string.IsNullOrEmpty(t) && !set.Contains(t)) set.Add(t);
+            return set.ToArray();
+        }
+
+        /// <summary>
+        /// ⭐ Registers the orchestration event vocabulary on the bus this slave was handed, so a
+        /// <see cref="ClusterSlave"/> can always publish what it publishes.
+        ///
+        /// <para>
+        /// 🔴 <b>Why it lives here and not in each subsystem's bootstrap.</b> Under <c>--mode all</c>
+        /// every subsystem gets its OWN isolated <see cref="FdpEventBus"/>, so
+        /// <c>OrchestrationEventRegistry.RegisterAll</c> called during one subsystem's bootstrap does
+        /// nothing for another's. It was called by <c>CgfApplication</c>, <c>EditorSubsystem</c> and
+        /// <c>HrotNodeBuilder</c> — and NOT by IG. The first <c>Tick()</c> therefore published
+        /// <c>NodeHeartbeatEvent</c> on an unregistered stream and strict mode killed the whole
+        /// process on frame one:
+        /// <c>"Strict Mode Violation: Managed event type 'NodeHeartbeatEvent' was published without
+        /// being explicitly registered."</c>
+        /// </para>
+        ///
+        /// <para>
+        /// ⭐ Registering from the constructor makes the guarantee follow the publisher instead of
+        /// relying on every present and future host to remember. The existing bootstrap calls stay
+        /// correct and harmless — registration is <c>GetOrCreate</c>, so it is idempotent.
+        /// </para>
+        ///
+        /// <para>⚠ A null bus means "no I/O" (test/offline shape) and needs nothing registered.</para>
+        /// </summary>
+        private static void EnsureOrchestrationEventsRegistered(FdpEventBus? eventBus)
+        {
+            if (eventBus is null) return;
+            OrchestrationEventRegistry.RegisterAll(eventBus);
         }
 
         // ── Handler registration ──────────────────────────────────────────────
@@ -114,6 +175,18 @@ namespace Fdp.Toolkit.Orchestration
         /// </summary>
         public void Tick()
         {
+            // CE-285 (C-cap): advertise the static capability token set ONCE at join. Durable descriptor →
+            // one publish is retained + delivered to the orchestrator and any late joiner (§Q70-B).
+            if (!_capabilitiesPublished && _eventBus != null)
+            {
+                _capabilitiesPublished = true;
+                _eventBus.PublishManaged(new NodeCapabilitiesEvent
+                {
+                    NodeId       = _nodeId,
+                    Capabilities = _capabilityTokens,
+                });
+            }
+
             // Heartbeat at 1 Hz via FdpEventBus.
             if (_heartbeatTimer.Elapsed.TotalSeconds >= 1.0)
             {
@@ -124,6 +197,8 @@ namespace Fdp.Toolkit.Orchestration
                     LocalStateId  = _localStateId,
                     WallTicksUtc  = DateTimeOffset.UtcNow.Ticks,
                     SubsystemName = _subsystemName,
+                    // CE-286 (C-roles): the heartbeat is telemetry-only; the role mask travels as fdp.role.*
+                    // tokens on the durable NodeCapabilities descriptor (published once at join above).
                 });
             }
 
@@ -214,6 +289,62 @@ namespace Fdp.Toolkit.Orchestration
             }
         }
 
+        // ── This node's committed cluster state ───────────────────────────────
+
+        /// <summary>
+        /// ⭐⭐⭐ <b><c>CE-163</c> — THIS NODE'S COMMITTED cluster state.</b> The value set by the
+        /// <c>CommitState</c> arm of <see cref="DispatchIntent"/>, republished as
+        /// <c>TkClusterStateChangedEvent</c> and written into every heartbeat.
+        ///
+        /// <para>📄 <c>docs/DESIGN_Mcp_Diagnostics_Federation.md</c> §1c.</para>
+        ///
+        /// <para>🔴 <b>Why it became public.</b> 📐 Measured on a four-process cluster
+        /// <c>2026-09-03</c>: <c>POST /scenario/load/live {waitForReady:true}</c> answered
+        /// <c>NOT_SUPPORTED_HERE(cluster.state)</c> on <b>every</b> node, while
+        /// <c>{waitForReady:false}</c> published fine and the fan-out landed. Only the readiness READ was
+        /// missing — and it was missing because <c>DebugApiService.CurrentClusterState()</c> has two arms
+        /// and <b>both are <c>--mode all</c> arms</b> *(the editor's own getter, or a sibling subsystem's
+        /// pumped <c>ClusterUiCache</c>)*. ⛔ In a separate-process cluster neither exists, so a node that
+        /// KNEW its state refused to say so. ⇒ ⭐ the 12th instance of <c>CLAUDE.md</c>'s
+        /// <i>"a production caller that HAS a dependency must PASS it"</i>, one layer down.</para>
+        ///
+        /// <para>⚠⚠ <b>READ THE SEMANTIC BEFORE USING IT.</b> This is <b>this node's committed state</b>,
+        /// ⛔ <b>NOT the cluster's</b>. During a transition a node can legitimately lag the master, and two
+        /// nodes can legitimately disagree. ⭐ That is the RIGHT answer for a readiness poll — the caller
+        /// is asking <i>"is THIS node at the target?"</i> and a node reporting its own committed state has
+        /// actually done the work — but ⛔ it must be reported as a node-local fact, never passed off as a
+        /// cluster-wide one. 📄 <c>ClusterUiCache.CurrentState</c> is the cluster-wide view; the two are
+        /// different facts, not two implementations of one.</para>
+        ///
+        /// <para>⭐ Before <c>CommitState</c> ever runs this is <c>0</c>, which is
+        /// <see cref="ClusterState"/>'s first member — the honest "nothing committed yet" answer, and the
+        /// same value the heartbeat carries.</para>
+        /// </summary>
+        public ClusterState LocalClusterState => (ClusterState)_localStateId;
+
+        /// <summary>
+        /// ⭐⭐⭐ <b><c>CE-164</c> — does this slave publish on <paramref name="bus"/>?</b> The composition
+        /// invariant every networked slave node must satisfy: its <see cref="ClusterSlave"/> and its
+        /// <c>ISlaveOrchestrationTranslator</c> sit on the <b>same, single</b> orchestration bus — the one
+        /// <c>HrotNodeBuilder</c> put on <c>HrotNodeContext.EventBus</c>.
+        ///
+        /// <para>📄 <c>docs/DESIGN_Subsystem_Composition_Unification.md</c> §4.1b.
+        /// Asserted by <c>SharedApplicationBootstrapper</c> right after Phase 5.</para>
+        ///
+        /// <para>🔴 <b>Why a PREDICATE and not a <c>Bus</c> property.</b> The invariant is
+        /// <i>"is it THIS bus"</i>, and that is all a caller needs. ⛔ Exposing the bus itself would hand
+        /// every caller a publish handle to the control plane to satisfy one assertion — a much wider
+        /// surface than the question asked.</para>
+        ///
+        /// <para>📐 <b>The defect it catches, measured <c>2026-09-03</c>:</b> IG built its
+        /// <see cref="ClusterSlave"/> on a second <c>FdpEventBus</c> of its own while the shared,
+        /// egress-capable translator sat on the context's — so every <c>TransitionStateIntent</c> IG
+        /// published was read by nothing, silently. ⚠ Nothing structural forbade it: the base's
+        /// <c>BuildOrchestration</c> is <c>abstract</c>, so the 7-phase order mandates THAT a node wires
+        /// orchestration and shares none of the doing. ⇒ ⭐ this is the binding that was missing.</para>
+        /// </summary>
+        public bool PublishesOn(FdpEventBus? bus) => ReferenceEquals(_eventBus, bus);
+
         // ── Test helpers ──────────────────────────────────────────────────────
 
         /// <summary>
@@ -227,6 +358,9 @@ namespace Fdp.Toolkit.Orchestration
         /// <summary>
         /// Current local state id as it would be written into the next heartbeat.
         /// For unit-test assertions only.
+        ///
+        /// <para>⚠ Kept as the raw <c>int</c> the heartbeat carries, so the existing wire-level assertions
+        /// stay wire-level. ⭐ Production readers want <see cref="LocalClusterState"/>.</para>
         /// </summary>
         public int LocalStateIdForTest => _localStateId;
 

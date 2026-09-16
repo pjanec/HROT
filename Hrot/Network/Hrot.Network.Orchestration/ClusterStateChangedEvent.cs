@@ -30,7 +30,7 @@ namespace Hrot.Common.Orchestration
     /// </para>
     /// </summary>
     [EventId(7001)]
-    [DataPolicy(DataPolicy.NoRecord)]
+    [DataPolicy(DataPolicy.NoReplay)]
     public struct ClusterStateChangedEvent
     {
         /// <summary>The Cluster state the cluster was in before the transition.</summary>

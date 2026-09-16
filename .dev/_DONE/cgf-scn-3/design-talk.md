@@ -112,7 +112,7 @@ Summary of Action
 
 -   explicitly register your Logic Packs into `SystemGroup` instances in `EditorSubsystem`, keeping the `simGroup` disabled.-   Fix the `SetManagedComponent` violation in `MissionControlExecutionSystem`.-   Fix the `Span<T>` mutation trap in `TryBuildQueue`.
 
-_(Note: Reviewing your_ _SavedScenario_ _JSON reveals that_ _LocomotionChannel__,_ _InteractionChannel__, and_ _WeaponChannel_ _are still being serialized. This means you have not yet actually applied the_ _\[DataPolicy(DataPolicy.NoSave)\]_ _attributes to those structs in_ _ChannelComponents.cs_ _as specified in TASK-S102. You must apply them immediately to prevent execution state from polluting your scenarios.)_
+_(Note: Reviewing your_ _SavedScenario_ _JSON reveals that_ _LocomotionChannel__,_ _InteractionChannel__, and_ _WeaponChannel_ _are still being serialized. This means you have not yet actually applied the_ _\[DataPolicy(DataPolicy.NoScenario)\]_ _attributes to those structs in_ _ChannelComponents.cs_ _as specified in TASK-S102. You must apply them immediately to prevent execution state from polluting your scenarios.)_
 
 wait the cfg logic pack is shared with non editor distributed setup, will the suggested solution work there as well?
 
@@ -435,14 +435,14 @@ Here is the objective architectural execution of your directive:
 
 Because this pipeline guarantees the deterministic reconstruction of the blackboard from the mission plan, saving the bytes themselves is an anti-pattern.
 
-**2\. Correcting the Data Policy Boundary** To enforce this, you must apply the `[DataPolicy(DataPolicy.NoSave)]` attribute to the `BrainBlackboard` struct.
+**2\. Correcting the Data Policy Boundary** To enforce this, you must apply the `[DataPolicy(DataPolicy.NoScenario)]` attribute to the `BrainBlackboard` struct.
 
 In `FDP/Toolkits/Fdp.Toolkits/Behavior/Components/BehaviorComponents.cs`:
 
 ```
 [StructLayout(LayoutKind.Sequential)]
 [ComponentId(GlobalComponentIds.BrainBlackboard)]
-[DataPolicy(DataPolicy.NoSave)] // ADD THIS
+[DataPolicy(DataPolicy.NoScenario)] // ADD THIS
 public unsafe struct BrainBlackboard
 {
     public fixed byte Memory[BehaviorConstants.BrainBlackboardByteSize];
@@ -451,7 +451,7 @@ public unsafe struct BrainBlackboard
 
 **Architectural Impact:**
 
--   **Scenarios remain clean:** The `FdpAutoSerializer` will now completely ignore the `BrainBlackboard`. Your scenario JSON will shed the opaque 128-element integer arrays, containing only pure-domain `ActiveMissionPlan` JSON.-   **Checkpoints remain binary-accurate:** Because you are applying `DataPolicy.NoSave` and not `DataPolicy.NoRecord`, the Flight Recorder and the `CheckpointIOWorker` will continue to serialize the blackboard bytes directly into the LZ4 `.fdp` payloads, preserving exact mid-tick cognitive state during binary rollbacks.
+-   **Scenarios remain clean:** The `FdpAutoSerializer` will now completely ignore the `BrainBlackboard`. Your scenario JSON will shed the opaque 128-element integer arrays, containing only pure-domain `ActiveMissionPlan` JSON.-   **Checkpoints remain binary-accurate:** Because you are applying `DataPolicy.NoScenario` and not `DataPolicy.NoReplay`, the Flight Recorder and the `CheckpointIOWorker` will continue to serialize the blackboard bytes directly into the LZ4 `.fdp` payloads, preserving exact mid-tick cognitive state during binary rollbacks.
 
 By stripping the blackboard from the scenario extraction, you successfully restrict the scenario file to being a pure declaration of initial conditions.
 
@@ -463,7 +463,7 @@ This guarantees that the `FdpAutoSerializer` operates exclusively on persistent 
 
 To finalize this structural correction, verify the following:
 
--   Ensure that `[DataPolicy(DataPolicy.NoSave)]` is explicitly applied to the `BrainBlackboard` struct in `BehaviorComponents.cs`.-   Inspect your next scenario save output. The `"BrainBlackboard"` object and its 128-element `"Memory"` array must be completely absent from the JSON DOM.
+-   Ensure that `[DataPolicy(DataPolicy.NoScenario)]` is explicitly applied to the `BrainBlackboard` struct in `BehaviorComponents.cs`.-   Inspect your next scenario save output. The `"BrainBlackboard"` object and its 128-element `"Memory"` array must be completely absent from the JSON DOM.
 
 If you are ready to proceed, we can move on to validating the `GenesisMaterializationSystem` and the Intent DTO translators to ensure all remaining declarative cross-entity relationships bind safely during distributed network loads.
 

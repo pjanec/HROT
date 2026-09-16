@@ -5,7 +5,7 @@
 > **Audience:** engineers scoping the blueprint-authored-action slice; reviewers.
 > **Verdict legend:** IMPLEMENTED (built + reachable) · PARTIAL (built but degraded/unreachable) · DESIGNED-ONLY (spec exists, no code) · MISSING.
 > **Related canonical docs:** `BTree_AiActionParameterBinding_Detailed_Design.md` (the target, esp. §3.2 composition model + §4.4 scoped working state), `Behavior_Parameter_Resolver_Detailed_Design.md` (§8.3 shares the adapter rail this needs), `Blackboard_Authoring_Addendum_v3_ActionParamAuthoring.md` (whole-DTO binding / Promote), `BTree_HSM_JSON_Persistence_Detailed_Design.md` (the `[BlueprintRegistrar]` masquerade registrar, D14).
-> **Companion code:** `Hrot/Subsystems/Blueprints/Hrot.Blueprints.Compiler/Compiler/Emit/` (`AiPrimitiveEmitter.cs`, `CSharpEmitter.cs`), `Hrot/Subsystems/AI/Hrot.AiEditor.Persistence/Emit/` (`BTreeBridgeEmitCore.cs`, `HsmBridgeEmitCore.cs`), `FDP/Toolkits/Fdp.Toolkits/Behavior/BehaviorRegistry.cs`, `FDP/ExtDeps/FastBTree/src/Fbt.Kernel/Runtime/Interpreter.cs`, `Hrot/Editor/Hrot.Editor.AiShared/Blackboard/ActionSchemaExporter.cs`, `Hrot/Subsystems/AI/Hrot.BTree.Editor/`, `Hrot/Subsystems/AI/Hrot.Hsm.Editor/`. Tracked debt: `.dev/btree-ai-action-binding/DEBT-TRACKER.md` (`DEBT-AIB-025`, `-005`, `-009`).
+> **Companion code:** `Hrot/Subsystems/Blueprints/Hrot.Blueprints.Compiler/Compiler/Emit/` (`AiPrimitiveEmitter.cs`, `CSharpEmitter.cs`), `Hrot/Subsystems/AI/Hrot.AiEditor.Persistence/Emit/` (`BTreeBridgeEmitCore.cs`, `HsmBridgeEmitCore.cs`), `FDP/Toolkits/Fdp.Toolkits/Behavior/BehaviorRegistry.cs`, `FDP/ExtDeps/FastBTree/src/Fbt.Kernel/Runtime/Interpreter.cs`, `Hrot/Editor/Hrot.Editor.AiShared/Blackboard/ActionSchemaExporter.cs`, `Hrot/Subsystems/AI/Hrot.BTree.Editor/`, `Hrot/Subsystems/AI/Hrot.Hsm.Editor/`. Tracked debt: `.dev/_DONE/btree-ai-action-binding/DEBT-TRACKER.md` (`DEBT-AIB-025`, `-005`, `-009`).
 
 > **⚡ Update (2026-07-15, branch `claude/hill-attack-json-slice-3-7fbaf4`):** The three §1 TL;DR blockers below are now **RESOLVED end-to-end and Windows-verified** — individual verdicts in §3/§4 predate this note.
 > - **I1** — AiPrimitive thunks now register into the FastBTree string-keyed `ActionRegistry` the interpreter reads (not the orphaned `BehaviorRegistry` side-table, which was removed).
@@ -120,7 +120,7 @@ No picker to reference a blueprint asset from a BTree/HSM node. The nearest anal
 ## 6. Tracked debt & the skipped flagship demo
 
 This is a self-acknowledged, half-built slice, not greenfield:
-- `.dev/btree-ai-action-binding/DEBT-TRACKER.md`: `DEBT-AIB-025` (BTree-node→blueprint composition deliberately not built), `DEBT-AIB-005` (blueprint-authored AiPrimitive demo is a follow-up), `DEBT-AIB-009`.
+- `.dev/_DONE/btree-ai-action-binding/DEBT-TRACKER.md`: `DEBT-AIB-025` (BTree-node→blueprint composition deliberately not built), `DEBT-AIB-005` (blueprint-authored AiPrimitive demo is a follow-up), `DEBT-AIB-009`.
 - `Hrot.Blueprints.Tests/Compiler/EndToEnd/MoveToAndFire_EndToEndTests.cs:99-135`: runtime tick tests `[Fact(Skip=…)]` with a documented "7 interacting bugs" list (catalog FQN resolution, JSON pin traversal, enum mismatches, invalid emitted C#). Compile-time structural tests (that `TickCore`/`BTreeTick` text appears) pass, but there is no passing runtime proof.
 
 ## 7. Cross-references

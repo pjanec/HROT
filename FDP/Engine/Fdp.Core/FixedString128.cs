@@ -1,0 +1,141 @@
+using System;
+using System.Runtime.InteropServices;
+using System.Runtime.CompilerServices;
+using System.Text;
+
+namespace Fdp.Core
+{
+    /// <summary>
+    /// Fixed-size 128-byte string for zero-allocation string storage.
+    /// Stores up to 127 UTF-8 bytes + 1 null terminator.
+    /// Safe to use in components and network messages.
+    /// </summary>
+    [StructLayout(LayoutKind.Sequential, Size = 128)]
+    public unsafe struct FixedString128 : IEquatable<FixedString128>
+    {
+        private fixed byte _data[128];
+
+        /// <summary>
+        /// Maximum string length (127 chars + null terminator).
+        /// </summary>
+        public const int MaxLength = 127;
+
+        /// <summary>
+        /// Creates a FixedString128 from a regular string.
+        /// Truncates if longer than MaxLength.
+        /// </summary>
+        public FixedString128(string str) : this(str.AsSpan())
+        {
+        }
+
+        /// <summary>
+        /// Creates a FixedString128 from a character span, encoding to UTF-8.
+        /// Truncates silently if longer than MaxLength. Zero-allocation.
+        /// </summary>
+        public FixedString128(ReadOnlySpan<char> str)
+        {
+            this = default;
+            if (str.IsEmpty) return;
+
+            ref byte start = ref Unsafe.As<FixedString128, byte>(ref this);
+            Span<byte> buffer = MemoryMarshal.CreateSpan(ref start, 128);
+
+            var encoder = Encoding.UTF8.GetEncoder();
+            encoder.Convert(str, buffer.Slice(0, MaxLength), true, out _, out int bytesUsed, out _);
+            buffer[bytesUsed] = 0;
+        }
+
+        /// <summary>
+        /// Converts to a regular string.
+        /// </summary>
+        public override readonly string ToString()
+        {
+            ref byte start = ref Unsafe.As<FixedString128, byte>(ref Unsafe.AsRef(in this));
+            ReadOnlySpan<byte> span = MemoryMarshal.CreateReadOnlySpan(ref start, 128);
+
+            int len = 0;
+            while (len < MaxLength && span[len] != 0) len++;
+            if (len == 0) return string.Empty;
+
+            return Encoding.UTF8.GetString(span.Slice(0, len));
+        }
+
+        /// <summary>
+        /// Gets the current length in bytes.
+        /// </summary>
+        public readonly int Length
+        {
+            get
+            {
+                ref byte start = ref Unsafe.As<FixedString128, byte>(ref Unsafe.AsRef(in this));
+                ReadOnlySpan<byte> span = MemoryMarshal.CreateReadOnlySpan(ref start, 128);
+                int len = 0;
+                while (len < MaxLength && span[len] != 0) len++;
+                return len;
+            }
+        }
+
+        /// <summary>
+        /// Checks if the string is empty.
+        /// </summary>
+        public readonly bool IsEmpty => Length == 0;
+
+        /// <summary>
+        /// Clears the string.
+        /// </summary>
+        public void Clear()
+        {
+            ref byte start = ref Unsafe.As<FixedString128, byte>(ref this);
+            Unsafe.InitBlock(ref start, 0, 128);
+        }
+
+        public readonly bool Equals(FixedString128 other)
+        {
+            ref byte start1 = ref Unsafe.As<FixedString128, byte>(ref Unsafe.AsRef(in this));
+            ref byte start2 = ref Unsafe.As<FixedString128, byte>(ref Unsafe.AsRef(in other));
+
+            var span1 = MemoryMarshal.CreateReadOnlySpan(ref start1, 128);
+            var span2 = MemoryMarshal.CreateReadOnlySpan(ref start2, 128);
+
+            return span1.SequenceEqual(span2);
+        }
+
+        public override readonly bool Equals(object? obj)
+        {
+            return obj is FixedString128 other && Equals(other);
+        }
+
+        public override readonly int GetHashCode()
+        {
+            ref byte start = ref Unsafe.As<FixedString128, byte>(ref Unsafe.AsRef(in this));
+            var span = MemoryMarshal.CreateReadOnlySpan(ref start, 128);
+
+            int hash = 17;
+            for (int i = 0; i < 128; i++)
+            {
+                hash = hash * 31 + span[i];
+            }
+            return hash;
+        }
+
+        public static bool operator ==(FixedString128 left, FixedString128 right)
+        {
+            return left.Equals(right);
+        }
+
+        public static bool operator !=(FixedString128 left, FixedString128 right)
+        {
+            return !left.Equals(right);
+        }
+
+        public static implicit operator string(FixedString128 str)
+        {
+            return str.ToString();
+        }
+
+        public static implicit operator FixedString128(string str)
+        {
+            return new FixedString128(str);
+        }
+    }
+}

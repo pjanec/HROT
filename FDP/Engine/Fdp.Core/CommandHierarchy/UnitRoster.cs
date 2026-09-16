@@ -8,7 +8,7 @@ namespace Fdp.Core.CommandHierarchy
     /// list of subordinate entity handles and their tactical designations.
     ///
     /// <para>
-    /// This component is <b>not saved</b> (<c>DataPolicy.NoSave</c>) because it is entirely
+    /// This component is <b>not saved</b> (<c>DataPolicy.NoScenario</c>) because it is entirely
     /// derived from the bottom-up <see cref="UnitSubordinate"/> records and is rebuilt on
     /// every scenario load.
     /// </para>
@@ -23,7 +23,7 @@ namespace Fdp.Core.CommandHierarchy
     /// + <c>ushort[16]</c> (32 B).
     /// </para>
     /// </summary>
-    [DataPolicy(DataPolicy.NoSave)]
+    [DataPolicy(DataPolicy.NoScenario)]
     [StructLayout(LayoutKind.Sequential)]
     [ComponentId(GlobalComponentIds.UnitRoster)]
     public unsafe struct UnitRoster

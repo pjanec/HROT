@@ -724,13 +724,23 @@ public sealed class NodePinSchemaEnrichmentTests
     // ── BATCH-03C: ReturnNode in Function graph ─────────────────────────────────
 
     /// <summary>
-    /// ReturnNode in a Function graph with 1 output → exec-In + 1 data-Out pin (Direction=="Out")
-    /// named and typed from Graph.Outputs[0].
-    /// Satisfies Stage5_Schedule.cs~881-897 BuildReturnTerminator:
-    /// <c>rn.Pins.FirstOrDefault(p =&gt; !p.IsExec &amp;&amp; p.Direction == "Out")</c>.
+    /// ReturnNode in a Function graph with 1 output → exec-In + 1 data-<b>In</b> pin
+    /// (Direction=="In") named and typed from Graph.Outputs[0].
+    /// <para>
+    /// <b>BP-71 / Q24-A1 — this test used to assert <c>Direction=="Out"</c>, and that assertion was
+    /// the bug's alibi.</b> <c>BlueprintPinModel</c> maps Direction straight onto the canvas and
+    /// <c>BlueprintLinkValidator</c> rejects same-direction links, so an "Out" value pin could never
+    /// be wired — a Function graph could not return a value at all — while
+    /// <c>Stage5.BuildReturnTerminator</c> resolved that same pin as an INPUT
+    /// (<c>ResolveDataPin</c> follows a link whose <c>ToNodeId</c> is the Return node). Both halves
+    /// were asserted; nothing crossed the seam. "In" is now the one convention, matching
+    /// <c>ResolveAllDataInputs</c> everywhere else and Unreal's input-collecting Return Node.
+    /// </para>
+    /// <c>BuildReturnTerminator</c> accepts either direction (Q24-B1), so legacy hand-authored
+    /// "Out" JSON still compiles — see <c>ReturnNode_LegacyOutDirection_StillResolvedByStage5</c>.
     /// </summary>
     [Fact]
-    public void ReturnNode_FunctionGraph_OneOutput_ProjectsExecInPlusDataOut()
+    public void ReturnNode_FunctionGraph_OneOutput_ProjectsExecInPlusDataIn()
     {
         var graph = new Graph
         {
@@ -747,16 +757,16 @@ public sealed class NodePinSchemaEnrichmentTests
         Assert.True(HasExec(pins, "In", "In"), "exec In missing");
         Assert.False(HasExec(pins, "Out", "Out"), "ReturnNode must not have exec Out");
 
-        // The value pin MUST have Direction=="Out" (compiler contract: BuildReturnTerminator reads
-        // !IsExec && Direction=="Out").
-        var dataOut = Data(pins, "Out");
-        var ret = Assert.Single(dataOut);
+        // The value pin MUST have Direction=="In" — it is the only direction a designer can wire
+        // into, and it is what gives the pin an inline default-value editor.
+        var dataIn = Data(pins, "In");
+        var ret = Assert.Single(dataIn);
         Assert.Equal("Result",       ret.Name);
         Assert.Equal("System.Int32", ret.TypeId);
-        Assert.Equal("Out",          ret.Direction); // critical: compiler reads data-OUT not data-IN
+        Assert.Equal("In",           ret.Direction); // critical: wirable, and BP-71's whole point
 
-        // No data-In pins.
-        Assert.Empty(Data(pins, "In"));
+        // No data-Out pins: the Return node consumes, it does not produce.
+        Assert.Empty(Data(pins, "Out"));
     }
 
     /// <summary>
@@ -980,11 +990,15 @@ public sealed class NodePinSchemaEnrichmentTests
         Assert.Single(entryDataOut); // one input → one data-Out
         Assert.Equal("X", entryDataOut[0].Name);
 
-        // ── Return node (first !IsExec && Direction=="Out" → return value) ──
+        // ── Return node (BP-71: the value slot is a data-IN pin, so it can be wired) ──
+        // BuildReturnTerminator selects `!IsExec && (Direction=="In" || Direction=="Out")` and then
+        // follows a link ARRIVING at the node, so "In" is both what it resolves and what the canvas
+        // lets a designer connect.
         var returnPins = NodePinSchema.GetCanonicalPins(new ReturnNode(), containingGraph: graph);
-        var returnValPin = returnPins.FirstOrDefault(p => !p.IsExec && p.Direction == "Out");
+        var returnValPin = returnPins.FirstOrDefault(p => !p.IsExec && p.Direction == "In");
         Assert.NotNull(returnValPin);  // compiler requires this
-        Assert.Equal("Out", returnValPin!.Name);
+        Assert.Equal("Out", returnValPin!.Name);   // name comes from Graph.Outputs[0].Name
+        Assert.Empty(returnPins.Where(p => !p.IsExec && p.Direction == "Out"));
 
         // ── FunctionCall node (data-IN positional args + first data-OUT return slot) ──
         var callNode = new FunctionCallNode { TargetGraphId = targetGraphId.ToString(), IsPure = false };
@@ -1026,9 +1040,9 @@ public sealed class NodePinSchemaEnrichmentTests
     /// <summary>
     /// CallPeerBlueprint with a stub lookup providing a peer signature with matching
     /// FunctionRef (2 typed inputs + 1 typed output) → exec In/Out + 2 data-IN (names/types/order)
-    /// + Return data-OUT typed from the output.
+    /// + one data-OUT pin per declared output, named after the output.
     /// Grounded in Stage5_Schedule.cs:656-673: ResolveAllDataInputs reads all data-IN pins
-    /// positionally; first data-OUT is the return slot.
+    /// positionally; one data-OUT per declared output.
     /// </summary>
     [Fact]
     public void CallPeerBlueprint_WithLookup_MatchingFunctionRef_ProjectsTypedPins()
@@ -1061,11 +1075,93 @@ public sealed class NodePinSchemaEnrichmentTests
         Assert.Equal("Count",        dataIn[1].Name);
         Assert.Equal("System.Int32",  dataIn[1].TypeId);
 
-        // Single Return data-OUT pin typed from Outputs[0].
+        // BP-113: one data-OUT pin per declared output, named after the output -- NOT the fixed
+        // "Return" name asserted here before the fix. Mirrors what BP-73 already did for the
+        // same-asset FunctionCall node. The old assertion (name=="Return") is exactly the
+        // one-pin-called-Return shape that was the defect: it locked in a projection that only
+        // ever surfaced Outputs[0], so a peer function with >1 output silently lost the rest at
+        // the asset boundary.
+        var dataOut = Data(pins, "Out");
+        var ret = Assert.Single(dataOut);
+        Assert.Equal("Result",        ret.Name);
+        Assert.Equal("System.Double", ret.TypeId);
+    }
+
+    /// <summary>
+    /// BP-113 — a peer function declaring TWO outputs must project TWO data-OUT pins on the
+    /// CallPeerBlueprint node, one per output, in declaration order. Before the fix only
+    /// <c>Outputs[0]</c> was projected: an N-output function exported from a Library was reachable
+    /// from within the SAME asset (BP-73's FunctionCall) but had its outputs collapsed to one the
+    /// moment another blueprint tried to call it across the asset boundary -- defeating the entire
+    /// point of a Function Library, which exists specifically to be called from elsewhere.
+    /// </summary>
+    [Fact]
+    public void CallPeerBlueprint_WithLookup_MultiOutputFunction_ProjectsOneDataOutPerOutput()
+    {
+        var peerId  = Guid.NewGuid();
+        var peerSig = MakePeerSig(
+            peerId,
+            "Split",
+            inputs:  new[] { ("V", "System.Int32") },
+            outputs: new[] { ("Lo", "System.Int32"), ("Hi", "System.Single") });
+
+        var lookup = (Guid id) => id == peerId ? peerSig : null;
+        var node = new CallPeerBlueprintNode
+        {
+            PeerBlueprintId = peerId.ToString(),
+            FunctionRef     = "Split",
+        };
+
+        var pins = NodePinSchema.GetCanonicalPins(node, peerSignatureLookup: lookup);
+
+        Assert.True(HasExec(pins, "In",  "In"),  "exec In missing");
+        Assert.True(HasExec(pins, "Out", "Out"), "exec Out missing");
+
+        var dataIn = Data(pins, "In");
+        var v = Assert.Single(dataIn);
+        Assert.Equal("V", v.Name);
+        Assert.Equal("System.Int32", v.TypeId);
+
+        var dataOut = Data(pins, "Out");
+        Assert.True(dataOut.Length == 2,
+            "an N-output function was previously unreachable across an asset boundary because " +
+            "only Outputs[0] was projected onto the CallPeerBlueprint node -- which is the entire " +
+            $"point of a Function Library existing at all (got {dataOut.Length} data-OUT pins).");
+        Assert.Equal("Lo",           dataOut[0].Name);
+        Assert.Equal("System.Int32", dataOut[0].TypeId);
+        Assert.Equal("Hi",           dataOut[1].Name);
+        Assert.Equal("System.Single", dataOut[1].TypeId);
+    }
+
+    /// <summary>
+    /// BP-113 — a peer function declaring ZERO outputs keeps the historic single
+    /// <c>Return:System.Object</c> data-OUT pin unchanged. This shape predates BP-113 (it is the
+    /// static/no-lookup fallback shape too) and is deliberately NOT touched by the multi-output
+    /// fan-out path, which only engages when the peer signature reports more than one output.
+    /// </summary>
+    [Fact]
+    public void CallPeerBlueprint_WithLookup_ZeroOutputFunction_KeepsHistoricReturnPin()
+    {
+        var peerId  = Guid.NewGuid();
+        var peerSig = MakePeerSig(
+            peerId,
+            "DoIt",
+            inputs:  Array.Empty<(string Name, string TypeId)>(),
+            outputs: Array.Empty<(string Name, string TypeId)>());
+
+        var lookup = (Guid id) => id == peerId ? peerSig : null;
+        var node = new CallPeerBlueprintNode
+        {
+            PeerBlueprintId = peerId.ToString(),
+            FunctionRef     = "DoIt",
+        };
+
+        var pins = NodePinSchema.GetCanonicalPins(node, peerSignatureLookup: lookup);
+
         var dataOut = Data(pins, "Out");
         var ret = Assert.Single(dataOut);
         Assert.Equal("Return",        ret.Name);
-        Assert.Equal("System.Double", ret.TypeId);
+        Assert.Equal("System.Object", ret.TypeId);
     }
 
     /// <summary>

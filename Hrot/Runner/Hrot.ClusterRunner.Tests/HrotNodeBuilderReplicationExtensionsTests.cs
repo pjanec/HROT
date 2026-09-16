@@ -2,6 +2,7 @@ using Hrot.Common;
 using Hrot.Common.Infrastructure;
 using Hrot.Network.Infrastructure;
 using Xunit;
+using Fdp.Core;
 
 namespace Hrot.ClusterRunner.Tests;
 

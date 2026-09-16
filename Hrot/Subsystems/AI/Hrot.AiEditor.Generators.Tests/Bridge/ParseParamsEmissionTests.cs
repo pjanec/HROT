@@ -137,7 +137,7 @@ public sealed class ParseParamsEmissionTests
         var bridge = BTreeBridgeEmitCore.EmitBridge(dto);
 
         // The unsafe block that captures the lambda must be present.
-        bridge.Should().Contain("__parseParams = static (string json, byte* memory, global::Fdp.Core.EntityRepository world, global::Fdp.Core.Entity self) =>",
+        bridge.Should().Contain("__parseParams = static (string json, byte* memory, global::Fdp.Core.EntityRepository world, global::Fdp.Core.Entity self, global::Fdp.Toolkit.Behavior.IHostVariableAccess? host) =>",
             "bridge must emit an unsafe lambda assigned to __parseParams");
 
         // The BehaviorDefinition initializer must reference the local.
@@ -177,19 +177,34 @@ public sealed class ParseParamsEmissionTests
     }
 
     /// <summary>
-    /// When NO variable has DefaultValueJson, ParseParams must NOT be emitted —
-    /// the bridge is identical to pre-DEBT-AIB-013 output (null ParseParams at runtime).
+    /// ⭐⭐⭐ <b><c>DEBT-AIB-021</c> defect (b), INVERTED DELIBERATELY (Batch 70).</b>
+    ///
+    /// <para>
+    /// 🔴 <b>This test used to assert the defect.</b> It read: <i>"when NO variable has
+    /// DefaultValueJson, ParseParams must not be emitted"</i> — which is exactly why an asset whose
+    /// variables carry no defaults <b>could never be overridden at all</b>. ⛔ Fixing the "ignores the
+    /// json arg" half alone would have left those assets untouched, and this green test would have
+    /// hidden it.
+    /// </para>
+    ///
+    /// <para>
+    /// ⭐ The guard is now <b>≥1 packed managed variable</b>, not ≥1 default. ⚠ The old intent —
+    /// <i>"non-managed assets are unchanged"</i> — survives in
+    /// <c>NonManagedAsset_DoesNotEmitParseParams</c> below, which is where it belonged.
+    /// </para>
     /// </summary>
     [Fact]
-    public void ManagedAsset_NoVariableHasDefault_DoesNotEmitParseParams()
+    public void ManagedAsset_NoVariableHasDefault_StillEmitsParseParams_ForTheOverlay()
     {
         var dto    = MakeNoDefaultsDto();
         var bridge = BTreeBridgeEmitCore.EmitBridge(dto);
 
-        bridge.Should().NotContain("__parseParams",
-            "when no variable has DefaultValueJson, ParseParams must not be emitted");
-        bridge.Should().NotContain("ParseParams  = __parseParams",
-            "when no variable has DefaultValueJson, ParseParams must not be set in the initializer");
+        bridge.Should().Contain("__parseParams",
+            "an asset with packed managed variables must be overridable even with no baked defaults");
+        bridge.Should().Contain("ParseParams  = __parseParams,",
+            "and the definition must actually carry it");
+        bridge.Should().Contain("JsonDocument.Parse(json)",
+            "the overlay is what makes it useful without defaults");
     }
 
     /// <summary>
@@ -220,24 +235,36 @@ public sealed class ParseParamsEmissionTests
     }
 
     /// <summary>
-    /// When only the FIRST variable has DefaultValueJson (second has null), only the
-    /// first variable's write must appear in the ParseParams lambda.
+    /// ⭐⭐ <b>UPDATED DELIBERATELY (Batch 70) — the two steps are now distinguishable.</b>
+    ///
+    /// <para>
+    /// 🔴 This test used to assert <c>NotContain("memory + 4")</c>, i.e. <i>"a variable with no default
+    /// is never written"</i>. ⭐ <b>That is still true of STEP 1</b> — only <c>alpha</c> is baked — but
+    /// it is <b>no longer true of the lambda as a whole</b>, because step 2's overlay can write
+    /// <c>beta</c> when the caller supplies it. ⇒ the assertion moved from "is this offset absent" to
+    /// <b>"which STEP writes it"</b>, which is the thing that actually matters.
+    /// </para>
     /// </summary>
     [Fact]
-    public void ManagedAsset_OnlyFirstVarHasDefault_EmitsOnlyFirstWrite()
+    public void ManagedAsset_OnlyFirstVarHasDefault_BakesOnlyThatOne_ButBothAreOverridable()
     {
         // alpha has a default; beta does NOT.
         var dto    = MakeTwoVarDto(alphaDefault: "{\"Value\":7}", betaDefault: null);
         var bridge = BTreeBridgeEmitCore.EmitBridge(dto);
 
-        bridge.Should().Contain("__parseParams = static (string json, byte* memory, global::Fdp.Core.EntityRepository world, global::Fdp.Core.Entity self) =>",
-            "ParseParams unsafe lambda must be emitted when at least one variable has DefaultValueJson");
+        bridge.Should().Contain("__parseParams = static (string json, byte* memory, global::Fdp.Core.EntityRepository world, global::Fdp.Core.Entity self, global::Fdp.Toolkit.Behavior.IHostVariableAccess? host) =>");
 
+        // ⭐ Step 1 bakes ONLY alpha: its default literal appears, beta's does not exist to appear.
+        bridge.Should().Contain("{\\\"Value\\\":7}",
+            "alpha's baked default must be present");
         bridge.Should().Contain("memory + 0",
             "alpha must be written at offset 0");
 
-        bridge.Should().NotContain("memory + 4",
-            "beta has no DefaultValueJson — its write must NOT appear in ParseParams");
+        // ⭐⭐ Step 2 makes BOTH overridable -- that is the point of defect (b)'s fix.
+        bridge.Should().Contain("case \"alpha\":");
+        bridge.Should().Contain("case \"beta\":");
+        bridge.Should().Contain("memory + 4",
+            "beta has no default, but the overlay must still be able to write it");
     }
 
     /// <summary>
@@ -313,7 +340,7 @@ public sealed class ParseParamsEmissionTests
             "the composed AiPrimitive action must register its baked-offset thunk");
 
         // (3) ParseParams bakes the authored default into the composed Params at offset 0.
-        bridge.Should().Contain("__parseParams = static (string json, byte* memory, global::Fdp.Core.EntityRepository world, global::Fdp.Core.Entity self) =>",
+        bridge.Should().Contain("__parseParams = static (string json, byte* memory, global::Fdp.Core.EntityRepository world, global::Fdp.Core.Entity self, global::Fdp.Toolkit.Behavior.IHostVariableAccess? host) =>",
             "an authored default on the composed Params variable must emit a ParseParams lambda");
         bridge.Should().Contain(
             "global::System.Text.Json.JsonSerializer.Deserialize<global::Hrot.AI.Behaviors.Generated.ParamDemo_CEFE162F_Bp.Params>(",
@@ -350,5 +377,90 @@ public sealed class ParseParamsEmissionTests
         // The fully-qualified delegate type must be declared for the local variable.
         bridge.Should().Contain("global::Fdp.Toolkit.Behavior.ParseParamsDelegate? __parseParams",
             "the local variable must be typed as ParseParamsDelegate?");
+    }
+
+    // ── DEBT-AIB-021 (Batch 70): the overlay's four decided behaviours ──────────
+
+    /// <summary>
+    /// ⭐⭐⭐ <b>The ORDER is the ruling.</b> 📄 <c>DESIGN_Parameter_Model.md</c> §3.2 — <i>"defaults are
+    /// baked, scenario JSON overlays them, runtime wins."</i> ⇒ step 1's baked write must appear
+    /// BEFORE step 2's overlay in the emitted body, ⛔ or the default would clobber the override and it
+    /// would read as a resolver bug.
+    /// </summary>
+    [Fact]
+    public void DefaultsAreBakedBeforeTheOverlayRuns()
+    {
+        var bridge = BTreeBridgeEmitCore.EmitBridge(MakeTwoVarDto());
+
+        int baked   = bridge.IndexOf("Step 1", StringComparison.Ordinal);
+        int overlay = bridge.IndexOf("Step 2", StringComparison.Ordinal);
+
+        baked.Should().BeGreaterThan(-1);
+        overlay.Should().BeGreaterThan(baked, "the overlay must run AFTER the baked defaults");
+    }
+
+    /// <summary>
+    /// ⭐ <b>Every packed variable gets an overlay arm</b>, so overriding ONE leaves the others at
+    /// their baked defaults — the switch simply never reaches them.
+    /// </summary>
+    [Fact]
+    public void EveryPackedVariable_GetsItsOwnOverlayArm()
+    {
+        var bridge = BTreeBridgeEmitCore.EmitBridge(MakeTwoVarDto());
+
+        bridge.Should().Contain("case \"alpha\":");
+        bridge.Should().Contain("case \"beta\":");
+        bridge.Should().Contain("__prop.Value.GetRawText()",
+            "each arm deserializes only its own element -- that is what makes it an OVERLAY");
+    }
+
+    /// <summary>
+    /// ⭐⭐ <b>A DECISION test: an unknown key is IGNORED, not an error.</b>
+    ///
+    /// <para>
+    /// ⛔ <b>Not an oversight — it matches the CURATED path.</b>
+    /// <c>JsonSerializer.Deserialize&lt;TDto&gt;</c> drops unmapped members unless
+    /// <c>UnmappedMemberHandling</c> says otherwise, and ruling 9 says one mechanism gets one
+    /// behaviour. ⚠ Pinned here so a later batch does not "fix" it into a throw.
+    /// </para>
+    /// </summary>
+    [Fact]
+    public void AnUnknownKey_IsIgnoredRatherThanAnError()
+    {
+        var bridge = BTreeBridgeEmitCore.EmitBridge(MakeTwoVarDto());
+
+        bridge.Should().Contain("default: break;",
+            "an unknown key must fall through silently, matching the curated path");
+        bridge.Should().NotContain("Unknown parameter",
+            "no diagnostic is emitted for an unknown key -- that is the decision");
+    }
+
+    /// <summary>
+    /// ⭐ <b>Empty or null json ⇒ defaults only</b>, which is the shipped behaviour and must stay
+    /// byte-identical for every asset nobody overrides.
+    /// </summary>
+    [Fact]
+    public void EmptyJson_SkipsTheOverlayEntirely()
+    {
+        var bridge = BTreeBridgeEmitCore.EmitBridge(MakeTwoVarDto());
+
+        bridge.Should().Contain("if (!string.IsNullOrWhiteSpace(json))",
+            "no json means no overlay -- the baked defaults stand alone");
+    }
+
+    /// <summary>
+    /// ⛔ <b>Malformed json THROWS, deliberately.</b> <c>BehaviorIngressSystem</c> parses into a stack
+    /// shadow and commits only on success, so a throw is what leaves the entity on its old behaviour.
+    /// ⚠ Swallowing would hand it a successful-looking all-zero params region — the same reasoning
+    /// <c>BehaviorParams.FromJson</c> records for <c>G1</c>.
+    /// </summary>
+    [Fact]
+    public void MalformedJson_IsNotSwallowed()
+    {
+        var bridge = BTreeBridgeEmitCore.EmitBridge(MakeTwoVarDto());
+
+        bridge.Should().Contain("JsonDocument.Parse(json)");
+        bridge.Should().NotContain("catch",
+            "the emitted lambda must not swallow a parse failure -- parse-before-commit depends on it");
     }
 }

@@ -130,9 +130,10 @@ internal static class NodePinSchema
         {
             // ── Dynamic kinds: editor-side computation required ───────────────────
             EventEntryNode      => EventEntryNodePins(containingGraph),
-            ReturnNode          => ReturnNodePins(containingGraph),
+            ReturnNode          => ReturnNodePins(containingGraph, asset),
             FunctionCallNode fc => FunctionCallPinsDispatch(fc, asset, containingGraph),
-            GetVariableNode gv  => GetVariablePins(gv, ResolveVariableTypeId(gv.VariableId, asset)),
+            MacroCallNode mc    => MacroCallPins(mc, asset),
+            GetVariableNode gv  => GetVariablePins(gv, asset),
             SetVariableNode sv  => SetVariablePins(sv, ResolveVariableTypeId(sv.VariableId, asset)),
             // GetParameter: pin-less assets (e.g. the integrated HillAssault2I_* blueprints) carry no
             // authored pins, and the compiler bakes this node at lowering (no pin needed there). The
@@ -152,6 +153,8 @@ internal static class NodePinSchema
             ComponentItemCountNode cic => ComponentItemCountPins(cic),
             ComponentContainsNode ccn  => ComponentContainsPins(ccn),
             ComponentFindNode cfn      => ComponentFindPins(cfn),
+            CollectionWriteNode cwn    => CollectionWritePins(cwn),
+            ListWriteNode lwn          => ListWritePins(lwn, asset),
             MakeStructNode msn  => MakeStructPins(msn),
             BreakStructNode bsn => BreakStructPins(bsn),
             SetMembersNode smn  => SetMembersPins(smn),
@@ -189,7 +192,7 @@ internal static class NodePinSchema
 
         if (Guid.TryParse(idStr, out var guid))
         {
-            var decl = asset.Variables.FirstOrDefault(v => v.Id == guid);
+            var decl = asset.Declarations.Of(DeclarationKind.Variable).FirstOrDefault(d => d.Id == guid);
             if (decl != null && !string.IsNullOrEmpty(decl.Type?.TypeId))
                 return decl.Type.TypeId;
         }
@@ -263,19 +266,37 @@ internal static class NodePinSchema
         // expose the event PAYLOAD fields the same way — one data-Out per Graph.Inputs entry — so the
         // designer can wire the payload downstream. Must stay in parity with the compiler's
         // Stage0_Rehydrate.EnrichEventEntryPins (which enriches both kinds).
-        if ((containingGraph?.Kind == GraphKind.Function || containingGraph?.Kind == GraphKind.Event)
-            && containingGraph.Inputs.Count > 0)
+        //
+        // BP-80 / F3: Macro joins them. A macro's INPUT boundary is this shape — exec-out(s) plus one
+        // data-out per declared input — which is why the design reuses EventEntryNode rather than
+        // inventing a boundary node that would miss every existing rule.
+        //
+        // ⭐ BP-74 / Q26-A3: a Macro now projects N exec-OUT pins, one per Graph.ExecInputs entry,
+        // REPLACING the single "Out". That is the mirror of what ReturnNodePins already does with
+        // ExecOutputs, and it is what lets a selection entered from two places collapse into a
+        // two-entry macro instead of being refused.
+        bool isMacro   = containingGraph.Kind == GraphKind.Macro;
+        bool wantsData = (containingGraph.Kind == GraphKind.Function
+                          || containingGraph.Kind == GraphKind.Event
+                          || isMacro)
+                         && containingGraph.Inputs.Count > 0;
+
+        if (!isMacro && !wantsData)
+            return ExecOnly("Out");
+
+        var pins = isMacro
+            ? MacroEntryExecPins(containingGraph)
+            : new List<Pin> { MakeExec("Out", "Out") };
+
+        if (wantsData)
         {
-            var pins = new List<Pin>(1 + containingGraph.Inputs.Count);
-            pins.Add(MakeExec("Out", "Out"));
             foreach (var inp in containingGraph.Inputs)
             {
                 var typeId = string.IsNullOrEmpty(inp.Type?.TypeId) ? "System.Object" : inp.Type.TypeId;
                 pins.Add(MakeData(inp.Name, "Out", typeId));
             }
-            return pins;
         }
-        return ExecOnly("Out");
+        return pins;
     }
 
     /// <summary>
@@ -308,37 +329,207 @@ internal static class NodePinSchema
 
     /// <summary>
     /// ReturnNode: when the containing graph is a <see cref="GraphKind.Function"/> graph
-    /// with at least one output, emit <c>exec-In</c> + one data-Out pin from
+    /// with at least one output, emit <c>exec-In</c> + one data-<b>In</b> pin from
     /// <c>Graph.Outputs[0]</c> (name from <c>out.Name</c>, type from <c>out.Type.TypeId</c>;
     /// fallback <c>System.Object</c>).
     /// <para>
-    /// Compiler contract (Stage5_Schedule.cs ~881-897 <c>BuildReturnTerminator</c>): Stage5
-    /// reads <c>rn.Pins.FirstOrDefault(p =&gt; !p.IsExec &amp;&amp; p.Direction == "Out")</c>.
-    /// The value pin therefore MUST have <c>Direction="Out"</c>, NOT <c>"In"</c> — this
-    /// mirrors the GetVariable convention where data flows OUT of the node toward consumers.
-    /// The compiler reads the pin as a producer (it resolves the wired source value and caches
-    /// it for the return terminator), so "Out" is semantically correct: the node <em>provides</em>
-    /// the return value on that pin.
+    /// <b>BP-71 / Q24-A1 — this pin used to be <c>"Out"</c>, and that made a Function graph's
+    /// return value impossible to author.</b> <see cref="BlueprintPinModel"/> maps
+    /// <c>Direction</c> straight onto the canvas (<c>"In" → Input</c>, else <c>Output</c>) and
+    /// <c>BlueprintLinkValidator</c> rejects same-direction links, so an <c>"Out"</c> pin could
+    /// never receive a value — while <c>Stage5_Schedule.BuildReturnTerminator</c> resolved it as
+    /// an <em>input</em> all along (<c>ResolveDataPin</c> follows a link whose <c>ToNodeId</c> is
+    /// the Return node). The two halves were each individually test-locked and never used
+    /// together. <c>"In"</c> is now the single convention on both sides, matching
+    /// <c>ResolveAllDataInputs</c> — and Unreal, whose Return Node collects inputs.
     /// </para>
-    /// Only the single first output is projected; multi-output support is deferred to a later batch.
+    /// <para>
+    /// Free consequence, not incidental: <see cref="BlueprintPinModel"/> synthesises an inline
+    /// default-value editor only for <c>Direction=="In"</c> data pins, so the return value can
+    /// now also be typed directly into the node without wiring a Literal.
+    /// </para>
+    /// <para>
+    /// <b>Single output only</b> — <c>Outputs[0]</c>. Proper N-output (Unreal parity) is the
+    /// scheduled <b>BP-73</b>; until it ships, <c>V_FunctionGraphReturnValue</c> reports
+    /// <c>Outputs.Count &gt; 1</c> as "not supported yet".
+    /// </para>
     /// Fallback to exec-only for non-Function graphs and Function graphs with no outputs.
     /// </summary>
-    private static IReadOnlyList<Pin> ReturnNodePins(Graph? containingGraph)
+    private static IReadOnlyList<Pin> ReturnNodePins(Graph? containingGraph, BlueprintAsset? asset)
     {
         if (containingGraph is null)
             return ExecOnly("In");
 
-        if (containingGraph?.Kind == GraphKind.Function && containingGraph.Outputs.Count > 0)
+        // BP-73: one data-In per declared output, in declaration order (Stage 5 pairs them
+        // positionally with Graph.Outputs, so the order is load-bearing — mirrors
+        // Stage0_Rehydrate.EnrichReturnPins).
+        //
+        // BP-80 / F3: Macro reuses this node as its OUTPUT boundary, so it takes the same data-in
+        // projection — and additionally replaces the single exec-in with N, one per declared
+        // ExecOutDecl. That exec group is the one genuinely new projection in the macro surface.
+        //
+        // BP-131: an AiPrimitive's Return then gains a `Success : bool` data-IN pin, so the status it
+        // reports to its BTree/HSM host can depend on execution instead of being an author-time
+        // constant. AiPrimitive ONLY — see the gate note on WantsSuccessPin below. Appended LAST and
+        // ADDITIVELY, exactly as in the compiler twin, so it cannot perturb the Outputs' positional
+        // order or suppress the data pins BP1655 inspects.
+        bool isMacro   = containingGraph.Kind == GraphKind.Macro;
+        bool wantsData = (containingGraph.Kind == GraphKind.Function || isMacro)
+                         && containingGraph.Outputs.Count > 0;
+        bool wantsSuccess = WantsSuccessPin(containingGraph, asset);
+
+        if (!isMacro && !wantsData && !wantsSuccess)
+            return ExecOnly("In");
+
+        var pins = isMacro
+            ? MacroReturnExecPins(containingGraph)
+            : new List<Pin> { MakeExec("In", "In") };
+
+        if (wantsData)
         {
-            var output = containingGraph.Outputs[0];
-            var typeId = string.IsNullOrEmpty(output.Type?.TypeId) ? "System.Object" : output.Type.TypeId;
-            return new[]
+            foreach (var output in containingGraph.Outputs)
             {
-                MakeExec("In", "In"),
-                MakeData(output.Name, "Out", typeId),
-            };
+                var typeId = string.IsNullOrEmpty(output.Type?.TypeId)
+                    ? "System.Object" : output.Type.TypeId;
+                pins.Add(MakeData(output.Name, "In", typeId));
+            }
         }
-        return ExecOnly("In");
+
+        if (wantsSuccess)
+            pins.Add(ReturnSuccessPin());
+
+        return pins;
+    }
+
+    /// <summary>
+    /// BP-131 — does this Return node get the <c>Success : bool</c> pin?
+    /// <para>
+    /// ⚠⚠ <b>AiPrimitive only, and that gate is the PRIMARY containment</b>, not a scoping preference.
+    /// <c>Stage5_Schedule.BuildReturnTerminator</c> takes <c>wantsStatusReturn</c> when the dispatch is
+    /// AiPrimitive (unconditional) <b>or</b> when it is Library with <c>valuePins.Count == 0</c>. The
+    /// second arm is a COUNT of non-exec pins, so projecting <c>Success</c> beyond AiPrimitive would
+    /// silently flip a zero-output Library function off its (test-locked) NodeStatus return and onto
+    /// the value-return path. Excluding the pin by name at that site is the second line of defence;
+    /// this gate is the first.
+    /// </para>
+    /// <para>
+    /// ⛔ Macro is excluded too — a macro never returns anything, so it has no status to report.
+    /// </para>
+    /// </summary>
+    private static bool WantsSuccessPin(Graph containingGraph, BlueprintAsset? asset)
+        => asset?.Dispatch == BlueprintDispatchKind.AiPrimitive
+           && containingGraph.Kind != GraphKind.Macro;
+
+    /// <summary>
+    /// BP-131 — the <c>Success : bool</c> data-IN pin. Must stay in exact parity (name, direction,
+    /// type) with <c>Stage0_Rehydrate</c>'s twin, or the pin exists on one side only and a graph the
+    /// designer wired compiles as though it were unwired.
+    /// </summary>
+    private static Pin ReturnSuccessPin()
+        => MakeData(ReturnNode.SuccessPinName, "In", "System.Boolean");
+
+    /// <summary>
+    /// BP-74 / Q26-A3 — the macro entry node's exec-OUT group: one pin per <see cref="Graph.ExecInputs"/>
+    /// entry, in declaration order. <c>Stage2_5_ExpandMacros</c>' splice rule 1 pairs
+    /// <c>C.execIn[k]</c> with the successor of <c>In′.execOut[k]</c> <b>positionally</b>, so the order
+    /// is load-bearing — exactly as it is for <see cref="MacroReturnExecPins"/> on the other side.
+    /// <para>
+    /// ⚠ <b>Zero declared entries keeps the single default <c>"Out"</c> pin</b>, which is what makes
+    /// every pre-Q26 macro behave exactly as before: one implicit entry. A freshly created macro also
+    /// starts here, so it is wireable before the designer has declared anything.
+    /// </para>
+    /// Must stay in parity with <c>Stage0_Rehydrate.EnrichEventEntryPins</c>.
+    /// </summary>
+    private static List<Pin> MacroEntryExecPins(Graph macroGraph)
+    {
+        if (macroGraph.ExecInputs.Count == 0)
+            return new List<Pin> { MakeExec("Out", "Out") };
+
+        var pins = new List<Pin>(macroGraph.ExecInputs.Count);
+        foreach (var execIn in macroGraph.ExecInputs)
+            pins.Add(MakeExec(execIn.Name, "Out"));
+        return pins;
+    }
+
+    /// <summary>
+    /// BP-80 — the macro Return node's exec-IN group: one pin per <see cref="Graph.ExecOutputs"/>
+    /// entry, in declaration order. <c>Stage2_5_ExpandMacros</c>' splice rule 2 pairs
+    /// <c>Out′.execIn[k]</c> with <c>C.execOut[k]</c> <b>positionally</b>, so the order is
+    /// load-bearing here exactly as <see cref="Graph.Outputs"/>' order is for the data pins.
+    /// <para>
+    /// ⚠ <b>Zero declared exec-outs keeps the default single <c>"In"</c> pin.</b> A freshly created
+    /// macro graph has <c>ExecOutputs == []</c>; projecting nothing would leave its Return node with
+    /// no exec pin at all — unwireable, and therefore unauthorable before the designer has declared
+    /// anything. The degenerate N=0 case (a macro whose body simply ends, offering the host no
+    /// continuation) is also legitimate under Q25-D3's "N ≥ 0", and reads the same way.
+    /// </para>
+    /// Must stay in parity with <c>Stage0_Rehydrate.EnrichReturnPins</c>.
+    /// </summary>
+    private static List<Pin> MacroReturnExecPins(Graph macroGraph)
+    {
+        if (macroGraph.ExecOutputs.Count == 0)
+            return new List<Pin> { MakeExec("In", "In") };
+
+        var pins = new List<Pin>(macroGraph.ExecOutputs.Count);
+        foreach (var execOut in macroGraph.ExecOutputs)
+            pins.Add(MakeExec(execOut.Name, "In"));
+        return pins;
+    }
+
+    /// <summary>
+    /// BP-80 — a <see cref="MacroCallNode"/>'s pins, derived ENTIRELY by projection from the target
+    /// macro graph (F4: the node itself carries only <c>TargetGraphId</c>):
+    /// one exec-In, then one exec-Out per <see cref="Graph.ExecOutputs"/> entry, then one data-In per
+    /// <c>Inputs</c> entry, then one data-Out per <c>Outputs</c> entry — each group in declaration
+    /// order, because <c>Stage2_5_ExpandMacros</c> pairs them positionally with the boundary nodes'
+    /// pins (splice rules 1-4).
+    /// <para>
+    /// Mirrors <see cref="FunctionGraphCallPins"/>, and — like it — falls back gracefully to exec-only
+    /// when the target cannot be resolved, rather than throwing. An unresolvable target is BP-82's
+    /// diagnostic (<c>BP1660</c>) to report, not this projection's.
+    /// </para>
+    /// Must stay in parity with <c>Stage0_Rehydrate.EnrichMacroCallPins</c>.
+    /// </summary>
+    private static IReadOnlyList<Pin> MacroCallPins(MacroCallNode mc, BlueprintAsset? asset)
+    {
+        var target = ResolveMacroTarget(mc.TargetGraphId, asset);
+        if (target is null)
+            return new[] { MakeExec("In", "In"), MakeExec("Out", "Out") };
+
+        // ⭐ BP-74 / Q26-A3: N exec-IN pins from the target's ExecInputs, replacing the single "In".
+        var pins = new List<Pin>();
+        if (target.ExecInputs.Count == 0)
+            pins.Add(MakeExec("In", "In"));
+        else
+            foreach (var execIn in target.ExecInputs)
+                pins.Add(MakeExec(execIn.Name, "In"));
+
+        if (target.ExecOutputs.Count == 0)
+            pins.Add(MakeExec("Out", "Out"));
+        else
+            foreach (var execOut in target.ExecOutputs)
+                pins.Add(MakeExec(execOut.Name, "Out"));
+
+        foreach (var inp in target.Inputs)
+        {
+            var typeId = string.IsNullOrEmpty(inp.Type?.TypeId) ? "System.Object" : inp.Type.TypeId;
+            pins.Add(MakeData(inp.Name, "In", typeId));
+        }
+        foreach (var output in target.Outputs)
+        {
+            var typeId = string.IsNullOrEmpty(output.Type?.TypeId) ? "System.Object" : output.Type.TypeId;
+            pins.Add(MakeData(output.Name, "Out", typeId));
+        }
+        return pins;
+    }
+
+    /// <summary>BP-80 — resolves a <c>TargetGraphId</c> to a <see cref="GraphKind.Macro"/> graph in the
+    /// same asset (Q25-C1: asset-local for now). Null when unset, unparseable, or not a macro.</summary>
+    internal static Graph? ResolveMacroTarget(string targetGraphId, BlueprintAsset? asset)
+    {
+        if (string.IsNullOrEmpty(targetGraphId) || asset is null) return null;
+        if (!Guid.TryParse(targetGraphId, out var targetGuid)) return null;
+        return asset.Graphs.FirstOrDefault(g => g.Id == targetGuid && g.Kind == GraphKind.Macro);
     }
 
     /// <summary>
@@ -397,9 +588,10 @@ internal static class NodePinSchema
             pins.Add(MakeData(inp.Name, "In", typeId));
         }
 
-        if (target.Outputs.Count > 0)
+        // BP-73: one data-Out per target output, in declaration order. Stage5's EmitCarrierFanOut
+        // pairs these positionally with the target's Graph.Outputs, so the order is load-bearing.
+        foreach (var output in target.Outputs)
         {
-            var output = target.Outputs[0];
             var typeId = string.IsNullOrEmpty(output.Type?.TypeId) ? "System.Object" : output.Type.TypeId;
             pins.Add(MakeData(output.Name, "Out", typeId));
         }
@@ -413,11 +605,19 @@ internal static class NodePinSchema
     /// Grounded in Stage5_Schedule.cs:695-703: <c>ResolveAllDataInputs(node, stmts)</c> maps
     /// all non-exec data-IN pins positionally to the raised event's parameters
     /// (<c>IrOp_RaiseCustomEvent(idx, inputVals)</c>).
-    /// The event is matched by <c>Guid.TryParse(EventId) &amp;&amp; events[i].Id == guid</c>
-    /// (Stage5_Schedule.cs:1157-1159 — primary key is <see cref="CustomEventDecl.Id"/>, with
-    /// a Name fallback at line 1160).
-    /// Graceful fallback to exec-only when: asset is null, EventId does not parse to a Guid,
-    /// no matching <see cref="CustomEventDecl"/> found, or the event has zero parameters.
+    /// The event is resolved in <b>either</b> accepted form — the declaration's
+    /// <see cref="CustomEventDecl.Id"/> (what the picker writes) or a bare
+    /// <see cref="CustomEventDecl.Name"/> — mirroring <c>Stage5_Schedule.FindCustomEventIndex</c>.
+    /// <para>
+    /// <b>BP-69: this used to bail on <c>!Guid.TryParse</c>.</b> A name-referenced call to an event
+    /// WITH parameters therefore showed exec-only pins in the editor and emitted
+    /// <c>Event_X(ref s, view, ecb, self, time)</c> — no arguments — against a handler that declares
+    /// some, i.e. <b>CS7036 with no BP diagnostic</b>. BP1408 does not catch it: it compares the
+    /// declaration's Parameters against the handler graph's Inputs, which agree; the mismatch is at
+    /// the call node's pins, a third list nothing compared.
+    /// </para>
+    /// Graceful fallback to exec-only when: asset is null, the EventId resolves to no
+    /// <see cref="CustomEventDecl"/>, or the event has zero parameters.
     /// </summary>
     private static IReadOnlyList<Pin> CallCustomEventPins(CallCustomEventNode cce, BlueprintAsset? asset)
     {
@@ -430,10 +630,7 @@ internal static class NodePinSchema
         if (asset == null)
             return execPins;
 
-        if (!Guid.TryParse(cce.EventId, out var eventGuid))
-            return execPins;
-
-        var decl = asset.CustomEvents.FirstOrDefault(e => e.Id == eventGuid);
+        var decl = ResolveCustomEventDecl(asset, cce.EventId);
         if (decl == null || decl.Parameters.Count == 0)
             return execPins;
 
@@ -445,6 +642,28 @@ internal static class NodePinSchema
             pins.Add(MakeData(param.Name, "In", typeId));
         }
         return pins;
+    }
+
+    /// <summary>
+    /// BP-69 — resolves a <see cref="CallCustomEventNode.EventId"/> in <b>either</b> accepted form.
+    /// Mirrors <c>Stage5_Schedule.FindCustomEventIndex</c>, the authority on the two forms: GUID
+    /// first, then an ordinal <see cref="CustomEventDecl.Name"/> match. Stage 2's
+    /// <c>V_ValueNodeReferences</c>/<c>V_CustomEventHandlers</c> and BP-12b's rename path honour
+    /// both, so a projection honouring only one is the odd one out — which is exactly how BP-69's
+    /// missing argument pins went unnoticed.
+    /// </summary>
+    private static CustomEventDecl? ResolveCustomEventDecl(BlueprintAsset asset, string eventId)
+    {
+        if (string.IsNullOrWhiteSpace(eventId)) return null;
+
+        if (Guid.TryParse(eventId, out var guid))
+        {
+            var byId = asset.CustomEvents.FirstOrDefault(e => e.Id == guid);
+            if (byId != null) return byId;
+        }
+
+        return asset.CustomEvents.FirstOrDefault(
+            e => string.Equals(e.Name, eventId, StringComparison.Ordinal));
     }
 
     /// <summary>
@@ -504,11 +723,26 @@ internal static class NodePinSchema
             pins.Add(MakeData(inp.Name, "In", typeId));
         }
 
-        // Data-OUT: Return pin typed from Outputs[0] (or System.Object when no outputs).
-        var returnTypeId = funcSig.Outputs.Count > 0 && !string.IsNullOrEmpty(funcSig.Outputs[0].TypeId)
-            ? funcSig.Outputs[0].TypeId
-            : "System.Object";
-        pins.Add(MakeData("Return", "Out", returnTypeId));
+        // BP-113: one data-OUT per peer function output, in declaration order — mirroring exactly
+        // what BP-73 did for the same-asset FunctionCall node (FunctionGraphCallPins above).
+        // Stage5 fans the ValueTuple carrier out POSITIONALLY, so the order is load-bearing.
+        //
+        // ⚠ This used to be a single `Return` pin typed from `Outputs[0]`, which made an N-output
+        // function usable locally and unreachable across an asset boundary — the entire purpose of a
+        // Function Library. BP-73 gave N outputs to the same-asset node and never touched this one.
+        if (funcSig.Outputs.Count == 0)
+        {
+            // No declared outputs: keep the historic `Return:System.Object` shape.
+            pins.Add(MakeData("Return", "Out", "System.Object"));
+        }
+        else
+        {
+            foreach (var outp in funcSig.Outputs)
+            {
+                var outTypeId = string.IsNullOrEmpty(outp.TypeId) ? "System.Object" : outp.TypeId;
+                pins.Add(MakeData(outp.Name, "Out", outTypeId));
+            }
+        }
 
         return pins;
     }
@@ -622,11 +856,30 @@ internal static class NodePinSchema
         return (0, false, false);
     }
 
-    private static IReadOnlyList<Pin> GetVariablePins(GetVariableNode gv, string typeId)
-        => new[]
-        {
-            MakeData("Value", "Out", typeId),
-        };
+    private static IReadOnlyList<Pin> GetVariablePins(GetVariableNode gv, BlueprintAsset? asset)
+    {
+        // FC-2/LV-2 (Q#19-A): a FIXED-LIST variable projects a COLLECTION out-pin (IsArray +
+        // element-typed) -- EXACT parity with Stage0's EnrichGetVariablePins list branch; scalar
+        // variables keep the plain "Value" pin.
+        var decl = FindVariableDecl(gv.VariableId, asset);
+        if (decl is { Type.Capacity: > 0 })
+            return new[] { MakeData("Value", "Out", decl.Type.TypeId, isArray: true) };
+        return new[] { MakeData("Value", "Out", ResolveVariableTypeId(gv.VariableId, asset)) };
+    }
+
+    /// <summary>FC-2/LV-2: the full VariableDecl behind a Get/SetVariable id ("var:"-prefix tolerated), from Variables or WorkingState; null when absent.</summary>
+    internal static VariableDecl? FindVariableDecl(string variableId, BlueprintAsset? asset)
+    {
+        if (asset is null) return null;
+        var vid = variableId ?? "";
+        if (vid.StartsWith("var:", StringComparison.Ordinal)) vid = vid.Substring(4);
+        if (!Guid.TryParse(vid, out var id)) return null;
+        // ⚠ U-11: Variables ∪ WorkingState only — NOT Declarations.ById(), which also searches
+        //   Parameters and would resolve a parameter id where this site never did.
+        // ⭐ Batch 86 — ONE state kind (R-01); the concat is gone, not rewritten.
+        return asset.Declarations.Of(DeclarationKind.Variable)
+                    .FirstOrDefault(d => d.Id == id)?.AsVariableDecl;
+    }
 
     /// <summary>
     /// GetParameter (editor projection): a single "Value" data-out pin typed from the referenced
@@ -679,11 +932,11 @@ internal static class NodePinSchema
     /// </summary>
     private static IReadOnlyList<Pin> GetAllParametersPins(BlueprintAsset? asset)
     {
-        if (asset is null || asset.Parameters.Count == 0)
+        if (asset is null || asset.Declarations.CountIn(DeclarationKind.Parameter) == 0)
             return Array.Empty<Pin>();
 
-        var pins = new List<Pin>(asset.Parameters.Count);
-        foreach (var p in asset.Parameters)
+        var pins = new List<Pin>(asset.Declarations.CountIn(DeclarationKind.Parameter));
+        foreach (var p in asset.Declarations.Of(DeclarationKind.Parameter))
         {
             var typeId = string.IsNullOrEmpty(p.Type?.TypeId) ? "System.Object" : p.Type.TypeId;
             pins.Add(MakeData(p.Name, "Out", typeId));
@@ -706,7 +959,7 @@ internal static class NodePinSchema
 
         if (Guid.TryParse(idStr, out var guid))
         {
-            var decl = asset.Parameters.FirstOrDefault(p => p.Id == guid);
+            var decl = asset.Declarations.Of(DeclarationKind.Parameter).FirstOrDefault(d => d.Id == guid);
             if (decl != null && !string.IsNullOrEmpty(decl.Type?.TypeId))
                 return decl.Type.TypeId;
         }
@@ -879,6 +1132,79 @@ internal static class NodePinSchema
             MakeData("Collection", "In",  "System.Object", isArray: true),
             MakeData("Count",      "Out", "System.Int32"),
         };
+    }
+
+    /// <summary>
+    /// CollectionWriteNode (FC-1, Q#20): exec node. EXACT parity with the compiler's
+    /// <c>Stage0_Rehydrate.EnrichCollectionWritePins</c>: exec In/Out + data-in "Collection"
+    /// (IsArray, element-typed from <see cref="CollectionWriteNode.ElementTypeFqn"/>, System.Object
+    /// fallback) + per-<see cref="CollectionWriteNode.Op"/> operand data-ins (Add: Value ·
+    /// SetAt/InsertAt: Index+Value · RemoveAt: Index · Clear: none · Resize: Length) + data-out
+    /// "Ok" (System.Boolean).
+    /// </summary>
+    private static IReadOnlyList<Pin> CollectionWritePins(CollectionWriteNode cwn)
+    {
+        var elemType = string.IsNullOrEmpty(cwn.ElementTypeFqn) ? "System.Object" : cwn.ElementTypeFqn;
+        var pins = new List<Pin>
+        {
+            MakeExec("In", "In"),
+            MakeExec("Out", "Out"),
+            MakeData("Collection", "In", elemType, isArray: true),
+        };
+        switch (cwn.Op)
+        {
+            case CollectionWriteOp.Add:
+                pins.Add(MakeData("Value", "In", elemType));
+                break;
+            case CollectionWriteOp.SetAt:
+            case CollectionWriteOp.InsertAt:
+                pins.Add(MakeData("Index", "In", "System.Int32"));
+                pins.Add(MakeData("Value", "In", elemType));
+                break;
+            case CollectionWriteOp.RemoveAt:
+                pins.Add(MakeData("Index", "In", "System.Int32"));
+                break;
+            case CollectionWriteOp.Clear:
+                break;
+            case CollectionWriteOp.Resize:
+                pins.Add(MakeData("Length", "In", "System.Int32"));
+                break;
+        }
+        pins.Add(MakeData("Ok", "Out", "System.Boolean"));
+        return pins;
+    }
+
+    /// <summary>
+    /// ListWriteNode (FC-2/LV-3): EXACT parity with the compiler's
+    /// <c>Stage0_Rehydrate.EnrichListWritePins</c> -- see that method's doc comment.
+    /// </summary>
+    private static IReadOnlyList<Pin> ListWritePins(ListWriteNode lwn, BlueprintAsset? asset)
+    {
+        var decl = FindVariableDecl(lwn.VariableId, asset);
+        var elemType = decl is { Type.Capacity: > 0 } ? decl.Type.TypeId : "System.Object";
+        var pins = new List<Pin> { MakeExec("In", "In"), MakeExec("Out", "Out") };
+        switch (lwn.Op)
+        {
+            case CollectionWriteOp.Add:
+                pins.Add(MakeData("Value", "In", elemType));
+                break;
+            case CollectionWriteOp.SetAt:
+            case CollectionWriteOp.InsertAt:
+                pins.Add(MakeData("Index", "In", "System.Int32"));
+                pins.Add(MakeData("Value", "In", elemType));
+                break;
+            case CollectionWriteOp.RemoveAt:
+                pins.Add(MakeData("Index", "In", "System.Int32"));
+                break;
+            case CollectionWriteOp.Clear:
+                break;
+            case CollectionWriteOp.Resize:
+                pins.Add(MakeData("Length", "In", "System.Int32"));
+                break;
+        }
+        if (lwn.Op != CollectionWriteOp.Clear)
+            pins.Add(MakeData("Ok", "Out", "System.Boolean"));
+        return pins;
     }
 
     /// <summary>

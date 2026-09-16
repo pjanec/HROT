@@ -141,6 +141,15 @@ namespace Hrot.SimHost.Tests
             int frame50EntityCount = _world.EntityCount;
             var frame50Positions   = ReadSimTransformPositions(_world);
 
+            // ⭐⭐ QA-012 — state the precondition the whole branch hangs on.
+            // 📐 ReferenceReplayLoadHandler.CanHandle/PrepareAsync accept PrepareLive ONLY while
+            //    `_controller.IsReplayActive`; otherwise the branch is skipped SILENTLY — no
+            //    PrepareRecordingAsync, no file — and the failure surfaces 40 lines later as
+            //    "Branched recording file not found", which says nothing about why.
+            Assert.True(controller.IsReplayActive,
+                "the replay is not active, so the PrepareLive branch below will be skipped silently and "
+                + "the 'branched recording file not found' assertion at the end will fire for the wrong reason");
+
             // ══ Phase 3: execute the Live-from-Replay branch ═════════════════════════
             var simGroup       = new TogglableSimulationGroup("test");
             var entityMap      = new NetworkEntityMap();

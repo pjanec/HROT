@@ -684,7 +684,7 @@ namespace Fdp.Core.FlightRecorder
             var attr = (Fdp.Core.DataPolicyAttribute?)Attribute.GetCustomAttribute(eventType, typeof(Fdp.Core.DataPolicyAttribute));
 
             shouldRecord = true;
-            if (attr != null && attr.Policy.HasFlag(Fdp.Core.DataPolicy.NoRecord))
+            if (attr != null && attr.Policy.HasFlag(Fdp.Core.DataPolicy.NoReplay))
             {
                 shouldRecord = false;
             }
@@ -814,7 +814,7 @@ namespace Fdp.Core.FlightRecorder
              var attr = System.Reflection.CustomAttributeExtensions.GetCustomAttribute<DataPolicyAttribute>(type);
              if (attr != null)
              {
-                 return !attr.Policy.HasFlag(DataPolicy.NoRecord);
+                 return !attr.Policy.HasFlag(DataPolicy.NoReplay);
              }
              return true;
         }

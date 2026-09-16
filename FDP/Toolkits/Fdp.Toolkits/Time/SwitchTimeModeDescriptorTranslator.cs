@@ -52,6 +52,13 @@ namespace Fdp.Toolkit.Time
         public TranslatorDirection Direction => TranslatorDirection.Bidirectional;
 
         /// <summary>
+        /// ⭐⭐⭐ <b>CONTROL PLANE</b> (<c>DQ30-C</c>) — the mode switch that carries a debugger's own RESUME.
+        /// ⛔⛔ Letting this stop with the simulation is <c>DQ30-A</c>'s deadlock: the node would
+        /// freeze and never hear the command that un-freezes it.
+        /// </summary>
+        public TranslatorClass Category => TranslatorClass.ControlPlane;
+
+        /// <summary>
         /// Creates the translator.
         /// </summary>
         /// <param name="participant">

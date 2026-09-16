@@ -25,7 +25,9 @@ namespace Fdp.Core
             PublishUnmanagedEvent = 8,
             PublishManagedEvent = 9,
             SetLifecycleState = 10,
-            AddEmptyComponentUnmanaged = 11
+            AddEmptyComponentUnmanaged = 11,
+            // Ruling 14 — a surgical field write: Entity + TypeID + ByteOffset + Size + Data.
+            SetUnmanagedComponentField = 12
         }
         
         // Simple byte buffer for command stream
@@ -243,6 +245,37 @@ namespace Fdp.Core
             _position += size;
         }
 
+        /// <summary>
+        /// Ruling 14 — records a SURGICAL field write: `size` bytes at `byteOffset` inside an
+        /// existing component, and nothing else.
+        ///
+        /// ⚠ The bound is re-checked at playback against the real component size (ComponentTable
+        /// .SetRawAt): this buffer knows the byte count but not the component's layout, so a check
+        /// here alone would be a check against the caller's own arithmetic.
+        /// </summary>
+        public void SetComponentFieldRaw(Entity entity, int typeId, int byteOffset, void* ptr, int size)
+        {
+            if (size > MaxComponentSize)
+                throw new ArgumentException($"Field size {size} exceeds maximum {MaxComponentSize}");
+            if (byteOffset < 0 || size < 0)
+                throw new ArgumentOutOfRangeException(nameof(byteOffset),
+                    $"Field write [{byteOffset}, {byteOffset + size}) is not a valid range.");
+
+            EnsureCapacity(1 + 8 + 4 + 4 + 4 + size); // OpCode + Entity + TypeID + Offset + Size + Data
+
+            _buffer[_position++] = (byte)OpCode.SetUnmanagedComponentField;
+            WriteEntity(entity);
+            WriteInt(typeId);
+            WriteInt(byteOffset);
+            WriteInt(size);
+
+            fixed (byte* dest = &_buffer[_position])
+            {
+                Unsafe.CopyBlock(dest, ptr, (uint)size);
+            }
+            _position += size;
+        }
+
         public void SetManagedComponentRaw(Entity entity, int typeId, object obj)
         {
             int objectIndex = _managedObjects.Count;
@@ -390,6 +423,25 @@ namespace Fdp.Core
                         break;
                     }
                     
+                    case OpCode.SetUnmanagedComponentField:
+                    {
+                        Entity entity   = ReadEntity(ref readPos, entityRemap);
+                        int typeId      = ReadInt(ref readPos);
+                        int byteOffset  = ReadInt(ref readPos);
+                        int size        = ReadInt(ref readPos);
+
+                        if (repo.IsAlive(entity))
+                        {
+                            fixed (byte* dataPtr = &_buffer[readPos])
+                            {
+                                repo.SetComponentFieldRaw(entity, typeId, byteOffset, (IntPtr)dataPtr, size);
+                            }
+                        }
+
+                        readPos += size;
+                        break;
+                    }
+
                     case OpCode.RemoveUnmanagedComponent:
                     {
                         Entity entity = ReadEntity(ref readPos, entityRemap);

@@ -96,7 +96,17 @@ public sealed class DistributedScenarioLoadTests : IDisposable
         {
             RequestId     = Guid.NewGuid(),
             OperationType = ClusterOpType.TransitionState,
-            PayloadJson   = JsonSerializer.Serialize(new { TargetState = 31, ScenarioId = _scenarioId }),
+            // ⭐⭐ QA-027 — the enum NAME, not its integer. TransitionPayloadDto's TargetState carries
+            //    [JsonConverter(typeof(StrictStringEnumConverter))] and OrchestrationJsonOptions
+            //    documents itself as rejecting integer enum values "to avoid silent integer-as-enum
+            //    bugs". An int here deserialised to null ⇒ the adapter threw ⇒ ClusterMaster caught it
+            //    into a Warn log ⇒ the cluster silently stayed at state 0.
+            PayloadJson   = JsonSerializer.Serialize(
+                new
+                {
+                    TargetState = nameof(Hrot.NED.Descriptors.Orchestration.ClusterState.OperatingLive),
+                    ScenarioId  = _scenarioId,
+                }),
         }).ConfigureAwait(false);
 
         // Pump until the cluster master reaches OperatingLive (state 31).

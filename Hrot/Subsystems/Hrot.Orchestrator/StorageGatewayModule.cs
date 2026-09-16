@@ -300,7 +300,61 @@ public sealed class StorageGatewayModule
             });
         }).ConfigureAwait(false);
 
+        // ⭐⭐⭐ CE-280 — route the format-incompatible foreign slices back to THEIR origin nodes only.
+        //   A distributed save keeps each foreign slice under <name>/foreign/node_<id>.json (§4c). On load
+        //   each such slice belongs to exactly ONE node (the id in its filename), so unlike the top-level
+        //   scenario.json (which every node stages) it is delivered only to the target whose NodeId matches.
+        //   That node's own load handler (e.g. ExConScenarioLoadHandler) reads it from <staging>/foreign/.
+        //   Defensive: no foreign/ dir ⇒ nothing routed; a slice with no matching active target is skipped.
+        var foreignDir = Path.Combine(sourceDir, "foreign");
+        if (Directory.Exists(foreignDir))
+        {
+            foreach (var foreignFile in Directory.GetFiles(foreignDir, "node_*.json"))
+            {
+                if (!TryParseForeignNodeId(Path.GetFileName(foreignFile), out var originNodeId))
+                    continue;
+                foreach (var tgt in distinctTargets)
+                {
+                    if (tgt.NodeId != originNodeId) continue;
+                    try
+                    {
+                        var destPath = Path.Combine(tgt.DestinationPath, "foreign", Path.GetFileName(foreignFile));
+                        if (string.Equals(foreignFile, destPath, PlatformPathComparison))
+                        {
+                            Interlocked.Increment(ref success);
+                            continue;
+                        }
+                        var destDir = Path.GetDirectoryName(destPath);
+                        if (!string.IsNullOrEmpty(destDir))
+                            Directory.CreateDirectory(destDir);
+                        File.Copy(foreignFile, destPath, overwrite: true);
+                        Interlocked.Increment(ref success);
+                    }
+                    catch (Exception ex)
+                    {
+                        FdpLog<StorageGatewayModule>.Error(
+                            "[Gateway] PrefetchScenario: failed to route foreign '{0}' → node {1}: {2}",
+                            Path.GetFileName(foreignFile), originNodeId, ex.Message);
+                        Interlocked.Increment(ref failure);
+                    }
+                }
+            }
+        }
+
         return new GatewayResult { SuccessCount = success, FailureCount = failure };
+    }
+
+    /// <summary>
+    /// Parses the origin node id from a foreign slice filename of the form <c>node_&lt;id&gt;.json</c>.
+    /// </summary>
+    internal static bool TryParseForeignNodeId(string fileName, out int nodeId)
+    {
+        nodeId = 0;
+        if (string.IsNullOrEmpty(fileName)) return false;
+        var stem = Path.GetFileNameWithoutExtension(fileName);   // node_<id>
+        const string prefix = "node_";
+        if (!stem.StartsWith(prefix, StringComparison.Ordinal)) return false;
+        return int.TryParse(stem.AsSpan(prefix.Length), out nodeId);
     }
 
     /// <summary>
@@ -491,28 +545,8 @@ public sealed class StorageGatewayModule
         return result;
     }
 
-    /// <summary>
-    /// Writes a <c>scenario_manifest.json</c> file to
-    /// <c>&lt;nasBasePath&gt;\scenario_manifest.json</c> listing the
-    /// <see cref="FileManifestEntry.RelativeDest"/> of every entry in
-    /// <paramref name="manifests"/>.
-    /// </summary>
-    public async Task WriteScenarioManifestAsync(
-        IReadOnlyList<FileManifestEntry> manifests,
-        string nasBasePath)
-    {
-        if (manifests == null)                      throw new ArgumentNullException(nameof(manifests));
-        if (string.IsNullOrWhiteSpace(nasBasePath)) throw new ArgumentNullException(nameof(nasBasePath));
-
-        var names = manifests.Select(m => m.RelativeDest).ToArray();
-        var json  = System.Text.Json.JsonSerializer.Serialize(
-            new { files = names },
-            new System.Text.Json.JsonSerializerOptions { WriteIndented = true });
-
-        var manifestPath = Path.Combine(nasBasePath, "scenario_manifest.json");
-        Directory.CreateDirectory(nasBasePath);
-        await File.WriteAllTextAsync(manifestPath, json).ConfigureAwait(false);
-    }
+    // CE-278: WriteScenarioManifestAsync (scenario_manifest.json) retired — it was written only by the
+    // SaveScenario=2 pull path and had zero readers (in-repo or external NAS tools, confirmed).
 
     // ── TkbName consensus helpers ──────────────────────────────────────────────
 

@@ -273,6 +273,15 @@ internal static class HsmAssetProjector
                     asset.SetUnusedWarningSuppressed(sup, true);
                 }
             }
+
+            // ⭐ W7b (§9.4) -- per-VARIABLE "allow concurrent writes".
+            if (layout.ConcurrentWritesAllowed != null)
+            {
+                foreach (var sup in layout.ConcurrentWritesAllowed)
+                {
+                    asset.SetConcurrentWritesAllowed(sup, true);
+                }
+            }
         }
 
         // Run auto-layout if no layout was provided

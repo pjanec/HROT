@@ -59,6 +59,9 @@ namespace Fdp.Toolkit.Diagnostics.Gizmos
         /// </summary>
         public void AppendRaw(in DebugPrimitive primitive)
         {
+            // ⭐ §6.8 — the identity invariant, on the ECS-FREE twin too. See
+            //   DebugPrimitive.AssertHasIdentity for why it lives on the primitive and not in a buffer.
+            DebugPrimitive.AssertHasIdentity(in primitive);
             int slot = Interlocked.Increment(ref _count) - 1;
             if ((uint)slot < (uint)_primitives.Length)
                 _primitives[slot] = primitive;
@@ -199,9 +202,9 @@ namespace Fdp.Toolkit.Diagnostics.Gizmos
             // ThicknessU16 repurposed for Text: carries desired screen-pixel font size (not * 10).
             if (fontSizePx > 0f)
                 p.ThicknessU16 = (ushort)fontSizePx;
-            // AnchorGeneration carries the screen-pixel line offset for Text primitives (signed).
+            // Offset 12 carries the screen-pixel line offset for Text primitives (S6, signed).
             if (lineOffsetPx != 0f)
-                p.AnchorGeneration = unchecked((ushort)(short)lineOffsetPx);
+                p.LineOffsetPx = (short)lineOffsetPx;
             Append(p);
         }
 
@@ -226,6 +229,7 @@ namespace Fdp.Toolkit.Diagnostics.Gizmos
 
         internal void Append(DebugPrimitive p)
         {
+            DebugPrimitive.AssertHasIdentity(in p);   // ⭐ §6.8
             int slot = Interlocked.Increment(ref _count) - 1;
             if ((uint)slot < (uint)_primitives.Length)
                 _primitives[slot] = p;

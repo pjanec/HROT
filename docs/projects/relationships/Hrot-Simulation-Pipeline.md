@@ -1,3 +1,20 @@
+<!--STATUS
+state: LIVE, WITH KNOWN ROT
+updated: 2026-09-13
+current-answer: §1–§3 (topology, the Brain/Muscle split, DDS topic grouping) are still a good
+  orientation. ⛔ §4.3 IS NOT — see known-rot.
+known-rot: 🔴 §4.3 "Entity spawning flow" DESCRIBES A PIPELINE THAT NO LONGER EXISTS, and it reads as
+  current because it is the only end-to-end narrative in the repo. Measured 2026-09-13: this FILE
+  contains ZERO occurrences of "promote"/"promotion", so the GhostPromotionSystem stage — the gate a
+  ghost must pass before it becomes Constructing — is absent from the chain entirely. It also still
+  shows CGF as the `isDefaultProcessor` creator (every ECS node may create entities now, Q65 §4), has
+  no EntityCreationPack (adopted on all six hosts by 2026-09-03), and no role-affinity ownership
+  (P3, live on CGF and SimHost since 2026-09-13).
+  ⇒ ⭐⭐⭐ FOR THE GENESIS PATH READ ../../DESIGN_Entity_Genesis_End_To_End.md INSTEAD. It supersedes
+  §4.3 and routes each stage to its owning design.
+  ⚠ §4.3 is kept rather than rewritten: it is an accurate picture of the 2026-05 pipeline and several
+  batch reports cite it. Do not quote it as current.
+-->
 # Hrot Simulation Pipeline - IOS/IG/SimHost Architecture
 
 **Date:** 2026-05-23
@@ -40,7 +57,7 @@ shared DDS space and renders the world without participating in simulation logic
 |------|---------|-----------|-----------------|
 | Orchestrator | `Hrot.Orchestrator` | -- | Cluster state machine, 2PC, asset I/O |
 | SimHost | `Hrot.SimHost` | `MuscleGround \| Perception` | Ground kinematics, physics, combat, LOS |
-| CGF | `Hrot.CGF` | `Brain` | AI behaviour trees, mission control, entity spawning authority |
+| CGF | `Hrot.CGF` | `Brain` | AI behaviour trees, mission control, broadcast arbiter for *unowned* create requests |
 | IG | `Hrot.IG` | `ImageGenerator` | 2-D / 3-D rendering, ghost replication, map interaction |
 | ExCon | `Hrot.ExCon` | observer | Operator UI, scenario control, time control |
 
@@ -141,13 +158,25 @@ This is the same Anti-Corruption Layer (ACL) pattern described in
 - **Mission planning** -- `MissionPlan`, `MissionTask`, `CMD_REPLACE_MISSION`, etc.
 - **TacticalIntent dispatch** -- commander entities broadcast `TacticalIntentRequest`
   to subordinates, resolved by `TacticalIntentResolutionSystem`
-- **Entity spawn authority** -- `CreateEntityRequestSystem` is the _default processor_
-  (`isDefaultProcessor = true`). It allocates network IDs and sends
-  `SpawnEntityCommand` events. Muscle nodes set `isDefaultProcessor = false`.
+- **Broadcast arbitration for _unowned_ create requests** -- `CreateEntityRequestSystem` runs here
+  as the _default processor_ (`isDefaultProcessor = true`), so a request with
+  `OwnerAppInstanceId == 0` is serviced exactly once instead of by every node.
+  Other nodes set `isDefaultProcessor = false`.
+  **This is a tiebreaker, not spawn authority** -- any ECS node processes a request
+  targeted at itself (`OwnerAppInstanceId == localNodeId`) unconditionally, and network IDs
+  come from the distributed `DdsIdAllocatorServer`, not from CGF. See
+  [`RULINGS.md` `R-138`](../../blueprints/RULINGS.md).
 - **Cognitive ECS components** -- `BehaviorState`, `BrainBTreeState`,
   `BrainBlackboard`, `MissionPlan`
 
 ### What the Muscle (SimHost) owns
+
+> **"Owns" here means the CONVENTIONAL default for entities CGF spawned, not a fixed property of
+> SimHost.** Ownership is held **per component** (`AuthorityMask` + `DescriptorOwnership`) and is
+> **transferable at runtime** over the `OwnershipUpdate` topic. SimHost holds `SimTransform` for
+> CGF-spawned entities because CGF's `BrainMuscleOwnershipStrategy` *delegates* kinematics to it
+> (`DeferredTakeOwnership` → `DeferredTakeoverSystem`). A node that originates its own entity keeps
+> what it creates and delegates nothing. See [`RULINGS.md` `R-138`](../../blueprints/RULINGS.md).
 
 - **Ground kinematics** -- CarKinem-backed vehicle physics, trajectory following
 - **Navigation execution** -- receives `NavigationIntent` from CGF, writes back
@@ -341,6 +370,11 @@ On CGF the equivalent tick drives the AI pipeline:
 ```
 
 ### 4.3 Entity spawning flow
+
+> 🔴🔴 **SUPERSEDED — this is the `2026-05` pipeline.** ⛔ It has **no promotion stage**, shows CGF as the
+> sole `isDefaultProcessor` creator, and predates `EntityCreationPack` and role-affinity ownership.
+> ⭐⭐⭐ **The current path is [`DESIGN_Entity_Genesis_End_To_End.md`](../../DESIGN_Entity_Genesis_End_To_End.md)**,
+> which draws it end to end and names the owning design for each stage. ⚠ Kept below as history.
 
 Full chain from ExCon click to entity live in SimHost and IG:
 
@@ -1028,7 +1062,6 @@ configured `--log-dir`. Log entries include the node ID in scope context:
 | Full distributed | `orchestrator,excon` + `simhost` + `cgf` + `ig` | Production cluster |
 | Replay browser | `replaybrowser` | Offline replay analysis without live DDS |
 | Scenario editor | `editor` | Scenario authoring without simulation |
-| StrideMock | `stridemock` | 3-D visualization stub |
 
 ---
 

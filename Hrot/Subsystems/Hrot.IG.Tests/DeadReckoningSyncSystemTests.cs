@@ -20,6 +20,27 @@ namespace Hrot.IG.Tests
             return repo;
         }
 
+        /// <summary>
+        /// Puts the world's simulation clock at <paramref name="totalTimeSeconds"/>.
+        ///
+        /// <para>
+        /// Dead reckoning ages a sample as <c>simNow - NetworkTransform.SimStamp</c> (CE-211), so a
+        /// rail that wants to observe any extrapolation has to say how far the clock has moved since
+        /// the sample was stamped. Before CE-211 the system used the frame delta as a stand-in for
+        /// that age, which is why these rails never needed a clock — and also why two nodes at
+        /// different frame rates disagreed.
+        /// </para>
+        /// </summary>
+        private static void AdvanceSimClockTo(EntityRepository repo, double totalTimeSeconds)
+        {
+            repo.SetSingletonUnmanaged(new GlobalTime
+            {
+                TotalTime = totalTimeSeconds,
+                DeltaTime = 1f / 60f,
+                TimeScale = 1f,
+            });
+        }
+
         private static void PlaybackCommands(EntityRepository repo)
         {
             var view = (ISimulationView)repo;
@@ -27,24 +48,68 @@ namespace Hrot.IG.Tests
                 ecb.Playback(repo);
         }
 
+        /// <summary>
+        /// CE-211 rule R2 — the anchor must NOT move between samples.
+        ///
+        /// <para>
+        /// This assertion is the inverse of the one it replaces. The old rail asserted that after
+        /// one <c>Execute</c> the <c>NetworkTransform</c> had advanced to 0.5 — i.e. it pinned the
+        /// accumulator write as correct behaviour. That write is what made the extrapolation
+        /// frame-rate dependent: each frame projected from the previous frame's guess rather than
+        /// from the received sample, so a node at 120 fps drifted away from one at 30 fps and
+        /// neither matched the publisher. Only ingress may write this component now, so the rail
+        /// asserts it is untouched.
+        /// </para>
+        /// </summary>
         [Fact]
-        public void Execute_GhostEntity_ProjectsNetworkPosition()
+        public void Execute_DoesNotAdvanceTheNetworkTransformAnchor()
         {
             using var repo = CreateRepo();
             var entity = repo.CreateEntity();
             repo.AddComponent(entity, new SimTransform { Position = Vector3.Zero, Rotation = Quaternion.Identity });
-            repo.AddComponent(entity, new NetworkTransform { LastPosition = Vector3.Zero });
+            repo.AddComponent(entity, new NetworkTransform { LastPosition = Vector3.Zero, SimStamp = 0.0 });
             repo.AddComponent(entity, new NetworkVelocity { Value = new Vector3(0f, 5f, 0f) });
             repo.AddComponent(entity, new NetworkAuthority(primaryOwnerId: 2, localNodeId: 1));
+
+            // A full second of sim time since the sample — plenty of age to project through.
+            AdvanceSimClockTo(repo, 1.0);
 
             var system = new DeadReckoningSyncSystem();
             system.Execute(repo, 0.1f);
             PlaybackCommands(repo);
+            system.Execute(repo, 0.1f);
+            PlaybackCommands(repo);
 
             var netTf = repo.GetComponent<NetworkTransform>(entity);
-            Assert.Equal(0f, netTf.LastPosition.X, 3);
-            Assert.Equal(0.5f, netTf.LastPosition.Y, 3);
-            Assert.Equal(0f, netTf.LastPosition.Z, 3);
+            Assert.Equal(Vector3.Zero, netTf.LastPosition);
+            Assert.Equal(0.0, netTf.SimStamp);
+        }
+
+        /// <summary>
+        /// CE-211 rules R3+R4 — the target is <c>LastPosition + Vel * (simNow - SimStamp)</c>, so the
+        /// projection depends on the sample's AGE and not on how many frames have been rendered.
+        /// </summary>
+        [Fact]
+        public void Execute_ProjectsBySampleAge_NotByFrameCount()
+        {
+            using var repo = CreateRepo();
+            var entity = repo.CreateEntity();
+            repo.AddComponent(entity, new SimTransform { Position = Vector3.Zero, Rotation = Quaternion.Identity });
+            repo.AddComponent(entity, new NetworkTransform { LastPosition = Vector3.Zero, SimStamp = 1.0 });
+            repo.AddComponent(entity, new NetworkVelocity { Value = new Vector3(0f, 10f, 0f) });
+            repo.AddComponent(entity, new NetworkAuthority(primaryOwnerId: 2, localNodeId: 1));
+
+            // 0.5 s of age => the target is 5 m north of the sample, whatever the frame rate.
+            AdvanceSimClockTo(repo, 1.5);
+
+            // A full blend (deltaTime * SmoothingRate == 1) lands SimTransform exactly on the target,
+            // which lets the rail assert the projection itself rather than a point along the way.
+            var system = new DeadReckoningSyncSystem(driveFromNetwork: true, smoothingRate: 10f);
+            system.Execute(repo, 0.1f);
+            PlaybackCommands(repo);
+
+            var tf = repo.GetComponent<SimTransform>(entity);
+            Assert.Equal(5f, tf.Position.Y, 3);
         }
 
         [Fact]
@@ -107,6 +172,9 @@ namespace Hrot.IG.Tests
             repo.AddComponent(entityB, new NetworkVelocity { Value = new Vector3(2f, 0f, 0f) });
             repo.AddComponent(entityB, new NetworkAuthority(primaryOwnerId: 88, localNodeId: 1));  // no authority
 
+            // Both samples are 0.5 s old, so both have a target to move toward (CE-211 R3).
+            AdvanceSimClockTo(repo, 0.5);
+
             var system = new DeadReckoningSyncSystem(driveFromNetwork: true);
             system.Execute(repo, 0.1f);
             PlaybackCommands(repo);
@@ -141,6 +209,9 @@ namespace Hrot.IG.Tests
             repo.AddComponent(ghostEntity, new NetworkVelocity { Value = new Vector3(2f, 0f, 0f) });
             repo.AddComponent(ghostEntity, new NetworkAuthority(primaryOwnerId: 88, localNodeId: 1));  // no authority
             repo.SetLifecycleState(ghostEntity, EntityLifecycle.Ghost);
+
+            // Both samples are 0.5 s old; the lifecycle filter — not the age — is what this rail tests.
+            AdvanceSimClockTo(repo, 0.5);
 
             var system = new DeadReckoningSyncSystem(driveFromNetwork: false);
             system.Execute(repo, 0.1f);

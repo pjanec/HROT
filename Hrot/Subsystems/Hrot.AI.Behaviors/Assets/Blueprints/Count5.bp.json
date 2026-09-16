@@ -1,7 +1,7 @@
 {
   "$meta": {
     "docType": "Hrot.Blueprints",
-    "schemaVersion": 1
+    "schemaVersion": 2
   },
   "Header": {},
   "AssetId": "94afb2a9-543a-4f4a-bbe3-593a833824e0",
@@ -10,12 +10,9 @@
   "TierHint": "Auto",
   "IsWorldSingleton": false,
   "Primitive": null,
-  "Parameters": [],
-  "ParameterOrder": null,
-  "WorkingState": [],
-  "WorkingStateOrder": null,
-  "Variables": [
+  "Declarations": [
     {
+      "Kind": "Variable",
       "Id": "a0000006-0000-0000-0000-000000000001",
       "Name": "Count",
       "Type": {
@@ -31,6 +28,8 @@
       "Comment": null
     }
   ],
+  "ParameterOrder": null,
+  "WorkingStateOrder": null,
   "VariableOrder": null,
   "EventDispatchers": [],
   "CustomEvents": [],
@@ -42,6 +41,8 @@
       "Kind": "Function",
       "Inputs": [],
       "Outputs": [],
+      "ExecOutputs": [],
+      "ExecInputs": [],
       "Nodes": [
         {
           "kind": "EventEntry",
@@ -71,6 +72,7 @@
           "MethodName": "AddInt",
           "IsPure": true,
           "TargetGraphId": "",
+          "TrailingContext": "Unspecified",
           "Id": "20000006-0000-0000-0000-000000000003",
           "Pins": [],
           "EditorMetadata": {
@@ -155,6 +157,7 @@
           "MethodName": "AddInt",
           "IsPure": true,
           "TargetGraphId": "",
+          "TrailingContext": "Unspecified",
           "Id": "4402a7db-5df8-479f-ab09-8ed6e90ae9ad",
           "Pins": [],
           "EditorMetadata": {
@@ -259,6 +262,8 @@
           "ToPinId": "4d3d381f-2682-4a68-b125-eab5b8f7a2da"
         }
       ],
+      "LocalVariables": [],
+      "Comments": [],
       "EditorMetadata": {
         "ViewportX": 0,
         "ViewportY": 0,

@@ -64,6 +64,16 @@ namespace Fdp.Toolkit.Behavior.Systems
     public class MissionDirectorSystem : IEcsModuleSystem
     {
         /// <summary>
+        /// ⭐⭐⭐ <c>P3</c> step <c>3b</c> — the EXECUTION gate; see
+        /// <c>docs/DESIGN_Role_Affinity_Ownership.md</c> §3.5. ⚠ Defaults to <c>false</c>: a promoted
+        /// ghost owns nothing until a policy or grant says otherwise, so enabling it before the node has
+        /// a policy would stop it processing every entity it did not create.
+        /// </summary>
+        private readonly bool _gateOnAuthority;
+
+        public MissionDirectorSystem(bool gateOnAuthority = false) => _gateOnAuthority = gateOnAuthority;
+
+        /// <summary>
         /// Entities for which a <see cref="BehaviorFinishedEvent"/> arrived this frame,
         /// built once per <see cref="OnUpdate"/> call to allow O(1) per-entity lookup.
         /// </summary>
@@ -88,9 +98,12 @@ namespace Fdp.Toolkit.Behavior.Systems
                 _behaviorFinishedThisFrame.Add(finishedEvt.Entity.Index);
             }
 
+            // ⭐ P3 step 3b — advances mission phases (GetComponentRW<MissionPlanQueue>), which is
+            //   Brain work: two nodes advancing one mission would double-step it. Gated on
+            //   BehaviorState, which this query already required.
             var query = repo.Query()
                 .With<MissionPlanQueue>()
-                .With<BehaviorState>()
+                .WithOwnedWhen<BehaviorState>(_gateOnAuthority)
                 .Build();
 
             foreach (var entity in query)

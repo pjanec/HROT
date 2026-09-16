@@ -27,7 +27,8 @@ public class MapCommandControllerTests
         CapturingAckCallback     ackCapture,
         GlobalGizmoManager       manager,
         EntityRepository         repo,
-        MapCommandController     controller)
+        MapCommandController     controller,
+        ScenarioEntityCreationRequestSource requests)
     BuildController()
     {
         var canvas     = new MapCanvas();
@@ -39,8 +40,9 @@ public class MapCommandControllerTests
         repo.RegisterEvent<GizmoDragUpdateEvent>();
         repo.RegisterEvent<GizmoMouseEvent>();
         repo.RegisterEvent<GizmoKeyEvent>();
-        var ctrl       = new MapCommandController(canvas, bus, ackCapture.Callback, globalGizmoManager: manager);
-        return (canvas, bus, ackCapture, manager, repo, ctrl);
+        var requests   = new ScenarioEntityCreationRequestSource();
+        var ctrl       = new MapCommandController(canvas, bus, ackCapture.Callback, requests, globalGizmoManager: manager);
+        return (canvas, bus, ackCapture, manager, repo, ctrl, requests);
     }
 
     // Publishes a left-mouse-released event and drives a single Execute tick,
@@ -70,16 +72,21 @@ public class MapCommandControllerTests
         manager.Execute(repo, 0f);
     }
 
-    private static IReadOnlyList<SpawnEntityCommand> DrainSpawnCmds(FdpEventBus bus)
+    /// ⭐ RE-HOMED (host (f), 2026-09-02): the controller posts an INTENT onto the shared request seam
+    /// instead of publishing a node-local SpawnEntityCommand ORDER onto the bus. The claims below are
+    /// unchanged — "one gesture produces exactly one creation" — only their observation point moved.
+    /// 📄 docs/DESIGN_Entity_Creation_Unification.md §3.4b.
+    private static IReadOnlyList<EntityCreationRequest> DrainRequests(ScenarioEntityCreationRequestSource requests)
     {
-        bus.SwapBuffers();
-        return bus.ReadManaged<SpawnEntityCommand>();
+        var drained = new List<EntityCreationRequest>();
+        requests.ProcessRequests(drained.Add);
+        return drained;
     }
 
     [Fact]
     public void ActivatePlacementCommand_RegistersGizmoWithManager()
     {
-        var (_, _, _, manager, _, ctrl) = BuildController();
+        var (_, _, _, manager, _, ctrl, requests) = BuildController();
         ctrl.ActivatePlacementCommand(Guid.NewGuid(), Guid.NewGuid(), 202L, null);
         Assert.Equal(1, manager.ActiveCount);
     }
@@ -87,7 +94,7 @@ public class MapCommandControllerTests
     [Fact]
     public void ActivatePlacementCommand_SameContext_IsNoop()
     {
-        var (_, _, ackCapture, manager, _, ctrl) = BuildController();
+        var (_, _, ackCapture, manager, _, ctrl, requests) = BuildController();
         var contextId = Guid.NewGuid();
         ctrl.ActivatePlacementCommand(Guid.NewGuid(), contextId, 202L, null);
         Assert.Equal(1, manager.ActiveCount);
@@ -99,20 +106,20 @@ public class MapCommandControllerTests
     [Fact]
     public void ActivatePlacementCommand_LeftClick_PublishesSpawnCommandOnBus()
     {
-        var (_, bus, _, manager, repo, ctrl) = BuildController();
+        var (_, bus, _, manager, repo, ctrl, requests) = BuildController();
         ctrl.ActivatePlacementCommand(Guid.NewGuid(), Guid.NewGuid(), 202L, null);
         SimulateLeftClick(manager, repo);
-        Assert.Single(DrainSpawnCmds(bus));
+        Assert.Single(DrainRequests(requests));
     }
 
     [Fact]
     public void OnCreateEntityAck_AfterToolAutoPop_PublishesFinishedAck()
     {
-        var (_, bus, ackCapture, manager, repo, ctrl) = BuildController();
+        var (_, bus, ackCapture, manager, repo, ctrl, requests) = BuildController();
         var requestId = Guid.NewGuid();
         ctrl.ActivatePlacementCommand(requestId, Guid.NewGuid(), 202L, null);
         SimulateLeftClick(manager, repo);
-        var entityReqId = DrainSpawnCmds(bus)[0].RequestId;
+        var entityReqId = DrainRequests(requests)[0].RequestId;
         ctrl.OnCreateEntityAck(new EntityLifecycleAckDto { RequestId = entityReqId, EntityId = 99, StatusCode = 0 });
         Assert.Single(ackCapture.Written);
         Assert.Equal(requestId, ackCapture.Written[0].RequestId);
@@ -122,7 +129,7 @@ public class MapCommandControllerTests
     [Fact]
     public void OnCreateEntityAck_UnknownRequestId_IsIgnored()
     {
-        var (_, bus, ackCapture, manager, repo, ctrl) = BuildController();
+        var (_, bus, ackCapture, manager, repo, ctrl, requests) = BuildController();
         ctrl.ActivatePlacementCommand(Guid.NewGuid(), Guid.NewGuid(), 202L, null);
         SimulateLeftClick(manager, repo);
         bus.SwapBuffers();
@@ -133,11 +140,11 @@ public class MapCommandControllerTests
     [Fact]
     public void HandleClick_RightClick_PublishesCancelledAck()
     {
-        var (_, bus, ackCapture, manager, repo, ctrl) = BuildController();
+        var (_, bus, ackCapture, manager, repo, ctrl, requests) = BuildController();
         var requestId = Guid.NewGuid();
         ctrl.ActivatePlacementCommand(requestId, Guid.NewGuid(), 202L, null);
         SimulateRightClick(manager, repo);
-        Assert.Empty(bus.ReadManaged<SpawnEntityCommand>());
+        Assert.Empty(DrainRequests(requests));
         Assert.Single(ackCapture.Written);
         Assert.Equal(requestId, ackCapture.Written[0].RequestId);
         Assert.Equal(MapCommandController.StatusCancelled, ackCapture.Written[0].StatusCode);
@@ -146,10 +153,10 @@ public class MapCommandControllerTests
     [Fact]
     public void FinishedAck_DataJsonContainsEntityId()
     {
-        var (_, bus, ackCapture, manager, repo, ctrl) = BuildController();
+        var (_, bus, ackCapture, manager, repo, ctrl, requests) = BuildController();
         ctrl.ActivatePlacementCommand(Guid.NewGuid(), Guid.NewGuid(), 202L, null);
         SimulateLeftClick(manager, repo);
-        var entityReqId = DrainSpawnCmds(bus)[0].RequestId;
+        var entityReqId = DrainRequests(requests)[0].RequestId;
         ctrl.OnCreateEntityAck(new EntityLifecycleAckDto { RequestId = entityReqId, EntityId = 42, StatusCode = 0 });
         Assert.Contains("42", ackCapture.Written[0].DataJson);
     }
@@ -157,12 +164,12 @@ public class MapCommandControllerTests
     [Fact]
     public void AreaAuthoring_CommitAndAck_PublishesFinishedAck()
     {
-        var (_, bus, ackCapture, _, _, ctrl) = BuildController();
+        var (_, bus, ackCapture, _, _, ctrl, requests) = BuildController();
         var requestId = Guid.NewGuid();
         ctrl.BeginAreaAuthoringSession(requestId, Guid.NewGuid());
         var areaCmd = new SpawnEntityCommand { RequestId = Guid.NewGuid() };
         ctrl.OnAreaEntityCreated(areaCmd, isToolDone: true);
-        Assert.Single(DrainSpawnCmds(bus));
+        Assert.Single(DrainRequests(requests));
         ctrl.OnCreateEntityAck(new EntityLifecycleAckDto { RequestId = areaCmd.RequestId, EntityId = 10, StatusCode = 0 });
         Assert.Single(ackCapture.Written);
         Assert.Equal(requestId, ackCapture.Written[0].RequestId);
@@ -172,11 +179,11 @@ public class MapCommandControllerTests
     [Fact]
     public void AreaAuthoring_CancelledBeforeAnyRequest_PublishesCancelledAck()
     {
-        var (_, bus, ackCapture, _, _, ctrl) = BuildController();
+        var (_, bus, ackCapture, _, _, ctrl, requests) = BuildController();
         var requestId = Guid.NewGuid();
         ctrl.BeginAreaAuthoringSession(requestId, Guid.NewGuid());
         ctrl.OnAreaToolCancelled();
-        Assert.Empty(bus.ReadManaged<SpawnEntityCommand>());
+        Assert.Empty(DrainRequests(requests));
         Assert.Single(ackCapture.Written);
         Assert.Equal(requestId, ackCapture.Written[0].RequestId);
         Assert.Equal(MapCommandController.StatusCancelled, ackCapture.Written[0].StatusCode);
@@ -185,7 +192,7 @@ public class MapCommandControllerTests
     [Fact]
     public void OnCreateEntityAck_NoActiveSession_IsIgnored()
     {
-        var (_, _, ackCapture, _, _, ctrl) = BuildController();
+        var (_, _, ackCapture, _, _, ctrl, requests) = BuildController();
         ctrl.OnCreateEntityAck(new EntityLifecycleAckDto { RequestId = Guid.NewGuid(), EntityId = 1, StatusCode = 0 });
         Assert.Empty(ackCapture.Written);
     }
@@ -193,10 +200,10 @@ public class MapCommandControllerTests
     [Fact]
     public void ActivatePlacementCommand_WithInitialJson_SpawnCommandCarriesJson()
     {
-        var (_, bus, _, manager, repo, ctrl) = BuildController();
+        var (_, bus, _, manager, repo, ctrl, requests) = BuildController();
         ctrl.ActivatePlacementCommand(Guid.NewGuid(), Guid.NewGuid(), 202L, null, initialPropertiesJson: "{\"Name\":\"BetaUnit\"}");
         SimulateLeftClick(manager, repo, 100f, 200f);
-        var cmds = DrainSpawnCmds(bus);
+        var cmds = DrainRequests(requests);
         Assert.Single(cmds);
         Assert.Equal("{\"Name\":\"BetaUnit\"}", cmds[0].InitialAttributesJson);
     }
@@ -204,17 +211,17 @@ public class MapCommandControllerTests
     [Fact]
     public void OnAreaEntityCreated_WithoutBeginSession_IsDropped()
     {
-        var (_, bus, _, _, _, ctrl) = BuildController();
+        var (_, bus, _, _, _, ctrl, requests) = BuildController();
         ctrl.OnAreaEntityCreated(new SpawnEntityCommand { RequestId = Guid.NewGuid() });
-        Assert.Empty(bus.ReadManaged<SpawnEntityCommand>());
+        Assert.Empty(DrainRequests(requests));
     }
 
     [Fact]
     public void OnAreaEntityCreated_AfterBeginSession_PublishesSpawnCommand()
     {
-        var (_, bus, _, _, _, ctrl) = BuildController();
+        var (_, bus, _, _, _, ctrl, requests) = BuildController();
         ctrl.BeginAreaAuthoringSession(Guid.NewGuid(), Guid.NewGuid());
         ctrl.OnAreaEntityCreated(new SpawnEntityCommand { RequestId = Guid.NewGuid() });
-        Assert.Single(DrainSpawnCmds(bus));
+        Assert.Single(DrainRequests(requests));
     }
 }

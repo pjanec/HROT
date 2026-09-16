@@ -62,12 +62,24 @@ namespace Hrot.SimHost.Modules
         }
 
         /// <summary>
-        /// Releases the <see cref="EqsResultPool"/> native ring buffer, which the solver
-        /// (or <c>NavigationSolverComponentRegistry.RegisterAll</c>) allocates with
-        /// <c>Allocator.Persistent</c>. The kernel disposes modules implementing
-        /// <see cref="IDisposable"/> on teardown (see <c>ModuleHostKernel</c>), mirroring
-        /// <see cref="CognitiveSpatialModule"/>'s ownership of its persistent spatial grid.
+        /// Releases the <see cref="EqsResultPool"/> native ring buffer.
         /// </summary>
+        /// <remarks>
+        /// <para>⚠ <b>This module is not the pool's owner, and this free is a stop-gap.</b> The pool is
+        /// allocated by <c>NavigationSolverComponentRegistry.RegisterAll</c> (with a guarded lazy fallback
+        /// in <see cref="EqsSolverSystem"/>), together with three sibling persistent arrays —
+        /// <c>PathfindingBatchData</c>, <c>AreaQueryBatchData</c> and <c>EqsTargetPool</c> — that no
+        /// production code frees at all. <c>NavigationSolverComponentRegistry.DisposeAll</c> is the
+        /// symmetric counterpart; it has no host caller yet because no host exposes a world-teardown hook.
+        /// Giving those four pools a single owner with a lifetime is <c>B4</c>'s job (see
+        /// <c>docs/DESIGN_Subsystem_Composition_Unification.md</c> §4.1o).</para>
+        ///
+        /// <para>Freeing through a <c>ref</c> clears the stored handle's <c>IsCreated</c> flag, so a later
+        /// <c>DisposeAll</c> on the same world is a no-op rather than a double free.</para>
+        ///
+        /// <para>The kernel disposes modules implementing <see cref="IDisposable"/> on teardown (see
+        /// <c>ModuleHostKernel</c>).</para>
+        /// </remarks>
         public void Dispose()
         {
             if (_repo is null) return;

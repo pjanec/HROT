@@ -15,7 +15,7 @@ namespace Hrot.ClusterRunner.Configuration
         // -- Hrot-specific CLI options ----------------------------------------
 
         /// <summary>Mode string supplied via --mode.  Examples: all, simhost, ig, ios, orchestrator, cgf, ci, simhost,ig, orchestrator,cgf</summary>
-        [Option('m', "mode", Required = true, HelpText = "all|simhost|ig|ios|orchestrator|cgf|ci|editor|migrate|stridemock|replaybrowser or comma-separated combination")]
+        [Option('m', "mode", Required = true, HelpText = "all|simhost|ig|ios|orchestrator|cgf|ci|editor|migrate|replaybrowser or comma-separated combination")]
         public string ModeString { get; set; } = string.Empty;
 
         /// <summary>Scenario name forwarded to <see cref="ScenarioSubsystem"/> when <c>--mode ci</c>.</summary>
@@ -35,12 +35,59 @@ namespace Hrot.ClusterRunner.Configuration
         public string ConfigFile { get; set; } = string.Empty;
 
         /// <summary>
+        /// ⭐⭐ Batch 103 (103a) — restore the shipped default layout on every run. 🔒 <b>Defaults
+        /// ON</b> per the user's ruling, while the layout is still evolving.
+        /// ⚠ Destructive by design; the runner logs it every run so it is discoverable.
+        /// ⭐ <c>--reset-layout=false</c> keeps your own arrangement.
+        ///
+        /// <para>⛔⛔ <b>The type is <c>bool?</c> ON PURPOSE, and it is the whole fix.</b> 📐 Measured
+        /// against <c>CommandLineParser 2.9.1</c>, <c>2026-08-21</c>, with a plain <c>bool</c>:
+        /// <list type="bullet">
+        ///   <item>a <c>--no-</c>-prefixed spelling ⇒ <b><c>UnknownOptionError</c></b> — the runner
+        ///   refuses to start. ⚠ And that was the flag the startup LOG told the user to use.</item>
+        ///   <item><c>--reset-layout=false</c> ⇒ parses fine and the value stays <b><c>true</c></b>
+        ///   — ⛔ a plain <c>bool</c> is a SWITCH, so its <c>=false</c> is discarded. ⚠ That was the
+        ///   syntax the <c>HelpText</c> documented.</item>
+        /// </list>
+        /// ⇒ ⛔⛔ <b>there was NO working way to turn a DESTRUCTIVE default off</b>, and both documented
+        /// escape hatches failed in different directions — one loudly, one silently.
+        /// ⭐ <c>bool?</c> makes the option take a VALUE, so <c>--reset-layout=false</c> and
+        /// <c>--reset-layout false</c> both land. 📌 Railed by
+        /// <c>TheLayoutResetCanActuallyBeTurnedOffTests</c> — ⛔ a claim about a parser belongs in a
+        /// test, not in a comment.</para>
+        /// </summary>
+        [Option("reset-layout", Default = true,
+                HelpText = "Restore the shipped default window layout on start (default: true). "
+                         + "Pass --reset-layout=false to keep your own arrangement.")]
+        public bool? ResetLayout { get; set; }
+
+        /// <summary>
         /// Relative path segments to the AI Behaviors project file used for hot-reloading BTrees.
         /// When relative, the system traverses parent directories from the CWD looking for this path.
         /// Defaults to the standard workspace layout.
         /// Can be overridden via JSON config file.
         /// </summary>
         public string[] AiBehaviorsProjectPath { get; set; } = new[] { "Subsystems", "Hrot.AI.Behaviors", "Hrot.AI.Behaviors.csproj" };
+
+        /// <summary>
+        /// ⭐⭐⭐ <b>Ruling 67 — the configured authoring root, for a DEPLOYED node where there is no
+        /// source tree to walk up to.</b>
+        ///
+        /// <para>🔒 <b>User, <c>2026-08-14</c>:</b> *"we need a <b>config file provided asset path</b> for
+        /// the CGF as well as the Editor (<b>same shared code</b>), with <b>fallback to the repo source</b>
+        /// as of now."* ⇒ empty means *"unset"*, and resolution falls through to
+        /// <see cref="AiBehaviorsProjectPath"/>'s walk-up and then the output directory — ⭐ so a dev box
+        /// behaves exactly as before.</para>
+        ///
+        /// <para>⚠ <b>A value that names a missing directory THROWS at startup</b>
+        /// *(<c>AssetRoots.Configure</c>)* — the ruling's own call: silently falling through *"would
+        /// reintroduce 'it worked on the dev box'."*</para>
+        /// </summary>
+        [Option("asset-root", Required = false,
+                HelpText = "Absolute path to the authoring asset root (Assets/ and Recipes/ live under "
+                         + "it). Ruling 67: required on a deployed node, where there is no source tree "
+                         + "to discover. Unset = fall back to the source walk-up, then the output dir.")]
+        public string AssetRoot { get; set; } = string.Empty;
 
         /// <summary>Target schema version for --mode migrate. -1 means current registered version.</summary>
         [Option("target-version", Required = false, Default = -1, HelpText = "Target schema version (-1 = current) for --mode migrate")]
@@ -83,17 +130,23 @@ namespace Hrot.ClusterRunner.Configuration
             {
                 // "ios" is a legacy alias for "excon"
                 var normalized = name == "ios" ? "excon" : name;
+                // ST-015: "stridemock" is gone with the mock subsystem. Dropping it from this set is
+                // what makes `--mode stridemock` throw again instead of composing a subsystem that no
+                // longer exists.
+                // ⭐ HN-030: "dump-api" prints the debug-API manifest and exits — the artefact
+                //   tools/ai-debug-mcp generates its tool catalog from. It composes NO subsystem (see
+                //   Program.cs), which is why it sits beside "ci" and "migrate" rather than in the roster.
                 var validNames = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
                     { "simhost", "ig", "excon", "orchestrator", "cgf", "ci", "editor",
-                      "stridemock", "replaybrowser", "migrate" };
+                      "replaybrowser", "migrate", "dump-api" };
                 if (!validNames.Contains(normalized))
                     throw new InvalidOperationException(
-                        $"Invalid mode: '{ModeString}'. Use: all, simhost, ig, ios, orchestrator, editor, stridemock, replaybrowser, or comma-separated combination.");
+                        $"Invalid mode: '{ModeString}'. Use: all, simhost, ig, ios, orchestrator, editor, cgf, ci, migrate, dump-api, replaybrowser, or comma-separated combination.");
                 RequestedSubsystems.Add(normalized);
             }
             if (RequestedSubsystems.Count == 0)
                 throw new InvalidOperationException(
-                    $"Invalid mode: '{ModeString}'. Use: all, simhost, ig, ios, orchestrator, editor, stridemock, replaybrowser, or comma-separated combination.");
+                    $"Invalid mode: '{ModeString}'. Use: all, simhost, ig, ios, orchestrator, editor, cgf, ci, migrate, dump-api, replaybrowser, or comma-separated combination.");
 
             // Parse wait-for list -> WaitForPeers
             if (!string.IsNullOrWhiteSpace(WaitForString))
@@ -142,6 +195,11 @@ namespace Hrot.ClusterRunner.Configuration
 
             // Editor and ReplayBrowser modes are always standalone (no peer synchronisation required).
             if (RequestedSubsystems.Contains("editor") || RequestedSubsystems.Contains("replaybrowser")) return;
+
+            // ⭐ HN-030: dump-api composes no subsystem at all — it prints the API manifest and exits — so
+            //   there is nothing to synchronise with and no --no-wait to demand. ⛔ Without this it fell into
+            //   the single-subsystem peer-wait rule below and refused to run.
+            if (RequestedSubsystems.Contains("dump-api")) return;
 
             // When launching a single subsystem that must synchronise with others,
             // --wait-for must be supplied (unless --no-wait suppresses synchronisation).

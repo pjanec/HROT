@@ -206,7 +206,7 @@ Add after `AssetInventoryUpdateEvent` (EventId 9017):
 /// reading internal state from any process manager.
 /// </summary>
 [EventId(9018)]
-[DataPolicy(DataPolicy.NoRecord)]
+[DataPolicy(DataPolicy.NoReplay)]
 public struct EpisodeStateChangedEvent
 {
     /// <summary>Snapshot of all currently active episode IDs at time of publication.</summary>

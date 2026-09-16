@@ -510,16 +510,16 @@ EntityRepository (world)
 | `RoutePlan.cs` | `Hrot.Map.Common.Components` | `sealed class RoutePlan` | Managed ECS component: ordered waypoint list + loop flag + monotonic version stamp; mutation via `Mutate()` callback |
 | `RouteWaypoint.cs` | (inside RoutePlan.cs) | `struct RouteWaypoint` | Position in ENU world-space, target speed, optional extension JSON |
 | `PersonalRouteRef.cs` | `Hrot.Map.Common.Components` | `struct PersonalRouteRef` | Blittable vehicle->route O(1) reference |
-| `RouteTrajectoryCache.cs` | `Hrot.Map.Common.Components` | `struct RouteTrajectoryCache` | Compiled trajectory ID + version stamp; marked `NoSave` |
+| `RouteTrajectoryCache.cs` | `Hrot.Map.Common.Components` | `struct RouteTrajectoryCache` | Compiled trajectory ID + version stamp; marked `NoScenario` |
 | `ZoneMembership.cs` | `Hrot.Map.Common.Components` | `sealed class ZoneMembership` | Managed component recording the zone name for an obstacle entity |
 | `EditablePolyline.cs` | `Hrot.IG.Components` | `sealed class EditablePolyline` | Managed component storing user-editable vertex list + version counter |
 | `MapOverlayStyle.cs` | `Hrot.IG.Components` | `struct MapOverlayStyle` | Blittable fill/border RGBA styling for map visual overlays |
-| `CullingState.cs` | `Hrot.IG.Components` | `struct CullingState` | Viewport visibility flag + LOD level (Full/Simplified/IconOnly); `NoSave` |
+| `CullingState.cs` | `Hrot.IG.Components` | `struct CullingState` | Viewport visibility flag + LOD level (Full/Simplified/IconOnly); `NoScenario` |
 | `CullingStateConstants.cs` | `Hrot.IG.Components` | `static class` | LOD level constants and zoom thresholds |
-| `SelectionState.cs` | `Hrot.IG.Components` | `struct SelectionState` | `IsSelected` + `IsPrimarySelection` flags; `NoSave` |
+| `SelectionState.cs` | `Hrot.IG.Components` | `struct SelectionState` | `IsSelected` + `IsPrimarySelection` flags; `NoScenario` |
 | `ResolvedStyle.cs` | `Hrot.IG.Components` | `unsafe struct ResolvedStyle` | Cached render state from 3-layer style merge (TKB / network override / user config); fixed-buffer strings for allocation-free hot path |
 | `ResolvedStyleConstants.cs` | `Hrot.IG.Components` | `static class` | Buffer sizes, affiliation tint colours (RGBA), damage range constants |
-| `IgHealthState.cs` | `Hrot.IG.Components` | `struct IgHealthState` | Damage level 0-100 for IG rendering; `NoSave` |
+| `IgHealthState.cs` | `Hrot.IG.Components` | `struct IgHealthState` | Damage level 0-100 for IG rendering; `NoScenario` |
 | `IgSymbolOverride.cs` | `Hrot.IG.Components` | `class IgSymbolOverride` | ExCon-sourced per-entity visual override (style-set, texture, label, history trail flag) |
 | `Color32.cs` | `Hrot.IG.Components` | `struct Color32` + `Color32ArrayConverter` | 4-byte RGBA colour with JSON array serialisation |
 | `CanvasContextMenuState.cs` | `Hrot.IG.Components` | `sealed class CanvasContextMenuState` | Managed singleton for empty-map-space context menu JSON |
@@ -699,13 +699,13 @@ Registers: `ZoneMembership`, `SpawnZoneObstacleCommand`, `UpdateZoneConfigComman
 | `int Version` | Monotonic version stamp |
 | `void Mutate(Action<List<RouteWaypoint>>)` | Increment-safe mutation callback |
 
-#### `CullingState` (struct, NoSave)
+#### `CullingState` (struct, NoScenario)
 `bool IsVisible`, `byte LodLevel` (0=Full, 1=Simplified, 2=IconOnly)
 
-#### `SelectionState` (struct, NoSave)
+#### `SelectionState` (struct, NoScenario)
 `bool IsSelected`, `bool IsPrimarySelection`
 
-#### `ResolvedStyle` (unsafe struct, NoSave)
+#### `ResolvedStyle` (unsafe struct, NoScenario)
 Fixed-buffer texture name (16 B) + label text (32 B), `Color32 Tint`, `ForceId Affiliation`, `float DamageLevel`, `bool ShowTrail`, `bool ShowSensors`.
 Total size under 64 bytes. Factory: `ResolvedStyle.CreateDefault()`.
 

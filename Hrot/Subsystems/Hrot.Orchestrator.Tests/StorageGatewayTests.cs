@@ -523,4 +523,60 @@ public sealed class StorageGatewayTkbConsensusTests
             if (Directory.Exists(destDir)) Directory.Delete(destDir, recursive: true);
         }
     }
+
+    // ── CE-280 — foreign-slice routing on load ──────────────────────────────────
+
+    /// <summary>
+    /// PrefetchScenario routes a <c>foreign/node_&lt;id&gt;.json</c> slice ONLY to the node whose id matches
+    /// the filename — unlike the top-level <c>scenario.json</c>, which every node stages. This is the load
+    /// side of the distributed save's foreign route (§4c/§6b T-C): ExCon's observer slice returns to ExCon,
+    /// and no other node receives it.
+    /// </summary>
+    [Fact]
+    public async Task PrefetchScenario_RoutesForeignSlice_ToOriginNodeOnly()
+    {
+        var nasDir     = Path.Combine(Path.GetTempPath(), Path.GetRandomFileName());
+        var scenarioId = "foreign_route";
+        var srcDir     = MakeScenarioDir(nasDir, scenarioId);
+
+        var destEcs     = Path.Combine(Path.GetTempPath(), Path.GetRandomFileName());   // node 100 (ECS)
+        var destForeign = Path.Combine(Path.GetTempPath(), Path.GetRandomFileName());   // node 200 (ExCon)
+        Directory.CreateDirectory(destEcs);
+        Directory.CreateDirectory(destForeign);
+
+        try
+        {
+            // Top-level canonical scenario (every node stages it) + a foreign slice for node 200 only.
+            WriteJson(Path.Combine(srcDir, "scenario.json"),
+                "{\"Header\":{\"SubsystemType\":\"Hrot.SimHost\"},\"Entities\":{}}");
+            var foreignDir = Path.Combine(srcDir, "foreign");
+            Directory.CreateDirectory(foreignDir);
+            WriteJson(Path.Combine(foreignDir, "node_200.json"),
+                "{\"$meta\":{\"docType\":\"ExCon.Observer\"},\"Observer\":{}}");
+
+            var gateway = new StorageGatewayModule();
+            var targets = new List<NodeDistributionTarget>
+            {
+                new NodeDistributionTarget { NodeId = 100, DestinationPath = destEcs },
+                new NodeDistributionTarget { NodeId = 200, DestinationPath = destForeign },
+            };
+
+            var result = await gateway.PrefetchScenarioAsync(scenarioId, targets, nasDir);
+            Assert.True(result.IsFullSuccess);
+
+            // Both nodes stage the canonical scenario.json.
+            Assert.True(File.Exists(Path.Combine(destEcs, "scenario.json")));
+            Assert.True(File.Exists(Path.Combine(destForeign, "scenario.json")));
+
+            // Only node 200 receives its foreign slice; node 100 does not.
+            Assert.True(File.Exists(Path.Combine(destForeign, "foreign", "node_200.json")));
+            Assert.False(Directory.Exists(Path.Combine(destEcs, "foreign")));
+        }
+        finally
+        {
+            if (Directory.Exists(nasDir))       Directory.Delete(nasDir,       recursive: true);
+            if (Directory.Exists(destEcs))      Directory.Delete(destEcs,      recursive: true);
+            if (Directory.Exists(destForeign))  Directory.Delete(destForeign,  recursive: true);
+        }
+    }
 }

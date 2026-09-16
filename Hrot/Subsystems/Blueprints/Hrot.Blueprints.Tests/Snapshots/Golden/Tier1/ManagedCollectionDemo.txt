@@ -1,0 +1,16 @@
+StructureHash: 0x259321A6CCBF8099
+Parameters:
+  (empty)
+WorkingState:
+  (empty)
+Variables:
+  LoopLastItem : System.Int32 @16 size=4
+  ElementOut : System.Int32 @20 size=4
+  CountOut : System.Int32 @24 size=4
+  ContainsResult : System.Boolean @28 size=1
+  FoundIndex : System.Int32 @32 size=4
+  WasFound : System.Boolean @36 size=1
+GraphLocalSlots:
+  (empty)
+Diagnostics:
+  (none)

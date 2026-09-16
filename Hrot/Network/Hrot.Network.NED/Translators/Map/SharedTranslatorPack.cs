@@ -71,6 +71,15 @@ namespace Hrot.Map.Common.Translators
             yield return new EntityInfoIngressTranslator(participant, entityMap, eventBus, ghostCreationSystem, localNodeId);
             yield return new FireInteractionEventTranslator(participant, entityMap);
             yield return new EntityDamageEgressTranslator(participant, entityMap);
+            // ⭐⭐⭐ CE-272 — the INGRESS half of EntityDamage belongs here, paired with its egress, exactly
+            //   like EntityMaster/EntityInfo/GeoSpatial. It was ONLY in EntityStatesIngressPack (pure-IG),
+            //   so a Muscle node never ingested Health: damage is applied on the Brain (authority), but the
+            //   Muscle's copy stayed at the TKB default. 🔴 Measured on hill-attack (--mode all): targets
+            //   at Health 0 on the Brain, Health 3000 on the Muscle — and the target-finding EQS runs on
+            //   the MUSCLE (hill-attack DESIGN §1.3), so it never saw the targets die and the platoon
+            //   re-engaged forever. That infinite loop is what CE-267's entity-removal was masking. The
+            //   ingress guards on HasAuthority<Health>, so it never clobbers the owner's authoritative value.
+            yield return new EntityDamageIngressTranslator(participant, entityMap, ghostCreationSystem, localNodeId);
             yield return new GeoSpatialEgressTranslator(participant, entityMap, geoTransform, localNodeId);
             yield return new GeoSpatialIngressTranslator(participant, entityMap, geoTransform, ghostCreationSystem, localNodeId);
             yield return new OwnershipUpdateTranslator(participant, (int)localNodeId);

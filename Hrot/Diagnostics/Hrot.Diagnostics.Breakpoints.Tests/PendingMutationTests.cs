@@ -81,7 +81,7 @@ public sealed class PendingMutationTests
         manager.StageMutation(entity, typeof(TestHealth), new TestHealth { Current = 999 });
 
         var ecb = (EntityCommandBuffer)((ISimulationView)liveRepo).GetCommandBuffer();
-        manager.RequestStep();
+        manager.StepAndDrain(liveRepo);          // ⭐ W5: two steps, not one — see ResumeThenDrain
         ecb.Playback(liveRepo);
 
         Assert.False(manager.IsPaused);
@@ -120,7 +120,7 @@ public sealed class PendingMutationTests
         manager.StageMutation(entity, typeof(EntityLabel), new EntityLabel { Name = "staged" });
 
         var ecb = (EntityCommandBuffer)((ISimulationView)liveRepo).GetCommandBuffer();
-        manager.RequestStep();
+        manager.StepAndDrain(liveRepo);          // ⭐ W5: two steps, not one — see ResumeThenDrain
         ecb.Playback(liveRepo);
 
         Assert.Equal("staged", ((ISimulationView)liveRepo).GetManagedComponentRO<EntityLabel>(entity).Name);
@@ -160,10 +160,14 @@ public sealed class PendingMutationTests
         Assert.Equal(0, liveRepo.GetComponent<TestHealth>(entity).Current);
 
         var ecb = (EntityCommandBuffer)((ISimulationView)liveRepo).GetCommandBuffer();
-        manager.RequestStep();
 
-        // After RequestStep, before Playback: liveRepo restored to postTickSnapshot (Current=50)
-        Assert.Equal(50, liveRepo.GetComponent<TestHealth>(entity).Current);
+        // ⭐⭐⭐ W5 SPLIT THIS, and the split makes the rail STRONGER: the restore and the drain are now
+        //    separately observable, so this can assert that the restore alone does NOT apply the edit.
+        manager.RequestStep();
+        Assert.Equal(50, liveRepo.GetComponent<TestHealth>(entity).Current);   // restored, not drained
+        Assert.Equal(1,  manager.PendingMutationsCount);                        // ⛔ still queued
+
+        ((Fdp.ModuleHost.Abstractions.IStagedWrites)manager).DrainInto(liveRepo);
 
         ecb.Playback(liveRepo);
 

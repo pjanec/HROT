@@ -173,12 +173,13 @@ namespace Fdp.Toolkit.Diagnostics.Gizmos.Tests
             var sys = new DataDrivenGizmoSystem(registry, buffer, null, undoStack);
 
             // Create entity and publish ConstructionOrder to initialize the gizmo.
-            var entity = repo.CreateEntity();
+            // ⭐ §6.7 — a commit is routed by the anchor's NETWORK id, so the entity needs one.
+            var entity = GizmoTestRepo.CreateNetworkedEntity(repo, 7041L);
             repo.AddComponent(entity, new GizmoTestCompA { Value = 1 });
             GizmoTestRepo.PublishConstructionAndExecute(repo, sys, entity);
 
             // Publish a commit event for that entity.
-            var token = new PickToken { Target = entity, SubElementId = 0 };
+            var token = new PickToken { AnchorId = 7041L, SubElementId = 0 };
             repo.Bus.Publish(new GizmoInteractionCommitEvent { Token = token, WorldPos = default });
             repo.Bus.SwapBuffers();
             sys.Execute(repo, 0f);
@@ -199,11 +200,11 @@ namespace Fdp.Toolkit.Diagnostics.Gizmos.Tests
             var buffer = new DebugPrimitiveBuffer();
             var sys = new DataDrivenGizmoSystem(registry, buffer, null, undoStack);
 
-            var entity = repo.CreateEntity();
+            var entity = GizmoTestRepo.CreateNetworkedEntity(repo, 7041L);   // §6.7 — routed by net id
             repo.AddComponent(entity, new GizmoTestCompA { Value = 1 });
             GizmoTestRepo.PublishConstructionAndExecute(repo, sys, entity);
 
-            var token = new PickToken { Target = entity, SubElementId = 0 };
+            var token = new PickToken { AnchorId = 7041L, SubElementId = 0 };
             repo.Bus.Publish(new GizmoInteractionCommitEvent { Token = token, WorldPos = default });
             repo.Bus.SwapBuffers();
             sys.Execute(repo, 0f);

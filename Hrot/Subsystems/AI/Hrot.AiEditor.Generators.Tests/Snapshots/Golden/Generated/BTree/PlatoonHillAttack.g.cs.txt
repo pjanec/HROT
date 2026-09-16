@@ -1,0 +1,47 @@
+// HROT_EDITOR_GENERATED - manual edits to this file will be overwritten by the AI editor on next save.
+// AssetId: 1a000000-0000-0000-0000-0000000000dd
+
+using System;
+using System.Numerics;
+
+using Fbt;
+using Fbt.Compiler;
+using Fdp.Toolkit.Behavior;
+using Fdp.Toolkit.Behavior.Components;
+using Hrot.AI.Behaviors.Brains;
+
+namespace Hrot.AI.Behaviors.Trees;
+
+public static class PlatoonHillAttack
+{
+    public static BTreeBuilder<BrainBlackboard, BTreeContext> CreateBuilder() =>
+        new BTreeBuilder<BrainBlackboard, BTreeContext>()
+            .Sequence(seq =>
+            {
+                seq.Action("Hrot.AI.Behaviors.Brains.HillAttackCommanderNodes.Action_CalculateSegments@0@1299152117",
+                    visualId: new Guid("1a000000-0000-0000-0000-0000000000a1"));
+                seq.Action("Hrot.AI.Behaviors.Brains.HillAttackCommanderNodes.Action_DispatchAllToBaseline@0@1299152117",
+                    visualId: new Guid("1a000000-0000-0000-0000-0000000000a2"));
+                seq.Action("Hrot.AI.Behaviors.Brains.HillAttackCommanderNodes.Condition_AreAllAtBaseline@0",
+                    visualId: new Guid("1a000000-0000-0000-0000-0000000000a3"));
+                seq.Repeater(-1, d4 => d4
+                    .Sequence(seq =>
+                    {
+                        seq.Action("Hrot.AI.Behaviors.Brains.HillAttackCommanderNodes.Action_RequestAreaQuery@0@1299152117",
+                            visualId: new Guid("1a000000-0000-0000-0000-0000000000b1"));
+                        seq.Action("Hrot.AI.Behaviors.Brains.HillAttackCommanderNodes.Condition_IsAreaQueryResolved@0@1299152117",
+                            visualId: new Guid("1a000000-0000-0000-0000-0000000000b2"));
+                        seq.Action("Hrot.AI.Behaviors.Brains.HillAttackCommanderNodes.Action_DispatchWaveWithTargets@0@1299152117",
+                            visualId: new Guid("1a000000-0000-0000-0000-0000000000b3"));
+                        seq.Action("Hrot.AI.Behaviors.Brains.HillAttackCommanderNodes.Condition_IsWaveCompleted@0@1299152117",
+                            visualId: new Guid("1a000000-0000-0000-0000-0000000000b4"));
+                    },
+                        visualId: new Guid("1a000000-0000-0000-0000-000000000003")),
+                    visualId: new Guid("1a000000-0000-0000-0000-0000000000f1"));
+            },
+                visualId: new Guid("1a000000-0000-0000-0000-000000000002"));
+
+    [BTreeDefinition("PlatoonHillAttack", AssetId = "1a000000-0000-0000-0000-0000000000dd")]
+    public static BehaviorTreeBlob Build() =>
+        CreateBuilder().Compile("PlatoonHillAttack");
+}

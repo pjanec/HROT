@@ -2,6 +2,7 @@ using System;
 using Fdp.Core;
 using Fdp.ModuleHost.Time;
 using Fdp.Toolkit.Orchestration;
+using Fdp.Toolkit.Time;
 using Fdp.Toolkit.Time.Domain;
 using Fdp.Toolkit.Time.Messages;
 using Hrot.UI.Common.Facades;
@@ -23,9 +24,20 @@ public sealed class ClusterTimeTransportAdapter : ITimeTransportFacade
     private readonly Func<double>?  _localSimTimeGetter;
 
     private ClusterState _currentState  = ClusterState.Idle;
-    private bool         _isPaused      = true;
-    private float        _timeScale     = 1f;
-    private double       _networkSimTime;
+
+    /// <summary>
+    /// `T7`: the <see cref="SwitchTimeModeEvent"/> fold, shared with <c>ClusterUiCache</c>. The two
+    /// classes are NOT collapsed — they are different roles on disjoint nodes (this one is the
+    /// toolbar facade and also carries the commands; the cache is a broad read-model) — but the fold
+    /// itself was duplicated line for line, and this is the one implementation of it.
+    /// </summary>
+    private readonly ClusterTimeObservation _clusterTime = new();
+
+    /// <summary>
+    /// Seeds "paused" before any event has been seen. Deliberate: a node that has not yet heard from
+    /// the master must not offer a running transport, and the first mode event overwrites this.
+    /// </summary>
+    private bool _seenAnyModeEvent;
 
     /// <summary>
     /// Creates the adapter.
@@ -54,12 +66,8 @@ public sealed class ClusterTimeTransportAdapter : ITimeTransportFacade
 
         foreach (var ev in _bus.Read<SwitchTimeModeEvent>())
         {
-            _isPaused = ev.TargetMode == TimeMode.Deterministic;
-            if (ev.TimeScale > 0f)
-                _timeScale = ev.TimeScale;
-            // SimTimeSnapshot is non-zero on Resume events; seed the displayed time.
-            if (ev.TargetMode == TimeMode.Continuous && ev.SimTimeSnapshot > 0.0)
-                _networkSimTime = ev.SimTimeSnapshot;
+            _clusterTime.Apply(ev);
+            _seenAnyModeEvent = true;
         }
     }
 
@@ -80,19 +88,24 @@ public sealed class ClusterTimeTransportAdapter : ITimeTransportFacade
     /// <inheritdoc/>
     public bool IsStopEnabled => IsOperating;
 
-    /// <inheritdoc/>
-    public bool IsPaused => _isPaused;
+    /// <summary>
+    /// The cluster's last pause DECISION (`T7`), not this node's clock. On a slave it runs ahead of
+    /// the local <c>SlaveSyncController</c> by the barrier window — correctly, since that is the
+    /// timeline the node is about to snap to. Before any mode event has arrived it reads paused.
+    /// </summary>
+    public bool IsPaused => !_seenAnyModeEvent || _clusterTime.PauseRequested;
 
     /// <inheritdoc/>
-    public double TotalTime => _localSimTimeGetter != null ? _localSimTimeGetter() : _networkSimTime;
+    public double TotalTime =>
+        _localSimTimeGetter != null ? _localSimTimeGetter() : _clusterTime.ResumeSimTime;
 
     /// <inheritdoc/>
-    public float TimeScale => _timeScale;
+    public float TimeScale => _clusterTime.TimeScale;
 
     /// <inheritdoc/>
     public void TogglePlayPause()
     {
-        if (_isPaused)
+        if (IsPaused)
             _bus.PublishManaged(new ResumeTimeIntent());
         else
             _bus.PublishManaged(new PauseTimeIntent());
@@ -110,7 +123,7 @@ public sealed class ClusterTimeTransportAdapter : ITimeTransportFacade
                 TimeMode      = "Deterministic",
             });
         }
-        else if (!_isPaused)
+        else if (!IsPaused)
         {
             _bus.PublishManaged(new PauseTimeIntent());
         }

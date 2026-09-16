@@ -20,6 +20,15 @@ namespace Hrot.Common.Systems
     /// so that <c>EntityInfoEgressTranslator</c> broadcasts updated subordination state
     /// to remote nodes.</para>
     /// </summary>
+    // ⭐⭐⭐ CE-165 — SINGLETON BY DESIGN, and this is the system the guard was measured on.
+    // It is carried by BOTH CgfLogicPack (Brain) and SimHostCoreLogicPack (MuscleGround), so any node
+    // running both roles registers it twice unless the root deduplicates. ProcessAssignSubordinates reads
+    // CmdAssignSubordinate NON-DESTRUCTIVELY, so a second instance sees the same events in the same frame;
+    // for a subordinate already assigned to the SAME commander the guard below takes no branch and does not
+    // `continue`, so execution falls through to an unguarded roster append. The subordinate is added twice,
+    // UnitRoster.Count is inflated, and at Capacity the system starts publishing
+    // CmdAssignSubordinateRejected for LEGITIMATE assignments. Corrupted state, not a wasted tick.
+    [SingleInstance]
     [UpdateInPhase(SystemPhase.Simulation)]
     public class UnitHierarchySystem : IEcsModuleSystem
     {

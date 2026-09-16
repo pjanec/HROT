@@ -181,7 +181,7 @@ public sealed class ImGuiFileDialogService : IFileDialogService
                 byte[] buf = Encoding.UTF8.GetBytes(_fileNameBuffer.PadRight(256, '\0'));
                 Array.Resize(ref buf, 256);
                 if (ImGuiApi.InputText("File name", buf, (uint)buf.Length))
-                    _fileNameBuffer = Encoding.UTF8.GetString(buf).TrimEnd('\0');
+                    _fileNameBuffer = Fdp.Presentation.Utils.ImGuiBufferText.Decode(buf);
             }
 
             string confirmLabel = _multiSelect ? "Open" : (_dialogTitle == "Open File" ? "Open" : "Save");

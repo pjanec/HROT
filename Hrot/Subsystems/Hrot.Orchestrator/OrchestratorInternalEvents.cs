@@ -4,16 +4,8 @@ using Hrot.Network.Orchestration;
 
 namespace Hrot.Orchestrator;
 
-/// <summary>
-/// Published by <see cref="GlobalContextProcessManager"/> after the local
-/// Orchestrator.json has been serialized and committed.
-/// Consumed by <see cref="StorageProcessManager"/> to prepend the orchestrator's
-/// own manifest entry before the NAS pull.
-/// </summary>
-internal struct GlobalContextManifestReadyEvent
-{
-    public FileManifestEntry Entry;
-}
+// CE-278: GlobalContextManifestReadyEvent retired — it carried the SaveScenario=2 Orchestrator.json
+// manifest entry from GlobalContextProcessManager to StorageProcessManager; both ends are removed.
 
 /// <summary>
 /// Published by <see cref="ClusterMaster"/> when a PrefetchScenario operation step is
@@ -58,6 +50,20 @@ internal struct ExportArchiveBegunEvent
     public Guid ArchiveRequestId;
     /// <summary>Cancellation token source for the NAS pull; also stored in ClusterMaster._activeCancellations.</summary>
     public System.Threading.CancellationTokenSource Cts;
+}
+
+/// <summary>
+/// CE-277(c2) — published by <see cref="ClusterMaster"/> when a <c>SaveScenarioJson</c> SerializeLocal
+/// fan-out is initiated. Carries the transaction id → scenario name mapping so
+/// <see cref="StorageProcessManager"/> can, after the NAS pull, run <c>ScenarioMergeCore</c> on the pulled
+/// per-node slices and write the one canonical <c>scenarios/&lt;name&gt;/scenario.json</c>.
+/// </summary>
+internal struct SaveScenarioJsonBegunEvent
+{
+    /// <summary>SerializeLocal fan-out transaction ID (matches the ClusterOpCompletedEvent.RequestId).</summary>
+    public Guid TransactionId;
+    /// <summary>Relative scenario name / subfolder under the NAS scenarios root (never a filesystem path).</summary>
+    public string ScenarioName;
 }
 
 /// <summary>

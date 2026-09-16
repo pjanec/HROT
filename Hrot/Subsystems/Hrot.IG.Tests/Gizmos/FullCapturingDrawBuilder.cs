@@ -17,6 +17,15 @@ namespace Hrot.IG.Tests.Gizmos
         public readonly List<(Vector3 Center, float Radius, Rgba32 Color)> SphereCalls = new();
         public readonly List<(Entity Target, FixedString32 Text)> BadgeCalls        = new();
 
+        /// <summary>
+        /// ⭐⭐ Added 2026-09-11. <c>EmitRaw</c> is a DEFAULT interface method on
+        /// <c>IDebugDrawBuilder</c>, so this double used to inherit a no-op and SILENTLY DROP every raw
+        /// primitive — pick boxes, pick segments, bindings. ⇒ any rail here was blind to them (R-142 ③).
+        /// </summary>
+        public readonly List<DebugPrimitive> RawCalls = new();
+
+        public void EmitRaw(in DebugPrimitive prim) => RawCalls.Add(prim);
+
         public void DrawArrow(Vector3 from, Vector3 to, Rgba32 color,
             float headSize = 1f, byte layer = 0)
             => ArrowCalls.Add((from, to, color));
@@ -48,10 +57,10 @@ namespace Hrot.IG.Tests.Gizmos
         public void DrawTextLong(float x, float y, string text, Rgba32 color,
             CoordinateSpace space = CoordinateSpace.World, byte layer = 0, float fontSizePx = 0f, float lineOffsetPx = 0f) { }
 
-        public void DrawEntityLocal(Entity anchor, Vector3 localStart, Vector3 localEnd,
+        public void DrawEntityLocal(long anchor, Vector3 localStart, Vector3 localEnd,
             Rgba32 color, float thickness = 1f, byte layer = 0) { }
 
-        public void DrawEntityLocalInteractive(Entity anchor, Vector3 localStart, Vector3 localEnd,
+        public void DrawEntityLocalInteractive(long anchor, Vector3 localStart, Vector3 localEnd,
             Rgba32 color, ushort subElementId, float thickness = 1f, byte layer = 0) { }
     }
 }

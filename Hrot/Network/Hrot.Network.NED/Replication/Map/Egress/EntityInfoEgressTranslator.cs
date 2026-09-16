@@ -38,6 +38,28 @@ namespace Hrot.Map.Common.Replication.Egress
         private readonly NetworkEntityMap _entityMap;
         private readonly long _localNodeId;
 
+        /// <summary>
+        /// ⭐⭐⭐ <b><c>Q59-E-pre</c> — the components this descriptor COVERS, declared so the FDP side never
+        /// has to name a descriptor.</b>
+        ///
+        /// <para>📄 <c>Architect_Question_59</c> §7.3/§9.1. ⭐⭐ <c>IDescriptorTranslator</c> already declares
+        /// both halves — <see cref="DescriptorOrdinal"/> and this — so the component→descriptor map is simply
+        /// the INVERSE of what the network layer declares. ⛔ It defaulted to <c>Array.Empty&lt;int&gt;()</c>
+        /// here, which is why <c>EcsPatchContext</c> could not derive the mark and <c>AX-015</c> had to add an
+        /// explicit <c>MarkDescriptorDirty</c> seam member instead.</para>
+        ///
+        /// <para>⚠ <b>This translator gates on <c>SmartEgressUtil.ShouldPublish</c></b> *(unlike
+        /// <c>GeoSpatialEgressTranslator</c>, which diffs state instead)* ⇒ 🔴 <b>if nothing marks
+        /// <c>dtEntityInfo</c> dirty, an entity RENAME is applied locally and never republished</b> — the
+        /// exact <c>AX-015</c> failure.</para>
+        /// </summary>
+        private static readonly IReadOnlyList<int> _targetIds = new[]
+        {
+            GlobalComponentIds.EntityInfo,
+        };
+
+        public IReadOnlyList<int> TargetComponentIds => _targetIds;
+
         public string TopicName => DdsTopicName;
         public long DescriptorOrdinal => OrdinalValue;
         public long ReceivedSampleCount { get; private set; }

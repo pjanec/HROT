@@ -54,6 +54,34 @@ public sealed record DebugMapEntry(Guid NodeId, Guid GraphId, int StartLine, int
     public string NodeKind    { get; init; } = string.Empty;
     public string DisplayName { get; init; } = string.Empty;
     public int?   PhaseIndex  { get; init; } = null;
+
+    /// <summary>
+    /// BP-83 — for an entry produced by macro expansion, the AUTHORED node in the macro body this
+    /// generated code came from. Null for ordinary authored nodes.
+    ///
+    /// <para>
+    /// ⭐ <b>This is what makes a breakpoint inside a macro work at all.</b> The designer sets it on a
+    /// node in the MACRO graph, but every emitted entry carries a CLONE id that exists in no asset
+    /// file — so before this, such a breakpoint matched no entry and silently never armed. Resolution
+    /// now maps one authored node to N entries, arming every expansion site.
+    /// </para>
+    ///
+    /// <para>
+    /// ⚠ <see cref="NodeId"/> deliberately still holds the clone's id and still wins in
+    /// <c>CSharpEmitter</c>'s <c>NodeId ?? OriginNodeId</c>. That asymmetry IS the feature:
+    /// <b>line→node stays 1:1</b> (each generated line belongs to exactly one clone) while
+    /// <b>node→line becomes one-to-many</b>. This field is a back-reference added alongside, never a
+    /// redirection of the existing one.
+    /// </para>
+    /// </summary>
+    public Guid? OriginNodeId { get; init; }
+
+    /// <summary>
+    /// BP-83 — the macro graph <see cref="OriginNodeId"/> lives in. <see cref="GraphId"/> is the HOST
+    /// graph the body was spliced into, so without this an authored id is ambiguous as soon as two
+    /// macros are in play.
+    /// </summary>
+    public Guid? OriginGraphId { get; init; }
 }
 
 /// <summary>
@@ -65,7 +93,7 @@ internal sealed class DebugMapBuilder
     private readonly List<DebugGraphInfo>   _graphs      = new();
     private readonly List<DebugPinInfo>     _pins        = new();
     private readonly List<StateLayoutField> _stateFields = new();
-    private readonly Dictionary<Guid, (Guid GraphId, int StartLine, string NodeKind, string DisplayName)> _openNodes = new();
+    private readonly Dictionary<Guid, (Guid GraphId, int StartLine, string NodeKind, string DisplayName, Guid? OriginNodeId, Guid? OriginGraphId)> _openNodes = new();
     private readonly Guid  _assetId;
     private readonly int   _blueprintId;
     private readonly ulong _structureHash;
@@ -94,10 +122,12 @@ internal sealed class DebugMapBuilder
         => _entries.Add(new DebugMapEntry(nodeId, graphId, startLine, endLine));
 
     public void RecordNodeStart(Guid nodeId, Guid graphId, int line,
-        string? nodeKind = null, string? displayName = null)
+        string? nodeKind = null, string? displayName = null,
+        Guid? originNodeId = null, Guid? originGraphId = null)
     {
         if (!_openNodes.ContainsKey(nodeId))
-            _openNodes[nodeId] = (graphId, line, nodeKind ?? string.Empty, displayName ?? string.Empty);
+            _openNodes[nodeId] = (graphId, line, nodeKind ?? string.Empty,
+                                  displayName ?? string.Empty, originNodeId, originGraphId);
     }
 
     public void RecordNodeEnd(Guid nodeId, int line)
@@ -106,8 +136,10 @@ internal sealed class DebugMapBuilder
         _openNodes.Remove(nodeId);
         _entries.Add(new DebugMapEntry(nodeId, info.GraphId, info.StartLine, line)
         {
-            NodeKind    = info.NodeKind,
-            DisplayName = info.DisplayName,
+            NodeKind      = info.NodeKind,
+            DisplayName   = info.DisplayName,
+            OriginNodeId  = info.OriginNodeId,
+            OriginGraphId = info.OriginGraphId,
         });
     }
 

@@ -12,7 +12,7 @@ namespace Hrot.Presentation.Renderers;
 
 /// <summary>
 /// Entity-aware ImGui renderer for <see cref="BrainBlackboard"/>.
-/// When the active behavior has a <see cref="BehaviorDefinition.ParamsDtoType"/>,
+/// When the active behavior has a <see cref="BehaviorDefinition.BlackboardLayoutType"/>,
 /// interprets <see cref="BrainBlackboard.BehaviorParameters"/> as that typed struct and renders
 /// it via <see cref="ImGuiPropertyTree.Render"/>. Falls back to raw hex display otherwise.
 /// </summary>
@@ -82,9 +82,9 @@ public sealed class BrainBlackboardRenderer : IEntityAwareImGuiRenderer
                     doubleClickedPath = $"$.BehaviorParameters[{v.ByteOffset}]" + childPath[1..];
             }
         }
-        else if (def.ParamsDtoType != null)
+        else if (def.BlackboardLayoutType != null)
         {
-            RenderTypedDto(bb, def.ParamsDtoType, out string? childPath);
+            RenderTypedDto(bb, def.BlackboardLayoutType, out string? childPath);
             // Translate "$.Speed" -> "$.BehaviorParameters.Speed" to match the actual ECS component layout
             if (childPath != null)
                 doubleClickedPath = "$.BehaviorParameters" + childPath[1..];

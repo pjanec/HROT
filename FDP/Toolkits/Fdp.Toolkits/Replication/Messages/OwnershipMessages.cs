@@ -10,7 +10,7 @@ namespace Fdp.Toolkit.Replication.Messages
     /// FDP-REP-201
     /// </summary>
     [EventId(9030)]
-    [DataPolicy(DataPolicy.NoRecord)]
+    [DataPolicy(DataPolicy.NoReplay)]
     public struct OwnershipUpdate
     {
         public NetworkIdentity NetworkId;
@@ -29,7 +29,7 @@ namespace Fdp.Toolkit.Replication.Messages
     /// FDP-REP-202
     /// </summary>
     [EventId(9031)]
-    [DataPolicy(DataPolicy.NoRecord)]
+    [DataPolicy(DataPolicy.NoReplay)]
     public struct DescriptorAuthorityChanged
     {
         public Entity Entity;

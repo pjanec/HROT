@@ -146,8 +146,13 @@ namespace Fdp.Toolkit.Time.Tests
         }
 
         /// <summary>
-        /// TCU-MC001 §5 — Step() is blocked while _pendingAcks is non-empty;
-        /// it unblocks only after all slave ACKs are drained by Update().
+        /// TCU-MC001 §5 — Step() does not ISSUE a frame while _pendingAcks is non-empty; the
+        /// cluster is unblocked only after all slave ACKs are drained by Update().
+        /// <para>AS-14 update: a step requested during that window is now QUEUED rather than
+        /// discarded, so <c>Update()</c> releases one as soon as the ACK set clears. The frame
+        /// numbers asserted here are unchanged — what changed is that the deferred requests are
+        /// no longer lost. See <c>MasterSyncController_StepDuringPendingAcks_IsQueuedThenApplied</c>
+        /// for the queueing contract itself.</para>
         /// </summary>
         [Fact]
         public void MasterSyncController_Step_BlocksUntilAllAcksReceived()
@@ -291,8 +296,10 @@ namespace Fdp.Toolkit.Time.Tests
         // ── Edge cases (TCU-T001) ────────────────────────────────────────────
 
         /// <summary>
-        /// Edge case 1 — Step() called while in Continuous mode is a no-op;
-        /// FrameNumber must not advance.
+        /// Edge case 1 — Step() called while in Continuous mode does not advance FrameNumber.
+        /// <para>AS-14 update: it is no longer a SILENT no-op — the call is counted in
+        /// <c>RefusedStepCount</c> and logged. See
+        /// <c>MasterSyncController_StepInContinuousMode_IsCountedAsRefused</c>.</para>
         /// </summary>
         [Fact]
         public void MasterSyncController_Step_InContinuousMode_IsNoOp()
@@ -1064,6 +1071,249 @@ namespace Fdp.Toolkit.Time.Tests
             ticks = 100L;
             ctrl.Update();
 
+            Assert.Equal(TimeMode.Deterministic, ctrl.GetMode());
+        }
+
+        // ── AS-14: a step request must not vanish silently ───────────────────
+        //
+        // Before the fix, Step() returned early whenever _pendingAcks was non-empty: the request
+        // was DISCARDED and the caller was never told, so N step requests produced ONE step's
+        // worth of sim time. The ACK guard itself is correct (a lockstep cluster must not run
+        // ahead of its slaves) — what was wrong is that the blocked request was dropped instead
+        // of deferred. These rails pin the new contract: deferred, then applied; and when it
+        // genuinely cannot be honoured, refused audibly via RefusedStepCount.
+
+        /// <summary>
+        /// TM-001 §1 — a step requested while ACKs are outstanding is QUEUED, and applied as soon
+        /// as the ACK set clears. This is the defect the cluster integration suite caught.
+        /// </summary>
+        [Fact]
+        public void MasterSyncController_StepDuringPendingAcks_IsQueuedThenApplied()
+        {
+            long ticks = 0;
+            var bus    = new FdpEventBus();
+            var config = new TimeConfig { LookaheadWallTicks = 0 };
+            var ctrl   = CreateController(bus, config: config, tickSource: () => ticks);
+
+            ctrl.SwitchToDeterministic(new HashSet<int> { 1 });
+            ticks = 1;
+            ctrl.Update(); // → Stepping
+
+            var first = ctrl.Step(1.0f);
+            Assert.Equal(1L, first.FrameNumber);
+            Assert.Equal(1.0, first.TotalTime, 3);
+
+            // One frame of the host loop, as in production: it reports the step's delta and
+            // drains _pendingStepDelta. Slave 1 has not ACKed, so nothing is released.
+            var stillWaiting = ctrl.Update();
+            Assert.Equal(1.0f, stillWaiting.DeltaTime, 3);
+
+            // Slave 1 has not ACKed yet — this request must be kept, not dropped.
+            ctrl.Step(1.0f);
+            Assert.Equal(1, ctrl.QueuedStepCount);
+            Assert.Equal(0L, ctrl.RefusedStepCount);
+            Assert.Equal(1.0, ctrl.GetCurrentState().TotalTime, 3);
+
+            // ACK clears → the queued step is released inside Update().
+            bus.PublishManaged(new FrameStepCompletedEvent { FrameID = 1, NodeID = 1 });
+            bus.SwapBuffers();
+            var released = ctrl.Update();
+
+            Assert.Equal(0, ctrl.QueuedStepCount);
+            Assert.Equal(2L, released.FrameNumber);
+            Assert.Equal(2.0, released.TotalTime, 3);
+            Assert.Equal(1.0f, released.DeltaTime, 3);
+        }
+
+        /// <summary>
+        /// TM-001 §2 — the headline symptom: three step requests issued back-to-back must produce
+        /// three steps' worth of sim time, not one. Measured on the cluster net as
+        /// "3 steps ⇒ 1.000s"; here as ~3 s for three 1 s steps.
+        /// </summary>
+        [Fact]
+        public void MasterSyncController_ThreeRapidSteps_AdvanceByThreeStepsWorthOfTime()
+        {
+            long ticks = 0;
+            var bus    = new FdpEventBus();
+            var config = new TimeConfig { LookaheadWallTicks = 0 };
+            var ctrl   = CreateController(bus, config: config, tickSource: () => ticks);
+
+            ctrl.SwitchToDeterministic(new HashSet<int> { 1 });
+            ticks = 1;
+            ctrl.Update();
+
+            // Three requests with no chance to ACK in between: 1 issued, 2 deferred.
+            ctrl.Step(1.0f);
+            ctrl.Step(1.0f);
+            ctrl.Step(1.0f);
+            Assert.Equal(2, ctrl.QueuedStepCount);
+
+            // Drain: each ACK releases exactly one deferred step.
+            for (long frame = 1; frame <= 3; frame++)
+            {
+                bus.PublishManaged(new FrameStepCompletedEvent { FrameID = frame, NodeID = 1 });
+                bus.SwapBuffers();
+                ctrl.Update();
+            }
+
+            Assert.Equal(0, ctrl.QueuedStepCount);
+            Assert.Equal(0L, ctrl.RefusedStepCount);
+            Assert.Equal(3.0, ctrl.GetCurrentState().TotalTime, 3);
+            Assert.Equal(3L, ctrl.GetCurrentState().FrameNumber);
+        }
+
+        /// <summary>
+        /// TM-001 §3 — past <see cref="TimeConfig.MaxQueuedSteps"/> the request is REFUSED, and the
+        /// refusal is countable. A slave that has stopped ACKing must not build an unbounded burst.
+        /// </summary>
+        [Fact]
+        public void MasterSyncController_QueueFull_RefusesAudibly()
+        {
+            long ticks = 0;
+            var bus    = new FdpEventBus();
+            var config = new TimeConfig { LookaheadWallTicks = 0, MaxQueuedSteps = 2 };
+            var ctrl   = CreateController(bus, config: config, tickSource: () => ticks);
+
+            ctrl.SwitchToDeterministic(new HashSet<int> { 1 });
+            ticks = 1;
+            ctrl.Update();
+
+            ctrl.Step(1.0f);                      // issued
+            ctrl.Step(1.0f); ctrl.Step(1.0f);     // queued to the bound
+            Assert.Equal(2, ctrl.QueuedStepCount);
+            Assert.Equal(0L, ctrl.RefusedStepCount);
+
+            ctrl.Step(1.0f); ctrl.Step(1.0f);     // beyond the bound
+            Assert.Equal(2, ctrl.QueuedStepCount);
+            Assert.Equal(2L, ctrl.RefusedStepCount);
+        }
+
+        /// <summary>
+        /// TM-001 §4 — a step while the controller is not in Stepping mode is refused, and counted.
+        /// It used to return the current state with no signal whatsoever.
+        /// </summary>
+        [Fact]
+        public void MasterSyncController_StepInContinuousMode_IsCountedAsRefused()
+        {
+            long ticks = 0;
+            var bus    = new FdpEventBus();
+            var ctrl   = CreateController(bus, tickSource: () => ticks);
+
+            ctrl.Step(0.016f);
+
+            Assert.Equal(1L, ctrl.RefusedStepCount);
+            Assert.Equal(0, ctrl.QueuedStepCount);
+            Assert.Equal(TimeMode.Continuous, ctrl.GetMode());
+        }
+
+        /// <summary>
+        /// TM-001 §5 — Resume drops whatever was deferred. A step queued during one pause must not
+        /// fire into the next one; the count is stated in the RESUME log line, so it is not silent.
+        /// </summary>
+        [Fact]
+        public void MasterSyncController_SwitchToContinuous_DropsQueuedSteps()
+        {
+            long ticks = 0;
+            var bus    = new FdpEventBus();
+            var config = new TimeConfig { LookaheadWallTicks = 0 };
+            var ctrl   = CreateController(bus, config: config, tickSource: () => ticks);
+
+            ctrl.SwitchToDeterministic(new HashSet<int> { 1 });
+            ticks = 1;
+            ctrl.Update();
+
+            ctrl.Step(1.0f);
+            ctrl.Step(1.0f);
+            Assert.Equal(1, ctrl.QueuedStepCount);
+
+            ctrl.SwitchToContinuous();
+            Assert.Equal(0, ctrl.QueuedStepCount);
+        }
+
+        // ── T7: the Future Barrier window ────────────────────────────────────
+        //
+        // AS-14 made a blocked step DEFER instead of vanish, but only for the ACK guard. The mode
+        // guard above it still refused, and for the first 200 ms after every pause the mode is
+        // BarrierPending — which is exactly when an operator who just pressed pause presses step.
+        // The window is short, so the loss is intermittent, which is the worst shape for it.
+
+        /// <summary>
+        /// TM-031 — a step pressed inside the barrier window is QUEUED, not refused, and it is
+        /// released once the barrier lands. Nothing else in the pause path changes.
+        /// </summary>
+        [Fact]
+        public void MasterSyncController_StepDuringPauseBarrier_IsQueuedNotRefused()
+        {
+            long ticks = 0;
+            var bus    = new FdpEventBus();
+            var config = new TimeConfig { LookaheadWallTicks = 100 };
+            var ctrl   = CreateController(bus, config: config, tickSource: () => ticks);
+
+            ctrl.SwitchToDeterministic(new HashSet<int> { 1 });
+            Assert.True(ctrl.IsPauseBarrierPending);
+
+            // Inside the window: mode still reads Continuous, but the pause IS in effect.
+            ticks = 10;
+            ctrl.Update();
+            Assert.Equal(TimeMode.Continuous, ctrl.GetMode());
+
+            ctrl.Step(1.0f);
+            Assert.Equal(1, ctrl.QueuedStepCount);
+            Assert.Equal(0L, ctrl.RefusedStepCount);   // this was 1 before TM-031
+
+            // Past the barrier the controller enters Stepping; the next frame releases the step.
+            ticks = 500;
+            ctrl.Update();                              // BarrierPending -> Stepping
+            var released = ctrl.Update();               // UpdateStepping releases the queued delta
+
+            Assert.Equal(0, ctrl.QueuedStepCount);
+            Assert.Equal(1.0f, released.DeltaTime, 3);
+            Assert.Equal(1L, ctrl.GetCurrentState().FrameNumber);
+        }
+
+        /// <summary>
+        /// TM-031 — the bound still applies inside the window: a queue that cannot grow must refuse
+        /// audibly rather than silently absorb. Same contract as the ACK-guard case.
+        /// </summary>
+        [Fact]
+        public void MasterSyncController_BarrierQueueFull_StillRefusesAudibly()
+        {
+            long ticks = 0;
+            var bus    = new FdpEventBus();
+            var config = new TimeConfig { LookaheadWallTicks = 100, MaxQueuedSteps = 2 };
+            var ctrl   = CreateController(bus, config: config, tickSource: () => ticks);
+
+            ctrl.SwitchToDeterministic(new HashSet<int> { 1 });
+
+            ctrl.Step(1.0f); ctrl.Step(1.0f);
+            Assert.Equal(2, ctrl.QueuedStepCount);
+            Assert.Equal(0L, ctrl.RefusedStepCount);
+
+            ctrl.Step(1.0f);
+            Assert.Equal(2, ctrl.QueuedStepCount);
+            Assert.Equal(1L, ctrl.RefusedStepCount);
+        }
+
+        /// <summary>
+        /// TM-031 — the probe itself: true only for the window, false either side of it. `T6`'s
+        /// resolver answered <c>Unknown</c> for this state because nothing exposed it.
+        /// </summary>
+        [Fact]
+        public void MasterSyncController_ReportsThePendingPauseBarrier()
+        {
+            long ticks = 0;
+            var bus    = new FdpEventBus();
+            var config = new TimeConfig { LookaheadWallTicks = 100 };
+            var ctrl   = CreateController(bus, config: config, tickSource: () => ticks);
+
+            Assert.False(ctrl.IsPauseBarrierPending);   // continuous
+
+            ctrl.SwitchToDeterministic(new HashSet<int> { 1 });
+            Assert.True(ctrl.IsPauseBarrierPending);    // window open
+
+            ticks = 500;
+            ctrl.Update();
+            Assert.False(ctrl.IsPauseBarrierPending);   // barrier crossed
             Assert.Equal(TimeMode.Deterministic, ctrl.GetMode());
         }
     }

@@ -75,8 +75,11 @@ public sealed class ScenarioFileServiceTests : IDisposable
 
         fileService.SaveScenario(repo, _tempFile);
 
+        // ⭐ HN-037 Part B: the round-trip is the SERIALIZER's job, and always was. ScenarioFileService's
+        //   direct LoadScenario was removed with the facade it served; this test keeps its full coverage by
+        //   asking the component that actually does the work.
         var freshRepo = CreateRepoWithPosition();
-        fileService.LoadScenario(freshRepo, _tempFile);
+        serializer.Deserialize(freshRepo, File.ReadAllText(_tempFile));
 
         Assert.Equal(2, freshRepo.EntityCount);
 
@@ -123,72 +126,42 @@ public sealed class ScenarioFileServiceTests : IDisposable
         repo.Dispose();
     }
 
-    /// <summary>
-    /// Test 3 — LoadScenario fires reset observer before populating the repo.
-    /// </summary>
-    [Fact]
-    public void LoadScenario_FiresResetBeforePopulate()
-    {
-        // Save a 2-entity scenario to file
-        var sourceRepo = CreateRepoWithPosition();
-        sourceRepo.CreateEntity();
-        sourceRepo.CreateEntity();
-
-        var serializer  = BuildSerializer();
-        var fileService = new ScenarioFileService(serializer);
-        fileService.SaveScenario(sourceRepo, _tempFile);
-
-        // Target repo starts with 5 entities
-        var targetRepo = CreateRepoWithPosition();
-        for (int i = 0; i < 5; i++) targetRepo.CreateEntity();
-
-        bool observerFired = false;
-        fileService.RegisterWorldResetObserver(() => observerFired = true);
-
-        fileService.LoadScenario(targetRepo, _tempFile);
-
-        Assert.True(observerFired);
-        Assert.Equal(2, targetRepo.EntityCount);
-
-        sourceRepo.Dispose();
-        targetRepo.Dispose();
-    }
+    // ⛔ Test 3 — `LoadScenario_FiresResetBeforePopulate` was DELETED `2026-08-24` (HN-037 Part B).
+    //    It asserted that LoadScenario fires the reset observer before repopulating; with that method gone,
+    //    the observer contract is exercised in full by Test 2 (NewScenario), which is the only remaining
+    //    caller. ⛔ Deleted rather than retargeted: a copy of Test 2 under a load-shaped name would look
+    //    like coverage of something that no longer exists.
+    //    ⭐ The behaviour it cared about — "the world is wiped before the new one arrives" — is now asserted
+    //    where it can actually break: DeterminismRails.A_reload_in_one_process_repeats_the_authored_ids.
 
     /// <summary>
-    /// Test 4 — Subsystem type mismatch throws InvalidOperationException.
+    /// Test 4 — Subsystem type mismatch is refused (ScenarioFileService.ValidateSubsystemType).
     /// </summary>
     [Fact]
-    public void LoadScenario_UnrecognizedSubsystemType_Throws()
+    public void An_unrecognized_subsystem_type_is_refused()
     {
         var json = """{"Header":{"SubsystemType":"Hrot.OtherApp","SchemaVersion":1},"Entities":{}}""";
         File.WriteAllText(_tempFile, json);
 
-        var serializer  = BuildSerializer();
-        var fileService = new ScenarioFileService(serializer);
-        var repo        = CreateRepoWithPosition();
-
-        Assert.Throws<InvalidOperationException>(() => fileService.LoadScenario(repo, _tempFile));
-
-        repo.Dispose();
+        // ⭐ Targets the header check DIRECTLY. It was a private step of the removed LoadScenario and is
+        //   public now precisely so this coverage survives — the genesis loader answers the same question
+        //   by SKIPPING a non-matching file, so this is the only throwing form.
+        Assert.Throws<InvalidOperationException>(
+            () => ScenarioFileService.ValidateSubsystemType(File.ReadAllText(_tempFile)));
     }
 
     /// <summary>
-    /// Test 5 — A file with SubsystemType "Hrot.SimHost" is accepted (cross-app compatibility).
+    /// Test 5 — SubsystemType "Hrot.SimHost" is accepted (cross-app compatibility).
     /// </summary>
     [Fact]
-    public void LoadScenario_SimHostSubsystemType_DoesNotThrow()
+    public void A_SimHost_subsystem_type_is_accepted()
     {
         var json = """{"Header":{"SubsystemType":"Hrot.SimHost","SchemaVersion":1},"Entities":{}}""";
         File.WriteAllText(_tempFile, json);
 
-        var serializer  = BuildSerializer();
-        var fileService = new ScenarioFileService(serializer);
-        var repo        = CreateRepoWithPosition();
-
-        var ex = Record.Exception(() => fileService.LoadScenario(repo, _tempFile));
+        var ex = Record.Exception(
+            () => ScenarioFileService.ValidateSubsystemType(File.ReadAllText(_tempFile)));
 
         Assert.Null(ex);
-
-        repo.Dispose();
     }
 }

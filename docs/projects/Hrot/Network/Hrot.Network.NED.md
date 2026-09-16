@@ -233,6 +233,25 @@ The SST (Shared-State Topics) model governs how entities exist and are updated:
 
 ### Diagram 3 -- DeferredTakeOwnership Protocol (Pre-Genesis Routing)
 
+> ⭐⭐ **STILL THE BEST PICTURE OF THIS HANDSHAKE, and its ORDER is correct** *(verified against source
+> `2026-09-13`)*: the grant arrives before the entity exists, the ghost waits, `DeferredTakeoverSystem`
+> claims only **after** promotion — it is `[UpdateAfter(GhostPromotionSystem)]` and queries the
+> `Constructing` lifecycle, not `Ghost`.
+>
+> ⚠ **ONE CORRECTION.** `GhostPromotionSystem` is **no longer part of this module**. `P2`
+> *(`2026-09-11`)* moved its registrar out of `NedReplicationModule.RegisterSystems` into
+> `EntityCreationPack`, which **every** ECS host builds — so ghost promotion now happens on hosts with
+> no NED module at all, and the BDC gap *("a BDC node never promotes its ghosts")* closed with it.
+> 📄 `docs/DESIGN_Role_Affinity_Ownership.md` §6a.
+>
+> ⚠ **And the reverse is worth knowing:** `DeferredTakeoverSystem` **did not** move. It sits inside this
+> module's private `NetworkLifecycleSystemGroup`, whose `ExecuteGroup` has exactly **one** production
+> caller — `NedReplicationModule.Tick` — so on a host without this module *(BDC, the editor's
+> `NullReplicationModule`)* deferred grants are never claimed.
+>
+> ⭐ **For the whole genesis path, of which this diagram is one stage:**
+> [`docs/DESIGN_Entity_Genesis_End_To_End.md`](../../../DESIGN_Entity_Genesis_End_To_End.md).
+
 ```
  Brain Node                        Muscle Node
      |                                  |

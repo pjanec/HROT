@@ -117,7 +117,7 @@ Half-angle in radians: `MathF.Acos(FieldOfViewCos)`.
 // Fdp.Toolkit.Behavior.Components
 [StructLayout(LayoutKind.Sequential)]
 [ComponentId(GlobalComponentIds.BrainBlackboard)]  // = 23
-[DataPolicy(DataPolicy.NoSave)]
+[DataPolicy(DataPolicy.NoScenario)]
 public unsafe struct BrainBlackboard
 {
     public fixed byte Memory[128]; // bytes 0-59 = behavior params (polymorphic)
@@ -126,7 +126,7 @@ public unsafe struct BrainBlackboard
 // Fdp.Toolkit.Behavior.Components
 [StructLayout(LayoutKind.Sequential)]
 [ComponentId(GlobalComponentIds.BehaviorState)]
-[DataPolicy(DataPolicy.NoSave)]
+[DataPolicy(DataPolicy.NoScenario)]
 public struct BehaviorState
 {
     public int ActiveBehaviorHash;

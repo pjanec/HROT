@@ -126,7 +126,7 @@ Dry runs share the checkpointing logic but eliminate disk I/O entirely for rapid
 
 Leveraging Existing ECS Infrastructure
 
-The FDP kernel already provides the foundation for filtering what data gets persisted. You can use the `[DataPolicy]` attribute to explicitly mark transient or debug ECS components with `DataPolicy.NoSave`. When iterating through components to serialize a scenario or checkpoint, your systems can query `ComponentTypeRegistry.GetSaveableTypeIds()` or use `EntityRepository.GetSaveableMask()` to automatically skip data that should not be persisted.
+The FDP kernel already provides the foundation for filtering what data gets persisted. You can use the `[DataPolicy]` attribute to explicitly mark transient or debug ECS components with `DataPolicy.NoScenario`. When iterating through components to serialize a scenario or checkpoint, your systems can query `ComponentTypeRegistry.GetSaveableTypeIds()` or use `EntityRepository.GetSaveableMask()` to automatically skip data that should not be persisted.
 
 To implement all the concepts from the mgmt-DESIGN seems to be a pretty big portion of work. I guess we should focus on making it right and working with just extremely minimalistic implementation of the CGF. And only if the management/synchronziaton/statemachine/rec-plb and all other concepts from the mgmt-DESIGN are in place, we shoudl focus on implementing the full urban combat demo logic. And till that time use just something trivial and basic as the scenario content, am i right?
 

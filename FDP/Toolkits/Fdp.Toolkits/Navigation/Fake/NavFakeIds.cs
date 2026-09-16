@@ -12,10 +12,15 @@ namespace Fdp.Toolkit.Navigation.Fake
         public const int FakeNavmeshState        = 262;
         public const int FakeCrowdGlobalState    = 263;
         public const int FakeCrowdAgentState     = 264;
-        public const int FakeVolumetricState     = 265;
+        // 265: RELINQUISHED to NavigationContractsComponentIds.CrowdMotorIntent (the Stride port).
+        //      FakeVolumetricState was RESERVED here and never attached to a component -- the constant
+        //      below was its only reference -- so moving it costs nothing and leaves 265 with exactly
+        //      one claimant. Had it stayed, a fake volumetric state built later would have collided
+        //      with a production component, silently.
         // 266: reserved (formerly FakePathPoolEntry -- not an ECS component; stored in dictionary)
         public const int FakeBrainPathCacheEntry = 267;
         public const int FakePathRegistryStats   = 268;
+        public const int FakeVolumetricState     = 269;   // moved from 265, see above
     }
 }
 
