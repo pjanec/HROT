@@ -39,8 +39,15 @@ current-answer: §4 save flow, §5 load flow (R-A, ruled §8.1), §6 the ONE gat
   (CE-275); the transfer INITIATION feature stays deferred (CE-276). Build = CE-275 (4 steps: merge,
   gate+rail, per-node handler+editor reroute+CGF zone service, OQ12 sync); build-time OQ7 (verify parts)
   + OQ8 (rail). ⇒ BUILDABLE; awaiting go-ahead.
-stale-below: nothing yet (new document).
-known-rot: nothing known.
+stale-below: §4b's "zones can't be just entities" argument — superseded in place with the dead text under
+  a HISTORY quote. §6a's `Zones` row and its "the brain must gain an IZoneManagerService" consequence.
+known-rot: ⛔⛔ EVERYTHING THIS DOCUMENT SAYS ABOUT **ZONES** IS SUPERSEDED (2026-09-16) — §6a's
+  "globals ride the brain file" no longer covers `Zones` (the user RETRACTED "zones should for sure be
+  handled by brain"; the consumers are muscle-side and SimHost already composes the service), §4b's
+  "zones can't be just entities" reasoned from the road-network half to the whole, and the
+  `ScenarioMergeCore` I4 guard cites a retired "brain-only" rule. ⇒ **OQ1 and CE-277(a) are CLOSED,
+  NOT BUILT.** ⭐ `$meta` / `Header.TkbName` / sim-time are UNAFFECTED — the brain-file rule still holds
+  for them. 📄 docs/blueprints/Architect_Question_71_Terrain_Zones_And_The_Asset_Build.md §5.
 known-conflict: DESIGN_Node_Roles_And_Policies.md §7.1 says IG-persistence is enforced "by an
   ABSENCE" (IG registers no save handler). ⭐ THIS design supersedes that enforcement with a
   UNIFORM per-entity GATE (§6): every host runs the same gated save; IG's file is empty by the
@@ -517,12 +524,24 @@ network id). On load `ZoneManagerService.LoadZones` **generates** two very diffe
 | the **road network** (from `RoadNetworkPath`) | a **singleton** `ZoneEnvironmentData` blob (navmesh/roads) | ⛔ **no entity exists for it** — it is world environment data |
 | **obstacles** | ordinary entities with `SimTransform`+`PhysicsCollider` | ✅ yes — saved as entities like anything else |
 
-⇒ ⭐⭐ **Zones can't be "just entities" because half of what a zone yields (the road-network singleton) has no
-entity to be.** The definition is a compact **generator** edited as a named unit; storing it beats storing its
-generated output. So `Zones` is a legitimately different KIND — a named environment/authoring layer — and its
-brain-single-source (§6a) is what makes I4 hold: name-keyed zones **could** collide across slices (unlike
-random-GUID entities), and the only thing preventing it is that **only the brain writes them.** ⚠ That makes
-"zones = brain-only" a load-bearing invariant, not a convenience — the merge asserts a single Zones source.
+⛔⛔⛔ **THE PARAGRAPH BELOW IS SUPERSEDED `2026-09-16`** — 📄 **[`Architect_Question_71`](blueprints/Architect_Question_71_Terrain_Zones_And_The_Asset_Build.md) §5.**
+⭐ **What it got right:** the road network genuinely has no entity to be — it is a natively-loaded blob.
+🔴 **What it got wrong:** it concluded from that half that the WHOLE zone must be a non-entity bundle.
+The ruling splits the two axes instead — the **terrain/zone artefact** stays non-entity *(a geographic
+`ZoneSpec {ZoneId, Bounds, DataPath}`)*, while **roads and obstacles become world-content ENTITIES**
+authored like anything else and compiled into assets by an explicit build
+*(`PrepareTerrainAsset`/`CommitTerrainAsset`)*. ⚠ Its own second table row already conceded obstacles are
+saved as entities — which is precisely the **double representation** the ruling removes. ⛔ And
+*"zones = brain-only is a load-bearing invariant"* is retired with §6a: the real invariant was only ever
+*"exactly one source"*, and the wired source was the **muscle**, never the brain.
+
+> ⛔ **HISTORY — the superseded argument, kept so nobody re-derives it:**
+> *"Zones can't be 'just entities' because half of what a zone yields (the road-network singleton) has no
+> entity to be. The definition is a compact **generator** edited as a named unit; storing it beats storing its
+> generated output. So `Zones` is a legitimately different KIND — a named environment/authoring layer — and its
+> brain-single-source (§6a) is what makes I4 hold: name-keyed zones **could** collide across slices (unlike
+> random-GUID entities), and the only thing preventing it is that **only the brain writes them.** That makes
+> 'zones = brain-only' a load-bearing invariant, not a convenience — the merge asserts a single Zones source."*
 
 ### 4c. ⭐⭐⭐ c3 REALISED — **ExCon saves an intentionally-incompatible slice** *(user, `2026-09-14`)*
 
@@ -676,13 +695,22 @@ descriptor and needed a NED ordinal injected — that was the wrong layer; see �
 |---|---|---|
 | `$meta` (`docType`, `schemaVersion`) | DOM envelope (`ScenarioSerializer.Serialize:200`) | **brain file** |
 | `Header.TkbName` (active TKB database) | DOM `Header` (`:198-199`) | **brain file** |
-| `Zones` (tactical zones) | DOM `Zones`, from `IZoneManagerService` (`ScenarioFileService:124`) — ⛔ **editor-only today**; CGF passes `zoneService: null` | ⭐⭐ **brain** *(user ruling: "zones should for sure be handled by brain")* ⇒ the brain node must compose a real `IZoneManagerService` |
+| `Zones` (tactical zones) | DOM `Zones`, from `IZoneManagerService` (`ScenarioFileService:124`) | ⛔⛔ **SUPERSEDED `2026-09-16` — THE WHOLE ROW IS RETIRED.** 🔒 The user RETRACTED *"zones should for sure be handled by brain"*: zones are consumed by **MuscleGround / Perception / NavigationSolver** (road network → `CarKinematicsSystem`, obstacles → colliders/LOS); **the brain needs none of it**, and SimHost already composes the service. ⇒ ⭐ the embedded `Zones` section is itself retired — a zone becomes a GEOGRAPHIC WINDOW (`mgmt-1` §11 `ZoneSpec`), roads/obstacles become world-content ENTITIES. 📄 **[`Architect_Question_71`](blueprints/Architect_Question_71_Terrain_Zones_And_The_Asset_Build.md) §5.** ⇒ **`OQ1` and `CE-277(a)` are CLOSED, not built** — they would add a zone service to the one role with no zone consumer |
 | scenario **sim-time** | already **cluster/manifest** level (`GlobalContextClusterOpHandler.ScenarioTimeSeconds`), **not** in any per-node DOM | **orchestrator context** — already global, no change |
 
 ⭐ **The rule:** all per-node-DOM globals ride the **brain-role file** (the canonical scenario), because
-the brain is the node that owns the scenario as a whole. ⛔ **The one build consequence:** the brain node
-(CGF) must gain a real `IZoneManagerService` — today only the editor has one, so a headless-CGF save would
-drop zones. Sim-time needs nothing — it is already orchestrator-owned.
+the brain is the node that owns the scenario as a whole. ⭐ That still holds for **`$meta` and
+`Header.TkbName`**. Sim-time needs nothing — it is already orchestrator-owned.
+
+⛔⛔ **`Zones` IS NO LONGER ONE OF THEM — SUPERSEDED `2026-09-16`.** The prior build consequence
+*("the brain node must gain a real `IZoneManagerService`")* is **withdrawn**; see the table row above.
+📌 Two measurements killed it: the zone consumers are all **muscle-side** *(`CarKinematicsSystem` reads
+the road network; obstacles are `PhysicsCollider`/LOS)* and **SimHost already composes the service on both
+its load and save handlers** *(`NodeBootstrapper.cs:306,313`)*, so the *"brain-only"* rule was one the
+wiring never followed. ⚠ **Consequence for `ScenarioMergeCore.cs:115-123`:** its I4 guard throws *"Two
+Zones sources… Zones are brain-only (§6a, I4)"* — that message cites a retired rule. The guard's real
+invariant was ever only *"exactly ONE source"*, and once the `Zones` section is retired the guard goes
+with it. 📄 **[`Architect_Question_71`](blueprints/Architect_Question_71_Terrain_Zones_And_The_Asset_Build.md).**
 
 ### 6b. ⭐⭐ FORMAT RECOGNITION — a host loads only files it understands *(ruling `2026-09-14`)*
 

@@ -27,6 +27,12 @@ related-designs:
   - FDP/Engine/Fdp.ModuleHost/docs/ModuleHost-network-ELM-design-talk.md — §1/Part 1: WHY the ELM
     construction barrier exists at all, which §8.10 assumes.
   - docs/DESIGN_Entity_State_Sourcing.md — the recorded-vs-re-derived principle (R-136).
+  - docs/blueprints/Architect_Question_71_Terrain_Zones_And_The_Asset_Build.md — ⭐ §11's ZONE model
+    (geographic window + PrepareZone/CommitZone 2PC) was RE-AFFIRMED and APPROVED there (2026-09-16)
+    over packs-3's content-bundle zone. That question owns the AUTHORING half and the entity→asset
+    build (PrepareTerrainAsset/CommitTerrainAsset), which §11 does not.
+  - docs/designs/packs-3/DESIGN.md — ⛔ its §2.B/§2.C/§2.E built a CONFLICTING zone model (an embedded
+    content bundle); now marked superseded. Do not read it as the zone intent.
 -->
 
 # Distributed Drill Management System — Architecture Design

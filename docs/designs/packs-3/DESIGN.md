@@ -1,4 +1,31 @@
+<!--STATUS
+state: LIVE, but the ZONE half is SUPERSEDED (2026-09-16)
+updated: 2026-09-16
+current-answer: the ACL-hardening and network-DRY halves stand. ⛔ The ZONE half does NOT — see known-rot.
+known-rot: ⛔⛔ §2.B (the embedded `"Zones"` scenario section), §2.C (`ZoneDefinitionDto`) and §2.E
+  (`ZoneManagerService` as the zone owner) are SUPERSEDED by the 2026-09-16 user ruling recorded in
+  docs/blueprints/Architect_Question_71_Terrain_Zones_And_The_Asset_Build.md §5.
+  A zone is a GEOGRAPHIC WINDOW onto a terrain (mgmt-1 §11's `ZoneSpec {ZoneId, Bounds, DataPath}`),
+  NOT a content bundle. Roads and obstacles are WORLD CONTENT authored as entities; they cross zone
+  boundaries and are not owned by any zone. `TerrainDatabaseId` was measured DEAD (zero production
+  readers) and terrain identity lives globally as GlobalContext `SceneId`.
+  ⚠⚠ AND THIS DOCUMENT CONTRADICTS ITS OWN DESIGN CONVERSATION: .dev/_DONE/packs-3/design_talk.md:555-567
+  concluded "rather than adding a new section to the scenario JSON file, you should utilize this existing
+  Orchestration pipeline" (a zone-id foreign key in the header). §2.B specified the opposite, with no
+  stated reason beyond "one road network per zone — KISS". Do NOT quote §2.B/§2.C/§2.E as intent.
+known-conflict: docs/designs/mgmt-1/DESIGN.md §11 — it always held the geographic model; that one wins.
+related-designs:
+  - docs/blueprints/Architect_Question_71_Terrain_Zones_And_The_Asset_Build.md — the ruling that
+    supersedes the zone half, and the gap list for its replacement.
+  - docs/designs/mgmt-1/DESIGN.md — §11 owns the zone as a geographic staged-load unit (the model to
+    restore to), incl. the PrepareZone/CommitZone 2PC protocol.
+  - .dev/_DONE/packs-3/design_talk.md — this programme's own conversation, which argued for the
+    foreign-key shape that §2.B then did not build.
+-->
 # DESIGN.md — Scenario File Support, ACL Hardening & Network DRY Refactor (`packs-3`)
+
+> ⛔⛔ **The ZONE half of this document is SUPERSEDED — see the STATUS block above.** §2.B/§2.C/§2.E
+> describe what was BUILT, not what is intended. The rest of the document stands.
 
 ## Background and Vision
 

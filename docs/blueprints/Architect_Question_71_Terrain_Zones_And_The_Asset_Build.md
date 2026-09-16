@@ -1,11 +1,12 @@
 <!--STATUS
 state: LIVE
-build-state: DESIGN — decision-shaped; a RECOMMENDED LEAN per sub-question. Resolve JOINTLY with the
-  user (no relay yet — see §0.1). ⛔ NOT buildable; no handoff until the leans (or alternatives) are
-  approved and the resulting model is folded into the owning designs.
+build-state: DESIGN — ✅ **APPROVED IN FULL AS A CONCEPT (user, 2026-09-16)** with a FAKE-FIRST scope
+  ruling (§5). ⛔ STILL NOT BUILDABLE — §6 lists what must be specified first, and the concrete asset
+  semantics are explicitly POSTPONED by the same ruling.
 updated: 2026-09-16
-current-answer: §3 (the sub-questions + leans). §1 is the INVENTORY, §2 the measured conflict that
-  produced this document. Nothing here is a ruling yet.
+current-answer: §5 is the RULING (approval + the fake-first scope) and §6 is the gap list that must be
+  closed before a handoff. §3's leans are all approved — read them as decided, not as options.
+  §1 is the INVENTORY, §2 the measured conflict.
 stale-below: nothing — new document.
 known-rot: nothing yet.
 known-conflict: docs/designs/packs-3/DESIGN.md §2.B/§2.C contradicts its OWN design conversation
@@ -264,3 +265,73 @@ internal re-slice is a detail that A–E decide.
 ⚠ **`CE-277(a)` — *"give CGF a real `IZoneManagerService`"* — should be CLOSED, not built**: it
 would add a zone service to the one role with no zone consumer, and the class it would instantiate is
 what step 3 retires.
+
+---
+
+## 5. ✅ RULING `2026-09-16` — **approved in full, FAKE-FIRST**
+
+> 🔒 **User, verbatim:** *"approved in full as a concept… Zone handling needs detailed design of how
+> terrain-asset-entities are built (into what?), how the Commit swap is done (what gets replaced?) etc.
+> Concrete solution of these is to be postponed. Asset build (prepare/commit) can be just fake. But
+> zones (themselves being assets — likely including a navmesh or even something else) needs to be
+> persisted/cached to a local storage (manifest only — still just fake) and referenced from scenario
+> (no fake — real referencing). Zone load (prepare/commit) can be just fake implementation loading
+> nothing real… so zones can be edited as area entities, obstacles can be edited as specific entities,
+> roads can be edited as specific entities, the cluster control panel should have UI controls for
+> initiating terrain asset build same as for zones… terrain asset prep/commit and zone prep/commit
+> operation implemented with fake immediately ACKing handlers, shared code on every host."*
+
+⇒ **Q71-A … Q71-G are all DECIDED as leaned.** What the ruling adds is a **scope split**: build the
+*authoring surface and the mechanism* for real; fake the *heavy asset semantics*.
+
+| axis | ⭐ REAL in this slice | ⛔ FAKE / postponed |
+|---|---|---|
+| zone definition | **authored as an AREA ENTITY** | — |
+| obstacles | **authored as specific entities** | — |
+| roads | **authored as specific entities** | — |
+| scenario → zone reference | ⭐⭐ **REAL referencing — explicitly not faked** | — |
+| zone artefact on local storage | a **real file** at a real path | its **content is a manifest stub** |
+| `PrepareZone` / `CommitZone` | registered on **every host, shared code**, real 2PC round, real ACKs | the handler **loads nothing** |
+| `PrepareTerrainAsset` / `CommitTerrainAsset` | same — real op, real round | **converts nothing**; no asset is produced |
+| cluster control panel | **real buttons** initiating both builds | — |
+| *what* an asset IS, and *what the swap replaces* | — | ⛔⛔ **POSTPONED — the detailed design is deliberately not attempted here** |
+
+⭐⭐ **Why a fake that ACKs is legitimate here and is NOT the `R-133` disease:** `R-133` warns that *"a
+cell reported present that silently no-ops is worse than an absent one."* The distinction is
+**visibility** — ⇒ 🔒 **a fake handler MUST announce itself**: log its fake-ness on every round, and
+the capability manifest must **not** advertise a real terrain/zone capability. A silent fake would be
+exactly the defect `R-133` names. ⛔ This is a constraint on the build, not a caveat.
+
+---
+
+## 6. ⛔ WHAT MUST STILL BE SPECIFIED before this is buildable
+
+📐 Measured `2026-09-16` while scoping the ruling — the state of the zone pipeline is **more built
+than expected in the transport and less built than expected in the middle**:
+
+| # | measured | consequence |
+|---|---|---|
+| ⑬ | `ClusterOpType.LoadZone = 3` exists, the wire translator has a **real arm** publishing `LoadZoneIntent` (`ClusterOpMasterTranslator.cs:238-241`), and the intent is bus-registered | the operator-facing op and its wire path **already exist** |
+| ⑭ | 🔴 **`LoadZoneIntent` has NO CONSUMER** — and its own doc comment says *"Consumed by `ClusterMaster`"* (`ClusterOpIntents.cs:133`), which is **FALSE** | the path dead-ends; the comment must be corrected either way |
+| ⑮ | the cluster panel has **no zone control** — its op switch handles time/transition/episode/archive/checkpoint/seek/cancel and **no `LoadZone` arm** (`ClusterScenarioPanel.cs:55-136`) | ⚠ the ruling's *"same as for zones"* assumes a zone UI that **does not exist**; both buttons are new |
+| ⑯ | the `LoadZone` payload reuses **`ArchivePayloadDto`**, stuffing `ExerciseId` into `ZoneId` | a purpose-built payload DTO is needed |
+| ⑰ | `ClusterOpType` next free value = **17** (2 is a documented reserved gap). `NodeOpType` has **undocumented** gaps at 6, 17, 18, 19 | ⛔ do **not** silently reuse an undocumented gap — pick new high values and document, or establish the gaps are free |
+
+### The open specification items
+
+| # | what must be decided | why it blocks |
+|---|---|---|
+| **S1** | **the zone entity's component set** — bounds (reuse `EditablePolyline`? a dedicated `ZoneBounds`?), the zone id, the terrain link | decides the authoring surface and what the save gate persists |
+| **S2** | **road / obstacle marker components** — "this polyline is a road" vs a zone boundary vs a tactical drawing. ⚠ `R-44`: component ids are **globally unique and capped at 256** — new ids must be allocated deliberately | without a discriminator the asset build cannot select by KIND (`Q71-E2`) |
+| **S3** | ⭐⭐ **the duality rule: a zone is BOTH an authored entity AND an artefact.** Which is canonical, and does the entity persist to the scenario *as well as* export to the zone manifest? | ⛔ **the highest-risk gap** — get this wrong and there are two producers for one slot (`R-132`) |
+| **S4** | **the zone artefact: path convention, manifest schema, and who writes it** (the build? the save?) | the ruling says real file / stub content — the *path* must still be real |
+| **S5** | **how the scenario references zones** — header field shape, and resolution from id → local storage | ruled REAL, so it must be fully specified |
+| **S6** | **ownership / role for zone, road and obstacle entities** — which node owns them, hence which node SAVES them under the §6 gate | `DESIGN_Role_Affinity_Ownership` + the save gate both key on this |
+| **S7** | **the two op pairs' enum values + payload DTOs** — see ⑰ and ⑯; both enums are **wire contracts in two places** | a wrong value is a wire break |
+| **S8** | **shared registration** — one registrar for both op pairs across all hosts, mirroring `SerializeLocalRegistrar` (`CE-279`) | the ruling says *"shared code on every host"* |
+| **S9** | **the fake's honesty contract** — how the fake announces itself (log + capability manifest), per §5 | `R-133` |
+| **S10** | **the retirement + re-home plan** — `ZoneDefinitionDto`, the embedded `Zones` section, `ZoneMembership`, `ZoneManagerService`, the `ScenarioMergeCore` I4 rule, `ZoneEditorPanel`, and the **five test suites** that assert the retiring behaviour (`ZoneManagerServiceTests`, `ZoneScenarioLoadIntegrationTests`, `ZoneEditorPanelTests`, `ScenarioFileServiceZoneTests`, the two `SpyZoneManagerService` doubles) | ⚠ `HN-037`: a deletion whose TEST surface was not measured is not a "mechanical deletion" |
+| **S11** | **the UML** — `classDiagram` + `sequenceDiagram` + the **module diagram** (who registers each handler on which host, and who ticks it) | obligation ① — a design with no UML may not be dispatched |
+
+⇒ ⭐ **S1–S3 are design calls that belong in a `DESIGN_*` doc** *(this question is the WHY; that doc is
+the WHAT)*. S4–S11 are specification work that can be done inside it. ⛔ **No handoff until S11 exists.**
