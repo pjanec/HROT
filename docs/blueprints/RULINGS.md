@@ -6,6 +6,12 @@ current-answer: this file is now LEAN. Feature intent lives in the DESIGN docs (
   This file holds ONLY what those two cannot: engine invariants, silent-failure hazards,
   and cross-cutting decisions with no single design home.
 stale-below: nothing.
+re-read: 2026-09-16 — .claude/CLAUDE.md changed again (rulings-check WARNed on R-128/129/135/139/142/143).
+  Re-read and CONFIRMED none moved: the edit was PURELY ADDITIVE (git diff: 29 insertions, ZERO removed
+  lines) — one new section, "EXPLORE WIDE, DECIDE SHORT" (the output contract for how-does-X-work /
+  how-should-X-work answers: stop on coverage not on fit, name every owning design doc checked and why it
+  does or does not apply, answer under a page with rejected alternatives one line each). It sits between
+  the claim-table section and the interaction preferences; no existing row's surroundings were touched.
 re-read: 2026-09-12 — BOTH .claude/CLAUDE.md and DESIGN_Entity_State_Sourcing.md changed, so
   rulings-check WARNed on the rows citing them. Re-read and CONFIRMED none moved. 33/33 quotes verify.
   DESIGN_Entity_State_Sourcing.md: the ONLY edit is a related-designs list added inside its STATUS
