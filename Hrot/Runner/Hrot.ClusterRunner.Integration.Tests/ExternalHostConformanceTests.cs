@@ -276,11 +276,13 @@ public sealed class ExternalHostConformanceTests
             Assert.True(torndown,
                 "STUCK: the creator must ABORT — after its long reliable-init timeout the deferred entity is torn down (never force-acked).");
 
-            // ⚠ WIRE dispose is a DIAGNOSTIC, not a gate. The abort's EntityMaster NotAliveDisposed was NOT
-            //   observed by an in-harness reader for this aborted-while-Constructing entity (logged above as
-            //   wireDisposed). Whether the teardown SHOULD emit that dispose is a production-barrier question
-            //   (the frame forbids touching the merged barrier); the durable wire capture is the ddsmonitor
-            //   artifact per §3d ACCEPTANCE. See CE-294 report — this is reported as a finding, not asserted here.
+            // ⚠ WIRE dispose is a DIAGNOSTIC, not a gate. The in-harness reader does NOT reliably observe the
+            //   abort's EntityMaster NotAliveDisposed for this aborted-while-Constructing entity (logged above as
+            //   wireDisposed). ⭐ RULED (H-coord 2026-09-16): this is a TEST-OBSERVER artifact, NOT a production
+            //   gap — production DOES dispose it (CycloneNetworkCleanupSystem tracks Constructing authoritative
+            //   entities and disposes EntityMasterEgressTranslator on the DestructionOrder), and piece-C's
+            //   --mode all ddsmonitor already captured the NotAliveDisposed. The AUTHORITATIVE wire proof is the
+            //   ddsmonitor capture (§3d.5 / RUNBOOK §5a); do NOT read wireDisposed=false here as a gap.
         }
         finally { Cleanup(cgf, proc); }
     }
