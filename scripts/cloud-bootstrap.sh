@@ -295,7 +295,7 @@ WRAP
 
 # ============================================================================
 # 5. CycloneDDS transport — WE RELY ON DEFAULTS ON PURPOSE. Do NOT export
-#    CYCLONEDDS_URI here.
+#    CYCLONEDDS_URI here, and do NOT re-add a loopback config.
 #    Measured on two cloud containers (2026-09-16): CycloneDDS default discovery
 #    picks a multicast-capable NIC (eth0, flags 0x1003) and works cross-process —
 #    verified by a 2167-sample ddsmonitor capture and the ClusterRunner DDS
@@ -303,9 +303,7 @@ WRAP
 #    for "determinism", but loopback ships WITHOUT the MULTICAST flag on at least
 #    one container and enabling it needs CAP_NET_ADMIN (denied there) — so the pin
 #    only ever fell back to default anyway, while its warning banner was a false
-#    alarm. Net benefit over defaults: zero. The feared "eth0 loses multicast" was
-#    never observed. See config/cyclonedds-container.xml for a MANUAL fallback if a
-#    future container's default discovery ever fails; it is not wired in here.
+#    alarm. Net benefit over defaults: zero, so it was removed entirely.
 # ============================================================================
 
 main() {
