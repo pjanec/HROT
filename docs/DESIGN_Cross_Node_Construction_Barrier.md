@@ -802,15 +802,21 @@ every loop for the latched netId (keyed topic → one instance) so it lands insi
 **(b)** the rail SLOW-pumps (25 ms/frame) so that window is ~1.5 s of wall-clock for the cross-process ack.
 
 **⛔ DEVIATION 2 — STUCK wire-dispose is a DIAGNOSTIC, not an in-test gate (§3d.2 seq step "NotAliveDisposed").**
-📌 Measured: the creator-side abort is deterministic and asserted (deferred `Constructing` → torn down). But an
+📌 Measured: the creator-side abort is deterministic and asserted (deferred `Constructing` → torn down). But the
 in-harness `DdsReader<EntityMaster>` (joined BEFORE the birth sample, key read via `DdsTypeSupport.FromNative`
 exactly as `EntityMasterIngressTranslator`) did **NOT** observe the abort's `EntityMaster` dispose for the
-aborted-while-`Constructing` entity — neither in-process nor from the foreign fake. The entity IS locally torn
-down; the wire dispose was not seen. ⚠ Whether the abort teardown SHOULD emit that dispose (so a peer that
-ghosted the entity removes it) is a **production-barrier question** — the frame forbids touching the merged
-barrier, so this is **reported as a finding**, not fixed here; the durable wire proof remains the **ddsmonitor**
-capture (§3d.0 / RUNBOOK §5a). ⇒ the rail hard-asserts the deterministic creator-side C3 outcome and logs
-`wireDisposed` as a diagnostic.
+aborted-while-`Constructing` entity. ⭐⭐ **RULED (H-coord, `2026-09-16`, merge `54409934`): this is a TEST-OBSERVER
+artifact, NOT a production gap — the in-harness `EntityMaster`-dispose assertion is UNRELIABLE and the `ddsmonitor`
+capture is the AUTHORITATIVE proof.** 📐 Production DOES dispose it: `CycloneNetworkCleanupSystem` (`Execute` :42-48)
+tracks authoritative entities in **all** lifecycle states incl. `Constructing`, and on the `DestructionOrder`
+(`:68-88`) disposes every translator incl. `EntityMasterEgressTranslator.DisposeInstance` (the wire dispose); the
+creator's reliable entity is authoritative (`NetworkAuthority.PrimaryOwnerId==local`) and has a netId while
+`Constructing` (it published `EntityMaster`/`WaitForAcks`), so it IS tracked, and `OnTimeout`→`ELM.BeginDestruction`
+→`DestructionOrder` routes through it. Piece-C's `--mode all` `ddsmonitor` already captured the `NotAliveDisposed`.
+⇒ the in-harness miss is timing/history-depth/keying in the ad-hoc reader, not a missing dispose. ⛔ **Do not read
+`wireDisposed=false` here as a gap.** ⇒ the rail hard-asserts the deterministic creator-side C3 outcome (deferred→
+torn-down) and logs `wireDisposed` as a diagnostic ONLY; the authoritative wire proof is the `ddsmonitor` capture
+(§3d.0 / RUNBOOK §5a).
 
 **✅ ROLE CHECK (§2b / §3d.4) CONFIRMED — finding, no change.** `SimulatedInitReadinessParticipant` is registered
 purely on `FDP_FAKE_INIT_FRAMES>0` inside `if (lifecycleModule != null)` — **role-agnostic**; the role only
