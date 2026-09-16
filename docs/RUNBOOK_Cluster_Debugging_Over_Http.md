@@ -240,6 +240,11 @@ ddsmonitor --DdsSettings:HeadlessMode=Record --DdsSettings:HeadlessFilePath=/tmp
 # drop noise instead: --AppSettings:ExcludeTopics:0="*Heartbeat*"
 # value filter (Dynamic-LINQ): --DdsSettings:FilterExpression="Payload.State ne 1"
 ```
+⭐⭐ **DEFAULT TO A FILTER — capture-all is for rich diagnosis only.** 📌 Measured `2026-09-16`: an unfiltered
+capture was **93 MB / 2167 samples, of which 1801 (83 %) were `DebugPrimitivesBatch`** — pure gizmo-draw noise that
+buries the lifecycle traffic you actually came for. ⇒ start with `--AppSettings:IncludeTopics:*` scoped to the topics
+in question *(the barrier set above)*, or at minimum `ExcludeTopics *DebugPrimitives* / *Heartbeat* / *TimeSync*`.
+⛔ Only drop the filter when you genuinely need the full bus *(chasing an unknown flow, ordering across all topics)*.
 Multi-domain / partitioned capture: `--DdsSettings:Participants:0:DomainId=0`
 `--DdsSettings:Participants:1:DomainId=5 --DdsSettings:Participants:1:PartitionName="sim"`.
 Replay a capture back onto the bus: `--DdsSettings:HeadlessMode=Replay --DdsSettings:HeadlessFilePath=/tmp/cap.json [--DdsSettings:ReplayRate=2.0]`.
