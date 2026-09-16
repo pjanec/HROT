@@ -1,0 +1,38 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  cyclonedds-container.xml — deterministic DDS transport for an all-in-one cloud container.
+
+  WHY THIS EXISTS
+    Cloud sessions run every node (orchestrator/cgf/simhost/ig), the integration-test
+    participants AND ddsmonitor inside ONE container. With no config, each process runs
+    CycloneDDS's interface-selection heuristic independently — today it picks eth0, but a
+    future image could rename the NIC or clear its MULTICAST flag, and discovery silently
+    diverges per process. This pins every process to the loopback interface with multicast,
+    so cross-process discovery is deterministic and self-contained (no external NIC in the
+    path). scripts/cloud-bootstrap.sh points CYCLONEDDS_URI here and enables lo multicast.
+
+  IT IS TRANSPORT-ONLY, ON PURPOSE
+    - <Domain Id="any"> => applies to EVERY domain, including the integration tests' 100-500
+      range (DistributedScenarioSaveTests base 271, NetworkGatewayIntegrationTests base 230,
+      CgfHarness base 200). Test isolation is by DomainId, which this does not touch.
+    - It sets NO discovery peer list, NO QoS, NO domain-0 pinning — so it changes HOW packets
+      travel, never WHO talks to WHOM. Domains stay isolated.
+
+  SCOPE / CAVEAT
+    lo-only means processes talk over loopback ONLY — correct for a single container, wrong
+    for genuine cross-container DDS. This file is a container-debugging convenience, not a
+    deployment config. Override per-command with `env -u CYCLONEDDS_URI ...` (e.g. to let
+    ddsmonitor use default discovery), or point CYCLONEDDS_URI elsewhere.
+-->
+<CycloneDDS xmlns="https://cdds.io/config"
+            xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+            xsi:schemaLocation="https://cdds.io/config https://raw.githubusercontent.com/eclipse-cyclonedds/cyclonedds/master/etc/cyclonedds.xsd">
+  <Domain Id="any">
+    <General>
+      <Interfaces>
+        <NetworkInterface name="lo" multicast="true"/>
+      </Interfaces>
+      <AllowMulticast>true</AllowMulticast>
+    </General>
+  </Domain>
+</CycloneDDS>

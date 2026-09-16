@@ -293,6 +293,36 @@ WRAP
     fi
 }
 
+# ============================================================================
+# 5. CycloneDDS transport config — deterministic loopback discovery
+#    Every node process, the integration-test participants and ddsmonitor run in
+#    ONE container. Without a config each runs CycloneDDS's interface heuristic
+#    independently (picks eth0 today; a future image could rename the NIC or clear
+#    its MULTICAST flag). Pin all of them to loopback+multicast via a transport-only,
+#    Domain Id="any" config so discovery is deterministic and self-contained.
+#    Transport-only => it never touches DomainId-based test isolation.
+#    Override per-command with `env -u CYCLONEDDS_URI ...` when you want defaults.
+# ============================================================================
+install_cyclonedds_config() {
+    local cfg="$PROJECT_DIR/config/cyclonedds-container.xml"
+    if [ ! -f "$cfg" ]; then
+        log "NOTE: $cfg not found; skipping CYCLONEDDS_URI setup."
+        return 0
+    fi
+
+    # CycloneDDS multicast over loopback needs the MULTICAST flag on `lo`; cloud
+    # images ship it cleared. `ip link set` is the clean way (falls back silently).
+    if command -v ip >/dev/null 2>&1; then
+        ip link set dev lo multicast on 2>/dev/null \
+            || { command -v sudo >/dev/null 2>&1 && sudo ip link set dev lo multicast on 2>/dev/null; } \
+            || log "NOTE: could not enable multicast on lo (need CAP_NET_ADMIN); DDS over lo may not discover."
+    fi
+
+    export CYCLONEDDS_URI="file://$cfg"
+    persist_env "export CYCLONEDDS_URI=\"file://$cfg\""
+    log "CYCLONEDDS_URI=file://$cfg (loopback+multicast, transport-only)"
+}
+
 main() {
     log "Starting. project=$PROJECT_DIR  mcp-bin=$CBM_BIN"
     install_dotnet
@@ -303,6 +333,7 @@ main() {
     install_roslynmcp && roslyn_ok=1 || true
     local ddsmon_ok=0
     install_ddsmonitor && ddsmon_ok=1 || true
+    install_cyclonedds_config || true
     log "Done. dotnet=$(command -v dotnet || echo "$DOTNET_ROOT/dotnet")  mcp=$([ -x "$CBM_BIN" ] && echo "$CBM_BIN" || echo MISSING)  roslyn=$([ "$roslyn_ok" = 1 ] && echo "$ROSLYNMCP_DIR" || echo MISSING)  ddsmonitor=$(command -v ddsmonitor >/dev/null 2>&1 && echo OK || echo MISSING)"
     if [ "$cbm_ok" != 1 ]; then
         log "NOTE: codebase-memory-mcp was NOT installed; the MCP server will show 'failed to connect'."
