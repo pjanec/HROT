@@ -8,6 +8,10 @@ current-answer: the whole file — read it, then re-derive the live state with t
   §3 HEAD is now `02020eed` (UI merge: CE-283 reliable-init construction barrier slice A, LIVE-PROVEN).
   ⭐ NEW WORKFLOW: H - ui (session_01HAuqWX…) is the DEV/implementation session; this session (H - coord)
   frames + dispatches + verifies/merges. Dispatch by firing a message into H-ui; it reports back here.
+  ⚠ PROCESS NOTE (user, 2026-09-16, for the NEXT programme — NOT retroactive): STOP routing BACKEND work
+  through H - ui. A dedicated "H - back" session (future) will own backend; H - ui goes back to UI/CGF only.
+  The current reliable-init barrier work stays on H - ui through piece-C completion (backend edits there were
+  user-authorized, e.g. CE-292 cross-lane) — the split applies to the next programme's lane assignment.
 -->
 # COORDINATOR RESUMPTION — `2026-09-15`
 
