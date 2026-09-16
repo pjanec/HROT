@@ -837,6 +837,17 @@ the ownership handover threw on every node, every frame, and **0/8 entities move
 question is *"does the product actually work?"*, RUN IT** — ⛔ a green gate table is not an answer to that
 question.
 
+⭐⭐ **DDS WIRE CAPTURE — `ddsmonitor` (sniff the bus to JSON).** When the HTTP counters say a sample *should*
+have flowed but the receiver disagrees, or you need to see the actual wire traffic *(lifecycle/dispose samples,
+sender identity, ordering)* — `ddsmonitor` is a CycloneDDS sniffer that dumps every sample to a JSON array.
+⭐ Installed by `scripts/cloud-bootstrap.sh` *(pkg `cyclonedds.net.ddsmonitor`; on PATH via a `/usr/local/bin`
+wrapper that sets `DOTNET_ROOT`)*. ⭐ **Headless record:** `ddsmonitor --DdsSettings:HeadlessMode=Record
+--DdsSettings:HeadlessFilePath=cap.json --DdsSettings:DomainId=<cluster domain>` *(runs until Ctrl+C; filter
+with `--AppSettings:IncludeTopics:0="*EntityMaster*"`)*. ⚠ the `DomainId` MUST match the running cluster or the
+capture is empty. 📄 **Recipe + full arg reference: [`docs/RUNBOOK_Cluster_Debugging_Over_Http.md`](../docs/RUNBOOK_Cluster_Debugging_Over_Http.md) §5a**
+*(tool docs: github.com/pjanec/CycloneDds.NET `tools/DdsMonitor/README.md`)*. ⛔ **It complements, does not
+replace, the HTTP diagnostics** — HTTP says *"did it leave?"*, `ddsmonitor` says *"what exactly crossed the wire."*
+
 ### ⚠⚠ The second half of the complaint is TRUE, and the tally is worth keeping
 
 | what found the defect, batches 94–101 | |

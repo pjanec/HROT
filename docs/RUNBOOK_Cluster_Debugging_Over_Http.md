@@ -1,7 +1,8 @@
 <!--STATUS
 state: LIVE
-updated: 2026-09-04
-current-answer: the whole file — it is a procedure, not a design; every section is current
+updated: 2026-09-16
+current-answer: the whole file — it is a procedure, not a design; every section is current.
+  §5a (added 2026-09-16) is the DDS wire-capture recipe (ddsmonitor sniff-to-JSON).
 stale-below: nothing
 known-rot: nothing known
 known-conflict: none. tools/ai-debug-mcp/SKILL.md documents the SAME surface through the MCP
@@ -202,6 +203,50 @@ topics flowing in both directions, DDS is *proven* healthy and the fault is upst
 
 ⚠ **`sent == 0` can also be CORRECT.** Confirm the producer had anything to say before calling it a
 defect: here `SensorContactList.Count` was `0` on every observer, so publishing nothing was right.
+
+---
+
+## 5a. ⭐⭐ DDS WIRE CAPTURE — sniff the bus to JSON with `ddsmonitor`
+⭐ **This is NOT HTTP** — it is a separate CycloneDDS instrument. §5's translator counters answer *"did it
+leave?"*; `ddsmonitor` answers *"what EXACTLY crossed the wire, from which node, in what order"* — the sample
+payloads, the sender identity, and the `InstanceState` *(alive / disposed / no-writers)*. Reach for it when the
+HTTP diagnostics say a sample should have flowed but the receiver disagrees, or to see lifecycle/dispose traffic
+directly *(e.g. the reliable-init barrier: `EntityMaster` `WaitForAcks`, `EntityLifecycleStatusDescriptor`,
+`OwnershipUpdate`, `NodeCapabilities`, and the dispose sample of an aborted create)*.
+
+**Install:** it is a .NET global tool provisioned by `scripts/cloud-bootstrap.sh` *(pkg `cyclonedds.net.ddsmonitor`)*;
+`ddsmonitor` is on PATH via the `/usr/local/bin` wrapper. Full arg docs: **github.com/pjanec/CycloneDds.NET →
+`tools/DdsMonitor/README.md`**.
+
+**Record the bus to JSON** *(headless; runs until `Ctrl+C`; no browser)*:
+```bash
+ddsmonitor --DdsSettings:HeadlessMode=Record \
+           --DdsSettings:HeadlessFilePath=/tmp/cap.json \
+           --DdsSettings:DomainId=0                       # ⛔ MUST match the cluster's DDS domain
+# ...let the scenario run, then Ctrl+C. /tmp/cap.json is a JSON array of samples.
+```
+Filter to just the barrier topics *(glob on the fully-qualified type name)*:
+```bash
+ddsmonitor --DdsSettings:HeadlessMode=Record --DdsSettings:HeadlessFilePath=/tmp/cap.json \
+  --AppSettings:IncludeTopics:0="*EntityMaster*" \
+  --AppSettings:IncludeTopics:1="*EntityLifecycleStatus*" \
+  --AppSettings:IncludeTopics:2="*OwnershipUpdate*"
+# drop noise instead: --AppSettings:ExcludeTopics:0="*Heartbeat*"
+# value filter (Dynamic-LINQ): --DdsSettings:FilterExpression="Payload.State ne 1"
+```
+Multi-domain / partitioned capture: `--DdsSettings:Participants:0:DomainId=0`
+`--DdsSettings:Participants:1:DomainId=5 --DdsSettings:Participants:1:PartitionName="sim"`.
+Replay a capture back onto the bus: `--DdsSettings:HeadlessMode=Replay --DdsSettings:HeadlessFilePath=/tmp/cap.json [--DdsSettings:ReplayRate=2.0]`.
+
+**Each JSON entry:** `Ordinal` · `TopicTypeName` · `Timestamp` · `DomainId` · `PartitionName` ·
+`Sender` *(PID / process / machine IP)* · `InstanceState` · `Payload`.
+
+| ⚠ traps | |
+|---|---|
+| **empty `[` capture** | the `DomainId` *(and partition)* did not match the running cluster — nothing was on that domain. Confirm the cluster's domain first |
+| **it also opens Kestrel on `:5000`** | harmless in Record mode; it does NOT self-exit after 15s the way the browser UI does |
+| ⛔ **it needs `DOTNET_ROOT`** | the `/usr/local/bin/ddsmonitor` wrapper sets it; if you run the raw `~/.dotnet/tools/ddsmonitor`, export `DOTNET_ROOT=$HOME/.dotnet` first |
+| ⚠ **run it BESIDE the cluster** | start the capture, then run the scenario *(§1/§3)*; a late-started capture misses the create/spawn burst unless the topic is durable |
 
 ---
 
