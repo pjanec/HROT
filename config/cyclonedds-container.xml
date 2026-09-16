@@ -1,15 +1,22 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!--
-  cyclonedds-container.xml — deterministic DDS transport for an all-in-one cloud container.
+  cyclonedds-container.xml — MANUAL, OPT-IN loopback DDS transport fallback.
 
-  WHY THIS EXISTS
-    Cloud sessions run every node (orchestrator/cgf/simhost/ig), the integration-test
-    participants AND ddsmonitor inside ONE container. With no config, each process runs
-    CycloneDDS's interface-selection heuristic independently — today it picks eth0, but a
-    future image could rename the NIC or clear its MULTICAST flag, and discovery silently
-    diverges per process. This pins every process to the loopback interface with multicast,
-    so cross-process discovery is deterministic and self-contained (no external NIC in the
-    path). scripts/cloud-bootstrap.sh points CYCLONEDDS_URI here and enables lo multicast.
+  ⛔ NOT wired into scripts/cloud-bootstrap.sh — WE RELY ON CYCLONEDDS DEFAULTS.
+    Measured on two cloud containers (2026-09-16): default discovery picks a
+    multicast-capable NIC (eth0, flags 0x1003) and works cross-process — verified by a
+    2167-sample ddsmonitor capture and the ClusterRunner DDS integration suites. An earlier
+    version of the bootstrap exported CYCLONEDDS_URI pointing here to pin loopback, but `lo`
+    ships WITHOUT the MULTICAST flag on at least one container and enabling it needs
+    CAP_NET_ADMIN (denied there), so the pin only fell back to default anyway. Net benefit
+    over defaults: zero. This file is kept ONLY as a manual escape hatch.
+
+  WHEN TO USE IT (rare)
+    Only if a future container's default discovery genuinely fails (e.g. no multicast-capable
+    NIC at all). Then, after enabling lo multicast (`ip link set dev lo multicast on`, needs
+    CAP_NET_ADMIN), export it for the cluster AND ddsmonitor:
+      export CYCLONEDDS_URI="file://$PWD/config/cyclonedds-container.xml"
+    It pins every process to loopback+multicast, self-contained (no external NIC).
 
   IT IS TRANSPORT-ONLY, ON PURPOSE
     - <Domain Id="any"> => applies to EVERY domain, including the integration tests' 100-500

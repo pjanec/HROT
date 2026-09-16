@@ -294,54 +294,19 @@ WRAP
 }
 
 # ============================================================================
-# 5. CycloneDDS transport config — deterministic loopback discovery
-#    Every node process, the integration-test participants and ddsmonitor run in
-#    ONE container. Without a config each runs CycloneDDS's interface heuristic
-#    independently (picks eth0 today; a future image could rename the NIC or clear
-#    its MULTICAST flag). Pin all of them to loopback+multicast via a transport-only,
-#    Domain Id="any" config so discovery is deterministic and self-contained.
-#    Transport-only => it never touches DomainId-based test isolation.
-#    Override per-command with `env -u CYCLONEDDS_URI ...` when you want defaults.
+# 5. CycloneDDS transport — WE RELY ON DEFAULTS ON PURPOSE. Do NOT export
+#    CYCLONEDDS_URI here.
+#    Measured on two cloud containers (2026-09-16): CycloneDDS default discovery
+#    picks a multicast-capable NIC (eth0, flags 0x1003) and works cross-process —
+#    verified by a 2167-sample ddsmonitor capture and the ClusterRunner DDS
+#    integration suites. An earlier version pinned all processes to lo+multicast
+#    for "determinism", but loopback ships WITHOUT the MULTICAST flag on at least
+#    one container and enabling it needs CAP_NET_ADMIN (denied there) — so the pin
+#    only ever fell back to default anyway, while its warning banner was a false
+#    alarm. Net benefit over defaults: zero. The feared "eth0 loses multicast" was
+#    never observed. See config/cyclonedds-container.xml for a MANUAL fallback if a
+#    future container's default discovery ever fails; it is not wired in here.
 # ============================================================================
-install_cyclonedds_config() {
-    local cfg="$PROJECT_DIR/config/cyclonedds-container.xml"
-    if [ ! -f "$cfg" ]; then
-        log "NOTE: $cfg not found; skipping CYCLONEDDS_URI setup."
-        return 0
-    fi
-
-    # CycloneDDS multicast over loopback needs the MULTICAST flag on `lo`; cloud
-    # images ship it cleared. `ip link set` is the clean way (needs CAP_NET_ADMIN).
-    if command -v ip >/dev/null 2>&1; then
-        ip link set dev lo multicast on 2>/dev/null \
-            || { command -v sudo >/dev/null 2>&1 && sudo ip link set dev lo multicast on 2>/dev/null; } \
-            || true
-    fi
-
-    # VERIFY the flag is actually on (0x1000 = IFF_MULTICAST). A config that pins
-    # DDS to lo while lo has no multicast breaks cross-process discovery UNIFORMLY
-    # and SILENTLY — the worst outcome. So: fail LOUD, and do NOT export the URI
-    # (leaving default discovery, which works on a multicast-capable eth0).
-    # LO_FLAGS_FILE override exists only so the error path is testable; it
-    # defaults to the real sysfs file, so production behaviour is unchanged.
-    local lo_flags
-    lo_flags="$(cat "${LO_FLAGS_FILE:-/sys/class/net/lo/flags}" 2>/dev/null || echo 0x0)"
-    if [ $(( lo_flags & 0x1000 )) -eq 0 ]; then
-        log "########################################################################"
-        log "# ERROR: loopback (lo) has NO MULTICAST flag and it could not be turned #"
-        log "#        on (needs CAP_NET_ADMIN). config/cyclonedds-container.xml pins #"
-        log "#        DDS to lo+multicast, so exporting it would break ALL DDS       #"
-        log "#        discovery silently. NOT exporting CYCLONEDDS_URI — leaving     #"
-        log "#        default discovery. Re-run the container with CAP_NET_ADMIN, or #"
-        log "#        point CYCLONEDDS_URI at a config that suits this host.         #"
-        log "########################################################################"
-        return 0
-    fi
-
-    export CYCLONEDDS_URI="file://$cfg"
-    persist_env "export CYCLONEDDS_URI=\"file://$cfg\""
-    log "CYCLONEDDS_URI=file://$cfg (loopback+multicast; verified lo MULTICAST on)"
-}
 
 main() {
     log "Starting. project=$PROJECT_DIR  mcp-bin=$CBM_BIN"
@@ -353,7 +318,6 @@ main() {
     install_roslynmcp && roslyn_ok=1 || true
     local ddsmon_ok=0
     install_ddsmonitor && ddsmon_ok=1 || true
-    install_cyclonedds_config || true
     log "Done. dotnet=$(command -v dotnet || echo "$DOTNET_ROOT/dotnet")  mcp=$([ -x "$CBM_BIN" ] && echo "$CBM_BIN" || echo MISSING)  roslyn=$([ "$roslyn_ok" = 1 ] && echo "$ROSLYNMCP_DIR" || echo MISSING)  ddsmonitor=$(command -v ddsmonitor >/dev/null 2>&1 && echo OK || echo MISSING)"
     if [ "$cbm_ok" != 1 ]; then
         log "NOTE: codebase-memory-mcp was NOT installed; the MCP server will show 'failed to connect'."
