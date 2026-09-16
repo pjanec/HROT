@@ -300,13 +300,26 @@ grep -icE "Strict Mode Violation|Unhandled|Exception" /tmp/cluster.log
 grep -iE "DeferredTakeover|GhostPromotion|OwnershipUpdate" /tmp/cluster.log | tail
 ```
 
-⛔⛔ **The module host SWALLOWS system exceptions** and logs them as
-`[ModuleHost] Sync Module '<name>' exception: …`. A control plane can therefore throw **every frame,
-forever**, while the API answers `ok:true` and the run looks healthy.
+⚠ **The module host's fault handling CHANGED — verify which mode you are in** *(CE-188/CE-189; user
+ruling `2026-09-04`)*. `FdpConfig.FailFastOnModuleException` now ships **ON by default**
+(`FdpConfig.cs:136`), so a module `Tick` exception is **RE-THROWN** (`ModuleHostKernel.ReportModuleFault`
+→ `ExceptionDispatchInfo…Throw()`), not swallowed — a fault surfaces loudly on the first frame instead of
+hiding. The old swallow-every-frame behaviour is now **opt-in**: only when `FDP_FAIL_FAST=0` (or
+`false`/`off`) is set at process start.
 
-📌 **The find that justifies grepping first:** an unregistered `OwnershipUpdate` event threw inside
-`DeferredTakeoverSystem` on every tick. Nothing in `/status` or the entity dumps said so; **the log line
-was the only evidence**, and the fix took 0/8 entities moving to 4/8.
+⛔ **When swallowing IS enabled (`FDP_FAIL_FAST=0`)**, the log line is now
+`[ModuleHost] {Sync|Async} module '<name>' FAULT (frame N, T total for this module). FDP_FAIL_FAST=0 keeps
+the node alive instead.` followed by the exception — and it **de-duplicates**: the first occurrence of a
+fault signature prints, then repeats print only at powers of ten (10th, 100th, 1000th…). So a control
+plane throwing every frame under `FDP_FAIL_FAST=0` shows up as a handful of lines, not a flood, while the
+API still answers `ok:true`. ⚠ The old `[ModuleHost] Sync Module '<name>' exception:` string no longer
+exists — grep for `FAULT` and `FDP_FAIL_FAST`.
+
+📌 **The find that justifies grepping first** *(measured under the pre-`2026-09-04` swallow-by-default
+regime)*: an unregistered `OwnershipUpdate` event threw inside `DeferredTakeoverSystem` on every tick.
+Nothing in `/status` or the entity dumps said so; **the log line was the only evidence**, and the fix took
+0/8 entities moving to 4/8. Under today's fail-fast default the same bug would crash the node on frame 1 —
+still grep the log, but expect a throw, not a silent survivor, unless `FDP_FAIL_FAST=0` is set.
 
 ⭐ Over HTTP, `/logs` takes `level` — **always pass `level:"Info"` on a cluster**, or time-sync `Trace`
 chatter fills the whole window *(measured: 176 of 200 entries)*.
@@ -475,7 +488,7 @@ failing BTree node.
 3. Load the scenario, check `sawWorldChange`. → §3
 4. `POST /sim/play` with `-d '{}'`, confirm `simTime` advances. → §2.2
 5. Sample entity positions twice over a real `simTime` delta. → §6
-6. **Nothing moved?** → grep the log for swallowed exceptions **before** reading any more state. → §7
+6. **Nothing moved?** → grep the log for module `FAULT` lines / a re-thrown exception **before** reading any more state (§7 — fail-fast is ON by default now). → §7
 7. Read the entity from **every** perspective; compare authority and behaviour. → §4
 8. `/diagnostics/architecture`; find the silent topic and which side is silent. → §5
 9. Cross-check the same chain in `--mode editor` to split shared-code from wire. → §9
