@@ -311,16 +311,34 @@ install_cyclonedds_config() {
     fi
 
     # CycloneDDS multicast over loopback needs the MULTICAST flag on `lo`; cloud
-    # images ship it cleared. `ip link set` is the clean way (falls back silently).
+    # images ship it cleared. `ip link set` is the clean way (needs CAP_NET_ADMIN).
     if command -v ip >/dev/null 2>&1; then
         ip link set dev lo multicast on 2>/dev/null \
             || { command -v sudo >/dev/null 2>&1 && sudo ip link set dev lo multicast on 2>/dev/null; } \
-            || log "NOTE: could not enable multicast on lo (need CAP_NET_ADMIN); DDS over lo may not discover."
+            || true
+    fi
+
+    # VERIFY the flag is actually on (0x1000 = IFF_MULTICAST). A config that pins
+    # DDS to lo while lo has no multicast breaks cross-process discovery UNIFORMLY
+    # and SILENTLY — the worst outcome. So: fail LOUD, and do NOT export the URI
+    # (leaving default discovery, which works on a multicast-capable eth0).
+    local lo_flags
+    lo_flags="$(cat /sys/class/net/lo/flags 2>/dev/null || echo 0x0)"
+    if [ $(( lo_flags & 0x1000 )) -eq 0 ]; then
+        log "########################################################################"
+        log "# ERROR: loopback (lo) has NO MULTICAST flag and it could not be turned #"
+        log "#        on (needs CAP_NET_ADMIN). config/cyclonedds-container.xml pins #"
+        log "#        DDS to lo+multicast, so exporting it would break ALL DDS       #"
+        log "#        discovery silently. NOT exporting CYCLONEDDS_URI — leaving     #"
+        log "#        default discovery. Re-run the container with CAP_NET_ADMIN, or #"
+        log "#        point CYCLONEDDS_URI at a config that suits this host.         #"
+        log "########################################################################"
+        return 0
     fi
 
     export CYCLONEDDS_URI="file://$cfg"
     persist_env "export CYCLONEDDS_URI=\"file://$cfg\""
-    log "CYCLONEDDS_URI=file://$cfg (loopback+multicast, transport-only)"
+    log "CYCLONEDDS_URI=file://$cfg (loopback+multicast; verified lo MULTICAST on)"
 }
 
 main() {
