@@ -547,8 +547,10 @@ A peer that does not support reliable init never publishes `EntityLifecycleStatu
 creator block forever. Two composed mechanisms:
 - **① capability filter (proactive):** hosts advertise capabilities as an **OpenGL-extension-style namespaced token
   set** *(`fdp.reliable-init`, …)* on a durable `NodeCapabilities` descriptor gathered by the orchestrator into the
-  roster/cache *(beside CE-282's role mask)*. The creator's wait-set *(§3b.1)* includes **only** nodes advertising
-  `fdp.reliable-init`. A non-advertising host is never waited for.
+  roster/cache. ⭐ **Roles are the bit-backed SUBSET of this same token set** *(`fdp.role.*`)* — the tokens are the
+  **sole wire source** and the `NodeRole` mask is **DERIVED at ingest** via a closed enum↔token table, superseding
+  CE-282's roles-on-heartbeat *(AQ-70 §Q70-C; the CE-282 rework is part of piece C)*. The creator's wait-set
+  *(§3b.1)* includes **only** nodes advertising `fdp.reliable-init`. A non-advertising host is never waited for.
 - **② short phase-1 probe (reactive, self-healing):** a supporting host publishes `State=Constructing` **promptly**
   on receipt *(the §3b.2 mandatory reply, now as the fast phase-1 ack)*, then `Active`. The creator arms a **short
   phase-1 timeout**; missing phase-1 ⇒ the host doesn't support reliable init ⇒ **drop it from the wait-set + record
@@ -573,6 +575,11 @@ the moment `PeerLifecycleStatusEgressSystem` publishes.
    current rulings)*.
 
 ### ✅ P1–P3 AS-BUILT (`2026-09-15`) — role propagation done; the barrier itself is still DESIGN
+> ⛔⛔ **TRANSPORT SUPERSEDED by AQ-70 §Q70-C (`2026-09-16`):** P1 below carries the role mask as
+> `NodeHeartbeat.RolesMask` (per-tick). The resolved model publishes `fdp.role.*` **capability tokens** on a
+> durable `NodeCapabilities` descriptor instead and **derives** the `NodeRole` mask at ingest; the heartbeat
+> returns to telemetry-only. The `NodesWithRole` query + ownership tables (P2/P3) are UNCHANGED — they consume
+> the derived mask. This rework is part of piece C. The P1 text below is the CE-282 as-built (HISTORY).
 > The §0 INVENTORY sites were accurate and unchanged; the §1.2 class diagram's P1/P2/P3 boxes are the
 > as-built shape. The wire gained one field (a field, not a new shape) → no new diagram.
 

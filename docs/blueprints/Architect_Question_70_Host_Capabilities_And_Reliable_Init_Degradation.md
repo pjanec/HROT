@@ -3,9 +3,10 @@ state: LIVE
 build-state: DESIGN — RESOLVED with the user (`2026-09-16`). Not dispatched. The facility (host capabilities)
   is general; its first consumer is reliable-init graceful degradation.
 updated: 2026-09-16
-current-answer: §3 is the resolution — Q70-A (degradation via capabilities + a short phase-1 probe) and
-  Q70-B (capability representation = an OpenGL-extension-style namespaced token set) are both settled.
-  §2 is the INVENTORY the resolution rests on.
+current-answer: §3 is the resolution — Q70-A (degradation via capabilities + a short phase-1 probe),
+  Q70-B (representation = an OpenGL-extension-style namespaced token set), and Q70-C (roles ARE the
+  bit-backed SUBSET of capabilities — the token set is the SOLE wire source and the NodeRole mask is
+  DERIVED at ingest, superseding CE-282's roles-on-heartbeat) are all settled. §2 is the INVENTORY.
 related-designs:
   - ../DESIGN_Cross_Node_Construction_Barrier.md — §3b the reliable-init barrier (the first consumer); §3c the degradation consumer view.
   - ../designs/two-ack/TwoAck-DESIGN.md — §3.2 SstStatusCode {InProgress, NotSupported} — the status vocabulary reused, not reinvented.
@@ -86,6 +87,25 @@ consumer queries membership; unknown tokens are ignored; absence = unsupported.
 needs a **shared bit registry** *(the collision hazard already measured)* and an external host cannot express bits
 it does not know. It fails the "generic + extensible + external" requirement. *(Kept as HISTORY: viable only if the
 capability set were small and strictly first-party.)*
+
+### Q70-C — roles ARE the bit-backed subset of capabilities *(user, `2026-09-16`)*
+> 🔒 **User:** *"can't the flags be constructed from the capabilities? so host does not need to publish BOTH and
+> keep them in sync? Everyone can derive the role mask from the capability strings."*
+
+⛔ **Publishing BOTH a role mask and a capability set invites drift.** ⇒ the **capability token set is the SOLE
+wire source of truth**; the `NodeRole` mask is a **derived, local acceleration structure**, not a second wire field.
+
+| aspect | decision |
+|---|---|
+| role tokens | roles are expressed as `fdp.role.*` tokens *(`fdp.role.brain`, `fdp.role.muscle-ground`, `fdp.role.map2d`, `fdp.role.perception`, `fdp.role.navigation-solver`)* — the **closed, bit-backed subset** of the open capability vocabulary |
+| the mask is DERIVED | `mask = OR(bit(t) for each fdp.role.* token)`, computed **once at roster ingest** via a **closed enum↔token table in `Fdp.Core`** beside `NodeRole` — the single mapping point, so no two deriver can diverge |
+| roster holds both, one source | the roster caches the derived `NodeRole` mask **and** keeps the raw token set; hot-path/ownership consumers read the mask, token consumers read the set, **nobody publishes both** |
+| lossless + graceful | every role bit has a token *(projection is total)*; a non-role token is ignored by the derivation; an unknown `fdp.role.*` token *(a newer role an older deriver lacks)* simply omits its bit — the same degrade as any capability |
+| ⛔⛔ **supersedes CE-282 roles-on-heartbeat** | today `NodeHeartbeat.RolesMask` publishes the mask per-tick. Under Q70-C the host lists `fdp.role.*` tokens on the durable `NodeCapabilities` descriptor and the orchestrator **derives** the mask at ingest; the heartbeat returns to **telemetry-only** *(static data must not ride a per-tick message)*. CE-282's `NodesWithRole` query + the ownership tables are UNCHANGED — they still consume the mask, now derived. ⭐ **This rework is part of piece C's scope.** |
+
+⇒ ⭐ **Roles and capabilities are ONE wire concept** *(a token set)* with roles as the bit-backed subset; the mask
+is a local projection over the tokens, never an independently-published field. This is the unification, done without
+the sync hazard.
 
 ## 4. 🔗 REUSE, NOT REINVENT
 - **Status codes:** reuse `SstStatusCode.NotSupported` / `InProgress` *(two-ack §3.2)* for the requestor-facing view;

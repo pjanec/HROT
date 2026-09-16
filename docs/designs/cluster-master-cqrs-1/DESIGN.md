@@ -1,3 +1,14 @@
+<!--STATUS
+state: LIVE
+updated: 2026-09-16
+current-answer: §2 target architecture + §3–§6 the CQRS layering are the design. §8 (added `2026-09-16`) is the
+  current model for how the roster gathers HOST STATIC ATTRIBUTES — capability tokens + a DERIVED NodeRole mask.
+known-rot: this doc predates CE-282 (role propagation) and AQ-70 (capability tokens). §8 supersedes CE-282's
+  roles-on-heartbeat: roles are now `fdp.role.*` tokens on a durable descriptor and the NodeRole mask is DERIVED.
+related-designs:
+  - ../../blueprints/Architect_Question_70_Host_Capabilities_And_Reliable_Init_Degradation.md — owns the host-capability token facility + the derived role mask (§Q70-C); this roster gathers it.
+  - ../../DESIGN_Cross_Node_Construction_Barrier.md — the reliable-init barrier consumes NodesWithRole + the capability filter.
+-->
 # Design: ClusterMaster CQRS Decoupling
 
 **Status:** In Design  
@@ -537,7 +548,24 @@ Tests push `TransitionStateIntent` (or other intents) directly to `FdpEventBus`.
 
 ---
 
-## 8. Implementation Phases
+## 8. Host Static Attributes — capability tokens + derived role mask *(AQ-70, `2026-09-16`)*
+> Full design: [Architect_Question_70](../../blueprints/Architect_Question_70_Host_Capabilities_And_Reliable_Init_Degradation.md).
+
+The roster gathers each host's **static attributes** from a durable `NodeCapabilities` descriptor
+*(`[DdsQos(Reliable, TransientLocal, KeepLast 1)]`, keyed by NodeId, published once at join)* — an
+**OpenGL-extension-style namespaced token set** *(`fdp.reliable-init`, `fdp.role.brain`, …)*.
+
+- ⭐ **The token set is the SOLE wire source.** `NodeRole` is the **bit-backed subset** *(`fdp.role.*` tokens)*; the
+  orchestrator **DERIVES** the `NodeRole` mask at ingest via a closed enum↔token table in `Fdp.Core` and caches it
+  on `NodeHealthProfile` beside the raw token set. Nobody publishes both ⇒ **no drift**.
+- ⛔⛔ **Supersedes CE-282 roles-on-heartbeat.** `NodeHeartbeat.RolesMask` (per-tick) is replaced by `fdp.role.*`
+  tokens on the durable descriptor; the **heartbeat returns to telemetry-only** *(Cpu/Ram/ClusterState/LastSeen)* —
+  static data must not ride a per-tick message. `NodeRoster.NodesWithRole` + the role-affinity ownership tables are
+  **UNCHANGED**; they consume the derived mask. This rework ships with the reliable-init barrier's piece C.
+- **Query:** `caps.Supports(nodeId, "fdp.reliable-init")` for features; `NodesWithRole(mask)` for role membership
+  *(now over the derived mask)*.
+
+## 9. Implementation Phases
 
 ### Phase 1 — FDP Domain Enums and Event DTOs
 Define the pure FDP domain enums and all CQRS intent/event structs. No existing behaviour changes.
