@@ -774,6 +774,15 @@ defer observed on each role) and fixes minimally only if a role turns out unwire
 📄 `Hrot/Runner/Hrot.ClusterRunner.Integration.Tests/ExternalHostConformanceTests.cs` (+ `CgfHarness.PumpUntil`
 sleep overload). Opt-in via `HROT_RUN_EXTERNAL_CONFORMANCE=1` (T3 — boots a subprocess + real DDS discovery).
 
+⭐⭐ **HEAVY, OPT-IN "MANUAL" RAIL — not a per-build test** *(user ruling `2026-09-16`)*. It proved the fix, so
+its primary goal is met; it is filtered out of every-build runs by the env gate, and the STUCK rail is
+timing-tuned (⇒ flaky on a loaded box). ⭐ **The class header carries the AGENT-DRIVEN LIVE-MODE recipe** — the
+searchable tag `reliable-init-external-host-conformance`, a note that this class IS the spec of the three
+creator-side outcomes, and the trustworthy re-verification path *(real cluster + fake-host process + HTTP
+`/diagnostics` polling + `ddsmonitor`, giving each side as much time as it needs instead of a fixed pump)* — so
+a future agent that finds a reliable-init-degradation regression knows a rail exists and how to run it without
+the frame-timing flakiness.
+
 | mode | rail | creator-side outcome PROVEN (deterministic) |
 |---|---|---|
 | **UNAWARE** (C1) | `Unaware_ExcludedFromWaitSet_CreatorCompletes` | fake advertises no token ⇒ no `NetworkAckPeerSet` stamped ⇒ creator reaches `Active` without waiting |

@@ -18,21 +18,44 @@ using Xunit.Abstractions;
 namespace Hrot.ClusterRunner.Integration.Tests;
 
 /// <summary>
-/// CE-294 (piece C) — EXTERNAL-HOST CONFORMANCE. Proves, on real DDS against a genuinely FOREIGN PROCESS,
-/// that the reliable-init barrier degrades gracefully when a NED-speaking peer does not honour the
-/// reliable-init extension. Owning design: <c>DESIGN_Cross_Node_Construction_Barrier.md</c> §3d.
+/// FEATURE-RAIL: reliable-init cross-node construction barrier — EXTERNAL-HOST graceful degradation.
+/// (Searchable tag for a future agent: "reliable-init-external-host-conformance".)
+///
+/// <para>CE-294 (piece C). Proves, on real DDS against a genuinely FOREIGN PROCESS, that the reliable-init
+/// barrier degrades gracefully when a NED-speaking peer does not honour the reliable-init extension:
+/// UNAWARE→C1 capability-filter exclude · AWARE-SILENT→C2 short-prune+self-heal · STUCK→C3 abort/teardown.
+/// Owning design: <c>DESIGN_Cross_Node_Construction_Barrier.md</c> §3d (as-built §3d.5).</para>
+///
+/// <para>⛔⛔ THIS IS A HEAVY, OPT-IN "MANUAL" RAIL — NOT a per-build test. It is env-gated off by default
+/// (<c>HROT_RUN_EXTERNAL_CONFORMANCE=1</c>) because it boots a subprocess + real cross-process DDS discovery,
+/// and the STUCK rail is TIMING-TUNED (a cross-process phase-1 must beat the creator's ~60-frame C2 prune,
+/// widened here with a fixed 25 ms/frame slow-pump + repeated phase-1 writes). On a loaded/CI machine that
+/// margin can slip → STUCK sees C2 Success instead of the C3 abort → a FALSE failure. UNAWARE/AWARE-SILENT
+/// are robust (they don't race a window); STUCK is the fragile one. So: DO NOT add this to the fast suite,
+/// and DO NOT "fix" a flaky STUCK by chasing the pump numbers.</para>
+///
+/// <para>⭐ IF THIS FEATURE BREAKS LATER (an agent is here because reliable-init degradation regressed):
+/// this class IS the spec of the three creator-side outcomes — read the per-mode asserts. But to VERIFY the
+/// fix, prefer the AGENT-DRIVEN LIVE MODE below, which removes the timing race entirely by giving each side
+/// as much time as it needs instead of a fixed frame budget:</para>
+/// <list type="number">
+///   <item>Boot the REAL cluster (cluster runner <c>--mode all</c>, or the multi-process launch in
+///     <c>RUNBOOK_Cluster_Debugging_Over_Http.md</c> §1.2) and spawn a reliable entity via the CE-292
+///     ai-debug knob (<c>POST /entities/spawn</c> with <c>reliable:true</c>, <c>ownerNodeId:&lt;this node&gt;</c>).</item>
+///   <item>Run the fake host as its own process in the chosen mode — reuse <see cref="RunFakeHost"/> by
+///     launching <see cref="FakeExternalHostSubprocess"/> with <c>FAKE_HOST_MODE/DOMAIN/NODE_ID/DURATION_MS</c>
+///     (and <c>FAKE_HOST_DIAG_FILE</c> to read its wire observations back).</item>
+///   <item>Watch the CREATOR side over HTTP — <c>GET /diagnostics/architecture</c> and the per-entity reads
+///     (RUNBOOK §3/§4) — polling until the state settles (never on a fixed pump). Capture the wire with
+///     <c>ddsmonitor</c> (RUNBOOK §5a) for the STUCK <c>EntityMaster NotAliveDisposed</c> — which the
+///     in-harness reader here does NOT observe for an aborted-while-Constructing entity (see §3d.5).</item>
+/// </list>
 ///
 /// <para>⭐ The fake host is a raw <see cref="DdsParticipant"/> loop run as a SEPARATE PROCESS (user ruling
-/// 2026-09-16: separate process, not in-process — the in-process variant is redundant with
-/// <c>NetworkGatewaySystemTests</c>'s prune rails). To avoid a new app (user ruling), it lives HERE as an
-/// env-gated <c>[Fact]</c> — <see cref="FakeExternalHostSubprocess"/> — that this suite launches via
-/// <c>dotnet vstest</c>. In a normal suite run (no <c>FAKE_HOST_MODE</c>) it is a no-op.</para>
-///
-/// <para>The cluster CREATOR runs in-process via <see cref="CgfHarness"/> on the same Cyclone loopback
-/// domain (coordinator Option A). NED wire only — BDC is out of scope (§3d).</para>
-///
-/// <para>⚠ T3 — these boot a subprocess + real DDS discovery; opt-in via <c>HROT_RUN_EXTERNAL_CONFORMANCE=1</c>
-/// so they never block the fast suite as a foreground blocker.</para>
+/// 2026-09-16: separate process, not in-process; to avoid a new app it lives HERE as the env-gated
+/// <see cref="FakeExternalHostSubprocess"/> <c>[Fact]</c>, launched via <c>dotnet vstest</c>; a normal suite
+/// run with no <c>FAKE_HOST_MODE</c> is a no-op). The cluster CREATOR runs in-process via
+/// <see cref="CgfHarness"/> on the same Cyclone loopback domain. NED wire only — BDC is out of scope (§3d).</para>
 /// </summary>
 public sealed class ExternalHostConformanceTests
 {
