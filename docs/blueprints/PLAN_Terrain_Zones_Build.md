@@ -193,6 +193,8 @@ measurements/calls to be made and reported **inside** their tasks — ⛔ none o
 | **③ THE SURFACES** | **E + H** | 9 | ⭐ Both are surface work over a model that batch ② has made real: the map/zones UI, and the new-scenario recipe path. ⛔ Neither can be asserted before ② — a "not loaded" badge is meaningless without a loader |
 | **④ *(only if ② overruns)*** | **F alone** | 4 | ⚠ **The one legal split of ②**, and only after C5 is green and reported. ⛔ Never the reverse |
 
+⚠⚠ **AS-BUILT `2026-09-17` — batch ② SPLIT, and not where §5 predicted.** 📐 It ran as **②a** *(`C1` `C2` `C5` `C6` `C7` + half of `D1` — the loader, the fake and blob lifetime)* and **②b** *(the other 11)*. ⛔ The predicted split was *"F alone, last"*; ⭐ the real one fell at a **wire-value collision** — `BuildTerrainAsset = 17` clashed with the live `SaveScenario = 17`, which `R-42` makes unrecoverable, so the item STOPPED for a coordinator ruling *(`R-106`)*. ⇒ ⭐⭐ **the lesson for the grouping rule: a batch also splits where a PERMANENT WIRE VALUE needs a decision, not only where the tree would be left incoherent.** ⚠ The C-before-F ordering held throughout — `F` never started before `C5` was green, which is the constraint §5 actually exists to protect.
+
 ⭐⭐ **Reporting:** each batch returns the **gate-report contract** *(`CLAUDE.md` §"THE GATE REPORT
 CONTRACT", rows 1–8)*. ⛔ Row 8 binds batches ② and ③ specifically — they are cross-node changes, so the
 report **names the integration suite** that would break if the invariant broke, and reports **running**
