@@ -31,6 +31,12 @@ related-designs:
     INavmeshProvider seam; §6 here must not contradict its bake model.
   - docs/DESIGN_Node_Roles_And_Policies.md — owns which role consumes terrain data (MuscleGround,
     Perception, NavigationSolver); §4 here role-filters on exactly that.
+  - docs/blueprints/Architect_Question_57_Cgf_Authoring_Packaging.md — owns the RECIPE/CREATE registry
+    (INewAssetService, RecipePickerSource, GET /assets/recipes). §2.1e ⑤ reuses it and adds nothing.
+  - docs/DESIGN_Cgf_Asset_Picker_Shell_Slice.md — owns the New-Asset PICKER SHELL composed on both
+    hosts (NewAssetLauncher, AssetCreateController). §2.1e ⑤ is content for that shell, not a new one.
+  - docs/designs/tkb-1/DESIGN.md — owns how a node RESOLVES and loads its TKB from the scenario header
+    (§7.3). §2.1e ⑤ owns how that header field is first ACQUIRED, which tkb-1 never covered.
 -->
 
 # DESIGN — **Terrain, zones and the asset build**
@@ -223,7 +229,7 @@ selection mechanism first would add a scenario-level declaration the user explic
 network is loaded by `ZoneManagerService.LoadZones` from the zone's `RoadNetworkPath` — a property being
 retired. ⇒ **the terrain loader takes that job**, keyed off the terrain, not off any zone.
 
-### 2.1e ⭐⭐⭐ TERRAIN HANDLING — where it lives, when it loads, who runs it
+### 2.1e ⭐⭐⭐ TERRAIN HANDLING — where it lives, when it loads, who runs it, where the name comes from
 
 #### ① In the SCENARIO — **a NAME, and nothing else**
 
@@ -298,6 +304,85 @@ the *"unreachable on host X"* failure this codebase produces more than any other
 conditional but **registered unconditionally** via `SerializeLocalRegistrar.Register(...)`. ⇒ **the
 terrain loader registers unconditionally on every ECS host**, exactly like the save handler and like
 `TkbLoadClusterStateHandler`. ⚠ A host with nothing to load still ACKs (§8.3).
+
+#### ⑤ ⭐⭐⭐ WHERE THE NAME COMES FROM AT AUTHORING TIME — **a SEED SCENARIO used as a RECIPE**
+
+> 🔒 **User, `2026-09-17`:** *"The new scenario path might need a **picker** and a **'recipe' asset** to
+> build new scenario content from; that recipe might contain **predefined terrain name and tkb name**."*
+
+⭐⭐⭐ **①–④ answer how the name is CONSUMED. This answers how it is ACQUIRED — and the mechanism already
+exists, under-adopted** *(the seam law: the 25th measured instance)*.
+
+##### ⑤a 📐 THE INVENTORY — what already ships *(measured `2026-09-17`, `search_graph` + grep agree)*
+
+| the piece | where | state |
+|---|---|---|
+| per-kind recipe seam — `CreateNew(recipe, name, relPath)` · `AvailableRecipes()` · `IsBlankTemplate(r)` | `Hrot.Editor.AiShared/Recipes/INewAssetService.cs` | ✅ **shared, shipped** |
+| recipe → picker projection | `AiShared/Browser/RecipePickerSource.cs` | ✅ shipped |
+| the picker launcher + the create dialog | `AiShared/Browser/NewAssetLauncher.cs` · `AiShared/Recipes/NewAssetDialog.cs` | ✅ shipped |
+| recipe-by-NAME resolve *(for `POST /assets`)* | `AiShared/Recipes/RecipeByName.cs` | ✅ shipped |
+| composed **on both hosts** | `EditorSubsystem.cs:3850-3863` · `CgfSubsystem.cs:2213-2219` | ✅ production |
+| ⭐ **a SCENARIO implementation, with a seed branch** | `Hrot.Editor/ScenarioNewAssetService.cs` | ✅ **`FromSeed` = `LoadScenarioByName(recipe.Name)` → `SaveScenarioAs(full)`** |
+| ⭐ **a declared `Recipes/Scenarios` root** | `AssetRoots.ScenariosRecipesRoot` | ✅ declared *(§16: "**Recipes/** — creation sources: Blueprints, HSMs, BTrees, **Scenarios**")* |
+| the disk-recipe precedent | `BlueprintNewAssetService.AvailableRecipes()` + `BlueprintEditorBootstrap.DiscoverRecipes()` | ✅ 21 recipes ship this way |
+
+⇒ ⭐⭐ **Nothing in the picker/recipe layer needs designing.** 📄 `Architect_Question_57` already ruled it:
+*"recipe DISCOVERY already exists … ⛔ do NOT build a new `NewAssetRegistry`."*
+
+##### ⑤b ⭐⭐⭐ THE RULING — **the recipe IS a scenario file; it is not a new asset kind**
+
+⭐⭐⭐ **A scenario recipe is an ordinary scenario stored under `Recipes/Scenarios/`.** Its header already
+carries `TkbName`, and by **①** it carries the terrain name too ⇒ *"predefined terrain + TKB"* needs **no
+new field, no new format and no new asset vocabulary** — the `FromSeed` branch loads the seed and saves it
+under the new name, **header and all**.
+
+⛔ **Rejected: a dedicated recipe asset declaring `{terrain, tkb}`.** `Q57` rules against new registries
+and vocabulary, and a seed scenario is a **strict superset** — it can also ship starting entities, zones
+and routes, which a declaration cannot. ⚠ The same argument retires *"add terrain/TKB combo boxes to the
+dialog"*: `NewAssetDialog` is deliberately kind-agnostic, and per-kind fields would restate what the
+seed's own header already says.
+
+##### ⑤c 🔴 THE THREE MEASURED GAPS — why it does not work today
+
+| # | measured | consequence |
+|---|---|---|
+| **G1** | `EditorSubsystem.cs:3862` constructs `ScenarioNewAssetService(adapter)` — the **1-arg** ctor. The seed-discovering **2-arg** ctor has **zero** production callers, and `AssetRoots.ScenariosRecipesRoot` is referenced **only by tests** | ⛔ the Scenario kind offers exactly **one** recipe, `"Empty"`. ⚠ This is the **silent-default** shape — the caller had the value *(the root is a static property)* and did not pass it |
+| **G2** | `FromSeed` calls `IScenarioCreationSession.LoadScenarioByName`, whose contract is *"loads a scenario by name **from the scenarios root**"* | ⛔ a seed living in `Recipes/Scenarios` would **not be found** even once G1 is fixed. The load must be recipe-root-aware |
+| **G3** | `Header.TkbName` is stamped at save from `ITkbDatabase.ActiveTkbName` *(`HrotScenarioSaveHandler.cs:103`, `ScenarioFileService.cs:108`)*, and `ActiveTkbName` has **exactly ONE writer** — `TkbLoadClusterStateHandler.cs:75/109`, **reading it back out of the staged scenario header** | 🔴 **the `"Empty"` path has no way to acquire a TKB at all.** A brand-new scenario inherits the last cluster load's TKB — or `null`, and `ScenarioSerializer.cs:199` then **omits the whole `Header`**. ⚠ With ① the identical hole opens for the terrain name |
+
+⛔⛔ **G3 is why `"Empty"` must go for this kind, not merely be deprioritised** — it is the only path that
+can mint a scenario with **no terrain and no TKB**, and the save pipeline records that silently.
+⭐⭐ **Making a recipe MANDATORY for Scenario is already a designed-for case**, in `RecipeByName`'s own
+words: *"⚠ A kind that offers no blank template is legitimate."* ⇒ override `IsBlankTemplate => false`.
+⛔ **Do NOT fix G3 by writing `ActiveTkbName` from the editor** — that adds a second writer to a field with
+exactly one, and the cluster re-derives it from the staged header at load regardless (②a).
+
+##### ⑤d SEQUENCE — **New Scenario from a recipe** *(the authoring counterpart to §3's two runtime paths)*
+
+```mermaid
+sequenceDiagram
+  participant U as Author
+  participant L as NewAssetLauncher
+  participant P as RecipePickerSource
+  participant S as ScenarioNewAssetService
+  participant E as IScenarioCreationSession
+  U->>L: New Asset...
+  L->>P: BuildEntries()
+  P->>S: AvailableRecipes()
+  Note over S: seeds scanned from<br/>AssetRoots.ScenariosRecipesRoot<br/>(G1) - no "Empty" row (G3)
+  S-->>P: seed recipes
+  P-->>U: picker (Tree, grouped by kind)
+  U->>L: pick seed + name + folder
+  L->>S: CreateNew(seed, name, relPath)
+  S->>E: LoadScenarioByName(seed) - from the RECIPES root (G2)
+  Note over E: header carries TkbName<br/>AND the terrain name (1)
+  S->>E: SaveScenarioAs(relPath/name)
+  Note over E: both globals ride along -<br/>nothing re-authors them
+```
+
+⭐ **What the picture shows that the prose hid:** the terrain and TKB names are never *chosen* anywhere in
+this path — **they are carried**, because load-then-save-as copies the header. ⇒ the whole feature is the
+three gap fixes; ⛔ there is no "terrain selection UI" to build.
 
 ### 2.2 ✅ RULED `2026-09-17` — **RELATIVE COORDINATES EVERYWHERE**
 

@@ -15,6 +15,9 @@ related-designs:
   - docs/designs/routes-1/ROUTES1-DESIGN.md — owns routes (§5, §16). Stage G only.
   - docs/designs/mgmt-1/DESIGN.md — §11 owns the PrepareZone/CommitZone 2PC protocol.
   - docs/DESIGN_Distributed_Scenario_Persistence.md — owns the save gate the new entities pass through.
+  - docs/blueprints/Architect_Question_57_Cgf_Authoring_Packaging.md — owns the recipe/create registry
+    Stage H wires. Read it before touching H1-H3: it already ruled "no new registry, no new assembly".
+  - docs/DESIGN_Cgf_Asset_Picker_Shell_Slice.md — owns the New-Asset picker shell Stage H feeds.
 -->
 
 # PLAN — **Terrain, zones and the asset build: the build breakdown**
@@ -41,7 +44,9 @@ are saved to the scenario like anything else; a **node-local marker** records wh
 and a **footprint hash** tells it when that went stale; a **shared loader** runs on every host, invoked
 two ways (locally during scenario load, and via a **2PC round** at runtime); the **terrain loader** takes
 over road-network loading from the retiring zone bundle; and the **UI** shows per-zone state on the map
-and in a zones view. ⛔ **Terrain tiles themselves stay FAKED by ruling** — see design §6/§7.
+and in a zones view; finally the **new-scenario recipe** path is wired so a fresh scenario acquires its
+terrain and TKB names by **carrying them from a seed**, instead of inheriting whatever the host last
+loaded. ⛔ **Terrain tiles themselves stay FAKED by ruling** — see design §6/§7.
 
 ---
 
@@ -113,9 +118,29 @@ and in a zones view. ⛔ **Terrain tiles themselves stay FAKED by ruling** — s
 |---|---|---|---|
 | **G1** | Add a `RoutePlanTranslator` mirroring `EditablePolylineTranslator` | a scenario with a shared route round-trips **with its waypoints**; a vehicle's `PersonalRouteRef` resolves to a route that is **not empty**. ⚠ must go through `Mutate()` (so `Version` stays correct) and must round-trip `ExtensionJson` | `ROUTES1-DESIGN` **§16**, **§4**; defect **BP-518** |
 
+### Stage H — New-scenario recipes *(how the terrain + TKB names are ACQUIRED)*
+
+> ⭐⭐⭐ **Depends on B5** *(the header carries the terrain name)*, and on nothing else in A–G. ⛔ **No new
+> asset kind, no new registry, no picker work** — `Q57` already ruled that and the shell already ships on
+> both hosts. This stage is **three wirings + one deletion**, closing the three measured gaps in
+> design §2.1e ⑤c.
+
+| # | task | success condition | owning chapter |
+|---|---|---|---|
+| **H1** | **Pass the seeds** — `EditorSubsystem`'s `ScenarioNewAssetService` construction moves to the **2-arg** ctor, enumerating `AssetRoots.ScenariosRecipesRoot` *(mirroring `BlueprintEditorBootstrap.DiscoverRecipes()`)* | with two scenarios in `Recipes/Scenarios/`, the New-Asset picker lists **two** Scenario recipes where it lists **one** today. ⭐ Rail: `AvailableRecipes().Count` reflects the directory, and re-reads it **live** *(`AvailableRecipes` is called per-open, not snapshotted)* | design **§2.1e ⑤a ⑤c G1**; `Q57` §"AS BUILT" |
+| **H2** | **Resolve seeds against the RECIPES root** — the `FromSeed` branch must not go through a load whose contract is *"from the **scenarios** root"* | creating from a seed that exists **only** in `Recipes/Scenarios/` succeeds; ⛔ a seed name that collides with a scenario of the same name in the scenarios root resolves to the **recipe**. ⭐ Rail both | design **§2.1e ⑤c G2**; `AssetRoots` §16 |
+| **H3** | **Scenario offers NO blank template** — `IsBlankTemplate => false`, and `"Empty"` leaves `AvailableRecipes()` | the picker offers no way to mint a scenario with **no terrain and no TKB**; `POST /assets {"kind":"Scenario"}` with no recipe name **refuses** and names the recipes that would have worked. ⚠ `RecipeByName.Resolve` already documents a kind with no blank template as **legitimate** — ⛔ no change needed there | design **§2.1e ⑤c G3** |
+| **H4** | **Ship at least one seed** under `Recipes/Scenarios/` whose header carries both a `TkbName` and a terrain name | creating from it yields a scenario whose header round-trips **both** names, with **nothing** re-authoring them. ⭐⭐ **This is the rail that proves the whole stage** — §2.1e ⑤d's point is that the names are *carried*, not chosen | design **§2.1e ⑤b ⑤d**, **§2.1e ①** |
+
+⛔⛔ **Explicitly NOT in this stage** *(each would re-open a ruled question)*: a dedicated recipe asset
+format declaring `{terrain, tkb}` *(`Q57`: no new registry/vocabulary; a seed scenario is a superset)* ·
+terrain/TKB fields on `NewAssetDialog` *(it is deliberately kind-agnostic)* · an editor-side write to
+`ITkbDatabase.ActiveTkbName` *(it has exactly ONE writer, and the cluster re-derives it from the staged
+header anyway — design §2.1e ②a)*.
+
 ---
 
-## 3. THE UNDER-SPECIFIED REGISTER — **5 of 8 RESOLVED `2026-09-17`**
+## 3. THE UNDER-SPECIFIED REGISTER — **5 of 9 RESOLVED `2026-09-17`**
 
 > ⭐⭐ These were places where the design **could not say what success looks like**, so a task written
 > against them would have been unfalsifiable. ⭐ Five are now ruled; the rest are listed with what remains.
@@ -137,9 +162,10 @@ and in a zones view. ⛔ **Terrain tiles themselves stay FAKED by ruling** — s
 | **U1** | **A3** | the fix direction rests on an **unmeasured** fact: whether any navigation module runs on a background thread where `DataPolicy` constrains singleton access. If it does, the per-tick singleton read is illegal and a holder object is required instead | ⭐ **an implementer measurement, not a user decision** — design §5.4 already names it as *"what would flip it"* |
 | **U2** | **B1**, **D1** | ⭐⭐ **SHRUNK — this is a NAMING call only.** 📐 Measured `2026-09-17`: the `NodeOpType` gaps at **6/17/18/19 are absent from the AUTHORITATIVE NED enum too** (`OrchestrationMessages.cs`), so they are historical holes, **not reservations** — and the FDP copy is a mirror whose *"integer values must remain identical to the NED counterpart (verified by unit tests)"*. ⇒ allocating new values is safe | ⭐ **proposed, awaiting one word:** **`TerrainZone = 8804`** 🔒 *(user, `2026-09-17` — deliberately NOT `TacGraphic_*`: a zone is a load directive that happens to be drawn, not a tactical graphic)*; `NodeOpType.PrepareTerrainAsset = 29` / `CommitTerrainAsset = 30` *(clearly-new values rather than filling a hole, so no future reader has to wonder whether the hole meant something)*; `ClusterOpType.BuildTerrainAsset = 17` |
 | **U5** | **E3** | the details shell has no *"map background selected"* CONTEXT. `PopulateEmptyMapMenu` proves empty space is a click target for a **menu**, but selection-as-context is new | ⭐ **an implementer design call inside `IDetailsContextSource`** — small, and E3 cannot be asserted until it exists |
+| **U9** | **H2** | ⭐ **SHAPE only, not WHETHER.** The `FromSeed` branch must reach the recipes root, and there are two clean ways: widen `IScenarioCreationSession` with a root-aware load, or have `AvailableRecipes()` hand back seeds carrying a **full path** that the existing load already accepts. ⛔ Neither is measured yet | ⭐ **an implementer design call.** ⚠ The deciding fact is whether `IEditorLogic.LoadScenarioByName` accepts an absolute/rooted path today — one read of its body settles it, and the second option costs no seam change if it does |
 
-⇒ ⭐ **U1 and U5 are implementer measurements/calls, not user decisions.** ⛔ **U2 is the only one still
-needing the user, and it is one word.**
+⇒ ⭐ **U1, U5 and U9 are implementer measurements/calls, not user decisions.** ⛔ **U2 is the only one
+still needing the user, and it is one word.**
 
 ## 4. What this plan deliberately does NOT contain
 
@@ -147,3 +173,4 @@ needing the user, and it is one word.**
 ⛔ The road-network-as-entity extension *(design §2.1d — built only when a selection requirement appears)*.
 ⛔ The route model *(owned by `ROUTES1-DESIGN` §5; only its persistence gap is here, as G1)*.
 ⛔ Fixing `HasInFlightTransaction` *(design §9.4 — a pre-existing cluster-panel defect, out of scope)*.
+⛔ Any new recipe/picker machinery *(`Q57` ruled it already exists; Stage H is wiring and content only)*.

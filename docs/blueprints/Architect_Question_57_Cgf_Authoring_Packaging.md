@@ -18,6 +18,12 @@ design-basis: PROGRAMME_Cgf_Equals_Editor_Gap_Map.md (the two rows "Hrot.Editor 
   Gizmo_Pack_Home (the precedent family: "where does a shared capability's home live") · ruling 66 (editor =
   one-node cluster) · MA-011..018 (MCP create-asset already reuses INewAssetService per kind).
 known-conflict: none. ⚠ Number 57 taken as the next free across all active branches (rule 3a).
+related-designs:
+  - ../DESIGN_Cgf_Asset_Picker_Shell_Slice.md — owns the UI SHELL that draws these recipes on both hosts
+    (NewAssetLauncher / AssetCreateController); this doc owns the registry behind it.
+  - ../DESIGN_Terrain_Zones_And_Assets.md — §2.1e ⑤ owns the SCENARIO kind's recipe content (a seed
+    scenario carrying the terrain + TKB names) and the three measured wiring gaps G1-G3. This doc's
+    ruling "no new registry" is what makes that a wiring slice rather than a new asset vocabulary.
 -->
 # Architect Question #57 — **CGF authoring packaging: where does create-asset live?**
 

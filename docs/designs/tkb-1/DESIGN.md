@@ -23,6 +23,10 @@ related-designs:
     the genesis path your question sits.
   - ../../DESIGN_Role_Affinity_Ownership.md — owns what BirthCriticalComponents MEANS (the creator's
     birthright, the role tables, why no role may own one). This document owns where the list comes from.
+  - ../../DESIGN_Terrain_Zones_And_Assets.md — §2.1e ⑤ owns how `Header.TkbName` is first ACQUIRED at
+    authoring time (a seed scenario used as a New-Scenario recipe). ⚠ This document's §7.3 rules only
+    how a node RESOLVES an existing header value; it measured no answer for a brand-new scenario, where
+    `ITkbDatabase.ActiveTkbName` has exactly one writer and that writer reads the header back.
 known-rot: §6.5's closing sentence ("an IG node would include BIG-specific translators; a SimHost
   node would not") reads as if per-node LIST curation were the intended narrowing lever. It is not;
   §6.5b corrects that reading. Do not quote that sentence without §6.5b.

@@ -14,6 +14,12 @@ design-basis: PROGRAMME_Cgf_Equals_Editor_Gap_Map.md §2c (Axis-C E2, the asset-
   MA-019..023) · ruling 9 (one implementation) · ruling 49 / VC-3 (unavailable = absent/greyed-with-cause).
 known-conflict: edits EditorSubsystem.cs + CgfSubsystem.cs + ScenarioMenuCommands.cs (AiShared) — the same
   hot files Slice A and the backend batch touched; rule-4 re-pull. ⛔ Disjoint from the MCP lane (DebugApi).
+related-designs:
+  - blueprints/Architect_Question_57_Cgf_Authoring_Packaging.md — owns the recipe/create REGISTRY this
+    shell draws from; this doc owns the shell and its composition on both hosts.
+  - DESIGN_Terrain_Zones_And_Assets.md — §2.1e ⑤ owns what the SCENARIO kind offers in this shell (seed
+    scenarios carrying the terrain + TKB names) and why that kind must offer NO blank template. ⚠ It
+    records that the shell is composed but the Scenario kind reaches it with one hardcoded "Empty" row.
 -->
 # DESIGN — **CGF asset-picker / new-asset shell** *(Axis-C increment E2)*
 

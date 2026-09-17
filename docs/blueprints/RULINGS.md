@@ -6,6 +6,10 @@ current-answer: this file is now LEAN. Feature intent lives in the DESIGN docs (
   This file holds ONLY what those two cannot: engine invariants, silent-failure hazards,
   and cross-cutting decisions with no single design home.
 stale-below: nothing.
+re-read: 2026-09-17 — Architect_Question_71 changed (rulings-check WARNed on R-146, which cites it).
+  Re-read and CONFIRMED R-146 did NOT move: the edits were §7's refinement block (S1/S3/S4/S5 dissolved,
+  Q71-C withdrawn, R1 narrowed, R4 to a hash, R5 TkbType-supersedes-AreaType) — all NARROWINGS inside the
+  §5 fake-first ruling the row indexes, none touching the zone-is-a-geographic-window claim or its quote.
 re-read: 2026-09-16 — .claude/CLAUDE.md changed again (rulings-check WARNed on R-128/129/135/139/142/143).
   Re-read and CONFIRMED none moved: the edit was PURELY ADDITIVE (git diff: 29 insertions, ZERO removed
   lines) — one new section, "EXPLORE WIDE, DECIDE SHORT" (the output contract for how-does-X-work /
