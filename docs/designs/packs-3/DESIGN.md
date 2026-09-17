@@ -15,6 +15,8 @@ known-rot: ⛔⛔ §2.B (the embedded `"Zones"` scenario section), §2.C (`ZoneD
   stated reason beyond "one road network per zone — KISS". Do NOT quote §2.B/§2.C/§2.E as intent.
 known-conflict: docs/designs/mgmt-1/DESIGN.md §11 — it always held the geographic model; that one wins.
 related-designs:
+  - docs/DESIGN_Terrain_Zones_And_Assets.md — the terrain/zone/asset model (Area entities, the
+    entity-is-the-definition rule, PrepareTerrainAsset/CommitTerrainAsset and the road compile).
   - docs/blueprints/Architect_Question_71_Terrain_Zones_And_The_Asset_Build.md — the ruling that
     supersedes the zone half, and the gap list for its replacement.
   - docs/designs/mgmt-1/DESIGN.md — §11 owns the zone as a geographic staged-load unit (the model to

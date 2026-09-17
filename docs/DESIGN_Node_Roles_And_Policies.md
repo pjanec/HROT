@@ -27,6 +27,8 @@ design-basis: docs/blueprints/RULINGS.md R-138 (fully distributed; NodeRole is a
   docs/blueprints/Architect_Question_65_Entity_Genesis_Uniformity.md §0, §4 (Q65-A′), §5.5 (CE-143) -
   Hrot/Engine/Hrot.Core/NodeRole.cs (the enum itself)
 related-designs:
+  - docs/DESIGN_Terrain_Zones_And_Assets.md — which ROLE consumes terrain/zone data and therefore
+    runs the loaders (MuscleGround, Perception, NavigationSolver); the brain loads none of it.
   - DESIGN_Entity_Authoring_Surface.md — owns the authoring affordance whose `isTransient` argument is the
     CARRIER for R-140's "an IG entity is disposable". Its §7c parks the product question — are IG's map
     drawings disposable or persistent? — and names THIS document (§5, §8) as the owner of the answer.

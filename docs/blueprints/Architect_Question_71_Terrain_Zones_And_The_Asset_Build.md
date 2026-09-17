@@ -4,15 +4,20 @@ build-state: DESIGN — ✅ **APPROVED IN FULL AS A CONCEPT (user, 2026-09-16)**
   ruling (§5). ⛔ STILL NOT BUILDABLE — §6 lists what must be specified first, and the concrete asset
   semantics are explicitly POSTPONED by the same ruling.
 updated: 2026-09-16
-current-answer: §5 is the RULING (approval + the fake-first scope) and §6 is the gap list that must be
-  closed before a handoff. §3's leans are all approved — read them as decided, not as options.
-  §1 is the INVENTORY, §2 the measured conflict.
+current-answer: ⭐ §7 is the LATEST state — the 2026-09-17 refinement dissolved S1/S3/S4/S5 (and
+  WITHDREW Q71-C) and added rulings R1–R7. Read §7 before §3 or §6, both of which it edits.
+  §5 is the fake-first scope ruling, §1 the INVENTORY, §2 the measured conflict.
+  📄 The WHAT is now docs/DESIGN_Terrain_Zones_And_Assets.md (READY-TO-BUILD); this stays the WHY.
+stale-below-note: Q71-C is WITHDRAWN in place; §6's S1/S3/S4/S5 are dissolved by §7.1 — do not quote
+  any of them as open work.
 stale-below: nothing — new document.
 known-rot: nothing yet.
 known-conflict: docs/designs/packs-3/DESIGN.md §2.B/§2.C contradicts its OWN design conversation
   (.dev/_DONE/packs-3/design_talk.md:555-567) and contradicts docs/designs/mgmt-1/DESIGN.md §11.
   This document exists to resolve that; it does not pretend the conflict is already settled.
 related-designs:
+  - docs/DESIGN_Terrain_Zones_And_Assets.md — ⭐ THE WHAT: the component model, both invocation paths,
+    the module diagram and the slice-1 real-vs-faked split. THIS document is only the WHY.
   - docs/designs/mgmt-1/DESIGN.md — §11 owns the ZONE as a geographic staged-load unit (ZoneSpec,
     PrepareZone/CommitZone 2PC); it does NOT own authoring or asset production.
   - docs/designs/packs-3/DESIGN.md — §2.B/§2.C/§2.E own the AS-BUILT embedded `Zones` bundle and
@@ -161,9 +166,14 @@ inside it, which is why ⑥ was dead.
 **What would change the lean:** if a single exercise must host two terrains at once — then terrain
 becomes per-zone after all. Believed false; worth one sentence of confirmation.
 
-### Q71-C — How does a scenario reference the zones it needs?
+### Q71-C — How does a scenario reference the zones it needs? ⛔ **WITHDRAWN `2026-09-17`**
 
-⭐ **LEAN: a foreign key in the scenario header**, exactly as the `packs-3` talk concluded —
+⛔⛔ **This sub-question no longer exists.** The `2026-09-17` refinement makes a zone **an Area entity
+saved to the scenario like any other** ⇒ the scenario *contains* its zones; there is nothing to
+reference and no resolution step to build. ⚠ The approved lean below is **superseded by a simpler
+answer**, and is kept only so nobody re-derives the foreign-key design.
+
+> ⛔ **HISTORY — the withdrawn lean:** *a foreign key in the scenario header*, exactly as the `packs-3` talk concluded —
 `ScenarioHeader(SubsystemType, SchemaVersion, ZoneIds)` — resolved to zone artefacts by name.
 Loading them reuses the **same executive code** as the runtime zone load, invoked during
 `LoadingEdit`/`LoadingLive` rather than via `PrepareZone`.
@@ -335,3 +345,47 @@ than expected in the transport and less built than expected in the middle**:
 
 ⇒ ⭐ **S1–S3 are design calls that belong in a `DESIGN_*` doc** *(this question is the WHY; that doc is
 the WHAT)*. S4–S11 are specification work that can be done inside it. ⛔ **No handoff until S11 exists.**
+
+---
+
+## 7. ✅ THE REFINEMENT `2026-09-17` — **four gaps DISSOLVED, seven rulings ADDED**
+
+> 🔒 **User, verbatim (abridged):** *"Zone entity is like a tactical drawing of an area. Those Areas
+> should carry an area type field, and Zone is one of them. Saved to scenario as any other entity.
+> **Zone as an artifact does not really exist.** Zone loading might generate, stream and cache some
+> terrain tile data… These cached tiles can be reused by different zones… Zone loading is idempotent.
+> Once zone is loaded, it needs to be indicated by the presence of a marker ecs component… never
+> persisted to scenario nor replay recording… assets = just a cached reconstructable data (entity is
+> the definition, so **no duality risk**)… On scenario load the loading of these is executed by calling
+> same loading implementations locally on each node… but not invoked via nodeOps."*
+
+### 7.1 Dissolved — these gaps no longer exist
+
+| was | why it is gone |
+|---|---|
+| **S1** zone component set | a zone is an **Area entity with `AreaType = Zone`** |
+| **S3** ⭐ the duality *(my highest-risk item)* | **there is no artefact.** The entity is the definition; an asset is a cache. A cache cannot disagree — it can only be stale, which is detectable |
+| **S4** artefact path / schema / writer | nothing to write |
+| **S5** + **Q71-C** scenario→zone reference | the scenario **contains** its zones as entities |
+
+### 7.2 Added — rulings from the measurement of that refinement
+
+📐 **Two claims in the refinement did not survive measurement, and both are now rulings:**
+
+| # | ruling | basis |
+|---|---|---|
+| **R1** | ⛔ **obstacles are EXCLUDED from the load model** — no asset, no load step, no marker | `RaycastSolverSystem.cs:145-147` reads `PhysicsCollider` off broadphase candidates and `LosRequestBatchingSystem` queries by its component id ⇒ **an obstacle occludes LOS the instant it exists.** *"Obstacle loading already exists"* has no referent |
+| **R2** | ⭐ **the road-blob swap seam is a PRECONDITION**, not a cleanup | 🔴 `PathfindingSolverSystem` holds `readonly RoadNetworkBlob _roadNetwork` assigned once in its ctor (`:32`,`:63`) — same shape in `NavigationSolverModule` + `EngineBackedNavigationModule` ⇒ a commit swap reaches `CarKinematicsSystem` (per-tick singleton read) and **silently does nothing for pathfinding.** Fix by reuse: navigation re-reads the singleton per tick |
+| **R3** | the marker carries **state**, not a bare tag: `{ LoadPhase, SourceVersion }`, `[DataPolicy(NoScenario \| NoReplay)]` | streaming has an in-flight state and loads can fail; both flags already exist |
+| **R4** | ⭐⭐ **staleness by version** — the marker records the `EditablePolyline.Version` it was built from | ⭐ the key already exists: that field is documented *"incremented … so subscribers can detect stale cached copies."* ⛔ Without it, "idempotent" silently becomes "never reloads" after an edit |
+| **R5** | `AreaType` lives on a new `Area` component; `EditablePolyline` stays shape-only | one authoring surface serves zones and tactical areas |
+| **R6** | zone/terrain loading is **role-filtered** — the tile consumers run it, the brain loads nothing | `DESIGN_Node_Roles_And_Policies` |
+| **R7** | the tile cache is **per-node local and keyed geographically** *(mechanism postponed)* | otherwise *"reusable across zones"* cannot be true |
+
+⭐ **And one claim that was better than expected:** `RoadNetworkBuilder` *("constructing RoadNetworkBlob
+from components": `AddNode`/`AddSegment`/`Build`)* **already exists** ⇒ the entity→road compile is
+mostly reuse, so **roads ship REAL, not faked** — only the terrain *tiles* are stubbed.
+
+📄 ⇒ **The WHAT now lives in [`docs/DESIGN_Terrain_Zones_And_Assets.md`](../DESIGN_Terrain_Zones_And_Assets.md)**
+*(`build-state: READY-TO-BUILD`; classDiagram + 2 sequenceDiagrams + the module diagram carrying both
+dead edges)*. ⛔ **S2/S6–S11 are specified there**; this document stays the WHY.

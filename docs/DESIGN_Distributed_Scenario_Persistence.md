@@ -66,6 +66,8 @@ design-basis:
     EntityMaster lifecycle, per-descriptor ownership, the generic OwnershipUpdate transfer — §6c maps it
     onto our ECS and records the PrimaryOwnerId-mirror compliance gap)
 related-designs:
+  - docs/DESIGN_Terrain_Zones_And_Assets.md — the terrain/zone/asset model (Area entities, the
+    entity-is-the-definition rule, PrepareTerrainAsset/CommitTerrainAsset and the road compile).
   - DESIGN_Node_Roles_And_Policies.md — owns the ROLE/ownership POLICY (who may own what, R-138/R-140);
     THIS doc owns the SAVE/LOAD MECHANISM that enforces it and the ownership-component unification.
   - docs/designs/cgf-scn-2/DESIGN.md — owns per-COMPONENT-TYPE save correctness (which components are

@@ -20,6 +20,8 @@ known-rot: ⛔ §8.10 prescribes that NetworkLifecycleSystemGroup.Enabled = fals
 known-conflict: docs/designs/cgf-1/mgmt-DESIGN.md is a 3216-line NEAR-COPY of this 3226-line file (two
   producers for one slot, R-132). A reader can quote the stale half without knowing. Prefer THIS file.
 related-designs:
+  - docs/DESIGN_Terrain_Zones_And_Assets.md — the terrain/zone/asset model (Area entities, the
+    entity-is-the-definition rule, PrepareTerrainAsset/CommitTerrainAsset and the road compile).
   - docs/designs/replay-and-modules/DESIGN.md — §2.1a–§2.1m: replay ISOLATION as built, the measured gap
     against §8.10, and the unified ELM-rewind plan.
   - docs/DESIGN_Deterministic_Network_Ids.md — §2b/§4c: the EDITOR PREVIEW rewind trigger and the
