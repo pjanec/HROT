@@ -40,6 +40,11 @@ namespace Hrot.NED.Descriptors.Orchestration
         SetTimeScale    = 15,
         DumpDiagnostics = 16,
         SaveScenario = 17,   // CE-277(c0): distributed JSON scenario save; name in PayloadJson {"ScenarioName":...}. CE-278: renamed from SaveScenarioJson (wire value 17 unchanged).
+
+        // ⛔ PERMANENT WIRE VALUE (R-42). Ruled 2026-09-17.
+        // ⚠ Originally specified as 17 — that was WRONG and caught before it shipped: SaveScenario
+        //   above already holds 17. 18 is the next genuinely free value in THIS (authoritative) enum.
+        BuildTerrainAsset = 18,
     }
 
     /// <summary>Wire value 13 is replay seek on nodes; C# name avoids IDL literal clash with <see cref="ClusterOpType.ReplaySeek"/>.</summary>

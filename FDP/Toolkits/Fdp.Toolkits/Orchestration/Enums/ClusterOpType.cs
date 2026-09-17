@@ -23,5 +23,18 @@ namespace Fdp.Toolkit.Orchestration
         StepTime = 14,
         SetTimeScale = 15,
         DumpDiagnostics = 16,
+
+        // ⚠⚠ 17 IS NOT FREE, and it is deliberately absent HERE: the authoritative NED enum
+        //    (Hrot.Network.Orchestration/Orchestration/OrchestrationMessages.cs) has
+        //    `SaveScenario = 17` — the live distributed JSON scenario save (CE-277(c0), renamed by
+        //    CE-278 with the wire value unchanged), routed at ClusterMaster and translated both ways.
+        //    ⛔ This mirror never gained it, so the two enums are ALREADY DIVERGED despite the header
+        //    above claiming they are "verified by unit tests" — measured 2026-09-17: no such test
+        //    exists. Do NOT reuse 17 here to close the hole; adding SaveScenario to this mirror changes
+        //    the generated CycloneDDS IDL and is a wire-surface decision, not a tidy-up.
+
+        // ⛔ PERMANENT WIRE VALUE (R-42). Ruled 2026-09-17 after 17 was found occupied.
+        // 📄 docs/DESIGN_Terrain_Zones_And_Assets.md §6.
+        BuildTerrainAsset = 18,
     }
 }
