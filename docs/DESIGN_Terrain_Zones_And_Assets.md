@@ -296,15 +296,72 @@ retiring behaviour — `ZoneManagerServiceTests`, `ZoneScenarioLoadIntegrationTe
 
 | # | question | ⭐ lean |
 |---|---|---|
-| **N1** | is the load model a **role** or a **capability**? | ⭐⭐ **capability.** Stride SimHost and headless SimHost can hold the *same* `MuscleGround` role and differ in load model ⇒ role says *what work*, capability says *how this build does it* |
-| **N2** | how is it advertised? | ⭐ **reuse ⑰** — a new token pair in the existing namespace (e.g. `fdp.terrain.zones-dynamic` vs `fdp.terrain.static`). ⛔⛔ **`R-133`: emitted FROM the composition fact (which loader the host actually registered), never hand-declared** — that ruling exists because a hard-coded `true` shipped a 404 |
-| **N3** | what does a STATIC host do on a zone-load round? | ⭐ **ACK as SATISFIED, not as ignored** — its terrain is already resident. ⚠ The operator must be able to tell *"static, nothing to do"* from *"faked"* from *"failed"* |
-| **N4** | ⭐ **terrain-identity binding for static hosts** | 🔒 the user's *"tied to the terrain id"*: a static host's baked data is bound to a terrain. If the scenario's `SceneId` differs from what is baked, that is a **mismatch to detect and REPORT**, never to proceed through — same divergence class as `R-136` |
-| **N5** | the UI on a mixed cluster | ⭐ one action, **per-node outcome** (`Loaded` / `Static — n/a` / `Failed`); ⛔ never a single global "OK" that hides a node that did nothing |
-| **N6** | can a static host stall the barrier? | ⭐ no — the kind×role filter becomes kind×role×**capability**, and a non-participant ACKs immediately (the `IgZoneDummyHandler` shape) |
+### 8.3 ✅ RULED `2026-09-17` — **no capability is announced at all**
 
-⇒ ⚠ **N1–N2 change §4's module diagram** (the filter gains an axis) and N4 adds an invariant §2 does not
-carry. ⛔ **That is why the build-state is downgraded** rather than patched in place.
+> 🔒 **User:** *"no host should be fully static, in a sense that it can never load another terrain. The
+> ability to load terrain which is defined in the scenario is **mandatory**. Maybe right now some hosts
+> like stride do not support it but this is more a **bug and unimplemented feature** than something we
+> can live with… So just the dynamic zone loading/tile streaming is what is not supported there…
+> With static terrain the zone load is **always satisfied immediately**. So the user does not need to
+> know the zone load was made in static mode, it was simply satisfied immediately (OK)."*
+
+⭐⭐⭐ **Why this is stronger than a simplification:** with static terrain the zone-load POSTCONDITION —
+*"the terrain data covering this zone is resident"* — **is genuinely TRUE**, because all of it already
+is. Static is not a degraded mode, it is a **trivially complete** one. ⇒ there is nothing to advertise
+because nothing is missing.
+
+| was | now |
+|---|---|
+| **N1** role-or-capability | ⛔ **COLLAPSED** — no capability exists to classify |
+| **N2** advertise a token pair | ⛔ **COLLAPSED.** ⭐ The cleanest way to satisfy `R-133` *(never declare a capability that no-ops)* is to declare none |
+| **N3** three outcomes | ⭐ **TWO: satisfied / failed.** A host that cannot load the scenario's terrain at all is **BROKEN, not static** — it FAILS loudly |
+| **N5** show the mode | ⭐ per-node **OK / Failed** only; no mode to display |
+| **N6** capability filter to avoid stalling | ⛔ **COLLAPSED — there is no matrix.** 🔒 *"Host not taking active part should always ack to avoid blocking, why a matrix is needed?"* ⇒ **the ACK is UNCONDITIONAL**; the only input to whether WORK happens is the request's `kinds` × **the loaders this host actually composed**. ⭐ Role filtering **already happened at composition** (`SimHostNodeBootstrapper.cs:307` `.Capability(NodeRole.Perception, …)`) — re-applying it at op time would be a second mechanism for one decision (ruling 9) |
+| **N4** terrain-identity binding | ⭐⭐ **SURVIVES AND STRENGTHENS.** Since loading the scenario's terrain is MANDATORY, a host must verify it holds the scenario's `SceneId` and **fail loudly** if not — that is how Stride's present gap should surface instead of silently passing |
+
+⭐ **Free consequence — `IgZoneDummyHandler` RETIRES.** It exists only to dummy-ACK `PrepareZone`/
+`CommitZone` so IG does not stall the round; the shared handler now does that by construction on every
+host, with no bespoke class.
+⭐ **Kept, but DEMOTED to a node DIAGNOSTIC (not a wire capability):** whether a host built tiles or had
+nothing to do. Not for the operator, not in the protocol — for the day tiles are real and someone asks
+*"why did node X do nothing?"*
+
+### 8.4 ⛔ STILL OPEN — the zone-loading UI
+
+See §9. That is the only thing now standing between this document and `READY-TO-BUILD`.
+
+## 9. ⛔ OPEN — the zone-loading UI *(leans for approval, `2026-09-17`)*
+
+### 9.1 🔴 The subtlety that decides the whole surface: **the marker is LOCAL, the answer is CLUSTER**
+
+`TerrainAssetLoadState` is `[DataPolicy(NoScenario | NoReplay)]` and is **not replicated** — it is each
+node's own truth. ⇒ ⛔⛔ **an operator station must NOT render its own marker**: ExCon/IG never build
+tiles, so their local marker would read *"not loaded"* forever and the map would lie.
+⇒ ⭐ **the map indicator and the panel both show the CLUSTER ROLLUP**, sourced from the last op result
+per zone — never from the local component.
+
+### 9.2 Per question
+
+| # | question | ⭐ lean |
+|---|---|---|
+| **U1** | seeing a zone is stale after an edit | ⭐ **outline STYLE carries state, text carries detail** — dashed/solid on the area outline is readable at a glance across many zones without reading, and does not rely on colour alone; the gizmo text is for the one zone being inspected. ⚠ **UNMEASURED:** whether the overlay renderer can parameterise stroke style per entity — check before committing |
+| **U2** | invoking a load | ⭐ **`SharedContextMenuPopulator.PopulateEntityMenu`** — the exact existing seam: it already adds *"Edit Shape"* for `EditablePolyline` and *"Edit Route"* for `RoutePlan`. Add *"Load zone"* when the entity carries `Area{Type=Zone}`. Shared ⇒ every host using the shared menu gets it |
+| **U3** | forcing all changed zones | ⭐ a **zone-list panel** — one row per zone entity with its rollup state and a per-row action, plus a *"Load all stale"* header button. ⭐⭐ **Repoint `ZoneEditorPanel`** into exactly this: the retirement frees it, so the panel slot is reused rather than a new one invented. ⛔ Not the cluster control panel — this is content-scoped, not cluster-scoped |
+| **U4** | multi-zone at once | ⭐⭐ **the user's lean, and it is already supported: ONE OP PER ZONE.** 📐 Measured: `FanOutSerializeLocal` registers `_pendingTransactions[requestId]` (a **keyed dictionary**, `Expected = nodeIds.Count`) and never touches `_activeTransaction` ⇒ **concurrent rounds already work on this path in production.** ⛔ Do NOT widen the op to carry N zones |
+
+### 9.3 Why one-op-per-zone beats a multi-zone payload
+
+⭐ **Independent failure** — a single bad zone fails its own round, not the batch. ⭐ **Independent
+progress** — U3's per-row state falls out of the tracker instead of needing a sub-protocol inside one
+transaction. ⭐ **Natural retry granularity.** ⭐ And the node side stays free to **serialise the builds
+at will** *(tile building is heavy I/O+CPU; N parallel builds would thrash)* — which is a LOCAL policy,
+invisible to the protocol.
+⚠ **The one question it raises:** *"load all stale"* on a 50-zone scenario opens 50 trackers at once.
+Cheap (dictionary entries) but unbounded — ⭐ lean: cap in-flight at the **requester**, not in the
+master, and leave the protocol alone.
+
+⚠ **`_activeTransaction` is a DIFFERENT, single-slot path** used by the cluster **state machine**, and
+it is what greys out the panel's command buttons. ⛔ Zone ops must not be routed through it.
 
 ## 7. POSTPONED — deliberately not designed here
 
