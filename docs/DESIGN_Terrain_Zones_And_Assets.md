@@ -1,10 +1,12 @@
 <!--STATUS
 state: LIVE
-build-state: ⛔ **DESIGN — DOWNGRADED FROM READY-TO-BUILD `2026-09-17`.** The diagrams (§2–§4) stand,
-  but §8 (HOST HETEROGENEITY) is an unclosed hole the user found after they were drawn: this document
-  assumed ONE load model role-filtered across hosts, and there are at least TWO. ⛔ No handoff until §8
-  is ruled. ⚠ Marking it READY-TO-BUILD was a coordinator error — the module diagram showed WHO runs the
-  loader and never asked whether they run the SAME ONE.
+build-state: ✅ **READY-TO-BUILD `2026-09-17`** — §8 (host heterogeneity) is RULED: no capability is
+  announced, because with static terrain the zone-load postcondition is genuinely met (§8.3). §9 (the UI)
+  is ruled through U1–U4 + §9.5–§9.8, and U1's last unmeasured assumption is closed — gizmos read any
+  component and `DrawLine` takes a `LineStyle`. ⚠ HISTORY: this was marked READY-TO-BUILD once before and
+  DOWNGRADED on `2026-09-17` when the user found the heterogeneity hole — the module diagram showed WHO
+  runs the loader and never asked whether they run the SAME ONE. ⛔ Tiles remain FAKED by ruling (§6/§7);
+  that is scope, not an open question.
 updated: 2026-09-17
 current-answer: §2 is the model, §3 the two invocation paths, §4 what is registered and ticked where
   (incl. the two DEAD edges), §5 the WHY, §6 what is real vs faked in slice 1.
@@ -359,7 +361,7 @@ replication and no rollup plumbing.
 
 | # | question | ⭐ lean |
 |---|---|---|
-| **U1** | seeing a zone is stale after an edit | ⭐ **outline STYLE carries state, text carries detail** — dashed/solid on the area outline is readable at a glance across many zones without reading, and does not rely on colour alone; the gizmo text is for the one zone being inspected. ⚠ **UNMEASURED:** whether the overlay renderer can parameterise stroke style per entity — check before committing |
+| **U1** | seeing a zone is stale after an edit | ✅ **RESOLVED `2026-09-17` — fully supported, and the question was mis-framed.** 🔒 *"the shape of an entity is rendered by a gizmo and gizmo can use whatever data source it needs (including loading status ECS component if present)"* — 📐 correct: a `[GizmoProjector]` receives `(ISimulationView view, Entity entity, IDebugDrawBuilder draw)` and already reads several components, so it simply reads `TerrainAssetLoadState` too. ⭐ And style is **per-call**: `DrawLine(a, b, color, thickness, sizeMode, …, LineStyle style)` with `LineStyle { Solid, Dashed, Dotted }` ⇒ **`Solid` = loaded, `Dashed` = stale, colour free for failed** — no renderer capability needed, no manual segment-chopping. ⛔ There was never an "overlay renderer" to ask |
 | **U2** | invoking a load | ⭐ **`SharedContextMenuPopulator.PopulateEntityMenu`** — the exact existing seam: it already adds *"Edit Shape"* for `EditablePolyline` and *"Edit Route"* for `RoutePlan`. Add *"Load zone"* when the entity carries `Area{Type=Zone}`. Shared ⇒ every host using the shared menu gets it |
 | **U3** | forcing all changed zones | 🔒 **RULED (user, `2026-09-17`): the zone editor becomes a VIEW on the existing DETAILS SHELL**, offered when empty map space is selected. ⭐⭐ **PURE REUSE — see §9.5.** ⛔⛔ **A PRIOR DRAFT OF THIS ROW CLAIMED THIS WAS "NEW INFRASTRUCTURE… the largest single item in this design." THAT WAS FALSE** — it came from a grep scoped to one folder and two name patterns. `DetailsWindow` already is *"THE DETAILS SHELL: one window, N views, chosen by a predicate"*, `WindowScope.PerspectiveBound`, with a view registry and contributed `*DetailsView` classes |
 | **U4** | multi-zone at once | ⭐⭐ **the user's lean, and it is already supported: ONE OP PER ZONE.** 📐 Measured: `FanOutSerializeLocal` registers `_pendingTransactions[requestId]` (a **keyed dictionary**, `Expected = nodeIds.Count`) and never touches `_activeTransaction` ⇒ **concurrent rounds already work on this path in production.** ⛔ Do NOT widen the op to carry N zones |
