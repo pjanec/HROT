@@ -18,7 +18,19 @@ namespace Fdp.Toolkit.Navigation.EngineBacked
         /// <inheritdoc/>
         public ExecutionPolicy Policy => ExecutionPolicy.Synchronous();
 
+        /// <summary>
+        /// ⚠ MEASURED DEAD (2026-09-17): assigned here and read by NOTHING in this class — this module
+        /// does no road-graph work of its own (<see cref="Tick"/> is empty; the providers it registers
+        /// are navmesh/volumetric/crowd). It is therefore NOT an instance of the frozen-constructor-blob
+        /// hazard that <c>PathfindingSolverSystem</c> had, contrary to what
+        /// <c>DESIGN_Terrain_Zones_And_Assets.md</c> §4 assumed: there is no stale read to fix because
+        /// there is no read. The parameter is kept so the constructor signature stays stable for the
+        /// composition roots that already pass a blob.
+        /// ⭐ The live road graph is the <c>ZoneEnvironmentData</c> singleton, re-read per tick by
+        /// <c>CarKinematicsSystem</c> and (as of R2) <c>PathfindingSolverSystem</c>.
+        /// </summary>
         private readonly RoadNetworkBlob        _roadNetwork;
+
         private readonly TrajectoryPoolManager  _pool;
 
         private EngineBackedNavmeshProvider?        _navmesh;

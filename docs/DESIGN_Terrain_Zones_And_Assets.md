@@ -501,6 +501,13 @@ graph TD
    constructor** (`:32`, `:63`). ⇒ **a commit-time pointer swap reaches `CarKinematicsSystem` and
    silently does nothing for pathfinding.** `NavigationSolverModule` and `EngineBackedNavigationModule`
    have the same shape. **R2 is therefore a precondition, not a cleanup.**
+   ✅ **FIXED `2026-09-17` (`BP-519`)** — the solver resolves the graph per tick; see §5.4 for what the
+   measurement did to the prescribed fix.
+   ⚠⚠ **CORRECTION to the sentence above:** *"`EngineBackedNavigationModule` has the same shape"* is
+   **measured FALSE, and harmlessly so.** It does hold a ctor blob — and **nothing in the class ever reads
+   it**: `Tick` is empty and the providers it registers are navmesh/volumetric/crowd, not road-graph. So
+   there was no stale read to fix there, because there is no read. ⛔ Do not "fix" that field; the
+   parameter is kept only so the constructor signature stays stable for existing composition roots.
 
 ---
 
@@ -532,12 +539,46 @@ nobody, so no writer has to cooperate.
 ### 5.4 Why the swap seam is a precondition (R2)
 See §4's second red box. ⚠ **Re-anchored `2026-09-17`:** the blob is now published by the **TERRAIN loader** (§2.1d), not by any
 entity compile — but the swap problem is unchanged, because the consumer is what is frozen.
-⭐ **Preferred fix — reuse, not a new abstraction:** make the
-`ZoneEnvironmentData` **singleton the single source** and have the navigation systems re-read it per
-tick exactly as `CarKinematicsSystem` already does, rather than introducing a holder/provider object.
-One source, no new seam, and it matches the "one source, read it every time" pattern (`R-126`).
-⚠ **What would flip it:** if a navigation module runs on a background thread where singleton access is
-constrained by `DataPolicy`, a holder becomes necessary. **Check that before building.**
+⛔⛔ **SUPERSEDED `2026-09-17` by the `U1` measurement (batch ①, `BP-519`). The preferred fix below was
+NOT IMPLEMENTABLE, and the escape clause is what happened.**
+
+> ⛔ ~~**Preferred fix — reuse, not a new abstraction:** make the `ZoneEnvironmentData` **singleton the
+> single source** and have the navigation systems re-read it per tick exactly as `CarKinematicsSystem`
+> already does, rather than introducing a holder/provider object. One source, no new seam, and it matches
+> the "one source, read it every time" pattern (`R-126`).~~
+> ⚠ ~~**What would flip it:** if a navigation module runs on a background thread where singleton access is
+> constrained by `DataPolicy`, a holder becomes necessary. **Check that before building.**~~
+
+📐 **`U1`, measured — the flip condition is MET, and for a sharper reason than `DataPolicy`:**
+
+| # | fact | site |
+|---|---|---|
+| ① | `NavigationSolverModule.Policy => ExecutionPolicy.SlowBackground(10)` ⇒ **background thread** | `NavigationSolverModule.cs:26` |
+| ② | `SlowBackground` ⇒ `DataStrategy.SoD`; `Validate()` **forbids** `Direct` off the main thread *("background threads need snapshot")* | `ExecutionPolicy.cs:81-84`, `:148-157` |
+| ③ | 🔴 **`ISimulationView` exposes NO singleton API at all** — 9 members: component RO, `HasComponent`, queries, events, command buffer | `Fdp.Core/Abstractions/ISimulationView.cs` |
+| ④ | 🔴 `CarKinematicsSystem` — **the very pattern this section said to copy** — reaches singletons by **downcasting the view to `EntityRepository` and THROWING when it is not one** | `CarKinematicsSystem.cs:48-51` |
+| ⑤ | it gets away with ④ only because `GroundKinematicsModule` is `Synchronous` (`Direct` ⇒ the view IS the live repo) | ② |
+
+⇒ ⭐⭐⭐ **copying `CarKinematicsSystem` into the solver would make it THROW on its own production path**,
+not return a stale blob. The obstacle is not that `DataPolicy` filters the singleton out of the snapshot —
+it is that **there is no way to ask a view for a singleton at all.**
+
+⭐ **What was built instead — `RoadNetworkHolder`** (`FDP/.../CarKinem/Road/`): an immutable box behind a
+single volatile reference write, so a reader sees the whole previous graph or the whole new one and never
+a torn multi-field native struct. `PathfindingSolverSystem.Execute` resolves per tick in this order:
+**live singleton when the view IS the repo → holder → constructor blob.** ⇒ on every path that HAS a
+single source the singleton is still it, and the holder carries only the paths where it is unreachable.
+
+⚠ **Two things this did NOT solve, both deliberately deferred to batch ②:**
+① **lifetime** — publishing a new graph does not make the old blob safe to dispose while a 10 Hz
+background solver may be mid-traversal in its native arrays; the commit path must keep the previous blob
+alive. ② a host that composes `NavigationSolverModule` **without** a holder still will not observe a
+reload — the loader must pass one.
+
+⭐ **And `NavigationSolverModule` has ZERO production constructions today** (only `PathfindingSolverSystemTests`
+and a graph-only hit in `GroundKinematicsModuleTests`), so the background path is not yet live — which is
+precisely why this was worth fixing before role-based composition switches it on, as that module's own
+constructor remarks warn.
 
 ### 5.5 ⛔ RETRACTED — *"why roads are real and tiles are faked"*
 ⛔⛔ **This section argued for a road compile that §2.1a retracts** — there are no road entities to

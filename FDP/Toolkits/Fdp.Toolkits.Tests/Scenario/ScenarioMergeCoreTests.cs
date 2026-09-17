@@ -19,15 +19,21 @@ namespace Fdp.Toolkit.Scenario.Tests
             IEnumerable<string> entityGuids,
             string? tkbName = null,
             int schemaVersion = 2,
-            JsonArray? zones = null)
+            JsonArray? zones = null,
+            string? terrainName = null)
         {
             var entities = new JsonObject();
             foreach (var g in entityGuids)
                 entities[g] = new JsonObject { ["EntityInfo"] = new JsonObject { ["Name"] = g } };
 
             var dom = new JsonObject { ["Entities"] = entities };
-            if (tkbName != null)
-                dom["Header"] = new JsonObject { ["TkbName"] = JsonValue.Create(tkbName) };
+            if (tkbName != null || terrainName != null)
+            {
+                var header = new JsonObject();
+                if (tkbName != null)     header["TkbName"]     = JsonValue.Create(tkbName);
+                if (terrainName != null) header["TerrainName"] = JsonValue.Create(terrainName);
+                dom["Header"] = header;
+            }
             JsonEnvelope.Write(dom, new DocumentMeta(OurType, schemaVersion));
             if (zones != null)
                 dom["Zones"] = zones;
@@ -146,6 +152,50 @@ namespace Fdp.Toolkit.Scenario.Tests
             var bad = new ScenarioSlice(400, OurType, Dom: null);
             Assert.Throws<System.ArgumentException>(() =>
                 ScenarioMergeCore.Merge(new[] { bad }, OurType));
+        }
+
+        // ── B5: the TERRAIN NAME is a global and must survive the merge ───────────────────────────
+
+        [Fact]
+        public void TerrainName_SurvivesTheMerge_AlongsideTkbName()
+        {
+            // ⛔ THE REGRESSION THIS PINS: the canonical Header used to be rebuilt as
+            //    `new JsonObject { ["TkbName"] = ... }`, which would DROP the terrain name from every
+            //    distributed save — silently, and only on the cluster path.
+            var brain  = Compatible(400, Dom(new[] { "g-a" }, tkbName: "tkb-1", terrainName: "kandahar"));
+            var muscle = Compatible(1,   Dom(new[] { "g-b" }));
+
+            var result = ScenarioMergeCore.Merge(new[] { brain, muscle }, OurType);
+
+            var header = (JsonObject)result.CanonicalDom!["Header"]!;
+            Assert.Equal("tkb-1",    (string)header["TkbName"]!);
+            Assert.Equal("kandahar", (string)header["TerrainName"]!);
+        }
+
+        [Fact]
+        public void TerrainName_WithNoTkbName_StillReachesTheCanonicalHeader()
+        {
+            var brain = Compatible(400, Dom(new[] { "g-a" }, terrainName: "kandahar"));
+
+            var result = ScenarioMergeCore.Merge(new[] { brain }, OurType);
+
+            var header = (JsonObject)result.CanonicalDom!["Header"]!;
+            Assert.Equal("kandahar", (string)header["TerrainName"]!);
+            Assert.Null(header["TkbName"]);
+        }
+
+        [Fact]
+        public void TerrainName_MismatchAcrossSlices_FailsLoudly()
+        {
+            // ⭐ Terrain is a GLOBAL fact about the exercise, like the TKB: two nodes disagreeing about
+            //   which terrain they are on is a misconfiguration to surface, not a merge to reconcile.
+            var a = Compatible(400, Dom(new[] { "g-a" }, terrainName: "kandahar"));
+            var b = Compatible(1,   Dom(new[] { "g-b" }, terrainName: "helmand"));
+
+            var ex = Assert.Throws<System.InvalidOperationException>(() =>
+                ScenarioMergeCore.Merge(new[] { a, b }, OurType));
+
+            Assert.Contains("TerrainName", ex.Message);
         }
     }
 }

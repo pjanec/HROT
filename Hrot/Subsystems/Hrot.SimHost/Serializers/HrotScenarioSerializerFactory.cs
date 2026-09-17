@@ -20,6 +20,7 @@ namespace Hrot.SimHost.Serializers
                 .RegisterTranslator(new PersonalRouteRefTranslator())
                 .RegisterTranslator(new UnitSubordinateTranslator())
                 .RegisterTranslator(new EditablePolylineTranslator())
+                .RegisterTranslator(new RoutePlanTranslator())
                 .RegisterTranslator(new BrainBlackboardTranslator(behaviorRegistry))
                 .RegisterTranslator(new Blackboard1024Translator(behaviorRegistry))
                 .RegisterTranslator(new BTreeTraceWorkingMemoryTranslator(behaviorRegistry))

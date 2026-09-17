@@ -29,7 +29,34 @@ namespace Fdp.Toolkit.Navigation.Systems
     [UpdateInPhase(SystemPhase.Simulation)]
     public class PathfindingSolverSystem : IEcsModuleSystem
     {
+        /// <summary>
+        /// Fallback road graph supplied at construction. ⛔ Not the source of truth — see
+        /// <see cref="_activeRoadNetwork"/>. Kept so a caller that never publishes the singleton
+        /// (unit rails, a host with a statically supplied graph) behaves exactly as before.
+        /// </summary>
         private readonly RoadNetworkBlob        _roadNetwork;
+
+        /// <summary>
+        /// ⭐⭐ The graph used by THIS tick, refreshed from the <see cref="ZoneEnvironmentData"/>
+        /// singleton at the top of <see cref="Execute"/>.
+        /// <para>
+        /// ⛔ The blob must NOT be captured once in the constructor: the terrain loader publishes a new
+        /// <c>ZoneEnvironmentData</c> when terrain or a zone loads, and a constructor-captured copy makes
+        /// that swap reach <c>CarKinematicsSystem</c> (which already re-reads per tick) while silently
+        /// doing nothing for pathfinding — vehicles would drive the new roads while routes were still
+        /// planned over the old ones, with no error anywhere.
+        /// </para>
+        /// 📄 docs/DESIGN_Terrain_Zones_And_Assets.md §5.4 (R2).
+        /// </summary>
+        private RoadNetworkBlob                 _activeRoadNetwork;
+
+        /// <summary>
+        /// Optional thread-safe carrier of the current graph, used on execution paths where the ECS
+        /// singleton is unreachable (a background module receives a snapshot view, and
+        /// <c>ISimulationView</c> has no singleton API). <c>null</c> on hosts that never swap.
+        /// </summary>
+        private readonly RoadNetworkHolder?     _roadNetworkHolder;
+
         private readonly TrajectoryPoolManager  _trajectoryPool;
         private readonly INavmeshProvider?      _navmesh;
         private readonly IVolumetricPathProvider? _volumetric;
@@ -54,13 +81,21 @@ namespace Fdp.Toolkit.Navigation.Systems
         /// </param>
         /// <param name="navmesh">Optional navmesh provider for ground-based path queries.</param>
         /// <param name="volumetric">Optional volumetric provider for flying entities.</param>
+        /// <param name="roadNetworkHolder">
+        ///   Optional live carrier of the road graph, for hosts whose execution path cannot reach the
+        ///   <c>ZoneEnvironmentData</c> singleton (background/SoD modules). When supplied it is read
+        ///   every tick and preferred over <paramref name="roadNetwork"/>.
+        /// </param>
         public PathfindingSolverSystem(
             RoadNetworkBlob          roadNetwork,
             TrajectoryPoolManager    trajectoryPool,
             INavmeshProvider?        navmesh     = null,
-            IVolumetricPathProvider? volumetric  = null)
+            IVolumetricPathProvider? volumetric  = null,
+            RoadNetworkHolder?       roadNetworkHolder = null)
         {
-            _roadNetwork    = roadNetwork;
+            _roadNetwork        = roadNetwork;
+            _activeRoadNetwork  = roadNetwork;
+            _roadNetworkHolder  = roadNetworkHolder;
             _trajectoryPool = trajectoryPool ?? throw new ArgumentNullException(nameof(trajectoryPool));
             _navmesh        = navmesh;
             _volumetric     = volumetric;
@@ -69,6 +104,22 @@ namespace Fdp.Toolkit.Navigation.Systems
         /// <inheritdoc/>
         public void Execute(ISimulationView view, float deltaTime)
         {
+            // ⭐⭐ R2 — resolve the road graph EVERY tick so a terrain/zone load is observed, instead of
+            //   using a blob frozen at construction.
+            //
+            // ⚠ The order below is forced by a measured constraint, not preference. ISimulationView
+            //   exposes NO singleton API; CarKinematicsSystem reads singletons by downcasting the view
+            //   to EntityRepository and THROWING when it is not one, which is safe only for a
+            //   Synchronous module. This system's own module is SlowBackground (SoD snapshot), so that
+            //   downcast legitimately fails there and must degrade, never throw.
+            //   📄 DESIGN_Terrain_Zones_And_Assets.md §5.4 — the "a holder becomes necessary" branch.
+            if (view is EntityRepository repo && repo.HasSingleton<ZoneEnvironmentData>())
+                _activeRoadNetwork = repo.GetSingleton<ZoneEnvironmentData>().RoadNetwork;   // live world
+            else if (_roadNetworkHolder != null)
+                _activeRoadNetwork = _roadNetworkHolder.Current;                              // background
+            else
+                _activeRoadNetwork = _roadNetwork;                                            // static host
+
             // Read all accumulated request events since the last solver tick.
             var requests = view.ReadEvents<PathfindingRequestEvent>();
             if (requests.IsEmpty) return;
@@ -112,7 +163,7 @@ namespace Fdp.Toolkit.Navigation.Systems
 
             // Auto heuristic per §5.2: check both endpoints against the road network.
             // Both near road -> RoadGraph; one near, one far -> Hybrid; neither -> Navmesh.
-            bool networkHasNodes = _roadNetwork.Nodes.IsCreated && _roadNetwork.Nodes.Length > 0;
+            bool networkHasNodes = _activeRoadNetwork.Nodes.IsCreated && _activeRoadNetwork.Nodes.Length > 0;
             if (networkHasNodes)
             {
                 var start2D = new Vector2(req.Start.X, req.Start.Y);
@@ -140,7 +191,7 @@ namespace Fdp.Toolkit.Navigation.Systems
         {
             int nearest = FindNearestNode(point2D);
             if (nearest < 0) return false;
-            float distSq = Vector2.DistanceSquared(point2D, _roadNetwork.Nodes[nearest].Position);
+            float distSq = Vector2.DistanceSquared(point2D, _activeRoadNetwork.Nodes[nearest].Position);
             return distSq < RoadRadiusThresholdSq;
         }
 
@@ -161,7 +212,7 @@ namespace Fdp.Toolkit.Navigation.Systems
                 // Phase-1 implementation: road-graph Dijkstra covers the full path.
                 // Full splice is a future enhancement.
                 case NavigationBackend.Hybrid:
-                    bool hybridNetworkEmpty = !_roadNetwork.Nodes.IsCreated || _roadNetwork.Nodes.Length == 0;
+                    bool hybridNetworkEmpty = !_activeRoadNetwork.Nodes.IsCreated || _activeRoadNetwork.Nodes.Length == 0;
                     if (!hybridNetworkEmpty)
                         return SolveHybrid(in req, handle);
                     if (_navmesh != null)
@@ -171,7 +222,7 @@ namespace Fdp.Toolkit.Navigation.Systems
                 // RoadGraph, or forced backend whose provider is absent all fall through to
                 // the Dijkstra road-graph solver.
                 default:
-                    bool networkEmpty = !_roadNetwork.Nodes.IsCreated || _roadNetwork.Nodes.Length == 0;
+                    bool networkEmpty = !_activeRoadNetwork.Nodes.IsCreated || _activeRoadNetwork.Nodes.Length == 0;
                     return networkEmpty
                         ? Unreachable(in req, handle, NavigationBackend.NavRoadGraph)
                         : SolvePath(in req, handle);
@@ -195,7 +246,7 @@ namespace Fdp.Toolkit.Navigation.Systems
                 return Unreachable(in req, handle, NavigationBackend.NavRoadGraph);
 
             // Dijkstra
-            int  nodeCount = _roadNetwork.Nodes.Length;
+            int  nodeCount = _activeRoadNetwork.Nodes.Length;
             var  dist      = new float[nodeCount];
             var  prev      = new int[nodeCount];
             var  visited   = new bool[nodeCount];
@@ -221,9 +272,9 @@ namespace Fdp.Toolkit.Navigation.Systems
                 visited[u] = true;
 
                 // Relax outgoing edges (segments whose StartNodeIndex == u)
-                for (int s = 0; s < _roadNetwork.Segments.Length; s++)
+                for (int s = 0; s < _activeRoadNetwork.Segments.Length; s++)
                 {
-                    ref readonly var seg = ref _roadNetwork.Segments[s];
+                    ref readonly var seg = ref _activeRoadNetwork.Segments[s];
                     if (seg.StartNodeIndex != u) continue;
 
                     int v = seg.EndNodeIndex;
@@ -257,7 +308,7 @@ namespace Fdp.Toolkit.Navigation.Systems
             var waypoints = new Vector3[nodePath.Count];
             for (int k = 0; k < nodePath.Count; k++)
             {
-                var np = _roadNetwork.Nodes[nodePath[k]].Position;
+                var np = _activeRoadNetwork.Nodes[nodePath[k]].Position;
                 waypoints[k] = new Vector3(np.X, np.Y, 0f);
             }
 
@@ -382,9 +433,9 @@ namespace Fdp.Toolkit.Navigation.Systems
             int   best     = -1;
             float bestDist = float.MaxValue;
 
-            for (int i = 0; i < _roadNetwork.Nodes.Length; i++)
+            for (int i = 0; i < _activeRoadNetwork.Nodes.Length; i++)
             {
-                float d = Vector2.DistanceSquared(pos, _roadNetwork.Nodes[i].Position);
+                float d = Vector2.DistanceSquared(pos, _activeRoadNetwork.Nodes[i].Position);
                 if (d < bestDist) { bestDist = d; best = i; }
             }
             return best;

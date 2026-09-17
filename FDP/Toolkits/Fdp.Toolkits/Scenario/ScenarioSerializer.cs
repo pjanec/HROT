@@ -196,8 +196,20 @@ namespace Fdp.Toolkit.Scenario
 
             // ── Assemble root DOM ────────────────────────────────────────────────
             var root = new JsonObject { ["Entities"] = entitiesNode };
-            if (header.TkbName != null)
-                root["Header"] = new JsonObject { ["TkbName"] = JsonValue.Create(header.TkbName) };
+
+            // ⚠ The Header node is written only when it has something to say, and each field is
+            //   independently optional: a scenario may name a terrain and no TKB, or vice versa.
+            //   ⛔ Do not reinstate "TkbName decides whether Header exists" — that would silently drop a
+            //   terrain name on any scenario without a TKB.
+            if (header.TkbName != null || header.TerrainName != null)
+            {
+                var headerNode = new JsonObject();
+                if (header.TkbName != null)
+                    headerNode["TkbName"] = JsonValue.Create(header.TkbName);
+                if (header.TerrainName != null)
+                    headerNode["TerrainName"] = JsonValue.Create(header.TerrainName);
+                root["Header"] = headerNode;
+            }
             JsonEnvelope.Write(root, new DocumentMeta(header.SubsystemType, CurrentSchemaVersion));
             return root;
         }

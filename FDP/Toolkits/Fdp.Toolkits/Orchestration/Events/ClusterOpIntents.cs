@@ -130,7 +130,14 @@ namespace Fdp.Toolkit.Orchestration
 
     /// <summary>
     /// Published by <c>ClusterOpMasterTranslator</c> when a DDS <c>ClusterOpRequest</c>
-    /// with <c>OperationType == LoadZone</c> arrives. Consumed by <c>ClusterMaster</c>.
+    /// with <c>OperationType == LoadZone</c> arrives.
+    /// <para>
+    /// ⚠ NOT CONSUMED. This intent currently has no subscriber — the publish at
+    /// <c>ClusterOpMasterTranslator</c> dead-ends. A previous version of this comment claimed
+    /// "Consumed by <c>ClusterMaster</c>", which was false: <c>ClusterMaster</c> never
+    /// subscribes to it. The zone-load round that will consume it is specified in
+    /// <c>docs/DESIGN_Terrain_Zones_And_Assets.md</c> §4 (dead edge 1) / §9.3.
+    /// </para>
     /// </summary>
     [EventId(9057)]
     [DataPolicy(DataPolicy.NoReplay)]

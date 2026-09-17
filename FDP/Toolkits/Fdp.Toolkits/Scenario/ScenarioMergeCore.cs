@@ -85,6 +85,8 @@ public static class ScenarioMergeCore
         int?     schemaVersion = null;
         string?  tkbName       = null;
         bool     tkbSeen       = false;
+        string?  terrainName   = null;
+        bool     terrainSeen   = false;
         JsonNode? zones        = null;
         int       zonesNodeId  = -1;
 
@@ -112,6 +114,19 @@ public static class ScenarioMergeCore
                         $"Header.TkbName mismatch across slices ('{tkbName}' vs '{v}', node {s.OriginNodeId}) — a cluster runs ONE TKB.");
             }
 
+            // ⭐ TerrainName must agree too, for the same reason and by the same rule: terrain is a
+            //   GLOBAL fact about the exercise, in the same class as $meta and Header.TkbName. Two nodes
+            //   disagreeing about which terrain they are on is not a merge to reconcile — it is a
+            //   misconfiguration, and it must fail loudly rather than silently pick one.
+            if (dom["Header"] is JsonObject th && th["TerrainName"] is JsonNode terrainNode)
+            {
+                var v = terrainNode.GetValue<string>();
+                if (!terrainSeen) { terrainName = v; terrainSeen = true; }
+                else if (!string.Equals(terrainName, v, StringComparison.Ordinal))
+                    throw new InvalidOperationException(
+                        $"Header.TerrainName mismatch across slices ('{terrainName}' vs '{v}', node {s.OriginNodeId}) — a cluster runs ONE terrain.");
+            }
+
             // Zones (I4): at most one compatible slice may carry them (the brain).
             if (dom["Zones"] is JsonNode z && HasContent(z))
             {
@@ -137,8 +152,15 @@ public static class ScenarioMergeCore
 
         // ── Assemble: same shape/order as a single-node save (ScenarioSerializer + ScenarioSaveCore) ──
         var canonical = new JsonObject { ["Entities"] = mergedEntities };
-        if (tkbName is not null)
-            canonical["Header"] = new JsonObject { ["TkbName"] = JsonValue.Create(tkbName) };
+        // ⚠ Each header field is independently optional — rebuilding the node from TkbName alone would
+        //   silently DROP the terrain name from every merged save.
+        if (tkbName is not null || terrainName is not null)
+        {
+            var headerNode = new JsonObject();
+            if (tkbName is not null)     headerNode["TkbName"]     = JsonValue.Create(tkbName);
+            if (terrainName is not null) headerNode["TerrainName"] = JsonValue.Create(terrainName);
+            canonical["Header"] = headerNode;
+        }
         JsonEnvelope.Write(canonical, new DocumentMeta(canonicalDocType, schemaVersion!.Value));
         if (zones is not null)
             canonical["Zones"] = zones.DeepClone();

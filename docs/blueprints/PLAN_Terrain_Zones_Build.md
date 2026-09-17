@@ -195,5 +195,7 @@ measurements/calls to be made and reported **inside** their tasks — ⛔ none o
 CONTRACT", rows 1–8)*. ⛔ Row 8 binds batches ② and ③ specifically — they are cross-node changes, so the
 report **names the integration suite** that would break if the invariant broke, and reports **running**
 it, or states with base-sha evidence why it cannot gate.
-⭐ Every batch also states **which `U` rows it closed and how** *(② owns `U1`; ③ owns `U5` and `U9`)*, and
+⭐ Every batch also states **which `U` rows it closed and how** *(⚠ **CORRECTED `2026-09-17`: ① owns `U1`,
+not ②** — `U1` blocks `A3` (§3.2), and `A3` is Stage A, which batch ① carries. Closed in batch ①: the flip
+condition is MET and §5.4's prescribed fix was not implementable — see `BP-519`. ③ owns `U5` and `U9`)*, and
 **every id it allocated** *(rule 5)* — ⛔ the coordinator allocated none.

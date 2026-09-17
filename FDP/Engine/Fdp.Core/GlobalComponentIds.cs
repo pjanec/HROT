@@ -488,5 +488,23 @@
 
         /// <summary><c>MovementModeIntent</c> — per-member movement mode intent broadcast by the squad (Squad toolkit).</summary>
         public const int MovementModeIntent = 264;
+
+        // ---- Terrain / zone loading (300–319) -----------------------------------
+        // NOTE: starts at 300 deliberately. The "Zone toolkit (201+)" block above is full (202–216 went
+        // to EQS/Blueprint), and 256–299 is the squad block with 257–261 reserved by
+        // NavigationContractsComponentIds. A fresh block avoids stepping on either.
+
+        /// <summary><c>TerrainAssetLoadState</c> — NODE-LOCAL marker recording whether this node has the
+        /// terrain data for a zone entity resident, and the footprint it was loaded for.
+        /// ⛔ Never replicated and never persisted: it is <c>[DataPolicy(NoScenario | NoReplay)]</c>
+        /// because it describes THIS NODE's cache, not the entity. Nodes may legitimately disagree.</summary>
+        public const int TerrainAssetLoadState = 300;
+
+        /// <summary><c>TerrainDefinition</c> — ECS SINGLETON holding the parsed terrain definition asset
+        /// for the terrain named in the scenario header.
+        /// ⛔ <c>[DataPolicy(NoScenario | NoReplay)]</c>: it is re-derived from the named asset on every
+        /// load, so persisting it would create a second place the truth can live — and singletons ARE
+        /// written to a recording unless the policy excludes them.</summary>
+        public const int TerrainDefinition = 301;
     }
 }

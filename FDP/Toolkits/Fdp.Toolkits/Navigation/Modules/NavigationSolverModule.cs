@@ -26,6 +26,7 @@ namespace Fdp.Toolkit.Navigation.Modules
         public ExecutionPolicy Policy => ExecutionPolicy.SlowBackground(10);
 
         private readonly RoadNetworkBlob         _roadNetwork;
+        private readonly RoadNetworkHolder?      _roadNetworkHolder;
         private readonly TrajectoryPoolManager   _trajectoryPool;
         private readonly INavmeshProvider?       _navmesh;
         private readonly IVolumetricPathProvider? _volumetric;
@@ -59,13 +60,21 @@ namespace Fdp.Toolkit.Navigation.Modules
         /// required its pool from the start and its <c>Dispose</c> deliberately frees nothing because
         /// "the pool is owned by the host". That is the shape; this constructor now matches it.</para>
         /// </remarks>
+        /// <param name="roadNetworkHolder">
+        ///   ⭐ Optional live carrier of the road graph. <b>Supply this on any host that can load or
+        ///   reload terrain.</b> This module runs <c>SlowBackground</c>, so its <c>Tick</c> receives an
+        ///   SoD snapshot and CANNOT read the <c>ZoneEnvironmentData</c> singleton — without a holder a
+        ///   terrain/zone load is invisible to path planning here, which is the R2 defect.
+        /// </param>
         public NavigationSolverModule(
             RoadNetworkBlob          roadNetwork,
             TrajectoryPoolManager    trajectoryPool,
             INavmeshProvider?        navmesh        = null,
-            IVolumetricPathProvider? volumetric     = null)
+            IVolumetricPathProvider? volumetric     = null,
+            RoadNetworkHolder?       roadNetworkHolder = null)
         {
-            _roadNetwork    = roadNetwork;
+            _roadNetwork       = roadNetwork;
+            _roadNetworkHolder = roadNetworkHolder;
             _trajectoryPool = trajectoryPool
                 ?? throw new System.ArgumentNullException(
                     nameof(trajectoryPool),
@@ -90,9 +99,19 @@ namespace Fdp.Toolkit.Navigation.Modules
         }
 
         /// <inheritdoc/>
+        /// <remarks>
+        /// ⭐ R2 — the constructor blob is only a FALLBACK; <c>PathfindingSolverSystem.Execute</c>
+        /// resolves the graph every tick.
+        /// ⚠ <paramref name="view"/> is an <b>SoD snapshot</b> on this background path, and
+        /// <c>ISimulationView</c> exposes no singleton API, so the solver CANNOT read
+        /// <c>ZoneEnvironmentData</c> here — it reads the <c>RoadNetworkHolder</c> instead. A host that
+        /// composes this module without a holder will not observe a terrain/zone reload in path planning.
+        /// 📄 docs/DESIGN_Terrain_Zones_And_Assets.md §5.4.
+        /// </remarks>
         public void Tick(ISimulationView view, float dt)
         {
-            new PathfindingSolverSystem(_roadNetwork, _trajectoryPool, _navmesh, _volumetric)
+            new PathfindingSolverSystem(
+                    _roadNetwork, _trajectoryPool, _navmesh, _volumetric, _roadNetworkHolder)
                 .Execute(view, dt);
         }
     }

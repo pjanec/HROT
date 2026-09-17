@@ -9,6 +9,7 @@ using Fdp.Toolkit.Replication.Components;
 using Hrot.IG.Components;
 using Hrot.IG.Gizmos;
 using Hrot.ScenarioEditor.Gizmos;
+using Hrot.Map.Common;
 using Hrot.Map.Common.Components;
 using Xunit;
 
@@ -329,6 +330,111 @@ namespace Hrot.IG.Tests.Gizmos
             new MapOverlayGizmo().Draw(_repo, entity, buffer);
 
             Assert.Empty(CollectPickBoxes(buffer));
+        }
+
+        // =====================================================================
+        // BP-517 / A1 — ONE ENTITY, TWO GIZMOS, AND THEY MUST AGREE
+        //
+        // 📐 The live case, measured on scenarios/hill-attack/scenario.json entity 5525100c: it carries
+        //    TkbIdentity.TkbType = 8803 (TacGraphic_Area) AND MapOverlayStyle AND a non-zero SimTransform,
+        //    with Points that are small offsets. GizmoReflectionRegistrar discovers EVERY [GizmoProjector]
+        //    in the loaded assemblies, and both of these live in Hrot.Presentation ⇒ BOTH match this one
+        //    entity and BOTH run. The area was therefore drawn TWICE, ~820 m apart, with picking off by
+        //    the same amount, because TacticalAreaGizmo treated relative Points as absolute.
+        //
+        // ⭐ RED-PROOF SHAPE: revert TacticalAreaGizmo to drawing raw Points (origin Vector2.Zero) and
+        //    SC_GZ058_8 fails on the very first vertex — 617 vs -53.
+        // 📄 docs/DESIGN_Terrain_Zones_And_Assets.md §2.2 (RELATIVE COORDINATES EVERYWHERE).
+        // =====================================================================
+
+        /// <summary>
+        /// The hill-attack shape: an entity that is BOTH a tactical area (TkbType 8803) and a map
+        /// overlay, with a non-zero origin and relative points — so both projectors match it.
+        /// </summary>
+        private Entity MakeDualProjectedArea(long networkId = 5525100L)
+        {
+            _repo.RegisterComponent<MapOverlayStyle>();
+            _repo.RegisterManagedComponent<EditablePolyline>();
+            _repo.RegisterComponent<Fdp.Toolkit.Replication.Components.NetworkIdentity>();
+
+            var entity = _repo.CreateEntity();
+            // The real origin from the shipped scenario.
+            _repo.AddComponent(entity, new SimTransform { Position = new Vector3(670f, 473.5f, 0f) });
+            _repo.AddComponent(entity, new TkbIdentity { TkbType = TkbEntityTypes.TacGraphic_Area });
+            _repo.AddComponent(entity, new MapOverlayStyle
+            {
+                BorderR = 200, BorderG = 180, BorderB = 0, BorderA = 230,
+                LineThickness = 1.5f, IsClosed = true,
+            });
+            _repo.AddComponent(entity, new Fdp.Toolkit.Replication.Components.NetworkIdentity { Value = networkId });
+
+            var poly = new EditablePolyline();
+            poly.Points.Add(new Vector2(-53f, -88.5f));   // the real relative offsets
+            poly.Points.Add(new Vector2(47f, -88.5f));
+            poly.Points.Add(new Vector2(47f, 11.5f));
+
+            var ecb = (Fdp.Core.EntityCommandBuffer)((Fdp.ModuleHost.Abstractions.ISimulationView)_repo).GetCommandBuffer();
+            ecb.AddManagedComponent(entity, poly);
+            ecb.Playback(_repo);
+            return entity;
+        }
+
+        // SC-GZ058-8: ⭐⭐ THE DEFECT — the two projectors that both match this entity must emit the
+        // SAME vertices. Before the fix they differed by exactly the SimTransform origin (~820 m).
+        [Fact]
+        public void SC_GZ058_8_BothGizmosDrawingOneEntity_EmitTheSameVertices()
+        {
+            var entity = MakeDualProjectedArea();
+
+            var overlayDraw = new FullCapturingDrawBuilder();
+            new MapOverlayGizmo().Draw(_repo, entity, overlayDraw);
+
+            var areaDraw = new FullCapturingDrawBuilder();
+            new TacticalAreaGizmo().Draw(_repo, entity, areaDraw);
+
+            // Both close the loop over 3 points ⇒ 3 segments each.
+            Assert.Equal(3, overlayDraw.LineCalls.Count);
+            Assert.Equal(3, areaDraw.LineCalls.Count);
+
+            for (int i = 0; i < overlayDraw.LineCalls.Count; i++)
+            {
+                Assert.Equal(overlayDraw.LineCalls[i].Start.X, areaDraw.LineCalls[i].Start.X, 3);
+                Assert.Equal(overlayDraw.LineCalls[i].Start.Y, areaDraw.LineCalls[i].Start.Y, 3);
+                Assert.Equal(overlayDraw.LineCalls[i].End.X,   areaDraw.LineCalls[i].End.X,   3);
+                Assert.Equal(overlayDraw.LineCalls[i].End.Y,   areaDraw.LineCalls[i].End.Y,   3);
+            }
+        }
+
+        // SC-GZ058-8b: and they are at ORIGIN + POINTS, not at raw Points — pins the absolute answer so
+        // "both agree" cannot be satisfied by making both of them wrong in the same way.
+        [Fact]
+        public void SC_GZ058_8b_TacticalAreaGizmo_DrawsAtOriginPlusPoints()
+        {
+            var entity = MakeDualProjectedArea();
+
+            var draw = new FullCapturingDrawBuilder();
+            new TacticalAreaGizmo().Draw(_repo, entity, draw);
+
+            // 670 + (-53) = 617 ; 473.5 + (-88.5) = 385
+            Assert.Equal(617f, draw.LineCalls[0].Start.X, 3);
+            Assert.Equal(385f, draw.LineCalls[0].Start.Y, 3);
+        }
+
+        // SC-GZ058-8c: picking follows the drawing — EmitPickSegments must use the same origin, or a
+        // click on the drawn outline misses by the same ~820 m.
+        [Fact]
+        public void SC_GZ058_8c_ClickingTheDrawnOutline_PicksTheEntity()
+        {
+            var entity = MakeDualProjectedArea(networkId: 777L);
+            var buffer = new DebugPrimitiveBuffer(64);
+            new TacticalAreaGizmo().Draw(_repo, entity, buffer);
+
+            // Midpoint of the first edge in WORLD space: (617,385) → (717,385).
+            var hit = GizmoMap.Presentation.DebugGizmoLayer.PickTopmostAnchorId(
+                buffer.GetFrame(), new Vector2(667f, 385f), zoom: 1f);
+
+            Assert.NotNull(hit);
+            Assert.Equal(777L, hit!.Value);
         }
 
         /// <summary>The Box2D pick targets in a frame — the visual edges are Line primitives.</summary>

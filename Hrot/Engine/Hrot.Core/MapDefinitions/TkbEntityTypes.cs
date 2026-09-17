@@ -17,6 +17,16 @@ namespace Hrot.Map.Common
         public const long TacGraphic_Route = 8802;
         public const long TacGraphic_Area = 8803;
 
+        // ── Terrain ───────────────────────────────────────────────────────────────────────────
+        // ⛔ PERMANENT WIRE VALUE. This id reaches replays and saved scenarios — deprecate, never
+        //    recycle, never renumber.
+        // ⭐ Deliberately NOT a TacGraphic_* value: a zone is a LOAD DIRECTIVE that happens to be
+        //    drawn, not a tactical graphic. Consumers of 8803 (symbology, ORBAT, templates) must not
+        //    have to branch to exclude zones, which is exactly what a second discriminator field on
+        //    TacGraphic_Area would have forced.
+        // 📄 docs/DESIGN_Terrain_Zones_And_Assets.md §2.1.
+        public const long TerrainZone = 8804;
+
         // Composite Units
         public const long Unit_TankPlatoon = 301;
         public const long Unit_InfantrySquad = 302;

@@ -32,21 +32,38 @@ namespace Hrot.ScenarioEditor.Gizmos
             var polyline = view.GetManagedComponentRO<EditablePolyline>(entity);
             if (polyline.Points == null || polyline.Points.Count < 2) return;
 
+            // ⭐⭐⭐ BP-517 — EditablePolyline.Points are RELATIVE offsets from SimTransform, so the
+            //   origin MUST be added. ⛔ This gizmo used to pass Vector2.Zero on the strength of a
+            //   comment claiming the points were absolute; that comment was false for shipped data.
+            //   Because an area entity can carry BOTH TkbIdentity and MapOverlayStyle, and
+            //   GizmoReflectionRegistrar runs every matching [GizmoProjector], the raw-Points version
+            //   drew such an entity TWICE — once here and once at origin+Points from MapOverlayGizmo —
+            //   with picking off by the same distance. 📄 DESIGN_Terrain_Zones_And_Assets.md §2.2.
+            var origin = Vector2.Zero;
+            if (view.HasComponent<SimTransform>(entity))
+            {
+                ref readonly var simTr = ref view.GetComponentRO<SimTransform>(entity);
+                origin = new Vector2(simTr.Position.X, simTr.Position.Y);
+            }
+
             int n = polyline.Points.Count;
 
             // Draw a closed polygon: connect each consecutive pair and close the loop.
             for (int i = 0; i < n; i++)
             {
-                var a = new Vector3(polyline.Points[i].X,           polyline.Points[i].Y,           0f);
-                var b = new Vector3(polyline.Points[(i + 1) % n].X, polyline.Points[(i + 1) % n].Y, 0f);
-                draw.DrawLine(a, b, AreaColor, 1.5f, SizeMode.ScreenPixels);
+                var pa = origin + polyline.Points[i];
+                var pb = origin + polyline.Points[(i + 1) % n];
+                draw.DrawLine(
+                    new Vector3(pa.X, pa.Y, 0f),
+                    new Vector3(pb.X, pb.Y, 0f),
+                    AreaColor, 1.5f, SizeMode.ScreenPixels);
             }
 
             // ⭐⭐⭐ CE-259ae — make the boundary CLICKABLE (select on left-click, context menu on
-            //   right-click). ⚠ origin is Vector2.Zero here: unlike MapOverlayGizmo, this gizmo's
-            //   points are ABSOLUTE world coordinates, not offsets from SimTransform.
+            //   right-click). ⚠ The SAME origin the drawing used, or a click on the drawn outline
+            //   misses by exactly the transform.
             EntityPresentationGizmoShared.EmitPickSegments(
-                draw, view, entity, polyline.Points, Vector2.Zero, isClosed: true);
+                draw, view, entity, polyline.Points, origin, isClosed: true);
         }
     }
 }

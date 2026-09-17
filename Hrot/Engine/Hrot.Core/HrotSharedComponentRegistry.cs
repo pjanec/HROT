@@ -53,6 +53,22 @@ public static class HrotSharedComponentRegistry
         // ── Hierarchical entity linking (personal routes, sub-entities) ──────
         world.RegisterComponent<PartMetadata>();
 
+        // ── Terrain / zone loading ────────────────────────────────────────────
+        // ⭐ Registered UNCONDITIONALLY on every ECS host, exactly like the save handler and
+        //   TkbLoadClusterStateHandler. A host that loads nothing still stamps the marker (a node with
+        //   nothing to do is satisfied immediately, not left unset) — if a non-building node left it
+        //   unset, its map would read "not loaded" forever.
+        // ⛔ Node-local: [DataPolicy(NoScenario | NoReplay)], never replicated. See the type's own notes.
+        world.RegisterComponent<Fdp.Toolkit.Terrain.TerrainAssetLoadState>();
+
+        // ⚠⚠ THIS REGISTRATION IS LOAD-BEARING, NOT BOOKKEEPING. [DataPolicy] on a MANAGED type is
+        //    applied by RegisterManagedComponent and by nothing else — SetSingletonManaged
+        //    auto-registers through ManagedComponentType<T>.ID, which does not read the attribute and
+        //    leaves the registry defaults (recordable = saveable = TRUE). ⇒ remove this line and the
+        //    parsed terrain definition starts being written into flight recordings, silently, despite
+        //    carrying NoReplay. Pinned by SettingTheSingletonWithoutRegistering_SilentlyIgnoresTheDataPolicy.
+        world.RegisterManagedComponent<Fdp.Toolkit.Terrain.TerrainDefinition>();
+
         // ── Shared managed definitions ────────────────────────────────────────
         world.RegisterComponent<VisualData>();
         world.RegisterManagedComponent<SimCombatDef>();
