@@ -753,16 +753,22 @@ public sealed class ClusterMaster : IDisposable
             return;
         }
 
-        var payload    = new ZoneOpPayload(zoneId);
-        var prepareTx  = Guid.NewGuid();
+        var payload = new ZoneOpPayload(zoneId);
 
-        FanOutNodeOp(NodeOpType.PrepareZone, prepareTx, payload, targets);
-        _pendingTransactions[prepareTx] = new GenericTransactionTracker
+        // ⭐⭐ ONE transaction id for BOTH phases — a round IS a transaction. The node stages under this
+        //    id in PrepareZone and consumes that staging in CommitZone, so two ids would leave every
+        //    commit unable to find what its own prepare staged. Safe against the two id-keyed maps:
+        //    _pendingTransactions removes phase 1's tracker before phase 2's is added, and ClusterSlave
+        //    dedups on (txId, OPERATION, state) so the two phases never look like a duplicate.
+        var roundTx = Guid.NewGuid();
+
+        FanOutNodeOp(NodeOpType.PrepareZone, roundTx, payload, targets);
+        _pendingTransactions[roundTx] = new GenericTransactionTracker
         {
             RequestId      = requestId,
             Expected       = targets.Count,
             Targets        = targets,
-            OnPhaseSuccess = () => CommitZoneLoadRound(requestId, zoneId, targets),
+            OnPhaseSuccess = () => CommitZoneLoadRound(requestId, zoneId, roundTx, targets),
         };
 
         PublishOpStatus(requestId, OrchestrationStatusCode.InProgress);
@@ -773,11 +779,10 @@ public sealed class ClusterMaster : IDisposable
     }
 
     /// <summary>Phase 2 — every node staged successfully, so tell them all to swap.</summary>
-    private void CommitZoneLoadRound(Guid requestId, string zoneId, List<int> targets)
+    private void CommitZoneLoadRound(Guid requestId, string zoneId, Guid roundTx, List<int> targets)
     {
-        var commitTx = Guid.NewGuid();
-        FanOutNodeOp(NodeOpType.CommitZone, commitTx, new ZoneOpPayload(zoneId), targets);
-        _pendingTransactions[commitTx] = new GenericTransactionTracker
+        FanOutNodeOp(NodeOpType.CommitZone, roundTx, new ZoneOpPayload(zoneId), targets);
+        _pendingTransactions[roundTx] = new GenericTransactionTracker
         {
             RequestId = requestId,
             Expected  = targets.Count,

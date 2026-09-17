@@ -59,6 +59,7 @@ public sealed class TerrainLoadClusterStateHandler : IClusterStateHandler
     private readonly string _stagingRoot;
     private readonly string _terrainRoot;
     private readonly RoadNetworkHolder _roadNetworkHolder;
+    private readonly EntityRepository? _world;
 
     // Differential cache — identical shape to the TKB handler's.
     private string?  _lastLoadedTerrainName;
@@ -77,13 +78,27 @@ public sealed class TerrainLoadClusterStateHandler : IClusterStateHandler
     /// background reader. ⛔ Passing none is not "no road support" — it is a silent never-reload plus an
     /// unowned blob, so it is rejected here rather than defaulted (the silent-default pattern).
     /// </param>
-    public TerrainLoadClusterStateHandler(string localStagingRoot, RoadNetworkHolder roadNetworkHolder)
+    /// <param name="world">
+    /// 🔴 <b>Required in production, and the reason is measured.</b> <c>ClusterSlave</c> calls
+    /// <c>handler.Commit(intent, repo: null)</c> at <b>both</b> of its dispatch sites
+    /// (<c>ClusterSlave.cs:271</c> and <c>:432</c>) — the <c>repo</c> parameter is <b>never</b> non-null
+    /// on the real path. ⛔ A handler that publishes through that parameter alone therefore commits
+    /// NOTHING, silently, on every host. The established pattern is to hold the world and fall back to
+    /// it (<c>HrotScenarioLoadHandler.cs:196</c>, <c>repo ?? _world</c>); this does the same.
+    /// ⚠ Null is allowed only for a no-ECS host (ExCon / CGF skeleton) and for unit tests that call
+    /// <c>Commit</c> with an explicit repository.
+    /// </param>
+    public TerrainLoadClusterStateHandler(
+        string localStagingRoot,
+        RoadNetworkHolder roadNetworkHolder,
+        EntityRepository? world = null)
     {
         if (string.IsNullOrWhiteSpace(localStagingRoot))
             throw new ArgumentException("A local staging root is required.", nameof(localStagingRoot));
 
         _stagingRoot = localStagingRoot;
         _terrainRoot = Path.Combine(localStagingRoot, "Terrain");
+        _world       = world;
         _roadNetworkHolder = roadNetworkHolder
             ?? throw new ArgumentNullException(nameof(roadNetworkHolder),
                 "The terrain loader must be given a RoadNetworkHolder: it owns the published road graph "
@@ -98,7 +113,7 @@ public sealed class TerrainLoadClusterStateHandler : IClusterStateHandler
     /// <remarks>⛔ Pure I/O. Mutates no ECS state — see the class remarks.</remarks>
     public Task<object?> PrepareAsync(ExecuteNodeOpIntent intent, CancellationToken ct)
     {
-        string? requested = ExtractTerrainNameFromLocalScenario(_stagingRoot);
+        string? requested = ScenarioTerrainName.Read(_stagingRoot);
 
         // ── Graceful absence: a scenario with no terrain is legal, exactly like one with no TKB. ──
         if (string.IsNullOrWhiteSpace(requested))
@@ -174,22 +189,27 @@ public sealed class TerrainLoadClusterStateHandler : IClusterStateHandler
         Staged? staged = TakeStaged(intent.TransactionId);
         if (staged == null) return;            // cache hit, no terrain, or nothing prepared
 
+        // 🔴 ClusterSlave passes repo: null at BOTH dispatch sites (ClusterSlave.cs:271, :432), so the
+        //    injected world is what actually carries production. Falling back to the parameter first
+        //    keeps unit tests able to hand in their own repository.
+        var targetRepo = repo ?? _world;
+
         // A no-ECS host (ExCon / CGF skeleton) still ACKs; it simply has nowhere to publish.
-        if (repo == null)
+        if (targetRepo == null)
         {
             if (staged.HasRoadNetwork) staged.RoadNetwork.Dispose();
             return;
         }
 
-        repo.RegisterManagedComponent<TerrainDefinition>();
-        repo.SetSingletonManaged(staged.Definition!);
+        targetRepo.RegisterManagedComponent<TerrainDefinition>();
+        targetRepo.SetSingletonManaged(staged.Definition!);
 
         if (staged.HasRoadNetwork)
         {
             // ⛔ The previous blob is NOT disposed here. The holder retires it and frees it once its last
             //    reader releases — see the class remarks.
             _roadNetworkHolder.Publish(staged.RoadNetwork);
-            repo.SetSingleton(new ZoneEnvironmentData { RoadNetwork = staged.RoadNetwork });
+            targetRepo.SetSingleton(new ZoneEnvironmentData { RoadNetwork = staged.RoadNetwork });
         }
 
         _lastLoadedTerrainName = staged.TerrainName;
@@ -229,27 +249,4 @@ public sealed class TerrainLoadClusterStateHandler : IClusterStateHandler
             ? relative
             : Path.Combine(Path.GetDirectoryName(definitionPath) ?? string.Empty, relative);
 
-    /// <summary>
-    /// Peeks <c>TerrainName</c> from the node's locally staged scenario header, forward-only.
-    /// <para>⚠ The staged header lives under <c>{root}/TKB/ScenarioHeader.json</c> — that is where the TKB
-    /// handler writes and reads it, and there is ONE staged header per node. Terrain reads the same file
-    /// rather than inventing a second location that could disagree about which scenario is staged.</para>
-    /// </summary>
-    private static string? ExtractTerrainNameFromLocalScenario(string localStagingRoot)
-    {
-        string headerPath = Path.Combine(localStagingRoot, "TKB", "ScenarioHeader.json");
-        if (!File.Exists(headerPath)) return null;
-
-        var reader = new Utf8JsonReader(File.ReadAllBytes(headerPath));
-        while (reader.Read())
-        {
-            if (reader.TokenType == JsonTokenType.PropertyName &&
-                reader.ValueTextEquals("TerrainName"))
-            {
-                reader.Read();
-                return reader.TokenType == JsonTokenType.String ? reader.GetString() : null;
-            }
-        }
-        return null;
-    }
 }

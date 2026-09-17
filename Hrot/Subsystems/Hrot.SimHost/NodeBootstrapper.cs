@@ -338,8 +338,16 @@ namespace Hrot.SimHost
             //   muscle is precisely the role that consumes the road network. Hanging terrain off them
             //   would leave it unloaded on the node that needs it most.
             //   📄 DESIGN_Terrain_Zones_And_Assets.md §2.1e ④.
+            // 🔴 `world:` is NOT optional here. ClusterSlave commits with `repo: null` at both of its
+            //    dispatch sites, so a handler that publishes only through that parameter publishes
+            //    nothing at all. A production caller that HAS the dependency must pass it.
             clusterSlave.RegisterHandler(
-                new TerrainLoadClusterStateHandler(localTempRoot, RoadNetworkHolder));
+                new TerrainLoadClusterStateHandler(localTempRoot, RoadNetworkHolder, world: world));
+
+            // ⭐⭐⭐ D3 — the ONE terrain/zone OP handler, via the shared registrar. Unconditional on every
+            //   ECS host: a host with nothing to make resident still ACKs, which is what removes the
+            //   role × kind matrix from the protocol entirely (§8.3 N6).
+            TerrainAssetRegistrar.Register(clusterSlave, TerrainLoadService, world, nodeId, localTempRoot);
 
             // Scenario handlers when a serializer is provided.
             if (scenarioSerializer != null)

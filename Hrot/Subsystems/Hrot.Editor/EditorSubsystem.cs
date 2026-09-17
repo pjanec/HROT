@@ -1444,6 +1444,17 @@ namespace Hrot.Editor
                 new Hrot.ScenarioEditor.Handlers.HrotScenarioSaveHandler(
                     scenarioSerializer, zoneService, tkbDb, _world!, EditorNodeId),
                 archiveHandler: null);
+            // ⭐⭐⭐ D3 — the terrain/zone op handler, via the shared registrar, on every ECS host. ⭐ The
+            //   editor needs it as much as any node: §9.6 rules the zone load is ALWAYS cluster-wide, and
+            //   the editor IS a single-node cluster, so its own zone load arrives here as a NodeOp.
+            //   ⚠ service: null until the editor composes a terrain loader — it still ACKs (§8.3).
+            Hrot.Map.Common.Services.TerrainAssetRegistrar.Register(
+                clusterSlave, service: null, world: _world, nodeId: EditorNodeId,
+                // ⚠ localStagingRoot: null is DELIBERATE and not a silent default — the editor is a
+                //   single-node cluster that reads assets from the asset roots directly and stages no
+                //   scenario header, so there is no file for the D5 identity check to read. The check is
+                //   disarmed here because its input does not exist, not because the check was forgotten.
+                localStagingRoot: null);
             clusterSlave.RegisterHandler(new DiagnosticsDumpClusterOpHandler(
                 _fdpEventHistory,
                 new ArchitectureDiagnosticsService(() => _kernel),

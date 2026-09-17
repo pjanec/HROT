@@ -34,7 +34,6 @@ using Hrot.Core.Diagnostics;
 using Hrot.Core.Network;
 using Hrot.IG.Components;
 using Hrot.IG.Modules;
-using Hrot.IG.Modules.Orchestration;
 using Hrot.IG.Systems;
 using Hrot.Map.Definitions.Tkb;
 using Hrot.Map.Common;
@@ -372,10 +371,16 @@ internal sealed class IgNodeBootstrapper : SharedApplicationBootstrapper
             controller:       igRrController,
             storageDirectory: storageDirectory));
 
-        // CGF1-BATCH-23 A.2: dummy zone handler - IG acknowledges
-        // PrepareZone / CommitZone without terrain DB load.
-        // Full terrain-DB preload from scenario entities is future work.
-        slave.RegisterHandler(new IgZoneDummyHandler(_effectiveInstanceId));
+        // ⭐⭐⭐ D3/D4 — the shared terrain/zone op handler REPLACES the bespoke IgZoneDummyHandler
+        //   (CGF1-BATCH-23 A.2), which existed only to ACK PrepareZone/CommitZone so IG would not stall
+        //   a round. The registrar does that by construction on every host.
+        //   ⚠ service: null — IG composes no terrain loader today, and per §8.3 that is a host with
+        //   nothing to make resident, NOT a host that opts out. It still ACKs; there is no capability
+        //   to announce because nothing is missing.
+        //   📄 docs/DESIGN_Terrain_Zones_And_Assets.md §8.3.
+        Hrot.Map.Common.Services.TerrainAssetRegistrar.Register(
+            slave, service: null, world: context.World, nodeId: _effectiveInstanceId,
+            localStagingRoot: storageDirectory);
 
         // Wire ReferencePrefetchHandler so IG can stage scenario files and ACK.
         var igStorageProvider = new LocalDiskStorageProvider(storageDirectory);
@@ -390,7 +395,7 @@ internal sealed class IgNodeBootstrapper : SharedApplicationBootstrapper
         //   shared ScenarioSaveCore — usually empty (IG's authored entities carry ScenarioIgnoreTag / IG owns
         //   no persistable), but a persistable entity IG owns IS saved. ⛔ There is no "IG registers no save
         //   handler" rule any more; passivity is emergent from the ownership gate, not a missing handler.
-        //   ⚠ zoneService: null — IG composes no zone manager (IgZoneDummyHandler above).
+        //   ⚠ zoneService: null — IG composes no zone manager (the shared TerrainAssetRegistrar above).
         //   📄 docs/DESIGN_Distributed_Scenario_Persistence.md §4 · DESIGN_Node_Roles_And_Policies §7.1.
         //   CE-279 Layer A — registered via the shared registrar. IG reports no .fdp archive today, so its
         //   archive handler is null; the save handler is placed first uniformly, payload-aware.

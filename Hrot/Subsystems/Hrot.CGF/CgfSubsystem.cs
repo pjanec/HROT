@@ -1221,6 +1221,12 @@ public sealed class CgfSubsystem : ISubsystem, Fdp.Toolkit.Runner.IMapCameraProv
             newClusterSlave,
             cgfScenarioSaveHandler,
             new ReferenceArchiveHandler(isolatedTempRoot, _context.NodeId));
+        // ⭐⭐⭐ D3 — the terrain/zone op handler, via the shared registrar, on every ECS host.
+        //   ⚠ service: null — CGF is the brain and composes no terrain loader; per §8.3 that is a host
+        //   with nothing to make resident, and it still ACKs so the round never stalls on it.
+        Hrot.Map.Common.Services.TerrainAssetRegistrar.Register(
+            newClusterSlave, service: null, world: _context.World, nodeId: _context.NodeId,
+            localStagingRoot: isolatedTempRoot);
         var cgfArchService = new Fdp.ModuleHost.Diagnostics.ArchitectureDiagnosticsService(_context.Kernel);
         var cgfEntityService = new Fdp.Toolkit.Diagnostics.EntityStateExtractionService(_context.World, _context.EntityMap, scenarioSerializer);
         _fdpEntityInspector.ExtractionService = cgfEntityService;

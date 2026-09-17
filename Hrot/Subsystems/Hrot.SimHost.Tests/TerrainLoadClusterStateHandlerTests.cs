@@ -125,6 +125,17 @@ public sealed class TerrainLoadClusterStateHandlerTests : IDisposable
         return (new TerrainLoadClusterStateHandler(_stagingRoot, holder), holder);
     }
 
+    /// <summary>
+    /// A handler wired the way PRODUCTION wires it — the world INJECTED, not handed in at commit.
+    /// See <see cref="ItPublishesThroughTheINJECTEDWorld_BecauseClusterSlaveAlwaysCommitsWithNullRepo"/>.
+    /// </summary>
+    private (TerrainLoadClusterStateHandler Handler, RoadNetworkHolder Holder) NewHandlerWithWorld(
+        EntityRepository world)
+    {
+        var holder = new RoadNetworkHolder();
+        return (new TerrainLoadClusterStateHandler(_stagingRoot, holder, world), holder);
+    }
+
     // ── it claims the right ops ───────────────────────────────────────────────────────────────
 
     [Fact]
@@ -305,5 +316,71 @@ public sealed class TerrainLoadClusterStateHandlerTests : IDisposable
         Assert.True(slave.IsHandlerRegistered<TerrainLoadClusterStateHandler>(),
             "a node with NO authoring deps must still load the terrain its scenario names — the muscle "
           + "is the role that consumes the road network");
+    }
+
+    /// <summary>
+    /// 🔴 <b>The defect this rail was written against, and why every other test here was blind to it.</b>
+    ///
+    /// <para>Every test above calls <c>handler.Commit(intent, world)</c> — handing the repository in.
+    /// <b><c>ClusterSlave</c> never does that.</b> It commits with <c>repo: null</c> at BOTH of its
+    /// dispatch sites (<c>ClusterSlave.cs:271</c> and <c>:432</c>), so the handler as originally written
+    /// took its "no-ECS host" branch on EVERY host: it disposed the staged blob and published nothing —
+    /// no <c>TerrainDefinition</c>, no <c>ZoneEnvironmentData</c>, no holder swap. A capability that
+    /// reports present and silently no-ops (<c>R-133</c>), invisible because the suite exercised a path
+    /// production does not take.</para>
+    ///
+    /// <para>⭐ The fix is the established pattern — <c>repo ?? _world</c>, as
+    /// <c>HrotScenarioLoadHandler.cs:196</c> already does. This rail drives commit the way the slave
+    /// does, with a NULL repo, and requires the publish to land anyway.</para>
+    /// </summary>
+    [Fact]
+    public void ItPublishesThroughTheINJECTEDWorld_BecauseClusterSlaveAlwaysCommitsWithNullRepo()
+    {
+        WriteScenarioHeader("kandahar");
+        WriteRoadNetwork("roads.json");
+        WriteTerrainDefinition("kandahar", "roads.json");
+
+        using var world = NewWorld();
+        var (handler, holder) = NewHandlerWithWorld(world);
+        using (holder)
+        {
+            var intent = Intent();
+            Prepare(handler, intent);
+
+            // ⭐ Exactly what ClusterSlave does — no repository argument.
+            handler.Commit(intent, repo: null);
+
+            Assert.True(world.HasSingleton<ZoneEnvironmentData>(),
+                "ClusterSlave commits with repo: null, so a handler that publishes only through that "
+              + "parameter publishes nothing at all on every host");
+            Assert.Equal("kandahar", world.GetSingletonManaged<TerrainDefinition>()!.Name);
+            Assert.True(world.GetSingleton<ZoneEnvironmentData>().RoadNetwork.Nodes.IsCreated);
+        }
+    }
+
+    /// <summary>
+    /// ⚠ The other half of the same contract: a genuinely no-ECS host (ExCon / CGF skeleton) has no
+    /// world to inject, and it must still ACK cleanly rather than throw — it simply has nowhere to
+    /// publish, and the staged blob is freed rather than leaked.
+    /// </summary>
+    [Fact]
+    public void ANoEcsHost_WithNoWorldAndNoRepo_StillCommitsCleanly()
+    {
+        WriteScenarioHeader("kandahar");
+        WriteRoadNetwork("roads.json");
+        WriteTerrainDefinition("kandahar", "roads.json");
+
+        var (handler, holder) = NewHandler();   // no world injected
+        using (holder)
+        {
+            var intent = Intent();
+            Prepare(handler, intent);
+            handler.Commit(intent, repo: null);   // must not throw
+
+            // ⭐ Still only the holder's initial generation — nothing was published, and the staged blob
+            //   was freed rather than leaked. (LiveGenerations is `1 + retired-but-leased`, so 1 is the
+            //   floor, not zero.)
+            Assert.Equal(1, holder.LiveGenerations);
+        }
     }
 }
