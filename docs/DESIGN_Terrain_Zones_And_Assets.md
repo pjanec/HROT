@@ -10,8 +10,13 @@ build-state: ✅ **READY-TO-BUILD `2026-09-17`** — §8 (host heterogeneity) is
 updated: 2026-09-17
 current-answer: §2 is the model, §3 the two invocation paths, §4 what is registered and ticked where
   (incl. the two DEAD edges), §5 the WHY, §6 what is real vs faked in slice 1.
-stale-below: nothing — new document.
-known-rot: nothing yet.
+stale-below: §3.2's sequence diagram and §9.5's "zone name" column are corrected in place by the
+  AS-BUILT block in §10 — read §10 before quoting either.
+known-rot: three things the BUILD measured false, all folded into §10 (obligation ⑤, batch terrain-2b,
+  2026-09-17): §3.2's sequence draws EnsureAllLoaded inside the load handler's commit, where the zone
+  entities do not exist yet; §9.5 sources a "zone name" from the Area entity, and no name component
+  exists; and §3.1's sequence leaves the node-side phase split implicit in a way that does not survive
+  ClusterSlave's actual dispatch.
 known-conflict: none. This document REPLACES the zone half of docs/designs/packs-3/DESIGN.md
   (§2.B/§2.C/§2.E), which is already marked superseded there.
 related-designs:
@@ -860,3 +865,81 @@ tiles zone B is still using.**
 ⭐⭐ **This rule is stated NOW even though tiles are FAKED (§6/§7)** — otherwise the stub bakes in
 zone-owns-its-tiles and the real implementation inherits it.
 
+---
+
+## 10. ⭐⭐⭐ AS-BUILT — **what the build measured, and where this design was wrong** *(batch terrain-2b, `2026-09-17`)*
+
+> Obligation ⑤: a deviation goes back into the DESIGN, not only into the batch report. The report is
+> ephemeral; this section is the durable record, and the prior state is marked SUPERSEDED rather than
+> silently overwritten.
+
+### 10.1 ⛔ SUPERSEDED — §3.2's sequence: `EnsureAllLoaded` cannot run at commit
+
+📐 **Measured.** §3.2 draws `deserialize entities` → `EnsureAllLoaded(view)` inside the scenario load
+handler, as if the entities existed when the handler commits. **They do not.** `HrotScenarioLoadHandler.Commit`
+only ENQUEUES `EntityCreationRequest`s into the genesis pipeline (`_source.Enqueue`), which
+`CreateEntityRequestSystem` drains on LATER ticks. A call at commit sweeps an EMPTY world and marks
+nothing — silently, with a `0` return that is indistinguishable from *"nothing was stale"*.
+
+⭐ **AS-BUILT:** the call sits at the END of `DrainDeferredAcks()`, the first point at which genesis is
+provably complete — every one of its conditions (`_source.IsEmpty`, no `EntityLifecycle.Constructing`,
+and none of the six `Initial*Intent` managed components) has passed. ⚠ The design's *claim* is unchanged
+and correct — the local path calls the same service with no NodeOp; only the moment moved.
+
+### 10.2 ⛔ SUPERSEDED — §9.5's "zone name": there is no name component
+
+📐 **Measured.** §9.5's zones-view table sources a *"zone name"* from *"the Area entity"*. `TkbIdentity`
+carries **`TkbType` and nothing else**, and no other component on a zone entity holds a name.
+
+⭐ **AS-BUILT:** a zone's cluster-wide id is its **`NetworkIdentity.Value`, rendered invariantly as a
+string** (`TerrainLoadService.ZoneIdOf`). It is the only cluster-wide stable identifier a zone entity
+carries, it is already replicated, and `CE-277(e)` keeps it across the scenario round-trip — so every node
+resolves one id to the same zone. ⛔ A human-readable name is still what the UI (§9, OPEN) wants; inventing
+one here would have been a second identity for one thing. The wire carries a **string**, so adding a name
+component later does not change the protocol.
+
+### 10.3 ⭐ REFINED — §3.1's sequence, against `ClusterSlave`'s real dispatch
+
+📐 **Measured.** `ClusterSlave` calls `PrepareAsync` and then `Commit` **for the same intent**, and it
+passes **`repo: null`** at both dispatch sites (`ClusterSlave.cs:271`, `:432`). Two consequences the
+sequence diagram could not show:
+
+| what the build had to do | why |
+|---|---|
+| ⭐ the handler holds its own `EntityRepository` and uses `repo ?? _world` | ⛔ a handler that publishes only through the `repo` parameter publishes NOTHING on every host. 🔴 This design's own C5 loader shipped with that defect and was fixed in this batch |
+| ⭐ only the **Commit** half of each op pair consumes the staging | ⛔ the slave commits the PREPARE intent too, so stamping there would record residency before the cluster barrier — a node committing while another node's prepare was still failing |
+| ⭐ the master uses **ONE transaction id for both phases** | ⛔ with two ids a node's `CommitZone` could never find what its own `PrepareZone` staged |
+
+### 10.4 🔴 FINDING — **the abort arm reached no handler at all**
+
+📐 **Measured `2026-09-17`:** `IClusterStateHandler.Abort` has **ZERO production callers** — `ClusterSlave`
+never invokes it — and **no handler in the tree claimed `NodeOpType.AbortTransaction`**. So a master's
+abort fan-out reached every node, found no handler, and **auto-ACKed `Success` while nothing rolled back.**
+⭐ `TerrainAssetHandler` now claims `AbortTransaction`, which is what makes this design's own abort arm
+(mgmt-1 §11.1) real rather than ceremonial. ⚠ **Every other handler family still has no rollback path** —
+that is a pre-existing gap this batch only narrowed for terrain.
+
+### 10.5 ⚠ CONSEQUENCE OF §8.3 N4 THE DESIGN DID NOT STATE
+
+📐 **Measured: only SimHost registers a terrain loader** (one call site, `NodeBootstrapper.cs`). §8.3 N4
+says a node must hold the scenario's terrain and **fail loudly** if not, and the build implements exactly
+that. ⇒ **once anything issues a zone op against a terrain-named scenario, IG and CGF will FAIL it** until
+they compose a loader. That is the ruling working as designed *("how Stride's present gap should surface
+instead of silently passing")*, and the blast radius today is nil because no UI issues the op yet (§8.4/§9
+are OPEN). ⛔ It is recorded here because it is a deliberate, user-visible break, not an accident.
+
+### 10.6 ✅ RETIREMENT — what `F1`–`F4` actually removed
+
+⭐ `ZoneDefinitionDto` · `ZoneObstacleDto` · the envelope's `Zones` section · `IZoneManagerService` +
+`ZoneManagerService` · `ZoneMembership` (component id **171 burned, not reused**) · the `ScenarioMergeCore`
+I4 one-`Zones`-source guard · `IgZoneDummyHandler` · `EditorZoneAuthoringSystem`'s DTO-mirroring and
+road-network arms.
+
+| ⭐ kept, and why it is NOT a leftover | |
+|---|---|
+| `SpawnZoneObstacleCommand` + its consumer | obstacle placement is a live authoring SURFACE whose replacement (§9) is still OPEN. Deleting the consumer would leave `EditorZoneAdapter` publishing a command nothing reads — a click that silently does nothing. **Route, do not delete** |
+| `UpdateZoneConfigCommand`, registered but UNCONSUMED | its publisher still exists; a publish to an unregistered event type is worse than a publish nobody reads. ⚠ Its behaviour is superseded by §2.1d and its old implementation was a live hazard — it wrote `ZoneEnvironmentData` DIRECTLY, bypassing `RoadNetworkHolder` |
+| `ZoneEnvironmentData` itself | unchanged; it is now published by the TERRAIN loader through the holder (§2.1d) |
+
+⭐ **`CE-277(a)` / `OQ1` closed as WILL-NOT-BUILD**, for two independent and sufficient reasons: the brain
+has no zone consumer, and the class it would have instantiated no longer exists.
