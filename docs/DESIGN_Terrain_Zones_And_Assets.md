@@ -68,11 +68,6 @@ classDiagram
     +LoadPhase Phase
     +ulong SourceHash
   }
-  class RoadProperties {
-    +float SpeedLimit
-    +float LaneWidth
-    +int LaneCount
-  }
   class PhysicsCollider {
     +float Radius
   }
@@ -83,40 +78,38 @@ classDiagram
   class ZoneTileLoader {
     +Build(bounds, version)
   }
-  class RoadNetworkCompiler {
-    +Compile(view) RoadNetworkBlob
+  class StaticObstacleBaker {
+    +Bake(view) navmesh + physics
   }
-  class RoadNetworkBuilder {
-    +AddNode(pos)
-    +AddSegment(...)
-    +Build(...) RoadNetworkBlob
+  class TerrainLoader {
+    +LoadTerrain(sceneId)
+    +road nets, built-in buildings
   }
   class ZoneEnvironmentData {
     +RoadNetworkBlob RoadNetwork
   }
-  TkbIdentity --> TerrainAssetLoadState : 8804 zone / 8805 road<br/>marked when loaded
+  TkbIdentity --> TerrainAssetLoadState : zone + static obstacle<br/>marked when loaded
   SimTransform --> EditablePolyline : ORIGIN - points are RELATIVE
-  RoadProperties --> RoadNetworkCompiler : per-road values<br/>optional - TKB template defaults
-  TerrainLoadService --> ZoneTileLoader
-  TerrainLoadService --> RoadNetworkCompiler
-  RoadNetworkCompiler --> RoadNetworkBuilder : REUSED
-  RoadNetworkCompiler --> ZoneEnvironmentData : publishes blob
-  note for PhysicsCollider "OBSTACLE = live by construction.<br/>No asset, no load, no marker (R1)."
-  note for RoadNetworkBuilder "EXISTS - FDP CarKinem/Road/RoadNetworkBuilder.cs"
-  note for TkbIdentity "EXISTS - THE discriminator. 8801 FireLine,<br/>8802 Route, 8803 Area, +8804 Zone, +8805 Road"
+  TerrainLoadService --> ZoneTileLoader : ZONE LOAD - already-built assets
+  TerrainLoadService --> StaticObstacleBaker : ASSET BUILD - standalone
+  TerrainLoader --> ZoneEnvironmentData : road net from the TERRAIN asset
+  note for PhysicsCollider "MOVABLE obstacle = live by construction.<br/>No build, no marker. STATIC (buildings)<br/>DO get baked - 2.1c"
+  note for TerrainLoader "road nets + built-in buildings ride the<br/>TERRAIN asset, not any zone - 2.1d"
+  note for TkbIdentity "EXISTS - THE discriminator.<br/>8801 FireLine, 8802 Route, 8803 Area,<br/>+zone, +static-obstacle kinds"
   note for TerrainAssetLoadState "NEW. SourceHash = hash(SimTransform + Points)"
   note for ZoneEnvironmentData "EXISTS - the swappable singleton (R2)"
 ```
 
-*What the picture shows that the prose hid:* **obstacles hang off nothing** — every other definition
-kind flows into a loader and earns a marker, while the obstacle box terminates immediately (ruling R1).
-⭐ And only **TWO** new components exist — the load marker and the road's per-instance values. **Discrimination rides `TkbIdentity`**, which was already there, so no marker component is invented for it.
+*What the picture shows that the prose hid:* **the two paths never meet.** Zone load consumes
+already-built assets; the asset build is a standalone producer (§2.1b) — the only link is that a zone
+load *may* trigger a build, never the reverse. ⭐ And **exactly ONE new component** exists: the load
+marker. **Discrimination rides `TkbIdentity`**, which was already there.
+⛔ **No road box appears** — routes are `RoutePlan`, the road network is an external asset (§2.1a).
 
 | new type | why it is new |
 |---|---|
 | `TerrainAssetLoadState { LoadPhase Phase, ulong SourceHash }` | ⭐ `[DataPolicy(NoScenario \| NoReplay)]`, node-local, never replicated (§9.1). **Not** a bare tag — streaming has an in-flight state and loads can fail. ⚠ Named `Terrain…` on purpose: a bare `AssetLoadState` collides with the editor's existing BTree/HSM asset-load-state concepts |
-| `RoadProperties { SpeedLimit, LaneWidth, LaneCount }` | the per-road DATA a `TkbType` cannot carry — **optional**, since the TKB template defaults it (§2.1a) |
-| two new **`TkbType` values** *(not components)* | `8804` zone · `8805` road — the DISCRIMINATOR only (§2.1) |
+| new **`TkbType` values** *(not components)* | a zone kind, and static-vs-movable obstacle kinds — the DISCRIMINATOR only (§2.1, §2.1c). ⛔ **No road value** — retracted in §2.1a |
 
 ### 2.1 ✅ RULED `2026-09-17` — **`TkbType` is the ONE discriminator; `AreaType` is SUPERSEDED**
 
@@ -129,70 +122,99 @@ TacGraphic_Area` — and it **already selects the gizmo** (`TacticalAreaGizmo` f
 `AreaType` field would have been a **second discriminator for one distinction**, forcing every consumer
 of `8803` that does not care about zones (symbology, ORBAT, templates) to branch on it.
 
-⭐ **Extended to ROADS by the same logic** *(⚠ not separately ruled — say so if you disagree)*: `TkbType`
-takes over the **DISCRIMINATOR** job. ⚠ Values `8804`/`8805` are placeholders — naming and numbering are
-the user's — and `R-42` applies: these ids reach replays and saved scenarios, so **deprecate, never
+⭐ **Extended to the STATIC-vs-MOVABLE OBSTACLE split** (§2.1c) by the same logic. ⛔ **The road
+extension is RETRACTED** — see §2.1a. ⚠ All new values are placeholders: **naming and numbering are the
+user's**, and `R-42` applies — these ids reach replays and saved scenarios, so **deprecate, never
 recycle**.
 
-### 2.1a ⛔ CORRECTION `2026-09-17` — **a `TkbType` cannot carry PER-INSTANCE DATA**
+### 2.1a ⛔ RETRACTED `2026-09-17` — **there are no "road entities"; I invented them**
 
-> 🔒 **User:** *"why the `RoadFeature { LaneWidth, LaneCount }` disappeared? how are we going to express
-> the route geometry (lane width, lane count)?"*
+> 🔒 **User:** *"I do not think we need to be able to actually edit the road network and store its parts
+> as entities. What we want to store as entity are those waypoint based routes (not equal to roads in
+> road net — these are an asset which is NOT authored in the editor, comes from outside (like sumo road
+> net), and is just rendered using some map gizmo)… And what we called 'road entities' were actually
+> just the 'routes'."*
 
-⛔⛔ **A prior draft deleted `RoadFeature` OUTRIGHT. That was wrong** — it conflated two jobs in one
-component. `TkbType` says *what kind of thing this is*; it is a **type** id and **cannot carry values
-that vary per road**. ⇒ ⭐ **the discriminator half moves to `TkbType`; the DATA half stays as a
-component**, renamed for what it actually is:
+📐 **Measured, and the split already exists in production:**
 
-📐 **Measured from the compile target** — `RoadNetworkBuilder.AddSegment(p0, t0, p1, t1, speedLimit =
-25.0f, laneWidth = 3.5f, laneCount = 1, startNodeIdx, endNodeIdx)` and the `RoadSegment` struct:
+| concern | what it actually is | authored? |
+|---|---|---|
+| **ROUTE** | `TkbType 8802 TacGraphic_Route` + **`RoutePlan { Waypoints }`** — `RouteWaypoint { Vector3 Position (ABSOLUTE), float TargetSpeed, string? ExtensionJson }` | ⭐ **yes, at runtime** — `CmdAppendPersonalWaypoint` → `PersonalRouteAuthoringSystem` spawns a **vehicle-owned child** seeded with 2 waypoints and appends after |
+| route → drivable | `RouteTrajectorySyncSystem` → `_pool.RegisterTrajectory(positions, speeds, looped, **CatmullRom**)` | ⛔ **no road/lane geometry is involved at all** — positions + speeds only |
+| **ROAD NETWORK** | an **external asset file** (SUMO-like) → `RoadNetworkLoader` → `RoadNetworkBlob`; rendered by `SimHostRoadLayer`; consumed by `PathfindingSolverSystem`/`CarKinematicsSystem` | ⛔ **never authored in the editor** |
+| **AREA / overlay** | `EditablePolyline { Points }` (RELATIVE) + `MapOverlayStyle` | ⭐ yes — `ActivateAreaEditingTool`, `AreaQuerySolverSystem` |
 
-| the compile needs | authored? |
-|---|---|
-| `SpeedLimit` · `LaneWidth` · `LaneCount` | ⭐ **YES — these are the authorable per-road values** ⚠ my `RoadFeature` draft omitted `SpeedLimit`, which is equally authorable and equally defaulted |
-| `Length`, `DistanceLUT[8]` | ⛔ no — **computed by the builder** |
-| `StartNodeIndex` / `EndNodeIndex` | ⛔ no — topology the compiler assigns |
-| `P0, T0, P1, T1` | ⚠ **positions come from `EditablePolyline`; the TANGENTS do not exist** — see §2.1b |
+⇒ ⛔ **`RoadProperties`, `TkbType 8805 road` and `RoadNetworkCompiler` are DELETED.** Lane width and
+lane count belong to **road-network segments**, which arrive in the file; a route is a waypoint list and
+needs none of them. ⭐ Per-waypoint `TargetSpeed` already exists and is finer-grained than the per-entity
+`SpeedLimit` I had proposed.
+⭐ **And the Catmull-Rom ruling was already shipped one layer over** — `RegisterTrajectory` uses it for
+routes today, so the convention was consistent before it was proposed.
 
-⇒ ⭐ **`RoadProperties { float SpeedLimit, float LaneWidth, int LaneCount }`** — a DATA component,
-not a marker. **Per ENTITY, uniform across its segments**; if a road ever needs varying width, author it
-as two road entities rather than adding per-vertex data.
-⭐⭐ **And it is OPTIONAL, because `TkbType` is a TEMPLATE identity:** the TKB template supplies defaults
-per road kind, the component overrides them, so an ordinary road needs no component at all. 📌 Exactly
-the pattern already in production at `NetworkSpawningSystem.cs:154` — `cmd.DisType != 0 ? cmd.DisType :
-template.DisType.Value`.
+⭐⭐ **`EditablePolyline` is for AREAS; `RoutePlan` is for ROUTES — do not unify them.** 🔒 *"they are
+semantically too different."* 📐 Production already honours this: IG authors routes via
+`CreateRouteEntityAsync(TacGraphic_Route, waypoints, …)`, never via `EditablePolyline`.
+⚠⚠ **And the RELATIVE ruling (§2.2) is scoped to `EditablePolyline` ONLY.** `RouteWaypoint.Position` is
+documented *"absolute Cartesian world-space (ENU)"* and **must stay absolute**: a route entity is a
+CHILD OF THE VEHICLE, so relative waypoints would drag the whole route when the vehicle moved.
 
-### 2.1b 🔴 OPEN — **the authoring geometry is a POLYLINE; the compile target is HERMITE**
+### 2.1b ✅ RULED — **ZONE PREPARATION and ASSET BUILD are different in nature, and stay separate ops**
 
-📐 `RoadSegment` carries `P0, T0, P1, T1` — **position AND tangent at each end** — while
-`EditablePolyline.Points` is a bare list of positions with **no tangents**. ⇒ the compiler must
-**derive** them, and that choice decides whether a drawn road curves or kinks at its vertices.
+> 🔒 **User:** *"zone == loading assets that were already built. Zone load might trigger asset build if
+> zone is known to require certain asset which is just defined but not yet built, but **defining a new
+> asset which is not yet built should not invalidate the zone**; the asset build stays like standalone
+> step which does not depend on zones."*
 
-#### Who feeds them TODAY — **the hand-authored JSON asset**
-📐 Measured: `RoadNetworkLoader.cs:38` builds a `RoadNetworkBuilder` and passes
-`seg.ControlPoints.T0 / .T1` **verbatim** from the file (`:50-53`). `HermiteControlPointsJson` carries
-`p0, t0, p1, t1` as four explicit `Vector2`s, and the shipped
-`FDP/Examples/Fdp.Examples.CarKinem/Assets/sample_road.json` hand-writes them. ⇒ **nothing derives
-anything today; a human typed the tangents.**
+⛔ **This REJECTS the lean to collapse the two op pairs.** The dependency is **ONE-WAY**:
 
-⇒ 🔴 **Under this design nobody feeds them** — a road entity is an `EditablePolyline`, positions only.
-**That is the gap**, and the compiler must close it.
+```
+asset build  ── standalone, never depends on a zone
+     ▲
+     │ (zone load MAY trigger a build for an asset it needs that is defined-but-unbuilt)
+     │
+zone load   ── loads assets that are ALREADY BUILT
+```
 
-| option | |
-|---|---|
-| ⭐⭐ **(a) derive Catmull-Rom tangents from neighbours** — `T(i) = (P(i+1) − P(i−1)) / 2` | smooth through the drawn vertices, **no extra authoring**, and ⭐ **the output is representable in the SAME `RoadSegment` struct with no format change** |
-| **(b) zero tangents** | straight chords, visible kinks at every vertex — the degenerate case, fine as a fallback for a 2-point road |
-| ⛔ **(c) author tangents** | new UI, new persisted data — ⛔ **not in this slice** |
+⭐⭐ **The asymmetry is the whole point:** a zone is invalidated by **its own footprint changing**
+(§9.7), ⛔ **never by a new asset being defined.** Collapsing the ops would have coupled those
+lifecycles and made every new building definition dirty every zone.
 
-⭐⭐⭐ **The shipped asset CONFIRMS (a) empirically.** Its first segment runs `p0 (50,100) → p1
-(100,100)` with `t0 = t1 = (50, 0)`. For a node at `(50,100)` between neighbours `(0,100)` and
-`(100,100)`, Catmull-Rom gives `((100,100) − (0,100)) / 2 = (50, 0)` — **exactly the hand-authored
-value.** ⇒ the human author was already applying the Catmull-Rom rule by hand, so deriving it costs
-**zero fidelity** on the one asset we have, and it fixes the scale convention too: **tangent magnitude
-is proportional to neighbour spacing, NOT a unit vector.**
+### 2.1c ⚠ R1 NARROWED — **not all obstacles are live-by-construction**
 
-⚠ **This is a real decision, not a detail:** it is the difference between a road that follows the
-operator's drawn line and one that visibly corners at it.
+> 🔒 **User:** *"Imagine buildings. They are certainly not runtime dynamic. So some obstacle entities
+> are movable at runtime, some are not and building might need baking them into navmesh and physics
+> world etc. That leads to different types of obstacle entities — different TkbType preferably."*
+
+⛔ **`R1` said "obstacles are EXCLUDED from the load model." That is true only of the MOVABLE kind**, and
+is now narrowed:
+
+| obstacle kind | build? | marker? |
+|---|---|---|
+| ⭐ **movable / runtime** *(the measured case: `PhysicsCollider` read straight off broadphase candidates ⇒ occludes LOS the instant it exists)* | ⛔ none | ⛔ none |
+| ⭐⭐ **static / bakeable** *(buildings)* — baked into navmesh + physics world | ✅ **yes — a real asset build** | ✅ yes |
+
+⇒ ⭐ **distinguished by `TkbType`**, consistent with §2.1. ⚠⚠ **And this rescues the asset build from
+being vacuous:** the prior draft concluded *"the only remaining terrain asset is tiles, which are
+faked."* 🔒 The user's correction: *"the fact we do not have any buildable assets now does not mean they
+will not exist."* ⇒ **the op pair is designed for buildings even though slice 1 builds none.**
+
+### 2.1d ⭐ TERRAIN-ASSOCIATED ASSETS — the road-network manager and terrain loader
+
+> 🔒 **User:** *"Maybe even the road network should be an entity, keeping reference to the road network
+> asset file… Just road nets are usually a property of the terrain asset, so picking a concrete terrain
+> denotes loading of associated road networks. Same for buildings — some are user placeable, most are
+> part of existing terrain asset. There should be some kind of road network manager and terrain loader
+> dealing with these."*
+
+⭐ **Lean: terrain-association is the DEFAULT; the entity-reference is the EXTENSION POINT.** Selecting a
+terrain (`SceneId`, §1 ⑦) implies loading its associated road networks and its built-in buildings; an
+**entity holding a reference to a road-net asset file** is how a user-*selected* road network would be
+expressed, and is worth building **only when that selection requirement appears**. ⛔ Building the
+selection mechanism first would add a scenario-level declaration the user explicitly wants to avoid.
+
+⚠ **This answers a question the `Zones`-section retirement would otherwise strand:** today the road
+network is loaded by `ZoneManagerService.LoadZones` from the zone's `RoadNetworkPath` — a property being
+retired. ⇒ **the terrain loader takes that job**, keyed off the terrain, not off any zone.
 
 ### 2.2 ✅ RULED `2026-09-17` — **RELATIVE COORDINATES EVERYWHERE**
 
@@ -345,9 +367,10 @@ One source, no new seam, and it matches the "one source, read it every time" pat
 ⚠ **What would flip it:** if a navigation module runs on a background thread where singleton access is
 constrained by `DataPolicy`, a holder becomes necessary. **Check that before building.**
 
-### 5.5 Why roads are real and tiles are faked
-`RoadNetworkBuilder` already turns nodes + segments into a `RoadNetworkBlob`, and a road polyline is
-a node-and-segment list — so the road compile is **mostly reuse and genuinely small**. Terrain tiles
+### 5.5 ⛔ RETRACTED — *"why roads are real and tiles are faked"*
+⛔⛔ **This section argued for a road compile that §2.1a retracts** — there are no road entities to
+compile; the road network is an external asset and routes are `RoutePlan`. ⭐ **What survives is the
+second half:** terrain tiles
 (navmesh, heightmap, streaming, geographic cache keys) are none of those things, and the user ruled
 them postponed. ⇒ the slice is honest about which half is which rather than faking both.
 
@@ -363,13 +386,15 @@ a real terrain capability. This is a build constraint, not a caveat.
 | piece | slice 1 |
 |---|---|
 | `Area`+`AreaType`, `RoadFeature`, `TerrainAssetLoadState` | ⭐ **REAL** |
-| authoring zones / roads / obstacles as entities; saved by the ordinary gate | ⭐ **REAL** |
-| road compile (entities → `RoadNetworkBlob` via `RoadNetworkBuilder`) → singleton | ⭐ **REAL** (§5.5) |
+| authoring zones + obstacles as entities; saved by the ordinary gate | ⭐ **REAL** |
+| ⛔ ~~road compile from entities~~ | **RETRACTED (§2.1a)** — the road network is an external asset; routes are `RoutePlan` and already compile to trajectories |
 | R2 swap seam (navigation reads the singleton per tick) | ⭐ **REAL — precondition** |
 | idempotency + version staleness | ⭐ **REAL** |
 | both invocation paths, the 2PC round, shared registration, panel controls | ⭐ **REAL** |
 | **terrain tile generation / streaming / geographic cache** | ⛔ **FAKED** — stub that logs, marks loaded |
-| obstacles in the load model | ⛔ **EXCLUDED** (R1) |
+| **movable** obstacles in the load model | ⛔ **EXCLUDED** (R1) |
+| **static/bakeable** obstacles (buildings) | ⛔ **FAKED in slice 1** — the op pair is designed for them (§2.1c), none are built yet |
+| road-net + built-in buildings load | ⭐ **REAL, via the TERRAIN loader** (§2.1d) — takes over from the retiring `LoadZones` |
 
 **Enum values to allocate:** `ClusterOpType.BuildTerrainAsset = 17` (next free; 2 is a documented
 reserved gap). `NodeOpType.PrepareTerrainAsset = 29`, `CommitTerrainAsset = 30` — ⚠ **do not reuse the
