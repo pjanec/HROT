@@ -568,9 +568,14 @@ a real terrain capability. This is a build constraint, not a caveat.
 | **static/bakeable** obstacles (buildings) | ⛔ **FAKED in slice 1** — the op pair is designed for them (§2.1c), none are built yet |
 | road-net + built-in buildings load | ⭐ **REAL, via the TERRAIN loader** (§2.1d) — takes over from the retiring `LoadZones` |
 
-**Enum values to allocate:** `ClusterOpType.BuildTerrainAsset = 17` (next free; 2 is a documented
-reserved gap). `NodeOpType.PrepareTerrainAsset = 29`, `CommitTerrainAsset = 30` — ⚠ **do not reuse the
-undocumented gaps at 6/17/18/19**; both enums are wire contracts in two places.
+**Enum values — ✅ RULED by the user `2026-09-17`, and `R-42` makes them PERMANENT:**
+`TkbType.TerrainZone = 8804` · `NodeOpType.PrepareTerrainAsset = 29` · `NodeOpType.CommitTerrainAsset = 30` ·
+`ClusterOpType.BuildTerrainAsset = 17` *(next free; 2 is a documented reserved gap)*.
+⛔ **Do not reuse the undocumented `NodeOpType` gaps at 6/17/18/19** — 📐 measured: they are absent from the
+**authoritative NED enum** (`OrchestrationMessages.cs`) too, so they are historical holes rather than
+reservations, and leaving them empty means no future reader has to wonder what they meant.
+⚠ **Both enums are wire contracts in two places** — the FDP copy is a mirror whose *"integer values must
+remain identical to the NED counterpart (verified by unit tests)"*, so an allocation lands in **both**.
 
 **Retirement, with its test surface** (`HN-037`: measure tests, not just production): `ZoneDefinitionDto`,
 the embedded `Zones` section, `ZoneMembership`, `ZoneManagerService`'s DTO half, the `ScenarioMergeCore`

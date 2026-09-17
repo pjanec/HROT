@@ -30,10 +30,11 @@ related-designs:
 
 | | |
 |---|---|
-| ⭐⭐ **before starting ANY task** | check §3 — if the task id is listed there, part of it has **no ground to stand on** and must be resolved with the user first |
+| ⭐⭐ **before starting ANY task** | check §3. ✅ **Nothing here needs the USER any more** *(U2 confirmed `2026-09-17`)* — the three remaining rows are measurements/design calls to make **inside** the task and **state in the report** |
 | ⭐⭐ **T-1 first** (`R-142`) | every task names the feature suite to run BEFORE writing code. ⛔ Do not open a new rail class where a suite exists |
 | ⭐ **ids** | ⛔ the coordinator allocated NONE. The implementing session numbers these into the tracker and states the ids in its report (rule 3/5) |
-| ⭐ **stage order** | A → B → C → D/E → F. **G is independent** and may run in parallel by a different lane |
+| ⭐ **stage order** | A → B → C → D/E → F. **G is independent**; **H depends only on B5** |
+| ⭐⭐ **dispatch grouping** | §5 — the four batches these stages are handed off in |
 
 ---
 
@@ -65,7 +66,7 @@ loaded. ⛔ **Terrain tiles themselves stay FAKED by ruling** — see design §6
 
 | # | task | success condition | owning chapter |
 |---|---|---|---|
-| **B1** | Allocate **ONE** new `TkbType`: **`TerrainZone`** 🔒 *(name ruled `2026-09-17`)*, beside `8801/8802/8803` | the value exists in `TkbEntityTypes`, is not a reused id, and the choice is recorded. ⚠ `R-42`: it reaches replays and saved scenarios. ⛔ **No static-obstacle kind yet** — ruled `2026-09-17`: static obstacles are handled as dynamic for now | design **§2.1** ⚠ **see §3-U2** |
+| **B1** | Allocate **ONE** new `TkbType`: **`TerrainZone = 8804`** 🔒 *(name + value ruled `2026-09-17`)*, beside `8801/8802/8803` | the value exists in `TkbEntityTypes` as **8804**, is not a reused id, and the choice is recorded. ⚠ `R-42`: it reaches replays and saved scenarios. ⛔ **No static-obstacle kind yet** — ruled `2026-09-17`: static obstacles are handled as dynamic for now | design **§2.1** ✅ **value RULED — §3-U2** |
 | **B2** | Add `TerrainAssetLoadState { LoadPhase Phase, ulong SourceHash }` with `[DataPolicy(NoScenario \| NoReplay)]` | the component exists, is registered on every ECS host, and a save/replay round-trip proves it is **absent** from both outputs | design **§2** (new-type table), **§9.1** |
 | **B3** | Implement the footprint hash `hash(SimTransform ⊕ Points)` as ONE shared helper | moving a zone changes the hash; reshaping changes it; neither requires any writer to cooperate. ⭐ Rail both cases | design **§9.7 ③c** |
 | **B4** | Zone entities save/load through the ordinary gate | a scenario containing a zone round-trips: same footprint, same `TkbType`, and **no** `TerrainAssetLoadState` in the file | design **§2**; `DESIGN_Distributed_Scenario_Persistence` §6 |
@@ -86,7 +87,7 @@ loaded. ⛔ **Terrain tiles themselves stay FAKED by ruling** — see design §6
 
 | # | task | success condition | owning chapter |
 |---|---|---|---|
-| **D1** | Allocate `ClusterOpType.BuildTerrainAsset` and the two `NodeOpType` values, in **both** wire enums | values allocated without reusing the undocumented `NodeOpType` gaps at 6/17/18/19; both enums agree | design **§6** (enum note) ⚠ **see §3-U2** |
+| **D1** | Allocate `ClusterOpType.BuildTerrainAsset = 17` and `NodeOpType.PrepareTerrainAsset = 29` / `CommitTerrainAsset = 30`, in **both** wire enums | the four ruled values exist, the gaps at 6/17/18/19 are **left empty**, and the NED/FDP enums agree (the mirror's own unit test proves it) | design **§6** (enum note) ✅ **values RULED — §3-U2** |
 | **D2** | Purpose-built payload DTOs for the zone op and the build op | the zone op no longer reuses `ArchivePayloadDto` stuffing `ExerciseId` into `ZoneId` | design **§8.1 ⑯** |
 | **D3** | ONE `TerrainAssetHandler` implementing `IClusterStateHandler`, registered on **every** ECS host via a shared registrar mirroring `SerializeLocalRegistrar` | the same class is registered by all hosts; **the ACK is unconditional**; a host with no loader composed ACKs without doing work | design **§8.3** (N6), **§3.1** |
 | **D4** | Retire `IgZoneDummyHandler` | deleted; IG still ACKs both ops via the shared handler and never stalls a round | design **§8.3** |
@@ -140,10 +141,10 @@ header anyway — design §2.1e ②a)*.
 
 ---
 
-## 3. THE UNDER-SPECIFIED REGISTER — **5 of 9 RESOLVED `2026-09-17`**
+## 3. THE UNDER-SPECIFIED REGISTER — **6 of 9 RESOLVED `2026-09-17`**
 
 > ⭐⭐ These were places where the design **could not say what success looks like**, so a task written
-> against them would have been unfalsifiable. ⭐ Five are now ruled; the rest are listed with what remains.
+> against them would have been unfalsifiable. ⭐ Six are now ruled; the rest are listed with what remains.
 
 ### 3.1 ✅ RESOLVED by user ruling `2026-09-17`
 
@@ -154,18 +155,18 @@ header anyway — design §2.1e ②a)*.
 | **U6** | zone creation is IG-only | 🔒 *"area authoring should be part of unified **Map2d role** features, as well as authoring the tactical drawings, **nothing of it should be IG host only**"* ⇒ ⭐ **new task E5** |
 | **U7** | the static-obstacle bake has nothing to call | 🔒 *"static can be handled as dynamic for now… optimizations for static ones can come later"* ⇒ ⭐ **B1 allocates NO static kind**, and no bake is built. ⛔ Do not allocate a permanent wire id (`R-42`) for behaviour that is not being implemented |
 | **U8** | retiring the zone bundle strands the road network | 🔒 *"yes we need to introduce a terrain loader (even if not doing anything useful now)"* ⇒ ⭐ **new task C5**, and it is what makes Stage F safe |
+| **U2** | the wire ids had no allocation | ✅ **CONFIRMED by the user `2026-09-17`** — these are the values, and `R-42` makes them permanent: **`TkbType.TerrainZone = 8804`** 🔒 *(deliberately NOT `TacGraphic_*`: a zone is a load directive that happens to be drawn, not a tactical graphic)* · **`NodeOpType.PrepareTerrainAsset = 29`** · **`NodeOpType.CommitTerrainAsset = 30`** · **`ClusterOpType.BuildTerrainAsset = 17`**. 📐 The measurement behind it: the `NodeOpType` gaps at **6/17/18/19 are absent from the AUTHORITATIVE NED enum too** (`OrchestrationMessages.cs`) ⇒ historical holes, **not reservations**; ⛔ **do not fill them** — clearly-new values so no future reader wonders what the hole meant. ⚠ The FDP copy is a mirror whose *"integer values must remain identical to the NED counterpart (verified by unit tests)"* ⇒ **D1 must land in BOTH enums** |
 
 ### 3.2 ⚠ STILL OPEN
 
 | # | blocks | what is missing | what would settle it |
 |---|---|---|---|
 | **U1** | **A3** | the fix direction rests on an **unmeasured** fact: whether any navigation module runs on a background thread where `DataPolicy` constrains singleton access. If it does, the per-tick singleton read is illegal and a holder object is required instead | ⭐ **an implementer measurement, not a user decision** — design §5.4 already names it as *"what would flip it"* |
-| **U2** | **B1**, **D1** | ⭐⭐ **SHRUNK — this is a NAMING call only.** 📐 Measured `2026-09-17`: the `NodeOpType` gaps at **6/17/18/19 are absent from the AUTHORITATIVE NED enum too** (`OrchestrationMessages.cs`), so they are historical holes, **not reservations** — and the FDP copy is a mirror whose *"integer values must remain identical to the NED counterpart (verified by unit tests)"*. ⇒ allocating new values is safe | ⭐ **proposed, awaiting one word:** **`TerrainZone = 8804`** 🔒 *(user, `2026-09-17` — deliberately NOT `TacGraphic_*`: a zone is a load directive that happens to be drawn, not a tactical graphic)*; `NodeOpType.PrepareTerrainAsset = 29` / `CommitTerrainAsset = 30` *(clearly-new values rather than filling a hole, so no future reader has to wonder whether the hole meant something)*; `ClusterOpType.BuildTerrainAsset = 17` |
 | **U5** | **E3** | the details shell has no *"map background selected"* CONTEXT. `PopulateEmptyMapMenu` proves empty space is a click target for a **menu**, but selection-as-context is new | ⭐ **an implementer design call inside `IDetailsContextSource`** — small, and E3 cannot be asserted until it exists |
 | **U9** | **H2** | ⭐ **SHAPE only, not WHETHER.** The `FromSeed` branch must reach the recipes root, and there are two clean ways: widen `IScenarioCreationSession` with a root-aware load, or have `AvailableRecipes()` hand back seeds carrying a **full path** that the existing load already accepts. ⛔ Neither is measured yet | ⭐ **an implementer design call.** ⚠ The deciding fact is whether `IEditorLogic.LoadScenarioByName` accepts an absolute/rooted path today — one read of its body settles it, and the second option costs no seam change if it does |
 
-⇒ ⭐ **U1, U5 and U9 are implementer measurements/calls, not user decisions.** ⛔ **U2 is the only one
-still needing the user, and it is one word.**
+⇒ ✅⭐⭐⭐ **NOTHING IN THIS PLAN NOW NEEDS THE USER.** U1, U5 and U9 are implementer
+measurements/calls to be made and reported **inside** their tasks — ⛔ none of them blocks a dispatch.
 
 ## 4. What this plan deliberately does NOT contain
 
@@ -174,3 +175,25 @@ still needing the user, and it is one word.**
 ⛔ The route model *(owned by `ROUTES1-DESIGN` §5; only its persistence gap is here, as G1)*.
 ⛔ Fixing `HasInFlightTransaction` *(design §9.4 — a pre-existing cluster-panel defect, out of scope)*.
 ⛔ Any new recipe/picker machinery *(`Q57` ruled it already exists; Stage H is wiring and content only)*.
+
+---
+
+## 5. ⭐⭐⭐ DISPATCH GROUPING — **four batches, not eight stages and not one lump**
+
+> ⭐ **The grouping rule:** a batch is the smallest set that leaves the tree **coherent** when it lands.
+> ⛔ A boundary that leaves two producers alive for one job, or a retirement without its replacement, is
+> the wrong boundary however convenient its size *(`R-132`)*.
+
+| batch | stages | tasks | ⭐ why THIS boundary |
+|---|---|---|---|
+| **① FOUNDATIONS** | **A + B + G** | 11 | ⭐⭐ Everything is **locally verifiable — no cluster, no loader.** A is a precondition for all of B *(the gizmo double-render would make every later visual check lie)*; B is pure model; **G is independent** and rides along because this batch is the lightest. ⭐ Lands the four permanent wire ids *(`R-42`)* early, so nothing downstream guesses them |
+| **② THE LOADER AND THE OPS** | **C + D + F** | 14 | ⭐⭐⭐ **The load-bearing batch, and F is why it is one batch.** The terrain loader (C5) is what makes retiring the zone bundle (F) safe — 🔒 the user's own ruling behind `§3-U8`. ⛔ Splitting them leaves the tree either **two producers for the road network** *(`R-132`)* or **a retirement with nothing loading roads.** ⚠ Largest batch; ⭐ `HN-037` applies — the **test** surface of F is the work, not the deletion |
+| **③ THE SURFACES** | **E + H** | 9 | ⭐ Both are surface work over a model that batch ② has made real: the map/zones UI, and the new-scenario recipe path. ⛔ Neither can be asserted before ② — a "not loaded" badge is meaningless without a loader |
+| **④ *(only if ② overruns)*** | **F alone** | 4 | ⚠ **The one legal split of ②**, and only after C5 is green and reported. ⛔ Never the reverse |
+
+⭐⭐ **Reporting:** each batch returns the **gate-report contract** *(`CLAUDE.md` §"THE GATE REPORT
+CONTRACT", rows 1–8)*. ⛔ Row 8 binds batches ② and ③ specifically — they are cross-node changes, so the
+report **names the integration suite** that would break if the invariant broke, and reports **running**
+it, or states with base-sha evidence why it cannot gate.
+⭐ Every batch also states **which `U` rows it closed and how** *(② owns `U1`; ③ owns `U5` and `U9`)*, and
+**every id it allocated** *(rule 5)* — ⛔ the coordinator allocated none.
