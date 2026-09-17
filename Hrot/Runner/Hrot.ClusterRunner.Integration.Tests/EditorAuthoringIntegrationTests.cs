@@ -233,19 +233,27 @@ public sealed class EditorAuthoringIntegrationTests : IDisposable
         Assert.Equal(25f, xfm.Position.Y, precision: 3);
     }
 
-    // ── T003b ── Zone Obstacle has ZoneMembership (BUG10 regression) ─────────
+    // ── T003b ── RE-HOMED (F1/F3) ────────────────────────────────────────────
 
     /// <summary>
-    /// Verifies that a zone obstacle spawned via <see cref="SpawnZoneObstacleCommand"/>
-    /// receives a <see cref="ZoneMembership"/> managed component.
+    /// ⭐ RE-HOMED from <c>ZoneAuthoring_ObstaclePlacement_ZoneObstacleHasZoneMembership</c>.
     ///
-    /// The BUG10 fix added a <c>ZoneObstacleRenderLayer</c> that queries entities with
-    /// <c>ZoneMembership + PhysicsCollider + SimTransform</c>.  This test proves that
-    /// the zone authoring system correctly stamps <c>ZoneMembership</c> so the render
-    /// layer can find the entity.
+    /// <para>The old test asserted the obstacle carried a <c>ZoneMembership</c> "so
+    /// <c>ZoneObstacleRenderLayer</c> can find it (BUG10)". ⚠ Two things had already come apart there:
+    /// <c>ZoneObstacleRenderLayer</c> does not exist in the tree any more — measured — so the test was
+    /// justifying itself by a consumer that was already gone; and <c>ZoneMembership</c> is now retired
+    /// (F1) because zones are entities with polygons, making membership geometry rather than a stored
+    /// name that can drift from the shapes.</para>
+    ///
+    /// <para>⭐ What is worth keeping is the END-TO-END claim the harness actually proves, and it is kept:
+    /// a placement command travelling the real editor pipeline produces ONE placed, collidable entity.
+    /// ⛔ That is not covered by the unit test in <c>SystemTests</c>, which drives the system directly and
+    /// never exercises the module registration or the frame pump.</para>
+    ///
+    /// 📄 docs/DESIGN_Terrain_Zones_And_Assets.md §2.1c, §5.1, §6.
     /// </summary>
     [Fact]
-    public void ZoneAuthoring_ObstaclePlacement_ZoneObstacleHasZoneMembership()
+    public void ZoneAuthoring_ObstaclePlacement_ProducesOnePlacedCollidableEntity()
     {
         using var harness = new EditorHarness();
         var world = harness.Repo;
@@ -258,104 +266,39 @@ public sealed class EditorAuthoringIntegrationTests : IDisposable
         });
         harness.PumpFrames(1);
 
-        // Find the obstacle entity.
         var entities = world.Query().With<PhysicsCollider>().Build();
         Assert.Equal(1, entities.Count());
 
         Entity entity = default;
         foreach (var e in entities) { entity = e; break; }
 
-        Assert.True(world.HasManagedComponent<ZoneMembership>(entity),
-            "Zone obstacle entity must carry ZoneMembership so ZoneObstacleRenderLayer can find it (BUG10)");
+        Assert.Equal(30f, world.GetComponent<SimTransform>(entity).Position.X);
+        Assert.Equal(40f, world.GetComponent<SimTransform>(entity).Position.Y);
+        Assert.Equal(5f,  world.GetComponent<PhysicsCollider>(entity).Radius);
     }
 
-    [Fact]
-    public void ZoneAuthoring_RoadNetworkUpdate_InjectsZoneEnvironmentDataSingleton()
-    {
-        using var harness = new EditorHarness();
-
-        // Create a minimal valid road-network JSON in a temp file.
-        string roadJson = @"{
-  ""nodes"": [
-    { ""id"": 0, ""position"": { ""x"": 0, ""y"": 0 } },
-    { ""id"": 1, ""position"": { ""x"": 100, ""y"": 0 } }
-  ],
-  ""segments"": [
-    {
-      ""id"": 0, ""startNodeId"": 0, ""endNodeId"": 1,
-      ""controlPoints"": {
-        ""p0"": { ""x"": 0, ""y"": 0 }, ""t0"": { ""x"": 1, ""y"": 0 },
-        ""p1"": { ""x"": 100, ""y"": 0 }, ""t1"": { ""x"": -1, ""y"": 0 }
-      },
-      ""speedLimit"": 25, ""laneWidth"": 3.5, ""laneCount"": 2
-    }
-  ]
-}";
-        File.WriteAllText(_tempFile, roadJson);
-
-        harness.Bus.PublishManaged(new UpdateZoneConfigCommand
-        {
-            ZoneName        = "test",
-            RoadNetworkPath = _tempFile,
-        });
-        harness.PumpFrames(1);
-
-        Assert.True(harness.Repo.HasSingleton<ZoneEnvironmentData>());
-    }
-
-    [Fact]
-    public void ZoneAuthoring_FullSave_BundlesZoneDtoInEnvelope()
-    {
-        using var harness = new EditorHarness();
-
-        // Create minimal road JSON.
-        string roadJson = @"{""nodes"":[{""id"":0,""position"":{""x"":0,""y"":0}}],""segments"":[]}";
-        File.WriteAllText(_tempFile, roadJson);
-
-        // Spawn obstacle.
-        harness.Bus.PublishManaged(new SpawnZoneObstacleCommand
-        {
-            ZoneName = "test",
-            Position = new Vector2(50f, 25f),
-            Radius   = 10f,
-        });
-
-        // Road network update.
-        harness.Bus.PublishManaged(new UpdateZoneConfigCommand
-        {
-            ZoneName        = "test",
-            RoadNetworkPath = _tempFile,
-        });
-        harness.PumpFrames(2);
-
-        // Save to a second temp file.
-        string saveFile = Path.GetTempFileName() + ".json";
-        try
-        {
-            harness.Editor.SaveScenario(saveFile);
-
-            string json     = File.ReadAllText(saveFile);
-            var    opts     = new System.Text.Json.JsonSerializerOptions
-            {
-                PropertyNameCaseInsensitive = true,
-            };
-            var envelope = System.Text.Json.JsonSerializer.Deserialize<Hrot.Map.Common.Scenario.HrotScenarioEnvelopeDto>(json, opts);
-
-            Assert.NotNull(envelope?.Zones);
-            Assert.True(envelope!.Zones!.ContainsKey("test"), "Zone 'test' should be in envelope");
-
-            var zone = envelope.Zones["test"];
-            Assert.Equal(_tempFile, zone.RoadNetworkPath);
-            Assert.NotNull(zone.Obstacles);
-            Assert.Equal(1, zone.Obstacles!.Count);
-            Assert.Equal(50f, zone.Obstacles[0].X, precision: 2);
-            Assert.Equal(10f, zone.Obstacles[0].Radius, precision: 2);
-        }
-        finally
-        {
-            if (File.Exists(saveFile)) File.Delete(saveFile);
-        }
-    }
+    // ⛔ DELETED (F1/F3): `ZoneAuthoring_RoadNetworkUpdate_InjectsZoneEnvironmentDataSingleton`.
+    //
+    //   Its claim was "publishing UpdateZoneConfigCommand with a road-network path injects the
+    //   ZoneEnvironmentData singleton". That path is RETIRED and was a live hazard — it wrote the
+    //   singleton directly, bypassing RoadNetworkHolder, so a background solver could not see the new
+    //   graph and the old one was never retired (the C6 use-after-free family).
+    //   ⭐ RE-HOMED onto the terrain loader, which publishes the same singleton THROUGH the holder:
+    //   TerrainLoadClusterStateHandlerTests
+    //   (`ADefinitionListingARoadNetwork_PopulatesZoneEnvironmentData_WithNoZonesSection`).
+    //
+    // ⛔ DELETED (F1/F3): `ZoneAuthoring_FullSave_BundlesZoneDtoInEnvelope`.
+    //
+    //   Its claim was "a full editor save bundles the zone DTO — road path and obstacles — into the
+    //   envelope's `Zones` section". That section is the thing the retirement removes: it was a SECOND
+    //   place the truth lived, beside the entities the same save already wrote.
+    //   ⭐ RE-HOMED in two halves, both asserted elsewhere: that an authored zone survives a save/load
+    //   round-trip is `ZoneEntityPersistenceTests` (`Hrot.SimHost.Tests`), and that a distributed save
+    //   carries the brain's zone is `ScenarioMergeCoreTests`
+    //   (`AZoneEntityFromTheBrain_ReachesTheCanonicalFile_ThroughTheOrdinaryEntityUnion`).
+    //   ⚠ The road-network half is NOT re-homed, deliberately: a road network is no longer something a
+    //   scenario save carries at all — it is declared by the TERRAIN asset (§2.1d).
+    //   📄 docs/DESIGN_Terrain_Zones_And_Assets.md §2.1d, §5.1, §6.
 
     // ── T004 ── Behavior Catalog ──────────────────────────────────────────────
 

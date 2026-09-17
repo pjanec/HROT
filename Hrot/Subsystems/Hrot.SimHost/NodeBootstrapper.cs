@@ -352,15 +352,13 @@ namespace Hrot.SimHost
             // Scenario handlers when a serializer is provided.
             if (scenarioSerializer != null)
             {
-                var zoneService = new ZoneManagerService();
-
                 // ⭐⭐⭐ CE-275 ③ / CE-279 — the ONE scenario SAVE handler (same class every host registers). It
-                //   needs ONLY the serializer (+ world/tkb/zone), so it is built here INDEPENDENT of the LOAD
+                //   needs ONLY the serializer (+ world/tkb), so it is built here INDEPENDENT of the LOAD
                 //   deps: every ECS host — muscle included — saves its OWNED slice (empty by the gate when it
                 //   owns nothing). Registered below via SerializeLocalRegistrar.
                 //   📄 DESIGN_Distributed_Scenario_Persistence.md §4 · DESIGN_Unified_Cluster_Handler_Registration.md.
                 scenarioSaveHandler = new Hrot.ScenarioEditor.Handlers.HrotScenarioSaveHandler(
-                    scenarioSerializer, zoneService, tkbDb, world, nodeId);
+                    scenarioSerializer, tkbDb, world, nodeId);
 
                 // Scenario/episode LOAD handlers need the full authoring deps (extractor/source/id-allocator).
                 //   A muscle node that only replicates (and passes none) gets SAVE without LOAD — no throw.
@@ -369,7 +367,7 @@ namespace Hrot.SimHost
                     var scenarioLoader = new HrotScenarioLoader(storageProvider, scenarioSerializer.SubsystemType);
 
                     clusterSlave.RegisterHandler(
-                        new HrotScenarioLoadHandler(scenarioSerializer, scenarioLoader, zoneService,
+                        new HrotScenarioLoadHandler(scenarioSerializer, scenarioLoader,
                             scenarioExtractor, scenarioSource, scenarioIdAllocator,
                             world: world,
                             controller: controller,
@@ -380,7 +378,7 @@ namespace Hrot.SimHost
                             terrainLoadService: TerrainLoadService));
 
                     clusterSlave.RegisterHandler(
-                        new Hrot.ScenarioEditor.Handlers.HrotEditLoadHandler(scenarioSerializer, scenarioLoader, zoneService,
+                        new Hrot.ScenarioEditor.Handlers.HrotEditLoadHandler(scenarioSerializer, scenarioLoader,
                             scenarioExtractor, scenarioSource, scenarioIdAllocator,
                             world: world));
 

@@ -39,7 +39,6 @@ public sealed class ScenarioFileService
 
     private readonly ScenarioSerializer _serializer;
     private readonly FdpEventBus? _bus;
-    private readonly IZoneManagerService? _zoneService;
     private readonly ITkbDatabase? _tkbDb;
     private readonly MigrationServices? _migrationServices;
     private Action? _worldResetObservers;
@@ -54,13 +53,11 @@ public sealed class ScenarioFileService
     public ScenarioFileService(
         ScenarioSerializer serializer,
         FdpEventBus? bus = null,
-        IZoneManagerService? zoneService = null,
         ITkbDatabase? tkbDb = null,
         MigrationServices? migrationServices = null)
     {
         _serializer        = serializer  ?? throw new ArgumentNullException(nameof(serializer));
         _bus               = bus;
-        _zoneService       = zoneService;
         _tkbDb             = tkbDb;
         _migrationServices = migrationServices;
     }
@@ -92,7 +89,8 @@ public sealed class ScenarioFileService
 
     /// <summary>
     /// Serializes the repository state to a JSON file at <paramref name="filePath"/>.
-    /// When an <see cref="IZoneManagerService"/> was supplied, the active zone definitions
+    /// ⛔ The former <c>zoneService</c> parameter is GONE (F1): a zone is an authored entity and rides
+    /// the gated entity serialization like everything else. The active zone definitions
     /// are included in the serialised envelope.
     /// </summary>
     public void SaveScenario(EntityRepository repo, string filePath)
@@ -106,7 +104,7 @@ public sealed class ScenarioFileService
         //   unreachable in production (LastLoadResult has been permanently null since HN-037 removed the only
         //   writer), so collapsing it here is behaviour-preserving.
         var header = new ScenarioHeader("Hrot.Scenario", TkbName: _tkbDb?.ActiveTkbName);
-        ScenarioSaveCore.Write(_serializer, repo, filePath, header, _zoneService);
+        ScenarioSaveCore.Write(_serializer, repo, filePath, header);
     }
 
     // ⛔⛔ `LoadScenario(EntityRepository, string)` was REMOVED `2026-08-24` (HN-037 Part B).

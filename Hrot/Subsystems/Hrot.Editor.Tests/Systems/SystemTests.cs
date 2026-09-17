@@ -205,50 +205,33 @@ public sealed unsafe class EditorPerceptionSetupSystemTests : IDisposable
 public sealed class EditorZoneAuthoringSystemTests : IDisposable
 {
     private readonly EntityRepository _world;
-    private readonly string           _tempRoadJson;
 
     public EditorZoneAuthoringSystemTests()
     {
         _world = new EntityRepository();
         _world.RegisterComponent<SimTransform>();
         _world.RegisterComponent<PhysicsCollider>();
-        _world.RegisterManagedComponent<ZoneMembership>();
 
-        // Write a minimal road-network JSON to a temp file for use in config tests.
-        _tempRoadJson = Path.Combine(Path.GetTempPath(), $"test_road_{Guid.NewGuid():N}.json");
-        File.WriteAllText(_tempRoadJson, """
-            {
-              "nodes": [
-                { "id": 0, "position": { "x": 0, "y": 0 } },
-                { "id": 1, "position": { "x": 100, "y": 0 } }
-              ],
-              "segments": [
-                {
-                  "id": 0,
-                  "startNodeId": 0, "endNodeId": 1,
-                  "controlPoints": {
-                    "p0": {"x":0,"y":0}, "t0": {"x":100,"y":0},
-                    "p1": {"x":100,"y":0}, "t1": {"x":100,"y":0}
-                  },
-                  "speedLimit": 15.0, "laneWidth": 3.5, "laneCount": 1
-                }
-              ],
-              "metadata": { "gridCellSize": 10.0 }
-            }
-            """);
     }
 
     public void Dispose()
     {
         _world.Dispose();
-        if (File.Exists(_tempRoadJson))
-            File.Delete(_tempRoadJson);
     }
 
-    // ── Test 1: SpawnZoneObstacleCommand creates entity with ZoneMembership ──
-
+    /// <summary>
+    /// ⭐ RE-HOMED from <c>SpawnObstacle_PublishCommand_EntityWithZoneMembershipCreated</c> (F1/F3).
+    ///
+    /// <para>The old test asserted two things at once: that the command creates an ENTITY, and that the
+    /// entity carries a <c>ZoneMembership</c> naming its zone. The second half is retired — zones and
+    /// obstacles are both entities now, so membership is geometry rather than a stored name that can
+    /// drift from the shapes. ⭐ The FIRST half is the live authoring affordance and is kept, restated on
+    /// what the entity actually carries.</para>
+    ///
+    /// 📄 docs/DESIGN_Terrain_Zones_And_Assets.md §2.1c, §5.1, §6.
+    /// </summary>
     [Fact]
-    public void SpawnObstacle_PublishCommand_EntityWithZoneMembershipCreated()
+    public void SpawnObstacle_PublishCommand_CreatesAPlacedCollidableEntity()
     {
         _world.Bus.PublishManaged(new SpawnZoneObstacleCommand
         {
@@ -261,40 +244,30 @@ public sealed class EditorZoneAuthoringSystemTests : IDisposable
         _world.Bus.SwapBuffers();
         sys.Execute(_world, 0f);
 
-        var query   = _world.Query().With<SimTransform>().Build();
-        int count   = 0;
-        ZoneMembership? foundZone = null;
-
+        var query = _world.Query().With<SimTransform>().With<PhysicsCollider>().Build();
+        int count = 0;
         foreach (var e in query)
         {
-            if (_world.HasManagedComponent<ZoneMembership>(e))
-            {
-                count++;
-                foundZone = _world.GetComponent<ZoneMembership>(e);
-            }
+            count++;
+            Assert.Equal(50f, _world.GetComponent<SimTransform>(e).Position.X);
+            Assert.Equal(5f,  _world.GetComponent<PhysicsCollider>(e).Radius);
         }
 
         Assert.Equal(1, count);
-        Assert.Equal("TestZone", foundZone!.ZoneName);
     }
 
-    // ── Test 2: UpdateZoneConfigCommand sets ZoneEnvironmentData singleton ───
-
-    [Fact]
-    public void UpdateZoneConfig_WithValidJsonPath_SetsSingletonTrue()
-    {
-        _world.Bus.PublishManaged(new UpdateZoneConfigCommand
-        {
-            ZoneName        = "Zone1",
-            RoadNetworkPath = _tempRoadJson,
-        });
-
-        var sys = new EditorZoneAuthoringSystem();
-        _world.Bus.SwapBuffers();
-        sys.Execute(_world, 0f);
-
-        Assert.True(_world.HasSingleton<ZoneEnvironmentData>());
-    }
+    // ⛔ DELETED (F1/F3): `UpdateZoneConfig_WithValidJsonPath_SetsSingletonTrue`.
+    //
+    //   Its claim was "publishing UpdateZoneConfigCommand with a road-network path sets the
+    //   ZoneEnvironmentData singleton". That behaviour is RETIRED and was a live hazard: it wrote the
+    //   singleton DIRECTLY, bypassing RoadNetworkHolder, so a background solver holding a lease could
+    //   not see the new graph and the old one was never retired (the C6 use-after-free family).
+    //
+    //   ⭐ The claim is RE-HOMED, not dropped: "a declared road network becomes ZoneEnvironmentData" is
+    //   now asserted by TerrainLoadClusterStateHandlerTests
+    //   (`ADefinitionListingARoadNetwork_PopulatesZoneEnvironmentData_WithNoZonesSection`), against the
+    //   terrain loader that publishes through the holder.
+    //   📄 docs/DESIGN_Terrain_Zones_And_Assets.md §2.1d, §6.
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════

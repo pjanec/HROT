@@ -44,7 +44,6 @@ public sealed class HrotScenarioLoadHandler : ITickableClusterStateHandler
 {
     private readonly ScenarioSerializer _serializer;
     private readonly IScenarioLoader _scenarioLoader;
-    private readonly IZoneManagerService _zoneService;
     private readonly IScenarioEntityExtractor _extractor;
     private readonly ScenarioEntityCreationRequestSource _source;
     private readonly INetworkIdAllocator _idAllocator;
@@ -60,7 +59,6 @@ public sealed class HrotScenarioLoadHandler : ITickableClusterStateHandler
     private readonly TerrainLoadService? _terrainLoadService;
 
     private IReadOnlyList<EntityCreationRequest>? _pendingRequests;
-    private Dictionary<string, ZoneDefinitionDto>? _pendingZones;
     private Guid? _pendingTransactionId;
     private int _prepareCallCount;
     private TaskCompletionSource<object?>? _operatingLiveTcs;
@@ -75,7 +73,6 @@ public sealed class HrotScenarioLoadHandler : ITickableClusterStateHandler
     public HrotScenarioLoadHandler(
         ScenarioSerializer serializer,
         IScenarioLoader scenarioLoader,
-        IZoneManagerService zoneService,
         IScenarioEntityExtractor extractor,
         ScenarioEntityCreationRequestSource source,
         INetworkIdAllocator idAllocator,
@@ -87,7 +84,6 @@ public sealed class HrotScenarioLoadHandler : ITickableClusterStateHandler
     {
         _serializer        = serializer     ?? throw new ArgumentNullException(nameof(serializer));
         _scenarioLoader    = scenarioLoader ?? throw new ArgumentNullException(nameof(scenarioLoader));
-        _zoneService       = zoneService    ?? throw new ArgumentNullException(nameof(zoneService));
         _extractor         = extractor      ?? throw new ArgumentNullException(nameof(extractor));
         _source            = source         ?? throw new ArgumentNullException(nameof(source));
         _idAllocator       = idAllocator    ?? throw new ArgumentNullException(nameof(idAllocator));
@@ -137,7 +133,6 @@ public sealed class HrotScenarioLoadHandler : ITickableClusterStateHandler
 
         _prepareCallCount++;
         _pendingRequests      = null;
-        _pendingZones         = null;
         _pendingTransactionId = null;
         _pendingExerciseId    = ResolveExerciseId(intent.DomainPayload);
 
@@ -157,21 +152,12 @@ public sealed class HrotScenarioLoadHandler : ITickableClusterStateHandler
                     var outcome = _readOnlyAdapter.LoadAndMigrateAsync(
                         new System.IO.MemoryStream(utf8), "staged-scenario.json")
                         .GetAwaiter().GetResult();
-                    var migratedDom = outcome.AsJsonObject();
-                    _pendingZones = migratedDom
-                        .Deserialize<HrotScenarioEnvelopeDto>(HrotSerializerOptions.HrotJsonOptions)
-                        ?.Zones;
                     // Entity extraction uses the original json string; ScenarioSerializer.Deserialize
                     // handles both Phase 2 ($meta) and legacy (Header.SubsystemType) formats.
                     _pendingRequests = _extractor.Extract(_serializer, json, _idAllocator);
                 }
                 else
                 {
-                    // Legacy path: parse zones from the envelope DTO.
-                    var dom = JsonNode.Parse(json)?.AsObject();
-                    var envelope = dom?.Deserialize<HrotScenarioEnvelopeDto>(HrotSerializerOptions.HrotJsonOptions);
-                    _pendingZones = envelope?.Zones;
-
                     // Extract entity creation requests via the staging pipeline.
                     _pendingRequests = _extractor.Extract(_serializer, json, _idAllocator);
                 }
@@ -189,7 +175,6 @@ public sealed class HrotScenarioLoadHandler : ITickableClusterStateHandler
         if (_pendingTransactionId != intent.TransactionId)
         {
             _pendingRequests = null;
-            _pendingZones    = null;
             return;
         }
 
@@ -197,10 +182,14 @@ public sealed class HrotScenarioLoadHandler : ITickableClusterStateHandler
 
         try
         {
-            // Load zones synchronously — zones are not ECS entities and do not go
-            // through the genesis pipeline.
-            if (_pendingZones != null && targetRepo != null)
-                _zoneService.LoadZones(targetRepo, _pendingZones);
+            // ⛔⛔ F1 — THE ZONE ARM IS GONE. It used to say "zones are not ECS entities and do not go
+            //   through the genesis pipeline", which was true and was the problem: zones were loaded
+            //   synchronously here, OUTSIDE the pipeline, from an embedded `Zones` section. A zone is now
+            //   an ordinary authored entity, so it is already in `_pendingRequests` below.
+            //   ⭐ This also removes the last caller of ZoneManagerService.LoadZones, whose synchronous
+            //   `existingRoad.Dispose()` was the use-after-free C6 fixed — the hazard is now gone by
+            //   deletion rather than by care.
+            //   📄 docs/DESIGN_Terrain_Zones_And_Assets.md §5.1, §6.
 
             // Enqueue entity creation requests for the genesis pipeline.
             // CreateEntityRequestSystem drains them and publishes SpawnEntityCommand
@@ -215,7 +204,6 @@ public sealed class HrotScenarioLoadHandler : ITickableClusterStateHandler
         finally
         {
             _pendingRequests      = null;
-            _pendingZones         = null;
             _pendingTransactionId = null;
         }
     }
@@ -224,7 +212,6 @@ public sealed class HrotScenarioLoadHandler : ITickableClusterStateHandler
     public void Abort(ExecuteNodeOpIntent intent, EntityRepository? repo)
     {
         _pendingRequests      = null;
-        _pendingZones         = null;
         _pendingTransactionId = null;
         _operatingLiveTcs?.TrySetCanceled();
         _operatingLiveTcs = null;

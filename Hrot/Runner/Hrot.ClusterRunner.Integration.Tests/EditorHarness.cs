@@ -52,7 +52,6 @@ public sealed class EditorHarness : IDisposable
     private MasterSyncController? _timeController;
     private readonly SequentialIdAllocator _idAllocator;
     private ScenarioFileService _fileService = null!;
-    private ZoneManagerService  _zoneService = null!;
     private IReadOnlyList<IEcsModule> _logicPacks = null!;
     private PhysicsToolkitModule? _physicsModule;
     private PreviewClusterOpHandler? _previewHandler;
@@ -71,7 +70,6 @@ public sealed class EditorHarness : IDisposable
     public Fdp.Toolkit.Blueprints.BlueprintRegistry BlueprintRegistry { get; }
     public IEditorLogic       Editor    { get; private set; } = null!;
     public ScenarioFileService FileService  => _fileService;
-    public ZoneManagerService  ZoneService  => _zoneService;
     public IPreviewController  Preview   { get; private set; } = null!;
 
     /// <summary>The mirrored editor master's current mode — Deterministic while authoring is paused.</summary>
@@ -219,7 +217,6 @@ public sealed class EditorHarness : IDisposable
         CognitiveComponentRegistry.RegisterAll(Repo);
         CombatComponentRegistry.RegisterAll(Repo);
         CgfComponentRegistry.RegisterAll(Repo);
-        Repo.RegisterManagedComponent<ZoneMembership>();
 
         var accumulator = new EventAccumulator();
         Kernel = new ModuleHostKernel(Repo, accumulator);
@@ -251,9 +248,8 @@ public sealed class EditorHarness : IDisposable
         var behaviorRegistry = new BehaviorRegistry();
         var clusterSlave     = new ClusterSlave(0, "EditorHarness", OrchBus);
         var serializer       = new ScenarioSerializerBuilder("Hrot.Scenario").Build();
-        var zoneService      = new ZoneManagerService();
-        _zoneService = zoneService;
-        var fileService      = new ScenarioFileService(serializer, Bus, zoneService);
+        // ⛔ No zone service (F1): a zone is an authored entity and rides the ordinary save gate.
+        var fileService      = new ScenarioFileService(serializer, Bus);
         _fileService = fileService;
 
         // ── TKB + ELM + spawn system ─────────────────────────────────────────
@@ -307,7 +303,6 @@ public sealed class EditorHarness : IDisposable
         CognitiveComponentRegistry.RegisterAll(bpPreTick);
         CombatComponentRegistry.RegisterAll(bpPreTick);
         CgfComponentRegistry.RegisterAll(bpPreTick);
-        bpPreTick.RegisterManagedComponent<ZoneMembership>();
         _bpPreTickSnapshot = bpPreTick;
 
         var bpEditSvc          = new StructEdit.Reflection.ComponentEditServiceBuilder().Build();
@@ -366,7 +361,7 @@ public sealed class EditorHarness : IDisposable
             simHostCorePack.SimulationSystems));
 
         // Register editor-specific ECS systems (cargo, perception, zone authoring).
-        Kernel.RegisterModule(new EditorSystemsModule(zoneService));
+        Kernel.RegisterModule(new EditorSystemsModule());
 
         // Register caller-injected global systems (e.g. mock physics solvers in unit tests).
         // Must happen BEFORE Kernel.Initialize().

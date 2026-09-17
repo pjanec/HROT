@@ -14,12 +14,11 @@ namespace Fdp.Toolkit.Scenario.Tests
     {
         private const string OurType = "Hrot.Scenario";
 
-        // Builds a compatible slice DOM: {$meta, Header?, Entities, Zones?}.
+        // Builds a compatible slice DOM: {$meta, Header?, Entities}.
         private static JsonObject Dom(
             IEnumerable<string> entityGuids,
             string? tkbName = null,
             int schemaVersion = 2,
-            JsonArray? zones = null,
             string? terrainName = null)
         {
             var entities = new JsonObject();
@@ -35,8 +34,6 @@ namespace Fdp.Toolkit.Scenario.Tests
                 dom["Header"] = header;
             }
             JsonEnvelope.Write(dom, new DocumentMeta(OurType, schemaVersion));
-            if (zones != null)
-                dom["Zones"] = zones;
             return dom;
         }
 
@@ -62,18 +59,33 @@ namespace Fdp.Toolkit.Scenario.Tests
             Assert.Equal("tkb-1", (string)((JsonObject)result.CanonicalDom!["Header"]!)["TkbName"]!);
         }
 
+        /// <summary>
+        /// ⭐ RE-HOMED from <c>Zones_TakenFromTheSingleBrainSource</c> (F2/F3). The old test asserted that
+        /// a brain-only <c>Zones</c> SECTION survived the merge. That section is retired — a zone is an
+        /// ordinary authored entity — so the claim worth keeping is the same one restated on the surface
+        /// that now carries it: <b>the brain's zone reaches the canonical file, through the ordinary
+        /// entity union and with no special case.</b>
+        ///
+        /// <para>⛔ The old assertion is NOT merely deleted: had it been, nothing would check that zones
+        /// still survive a distributed save at all.</para>
+        ///
+        /// 📄 docs/DESIGN_Terrain_Zones_And_Assets.md §5.1, §6 (retirement).
+        /// </summary>
         [Fact]
-        public void Zones_TakenFromTheSingleBrainSource()   // I4
+        public void AZoneEntityFromTheBrain_ReachesTheCanonicalFile_ThroughTheOrdinaryEntityUnion()
         {
-            var zones  = new JsonArray { new JsonObject { ["Name"] = "urban" } };
-            var brain  = Compatible(400, Dom(new[] { "g-a" }, tkbName: "tkb-1", zones: zones));
-            var muscle = Compatible(1,   Dom(new[] { "g-b" }));   // no zones
+            var brain  = Compatible(400, Dom(new[] { "zone-urban", "g-a" }, tkbName: "tkb-1"));
+            var muscle = Compatible(1,   Dom(new[] { "g-b" }));
 
             var result = ScenarioMergeCore.Merge(new[] { brain, muscle }, OurType);
 
-            var z = (JsonArray)result.CanonicalDom!["Zones"]!;
-            Assert.Single(z);
-            Assert.Equal("urban", (string)((JsonObject)z[0]!)["Name"]!);
+            var entities = (JsonObject)result.CanonicalDom!["Entities"]!;
+            Assert.True(entities.ContainsKey("zone-urban"));
+            Assert.Equal(3, entities.Count);
+
+            // ⛔ And no `Zones` section is reconstructed — a second home for the same truth is exactly
+            //   what the retirement removed (§5.1, two producers for one slot).
+            Assert.Null(result.CanonicalDom!["Zones"]);
         }
 
         [Fact]
@@ -124,17 +136,15 @@ namespace Fdp.Toolkit.Scenario.Tests
                 ScenarioMergeCore.Merge(new[] { a, b }, OurType));
         }
 
-        [Fact]
-        public void TwoZonesSources_FailLoud()   // I4 guard
-        {
-            var z1 = new JsonArray { new JsonObject { ["Name"] = "a" } };
-            var z2 = new JsonArray { new JsonObject { ["Name"] = "b" } };
-            var a = Compatible(400, Dom(new[] { "g-a" }, zones: z1));
-            var b = Compatible(1,   Dom(new[] { "g-b" }, zones: z2));
-
-            Assert.Throws<System.InvalidOperationException>(() =>
-                ScenarioMergeCore.Merge(new[] { a, b }, OurType));
-        }
+        // ⛔ DELETED (F2/F3): `TwoZonesSources_FailLoud` — the I4 guard it drove no longer exists.
+        //
+        //   Its claim was "two slices both carrying zones is a corruption, fail rather than pick one".
+        //   With zones as entities that situation is not a special case any more: two slices carrying
+        //   the same zone collide on the entity GUID and fail at `GuidCollision_FailsLoud` below, with a
+        //   better message. The claim is therefore RE-HOMED onto a test that already exists, rather than
+        //   dropped — which is why nothing was written to replace it.
+        //   ⚠ Two slices carrying DIFFERENT zones is now simply a legal union, and that is the intended
+        //   behaviour change: zones are authored entities and authoring is not brain-only.
 
         [Fact]
         public void GuidCollision_FailsLoud()   // I2 guard (should be impossible; never overwrite)

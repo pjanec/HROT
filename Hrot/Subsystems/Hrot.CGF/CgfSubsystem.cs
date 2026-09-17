@@ -1159,7 +1159,9 @@ public sealed class CgfSubsystem : ISubsystem, Fdp.Toolkit.Runner.IMapCameraProv
         //    is CE-103's question, not this one. 📄 §5c.17.
         newClusterSlave.RegisterHandler(new Hrot.ScenarioEditor.Handlers.HrotEditLoadHandler(
             scenarioSerializer, scenarioLoader,
-            zoneService: null,          // ⭐ declared absence — the handler warns if the scenario has zones
+            // ⭐ F1 — the former `zoneService: null` "declared absence" is GONE, and so is the warning it
+            //   went with: zones are authored entities now, so there is no second half a host can fail to
+            //   load. 📄 docs/DESIGN_Terrain_Zones_And_Assets.md §5.1, §6.
             extractor, _scenarioSource!, cgfIdAllocator,
             world: _context.World));
 
@@ -1167,12 +1169,13 @@ public sealed class CgfSubsystem : ISubsystem, Fdp.Toolkit.Runner.IMapCameraProv
         //   SaveScenarioJson fan-out it writes CGF's owned slice via the shared ScenarioSaveCore, using CGF's
         //   own scenarios root (the shared staging root, matching CGF's load path — the editor uses its NAS
         //   root; each host's root is config, the handler class and save core are identical).
-        //   ⚠ zoneService: null today — CGF composes no zone manager (:1139); OQ1 (give CGF a real zone
-        //   service so globals/zones ride the brain file, §6a) is a scoped follow-on.
+        //   ⚠ F1 CLOSED OQ1 BY REMOVING IT: that follow-on was "give CGF a real zone service so
+        //   globals/zones ride the brain file". There is no zone service and no Zones section any more —
+        //   a zone is an entity and CGF already saves its owned entity slice, so the gap OQ1 named
+        //   cannot exist. 📄 docs/DESIGN_Terrain_Zones_And_Assets.md §5.1, §6.
         //   CE-279 Layer A — built here, registered below via SerializeLocalRegistrar with CGF's archive handler.
         var cgfScenarioSaveHandler = new Hrot.ScenarioEditor.Handlers.HrotScenarioSaveHandler(
-            scenarioSerializer, zoneService: null, _context.TkbDb, _context.World,
-            _context.NodeId);
+            scenarioSerializer, _context.TkbDb, _context.World, _context.NodeId);
 
         newClusterSlave.RegisterHandler(new Hrot.CGF.Orchestration.Handlers.CgfEpisodeLoadHandler(
             scenarioSerializer, scenarioLoader, extractor, _scenarioSource!, cgfIdAllocator, _context.World, behaviorRemapper));

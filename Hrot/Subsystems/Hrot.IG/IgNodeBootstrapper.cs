@@ -402,7 +402,7 @@ internal sealed class IgNodeBootstrapper : SharedApplicationBootstrapper
         Fdp.Toolkit.Orchestration.SerializeLocalRegistrar.Register(
             slave,
             new Hrot.ScenarioEditor.Handlers.HrotScenarioSaveHandler(
-                serializer, zoneService: null, context.TkbDb, context.World, _effectiveInstanceId),
+                serializer, context.TkbDb, context.World, _effectiveInstanceId),
             archiveHandler: null);
 
         // Diagnostics dump support: IG must ACK CollectDiagnostics in cluster 2PC.

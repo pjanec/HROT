@@ -60,8 +60,11 @@ namespace Hrot.Map.Definitions
 
         // ── Zone authoring components (PACK3 / A011) ────────────────────────
 
-        /// <summary><c>ZoneMembership</c> — managed component recording the zone name for an obstacle entity created by <c>SpawnZoneObstacleCommand</c>.</summary>
-        public const byte ZoneMembership = 171;
+        // ⛔ 171 is RETIRED, not reused (F1, 2026-09-17): ZoneMembership recorded which named zone an
+        //    obstacle belonged to. Zones and obstacles are both ordinary entities now, so membership is
+        //    geometry (does the zone polygon cover the obstacle?) rather than a stored name. A component
+        //    id is a scenario-file surface, so the value stays burned.
+        //    📄 docs/DESIGN_Terrain_Zones_And_Assets.md §5.1, §6.
 
 
         // ── Genesis Intent DTO components (cgf-scn-2 / Phase 4) ──────────────

@@ -1068,7 +1068,6 @@ namespace Hrot.Editor
             // first ? otherwise the serializer schema is empty and Save/Load is a no-op.
             SimHostComponentRegistry.RegisterAll(_world);
             CgfComponentRegistry.RegisterAll(_world);
-            _world.RegisterManagedComponent<Hrot.Map.Common.Components.ZoneMembership>();
             // MapDisplayComponent is used by MapLayerAssignmentSystem to tag entities
             // with the layer bitmask used by the DebugGizmoLayer for visibility culling.
             // UXI-23 S1: routed through the shared map list rather than registered inline.
@@ -1300,7 +1299,6 @@ namespace Hrot.Editor
 
             // ⭐ CE-203: the builder's Step 8 already made exactly this — same node id, same name, same bus.
             var clusterSlave     = _node.ClusterSlave;
-            var zoneService      = new ZoneManagerService();
 
             // Build the serializer with custom translators AFTER component registration
             // so FdpAutoSerializer compiles extraction delegates for all registered types.
@@ -1311,8 +1309,9 @@ namespace Hrot.Editor
             _fdpEntityInspector.Serializer = scenarioSerializer;
             _fdpEntityInspector.ExtractionService = new Fdp.Toolkit.Diagnostics.EntityStateExtractionService(_world, _entityMap, scenarioSerializer);
 
-            // Inject bus and zoneService so file ops trigger WorldResetEvent and persist zone data.
-            var fileService = new ScenarioFileService(scenarioSerializer, _world.Bus, zoneService);
+            // Inject the bus so file ops trigger WorldResetEvent.
+            // ⛔ No zone service (F1): a zone is an authored entity and rides the ordinary save gate.
+            var fileService = new ScenarioFileService(scenarioSerializer, _world.Bus);
 
             // ⭐⭐⭐ HN-037 — the world boundary must forget the network id → entity index too.
             // 📄 docs/DESIGN_Deterministic_Network_Ids.md §11 (the as-built §11g).
@@ -1427,9 +1426,9 @@ namespace Hrot.Editor
             var rrController    = new Hrot.SimHost.Modules.Orchestration.EcsRecordReplayController(
                 _kernel, EditorNodeId, _world!);
             clusterSlave.RegisterHandler(new Hrot.ScenarioEditor.Handlers.HrotEditLoadHandler(
-                scenarioSerializer, scenarioLoader, zoneService, extractor, scenarioLoadSource, idAllocator, _world));
+                scenarioSerializer, scenarioLoader, extractor, scenarioLoadSource, idAllocator, _world));
             clusterSlave.RegisterHandler(new Hrot.SimHost.Orchestration.Handlers.HrotScenarioLoadHandler(
-                scenarioSerializer, scenarioLoader, zoneService, extractor, scenarioLoadSource, idAllocator, _world,
+                scenarioSerializer, scenarioLoader, extractor, scenarioLoadSource, idAllocator, _world,
                 controller: rrController,
                 storageDirectory: isolatedTempRoot));
 
@@ -1442,7 +1441,7 @@ namespace Hrot.Editor
             Fdp.Toolkit.Orchestration.SerializeLocalRegistrar.Register(
                 clusterSlave,
                 new Hrot.ScenarioEditor.Handlers.HrotScenarioSaveHandler(
-                    scenarioSerializer, zoneService, tkbDb, _world!, EditorNodeId),
+                    scenarioSerializer, tkbDb, _world!, EditorNodeId),
                 archiveHandler: null);
             // ⭐⭐⭐ D3 — the terrain/zone op handler, via the shared registrar, on every ECS host. ⭐ The
             //   editor needs it as much as any node: §9.6 rules the zone load is ALWAYS cluster-wide, and
@@ -1727,7 +1726,6 @@ namespace Hrot.Editor
             _bpPreTickSnapshot = new EntityRepository();
             SimHostComponentRegistry.RegisterAll(_bpPreTickSnapshot);
             CgfComponentRegistry.RegisterAll(_bpPreTickSnapshot);
-            _bpPreTickSnapshot.RegisterManagedComponent<Hrot.Map.Common.Components.ZoneMembership>();
             _bpPreTickSnapshot.RegisterComponent<MapDisplayComponent>();
             _bpPreTickSnapshot.RegisterComponent<Hrot.IG.Components.CullingState>();
             _bpPreTickSnapshot.RegisterComponent<Hrot.IG.Components.ResolvedStyle>();

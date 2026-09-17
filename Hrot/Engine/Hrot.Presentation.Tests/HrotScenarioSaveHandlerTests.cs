@@ -68,7 +68,7 @@ public sealed class HrotScenarioSaveHandlerTests : IDisposable
         repo.AddComponent(foreign, new NetworkAuthority(primaryOwnerId: 2, localNodeId: NodeId));
 
         var serializer = new ScenarioSerializerBuilder("Hrot.Scenario").Build();
-        var handler    = new HrotScenarioSaveHandler(serializer, zoneService: null, tkbDb: null, repo, NodeId);
+        var handler    = new HrotScenarioSaveHandler(serializer, tkbDb: null, world: repo, nodeId: NodeId);
 
         var intent = new ExecuteNodeOpIntent
         {
@@ -99,7 +99,7 @@ public sealed class HrotScenarioSaveHandlerTests : IDisposable
     {
         var repo       = BuildWorld();
         var serializer = new ScenarioSerializerBuilder("Hrot.Scenario").Build();
-        var handler    = new HrotScenarioSaveHandler(serializer, zoneService: null, tkbDb: null, repo, NodeId);
+        var handler    = new HrotScenarioSaveHandler(serializer, tkbDb: null, world: repo, nodeId: NodeId);
 
         var intent = new ExecuteNodeOpIntent
         {
@@ -119,7 +119,7 @@ public sealed class HrotScenarioSaveHandlerTests : IDisposable
     {
         var repo       = BuildWorld();
         var serializer = new ScenarioSerializerBuilder("Hrot.Scenario").Build();
-        var handler    = new HrotScenarioSaveHandler(serializer, zoneService: null, tkbDb: null, repo, NodeId);
+        var handler    = new HrotScenarioSaveHandler(serializer, tkbDb: null, world: repo, nodeId: NodeId);
 
         Assert.True(handler.CanHandle(NodeOpType.SerializeLocal));
         Assert.False(handler.CanHandle(NodeOpType.PrepareState));

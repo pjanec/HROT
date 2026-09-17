@@ -15,7 +15,7 @@ using Hrot.Common.Serializers;
 using Hrot.IG.Components;
 using Hrot.Core.Network;
 using Hrot.Map.Common;
-using Hrot.Map.Common.Scenario;
+
 using Hrot.Map.Common.Services;
 using Hrot.SimHost.Orchestration.Handlers;
 using Xunit;
@@ -29,20 +29,15 @@ public sealed class HrotScenarioLoadHandlerTests : IDisposable
 {
     // ── Stub implementations ──────────────────────────────────────────────────
 
-    private sealed class SpyZoneManagerService : IZoneManagerService
-    {
-        public int LoadZonesCallCount { get; private set; }
-        public Dictionary<string, ZoneDefinitionDto>? LastZones { get; private set; }
-
-        public void LoadZones(EntityRepository repo, Dictionary<string, ZoneDefinitionDto> zones)
-        {
-            LoadZonesCallCount++;
-            LastZones = zones;
-        }
-
-        public Dictionary<string, ZoneDefinitionDto> GetActiveZones()
-            => LastZones ?? new Dictionary<string, ZoneDefinitionDto>();
-    }
+    // ⛔ DELETED (F3): the `SpyZoneManagerService` double.
+    //
+    //   Its claim was "the load handler hands the scenario's Zones section to the zone service, and does
+    //   NOT when there is no such section". Both halves died with the section: there is no zone service
+    //   to spy on and no separate zone-load step to observe, because a zone is an ordinary entity that
+    //   rides `_pendingRequests` with everything else. The surviving claim — "a zone entity in the
+    //   scenario reaches the world" — is asserted by the genesis-pipeline tests and by
+    //   `ZoneEntityPersistenceTests`, so it is NOT lost, merely asserted where it now lives.
+    //   📄 docs/DESIGN_Terrain_Zones_And_Assets.md §5.1, §6 (retirement).
 
     private sealed class StubScenarioLoader : IScenarioLoader
     {
@@ -89,40 +84,20 @@ public sealed class HrotScenarioLoadHandlerTests : IDisposable
             DomainPayload = scenarioId,
         };
 
-    // ── Test 1: JSON without Zones — LoadZones NOT called ─────────────────────
-
-    [Fact]
-    public async Task Commit_JsonWithoutZones_DoesNotCallLoadZones()
-    {
-        // Build a scenario JSON that has no "zones" key.
-        var json = """
-            {
-              "header": { "subsystemType": "Hrot.Scenario", "schemaVersion": "1.0" },
-              "entities": {}
-            }
-            """;
-
-        var spy     = new SpyZoneManagerService();
-        var loader  = new StubScenarioLoader(json);
-        var handler = new HrotScenarioLoadHandler(_serializer, loader, spy, _extractor, _source, _idAllocator, world: _repo);
-
-        var txId   = Guid.NewGuid();
-        var intent = MakeIntent("scenario1", txId);
-
-        await handler.PrepareAsync(intent, default);
-        handler.Commit(intent, _repo);
-
-        Assert.Equal(0, spy.LoadZonesCallCount);
-    }
+    // ⛔ DELETED (F3): `Commit_JsonWithoutZones_DoesNotCallLoadZones`.
+    //
+    //   It asserted that a scenario with no `Zones` key did not call `LoadZones`. With the section and
+    //   the service both retired, the test could only assert that a deleted method was not called.
+    //   ⚠ Nothing replaces it and nothing needs to: the behaviour it guarded — "do not do zone work the
+    //   scenario did not ask for" — is now structural rather than conditional.
 
     // ── Test 3: PrepareState(OperatingLive) defers completion ────────────────
 
     [Fact]
     public async Task PrepareState_OperatingLive_ReturnsIncompleteTask_CompletesAfterDrain()
     {
-        var spy     = new SpyZoneManagerService();
         var loader  = new StubScenarioLoader(null);
-        var handler = new HrotScenarioLoadHandler(_serializer, loader, spy, _extractor, _source, _idAllocator, world: _repo);
+        var handler = new HrotScenarioLoadHandler(_serializer, loader, _extractor, _source, _idAllocator, world: _repo);
 
         var intent = new ExecuteNodeOpIntent
         {
@@ -151,8 +126,7 @@ public sealed class HrotScenarioLoadHandlerTests : IDisposable
     [Fact]
     public async Task DrainDeferredAcks_NoWorld_CompletesImmediately()
     {
-        var spy     = new SpyZoneManagerService();
-        var handler = new HrotScenarioLoadHandler(_serializer, new StubScenarioLoader(null), spy, _extractor, _source, _idAllocator);
+        var handler = new HrotScenarioLoadHandler(_serializer, new StubScenarioLoader(null), _extractor, _source, _idAllocator);
 
         var intent = new ExecuteNodeOpIntent
         {
@@ -179,7 +153,7 @@ public sealed class HrotScenarioLoadHandlerTests : IDisposable
     public void CanHandle_ReturnsTrue_ForPrepareLiveAndPrepareState()
     {
         var handler = new HrotScenarioLoadHandler(
-            _serializer, new StubScenarioLoader(null), new SpyZoneManagerService(), _extractor, _source, _idAllocator);
+            _serializer, new StubScenarioLoader(null), _extractor, _source, _idAllocator);
 
         Assert.True(handler.CanHandle(NodeOpType.PrepareLive));
         Assert.True(handler.CanHandle(NodeOpType.PrepareState));
@@ -191,8 +165,7 @@ public sealed class HrotScenarioLoadHandlerTests : IDisposable
     [Fact]
     public async Task DrainDeferredAcks_WithPendingSubordinateIntent_DoesNotComplete()
     {
-        var spy     = new SpyZoneManagerService();
-        var handler = new HrotScenarioLoadHandler(_serializer, new StubScenarioLoader(null), spy, _extractor, _source, _idAllocator, world: _repo);
+        var handler = new HrotScenarioLoadHandler(_serializer, new StubScenarioLoader(null), _extractor, _source, _idAllocator, world: _repo);
 
         var intent = new ExecuteNodeOpIntent
         {
@@ -222,8 +195,7 @@ public sealed class HrotScenarioLoadHandlerTests : IDisposable
     [Fact]
     public async Task DrainDeferredAcks_AfterRemovingSubordinateIntent_Completes()
     {
-        var spy     = new SpyZoneManagerService();
-        var handler = new HrotScenarioLoadHandler(_serializer, new StubScenarioLoader(null), spy, _extractor, _source, _idAllocator, world: _repo);
+        var handler = new HrotScenarioLoadHandler(_serializer, new StubScenarioLoader(null), _extractor, _source, _idAllocator, world: _repo);
 
         var intent = new ExecuteNodeOpIntent
         {
@@ -295,7 +267,7 @@ public sealed class HrotScenarioLoadHandlerTests : IDisposable
 
     private HrotScenarioLoadHandler MakeHandlerWithTerrain(IZoneTileLoader tileLoader)
         => new HrotScenarioLoadHandler(
-            _serializer, new StubScenarioLoader(null), new SpyZoneManagerService(),
+            _serializer, new StubScenarioLoader(null),
             _extractor, _source, _idAllocator, world: _repo,
             terrainLoadService: new TerrainLoadService(tileLoader));
 
@@ -405,7 +377,7 @@ public sealed class HrotScenarioLoadHandlerTests : IDisposable
     {
         RegisterZoneComponents();
         var handler = new HrotScenarioLoadHandler(
-            _serializer, new StubScenarioLoader(null), new SpyZoneManagerService(),
+            _serializer, new StubScenarioLoader(null),
             _extractor, _source, _idAllocator, world: _repo);
 
         var prepareTask = handler.PrepareAsync(MakeOperatingLiveIntent(), default);

@@ -32,11 +32,13 @@ public sealed record ScenarioMergeResult(JsonObject? CanonicalDom, IReadOnlyList
 ///   <item><b>I1</b> one entity → one slice (the save gate keys on the single primary owner);</item>
 ///   <item><b>I2</b> entity keys never collide — the DOM key is a fresh <c>Guid.NewGuid()</c> per save;</item>
 ///   <item><b>I3</b> references stay intra-slice (parts ride the parent's owner) ⇒ no renumbering;</item>
-///   <item><b>I4</b> globals have one source (<c>TkbName</c> cluster-wide identical; <c>Zones</c> brain-only).</item>
+///   <item><b>I4</b> globals have one source — <c>TkbName</c> and <c>TerrainName</c> cluster-wide identical.
+///     ⚠ I4 also covered a brain-only <c>Zones</c> SECTION; that section is retired (F2) — a zone is an
+///     ordinary authored entity and merges through the <c>Entities</c> union like any other.</item>
 /// </list>
-/// ⇒ the merge is <c>{ $meta, Header, ⋃ Entities, Zones }</c>. It NEVER remaps ids or fixes references, and it
-/// <b>fails loud</b> rather than silently corrupt — a schema/TkbName mismatch, a key collision (I2 impossible),
-/// or two Zones sources (I4) each throw.</para>
+/// ⇒ the merge is <c>{ $meta, Header, ⋃ Entities }</c>. It NEVER remaps ids or fixes references, and it
+/// <b>fails loud</b> rather than silently corrupt — a schema/TkbName/TerrainName mismatch and a key collision
+/// (I2 impossible) each throw.</para>
 ///
 /// <para>⛔ Foreign slices (<c>$meta.docType</c> ≠ ours) are identified by their MANIFEST-reported tag and are
 /// never parsed — their <see cref="ScenarioSlice.Dom"/> is <c>null</c> here (§4c: ExCon writes an
@@ -51,8 +53,8 @@ public static class ScenarioMergeCore
     ///   <paramref name="canonicalDocType"/> MUST carry a non-null <see cref="ScenarioSlice.Dom"/>.</param>
     /// <param name="canonicalDocType">Our scenario format tag, e.g. <c>"Hrot.Scenario"</c>.</param>
     /// <exception cref="ArgumentException">a compatible slice has a null Dom.</exception>
-    /// <exception cref="InvalidOperationException">a fail-loud guard tripped (schema/TkbName mismatch,
-    ///   GUID key collision, or more than one Zones source).</exception>
+    /// <exception cref="InvalidOperationException">a fail-loud guard tripped (schema, TkbName or TerrainName
+    ///   mismatch, or a GUID key collision).</exception>
     public static ScenarioMergeResult Merge(IReadOnlyList<ScenarioSlice> slices, string canonicalDocType)
     {
         ArgumentNullException.ThrowIfNull(slices);
@@ -87,8 +89,6 @@ public static class ScenarioMergeCore
         bool     tkbSeen       = false;
         string?  terrainName   = null;
         bool     terrainSeen   = false;
-        JsonNode? zones        = null;
-        int       zonesNodeId  = -1;
 
         // ── Entities (I1+I2): disjoint union ─────────────────────────────────────────────
         var mergedEntities = new JsonObject();
@@ -127,15 +127,18 @@ public static class ScenarioMergeCore
                         $"Header.TerrainName mismatch across slices ('{terrainName}' vs '{v}', node {s.OriginNodeId}) — a cluster runs ONE terrain.");
             }
 
-            // Zones (I4): at most one compatible slice may carry them (the brain).
-            if (dom["Zones"] is JsonNode z && HasContent(z))
-            {
-                if (zones is not null)
-                    throw new InvalidOperationException(
-                        $"Two Zones sources (nodes {zonesNodeId} and {s.OriginNodeId}) — Zones are brain-only (§6a, I4).");
-                zones = z;
-                zonesNodeId = s.OriginNodeId;
-            }
+            // ⛔⛔ F2 — THE `Zones` ARM IS GONE, and its absence is the point.
+            //
+            //   I4 said "Zones are brain-only", so the merge asserted that at most one slice carried a
+            //   `Zones` section. That guard existed because zones were an EMBEDDED SECTION — a second
+            //   place the truth could live, which is exactly the two-producers-for-one-slot hazard.
+            //   A zone is now an ordinary authored ENTITY, so it merges through the `Entities` union
+            //   above with every other entity, and the GUID-collision guard there covers it.
+            //
+            //   ⚠ Nothing replaces this check, and nothing needs to: the failure it caught cannot be
+            //   constructed any more. Two brains authoring the same zone would now collide on the
+            //   entity GUID and fail there, with a better message.
+            //   📄 docs/DESIGN_Terrain_Zones_And_Assets.md §5.1, §6 (retirement).
 
             // Entities: disjoint union, guarded against the (I2-impossible) key collision.
             if (dom["Entities"] is JsonObject ents)
@@ -162,17 +165,8 @@ public static class ScenarioMergeCore
             canonical["Header"] = headerNode;
         }
         JsonEnvelope.Write(canonical, new DocumentMeta(canonicalDocType, schemaVersion!.Value));
-        if (zones is not null)
-            canonical["Zones"] = zones.DeepClone();
 
         return new ScenarioMergeResult(canonical, foreign);
     }
 
-    /// <summary>True when a Zones node is present and non-empty (an empty array/object is "no zones").</summary>
-    private static bool HasContent(JsonNode node) => node switch
-    {
-        JsonArray  a => a.Count > 0,
-        JsonObject o => o.Count > 0,
-        _            => true,
-    };
 }

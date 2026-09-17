@@ -29,12 +29,11 @@ public sealed class HrotEditLoadHandlerTests : IDisposable
         public string? TryLoadScenarioJson(string scenarioId) => null;
     }
 
-    private sealed class NullZoneService : IZoneManagerService
-    {
-        public void LoadZones(EntityRepository repo, System.Collections.Generic.Dictionary<string, ZoneDefinitionDto> zones) { }
-        public System.Collections.Generic.Dictionary<string, ZoneDefinitionDto> GetActiveZones()
-            => new System.Collections.Generic.Dictionary<string, ZoneDefinitionDto>();
-    }
+    // ⛔ DELETED (F3): the `NullZoneService` double — the second of the two this retirement removes.
+    //
+    //   It existed only to satisfy the handler's `IZoneManagerService` parameter, which is gone. ⚠ Its
+    //   very shape was the evidence: a do-nothing implementation that every test passed is a parameter
+    //   no test had a reason to exercise. It asserted nothing, so nothing is re-homed.
 
     private sealed class StubIdAllocator : INetworkIdAllocator
     {
@@ -71,7 +70,6 @@ public sealed class HrotEditLoadHandlerTests : IDisposable
         => new HrotEditLoadHandler(
             _serializer,
             new NullScenarioLoader(),
-            new NullZoneService(),
             _extractor,
             source ?? MakeSource(),
             _idAllocator,

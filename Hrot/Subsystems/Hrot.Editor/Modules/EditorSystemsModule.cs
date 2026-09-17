@@ -34,16 +34,15 @@ public sealed class EditorSystemsModule : IEcsModule
 
     /// <summary>
     /// Creates the three editor-only ECS systems.
+    /// <para>⛔ The former <c>zoneService</c> parameter is gone (F1): the zone authoring system no longer
+    /// mirrors authored zones into a save-pipeline DTO, because a zone is an entity and the ordinary save
+    /// gate already carries it. 📄 docs/DESIGN_Terrain_Zones_And_Assets.md §5.1, §6.</para>
     /// </summary>
-    /// <param name="zoneService">
-    /// Optional <see cref="ZoneManagerService"/> used by <see cref="EditorZoneAuthoringSystem"/>
-    /// to mirror authored zone data into the save pipeline.
-    /// </param>
-    public EditorSystemsModule(ZoneManagerService? zoneService = null)
+    public EditorSystemsModule()
     {
         _cargo      = new EditorCargoSystem();
         _perception = new EditorPerceptionSetupSystem();
-        _zone       = new EditorZoneAuthoringSystem(zoneService);
+        _zone       = new EditorZoneAuthoringSystem();
     }
 
     /// <inheritdoc/>

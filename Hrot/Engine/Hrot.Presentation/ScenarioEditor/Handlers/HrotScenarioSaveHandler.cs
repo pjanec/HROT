@@ -43,20 +43,17 @@ public sealed class HrotScenarioSaveHandler : IClusterStateHandler
     private const string ScenarioDocType = "Hrot.Scenario";
 
     private readonly ScenarioSerializer   _serializer;
-    private readonly IZoneManagerService? _zoneService;
     private readonly ITkbDatabase?        _tkbDb;
     private readonly EntityRepository     _world;
     private readonly int                  _nodeId;
 
     public HrotScenarioSaveHandler(
         ScenarioSerializer   serializer,
-        IZoneManagerService? zoneService,
         ITkbDatabase?        tkbDb,
         EntityRepository     world,
         int                  nodeId)
     {
         _serializer    = serializer    ?? throw new ArgumentNullException(nameof(serializer));
-        _zoneService   = zoneService;   // ⭐ optional — a host may compose none (ruling 49); zones are then skipped.
         _tkbDb         = tkbDb;
         _world         = world          ?? throw new ArgumentNullException(nameof(world));
         _nodeId        = nodeId;
@@ -101,7 +98,7 @@ public sealed class HrotScenarioSaveHandler : IClusterStateHandler
 
         // The ONE host-neutral save implementation — gated ScenarioSerializer + this host's zones.
         var header = new ScenarioHeader(ScenarioDocType, TkbName: _tkbDb?.ActiveTkbName);
-        ScenarioSaveCore.Write(_serializer, _world, localFile, header, _zoneService);
+        ScenarioSaveCore.Write(_serializer, _world, localFile, header);
 
         // The orchestrator pulls this to a per-node NAS slice; the merge combines slices → scenario.json.
         var relativeDest = Path.Combine(

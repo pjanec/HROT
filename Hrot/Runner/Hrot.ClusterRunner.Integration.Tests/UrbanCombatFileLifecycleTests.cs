@@ -202,7 +202,7 @@ public sealed class UrbanCombatFileLifecycleTests : IDisposable
             {
                 SubsystemType = "Hrot.Scenario",
             },
-            Zones    = null,
+
             Entities = fdpDom["Entities"]?.AsObject(),
         };
 
