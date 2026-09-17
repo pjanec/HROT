@@ -332,13 +332,28 @@ See §9. That is the only thing now standing between this document and `READY-TO
 
 ## 9. ⛔ OPEN — the zone-loading UI *(leans for approval, `2026-09-17`)*
 
-### 9.1 🔴 The subtlety that decides the whole surface: **the marker is LOCAL, the answer is CLUSTER**
+### 9.1 ✅ **THE LOCAL MARKER IS SUFFICIENT — and the component is NEVER replicated** *(user, `2026-09-17`)*
 
-`TerrainAssetLoadState` is `[DataPolicy(NoScenario | NoReplay)]` and is **not replicated** — it is each
-node's own truth. ⇒ ⛔⛔ **an operator station must NOT render its own marker**: ExCon/IG never build
-tiles, so their local marker would read *"not loaded"* forever and the map would lie.
-⇒ ⭐ **the map indicator and the panel both show the CLUSTER ROLLUP**, sourced from the last op result
-per zone — never from the local component.
+> 🔒 **User:** *"isnt showing the local one a simple and sufficient option? Would we need to publish
+> share the loading state component, isnt it always local? Can these disagree across nodes?"*
+
+⛔⛔ **A PRIOR DRAFT OF THIS SECTION WAS WRONG AND IS RETRACTED.** It argued that an operator station
+must render a cluster rollup because *"ExCon/IG never build tiles, so their local marker would read
+'not loaded' forever and the map would lie."* 🔴 **That premise contradicts §8.3.** Under
+satisfied-immediately, a host with nothing to do **STAMPS THE MARKER `Loaded`** — it does not leave it
+unset. ⇒ the local marker is **correct on every node, including operator stations**, and rendering it
+is simple, honest and sufficient.
+
+| the question | ⭐ the answer |
+|---|---|
+| publish/share the component? | ⛔ **No.** It is **node state keyed by entity**, not entity state — *"has THIS node got the data resident"*. Replicating it would assert one value for a fact that is legitimately per-node |
+| is it always local? | ⭐ **Yes, by nature.** And `R-136` is satisfied without argument: it is **not durable state** *(re-derivable by re-running the load, and deliberately `NoScenario \| NoReplay`)*, so it needs neither a TKB home nor a published descriptor |
+| can nodes disagree? | ⭐ **Yes, and they SHOULD.** Transiently while one is still building; persistently when one **FAILED**. ⛔ Disagreement is not corruption here — it is the truth |
+| then how is another node's FAILURE seen? | ⭐ through the **op result** (§8.3's satisfied/failed), aggregated by the tracker and surfaced in the panel — ⛔ **not** by replicating a component |
+
+⇒ ⭐⭐ **The division of labour:** the **map** renders the local marker *(what this node has)*; the
+**panel** renders op outcomes *(what every node reported)*. Two surfaces, two honest questions, no
+replication and no rollup plumbing.
 
 ### 9.2 Per question
 
@@ -346,7 +361,7 @@ per zone — never from the local component.
 |---|---|---|
 | **U1** | seeing a zone is stale after an edit | ⭐ **outline STYLE carries state, text carries detail** — dashed/solid on the area outline is readable at a glance across many zones without reading, and does not rely on colour alone; the gizmo text is for the one zone being inspected. ⚠ **UNMEASURED:** whether the overlay renderer can parameterise stroke style per entity — check before committing |
 | **U2** | invoking a load | ⭐ **`SharedContextMenuPopulator.PopulateEntityMenu`** — the exact existing seam: it already adds *"Edit Shape"* for `EditablePolyline` and *"Edit Route"* for `RoutePlan`. Add *"Load zone"* when the entity carries `Area{Type=Zone}`. Shared ⇒ every host using the shared menu gets it |
-| **U3** | forcing all changed zones | ⭐ a **zone-list panel** — one row per zone entity with its rollup state and a per-row action, plus a *"Load all stale"* header button. ⭐⭐ **Repoint `ZoneEditorPanel`** into exactly this: the retirement frees it, so the panel slot is reused rather than a new one invented. ⛔ Not the cluster control panel — this is content-scoped, not cluster-scoped |
+| **U3** | forcing all changed zones | 🔒 **RULED (user, `2026-09-17`): the zone editor becomes a TAB on a MAP DETAIL panel**, shown when empty map space is selected by clicking. ⚠⚠ **MEASURED — this is NEW INFRASTRUCTURE, not a repoint:** there is **no map detail panel and no tabbed panel** in `Hrot.Presentation/Panels` today. ⭐ The selection half has precedent — `SharedContextMenuPopulator.PopulateEmptyMapMenu` already treats empty map space as a click target — but the panel, its tab host and empty-space *selection* (as opposed to a context menu) must be built. ⇒ **U3 is the largest single item in this design; scope it as its own slice.** The panel's content is unchanged: one row per zone, its local state, a per-row action, and *"Load all stale"* |
 | **U4** | multi-zone at once | ⭐⭐ **the user's lean, and it is already supported: ONE OP PER ZONE.** 📐 Measured: `FanOutSerializeLocal` registers `_pendingTransactions[requestId]` (a **keyed dictionary**, `Expected = nodeIds.Count`) and never touches `_activeTransaction` ⇒ **concurrent rounds already work on this path in production.** ⛔ Do NOT widen the op to carry N zones |
 
 ### 9.3 Why one-op-per-zone beats a multi-zone payload
@@ -360,8 +375,26 @@ invisible to the protocol.
 Cheap (dictionary entries) but unbounded — ⭐ lean: cap in-flight at the **requester**, not in the
 master, and leave the protocol alone.
 
-⚠ **`_activeTransaction` is a DIFFERENT, single-slot path** used by the cluster **state machine**, and
-it is what greys out the panel's command buttons. ⛔ Zone ops must not be routed through it.
+### 9.4 🔴 FINDING — **`HasInFlightTransaction` is very nearly always FALSE** *(measured `2026-09-17`)*
+
+> 🔒 **User:** *"The `_activeTransaction` concept feels weird, shouldnt it be 'any transaction is in
+> progress?'"* — ⭐ **it should, and today it is not.**
+
+📐 `_activeTransaction` is assigned at `ClusterMaster.cs:791` and **cleared at `:869 in the same
+method**, commented *"ClusterMaster uses sync fan-out; clear immediately"*. `ClusterScenarioPanel.cs:288`
+already concedes it: *"HasInFlightTransaction is reset to false immediately after the fan-out."*
+⇒ ⛔ **the public `HasInFlightTransaction` — whose documented job is to disable command buttons while a
+2PC round is pending — answers `false` while rounds are genuinely pending.** The real in-flight set is
+**`_pendingTransactions`**, which stays populated until the ACKs complete.
+
+| ⭐ consequence for this design | |
+|---|---|
+| ⛔ **do NOT source any zone-loading progress indicator from `HasInFlightTransaction`** | it would read "idle" throughout every load |
+| ⭐ the honest signal is **`_pendingTransactions`** *(keyed, one tracker per zone under U4)* — which is also exactly what U3's per-row progress wants | |
+| ⚠ **the pre-existing defect is OUT OF SCOPE here but should be filed** | the buttons this was meant to gate are not being gated; that is a cluster-panel bug, not a terrain one |
+
+⚠ And `_activeTransaction` remains a **different, single-slot path** used by the cluster **state
+machine**. ⛔ Zone ops must not be routed through it.
 
 ## 7. POSTPONED — deliberately not designed here
 
