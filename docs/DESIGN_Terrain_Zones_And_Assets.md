@@ -68,6 +68,11 @@ classDiagram
     +LoadPhase Phase
     +ulong SourceHash
   }
+  class RoadProperties {
+    +float SpeedLimit
+    +float LaneWidth
+    +int LaneCount
+  }
   class PhysicsCollider {
     +float Radius
   }
@@ -91,6 +96,7 @@ classDiagram
   }
   TkbIdentity --> TerrainAssetLoadState : 8804 zone / 8805 road<br/>marked when loaded
   SimTransform --> EditablePolyline : ORIGIN - points are RELATIVE
+  RoadProperties --> RoadNetworkCompiler : per-road values<br/>optional - TKB template defaults
   TerrainLoadService --> ZoneTileLoader
   TerrainLoadService --> RoadNetworkCompiler
   RoadNetworkCompiler --> RoadNetworkBuilder : REUSED
@@ -98,18 +104,19 @@ classDiagram
   note for PhysicsCollider "OBSTACLE = live by construction.<br/>No asset, no load, no marker (R1)."
   note for RoadNetworkBuilder "EXISTS - FDP CarKinem/Road/RoadNetworkBuilder.cs"
   note for TkbIdentity "EXISTS - THE discriminator. 8801 FireLine,<br/>8802 Route, 8803 Area, +8804 Zone, +8805 Road"
-  note for TerrainAssetLoadState "NEW - the ONLY new component.<br/>SourceHash = hash(SimTransform + Points)"
+  note for TerrainAssetLoadState "NEW. SourceHash = hash(SimTransform + Points)"
   note for ZoneEnvironmentData "EXISTS - the swappable singleton (R2)"
 ```
 
 *What the picture shows that the prose hid:* **obstacles hang off nothing** — every other definition
 kind flows into a loader and earns a marker, while the obstacle box terminates immediately (ruling R1).
-⭐ And **exactly ONE new component exists**: discrimination rides `TkbIdentity`, which was already there.
+⭐ And only **TWO** new components exist — the load marker and the road's per-instance values. **Discrimination rides `TkbIdentity`**, which was already there, so no marker component is invented for it.
 
 | new type | why it is new |
 |---|---|
-| `TerrainAssetLoadState { LoadPhase Phase, ulong SourceHash }` | ⭐ **the only new component.** `[DataPolicy(NoScenario \| NoReplay)]`, node-local, never replicated (§9.1). **Not** a bare tag — streaming has an in-flight state and loads can fail. ⚠ Named `Terrain…` on purpose: a bare `AssetLoadState` collides with the editor's existing BTree/HSM asset-load-state concepts |
-| two new **`TkbType` values** *(not components)* | `8804` zone · `8805` road — see §2.1 |
+| `TerrainAssetLoadState { LoadPhase Phase, ulong SourceHash }` | ⭐ `[DataPolicy(NoScenario \| NoReplay)]`, node-local, never replicated (§9.1). **Not** a bare tag — streaming has an in-flight state and loads can fail. ⚠ Named `Terrain…` on purpose: a bare `AssetLoadState` collides with the editor's existing BTree/HSM asset-load-state concepts |
+| `RoadProperties { SpeedLimit, LaneWidth, LaneCount }` | the per-road DATA a `TkbType` cannot carry — **optional**, since the TKB template defaults it (§2.1a) |
+| two new **`TkbType` values** *(not components)* | `8804` zone · `8805` road — the DISCRIMINATOR only (§2.1) |
 
 ### 2.1 ✅ RULED `2026-09-17` — **`TkbType` is the ONE discriminator; `AreaType` is SUPERSEDED**
 
@@ -122,11 +129,53 @@ TacGraphic_Area` — and it **already selects the gizmo** (`TacticalAreaGizmo` f
 `AreaType` field would have been a **second discriminator for one distinction**, forcing every consumer
 of `8803` that does not care about zones (symbology, ORBAT, templates) to branch on it.
 
-⭐ **Extended to ROADS by the same logic** *(⚠ not separately ruled — say so if you disagree)*: the
-`RoadFeature` marker component is likewise deleted in favour of a `TkbType`. `EditablePolyline` alone
-cannot say *"this polyline is a road"*, but `TkbType` can, and it is the axis the KIND mask (`Q71-E2`)
-should select on. ⚠ **Values `8804`/`8805` are placeholders — naming and numbering are the user's**, and
-`R-42`'s rule applies: these ids reach replays and saved scenarios, so **deprecate, never recycle**.
+⭐ **Extended to ROADS by the same logic** *(⚠ not separately ruled — say so if you disagree)*: `TkbType`
+takes over the **DISCRIMINATOR** job. ⚠ Values `8804`/`8805` are placeholders — naming and numbering are
+the user's — and `R-42` applies: these ids reach replays and saved scenarios, so **deprecate, never
+recycle**.
+
+### 2.1a ⛔ CORRECTION `2026-09-17` — **a `TkbType` cannot carry PER-INSTANCE DATA**
+
+> 🔒 **User:** *"why the `RoadFeature { LaneWidth, LaneCount }` disappeared? how are we going to express
+> the route geometry (lane width, lane count)?"*
+
+⛔⛔ **A prior draft deleted `RoadFeature` OUTRIGHT. That was wrong** — it conflated two jobs in one
+component. `TkbType` says *what kind of thing this is*; it is a **type** id and **cannot carry values
+that vary per road**. ⇒ ⭐ **the discriminator half moves to `TkbType`; the DATA half stays as a
+component**, renamed for what it actually is:
+
+📐 **Measured from the compile target** — `RoadNetworkBuilder.AddSegment(p0, t0, p1, t1, speedLimit =
+25.0f, laneWidth = 3.5f, laneCount = 1, startNodeIdx, endNodeIdx)` and the `RoadSegment` struct:
+
+| the compile needs | authored? |
+|---|---|
+| `SpeedLimit` · `LaneWidth` · `LaneCount` | ⭐ **YES — these are the authorable per-road values** ⚠ my `RoadFeature` draft omitted `SpeedLimit`, which is equally authorable and equally defaulted |
+| `Length`, `DistanceLUT[8]` | ⛔ no — **computed by the builder** |
+| `StartNodeIndex` / `EndNodeIndex` | ⛔ no — topology the compiler assigns |
+| `P0, T0, P1, T1` | ⚠ **positions come from `EditablePolyline`; the TANGENTS do not exist** — see §2.1b |
+
+⇒ ⭐ **`RoadProperties { float SpeedLimit, float LaneWidth, int LaneCount }`** — a DATA component,
+not a marker. **Per ENTITY, uniform across its segments**; if a road ever needs varying width, author it
+as two road entities rather than adding per-vertex data.
+⭐⭐ **And it is OPTIONAL, because `TkbType` is a TEMPLATE identity:** the TKB template supplies defaults
+per road kind, the component overrides them, so an ordinary road needs no component at all. 📌 Exactly
+the pattern already in production at `NetworkSpawningSystem.cs:154` — `cmd.DisType != 0 ? cmd.DisType :
+template.DisType.Value`.
+
+### 2.1b 🔴 OPEN — **the authoring geometry is a POLYLINE; the compile target is HERMITE**
+
+📐 `RoadSegment` carries `P0, T0, P1, T1` — **position AND tangent at each end** — while
+`EditablePolyline.Points` is a bare list of positions with **no tangents**. ⇒ the compiler must
+**derive** them, and that choice decides whether a drawn road curves or kinks at its vertices.
+
+| option | |
+|---|---|
+| ⭐ **(a) derive Catmull-Rom tangents from neighbours** | smooth curve through the drawn vertices, **no extra authoring** — ⭐ **my lean** |
+| **(b) zero tangents** | straight chords, visible kinks at every vertex — the degenerate case, fine as a fallback |
+| ⛔ **(c) author tangents** | new UI, new persisted data — ⛔ **not in this slice** |
+
+⚠ **This is a real decision, not a detail:** it is the difference between a road that follows the
+operator's drawn line and one that visibly corners at it.
 
 ### 2.2 ✅ RULED `2026-09-17` — **RELATIVE COORDINATES EVERYWHERE**
 
