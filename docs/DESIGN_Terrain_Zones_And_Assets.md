@@ -1,7 +1,10 @@
 <!--STATUS
 state: LIVE
-build-state: READY-TO-BUILD — carries a classDiagram (§2), sequenceDiagrams (§3) and a
-  MODULE-RELATIONSHIP diagram (§4). Rulings R1–R7 approved by the user 2026-09-17.
+build-state: ⛔ **DESIGN — DOWNGRADED FROM READY-TO-BUILD `2026-09-17`.** The diagrams (§2–§4) stand,
+  but §8 (HOST HETEROGENEITY) is an unclosed hole the user found after they were drawn: this document
+  assumed ONE load model role-filtered across hosts, and there are at least TWO. ⛔ No handoff until §8
+  is ruled. ⚠ Marking it READY-TO-BUILD was a coordinator error — the module diagram showed WHO runs the
+  loader and never asked whether they run the SAME ONE.
 updated: 2026-09-17
 current-answer: §2 is the model, §3 the two invocation paths, §4 what is registered and ticked where
   (incl. the two DEAD edges), §5 the WHY, §6 what is real vs faked in slice 1.
@@ -268,6 +271,40 @@ the embedded `Zones` section, `ZoneMembership`, `ZoneManagerService`'s DTO half,
 I4 guard, `ZoneEditorPanel` → repointed at entity authoring; and the five suites that assert the
 retiring behaviour — `ZoneManagerServiceTests`, `ZoneScenarioLoadIntegrationTests`, `ZoneEditorPanelTests`,
 `ScenarioFileServiceZoneTests`, plus the two `SpyZoneManagerService` doubles.
+
+## 8. ⛔ OPEN — **HOST HETEROGENEITY: there is more than one load model**
+
+> 🔒 **User, `2026-09-17`:** *"What all nodes implement navigation and perception and whatever affected
+> by reloading the tiled data. Some hosts might not support dynamic loading of these stuff — like maybe
+> stride simhost — they should say what they support in their capability flags… their zone load
+> implementation will be different (all preloaded with terrain load and unchangeable and not tile
+> streamed, tied to the terrain id...), what the ui should look like and do etc."*
+
+### 8.1 Measured `2026-09-17`
+
+| # | fact | site |
+|---|---|---|
+| ⑪ | **4 production navmesh providers**: `DotRecastNavmeshProvider` (Stride), `EngineBackedNavmeshProvider`, `FakeNavmeshProvider`, `StubNavmeshProvider` (EQS) | `search_graph(".*NavmeshProvider.*", Class)` = 12 incl. tests |
+| ⑫ | ⭐ **Stride's navmesh is baked from STRIDE SCENE GEOMETRY at scene load**, at two call sites (node shell `:1116`, editor `:1271`) | `StrideHrotGame.cs:1834` `BakeNavmesh` |
+| ⑬ | ⇒ **its source is the scene, not our entities or tiles** — tile streaming has nothing to give it. This is the user's *"one navmesh, preloaded, tied to the terrain id"* host, measured | ⑫ |
+| ⑭ | 🔴 **NO host consumes terrain tiles today.** The only terrain-derived data with live consumers is the **road blob** | ⑪+⑬ |
+| ⑮ | ✅ **CORRECTION TO §4/R2 — the navmesh IS swappable.** It is a *singleton-managed* provider (`SetSingletonManaged<INavmeshProvider>`) read per use (`VehicleNavigationIntentSystem.cs:190-191`) ⇒ **R2's frozen-ctor problem is ROAD-SPECIFIC, not general** | `StrideHrotGame.cs:1870` |
+| ⑯ | perception is **already role-gated by composition** — `.Capability(NodeRole.Perception, new SimHostCapabilities.PerceptionSpatial(...))` | `SimHostNodeBootstrapper.cs:307` |
+| ⑰ | ⭐⭐ **the cross-node capability mechanism already exists** — namespaced tokens (`CapabilityTokens.ReliableInit`, `fdp.role.*`) on the durable `NodeCapabilities` descriptor, ingested by `ClusterMaster` into `NodeHealthProfile`, with the role mask **DERIVED** from the token subset | `AQ-70 §Q70-B/C`; `IgNodeBootstrapper.cs:340`, `ClusterMaster.cs:491` |
+
+### 8.2 The questions this opens
+
+| # | question | ⭐ lean |
+|---|---|---|
+| **N1** | is the load model a **role** or a **capability**? | ⭐⭐ **capability.** Stride SimHost and headless SimHost can hold the *same* `MuscleGround` role and differ in load model ⇒ role says *what work*, capability says *how this build does it* |
+| **N2** | how is it advertised? | ⭐ **reuse ⑰** — a new token pair in the existing namespace (e.g. `fdp.terrain.zones-dynamic` vs `fdp.terrain.static`). ⛔⛔ **`R-133`: emitted FROM the composition fact (which loader the host actually registered), never hand-declared** — that ruling exists because a hard-coded `true` shipped a 404 |
+| **N3** | what does a STATIC host do on a zone-load round? | ⭐ **ACK as SATISFIED, not as ignored** — its terrain is already resident. ⚠ The operator must be able to tell *"static, nothing to do"* from *"faked"* from *"failed"* |
+| **N4** | ⭐ **terrain-identity binding for static hosts** | 🔒 the user's *"tied to the terrain id"*: a static host's baked data is bound to a terrain. If the scenario's `SceneId` differs from what is baked, that is a **mismatch to detect and REPORT**, never to proceed through — same divergence class as `R-136` |
+| **N5** | the UI on a mixed cluster | ⭐ one action, **per-node outcome** (`Loaded` / `Static — n/a` / `Failed`); ⛔ never a single global "OK" that hides a node that did nothing |
+| **N6** | can a static host stall the barrier? | ⭐ no — the kind×role filter becomes kind×role×**capability**, and a non-participant ACKs immediately (the `IgZoneDummyHandler` shape) |
+
+⇒ ⚠ **N1–N2 change §4's module diagram** (the filter gains an axis) and N4 adds an invariant §2 does not
+carry. ⛔ **That is why the build-state is downgraded** rather than patched in place.
 
 ## 7. POSTPONED — deliberately not designed here
 
