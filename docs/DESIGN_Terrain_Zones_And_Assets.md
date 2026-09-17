@@ -38,7 +38,7 @@ related-designs:
 | # | exists already | where |
 |---|---|---|
 | ① | `EditablePolyline` — points **+ a `Version` counter** documented *"so subscribers can detect stale cached copies"* | `Hrot.Core/Components/Map/EditablePolyline.cs` |
-| ② | ⭐⭐ **`RoadNetworkBuilder`** — *"Builder for constructing RoadNetworkBlob from components"*: `AddNode` / `AddSegment` / `Build` | `FDP/.../CarKinem/Road/RoadNetworkBuilder.cs` |
+| ② | ⭐⭐ **`RoadNetworkBuilder`** — *"Builder for constructing RoadNetworkBlob from components"*: `AddNode` / `AddSegment` / `Build`. ⭐ **It HAS a production caller** — `RoadNetworkLoader.cs:38` — so this is a proven path, not test-only scaffolding | `FDP/.../CarKinem/Road/RoadNetworkBuilder.cs` |
 | ③ | `RoadNetworkBlob` (NativeArrays + a broadphase grid), `ZoneEnvironmentData` singleton | `FDP/.../CarKinem/Road/`, `FDP/.../CarKinem/` |
 | ④ | the 2PC seam: `PrepareAsync` *(must not mutate ECS)* / `Commit` *(main thread)* / `Abort` | `FDP/.../Orchestration/IClusterStateHandler.cs` |
 | ⑤ | the barrier — waits for **all** nodes' `NodeOpCompletedEvent` | `ClusterMaster.cs:1242-1254` |
@@ -168,11 +168,28 @@ template.DisType.Value`.
 `EditablePolyline.Points` is a bare list of positions with **no tangents**. ⇒ the compiler must
 **derive** them, and that choice decides whether a drawn road curves or kinks at its vertices.
 
+#### Who feeds them TODAY — **the hand-authored JSON asset**
+📐 Measured: `RoadNetworkLoader.cs:38` builds a `RoadNetworkBuilder` and passes
+`seg.ControlPoints.T0 / .T1` **verbatim** from the file (`:50-53`). `HermiteControlPointsJson` carries
+`p0, t0, p1, t1` as four explicit `Vector2`s, and the shipped
+`FDP/Examples/Fdp.Examples.CarKinem/Assets/sample_road.json` hand-writes them. ⇒ **nothing derives
+anything today; a human typed the tangents.**
+
+⇒ 🔴 **Under this design nobody feeds them** — a road entity is an `EditablePolyline`, positions only.
+**That is the gap**, and the compiler must close it.
+
 | option | |
 |---|---|
-| ⭐ **(a) derive Catmull-Rom tangents from neighbours** | smooth curve through the drawn vertices, **no extra authoring** — ⭐ **my lean** |
-| **(b) zero tangents** | straight chords, visible kinks at every vertex — the degenerate case, fine as a fallback |
+| ⭐⭐ **(a) derive Catmull-Rom tangents from neighbours** — `T(i) = (P(i+1) − P(i−1)) / 2` | smooth through the drawn vertices, **no extra authoring**, and ⭐ **the output is representable in the SAME `RoadSegment` struct with no format change** |
+| **(b) zero tangents** | straight chords, visible kinks at every vertex — the degenerate case, fine as a fallback for a 2-point road |
 | ⛔ **(c) author tangents** | new UI, new persisted data — ⛔ **not in this slice** |
+
+⭐⭐⭐ **The shipped asset CONFIRMS (a) empirically.** Its first segment runs `p0 (50,100) → p1
+(100,100)` with `t0 = t1 = (50, 0)`. For a node at `(50,100)` between neighbours `(0,100)` and
+`(100,100)`, Catmull-Rom gives `((100,100) − (0,100)) / 2 = (50, 0)` — **exactly the hand-authored
+value.** ⇒ the human author was already applying the Catmull-Rom rule by hand, so deriving it costs
+**zero fidelity** on the one asset we have, and it fixes the scale convention too: **tangent magnitude
+is proportional to neighbour spacing, NOT a unit vector.**
 
 ⚠ **This is a real decision, not a detail:** it is the difference between a road that follows the
 operator's drawn line and one that visibly corners at it.
