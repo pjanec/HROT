@@ -114,12 +114,35 @@ namespace Fdp.Toolkit.Navigation.Systems
             //   downcast legitimately fails there and must degrade, never throw.
             //   📄 DESIGN_Terrain_Zones_And_Assets.md §5.4 — the "a holder becomes necessary" branch.
             if (view is EntityRepository repo && repo.HasSingleton<ZoneEnvironmentData>())
-                _activeRoadNetwork = repo.GetSingleton<ZoneEnvironmentData>().RoadNetwork;   // live world
-            else if (_roadNetworkHolder != null)
-                _activeRoadNetwork = _roadNetworkHolder.Current;                              // background
-            else
-                _activeRoadNetwork = _roadNetwork;                                            // static host
+            {
+                // Live world, main thread: the swap happens here too, so no reader can be interrupted.
+                _activeRoadNetwork = repo.GetSingleton<ZoneEnvironmentData>().RoadNetwork;
+                Solve(view, deltaTime);
+                return;
+            }
 
+            if (_roadNetworkHolder != null)
+            {
+                // ⭐⭐ C6 — BACKGROUND path: hold a LEASE for the whole traversal. A bare read would give
+                //   us a struct of NativeArrays whose memory a concurrent Publish is free to release
+                //   mid-walk; the lease keeps the retired generation alive until we are out of it.
+                //   ⛔ Do NOT "simplify" this to `_roadNetworkHolder.Current` — that is the use-after-free.
+                using var lease = _roadNetworkHolder.Borrow();
+                _activeRoadNetwork = lease.Value;
+                Solve(view, deltaTime);
+                return;
+            }
+
+            _activeRoadNetwork = _roadNetwork;   // static host that never publishes
+            Solve(view, deltaTime);
+        }
+
+        /// <summary>
+        /// The tick proper, with <see cref="_activeRoadNetwork"/> already resolved and — on the background
+        /// path — pinned by a lease held by the caller for this whole call.
+        /// </summary>
+        private void Solve(ISimulationView view, float deltaTime)
+        {
             // Read all accumulated request events since the last solver tick.
             var requests = view.ReadEvents<PathfindingRequestEvent>();
             if (requests.IsEmpty) return;

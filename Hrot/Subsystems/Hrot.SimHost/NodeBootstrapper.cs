@@ -36,6 +36,25 @@ namespace Hrot.SimHost
     {
         private readonly INetworkFactory? _networkFactory;
 
+        /// <summary>
+        /// ⭐⭐ THE node's road-graph holder — the owner of every published <c>RoadNetworkBlob</c> and the
+        /// thing that makes a terrain/zone reload safe against a background reader.
+        ///
+        /// <para>Two consumers, and they are the two halves of <c>U1</c>:</para>
+        /// <list type="number">
+        ///   <item>the <c>TerrainLoadClusterStateHandler</c> PUBLISHES into it when terrain commits;</item>
+        ///   <item>anything composing <c>NavigationSolverModule</c> must be HANDED it — that module runs
+        ///     <c>SlowBackground</c>, so it cannot read the <c>ZoneEnvironmentData</c> singleton and would
+        ///     otherwise plan over the construction-time graph forever.</item>
+        /// </list>
+        ///
+        /// <para>⚠ Exposed on the bootstrapper rather than stuffed into the ECS world on purpose: it is
+        /// node INFRASTRUCTURE with a lifetime, not entity state, and making it a managed ECS singleton
+        /// would need a component id plus an explicit registration to keep <c>[DataPolicy]</c> from being
+        /// silently ignored (<c>BP-527</c>) — machinery that buys nothing here.</para>
+        /// </summary>
+        public RoadNetworkHolder RoadNetworkHolder { get; } = new RoadNetworkHolder();
+
         /// <param name="networkFactory">Optional network factory (reserved for future use).</param>
         public NodeBootstrapper(INetworkFactory? networkFactory = null)
         {
@@ -299,6 +318,17 @@ namespace Hrot.SimHost
             // deserializes entities. Must be registered BEFORE the scenario handler block (TKB-020).
             if (tkbDb != null)
                 clusterSlave.RegisterHandler(new TkbLoadClusterStateHandler(tkbDb, localTempRoot));
+
+            // ⭐⭐⭐ C5 — the TERRAIN loader, registered UNCONDITIONALLY on every ECS host, for the same
+            //   reason and in the same slot as the TKB loader: entities depend on terrain (ground
+            //   clamping, physics, LOS), so it must populate before the scenario handler deserializes.
+            // ⛔⛔ NOT inside the scenario-LOAD conditional below. Those handlers need the full authoring
+            //   deps, so a pure MuscleGround node that only replicates registers NONE of them — and the
+            //   muscle is precisely the role that consumes the road network. Hanging terrain off them
+            //   would leave it unloaded on the node that needs it most.
+            //   📄 DESIGN_Terrain_Zones_And_Assets.md §2.1e ④.
+            clusterSlave.RegisterHandler(
+                new TerrainLoadClusterStateHandler(localTempRoot, RoadNetworkHolder));
 
             // Scenario handlers when a serializer is provided.
             if (scenarioSerializer != null)

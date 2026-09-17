@@ -1,6 +1,7 @@
 using System;
 using CarKinem.Road;
 using CarKinem.Trajectory;
+using Fdp.Core.Logging;
 using Fdp.Toolkit.Navigation.Systems;
 using Fdp.ModuleHost.Abstractions;
 
@@ -75,6 +76,20 @@ namespace Fdp.Toolkit.Navigation.Modules
         {
             _roadNetwork       = roadNetwork;
             _roadNetworkHolder = roadNetworkHolder;
+
+            // ⭐⭐ C7 — a host that composes this module WITHOUT a holder can never observe a terrain or
+            //   zone reload: this module is SlowBackground (SoD), so its view has no singleton API and
+            //   the constructor blob is all it will ever see. ⛔ That must not be silent — it is the
+            //   "silent default" shape, and the failure it produces (routes planned over a stale graph
+            //   while vehicles drive the new one) has no exception and nothing in a log.
+            // ⚠ A WARNING rather than a throw, deliberately: a host with a statically supplied graph that
+            //   never reloads is legitimate, and this is exactly that host.
+            if (roadNetworkHolder == null)
+                FdpLog<NavigationSolverModule>.Info(
+                    "[NavigationSolver] ⚠ composed with NO RoadNetworkHolder. Path planning will use the "
+                  + "construction-time road graph FOREVER — a terrain or zone load will be invisible to "
+                  + "it, because a SlowBackground module cannot read the ZoneEnvironmentData singleton. "
+                  + "Pass a holder unless this host's graph is genuinely static.");
             _trajectoryPool = trajectoryPool
                 ?? throw new System.ArgumentNullException(
                     nameof(trajectoryPool),

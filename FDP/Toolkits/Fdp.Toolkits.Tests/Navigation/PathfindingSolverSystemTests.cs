@@ -290,7 +290,9 @@ namespace Fdp.Toolkit.Navigation.Tests
                 startNodeIdx: 0, endNodeIdx: 1);
             var roadNet = builder.Build(cellSize: 20f, gridWidth: 10, gridHeight: 10);
 
-            holder.Publish(roadNet);
+            // ⚠ takeOwnership:false — this test disposes roadNet itself below. RoadNetworkBlob is a
+            //   STRUCT, so letting the holder own it too would double-free the native arrays.
+            holder.Publish(roadNet, takeOwnership: false);
 
             long afterId = PathfindingBatchHelper.RequestPath(
                 _world, entityIndex: 11, from: Vector3.Zero, to: new Vector3(100f, 0f, 0f));

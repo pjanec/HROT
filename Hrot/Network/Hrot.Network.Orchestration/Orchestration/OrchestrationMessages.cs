@@ -69,6 +69,13 @@ namespace Hrot.NED.Descriptors.Orchestration
         ForgetEpisode = 23,
         LoadEpisodeAssets = 24,
         PrefetchFiles = 25,
+
+        // ── Terrain asset build (29–30) ───────────────────────────────────────────────────────
+        // ⛔ PERMANENT WIRE VALUES (R-42). Ruled 2026-09-17. Must stay identical to the FDP mirror
+        //    in Fdp.Toolkit.Orchestration.NodeOpType.
+        // ⛔ The gaps at 6 / 17 / 18 / 19 are historical holes, not reservations — leave them empty.
+        PrepareTerrainAsset = 29,
+        CommitTerrainAsset = 30,
     }
 
     [DdsTopic("ClusterState")]
