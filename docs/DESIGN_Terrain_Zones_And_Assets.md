@@ -611,7 +611,14 @@ a real terrain capability. This is a build constraint, not a caveat.
 
 **Enum values — ✅ RULED by the user `2026-09-17`, and `R-42` makes them PERMANENT:**
 `TkbType.TerrainZone = 8804` · `NodeOpType.PrepareTerrainAsset = 29` · `NodeOpType.CommitTerrainAsset = 30` ·
-`ClusterOpType.BuildTerrainAsset = 17` *(next free; 2 is a documented reserved gap)*.
+`ClusterOpType.BuildTerrainAsset = 18`.
+🔴🔴 **CORRECTION `2026-09-17` — the earlier ruling of `17` was WRONG and is SUPERSEDED.** 📐 Measured by
+batch ②, verified at the coordinator: **`ClusterOpType.SaveScenario = 17` already exists, live and routed**
+*(`OrchestrationMessages.cs:42` — `CE-277(c0)`, renamed by `CE-278` with the wire value unchanged)*.
+⚠ The original note read *"next free; 2 is a documented reserved gap"* — ⛔ **it read the gap at 2 and
+missed that the enum already ran to 17.** ⇒ **18 is the next free value** *(confirmed: no `ClusterOpType`
+member holds 18)*. ⭐⭐ **`R-42` makes this permanent, so the collision would have been unrecoverable** —
+the batch STOPPED the item and reported rather than guessing, which is exactly `R-106`.
 ⛔ **Do not reuse the undocumented `NodeOpType` gaps at 6/17/18/19** — 📐 measured: they are absent from the
 **authoritative NED enum** (`OrchestrationMessages.cs`) too, so they are historical holes rather than
 reservations, and leaving them empty means no future reader has to wonder what they meant.
