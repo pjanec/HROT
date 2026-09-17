@@ -100,7 +100,7 @@ classDiagram
   TerrainLoader --> ZoneEnvironmentData : road net from the TERRAIN asset
   note for PhysicsCollider "MOVABLE obstacle = live by construction.<br/>No build, no marker. STATIC (buildings)<br/>DO get baked - 2.1c"
   note for TerrainLoader "road nets + built-in buildings ride the<br/>TERRAIN asset, not any zone - 2.1d"
-  note for TkbIdentity "EXISTS - THE discriminator.<br/>8801 FireLine, 8802 Route, 8803 Area,<br/>+zone, +static-obstacle kinds"
+  note for TkbIdentity "EXISTS - THE discriminator.<br/>8801 FireLine, 8802 Route, 8803 Area,<br/>+TerrainZone (ruled 2026-09-17)"
   note for TerrainAssetLoadState "NEW. SourceHash = hash(SimTransform + Points)"
   note for ZoneEnvironmentData "EXISTS - the swappable singleton (R2)"
 ```
@@ -114,7 +114,7 @@ marker. **Discrimination rides `TkbIdentity`**, which was already there.
 | new type | why it is new |
 |---|---|
 | `TerrainAssetLoadState { LoadPhase Phase, ulong SourceHash }` | ⭐ `[DataPolicy(NoScenario \| NoReplay)]`, node-local, never replicated (§9.1). **Not** a bare tag — streaming has an in-flight state and loads can fail. ⚠ Named `Terrain…` on purpose: a bare `AssetLoadState` collides with the editor's existing BTree/HSM asset-load-state concepts |
-| new **`TkbType` values** *(not components)* | a zone kind, and static-vs-movable obstacle kinds — the DISCRIMINATOR only (§2.1, §2.1c). ⛔ **No road value** — retracted in §2.1a |
+| ONE new **`TkbType`** *(not a component)* | 🔒 **`TerrainZone`** — ruled `2026-09-17`, deliberately **not** `TacGraphic_*` since a zone is a load directive that happens to be drawn. ⛔ **No road value** (§2.1a) and ⛔ **no static-obstacle value yet** (§2.1c) |
 
 ### 2.1 ✅ RULED `2026-09-17` — **`TkbType` is the ONE discriminator; `AreaType` is SUPERSEDED**
 
@@ -222,6 +222,60 @@ selection mechanism first would add a scenario-level declaration the user explic
 ⚠ **This answers a question the `Zones`-section retirement would otherwise strand:** today the road
 network is loaded by `ZoneManagerService.LoadZones` from the zone's `RoadNetworkPath` — a property being
 retired. ⇒ **the terrain loader takes that job**, keyed off the terrain, not off any zone.
+
+### 2.1e ⭐⭐⭐ TERRAIN HANDLING — where it lives, when it loads, who runs it
+
+#### ① In the SCENARIO — terrain rides the GLOBAL block, beside `TkbName`
+
+📐 The scenario DOM is `{ $meta, Header{TkbName}, entities }`. ⭐ **`Header.TkbName` is the exact
+precedent**: a *named asset the whole scenario depends on*, stored globally rather than per entity.
+Terrain is the same kind of thing ⇒ **it belongs in the same place**, not in a new parallel section and
+not in `entities`.
+
+⚠ **Why this does not reintroduce the retired `Zones` section:** that was a **content bundle
+duplicating entity data** (obstacles existed twice). Terrain is a **global fact with no entity twin** —
+the same class as `$meta` and `TkbName`, which `DESIGN_Distributed_Scenario_Persistence` §6a already
+keeps as globals that ride the brain file.
+
+It carries the terrain **identity** plus its **asset references** (road networks first; terrain DB,
+heightmap and navmesh later). ⛔ **Not** the assets themselves.
+
+#### ② In HOST MEMORY — an ECS singleton
+
+⭐ Mirrors what already exists: `ZoneEnvironmentData` (the road blob) and the singleton-managed
+`INavmeshProvider` are **both already ECS singletons**. Terrain state joins them rather than inventing a
+storage shape. 🔒 Ruled: *"terrain is by design a singleton concept and a special one already being
+handled in a special way."*
+
+#### ③ WHEN — inside the cluster state machine's LOADING states
+
+📐 `ClusterState` = `LoadingEdit(10) → OperatingEdit(11)`, `LoadingPreview(20)`, `LoadingLive(30)`,
+`LoadingReplay(40)` (+ their `Unloading*`). ⇒ ⭐ **terrain loads in the `Loading*` states, BEFORE entities
+are materialised** — entities depend on it (ground clamping, physics, LOS).
+⭐ `mgmt-1` already states this intent: the cluster transitions into `LoadingEdit` *"to load static assets
+(base terrain, …)"*.
+
+⭐⭐ **The shape to copy is `TkbLoadClusterStateHandler`** — an existing handler registered **before** the
+scenario handler precisely so a prerequisite is populated first *(its own comment: "to populate
+ITkbDatabase **before** `HrotScenarioLoadHandler` deserializes entities")*. ⇒ **the terrain loader is the
+same pattern with a different prerequisite.** ⛔ Do not invent a new ordering mechanism.
+
+#### ④ WHO — ⛔⛔ **it must NOT ride the scenario-load handler**
+
+🔴 **MEASURED TRAP.** `NodeBootstrapper.cs:316-318` registers SimHost's scenario LOAD handlers **inside a
+conditional**, with the comment: *"Scenario/episode LOAD handlers need the full authoring deps
+(extractor/source/id-allocator). **A muscle node that only replicates (and passes none) gets SAVE without
+LOAD — no throw.**"*
+
+⇒ ⛔⛔ **a pure MuscleGround node may have NO scenario-load handler at all** — and the muscle is precisely
+the role that consumes terrain (road network → `CarKinematicsSystem`; obstacles → physics/LOS). Hanging
+the terrain loader off that handler would leave terrain **unloaded on the node that needs it most** —
+the *"unreachable on host X"* failure this codebase produces more than any other (`①a`).
+
+⭐ **The correct pattern is in the same file, four lines below:** the SAVE handler is *built* inside the
+conditional but **registered unconditionally** via `SerializeLocalRegistrar.Register(...)`. ⇒ **the
+terrain loader registers unconditionally on every ECS host**, exactly like the save handler and like
+`TkbLoadClusterStateHandler`. ⚠ A host with nothing to load still ACKs (§8.3).
 
 ### 2.2 ✅ RULED `2026-09-17` — **RELATIVE COORDINATES EVERYWHERE**
 
