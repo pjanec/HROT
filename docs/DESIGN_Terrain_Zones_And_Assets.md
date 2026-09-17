@@ -213,7 +213,7 @@ will not exist."* ⇒ **the op pair is designed for buildings even though slice 
 > part of existing terrain asset. There should be some kind of road network manager and terrain loader
 > dealing with these."*
 
-⭐ **Lean: terrain-association is the DEFAULT; the entity-reference is the EXTENSION POINT.** Selecting a
+⭐⭐ **RULED `2026-09-17`: terrain is a SINGLETON CONCEPT, not an ordinary entity** — 🔒 *"it is by design a singleton concept and a special one already being handled in a special way (or should be — loading various assets etc). Scenario persistence for such special singleton is not a problem."* ⚠ This does **not** reopen the retired `Zones` section: that was a **content bundle duplicating entity data**, whereas terrain is a **global fact** in the same class as `$meta` and `Header.TkbName` (§6a keeps those as globals). ⭐ **Lean: terrain-association is the DEFAULT; the entity-reference is the EXTENSION POINT.** Selecting a
 terrain (`SceneId`, §1 ⑦) implies loading its associated road networks and its built-in buildings; an
 **entity holding a reference to a road-net asset file** is how a user-*selected* road network would be
 expressed, and is worth building **only when that selection requirement appears**. ⛔ Building the
