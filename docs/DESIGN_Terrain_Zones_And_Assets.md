@@ -12,7 +12,8 @@ current-answer: §2 is the model, §3 the two invocation paths, §4 what is regi
   (incl. the two DEAD edges), §5 the WHY, §6 what is real vs faked in slice 1.
 stale-below: §3.2's sequence diagram and §9.5's "zone name" column are corrected in place by the
   AS-BUILT block in §10 — read §10 before quoting either.
-known-rot: three things the BUILD measured false, all folded into §10 (obligation ⑤, batch terrain-2b,
+known-rot: FOUR things the BUILD measured false — three folded into §10 plus §6's test-surface list,
+  which named the wrong suites and the wrong count and is SUPERSEDED by §10.6. The three in §10 (obligation ⑤, batch terrain-2b,
   2026-09-17): §3.2's sequence draws EnsureAllLoaded inside the load handler's commit, where the zone
   entities do not exist yet; §9.5 sources a "zone name" from the Area entity, and no name component
   exists; and §3.1's sequence leaves the node-side phase split implicit in a way that does not survive
@@ -632,9 +633,21 @@ remain identical to the NED counterpart (verified by unit tests)"*, so an alloca
 
 **Retirement, with its test surface** (`HN-037`: measure tests, not just production): `ZoneDefinitionDto`,
 the embedded `Zones` section, `ZoneMembership`, `ZoneManagerService`'s DTO half, the `ScenarioMergeCore`
-I4 guard, `ZoneEditorPanel` → repointed at entity authoring; and the five suites that assert the
-retiring behaviour — `ZoneManagerServiceTests`, `ZoneScenarioLoadIntegrationTests`, `ZoneEditorPanelTests`,
-`ScenarioFileServiceZoneTests`, plus the two `SpyZoneManagerService` doubles.
+I4 guard, `ZoneEditorPanel` → repointed at entity authoring.
+
+⛔⛔ **SUPERSEDED `2026-09-17` — the test-surface list below was WRONG in BOTH count and composition.**
+⭐ **§10.6 carries the as-built; read that, not this.** 📐 The build dispositioned **14 claims across SIX
+suites and TWO doubles**, not five suites: this list named `ZoneEditorPanelTests` *(not in the real
+surface)* and missed `HrotScenarioDtoTests`, `SystemTests`, `EditorAuthoringIntegrationTests`,
+`ScenarioMergeCoreTests`, `NullZoneService` and — found only by doing the work —
+`UrbanCombatFileLifecycleTests`. ⚠⚠ **This is `HN-037` landing on the coordinator rather than the
+implementer:** the rule says *measure the test surface before calling a deletion simple*, and this list
+was written from a partial measurement while the rule was being quoted. ⭐ The estimate held anyway
+because the batch treated `F3` as re-homing rather than deletion.
+
+> ⛔ ~~and the five suites that assert the retiring behaviour — `ZoneManagerServiceTests`,
+> `ZoneScenarioLoadIntegrationTests`, `ZoneEditorPanelTests`, `ScenarioFileServiceZoneTests`, plus the two
+> `SpyZoneManagerService` doubles.~~
 
 ## 7. POSTPONED — deliberately not designed here
 
