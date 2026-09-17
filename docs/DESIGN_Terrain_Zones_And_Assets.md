@@ -404,6 +404,67 @@ existing interface, not new infrastructure.
 | header **Load all stale** | fans out one op per stale zone, capped at the requester |
 | ⛔ **NOT** road-path or obstacle-radius editing | that was the retiring `ZoneEditorPanel`'s job; those are now ordinary entity authoring on the map |
 
+### 9.7 ⭐⭐⭐ INVALIDATION — the model, and why the key is a HASH not a counter
+
+> 🔒 **User, `2026-09-17`:** *"1. zone loader loads zone related data (tiles etc.) on every capable node
+> and updates the loading state marker component with the hash of what was loaded (center & vertex
+> coords). 2. gizmo calculates checksum from real entity data on the fly and compares with marker
+> component and shows differences. 3. invalidation affects just visualization of the zone status… and
+> makes the 'Load zone' context menu present/enabled."*
+
+✅ **The mechanism is right and is adopted.** Three corrections:
+
+| # | as stated | ⭐ corrected |
+|---|---|---|
+| **①** | *"on every capable node"* | ⭐ **on EVERY node.** §8.3 removed the capability: a node with nothing to do is **satisfied immediately and still STAMPS the marker.** ⛔ If a non-building node left the marker unset, its map would read *"not loaded"* forever — the exact error §9.1 retracts |
+| **②** | gizmo hashes live entity data and compares | ✅ correct, and it reads the **LOCAL** marker (§9.1). ⚠ Hash per frame per zone is cheap but needless — cache per `(entity, frame)` if it ever shows up |
+| **③** | *"affects just visualization… and makes 'Load zone' present/enabled"* | ⚠ **two corrections — see below** |
+
+#### ③a — the consequence is DEGRADED FIDELITY, not merely a badge
+A stale zone means the resident tiles describe the **old** footprint. Nothing is corrupt — the base
+terrain is always present, and zones only add resolution — but an area the zone newly covers is
+running at base fidelity. ⇒ ⭐ **stale is non-blocking and must never gate an exercise start or a save**,
+and equally ⛔ **must not be documented as purely cosmetic**, or someone will later conclude it can be
+ignored. ⭐ It also drives a real ACTION, not just a badge: the panel's *"Load all stale"* selects on it.
+
+#### ③b — ⛔ **do NOT disable "Load zone" when the local state is fresh**
+📌 The reason comes straight from §9.1: nodes can legitimately disagree, and **another node may have
+FAILED while the local marker reads `Loaded`.** ⇒ gating the action on local freshness would remove the
+only recovery path for a remote failure the local host cannot see. ⭐ The load is **idempotent**, so
+offering it always costs nothing. ⇒ **always present, always enabled; the badge says whether it is
+NEEDED, never whether it is ALLOWED.**
+
+#### ③c — 🔴 why the key is a HASH, and R4's counter is RETRACTED
+⛔⛔ **`R4`'s original key — `EditablePolyline.Version` — is MEASURED BROKEN and is replaced.**
+
+| 📐 measured `2026-09-17` | |
+|---|---|
+| **nothing increments it** | its header claims *"incremented by the IG edit tool each time a committed edit is applied, so subscribers can detect stale cached copies"* — ⛔ **no incrementer exists anywhere** *(the working `Version` increments all belong to `RoutePlan`)* |
+| **the edit tool RESETS it** | `VertexEditGizmo.cs:227` commits a drag as `new EditablePolyline { Points = relPoints }` — `Version` is never carried over, so a committed edit drops it to default |
+| 🔴 **and it could not see a MOVE anyway** | `VertexEditGizmo.cs:52` — *"Working copy in ABSOLUTE world space (= **relative** Points + origin)"*, converted back at `:223-227` via `p - _originOffset` ⇒ **Points are RELATIVE to `SimTransform`.** Moving a zone changes the transform and leaves `Points` byte-identical |
+
+⇒ ⭐⭐⭐ **the key is `hash(SimTransform ⊕ Points)` — the resolved world footprint — computed BY THE
+LOADER and BY THE GIZMO, never maintained by a writer.** A counter requires every mutation path to
+cooperate and **has already failed that test in production**; a hash requires cooperation from nobody,
+catches move *and* reshape in one check, and is computed by the consumer that actually cares.
+📌 Filed separately as live defects: the never-incremented `Version`, and the component header claiming
+*"world-space XY vertices"* while `MapOverlayGizmo.cs:33` adds an origin and `TacticalAreaGizmo.cs:40`
+does not.
+
+### 9.8 ⭐⭐ TWO LIFETIMES — zone invalidation is NOT tile eviction
+
+| | keyed by | invalidated when |
+|---|---|---|
+| **zone → loaded** | the zone ENTITY | its footprint hash differs from the marker ⇒ `Stale` |
+| **tile residency** | GEOGRAPHY | a tile is live while **ANY** loaded zone covers it |
+
+⛔⛔ **Invalidating a zone must NEVER free tiles.** 🔒 Tiles are shared by design *("these cached tiles
+can be reused by different zones")*, so eviction is a **reachability** question: after a reload, tiles
+covered by no loaded zone become evictable. ⚠ **If a zone owned its tiles, shrinking zone A would evict
+tiles zone B is still using.**
+⭐⭐ **This rule is stated NOW even though tiles are FAKED (§6/§7)** — otherwise the stub bakes in
+zone-owns-its-tiles and the real implementation inherits it.
+
 ### 9.6 🔒 RULED — **the zone-load action is ALWAYS cluster-wide**
 
 > 🔒 **User, `2026-09-17`:** *"the zone load menu should always trigger cluster wide load."*
