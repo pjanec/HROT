@@ -60,10 +60,11 @@ and in a zones view. ⛔ **Terrain tiles themselves stay FAKED by ruling** — s
 
 | # | task | success condition | owning chapter |
 |---|---|---|---|
-| **B1** | Allocate the new `TkbType` values: a **zone** kind and a **static-obstacle** kind, beside `8801/8802/8803` | the values exist in `TkbEntityTypes`, are **not** reused ids, and the choice is recorded. ⚠ `R-42`: they reach replays and saved scenarios | design **§2.1**, **§2.1c** ⚠ **see §3-U2** |
+| **B1** | Allocate **ONE** new `TkbType`: the **zone** kind, beside `8801/8802/8803` | the value exists in `TkbEntityTypes`, is not a reused id, and the choice is recorded. ⚠ `R-42`: it reaches replays and saved scenarios. ⛔ **No static-obstacle kind yet** — ruled `2026-09-17`: static obstacles are handled as dynamic for now | design **§2.1** ⚠ **see §3-U2** |
 | **B2** | Add `TerrainAssetLoadState { LoadPhase Phase, ulong SourceHash }` with `[DataPolicy(NoScenario \| NoReplay)]` | the component exists, is registered on every ECS host, and a save/replay round-trip proves it is **absent** from both outputs | design **§2** (new-type table), **§9.1** |
 | **B3** | Implement the footprint hash `hash(SimTransform ⊕ Points)` as ONE shared helper | moving a zone changes the hash; reshaping changes it; neither requires any writer to cooperate. ⭐ Rail both cases | design **§9.7 ③c** |
 | **B4** | Zone entities save/load through the ordinary gate | a scenario containing a zone round-trips: same footprint, same `TkbType`, and **no** `TerrainAssetLoadState` in the file | design **§2**; `DESIGN_Distributed_Scenario_Persistence` §6 |
+| **B5** | Introduce the **terrain entity**: ONE ordinary entity per scenario carrying the terrain identity + its asset references (road networks first) | a scenario round-trips the terrain entity through the **ordinary save gate** — ⛔ no new persistence plumbing. The loader reads terrain identity from it, not from `Header`. ⚠ State and enforce the duplicate rule (what happens if two exist) | design **§2.1d** ⚠ **resolves §3-U4** |
 
 ### Stage C — The loader and the two invocation paths
 
@@ -73,6 +74,7 @@ and in a zones view. ⛔ **Terrain tiles themselves stay FAKED by ruling** — s
 | **C2** | `ZoneTileLoader` as an **announcing fake** | it logs its stub-ness on **every** round, and the capability manifest advertises **no** real terrain capability | design **§5.6**, **§6** ⚠ **see §3-U3** |
 | **C3** | Scenario-load invocation: the load handlers call `EnsureAllLoaded` **locally**, not via a NodeOp | loading a scenario with N zones leaves N markers `Loaded` on every participating node, with **no** nested 2PC | design **§3.2** |
 | **C4** | Give `LoadZoneIntent` a consumer that starts a `PrepareZone`/`CommitZone` round | the dangling publish in `ClusterOpMasterTranslator` reaches a handler; one op **per zone** (not a multi-zone payload) | design **§9.2 U4**, **§9.3**; `mgmt-1` **§11.1** |
+| **C5** | Introduce the **terrain loader**, even as a near-stub: it reads the terrain entity (B5) and takes over road-network loading from the retiring zone bundle | loading a scenario whose terrain entity references a road network yields a populated `ZoneEnvironmentData` **without** any `Zones` section. ⭐ This is what makes Stage F safe | design **§2.1d** ⚠ **resolves §3-U8** |
 
 ### Stage D — The cluster ops
 
@@ -93,6 +95,8 @@ and in a zones view. ⛔ **Terrain tiles themselves stay FAKED by ruling** — s
 | **E3** | A **zones view** contributed to the existing `DetailsWindow`, offered when map background is the context | one row per zone with name + state + per-row Load, and a "Load all stale" header action; progress sourced from `_pendingTransactions`, ⛔ **not** `HasInFlightTransaction` | design **§9.5**, **§9.4** ⚠ **see §3-U5** |
 | **E4** | Cluster-panel control to trigger a terrain-asset build | the button publishes `BuildTerrainAsset`; per-node outcome is visible (OK / Failed), never one global OK | design **§9.2 U3**, **§8.3** (N5) |
 
+| **E5** | Move area/tactical-drawing authoring out of IG-only into the shared **Map2D role** feature set, so zones can be drawn wherever that role runs | the same authoring path (`CMD_START_AUTHORING` → point-sequence → commit, and the edit tool) is reachable on **every host carrying the Map2D role**, editor included — ⛔ not an IG-private code path | design **§2.1**; `DESIGN_Node_Roles_And_Policies` (Map2D role) ⚠ **resolves §3-U6** |
+
 ### Stage F — Retirement *(⚠ `HN-037`: the TEST surface is the work, not the deletion)*
 
 | # | task | success condition | owning chapter |
@@ -110,26 +114,31 @@ and in a zones view. ⛔ **Terrain tiles themselves stay FAKED by ruling** — s
 
 ---
 
-## 3. ⛔ UNDER-SPECIFIED — **where a success condition has no ground**
+## 3. THE UNDER-SPECIFIED REGISTER — **5 of 8 RESOLVED `2026-09-17`**
 
-> ⭐⭐ These are **not** "hard tasks". They are places where the design **cannot yet say what success looks
-> like**, so a task written against them would be unfalsifiable. ⛔ Resolve with the user before building.
+> ⭐⭐ These were places where the design **could not say what success looks like**, so a task written
+> against them would have been unfalsifiable. ⭐ Five are now ruled; the rest are listed with what remains.
+
+### 3.1 ✅ RESOLVED by user ruling `2026-09-17`
+
+| # | was | ✅ the ruling |
+|---|---|---|
+| **U3** | what a TILE is has no definition | 🔒 *"tiles are implementation detail, used as example of possible implementation, not a concept to implement now, **fake is ok**"* ⇒ ⭐ **C2's success condition is the ANNOUNCEMENT, and that is complete** — not a placeholder for a better one |
+| **U4** | terrain identity has nothing to compare against | 🔒 terrain becomes **an entity** carrying its identity and its asset references ⇒ ⭐ **new task B5.** ⚠ **Lean recorded: an ORDINARY entity, not an ECS singleton** — 📐 the scenario serializer writes `$meta` + `Header` + `Entities` and **no singletons**, so an entity persists through the existing gate for free while a singleton would need new plumbing |
+| **U6** | zone creation is IG-only | 🔒 *"area authoring should be part of unified **Map2d role** features, as well as authoring the tactical drawings, **nothing of it should be IG host only**"* ⇒ ⭐ **new task E5** |
+| **U7** | the static-obstacle bake has nothing to call | 🔒 *"static can be handled as dynamic for now… optimizations for static ones can come later"* ⇒ ⭐ **B1 allocates NO static kind**, and no bake is built. ⛔ Do not allocate a permanent wire id (`R-42`) for behaviour that is not being implemented |
+| **U8** | retiring the zone bundle strands the road network | 🔒 *"yes we need to introduce a terrain loader (even if not doing anything useful now)"* ⇒ ⭐ **new task C5**, and it is what makes Stage F safe |
+
+### 3.2 ⚠ STILL OPEN
 
 | # | blocks | what is missing | what would settle it |
 |---|---|---|---|
-| **U1** | **A3** | ⚠ the fix direction depends on an **unmeasured** fact: whether any navigation module runs on a background thread where `DataPolicy` constrains singleton access. If it does, the per-tick singleton read is illegal and a holder object is required instead | measure the module's threading/`DataPolicy` context. §5.4 names this explicitly as *"what would flip it"* |
-| **U2** | **B1**, **D1** | **numbering and naming are the user's call** — the `TkbType` values and the two `NodeOpType` values. `R-42` makes them permanent | a user decision. ⛔ Do not invent ids that reach replays and saved scenarios |
-| **U3** | **C2** | 🔴 **what a TILE IS has no definition** — not its format, its geographic key, its granularity, its eviction, nor what a commit "swaps". ⇒ *"the tile loaded correctly"* **cannot be asserted**; only *"the fake announced itself"* can. This is POSTPONED BY RULING, not an oversight | design **§7**. A success condition beyond the announcement requires the postponed design |
-| **U4** | **D5** | 🔴 **the terrain-identity check has nothing to compare against on some hosts.** `SceneId` is written `string.Empty` (`AssetInventoryProcessManager.cs:215`), and Stride bakes its navmesh from **scene geometry** with no terrain id attached ⇒ "does this host hold the scenario's terrain?" is currently unanswerable there | decide what identifies a loaded terrain per host, and populate `SceneId`. ⚠ Until then D5 can only be built for hosts that *have* an id |
-| **U5** | **E3** | ⚠ the details shell has **no "map background selected" context** today. `PopulateEmptyMapMenu` proves empty space is a click target for a **menu**, but selection-as-context is new | specify how `IDetailsContextSource` reports that context. ⭐ Small, but it is a new seam and unspecified |
-| **U6** | **E1/E2** *(zone AUTHORING)* | 🔴 **how an operator CREATES a zone is not specified.** Area authoring exists (`CMD_START_AUTHORING` → `PointSequenceTool` → commit, plus `ActivateAreaEditingTool`) but is **IG-only**; the zones view lives in the editor's details shell. ⇒ no task can assert "the operator drew a zone" on the editor | decide whether zone creation is IG-only, or whether the area tool is shared to the editor |
-| **U7** | **Stage C/D generally** | ⚠ **the static-obstacle bake has no implementation to call.** §2.1c rules that buildings get baked into navmesh + physics; no bake-from-entities exists (`StrideNavmeshBaker` bakes **scene geometry**) ⇒ the build op is designed for content that cannot yet be produced | this is deliberate (§2.1c: *"the op pair is designed for buildings even though slice 1 builds none"*) — ⭐ **record it, do not build it**. Only becomes a task when a building kind exists |
-| **U8** | **F1** | ⚠ the road network currently loads via `ZoneManagerService.LoadZones` from the zone's `RoadNetworkPath`. §2.1d rules the **terrain loader** takes that job — but **no terrain loader exists yet** | either build the terrain loader as part of F1, or accept that retiring the zone bundle **removes the road network's only load trigger** until it exists. ⛔ Do not do F1 without deciding this |
+| **U1** | **A3** | the fix direction rests on an **unmeasured** fact: whether any navigation module runs on a background thread where `DataPolicy` constrains singleton access. If it does, the per-tick singleton read is illegal and a holder object is required instead | ⭐ **an implementer measurement, not a user decision** — design §5.4 already names it as *"what would flip it"* |
+| **U2** | **B1**, **D1** | ⭐⭐ **SHRUNK — this is a NAMING call only.** 📐 Measured `2026-09-17`: the `NodeOpType` gaps at **6/17/18/19 are absent from the AUTHORITATIVE NED enum too** (`OrchestrationMessages.cs`), so they are historical holes, **not reservations** — and the FDP copy is a mirror whose *"integer values must remain identical to the NED counterpart (verified by unit tests)"*. ⇒ allocating new values is safe | ⭐ **proposed, awaiting one word:** `TacGraphic_Zone = 8804`; `NodeOpType.PrepareTerrainAsset = 29` / `CommitTerrainAsset = 30` *(clearly-new values rather than filling a hole, so no future reader has to wonder whether the hole meant something)*; `ClusterOpType.BuildTerrainAsset = 17` |
+| **U5** | **E3** | the details shell has no *"map background selected"* CONTEXT. `PopulateEmptyMapMenu` proves empty space is a click target for a **menu**, but selection-as-context is new | ⭐ **an implementer design call inside `IDetailsContextSource`** — small, and E3 cannot be asserted until it exists |
 
-⚠⚠ **U8 is the one that can break a working feature.** Everything else is a gap in the new work; U8 is a
-**regression risk in the old**.
-
----
+⇒ ⭐ **U1 and U5 are implementer measurements/calls, not user decisions.** ⛔ **U2 is the only one still
+needing the user, and it is one word.**
 
 ## 4. What this plan deliberately does NOT contain
 
