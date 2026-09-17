@@ -82,10 +82,10 @@ implementation details internal.
 | Feature | Implementation highlight |
 |---|---|
 | Entity handle | 48-bit: 32-bit index + 16-bit generation |
-| Component bitmask | `BitMask256`: 256-bit, AVX2-accelerated |
+| Component bitmask | `BitMask512`: 512-bit, AVX2-accelerated |
 | Memory strategy | Windows `VirtualAlloc` reserve/commit, 64 KB chunks |
 | Max entities | 1,000,000 (compile-time constant) |
-| Max component types | 256 (limited by bitmask width) |
+| Max component types | 512 (limited by bitmask width) — `FdpConfig.MAX_COMPONENT_TYPES` |
 | Event streaming | Lock-free double-buffered `NativeEventStream<T>` |
 | Recording | Async LZ4-compressed delta snapshots, `.fdp` format |
 | Component IDs | Explicit `[ComponentId]` attribute, collision detection |
@@ -106,7 +106,7 @@ delta recording.
 
 **2. Explicit component IDs via `[ComponentId]`**
 All component types must declare a globally unique integer ID via `[ComponentIdAttribute]`.
-IDs are registered in `GlobalComponentIds.cs` which partitions the 256-slot space into named
+IDs are registered in `GlobalComponentIds.cs` which partitions the id space into named
 blocks. This guarantees deterministic IDs when multiple binaries merge into a single process
 (a hard requirement for the multi-process Runner architecture).
 
