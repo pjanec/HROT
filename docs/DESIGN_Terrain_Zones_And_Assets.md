@@ -15,6 +15,8 @@ known-rot: nothing yet.
 known-conflict: none. This document REPLACES the zone half of docs/designs/packs-3/DESIGN.md
   (§2.B/§2.C/§2.E), which is already marked superseded there.
 related-designs:
+  - docs/blueprints/PLAN_Terrain_Zones_Build.md — the BUILD BREAKDOWN of this design (stages A-G,
+    success conditions, and the UNDER-SPECIFIED register). It references these chapters; it restates none.
   - docs/designs/routes-1/ROUTES1-DESIGN.md — ⭐ OWNS THE ROUTE MODEL (§5 shared vs personal routes,
     §5.1 directing a vehicle to follow one, §16 the as-built persistence gap). Routes are NOT terrain
     assets and NOT the road network — §2.1a here defers to it rather than restating it.
@@ -349,23 +351,27 @@ world (`R-132`, two producers for one slot). Making the entity the definition an
 **cache** removes the failure mode by construction: a cache that disagrees is simply *stale*, and
 staleness is detectable (§5.3) where disagreement is not.
 
-### 5.2 Why obstacles are excluded (R1)
+### 5.2 Why only MOVABLE obstacles are excluded (R1, narrowed — §2.1c)
 Measured: `RaycastSolverSystem.cs:145-147` reads `PhysicsCollider` straight off broadphase candidates
 and `LosRequestBatchingSystem` queries by its component id ⇒ **an obstacle occludes LOS the instant
 the entity exists.** There is nothing to cache, so a marker on an obstacle would always read `Loaded`
 and mean nothing. ⛔ A vacuous state field is worse than none — it invites code to branch on it.
-⭐ If a baked static-occlusion structure is ever wanted, it is an **optimisation** that re-enters
-through this same design, not a gap being left open.
+⚠⚠ **NARROWED `2026-09-17` (§2.1c): this argument holds for MOVABLE obstacles only.** A STATIC one — a
+building — is not runtime-dynamic and does need baking into navmesh and physics, so it DOES earn a build
+and a marker. The two are split by `TkbType`. ⛔ Do not read this section as "obstacles never build".
 
-### 5.3 Why the marker carries a version, not just a flag (R4)
+### 5.3 Why the marker carries a HASH, not just a flag (R4, superseded — §9.7 ③c)
 Idempotency without staleness is indistinguishable from *never reloading*: redraw a loaded zone's
 boundary and a bare flag still says `Loaded`, so the cache silently serves the old shape forever.
-⭐ **The key already exists** — `EditablePolyline.Version` is documented *"incremented … each time a
-committed edit is applied, so subscribers can detect stale cached copies."* It was built for exactly
-this, so the marker stores the version it was built from and a mismatch means rebuild.
+⛔⛔ **A prior draft used `EditablePolyline.Version` as the key. That is RETRACTED (§9.7 ③c):** nothing
+increments it, the edit tool resets it, and — points being relative — it could not see a MOVE at all.
+⇒ ⭐ the key is **`hash(SimTransform ⊕ Points)`**, computed by the loader and the gizmo and maintained by
+nobody, so no writer has to cooperate.
 
 ### 5.4 Why the swap seam is a precondition (R2)
-See §4's second red box. ⭐ **Preferred fix — reuse, not a new abstraction:** make the
+See §4's second red box. ⚠ **Re-anchored `2026-09-17`:** the blob is now published by the **TERRAIN loader** (§2.1d), not by any
+entity compile — but the swap problem is unchanged, because the consumer is what is frozen.
+⭐ **Preferred fix — reuse, not a new abstraction:** make the
 `ZoneEnvironmentData` **singleton the single source** and have the navigation systems re-read it per
 tick exactly as `CarKinematicsSystem` already does, rather than introducing a holder/provider object.
 One source, no new seam, and it matches the "one source, read it every time" pattern (`R-126`).
@@ -411,6 +417,11 @@ I4 guard, `ZoneEditorPanel` → repointed at entity authoring; and the five suit
 retiring behaviour — `ZoneManagerServiceTests`, `ZoneScenarioLoadIntegrationTests`, `ZoneEditorPanelTests`,
 `ScenarioFileServiceZoneTests`, plus the two `SpyZoneManagerService` doubles.
 
+## 7. POSTPONED — deliberately not designed here
+
+What a tile **is**, how it streams, its geographic cache key and eviction, and what a commit swap
+replaces once tiles are real. 🔒 Ruled postponed by the user (`AQ-71` §5). ⭐ The fake is shaped so
+that filling it in touches `ZoneTileLoader` and nothing else.
 ## 8. ⛔ OPEN — **HOST HETEROGENEITY: there is more than one load model**
 
 > 🔒 **User, `2026-09-17`:** *"What all nodes implement navigation and perception and whatever affected
@@ -514,6 +525,27 @@ invisible to the protocol.
 Cheap (dictionary entries) but unbounded — ⭐ lean: cap in-flight at the **requester**, not in the
 master, and leave the protocol alone.
 
+### 9.4 🔴 FINDING — **`HasInFlightTransaction` is very nearly always FALSE** *(measured `2026-09-17`)*
+
+> 🔒 **User:** *"The `_activeTransaction` concept feels weird, shouldnt it be 'any transaction is in
+> progress?'"* — ⭐ **it should, and today it is not.**
+
+📐 `_activeTransaction` is assigned at `ClusterMaster.cs:791` and **cleared at `:869 in the same
+method**, commented *"ClusterMaster uses sync fan-out; clear immediately"*. `ClusterScenarioPanel.cs:288`
+already concedes it: *"HasInFlightTransaction is reset to false immediately after the fan-out."*
+⇒ ⛔ **the public `HasInFlightTransaction` — whose documented job is to disable command buttons while a
+2PC round is pending — answers `false` while rounds are genuinely pending.** The real in-flight set is
+**`_pendingTransactions`**, which stays populated until the ACKs complete.
+
+| ⭐ consequence for this design | |
+|---|---|
+| ⛔ **do NOT source any zone-loading progress indicator from `HasInFlightTransaction`** | it would read "idle" throughout every load |
+| ⭐ the honest signal is **`_pendingTransactions`** *(keyed, one tracker per zone under U4)* — which is also exactly what U3's per-row progress wants | |
+| ⚠ **the pre-existing defect is OUT OF SCOPE here but should be filed** | the buttons this was meant to gate are not being gated; that is a cluster-panel bug, not a terrain one |
+
+⚠ And `_activeTransaction` remains a **different, single-slot path** used by the cluster **state
+machine**. ⛔ Zone ops must not be routed through it.
+
 ### 9.5 ⭐⭐ THE ZONES VIEW — a contribution to the EXISTING details shell
 
 📐 **Measured `2026-09-17` — the shell already exists and is actively used:**
@@ -542,6 +574,16 @@ existing interface, not new infrastructure.
 | per-row **select / zoom-to** | selects the zone entity; the map focuses it |
 | header **Load all stale** | fans out one op per stale zone, capped at the requester |
 | ⛔ **NOT** road-path or obstacle-radius editing | that was the retiring `ZoneEditorPanel`'s job; those are now ordinary entity authoring on the map |
+
+### 9.6 🔒 RULED — **the zone-load action is ALWAYS cluster-wide**
+
+> 🔒 **User, `2026-09-17`:** *"the zone load menu should always trigger cluster wide load."*
+
+⇒ the context-menu item (U2), the per-row action and *"Load all stale"* **all publish the cluster op**;
+⛔ **there is no local-only zone load, on any host.** ⭐ On the editor this still goes through the
+orchestrator, because the editor **is** a single-node cluster — exactly the principle `CE-275` already
+established for saving *("no direct write in the editor… same code everywhere")*. ⭐ One path, so the
+editor cannot drift from the cluster.
 
 ### 9.7 ⭐⭐⭐ INVALIDATION — the model, and why the key is a HASH not a counter
 
@@ -604,39 +646,3 @@ tiles zone B is still using.**
 ⭐⭐ **This rule is stated NOW even though tiles are FAKED (§6/§7)** — otherwise the stub bakes in
 zone-owns-its-tiles and the real implementation inherits it.
 
-### 9.6 🔒 RULED — **the zone-load action is ALWAYS cluster-wide**
-
-> 🔒 **User, `2026-09-17`:** *"the zone load menu should always trigger cluster wide load."*
-
-⇒ the context-menu item (U2), the per-row action and *"Load all stale"* **all publish the cluster op**;
-⛔ **there is no local-only zone load, on any host.** ⭐ On the editor this still goes through the
-orchestrator, because the editor **is** a single-node cluster — exactly the principle `CE-275` already
-established for saving *("no direct write in the editor… same code everywhere")*. ⭐ One path, so the
-editor cannot drift from the cluster.
-
-### 9.4 🔴 FINDING — **`HasInFlightTransaction` is very nearly always FALSE** *(measured `2026-09-17`)*
-
-> 🔒 **User:** *"The `_activeTransaction` concept feels weird, shouldnt it be 'any transaction is in
-> progress?'"* — ⭐ **it should, and today it is not.**
-
-📐 `_activeTransaction` is assigned at `ClusterMaster.cs:791` and **cleared at `:869 in the same
-method**, commented *"ClusterMaster uses sync fan-out; clear immediately"*. `ClusterScenarioPanel.cs:288`
-already concedes it: *"HasInFlightTransaction is reset to false immediately after the fan-out."*
-⇒ ⛔ **the public `HasInFlightTransaction` — whose documented job is to disable command buttons while a
-2PC round is pending — answers `false` while rounds are genuinely pending.** The real in-flight set is
-**`_pendingTransactions`**, which stays populated until the ACKs complete.
-
-| ⭐ consequence for this design | |
-|---|---|
-| ⛔ **do NOT source any zone-loading progress indicator from `HasInFlightTransaction`** | it would read "idle" throughout every load |
-| ⭐ the honest signal is **`_pendingTransactions`** *(keyed, one tracker per zone under U4)* — which is also exactly what U3's per-row progress wants | |
-| ⚠ **the pre-existing defect is OUT OF SCOPE here but should be filed** | the buttons this was meant to gate are not being gated; that is a cluster-panel bug, not a terrain one |
-
-⚠ And `_activeTransaction` remains a **different, single-slot path** used by the cluster **state
-machine**. ⛔ Zone ops must not be routed through it.
-
-## 7. POSTPONED — deliberately not designed here
-
-What a tile **is**, how it streams, its geographic cache key and eviction, and what a commit swap
-replaces once tiles are real. 🔒 Ruled postponed by the user (`AQ-71` §5). ⭐ The fake is shaped so
-that filling it in touches `ZoneTileLoader` and nothing else.
