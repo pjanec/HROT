@@ -361,7 +361,7 @@ replication and no rollup plumbing.
 |---|---|---|
 | **U1** | seeing a zone is stale after an edit | ⭐ **outline STYLE carries state, text carries detail** — dashed/solid on the area outline is readable at a glance across many zones without reading, and does not rely on colour alone; the gizmo text is for the one zone being inspected. ⚠ **UNMEASURED:** whether the overlay renderer can parameterise stroke style per entity — check before committing |
 | **U2** | invoking a load | ⭐ **`SharedContextMenuPopulator.PopulateEntityMenu`** — the exact existing seam: it already adds *"Edit Shape"* for `EditablePolyline` and *"Edit Route"* for `RoutePlan`. Add *"Load zone"* when the entity carries `Area{Type=Zone}`. Shared ⇒ every host using the shared menu gets it |
-| **U3** | forcing all changed zones | 🔒 **RULED (user, `2026-09-17`): the zone editor becomes a TAB on a MAP DETAIL panel**, shown when empty map space is selected by clicking. ⚠⚠ **MEASURED — this is NEW INFRASTRUCTURE, not a repoint:** there is **no map detail panel and no tabbed panel** in `Hrot.Presentation/Panels` today. ⭐ The selection half has precedent — `SharedContextMenuPopulator.PopulateEmptyMapMenu` already treats empty map space as a click target — but the panel, its tab host and empty-space *selection* (as opposed to a context menu) must be built. ⇒ **U3 is the largest single item in this design; scope it as its own slice.** The panel's content is unchanged: one row per zone, its local state, a per-row action, and *"Load all stale"* |
+| **U3** | forcing all changed zones | 🔒 **RULED (user, `2026-09-17`): the zone editor becomes a VIEW on the existing DETAILS SHELL**, offered when empty map space is selected. ⭐⭐ **PURE REUSE — see §9.5.** ⛔⛔ **A PRIOR DRAFT OF THIS ROW CLAIMED THIS WAS "NEW INFRASTRUCTURE… the largest single item in this design." THAT WAS FALSE** — it came from a grep scoped to one folder and two name patterns. `DetailsWindow` already is *"THE DETAILS SHELL: one window, N views, chosen by a predicate"*, `WindowScope.PerspectiveBound`, with a view registry and contributed `*DetailsView` classes |
 | **U4** | multi-zone at once | ⭐⭐ **the user's lean, and it is already supported: ONE OP PER ZONE.** 📐 Measured: `FanOutSerializeLocal` registers `_pendingTransactions[requestId]` (a **keyed dictionary**, `Expected = nodeIds.Count`) and never touches `_activeTransaction` ⇒ **concurrent rounds already work on this path in production.** ⛔ Do NOT widen the op to carry N zones |
 
 ### 9.3 Why one-op-per-zone beats a multi-zone payload
@@ -374,6 +374,45 @@ invisible to the protocol.
 ⚠ **The one question it raises:** *"load all stale"* on a 50-zone scenario opens 50 trackers at once.
 Cheap (dictionary entries) but unbounded — ⭐ lean: cap in-flight at the **requester**, not in the
 master, and leave the protocol alone.
+
+### 9.5 ⭐⭐ THE ZONES VIEW — a contribution to the EXISTING details shell
+
+📐 **Measured `2026-09-17` — the shell already exists and is actively used:**
+`Hrot.Editor.AiShared/Windows/DetailsWindow.cs` — *"`L2.1` — THE DETAILS SHELL: one window, N views,
+chosen by a predicate"*, `WindowScope.PerspectiveBound` with an `owningPerspective`, a
+`DetailsViewRegistry`, an `IDetailsContextSource` and `IDetailsViewInstance` contributions
+*(`BlackboardDetailsView`, `HsmEventsDetailsView`, `BlueprintNodeDetailsView`, …)*. Its own header notes
+it **was** `AiDetailsWindow` and that the old name is false: *"this is the shell for EVERY perspective."*
+📄 Owning design: **[`docs/blueprints/DESIGN_Details_Panel_View_Switching.md`](blueprints/DESIGN_Details_Panel_View_Switching.md)**.
+
+⇒ ⭐ **The zones view is a registered `DetailsView`, not a panel.** The only genuinely new seam is a
+**details CONTEXT for "the map background is selected"** — `IDetailsContextSource` must be able to
+report it, so the registry's predicate can offer the zones view. That is a small addition to an
+existing interface, not new infrastructure.
+
+| what the view SHOWS — one row per `Area{Type=Zone}` entity | source |
+|---|---|
+| zone name | the Area entity |
+| **state**: `Loaded` · `Loading` · `Failed` · **`Stale`** | ⭐ the **LOCAL** `TerrainAssetLoadState` (§9.1) — `Stale` is `marker.SourceVersion != EditablePolyline.Version` (R4) |
+| last cluster outcome, incl. **which node failed** | the op result (§8.3), ⛔ never a replicated component |
+| header: counts (`n zones · m stale · k failed`) | derived |
+
+| what it SUPPORTS | |
+|---|---|
+| per-row **Load** | publishes the cluster op for that ONE zone (§9.2 U4: one op per zone) |
+| per-row **select / zoom-to** | selects the zone entity; the map focuses it |
+| header **Load all stale** | fans out one op per stale zone, capped at the requester |
+| ⛔ **NOT** road-path or obstacle-radius editing | that was the retiring `ZoneEditorPanel`'s job; those are now ordinary entity authoring on the map |
+
+### 9.6 🔒 RULED — **the zone-load action is ALWAYS cluster-wide**
+
+> 🔒 **User, `2026-09-17`:** *"the zone load menu should always trigger cluster wide load."*
+
+⇒ the context-menu item (U2), the per-row action and *"Load all stale"* **all publish the cluster op**;
+⛔ **there is no local-only zone load, on any host.** ⭐ On the editor this still goes through the
+orchestrator, because the editor **is** a single-node cluster — exactly the principle `CE-275` already
+established for saving *("no direct write in the editor… same code everywhere")*. ⭐ One path, so the
+editor cannot drift from the cluster.
 
 ### 9.4 🔴 FINDING — **`HasInFlightTransaction` is very nearly always FALSE** *(measured `2026-09-17`)*
 
