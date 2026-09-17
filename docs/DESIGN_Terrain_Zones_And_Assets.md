@@ -225,27 +225,49 @@ retired. ⇒ **the terrain loader takes that job**, keyed off the terrain, not o
 
 ### 2.1e ⭐⭐⭐ TERRAIN HANDLING — where it lives, when it loads, who runs it
 
-#### ① In the SCENARIO — terrain rides the GLOBAL block, beside `TkbName`
+#### ① In the SCENARIO — **a NAME, and nothing else**
 
-📐 The scenario DOM is `{ $meta, Header{TkbName}, entities }`. ⭐ **`Header.TkbName` is the exact
-precedent**: a *named asset the whole scenario depends on*, stored globally rather than per entity.
-Terrain is the same kind of thing ⇒ **it belongs in the same place**, not in a new parallel section and
-not in `entities`.
+> 🔒 **User, `2026-09-17`:** *"Terrain is an asset that is referenced **by name** (with optional subfolder
+> path) from a scenario, **nothing more needed in scenario**. Route network assets to load etc are
+> **internal data of the terrain** that might be useful in memory but **not in scenario**. So terrain
+> asset needs **its own definition file (json)** processed by the loader."*
 
-⚠ **Why this does not reintroduce the retired `Zones` section:** that was a **content bundle
-duplicating entity data** (obstacles existed twice). Terrain is a **global fact with no entity twin** —
-the same class as `$meta` and `TkbName`, which `DESIGN_Distributed_Scenario_Persistence` §6a already
-keeps as globals that ride the brain file.
+⛔⛔ **A prior draft put "identity + asset references" in the scenario. RETRACTED** — the scenario carries
+**only the terrain name** (+ an optional subfolder path). Road networks, terrain DB, buildings and
+everything else are **inside the terrain asset**, never in the scenario.
 
-It carries the terrain **identity** plus its **asset references** (road networks first; terrain DB,
-heightmap and navmesh later). ⛔ **Not** the assets themselves.
+⭐⭐⭐ **This is EXACTLY what `Header.TkbName` already is** — a *name* that resolves to an artifact, with
+the artifact's contents living in the artifact. ⇒ terrain sits beside it, same block, same shape.
 
-#### ② In HOST MEMORY — an ECS singleton
+#### ①a The TERRAIN DEFINITION FILE — a new asset format
 
-⭐ Mirrors what already exists: `ZoneEnvironmentData` (the road blob) and the singleton-managed
-`INavmeshProvider` are **both already ECS singletons**. Terrain state joins them rather than inventing a
-storage shape. 🔒 Ruled: *"terrain is by design a singleton concept and a special one already being
-handled in a special way."*
+A JSON asset, resolved from the name, listing what the terrain provides: its road network(s) first, and
+later its terrain DB / heightmap / navmesh / built-in buildings. ⛔ **It is authored and shipped as an
+asset, not edited in the scenario editor** (§2.1a's road-network rule applies to it).
+
+#### ② In HOST MEMORY — an ECS singleton holding the PARSED definition
+
+⭐ The singleton holds the parsed definition plus handles to whatever it loaded. ⛔ **None of that is
+persisted** — it is re-derived from the named asset on every load, so it cannot disagree with the asset.
+⭐ It joins `ZoneEnvironmentData` and the singleton-managed `INavmeshProvider`, which are already ECS
+singletons.
+
+#### ②a ⭐⭐⭐ THE WHOLE PATTERN ALREADY EXISTS — mirror `TkbLoadClusterStateHandler` FIELD FOR FIELD
+
+📐 Measured — it is not merely a similar shape, it is the same problem already solved:
+
+| `TkbLoadClusterStateHandler` (exists) | the terrain loader (to build) |
+|---|---|
+| reads **`TkbName` from the locally staged scenario header** | reads the **terrain name** from the same header |
+| intercepts **`PrepareLive` / `PrepareEdit`** | the same node ops |
+| loads the TKB artifact **from the node's local staging area** | loads the terrain definition JSON from the same staging area |
+| *"before the scenario is deserialized"* | the same ordering, for the same reason |
+| populates **`ITkbDatabase`** | populates the terrain singleton + whatever the definition declares |
+| ⭐ **differential cache keyed on `(TkbName, file timestamp)`** to skip re-ingestion | ⭐ the same key ⇒ **idempotency for free**, no new mechanism |
+| graceful fallback when the header carries no name | the same — a scenario with no terrain is legal |
+
+⇒ ⭐⭐ **the terrain loader is `TkbLoadClusterStateHandler` with a different artifact.** ⛔ Do not design
+resolution, caching or ordering from scratch — all three are already answered there.
 
 #### ③ WHEN — inside the cluster state machine's LOADING states
 
