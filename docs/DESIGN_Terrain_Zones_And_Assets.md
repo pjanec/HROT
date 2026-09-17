@@ -55,20 +55,18 @@ related-designs:
 
 ```mermaid
 classDiagram
+  class TkbIdentity {
+    +long TkbType
+  }
+  class SimTransform {
+    +Vector3 Position
+  }
   class EditablePolyline {
     +List~Vector2~ Points
-    +int Version
-  }
-  class Area {
-    +AreaType Type
-  }
-  class RoadFeature {
-    +float LaneWidth
-    +int LaneCount
   }
   class TerrainAssetLoadState {
     +LoadPhase Phase
-    +int SourceVersion
+    +ulong SourceHash
   }
   class PhysicsCollider {
     +float Radius
@@ -91,29 +89,72 @@ classDiagram
   class ZoneEnvironmentData {
     +RoadNetworkBlob RoadNetwork
   }
-  EditablePolyline <-- Area : boundary
-  EditablePolyline <-- RoadFeature : centerline
-  Area --> TerrainAssetLoadState : marked when loaded
-  RoadFeature --> TerrainAssetLoadState : marked when loaded
+  TkbIdentity --> TerrainAssetLoadState : 8804 zone / 8805 road<br/>marked when loaded
+  SimTransform --> EditablePolyline : ORIGIN - points are RELATIVE
   TerrainLoadService --> ZoneTileLoader
   TerrainLoadService --> RoadNetworkCompiler
   RoadNetworkCompiler --> RoadNetworkBuilder : REUSED
   RoadNetworkCompiler --> ZoneEnvironmentData : publishes blob
   note for PhysicsCollider "OBSTACLE = live by construction.<br/>No asset, no load, no marker (R1)."
   note for RoadNetworkBuilder "EXISTS - FDP CarKinem/Road/RoadNetworkBuilder.cs"
-  note for EditablePolyline "EXISTS - its Version is the staleness key (R4)"
+  note for TkbIdentity "EXISTS - THE discriminator. 8801 FireLine,<br/>8802 Route, 8803 Area, +8804 Zone, +8805 Road"
+  note for TerrainAssetLoadState "NEW - the ONLY new component.<br/>SourceHash = hash(SimTransform + Points)"
   note for ZoneEnvironmentData "EXISTS - the swappable singleton (R2)"
 ```
 
-*What the picture shows that the prose hid:* **obstacles hang off nothing.** Every other definition
-kind flows into a loader and earns a marker; the obstacle box terminates immediately — which is the
-whole of ruling R1, visible rather than argued.
+*What the picture shows that the prose hid:* **obstacles hang off nothing** — every other definition
+kind flows into a loader and earns a marker, while the obstacle box terminates immediately (ruling R1).
+⭐ And **exactly ONE new component exists**: discrimination rides `TkbIdentity`, which was already there.
 
 | new type | why it is new |
 |---|---|
-| `Area { AreaType Type }` | a zone is *a tactical drawing of an area that happens to be typed `Zone`*; the type field is what keeps one authoring surface serving zones and tactical areas alike |
-| `RoadFeature` | the KIND discriminator the build selects on (`Q71-E2`); `EditablePolyline` alone cannot say "this polyline is a road" |
-| `TerrainAssetLoadState { LoadPhase Phase, int SourceVersion }` | ⭐ `[DataPolicy(NoScenario \| NoReplay)]`. **Not** a bare tag — streaming has an in-flight state and loads can fail. ⚠ Named `Terrain…` on purpose: a bare `AssetLoadState` collides with the editor's existing BTree/HSM asset-load-state concepts |
+| `TerrainAssetLoadState { LoadPhase Phase, ulong SourceHash }` | ⭐ **the only new component.** `[DataPolicy(NoScenario \| NoReplay)]`, node-local, never replicated (§9.1). **Not** a bare tag — streaming has an in-flight state and loads can fail. ⚠ Named `Terrain…` on purpose: a bare `AssetLoadState` collides with the editor's existing BTree/HSM asset-load-state concepts |
+| two new **`TkbType` values** *(not components)* | `8804` zone · `8805` road — see §2.1 |
+
+### 2.1 ✅ RULED `2026-09-17` — **`TkbType` is the ONE discriminator; `AreaType` is SUPERSEDED**
+
+> 🔒 **User:** *"own TkbType for zones approved. prev ruling 'Areas carry an area type field' was wrong,
+> now superseded with the TkbType differentiation."*
+
+⛔⛔ **`Area { AreaType Type }` is DELETED from this design.** 📐 `TkbIdentity.TkbType` is *already* the
+"what kind of thing is this" axis — `8801 TacGraphic_FireLine`, `8802 TacGraphic_Route`, `8803
+TacGraphic_Area` — and it **already selects the gizmo** (`TacticalAreaGizmo` filters on it). ⇒ an
+`AreaType` field would have been a **second discriminator for one distinction**, forcing every consumer
+of `8803` that does not care about zones (symbology, ORBAT, templates) to branch on it.
+
+⭐ **Extended to ROADS by the same logic** *(⚠ not separately ruled — say so if you disagree)*: the
+`RoadFeature` marker component is likewise deleted in favour of a `TkbType`. `EditablePolyline` alone
+cannot say *"this polyline is a road"*, but `TkbType` can, and it is the axis the KIND mask (`Q71-E2`)
+should select on. ⚠ **Values `8804`/`8805` are placeholders — naming and numbering are the user's**, and
+`R-42`'s rule applies: these ids reach replays and saved scenarios, so **deprecate, never recycle**.
+
+### 2.2 ✅ RULED `2026-09-17` — **RELATIVE COORDINATES EVERYWHERE**
+
+> 🔒 **User:** *"I would like to unify the absolute-vs-relative-vertex-coords convention. The more
+> unified the editing/storage/persistence/transport is, the better."*
+
+⭐⭐⭐ **`EditablePolyline.Points` are RELATIVE offsets from the entity's `SimTransform`. One convention,
+no exceptions, every entity family.**
+
+📐 **Measured — relative is already the convention on every surface but one:**
+
+| surface | today |
+|---|---|
+| storage *(shipped assets)* | ✅ relative — `hill-attack` entity `5525100c`: origin `[670, 473.5]`, points `(-53,-88.5)` |
+| transport | ✅ relative, explicitly — `MapVisualOverlayEgressTranslator.cs:90` |
+| editing | ✅ relative — `VertexEditGizmo` works absolute internally and converts back with `p - _originOffset` (`:223-227`) |
+| `MapOverlayGizmo` | ✅ relative — `origin + Points` |
+| ⛔ `TacticalAreaGizmo` | 🔴 **claims absolute — the ONE dissenter, and it is WRONG** |
+
+⇒ ⭐ **unifying on relative costs one gizmo fix and ZERO data migration.** Unifying on absolute would
+mean rewriting every stored asset *and* both translators, and would make `SimTransform` either a lie or
+redundant on these entities. ⭐ Relative also keeps **"move" as a single transform write** — the same
+gesture every other entity uses and the network already replicates.
+🔴 **Live consequence being fixed:** both gizmos match entity `5525100c` and `GizmoReflectionRegistrar`
+registers every projector, so that area currently **renders twice, ~820 m apart**, with picking off by
+the same amount. 📄 **`BP-517`.**
+⇒ ⭐⭐ **And this is why the staleness key must include the transform**: with relative points, a MOVE
+changes only `SimTransform` — `hash(SimTransform ⊕ Points)` (§9.7 ③c) is the only key that sees it.
 
 ---
 

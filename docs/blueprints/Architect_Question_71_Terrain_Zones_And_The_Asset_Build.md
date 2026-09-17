@@ -1,10 +1,13 @@
 <!--STATUS
 state: LIVE
-build-state: DESIGN — ✅ **APPROVED IN FULL AS A CONCEPT (user, 2026-09-16)** with a FAKE-FIRST scope
+build-state: DESIGN (the WHY only) — ✅ **APPROVED IN FULL AS A CONCEPT (user, 2026-09-16)** with a FAKE-FIRST scope
   ruling (§5). ⛔ STILL NOT BUILDABLE — §6 lists what must be specified first, and the concrete asset
   semantics are explicitly POSTPONED by the same ruling.
-updated: 2026-09-16
-current-answer: ⭐ §7 is the LATEST state — the 2026-09-17 refinement dissolved S1/S3/S4/S5 (and
+updated: 2026-09-17
+current-answer: ⭐ §7 is the LATEST state, and R4/R5 within it are THEMSELVES superseded
+  (2026-09-17): R4's version counter is replaced by a footprint HASH, and R5's AreaType field is
+  replaced by TkbType discrimination. Both supersessions are marked in the R-table in place.
+  ⭐ §7 is the LATEST state — the 2026-09-17 refinement dissolved S1/S3/S4/S5 (and
   WITHDREW Q71-C) and added rulings R1–R7. Read §7 before §3 or §6, both of which it edits.
   §5 is the fake-first scope ruling, §1 the INVENTORY, §2 the measured conflict.
   📄 The WHAT is now docs/DESIGN_Terrain_Zones_And_Assets.md (READY-TO-BUILD); this stays the WHY.
@@ -377,8 +380,8 @@ the WHAT)*. S4–S11 are specification work that can be done inside it. ⛔ **No
 | **R1** | ⛔ **obstacles are EXCLUDED from the load model** — no asset, no load step, no marker | `RaycastSolverSystem.cs:145-147` reads `PhysicsCollider` off broadphase candidates and `LosRequestBatchingSystem` queries by its component id ⇒ **an obstacle occludes LOS the instant it exists.** *"Obstacle loading already exists"* has no referent |
 | **R2** | ⭐ **the road-blob swap seam is a PRECONDITION**, not a cleanup | 🔴 `PathfindingSolverSystem` holds `readonly RoadNetworkBlob _roadNetwork` assigned once in its ctor (`:32`,`:63`) — same shape in `NavigationSolverModule` + `EngineBackedNavigationModule` ⇒ a commit swap reaches `CarKinematicsSystem` (per-tick singleton read) and **silently does nothing for pathfinding.** Fix by reuse: navigation re-reads the singleton per tick |
 | **R3** | the marker carries **state**, not a bare tag: `{ LoadPhase, SourceVersion }`, `[DataPolicy(NoScenario \| NoReplay)]` | streaming has an in-flight state and loads can fail; both flags already exist |
-| **R4** | ⭐⭐ **staleness by version** — the marker records the `EditablePolyline.Version` it was built from | ⭐ the key already exists: that field is documented *"incremented … so subscribers can detect stale cached copies."* ⛔ Without it, "idempotent" silently becomes "never reloads" after an edit |
-| **R5** | `AreaType` lives on a new `Area` component; `EditablePolyline` stays shape-only | one authoring surface serves zones and tactical areas |
+| **R4** | ⛔⛔ **SUPERSEDED `2026-09-17` — the key is a HASH, not a version counter.** The original key (`EditablePolyline.Version`) is MEASURED BROKEN: **nothing increments it**, `VertexEditGizmo.cs:227` **resets** it on every committed edit, and — since points are RELATIVE — it could not see a MOVE at all. ⇒ the key is **`hash(SimTransform ⊕ Points)`**, computed by the loader and the gizmo and maintained by nobody. 📄 [`DESIGN_Terrain_Zones_And_Assets.md`](../DESIGN_Terrain_Zones_And_Assets.md) §9.7 ③c; defect filed as `BP-516` | measured |
+| **R5** | ⛔⛔ **SUPERSEDED `2026-09-17` (user): `AreaType` was WRONG — `TkbType` is the ONE discriminator.** 🔒 *"own TkbType for zones approved. prev ruling 'Areas carry an area type field' was wrong, now superseded with the TkbType differentiation."* ⇒ the `Area{AreaType}` and `RoadFeature` components are **deleted**; zones and roads get their own `TkbType` values beside `8801`/`8802`/`8803`. ⭐ `TkbIdentity` already IS the kind axis and already selects the gizmo, so `AreaType` would have been a second mechanism for one distinction. 📄 §2.1 of the design | user |
 | **R6** | zone/terrain loading is **role-filtered** — the tile consumers run it, the brain loads nothing | `DESIGN_Node_Roles_And_Policies` |
 | **R7** | the tile cache is **per-node local and keyed geographically** *(mechanism postponed)* | otherwise *"reusable across zones"* cannot be true |
 
