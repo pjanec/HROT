@@ -1,3 +1,22 @@
+<!--STATUS
+state: LIVE
+build-state: BUILT in substance (verified 2026-09-17) — RoutePlan, PersonalRouteAuthoringSystem,
+  RouteTrajectorySyncSystem + RouteTrajectoryCache, MapRouteEgressTranslator and the FollowRoute
+  executor all exist in production. ⚠ The header below still says "Status: Design Phase"; that is STALE.
+updated: 2026-09-17
+current-answer: §5 (Shared vs Personal Routes) and §5.1 (directing a vehicle to follow one) are the
+  route MODEL and are current — a shared route is a root entity multiple vehicles may follow.
+  ⭐ §16 is NEW and carries the as-built PERSISTENCE gap, which this design never covered.
+known-rot: ⛔⛔ THIS DESIGN NEVER COVERED SCENARIO PERSISTENCE, and the omission shipped as a DEFECT:
+  PersonalRouteRefTranslator persists the vehicle→route GUID, but there is NO RoutePlanTranslator, so
+  the waypoints are never written. A save/load silently yields a vehicle pointing at an EMPTY route.
+  📄 §16, filed as BP-518.
+related-designs:
+  - docs/DESIGN_Terrain_Zones_And_Assets.md — §2.1a: routes are NOT terrain assets and are NOT the road
+    network; that design explicitly defers the route model to THIS one.
+  - docs/DESIGN_Distributed_Scenario_Persistence.md — owns the scenario save gate and which file an
+    entity rides in; route entities pass through it like any other once §16 is closed.
+-->
 # Routes-1 Design — Predefined Vehicle Trajectories as Route Entities
 
 **Workstream:** ROUTES1  
@@ -531,3 +550,40 @@ The implementation is split into nine phases, each decomposed into independently
 > **Goal:** Remove the legacy waypoint queue mechanism.
 
 - **ROUTES1-T015** — Remove `_waypointQueues` from `ScenarioManager`; wire Shift+Right-Click through the new personal route system end-to-end
+
+
+---
+
+## 16. ⛔ AS-BUILT GAP `2026-09-17` — **routes do not survive a scenario save**
+
+📐 **Measured.** Managed components are written to a scenario only via an explicit
+`IEntityScenarioTranslator`; there are 14, and the two that matter here are asymmetric:
+
+| translator | state |
+|---|---|
+| `EditablePolylineTranslator` | ✅ exists — areas persist |
+| `PersonalRouteRefTranslator` | ✅ exists, and is careful: on save it resolves `PersonalRouteRef.RouteEntity` to a **stable GUID**; on load it writes `InitialRouteIntent` so `GenesisMaterializationSystem` re-resolves the handle |
+| 🔴 **`RoutePlanTranslator`** | ⛔ **DOES NOT EXIST** |
+
+⇒ 🔴 **the LINK is persisted and the GEOMETRY is not.** A scenario saved with a route reloads as a
+vehicle pointing at a route entity with **zero waypoints** — ⛔ silently, with no error. Corroborated:
+**no shipped scenario contains a `RoutePlan`.**
+
+⚠ **Two things the fix must handle**, both measured:
+- `RoutePlan.Waypoints` is an `IReadOnlyList` over a `private readonly List`, mutable only through
+  `Mutate()` ⇒ **it cannot be auto-deserialized**; the translator must go through `Mutate`, which is
+  also what keeps `Version` correct (§4's mutation contract).
+- `RouteWaypoint.ExtensionJson` is nullable free-form JSON (§13's AI soft advice) and must round-trip.
+
+⭐ **What is NOT missing, and needs no new design:**
+- **sharing** — §5 already specifies a shared route as a root entity multiple vehicles follow, and the
+  `FollowRoute` mission references the route by **network id**, so N vehicles → 1 route already works;
+- **naming** — `EntityInfo { FixedString64 Name, ForceId }` already exists on entities and already
+  persists *(a shipped scenario carries `"Tank Platoon (Auto Spawn)"`)*, so *"follow route &lt;name&gt;"*
+  resolves name → entity → the existing mission with no new component;
+- **the follow order** — `FollowRoute` exists as a blueprint channel command, a mission `BehaviorId`,
+  and `FollowRouteExecutor`.
+
+⇒ ⭐ **the whole gap is ONE translator**, mirroring `EditablePolylineTranslator`. 📄 **`BP-518`.**
+⚠ Note `RoutePlan.Version` is correctly maintained by `Mutate()` — ⛔ unlike `EditablePolyline.Version`,
+which is never incremented (`BP-516`). Do not copy that half of the mirror.

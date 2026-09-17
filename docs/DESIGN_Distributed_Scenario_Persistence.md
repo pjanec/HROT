@@ -66,6 +66,8 @@ design-basis:
     EntityMaster lifecycle, per-descriptor ownership, the generic OwnershipUpdate transfer — §6c maps it
     onto our ECS and records the PrimaryOwnerId-mirror compliance gap)
 related-designs:
+  - docs/designs/routes-1/ROUTES1-DESIGN.md — owns the ROUTE model; §16 records that RoutePlan has no
+    scenario translator, so routes pass this gate as entities but reload with no waypoints (BP-518).
   - docs/DESIGN_Terrain_Zones_And_Assets.md — the terrain/zone/asset model (Area entities, the
     entity-is-the-definition rule, PrepareTerrainAsset/CommitTerrainAsset and the road compile).
   - DESIGN_Node_Roles_And_Policies.md — owns the ROLE/ownership POLICY (who may own what, R-138/R-140);

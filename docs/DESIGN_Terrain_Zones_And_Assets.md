@@ -15,6 +15,9 @@ known-rot: nothing yet.
 known-conflict: none. This document REPLACES the zone half of docs/designs/packs-3/DESIGN.md
   (§2.B/§2.C/§2.E), which is already marked superseded there.
 related-designs:
+  - docs/designs/routes-1/ROUTES1-DESIGN.md — ⭐ OWNS THE ROUTE MODEL (§5 shared vs personal routes,
+    §5.1 directing a vehicle to follow one, §16 the as-built persistence gap). Routes are NOT terrain
+    assets and NOT the road network — §2.1a here defers to it rather than restating it.
   - docs/blueprints/Architect_Question_71_Terrain_Zones_And_The_Asset_Build.md — the WHY and the
     decision record (§5 ruling, §6 gaps). THIS doc is the WHAT; that one is why it is shaped so.
   - docs/designs/mgmt-1/DESIGN.md — §11 owns the PrepareZone/CommitZone 2PC protocol and ZoneSpec;
@@ -150,6 +153,8 @@ needs none of them. ⭐ Per-waypoint `TargetSpeed` already exists and is finer-g
 `SpeedLimit` I had proposed.
 ⭐ **And the Catmull-Rom ruling was already shipped one layer over** — `RegisterTrajectory` uses it for
 routes today, so the convention was consistent before it was proposed.
+
+📄 **The route model is OWNED BY [`ROUTES1-DESIGN.md`](designs/routes-1/ROUTES1-DESIGN.md) §5** — shared routes (a root entity multiple vehicles follow) and personal routes (a vehicle-owned child) are specified there, and are deliberately NOT restated here.
 
 ⭐⭐ **`EditablePolyline` is for AREAS; `RoutePlan` is for ROUTES — do not unify them.** 🔒 *"they are
 semantically too different."* 📐 Production already honours this: IG authors routes via
