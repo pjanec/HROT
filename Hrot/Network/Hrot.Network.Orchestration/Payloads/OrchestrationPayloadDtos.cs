@@ -69,6 +69,29 @@ public record ArchivePayloadDto(
     Guid          ExerciseId
 );
 
+/// <summary>
+/// Payload DTO for <c>ClusterOpType.LoadZone</c> DDS requests — ONE zone per request
+/// (📄 docs/DESIGN_Terrain_Zones_And_Assets.md §9.3).
+///
+/// <para>⛔ Replaces the previous abuse of <see cref="ArchivePayloadDto"/>, whose
+/// <c>ExerciseId</c> (a <see cref="Guid"/>) was being stringified into the zone id. That silently
+/// restricted zone ids to GUID shape and named the field after a different domain entirely.</para>
+/// </summary>
+public record ZonePayloadDto(
+    [property: JsonPropertyName("ZoneId")]
+    string?       ZoneId
+);
+
+/// <summary>
+/// Payload DTO for <c>ClusterOpType.BuildTerrainAsset</c> DDS requests.
+/// <para><c>Kinds</c> names the asset kinds to rebuild; null or empty means "all".
+/// 📄 docs/DESIGN_Terrain_Zones_And_Assets.md §3.1.</para>
+/// </summary>
+public record TerrainAssetBuildPayloadDto(
+    [property: JsonPropertyName("Kinds")]
+    string[]?     Kinds
+);
+
 /// <summary>Payload DTO for <c>ClusterOpType.ReplaySeek</c> DDS requests.</summary>
 public record SeekReplayPayloadDto(
     [property: JsonPropertyName("TargetWallTicks")]

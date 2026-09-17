@@ -53,6 +53,12 @@ public sealed class HrotScenarioLoadHandler : ITickableClusterStateHandler
     private readonly string _storageDirectory;
     private readonly ReadOnlyMigrationAdapter? _readOnlyAdapter;
 
+    /// <summary>
+    /// ⭐ C3 — makes each loaded zone's terrain data resident LOCALLY, with no NodeOp. <c>null</c> on a
+    /// host that composes no loader; the call is then simply skipped.
+    /// </summary>
+    private readonly TerrainLoadService? _terrainLoadService;
+
     private IReadOnlyList<EntityCreationRequest>? _pendingRequests;
     private Dictionary<string, ZoneDefinitionDto>? _pendingZones;
     private Guid? _pendingTransactionId;
@@ -76,7 +82,8 @@ public sealed class HrotScenarioLoadHandler : ITickableClusterStateHandler
         EntityRepository? world = null,
         IRecordReplayController? controller = null,
         string? storageDirectory = null,
-        ReadOnlyMigrationAdapter? readOnlyMigrationAdapter = null)
+        ReadOnlyMigrationAdapter? readOnlyMigrationAdapter = null,
+        TerrainLoadService? terrainLoadService = null)
     {
         _serializer        = serializer     ?? throw new ArgumentNullException(nameof(serializer));
         _scenarioLoader    = scenarioLoader ?? throw new ArgumentNullException(nameof(scenarioLoader));
@@ -88,6 +95,7 @@ public sealed class HrotScenarioLoadHandler : ITickableClusterStateHandler
         _controller        = controller;
         _storageDirectory  = storageDirectory ?? OrchestrationConstants.ResolveStagingRoot();
         _readOnlyAdapter   = readOnlyMigrationAdapter;
+        _terrainLoadService = terrainLoadService;
     }
 
     /// <inheritdoc />
@@ -252,6 +260,19 @@ public sealed class HrotScenarioLoadHandler : ITickableClusterStateHandler
             foreach (var _ in _world.Query().WithManaged<InitialRouteIntent>().Build()) return;
             foreach (var _ in _world.Query().WithManaged<InitialUnitSubordinateIntent>().Build()) return;
         }
+
+        // ⭐⭐⭐ C3 — THE LOCAL INVOCATION. Genesis is provably complete at this exact point (every
+        //   condition above passed), so the zone ENTITIES finally exist and their terrain can be made
+        //   resident. ⛔ NOT via a NodeOp: we are already inside the cluster's own load transaction and
+        //   a nested 2PC would deadlock. Same TerrainLoadService the 2PC round uses, so the two paths
+        //   cannot drift.
+        // ⚠⚠ DEVIATION from design §3.2's sequence, and it is forced. That diagram draws
+        //   "deserialize entities -> EnsureAllLoaded" inside the load handler, as if the entities existed
+        //   when the handler commits. 📐 Measured: Commit() only ENQUEUES EntityCreationRequests into the
+        //   genesis pipeline, which drains on LATER ticks — so a call there would sweep an empty world
+        //   and mark nothing, silently. DrainDeferredAcks is the first moment the entities are real.
+        if (_terrainLoadService != null && _world != null)
+            _terrainLoadService.EnsureAllLoaded(_world);
 
         _operatingLiveTcs.TrySetResult(null);
         _operatingLiveTcs = null;

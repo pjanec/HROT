@@ -76,6 +76,21 @@ public sealed class ClusterMaster : IDisposable
         /// <c>_pendingBusTransitionAcks</c> (TransitionState, TakeCheckpoint, ReplaySeek).
         /// </summary>
         public bool BroadcastClusterStateOnComplete;
+        /// <summary>
+        /// ⭐ When non-null this tracker is a <b>NON-TERMINAL PHASE</b> of a multi-phase round
+        /// (today: <c>PrepareZone</c> → <c>CommitZone</c>). On all-ACK success the continuation runs
+        /// INSTEAD of publishing a final status, so the requester is not told "Success" while the
+        /// commit phase has not even been sent.
+        /// <para>⚠ On FAILURE the round does not silently stop: <see cref="Targets"/> is fanned an
+        /// <see cref="NodeOpType.AbortTransaction"/> so nodes free their staged buffers — the abort
+        /// arm of <c>docs/designs/mgmt-1/DESIGN.md</c> §11.1.</para>
+        /// </summary>
+        public Action? OnPhaseSuccess;
+        /// <summary>
+        /// The nodes this phase was fanned out to. Only needed to address the abort of a failed
+        /// <see cref="OnPhaseSuccess"/> round; a terminal tracker leaves it null.
+        /// </summary>
+        public List<int>? Targets;
         /// <summary>Per-node response JSON strings fed into the aggregator pipeline.</summary>
         public readonly Dictionary<int, Dictionary<Fdp.Toolkit.Orchestration.NodeOpType, string>> NodeResponses = new();
     }
@@ -289,6 +304,7 @@ public sealed class ClusterMaster : IDisposable
         ProcessSeekReplayIntents();
         ProcessCancelOperationIntents();
         ProcessDiagnosticDumpIntents();
+        ProcessLoadZoneIntents();
 
         ConsumeNodeOpStatuses();
     }
@@ -455,6 +471,12 @@ public sealed class ClusterMaster : IDisposable
 
             case ClusterOpType.CancelOperation:
                 ProcessCancelOperationIntent(ClusterOpRequestAdapter.ToCancelOperationIntent(req));
+                break;
+
+            // C4 — §9.6: the zone-load action is ALWAYS cluster-wide, and on the editor (a single-node
+            // cluster) it arrives through THIS injected path, not the DDS translator.
+            case ClusterOpType.LoadZone:
+                ProcessLoadZoneIntent(ClusterOpRequestAdapter.ToLoadZoneIntent(req));
                 break;
         }
     }
@@ -668,6 +690,103 @@ public sealed class ClusterMaster : IDisposable
     {
         foreach (var intent in _eventBus.ReadManaged<CancelOperationIntent>())
             ProcessCancelOperationIntent(intent);
+    }
+
+    /// <summary>
+    /// C4 — the consumer <see cref="LoadZoneIntent"/> never had. Each intent starts its OWN
+    /// <c>PrepareZone</c> → <c>CommitZone</c> round for exactly ONE zone.
+    ///
+    /// <para>⭐⭐ <b>One op per zone</b> (📄 docs/DESIGN_Terrain_Zones_And_Assets.md §9.3): a bad zone
+    /// fails its own round instead of the batch, per-row progress falls straight out of
+    /// <see cref="_pendingTransactions"/>, and retry granularity is a zone. The unbounded-fan-out
+    /// question §9.3 raises is answered at the REQUESTER, not here — the master deliberately imposes
+    /// no cap.</para>
+    ///
+    /// <para>⛔⛔ <b>NOT routed through <c>_activeTransaction</c></b> (§9.4): that is a SINGLE SLOT owned
+    /// by the cluster state machine, assigned and cleared inside one method. Two concurrent zone rounds
+    /// through it would overwrite each other. <see cref="_pendingTransactions"/> is keyed by
+    /// transaction id and is the only structure here that survives concurrency.</para>
+    /// </summary>
+    private void ProcessLoadZoneIntents()
+    {
+        foreach (var intent in _eventBus.ReadManaged<LoadZoneIntent>())
+        {
+            if (!_bootstrapLatch)
+            {
+                PublishOpStatus(intent.RequestId, OrchestrationStatusCode.Rejected);
+                continue;
+            }
+
+            ProcessLoadZoneIntent(intent);
+        }
+    }
+
+    /// <summary>
+    /// One zone, one round. Shared by the bus drain above and the injected-request path
+    /// (<see cref="ProcessSingleClusterOpRequest"/>), so the editor and the cluster cannot drift.
+    /// </summary>
+    private void ProcessLoadZoneIntent(LoadZoneIntent intent)
+    {
+        if (string.IsNullOrWhiteSpace(intent.ZoneId))
+        {
+            FdpLog<ClusterMaster>.Warn("[Orchestrator] LoadZone {0} rejected: no zone id.", intent.RequestId);
+            PublishOpStatus(intent.RequestId, OrchestrationStatusCode.Rejected);
+            return;
+        }
+
+        StartZoneLoadRound(intent.RequestId, intent.ZoneId!);
+    }
+
+    /// <summary>
+    /// Fans out phase 1 of one zone's round and registers the continuation that fans out phase 2.
+    /// ⭐ The zone load is ALWAYS cluster-wide (§9.6) — every active node, including the ones that will
+    /// build nothing and ACK at once.
+    /// </summary>
+    private void StartZoneLoadRound(Guid requestId, string zoneId)
+    {
+        var targets = new List<int>(_roster.ActiveNodes.Keys);
+        if (targets.Count == 0)
+        {
+            // Nothing to ask ⇒ the postcondition already holds. Reporting Success is honest here in a
+            // way it would not be if a node had refused.
+            PublishOpStatus(requestId, OrchestrationStatusCode.Success);
+            return;
+        }
+
+        var payload    = new ZoneOpPayload(zoneId);
+        var prepareTx  = Guid.NewGuid();
+
+        FanOutNodeOp(NodeOpType.PrepareZone, prepareTx, payload, targets);
+        _pendingTransactions[prepareTx] = new GenericTransactionTracker
+        {
+            RequestId      = requestId,
+            Expected       = targets.Count,
+            Targets        = targets,
+            OnPhaseSuccess = () => CommitZoneLoadRound(requestId, zoneId, targets),
+        };
+
+        PublishOpStatus(requestId, OrchestrationStatusCode.InProgress);
+
+        FdpLog<ClusterMaster>.Info(
+            "[Orchestrator] Zone '{0}' load {1}: PrepareZone fanned out to {2} node(s).",
+            zoneId, requestId, targets.Count);
+    }
+
+    /// <summary>Phase 2 — every node staged successfully, so tell them all to swap.</summary>
+    private void CommitZoneLoadRound(Guid requestId, string zoneId, List<int> targets)
+    {
+        var commitTx = Guid.NewGuid();
+        FanOutNodeOp(NodeOpType.CommitZone, commitTx, new ZoneOpPayload(zoneId), targets);
+        _pendingTransactions[commitTx] = new GenericTransactionTracker
+        {
+            RequestId = requestId,
+            Expected  = targets.Count,
+            // ⭐ Terminal: no continuation ⇒ completion publishes the final status for requestId.
+        };
+
+        FdpLog<ClusterMaster>.Info(
+            "[Orchestrator] Zone '{0}' load {1}: all nodes staged, CommitZone fanned out.",
+            zoneId, requestId);
     }
 
     private void ProcessDiagnosticDumpIntents()
@@ -1326,7 +1445,21 @@ public sealed class ClusterMaster : IDisposable
                     FdpLog<ClusterMaster>.Error(
                         "[Orchestrator] 2PC transaction {0} completed with failures (code={1}).",
                         ev.TransactionId, tracker.FailureCode);
+
+                    // ⭐ A failed NON-TERMINAL phase must tell the nodes that ACKed to drop what they
+                    //   staged — otherwise a prepared-but-never-committed buffer leaks until process
+                    //   exit. 📄 docs/designs/mgmt-1/DESIGN.md §11.1 (ABORT).
+                    if (tracker.OnPhaseSuccess != null && tracker.Targets is { Count: > 0 })
+                        FanOutNodeOp(NodeOpType.AbortTransaction, Guid.NewGuid(),
+                            new AbortTransactionPayload(ev.TransactionId), tracker.Targets);
+
                     PublishOpStatus(tracker.RequestId, tracker.FailureCode);
+                }
+                else if (tracker.OnPhaseSuccess != null)
+                {
+                    // ⛔ Deliberately NO PublishOpStatus here: the requester learns the outcome when the
+                    //   LAST phase completes, not when the first one does.
+                    tracker.OnPhaseSuccess();
                 }
                 else
                 {

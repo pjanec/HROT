@@ -10,6 +10,7 @@ using Fdp.Interfaces;
 using Fdp.Modules.Geographic;
 using Fdp.Toolkit.Orchestration;
 using Fdp.Toolkit.Orchestration.Handlers;
+using Fdp.Toolkit.Terrain;
 using Fdp.Toolkit.Tkb;
 using Hrot.Common.Orchestration.Handlers;
 using Hrot.Map.Common.Services;
@@ -54,6 +55,16 @@ namespace Hrot.SimHost
         /// silently ignored (<c>BP-527</c>) — machinery that buys nothing here.</para>
         /// </summary>
         public RoadNetworkHolder RoadNetworkHolder { get; } = new RoadNetworkHolder();
+
+        /// <summary>
+        /// ⭐ THE node's terrain load service — the ONE implementation both invocation paths use: the
+        /// local scenario-load call (C3) and the cluster 2PC round (C4/D3). Because both land here, the
+        /// idempotency branch is identical on both and "reload" cannot drift from "load on open".
+        /// <para>⚠ In slice 1 its tile loader is the ANNOUNCING FAKE, which logs its stub-ness on every
+        /// round. Nothing advertises a terrain capability (design §8.3 ruled: declare none).</para>
+        /// </summary>
+        public TerrainLoadService TerrainLoadService { get; } =
+            new TerrainLoadService(new AnnouncingZoneTileLoader());
 
         /// <param name="networkFactory">Optional network factory (reserved for future use).</param>
         public NodeBootstrapper(INetworkFactory? networkFactory = null)
@@ -354,7 +365,11 @@ namespace Hrot.SimHost
                             scenarioExtractor, scenarioSource, scenarioIdAllocator,
                             world: world,
                             controller: controller,
-                            storageDirectory: localTempRoot));
+                            storageDirectory: localTempRoot,
+                            // ⭐ C3 — the LOCAL invocation. The handler calls EnsureAllLoaded once genesis
+                            //   has drained, with no NodeOp: it is already inside the cluster's own load
+                            //   transaction and a nested 2PC would deadlock.
+                            terrainLoadService: TerrainLoadService));
 
                     clusterSlave.RegisterHandler(
                         new Hrot.ScenarioEditor.Handlers.HrotEditLoadHandler(scenarioSerializer, scenarioLoader, zoneService,

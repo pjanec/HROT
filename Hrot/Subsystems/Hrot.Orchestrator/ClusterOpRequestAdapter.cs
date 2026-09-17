@@ -205,4 +205,41 @@ internal static class ClusterOpRequestAdapter
         return new CancelOperationIntent { TargetRequestId = targetId };
     }
 
+    /// <summary>
+    /// Converts a <see cref="ClusterOpRequest"/> with <c>OperationType == LoadZone</c> to a
+    /// <see cref="LoadZoneIntent"/>.
+    ///
+    /// <para>⭐ This path exists because the zone-load action is ALWAYS cluster-wide
+    /// (📄 docs/DESIGN_Terrain_Zones_And_Assets.md §9.6) — including on the editor, which is a
+    /// single-node cluster driving the orchestrator through THIS injection path rather than the DDS
+    /// translator. ⛔ Without it the editor's zone load would fall through the request switch and do
+    /// nothing, silently, on the one host most likely to issue it.</para>
+    ///
+    /// <para>⚠ A bare (non-JSON) payload is accepted as the zone id itself, mirroring
+    /// <see cref="ToCancelOperationIntent"/>: panels and headless action handlers inject raw strings.</para>
+    /// </summary>
+    public static LoadZoneIntent ToLoadZoneIntent(ClusterOpRequest req)
+    {
+        string? zoneId = null;
+        var payload = req.PayloadJson;
+        if (!string.IsNullOrWhiteSpace(payload))
+        {
+            var trimmed = payload.Trim();
+            if (trimmed.StartsWith("{", StringComparison.Ordinal))
+            {
+                try
+                {
+                    var dto = JsonSerializer.Deserialize<ZonePayloadDto>(trimmed, OrchestrationJsonOptions.Default);
+                    zoneId = dto?.ZoneId;
+                }
+                catch (JsonException) { }
+            }
+            else
+            {
+                zoneId = trimmed;
+            }
+        }
+
+        return new LoadZoneIntent { RequestId = req.RequestId, ZoneId = zoneId };
+    }
 }

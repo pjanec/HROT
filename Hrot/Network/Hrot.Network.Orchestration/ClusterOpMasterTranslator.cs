@@ -237,11 +237,14 @@ public sealed class ClusterOpMasterTranslator
 
             case NedClusterOpType.LoadZone:
             {
-                ArchivePayloadDto? zoneDto = TryDeserialize<ArchivePayloadDto>(req.PayloadJson);
+                // ⭐ D2 — a purpose-built DTO. This arm used to deserialize ArchivePayloadDto and
+                //   stringify its ExerciseId into ZoneId, which named the wrong domain and silently
+                //   constrained zone ids to GUID shape.
+                ZonePayloadDto? zoneDto = TryDeserialize<ZonePayloadDto>(req.PayloadJson);
                 _bus.PublishManaged(new LoadZoneIntent
                 {
                     RequestId = req.RequestId,
-                    ZoneId    = zoneDto?.ExerciseId.ToString(),
+                    ZoneId    = zoneDto?.ZoneId,
                 });
                 break;
             }

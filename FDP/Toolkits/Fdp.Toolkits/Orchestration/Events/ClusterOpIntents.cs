@@ -132,11 +132,12 @@ namespace Fdp.Toolkit.Orchestration
     /// Published by <c>ClusterOpMasterTranslator</c> when a DDS <c>ClusterOpRequest</c>
     /// with <c>OperationType == LoadZone</c> arrives.
     /// <para>
-    /// ⚠ NOT CONSUMED. This intent currently has no subscriber — the publish at
-    /// <c>ClusterOpMasterTranslator</c> dead-ends. A previous version of this comment claimed
-    /// "Consumed by <c>ClusterMaster</c>", which was false: <c>ClusterMaster</c> never
-    /// subscribes to it. The zone-load round that will consume it is specified in
-    /// <c>docs/DESIGN_Terrain_Zones_And_Assets.md</c> §4 (dead edge 1) / §9.3.
+    /// ✅ CONSUMED since `2026-09-17` by <c>ClusterMaster.ProcessLoadZoneIntents</c>, which starts ONE
+    /// <c>PrepareZone</c> → <c>CommitZone</c> round per zone
+    /// (<c>docs/DESIGN_Terrain_Zones_And_Assets.md</c> §9.3).
+    /// ⚠ HISTORY: this comment previously claimed "Consumed by <c>ClusterMaster</c>" while nothing
+    /// subscribed at all — the publish genuinely dead-ended (§4, dead edge 1). It is true again now,
+    /// and the rail that keeps it true is <c>ClusterMasterZoneRoundTests</c>.
     /// </para>
     /// </summary>
     [EventId(9057)]
