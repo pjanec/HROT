@@ -43,6 +43,9 @@ related-designs:
     hosts (NewAssetLauncher, AssetCreateController). §2.1e ⑤ is content for that shell, not a new one.
   - docs/designs/tkb-1/DESIGN.md — owns how a node RESOLVES and loads its TKB from the scenario header
     (§7.3). §2.1e ⑤ owns how that header field is first ACQUIRED, which tkb-1 never covered.
+  - docs/DESIGN_Artifact_Staging.md — owns getting the NAMED TKB and terrain artifacts ONTO the nodes
+    (the prefetch extension + the two (length, mtime) skips). ⭐ It CLOSES BP-550, which §10 and the
+    plan's §3.3 record as the single thing standing between this design and a working zone load.
 -->
 
 # DESIGN — **Terrain, zones and the asset build**

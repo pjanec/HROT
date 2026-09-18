@@ -23,6 +23,9 @@ related-designs:
     the genesis path your question sits.
   - ../../DESIGN_Role_Affinity_Ownership.md — owns what BirthCriticalComponents MEANS (the creator's
     birthright, the role tables, why no role may own one). This document owns where the list comes from.
+  - ../../DESIGN_Artifact_Staging.md — owns how the TKB ZIP AND THE SCENARIO HEADER REACH THE NODE.
+    ⚠ §7.3 below assumes both are already in local staging and specifies neither; measured 2026-09-18,
+    NOTHING stages either, so §7.3's read path has never resolved a name in production.
   - ../../DESIGN_Terrain_Zones_And_Assets.md — §2.1e ⑤ owns how `Header.TkbName` is first ACQUIRED at
     authoring time (a seed scenario used as a New-Scenario recipe). ⚠ This document's §7.3 rules only
     how a node RESOLVES an existing header value; it measured no answer for a brand-new scenario, where

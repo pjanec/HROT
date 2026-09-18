@@ -8,6 +8,10 @@ known-rot: this doc predates CE-282 (role propagation) and AQ-70 (capability tok
 related-designs:
   - ../../blueprints/Architect_Question_70_Host_Capabilities_And_Reliable_Init_Degradation.md — owns the host-capability token facility + the derived role mask (§Q70-C); this roster gathers it.
   - ../../DESIGN_Cross_Node_Construction_Barrier.md — the reliable-init barrier consumes NodesWithRole + the capability filter.
+  - ../../DESIGN_Artifact_Staging.md — EXTENDS the prefetch saga owned here (AssetPrefetchProcessManager
+    + StorageGatewayModule.PrefetchScenarioAsync) to also stage the scenario's NAMED TKB artifact and its
+    header, with a (length, mtime) skip. It adds no cluster op and no wire value; the trajectory slot is
+    this document's.
 -->
 # Design: ClusterMaster CQRS Decoupling
 
