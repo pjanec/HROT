@@ -2,10 +2,10 @@
 state: LIVE
 updated: 2026-09-18
 build-state: L1-L7 BUILT 2026-09-18 (§6 the AS-BUILT, §5.2 the measured acceptance).
-  ⭐ §7 (L8, the deterministic staging gate) is READY-TO-BUILD and NOT built — it owns the half of L6
+  ⭐ §7 (L8, the deterministic staging WAIT — parked transitions) is READY-TO-BUILD and NOT built — it owns the half of L6
   that §6.4 records as deliberately deferred.
 current-answer: §4 (the per-role contract), §5 (the plan + the MET acceptance), §6 (the AS-BUILT) and
-  ⭐ §7 (L8 — the deterministic staging gate, designed and not yet built).
+  ⭐ §7 (L8 — the deterministic staging WAIT, designed and not yet built).
   §2 is the measured as-is that the build removed.
   ⭐ §4.1 splits the two DERIVATIONS — the knowledge base is required by every ECS node (not role-derived),
   terrain and scenario entities are role-derived. §4.1a is RULED (load nothing where nothing reads it).
@@ -445,7 +445,7 @@ first"* without hanging terrain off a handler four roles do not have.
 | **L4a** | ⭐⭐⭐ **Collapse the THREE scenario-load adapters into ONE shared `ScenarioLoadStep` in `Hrot.Core`** (§4.1c) and delete `CgfScenarioLoadHandler`, `HrotScenarioLoadHandler` and `HrotEditLoadHandler`. ⭐ One readiness predicate · required collaborators non-optional (the id authority and the world) · edit-vs-live an argument · terrain residency, behaviour remapping and recording injected. ⚠ **Fixes two live defects the drift table measured**: the edit path is missing readiness condition ③, and CGF never makes its zones' terrain resident | `Hrot.Core` + the three deleted handlers and their suites |
 | **L5** | Terrain residency becomes a service with a stable entry point: `EnsureTerrain(name)` idempotent (already-resident ⇒ no-op), plus an `UnloadAll()` seam left **unwired** for the future standby mode | `TerrainLoadService` |
 | **L6** | Ensure the content step runs **after** the staging ACKs, closing the race in §2.4 — and remove the two-second retry that papers over it today | the orchestrator's transition sequencing |
-| **L8** | ⭐⭐⭐ **The deterministic staging gate** — withhold a load transition until the file copy has completed AND every node has acknowledged it, then DELETE every wait-on-a-clock in the load path. 📄 Designed in **§7**; ⛔ not built | a new gate beside `LiveBranchProcessManager` · `ClusterMaster` · `AssetPrefetchProcessManager` |
+| **L8** | ⭐⭐⭐ **The deterministic staging wait** — PARK a load transition until the file copy has completed AND every node has acknowledged it, then DELETE every wait-on-a-clock in the load path. 📄 Designed in **§7**; ⛔ not built | `ClusterMaster` (park + resume) · `AssetPrefetchProcessManager` (carry the request id) |
 | **L7** | Rails: the chain runs **all** its steps and ACKs once · a shadowed step is impossible by construction · ⭐⭐ **every ECS host resolves the scenario's named knowledge base** — the `Q65-A′` rail, and the one that would have caught the IG/CGF gap · a host with no terrain consumer makes **no** terrain resident · a `Brain` host loads entities and a non-`Brain` host loads **none** · the payload names beat the sidecar · an absent name is legal and silent, an absent **artifact** is loud · ⭐⭐ **the readiness predicate has exactly ONE implementation** — the rail that replaces the three-copy drift, asserting an edit load also waits for the six cross-reference intents and that a Brain host makes terrain resident. ⚠ **`HN-037`'s test surface applies**: three handlers and their suites are deleted, so the claims each asserted must be **re-homed onto the one step**, not dropped | `Hrot.SimHost.Tests`, `Hrot.CGF` tests, `Hrot.Editor.Tests`, and the existing cluster conformance rails |
 
 ### 5.1 Deliberately NOT in this plan
@@ -529,37 +529,50 @@ cannot catch that remedy being wrong.*
 
 ---
 
-## 7. ⭐⭐⭐ `L8` — **THE DETERMINISTIC STAGING GATE** *(design `2026-09-18`; `build-state: READY-TO-BUILD`)*
+## 7. ⭐⭐⭐ `L8` — **THE DETERMINISTIC STAGING WAIT** *(design `2026-09-18`; `build-state: READY-TO-BUILD`)*
 
 > 🔒 **User, `2026-09-18`:** *"it cannot depend on timeouts where can easily wait deterministically."*
 
-⚠ This section owns the half of `L6` that §6.4 records as **deliberately not done**. It replaces every
+⚠ This section owns the half of `L6` that §6.4 records as deliberately deferred. It replaces every
 wait-on-a-clock in the load path with a wait on a fact that is **already computed and already published**.
 
-### 7.1 The sequence — **gated**
+### 7.0 ⛔⛔ THE MEASUREMENT THAT CHOSE THE MECHANISM — **the bus is a BROADCAST**
+
+📐 Measured `2026-09-18`: `FdpEventBus` managed streams are **double-buffered and broadcast**.
+`ManagedEventStream.Write` appends to a back buffer, `Read()` returns the front, and `Swap()` runs at end
+of frame. ⇒ **two consequences, and both decide the design:**
+
+| ⭐ | |
+|---|---|
+| ⛔⛔ **reading does NOT consume** | every reader in a frame sees every event. ⇒ **an external gate CANNOT withhold an intent** from `ClusterMaster` — it would read the same one in the same frame and fan out anyway |
+| ⚠ **an event is readable one frame AFTER it is published** | so any resumption is frame-quantised whatever we do. ⭐ One extra frame against a copy of hundreds of milliseconds is nothing, and there is no same-frame ordering subtlety to get wrong |
+
+⇒ ⭐⭐⭐ **The wait lives INSIDE `ClusterMaster`, as a PARKED transition** — not in a gate in front of it.
+📄 The rejected external-gate shape, and why, is §7.6.
+
+### 7.1 The sequence — **parked, then resumed**
 
 ```mermaid
 sequenceDiagram
   autonumber
   participant OP as Operator / API
-  participant GATE as LoadPrerequisiteGate
   participant CM as ClusterMaster
   participant PF as AssetPrefetchProcessManager
   participant N as every ECS node
 
-  OP->>GATE: TransitionStateIntent(OperatingLive, scenario)
-  Note over GATE: the plan passes through a Loading state<br/>so the intent is WITHHELD, not forwarded
-  GATE->>PF: ExecutePrefetchIntent(scenario, activeNodes)
+  OP->>CM: TransitionStateIntent(OperatingLive, scenario)
+  CM->>CM: plan trajectory
+  CM->>PF: ExecutePrefetchIntent(requestId, scenario)
+  Note over CM: PARK the trajectory under requestId<br/>and fan out NOTHING
   PF->>PF: copy NAS to each node staging root
   PF->>N: PrefetchFiles
   N-->>PF: ack (per node)
   Note over PF: completes ONLY when EVERY node acked<br/>this set already exists today
-  PF-->>GATE: staging complete (requestId)
-  GATE->>CM: TransitionStateIntent (re-issued, unchanged)
-  Note over CM: plans and fans out in ONE pass,<br/>exactly as today
+  PF-->>CM: distribution complete (requestId)
+  Note over CM: UNPARK — advance state, record the tx,<br/>reset the id authority, THEN fan out
   CM->>N: PrepareLive with scenario, tkb and terrain names
   activate N
-  N->>N: chain runs KnowledgeBase then Terrain then ScenarioEntities
+  N->>N: KnowledgeBase then Terrain then ScenarioEntities
   N-->>CM: one ack for the whole step
   deactivate N
   CM->>N: PrepareState(OperatingLive) held until genesis drains
@@ -567,112 +580,109 @@ sequenceDiagram
   CM->>N: CommitState(OperatingLive)
 ```
 
-*⭐ What the picture shows that the prose hid: the **only** structural change is the arrow that does not
-exist — the operator's intent no longer reaches `ClusterMaster` directly. Everything below the re-issue is
-byte-for-byte today's flow, which is why this does not touch two-phase commit, ack counting, replay or
-preview. ⛔ And the dashed truth: **today steps 2 and 8 run CONCURRENTLY** — the copy is started by
-`ClusterMaster` in the same pass that fans out `PrepareLive`.*
+*⭐ What the picture shows that the prose hid: **the fan-out is not restructured — it is the same pass, run
+later.** Everything from `PrepareLive` down is byte-for-byte today's flow, which is why two-phase commit,
+ack accounting, replay and preview are untouched. ⛔ And the defect, stated as a picture: **today steps 3
+and 9 happen in the SAME pass** — the copy is started and the trajectory fanned out together.*
 
-### 7.2 Where it lives, and who ticks it — **the module view**
-
-⭐ The gate lives in **`Hrot.Orchestrator`, as a process manager beside the six that already exist** — ⛔ not
-inside `ClusterMaster`. The split is clean: `ClusterMaster` PLANS and FANS OUT a transition; the gate decides
-**when an intent is admitted to it**. That is what the process-manager pattern in this subsystem is for.
+### 7.2 What is parked, and where the method splits
 
 ```mermaid
-graph TD
-  subgraph PRE["PRE-MASTER PHASE — NEW: declared ONCE, not restated per manager"]
-    G["LoadPrerequisiteGate<br/>NEW — withholds and re-issues"]
-    L["LiveBranchProcessManager<br/>freeze before the fan-out"]
-    S["ReplaySeekProcessManager<br/>preconditions before the seek"]
-    P["AssetPrefetchProcessManager<br/>already tracks per-node acks"]
-  end
-
-  subgraph M["THE TWO ClusterMasters — measured, not assumed"]
-    CM1["OrchestratorSubsystem<br/>real cluster · staging runs"]
-    CM2["EditorSubsystem<br/>OFFLINE master · nothing ever stages"]
-  end
-
-  PRE --> CM1
-  PRE --> CM2
-  P -. "staging complete (requestId)" .-> G
-  G -. "nothing staging, so admit at once" .-> CM2
-
-  classDef new stroke-width:3px
-  class G,PRE new
+classDiagram
+  class ClusterMaster {
+    -ParkedTransition _parked  « AT MOST ONE »
+    +ProcessTransitionStateIntent(intent) « admit and PLAN »
+    -ExecuteTrajectory(parked)            « advance, record, reset ids, FAN OUT »
+    -ProcessParkedTransition()            « resume on completion, or EXPIRE »
+  }
+  class ParkedTransition {
+    <<record>>
+    +Guid RequestId
+    +TransitionStateIntent Intent
+    +Queue~ISysOpStep~ Trajectory
+    +ClusterState SourceState
+    +int TotalSteps
+    +double ParkedAtSeconds
+  }
+  class AssetPrefetchProcessManager {
+    -PrefetchAckTracker « now carries OriginRequestId »
+    +PrefetchDistributionCompletedEvent
+  }
+  ClusterMaster o-- ParkedTransition
+  AssetPrefetchProcessManager ..> ClusterMaster : distribution complete (requestId)
 ```
 
-*⭐ What the picture shows that the prose hid, twice over. **First:** the gate needs no new position —
-three managers already declare "tick before `ClusterMaster`" in their own comments, so the gate is the
-FOURTH instance of an existing rule, and the ack set it waits on already lives in the prefetch saga.
-**Second, and it is the one that changes the contract:** there are **TWO** masters, and the editor's is
-OFFLINE — it has no shared storage and no prefetch saga at all. A gate wired only to the orchestrator would
-leave the editor ungated, and a gate that WAITED unconditionally would hang it on every scenario open.*
+*⭐ What the picture shows that the prose hid: **nothing new is computed.** Every field of
+`ParkedTransition` is a LOCAL the transition method already builds and throws away a few lines later. The
+change is that those locals live for a few frames instead of a few statements.*
 
-### 7.2a ⛔⛔ TWO MASTERS — **and the editor is the one that would deadlock**
+| ⭐ the seam | |
+|---|---|
+| **admit and PLAN** | plan the trajectory · resolve the target · exercise bookkeeping · publish "start copying" · **park and return** |
+| **EXECUTE** | ⭐⭐⭐ the optimistic state advance · the transaction record · the id-authority reset · the fan-out · the ack accounting |
+| ⭐ **no copy needed** | admit-and-plan calls EXECUTE straight away — same frame, identical to today |
 
-📐 Measured `2026-09-18`: `new ClusterMaster(...)` has **two** production call sites —
-`OrchestratorSubsystem.cs:134` (the real cluster) and `EditorSubsystem.cs:2117`, an **offline master**
-composed with `Mandatory = []` so the editor can list and load scenarios with no cluster at all.
+### 7.2a 🔴 THE THREE THINGS THAT MUST MOVE WITH *EXECUTE* — **and why each bites**
 
-⇒ ⭐⭐⭐ **The gate's contract must be stated as a DERIVATION, not as a wait:**
+| what | if it stayed in the planning half |
+|---|---|
+| ⭐⭐ the **optimistic state advance** | the cluster would report itself in the TARGET state while still waiting for files |
+| ⭐ the **transaction record** beside it | history would show a transaction that had sent nothing |
+| ⭐⭐⭐ the **id-authority reset** | it fires so authored ids start at 1000. Left behind, it resets while nothing has been sent — and a second request arriving in between sees a sequence already reset. 📄 This is the exact area `HN-037` came from |
 
-> **Admit the transition when nothing is outstanding for it.** When staging IS in flight, "nothing
-> outstanding" becomes true on the saga's completion. When no staging was ever started — the editor, or a
-> deployment with no shared storage — it is true **immediately**.
+### 7.2b ⛔⛔ TWO MASTERS — **and the editor never parks, by construction**
 
-⚠ That is still deterministic: the answer is *"there is nothing to wait for"*, ⛔ never *"wait and hope"*.
-🔴 **It must be DERIVED, not assumed** — a gate that infers "no staging" from a timeout would reintroduce
-exactly the defect this section removes, in a new place.
+📐 Measured: `new ClusterMaster(...)` has **two** production call sites — `OrchestratorSubsystem.cs:134`
+(the real cluster) and `EditorSubsystem.cs:2117`, an **offline master** with `Mandatory = []` so the editor
+can list and load scenarios with no cluster at all.
 
-### 7.2b ⭐⭐ THE PRE-MASTER PHASE — **stop restating the ordering rule in comments**
+⇒ ⭐⭐⭐ **The rule is a DERIVATION, not a wait:** a transition parks **only if a copy was started for it**.
+The editor starts none, so it never parks and sees no added latency — ⛔ not because of a special case, but
+because nothing ever writes a parked entry there. ⚠ Same for any transition carrying no scenario: replay,
+preview, idle and every unload keep their current latency exactly.
 
-📐 Measured: `OrchestratorSubsystem.Update` ticks the managers as a hand-written sequence of `?.Tick()`
-calls, and **three** of them carry a prose comment saying *"Must tick BEFORE `ClusterMaster.Tick()` so …"*.
-⛔ **Nothing enforces it.** The gate would be the fourth such comment.
+### 7.2c ⭐ AT MOST ONE PARKED TRANSITION — **decided, not inherited**
 
-⚠⚠ **That is the same shape as the defect this whole document exists to remove**: an ordering rule held by
-a comment, correct until it is not — and when it breaks, the gate silently stops gating and the race
-returns with no log line anywhere.
-
-⇒ ⭐ **Declare the "runs before the master" set ONCE** and tick it as a phase. ⛔ Not a scheduler, not a
-framework — a named list in the one composition root, so the constraint is expressed in the place that
-can violate it rather than in four places that describe it.
+⛔ A table keyed by request id would make several simultaneous parked transitions *representable*, and the
+master today tracks a single in-flight transition. ⇒ ⭐ **park at most one**, and reject a second transition
+while one is parked with the rejection status the master already issues for other busy conditions.
+⚠ Permitting several would be a new concurrency property nobody asked for, arriving because a dictionary
+allowed it.
 
 ### 7.3 What actually changes
 
 | # | change | why |
 |---|---|---|
-| **①** | ⭐⭐⭐ **`ClusterMaster` stops starting the copy.** Its loop over the `PrefetchScenario` step moves to the gate | this single move is what inverts the order. ⛔ Nothing else in `ClusterMaster` changes |
-| **②** | ⭐⭐ **New `LoadPrerequisiteGate`** — withholds a transition whose plan passes through `Loading*`, starts the copy, re-issues on completion | ⚠ It defers ONE intent. It does not suspend a trajectory |
-| **③** | ⭐ **The prefetch saga carries the originating request id** through to its completion | so the gate knows which transition to release. The ack set itself is untouched |
-| **④** | ⭐⭐⭐ **DELETE all three waits** — the two added for the knowledge base and terrain, and the scenario step's pre-existing two-second retry | 🔒 *"it cannot depend on timeouts."* After ③ nothing in the load path waits on a clock |
-| **⑥** | ⭐⭐ **A named PRE-MASTER PHASE** in `OrchestratorSubsystem`, replacing three prose comments — §7.2b | ⛔ the gate is worthless if it can be mis-ordered, and today only a comment says it must not be |
-| **⑤** | ⭐⭐ **One deadline remains, at the TRANSITION level** — *"staging never completed"* fails the load loudly | ⚠ A deterministic wait still needs a liveness bound. ⛔ The difference from a timeout is that it is a FAILURE, never a silent proceed |
+| **①** | ⭐⭐⭐ **`ClusterMaster` parks instead of fanning out** when a copy was started for the transition, and fans out on the completion event | the whole of `L8`. ⛔ The fan-out itself is unchanged |
+| **②** | ⭐⭐ **The three items of §7.2a move to the execute half** | each is silently wrong if left behind |
+| **③** | ⭐ **The prefetch saga carries the originating request id** through its ack tracker and publishes a distribution-complete event | today the tracker forgets it, so nothing can be correlated back |
+| **④** | ⭐⭐⭐ **DELETE all three waits** — the two added for the knowledge base and terrain, and the scenario step's pre-existing retry, plus `StagedArtifactWait` itself | 🔒 *"it cannot depend on timeouts."* After ① nothing in the load path waits on a clock |
+| **⑤** | ⭐⭐ **One liveness bound remains, on the PARKED entry** — *"staging never completed"* fails the request | ⚠ a deterministic wait still needs a bound. ⛔ The difference from a timeout is that it FAILS and never silently proceeds |
 
 ### 7.4 ⭐⭐ A SECOND DEFECT THE SAME CHANGE CLOSES
 
 🔴 **Measured today:** when the copy FAILS, the saga reports a timeout to the requester — but the transition
 has **already been fanned out**, so the cluster proceeds to build a world from files that never arrived.
-⇒ ⭐ Gating removes that path by construction: a failed copy means the transition is never issued.
+⇒ ⭐ Parking removes that path by construction: a failed copy drops the parked entry and nothing is sent.
 
 ### 7.5 What must be PROVEN, not assumed
 
 | | |
 |---|---|
-| ⛔ a transition with **no** scenario load is not delayed | idle, replay, preview and every unload keep their current latency |
-| ⛔ a second transition queued **while one is gated** behaves | the gate is a queue of one per request, not a lock |
-| 🔴 **the EDITOR's offline master is not delayed at all** | §7.2a — it stages nothing, so the gate must admit immediately. ⚠ This is the path that turns a gate into a deadlock, and it is not hypothetical: it is every scenario open in the editor |
-| ⛔ a deployment with **no shared storage configured** does not hang | the saga already short-circuits and publishes completion immediately — a rail must pin it |
-| ⛔ the pre-master phase **contains the gate** | §7.2b — a rail over the composition root, because the constraint is otherwise a comment |
-| ⛔ a **failed** copy fails the request | §7.4 — and it must fail, not stall |
+| ⛔ a transition with **no scenario** is not delayed at all | idle, replay, preview and every unload keep their current latency |
+| 🔴 **the EDITOR's offline master never parks** | §7.2b — it stages nothing. ⚠ This is the path that would turn a wait into a deadlock, and it is not hypothetical: it is every scenario open in the editor |
+| ⛔ a **second** transition arriving while one is parked is REJECTED | §7.2c — and rejected, not queued |
+| ⛔ a **failed** copy fails the request and fans out nothing | §7.4 |
+| ⛔ the state reported **while parked** is the loading state, not the target | §7.2a row 1 |
+| ⛔ the **id authority** is reset on the execute side | §7.2a row 3 — assert the authored ids still start at 1000 |
 
 ### 7.6 ⛔ Rejected — one line each
 
 | alternative | the one fact that ruled it out |
 |---|---|
-| make the trajectory itself suspend and resume | restructures machinery EVERY transition shares, for no gain once the intent can simply be held |
+| ⭐ **an external `LoadPrerequisiteGate` in front of `ClusterMaster`** *(the shape this section carried until `2026-09-18`)* | 🔴 **the bus is a BROADCAST (§7.0)** — a gate cannot withhold what the master reads in the same frame |
+| the same gate plus an **admission flag** on the intent | it works, and it buys a **composition landmine**: a host that forgets the gate ignores every scenario transition and loads stop silently — a fresh instance of the failure class this programme exists to remove |
+| a **pre-master tick phase** to make the ordering structural | ⚠ its main new member was the gate. Without one, only the pre-existing three-comment convention remains — worth doing, ⛔ but not smuggled into this batch |
+| make the trajectory itself suspend and resume mid-flight | restructures machinery EVERY transition shares, for no gain once the fan-out can simply run later |
 | poll harder, or lengthen the wait | the same race, later — and it is the thing the user ruled out |
-| have each node wait on its own handshake | turns one cluster-wide ordering fact into N local ones, each able to disagree |
-| gate only the orchestrator's master | ⛔ there are TWO masters — the editor's offline one would stay ungated, and it is the one most people actually load scenarios through |
-| keep the waits as a safety net beside the gate | ⚠ a fallback that hides a broken gate is how the original silence was built |
+| keep the waits as a safety net beside the parking | ⚠ a fallback that hides a broken wait is how the original silence was built |
