@@ -437,6 +437,157 @@ namespace Hrot.IG.Tests.Gizmos
             Assert.Equal(777L, hit!.Value);
         }
 
+        // ══════════════════════════════════════════════════════════════════════════════════════
+        // E1 — the ZONE gizmo renders LOAD STATE in the stroke
+        // ══════════════════════════════════════════════════════════════════════════════════════
+
+        /// <summary>
+        /// A terrain ZONE at the same real origin/points as the area fixture, so the geometry assertions
+        /// carry over and only the STATE differs between these rails.
+        /// </summary>
+        private Entity MakeZone(long networkId = 8880L)
+        {
+            _repo.RegisterManagedComponent<EditablePolyline>();
+            _repo.RegisterComponent<Fdp.Toolkit.Replication.Components.NetworkIdentity>();
+            _repo.RegisterComponent<Fdp.Toolkit.Terrain.TerrainAssetLoadState>();
+
+            var entity = _repo.CreateEntity();
+            _repo.AddComponent(entity, new SimTransform { Position = new Vector3(670f, 473.5f, 0f) });
+            _repo.AddComponent(entity, new TkbIdentity { TkbType = TkbEntityTypes.TerrainZone });
+            _repo.AddComponent(entity, new Fdp.Toolkit.Replication.Components.NetworkIdentity { Value = networkId });
+
+            var poly = new EditablePolyline();
+            poly.Points.Add(new Vector2(-53f, -88.5f));
+            poly.Points.Add(new Vector2(47f, -88.5f));
+            poly.Points.Add(new Vector2(47f, 11.5f));
+
+            var ecb = (Fdp.Core.EntityCommandBuffer)((Fdp.ModuleHost.Abstractions.ISimulationView)_repo).GetCommandBuffer();
+            ecb.AddManagedComponent(entity, poly);
+            ecb.Playback(_repo);
+            return entity;
+        }
+
+
+        /// <summary>Marks the zone loaded FOR ITS CURRENT SHAPE — the only combination that reads solid.</summary>
+        private void MarkLoadedForCurrentShape(Entity zone)
+        {
+            var poly   = ((Fdp.ModuleHost.Abstractions.ISimulationView)_repo)
+                .GetManagedComponentRO<EditablePolyline>(zone)!;
+            var origin = _repo.GetComponent<SimTransform>(zone).Position;
+
+            _repo.AddComponent(zone, new Fdp.Toolkit.Terrain.TerrainAssetLoadState
+            {
+                Phase      = Fdp.Toolkit.Terrain.LoadPhase.Loaded,
+                SourceHash = Fdp.Toolkit.Terrain.ZoneFootprint.Compute(origin, poly.Points),
+            });
+        }
+
+        /// <summary>
+        /// ⭐⭐⭐ <c>E1</c>'s success condition, verbatim from the plan: <i>"a zone drawn, then reshaped,
+        /// visibly changes stroke without a reload"</i>. ⛔ This is the rail that matters, because it is
+        /// the one that proves staleness is COMPUTED from the footprint rather than stored — reshaping
+        /// writes no marker, and the stroke still changes.
+        /// </summary>
+        [Fact]
+        public void E1_AZoneReshapedAfterLoading_ChangesStroke_WithNoReload()
+        {
+            var zone = MakeZone();
+            MarkLoadedForCurrentShape(zone);
+
+            var loaded = new FullCapturingDrawBuilder();
+            new TerrainZoneGizmo().Draw(_repo, zone, loaded);
+            Assert.Equal(3, loaded.LineCalls.Count);
+            Assert.All(loaded.LineCalls, l => Assert.Equal(LineStyle.Solid, l.Style));
+
+            // ⭐ RESHAPE ONLY — no marker write, no reload, nothing told the gizmo anything changed.
+            var poly = ((Fdp.ModuleHost.Abstractions.ISimulationView)_repo)
+                .GetManagedComponentRO<EditablePolyline>(zone)!;
+            poly.Points[2] = new Vector2(99f, 60f);
+
+            var stale = new FullCapturingDrawBuilder();
+            new TerrainZoneGizmo().Draw(_repo, zone, stale);
+            Assert.All(stale.LineCalls, l => Assert.Equal(LineStyle.Dashed, l.Style));
+        }
+
+        /// <summary>
+        /// ⚠ A zone with NO marker reads STALE, never loaded. A freshly loaded scenario carries no
+        /// marker (the component is <c>NoScenario</c>), so "absent" honestly means "not resident here" —
+        /// showing it as loaded is the error design §9.1 retracts.
+        /// </summary>
+        [Fact]
+        public void E1_AZoneWithNoMarker_ReadsStale_NotLoaded()
+        {
+            var zone = MakeZone(networkId: 8881L);
+
+            var draw = new FullCapturingDrawBuilder();
+            new TerrainZoneGizmo().Draw(_repo, zone, draw);
+
+            Assert.Equal(3, draw.LineCalls.Count);
+            Assert.All(draw.LineCalls, l => Assert.Equal(LineStyle.Dashed, l.Style));
+        }
+
+        /// <summary>⛔ A FAILED load must be loud, not a subtle dash — §8.3 N3, two outcomes only.</summary>
+        [Fact]
+        public void E1_AFailedZone_IsDrawnLoud()
+        {
+            var zone = MakeZone(networkId: 8882L);
+            _repo.AddComponent(zone, new Fdp.Toolkit.Terrain.TerrainAssetLoadState
+            {
+                Phase = Fdp.Toolkit.Terrain.LoadPhase.Failed,
+            });
+
+            var draw = new FullCapturingDrawBuilder();
+            new TerrainZoneGizmo().Draw(_repo, zone, draw);
+
+            Assert.All(draw.LineCalls, l => Assert.Equal(LineStyle.Solid, l.Style));
+            // Red-dominant: the failure colour, not the calm loaded green.
+            Assert.All(draw.LineCalls, l => Assert.True(l.Color.R > l.Color.G && l.Color.R > l.Color.B,
+                "a failed zone must be drawn in a loud colour an operator cannot skim past"));
+        }
+
+        /// <summary>
+        /// ⭐ The zone gizmo draws at ORIGIN + POINTS and its picking follows, exactly as the area gizmo
+        /// does — the BP-517 pair, re-asserted on the new projector because it is a NEW caller of the
+        /// same shared outline helper.
+        /// </summary>
+        [Fact]
+        public void E1_TheZoneGizmo_DrawsAtOriginPlusPoints_AndPickingFollows()
+        {
+            var zone = MakeZone(networkId: 8883L);
+
+            var draw = new FullCapturingDrawBuilder();
+            new TerrainZoneGizmo().Draw(_repo, zone, draw);
+            Assert.Equal(617f, draw.LineCalls[0].Start.X, 3);
+            Assert.Equal(385f, draw.LineCalls[0].Start.Y, 3);
+
+            var buffer = new DebugPrimitiveBuffer(64);
+            new TerrainZoneGizmo().Draw(_repo, zone, buffer);
+            var hit = GizmoMap.Presentation.DebugGizmoLayer.PickTopmostAnchorId(
+                buffer.GetFrame(), new Vector2(667f, 385f), zoom: 1f);
+
+            Assert.NotNull(hit);
+            Assert.Equal(8883L, hit!.Value);
+        }
+
+        /// <summary>
+        /// ⛔ The zone projector must NOT draw a tactical area, and the area projector must not draw a
+        /// zone — <c>TkbType</c> is the ONE discriminator (§2.1), and both carry <c>TkbIdentity</c> so
+        /// <c>GizmoReflectionRegistrar</c> runs both against both.
+        /// </summary>
+        [Fact]
+        public void E1_TheTwoPolylineProjectors_DoNotDrawEachOthersKind()
+        {
+            var area = MakeDualProjectedArea(networkId: 8884L);
+            var zoneDrawOnArea = new FullCapturingDrawBuilder();
+            new TerrainZoneGizmo().Draw(_repo, area, zoneDrawOnArea);
+            Assert.Empty(zoneDrawOnArea.LineCalls);
+
+            var zone = MakeZone(networkId: 8885L);
+            var areaDrawOnZone = new FullCapturingDrawBuilder();
+            new TacticalAreaGizmo().Draw(_repo, zone, areaDrawOnZone);
+            Assert.Empty(areaDrawOnZone.LineCalls);
+        }
+
         /// <summary>The Box2D pick targets in a frame — the visual edges are Line primitives.</summary>
         private static System.Collections.Generic.List<DebugPrimitive> CollectPickBoxes(
             DebugPrimitiveBuffer buffer)

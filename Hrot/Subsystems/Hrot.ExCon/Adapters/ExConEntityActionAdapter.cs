@@ -40,4 +40,12 @@ public sealed class ExConEntityActionAdapter : IEntityActionController
     /// <inheritdoc/>
     /// <remarks>ExCon has no local map canvas — no-op until wired.</remarks>
     public void ActivateRotateTool(long entityId) { /* no-op: no rotate tool activation in IExConLogic */ }
+
+    /// <inheritdoc/>
+    /// <remarks>
+    /// ⛔ ExCon is the OBSERVER host: it carries no ECS world and no zone entities, so it never shows a
+    /// zone in a context menu and this cannot be reached. ⚠ Not a silent default — a declared absence
+    /// with a reason, which is the distinction the silent-default rule turns on.
+    /// </remarks>
+    public void LoadZone(long entityId) { /* no-op: ExCon holds no zones (observer host) */ }
 }

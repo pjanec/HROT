@@ -89,6 +89,39 @@ namespace Hrot.ScenarioEditor.Gizmos
         /// <param name="points">Vertices. Added to <paramref name="origin"/>, so pass
         /// <c>Vector2.Zero</c> when they are already absolute.</param>
         /// <param name="isClosed">true closes the loop (an area); false leaves it open (a route).</param>
+        /// <summary>
+        /// ⭐⭐ Draws a CLOSED polyline outline from RELATIVE points plus an origin — the one
+        /// implementation, shared by <c>TacticalAreaGizmo</c> and <c>TerrainZoneGizmo</c>.
+        ///
+        /// <para>⛔ <b>Extracted deliberately, not for tidiness.</b> <c>BP-517</c> was exactly this loop
+        /// with <c>Vector2.Zero</c> for the origin, which drew every area at the wrong place and put
+        /// picking off by the same distance. ⇒ a second copy of the loop is a second place that bug can
+        /// come back. ⭐ The <paramref name="style"/> parameter is what lets the zone gizmo say
+        /// "loaded / stale / loading" without forking the geometry (design §9.2 U1).</para>
+        /// </summary>
+        public static void DrawClosedPolylineOutline(
+            IDebugDrawBuilder draw,
+            System.Collections.Generic.IReadOnlyList<Vector2> points,
+            Vector2 origin,
+            Rgba32 color,
+            float thickness = 1.5f,
+            LineStyle style = LineStyle.Solid)
+        {
+            if (points == null || points.Count < 2) return;
+
+            int n = points.Count;
+            for (int i = 0; i < n; i++)
+            {
+                var pa = origin + points[i];
+                var pb = origin + points[(i + 1) % n];
+                draw.DrawLine(
+                    new Vector3(pa.X, pa.Y, 0f),
+                    new Vector3(pb.X, pb.Y, 0f),
+                    color, thickness, SizeMode.ScreenPixels,
+                    PipelineTarget.All, layer: 0, style: style);
+            }
+        }
+
         public static void EmitPickSegments(
             IDebugDrawBuilder draw,
             ISimulationView view,

@@ -46,18 +46,10 @@ namespace Hrot.ScenarioEditor.Gizmos
                 origin = new Vector2(simTr.Position.X, simTr.Position.Y);
             }
 
-            int n = polyline.Points.Count;
-
-            // Draw a closed polygon: connect each consecutive pair and close the loop.
-            for (int i = 0; i < n; i++)
-            {
-                var pa = origin + polyline.Points[i];
-                var pb = origin + polyline.Points[(i + 1) % n];
-                draw.DrawLine(
-                    new Vector3(pa.X, pa.Y, 0f),
-                    new Vector3(pb.X, pb.Y, 0f),
-                    AreaColor, 1.5f, SizeMode.ScreenPixels);
-            }
+            // ⭐ E1 — through the SHARED outline helper, so this loop exists once. BP-517 lived in a copy
+            //   of it, and TerrainZoneGizmo draws the same geometry with a state-driven stroke.
+            EntityPresentationGizmoShared.DrawClosedPolylineOutline(
+                draw, polyline.Points, origin, AreaColor);
 
             // ⭐⭐⭐ CE-259ae — make the boundary CLICKABLE (select on left-click, context menu on
             //   right-click). ⚠ The SAME origin the drawing used, or a click on the drawn outline
