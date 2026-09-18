@@ -17,7 +17,7 @@ related-designs:
 # REPORT — Terrain & zones, Batch ③ "THE SURFACES" (`C8` + `E` + `H`)
 
 **Branch** `claude/blueprint-macro-feature-sdmspn` · **scope frozen at** `2500ced2d` ·
-**ids allocated** `BP-539` … `BP-551` · **this is the last batch of the programme.**
+**ids allocated** `BP-539` … `BP-551` *(and `BP-537` CLOSED by `C8`)* · **this is the last batch of the programme.**
 
 ---
 
@@ -115,7 +115,7 @@ immediately rather than held for this report.
 | 6 | `dotnet test Hrot/Subsystems/Hrot.Editor.Tests/…` *(full)* | ✅ | **412 passed / 1 failed / 1 skipped** | 🔴 **the 1 red is PRE-EXISTING and NON-DETERMINISTIC — `BP-548`** |
 | 7 | `dotnet test Hrot/Subsystems/Hrot.ExCon.Tests/… --filter ExConLogicTests` | ✅ | **40 passed / 0 failed** | +1 `E5` rail |
 | 8 | `dotnet test Hrot/Editor/Hrot.Editor.AiShared.Tests/…` *(full)* | ✅ | **2075 passed / 0 failed / 1 skipped** | clean |
-| 9 | `python3 scripts/tracker-counts.py --check` | n/a | ✅ **OK — open 111 / done 373** | counts table updated with the 13 rows |
+| 9 | `python3 scripts/tracker-counts.py --check` | n/a | ✅ **OK — open 110 / done 374** | counts table updated with the 13 new rows **and `BP-537` flipped to done** (`C8` closed it) |
 | 10 | `python3 scripts/rulings-check.py` | n/a | ✅ **35/35 verified** | — |
 | 11 | `python3 scripts/design-digest.py --check` | n/a | ✅ **59 docs OK**, every buildable design carries both diagrams | — |
 | 12 | `MERMAID_PREFIX=/tmp/mm node scripts/mermaid-check.mjs docs/DESIGN_Terrain_Zones_And_Assets.md` | n/a | ✅ **all 7 blocks parse** | +2 *(§10.7 `classDiagram`, §10.8 `graph TD`)* |
