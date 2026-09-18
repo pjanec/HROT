@@ -65,15 +65,6 @@ public sealed class ScenarioLoadStep : ILoadPartProvider
     private IReadOnlyList<EntityCreationRequest>? _pendingRequests;
     private Guid? _pendingTransactionId;
 
-    /// <summary>
-    /// ⭐ <b>How long to wait for the scenario file to appear.</b> ⚠ It exists only because the staging
-    /// copy and this step were historically concurrent; <c>L6</c> orders them, after which this is belt
-    /// and braces rather than the mechanism. ⛔ It is NOT a substitute for ordering — the knowledge-base
-    /// and terrain steps never had a retry, which is precisely why their silence went unnoticed.
-    /// </summary>
-    private const int MaxFileWaitAttempts = 100;
-    private const int FileWaitDelayMs     = 20;
-
     /// <param name="idAllocator">
     /// 🔴 <b>Required, and it must be the CLUSTER'S authority</b> — not a locally constructed sequence.
     /// 📐 <c>HN-037</c>, measured: a standalone allocator seeded at 1 gave <c>--mode all</c> ids 2–9 for
@@ -108,30 +99,29 @@ public sealed class ScenarioLoadStep : ILoadPartProvider
     public LoadPart Part => LoadPart.ScenarioEntities;
 
     /// <inheritdoc/>
-    public async Task PrepareAsync(LoadPhaseContext context, CancellationToken ct)
+    public Task PrepareAsync(LoadPhaseContext context, CancellationToken ct)
     {
         _pendingRequests      = null;
         _pendingTransactionId = null;
 
         // ⭐ A NEW scenario has no file to read — the world starts empty and the operator authors into it.
         if (context.IsNewScenario || string.IsNullOrWhiteSpace(context.ScenarioId))
-            return;
+            return Task.CompletedTask;
 
-        string? json = null;
-        for (int attempt = 0; json == null && attempt < MaxFileWaitAttempts; attempt++)
-        {
-            json = _scenarioLoader.TryLoadScenarioJson(context.ScenarioId);
-            if (json == null) await Task.Delay(FileWaitDelayMs, ct).ConfigureAwait(false);
-        }
+        // ⭐⭐⭐ L8 — ONE ATTEMPT, NO RETRY LOOP. The retry that stood here predates the deterministic
+        //    ordering: the load step is now dispatched only after ClusterMaster has been told that every
+        //    node acknowledged its files, so a scenario that cannot be read at this instant is genuinely
+        //    absent. 🔒 User: "it cannot depend on timeouts where can easily wait deterministically."
+        string? json = _scenarioLoader.TryLoadScenarioJson(context.ScenarioId);
 
         if (json == null)
         {
             // ⛔ LOUD. A Brain node that cannot read the scenario it was told to load has nothing to
             //   contribute, and a silent empty world is exactly the failure this whole design replaces.
             throw new InvalidOperationException(
-                $"[LoadPhase/Scenario] No scenario file found for '{context.ScenarioId}' after "
-              + $"{MaxFileWaitAttempts * FileWaitDelayMs} ms. Ensure the staging copy completed before the "
-              + "load transition (see docs/DESIGN_Cluster_Load_Phase.md L6).");
+                $"[LoadPhase/Scenario] No scenario file found for '{context.ScenarioId}'. The load step runs "
+              + "only after the distribution of the scenario has been acknowledged by every node, so this is "
+              + "a broken deployment rather than a race (see docs/DESIGN_Cluster_Load_Phase.md §7).");
         }
 
         _pendingRequests      = _extractor.Extract(_serializer, json, _idAllocator, _remapper);
@@ -140,6 +130,8 @@ public sealed class ScenarioLoadStep : ILoadPartProvider
         FdpLog<ScenarioLoadStep>.Info(
             "[LoadPhase/Scenario] Extracted {0} entity request(s) from '{1}'.",
             _pendingRequests?.Count ?? 0, context.ScenarioId);
+
+        return Task.CompletedTask;
     }
 
     /// <inheritdoc/>

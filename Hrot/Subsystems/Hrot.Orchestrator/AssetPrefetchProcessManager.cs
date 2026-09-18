@@ -24,9 +24,20 @@ public sealed class AssetPrefetchProcessManager
         public HashSet<int> PendingNodeIds { get; }
         public bool HasFailure { get; set; }
 
-        public PrefetchAckTracker(IEnumerable<int> nodeIds)
+        /// <summary>
+        /// ⭐⭐⭐ <c>L8</c> — the request that STARTED this distribution, carried so the completion can be
+        /// correlated back to it. ⛔ Before this the tracker was keyed only by its own internal fan-out
+        /// transaction id and forgot the origin, so nothing outside the saga could learn that the files
+        /// of a particular request had landed. 📄 <c>docs/DESIGN_Cluster_Load_Phase.md</c> §7.3 ③.
+        /// </summary>
+        public Guid   OriginRequestId { get; }
+        public string ScenarioId      { get; }
+
+        public PrefetchAckTracker(IEnumerable<int> nodeIds, Guid originRequestId, string scenarioId)
         {
-            PendingNodeIds = new HashSet<int>(nodeIds);
+            PendingNodeIds  = new HashSet<int>(nodeIds);
+            OriginRequestId = originRequestId;
+            ScenarioId      = scenarioId;
         }
     }
 
@@ -127,6 +138,10 @@ public sealed class AssetPrefetchProcessManager
                     RequestId  = ev.RequestId,
                     StatusCode = OrchestrationStatusCode.Timeout,
                 });
+                // ⭐⭐ L8 §7.4 — a FAILED copy must also unpark. ⛔ Before parking existed the transition had
+                //    already been fanned out by the time this ran, so the cluster went on to build a world
+                //    from files that never arrived; now the parked entry is dropped and nothing is sent.
+                PublishDistributionCompleted(ev.RequestId, ev.ScenarioId, isSuccess: false);
                 continue;
             }
 
@@ -134,7 +149,7 @@ public sealed class AssetPrefetchProcessManager
                 "[AssetPrefetchProcessManager] PrefetchScenario for '{0}' succeeded — fanning out PrefetchFiles to {1} node(s).",
                 ev.ScenarioId, ev.ActiveNodeIds.Count);
             var txId = Guid.NewGuid();
-            _pendingPrefetchAcks[txId] = new PrefetchAckTracker(ev.ActiveNodeIds);
+            _pendingPrefetchAcks[txId] = new PrefetchAckTracker(ev.ActiveNodeIds, ev.RequestId, ev.ScenarioId);
             foreach (var nodeId in ev.ActiveNodeIds)
             {
                 _bus.PublishManaged(new ExecuteNodeOpIntent
@@ -153,6 +168,9 @@ public sealed class AssetPrefetchProcessManager
                     RequestId  = txId,
                     StatusCode = OrchestrationStatusCode.Success,
                 });
+                // ⭐ L8 — an empty roster is a COMPLETE distribution, not a missing one. ⛔ Without this the
+                //   parked transition would sit until its liveness bound expired on a cluster with no nodes.
+                PublishDistributionCompleted(ev.RequestId, ev.ScenarioId, isSuccess: true);
             }
         }
 
@@ -178,8 +196,34 @@ public sealed class AssetPrefetchProcessManager
                         ? OrchestrationStatusCode.Failure
                         : OrchestrationStatusCode.Success,
                 });
+
+                // ⭐⭐⭐ L8 — THE FACT A PARKED TRANSITION WAITS ON. This set empties only when EVERY node has
+                //   acknowledged its files, which is exactly the condition the load steps used to approximate
+                //   with a bounded retry. 📄 docs/DESIGN_Cluster_Load_Phase.md §7.1.
+                PublishDistributionCompleted(
+                    tracker.OriginRequestId, tracker.ScenarioId, isSuccess: !tracker.HasFailure);
             }
         }
+    }
+
+    /// <summary>
+    /// ⭐ <c>L8</c> — announce that a scenario's distribution is finished, success or failure, against the
+    /// request that started it. ⛔ Every terminal path of the saga calls this, including the empty-roster and
+    /// failed-copy short-circuits: a parked transition that is never told would only be released by its
+    /// liveness bound, which is the timeout this whole change exists to remove.
+    /// </summary>
+    private void PublishDistributionCompleted(Guid originRequestId, string scenarioId, bool isSuccess)
+    {
+        _bus.PublishManaged(new PrefetchDistributionCompletedEvent
+        {
+            RequestId  = originRequestId,
+            ScenarioId = scenarioId,
+            IsSuccess  = isSuccess,
+        });
+
+        FdpLog<AssetPrefetchProcessManager>.Info(
+            "[AssetPrefetchProcessManager] L8: distribution of '{0}' for request {1} completed ({2}).",
+            scenarioId, originRequestId, isSuccess ? "success" : "FAILURE");
     }
 
     private List<NodeDistributionTarget> BuildNodeDistributionTargets(List<int> nodeIds, string scenarioId)

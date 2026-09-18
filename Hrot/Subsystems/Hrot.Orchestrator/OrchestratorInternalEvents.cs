@@ -38,6 +38,28 @@ internal struct PrefetchStagingCompletedEvent
 }
 
 /// <summary>
+/// ⭐⭐⭐ <c>L8</c> — published by <see cref="AssetPrefetchProcessManager"/> when the WHOLE distribution
+/// of a scenario is finished: the NAS copy AND every node's <c>PrefetchFiles</c> acknowledgement.
+///
+/// <para>⭐ This is the fact a parked transition waits on, and it is not a new measurement — the saga
+/// already tracks a per-node acknowledgement set and already knows when it empties. What was missing is
+/// that the set forgot which request started it, so nothing could be correlated back; the tracker now
+/// carries the originating request id and this event relays it.</para>
+///
+/// <para>⛔ Do NOT confuse it with <see cref="PrefetchStagingCompletedEvent"/>, which fires when the
+/// server-side COPY finishes — half-way through, while the nodes have not yet been told anything.
+/// 📄 <c>docs/DESIGN_Cluster_Load_Phase.md</c> §7.1.</para>
+/// </summary>
+internal struct PrefetchDistributionCompletedEvent
+{
+    /// <summary>The request that started the distribution — the transition's own request id.</summary>
+    public Guid   RequestId;
+    public string ScenarioId;
+    /// <summary><c>false</c> when the copy failed or any node acknowledged a failure.</summary>
+    public bool   IsSuccess;
+}
+
+/// <summary>
 /// Published by <see cref="ClusterMaster"/> when an ExportArchive SerializeLocal fan-out
 /// is initiated. Carries the archive request context so <see cref="StorageProcessManager"/>
 /// can route the completed NAS pull to the correct archive request ID.

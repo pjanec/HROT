@@ -1,11 +1,11 @@
 <!--STATUS
 state: LIVE
 updated: 2026-09-18
-build-state: L1-L7 BUILT 2026-09-18 (§6 the AS-BUILT, §5.2 the measured acceptance).
-  ⭐ §7 (L8, the deterministic staging WAIT — parked transitions) is READY-TO-BUILD and NOT built — it owns the half of L6
-  that §6.4 records as deliberately deferred.
-current-answer: §4 (the per-role contract), §5 (the plan + the MET acceptance), §6 (the AS-BUILT) and
-  ⭐ §7 (L8 — the deterministic staging WAIT, designed and not yet built).
+build-state: L1-L8 BUILT 2026-09-18 (§6 the AS-BUILT of L1-L7, §7.7 the AS-BUILT of L8, §5.2 the measured acceptance).
+  ⭐ L8 (the deterministic staging WAIT — parked transitions) closed the half of L6 that §6.4 had deferred:
+  every wait-on-a-clock in the load path is DELETED.
+current-answer: §4 (the per-role contract), §5 (the plan + the MET acceptance), §6 (the AS-BUILT of L1-L7) and
+  ⭐ §7 (L8 — the deterministic staging WAIT, BUILT; §7.7 is its AS-BUILT).
   §2 is the measured as-is that the build removed.
   ⭐ §4.1 splits the two DERIVATIONS — the knowledge base is required by every ECS node (not role-derived),
   terrain and scenario entities are role-derived. §4.1a is RULED (load nothing where nothing reads it).
@@ -513,7 +513,7 @@ always had, so the newly-loud *"artifact not found"* cannot fire while the copy 
 ⛔ **The complete fix — ordering the content step after the staging acknowledgements — was NOT done.** It
 restructures the two-phase trajectory that *every* transition shares (live, edit, preview, replay, idle),
 and doing it in the same batch as a node-side refactor would have made a failure impossible to attribute.
-⚠ Recorded as outstanding, not as finished. ⭐ **DESIGNED `2026-09-18` in §7** — 🔒 user: *"it cannot
+⚠ Recorded as outstanding, not as finished. ✅ **CLOSED `2026-09-18` by `L8` — §7, `build-state: BUILT`; the three waits and `StagedArtifactWait` are DELETED and §7.7 carries the as-built.** ⭐ **DESIGNED `2026-09-18` in §7** — 🔒 user: *"it cannot
 depend on timeouts where can easily wait deterministically."* 📐 And the design got SMALLER once measured:
 the signal it needs is already computed and published by the prefetch saga, so the gate defers ONE intent
 rather than restructuring the trajectory this section feared.
@@ -529,7 +529,7 @@ cannot catch that remedy being wrong.*
 
 ---
 
-## 7. ⭐⭐⭐ `L8` — **THE DETERMINISTIC STAGING WAIT** *(design `2026-09-18`; `build-state: READY-TO-BUILD`)*
+## 7. ⭐⭐⭐ `L8` — **THE DETERMINISTIC STAGING WAIT** *(design `2026-09-18`; `build-state: BUILT`)*
 
 > 🔒 **User, `2026-09-18`:** *"it cannot depend on timeouts where can easily wait deterministically."*
 
@@ -630,16 +630,33 @@ change is that those locals live for a few frames instead of a few statements.*
 | ⭐ the **transaction record** beside it | history would show a transaction that had sent nothing |
 | ⭐⭐⭐ the **id-authority reset** | it fires so authored ids start at 1000. Left behind, it resets while nothing has been sent — and a second request arriving in between sees a sequence already reset. 📄 This is the exact area `HN-037` came from |
 
-### 7.2b ⛔⛔ TWO MASTERS — **and the editor never parks, by construction**
+### 7.2b ⛔⛔ TWO MASTERS — **and the editor parks through the SAME path, safely** *(CORRECTED at build time, `2026-09-18`)*
 
 📐 Measured: `new ClusterMaster(...)` has **two** production call sites — `OrchestratorSubsystem.cs:134`
 (the real cluster) and `EditorSubsystem.cs:2117`, an **offline master** with `Mandatory = []` so the editor
 can list and load scenarios with no cluster at all.
 
-⇒ ⭐⭐⭐ **The rule is a DERIVATION, not a wait:** a transition parks **only if a copy was started for it**.
-The editor starts none, so it never parks and sees no added latency — ⛔ not because of a special case, but
-because nothing ever writes a parked entry there. ⚠ Same for any transition carrying no scenario: replay,
-preview, idle and every unload keep their current latency exactly.
+⭐⭐⭐ **The rule is a DERIVATION, not a wait:** a transition parks **only if a copy was started for it** —
+that is, only when the planner put a `PrefetchScenario` step in the trajectory, which happens only when the
+intent names a scenario. ⚠ Replay, preview, idle and every unload carry no scenario, so they keep their
+current latency exactly.
+
+> ⛔⛔ **CORRECTION — the first version of this section said the editor *"starts no copy, so it never
+> parks."* 🔴 THAT WAS FALSE, and it was the one claim that could have turned this design into a deadlock
+> on every scenario open.** 📐 Measured while building: the editor **does** stage. It constructs an
+> `AssetPrefetchProcessManager` over the real NAS root (`EditorSubsystem.cs:2150`) and ticks it every frame
+> (`:2661`); it registers `ReferencePrefetchHandler` on its **own** one-node `ClusterSlave` (`:1422`); and it
+> heartbeats as node `0` (`:1035`), so its roster is not empty.
+>
+> ⇒ ⭐⭐ **The editor parks and unparks on exactly the same path as the cluster, and that is why it is safe** —
+> not because it is exempt. The saga that answers a parked transition is present, ticked and acked on both
+> masters. ⭐ A one-node copy of a local scenario is the cheapest case there is, so the added latency is a
+> frame or two.
+>
+> ⚠ **What the false claim cost, stated plainly:** nothing, because it was measured before the rail was
+> written — but it is a textbook instance of a lean resting on a principle (*"the editor is offline, so it
+> stages nothing"*) instead of a `file:line`. The rail in §7.5 pins the measurement so the claim cannot
+> silently revert.
 
 ### 7.2c ⭐ AT MOST ONE PARKED TRANSITION — **decided, not inherited**
 
@@ -686,3 +703,65 @@ has **already been fanned out**, so the cluster proceeds to build a world from f
 | make the trajectory itself suspend and resume mid-flight | restructures machinery EVERY transition shares, for no gain once the fan-out can simply run later |
 | poll harder, or lengthen the wait | the same race, later — and it is the thing the user ruled out |
 | keep the waits as a safety net beside the parking | ⚠ a fallback that hides a broken wait is how the original silence was built |
+
+### 7.7 ⭐⭐⭐ AS-BUILT — **`L8`, built `2026-09-18`** *(obligation ⑤)*
+
+⭐ **The design above is what was built**, with the corrections already folded into §7.2b. What follows is
+the shape on disk plus the three things the build learned.
+
+| design element (§7.2) | built as |
+|---|---|
+| `ClusterMaster._parked`, at most one | `private ParkedTransition? _parked;` + `public Guid? ParkedRequestId` (a read-only seam for the rails) |
+| `ParkedTransition` record | same fields, `private sealed record` nested in `ClusterMaster` |
+| the plan/execute seam | `ProcessTransitionStateIntent` (admit + plan + park) → `ExecuteTransitionTrajectory(parked)` (advance, record, reset ids, fan out) |
+| the resume/expire pump | `ProcessParkedTransition()`, called from `Tick()` **before** the intent drain |
+| the saga carries the origin | `PrefetchAckTracker.OriginRequestId` + `PrefetchDistributionCompletedEvent` |
+| ④ delete all three waits | ✅ `StagedArtifactWait.cs` **deleted**; the knowledge-base and terrain waits and the scenario step's 100×20 ms retry are **gone**. `PrepareAsync` on all three steps is now genuinely synchronous (`Task.CompletedTask`) |
+
+#### ⭐⭐ ① MEASURED ON THE REAL CLUSTER — the wait costs ~210 ms and is deterministic
+
+📐 Stock `--mode all`, `hill-attack-close`, no probe:
+
+```
+19:07:37.4153  ClusterMaster  L8: transition 86ba65c9… PARKED until the staging of 'hill-attack-close' is on every node.
+19:07:37.6259  AssetPrefetch  L8: distribution of 'hill-attack-close' for request 86ba65c9… completed (success).
+19:07:37.6539  ClusterMaster  L8: the staging of 'hill-attack-close' is on every node — transition 86ba65c9… resumes.
+```
+
+⇒ **210 ms parked, then the ordinary fan-out** — against the 2 s of bounded retries the node steps used to
+budget for the same race. ⭐ The three log lines are the whole feature, and they are the cheapest possible
+proof that the ordering is real rather than lucky.
+
+#### ⛔⛔ ② THE CORRECTION THAT MATTERED — §7.2b's editor claim was FALSE
+
+🔴 The design said the editor *"starts no copy, so it never parks."* **Measured: it does both.** The full
+correction, with its four `file:line`s, is in §7.2b; it is repeated here only as the pointer, because it is
+the one claim that could have deadlocked every scenario open in the editor. ⚠ It was caught by opening
+`EditorSubsystem.cs`, not by a rail — which is why `A_distribution_that_never_completes_expires…` now pins
+the fact that **no production master is shaped like the deadlocking one**.
+
+#### ⚠ ③ THE RAILS — five, in the two suites that already own these features *(`T-1` ④)*
+
+| rail | suite | §7.5 row |
+|---|---|---|
+| `A_transition_with_no_scenario_fans_out_in_the_same_tick` | `ClusterMasterPrefetchTests` | 1 |
+| `A_scenario_transition_parks_until_every_node_has_acknowledged_its_files` *(also asserts the reported state is the SOURCE while parked, and that a second transition is REJECTED)* | `ClusterMasterPrefetchTests` | 3 + 5 |
+| `A_failed_distribution_fails_the_request_and_fans_out_nothing` | `ClusterMasterPrefetchTests` | 4 |
+| `A_distribution_that_never_completes_expires_and_fans_out_nothing` | `ClusterMasterPrefetchTests` | ⑤'s bound |
+| `A_parked_transition_does_not_reset_the_authority` | `TheWorldBoundaryResetsTheIdAuthorityTests` | 6 |
+
+⛔ **No new test class was created** — both suites already own the feature under test (the prefetch barrier,
+and the `HN-037` id-authority guard). ⭐ The positive half of row 6 needed no new case: every other rail in
+that file carries no scenario, so it plans no copy, never parks, and proves the reset still fires on the
+execute side.
+
+⚠ **What a reader should NOT conclude from these rails:** they exercise `ClusterMaster` + the saga over a
+real event bus, **not** a real node. The node-side proof is the measured cluster run in ① — and it is the
+one that matters, because it is the only one where the files actually have to arrive.
+
+#### ⚠ ④ TWO HONEST LIMITATIONS OF THE BUILT SHAPE
+
+| | |
+|---|---|
+| ⛔ **a `CancelOperation` does not clear a parked entry** | the cancel path never touched the transition machinery and this batch did not extend it. ⇒ cancelling a scenario load while its files are copying leaves the entry until the distribution reports or the bound expires. ⭐ Not a regression *(before `L8` the transition had already been fanned out and was equally uncancellable)*, but it is now a **nameable** gap rather than an invisible one |
+| ⚠ **the bound is wall-clock, and it is the only clock left** | `ParkedTransitionExpirySeconds`, default 300 s. ⛔ It is not a retry and it never proceeds — it fails the request. ⭐ It exists because a distribution that never reports at all *(a node ejected mid-copy, a saga that was never constructed)* must not hang the master forever |

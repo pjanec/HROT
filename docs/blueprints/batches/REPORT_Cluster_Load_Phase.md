@@ -11,7 +11,7 @@ related-designs:
   - docs/DESIGN_Terrain_Zones_And_Assets.md — §2.1e ④ is SUPERSEDED by this batch.
 -->
 
-# REPORT — the cluster LOAD PHASE batch (`L1`–`L7`)
+# REPORT — the cluster LOAD PHASE batch (`L1`–`L8`)
 
 **Branch** `claude/blueprint-macro-feature-sdmspn` · **started at** `4a428df6` · **design**
 [`DESIGN_Cluster_Load_Phase.md`](../../DESIGN_Cluster_Load_Phase.md)
@@ -39,6 +39,11 @@ matches them**, with the deviations in §4 and folded into the design's own §6.
 | `RoleLoadRequirements` + `UniversalParts` | same name, same split |
 | `ILoadPartProvider` × 3 | `KnowledgeBaseLoadStep`, `TerrainLoadStep`, `ScenarioLoadStep` |
 | `TerrainResidency` with an unwired `Unload` | `Hrot.Core/Services/TerrainResidency.cs` |
+| ⭐ **§7.2's `ParkedTransition` + the plan/execute split** | `ClusterMaster._parked` · `ProcessTransitionStateIntent` → `ExecuteTransitionTrajectory` · `ProcessParkedTransition` |
+| ⭐ **§7.2's saga edge** | `PrefetchAckTracker.OriginRequestId` + `PrefetchDistributionCompletedEvent` |
+
+⚠ **One design element did NOT match reality and the design was corrected, not the code:** §7.2b's claim
+that the editor's offline master never parks. See §4 ⑤.
 
 ---
 
@@ -46,23 +51,29 @@ matches them**, with the deviations in §4 and folded into the design's own §6.
 
 | # | gate | command | result |
 |---|---|---|---|
-| 1 | production build | `dotnet build Hrot.ClusterRunner.csproj --no-restore` | ✅ **0 errors, 0 warnings** |
+| 1 | production build | `dotnet build Hrot.ClusterRunner.csproj --no-restore` | ✅ **0 errors, 0 warnings** *(re-run after `L8`)* |
 | 2 | `--no-build` column | every suite below ran `--no-build` after one build of the **test** project | ✅ |
 | 3 | golden movement | — | **none**: no golden touched |
 | 4 | reds proved pre-existing | ran the three suspects at base `4a428df6` **in a clean worktree** | ✅ all three pre-existing |
 | 5 | clean tree after runs | `git status --porcelain` | ✅ clean |
 | 6 | quarantine counts | skipped 3 (SimHost) / 1 (Editor) | unchanged |
 | 7 | ids allocated | **none** — the plan's `L1`–`L7` are design items, not tracker rows | — |
-| 8 | the cross-cutting integration suite | ⭐ **the real cluster**, `--mode all` — see §5 | ✅ **acceptance met** |
+| 8 | the cross-cutting integration suite | ⭐ **the real cluster**, `--mode all` — see §5 and ⭐ §5a *(re-measured after `L8`)* | ✅ **acceptance met, twice** |
 
-### Suites
+### Suites — ⭐ re-run after `L8`
 
 | suite | result |
 |---|---|
-| `Hrot.SimHost.Tests` | **1006 passed / 3 failed / 3 skipped** — the 3 are the pre-existing ones from row 4. **Zero new.** |
-| `Hrot.Editor.Tests` | the re-pointed rail green. ⚠ two unrelated reds observed intermittently (`EditorMapPickAdapter`, `AiHotReloadCoordinator`), absent from the first run of the same commit — **flaky, not caused here** |
-| `Hrot.Orchestrator.Tests` | **176 / 176** |
-| doc gates | `design-digest.py --check` PASS (60 docs) · `rulings-check.py` 35/35 · `mermaid-check.mjs` 4/4 |
+| `Hrot.Orchestrator.Tests` | ⭐ **181 / 181** *(was 176; **+5** — the `L8` rails, §7.7's table)* |
+| `Hrot.SimHost.Tests` | **1000 passed / 4 failed / 3 skipped.** ⚠ The red SET is **unstable across runs of the same commit** — three runs gave 3, 2 and 4. 📐 Checked in a clean worktree at base `4a428df6`: `FullBranchPipelineTests.BranchedRecording_CapturesHistoricalStateAsKeyframe` and `NodeRolePersistenceRails.TheSaveHandlerSetIsStillComplete` are **red at base too** ⇒ pre-existing. ⚠ `EcsRecordReplayControllerTests.PrepareRecordingAsync_InstallsRecordingModule` **passed at base** and appeared only in the run taken while the acceptance cluster was still running — recorded as **contention-flaky, NOT proved pre-existing**. **Zero new.** |
+| `Hrot.Editor.Tests` | **408 passed / 1 failed / 1 skipped** — `AiHotReloadCoordinatorTests.TwoReloadCycles_OldAlcIsCollected`, a GC-timing rail already recorded as flaky here and untouched by this batch |
+| doc gates | `design-digest.py --check` PASS (60 docs) · `rulings-check.py` 35/35 · `mermaid-check.mjs` **6/6** |
+
+⚠ **Row 2, stated honestly rather than rounded off:** two of those three are recording/replay timing rails
+and one is a source-scanning rail whose expectation lists **save** handlers — none of which this batch
+touched *(it deleted five **load** handlers)*. ⛔ The instability is itself a finding, not a result: a suite
+whose red set changes run to run cannot certify anything, and it is reported as such rather than quoted as
+a clean number.
 
 ⚠ **Row 8, honestly:** the `ClusterConformanceRails` cases that pinned this defect live in the **T3**
 suite, which is the slow lane and was **not** re-run inside this batch. ⭐ The direct cluster run in §5
@@ -83,10 +94,18 @@ rails themselves have not been observed green since the fix. **Stated, not impli
    every host through the interface.
 3. **The knowledge-base provider is supplied by the host** when a caller passes no database, rather than
    demanded of every caller — the host supplying a *HOW*, not the requirement being relaxed.
-4. **`L6` is partial, deliberately.** The names no longer race; the two loaders gained the bounded wait the
-   scenario step always had. ⛔ Ordering the content step after the staging acknowledgements was **not**
-   done — it restructures the trajectory every transition shares, and doing it beside a node-side refactor
-   would make a failure impossible to attribute.
+4. **`L6` was partial, deliberately — and `L8` CLOSED it in the same batch.** The names stopped racing
+   first (`L1`). ⭐ `L8` then removed the ordering defect itself: `ClusterMaster` **parks** a scenario-carrying
+   transition until the prefetch saga reports every node has acknowledged its files, and fans out only then.
+   ⇒ **all three waits and `StagedArtifactWait` are deleted** — nothing in the load path waits on a clock.
+   📄 [`DESIGN_Cluster_Load_Phase.md` §7](../../DESIGN_Cluster_Load_Phase.md) (`build-state: BUILT`, §7.7 the
+   as-built). 🔒 User: *"it cannot depend on timeouts where can easily wait deterministically."*
+5. 🔴 **`L8`'s own design was WRONG about the editor, and the build caught it.** §7.2b had claimed the
+   editor's offline master *"stages nothing, so it never parks"* — measured false: it constructs and ticks
+   an `AssetPrefetchProcessManager` (`EditorSubsystem.cs:2150`, `:2661`), registers `ReferencePrefetchHandler`
+   on its own one-node slave (`:1422`) and heartbeats as node 0 (`:1035`). ⇒ it parks and unparks on exactly
+   the same path, which is **why** it is safe. The design carries the correction with its `file:line`s; had
+   the claim been true, every scenario open in the editor would have hung for the liveness bound.
 
 ---
 
@@ -108,13 +127,34 @@ Scenario 8 · SimHost 8 · IG 9
 
 ⇒ ✅ **both targets destroyed, all four attackers home** — the question this whole programme started from.
 
+### 5a. ⭐⭐⭐ RE-MEASURED AFTER `L8` — same acceptance, and the wait is now visible in the log
+
+📐 Stock `--mode all`, `hill-attack-close`, no probe, `2026-09-18`:
+
+```
+19:07:37.4153  ClusterMaster  L8: transition 86ba65c9… PARKED until the staging of 'hill-attack-close' is on every node.
+19:07:37.6259  AssetPrefetch  L8: distribution of 'hill-attack-close' for request 86ba65c9… completed (success).
+19:07:37.6539  ClusterMaster  L8: the staging of 'hill-attack-close' is on every node — transition 86ba65c9… resumes.
+```
+
+⇒ **parked for 210 ms, then the ordinary fan-out.** `clusterState: OperatingLive`, `entityCount: 8`,
+network ids **1000–1007** (so the `HN-037` reset still fires, on the execute side).
+
+| at `t ≈ 111` | HP | navigation | distance to its OWN destination |
+|---|---|---|---|
+| 1006 · 1007 (hostile) | **0/50** | `InProgress`, never arrived | — |
+| 1001–1004 (friendly platoon) | 3000/3000 | **`Arrived`**, `HasArrived: 1` | **0.67 – 1.51 m** |
+
+⇒ ✅ **acceptance unchanged by `L8`** — which is the point: the fan-out is the same pass, run later.
+
 ---
 
 ## 6. ⚠ What a reader should NOT conclude
 
 | | |
 |---|---|
-| ⛔ "the staging race is fixed" | only the **name** half. §4 ④ names what is left |
+| ✅ "the staging race is fixed" | ⭐ **now genuinely yes**, after `L8` — the names moved to the message (`L1`) and the transition itself is ordered after every node's acknowledgement. ⛔ An earlier version of this row said *"only the name half"*; that was true of `L1`–`L7` and is **superseded** |
+| ⛔ "the `L8` rails prove a node gets its files" | they exercise `ClusterMaster` + the saga over a real bus, **not a real node**. The node-side proof is the measured cluster run in §5a |
 | ⛔ "the T3 conformance rails are green" | they were not re-run — §3 row 8 |
 | ⛔ "a host can no longer misconfigure its load" | it can; it now **fails loudly at composition** instead of silently at runtime. That is the whole change |
 | ⛔ "terrain is loaded everywhere" | it is loaded where a role **reads** it — `MuscleGround` and `NavigationSolver` only, per the accepted ruling |

@@ -60,7 +60,7 @@ public sealed class KnowledgeBaseLoadStep : ILoadPartProvider
     public LoadPart Part => LoadPart.KnowledgeBase;
 
     /// <inheritdoc/>
-    public async Task PrepareAsync(LoadPhaseContext context, CancellationToken ct)
+    public Task PrepareAsync(LoadPhaseContext context, CancellationToken ct)
     {
         // ⭐⭐ The message first, the staged header only as a fallback.
         string? requested = !string.IsNullOrWhiteSpace(context.TkbName)
@@ -77,18 +77,17 @@ public sealed class KnowledgeBaseLoadStep : ILoadPartProvider
             _lastLoadedTkbName = null;
             _lastLoadedLength  = -1;
             _tkbDb.ActiveTkbName = null;
-            return;
+            return Task.CompletedTask;
         }
 
         string localPath = Path.Combine(
             _localTkbStagingRoot, requested + OrchestrationConstants.TkbArtifactExtension);
 
-        // ⭐⭐ L6 — the staging copy may still be delivering this file: the content step is dispatched
-        //    milliseconds after the copy STARTS. ⛔ Without the wait, the loud failure below would be
-        //    correct in form and spurious in fact. ⚠ It is a bounded wait, not a substitute for ordering.
-        if (!File.Exists(localPath))
-            await StagedArtifactWait.ForFileAsync(localPath, ct).ConfigureAwait(false);
-
+        // ⭐⭐⭐ L8 — THERE IS NO WAIT HERE ANY MORE, and that is the point. The load step is not dispatched
+        //    until ClusterMaster has been told that every node acknowledged its files, so a file that is
+        //    missing at this instant is genuinely missing and the loud failure below is correct in fact as
+        //    well as in form. 🔒 User: "it cannot depend on timeouts where can easily wait deterministically."
+        //    📄 docs/DESIGN_Cluster_Load_Phase.md §7.3 ④.
         var info = new FileInfo(localPath);
         DateTime currentFileTime = info.Exists ? info.LastWriteTimeUtc : DateTime.MinValue;
         long     currentLength   = info.Exists ? info.Length           : -1;
@@ -96,7 +95,7 @@ public sealed class KnowledgeBaseLoadStep : ILoadPartProvider
         if (_lastLoadedTkbName == requested
          && _lastLoadedTimestamp == currentFileTime
          && _lastLoadedLength == currentLength)
-            return;   // already resident and unchanged — idempotent no-op
+            return Task.CompletedTask;   // already resident and unchanged — idempotent no-op
 
         if (!info.Exists)
             throw new FileNotFoundException(
@@ -119,6 +118,8 @@ public sealed class KnowledgeBaseLoadStep : ILoadPartProvider
         FdpLog<KnowledgeBaseLoadStep>.Info(
             "[LoadPhase/KnowledgeBase] Loaded TKB '{0}' ({1} entities).",
             requested, _tkbDb.GetAll().Count());
+
+        return Task.CompletedTask;
     }
 
     /// <inheritdoc/>

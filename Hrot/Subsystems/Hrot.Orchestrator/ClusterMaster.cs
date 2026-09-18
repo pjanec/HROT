@@ -102,6 +102,44 @@ public sealed class ClusterMaster : IDisposable
     /// </summary>
     private readonly Dictionary<Guid, GenericTransactionTracker> _pendingTransactions = new();
 
+    // ── L8: the PARKED transition ─────────────────────────────────────────
+    /// <summary>
+    /// ⭐⭐⭐ <c>L8</c> — a transition that has been PLANNED but not yet FANNED OUT, because the scenario's
+    /// files are still being distributed. Every field is a local that
+    /// <see cref="ProcessTransitionStateIntent"/> already built; parking simply keeps them alive for a few
+    /// frames instead of a few statements. 📄 <c>docs/DESIGN_Cluster_Load_Phase.md</c> §7.2.
+    /// </summary>
+    private sealed record ParkedTransition(
+        Guid                  RequestId,
+        TransitionStateIntent Intent,
+        Queue<ISysOpStep>     Trajectory,
+        ClusterState          SourceState,
+        ClusterState          ResolvedTarget,
+        int                   TotalSteps,
+        double                ParkedAtSeconds);
+
+    /// <summary>
+    /// ⭐⭐ AT MOST ONE (§7.2c). ⛔ A dictionary keyed by request id would make several simultaneous parked
+    /// transitions <em>representable</em>, which is a new concurrency property nobody asked for; the master
+    /// tracks a single in-flight transition, so a second arrival is REJECTED, not queued.
+    /// <para>⚠ <b>The editor's offline master parks too</b>, and that is fine — it constructs and ticks the
+    /// same prefetch saga and acks <c>PrefetchFiles</c> on its own one-node slave, so it unparks on exactly
+    /// the same path (§7.2b records the measurement; the design's first draft wrongly claimed it was
+    /// exempt). ⭐ What IS exempt is any transition naming no scenario — it plans no copy, so nothing ever
+    /// writes here.</para>
+    /// </summary>
+    private ParkedTransition? _parked;
+
+    /// <summary>
+    /// ⭐ The liveness bound on a PARKED entry (§7.3 ⑤). ⛔ This is NOT the timeout the change removes: a
+    /// deterministic wait still needs a bound, and the difference is that expiry FAILS the request loudly
+    /// instead of silently proceeding with files that never arrived. Settable so rails need not wait it out.
+    /// </summary>
+    public double ParkedTransitionExpirySeconds { get; set; } = 300.0;
+
+    /// <summary>Test/diagnostic seam: the request id of the parked transition, or <c>null</c>.</summary>
+    public Guid? ParkedRequestId => _parked?.RequestId;
+
     // ── Node-response aggregators (OCP/SRP: domain aggregation outside generic 2PC) ──
     private readonly Dictionary<Fdp.Toolkit.Orchestration.NodeOpType, INodeResponseAggregator> _aggregators = new();
 
@@ -295,6 +333,10 @@ public sealed class ClusterMaster : IDisposable
         CheckBootstrapLatch();
         DetectAndEjectTimedOutNodes();
         DrainInjectedRequests();
+
+        // ⭐⭐⭐ L8 — resume or expire a PARKED transition BEFORE new intents are admitted, so a transition
+        //    whose files landed this frame does not cause the next request to be rejected as "busy".
+        ProcessParkedTransition();
 
         // Bus-based intent drain (CMC-S008).
         ProcessTransitionStateIntents();
@@ -924,10 +966,72 @@ public sealed class ClusterMaster : IDisposable
 
     // ── Typed intent handlers (shared by bus and legacy DDS paths) ────────
 
+    /// <summary>
+    /// ⭐⭐⭐ <c>L8</c> — the resume half of the deterministic staging wait: release the parked transition
+    /// when its files are on every node, fail it when the distribution failed, and fail it when the
+    /// distribution never reported at all.
+    ///
+    /// <para>⛔ <b>It costs nothing when nothing is parked</b>, which is the normal case — and the early
+    /// return also means the bus is not read for an event a host may never have registered.</para>
+    ///
+    /// <para>⚠ The expiry is the one bound that remains (§7.3 ⑤). It is not the timeout the change removes:
+    /// it FAILS the request rather than proceeding with files that never arrived.
+    /// 📄 <c>docs/DESIGN_Cluster_Load_Phase.md</c> §7.</para>
+    /// </summary>
+    private void ProcessParkedTransition()
+    {
+        var parked = _parked;
+        if (parked == null) return;
+
+        foreach (var ev in _eventBus.ReadManaged<PrefetchDistributionCompletedEvent>())
+        {
+            if (ev.RequestId != parked.RequestId) continue;
+
+            _parked = null;
+
+            if (!ev.IsSuccess)
+            {
+                // §7.4 — the second defect this change closes: a failed copy now fans out NOTHING.
+                FdpLog<ClusterMaster>.Error(
+                    "[Orchestrator] L8: the distribution of '{0}' FAILED — transition {1} is abandoned and "
+                  + "nothing was fanned out.",
+                    ev.ScenarioId, parked.RequestId);
+                PublishOpStatus(parked.RequestId, OrchestrationStatusCode.Failure);
+                return;
+            }
+
+            FdpLog<ClusterMaster>.Info(
+                "[Orchestrator] L8: the staging of '{0}' is on every node — transition {1} resumes.",
+                ev.ScenarioId, parked.RequestId);
+            ExecuteTransitionTrajectory(parked);
+            return;
+        }
+
+        if (UtcNowSeconds() - parked.ParkedAtSeconds <= ParkedTransitionExpirySeconds) return;
+
+        _parked = null;
+        FdpLog<ClusterMaster>.Error(
+            "[Orchestrator] L8: transition {0} expired after {1:F0}s — the staging never completed. "
+          + "Nothing was fanned out.",
+            parked.RequestId, ParkedTransitionExpirySeconds);
+        PublishOpStatus(parked.RequestId, OrchestrationStatusCode.Timeout);
+    }
+
     private void ProcessTransitionStateIntent(TransitionStateIntent intent)
     {
-        var requestId          = intent.TransactionId;
-        var stateBeforeAdvance = _currentDsmState;
+        var requestId = intent.TransactionId;
+
+        // ⭐⭐ L8 §7.2c — AT MOST ONE parked transition. ⛔ Rejected, not queued: the master tracks a single
+        //    in-flight transition and queueing would be a new property nobody asked for.
+        if (_parked != null)
+        {
+            FdpLog<ClusterMaster>.Warn(
+                "[Orchestrator] L8: transition {0} REJECTED — transition {1} is parked waiting for its "
+              + "scenario files.",
+                requestId, _parked.RequestId);
+            PublishOpStatus(requestId, OrchestrationStatusCode.Rejected);
+            return;
+        }
 
         var trajectory = _planner.PlanTrajectory(_currentDsmState, intent);
         int totalSteps = trajectory.Count;
@@ -948,20 +1052,29 @@ public sealed class ClusterMaster : IDisposable
             _activeExerciseId = Guid.Empty;
         }
 
+        // ⚠ L8 §7.2a — the optimistic advance is NOT done here any more: a PARKED transition must not
+        //   report the cluster as already in the target state while it is still waiting for files.
+        //   It moves to ExecuteTransitionTrajectory, with the transaction record and the id reset.
         var capturedSourceState = _currentDsmState;
-        _currentDsmState = resolvedTarget;
 
-        // CGF1-S0302: Emit prefetch intent; PrefetchFiles fan-out is deferred until staging completes.
+        // ⭐⭐⭐ L8 — START THE COPY, THEN PARK. The trajectory is NOT fanned out here.
+        //
+        // 🔴 What this replaces, measured 2026-09-18: the copy was started and the whole trajectory fanned
+        //    out in this SAME pass, so nodes received the load step while their files were still arriving
+        //    (the content step was dispatched 6 ms after the copy started and 49 ms before the files were
+        //    even fanned out). The node side papered over it with per-file timeouts.
+        // 🔒 User: "it cannot depend on timeouts where can easily wait deterministically."
+        //
+        // ⭐ The fact we wait on already exists: AssetPrefetchProcessManager tracks a PER-NODE
+        //   acknowledgement set and completes only when it empties. It now carries the originating request
+        //   id so the parked transition can be matched to it.
+        // 📄 docs/DESIGN_Cluster_Load_Phase.md §7.
+        string? prefetchScenarioId = null;
         foreach (var step in trajectory)
         {
             if (step is OperationStep { Operation: ClusterOpType.PrefetchScenario } ps)
             {
-                _eventBus.PublishManaged(new ExecutePrefetchIntent
-                {
-                    RequestId     = requestId,
-                    ScenarioId    = (string?)ps.DomainPayload ?? string.Empty,
-                    ActiveNodeIds = new List<int>(_roster.ActiveNodes.Keys),
-                });
+                prefetchScenarioId = (string?)ps.DomainPayload ?? string.Empty;
                 break;
             }
         }
@@ -976,6 +1089,55 @@ public sealed class ClusterMaster : IDisposable
             PendingTimeMode = null;
 
         // Live-from-Replay FreezeTime is now handled by LiveBranchProcessManager (TASK-T001).
+
+        var planned = new ParkedTransition(
+            requestId, intent, trajectory, capturedSourceState, resolvedTarget, totalSteps,
+            UtcNowSeconds());
+
+        // ⭐⭐ Park ONLY when a copy was actually started for this transition — i.e. only when the planner
+        //    put a PrefetchScenario step in the trajectory, which it does only for a named scenario.
+        //    ⇒ replay, preview, idle and every unload execute in this very frame, exactly as before.
+        // ⚠ This is a DERIVATION, not a host check: the editor's offline master parks too, and unparks
+        //   through its own prefetch saga (§7.2b — the design's first draft claimed it was exempt and that
+        //   was measured FALSE).
+        if (prefetchScenarioId != null && _eventBus != null)
+        {
+            _parked = planned;
+            _eventBus.PublishManaged(new ExecutePrefetchIntent
+            {
+                RequestId     = requestId,
+                ScenarioId    = prefetchScenarioId,
+                ActiveNodeIds = new List<int>(_roster.ActiveNodes.Keys),
+            });
+
+            FdpLog<ClusterMaster>.Info(
+                "[Orchestrator] L8: transition {0} PARKED until the staging of '{1}' is on every node.",
+                requestId, prefetchScenarioId);
+            return;
+        }
+
+        ExecuteTransitionTrajectory(planned);
+    }
+
+    /// <summary>
+    /// ⭐⭐⭐ <c>L8</c> — the EXECUTE half of a transition: advance the reported state, record the
+    /// transaction, reset the id authority, fan out, and set up the acknowledgement accounting.
+    ///
+    /// <para>⭐ Unchanged from what this code always did — it simply runs LATER when the transition was
+    /// parked. ⛔ The fan-out is still ONE pass, which is why two-phase commit, ack accounting, replay and
+    /// preview are untouched. 📄 <c>docs/DESIGN_Cluster_Load_Phase.md</c> §7.1.</para>
+    /// </summary>
+    private void ExecuteTransitionTrajectory(ParkedTransition parked)
+    {
+        var intent              = parked.Intent;
+        var requestId           = parked.RequestId;
+        var trajectory          = parked.Trajectory;
+        var capturedSourceState = parked.SourceState;
+        var resolvedTarget      = parked.ResolvedTarget;
+        int totalSteps          = parked.TotalSteps;
+
+        // ⚠ §7.2a — the optimistic advance belongs HERE, not at planning time.
+        _currentDsmState = resolvedTarget;
 
         var tx = new DistributedTransaction
         {
