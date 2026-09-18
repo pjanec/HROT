@@ -28,6 +28,11 @@ related-designs:
     this extends; the trajectory slot and the fan-out are its, not this document's.
   - docs/DESIGN_Distributed_Scenario_Persistence.md — owns the NAS scenario layout and the save gate;
     this adds one sibling directory to that layout and changes nothing else about it.
+  - docs/DESIGN_Cluster_Load_Phase.md — ⭐⭐⭐ owns the load MESSAGE and the per-ROLE load contract.
+    ⚠ It moves the TKB and terrain NAMES onto the message (this document's staged
+    `ScenarioHeader.json` sidecar then demotes to a local cache / fallback) and it records the RACE
+    measured between this document's staging step and the step that consumes it. This document keeps
+    the BYTES — NAS layout, the copy, and the two (length, mtime) skips — unchanged.
 -->
 
 # DESIGN — **Artifact staging: getting the named TKB to the nodes**

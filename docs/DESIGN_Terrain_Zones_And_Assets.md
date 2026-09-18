@@ -46,6 +46,10 @@ related-designs:
   - docs/DESIGN_Artifact_Staging.md — owns getting the NAMED TKB and terrain artifacts ONTO the nodes
     (the prefetch extension + the two (length, mtime) skips). ⭐ It CLOSES BP-550, which §10 and the
     plan's §3.3 record as the single thing standing between this design and a working zone load.
+  - docs/DESIGN_Cluster_Load_Phase.md — ⭐⭐⭐ owns WHEN terrain loads and WHO runs it during the
+    cluster's Loading* phase: the per-ROLE contract, the ordered load-phase chain, and the shared
+    content names riding the load MESSAGE. ⛔ It SUPERSEDES §2.1e ④ here (see §10.9) — this doc keeps
+    WHAT terrain and zones ARE and gives up the scheduling question entirely.
 -->
 
 # DESIGN — **Terrain, zones and the asset build**
@@ -298,6 +302,17 @@ ITkbDatabase **before** `HrotScenarioLoadHandler` deserializes entities")*. ⇒ 
 same pattern with a different prerequisite.** ⛔ Do not invent a new ordering mechanism.
 
 #### ④ WHO — ⛔⛔ **it must NOT ride the scenario-load handler**
+
+> ⛔⛔⛔ **SUPERSEDED `2026-09-18` — the PREMISE below is CONFIRMED, the CONCLUSION is REPLACED.**
+> 📄 **[`DESIGN_Cluster_Load_Phase.md`](DESIGN_Cluster_Load_Phase.md) §4.3.** The measured fact this
+> section rests on — a muscle node has no scenario-load handler — is true and was re-measured
+> (`SimHostNodeBootstrapper.cs:391-438`, *"Load handlers stay off (no authoring deps here)"*).
+> 🔴 **But its remedy — *"register it unconditionally on every ECS host"* — caused a production defect:**
+> `ClusterSlave` gives a step to the **FIRST** matching handler and returns, so registering
+> unconditionally means **competing** unconditionally. Measured `2026-09-18`: on CGF the terrain loader
+> shadowed `CgfScenarioLoadHandler` and `--mode all` loaded **zero entities**; on SimHost the TKB loader
+> shadows this one, so terrain has **never** loaded there. ⇒ terrain is now an **ordered step in one
+> composed chain** every ECS host runs, not a competitor. ⛔ Do not implement the paragraphs below.
 
 🔴 **MEASURED TRAP.** `NodeBootstrapper.cs:316-318` registers SimHost's scenario LOAD handlers **inside a
 conditional**, with the comment: *"Scenario/episode LOAD handlers need the full authoring deps
