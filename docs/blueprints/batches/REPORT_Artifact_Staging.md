@@ -3,7 +3,8 @@ state: LIVE
 updated: 2026-09-18
 current-answer: §1 what shipped · §2 the findings · §3 V1's measurement and the call · §4 the gate
   table · §5 T3's verdict · §6 the UML check · §7 what the design got wrong.
-stale-below: nothing.
+stale-below: nothing. ⚠ §5 carries a RETRACTION of a claim relayed to the coordinator before the T3 run
+  finished ("the harness never boots") — read §5, not that relay.
 known-rot: none known. ⚠ This report is EPHEMERAL — every durable fact is folded into
   DESIGN_Artifact_Staging.md §9 and into the BP-552..BP-558 tracker rows. Quote those.
 related-designs:
@@ -176,28 +177,47 @@ This changes what every node holds before a load, so row 8 binds.
 
 ---
 
-## 5. ⚠ `T3` — **it cannot gate in this environment, and that is the honest answer**
+## 5. `T3` — **it RAN, 103/117, and none of the 14 reds is about staging**
 
-The dispatch asked whether an end-to-end create-from-seed is green **for the first time**.
+> 🔴 **CORRECTION.** An earlier draft of this section — relayed to the coordinator before the run
+> finished — said *"the harness never boots an editor in this container, so no product assertion was ever
+> evaluated."* **That is false and is retracted.** It was written from the first minutes of output, where
+> every visible failure was a refused connection. 📐 The completed run is **103 passed / 14 failed / 117,
+> in 17 m 56 s** — the harness boots and **103 product assertions were evaluated**. ⚠ Recorded rather than
+> quietly replaced, because the wrong claim was already sent.
 
-📐 **Measured:** `scripts/run-system-tests.sh` builds, then every case fails identically with
-`McpRequestException: … could not reach the editor at http://localhost:<port>/: Connection refused`.
-⇒ ⛔ **the harness never boots an editor in this container, so no product assertion was ever evaluated** —
-not one failure is an assertion about staging. The failing set spans `DeterminismRails`,
-`ClusterConformanceRails`, `TheMapsAgreeOnBothHostsRails`, `VariableAddressingTests` and others, i.e. the
-**whole** suite, including cases with nothing to do with this batch.
+📐 **The run, completed:**
 
-⇒ ⭐⭐ **This is a row-8-shaped finding, not a result:** `T3` is un-gateable here for the same class of
-reason as the `ClusterRunner.Integration.Tests` DDS crash, and reporting it as a red would be as wrong as
-reporting it green. ⛔ **I did not run it at the base sha to "prove pre-existing"** — the failure mode is a
-refused TCP connection at harness start-up, which cannot be a regression from a file-copy change.
+| | |
+|---|---|
+| result | **103 passed · 14 failed · 0 skipped · 117 total · 17 m 56 s** |
+| failure causes | **5** `McpRequestException` *(connection refused mid-case)* · **1** raw `SocketException` · **2** `Assert.Equal() Failure` · the remainder cascade from the same cases |
+| the 13 distinct failing names | `ClusterConformanceRails` ×5 · `DeterminismRails` ×3 · `TheMapsAgreeOnBothHostsRails` ×2 · `CrossHostPanelKindRails` ×1 · `PreviewLeavesNoTraceRails` ×1 · `VariableAddressingTests` ×1 |
 
-⚠ **So the question the dispatch actually cares about is still open**, and it is the one thing this batch
-could not answer. ⭐ What *can* be said from the unit and integration level: the header and the zip now
-arrive, the node resolves the name, and the two skips compose — which is everything `T3` would have
-exercised **except the real process boundary**.
+⭐⭐ **Not one of them is about TKB staging, a named-TKB scenario load, or terrain.** They are determinism,
+cluster conformance, map parity, panel-kind accounting, preview and variable addressing — areas this batch
+does not touch.
 
----
+⚠ **And this batch's change cannot reach them, by construction:** `StageNamedArtifacts` returns immediately
+unless the staged scenario NAMES a TKB or a terrain, and 📐 **none of the curated scenarios the system
+suite uses names either** *(measured in batch ③: all four carry `{subsystemType, schemaVersion}` and
+nothing else)*. ⇒ for every `T3` case, the new code path is not entered at all.
+
+⛔ **That is reasoning, not measurement**, so a `T3` run at the base sha `a5e9a5278` was started to settle
+it. ⚠ **Its result is not in this report** — `T3` is `T3`: ~18 minutes, async by rule, and the batch does
+not wait on it. 📄 **The comparison lands in the next session or as a follow-up note.**
+
+### ⇒ What this means for the question the dispatch actually asked
+
+🔒 The dispatch asked whether an end-to-end create-from-seed is green **for the first time**.
+⛔ **The system suite does not contain that case** — no `T3` rail creates a scenario from the `basic-desert`
+seed, and none of the 117 names a TKB. ⇒ **`T3` neither confirms nor denies it**, and a green there would
+not have been the acceptance the dispatch hoped for.
+
+⭐⭐ **What the batch CAN say, and did rail:** the header and the zip arrive on every target node, the node
+resolves the name out of the staged header, and the two skips compose across a simulated restart. ⚠ **The
+missing acceptance is a `T3` rail that loads a TKB-naming scenario** — which is a rail this programme has
+never had, and is the honest successor to *"run `T3` and see."*
 
 ## 6. Obligation ③ — the UML check
 
