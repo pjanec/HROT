@@ -1018,12 +1018,31 @@ public sealed class ClusterMaster : IDisposable
                         // DomainPayload always carries TargetState so ClusterSlave can use it
                         // as a dedup discriminant for PrepareState ops that share the same txId.
                         // ScenarioId is only populated for the two load states that actually need it.
+                        bool isLoadStep = tStep.TargetState == ClusterState.LoadingLive
+                                       || tStep.TargetState == ClusterState.LoadingEdit;
+
+                        // ⭐⭐⭐ L1 — THE SHARED CONTENT NAMES GO ON THE MESSAGE.
+                        //   📐 Read ONCE here, from the master scenario on the NAS, and carried to every
+                        //   node — because four of the five roles never open the scenario file and so
+                        //   cannot read these names out of it, while every ECS node needs the knowledge
+                        //   base (Q65-A′) and the movement roles need the terrain.
+                        //   ⛔ Before this they travelled as a staged sidecar file written during the
+                        //   file copy, which RACES the step that consumes it (measured: the content step
+                        //   dispatched 6 ms after the copy started, 49 ms before the files were fanned
+                        //   out) — and the knowledge-base and terrain loaders do not retry, so they
+                        //   silently concluded "this scenario names none".
+                        //   📄 docs/DESIGN_Cluster_Load_Phase.md §2.4, §4.2, L1.
+                        var contentNames = isLoadStep
+                            ? ReadContentNamesForFanOut(intent.ScenarioId)
+                            : default;
+
                         var preparePayload = new EditLoadHandlerPayload(
-                            tStep.TargetState == ClusterState.LoadingLive || tStep.TargetState == ClusterState.LoadingEdit
-                                ? intent.ScenarioId : null,
+                            isLoadStep ? intent.ScenarioId : null,
                             false,
                             (FdpClusterState)(int)tStep.TargetState,
-                            ExerciseId: intent.ExerciseId);
+                            ExerciseId:  intent.ExerciseId,
+                            TkbName:     contentNames.TkbName,
+                            TerrainName: contentNames.TerrainName);
 
                         FanOutNodeOp(prepareOp,             tx.TransactionId, preparePayload,              activeNodeIds);
                         FanOutNodeOp(NodeOpType.CommitState, tx.TransactionId,
@@ -1116,6 +1135,37 @@ public sealed class ClusterMaster : IDisposable
     /// <c>OperatingEdit → UnloadingEdit → Idle → LoadingEdit</c>, and the step is entered from Idle there
     /// too.</para>
     /// </summary>
+    /// <summary>
+    /// ⭐⭐ <c>L1</c> — the shared content names for a load fan-out, read from the MASTER copy on the NAS.
+    ///
+    /// <para>⛔ <b>A failure here must NOT fail the transition.</b> ⚠ The names are a HINT that saves each
+    /// node a disk peek; the loud failure for a named-but-missing artifact belongs to the node's own loader
+    /// (<c>docs/DESIGN_Artifact_Staging.md</c> §9.3 made exactly this call for the staging path, and the
+    /// two must agree). ⇒ an unreadable or disagreeing scenario logs and yields no names, and the node
+    /// falls back to its staged header exactly as before.</para>
+    /// </summary>
+    private StagedArtifactNames ReadContentNamesForFanOut(string? scenarioId)
+    {
+        if (string.IsNullOrWhiteSpace(scenarioId)) return default;
+
+        try
+        {
+            return StorageGatewayModule.ReadScenarioContentNames(
+                Path.Combine(
+                    _config.NasBasePath,
+                    Fdp.Toolkit.Orchestration.OrchestrationConstants.ScenariosDirectoryName,
+                    scenarioId!));
+        }
+        catch (Exception ex)
+        {
+            FdpLog<ClusterMaster>.Error(
+                "[Orchestrator] L1: could not read the content names of scenario '{0}' ({1}). "
+              + "The load proceeds and each node falls back to its staged header.",
+                scenarioId, ex.Message);
+            return default;
+        }
+    }
+
     private void ResetIdAuthorityIfWorldBoundary(
         IEnumerable<ISysOpStep> trajectory, ClusterState sourceState)
     {

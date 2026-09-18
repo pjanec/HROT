@@ -1072,27 +1072,27 @@ public sealed class CgfSubsystem : ISubsystem, Fdp.Toolkit.Runner.IMapCameraProv
 
         var storageProvider = new LocalDiskStorageProvider(isolatedTempRoot);
 
-        // ⭐⭐⭐ C8 — THE TERRAIN LOADER, registered BEFORE every PrepareLive claimant on this host.
+        // ⛔⛔⛔ SUPERSEDED `2026-09-18` — C8's standalone TerrainLoadClusterStateHandler is GONE from here,
+        //    and its own comment explains why it had to go. It said "THE ORDER IS LOAD-BEARING … ClusterSlave
+        //    dispatches to the FIRST CanHandle-true handler and RETURNS", and concluded that terrain must be
+        //    registered FIRST. 🔴 Correct about the mechanism, wrong about the remedy: first does not mean
+        //    "before the others", it means "INSTEAD OF the others". Measured: this registration shadowed
+        //    CgfScenarioLoadHandler outright and --mode all loaded ZERO entities, silently.
         //
-        // 🔒 User ruling `2026-09-17`: "IG/CGF get loaders in batch 3" — a REAL
-        //    TerrainLoadClusterStateHandler, as SimHost already has, not a scoped-down identity check.
-        //    It is what makes D5's terrain-identity check PASS here instead of failing every zone op
-        //    (BP-537).
-        //
-        // ⛔⛔ THE ORDER IS LOAD-BEARING. 📐 Measured: ClusterSlave dispatches to the FIRST
-        //    CanHandle-true handler and RETURNS. This loader claims PrepareLive/PrepareEdit; so do
-        //    CgfScenarioLoadHandler and HrotEditLoadHandler below, and ReferenceLiveLoadHandler claims
-        //    PrepareLive UNCONDITIONALLY (ReferenceLiveLoadHandler.cs:71-74). ⇒ registering terrain
-        //    after any of them would leave it dead code that never runs, silently — the same shadowing
-        //    defect SerializeLocalRegistrar's header records.
-        //    ⭐ Terrain must populate BEFORE the scenario handlers deserialize anyway: entities depend
-        //    on terrain for ground clamping, physics and LOS. Same argument, same slot, as the TKB
-        //    loader on SimHost.
-        //
-        // 📄 docs/DESIGN_Terrain_Zones_And_Assets.md §2.1e ②a ③ ④, §8.3, §10.5.
-        newClusterSlave.RegisterHandler(
-            new Hrot.Map.Common.Services.TerrainLoadClusterStateHandler(
-                isolatedTempRoot, _cgfRoadNetworkHolder, world: _context.World));
+        // ⭐⭐⭐ L2/L4 — the parts are now STEPS in one chain, built further down from roles × providers.
+        //    CGF carries the Brain role, which requires the knowledge base (every ECS node does) and the
+        //    scenario entities — ⛔ and NOT terrain: nothing on this host reads the road graph.
+        //    🔒 User, `2026-09-18`: "load nothing where nothing reads it".
+        // 📄 docs/DESIGN_Cluster_Load_Phase.md §2.2, §4.1, §4.1a · DESIGN_Node_Roles_And_Policies.md §3.2.
+        var cgfLoadProviders = new List<Hrot.Map.Common.ClusterLoad.ILoadPartProvider>();
+
+        // ⚠ Offered only when this host actually has a database. ⛔ That is NOT a way to opt out: the
+        //   knowledge base is unconditional for every ECS node, so a null database here makes the chain
+        //   throw at composition with a message naming the missing part — which is the designed loud
+        //   failure, and far better than the silence it replaces.
+        if (_context.TkbDb != null)
+            cgfLoadProviders.Add(
+                new Hrot.Map.Common.ClusterLoad.KnowledgeBaseLoadStep(_context.TkbDb, isolatedTempRoot));
 
         // 1. Replay handler (must be first to gate Live-from-Replay branch)
         newClusterSlave.RegisterHandler(new ReferenceReplayLoadHandler(
@@ -1176,36 +1176,30 @@ public sealed class CgfSubsystem : ISubsystem, Fdp.Toolkit.Runner.IMapCameraProv
         //    authored (at load) and runtime (after) now come from ONE monotonic sequence.
         var cgfIdAllocator     = idAllocator;
 
-        newClusterSlave.RegisterHandler(new Hrot.CGF.Orchestration.Handlers.CgfScenarioLoadHandler(
-            scenarioSerializer, scenarioLoader, extractor, _scenarioSource!, cgfIdAllocator, _context.World,
-            remapper: behaviorRemapper, controller: rrController,
-            storageDirectory: isolatedTempRoot));
+        // ⭐⭐⭐ L4a — THE ONE SCENARIO STEP. ⛔ CgfScenarioLoadHandler and HrotEditLoadHandler are GONE.
+        //
+        // 🔴 CE-102 / HN-039 is CLOSED BY CONSTRUCTION rather than by a second registration. That defect
+        //    was "CGF declines the EDIT target, so opening a scenario from the toolbar showed an empty
+        //    world", and its fix was to ALSO register the editor's handler here — two classes, two
+        //    readiness predicates, and measured drift between them (CGF's copy never made zone terrain
+        //    resident; the editor's copy never waited for the cross-reference intents). ⭐ One step serves
+        //    both targets, because edit-versus-live is a field on the payload and not a kind of class.
+        //
+        // ⚠ The old "KNOWN LIMIT: the edit path does NOT pass CGF's behaviourRemapper" is also gone — one
+        //   step, one set of collaborators, so the two targets cannot diverge in what they were handed.
+        // 📄 docs/DESIGN_Cluster_Load_Phase.md §4.1c.
+        cgfLoadProviders.Add(new Hrot.Map.Common.ClusterLoad.ScenarioLoadStep(
+            scenarioSerializer, scenarioLoader, extractor, _scenarioSource!, cgfIdAllocator,
+            behaviorRemapper: behaviorRemapper));
 
-        // ⭐⭐⭐ CE-102 / HN-039 — THE EDIT-LOAD HANDLER CGF HAS NEVER HAD.
-        //
-        // 🔒 User visual check `2026-08-28`: *"when i load hill-attack scenario using the toolbar button, it
-        //    does NOT show on the map … editor shows it nicely."* 📐 Traced end to end: the toolbar's
-        //    `shell.openAsset` → picker → `AssetPickActionRouter` → for a Scenario asset →
-        //    `EditorScenarioSession.OpenForEdit` → a cluster transition to `OperatingEdit` — and NOTHING on
-        //    this node claimed it. ⛔ `CgfScenarioLoadHandler.CanHandle(intent)` accepts `PrepareState` ONLY
-        //    when `TargetState == OperatingLive`, so the edit target was explicitly declined; the load then
-        //    answered ok:true with an empty world (measured: entityCount 0, gizmo frame all grid lines).
-        //
-        // ⭐⭐ Why the SHARED handler and not a CGF-private one: it is the same handler the editor and SimHost
-        //    register, and ruling 65 settles the principle — *"Bringing editing machinery onto a runtime node
-        //    is perfectly OK."* ⛔ A `CgfEditLoadHandler` would be a second implementation of one concept.
-        //    ⚠ What blocked it was one required argument: it threw on a null `IZoneManagerService`, which this
-        //      host genuinely does not compose (see :736). That is now optional AND REPORTED there.
-        // ⚠⚠ KNOWN LIMIT, stated rather than discovered later: this does NOT pass CGF's `behaviorRemapper`,
-        //    which the LIVE path does. Entities load and render; whether their behaviours bind on this host
-        //    is CE-103's question, not this one. 📄 §5c.17.
-        newClusterSlave.RegisterHandler(new Hrot.ScenarioEditor.Handlers.HrotEditLoadHandler(
-            scenarioSerializer, scenarioLoader,
-            // ⭐ F1 — the former `zoneService: null` "declared absence" is GONE, and so is the warning it
-            //   went with: zones are authored entities now, so there is no second half a host can fail to
-            //   load. 📄 docs/DESIGN_Terrain_Zones_And_Assets.md §5.1, §6.
-            extractor, _scenarioSource!, cgfIdAllocator,
-            world: _context.World));
+        // ⭐⭐⭐ L2 — ONE participant for the whole load step, composed from this node's ROLES.
+        //   ⚠ Registered here, AFTER the replay handler (which must gate the live-from-replay branch) and
+        //     BEFORE ReferenceLiveLoadHandler, which keeps FinalizeLive.
+        newClusterSlave.RegisterHandler(Hrot.Map.Common.ClusterLoad.LoadPhaseChain.FromRoles(
+            DefaultRole, cgfLoadProviders, _context.World,
+            recordingController: rrController,
+            storageDirectory:    isolatedTempRoot,
+            hostLabel:           "CGF"));
 
         // ⭐⭐⭐ CE-275 ③ — CGF registers the SAME scenario SAVE handler as the editor (CGF == editor). On a
         //   SaveScenarioJson fan-out it writes CGF's owned slice via the shared ScenarioSaveCore, using CGF's

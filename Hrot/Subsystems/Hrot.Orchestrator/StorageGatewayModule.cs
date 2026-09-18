@@ -736,6 +736,31 @@ public sealed class StorageGatewayModule
     /// using a forward-only <see cref="System.Text.Json.Utf8JsonReader"/> (no DOM allocation).
     /// Throws <see cref="InvalidOperationException"/> if any two non-empty TkbName values disagree.
     /// </summary>
+    /// <summary>
+    /// ⭐⭐⭐ <c>L1</c> — <b>the shared content names of a scenario as it sits on the NAS</b>, for the
+    /// orchestrator to put on the message that opens the <c>Loading*</c> phase.
+    ///
+    /// <para>⭐⭐ Deliberately the SAME consensus reader the staging path uses
+    /// (<see cref="CheckTkbNameConsensus"/>), not a second peek: the names the nodes are TOLD and the names
+    /// the gateway STAGES must be one answer, or a node loads one knowledge base and passes an identity
+    /// check against another. 📄 <c>docs/DESIGN_Cluster_Load_Phase.md</c> §4.2.</para>
+    ///
+    /// <para>⚠ A missing directory, an unreadable file or a scenario naming nothing all return an EMPTY
+    /// result — that is legal and silent (§4.2). ⛔ A disagreement between two slices still THROWS, exactly
+    /// as it does on the staging path; the caller decides whether that fails the transition.</para>
+    /// </summary>
+    /// <param name="scenarioDirectory">
+    /// The scenario's directory on the NAS — <c>{nasBasePath}/scenarios/{scenarioId}</c>, the same
+    /// directory <see cref="PrefetchScenarioAsync"/> copies from.
+    /// </param>
+    public static StagedArtifactNames ReadScenarioContentNames(string scenarioDirectory)
+    {
+        if (string.IsNullOrWhiteSpace(scenarioDirectory) || !Directory.Exists(scenarioDirectory))
+            return default;
+
+        return CheckTkbNameConsensus(Directory.GetFiles(scenarioDirectory, "*.json"));
+    }
+
     private static StagedArtifactNames CheckTkbNameConsensus(string[] files)
     {
         string? agreedTkbName     = null;

@@ -373,28 +373,26 @@ internal sealed class IgNodeBootstrapper : SharedApplicationBootstrapper
             ? _hrotConfig.LocalTempRoot
             : OrchestrationConstants.ResolveStagingRoot();
 
-        // ⭐⭐⭐ C8 — THE TERRAIN LOADER, and it is registered HERE, BEFORE every PrepareLive claimant.
+        // ⛔⛔⛔ SUPERSEDED `2026-09-18` — C8's standalone TerrainLoadClusterStateHandler is GONE from here.
+        //    Its own comment had the mechanism right ("ClusterSlave dispatches to the FIRST CanHandle-true
+        //    handler and then RETURNS") and the remedy wrong: registering FIRST does not mean "before the
+        //    others", it means "INSTEAD OF the others". Measured on CGF, where the same pattern shadowed the
+        //    scenario loader and the cluster loaded ZERO entities.
         //
-        // 🔒 User ruling `2026-09-17`: "IG/CGF get loaders in batch 3" — a REAL
-        //    TerrainLoadClusterStateHandler, as SimHost already has, not a scoped-down identity check.
-        //    It is what makes D5's terrain-identity check PASS on this host instead of failing every
-        //    zone op (BP-537).
-        //
-        // ⛔⛔ THE ORDER IS LOAD-BEARING, and it is why this block is not down beside the registrar.
-        //    📐 Measured: ClusterSlave dispatches to the FIRST CanHandle-true handler and then RETURNS
-        //    (ClusterSlave.cs:406-448 — one `return` inside the foreach). The terrain loader claims
-        //    PrepareLive/PrepareEdit, and so does ReferenceLiveLoadHandler — UNCONDITIONALLY
-        //    (ReferenceLiveLoadHandler.cs:71-74). ⇒ registering terrain AFTER it would make the loader
-        //    dead code that never runs, silently. That is the same shadowing defect
-        //    SerializeLocalRegistrar's header records ("the archive handler SHADOWED the scenario save
-        //    on some hosts — no scenario slice was ever written").
-        //    ⭐ SimHost already orders it this way on purpose: its own comment at the live handler reads
-        //    "Wire ReferenceLiveLoadHandler AFTER the scenario handler so it only claims FinalizeLive
-        //    and cold PrepareLive". Loaders first, fallbacks last.
-        //
-        // 📄 docs/DESIGN_Terrain_Zones_And_Assets.md §2.1e ②a ③ ④, §8.3, §10.5.
-        slave.RegisterHandler(new Hrot.Map.Common.Services.TerrainLoadClusterStateHandler(
-            storageDirectory, RoadNetworkHolder, world: context.World));
+        // ⭐⭐⭐ L2/L4 — ONE chain, composed from this node's ROLES. IG carries Map2D, which requires the
+        //    knowledge base (EVERY ECS node does — it composes the full genesis pipeline and must be able to
+        //    resolve the templates of entities it may be asked to create) and ⛔ NOT terrain: nothing on this
+        //    host reads the road graph, and it held a RoadNetworkHolder no consumer ever touched.
+        //    🔒 User, `2026-09-18`: "every ECS enable node should be able to create entities so every needs
+        //    the TKB loaded" · "load nothing where nothing reads it".
+        // 📄 docs/DESIGN_Cluster_Load_Phase.md §4.1, §4.1a, §4.1b.
+        var igLoadProviders = new List<Hrot.Map.Common.ClusterLoad.ILoadPartProvider>();
+        if (context.TkbDb != null)
+            igLoadProviders.Add(new Hrot.Map.Common.ClusterLoad.KnowledgeBaseLoadStep(
+                context.TkbDb, storageDirectory));
+
+        slave.RegisterHandler(Hrot.Map.Common.ClusterLoad.LoadPhaseChain.FromRoles(
+            Fdp.Core.NodeRole.Map2D, igLoadProviders, context.World, hostLabel: "IG"));
 
         // Wire ReferenceReplayLoadHandler (PrepareReplay / FinalizeReplay
         // unconditional; PrepareLive only when replay active).
