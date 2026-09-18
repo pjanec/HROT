@@ -2152,6 +2152,21 @@ namespace Hrot.Editor
             // No-op in a deployed build — there is no source tree to copy from. See
             // Hrot.ScenarioEditor.Services.CuratedScenarios.
             Hrot.ScenarioEditor.Services.CuratedScenarios.SeedIntoWorking(EditorBootstrap.ScenariosRoot);
+
+            // ⭐⭐⭐ H2 / U9 — stage the DEPLOYED scenario SEEDS into a reserved subfolder of the same
+            //    working root, so `FromSeed` can load one by the name `Recipes/<seed>`.
+            // 🔴 Why this step exists at all: a scenario load is a CLUSTER transition keyed on a NAME
+            //    that every node resolves against its own NAS scenarios root — nothing accepts a path
+            //    (EditorScenarioSession.OpenForEdit). `Recipes/Scenarios` is a LOCAL authoring/output
+            //    path that does not exist on a remote node, so a seed left there is unreachable however
+            //    the seam is widened. ⇒ copy it where the cluster already looks.
+            // ⭐ Reuses CuratedScenarios.SeedFrom — the shipped overlay-by-name copy — rather than a
+            //    second copier (ruling 9). It is a no-op when nothing is deployed.
+            // 📄 docs/DESIGN_Terrain_Zones_And_Assets.md §10.8, §2.1e ⑤c G2.
+            Hrot.ScenarioEditor.Services.CuratedScenarios.SeedFrom(
+                Hrot.Editor.AiShared.AssetRoots.ScenariosRecipesRoot,
+                Path.Combine(EditorBootstrap.ScenariosRoot, ScenarioNewAssetService.SeedSubfolder));
+
             app.SetAvailableScenariosSource(() => ScenarioEnumeration.EnumerateRelPaths(EditorBootstrap.ScenariosRoot));
 
             // ?? 7. Map canvas + camera (skipped in headless) ??????????????????
@@ -3867,8 +3882,20 @@ namespace Hrot.Editor
             // The editor app (_editorLogic) is guaranteed non-null at this point.
             if (_editorApp != null)
             {
+                // ⭐⭐⭐ H1 — the 2-ARG ctor, over AssetRoots.ScenariosRecipesRoot.
+                // 🔴 This line used to call the 1-arg ctor, so the Scenario kind offered exactly one
+                //    recipe ("Empty") and the seed-discovering ctor had ZERO production callers while
+                //    the root was referenced only by tests — the silent-default shape, where the caller
+                //    HAD the value (a static property) and did not pass it. 📄 design §2.1e ⑤c G1.
+                // ⭐ CuratedScenarios.CuratedRelPaths is reused as the discoverer: "every folder holding
+                //    a scenario.json, nested, forward-slashed, sorted" is already exactly this question
+                //    (ruling 9 — no second enumerator). ⚠ It is called through a LAMBDA so the list is
+                //    re-read on every AvailableRecipes(), not snapshotted at composition.
                 _newAssetServices[Hrot.Editor.AiShared.AssetKind.Scenario] =
-                    new ScenarioNewAssetService(new EditorLogicSessionAdapter(_editorApp));
+                    new ScenarioNewAssetService(
+                        new EditorLogicSessionAdapter(_editorApp),
+                        () => Hrot.ScenarioEditor.Services.CuratedScenarios.CuratedRelPaths(
+                                  Hrot.Editor.AiShared.AssetRoots.ScenariosRecipesRoot));
             }
 
             // Save-As blueprint file-save delegate (mint-only, so the dialog performs the save).

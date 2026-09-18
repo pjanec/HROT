@@ -1071,3 +1071,64 @@ into `MapInteractionPack` would make them role-composable, and that is a separat
 waypoints (§2.1a: *"`EditablePolyline` is for AREAS; `RoutePlan` is for ROUTES — do not unify them"*), so
 folding it into this arm would collapse two deliberately different geometry contracts. ⭐ `MinPoints` is a
 parameter so a future route arm can share the gizmo lifecycle if that is ever wanted.
+
+### 10.8 ✅ STAGE `H` / `U9` AS-BUILT — **seeds must live where the CLUSTER looks, and `"Empty"` is gone** *(batch terrain-3, `2026-09-18`)*
+
+⛔⛔ **`U9` asked which of two shapes to use for `H2`. 📐 Measured, BOTH are impossible, and the third
+costs nothing:**
+
+| `U9`'s option | 📐 what is measured | verdict |
+|---|---|---|
+| *"have `AvailableRecipes()` hand back seeds carrying a FULL PATH that the existing load already accepts"* | ⛔ **nothing anywhere accepts a path.** `IScenarioCreationSession.LoadScenarioByName` → `EditorApplication.cs:138` → `EditorScenarioSession.OpenForEdit` *(`:147`)* takes a NAME, stashes it and publishes a `TransitionStateIntent`; the name crosses the cluster as `ScenarioId` | 🔴 **impossible** |
+| *"widen `IScenarioCreationSession` with a root-aware load"* | ⛔ the resolution happens **per node**, against that node's own NAS scenarios root — `{NasBasePath}/scenarios/{name}/scenario.json` *(`EditorBootstrap.cs:23`; `OrchestrationConstants.GetSharedScenariosRoot()`, which CGF uses too — and a rail already asserts the hosts agree, `TheHostsAgreeOnTheScenarioRootTests`)*. ⇒ a root would have to cross the wire to every node, where `Recipes/Scenarios` — a LOCAL authoring/output path *(`AssetRoots.cs:294`: `{ConfiguredRoot ?? AppContext.BaseDirectory}/Recipes/Scenarios`)* — **does not exist at all** | 🔴 **wrong layer** — a cluster-contract change for an authoring convenience |
+| ⭐⭐⭐ **stage the seeds into a RESERVED SUBFOLDER of the scenarios root and load them by name** | ✅ `OpenForEdit`'s own contract already says *"the name may be a relative path (e.g. `Combat/Patrol`)"* ⇒ the seed loads as **`Recipes/<seed>`**. ⭐ The copy reuses **`CuratedScenarios.SeedFrom`** — the shipped overlay-by-name mechanism that already copies committed scenarios into the working root *(`EditorSubsystem.cs:2154`)*, ⛔ not a second copier | ✅ **BUILT** — **no seam changed** |
+
+⇒ ⭐⭐ **`AssetRoots`' own header already flagged why scenarios are the exception and the design did not
+follow it through:** *"Scenario has **no** Assets root — Scenarios are orchestrator/NAS-backed."* ⭐ Every
+other kind resolves a recipe as a FILE; a scenario resolves as a NAME through the cluster. ⛔ That one
+difference is the whole of `U9`.
+
+```mermaid
+graph TD
+  SRC["Hrot.AI.Behaviors/Recipes/Scenarios/basic-desert/<br/>scenario.json  (COMMITTED)"]
+  OUT["{output}/Recipes/Scenarios/basic-desert/<br/>= AssetRoots.ScenariosRecipesRoot"]
+  NAS["{NasBasePath}/scenarios/Recipes/basic-desert/<br/>= the RESERVED subfolder"]
+  PICK["picker: AvailableRecipes<br/>re-read LIVE per open"]
+  LOAD["LoadScenarioByName('Recipes/basic-desert')<br/>-> TransitionStateIntent -> EVERY node"]
+  SAVE["SaveScenarioAs('Combat/MyNew')"]
+  SRC -->|csproj Content, PreserveNewest| OUT
+  OUT -->|CuratedScenarios.SeedFrom at startup| NAS
+  OUT -->|CuratedScenarios.CuratedRelPaths| PICK
+  PICK --> LOAD
+  NAS -->|resolved per node| LOAD
+  LOAD --> SAVE
+```
+
+*What the picture shows that the prose hid:* **the seed exists in THREE places and only one of them is
+reachable by a cluster load.** ⛔ The output tree feeds the PICKER; the NAS subfolder feeds the LOAD. A
+design that names one root cannot say which job it is doing.
+
+| task | as built |
+|---|---|
+| **`H1`** | `EditorSubsystem` now uses the **2-arg** ctor over `AssetRoots.ScenariosRecipesRoot`, discovering with **`CuratedScenarios.CuratedRelPaths`** — *"every folder holding a `scenario.json`, nested, forward-slashed, sorted"* is already exactly this question *(ruling 9: no second enumerator)*. ⭐⭐ **Passed as a `Func<>`, not a list** — `H1`'s success condition demands `AvailableRecipes()` **re-read LIVE**, and 🔴 the first draft materialised the list in the constructor: right on the first open, stale forever after. A rail pins it |
+| **`H2`** | `ScenarioNewAssetService.SeedSubfolder = "Recipes"`; `FromSeed` loads `SeedNameToScenarioName(recipe.Name)`. ⭐ The staging copy is one call beside the existing curated seed |
+| **`H3`** | `IsBlankTemplate` ⇒ **always false**, `"Empty"` is gone from `AvailableRecipes()`, and `CreateNew(null, …)` **refuses**, naming the seeds that would have worked. ⚠ The refusal lives in `CreateNew`, ⛔ not in `RecipeByName.Resolve` — whose header already documents *"a kind that offers no blank template is legitimate"*, so the design's *"no change needed there"* is correct and was followed |
+| **`H4`** | `Hrot.AI.Behaviors/Recipes/Scenarios/basic-desert/scenario.json`, deployed by a csproj `Content` item mirroring the blueprint recipes, carrying **`tkbName: "HrotDefault"` and `terrainName: "basic-desert"`** |
+
+#### 🔴 THE MEASUREMENT `H4` EXPOSED — **nothing in this repository has ever named a TKB**
+
+📐 **All four committed scenarios carry `{subsystemType, schemaVersion}` and nothing else.** ⇒ ⛔ the
+`Header.TkbName` path had **never been exercised from a file**, and `B5`'s `TerrainName` beside it had no
+producer either. ⭐ `basic-desert` is the **first shipped artifact that fills either field.**
+
+⚠⚠ **And it fails loudly on a real cluster today, by design.** 📐 A named TKB resolves to
+`{node staging}/{TkbName}.zip` *(`TkbLoadClusterStateHandler.cs:78`)* and a named terrain to
+`{node staging}/Terrain/{TerrainName}.json` *(`TerrainLoadClusterStateHandler.cs:138`)*; **each throws
+`FileNotFoundException` when its artifact is absent, and nothing here stages either** — `{staging}/Terrain`
+is a directory `B6`'s loader names and no mechanism populates. ⇒ **creating from this seed throws until
+those artifacts are staged.**
+
+⭐⭐ **That is the ruled behaviour, not an accident** — §8.3 `N4`: a host missing the named terrain must
+*"fail loudly … instead of silently passing"*. ⛔ **But it means stage `H`'s rails assert the CARRYING —
+`H4`'s actual claim — and deliberately not an end-to-end load.** ⚠ Filed as a defect; the missing piece is
+an artifact-staging mechanism, which no stage of this plan owns.

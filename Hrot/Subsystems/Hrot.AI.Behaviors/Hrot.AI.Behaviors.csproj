@@ -127,4 +127,16 @@
     </Content>
   </ItemGroup>
 
+  <!-- H4 — SCENARIO SEEDS: the "recipe" a new scenario is created from (design §2.1e ⑤b: a scenario
+       recipe IS an ordinary scenario stored under Recipes/Scenarios, not a new asset kind).
+       Deployed exactly like the blueprint recipes above, preserving the relative path, so it lands at
+       Recipes/Scenarios/<name>/scenario.json = AssetRoots.ScenariosRecipesRoot.
+       ⚠ A scenario is a FOLDER (<name>/scenario.json plus any sidecars), hence the recursive glob
+       rather than a flat one. -->
+  <ItemGroup>
+    <Content Include="Recipes\Scenarios\**\*.json">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
+  </ItemGroup>
+
 </Project>
