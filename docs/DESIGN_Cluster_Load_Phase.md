@@ -16,6 +16,10 @@ related-designs:
     skip predicate, the staged header sidecar). This document owns what the load MESSAGE carries.
   - docs/DESIGN_Deterministic_Network_Ids.md — owns the id authority reset at the world boundary,
     which happens in this same phase.
+  - docs/DESIGN_Node_Roles_And_Policies.md — ⭐⭐⭐ owns the ROLES themselves and therefore §3.2's
+    per-role REQUIREMENT table (which role needs the knowledge base / terrain / scenario entities, by
+    measured consumer). This document owns HOW and WHEN those requirements are satisfied and never
+    restates the table. Its §3.1 (a role never denies a capability) bounds §4.1b here.
 -->
 
 # DESIGN — **the cluster LOAD phase: what each ROLE does, and how TKB, terrain and scenario compose**
@@ -223,19 +227,91 @@ third. That is what makes "callable from multiple places" structural rather than
 
 ### 4.1 What each role does in the `Loading*` phase
 
-| role | host today | knowledge base (TKB) | terrain | scenario entities | why |
-|---|---|---|---|---|---|
-| **Brain** | CGF, and the editor | ✅ ensure named TKB | ✅ ensure named terrain | ✅ **reads, parses and spawns** | it is the only role that also **edits and saves** the scenario, so it is the only one that needs the file itself |
-| **MuscleGround** | SimHost | ✅ ensure named TKB | ✅ ensure named terrain | ⛔ receives by replication | drives vehicles against the **road graph**; collides against terrain obstacles |
-| **Perception** | SimHost | ✅ | ✅ | ⛔ | line of sight and broadphase are terrain-dependent |
-| **NavigationSolver** | SimHost | ✅ | ✅ | ⛔ | pathfinds over the road graph and obstacles |
-| **Map2D** | IG | ✅ | ✅ | ⛔ | draws the map background, road graphics and unit symbols; symbol choice comes from the TKB |
-| *observer* (no role) | ExCon | ⛔ | ⛔ | ⛔ ACK only | holds no ECS world |
-| *master* (no role) | Orchestrator | ⛔ | ⛔ | reads the **master copy** only to extract the shared names | it distributes; it does not simulate |
+> ⛔⛔ **CORRECTED `2026-09-18`, before any of this was built.** The first version of this table gave
+> **every** role a ✅ for terrain, with reasons like *"line of sight and broadphase are terrain-dependent"*
+> and *"draws the map background and road graphics"*. 🔴 **Those were written from a principle, not from a
+> measurement** — the precise failure mode `R-139` exists to prevent. 📐 Measured (`search_code` + grep
+> agree): the only production consumers of the road graph are `CarKinematicsSystem` and the pathfinding
+> solver. The rows below are by CONSUMER.
 
-⭐ **The column that matters:** every role except the observer needs TKB **and** terrain; only **Brain**
-needs the scenario file. That is precisely why the shared names must ride the **message** and not be
-derived from the scenario file — four of five roles never open it.
+⭐⭐ **The per-role requirement table is owned by
+[`DESIGN_Node_Roles_And_Policies.md`](DESIGN_Node_Roles_And_Policies.md) §3.2** — that document owns what a
+role *is*, so it owns what a role *needs*. ⛔ It is not restated here. In summary: **every role needs the
+knowledge base; only `MuscleGround` and `NavigationSolver` have a measured terrain consumer; only `Brain`
+reads the scenario file**, because only `Brain` also edits and saves it.
+
+⇒ ⭐ That asymmetry is exactly why the shared content names must ride the **message**: four of five roles
+never open the scenario file, so they cannot read the names out of it.
+
+### 4.1a ⛔ OPEN — **does a role with no consumer still load terrain?**
+
+⚠ Two rules point in opposite directions and this document owns the tie-break:
+
+| ⭐ load it anyway | ⛔ do not load it |
+|---|---|
+| [`DESIGN_Terrain_Zones_And_Assets.md`](DESIGN_Terrain_Zones_And_Assets.md) §8.3 N4 — a zone operation is **cluster-wide**, and a node that does not hold the named terrain must **fail loudly** rather than silently pass | 🔒 the user's own framing: *"each node must be able to load those scenario parts **it needs**"*. Nothing on `Brain`, `Perception` or `Map2D` reads the road graph — ⭐ `Map2D` even holds a `RoadNetworkHolder` (`IgNodeBootstrapper.cs:80`) that **nothing on that host reads**. And memory held for no reader is the opposite of §5.1's future standby mode |
+
+⭐ **Lean: do NOT load it where no consumer exists**, and narrow §8.3 N4's loud failure to roles that
+declare the requirement. ⚠ **What would change the lean:** a measured consumer appearing on `Map2D` (a map
+that actually draws the road graph) or on `Perception` (line of sight against terrain obstacles) — both are
+plausible and neither exists today. ⇒ the requirement table is the single place that would change.
+
+### 4.1b ⭐⭐⭐ THE ROLE DECLARES THE *WHAT*; THE HOST SUPPLIES THE *HOW* *(user, `2026-09-18`)*
+
+> 🔒 **User, verbatim:** *"the goal is to unify the handling of the loading phase across host by binding
+> it to the host role, not to the host bootstrap code, while keeping the possibility for each host to
+> override the HOW the handling is done (like stride-simhost loads different data than SimHost because
+> they implement their muscle/perception/navigation/etc… role differently)."*
+
+⭐⭐ **This is what makes the chain in §3 uniform rather than three parallel chains.** The host bootstrap
+stops deciding *whether* a part loads; it only registers *how*.
+
+```mermaid
+classDiagram
+  class RoleLoadRequirements {
+    <<static table, one home>>
+    +PartsFor(NodeRole roles) IReadOnlySet~LoadPart~
+  }
+  class LoadPart {
+    <<enum>>
+    KnowledgeBase
+    Terrain
+    ScenarioEntities
+  }
+  class ILoadPartProvider {
+    <<interface>>
+    +LoadPart Part
+    +PrepareAsync(LoadPhasePayload) Task
+    +Commit(EntityRepository)
+  }
+  class LoadPhaseChain {
+    +FromRoles(roles, providers) LoadPhaseChain
+  }
+  class HrotTerrainProvider
+  class StrideTerrainProvider
+  class CgfScenarioProvider
+
+  RoleLoadRequirements ..> LoadPart : declares
+  LoadPhaseChain ..> RoleLoadRequirements : asks WHAT
+  LoadPhaseChain o-- ILoadPartProvider : ordered, one per required part
+  ILoadPartProvider <|.. HrotTerrainProvider
+  ILoadPartProvider <|.. StrideTerrainProvider
+  ILoadPartProvider <|.. CgfScenarioProvider
+```
+
+*What the picture shows that the prose hid: `HrotTerrainProvider` and `StrideTerrainProvider` satisfy the
+**same** requirement with **different** data, and the chain cannot tell them apart. That is the override
+point, and it is the only one — nothing lets a host satisfy fewer parts than its roles require.*
+
+| ⭐ the rules that fall out | |
+|---|---|
+| ⭐⭐⭐ **a host may not require LESS than its roles do** | ⛔ composing the chain from the role set makes "forgot to register the terrain step on this host" unrepresentable — which is precisely the defect class in §2.2 |
+| ⭐⭐ **a host MAY satisfy a part differently** | `HrotStrideApp` and `Hrot.SimHost` both carry `MuscleGround`; both must make terrain resident; they load different data |
+| ⛔ **a missing provider for a required part is a STARTUP failure, loud** | ⚠ not a silent skip — that is the whole disease this replaces |
+| ⛔ **this is NOT a permission gate** | 📄 `DESIGN_Node_Roles_And_Policies.md` §3.1 — a role never denies a capability. A host that composes a scenario reader may run that step whatever its role says; the table is the default, not a prohibition |
+
+⇒ ⭐ **`L2`/`L4` in §5 are restated by this:** the chain is built from `roles × providers`, not from a
+hand-written registration order in each bootstrapper.
 
 ### 4.2 Where the parts come from
 
@@ -265,7 +341,7 @@ first"* without hanging terrain off a handler four roles do not have.
 | # | item | owner surface |
 |---|---|---|
 | **L1** | Add `TkbName` and `TerrainName` to the load payload; the orchestrator fills them from the master scenario header it already reads. ⭐ The payload crosses the wire as **JSON**, so this is purely additive — no wire id, no compatibility break (`R-42` does not bite) | `ReferenceEditLoadHandler.cs` payload · `StorageGatewayModule` / the transition fan-out |
-| **L2** | Introduce the ordered **load-phase chain**: one registered handler per ECS host claiming `PrepareLive`/`PrepareEdit`, running its steps in order and ACKing once | new, beside `SerializeLocalRegistrar` |
+| **L2** | Introduce the ordered **load-phase chain**: one registered handler per ECS host claiming `PrepareLive`/`PrepareEdit`, running its steps in order and ACKing once. ⭐ Composed from **`roles × providers`** (§4.1b), never from a per-bootstrapper registration order; a required part with no provider fails **loudly at startup** | new, beside `SerializeLocalRegistrar` |
 | **L3** | Re-home `TkbLoadClusterStateHandler` and `TerrainLoadClusterStateHandler` as **steps**, reading their name from the payload, falling back to the staged header only when the payload is silent (one release of tolerance) | both handlers |
 | **L4** | Register the chain on **every ECS host** — CGF, SimHost, IG, editor — with the scenario step present only where the Brain role composes it | the three bootstrappers + the editor |
 | **L5** | Terrain residency becomes a service with a stable entry point: `EnsureTerrain(name)` idempotent (already-resident ⇒ no-op), plus an `UnloadAll()` seam left **unwired** for the future standby mode | `TerrainLoadService` |
