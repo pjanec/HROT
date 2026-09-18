@@ -1,13 +1,15 @@
 <!--STATUS
 state: LIVE
 updated: 2026-09-18
-build-state: READY-TO-BUILD
-current-answer: §4 (the per-role contract) and §5 (the plan). §2 is the measured as-is.
+build-state: BUILT 2026-09-18 — §6 carries the AS-BUILT; §5.2 the measured acceptance.
+current-answer: §4 (the per-role contract), §5 (the plan + the MET acceptance) and ⭐ §6 (the AS-BUILT).
+  §2 is the measured as-is that the build removed.
   ⭐ §4.1 splits the two DERIVATIONS — the knowledge base is required by every ECS node (not role-derived),
   terrain and scenario entities are role-derived. §4.1a is RULED (load nothing where nothing reads it).
   §4.1b is role x provider composition. ⭐⭐ §4.1c is the ONE scenario-load step and the measured
   three-copy drift it retires.
-stale-below: nothing
+stale-below: §2 describes the world BEFORE this batch. It is kept because the defect it measures is the
+  whole argument for §3-§4; ⛔ do not read it as current.
 known-rot: nothing known
 known-conflict: DESIGN_Terrain_Zones_And_Assets.md §2.1e ④ ("it must NOT ride the scenario-load
   handler") argued the opposite of §4 here. Its PREMISE is confirmed by measurement (§2.3) but its
@@ -451,10 +453,69 @@ first"* without hanging terrain off a handler four roles do not have.
 | ⛔ changing `ClusterSlave` to run every matching handler | ⚠ several handlers depend on first-wins exclusivity — `ReferenceLiveLoadHandler` claims cold `PrepareLive` *only if* a scenario handler did not, and running both would double the recording preparation. The chain gets the ordering without touching the dispatcher |
 | ⛔ giving non-Brain roles a scenario reader | §4.1 — the role model says the Brain owns the file; the others receive a replicated world |
 
-### 5.2 Acceptance
+### 5.2 Acceptance — ✅ **MET `2026-09-18`, stock build, no probe**
 
-⭐ `--mode all`, stock build, `hill-attack-close`: the load answers `entityCount: 8, sawWorldChange: true`;
-all three ECS worlds hold the 8 entities; both hostiles reach zero health; all four attackers report
-`LocomotionChannel.Status = Success` within a few metres of their **own** `NavigationIntent.FinalDestination`
-with ammunition no longer changing. 📐 That exact outcome was already produced by the probe build in §2.2 —
-this plan is what makes it true without a probe.
+📐 `--mode all`, `hill-attack-close`, measured end to end:
+
+```
+[LoadPhase] SimHost composed for roles [MuscleGround, Perception, NavigationSolver]: KnowledgeBase -> Terrain.
+[LoadPhase] IG      composed for roles [Map2D]:                                      KnowledgeBase.
+[LoadPhase] CGF     composed for roles [Brain]:                                      KnowledgeBase -> ScenarioEntities.
+
+POST /scenario/load/live → { entityCount: 8, sawWorldChange: true }
+Scenario 8 · SimHost 8 · IG 9 (incl. the id-0 placeholder)
+```
+
+| at `simTime ≈ 106` | force | HP | `LocomotionChannel.Status` | ammo | distance to its OWN `FinalDestination` |
+|---|---|---|---|---|---|
+| 1006 · 1007 M1 Abrams | Hostile | **0/50** *(both by t≈46)* | Failure | 42 | — |
+| 1001–1004 Tank Platoon | Friend | 50/50 | **Success** | 41 | **0.8 – 1.5 m** |
+
+⭐⭐ **The composition lines are themselves a deliverable**: a node now says, at boot, which parts its roles
+require. ⛔ The defect this replaces was invisible precisely because nothing said anything.
+
+---
+
+## 6. ⭐⭐⭐ AS-BUILT — **what the build changed, and why** *(batch load-phase, `2026-09-18`)*
+
+⚠ Obligation ⑤: the deviations live here, not only in the batch report.
+
+### 6.1 ⭐⭐ TWO ENABLING MOVES THE PLAN DID NOT FORESEE
+
+| what | why it was forced |
+|---|---|
+| ⭐⭐⭐ **`GenesisIntentComponents` moved from `Hrot.Common` down to `Hrot.Core`** *(namespace unchanged, so no call site moved)* | 🔴 **This is WHY the editor's readiness predicate was missing condition ③.** `Hrot.Presentation` does not reference `Hrot.Common`, so the editor's handler **could not see the intent DTO types** — it was an ASSEMBLY WALL, not carelessness. §4.1c called that drift "one copy having lost a line"; the truer statement is that one copy was never able to have it |
+| ⭐ **`IScenarioEntityExtractor` gained a remapper-aware overload** with a default implementation | before it, passing a behaviour remapper required depending on the CONCRETE CGF extractor — a large part of why CGF needed a handler of its own at all. The default keeps every existing implementor unchanged |
+
+### 6.2 ⚠ THE KNOWLEDGE-BASE PROVIDER IS SUPPLIED BY THE HOST, NOT DEMANDED OF THE CALLER
+
+📐 Measured: making it conditional on a caller-supplied database broke five call sites that legitimately
+pass none (replay tests, a bootstrap with no TKB configured). ⇒ each host now **supplies the hard-coded
+catalogue when no database was composed**. ⭐ That is the host supplying a *HOW*, not the requirement being
+relaxed — a node with no named TKB starts from that catalogue anyway, and the chain still throws when a
+part is genuinely unsatisfiable (asserted in `LoadPhaseChainTests`).
+
+### 6.3 🔴 A BEHAVIOUR CHANGE THAT IS NOW LOUD
+
+⛔ **An unreadable scenario on a `Brain` node THROWS.** The former CGF handler logged an error and enqueued
+nothing — a node silently contributing an empty world, which is the exact failure this design removes. ⚠ It
+is asserted rather than left implicit (`ScenarioLoadStepTests`).
+
+### 6.4 ⛔ `L6` IS PARTIAL, DELIBERATELY
+
+⭐ The **names** no longer race — `L1` moved them to the message, which removes the silent failure that was
+actually measured. ⭐ The knowledge-base and terrain steps gained the bounded artifact wait the scenario step
+always had, so the newly-loud *"artifact not found"* cannot fire while the copy is still in flight.
+⛔ **The complete fix — ordering the content step after the staging acknowledgements — was NOT done.** It
+restructures the two-phase trajectory that *every* transition shares (live, edit, preview, replay, idle),
+and doing it in the same batch as a node-side refactor would have made a failure impossible to attribute.
+⚠ Recorded as outstanding, not as finished.
+
+### 6.5 ⚠ RAILS THAT WERE WRONG, NOT JUST STALE
+
+⛔ `TerrainLoaderIsComposedOnEveryEcsHostRails` asserted *"register the terrain loader BEFORE every
+`PrepareLive` claimant"* — the remedy `C8` chose. 🔴 **It was GREEN throughout the defect**, because it
+asserted the ordering it had been written to defend rather than what a node ends up running. ⇒ replaced by
+`EveryEcsHostComposesTheLoadPhaseChainRails`, which asserts composition through the chain and that **no host
+hand-registers a retired prerequisite loader**. ⭐ The lesson generalises: *a rail that encodes a remedy
+cannot catch that remedy being wrong.*
