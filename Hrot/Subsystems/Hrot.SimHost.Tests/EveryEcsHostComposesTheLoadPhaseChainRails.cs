@@ -8,8 +8,18 @@ using Xunit;
 namespace Hrot.SimHost.Tests
 {
     /// <summary>
-    /// ⭐⭐⭐ <c>C8</c> — 🔒 <b>user ruling <c>2026-09-17</c>: "IG/CGF get loaders in batch 3".</b> Every ECS
-    /// host composes a REAL <see cref="TerrainLoadClusterStateHandler"/>, not a scoped-down identity check.
+    /// ⭐⭐⭐ <c>L7</c> — <b>every ECS host runs ONE load-phase chain, and the parts it runs come from its
+    /// ROLES.</b>
+    ///
+    /// <para>⛔⛔ <b>REWRITTEN <c>2026-09-18</c>, and the old version is why.</b> 🔒 <c>C8</c> ruled
+    /// "IG/CGF get real terrain loaders", and this file asserted the remedy it chose: <i>register the
+    /// terrain loader BEFORE every other <c>PrepareLive</c> claimant</i>. 🔴 The mechanism was right —
+    /// <c>ClusterSlave</c> dispatches to the FIRST claimant and returns — but the remedy was not:
+    /// registering first does not mean "before the others", it means <b>INSTEAD OF the others</b>.
+    /// Measured: on CGF the terrain loader shadowed the scenario loader and the cluster loaded ZERO
+    /// entities; on SimHost the knowledge-base loader shadowed terrain, so terrain had NEVER loaded.
+    /// ⚠ <b>This suite was GREEN throughout</b>, because it asserted the ordering it had been written to
+    /// defend rather than what a node ends up running.</para>
     ///
     /// <para>⛔⛔ <b>The second rail here is the one that matters, and it is not "is it registered".</b>
     /// 📐 Measured while building <c>C8</c>: <c>ClusterSlave</c> dispatches to the FIRST
@@ -31,7 +41,7 @@ namespace Hrot.SimHost.Tests
     ///
     /// 📄 docs/DESIGN_Terrain_Zones_And_Assets.md §2.1e ②a ③ ④, §8.3, §10.5; defect <c>BP-537</c>.
     /// </summary>
-    public sealed class TerrainLoaderIsComposedOnEveryEcsHostRails
+    public sealed class EveryEcsHostComposesTheLoadPhaseChainRails
     {
         /// <summary>The three ECS composition roots that must each hold a terrain loader.</summary>
         public static TheoryData<string> EcsCompositionRoots => new()
@@ -51,66 +61,88 @@ namespace Hrot.SimHost.Tests
                 CompositionRootSource.ReadRepoSource(relativePath));
 
             Assert.True(
-                CompositionRootSource.ConstructsType(code, "TerrainLoadClusterStateHandler"),
-                $"{relativePath} must COMPOSE a TerrainLoadClusterStateHandler. A host that cannot load "
-              + "the terrain its scenario names fails D5's identity check on every zone op (BP-537), and "
-              + "the user ruled that IG and CGF get real loaders — not a scoped-down check.");
+                code.Contains("LoadPhaseChain.FromRoles", StringComparison.Ordinal),
+                $"{relativePath} must compose its load phase through LoadPhaseChain.FromRoles. ⛔ A host "
+              + "that hand-registers prerequisite loaders as separate handlers makes them COMPETE: "
+              + "ClusterSlave gives the step to the first claimant and returns, and the losers vanish "
+              + "silently. 📄 docs/DESIGN_Cluster_Load_Phase.md §4.1b.");
+
+            Assert.True(
+                CompositionRootSource.ConstructsType(code, "KnowledgeBaseLoadStep"),
+                $"{relativePath} must offer a KnowledgeBaseLoadStep. ⭐ The knowledge base is required by "
+              + "EVERY ECS node — not by any role — because every ECS node composes the full genesis "
+              + "pipeline and must be able to resolve the templates of entities it may be asked to "
+              + "create (Q65-A′). 🔴 CGF and IG had none at all and would have ignored a scenario's "
+              + "TkbName entirely.");
         }
 
         /// <summary>
         /// ⭐ And it must be handed a <c>RoadNetworkHolder</c>, which is why the ctor rejects a null one:
         /// publishing a blob with no owner is a leak plus a generation that is never retired.
         /// </summary>
-        [Theory]
-        [MemberData(nameof(EcsCompositionRoots))]
-        public void EveryEcsHost_OwnsARoadNetworkHolder(string relativePath)
+        [Fact]
+        public void OnlyAHostWhoseROLEReadsTheRoadGraph_OwnsARoadNetworkHolder()
         {
-            var code = CompositionRootSource.StripComments(
-                CompositionRootSource.ReadRepoSource(relativePath));
+            // ⭐ SimHost carries MuscleGround and NavigationSolver — the two roles with a measured
+            //   road-graph consumer — so it owns a holder and offers a terrain step.
+            var simHost = CompositionRootSource.StripComments(
+                CompositionRootSource.ReadRepoSource("Hrot/Subsystems/Hrot.SimHost/NodeBootstrapper.cs"));
 
-            Assert.True(
-                CompositionRootSource.ConstructsType(code, "RoadNetworkHolder"),
-                $"{relativePath} must own a RoadNetworkHolder — the terrain loader publishes through it.");
+            Assert.True(CompositionRootSource.ConstructsType(simHost, "RoadNetworkHolder"),
+                "SimHost carries the roles that read the road graph, so it owns the holder it publishes through.");
+            Assert.True(CompositionRootSource.ConstructsType(simHost, "TerrainLoadStep"),
+                "SimHost must offer the terrain part its roles require.");
+
+            // ⛔ IG (Map2D) and CGF (Brain) have NO road-graph consumer, so they load no terrain at all.
+            //   🔒 "load nothing where nothing reads it" (user, 2026-09-18). ⚠ IG previously held a
+            //   RoadNetworkHolder that nothing on that host ever read.
+            foreach (var path in new[]
+            {
+                "Hrot/Subsystems/Hrot.IG/IgNodeBootstrapper.cs",
+                "Hrot/Subsystems/Hrot.CGF/CgfSubsystem.cs",
+            })
+            {
+                var code = CompositionRootSource.StripComments(
+                    CompositionRootSource.ReadRepoSource(path));
+
+                Assert.False(CompositionRootSource.ConstructsType(code, "TerrainLoadStep"),
+                    $"{path} has no role that reads the road graph, so it must make no terrain resident.");
+            }
         }
 
         // ── ② ⭐⭐⭐ it is not SHADOWED ─────────────────────────────────────────────────────────
 
+        // ── ② ⭐⭐⭐ nothing can be SHADOWED, because nothing else claims the step ───────────────
+
         /// <summary>
-        /// ⛔⛔ <b>THE RAIL THAT MATTERS.</b> The terrain loader must be registered BEFORE every other
-        /// handler on that host which claims <c>PrepareLive</c> — otherwise the first such handler wins
-        /// the dispatch and the loader never runs.
+        /// ⛔⛔ <b>THE RAIL THAT MATTERS, restated against the real defect.</b> The old version asked
+        /// "is the terrain loader registered EARLY enough?" — a question that has no safe answer when the
+        /// dispatcher picks exactly one claimant. ⭐ This one asks the question that does: <b>does any host
+        /// still hand-register a prerequisite loader as its own handler?</b>
         ///
-        /// <para>⚠ The shadowing set is named explicitly rather than inferred: these are the handlers
-        /// measured to claim <c>PrepareLive</c> (<c>ReferenceLiveLoadHandler</c> unconditionally;
-        /// <c>CgfScenarioLoadHandler</c> / <c>HrotScenarioLoadHandler</c> / <c>HrotEditLoadHandler</c> for
-        /// a scenario load). ⭐ If a NEW <c>PrepareLive</c> claimant is added above the loader on any
-        /// host, this rail reddens — which is the whole point.</para>
+        /// <para>⚠ If a new prerequisite is ever added as a handler instead of a step, this reddens — and
+        /// that is precisely the mistake <c>C8</c> made and this suite failed to catch.</para>
         /// </summary>
         [Theory]
         [MemberData(nameof(EcsCompositionRoots))]
-        public void TheTerrainLoader_IsRegisteredBeforeEveryPrepareLiveClaimant(string relativePath)
+        public void NoHost_HandRegistersAPrerequisiteLoaderAsItsOwnHandler(string relativePath)
         {
             var code = CompositionRootSource.StripComments(
                 CompositionRootSource.ReadRepoSource(relativePath));
 
-            int terrainAt = code.IndexOf("TerrainLoadClusterStateHandler", StringComparison.Ordinal);
-            Assert.True(terrainAt >= 0, $"{relativePath} composes no terrain loader at all.");
-
-            foreach (var claimant in new[]
+            foreach (var retired in new[]
             {
-                "ReferenceLiveLoadHandler",
+                "TerrainLoadClusterStateHandler",
+                "TkbLoadClusterStateHandler",
                 "CgfScenarioLoadHandler",
                 "HrotScenarioLoadHandler",
                 "HrotEditLoadHandler",
             })
             {
-                int claimantAt = code.IndexOf(claimant, StringComparison.Ordinal);
-                if (claimantAt < 0) continue;   // this host does not compose that one
-
-                Assert.True(terrainAt < claimantAt,
-                    $"{relativePath}: the terrain loader is registered AFTER {claimant}, which also claims "
-                  + "PrepareLive. ClusterSlave dispatches to the FIRST matching handler and returns, so the "
-                  + "terrain loader would be dead code that never runs — silently. Move it above.");
+                Assert.False(CompositionRootSource.ConstructsType(code, retired),
+                    $"{relativePath} constructs {retired}, which was RETIRED into the load-phase chain. "
+                  + "Registering a prerequisite as its own handler makes it compete for the one load step "
+                  + "and silently cancel the others. 📄 docs/DESIGN_Cluster_Load_Phase.md §2.2.");
             }
         }
 

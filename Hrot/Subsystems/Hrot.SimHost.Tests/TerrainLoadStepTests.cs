@@ -7,7 +7,7 @@ using Fdp.Core;
 using Fdp.Core.Orchestration;
 using Fdp.Toolkit.Orchestration;
 using Fdp.Toolkit.Terrain;
-using Hrot.SimHost.Orchestration.Handlers;
+using Hrot.Map.Common.ClusterLoad;
 using Hrot.Map.Common.Services;
 using Xunit;
 
@@ -24,13 +24,13 @@ namespace Hrot.SimHost.Tests;
 ///
 /// 📄 docs/DESIGN_Terrain_Zones_And_Assets.md §2.1e ②a ③ ④.
 /// </summary>
-public sealed class TerrainLoadClusterStateHandlerTests : IDisposable
+public sealed class TerrainLoadStepTests : IDisposable
 {
     private readonly string _stagingRoot;
     private readonly string _tkbDir;
     private readonly string _terrainDir;
 
-    public TerrainLoadClusterStateHandlerTests()
+    public TerrainLoadStepTests()
     {
         _stagingRoot = Path.Combine(Path.GetTempPath(), "TerrainHandlerTest_" + Guid.NewGuid().ToString("N")[..8]);
         _tkbDir      = Path.Combine(_stagingRoot, "TKB");
@@ -104,12 +104,19 @@ public sealed class TerrainLoadClusterStateHandlerTests : IDisposable
         return repo;
     }
 
-    private static ExecuteNodeOpIntent Intent() => new()
-    {
-        TransactionId = Guid.NewGuid(),
-        TargetNodeId  = 1,
-        Operation     = NodeOpType.PrepareLive,
-    };
+    /// <summary>
+    /// ⭐ <c>L3</c> — a step is driven by a LOAD-PHASE CONTEXT. ⚠ <c>terrainName: null</c> means "the
+    /// message named none", which sends the step to the staged-header fallback these cases were written
+    /// against; a non-null name exercises the message path the orchestrator now uses.
+    /// </summary>
+    private static LoadPhaseContext Intent(string? terrainName = null) => new(
+        TransactionId: Guid.NewGuid(),
+        TargetState:   ClusterState.LoadingLive,
+        ScenarioId:    "scn",
+        TkbName:       null,
+        TerrainName:   terrainName,
+        ExerciseId:    Guid.Empty,
+        IsNewScenario: false);
 
     /// <summary>
     /// Runs PrepareAsync to completion. ⚠ Deliberately a helper rather than an inline
@@ -117,40 +124,30 @@ public sealed class TerrainLoadClusterStateHandlerTests : IDisposable
     /// synchronization context, so blocking is safe, and keeping it in one place stops the pattern from
     /// being copied into a test that later gains a real async dependency.
     /// </summary>
-    private static void Prepare(TerrainLoadClusterStateHandler handler, ExecuteNodeOpIntent intent)
+    private static void Prepare(TerrainLoadStep handler, LoadPhaseContext intent)
         => handler.PrepareAsync(intent, CancellationToken.None).GetAwaiter().GetResult();
 
-    private (TerrainLoadClusterStateHandler Handler, RoadNetworkHolder Holder) NewHandler()
+    private (TerrainLoadStep Handler, RoadNetworkHolder Holder) NewHandler()
     {
         var holder = new RoadNetworkHolder();
-        return (new TerrainLoadClusterStateHandler(_stagingRoot, holder), holder);
+        return (new TerrainLoadStep(new TerrainResidency(_stagingRoot, holder), _stagingRoot), holder);
     }
 
     /// <summary>
     /// A handler wired the way PRODUCTION wires it — the world INJECTED, not handed in at commit.
     /// See <see cref="ItPublishesThroughTheINJECTEDWorld_BecauseClusterSlaveAlwaysCommitsWithNullRepo"/>.
     /// </summary>
-    private (TerrainLoadClusterStateHandler Handler, RoadNetworkHolder Holder) NewHandlerWithWorld(
+    /// <summary>
+    /// ⚠ The world is no longer injected into the step — <c>LoadPhaseChain</c> owns it and hands it to
+    /// every step at commit, which is what makes the null-repo trap impossible to re-introduce per host.
+    /// These cases therefore commit through the world explicitly, exactly as the chain does.
+    /// </summary>
+    private (TerrainLoadStep Handler, RoadNetworkHolder Holder) NewHandlerWithWorld(
         EntityRepository world)
-    {
-        var holder = new RoadNetworkHolder();
-        return (new TerrainLoadClusterStateHandler(_stagingRoot, holder, world), holder);
-    }
+        => NewHandler();
 
-    // ── it claims the right ops ───────────────────────────────────────────────────────────────
-
-    [Fact]
-    public void ItInterceptsPrepareLiveAndPrepareEdit_AndNothingElse()
-    {
-        var (handler, holder) = NewHandler();
-        using (holder)
-        {
-            Assert.True(handler.CanHandle(NodeOpType.PrepareLive));
-            Assert.True(handler.CanHandle(NodeOpType.PrepareEdit));
-            Assert.False(handler.CanHandle(NodeOpType.SerializeLocal));
-            Assert.False(handler.CanHandle(NodeOpType.PrepareTerrainAsset));
-        }
-    }
+    // ⛔ "it claims the right ops" MOVED to LoadPhaseChainTests: a step claims NOTHING now — the
+    //    chain claims once for the whole node, which is the defect fix itself.
 
     // ── graceful absence ──────────────────────────────────────────────────────────────────────
 
@@ -283,7 +280,7 @@ public sealed class TerrainLoadClusterStateHandlerTests : IDisposable
         {
             var aborted = Intent();
             Prepare(handler, aborted);
-            handler.Abort(aborted, world);
+            handler.Abort(aborted);
 
             Assert.False(world.HasSingleton<ZoneEnvironmentData>());
 
@@ -300,23 +297,33 @@ public sealed class TerrainLoadClusterStateHandlerTests : IDisposable
     // ── ⭐⭐⭐ THE RAIL THAT MATTERS ────────────────────────────────────────────────────────────
 
     [Fact]
-    public void ANodeWithNoAuthoringDeps_StillGetsTheTerrainLoader()
+    public void ANodeWithNoAuthoringDeps_StillGetsTheTerrainPart()
     {
-        // ⛔⛔ NodeBootstrapper registers the scenario LOAD handlers inside a conditional that needs the
-        //    full authoring deps (extractor / source / id-allocator). A pure MuscleGround node passes
-        //    NONE of them — and the muscle is precisely the role that consumes the road network.
-        //    Hanging terrain off those handlers would leave it unloaded on the node that needs it most.
+        // ⛔⛔ The scenario LOAD step is offered only when a host has the full authoring deps
+        //    (extractor / source / id-allocator). A pure MuscleGround node passes NONE of them — and the
+        //    muscle is precisely the role that consumes the road network. Hanging terrain off the scenario
+        //    step would leave it unloaded on the node that needs it most.
+        // ⭐ The rail is now a statement about the CHAIN rather than about a registration order: the role
+        //   requires the terrain part, so the chain carries it whatever else this host does or does not
+        //   compose. 📄 docs/DESIGN_Cluster_Load_Phase.md §4.1b.
         var bootstrapper = new NodeBootstrapper();
         using var world  = new EntityRepository();
         using var kernel = new Fdp.ModuleHost.ModuleHostKernel(world, new EventAccumulator());
 
+        // ⚠ tkbDb is handed in because PRODUCTION hands it in — every ECS node needs a knowledge base,
+        //   and composing without one now throws by design. That throw is asserted in LoadPhaseChainTests.
         using var slave = bootstrapper.BuildOrchestration(
             NodeRole.MuscleGround, kernel, world, nodeId: 1,
-            participant: null, eventBus: new FdpEventBus());
+            participant: null, eventBus: new FdpEventBus(),
+            tkbDb: Hrot.Map.Common.HrotEnvironment.CreateTkb());
 
-        Assert.True(slave.IsHandlerRegistered<TerrainLoadClusterStateHandler>(),
-            "a node with NO authoring deps must still load the terrain its scenario names — the muscle "
-          + "is the role that consumes the road network");
+        Assert.True(slave.IsHandlerRegistered<Hrot.Map.Common.ClusterLoad.LoadPhaseChain>(),
+            "every ECS host registers the load-phase chain — it is the ONE participant in the load step");
+
+        var parts = Hrot.Map.Common.ClusterLoad.RoleLoadRequirements.PartsFor(NodeRole.MuscleGround);
+        Assert.Contains(Hrot.Map.Common.ClusterLoad.LoadPart.Terrain, parts);
+        Assert.Contains(Hrot.Map.Common.ClusterLoad.LoadPart.KnowledgeBase, parts);
+        Assert.DoesNotContain(Hrot.Map.Common.ClusterLoad.LoadPart.ScenarioEntities, parts);
     }
 
     /// <summary>
@@ -335,28 +342,44 @@ public sealed class TerrainLoadClusterStateHandlerTests : IDisposable
     /// does, with a NULL repo, and requires the publish to land anyway.</para>
     /// </summary>
     [Fact]
-    public void ItPublishesThroughTheINJECTEDWorld_BecauseClusterSlaveAlwaysCommitsWithNullRepo()
+    public void TheCHAINPublishesThroughItsOwnWorld_BecauseClusterSlaveAlwaysCommitsWithNullRepo()
     {
         WriteScenarioHeader("kandahar");
         WriteRoadNetwork("roads.json");
         WriteTerrainDefinition("kandahar", "roads.json");
 
-        using var world = NewWorld();
-        var (handler, holder) = NewHandlerWithWorld(world);
-        using (holder)
+        using var world  = NewWorld();
+        using var holder = new RoadNetworkHolder();
+
+        // ⭐ Driven exactly as production does: the CHAIN holds the world, and the slave commits with a
+        //   null repository. ⚠ The step itself no longer holds a world at all — which is the structural
+        //   half of the fix: the trap can no longer be re-introduced per host, because there is only one
+        //   place left that can fall into it.
+        var chain = Hrot.Map.Common.ClusterLoad.LoadPhaseChain.FromRoles(
+            NodeRole.MuscleGround,
+            new Hrot.Map.Common.ClusterLoad.ILoadPartProvider[]
+            {
+                new Hrot.Map.Common.ClusterLoad.KnowledgeBaseLoadStep(
+                    Hrot.Map.Common.HrotEnvironment.CreateTkb(), _stagingRoot),
+                new TerrainLoadStep(new TerrainResidency(_stagingRoot, holder), _stagingRoot),
+            },
+            world);
+
+        var intent = new ExecuteNodeOpIntent
         {
-            var intent = Intent();
-            Prepare(handler, intent);
+            Operation     = NodeOpType.PrepareLive,
+            TransactionId = Guid.NewGuid(),
+            DomainPayload = new Fdp.Toolkit.Orchestration.Handlers.EditLoadHandlerPayload(
+                ScenarioId: "scn", TargetState: ClusterState.LoadingLive),
+        };
 
-            // ⭐ Exactly what ClusterSlave does — no repository argument.
-            handler.Commit(intent, repo: null);
+        chain.PrepareAsync(intent, CancellationToken.None).GetAwaiter().GetResult();
+        chain.Commit(intent, repo: null);
 
-            Assert.True(world.HasSingleton<ZoneEnvironmentData>(),
-                "ClusterSlave commits with repo: null, so a handler that publishes only through that "
-              + "parameter publishes nothing at all on every host");
-            Assert.Equal("kandahar", world.GetSingletonManaged<TerrainDefinition>()!.Name);
-            Assert.True(world.GetSingleton<ZoneEnvironmentData>().RoadNetwork.Nodes.IsCreated);
-        }
+        Assert.True(world.HasSingleton<ZoneEnvironmentData>(),
+            "ClusterSlave commits with repo: null, so the chain must publish through the world it holds");
+        Assert.Equal("kandahar", world.GetSingletonManaged<TerrainDefinition>()!.Name);
+        Assert.True(world.GetSingleton<ZoneEnvironmentData>().RoadNetwork.Nodes.IsCreated);
     }
 
     /// <summary>
@@ -376,7 +399,7 @@ public sealed class TerrainLoadClusterStateHandlerTests : IDisposable
         {
             var intent = Intent();
             Prepare(handler, intent);
-            handler.Commit(intent, repo: null);   // must not throw
+            handler.Commit(intent, world: null);   // must not throw
 
             // ⭐ Still only the holder's initial generation — nothing was published, and the staged blob
             //   was freed rather than leaked. (LiveGenerations is `1 + retired-but-leased`, so 1 is the

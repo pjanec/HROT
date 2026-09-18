@@ -1438,10 +1438,11 @@ namespace Hrot.Editor
             // ⭐ The editor carries the Brain role: knowledge base (every ECS node) + scenario entities.
             //   ⛔ No terrain step — nothing here reads the road graph.
             // 📄 docs/DESIGN_Cluster_Load_Phase.md §4.1c.
-            var editorLoadProviders = new List<Hrot.Map.Common.ClusterLoad.ILoadPartProvider>();
-            if (tkbDb != null)
-                editorLoadProviders.Add(new Hrot.Map.Common.ClusterLoad.KnowledgeBaseLoadStep(
-                    tkbDb, isolatedTempRoot));
+            var editorLoadProviders = new List<Hrot.Map.Common.ClusterLoad.ILoadPartProvider>
+            {
+                new Hrot.Map.Common.ClusterLoad.KnowledgeBaseLoadStep(
+                    tkbDb ?? Hrot.Map.Common.HrotEnvironment.CreateTkb(), isolatedTempRoot),
+            };
 
             editorLoadProviders.Add(new Hrot.Map.Common.ClusterLoad.ScenarioLoadStep(
                 scenarioSerializer, scenarioLoader, extractor, scenarioLoadSource, idAllocator));

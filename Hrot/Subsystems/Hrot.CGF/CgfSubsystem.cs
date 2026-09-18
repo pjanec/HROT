@@ -1090,9 +1090,8 @@ public sealed class CgfSubsystem : ISubsystem, Fdp.Toolkit.Runner.IMapCameraProv
         //   knowledge base is unconditional for every ECS node, so a null database here makes the chain
         //   throw at composition with a message naming the missing part — which is the designed loud
         //   failure, and far better than the silence it replaces.
-        if (_context.TkbDb != null)
-            cgfLoadProviders.Add(
-                new Hrot.Map.Common.ClusterLoad.KnowledgeBaseLoadStep(_context.TkbDb, isolatedTempRoot));
+        cgfLoadProviders.Add(new Hrot.Map.Common.ClusterLoad.KnowledgeBaseLoadStep(
+            _context.TkbDb ?? Hrot.Map.Common.HrotEnvironment.CreateTkb(), isolatedTempRoot));
 
         // 1. Replay handler (must be first to gate Live-from-Replay branch)
         newClusterSlave.RegisterHandler(new ReferenceReplayLoadHandler(

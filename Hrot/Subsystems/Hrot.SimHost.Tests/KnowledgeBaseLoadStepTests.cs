@@ -8,17 +8,17 @@ using System.Threading.Tasks;
 using Fdp.Core.Orchestration;
 using Fdp.Toolkit.Orchestration;
 using Fdp.Toolkit.Tkb;
-using Hrot.SimHost.Orchestration.Handlers;
+using Hrot.Map.Common.ClusterLoad;
 using Xunit;
 
 namespace Hrot.SimHost.Tests;
 
-public class TkbLoadClusterStateHandlerTests : IDisposable
+public class KnowledgeBaseLoadStepTests : IDisposable
 {
     private readonly string _stagingRoot;
     private readonly string _tkbDir;
 
-    public TkbLoadClusterStateHandlerTests()
+    public KnowledgeBaseLoadStepTests()
     {
         _stagingRoot = Path.Combine(Path.GetTempPath(), "TkbHandlerTest_" + Guid.NewGuid().ToString("N")[..8]);
         _tkbDir = Path.Combine(_stagingRoot, "TKB");
@@ -64,49 +64,38 @@ public class TkbLoadClusterStateHandlerTests : IDisposable
         sw.Write("{\"$guid\":9001,\"Name\":\"TestEntity\"}");
     }
 
-    private static ExecuteNodeOpIntent MakeIntent(NodeOpType op = NodeOpType.PrepareLive) =>
-        new ExecuteNodeOpIntent { Operation = op, TransactionId = Guid.NewGuid() };
-
-    [Fact]
-    public void CanHandle_ReturnsTrue_ForPrepareLive()
-    {
-        var db = new TkbDatabase();
-        var h  = new TkbLoadClusterStateHandler(db, _stagingRoot);
-        Assert.True(h.CanHandle(NodeOpType.PrepareLive));
-    }
-
-    [Fact]
-    public void CanHandle_ReturnsTrue_ForPrepareEdit()
-    {
-        var db = new TkbDatabase();
-        var h  = new TkbLoadClusterStateHandler(db, _stagingRoot);
-        Assert.True(h.CanHandle(NodeOpType.PrepareEdit));
-    }
-
-    [Fact]
-    public void CanHandle_ReturnsFalse_ForOtherOps()
-    {
-        var db = new TkbDatabase();
-        var h  = new TkbLoadClusterStateHandler(db, _stagingRoot);
-        Assert.False(h.CanHandle(NodeOpType.FinalizeLive));
-    }
+    /// <summary>
+    /// ⭐ <c>L3</c> — a step is driven by a LOAD-PHASE CONTEXT, not by a node-op intent: it no longer
+    /// CLAIMS an operation, because <c>LoadPhaseChain</c> claims once for the whole node.
+    /// ⚠ <c>tkbName: null</c> here means "the message named none", which sends the step to its staged-header
+    /// fallback — exactly the behaviour these cases were written against.
+    /// </summary>
+    private static LoadPhaseContext MakeContext(string? tkbName = null) =>
+        new LoadPhaseContext(
+            TransactionId: Guid.NewGuid(),
+            TargetState:   ClusterState.LoadingLive,
+            ScenarioId:    "scn",
+            TkbName:       tkbName,
+            TerrainName:   null,
+            ExerciseId:    Guid.Empty,
+            IsNewScenario: false);
 
     [Fact]
     public async Task CacheHit_SameTkbAndTimestamp_DoesNotClearDb()
     {
         var db   = new TkbDatabase();
-        var h    = new TkbLoadClusterStateHandler(db, _stagingRoot);
+        var h    = new KnowledgeBaseLoadStep(db, _stagingRoot);
         var zipPath = Path.Combine(_tkbDir, "Alpha.zip");
 
         WriteScenarioHeader("Alpha");
         CreateMinimalTkbZip(zipPath, "Alpha");
 
         // First call — loads TKB (or at minimum does not throw)
-        await h.PrepareAsync(MakeIntent(), CancellationToken.None);
+        await h.PrepareAsync(MakeContext(), CancellationToken.None);
         int countAfterFirst = db.GetAll().Count();
 
         // Second call — should be a cache hit, db unchanged (Clear not called)
-        await h.PrepareAsync(MakeIntent(), CancellationToken.None);
+        await h.PrepareAsync(MakeContext(), CancellationToken.None);
         int countAfterSecond = db.GetAll().Count();
 
         Assert.Equal(countAfterFirst, countAfterSecond);
@@ -116,16 +105,16 @@ public class TkbLoadClusterStateHandlerTests : IDisposable
     public async Task CacheMiss_NameChange_ClearsCalled()
     {
         var db = new TkbDatabase();
-        var h  = new TkbLoadClusterStateHandler(db, _stagingRoot);
+        var h  = new KnowledgeBaseLoadStep(db, _stagingRoot);
 
         CreateMinimalTkbZip(Path.Combine(_tkbDir, "Alpha.zip"), "Alpha");
         CreateMinimalTkbZip(Path.Combine(_tkbDir, "Beta.zip"), "Beta");
 
         WriteScenarioHeader("Alpha");
-        await h.PrepareAsync(MakeIntent(), CancellationToken.None);
+        await h.PrepareAsync(MakeContext(), CancellationToken.None);
 
         WriteScenarioHeader("Beta");
-        await h.PrepareAsync(MakeIntent(), CancellationToken.None);
+        await h.PrepareAsync(MakeContext(), CancellationToken.None);
 
         Assert.Equal("Beta", db.ActiveTkbName);
     }
@@ -134,13 +123,13 @@ public class TkbLoadClusterStateHandlerTests : IDisposable
     public async Task AfterSuccessfulLoad_ActiveTkbNameIsSet()
     {
         var db  = new TkbDatabase();
-        var h   = new TkbLoadClusterStateHandler(db, _stagingRoot);
+        var h   = new KnowledgeBaseLoadStep(db, _stagingRoot);
         var zip = Path.Combine(_tkbDir, "TestTkb.zip");
 
         WriteScenarioHeader("TestTkb");
         CreateMinimalTkbZip(zip, "TestTkb");
 
-        await h.PrepareAsync(MakeIntent(), CancellationToken.None);
+        await h.PrepareAsync(MakeContext(), CancellationToken.None);
 
         Assert.Equal("TestTkb", db.ActiveTkbName);
     }
@@ -149,10 +138,10 @@ public class TkbLoadClusterStateHandlerTests : IDisposable
     public async Task Fallback_NullTkbName_EmptyDb_RegistersNedCatalog()
     {
         var db = new TkbDatabase();
-        var h  = new TkbLoadClusterStateHandler(db, _stagingRoot);
+        var h  = new KnowledgeBaseLoadStep(db, _stagingRoot);
 
         // No ScenarioHeader.json -- triggers fallback path
-        await h.PrepareAsync(MakeIntent(), CancellationToken.None);
+        await h.PrepareAsync(MakeContext(), CancellationToken.None);
 
         Assert.True(db.GetAll().Any());
     }
@@ -164,11 +153,11 @@ public class TkbLoadClusterStateHandlerTests : IDisposable
         Hrot.Map.Definitions.Tkb.NedTkbCatalog.RegisterAll(db);
         int countBefore = db.GetAll().Count();
 
-        var h = new TkbLoadClusterStateHandler(db, _stagingRoot);
+        var h = new KnowledgeBaseLoadStep(db, _stagingRoot);
 
         // Write header without TkbName
         WriteScenarioHeader(tkbName: null);
-        await h.PrepareAsync(MakeIntent(), CancellationToken.None);
+        await h.PrepareAsync(MakeContext(), CancellationToken.None);
 
         int countAfter = db.GetAll().Count();
         Assert.Equal(countBefore, countAfter);
@@ -178,13 +167,13 @@ public class TkbLoadClusterStateHandlerTests : IDisposable
     public async Task MissingZip_ThrowsFileNotFoundException()
     {
         var db = new TkbDatabase();
-        var h  = new TkbLoadClusterStateHandler(db, _stagingRoot);
+        var h  = new KnowledgeBaseLoadStep(db, _stagingRoot);
 
         WriteScenarioHeader("MissingFile");
         // Do NOT create the ZIP.
 
         await Assert.ThrowsAsync<FileNotFoundException>(
-            () => h.PrepareAsync(MakeIntent(), CancellationToken.None));
+            () => h.PrepareAsync(MakeContext(), CancellationToken.None));
     }
 
     /// <summary>
@@ -197,13 +186,13 @@ public class TkbLoadClusterStateHandlerTests : IDisposable
     public async Task ExtractTkbName_Phase2Format_ReturnsCorrectName()
     {
         var db  = new TkbDatabase();
-        var h   = new TkbLoadClusterStateHandler(db, _stagingRoot);
+        var h   = new KnowledgeBaseLoadStep(db, _stagingRoot);
         var zip = Path.Combine(_tkbDir, "TestTkb.zip");
 
         WriteScenarioHeader("TestTkb", phase2Format: true);
         CreateMinimalTkbZip(zip, "TestTkb");
 
-        await h.PrepareAsync(MakeIntent(), CancellationToken.None);
+        await h.PrepareAsync(MakeContext(), CancellationToken.None);
 
         Assert.Equal("TestTkb", db.ActiveTkbName);
     }
@@ -231,13 +220,13 @@ public class TkbLoadClusterStateHandlerTests : IDisposable
     public async Task AFileLoadedTemplate_DeclaresSimTransformBirthCritical()
     {
         var db  = new TkbDatabase();
-        var h   = new TkbLoadClusterStateHandler(db, _stagingRoot);
+        var h   = new KnowledgeBaseLoadStep(db, _stagingRoot);
         var zip = Path.Combine(_tkbDir, "Conv.zip");
 
         WriteScenarioHeader("Conv");
         CreateMinimalTkbZip(zip, "Conv");
 
-        await h.PrepareAsync(MakeIntent(), CancellationToken.None);
+        await h.PrepareAsync(MakeContext(), CancellationToken.None);
 
         var template = Assert.Single(db.GetAll());
         Assert.Contains(
@@ -255,11 +244,11 @@ public class TkbLoadClusterStateHandlerTests : IDisposable
     public async Task TheProgrammaticFallback_AlsoDeclaresIt()
     {
         var db = new TkbDatabase();
-        var h  = new TkbLoadClusterStateHandler(db, _stagingRoot);
+        var h  = new KnowledgeBaseLoadStep(db, _stagingRoot);
 
         WriteScenarioHeader(null);
 
-        await h.PrepareAsync(MakeIntent(), CancellationToken.None);
+        await h.PrepareAsync(MakeContext(), CancellationToken.None);
 
         Assert.NotEmpty(db.GetAll());
         Assert.All(db.GetAll(), t => Assert.Contains(
@@ -288,13 +277,13 @@ public class TkbLoadClusterStateHandlerTests : IDisposable
     public async Task AFileLoadedTemplate_GetsNoInventedMandatoryComponents()
     {
         var db  = new TkbDatabase();
-        var h   = new TkbLoadClusterStateHandler(db, _stagingRoot);
+        var h   = new KnowledgeBaseLoadStep(db, _stagingRoot);
         var zip = Path.Combine(_tkbDir, "Conv2.zip");
 
         WriteScenarioHeader("Conv2");
         CreateMinimalTkbZip(zip, "Conv2");
 
-        await h.PrepareAsync(MakeIntent(), CancellationToken.None);
+        await h.PrepareAsync(MakeContext(), CancellationToken.None);
 
         var template = Assert.Single(db.GetAll());
         Assert.Empty(template.MandatoryComponents);
@@ -343,14 +332,14 @@ public class TkbLoadClusterStateHandlerTests : IDisposable
         WriteScenarioHeader("Alpha_v1");
 
         var db = new TkbDatabase();
-        var h  = new TkbLoadClusterStateHandler(db, _stagingRoot);
+        var h  = new KnowledgeBaseLoadStep(db, _stagingRoot);
 
         Assert.True(StageOnce(src));                       // transfer #1 — the file was absent
-        await h.PrepareAsync(MakeIntent(), CancellationToken.None);   // ingest #1
+        await h.PrepareAsync(MakeContext(), CancellationToken.None);   // ingest #1
 
         Seed(db);
         Assert.False(StageOnce(src));                      // ⭐ NO second transfer
-        await h.PrepareAsync(MakeIntent(), CancellationToken.None);
+        await h.PrepareAsync(MakeContext(), CancellationToken.None);
         Assert.False(Ingested(db));                        // ⭐ NO second ingest
     }
 
@@ -365,10 +354,10 @@ public class TkbLoadClusterStateHandlerTests : IDisposable
         WriteScenarioHeader("Alpha_v1");
 
         var db = new TkbDatabase();
-        var h  = new TkbLoadClusterStateHandler(db, _stagingRoot);
+        var h  = new KnowledgeBaseLoadStep(db, _stagingRoot);
 
         StageOnce(src);
-        await h.PrepareAsync(MakeIntent(), CancellationToken.None);
+        await h.PrepareAsync(MakeContext(), CancellationToken.None);
 
         // Republish: different bytes AND a different timestamp, as a rebuild would produce.
         File.Delete(src);
@@ -377,7 +366,7 @@ public class TkbLoadClusterStateHandlerTests : IDisposable
 
         Seed(db);
         Assert.True(StageOnce(src));                       // ⭐ transfer
-        await h.PrepareAsync(MakeIntent(), CancellationToken.None);
+        await h.PrepareAsync(MakeContext(), CancellationToken.None);
         Assert.True(Ingested(db));                         // ⭐ and ingest
     }
 
@@ -402,16 +391,16 @@ public class TkbLoadClusterStateHandlerTests : IDisposable
         //   the first draft of this rail tripped over by loading first.
         StageOnce(src);
         var first = new TkbDatabase();
-        await new TkbLoadClusterStateHandler(first, _stagingRoot)
-            .PrepareAsync(MakeIntent(), CancellationToken.None);
+        await new KnowledgeBaseLoadStep(first, _stagingRoot)
+            .PrepareAsync(MakeContext(), CancellationToken.None);
 
         // ── the node restarts: a BRAND NEW handler and db, the file on disk unchanged ──
         Assert.False(StageOnce(src));                      // ⭐ the orchestrator still skips
 
         var afterRestart = new TkbDatabase();
         Seed(afterRestart);
-        var reborn = new TkbLoadClusterStateHandler(afterRestart, _stagingRoot);
-        await reborn.PrepareAsync(MakeIntent(), CancellationToken.None);
+        var reborn = new KnowledgeBaseLoadStep(afterRestart, _stagingRoot);
+        await reborn.PrepareAsync(MakeContext(), CancellationToken.None);
 
         Assert.True(Ingested(afterRestart),                // ⭐ but the node MUST ingest
             "a restarted node has an empty in-memory cache and must re-ingest even though no bytes moved");
@@ -428,9 +417,9 @@ public class TkbLoadClusterStateHandlerTests : IDisposable
         WriteScenarioHeader("Alpha_v1");
 
         var db = new TkbDatabase();
-        var h  = new TkbLoadClusterStateHandler(db, _stagingRoot);
+        var h  = new KnowledgeBaseLoadStep(db, _stagingRoot);
         StageOnce(src);
-        await h.PrepareAsync(MakeIntent(), CancellationToken.None);
+        await h.PrepareAsync(MakeContext(), CancellationToken.None);
 
         // Same name, same mtime — only the LENGTH differs.
         var dest  = Path.Combine(_tkbDir, "Alpha_v1.zip");
@@ -440,7 +429,7 @@ public class TkbLoadClusterStateHandlerTests : IDisposable
         File.SetLastWriteTimeUtc(dest, stamp);
 
         Seed(db);
-        await h.PrepareAsync(MakeIntent(), CancellationToken.None);
+        await h.PrepareAsync(MakeContext(), CancellationToken.None);
         Assert.True(Ingested(db), "a same-mtime, different-length artifact must NOT be treated as cached");
     }
 }

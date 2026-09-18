@@ -386,10 +386,13 @@ internal sealed class IgNodeBootstrapper : SharedApplicationBootstrapper
         //    🔒 User, `2026-09-18`: "every ECS enable node should be able to create entities so every needs
         //    the TKB loaded" · "load nothing where nothing reads it".
         // 📄 docs/DESIGN_Cluster_Load_Phase.md §4.1, §4.1a, §4.1b.
-        var igLoadProviders = new List<Hrot.Map.Common.ClusterLoad.ILoadPartProvider>();
-        if (context.TkbDb != null)
-            igLoadProviders.Add(new Hrot.Map.Common.ClusterLoad.KnowledgeBaseLoadStep(
-                context.TkbDb, storageDirectory));
+        var igLoadProviders = new List<Hrot.Map.Common.ClusterLoad.ILoadPartProvider>
+        {
+            // ⭐ Unconditional: this host SUPPLIES the default catalogue when none was composed, because
+            //   the knowledge base is required by being an ECS node rather than by the Map2D role.
+            new Hrot.Map.Common.ClusterLoad.KnowledgeBaseLoadStep(
+                context.TkbDb ?? Hrot.Map.Common.HrotEnvironment.CreateTkb(), storageDirectory),
+        };
 
         slave.RegisterHandler(Hrot.Map.Common.ClusterLoad.LoadPhaseChain.FromRoles(
             Fdp.Core.NodeRole.Map2D, igLoadProviders, context.World, hostLabel: "IG"));

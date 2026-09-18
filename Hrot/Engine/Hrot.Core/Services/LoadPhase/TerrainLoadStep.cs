@@ -39,17 +39,26 @@ public sealed class TerrainLoadStep : ILoadPartProvider
     public LoadPart Part => LoadPart.Terrain;
 
     /// <inheritdoc/>
-    public Task PrepareAsync(LoadPhaseContext context, CancellationToken ct)
+    public async Task PrepareAsync(LoadPhaseContext context, CancellationToken ct)
     {
         string? requested = !string.IsNullOrWhiteSpace(context.TerrainName)
             ? context.TerrainName
             : ScenarioTerrainName.Read(_stagingRoot);
 
+        // ⭐⭐ L6 — the staging copy may still be delivering the definition: the content step is dispatched
+        //    milliseconds after the copy STARTS. ⛔ Without the wait, the loud "definition not found" below
+        //    would be correct in form and spurious in fact. ⚠ Bounded, and not a substitute for ordering.
+        if (!string.IsNullOrWhiteSpace(requested))
+        {
+            string definitionPath = System.IO.Path.Combine(
+                _stagingRoot, "Terrain", $"{requested}.json");
+            if (!System.IO.File.Exists(definitionPath))
+                await StagedArtifactWait.ForFileAsync(definitionPath, ct).ConfigureAwait(false);
+        }
+
         var staged = _residency.Prepare(requested);
         if (staged.HasWork)
             lock (_stagedGate) _staged[context.TransactionId] = staged;
-
-        return Task.CompletedTask;
     }
 
     /// <inheritdoc/>

@@ -341,8 +341,16 @@ namespace Hrot.SimHost
             // 📄 docs/DESIGN_Cluster_Load_Phase.md §4.1b, §4.1c · DESIGN_Node_Roles_And_Policies.md §3.2.
             var loadProviders = new List<ILoadPartProvider>();
 
-            if (tkbDb != null)
-                loadProviders.Add(new KnowledgeBaseLoadStep(tkbDb, localTempRoot));
+            // ⭐⭐⭐ The knowledge base is UNCONDITIONAL for an ECS node, so this host SUPPLIES a default
+            //   rather than making every caller remember. 🔒 "every ECS enable node should be able to
+            //   create entities so every needs the TKB loaded" — a node that can be asked to create an
+            //   entity must be able to resolve its template.
+            // ⚠ The fallback is the hard-coded catalogue, which is exactly where a node with no named TKB
+            //   starts anyway; a scenario that names one then replaces it through the step. ⛔ This is the
+            //   host supplying a HOW, not the requirement being relaxed — the chain still throws if the
+            //   part is genuinely unsatisfiable.
+            loadProviders.Add(new KnowledgeBaseLoadStep(
+                tkbDb ?? Hrot.Map.Common.HrotEnvironment.CreateTkb(), localTempRoot));
 
             loadProviders.Add(new TerrainLoadStep(
                 new TerrainResidency(localTempRoot, RoadNetworkHolder), localTempRoot));

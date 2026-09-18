@@ -132,10 +132,14 @@ public sealed class TheHostsAgreeOnTheScenarioRootTests
     /// ⛔ Test fixtures are exempt: they legitimately build the layout they are asserting against.
     /// </summary>
     [Theory]
-    [InlineData("Hrot.SimHost", "Orchestration/Handlers/TkbLoadClusterStateHandler.cs")]
+    // ⚠ RE-POINTED `2026-09-18`: the knowledge-base loader moved out of Hrot.SimHost and became a STEP
+    //   in the shared load-phase chain (L3/L4a). The claim is unchanged — the directory name has ONE
+    //   definition — only its home moved. 📄 docs/DESIGN_Cluster_Load_Phase.md §4.1c.
+    [InlineData("Hrot.Core", "Services/LoadPhase/KnowledgeBaseLoadStep.cs")]
     public void TheTkbDirectoryNameIsNotBuiltByHand(string project, string file)
     {
-        var text = HostSource.Read(project, file);
+        // ⚠ Hrot.Core lives under Hrot/Engine/, not Hrot/Subsystems/ — the resolver takes segments.
+        var text = HostSource.ReadRelative("Hrot", "Engine", project, file);
 
         foreach (var line in text.Split('\n'))
         {
