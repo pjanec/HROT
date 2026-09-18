@@ -4,7 +4,8 @@ updated: 2026-09-17
 current-answer: §1 what shipped, §2 the gate table, §3 the reds (all named, all proven), §4 what the
   design got wrong, §5 the UML check, §6 ids allocated.
 stale-below: nothing — new document.
-known-rot: nothing.
+known-rot: 🔴 §2's gate row 7 (Hrot.Orchestrator.Tests) was WRONG — see the AMENDMENT at the top of §3.
+  Every other row was re-measured on 2026-09-18 after an explicit build and stands.
 known-conflict: none.
 related-designs:
   - docs/DESIGN_Terrain_Zones_And_Assets.md — the owning design. §10 carries the AS-BUILT corrections
@@ -101,6 +102,32 @@ the `EditorAuthoring`/`EditorHarness` slice — the part this batch actually tou
 ---
 
 ## 3. The reds — every one named, none left unexplained
+
+### 🔴 AMENDMENT `2026-09-18` — **ROW 7 WAS WRONG, AND IT WAS MY OWN RAIL**
+
+⛔ §2 row 7 reports `Hrot.Orchestrator.Tests` as **160 pass / 3 fail — reds identical to base**. 📐
+Re-measured `2026-09-18` **after an explicit build of the test project**: it was **4** failures, and the
+fourth was
+`ClusterMasterZoneRoundTests.LoadZoneIntent_FansOutPrepareThenCommit_AndReportsSuccessOnlyAtTheEnd` —
+**a rail this batch wrote**.
+
+| | |
+|---|---|
+| **what it asserted** | `Assert.NotEqual(prepares[0].TransactionId, commits[0].TransactionId)` — written when the zone round used a FRESH transaction id per phase |
+| **why that became false** | `D3` measured that the NODE stages under the prepare's id and consumes that staging in the commit ⇒ two ids leave every commit unable to find its own prepare. The master was changed to reuse **ONE** id per round (design §10.3). ⛔ The rail was not updated with it, so it went on asserting the behaviour that had just been found wrong |
+| 🔴 **why the gate run did not catch it** | ⛔⛔ **the documented `--no-build` STALE-BINARY trap.** During `D3` I built the PRODUCTION project (`Hrot.Orchestrator`) and not the test project, so `Hrot.Orchestrator.Tests/bin` still held the **pre-`D3`** `Hrot.Orchestrator.dll`. `dotnet test --no-build` tested the old code and printed a pass. ⚠ `CLAUDE.md` names this exactly: *"`dotnet test --no-build` runs a STALE BINARY and prints `PASSED`"* — and it caught me in the one suite where a production change and its rail disagreed |
+| ✅ **fixed** | assertion corrected to `Equal` with the history in the comment; suite now **12/12** for that class |
+
+⭐ **The rest of the table was re-verified, each after an explicit build** — so the coordinator can trust
+the other rows: `Hrot.Core.Tests` **170/2** *(the two `EcsPatchContextTests`, pre-existing)* ·
+`Hrot.SimHost.Tests` **983/3** *(the three pre-existing; 983 vs the reported 973 is this batch's new
+rails)* · `Hrot.Orchestrator.Tests` **166/3** *(the three pre-existing)*. ⇒ ⛔ **one row was wrong, and it
+was wrong because of HOW it was measured, not because a red was hidden deliberately.**
+
+⭐⭐ **The lesson, stated so it is checkable rather than a resolution:** `--no-build` is only safe when the
+test project itself has been built since the last PRODUCTION edit. ⇒ **build the TEST project, not the
+production one, before a `--no-build` run** — the test project's build copies the production assembly,
+the reverse does not.
 
 ### 3.1 ✅ PROVEN PRE-EXISTING — measured in a worktree at base `765618636`
 
