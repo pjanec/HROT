@@ -826,6 +826,28 @@ of making it.
 ⛔⛔ **AND IT REFUSES TO TEST A FAILED BUILD** — 📌 `dotnet test --no-build` runs a **STALE BINARY** and
 prints `PASSED`. ⚠ **That happened twice in one session**; both times it looked like a green.
 
+#### ⛔⛔⛔ THE SECOND STALE-BINARY TRAP — **BUILD THE *TEST* PROJECT, NEVER THE PRODUCTION ONE** *(measured `2026-09-18`, terrain batch ②b)*
+
+🔒 **The rule, in one line:** ⭐⭐⭐ **a TEST project's build copies the production assembly into its `bin`;
+the reverse does NOT happen.** ⇒ ⛔⛔ **`dotnet build <production.csproj>` followed by
+`dotnet test <tests.csproj> --no-build` runs the test project against the assembly its `bin` held BEFORE
+your change** — and prints a confident green.
+
+📌 **Measured, and it produced a FALSE GATE ROW in a report the coordinator had already merged.** The
+batch built `Hrot.Orchestrator` *(production)*, then `--no-build` tested `Hrot.Orchestrator.Tests`; the
+test `bin` still held the pre-change `Hrot.Orchestrator.dll`, so a **RED rail printed as PASS** and was
+reported as *"160 passed / 3 pre-existing"*. ⚠ **Confirmed by dll timestamps**, and the red was real: the
+rail asserted `NotEqual` on the two 2PC phases' transaction ids — **pinning the very defect the batch had
+just fixed** *(the node stages under the prepare's id and consumes that staging in the commit, so two ids
+leave every commit unable to find its own prepare)*.
+
+| ⭐ the checkable habit | |
+|---|---|
+| ⭐⭐⭐ **build the project you are about to TEST** | `dotnet build <tests.csproj> --no-restore` → then `--no-build` for every run after. ⛔ Building the production project is **not** a substitute |
+| ⭐⭐ **`scripts/quick-check.sh <proj>` already does the right thing** | ⭐ it takes the **test** project — ⛔ the trap is only hit by hand-rolled `build X && test Y` pairs |
+| ⭐⭐ **when a gate row looks TOO clean after a behaviour change, check the dll timestamp** | 📌 `ls -l <tests>/bin/*/Production.dll` vs your commit time — seconds, and it is the only thing that distinguishes this from a genuine pass |
+| ⚠ **this is DIFFERENT from the failed-build trap above** | ⛔ there the build failed and the old binary ran; ⭐ **here the build SUCCEEDED — just not the one that mattered.** No error appears anywhere |
+
 ### ⛔⛔⛔ T-1 — **EVERY FEATURE HAS ITS OWN RAILS. FIND AND RUN THEM FIRST** *(user, `2026-09-04`)*
 
 > ⭐⭐⭐ **User, verbatim:** *"remember that every feature has own rails so first thing to do to verify if

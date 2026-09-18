@@ -6,6 +6,10 @@ current-answer: this file is now LEAN. Feature intent lives in the DESIGN docs (
   This file holds ONLY what those two cannot: engine invariants, silent-failure hazards,
   and cross-cutting decisions with no single design home.
 stale-below: nothing.
+re-read: 2026-09-18 — .claude/CLAUDE.md gained one section (THE SECOND STALE-BINARY TRAP), so
+  rulings-check WARNs on the rows citing it. Re-read and CONFIRMED none moved: the edit is PURELY
+  ADDITIVE, appended inside the THREE TEST TIERS section beside the existing failed-build warning it
+  amends. No existing row's surroundings were touched.
 re-read: 2026-09-17 — Architect_Question_71 changed (rulings-check WARNed on R-146, which cites it).
   Re-read and CONFIRMED R-146 did NOT move: the edits were §7's refinement block (S1/S3/S4/S5 dissolved,
   Q71-C withdrawn, R1 narrowed, R4 to a hash, R5 TkbType-supersedes-AreaType) — all NARROWINGS inside the
