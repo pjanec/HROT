@@ -1546,6 +1546,26 @@ public sealed class ClusterMaster : IDisposable
     private void ProcessCancelOperationIntent(CancelOperationIntent intent)
     {
         var targetId = intent.TargetRequestId;
+
+        // ⭐⭐ L8 — the ONE transition state that can be cancelled cleanly: PARKED, so nothing has been sent.
+        //   ⛔ Cancel was an ARCHIVE-only facility (`_activeCancellations` is written only by the Export and
+        //   Import branches, CGF-1-BATCH-28 §C.4) and a transition was never a target — before parking there
+        //   was simply no window: the trajectory was fanned out in the pass that admitted it.
+        // ⚠ It abandons the TRANSITION, not the copy: the gateway's PrefetchScenarioAsync registers no
+        //   cancellation source, so the bytes finish landing in the node staging roots. That is harmless —
+        //   nothing loads them — but it is why this says "abandoned", not "stopped".
+        // 📄 docs/DESIGN_Cluster_Load_Phase.md §7.7 ④.
+        if (targetId != Guid.Empty && _parked?.RequestId == targetId)
+        {
+            _parked = null;
+            FdpLog<ClusterMaster>.Info(
+                "[Orchestrator] L8: parked transition {0} CANCELLED — nothing was fanned out. "
+              + "The staging copy already in flight is left to finish.",
+                targetId);
+            PublishOpStatus(targetId, OrchestrationStatusCode.Cancelled);
+            return;
+        }
+
         if (targetId != Guid.Empty && _activeCancellations.TryGetValue(targetId, out var cancelCts))
         {
             cancelCts.Cancel();

@@ -740,7 +740,7 @@ the one claim that could have deadlocked every scenario open in the editor. ⚠ 
 `EditorSubsystem.cs`, not by a rail — which is why `A_distribution_that_never_completes_expires…` now pins
 the fact that **no production master is shaped like the deadlocking one**.
 
-#### ⚠ ③ THE RAILS — five, in the two suites that already own these features *(`T-1` ④)*
+#### ⚠ ③ THE RAILS — six, in the two suites that already own these features *(`T-1` ④)*
 
 | rail | suite | §7.5 row |
 |---|---|---|
@@ -748,6 +748,7 @@ the fact that **no production master is shaped like the deadlocking one**.
 | `A_scenario_transition_parks_until_every_node_has_acknowledged_its_files` *(also asserts the reported state is the SOURCE while parked, and that a second transition is REJECTED)* | `ClusterMasterPrefetchTests` | 3 + 5 |
 | `A_failed_distribution_fails_the_request_and_fans_out_nothing` | `ClusterMasterPrefetchTests` | 4 |
 | `A_distribution_that_never_completes_expires_and_fans_out_nothing` | `ClusterMasterPrefetchTests` | ⑤'s bound |
+| `A_parked_transition_can_be_cancelled_and_fans_out_nothing` | `ClusterMasterPrefetchTests` | ④'s cancel *(added after §7.5 was written)* |
 | `A_parked_transition_does_not_reset_the_authority` | `TheWorldBoundaryResetsTheIdAuthorityTests` | 6 |
 
 ⛔ **No new test class was created** — both suites already own the feature under test (the prefetch barrier,
@@ -763,5 +764,5 @@ one that matters, because it is the only one where the files actually have to ar
 
 | | |
 |---|---|
-| ⛔ **a `CancelOperation` does not clear a parked entry** | the cancel path never touched the transition machinery and this batch did not extend it. ⇒ cancelling a scenario load while its files are copying leaves the entry until the distribution reports or the bound expires. ⭐ Not a regression *(before `L8` the transition had already been fanned out and was equally uncancellable)*, but it is now a **nameable** gap rather than an invisible one |
+| ✅ **a `CancelOperation` now clears a parked entry** *(built `2026-09-18`, after the section below was first written)* | ⭐ **Parking created the first transition state that CAN be cancelled cleanly** — nothing has been sent, so there is nothing to undo, and the branch returns before the `AbortTransaction` fan-out for exactly that reason. 📐 Why it was absent rather than broken: `ProcessCancelOperationIntent` resolves its target through `_activeCancellations`, which **only** the ExportArchive and ImportArchive branches ever write *(`ClusterMaster.cs:1472`, `:1506`; specified that way in `.dev/_DONE/cgf-1/batches/CGF-1-BATCH-28-INSTRUCTIONS.md` §C.4)* — a transition was never a cancel target, and before parking there was no window in which it could have been one. ⚠ **It abandons the TRANSITION, not the copy**: the gateway registers no cancellation source, so the bytes finish landing in the node staging roots. Harmless — nothing loads them — but it is why the log says *"abandoned"*, not *"stopped"*. Pinned by `A_parked_transition_can_be_cancelled_and_fans_out_nothing`, which also asserts the single parked slot is RELEASED, so the next transition is admitted rather than rejected as busy |
 | ⚠ **the bound is wall-clock, and it is the only clock left** | `ParkedTransitionExpirySeconds`, default 300 s. ⛔ It is not a retry and it never proceeds — it fails the request. ⭐ It exists because a distribution that never reports at all *(a node ejected mid-copy, a saga that was never constructed)* must not hang the master forever |

@@ -64,7 +64,7 @@ that the editor's offline master never parks. See §4 ⑤.
 
 | suite | result |
 |---|---|
-| `Hrot.Orchestrator.Tests` | ⭐ **181 / 181** *(was 176; **+5** — the `L8` rails, §7.7's table)* |
+| `Hrot.Orchestrator.Tests` | ⭐ **182 / 182** *(was 176; **+6** — the `L8` rails, §7.7's table)* |
 | `Hrot.SimHost.Tests` | **1000 passed / 4 failed / 3 skipped.** ⚠ The red SET is **unstable across runs of the same commit** — three runs gave 3, 2 and 4. 📐 Checked in a clean worktree at base `4a428df6`: `FullBranchPipelineTests.BranchedRecording_CapturesHistoricalStateAsKeyframe` and `NodeRolePersistenceRails.TheSaveHandlerSetIsStillComplete` are **red at base too** ⇒ pre-existing. ⚠ `EcsRecordReplayControllerTests.PrepareRecordingAsync_InstallsRecordingModule` **passed at base** and appeared only in the run taken while the acceptance cluster was still running — recorded as **contention-flaky, NOT proved pre-existing**. **Zero new.** |
 | `Hrot.Editor.Tests` | **408 passed / 1 failed / 1 skipped** — `AiHotReloadCoordinatorTests.TwoReloadCycles_OldAlcIsCollected`, a GC-timing rail already recorded as flaky here and untouched by this batch |
 | doc gates | `design-digest.py --check` PASS (60 docs) · `rulings-check.py` 35/35 · `mermaid-check.mjs` **6/6** |

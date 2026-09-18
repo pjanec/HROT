@@ -456,4 +456,54 @@ public sealed class ClusterMasterPrefetchTests : IDisposable
         Assert.False(anyPrepare, "An expired transition must fan out NOTHING.");
         Assert.Null(master.ParkedRequestId);
     }
+
+    /// <summary>
+    /// ⭐⭐ <b>A PARKED transition can be cancelled</b> — and it is the only transition state that can be.
+    ///
+    /// <para>📐 Why this rail is new rather than a regression guard: <c>CancelOperation</c> resolves its
+    /// target through <c>_activeCancellations</c>, which only the ExportArchive and ImportArchive branches
+    /// ever write (<c>CGF-1-BATCH-28</c> §C.4). A transition was never a cancel target — and before parking
+    /// there was no window in which it could have been one, because the trajectory was fanned out in the
+    /// very pass that admitted it. ⭐ Parking creates a state where the transition exists ONLY as
+    /// master-side bookkeeping, so abandoning it sends nothing and leaves nothing to undo.</para>
+    ///
+    /// <para>⚠ <b>What is NOT asserted, deliberately:</b> that the copy stops. It does not — the gateway
+    /// registers no cancellation source, so the bytes finish landing in the node staging roots. Nothing
+    /// loads them. 📄 <c>docs/DESIGN_Cluster_Load_Phase.md</c> §7.7 ④.</para>
+    /// </summary>
+    [Fact(Timeout = 10_000)]
+    public void A_parked_transition_can_be_cancelled_and_fans_out_nothing()
+    {
+        var bus = new FdpEventBus();
+        using var master = new ClusterMaster(bus, NoMandatoryConfig());
+        RegisterNode(bus, master);
+
+        var reqId = Guid.NewGuid();
+        RequestTransition(master, reqId, ClusterState.LoadingEdit, _scenarioId);
+        master.Tick();
+        bus.SwapBuffers();
+        Assert.Equal(reqId, master.ParkedRequestId);
+
+        bus.PublishManaged(new CancelOperationIntent { TargetRequestId = reqId });
+        bus.SwapBuffers();
+        master.Tick();
+        bus.SwapBuffers();
+
+        Assert.Null(master.ParkedRequestId);
+        Assert.Contains(bus.ReadManaged<ClusterOpCompletedEvent>(),
+            e => e.RequestId == reqId && e.StatusCode == OrchestrationStatusCode.Cancelled);
+        Assert.False(SawPrepare(bus), "A cancelled parked transition must fan out NOTHING.");
+
+        // ⭐ And the master is free again — the cancel released the single parked slot (§7.2c), so the next
+        //   transition is ADMITTED rather than rejected as busy. ⛔ Without clearing `_parked` the cancel
+        //   would look successful and still wedge the master until the liveness bound expired.
+        var nextId = Guid.NewGuid();
+        RequestTransition(master, nextId, ClusterState.OperatingLive, scenarioId: null);
+        master.Tick();
+        bus.SwapBuffers();
+
+        Assert.DoesNotContain(bus.ReadManaged<ClusterOpCompletedEvent>(),
+            e => e.RequestId == nextId && e.StatusCode == OrchestrationStatusCode.Rejected);
+        Assert.True(SawPrepare(bus), "After a cancel the next transition must be admitted, not rejected.");
+    }
 }
