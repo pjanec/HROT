@@ -12,6 +12,9 @@ current-answer: §3 is the resolution — Q70-A (degradation via capabilities + 
   bit-backed SUBSET of capabilities — the token set is the SOLE wire source and the NodeRole mask is
   DERIVED at ingest, superseding CE-282's roles-on-heartbeat) are all settled. §2 is the INVENTORY.
 related-designs:
+  - Architect_Question_72_Asset_Lifecycle_And_Distribution.md — the FIRST real feature-token
+    vocabulary proposed on this facility (hrot.asset.needs.*). Q72-A/B build on §Q70-B/C and add no
+    new facility; §Q70-C's roles-derived-from-tokens is the precedent they lean on.
   - ../DESIGN_Cross_Node_Construction_Barrier.md — §3b the reliable-init barrier (the first consumer); §3c the degradation consumer view.
   - ../designs/two-ack/TwoAck-DESIGN.md — §3.2 SstStatusCode {InProgress, NotSupported} — the status vocabulary reused, not reinvented.
   - ../designs/cluster-master-cqrs-1/DESIGN.md — owns the ClusterMaster roster (NodeHealthProfile) the capability set extends.

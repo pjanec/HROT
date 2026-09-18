@@ -16,6 +16,9 @@ known-rot: TWO things this design assumed that the build measured false, both in
   HEADER and false of the ARTIFACT — see §9.4.
 known-conflict: none.
 related-designs:
+  - docs/blueprints/Architect_Question_72_Asset_Lifecycle_And_Distribution.md — the GENERAL asset
+    lifecycle this document is a deliberate subset of (per-node needs, packaging, authoring sync).
+    ⚠ Q72 §4 records what this slice already settles so it is not reopened.
   - docs/designs/tkb-1/DESIGN.md — §7.3 OWNS THE NODE SIDE: the node reads TkbName from its own locally
     staged scenario header, never from the wire payload, and caches on (TkbName, zip timestamp). This
     document owns how that header and that zip GET THERE, which §7.3 assumes and never specifies.
