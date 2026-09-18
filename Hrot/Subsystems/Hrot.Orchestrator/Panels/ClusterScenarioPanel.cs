@@ -12,6 +12,7 @@ using ImGuiNET;
 using FdpClusterOpType        = Fdp.Toolkit.Orchestration.ClusterOpType;
 using FdpClusterState         = Fdp.Toolkit.Orchestration.ClusterState;
 using TransitionStateIntent   = Fdp.Toolkit.Orchestration.TransitionStateIntent;
+using BuildTerrainAssetIntent = Fdp.Toolkit.Orchestration.BuildTerrainAssetIntent;
 using ManageEpisodeIntent     = Fdp.Toolkit.Orchestration.ManageEpisodeIntent;
 using ExecuteStorageOpIntent  = Fdp.Toolkit.Orchestration.ExecuteStorageOpIntent;
 using StorageOpType           = Fdp.Toolkit.Orchestration.StorageOpType;
@@ -40,6 +41,9 @@ public sealed class ClusterScenarioPanel
     private readonly ClusterMaster? _master;
     private readonly FdpEventBus?   _bus;
     private readonly ClusterUiCache _uiCache;
+
+    /// <summary>⭐ E4 — per-node outcomes of the terrain build this panel requested (§8.3 N5).</summary>
+    private readonly TerrainBuildOutcomeTracker _terrainBuild = new();
 
     // ── Helper: send a request via whichever channel is available ─────────
     private void SendRequest(ClusterOpRequest req)
@@ -133,6 +137,17 @@ public sealed class ClusterScenarioPanel
                 break;
             }
 
+            // ⭐ E4 — without this arm the build request would be silently DROPPED on the bus path
+            //    (remote / ExCon), so the button would work when the panel holds the master and do
+            //    nothing when it does not. ⛔ That asymmetry is the shape this switch exists to avoid.
+            case FdpClusterOpType.BuildTerrainAsset:
+                _bus!.PublishManaged(new BuildTerrainAssetIntent
+                {
+                    RequestId = req.RequestId,
+                    Kinds     = TryParseTerrainKinds(req.PayloadJson),
+                });
+                break;
+
             case FdpClusterOpType.CancelOperation:
                 _bus!.PublishManaged(new CancelOperationIntent
                 {
@@ -143,6 +158,19 @@ public sealed class ClusterScenarioPanel
     }
 
     // ── Payload parsing helpers (bus path only) ────────────────────────────
+
+    /// <summary>⭐ E4 — the build op's kinds. ⚠ null means ALL kinds, never "none".</summary>
+    private static string[]? TryParseTerrainKinds(string? json)
+    {
+        if (string.IsNullOrWhiteSpace(json)) return null;
+        try
+        {
+            var dto = JsonSerializer.Deserialize<TerrainAssetBuildPayloadDto>(
+                json, OrchestrationJsonOptions.Default);
+            return dto?.Kinds;
+        }
+        catch (JsonException) { return null; }
+    }
 
     private static long TryParseWallTicks(string? json)
     {
@@ -317,6 +345,7 @@ public sealed class ClusterScenarioPanel
 
         // ── 3. Checkpoint ─────────────────────────────────────────────────
         RenderCheckpointSection(EffectiveState, disableAll);
+        RenderTerrainSection(disableAll);
 
         // ── 4. Scenario ────────────────────────────────────────────────────
         RenderScenarioSection(disableAll);
@@ -612,6 +641,73 @@ public sealed class ClusterScenarioPanel
             }
 
             if (disableAll) ImGui.EndDisabled();
+        }
+        ImGui.EndChild();
+    }
+
+    /// <summary>
+    /// ⭐⭐⭐ <c>E4</c> — trigger a terrain-asset build, and show the outcome PER NODE.
+    ///
+    /// <para>⛔⛔ <b>Never one global OK</b> (§8.3 N5, §9.2 U3): the summary line says how many nodes
+    /// answered and turns red if ANY failed, and each node is listed with its own status. An operator
+    /// who sees a single green tick cannot tell which node is now missing terrain — and that node will
+    /// render and path incorrectly while the cluster reports healthy.</para>
+    ///
+    /// <para>⚠ The build is deliberately NOT gated on cluster state. A rebuild is meaningful whenever
+    /// the nodes are up; unlike a checkpoint it does not require <c>OperatingLive</c>.</para>
+    /// </summary>
+    private void RenderTerrainSection(bool disableAll)
+    {
+        if (!ImGui.CollapsingHeader("Terrain")) return;
+
+        if (ImGui.BeginChild("##OrcTerrain", AutoSize, ImGuiChildFlags.Borders | ImGuiChildFlags.AutoResizeY))
+        {
+            if (disableAll) ImGui.BeginDisabled();
+
+            if (ImGui.Button("Build Terrain Assets##OrcTerrainBuild"))
+            {
+                var requestId = Guid.NewGuid();
+                _terrainBuild.Watch(requestId);
+                SendRequest(new ClusterOpRequest
+                {
+                    RequestId     = requestId,
+                    OperationType = ClusterOpType.BuildTerrainAsset,
+                    // ⚠ No kinds ⇒ ALL kinds. An op that asked for nothing would never be published.
+                    PayloadJson   = JsonSerializer.Serialize(
+                        new TerrainAssetBuildPayloadDto(Kinds: null), OrchestrationJsonOptions.Default),
+                });
+            }
+
+            if (disableAll) ImGui.EndDisabled();
+
+            var outcomes = _terrainBuild.Outcomes;
+            if (_terrainBuild.WatchedRequestId == Guid.Empty)
+            {
+                ImGui.TextDisabled("No build requested this session.");
+            }
+            else if (outcomes.Count == 0)
+            {
+                ImGui.TextDisabled("Build in flight — waiting for node acknowledgements...");
+            }
+            else
+            {
+                // ⛔ The SUMMARY never stands alone: it is a count plus a per-node list, so "green" can
+                //    never hide a failed node.
+                if (_terrainBuild.AnyFailed)
+                    ImGui.TextColored(new System.Numerics.Vector4(1f, 0.35f, 0.3f, 1f),
+                        $"{outcomes.Count} node(s) answered — AT LEAST ONE FAILED");
+                else
+                    ImGui.Text($"{outcomes.Count} node(s) answered — all OK so far");
+
+                foreach (var o in outcomes)
+                {
+                    string line = $"  node {o.NodeId}: {o.Status} ({o.Phase})";
+                    if (o.Failed)
+                        ImGui.TextColored(new System.Numerics.Vector4(1f, 0.35f, 0.3f, 1f), line);
+                    else
+                        ImGui.Text(line);
+                }
+            }
         }
         ImGui.EndChild();
     }

@@ -242,4 +242,30 @@ internal static class ClusterOpRequestAdapter
 
         return new LoadZoneIntent { RequestId = req.RequestId, ZoneId = zoneId };
     }
+
+    /// <summary>
+    /// ⭐ <c>E4</c> — converts a <see cref="ClusterOpRequest"/> with
+    /// <c>OperationType == BuildTerrainAsset</c> to a <see cref="BuildTerrainAssetIntent"/>.
+    ///
+    /// <para>⚠ A null/empty <c>Kinds</c> means <b>ALL kinds</b>, not none — an op that asked for nothing
+    /// would never be published, so treating absence as "nothing" would silently turn every
+    /// unparameterised build into a no-op.</para>
+    /// </summary>
+    public static BuildTerrainAssetIntent ToBuildTerrainAssetIntent(ClusterOpRequest req)
+    {
+        string[]? kinds = null;
+        var payload = req.PayloadJson;
+        if (!string.IsNullOrWhiteSpace(payload) && payload.TrimStart().StartsWith("{", StringComparison.Ordinal))
+        {
+            try
+            {
+                var dto = JsonSerializer.Deserialize<TerrainAssetBuildPayloadDto>(
+                    payload, OrchestrationJsonOptions.Default);
+                kinds = dto?.Kinds;
+            }
+            catch (JsonException) { }
+        }
+
+        return new BuildTerrainAssetIntent { RequestId = req.RequestId, Kinds = kinds };
+    }
 }

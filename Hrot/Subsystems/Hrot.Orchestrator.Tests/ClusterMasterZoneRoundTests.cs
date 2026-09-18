@@ -114,7 +114,13 @@ public sealed class ClusterMasterZoneRoundTests
         bus.SwapBuffers();
         var commits = ReadOps(bus, FdpNodeOpType.CommitZone);
         Assert.Equal(2, commits.Count);
-        Assert.NotEqual(prepares[0].TransactionId, commits[0].TransactionId);
+        // ⭐⭐ ONE transaction id for BOTH phases — a round IS a transaction.
+        // ⚠⚠ THIS ASSERTION WAS INVERTED AND WRONG until 2026-09-18. It read `NotEqual`, written when
+        //    the first version of this round used a fresh id per phase. D3 then measured that the NODE
+        //    stages under the prepare's id and consumes that staging in the commit, so two ids leave
+        //    every commit unable to find its own prepare — and the master was changed to reuse one.
+        //    ⛔ The rail was not updated with it, so it asserted the defect. 📄 design §10.3.
+        Assert.Equal(prepares[0].TransactionId, commits[0].TransactionId);
         Assert.DoesNotContain(bus.ReadManaged<ClusterOpCompletedEvent>(),
             e => e.RequestId == requestId && !e.StatusCode.IsError());
 
@@ -255,6 +261,156 @@ public sealed class ClusterMasterZoneRoundTests
         Assert.Empty(ReadOps(bus, FdpNodeOpType.PrepareZone));
         Assert.Contains(bus.ReadManaged<ClusterOpCompletedEvent>(),
             e => e.RequestId == requestId && e.StatusCode.IsError());
+    }
+
+    // ══════════════════════════════════════════════════════════════════════════
+    // E4 — the TERRAIN-ASSET BUILD round, and the per-node outcome
+    // ══════════════════════════════════════════════════════════════════════════
+
+    /// <summary>
+    /// ⭐⭐ <c>E4</c> — the build is its OWN op pair, not a zone round with different arguments.
+    /// 📄 §2.1b: zone preparation and the asset build "are different in nature and stay separate ops".
+    /// ⭐ Both reuse the same continuation and abort arm, so there is one 2PC mechanism with two
+    /// vocabularies — this rail pins that the vocabularies do not leak into each other.
+    /// </summary>
+    [Fact(Timeout = 5_000)]
+    public void E4_BuildTerrainAsset_RunsItsOwnPrepareThenCommitPair()
+    {
+        var (master, bus) = BootstrapWithNodes(NodeA, NodeB);
+        using var _ = master;
+
+        var requestId = Guid.NewGuid();
+        bus.PublishManaged(new BuildTerrainAssetIntent { RequestId = requestId, Kinds = null });
+        bus.SwapBuffers();
+        master.Tick();
+
+        bus.SwapBuffers();
+        var prepares = ReadOps(bus, FdpNodeOpType.PrepareTerrainAsset);
+        Assert.Equal(2, prepares.Count);
+        Assert.Single(prepares.Select(p => p.TransactionId).Distinct());
+
+        // ⛔ Not the zone pair — the two rounds must not be confusable on the wire.
+        Assert.Empty(ReadOps(bus, FdpNodeOpType.PrepareZone));
+        Assert.Empty(ReadOps(bus, FdpNodeOpType.CommitTerrainAsset));
+
+        AckAll(bus, prepares);
+        bus.SwapBuffers();
+        master.Tick();
+
+        bus.SwapBuffers();
+        var commits = ReadOps(bus, FdpNodeOpType.CommitTerrainAsset);
+        Assert.Equal(2, commits.Count);
+        // ⭐ ONE transaction id across both phases, so a node's commit can find what its prepare staged.
+        Assert.Equal(prepares[0].TransactionId, commits[0].TransactionId);
+
+        AckAll(bus, commits);
+        bus.SwapBuffers();
+        master.Tick();
+
+        bus.SwapBuffers();
+        Assert.Contains(bus.ReadManaged<ClusterOpCompletedEvent>(),
+            e => e.RequestId == requestId && !e.StatusCode.IsError());
+    }
+
+    /// <summary>
+    /// ⚠ No kinds means ALL kinds, and the payload carries that as null rather than an empty array —
+    /// an op that asked for nothing would never be published, so "absence = nothing" would silently
+    /// turn every unparameterised build into a no-op.
+    /// </summary>
+    [Fact(Timeout = 5_000)]
+    public void E4_ABuildWithNoKinds_CarriesNullRatherThanAnEmptyList()
+    {
+        var (master, bus) = BootstrapWithNodes(NodeA);
+        using var _ = master;
+
+        bus.PublishManaged(new BuildTerrainAssetIntent { RequestId = Guid.NewGuid(), Kinds = null });
+        bus.SwapBuffers();
+        master.Tick();
+
+        bus.SwapBuffers();
+        var prepare = ReadOps(bus, FdpNodeOpType.PrepareTerrainAsset).Single();
+        Assert.Null(Assert.IsType<TerrainAssetOpPayload>(prepare.DomainPayload).Kinds);
+    }
+
+    /// <summary>⭐ A failed prepare aborts the build round too — the same arm the zone round uses.</summary>
+    [Fact(Timeout = 5_000)]
+    public void E4_AFailedBuildPrepare_AbortsAndNeverCommits()
+    {
+        var (master, bus) = BootstrapWithNodes(NodeA, NodeB);
+        using var _ = master;
+
+        var requestId = Guid.NewGuid();
+        bus.PublishManaged(new BuildTerrainAssetIntent { RequestId = requestId, Kinds = null });
+        bus.SwapBuffers();
+        master.Tick();
+
+        bus.SwapBuffers();
+        var prepares = ReadOps(bus, FdpNodeOpType.PrepareTerrainAsset);
+        AckAll(bus, prepares.Take(1));
+        AckAll(bus, prepares.Skip(1), OrchestrationStatusCode.Failure);
+        bus.SwapBuffers();
+        master.Tick();
+
+        bus.SwapBuffers();
+        Assert.Empty(ReadOps(bus, FdpNodeOpType.CommitTerrainAsset));
+        Assert.Equal(2, ReadOps(bus, FdpNodeOpType.AbortTransaction).Count);
+        Assert.Contains(bus.ReadManaged<ClusterOpCompletedEvent>(),
+            e => e.RequestId == requestId && e.StatusCode.IsError());
+    }
+
+    /// <summary>
+    /// ⭐⭐⭐ <b>§8.3 N5 / §9.2 U3 — NEVER ONE GLOBAL OK.</b> The per-node outcome must survive the round,
+    /// because the master aggregates it away: an operator who sees a single green tick cannot tell WHICH
+    /// node is now missing terrain, and that node will render and path incorrectly while the cluster
+    /// reports healthy.
+    /// </summary>
+    [Fact]
+    public void E4_ThePerNodeOutcome_NamesTheNodeThatFailed()
+    {
+        var tracker = new Hrot.Orchestrator.Panels.TerrainBuildOutcomeTracker();
+        tracker.Watch(Guid.NewGuid());
+
+        tracker.Record(NodeA, FdpNodeOpType.CommitTerrainAsset, OrchestrationStatusCode.Success);
+        tracker.Record(NodeB, FdpNodeOpType.PrepareTerrainAsset, OrchestrationStatusCode.Failure);
+
+        Assert.True(tracker.AnyFailed);
+        var outcomes = tracker.Outcomes;
+        Assert.Equal(2, outcomes.Count);
+        Assert.Equal(NodeA, outcomes[0].NodeId);
+        Assert.False(outcomes[0].Failed);
+        Assert.Equal(NodeB, outcomes[1].NodeId);
+        Assert.True(outcomes[1].Failed);   // ⭐ WHICH node, not just "something failed"
+    }
+
+    /// <summary>
+    /// ⛔ It records only the terrain ops. The panel shares a bus with every other round, and folding an
+    /// unrelated op's ACK in would misreport which node failed at what.
+    /// </summary>
+    [Fact]
+    public void E4_TheOutcomeTracker_IgnoresUnrelatedOps()
+    {
+        var tracker = new Hrot.Orchestrator.Panels.TerrainBuildOutcomeTracker();
+        tracker.Watch(Guid.NewGuid());
+
+        tracker.Record(NodeA, FdpNodeOpType.TakeSnapshot,  OrchestrationStatusCode.Failure);
+        tracker.Record(NodeA, FdpNodeOpType.SerializeLocal, OrchestrationStatusCode.Failure);
+
+        Assert.Empty(tracker.Outcomes);
+        Assert.False(tracker.AnyFailed);
+    }
+
+    /// <summary>⚠ A new build clears the previous round — two rounds' answers mixed is worse than none.</summary>
+    [Fact]
+    public void E4_StartingANewBuild_ClearsThePreviousOutcomes()
+    {
+        var tracker = new Hrot.Orchestrator.Panels.TerrainBuildOutcomeTracker();
+        tracker.Watch(Guid.NewGuid());
+        tracker.Record(NodeA, FdpNodeOpType.CommitTerrainAsset, OrchestrationStatusCode.Failure);
+        Assert.True(tracker.AnyFailed);
+
+        tracker.Watch(Guid.NewGuid());
+        Assert.Empty(tracker.Outcomes);
+        Assert.False(tracker.AnyFailed);
     }
 
     // ── The injected-request path (§9.6 — the editor) ─────────────────────────

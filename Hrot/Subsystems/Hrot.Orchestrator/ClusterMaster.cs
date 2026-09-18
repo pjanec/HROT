@@ -305,6 +305,7 @@ public sealed class ClusterMaster : IDisposable
         ProcessCancelOperationIntents();
         ProcessDiagnosticDumpIntents();
         ProcessLoadZoneIntents();
+        ProcessBuildTerrainAssetIntents();
 
         ConsumeNodeOpStatuses();
     }
@@ -477,6 +478,13 @@ public sealed class ClusterMaster : IDisposable
             // cluster) it arrives through THIS injected path, not the DDS translator.
             case ClusterOpType.LoadZone:
                 ProcessLoadZoneIntent(ClusterOpRequestAdapter.ToLoadZoneIntent(req));
+                break;
+
+            // E4 — same reasoning: the cluster panel injects the build op directly when it holds the
+            // master, so both paths must route it or the button works on one host and not the other.
+            case ClusterOpType.BuildTerrainAsset:
+                ProcessBuildTerrainAssetIntent(
+                    ClusterOpRequestAdapter.ToBuildTerrainAssetIntent(req));
                 break;
         }
     }
@@ -719,6 +727,74 @@ public sealed class ClusterMaster : IDisposable
 
             ProcessLoadZoneIntent(intent);
         }
+    }
+
+    /// <summary>
+    /// ⭐⭐ <c>E4</c> — the TERRAIN-ASSET BUILD round: one <c>PrepareTerrainAsset</c> →
+    /// <c>CommitTerrainAsset</c> pair over every active node.
+    ///
+    /// <para>⚠ <b>Distinct from the zone round on purpose</b> (design §2.1b): zone PREPARATION and the
+    /// asset BUILD "are different in nature and stay separate ops". A zone round names ONE zone (§9.3);
+    /// a build names KINDS and sweeps whatever those kinds cover. ⭐ Both reuse the same
+    /// <c>OnPhaseSuccess</c> continuation and the same abort arm, so there is one 2PC mechanism with two
+    /// vocabularies — not two mechanisms.</para>
+    /// </summary>
+    private void ProcessBuildTerrainAssetIntents()
+    {
+        foreach (var intent in _eventBus.ReadManaged<BuildTerrainAssetIntent>())
+        {
+            if (!_bootstrapLatch)
+            {
+                PublishOpStatus(intent.RequestId, OrchestrationStatusCode.Rejected);
+                continue;
+            }
+
+            ProcessBuildTerrainAssetIntent(intent);
+        }
+    }
+
+    /// <summary>Shared by the bus drain and the injected-request path, so the editor cannot drift.</summary>
+    private void ProcessBuildTerrainAssetIntent(BuildTerrainAssetIntent intent)
+    {
+        var targets = new List<int>(_roster.ActiveNodes.Keys);
+        if (targets.Count == 0)
+        {
+            PublishOpStatus(intent.RequestId, OrchestrationStatusCode.Success);
+            return;
+        }
+
+        var payload = new TerrainAssetOpPayload(intent.Kinds);
+        var roundTx = Guid.NewGuid();
+
+        FanOutNodeOp(NodeOpType.PrepareTerrainAsset, roundTx, payload, targets);
+        _pendingTransactions[roundTx] = new GenericTransactionTracker
+        {
+            RequestId      = intent.RequestId,
+            Expected       = targets.Count,
+            Targets        = targets,
+            OnPhaseSuccess = () => CommitTerrainAssetRound(intent.RequestId, intent.Kinds, roundTx, targets),
+        };
+
+        PublishOpStatus(intent.RequestId, OrchestrationStatusCode.InProgress);
+
+        FdpLog<ClusterMaster>.Info(
+            "[Orchestrator] Terrain asset build {0}: PrepareTerrainAsset fanned out to {1} node(s).",
+            intent.RequestId, targets.Count);
+    }
+
+    /// <summary>Phase 2 — every node staged its build, so tell them all to publish it.</summary>
+    private void CommitTerrainAssetRound(Guid requestId, string[]? kinds, Guid roundTx, List<int> targets)
+    {
+        FanOutNodeOp(NodeOpType.CommitTerrainAsset, roundTx, new TerrainAssetOpPayload(kinds), targets);
+        _pendingTransactions[roundTx] = new GenericTransactionTracker
+        {
+            RequestId = requestId,
+            Expected  = targets.Count,
+        };
+
+        FdpLog<ClusterMaster>.Info(
+            "[Orchestrator] Terrain asset build {0}: all nodes staged, CommitTerrainAsset fanned out.",
+            requestId);
     }
 
     /// <summary>

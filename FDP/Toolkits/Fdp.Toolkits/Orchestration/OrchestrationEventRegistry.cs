@@ -29,6 +29,8 @@ namespace Fdp.Toolkit.Orchestration
             bus.RegisterManaged<StorageOpCompletedEvent>();
             bus.RegisterManaged<TakeCheckpointIntent>();
             bus.RegisterManaged<LoadZoneIntent>();
+            // ⭐ E4 — the terrain-asset build op's intent.
+            bus.RegisterManaged<BuildTerrainAssetIntent>();
             bus.RegisterManaged<ExecuteDiagnosticDumpIntent>();
 
             // ⭐ BP-509 — the scenario load's staging→runtime id table (a managed Dictionary).

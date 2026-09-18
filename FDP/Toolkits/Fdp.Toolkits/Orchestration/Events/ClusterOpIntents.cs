@@ -162,4 +162,31 @@ namespace Fdp.Toolkit.Orchestration
         /// <summary>JSON-serialised <c>DiagnosticDumpPayloadDto</c> from the ExCon.</summary>
         public string PayloadJson;
     }
+
+    /// <summary>
+    /// ⭐⭐ <c>E4</c> — published when a <c>ClusterOpRequest</c> with
+    /// <c>OperationType == BuildTerrainAsset</c> arrives. Consumed by
+    /// <c>ClusterMaster.ProcessBuildTerrainAssetIntents</c>, which runs ONE
+    /// <c>PrepareTerrainAsset</c> → <c>CommitTerrainAsset</c> round over every active node.
+    ///
+    /// <para>⭐ <c>Kinds</c> names the asset kinds to rebuild; null or empty means ALL. ⚠ Empty is
+    /// "everything", not "nothing" — an op that asked for nothing would never be published.</para>
+    ///
+    /// <para>⛔ <b>EVENT ID 9061 IS PERMANENT (<c>R-42</c>), and it was chosen by measuring the whole
+    /// 9xxx range rather than taking "the next one after 9058".</b> 📐 That sweep found <b>9059 already
+    /// used TWICE</b> — <c>StagingRemapPublishedEvent</c> (Fdp.Toolkits.Orchestration) and
+    /// <c>MergeLogsIntent</c> (Hrot.Orchestrator), both production — and 9060 taken by
+    /// <c>MergeLogsCompletedEvent</c>. ⇒ 9061 is the first genuinely free value. The 9059 collision is
+    /// PRE-EXISTING and reported separately; it is not this intent's to fix.</para>
+    ///
+    /// 📄 docs/DESIGN_Terrain_Zones_And_Assets.md §3.1, §9.2 U3, §8.3 N5.
+    /// </summary>
+    [EventId(9061)]
+    [DataPolicy(DataPolicy.NoReplay)]
+    public struct BuildTerrainAssetIntent
+    {
+        public Guid      RequestId;
+        /// <summary>Asset kinds to rebuild; <c>null</c>/empty means all.</summary>
+        public string[]? Kinds;
+    }
 }
