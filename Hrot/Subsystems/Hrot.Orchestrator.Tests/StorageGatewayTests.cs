@@ -4,6 +4,7 @@ using System.IO;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
+using Fdp.Toolkit.Orchestration;
 using Hrot.Network.Orchestration;
 using Xunit;
 
@@ -160,9 +161,15 @@ public sealed class StorageGatewayTests
     }
 
     /// <summary>
-    /// When one destination path is invalid (e.g. a path on a non-existent drive),
-    /// <c>PushToNodesAsync</c> must not throw.  It should report a partial failure
-    /// with the successful copies counted and the failing one counted separately.
+    /// When one destination path is invalid, <c>PushToNodesAsync</c> must not throw. It should report a
+    /// partial failure with the successful copies counted and the failing one counted separately.
+    ///
+    /// <para>🔴 <b>FIXED 2026-09-18 (T-1, artifact-staging batch).</b> The invalid target was the UNC
+    /// path <c>\\255.255.255.255\nonexistent\scenario.json</c>, with a comment claiming it "will fail on
+    /// any OS". 📐 Measured: on Linux a backslash is an ORDINARY FILENAME CHARACTER, so that string is a
+    /// legal relative path, the copy SUCCEEDS, and the assertion reads 3 where it expects 2.
+    /// ⭐ Replaced with a destination whose parent is an existing FILE — invalid on Windows and Linux
+    /// alike, for the same reason on both.</para>
     /// </summary>
     [Fact]
     public async Task PushToNodes_BadTarget_ReturnsPartialFailure()
@@ -174,14 +181,18 @@ public sealed class StorageGatewayTests
 
         var goodDir = Path.Combine(Path.GetTempPath(), Path.GetRandomFileName());
 
+        // A real FILE, used as the parent of the invalid destination below.
+        var blockerFile = Path.Combine(dir, "blocker");
+        File.WriteAllText(blockerFile, "not a directory");
+
         try
         {
             var targets = new List<NodeDistributionTarget>
             {
                 new() { NodeId = 1, DestinationPath = Path.Combine(goodDir, "scenario.json") },
                 new() { NodeId = 2, DestinationPath = Path.Combine(goodDir, "sub", "scenario.json") },
-                // Invalid: a "path" whose parent directory creation will fail on any OS.
-                new() { NodeId = 3, DestinationPath = "\\\\255.255.255.255\\nonexistent\\scenario.json" },
+                // ⭐ Invalid on EVERY OS: `blocker` is a FILE, so creating a directory under it fails.
+                new() { NodeId = 3, DestinationPath = Path.Combine(blockerFile, "sub", "scenario.json") },
             };
 
             var gateway = new StorageGatewayModule();
@@ -208,7 +219,15 @@ public sealed class StorageGatewayTests
     {
         var nasDir     = Path.Combine(Path.GetTempPath(), Path.GetRandomFileName());
         var scenarioId = "empty_scenario";
-        var scenarioDir = Path.Combine(nasDir, scenarioId);
+        // 🔴 FIXED 2026-09-18 (T-1, artifact-staging batch): this built `{nas}/{id}` and production
+        //    looks in `{nas}/scenarios/{id}` (StorageGatewayModule.cs:238, via
+        //    OrchestrationConstants.ScenariosDirectoryName). ⛔ So the call threw DirectoryNotFound
+        //    BEFORE reaching the empty-directory guard, and this test has NEVER exercised the guard it
+        //    is named for — it asserted the wrong exception and went red the moment anyone looked.
+        // ⚠⚠ The consequence is bigger than one red: every test that reaches PrefetchScenarioAsync
+        //    through this layout died at the same line, so the COPY LOOP and CheckTkbNameConsensus were
+        //    untested too. That is what this batch extends.
+        var scenarioDir = Path.Combine(nasDir, OrchestrationConstants.ScenariosDirectoryName, scenarioId);
         Directory.CreateDirectory(scenarioDir);   // exists but contains no files
 
         try

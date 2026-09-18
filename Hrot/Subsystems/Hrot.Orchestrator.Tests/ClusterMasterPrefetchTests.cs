@@ -49,7 +49,13 @@ public sealed class ClusterMasterPrefetchTests : IDisposable
     public void PrefetchScenario_WhenGatewaySucceeds_PrefetchFilesIsFanOutAfterCompletion()
     {
         // Arrange: create a scenario directory on the NAS with a test file.
-        var scenarioDir = Path.Combine(_nasDir, _scenarioId);
+        // 🔴 FIXED 2026-09-18 (T-1, artifact-staging batch): same defect as
+        //    StorageGatewayTests.PrefetchScenarioAsync_EmptyDirectory_ThrowsInvalidOperation — the NAS
+        //    layout was built WITHOUT the `scenarios/` segment production resolves
+        //    (StorageGatewayModule.cs:238). ⛔ The gateway threw DirectoryNotFound, no copy ever ran, and
+        //    so PrefetchFiles was never fanned out — which is exactly what this test then reported.
+        var scenarioDir = Path.Combine(
+            _nasDir, Fdp.Toolkit.Orchestration.OrchestrationConstants.ScenariosDirectoryName, _scenarioId);
         Directory.CreateDirectory(scenarioDir);
         File.WriteAllText(Path.Combine(scenarioDir, "Hrot.SimHost.json"), "{}");
 
