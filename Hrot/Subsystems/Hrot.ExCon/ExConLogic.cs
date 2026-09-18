@@ -297,6 +297,49 @@ public sealed class ExConLogic : IExConLogic, IMapPickService, Hrot.UI.Common.Fa
     }
 
     /// <inheritdoc/>
+    /// <remarks>
+    /// ⭐⭐ <c>E5</c> — the ZONE arm. ⛔ Not a second mechanism: it is the same
+    /// <c>CMD_START_AUTHORING</c> command as <see cref="StartAreaAuthoringMode"/>, carrying
+    /// <c>tkbType = TerrainZone</c> (<c>B1</c>) so the map host's shared <c>AreaAuthoringArm</c> births
+    /// a zone instead of a tactical area. 📄 design §2.1: <c>TkbType</c> is THE discriminator.
+    ///
+    /// <para>⚠ <b>The area arm sends no <c>tkbType</c> at all</b> — measured — and the map host
+    /// defaults an absent one to <c>TacGraphic_Area</c>. ⭐ That is why this method must state the
+    /// type explicitly rather than relying on the default.</para>
+    /// </remarks>
+    public void StartZoneAuthoringMode(string styleOverrideJson = "")
+    {
+        ThrowIfDisposed();
+
+        ActiveContextId = Guid.NewGuid();
+        PlacementType   = 0;
+
+        var requestId = Guid.NewGuid();
+        _lastCommandRequestId = requestId;
+        TransactionManager.TrackRequest(requestId, $"CMD_START_AUTHORING (Zone) ctx={ActiveContextId:N}");
+
+        string argsJson = Newtonsoft.Json.JsonConvert.SerializeObject(new
+        {
+            contextId = ActiveContextId.ToString("N"),
+            tkbType   = TkbEntityTypes.TerrainZone,
+            styleOverrideJson
+        });
+
+        _egressWriters.WriteMapCommand(new MapCommandDto
+        {
+            RequestId       = requestId,
+            TargetMapId     = _targetMapId,
+            CommandType     = "CMD_START_AUTHORING",
+            CommandArgsJson = argsJson,
+        });
+        _interactionPanel.AddLog("TX", ExConLogicConstants.LogTopicCommand,
+            $"CMD_START_AUTHORING (Zone) ctx={ActiveContextId:N}");
+
+        FdpLog<ExConLogic>.Debug(
+            "[Node-{0}] Zone Authoring Mode ON. ContextId={1}", _localNodeId, ActiveContextId);
+    }
+
+    /// <inheritdoc/>
     public void StartRouteAuthoringMode()
     {
         ThrowIfDisposed();

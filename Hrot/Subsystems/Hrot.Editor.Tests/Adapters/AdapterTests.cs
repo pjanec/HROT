@@ -163,6 +163,46 @@ namespace Hrot.Editor.Tests.Adapters
             Assert.Equal(1, manager.ActiveCount);
         }
 
+        /// <summary>
+        /// ⭐⭐ <c>E5</c> — zone authoring is its own MODAL, armed through the same arbiter.
+        ///
+        /// <para>⭐ Asserting on <c>ActiveModal.Id</c> is what makes this non-vacuous: a gizmo count of
+        /// 1 would be true even if <c>StartZoneAuthoringMode</c> had armed <c>PlaceArea</c>. ⛔ A shared
+        /// id would make "draw area" and "draw zone" indistinguishable to the arbiter, so cancelling
+        /// one would silently cancel the other.</para>
+        ///
+        /// <para>🔒 <c>U6</c>: *"nothing of it should be IG host only."* 📄 design §2.1.</para>
+        /// </summary>
+        [Fact]
+        public void StartZoneAuthoringMode_ArmsThePlaceZoneModal()
+        {
+            var manager    = MakeManager();
+            var controller = MakeController(manager);
+            var adapter    = new ScenarioSpawnAdapter(_bus, globalGizmoManager: manager, tools: controller);
+
+            adapter.StartZoneAuthoringMode("");
+
+            Assert.Equal(ScenarioToolIds.PlaceZone, controller.ActiveModal?.Id);
+            Assert.Equal(1, manager.ActiveCount);
+        }
+
+        /// <summary>
+        /// ⭐ <c>E5</c> — the adapter's zone arm births a <c>TerrainZone</c>.
+        /// ⚠ The full commit-geometry claim is railed where the mechanism now lives —
+        /// <c>Hrot.Presentation.Tests/AreaAuthoringArmTests</c> — so this asserts only the binding
+        /// this adapter owns: which TKB type its zone arm asks for.
+        /// </summary>
+        [Fact]
+        public void ArmZoneAuthoring_AsksTheArmForTheTerrainZoneType()
+        {
+            var manager = MakeManager();
+            var adapter = new ScenarioSpawnAdapter(_bus, globalGizmoManager: manager);
+
+            Assert.Equal(ToolActivationOutcome.Armed, adapter.ArmZoneAuthoring());
+            Assert.Equal(1, manager.ActiveCount);
+            Assert.NotEqual(TkbEntityTypes.TacGraphic_Area, TkbEntityTypes.TerrainZone);
+        }
+
         [Fact]
         public void StartRouteAuthoringMode_ArmsThroughTheArbiter_NotBesideIt()
         {

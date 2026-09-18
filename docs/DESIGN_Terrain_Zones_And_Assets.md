@@ -956,3 +956,118 @@ road-network arms.
 
 ⭐ **`CE-277(a)` / `OQ1` closed as WILL-NOT-BUILD**, for two independent and sufficient reasons: the brain
 has no zone consumer, and the class it would have instantiated no longer exists.
+
+### 10.7 ✅ `E5` / `U6` AS-BUILT — **ONE area-authoring mechanism, and the hard-coded `TkbType` it hid** *(batch terrain-3, `2026-09-18`)*
+
+> 🔒 **The ruling this closes, verbatim:** *"area authoring should be part of unified **Map2d role**
+> features, as well as authoring the tactical drawings, **nothing of it should be IG host only**."*
+
+⛔⛔ **The design said "move it into the Map2D role feature set". 📐 Measured, that phrasing does not
+survive contact with the code, and the correction matters:**
+
+| what the plan assumed | 📐 what is measured | consequence |
+|---|---|---|
+| the Map2D **role** is where authoring features live | `NodeRole.Map2D` is a **component-OWNERSHIP policy** (`HrotRoleComponentSets.cs:193` — `EditablePolyline` + `RoutePlan` owned bits). ⛔ It selects no systems and registers no tools | ⇒ ⭐ **"reachable wherever the Map2D role runs" cannot be implemented as a role gate at all** |
+| *"editor included"* | 🔒 **the editor deliberately does NOT carry `NodeRole.Map2D`** — asserted as a user ruling: *"CGF ∪ SimHost, and NOT ImageGenerator (the editor's 2-D map is not the IG presentation tier)"* (`EditorCapabilitiesTests.cs:232`) | ⇒ ⛔ a role gate would have EXCLUDED the one host the ruling names |
+| the authoring path is IG-private | 📐 it exists **TWICE**: `ScenarioSpawnAdapter.ArmAreaAuthoring` (~35 lines, editor/CGF) and `IgApplication.ActivateAreaAuthoringTool` (~135 lines, IG) | ⇒ ⭐ **`U6` is a DUPLICATE-MECHANISM finding (ruling 9), not a missing-feature one** |
+
+⇒ ⭐⭐⭐ **As built, `E5` is a MOVE into a shared CLASS any presentation host composes, not a role gate:**
+**`Hrot.Presentation/ScenarioEditor/Tools/AreaAuthoringArm.cs`** owns the gizmo lifecycle, the
+minimum-point rule, the centroid anchor, the entity-relative point loop and the `SpawnEntityCommand`
+shape. Both hosts call it.
+
+```mermaid
+classDiagram
+  class AreaAuthoringArm {
+    +ActiveGizmoId : long?
+    +ActiveGizmo : PointSequenceGizmo?
+    +Arm(AreaAuthoringRequest) ToolActivationOutcome
+    +Disarm()
+    -ComputeAnchor(points, out relative) Vector3
+  }
+  class AreaAuthoringRequest {
+    +long TkbType
+    +string StyleJson
+    +Action~SpawnEntityCommand~ OnCommit
+    +Action? OnCancelled
+    +int MinPoints
+  }
+  class ScenarioSpawnAdapter {
+    EXISTS - editor/CGF
+    +ArmAreaAuthoring(long) ToolActivationOutcome
+    +ArmZoneAuthoring() ToolActivationOutcome
+  }
+  class IgApplication {
+    EXISTS - IG
+    -ActivateAreaAuthoringTool(requestId, styleJson, tkbType)
+  }
+  class MapCommandController {
+    EXISTS - IG only
+    +BeginAreaAuthoringSession()
+    +OnAreaEntityCreated()
+    +OnAreaToolCancelled()
+  }
+  class IGeographicTransform {
+    EXISTS - IG only
+  }
+  ScenarioSpawnAdapter --> AreaAuthoringArm : one, lazily
+  IgApplication --> AreaAuthoringArm : one, lazily
+  AreaAuthoringArm ..> AreaAuthoringRequest : per Arm call
+  AreaAuthoringArm --> IGeographicTransform : OPTIONAL - null on the editor
+  IgApplication --> MapCommandController : OnCommit / OnCancelled route here
+  note for AreaAuthoringArm "THE mechanism. Geometry, gizmo, command shape.\nNo host knowledge."
+  note for IGeographicTransform "null reduces the geodetic mean to the\neditor's exact prior canvas centroid."
+  note for MapCommandController "IG's request/ACK session. NOT in the arm:\nthe editor has no DDS session."
+```
+
+*What the picture shows that the prose hid:* **the arm has NO host knowledge** — everything that differs
+between the editor and IG enters as a constructor argument (`IGeographicTransform`) or a request field
+(`OnCommit`/`OnCancelled`). ⭐ That is what makes it one implementation rather than a base class with two
+overrides, and it is why the keep-last context de-duplication, the `_networkEnabled` gate and the
+`BeginAreaAuthoringSession` call **stay at IG's call site**: they decide *whether to arm*, not *how*.
+
+#### 🔴 THE DEFECT THE MOVE EXPOSED — **a zone request silently authored a tactical area**
+
+📐 **Measured.** `ParseCommandAndActivateAreaTool` read the incoming `tkbType` **only** to compare it
+against `TacGraphic_Route`, and `ActivateAreaAuthoringTool` then hard-coded
+`TkbEntityTypes.TacGraphic_Area`. ⇒ ⛔ **a `CMD_START_AUTHORING` asking for `TerrainZone` (`B1`) produced
+an `8803` tactical area** — a shape appeared, so nothing looked broken, and **none of stage `E`'s zone
+surfaces would ever have matched it**: `E1`'s state-stroke gizmo filters on the zone type, `E2`'s
+"Load zone" menu item keys on it, `E3`'s zones view enumerates it.
+
+⭐ **Fixed by making the type a PARAMETER of the one mechanism** (§2.1: `TkbType` is THE discriminator, so
+one authoring path serves every drawn kind), and the entry points now exist end to end:
+
+| surface | as built |
+|---|---|
+| tool id | `ScenarioToolIds.PlaceZone` = `scenario.place.zone` — its OWN modal, so cancelling "draw area" does not kill "draw zone" |
+| seam | `ISpawnController.StartZoneAuthoringMode(styleJson)` — ⛔ **declared with NO default body** (`R-133`: a defaulted no-op would let every host ship the surface and draw nothing) |
+| editor / CGF | `ScenarioSpawnAdapter.ArmZoneAuthoring()` → the arm with `TerrainZone` |
+| ExCon → IG | `ExConLogic.StartZoneAuthoringMode` sends `CMD_START_AUTHORING` carrying `tkbType = 8804`; IG passes it through to the arm |
+| operator | `SpawnerPanel`'s **DRAW ZONE** button, beside DRAW AREA / DRAW ROUTE — the panel is shared by the editor and ExCon |
+
+⚠ **The absent-`tkbType` default is load-bearing and is railed:** `ExConLogic.StartAreaAuthoringMode`
+sends **no** `tkbType` at all, so *"absent means `TacGraphic_Area`"* is the live ExCon → IG contract.
+
+#### ⭐ Where `E5` was already DONE, and nobody had noticed
+
+📐 The **EDIT** half was unified a programme earlier: `UXI-07` step `3b` deleted
+`ActivateAreaEditingTool`'s verbatim copies of the `VertexEditGizmo`/`RouteWaypointGizmo` arms and routed
+it through `ToolController.Activate(ScenarioToolIds.Edit/Route)`. ⇒ ⭐⭐ **`E5`'s success condition was
+half-satisfied before this batch, and the reason the CREATE half was left behind is precise:
+`PlaceArea`/`PlaceRoute` are registered by `ScenarioSpawnAdapter`'s CONSTRUCTOR** — measured as the only
+registrations of either id — **so a host that does not compose that adapter had nowhere to route the arm.**
+IG references `Hrot.Presentation` and composes no `ScenarioSpawnAdapter`; it grew its own copy instead.
+⛔ **That is the seam law in its usual form: the shared thing existed and was unreachable.**
+
+#### ⚠ What `E5` did NOT do
+
+⛔ **The "Map2D role feature set" was not created**, because (per the table above) the role is an
+ownership policy and the editor is deliberately outside it. ⭐ A host gets area/zone authoring by
+composing `ScenarioSpawnAdapter` **or** by calling `AreaAuthoringArm` directly, exactly as IG does.
+⚠ **`ScenarioSpawnAdapter` is still the only registrar of the three `Place*` tool ids** — folding them
+into `MapInteractionPack` would make them role-composable, and that is a separate seam left OPEN.
+⛔ **Route authoring was NOT moved.** `ArmRouteAuthoring` emits a `RoutePlan` with **absolute**
+waypoints (§2.1a: *"`EditablePolyline` is for AREAS; `RoutePlan` is for ROUTES — do not unify them"*), so
+folding it into this arm would collapse two deliberately different geometry contracts. ⭐ `MinPoints` is a
+parameter so a future route arm can share the gizmo lifecycle if that is ever wanted.

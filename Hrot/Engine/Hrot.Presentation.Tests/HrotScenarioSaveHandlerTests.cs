@@ -19,6 +19,12 @@ namespace Hrot.ScenarioEditor.Tests;
 /// <see cref="NodeOpType.SerializeLocal"/> payload so it coexists with <c>ReferenceArchiveHandler</c>.
 /// 📄 docs/DESIGN_Distributed_Scenario_Persistence.md §4/§4a.
 /// </summary>
+// ⭐⭐⭐ QA-008 (second assembly, 2026-09-18) — this class calls ComponentTypeRegistry.Clear(),
+//    a PROCESS-GLOBAL mutation. Without this attribute it runs in parallel with every other
+//    collection and deletes their component registrations mid-test — the DEBT-AIB-030 flake,
+//    measured here as SIX distinct victims across four runs, all green under --filter.
+//    📄 ComponentTypeRegistryMutatorCollection.cs carries the measurement.
+[Collection(Hrot.Presentation.Tests.ComponentTypeRegistryMutatorCollection.Name)]
 public sealed class HrotScenarioSaveHandlerTests : IDisposable
 {
     [ComponentId(221)]

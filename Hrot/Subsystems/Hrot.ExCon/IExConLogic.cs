@@ -77,6 +77,15 @@ public interface IExConLogic
     void StartAreaAuthoringMode(string styleOverrideJson = "");
 
     /// <summary>
+    /// ⭐⭐ <c>E5</c> — activates TERRAIN-ZONE authoring on the map host. Same
+    /// <c>CMD_START_AUTHORING</c> command as <see cref="StartAreaAuthoringMode"/>, carrying the zone
+    /// <c>tkbType</c> so the host's shared area arm births a <c>TerrainZone</c> (<c>B1</c>).
+    /// 🔒 The <c>U6</c> ruling: *"nothing of it should be IG host only."*
+    /// </summary>
+    /// <param name="styleOverrideJson">Optional overlay style JSON; empty uses the host default.</param>
+    void StartZoneAuthoringMode(string styleOverrideJson = "");
+
+    /// <summary>
     /// Activates the polyline route authoring tool. The operator draws a shared
     /// <c>TacGraphic_Route</c> entity by clicking waypoints on the map canvas.
     /// </summary>

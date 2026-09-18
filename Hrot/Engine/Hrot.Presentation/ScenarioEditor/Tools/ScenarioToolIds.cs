@@ -64,6 +64,17 @@ namespace Hrot.ScenarioEditor.Tools
         /// <summary>Route (waypoint sequence) authoring — <c>ISpawnController.StartRouteAuthoringMode</c>.</summary>
         public const string PlaceRoute = "scenario.place.route";
 
+        /// <summary>
+        /// ⭐⭐ <c>E5</c> — terrain-zone authoring: <c>ISpawnController.StartZoneAuthoringMode</c>.
+        ///
+        /// <para>⭐ Deliberately its OWN id rather than a parameter on <see cref="PlaceArea"/>: an
+        /// arbiter tells tools apart BY ID, so sharing one would make "draw area" and "draw zone"
+        /// indistinguishable to the toolbar, to <c>ActiveModal</c>, and to whatever cancels one of them.
+        /// ⛔ Same mechanism (<c>AreaAuthoringArm</c>), different <c>TkbType</c> — 📄 design §2.1:
+        /// <c>TkbType</c> is THE discriminator.</para>
+        /// </summary>
+        public const string PlaceZone = "scenario.place.zone";
+
         // ── UXI-07 step 4b — the PICKERS ─────────────────────────────────────────────────────────
         //
         // ⭐⭐⭐ These are INTERRUPTIONS, not switches: they are pushed with ToolController.PushModal so

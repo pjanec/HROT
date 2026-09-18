@@ -42,6 +42,12 @@ namespace Hrot.UI.Common.Adapters
         private readonly Hrot.ScenarioEditor.Tools.ToolController? _tools;
         private long?                        _activeSequenceId;
 
+        /// <summary>
+        /// ⭐ <c>E5</c> — the ONE area-authoring mechanism, shared with IG. Created lazily because it
+        /// needs the gizmo manager, which is optional on this adapter.
+        /// </summary>
+        private Hrot.ScenarioEditor.Tools.AreaAuthoringArm? _areaArm;
+
         // ⚠⚠ The per-invocation parameters, held between Activate() and the arm body — the same shape
         //    EditorZoneAdapter and MapCommandController use, because ToolActivation takes only an Entity.
         // ⭐⭐ _pendingPropertiesJson is CONSUMED by the arm (read-then-clear), and that is load-bearing:
@@ -112,6 +118,19 @@ namespace Hrot.UI.Common.Adapters
                     Hrot.ScenarioEditor.Tools.ToolModality.Modal,
                     Hrot.ScenarioEditor.Tools.ToolArbiter.Global),
                 _ => ArmRouteAuthoring());
+
+            // ⭐⭐ E5 — a terrain zone is drawn by the SAME mechanism with a different TkbType, so the
+            //   tool costs one registration. ⛔ Without it `TerrainZone` (B1) would be a type nothing
+            //   can author — R-133's "a capability reported present that silently no-ops" in its
+            //   other direction: a whole stage of zone surfaces (E1 gizmo, E2 menu, E3 view) with no
+            //   way to make a zone in the first place.
+            _tools?.Register(
+                new Hrot.ScenarioEditor.Tools.ToolDescriptor(
+                    Hrot.ScenarioEditor.Tools.ScenarioToolIds.PlaceZone,
+                    "Draw Zone",
+                    Hrot.ScenarioEditor.Tools.ToolModality.Modal,
+                    Hrot.ScenarioEditor.Tools.ToolArbiter.Global),
+                _ => ArmZoneAuthoring());
         }
 
         /// <inheritdoc/>
@@ -273,13 +292,34 @@ namespace Hrot.UI.Common.Adapters
             ArmAreaAuthoring();
         }
 
-        /// <summary>The area arm body — reached through <c>Activate</c>, or directly with no arbiter.</summary>
+        /// <summary>
+        /// The area arm body — reached through <c>Activate</c>, or directly with no arbiter.
+        ///
+        /// <para>⭐⭐⭐ <c>E5</c> — 🔴 this method used to carry the gizmo lifecycle, the centroid
+        /// arithmetic, the relative-point loop and the <c>SpawnEntityCommand</c> shape VERBATIM, and
+        /// <c>IgApplication.ActivateAreaAuthoringTool</c> carried the same mechanism again with a
+        /// geodetic centroid. ⇒ moved into <see cref="Hrot.ScenarioEditor.Tools.AreaAuthoringArm"/>
+        /// (ruling 9, and the <c>U6</c> ruling *"nothing of it should be IG host only"*). ⭐ The only
+        /// thing left here is this host's DIFFERENCE: the commit goes on the local bus.</para>
+        ///
+        /// <para>⚠ The <c>null</c>-manager pre-check stays: the arm itself tolerates a null manager
+        /// (IG's rails need that), so returning <c>Unserviceable</c> is a CALLER rule this host keeps.
+        /// </para>
+        /// </summary>
         public Hrot.ScenarioEditor.Tools.ToolActivationOutcome ArmAreaAuthoring()
+            => ArmAreaAuthoring(TkbEntityTypes.TacGraphic_Area);
+
+        /// <summary>
+        /// ⭐ The arm, parameterised by the TKB type the shape is born as — <c>TacGraphic_Area</c> for a
+        /// tactical area, <c>TerrainZone</c> for a zone (<c>B1</c>). 📄 design §2.1: <c>TkbType</c> is
+        /// THE discriminator, so one authoring mechanism serves every drawn kind.
+        /// </summary>
+        public Hrot.ScenarioEditor.Tools.ToolActivationOutcome ArmAreaAuthoring(long tkbType)
         {
             if (_globalGizmoManager == null)
                 return Hrot.ScenarioEditor.Tools.ToolActivationOutcome.Unserviceable;
 
-            var styleOverrideJson = _pendingStyleJson;
+            var arm = _areaArm ??= new Hrot.ScenarioEditor.Tools.AreaAuthoringArm(_globalGizmoManager);
 
             if (_activeSequenceId.HasValue)
             {
@@ -287,45 +327,41 @@ namespace Hrot.UI.Common.Adapters
                 _activeSequenceId = null;
             }
 
-            var styleJson = styleOverrideJson;
-            var areaId = GlobalGizmoManager.NewId();
-            var gizmo = new PointSequenceGizmo(
-                onFinish: points =>
-                {
-                    if (points.Length < 3)
-                        return;
+            var outcome = arm.Arm(new Hrot.ScenarioEditor.Tools.AreaAuthoringRequest(
+                TkbType:    tkbType,
+                StyleJson:  _pendingStyleJson,
+                OnCommit:   cmd => _bus.PublishManaged(cmd),
+                // ⭐ Clears this adapter's mirror when the tool tears itself down — exactly what the
+                //   prior inline `onRemove` did. ⛔ Dropping it would leave `_activeSequenceId` stale and
+                //   make the next arm unregister a gizmo that is already gone.
+                OnDisarmed: () => _activeSequenceId = null));
 
-                    // Build entity-relative geometry (centroid-based anchor).
-                    float sumX = 0f, sumY = 0f;
-                    for (int i = 0; i < points.Length; i++) { sumX += points[i].X; sumY += points[i].Y; }
-                    var anchor = new Vector2(sumX / points.Length, sumY / points.Length);
-
-                    var relPoints = new System.Collections.Generic.List<Vector2>(points.Length);
-                    for (int i = 0; i < points.Length; i++)
-                        relPoints.Add(points[i] - anchor);
-
-                    var polyline = new EditablePolyline { Points = relPoints };
-                    var style    = MapOverlayStyle.FromJson(styleJson);
-
-                    var cmd = new SpawnEntityCommand
-                    {
-                        NetworkId         = 0,
-                        TkbType           = TkbEntityTypes.TacGraphic_Area,
-                        OwnerNodeId       = 0,
-                        InitType          = ReliableInitType.AllPeers,
-                        RequestId         = System.Guid.NewGuid(),
-                        InitialTransform  = new SimTransform { Position = new System.Numerics.Vector3(anchor.X, anchor.Y, 0f) },
-                        InitialComponents = new System.Collections.Generic.List<object> { polyline, style },
-                    };
-
-                    _bus.PublishManaged(cmd);
-                },
-                onRemove: () => { _globalGizmoManager!.Unregister(areaId); _activeSequenceId = null; });
-
-            _activeSequenceId = areaId;
-            _globalGizmoManager!.Register(areaId, gizmo);
-            return Hrot.ScenarioEditor.Tools.ToolActivationOutcome.Armed;
+            _activeSequenceId = arm.ActiveGizmoId;
+            return outcome;
         }
+
+        /// <inheritdoc/>
+        public void StartZoneAuthoringMode(string styleOverrideJson = "")
+        {
+            _pendingStyleJson = styleOverrideJson;
+
+            if (_tools != null)
+            {
+                _tools.Activate(Hrot.ScenarioEditor.Tools.ScenarioToolIds.PlaceZone);
+                return;
+            }
+
+            ArmZoneAuthoring();
+        }
+
+        /// <summary>
+        /// ⭐ <c>E5</c> — the zone arm. ⛔ Not a second mechanism: it is
+        /// <see cref="ArmAreaAuthoring(long)"/> with <c>TkbEntityTypes.TerrainZone</c> (<c>B1</c>), which
+        /// is what makes <c>E1</c>'s zone gizmo, <c>E2</c>'s "Load zone" menu item and <c>E3</c>'s zones
+        /// view reachable from something an operator can actually create.
+        /// </summary>
+        public Hrot.ScenarioEditor.Tools.ToolActivationOutcome ArmZoneAuthoring()
+            => ArmAreaAuthoring(TkbEntityTypes.TerrainZone);
 
         /// <remarks>
         /// Registers a <see cref="PointSequenceGizmo"/> requiring >= 2 points with

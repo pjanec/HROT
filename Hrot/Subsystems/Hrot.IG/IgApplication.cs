@@ -274,6 +274,13 @@ public class IgApplication : IDisposable
     private long?                        _activeSequenceId;
     private PointSequenceGizmo?          _activeSequenceGizmo;
 
+    /// <summary>
+    /// ⭐ <c>E5</c> — the ONE area-authoring mechanism, shared with the editor's
+    /// <c>ScenarioSpawnAdapter</c>. Created lazily: it needs <see cref="_globalGizmoManager"/> and
+    /// <see cref="_geoTransform"/>, both of which arrive during bootstrap.
+    /// </summary>
+    private Hrot.ScenarioEditor.Tools.AreaAuthoringArm? _areaArm;
+
     // -- Optional IG translator provider (injected via InitializeEmbedded; null = no NED translators)
     private Hrot.Core.Network.IIgTranslators? _igTranslatorsProvider;
 
@@ -2848,13 +2855,20 @@ FdpLog<IgApplication>.Info("[Node-{0}] MapClickEvent published. ContextId={1} hi
                 _activeContextId = ctx;
             }
 
-            // If TkbType specifies a route, use the route-specific authoring tool.
-            if (root.TryGetProperty("tkbType", out var tkbEl)
-             && tkbEl.TryGetInt64(out var tkbType)
-             && tkbType == TkbEntityTypes.TacGraphic_Route)
+            // ⭐ A route gets the route-specific tool; anything else is authored by the shared AREA arm
+            //   with the requested TkbType. ⭐⭐ E5: passing it through is what makes a TERRAIN ZONE
+            //   (B1) drawable from ExCon — the prior body read this value only to test it against
+            //   `TacGraphic_Route` and then hard-coded `TacGraphic_Area`, so a zone request silently
+            //   produced a tactical area.
+            long requestedTkbType = 0;
+            if (root.TryGetProperty("tkbType", out var tkbEl) && tkbEl.TryGetInt64(out var tkbType))
             {
-                ActivateRouteAuthoringTool(requestId);
-                return;
+                if (tkbType == TkbEntityTypes.TacGraphic_Route)
+                {
+                    ActivateRouteAuthoringTool(requestId);
+                    return;
+                }
+                requestedTkbType = tkbType;
             }
 
             string styleJson = string.Empty;
@@ -2864,7 +2878,7 @@ FdpLog<IgApplication>.Info("[Node-{0}] MapClickEvent published. ContextId={1} hi
                 styleJson = styleEl.GetString() ?? string.Empty;
             }
 
-            ActivateAreaAuthoringTool(requestId, styleJson);
+            ActivateAreaAuthoringTool(requestId, styleJson, requestedTkbType);
         }
         catch (Exception ex)
         {
@@ -3461,198 +3475,80 @@ FdpLog<IgApplication>.Info("[Node-{0}] MapClickEvent published. ContextId={1} hi
 
 
     /// <summary>
-
-    /// Registers a <see cref="PointSequenceGizmo"/> with <see cref="GlobalGizmoManager"/> for area authoring.
-
-    /// Guarded by <see cref="_lastAreaContextId"/> so repeated keep-last DDS deliveries do not
-
-    /// re-activate the gizmo for the same interaction context.
-
+    /// Arms area (or ZONE) authoring on this host.
+    ///
+    /// <para>⭐⭐⭐ <c>E5</c> — 🔴 <b>this method used to carry ~135 lines that re-implemented
+    /// <c>ScenarioSpawnAdapter.ArmAreaAuthoring</c>:</b> the <see cref="PointSequenceGizmo"/>
+    /// lifecycle, the minimum-3-points rule, the centroid anchor, the entity-relative point loop and
+    /// the <c>SpawnEntityCommand</c> shape. 🔒 The user's <c>U6</c> ruling — *"area authoring should be
+    /// part of unified Map2d role features … nothing of it should be IG host only"* — and ruling 9
+    /// (*"no keeping two implementations for the same concept"*) ⇒ the mechanism MOVED into
+    /// <see cref="Hrot.ScenarioEditor.Tools.AreaAuthoringArm"/>. ⭐ This is the same trade
+    /// <c>ActivateAreaEditingTool</c> made at <c>UXI-07</c> step <c>3b</c>, one layer up.</para>
+    ///
+    /// <para>⭐ <b>What stays here is only what is TRUE OF THIS HOST:</b> the keep-last context
+    /// de-duplication (<see cref="_lastAreaContextId"/> — repeated DDS deliveries of one command must
+    /// not re-arm), the <c>_networkEnabled</c> gate, the <c>MapCommandController</c> request/ACK
+    /// session, and the geographic transform the arm projects through. ⛔ None of those belong in the
+    /// shared arm: the editor has no DDS session and no geo transform.</para>
+    ///
+    /// <para>⚠ <c>tkbType</c> is a parameter because a TERRAIN ZONE is authored by this very path —
+    /// 📄 design §2.1 makes <c>TkbType</c> THE discriminator, and <c>B1</c> allocated
+    /// <c>TerrainZone</c>. ⛔ The prior body hard-coded <c>TacGraphic_Area</c>, which is why a zone
+    /// could not be drawn from ExCon at all.</para>
     /// </summary>
-
-    private void ActivateAreaAuthoringTool(Guid requestId, string styleJson = "")
-
+    private void ActivateAreaAuthoringTool(Guid requestId, string styleJson = "", long tkbType = 0)
     {
-
         if (_lastAreaContextId == _activeContextId)
-
             return;
-
         _lastAreaContextId = _activeContextId;
 
-
-
         if (!_networkEnabled && _testSpawnCommandSink == null)
-
             return;
 
+        if (tkbType == 0)
+            tkbType = TkbEntityTypes.TacGraphic_Area;
 
-
+        // ⚠ The sequence fields are SHARED by this host's placement, area and route tools, so "one
+        //   sequence tool at a time" stays one fact. ⛔ Do not delegate this to the arm — the arm only
+        //   knows about the sequence IT armed.
         if (_activeSequenceId.HasValue)
-
         {
-
             _globalGizmoManager?.Unregister(_activeSequenceId.Value);
-
             _activeSequenceId    = null;
-
             _activeSequenceGizmo = null;
-
         }
-
-
 
         _mapCommandController?.BeginAreaAuthoringSession(requestId, _activeContextId);
 
-        var _areaGizmoId = GlobalGizmoManager.NewId();
-        var areaGizmo = new PointSequenceGizmo(
+        _areaArm ??= new Hrot.ScenarioEditor.Tools.AreaAuthoringArm(_globalGizmoManager, _geoTransform);
 
-            onFinish: points =>
-
-        {
-
-            if (points.Length < 3)
-
+        _areaArm.Arm(new Hrot.ScenarioEditor.Tools.AreaAuthoringRequest(
+            TkbType:     tkbType,
+            StyleJson:   styleJson,
+            OnCommit:    cmd =>
             {
-
-                _mapCommandController?.OnAreaToolCancelled();
-
-                return;
-
-            }
-
-
-
-            // Compute absolute geo positions for all drawn points.
-
-            var absPositions = new List<(double Lat, double Lon, double Alt)>(points.Length);
-
-            for (int i = 0; i < points.Length; i++)
-
-            {
-
-                double lat, lon, alt;
-
-                if (_geoTransform != null)
-
-                {
-
-                    // Canvas is XY: canvas Y = world Y (North, ENU). Altitude (Vector3.Z) is 0 for authoring.
-                    (lat, lon, alt) = _geoTransform.ToGeodetic(new Vector3(points[i].X, points[i].Y, 0f));
-
-                }
-
+                if (_testSpawnCommandSink != null)
+                    _testSpawnCommandSink(cmd);
                 else
-
-                {
-
-                    lat = points[i].Y;
-
-                    lon = points[i].X;
-
-                    alt = 0.0;
-
-                }
-
-                absPositions.Add((lat, lon, alt));
-
-            }
-
-
-
-            // Centroid (reference point) = arithmetic mean of absolute positions.
-
-            double refLat = 0.0, refLon = 0.0, refAlt = 0.0;
-
-            for (int i = 0; i < absPositions.Count; i++)
-
+                    _mapCommandController?.OnAreaEntityCreated(cmd, isToolDone: true);
+            },
+            OnCancelled: () => _mapCommandController?.OnAreaToolCancelled(),
+            OnDisarmed:  () =>
             {
+                // 🔴 Clears THIS host's mirror of the armed sequence. ⚠ Without it
+                //   TestHook_IsPointSequenceToolActive keeps reporting a live tool after a commit, and
+                //   the next arm believes one is held — measured RED on
+                //   AreaAuthoringTests.AreaTool_AfterCommit_ToolIsPopped.
+                _activeSequenceId    = null;
+                _activeSequenceGizmo = null;
+            }));
 
-                refLat += absPositions[i].Lat;
+        _activeSequenceId    = _areaArm.ActiveGizmoId;
+        _activeSequenceGizmo = _areaArm.ActiveGizmo;
 
-                refLon += absPositions[i].Lon;
-
-                refAlt += absPositions[i].Alt;
-
-            }
-
-            refLat /= absPositions.Count;
-
-            refLon /= absPositions.Count;
-
-            refAlt /= absPositions.Count;
-
-
-
-            // Compute anchor (centroid) in Cartesian world space.
-            Vector3 anchorCartesian;
-            if (_geoTransform != null)
-            {
-                anchorCartesian = _geoTransform.ToCartesian(refLat, refLon, refAlt);
-            }
-            else
-            {
-                anchorCartesian = new Vector3((float)refLon, (float)refLat, 0f);
-            }
-
-            // Build entity-relative Cartesian XY for each vertex.
-            var relCartPoints = new List<Vector2>(absPositions.Count);
-            for (int i = 0; i < absPositions.Count; i++)
-            {
-                if (_geoTransform != null)
-                {
-                    var absCart = _geoTransform.ToCartesian(absPositions[i].Lat, absPositions[i].Lon, 0.0);
-                    relCartPoints.Add(new Vector2(absCart.X - anchorCartesian.X, absCart.Y - anchorCartesian.Y));
-                }
-                else
-                {
-                    relCartPoints.Add(new Vector2(points[i].X - anchorCartesian.X, points[i].Y - anchorCartesian.Y));
-                }
-            }
-
-            var polyline = new EditablePolyline { Points = relCartPoints };
-            var style    = MapOverlayStyle.FromJson(styleJson);
-
-            var cmd = new Fdp.Toolkit.NetworkSpawning.Events.SpawnEntityCommand
-            {
-                NetworkId      = 0,
-                TkbType        = TkbEntityTypes.TacGraphic_Area,
-                OwnerNodeId    = 0,
-                InitType       = ReliableInitType.AllPeers,
-                RequestId      = Guid.NewGuid(),
-                InitialTransform = new SimTransform { Position = anchorCartesian },
-                InitialComponents = new System.Collections.Generic.List<object> { polyline, style },
-            };
-
-            if (_testSpawnCommandSink != null)
-                _testSpawnCommandSink(cmd);
-            else if (_mapCommandController != null)
-                _mapCommandController.OnAreaEntityCreated(cmd, isToolDone: true);
-
-        },
-
-            onRemove: () =>
-
-        {
-
-            _activeSequenceId    = null;
-
-            _activeSequenceGizmo = null;
-
-            _globalGizmoManager?.Unregister(_areaGizmoId);
-
-        });
-
-        _activeSequenceId    = _areaGizmoId;
-
-        _activeSequenceGizmo = areaGizmo;
-
-        _globalGizmoManager?.Register(_areaGizmoId, areaGizmo);
-
-
-
-        FdpLog<IgApplication>.Info("[Node-{0}] Area authoring tool activated.", _effectiveInstanceId);
-
+        FdpLog<IgApplication>.Info(
+            "[Node-{0}] Area authoring tool activated (tkbType={1}).", _effectiveInstanceId, tkbType);
     }
 
     /// <summary>

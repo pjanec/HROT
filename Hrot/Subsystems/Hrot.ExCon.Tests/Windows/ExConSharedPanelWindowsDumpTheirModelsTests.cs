@@ -51,6 +51,9 @@ public sealed class ExConSharedPanelWindowsDumpTheirModelsTests : IDisposable
         public void StartPlacementMode(long tkbType, string? initialPropertiesJson = null) { }
         public void StartAreaAuthoringMode(string styleOverrideJson = "") { }
         public void StartRouteAuthoringMode() { }
+        // ⭐ E5 — the zone arm. Present because ISpawnController declares it with NO default body
+        //   (R-133: a defaulted no-op would let a host ship the surface and draw nothing).
+        public void StartZoneAuthoringMode(string styleOverrideJson = "") { }
     }
 
     // ⚠ Two different interfaces of this name exist: Hrot.ExCon.Services (used by IExConLogic) and
