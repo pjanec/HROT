@@ -3,6 +3,10 @@ state: LIVE
 updated: 2026-09-18
 build-state: READY-TO-BUILD
 current-answer: §4 (the per-role contract) and §5 (the plan). §2 is the measured as-is.
+  ⭐ §4.1 splits the two DERIVATIONS — the knowledge base is required by every ECS node (not role-derived),
+  terrain and scenario entities are role-derived. §4.1a is RULED (load nothing where nothing reads it).
+  §4.1b is role x provider composition. ⭐⭐ §4.1c is the ONE scenario-load step and the measured
+  three-copy drift it retires.
 stale-below: nothing
 known-rot: nothing known
 known-conflict: DESIGN_Terrain_Zones_And_Assets.md §2.1e ④ ("it must NOT ride the scenario-load
@@ -321,19 +325,23 @@ classDiagram
   }
   class HrotTerrainProvider
   class StrideTerrainProvider
-  class CgfScenarioProvider
+  class ScenarioLoadStep {
+    « THE ONE — Hrot.Core, §4.1c »
+    +IsGenesisResolved(world) bool
+  }
 
   RoleLoadRequirements ..> LoadPart : declares
   LoadPhaseChain ..> RoleLoadRequirements : asks WHAT
   LoadPhaseChain o-- ILoadPartProvider : ordered, one per required part
   ILoadPartProvider <|.. HrotTerrainProvider
   ILoadPartProvider <|.. StrideTerrainProvider
-  ILoadPartProvider <|.. CgfScenarioProvider
+  ILoadPartProvider <|.. ScenarioLoadStep
 ```
 
 *What the picture shows that the prose hid: `HrotTerrainProvider` and `StrideTerrainProvider` satisfy the
-**same** requirement with **different** data, and the chain cannot tell them apart. That is the override
-point, and it is the only one — nothing lets a host satisfy fewer parts than its roles require.*
+**same** requirement with **different** data, and the chain cannot tell them apart — that is the override
+point, and it is the only one. ⭐ Beside them, `ScenarioLoadStep` has **no** sibling: it is deliberately
+the ONE implementation (§4.1c), because its readiness predicate is the thing no host may restate.*
 
 | ⭐ the rules that fall out | |
 |---|---|
@@ -345,6 +353,58 @@ point, and it is the only one — nothing lets a host satisfy fewer parts than i
 
 ⇒ ⭐ **`L2`/`L4` in §5 are restated by this:** the chain is built from `roles × providers`, not from a
 hand-written registration order in each bootstrapper.
+
+### 4.1c ⭐⭐⭐ ONE SCENARIO-LOAD STEP — **what is already shared, what is triplicated, and what FORCES the rules**
+
+⭐⭐ **The seam law first: the LOADING is already unified.** One `ScenarioEntityCreationRequestSource` →
+`CreateEntityRequestSystem` → `NetworkSpawningSystem`, one `IScenarioEntityExtractor`, one
+`ScenarioSerializer`, and **every ECS node composes the whole pipeline with no opt-out** — 📄
+[`DESIGN_Entity_Creation_Unification.md`](DESIGN_Entity_Creation_Unification.md) invariants ⑥ and ⑨,
+railed. ⛔ **So this is NOT "extract a shared loader".**
+
+🔴 **What IS triplicated is the cluster-step ADAPTER** — parse, enqueue, then hold the state transition
+until genesis has provably finished. 📐 **Measured `2026-09-18`, complete set (three implementations of
+`ITickableClusterStateHandler` that load a scenario), and TWO have already DRIFTED:**
+
+| readiness condition | `HrotScenarioLoadHandler` (SimHost) | `CgfScenarioLoadHandler` (CGF) | `HrotEditLoadHandler` (editor + CGF edit) |
+|---|---|---|---|
+| ① request queue drained | ✅ | ✅ | ✅ |
+| ② nothing still `Constructing` | ✅ | ✅ | ✅ |
+| ③ the **six** cross-reference Intent DTOs resolved | ✅ | ✅ | 🔴 **ABSENT** |
+| ④ terrain made resident at the one valid moment *(§10.1's finding — the first frame the entities are real)* | ✅ | 🔴 **ABSENT** | 🔴 absent |
+
+⇒ 🔴 **Two live defects fall straight out of the table:** an **edit** load can reach `OperatingEdit` while
+passengers, vehicles, hierarchy, targets, routes and subordinates are still unresolved; and **CGF never
+makes its zones' terrain resident**, though the design says that call belongs exactly there. ⛔ Neither is
+a new decision — both are one copy having lost a line the others kept.
+
+#### ⭐ The decision — **ONE step in `Hrot.Core`, the three handlers deleted**
+
+⭐ `Hrot.Core` because it is reachable from CGF, SimHost **and** the editor presentation assembly — the
+same reason `TerrainLoadClusterStateHandler` already lives there. ⛔ Not `Fdp.Toolkits`: the readiness
+predicate names Hrot Intent DTO types, and pushing it down would need a registration seam invented for one
+caller.
+
+#### ⭐⭐⭐ What makes it FORCE the rules rather than merely state them
+
+| # | mechanism | the defect class it makes unrepresentable |
+|---|---|---|
+| **①** | ⭐⭐⭐ **ONE readiness predicate**, owned by the step. There is no second place to write it | 🔴 exactly the ③/④ drift above — a host cannot express a subset of a predicate it does not own |
+| **②** | ⭐⭐ **the chain is built from the ROLE SET** (§4.1b), never hand-registered; a required part with no provider **throws at startup** | 🔴 §2.2's whole family — "this host forgot to register a step", silently |
+| **③** | ⭐⭐⭐ **required collaborators are NON-OPTIONAL constructor arguments** | 🔴 the id authority — `HN-037`: CGF constructed its own allocator seeded at 1 and produced ids **2–9** where the editor produced **1000–1007** (📄 `DESIGN_Deterministic_Network_Ids.md` §11d ②). 🔴 and the world — `ClusterSlave` commits with `repo: null` (§10.3), so a step publishing only through that parameter publishes **nothing**; each of the three copies had to rediscover this |
+| **④** | ⭐⭐ **host differences are INJECTION POINTS, not classes** — edit vs live is an argument; terrain residency, behaviour remapping and recording are collaborators | ⛔ a host needing different behaviour supplies a different collaborator and **never writes a second handler**, so there is nothing left to drift |
+
+⚠ **It stays a DEFAULT, not a permission gate** (📄 `DESIGN_Node_Roles_And_Policies.md` §3.1): the step
+exists on every host; only `Brain`'s requirement pulls it into that host's chain.
+
+#### ⛔ Rejected — one line each
+
+| alternative | the one fact that ruled it out |
+|---|---|
+| a shared **abstract base** with virtual hooks | a host could override the readiness predicate — the single thing that must not be overridable |
+| keep three handlers, add a **rail asserting they agree** | a rail over copies must be updated per copy, and it cannot see a fourth copy added later |
+| push the step into **`Fdp.Toolkits`** | the predicate names Hrot Intent DTO types; it would need a generic registration seam invented for one caller |
+| let `ClusterSlave` **run every matching handler** | breaks the exclusivity other handlers depend on (§5.1) |
 
 ### 4.2 Where the parts come from
 
@@ -377,9 +437,10 @@ first"* without hanging terrain off a handler four roles do not have.
 | **L2** | Introduce the ordered **load-phase chain**: one registered handler per ECS host claiming `PrepareLive`/`PrepareEdit`, running its steps in order and ACKing once. ⭐ Composed from **`roles × providers`** (§4.1b), never from a per-bootstrapper registration order; a required part with no provider fails **loudly at startup** | new, beside `SerializeLocalRegistrar` |
 | **L3** | Re-home `TkbLoadClusterStateHandler` and `TerrainLoadClusterStateHandler` as **steps**, reading their name from the payload, falling back to the staged header only when the payload is silent (one release of tolerance) | both handlers |
 | **L4** | Register the chain on **every ECS host** — CGF, SimHost, IG, editor. ⭐⭐⭐ The **knowledge-base step is unconditional** on all of them (§4.1 — `Q65-A′`; today only SimHost has one, so CGF and IG silently ignore a scenario's `TkbName`); the **terrain step** goes only to `MuscleGround`/`NavigationSolver` (§4.1a); the **scenario step** only where `Brain` is composed | the three bootstrappers + the editor |
+| **L4a** | ⭐⭐⭐ **Collapse the THREE scenario-load adapters into ONE shared `ScenarioLoadStep` in `Hrot.Core`** (§4.1c) and delete `CgfScenarioLoadHandler`, `HrotScenarioLoadHandler` and `HrotEditLoadHandler`. ⭐ One readiness predicate · required collaborators non-optional (the id authority and the world) · edit-vs-live an argument · terrain residency, behaviour remapping and recording injected. ⚠ **Fixes two live defects the drift table measured**: the edit path is missing readiness condition ③, and CGF never makes its zones' terrain resident | `Hrot.Core` + the three deleted handlers and their suites |
 | **L5** | Terrain residency becomes a service with a stable entry point: `EnsureTerrain(name)` idempotent (already-resident ⇒ no-op), plus an `UnloadAll()` seam left **unwired** for the future standby mode | `TerrainLoadService` |
 | **L6** | Ensure the content step runs **after** the staging ACKs, closing the race in §2.4 — and remove the two-second retry that papers over it today | the orchestrator's transition sequencing |
-| **L7** | Rails: the chain runs **all** its steps and ACKs once · a shadowed step is impossible by construction · ⭐⭐ **every ECS host resolves the scenario's named knowledge base** — the `Q65-A′` rail, and the one that would have caught the IG/CGF gap · a host with no terrain consumer makes **no** terrain resident · a `Brain` host loads entities and a non-`Brain` host loads **none** · the payload names beat the sidecar · an absent name is legal and silent, an absent **artifact** is loud | `Hrot.SimHost.Tests`, `Hrot.CGF` tests, and the existing cluster conformance rails |
+| **L7** | Rails: the chain runs **all** its steps and ACKs once · a shadowed step is impossible by construction · ⭐⭐ **every ECS host resolves the scenario's named knowledge base** — the `Q65-A′` rail, and the one that would have caught the IG/CGF gap · a host with no terrain consumer makes **no** terrain resident · a `Brain` host loads entities and a non-`Brain` host loads **none** · the payload names beat the sidecar · an absent name is legal and silent, an absent **artifact** is loud · ⭐⭐ **the readiness predicate has exactly ONE implementation** — the rail that replaces the three-copy drift, asserting an edit load also waits for the six cross-reference intents and that a Brain host makes terrain resident. ⚠ **`HN-037`'s test surface applies**: three handlers and their suites are deleted, so the claims each asserted must be **re-homed onto the one step**, not dropped | `Hrot.SimHost.Tests`, `Hrot.CGF` tests, `Hrot.Editor.Tests`, and the existing cluster conformance rails |
 
 ### 5.1 Deliberately NOT in this plan
 
