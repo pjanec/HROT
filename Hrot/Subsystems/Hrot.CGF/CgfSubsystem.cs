@@ -199,6 +199,26 @@ public sealed class CgfSubsystem : ISubsystem, Fdp.Toolkit.Runner.IMapCameraProv
     private readonly Hrot.Editor.AiShared.Selection.SharedEntitySelection _sharedEntitySelection = new();
 
     /// <summary>
+    /// ⭐⭐ <c>C8</c> — THIS node's road-graph holder, mirroring <c>NodeBootstrapper.RoadNetworkHolder</c>.
+    /// It owns every published <c>RoadNetworkBlob</c> and makes a terrain reload safe against a
+    /// background reader.
+    /// <para>⚠ CGF composes no <c>NavigationSolverModule</c> today, so the holder's only consumer is the
+    /// terrain loader. It still has to EXIST: the loader publishes through it, and a blob published with
+    /// no owner is a leak plus a generation that is never retired.</para>
+    /// </summary>
+    private readonly CarKinem.Road.RoadNetworkHolder _cgfRoadNetworkHolder =
+        new CarKinem.Road.RoadNetworkHolder();
+
+    /// <summary>
+    /// ⭐⭐ <c>C8</c> — THIS node's terrain load service. 🔒 User ruling `2026-09-17`: <i>"IG/CGF get
+    /// loaders in batch 3"</i> — a REAL loader, not a scoped-down identity check. In slice 1 its tile
+    /// loader is the announcing fake (design §6/§7).
+    /// </summary>
+    private readonly Hrot.Map.Common.Services.TerrainLoadService _cgfTerrainLoadService =
+        new Hrot.Map.Common.Services.TerrainLoadService(
+            new Fdp.Toolkit.Terrain.AnnouncingZoneTileLoader());
+
+    /// <summary>
     /// ⭐⭐⭐ <b><c>CE-013</c> — the POPULATED asset catalog</b> *(slice 2)*. ⚠ Slice 1 held a bare
     /// <c>new AssetCatalog()</c>, which is why every AiShared window could only render its empty state.
     /// </summary>
@@ -1052,6 +1072,28 @@ public sealed class CgfSubsystem : ISubsystem, Fdp.Toolkit.Runner.IMapCameraProv
 
         var storageProvider = new LocalDiskStorageProvider(isolatedTempRoot);
 
+        // ⭐⭐⭐ C8 — THE TERRAIN LOADER, registered BEFORE every PrepareLive claimant on this host.
+        //
+        // 🔒 User ruling `2026-09-17`: "IG/CGF get loaders in batch 3" — a REAL
+        //    TerrainLoadClusterStateHandler, as SimHost already has, not a scoped-down identity check.
+        //    It is what makes D5's terrain-identity check PASS here instead of failing every zone op
+        //    (BP-537).
+        //
+        // ⛔⛔ THE ORDER IS LOAD-BEARING. 📐 Measured: ClusterSlave dispatches to the FIRST
+        //    CanHandle-true handler and RETURNS. This loader claims PrepareLive/PrepareEdit; so do
+        //    CgfScenarioLoadHandler and HrotEditLoadHandler below, and ReferenceLiveLoadHandler claims
+        //    PrepareLive UNCONDITIONALLY (ReferenceLiveLoadHandler.cs:71-74). ⇒ registering terrain
+        //    after any of them would leave it dead code that never runs, silently — the same shadowing
+        //    defect SerializeLocalRegistrar's header records.
+        //    ⭐ Terrain must populate BEFORE the scenario handlers deserialize anyway: entities depend
+        //    on terrain for ground clamping, physics and LOS. Same argument, same slot, as the TKB
+        //    loader on SimHost.
+        //
+        // 📄 docs/DESIGN_Terrain_Zones_And_Assets.md §2.1e ②a ③ ④, §8.3, §10.5.
+        newClusterSlave.RegisterHandler(
+            new Hrot.Map.Common.Services.TerrainLoadClusterStateHandler(
+                isolatedTempRoot, _cgfRoadNetworkHolder, world: _context.World));
+
         // 1. Replay handler (must be first to gate Live-from-Replay branch)
         newClusterSlave.RegisterHandler(new ReferenceReplayLoadHandler(
             rrController,
@@ -1225,10 +1267,12 @@ public sealed class CgfSubsystem : ISubsystem, Fdp.Toolkit.Runner.IMapCameraProv
             cgfScenarioSaveHandler,
             new ReferenceArchiveHandler(isolatedTempRoot, _context.NodeId));
         // ⭐⭐⭐ D3 — the terrain/zone op handler, via the shared registrar, on every ECS host.
-        //   ⚠ service: null — CGF is the brain and composes no terrain loader; per §8.3 that is a host
-        //   with nothing to make resident, and it still ACKs so the round never stalls on it.
+        //   ⭐ C8 — `service:` is NO LONGER null. CGF composes a real TerrainLoadService, so a zone op
+        //   does actual residency work here rather than ACKing with nothing to do. 🔒 The brain having
+        //   "no zone consumer" (the F4 argument for not giving it a zone SERVICE) is about the retired
+        //   DTO pipeline; loading the terrain its scenario NAMES is mandatory on every host (§8.3 N4).
         Hrot.Map.Common.Services.TerrainAssetRegistrar.Register(
-            newClusterSlave, service: null, world: _context.World, nodeId: _context.NodeId,
+            newClusterSlave, _cgfTerrainLoadService, world: _context.World, nodeId: _context.NodeId,
             localStagingRoot: isolatedTempRoot);
         var cgfArchService = new Fdp.ModuleHost.Diagnostics.ArchitectureDiagnosticsService(_context.Kernel);
         var cgfEntityService = new Fdp.Toolkit.Diagnostics.EntityStateExtractionService(_context.World, _context.EntityMap, scenarioSerializer);

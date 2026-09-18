@@ -8,6 +8,7 @@ using Fdp.Core.Orchestration;
 using Fdp.Toolkit.Orchestration;
 using Fdp.Toolkit.Terrain;
 using Hrot.SimHost.Orchestration.Handlers;
+using Hrot.Map.Common.Services;
 using Xunit;
 
 namespace Hrot.SimHost.Tests;

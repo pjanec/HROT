@@ -68,6 +68,26 @@ internal sealed class IgNodeBootstrapper : SharedApplicationBootstrapper
     /// the node is offline / has no participant.
     /// </summary>
     public System.Action? NetworkPolling { get; private set; }
+
+    /// <summary>
+    /// ⭐⭐ <c>C8</c> — THIS node's road-graph holder, mirroring <c>NodeBootstrapper.RoadNetworkHolder</c>.
+    /// It owns every published <c>RoadNetworkBlob</c> and is what makes a terrain reload safe against a
+    /// background reader.
+    /// <para>⚠ IG composes no <c>NavigationSolverModule</c> today, so the holder's only consumer is the
+    /// terrain loader below. It still has to EXIST: the loader publishes through it, and a blob published
+    /// with no owner is a leak plus a never-retired generation.</para>
+    /// </summary>
+    public CarKinem.Road.RoadNetworkHolder RoadNetworkHolder { get; } = new CarKinem.Road.RoadNetworkHolder();
+
+    /// <summary>
+    /// ⭐⭐ <c>C8</c> — THIS node's terrain load service, mirroring <c>NodeBootstrapper.TerrainLoadService</c>.
+    /// 🔒 User ruling `2026-09-17`: <i>"IG/CGF get loaders in batch 3"</i> — a REAL loader, not a
+    /// scoped-down identity check. In slice 1 its tile loader is the announcing fake (design §6/§7).
+    /// </summary>
+    public Hrot.Map.Common.Services.TerrainLoadService TerrainLoadService { get; } =
+        new Hrot.Map.Common.Services.TerrainLoadService(
+            new Fdp.Toolkit.Terrain.AnnouncingZoneTileLoader());
+
     private readonly int _effectiveInstanceId;
     private readonly bool _headless;
     private readonly IIgTranslators? _igTranslatorsProvider;
@@ -353,7 +373,30 @@ internal sealed class IgNodeBootstrapper : SharedApplicationBootstrapper
             ? _hrotConfig.LocalTempRoot
             : OrchestrationConstants.ResolveStagingRoot();
 
-        // Wire ReferenceReplayLoadHandler FIRST (PrepareReplay / FinalizeReplay
+        // ⭐⭐⭐ C8 — THE TERRAIN LOADER, and it is registered HERE, BEFORE every PrepareLive claimant.
+        //
+        // 🔒 User ruling `2026-09-17`: "IG/CGF get loaders in batch 3" — a REAL
+        //    TerrainLoadClusterStateHandler, as SimHost already has, not a scoped-down identity check.
+        //    It is what makes D5's terrain-identity check PASS on this host instead of failing every
+        //    zone op (BP-537).
+        //
+        // ⛔⛔ THE ORDER IS LOAD-BEARING, and it is why this block is not down beside the registrar.
+        //    📐 Measured: ClusterSlave dispatches to the FIRST CanHandle-true handler and then RETURNS
+        //    (ClusterSlave.cs:406-448 — one `return` inside the foreach). The terrain loader claims
+        //    PrepareLive/PrepareEdit, and so does ReferenceLiveLoadHandler — UNCONDITIONALLY
+        //    (ReferenceLiveLoadHandler.cs:71-74). ⇒ registering terrain AFTER it would make the loader
+        //    dead code that never runs, silently. That is the same shadowing defect
+        //    SerializeLocalRegistrar's header records ("the archive handler SHADOWED the scenario save
+        //    on some hosts — no scenario slice was ever written").
+        //    ⭐ SimHost already orders it this way on purpose: its own comment at the live handler reads
+        //    "Wire ReferenceLiveLoadHandler AFTER the scenario handler so it only claims FinalizeLive
+        //    and cold PrepareLive". Loaders first, fallbacks last.
+        //
+        // 📄 docs/DESIGN_Terrain_Zones_And_Assets.md §2.1e ②a ③ ④, §8.3, §10.5.
+        slave.RegisterHandler(new Hrot.Map.Common.Services.TerrainLoadClusterStateHandler(
+            storageDirectory, RoadNetworkHolder, world: context.World));
+
+        // Wire ReferenceReplayLoadHandler (PrepareReplay / FinalizeReplay
         // unconditional; PrepareLive only when replay active).
         slave.RegisterHandler(new ReferenceReplayLoadHandler(
             igRrController,
@@ -374,12 +417,11 @@ internal sealed class IgNodeBootstrapper : SharedApplicationBootstrapper
         // ⭐⭐⭐ D3/D4 — the shared terrain/zone op handler REPLACES the bespoke IgZoneDummyHandler
         //   (CGF1-BATCH-23 A.2), which existed only to ACK PrepareZone/CommitZone so IG would not stall
         //   a round. The registrar does that by construction on every host.
-        //   ⚠ service: null — IG composes no terrain loader today, and per §8.3 that is a host with
-        //   nothing to make resident, NOT a host that opts out. It still ACKs; there is no capability
-        //   to announce because nothing is missing.
+        //   ⭐ C8 — `service:` is NO LONGER null. IG composes a real TerrainLoadService above, so a zone
+        //   op does actual residency work here rather than ACKing with nothing to do.
         //   📄 docs/DESIGN_Terrain_Zones_And_Assets.md §8.3.
         Hrot.Map.Common.Services.TerrainAssetRegistrar.Register(
-            slave, service: null, world: context.World, nodeId: _effectiveInstanceId,
+            slave, TerrainLoadService, world: context.World, nodeId: _effectiveInstanceId,
             localStagingRoot: storageDirectory);
 
         // Wire ReferencePrefetchHandler so IG can stage scenario files and ACK.

@@ -10,7 +10,7 @@ using Fdp.Core.Logging;
 using Fdp.Toolkit.Orchestration;
 using Fdp.Toolkit.Terrain;
 
-namespace Hrot.SimHost.Orchestration.Handlers;
+namespace Hrot.Map.Common.Services;
 
 /// <summary>
 /// Cluster state handler that intercepts <see cref="NodeOpType.PrepareLive"/> and
@@ -36,6 +36,17 @@ namespace Hrot.SimHost.Orchestration.Handlers;
 /// mid-traversal). <see cref="RoadNetworkHolder.Publish"/> retires the old generation and frees it when
 /// its last reader releases; the <c>ZoneEnvironmentData</c> singleton carries a non-owning copy of the
 /// struct for the synchronous readers.</para>
+///
+/// <para>⭐⭐⭐ <b>IT LIVES IN <c>Hrot.Core</c>, NOT <c>Hrot.SimHost</c> — moved by <c>C8</c>, and the move
+/// was FORCED.</b> 🔒 The user ruled that IG and CGF compose a real loader; <c>Hrot.IG</c> does not
+/// reference <c>Hrot.SimHost</c> and must not start to (IG is the light renderer — depending on the
+/// simulation host inverts the layering). ⭐ Every dependency this class has is <c>Fdp.Core</c> or
+/// <c>Fdp.Toolkits</c> — <c>IClusterStateHandler</c>, <c>TerrainDefinition</c>, <c>RoadNetworkHolder</c> —
+/// so nothing about it was ever SimHost-specific; it sat there only because SimHost was its first caller.
+/// ⚠ This is <c>CE-279</c> Layer <c>A2</c> ("move the TkbLoad/ScenarioLoad/Diagnostics handlers down into
+/// a shared assembly"), which that item deferred as "low marginal value, high blast radius". For terrain
+/// it stopped being optional: without the move there is no way for three hosts to share ONE loader.
+/// ⛔ Only THIS handler moved — the rest of <c>A2</c> stays deferred.</para>
 ///
 /// <para><b>⭐ Registered UNCONDITIONALLY on every ECS host.</b> ⛔ It must never hang off the scenario
 /// LOAD handlers: those are registered inside a conditional that a pure MuscleGround node fails, and the
