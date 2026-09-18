@@ -236,16 +236,47 @@ third. That is what makes "callable from multiple places" structural rather than
 
 ⭐⭐ **The per-role requirement table is owned by
 [`DESIGN_Node_Roles_And_Policies.md`](DESIGN_Node_Roles_And_Policies.md) §3.2** — that document owns what a
-role *is*, so it owns what a role *needs*. ⛔ It is not restated here. In summary: **every role needs the
-knowledge base; only `MuscleGround` and `NavigationSolver` have a measured terrain consumer; only `Brain`
-reads the scenario file**, because only `Brain` also edits and saves it.
+role *is*, so it owns what a role *needs*. ⛔ It is not restated here.
 
-⇒ ⭐ That asymmetry is exactly why the shared content names must ride the **message**: four of five roles
+⇒ ⭐ The asymmetry is exactly why the shared content names must ride the **message**: four of five roles
 never open the scenario file, so they cannot read the names out of it.
 
-### 4.1a ⛔ OPEN — **does a role with no consumer still load terrain?**
+#### ⭐⭐⭐ The two parts are derived DIFFERENTLY — and the knowledge base is NOT role-derived
 
-⚠ Two rules point in opposite directions and this document owns the tie-break:
+> 🔒 **User, `2026-09-18`, on the `Map2D` row:** *"every ECS enable node should be able to create
+> entities so every needs the TKB loaded."*
+
+⛔⛔ **Do not read the requirement table as "three columns of the same kind."** It has two derivations, and
+conflating them is how `Map2D` ended up with no knowledge base at all:
+
+| part | derived from | the basis |
+|---|---|---|
+| ⭐⭐⭐ **knowledge base (TKB)** | 🔴 **NOT the role. Being an ECS node at all.** ⇒ **unconditional on every host that holds a world**, `Map2D` and every future role included | 🔒 `R-138` + `Q65-A′` — *"the shared code for entity creation support should not restrict any ECS enabled node from creating own networked entities"*, and `DESIGN_Node_Roles_And_Policies.md` §3.1: **every ECS node composes the FULL genesis pipeline**. ⇒ ⭐ **a node that can create an entity must be able to resolve its template**, so a node without the scenario's knowledge base holds a genesis pipeline it cannot actually use |
+| ⭐ **terrain / road graph** | ⭐ **the ROLE** — `MuscleGround` and `NavigationSolver` only | measured consumers; §4.1a's lean *"load nothing where nothing reads it"*, ✅ **accepted by the user `2026-09-18`** |
+| ⭐ **scenario entities** | ⭐ **the ROLE** — `Brain` only | only `Brain` also edits and saves the scenario |
+
+🔴 **What that makes of §2.2's measured picture:** *"IG: no TKB loader"* and *"CGF: no TKB loader"* are not
+neutral facts about hosts that happen not to need one — they are **violations of `Q65-A′`**. Both compose
+the full genesis pipeline and both would **ignore a scenario's `TkbName` entirely**, falling back to the
+hard-coded catalogue. ⇒ an entity created on IG or CGF from a scenario-supplied template would resolve
+against the **wrong knowledge base**, silently. ⭐ `L4` must therefore give the knowledge-base step to
+**every** ECS host, unconditionally — ⛔ not "to the roles that asked for it".
+
+⚠ **And note the asymmetry is not a special case for terrain:** it is the general shape. *"Can this node
+be asked to create an entity?"* is answered by **being an ECS node**; *"does this node read the road
+graph?"* is answered by **its role**. A future part belongs to whichever question it answers.
+
+### 4.1a ✅ RULED `2026-09-18` — **a role with no consumer does NOT load terrain**
+
+> 🔒 **User, verbatim:** *"'load nothing where nothing reads it' … for sure, accepted."*
+
+⇒ ⭐ `MuscleGround` and `NavigationSolver` make terrain resident; `Brain`, `Perception` and `Map2D` do not,
+and [`DESIGN_Terrain_Zones_And_Assets.md`](DESIGN_Terrain_Zones_And_Assets.md) §8.3 N4's loud failure
+narrows to the roles that declare the requirement. ⚠ **What would reopen it:** a measured consumer
+appearing on `Map2D` or `Perception` — then the requirement table (roles §3.2) is the single place that
+moves. ⛔ **This does not touch the knowledge base**, which is unconditional for a different reason (§4.1).
+
+⛔ **HISTORY — the tie-break as it stood before the ruling:**
 
 | ⭐ load it anyway | ⛔ do not load it |
 |---|---|
@@ -271,6 +302,7 @@ classDiagram
   class RoleLoadRequirements {
     <<static table, one home>>
     +PartsFor(NodeRole roles) IReadOnlySet~LoadPart~
+    +UniversalParts « KnowledgeBase — every ECS node »
   }
   class LoadPart {
     <<enum>>
@@ -306,6 +338,7 @@ point, and it is the only one — nothing lets a host satisfy fewer parts than i
 | ⭐ the rules that fall out | |
 |---|---|
 | ⭐⭐⭐ **a host may not require LESS than its roles do** | ⛔ composing the chain from the role set makes "forgot to register the terrain step on this host" unrepresentable — which is precisely the defect class in §2.2 |
+| ⭐⭐⭐ **the UNIVERSAL parts are not role-keyed at all** | ⭐ the knowledge base is required by **every ECS node** because every ECS node composes the genesis pipeline (§4.1). ⛔ `PartsFor` must never be able to return a set without it for a host that holds a world — the union with `UniversalParts` is unconditional |
 | ⭐⭐ **a host MAY satisfy a part differently** | `HrotStrideApp` and `Hrot.SimHost` both carry `MuscleGround`; both must make terrain resident; they load different data |
 | ⛔ **a missing provider for a required part is a STARTUP failure, loud** | ⚠ not a silent skip — that is the whole disease this replaces |
 | ⛔ **this is NOT a permission gate** | 📄 `DESIGN_Node_Roles_And_Policies.md` §3.1 — a role never denies a capability. A host that composes a scenario reader may run that step whatever its role says; the table is the default, not a prohibition |
@@ -343,10 +376,10 @@ first"* without hanging terrain off a handler four roles do not have.
 | **L1** | Add `TkbName` and `TerrainName` to the load payload; the orchestrator fills them from the master scenario header it already reads. ⭐ The payload crosses the wire as **JSON**, so this is purely additive — no wire id, no compatibility break (`R-42` does not bite) | `ReferenceEditLoadHandler.cs` payload · `StorageGatewayModule` / the transition fan-out |
 | **L2** | Introduce the ordered **load-phase chain**: one registered handler per ECS host claiming `PrepareLive`/`PrepareEdit`, running its steps in order and ACKing once. ⭐ Composed from **`roles × providers`** (§4.1b), never from a per-bootstrapper registration order; a required part with no provider fails **loudly at startup** | new, beside `SerializeLocalRegistrar` |
 | **L3** | Re-home `TkbLoadClusterStateHandler` and `TerrainLoadClusterStateHandler` as **steps**, reading their name from the payload, falling back to the staged header only when the payload is silent (one release of tolerance) | both handlers |
-| **L4** | Register the chain on **every ECS host** — CGF, SimHost, IG, editor — with the scenario step present only where the Brain role composes it | the three bootstrappers + the editor |
+| **L4** | Register the chain on **every ECS host** — CGF, SimHost, IG, editor. ⭐⭐⭐ The **knowledge-base step is unconditional** on all of them (§4.1 — `Q65-A′`; today only SimHost has one, so CGF and IG silently ignore a scenario's `TkbName`); the **terrain step** goes only to `MuscleGround`/`NavigationSolver` (§4.1a); the **scenario step** only where `Brain` is composed | the three bootstrappers + the editor |
 | **L5** | Terrain residency becomes a service with a stable entry point: `EnsureTerrain(name)` idempotent (already-resident ⇒ no-op), plus an `UnloadAll()` seam left **unwired** for the future standby mode | `TerrainLoadService` |
 | **L6** | Ensure the content step runs **after** the staging ACKs, closing the race in §2.4 — and remove the two-second retry that papers over it today | the orchestrator's transition sequencing |
-| **L7** | Rails: the chain runs **all** its steps and ACKs once · a shadowed step is impossible by construction · a Brain host loads entities · a non-Brain host loads TKB + terrain and **no** entities · the payload names beat the sidecar · an absent name is legal and silent, an absent **artifact** is loud | `Hrot.SimHost.Tests`, `Hrot.CGF` tests, and the existing cluster conformance rails |
+| **L7** | Rails: the chain runs **all** its steps and ACKs once · a shadowed step is impossible by construction · ⭐⭐ **every ECS host resolves the scenario's named knowledge base** — the `Q65-A′` rail, and the one that would have caught the IG/CGF gap · a host with no terrain consumer makes **no** terrain resident · a `Brain` host loads entities and a non-`Brain` host loads **none** · the payload names beat the sidecar · an absent name is legal and silent, an absent **artifact** is loud | `Hrot.SimHost.Tests`, `Hrot.CGF` tests, and the existing cluster conformance rails |
 
 ### 5.1 Deliberately NOT in this plan
 

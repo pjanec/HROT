@@ -178,24 +178,49 @@ implement the role against different engines. ⇒ **the requirement is shared an
 implementation is theirs.** ⛔ A host may not decide it needs *less* than its role requires; it decides
 only how it satisfies it.
 
-#### ⭐ What each role requires — **measured `2026-09-18`, by CONSUMER, not by assumption**
+#### ⛔⛔⛔ FIRST — **the knowledge base is NOT role-derived.** It is required by every ECS node
+
+> 🔒 **User, `2026-09-18`:** *"every ECS enable node should be able to create entities so every needs the
+> TKB loaded."*
+
+⭐⭐⭐ **This follows directly from §3.1 and is not a separate policy.** `Q65-A′` rules that **every ECS node
+composes the FULL genesis pipeline** with no opt-out. ⇒ **a node that can be asked to create an entity must
+be able to resolve that entity's template**, so a node without the scenario's knowledge base holds a
+creation pipeline it cannot actually use — ⛔ it would silently resolve against whatever catalogue it built
+locally instead. ⇒ ⭐⭐ **the knowledge-base requirement is UNCONDITIONAL on every host that holds an ECS
+world**, `Map2D` included, and it is derived from *"is this an ECS node?"* — never from the role set.
+
+🔴 **Measured `2026-09-18`: only SimHost loads a named knowledge base.** CGF and IG register no loader and
+would **ignore a scenario's `TkbName` entirely**. That is a live violation of `Q65-A′`, not a host that
+happens not to need one. 📄 [`DESIGN_Cluster_Load_Phase.md`](DESIGN_Cluster_Load_Phase.md) §2.2, §4.1.
+
+#### ⭐ What each role additionally requires — **measured `2026-09-18`, by CONSUMER, not by assumption**
 
 | role | knowledge base | terrain / road graph | scenario entities | the consumer that proves it |
 |---|---|---|---|---|
+| — *every ECS node* — | ⭐⭐⭐ ✅ **unconditional** *(above)* | — | — | `Q65-A′` / §3.1, not a consumer measurement |
 | ⭐ `Brain` | ✅ | ⛔ **no reader measured** | ✅ **reads, parses, spawns** | it is the only role that also EDITS and SAVES the scenario |
 | ⭐ `MuscleGround` | ✅ | ✅ | ⛔ replicated in | `CarKinem/Systems/CarKinematicsSystem.cs:57-60` reads `ZoneEnvironmentData` |
 | `NavigationSolver` | ✅ | ✅ | ⛔ | `Navigation/Systems/PathfindingSolverSystem.cs:116-119` · `Navigation/Modules/NavigationSolverModule.cs:122` read the `RoadNetworkHolder` |
 | `Perception` | ✅ | ⛔ **no reader measured** | ⛔ | — |
 | `Map2D` | ✅ | ⛔ **no reader measured** — it HOLDS a `RoadNetworkHolder` (`IgNodeBootstrapper.cs:80`) that nothing on that host reads | ⛔ | — |
-| *observer* (no role) | ⛔ | ⛔ | ⛔ acknowledges only | holds no ECS world |
+| *observer* (no role, no ECS world) | ⛔ | ⛔ | ⛔ acknowledges only | it holds no world, so `Q65-A′` does not reach it |
 
 ⚠⚠ **Read the three ⛔ "no reader measured" cells honestly.** 📐 `search_code` + grep agree that the only
 production consumers of the road graph are `CarKinematicsSystem` and the pathfinding solver. ⛔ **An
 earlier draft of the load-phase design asserted that every role needs terrain; that was written from a
-principle, not a measurement, and is corrected there.** ⚠ Whether a role with no reader should
-*nevertheless* load terrain — so that a cluster-wide zone operation can succeed everywhere
-([`DESIGN_Terrain_Zones_And_Assets.md`](DESIGN_Terrain_Zones_And_Assets.md) §8.3 N4) — is an OPEN question
-owned by the load-phase design, not settled here.
+principle, not a measurement, and is corrected there.**
+
+✅ **RULED `2026-09-18` (user): *"load nothing where nothing reads it"* — ACCEPTED.** ⇒ a role with no
+measured consumer does **not** make terrain resident, and
+[`DESIGN_Terrain_Zones_And_Assets.md`](DESIGN_Terrain_Zones_And_Assets.md) §8.3 N4's loud failure narrows to
+the roles that declare the requirement. ⚠ What would change it is a **consumer appearing** — a map that
+really draws the road graph, or line of sight against terrain obstacles — and then this table is the single
+place that moves.
+
+⭐⭐ **The general shape, so a future part is placed correctly:** ask which question the part answers.
+*"Can this node be asked to create an entity?"* → **being an ECS node** ⇒ unconditional. *"Does this node
+read X?"* → **its role** ⇒ role-derived.
 
 #### ⛔⛔ This does NOT become a permission gate
 
