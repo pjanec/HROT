@@ -84,6 +84,70 @@ namespace Fdp.Toolkit.Orchestration
         public static string GetNodeExercisesRoot(string stagingRoot, int nodeId)
             => Path.Combine(GetNodeStagingRoot(stagingRoot, nodeId), ExercisesDirectoryName);
 
+        // ══ S1a — THE TKB STAGING DIRECTORY ═══════════════════════════════════════════════════════
+        //
+        // ⭐⭐⭐ The artifact directory a node reads its TKB zip and its scenario header from, and the
+        //    one the orchestrator's prefetch writes them into. ⛔ Until 2026-09-18 the literal "TKB"
+        //    was built BY HAND in three places and written by NOBODY — see BP-550 and
+        //    DESIGN_Artifact_Staging.md §2.
+
+        /// <summary>
+        /// Name of the per-node TKB artifact directory. ⛔ This is the ONLY place the string is built.
+        /// </summary>
+        public const string TkbDirectoryName = "TKB";
+
+        /// <summary>
+        /// Name of the NAS directory TKB artifacts are PUBLISHED to, beside <c>scenarios/</c>.
+        /// ⚠ Lower-case, unlike the per-node <see cref="TkbDirectoryName"/>: it sits beside
+        /// <c>scenarios</c>/<c>exercises</c>/<c>episodes</c> and follows their casing, while the per-node
+        /// directory keeps the upper-case name the node-side readers have always used. ⛔ Two constants
+        /// rather than one, so neither side has to know about the other's convention.
+        /// </summary>
+        public const string NasTkbDirectoryName = "tkb";
+
+        /// <summary>Extension of a published TKB artifact. ⛔ One definition.</summary>
+        public const string TkbArtifactExtension = ".zip";
+
+        /// <summary>The NAS directory TKB artifacts are published to — <c>{nas}/tkb</c>.</summary>
+        public static string GetNasTkbRoot(string nasBasePath)
+            => Path.Combine(nasBasePath, NasTkbDirectoryName);
+
+        /// <summary>
+        /// ⭐⭐⭐ <b>The node's TKB staging directory, from a root that is ALREADY per-node.</b>
+        ///
+        /// <para>🔒 <b><c>V1</c> settled by measurement, <c>2026-09-18</c> — and the lean flipped.</b>
+        /// 📐 Every production host passes a per-node root as its <c>localTempRoot</c>:
+        /// <c>SimHostApp.cs:362</c> (<c>Combine(base, "nodes", $"node-{id}")</c>),
+        /// <c>CgfSubsystem.cs:612</c> (identical), <c>OrchestratorSubsystem.cs:137</c>
+        /// (<c>GetNodeStagingRoot(orchestratorNodeId)</c>). ⇒ the handler's "bare" root already IS
+        /// <c>{base}/nodes/node-N</c>, so it needs no node id — which is exactly the condition the plan
+        /// named as what would flip its lean.</para>
+        ///
+        /// <para>⛔ <b>And the precedent the plan cited argues the other way.</b> 📐
+        /// <c>ReferenceArchiveHandler(localTempRoot, nodeId)</c> uses the id to build a FILE NAME —
+        /// <c>node_{id}.fdp</c>, under the shared <c>exercises/</c> directory
+        /// (<c>ReferenceArchiveHandler.cs:73-74</c>) — not to make its root per-node. It is a precedent
+        /// for node-discriminated FILENAMES in a shared directory, the opposite shape.</para>
+        /// </summary>
+        /// <param name="nodeStagingRoot">
+        /// A root that is already this node's own — i.e. <see cref="GetNodeStagingRoot(string,int)"/>,
+        /// or the <c>localTempRoot</c> every host bootstrap already computes.
+        /// </param>
+        public static string GetTkbStagingRoot(string nodeStagingRoot)
+            => Path.Combine(nodeStagingRoot, TkbDirectoryName);
+
+        /// <summary>
+        /// ⭐⭐ The same directory, addressed the way the ORCHESTRATOR addresses it: from the shared base
+        /// root plus a node id. ⛔ Deliberately defined by COMPOSING the two existing helpers rather than
+        /// re-assembling the path, so the two sides cannot drift — a rail asserts the composition.
+        /// </summary>
+        public static string GetNodeTkbStagingRoot(string stagingRoot, int nodeId)
+            => GetTkbStagingRoot(GetNodeStagingRoot(stagingRoot, nodeId));
+
+        /// <inheritdoc cref="GetNodeTkbStagingRoot(string,int)"/>
+        public static string GetNodeTkbStagingRoot(int nodeId)
+            => GetNodeTkbStagingRoot(ResolveStagingRoot(), nodeId);
+
         public static string GetEpisodesRoot(string stagingRoot)
             => Path.Combine(stagingRoot, EpisodesDirectoryName);
 

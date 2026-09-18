@@ -299,4 +299,148 @@ public class TkbLoadClusterStateHandlerTests : IDisposable
         var template = Assert.Single(db.GetAll());
         Assert.Empty(template.MandatoryComponents);
     }
+
+    // ══ S3b — THE COMPOSE RAIL: the orchestrator's skip and the node's skip, together ══════════════
+    //
+    // ⭐⭐⭐ The two skips live on DIFFERENT SIDES of the barrier and never negotiate. This is the rail
+    //    that proves they COMPOSE rather than merely coexist — 📄 design §6's four-row table.
+    // ⛔⛔ Case ③ is the one that matters: cases ① and ② can both pass while the design is wrong,
+    //    because a single shared cache would satisfy them too. Only "restart the node with a current
+    //    file ⇒ NO transfer, ONE ingest" shows the two are independent.
+
+    /// <summary>A sentinel in the db; an ingest calls <c>Clear()</c>, so its disappearance IS the signal.</summary>
+    private static void Seed(TkbDatabase db) => db.Register(new Fdp.Interfaces.TkbTemplate("SENTINEL", 999_001L));
+    private static bool Ingested(TkbDatabase db) => !db.GetAll().Any(t => t.Name == "SENTINEL");
+
+    /// <summary>Publishes a TKB on a fake NAS and returns (nasRoot, sourceFile).</summary>
+    private (string Nas, string Source) PublishOnNas(string tkbName)
+    {
+        var nas = Path.Combine(_stagingRoot, "nas");
+        var dir = OrchestrationConstants.GetNasTkbRoot(nas);
+        Directory.CreateDirectory(dir);
+        var src = Path.Combine(dir, tkbName + OrchestrationConstants.TkbArtifactExtension);
+        CreateMinimalTkbZip(src, tkbName);
+        return (nas, src);
+    }
+
+    /// <summary>Runs the orchestrator's half by hand; returns true when it actually copied.</summary>
+    private bool StageOnce(string source)
+    {
+        var dest = Path.Combine(_tkbDir, Path.GetFileName(source));
+        if (Hrot.Orchestrator.StorageGatewayModule.IsAlreadyCurrent(source, dest)) return false;
+        Directory.CreateDirectory(_tkbDir);
+        File.Copy(source, dest, overwrite: true);
+        return true;
+    }
+
+    /// <summary>
+    /// ⭐⭐⭐ <b>Case ① — prefetch twice, load twice ⇒ ONE transfer and ONE ingest.</b>
+    /// </summary>
+    [Fact]
+    public async Task ComposedSkips_PrefetchTwiceLoadTwice_TransfersOnceAndIngestsOnce()
+    {
+        var (_, src) = PublishOnNas("Alpha_v1");
+        WriteScenarioHeader("Alpha_v1");
+
+        var db = new TkbDatabase();
+        var h  = new TkbLoadClusterStateHandler(db, _stagingRoot);
+
+        Assert.True(StageOnce(src));                       // transfer #1 — the file was absent
+        await h.PrepareAsync(MakeIntent(), CancellationToken.None);   // ingest #1
+
+        Seed(db);
+        Assert.False(StageOnce(src));                      // ⭐ NO second transfer
+        await h.PrepareAsync(MakeIntent(), CancellationToken.None);
+        Assert.False(Ingested(db));                        // ⭐ NO second ingest
+    }
+
+    /// <summary>
+    /// ⭐⭐⭐ <b>Case ② — the NAS artifact changes ⇒ transfer AND ingest.</b> ⚠ The destination inherits the
+    /// SOURCE's mtime on copy, which is what lets the node notice without being told.
+    /// </summary>
+    [Fact]
+    public async Task ComposedSkips_WhenTheNasArtifactChanges_TransfersAndIngestsAgain()
+    {
+        var (_, src) = PublishOnNas("Alpha_v1");
+        WriteScenarioHeader("Alpha_v1");
+
+        var db = new TkbDatabase();
+        var h  = new TkbLoadClusterStateHandler(db, _stagingRoot);
+
+        StageOnce(src);
+        await h.PrepareAsync(MakeIntent(), CancellationToken.None);
+
+        // Republish: different bytes AND a different timestamp, as a rebuild would produce.
+        File.Delete(src);
+        CreateMinimalTkbZip(src, "Alpha_v1_rebuilt_with_a_longer_entry_name_to_change_length");
+        File.SetLastWriteTimeUtc(src, DateTime.UtcNow.AddMinutes(5));
+
+        Seed(db);
+        Assert.True(StageOnce(src));                       // ⭐ transfer
+        await h.PrepareAsync(MakeIntent(), CancellationToken.None);
+        Assert.True(Ingested(db));                         // ⭐ and ingest
+    }
+
+    /// <summary>
+    /// ⭐⭐⭐⭐ <b>Case ③ — THE ONE THAT PROVES INDEPENDENCE.</b> The node process restarts while its file is
+    /// already current ⇒ <b>no transfer</b> (the orchestrator's skip fires) but <b>one ingest</b> (the
+    /// node's in-memory cache is empty).
+    ///
+    /// <para>⛔ Cases ① and ② would both still pass if the two skips were secretly ONE cache. Only this
+    /// asymmetry — skip on one side, work on the other, in the same step — shows they are separate.
+    /// 📄 design §6, row 3: *"the asymmetry is free and right"*.</para>
+    /// </summary>
+    [Fact]
+    public async Task ComposedSkips_NodeRestartWithACurrentFile_DoesNotTransferButDoesIngest()
+    {
+        var (_, src) = PublishOnNas("Alpha_v1");
+        WriteScenarioHeader("Alpha_v1");
+
+        // ── the node's FIRST life: the orchestrator stages, then the node loads ──
+        // ⚠ Staging must precede the load: the handler throws FileNotFoundException when the header
+        //   names a TKB whose zip is absent, which is its designed loud failure (§8.3 N4) — and is what
+        //   the first draft of this rail tripped over by loading first.
+        StageOnce(src);
+        var first = new TkbDatabase();
+        await new TkbLoadClusterStateHandler(first, _stagingRoot)
+            .PrepareAsync(MakeIntent(), CancellationToken.None);
+
+        // ── the node restarts: a BRAND NEW handler and db, the file on disk unchanged ──
+        Assert.False(StageOnce(src));                      // ⭐ the orchestrator still skips
+
+        var afterRestart = new TkbDatabase();
+        Seed(afterRestart);
+        var reborn = new TkbLoadClusterStateHandler(afterRestart, _stagingRoot);
+        await reborn.PrepareAsync(MakeIntent(), CancellationToken.None);
+
+        Assert.True(Ingested(afterRestart),                // ⭐ but the node MUST ingest
+            "a restarted node has an empty in-memory cache and must re-ingest even though no bytes moved");
+    }
+
+    /// <summary>
+    /// ⭐⭐ <c>S3a</c> — LENGTH is part of the key, not just the timestamp. ⚠ Without it the two sides
+    /// evaluate different predicates and the composition above is luck.
+    /// </summary>
+    [Fact]
+    public async Task TheNodeCacheKeyIncludesLength_NotJustTheTimestamp()
+    {
+        var (_, src) = PublishOnNas("Alpha_v1");
+        WriteScenarioHeader("Alpha_v1");
+
+        var db = new TkbDatabase();
+        var h  = new TkbLoadClusterStateHandler(db, _stagingRoot);
+        StageOnce(src);
+        await h.PrepareAsync(MakeIntent(), CancellationToken.None);
+
+        // Same name, same mtime — only the LENGTH differs.
+        var dest  = Path.Combine(_tkbDir, "Alpha_v1.zip");
+        var stamp = File.GetLastWriteTimeUtc(dest);
+        File.Delete(dest);
+        CreateMinimalTkbZip(dest, "a_considerably_longer_entry_name_so_the_archive_length_changes");
+        File.SetLastWriteTimeUtc(dest, stamp);
+
+        Seed(db);
+        await h.PrepareAsync(MakeIntent(), CancellationToken.None);
+        Assert.True(Ingested(db), "a same-mtime, different-length artifact must NOT be treated as cached");
+    }
 }

@@ -1,3 +1,4 @@
+using System;
 using Fdp.Toolkit.Orchestration;
 using Hrot.Editor.AiShared.Catalog;
 using Xunit;
@@ -63,6 +64,85 @@ public sealed class TheHostsAgreeOnTheScenarioRootTests
         Assert.Equal(
             OrchestrationConstants.GetSharedRoot(),
             Hrot.Orchestrator.ClusterConfiguration.Default.NasBasePath);
+    }
+
+    // ══ S1b / V1 — THE TKB STAGING ROOT, THE SAME CLAIM FOR THE ARTIFACT DIRECTORY ════════════════
+    //
+    // ⭐⭐⭐ This file exists because two hosts disagreed about WHICH ROOT a chain is handed. The TKB
+    //    artifact directory is the identical shape of question one layer over: the ORCHESTRATOR writes
+    //    it and the NODE reads it, and until 2026-09-18 nobody wrote it at all (BP-550).
+    // ⚠ Added HERE rather than in a new class, deliberately (T-1 ④): the claim is "two sides agree on a
+    //    root", which is exactly what this suite is for.
+
+    /// <summary>
+    /// ⭐⭐⭐ <b><c>S1b</c> — the orchestrator's TKB destination and the node's TKB read path are the SAME
+    /// DIRECTORY.</b>
+    ///
+    /// <para>📐 <b><c>V1</c> settled by measurement:</b> the node handler is constructed with a root that
+    /// is ALREADY per-node — every host passes <c>{base}/nodes/node-N</c>
+    /// (<c>SimHostApp.cs:362</c>, <c>CgfSubsystem.cs:612</c>, <c>OrchestratorSubsystem.cs:137</c>) — so
+    /// composing <c>GetTkbStagingRoot</c> over it lands exactly where the orchestrator's
+    /// <c>GetNodeTkbStagingRoot(base, nodeId)</c> writes. ⛔ Threading a node id into the handler, the
+    /// plan's lean, would have double-applied the node segment.</para>
+    ///
+    /// <para>⚠ Asserted as a COMPOSITION, not a literal, so a staging-root relocation cannot break it
+    /// while leaving the two sides silently different — the failure mode this whole file is about.</para>
+    /// </summary>
+    [Theory]
+    [InlineData(0)]
+    [InlineData(1)]
+    [InlineData(300)]
+    public void TheOrchestratorsTkbDestinationIsTheNodesTkbReadPath(int nodeId)
+    {
+        var baseRoot = OrchestrationConstants.ResolveStagingRoot();
+
+        // What the ORCHESTRATOR computes, from the shared base root plus a node id.
+        var written = OrchestrationConstants.GetNodeTkbStagingRoot(baseRoot, nodeId);
+
+        // What the NODE computes, from the per-node root its bootstrap already handed it.
+        var perNodeRoot = OrchestrationConstants.GetNodeStagingRoot(baseRoot, nodeId);
+        var read        = OrchestrationConstants.GetTkbStagingRoot(perNodeRoot);
+
+        Assert.Equal(written, read);
+    }
+
+    /// <summary>
+    /// ⭐⭐ The TKB root is BENEATH the node's staging root, not beside it — i.e. the node segment is
+    /// applied exactly ONCE. ⛔ The specific way the plan's lean would have gone wrong.
+    /// </summary>
+    [Fact]
+    public void TheTkbRootCarriesTheNodeSegmentExactlyOnce()
+    {
+        var baseRoot = OrchestrationConstants.ResolveStagingRoot();
+        var tkb      = OrchestrationConstants.GetNodeTkbStagingRoot(baseRoot, 7);
+
+        Assert.StartsWith(OrchestrationConstants.GetNodeStagingRoot(baseRoot, 7), tkb, StringComparison.Ordinal);
+        Assert.EndsWith(OrchestrationConstants.TkbDirectoryName, tkb, StringComparison.Ordinal);
+
+        // ⭐ "node-7" appears once. A double-applied segment is the failure this pins.
+        var segment = OrchestrationConstants.GetNodeDirectoryName(7);
+        var first   = tkb.IndexOf(segment, StringComparison.Ordinal);
+        Assert.True(first >= 0, "the node segment is missing entirely");
+        Assert.Equal(-1, tkb.IndexOf(segment, first + segment.Length, StringComparison.Ordinal));
+    }
+
+    /// <summary>
+    /// ⭐ <c>S1a</c> — the directory name has ONE definition. ⚠ A source scan, because the defect being
+    /// prevented is a hand-built literal somewhere else, which no runtime assertion can see.
+    /// ⛔ Test fixtures are exempt: they legitimately build the layout they are asserting against.
+    /// </summary>
+    [Theory]
+    [InlineData("Hrot.SimHost", "Orchestration/Handlers/TkbLoadClusterStateHandler.cs")]
+    public void TheTkbDirectoryNameIsNotBuiltByHand(string project, string file)
+    {
+        var text = HostSource.Read(project, file);
+
+        foreach (var line in text.Split('\n'))
+        {
+            if (line.TrimStart().StartsWith("//", StringComparison.Ordinal)) continue;   // prose may cite it
+            if (line.Contains("///", StringComparison.Ordinal)) continue;                // nor doc comments
+            Assert.DoesNotContain("\"TKB\"", line);
+        }
     }
 
     /// <summary>

@@ -40,18 +40,38 @@ public sealed class TkbLoadClusterStateHandler : IClusterStateHandler
     private string? _lastLoadedTkbName;
     private DateTime _lastLoadedTimestamp;
 
+    /// <summary>
+    /// ⭐⭐⭐ <c>S3a</c> — the third component of the differential cache key.
+    ///
+    /// <para>🔒 The key is <c>(name, length, lastWriteTimeUtc)</c>, ruled by the user <c>2026-09-18</c> —
+    /// ⛔ no hash, no sidecar. ⭐⭐ <b>Adding length is what makes this side evaluate LITERALLY the same
+    /// predicate as the orchestrator's <c>IsAlreadyCurrent</c>.</b> 📐 That is what lets the two skips
+    /// COMPOSE rather than merely coexist: the orchestrator skipping a copy leaves this file untouched,
+    /// which is precisely the condition that makes this cache fire.</para>
+    ///
+    /// <para>⚠ <c>-1</c> means "nothing loaded yet", distinct from a real zero-length file.</para>
+    /// </summary>
+    private long _lastLoadedLength = -1;
+
     /// <param name="tkbDb">
     /// The live TKB database shared with <c>NetworkSpawningSystem</c>,
     /// <c>BlueprintApplicationSystem</c>, and <c>GhostPromotionSystem</c>.
     /// </param>
     /// <param name="localStagingRoot">
-    /// Root of the node's local staging area (e.g. <c>C:\FDP_Temp</c>).
-    /// TKB artifacts are expected under <c>{localStagingRoot}/TKB/</c>.
+    /// ⭐⭐ <b>THIS NODE'S OWN staging root</b> — i.e. <c>{base}/nodes/node-N</c>, which is what every
+    /// host bootstrap already computes and passes (<c>SimHostApp.cs:362</c>, <c>CgfSubsystem.cs:612</c>,
+    /// <c>OrchestratorSubsystem.cs:137</c>). TKB artifacts are read from
+    /// <see cref="OrchestrationConstants.GetTkbStagingRoot"/> beneath it.
+    ///
+    /// <para>⚠ <b>The old doc comment said <c>"e.g. C:\FDP_Temp"</c> — the BARE base root — and that was
+    /// misleading:</b> no production caller passes the bare root, and if one did, this handler would
+    /// read a directory the orchestrator never writes. 📐 <c>V1</c>, measured <c>2026-09-18</c>.</para>
     /// </param>
     public TkbLoadClusterStateHandler(ITkbDatabase tkbDb, string localStagingRoot)
     {
         _tkbDb = tkbDb ?? throw new ArgumentNullException(nameof(tkbDb));
-        _localTkbStagingRoot = Path.Combine(localStagingRoot, "TKB");
+        // ⭐ S1a — the ONE place the directory name comes from, shared with the orchestrator's writer.
+        _localTkbStagingRoot = OrchestrationConstants.GetTkbStagingRoot(localStagingRoot);
     }
 
     /// <inheritdoc/>
@@ -72,18 +92,23 @@ public sealed class TkbLoadClusterStateHandler : IClusterStateHandler
             if (!_tkbDb.GetAll().Any())
                 NedTkbCatalog.RegisterAll((TkbDatabase)_tkbDb);
             _lastLoadedTkbName = null;
+            _lastLoadedLength = -1;
             _tkbDb.ActiveTkbName = null;
             return Task.FromResult<object?>(null);
         }
 
-        string localPath = Path.Combine(_localTkbStagingRoot, $"{requestedTkb}.zip");
+        string localPath = Path.Combine(
+            _localTkbStagingRoot, requestedTkb + OrchestrationConstants.TkbArtifactExtension);
 
-        // Differential cache check using file modification time.
-        DateTime currentFileTime = File.Exists(localPath)
-            ? File.GetLastWriteTimeUtc(localPath)
-            : DateTime.MinValue;
+        // ⭐⭐ S3a — the differential cache key is (name, LENGTH, mtime). 📐 The same predicate the
+        //    orchestrator's IsAlreadyCurrent evaluates, which is what makes the two skips compose.
+        var info = new FileInfo(localPath);
+        DateTime currentFileTime = info.Exists ? info.LastWriteTimeUtc : DateTime.MinValue;
+        long     currentLength   = info.Exists ? info.Length           : -1;
 
-        if (_lastLoadedTkbName == requestedTkb && _lastLoadedTimestamp == currentFileTime)
+        if (_lastLoadedTkbName == requestedTkb
+         && _lastLoadedTimestamp == currentFileTime
+         && _lastLoadedLength == currentLength)
             return Task.FromResult<object?>(null); // Cache hit -- no reload needed.
 
         if (!File.Exists(localPath))
@@ -106,6 +131,7 @@ public sealed class TkbLoadClusterStateHandler : IClusterStateHandler
 
         _lastLoadedTkbName = requestedTkb;
         _lastLoadedTimestamp = currentFileTime;
+        _lastLoadedLength = currentLength;
         _tkbDb.ActiveTkbName = requestedTkb;
 
         FdpLog<TkbLoadClusterStateHandler>.Info(

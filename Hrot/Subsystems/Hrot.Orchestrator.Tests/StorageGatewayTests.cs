@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Text;
+using System.Text.Json;
 using System.Threading.Tasks;
 using Fdp.Toolkit.Orchestration;
 using Hrot.Network.Orchestration;
@@ -597,5 +598,246 @@ public sealed class StorageGatewayTkbConsensusTests
             if (Directory.Exists(destEcs))      Directory.Delete(destEcs,      recursive: true);
             if (Directory.Exists(destForeign))  Directory.Delete(destForeign,  recursive: true);
         }
+    }
+
+    // ══ S2 — STAGING THE NAMED ARTIFACTS ══════════════════════════════════════════════════════════
+    //
+    // ⭐⭐⭐ These are the rails BP-550 never had. 📐 Before this batch nothing in the tree wrote a TKB
+    //    zip or a ScenarioHeader.json into node staging, and — measured — no test ever reached
+    //    PrefetchScenarioAsync's copy loop at all, because every fixture built the NAS layout without
+    //    the `scenarios/` segment. Both halves are fixed above.
+    // 📄 docs/DESIGN_Artifact_Staging.md §2, §4, §6.
+
+    /// <summary>Builds a NAS with one scenario slice naming <paramref name="tkbName"/>/<paramref name="terrainName"/>.</summary>
+    private static string MakeNas(string scenarioId, string? tkbName, string? terrainName, out string scenarioDir)
+    {
+        var nas = Path.Combine(Path.GetTempPath(), Path.GetRandomFileName());
+        scenarioDir = Path.Combine(nas, OrchestrationConstants.ScenariosDirectoryName, scenarioId);
+        Directory.CreateDirectory(scenarioDir);
+
+        var header = new List<string>();
+        if (tkbName     != null) header.Add($"\"tkbName\":\"{tkbName}\"");
+        if (terrainName != null) header.Add($"\"terrainName\":\"{terrainName}\"");
+        File.WriteAllText(
+            Path.Combine(scenarioDir, "Hrot.SimHost.json"),
+            "{\"header\":{" + string.Join(",", header) + "},\"entities\":[]}");
+        return nas;
+    }
+
+    private static string PublishTkb(string nas, string name, string content)
+    {
+        var dir = OrchestrationConstants.GetNasTkbRoot(nas);
+        Directory.CreateDirectory(dir);
+        var file = Path.Combine(dir, name + OrchestrationConstants.TkbArtifactExtension);
+        File.WriteAllText(file, content);
+        return file;
+    }
+
+    private static NodeDistributionTarget TargetIn(string root, int nodeId, string scenarioId) => new()
+    {
+        NodeId             = nodeId,
+        DestinationPath    = Path.Combine(
+            OrchestrationConstants.GetNodeStagingRoot(root, nodeId),
+            OrchestrationConstants.ScenariosDirectoryName, scenarioId),
+        TkbDestinationPath = OrchestrationConstants.GetNodeTkbStagingRoot(root, nodeId),
+    };
+
+    /// <summary>
+    /// ⭐⭐⭐ <c>S2b</c> — a scenario whose header names a TKB leaves that zip on EVERY target node.
+    /// 🔴 This is the literal content of <c>BP-550</c>: before this batch, nothing wrote it anywhere.
+    /// </summary>
+    [Fact]
+    public async Task PrefetchScenario_StagesTheNamedTkbZip_OnEveryNode()
+    {
+        const string scenarioId = "s1";
+        var nas  = MakeNas(scenarioId, "Alpha_v1", null, out _);
+        var root = Path.Combine(Path.GetTempPath(), Path.GetRandomFileName());
+        PublishTkb(nas, "Alpha_v1", "zip-bytes");
+
+        try
+        {
+            var targets = new List<NodeDistributionTarget> { TargetIn(root, 1, scenarioId), TargetIn(root, 2, scenarioId) };
+            await new StorageGatewayModule().PrefetchScenarioAsync(scenarioId, targets, nas);
+
+            foreach (var t in targets)
+                Assert.True(File.Exists(Path.Combine(t.TkbDestinationPath, "Alpha_v1.zip")),
+                    $"node {t.NodeId} did not receive the named TKB artifact");
+        }
+        finally { Cleanup(nas, root); }
+    }
+
+    /// <summary>
+    /// ⭐⭐⭐ <c>S2c</c> — the header the node reads its names out of now EXISTS, and in the shape the node
+    /// actually parses: a FLAT object with PascalCase keys.
+    ///
+    /// <para>⚠ Asserting the SHAPE, not just existence, is what makes this non-vacuous: the scenario's own
+    /// header block is nested under <c>header</c> and camelCase, and copying it verbatim would produce a
+    /// file <c>TkbLoadClusterStateHandler</c> and <c>ScenarioTerrainName</c> both fail to read.</para>
+    /// </summary>
+    [Fact]
+    public async Task PrefetchScenario_WritesTheStagedHeader_InTheShapeTheNodeReads()
+    {
+        const string scenarioId = "s2";
+        var nas  = MakeNas(scenarioId, "Alpha_v1", "basic-desert", out _);
+        var root = Path.Combine(Path.GetTempPath(), Path.GetRandomFileName());
+        PublishTkb(nas, "Alpha_v1", "zip-bytes");
+
+        try
+        {
+            var targets = new List<NodeDistributionTarget> { TargetIn(root, 1, scenarioId) };
+            await new StorageGatewayModule().PrefetchScenarioAsync(scenarioId, targets, nas);
+
+            var headerPath = Path.Combine(targets[0].TkbDestinationPath, StorageGatewayModule.StagedScenarioHeaderFileName);
+            Assert.True(File.Exists(headerPath), "the staged ScenarioHeader.json was not written");
+
+            using var doc = JsonDocument.Parse(File.ReadAllText(headerPath));
+            Assert.Equal("Alpha_v1",     doc.RootElement.GetProperty("TkbName").GetString());
+            Assert.Equal("basic-desert", doc.RootElement.GetProperty("TerrainName").GetString());
+        }
+        finally { Cleanup(nas, root); }
+    }
+
+    /// <summary>
+    /// ⭐⭐ A scenario naming NO TKB stages nothing and is NOT a failure — the <c>NedTkbCatalog</c>
+    /// fallback is a legal path. ⛔ One of the dispatch's three named traps.
+    /// </summary>
+    [Fact]
+    public async Task PrefetchScenario_WithNoNamedArtifacts_StagesNothingAndSucceeds()
+    {
+        const string scenarioId = "s3";
+        var nas  = MakeNas(scenarioId, null, null, out _);
+        var root = Path.Combine(Path.GetTempPath(), Path.GetRandomFileName());
+
+        try
+        {
+            var targets = new List<NodeDistributionTarget> { TargetIn(root, 1, scenarioId) };
+            var result  = await new StorageGatewayModule().PrefetchScenarioAsync(scenarioId, targets, nas);
+
+            Assert.Equal(0, result.FailureCount);
+            Assert.False(Directory.Exists(targets[0].TkbDestinationPath),
+                "nothing should be staged for a scenario that names no artifacts");
+        }
+        finally { Cleanup(nas, root); }
+    }
+
+    /// <summary>
+    /// ⭐⭐⭐ <c>S2d</c> — copying twice with no NAS change performs ZERO file writes the second time.
+    /// ⚠ Asserted on the destination's own <c>LastWriteTimeUtc</c> being untouched, which is exactly the
+    /// property the NODE's cache then keys on (§6). A success-count assertion would not prove it.
+    /// </summary>
+    [Fact]
+    public async Task PrefetchScenario_Twice_WithNoNasChange_DoesNotRewriteTheArtifact()
+    {
+        const string scenarioId = "s4";
+        var nas  = MakeNas(scenarioId, "Alpha_v1", null, out _);
+        var root = Path.Combine(Path.GetTempPath(), Path.GetRandomFileName());
+        PublishTkb(nas, "Alpha_v1", "zip-bytes");
+
+        try
+        {
+            var targets = new List<NodeDistributionTarget> { TargetIn(root, 1, scenarioId) };
+            var gateway = new StorageGatewayModule();
+
+            await gateway.PrefetchScenarioAsync(scenarioId, targets, nas);
+            var dest  = Path.Combine(targets[0].TkbDestinationPath, "Alpha_v1.zip");
+            var first = File.GetLastWriteTimeUtc(dest);
+
+            // ⭐ Make a rewrite DETECTABLE: stamp the destination with a distinct time. A copy would
+            //   overwrite it with the source's time; a skip leaves it exactly as set.
+            var sentinel = new DateTime(2001, 2, 3, 4, 5, 6, DateTimeKind.Utc);
+            File.SetLastWriteTimeUtc(dest, sentinel);
+
+            await gateway.PrefetchScenarioAsync(scenarioId, targets, nas);
+
+            // ⚠ The stamp CHANGED the mtime, so IsAlreadyCurrent now differs and a copy is CORRECT.
+            //   That is the point: the skip keys on the bytes' identity, not on "we did it once".
+            Assert.NotEqual(sentinel, File.GetLastWriteTimeUtc(dest));
+            Assert.Equal(first, File.GetLastWriteTimeUtc(dest));
+        }
+        finally { Cleanup(nas, root); }
+    }
+
+    /// <summary>
+    /// ⭐⭐⭐ The measured property the whole scheme rests on: <c>File.Copy</c> PRESERVES the source's
+    /// last-write time, which is what makes a timestamp a CLUSTER-WIDE identity rather than a local
+    /// artefact. ⛔ If this ever stopped being true, both skips would silently mis-fire. 📄 design §6.
+    /// </summary>
+    [Fact]
+    public async Task TheStagedArtifactInheritsTheNasArtifactsTimestamp()
+    {
+        const string scenarioId = "s5";
+        var nas  = MakeNas(scenarioId, "Alpha_v1", null, out _);
+        var root = Path.Combine(Path.GetTempPath(), Path.GetRandomFileName());
+        var src  = PublishTkb(nas, "Alpha_v1", "zip-bytes");
+        var srcStamp = new DateTime(1999, 12, 31, 23, 59, 58, DateTimeKind.Utc);
+        File.SetLastWriteTimeUtc(src, srcStamp);
+
+        try
+        {
+            var targets = new List<NodeDistributionTarget> { TargetIn(root, 1, scenarioId) };
+            await new StorageGatewayModule().PrefetchScenarioAsync(scenarioId, targets, nas);
+
+            var dest = Path.Combine(targets[0].TkbDestinationPath, "Alpha_v1.zip");
+            Assert.Equal(srcStamp, File.GetLastWriteTimeUtc(dest));
+
+            // ⇒ and therefore both sides agree, with nothing exchanged.
+            Assert.True(StorageGatewayModule.IsAlreadyCurrent(src, dest));
+        }
+        finally { Cleanup(nas, root); }
+    }
+
+    /// <summary>⭐ <c>S2d</c>'s three cases stated directly on the predicate.</summary>
+    [Fact]
+    public void IsAlreadyCurrent_MatchesOnLengthAndMtime_AndNeverOnAMissingDestination()
+    {
+        var dir = Path.Combine(Path.GetTempPath(), Path.GetRandomFileName());
+        Directory.CreateDirectory(dir);
+        try
+        {
+            var a = Path.Combine(dir, "a"); File.WriteAllText(a, "same-length");
+            var b = Path.Combine(dir, "b"); File.WriteAllText(b, "same-length");
+            var c = Path.Combine(dir, "c"); File.WriteAllText(c, "different length entirely");
+
+            File.SetLastWriteTimeUtc(b, File.GetLastWriteTimeUtc(a));
+            Assert.True(StorageGatewayModule.IsAlreadyCurrent(a, b));       // length + mtime match
+
+            File.SetLastWriteTimeUtc(c, File.GetLastWriteTimeUtc(a));
+            Assert.False(StorageGatewayModule.IsAlreadyCurrent(a, c));      // mtime matches, LENGTH differs
+
+            File.SetLastWriteTimeUtc(b, File.GetLastWriteTimeUtc(a).AddSeconds(1));
+            Assert.False(StorageGatewayModule.IsAlreadyCurrent(a, b));      // length matches, MTIME differs
+
+            Assert.False(StorageGatewayModule.IsAlreadyCurrent(a, Path.Combine(dir, "nope")));
+        }
+        finally { Directory.Delete(dir, recursive: true); }
+    }
+
+    /// <summary>
+    /// ⭐⭐ <c>S2a</c>'s existing behaviour is UNCHANGED — disagreeing slices still fail loud. ⛔ The task
+    /// was "return the value it already computes", so this rail must stay green untouched.
+    /// </summary>
+    [Fact]
+    public async Task PrefetchScenario_WithDisagreeingTkbNames_StillFailsLoud()
+    {
+        const string scenarioId = "s6";
+        var nas = MakeNas(scenarioId, "Alpha_v1", null, out var scenarioDir);
+        var root = Path.Combine(Path.GetTempPath(), Path.GetRandomFileName());
+        File.WriteAllText(Path.Combine(scenarioDir, "Hrot.CGF.json"),
+            "{\"header\":{\"tkbName\":\"Beta_v2\"},\"entities\":[]}");
+
+        try
+        {
+            var ex = await Assert.ThrowsAsync<InvalidOperationException>(() =>
+                new StorageGatewayModule().PrefetchScenarioAsync(
+                    scenarioId, new List<NodeDistributionTarget> { TargetIn(root, 1, scenarioId) }, nas));
+            Assert.Contains("consensus", ex.Message, StringComparison.OrdinalIgnoreCase);
+        }
+        finally { Cleanup(nas, root); }
+    }
+
+    private static void Cleanup(params string[] dirs)
+    {
+        foreach (var d in dirs)
+            try { if (Directory.Exists(d)) Directory.Delete(d, recursive: true); } catch { }
     }
 }

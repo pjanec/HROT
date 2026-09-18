@@ -26,6 +26,33 @@ public sealed record NodeDistributionTarget
     /// (e.g. <c>\\NODE01\c$\FDP_Temp\scenario.json</c>).
     /// </summary>
     public string DestinationPath { get; init; } = string.Empty;
+
+    /// <summary>
+    /// ⭐⭐⭐ <c>S2b</c>/<c>S2c</c> — this node's TKB ARTIFACT directory, which is a SIBLING of the
+    /// scenario destination rather than a child of it
+    /// (<c>{base}/nodes/node-N/TKB</c> vs <c>{base}/nodes/node-N/scenarios/{id}</c>).
+    ///
+    /// <para>⚠ Carried on the target rather than derived inside the gateway because the gateway is handed
+    /// destinations, not a staging root plus node ids — deriving it there would mean parsing the node
+    /// segment back out of a path. 📄 <c>OrchestrationConstants.GetNodeTkbStagingRoot</c> builds it.</para>
+    ///
+    /// <para>⛔ Empty means "this target stages no artifacts" — legal, and the gateway skips it silently
+    /// rather than failing, so an un-migrated caller degrades to the previous behaviour.</para>
+    /// </summary>
+    public string TkbDestinationPath { get; init; } = string.Empty;
+}
+
+/// <summary>
+/// ⭐⭐ <c>S2a</c> — the artifact names the staged scenario slices AGREE on.
+///
+/// <para>🔴 Both are <see langword="null"/>-legal and mean different things when absent: no TKB name means
+/// the node uses <c>NedTkbCatalog.RegisterAll()</c> (a supported path), and no terrain name means the
+/// scenario simply has no terrain. ⛔ Neither is a failure — only DISAGREEMENT between slices is.</para>
+/// </summary>
+public readonly record struct StagedArtifactNames(string? TkbName, string? TerrainName)
+{
+    /// <summary>True when the scenario names at least one artifact worth staging.</summary>
+    public bool Any => !string.IsNullOrEmpty(TkbName) || !string.IsNullOrEmpty(TerrainName);
 }
 
 /// <summary>
@@ -252,7 +279,8 @@ public sealed class StorageGatewayModule
                 $"Ensure scenario '{scenarioId}' contains at least one file before prefetching.");
 
         // NEW: sanity gate -- TkbName must agree across all scenario files.
-        CheckTkbNameConsensus(files);
+        // ⭐ S2a — it now RETURNS what it already computed, instead of discarding it.
+        var artifactNames = CheckTkbNameConsensus(files);
 
         int success = 0, failure = 0;
         var options = new ParallelOptions { MaxDegreeOfParallelism = MaxParallelCopies };
@@ -341,7 +369,160 @@ public sealed class StorageGatewayModule
             }
         }
 
+        // ⭐⭐⭐ S2b + S2c — stage the named ARTIFACTS beside the scenario slices.
+        StageNamedArtifacts(artifactNames, distinctTargets, nasBasePath, ref success, ref failure);
+
         return new GatewayResult { SuccessCount = success, FailureCount = failure };
+    }
+
+    /// <summary>
+    /// ⭐⭐⭐ <c>S2b</c> + <c>S2c</c> — copy the named TKB zip, and write the header that names it, into
+    /// every target's TKB directory.
+    ///
+    /// <para>🔴 <b>Why <c>S2c</c> is the half that matters.</b> 📐 Measured <c>2026-09-18</c>:
+    /// <c>ScenarioHeader.json</c> had <b>zero production writers</b>, so
+    /// <c>TkbLoadClusterStateHandler.ExtractTkbNameFromLocalScenario</c> returned <c>null</c> on every
+    /// real load and the handler fell through to <c>NedTkbCatalog.RegisterAll()</c>. ⇒ the TKB loader had
+    /// <b>never resolved a name in production</b> — which is why the missing zip (<c>BP-550</c>) went
+    /// unnoticed: <b>the name was never read, so the zip was never wanted.</b></para>
+    ///
+    /// <para>⚠⚠ <b>The header written here is a DIFFERENT SHAPE from the scenario's own header block,
+    /// and that is deliberate.</b> 📐 Both node-side readers take a FLAT object with PascalCase keys —
+    /// <c>TkbLoadClusterStateHandler.cs:152</c> and <c>ScenarioTerrainName.cs:42</c> both use
+    /// <c>ValueTextEquals("TkbName")</c>/<c>("TerrainName")</c> with no nesting — whereas a scenario file
+    /// carries <c>header: {{ tkbName, terrainName }}</c>, nested and camelCase. ⛔ Copying the scenario's
+    /// block verbatim would produce a file neither reader can parse.</para>
+    ///
+    /// <para>⚠ A scenario naming NO artifacts stages nothing and is <b>not</b> a failure — the
+    /// <c>NedTkbCatalog</c> fallback is a legal path.</para>
+    ///
+    /// 📄 docs/DESIGN_Artifact_Staging.md §2, §4.
+    /// </summary>
+    private static void StageNamedArtifacts(
+        StagedArtifactNames names,
+        IReadOnlyList<NodeDistributionTarget> targets,
+        string nasBasePath,
+        ref int success,
+        ref int failure)
+    {
+        if (!names.Any) return;
+
+        var headerJson = BuildStagedHeaderJson(names);
+
+        string? tkbSource = null;
+        if (!string.IsNullOrEmpty(names.TkbName))
+        {
+            tkbSource = Path.Combine(
+                nasBasePath,
+                OrchestrationConstants.NasTkbDirectoryName,
+                names.TkbName + OrchestrationConstants.TkbArtifactExtension);
+
+            if (!File.Exists(tkbSource))
+            {
+                // 🔴🔴 A NAMED-but-UNPUBLISHED artifact is LOGGED LOUDLY and deliberately NOT counted as a
+                //    gateway failure. ⚠ This was a real decision, not an oversight — the first draft
+                //    counted it, and three PRE-EXISTING rails went red
+                //    (PrefetchScenario_SameTkbName_AllFiles_Succeeds and two siblings), which is what
+                //    surfaced the question.
+                //
+                //    📐 Those rails encode the EXISTING contract: a scenario may name a TKB that is not
+                //    published, and prefetch still reports IsFullSuccess. ⛔ Changing that would change
+                //    the orchestrator's TRANSITION OUTCOME for a condition this design never said should
+                //    block a transition — far beyond "copy the zip".
+                //
+                //    ⭐⭐ And the loud failure already has a designed home: the node's own
+                //    TkbLoadClusterStateHandler throws FileNotFoundException naming the exact path when
+                //    it cannot find the zip its header told it to load. ⇒ IsFullSuccess keeps meaning
+                //    "every transfer I attempted succeeded", and nothing is swallowed — the error names
+                //    the missing NAS path, which is the actionable half.
+                //    📄 docs/DESIGN_Artifact_Staging.md §4a (folded back by this batch).
+                FdpLog<StorageGatewayModule>.Error(
+                    "[Gateway] PrefetchScenario: scenario names TKB '{0}' but '{1}' does not exist on the "
+                  + "NAS. Nodes will fail to load it. Publish the artifact to {2}.",
+                    names.TkbName, tkbSource, OrchestrationConstants.GetNasTkbRoot(nasBasePath));
+                tkbSource = null;
+            }
+        }
+
+        foreach (var target in targets)
+        {
+            if (string.IsNullOrEmpty(target.TkbDestinationPath)) continue;
+
+            try
+            {
+                Directory.CreateDirectory(target.TkbDestinationPath);
+
+                // S2c — the header the node reads its names out of.
+                File.WriteAllText(
+                    Path.Combine(target.TkbDestinationPath, StagedScenarioHeaderFileName), headerJson);
+                Interlocked.Increment(ref success);
+
+                // S2b — the artifact itself.
+                if (tkbSource != null)
+                {
+                    var dest = Path.Combine(target.TkbDestinationPath, Path.GetFileName(tkbSource));
+                    if (IsAlreadyCurrent(tkbSource, dest))
+                    {
+                        // ⭐ S2d — the node already holds these bytes; leaving the file UNTOUCHED is what
+                        //   makes the node's own (name, length, mtime) cache fire too. §6.
+                        Interlocked.Increment(ref success);
+                    }
+                    else
+                    {
+                        File.Copy(tkbSource, dest, overwrite: true);
+                        Interlocked.Increment(ref success);
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                FdpLog<StorageGatewayModule>.Error(
+                    "[Gateway] PrefetchScenario: failed to stage artifacts → '{0}': {1}",
+                    target.TkbDestinationPath, ex.Message);
+                Interlocked.Increment(ref failure);
+            }
+        }
+    }
+
+    /// <summary>The header file both node-side readers open. ⛔ One definition of the name.</summary>
+    public const string StagedScenarioHeaderFileName = "ScenarioHeader.json";
+
+    /// <summary>
+    /// ⭐ The FLAT, PascalCase header the node reads. ⚠ See <see cref="StageNamedArtifacts"/> for why this
+    /// is not the scenario's own header block. ⭐ Null names are omitted rather than written as
+    /// <c>null</c>, so an absent name and a null-valued one look identical to the readers.
+    /// </summary>
+    public static string BuildStagedHeaderJson(StagedArtifactNames names)
+    {
+        var fields = new List<string>(2);
+        if (!string.IsNullOrEmpty(names.TkbName))
+            fields.Add($"\"TkbName\":{JsonSerializer.Serialize(names.TkbName)}");
+        if (!string.IsNullOrEmpty(names.TerrainName))
+            fields.Add($"\"TerrainName\":{JsonSerializer.Serialize(names.TerrainName)}");
+        return "{" + string.Join(",", fields) + "}";
+    }
+
+    /// <summary>
+    /// ⭐⭐⭐ <c>S2d</c> — the orchestrator's skip: does the destination already hold these exact bytes?
+    ///
+    /// <para>🔒 <b>Ruled by the user <c>2026-09-18</c>: the key is <c>(length, lastWriteTimeUtc)</c> — no
+    /// hash, no sidecar.</b> 📐 And the scheme rests on a measured property: <c>File.Copy</c> PRESERVES the
+    /// source's last-write time, so the mtime a node sees is the NAS artifact's OWN. ⇒ ⭐⭐ a timestamp is a
+    /// CLUSTER-WIDE identity, and both sides can evaluate literally the same predicate without exchanging
+    /// anything.</para>
+    ///
+    /// <para>⚠ <b>The residual risk is accepted, not overlooked:</b> <c>(length, mtime)</c> is not a
+    /// content identity. A rebuilt-but-identical zip copies needlessly (wasteful, correct); a different
+    /// zip with the same length AND the same 100-ns mtime would wrongly skip (vanishingly unlikely for
+    /// tool-built artifacts, ⚠ but silent). 📄 design §6 records the tradeoff.</para>
+    /// </summary>
+    public static bool IsAlreadyCurrent(string sourceFile, string destFile)
+    {
+        var src = new FileInfo(sourceFile);
+        var dst = new FileInfo(destFile);
+        if (!src.Exists || !dst.Exists) return false;          // ⭐ a missing destination always copies
+        return src.Length == dst.Length
+            && src.LastWriteTimeUtc == dst.LastWriteTimeUtc;
     }
 
     /// <summary>
@@ -555,33 +736,58 @@ public sealed class StorageGatewayModule
     /// using a forward-only <see cref="System.Text.Json.Utf8JsonReader"/> (no DOM allocation).
     /// Throws <see cref="InvalidOperationException"/> if any two non-empty TkbName values disagree.
     /// </summary>
-    private static void CheckTkbNameConsensus(string[] files)
+    private static StagedArtifactNames CheckTkbNameConsensus(string[] files)
     {
-        string? agreedTkbName   = null;
-        string? agreedSourceFile = null;
+        string? agreedTkbName     = null;
+        string? agreedSourceFile  = null;
+        string? agreedTerrainName = null;
+        string? terrainSourceFile = null;
 
         foreach (var file in files)
         {
             if (!file.EndsWith(".json", StringComparison.OrdinalIgnoreCase))
                 continue;
 
-            string? tkbName = PeekTkbNameFromFile(file);
-            if (string.IsNullOrEmpty(tkbName))
-                continue;
-
-            if (agreedTkbName == null)
+            string? tkbName = PeekHeaderStringFromFile(file, "TkbName", "tkbName");
+            if (!string.IsNullOrEmpty(tkbName))
             {
-                agreedTkbName    = tkbName;
-                agreedSourceFile = file;
+                if (agreedTkbName == null)
+                {
+                    agreedTkbName    = tkbName;
+                    agreedSourceFile = file;
+                }
+                else if (!string.Equals(agreedTkbName, tkbName, StringComparison.Ordinal))
+                {
+                    throw new InvalidOperationException(
+                        $"[Gateway] TkbName consensus check failed: " +
+                        $"'{agreedTkbName}' (from '{Path.GetFileName(agreedSourceFile)}') " +
+                        $"conflicts with '{tkbName}' (from '{Path.GetFileName(file)}').");
+                }
             }
-            else if (!string.Equals(agreedTkbName, tkbName, StringComparison.Ordinal))
+
+            // ⭐⭐ S2c/S4 — the TERRAIN name rides the SAME staged header file, so it must reach the same
+            //    consensus and be written beside TkbName. 🔴 The plan named only the TKB name; measured,
+            //    ScenarioTerrainName.Read reads `TerrainName` out of that very file, so writing only
+            //    TkbName would leave S4 ("terrain inherits it with no new code") IMPOSSIBLE.
+            string? terrainName = PeekHeaderStringFromFile(file, "TerrainName", "terrainName");
+            if (!string.IsNullOrEmpty(terrainName))
             {
-                throw new InvalidOperationException(
-                    $"[Gateway] TkbName consensus check failed: " +
-                    $"'{agreedTkbName}' (from '{Path.GetFileName(agreedSourceFile)}') " +
-                    $"conflicts with '{tkbName}' (from '{Path.GetFileName(file)}').");
+                if (agreedTerrainName == null)
+                {
+                    agreedTerrainName = terrainName;
+                    terrainSourceFile = file;
+                }
+                else if (!string.Equals(agreedTerrainName, terrainName, StringComparison.Ordinal))
+                {
+                    throw new InvalidOperationException(
+                        $"[Gateway] TerrainName consensus check failed: " +
+                        $"'{agreedTerrainName}' (from '{Path.GetFileName(terrainSourceFile)}') " +
+                        $"conflicts with '{terrainName}' (from '{Path.GetFileName(file)}').");
+                }
             }
         }
+
+        return new StagedArtifactNames(agreedTkbName, agreedTerrainName);
     }
 
     /// <summary>
@@ -589,7 +795,7 @@ public sealed class StorageGatewayModule
     /// <see cref="System.Text.Json.Utf8JsonReader"/>. Returns null when the field
     /// is absent or the file cannot be read.
     /// </summary>
-    private static string? PeekTkbNameFromFile(string filePath)
+    private static string? PeekHeaderStringFromFile(string filePath, string pascalName, string camelName)
     {
         try
         {
@@ -608,7 +814,7 @@ public sealed class StorageGatewayModule
                         {
                             inHeader = true;
                         }
-                        else if (inHeader && (propName == "TkbName" || propName == "tkbName"))
+                        else if (inHeader && (propName == pascalName || propName == camelName))
                         {
                             reader.Read();
                             return reader.TokenType == System.Text.Json.JsonTokenType.String

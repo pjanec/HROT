@@ -384,4 +384,80 @@ public sealed class TerrainLoadClusterStateHandlerTests : IDisposable
             Assert.Equal(1, holder.LiveGenerations);
         }
     }
+
+    // ══ S4 — WHAT TERRAIN INHERITS FROM THE ARTIFACT-STAGING BATCH, AND WHAT IT DOES NOT ═══════════
+    //
+    // ⭐⭐ S4 was dispatched as a CONFIRMATION, not a port: "terrain mirrors the TKB loader field for
+    //    field and should inherit both skips with NO new code; if it needs its own path, that is a
+    //    FINDING." 📐 Measured, it is BOTH — and the split is exactly on the header/artifact line.
+
+    /// <summary>
+    /// ✅ <b><c>S4</c>, the half that DOES inherit with no new code:</b> the terrain NAME rides the same
+    /// staged <c>ScenarioHeader.json</c> the TKB loader reads, so the orchestrator's <c>S2c</c> writer
+    /// serves both readers from one file.
+    ///
+    /// <para>⭐ Asserted through <c>StorageGatewayModule.BuildStagedHeaderJson</c> — the ORCHESTRATOR's
+    /// own writer — rather than a hand-written fixture. ⛔ A fixture that writes the header itself could
+    /// not catch the orchestrator emitting a shape the node cannot parse, which is the actual risk:
+    /// the scenario's own header block is nested and camelCase, and this one is flat and PascalCase.</para>
+    /// </summary>
+    [Fact]
+    public void TheOrchestratorsStagedHeaderIsReadableByTheTerrainReader()
+    {
+        var json = Hrot.Orchestrator.StorageGatewayModule.BuildStagedHeaderJson(
+            new Hrot.Orchestrator.StagedArtifactNames("Alpha_v1", "basic-desert"));
+        File.WriteAllText(Path.Combine(_tkbDir, "ScenarioHeader.json"), json, new UTF8Encoding(false));
+
+        Assert.Equal("basic-desert", Fdp.Toolkit.Terrain.ScenarioTerrainName.Read(_stagingRoot));
+    }
+
+    /// <summary>
+    /// ⭐ A scenario naming a TKB but NO terrain still reads back as "no terrain" — ⛔ not as an empty
+    /// string or a throw. ⚠ The no-terrain path stays legal, exactly like the no-TKB one.
+    /// </summary>
+    [Fact]
+    public void AStagedHeaderWithNoTerrainNameReadsBackAsNull()
+    {
+        var json = Hrot.Orchestrator.StorageGatewayModule.BuildStagedHeaderJson(
+            new Hrot.Orchestrator.StagedArtifactNames("Alpha_v1", null));
+        File.WriteAllText(Path.Combine(_tkbDir, "ScenarioHeader.json"), json, new UTF8Encoding(false));
+
+        Assert.Null(Fdp.Toolkit.Terrain.ScenarioTerrainName.Read(_stagingRoot));
+    }
+
+    /// <summary>
+    /// 🔴🔴 <b><c>S4</c>'s FINDING — terrain does NOT inherit the ARTIFACT half, and cannot.</b>
+    ///
+    /// <para>📐 Measured: the TKB artifact is <c>{{node}}/TKB/{{name}}.zip</c>
+    /// (<c>TkbLoadClusterStateHandler.cs:78</c>) and the terrain definition is
+    /// <c>{{node}}/Terrain/{{name}}.json</c> (<c>TerrainLoadClusterStateHandler.cs:138</c>) — a
+    /// DIFFERENT DIRECTORY and a DIFFERENT EXTENSION. ⇒ <c>S2b</c>, which copies one named zip out of
+    /// <c>{{nas}}/tkb</c>, cannot serve it; staging terrain needs a second artifact KIND.</para>
+    ///
+    /// <para>⛔ <b>Deliberately NOT built here.</b> The dispatch ruled that a terrain-specific path is a
+    /// FINDING to report rather than work to do, and a second artifact kind is squarely the wider
+    /// asset-management model the dispatch fenced off. ⭐ This rail PINS the gap so it cannot be
+    /// mistaken for done: it asserts the two roots differ, which is the whole reason.</para>
+    ///
+    /// <para>⇒ <c>BP-550</c> is closed for the TKB and stays OPEN for terrain. 📄 reported in
+    /// docs/blueprints/batches/REPORT_Artifact_Staging.md and folded into
+    /// docs/DESIGN_Artifact_Staging.md §5a.</para>
+    /// </summary>
+    [Fact]
+    public void TerrainArtifactsAreNotStagedByTheTkbPath_AndTheRootsDiffer()
+    {
+        var tkbRoot = Fdp.Toolkit.Orchestration.OrchestrationConstants.GetTkbStagingRoot(_stagingRoot);
+
+        Assert.Equal(_tkbDir, tkbRoot);
+        Assert.NotEqual(_terrainDir, tkbRoot);
+
+        // ⭐ The header (S2c) reaches the terrain reader; the DEFINITION file does not arrive with it.
+        var json = Hrot.Orchestrator.StorageGatewayModule.BuildStagedHeaderJson(
+            new Hrot.Orchestrator.StagedArtifactNames(null, "basic-desert"));
+        File.WriteAllText(Path.Combine(_tkbDir, "ScenarioHeader.json"), json, new UTF8Encoding(false));
+
+        Assert.Equal("basic-desert", Fdp.Toolkit.Terrain.ScenarioTerrainName.Read(_stagingRoot));
+        Assert.False(File.Exists(Path.Combine(_terrainDir, "basic-desert.json")),
+            "nothing in the TKB staging path publishes a terrain definition — that is S4's finding");
+    }
 }

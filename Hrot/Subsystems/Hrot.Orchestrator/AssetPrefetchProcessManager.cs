@@ -194,6 +194,14 @@ public sealed class AssetPrefetchProcessManager
                     Fdp.Toolkit.Orchestration.OrchestrationConstants.GetNodeStagingRoot(_localStagingRoot, nodeId),
                     Fdp.Toolkit.Orchestration.OrchestrationConstants.ScenariosDirectoryName,
                     scenarioId),
+
+                // ⭐⭐ S2b/S2c — the TKB artifact directory is a SIBLING of the scenario destination, not a
+                //   child: the node reads {base}/nodes/node-N/TKB while slices land under
+                //   {base}/nodes/node-N/scenarios/{id}. 📐 S1b's rail proves this is the same directory the
+                //   node-side handler resolves from the per-node root its bootstrap already hands it.
+                TkbDestinationPath =
+                    Fdp.Toolkit.Orchestration.OrchestrationConstants.GetNodeTkbStagingRoot(
+                        _localStagingRoot, nodeId),
             });
         }
         return targets;
