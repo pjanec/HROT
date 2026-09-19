@@ -12,7 +12,8 @@ current-answer: §2 is the model in one table (the three forms, the two directio
   restore-at-unpack paragraph, it is what makes the one-predicate claim TRUE. §3-§6 are the structure.
   §7 is the WHY the diagrams cannot carry; ⭐ §7.3a is RULED and carries the whole LoadPart->AssetKind
   map, and ⭐⭐ §7.3b is the AUTHOR-SUBTRACTION without which B destroys authored work on first load —
-  read them as one rule. §8 is the increment split. §9 is under-specified (W1-W4 + W6 live; W5 CLOSED).
+  read them as one rule, and ⭐ §7.3c is the explicit REFRESH that closes their loop. §8 is the increment
+  split. §9 is under-specified (W1-W4 live; W5 and W6 CLOSED).
   ⛔ §HISTORY is what the two reviews measured FALSE — never quote it.
 stale-below: everything under `## ⛔ HISTORY`. ⛔ Six statements this document originally made are wrong;
   each is named there with what measured it false.
@@ -104,6 +105,7 @@ classDiagram
         +SyncToNodesAsync(kind, targets, nas)
         +ProbeAuthoringNodesAsync(kinds)
         +PublishToNasAsync(kind, sourceNode)
+        +RefreshFromNasAsync(kind, targetNode)
     }
     class AssetManifest {
         <<NEW · Fdp.Toolkits>>
@@ -216,10 +218,13 @@ sequenceDiagram
     participant A as Authoring node (online)
     participant NAS as NAS tree
     participant TP as TransitionPlanner
-    Note over U,NAS: EXPLICIT publish - the ONLY thing that transfers
+    Note over U,NAS: EXPLICIT, user-triggered - the ONLY things that transfer
     U->>SY: Publish authored changes
     SY->>A: collect manifest for kind
     SY->>NAS: diff, then copy the differing set
+    U->>SY: Refresh authored kinds from NAS (C5)
+    SY->>A: name the files this will REPLACE
+    SY->>A: copy the differing set back, overwriting
     Note over U,TP: ON LOAD - a cheap probe, never a transfer
     TP->>SY: scenario load starting
     SY->>A: summary per kind (count, newest mtime)
@@ -447,6 +452,27 @@ probe only warned when a node was **AHEAD** of NAS.
 **every** Brain host advertises authorship, there is **no automatic refresh of already-held AI assets —
 by design.** New assets still arrive; updates wait for the probe's warning and an explicit act.
 
+### 7.3c ✅ THE EXPLICIT REFRESH — **the third leg, ruled `2026-09-19`** *(user: "w6 — yes, seems useful")*
+
+⭐⭐ **Three operations, one shape, and only now is the loop closed:**
+
+| operation | direction | trigger |
+|---|---|---|
+| `PublishToNasAsync` (`C1`/`C4`) | node → NAS | ⭐ **the user, any time** |
+| `SyncToNodesAsync` (`B4`) | NAS → node | ⭐ a scenario load — ⛔ **add-only for an authored kind** |
+| ⭐⭐ **`RefreshFromNasAsync` (`C5`)** | NAS → node, **over the author's own folder** | ⭐ **the user, any time** |
+
+⛔⛔ **`C5` is not a convenience — it is the ONLY route by which an UPDATE reaches a file an authoring
+station already holds.** §7.3b clause ③ deliberately refuses to overwrite on load; ⇒ without `C5`, §5's
+BEHIND warning could tell an author they are stale and offer **nothing to do about it.**
+
+| ⭐ | |
+|---|---|
+| ⭐⭐⭐ **it reuses `C1`'s diff, pointed the other way** | ⛔ no new machinery, no new freshness rule — exactly the differing set, nothing else |
+| ⭐⭐ **the BEHIND arm is its trigger, not its implementation** | ⭐ the probe *reports*; `C5` is what the user then *does*. ⛔ The probe never transfers (`Q72-I`) |
+| ⛔⛔ **NEVER automatic** — not on load, not on save, not on a timer | 🔒 `Q72-I` ruled that for publish and the same reasoning binds here: **it writes the author's own folder** |
+| ⭐⭐ **it OVERWRITES, so it warns first** | ⛔ this is the one operation in the design that can destroy unpublished work, **and it is user-initiated for exactly that reason.** ⭐ Name the files it will replace — 🔒 a deliberate act needs to be an **informed** one |
+
 ⇒ ⭐⭐ **Close it in the probe, not in the sync:** `C2`/`C3` report **BEHIND as well as AHEAD** — a warning,
 never a transfer. ⭐ That costs one comparison, keeps the user in control, and is the same shape `Q72-I`
 already chose for the other direction. ⚠ **The mirror OPERATION** — *"refresh my authored kinds from
@@ -489,7 +515,7 @@ as **planned** rather than left to be discovered in a batch.
 |---|---|---|
 | **A — the manifest and the recursive walk** | `AssetManifest` (three-set `Diff`) + recursive enumeration on **both** sides. ⛔⛔ **NOT the `FileManifestEntry` fields** — they moved to **C**, see below | ⭐⭐ **everything else needs it**, and ① says it exists nowhere. ⛔ Landing anything else first builds on sand |
 | **B — needs-filtered sync with the partition** | `AssetSyncService` NAS→node, tokens derived from `RoleLoadRequirements`, `TransportPartitioner`, the skip kept verbatim | ⭐ this is the increment that makes *"nodes keep just copies they really need"* true |
-| **C — publish and the probe** | explicit publish node→NAS, the summary probe, warn/fail split | ⭐ independent of B and **safe to defer**; ⛔ it is the only part that touches authoring hosts |
+| **C — publish, the probe, and the refresh** | explicit publish node→NAS, the summary probe, the warn/fail split, ⭐ **and `C5`'s explicit refresh NAS→author** | ⭐ independent of B and **safe to defer**; ⛔ it is the only part that touches authoring hosts. ⚠ **`C5` is what closes §7.3b's loop** — deferring C leaves an authoring station with no route to an update |
 
 ⭐ **`Q72-D`'s seam extraction rides with B** — it is what lets a tree asset be read without caring whether
 it is a directory or an archive.
@@ -510,7 +536,7 @@ increments before its first caller** and bills `A` as *"the enabler"* for someth
 | **W2** | whether the probe's summary is computed per call or cached on `ContributorChanged` | ⭐ implementer — ⑤ measured the walk is stat-only; start simple, cache only if measured slow |
 | **W3** | how a scenario participates in the probe, given ⑤'s `BaseFolder == null` for scenarios | ⭐ implementer. ⚠ Scenarios already travel by the prefetch path, so the likely answer is **they do not** — ⛔ but that must be stated, not assumed |
 | **W4** | ⭐⭐ whether a **removed** NAS entry **deletes** the node's copy, or is reported and left | ⭐ implementer, **stated and railed either way** — §3's three-set `Diff` makes the set available; ⛔ *"MIRROR"* is not testable until this is answered |
-| **W6** | ⭐⭐ the **mirror of `C4`** — *"refresh my authored kinds from NAS"*, explicit and user-triggered | 🔴 **the USER — a NEW user-facing operation, so not assumed.** ⛔⛔ **It is COUPLED to §7.3b, not a convenience:** clause ③ delivers new assets but **never an update to a file the author already holds** ⇒ **`W6` is the ONLY inbound route for those bytes on an authoring station.** ⭐ Without it `C3`'s BEHIND arm can tell an author they are stale while offering **nothing to do about it**. ⭐ **Lean: YES, as `C5` in increment C** — same machinery as `C4` reversed, and the BEHIND arm is exactly its trigger. ⛔ It must never become automatic (`Q72-I`) |
+| ~~**W6**~~ | ✅ **CLOSED `2026-09-19`** — the explicit **refresh from NAS** | ✅ **the USER ruled it** (*"w6 — yes, seems useful"*) ⇒ **it is task `C5`**, §7.3c is the design. ⛔ Not an open row |
 | ~~**W5**~~ | ✅ **CLOSED `2026-09-19`** — the `LoadPart → AssetKind` adapter and `Brain ⇒ all AI kinds` | ✅ **the USER ruled it** (*"ok accepting your lean"*). 📄 **§7.3a carries the map; `Q72-M` carries the ruling.** ⇒ **`B1` is unblocked** |
 
 ## ⛔ HISTORY — **what the `2026-09-19` review measured FALSE, kept so nobody re-quotes it**

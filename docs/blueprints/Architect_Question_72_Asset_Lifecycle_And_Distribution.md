@@ -494,8 +494,11 @@ from *"`Hrot.SimHost` carries `Brain` (`NodeBootstrapper.cs:223/256`)"*. 🔴 **
 ⚠ **The consequence, stated:** an authoring host **never automatically receives an UPDATE to a file it
 already holds** ⇒ two authoring Brain hosts can diverge **silently**. ⭐ Closed in the **probe**, not the
 sync: report **BEHIND as well as AHEAD**, warn, overwrite nothing. ⚠ The mirror **operation** *(an
-explicit "refresh from NAS", the twin of `Q72-I`'s publish)* is **open and needs the user** —
-`DESIGN_Asset_Management` §9-W6. ⚠⚠ **And the deployment consequence, said out loud:** where **every**
+explicit "refresh from NAS", the twin of `Q72-I`'s publish)* is ✅ **RULED `2026-09-19` — user: *"w6 —
+yes, seems useful"*** ⇒ it is task `C5`, designed at `DESIGN_Asset_Management` §7.3c. ⭐⭐ **That closes
+the loop: publish (user) · sync (load, add-only) · refresh (user).** ⛔ It overwrites the author's own
+folder, so it is **user-initiated for exactly that reason**, warns with the file list, and is **never**
+automatic. ⚠⚠ **And the deployment consequence, said out loud:** where **every**
 Brain host advertises authorship, there is **no automatic refresh of already-held AI assets, by design.**
 
 #### ② ⛔ *"all AI asset kinds"* names two kinds that have no files

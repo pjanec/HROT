@@ -3,9 +3,10 @@ state: LIVE
 build-state: PLAN — the dispatchable breakdown of an approved design. ⛔ NOT a design: every task
   REFERENCES its owning chapter and restates nothing. If this file and the design disagree, the DESIGN wins.
 updated: 2026-09-19 (REVISED after the backend session's review of the design — see its §HISTORY)
-current-answer: §2 is the stage/task table (14 tasks — B4a added). §3 is the under-specified register
-  (W1-W4 live, all implementer calls; ✅ W5 CLOSED by the user 2026-09-19). §4 is what this deliberately
-  does not contain. §5 is the dispatch grouping — ✅ ALL THREE batches are dispatchable.
+current-answer: §2 is the stage/task table (15 tasks — B4a and C5 added). §3 is the under-specified
+  register (W1-W4 live, all implementer calls; ✅ W5 and W6 both CLOSED by the user 2026-09-19).
+  §4 is what this deliberately does not contain. §5 is the dispatch grouping — ✅ ALL THREE batches are
+  dispatchable.
 stale-below: nothing — new document.
 known-rot: nothing; ⚠ but A3's archive-arm rail is RED until B4 lands the mtime restore, by design.
 known-conflict: ✅ RESOLVED 2026-09-19 — the `FileManifestEntry` change moved from A1 to C1 (it is the
@@ -22,7 +23,7 @@ related-designs:
 # PLAN — **Asset management: the build breakdown**
 
 > ⛔ **No design content here.** Each task names its owning chapter.
-> ⭐ **Three increments, 14 tasks.** `A` is the enabler — ⛔ nothing else may start before it.
+> ⭐ **Three increments, 15 tasks.** `A` is the enabler — ⛔ nothing else may start before it.
 
 ## 0. How to use this
 
@@ -77,6 +78,7 @@ cluster op.**
 | **C2** | `ProbeAuthoringNodesAsync` — a **summary** per kind `(count, newest mtime)` over `BaseFolder`, ⭐ **comparing in BOTH directions** | the probe reads **no file contents** and parses **no asset**; it runs on a scenario load without measurably extending it. ⭐⭐ **BEHIND must be detectable, not just AHEAD** — §7.3b subtracts authored kinds from the sync, so this is the **only** thing that can tell an author their assets are stale | design **§5**, **§7.3b**, **§1 ⑤** ⚠ **see §3-W2, W3** |
 | **C3** | The warn/fail split | an authoring node ahead of NAS ⇒ **WARN**, load continues. A missing **named** artifact ⇒ **FAIL**. ⭐ Rail **both** arms — ⛔ one arm passing proves nothing. ⭐⭐ **A THIRD arm: authoring node BEHIND NAS ⇒ WARN, load continues, ⛔ TRANSFER NOTHING** — §7.3b; the fix is an explicit user act (`W6`), never an automatic overwrite. ⭐⭐ **And a FOURTH rail: author OFFLINE ⇒ no warning, load continues** — 📌 the probe cannot see an offline author, and without this rail a later reader takes the silence for proof | design **§5 caption**, **§7.5**; `Q72-I` |
 | **C4** | Surface the publish as a user operation, available **any time** | 🔒 *"expose this as a user-triggerable operation any time"* — reachable without a scenario load in progress | design **§5**; `Q72-I` |
+| **C5** | ⭐⭐ **`RefreshFromNasAsync` — the MIRROR of `C1`/`C4`: *"refresh my authored kinds from NAS"***, explicit and user-triggered *(ruled `2026-09-19`: **"w6 — yes, seems useful"**)* | ⛔⛔ **The ONLY route by which an UPDATE reaches a file an authoring station already holds** — §7.3b clause ③ is add-only. ⭐ Reuses `C1`'s diff pointed the other way: exactly the differing set, nothing else. ⭐⭐ **Rail the pair:** a NAS-newer file **does not** move on load *(clause ③)* and **does** move on an explicit refresh. ⛔⛔ **NEVER automatic, never on load, never on save** (`Q72-I`) — ⭐ and it is the author's own folder, so an **overwrite warning naming the files** is part of the operation, not a nicety | design **§5**, **§7.3b**, **§9-W6**; `Q72-I`, `Q72-M` |
 
 ---
 
@@ -88,7 +90,7 @@ cluster op.**
 | **W2** | **C2** | whether the summary is computed per call or cached on `ContributorChanged` | ⭐ **implementer.** 📐 The walk is stat-only (`design §1 ⑤`) ⇒ **start simple**; cache only if measured slow, and say which you did |
 | **W3** | **C2** | how scenarios participate, given `BaseFolder == null` for them | ⭐ **implementer.** ⚠ Scenarios already travel by the prefetch path, so the likely answer is **they do not participate** — ⛔ but that must be **stated in the report**, not assumed silently |
 | **W4** | **A1**, **B4** | whether a **removed** NAS entry **deletes** the node's copy or is only reported | ⭐ **implementer, but STATED AND RAILED either way.** ⛔ *"the node MIRRORS NAS"* is not a testable condition until this is answered; a rename leaves an orphan on every node otherwise |
-| **W6** | ⭐ **nothing — it does NOT block B** | the **mirror of `C4`**: *"refresh my authored kinds from NAS"*, explicit and user-triggered | 🔴 **THE USER** — a new user-facing operation, so ⛔ not assumed and not yet a task. ⭐⭐ **Lean: YES, as a `C5`.** §7.3b clause ③ is add-only ⇒ **`W6` is the only inbound route for an UPDATE to a file an authoring station already holds**; until it exists `C3`'s BEHIND arm can say *"you are stale"* and offer **nothing to do about it**. ⛔ Never automatic (`Q72-I`) |
+| ~~**W6**~~ | ✅ **CLOSED** | the **mirror of `C4`**: *"refresh my authored kinds from NAS"* | ✅ **RULED by the user `2026-09-19`** — *"w6 — yes, seems useful"*. ⇒ **it is now task `C5`**, not an open row |
 | ~~**W5**~~ | ✅ **CLOSED** | ⛔ `LoadPart` ∩ `AssetKind` = **∅**, and behaviour assets have **no** `LoadPart` | ✅ **RULED by the user `2026-09-19`** — a **3-row adapter** owned by the design + **`Brain ⇒ all AI kinds`**; ⛔ `RoleLoadRequirements` is **not** extended. 📄 **the map is design §7.3a; the ruling is `Q72-M`.** ⇒ **batch ② is unblocked** |
 
 ---
@@ -111,7 +113,7 @@ cluster op.**
 |---|---|---|
 | **① A** | `A1`–`A3` | ⭐⭐⭐ **the enabler, alone.** Everything else needs the manifest, and `§1 ①` says recursion exists nowhere. ⛔ Landing B or C first builds on sand. ⭐ Small and fully railable without a cluster. ✅ **Dispatchable now** — the wire-DTO change moved out to `C1`, so ① carries **no contract change at all** |
 | **② B** | `B1`–`B6` *(7 tasks — `B4a` added)* | ⭐ the increment that makes *"nodes keep just copies they really need"* true. ⚠ Largest; `B5`'s seam extraction rides here because `B4` needs it. ✅ **Unblocked — `W5` ruled `2026-09-19`.** 🔴🔴 **`B2`'s SUBTRACTION (design §7.3b) is not optional and not last** — ⛔ without clause ① every other task in ② mirrors NAS onto the author's own folder; ⛔ without clauses ②③ the AI sync **reaches no host at all**; ⛔ unbounded, it breaks the editor's own scenario load |
-| **③ C** | `C1`–`C4` | ⭐ independent of B and **safe to defer**; ⛔ the only part that touches authoring hosts |
+| **③ C** | `C1`–`C5` | ⭐ independent of B and **safe to defer**; ⛔ the only part that touches authoring hosts. ⚠ **But deferring it has a COST now:** §7.3b clause ③ is add-only, so until `C5` lands an authoring station has **no route at all** to an update — ⭐ `C3` can only warn |
 
 ⭐⭐ **Reporting:** the gate-report contract rows 1–7 per batch. ⛔⛔ **Row 8 BINDS ② and ③** — both change
 what nodes hold before a load, and ③ reaches across to authoring hosts. Name the integration suite and
