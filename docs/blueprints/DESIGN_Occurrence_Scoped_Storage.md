@@ -627,3 +627,84 @@ name has been wrong since `BehaviorIngressSystem` started allocating from it.
 | 🔴 **Rename the FIELD, never the VALUE** | `GlobalComponentIds.BlueprintBlackboard*` field names change; **the numeric ids must not** — `R-44`: ids are globally unique and partitioned for multi-process determinism |
 | ⚠ **union rule** | query from a root-solution project **and** check `HrotStrideApp.Windows` separately — it is the one project outside `IOS-IG-SimHost.sln` |
 | ⭐ **do it AFTER `O3`** | `O3` already touches the slot header; renaming first means two passes over the same files |
+
+---
+
+## 11. Observability — inspector, debug sessions and the HTTP API
+
+> 🔒 **User, `2026-09-19`:** *"The Occurrences are just a memory pool component, would it know what
+> the memory means…? if not, who knows where in the occurrences the data is and what they mean?"*
+
+⭐⭐⭐ **Correct that the pool knows nothing — and the question is already answered by shipped code.
+`BlueprintBlackboard1024` is a memory pool with a custom renderer TODAY, and it renders typed,
+per-slot content.** This section is a generalisation of that, not a new mechanism.
+
+### 11.1 Who knows what the bytes mean
+
+📐 **Measured, `StatefulWorkingStateProjection.cs`** — the join, in five lines:
+
+| step | line | what |
+|---|---|---|
+| ① | `:55` | `registry.TryGetDefinition(bs.ActiveBehaviorHash, out var def)` — `BehaviorState` ⇒ `BehaviorDefinition` |
+| ② | `:56` | `def.StatefulWorkingSlots` — **the manifest** |
+| ③ | `:61` | `s.WorkingStateType` — ⭐ **the managed TYPE, per slot** |
+| ④ | `:118` | `TryGetSlotOffset(memory, s.SlotKey, out payloadOffset)` — **where** |
+| ⑤ | `:126` | `Marshal.PtrToStructure((IntPtr)(memory + payloadOffset), s.WorkingStateType)` ⇒ `:80` `ImGuiPropertyTree.Render(boxed, contextType: …)` |
+
+⇒ ⭐⭐ **The MANIFEST is the answer.** `BehaviorDefinition.StatefulWorkingSlots[]` already carries
+`SlotKey` *(where)*, `WorkingStateType` *(what)*, `NodeLabel` *(how to name it)*, `Scope` *(how to tag
+it)* and `PayloadSize`. The renderer joins manifest to pool; neither half knows alone.
+
+🔒 **THE INVARIANT THIS MAKES EXPLICIT — and it is a design obligation, not a nicety:**
+**an occurrence may not be allocated without declaring how to read it.** The same manifest entry that
+tells `TryAttach` how many bytes to take tells the inspector what those bytes are. ⇒ **a slot that
+cannot be rendered is a defect at ALLOCATION time**, catchable by a rail (§11.4), not a gap
+discovered later in the UI.
+
+### 11.2 The pool renderer already exists
+
+`BlueprintBlackboard1024Renderer` is `[ImGuiRenderer(typeof(BlueprintBlackboard1024))]` +
+`IEntityAwareImGuiRenderer`, and it:
+
+- reads the slot count for its **summary** line — *"Instance Blueprints (N attached)"*;
+- renders **one row per slot** via `BlueprintTierSummary.Read(mem, registry)` — Name · InstanceVersion · Size · Id;
+- then calls `StatefulWorkingStateProjection.RenderWorkingState(session, entity, mem)` for the **typed** per-slot property tree;
+- returns `true` to **suppress the default byte dump**.
+
+⇒ **The work is to widen it, not to invent it:** the row gains a **Kind** column
+*(Blueprint · BTree · HSM)*, the summary becomes *"Occurrences (N running)"*, and the typed section
+renders each occurrence's **params** and **state** rather than only stateful working slots. ⭐ Nested
+occurrences render as children, using the `hostPath` the key already carries (§3).
+
+### 11.3 What actually changes, per consumer
+
+| consumer | today | after |
+|---|---|---|
+| **entity inspector** | 3 renderers — `BrainBlackboardRenderer`, `Blackboard1024Renderer`, `BlueprintBlackboard*Renderer` | ⭐ **one family**, `OccurrenceStore*Renderer`, widened as §11.2. `BrainInterrupts` keeps a small renderer of its own |
+| 🔴 **`HsmDebugSession`** | `:88-120` — `HasComponent<BrainHsm64>` / `<BrainHsm128>`, builds **ONE** `HsmInstanceSnapshot` into `_currentSnapshot`, with tier-specific `DecodeLeaves64/128`, `DecodeEventQueue64/128`, … | **a LIST of snapshots**, one per HSM occurrence; the decoders become **size**-driven rather than type-driven — the same shape as the kernel change (§9.4) |
+| **`BlueprintDebugSession`** | already slot-based | ⭐ unchanged in shape |
+| ⭐⭐ **the HTTP API** | 📐 **measured: it does NOT read `BrainHsm*` / `BrainBTreeState` at all.** `DebugApiService.cs:2749` reads `BehaviorState.BrainTier`, then delegates to `_btreeSession` / `_hsmSession` and stamps `["tier"] = "BTree" \| "Hsm"` | ⭐ **the routes are insulated — the migration surface is the SESSIONS, not the endpoints** |
+| **HTTP discovery of slot state** | ⭐ **already built**: `DebugApiService.Variables.cs:39-69 AttachedBlueprints` walks all three tiers with `BlueprintTierSummary.AppendSlots` and returns `List<SlotSummary>` — its own comment: *"the same scan the Entity Inspector uses… without it, every call would need an asset Guid nobody can guess"* | ⭐ widen the same scan to every occurrence kind |
+| **scenario/clipboard translators** | `BrainBlackboardTranslator`, `Blackboard1024Translator` — extract-only | follow the manifest; no wire impact (§5 class 7) |
+
+#### ⚠ One deliberate HTTP contract change, to be decided rather than discovered
+
+`DebugApiRouteDocs.cs:1675` documents the AI-state route as returning *"BTree active node path +
+history, **or** HSM active leaves, **or** blueprint live state"* with a single `tier` field
+(`:1684`). ⛔ **That shape assumes one brain per entity.** With nesting it must return a **list of
+occurrences**, each with its own `kind`, `assetName`, `hostPath` and state.
+
+⚖️ **Lean: make it a list, and keep the current object as the list's first element for one release**,
+so an existing agent script keeps working while the new field appears beside it. ⛔ Do **not** silently
+change the single object's meaning — an agent reading `tier` would start getting the root's tier for
+a tree that is no longer the only one running.
+
+### 11.4 Rails
+
+| rail | asserts |
+|---|---|
+| ⭐⭐ **every allocated occurrence is renderable** | for each slot in the store, the manifest resolves a `Kind`, a label and a type. ⛔ **Fails at allocation, not in the UI** — this is §11.1's invariant made checkable |
+| **the inspector shows N occurrences** | an entity running HSM + 2 hosted BTrees + 1 blueprint Instance ⇒ **4 rows**, each with its own typed state |
+| **nesting is visible** | a hosted occurrence renders under its host, not as a sibling |
+| **the HTTP list matches the inspector** | `AttachedBlueprints`' successor and the renderer read the same manifest ⇒ same count, same names. ⛔ Two scans that can disagree is the `R-132` two-producers smell |
+| **no default byte dump** | no occurrence store ever falls back to the raw hex renderer — that is the signal a manifest entry is missing |
