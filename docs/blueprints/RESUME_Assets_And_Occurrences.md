@@ -192,19 +192,23 @@ themselves on `2026-08-17` *("I would certainly keep this open and return to it 
 
 ⭐⭐ **Each lane now runs on a proper-named branch** — the coordinator gate keys on the name `coordinator`,
 so the churn that had `session-design-brief.sh` rewritten twice is gone. ⚠ The harness still mints a
-`…-<postfix>` default; **switch the session onto the bare name** at start. ⛔ **`windows` is NOT a branch**
-— it is a place to RUN things; it checks out whichever lane it is testing.
+`…-<postfix>` default; **switch the session onto the bare name** at start. ⭐⭐⭐ **All lane branches derive
+from `coordinator`** *(the integration trunk — every lane's `2026-09-19` head was already contained in it,
+so nothing was stranded)*; a lane re-syncs from `coordinator` at the start of every run *(rule 7)*.
+⛔ **`windows` is NOT a branch** — it is a place to RUN things; it checks out whichever lane it is testing.
 
-| lane | ⭐ stable branch | *(was, pre-`2026-09-19`)* | last seen doing |
+| lane | ⭐ branch | scope | *(was, pre-`2026-09-19`)* |
 |---|---|---|---|
-| **coordinator** *(you)* | **`coordinator`** | `claude/blueprint-authoring-status-{6sr5ld,gm0akp}` | both programmes above |
-| **backend** — `H - back` | **`backend`** | `claude/blueprint-macro-feature-sdmspn` | authored programme ②'s design; reviewed ① three times |
-| **UI / CGF** | **`ui-cgf`** | `claude/reset-working-branch-qd1qpv` | `CE-294`, reliable-init / wire-dispose work — ⛔ **unrelated to both programmes**; do not route either lane's work there |
+| **coordinator** *(you)* | **`coordinator`** | handoffs · design · tracker · verify+merge — the trunk | `claude/blueprint-authoring-status-{6sr5ld,gm0akp}` |
+| **behaviors** | **`behaviors`** | ⭐ BTree · HSM · Blueprint + behavior **infrastructure** — the unify/fix/develop work, incl. programme ② *(occurrence-scoped storage)* | *(new)* |
+| **backend** — `H - back` | **`backend`** | engine · orchestrator · project structure · harness — **any other backend** | `claude/blueprint-macro-feature-sdmspn` |
+| **UI** | **`ui`** | ⭐ the editor and **any** UI-facing surface *(not just CGF — UI can touch anything)* | `claude/reset-working-branch-qd1qpv` |
 
-⚠ **Transition:** the stable branches are pushed at each lane's `2026-09-19` head; a lane still on its old
-postfixed branch **switches onto the stable name and merges** any local work — ⛔ it does not reset. ⭐
-**Ancestry is still the verification** *(the two-session protocol's `git merge-base` check)* — the stable
-name is where a lane *runs*, not a substitute for confirming what a commit descends from.
+⚠ **Transition:** a lane still on its old postfixed branch **switches onto the stable name and merges**
+any local work — ⛔ it does not reset. ⭐ **Ancestry is still the verification** *(the two-session protocol's
+`git merge-base` check)* — the stable name is where a lane *runs*, not a substitute for confirming what a
+commit descends from. ⚠ Stale leftover `ui-cgf` on origin *(an interim name; proxy is refusing its delete
+push — prune later)*.
 
 🔒 **Two-session protocol still binds** — rules 1–8 in `.claude/CLAUDE.md`. The ones that bite here:
 **rule 1** *(never amend a dispatched handoff)* · **rule 1b** *(the started-marker closes the ancestry
