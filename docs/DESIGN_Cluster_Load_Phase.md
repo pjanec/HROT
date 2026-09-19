@@ -27,6 +27,10 @@ related-designs:
     one decides what a node LOADS, that one decides what bytes reach its disk first. They compose.
   - docs/DESIGN_Artifact_Staging.md — owns how the BYTES reach a node (NAS -> per-node staging, the
     skip predicate, the staged header sidecar). This document owns what the load MESSAGE carries.
+  - docs/DESIGN_Asset_Management.md — ⭐⭐ DERIVES its per-node needs vocabulary (hrot.asset.needs.*)
+    FROM this document's RoleLoadRequirements (Q72-L). ⛔ That table stays the single source: a second
+    hand-authored needs table would be R-132 (two producers for one slot). This one decides what a node
+    LOADS; that one decides what bytes reach its disk first.
   - docs/DESIGN_Deterministic_Network_Ids.md — owns the id authority reset at the world boundary,
     which happens in this same phase.
   - docs/DESIGN_Node_Roles_And_Policies.md — ⭐⭐⭐ owns the ROLES themselves and therefore §3.2's

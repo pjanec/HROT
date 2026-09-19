@@ -16,6 +16,9 @@ known-rot: TWO things this design assumed that the build measured false, both in
   HEADER and false of the ARTIFACT — see §9.4.
 known-conflict: none.
 related-designs:
+  - docs/DESIGN_Asset_Management.md — ⭐⭐ THE GENERAL CASE this document is the one-artifact-kind slice
+    of. It REUSES this document's (length, mtime) skip verbatim and generalises the flat single-file
+    push into a recursive per-file manifest + transport partition. ⛔ It adds no second freshness rule.
   - docs/blueprints/Architect_Question_72_Asset_Lifecycle_And_Distribution.md — the GENERAL asset
     lifecycle this document is a deliberate subset of (per-node needs, packaging, authoring sync).
     ⚠ Q72 §4 records what this slice already settles so it is not reopened.

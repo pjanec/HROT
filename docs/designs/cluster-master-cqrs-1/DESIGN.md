@@ -12,6 +12,10 @@ related-designs:
     + StorageGatewayModule.PrefetchScenarioAsync) to also stage the scenario's NAMED TKB artifact and its
     header, with a (length, mtime) skip. It adds no cluster op and no wire value; the trajectory slot is
     this document's.
+  - ../../DESIGN_Asset_Management.md — GENERALISES the same prefetch saga to every asset kind: a
+    recursive per-file manifest, a needs filter, and a PublishToNasAsync that reuses this document's
+    PullToNasAsync. It adds no cluster op and no wire value either; the trajectory slot stays this
+    document's.
 -->
 # Design: ClusterMaster CQRS Decoupling
 

@@ -19,6 +19,10 @@ known-conflict: none. ⚠ DESIGN_Artifact_Staging.md is IN FLIGHT as a dispatche
   a measured LIMIT of that slice (PrefetchScenarioAsync is flat, so the TKB tree form is not covered) —
   in scope HERE, not a defect there.
 related-designs:
+  - docs/DESIGN_Asset_Management.md — ⭐⭐ THE DESIGN THIS QUESTION BECAME (2026-09-19). It owns the UML,
+    the seams and the three increments; this document owns the RULINGS and the measurement register that
+    justify them. ⛔ Do not re-open a ruling in the design — argue it here.
+  - docs/blueprints/PLAN_Asset_Management_Build.md — the 13-task dispatchable breakdown of that design.
   - docs/DESIGN_Artifact_Staging.md — the TKB slice, DISPATCHED 2026-09-18. It owns the NAS->node push for
     ONE artifact kind with a (length, mtime) skip. This document owns the general case it is a subset of.
   - docs/blueprints/Architect_Question_70_Host_Capabilities_And_Reliable_Init_Degradation.md — OWNS the

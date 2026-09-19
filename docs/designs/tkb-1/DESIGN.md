@@ -21,6 +21,10 @@ related-designs:
     (request → spawn → grant → ghost → promotion → takeover → Active) and nothing else; every stage
     routes back to its owner, including this one. Read it FIRST if you do not already know where in
     the genesis path your question sits.
+  - ../../DESIGN_Asset_Management.md — NARROWS this document's ITkbStorageStrategy seam into a general
+    IAssetStorageStrategy so a tree asset and an archive asset read through one interface (Q72-D).
+    ⛔ ZipTkbProvider / RawDirectoryTkbProvider keep working unchanged — if they need edits, that is a
+    finding there, not a change here.
   - ../../DESIGN_Role_Affinity_Ownership.md — owns what BirthCriticalComponents MEANS (the creator's
     birthright, the role tables, why no role may own one). This document owns where the list comes from.
   - ../../DESIGN_Artifact_Staging.md — owns how the TKB ZIP AND THE SCENARIO HEADER REACH THE NODE.
