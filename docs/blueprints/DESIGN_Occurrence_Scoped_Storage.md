@@ -416,7 +416,7 @@ and let the existing output-lane arbiter resolve conflicting effects.
 |---|---|
 | ⭐⭐ **`O0`–`O7` are unaffected** | they change **where bytes live**. H1–H5 are about **which region gets an event**. No dependency either way |
 | ⛔ **`O8` (BTree hosted under an HSM state) needs H1 fixed** if two regions are meant to host trees concurrently — otherwise one hosted tree stops receiving the events that drive it | |
-| ⚠ **H4 is a capacity decision, not a bug** | see §9.4 — the answer is **wire `BrainHsm256`**, which needs no ExtDeps change |
+| ⚠ **H4 is a capacity decision, not a bug** | see §9.4 — the answer is **allocate a bigger slot payload**, which arrives with `O7`. ⛔ Not a new component |
 | 🔒 **This is a SEPARATE ExtDeps change from §4.2** | it must be justified on its own terms — *"orthogonal-region event dispatch is wrong"* — and **not** smuggled in as part of the storage work. ⛔ Exactly the failure mode the standing ExtDeps rule exists to prevent |
 
 ### 9.4 The tiers — what they give, and who chooses
@@ -452,20 +452,53 @@ selects a tier, so "the tier system" is currently one tier with two unused neigh
 (`:172`, `:645`). A machine's compiled blob knows how many regions it has, so the attach can size the
 instance instead of guessing.
 
-#### ⭐ Lean: add `BrainHsm256`, and choose the tier from the blob
+#### ⛔⛔ CORRECTION — **there is no `BrainHsm256`, because after `O7` there is no `BrainHsm*` at all**
 
-📄 **This is already a recorded future task, not a new idea** —
-`docs/designs/btree-hsm-unif/DESIGN.md` §"Q1: HsmInstance256 / BrainHsm256": *"`HsmInstance256` exists
-in `Fhsm.Kernel` but no `BrainHsm256` ECS component exists. `HsmTickSystem<T>` is generic, so it could
-technically support 256-byte instances. A future task should add `BrainHsm256`… This design does not
-add it."*
+🔒 **User, `2026-09-19`:** *"i thought the HSM state will be also allocated as occurrence so why would
+we need a component for it?"* — **correct, and §9.4's first draft contradicted §2.1 of this very
+document.** The classDiagram already says `BrainHsm64 ..> OccurrenceSlot : HSM instance becomes`.
 
-| what it costs | |
+📐 **And the kernel agrees — measured.** `HsmKernelCore` is `internal` and `UpdateBatchCore` already
+takes exactly `(definition, void* instances, int count, int instanceSize, void* ctx, float dt,
+CommandPage*, HsmTraceContext*)`. **Every public `HsmKernel.Update<TInstance,TContext>` overload is a
+thin generic wrapper** that does `fixed (TInstance* instPtr = &instance)` and passes
+`sizeof(TInstance)` (`HsmKernel.cs:82-104`). ⇒ ⭐⭐⭐ **the kernel wants a POINTER AND A SIZE, not a
+component type.** The generic wrapper exists only to pin a managed `ref`. `HsmEventQueue.TryEnqueue`
+likewise switches on `int size`, not on a type.
+
+⇒ ⭐⭐ **The tier stops being a TYPE and becomes a PAYLOAD SIZE**, chosen at attach from
+`definition.Header.RegionCount`:
+
+| | before `O7` | after `O7` |
+|---|---|---|
+| where the instance lives | `BrainHsm64` / `BrainHsm128` component | a slot in the entity's occurrence store |
+| how the tier is chosen | ⛔ hard-coded 128 | ⭐ `TryAttach(key, sizeFor(Header.RegionCount), …)` |
+| getting 8 regions / 6 events | needs a **new component + id + registration + tick registration** | ⭐ **free** — allocate 256 bytes instead of 128 |
+| `BrainHsm64` / `BrainHsm128` | exist | ⭐ **deleted** |
+
+⇒ ⛔ **Do NOT create `BrainHsm256`.** It would be a new component, a new `GlobalComponentIds` entry
+and a new tick registration that `O7` then deletes. The capacity answer is *"allocate the bigger
+payload"*, and it arrives with the occurrence work rather than ahead of it. ⚠ The only reason to
+build it anyway would be needing 8 regions **before** `O7` lands — and multi-region HSM needs **H1**
+fixed regardless, so there is no such urgency.
+
+⭐ **This also subsumes a second recorded problem.** `docs/designs/btree-hsm-unif/DESIGN.md` §Q6 says
+`HotReloadManager.TryReload` *"assumes a single contiguous span of all component instances… there is
+no world-wide contiguous span"* and must be refactored. With instances in slots, reload is a **slot
+walk** — the same walk `BlueprintTickSystem.TickTier_*` already performs, including its
+`StructureHash`-mismatch hard reset. ⇒ the occurrence model **closes** Q6 instead of inheriting it.
+
+#### ⭐ What crossing the ExtDeps line costs, if anything
+
+| option | ExtDeps delta |
 |---|---|
-| ⭐⭐ **ZERO ExtDeps change** | `HsmInstance256` exists, is size-tested, and `HsmEventQueue` already routes `case 256` |
-| the work | one struct in `BrainComponents.cs` · one `GlobalComponentIds` entry · one `RegisterComponent` · one `HsmTickSystem<BrainHsm256>` registration · tier choice at attach from `Header.RegionCount` |
-| the cost | **+128 bytes per HSM entity** that needs it — and only for those, once the choice is real |
-| ⚠ what it does **not** fix | H1–H3. A bigger queue delivers more events; it does not make region 1 see an event region 0 consumed |
+| **(a)** three payload structs on our side — `struct HsmPayload64 { fixed byte _[64]; }` etc. — and call the existing `Update<HsmPayload256, HsmKernelBridge>(ref Unsafe.AsRef<HsmPayload256>(slotPtr), …)`, so `sizeof(TInstance)` is right | ⭐⭐ **ZERO.** Works today, at the cost of three dummy structs and a 3-way switch |
+| **(b)** ⭐ **one additive `public` pointer overload** — `HsmKernel.Update(definition, byte* instance, int instanceSize, void* context, …)` forwarding to the already-existing `UpdateBatchCore` | one new public method, **no existing signature touched** |
+
+⭐⭐ **Lean: (b), folded into `O6`.** `O6` is already editing `HsmKernel.Update`'s signature (`in
+TContext` → `ref TContext`, §4.2) ⇒ **adding the pointer overload in the same change costs one
+crossing instead of two**, and avoids three dummy structs whose only job is to lie about a size. ⛔ If
+`O6` is ever cancelled, fall back to (a) — the slot model does **not** depend on the ExtDeps edit.
 
 ⛔ **Do not read "≤2 event-driven regions" as a design limit to accept** — it was my shorthand for
 *"don't exceed the queue"*, and the honest statement is: **the queue was never sized against the
@@ -475,6 +508,21 @@ choosing the tier, not by capping the design.
 🔴 **And one line worth fixing whatever else happens:** `FireTimerEvent:368` calls
 `HsmEventQueue.TryEnqueue(...)` and **discards the result.** A dropped timer event is currently
 invisible. It belongs with the H1–H3 dispatch work as the same ExtDeps change.
+
+#### ⛔ HISTORY — the superseded first answer *(kept because the tier TABLE above is still true)*
+
+📄 **This is already a recorded future task, not a new idea** —
+`docs/designs/btree-hsm-unif/DESIGN.md` §"Q1: HsmInstance256 / BrainHsm256": *"`HsmInstance256` exists
+in `Fhsm.Kernel` but no `BrainHsm256` ECS component exists. `HsmTickSystem<T>` is generic, so it could
+technically support 256-byte instances. A future task should add `BrainHsm256`… This design does not
+add it."*
+
+⛔ **This document's first draft took that literally and proposed adding the component.** That was
+wrong for the reason above: after `O7` there is no `BrainHsm*` to add a sibling to. ⭐ **The facts in
+it still hold** — `HsmInstance256` exists, is size-tested, `HsmEventQueue` already routes `case 256`,
+and the extra capacity costs **+128 bytes on the entities that need it**. ⚠ And either way it does
+**not** fix H1–H3: a bigger queue delivers more events; it does not make region 1 see an event
+region 0 consumed.
 
 ---
 
