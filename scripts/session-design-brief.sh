@@ -32,21 +32,19 @@ LEDGER=docs/blueprints/RULINGS.md
 # started-marker, not a brief -- and on 2026-08-18 one of them dutifully wrote a
 # brief instead of starting Batch 84, because this hook did not distinguish.
 #
-# 2026-09-03: this was "...-gm0akp", which CLAUDE.md's lane table marks STALE and
-# SUPERSEDED (user, 2026-08-26 -- the live coordinator lane is -6sr5ld). Harmless on
-# an implementation branch (both names differ from it), but it would have told the
-# real coordinator to skip its own brief.
-COORDINATOR_BRANCH="claude/blueprint-authoring-status-6sr5ld"
+# 2026-09-19 (user): lanes now run on STABLE, proper-named branches instead of the
+# harness's random-postfixed defaults -- the coordinator lane is 'coordinator'. This
+# ends the churn that had this line rewritten twice (it was "...-gm0akp", then
+# "...-6sr5ld"; each was correct for one session and stale the next). The harness may
+# append a postfix to a fresh session's branch, so match the bare name and any
+# "-<postfix>" / "<prefix>/" variant. HROT_LANE=coordinator forces the brief on any
+# branch (transition aid, and for a session that owns both roles on its own branch).
 CURRENT_BRANCH="$(git rev-parse --abbrev-ref HEAD 2>/dev/null || echo unknown)"
-
-# 2026-08-21 (user: "lets continue without the coordinator, it just slows us down"):
-# the TIME lane now carries BOTH roles on its own branch, so a pure branch-name test
-# would tell it to skip the brief it is now obliged to write. A branch that owns both
-# roles declares itself here. Anything not listed stays implementation-only.
-SELF_COORDINATED_BRANCHES="claude/time-system-refactor-batch-104-gp617x"
-for b in $SELF_COORDINATED_BRANCHES; do
-  [ "$CURRENT_BRANCH" = "$b" ] && COORDINATOR_BRANCH="$CURRENT_BRANCH"
-done
+IS_COORDINATOR=0
+case "$CURRENT_BRANCH" in
+  coordinator|coordinator-*|*/coordinator|*/coordinator-*) IS_COORDINATOR=1 ;;
+esac
+[ "${HROT_LANE:-}" = "coordinator" ] && IS_COORDINATOR=1
 
 # ══ ACTION BLOCK -- FIRST, SMALL, SURVIVES TRUNCATION ═════════════════════════
 # These five are the ones measured to decay across compaction. Everything below
@@ -176,11 +174,12 @@ python3 scripts/rulings-check.py 2>/dev/null | tail -3
 # test is JOINING these to the work in hand, which is the exact step that failed
 # on 2026-08-17 (four times, each with the ruling sitting unread in the corpus).
 echo
-if [ "$CURRENT_BRANCH" != "$COORDINATOR_BRANCH" ]; then
+if [ "$IS_COORDINATOR" != "1" ]; then
   echo "=============================================================="
   echo " IMPLEMENTATION LANE -- do NOT write a design brief"
   echo "=============================================================="
-  echo "Branch: $CURRENT_BRANCH (the coordinator lane is $COORDINATOR_BRANCH)."
+  echo "Branch: $CURRENT_BRANCH (the coordinator lane runs on 'coordinator'; set"
+  echo "HROT_LANE=coordinator to force the brief on a branch that owns both roles)."
   echo
   echo "The canon above is context, not an assignment. The written DESIGN BRIEF"
   echo "is a COORDINATOR obligation. Your first move is your handoff's: rule 7"
