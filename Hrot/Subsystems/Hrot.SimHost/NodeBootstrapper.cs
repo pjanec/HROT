@@ -13,8 +13,8 @@ using Fdp.Toolkit.Orchestration.Handlers;
 using Fdp.Toolkit.Terrain;
 using Fdp.Toolkit.Tkb;
 using Hrot.Common.Orchestration.Handlers;
+using Hrot.Map.Common.ClusterLoad;
 using Hrot.Map.Common.Services;
-using Hrot.SimHost.Orchestration.Handlers;
 using Hrot.Common.Scenario;
 using Hrot.Common.Scenario.Migrations;
 using Fdp.Toolkit.Replication.Services;
@@ -325,24 +325,35 @@ namespace Hrot.SimHost
             var archiveHandler = new ReferenceArchiveHandler(localTempRoot, nodeId);
             IClusterStateHandler? scenarioSaveHandler = null;
 
-            // Wire TkbLoadClusterStateHandler to populate ITkbDatabase before HrotScenarioLoadHandler
-            // deserializes entities. Must be registered BEFORE the scenario handler block (TKB-020).
-            if (tkbDb != null)
-                clusterSlave.RegisterHandler(new TkbLoadClusterStateHandler(tkbDb, localTempRoot));
+            // ⭐⭐⭐ L2/L4 — THE LOAD-PHASE CHAIN. One participant, every required part, one acknowledgement.
+            //
+            // 🔴 What it replaces and WHY, measured 2026-09-18: TkbLoadClusterStateHandler and
+            //    TerrainLoadClusterStateHandler were registered here as separate handlers, and ClusterSlave
+            //    gives an operation to the FIRST claimant and RETURNS. So on this host the TKB loader
+            //    shadowed the terrain loader and terrain had NEVER loaded; on CGF the terrain loader
+            //    shadowed the scenario loader and the cluster loaded ZERO entities. Neither logged a thing.
+            //
+            // ⭐⭐ The chain is composed from roles × providers: the ROLE says WHAT must be resident
+            //    (RoleLoadRequirements), this host says HOW. A required part with no provider throws HERE,
+            //    at composition, instead of producing an empty world and ok:true.
+            // ⚠ Providers are offered, not ordered — the chain orders them and drops what this role does
+            //   not require (a Perception-only node needs no terrain; every ECS node needs the TKB).
+            // 📄 docs/DESIGN_Cluster_Load_Phase.md §4.1b, §4.1c · DESIGN_Node_Roles_And_Policies.md §3.2.
+            var loadProviders = new List<ILoadPartProvider>();
 
-            // ⭐⭐⭐ C5 — the TERRAIN loader, registered UNCONDITIONALLY on every ECS host, for the same
-            //   reason and in the same slot as the TKB loader: entities depend on terrain (ground
-            //   clamping, physics, LOS), so it must populate before the scenario handler deserializes.
-            // ⛔⛔ NOT inside the scenario-LOAD conditional below. Those handlers need the full authoring
-            //   deps, so a pure MuscleGround node that only replicates registers NONE of them — and the
-            //   muscle is precisely the role that consumes the road network. Hanging terrain off them
-            //   would leave it unloaded on the node that needs it most.
-            //   📄 DESIGN_Terrain_Zones_And_Assets.md §2.1e ④.
-            // 🔴 `world:` is NOT optional here. ClusterSlave commits with `repo: null` at both of its
-            //    dispatch sites, so a handler that publishes only through that parameter publishes
-            //    nothing at all. A production caller that HAS the dependency must pass it.
-            clusterSlave.RegisterHandler(
-                new TerrainLoadClusterStateHandler(localTempRoot, RoadNetworkHolder, world: world));
+            // ⭐⭐⭐ The knowledge base is UNCONDITIONAL for an ECS node, so this host SUPPLIES a default
+            //   rather than making every caller remember. 🔒 "every ECS enable node should be able to
+            //   create entities so every needs the TKB loaded" — a node that can be asked to create an
+            //   entity must be able to resolve its template.
+            // ⚠ The fallback is the hard-coded catalogue, which is exactly where a node with no named TKB
+            //   starts anyway; a scenario that names one then replaces it through the step. ⛔ This is the
+            //   host supplying a HOW, not the requirement being relaxed — the chain still throws if the
+            //   part is genuinely unsatisfiable.
+            loadProviders.Add(new KnowledgeBaseLoadStep(
+                tkbDb ?? Hrot.Map.Common.HrotEnvironment.CreateTkb(), localTempRoot));
+
+            loadProviders.Add(new TerrainLoadStep(
+                new TerrainResidency(localTempRoot, RoadNetworkHolder), localTempRoot));
 
             // ⭐⭐⭐ D3 — the ONE terrain/zone OP handler, via the shared registrar. Unconditional on every
             //   ECS host: a host with nothing to make resident still ACKs, which is what removes the
@@ -360,32 +371,37 @@ namespace Hrot.SimHost
                 scenarioSaveHandler = new Hrot.ScenarioEditor.Handlers.HrotScenarioSaveHandler(
                     scenarioSerializer, tkbDb, world, nodeId);
 
-                // Scenario/episode LOAD handlers need the full authoring deps (extractor/source/id-allocator).
-                //   A muscle node that only replicates (and passes none) gets SAVE without LOAD — no throw.
+                // ⭐⭐ L4a — the ONE scenario step, offered to the chain. It is still conditional on the
+                //   authoring deps, but the conditional now means only "this host can satisfy the part":
+                //   whether the part is REQUIRED is the ROLE's answer, and a Brain node missing these deps
+                //   now fails loudly at composition instead of loading an empty world.
+                // ⛔ HrotScenarioLoadHandler / HrotEditLoadHandler are GONE — one step serves both the live
+                //   and the edit target, with the target as a payload field rather than a second class.
                 if (scenarioExtractor != null && scenarioSource != null && scenarioIdAllocator != null)
                 {
                     var scenarioLoader = new HrotScenarioLoader(storageProvider, scenarioSerializer.SubsystemType);
 
-                    clusterSlave.RegisterHandler(
-                        new HrotScenarioLoadHandler(scenarioSerializer, scenarioLoader,
-                            scenarioExtractor, scenarioSource, scenarioIdAllocator,
-                            world: world,
-                            controller: controller,
-                            storageDirectory: localTempRoot,
-                            // ⭐ C3 — the LOCAL invocation. The handler calls EnsureAllLoaded once genesis
-                            //   has drained, with no NodeOp: it is already inside the cluster's own load
-                            //   transaction and a nested 2PC would deadlock.
-                            terrainLoadService: TerrainLoadService));
-
-                    clusterSlave.RegisterHandler(
-                        new Hrot.ScenarioEditor.Handlers.HrotEditLoadHandler(scenarioSerializer, scenarioLoader,
-                            scenarioExtractor, scenarioSource, scenarioIdAllocator,
-                            world: world));
+                    loadProviders.Add(new ScenarioLoadStep(
+                        scenarioSerializer, scenarioLoader, scenarioExtractor, scenarioSource,
+                        scenarioIdAllocator,
+                        // ⭐ C3 — the LOCAL terrain invocation, made at the one frame the zone entities
+                        //   provably exist. ⛔ Not a NodeOp: we are inside the cluster's own load
+                        //   transaction and a nested 2PC would deadlock.
+                        terrainLoadService: TerrainLoadService));
 
                     clusterSlave.RegisterHandler(
                         new ReferenceEpisodeLoadHandler(scenarioSerializer, scenarioLoader, world: null));
                 }
             }
+
+            // ⭐⭐⭐ L2 — register the chain ONCE, after every provider this host can offer is known.
+            //   ⚠ Before the SerializeLocal pair and the fallback live handler, so it claims the load
+            //     operations; ReferenceLiveLoadHandler keeps FinalizeLive, which the chain never claims.
+            clusterSlave.RegisterHandler(LoadPhaseChain.FromRoles(
+                role, loadProviders, world,
+                recordingController: controller,
+                storageDirectory:    localTempRoot,
+                hostLabel:           subsystemName));
 
             // CE-279 Layer A — register the SerializeLocal pair uniformly (save before archive; payload-aware
             //   CanHandle makes order non-load-bearing, but every host's slave is now identical here).

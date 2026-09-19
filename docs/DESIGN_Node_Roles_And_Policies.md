@@ -1,10 +1,14 @@
 <!--STATUS
 state: LIVE
 updated: 2026-09-13
-current-answer: §3 is the role table and §3.1 is entity-creation uniformity (a role never denies a
-  capability), §4 is ownership, §5 is persistence, §5a is which nodes must carry an ORBAT (operator
+current-answer: §3 is the role table, §3.1 is entity-creation uniformity (a role never denies a
+  capability), ⭐ §3.2 is WHAT EACH ROLE LOADS in the init phase — the role declares the WHAT, the host
+  supplies the HOW, §4 is ownership, §5 is persistence, §5a is which nodes must carry an ORBAT (operator
   surfaces), §6 is where an entity should be created. §7 is the honest list of what is ENFORCED versus
   merely CONVENTION.
+  ⭐ §3.2 is NEW on 2026-09-18 and closes a SILENCE, not a contradiction: this document was already
+  role-centric (§2, §3, §3.1) but said nothing about the init/load phase, so that decision had drifted
+  into three host bootstrappers and produced a production defect.
   ⭐ §5a is NEW on 2026-09-10 and is the FIRST statement of its rule anywhere - 177 corpus files mention
   ORBAT and none said which nodes need one. It owns only WHICH NODES; the panel unification is UXI-04,
   the ExCon fork retirement UXI-25, the seam defect CE-259t.
@@ -27,8 +31,15 @@ design-basis: docs/blueprints/RULINGS.md R-138 (fully distributed; NodeRole is a
   docs/blueprints/Architect_Question_65_Entity_Genesis_Uniformity.md §0, §4 (Q65-A′), §5.5 (CE-143) -
   Hrot/Engine/Hrot.Core/NodeRole.cs (the enum itself)
 related-designs:
-  - docs/DESIGN_Terrain_Zones_And_Assets.md — which ROLE consumes terrain/zone data and therefore
-    runs the loaders (MuscleGround, Perception, NavigationSolver); the brain loads none of it.
+  - docs/DESIGN_Terrain_Zones_And_Assets.md — owns WHAT terrain and zones ARE (the definition file, the
+    ECS singleton, the zone ops, the asset build). ⚠ CORRECTED 2026-09-18: an earlier version of this
+    line said terrain is consumed by "MuscleGround, Perception, NavigationSolver; the brain loads none
+    of it". Measured, the consumers are MuscleGround and NavigationSolver ONLY — Perception, Brain and
+    Map2D have no reader. §3.2 carries the measured table.
+  - docs/DESIGN_Cluster_Load_Phase.md — ⭐⭐⭐ owns the LOAD PHASE MECHANISM that §3.2's requirements feed:
+    the ordered per-host chain, the single acknowledgement, and the content names riding the load
+    message. §3.2 here owns WHICH ROLE NEEDS WHAT; that document owns HOW and WHEN it is loaded, and
+    neither restates the other.
   - DESIGN_Entity_Authoring_Surface.md — owns the authoring affordance whose `isTransient` argument is the
     CARRIER for R-140's "an IG entity is disposable". Its §7c parks the product question — are IG's map
     drawings disposable or persistent? — and names THIS document (§5, §8) as the owner of the answer.
@@ -103,7 +114,7 @@ a deployment is described by a *set* of roles, not by a node "type".
 | ⚠ | |
 |---|---|
 | ⛔ **`NodeRole.AllInOne` does not exist** | a single-process deployment is a **combination**, e.g. `Brain \| MuscleGround` |
-| ⭐ production SimHost is **`MuscleGround \| Perception`** | 📄 `docs/projects/Hrot/Subsystems/Hrot.SimHost.md` |
+| ⭐ production SimHost is **`MuscleGround \| Perception \| NavigationSolver`** | ⚠ **CORRECTED `2026-09-18`** — this row said `MuscleGround \| Perception`, citing `docs/projects/Hrot/Subsystems/Hrot.SimHost.md`. 📐 A live `--mode all` boot prints `[Node-1] Node role: MuscleGround, Perception, NavigationSolver`. ⭐ The third bit matters to §3.2: `NavigationSolver` is one of the two roles that actually consume the road graph |
 | ⭐ the role selects **modules**, not permissions | ⇒ a role does not gate what a node *may* do, only what it is *built with* |
 
 ---
@@ -133,6 +144,95 @@ about **what every node CAN do**. ⇒ ⭐ IG composes the same pipeline as every
 its own temporary entities)*, and then **declines to own persistable ones by choosing a different target
 owner** — a choice made in authoring code, exactly as the ruling requires. ⛔ **If IG were denied the
 pipeline instead, the capability would be gone and §6's second arm could not exist.**
+
+---
+
+### 3.2 ⭐⭐⭐ WHAT A ROLE LOADS — **the ROLE declares the WHAT, the HOST supplies the HOW** *(user, `2026-09-18`)*
+
+> 🔒 **User, verbatim:** *"the node-centric concept is superseded, replaced with unification and
+> role-centric approach. Unification says that each node must be able to do all what is required for its
+> role, in unified way … The init phase is distributed and should be unified; potentially each node must
+> be able to load those scenario parts it needs."*
+>
+> 🔒 **And the goal, stated exactly:** *"unify the handling of the loading phase across host by binding it
+> to the host role, not to the host bootstrap code, while keeping the possibility for each host to
+> override the HOW the handling is done (like stride-simhost loads different data than SimHost because
+> they implement their muscle/perception/navigation/etc… role differently)."*
+
+⚠ **This section exists because this document was SILENT on the init/load phase.** §3's table says what a
+role *is built with*; nothing said what a role must *make resident* before the simulation starts. ⛔ That
+silence is why the decision ended up in three host bootstrappers, where it drifted apart and produced a
+production defect (📄 [`DESIGN_Cluster_Load_Phase.md`](DESIGN_Cluster_Load_Phase.md) §2).
+
+#### ⭐⭐ The split
+
+| | who decides | where it lives |
+|---|---|---|
+| ⭐⭐⭐ **WHAT must be resident** — the knowledge base, the terrain, the scenario entities, anything added later | ⭐ **the ROLE** — one declarative table, below | ⛔ **not** in any bootstrapper |
+| ⭐⭐⭐ **HOW it is made resident** | ⭐ **the HOST** — it supplies an implementation per part its roles require | the host's own composition |
+| **WHICH named content** *(this terrain, this knowledge base)* | the orchestrator, on the load message | 📄 `DESIGN_Cluster_Load_Phase.md` §4.2 |
+
+⭐⭐ **That is the whole point of the split:** `HrotStrideApp` and `Hrot.SimHost` both carry
+`MuscleGround`, both therefore *require* terrain — and they load **different data**, because they
+implement the role against different engines. ⇒ **the requirement is shared and stated once; the
+implementation is theirs.** ⛔ A host may not decide it needs *less* than its role requires; it decides
+only how it satisfies it.
+
+#### ⛔⛔⛔ FIRST — **the knowledge base is NOT role-derived.** It is required by every ECS node
+
+> 🔒 **User, `2026-09-18`:** *"every ECS enable node should be able to create entities so every needs the
+> TKB loaded."*
+
+⭐⭐⭐ **This follows directly from §3.1 and is not a separate policy.** `Q65-A′` rules that **every ECS node
+composes the FULL genesis pipeline** with no opt-out. ⇒ **a node that can be asked to create an entity must
+be able to resolve that entity's template**, so a node without the scenario's knowledge base holds a
+creation pipeline it cannot actually use — ⛔ it would silently resolve against whatever catalogue it built
+locally instead. ⇒ ⭐⭐ **the knowledge-base requirement is UNCONDITIONAL on every host that holds an ECS
+world**, `Map2D` included, and it is derived from *"is this an ECS node?"* — never from the role set.
+
+🔴 **Measured `2026-09-18`: only SimHost loads a named knowledge base.** CGF and IG register no loader and
+would **ignore a scenario's `TkbName` entirely**. That is a live violation of `Q65-A′`, not a host that
+happens not to need one. 📄 [`DESIGN_Cluster_Load_Phase.md`](DESIGN_Cluster_Load_Phase.md) §2.2, §4.1.
+
+#### ⭐ What each role additionally requires — **measured `2026-09-18`, by CONSUMER, not by assumption**
+
+| role | knowledge base | terrain / road graph | scenario entities | the consumer that proves it |
+|---|---|---|---|---|
+| — *every ECS node* — | ⭐⭐⭐ ✅ **unconditional** *(above)* | — | — | `Q65-A′` / §3.1, not a consumer measurement |
+| ⭐ `Brain` | ✅ | ⛔ **no reader measured** | ✅ **reads, parses, spawns** | it is the only role that also EDITS and SAVES the scenario |
+| ⭐ `MuscleGround` | ✅ | ✅ | ⛔ replicated in | `CarKinem/Systems/CarKinematicsSystem.cs:57-60` reads `ZoneEnvironmentData` |
+| `NavigationSolver` | ✅ | ✅ | ⛔ | `Navigation/Systems/PathfindingSolverSystem.cs:116-119` · `Navigation/Modules/NavigationSolverModule.cs:122` read the `RoadNetworkHolder` |
+| `Perception` | ✅ | ⛔ **no reader measured** | ⛔ | — |
+| `Map2D` | ✅ | ⛔ **no reader measured** — it HOLDS a `RoadNetworkHolder` (`IgNodeBootstrapper.cs:80`) that nothing on that host reads | ⛔ | — |
+| *observer* (no role, no ECS world) | ⛔ | ⛔ | ⛔ acknowledges only | it holds no world, so `Q65-A′` does not reach it |
+
+⚠⚠ **Read the three ⛔ "no reader measured" cells honestly.** 📐 `search_code` + grep agree that the only
+production consumers of the road graph are `CarKinematicsSystem` and the pathfinding solver. ⛔ **An
+earlier draft of the load-phase design asserted that every role needs terrain; that was written from a
+principle, not a measurement, and is corrected there.**
+
+✅ **RULED `2026-09-18` (user): *"load nothing where nothing reads it"* — ACCEPTED.** ⇒ a role with no
+measured consumer does **not** make terrain resident, and
+[`DESIGN_Terrain_Zones_And_Assets.md`](DESIGN_Terrain_Zones_And_Assets.md) §8.3 N4's loud failure narrows to
+the roles that declare the requirement. ⚠ What would change it is a **consumer appearing** — a map that
+really draws the road graph, or line of sight against terrain obstacles — and then this table is the single
+place that moves.
+
+⭐⭐ **The general shape, so a future part is placed correctly:** ask which question the part answers.
+*"Can this node be asked to create an entity?"* → **being an ECS node** ⇒ unconditional. *"Does this node
+read X?"* → **its role** ⇒ role-derived.
+
+#### ⛔⛔ This does NOT become a permission gate
+
+⭐ §3.1's ruling is untouched: **a role never denies a capability.** A role's requirement list is the set
+of parts a correct deployment makes resident — ⛔ **it is not a list of what the node is allowed to
+touch**, and a host that composes a scenario reader may run the scenario step whatever its role says. ⇒
+the requirement is a **default with a named home**, in the same sense as everything else in this document
+(§2: these are conventions, not protocol restrictions).
+
+📄 **The mechanism** — the ordered load-phase chain, the single acknowledgement, and the content names on
+the load message — is owned by [`DESIGN_Cluster_Load_Phase.md`](DESIGN_Cluster_Load_Phase.md). ⛔ This
+section states only **which role needs what**, and is not restated there.
 
 ---
 
@@ -342,6 +442,7 @@ which is what keeps the next reader honest.
 | ownership is per-component and transferable | ✅ **CODE** — `AuthorityMask` + the `OwnershipUpdate` topic |
 | ⭐⭐ **IG entities are never persisted to the scenario** | ✅⛔ **SUPERSEDED `2026-09-14` (CE-275 ③).** ~~IG registers no scenario-SAVE handler~~ — 🔒 the user reversed this: IG now registers the SAME gated `HrotScenarioSaveHandler` as every host, and R-140 is enforced by the OWNERSHIP GATE (IG's file is empty because it owns nothing savable), NOT by a missing handler. 📄 [`DESIGN_Distributed_Scenario_Persistence.md`](DESIGN_Distributed_Scenario_Persistence.md) §4/§6; see §7.1 for the retired enforcement |
 | 🔴 **a persistable entity is not IG-owned** | ⛔ **convention only** |
+| 🔴 **a host makes resident everything its ROLES require** *(§3.2)* | ⛔ **nothing today** — ⚠ and the cost of that is measured: the requirement lived in three bootstrappers, they disagreed, and the cluster silently loaded ZERO entities. 📄 [`DESIGN_Cluster_Load_Phase.md`](DESIGN_Cluster_Load_Phase.md) §2.2. ⭐ Its `L7` rails are what would move this row to ✅ |
 | 🔴 **a node with an operator-facing force view carries an ORBAT** *(§5a)* | ⛔ **convention only** — ⚠ **and it is satisfied INCIDENTALLY**, by four hosts' independent wiring. ⛔ **Not railable as stated**: the predicate is *"has an operator"*, which no code expresses; the nearest checkable form is *"each host that registers a scenario panel set also registers an ORBAT"*, ⚠ **not proposed here** — it would fire on Stride mode 1, whose registration path is unmeasured |
 
 ### 7.1 ✅⭐⭐ HOW THE RULE IS ACTUALLY ENFORCED — **by NOT HANDLING THE OPERATION** *(user, `2026-09-02`)*
@@ -532,6 +633,7 @@ what the serializer itself filters on.**
 | [`DESIGN_Entity_Creation_Unification.md`](DESIGN_Entity_Creation_Unification.md) | the shared creation pipeline every role composes. ⭐⭐ **§3.4b is the owning home for the CREATION-side half of this document's problem** — the level mismatch and the cross-host resolution of creation duplication. ⛔ This file owns the PERSISTENCE side (§7.3); it does not restate §3.4b |
 | ⭐ [`docs/designs/cgf-scn-2/DESIGN.md`](designs/cgf-scn-2/DESIGN.md) | **scenario serialization correctness** — what belongs in scenario JSON. ⭐ **The owning home for §8 ①** |
 | [`docs/designs/cgf-scn/DESIGN.md`](designs/cgf-scn/DESIGN.md) | CGF as the authoritative entity genesis source for scenario LOAD — relevant to §3.1 and §4 |
+| ⭐ [`DESIGN_Cluster_Load_Phase.md`](DESIGN_Cluster_Load_Phase.md) | **the init/load phase** — the ordered per-host chain, the single acknowledgement, and the content names on the load message. ⭐⭐ **§3.2 here is its requirement source**: that document asks "what does this role need?" and answers "how and when". ⛔ Neither restates the other |
 | [`DESIGN_Role_Affinity_Ownership.md`](DESIGN_Role_Affinity_Ownership.md) | ⚠ **designed, not built** — would turn §4's expectations into a derived default |
 | ⭐ [`UX_Feature_Selection.md`](UX/UX_Feature_Selection.md) §2.6–§2.7 | **the selection model itself** — the request/notify protocol every ORBAT must use, and the target state for the four selection stores. ⛔ **§5a owns only WHICH NODES carry an ORBAT**; it does not restate the protocol |
 | ⭐ `UXI-04` · `UXI-25` — [`docs/UX/UX_Issues.md`](UX/UX_Issues.md) | the ORBAT panel **unification** and the ExCon fork **retirement**. ⛔ §5a is the POLICY; these are the work |

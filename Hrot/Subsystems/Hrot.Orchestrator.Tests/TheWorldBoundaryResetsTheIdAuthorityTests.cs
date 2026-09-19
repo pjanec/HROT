@@ -271,6 +271,44 @@ public sealed class TheWorldBoundaryResetsTheIdAuthorityTests
         Assert.Empty(authority.Resets);
     }
 
+    // ── ②b L8: the reset is on the EXECUTE side, not the planning side ────────────────────────
+
+    /// <summary>
+    /// 🔴🔴 <b><c>L8</c> §7.2a row 3 — a PARKED transition must not reset the authority.</b>
+    /// 📄 <c>docs/DESIGN_Cluster_Load_Phase.md</c> §7.
+    ///
+    /// <para>⭐⭐ <b>Why this is the sharpest of the three items that had to move to the execute half.</b>
+    /// The reset exists so authored ids start at 1000. Left on the planning side it would fire while
+    /// <em>nothing has been sent</em> — and a second request arriving in the interval would find a sequence
+    /// already reset, handing two loads the same block. ⚠ That is the exact area <c>HN-037</c> came from,
+    /// which is why it gets a rail of its own rather than being assumed to have travelled with the fan-out.</para>
+    ///
+    /// <para>⛔ The positive half needs no new case: every other test in this file carries NO scenario, so it
+    /// plans no copy, never parks, and executes in the tick that admits it — those cases already prove the
+    /// reset still fires on the execute side.</para>
+    /// </summary>
+    [Fact(Timeout = 10_000)]
+    public void A_parked_transition_does_not_reset_the_authority()
+    {
+        var (bus, master, authority) = Cluster();
+        using var _m = master;
+
+        // ⭐ A scenario-carrying load: the planner prepends PrefetchScenario, so the master parks. Nothing
+        //   here completes the distribution, which is precisely the window being tested.
+        master.HandleClusterOpRequest(new ClusterOpRequest
+        {
+            RequestId     = Guid.NewGuid(),
+            OperationType = ClusterOpType.TransitionState,
+            PayloadJson   = $"{{\"TargetState\":\"{ClusterState.OperatingLive}\",\"ScenarioId\":\"parked_scn\"}}",
+        });
+        bus.SwapBuffers();
+        master.Tick();
+        bus.SwapBuffers();
+
+        Assert.NotNull(master.ParkedRequestId);
+        Assert.Empty(authority.Resets);
+    }
+
     // ── ③ The absent authority is a legitimate answer, not a crash ────────────────────────────
 
     /// <summary>

@@ -118,13 +118,16 @@ public sealed class NodeOpMasterTranslator
             ReplaySeekPayload       rsp => JsonSerializer.Serialize(rsp, _jsonOptions),
             AbortTransactionPayload atp => JsonSerializer.Serialize(atp, _jsonOptions),
 
+            // ⭐ L1 — the shared content names cross the wire with the rest of the transition payload.
             EditLoadHandlerPayload p => JsonSerializer.Serialize(
                 new NodeTransitionPayloadDto(
                     TargetState: p.TargetState != 0
                         ? (Hrot.NED.Descriptors.Orchestration.ClusterState?)p.TargetState
                         : null,
                     ScenarioId:  p.ScenarioId,
-                    ExerciseId:  p.ExerciseId),
+                    ExerciseId:  p.ExerciseId,
+                    TkbName:     p.TkbName,
+                    TerrainName: p.TerrainName),
                 _jsonOptions),
 
             EpisodeHandlerPayload p => JsonSerializer.Serialize(

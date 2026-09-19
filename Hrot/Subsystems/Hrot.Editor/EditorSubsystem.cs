@@ -1425,12 +1425,33 @@ namespace Hrot.Editor
             // Pass null (no downstream callbacks for offline Editor); the controller will rebuild the map.
             var rrController    = new Hrot.SimHost.Modules.Orchestration.EcsRecordReplayController(
                 _kernel, EditorNodeId, _world!);
-            clusterSlave.RegisterHandler(new Hrot.ScenarioEditor.Handlers.HrotEditLoadHandler(
-                scenarioSerializer, scenarioLoader, extractor, scenarioLoadSource, idAllocator, _world));
-            clusterSlave.RegisterHandler(new Hrot.SimHost.Orchestration.Handlers.HrotScenarioLoadHandler(
-                scenarioSerializer, scenarioLoader, extractor, scenarioLoadSource, idAllocator, _world,
-                controller: rrController,
-                storageDirectory: isolatedTempRoot));
+            // ⭐⭐⭐ L2/L4/L4a — ONE chain, ONE scenario step, for BOTH the edit and the live target.
+            //
+            // ⛔ HrotEditLoadHandler and HrotScenarioLoadHandler are GONE. Registering both here was the
+            //    clearest sign that the split was accidental: the same host wanted the same work for two
+            //    cluster targets and had to name two classes to get it. 🔴 And they had DRIFTED — the edit
+            //    one never waited for the six cross-reference intents, so an edit load could reach
+            //    OperatingEdit with passengers, vehicles, hierarchy, targets, routes and subordinates
+            //    unresolved. ⚠ Not carelessness: those DTO types lived in an assembly this one cannot see,
+            //    which is why they moved down to Hrot.Core with the step.
+            //
+            // ⭐ The editor carries the Brain role: knowledge base (every ECS node) + scenario entities.
+            //   ⛔ No terrain step — nothing here reads the road graph.
+            // 📄 docs/DESIGN_Cluster_Load_Phase.md §4.1c.
+            var editorLoadProviders = new List<Hrot.Map.Common.ClusterLoad.ILoadPartProvider>
+            {
+                new Hrot.Map.Common.ClusterLoad.KnowledgeBaseLoadStep(
+                    tkbDb ?? Hrot.Map.Common.HrotEnvironment.CreateTkb(), isolatedTempRoot),
+            };
+
+            editorLoadProviders.Add(new Hrot.Map.Common.ClusterLoad.ScenarioLoadStep(
+                scenarioSerializer, scenarioLoader, extractor, scenarioLoadSource, idAllocator));
+
+            clusterSlave.RegisterHandler(Hrot.Map.Common.ClusterLoad.LoadPhaseChain.FromRoles(
+                Fdp.Core.NodeRole.Brain, editorLoadProviders, _world,
+                recordingController: rrController,
+                storageDirectory:    isolatedTempRoot,
+                hostLabel:           "Editor"));
 
             // ⭐⭐⭐ CE-275 ③ — the ONE scenario SAVE handler (the SAME class CGF/SimHost/IG register). When the
             //   cluster fans out SaveScenarioJson, this writes the editor's owned slice via the shared

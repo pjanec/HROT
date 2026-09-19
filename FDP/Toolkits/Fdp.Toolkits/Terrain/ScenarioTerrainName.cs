@@ -28,7 +28,11 @@ namespace Fdp.Toolkit.Terrain
         {
             if (string.IsNullOrWhiteSpace(localStagingRoot)) return null;
 
-            string headerPath = Path.Combine(localStagingRoot, "TKB", "ScenarioHeader.json");
+            // ⭐ S1a — the same constant the TKB loader and the orchestrator's writer use. ⛔ The
+            //    literal was built by hand here, in the TKB handler, and in three test fixtures.
+            string headerPath = Path.Combine(
+                Fdp.Toolkit.Orchestration.OrchestrationConstants.GetTkbStagingRoot(localStagingRoot),
+                "ScenarioHeader.json");
             if (!File.Exists(headerPath)) return null;
 
             // Forward-only — no DOM allocation for a one-property peek.

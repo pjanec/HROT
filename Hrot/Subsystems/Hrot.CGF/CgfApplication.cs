@@ -199,12 +199,28 @@ namespace Hrot.CGF
                 // D005: create the remapper once and share it between both load handlers.
                 var behaviorRemapper = CgfBehaviorSetup.CreateBehaviorRemapper();
 
-                // CGF-authoritative: extracts entities via StagingEntityExtractor and
-                // enqueues EntityCreationRequests into the shared source.
-                _clusterSlave.RegisterHandler(
-                    new Hrot.CGF.Orchestration.Handlers.CgfScenarioLoadHandler(
-                        scenarioSerializer, scenarioLoader, extractor, _scenarioEntityCreationSource, cgfIdAllocator, _world,
-                        remapper: behaviorRemapper, controller: rrController, storageDirectory: localTempRoot));
+                // ⭐⭐⭐ L2/L4a — the ONE chain and the ONE scenario step, the same ones every other host
+                //   composes. ⛔ CgfScenarioLoadHandler is gone; this host's difference (its behaviour
+                //   remapper) is an injected collaborator, which is the only kind of difference a host is
+                //   allowed to have. 📄 docs/DESIGN_Cluster_Load_Phase.md §4.1c.
+                _clusterSlave.RegisterHandler(Hrot.Map.Common.ClusterLoad.LoadPhaseChain.FromRoles(
+                    Fdp.Core.NodeRole.Brain,
+                    new Hrot.Map.Common.ClusterLoad.ILoadPartProvider[]
+                    {
+                        // ⭐ This composition root held NO knowledge base at all — the measured gap
+                        //   itself. An ECS host needs one unconditionally, so it gets the hard-coded
+                        //   catalogue as its starting point, exactly like IG; a scenario that names a TKB
+                        //   then replaces it through the step.
+                        new Hrot.Map.Common.ClusterLoad.KnowledgeBaseLoadStep(
+                            Hrot.Map.Common.HrotEnvironment.CreateTkb(), localTempRoot),
+                        new Hrot.Map.Common.ClusterLoad.ScenarioLoadStep(
+                            scenarioSerializer, scenarioLoader, extractor, _scenarioEntityCreationSource,
+                            cgfIdAllocator, behaviorRemapper: behaviorRemapper),
+                    },
+                    _world,
+                    recordingController: rrController,
+                    storageDirectory:    localTempRoot,
+                    hostLabel:           "CGF"));
 
                 // CGF-authoritative episode handler: enqueues episode entities on start,
                 // publishes DestroyEntityCommand events on stop (TASK-C007).

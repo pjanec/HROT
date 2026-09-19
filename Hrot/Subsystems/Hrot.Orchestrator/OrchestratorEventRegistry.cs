@@ -13,6 +13,7 @@ public static class OrchestratorEventRegistry
     {
         bus.RegisterManaged<ExecutePrefetchIntent>();
         bus.RegisterManaged<PrefetchStagingCompletedEvent>();
+        bus.RegisterManaged<PrefetchDistributionCompletedEvent>();   // L8 — what a parked transition waits on.
         bus.RegisterManaged<ExportArchiveBegunEvent>();
         bus.RegisterManaged<SaveScenarioJsonBegunEvent>();
         bus.RegisterManaged<ImportArchiveBegunEvent>();

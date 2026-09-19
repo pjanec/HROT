@@ -83,8 +83,15 @@ namespace Hrot.SimHost.Tests
             var lifecycleGrp  = new NetworkLifecycleSystemGroup(ghostSys);
 
             var bootstrapper = new NodeBootstrapper();
+            // ⚠ CHANGED `2026-09-18`: the role set no longer includes Brain. ⭐ A Brain host REQUIRES the
+            //   scenario part of the load phase, and this call composes no authoring dependencies — the
+            //   chain now says so at composition instead of the node silently loading nothing.
+            //   📐 Production SimHost is MuscleGround | Perception | NavigationSolver and never Brain
+            //   (SimHostApp.cs:183, :255), so nothing production-shaped is weakened by dropping it here;
+            //   the case this test is actually about is the REPLAY handler.
+            //   📄 docs/DESIGN_Cluster_Load_Phase.md §4.1b.
             using var slave = bootstrapper.BuildOrchestration(
-                NodeRole.Brain | NodeRole.MuscleGround | NodeRole.Perception,
+                NodeRole.MuscleGround | NodeRole.Perception,
                 _kernel,
                 _world,
                 nodeId:             1,
