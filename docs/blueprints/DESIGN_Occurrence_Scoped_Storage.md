@@ -270,22 +270,68 @@ is resolved on our side of the line.
 
 ## 3. The model
 
+⚠ **F6 — the thesis sentence needs its carve-out stated:** *the occurrence owns memory **except where
+a scope deliberately shares it***. `StatefulSlotScope.Entity` hashes the variable name **only**, by
+design, *"so an owner and a member entity agree on the key"* (`BlueprintSharedState.cs:22-26`). ⛔ That
+is a FEATURE — `R-137`: the unification may not delete it.
+
 **An occurrence is a running instance of an asset on an entity.** Its identity is
 `(assetId, hostPath)`, where `hostPath` is the chain of `(hostOccurrence, siteId)` pairs from the
-root. A root behaviour has an empty host path. This is not a new key function:
-`ComputeStatefulSlotKey(assetId, scope, nodeVisualId, variableId)` already puts an occurrence
-discriminator into the slot table's `BlueprintId` field, and `Q34 §7` measured that the field is
-**already polymorphic** — blueprint ids and stateful slot keys coexist in one table, correctly.
+root. A root behaviour has an empty host path. ⛔⛔ **F5 — but the EXISTING key cannot express this, and it is not one function.** 📐 Measured:
+**three entry points and two enums** — `StatefulBTreeActionBinder.ComputeStatefulSlotKey(Guid,
+StatefulSlotScope, Guid, string)` (`:89`), `BTreeBridgeEmitCore.ComputeStatefulSlotKey(Guid,
+WorkingStateScope, Guid, …)` (`:227`) and a 2-arg overload (`:187`), hand-mirrored byte-identically in
+≥4 test copies. ⛔ **None carries a region, a state id, or a chain**, so depth-2 nesting is not
+representable at all — while §11.2 renders it as a tree. ⇒ ⭐⭐ **unifying the key is `O3`'s FIRST
+job** *(ruling 9 applies to the key itself)*, not an assumption `O3` may lean on. ⚠ `Q34 §7`'s *"the
+field is already polymorphic"* describes coexistence, ⛔ **not a discriminant** — see `D1`.
 
 **Slot payload:** `[OccurrenceHeader][Params P][State S]`. `DESIGN_Parameter_Model.md` §3.3 already
 rules that params must not sit at offset 0 for blueprint Instances (the 16-byte
 `BlueprintLatentCursor` lives there); the header generalises that reservation.
 
-**Why every thunk survives.** `NodeLogicDelegate<TBlackboard, TContext>` is generic and the
-interpreter never touches the blackboard's members — measured at `Interpreter.ExecuteAction`
+**Why `[SharedAiAction]` thunks survive.** `NodeLogicDelegate<TBlackboard, TContext>` is generic and
+the interpreter never touches the blackboard's members — measured at `Interpreter.ExecuteAction`
 (`:643-671`), which calls `actionDelegate(ref bb, ref state, ref ctx, node.PayloadIndex)` and
 nothing else. A `[SharedAiAction]` thunk bakes only the **field** offset within the DTO, so it is
 valid wherever that DTO lives. Same offsets, different base.
+
+⛔⛔ **CORRECTION `2026-09-19` — "EVERY thunk survives" was TOO BROAD, and the exception is a live
+corruption defect.** It holds for `[SharedAiAction]`. It is **false for all four `AiPrimitive`
+hosting modes**, which bake the **component type** — see §3.2.
+
+### 3.2 🔴🔴 THE SECOND LIVE DEFECT — **an AiPrimitive zeroes the WHOLE shared component**
+
+📐 **Measured `2026-09-19`** *(found by the `behaviors` lane's review; verified here independently)*.
+All four `AiPrimitive` hosting modes — `BTreeAction`, `BTreeCondition`, `HsmAction`, `HsmGuard` —
+emit the same preamble (`AiPrimitiveEmitter.cs:349, 387, 421, 449`):
+
+```csharp
+ref var bb1024 = ref ctx.World.GetComponentRW<Blackboard1024>(ctx.Self);   // ⇐ the COMPONENT, baked
+fixed (byte* memory = bb1024.Memory) {
+    ulong storedHash = *(ulong*)memory;                 // hash at offset 0
+    if (storedHash != StructureHash) {
+        Unsafe.InitBlock(memory, 0, sizeof(Blackboard1024));   // 🔴 ZEROES ALL 1024 BYTES
+        *(ulong*)memory = StructureHash;
+        InitDefaultWorkingState((WorkingState*)(memory + 8));
+    }
+    ref var ws = ref Unsafe.AsRef<WorkingState>(memory + 8);   // state at offset 8
+```
+
+The emitter says so itself (`:91`): *"`FieldLayout` lays an AiPrimitive's state out from 8, **which is
+its position inside `Blackboard1024`**"*.
+
+| ⇒ what this means today | |
+|---|---|
+| ⛔ **at most ONE AiPrimitive working state per entity** | hash at 0, state at 8, whole component owned |
+| 🔴🔴 **two of them MUTUALLY THRASH, every tick** | A sees B's hash ⇒ zeroes 1024 B ⇒ writes A's; then B sees A's ⇒ zeroes 1024 B ⇒ writes B's |
+| 🔴🔴 **and the blast radius is the WHOLE component** | `R-65`: `Blackboard1024` is shared by BTree, HSM **and** Blueprint at disjoint offsets — plus the commander's `SquadCognitiveState` (§5 class 1). ⇒ **one AiPrimitive hash mismatch wipes the squad contact pool and the BTree heavy DTO** |
+
+⭐⭐⭐ **This is the exact twin of §3.1's BTree defect, one layer down, and it is the strongest single
+argument the programme has** — ⛔ *"two occurrences need two homes"* is not a future requirement here,
+it is a **shipped data-corruption bug** that per-occurrence slots fix by construction. ⭐ It also
+retires the *"the simple case is fine today"* objection: the simple case is fine only while an entity
+has **exactly one** AiPrimitive.
 
 ### 3.1 ⭐⭐ Hosting one graph inside another ALREADY SHIPS — and it is the template
 
@@ -338,9 +384,12 @@ design does not touch it; whether it is ever implemented or deleted is out of sc
 
 ⛔⛔ **CORRECTION — an earlier draft of this section proposed carrying the occurrence on
 `HsmKernelBridge` and presented it as a fresh choice. That is `Q35`'s option `C`, and it was
-REJECTED a month ago for a better reason than I gave:** the kernel sees the context only as an opaque
-`void*`, so filling a field in it means **a layout convention across the ExtDeps boundary** — the
-coupling the chosen option avoids by using a type the kernel already owns.
+REJECTED a month ago for a better reason than I gave:** ⛔ **and the reason `Q35` gave — and that I repeated — is itself FALSE (F11):** the
+layout convention across the boundary **already exists and is load-bearing**, since every shipped HSM
+thunk casts `void* context` → `HsmKernelBridge*` (`ApcHsmActions.cs:48`, `AiPrimitiveEmitter.cs:444`).
+⭐⭐ **The ruling stands on a better reason: the writer is PER-DISPATCH, the bridge is
+PER-ENTITY-TICK** — and the occurrence changes between two actions inside one tick, so only the
+writer can carry it.
 
 | `Q35` sub-question | ✅ the ruling |
 |---|---|
@@ -392,8 +441,22 @@ overload. Both are needed; neither substitutes for the other.
 
 | # | the cost | `Q37`'s measurement |
 |---|---|---|
-| 🔴 **C1** | **a ~1 KB floor per AI entity** | the smallest tier is **1024 B** *(96 of it header + slot table)* against today's **128 B** `BrainBlackboard` ⇒ **~8× for the simple case**, plus **an archetype change for every AI entity**. ⚠ **Whether it matters depends on the AI entity count, which was NOT measured — still open** |
+| ⚠ **C1** | ~~a ~1 KB floor, **~8×**~~ ⛔ **CORRECTED `2026-09-19` (F4) — the ~8× was against the WRONG BASELINE** | `Q37` priced 1024 B against `BrainBlackboard` (128) **alone**, but §2.1 also deletes `BrainBTreeState` (64), `BrainHsm64/128` (64/128) and `Blackboard1024` (1024) wherever `HeavyDtoType != null` (`BehaviorIngressSystem.cs:134-138`). ⭐ **Honest ratios below** — and the floor is still real, just far smaller |
 | ⚠ **C2** | **indirection moves from SOME actions to ALL** | today one field access on a component already in hand; under the allocator: tier probe → `GetComponentRW` → `fixed` → `TryGetSlotOffset` *(linear scan)*. ⭐ Generated **stateful** thunks already do exactly this, so it is proven — ⛔ but it goes from *"the stateful ones pay it"* to *"every action, every tick"* |
+
+#### 📐 The honest simple-case arithmetic *(F4)*
+
+| simple case | today | @1024 | ⭐ @256 |
+|---|---|---|---|
+| **BTree root** | `BrainBlackboard` 128 + `BrainBTreeState` 64 = **192 B** | 5.3× | ⭐ **1.33×** |
+| **HSM root** | 128 + `BrainHsm128` 128 = **256 B** | 4× | ⭐ **1.0× — free** |
+| ⭐ **any heavy-DTO entity** | + `Blackboard1024` **1024 B** | — | ⭐⭐ **a NET SAVING** |
+
+⇒ ⭐⭐⭐ **The first measurement to take is NOT the AI entity count** *(that is second)*. It is
+**bytes per AI entity today vs after**, derivable from the manifest with no scenario run — because
+the ratio above already shows the 256 tier landing between *free* and *1.33×*, and heavy-DTO
+entities getting **cheaper**. ⚠ The entity count only scales whatever that per-entity delta turns
+out to be.
 
 ⭐ **And two objections that `Q37` measured DO NOT exist** — do not re-raise them: **hardcoded
 behaviours are not harmed** *(every direct `bb.BehaviorParameters[0]` reference is inside an EMITTER;
@@ -425,6 +488,14 @@ allocated — the two-mechanism answer `Q35-C` already ruled against)*.
 | ⚠ **HSM root** on `HsmInstance128` + params near the 100 B cap | ⛔ ~236 B — **spills to 1024** |
 | **`HsmInstance256`**, or any nesting (2+ occurrences) | ⛔ **1024** — correctly so; neither is the simple case |
 
+⛔⛔ **F3 — BYTES ARE ONLY ONE AXIS, and the table above prices only that one.** `MaxSlots` is
+**4 / 8 / 16** for 1024 / 4096 / 16384 (`BlueprintBlackboard*.cs:17`) and `SelectTierForPayload`
+gates on **both** (`BehaviorIngressSystem.cs:558-566`). ⚠ **And the root occurrence is a slot that
+does not exist today**, so every tier loses one stateful slot to it. ⇒ a 256 tier at `MaxSlots` 1–2
+fits only a behaviour with **zero stateful nodes and zero Instances**. ⭐ **`O3b` must be sized on
+slots as well as bytes, or the tier whose whole job is to price the simple case will rarely be
+selected** — the fit table gains a slots column before `O3b` is dispatched.
+
 ⭐⭐ **The spill is PREDICTED, never discovered.** Because `BehaviorDefinition` declares the sizes
 (§9.5), `SelectTier` picks correctly at attach — ⛔ there is no runtime guess and no surprise
 promotion on a hot path.
@@ -436,7 +507,7 @@ promotion on a hot path.
 | ✅ **component-id space** | `MAX_COMPONENT_TYPES = 512`, highest allocated **301** ⇒ room for one more *(`R-44`: the id is allocated, never recycled)* |
 | ✅ **the allocator itself** | `CopyToLargerTier(src, srcSize, dst, dstSize, dstMaxSlots)` is **already generic over sizes** — it needs nothing |
 | ⚠ **the per-tier BRANCHING is hand-rolled and repeated** | `BehaviorIngressSystem` alone mentions `BlueprintBlackboard16384` **28 times** across ~10 methods, each a 3-way `if/else` on tier size; `BlueprintTickSystem` has **three near-identical ~65-line `TickTier_*` methods**; there are **three near-identical renderers**. A 4th tier is a 4th arm in each |
-| 🔴 **and `PromoteTier`'s dispatch grows QUADRATICALLY** | today 1024→4096, 1024→16384, 4096→16384 = **3 arms**. With 256: +256→1024, 256→4096, 256→16384 = **6**. ⛔ **This is the one part that is not simply additive** |
+| 🔴 **and promotion dispatch grows QUADRATICALLY — in TWO places** | ⛔ **`PromoteTier` does not exist (F12)**: it is `BehaviorIngressSystem.UpgradeTier` (`:600`) **and** `BlueprintMaintenanceSystem.UpgradeTier_1024_to_4096` / `_4096_to_16384`. Today 3 arms; with 256, **6** — doubled across two files. ⛔ **The one part that is not simply additive** |
 
 ⇒ ⭐⭐⭐ **Collapse the per-tier branching to a TABLE first, then the 4th tier is genuinely additive.**
 A `TierSpec { Type, TotalSize, MaxSlots, PayloadSize }[]` turns ~10 three-way chains, 3 copied tick
@@ -469,16 +540,16 @@ Ordered so that each step is provable on its own and the expensive irreversible 
 
 | # | item | why here | ExtDeps |
 |---|---|---|---|
-| **O0** | **Re-home `BlueprintTickSystem` into a module every ECS host schedules** | independent of everything else; until it lands, blueprint Instances are editor-only and the tripod has no third leg on CGF | — |
+| **O0** | **WIRE `BlueprintTickSystem` on every ECS host** *(F13: not a re-home — it already lives in `Fdp.Toolkits`; only the wiring is editor-side, so this is smaller than it sounds)*. ⛔ **Needs `D1`'s `Kind` first (F8)** | independent of everything else; until it lands, blueprint Instances are editor-only and the tripod has no third leg on CGF | — |
 | **O1** | **`SquadCognitiveState` gets its own component** | removes the largest non-AI consumer of `Blackboard1024`; pure win even if the rest is cancelled | — |
 | **O2** | **Split `BrainBlackboard` → `BrainInterrupts` + a params region type** | the params region becomes addressable; the tail stops travelling with it. Updates `R-39`/`R-41` | — |
 | **O3** | **The occurrence seam** — `OccurrenceKey`, `TryResolveOccurrence`, the slot header | one lookup that classes 4/5/6 all call. **No behaviour changes yet** | — |
 | ⭐ **O3a** | **Collapse per-tier branching to a `TierSpec` table** — ingress, tick, renderers | ⛔ **prerequisite for `O3b`, and it pays for itself**: ~10 three-way chains, 3 copied tick methods and 3 copied renderers become one loop; `PromoteTier` stops being N² | — |
 | ⭐ **O3b** | **Add the `OccurrenceStore256` tier** (`MaxSlots` 1–2) — `Q37` option B | prices the simple case: ~8× floor → ~2× (§5a). ⛔ Trivial after `O3a`, four copies before it | — |
-| **O4** | **BTree onto occurrence storage** — tree state and params into slots, **including a hosted subtree's own `BehaviorTreeState`** | ⭐ **proves the whole model with ZERO ExtDeps change** (§4.1) **and closes the shared-`BehaviorTreeState` defect in §3.1**. If this does not work, stop before paying for `O6` | **none** |
+| **O4** | **BTree onto occurrence storage** — tree state and params into slots, **including a hosted subtree's own `BehaviorTreeState`, and its RE-ENTRY RESET (F14)** | ⭐ **proves the whole model with ZERO ExtDeps change** (§4.1) **and closes the shared-`BehaviorTreeState` defect in §3.1**. ⚠ Own state removes the accidental continuity `ref state` gave, so the child's cursor must be reset when the host re-enters the hosting node — **its own rail**. If this does not work, stop before paying for `O6` | **none** |
 | **O5** | **Blueprint Instances take params** (`DESIGN_Parameter_Model.md` §3.3) | the slot layout is now shared with `O4`; closes `R4`, which has no design today | — |
 | **O6** | **`HsmOccurrence` in the kernel** (§4.2 option b) | the one ExtDeps change, paid **once**, after `O4` has proved the storage model | **the only one** |
-| **O7** | **HSM per-region actions key on the occurrence** — closes `BP-297`/`E3` | needs `O6` | — |
+| **O7** | **HSM per-region actions key on the occurrence** — closes `BP-297`/`E3`; **and `HsmTickSystem` gains entity discovery across the tier components (F9)** | needs `O6`. ⚠ With `BrainHsm*` deleted the query has no root component — it takes `BlueprintTickSystem`'s shape, and **C2 must price per-tick discovery across archetypes, not only per-action indirection** | — |
 | **O8** | **BTree hosted under an HSM state** — the strategic/tactical composition | needs `O3`+`O6`; the child is just another occurrence | — |
 | ⭐ **O9** | **Blueprint as an ASSIGNED ROOT behaviour** — the third `BrainTier` *(`Q33`)* | 🔒 **user, `2026-09-19`: *"solved after the occurences"***. ⛔ **Not storage** — §12's gaps ②③④: registry resolution, a root tick path, and joining `BehaviorState.InstanceId` preemption | — |
 
@@ -527,7 +598,7 @@ design, and **none of them blocks `O0`–`O7`.** Three of them block `O8`.
 | **H1** | 🔴🔴 **ONE region consumes the event; the others never see it.** `SelectTransition` scans every region and returns **a single** best transition (`:564-610`); `ExecuteTransition` fires it; then `ProcessRTCPhase` sets `currentEventId = 0` — *"Event consumed"* (`:517`) — and the loop continues with epsilon transitions only. ⛔ **UML orthogonal-region semantics require the event to be offered to EVERY region**, each firing independently | `HsmKernelCore.cs:497-518`, `:564-610` | **any** event that two regions both have a transition for |
 | **H2** | 🔴 **Priority arbitration is GLOBAL, not per-region.** `bestTransition` is chosen by `priority > highestPriority` **across all regions** (`:592`) ⇒ a low-priority transition in region 0 loses to a high-priority one in region 1, and (via H1) region 0 then loses the event entirely | `:588-600` | any two regions with different transition priorities on one event |
 | **H3** | 🔴 **A GLOBAL transition always reports region 0.** `SourceStateIndex = activeLeafIds[0]` unconditionally (`:551`) and `regionIndex` stays at its `0` initialisation (`:538`) — it is only assigned inside the per-region loop (`:599`). ⇒ a global transition fired while >1 region is active rewrites **region 0's** leaf and leaves the others untouched. ⚠ **This is the surviving half of the bug the `:747-749` comment says was fixed** *("a transition fired in region 1 used to overwrite region 0's leaf… corrupting two regions with one event. Harmless while regionCount == 1, which is why it survived")* — fixed for per-region transitions, **still live for global ones** | `:538`, `:551`, `:747-750` | any global transition on a multi-region machine |
-| **H4** | ⚠ **The queue is sized by LEFTOVER BYTES, not by the region count — at every tier.** `HsmInstance128`: **4 regions, 4 timers, 1 interrupt slot + a 1-slot ring** ⇒ 2 events. `HsmInstance256`: **8 regions, 8 timers, ring 5** ⇒ 6. ⛔ **Every tier has `ring < regions`.** ⇒ **`ProcessTimerPhase` loops all timers and `FireTimerEvent` enqueues one each — 4 expiring timers on a 128 = 2 enqueued, 2 lost.** ⚠ **CORRECTION to an earlier wording of this row:** Tier2/Tier3 **REJECT** on a full ring (`EnqueueTier2:262` returns `false`); it is `HsmInstance64`'s header that documents *eviction*. Either way the event is gone — but 🔴 **`FireTimerEvent:368` discards `TryEnqueue`'s bool**, so the loss is silent, untraced and unlogged | `HsmEventQueue.cs:11-27`, `:249-265`; `HsmKernelCore.cs:335-350`, `:361-369` | N regions or N timers on one tick — i.e. normal operation for a multi-region machine, not an edge case |
+| 🔴 **H4** | ⛔ **F10: this is an IDENTITY bug first, a capacity bug second — `FireTimerEvent` takes `timerIndex`, `activeLeafIds` and `regionCount` and USES NONE**, so every timer enqueues the same `TimerEventId` and, with H1, a region-1 timer can fire a region-0 transition. ⇒ **`O8` depends on timers being per-region.** ⚠ **The queue is also sized by LEFTOVER BYTES, not by the region count — at every tier.** `HsmInstance128`: **4 regions, 4 timers, 1 interrupt slot + a 1-slot ring** ⇒ 2 events. `HsmInstance256`: **8 regions, 8 timers, ring 5** ⇒ 6. ⛔ **Every tier has `ring < regions`.** ⇒ **`ProcessTimerPhase` loops all timers and `FireTimerEvent` enqueues one each — 4 expiring timers on a 128 = 2 enqueued, 2 lost.** ⚠ **CORRECTION to an earlier wording of this row:** Tier2/Tier3 **REJECT** on a full ring (`EnqueueTier2:262` returns `false`); it is `HsmInstance64`'s header that documents *eviction*. Either way the event is gone — but 🔴 **`FireTimerEvent:368` discards `TryEnqueue`'s bool**, so the loss is silent, untraced and unlogged | `HsmEventQueue.cs:11-27`, `:249-265`; `HsmKernelCore.cs:335-350`, `:361-369` | N regions or N timers on one tick — i.e. normal operation for a multi-region machine, not an edge case |
 | **H5** | ⚠ **Drain order decides the winner.** `ProcessEventPhase` drains up to `MaxEventsPerTick = 10`, each through a full RTC pass. Deterministic, but with H1 the queue order silently determines which region acts | `:381-392` | any multi-event tick |
 
 ⭐ **Timer events are not exempt:** `FireTimerEvent` enqueues into the same shared queue, so H1 and H4
@@ -894,3 +965,65 @@ and the user has now sequenced it: `O9`.**
 `2026-08-16`** header. Both of its references — the supersedes row and §9's closing line — now read
 *"out of scope for the parameter story, COMMITTED as a follow-on after `O8`"* and carry the user's
 ruling verbatim.
+
+---
+
+## 13. Review from the `behaviors` lane — findings folded in *(`2026-09-19`)*
+
+⭐ **A strong review.** Every load-bearing finding was re-verified here independently; **two are worse
+than the review states**, and they are marked ⭐ below. Verdicts, then the two gating decisions.
+
+| # | finding | verdict |
+|---|---|---|
+| **F1** | `AiPrimitive` thunks bake the component, and a hash mismatch zeroes all 1024 B | ✅✅ **ACCEPTED — §3.2 is new.** ⭐ **Worse than stated:** two AiPrimitives don't merely collide, they **mutually thrash every tick**, and the wipe takes the squad region with it |
+| **F2** | guards are NOT free — the compiler emits `EmitHsmGuardThunk` | ✅ **ACCEPTED — see `D2` below.** The goal sentence promises blueprints as conditions; §4.2's *"free today"* was about **hand-authored** guards only |
+| **F3** | slot-count is the second axis; a 256 tier may never be selected | ✅ **ACCEPTED.** `MaxSlots` 4/8/16, `SelectTierForPayload` gates on both. §5a's fit table needs a **slots** column, and the root occurrence consumes one slot that does not exist today |
+| **F4** | C1's ~8× is against the wrong baseline | ✅ **ACCEPTED, and it helps us.** Deleting `BrainBTreeState` (64) and `BrainHsm128` (128) too makes the honest simple-case ratio **5.3× / 4× at 1024**, and **1.33× / 1.0× at 256** — with a **net saving** on any heavy-DTO entity |
+| **F5** | the key cannot express `(assetId, hostPath)` | ✅ **ACCEPTED.** ⭐ **Worse than stated: there are THREE entry points and TWO enums** — `StatefulBTreeActionBinder.ComputeStatefulSlotKey(Guid, StatefulSlotScope, Guid, string)` (`:89`), `BTreeBridgeEmitCore.ComputeStatefulSlotKey(Guid, WorkingStateScope, Guid, …)` (`:227`) and a 2-arg overload (`:187`), hand-mirrored in ≥4 test copies. **Ruling 9 applies to the key itself** |
+| **F6** | `StatefulSlotScope.Entity` is deliberately entity-scoped | ✅ **ACCEPTED.** The thesis sentence must carve it out: *"the occurrence owns memory **except where a scope deliberately shares it**"*. `R-137` |
+| **F7** | no `Kind` in the slot table, and no room | ✅ **ACCEPTED — see `D1` below.** `BlueprintSlotEntry` is `Size = 16` and its own comment says `StructureHash` was truncated to `uint` *specifically* to hold 16 B |
+| **F8** | `O0` is not independent of `O4`/`O6` | ✅ **ACCEPTED.** Resolved by `D1`: with `Kind` in the payload header, `O0`'s walker skips non-blueprint occurrences by declaration, not by hash miss |
+| **F9** | after `O7` the HSM tick query has no root | ✅ **ACCEPTED.** `O7` gains entity discovery across the tier components — `BlueprintTickSystem`'s shape — and C2 must price per-tick discovery, not only per-action indirection |
+| **F10** | H4 is an identity bug, not a capacity bug | ✅ **ACCEPTED.** `FireTimerEvent` takes `timerIndex`/`activeLeafIds`/`regionCount` and **uses none**; every timer enqueues the same `TimerEventId`. ⇒ **H4 moves up beside H1–H3** as a correctness item |
+| **F11** | §4.2's stated reason is false — the layout convention already exists | ✅ **ACCEPTED.** Every shipped HSM thunk casts `void* context` → `HsmKernelBridge*`. ⭐ **The conclusion stands on a better reason:** the writer is **per-dispatch**, the bridge is **per-entity-tick** — only the writer can carry a value that changes between two actions in one tick |
+| **F12** | `PromoteTier` does not exist | ✅ **ACCEPTED.** ⭐ **Worse: promotion lives in TWO places** — `BehaviorIngressSystem.UpgradeTier` (`:600`) and `BlueprintMaintenanceSystem.UpgradeTier_1024_to_4096` / `_4096_to_16384` |
+| **F13** | `O0`'s "re-home" reads as a type move | ✅ **ACCEPTED.** The system already lives in `Fdp.Toolkits`; only the **wiring** is editor-side. `O0` is smaller than it sounds |
+| **F14** | `O4` under-specifies hosted-child reset | ✅ **ACCEPTED.** Own state removes the accidental continuity `ref state` gave. `O4` owns **re-entry reset**, with its own rail |
+
+⚠ **One amplification of the review's own H2 note:** a global transition `return`s immediately at
+`SelectTransition:540-560`, **before any per-region scan** — so it beats every per-region transition
+regardless of priority. §9.1's H2/H3 wording is updated.
+
+### ⭐⭐⭐ `D1` — where `Kind` lives: **the payload's `OccurrenceHeader`, not the slot entry**
+
+| option | verdict |
+|---|---|
+| **a** grow `BlueprintSlotEntry` past 16 B | ⛔ **rejected** — changes `SlotEntrySize` ⇒ every tier's `MaxSlots` and `PayloadSize`, plus `BlackboardLayoutTests`. Pays a re-tiering to carry 2 bits |
+| **b** steal spare bits from `PayloadOffset`/`PayloadSize` | ⛔ **rejected** — offsets need 14 of 16 bits at the 16384 tier; a silent overflow when a tier grows |
+| ⭐ **c** **`Kind` in the `OccurrenceHeader` at the head of the payload** | ✅ **CHOSEN.** §3 already puts a header there (`[OccurrenceHeader][Params][State]`). ⭐ **The slot table stays byte-identical** — no `MaxSlots` churn, no layout-test churn — and every consumer that cares already dereferences the payload |
+
+⇒ ⭐⭐ **`D1` resolves F7, F8 and §11's renderer column with one field.** ⛔ And it retires the
+accidental filter F7 names: `_registry.TryGetById(slot.BlueprintId, …) → continue` works **only**
+because `BlueprintRegistry` happens not to know an FNV stateful key. **`O0` must read a declared
+`Kind`, never a hash miss** — that is the precondition that makes `O0` safe to ship early.
+
+### ⭐⭐ `D2` — guards: **widen `EvaluateGuard`, because the guard population is tiny**
+
+📐 **Measured census of attributed `[HsmGuard]`:** **3** in FastHSM's own visual demo, **3** in FastHSM
+tests, **1** in `Fdp.Toolkits/Utility/Integration/UtilityTransitionArbiter.cs`; every other hit is
+editor/analyzer **metadata** (facets, schema exporters, golden tests), not an attributed method.
+
+⇒ ⛔ **The "55 methods / 25 directories" blast radius is the ACTION delegate's, not the guard's.**
+Widening `EvaluateGuard` from `delegate*<void*,void*,ushort,bool>` to carry the writer touches a
+**single-digit** population, almost all of it ExtDeps' own demos and tests.
+
+| option | verdict |
+|---|---|
+| ⭐ **widen `EvaluateGuard` to take the writer** | ✅ **LEAN.** One mechanism for actions *and* guards; the occurrence arrives the same way in both. Small, countable blast radius |
+| **leave guards unserved and assert it** | ⛔ **insufficient now F2 is measured** — `AiPrimitiveHosting.HsmGuard` is a shipped hosting mode, so *"blueprint as an HSM condition"* — **this document's own goal sentence** — would be the one composition the delivery cannot serve |
+| **a separate guard route** | ⛔ two mechanisms for one concept (ruling 9) |
+
+⚠ **This reopens a sub-question `Q35` closed on a narrower measurement.** `Q35`'s *"guards are
+measurably free — zero production `[HsmGuard]`"* was true of hand-authored guards and **did not
+consider the emitter**. ⛔ It needs the user's nod before `O6`, because it widens the ExtDeps delta
+from *"two fields on a struct"* to *"two fields plus one guard signature"*.
