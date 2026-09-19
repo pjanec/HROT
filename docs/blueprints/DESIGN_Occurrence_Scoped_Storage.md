@@ -164,12 +164,26 @@ graph TD
     class H2 dead
 ```
 
-**Caption — what only this diagram shows.** `BlueprintTickSystem` has exactly **one** production
-construction site and it is the editor's. On CGF and SimHost the box is never built, so blueprint
-**Instances** never tick there — while `BehaviorIngressSystem`, which *provisions* their storage,
-runs on every host. This is the scheduling twin of the registration gap that crashed `--mode all` on
-`2026-09-03` (recorded in `BlueprintBlackboardTiers`' own header). It is **independent of everything
-else here** and is item `O0`.
+**Caption — what only this diagram shows, stated precisely.**
+
+⭐ **Blueprints DO run on CGF — in their other mode.** A blueprint whose `Dispatch == AiPrimitive`
+compiles into a BTree/HSM **action or condition** and executes inside the behaviour thunk, driven by
+`BTreeTickSystem`/`HsmTickSystem`, which CGF schedules. That is the mode the shipped CGF content
+uses, and nothing here is wrong with it.
+
+🔴 **Blueprint *Instances* are the half that is broken, and it is a HALF-WIRED state rather than an
+absent one.** `CgfSubsystem:1004` calls `BlueprintGenesisRuntimeRegistration.RegisterBlueprintGenesisSystems`,
+which registers **`BlueprintMaterializationSystem`** (resolves `InitialBlueprintsIntent` from scenario
+state and **pre-provisions the tier**) and **`BlueprintEventIngressSystem`** (attach/switch by event).
+Neither is the tick system. The only production code that constructs and schedules
+`BlueprintTickSystem` is `BlueprintRuntimeWiring.WireBlueprintRuntime` + `SpliceIntoSimulation`,
+called from **`EditorSubsystem.Initialize:1585/1595` and nowhere else** (the integration `EditorHarness`
+is the only other caller).
+
+⇒ **CGF attaches Instances, allocates their slots and dispatches their attach/switch events — and
+never ticks them.** That is worse than missing: it looks wired. Scheduling twin of the registration
+gap that crashed `--mode all` on `2026-09-03` (recorded in `BlueprintBlackboardTiers`' own header).
+**Independent of everything else here** — item `O0`.
 
 ### 2.3 Activating and ticking a nested occurrence
 
@@ -223,6 +237,35 @@ interpreter never touches the blackboard's members — measured at `Interpreter.
 (`:643-671`), which calls `actionDelegate(ref bb, ref state, ref ctx, node.PayloadIndex)` and
 nothing else. A `[SharedAiAction]` thunk bakes only the **field** offset within the DTO, so it is
 valid wherever that DTO lives. Same offsets, different base.
+
+### 3.1 ⭐⭐ Hosting one graph inside another ALREADY SHIPS — and it is the template
+
+⛔ **Correction to an earlier reading of mine: `NodeType.Subtree`'s `Failure` stub is NOT how BTree
+hosts a BTree, and BTree-hosts-BTree is not a missing feature.** Measured:
+
+- `BTreeEmitCore.EmitSubtree` (`:858-865`) emits `.Subtree("Name", …)` into the fluent builder;
+- `BTreeOrchestratorEmitCore` (`:135-176`) generates a **`[BTreeAction] Orchestrate_<Sub>_Tick`**
+  whose whole body is
+  `ref var subBb = ref master.<VarName>; return <Sub>.GetInterpreter().Tick(ref subBb, ref state, ref ctx);`
+  — with an *Approach B* variant that does **COPY IN → tick → COPY OUT** over `SubtreeSyncBindings`.
+
+⇒ ⭐⭐⭐ **Subtree hosting is implemented as "an action that ticks the child interpreter inline,
+handing it its own blackboard."** That is *exactly* the mechanism HSM-hosts-BTree needs. The child's
+blackboard is a **compile-time slice of the master's** (`master.<VarName>`), so this design's
+migration is *"replace the compile-time slice with an allocated slot"* — a narrowing of an existing
+mechanism, not a new one. ⛔ **Nothing here removes, deprecates or reroutes it.**
+
+🔴 **But it exposes a live defect of precisely this document's shape.** The generated orchestrator
+ticks the child with **`ref state` — the MASTER's `BehaviorTreeState`**. The hosted occurrence has
+**no runtime state of its own**: `RunningNodeIndex` and the local registers are shared between host
+and child. With one child at a time and no suspension it mostly survives; with two hosted children,
+or a child left `Running` while the host advances, host and child overwrite each other. **This is the
+BTree twin of the HSM two-region collision, and it is in shipped code today.** `O4` fixes it by
+giving the hosted occurrence its own `BehaviorTreeState` in its own slot — which is the same
+machinery `O8` needs, so the fix and the feature are one piece of work.
+
+⚠ **The `NodeType.Subtree` kernel stub is a separate, unused path.** It is not what ships, and this
+design does not touch it; whether it is ever implemented or deleted is out of scope here.
 
 ---
 
@@ -303,7 +346,7 @@ Ordered so that each step is provable on its own and the expensive irreversible 
 | **O1** | **`SquadCognitiveState` gets its own component** | removes the largest non-AI consumer of `Blackboard1024`; pure win even if the rest is cancelled | — |
 | **O2** | **Split `BrainBlackboard` → `BrainInterrupts` + a params region type** | the params region becomes addressable; the tail stops travelling with it. Updates `R-39`/`R-41` | — |
 | **O3** | **The occurrence seam** — `OccurrenceKey`, `TryResolveOccurrence`, the slot header; rename the tiers | one lookup that classes 4/5/6 all call. **No behaviour changes yet** | — |
-| **O4** | **BTree onto occurrence storage** — tree state and params into slots | ⭐ **proves the whole model with ZERO ExtDeps change** (§4.1). If this does not work, stop before paying for `O6` | **none** |
+| **O4** | **BTree onto occurrence storage** — tree state and params into slots, **including a hosted subtree's own `BehaviorTreeState`** | ⭐ **proves the whole model with ZERO ExtDeps change** (§4.1) **and closes the shared-`BehaviorTreeState` defect in §3.1**. If this does not work, stop before paying for `O6` | **none** |
 | **O5** | **Blueprint Instances take params** (`DESIGN_Parameter_Model.md` §3.3) | the slot layout is now shared with `O4`; closes `R4`, which has no design today | — |
 | **O6** | **`HsmOccurrence` in the kernel** (§4.2 option b) | the one ExtDeps change, paid **once**, after `O4` has proved the storage model | **the only one** |
 | **O7** | **HSM per-region actions key on the occurrence** — closes `BP-297`/`E3` | needs `O6` | — |
@@ -324,7 +367,8 @@ Ordered so that each step is provable on its own and the expensive irreversible 
 | **parse before commit** | a failing resolve at attach leaves the entity without the new occurrence |
 | **two regions, two slots** | two concurrently-active HSM regions running the same action write **different** bytes. ⚠ `BP-297` measured that today's fixture cannot redden this — the two regions run an **empty** action. **A DTO-bound HSM action must be authored as part of `O7`, or the rail is vacuous** |
 | **one context per instance** | `UpdateBatch` with N instances: each `ExecuteAction` sees the occurrence of *its* instance (§4.2 caveat ②) |
-| **every host ticks blueprints** | a `--mode all` run shows a blueprint Instance advancing on CGF, not only in the editor (`O0`) |
+| **a hosted subtree keeps its own cursor** | host tree `Running` at node A, hosted child `Running` at node B ⇒ **both survive a tick**. ⛔ Must be written to go RED before `O4` — it reproduces the §3.1 defect in shipped code |
+| **every host ticks blueprints** | a `--mode all` run shows a blueprint **Instance** advancing on CGF, not only in the editor (`O0`). ⚠ Anti-vacuity: CGF already materialises and event-attaches Instances, so the rail must assert the *tick counter advances*, not that the slot exists |
 | **one supply mechanism** | unchanged from `DESIGN_Parameter_Model.md` §8 — a second `Overrides`-style applier fails it |
 
 ---
@@ -333,7 +377,7 @@ Ordered so that each step is provable on its own and the expensive irreversible 
 
 | id | question | lean |
 |---|---|---|
-| **Q1** | Does `NodeType.Subtree` (BTree hosting BTree, stubbed to `Failure`) come with this, or stay out? | **stay out.** HSM-hosts-BTree needs `O6`+`O8` and not this; folding it in widens `O8` into the BTree compiler |
+| **Q1** | ~~Does `NodeType.Subtree` come with this?~~ **WITHDRAWN — the question was wrong.** See §3.1 | ✅ **BTree-hosts-BTree SHIPS and is KEPT.** `O4` improves it |
 | **Q2** | HSM region capacity: **2** (`HsmInstance64`) / **4** (`HsmInstance128`), with a **single shared event queue** per instance | raise only if a real machine needs it. ⚠ the shared queue is unmeasured for cross-region hazards — measure before `O8`, not before `O6` |
 | **Q3** | Rename `BlueprintBlackboard*` → `Occurrence*`, given it already stores BTree/HSM state | **yes, but via Roslyn and not on the critical path** — the name is actively misleading now |
-| **Q4** | Does the root brain stay exclusive (`BehaviorState` singular) once nesting works? | **yes.** Preemption is defined against it; nesting gives the user the concurrency without touching `InstanceId` arbitration |
+| **Q4** | ~~Does the root brain stay exclusive once nesting works?~~ | ✅ **RULED, user, `2026-09-19`, verbatim: *"there is still just up to one assignable behavior per entity."*** `BehaviorState` stays singular; `InstanceId` preemption and `ChannelArbitrationSystem` are untouched. Concurrency comes from nesting, never from a second assignable root |
