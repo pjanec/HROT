@@ -397,7 +397,7 @@ design, and **none of them blocks `O0`–`O7`.** Three of them block `O8`.
 | **H1** | 🔴🔴 **ONE region consumes the event; the others never see it.** `SelectTransition` scans every region and returns **a single** best transition (`:564-610`); `ExecuteTransition` fires it; then `ProcessRTCPhase` sets `currentEventId = 0` — *"Event consumed"* (`:517`) — and the loop continues with epsilon transitions only. ⛔ **UML orthogonal-region semantics require the event to be offered to EVERY region**, each firing independently | `HsmKernelCore.cs:497-518`, `:564-610` | **any** event that two regions both have a transition for |
 | **H2** | 🔴 **Priority arbitration is GLOBAL, not per-region.** `bestTransition` is chosen by `priority > highestPriority` **across all regions** (`:592`) ⇒ a low-priority transition in region 0 loses to a high-priority one in region 1, and (via H1) region 0 then loses the event entirely | `:588-600` | any two regions with different transition priorities on one event |
 | **H3** | 🔴 **A GLOBAL transition always reports region 0.** `SourceStateIndex = activeLeafIds[0]` unconditionally (`:551`) and `regionIndex` stays at its `0` initialisation (`:538`) — it is only assigned inside the per-region loop (`:599`). ⇒ a global transition fired while >1 region is active rewrites **region 0's** leaf and leaves the others untouched. ⚠ **This is the surviving half of the bug the `:747-749` comment says was fixed** *("a transition fired in region 1 used to overwrite region 0's leaf… corrupting two regions with one event. Harmless while regionCount == 1, which is why it survived")* — fixed for per-region transitions, **still live for global ones** | `:538`, `:551`, `:747-750` | any global transition on a multi-region machine |
-| **H4** | ⚠ **Queue capacity is 1–2 events for the tiers HROT actually uses.** `Tier1_Capacity = 1` (a literal single 24-byte event); `HsmInstance128` = 1 interrupt slot + `Tier2_Ring_Capacity = 1` ⇒ **2**. `HsmInstance256` (ring 5 ⇒ 6) exists in the queue code but **HROT wraps only 64 and 128** (`BrainComponents.cs`) ⇒ **the practical ceiling is 4 regions sharing a 2-event queue.** And the documented overflow policy is that a priority event **evicts the oldest normal event** ⇒ **silent loss** | `HsmEventQueue.cs:11-27`; `HsmInstance64.cs` header | N regions each expecting an event in one tick — i.e. normal operation, not an edge case |
+| **H4** | ⚠ **The queue is sized by LEFTOVER BYTES, not by the region count — at every tier.** `HsmInstance128`: **4 regions, 4 timers, 1 interrupt slot + a 1-slot ring** ⇒ 2 events. `HsmInstance256`: **8 regions, 8 timers, ring 5** ⇒ 6. ⛔ **Every tier has `ring < regions`.** ⇒ **`ProcessTimerPhase` loops all timers and `FireTimerEvent` enqueues one each — 4 expiring timers on a 128 = 2 enqueued, 2 lost.** ⚠ **CORRECTION to an earlier wording of this row:** Tier2/Tier3 **REJECT** on a full ring (`EnqueueTier2:262` returns `false`); it is `HsmInstance64`'s header that documents *eviction*. Either way the event is gone — but 🔴 **`FireTimerEvent:368` discards `TryEnqueue`'s bool**, so the loss is silent, untraced and unlogged | `HsmEventQueue.cs:11-27`, `:249-265`; `HsmKernelCore.cs:335-350`, `:361-369` | N regions or N timers on one tick — i.e. normal operation for a multi-region machine, not an edge case |
 | **H5** | ⚠ **Drain order decides the winner.** `ProcessEventPhase` drains up to `MaxEventsPerTick = 10`, each through a full RTC pass. Deterministic, but with H1 the queue order silently determines which region acts | `:381-392` | any multi-event tick |
 
 ⭐ **Timer events are not exempt:** `FireTimerEvent` enqueues into the same shared queue, so H1 and H4
@@ -416,12 +416,69 @@ and let the existing output-lane arbiter resolve conflicting effects.
 |---|---|
 | ⭐⭐ **`O0`–`O7` are unaffected** | they change **where bytes live**. H1–H5 are about **which region gets an event**. No dependency either way |
 | ⛔ **`O8` (BTree hosted under an HSM state) needs H1 fixed** if two regions are meant to host trees concurrently — otherwise one hosted tree stops receiving the events that drive it | |
-| ⚠ **H4 is a capacity decision, not a bug** | 4 regions on a 2-event queue is under-provisioned by construction. Either wire `HsmInstance256` (the queue already supports it; `BrainComponents` simply has no wrapper) or accept ≤2 event-driven regions |
+| ⚠ **H4 is a capacity decision, not a bug** | see §9.4 — the answer is **wire `BrainHsm256`**, which needs no ExtDeps change |
 | 🔒 **This is a SEPARATE ExtDeps change from §4.2** | it must be justified on its own terms — *"orthogonal-region event dispatch is wrong"* — and **not** smuggled in as part of the storage work. ⛔ Exactly the failure mode the standing ExtDeps rule exists to prevent |
+
+### 9.4 The tiers — what they give, and who chooses
+
+| | `HsmInstance64` | `HsmInstance128` | `HsmInstance256` |
+|---|---|---|---|
+| regions | 2 | **4** | **8** |
+| timers | 2 | 4 | 8 |
+| history / scratch | 2 | 8 | 16 |
+| **events in flight** | **1** *(single shared slot)* | **2** *(1 interrupt + ring 1)* | **6** *(1 interrupt + ring 5)* |
+| ECS wrapper | `BrainHsm64` | `BrainHsm128` | 🔴 **none** |
+
+⭐ **Interrupts are safe at every tier** — the reserved interrupt slot cannot be crowded out by normal
+traffic (`EnqueueTier2:238-247`), so `MobilityLost`-class interrupts always land. **It is normal and
+timer traffic that is tight.**
+
+#### 🔴 Who chooses the tier: **nothing does — it is hard-coded to 128**
+
+📐 Measured. `BehaviorTkbTranslator.cs:118-122` is the only production attach:
+
+```csharp
+else if (dto.BrainTier == BehaviorConstants.BrainTierHsm)
+    if (registered && !has) repo.AddComponent(entity, new BrainHsm128());
+```
+
+⇒ **every HSM entity gets 128, regardless of what its machine declares.** `BrainHsm64` is
+*registered* (`CognitiveComponentRegistry:47`) and *ticked* (`CognitiveRuntimeModule:65`) and
+`BehaviorIngressSystem.ResetHsmComponents:748` handles it — but **every `new BrainHsm64()` in the
+tree is in a test** (measured: 14 lines, 6 files, all `*.Tests`). There is no production path that
+selects a tier, so "the tier system" is currently one tier with two unused neighbours.
+
+⭐ **The selector already exists in the data:** `definition.Header.RegionCount` is read by the kernel
+(`:172`, `:645`). A machine's compiled blob knows how many regions it has, so the attach can size the
+instance instead of guessing.
+
+#### ⭐ Lean: add `BrainHsm256`, and choose the tier from the blob
+
+📄 **This is already a recorded future task, not a new idea** —
+`docs/designs/btree-hsm-unif/DESIGN.md` §"Q1: HsmInstance256 / BrainHsm256": *"`HsmInstance256` exists
+in `Fhsm.Kernel` but no `BrainHsm256` ECS component exists. `HsmTickSystem<T>` is generic, so it could
+technically support 256-byte instances. A future task should add `BrainHsm256`… This design does not
+add it."*
+
+| what it costs | |
+|---|---|
+| ⭐⭐ **ZERO ExtDeps change** | `HsmInstance256` exists, is size-tested, and `HsmEventQueue` already routes `case 256` |
+| the work | one struct in `BrainComponents.cs` · one `GlobalComponentIds` entry · one `RegisterComponent` · one `HsmTickSystem<BrainHsm256>` registration · tier choice at attach from `Header.RegionCount` |
+| the cost | **+128 bytes per HSM entity** that needs it — and only for those, once the choice is real |
+| ⚠ what it does **not** fix | H1–H3. A bigger queue delivers more events; it does not make region 1 see an event region 0 consumed |
+
+⛔ **Do not read "≤2 event-driven regions" as a design limit to accept** — it was my shorthand for
+*"don't exceed the queue"*, and the honest statement is: **the queue was never sized against the
+region count, so the limit is an accident of byte budgeting rather than a decision.** Fix it by
+choosing the tier, not by capping the design.
+
+🔴 **And one line worth fixing whatever else happens:** `FireTimerEvent:368` calls
+`HsmEventQueue.TryEnqueue(...)` and **discards the result.** A dropped timer event is currently
+invisible. It belongs with the H1–H3 dispatch work as the same ExtDeps change.
 
 ---
 
-## 10. Rename proposal (`Q3`)
+## 10. Rename proposal (`Q3` — ✅ names agreed by the user, `2026-09-19`)
 
 **What the thing actually is:** a per-entity, tiered, slab-allocated arena holding **one payload per
 running occurrence** — blueprint Instance, BTree stateful slot, HSM slot. The word `Blueprint` in its
