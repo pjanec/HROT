@@ -2,13 +2,15 @@
 state: LIVE
 build-state: PLAN — the dispatchable breakdown of an approved design. ⛔ NOT a design: every task
   REFERENCES its owning chapter and restates nothing. If this file and the design disagree, the DESIGN wins.
-updated: 2026-09-19
-current-answer: §2 is the stage/task table. §3 is the under-specified register (3 rows, all implementer
-  calls). §4 is what this deliberately does not contain. §5 is the dispatch grouping.
+updated: 2026-09-19 (REVISED after the backend session's review of the design — see its §HISTORY)
+current-answer: §2 is the stage/task table (14 tasks — B4a added). §3 is the under-specified register
+  (5 rows; ⛔ W5 is the USER's and BLOCKS batch ②). §4 is what this deliberately does not contain.
+  §5 is the dispatch grouping — ✅ ① is dispatchable now, 🔴 ② waits on W5.
 stale-below: nothing — new document.
-known-rot: nothing yet.
-known-conflict: ⚠ A1 changes `FileManifestEntry`, a WIRE DTO in Hrot.Network.Orchestration. Additive and
-  low-risk, but it is a contract change — plan it, do not discover it.
+known-rot: nothing; ⚠ but A3's archive-arm rail is RED until B4 lands the mtime restore, by design.
+known-conflict: ✅ RESOLVED 2026-09-19 — the `FileManifestEntry` change moved from A1 to C1 (it is the
+  node->NAS DTO and publish is its first consumer), so batch ① now carries NO wire-contract change.
+  ⛔ The caution still applies to C1: additive and low-risk, but it is a contract.
 related-designs:
   - docs/DESIGN_Asset_Management.md — THE owning design for every task here.
   - docs/blueprints/Architect_Question_72_Asset_Lifecycle_And_Distribution.md — the decision record; read
@@ -20,13 +22,13 @@ related-designs:
 # PLAN — **Asset management: the build breakdown**
 
 > ⛔ **No design content here.** Each task names its owning chapter.
-> ⭐ **Three increments, 13 tasks.** `A` is the enabler — ⛔ nothing else may start before it.
+> ⭐ **Three increments, 14 tasks.** `A` is the enabler — ⛔ nothing else may start before it.
 
 ## 0. How to use this
 
 | | |
 |---|---|
-| ⭐⭐ **T-1 first** (`R-142`) | the feature suites exist: `StorageGatewayTests`, `ClusterMasterPrefetchTests`, `TheHostsAgreeOnTheScenarioRootTests`. ⛔ Run them BEFORE writing code; add into them |
+| ⭐⭐ **T-1 first** (`R-142`) | the feature suites exist: `StorageGatewayTests`, `ClusterMasterPrefetchTests`, `TheHostsAgreeOnTheScenarioRootTests`. ⛔ Run them BEFORE writing code; add into them. ⭐⭐ **For `B1` also `EveryEcsHostComposesTheLoadPhaseChainRails` + `LoadPhaseChainTests`** — they own `RoleLoadRequirements`. ⛔⛔ **And `B6` must not regress `ClusterMasterPrefetchTests`' six new `L8` rails** — park / resume / reject-second / fail / expire / cancel |
 | ⭐⭐ **reuse, do not re-derive** | `IsAlreadyCurrent`'s `(length, mtime)` predicate is **BUILT and railed**. ⛔ A second freshness rule is a review finding |
 | ⭐ **ids** | ⛔ the coordinator allocated NONE (rule 3). Number them into the tracker; state them in the report |
 | ⚠ **the wire DTO** | `A1` touches `FileManifestEntry`. Additive, but it is a contract — see `known-conflict` |
@@ -51,28 +53,29 @@ cluster op.**
 
 | # | task | success condition | owning chapter |
 |---|---|---|---|
-| **A1** | `AssetManifestEntry` + `AssetManifest.Diff`, and the two new fields on `FileManifestEntry` | a manifest of a nested tree round-trips through the wire DTO with **length and mtime intact**; `Diff` returns exactly the entries that differ. ⚠ Additive to the DTO — existing callers compile untouched | design **§3**, **§1 ②** |
+| **A1** | `AssetManifestEntry` + `AssetManifest.Diff` returning **THREE sets — added / changed / removed**. ⛔⛔ **NOT the `FileManifestEntry` fields — they moved to `C1`** | `Diff` returns exactly the entries that differ **and** the ones present only on the node. ⭐ Rail the **removed** set explicitly: a one-sided diff passes an added/changed fixture and fails this | design **§3**, **§8**; ⚠ **see §3-W4** |
 | **A2** | ⭐⭐ **Recursive enumeration, BOTH sides** — a shared walker used for NAS and node alike | a tree **3+ levels deep** enumerates completely, and every entry's `RelativePath` **preserves the subfolder structure**. ⛔ Rail the depth explicitly: a 1-level walker passes a flat fixture and fails this | design **§1 ①**, **§7.4**; `Q72-K` |
-| **A3** | Prove the manifest's freshness semantics against the BUILT skip | a file copied with `File.Copy` compares **equal** on both sides; a modified file compares **unequal**. ⭐ This is the rail that shows §2's "one predicate" is true, ⛔ not a new predicate | design **§2**, **§7.1**; `DESIGN_Artifact_Staging` §6 |
+| **A3** | Prove the manifest's freshness semantics against the BUILT skip — ⭐⭐ **including the ARCHIVE arm** | a file copied with `File.Copy` compares **equal**; a modified file compares **unequal**; ⛔⛔ **and a file ZIPPED then UNPACKED compares EQUAL** — 🔴 it does **not** today (ZIP's 2 s grid vs an exact predicate), so this rail is **RED until `B4` restores the mtime**. ⭐ Land it red-and-skipped with the reason, or land it in `B4`; ⛔ do not quietly drop the archive case | design **§2**, **§7.1**; `DESIGN_Artifact_Staging` §6 |
 
 ### Increment B — needs-filtered sync with the transport partition
 
 | # | task | success condition | owning chapter |
 |---|---|---|---|
-| **B1** | ⭐⭐ **Derive** `hrot.asset.needs.*` from `RoleLoadRequirements` — ⛔ do NOT author a parallel table | the token set a node advertises is **computed** from the requirement table; changing the table changes the tokens with **no second edit**. ⭐ Rail: a role with no declared consumer yields **no** need token | design **§7.3**; `Q72-L`; `DESIGN_Cluster_Load_Phase` §4 |
+| **B1** | ⭐⭐ **Derive** `hrot.asset.needs.*` from `RoleLoadRequirements` through the `LoadPart → AssetKind` adapter — ⛔ do NOT author a parallel table, ⛔ do NOT extend `RoleLoadRequirements`. 🔴 **BLOCKED on `W5`** | the token set is **computed** from the requirement table; changing the table changes the tokens with **no second edit**. ⭐⭐ **Rail `Map2D` explicitly: it gets the KNOWLEDGE BASE and NOT terrain** — ⛔ *"Map2D gets nothing"* would throw `FileNotFoundException` in `KnowledgeBaseLoadStep` on IG. ⭐ Rail the subtraction: a role with no declared consumer loses **that part**, never the node | design **§7.3**, **§7.3a**, **§6 caption**; `Q72-L` |
 | **B2** | `hrot.asset.authors.*`, and *"nobody authors K"* as a **legal** answer | a kind with no advertised author is **not** an error — it is the external-tool case. ⭐ Rail that the probe does not look for a publisher for such a kind | design **§6**; `Q72-J` |
 | **B3** | `TransportPartitioner` — size and extension/path rules select **standalone** vs **archived** | *one 100 GB file + 3 000 small files* ⇒ **2 transfers**: one standalone copy, one archive. ⛔ The big file is **never** added to an archive | design **§7.2**; `Q72-H1` ⚠ **see §3-W1** |
-| **B4** | `AssetSyncService.SyncToNodesAsync` — enumerate, diff, partition, copy, **unpack in place** | after a sync the node tree is **byte-and-structure identical** to NAS, subfolders included; a second sync with no NAS change performs **zero** writes | design **§4**, **§2** |
+| **B4** | `AssetSyncService.SyncToNodesAsync` — enumerate, diff, partition, copy, **unpack in place**, ⭐⭐⭐ **then RESTORE each member's mtime from the manifest** (`File.SetLastWriteTimeUtc`) | after a sync the node tree is **byte-and-structure identical** to NAS, subfolders included; a second sync with no NAS change performs **zero** writes. 🔴 **Without the mtime restore this second condition CANNOT PASS for the archived set** — rail it as its own case: *unpack a member, assert it compares EQUAL to the NAS source* | design **§4**, **§2**, **§7.1** |
+| **B4a** | ⭐⭐ **Place the sync INSIDE the prefetch saga** — `AssetPrefetchProcessManager`, never a parallel path | the transition unparks **only** via `PrefetchDistributionCompletedEvent`. ⛔ A parallel path leaves it parked to the 300 s liveness bound — **a hang, not an error**. ⭐ Rail: sync failure ⇒ the parked entry is dropped and **nothing** fans out | design **§4 caption**; `DESIGN_Cluster_Load_Phase` §7 |
 | **B5** | Extract `IAssetStorageStrategy`; `ITkbStorageStrategy` **narrows** it | a tree asset and an archive asset are read through one seam. ⛔ `ZipTkbProvider`/`RawDirectoryTkbProvider` keep working **unchanged** — if they need edits, that is a finding | design **§3**; `Q72-D` |
-| **B6** | Fail the load on any sync failure for a **named** artifact | ⛔ **ANY** failure count > 0 fails; ⭐ the existing prefetch slot already throws, so this is preserving behaviour, not adding it | design **§4**, **§7.5**; `Q72-F` |
+| **B6** | ⭐⭐ **PRESERVE AND RAIL** — do **not** add: failing the load on any sync failure for a **named** artifact is **ALREADY BUILT** | 📐 `L8`: `IsSuccess:false` ⇒ `ClusterMaster` drops the parked entry, publishes `Failure`, fans out **nothing** (rail `A_failed_distribution_fails_the_request_and_fans_out_nothing`). ⇒ the deliverable is a rail proving the **new** sync's failures travel the **same** path — ⛔ a second failure route is a finding | design **§4**, **§7.5**; `Q72-F`; `DESIGN_Cluster_Load_Phase` §7.4 |
 
 ### Increment C — publish and the staleness probe *(independent of B; safe to defer)*
 
 | # | task | success condition | owning chapter |
 |---|---|---|---|
-| **C1** | `PublishToNasAsync` — the **explicit**, user-triggered publish, reusing `PullToNasAsync` | publishing copies exactly the differing set to NAS and **nothing else transfers at any other time**. ⛔ No auto-publish on save or on load | design **§5**, **§7.5**; `Q72-I` |
+| **C1** | `PublishToNasAsync` — the **explicit**, user-triggered publish, reusing `PullToNasAsync` — ⭐ **and the two new fields on `FileManifestEntry`** (moved here from `A1`: this is that DTO's direction and its first consumer) | publishing copies exactly the differing set to NAS and **nothing else transfers at any other time**. ⛔ No auto-publish on save or on load. ⚠ The DTO change is additive — existing callers compile untouched | design **§5**, **§8**, **§1 ②**; `Q72-I` |
 | **C2** | `ProbeAuthoringNodesAsync` — a **summary** per kind `(count, newest mtime)` over `BaseFolder` | the probe reads **no file contents** and parses **no asset**; it runs on a scenario load without measurably extending it | design **§5**, **§1 ⑤** ⚠ **see §3-W2, W3** |
-| **C3** | The warn/fail split | an authoring node ahead of NAS ⇒ **WARN**, load continues. A missing **named** artifact ⇒ **FAIL**. ⭐ Rail both arms — ⛔ one arm passing proves nothing | design **§5**, **§7.5**; `Q72-I` |
+| **C3** | The warn/fail split | an authoring node ahead of NAS ⇒ **WARN**, load continues. A missing **named** artifact ⇒ **FAIL**. ⭐ Rail **both** arms — ⛔ one arm passing proves nothing. ⭐⭐ **And a THIRD rail: author OFFLINE ⇒ no warning, load continues** — 📌 the probe cannot see an offline author, and without this rail a later reader takes the silence for proof | design **§5 caption**, **§7.5**; `Q72-I` |
 | **C4** | Surface the publish as a user operation, available **any time** | 🔒 *"expose this as a user-triggerable operation any time"* — reachable without a scenario load in progress | design **§5**; `Q72-I` |
 
 ---
@@ -81,9 +84,11 @@ cluster op.**
 
 | # | blocks | what is missing | who settles it |
 |---|---|---|---|
-| **W1** | **B3** | the **standalone size threshold** and the default extension/path rule set | ⭐ **implementer**, configurable with a stated default. ⚠ `Q72-H1` ruled the SHAPE (partition, not compression level); the number is tuning. ⛔ Do not re-open the shape |
+| **W1** | **B3** | the **standalone size threshold** and the default extension/path rule set | ⭐ **implementer**, configurable with a stated default. ⚠ `Q72-H1` ruled the SHAPE (partition, not compression level); the number is tuning. ⛔ Do not re-open the shape. 🔴 **NOT pure tuning until `B4`'s mtime restore lands** — until then the threshold decides how much traffic goes down the arm that re-transfers every sync; **settle it after, or state the coupling** |
 | **W2** | **C2** | whether the summary is computed per call or cached on `ContributorChanged` | ⭐ **implementer.** 📐 The walk is stat-only (`design §1 ⑤`) ⇒ **start simple**; cache only if measured slow, and say which you did |
 | **W3** | **C2** | how scenarios participate, given `BaseFolder == null` for them | ⭐ **implementer.** ⚠ Scenarios already travel by the prefetch path, so the likely answer is **they do not participate** — ⛔ but that must be **stated in the report**, not assumed silently |
+| **W4** | **A1**, **B4** | whether a **removed** NAS entry **deletes** the node's copy or is only reported | ⭐ **implementer, but STATED AND RAILED either way.** ⛔ *"the node MIRRORS NAS"* is not a testable condition until this is answered; a rename leaves an orphan on every node otherwise |
+| **W5** | 🔴 **B1 — BLOCKING** | ⛔ `LoadPart` ∩ `AssetKind` = **∅**, and behaviour assets have **no** `LoadPart` ⇒ *"derive from `RoleLoadRequirements`"* is under-determined | 🔴 **THE USER** — design §7.3a carries the lean (*a 3-row adapter here + `Brain ⇒ all AI kinds`*; ⛔ **not** extending `RoleLoadRequirements`, which would claim a load step nobody implements). ⛔ **Batch ② does not dispatch until this is settled** |
 
 ---
 
@@ -103,8 +108,8 @@ cluster op.**
 
 | batch | tasks | ⭐ why this boundary |
 |---|---|---|
-| **① A** | `A1`–`A3` | ⭐⭐⭐ **the enabler, alone.** Everything else needs the manifest, and `§1 ①` says recursion exists nowhere. ⛔ Landing B or C first builds on sand. ⭐ Small and fully railable without a cluster |
-| **② B** | `B1`–`B6` | ⭐ the increment that makes *"nodes keep just copies they really need"* true. ⚠ Largest; `B5`'s seam extraction rides here because `B4` needs it |
+| **① A** | `A1`–`A3` | ⭐⭐⭐ **the enabler, alone.** Everything else needs the manifest, and `§1 ①` says recursion exists nowhere. ⛔ Landing B or C first builds on sand. ⭐ Small and fully railable without a cluster. ✅ **Dispatchable now** — the wire-DTO change moved out to `C1`, so ① carries **no contract change at all** |
+| **② B** | `B1`–`B6` *(now 7 tasks — `B4a`)* | ⭐ the increment that makes *"nodes keep just copies they really need"* true. ⚠ Largest; `B5`'s seam extraction rides here because `B4` needs it. 🔴 **BLOCKED on `W5`** |
 | **③ C** | `C1`–`C4` | ⭐ independent of B and **safe to defer**; ⛔ the only part that touches authoring hosts |
 
 ⭐⭐ **Reporting:** the gate-report contract rows 1–7 per batch. ⛔⛔ **Row 8 BINDS ② and ③** — both change
