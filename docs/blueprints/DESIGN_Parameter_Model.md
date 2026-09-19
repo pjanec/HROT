@@ -29,7 +29,7 @@ related-designs:
 > | 📄 `.dev/_DONE/blueprint-scenario/BLUEPRINT-SCENARIO-DESIGN.md` §6 *(`Overrides`)* | ⛔ **SUPERSEDED as the mechanism** — Instances use the resolver, not a name→value dict (§3.3) |
 > | 📄 [`PLAN_Cross_Host_Sequencing.md`](PLAN_Cross_Host_Sequencing.md) §2 (`D2`), §6 (Phase B) | ⛔ **superseded** — `W8`/`W12` dropped, `D2` dissolved |
 > | 📄 [`EXPLAINER_Where_Parameters_And_State_Live.md`](EXPLAINER_Where_Parameters_And_State_Live.md) | ⭐ **kept as the measurement record + diagrams.** ⛔ **This doc wins on any disagreement** |
-> | 📄 [`Architect_Question_33`](Architect_Question_33_Blueprint_Brain_Tier.md) | ⛔ **PARKED** — brain-tier / suspendable nesting. ⚠ **Not part of this story** |
+> | 📄 [`Architect_Question_33`](Architect_Question_33_Blueprint_Brain_Tier.md) | ⚠ **NOT part of this story — but NOT parked either.** ⛔ **CORRECTED `2026-09-19`:** this row said *"PARKED"*, which `Q33`'s own header has contradicted since `2026-08-16` *("UNPARKED — resolved jointly with the user")*. ⭐ It is **scoped out of the parameter story and COMMITTED as a follow-on** — 🔒 user, `2026-09-19`: *"I need it (using blueprint instance as root behavior) to be solved after the occurences"* ⇒ **after [`DESIGN_Occurrence_Scoped_Storage.md`](DESIGN_Occurrence_Scoped_Storage.md) `O8`; see its §12** |
 
 ---
 
@@ -408,5 +408,10 @@ discovered structs. ⇒ **a variable can be struct-typed; a parameter cannot.**
 *(§3.3)* → **blueprint multi-occurrence** *(§4)* → **the HSM emitter slice** *(`Role`/`Scope`)* →
 **HSM multi-occurrence** *(§4.4)*.
 
-⛔ **Out of scope here:** blueprint-as-brain-tier and suspendable nesting — 📄 `Architect_Question_33`,
-**parked**.
+⛔ **Out of scope here — but SEQUENCED, not parked:** blueprint-as-brain-tier and suspendable nesting
+are 📄 [`Architect_Question_33`](Architect_Question_33_Blueprint_Brain_Tier.md)'s, and
+🔒 **the user committed them on `2026-09-19`:** *"I need it (using blueprint instance as root behavior)
+to be solved after the occurences."* ⇒ ⭐ **they follow
+[`DESIGN_Occurrence_Scoped_Storage.md`](DESIGN_Occurrence_Scoped_Storage.md) `O8`**, which is a
+prerequisite and not the delivery — that design's §12 names the four remaining gaps *(tier value,
+registry resolution, root tick path, preemption token)*, **none of which is storage.**

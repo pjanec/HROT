@@ -476,6 +476,7 @@ Ordered so that each step is provable on its own and the expensive irreversible 
 | **O6** | **`HsmOccurrence` in the kernel** (§4.2 option b) | the one ExtDeps change, paid **once**, after `O4` has proved the storage model | **the only one** |
 | **O7** | **HSM per-region actions key on the occurrence** — closes `BP-297`/`E3` | needs `O6` | — |
 | **O8** | **BTree hosted under an HSM state** — the strategic/tactical composition | needs `O3`+`O6`; the child is just another occurrence | — |
+| ⭐ **O9** | **Blueprint as an ASSIGNED ROOT behaviour** — the third `BrainTier` *(`Q33`)* | 🔒 **user, `2026-09-19`: *"solved after the occurences"***. ⛔ **Not storage** — §12's gaps ②③④: registry resolution, a root tick path, and joining `BehaviorState.InstanceId` preemption | — |
 
 ⭐ **`O0`–`O5` deliver real value with no ExtDeps edit at all.** The boundary is crossed once, at
 `O6`, and only after `O4` has demonstrated the model on the paradigm that needs no kernel change.
@@ -836,10 +837,16 @@ a tree that is no longer the only one running.
 
 ---
 
-## 12. Blueprint as an ASSIGNED behaviour — ⛔ **out of scope here, and why**
+## 12. Blueprint as an ASSIGNED ROOT behaviour — ✅ **COMMITTED, immediately after `O8`**
 
 > 🔒 **User, `2026-09-19`:** *"Can a behavior assigned to an entity be represented by a blueprint
 > instance now? does brain tier include the blueprint instance next to btree and hsm?"*
+> 🔒 **and then:** *"I need it (using blueprint instance as root behavior) to be solved after the
+> occurences."*
+>
+> ⇒ ⭐⭐⭐ **This is no longer "out of scope" — it is `O9`, the named follow-on.** ⛔ It is still not
+> delivered BY the occurrence work; the occurrence work is its **prerequisite**. The distinction
+> matters because three of its four gaps are not storage.
 
 **📐 Measured: NO.** The complete `BrainTier` set is **two** values — `BrainTierHsm = 1`,
 `BrainTierBTree = 2` (`BehaviorConstants.cs:35/38`); there is no blueprint value, and
@@ -862,7 +869,7 @@ the first. ⇒ **add `BrainTierBlueprint = 3`; derive presence separately if it 
 | | what it is | status |
 |---|---|---|
 | ⭐ **blueprint as a HOSTED child** — under an HSM state or a BTree node | `Q33` §0 ruling 3: *"strategical HSM on top with tactical BTree **or blueprint** under it"* | ⭐⭐ **this design delivers it** — it is `O8`'s shape, and blueprint-as-`AiPrimitive` already works today |
-| ⛔ **blueprint as an ASSIGNED ROOT** — a third brain tier | `Q33` §0 ruling 1 | ⛔ **NOT delivered here.** Storage is only one of its four gaps |
+| ⭐ **blueprint as an ASSIGNED ROOT** — a third brain tier | `Q33` §0 ruling 1 | ✅ **COMMITTED as `O9`, after `O8`** *(user, `2026-09-19`)*. ⛔ **Not delivered BY this design** — storage is only one of its four gaps |
 
 ### 📐 The four gaps for the ROOT case — none of them is storage
 
@@ -874,11 +881,12 @@ the first. ⇒ **add `BrainTierBlueprint = 3`; derive presence separately if it 
 | ④ | ⚠ **two preemption tokens for one concept** | behaviours use `BehaviorState.InstanceId` (+ `ChannelArbitrationSystem` invalidating in-flight commands); blueprint slots use `BlueprintSlotEntry.InstanceVersion` (latent-cursor staleness). ⛔ A blueprint root must participate in the FIRST, and `Q33` §1.5.2's *"cancellation is already solved"* is about the second |
 
 ⇒ ⭐⭐ **This design is a PREREQUISITE, not the delivery.** Once params and state are occurrence-scoped,
-a blueprint root's bytes already live where a behaviour's do — which removes ① 's only *storage*
-objection and leaves identity, registry and preemption. 📄 **Those are `Q33`'s, and it is UNPARKED.**
+a blueprint root's bytes already live where a behaviour's do — which removes the only *storage*
+objection and leaves ②③④: identity, registry and preemption. 📄 **Those are `Q33`'s, it is UNPARKED,
+and the user has now sequenced it: `O9`.**
 
-⚠ **One documentation conflict to resolve, not silently patched here:**
-`DESIGN_Parameter_Model.md`'s supersedes table lists `Q33` as **PARKED**, while `Q33`'s own header says
-**UNPARKED `2026-08-16`**. The parameter model most likely means *"out of scope for the parameter
-story"* — ⛔ but a reader can take it as globally parked. **Worth one line from whoever owns
-`DESIGN_Parameter_Model`** *(it is marked AUTHORITATIVE, so this design does not edit it)*.
+✅ **The documentation conflict is RESOLVED** *(`2026-09-19`, on the user's instruction)*.
+`DESIGN_Parameter_Model.md` said `Q33` was **PARKED**, contradicting `Q33`'s own **UNPARKED
+`2026-08-16`** header. Both of its references — the supersedes row and §9's closing line — now read
+*"out of scope for the parameter story, COMMITTED as a follow-on after `O8`"* and carry the user's
+ruling verbatim.
