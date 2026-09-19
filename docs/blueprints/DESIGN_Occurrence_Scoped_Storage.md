@@ -7,18 +7,31 @@ stale-below: nothing.
 known-rot: none at authoring time.
 known-conflict: none. This document EXTENDS DESIGN_Parameter_Model.md §4 rather than
   overturning it; where they disagree, DESIGN_Parameter_Model.md wins and this file is wrong.
+reopens: Architect_Question_37_Unify_On_The_Allocator.md — PARKED by the user 2026-08-17
+  ("keep this open and return to it a bit later"). THIS DOCUMENT IS THAT RETURN. Q37's
+  measurements are banked and marked do-not-re-measure; they are cited here, not re-derived.
 related-designs:
-  - DESIGN_Parameter_Model.md — owns WHAT a parameter is, the {Input,State} role model, the
-    one-resolver rule and the "params belong to the occurrence" ruling. This document owns
-    WHERE the bytes live and HOW an occurrence is addressed.
-  - EXPLAINER_Where_Parameters_And_State_Live.md — owns the file:line measurement record of
-    the current storage map. This document owns the target map.
+  - Architect_Question_37_Unify_On_The_Allocator.md — THE OWNING QUESTION. Owns whether all
+    parameter storage moves to the allocator, its two real costs (the ~1 KB floor, indirection
+    from some actions to all) and the option set A/B/C. This document is its build-out.
+  - Architect_Question_35_Hsm_Occurrence_Delivery.md — RESOLVED 2026-08-17. Owns HOW the
+    occurrence reaches an HSM thunk (HsmCommandWriter + the (regionSlotIndex, stateId) pair,
+    one path, guards unserved). §4.2 here implements it; it does not re-decide it.
+  - Architect_Question_36_Subtree_Hosting_Runtime.md — owns WHICH brain runs a hosted child
+    and HOW the child is resolved (by name, not asset id). This document owns its storage.
   - Architect_Question_34_Blueprint_Occurrence_Identity.md — owns blueprint Instance slot
-    identity (attach the same asset twice). This document owns the behaviour-side occurrence.
+    identity (attach the same asset twice) and §7's three-cases table.
+  - DESIGN_Hsm_Storage_Model.md — owns the three storage classes and where HSM stands against
+    each. This document does not restate them; §3 cites them.
+  - DESIGN_Parameter_Model.md — AUTHORITATIVE. Owns WHAT a parameter is, the {Input,State}
+    role model, the one-resolver rule and the "params belong to the occurrence" ruling.
+  - EXPLAINER_Where_Parameters_And_State_Live.md — the file:line measurement record of the
+    current storage map. This document owns the target map.
   - Blueprint_Subsystem_Runtime_Detailed_Design.md §4–§5 — owns the partition allocator's
     header, slot entry and free-list contract. This document does not change that contract.
   - docs/designs/btree-hsm-unif/DESIGN.md — owns hot reload, terminal-state routing and the
-    interrupt path across the two paradigms. It does NOT cover storage; nothing in it moves here.
+    interrupt path. Its Q1 (BrainHsm256) and Q6 (TryReload's contiguous-span assumption) are
+    both CLOSED by this design rather than inherited.
 -->
 # DESIGN — occurrence-scoped storage
 
@@ -30,6 +43,17 @@ related-designs:
 > **This is not a new mechanism.** The allocator exists, is production-proven, and one of the three
 > behaviour systems already runs entirely on it. The work is adoption, plus one small and
 > well-bounded change inside `FastHSM`.
+>
+> ### ⭐⭐⭐ This document is the REOPENING of `Architect_Question_37`
+>
+> 🔒 **The user raised it on `2026-08-17`, in their own words:** *"why not using the allocator always
+> and leave the brainblackboard for parameters? is there any good reason not to unify everything to
+> allocatable blackboard components? would it harm the hardcoded behaviors or something?"* — and
+> **parked it themselves**: *"I would certainly keep this open and return to it a bit later."*
+>
+> ⛔ **`Q37`'s measurements are banked and marked *do not re-measure*.** They are **cited** below, not
+> re-derived. ⚠ An earlier draft of this document re-derived five of them and omitted the two costs
+> that actually decide the question (§5a). That is corrected.
 
 ---
 
@@ -70,61 +94,72 @@ classDiagram
         +uint InstanceId
         +byte BrainTier
     }
-    note for BehaviorState "EXISTS. One per entity.\nBrainTier selects BTree XOR HSM."
+    note for BehaviorState "KEPT, unchanged. One per entity.\nUser ruling: up to ONE assignable\nbehaviour per entity. Preemption\nis defined against it."
 
     class BrainBlackboard {
         +byte[100] BehaviorParameters
         +byte ExpectedThreatLevel
         +byte Interrupt_MobilityLost
     }
-    note for BrainBlackboard "EXISTS. 128 B.\nParams AND entity facts in one struct."
+    note for BrainBlackboard "DELETED. 128 B. Params AND\nentity facts in one struct."
 
     class Blackboard1024 {
         +byte[1024] Memory
     }
-    note for Blackboard1024 "EXISTS. Shared by BTree, HSM,\nBlueprint AND squad at disjoint offsets."
+    note for Blackboard1024 "DELETED. Shared by BTree, HSM,\nBlueprint AND squad at disjoint offsets."
 
-    class BrainBTreeState {
-        +BehaviorTreeState State
-    }
-    class BrainHsm64 {
-        +HsmInstance64 State
-    }
-    note for BrainBTreeState "EXISTS. One per entity\n=> one tree per entity."
+    class BrainBTreeState
+    class BrainHsm64
+    class BrainHsm128
+    note for BrainHsm64 "DELETED. The tier stops being a\nTYPE and becomes a payload SIZE."
 
-    class OccurrenceTier {
-        +byte[] Memory
-        +Header header
-        +SlotEntry[] slots
+    class OccurrenceStoreTier {
+        +OccurrenceStoreHeader header
+        +OccurrenceSlotEntry[] slots
+        +byte[] payload
     }
-    note for OccurrenceTier "EXISTS as BlueprintBlackboard1024/4096/16384.\nRenamed only; allocator unchanged."
+    note for OccurrenceStoreTier "EXISTS as BlueprintBlackboard*.\n256 is NEW (Q37 option B).\n256 / 1024 / 4096 / 16384"
+
+    class OccurrenceSlot {
+        +Params
+        +State
+    }
+    note for OccurrenceSlot "One per running occurrence:\nblueprint Instance, BTree,\nHSM instance, stateful slot."
+
+    class BehaviorDefinition {
+        +HsmDefinitionBlob HsmDefinition
+        +StatefulSlotInfo[] StatefulWorkingSlots
+        +int HsmInstanceBytes
+    }
+    note for BehaviorDefinition "THE MANIFEST. Declares size AND type.\nSame record the inspector reads."
+
+    class StatefulSlotInfo {
+        +int SlotKey
+        +int PayloadSize
+        +Type WorkingStateType
+        +string NodeLabel
+    }
 
     class BrainInterrupts {
         +byte ExpectedThreatLevel
         +byte Interrupt_MobilityLost
         +byte Interrupt_Reserved
     }
-    note for BrainInterrupts "NEW. The entity facts that were\nthe tail of BrainBlackboard."
+    note for BrainInterrupts "NEW. Entity facts, per entity.\nNever per occurrence."
 
-    class SquadCognitiveStateComponent {
-        +SquadCognitiveState State
-    }
-    note for SquadCognitiveStateComponent "NEW. Was projected onto\nthe commander's Blackboard1024."
+    class SquadCognitiveStateComponent
+    note for SquadCognitiveStateComponent "NEW. Commander-scoped.\nWas projected onto Blackboard1024."
 
-    class OccurrenceSlot {
-        +OccurrenceHeader head
-        +byte[] Params
-        +byte[] State
-    }
-    note for OccurrenceSlot "NEW payload shape.\nOne per running occurrence."
-
-    OccurrenceTier "1" *-- "0..N" OccurrenceSlot : allocates
+    BehaviorDefinition "1" *-- "0..N" StatefulSlotInfo : declares
+    OccurrenceStoreTier "1" *-- "0..N" OccurrenceSlot : allocates
+    StatefulSlotInfo ..> OccurrenceSlot : sizes and TYPES
     BrainBlackboard ..> BrainInterrupts : tail becomes
     BrainBlackboard ..> OccurrenceSlot : params become
     Blackboard1024 ..> OccurrenceSlot : AI state becomes
     Blackboard1024 ..> SquadCognitiveStateComponent : squad state becomes
     BrainBTreeState ..> OccurrenceSlot : tree state becomes
     BrainHsm64 ..> OccurrenceSlot : HSM instance becomes
+    BrainHsm128 ..> OccurrenceSlot : HSM instance becomes
 ```
 
 **What the picture shows that prose hid:** `BrainBlackboard` and `Blackboard1024` are each **two
@@ -136,32 +171,36 @@ two of the four outgoing edges go to new **named** components, not to slots.
 
 ```mermaid
 graph TD
-    subgraph Editor["Editor host"]
-        E1[EditorSubsystem.Initialize] --> E2[BlueprintRuntimeWiring.WireBlueprintRuntime]
-        E2 --> E3[BlueprintTickSystem]
-    end
-    subgraph Cognitive["CognitiveRuntimeModule - every ECS host"]
-        C1[BTreeTickSystem]
-        C2[HsmTickSystem T]
+    subgraph Every["CognitiveRuntimeModule - EVERY ECS host"]
         C3[BehaviorIngressSystem]
+        C1[BTreeTickSystem]
+        C2[HsmTickSystem]
     end
-    subgraph Hosts["CGF / SimHost"]
+    subgraph EditorOnly["Wired ONLY by EditorSubsystem.Initialize"]
+        E3[BlueprintTickSystem]
+    end
+    subgraph CGF["CGF / SimHost"]
         H1[schedules CognitiveRuntimeModule]
-        H2[no BlueprintTickSystem]
+        H2[registers Materialization + EventIngress]
+        H3[no BlueprintTickSystem]
     end
 
+    H1 --> C3
     H1 --> C1
     H1 --> C2
-    H1 --> C3
-    H2 -.DEAD EDGE.-> E3
+    H2 -->|attaches Instances<br/>and allocates slots| T1
+    H3 -.NEVER TICKS THEM.-> E3
 
-    C3 -->|provisions slots| T1[(Occurrence tiers)]
+    C3 -->|provisions| T1[(Occurrence store)]
+    C1 -->|params + tree state| T1
+    C2 -->|params + HSM instance| T1
     E3 -->|walks slot table| T1
-    C1 -->|reads params| T1
-    C2 -->|reads params| T1
+
+    C1 -.->|blueprint as AiPrimitive<br/>runs INSIDE the thunk| BP[blueprint action or condition]
+    C2 -.-> BP
 
     classDef dead stroke-dasharray: 5 5
-    class H2 dead
+    class H3,E3 dead
 ```
 
 **Caption — what only this diagram shows, stated precisely.**
@@ -190,27 +229,33 @@ gap that crashed `--mode all` on `2026-09-03` (recorded in `BlueprintBlackboardT
 ```mermaid
 sequenceDiagram
     participant Ing as BehaviorIngressSystem
+    participant Def as BehaviorDefinition
     participant Alloc as OccurrencePartitions
     participant Hsm as HsmTickSystem
     participant Kern as FastHSM kernel
     participant Thunk as generated thunk
     participant BT as BTree interpreter
 
-    Ing->>Alloc: TryAttach(key(asset, hostPath), size, hash)
-    Alloc-->>Ing: payloadOffset (zeroed)
+    Note over Ing,Def: ATTACH - the manifest sizes it
+    Ing->>Def: StatefulWorkingSlots + HsmInstanceBytes
+    Def-->>Ing: size, type, label per occurrence
+    Ing->>Alloc: SelectTier(total) then TryAttach(key, size, hash)
+    Alloc-->>Ing: payloadOffset, zeroed
     Ing->>Alloc: ParseParams(json, slot+paramsOffset, world, self)
     Note over Ing,Alloc: resolve BEFORE commit - a bad parse<br/>leaves the entity on its old behaviour
 
-    Hsm->>Kern: Update(def, ref instance, ref bridge, dt)
+    Note over Hsm,BT: TICK
+    Hsm->>Kern: Update(def, slotPtr, slot.PayloadSize, ctx, dt)
     loop each region r
-        Kern->>Kern: bridge.Occurrence = (r, leafId)
+        Kern->>Kern: writer.CurrentRegion, writer.CurrentStateId
         Kern->>Thunk: ExecuteAction(id, instance, ctx, writer)
-        Thunk->>Alloc: TryGetSlotOffset(key(asset, r, state))
+        Note over Kern,Thunk: kernel supplies IDENTITY only -<br/>it knows nothing of the allocator
+        Thunk->>Alloc: TryGetSlotOffset(ComputeStatefulSlotKey(asset, Node, r, stateId))
         Alloc-->>Thunk: payloadOffset
         Thunk->>BT: Tick(ref slotParams, ref slotTreeState, ref ctx)
         BT-->>Thunk: NodeStatus
     end
-    Thunk-->>Kern: (status routed as an HSM event)
+    Thunk-->>Kern: status routed as an HSM event
 ```
 
 **Caption.** The only new information crossing the ExtDeps boundary is the single
@@ -280,42 +325,120 @@ design does not touch it; whether it is ever implemented or deleted is out of sc
 |---|---|
 | `Interpreter<TBlackboard,TContext>` | ⛔ **no change.** The type argument is supplied by the caller and the kernel never reads the blackboard's members (`Interpreter.cs:643-671`). Pointing a tree at slot-resident params is a change to **our** call site and **our** generator |
 | `BehaviorTreeState` | ⛔ **no change.** It moves from a component field to a slot payload field; the struct is unmodified |
-| `NodeType.Subtree` stub (`Interpreter.cs:229-231`) | ⚠ **deliberately left alone for now** — see `Q1` in §8. Hosting a tree under an HSM state does **not** need it; it is BTree-hosts-BTree, a different axis |
+| `NodeType.Subtree` stub (`Interpreter.cs:229-231`) | ⚠ **left alone — and it is NOT how BTree hosts a BTree** (§3.1). Hosting a tree under an HSM state does not need it |
 
-### 4.2 FastHSM — **one change, and here is why it belongs there**
+### 4.2 FastHSM — ✅ **ALREADY RULED by `Q35`, `2026-08-17`, with the user**
 
-The occurrence — region index `r` and active state `current` — exists **only inside
-`HsmKernelCore`'s own loops** (`ProcessActivityPhase:436-454`) and is discarded at the private
-`ExecuteAction` wrapper (`:762-782`), which forwards `(actionId, instancePtr, contextPtr, writerPtr)`
-and nothing else. The context struct is built **once per entity per tick**, before the region loop
-starts. **No amount of work on our side can recover which region is executing.** That is the
-justification: the fact is created in ExtDeps and is destroyed in ExtDeps.
+> 🔒 **User, verbatim (`Q35` §7):** *"putting to HsmCommandWriter is ok. pair rather than hash. one
+> path."*
 
-| option | ExtDeps delta | verdict |
-|---|---|---|
-| **(a)** widen `HsmActionDispatcher.ExecuteAction` + the thunk delegate to carry `r` | signature change to `delegate*<void*,void*,HsmCommandWriter*,void>` ⇒ **ABI break** reaching every attributed method and all five thunk emitters (`BP-291`'s census) | ⛔ **rejected** — pays a full ABI break to move 4 bytes |
-| **(b)** kernel writes the occurrence into the **context** it already carries | ① one new 4-byte `HsmOccurrence {ushort RegionIndex; ushort StateId;}` in `Fhsm.Kernel.Data`; ② a documented contract that `TContext` begins with it; ③ `in TContext` → `ref TContext` on `HsmKernel.Update`/`UpdateBatch`; ④ five assignments in `HsmKernelCore` | ✅ **CHOSEN.** Additive. **No delegate change, no thunk signature change** — every existing `[HsmAction]` keeps compiling |
-| **(c)** kernel writes the occurrence into the **instance** header | `InstanceHeader` is `Size=16` and **fully packed** (offsets 0–15, measured) ⇒ growing it shifts `ActiveLeafIds` at offset 16 in every tier | ⛔ **rejected** — changes every instance layout to avoid a context field |
-| **(d)** reuse `HistorySlots` scratch | documented "dual-purpose… simple counters/flags" | ⛔ **rejected** — overloads persistent state with a per-call value; silent corruption if a machine uses history |
+⛔⛔ **CORRECTION — an earlier draft of this section proposed carrying the occurrence on
+`HsmKernelBridge` and presented it as a fresh choice. That is `Q35`'s option `C`, and it was
+REJECTED a month ago for a better reason than I gave:** the kernel sees the context only as an opaque
+`void*`, so filling a field in it means **a layout convention across the ExtDeps boundary** — the
+coupling the chosen option avoids by using a type the kernel already owns.
 
-**The precedent that makes (b) the house pattern, not an invention.** `HsmTraceContext*` is already
-threaded from the kernel entry through `ProcessActivityPhase` into `ExecuteAction` purely to serve an
-Hrot diagnostic concern (`behav-diag-1`). `HsmKernelBridge` — the struct behind `contextPtr` — is
-**ours**, in `Fdp.Toolkits` (`HsmTickSystem.cs:24-36`), and already carries `Self`, `WorldHandle` and
-`TraceContext*`. Option (b) adds one more field to a struct we own and four assignments to a kernel
-that already threads two such pointers.
+| `Q35` sub-question | ✅ the ruling |
+|---|---|
+| **`Q35-A`** delivery | **`HsmCommandWriter`** — a `Fhsm.Kernel` type the kernel constructs and already passes to **every action**. The kernel stamps the occurrence before each dispatch. ⛔ **No delegate signature changes anywhere**; the 55 attributed methods, both `FDP/Examples` projects and FastHSM's own demos compile untouched |
+| **`Q35-B`** what identity | **the PAIR `(regionSlotIndex, stateId)`** — ⛔ **not a pre-hashed key.** Both are already in scope at the `HsmKernelCore` call site, and the key algorithm stays in ONE home (`ComputeStatefulSlotKey`), outside ExtDeps |
+| **`Q35-C`** who moves | **ONE PATH** — the plain single-region case moves to the allocator too. ⛔ No baked-offset route kept *"for the simple case"* (ruling 9; that divergence is what made the bug invisible) |
 
-⚠ **Two honest caveats on (b).** ① `HsmKernel.Update` declares the context `in` and pins it with
-`fixed`; writing through the resulting pointer violates that contract in spirit, so the entry point
-changes to `ref` rather than relying on the pointer being physically writable. ② `UpdateBatch` shares
-**one** context across a `Span` of instances — safe only because the kernel processes instances
-sequentially on one thread. That assumption becomes a rail (§7).
+🔒 **The division of labour, and it is the sentence to remember:**
+> ⭐⭐⭐ **The kernel supplies IDENTITY. The thunk does the LOOKUP.**
+
+⛔ **The kernel knows nothing about the partition allocator and must not learn.** The thunk already
+contains the code shape it needs — the tier probe + `TryGetSlotOffset` that stateful BTree actions
+have used since `S2`; what it lacked was four bytes of *"who am I"*.
+
+⭐ **Independently re-confirmed here:** `HsmKernelCore.ExecuteAction:778-781` does
+`fixed (HsmCommandWriter* writerPtr = &cmdWriter) HsmActionDispatcher.ExecuteAction(actionId,
+instancePtr, contextPtr, writerPtr)` ⇒ **the writer pointer reaches every thunk already.**
+
+| the ExtDeps delta, in full | |
+|---|---|
+| **two fields on `HsmCommandWriter`** | `Fhsm.Kernel/Data/HsmCommandWriter.cs` — additive |
+| **the kernel assigns them before each dispatch** | the `ExecuteAction` call sites in `HsmKernelCore` |
+| ⛔ **nothing else** | no delegate change, no dispatcher change, no instance-layout change |
+
+#### ⚠ The accepted limit — **guards are unserved, and it must be asserted**
+
+`EvaluateGuard` is `delegate*<void*, void*, ushort, bool>`; the third argument is `eventId`, **so
+there is no writer to carry the pair.** ⭐ Free today — `VE-DEBT-004`: **zero production `[HsmGuard]`
+exists.** ⛔ But it is a real limit: **if a stateful guard is ever authored it needs `Q35-A` option
+`A` or a route of its own.** ⇒ **assert it**, so it surfaces as a decision rather than a silent wrong
+answer (§7).
+
+⚠ **This is a DIFFERENT question from §9.4.** `Q35` settles how a *thunk* learns which occurrence it
+is. §9.4 settles how `HsmTickSystem` *invokes the kernel on a slot-resident instance* — the pointer
+overload. Both are needed; neither substitutes for the other.
 
 ### 4.3 Explicitly NOT changing
 
 `HsmCommandWriter` · `HsmEventQueue` · the tier instance layouts · `BehaviorTreeState` ·
 `HsmDefinitionBlob` · the `[HsmAction]`/`[HsmGuard]`/`[SharedAi*]` attribute shapes ·
 `HsmActionDispatcher`'s tables and signatures.
+
+---
+
+## 5a. ⭐⭐⭐ The two costs `Q37` measured — **and the small tier that prices them**
+
+⛔ **These decide the question, and an earlier draft of this document omitted both.** Cited from
+`Q37` §2, not re-measured.
+
+| # | the cost | `Q37`'s measurement |
+|---|---|---|
+| 🔴 **C1** | **a ~1 KB floor per AI entity** | the smallest tier is **1024 B** *(96 of it header + slot table)* against today's **128 B** `BrainBlackboard` ⇒ **~8× for the simple case**, plus **an archetype change for every AI entity**. ⚠ **Whether it matters depends on the AI entity count, which was NOT measured — still open** |
+| ⚠ **C2** | **indirection moves from SOME actions to ALL** | today one field access on a component already in hand; under the allocator: tier probe → `GetComponentRW` → `fixed` → `TryGetSlotOffset` *(linear scan)*. ⭐ Generated **stateful** thunks already do exactly this, so it is proven — ⛔ but it goes from *"the stateful ones pay it"* to *"every action, every tick"* |
+
+⭐ **And two objections that `Q37` measured DO NOT exist** — do not re-raise them: **hardcoded
+behaviours are not harmed** *(every direct `bb.BehaviorParameters[0]` reference is inside an EMITTER;
+hand-written nodes take `ref dto`, hand-written resolvers take a destination `byte*` — both already
+base-agnostic)*, and **replay / snapshot is unaffected** *(`BrainBlackboard` and all three tiers are
+alike `[DataPolicy(NoScenario)]`)*.
+
+### ✅ The small tier is IN SCOPE *(user, `2026-09-19`)*
+
+🔒 **User:** *"small tier in scope pls; is likely does not break anything, hopefully an additive
+stuff"* — ⭐ this is `Q37` option **B** *(unify **and** add a smaller tier)*, its own recommended lean,
+chosen over **A** *(unify unconditionally, pay the floor)* and **C** *(root inline, children
+allocated — the two-mechanism answer `Q35-C` already ruled against)*.
+
+#### 📐 Sizing it — measured, so the constant is not a guess
+
+| datum | value |
+|---|---|
+| `BehaviorTreeState` | **exactly 64 B** *(`[StructLayout(Explicit, Size = 64)]`)* |
+| `HsmInstance64 / 128 / 256` | 64 / 128 / 256 B |
+| params cap | **100 B** (`MaxBehaviorParamByteSize`) — a ceiling, not a typical: `MoveToLocation` is 4 fields |
+| an `OccurrenceStore256` | header 32 + slot table `MaxSlots`×16 ⇒ **payload 208 B at `MaxSlots=1`, 192 B at 2** |
+
+| the case | fits 256? |
+|---|---|
+| **BTree root**, typical params + `BehaviorTreeState` (64) | ✅ comfortably |
+| **HSM root** on `HsmInstance64` + typical params | ✅ |
+| **HSM root** on `HsmInstance128` + typical params | ✅ *(~150 B)* |
+| ⚠ **HSM root** on `HsmInstance128` + params near the 100 B cap | ⛔ ~236 B — **spills to 1024** |
+| **`HsmInstance256`**, or any nesting (2+ occurrences) | ⛔ **1024** — correctly so; neither is the simple case |
+
+⭐⭐ **The spill is PREDICTED, never discovered.** Because `BehaviorDefinition` declares the sizes
+(§9.5), `SelectTier` picks correctly at attach — ⛔ there is no runtime guess and no surprise
+promotion on a hot path.
+
+#### ⚠ "Additive" is right about the CONCEPT — one place it is not
+
+| | |
+|---|---|
+| ✅ **component-id space** | `MAX_COMPONENT_TYPES = 512`, highest allocated **301** ⇒ room for one more *(`R-44`: the id is allocated, never recycled)* |
+| ✅ **the allocator itself** | `CopyToLargerTier(src, srcSize, dst, dstSize, dstMaxSlots)` is **already generic over sizes** — it needs nothing |
+| ⚠ **the per-tier BRANCHING is hand-rolled and repeated** | `BehaviorIngressSystem` alone mentions `BlueprintBlackboard16384` **28 times** across ~10 methods, each a 3-way `if/else` on tier size; `BlueprintTickSystem` has **three near-identical ~65-line `TickTier_*` methods**; there are **three near-identical renderers**. A 4th tier is a 4th arm in each |
+| 🔴 **and `PromoteTier`'s dispatch grows QUADRATICALLY** | today 1024→4096, 1024→16384, 4096→16384 = **3 arms**. With 256: +256→1024, 256→4096, 256→16384 = **6**. ⛔ **This is the one part that is not simply additive** |
+
+⇒ ⭐⭐⭐ **Collapse the per-tier branching to a TABLE first, then the 4th tier is genuinely additive.**
+A `TierSpec { Type, TotalSize, MaxSlots, PayloadSize }[]` turns ~10 three-way chains, 3 copied tick
+methods and 3 copied renderers into one loop, and turns promotion from N² arms into *"copy src→dst
+given two specs"* — **which is what the allocator already does.** ⭐ It also makes §10's rename one
+pass instead of four, and it is the natural home for the `O3` slot header. ⇒ items `O3a` / `O3b`.
 
 ---
 
@@ -345,7 +468,9 @@ Ordered so that each step is provable on its own and the expensive irreversible 
 | **O0** | **Re-home `BlueprintTickSystem` into a module every ECS host schedules** | independent of everything else; until it lands, blueprint Instances are editor-only and the tripod has no third leg on CGF | — |
 | **O1** | **`SquadCognitiveState` gets its own component** | removes the largest non-AI consumer of `Blackboard1024`; pure win even if the rest is cancelled | — |
 | **O2** | **Split `BrainBlackboard` → `BrainInterrupts` + a params region type** | the params region becomes addressable; the tail stops travelling with it. Updates `R-39`/`R-41` | — |
-| **O3** | **The occurrence seam** — `OccurrenceKey`, `TryResolveOccurrence`, the slot header; rename the tiers | one lookup that classes 4/5/6 all call. **No behaviour changes yet** | — |
+| **O3** | **The occurrence seam** — `OccurrenceKey`, `TryResolveOccurrence`, the slot header | one lookup that classes 4/5/6 all call. **No behaviour changes yet** | — |
+| ⭐ **O3a** | **Collapse per-tier branching to a `TierSpec` table** — ingress, tick, renderers | ⛔ **prerequisite for `O3b`, and it pays for itself**: ~10 three-way chains, 3 copied tick methods and 3 copied renderers become one loop; `PromoteTier` stops being N² | — |
+| ⭐ **O3b** | **Add the `OccurrenceStore256` tier** (`MaxSlots` 1–2) — `Q37` option B | prices the simple case: ~8× floor → ~2× (§5a). ⛔ Trivial after `O3a`, four copies before it | — |
 | **O4** | **BTree onto occurrence storage** — tree state and params into slots, **including a hosted subtree's own `BehaviorTreeState`** | ⭐ **proves the whole model with ZERO ExtDeps change** (§4.1) **and closes the shared-`BehaviorTreeState` defect in §3.1**. If this does not work, stop before paying for `O6` | **none** |
 | **O5** | **Blueprint Instances take params** (`DESIGN_Parameter_Model.md` §3.3) | the slot layout is now shared with `O4`; closes `R4`, which has no design today | — |
 | **O6** | **`HsmOccurrence` in the kernel** (§4.2 option b) | the one ExtDeps change, paid **once**, after `O4` has proved the storage model | **the only one** |

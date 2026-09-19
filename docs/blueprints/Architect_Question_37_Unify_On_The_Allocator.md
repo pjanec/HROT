@@ -1,5 +1,21 @@
 # Architect Question #37 — **should ALL parameter storage move to the allocator?**
 
+> ## ⚠⚠ STORAGE MODEL SUPERSEDED — `2026-09-19`
+>
+> 📄 **[`DESIGN_Occurrence_Scoped_Storage.md`](DESIGN_Occurrence_Scoped_Storage.md)** moves **`BrainBlackboard.BehaviorParameters`**,
+> **`Blackboard1024`** and the per-entity brain-state components (`BrainBTreeState`, `BrainHsm64/128`)
+> into **per-occurrence slots** of the partition allocator, and renames the tier components
+> `BlueprintBlackboard*` → **`OccurrenceStore*`**. It is the build-out of
+> **this question**, which the user parked on `2026-08-17` and reopened on `2026-09-19`.
+>
+> ⛔ **Whatever THIS document says about WHERE those bytes live is the BEFORE picture.**
+> ⭐ Everything else in it stands.
+>
+> ⭐⭐⭐ **THIS IS THE QUESTION THAT DOCUMENT REOPENS.** ⛔ The PARKED banner below is HISTORY: the
+> user reopened it on `2026-09-19` and chose **option `B`** *(unify AND add a smaller tier)*. ⭐ The
+> measurements in §2 remain **banked and authoritative — do not re-measure them.**
+
+
 > ⛔⛔ **PARKED `2026-08-17` by the user** — ⭐ *"i would defer this idea for now and return to single
 > level behaviors for a while in order to finish the planned work with variable unification and related
 > ui changes. but i would certainly keep this open and return to it a bit later."*

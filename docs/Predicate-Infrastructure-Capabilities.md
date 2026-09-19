@@ -1,5 +1,22 @@
 # Predicate Infrastructure — Capabilities & Reuse Surface
 
+> ## ⚠⚠ STORAGE MODEL SUPERSEDED — `2026-09-19`
+>
+> 📄 **[`DESIGN_Occurrence_Scoped_Storage.md`](blueprints/DESIGN_Occurrence_Scoped_Storage.md)** moves **`BrainBlackboard.BehaviorParameters`**,
+> **`Blackboard1024`** and the per-entity brain-state components (`BrainBTreeState`, `BrainHsm64/128`)
+> into **per-occurrence slots** of the partition allocator, and renames the tier components
+> `BlueprintBlackboard*` → **`OccurrenceStore*`**. It is the build-out of
+> [`Architect_Question_37`](blueprints/Architect_Question_37_Unify_On_The_Allocator.md), which the user parked on
+> `2026-08-17` and reopened on `2026-09-19`.
+>
+> ⛔ **Whatever THIS document says about WHERE those bytes live is the BEFORE picture.**
+> ⭐ Everything else in it stands.
+>
+> ⚠ **`BehaviorParamPredicateDto`'s two buffers (`BrainBlackboard.BehaviorParameters`,
+> `Blackboard1024.Memory`) both become occurrence slots** — the predicate then resolves through the
+> same slot-table walk `BlueprintVariablePredicateDto` already uses.
+
+
 **Purpose.** Frame what is already available in the codebase for **building, serialising, JIT-compiling, and editing condition trees over entity state, AI memory, and the event bus**. Two systems already consume this infrastructure end-to-end (the Replay Browser's search panel and the Universal Breakpoints subsystem). A third consumer — for example a "When …" BTree node that fires when an entity-state condition becomes true — can be built on top with no new compiler, DTO, or UI plumbing.
 
 This is a capabilities reference, not an architecture-from-scratch design. It tells you **what you can take for granted** and **where the limits sit**.

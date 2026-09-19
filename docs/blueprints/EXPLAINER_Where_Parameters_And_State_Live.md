@@ -6,6 +6,22 @@ known-rot: none as of 2026-08-18; the BP1031 claims were repaired in Batch 82 (B
 -->
 # Where parameters and state actually live — all hosts, one picture
 
+> ## ⚠⚠ STORAGE MODEL SUPERSEDED — `2026-09-19`
+>
+> 📄 **[`DESIGN_Occurrence_Scoped_Storage.md`](DESIGN_Occurrence_Scoped_Storage.md)** moves **`BrainBlackboard.BehaviorParameters`**,
+> **`Blackboard1024`** and the per-entity brain-state components (`BrainBTreeState`, `BrainHsm64/128`)
+> into **per-occurrence slots** of the partition allocator, and renames the tier components
+> `BlueprintBlackboard*` → **`OccurrenceStore*`**. It is the build-out of
+> [`Architect_Question_37`](Architect_Question_37_Unify_On_The_Allocator.md), which the user parked on
+> `2026-08-17` and reopened on `2026-09-19`.
+>
+> ⛔ **Whatever THIS document says about WHERE those bytes live is the BEFORE picture.**
+> ⭐ Everything else in it stands.
+>
+> ⭐⭐ **This file keeps its value as the BEFORE measurement record** — that is what it was written to
+> be. ⛔ Do not quote its storage map as the target.
+
+
 > ## ⭐ This is the MEASUREMENT RECORD + the diagrams.
 > ⛔ **The design is [`DESIGN_Parameter_Model.md`](DESIGN_Parameter_Model.md) — it wins on any
 > disagreement.** Read that first; come here for the file:line evidence behind it.
