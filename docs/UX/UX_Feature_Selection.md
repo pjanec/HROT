@@ -62,7 +62,7 @@ cover the panel-private stores or the full `PrimarySelected` write set. ⭐ The 
 | # | store | measured |
 |--:|---|---|
 | 1 | **`SelectionState` ECS component** | written by `SelectionInteractionSystem` |
-| 2 | **`ISelectionState`** — **3** production implementations | `DefaultSelectionState` · `SimHostInspectorAdapter` *(+`CarKinemInspectorAdapter` in Examples)* |
+| 2 | **`ISelectionState`** — **2** production implementations ⚠ *(corrected `2026-09-19`: this said **3**, counting the Examples adapter as production; measured on the graph via `IMPLEMENTS` edges)* | `DefaultSelectionState` · `SimHostInspectorAdapter` *(+`CarKinemInspectorAdapter` in Examples, +1 test fake)* |
 | 3 | 🔴 **`EntityInspectorPanel._selectedEntities`** — its own multi-select `HashSet` | `FDP/Engine/Fdp.Presentation/ImGui/Panels/EntityInspectorPanel.cs:377` |
 | 4 | 🔴 **`DerEntityInspectorPanel._selectedEntityId`** — its own single `int` | `FDP/Engine/Fdp.Presentation/ImGui/Panels/DerEntityInspectorPanel.cs:77` |
 
