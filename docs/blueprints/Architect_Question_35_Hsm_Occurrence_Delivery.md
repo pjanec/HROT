@@ -1,5 +1,22 @@
 # Architect Question #35 — **how does an HSM action learn WHICH occurrence it is?**
 
+> ## ⚠⚠ STORAGE MODEL SUPERSEDED — `2026-09-19`
+>
+> 📄 **[`DESIGN_Occurrence_Scoped_Storage.md`](DESIGN_Occurrence_Scoped_Storage.md)** moves **`BrainBlackboard.BehaviorParameters`**,
+> **`Blackboard1024`** and the per-entity brain-state components (`BrainBTreeState`, `BrainHsm64/128`)
+> into **per-occurrence slots** of the partition allocator, and renames the tier components
+> `BlueprintBlackboard*` → **`OccurrenceStore*`**. It is the build-out of
+> [`Architect_Question_37`](Architect_Question_37_Unify_On_The_Allocator.md), which the user parked on
+> `2026-08-17` and reopened on `2026-09-19`.
+>
+> ⛔ **Whatever THIS document says about WHERE those bytes live is the BEFORE picture.**
+> ⭐ Everything else in it stands.
+>
+> ⭐⭐ **§7's ruling is IMPLEMENTED there, not re-decided** — `HsmCommandWriter` + the
+> `(regionSlotIndex, stateId)` pair, one path, guards unserved. ⚠ An early draft of that design
+> proposed this question's **rejected option `C`**; it was corrected against this file.
+
+
 > ⛔⛔ **NOT RELAYED.** The architect is generally unavailable (`2026-08-16` user ruling).
 > ⭐ **The document is the deliverable** — it forces a decision with real blast radius into
 > decision-shaped options, and is **resolved jointly with the user.**

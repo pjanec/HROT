@@ -1,6 +1,6 @@
 <!--STATUS
 state: LIVE
-updated: 2026-08-28
+updated: 2026-09-19
 current-answer: this file is now LEAN. Feature intent lives in the DESIGN docs (search
   docs/blueprints, now free of handoffs/reports). Generic process rules live in CLAUDE.md.
   This file holds ONLY what those two cannot: engine invariants, silent-failure hazards,
@@ -10,6 +10,12 @@ re-read: 2026-09-19 — Architect_Question_72 changed in the SAME commit that ad
   cites the new Q72-M section), so the WARN is self-referential, not rot. Also re-read R-147's neighbour
   content: Q72-L gained a NARROWED-BY banner pointing at Q72-M and was otherwise untouched; every other
   Q72 sub-question is unchanged. No earlier ledger row cites this document.
+re-read: 2026-09-19 — Variable_Model_Unification.md changed (rulings-check WARNs on R-07, R-01b,
+  R-24, which cite it). Re-read and CONFIRMED none moved: the edit is PURELY ADDITIVE — a
+  "STORAGE MODEL SUPERSEDED" banner inserted directly after the H1, pointing at
+  DESIGN_Occurrence_Scoped_Storage.md. All three quotes still resolve, in untouched sections
+  (R-01b :86, R-24 :159, R-07 :310), and R-24's structure-hash hard reset is explicitly
+  unaffected by the occurrence model — the banner says so.
 re-read: 2026-09-18 — .claude/CLAUDE.md gained one section (THE SECOND STALE-BINARY TRAP), so
   rulings-check WARNs on the rows citing it. Re-read and CONFIRMED none moved: the edit is PURELY
   ADDITIVE, appended inside the THREE TEST TIERS section beside the existing failed-build warning it

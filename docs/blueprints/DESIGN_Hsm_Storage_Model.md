@@ -7,6 +7,21 @@ note: section 2 CORRECTS the coordinator - BP-281 is NOT blocked. Read it before
 -->
 # DESIGN — the HSM storage model *(`2026-08-17`)*
 
+> ## ⚠⚠ STORAGE MODEL SUPERSEDED — `2026-09-19`
+>
+> 📄 **[`DESIGN_Occurrence_Scoped_Storage.md`](DESIGN_Occurrence_Scoped_Storage.md)** moves **`BrainBlackboard.BehaviorParameters`**,
+> **`Blackboard1024`** and the per-entity brain-state components (`BrainBTreeState`, `BrainHsm64/128`)
+> into **per-occurrence slots** of the partition allocator, and renames the tier components
+> `BlueprintBlackboard*` → **`OccurrenceStore*`**. It is the build-out of
+> [`Architect_Question_37`](Architect_Question_37_Unify_On_The_Allocator.md), which the user parked on
+> `2026-08-17` and reopened on `2026-09-19`.
+>
+> ⛔ **Whatever THIS document says about WHERE those bytes live is the BEFORE picture.**
+> ⭐ Everything else in it stands.
+>
+> ⭐ §1's three storage classes stay the frame; that design says where the bytes GO for all three.
+
+
 > ⭐⭐⭐ **`BP-281` · `E3` · `E5` · `E7a` are ONE question:** *where do an HSM occurrence's bytes live?*
 > ⛔ **Four items that each re-derive it is how this programme has been paying for it.** This document
 > answers it once.

@@ -1,5 +1,23 @@
 # Cognitive Tier Architecture: A Guide to AI Behavior Development in FDP
 
+> ## ⚠⚠ STORAGE MODEL SUPERSEDED — `2026-09-19`
+>
+> 📄 **[`DESIGN_Occurrence_Scoped_Storage.md`](blueprints/DESIGN_Occurrence_Scoped_Storage.md)** moves **`BrainBlackboard.BehaviorParameters`**,
+> **`Blackboard1024`** and the per-entity brain-state components (`BrainBTreeState`, `BrainHsm64/128`)
+> into **per-occurrence slots** of the partition allocator, and renames the tier components
+> `BlueprintBlackboard*` → **`OccurrenceStore*`**. It is the build-out of
+> [`Architect_Question_37`](blueprints/Architect_Question_37_Unify_On_The_Allocator.md), which the user parked on
+> `2026-08-17` and reopened on `2026-09-19`.
+>
+> ⛔ **Whatever THIS document says about WHERE those bytes live is the BEFORE picture.**
+> ⭐ Everything else in it stands.
+>
+> 🔴 **Developers: §3 *"The BrainBlackboard: The Universal Cognitive Bus"* and §6 *"Heavy-Data
+> Behaviors: Blackboard1024"* describe the CURRENT runtime and remain correct for it — but both
+> components are scheduled for removal. ⭐ The authoring surface you write against (`[SharedAiAction]`,
+> `ref dto`, a resolver's destination `byte*`) is **base-agnostic and does NOT change.**
+
+
 ---
 
 ## Table of Contents

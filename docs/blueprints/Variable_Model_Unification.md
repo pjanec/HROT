@@ -10,6 +10,22 @@ known-rot: NONE as of 2026-08-17. B' was marked BLOCKED on BP-228 until then; BP
 -->
 # Variable model unification — the vision, and how it maps to today
 
+> ## ⚠⚠ STORAGE MODEL SUPERSEDED — `2026-09-19`
+>
+> 📄 **[`DESIGN_Occurrence_Scoped_Storage.md`](DESIGN_Occurrence_Scoped_Storage.md)** moves **`BrainBlackboard.BehaviorParameters`**,
+> **`Blackboard1024`** and the per-entity brain-state components (`BrainBTreeState`, `BrainHsm64/128`)
+> into **per-occurrence slots** of the partition allocator, and renames the tier components
+> `BlueprintBlackboard*` → **`OccurrenceStore*`**. It is the build-out of
+> [`Architect_Question_37`](Architect_Question_37_Unify_On_The_Allocator.md), which the user parked on
+> `2026-08-17` and reopened on `2026-09-19`.
+>
+> ⛔ **Whatever THIS document says about WHERE those bytes live is the BEFORE picture.**
+> ⭐ Everything else in it stands.
+>
+> ⚠ **`R-24`'s structure-hash hard reset is UNAFFECTED** — it already guards per-slot state, and that
+> is precisely the mechanism the occurrence model relies on.
+
+
 > **Coordinator, 2026-08-13**, at the user's request. ⭐ **The question is not *whether* to unify —
 > that is ruled — but *how* to do it without breaking things.** Everything below is verified against
 > code; the one speculative item is marked.

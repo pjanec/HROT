@@ -1,5 +1,21 @@
 # Blueprint Subsystem — Runtime Detailed Design
 
+> ## ⚠⚠ STORAGE MODEL SUPERSEDED — `2026-09-19`
+>
+> 📄 **[`DESIGN_Occurrence_Scoped_Storage.md`](DESIGN_Occurrence_Scoped_Storage.md)** moves **`BrainBlackboard.BehaviorParameters`**,
+> **`Blackboard1024`** and the per-entity brain-state components (`BrainBTreeState`, `BrainHsm64/128`)
+> into **per-occurrence slots** of the partition allocator, and renames the tier components
+> `BlueprintBlackboard*` → **`OccurrenceStore*`**. It is the build-out of
+> [`Architect_Question_37`](Architect_Question_37_Unify_On_The_Allocator.md), which the user parked on
+> `2026-08-17` and reopened on `2026-09-19`.
+>
+> ⛔ **Whatever THIS document says about WHERE those bytes live is the BEFORE picture.**
+> ⭐ Everything else in it stands.
+>
+> ⭐⭐ **§4–§5's allocator contract is UNCHANGED** — header, slot entry, free list, tier promotion all
+> stay exactly as specified here. ⛔ Only the component TYPE NAMES change, and one tier is added.
+
+
 > **Status:** Detailed design, derived from `Blueprint_Subsystem_Architecture_v1.2.md` + Final Resolutions + Inline Patches + Implementation Roadmap v1.1 + Compiler DD + Compiler DD Inline Patches. All Runtime DD inline patches integrated.
 > **Audience:** Implementation agent and human reviewer.
 > **Drives:** Milestones M8 (BlueprintRegistry), M9 (Blackboard tiers + partition allocator), M10 (BlueprintTickSystem + BlueprintMaintenanceSystem).
