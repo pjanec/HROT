@@ -8,6 +8,12 @@ known-rot: (none) - the BP1031-as-live rot was REPAIRED 2026-08-17, Batch 82; th
   section 3.2 "overlay is NOT implemented on every path" correction was REPAIRED
   2026-08-18 (it had gone false at Batch 70/74) and now sits under a HISTORY fold
 known-conflict: gives Scope three values; Q-b in Variable_Model_Unification rules two. UNRECONCILED.
+related-designs:
+  - DESIGN_Occurrence_Scoped_Storage.md — owns WHERE the bytes live and HOW an occurrence is
+    addressed (the slot key, the tier components, the one FastHSM change). This document owns
+    WHAT a parameter is and the rulings it must obey; it wins on any disagreement.
+  - EXPLAINER_Where_Parameters_And_State_Live.md — the file:line measurement record behind §2.
+  - Architect_Question_34_Blueprint_Occurrence_Identity.md — blueprint Instance slot identity.
 -->
 # DESIGN — the parameter model *(AUTHORITATIVE, `2026-08-16`)*
 
