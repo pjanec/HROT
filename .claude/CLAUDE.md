@@ -961,20 +961,33 @@ in the other's lane.
 
 ### ⭐ The lanes — **roles, not names**
 
-⛔⛔ **THIS FILE NAMES NO BRANCH.** 📌 Every branch name it ever carried went stale — one was recorded as
-*"retired"* while it was the live coordinator, two were re-pointed by the user in a single day, and one
-kept a name from a programme three months dead. ⇒ 🔒 **a session's branch is told to it at dispatch, or
-found by ancestry — never read from here.**
+⛔⛔ **THIS FILE NAMES NO *VOLATILE* BRANCH.** 📌 Every RANDOM-POSTFIXED name it ever carried went stale —
+one was recorded as *"retired"* while it was the live coordinator, two were re-pointed by the user in a
+single day, and one kept a name from a programme three months dead. ⇒ 🔒 **a postfixed session branch is
+told to it at dispatch, or found by ancestry — never read from here.**
 
-| Lane | owns | typically |
-|---|---|---|
-| ⭐ **Coordinator** | handoffs · design · the tracker · verify + merge | ⛔ does NOT write code |
-| ⭐ **UI / CGF lane** | the editor and CGF surfaces, the shared authoring assemblies | implementation |
-| ⭐ **BACKEND lane** | engine / orchestrator / project structure · test-suite reliability and harness | implementation |
-| ⭐ **WINDOWS session** | what only a real Windows host can do — run the editor, drive the MCP surface, observe the live cluster | ⛔ **not a branch — a place to RUN things** |
+> ⭐⭐ **`2026-09-19` amendment — LANES RUN ON STABLE ROLE-NAMED BRANCHES; ANCESTRY STILL VERIFIES**
+> *(user)*. 🔒 **The enabling fact, verbatim:** *"the web harness adds a postfix but the session can be
+> switched to any concrete branch"* ⇒ a **role**-named branch does not rot the way a random suffix does.
+> The lanes below run on the STABLE names in the table; the harness may still mint a `…-<postfix>`
+> default, so **switch the session onto the bare name** at start. ⛔ **This does NOT reinstate "trust a
+> name":** the stable name says where a lane *runs*; `git merge-base` still says what a commit *descends
+> from*, and remains the only proof when confirming another lane's work or a session that has not
+> switched *(the ancestry recipe below is unchanged)*. ⭐⭐ **All lanes derive from `coordinator`** *(the
+> integration trunk)*, re-syncing from it at every run *(rule 7)*. ⭐ `session-design-brief.sh` keys the
+> coordinator brief on the name `coordinator` *(or `HROT_LANE=coordinator`)*. *(Indexed as `R-148`.)*
+
+| Lane | ⭐ stable branch | owns | typically |
+|---|---|---|---|
+| ⭐ **Coordinator** | **`coordinator`** | handoffs · design · the tracker · verify + merge — the trunk | ⛔ does NOT write code |
+| ⭐ **behaviors lane** | **`behaviors`** | BTree · HSM · Blueprint + behavior **infrastructure** — the unify/fix/develop work | implementation |
+| ⭐ **BACKEND lane** | **`backend`** | engine / orchestrator / project structure · test-suite reliability and harness — **any other backend** | implementation |
+| ⭐ **UI lane** | **`ui`** | the editor and **any** UI-facing surface — ⚠ not just CGF | implementation |
+| ⭐ **WINDOWS session** | *(none)* | what only a real Windows host can do — run the editor, drive the MCP surface, observe the live cluster | ⛔ **not a branch — a place to RUN things** |
 
 ⚠ **More lanes may exist at any time** *(a programme-specific one is normal)*. ⭐ The rules below are
-written per-ROLE and hold however many there are.
+written per-ROLE and hold however many there are. ⚠ **A NEW lane still starts by deriving from
+`coordinator`.**
 
 > ⛔⛔ **THE THREE RULES THAT KEEP CONCURRENT IMPLEMENTATION LANES APART**
 > | ⭐ | |
