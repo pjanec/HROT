@@ -1,15 +1,17 @@
 <!--STATUS
 state: LIVE
-build-state: OPEN — a decision document, NOT buildable. ⛔ Nothing here is dispatched. Every sub-question
-  carries a recommended lean for the user to approve or redirect (the "I analyse and SUGGEST, the user
-  APPROVES" rule). ⚠ Number 72 taken as the next free across ALL active branches (rule 3a; 67-71 in use).
+build-state: ✅ RESOLVED 2026-09-19 — all sub-questions ruled by the user. ⛔ Still NOT a design: no UML,
+  no task breakdown. The next step is a DESIGN + PLAN, not a dispatch. ⚠ Number 72 taken as the next free
+  across ALL active branches (rule 3a; 67-71 in use).
 updated: 2026-09-19
-current-answer: ⭐⭐ RULED: Q72-A..G (§4a), Q72-H and Q72-H1 (§3a). ⭐⭐⭐ STILL OPEN — Q72-I's warn-vs-fail
-  half, and Q72-J. ⭐⭐ The load-bearing content is §3a: the THREE FORMS (NAS form == node form always;
-  freshness keyed on the at-rest per-file manifest, NEVER on the transport) and the transport PARTITION
-  (big/pre-compressed parts travel standalone, the rest as one archive). ⚠⚠ READ §5c BEFORE PLANNING:
-  the NAS half of the manifest is entirely NEW CODE, and it also means the in-flight artifact-staging
-  slice does not handle a TKB that lives on NAS as a file TREE.
+current-answer: ✅✅ EVERY SUB-QUESTION IS NOW RULED — Q72-A..G (§4a), Q72-H / H1 (§3a), Q72-I, Q72-J,
+  and Q72-K (subfolders of any depth). ⭐⭐ The load-bearing content is §3a: the THREE FORMS (NAS form ==
+  node form always — now meaning shape AND structure; freshness keyed on the at-rest per-file manifest,
+  NEVER on the transport) and the transport PARTITION (big/pre-compressed parts travel standalone, the
+  rest as one archive, paths preserved). ⚠⚠ READ §5c + Q72-K BEFORE PLANNING: recursive enumeration
+  exists NOWHERE today, the NAS half is entirely NEW CODE, and the shipped artifact-staging slice covers
+  the single-file zip case only — a TREE asset in subfolders would be silently truncated.
+  ⇒ this document is READY TO BECOME A DESIGN + PLAN.
 stale-below: nothing — new document.
 known-rot: nothing yet.
 known-conflict: none. ⚠ DESIGN_Artifact_Staging.md is IN FLIGHT as a dispatched batch and is deliberately
@@ -86,10 +88,18 @@ related-designs:
 
 ## 1. INVENTORY — measured `2026-09-18`, extended `2026-09-19`
 
-⚠ **Coverage caveat, stated rather than implied:** the graph index returned **0 results** for several of
-these patterns and only grep answered — `scripts/find.sh` reports the disagreement loudly. ⛔ These are
-therefore **grep-corroborated, not graph-enumerated**, and `check_index_coverage` was not reachable this
-session. ⭐ Treat the counts as a floor, not a proven complete set.
+⚠ **Coverage caveat, stated rather than implied:** these are **grep-corroborated, not graph-enumerated**,
+and `check_index_coverage` was not reachable this session. ⭐ Treat the counts as a floor, not a proven
+complete set.
+
+⚠⚠ **CORRECTION `2026-09-19` — I mis-attributed the cause, and the build found the real one.** An earlier
+version of this caveat said *"the graph index returned 0 results for several of these patterns"*, implying
+an index-coverage problem. 📐 **`BP-558`:** `scripts/find.sh` given a regex **alternation** returns
+`graph 0 · grep 0` **and prints "The two agree on the file set"** — for classes that demonstrably exist.
+⇒ 🔴 **the zero was a TOOLING DEFECT, not a coverage fact**, and it is exactly the silent degradation
+`CLAUDE.md` promises the script will never do — ⛔ made worse because **both halves appear to corroborate.**
+⚠ **I hit it twice while building this INVENTORY** *(the `Sha256\|Checksum\|ContentHash` and
+`localStagingRoot\|…` queries)* and read the grep half without questioning the graph zero.
 
 | # | what exists | where | ⭐ bearing on this question |
 |---|---|---|---|
@@ -320,10 +330,12 @@ over `BaseFolder` returning `(kind, file count, newest mtime)`. ⛔ No file is r
 is cheap"* condition is **met by construction rather than by hope** — and `ContributorChanged` is there if
 it ever needs to become a cached value instead of a walk.
 
-⚠ **Open inside the lean:** whether a node being ahead should **fail** the load or **warn**. ⭐ My
-sub-lean: **warn for authored assets, fail for scenario-referenced artifacts** — 📐 because `Q72-F`
-already fails the load when a *named* artifact cannot be staged, and an un-published blueprint edit is not
-a named artifact. 🔒 **Your call; this is the one place where the two invariants genuinely pull apart.**
+✅ **RULED `2026-09-19`: WARN for authored assets, FAIL for named artifacts.** 🔒 *"warn for authored,
+fail for named artifacts."* ⇒ the split is now canon: `Q72-F`'s *"error during sync fails the load"* binds
+**artifacts a scenario NAMES**; an un-published blueprint edit is **not** one, so it warns and the load
+proceeds. ⭐⭐ **This also matches what the build independently found** — `BP-555`: a scenario naming an
+unpublished TKB is **not** counted a prefetch failure, because the loud failure has a designed home in the
+node's handler. ⇒ **two routes to the same rule, and they agree.**
 
 ### `Q72-J` — **the external producer, and what "authoring capability" means now**
 
@@ -342,6 +354,37 @@ as the editor host"* is **largely already true in code**. ⛔ But ⑬ shows auth
 ⚠ **This is the cleanest fallout of the whole round:** ⭐ *"who may publish kind K"* and *"who needs kind K"*
 are **two symmetric token vocabularies over the same facility** (`hrot.asset.authors.*` /
 `hrot.asset.needs.*`), and *"nobody authors K"* is a **meaningful, legal answer** that means *"external"*.
+
+✅ **RULED `2026-09-19` — lean accepted in full.** ⛔ No authoring ROLE; two symmetric vocabularies; a kind
+with no advertised author is the **normal** case for externally-produced content and the probe must not
+look for one.
+
+### `Q72-K` — ✅ **RULED `2026-09-19` — SUBFOLDERS OF ANY DEPTH ARE A USER-FACING REQUIREMENT**
+
+> 🔒 **User:** *"i need to support **subfolders of any depth** — this is a way how **user organizes the
+> assets**."*
+
+⭐⭐⭐ **This is not a technical nicety, it is an organisational feature**, which changes its status: ⛔ it
+cannot be deferred as an optimisation, because the folder structure is **content the user authored** and
+losing it is losing their work.
+
+📐 **And it collides head-on with §5c's measurement.** Every enumeration in the orchestrator today is
+**one level deep** — `ScanLocalScenarios:440`, `ScanLocalExercises:459`, `ScanNasExercises:484`, and
+`PrefetchScenarioAsync:244`'s flat `Directory.GetFiles(sourceDir)`. ⛔ **There is no recursive walk
+anywhere.**
+
+| ⭐ what this ruling makes MANDATORY | |
+|---|---|
+| ⭐⭐⭐ **recursive enumeration on BOTH sides** | the manifest is `(relative path, length, mtime)` and the **relative path carries the subfolder structure** — §3a already assumed this, ⚠ but §5c shows neither side can produce it today |
+| ⭐⭐ **the relative path is preserved END TO END** | NAS tree → transport → node tree → loader. 🔒 `Q72-H`'s *NAS form == node form* now means **shape AND structure**, not just tree-vs-zip |
+| ⭐ **the archive preserves paths** | ⭐ zip entries are relative paths natively, so the transport partition (`Q72-H1`) is unaffected — ⛔ but it must **not** flatten on pack or unpack |
+| ⚠ **the standalone partition keeps its path too** | a big file at `terrain/tiles/x/y/huge.bin` lands at the same relative path, ⛔ not at the root |
+
+⚠⚠ **AND A SHARPENED CONSEQUENCE FOR THE SHIPPED SLICE.** §5c already noted `PrefetchScenarioAsync` is
+flat. 🔒 With this ruling the gap is **no longer hypothetical**: ⛔ **the moment a user organises a TKB —
+or any tree asset — into subfolders on the NAS, a flat copy silently drops everything below the top
+level.** ⭐ `DESIGN_Artifact_Staging` shipped the **single-file zip** case, which is unaffected; ⛔ **the
+tree case must not be used until the recursive walk exists.**
 
 ## 4. NOT IN QUESTION — settled, and this document does not reopen it
 
