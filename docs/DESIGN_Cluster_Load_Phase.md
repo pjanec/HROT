@@ -21,6 +21,10 @@ related-designs:
   - docs/DESIGN_Terrain_Zones_And_Assets.md — owns WHAT terrain and zones ARE (the definition file,
     the ECS singleton, the zone ops, the asset build). This document owns only WHEN it loads and WHO
     runs it during the cluster's Loading* phase.
+  - docs/blueprints/Architect_Question_72_Asset_Lifecycle_And_Distribution.md — the general asset
+    lifecycle (per-node needs, transport packaging, authoring sync). ⭐ Q72-L records that this
+    document's RoleLoadRequirements is the natural SOURCE of its hrot.asset.needs.* token set — this
+    one decides what a node LOADS, that one decides what bytes reach its disk first. They compose.
   - docs/DESIGN_Artifact_Staging.md — owns how the BYTES reach a node (NAS -> per-node staging, the
     skip predicate, the staged header sidecar). This document owns what the load MESSAGE carries.
   - docs/DESIGN_Deterministic_Network_Ids.md — owns the id authority reset at the world boundary,

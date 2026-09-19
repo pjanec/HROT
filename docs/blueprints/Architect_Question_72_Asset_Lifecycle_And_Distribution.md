@@ -30,6 +30,10 @@ related-designs:
     Q72-D proposes to generalise.
   - docs/DESIGN_Terrain_Zones_And_Assets.md — owns the terrain definition asset whose schema Q72-A would
     extend with a component vocabulary.
+  - docs/DESIGN_Cluster_Load_Phase.md — ⭐⭐⭐ owns WHICH ROLE LOADS WHICH PART (RoleLoadRequirements, the
+    per-role ordered chain) and WHEN, inside the Loading* phase. Q72-L measures that this is the natural
+    SOURCE of the hrot.asset.needs.* token set rather than a competing vocabulary: it decides what a node
+    loads into memory, this document decides what bytes reach its disk beforehand.
 -->
 
 # Architect Question #72 — **Asset lifecycle and distribution**
@@ -385,6 +389,36 @@ flat. 🔒 With this ruling the gap is **no longer hypothetical**: ⛔ **the mom
 or any tree asset — into subfolders on the NAS, a flat copy silently drops everything below the top
 level.** ⭐ `DESIGN_Artifact_Staging` shipped the **single-file zip** case, which is unaffected; ⛔ **the
 tree case must not be used until the recursive walk exists.**
+
+### `Q72-L` — ⚠ **RAISED `2026-09-19` by the load-phase programme: the "needs" vocabulary ALREADY HAS A SOURCE**
+
+📐 **Measured after the cluster load-phase batch landed.** `DESIGN_Cluster_Load_Phase` §4 composes a
+per-role load chain from a **`RoleLoadRequirements`** declaration — *"which role needs the knowledge base /
+terrain / scenario entities, by measured consumer"* — owned by `DESIGN_Node_Roles_And_Policies` §3.2.
+⭐ And §4.1a is already RULED and BUILT: **"a role with no consumer does NOT load terrain."**
+
+⛔⛔ **That is the same question `Q72-A`/`Q72-B` answer, one layer down** — and two vocabularies for one
+question is exactly the duplication this codebase produces most.
+
+| layer | what it decides | scope |
+|---|---|---|
+| ⭐ **`RoleLoadRequirements`** *(BUILT)* | which role **LOADS which part into memory** on this node | in-process, at load time |
+| ⭐ **`hrot.asset.needs.*`** *(`Q72-B`, not built)* | which node needs the **BYTES staged to its disk** | cross-node, orchestrator-side, **before** load |
+
+⇒ ⭐⭐⭐ **They compose rather than compete — you cannot load what was never staged, and you must not stage
+what nothing loads.** ⇒ ⭐⭐ **LEAN: the token set is DERIVED from `RoleLoadRequirements`, not authored
+beside it.** 📐 The precedent is exact and one layer up: `AQ-70` §Q70-C derives **roles from tokens**;
+this derives **staging tokens from role requirements**. ⇒ **`Q72-B` may need no hand-maintained vocabulary
+at all.**
+
+⚠ **What would flip it:** a node that needs bytes it does **not** load — a **standby** or **cache-ahead**
+node. 📌 `DESIGN_Cluster_Load_Phase` §5.1 already names a *"future standby mode"* as out of scope, so
+🔒 **this is real but not yet.** ⭐ If it arrives, the token set becomes the superset and the requirement
+table one contributor to it — ⛔ which is a widening, not a redesign.
+
+⭐ **Corroboration for `Q72-A` worth recording:** §4.1a's *"a role with no consumer does NOT load terrain"*
+is the **intersection principle already ruled and BUILT** at the load layer. ⇒ `Q72-A`'s A2 is not a new
+idea to introduce; it is **the same idea, extended from loading to staging.**
 
 ## 4. NOT IN QUESTION — settled, and this document does not reopen it
 
