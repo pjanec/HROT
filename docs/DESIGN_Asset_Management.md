@@ -1,15 +1,19 @@
 <!--STATUS
 state: LIVE
-build-state: ✅ READY-TO-BUILD — all three increments (§8); W5 CLOSED 2026-09-19, so B is unblocked.
+build-state: ⭐ A and C are READY-TO-BUILD. ⚠ B is buildable ONLY WITH §7.3b (the author-subtraction) —
+  ⛔ B1/B2 without it MIRROR NAS ONTO THE AUTHOR'S OWN FOLDER. W5 CLOSED 2026-09-19; W6 (the explicit
+  refresh-from-NAS operation) is open and needs the user, but does NOT block B.
   Carries the INVENTORY (§1), a classDiagram (§3), two sequenceDiagrams (§4, §5) and a
   module-relationship graph TD (§6). Every decision here is RULED in Architect_Question_72 — including
   §7.3a's adapter, which the 2026-09-19 review forced and which AQ-72 now carries as Q72-M.
-updated: 2026-09-19 (REVISED after the backend session's review — six corrections, all re-measured)
+updated: 2026-09-19 (REVISED TWICE after the backend session's reviews — round 1: six corrections;
+  round 2: §7.3b's author-subtraction, the BaseFolder predicate, the merged AUTH/BRAIN box)
 current-answer: §2 is the model in one table (the three forms, the two directions) — ⭐ read its
   restore-at-unpack paragraph, it is what makes the one-predicate claim TRUE. §3-§6 are the structure.
   §7 is the WHY the diagrams cannot carry; ⭐ §7.3a is RULED and carries the whole LoadPart->AssetKind
-  map. §8 is the increment split. §9 is under-specified (W1-W4 live; W5 CLOSED).
-  ⛔ §HISTORY is what the review measured FALSE — never quote it.
+  map, and ⭐⭐ §7.3b is the AUTHOR-SUBTRACTION without which B destroys authored work on first load —
+  read them as one rule. §8 is the increment split. §9 is under-specified (W1-W4 + W6 live; W5 CLOSED).
+  ⛔ §HISTORY is what the two reviews measured FALSE — never quote it.
 stale-below: everything under `## ⛔ HISTORY`. ⛔ Six statements this document originally made are wrong;
   each is named there with what measured it false.
 known-rot: ⛔ §7.3's "derive from RoleLoadRequirements" is TRUE but INSUFFICIENT — read §7.3a with it,
@@ -222,6 +226,9 @@ sequenceDiagram
     SY->>NAS: same summary
     alt authoring node is AHEAD
         SY-->>U: WARN - unpublished changes, load continues
+    else authoring node is BEHIND
+        SY-->>U: WARN - NAS has newer, load continues
+        Note over U: no transfer - §7.3b subtracts authored kinds
     else named artifact missing or sync failed
         SY-->>TP: FAIL the load
     end
@@ -230,6 +237,11 @@ sequenceDiagram
 > **What the picture shows that prose hid:** the two arms end **differently on purpose** (`Q72-I`) — an
 > unpublished blueprint edit **warns**, a missing named artifact **fails**. ⭐ The probe returns a
 > **summary**, never a manifest, which is what keeps it cheap enough to run on every load.
+>
+> ⭐⭐ **THE BEHIND ARM IS NOT SYMMETRY FOR ITS OWN SAKE.** §7.3b subtracts authored kinds from the sync,
+> so an authoring host **never automatically receives anyone else's assets** ⇒ ⛔ without this arm, two
+> authoring Brain hosts diverge **silently**. ⭐ It warns and transfers **nothing** — the fix stays an
+> explicit user act (`§9-W6`), exactly as `Q72-I` chose for publishing.
 >
 > ⚠⚠ **The STATED LIMIT — the participant is `Authoring node (ONLINE)` and that word is load-bearing.**
 > §7.5's own justification for explicit publish is *"other nodes may be offline at authoring time"* ⇒
@@ -244,19 +256,21 @@ sequenceDiagram
 graph TD
     EXT["External tools (road nets, terrain components)"]
     NAS["NAS - THE MASTER"]
-    AUTH["Authoring host (editor or ANY CGF)"]
+    AUTH["Brain host that AUTHORS<br/>editor or ANY CGF - DefaultRole is Brain"]
     SY["AssetSyncService (orchestrator)"]
-    BRAIN["Brain nodes - behaviour assets as FILES"]
+    BRAIN["Brain host that does NOT author<br/>e.g. SimHost with Brain role"]
     MUSCLE["Muscle / Perception - terrain parts"]
     MAP["Map2D - knowledge base ONLY"]
     EXT -->|publishes directly| NAS
     AUTH -->|explicit publish only| NAS
     NAS --> SY
-    SY -->|needs-filtered| BRAIN
+    SY -->|"AI kinds + KnowledgeBase"| BRAIN
     SY -->|needs-filtered| MUSCLE
     SY -->|"KnowledgeBase only - NO terrain"| MAP
+    SY -.->|"AI kinds SUBTRACTED - it authors them"| AUTH
     AUTH -.->|"never node-to-node"| BRAIN
     style MAP fill:#eee,stroke:#999
+    style AUTH fill:#ffd,stroke:#c90
     style EXT fill:#dfd,stroke:#0a0
 ```
 
@@ -266,6 +280,12 @@ graph TD
 > (`RoleLoadRequirements.cs:34`, user: *"every ECS enable node should be able to create entities so every
 > needs the TKB loaded"*), while **terrain** is genuinely derived away — that host holds a
 > `RoadNetworkHolder` nothing on it reads (`:56-57`). ⇒ **the filter subtracts a part, never a node.**
+> ⛔⛔ **And the AUTHORING box is a BRAIN box** — an earlier version drew *"authoring host"* and *"brain
+> nodes"* as two populations; 📐 `CgfSubsystem.DefaultRole = NodeRole.Brain` makes them **the same hosts
+> by default** (see `## ⛔ HISTORY`). ⭐ That is why the yellow box has a **subtracting** dashed edge:
+> §7.3b — *a node is never an automatic sync target for a kind it authors* — and why the unsubtracted
+> drawing would have mirrored NAS **onto the folder the author is editing.**
+>
 > And authoring hosts **never** push to each other: the NAS is the only path, which is what makes
 > *"master source"* true rather than aspirational.
 >
@@ -320,7 +340,7 @@ carried the lean is kept below: it is the evidence, and a reader may push on a r
 |---|---|---|
 | `RoleLoadRequirements` is an **ordered execution list**, one `ILoadPartProvider` per part | ✅ `LoadPhaseChain.cs:97` composes a provider per required part | ✅ its own header: *"the ROLE declares the WHAT; the HOST supplies the HOW"* |
 | nothing in the chain loads behaviour assets | ✅ its 3 members are the whole enum | ✅ `DESIGN_Cluster_Load_Phase` §4.1b |
-| behaviour assets go to **every Brain host, as files** | ⛔ not yet built | ✅ 🔒 user, `AQ-72` §0a |
+| behaviour assets go to **every Brain host, as files** | ✅ the **reader** is built — `CgfSubsystem.cs:2078` (`BlueprintPeerSource`), `:2506` (`QuickReloadService`), `:2479` (`AiHotReloadCoordinator`); ⛔ only the DISTRIBUTION is missing | ✅ 🔒 user, `AQ-72` §0a |
 | the requirement table is owned **elsewhere** | — | ✅ `RoleLoadRequirements.cs:19-21` → `DESIGN_Node_Roles_And_Policies` §3.2 |
 
 ⇒ ⭐ **a `LoadPart → asset-kind` map (3 rows) owned by THIS design** — an *adapter between two existing
@@ -333,15 +353,67 @@ duplication §7.3 warns against; it is railed and it is stated here.
 | `LoadPart.KnowledgeBase` | the scenario's named **TKB artifact** |
 | `LoadPart.Terrain` | the **terrain definition** and its road graph |
 | `LoadPart.ScenarioEntities` | the **scenario** ⚠ *(already travels by the prefetch path — see `§9-W3`)* |
-| ⭐ **`NodeRole.Brain`**, not a `LoadPart` | **all AI asset kinds** — `Blueprint`, `BTree`, `Hsm`, `Blackboard`, `Utility` |
+| ⭐ **`NodeRole.Brain`**, not a `LoadPart` | ⭐⭐ **every kind whose catalog contributor exposes a non-null `BaseFolder`** — today `Blueprint`, `BTree`, `Hsm` |
+
+⛔⛔ **The brain row originally read *"all AI asset kinds — Blueprint, BTree, Hsm, Blackboard, Utility"*
+and that was WRONG** *(see `## ⛔ HISTORY`)*. 📐 `AssetRoots.AssetsRelative` (`:197-204`) resolves
+**three** kinds and **throws `ArgumentOutOfRangeException`** for `Blackboard`, `Utility` and `Scenario`:
+*"AssetKind.{kind} has no Assets root."* ⇒ ⭐ **there is nothing on disk to sync for those kinds.**
+
+⭐⭐⭐ **So the rule is stated as a PREDICATE, not a list** — *"a kind is syncable iff its contributor has a
+`BaseFolder`"*. 🔒 That is **zero maintenance**: a kind gaining a root becomes syncable with no edit here,
+and it is the **same** property `C2`'s probe already walks (§1 ⑤). ⛔ A hand-written list of three would
+rot the first time a fourth kind gains a root.
 
 ⚠ **What would flip the one-liner into a table:** a behaviour asset only SOME brain hosts need. ⭐ The
 adapter is where it would go — **a widening, not a redesign** (📄 `Q72-M`).
 
+### 7.3b ⛔⛔ THE SUBTRACTION THAT MAKES §7.3a SAFE — **a node is never an automatic sync target for a kind it AUTHORS**
+
+🔴 **Without this, the `Brain ⇒ file-rooted AI kinds` rule DESTROYS AUTHORED WORK on the first load.**
+📐 Measured — **every Brain host today is also an authoring host, and they are not two populations:**
+
+| | |
+|---|---|
+| `CgfSubsystem.DefaultRole = NodeRole.Brain` | `CgfSubsystem.cs:92` — ⭐ **the DEFAULT**, not a deployment choice |
+| the editor composes Brain too | `EditorSubsystem.cs:1451`; `CgfApplication.cs:207` |
+| and both read their AI assets from the **authoring** root | `CgfSubsystem.cs:2078` (`BlueprintPeerSource`), `:2506` (`QuickReloadService`); `EditorSubsystem.cs:1826/3950/4472` |
+
+⇒ ⛔⛔ **a NAS→node mirror of an AI kind lands on the folder the author is editing.** With `W4` = *delete*,
+a NAS never published to **wipes** local work on first load; with `W4` = *report*, it still **overwrites**
+every changed file — ⚠ **and §5's probe would then WARN *"you have unpublished changes"* about exactly the
+changes the sync had just destroyed.** 🔒 **Warn-then-clobber is the inverse of what `Q72-I` protects.**
+
+⭐⭐⭐ **The rule:** `B2` already builds `hrot.asset.authors.<kind>` ⇒ **subtract it from the needs set.**
+⭐ One predicate on a facility the plan builds anyway, and it makes the overlap harmless **by
+construction** rather than by deployment convention. ⭐ It also gives `hrot.asset.authors.*` a second
+reason to exist beyond *"nobody authors K is legal"*.
+
+⛔ **Rejected:** *land synced AI assets in the per-node staging root instead* — the CGF reader is
+`AssetRoots`, so they would be **invisible** there, and 🔒 *"to stay editable they need to be present as
+individual files"* ⇒ it needs a second root and a merge rule. · *rely on deployment never co-locating
+author and Brain* — `CgfSubsystem.DefaultRole` makes co-location **the default**.
+
+#### ⚠ The consequence, stated rather than hidden — **an authoring host never automatically receives ANYONE ELSE'S assets**
+
+⭐ **The rule is not vacuous** — a Brain host that is *not* an authoring host still receives everything:
+📐 `Hrot.SimHost` carries `NodeRole.Brain` (`NodeBootstrapper.cs:223/256`) and reads **no** `AssetRoots`.
+⛔ **But for a CGF or editor host it means divergence is possible and silent:** two authoring Brain hosts
+can run different behaviour trees, and §5's probe only warns when a node is **AHEAD** of NAS.
+
+⇒ ⭐⭐ **Close it in the probe, not in the sync:** `C2`/`C3` report **BEHIND as well as AHEAD** — a warning,
+never a transfer. ⭐ That costs one comparison, keeps the user in control, and is the same shape `Q72-I`
+already chose for the other direction. ⚠ **The mirror OPERATION** — *"refresh my authored kinds from
+NAS"*, explicit and user-triggered like `C4`'s publish — is **`§9-W6` and needs the user's nod**; ⛔ it is
+NOT assumed here.
+
 ⛔ **Rejected:** *add `LoadPart.BehaviorAssets`* — the chain would then require a provider **nobody
 implements**, making the table claim a load step that never runs (`R-133`: a fake must announce itself),
-and it edits a table this design does not own. · *a full role→kind table here* — that **is** the second
-vocabulary, and `Q72-L` exists to avoid it.
+and it edits a table this design does not own. ⭐⭐ **And the positive half of the same argument: the
+reader ALREADY EXISTS, outside the load chain** — `CgfSubsystem`'s `BlueprintPeerSource` /
+`QuickReloadService` / `AiHotReloadCoordinator` read these assets on their own schedule, ⇒ a `LoadPart`
+would model as a load step something that is **not one**. · *a full role→kind table here* — that **is**
+the second vocabulary, and `Q72-L` exists to avoid it.
 
 ### 7.4 Why subfolders are not an optimisation
 🔒 *"this is a way how **user organizes** the assets."* ⇒ the structure is **authored content**; losing it
@@ -392,6 +464,7 @@ increments before its first caller** and bills `A` as *"the enabler"* for someth
 | **W2** | whether the probe's summary is computed per call or cached on `ContributorChanged` | ⭐ implementer — ⑤ measured the walk is stat-only; start simple, cache only if measured slow |
 | **W3** | how a scenario participates in the probe, given ⑤'s `BaseFolder == null` for scenarios | ⭐ implementer. ⚠ Scenarios already travel by the prefetch path, so the likely answer is **they do not** — ⛔ but that must be stated, not assumed |
 | **W4** | ⭐⭐ whether a **removed** NAS entry **deletes** the node's copy, or is reported and left | ⭐ implementer, **stated and railed either way** — §3's three-set `Diff` makes the set available; ⛔ *"MIRROR"* is not testable until this is answered |
+| **W6** | ⭐ the **mirror of `C4`** — *"refresh my authored kinds from NAS"*, explicit and user-triggered | 🔴 **the USER — a NEW user-facing operation, so not assumed.** ⚠ §7.3b makes it the only way an authoring host takes someone else's published assets; ⛔ until it exists, `C3`'s BEHIND arm **warns and nothing more**, which is safe but leaves the author to resolve it by hand |
 | ~~**W5**~~ | ✅ **CLOSED `2026-09-19`** — the `LoadPart → AssetKind` adapter and `Brain ⇒ all AI kinds` | ✅ **the USER ruled it** (*"ok accepting your lean"*). 📄 **§7.3a carries the map; `Q72-M` carries the ruling.** ⇒ **`B1` is unblocked** |
 
 ## ⛔ HISTORY — **what the `2026-09-19` review measured FALSE, kept so nobody re-quotes it**
@@ -406,4 +479,13 @@ against source by the coordinator** before being folded in. ⛔ **None of these 
 | §4: `TransitionPlanner` drawn as the actor calling the sync | it only **enqueues** an `OperationStep` (`TransitionPlanner.cs:150`); `L8` parks the transition inside `ClusterMaster` ⇒ a parallel path would **hang** until the liveness bound |
 | §3: `Diff(other) → AssetManifestEntry[]`, one-sided | cannot express *"on the node, absent on NAS"* ⇒ orphans forever, and *"MIRROR"* untestable |
 | §8/①②: the `FileManifestEntry` fields placed in increment **A** | that DTO is **node→NAS**; its first consumer is publish ⇒ moved to **C** |
-| §7.3: *"derive the tokens from `RoleLoadRequirements`"*, stated as sufficient | `LoadPart` ∩ `AssetKind` = **∅**, and behaviour assets have no `LoadPart` ⇒ §7.3a is the open amendment |
+| §7.3: *"derive the tokens from `RoleLoadRequirements`"*, stated as sufficient | `LoadPart` ∩ `AssetKind` = **∅**, and behaviour assets have no `LoadPart` ⇒ §7.3a is the amendment |
+
+### ⛔ Round 2 — `2026-09-19`, measured by the same review
+
+| ⛔ the original text | 📐 what measured it false |
+|---|---|
+| §6 drew **`AUTH` (authoring host)** and **`BRAIN` (brain nodes)** as two populations, with no edge between the sync and `AUTH` | 🔴 **they are the SAME hosts**: `CgfSubsystem.DefaultRole = NodeRole.Brain` (`:92`), and both CGF and editor read AI assets from the **authoring** root (`CgfSubsystem.cs:2078/2506`). ⇒ the mirror would have landed **on the folder the author is editing**, and §5's probe would have warned about changes it had just destroyed. ⭐ §7.3b is the subtraction that fixes it |
+| §7.3a's brain row: *"all AI asset kinds — `Blueprint`, `BTree`, `Hsm`, `Blackboard`, `Utility`"* | `AssetRoots.AssetsRelative` (`:197-204`) resolves **three** and **throws** for `Blackboard`/`Utility`/`Scenario` — *"has no Assets root"*. ⇒ nothing on disk to sync for two of the five. ⭐ Now a **predicate** (*contributor has a `BaseFolder`*), not a list |
+| §7.3a's claim-table row *"behaviour assets go to every Brain host, as files"* marked **⛔ not yet built** | ⭐ the **distribution** is unbuilt; the **reader** is measured — `CgfSubsystem.cs:2078/2506/2479`. ⇒ the row is ✅, and §4.1a's *load-nothing-where-nothing-reads-it* test **passes** rather than being waived |
+| `A3`: *"land the archive rail red-and-skipped with the reason"* | ⛔ gate contract row 6 — **a new skip is a finding, not a fix** ⇒ batch ① would file a finding against itself. ⭐ The rail moved to `B4`, beside the fix |

@@ -458,6 +458,43 @@ synced to every brain role host… as individual files"* (§0a). ⇒ ⚠ **`Q72-
 table and the adapter is where it goes — **a widening, not a redesign**, exactly as `Q72-L` says of standby
 nodes.
 
+### ⛔⛔ `Q72-M` AMENDMENT `2026-09-19` — **the ruling as first written DESTROYS AUTHORED WORK. Two corrections.**
+
+📌 Found by the backend session's **second** review, both re-measured at the coordinator. ⚠ **Neither
+changes the ruling's shape — but the rule is unsafe without the first and wrong without the second.**
+
+#### ① 🔴 **A node is NEVER an automatic sync target for a kind it AUTHORS**
+
+📐 **`Brain` and *"authoring host"* are not two populations — they are the same hosts by default:**
+`CgfSubsystem.DefaultRole = NodeRole.Brain` (`:92`), the editor composes `Brain` too
+(`EditorSubsystem.cs:1451`), and **both read their AI assets from the AUTHORING root**
+(`CgfSubsystem.cs:2078` `BlueprintPeerSource`, `:2506` `QuickReloadService`;
+`EditorSubsystem.cs:1826/3950/4472`).
+
+⇒ ⛔⛔ *"`Brain` ⇒ the AI kinds"* would mirror NAS **onto the folder the author is editing**: a NAS never
+published to **wipes** local work *(delete)* or **overwrites** every changed file *(report)* — ⚠ **and the
+`Q72-I` probe would then warn *"you have unpublished changes"* about changes the sync had just
+destroyed.** 🔒 **Warn-then-clobber is the inverse of what `Q72-I` exists to protect.**
+
+⭐ **The fix is one predicate on a facility `Q72-J` already requires:** subtract
+`hrot.asset.authors.<kind>` from the needs set. ⭐ It is **not vacuous** — `Hrot.SimHost` carries `Brain`
+(`NodeBootstrapper.cs:223/256`) and reads no `AssetRoots`, so a non-authoring Brain host still receives
+everything.
+
+⚠ **The consequence, stated:** an authoring host then **never automatically receives anyone else's**
+assets ⇒ two authoring Brain hosts can diverge **silently**. ⭐ Closed in the **probe**, not the sync:
+report **BEHIND as well as AHEAD**, warn, transfer nothing. ⚠ The mirror **operation** *(an explicit
+"refresh from NAS", the twin of `Q72-I`'s publish)* is **open and needs the user** —
+`DESIGN_Asset_Management` §9-W6.
+
+#### ② ⛔ *"all AI asset kinds"* names two kinds that have no files
+
+📐 `AssetRoots.AssetsRelative` (`:197-204`) resolves **`Blueprint`, `BTree`, `Hsm`** and **throws
+`ArgumentOutOfRangeException`** for `Blackboard`, `Utility` and `Scenario` — *"AssetKind.{kind} has no
+Assets root."* ⇒ ⭐ **the rule is a PREDICATE — *"a kind is syncable iff its catalog contributor exposes a
+non-null `BaseFolder`"*** — ⛔ **never a hand-written list**, which would rot the first time a fourth kind
+gains a root. 🔒 It is also the **same** property the `Q72-I` probe already walks.
+
 ## 4. NOT IN QUESTION — settled, and this document does not reopen it
 
 | | |
