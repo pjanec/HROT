@@ -477,15 +477,26 @@ published to **wipes** local work *(delete)* or **overwrites** every changed fil
 destroyed.** 🔒 **Warn-then-clobber is the inverse of what `Q72-I` exists to protect.**
 
 ⭐ **The fix is one predicate on a facility `Q72-J` already requires:** subtract
-`hrot.asset.authors.<kind>` from the needs set. ⭐ It is **not vacuous** — `Hrot.SimHost` carries `Brain`
-(`NodeBootstrapper.cs:223/256`) and reads no `AssetRoots`, so a non-authoring Brain host still receives
-everything.
+`hrot.asset.authors.<kind>` from the needs set — ⛔⛔ **but in THREE clauses, because clause ① alone is
+both vacuous and over-broad** *(round-3 review, `2026-09-19`)*:
 
-⚠ **The consequence, stated:** an authoring host then **never automatically receives anyone else's**
-assets ⇒ two authoring Brain hosts can diverge **silently**. ⭐ Closed in the **probe**, not the sync:
-report **BEHIND as well as AHEAD**, warn, transfer nothing. ⚠ The mirror **operation** *(an explicit
-"refresh from NAS", the twin of `Q72-I`'s publish)* is **open and needs the user** —
-`DESIGN_Asset_Management` §9-W6.
+| # | clause | what it prevents |
+|---|---|---|
+| ① | subtract the authored kind | the **clobber** |
+| ② | ⭐⭐ the token is **ADVERTISED BY CONFIGURATION** — ⛔ never host-typed, never *"this host has an `AssetRoots`"* | 🔴 **the VACUITY.** 📐 **There is NO Brain host today that is not an authoring host:** `SimHostApp.DefaultRole` = `MuscleGround\|Perception\|NavigationSolver` (`:182-183`), CLI fallback `MuscleGround\|Perception` (`:255`), and `SimHostNodeBootstrapper.cs:415` reads `Brain` as *"this run is the CGF"*. ⇒ a host-typed token subtracts from **every** Brain host and §0a is met by **nobody** |
+| ③ | ⭐⭐⭐ for an authored kind the sync is **ADD-ONLY** — never overwrite, never delete | ⭐ it makes ② **not load-bearing for safety**: a misconfigured authoring station then goes **stale (reported)** rather than **losing work (silent)**, and **no deployment shape makes the feature vacuous** |
+| ⛔ **BOUND** | the subtraction touches **ONLY** kinds arriving by the `Brain`/`BaseFolder` rule — ⛔ **never a `LoadPart`-derived kind** | 🔴 the editor **authors scenarios** (`EditorSubsystem.cs:3915`) and is `Brain` ⇒ unbounded it subtracts `LoadPart.ScenarioEntities` from itself and `ScenarioLoadStep.cs:122` throws. 🔒 **No authorship claim may override a load requirement** — and an AI asset has no chain step, which is why it is the only safe thing to subtract |
+
+⛔⛔ **CORRECTION, and it was the coordinator's:** an earlier version of this amendment argued non-vacuity
+from *"`Hrot.SimHost` carries `Brain` (`NodeBootstrapper.cs:223/256`)"*. 🔴 **Those lines are
+`if (role.HasFlag(Brain))` GUARDS inside a generic bootstrapper — a guard is not a declaration.**
+
+⚠ **The consequence, stated:** an authoring host **never automatically receives an UPDATE to a file it
+already holds** ⇒ two authoring Brain hosts can diverge **silently**. ⭐ Closed in the **probe**, not the
+sync: report **BEHIND as well as AHEAD**, warn, overwrite nothing. ⚠ The mirror **operation** *(an
+explicit "refresh from NAS", the twin of `Q72-I`'s publish)* is **open and needs the user** —
+`DESIGN_Asset_Management` §9-W6. ⚠⚠ **And the deployment consequence, said out loud:** where **every**
+Brain host advertises authorship, there is **no automatic refresh of already-held AI assets, by design.**
 
 #### ② ⛔ *"all AI asset kinds"* names two kinds that have no files
 

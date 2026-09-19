@@ -228,7 +228,7 @@ sequenceDiagram
         SY-->>U: WARN - unpublished changes, load continues
     else authoring node is BEHIND
         SY-->>U: WARN - NAS has newer, load continues
-        Note over U: no transfer - §7.3b subtracts authored kinds
+        Note over U: NO OVERWRITE - §7.3b clause 3 is add-only<br/>an update waits for an explicit refresh (W6)
     else named artifact missing or sync failed
         SY-->>TP: FAIL the load
     end
@@ -238,10 +238,10 @@ sequenceDiagram
 > unpublished blueprint edit **warns**, a missing named artifact **fails**. ⭐ The probe returns a
 > **summary**, never a manifest, which is what keeps it cheap enough to run on every load.
 >
-> ⭐⭐ **THE BEHIND ARM IS NOT SYMMETRY FOR ITS OWN SAKE.** §7.3b subtracts authored kinds from the sync,
-> so an authoring host **never automatically receives anyone else's assets** ⇒ ⛔ without this arm, two
-> authoring Brain hosts diverge **silently**. ⭐ It warns and transfers **nothing** — the fix stays an
-> explicit user act (`§9-W6`), exactly as `Q72-I` chose for publishing.
+> ⭐⭐ **THE BEHIND ARM IS NOT SYMMETRY FOR ITS OWN SAKE.** §7.3b clause ③ makes the sync **add-only** for
+> a kind the node authors, so an authoring host **never automatically receives an UPDATE to a file it
+> already holds** ⇒ ⛔ without this arm, two authoring Brain hosts diverge **silently**. ⭐ It warns and
+> **overwrites nothing** — the fix stays an explicit user act (`§9-W6`), as `Q72-I` chose for publishing.
 >
 > ⚠⚠ **The STATED LIMIT — the participant is `Authoring node (ONLINE)` and that word is load-bearing.**
 > §7.5's own justification for explicit publish is *"other nodes may be offline at authoring time"* ⇒
@@ -267,7 +267,7 @@ graph TD
     SY -->|"AI kinds + KnowledgeBase"| BRAIN
     SY -->|needs-filtered| MUSCLE
     SY -->|"KnowledgeBase only - NO terrain"| MAP
-    SY -.->|"AI kinds SUBTRACTED - it authors them"| AUTH
+    SY -.->|"AI kinds ADD-ONLY - it authors them"| AUTH
     AUTH -.->|"never node-to-node"| BRAIN
     style MAP fill:#eee,stroke:#999
     style AUTH fill:#ffd,stroke:#c90
@@ -384,22 +384,68 @@ a NAS never published to **wipes** local work on first load; with `W4` = *report
 every changed file — ⚠ **and §5's probe would then WARN *"you have unpublished changes"* about exactly the
 changes the sync had just destroyed.** 🔒 **Warn-then-clobber is the inverse of what `Q72-I` protects.**
 
-⭐⭐⭐ **The rule:** `B2` already builds `hrot.asset.authors.<kind>` ⇒ **subtract it from the needs set.**
-⭐ One predicate on a facility the plan builds anyway, and it makes the overlap harmless **by
-construction** rather than by deployment convention. ⭐ It also gives `hrot.asset.authors.*` a second
-reason to exist beyond *"nobody authors K is legal"*.
+⭐⭐⭐ **The rule — THREE clauses, and the last two are what keep it from being useless or harmful:**
+
+| # | clause | why it cannot be dropped |
+|---|---|---|
+| **①** | `B2` builds `hrot.asset.authors.<kind>`; **subtract it from the needs set** | the overlap becomes harmless **by construction**, not by deployment convention |
+| **②** | ⭐⭐ **the token is ADVERTISED BY CONFIGURATION, never derived from host type or from *"this host has an `AssetRoots`"*** | 🔴 **every Brain host that exists today is an authoring host** *(see the corrected measurement below)* ⇒ a host-typed token subtracts the AI kinds from **all of them** and the rule **delivers to nobody**. `R-137`: unify the code, **parameterise the behaviour** — a CGF deployed as a runtime brain advertises none and **receives** |
+| **③** | ⭐⭐⭐ **for a kind it DOES author, the sync degrades to ADD-ONLY — never overwrite, never delete** | ⛔ *"skip the kind entirely"* is safe but leaves an authoring station receiving **nothing, ever**. ⭐ Adding a file the node does not have **cannot destroy work**, so the author still gets other people's **new** assets automatically; only **updates** to a file it already holds wait for an explicit refresh |
+
+⇒ ⭐⭐ **Why ③ and not clause ② alone.** ② makes correctness depend on a **deployment setting**, and a
+misconfigured authoring station then **loses work silently.** ③ is correct **whatever the configuration
+says**: the worst case becomes *"an authoring host is missing updates"* — **staleness, and the probe
+reports it** — instead of *"an authoring host lost its unpublished assets"*. 🔒 **A rule whose failure
+mode is a warning beats a rule whose failure mode is data loss**, and ② + ③ together mean **no deployment
+shape makes the feature vacuous.**
+
+⭐ It also gives `hrot.asset.authors.*` a second reason to exist beyond *"nobody authors K is legal"*.
+
+#### ⛔⛔ AND THE SUBTRACTION IS BOUNDED — **it never touches a `LoadPart`-derived kind**
+
+⛔ Stated unbounded over the kind space, clause ① reaches the §7.3a adapter's own kinds — **including
+`Scenario`, which the editor is the primary author of** (`ScenarioNewAssetService.Kind => AssetKind.Scenario`,
+`EditorSubsystem.cs:3915`; CGF too, `CgfSubsystem.cs:2431`). ⇒ the editor *(which is `NodeRole.Brain`)*
+would subtract `LoadPart.ScenarioEntities` **from its own needs** and `ScenarioLoadStep.cs:122` throws
+*"No scenario file found for '{id}'"*. ⚠ Same shape for a terrain or TKB authorship claim.
+
+⇒ ⭐⭐⭐ **the subtraction applies ONLY to kinds that arrive by the `Brain` / `BaseFolder` rule — NEVER to a
+kind derived from a `LoadPart`.** 🔒 **The reason is principled, not a carve-out:** a `LoadPart` means
+*the load chain fails loudly without these bytes*, so **no authorship claim may override a load
+requirement**; an AI asset has **no** chain step — which is §7.3a's own argument for the adapter — and
+that is exactly what makes it the only safe thing to subtract.
 
 ⛔ **Rejected:** *land synced AI assets in the per-node staging root instead* — the CGF reader is
 `AssetRoots`, so they would be **invisible** there, and 🔒 *"to stay editable they need to be present as
 individual files"* ⇒ it needs a second root and a merge rule. · *rely on deployment never co-locating
 author and Brain* — `CgfSubsystem.DefaultRole` makes co-location **the default**.
 
-#### ⚠ The consequence, stated rather than hidden — **an authoring host never automatically receives ANYONE ELSE'S assets**
+#### ⛔⛔ THE CORRECTED MEASUREMENT — **there is NO Brain host today that is not an authoring host**
 
-⭐ **The rule is not vacuous** — a Brain host that is *not* an authoring host still receives everything:
-📐 `Hrot.SimHost` carries `NodeRole.Brain` (`NodeBootstrapper.cs:223/256`) and reads **no** `AssetRoots`.
-⛔ **But for a CGF or editor host it means divergence is possible and silent:** two authoring Brain hosts
-can run different behaviour trees, and §5's probe only warns when a node is **AHEAD** of NAS.
+⛔ An earlier version of this section claimed *"the rule is not vacuous — `Hrot.SimHost` carries
+`NodeRole.Brain` (`NodeBootstrapper.cs:223/256`)"*. 🔴 **That is FALSE and the error is instructive:**
+those lines are `if (role.HasFlag(NodeRole.Brain))` **guards inside a generic bootstrapper** — ⛔ **a
+guard is not a declaration.** 📐 What SimHost actually composes:
+
+| | |
+|---|---|
+| `SimHostApp.DefaultRole` | `MuscleGround \| Perception \| NavigationSolver` (`SimHostApp.cs:182-183`) — ⛔ **no `Brain`** |
+| the CLI fallback | `MuscleGround \| Perception` (`:255`) |
+| and how the code READS the flag | `SimHostNodeBootstrapper.cs:415`: `_role.HasFlag(NodeRole.Brain) ? "Hrot.CGF" : "Hrot.SimHost"` ⇒ ⭐ **`Brain` on SimHost MEANS *"this run is the CGF"*** |
+
+⚠ **Stated fairly:** `--role Brain` is *parseable*, so it is not impossible — ⛔ but it is not the
+default, not a deployed host family, and such a run **identifies itself as a CGF**. ⇒ **it cannot carry a
+non-vacuity argument**, and clauses ② and ③ above exist precisely because it cannot.
+
+#### ⚠ The consequence, stated rather than hidden — **an authoring host never automatically receives UPDATES to assets it already holds**
+
+⛔ Under clause ③ it *does* receive brand-new ones. ⛔ **But divergence on a CHANGED file is still possible
+and silent:** two authoring Brain hosts can run different versions of the same behaviour tree, and §5's
+probe only warned when a node was **AHEAD** of NAS.
+
+⚠⚠ **And the deployment consequence, said out loud so nobody files it as a bug:** in a deployment where
+**every** Brain host advertises authorship, there is **no automatic refresh of already-held AI assets —
+by design.** New assets still arrive; updates wait for the probe's warning and an explicit act.
 
 ⇒ ⭐⭐ **Close it in the probe, not in the sync:** `C2`/`C3` report **BEHIND as well as AHEAD** — a warning,
 never a transfer. ⭐ That costs one comparison, keeps the user in control, and is the same shape `Q72-I`
@@ -464,7 +510,7 @@ increments before its first caller** and bills `A` as *"the enabler"* for someth
 | **W2** | whether the probe's summary is computed per call or cached on `ContributorChanged` | ⭐ implementer — ⑤ measured the walk is stat-only; start simple, cache only if measured slow |
 | **W3** | how a scenario participates in the probe, given ⑤'s `BaseFolder == null` for scenarios | ⭐ implementer. ⚠ Scenarios already travel by the prefetch path, so the likely answer is **they do not** — ⛔ but that must be stated, not assumed |
 | **W4** | ⭐⭐ whether a **removed** NAS entry **deletes** the node's copy, or is reported and left | ⭐ implementer, **stated and railed either way** — §3's three-set `Diff` makes the set available; ⛔ *"MIRROR"* is not testable until this is answered |
-| **W6** | ⭐ the **mirror of `C4`** — *"refresh my authored kinds from NAS"*, explicit and user-triggered | 🔴 **the USER — a NEW user-facing operation, so not assumed.** ⚠ §7.3b makes it the only way an authoring host takes someone else's published assets; ⛔ until it exists, `C3`'s BEHIND arm **warns and nothing more**, which is safe but leaves the author to resolve it by hand |
+| **W6** | ⭐⭐ the **mirror of `C4`** — *"refresh my authored kinds from NAS"*, explicit and user-triggered | 🔴 **the USER — a NEW user-facing operation, so not assumed.** ⛔⛔ **It is COUPLED to §7.3b, not a convenience:** clause ③ delivers new assets but **never an update to a file the author already holds** ⇒ **`W6` is the ONLY inbound route for those bytes on an authoring station.** ⭐ Without it `C3`'s BEHIND arm can tell an author they are stale while offering **nothing to do about it**. ⭐ **Lean: YES, as `C5` in increment C** — same machinery as `C4` reversed, and the BEHIND arm is exactly its trigger. ⛔ It must never become automatic (`Q72-I`) |
 | ~~**W5**~~ | ✅ **CLOSED `2026-09-19`** — the `LoadPart → AssetKind` adapter and `Brain ⇒ all AI kinds` | ✅ **the USER ruled it** (*"ok accepting your lean"*). 📄 **§7.3a carries the map; `Q72-M` carries the ruling.** ⇒ **`B1` is unblocked** |
 
 ## ⛔ HISTORY — **what the `2026-09-19` review measured FALSE, kept so nobody re-quotes it**
@@ -489,3 +535,10 @@ against source by the coordinator** before being folded in. ⛔ **None of these 
 | §7.3a's brain row: *"all AI asset kinds — `Blueprint`, `BTree`, `Hsm`, `Blackboard`, `Utility`"* | `AssetRoots.AssetsRelative` (`:197-204`) resolves **three** and **throws** for `Blackboard`/`Utility`/`Scenario` — *"has no Assets root"*. ⇒ nothing on disk to sync for two of the five. ⭐ Now a **predicate** (*contributor has a `BaseFolder`*), not a list |
 | §7.3a's claim-table row *"behaviour assets go to every Brain host, as files"* marked **⛔ not yet built** | ⭐ the **distribution** is unbuilt; the **reader** is measured — `CgfSubsystem.cs:2078/2506/2479`. ⇒ the row is ✅, and §4.1a's *load-nothing-where-nothing-reads-it* test **passes** rather than being waived |
 | `A3`: *"land the archive rail red-and-skipped with the reason"* | ⛔ gate contract row 6 — **a new skip is a finding, not a fix** ⇒ batch ① would file a finding against itself. ⭐ The rail moved to `B4`, beside the fix |
+
+### ⛔ Round 3 — `2026-09-19`, on §7.3b itself
+
+| ⛔ the original text | 📐 what measured it false |
+|---|---|
+| §7.3b: *"the rule is not vacuous — `Hrot.SimHost` carries `NodeRole.Brain` (`NodeBootstrapper.cs:223/256`)"* | 🔴 **those are `if (role.HasFlag(Brain))` GUARDS, not a declaration.** `SimHostApp.DefaultRole` = `MuscleGround\|Perception\|NavigationSolver` (`:182-183`), CLI fallback `MuscleGround\|Perception` (`:255`), and `SimHostNodeBootstrapper.cs:415` treats `Brain` as *"this run is the CGF"*. ⇒ **every Brain host today IS an authoring host**, so the subtraction as written delivered to **nobody** and cancelled the feature silently. ⭐ Fixed by clauses ② (configured) + ③ (add-only) |
+| §7.3b: *"a node is never a sync target for a kind it authors"*, **unbounded over kinds** | ⛔ the editor authors **scenarios** (`EditorSubsystem.cs:3915`) and is `NodeRole.Brain` ⇒ it would subtract `LoadPart.ScenarioEntities` from itself and `ScenarioLoadStep.cs:122` throws *"No scenario file found"*. ⭐ Now bounded: **never a `LoadPart`-derived kind** |
