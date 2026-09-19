@@ -4,15 +4,18 @@ build-state: OPEN — a decision document, NOT buildable. ⛔ Nothing here is di
   carries a recommended lean for the user to approve or redirect (the "I analyse and SUGGEST, the user
   APPROVES" rule). ⚠ Number 72 taken as the next free across ALL active branches (rule 3a; 67-71 in use).
 updated: 2026-09-19
-current-answer: ⭐⭐ ROUND 1 (Q72-A..G) and Q72-H are RULED — see §4a and §3a. ⭐⭐⭐ WHAT IS STILL OPEN:
-  Q72-H1 (don't re-compress already-compressed entries — lean H1a, rules pick the COMPRESSION LEVEL not
-  inclusion), Q72-I's warn-vs-fail half, and Q72-J. §3a's THREE-FORMS rule is the load-bearing content:
-  NAS form == node form always, and freshness is keyed on the at-rest per-file manifest, never on the
-  transport archive. §1 is the measured INVENTORY, §5b names the two things still unmeasured.
+current-answer: ⭐⭐ RULED: Q72-A..G (§4a), Q72-H and Q72-H1 (§3a). ⭐⭐⭐ STILL OPEN — Q72-I's warn-vs-fail
+  half, and Q72-J. ⭐⭐ The load-bearing content is §3a: the THREE FORMS (NAS form == node form always;
+  freshness keyed on the at-rest per-file manifest, NEVER on the transport) and the transport PARTITION
+  (big/pre-compressed parts travel standalone, the rest as one archive). ⚠⚠ READ §5c BEFORE PLANNING:
+  the NAS half of the manifest is entirely NEW CODE, and it also means the in-flight artifact-staging
+  slice does not handle a TKB that lives on NAS as a file TREE.
 stale-below: nothing — new document.
 known-rot: nothing yet.
 known-conflict: none. ⚠ DESIGN_Artifact_Staging.md is IN FLIGHT as a dispatched batch and is deliberately
-  a subset of this picture; §4 records what it settles so this document does not reopen it.
+  a subset of this picture; §4 records what it settles so this document does not reopen it. ⚠⚠ §5c records
+  a measured LIMIT of that slice (PrefetchScenarioAsync is flat, so the TKB tree form is not covered) —
+  in scope HERE, not a defect there.
 related-designs:
   - docs/DESIGN_Artifact_Staging.md — the TKB slice, DISPATCHED 2026-09-18. It owns the NAS->node push for
     ONE artifact kind with a (length, mtime) skip. This document owns the general case it is a subset of.
@@ -254,24 +257,40 @@ form, the per-file `(relative path, length, mtime)` manifest of §3a compares li
 | **unpack on arrival so the node mirrors NAS** | ⭐⭐ **new, and it is what makes the ruling true** |
 | ⛔ **never change the at-rest form** | the archive exists only between the two disks |
 
-#### `Q72-H1` — ⚠ **STILL OPEN: don't re-compress what is already compressed**
+#### `Q72-H1` — ✅ **RULED `2026-09-19` — PARTITION the tree; do not force everything into one archive**
 
-> 🔒 **User:** *"transport packing should avoid repacking big already compressed archives (maybe some
-> path/name/extension regex based rules for where to avoid repacking?)"*
+> 🔒 **User:** *"avoiding re-archiving is **not purely CPU concern**; terrain files might be **huge hundred
+> GB files** and forcing them to be archived with thousands accompanying smaller files just to get a single
+> zip for transport is **waste and may hit disk size limits as well (unzipping)**, rather **transfer
+> prepackaged big parts as standalone files and package the rest to another archive**."*
 
-📐 **The goal being protected is FILE COUNT, not bytes** — 🔒 *"to reduce the number of files."* ⇒ ⭐⭐ that
-distinction decides the design:
+⛔⛔ **MY LEAN `H1a` WAS WRONG, and the reason I got it wrong is worth recording.** 📐 I framed the cost of
+re-compression as **CPU only**, and on that framing "keep the big file inside the container, just stored"
+is strictly better because it preserves the file-count win. 🔴 **I never considered the DISK FOOTPRINT.**
+⇒ a 100 GB member makes the archive 100 GB+, and **unpacking needs the size twice over** — which can
+simply fail. ⚠ **A cost model that omits a whole resource is not a lean, it is a guess with a table around
+it.**
 
-| option | ⭐ |
+⭐⭐⭐ **THE RULING — the transport payload is a PARTITION, not one container:**
+
+| partition | what goes in it | ⭐ why |
+|---|---|---|
+| ⭐ **standalone parts** | entries matching the **size** and/or **already-compressed** rules — big `.zip`/`.pak`/heightmaps/terrain blobs | ⭐⭐ copied **as files**, exactly as they are. ⛔ Never packed, never unpacked, **no 2× disk**, no wasted CPU |
+| ⭐ **one archive for the rest** | the thousands of small files | ⭐⭐ this is where the **file-count** win actually lives, and it is untouched |
+
+⇒ ⭐⭐ **Both goals are met, and they were never in tension** — ⚠ **I had assumed they were**, which is what
+produced the false choice between H1a and H1b. 📌 A tree of *"one 100 GB heightmap + 3 000 small files"*
+becomes **1 standalone file + 1 archive = 2 transfers**, not 3 001 and not one 100 GB zip.
+
+| ⭐ the rule shape | |
 |---|---|
-| ⭐⭐ **H1a — rules select the COMPRESSION LEVEL, not inclusion** *(lean)* | a matched entry is added to the archive **stored (uncompressed)**; everything else deflates. ⭐⭐⭐ **The file-count goal is fully preserved** — the big `.zip`/`.pak`/`.dds` still travels inside the one container — and the wasted CPU is gone. ⭐ `ZipArchive` supports per-entry `CompressionLevel.NoCompression` |
-| **H1b — rules EXCLUDE matched files from the archive; copy them separately** | ⛔⛔ **defeats the purpose for exactly the worst files**: the big ones go back to being individual transfers, which is the many-file problem the packing exists to solve |
-| **H1c — no rules; always deflate** | ⚠ wastes CPU proportional to the already-compressed payload, on **every** publish |
+| **selection is by SIZE and by extension/path regex** | 🔒 *"path/name/extension regex based rules"* + a size threshold. ⭐ Either match ⇒ standalone |
+| ⭐ **the partition is invisible on both disks** | 🔒 `Q72-H`: NAS form == node form. The node ends up with the same tree either way — ⛔ the partition exists only on the wire |
+| ⭐ **freshness is unaffected** | §3a keys on the **per-file at-rest manifest**, so a file being standalone or archived changes nothing about the skip |
 
-⭐⭐ **Lean H1a**, with the rule expressed as **extension + path regex**, configurable, defaulting to the
-usual suspects *(`.zip .7z .rar .gz .pak .dds .ktx .basis .mp4 .ogg`)*. ⚠ **What would flip it:** if
-`ZipArchive`'s stored-entry path turns out to cost a full re-read of a multi-GB file anyway, then for very
-large entries H1b's separate copy is cheaper — ⛔ **unmeasured**, and it only matters above some size.
+⚠ **What remains genuinely open:** the default size threshold, and whether a *"stored in archive"* level is
+still worth having for **medium** already-compressed files that are below the size threshold. ⭐ My lean:
+**no** — one rule (standalone) is simpler than two, and a medium compressed file costs little either way.
 
 ### `Q72-I` — **the publish negotiation: when does node→NAS sync happen?**
 
@@ -368,8 +387,27 @@ are **two symmetric token vocabularies over the same facility** (`hrot.asset.aut
 
 | # | what | decides |
 |---|---|---|
-| **A** | whether `ZipArchive`'s **stored** (uncompressed) entry path still costs a full re-read for a multi-GB file | `Q72-H1`'s "what would flip it" — ⭐ only matters above some size, and only chooses between H1a and H1b **for the largest entries** |
-| **B** | whether anything today can **enumerate a NAS asset tree** at all, or whether the NAS side of the manifest is also new code | sizes §3a's manifest rule on the **NAS** side. 📐 I measured the NODE side (`BaseFolder`); ⛔ **I did not measure the NAS side** |
+| **A** | ✅ **MOOT.** `Q72-H1`'s ruling means a big entry is **never put in an archive at all**, so the stored-entry cost never arises | — |
+| **B** | ✅ **MEASURED `2026-09-19` — and it is bigger than I implied.** See §5c | it materially sizes the first increment |
 
-⛔ **Both are marked unmeasured rather than asserted.** ⭐ **B** is the one that could change the size of the
-first increment, so it is the one I would measure before any plan is written.
+### 5c. 📐 THE NAS SIDE, MEASURED — **it is entirely new code**
+
+| # | measured | where |
+|---|---|---|
+| ① | **every existing scan is ONE LEVEL DEEP** — `Directory.GetDirectories(root)` then `GetFiles(d, …)`, ⛔ **no `AllDirectories` anywhere** | `ScanLocalScenarios:440`, `ScanLocalExercises:459`, `ScanNasExercises:484` |
+| ② | they return **identities only** — a scenario NAME, an `ExerciseInventoryItem` — ⛔ **never per-file length or mtime** | same |
+| ③ | `PrefetchScenarioAsync` copies with **`Directory.GetFiles(sourceDir)` — FLAT** | `:244` |
+| ④ | ⛔ **nothing enumerates a NAS asset tree for Blueprint/BTree/Hsm at all.** The only asset-ish reader is a **ledger directory** of `*.json` | `AssetInventoryProcessManager.cs:152` |
+
+⇒ ⭐⭐⭐ **VERDICT: the NAS half of §3a's manifest is NEW CODE — there is no recursive enumeration in the
+orchestrator at all, and no NAS notion of an asset tree.** ⚠ This is the opposite of the node side, where
+`BaseFolder` handed us the directory for free. ⇒ **the first increment is larger than the node-side
+measurement alone suggested**, and this is the number I would put in front of any plan.
+
+⚠⚠ **AND A CONSEQUENCE FOR THE BATCH ALREADY IN FLIGHT, worth recording so nobody assumes otherwise:**
+📐 ③ means `PrefetchScenarioAsync` is **flat**. ⇒ `DESIGN_Artifact_Staging` handles the TKB **zip** form
+correctly *(one file)*, ⛔ **but it does NOT handle a TKB that lives on NAS as a file TREE** — a nested
+tree would be silently **partially** copied. ⭐ That is **in scope for this document, not a defect of that
+slice**, which never claimed the tree form. 🔒 It becomes real the day someone puts a raw TKB directory on
+the NAS — and `Q72-H`'s *"NAS form == node form"* ruling is exactly what makes that legal, so **the gap
+must close before the tree form is used.**
