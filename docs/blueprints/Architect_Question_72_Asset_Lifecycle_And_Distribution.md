@@ -3,10 +3,11 @@ state: LIVE
 build-state: OPEN — a decision document, NOT buildable. ⛔ Nothing here is dispatched. Every sub-question
   carries a recommended lean for the user to approve or redirect (the "I analyse and SUGGEST, the user
   APPROVES" rule). ⚠ Number 72 taken as the next free across ALL active branches (rule 3a; 67-71 in use).
-updated: 2026-09-18
-current-answer: §3 holds the sub-questions and my leans — that is what needs your ruling. §1 is the
-  measured INVENTORY, §2 is the prior art that changes the shape of the problem, §4 is what is already
-  settled and NOT in question, §5 is the sequencing lean.
+updated: 2026-09-19
+current-answer: ⭐⭐ ROUND 1 (§3, Q72-A..G) is APPROVED by the user 2026-09-19 — those leans are now
+  rulings and live in §4. ⭐⭐⭐ §3a is ROUND 2: the requirements that approval brought with it, and the
+  THREE NEW sub-questions (Q72-H form-vs-transport, Q72-I the publish negotiation, Q72-J the external
+  producer). That is what needs your ruling now. §1 is the measured INVENTORY, §4 is settled canon.
 stale-below: nothing — new document.
 known-rot: nothing yet.
 known-conflict: none. ⚠ DESIGN_Artifact_Staging.md is IN FLIGHT as a dispatched batch and is deliberately
@@ -48,7 +49,38 @@ related-designs:
 > be also synced from the authoring nodes (editor capability — different nodes per asset type). Pretty
 > wide topic."*
 
-## 1. INVENTORY — measured `2026-09-18`
+### 0a. ROUND 2 — the requirements that came WITH the approval *(user, `2026-09-19`)*
+
+> 🔒 *"packaging rather at authoring time; **not always a single zip** though, i can imagine cases where
+> each terrain component (roadmap, navmesh, heightmap, buildings etc.) need their own package and **some
+> may need to be kept as file trees** (where the automatic packaging might still be useful to reduce the
+> number of files)."*
+
+> 🔒 *"the terrain is largely **unimplemented** at this time so this is mostly a theoretical question, but
+> anyway **i need to setup the rules and have the infrastructure support it**; this includes the file tree."*
+
+> 🔒 ⭐⭐ **The worked example:** *"TKB … supports both file tree AND zip reading so if it happens to be on
+> NAS in file tree form, we need it **synced to nodes in same form, but not file by file** (TKB could be
+> hundreds of small files)."*
+
+> 🔒 *"**No node advertises authoring role today; every CGF host should be capable of editing in same way
+> as the editor host.**"* · *"**not all assets are authorable by our hosts** — things like road nets and
+> terrain components will come from some **external tools directly to NAS** storage."*
+
+> 🔒 ⭐⭐ **The behaviour-asset case:** *"behavior assets need to be synced to **every brain role host** and
+> they can be numerous and will certainly **benefit from zipping during transport but to stay editable
+> they need to be present as individual files**."*
+
+> 🔒 **The unresolved half:** *"When they are saved it is now happening to the **local disk storage** and
+> how to handle their syncing to NAS and from there to other nodes is **still unresolved**. We certainly
+> **do not want the sync to happen every time** (because there are things like auto-save and syncing is a
+> long operation), also **at authoring time the other nodes might not be running at all** (only the
+> authoring node is). So the sync might need to first **ask the authoring nodes that are online if they
+> have something more up to date than what is on NAS**; i guess this is something that can happen on every
+> scenario load **only if it is cheap**, and in any case we should **expose this as a user-triggerable
+> operation any time (publish authored changes to NAS)**."*
+
+## 1. INVENTORY — measured `2026-09-18`, extended `2026-09-19`
 
 ⚠ **Coverage caveat, stated rather than implied:** the graph index returned **0 results** for several of
 these patterns and only grep answered — `scripts/find.sh` reports the disagreement loudly. ⛔ These are
@@ -67,6 +99,10 @@ session. ⭐ Treat the counts as a floor, not a proven complete set.
 | ⑧ | NAS layout constants: `scenarios` · `exercises` · `episodes` · `shared` | `OrchestrationConstants.cs:21-43` | ⛔ no per-asset-kind NAS roots |
 | ⑨ | `AssetRoots` — `Assets/` (Blueprint, Hsm, BTree) + `Recipes/` (+ Scenarios) | `AssetRoots.cs` | ⭐ authoring roots exist and are **config-driven** (ruling 67); ⛔ they are **local**, with no NAS relationship |
 | ⛔ | any packaging/zip **writer** | — | **none.** `ZipTkbProvider` is `ZipArchiveMode.Read`, strictly read-only at runtime |
+| ⑩ | **`PrefetchArchiveAsync`** — per-node `.fdp` archives NAS→node | `StorageGatewayModule.cs:365` | ⭐⭐ **archive-as-transport prior art already exists** and is a sibling of the file-copy path |
+| ⑪ | **`ExportArchiveAsync` / `ImportArchiveAsync`** + `ClusterOpType.ExportArchive(6)`/`ImportArchive(7)` | `EventDrivenStorageGateway.cs:16,19`; `StorageProcessManager` | ⭐ the **node↔NAS archive round trip** exists as cluster ops — ⛔ for exercise archives, not assets |
+| ⑫ | **CGF already composes the authoring surface** — `WireAssetCreation` + the picker shell | `CgfSubsystem.cs:2205`; `DESIGN_Cgf_Asset_Picker_Shell_Slice` | ⭐⭐⭐ *"every CGF host should be capable of editing like the editor"* is **largely already TRUE** (shipped as `CE-049`) |
+| ⑬ | behaviour assets are saved to **`AssetRoots.AssetsFor(Kind)`** — a **local**, config-driven root | `BlueprintAssetContributor.cs:32`, `HsmNewAssetService.cs:42`, `BTreeNewAssetService.cs:42` | 🔴 **local only.** ⛔ There is **no NAS relationship for authored assets at all** — this is the *"still unresolved"* half, and it is unresolved in the code too |
 
 ## 2. WHAT THE INVENTORY CHANGES ABOUT THE QUESTION
 
@@ -161,6 +197,89 @@ components** *(`Q72-A`/`B`/`F`)* · ③ **authoring sync + routing** *(`Q72-E`)*
 ⛔ **Packaging (`Q72-C`) is deliberately NOT in the sequence** until the file-count measurement says it
 earns its place.
 
+## 3a. ROUND 2 — **the three questions the approval opened**
+
+⭐⭐⭐ **First, the thing that falls out of your own requirements and resolves an apparent contradiction.**
+
+🔒 You asked for *"zipping during transport"* **and** *"to stay editable they need to be present as
+individual files"* **and** (`Q72-C`, approved) a `(length, mtime)` freshness key. ⛔⛔ Those three cannot
+all hold of the **same object** — a transport archive built from a tree gets a **new mtime every run**, so
+a skip keyed on the archive never fires.
+
+⇒ ⭐⭐⭐ **THE RULE THAT DISSOLVES IT: THREE FORMS, AND FRESHNESS IS KEYED ON THE AT-REST PAIR, NEVER ON
+THE TRANSPORT.**
+
+| form | who decides | ⭐ property |
+|---|---|---|
+| **at rest on NAS** | the publisher — our authoring host, **or an external tool** | tree **or** archive |
+| **in transport** | the **sync mechanism**, automatically | an archive **whenever the at-rest form is a tree with many files** — 🔒 *"not file by file"* |
+| **at rest on the node** | the **LOADER's contract** | must be the form the loader reads. ⭐ TKB reads both; ⛔ behaviour assets **must** be individual files |
+
+⭐⭐ **Consequence:** freshness compares the NAS at-rest form against the node at-rest form as a **per-file
+`(relative path, length, mtime)` manifest** — ⛔ never the archive. ⇒ **transport form becomes a pure wire
+optimisation, invisible to both the loader and the skip.**
+
+⚠⚠ **CORRECTION to my own first draft of this section, measured `2026-09-19`:** I wrote that
+`FileManifestEntry` *"already exists and is exactly this shape."* 🔴 **It is the right VEHICLE and the
+WRONG SHAPE.** 📐 `OrchestrationPayloadDtos.cs:153` carries **`SourceUnc`, `RelativeDest`, `DocType`** —
+⛔ **no length, no mtime.** ⇒ the rule needs **two added fields** (or a sibling DTO), and ⚠ it is a **wire
+DTO** returned as `ResultPayload` in `NodeOpCompletedEvent`, so the addition is a contract change —
+additive and low-risk, ⛔ but not free, and **not something to discover during a batch.** ⚠ And because `File.Copy` preserves
+mtime (measured, `DESIGN_Artifact_Staging` §6), a tree copied file-by-file **or** unpacked from an archive
+lands with the same per-file key — ⭐ **the two transport shapes are indistinguishable to the skip**, which
+is what makes the optimisation safe to apply automatically.
+
+### `Q72-H` — **is the transport form chosen automatically, or declared?**
+
+| option | ⚠ |
+|---|---|
+| ⭐ **H1 automatic, by file count** *(lean)* | the sync packs a tree into a transport archive above a threshold; below it, copies files. ⭐ **No vocabulary, no authoring burden**, and 🔒 it is exactly *"automatic packaging … to reduce the number of files"* |
+| **H2 declared per asset kind** | a manifest says "always pack"/"never pack" | ⛔ a knob per kind that the file count already answers |
+| **H3 always pack** | simplest code path | ⚠ pathological for a 2-file asset, and it makes every sync a pack+unpack |
+
+⭐⭐ **Lean H1**, threshold configurable, default unmeasured. ⚠ **What would flip it:** an asset kind where
+**unpacking on the node is unacceptable** (e.g. a loader that memory-maps the archive) — ⭐ then the
+at-rest node form IS the archive and H1 must not unpack it. 📌 TKB is already that case in the *zip*
+direction, which is why the **at-rest node form is the loader's contract** and not the sync's choice.
+
+### `Q72-I` — **the publish negotiation: when does node→NAS sync happen?**
+
+🔒 Your constraints: ⛔ **not on every save** *(auto-save exists, sync is long)* · ⛔ **other nodes may be
+offline at authoring time** · ⭐ *"ask the authoring nodes that are online if they have something more up to
+date than NAS"* · ⭐ *"on every scenario load **only if it is cheap**"* · ⭐⭐ **always available as an
+explicit user operation.**
+
+| option | ⭐ |
+|---|---|
+| ⭐ **I1 explicit publish + a CHEAP staleness PROBE on load** *(lean)* | the user-triggered *"publish authored changes to NAS"* is the **only thing that transfers**. On scenario load the orchestrator asks online authoring nodes for a **summary** — per kind: newest mtime + file count — and **fails or warns loudly** if a node is ahead of NAS. ⛔ **It never silently transfers during a load** |
+| **I2 auto-publish on load** | ⛔ violates *"we do not want the sync to happen every time"* and makes load time unbounded |
+| **I3 explicit publish only, no probe** | ⭐ simplest; ⛔ loses the *"consistent data everywhere needed"* guarantee — a stale NAS loads silently, which is the exact failure class this whole programme exists to remove |
+
+⭐⭐⭐ **Lean I1, and the probe is the interesting half.** ⭐ It is cheap **by construction** if it returns a
+summary rather than a manifest: `(kind, newest mtime, file count)` per authoring node. ⚠ **Open inside the
+lean:** whether a node being ahead should **fail** the load or **warn**. ⭐ My sub-lean: **warn for
+authored assets, fail for scenario-referenced artifacts** — 📐 because `Q72-F` already fails the load when
+a *named* artifact cannot be staged, and an un-published blueprint edit is not a named artifact. 🔒 **Your
+call; this is the one place where the two invariants genuinely pull apart.**
+
+### `Q72-J` — **the external producer, and what "authoring capability" means now**
+
+📐 **Measured, and it makes two of your statements meet:** ⑫ **CGF already composes the authoring surface**
+(`WireAssetCreation`, shipped as `CE-049`) ⇒ 🔒 *"every CGF host should be capable of editing in same way
+as the editor host"* is **largely already true in code**. ⛔ But ⑬ shows authored assets are saved to a
+**local** root with **no NAS relationship whatsoever** — so the capability exists and the lifecycle does not.
+
+⇒ ⭐⭐ **Lean: there is no "authoring role" token at all.** Instead:
+- **`hrot.asset.authors.<kind>`** advertises *"this host can PUBLISH this kind"* — ⭐ every CGF host and the
+  editor advertise the same set, so it is **not a per-node speciality**, it is a capability.
+- 🔒 **External-tool assets** *(road nets, terrain components)* have **no publisher inside the cluster**.
+  ⇒ ⭐⭐⭐ **they are NAS-authoritative by definition, and the probe must not look for one** — ⛔ a kind with
+  no advertised author is not a failure, it is the normal case for externally-produced content.
+
+⚠ **This is the cleanest fallout of the whole round:** ⭐ *"who may publish kind K"* and *"who needs kind K"*
+are **two symmetric token vocabularies over the same facility** (`hrot.asset.authors.*` /
+`hrot.asset.needs.*`), and *"nobody authors K"* is a **meaningful, legal answer** that means *"external"*.
+
 ## 4. NOT IN QUESTION — settled, and this document does not reopen it
 
 | | |
@@ -171,14 +290,34 @@ earns its place.
 | **prefetch runs before any transition, and throws on a missing source** | ✅ built; `Q72-F` preserves it |
 | **roles are derived from tokens, not carried separately** | ✅ AQ-70 §Q70-C — ⛔ do not add a parallel "needs" mask to the heartbeat |
 
+### 4a. ✅ ROUND 1 RULED — `2026-09-19`, *"Agreed with your leans"*
+
+| # | the ruling |
+|---|---|
+| **`Q72-A`** | ✅ **A2 INTERSECTION** — the ASSET declares its components, the NODE declares which kinds it consumes, the orchestrator intersects. ⭐ `TerrainDefinition.SchemaVersion` is the extension point |
+| **`Q72-B`** | ✅ **`hrot.asset.needs.<kind>`** on the AQ-70 facility. Unknown-token-ignored ⇒ graceful degradation free |
+| **`Q72-C`** | ✅ **packaging at AUTHORING time**, ⛔ never on the fly. ⚠ **NARROWED in round 2:** not always ONE zip — per COMPONENT, and some components stay file trees (§3a) |
+| **`Q72-D`** | ✅ **generalise `ITkbStorageStrategy`**, do not duplicate it |
+| **`Q72-E`** | ✅ **reuse `PullToNasAsync` + `FileManifestEntry`**; the new part is routing. ⚠ **REFRAMED in round 2 by `Q72-J`:** not a per-node authoring speciality — a capability every CGF host has |
+| **`Q72-F`** | ✅ fail the load on sync error, in the existing prefetch slot; **ANY failure count > 0 counts** |
+| **`Q72-G`** | ✅ three increments; packaging not sequenced until it earns its place |
+
 ## 5. WHAT I WOULD MEASURE BEFORE YOU RULE
 
-⭐ Three numbers, each of which decides a sub-question that is currently a guess:
+⭐ **Round 1's three are now ANSWERED — two by you, one superseded:**
 
-1. **how many component kinds a Stride terrain actually has** → decides `Q72-A` (A1 vs A2)
-2. **how many FILES a real terrain asset contains** → decides `Q72-C` (C1 vs C3)
-3. **whether any node advertises an authoring capability per `AssetKind` today** → sizes `Q72-E`
+| # | status |
+|---|---|
+| component kinds a Stride terrain has | 🔒 **answered: theoretical.** *"terrain is largely unimplemented … mostly a theoretical question, but I need to set up the RULES and have the INFRASTRUCTURE support it"* ⇒ ⭐ **A2 wins on extensibility precisely BECAUSE the set is unknown** — that is the case A2 is for |
+| files in a real terrain asset | ⚠ **superseded as the deciding number.** 🔒 The TKB worked example — *"hundreds of small files"* — and *"behavior assets … can be numerous"* already establish that **tree-with-many-files is a real case**, so the infrastructure must handle it regardless. ⭐ The number now only tunes `Q72-H`'s threshold |
+| any node advertising authoring capability | 🔒 **answered: NONE today**, and *"every CGF host should be capable of editing in same way as the editor host."* 📐 Corroborated: ⑫ CGF already composes `WireAssetCreation` ⇒ the capability largely exists; ⑬ the NAS lifecycle does not |
 
-⛔ **I have not measured any of the three**, and each is marked as a guess above rather than presented as
-a finding. ⭐ Say the word and I will measure them before we discuss — 🔒 per the standing rule that a
-lean resting on an unmeasured load-bearing row is not finished.
+### 5a. ⚠ WHAT IS STILL UNMEASURED — round 2
+
+| # | what | decides |
+|---|---|---|
+| **1** | whether any behaviour-asset loader would **break** if its at-rest node form were an archive | `Q72-H`'s "what would flip it" — 🔒 you already stated the answer for editability (*"individual files"*), ⛔ but I have not verified there is no second consumer that would prefer the archive |
+| **2** | what a *"summary"* probe can cheaply produce on an authoring node — is there an existing per-kind catalogue with mtimes, or must it walk the tree? | `Q72-I`'s feasibility. ⭐ `AssetCatalog` + the per-kind contributors (⑬) are the likely home; ⛔ **not measured** |
+| **3** | ✅ **MEASURED `2026-09-19` — and it corrected me.** `FileManifestEntry` (`OrchestrationPayloadDtos.cs:153`) = `SourceUnc` + `RelativeDest` + `DocType`. ⛔ **No length, no mtime** | ⇒ §3a's manifest-freshness rule costs **two fields on a wire DTO**, not zero. ⭐ Additive and low-risk, ⚠ but a contract change to plan for rather than to discover mid-batch. **The correction is recorded in §3a itself** |
+
+⛔ **Items 1 and 2 remain unmeasured and are marked as such rather than asserted.**
