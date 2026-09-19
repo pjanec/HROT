@@ -959,41 +959,45 @@ Both sessions share this repo, so **both load this file**. A *coordinator* sessi
 writes handoffs and verifies returned diffs; an *implementation* session writes the code. Neither writes
 in the other's lane.
 
-### ⭐ The lanes — branch names, authoritative
+### ⭐ The lanes — **roles, not names**
 
-| Lane | Branch | owns |
+⛔⛔ **THIS FILE NAMES NO BRANCH.** 📌 Every branch name it ever carried went stale — one was recorded as
+*"retired"* while it was the live coordinator, two were re-pointed by the user in a single day, and one
+kept a name from a programme three months dead. ⇒ 🔒 **a session's branch is told to it at dispatch, or
+found by ancestry — never read from here.**
+
+| Lane | owns | typically |
 |---|---|---|
-| **Coordinator** (handoffs, design, gates) | ⭐ **`claude/blueprint-authoring-status-6sr5ld`** | — |
-| ⭐⭐ **UI lane** *(incl. the frozen variable area)* | ⭐⭐ **`claude/reset-working-branch-qd1qpv`** *(recorded `2026-08-23`; started perspective Part A at `89acf0f20`)*. ⚠ **MOVED from `claude/hrot-implementation-j1jvin`** | variables · working state · blackboard · `AiShared` · Q38/Details · ⭐ **`MIN`** · ⭐ **the perspective model**. ⭐ ids **`BP-`**, tracker areas **`A`–`G`** |
-| ⭐⭐ **BACKEND lane** *(new `2026-08-23`)* | ⭐⭐ **`claude/blueprint-macro-feature-sdmspn`** *(started the StrideMock removal at `89acf0f20`)*. ⚠ **The NAME is historical** — it was the Batch-29-era implementation branch, reused | project/reference structure · the Stride cleanup · **test-suite reliability / harness**. ⭐ ids **`ST-` / `QA-`**, tracker areas **`I` + `N`** |
-| ⭐⭐ **MCP lane** *(new `2026-08-26`)* | ⭐⭐ **`claude/mcp-authoring-commands-7l3n49`** | the **ai-debug MCP surface** — `DebugApiService*.cs`/`DebugApiHost.cs`/`DebugApiRouteDocs.cs` *(in `Hrot.Editor`)* + the `tools/ai-debug-mcp` node server *(+ generated `tool-catalog.mjs`/`SKILL.md`)*. ⭐ ids **`MX-`** *(continues the MCP series)*. ⛔ Do NOT touch scenario/menu/AiShared *(UI lane)* or test projects *(backend lane)* |
-| ⭐⭐ **TIME lane** *(approved `2026-08-21`)* | ⭐ **`claude/time-system-refactor-batch-104-gp617x`** *(recorded `2026-08-21`, started Batch 104 at `404f95e9a`, branched from dispatch `34deca154`)*; 📌 still confirm by ancestry, not by name | `Fdp.Toolkits/Time/` · `Hrot.Orchestrator` · `ModuleHostKernel` · `Hrot.ClusterRunner.Integration.Tests`. ⭐ ids **`TM-`**, tracker area **`H` only** |
+| ⭐ **Coordinator** | handoffs · design · the tracker · verify + merge | ⛔ does NOT write code |
+| ⭐ **UI / CGF lane** | the editor and CGF surfaces, the shared authoring assemblies | implementation |
+| ⭐ **BACKEND lane** | engine / orchestrator / project structure · test-suite reliability and harness | implementation |
+| ⭐ **WINDOWS session** | what only a real Windows host can do — run the editor, drive the MCP surface, observe the live cluster | ⛔ **not a branch — a place to RUN things** |
 
-> ⛔⛔ **TWO IMPLEMENTATION LANES, `2026-08-21` — the three rules that keep them apart**
+⚠ **More lanes may exist at any time** *(a programme-specific one is normal)*. ⭐ The rules below are
+written per-ROLE and hold however many there are.
+
+> ⛔⛔ **THE THREE RULES THAT KEEP CONCURRENT IMPLEMENTATION LANES APART**
 > | ⭐ | |
 > |---|---|
-> | ⭐⭐⭐ **ID PREFIX PER LANE** | `BP-` = UI/variable · **`TM-` = time.** ⛔ **Structural, not coordination** — 📌 id collisions have bitten this programme **three times** |
-> | ⭐⭐ **TRACKER PARTITION** | the time lane writes **ONLY** to `Area H — Time & clock`. ⇒ different regions of one file **merge cleanly** |
-> | ⭐ **NO CROSS-LANE FILES** | 📐 measured: different assemblies, no shared production file. ⚠ **A cross-lane edit is a STOP-and-report**, not a judgement call |
+> | ⭐⭐⭐ **ONE ID PREFIX PER LANE** | ⛔ **Structural, not coordination** — 📌 id collisions have bitten this repo **three times**. ⭐ The prefixes in use are a PROGRAMME fact: read them from the tracker and the live handoffs, ⛔ never from this file |
+> | ⭐⭐ **TRACKER PARTITION** | each lane writes only its own tracker AREA ⇒ different regions of one file **merge cleanly** |
+> | ⭐ **NO CROSS-LANE FILES** | ⚠ **A cross-lane edit is a STOP-and-report**, not a judgement call |
 
-⚠ **Corrected 2026-08-26 by the user.** The coordinator lane is
-`claude/blueprint-authoring-status-6sr5ld` — the live, active coordinator session. An earlier note here
-named `…-gm0akp` and called `6sr5ld` "retired"; that note was itself stale and is **SUPERSEDED** — this
-table wins. ⛔ Any document still naming `gm0akp` as the coordinator branch is stale.
+⭐⭐ **Locate another lane's branch BY ANCESTRY, never by name** — the implementation branch is the one
+whose first commit of that run descends from a coordinator commit:
 
-⚠⚠ **BOTH implementation lanes were re-pointed by the user on `2026-08-23`** — see the table above. ⭐ The
-UI lane moved `j1jvin` → **`reset-working-branch-qd1qpv`**, and **`blueprint-macro-feature-sdmspn`** *(an old
-Batch-29-era name)* was reused for a **new BACKEND lane**. 📌 Both pushed correct rule-1b started-markers
-naming the dispatch sha, so ancestry — not the name — remains the way to confirm.
-⭐ **The coordinator must not assume the name** — locate their branch by which one's first commit
-descends from a coordinator commit, not by the name in this table.
+```bash
+git branch -r | grep claude/                       # the candidates
+git log --oneline -1 <candidate>                   # and rule 1b's started-marker names the dispatch sha
+git merge-base --is-ancestor <coordinator-sha> <candidate>
+```
 
 ⭐ **The implementation session ALWAYS branches from, and updates from, the coordinator branch.** Never
 from `main`, never from a previous implementation head that has drifted. Start every run with:
 
 ```bash
-git fetch origin claude/blueprint-authoring-status-6sr5ld
-git merge --ff-only origin/claude/blueprint-authoring-status-6sr5ld   # or branch fresh from it
+git fetch origin <coordinator-branch>              # told to you at dispatch
+git merge --ff-only origin/<coordinator-branch>    # or branch fresh from it
 ```
 
 ⭐ **The mechanic that causes every failure so far:** the implementation session does **not merge** the
@@ -1123,40 +1127,23 @@ from five documents — the cheaper side to keep, not a principled claim).
 ⭐ **Wording agreed by both sessions.** ⇒ **the same rule applies to any other cross-session numbered
 artefact, not just `BP-` rows.**
 
-### ✅✅✅ FREEZE LIFTED — `2026-08-25` *(user: "unfreeze the variable model lane, freeze no longer needed, no one is working on variables")*
+### ⭐⭐ IMPLEMENTATION FREEZES — **the mechanism, and who may declare one**
 
-> ⭐⭐⭐ **The variable-model implementation freeze below is LIFTED.** Any session may now edit variables,
-> working state, the blackboard panel, and `Hrot.Editor.AiShared` — ⛔ **do NOT re-apply the freeze** and
-> ⛔ **do NOT gate work on it.** ⚠ Ordinary coordination still applies *(two-session protocol, rule 7 re-sync,
-> non-colliding files)* — but the SINGLE-SESSION exclusivity is gone. The text below is retained as HISTORY
-> so older documents that cite "the freeze" resolve to this lifting.
+⭐ Occasionally the user gives **ONE session exclusive rights** over an area while a unification lands —
+because 🔒 *"no keeping two implementations for the same concept"* ⛔ **and two sessions building one
+shared surface produce exactly two implementations**: the constraint would be broken by the *process*
+before any code disagreed.
 
-### ⛔ HISTORY — IMPLEMENTATION FREEZE *(user, `2026-08-15`; ✅ LIFTED `2026-08-25` — see banner above)*
-
-> ⭐⭐ **User ruling, verbatim:** *"cross host it is. one single implem session (the one we are using)
-> will be implementing for all hosts, no other session will implement until this is all done."*
-
-| | |
+| ⭐ the rules | |
 |---|---|
-| ⭐ **Who builds** | ⭐ **`claude/hrot-implementation-j1jvin`** — **all hosts**: Blueprint, BTree **and** HSM, including everything in **`Hrot.Editor.AiShared`** |
-| ⛔ **Every other session** | ⛔⛔ **DOES NOT IMPLEMENT until this is done.** ⭐ **Design, questions, review and documents are fine — code is not.** ⚠ **This explicitly includes the cross-host variable-model session and the HSM visual-editing session** |
-| **What "this" is** | the unified variable Details panel + the emitter/access unification — 📄 **[`Architect_Question_32_…_ANSWERS.md`](../docs/blueprints/Architect_Question_32_Variable_Details_And_Values_ANSWERS.md)** ⭐ **EXTENDED `2026-08-15` (user): the CROSS-HOST PARAMETER MODEL (`W1`–`W13`) TOO** — 📄 **[`PLAN_Cross_Host_Sequencing.md`](../docs/blueprints/PLAN_Cross_Host_Sequencing.md)**. ⛔ **Phase A is NOT the design session's to build**; the queue is **56 → 58 → 57 → `W4` → …** |
-| ⭐ **Why** | the ruling over the whole design is *"no keeping two implementations for the same concept."* ⛔ **Two sessions building one shared panel produces exactly two implementations** — the constraint would be broken by the process before any code disagreed |
+| ⭐⭐⭐ **ONLY THE USER declares or lifts a freeze** | ⛔ never a coordinator on its own initiative, and ⛔ **never re-apply a lifted one** |
+| ⭐⭐ **a freeze bans CODE, not thought** | ⭐ design, architect questions, review and documents stay open to every session |
+| ⭐⭐ **a freeze is SCOPED** | ⛔ it covers the named area only — ⚠ *"is my work inside it?"* is a **STOP-and-ask**, never a judgement call |
+| ⚠ **it is not the normal state** | ⭐ ordinary coordination *(this protocol, rule 7 re-sync, non-colliding files)* is what usually keeps lanes apart |
 
-⚠ **If you are a session other than the one named above and you are about to write code touching
-variables, working state, the blackboard panel or `Hrot.Editor.AiShared` — STOP and ask the user.**
-
-#### ⭐⭐⭐ `2026-08-21` — **THE FREEZE IS SCOPED TO THE VARIABLE MODEL. A TIME LANE IS APPROVED.**
-
-🔒 **User, verbatim:** *"the freeze was about the variable model, time lane is fine. approved."*
-
-| ⭐ | |
-|---|---|
-| ⭐⭐ **the freeze still binds** | variables · working state · the blackboard panel · `Hrot.Editor.AiShared` · the Details/Q38 work — ⛔ **one session only** |
-| ⭐⭐⭐ **OUTSIDE it, and now APPROVED for a second session** | ⭐ **the TIME lane** — `FDP/Toolkits/Fdp.Toolkits/Time/` · `Hrot.Orchestrator` · `ModuleHostKernel` · `Hrot.ClusterRunner.Integration.Tests` |
-| ⛔⛔ **`MIN` is NOT in the time lane** | 📐 it edits `BlueprintDebugSession` · `BlueprintLiveValueWriter` · `VariableEditCommit` ⇒ **variable-edit code** ⇒ ⭐ **it ships with the UI/variable session** |
-
-📄 **The split, the conflicts and the amendments: [`docs/blueprints/PLAN_Time_System_Refactor.md`](../docs/blueprints/PLAN_Time_System_Refactor.md) §5.**
+⛔⛔ **No freeze is in force by virtue of this file.** 📌 A live freeze is announced by the user and lives
+in the **programme's** documents — ⛔ if you read about one in an older design doc, check its lifting
+banner before gating any work on it.
 
 ### Checking "did they see X?" — do it correctly, and name the run
 
@@ -1316,15 +1303,23 @@ the blast radius, ⭐⭐ **written so the user can reply "approved" or name the 
 > over `CLAUDE.md` and `RULINGS.md` returned **0 and 0**. ⇒ 🔴 a post-compaction session read the canon and
 > then had to **guess** where the live work was. ⭐ That is the hole this rule closes.
 
-| lane / branch | ⭐ read this SECOND, in full |
-|---|---|
-| ⭐⭐ **UI lane** — `claude/reset-working-branch-qd1qpv` | 📄 **[`docs/blueprints/RESUME_UI_Lane.md`](../docs/blueprints/RESUME_UI_Lane.md)** — ⭐ its **STATUS block's `current-answer` names the ONE section to start from**; ⛔ do not read the file top-to-bottom, most of it is dated HISTORY |
-| **coordinator** — `claude/blueprint-authoring-status-6sr5ld` | 📄 `docs/blueprints/COORDINATOR_RESUMPTION.md` *(+ the `DESIGN BRIEF` obligation)* |
-| **other lanes** | ⚠ **no resume doc verified by this session** — ⛔ do not assume one exists; ask, or find the lane's newest `docs/blueprints/` design |
+⭐⭐ **Resume docs live in `docs/blueprints/` and are named `RESUME_*.md` / `*_RESUMPTION.md`.** ⛔ This
+file names none of them, because which one is yours is a PROGRAMME fact that changes — ⭐ **find it:**
 
-⭐⭐ **The habit, in order:** ① `RULINGS.md` *(canon)* → ② **your lane's resume doc's `current-answer` section**
-*(what is IN FLIGHT)* → ③ the design docs it cites. ⛔ **Skipping ② is how a session re-derives a plan that is
-already written down**, which is the disease RULE ZERO exists to treat.
+```bash
+ls -t docs/blueprints/RESUME_*.md docs/blueprints/*RESUMPTION*.md | head
+```
+
+| ⭐ how to pick yours | |
+|---|---|
+| ⭐⭐⭐ **by PROGRAMME, not by lane name** | ⚠ **several may be live at once, owning different programmes** — ⭐ the one you want names the work you were handed. ⛔ If two look plausible, **ask** rather than guess |
+| ⭐⭐ **read its `current-answer`, not the file** | ⭐ the STATUS block names the **ONE section to start from**; ⛔ do not read top-to-bottom — most of a mature resume doc is dated HISTORY |
+| ⚠ **it is a STATE doc, not canon** | ⛔ **verify every "in flight" / "merged" / "HEAD" line against git before acting** — *"the ledger may not assert what the code is"* applies here hardest |
+| ⚠ **one may not exist** | ⛔ do not assume it does; ask, or find the programme's newest `docs/blueprints/` design |
+
+⭐⭐ **The habit, in order:** ① `RULINGS.md` *(canon)* → ② **your programme's resume doc's `current-answer`
+section** *(what is IN FLIGHT)* → ③ the design docs it cites. ⛔ **Skipping ② is how a session re-derives a
+plan that is already written down**, which is the disease RULE ZERO exists to treat.
 
 ## ⛔⛔⛔ RULE ZERO — **READ `docs/blueprints/RULINGS.md` BEFORE ANYTHING ELSE** *(user, `2026-08-17`)*
 
@@ -1487,11 +1482,10 @@ checking — *the design for intent, the code for fact.*
 ⚠ **On `2026-08-17` I had READ documents and still missed their supersession banners four times** —
 ⭐ **reading is necessary and not sufficient; the step that fails is JOINING the canon to the work.**
 
-⛔⛔ **THE BRIEF IS A COORDINATOR OBLIGATION ONLY** *(`2026-08-18`)*. ⚠ **On `2026-08-18` an
-implementation session wrote a brief instead of starting Batch 84** — ⭐ **correctly following a rule
-written for the other lane.** ⇒ ⭐ **the hook now detects the branch and tells the implementation lane
-to skip it**; ⛔ **if you are not on `claude/blueprint-authoring-status-6sr5ld`, your first move is rule
-7 then rule 1b's started-marker, NOT a brief.**
+⛔⛔ **THE BRIEF IS A COORDINATOR OBLIGATION ONLY** *(`2026-08-18`)*. ⚠ **Once, an implementation session
+wrote a brief instead of starting its batch** — ⭐ **correctly following a rule written for the other
+lane.** ⇒ ⭐ **the hook detects the branch and tells an implementation lane to skip it**; ⛔ **if you are
+NOT the coordinator, your first move is rule 7 then rule 1b's started-marker, NOT a brief.**
 
 ⇒ ⭐⭐⭐ **The FIRST reply of every COORDINATOR session, and the first after every compaction, OPENS with
 this block — ⭐ and then ANSWERS THE USER'S QUESTION IN THE SAME REPLY.**
