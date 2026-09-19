@@ -5,7 +5,8 @@ build-state: ✅ RESOLVED 2026-09-19 — all sub-questions ruled by the user. �
   across ALL active branches (rule 3a; 67-71 in use).
 updated: 2026-09-19
 current-answer: ✅✅ EVERY SUB-QUESTION IS NOW RULED — Q72-A..G (§4a), Q72-H / H1 (§3a), Q72-I, Q72-J,
-  and Q72-K (subfolders of any depth). ⭐⭐ The load-bearing content is §3a: the THREE FORMS (NAS form ==
+  Q72-K (subfolders of any depth) and ⭐ Q72-M (2026-09-19: the LoadPart->AssetKind adapter; the load
+  table is NOT extended). ⚠ Q72-M NARROWS Q72-L — read them together, Q72-L alone is insufficient. ⭐⭐ The load-bearing content is §3a: the THREE FORMS (NAS form ==
   node form always — now meaning shape AND structure; freshness keyed on the at-rest per-file manifest,
   NEVER on the transport) and the transport PARTITION (big/pre-compressed parts travel standalone, the
   rest as one archive, paths preserved). ⚠⚠ READ §5c + Q72-K BEFORE PLANNING: recursive enumeration
@@ -396,6 +397,10 @@ tree case must not be used until the recursive walk exists.**
 
 ### `Q72-L` — ⚠ **RAISED `2026-09-19` by the load-phase programme: the "needs" vocabulary ALREADY HAS A SOURCE**
 
+> ⚠⚠ **NARROWED by `Q72-M` (below), `2026-09-19`.** The derivation is right about **needs** and wrong that
+> **asset kinds** fall out of it — `LoadPart` and `AssetKind` do not intersect. ⛔ Do not quote this
+> section's *"`Q72-B` may need no hand-maintained vocabulary at all"* without `Q72-M`.
+
 📐 **Measured after the cluster load-phase batch landed.** `DESIGN_Cluster_Load_Phase` §4 composes a
 per-role load chain from a **`RoleLoadRequirements`** declaration — *"which role needs the knowledge base /
 terrain / scenario entities, by measured consumer"* — owned by `DESIGN_Node_Roles_And_Policies` §3.2.
@@ -423,6 +428,35 @@ table one contributor to it — ⛔ which is a widening, not a redesign.
 ⭐ **Corroboration for `Q72-A` worth recording:** §4.1a's *"a role with no consumer does NOT load terrain"*
 is the **intersection principle already ruled and BUILT** at the load layer. ⇒ `Q72-A`'s A2 is not a new
 idea to introduce; it is **the same idea, extended from loading to staging.**
+
+### `Q72-M` — ✅ **RULED `2026-09-19` — `Q72-L`'s derivation is TRUE but INSUFFICIENT: an ADAPTER here, and the load table is NOT extended**
+
+⛔⛔ **Raised by the backend session's review of `DESIGN_Asset_Management`, and it is a defect in `Q72-L`
+as written.** 📐 Measured:
+
+| vocabulary | values | where |
+|---|---|---|
+| `LoadPart` | `KnowledgeBase`, `Terrain`, `ScenarioEntities` | `LoadPhaseContracts.cs:32-42` |
+| `AssetKind` | `Blueprint`, `BTree`, `Hsm`, `Blackboard`, `Utility`, `Scenario` | `AssetKind.cs:3-11` |
+
+⇒ **the intersection is EMPTY**, neither vocabulary contains TKB / terrain / road-net, and ⛔ **behaviour
+assets have NO `LoadPart` at all** — `LoadPhaseChain` never loads them, yet 🔒 *"behavior assets need to be
+synced to every brain role host… as individual files"* (§0a). ⇒ ⚠ **`Q72-L`'s *"derive the token set from
+`RoleLoadRequirements`"* cannot be executed as written**, and taken literally this design would ship
+**three** vocabularies where §7.3 warns against two.
+
+### ✅ THE RULING *(user, `2026-09-19`: "ok accepting your lean")*
+
+| ⭐ | |
+|---|---|
+| ⭐⭐⭐ **a 3-row `LoadPart → AssetKind` ADAPTER, owned by `DESIGN_Asset_Management`** | 🔒 **an adapter between two EXISTING vocabularies is not a third vocabulary** — it is total, one-directional and has no independent content to drift |
+| ⭐⭐⭐ **plus ONE rule for behaviour assets: `Brain ⇒ all AI asset kinds`** | ⭐ **one line, not a table.** That is what keeps it out of the duplication `Q72-L` exists to prevent: there is nothing to maintain per kind |
+| ⛔⛔ **`RoleLoadRequirements` is NOT extended** | ⚠ it is an **ordered execution list** with one `ILoadPartProvider` per part (`LoadPhaseChain.cs:97`); a `LoadPart.BehaviorAssets` would make the table **claim a load step nobody implements** *(`R-133` — a fake must announce itself)*, and it edits a table owned by `DESIGN_Node_Roles_And_Policies` §3.2 |
+| ⭐ **`Q72-L` stands, narrowed** | it is right that the **needs** come from the load table; ⛔ it was wrong that the **kinds** come out of it for free |
+
+⚠ **What would flip it:** a behaviour asset that only SOME brain hosts need. ⭐ Then the one line becomes a
+table and the adapter is where it goes — **a widening, not a redesign**, exactly as `Q72-L` says of standby
+nodes.
 
 ## 4. NOT IN QUESTION — settled, and this document does not reopen it
 

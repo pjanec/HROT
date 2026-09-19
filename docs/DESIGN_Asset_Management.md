@@ -1,19 +1,20 @@
 <!--STATUS
 state: LIVE
-build-state: ⭐ A and C are READY-TO-BUILD; ⛔ B is BLOCKED on W5 (§7.3a, needs the user). Three
-  increments (§8). Carries the INVENTORY (§1), a classDiagram (§3), two sequenceDiagrams (§4, §5) and a
-  module-relationship graph TD (§6). Every decision here is RULED in Architect_Question_72 except §7.3a,
-  which is an amendment the 2026-09-19 review forced and which AQ-72 does not yet cover.
+build-state: ✅ READY-TO-BUILD — all three increments (§8); W5 CLOSED 2026-09-19, so B is unblocked.
+  Carries the INVENTORY (§1), a classDiagram (§3), two sequenceDiagrams (§4, §5) and a
+  module-relationship graph TD (§6). Every decision here is RULED in Architect_Question_72 — including
+  §7.3a's adapter, which the 2026-09-19 review forced and which AQ-72 now carries as Q72-M.
 updated: 2026-09-19 (REVISED after the backend session's review — six corrections, all re-measured)
 current-answer: §2 is the model in one table (the three forms, the two directions) — ⭐ read its
   restore-at-unpack paragraph, it is what makes the one-predicate claim TRUE. §3-§6 are the structure.
-  §7 is the WHY the diagrams cannot carry; ⛔ §7.3a is OPEN and blocks B. §8 is the increment split.
-  §9 is under-specified (W1-W5). ⛔ §HISTORY is what the review measured FALSE — never quote it.
+  §7 is the WHY the diagrams cannot carry; ⭐ §7.3a is RULED and carries the whole LoadPart->AssetKind
+  map. §8 is the increment split. §9 is under-specified (W1-W4 live; W5 CLOSED).
+  ⛔ §HISTORY is what the review measured FALSE — never quote it.
 stale-below: everything under `## ⛔ HISTORY`. ⛔ Six statements this document originally made are wrong;
   each is named there with what measured it false.
-known-rot: ⛔ §7.3's "derive from RoleLoadRequirements" is TRUE but INSUFFICIENT — §7.3a measures the
-  vocabulary gap it leaves and is OPEN. ⚠ §7.6 records an inherited constraint this design does not
-  remove (the orchestrator stats and writes every node's disk).
+known-rot: ⛔ §7.3's "derive from RoleLoadRequirements" is TRUE but INSUFFICIENT — read §7.3a with it,
+  which measures the vocabulary gap and carries the ruled adapter. ⚠ §7.6 records an inherited
+  constraint this design does not remove (the orchestrator stats and writes every node's disk).
 known-conflict: none. ⚠ DESIGN_Artifact_Staging.md is a BUILT SUBSET — §2.1 says exactly what it already
   does and what this generalises; ⛔ this document does not re-decide any of it.
 related-designs:
@@ -298,7 +299,7 @@ already answers *"which role needs which part"*, and `AQ-70` already derives rol
 up. ⚠ **What would widen it:** a standby node needing bytes it does not load — deferred by the load-phase
 design's own §5.1. 📄 `Q72-L`.
 
-### 7.3a ⛔ THE VOCABULARY GAP — **`LoadPart` and `AssetKind` do not meet.** *(open — needs the user's nod)*
+### 7.3a ✅ THE VOCABULARY GAP — **`LoadPart` and `AssetKind` do not meet.** *(RULED `2026-09-19`, user: "ok accepting your lean" — 📄 `Q72-M`)*
 
 📐 **Measured, and §7.3 shipped without it:**
 
@@ -312,7 +313,8 @@ no `LoadPart` at all** — `LoadPhaseChain` never loads them. ⇒ ⚠ *"derive t
 `RoleLoadRequirements`"* is **under-determined as written**, and §7.3's own warning about two vocabularies
 currently applies to this design shipping **three**.
 
-⭐⭐⭐ **The lean — an ADAPTER here, and ⛔ do NOT extend `RoleLoadRequirements`.**
+✅✅ **THE RULING — an ADAPTER here, and ⛔ do NOT extend `RoleLoadRequirements`.** *(the claim table that
+carried the lean is kept below: it is the evidence, and a reader may push on a row rather than the verdict)*
 
 | the lean rests on | code — how it IS | design basis — how it was MEANT to be |
 |---|---|---|
@@ -325,6 +327,16 @@ currently applies to this design shipping **three**.
 vocabularies* is **not** a third vocabulary — ⭐ **plus one rule for behaviour assets: `Brain ⇒ all AI
 asset kinds`.** 🔒 That rule is **one line, not a table**, which is what keeps it from being the
 duplication §7.3 warns against; it is railed and it is stated here.
+
+| the map — **the whole of it** | asset kind(s) reaching the node |
+|---|---|
+| `LoadPart.KnowledgeBase` | the scenario's named **TKB artifact** |
+| `LoadPart.Terrain` | the **terrain definition** and its road graph |
+| `LoadPart.ScenarioEntities` | the **scenario** ⚠ *(already travels by the prefetch path — see `§9-W3`)* |
+| ⭐ **`NodeRole.Brain`**, not a `LoadPart` | **all AI asset kinds** — `Blueprint`, `BTree`, `Hsm`, `Blackboard`, `Utility` |
+
+⚠ **What would flip the one-liner into a table:** a behaviour asset only SOME brain hosts need. ⭐ The
+adapter is where it would go — **a widening, not a redesign** (📄 `Q72-M`).
 
 ⛔ **Rejected:** *add `LoadPart.BehaviorAssets`* — the chain would then require a provider **nobody
 implements**, making the table claim a load step that never runs (`R-133`: a fake must announce itself),
@@ -380,7 +392,7 @@ increments before its first caller** and bills `A` as *"the enabler"* for someth
 | **W2** | whether the probe's summary is computed per call or cached on `ContributorChanged` | ⭐ implementer — ⑤ measured the walk is stat-only; start simple, cache only if measured slow |
 | **W3** | how a scenario participates in the probe, given ⑤'s `BaseFolder == null` for scenarios | ⭐ implementer. ⚠ Scenarios already travel by the prefetch path, so the likely answer is **they do not** — ⛔ but that must be stated, not assumed |
 | **W4** | ⭐⭐ whether a **removed** NAS entry **deletes** the node's copy, or is reported and left | ⭐ implementer, **stated and railed either way** — §3's three-set `Diff` makes the set available; ⛔ *"MIRROR"* is not testable until this is answered |
-| **W5** | ⛔ **§7.3a's vocabulary gap** — the `LoadPart → AssetKind` adapter and the `Brain ⇒ all AI kinds` rule | 🔴 **the USER** — it is the one place this design adds an input rather than deriving one. ⚠ A lean is recorded in §7.3a; ⛔ `B1` may not start until it is settled |
+| ~~**W5**~~ | ✅ **CLOSED `2026-09-19`** — the `LoadPart → AssetKind` adapter and `Brain ⇒ all AI kinds` | ✅ **the USER ruled it** (*"ok accepting your lean"*). 📄 **§7.3a carries the map; `Q72-M` carries the ruling.** ⇒ **`B1` is unblocked** |
 
 ## ⛔ HISTORY — **what the `2026-09-19` review measured FALSE, kept so nobody re-quotes it**
 

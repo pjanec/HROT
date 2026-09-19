@@ -4,8 +4,8 @@ build-state: PLAN — the dispatchable breakdown of an approved design. ⛔ NOT 
   REFERENCES its owning chapter and restates nothing. If this file and the design disagree, the DESIGN wins.
 updated: 2026-09-19 (REVISED after the backend session's review of the design — see its §HISTORY)
 current-answer: §2 is the stage/task table (14 tasks — B4a added). §3 is the under-specified register
-  (5 rows; ⛔ W5 is the USER's and BLOCKS batch ②). §4 is what this deliberately does not contain.
-  §5 is the dispatch grouping — ✅ ① is dispatchable now, 🔴 ② waits on W5.
+  (W1-W4 live, all implementer calls; ✅ W5 CLOSED by the user 2026-09-19). §4 is what this deliberately
+  does not contain. §5 is the dispatch grouping — ✅ ALL THREE batches are dispatchable.
 stale-below: nothing — new document.
 known-rot: nothing; ⚠ but A3's archive-arm rail is RED until B4 lands the mtime restore, by design.
 known-conflict: ✅ RESOLVED 2026-09-19 — the `FileManifestEntry` change moved from A1 to C1 (it is the
@@ -61,7 +61,7 @@ cluster op.**
 
 | # | task | success condition | owning chapter |
 |---|---|---|---|
-| **B1** | ⭐⭐ **Derive** `hrot.asset.needs.*` from `RoleLoadRequirements` through the `LoadPart → AssetKind` adapter — ⛔ do NOT author a parallel table, ⛔ do NOT extend `RoleLoadRequirements`. 🔴 **BLOCKED on `W5`** | the token set is **computed** from the requirement table; changing the table changes the tokens with **no second edit**. ⭐⭐ **Rail `Map2D` explicitly: it gets the KNOWLEDGE BASE and NOT terrain** — ⛔ *"Map2D gets nothing"* would throw `FileNotFoundException` in `KnowledgeBaseLoadStep` on IG. ⭐ Rail the subtraction: a role with no declared consumer loses **that part**, never the node | design **§7.3**, **§7.3a**, **§6 caption**; `Q72-L` |
+| **B1** | ⭐⭐ **Derive** `hrot.asset.needs.*` from `RoleLoadRequirements` through the **3-row `LoadPart → AssetKind` adapter**, ⭐ **plus the one-line rule `Brain ⇒ all AI asset kinds`** — ⛔ do NOT author a parallel table, ⛔⛔ do NOT extend `RoleLoadRequirements` *(it would claim a load step nobody implements)*. ✅ **RULED — `Q72-M`, design §7.3a carries the whole map** | the token set is **computed** from the requirement table; changing the table changes the tokens with **no second edit**. ⭐⭐ **Rail `Map2D` explicitly: it gets the KNOWLEDGE BASE and NOT terrain** — ⛔ *"Map2D gets nothing"* would throw `FileNotFoundException` in `KnowledgeBaseLoadStep` on IG. ⭐ Rail the subtraction: a role with no declared consumer loses **that part**, never the node | design **§7.3**, **§7.3a**, **§6 caption**; `Q72-L` |
 | **B2** | `hrot.asset.authors.*`, and *"nobody authors K"* as a **legal** answer | a kind with no advertised author is **not** an error — it is the external-tool case. ⭐ Rail that the probe does not look for a publisher for such a kind | design **§6**; `Q72-J` |
 | **B3** | `TransportPartitioner` — size and extension/path rules select **standalone** vs **archived** | *one 100 GB file + 3 000 small files* ⇒ **2 transfers**: one standalone copy, one archive. ⛔ The big file is **never** added to an archive | design **§7.2**; `Q72-H1` ⚠ **see §3-W1** |
 | **B4** | `AssetSyncService.SyncToNodesAsync` — enumerate, diff, partition, copy, **unpack in place**, ⭐⭐⭐ **then RESTORE each member's mtime from the manifest** (`File.SetLastWriteTimeUtc`) | after a sync the node tree is **byte-and-structure identical** to NAS, subfolders included; a second sync with no NAS change performs **zero** writes. 🔴 **Without the mtime restore this second condition CANNOT PASS for the archived set** — rail it as its own case: *unpack a member, assert it compares EQUAL to the NAS source* | design **§4**, **§2**, **§7.1** |
@@ -88,7 +88,7 @@ cluster op.**
 | **W2** | **C2** | whether the summary is computed per call or cached on `ContributorChanged` | ⭐ **implementer.** 📐 The walk is stat-only (`design §1 ⑤`) ⇒ **start simple**; cache only if measured slow, and say which you did |
 | **W3** | **C2** | how scenarios participate, given `BaseFolder == null` for them | ⭐ **implementer.** ⚠ Scenarios already travel by the prefetch path, so the likely answer is **they do not participate** — ⛔ but that must be **stated in the report**, not assumed silently |
 | **W4** | **A1**, **B4** | whether a **removed** NAS entry **deletes** the node's copy or is only reported | ⭐ **implementer, but STATED AND RAILED either way.** ⛔ *"the node MIRRORS NAS"* is not a testable condition until this is answered; a rename leaves an orphan on every node otherwise |
-| **W5** | 🔴 **B1 — BLOCKING** | ⛔ `LoadPart` ∩ `AssetKind` = **∅**, and behaviour assets have **no** `LoadPart` ⇒ *"derive from `RoleLoadRequirements`"* is under-determined | 🔴 **THE USER** — design §7.3a carries the lean (*a 3-row adapter here + `Brain ⇒ all AI kinds`*; ⛔ **not** extending `RoleLoadRequirements`, which would claim a load step nobody implements). ⛔ **Batch ② does not dispatch until this is settled** |
+| ~~**W5**~~ | ✅ **CLOSED** | ⛔ `LoadPart` ∩ `AssetKind` = **∅**, and behaviour assets have **no** `LoadPart` | ✅ **RULED by the user `2026-09-19`** — a **3-row adapter** owned by the design + **`Brain ⇒ all AI kinds`**; ⛔ `RoleLoadRequirements` is **not** extended. 📄 **the map is design §7.3a; the ruling is `Q72-M`.** ⇒ **batch ② is unblocked** |
 
 ---
 
@@ -109,7 +109,7 @@ cluster op.**
 | batch | tasks | ⭐ why this boundary |
 |---|---|---|
 | **① A** | `A1`–`A3` | ⭐⭐⭐ **the enabler, alone.** Everything else needs the manifest, and `§1 ①` says recursion exists nowhere. ⛔ Landing B or C first builds on sand. ⭐ Small and fully railable without a cluster. ✅ **Dispatchable now** — the wire-DTO change moved out to `C1`, so ① carries **no contract change at all** |
-| **② B** | `B1`–`B6` *(now 7 tasks — `B4a`)* | ⭐ the increment that makes *"nodes keep just copies they really need"* true. ⚠ Largest; `B5`'s seam extraction rides here because `B4` needs it. 🔴 **BLOCKED on `W5`** |
+| **② B** | `B1`–`B6` *(7 tasks — `B4a` added)* | ⭐ the increment that makes *"nodes keep just copies they really need"* true. ⚠ Largest; `B5`'s seam extraction rides here because `B4` needs it. ✅ **Unblocked — `W5` ruled `2026-09-19`** |
 | **③ C** | `C1`–`C4` | ⭐ independent of B and **safe to defer**; ⛔ the only part that touches authoring hosts |
 
 ⭐⭐ **Reporting:** the gate-report contract rows 1–7 per batch. ⛔⛔ **Row 8 BINDS ② and ③** — both change
