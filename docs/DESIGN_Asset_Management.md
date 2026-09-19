@@ -23,6 +23,9 @@ known-rot: ⛔ §7.3's "derive from RoleLoadRequirements" is TRUE but INSUFFICIE
 known-conflict: none. ⚠ DESIGN_Artifact_Staging.md is a BUILT SUBSET — §2.1 says exactly what it already
   does and what this generalises; ⛔ this document does not re-decide any of it.
 related-designs:
+  - docs/blueprints/RESUME_Assets_And_Occurrences.md — ⭐ THE COORDINATOR RESUMPTION for this programme.
+    Read it FIRST if you are picking this up cold: it says what is dispatchable, what B2 must carry, and
+    the six traps three review rounds paid for. ⚠ A state snapshot, not canon — verify against git.
   - docs/blueprints/Architect_Question_72_Asset_Lifecycle_And_Distribution.md — THE decision record.
     Every rule here cites a Q72 sub-question; read it for WHY a rule is what it is.
   - docs/DESIGN_Artifact_Staging.md — BUILT. Owns the NAS->node push for ONE artifact (the named TKB) as

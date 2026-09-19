@@ -13,6 +13,8 @@ known-conflict: ✅ RESOLVED 2026-09-19 — the `FileManifestEntry` change moved
   node->NAS DTO and publish is its first consumer), so batch ① now carries NO wire-contract change.
   ⛔ The caution still applies to C1: additive and low-risk, but it is a contract.
 related-designs:
+  - docs/blueprints/RESUME_Assets_And_Occurrences.md — ⭐ the coordinator resumption. §2.4 carries the two
+    things a dispatching handoff MUST say (B2 goes FIRST; deferring batch ③ now has a cost).
   - docs/DESIGN_Asset_Management.md — THE owning design for every task here.
   - docs/blueprints/Architect_Question_72_Asset_Lifecycle_And_Distribution.md — the decision record; read
     it when a task's rationale is unclear.

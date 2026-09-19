@@ -11,6 +11,10 @@ reopens: Architect_Question_37_Unify_On_The_Allocator.md — PARKED by the user 
   ("keep this open and return to it a bit later"). THIS DOCUMENT IS THAT RETURN. Q37's
   measurements are banked and marked do-not-re-measure; they are cited here, not re-derived.
 related-designs:
+  - RESUME_Assets_And_Occurrences.md — ⭐ THE COORDINATOR RESUMPTION for this programme. Read it FIRST
+    if you are picking this up cold: this document has NO PLAN yet, and §3.2 there says what to do
+    before writing one (including the one cost measurement Q37 never took — the AI entity count).
+    ⚠ A state snapshot, not canon — verify against git.
   - Architect_Question_37_Unify_On_The_Allocator.md — THE OWNING QUESTION. Owns whether all
     parameter storage moves to the allocator, its two real costs (the ~1 KB floor, indirection
     from some actions to all) and the option set A/B/C. This document is its build-out.

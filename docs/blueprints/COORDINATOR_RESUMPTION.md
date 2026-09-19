@@ -4,7 +4,13 @@ doc-type: coordinator resumption snapshot — point-in-time state for picking up
   doc, not canon: every "in flight"/"merged" line is a snapshot dated below — ⛔ VERIFY against git before
   acting, never quote it as settled truth (per "THE LEDGER MAY NOT ASSERT WHAT THE CODE IS").
 updated: 2026-09-15
+known-conflict: ⛔⛔ THIS FILE IS NOT THE ONLY COORDINATOR SNAPSHOT. Since 2026-09-19 a SECOND coordinator
+  programme pair runs on the same branch — asset management + occurrence-scoped storage — and NOTHING
+  about them is in this file. If you were handed either, read
+  docs/blueprints/RESUME_Assets_And_Occurrences.md INSTEAD. Neither file supersedes the other; they own
+  different programmes. ⚠ This file's "in flight" lines are a 2026-09-15 snapshot and are OLDER.
 current-answer: the whole file — read it, then re-derive the live state with the commands in §0.
+  ⛔ BUT FIRST check which programme you were handed — see known-conflict above.
   §3 HEAD is now `a2ec5de7` (UI merge: reliable-init barrier PIECE C COMPLETE, CE-285..291, wire-proven
   incl. the abort/timeout leg; creator-half UNIFIED — every ECS node a symmetric reliable creator).
   ⭐ NEW WORKFLOW: H - ui (session_01HAuqWX…) is the DEV/implementation session; this session (H - coord)
