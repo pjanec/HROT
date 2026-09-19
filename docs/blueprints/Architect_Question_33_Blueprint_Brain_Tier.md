@@ -1,5 +1,18 @@
 # Architect Question #33 — blueprint as a brain tier, and suspendable sub-behaviours
 
+> ## ⚠⚠ STORAGE MODEL SUPERSEDED — `2026-09-19`
+>
+> 📄 **[`DESIGN_Occurrence_Scoped_Storage.md`](DESIGN_Occurrence_Scoped_Storage.md)** moves params and
+> brain state into **per-occurrence allocator slots** and renames `BlueprintBlackboard*` →
+> **`OccurrenceStore*`**. Build-out of
+> [`Architect_Question_37`](Architect_Question_37_Unify_On_The_Allocator.md), reopened `2026-09-19`.
+>
+> ⭐⭐ **What THIS question still owns, and that design explicitly does NOT:** blueprint as an
+> **assigned root brain tier** — §0 ruling 1, §1.5.1's discriminant-not-bitmask shape, and the
+> registry / tick-path / preemption gaps. ⭐ That design is a **prerequisite** for it *(see its §12)*,
+> never the delivery.
+
+
 > **Coordinator, `2026-08-16`.**
 > ⛔ **`N = 33` taken across ALL active branches** (rule 3a); highest existing is `32`.
 > 📄 Context: [`EXPLAINER_Where_Parameters_And_State_Live.md`](EXPLAINER_Where_Parameters_And_State_Live.md)

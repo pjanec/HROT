@@ -833,3 +833,52 @@ a tree that is no longer the only one running.
 | **nesting is visible** | a hosted occurrence renders under its host, not as a sibling |
 | **the HTTP list matches the inspector** | `AttachedBlueprints`' successor and the renderer read the same manifest ⇒ same count, same names. ⛔ Two scans that can disagree is the `R-132` two-producers smell |
 | **no default byte dump** | no occurrence store ever falls back to the raw hex renderer — that is the signal a manifest entry is missing |
+
+---
+
+## 12. Blueprint as an ASSIGNED behaviour — ⛔ **out of scope here, and why**
+
+> 🔒 **User, `2026-09-19`:** *"Can a behavior assigned to an entity be represented by a blueprint
+> instance now? does brain tier include the blueprint instance next to btree and hsm?"*
+
+**📐 Measured: NO.** The complete `BrainTier` set is **two** values — `BrainTierHsm = 1`,
+`BrainTierBTree = 2` (`BehaviorConstants.cs:35/38`); there is no blueprint value, and
+`BehaviorState.BrainTier` is only ever written from `def.BrainTier` (`BehaviorIngressSystem:132`,
+`:221`) or zeroed on clear (`:198`). ⚠ **`BlueprintRegistry.RegisterWorldSingleton(int, BlackboardTier)`
+is NOT related** — that `tier` is the storage tier (1024/4096/16384).
+
+⭐⭐ **But it is a settled intent, not an open question** — `Q33` §0, user, `2026-08-16`:
+*"blueprint should be brain tier **exactly to inherit behavior lifecycle**"*, listed there as
+**settled, not open**.
+
+⭐⭐⭐ **And `Q33` §1.5.1 already fixed the SHAPE: a THIRD DISCRIMINANT VALUE, not a bitmask.** The
+values are bit-distinct so a mask would *work*, ⛔ but every use is an equality test, and the two
+questions differ: *"which interpreter does ingress START?"* is **singular — the root**, while *"which
+interpreters are PRESENT?"* is a **set** once nesting exists. A mask answers the second and destroys
+the first. ⇒ **add `BrainTierBlueprint = 3`; derive presence separately if it is ever needed.**
+
+### ⛔ Two questions that get conflated — this design serves only one
+
+| | what it is | status |
+|---|---|---|
+| ⭐ **blueprint as a HOSTED child** — under an HSM state or a BTree node | `Q33` §0 ruling 3: *"strategical HSM on top with tactical BTree **or blueprint** under it"* | ⭐⭐ **this design delivers it** — it is `O8`'s shape, and blueprint-as-`AiPrimitive` already works today |
+| ⛔ **blueprint as an ASSIGNED ROOT** — a third brain tier | `Q33` §0 ruling 1 | ⛔ **NOT delivered here.** Storage is only one of its four gaps |
+
+### 📐 The four gaps for the ROOT case — none of them is storage
+
+| # | gap | measured |
+|---|---|---|
+| ① | **no tier value** | `BrainTierBlueprint` does not exist |
+| ② | 🔴 **the registries are separate, and resolution is by NAME** | ingress does `BehaviorRegistry.TryGetId(evt.BehaviorName, …)` (`BehaviorIngressSystem:65`); blueprints live in `BlueprintRegistry`, and `Q36` §2 measured **no asset-id index of any kind** on the behaviour side |
+| ③ | **no root tick path** | `BTreeTickSystem`/`HsmTickSystem` gate on `BrainTier`; `BlueprintTickSystem` gates on **nothing** — it ticks every slot unconditionally ⇒ *"assigned root"* and *"attached Instance"* would be indistinguishable |
+| ④ | ⚠ **two preemption tokens for one concept** | behaviours use `BehaviorState.InstanceId` (+ `ChannelArbitrationSystem` invalidating in-flight commands); blueprint slots use `BlueprintSlotEntry.InstanceVersion` (latent-cursor staleness). ⛔ A blueprint root must participate in the FIRST, and `Q33` §1.5.2's *"cancellation is already solved"* is about the second |
+
+⇒ ⭐⭐ **This design is a PREREQUISITE, not the delivery.** Once params and state are occurrence-scoped,
+a blueprint root's bytes already live where a behaviour's do — which removes ① 's only *storage*
+objection and leaves identity, registry and preemption. 📄 **Those are `Q33`'s, and it is UNPARKED.**
+
+⚠ **One documentation conflict to resolve, not silently patched here:**
+`DESIGN_Parameter_Model.md`'s supersedes table lists `Q33` as **PARKED**, while `Q33`'s own header says
+**UNPARKED `2026-08-16`**. The parameter model most likely means *"out of scope for the parameter
+story"* — ⛔ but a reader can take it as globally parked. **Worth one line from whoever owns
+`DESIGN_Parameter_Model`** *(it is marked AUTHORITATIVE, so this design does not edit it)*.
