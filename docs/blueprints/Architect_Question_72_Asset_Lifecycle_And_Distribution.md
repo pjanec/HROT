@@ -4,10 +4,11 @@ build-state: OPEN — a decision document, NOT buildable. ⛔ Nothing here is di
   carries a recommended lean for the user to approve or redirect (the "I analyse and SUGGEST, the user
   APPROVES" rule). ⚠ Number 72 taken as the next free across ALL active branches (rule 3a; 67-71 in use).
 updated: 2026-09-19
-current-answer: ⭐⭐ ROUND 1 (§3, Q72-A..G) is APPROVED by the user 2026-09-19 — those leans are now
-  rulings and live in §4. ⭐⭐⭐ §3a is ROUND 2: the requirements that approval brought with it, and the
-  THREE NEW sub-questions (Q72-H form-vs-transport, Q72-I the publish negotiation, Q72-J the external
-  producer). That is what needs your ruling now. §1 is the measured INVENTORY, §4 is settled canon.
+current-answer: ⭐⭐ ROUND 1 (Q72-A..G) and Q72-H are RULED — see §4a and §3a. ⭐⭐⭐ WHAT IS STILL OPEN:
+  Q72-H1 (don't re-compress already-compressed entries — lean H1a, rules pick the COMPRESSION LEVEL not
+  inclusion), Q72-I's warn-vs-fail half, and Q72-J. §3a's THREE-FORMS rule is the load-bearing content:
+  NAS form == node form always, and freshness is keyed on the at-rest per-file manifest, never on the
+  transport archive. §1 is the measured INVENTORY, §5b names the two things still unmeasured.
 stale-below: nothing — new document.
 known-rot: nothing yet.
 known-conflict: none. ⚠ DESIGN_Artifact_Staging.md is IN FLIGHT as a dispatched batch and is deliberately
@@ -229,18 +230,48 @@ mtime (measured, `DESIGN_Artifact_Staging` §6), a tree copied file-by-file **or
 lands with the same per-file key — ⭐ **the two transport shapes are indistinguishable to the skip**, which
 is what makes the optimisation safe to apply automatically.
 
-### `Q72-H` — **is the transport form chosen automatically, or declared?**
+### `Q72-H` — ✅ **RULED `2026-09-19` — the transport form is an optimisation and nothing else**
 
-| option | ⚠ |
+> 🔒 **User:** *"what is on NAS should appear on nodes **for simplicity** (zip or file tree). Same for
+> everything else, so **zipping big file trees stays pure transport optimization** in my opinion."*
+
+⭐⭐⭐ **THE RULE: NAS FORM == NODE FORM. ALWAYS.** ⇒ a tree on NAS is a tree on the node; a zip on NAS is a
+zip on the node. **Packing is pack → send → unpack**, and the node never sees the transport container.
+
+⭐⭐ **This RESOLVES the caveat I raised against H1**, rather than leaving it open. I had asked *"what if a
+loader wants the archive as its at-rest form?"* ⇒ 🔒 **the question dissolves: at-rest node form is never
+the sync's choice, it is a MIRROR of NAS.** ⛔ A loader that wants an archive gets one by the archive being
+on NAS — which is exactly the TKB case, and 🔒 the user's ruling that *"the TKB … I would not change the
+format between NAS and nodes."*
+
+⭐ **And it simplifies the freshness rule rather than complicating it:** because both sides hold the same
+form, the per-file `(relative path, length, mtime)` manifest of §3a compares like with like. ⛔ There is no
+"unpacked here, packed there" asymmetry to reason about.
+
+| ⭐ what survives from H1 | |
 |---|---|
-| ⭐ **H1 automatic, by file count** *(lean)* | the sync packs a tree into a transport archive above a threshold; below it, copies files. ⭐ **No vocabulary, no authoring burden**, and 🔒 it is exactly *"automatic packaging … to reduce the number of files"* |
-| **H2 declared per asset kind** | a manifest says "always pack"/"never pack" | ⛔ a knob per kind that the file count already answers |
-| **H3 always pack** | simplest code path | ⚠ pathological for a 2-file asset, and it makes every sync a pack+unpack |
+| **pack a many-file tree for the wire, automatically, by file count** | 🔒 *"not file by file"* — ⭐ still the whole point |
+| **unpack on arrival so the node mirrors NAS** | ⭐⭐ **new, and it is what makes the ruling true** |
+| ⛔ **never change the at-rest form** | the archive exists only between the two disks |
 
-⭐⭐ **Lean H1**, threshold configurable, default unmeasured. ⚠ **What would flip it:** an asset kind where
-**unpacking on the node is unacceptable** (e.g. a loader that memory-maps the archive) — ⭐ then the
-at-rest node form IS the archive and H1 must not unpack it. 📌 TKB is already that case in the *zip*
-direction, which is why the **at-rest node form is the loader's contract** and not the sync's choice.
+#### `Q72-H1` — ⚠ **STILL OPEN: don't re-compress what is already compressed**
+
+> 🔒 **User:** *"transport packing should avoid repacking big already compressed archives (maybe some
+> path/name/extension regex based rules for where to avoid repacking?)"*
+
+📐 **The goal being protected is FILE COUNT, not bytes** — 🔒 *"to reduce the number of files."* ⇒ ⭐⭐ that
+distinction decides the design:
+
+| option | ⭐ |
+|---|---|
+| ⭐⭐ **H1a — rules select the COMPRESSION LEVEL, not inclusion** *(lean)* | a matched entry is added to the archive **stored (uncompressed)**; everything else deflates. ⭐⭐⭐ **The file-count goal is fully preserved** — the big `.zip`/`.pak`/`.dds` still travels inside the one container — and the wasted CPU is gone. ⭐ `ZipArchive` supports per-entry `CompressionLevel.NoCompression` |
+| **H1b — rules EXCLUDE matched files from the archive; copy them separately** | ⛔⛔ **defeats the purpose for exactly the worst files**: the big ones go back to being individual transfers, which is the many-file problem the packing exists to solve |
+| **H1c — no rules; always deflate** | ⚠ wastes CPU proportional to the already-compressed payload, on **every** publish |
+
+⭐⭐ **Lean H1a**, with the rule expressed as **extension + path regex**, configurable, defaulting to the
+usual suspects *(`.zip .7z .rar .gz .pak .dds .ktx .basis .mp4 .ogg`)*. ⚠ **What would flip it:** if
+`ZipArchive`'s stored-entry path turns out to cost a full re-read of a multi-GB file anyway, then for very
+large entries H1b's separate copy is cheaper — ⛔ **unmeasured**, and it only matters above some size.
 
 ### `Q72-I` — **the publish negotiation: when does node→NAS sync happen?**
 
@@ -255,12 +286,25 @@ explicit user operation.**
 | **I2 auto-publish on load** | ⛔ violates *"we do not want the sync to happen every time"* and makes load time unbounded |
 | **I3 explicit publish only, no probe** | ⭐ simplest; ⛔ loses the *"consistent data everywhere needed"* guarantee — a stale NAS loads silently, which is the exact failure class this whole programme exists to remove |
 
-⭐⭐⭐ **Lean I1, and the probe is the interesting half.** ⭐ It is cheap **by construction** if it returns a
-summary rather than a manifest: `(kind, newest mtime, file count)` per authoring node. ⚠ **Open inside the
-lean:** whether a node being ahead should **fail** the load or **warn**. ⭐ My sub-lean: **warn for
-authored assets, fail for scenario-referenced artifacts** — 📐 because `Q72-F` already fails the load when
-a *named* artifact cannot be staged, and an un-published blueprint edit is not a named artifact. 🔒 **Your
-call; this is the one place where the two invariants genuinely pull apart.**
+⭐⭐⭐ **Lean I1 — and the probe's feasibility is now MEASURED (`2026-09-19`), not assumed:**
+
+| 📐 measured | where | ⇒ |
+|---|---|---|
+| ✅ **`IAssetCatalogContributor.BaseFolder`** — *"the absolute base folder for this contributor's assets"*, per `Kind` | `IAssetCatalogContributor.cs:20` | ⭐⭐ **the probe already knows exactly which directory to stat, per kind.** No new path authority |
+| ✅ `Kind` + `Enumerate()` + **`ContributorChanged`** event | `:5,6,23` | ⭐ a cached summary can be **invalidated on change** instead of walked every time |
+| ⛔ **`IEditableAsset` carries NO timestamp and NO length** — `AssetId`, `Name`, `Kind`, `SourceFilePath`, `IsDirty`, `IsEditorOwned` | `IEditableAsset.cs:3-12` | ⇒ the probe **cannot** read mtimes off the catalogue; it must **stat the files** |
+| ⚠ **`BaseFolder` is `null` for non-file contributors** — *"assembly, test fakes, **scenarios**"* | `:11-12` | ⭐ the probe covers **Blueprint / BTree / Hsm** — the behaviour assets this is actually about — ⛔ **not scenarios**, which have no file-backed contributor |
+
+⇒ ⭐⭐ **VERDICT: feasible and cheap, but NOT free.** The probe is a **stat-only directory walk** per kind
+over `BaseFolder` returning `(kind, file count, newest mtime)`. ⛔ No file is read, no asset is parsed.
+⭐ For the *"hundreds of small files"* case that is milliseconds; ⚠ it is not zero, so 🔒 the *"only if it
+is cheap"* condition is **met by construction rather than by hope** — and `ContributorChanged` is there if
+it ever needs to become a cached value instead of a walk.
+
+⚠ **Open inside the lean:** whether a node being ahead should **fail** the load or **warn**. ⭐ My
+sub-lean: **warn for authored assets, fail for scenario-referenced artifacts** — 📐 because `Q72-F`
+already fails the load when a *named* artifact cannot be staged, and an un-published blueprint edit is not
+a named artifact. 🔒 **Your call; this is the one place where the two invariants genuinely pull apart.**
 
 ### `Q72-J` — **the external producer, and what "authoring capability" means now**
 
@@ -316,8 +360,16 @@ are **two symmetric token vocabularies over the same facility** (`hrot.asset.aut
 
 | # | what | decides |
 |---|---|---|
-| **1** | whether any behaviour-asset loader would **break** if its at-rest node form were an archive | `Q72-H`'s "what would flip it" — 🔒 you already stated the answer for editability (*"individual files"*), ⛔ but I have not verified there is no second consumer that would prefer the archive |
-| **2** | what a *"summary"* probe can cheaply produce on an authoring node — is there an existing per-kind catalogue with mtimes, or must it walk the tree? | `Q72-I`'s feasibility. ⭐ `AssetCatalog` + the per-kind contributors (⑬) are the likely home; ⛔ **not measured** |
+| **1** | ✅ **DISSOLVED, not measured.** 🔒 The `Q72-H` ruling — *NAS form == node form, always* — means the at-rest node form is **never the sync's choice**, so "would a loader break if handed an archive" cannot arise: it is handed whatever NAS holds | ⭐ the question was real; the ruling removed it rather than answering it |
+| **2** | ✅ **MEASURED `2026-09-19`** — `IAssetCatalogContributor.BaseFolder` gives the per-kind directory; `IEditableAsset` carries **no** timestamp ⇒ the probe is a **stat-only walk**, not a cached read. Full result in `Q72-I` | ⚠ and it surfaced a **scope limit**: `BaseFolder` is `null` for scenarios, so the probe covers behaviour assets only |
 | **3** | ✅ **MEASURED `2026-09-19` — and it corrected me.** `FileManifestEntry` (`OrchestrationPayloadDtos.cs:153`) = `SourceUnc` + `RelativeDest` + `DocType`. ⛔ **No length, no mtime** | ⇒ §3a's manifest-freshness rule costs **two fields on a wire DTO**, not zero. ⭐ Additive and low-risk, ⚠ but a contract change to plan for rather than to discover mid-batch. **The correction is recorded in §3a itself** |
 
-⛔ **Items 1 and 2 remain unmeasured and are marked as such rather than asserted.**
+### 5b. ⚠ WHAT IS STILL UNMEASURED — after round 3
+
+| # | what | decides |
+|---|---|---|
+| **A** | whether `ZipArchive`'s **stored** (uncompressed) entry path still costs a full re-read for a multi-GB file | `Q72-H1`'s "what would flip it" — ⭐ only matters above some size, and only chooses between H1a and H1b **for the largest entries** |
+| **B** | whether anything today can **enumerate a NAS asset tree** at all, or whether the NAS side of the manifest is also new code | sizes §3a's manifest rule on the **NAS** side. 📐 I measured the NODE side (`BaseFolder`); ⛔ **I did not measure the NAS side** |
+
+⛔ **Both are marked unmeasured rather than asserted.** ⭐ **B** is the one that could change the size of the
+first increment, so it is the one I would measure before any plan is written.
