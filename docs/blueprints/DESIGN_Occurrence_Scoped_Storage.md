@@ -378,6 +378,75 @@ Ordered so that each step is provable on its own and the expensive irreversible 
 | id | question | lean |
 |---|---|---|
 | **Q1** | ~~Does `NodeType.Subtree` come with this?~~ **WITHDRAWN — the question was wrong.** See §3.1 | ✅ **BTree-hosts-BTree SHIPS and is KEPT.** `O4` improves it |
-| **Q2** | HSM region capacity: **2** (`HsmInstance64`) / **4** (`HsmInstance128`), with a **single shared event queue** per instance | raise only if a real machine needs it. ⚠ the shared queue is unmeasured for cross-region hazards — measure before `O8`, not before `O6` |
-| **Q3** | Rename `BlueprintBlackboard*` → `Occurrence*`, given it already stores BTree/HSM state | **yes, but via Roslyn and not on the critical path** — the name is actively misleading now |
+| **Q2** | ~~The shared event queue is unmeasured for cross-region hazards~~ | ✅ **MEASURED — see §9. Five hazards, four of them structural.** None blocks `O0`–`O7`; **H1–H3 block `O8`** and are dispatch semantics, not storage |
+| **Q3** | Rename `BlueprintBlackboard*`, given it already stores BTree/HSM state | ✅ **names proposed — see §10.** Roslyn-driven, off the critical path |
 | **Q4** | ~~Does the root brain stay exclusive once nesting works?~~ | ✅ **RULED, user, `2026-09-19`, verbatim: *"there is still just up to one assignable behavior per entity."*** `BehaviorState` stays singular; `InstanceId` preemption and `ChannelArbitrationSystem` are untouched. Concurrency comes from nesting, never from a second assignable root |
+
+---
+
+## 9. The shared event queue — measured (`Q2`)
+
+⭐⭐ **Headline: the hazards are real and structural, but they are DISPATCH SEMANTICS, not storage.**
+They live entirely inside `HsmKernelCore` and `HsmEventQueue`, they would exist with or without this
+design, and **none of them blocks `O0`–`O7`.** Three of them block `O8`.
+
+### 9.1 The five hazards
+
+| # | hazard | measured at | bites when |
+|---|---|---|---|
+| **H1** | 🔴🔴 **ONE region consumes the event; the others never see it.** `SelectTransition` scans every region and returns **a single** best transition (`:564-610`); `ExecuteTransition` fires it; then `ProcessRTCPhase` sets `currentEventId = 0` — *"Event consumed"* (`:517`) — and the loop continues with epsilon transitions only. ⛔ **UML orthogonal-region semantics require the event to be offered to EVERY region**, each firing independently | `HsmKernelCore.cs:497-518`, `:564-610` | **any** event that two regions both have a transition for |
+| **H2** | 🔴 **Priority arbitration is GLOBAL, not per-region.** `bestTransition` is chosen by `priority > highestPriority` **across all regions** (`:592`) ⇒ a low-priority transition in region 0 loses to a high-priority one in region 1, and (via H1) region 0 then loses the event entirely | `:588-600` | any two regions with different transition priorities on one event |
+| **H3** | 🔴 **A GLOBAL transition always reports region 0.** `SourceStateIndex = activeLeafIds[0]` unconditionally (`:551`) and `regionIndex` stays at its `0` initialisation (`:538`) — it is only assigned inside the per-region loop (`:599`). ⇒ a global transition fired while >1 region is active rewrites **region 0's** leaf and leaves the others untouched. ⚠ **This is the surviving half of the bug the `:747-749` comment says was fixed** *("a transition fired in region 1 used to overwrite region 0's leaf… corrupting two regions with one event. Harmless while regionCount == 1, which is why it survived")* — fixed for per-region transitions, **still live for global ones** | `:538`, `:551`, `:747-750` | any global transition on a multi-region machine |
+| **H4** | ⚠ **Queue capacity is 1–2 events for the tiers HROT actually uses.** `Tier1_Capacity = 1` (a literal single 24-byte event); `HsmInstance128` = 1 interrupt slot + `Tier2_Ring_Capacity = 1` ⇒ **2**. `HsmInstance256` (ring 5 ⇒ 6) exists in the queue code but **HROT wraps only 64 and 128** (`BrainComponents.cs`) ⇒ **the practical ceiling is 4 regions sharing a 2-event queue.** And the documented overflow policy is that a priority event **evicts the oldest normal event** ⇒ **silent loss** | `HsmEventQueue.cs:11-27`; `HsmInstance64.cs` header | N regions each expecting an event in one tick — i.e. normal operation, not an edge case |
+| **H5** | ⚠ **Drain order decides the winner.** `ProcessEventPhase` drains up to `MaxEventsPerTick = 10`, each through a full RTC pass. Deterministic, but with H1 the queue order silently determines which region acts | `:381-392` | any multi-event tick |
+
+⭐ **Timer events are not exempt:** `FireTimerEvent` enqueues into the same shared queue, so H1 and H4
+apply to timers too — even though `TimerDeadlines[]` is itself per-slot.
+
+### 9.2 ⭐ What is already right, and it is the shape of the fix
+
+`ArbitrateOutputLanes` runs **only when `RegionCount > 1`** (`:645-647`). ⇒ **the OUTPUT side already
+has region arbitration; it is the INPUT side that has none.** The fix has a precedent in the same
+file: offer the event to each region, collect at most one transition **per region**, execute them,
+and let the existing output-lane arbiter resolve conflicting effects.
+
+### 9.3 Consequence for this design
+
+| | |
+|---|---|
+| ⭐⭐ **`O0`–`O7` are unaffected** | they change **where bytes live**. H1–H5 are about **which region gets an event**. No dependency either way |
+| ⛔ **`O8` (BTree hosted under an HSM state) needs H1 fixed** if two regions are meant to host trees concurrently — otherwise one hosted tree stops receiving the events that drive it | |
+| ⚠ **H4 is a capacity decision, not a bug** | 4 regions on a 2-event queue is under-provisioned by construction. Either wire `HsmInstance256` (the queue already supports it; `BrainComponents` simply has no wrapper) or accept ≤2 event-driven regions |
+| 🔒 **This is a SEPARATE ExtDeps change from §4.2** | it must be justified on its own terms — *"orthogonal-region event dispatch is wrong"* — and **not** smuggled in as part of the storage work. ⛔ Exactly the failure mode the standing ExtDeps rule exists to prevent |
+
+---
+
+## 10. Rename proposal (`Q3`)
+
+**What the thing actually is:** a per-entity, tiered, slab-allocated arena holding **one payload per
+running occurrence** — blueprint Instance, BTree stateful slot, HSM slot. The word `Blueprint` in its
+name has been wrong since `BehaviorIngressSystem` started allocating from it.
+
+| today | ⭐ proposed | why |
+|---|---|---|
+| `BlueprintBlackboard1024/4096/16384` | **`OccurrenceStore1024/4096/16384`** | names the unit of identity the design turns on; *store* avoids **blackboard**, which already means three different things here |
+| `BlueprintBlackboardHeader` | **`OccurrenceStoreHeader`** | |
+| `BlueprintSlotEntry` | **`OccurrenceSlotEntry`** | |
+| `BlueprintFreeBlockHeader` | **`OccurrenceFreeBlockHeader`** | |
+| `BlueprintBlackboardTiers` | **`OccurrenceStoreTiers`** | keeps the `RegisterAll` role obvious |
+| `BlueprintBlackboardPartitions` | ⭐ **`OccurrencePartitions`** — **keep the word `Partitions`** | ⛔ do NOT rename this to `Allocator`: `Blueprint_Subsystem_Runtime_Detailed_Design.md` §5 is cited across the corpus as *"the partition allocator"*, and renaming orphans those citations for no gain |
+| `BlueprintBlackboard1024Renderer` … | **`OccurrenceStore1024Renderer`** … | |
+
+**Rejected alternatives, one line each:**
+`SlotBlackboard*` — keeps the overloaded word we are trying to disambiguate from ·
+`OccurrenceArena*` — *arena* is precise allocator jargon but reads oddly in a military sim ·
+`BehaviorStateStore*` — collides conceptually with the `BehaviorState` component ·
+`AiStateArena*` — too narrow, blueprint Instances are not all AI ·
+`EntityScratch*` — says nothing about occurrence identity.
+
+| ⚠ constraints on doing it | |
+|---|---|
+| 🔴 **Roslyn only** | never a text rename — the standing rule, and a preview here will reach assemblies a reference list does not name |
+| 🔴 **Rename the FIELD, never the VALUE** | `GlobalComponentIds.BlueprintBlackboard*` field names change; **the numeric ids must not** — `R-44`: ids are globally unique and partitioned for multi-process determinism |
+| ⚠ **union rule** | query from a root-solution project **and** check `HrotStrideApp.Windows` separately — it is the one project outside `IOS-IG-SimHost.sln` |
+| ⭐ **do it AFTER `O3`** | `O3` already touches the slot header; renaming first means two passes over the same files |
