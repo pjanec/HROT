@@ -492,13 +492,85 @@ walk** — the same walk `BlueprintTickSystem.TickTier_*` already performs, incl
 
 | option | ExtDeps delta |
 |---|---|
-| **(a)** three payload structs on our side — `struct HsmPayload64 { fixed byte _[64]; }` etc. — and call the existing `Update<HsmPayload256, HsmKernelBridge>(ref Unsafe.AsRef<HsmPayload256>(slotPtr), …)`, so `sizeof(TInstance)` is right | ⭐⭐ **ZERO.** Works today, at the cost of three dummy structs and a 3-way switch |
-| **(b)** ⭐ **one additive `public` pointer overload** — `HsmKernel.Update(definition, byte* instance, int instanceSize, void* context, …)` forwarding to the already-existing `UpdateBatchCore` | one new public method, **no existing signature touched** |
+| **(a)** three payload structs on our side — `struct HsmPayload64 { fixed byte _[64]; }` etc. — and call the existing generic `Update<HsmPayload256, HsmKernelBridge>(ref Unsafe.AsRef<HsmPayload256>(slotPtr), …)` so `sizeof(TInstance)` is right | ⭐⭐ **ZERO** |
+| **(b)** ⭐ **one additive `public` pointer overload** forwarding to the already-existing internal `UpdateBatchCore` | one new public method, **no existing signature touched** |
 
-⭐⭐ **Lean: (b), folded into `O6`.** `O6` is already editing `HsmKernel.Update`'s signature (`in
-TContext` → `ref TContext`, §4.2) ⇒ **adding the pointer overload in the same change costs one
-crossing instead of two**, and avoids three dummy structs whose only job is to lie about a size. ⛔ If
-`O6` is ever cancelled, fall back to (a) — the slot model does **not** depend on the ExtDeps edit.
+**What (b) actually is.** The only public entry today is generic, and the generic exists for exactly
+two reasons — to pin the managed `ref`, and to supply `sizeof(TInstance)`:
+
+```csharp
+public static unsafe void Update<TInstance, TContext>(
+    HsmDefinitionBlob definition, ref TInstance instance, in TContext context,
+    float deltaTime, ref CommandPage commandPage)
+    where TInstance : unmanaged where TContext : unmanaged
+{
+    fixed (TInstance* instPtr = &instance) fixed (TContext* ctxPtr = &context)
+    fixed (CommandPage* cmdPtr = &commandPage)
+        HsmKernelCore.UpdateBatchCore(definition, instPtr, 1, sizeof(TInstance), ctxPtr, …);
+}
+```
+
+`UpdateBatchCore` is `internal` and **already has the shape a slot needs.** (b) is one method that
+makes it reachable:
+
+```csharp
+public static unsafe void Update(
+    HsmDefinitionBlob definition,
+    byte* instance, int instanceSize,        // ⭐ straight from slot.PayloadOffset / slot.PayloadSize
+    void* context, float deltaTime,
+    CommandPage* commandPage, HsmTraceContext* traceCtx = null)
+    => HsmKernelCore.UpdateBatchCore(definition, instance, 1, instanceSize, context, deltaTime, commandPage, traceCtx);
+```
+
+| | ⭐ (a) payload structs | ⭐ (b) pointer overload |
+|---|---|---|
+| ExtDeps | ✅ **none** | ⚠ one additive public method |
+| ⭐⭐⭐ **where the SIZE comes from** | 🔴 **a type we invented** — `sizeof(HsmPayload256)` | ✅ **the allocation** — `slot.PayloadSize` |
+| 🔴 **memory safety** | ⛔⛔ **pass `HsmPayload256` at a 128-byte slot and the kernel reads 128 bytes past the payload — into the NEXT OCCURRENCE'S bytes.** No compiler check, no runtime check | ✅ **cannot disagree with the slot by construction** |
+| new call sites (reload, debug snapshot, editor) | each repeats a 3-way switch | one call, any size |
+| a future 4th size | a 4th struct + a 4th switch arm | ⭐ nothing |
+| misuse risk | low — the types constrain it | ⚠ a caller can pass a wrong `instanceSize`; mitigate by keeping the generic overloads as the documented surface |
+| reversibility | entirely ours | needs an ExtDeps revert |
+
+⭐⭐⭐ **Lean: (b), and the deciding argument is MEMORY SAFETY, not convenience.** In (a) the size is
+a property of an invented type; in (b) it is a property of the allocation. With occurrence payloads
+packed adjacently inside one component, an overstated size reads into the **neighbouring
+occurrence** — ⛔ **precisely the silent cross-occurrence corruption this whole design exists to
+eliminate**, reintroduced at the tick site. ⭐ Fold it into `O6`, which is already editing
+`HsmKernel.Update` (§4.2): **one crossing instead of two.** ⛔ If `O6` is cancelled, (a) remains a
+working fallback — the slot model does not depend on the ExtDeps edit — but then the size/slot
+agreement needs an explicit assert at every call site.
+
+### 9.5 Who declares the instance size — ✅ `BehaviorDefinition`, per the user
+
+🔒 **User, `2026-09-19`:** *"the behavior definition record… could say what size of the HSM to use."*
+⭐⭐ **Agreed, and it is the EXISTING pattern rather than a new one** — measured.
+
+`BehaviorDefinition` (`BehaviorRegistry.cs:74-198`) already carries `HsmDefinition` (`:96`), and
+already carries **`StatefulWorkingSlots: IReadOnlyList<StatefulSlotInfo>`** (`:197`) where every entry
+declares an explicit **`PayloadSize`** (`:63`) plus `SlotKey`, `StructureHash`, `WorkingStateType`,
+`Role` and `Scope`. ⇒ **the definition record is already how the ingress learns what to allocate**,
+and `BehaviorIngressSystem.ProvisionStatefulSlots` already allocates from it. The HSM instance is one
+more entry of the same shape.
+
+#### 📐 Why DECLARED beats DERIVED here — the header cannot answer the question
+
+`HsmDefinitionHeader` is 32 bytes and carries `StateCount`, `TransitionCount`, **`RegionCount`**,
+`GlobalTransitionCount`, `EventDefinitionCount`, `ActionCount`, `GuardCount`. ⛔ **It carries NO timer
+count and NO history-slot count** — and the tiers differ in all four axes *(regions 2/4/8, timers
+2/4/8, history 2/8/16, queue depth 1/2/6)*. Timer usage lives in the **state definitions**, not the
+header. ⇒ ⛔ **deriving the tier at runtime from `Header.RegionCount` alone UNDER-SPECIFIES it**, and
+the alternative — adding counts to the header — is an ExtDeps format change for something the
+compiler already knows.
+
+⭐⭐ **So: declared on the record, but COMPUTED AT BUILD TIME by the generator**, exactly as
+`StatefulWorkingSlots` is emitted today. The compiler scans the machine (regions, timers, history,
+event depth), snaps to 64/128/256, and emits it. **No ExtDeps change, no runtime guessing.**
+
+⚠ **Drift is already guarded** — `StatefulSlotInfo.StructureHash` and the slot-vs-definition hash
+check that `BlueprintTickSystem.TickTier_*` performs, with `ResetSlot` on mismatch. A machine
+recompiled to need a bigger instance changes its structure hash, so the stale slot is reset rather
+than silently under-read. ⭐ This is what makes a declared size safe here and unsafe in general.
 
 ⛔ **Do not read "≤2 event-driven regions" as a design limit to accept** — it was my shorthand for
 *"don't exceed the queue"*, and the honest statement is: **the queue was never sized against the
