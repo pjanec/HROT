@@ -125,7 +125,29 @@ beats a hash, and why `B` is sufficient where `A` looked necessary. ⭐ **The th
 code shape it needs** *(the tier probe + `TryGetSlotOffset` that stateful BTree actions have used since
 `S2`)*; what it lacked was four bytes of *"who am I"*.
 
-### ⚠ The accepted limit — **guards are unserved**
+### ✅✅ AMENDED `2026-09-19` — **guards ARE served; the limit below is SUPERSEDED**
+
+> 🔒 **User, `2026-09-19`:** approved `D2` of
+> [`DESIGN_Occurrence_Scoped_Storage.md`](DESIGN_Occurrence_Scoped_Storage.md) §13.
+
+⛔⛔ **The limit recorded below rested on a measurement that was too narrow.** `VE-DEBT-004`'s *"zero
+production `[HsmGuard]`"* counted **hand-authored** guards and **did not consider the emitter**.
+📐 **Measured `2026-09-19`:** `AiPrimitiveHosting.HsmGuard` is a first-class hosting mode and
+`AiPrimitiveEmitter.EmitHsmGuardThunk` (`:441-467`) emits one ⇒ ***"blueprint as an HSM condition"*
+is a SHIPPED hosting mode**, and leaving guards unserved would make it the one composition the
+delivery cannot serve.
+
+📐 **Census of attributed `[HsmGuard]`:** 3 in FastHSM's own visual demo, 3 in FastHSM tests, 1 in
+`Fdp.Toolkits/Utility/Integration/UtilityTransitionArbiter.cs`; every other hit is editor/analyzer
+**metadata**. ⇒ ⭐⭐ **the 55-method / 25-directory blast radius is the ACTION delegate's, not the
+guard's.**
+
+⇒ ✅ **`EvaluateGuard` widens to carry the writer** —
+`delegate*<void*, void*, ushort, bool>` → `delegate*<void*, void*, ushort, HsmCommandWriter*, bool>`.
+⭐ **One mechanism for actions and guards alike** *(ruling 9)*. ⛔ **`Q35-A`, `Q35-B` and `Q35-C` are
+UNCHANGED** — the writer, the pair, one path.
+
+### ⛔ HISTORY — the accepted limit, superseded `2026-09-19`
 
 📐 `EvaluateGuard` is `delegate*<void*, void*, ushort, bool>` — the third argument is `eventId`, **so
 there is no writer to carry the pair.** ⭐ **Measurably free today: `VE-DEBT-004` — zero production

@@ -286,7 +286,7 @@ representable at all — while §11.2 renders it as a tree. ⇒ ⭐⭐ **unifyin
 job** *(ruling 9 applies to the key itself)*, not an assumption `O3` may lean on. ⚠ `Q34 §7`'s *"the
 field is already polymorphic"* describes coexistence, ⛔ **not a discriminant** — see `D1`.
 
-**Slot payload:** `[OccurrenceHeader][Params P][State S]`. `DESIGN_Parameter_Model.md` §3.3 already
+**Slot payload:** `[OccurrenceHeader][Params P][State S]`, and ✅ **`D1` puts `Kind` in that header** *(Blueprint · BTree · HSM · StatefulSlot)* — ⛔ **never in `BlueprintSlotEntry`, which is `Size = 16` and fully packed.** `DESIGN_Parameter_Model.md` §3.3 already
 rules that params must not sit at offset 0 for blueprint Instances (the 16-byte
 `BlueprintLatentCursor` lives there); the header generalises that reservation.
 
@@ -412,15 +412,28 @@ instancePtr, contextPtr, writerPtr)` ⇒ **the writer pointer reaches every thun
 |---|---|
 | **two fields on `HsmCommandWriter`** | `Fhsm.Kernel/Data/HsmCommandWriter.cs` — additive |
 | **the kernel assigns them before each dispatch** | the `ExecuteAction` call sites in `HsmKernelCore` |
-| ⛔ **nothing else** | no delegate change, no dispatcher change, no instance-layout change |
+| ⭐ **`EvaluateGuard` widens to carry the writer** *(`D2`)* | the dispatcher signature + its registered guard pointers. 📐 **Single-digit blast radius, measured above** |
+| ⛔ **nothing else** | ⛔ **the ACTION delegate is untouched** — the 55 attributed methods, both `FDP/Examples` projects and FastHSM's own demos still compile unchanged; no instance-layout change |
 
-#### ⚠ The accepted limit — **guards are unserved, and it must be asserted**
+#### ✅ GUARDS ARE SERVED TOO — `D2`, approved `2026-09-19` *(supersedes `Q35`'s "accepted limit")*
 
-`EvaluateGuard` is `delegate*<void*, void*, ushort, bool>`; the third argument is `eventId`, **so
-there is no writer to carry the pair.** ⭐ Free today — `VE-DEBT-004`: **zero production `[HsmGuard]`
-exists.** ⛔ But it is a real limit: **if a stateful guard is ever authored it needs `Q35-A` option
-`A` or a route of its own.** ⇒ **assert it**, so it surfaces as a decision rather than a silent wrong
-answer (§7).
+⛔ **`Q35` accepted "guards are unserved" on the strength of `VE-DEBT-004` — zero production
+`[HsmGuard]`. That measurement counted HAND-AUTHORED guards and missed the EMITTER.**
+📐 `AiPrimitiveHosting.HsmGuard` is a first-class hosting mode and `AiPrimitiveEmitter.EmitHsmGuardThunk`
+(`:441-467`) emits one ⇒ ***"blueprint as an HSM condition"* — this document's own goal sentence — is
+exactly the composition an unserved guard cannot deliver.**
+
+📐 **Census of attributed `[HsmGuard]`, measured `2026-09-19`:** **3** in FastHSM's own visual demo,
+**3** in FastHSM tests, **1** in `Fdp.Toolkits/Utility/Integration/UtilityTransitionArbiter.cs`;
+every other hit is editor/analyzer **metadata** *(facets, schema exporters, golden tests)*, not an
+attributed method. ⇒ ⭐⭐ **the 55-method / 25-directory blast radius is the ACTION delegate's, not the
+guard's** — widening `EvaluateGuard` touches a **single-digit** population, almost all of it ExtDeps'
+own demos and tests.
+
+⇒ ✅ **`EvaluateGuard` gains the writer:** `delegate*<void*, void*, ushort, bool>` →
+`delegate*<void*, void*, ushort, HsmCommandWriter*, bool>`. ⭐ **One mechanism for actions and guards
+alike** — the occurrence arrives the same way in both, so there is no second route to keep in step
+*(ruling 9)*.
 
 ⚠ **This is a DIFFERENT question from §9.4.** `Q35` settles how a *thunk* learns which occurrence it
 is. §9.4 settles how `HsmTickSystem` *invokes the kernel on a slot-resident instance* — the pointer
@@ -540,7 +553,7 @@ Ordered so that each step is provable on its own and the expensive irreversible 
 
 | # | item | why here | ExtDeps |
 |---|---|---|---|
-| **O0** | **WIRE `BlueprintTickSystem` on every ECS host** *(F13: not a re-home — it already lives in `Fdp.Toolkits`; only the wiring is editor-side, so this is smaller than it sounds)*. ⛔ **Needs `D1`'s `Kind` first (F8)** | independent of everything else; until it lands, blueprint Instances are editor-only and the tripod has no third leg on CGF | — |
+| **O0** | **WIRE `BlueprintTickSystem` on every ECS host** *(F13: not a re-home — it already lives in `Fdp.Toolkits`; only the wiring is editor-side, so this is smaller than it sounds)*. ⛔ **Needs `D1`'s `Kind` first (F8) — APPROVED, so `O0` carries the `OccurrenceHeader.Kind` it filters on** | independent of everything else; until it lands, blueprint Instances are editor-only and the tripod has no third leg on CGF | — |
 | **O1** | **`SquadCognitiveState` gets its own component** | removes the largest non-AI consumer of `Blackboard1024`; pure win even if the rest is cancelled | — |
 | **O2** | **Split `BrainBlackboard` → `BrainInterrupts` + a params region type** | the params region becomes addressable; the tail stops travelling with it. Updates `R-39`/`R-41` | — |
 | **O3** | **The occurrence seam** — `OccurrenceKey`, `TryResolveOccurrence`, the slot header | one lookup that classes 4/5/6 all call. **No behaviour changes yet** | — |
@@ -548,7 +561,7 @@ Ordered so that each step is provable on its own and the expensive irreversible 
 | ⭐ **O3b** | **Add the `OccurrenceStore256` tier** (`MaxSlots` 1–2) — `Q37` option B | prices the simple case: ~8× floor → ~2× (§5a). ⛔ Trivial after `O3a`, four copies before it | — |
 | **O4** | **BTree onto occurrence storage** — tree state and params into slots, **including a hosted subtree's own `BehaviorTreeState`, and its RE-ENTRY RESET (F14)** | ⭐ **proves the whole model with ZERO ExtDeps change** (§4.1) **and closes the shared-`BehaviorTreeState` defect in §3.1**. ⚠ Own state removes the accidental continuity `ref state` gave, so the child's cursor must be reset when the host re-enters the hosting node — **its own rail**. If this does not work, stop before paying for `O6` | **none** |
 | **O5** | **Blueprint Instances take params** (`DESIGN_Parameter_Model.md` §3.3) | the slot layout is now shared with `O4`; closes `R4`, which has no design today | — |
-| **O6** | **`HsmOccurrence` in the kernel** (§4.2 option b) | the one ExtDeps change, paid **once**, after `O4` has proved the storage model | **the only one** |
+| **O6** | **The kernel stamps the occurrence** — two fields on `HsmCommandWriter`, **plus the `EvaluateGuard` widening (`D2`, approved)**, plus the pointer overload (§9.4) | the one ExtDeps crossing, paid **once**, after `O4` has proved the storage model. ⭐ All three ride it together | **the only one** |
 | **O7** | **HSM per-region actions key on the occurrence** — closes `BP-297`/`E3`; **and `HsmTickSystem` gains entity discovery across the tier components (F9)** | needs `O6`. ⚠ With `BrainHsm*` deleted the query has no root component — it takes `BlueprintTickSystem`'s shape, and **C2 must price per-tick discovery across archetypes, not only per-action indirection** | — |
 | **O8** | **BTree hosted under an HSM state** — the strategic/tactical composition | needs `O3`+`O6`; the child is just another occurrence | — |
 | ⭐ **O9** | **Blueprint as an ASSIGNED ROOT behaviour** — the third `BrainTier` *(`Q33`)* | 🔒 **user, `2026-09-19`: *"solved after the occurences"***. ⛔ **Not storage** — §12's gaps ②③④: registry resolution, a root tick path, and joining `BehaviorState.InstanceId` preemption | — |
@@ -994,7 +1007,7 @@ than the review states**, and they are marked ⭐ below. Verdicts, then the two 
 `SelectTransition:540-560`, **before any per-region scan** — so it beats every per-region transition
 regardless of priority. §9.1's H2/H3 wording is updated.
 
-### ⭐⭐⭐ `D1` — where `Kind` lives: **the payload's `OccurrenceHeader`, not the slot entry**
+### ✅✅ `D1` — APPROVED `2026-09-19` — **`Kind` lives in the payload's `OccurrenceHeader`, not the slot entry**
 
 | option | verdict |
 |---|---|
@@ -1007,7 +1020,7 @@ accidental filter F7 names: `_registry.TryGetById(slot.BlueprintId, …) → con
 because `BlueprintRegistry` happens not to know an FNV stateful key. **`O0` must read a declared
 `Kind`, never a hash miss** — that is the precondition that makes `O0` safe to ship early.
 
-### ⭐⭐ `D2` — guards: **widen `EvaluateGuard`, because the guard population is tiny**
+### ✅✅ `D2` — APPROVED `2026-09-19` — **widen `EvaluateGuard`; the guard population is tiny**
 
 📐 **Measured census of attributed `[HsmGuard]`:** **3** in FastHSM's own visual demo, **3** in FastHSM
 tests, **1** in `Fdp.Toolkits/Utility/Integration/UtilityTransitionArbiter.cs`; every other hit is
@@ -1019,11 +1032,12 @@ Widening `EvaluateGuard` from `delegate*<void*,void*,ushort,bool>` to carry the 
 
 | option | verdict |
 |---|---|
-| ⭐ **widen `EvaluateGuard` to take the writer** | ✅ **LEAN.** One mechanism for actions *and* guards; the occurrence arrives the same way in both. Small, countable blast radius |
+| ⭐ **widen `EvaluateGuard` to take the writer** | ✅✅ **APPROVED.** One mechanism for actions *and* guards; the occurrence arrives the same way in both. Small, countable blast radius |
 | **leave guards unserved and assert it** | ⛔ **insufficient now F2 is measured** — `AiPrimitiveHosting.HsmGuard` is a shipped hosting mode, so *"blueprint as an HSM condition"* — **this document's own goal sentence** — would be the one composition the delivery cannot serve |
 | **a separate guard route** | ⛔ two mechanisms for one concept (ruling 9) |
 
-⚠ **This reopens a sub-question `Q35` closed on a narrower measurement.** `Q35`'s *"guards are
-measurably free — zero production `[HsmGuard]`"* was true of hand-authored guards and **did not
-consider the emitter**. ⛔ It needs the user's nod before `O6`, because it widens the ExtDeps delta
-from *"two fields on a struct"* to *"two fields plus one guard signature"*.
+✅ **The user approved it on `2026-09-19`**, which **overturns one sub-decision of `Q35`** — its
+*"accepted limit: guards are unserved"*. ⭐ That limit rested on *"zero production `[HsmGuard]`"*,
+true of **hand-authored** guards and blind to the emitter. ⛔ `Q35-A`/`B`/`C` are untouched.
+📄 Recorded as an amendment in `Q35` itself, with the prior state marked superseded rather than
+overwritten.
