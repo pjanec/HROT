@@ -282,12 +282,11 @@ namespace Fdp.Toolkit.Utility
             if (!repo.HasComponent<UnitSubordinate>(ctx.Self)) return 1f;
             ref readonly var sub = ref repo.GetComponentRO<UnitSubordinate>(ctx.Self);
             var commander = sub.Commander;
-            if (!repo.HasComponent<Blackboard1024>(commander) || !repo.HasComponent<UnitRoster>(commander)) return 1f;
+            if (!repo.HasComponent<SquadCognitiveState>(commander) || !repo.HasComponent<UnitRoster>(commander)) return 1f;
             ref var roster = ref repo.GetComponentRW<UnitRoster>(commander);
             int idx = UnitRoster.IndexOf(ref roster, (long)ctx.Self.PackedValue);
             if (idx < 0) return 1f;
-            ref var bb = ref repo.GetComponentRW<Blackboard1024>(commander);
-            ref var state = ref SquadCognitiveState.Project(ref bb).Assignment;
+            ref var state = ref repo.GetComponentRW<SquadCognitiveState>(commander).Assignment;
             long assignedHandle = state.GetAssignedTarget(idx);
             if (assignedHandle == 0L) return 1f;
             float result = assignedHandle == (long)ctx.Context.PackedValue ? 1f : 0f;

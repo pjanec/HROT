@@ -665,6 +665,34 @@ Ordered so that each step is provable on its own and the expensive irreversible 
 ⭐ **`O0`–`O5` deliver real value with no ExtDeps edit at all.** The boundary is crossed once, at
 `O6`, and only after `O4` has demonstrated the model on the paradigm that needs no kernel change.
 
+### ✅ AS-BUILT `2026-09-20` — **`O1` is SHIPPED** *(task `B1`, obligation ⑤)*
+
+⭐ `SquadCognitiveState` is now its **own ECS component** (`[ComponentId] = 270`), not a projection over
+the commander's `Blackboard1024`. `SquadCognitiveState.Project` is **deleted**; ⚠ `Blackboard1024.Project<T>`
+itself is untouched — BTree and HSM still use it (`R-65`).
+
+| what shipped | |
+|---|---|
+| the component + its id | `GlobalComponentIds.SquadCognitiveState = 270` |
+| ⭐ **`SquadStateProvisioning.EnsureForCommander`** | the ONE place that decides when an entity acquires squad state |
+| provisioning call sites | **both** roster creators — `UnitHierarchySystem` *(assign event)* and `GenesisMaterializationSystem` *(scenario genesis)* |
+| registration | `HrotSharedComponentRegistry.RegisterAll` — the `CE-161` path, so no host can be missing it |
+| ~58 consumer sites converted | `HasComponent<Blackboard1024>(cmdr)` + `Project(ref bb)` → `HasComponent/GetComponentRO|RW<SquadCognitiveState>(cmdr)`, preserving each site's RW/RO choice |
+
+| 🔴🔴 **THREE THINGS THIS COST, AND THEY ARE THE VALUE OF THE TASK** | |
+|---|---|
+| ⛔⛔ **HOOK THE FACT, NOT A WRITE PATH** | I first provisioned inside `UnitHierarchySystem`'s assign handler — *"the one system that establishes the commander relationship"*. 📐 **It is not**: `GenesisMaterializationSystem:180` builds a commander's `UnitRoster` independently for scenario-loaded hierarchies. ⇒ a live `--mode all` run showed the commander with **no** squad state. ⭐ The invariant is *"an entity that owns a `UnitRoster` is a commander"*, and the helper exists so a third creator has one thing to remember |
+| 🔴 **A GREEN GOLDEN TEST HID IT** | the run passed — targets destroyed, platoon on baseline — while the commander carried no squad state at all. ⛔ **The gate cannot answer *"is the feature on?"***; only reading the entity could |
+| ⚠ **AND MY FIRST DIAGNOSIS OF THAT WAS ALSO WRONG** | I called it a *"silent regression"*. 📐 Measured: commander `1000` has **no `Blackboard1024` either**, so the OLD gate `HasComponent<Blackboard1024>(commander)` was **already false** — squad systems had never run for it. ⇒ ⭐ `O1` does not disable squad behaviour, it **ENABLES** it where the accidental blackboard gate kept it off. **That is a behaviour change, in the intended direction, and it is stated rather than buried** |
+
+| ⚠ id allocation | |
+|---|---|
+| 🔴 **my first id, 265, COLLIDED** with `NavigationContractsComponentIds.CrowdMotorIntent` | the tests **passed in isolation and failed only in the full suite** — `ComponentTypeRegistry` is process-global, the `QA-008` shape |
+| 📐 censusing **every** `*Ids*.cs` found **three PRE-EXISTING collisions** — 262, 263, 264 each allocated twice *(`GlobalComponentIds` squad ids vs `NavFakeIds`)* | filed as **`QA-036`**'s neighbour **`QA-037`** for the backend lane; `O1` uses **270**, clear of the contested 262–269 band |
+
+⭐ **Golden test re-run after `B1`:** `523.0 · 525.2 · 529.2 · 531.0`, both targets at `Health 0`, **0 faults** —
+and this time verified that commander `1000` carries `UnitRoster` **and** `SquadCognitiveState`.
+
 ### ✅ AS-BUILT `2026-09-20` — **`O0` is SHIPPED** *(task `A4`, obligation ⑤)*
 
 ⛔⛔ **`F13` was half right and its second clause was misleading. SUPERSEDED.** It said *"not a re-home

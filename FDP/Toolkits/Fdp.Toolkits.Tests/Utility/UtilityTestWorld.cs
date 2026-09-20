@@ -50,6 +50,7 @@ namespace Fdp.Toolkit.Tests.Utility
             Repo.RegisterComponent<UnitRoster>();
             Repo.RegisterComponent<UnitSubordinate>();
             Repo.RegisterComponent<Blackboard1024>();
+            Repo.RegisterComponent<SquadCognitiveState>();
             Repo.RegisterComponent<Position>();
             Repo.RegisterComponent<UtilityDebugFlags>();
             Repo.RegisterComponent<UtilityTraceWorkingMemory1024>();
@@ -251,6 +252,7 @@ namespace Fdp.Toolkit.Tests.Utility
             var entity = Repo.CreateEntity();
             Repo.AddComponent(entity, new UnitRoster());
             Repo.AddComponent(entity, new Blackboard1024());
+            Repo.AddComponent(entity, default(SquadCognitiveState));
             Repo.AddComponent(entity, new TargetMemory());
             Repo.AddComponent(entity, new Position { Value = Vector3.Zero });
             return entity;
@@ -288,8 +290,7 @@ namespace Fdp.Toolkit.Tests.Utility
         /// </summary>
         public long AssignmentFor(Entity leader, Entity member)
         {
-            ref var bb = ref Repo.GetComponentRW<Blackboard1024>(leader);
-            ref var state = ref SquadCognitiveState.Project(ref bb).Assignment;
+            ref var state = ref Repo.GetComponentRW<SquadCognitiveState>(leader).Assignment;
             ref var roster = ref Repo.GetComponentRW<UnitRoster>(leader);
             int idx = UnitRoster.IndexOf(ref roster, (long)member.PackedValue);
             return idx >= 0 ? state.GetAssignedTarget(idx) : -1L;

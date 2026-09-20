@@ -26,7 +26,8 @@ namespace Fdp.Toolkit.Squad.Tests.Inputs
             _repo.RegisterComponent<UnitRoster>();
             _repo.RegisterComponent<UnitSubordinate>();
             _repo.RegisterComponent<Blackboard1024>();
-            _repo.RegisterComponent<SquadStateMarker>();
+            _repo.RegisterComponent<SquadCognitiveState>();
+            _repo.RegisterComponent<SquadCognitiveState>();
             _repo.RegisterComponent<Health>();
             _repo.RegisterComponent<WeaponState>();
             _repo.RegisterComponent<DangerAreaCognitiveBuffer>();
@@ -47,7 +48,7 @@ namespace Fdp.Toolkit.Squad.Tests.Inputs
             var e = _repo.CreateEntity();
             _repo.AddComponent(e, new UnitRoster());
             _repo.AddComponent(e, new Blackboard1024());
-            _repo.AddComponent(e, new SquadStateMarker());
+            _repo.AddComponent(e, default(SquadCognitiveState));
             return e;
         }
 
@@ -94,6 +95,7 @@ namespace Fdp.Toolkit.Squad.Tests.Inputs
             // Commander without UnitRoster.
             var e = _repo.CreateEntity();
             _repo.AddComponent(e, new Blackboard1024());
+            _repo.AddComponent(e, default(SquadCognitiveState));
 
             float ratio = SquadInputs.SquadStrengthRatio(MakeCtx(e));
             Assert.Equal(1.0f, ratio, precision: 4);
@@ -121,8 +123,7 @@ namespace Fdp.Toolkit.Squad.Tests.Inputs
             _repo.AddComponent(cmd, new DangerAreaCognitiveBuffer());
 
             // Set active feature.
-            ref var state = ref SquadCognitiveState.Project(
-                ref _repo.GetComponentRW<Blackboard1024>(cmd));
+            ref var state = ref _repo.GetComponentRW<SquadCognitiveState>(cmd);
             state.ActiveFeatureId = 42u;
 
             // Write descriptor into buffer.
@@ -201,8 +202,7 @@ namespace Fdp.Toolkit.Squad.Tests.Inputs
                           weapon: new WeaponState { Ammo = 80, MaxAmmo = 100 });
 
             // Set up a descriptor so readers have something to find.
-            ref var state = ref SquadCognitiveState.Project(
-                ref _repo.GetComponentRW<Blackboard1024>(cmd));
+            ref var state = ref _repo.GetComponentRW<SquadCognitiveState>(cmd);
             state.ActiveFeatureId = 1u;
             ref var buf = ref _repo.GetComponentRW<DangerAreaCognitiveBuffer>(cmd);
             buf.Count = 1;

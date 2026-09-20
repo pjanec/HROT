@@ -36,6 +36,7 @@ namespace Hrot.SimHost.Tests
         {
             _world  = new EntityRepository();
             _world.RegisterComponent<SimTransform>();
+            _world.RegisterComponent<Fdp.Toolkit.Squad.SquadCognitiveState>();   // O1
             _evtAcc = new EventAccumulator();
             _kernel = new ModuleHostKernel(_world, _evtAcc);
             _kernel.InitializeForTest();

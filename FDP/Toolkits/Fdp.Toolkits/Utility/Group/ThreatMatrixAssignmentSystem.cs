@@ -46,7 +46,7 @@ namespace Fdp.Toolkit.Utility
         public unsafe void Run(EntityRepository repo, Entity leader)
         {
             if (!repo.HasComponent<UnitRoster>(leader))     return;
-            if (!repo.HasComponent<Blackboard1024>(leader)) return;
+            if (!repo.HasComponent<SquadCognitiveState>(leader)) return;
             if (!repo.HasComponent<TargetMemory>(leader))   return;
 
             if (!UtilityDecisionCatalog.Shared.TryGet(_decisionId, out var def, out _) || def == null)
@@ -54,8 +54,7 @@ namespace Fdp.Toolkit.Utility
 
             ref readonly var roster    = ref repo.GetComponentRO<UnitRoster>(leader);
             ref readonly var leaderMem = ref repo.GetComponentRO<TargetMemory>(leader);
-            ref var bb                 = ref repo.GetComponentRW<Blackboard1024>(leader);
-            ref var state              = ref SquadCognitiveState.Project(ref bb).Assignment;
+            ref var state              = ref repo.GetComponentRW<SquadCognitiveState>(leader).Assignment;
 
             int memberCount = roster.Count;
             if (memberCount <= 0) return;

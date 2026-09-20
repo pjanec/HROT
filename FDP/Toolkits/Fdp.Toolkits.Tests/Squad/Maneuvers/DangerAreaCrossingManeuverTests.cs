@@ -25,8 +25,7 @@ namespace Fdp.Toolkits.Tests.Squad.Maneuvers
         {
             // Arrange: 4-member squad in SetSecurity phase.
             var (repo, commander, _) = BuildFixture(memberCount: 4);
-            ref var state = ref SquadCognitiveState.Project(
-                ref repo.GetComponentRW<Blackboard1024>(commander));
+            ref var state = ref repo.GetComponentRW<SquadCognitiveState>(commander);
             state.PhaseId          = DangerAreaCrossingManeuver.PhaseSetSecurity;
             state.PhaseEnteredTick = 0;
 
@@ -77,8 +76,7 @@ namespace Fdp.Toolkits.Tests.Squad.Maneuvers
         public void ElementPartition_SplitsSquad_IntoTwoElements()
         {
             var (repo, commander, _) = BuildFixture(memberCount: 4);
-            ref var state = ref SquadCognitiveState.Project(
-                ref repo.GetComponentRW<Blackboard1024>(commander));
+            ref var state = ref repo.GetComponentRW<SquadCognitiveState>(commander);
 
             // Compute partition inputs.
             Span<MemberPartitionInput> inputs = stackalloc MemberPartitionInput[4];
@@ -108,8 +106,7 @@ namespace Fdp.Toolkits.Tests.Squad.Maneuvers
         public void RoleAssignment_AssignsCrossingAndSecurityRoles()
         {
             var (repo, commander, _) = BuildFixture(memberCount: 4);
-            ref var state = ref SquadCognitiveState.Project(
-                ref repo.GetComponentRW<Blackboard1024>(commander));
+            ref var state = ref repo.GetComponentRW<SquadCognitiveState>(commander);
 
             // Partition first.
             Span<MemberPartitionInput> inputs = stackalloc MemberPartitionInput[4];
@@ -141,8 +138,7 @@ namespace Fdp.Toolkits.Tests.Squad.Maneuvers
         public void ReassignFirstAcrossToCovering_ChangesRoleToSecurity()
         {
             var (repo, commander, _) = BuildFixture(memberCount: 4);
-            ref var state = ref SquadCognitiveState.Project(
-                ref repo.GetComponentRW<Blackboard1024>(commander));
+            ref var state = ref repo.GetComponentRW<SquadCognitiveState>(commander);
 
             // Set member 0 to Crossing role initially.
             var rolesSpan = MemoryMarshal.CreateSpan(
@@ -200,12 +196,14 @@ namespace Fdp.Toolkits.Tests.Squad.Maneuvers
             var repo = new EntityRepository();
             repo.RegisterComponent<UnitRoster>();
             repo.RegisterComponent<Blackboard1024>();
+            repo.RegisterComponent<SquadCognitiveState>();
             repo.RegisterComponent<NavigationStatus>();
             repo.RegisterComponent<UnitSubordinate>();
 
             var commander = repo.CreateEntity();
             repo.AddComponent(commander, new UnitRoster());
             repo.AddComponent(commander, new Blackboard1024());
+            repo.AddComponent(commander, default(SquadCognitiveState));
 
             var members = new Entity[memberCount];
             for (int i = 0; i < memberCount; i++)

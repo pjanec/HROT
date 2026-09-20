@@ -36,10 +36,10 @@ namespace Fdp.Toolkit.Squad.Systems
         {
             // 1. Guard: both UnitRoster and Blackboard1024 must be present.
             if (!repo.HasComponent<UnitRoster>(commander)) return;
-            if (!repo.HasComponent<Blackboard1024>(commander)) return;
+            if (!repo.HasComponent<SquadCognitiveState>(commander)) return;
 
             // 2. Project state.
-            ref var state = ref SquadCognitiveState.Project(ref repo.GetComponentRW<Blackboard1024>(commander));
+            ref var state = ref repo.GetComponentRW<SquadCognitiveState>(commander);
 
             // 3. Compute XOR epoch checksum across all subordinates.
             ulong checksum = 0;

@@ -126,6 +126,7 @@ namespace Fdp.Toolkits.Tests.Squad.Maneuvers
             var repo = new EntityRepository();
             repo.RegisterComponent<UnitRoster>();
             repo.RegisterComponent<Blackboard1024>();
+            repo.RegisterComponent<SquadCognitiveState>();
             repo.RegisterComponent<WeaponState>();
             repo.RegisterComponent<NavigationStatus>();
             repo.RegisterComponent<UnitSubordinate>();
@@ -133,6 +134,7 @@ namespace Fdp.Toolkits.Tests.Squad.Maneuvers
             var commander = repo.CreateEntity();
             repo.AddComponent(commander, new UnitRoster());
             repo.AddComponent(commander, new Blackboard1024());
+            repo.AddComponent(commander, default(SquadCognitiveState));
 
             var members = new Entity[memberCount];
             for (int i = 0; i < memberCount; i++)

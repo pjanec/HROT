@@ -26,7 +26,8 @@ namespace Fdp.Toolkit.Squad.Tests.Mappers
         {
             _repo = new EntityRepository();
             _repo.RegisterComponent<Blackboard1024>();
-            _repo.RegisterComponent<SquadStateMarker>();
+            _repo.RegisterComponent<SquadCognitiveState>();
+            _repo.RegisterComponent<SquadCognitiveState>();
             _repo.RegisterComponent<UtilityResultBuffer>();
 
             SquadInputs.RegisterAll();
@@ -43,7 +44,7 @@ namespace Fdp.Toolkit.Squad.Tests.Mappers
         {
             var e = _repo.CreateEntity();
             _repo.AddComponent(e, new Blackboard1024());
-            _repo.AddComponent(e, new SquadStateMarker());
+            _repo.AddComponent(e, default(SquadCognitiveState));
             _repo.AddComponent(e, new UtilityResultBuffer());
             return e;
         }
@@ -62,8 +63,7 @@ namespace Fdp.Toolkit.Squad.Tests.Mappers
             Assert.True(ok);
             Assert.NotNull(assignment);
 
-            ref var state = ref SquadCognitiveState.Project(
-                ref _repo.GetComponentRW<Blackboard1024>(commander));
+            ref var state = ref _repo.GetComponentRW<SquadCognitiveState>(commander);
             Assert.Equal(1, state.ManeuverKind);
             Assert.NotEqual(0u, state.Flags & 1u);
         }
@@ -80,8 +80,7 @@ namespace Fdp.Toolkit.Squad.Tests.Mappers
             // Force ManeuverKind = 1 with override.
             forceMapper.TryMap(commander, _repo, "{\"maneuverKind\":1}", out _);
 
-            ref var state = ref SquadCognitiveState.Project(
-                ref _repo.GetComponentRW<Blackboard1024>(commander));
+            ref var state = ref _repo.GetComponentRW<SquadCognitiveState>(commander);
             Assert.NotEqual(0u, state.Flags & 1u);
 
             // Clear override.

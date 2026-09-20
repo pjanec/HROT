@@ -172,5 +172,14 @@ public static class HrotSharedComponentRegistry
         //    forget, which is exactly how this arose.
         // 📄 docs/DESIGN_Entity_Creation_Unification.md §2.3b.
         Fdp.Toolkit.Blueprints.Components.BlueprintBlackboardTiers.RegisterAll(world);
+
+        // ── Squad cognitive state (O1, 2026-09-20) ────────────────────────────
+        // ⭐⭐ REGISTERED HERE FOR THE SAME REASON THE TIERS ARE (CE-161): UnitHierarchySystem now
+        //    ADDS this component when an entity becomes a commander, and that system runs on every
+        //    node. A per-host registration would be a per-host chance to forget — which is exactly
+        //    how CE-161's "Component BlueprintBlackboard1024 is not registered" crash on CGF arose.
+        // ⚠ Registration is not allocation: it creates table metadata, and the 1024 bytes only
+        //    materialise on an entity that actually becomes a commander.
+        world.RegisterComponent<Fdp.Toolkit.Squad.SquadCognitiveState>();
     }
 }

@@ -65,10 +65,9 @@ namespace Hrot.Diagnostics.Overlays
         private void EmitForCommander(Entity commander, IGizmoDrawBuilder draw)
         {
             if (!_repo.HasComponent<UnitRoster>(commander)) return;
-            if (!_repo.HasComponent<Blackboard1024>(commander)) return;
+            if (!_repo.HasComponent<SquadCognitiveState>(commander)) return;
 
-            ref var state  = ref SquadCognitiveState.Project(
-                ref _repo.GetComponentRW<Blackboard1024>(commander));
+            ref var state  = ref _repo.GetComponentRW<SquadCognitiveState>(commander);
             ref var roster = ref _repo.GetComponentRW<UnitRoster>(commander);
 
             EmitMemberOverlays(draw, ref state, ref roster);

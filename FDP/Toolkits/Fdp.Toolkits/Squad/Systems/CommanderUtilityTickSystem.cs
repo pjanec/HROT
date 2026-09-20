@@ -34,11 +34,10 @@ namespace Fdp.Toolkit.Squad.Systems
             uint tickInterval = 6)
         {
             // Guards.
-            if (!repo.HasComponent<Blackboard1024>(commander)) return;
+            if (!repo.HasComponent<SquadCognitiveState>(commander)) return;
             if (!repo.HasComponent<UtilityResultBuffer>(commander)) return;
 
-            ref var state = ref SquadCognitiveState.Project(
-                ref repo.GetComponentRW<Blackboard1024>(commander));
+            ref var state = ref repo.GetComponentRW<SquadCognitiveState>(commander);
 
             // Mission-override: skip scoring, retain forced ManeuverKind.
             if ((state.Flags & MissionOverrideBit) != 0) return;

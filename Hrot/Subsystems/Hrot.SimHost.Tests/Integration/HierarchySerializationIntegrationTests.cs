@@ -35,6 +35,7 @@ public sealed class HierarchySerializationIntegrationTests : IDisposable
     {
         repo.RegisterComponent<NetworkIdentity>();
         repo.RegisterComponent<UnitRoster>();
+        repo.RegisterComponent<Fdp.Toolkit.Squad.SquadCognitiveState>();
         repo.RegisterComponent<UnitSubordinate>();
         repo.RegisterComponent<PassengerBuffer>();
         repo.RegisterComponent<IsEmbarkedTag>();

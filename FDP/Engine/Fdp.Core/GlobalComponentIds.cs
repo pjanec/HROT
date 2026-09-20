@@ -471,8 +471,10 @@
 
         // ---- Squad coordination components (256–299) ----------------------------
 
-        /// <summary><c>SquadStateMarker</c> — zero-data ECS tag marking an entity whose
-        /// <see cref="Blackboard1024"/> is projected as a <c>SquadCognitiveState</c> (Squad P0).</summary>
+        /// <summary><c>SquadStateMarker</c> — ⛔ <b>RETIRED by `O1` (2026-09-20).</b> It marked an entity
+        /// whose <c>Blackboard1024</c> was PROJECTED as a <c>SquadCognitiveState</c>; the state is now a
+        /// component of its own (<see cref="SquadCognitiveState"/>), so its PRESENCE is the marker.
+        /// ⚠ The id stays allocated and is NOT recycled — ids are ABI (`R-44`).</summary>
         public const int SquadStateMarker = 256;
 
         // NOTE: IDs 257-261 are reserved by NavigationContractsComponentIds (NavAgentProfile, NavigationCorridorMuscle,
@@ -488,6 +490,26 @@
 
         /// <summary><c>MovementModeIntent</c> — per-member movement mode intent broadcast by the squad (Squad toolkit).</summary>
         public const int MovementModeIntent = 264;
+
+        /// <summary><c>SquadCognitiveState</c> — ⭐ <b>the commander's squad state, as its OWN 1024-byte
+        /// component</b> (`O1`, 2026-09-20). It used to be a PROJECTION over the commander's
+        /// <c>Blackboard1024</c>, which made "has a blackboard" an accidental proxy for "is a commander
+        /// with squad state" — the same accidental-filter shape `D1′` retired for blueprint slots.
+        /// ⚠ 1024 B is exactly <c>EntityCommandBuffer.MaxComponentSize</c>: it fits, with NO headroom.</summary>
+        public const int SquadCognitiveState = 270;
+
+        // 🔴🔴 DO NOT ALLOCATE 262-269 WITHOUT READING THIS. Measured 2026-09-20 while O1 needed an id:
+        //   the 256-299 block's comment says Navigation reserves only 257-261, and that is STALE —
+        //   NavigationContractsComponentIds now reaches 265 (CrowdMotorIntent) and NavFakeIds occupies
+        //   262-269. THREE ids are already allocated TWICE:
+        //     262 = DangerAreaSensor (here)          AND FakeNavmeshState      (NavFakeIds)
+        //     263 = DangerAreaCognitiveBuffer (here) AND FakeCrowdGlobalState  (NavFakeIds)
+        //     264 = MovementModeIntent (here)        AND FakeCrowdAgentState   (NavFakeIds)
+        //   ⚠ My first attempt took 265 and collided with CrowdMotorIntent. The tests PASSED IN
+        //     ISOLATION and failed only in the full suite, because ComponentTypeRegistry is
+        //     process-global — the same shape QA-008 measured. Filed for the backend lane.
+        //   ⇒ 270 is clear of the whole contested band. ⛔ An id census must read EVERY *Ids.cs file,
+        //     not just this one (R-44: ids are globally unique across all of them).
 
         // ---- Terrain / zone loading (300–319) -----------------------------------
         // NOTE: starts at 300 deliberately. The "Zone toolkit (201+)" block above is full (202–216 went

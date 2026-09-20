@@ -25,7 +25,8 @@ namespace Fdp.Toolkit.Squad.Tests.Inputs
             _repo.RegisterComponent<UnitRoster>();
             _repo.RegisterComponent<UnitSubordinate>();
             _repo.RegisterComponent<Blackboard1024>();
-            _repo.RegisterComponent<SquadStateMarker>();
+            _repo.RegisterComponent<SquadCognitiveState>();
+            _repo.RegisterComponent<SquadCognitiveState>();
             _repo.RegisterComponent<BehaviorState>();
             _repo.RegisterComponent<MovementModeIntent>();
 
@@ -45,7 +46,7 @@ namespace Fdp.Toolkit.Squad.Tests.Inputs
             var e = _repo.CreateEntity();
             _repo.AddComponent(e, new UnitRoster());
             _repo.AddComponent(e, new Blackboard1024());
-            _repo.AddComponent(e, new SquadStateMarker());
+            _repo.AddComponent(e, default(SquadCognitiveState));
             return e;
         }
 
@@ -70,8 +71,7 @@ namespace Fdp.Toolkit.Squad.Tests.Inputs
             var member = AddMember(cmd);
 
             // Set member 0 role to 2 (Suppressor).
-            ref var state = ref SquadCognitiveState.Project(
-                ref _repo.GetComponentRW<Blackboard1024>(cmd));
+            ref var state = ref _repo.GetComponentRW<SquadCognitiveState>(cmd);
             var roleSpan = MemoryMarshal.CreateSpan(
                 ref Unsafe.As<RoleAssignmentArray, RoleSlot>(
                     ref Unsafe.AsRef(in state.Roles)), 16);
@@ -89,8 +89,7 @@ namespace Fdp.Toolkit.Squad.Tests.Inputs
             var member = AddMember(cmd);
 
             // Set member 0 role to 2 (Suppressor).
-            ref var state = ref SquadCognitiveState.Project(
-                ref _repo.GetComponentRW<Blackboard1024>(cmd));
+            ref var state = ref _repo.GetComponentRW<SquadCognitiveState>(cmd);
             var roleSpan = MemoryMarshal.CreateSpan(
                 ref Unsafe.As<RoleAssignmentArray, RoleSlot>(
                     ref Unsafe.AsRef(in state.Roles)), 16);
@@ -123,8 +122,7 @@ namespace Fdp.Toolkit.Squad.Tests.Inputs
             var cmd = CreateCommander();
             var member = AddMember(cmd);
 
-            ref var state = ref SquadCognitiveState.Project(
-                ref _repo.GetComponentRW<Blackboard1024>(cmd));
+            ref var state = ref _repo.GetComponentRW<SquadCognitiveState>(cmd);
 
             // Set member 0 element index to 1.
             var elemSpan = MemoryMarshal.CreateSpan(
@@ -149,8 +147,7 @@ namespace Fdp.Toolkit.Squad.Tests.Inputs
             var cmd = CreateCommander();
             var member = AddMember(cmd);
 
-            ref var state = ref SquadCognitiveState.Project(
-                ref _repo.GetComponentRW<Blackboard1024>(cmd));
+            ref var state = ref _repo.GetComponentRW<SquadCognitiveState>(cmd);
 
             // Set member 0 element index to 1.
             var elemSpan = MemoryMarshal.CreateSpan(

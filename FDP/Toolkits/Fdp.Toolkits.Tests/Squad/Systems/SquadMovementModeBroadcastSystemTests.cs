@@ -23,7 +23,8 @@ namespace Fdp.Toolkit.Squad.Tests.Systems
             _repo.RegisterComponent<UnitRoster>();
             _repo.RegisterComponent<UnitSubordinate>();
             _repo.RegisterComponent<Blackboard1024>();
-            _repo.RegisterComponent<SquadStateMarker>();
+            _repo.RegisterComponent<SquadCognitiveState>();
+            _repo.RegisterComponent<SquadCognitiveState>();
             _repo.RegisterComponent<MovementModeIntent>();
         }
 
@@ -36,7 +37,7 @@ namespace Fdp.Toolkit.Squad.Tests.Systems
             var e = _repo.CreateEntity();
             _repo.AddComponent(e, new UnitRoster());
             _repo.AddComponent(e, new Blackboard1024());
-            _repo.AddComponent(e, new SquadStateMarker());
+            _repo.AddComponent(e, default(SquadCognitiveState));
             return e;
         }
 
@@ -60,8 +61,7 @@ namespace Fdp.Toolkit.Squad.Tests.Systems
             var m1 = AddMemberWithIntent(cmd);
 
             // Set bits 8-9 = 1 (Covered).
-            ref var state = ref SquadCognitiveState.Project(
-                ref _repo.GetComponentRW<Blackboard1024>(cmd));
+            ref var state = ref _repo.GetComponentRW<SquadCognitiveState>(cmd);
             state.Flags = (state.Flags & ~0x0300u) | 0x0100u;
 
             SquadMovementModeBroadcastSystem.Run(_repo, cmd);
@@ -80,8 +80,7 @@ namespace Fdp.Toolkit.Squad.Tests.Systems
             var m1 = AddMemberWithIntent(cmd);
 
             // First set to Covered, then clear.
-            ref var state = ref SquadCognitiveState.Project(
-                ref _repo.GetComponentRW<Blackboard1024>(cmd));
+            ref var state = ref _repo.GetComponentRW<SquadCognitiveState>(cmd);
             state.Flags = state.Flags & ~0x0300u;
 
             SquadMovementModeBroadcastSystem.Run(_repo, cmd);
@@ -106,8 +105,7 @@ namespace Fdp.Toolkit.Squad.Tests.Systems
             ref var roster = ref _repo.GetComponentRW<UnitRoster>(cmd);
             UnitRoster.Add(ref roster, (long)m1.PackedValue);
 
-            ref var state = ref SquadCognitiveState.Project(
-                ref _repo.GetComponentRW<Blackboard1024>(cmd));
+            ref var state = ref _repo.GetComponentRW<SquadCognitiveState>(cmd);
             state.Flags = (state.Flags & ~0x0300u) | 0x0200u; // Fast = 2
 
             // Should not throw even though m1 has no MovementModeIntent.

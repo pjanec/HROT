@@ -5,8 +5,8 @@ doc-type: LANE RESUMPTION for the `behaviors` lane — programme ②, OCCURRENCE
   ⛔ VERIFY against git before acting ("THE LEDGER MAY NOT ASSERT WHAT THE CODE IS").
 updated: 2026-09-20
 build-state: n/a — a resumption snapshot, not a design.
-current-answer: §3 — the NEXT ACTION is task B1 (`O1`: SquadCognitiveState gets its own component).
-  Increment A is COMPLETE: A1, A2, A2b, A3 and A4 are all DONE and pushed. §2 is the grounded facts: ⛔ do not re-derive them, they cost
+current-answer: §3 — the NEXT ACTION is task B2 (`O2`: split BrainBlackboard -> BrainInterrupts +
+  an addressable params region). Increment A is COMPLETE and B1 is DONE; all pushed. §2 is the grounded facts: ⛔ do not re-derive them, they cost
   real measurement. §5 is the trap list, and it is the section most worth two minutes — six of these
   were MY errors, three of which reached a pushed document before being caught.
 stale-below: nothing — §3 rewritten 2026-09-20 after A4 landed.
@@ -31,7 +31,7 @@ RELEARN
 > ⭐⭐⭐ **You are the `behaviors` lane on branch `behaviors`, and you OWN this design.**
 > 🔒 **User, `2026-09-20`: *"you take it from here, you are the one owning the design now."***
 > ⭐ **Nothing is half-finished.** `A1`, `A2`, `A3` and `A4` are committed, pushed and green; the tree
-> is clean, and `A2b` landed too — **increment A is COMPLETE**. §3 says what is next.
+> is clean. **Increment A is COMPLETE and `B1` has landed.** §3 says what is next.
 
 ## 0. ⭐ FIRST MOVES
 
@@ -59,9 +59,10 @@ and ours are `CE-`. Do not quote it as evidence for them.
 | **`A2`** *(the resolution seam)* | ✅ **DONE** — `7a87596aa` + `7574f228d`. ⚠ See §4 for what was deliberately NOT collapsed |
 | **`A3`** *(`Kind` + `H1` + `H2`)* | ✅ **DONE** — 4 rails, all red-proved. As-built folded into design **§13**'s `AS-BUILT` block |
 | **`A4`** *(`O0`)* | ✅ **DONE** — `CgfLogicPack` owns the splice; walker filters on declared `Kind`; 3 rails red-proved. Scope: **CGF + editor** (user ruling). As-built in design **§6** |
-| ⭐⭐⭐ **next** | **`B1`** *(`O1`)* — `SquadCognitiveState` gets its own typed component. ⚠ **`A2b`** *(the emitter pair — moves goldens)* is still open and can go first if you prefer a smaller start |
+| **`B1`** *(`O1`)* | ✅ **DONE** — `SquadCognitiveState` is its own component (id **270**), provisioned by `SquadStateProvisioning` from **both** roster creators. As-built in design **§6** |
+| ⭐⭐⭐ **next** | **`B2`** *(`O2`)* — split `BrainBlackboard` into `BrainInterrupts` + an addressable params region. ⛔⛔ It moves `R-39`/`R-41`'s pinned byte offsets — **update both ledger rows**, do not silently invalidate them |
 | **`A2b`** *(the emitter ladder)* | ✅ **DONE** — ⛔ **three** ladders, not two; golden diff shape **+252/−1234, net −982**, purely the collapse. As-built in design **§13** |
-| ⚠ also open | `B2`–`B4` *(rest of increment B)* |
+| ⚠ also open | `B3`–`B4` *(`O3a` tier table + `O3b` the 256 tier)* |
 | **defects filed** | `CE-295` open *(scenario live-reload is a one-shot — filed NOT fixed, user's call)* · `CE-296` **refuted** *(my error)* |
 
 ### 1.1 What increment `A` actually built
@@ -152,7 +153,7 @@ source saying so. ⭐ Anyone "finishing A2" by collapsing them would introduce a
 
 ## 5. ⛔⛔ THE TRAPS THIS PROGRAMME HAS PAID FOR
 
-⭐ Nine of these were **my own errors**; three reached a pushed document before being caught. They are
+⭐ Eleven of these were **my own errors**; three reached a pushed document before being caught. They are
 here as checkable habits, not confessions.
 
 | # | trap | ⭐ the habit |
@@ -166,6 +167,8 @@ here as checkable habits, not confessions.
 | **⑦** | ⚠ **STALE BINARY, TWICE** | ⭐ build the **TEST** project (a test project's build copies production into its bin; the reverse does not happen), and check the dll timestamp when a result looks too clean |
 | **⑧** | ⚠ **unrestored project** ⇒ `NETSDK1004` / *"the argument …dll is invalid"* | ⭐ `dotnet restore <proj>` first; this is not a code error |
 | ⭐ **⑨** | ⚠ **A RAIL THAT CANNOT GO RED IS NOT A RAIL — and the inverse edit is what EXPOSES that.** `A3_R3`'s first draft iterated `Enum.GetValues` and skipped on `kind == Invalid`; the inverse edit it was written for *(a real kind renumbered onto 0)* would have made that `continue` **skip the very case being checked**. ⭐ Found only by trying to redden it, then fixed to iterate **NAMES** | 🔒 **never mark a rail done on a green** — run the inverse edit, and if it will not redden, **the rail is the defect** |
+| 🔴 **⑬** | ⛔⛔ **HOOK THE FACT, NOT A WRITE PATH — and a GREEN GOLDEN TEST WILL HIDE IT.** `B1` first provisioned squad state inside `UnitHierarchySystem`'s assign handler, *"the one system that establishes the commander relationship"*. 📐 It is not: `GenesisMaterializationSystem:180` builds a commander's `UnitRoster` independently for scenario-loaded hierarchies ⇒ the live commander came up with **no** squad state, **while the golden test passed** | ⭐ provision against the **invariant** (*"owns a `UnitRoster`"*), through ONE helper both creators call. ⛔ And when a feature is meant to be ON, **read the entity** — the gate cannot answer *"is it on?"* |
+| ⚠ **⑭** | 🔴 **AN ID CENSUS MUST READ EVERY `*Ids*.cs`, NOT JUST `GlobalComponentIds.cs`.** I took the next free id in the squad block's comment and collided with `NavigationContractsComponentIds.CrowdMotorIntent = 265`. ⚠ **It passed in isolation and failed only in the full suite** — `ComponentTypeRegistry` is process-global *(the `QA-008` shape)*. 📐 The census then found **three PRE-EXISTING collisions** (262/263/264) — filed as `QA-037` | ⭐ `grep -rn 'public const int' --include=*Ids*.cs` across the repo, sort numerically, **then** pick. ⛔ Never trust a block comment — the one here was stale by four ids |
 | ⭐ **⑪** | 🔴 **A DUPLICATION CENSUS MUST COUNT *CALLS*, NOT OCCURRENCES OF THE PATTERN.** `A2` reported *"2 copies emitted by `BTreeBridgeEmitCore` (`:650`, `:726`)"* and the PLAN inherited it. 📐 **There were THREE**: `EmitStatefulDeactivatorTierBlock` is **parameterised per tier** — one helper, three calls — so it emits a full ladder while matching no grep for the ladder's shape | ⭐ after censusing a pattern, grep for the **tier constants** (`BlueprintBlackboard16384`) and for helpers **called once per tier**; a parameterised emitter hides in plain sight |
 | ⭐ **⑫** | ⚠ **I RE-PAID TRAP ⑦ WHILE REGENERATING GOLDENS.** I built `Hrot.AiEditor.Persistence` and then ran `dotnet test <generators.Tests> --no-build` to regenerate — so the goldens were written from the **stale Persistence dll in the TEST project's bin**, and the next real run reddened them | ⛔ **regeneration is a test run: build the TEST project first**, then `--no-build`. ⭐ Check `ls -l <tests>/bin/*/Production.dll` against the edit time when a regenerated golden looks wrong |
 | ⭐ **⑩** | ⚠ **EVERY public enum in `Fdp.Toolkits` is swept into generated IDL**, and `idlc` **refuses duplicate enumerator values** ⇒ some "invariants" are already enforced by the build and your rail may be guarding something free. ⭐ **The CAUSE is a RULE, not a quirk:** `Fdp.Toolkits.csproj:70` references `CycloneDDS.NET`, and the generator's discovery rule is *"`[DdsTopic]`/`[DdsStruct]`/`[DdsUnion]` **OR is an enum**"* (`targets:75-76`) ⇒ **sharing an assembly with wire types is enough.** ⛔ **A generated `.idl` is NOT evidence a type is on the wire** — nothing `#include`s these. 📄 design §13; filed as `QA-035` | ⛔ **when an inverse edit fails to COMPILE rather than redden, do not stop at the observation — find the RULE.** 📌 I first wrote this up from ONE sample and called the sweep "indiscriminate"; the tool states the rule in its own targets file |
