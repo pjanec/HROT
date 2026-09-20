@@ -58,53 +58,18 @@ public static class PlatoonHillAttackRegistrar
                     // Project Params from BrainBlackboard (Slice-1 pattern).
                     ref var dto = ref Unsafe.As<byte, global::Hrot.AI.Behaviors.Brains.PlatoonHillAttackParams>(
                         ref Unsafe.AddByteOffset(ref bb.BehaviorParameters[0], (nint)0));
-                    // Dispatch across tiers (16384 → 4096 → 1024) to locate the entity's active partition.
+                    // Resolve this occurrence's WorkingState across every tier, in one call (A2b).
                     const int __slotKey = 1299152117;
-                    if (ctx.World.HasComponent<global::Fdp.Toolkit.Blueprints.Components.BlueprintBlackboard16384>(ctx.Self))
+                    if (!global::Fdp.Toolkit.Blueprints.Partitioning.OccurrenceStoreAccess.TryResolveOccurrence(ctx.World, ctx.Self, __slotKey, out byte* __wsPtr))
                     {
-                        ref var tier = ref ctx.World.GetComponentRW<global::Fdp.Toolkit.Blueprints.Components.BlueprintBlackboard16384>(ctx.Self);
-                        fixed (byte* mem = tier.Memory)
-                        {
-                            if (!global::Fdp.Toolkit.Blueprints.Partitioning.BlueprintBlackboardPartitions.TryGetSlotOffset(mem, __slotKey, out int wsOff))
-                            {
-                                global::System.Diagnostics.Debug.Assert(false, "S2-1: stateful slot 1299152117 missing from BlueprintBlackboard16384");
-                                return Fbt.NodeStatus.Failure;
-                            }
-                            ref var ws = ref Unsafe.AsRef<global::Hrot.AI.Behaviors.Brains.HillAttackMutableState>(mem + wsOff);
-                            return global::Hrot.AI.Behaviors.Brains.HillAttackCommanderNodes.Action_CalculateSegments(ref dto, ref ws, ref st, ref ctx);
-                        }
+                        global::System.Diagnostics.Debug.Assert(false,
+                            global::Fdp.Toolkit.Blueprints.Partitioning.OccurrenceStoreAccess.HasStore(ctx.World, ctx.Self)
+                                ? "S2-1: stateful slot 1299152117 missing from the entity's occurrence store"
+                                : "S2-1: entity has no BlueprintBlackboard* tier component for stateful slot 1299152117");
+                        return Fbt.NodeStatus.Failure;
                     }
-                    if (ctx.World.HasComponent<global::Fdp.Toolkit.Blueprints.Components.BlueprintBlackboard4096>(ctx.Self))
-                    {
-                        ref var tier = ref ctx.World.GetComponentRW<global::Fdp.Toolkit.Blueprints.Components.BlueprintBlackboard4096>(ctx.Self);
-                        fixed (byte* mem = tier.Memory)
-                        {
-                            if (!global::Fdp.Toolkit.Blueprints.Partitioning.BlueprintBlackboardPartitions.TryGetSlotOffset(mem, __slotKey, out int wsOff))
-                            {
-                                global::System.Diagnostics.Debug.Assert(false, "S2-1: stateful slot 1299152117 missing from BlueprintBlackboard4096");
-                                return Fbt.NodeStatus.Failure;
-                            }
-                            ref var ws = ref Unsafe.AsRef<global::Hrot.AI.Behaviors.Brains.HillAttackMutableState>(mem + wsOff);
-                            return global::Hrot.AI.Behaviors.Brains.HillAttackCommanderNodes.Action_CalculateSegments(ref dto, ref ws, ref st, ref ctx);
-                        }
-                    }
-                    if (ctx.World.HasComponent<global::Fdp.Toolkit.Blueprints.Components.BlueprintBlackboard1024>(ctx.Self))
-                    {
-                        ref var tier = ref ctx.World.GetComponentRW<global::Fdp.Toolkit.Blueprints.Components.BlueprintBlackboard1024>(ctx.Self);
-                        fixed (byte* mem = tier.Memory)
-                        {
-                            if (!global::Fdp.Toolkit.Blueprints.Partitioning.BlueprintBlackboardPartitions.TryGetSlotOffset(mem, __slotKey, out int wsOff))
-                            {
-                                global::System.Diagnostics.Debug.Assert(false, "S2-1: stateful slot 1299152117 missing from BlueprintBlackboard1024");
-                                return Fbt.NodeStatus.Failure;
-                            }
-                            ref var ws = ref Unsafe.AsRef<global::Hrot.AI.Behaviors.Brains.HillAttackMutableState>(mem + wsOff);
-                            return global::Hrot.AI.Behaviors.Brains.HillAttackCommanderNodes.Action_CalculateSegments(ref dto, ref ws, ref st, ref ctx);
-                        }
-                    }
-                    // No tier component found — fail loud.
-                    global::System.Diagnostics.Debug.Assert(false, "S2-1: entity has no BlueprintBlackboard* tier component for stateful slot 1299152117");
-                    return Fbt.NodeStatus.Failure;
+                    ref var ws = ref Unsafe.AsRef<global::Hrot.AI.Behaviors.Brains.HillAttackMutableState>(__wsPtr);
+                    return global::Hrot.AI.Behaviors.Brains.HillAttackCommanderNodes.Action_CalculateSegments(ref dto, ref ws, ref st, ref ctx);
                 }
             });
         actionRegistry.Register("Hrot.AI.Behaviors.Brains.HillAttackCommanderNodes.Action_DispatchAllToBaseline@0@1299152117",
@@ -115,53 +80,18 @@ public static class PlatoonHillAttackRegistrar
                     // Project Params from BrainBlackboard (Slice-1 pattern).
                     ref var dto = ref Unsafe.As<byte, global::Hrot.AI.Behaviors.Brains.PlatoonHillAttackParams>(
                         ref Unsafe.AddByteOffset(ref bb.BehaviorParameters[0], (nint)0));
-                    // Dispatch across tiers (16384 → 4096 → 1024) to locate the entity's active partition.
+                    // Resolve this occurrence's WorkingState across every tier, in one call (A2b).
                     const int __slotKey = 1299152117;
-                    if (ctx.World.HasComponent<global::Fdp.Toolkit.Blueprints.Components.BlueprintBlackboard16384>(ctx.Self))
+                    if (!global::Fdp.Toolkit.Blueprints.Partitioning.OccurrenceStoreAccess.TryResolveOccurrence(ctx.World, ctx.Self, __slotKey, out byte* __wsPtr))
                     {
-                        ref var tier = ref ctx.World.GetComponentRW<global::Fdp.Toolkit.Blueprints.Components.BlueprintBlackboard16384>(ctx.Self);
-                        fixed (byte* mem = tier.Memory)
-                        {
-                            if (!global::Fdp.Toolkit.Blueprints.Partitioning.BlueprintBlackboardPartitions.TryGetSlotOffset(mem, __slotKey, out int wsOff))
-                            {
-                                global::System.Diagnostics.Debug.Assert(false, "S2-1: stateful slot 1299152117 missing from BlueprintBlackboard16384");
-                                return Fbt.NodeStatus.Failure;
-                            }
-                            ref var ws = ref Unsafe.AsRef<global::Hrot.AI.Behaviors.Brains.HillAttackMutableState>(mem + wsOff);
-                            return global::Hrot.AI.Behaviors.Brains.HillAttackCommanderNodes.Action_DispatchAllToBaseline(ref dto, ref ws, ref st, ref ctx);
-                        }
+                        global::System.Diagnostics.Debug.Assert(false,
+                            global::Fdp.Toolkit.Blueprints.Partitioning.OccurrenceStoreAccess.HasStore(ctx.World, ctx.Self)
+                                ? "S2-1: stateful slot 1299152117 missing from the entity's occurrence store"
+                                : "S2-1: entity has no BlueprintBlackboard* tier component for stateful slot 1299152117");
+                        return Fbt.NodeStatus.Failure;
                     }
-                    if (ctx.World.HasComponent<global::Fdp.Toolkit.Blueprints.Components.BlueprintBlackboard4096>(ctx.Self))
-                    {
-                        ref var tier = ref ctx.World.GetComponentRW<global::Fdp.Toolkit.Blueprints.Components.BlueprintBlackboard4096>(ctx.Self);
-                        fixed (byte* mem = tier.Memory)
-                        {
-                            if (!global::Fdp.Toolkit.Blueprints.Partitioning.BlueprintBlackboardPartitions.TryGetSlotOffset(mem, __slotKey, out int wsOff))
-                            {
-                                global::System.Diagnostics.Debug.Assert(false, "S2-1: stateful slot 1299152117 missing from BlueprintBlackboard4096");
-                                return Fbt.NodeStatus.Failure;
-                            }
-                            ref var ws = ref Unsafe.AsRef<global::Hrot.AI.Behaviors.Brains.HillAttackMutableState>(mem + wsOff);
-                            return global::Hrot.AI.Behaviors.Brains.HillAttackCommanderNodes.Action_DispatchAllToBaseline(ref dto, ref ws, ref st, ref ctx);
-                        }
-                    }
-                    if (ctx.World.HasComponent<global::Fdp.Toolkit.Blueprints.Components.BlueprintBlackboard1024>(ctx.Self))
-                    {
-                        ref var tier = ref ctx.World.GetComponentRW<global::Fdp.Toolkit.Blueprints.Components.BlueprintBlackboard1024>(ctx.Self);
-                        fixed (byte* mem = tier.Memory)
-                        {
-                            if (!global::Fdp.Toolkit.Blueprints.Partitioning.BlueprintBlackboardPartitions.TryGetSlotOffset(mem, __slotKey, out int wsOff))
-                            {
-                                global::System.Diagnostics.Debug.Assert(false, "S2-1: stateful slot 1299152117 missing from BlueprintBlackboard1024");
-                                return Fbt.NodeStatus.Failure;
-                            }
-                            ref var ws = ref Unsafe.AsRef<global::Hrot.AI.Behaviors.Brains.HillAttackMutableState>(mem + wsOff);
-                            return global::Hrot.AI.Behaviors.Brains.HillAttackCommanderNodes.Action_DispatchAllToBaseline(ref dto, ref ws, ref st, ref ctx);
-                        }
-                    }
-                    // No tier component found — fail loud.
-                    global::System.Diagnostics.Debug.Assert(false, "S2-1: entity has no BlueprintBlackboard* tier component for stateful slot 1299152117");
-                    return Fbt.NodeStatus.Failure;
+                    ref var ws = ref Unsafe.AsRef<global::Hrot.AI.Behaviors.Brains.HillAttackMutableState>(__wsPtr);
+                    return global::Hrot.AI.Behaviors.Brains.HillAttackCommanderNodes.Action_DispatchAllToBaseline(ref dto, ref ws, ref st, ref ctx);
                 }
             });
         actionRegistry.Register("Hrot.AI.Behaviors.Brains.HillAttackCommanderNodes.Action_RequestAreaQuery@0@1299152117",
@@ -172,53 +102,18 @@ public static class PlatoonHillAttackRegistrar
                     // Project Params from BrainBlackboard (Slice-1 pattern).
                     ref var dto = ref Unsafe.As<byte, global::Hrot.AI.Behaviors.Brains.PlatoonHillAttackParams>(
                         ref Unsafe.AddByteOffset(ref bb.BehaviorParameters[0], (nint)0));
-                    // Dispatch across tiers (16384 → 4096 → 1024) to locate the entity's active partition.
+                    // Resolve this occurrence's WorkingState across every tier, in one call (A2b).
                     const int __slotKey = 1299152117;
-                    if (ctx.World.HasComponent<global::Fdp.Toolkit.Blueprints.Components.BlueprintBlackboard16384>(ctx.Self))
+                    if (!global::Fdp.Toolkit.Blueprints.Partitioning.OccurrenceStoreAccess.TryResolveOccurrence(ctx.World, ctx.Self, __slotKey, out byte* __wsPtr))
                     {
-                        ref var tier = ref ctx.World.GetComponentRW<global::Fdp.Toolkit.Blueprints.Components.BlueprintBlackboard16384>(ctx.Self);
-                        fixed (byte* mem = tier.Memory)
-                        {
-                            if (!global::Fdp.Toolkit.Blueprints.Partitioning.BlueprintBlackboardPartitions.TryGetSlotOffset(mem, __slotKey, out int wsOff))
-                            {
-                                global::System.Diagnostics.Debug.Assert(false, "S2-1: stateful slot 1299152117 missing from BlueprintBlackboard16384");
-                                return Fbt.NodeStatus.Failure;
-                            }
-                            ref var ws = ref Unsafe.AsRef<global::Hrot.AI.Behaviors.Brains.HillAttackMutableState>(mem + wsOff);
-                            return global::Hrot.AI.Behaviors.Brains.HillAttackCommanderNodes.Action_RequestAreaQuery(ref dto, ref ws, ref st, ref ctx);
-                        }
+                        global::System.Diagnostics.Debug.Assert(false,
+                            global::Fdp.Toolkit.Blueprints.Partitioning.OccurrenceStoreAccess.HasStore(ctx.World, ctx.Self)
+                                ? "S2-1: stateful slot 1299152117 missing from the entity's occurrence store"
+                                : "S2-1: entity has no BlueprintBlackboard* tier component for stateful slot 1299152117");
+                        return Fbt.NodeStatus.Failure;
                     }
-                    if (ctx.World.HasComponent<global::Fdp.Toolkit.Blueprints.Components.BlueprintBlackboard4096>(ctx.Self))
-                    {
-                        ref var tier = ref ctx.World.GetComponentRW<global::Fdp.Toolkit.Blueprints.Components.BlueprintBlackboard4096>(ctx.Self);
-                        fixed (byte* mem = tier.Memory)
-                        {
-                            if (!global::Fdp.Toolkit.Blueprints.Partitioning.BlueprintBlackboardPartitions.TryGetSlotOffset(mem, __slotKey, out int wsOff))
-                            {
-                                global::System.Diagnostics.Debug.Assert(false, "S2-1: stateful slot 1299152117 missing from BlueprintBlackboard4096");
-                                return Fbt.NodeStatus.Failure;
-                            }
-                            ref var ws = ref Unsafe.AsRef<global::Hrot.AI.Behaviors.Brains.HillAttackMutableState>(mem + wsOff);
-                            return global::Hrot.AI.Behaviors.Brains.HillAttackCommanderNodes.Action_RequestAreaQuery(ref dto, ref ws, ref st, ref ctx);
-                        }
-                    }
-                    if (ctx.World.HasComponent<global::Fdp.Toolkit.Blueprints.Components.BlueprintBlackboard1024>(ctx.Self))
-                    {
-                        ref var tier = ref ctx.World.GetComponentRW<global::Fdp.Toolkit.Blueprints.Components.BlueprintBlackboard1024>(ctx.Self);
-                        fixed (byte* mem = tier.Memory)
-                        {
-                            if (!global::Fdp.Toolkit.Blueprints.Partitioning.BlueprintBlackboardPartitions.TryGetSlotOffset(mem, __slotKey, out int wsOff))
-                            {
-                                global::System.Diagnostics.Debug.Assert(false, "S2-1: stateful slot 1299152117 missing from BlueprintBlackboard1024");
-                                return Fbt.NodeStatus.Failure;
-                            }
-                            ref var ws = ref Unsafe.AsRef<global::Hrot.AI.Behaviors.Brains.HillAttackMutableState>(mem + wsOff);
-                            return global::Hrot.AI.Behaviors.Brains.HillAttackCommanderNodes.Action_RequestAreaQuery(ref dto, ref ws, ref st, ref ctx);
-                        }
-                    }
-                    // No tier component found — fail loud.
-                    global::System.Diagnostics.Debug.Assert(false, "S2-1: entity has no BlueprintBlackboard* tier component for stateful slot 1299152117");
-                    return Fbt.NodeStatus.Failure;
+                    ref var ws = ref Unsafe.AsRef<global::Hrot.AI.Behaviors.Brains.HillAttackMutableState>(__wsPtr);
+                    return global::Hrot.AI.Behaviors.Brains.HillAttackCommanderNodes.Action_RequestAreaQuery(ref dto, ref ws, ref st, ref ctx);
                 }
             });
         actionRegistry.Register("Hrot.AI.Behaviors.Brains.HillAttackCommanderNodes.Condition_IsAreaQueryResolved@0@1299152117",
@@ -229,53 +124,18 @@ public static class PlatoonHillAttackRegistrar
                     // Project Params from BrainBlackboard (Slice-1 pattern).
                     ref var dto = ref Unsafe.As<byte, global::Hrot.AI.Behaviors.Brains.PlatoonHillAttackParams>(
                         ref Unsafe.AddByteOffset(ref bb.BehaviorParameters[0], (nint)0));
-                    // Dispatch across tiers (16384 → 4096 → 1024) to locate the entity's active partition.
+                    // Resolve this occurrence's WorkingState across every tier, in one call (A2b).
                     const int __slotKey = 1299152117;
-                    if (ctx.World.HasComponent<global::Fdp.Toolkit.Blueprints.Components.BlueprintBlackboard16384>(ctx.Self))
+                    if (!global::Fdp.Toolkit.Blueprints.Partitioning.OccurrenceStoreAccess.TryResolveOccurrence(ctx.World, ctx.Self, __slotKey, out byte* __wsPtr))
                     {
-                        ref var tier = ref ctx.World.GetComponentRW<global::Fdp.Toolkit.Blueprints.Components.BlueprintBlackboard16384>(ctx.Self);
-                        fixed (byte* mem = tier.Memory)
-                        {
-                            if (!global::Fdp.Toolkit.Blueprints.Partitioning.BlueprintBlackboardPartitions.TryGetSlotOffset(mem, __slotKey, out int wsOff))
-                            {
-                                global::System.Diagnostics.Debug.Assert(false, "S2-1: stateful slot 1299152117 missing from BlueprintBlackboard16384");
-                                return Fbt.NodeStatus.Failure;
-                            }
-                            ref var ws = ref Unsafe.AsRef<global::Hrot.AI.Behaviors.Brains.HillAttackMutableState>(mem + wsOff);
-                            return global::Hrot.AI.Behaviors.Brains.HillAttackCommanderNodes.Condition_IsAreaQueryResolved(ref dto, ref ws, ref st, ref ctx);
-                        }
+                        global::System.Diagnostics.Debug.Assert(false,
+                            global::Fdp.Toolkit.Blueprints.Partitioning.OccurrenceStoreAccess.HasStore(ctx.World, ctx.Self)
+                                ? "S2-1: stateful slot 1299152117 missing from the entity's occurrence store"
+                                : "S2-1: entity has no BlueprintBlackboard* tier component for stateful slot 1299152117");
+                        return Fbt.NodeStatus.Failure;
                     }
-                    if (ctx.World.HasComponent<global::Fdp.Toolkit.Blueprints.Components.BlueprintBlackboard4096>(ctx.Self))
-                    {
-                        ref var tier = ref ctx.World.GetComponentRW<global::Fdp.Toolkit.Blueprints.Components.BlueprintBlackboard4096>(ctx.Self);
-                        fixed (byte* mem = tier.Memory)
-                        {
-                            if (!global::Fdp.Toolkit.Blueprints.Partitioning.BlueprintBlackboardPartitions.TryGetSlotOffset(mem, __slotKey, out int wsOff))
-                            {
-                                global::System.Diagnostics.Debug.Assert(false, "S2-1: stateful slot 1299152117 missing from BlueprintBlackboard4096");
-                                return Fbt.NodeStatus.Failure;
-                            }
-                            ref var ws = ref Unsafe.AsRef<global::Hrot.AI.Behaviors.Brains.HillAttackMutableState>(mem + wsOff);
-                            return global::Hrot.AI.Behaviors.Brains.HillAttackCommanderNodes.Condition_IsAreaQueryResolved(ref dto, ref ws, ref st, ref ctx);
-                        }
-                    }
-                    if (ctx.World.HasComponent<global::Fdp.Toolkit.Blueprints.Components.BlueprintBlackboard1024>(ctx.Self))
-                    {
-                        ref var tier = ref ctx.World.GetComponentRW<global::Fdp.Toolkit.Blueprints.Components.BlueprintBlackboard1024>(ctx.Self);
-                        fixed (byte* mem = tier.Memory)
-                        {
-                            if (!global::Fdp.Toolkit.Blueprints.Partitioning.BlueprintBlackboardPartitions.TryGetSlotOffset(mem, __slotKey, out int wsOff))
-                            {
-                                global::System.Diagnostics.Debug.Assert(false, "S2-1: stateful slot 1299152117 missing from BlueprintBlackboard1024");
-                                return Fbt.NodeStatus.Failure;
-                            }
-                            ref var ws = ref Unsafe.AsRef<global::Hrot.AI.Behaviors.Brains.HillAttackMutableState>(mem + wsOff);
-                            return global::Hrot.AI.Behaviors.Brains.HillAttackCommanderNodes.Condition_IsAreaQueryResolved(ref dto, ref ws, ref st, ref ctx);
-                        }
-                    }
-                    // No tier component found — fail loud.
-                    global::System.Diagnostics.Debug.Assert(false, "S2-1: entity has no BlueprintBlackboard* tier component for stateful slot 1299152117");
-                    return Fbt.NodeStatus.Failure;
+                    ref var ws = ref Unsafe.AsRef<global::Hrot.AI.Behaviors.Brains.HillAttackMutableState>(__wsPtr);
+                    return global::Hrot.AI.Behaviors.Brains.HillAttackCommanderNodes.Condition_IsAreaQueryResolved(ref dto, ref ws, ref st, ref ctx);
                 }
             });
         actionRegistry.Register("Hrot.AI.Behaviors.Brains.HillAttackCommanderNodes.Action_DispatchWaveWithTargets@0@1299152117",
@@ -286,53 +146,18 @@ public static class PlatoonHillAttackRegistrar
                     // Project Params from BrainBlackboard (Slice-1 pattern).
                     ref var dto = ref Unsafe.As<byte, global::Hrot.AI.Behaviors.Brains.PlatoonHillAttackParams>(
                         ref Unsafe.AddByteOffset(ref bb.BehaviorParameters[0], (nint)0));
-                    // Dispatch across tiers (16384 → 4096 → 1024) to locate the entity's active partition.
+                    // Resolve this occurrence's WorkingState across every tier, in one call (A2b).
                     const int __slotKey = 1299152117;
-                    if (ctx.World.HasComponent<global::Fdp.Toolkit.Blueprints.Components.BlueprintBlackboard16384>(ctx.Self))
+                    if (!global::Fdp.Toolkit.Blueprints.Partitioning.OccurrenceStoreAccess.TryResolveOccurrence(ctx.World, ctx.Self, __slotKey, out byte* __wsPtr))
                     {
-                        ref var tier = ref ctx.World.GetComponentRW<global::Fdp.Toolkit.Blueprints.Components.BlueprintBlackboard16384>(ctx.Self);
-                        fixed (byte* mem = tier.Memory)
-                        {
-                            if (!global::Fdp.Toolkit.Blueprints.Partitioning.BlueprintBlackboardPartitions.TryGetSlotOffset(mem, __slotKey, out int wsOff))
-                            {
-                                global::System.Diagnostics.Debug.Assert(false, "S2-1: stateful slot 1299152117 missing from BlueprintBlackboard16384");
-                                return Fbt.NodeStatus.Failure;
-                            }
-                            ref var ws = ref Unsafe.AsRef<global::Hrot.AI.Behaviors.Brains.HillAttackMutableState>(mem + wsOff);
-                            return global::Hrot.AI.Behaviors.Brains.HillAttackCommanderNodes.Action_DispatchWaveWithTargets(ref dto, ref ws, ref st, ref ctx);
-                        }
+                        global::System.Diagnostics.Debug.Assert(false,
+                            global::Fdp.Toolkit.Blueprints.Partitioning.OccurrenceStoreAccess.HasStore(ctx.World, ctx.Self)
+                                ? "S2-1: stateful slot 1299152117 missing from the entity's occurrence store"
+                                : "S2-1: entity has no BlueprintBlackboard* tier component for stateful slot 1299152117");
+                        return Fbt.NodeStatus.Failure;
                     }
-                    if (ctx.World.HasComponent<global::Fdp.Toolkit.Blueprints.Components.BlueprintBlackboard4096>(ctx.Self))
-                    {
-                        ref var tier = ref ctx.World.GetComponentRW<global::Fdp.Toolkit.Blueprints.Components.BlueprintBlackboard4096>(ctx.Self);
-                        fixed (byte* mem = tier.Memory)
-                        {
-                            if (!global::Fdp.Toolkit.Blueprints.Partitioning.BlueprintBlackboardPartitions.TryGetSlotOffset(mem, __slotKey, out int wsOff))
-                            {
-                                global::System.Diagnostics.Debug.Assert(false, "S2-1: stateful slot 1299152117 missing from BlueprintBlackboard4096");
-                                return Fbt.NodeStatus.Failure;
-                            }
-                            ref var ws = ref Unsafe.AsRef<global::Hrot.AI.Behaviors.Brains.HillAttackMutableState>(mem + wsOff);
-                            return global::Hrot.AI.Behaviors.Brains.HillAttackCommanderNodes.Action_DispatchWaveWithTargets(ref dto, ref ws, ref st, ref ctx);
-                        }
-                    }
-                    if (ctx.World.HasComponent<global::Fdp.Toolkit.Blueprints.Components.BlueprintBlackboard1024>(ctx.Self))
-                    {
-                        ref var tier = ref ctx.World.GetComponentRW<global::Fdp.Toolkit.Blueprints.Components.BlueprintBlackboard1024>(ctx.Self);
-                        fixed (byte* mem = tier.Memory)
-                        {
-                            if (!global::Fdp.Toolkit.Blueprints.Partitioning.BlueprintBlackboardPartitions.TryGetSlotOffset(mem, __slotKey, out int wsOff))
-                            {
-                                global::System.Diagnostics.Debug.Assert(false, "S2-1: stateful slot 1299152117 missing from BlueprintBlackboard1024");
-                                return Fbt.NodeStatus.Failure;
-                            }
-                            ref var ws = ref Unsafe.AsRef<global::Hrot.AI.Behaviors.Brains.HillAttackMutableState>(mem + wsOff);
-                            return global::Hrot.AI.Behaviors.Brains.HillAttackCommanderNodes.Action_DispatchWaveWithTargets(ref dto, ref ws, ref st, ref ctx);
-                        }
-                    }
-                    // No tier component found — fail loud.
-                    global::System.Diagnostics.Debug.Assert(false, "S2-1: entity has no BlueprintBlackboard* tier component for stateful slot 1299152117");
-                    return Fbt.NodeStatus.Failure;
+                    ref var ws = ref Unsafe.AsRef<global::Hrot.AI.Behaviors.Brains.HillAttackMutableState>(__wsPtr);
+                    return global::Hrot.AI.Behaviors.Brains.HillAttackCommanderNodes.Action_DispatchWaveWithTargets(ref dto, ref ws, ref st, ref ctx);
                 }
             });
         actionRegistry.Register("Hrot.AI.Behaviors.Brains.HillAttackCommanderNodes.Condition_IsWaveCompleted@0@1299152117",
@@ -343,53 +168,18 @@ public static class PlatoonHillAttackRegistrar
                     // Project Params from BrainBlackboard (Slice-1 pattern).
                     ref var dto = ref Unsafe.As<byte, global::Hrot.AI.Behaviors.Brains.PlatoonHillAttackParams>(
                         ref Unsafe.AddByteOffset(ref bb.BehaviorParameters[0], (nint)0));
-                    // Dispatch across tiers (16384 → 4096 → 1024) to locate the entity's active partition.
+                    // Resolve this occurrence's WorkingState across every tier, in one call (A2b).
                     const int __slotKey = 1299152117;
-                    if (ctx.World.HasComponent<global::Fdp.Toolkit.Blueprints.Components.BlueprintBlackboard16384>(ctx.Self))
+                    if (!global::Fdp.Toolkit.Blueprints.Partitioning.OccurrenceStoreAccess.TryResolveOccurrence(ctx.World, ctx.Self, __slotKey, out byte* __wsPtr))
                     {
-                        ref var tier = ref ctx.World.GetComponentRW<global::Fdp.Toolkit.Blueprints.Components.BlueprintBlackboard16384>(ctx.Self);
-                        fixed (byte* mem = tier.Memory)
-                        {
-                            if (!global::Fdp.Toolkit.Blueprints.Partitioning.BlueprintBlackboardPartitions.TryGetSlotOffset(mem, __slotKey, out int wsOff))
-                            {
-                                global::System.Diagnostics.Debug.Assert(false, "S2-1: stateful slot 1299152117 missing from BlueprintBlackboard16384");
-                                return Fbt.NodeStatus.Failure;
-                            }
-                            ref var ws = ref Unsafe.AsRef<global::Hrot.AI.Behaviors.Brains.HillAttackMutableState>(mem + wsOff);
-                            return global::Hrot.AI.Behaviors.Brains.HillAttackCommanderNodes.Condition_IsWaveCompleted(ref dto, ref ws, ref st, ref ctx);
-                        }
+                        global::System.Diagnostics.Debug.Assert(false,
+                            global::Fdp.Toolkit.Blueprints.Partitioning.OccurrenceStoreAccess.HasStore(ctx.World, ctx.Self)
+                                ? "S2-1: stateful slot 1299152117 missing from the entity's occurrence store"
+                                : "S2-1: entity has no BlueprintBlackboard* tier component for stateful slot 1299152117");
+                        return Fbt.NodeStatus.Failure;
                     }
-                    if (ctx.World.HasComponent<global::Fdp.Toolkit.Blueprints.Components.BlueprintBlackboard4096>(ctx.Self))
-                    {
-                        ref var tier = ref ctx.World.GetComponentRW<global::Fdp.Toolkit.Blueprints.Components.BlueprintBlackboard4096>(ctx.Self);
-                        fixed (byte* mem = tier.Memory)
-                        {
-                            if (!global::Fdp.Toolkit.Blueprints.Partitioning.BlueprintBlackboardPartitions.TryGetSlotOffset(mem, __slotKey, out int wsOff))
-                            {
-                                global::System.Diagnostics.Debug.Assert(false, "S2-1: stateful slot 1299152117 missing from BlueprintBlackboard4096");
-                                return Fbt.NodeStatus.Failure;
-                            }
-                            ref var ws = ref Unsafe.AsRef<global::Hrot.AI.Behaviors.Brains.HillAttackMutableState>(mem + wsOff);
-                            return global::Hrot.AI.Behaviors.Brains.HillAttackCommanderNodes.Condition_IsWaveCompleted(ref dto, ref ws, ref st, ref ctx);
-                        }
-                    }
-                    if (ctx.World.HasComponent<global::Fdp.Toolkit.Blueprints.Components.BlueprintBlackboard1024>(ctx.Self))
-                    {
-                        ref var tier = ref ctx.World.GetComponentRW<global::Fdp.Toolkit.Blueprints.Components.BlueprintBlackboard1024>(ctx.Self);
-                        fixed (byte* mem = tier.Memory)
-                        {
-                            if (!global::Fdp.Toolkit.Blueprints.Partitioning.BlueprintBlackboardPartitions.TryGetSlotOffset(mem, __slotKey, out int wsOff))
-                            {
-                                global::System.Diagnostics.Debug.Assert(false, "S2-1: stateful slot 1299152117 missing from BlueprintBlackboard1024");
-                                return Fbt.NodeStatus.Failure;
-                            }
-                            ref var ws = ref Unsafe.AsRef<global::Hrot.AI.Behaviors.Brains.HillAttackMutableState>(mem + wsOff);
-                            return global::Hrot.AI.Behaviors.Brains.HillAttackCommanderNodes.Condition_IsWaveCompleted(ref dto, ref ws, ref st, ref ctx);
-                        }
-                    }
-                    // No tier component found — fail loud.
-                    global::System.Diagnostics.Debug.Assert(false, "S2-1: entity has no BlueprintBlackboard* tier component for stateful slot 1299152117");
-                    return Fbt.NodeStatus.Failure;
+                    ref var ws = ref Unsafe.AsRef<global::Hrot.AI.Behaviors.Brains.HillAttackMutableState>(__wsPtr);
+                    return global::Hrot.AI.Behaviors.Brains.HillAttackCommanderNodes.Condition_IsWaveCompleted(ref dto, ref ws, ref st, ref ctx);
                 }
             });
 
@@ -402,55 +192,18 @@ public static class PlatoonHillAttackRegistrar
                     // Project Params from BrainBlackboard (Slice-1 pattern).
                     ref var dto = ref Unsafe.As<byte, global::Hrot.AI.Behaviors.Brains.PlatoonHillAttackParams>(
                         ref Unsafe.AddByteOffset(ref bb.BehaviorParameters[0], (nint)0));
-                    // Project WorkingState from the entity's active partition tier (16384 → 4096 → 1024).
+                    // Resolve this occurrence's WorkingState across every tier, in one call (A2b).
                     const int __slotKey = 1299152117;
-                    if (ctx.World.HasComponent<global::Fdp.Toolkit.Blueprints.Components.BlueprintBlackboard16384>(ctx.Self))
+                    if (!global::Fdp.Toolkit.Blueprints.Partitioning.OccurrenceStoreAccess.TryResolveOccurrence(ctx.World, ctx.Self, __slotKey, out byte* __wsPtr))
                     {
-                        ref var tier = ref ctx.World.GetComponentRW<global::Fdp.Toolkit.Blueprints.Components.BlueprintBlackboard16384>(ctx.Self);
-                        fixed (byte* mem = tier.Memory)
-                        {
-                            if (global::Fdp.Toolkit.Blueprints.Partitioning.BlueprintBlackboardPartitions.TryGetSlotOffset(mem, __slotKey, out int wsOff))
-                            {
-                                ref var ws = ref Unsafe.AsRef<global::Hrot.AI.Behaviors.Brains.HillAttackMutableState>(mem + wsOff);
-                                global::Hrot.AI.Behaviors.Brains.HillAttackCommanderNodes.Deactivate_RequestAreaQuery(ref dto, ref ws, ref st, ref ctx, pi);
-                                return;
-                            }
-                            global::System.Diagnostics.Debug.Assert(false, "S3-G: stateful deactivator slot 1299152117 missing from BlueprintBlackboard16384");
-                            return;
-                        }
+                        global::System.Diagnostics.Debug.Assert(false,
+                            global::Fdp.Toolkit.Blueprints.Partitioning.OccurrenceStoreAccess.HasStore(ctx.World, ctx.Self)
+                                ? "S3-G: stateful deactivator slot 1299152117 missing from the entity's occurrence store"
+                                : "S3-G: entity has no BlueprintBlackboard* tier component for stateful deactivator slot 1299152117");
+                        return;
                     }
-                    if (ctx.World.HasComponent<global::Fdp.Toolkit.Blueprints.Components.BlueprintBlackboard4096>(ctx.Self))
-                    {
-                        ref var tier = ref ctx.World.GetComponentRW<global::Fdp.Toolkit.Blueprints.Components.BlueprintBlackboard4096>(ctx.Self);
-                        fixed (byte* mem = tier.Memory)
-                        {
-                            if (global::Fdp.Toolkit.Blueprints.Partitioning.BlueprintBlackboardPartitions.TryGetSlotOffset(mem, __slotKey, out int wsOff))
-                            {
-                                ref var ws = ref Unsafe.AsRef<global::Hrot.AI.Behaviors.Brains.HillAttackMutableState>(mem + wsOff);
-                                global::Hrot.AI.Behaviors.Brains.HillAttackCommanderNodes.Deactivate_RequestAreaQuery(ref dto, ref ws, ref st, ref ctx, pi);
-                                return;
-                            }
-                            global::System.Diagnostics.Debug.Assert(false, "S3-G: stateful deactivator slot 1299152117 missing from BlueprintBlackboard4096");
-                            return;
-                        }
-                    }
-                    if (ctx.World.HasComponent<global::Fdp.Toolkit.Blueprints.Components.BlueprintBlackboard1024>(ctx.Self))
-                    {
-                        ref var tier = ref ctx.World.GetComponentRW<global::Fdp.Toolkit.Blueprints.Components.BlueprintBlackboard1024>(ctx.Self);
-                        fixed (byte* mem = tier.Memory)
-                        {
-                            if (global::Fdp.Toolkit.Blueprints.Partitioning.BlueprintBlackboardPartitions.TryGetSlotOffset(mem, __slotKey, out int wsOff))
-                            {
-                                ref var ws = ref Unsafe.AsRef<global::Hrot.AI.Behaviors.Brains.HillAttackMutableState>(mem + wsOff);
-                                global::Hrot.AI.Behaviors.Brains.HillAttackCommanderNodes.Deactivate_RequestAreaQuery(ref dto, ref ws, ref st, ref ctx, pi);
-                                return;
-                            }
-                            global::System.Diagnostics.Debug.Assert(false, "S3-G: stateful deactivator slot 1299152117 missing from BlueprintBlackboard1024");
-                            return;
-                        }
-                    }
-                    // No tier component found — nothing to clean up.
-                    global::System.Diagnostics.Debug.Assert(false, "S3-G: entity has no BlueprintBlackboard* tier component for stateful deactivator slot 1299152117");
+                    ref var ws = ref Unsafe.AsRef<global::Hrot.AI.Behaviors.Brains.HillAttackMutableState>(__wsPtr);
+                    global::Hrot.AI.Behaviors.Brains.HillAttackCommanderNodes.Deactivate_RequestAreaQuery(ref dto, ref ws, ref st, ref ctx, pi);
                 }
             });
 

@@ -75,7 +75,9 @@ public sealed class BlueprintActionThunkEmissionTests
             "the blueprint action must register a thunk keyed {MethodFqn}@{offset}@{slotKey}");
 
         // WorkingState comes from the partition-slot rail, not the fixed Blackboard1024+8.
-        bridge.Should().Contain("BlueprintBlackboardPartitions.TryGetSlotOffset",
+        // ⚠ A2b (2026-09-20) — the emitted tier ladder collapsed into OccurrenceStoreAccess, which
+        //   calls TryGetSlotOffset internally. The claim (partition slot, NOT Blackboard1024+8) stands.
+        bridge.Should().Contain("OccurrenceStoreAccess.TryResolveOccurrence",
             "WorkingState must be projected from the entity's partition slot (I3), not Blackboard1024+8");
 
         // The final dispatch calls the blueprint's generated TickCore with the (params, ws, self,

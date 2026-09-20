@@ -1246,6 +1246,35 @@ must widen deliberately.
 `[DataPolicy(DataPolicy.NoScenario)]` (`BlueprintBlackboardNoSaveTests`) ⇒ ⛔ `R-42`'s
 *"integer ids are permanent"* does **not** bind `OccurrenceKind`; it is runtime-only.
 
+### ✅ AS-BUILT `2026-09-20` — **the EMITTED ladder is gone** *(task `A2b`, obligation ⑤)*
+
+⛔⛔ **THERE WERE THREE EMITTED LADDERS, NOT TWO. My own `A2` census was wrong and the PLAN inherited
+it.** §5 class 4 and `PLAN` `A2b` both say *"the emitter PAIR — `BTreeBridgeEmitCore:650, :726`"*.
+📐 The third is **`EmitStatefulDeactivatorTierBlock`** (`S3-G`): it was missed because it is
+**PARAMETERISED PER TIER** — one helper called three times — rather than written out inline, so a grep
+for the ladder's shape does not see it. ⇒ ⭐ **the checkable form: a duplication census must count
+CALLS, not occurrences of the pattern.**
+
+| what shipped | |
+|---|---|
+| all three emitters now emit **one** `OccurrenceStoreAccess.TryResolveOccurrence` call | the action thunk (`S2-1`), the condition sibling (`E2`) and the deactivator (`S3-G`); the per-tier helper is deleted |
+| ⭐⭐ **both diagnostics KEPT** | the emitted code distinguished *"no tier at all"* from *"tier present, slot missing"* with different messages; `TryResolveOccurrence` deliberately does not. ⭐ The `HasStore` probe that tells them apart sits **inside `Debug.Assert`'s argument**, and `Debug.Assert` is `[Conditional("DEBUG")]` ⇒ **Release evaluates neither the probe nor the strings**, so the hot path is strictly cheaper than the old ladder while `R-137` is honoured |
+| behaviour identical | the seam preserves the probe order, the *"at most one tier, first match wins"* rule, and resolves through **`GetComponentRW`** exactly as the emitted arms did ⇒ the chunk-version behaviour is unchanged |
+
+| 📐 **GOLDEN MOVEMENT, AS A DIFF SHAPE** *(gate row 3)* | |
+|---|---|
+| **11 files · +252 / −1234 · net −982 lines** | ⭐ purely the collapse |
+| removed | **84** `HasComponent<BlueprintBlackboard*>` · **84** `GetComponentRW` · **84** `fixed (byte* mem = tier.Memory)` · **81** `TryGetSlotOffset` · **108** `return NodeStatus.Failure` · 28 no-tier fallthroughs |
+| added | **28** `TryResolveOccurrence` · 28 `HasStore` *(inside the assert)* · the two preserved message strings |
+| ⛔ **what did NOT move** | no thunk **key**, no baked **offset**, no **struct size**, no **registration**. The `Unsafe.AsRef<Ws>` and `TickCore(...)` lines appear on both sides — they changed **position**, not content |
+| ⇒ | **28 thunks, each losing 3 tier arms and gaining 1 seam call.** ⭐ A fourth tier (`O3b`'s 256) is now free in generated code |
+
+⚠ **Three assertion tests MOVED rather than being weakened** — `StatefulSlotKeyTests`,
+`BlueprintActionThunkEmissionTests`, `BlueprintConditionThunkEmissionTests` pinned the literal
+`TryGetSlotOffset`. ⭐ Their CLAIM is *"resolution goes through the partition slot, NOT
+`Blackboard1024+8`"*, which is unchanged — so they now pin `OccurrenceStoreAccess.TryResolveOccurrence`,
+the seam that calls it.
+
 ### ⛔ HISTORY — `D1` as first approved *(superseded `2026-09-20` by `G1`)*
 
 | option | verdict |
