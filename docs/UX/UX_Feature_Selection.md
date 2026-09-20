@@ -1098,7 +1098,7 @@ verification prompt is in [`RESUME_UI_Lane.md`](../blueprints/RESUME_UI_Lane.md)
 |---|---|
 | `EditorSelectionState` held its **own** `Entity` and `Version` | it is a **VIEW** of the 2-D selection when bound |
 | `SyncSelection2D3D` moved the selection **one direction per frame** between two stores, with two anti-bounce trackers | ⛔ **DELETED**, with `_last2dSelVersion`/`_last3dSelVersion` |
-| a 3-D ray hit moved the 3-D highlight, and the map ring followed **a frame later** | a 3-D hit **is** the selection — map ring, inspector and ORBAT follow because they read the same one |
+| a 3-D ray hit moved the 3-D highlight, and the map ring followed **a frame later** | a 3-D hit **is** the selection — map ring, inspector and ORBAT follow because they read the same one. ⚠ **STRUCTURALLY true and OPERATIONALLY unproven:** the ray path writes to the shared selection, but `CE-299` finds that ray has never resolved an entity, so this particular payoff has never been observed |
 
 ⚠ **Deleting the bridge is mandatory, not tidying.** With one truth, each "push" writes through
 `PrimarySelected`, which bumps the version, which the other arm reads as a change ⇒ **a bump every
@@ -1145,7 +1145,7 @@ keeps both the headless path and `StrideNodeShell`'s world-less `_operatorSelect
 |---|---|---|
 | **1** | `HrotStrideApp.Game` compiles | ✅ **0 errors** — and so does the whole `HrotStrideApp.sln`, **including `HrotStrideApp.Windows`**. ⭐⭐ **No code fix was required: the blind-written slice was correct as written** |
 | **2** | `EditorSelectionStateTests` | ✅ **11/11**, twice *(before and after the `CE-297` edit)*. ⛔⛔ **THE "12" IN CHECK 2 ABOVE WAS WRONG** — see the correction below |
-| **3** | 3-D click → 2-D ring, same frame | ✅ 🔒 user: *"selection works both ways"* |
+| **3** | 3-D click → 2-D ring, same frame | ⚠⚠ **VERIFIED FOR THE STRIDE HOST'S INSPECTOR WINDOW, NOT FOR THE 3-D VIEWPORT RAY** — 🔒 user: *"selection works both ways"*, and the binding's write path is genuinely proven. ⛔ **But it cannot have been the viewport ray:** `CE-299`, measured the same session, finds a 3-D left-click has **never once** resolved an entity *(13 LMB presses, every one `hitEntity=#-1`; `"LMB selected entity"` appears **zero** times in the whole log history)*. ⇒ ⭐ the gesture exercised was the inspector window's row click — the OTHER writer into `SelectionState.Select` *(`StrideHrotGame.cs:1324` hands it the shared state for exactly that)*. 📌 See the reconciliation below |
 | **4** | 2-D click → 3-D highlight | ✅ same; 📐 independently visible in the log **before** the user's confirmation — `[SelDiag] HasSelection=True entity=#2` with **no preceding `[ClickDiag]`**, i.e. the 3-D state reporting a selection made on the 2-D side, which is the bound read working |
 | **5** | 🔴 **no per-frame churn** | ✅✅ **PASS, in its strong form** — 30 consecutive `[SelDiag]` lines with a **live** selection *(`entity=#2`)* over ~30 s of no input, **all identical**. ⭐ Structurally confirmed too: `SyncSelection2D3D` and both trackers are gone *(only explanatory comments remain)*, and the 3-D side has exactly **one** writer, `StrideHrotGame.cs:597` |
 | **6** | headless / no inspector window | ⚠ **NOT RUN** — no such configuration was exercised this session. ⛔ The `available` path remains covered only by the unbound rails |
@@ -1155,6 +1155,28 @@ keeps both the headless path and `StrideNodeShell`'s world-less `_operatorSelect
 file was last touched by the Bullet port, not by this slice. ⇒ ⭐ **nothing is missing; the number was
 wrong.** ⚠ **Worth the correction because the failure mode is expensive:** a later session reads "12",
 counts 11, and goes hunting for a deleted rail that never existed.
+
+##### ⛔⛔ RECONCILIATION — **check 3 and `CE-299` cannot both be read as written** *(`2026-09-20`)*
+
+📐 **The contradiction:** check 3 is marked ✅ for *"click an entity in the 3-D view"*, while `CE-299` —
+measured in the same session — reports that gesture has **never once** selected an entity.
+
+⭐ **What is actually established, and it is still the thing that mattered:**
+
+| | |
+|---|---|
+| ✅ **the BINDING works, both directions** | the 3-D side writing reaches the 2-D ring, and the 2-D side writing is visible to the 3-D side. ⭐ Check 4's evidence is independent of the user's phrasing — `[SelDiag] HasSelection=True entity=#2` with **no preceding `[ClickDiag]`** |
+| ✅ **the churn is gone** | 30 identical `[SelDiag]` lines over ~30 s with a live selection, plus one writer structurally |
+| ⛔ **the 3-D VIEWPORT RAY is NOT verified** | it never resolves an entity *(`CE-299`)*, so it cannot have been the gesture that proved check 3. ⇒ the write almost certainly came from the **inspector window's row click**, the other caller of `SelectionState.Select` |
+
+⚠ **Why this correction is worth making rather than letting ✅ stand:** a later session reads *"3-D click
+→ 2-D ring ✅"* and concludes 3-D picking works — then `CE-299`'s discriminator looks like a
+contradiction of a verified result instead of the open question it is. 🔒 **`S-3d` unified the 3-D
+selection; it did not, and could not, fix 3-D picking.**
+
+⭐ **What would close it:** `CE-299`'s own discriminator — now that `CE-298` makes the camera steerable,
+orbit onto a mannequin at close range and read `[ClickDiag]`; a `hasHit=True` with `hitEntity=#-1` **on a
+model** proves the raycast cannot resolve entities, rather than the operator having missed.
 
 ⚠ **ONE ENVIRONMENT FINDING, not about this slice but blocking anyone who repeats it:** the first build
 FAILED — `MSB4061`, *"the `Stride.Core.AssemblyProcessor` task could not be instantiated … Type must be a
