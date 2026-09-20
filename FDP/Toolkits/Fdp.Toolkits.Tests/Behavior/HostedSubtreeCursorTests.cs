@@ -340,6 +340,67 @@ public sealed unsafe class HostedSubtreeCursorTests
         Assert.NotEqual(0, OccurrenceSlots.IdentityOf(HostAsset));
     }
 
+    /// <summary>
+    /// ⭐⭐⭐ <b>Rail ⑧ — the TRIPWIRE: why the end-to-end ABANDON rail does not exist.</b>
+    /// 📄 <c>DESIGN_Occurrence_Scoped_Storage.md</c> §22.5.
+    ///
+    /// <para>🔴🔴 <b>Measured: <c>BehaviorTreeState.PushNode</c> / <c>PopNode</c> have ZERO production
+    /// callers</b> (grep and <c>search_graph</c> agree — only <c>Fbt.Tests</c>' own
+    /// <c>DataStructuresTests</c> touch them). ⇒ the interpreter never fills
+    /// <c>NodeIndexStack</c>, so the "active path" <c>SweepExitedNodes</c> diffs is <b>one entry
+    /// wide</b>: <c>RunningNodeIndex</c>.</para>
+    ///
+    /// <para>⛔⛔ <b>The consequence for <c>F14</c>.</b> A deactivator can only fire for a node that
+    /// LEAVES <c>RunningNodeIndex</c> — and the only thing that moves it off a hosting action is the
+    /// action itself returning non-<c>Running</c>, which is the COMPLETION case
+    /// <see cref="HostedSubtree.Tick"/> already handles. 📐 The composites cannot produce the other
+    /// case: <c>Sequence</c>/<c>Selector</c> skip only children BEFORE the running one and never
+    /// re-evaluate a higher-priority sibling; <c>ObserverSelector</c> is routed straight to
+    /// <c>ExecuteSelector</c> (<i>"uses standard selector semantics"</i>) so it does not abort;
+    /// <c>Parallel</c> overwrites <c>RunningNodeIndex</c> with its OWN index, so a hosting action under
+    /// one never reaches the path at all; <c>Cooldown</c>'s early-<c>Failure</c> arm is gated on a
+    /// token set only on child <c>Success</c>. ⇒ <b>a genuine mid-flight abandon is UNREACHABLE
+    /// in-tree today</b>, which is why §20.2's <i>"needs a <c>Parallel</c> or a reactive abort"</i> was
+    /// optimistic — neither delivers one.</para>
+    ///
+    /// <para>⭐⭐ <b>So this rail pins the PREMISE instead of the behaviour.</b> A path stack is the
+    /// prerequisite for any real abort, so the day someone fills it this rail reddens and says: the
+    /// end-to-end <c>F14</c> case has become reachable and now needs a real rail. ⛔ A silently-absent
+    /// test would say nothing.</para>
+    /// </summary>
+    [Fact]
+    public void O4_R8_TheSweepPathIsOneEntryWide_SoAMidFlightAbandonIsUnreachable()
+    {
+        using var world = CreateWorld();
+        var entity = CreateHostEntity(world);
+        var child  = BuildRunningChild();
+        var childBb = new ChildBb();
+        int key = TreeStateKey;
+
+        NodeStatus Orchestrate(ref HostBb master, ref BehaviorTreeState st,
+                               ref BTreeContext c, int paramIndex)
+            => HostedSubtree.Tick(child, ref childBb, ref c, key);
+
+        // Deliberately NESTED — a real path stack would have something to push.
+        var hb = new BTreeBuilder<HostBb, BTreeContext>()
+            .Sequence(outer => outer.Selector(inner => inner.Action(Orchestrate)));
+        var host = new Interpreter<HostBb, BTreeContext>(hb.Compile("O4_Nested"), hb.GetRegistry());
+
+        var bb    = new HostBb();
+        var ctx   = new BTreeContext { Self = entity, World = world };
+        var state = new BehaviorTreeState();
+
+        Assert.Equal(NodeStatus.Running, host.Tick(ref bb, ref state, ref ctx));
+
+        // ⭐ The hosting action IS running, three levels down…
+        Assert.NotEqual(0, state.RunningNodeIndex);
+
+        // ⭐⭐ THE TRIPWIRE. …and nothing recorded the way down.
+        Assert.Equal(0, state.StackPointer);
+        for (int i = 0; i < 8; i++)
+            Assert.Equal(0, state.NodeIndexStack[i]);
+    }
+
     // ═══ F14b — THE EXTERNAL RESET PATH ═══════════════════════════════════════════════════════
     //  📄 DESIGN_Occurrence_Scoped_Storage.md §21.2. Rails ②a/②b cover the resets that arrive
     //  THROUGH A TICK. BehaviorIngressSystem zeroes BrainBTreeState.State WITHOUT one, so neither

@@ -2578,7 +2578,7 @@ stays green.
 
 | ⚠ not claimed | |
 |---|---|
-| ⛔ **rail ②b drives `Reset` DIRECTLY**, not through a tree that abandons mid-flight | 📐 the interpreter's composites RESUME the running branch by design, so a genuine abandon needs a `Parallel` or a reactive abort. ⭐ ②b pins what `Reset` guarantees; ②c pins that it is invoked. 🔒 **End-to-end abandon is not yet measured** |
+| ⛔ **rail ②b drives `Reset` DIRECTLY**, not through a tree that abandons mid-flight | ⛔⛔ **SUPERSEDED `2026-09-20` — see §22.5.** As written: *"a genuine abandon needs a `Parallel` or a reactive abort."* 📐 Measured: **neither delivers one** — `PushNode`/`PopNode` have zero production callers, so the sweep's path is ONE entry wide and a mid-flight abandon is **unreachable in-tree**. ⭐ Rail ⑧ pins that premise instead |
 | ⛔ **the EXTERNAL reset path is NOT covered** | ⛔⛔ **SUPERSEDED `2026-09-20` — FIXED, see §22 (`F14b`).** 📌 As found: `BehaviorIngressSystem:204` / `:235` set `BrainBTreeState.State = default` on a behaviour change. ⚠ That zeroes the HOST's cursor without a tick, so **no sweep fires and no deactivator runs** ⇒ a hosted child's slot keeps stale state across a behaviour swap. ⚠ **And the two line numbers were the wrong pair** — §22 measures which sites actually leak |
 
 | ⭐ left to do | |
@@ -2619,7 +2619,7 @@ determinism check.
 | | |
 |---|---|
 | ⛔ **the root occurrence still lives in `BrainBTreeState`** | §19.7 ① concluded both halves must ship together; 📐 measuring proved that **too strong** — `hostKey` is a disambiguator folded into a hash and never dereferences anything, so a canonical IDENTITY suffices. ⭐ Moving the root state into a slot remains a separate change |
-| ⛔ **end-to-end ABANDON is unmeasured** | rail ②b drives `Reset` directly; the interpreter's composites resume the running branch by design, so a genuine mid-flight abandon needs a `Parallel` or a reactive abort. ⭐ ②c pins that the deactivator is WIRED |
+| ⛔ **end-to-end ABANDON is unmeasured** | ⛔⛔ **SUPERSEDED `2026-09-20` — §22.5 measured WHY, and the answer is that it CANNOT be measured:** the in-tree abandon does not exist. ⭐ Rail ⑧ is the tripwire that will say when it does |
 | ✅ **the EXTERNAL reset path** | ⛔⛔ **SUPERSEDED `2026-09-20` — FIXED in §22 (`F14b`), with rails ⑤/⑥/⑦ and an exact red-proof.** As written here it was *"uncovered"*, and the two sites it named were **not the two that leak** |
 | ⚠ **§19.4's sizing re-measure is VACUOUS TODAY, and that is the honest answer** | 📐 **0** assets carry an alias ⇒ no asset gains a hosting-site slot ⇒ `B4`'s `MaxSlots 3` is **unmoved**. ⭐ The 80 B + 1 slot cost becomes real when someone first authors a hosted subtree. ⛔ Re-deriving a number from content that does not exist would be invention |
 
@@ -2697,3 +2697,39 @@ not working state.
 | rails | **⑤** by-name re-assign · **⑥** by-hash assign · **⑦** the narrowness — author state survives while the cursor does not. All in `HostedSubtreeCursorTests`, the feature's own suite (`T-1`) |
 | non-vacuity | each asserts the **host's** cursor reset too — a fixture that never reached the reset would fail there first |
 | red-proof | commenting out **only** the two `ResetHostedTreeStates` calls ⇒ **0 build errors**, exactly **3 failed / 6 passed**. ⭐ Restored ⇒ 9/9 |
+
+### 22.5 🔴🔴🔴 **THE END-TO-END ABANDON RAIL CANNOT BE WRITTEN — the abandon is UNREACHABLE in-tree**
+
+⚠⚠ **§20.2 and §21.2 said it *"needs a `Parallel` or a reactive abort."* 📐 Measured `2026-09-20`:
+NEITHER DELIVERS ONE**, and the cause is one measurement upstream of all of them.
+
+| 📐 the measurement | |
+|---|---|
+| 🔴 **`BehaviorTreeState.PushNode` / `PopNode` have ZERO production callers** | grep over `FDP/ Hrot/ Stride/` **and** `search_graph` agree: the only callers are `Fbt.Tests`' own `DataStructuresTests`. ⇒ the interpreter **never fills `NodeIndexStack`** |
+| ⇒ ⭐⭐⭐ **the "active path" `SweepExitedNodes` diffs is ONE ENTRY WIDE** | `oldPath` is 8 stack slots + `RunningNodeIndex`, and the 8 are permanently `0` |
+
+⇒ 🔒 **a deactivator can fire only for a node that LEAVES `RunningNodeIndex`** — and the only thing that
+moves it off a hosting action is **the action returning non-`Running`**, which is the COMPLETION case
+`HostedSubtree.Tick` already handles (`D4` half one).
+
+| ⛔ why each candidate abort does NOT produce the other case | |
+|---|---|
+| `Sequence` / `Selector` | the resume test skips only children **before** the running one (`Interpreter.cs:574`/`:616`) ⇒ a higher-priority sibling is **never re-evaluated** |
+| `ObserverSelector` | 📌 `Interpreter.cs:227` — *"uses standard selector semantics in the interpreter"*, routed straight to `ExecuteSelector`. ⛔ **The reactive abort its name promises is not implemented** |
+| `Parallel` | it overwrites `RunningNodeIndex` with **its own** index (`:345`) ⇒ a hosting action under a Parallel never reaches the path at all, so the sweep cannot see it |
+| `Cooldown` | its early-`Failure` arm is gated on a token written **only on child `Success`** (`:382`) ⇒ it cannot fire while the child is `Running` |
+| the HOT-RELOAD sweep (`:68`) | it diffs against the **NEW** blob, and `SweepExitedNode` returns early for any index outside that blob's range — **the very condition that triggered the branch** ⇒ it can never fire a deactivator for the out-of-range node |
+
+### 22.6 ⭐ WHAT WAS SHIPPED INSTEAD — **a TRIPWIRE on the premise**
+
+⛔ **A test cannot be written for behaviour that cannot occur, and a silently-absent test says nothing.**
+⭐⭐ **Rail ⑧ pins the PREMISE**: a nested tree is ticked, the hosting action is `Running` three levels
+down, and **`StackPointer` and all eight `NodeIndexStack` slots are `0`.**
+
+🔒 **A path stack is the prerequisite for any real abort.** ⇒ the day someone fills it, rail ⑧ reddens and
+says exactly the right thing: *the end-to-end `F14` case has become reachable and now needs a real rail.*
+
+| ⚠ what this does NOT say | |
+|---|---|
+| ⛔ **`F14`'s deactivator is not dead code** | it is correctly wired (rail ②c) and it is the RIGHT hook; today its in-tree trigger is unreachable. ⭐ `F14b` (§22.1–22.4) is the path that **is** reachable, and it is now closed |
+| ⛔ **this is not a bug report against FastBTree** | `ObserverSelector`'s unimplemented abort is an ExtDeps fact recorded here because it DECIDED this question — ⚠ not something `O4` may change (§4.1: zero ExtDeps) |
