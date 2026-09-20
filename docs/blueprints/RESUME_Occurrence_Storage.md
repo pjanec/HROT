@@ -8,8 +8,8 @@ build-state: n/a — a resumption snapshot, not a design.
 current-answer: §3 — the NEXT ACTION is task B3 (`O3a`: collapse per-tier branching to a TierSpec
   table AND re-pick the MaxSlots ladder). Increment A is COMPLETE; B1 and B2 are DONE; all pushed.
   §2 is the grounded facts: ⛔ do not re-derive them, they cost real measurement. §5 is the trap
-  list, and it is the section most worth two minutes — six of these were MY errors, three of which
-  reached a pushed document before being caught.
+  list, and it is the section most worth two minutes — twelve of these were MY errors, three of
+  which reached a pushed document before being caught.
 stale-below: nothing — §3 rewritten 2026-09-20 after B2 landed.
 known-rot: nothing.
 known-conflict: RESUME_Assets_And_Occurrences.md is the COORDINATOR snapshot (2026-09-19) owning TWO
@@ -32,14 +32,14 @@ RELEARN
 > ⭐⭐⭐ **You are the `behaviors` lane on branch `behaviors`, and you OWN this design.**
 > 🔒 **User, `2026-09-20`: *"you take it from here, you are the one owning the design now."***
 > ⭐ **Nothing is half-finished.** `A1`, `A2`, `A3` and `A4` are committed, pushed and green; the tree
-> is clean. **Increment A is COMPLETE and `B1` has landed.** §3 says what is next.
+> is clean. **Increment A is COMPLETE; `B1` and `B2` have landed.** §3 says what is next.
 
 ## 0. ⭐ FIRST MOVES
 
 ```bash
 python3 scripts/session-design-brief.sh          # ledger · digest · probe · 3 random rulings
 # then read docs/blueprints/RULINGS.md IN FULL   (RULE ZERO)
-git fetch origin && git log --oneline -3 origin/behaviors   # snapshot head: 10d55a787
+git fetch origin && git log --oneline -3 origin/behaviors   # snapshot head: 94fc4c9f1
 python3 scripts/rulings-check.py && python3 scripts/design-digest.py --check
 ```
 
@@ -207,5 +207,5 @@ loop · ⛔ never pipe a long-running script through `tail` (it buffers everythi
 | **`A4`** — the blueprint runtime reaches CGF; the walker filters on the declared `Kind` | `10d55a787` |
 | **`A2b`** — the emitted tier ladder collapses to the seam, in all **three** emitters | `f2d5849a1` |
 | **`B1`** — `SquadCognitiveState` becomes its own component (id **270**) | `85a5cc2d0` |
-| **`B2`** — `BrainInterrupts` split out (id **302**); `BrainBlackboard` is 100 B of pure params | *(this run)* |
+| **`B2`** — `BrainInterrupts` split out (id **302**); `BrainBlackboard` is 100 B of pure params | `94fc4c9f1` |
 | `QA-035` *(IDL enum sweep)* · `QA-036` *(Health divergence)* · `QA-037` *(3 pre-existing component-id collisions)* filed for the **backend** lane | `a03243084`, `8a79de684`, `85a5cc2d0` |
