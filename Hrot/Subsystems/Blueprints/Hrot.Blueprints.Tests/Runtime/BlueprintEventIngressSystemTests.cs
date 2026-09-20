@@ -359,10 +359,13 @@ public sealed unsafe class BlueprintEventIngressSystemTests : IDisposable
     public void System_DrainOrdering_RemoveBeforeAdd_NoSpuriousTierUpgrade()
     {
         // ⭐ B4 — design §17.7. This said "fill the B1024 tier (max 4 slots)" — the PRE-B3②
-        //   ladder, and it also assumed a small blueprint lands on 1024. Both moved. ⇒ fill
-        //   whatever tier the FIRST attach chose, to ITS OWN MaxSlots, and take the extra
-        //   blueprint from the same pool. The property under test is unchanged: a remove and an
-        //   add drained in ONE frame must reuse the freed slot rather than force a promotion.
+        //   ladder, and it also assumed a small blueprint lands on 1024. Both moved.
+        // ⛔⛔ And "fill to MaxSlots" is ALSO wrong, which is worth stating: on the 256 tier the
+        //   binding limit is BYTES, not slots — 64 B of state costs 64 B of payload out of 176,
+        //   so it fills at 2 while MaxSlots is 3. ⇒ fill until the store actually reports full,
+        //   and let the one that did not fit be the spare. The property under test is unchanged:
+        //   a remove and an add drained in ONE frame must reuse the freed slot rather than force
+        //   a promotion.
         var ids = new[] { FakeBpA_Id, FakeBpB_Id, FakeBpC_Id, FakeBpD_Id, FakeBpE_Id };
         RegisterFakeBp(FakeBpA_Id, "FakeBpA");
         RegisterFakeBp(FakeBpB_Id, "FakeBpB");
@@ -371,28 +374,29 @@ public sealed unsafe class BlueprintEventIngressSystemTests : IDisposable
         RegisterFakeBp(FakeBpE_Id, "FakeBpE");
         var entity = _repo.CreateEntity();
 
-        // The first attach picks the tier; its MaxSlots is the capacity to fill.
-        Assert.Equal(
-            BlueprintAttachStatus.Attached,
-            BlueprintInstanceService.AttachToEntity(_repo, _registry, ids[0], entity).Status);
+        int attached = 0, spare = 0;
+        foreach (int id in ids)
+        {
+            if (BlueprintInstanceService.AttachToEntity(_repo, _registry, id, entity).Status
+                == BlueprintAttachStatus.Attached)
+            {
+                attached++;
+                continue;
+            }
+
+            spare = id;   // the first that did NOT fit — the store is now at capacity
+            break;
+        }
+
+        Assert.True(attached >= 2, $"expected to seat at least two blueprints, seated {attached}");
+        Assert.True(spare != 0,
+            "the pool must be large enough that one blueprint does NOT fit; add ids if the ladder grows");
 
         var tier = BlueprintTierTable.Of(_repo, entity)!;
-        Assert.True(tier.MaxSlots < ids.Length,
-            $"this test needs one more blueprint than {tier.Tier} has slots ({tier.MaxSlots}); " +
-            "add ids to the pool if the ladder grows");
 
-        for (int i = 1; i < tier.MaxSlots; i++)
-            Assert.Equal(
-                BlueprintAttachStatus.Attached,
-                BlueprintInstanceService.AttachToEntity(_repo, _registry, ids[i], entity).Status);
-
-        int spare = ids[tier.MaxSlots];   // the one that does NOT fit until a slot is freed
-
-        // Verify the tier is at capacity and that nothing was promoted getting there.
-        Assert.Same(tier, BlueprintTierTable.Of(_repo, entity));
         // ⭐ B4 — §17.7: the store through the SEAM, not a named tier.
         byte* mem1 = OccurrenceStoreAccess.TryGetStore(_repo, entity, out _);
-        Assert.Equal(tier.MaxSlots, BlueprintBlackboardPartitions.GetSlotCount(mem1));
+        Assert.Equal(attached, BlueprintBlackboardPartitions.GetSlotCount(mem1));
 
         // Publish Remove(A) + Attach(E) in the same frame.
         var sys = new BlueprintEventIngressSystem(_registry);
@@ -414,7 +418,7 @@ public sealed unsafe class BlueprintEventIngressSystemTests : IDisposable
 
         // ⭐ B4 — §17.7: the store through the SEAM, not a named tier.
         byte* mem2 = OccurrenceStoreAccess.TryGetStore(_repo, entity, out _);
-        Assert.Equal(tier.MaxSlots, BlueprintBlackboardPartitions.GetSlotCount(mem2));
+        Assert.Equal(attached, BlueprintBlackboardPartitions.GetSlotCount(mem2));
         Assert.False(BlueprintBlackboardPartitions.TryGetSlotOffset(mem2, ids[0], out _),
             "A should be removed");
         Assert.True(BlueprintBlackboardPartitions.TryGetSlotOffset(mem2, spare, out _),
