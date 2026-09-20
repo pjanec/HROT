@@ -2198,3 +2198,52 @@ at **`Health 0`**, **0 faults** in a 439-line run log, `BrainInterrupts` present
 the tier is its subject** — a promotion asserting the entity moved OFF one and ONTO another.
 ⭐ Three sites legitimately do, and now say so in a comment. ⛔ Everywhere else the name was a stand-in
 for *"the store"*, and the seam has expressed that since `A2`.
+
+
+## 18. 🔴 `O4` / `C1` — **RAIL ① IS RED, AND THE MECHANISM IS NOW MEASURED** *(`2026-09-20`)*
+
+⭐⭐ §3.1 asserted the shared-`BehaviorTreeState` defect is *"in shipped code today"*. ✅ **It is, and
+here is the measurement rather than the assertion** — rail
+`HostedSubtreeCursorTests.O4_R1_AHostedSubtreeKeepsItsOwnCursor`
+*(`FDP/Toolkits/Fdp.Toolkits.Tests/Behavior/`)*, red before any `O4` code:
+
+```
+BUILD errors=0     Expected: 1   Actual: 2
+tick1: RunningNodeIndex=1  childFirstLeafEntries=1
+tick2: RunningNodeIndex=1  childFirstLeafEntries=2     ← the child RESTARTED
+```
+
+### 18.1 ⭐ The mechanism, end to end
+
+| step | what happens |
+|---|---|
+| **①** | `BTreeOrchestratorEmitCore` emits the hosting action as `…Tick(ref subBb, ref state, ref ctx)` — the **master's** state. ⚠ Approach A at **`:142`**, the COPY IN → TICK → COPY OUT variant at **`:171`** *(§3.1 cites `:143-144/:176`; the lines drifted, the shape did not)* |
+| **②** | the child ticks, ends `Running` at its own leaf, and `ExecuteAction` writes `state.RunningNodeIndex = <child's node>` |
+| **③** | 🔴 the host's own `ExecuteAction` then writes `state.RunningNodeIndex = <host's hosting node>` — **after** the action returns ⇒ **the host always wins; the CHILD is destroyed** |
+| **④** | next tick, `ExecuteSequence` resumes by skipping a child only when `RunningNodeIndex >= childIndex + SubtreeOffset`. The host's index is **below** the child's running-leaf threshold ⇒ **the child re-enters its FIRST leaf** |
+
+⇒ ⭐⭐ **`O4`'s fix — the hosted occurrence gets its own `BehaviorTreeState` in its own slot — makes
+③ impossible, because there is no longer one field to overwrite.**
+
+### 18.2 ⚠⚠ WHY NOTHING CAUGHT THIS — **every subtree test asserts the generated TEXT**
+
+📐 Measured: `TheOrchestratorCopyTickCopyTests` · `TheMasterDeclaresTheSubtreeSliceTests` ·
+`TheOrchestratorIsGeneratedTests` · `BTreeOrchestratorEmitterTests` — **all four are emit-level**, and
+`Tick(ref subBb, ref state, ref ctx)` is exactly what the defect looks like **when it is correct**.
+⇒ 🔒 **there was no runtime rail for hosted-subtree cursor behaviour at all.** ⭐ That is the gap rail ①
+closes, and it is worth more than the fix: the fix is one argument, the rail is what keeps it fixed.
+
+⛔ **It deliberately does NOT live in `Fbt.Tests`** — that is ExtDeps and outside the root solution,
+and `O4`'s defining property is proving the model with **zero** ExtDeps change (§4.1). ⭐ The kernel is
+not at fault; the ORCHESTRATOR's argument is.
+
+### 18.3 ⛔⛔ TWO WRONG TURNS GETTING HERE, BOTH WORTH KEEPING
+
+| # | the miss | the lesson |
+|---|---|---|
+| **①** | 🔴 **The first rail asserted the HOST resumes its hosting node — and PASSED.** ⇒ it reproduced nothing, while reading as if it had | ⭐⭐ **the host is the side that WINS**, because its `ExecuteAction` writes *after* the hosting action returns. 🔒 **When two parties share one field, measure the one that writes FIRST** — it is the one whose value is lost |
+| **②** | 🔴🔴 **The corrected rail then "passed" too — from a STALE BINARY.** The test was launched with `--no-build` while a `dotnet build` was still in flight in another background job. ⇒ I reported *"two reproductions came out green"* and speculated the defect might be LATENT rather than shipped | ⛔⛔ **trap ㉑ covers a build that FAILED; it did not cover a build still RUNNING.** ⭐ The fix is the same shape: **the build verdict and the test result must come from ONE command**, serialized — `BUILD errors=0` printed directly above `Expected/Actual`, as in the block at the top of this section |
+
+⚠ **Stated plainly because it nearly reached a document:** the *"maybe it is latent like §3.2"*
+reading was **wrong**, and it was wrong because of tooling, not analysis. 📌 §3.2's correction was real;
+this is not another one.
