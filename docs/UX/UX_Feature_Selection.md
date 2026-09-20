@@ -145,6 +145,26 @@ known-conflict: none open. ✅ "Who owns selection" is RULED (2026-09-10): the g
   ⚠ ONE OPEN OBSERVATION, deliberately not a verdict: ExCon's ingress hands SelectionChangedEventDto
   straight to ContextMenuLogic without it becoming an FDP event, and ExCon does have an FdpEventBus.
   Either an R-134 shape or a deliberate DDS-client architecture — §2.6's last subsection; not measured.
+updated: 2026-09-20
+related-designs:
+  - docs/UX/UX_Issues.md — the UXI register; owns the ROW (UXI-11) and its ✅/☑/🟡 state, which this
+    design does not carry.
+  - docs/UX/UX_Feature_Multi_Select.md — owns UXI-24 multi-select: the SELECTION SET's semantics
+    (ctrl/shift, partial applicability), which this design deliberately leaves at one primary.
+  - docs/UX/UX_Feature_Tool_Model.md — owns the tool/gizmo lifecycle; §4.14 owns what LOSING a
+    selection does to an in-progress edit (CancelArmedOn, corrected by S-5).
+  - docs/DESIGN_Remote_Map_Control.md — owns the ExCon↔IG remote map command path and the ack/echo
+    contract; this design owns only that a remote command is JUST ANOTHER REQUESTER.
+  - docs/SNAPSHOT_Map_Interaction_Architecture.md — a measured SNAPSHOT of the map/interaction wiring;
+    true of its date, never a work list (the trap S-6 recorded).
+  - docs/UX/PLAN_Interaction_UX_Backlog.md — owns the SEQUENCE across UXI items; this design owns none.
+  - docs/DESIGN_Map_Rendering_And_Interaction.md — owns the map pick/projection chain a click travels
+    BEFORE it becomes a selection request (the camera/NaN class of defect).
+  - docs/UX/UX_Feature_Map_Parity.md — owns UXI-23; consumes this design's chain, does not define it.
+  - docs/UX/UX_Feature_Entity_Symbology.md — owns UXI-10: what a selected entity LOOKS like (the ring),
+    which this design only feeds.
+  - docs/DESIGN_Cgf_Tool_Selection_Camera_Slice.md — owns CGF's tool/camera slice; predates S-3e's
+    map-input path and is NOT the source for how CGF selects today.
 -->
 # Feature design — selection
 

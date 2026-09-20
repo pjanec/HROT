@@ -1,3 +1,20 @@
+<!--STATUS
+state: LIVE
+doc-type: REGISTER, not a design — it owns the UXI ROW and its state marker, never the mechanism.
+  ⛔ Never quote a row as the design; follow its design link.
+updated: 2026-09-20
+current-answer: the register table below. Legend: ✅ = designed · ☑ = done · 🟡 = partially built.
+stale-below: nothing — the table is the whole document.
+known-rot: ⚠ a row's PROSE is a STATE CLAIM and rots while the row's design moves. Verify against the
+  linked design before acting on any row's description.
+related-designs:
+  - docs/UX/PLAN_Interaction_UX_Backlog.md — owns the SEQUENCE between UXI items; this file owns none.
+  - docs/UX/UX_Feature_Selection.md — owns UXI-11 (☑ COMPLETE 2026-09-20, slices S-1..S-6).
+  - docs/UX/UX_Feature_Multi_Select.md — owns UXI-24.
+  - docs/UX/UX_Feature_Map_Parity.md — owns UXI-23.
+  - docs/UX/UX_Feature_Entity_Symbology.md — owns UXI-10.
+  - docs/UX/UX_Feature_Tool_Model.md — owns UXI-07.
+-->
 # Scenario-Authoring UX — Issue Register (`UXI`)
 
 > **Formalised 2026-08-10.** The "what is wrong" discussion is **closed**; this is its output.

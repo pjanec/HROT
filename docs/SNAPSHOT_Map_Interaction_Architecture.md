@@ -2,7 +2,7 @@
 state: SNAPSHOT
 build-state: N/A — this document describes what EXISTS. It specifies nothing and owns nothing.
 snapshot-date: 2026-09-10
-updated: 2026-09-10
+updated: 2026-09-20
 current-answer: §1 is the block map, §2 the data flows, §3 the remote-map-control path. §4 is the
   FINDINGS LEDGER from the 2026-09-10 session (the reason this file exists). §5 is FUTURE INTENTIONS
   and the two owning designs — B (remote map control) was WRITTEN 2026-09-10 as

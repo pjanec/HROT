@@ -25,6 +25,9 @@ see-also: docs/SNAPSHOT_Map_Interaction_Architecture.md — a 2026-09-10 SNAPSHO
   ownership and data flow as built, plus a findings ledger and the user rulings of that date. It owns
   nothing and does not redraw this file's diagrams; it records what this file's layer view does not:
   who BUILDS what per host, and the four-store selection reality.
+related-designs:
+  - docs/UX/UX_Feature_Selection.md — owns UXI-11: what a pick BECOMES once this file's chain has
+    produced one (the store, the request, the notification, the egress). This file stops at the pick.
 -->
 # Map rendering & interaction — how it works, and where it is going
 

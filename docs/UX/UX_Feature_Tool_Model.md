@@ -1,5 +1,8 @@
 <!--STATUS
 state: LIVE
+updated: 2026-09-20 (§4.14 CORRECTED by UXI-11 S-5, red-proved: the member ruling ② needs is
+  IToolController.CancelArmedOn(Entity), NOT the NotifyToolEnded this file prescribed - that one
+  deliberately does not tear the gizmo down and would leave it armed and drawing.)
 build-state: BUILDING (A1 steps 1-3 + 3b BUILT 2026-09-09 - see 4.7 / 4.7b / 4.7c as-built; 4-6 open)
 verified: 2026-09-09 (PREMISE SWEEP - all 13 premises re-tested against source, see 0b; and the RED
   defect REPRODUCED by a headless probe with an inverse-edit red-proof - two exclusive tools hold focus

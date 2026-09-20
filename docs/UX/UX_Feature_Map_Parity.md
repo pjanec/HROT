@@ -8,7 +8,7 @@ build-state: S1 BUILT (3.9b) / S2 + S2a BUILT (3.9j.5b, 2026-08-30) / S2b BUILT 
   "lift both mechanisms, layer definitions as S4 config, shareable between multiple subsystems".
 verified: 2026-09-09 (source measurement: five MapInteractionPack.Build call sites; S-slice markers
   in production code; per-host grep for each seam). Earlier: 2026-08-28 (five cluster boots).
-updated: 2026-09-09
+updated: 2026-09-20
 known-rot: THIS BLOCK ITSELF said "S2 / S3 / S4 / S5 are READY-TO-BUILD" until 2026-09-09, while the
   file's OWN 3.9j.5b and 3.2f recorded S2 and S4 as built. Four slices had shipped. Obligation-(5)
   repair; the prior wording must NOT be quoted. The measured slice ledger also lives in
@@ -89,6 +89,10 @@ known-conflict: DESIGN_Subsystem_Composition_Unification section 3.2 forbids a b
   system. RECONCILED in section 3.2a: the pack CONSTRUCTS (deduplication, since all five hosts already
   register the same three systems) and the HOST SCHEDULES (the run-set follows its role). Enforced by
   MapInteractionContext carrying no ModuleHostKernel.
+related-designs:
+  - docs/UX/UX_Feature_Selection.md — owns UXI-11, this file's PREREQUISITE. ☑ COMPLETE 2026-09-20
+    (S-1..S-6): one store, one request, one writer, one announcement, on every node. ⇒ the "selection
+    chain" dependency §7 orders before this work is MET.
 -->
 # Feature design — map-interaction parity
 
