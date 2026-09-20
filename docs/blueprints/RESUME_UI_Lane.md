@@ -49,7 +49,51 @@ related-designs:
 -->
 # ⭐⭐⭐ RESUME — **the UI / variable implementation lane**
 
-## 🔴 OPEN — **ROOT CAUSE NARROWED `2026-09-20`: NOTHING ON THE EDITOR'S 2-D MAP IS PICKABLE**
+## 🔴 ROOT CAUSE FOUND `2026-09-20` — **THE CAMERA'S SCREEN→WORLD TRANSFORM RETURNS `NaN`**
+
+⭐⭐⭐ **The second `[SelDiag]` run named it outright:**
+
+```
+terminal canvas-fallback at (NaN,NaN) — frame=763 pickable=708
+                                        nearest=#0 at 3.4e38 world units
+```
+
+| what it says | |
+|---|---|
+| `pickable=708` | ⭐ **the pick boxes are ALL THERE.** The projector, the buffer and the frame timing are fine |
+| `at (NaN,NaN)` | 🔴 **the CLICK'S WORLD POSITION is `NaN`** |
+| `nearest at 3.4e38` | that is `float.MaxValue` — every distance came out `NaN`, so `d < best` was never true. ⭐ Corroborates the `NaN` independently of the printed position |
+
+📐 `worldPos = Raylib.GetScreenToWorld2D(screenPos, camera)` = **`(screen − Offset) / Zoom + Target`**.
+⇒ 🔒 **one non-finite camera field makes every conversion `NaN`, every hit-test comparison `false`, and
+every click fall through to the canvas — permanently, with no error anywhere.**
+
+⭐ **It also explains ALL THREE reported symptoms with one cause**, which none of the seven earlier
+hypotheses did: clicking never selects *(no hit)* · the marquee never shows *(its `Start`/`Current` are
+`NaN`, so the band is degenerate)* · the free-space context menu still works *(it falls back to the
+canvas anchor `-1` and never needs a world position)*.
+
+⛔⛔ **AND IT IS NOTHING TO DO WITH `UXI-11`.** The first run already proved the selection chain
+behaves correctly on the input it is given; this proves the INPUT is poison.
+
+### ✅ FIXED AT THE SEAM — **a camera that cannot be poisoned**
+
+📐 All three write seams were unguarded: `Zoom` set *(no check at all — `SetZoom` guarded `<= 0`, so the
+guard was reachable through only one of two doors)* · `Target` set · `FocusOn(position)`, whose callers
+pass **entity positions**, which is where a `NaN` most plausibly enters.
+
+⭐ Each now **REJECTS and LOGS LOUDLY** rather than repairing silently — the camera stays usable and the
+offending caller is named. 🔒 Same shape as `EmitPickBox`'s §6.8 `networkId == 0` guard: the rule lives
+on the seam that owns the invariant, so every caller gets it.
+
+⚠ **This is the CONTAINMENT, not the whole fix.** ⛔ It stops one bad write destroying the map, but the
+**producer is still unknown** — the diagnostic now prints `camera zoom=… target=… offset=…` on every
+canvas-fallback press, so the next run names the poisoned field, and the guard's warning names the
+caller the moment it tries again.
+
+## ⛔ SUPERSEDED — **the narrowing that led here** *(kept: it records what was ruled out)*
+
+### 🔴 `2026-09-20`: NOTHING ON THE EDITOR'S 2-D MAP IS PICKABLE
 
 ⭐⭐⭐ **The `[SelDiag]` run settled it. Operator clicked ON an entity:**
 

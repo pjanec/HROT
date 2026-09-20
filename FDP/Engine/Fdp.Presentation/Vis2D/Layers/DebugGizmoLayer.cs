@@ -295,12 +295,24 @@ namespace Fdp.Toolkit.Vis2D.Layers
                 if (d < best) { best = d; bestId = p.BoxAnchorId; }
             }
 
+            // ⭐⭐⭐ THE CAMERA IS PART OF THE EVIDENCE. 📐 Measured 2026-09-20: `pickable=708` with
+            //    `worldPos=(NaN,NaN)` proved the pick boxes were all present and the CONVERSION was
+            //    broken — so the useful question stopped being "are there boxes" and became "WHICH
+            //    camera field is poisoned". GetScreenToWorld2D is (screen − Offset) / Zoom + Target, so
+            //    naming the three fields identifies the producer's victim exactly.
+            bool camOk = float.IsFinite(_camera.Zoom) && _camera.Zoom > 0f
+                         && MapCamera.IsFinite(_camera.Target)
+                         && MapCamera.IsFinite(_camera.Offset);
+
             Fdp.Core.Logging.FdpLog<DebugGizmoLayer>.Info(
                 $"[SelDiag] terminal canvas-fallback at ({worldPos.X:F1},{worldPos.Y:F1}) — " +
                 $"frame={frame.Length} pickable={boxes} " +
                 (boxes == 0
                     ? "NO PICKABLE PRIMITIVES IN FRAME"
-                    : $"nearest=#{bestId} at {best:F1} world units"));
+                    : $"nearest=#{bestId} at {best:F1} world units") +
+                $" | camera zoom={_camera.Zoom} target=({_camera.Target.X},{_camera.Target.Y}) " +
+                $"offset=({_camera.Offset.X},{_camera.Offset.Y})" +
+                (camOk ? "" : "  <<<< CAMERA IS NOT USABLE — this is the cause, not the hit-test"));
         }
 
         internal void OnInteraction(
