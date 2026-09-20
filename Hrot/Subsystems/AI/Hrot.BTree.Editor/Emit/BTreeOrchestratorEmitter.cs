@@ -58,8 +58,8 @@ public static class BTreeOrchestratorEmitter
         //    which is the bug. See BehaviorTreeAsset.RecomputeSubtreeSyncIdentity.
         asset.RecomputeSubtreeSyncIdentity(resolveSubAsset);
 
-        return BTreeOrchestratorEmitCore.Emit(
-            BehaviorTreeAssetMapper.ToDto(asset), ApproachBGroupsOf(asset));
+        var dto = BehaviorTreeAssetMapper.ToDto(asset);
+        return BTreeOrchestratorEmitCore.Emit(dto, ApproachBGroupsOf(asset, dto));
     }
 
     /// <summary>
@@ -67,10 +67,22 @@ public static class BTreeOrchestratorEmitter
     /// ⛔ The core cannot reference <c>Hrot.Editor.AiShared</c> (net8 + ImGui), so the shapes are
     /// mirrored rather than shared.
     /// </summary>
-    private static IReadOnlyList<OrchestratorSyncGroup> ApproachBGroupsOf(BehaviorTreeAsset asset)
+    private static IReadOnlyList<OrchestratorSyncGroup> ApproachBGroupsOf(
+        BehaviorTreeAsset asset, Hrot.AiEditor.Persistence.BTree.BehaviorTreeAssetDto dto)
     {
         var groups = asset.GetApproachBSyncGroups();
         var result = new List<OrchestratorSyncGroup>(groups.Count);
+
+        // ⭐⭐⭐ O4 / C1 — the hosted child's tree-state slot key is derived from (host, SITE, child),
+        //   so this path must carry the same two ids SubtreeSyncProjection does.
+        // ⛔⛔ Passing Guid.Empty would NOT fail loudly here: it yields a well-formed but WRONG key,
+        //   which the generator's registrar never declares ⇒ HostedSubtree.Tick throws at runtime on a
+        //   sidecar that compiled cleanly. 📌 That is the silent-key-drift failure A1 exists to kill,
+        //   so the ids are resolved from the DTO's subtree nodes exactly as the generator does.
+        var subtreeAssetIdByNode = new Dictionary<System.Guid, System.Guid>();
+        foreach (var node in dto.Nodes)
+            if (node is Hrot.AiEditor.Persistence.BTree.BTreeSubtreeNodeDto sub && sub.Subtree is { } payload)
+                subtreeAssetIdByNode[node.VisualId] = payload.SubtreeAssetId;
 
         foreach (var g in groups)
         {
@@ -79,8 +91,11 @@ public static class BTreeOrchestratorEmitter
                 bindings.Add(new OrchestratorSyncBinding(
                     b.FieldName, b.MasterVariableName, b.SyncIn, b.SyncOut));
 
+            subtreeAssetIdByNode.TryGetValue(g.NodeVisualId, out var childAssetId);
+
             result.Add(new OrchestratorSyncGroup(
-                g.SubtreeName, g.SubtreeDtoTypeName, g.SubtreeDtoTypeNs, bindings));
+                g.SubtreeName, g.SubtreeDtoTypeName, g.SubtreeDtoTypeNs, bindings,
+                g.NodeVisualId, childAssetId));
         }
 
         return result;

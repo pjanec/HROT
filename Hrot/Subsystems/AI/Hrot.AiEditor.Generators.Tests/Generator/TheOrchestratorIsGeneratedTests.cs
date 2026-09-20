@@ -263,7 +263,14 @@ public sealed class TheOrchestratorIsGeneratedTests
         text.Should().NotContain("[HsmAction",
             "⛔ the two hosts must not cross-emit each other's attribute");
         text.Should().Contain($"ref master.{varName}");
-        text.Should().Contain("GetInterpreter().Tick(ref subBb, ref state, ref ctx);");
+        // ⭐⭐⭐ O4 / C1 — this asserted `Tick(ref subBb, ref state, ref ctx)` VERBATIM, which is
+        //   the §3.1 defect itself: the MASTER's BehaviorTreeState handed to the child, one
+        //   RunningNodeIndex shared between them. 📄 §18 measured it; rail
+        //   HostedSubtreeCursorTests.O4_R1 pins the behaviour underneath.
+        text.Should().Contain("HostedSubtree.Tick(",
+            "the hosted child must tick against its OWN state, from its own slot");
+        text.Should().NotContain("ref state, ref ctx);",
+            "⛔ the master's state must never reach the child interpreter");
     }
 
     private static int CountOf(string haystack, string needle)

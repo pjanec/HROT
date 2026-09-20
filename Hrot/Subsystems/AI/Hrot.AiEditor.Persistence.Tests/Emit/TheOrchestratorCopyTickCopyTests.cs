@@ -98,12 +98,38 @@ public sealed class TheOrchestratorCopyTickCopyTests
         string text = BTreeOrchestratorEmitCore.Emit(MakeDto(), new[] { group })!;
 
         int copyIn  = text.IndexOf("subDto.InField = master.Health;", StringComparison.Ordinal);
-        int tick    = text.IndexOf("var result = PatrolSubTree.GetInterpreter().Tick(", StringComparison.Ordinal);
+        // ⭐ O4: re-anchored. This used to look for "var result = PatrolSubTree.GetInterpreter().Tick("
+        //   — the PRE-O4 spelling, which passed `ref state`. The property this rail owns is the
+        //   ORDERING (copy in → tick → copy out), not the spelling, so it anchors on the call itself.
+        int tick    = text.IndexOf("HostedSubtree.Tick(", StringComparison.Ordinal);
         int copyOut = text.IndexOf("master.Health = subDto.OutField;", StringComparison.Ordinal);
 
         copyIn.Should().BeGreaterThan(0,  "the sync-in copy must be emitted");
         tick.Should().BeGreaterThan(copyIn,  "⛔ the tick must come AFTER every sync-in copy");
         copyOut.Should().BeGreaterThan(tick, "⛔ the sync-out copy must come AFTER the tick");
+    }
+
+    /// <summary>
+    /// ⭐⭐⭐ <b><c>O4</c> — the EMIT-LEVEL guard these tests never had.</b>
+    ///
+    /// <para>🔴 §18 measured that every subtree-hosting test in the repo asserted the generated TEXT,
+    /// and <c>Tick(ref subBb, ref state, ref ctx)</c> is exactly what the defect looks like when it is
+    /// correct ⇒ the emitted <c>ref state</c> was invisible to all of them. ⛔ This pins its ABSENCE.</para>
+    ///
+    /// <para>⚠ The behaviour underneath is pinned by <c>HostedSubtreeCursorTests</c>; this is the
+    /// cheap text-level companion, so a regression is caught at emit time rather than at runtime.</para>
+    /// </summary>
+    [Fact]
+    public void TheHostedChildIsNeverTickedWithTheMastersState()
+    {
+        var group = Group(new OrchestratorSyncBinding("InField", "Health", syncIn: true, syncOut: false));
+
+        string text = BTreeOrchestratorEmitCore.Emit(MakeDto(), new[] { group })!;
+
+        text.Should().Contain("HostedSubtree.Tick(",
+            "the hosted child must tick against its OWN BehaviorTreeState, from its own slot");
+        text.Should().NotContain("ref state, ref ctx)",
+            "⛔ passing the MASTER's state is the §3.1 defect — host and child would share one cursor");
     }
 
     /// <summary>
