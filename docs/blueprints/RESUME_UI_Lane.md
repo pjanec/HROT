@@ -13,7 +13,12 @@ current-answer: ⭐⭐⭐ READ THE TOP OF THIS FILE — the "SESSION 2026-09-20 
   now notification-driven and echo suppression lives there, keyed on the "Remote." reason prefix.
   ⛔ NOT DONE, deliberately: widening MapCommandController into the dispatcher (§2.6 attaches a
   constraint that makes it a separate structural move).
-  ⚠ STILL OWED: the S-4/S-4b OPERATOR pass on Windows — unrunnable until the map became clickable.
+  ✅ THE S-4/S-4b OPERATOR PASS IS DONE 2026-09-20 — "i tested the right click selection including the
+  empty space clear. was looking good." ⇒ §2.3's replace row and empty-space-clear row are verified in
+  the product. ⚠ The THIRD row (right-click INSIDE a multi-selection leaves it unchanged) is railed but
+  was NOT exercised — it is invisible without building a multi-selection first. One-gesture follow-up,
+  recorded honestly in UX_Feature_Selection.md §2.7.14a.
+  ⇒ ⭐⭐ NOTHING IS IN FLIGHT ON THIS LANE. Ask before starting the next thing.
   ⛔⛔ S-5 CORRECTED ITS OWN OWNING DESIGN, red-proved: UX_Feature_Tool_Model.md §4.14 prescribed
   NotifyToolEnded, which deliberately does NOT tear the gizmo down and would have left it armed and
   drawing (the mirror of CE-259q). Cancel() is wrong the other way — it unwinds the whole stack. The
@@ -95,8 +100,26 @@ rail reddens; restrict egress to `Map.` reasons ⇒ the every-cause rail reddens
 *(the feature's own suite, `T-1`)* 4/4 unchanged.
 
 ⚠ **Still openly unmet, each saying so in the design:** two synchronous editor facade seams *(§2.7.7
-deviation ③)*; panels PROJECT rather than subscribe *(§2.7.8 deviation ②)*; `ClearAll` still has 0 callers.
-⚠ **`S-4`/`S-4b`'s OPERATOR pass is still owed** — it was unrunnable until the map became clickable.
+deviation ③)*; panels PROJECT rather than subscribe *(§2.7.8 deviation ②)*; `ClearAll` still has 0 callers;
+the map's empty-space clear is **local-only** *(§2.7.14)*.
+
+## ✅ OPERATOR PASS `2026-09-20` — **`S-4` + `S-4b` VERIFIED IN THE PRODUCT**
+
+> 🔒 **Operator:** *"i tested the right click selection including the empty space clear. was looking good."*
+
+⭐ **The pass both slices were waiting on** — it could not be run before the no-camera fix, because nothing
+on the 2-D map was clickable. 📄 **Row by row: [`UX_Feature_Selection.md` §2.7.14a](https://github.com/pjanec/HROT/blob/ui/docs/UX/UX_Feature_Selection.md).**
+
+| §2.3 row | |
+|---|---|
+| right-click **outside** the selection ⇒ Replace | ✅ confirmed |
+| right-click **empty space** ⇒ Clear | ✅ confirmed, named explicitly. ⚠ local-only, pre-existing |
+| right-click **inside a multi-selection** ⇒ unchanged | ⛔⛔ **NOT exercised** — invisible unless a multi-selection is built first. ⭐ Railed twice *(incl. the `[Flags]` modifier trap)*; ⛔ a rail is not an operator pass. **One-gesture follow-up** |
+
+⚠⚠ **Why the third row is marked ⛔ rather than riding on the other two:** 📌 this is §2.7.11a's lesson
+applied in the other direction — there I **flipped a true verdict** because its evidence was unsound; here
+the temptation is to **mark a row verified** because a neighbour was. 🔒 An operator outranks an inference,
+**but only about what they actually looked at.**
 
 ## ✅✅ VERIFIED IN THE PRODUCT `2026-09-20` — **CLICKING AND THE MARQUEE WORK**
 

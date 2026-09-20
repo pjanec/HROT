@@ -1,6 +1,8 @@
 <!--STATUS
 state: LIVE
-build-state: BUILDING (§2.7 is the consolidated TARGET STATE with class + sequence diagrams;
+build-state: BUILT (§2.7 is the consolidated TARGET STATE with class + sequence diagrams;
+  ⭐ BUILT means the SLICE LIST S-1..S-6 is complete and S-4/S-4b are operator-verified — ⛔ NOT that
+  nothing is open: the residuals are listed in the header status line, each in its own section.
   §2.7.5 carries the slice order S-1..S-6. ☑ S-1 BUILT 2026-09-20 — as-built in §2.7.6.
   ☑ S-2 BUILT 2026-09-20 — as-built in §2.7.7.
   ☑ S-3 BUILT 2026-09-20 — as-built in §2.7.8.
@@ -49,7 +51,10 @@ build-state: BUILDING (§2.7 is the consolidated TARGET STATE with class + seque
   so on IG, SimHost and CGF the drag WORKED and was INVISIBLE. MapInteractionPack now builds and
   registers it for every host, and the two host registrations are deleted so it is not drawn twice.
   As-built in §2.7.16.
-  ✅✅ VERIFIED IN THE PRODUCT 2026-09-20 — operator: "clicking and rubberband work now."
+  ✅✅ VERIFIED IN THE PRODUCT 2026-09-20 — operator: "clicking and rubberband work now." Then, on a
+  second pass: "i tested the right click selection including the empty space clear. was looking good."
+  ⇒ S-4 and S-4b are OPERATOR-VERIFIED, not merely railed. ⚠ Read §2.7.14a for exactly which §2.3 rows
+  that sentence does and does not settle — the multi-selection-preserving row is NOT determined by it.
   ⛔⛔ BUT READ THIS BEFORE TRUSTING ANY EARLIER MAP VERIFICATION: the editor/CGF 2-D map had been
   COMPLETELY UNCLICKABLE, and not because of anything in UXI-11. CgfSubsystem.cs:1598 built its
   DebugGizmoLayer with no `camera:` argument, so the layer's Camera2D stayed default (zoom=0) and
@@ -143,7 +148,7 @@ known-conflict: none open. ✅ "Who owns selection" is RULED (2026-09-10): the g
 -->
 # Feature design — selection
 
-> **Design for [UXI-11](UX_Issues.md#uxi-11) · drafted 2026-08-12 · target state consolidated `2026-09-10` in §2.7.** **Status: 🟡 BUILDING — ☑ `S-1` (§2.7.6), ☑ `S-2` (§2.7.7), ☑ `S-3` (§2.7.8), ☑ `S-3b` (§2.7.9), ☑ `S-3c` (§2.7.10), ✅ `S-3d` (§2.7.11a, Windows-verified), ☑ `S-3e` (§2.7.12) 🟡 `S-4` (§2.7.13) and ☑ `S-4b` (§2.7.14) built `2026-09-20`: one store, one request, one writer, one announcement, on every node — **one place that builds them**, and right-click selects on both inspector panels. **§2.3 is now met on every surface.** ❌ Still open — the map menu's *contents* (parked by its own design), `ClearAll` has 0 callers, and `S-5`–`S-6` remain design.** Implements [rulings 27-28](UX_RESUME_INTERACTION.md). Feeds
+> **Design for [UXI-11](UX_Issues.md#uxi-11) · drafted 2026-08-12 · target state consolidated `2026-09-10` in §2.7.** **Status: ✅ THE SLICE LIST IS COMPLETE — ☑ `S-1` (§2.7.6), ☑ `S-2` (§2.7.7), ☑ `S-3` (§2.7.8), ☑ `S-3b` (§2.7.9), ☑ `S-3c` (§2.7.10), ✅ `S-3d` (§2.7.11a, Windows-verified), ☑ `S-3e` (§2.7.12), ✅ `S-4` (§2.7.13), ✅ `S-4b` (§2.7.14) — **both operator-verified `2026-09-20`, §2.7.14a** — ☑ `S-5` (§2.7.15), ☑ the marquee ruling (§2.7.16) and ☑ `S-6` (§2.7.17), all `2026-09-20`: one store, one request, one writer, one announcement, on every node — **one place that builds them** — right-click selects on every surface, and observers are told what the selection BECAME rather than what one gesture did. **§2.3 is met on every surface.** ❌ Still open, each saying so in its own section — the map menu's *contents* (parked by its own design), `ClearAll` has 0 callers, two synchronous editor facade seams (§2.7.7 ③), panels PROJECT rather than subscribe (§2.7.8 ②), the empty-space clear is local-only (§2.7.14), and `MapCommandController` is deliberately NOT widened (§2.7.17).** Implements [rulings 27-28](UX_RESUME_INTERACTION.md). Feeds
 > [UXI-24](UX_Issues.md#uxi-24) (multi-select) and [UXI-23](UX_Issues.md#uxi-23) (map parity).
 
 ## 0. Prior art ([rule 6](UX_Issues.md#rules))
@@ -717,8 +722,8 @@ sequenceDiagram
 | ☑ **S-3b** *(`2026-09-20`, §2.7.9)* | 🔒 *"simhost is not special … make the nodes use same (best shared) stuff in the same way"* — SimHost + ReplayBrowser join the protocol | ☑ **the 4 stores → 1 + views is MET**; two types deleted |
 | ☑ **S-3c** *(`2026-09-20`, §2.7.10)* | 🔒 *"unify across host also the bootstrap code … including this entity selection stuff"* — `MapInteractionPack` constructs the selection for all five hosts | ☑ `new EcsSelectionState(` and `new SelectionInteractionSystem(` appear in production **once** |
 | ☑ **S-3e** *(`2026-09-20`, §2.7.12)* | 🔒 *"remaining half"* — CGF gains a map-input path; every gesture becomes a request | ☑ `SelectionRequestSystem` is **literally** the only writer; ☑ a regression `S-3` shipped is closed |
-| 🟡 **S-4** *(`2026-09-20`, §2.7.13)* | right-click selects on every surface *(§2.3 incl. row 1)*; DER inspector gains a seam | ☑ **both inspector panels**, bound and unbound, railed and red-proved; ☑ the DER seam, wired in ExCon; ☑ `CE-259s`'s ordering **already discharged at `S-2`** — and §2.3's same-frame constraint is now SUPERSEDED, not merely unmet. ⛔ **the MAP is NOT done**: the vendored terminal's event carries no mouse button *(§2.7.13 "NOT BUILT")* |
-| ☑ **S-4b** *(`2026-09-20`, §2.7.14)* | 🔒 *"the right click itself should deselect the entity unless the already selected group right clicked"* — the MAP joins §2.3 | ☑ all three §2.3 rows on the map, incl. the empty-space clear; ☑ the button is carried with **no new field** and Left-defaults to the old meaning; ⚠ **2 vendored sites**, on the user's nod |
+| ✅ **S-4** *(`2026-09-20`, §2.7.13)* | right-click selects on every surface *(§2.3 incl. row 1)*; DER inspector gains a seam | ☑ **both inspector panels**, bound and unbound, railed and red-proved; ☑ the DER seam, wired in ExCon; ☑ `CE-259s`'s ordering **already discharged at `S-2`** — and §2.3's same-frame constraint is now SUPERSEDED, not merely unmet. ⭐ **the MAP gap it named is closed by `S-4b`**; ✅ **operator-verified** (§2.7.14a) |
+| ✅ **S-4b** *(`2026-09-20`, §2.7.14)* | 🔒 *"the right click itself should deselect the entity unless the already selected group right clicked"* — the MAP joins §2.3 | ☑ all three §2.3 rows on the map, incl. the empty-space clear; ☑ the button is carried with **no new field** and Left-defaults to the old meaning; ⚠ **2 vendored sites**, on the user's nod. ✅ **operator-verified** — ⚠ **two of the three rows**, see §2.7.14a |
 | ☑ **S-5** *(`2026-09-20`, §2.7.15)* | rule 5 — losing selection cancels that entity's edit | ☑ `CancelArmedOn` tears the gizmo down per entity; ☑ the notification gets its first EDGE consumer; ⛔ **the design's own prescribed member was WRONG and is corrected in `Tool_Model` §4.14**, red-proved |
 | ☑ **S-6** *(`2026-09-20`, §2.7.17)* | remote-map-control dispatcher becomes a requester; echo suppression moves to egress | ☑ the requester half was ALREADY true *(an `S-2` side effect)*; ☑ egress is now notification-driven, so every cause propagates; ☑ suppression keyed on the `Remote.` reason. ⛔ the `MapCommandController` widening is NOT in this slice — §2.6's own constraint makes it a separate move |
 
@@ -1541,6 +1546,35 @@ owning design says so itself — `docs/designs/gizmos-1/canvas-context-menu-desi
 *"multi-entity selection menus"* until requirements are pinned. ⭐ What `S-4b` guarantees is the
 **precondition** that ruling needs: the selection is still there when the menu opens.
 
+#### 2.7.14a ✅ **THE OPERATOR PASS ON `S-4` + `S-4b`** *(`2026-09-20`)*
+
+> 🔒 **Operator, Windows session:** *"i tested the right click selection including the empty space clear.
+> was looking good."*
+
+⭐⭐ **This is the pass §2.7.13 and §2.7.14 were both waiting on, and it could not have been run before
+`2026-09-20`** — the 2-D map was completely unclickable until the no-camera fix *(STATUS block;
+`UX_Feature_Map_Parity.md` owns that defect)*. ⇒ ☑ **`S-4` and `S-4b` are operator-verified, not merely
+railed.**
+
+##### ⭐⭐⭐ WHAT THE SENTENCE SETTLES, AND WHAT IT DOES NOT — **stated row by row, on purpose**
+
+| §2.3 row | operator pass | ⭐ why this reading |
+|---|---|---|
+| right-click **outside** the selection ⇒ **Replace** | ✅ **confirmed** | *"the right click selection … was looking good"* — a right-click that selects IS this row; it is the only row where a right-click visibly changes the selection to the thing under the cursor |
+| right-click **empty space** ⇒ **Clear** | ✅ **confirmed** — named explicitly | ⚠ **local-only**, pre-existing (§2.7.14): a canvas anchor does not survive the ingress resolve filter |
+| right-click **inside an existing multi-selection** ⇒ **unchanged** | ⛔⛔ **NOT DETERMINED** | ⭐ it requires **first building a multi-selection**, then right-clicking *within* it. Nothing in the report says that was done, and the row is **invisible unless it is** — a single-entity selection behaves identically whether the guard fires or not |
+
+⚠⚠ **Why the third row gets its own ⛔ instead of riding on the other two.** 📌 This is the lesson
+§2.7.11a cost twenty minutes to learn, applied in the *other* direction: there I **flipped a true
+verdict** because its stated evidence was unsound; here the temptation is to **mark a row verified**
+because a neighbouring one was. 🔒 **An operator watching the screen outranks an inference — but only
+about what they actually looked at.** ⇒ ⭐ the honest record is *"two rows confirmed, one not exercised"*,
+and the third is a **one-gesture follow-up**, not a re-run.
+
+⭐ **It is railed regardless** — `ARightClickInsideTheSelection_LeavesItUnchanged` and
+`AShiftRightClickInsideTheSelection_IsStillARightClick` (§2.7.14) both cover it, the second pinning the
+`[Flags]` modifier trap. ⛔ **A rail is not an operator pass**, which is exactly why this table says so.
+
 #### 2.7.15 ☑ **`S-5` — LOSING THE SELECTION CANCELS THAT ENTITY'S EDIT** *(`2026-09-20`)*
 
 > 🔒 **User ruling ②, `2026-09-10`:** *"if entity becomes unselected, it should cancel any editing on the
@@ -1724,9 +1758,9 @@ silently refused while a placement session is open. ⇒ **a structural move with
 | 11.1 | `PrimarySelected` set through the view is visible in the **component** — the desync regression guard | H |
 | 11.2 | A component change is visible through the **view** — both directions | H |
 | 11.3 | Exactly one entity has `IsPrimarySelection` after any selecting operation | H |
-| 11.4 | 🔒 Right-click on a **selected** entity leaves the selection **unchanged** — ☑ **panels** (`S-4`, §2.7.13) and ☑ **map** (`S-4b`, §2.7.14) | H |
-| 11.5 | 🔒 Right-click on an **unselected** entity clears the selection and selects **only** it — ☑ **panels** (`S-4`); ☑ **map** | H |
-| 11.6 | 🔒 Right-click on **empty space** clears the selection — ☑ **map** (`S-4b`); ⛔ n/a on the panels (no canvas). ⚠ local-only, see §2.7.14 | H |
+| 11.4 | 🔒 Right-click on a **selected** entity leaves the selection **unchanged** — ☑ **panels** (`S-4`, §2.7.13) and ☑ **map** (`S-4b`, §2.7.14), both railed. ⛔ **NOT in the operator pass** — it is invisible without a multi-selection built first (§2.7.14a) | H |
+| 11.5 | 🔒 Right-click on an **unselected** entity clears the selection and selects **only** it — ☑ **panels** (`S-4`); ☑ **map**; ✅ **operator-verified** `2026-09-20` (§2.7.14a) | H |
+| 11.6 | 🔒 Right-click on **empty space** clears the selection — ☑ **map** (`S-4b`); ✅ **operator-verified** `2026-09-20`, named explicitly (§2.7.14a); ⛔ n/a on the panels (no canvas). ⚠ local-only, see §2.7.14 | H |
 | 11.7 | The menu is populated **after** the selection mutation, same frame | H |
 | 11.8 | 🔒 **Reload clears the selection** — `ClearAll()` is actually called (it never is today) | H |
 | 11.9 | Despawning the primary leaves **no stale primary** in the view | H |
