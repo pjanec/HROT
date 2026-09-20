@@ -510,45 +510,21 @@ namespace Fdp.Toolkit.Behavior.Systems
             EntityRepository repo, Entity entity,
             IReadOnlyList<StatefulSlotInfo> slots)
         {
-            // Try each tier in order (check which one the entity has).
-            if (repo.HasComponent<BlueprintBlackboard16384>(entity))
-            {
-                ref var tier = ref repo.GetComponentRW<BlueprintBlackboard16384>(entity);
-                fixed (byte* mem = tier.Memory)
-                {
-                    foreach (var s in slots)
-                        BlueprintBlackboardPartitions.TryDetach(mem, s.SlotKey);
-                }
-                return;
-            }
-            if (repo.HasComponent<BlueprintBlackboard4096>(entity))
-            {
-                ref var tier = ref repo.GetComponentRW<BlueprintBlackboard4096>(entity);
-                fixed (byte* mem = tier.Memory)
-                {
-                    foreach (var s in slots)
-                        BlueprintBlackboardPartitions.TryDetach(mem, s.SlotKey);
-                }
-                return;
-            }
-            if (repo.HasComponent<BlueprintBlackboard1024>(entity))
-            {
-                ref var tier = ref repo.GetComponentRW<BlueprintBlackboard1024>(entity);
-                fixed (byte* mem = tier.Memory)
-                {
-                    foreach (var s in slots)
-                        BlueprintBlackboardPartitions.TryDetach(mem, s.SlotKey);
-                }
-            }
+            // A2: the three-tier ladder, once, in OccurrenceStoreAccess.
+            // ⛔ The pointer is valid for THIS CALL only — see the seam's LIFETIME RULE.
+            byte* mem = Fdp.Toolkit.Blueprints.Partitioning.OccurrenceStoreAccess
+                            .TryGetStore(repo, entity, out _);
+            if (mem == null) return;
+
+            foreach (var s in slots)
+                BlueprintBlackboardPartitions.TryDetach(mem, s.SlotKey);
         }
 
         /// <summary>Returns the TotalSize constant of the entity's active tier, or 0 if none.</summary>
         private static int GetCurrentTierSize(EntityRepository repo, Entity entity)
         {
-            if (repo.HasComponent<BlueprintBlackboard16384>(entity)) return BlueprintBlackboard16384.TotalSize;
-            if (repo.HasComponent<BlueprintBlackboard4096>(entity))  return BlueprintBlackboard4096.TotalSize;
-            if (repo.HasComponent<BlueprintBlackboard1024>(entity))  return BlueprintBlackboard1024.TotalSize;
-            return 0;
+            // A2: identical to OccurrenceStoreAccess.GetStoreSize — delegated, not re-spelled.
+            return Fdp.Toolkit.Blueprints.Partitioning.OccurrenceStoreAccess.GetStoreSize(repo, entity);
         }
 
         /// <summary>

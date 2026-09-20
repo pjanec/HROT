@@ -65,24 +65,11 @@ public static unsafe class BlueprintSharedState
             Guid.Empty, StatefulSlotScope.Entity, Guid.Empty, variableId);
         uint expectedHash = ExpectedStructureHash<T>();
 
-        if (world.HasComponent<BlueprintBlackboard16384>(self))
-        {
-            ref var tier = ref world.GetComponentRW<BlueprintBlackboard16384>(self);
-            fixed (byte* mem = tier.Memory)
-                return TryReadFromTier(mem, slotKey, expectedHash, out value);
-        }
-        if (world.HasComponent<BlueprintBlackboard4096>(self))
-        {
-            ref var tier = ref world.GetComponentRW<BlueprintBlackboard4096>(self);
-            fixed (byte* mem = tier.Memory)
-                return TryReadFromTier(mem, slotKey, expectedHash, out value);
-        }
-        if (world.HasComponent<BlueprintBlackboard1024>(self))
-        {
-            ref var tier = ref world.GetComponentRW<BlueprintBlackboard1024>(self);
-            fixed (byte* mem = tier.Memory)
-                return TryReadFromTier(mem, slotKey, expectedHash, out value);
-        }
+        // A2: the 16384 -> 4096 -> 1024 ladder, once, in OccurrenceStoreAccess.
+        // ⛔ The pointer is valid for THIS CALL only — see the seam's LIFETIME RULE.
+        byte* mem = OccurrenceStoreAccess.TryGetStore(world, self, out _);
+        if (mem != null)
+            return TryReadFromTier(mem, slotKey, expectedHash, out value);
 
         value = default;
         return false;
@@ -104,24 +91,11 @@ public static unsafe class BlueprintSharedState
             Guid.Empty, StatefulSlotScope.Entity, Guid.Empty, variableId);
         uint expectedHash = ExpectedStructureHash<T>();
 
-        if (world.HasComponent<BlueprintBlackboard16384>(self))
-        {
-            ref var tier = ref world.GetComponentRW<BlueprintBlackboard16384>(self);
-            fixed (byte* mem = tier.Memory)
-                return TryWriteToTier(mem, slotKey, expectedHash, in value);
-        }
-        if (world.HasComponent<BlueprintBlackboard4096>(self))
-        {
-            ref var tier = ref world.GetComponentRW<BlueprintBlackboard4096>(self);
-            fixed (byte* mem = tier.Memory)
-                return TryWriteToTier(mem, slotKey, expectedHash, in value);
-        }
-        if (world.HasComponent<BlueprintBlackboard1024>(self))
-        {
-            ref var tier = ref world.GetComponentRW<BlueprintBlackboard1024>(self);
-            fixed (byte* mem = tier.Memory)
-                return TryWriteToTier(mem, slotKey, expectedHash, in value);
-        }
+        // A2: the 16384 -> 4096 -> 1024 ladder, once, in OccurrenceStoreAccess.
+        // ⛔ The pointer is valid for THIS CALL only — see the seam's LIFETIME RULE.
+        byte* mem = OccurrenceStoreAccess.TryGetStore(world, self, out _);
+        if (mem != null)
+            return TryWriteToTier(mem, slotKey, expectedHash, in value);
 
         return false;
     }
@@ -154,24 +128,11 @@ public static unsafe class BlueprintSharedState
             Guid.Empty, StatefulSlotScope.Entity, Guid.Empty, variableId);
         uint expectedHash = ExpectedStructureHash<TStruct>();
 
-        if (world.HasComponent<BlueprintBlackboard16384>(self))
-        {
-            ref var tier = ref world.GetComponentRW<BlueprintBlackboard16384>(self);
-            fixed (byte* mem = tier.Memory)
-                return TryWriteFieldToTier(mem, slotKey, expectedHash, fieldOffset, in value);
-        }
-        if (world.HasComponent<BlueprintBlackboard4096>(self))
-        {
-            ref var tier = ref world.GetComponentRW<BlueprintBlackboard4096>(self);
-            fixed (byte* mem = tier.Memory)
-                return TryWriteFieldToTier(mem, slotKey, expectedHash, fieldOffset, in value);
-        }
-        if (world.HasComponent<BlueprintBlackboard1024>(self))
-        {
-            ref var tier = ref world.GetComponentRW<BlueprintBlackboard1024>(self);
-            fixed (byte* mem = tier.Memory)
-                return TryWriteFieldToTier(mem, slotKey, expectedHash, fieldOffset, in value);
-        }
+        // A2: the 16384 -> 4096 -> 1024 ladder, once, in OccurrenceStoreAccess.
+        // ⛔ The pointer is valid for THIS CALL only — see the seam's LIFETIME RULE.
+        byte* mem = OccurrenceStoreAccess.TryGetStore(world, self, out _);
+        if (mem != null)
+            return TryWriteFieldToTier(mem, slotKey, expectedHash, fieldOffset, in value);
 
         return false;
     }
