@@ -86,33 +86,37 @@ namespace Fdp.Toolkit.Behavior
         /// </list>
         /// Result masked to a non-negative int.
         /// </summary>
+        /// <remarks>
+        /// ⭐⭐ <b>A1 (<c>PLAN_Occurrence_Storage_Build</c>): this is now a THIN WRAPPER.</b> The
+        /// algorithm lives in <see cref="Fdp.Toolkit.Behavior.Shared.OccurrenceSlotKey"/>, one file
+        /// LINKED into the authoring assembly as well, so the compile-time and runtime keys cannot
+        /// drift. ⛔ Do not re-inline the FNV here — that divergence is <c>F5</c> and it fails
+        /// silently (the slot is never found, nothing throws).
+        /// <para>⚠ The cast is safe because the two enums are pinned value-for-value by
+        /// <c>OccurrenceSlotKeyParityTests</c>.</para>
+        /// </remarks>
         public static int ComputeStatefulSlotKey(
             Guid assetId, StatefulSlotScope scope, Guid nodeVisualId, string variableId)
-        {
-            unchecked
-            {
-                uint hash = FnvOffsetBasis;
-                switch (scope)
-                {
-                    case StatefulSlotScope.Node:
-                        foreach (byte b in assetId.ToByteArray())      { hash ^= b; hash *= FnvPrime; }
-                        foreach (byte b in nodeVisualId.ToByteArray()) { hash ^= b; hash *= FnvPrime; }
-                        return (int)(hash & 0x7FFFFFFFu);
+            => Fdp.Toolkit.Behavior.Shared.OccurrenceSlotKey.Compute(
+                   assetId,
+                   (Fdp.Toolkit.Behavior.Shared.OccurrenceSlotScope)(int)scope,
+                   nodeVisualId,
+                   variableId);
 
-                    case StatefulSlotScope.Behavior:
-                        foreach (byte b in assetId.ToByteArray())                          { hash ^= b; hash *= FnvPrime; }
-                        foreach (byte b in System.Text.Encoding.UTF8.GetBytes(variableId)) { hash ^= b; hash *= FnvPrime; }
-                        return (int)(hash & 0x7FFFFFFFu);
-
-                    case StatefulSlotScope.Entity:
-                        foreach (byte b in System.Text.Encoding.UTF8.GetBytes(variableId)) { hash ^= b; hash *= FnvPrime; }
-                        return (int)(hash & 0x7FFFFFFFu);
-
-                    default:
-                        throw new ArgumentOutOfRangeException(nameof(scope), scope, null);
-                }
-            }
-        }
+        /// <summary>
+        /// ⭐ The NESTED form — <c>DESIGN_Occurrence_Scoped_Storage</c> §3's <c>(assetId, hostPath)</c>.
+        /// <paramref name="hostKey"/> <c>== 0</c> means a ROOT occurrence and returns exactly what
+        /// <see cref="ComputeStatefulSlotKey(Guid, StatefulSlotScope, Guid, string)"/> returns.
+        /// </summary>
+        public static int ComputeOccurrenceSlotKey(
+            int hostKey, int siteId, Guid assetId, StatefulSlotScope scope, Guid nodeVisualId, string variableId)
+            => Fdp.Toolkit.Behavior.Shared.OccurrenceSlotKey.ComputeNested(
+                   hostKey,
+                   siteId,
+                   assetId,
+                   (Fdp.Toolkit.Behavior.Shared.OccurrenceSlotScope)(int)scope,
+                   nodeVisualId,
+                   variableId);
 
         /// <summary>
         /// FNV-1a-32 of the UTF-8-ish bytes of a type name, matching

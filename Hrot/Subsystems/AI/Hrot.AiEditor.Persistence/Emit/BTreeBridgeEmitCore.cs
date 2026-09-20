@@ -184,24 +184,16 @@ public static class BTreeBridgeEmitCore
     /// replicated here because the emitter cannot reference that internal class.
     /// The runtime must use the same algorithm so compile-time and runtime keys match.
     /// </summary>
+    /// <remarks>
+    /// ⭐⭐ <b>A1: a THIN WRAPPER over the one shared spelling.</b> The algorithm lives in
+    /// <c>Fdp.Toolkit.Behavior.Shared.OccurrenceSlotKey</c>, LINKED into this assembly (see the
+    /// csproj) and compiled into the runtime as well — so a compile-time key and a runtime key
+    /// cannot drift. ⛔ Do not re-inline the FNV: the divergence fails SILENTLY (the slot is never
+    /// found, nothing throws).
+    /// </remarks>
     public static int ComputeStatefulSlotKey(Guid assetId, Guid nodeVisualId)
-    {
-        unchecked
-        {
-            uint hash = 2166136261u; // FNV offset basis
-            foreach (byte b in assetId.ToByteArray())
-            {
-                hash ^= b;
-                hash *= 16777619u; // FNV prime
-            }
-            foreach (byte b in nodeVisualId.ToByteArray())
-            {
-                hash ^= b;
-                hash *= 16777619u;
-            }
-            return (int)(hash & 0x7FFFFFFFu);
-        }
-    }
+        => Fdp.Toolkit.Behavior.Shared.OccurrenceSlotKey.Compute(
+               assetId, Fdp.Toolkit.Behavior.Shared.OccurrenceSlotScope.Node, nodeVisualId, string.Empty);
 
     /// <summary>
     /// S3-2: scope-aware overload.  Derives the stateful slot key according to the
@@ -229,45 +221,11 @@ public static class BTreeBridgeEmitCore
         WorkingStateScope scope,
         Guid nodeVisualId,
         string variableId)
-    {
-        unchecked
-        {
-            uint hash = 2166136261u; // FNV offset basis
-            const uint Prime = 16777619u;
-
-            switch (scope)
-            {
-                case WorkingStateScope.Node:
-                    // Byte-identical to the 2-arg overload — delegates to it to guarantee parity.
-                    return ComputeStatefulSlotKey(assetId, nodeVisualId);
-
-                case WorkingStateScope.Behavior:
-                    foreach (byte b in assetId.ToByteArray())
-                    {
-                        hash ^= b;
-                        hash *= Prime;
-                    }
-                    foreach (byte b in System.Text.Encoding.UTF8.GetBytes(variableId))
-                    {
-                        hash ^= b;
-                        hash *= Prime;
-                    }
-                    return (int)(hash & 0x7FFFFFFFu);
-
-                case WorkingStateScope.Entity:
-                    foreach (byte b in System.Text.Encoding.UTF8.GetBytes(variableId))
-                    {
-                        hash ^= b;
-                        hash *= Prime;
-                    }
-                    return (int)(hash & 0x7FFFFFFFu);
-
-                default:
-                    throw new System.ArgumentOutOfRangeException(nameof(scope), scope, null);
-            }
-        }
-    }
-
+        => Fdp.Toolkit.Behavior.Shared.OccurrenceSlotKey.Compute(
+               assetId,
+               (Fdp.Toolkit.Behavior.Shared.OccurrenceSlotScope)(int)scope,
+               nodeVisualId,
+               variableId);
     /// <summary>
     /// S3-4: resolves the scope-aware stateful slot key for a binding. Looks up the bound
     /// variable (by Name == <paramref name="targetField"/>) in the asset blackboard; a
