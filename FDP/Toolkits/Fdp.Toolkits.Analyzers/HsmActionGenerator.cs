@@ -548,7 +548,7 @@ namespace Fdp.Toolkit.Behavior.Analyzers
             foreach (var guard in guards)
             {
                 ushort id = HsmActionKey.ForActionName(guard.FullName);
-                sb.AppendLine("            { " + id + ", (IntPtr)(delegate* <void*, void*, ushort, bool>)&" + guard.FullName + " },");
+                sb.AppendLine("            { " + id + ", (IntPtr)(delegate* <void*, void*, ushort, HsmCommandWriter*, bool>)&" + guard.FullName + " },");
             }
             sb.AppendLine("        };");
             sb.AppendLine();
@@ -561,10 +561,10 @@ namespace Fdp.Toolkit.Behavior.Analyzers
             sb.AppendLine("        }");
             sb.AppendLine();
 
-            sb.AppendLine("        public static bool EvaluateGuard(ushort guardId, void* instance, void* context, ushort eventId)");
+            sb.AppendLine("        public static bool EvaluateGuard(ushort guardId, void* instance, void* context, ushort eventId, HsmCommandWriter* writer)");
             sb.AppendLine("        {");
             sb.AppendLine("            if (GuardTable.TryGetValue(guardId, out var guardPtr))");
-            sb.AppendLine("                return ((delegate* <void*, void*, ushort, bool>)guardPtr)(instance, context, eventId);");
+            sb.AppendLine("                return ((delegate* <void*, void*, ushort, HsmCommandWriter*, bool>)guardPtr)(instance, context, eventId, writer);");
             sb.AppendLine("            return true; // No guard = always pass");
             sb.AppendLine("        }");
             sb.AppendLine();
@@ -656,7 +656,7 @@ namespace Fdp.Toolkit.Behavior.Analyzers
             foreach (var guard in guards)
             {
                 ushort id = HsmActionKey.ForActionName(guard.FullName);
-                sb.AppendLine("            HsmActionDispatcher.RegisterGuard(" + id + ", (IntPtr)(delegate* <void*, void*, ushort, bool>)&" + guard.FullName + ");");
+                sb.AppendLine("            HsmActionDispatcher.RegisterGuard(" + id + ", (IntPtr)(delegate* <void*, void*, ushort, HsmCommandWriter*, bool>)&" + guard.FullName + ");");
             }
 
             foreach (var entry in sharedAiEntries)
@@ -666,7 +666,7 @@ namespace Fdp.Toolkit.Behavior.Analyzers
                     ? "Guard_" + entry.MethodName + "_At" + entry.Offset
                     : "Action_" + entry.MethodName + "_At" + entry.Offset;
                 if (entry.IsCondition)
-                    sb.AppendLine("            HsmActionDispatcher.RegisterGuard(" + id + ", (IntPtr)(delegate* <void*, void*, ushort, bool>)&" + thunkName + ");");
+                    sb.AppendLine("            HsmActionDispatcher.RegisterGuard(" + id + ", (IntPtr)(delegate* <void*, void*, ushort, HsmCommandWriter*, bool>)&" + thunkName + ");");
                 else
                     sb.AppendLine("            HsmActionDispatcher.RegisterAction(" + id + ", (IntPtr)(delegate* <void*, void*, HsmCommandWriter*, void>)&" + thunkName + ");");
             }

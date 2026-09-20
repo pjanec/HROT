@@ -440,7 +440,7 @@ internal static class AiPrimitiveEmitter
 
     private static void EmitHsmGuardThunk(CSharpEmitter e)
     {
-        e.WriteLine("public static unsafe bool HsmGuard(void* instance, void* context, ushort eventId)");
+        e.WriteLine("public static unsafe bool HsmGuard(void* instance, void* context, ushort eventId, global::Fhsm.Kernel.Data.HsmCommandWriter* writer)");
         e.WriteLine("{");
         e.Indent();
         e.WriteLine("var bridge = (global::Fdp.Toolkit.Behavior.Systems.HsmKernelBridge*)context;");

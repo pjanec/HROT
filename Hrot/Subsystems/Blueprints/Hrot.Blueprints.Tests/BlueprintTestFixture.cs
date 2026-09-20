@@ -574,6 +574,13 @@ public static class ThrowingRegistrar
 
         var bridge = new HsmKernelBridge { Self = entity, WorldHandle = _repo.UnmanagedHandle };
 
+        // ⭐ O6 — the guard signature now carries the HsmCommandWriter so a guard learns which
+        //   occurrence it is, exactly as an action does. Invoking one OUTSIDE the kernel means
+        //   nothing stamped it, so the writer is left at its (NoRegionSlot, NoStateId) sentinels —
+        //   which is the honest answer here, not a fabricated identity.
+        var page   = default(global::Fhsm.Kernel.Data.CommandPage);
+        var writer = new global::Fhsm.Kernel.Data.HsmCommandWriter(&page);
+
         var paramsType = genType.GetNestedType("Params");
         if (paramsType != null && paramsType.IsValueType)
         {
@@ -609,6 +616,13 @@ public static class ThrowingRegistrar
 
         var bridge = new HsmKernelBridge { Self = entity, WorldHandle = _repo.UnmanagedHandle };
 
+        // ⭐ O6 — the guard signature now carries the HsmCommandWriter so a guard learns which
+        //   occurrence it is, exactly as an action does. Invoking one OUTSIDE the kernel means
+        //   nothing stamped it, so the writer is left at its (NoRegionSlot, NoStateId) sentinels —
+        //   which is the honest answer here, not a fabricated identity.
+        var page   = default(global::Fhsm.Kernel.Data.CommandPage);
+        var writer = new global::Fhsm.Kernel.Data.HsmCommandWriter(&page);
+
         var paramsType = genType.GetNestedType("Params");
         if (paramsType != null && paramsType.IsValueType)
         {
@@ -617,7 +631,7 @@ public static class ThrowingRegistrar
             try
             {
                 void* paramsPtr = (void*)paramsHandle.AddrOfPinnedObject();
-                return HsmActionDispatcher.EvaluateGuard(guardId, paramsPtr, &bridge, eventId);
+                return HsmActionDispatcher.EvaluateGuard(guardId, paramsPtr, &bridge, eventId, &writer);
             }
             finally
             {
@@ -626,7 +640,7 @@ public static class ThrowingRegistrar
         }
         else
         {
-            return HsmActionDispatcher.EvaluateGuard(guardId, null, &bridge, eventId);
+            return HsmActionDispatcher.EvaluateGuard(guardId, null, &bridge, eventId, &writer);
         }
     }
 

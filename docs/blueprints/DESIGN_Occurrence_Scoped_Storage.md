@@ -657,7 +657,7 @@ Ordered so that each step is provable on its own and the expensive irreversible 
 | ⭐ **O3b** | **Add the `OccurrenceStore256` tier** — `Q37` option B. ⚠ **`MaxSlots` sized on SLOTS as well as bytes (`F3`)**, not fixed at 1–2 | ⛔⛔ **`G5` — the old numbers here were stale.** §5a's corrected arithmetic: the simple case is **5.3× / 4× at 1024** and **1.33× / 1.0× at 256**. ⛔⛔ **No heavy-DTO credit** *(`2026-09-20`)* ⇒ ⭐⭐ **`O3b` is LOAD-BEARING, not an optimisation**: without it every AI entity pays 4–5.3×. ⛔ Trivial after `O3a`, four copies before it | — |
 | **O4** | **BTree onto occurrence storage** — tree state and params into slots, **including a hosted subtree's own `BehaviorTreeState`, and its RE-ENTRY RESET (F14)** | ⭐ **proves the whole model with ZERO ExtDeps change** (§4.1) **and closes the shared-`BehaviorTreeState` defect in §3.1**. ⚠ Own state removes the accidental continuity `ref state` gave, so the child's cursor must be reset when the host re-enters the hosting node — **its own rail**. If this does not work, stop before paying for `O6` | **none** |
 | ~~**O5**~~ ✅ | ~~Blueprint Instances take params~~ — ⛔⛔ **ALREADY SHIPPED `2026-08-17`** *(commit `a957ed448`)*, a month before this table listed it. 📐 Measured `2026-09-20`: layout *(`FieldLayout.ParamsStructBase`)*, attach payload *(`ParamsJson` + `AttachToEntity`'s argument)* and parse-before-commit *(`ParamsParseFailed`)* are all present, with **10 rails** in `InstanceParamsSeamTests` — including the `startOffset: 0` one this plan asked for by name. ✅ **13 / 0** | ⇒ ⭐ **the sequence moves straight from `O4` to `O6`** | — |
-| **O6** | **The kernel stamps the occurrence** — two fields on `HsmCommandWriter`, **plus the `EvaluateGuard` widening (`D2`, approved)**, plus the pointer overload (§9.4) | the one ExtDeps crossing, paid **once**, after `O4` has proved the storage model. ⭐ All three ride it together | **the only one** |
+| ~~**O6**~~ ✅ | ~~The kernel stamps the occurrence~~ — ✅ **DONE `2026-09-20`, as-built in §23.** All three rode it together: two fields + sentinels on `HsmCommandWriter`, `D2`'s `EvaluateGuard` widening, and §9.4's pointer overload. 📐 **The full 156-project solution build reported exactly TWO compile errors** — §4.2's *"single-digit blast radius"* held. 6 rails, red-proof exact *(4 red / 2 green with only the two stamps removed)* | ⇒ ⭐ **`O7` may proceed** — the identity exists; nothing reads it yet | ✅ **PAID** |
 | **O7** | **HSM per-region actions key on the occurrence** — closes `BP-297`/`E3`; **and `HsmTickSystem` gains entity discovery across the tier components (F9)** | needs `O6`. ⚠ With `BrainHsm*` deleted the query has no root component — it takes `BlueprintTickSystem`'s shape, and **C2 must price per-tick discovery across archetypes, not only per-action indirection** | — |
 | **O8** | **BTree hosted under an HSM state** — the strategic/tactical composition | needs `O3`+`O6`; the child is just another occurrence | — |
 | ⭐ **O9** | **Blueprint as an ASSIGNED ROOT behaviour** — the third `BrainTier` *(`Q33`)* | 🔒 **user, `2026-09-19`: *"solved after the occurences"***. ⛔ **Not storage** — §12's gaps ②③④: registry resolution, a root tick path, and joining `BehaviorState.InstanceId` preemption | — |
@@ -2733,3 +2733,125 @@ says exactly the right thing: *the end-to-end `F14` case has become reachable an
 |---|---|
 | ⛔ **`F14`'s deactivator is not dead code** | it is correctly wired (rail ②c) and it is the RIGHT hook; today its in-tree trigger is unreachable. ⭐ `F14b` (§22.1–22.4) is the path that **is** reachable, and it is now closed |
 | ⛔ **this is not a bug report against FastBTree** | `ObserverSelector`'s unimplemented abort is an ExtDeps fact recorded here because it DECIDED this question — ⚠ not something `O4` may change (§4.1: zero ExtDeps) |
+
+
+## 23. ✅ `O6` — **THE ExtDeps CROSSING IS PAID** *(`2026-09-20`, obligation ⑤)*
+
+🔒 **The sentence the whole item rests on:** ⭐⭐⭐ **the kernel supplies IDENTITY, the thunk does the
+LOOKUP.** The kernel knows nothing about the partition allocator and did not learn; what a thunk lacked
+was four bytes of *"who am I"*.
+
+### 23.1 ⭐ THE SEQUENCE — **what the picture shows that §4.2's prose could not**
+
+```mermaid
+sequenceDiagram
+    autonumber
+    participant Tick as HsmTickSystem
+    participant Core as HsmKernelCore
+    participant W as HsmCommandWriter
+    participant D as HsmActionDispatcher
+    participant T as the thunk
+
+    Tick->>Core: UpdateBatchCore
+    Core->>W: new - sentinels NoRegionSlot, NoStateId
+    Note over Core,W: ONE writer per instance update
+    Core->>W: StampOccurrence region 0, state 0
+    Core->>D: ExecuteAction
+    D->>T: instance, context, writer
+    T-->>W: reads the pair, looks up its own slot
+    Core->>W: StampOccurrence region 0, state 1
+    Core->>D: EvaluateGuard - D2 widening
+    D->>T: instance, context, eventId, writer
+```
+
+⭐ **Caption:** the writer is created ONCE and stamped MANY times inside one update. ⛔ That is exactly
+what `Q35` option `C` (carry it on `HsmKernelBridge`) could not do — the bridge is built once per entity
+tick, so both dispatches above would report the same pair and the second occurrence would read the
+first one's storage. **Rail ② is that picture, measured.**
+
+### 23.2 ⭐ THE CLASSES
+
+```mermaid
+classDiagram
+    class HsmCommandWriter {
+        <<ref struct, ExtDeps - CHANGED>>
+        +int OccurrenceRegionSlotIndex
+        +ushort OccurrenceStateId
+        +const int NoRegionSlot
+        +const ushort NoStateId
+        ~StampOccurrence(int, ushort)
+    }
+    class HsmKernelCore {
+        <<ExtDeps - CHANGED>>
+        -ExecuteAction(id, inst, ctx, writer, trace, regionSlotIndex, stateId)
+        -EvaluateGuard(id, inst, ctx, eventId, trace, writer, regionSlotIndex, stateId)
+        -SelectTransition(... , ref writer, out regionIndex)
+    }
+    class HsmActionDispatcher {
+        <<ExtDeps - CHANGED>>
+        +EvaluateGuard(id, inst, ctx, eventId, writer) bool
+        +ExecuteAction(id, inst, ctx, writer)
+    }
+    class HsmKernel {
+        <<ExtDeps - ADDITIVE>>
+        +Update(blob, byte* instance, int instanceSize, ctx, dt, page, trace)
+    }
+    HsmKernelCore ..> HsmCommandWriter : stamps, TWO sites only
+    HsmKernelCore ..> HsmActionDispatcher : dispatches
+    HsmKernel ..> HsmKernelCore : UpdateBatchCore
+```
+
+⭐ **Caption:** `StampOccurrence` is `internal` — the kernel is the only thing entitled to say which
+occurrence is running. ⛔ A thunk that could forge one would forge a silent cross-occurrence alias,
+which is the failure this model exists to remove.
+
+### 23.3 📐 THE MEASURED BLAST RADIUS — **§4.2 said "single-digit"; here is the actual count**
+
+| what changed | where |
+|---|---|
+| ⭐ two fields + two sentinels + `internal StampOccurrence` | `Fhsm.Kernel/Data/HsmCommandWriter.cs` |
+| ⭐⭐ **TWO stamping sites, and only two** | `HsmKernelCore.ExecuteAction` and `HsmKernelCore.EvaluateGuard` — every dispatch already funnelled through them, so the pair cannot go out of step with the dispatch it describes |
+| the pair threaded to those two helpers | **7** call sites in `HsmKernelCore` (`:306` init-entry, `:450` activity, `:547` global-transition guard, `:590` per-region guard, `:708` exit, `:723` transition action, `:755` entry) — ⭐ every one already had both halves in scope, exactly as `Q35-B` claimed |
+| ⚠ one signature threaded for the guard's sake | `SelectTransition` gains `ref HsmCommandWriter`; it writes no commands, it only needs to stamp before evaluating |
+| ⭐ `D2` — the guard signature | `HsmActionDispatcher.EvaluateGuard` + its cast |
+| the generators that BAKE that signature as text | `HsmActionGenerator` (**4** casts + the emitted dispatcher), `CSharpEmitter:385`, `AiPrimitiveEmitter.EmitHsmGuardThunk` |
+| ⭐ §9.4 — the pointer overload | `HsmKernel.Update(blob, byte*, int, …)`, additive |
+| out-of-solution guards that needed a parameter | `Fhsm.Demo.Visual` ×3, `Fhsm.Tests` ×3 + their call sites |
+
+🔴 **THE HEADLINE NUMBER: the full 156-project solution build reported exactly TWO compile errors** —
+both in `BlueprintTestFixture.InvokeHsmGuard`, which invokes a guard outside the kernel. ⇒ ⭐⭐ **the
+ACTION delegate really is untouched**, so the attributed action methods, both `FDP/Examples` projects
+and FastHSM's own demos compiled unchanged, as §4.2 predicted.
+
+### 23.4 ⭐ WHY `D2` IS SAFE — **and the reason is NOT "the population is small"**
+
+📐 Measured again here: **ONE** `[HsmGuard]` attribute exists in the whole repo outside FastHSM's own
+tree, and it is an exporter-test DTO. ⛔ **That is the wrong reason to accept a signature change.**
+⭐⭐ **The real population is the GENERATORS**, and `R-50` is the licence: emitted behaviour source is
+machine-owned and regenerated whole on save ⇒ changing what a generator emits is a **rebuild, not a
+migration**.
+
+### 23.5 🔴 A FIXTURE DEFECT RAIL ③ FOUND — **`0` is a valid state index**
+
+📌 The first rail ③ asserted one guard dispatch and reported *"the collection contained 4 items."*
+⭐ `HsmInstance128` carries **four** region slots (`GetActiveLeafIds`: size 128 ⇒ count 4), and a zeroed
+slot is **not** "empty" — **State 0 is a real state** — so the kernel read all four regions as sitting in
+State 0 and evaluated the transition's guard four times. ⇒ ⚠ **an instance must mark unused regions
+`0xFFFF`**; the fixture now does, and says why. ⭐ The same confusion in production would be a real
+defect, not a test one.
+
+### 23.6 ⭐ EVIDENCE
+
+| | |
+|---|---|
+| rails | **6** in `HsmOccurrenceStampTests` (in-solution — ⛔ **not** `Fhsm.Tests`, which is outside the root solution and reports a stale bin): ① an action's own pair · ② **two dispatches, one tick, different stamps** — the rail that decides `Q35-A` · ③ `D2`, a guard is stamped · ④ the sentinels are distinguishable from `(0,0)` · ⑤ §9.4's pointer overload agrees with the generic one · ⑥ a non-positive size is refused |
+| red-proof | commenting out **only** the two `StampOccurrence` calls ⇒ **0 build errors**, exactly **4 failed / 2 passed** — the two survivors being the sentinel and size-guard rails, which do not depend on the stamp. Restored ⇒ 6/6 |
+| non-vacuity | ② and ③ assert the machine actually transitioned before reading any stamp |
+
+### 23.7 ⚠ WHAT `O6` DID **NOT** DO
+
+| | |
+|---|---|
+| ⛔ **no thunk looks the pair up yet** | that is `O7` — *"HSM per-region actions key on the occurrence"*. `O6` delivers the identity and nothing reads it in production. ⭐ Stated plainly so nobody reads these rails as proof that per-region HSM storage works |
+| ⛔ **the golden test does not exercise this** | 📐 `hill-attack-close` runs the hand-written BTree node path; **zero** shipped assets use `AiPrimitiveHosting.HsmGuard`. ⇒ the golden shows `O6` **broke nothing**, not that the new path works — the same honest caveat `O4` carried |
+| ⚠ **`Fhsm.Tests` and `Fhsm.Demo.Visual` are updated but CANNOT gate** | they are outside `IOS-IG-SimHost.sln`, so a root-solution build does not build them and a `--no-build` run of them would report a stale bin |

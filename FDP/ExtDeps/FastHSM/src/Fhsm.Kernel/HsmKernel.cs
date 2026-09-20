@@ -135,6 +135,46 @@ namespace Fhsm.Kernel
         }
 
         /// <summary>
+        /// ⭐ <b>O6 / §9.4 — tick ONE instance that lives in a SLOT, not in a component field.</b>
+        /// <para>
+        /// The generic overloads take the instance size from <c>sizeof(TInstance)</c> — a property of
+        /// a type the caller chose. This one takes it from <paramref name="instanceSize"/>, which a
+        /// slot-resident caller reads straight off the allocation (<c>slot.PayloadSize</c>).
+        /// </para>
+        /// <para>
+        /// ⛔ <b>The deciding argument is MEMORY SAFETY, not convenience.</b> With occurrence payloads
+        /// packed adjacently inside one component, ticking through a generic overload whose type is
+        /// larger than the slot reads past the payload and into the NEXT OCCURRENCE'S bytes — no
+        /// compiler check, no runtime check. Sizing from the allocation cannot disagree with the
+        /// allocation. DESIGN_Occurrence_Scoped_Storage.md §9.4.
+        /// </para>
+        /// <para>
+        /// ⚠ The generic overloads remain the documented surface for ordinary callers; this one is
+        /// for callers that genuinely hold a pointer and a size.
+        /// </para>
+        /// </summary>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static unsafe void Update(
+            HsmDefinitionBlob definition,
+            byte* instance,
+            int instanceSize,
+            void* context,
+            float deltaTime,
+            CommandPage* commandPage,
+            HsmTraceContext* traceCtx = null)
+        {
+            if (instance == null) throw new ArgumentNullException(nameof(instance));
+            if (instanceSize <= 0)
+                throw new ArgumentOutOfRangeException(
+                    nameof(instanceSize),
+                    "The instance size must come from the slot's own PayloadSize; a non-positive " +
+                    "size means the caller does not know how big its occurrence is.");
+
+            HsmKernelCore.UpdateBatchCore(
+                definition, instance, 1, instanceSize, context, deltaTime, commandPage, traceCtx);
+        }
+
+        /// <summary>
         /// Overload for batch with Trace Context.
         /// </summary>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
