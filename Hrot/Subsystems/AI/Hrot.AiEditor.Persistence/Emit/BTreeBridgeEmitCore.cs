@@ -1006,7 +1006,17 @@ public static class BTreeBridgeEmitCore
             }
         }
 
-        if (slotsBySeen.Count == 0) return;
+        // ⭐⭐⭐ O4 / C1 — one slot per HOSTED SUBTREE, so the child gets its OWN BehaviorTreeState.
+        //    📄 DESIGN_Occurrence_Scoped_Storage.md §19, §20.
+        // ⛔⛔ THIS AND THE ORCHESTRATOR'S HOSTING CALL SHIP TOGETHER OR NEITHER. HostedSubtree.Tick
+        //    THROWS on a slot the manifest never declared (§19.6 ⑤ — a silent miss is the failure A1
+        //    exists to kill), so emitting the call without this entry would turn every hosted subtree
+        //    into a hard failure.
+        // ⭐ The key comes from the LINKED OccurrenceSlotKey, which is the same arithmetic the runtime
+        //    and any hand-written host run — D3's "one function, two callers".
+        var hostedTreeStateSlots = CollectHostedTreeStateSlots(dto);
+
+        if (slotsBySeen.Count == 0 && hostedTreeStateSlots.Count == 0) return;
 
         sb.AppendLine($"{pad}StatefulWorkingSlots = new global::Fdp.Toolkit.Behavior.StatefulSlotInfo[]");
         sb.AppendLine($"{pad}{{");
@@ -1041,7 +1051,60 @@ public static class BTreeBridgeEmitCore
                 : string.Empty;
             sb.AppendLine($"{pad}{Indent}new global::Fdp.Toolkit.Behavior.StatefulSlotInfo({slotKey}, global::System.Runtime.InteropServices.Marshal.SizeOf<{wsTypeFqn}>(), unchecked({typeNameHash}u ^ (uint)global::System.Runtime.InteropServices.Marshal.SizeOf<{wsTypeFqn}>()), typeof({wsTypeFqn}), \"{escapedLabel}\"{roleScopeArgs}),");
         }
+
+        // ⭐ O4 — the hosted occurrences' tree-state slots, emitted after the authored ones so the
+        //   existing corpus's slot ORDER is byte-identical (nothing in today's corpus has an alias,
+        //   so this loop emits nothing for all 30 assets — measured).
+        foreach (var (slotKey, label) in hostedTreeStateSlots)
+        {
+            string escaped = label.Replace("\\", "\\\\").Replace("\"", "\\\"");
+            sb.AppendLine(
+                $"{pad}{Indent}new global::Fdp.Toolkit.Behavior.StatefulSlotInfo({slotKey}, " +
+                "global::System.Runtime.InteropServices.Marshal.SizeOf<global::Fbt.BehaviorTreeState>(), " +
+                $"unchecked({ComputeTypeNameHash("Fbt.BehaviorTreeState")}u ^ " +
+                "(uint)global::System.Runtime.InteropServices.Marshal.SizeOf<global::Fbt.BehaviorTreeState>()), " +
+                $"typeof(global::Fbt.BehaviorTreeState), \"{escaped}\", " +
+                "(byte)global::Fdp.Toolkit.Blueprints.Partitioning.StatefulSlotRole.State, " +
+                "(byte)global::Fdp.Toolkit.Blueprints.Partitioning.StatefulSlotScope.Behavior),");
+        }
+
         sb.AppendLine($"{pad}}},");
+    }
+
+    /// <summary>
+    /// ⭐⭐ <c>O4</c> — the tree-state slot each HOSTED subtree needs, keyed by
+    /// <c>(host identity, site, child asset)</c>.
+    ///
+    /// <para>⭐ The alias map is where a host asset NAMES its children: <c>RequiringAssetId</c> is the
+    /// child, <c>RequiringElementId</c> the hosting element. ⛔ <c>RequiringElementId</c> is the
+    /// <c>siteId</c> source on purpose (<c>D5</c>) — it is stable across a recompile, where a node
+    /// ordinal is not.</para>
+    ///
+    /// <para>📐 Measured: <b>0</b> assets in today's corpus carry an alias, so this returns empty for
+    /// all 30 and the generated output stays byte-identical (§19.6 ⑥).</para>
+    /// </summary>
+    private static List<(int SlotKey, string Label)> CollectHostedTreeStateSlots(BehaviorTreeAssetDto dto)
+    {
+        var result = new List<(int, string)>();
+        if (dto.Aliases == null || dto.Aliases.Count == 0) return result;
+
+        var seen = new HashSet<int>();
+        foreach (var bindings in dto.Aliases.Values)
+        {
+            if (bindings == null) continue;
+            foreach (var b in bindings)
+            {
+                if (b == null || b.RequiringAssetId == Guid.Empty) continue;
+
+                int key = Fdp.Toolkit.Behavior.Shared.OccurrenceSlotKey.ComputeTreeStateKey(
+                    dto.AssetId, b.RequiringElementId, b.RequiringAssetId);
+
+                if (!seen.Add(key)) continue;
+                result.Add((key, string.IsNullOrEmpty(b.RequiringAssetName)
+                    ? "hosted subtree" : b.RequiringAssetName + " (hosted)"));
+            }
+        }
+        return result;
     }
 
     /// <summary>

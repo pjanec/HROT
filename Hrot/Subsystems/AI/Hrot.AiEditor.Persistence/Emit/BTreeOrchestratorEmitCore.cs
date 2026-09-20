@@ -139,8 +139,16 @@ public static class BTreeOrchestratorEmitCore
             sb.AppendLine($"{Indent}{Indent}ref {ctxShort} ctx,");
             sb.AppendLine($"{Indent}{Indent}int paramIndex)");
             sb.AppendLine($"{Indent}{{");
+            // ⭐⭐⭐ O4 / C1 — the child ticks against ITS OWN BehaviorTreeState, from its own slot.
+            // ⛔⛔ THIS LINE WAS THE DEFECT: it passed `ref state`, the MASTER's state, so host and
+            //    child shared one RunningNodeIndex and the host won (its ExecuteAction writes AFTER
+            //    the hosting action returns). 📄 §3.1, §18; rail HostedSubtreeCursorTests.O4_R1.
+            // ⭐ The key is BAKED here (D3's optimisation) but computed by the SAME linked function a
+            //    hand-written host calls at runtime — ⛔ one arithmetic, two callers.
+            int slotKeyA = Fdp.Toolkit.Behavior.Shared.OccurrenceSlotKey.ComputeTreeStateKey(
+                dto.AssetId, m.SiteElementId, m.SubtreeAssetId);
             sb.AppendLine($"{Indent}{Indent}ref var subBb = ref Unsafe.As<{m.DtoTypeName}, {m.DtoTypeName}>(ref master.{m.VarName});");
-            sb.AppendLine($"{Indent}{Indent}return {m.SubTreeName}.GetInterpreter().Tick(ref subBb, ref state, ref ctx);");
+            sb.AppendLine($"{Indent}{Indent}return global::Fdp.Toolkit.Behavior.HostedSubtree.Tick({m.SubTreeName}.GetInterpreter(), ref subBb, ref ctx, {slotKeyA});");
             sb.AppendLine($"{Indent}}}");
 
             if (i < methods.Count - 1 || approachBMethods.Count > 0)
@@ -168,7 +176,10 @@ public static class BTreeOrchestratorEmitCore
             sb.AppendLine($"{Indent}{Indent}ref var subDto = ref master.{sliceField};");
             foreach (var b in syncIn)
                 sb.AppendLine($"{Indent}{Indent}subDto.{b.FieldName} = master.{b.MasterVariableName};");
-            sb.AppendLine($"{Indent}{Indent}var result = {subTreeId}.GetInterpreter().Tick(ref subDto, ref state, ref ctx);");
+            // ⭐⭐⭐ O4 / C1 — same fix, the COPY IN / TICK / COPY OUT variant. ⛔ Was `ref state`.
+            int slotKeyB = Fdp.Toolkit.Behavior.Shared.OccurrenceSlotKey.ComputeTreeStateKey(
+                dto.AssetId, group.SiteNodeVisualId, group.SubtreeAssetId);
+            sb.AppendLine($"{Indent}{Indent}var result = global::Fdp.Toolkit.Behavior.HostedSubtree.Tick({subTreeId}.GetInterpreter(), ref subDto, ref ctx, {slotKeyB});");
             foreach (var b in syncOut)
                 sb.AppendLine($"{Indent}{Indent}master.{b.MasterVariableName} = subDto.{b.FieldName};");
             sb.AppendLine($"{Indent}{Indent}return result;");
@@ -219,13 +230,23 @@ public sealed class OrchestratorSyncGroup
         string subtreeName,
         string subtreeDtoTypeName,
         string? subtreeDtoTypeNs,
-        IReadOnlyList<OrchestratorSyncBinding> bindings)
+        IReadOnlyList<OrchestratorSyncBinding> bindings,
+        Guid siteNodeVisualId = default,
+        Guid subtreeAssetId = default)
     {
         SubtreeName        = subtreeName;
         SubtreeDtoTypeName = subtreeDtoTypeName;
         SubtreeDtoTypeNs   = subtreeDtoTypeNs;
         Bindings           = bindings;
+        SiteNodeVisualId   = siteNodeVisualId;
+        SubtreeAssetId     = subtreeAssetId;
     }
+
+    /// <summary>⭐ <c>O4</c> — the hosting node. <c>D5</c>: stable, ⛔ never an ordinal.</summary>
+    public Guid SiteNodeVisualId { get; }
+
+    /// <summary>⭐ <c>O4</c> — the hosted child asset.</summary>
+    public Guid SubtreeAssetId { get; }
 
     /// <summary>Sub-tree asset name; sanitised into the method-name suffix.</summary>
     public string SubtreeName { get; }

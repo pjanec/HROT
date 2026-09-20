@@ -20,12 +20,15 @@ public static class OrchestratorAliasCollector
     /// <summary>One emitted orchestrator method's inputs.</summary>
     public sealed class AliasMethod
     {
-        public AliasMethod(string varName, string subTreeName, string dtoTypeName, string? dtoTypeNs)
+        public AliasMethod(string varName, string subTreeName, string dtoTypeName, string? dtoTypeNs,
+                           System.Guid siteElementId = default, System.Guid subtreeAssetId = default)
         {
-            VarName     = varName;
-            SubTreeName = subTreeName;
-            DtoTypeName = dtoTypeName;
-            DtoTypeNs   = dtoTypeNs;
+            VarName        = varName;
+            SubTreeName    = subTreeName;
+            DtoTypeName    = dtoTypeName;
+            DtoTypeNs      = dtoTypeNs;
+            SiteElementId  = siteElementId;
+            SubtreeAssetId = subtreeAssetId;
         }
 
         /// <summary>The MASTER blackboard field the sub-tree's blackboard is projected onto.</summary>
@@ -36,6 +39,14 @@ public static class OrchestratorAliasCollector
         public string DtoTypeName { get; }
         /// <summary>Its namespace, or null when the persisted id carried none.</summary>
         public string? DtoTypeNs { get; }
+
+        /// <summary>⭐ <c>O4</c> — the hosting SITE inside the host asset. <c>D5</c>: a stable element
+        /// id, ⛔ never a node ordinal.</summary>
+        public System.Guid SiteElementId { get; }
+
+        /// <summary>⭐ <c>O4</c> — the hosted CHILD asset. With the site and the host's own id this
+        /// yields the child's tree-state slot key.</summary>
+        public System.Guid SubtreeAssetId { get; }
     }
 
     /// <summary>
@@ -75,7 +86,8 @@ public static class OrchestratorAliasCollector
                 if (!seen.Add(key)) continue;
 
                 SplitTypeId(binding.DtoTypeId, out string dtoTypeName, out string? dtoTypeNs);
-                methods.Add(new AliasMethod(varName, subTreeName, dtoTypeName, dtoTypeNs));
+                methods.Add(new AliasMethod(varName, subTreeName, dtoTypeName, dtoTypeNs,
+                    binding.RequiringElementId, binding.RequiringAssetId));
             }
         }
 

@@ -99,7 +99,9 @@ public static class SubtreeSyncProjection
                 bindings.Add(new OrchestratorSyncBinding(
                     b.FieldName, b.MasterVariableName, b.SyncIn, b.SyncOut));
 
-            groups.Add(new OrchestratorSyncGroup(subtreeName, dtoTypeName, dtoTypeNs, bindings));
+            // ⭐ O4 — nodeId is the SITE (stable, D5) and payload.SubtreeAssetId the CHILD.
+            groups.Add(new OrchestratorSyncGroup(subtreeName, dtoTypeName, dtoTypeNs, bindings,
+                nodeId, payload.SubtreeAssetId));
 
             // ⭐⭐ The field name is built the SAME way the emit core builds it — see SliceFieldName.
             slices.Add(new SliceField(SliceFieldName(subtreeName, dtoTypeName), bbTypeName!));
