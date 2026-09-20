@@ -286,7 +286,7 @@ representable at all — while §11.2 renders it as a tree. ⇒ ⭐⭐ **unifyin
 job** *(ruling 9 applies to the key itself)*, not an assumption `O3` may lean on. ⚠ `Q34 §7`'s *"the
 field is already polymorphic"* describes coexistence, ⛔ **not a discriminant** — see `D1`.
 
-**Slot payload:** `[OccurrenceHeader][Params P][State S]`, and ✅ **`D1` puts `Kind` in that header** *(Blueprint · BTree · HSM · StatefulSlot)* — ⛔ **never in `BlueprintSlotEntry`, which is `Size = 16` and fully packed.** `DESIGN_Parameter_Model.md` §3.3 already
+**Slot payload:** unchanged in shape — a blueprint Instance keeps `[BlueprintLatentCursor 16][Params N][State M]`. ✅ **`Kind` is NOT in the payload** *(`D1′`, §13)*: it is a nibble per slot in `OccurrenceStoreHeader.Reserved`, so the payload and the slot entry are both untouched. `DESIGN_Parameter_Model.md` §3.3 already
 rules that params must not sit at offset 0 for blueprint Instances (the 16-byte
 `BlueprintLatentCursor` lives there); the header generalises that reservation.
 
@@ -423,12 +423,26 @@ instancePtr, contextPtr, writerPtr)` ⇒ **the writer pointer reaches every thun
 (`:441-467`) emits one ⇒ ***"blueprint as an HSM condition"* — this document's own goal sentence — is
 exactly the composition an unserved guard cannot deliver.**
 
-📐 **Census of attributed `[HsmGuard]`, measured `2026-09-19`:** **3** in FastHSM's own visual demo,
-**3** in FastHSM tests, **1** in `Fdp.Toolkits/Utility/Integration/UtilityTransitionArbiter.cs`;
-every other hit is editor/analyzer **metadata** *(facets, schema exporters, golden tests)*, not an
-attributed method. ⇒ ⭐⭐ **the 55-method / 25-directory blast radius is the ACTION delegate's, not the
-guard's** — widening `EvaluateGuard` touches a **single-digit** population, almost all of it ExtDeps'
-own demos and tests.
+⛔⛔ **CORRECTED `2026-09-20` (`G2`) — the census I gave on `2026-09-19` does not reproduce.** I
+reported a per-file *line count* as a count of attributed methods without opening the lines — exactly
+the *"`search_code` is TEXT"* trap. 📐 **The real picture, every line opened:**
+
+| what | where |
+|---|---|
+| ✅ **8 genuinely attributed `[HsmGuard]` methods — ALL demos and test fixtures** | `Fhsm.Demo.Visual/Actions.cs:239,246,253` · `ActionDispatchTests.cs:26` · `HsmSourceGenIntegrationTests.cs:19` · `HsmTerminalStateIntegrationTests.cs:20` · `ActionSchemaExporterTests.cs:45,81` |
+| ⛔ **4 were COMMENTS, not attributes** | and 🔴 **`UtilityTransitionArbiter.cs:10` says the opposite of what I claimed** — verbatim: *"does NOT use the `[HsmGuard]` attribute because FastHSM guards expect `(void*, void*, ushort)` signatures"* |
+| ⛔ **3 were a DIFFERENT attribute** | `[HsmGuardPicker]` — `HsmFacets.cs:73,178`, `SE2_PickerDrawerRebuildTests.cs:256` |
+
+⇒ ⭐⭐⭐ **ZERO production attributed `[HsmGuard]` exists** — the honest figure, and stronger than the
+one I gave. ⛔ **But "the population is single-digit" is the WRONG reason to accept the widening**, and
+the review is right about that. **The real population is the GENERATORS**, which `F2` already named:
+`HsmActionGenerator.cs` bakes the guard signature as literal text (`:551, :564, :567, :633, :659`),
+plus `AiPrimitiveEmitter.EmitHsmGuardThunk` and `CSharpEmitter.EmitAiPrimitiveRegistration`.
+
+⭐⭐ **THAT is why it is safe: `R-50` — emitted behavior source is MACHINE-OWNED and regenerated whole
+on save.** Changing what a generator emits is a rebuild, not a migration. ⭐ And a measured bonus:
+`SharedAiHsmTests.cs:80` binds `EvaluateGuard` **by name**, so it survives the widening untouched;
+`ActionDispatchTests.cs:70,86` call it positionally and do not.
 
 ⇒ ✅ **`EvaluateGuard` gains the writer:** `delegate*<void*, void*, ushort, bool>` →
 `delegate*<void*, void*, ushort, HsmCommandWriter*, bool>`. ⭐ **One mechanism for actions and guards
@@ -442,8 +456,12 @@ overload. Both are needed; neither substitutes for the other.
 ### 4.3 Explicitly NOT changing
 
 `HsmCommandWriter` · `HsmEventQueue` · the tier instance layouts · `BehaviorTreeState` ·
-`HsmDefinitionBlob` · the `[HsmAction]`/`[HsmGuard]`/`[SharedAi*]` attribute shapes ·
-`HsmActionDispatcher`'s tables and signatures.
+`HsmDefinitionBlob` · the `[HsmAction]`/`[HsmGuard]`/`[SharedAi*]` **attribute shapes** ·
+`HsmActionDispatcher`'s **tables** and its **ACTION** signature.
+
+⛔⛔ **CORRECTED `2026-09-20` (`G3`) — this list used to say *"`HsmActionDispatcher`'s tables AND
+signatures"*, which `D2` contradicts.** ✅ **`EvaluateGuard`'s signature DOES change** (§4.2). The
+action signature, the tables and every attribute shape are still untouched.
 
 ---
 
@@ -520,12 +538,12 @@ promotion on a hot path.
 | ✅ **component-id space** | `MAX_COMPONENT_TYPES = 512`, highest allocated **301** ⇒ room for one more *(`R-44`: the id is allocated, never recycled)* |
 | ✅ **the allocator itself** | `CopyToLargerTier(src, srcSize, dst, dstSize, dstMaxSlots)` is **already generic over sizes** — it needs nothing |
 | ⚠ **the per-tier BRANCHING is hand-rolled and repeated** | `BehaviorIngressSystem` alone mentions `BlueprintBlackboard16384` **28 times** across ~10 methods, each a 3-way `if/else` on tier size; `BlueprintTickSystem` has **three near-identical ~65-line `TickTier_*` methods**; there are **three near-identical renderers**. A 4th tier is a 4th arm in each |
-| 🔴 **and promotion dispatch grows QUADRATICALLY — in TWO places** | ⛔ **`PromoteTier` does not exist (F12)**: it is `BehaviorIngressSystem.UpgradeTier` (`:600`) **and** `BlueprintMaintenanceSystem.UpgradeTier_1024_to_4096` / `_4096_to_16384`. Today 3 arms; with 256, **6** — doubled across two files. ⛔ **The one part that is not simply additive** |
+| 🔴 **and promotion dispatch grows QUADRATICALLY — in TWO places** | ⛔ **`PromoteTier` does not exist (F12)**, and promotion lives in **THREE** places (`G7`): `BehaviorIngressSystem.UpgradeTier` (`:600`), `BlueprintMaintenanceSystem.UpgradeTier_1024_to_4096` / `_4096_to_16384` (`:40/:60`), **and the editor's own `EntityBlueprintsPanel.UpgradeTier` (`:299`, calling `CopyToLargerTier` directly at `:320`/`:327`)**. Today 3 arms; with 256, **6** — across three files. ⛔ **The one part that is not simply additive** |
 
 ⇒ ⭐⭐⭐ **Collapse the per-tier branching to a TABLE first, then the 4th tier is genuinely additive.**
 A `TierSpec { Type, TotalSize, MaxSlots, PayloadSize }[]` turns ~10 three-way chains, 3 copied tick
 methods and 3 copied renderers into one loop, and turns promotion from N² arms into *"copy src→dst
-given two specs"* — **which is what the allocator already does.** ⭐ It also makes §10's rename one
+given two specs"* — **which is what the allocator already does.** ⚠ **`G7`: it has THREE consumers, not two** — the editor panel is one of them. ⭐ It also makes §10's rename one
 pass instead of four, and it is the natural home for the `O3` slot header. ⇒ items `O3a` / `O3b`.
 
 ---
@@ -553,12 +571,12 @@ Ordered so that each step is provable on its own and the expensive irreversible 
 
 | # | item | why here | ExtDeps |
 |---|---|---|---|
-| **O0** | **WIRE `BlueprintTickSystem` on every ECS host** *(F13: not a re-home — it already lives in `Fdp.Toolkits`; only the wiring is editor-side, so this is smaller than it sounds)*. ⛔ **Needs `D1`'s `Kind` first (F8) — APPROVED, so `O0` carries the `OccurrenceHeader.Kind` it filters on** | independent of everything else; until it lands, blueprint Instances are editor-only and the tripod has no third leg on CGF | — |
+| **O0** | **WIRE `BlueprintTickSystem` on every ECS host** *(F13: not a re-home — it already lives in `Fdp.Toolkits`; only the wiring is editor-side)* | ⛔⛔ **`G4` — NOT independent, and NOT first.** It puts the unconditional slot-walker on every host, so it **must follow `O3`**, which owns `Kind` (`D1′`). Until both land, blueprint Instances are editor-only and the tripod has no third leg on CGF | — |
 | **O1** | **`SquadCognitiveState` gets its own component** | removes the largest non-AI consumer of `Blackboard1024`; pure win even if the rest is cancelled | — |
 | **O2** | **Split `BrainBlackboard` → `BrainInterrupts` + a params region type** | the params region becomes addressable; the tail stops travelling with it. Updates `R-39`/`R-41` | — |
-| **O3** | **The occurrence seam** — `OccurrenceKey`, `TryResolveOccurrence`, the slot header | one lookup that classes 4/5/6 all call. **No behaviour changes yet** | — |
+| **O3** | **The occurrence seam** — ⭐ **FIRST: unify the key (`F5` — three entry points, two enums)**; then `TryResolveOccurrence` and ⭐ **`Kind` as the header nibble (`D1′`), with the `TryDetach` compaction rail** | one lookup that classes 4/5/6 all call, and **the precondition for `O0`** (`G4`). **No behaviour changes yet** | — |
 | ⭐ **O3a** | **Collapse per-tier branching to a `TierSpec` table** — ingress, tick, renderers | ⛔ **prerequisite for `O3b`, and it pays for itself**: ~10 three-way chains, 3 copied tick methods and 3 copied renderers become one loop; `PromoteTier` stops being N² | — |
-| ⭐ **O3b** | **Add the `OccurrenceStore256` tier** (`MaxSlots` 1–2) — `Q37` option B | prices the simple case: ~8× floor → ~2× (§5a). ⛔ Trivial after `O3a`, four copies before it | — |
+| ⭐ **O3b** | **Add the `OccurrenceStore256` tier** — `Q37` option B. ⚠ **`MaxSlots` sized on SLOTS as well as bytes (`F3`)**, not fixed at 1–2 | ⛔⛔ **`G5` — the old numbers here were stale.** §5a's corrected arithmetic: the simple case is **5.3× / 4× at 1024** and **1.33× / 1.0× at 256**, with a **net saving** on any heavy-DTO entity. ⛔ Trivial after `O3a`, four copies before it | — |
 | **O4** | **BTree onto occurrence storage** — tree state and params into slots, **including a hosted subtree's own `BehaviorTreeState`, and its RE-ENTRY RESET (F14)** | ⭐ **proves the whole model with ZERO ExtDeps change** (§4.1) **and closes the shared-`BehaviorTreeState` defect in §3.1**. ⚠ Own state removes the accidental continuity `ref state` gave, so the child's cursor must be reset when the host re-enters the hosting node — **its own rail**. If this does not work, stop before paying for `O6` | **none** |
 | **O5** | **Blueprint Instances take params** (`DESIGN_Parameter_Model.md` §3.3) | the slot layout is now shared with `O4`; closes `R4`, which has no design today | — |
 | **O6** | **The kernel stamps the occurrence** — two fields on `HsmCommandWriter`, **plus the `EvaluateGuard` widening (`D2`, approved)**, plus the pointer overload (§9.4) | the one ExtDeps crossing, paid **once**, after `O4` has proved the storage model. ⭐ All three ride it together | **the only one** |
@@ -577,7 +595,8 @@ Ordered so that each step is provable on its own and the expensive irreversible 
 |---|---|
 | **two occurrences, distinct bytes** | the same asset twice on one entity ⇒ different param bytes. This is `DESIGN_Parameter_Model.md` §8's rail and it is what stops the shared-region assumption returning |
 | **the tail is untouched** | resolving params for any occurrence writes neither interrupt byte nor `ExpectedThreatLevel` |
-| **cursor intact** | a blueprint Instance with params keeps its `BlueprintLatentCursor` at offset 0 after a resolve — the `startOffset: 0` trap |
+| **cursor intact** | a blueprint Instance with params keeps its `BlueprintLatentCursor` at offset 0 after a resolve — the `startOffset: 0` trap. ✅ **Still TRUE under `D1′`**, which is why `D1` was revised (`G1`): the payload is untouched |
+| 🔴 **kind survives a detach** | `TryDetach` **compacts the slot table** (last entry moves into the freed slot) ⇒ the `Kind` nibble array must compact in lockstep. ⛔ **Write it to go RED first** — a stale nibble silently mislabels every occurrence after the hole |
 | **parse before commit** | a failing resolve at attach leaves the entity without the new occurrence |
 | **two regions, two slots** | two concurrently-active HSM regions running the same action write **different** bytes. ⚠ `BP-297` measured that today's fixture cannot redden this — the two regions run an **empty** action. **A DTO-bound HSM action must be authored as part of `O7`, or the rail is vacuous** |
 | **one context per instance** | `UpdateBatch` with N instances: each `ExecuteAction` sees the occurrence of *its* instance (§4.2 caveat ②) |
@@ -1007,7 +1026,43 @@ than the review states**, and they are marked ⭐ below. Verdicts, then the two 
 `SelectTransition:540-560`, **before any per-region scan** — so it beats every per-region transition
 regardless of priority. §9.1's H2/H3 wording is updated.
 
-### ✅✅ `D1` — APPROVED `2026-09-19` — **`Kind` lives in the payload's `OccurrenceHeader`, not the slot entry**
+### ✅✅ `D1′` — **`Kind` is a NIBBLE PER SLOT in `OccurrenceStoreHeader.Reserved`** *(revised `2026-09-20`, `G1`)*
+
+⛔⛔ **`D1` as approved on `2026-09-19` does NOT work, and the review caught it.** It put `Kind` in a
+header at the head of the payload — but **the payload head is already occupied**: a blueprint Instance
+payload *is* `[BlueprintLatentCursor 16][Params N][State M]`, and the params base is a **compile-time
+constant baked into every emitted Instance**. ⇒ a header before the cursor **shifts every emitted
+offset** *(all-asset recompile, plus `FieldLayout` / `InstanceEmitter` / `CSharpEmitter` /
+`Stage2_Validate`)*, and a header overlaying it gives one field two meanings. 🔴 **And it silently
+falsified §7's own rail — *"cursor intact at offset 0 after a resolve"*.**
+
+📐 **The revision, measured `2026-09-20`:**
+
+| fact | value |
+|---|---|
+| `OccurrenceStoreHeader.Reserved` | **`ulong` — 8 bytes, "reserved for future use"** (`BlueprintBlackboardHeader.cs:24`) |
+| largest `MaxSlots` | **16** (`BlueprintBlackboard16384.cs:17`; 1024→4, 4096→8) |
+| ⇒ **4 bits × 16 slots** | **= 64 bits — EXACTLY the reserved field** |
+| every walker already reads the header | ✅ `BlueprintTickSystem.cs:79, 145, 211, 317` ⇒ **the nibble costs no extra fetch** |
+
+⇒ ✅ **`Kind` becomes a 4-bit nibble indexed by slot index, living in the header's reserved 8 bytes.**
+
+| against | why `D1′` wins |
+|---|---|
+| **`D1`** *(payload header)* | ⛔ collides with the shipped cursor; ⭐ `D1′` leaves the payload **untouched** — no recompile, and §7's rail is **true again** |
+| **the review's lean** *(the cursor's 4 spare bytes)* | ⭐ mechanically viable — `BlueprintLatentCursor` is `ResumeAt(4) + WaitUntilTime(4) + InstanceVersion(4) + 4 reserved` — ⛔ **but it forces a BLUEPRINT-specific struct onto BTree and HSM occurrences that have no latent semantics**, and spends the cursor's only growth room |
+| **growing `BlueprintSlotEntry`** | ⛔ changes `SlotEntrySize` ⇒ every tier's `MaxSlots`/`PayloadSize` + `BlackboardLayoutTests` |
+
+| ⚠ the three things `D1′` owes | |
+|---|---|
+| 🔴 **`TryDetach` COMPACTS the slot table** — it moves the last entry into the freed slot | ⇒ **the nibble array must be compacted in lockstep**, or every kind after a detach is wrong. **Its own rail** |
+| ⚠ **it spends the header's only spare field** | 4 bits × 16 is an exact fit, so this is a **one-shot**: after `D1′` the header has no room left. Say so rather than discovering it |
+| ⚠ **it binds future tiers to `MaxSlots ≤ 16`** | ⭐ `O3b`'s 256 tier is 1–2, so it is fine — ⛔ but a future larger tier must widen the scheme deliberately |
+
+⭐⭐ **`G6` dissolves with this revision** — §5a's *"payload 208 B at `MaxSlots=1`"* is correct again,
+because **no header is added to the payload at all.**
+
+### ⛔ HISTORY — `D1` as first approved *(superseded `2026-09-20` by `G1`)*
 
 | option | verdict |
 |---|---|
@@ -1041,3 +1096,26 @@ Widening `EvaluateGuard` from `delegate*<void*,void*,ushort,bool>` to carry the 
 true of **hand-authored** guards and blind to the emitter. ⛔ `Q35-A`/`B`/`C` are untouched.
 📄 Recorded as an amendment in `Q35` itself, with the prior state marked superseded rather than
 overwritten.
+
+
+---
+
+## 14. Review round 2 from the `behaviors` lane *(`2026-09-20`)* — `G1`–`G7`
+
+⭐ **Both new decisions were wrong in their evidence, and one was wrong in its mechanism.** Verdicts:
+
+| # | verdict |
+|---|---|
+| 🔴 **G1** | ✅✅ **ACCEPTED — `D1` REVISED to `D1′`** (§13). The payload head is occupied by a shipped, compiler-baked 16-byte cursor; `D1` would have forced an all-asset recompile **and silently falsified §7's own rail**. ⭐ **Neither `D1` nor the review's lean is the answer** — `Kind` goes in `OccurrenceStoreHeader.Reserved` as a nibble per slot *(8 bytes = 16 slots × 4 bits, an exact fit; every walker already reads the header)*. ⛔ The review's lean — the cursor's 4 spare bytes — is mechanically viable but forces a **blueprint-specific** struct onto BTree and HSM occurrences |
+| 🔴 **G2** | ✅✅ **ACCEPTED — my census was wrong and the review is right.** I reported a per-file line count as attributed methods without opening the lines. ⭐ **The honest figure is stronger than the one I gave** *(ZERO production `[HsmGuard]`; all 8 are demos and test fixtures)* — ⛔ but *"single-digit population"* was the wrong REASON. The real population is the **generators**, and the reason it is safe is **`R-50`: emitted source is machine-owned and regenerated whole.** 🔴 And `UtilityTransitionArbiter.cs:10` says **verbatim** that it does NOT use the mechanism I cited it for |
+| **G3** | ✅ **ACCEPTED.** §4.3 said *"`HsmActionDispatcher`'s tables and signatures"* are unchanged, which `D2` contradicts. Now scoped to the **action** signature |
+| **G4** | ✅ **ACCEPTED.** `O0`'s row contradicted itself and `Kind` was owned by two items. ⇒ **`O3` owns `Kind`; `O0` FOLLOWS it** and is no longer described as independent |
+| **G5** | ✅ **ACCEPTED.** `O3b` still carried the pre-`F4` numbers. ⇒ replaced with 5.3×/4× at 1024, 1.33×/1.0× at 256, and `MaxSlots` sized on slots per `F3` |
+| ⭐ **G6** | ✅ **DISSOLVED by `D1′`** — with no header added to the payload, §5a's *"208 B at `MaxSlots=1`"* is correct as written |
+| **G7** | ✅ **ACCEPTED.** Promotion lives in **three** places, not two — the editor's `EntityBlueprintsPanel.UpgradeTier:299` calls `CopyToLargerTier` directly. `O3a` has a third consumer |
+
+⚠ **One correction to the review, for the record:** its `G2` line says *"`[HsmGuard]` returns 5 lines,
+4 of them comments; the one real attribute is a test fixture."* 📐 **Measured: 15 lines — 8 real
+attributes** *(3 FastHSM demo, 3 FastHSM tests, 2 `ActionSchemaExporterTests`)*, **4 comments**, and
+**3 that are a different attribute, `[HsmGuardPicker]`**. ⭐ **The review's conclusion is unaffected and
+its correction of me stands** — both of us over-collapsed a grep; the numbers above are the opened ones.
