@@ -2539,3 +2539,50 @@ underneath**, not what anyone writes.
 ⛔ A node **ordinal** shifts the moment a node is inserted above it, and `ComputeNested`'s own doc says
 the child's slot then moves — `StructureHash` catches the drift, **but the state is lost**. ⇒ fold the
 author's existing stable node `Guid`, which they already supply for every `StatefulAction`.
+
+
+## 20. ✅ AS-BUILT — **`O4` CORE IS IN, RAIL ① IS GREEN** *(`2026-09-20`, obligation ⑤)*
+
+⭐⭐ **Rail ① went `Expected 1, Actual 2` before (§18) and passes now.** 📐 Red-proof: reverting ONLY the
+hosting argument to `child.Tick(ref childBb, ref state, ref ctx)` reddens **only rail ①**
+*(`INVERSE_BUILD_ERRORS=0`, 1 failed / 5 passed)* ⇒ the fix is pinned to exactly the argument that was
+wrong, not to the rail's scaffolding.
+
+| shipped | |
+|---|---|
+| ⭐ **`OccurrenceSlots`** | the reserved names *(`$occ.`-prefixed — ⛔ no author-chosen variable can collide, and a collision here is the silent alias `A1` exists to kill)*, `IdentityOf`, `SiteId` *(`D5`)*, and `TreeStateKeyFor` as the ONE key function both paths call |
+| ⭐⭐ **`HostedSubtree.Tick`** | the hosting body: resolve the child's own state from its slot, tick, clear on completion. ⛔ A missing slot **throws** *(§19.6 ⑤)* |
+| ⭐⭐ **`HostedSubtree.Reset`** | the `F14` body, invoked as the hosting node's **deactivator** |
+| ⭐ **6 rails** | ① own cursor · ②a completion reset · ②b `Reset` clears a running child · ②c the wiring · ③ loud miss · ④ key discrimination |
+
+### 20.1 🔴🔴 **`D4` WAS INCOMPLETE — it is TWO halves, and `Tick` cannot see the second**
+
+⛔⛔ **`D4` said *"clear the slot when the child returns non-`Running`"*. That cannot be the whole of
+`F14`.** ⭐ **A hosting action only runs when the host ENTERS it.** If the host abandons a still-`Running`
+child — a sibling fails, a `Parallel` moves on — the action is never called again ⇒ nothing clears the
+cursor and the next entry **resumes mid-tree**. 🔒 That is precisely the case `F14` names, and `Tick` is
+structurally blind to it.
+
+| half | where | what |
+|---|---|---|
+| **①** | `HostedSubtree.Tick` | the child COMPLETED. ⚠ **Not redundant with the kernel** — the interpreter's cleanup zeroes only `RunningNodeIndex`; this also clears `StackPointer`, `NodeIndexStack`, `LocalRegisters`, `InstanceFlags` |
+| **②** | `HostedSubtree.Reset`, as the node's **DEACTIVATOR** | the host ABANDONED a running child — the real `F14` |
+
+⭐⭐⭐ **And the hook already exists, so it stays zero-ExtDeps:** `Interpreter.SweepExitedNodes` invokes a
+deactivator for any node leaving the active path that is `IsResourceOwning`, and `BTreeBuilder.Compile`
+sets that bit **automatically** for a node whose key has a registered deactivator ⇒ **registration IS
+the opt-in.** ⭐ Rail ②c pins that chain, so a refactor cannot quietly break `F14` while every other rail
+stays green.
+
+### 20.2 ⚠ WHAT IS NOT CLAIMED, AND WHAT IS LEFT
+
+| ⚠ not claimed | |
+|---|---|
+| ⛔ **rail ②b drives `Reset` DIRECTLY**, not through a tree that abandons mid-flight | 📐 the interpreter's composites RESUME the running branch by design, so a genuine abandon needs a `Parallel` or a reactive abort. ⭐ ②b pins what `Reset` guarantees; ②c pins that it is invoked. 🔒 **End-to-end abandon is not yet measured** |
+| ⛔ **the EXTERNAL reset path is NOT covered** | 📌 `BehaviorIngressSystem:204` / `:235` set `BrainBTreeState.State = default` on a behaviour change. ⚠ That zeroes the HOST's cursor without a tick, so **no sweep fires and no deactivator runs** ⇒ a hosted child's slot keeps stale state across a behaviour swap. **Found while wiring `D4`; not fixed here** |
+
+| ⭐ left to do | |
+|---|---|
+| the emitter's two sites *(`:142`, `:171`)* | route both through `HostedSubtree.Tick` with the baked key |
+| **`HostSubtree(...)`** builder extension | registers the action, the **deactivator** and the manifest entry together *(§19.7 ②)* |
+| §19.4's sizing re-measure | each hosting site costs **80 B + 1 slot**; feeds back into `B4`'s `MaxSlots 3` |
