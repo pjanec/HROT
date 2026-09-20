@@ -6,9 +6,10 @@ current-answer: ⭐ START AT §16 — the READY-TO-PLAN checklist (settled / mea
   the corrected dispatch order). §4 is the ExtDeps justification; §6 is the sequence.
   ⭐ §15 is the LIVE-RUN record and it OVERTURNS two earlier claims — read it before quoting §3.2's
   severity or §5a's C1 credit.
-  ⛔ BLOCKED ON A RED GOLDEN TEST: hill-attack-close returns 0/4 platoon members to baseline
-  (§15.3). No O-item may land until it is green — it is the only proof that scenario loading,
-  the behaviours and replication work together. That defect is NOT this programme's.
+  ✅ THE GOLDEN TEST IS GREEN (§15.3, measured 2026-09-20, reproduced 3x): both targets destroyed
+  and all 4 platoon members back on the baseline. It stays the GATE — green before and after every
+  O-item — it is simply already satisfied. An earlier STATUS line here said it was RED and blocked
+  the programme; that was a measurement error (spawn read as baseline), filed as CE-296 and refuted.
 stale-below: nothing. Superseded wording lives under §15's "⛔ HISTORY" heading.
 known-rot:
   - §3.2 was written as a "shipped" defect. MEASURED 2026-09-20: it is LATENT — gated on
@@ -16,7 +17,13 @@ known-rot:
     Corrected in place; the prior wording is in §15's HISTORY row.
   - §5a's "net saving on any heavy-DTO entity" is RETIRED for the same reason. Consequence:
     O3b (the 256 tier) is load-bearing, not an optimisation.
-  - The AI entity count is still NOT measured. The per-entity delta now is (§5a).
+  - §5a/§16.2 originally called PlatoonHillAttack2 "the golden test's behaviour". It is NOT —
+    hill-attack-close runs PlatoonHillAttack (hand-written nodes, 1 stateful slot). Corrected
+    in place; the ladder conclusion survives, the framing did not.
+  - AI entity count: MEASURED 2026-09-20 as single-digit in every shipped scenario (4 brained
+    of 8 entities in hill-attack/-close; test-move 1, test-fire 2). ⚠ The repo contains NO
+    exercise-scale scenario, so production scale remains unrepresented — say so, do not
+    extrapolate from these.
 known-conflict: none. This document EXTENDS DESIGN_Parameter_Model.md §4 rather than
   overturning it; where they disagree, DESIGN_Parameter_Model.md wins and this file is wrong.
 reopens: Architect_Question_37_Unify_On_The_Allocator.md — PARKED by the user 2026-08-17
@@ -570,12 +577,13 @@ share one slot)*, plus one per attached blueprint Instance and one per hosted ch
 | 1 | **6** *(20 %)* | 2 | ⭐ **256** *(`MaxSlots` 2)* |
 | 2 | **5** *(17 %)* | 3 | 1024 |
 | 3 | 1 | 4 | 1024 *(exactly full)* |
-| 🔴 **8** — `PlatoonHillAttack2` | 1 | **9** | 🔴🔴 **16384** |
+| 🔴 **8** — `PlatoonHillAttack2` ⚠ *(NOT the golden test — see below)* | 1 | **9** | 🔴🔴 **16384** |
 
 | ⇒ two conclusions, and the second is new | |
 |---|---|
 | ✅ **`O3b` is JUSTIFIED on real content** | **23 of 30 assets (77 %)** land on a 256 tier at `MaxSlots ≤ 2`. ⭐ This was an assumption; it is now a measurement |
-| 🔴🔴 **the `MaxSlots` LADDER 4 / 8 / 16 IS TOO COARSE, and it promotes the GOLDEN TEST** | `PlatoonHillAttack2` — the behaviour `hill-attack-close` runs — holds **8** stateful slots today and fits **4096** (`MaxSlots` 8) exactly. ⛔ **The root occurrence makes it 9 ⇒ it jumps to `16384`** — a **4× allocation** bought by ONE slot, with payload bytes nowhere near the limit |
+| 🔴 **the `MaxSlots` LADDER 4 / 8 / 16 IS TOO COARSE** | `PlatoonHillAttack2` holds **8** stateful slots today and fits **4096** (`MaxSlots` 8) exactly. ⛔ **The root occurrence makes it 9 ⇒ it jumps to `16384`** — a **4× allocation** bought by ONE slot, with payload bytes nowhere near the limit. ⛔⛔ **CORRECTED `2026-09-20`: this is NOT "the golden test's behaviour".** `hill-attack-close` names **`PlatoonHillAttack`** *(`behaviorParams` → `behaviorName`)*, the **hand-written** `HillAttackCommanderNodes.Action_*` tree, which holds **1** stateful slot ⇒ **2 after the root occurrence, comfortably inside a 256 tier**. `PlatoonHillAttack2` is its blueprint-hosted port and is **not what runs**. ⭐ The ladder conclusion stands — `PlatoonHillAttack2` is real content and still the worst case measured — ⛔ but the dramatic framing that hung it on the golden test does not |
+| ⭐⭐ **and a finding that fell out of the correction** | 🔒 **the golden test exercises the HAND-WRITTEN node path, not the blueprint path.** ⇒ the `AiPrimitive` machinery this design is built around is **less exercised by the golden test than assumed** — worth knowing before `O4`/`O5` lean on it for proof |
 
 ⇒ ⭐⭐⭐ **`O3a`'s `TierSpec` table must RE-PICK `MaxSlots` per tier, not inherit 4 / 8 / 16.**
 📐 `MaxSlots` is a free choice traded against payload: on the 1024 tier, `MaxSlots` **12** costs
@@ -1224,17 +1232,44 @@ WRONG in the direction that flattered the programme.** ⛔ That is the point of 
 `entityCount` 8 · `GET /entities` returns 8 on **both** `Scenario` (brain/CGF) and `SimHost` (muscle)
 · correct names and component counts on each. ⛔ Nothing partial, no empty world.
 
-### 15.3 The acceptance — **one of two**
+### 15.3 ✅ The acceptance — **BOTH criteria MET; the golden test PASSES**
+
+> ⛔⛔ **CORRECTED `2026-09-20`.** An earlier version of this section reported *"0 of 4 return to
+> baseline"* and had this design **blocked on a red golden test**. 🔴 **That was my measurement error,
+> not a defect** — I took the platoon's **SPAWN** position for the baseline. Filed as `CE-296` and
+> **refuted in the same session**; the prior wording is in the HISTORY row below.
 
 | criterion | result |
 |---|---|
 | ✅ **both targets destroyed** | `1006` and `1007` reach `Health.Current: 0` by **t≈64**, confirmed on both nodes |
-| 🔴 **all 4 platoon members return to baseline** | ⛔ **0 of 4.** Baseline is x≈446–449; members hold at x≈523–531 with **bit-identical positions from t=64 to t=409** — **345 s of advancing `simTime`** ⇒ a terminal state, not a slow return |
+| ✅ **all 4 platoon members return to baseline** | **4 of 4**, at `x≈523–531` |
 
-⚠ **Cause NOT established, and it is not this design's.** The surviving candidate is the commander:
-entity `1000` sits at `BehaviorState{ActiveBehaviorHash: 0, BrainTier: 0, InstanceId: 4}` — it ran four
-behaviours and ended **cleared**, so nothing remains to dispatch the return. ⇒ **a separate defect, to be
-filed by the lane that owns behaviour lifecycle.** ⛔ It is NOT evidence for or against occurrence storage.
+📐 **The baseline is `x≈523–531`, and the trace proves it** — the tree's **opening** action is
+`DispatchAllToBaseline`, which moves the platoon off its spawn and onto the baseline:
+
+| `simTime` | platoon x | what it is |
+|---|---|---|
+| `0.0` | 446, 448, 449, 449 | ⭐ **spawn** — ⛔ NOT the baseline |
+| `2.2` | 451, 453, 454, 454 | `DispatchAllToBaseline` moving them |
+| **`11.3`** | **524, 528, 530, 534** | ⭐⭐ **ARRIVED — this is the baseline** |
+| `47.6` | 531, 585, 528, 589 | waves push forward to the **firing line** |
+| **end** | **523, 525, 529, 531** | ⭐⭐ **back on the baseline** ✅ |
+
+⇒ `1002` driving **587 → 525** is a tank RETURNING to baseline. ⚠ **I measured that and read it
+backwards.** 🔒 **User, `2026-09-20`:** *"what you call 'not on baseline' is what i consider 'correctly
+on the baseline' … the test works ok and we can use it as a gold one."*
+⭐ **Reproduced three times** — `--mode all` ×2 and editor mode ×1, same build, same scenario.
+
+🔒 **THE LESSON, and it is the checkable form:** *"where they started"* is not *"where they belong"*.
+The baseline is **authored** (`behaviorParams.baselineStart`/`baselineEnd`) and the spawn sits behind
+it, so ⛔ **a position check must resolve the AUTHORED baseline, never the `t=0` reading.**
+
+#### ⛔ HISTORY — the superseded acceptance claim
+> *"🔴 all 4 platoon members return to baseline — ⛔ 0 of 4 … a terminal state, not a slow return"*, and
+> *"the surviving candidate is the commander … nothing remains to dispatch the return."*
+> **SUPERSEDED `2026-09-20`.** Both statements rest on the spawn-as-baseline error. ⚠ The commander
+> ending at `ActiveBehaviorHash: 0` is **correct** — it clears after dispatching, which the `t=49.9`
+> trace row already showed.
 
 ### 15.4 ⛔⛔ What it OVERTURNED — the storage claims
 
@@ -1264,11 +1299,16 @@ same run before proposing a test for it.**
 > proving all works … So we need it fixed before we start modifying the engine. But before let's
 > finalize the design issues and measurements you need for that."*
 
-⇒ ⛔ **This design does NOT start building until `hill-attack-close` passes end to end.** The golden
-test is the only thing that proves scenario loading, the behaviours and replication together, and
-⭐ **every `O`-item edits the machinery it exercises** — so a red golden test means a change cannot be
-told from a regression. 📌 §15.3 records the current failure *(0/4 return to baseline)* and names the
-candidate; ⛔ **it is NOT this programme's defect, and it is NOT a reason to re-open the storage model.**
+⇒ ⛔ **No `O`-item lands unless `hill-attack-close` is GREEN before and after it.** The golden test is
+the only thing that proves scenario loading, the behaviours and replication together, and ⭐ **every
+`O`-item edits the machinery it exercises** — so a red golden test means a change cannot be told from a
+regression.
+
+✅ **AND IT IS GREEN, measured `2026-09-20` (§15.3)** — both targets destroyed, all four members back on
+the baseline, reproduced three times. 🔒 **User: *"the test works ok and we can use it as a gold one."***
+⛔⛔ **An earlier version of this section said the opposite and BLOCKED the programme on it.** That was a
+measurement error of mine *(spawn read as baseline)*, filed as `CE-296` and refuted in the same session.
+⇒ ⭐ **the gate stands as a gate; it is simply already satisfied.**
 
 ### 16.1 ✅ SETTLED — do not re-open
 
@@ -1288,7 +1328,7 @@ candidate; ⛔ **it is NOT this programme's defect, and it is NOT a reason to re
 | # | measurement | result |
 |---|---|---|
 | ① | **bytes per AI entity** *(the one `Q37` never took)* | **192 B** BTree root · **256 B** HSM root · ⛔ **no heavy-DTO credit** ⇒ 256 tier **free–1.33×**, 1024 tier **4–5.3×** (§5a) |
-| ② | ⭐ **slots per behaviour**, all 30 generated assets | 0 slots ×17 · 1 ×6 · 2 ×5 · 3 ×1 · **8 ×1**. ⇒ **77 % fit a 256 tier**; 🔴 the golden test's own behaviour needs **9** and is promoted **4096 → 16384** by the root occurrence (§5a) |
+| ② | ⭐ **slots per behaviour**, all 30 generated assets | 0 slots ×17 · 1 ×6 · 2 ×5 · 3 ×1 · **8 ×1**. ⇒ **77 % fit a 256 tier**. 🔴 The worst case, `PlatoonHillAttack2`, needs **9** and is promoted **4096 → 16384** by the root occurrence ⇒ the ladder must be re-picked (§5a). ⛔ **CORRECTED `2026-09-20`: that is NOT the golden test's tree** — `hill-attack-close` runs `PlatoonHillAttack` *(1 slot ⇒ 2, fits 256)* |
 | ③ | `Blackboard1024` attachment in a live run | **zero entities, both nodes** ⇒ §3.2 is latent, C1 gets no byte credit (§15) |
 | ④ | attributed `[HsmGuard]` population | **8** in `.cs`, **zero in production** — 3 FastHSM demo, 3 FastHSM tests, 2 exporter tests (§14) |
 | ⑤ | promotion sites | **three** — `BehaviorIngressSystem.UpgradeTier:600`, `BlueprintMaintenanceSystem:40/60`, `EntityBlueprintsPanel:299` |
@@ -1298,7 +1338,8 @@ candidate; ⛔ **it is NOT this programme's defect, and it is NOT a reason to re
 
 | # | open item | who settles it |
 |---|---|---|
-| ① | 🔴 **the golden test is RED** — `hill-attack-close`, 0/4 return to baseline (§15.3) | ⭐⭐ **behaviour-lifecycle owner, BEFORE any `O`-item lands.** Candidate: commander `1000` ends at `ActiveBehaviorHash 0` |
+| ① | ~~the golden test is RED~~ | ✅ **CLOSED `2026-09-20` — it is GREEN** (§15.3). ⛔ The "red" reading was mine and is refuted (`CE-296`). ⭐ It stays the **gate**: green before and after every `O`-item |
+| ①a | ⚠ **`CE-295` — `load_scenario_live` is a one-shot per process** | ⭐ a real defect, **filed not fixed** *(user)*. ⛔ Not a blocker for the PLAN, ⚠ **but it constrains how `O`-items are verified**: one scenario per process, or the harness silently re-tests the first |
 | ② | the **AI entity count** | ⚠ genuinely unmeasured — but §16.2 ① fixed the **sign** of the per-entity delta, so it now only scales a known number. ⛔ Not a blocker |
 | ③ | the `MaxSlots` **ladder** values | `O3a`, with a sizing rationale (§5a) |
 | ④ | `OccurrenceHeader`'s own size | ⚠ only needed if a payload header is ever reintroduced — ⛔ **`D1′` removed that need**; recorded so it is not re-derived |
