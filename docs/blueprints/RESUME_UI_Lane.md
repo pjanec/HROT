@@ -1,23 +1,28 @@
 <!--STATUS
 state: LIVE
 updated: 2026-09-20
-current-answer: ⭐⭐⭐ READ THE TOP OF THIS FILE. ⛔⛔ FIRST BLOCK: "S-3d NEEDS A WINDOWS BUILD" — the
-  Stride change is WRITTEN AND PUSHED BUT NEVER COMPILED, and it carries the prompt for that session.
-  THEN the "SESSION 2026-09-20 (e)" block, which is the live state of everything else. ☑ UXI-11 slices S-1, S-2, S-3, S-3b AND S-3c ARE BUILT: one store, one request, one writer, one
-  announcement on every node — and ONE PLACE (MapInteractionPack) that builds them all.
-  NEXT IS S-4 — right-click selects on every surface, and the DER inspector gains a seam.
-  ⚠ Two things remain openly unmet and each says so: "the ONLY writer" has one surviving writer
-  (SelectionInteractionSystem, through the view) plus two synchronous editor facade seams; and panels
-  PROJECT rather than subscribe. ⚠ Separately: CGF runs no SelectionInteractionSystem at all, so its
-  MAP-INPUT path is missing — that is UXI-11's remaining half.
-  📄 The as-builts are UX_Feature_Selection.md §2.7.6 (S-1), §2.7.7 (S-2), §2.7.8 (S-3) and §2.7.9
-  (S-3b) — read those, not the summaries here, before starting S-4.
+current-answer: ⭐⭐⭐ READ THE TOP OF THIS FILE — the "SESSION 2026-09-20 (g)" block (S-4) is the live
+  state; the (f) block below it (S-3e) is the one before.
+  ☑ UXI-11 slices S-1, S-2, S-3, S-3b, S-3c, S-3d (Windows-VERIFIED), S-3e AND S-4 ARE BUILT: one
+  store, one request, one writer, one announcement on every node — ONE PLACE (MapInteractionPack) that
+  builds them all — and right-click SELECTS on both inspector panels, with the DER inspector wired to
+  the host selection by NETWORK id.
+  NEXT IS S-5 — losing the selection cancels that entity's edit (rule 5).
+  ⛔⛔ S-4 IS PARTIAL AND SAYS SO: the MAP's right-click still collapses a multi-selection, because the
+  vendored GizmoMap terminal's interaction event carries NO MOUSE BUTTON and has no "menu opened" kind.
+  That is a dependency change (a Button field, or a MenuOpened kind) — sized in §2.7.13, NOT an
+  oversight. Acceptance 11.4 passes on the panels and FAILS on the map.
+  ⚠ Still openly unmet, each saying so: two synchronous editor facade seams (§2.7.7 deviation ③);
+  panels PROJECT rather than subscribe (§2.7.8 deviation ②); ClearAll still has 0 callers.
+  📄 The as-builts are UX_Feature_Selection.md §2.7.6 (S-1), §2.7.7 (S-2), §2.7.8 (S-3), §2.7.9 (S-3b),
+  §2.7.10 (S-3c), §2.7.11a (S-3d, the Windows result), §2.7.12 (S-3e) and §2.7.13 (S-4) — read those,
+  not the summaries here, before starting S-5.
   Branch: ui (the stable lane branch, R-148).
   ⛔ The 2026-09-15 block below (distributed persistence + ownership) is DONE and is now HISTORY —
   nothing from it is in flight. Older STRANDS below it are older history still; do NOT act on any of
   them unless explicitly told to continue one.
 
-stale-below: ⛔ EVERYTHING below the "SESSION 2026-09-20 (e)" block is HISTORY, newest first —
+stale-below: ⛔ EVERYTHING below the "SESSION 2026-09-20 (g)" block is HISTORY, newest first —
   including the (d), (c), (b) and (a) blocks (S-3b, S-3, S-2, S-1) and the 2026-09-19/20 block, whose
   plans are now DONE. Do not quote any of it as current state.
 known-rot: none open in this file.
@@ -32,6 +37,44 @@ related-designs:
   Nothing was deleted.
 -->
 # ⭐⭐⭐ RESUME — **the UI / variable implementation lane**
+
+## ⭐⭐⭐ SESSION `2026-09-20` (g) — **`S-4`: RIGHT-CLICK SELECTS ON THE PANELS; THE DER SEAM**
+
+> 🔒 **User:** *"go ahead with S-4"*.
+
+🟡 **Built, and deliberately partial.** 📄 As-built:
+[`UX_Feature_Selection.md` §2.7.13](../UX/UX_Feature_Selection.md).
+
+### ⭐⭐⭐ The finding: **the gesture decides the menu's subject**
+
+§2.3 required the selection mutation to land *before* the menu is populated, **in the same frame**.
+⛔ Since `S-3e` the write is a **request** served next frame, so that ordering is **unsatisfiable by
+sequencing** — not merely unmet. ⭐ It does not need to be: *which row of §2.3 a right-click is* is
+knowable **at the click**, so `_contextMenuUsesSelection` is fixed when the menu opens and
+`ContextMenuSubjectCount` never re-reads the store. ⇒ the *"wrong exactly once"* menu is **dissolved**.
+⚠ §2.3's ordering paragraph now carries a SUPERSEDED banner pointing here.
+
+### ☑ What landed
+
+| | |
+|---|---|
+| `EntityInspectorPanel` | right-click on an **unselected** entity ⇒ `Replace` request *(`"Inspector.RightClick"`)* + a ONE-entity menu; on a **selected** one ⇒ nothing moves, MULTI menu. Unbound hosts mutate locally, which is still correct (§2.7.8) |
+| `DerEntityInspectorPanel` | `RequestSelectEntity` + `HostSelectedNetworkId`. ⭐⭐ **The obstacle was the answer:** `IDerEntity.EntityId` **is** the network id `SelectEntityCommand` carries ⇒ **no new event**. Both-or-neither, so half-wiring is visible |
+| `ExConSubsystem` / `IExConLogic` | wires the DER panel to `SendSetSelection` / `SelectedEntityId` (promoted onto the interface). 🔒 **Behaviour change, intended:** a DER row click now moves the **remote map's** selection — ruling ①. ⚠ It does **NOT** discharge [`CE-259t`](Blueprint_Issues_Tracker.md) *(ExCon's shared ORBAT adapter selects locally and never tells the cluster)* — different surface, untouched — ⭐ it follows the precedent that row names as correct (`SendSetSelection`, not `SelectEntity`) |
+| rails | `TheInspectorPanelsRightClickSelectsTests` *(new, 8, in `Fdp.Presentation.Tests`)* — **red-proved: 3 of 8 redden** on the inverse edit. `RightClick`/`RequestSelect` were extracted from the draw so the semantics are railable headlessly |
+
+### ⛔⛔ NOT BUILT — **the map's right-click, and it is a dependency change**
+
+📐 Measured: `GizmoInteractionStartedEvent` carries **`Token` + `WorldPos` only — no mouse button**, and
+`GizmoInteractionEventKind` has **no *"menu opened"*** kind *(`MenuAction` fires only when an item is
+chosen)*. ⇒ `SelectionInteractionSystem` cannot tell a right-press from a left one and issues an
+unconditional `Replace`, so **right-clicking one of five selected entities on the map still collapses
+the selection** — §2.3 row 1, and the `2026-09-10` fan-out ruling depends on it.
+⭐ **Two shapes, neither an `Fdp.Presentation` edit:** a `Button` field on the vendored terminal's
+interaction record *(smallest; every downstream consumer gains the distinction)*, or a `MenuOpened`
+kind *(narrower; adds a wire event for one consumer)*. **My lean is the `Button` field** — the
+information is already in the terminal's hand and the second option encodes one consumer's need into
+the protocol. ⚠ It needs a `GizmoMap` change, so it wants a nod before it is opened.
 
 ## ⭐⭐⭐ SESSION `2026-09-20` (f) — **`S-3e`: CGF'S MAP INPUT, AND A REGRESSION `S-3` SHIPPED**
 

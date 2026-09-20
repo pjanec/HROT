@@ -109,7 +109,7 @@ public class EntityInspectorPanel
     /// panel can never disagree with the map — 📌 it disagreed for months, which is what
     /// <c>UXI-11</c> is about.
     /// </summary>
-    private void ProjectHostSelection()
+    internal void ProjectHostSelection()
     {
         if (!DefersToHostSelection) return;
         _selectedEntities.Clear();
@@ -123,6 +123,45 @@ public class EntityInspectorPanel
             Mode     = mode,
             Reason   = reason,
         });
+
+    /// <summary>
+    /// ⭐⭐⭐ <b><c>UXI-11</c> S-4 — RIGHT-CLICK SELECTS.</b> 🔒 §2.3, ruled <c>2026-08-12</c>:
+    /// <list type="bullet">
+    ///   <item>already selected ⇒ the whole selection SURVIVES and the menu applies to all of it;</item>
+    ///   <item>not selected ⇒ the selection becomes just this one and the menu applies to it.</item>
+    /// </list>
+    /// <para>⭐⭐⭐ <b>THE GESTURE DECIDES THE MENU'S SUBJECT</b> — and that is what dissolves §2.3's
+    /// ordering hazard rather than racing it. 🔴 §2.3 warns the selection mutation must land BEFORE the
+    /// menu is built, <i>in the same frame</i>, or the menu is wrong exactly once. ⛔ Since S-3e a
+    /// selection change is a REQUEST, so it lands NEXT frame and that ordering can no longer be satisfied
+    /// by sequencing. ⭐ It does not need to be: <b>which case of §2.3 this click is</b> is knowable NOW,
+    /// at the gesture, without reading the store back after the write.</para>
+    /// <para>⚠ Extracted from the draw so it can be railed headlessly — the ImGui site only decides
+    /// <i>whether</i> a right-click happened.</para>
+    /// </summary>
+    internal void RightClick(Entity entity)
+    {
+        _contextMenuEntity      = entity;
+        _contextMenuUsesSelection = _selectedEntities.Contains(entity);
+
+        if (_contextMenuUsesSelection) return;
+
+        if (DefersToHostSelection)
+            Request(SelectionChangeMode.Replace, new[] { entity }, "Inspector.RightClick");
+        else
+        {
+            _selectedEntities.Clear();
+            _selectedEntities.Add(entity);
+        }
+    }
+
+    /// <summary>
+    /// ⭐⭐ How many entities the OPEN context menu is about — <c>1</c> when the right-click landed on an
+    /// unselected entity, otherwise the selection's size. ⛔ Never re-derive this from
+    /// <c>_selectedEntities.Count</c>: after a deferred right-click the set still holds the OLD selection
+    /// for one more frame, which is the "wrong exactly once" bug §2.3 warns about.
+    /// </summary>
+    internal int ContextMenuSubjectCount => _contextMenuUsesSelection ? _selectedEntities.Count : 1;
 
     /// <summary>
     /// When set, the "Copy JSON" and "Copy JSON (N items)" buttons use the unified
@@ -211,6 +250,13 @@ public class EntityInspectorPanel
 
     private readonly List<IEntityContextMenuHandler> _contextMenuHandlers = new();
     private Entity _contextMenuEntity = Entity.Null;
+
+    /// <summary>
+    /// ⭐⭐⭐ <b>Which case of §2.3 the open menu is:</b> <c>true</c> ⇒ it is about the whole selection
+    /// (right-clicked an already-selected entity), <c>false</c> ⇒ about <see cref="_contextMenuEntity"/>
+    /// alone. ⚠ Fixed at OPEN time on purpose — see the comment at the right-click site.
+    /// </summary>
+    private bool _contextMenuUsesSelection;
 
     /// <summary>
     /// Registers a context-menu handler. The handler's
@@ -462,11 +508,14 @@ public class EntityInspectorPanel
                 }
             }
 
-            // Context Menu logic.
+            // ⭐⭐⭐ UXI-11 S-4 — RIGHT-CLICK SELECTS. 🔒 §2.3, ruled 2026-08-12:
+            //    · already selected  -> the whole selection SURVIVES, menu applies to all;
+            //    · not selected      -> selection becomes just this one, menu applies to it;
+            //    (empty space is the canvas menu, which this list has no equivalent of).
             if (_contextMenuHandlers.Count > 0 && ImGuiApi.IsItemHovered() &&
                 ImGuiApi.IsMouseClicked(ImGuiMouseButton.Right))
             {
-                _contextMenuEntity = entity;
+                RightClick(entity);
                 ImGuiApi.OpenPopup("##EntityCtxMenu");
             }
 
@@ -510,7 +559,10 @@ public class EntityInspectorPanel
             ImGuiApi.BeginPopup("##EntityCtxMenu"))
         {
             var builder = new ContextMenuBuilder();
-            int selCount = _selectedEntities.Count;
+            // ⚠ The SUBJECT was fixed when the menu opened (§2.3 / S-4), not re-derived here: after a
+            //   right-click that changed the selection, _selectedEntities still holds the OLD set this
+            //   frame, and branching on its count is exactly the "wrong exactly once" bug.
+            int selCount = ContextMenuSubjectCount;
 
             if (selCount > 1)
             {

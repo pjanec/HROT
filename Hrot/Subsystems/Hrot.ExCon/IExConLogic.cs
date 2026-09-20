@@ -115,6 +115,20 @@ public interface IExConLogic
     void SendSetSelection(int entityId);
 
     /// <summary>
+    /// ⭐⭐ <b><c>UXI-11</c> <c>S-4</c> — the network id ExCon currently has selected.</b> The read half
+    /// of this host's selection seam; <see cref="SendSetSelection"/> is the write half.
+    ///
+    /// <para>📐 The property already existed on the implementation and only the WRITE half was on this
+    /// interface, which is why a panel could ask ExCon to change the selection but not to report it.
+    /// ⇒ every surface kept its own idea of what was selected — 🔒 exactly what ruling ① retires
+    /// (<i>"inspector selection changes global entity selection state … every host"</i>).</para>
+    ///
+    /// <para>⚠ ExCon has NO ECS world, so this is a network id rather than an <c>Entity</c>, and the
+    /// selection it names lives on the remote map. 📄 <c>UX_Feature_Selection.md</c> §2.7.13.</para>
+    /// </summary>
+    int SelectedEntityId { get; }
+
+    /// <summary>
     /// Publishes <c>MapCommandRequest(CMD_SET_VIEW, {"entityId": id})</c>
     /// to request that the IG centres its camera on the specified entity.
     /// </summary>
