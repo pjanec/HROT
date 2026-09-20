@@ -5,6 +5,7 @@ using Fdp.Toolkit.Blueprints;
 using Fdp.Toolkit.Blueprints.Components;
 using Hrot.Blueprints.Core.Assets;
 using Hrot.Blueprints.Editor.Runtime;
+using Fdp.Toolkit.Blueprints.Partitioning;
 
 namespace Hrot.Blueprints.Tests.Editor;
 
@@ -61,7 +62,7 @@ public sealed class RunBlueprintOnEntityCommandTests
         Assert.Single(log);
 
         // The entity must carry a tier-1024 blackboard component with one allocated slot.
-        Assert.True(world.HasComponent<BlueprintBlackboard1024>(entity),
+        Assert.True(OccurrenceStoreAccess.HasStore(world, entity),
             "Entity must have BlueprintBlackboard1024 after attach.");
     }
 

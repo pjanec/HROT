@@ -32,6 +32,9 @@ public sealed class TierUpgrade_1024_to_4096_Tests
 
         // After maintenance: BB4096 present, BB1024 removed
         Assert.True(fixture.World.HasComponent<BlueprintBlackboard4096>(entity));
+        // ⚠ B4: the tier IS the subject here — this asserts the entity moved OFF the small
+        //   tier onto the large one. ⛔ HasStore is true on BOTH sides of a promotion, so the
+        //   named types are correct here and must stay.
         Assert.False(fixture.World.HasComponent<BlueprintBlackboard1024>(entity));
 
         // Slot still accessible in BB4096

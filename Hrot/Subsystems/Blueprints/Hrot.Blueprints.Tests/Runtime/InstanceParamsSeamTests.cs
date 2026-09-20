@@ -261,7 +261,7 @@ public sealed unsafe class InstanceParamsSeamTests : IDisposable
         Assert.Equal(BlueprintAttachStatus.ParamsParseFailed, r.Status);
         Assert.False(r.Success);
         // ⛔ No tier component was even added: the parse happens before EnsureTierComponent.
-        Assert.False(_repo.HasComponent<BlueprintBlackboard1024>(e));
+        Assert.False(OccurrenceStoreAccess.HasStore(_repo, e));
     }
 
     /// <summary>

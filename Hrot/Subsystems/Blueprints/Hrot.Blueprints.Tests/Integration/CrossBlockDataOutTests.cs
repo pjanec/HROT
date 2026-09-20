@@ -493,8 +493,8 @@ public sealed class CrossBlockDataOutTests
         uint expectedHash = unchecked(
             StatefulBTreeActionBinder.ComputeTypeNameHash(typeof(int).FullName ?? "") ^ (uint)Marshal.SizeOf<int>());
 
-        ref var tier = ref world.GetComponentRW<BlueprintBlackboard1024>(entity);
-        fixed (byte* mem = tier.Memory)
+        // ⭐ B4 — §17.7: the store through the SEAM, not a named tier.
+        byte* mem = OccurrenceStoreAccess.TryGetStore(world, entity, out _);
         {
             bool ok = BlueprintBlackboardPartitions.TryAttach(
                 mem, slotKey, Marshal.SizeOf<int>(), expectedHash, out _);

@@ -68,7 +68,7 @@ public sealed class EntityBlueprintsEditModelTests : IDisposable
     private static unsafe int GetSlotCount(EntityRepository repo, Entity entity)
     {
         int total = 0;
-        if (repo.HasComponent<BlueprintBlackboard1024>(entity))
+        if (OccurrenceStoreAccess.HasStore(repo, entity))
         { ref var bb = ref repo.GetComponentRW<BlueprintBlackboard1024>(entity); byte* m = (byte*)Unsafe.AsPointer(ref Unsafe.As<BlueprintBlackboard1024, byte>(ref bb)); total += BlueprintBlackboardPartitions.GetSlotCount(m); }
         if (repo.HasComponent<BlueprintBlackboard4096>(entity))
         { ref var bb = ref repo.GetComponentRW<BlueprintBlackboard4096>(entity); byte* m = (byte*)Unsafe.AsPointer(ref Unsafe.As<BlueprintBlackboard4096, byte>(ref bb)); total += BlueprintBlackboardPartitions.GetSlotCount(m); }
@@ -79,7 +79,7 @@ public sealed class EntityBlueprintsEditModelTests : IDisposable
 
     private static unsafe bool HasBlueprintSlot(EntityRepository repo, Entity entity, int blueprintId)
     {
-        if (repo.HasComponent<BlueprintBlackboard1024>(entity))
+        if (OccurrenceStoreAccess.HasStore(repo, entity))
         { ref var bb = ref repo.GetComponentRW<BlueprintBlackboard1024>(entity); byte* m = (byte*)Unsafe.AsPointer(ref Unsafe.As<BlueprintBlackboard1024, byte>(ref bb)); if (BlueprintBlackboardPartitions.TryGetSlotOffset(m, blueprintId, out _)) return true; }
         if (repo.HasComponent<BlueprintBlackboard4096>(entity))
         { ref var bb = ref repo.GetComponentRW<BlueprintBlackboard4096>(entity); byte* m = (byte*)Unsafe.AsPointer(ref Unsafe.As<BlueprintBlackboard4096, byte>(ref bb)); if (BlueprintBlackboardPartitions.TryGetSlotOffset(m, blueprintId, out _)) return true; }
@@ -342,6 +342,9 @@ public sealed class EntityBlueprintsEditModelTests : IDisposable
         }
         _repo.RemoveComponent<BlueprintBlackboard1024>(entity);
 
+        // ⚠ Here the tier IS the subject — this hand-rolls a promotion and asserts the entity
+        //   moved OFF the small tier and ONTO the large one. ⛔ HasStore cannot express that; it
+        //   answers "any tier at all", which is true on both sides of a promotion.
         Assert.False(_repo.HasComponent<BlueprintBlackboard1024>(entity));
         Assert.True(_repo.HasComponent<BlueprintBlackboard4096>(entity));
         Assert.Equal(2, GetSlotCount(_repo, entity));

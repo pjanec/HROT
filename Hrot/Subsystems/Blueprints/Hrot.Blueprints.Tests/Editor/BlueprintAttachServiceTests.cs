@@ -78,7 +78,7 @@ public sealed class BlueprintAttachServiceTests
         Assert.Equal(BlueprintAttachStatus.NotRegistered, result.Status);
         Assert.False(result.Success);
         // No tier component should have been added on the failure path.
-        Assert.False(world.HasComponent<BlueprintBlackboard1024>(entity));
+        Assert.False(OccurrenceStoreAccess.HasStore(world, entity));
     }
 
     [Fact]
@@ -97,7 +97,7 @@ public sealed class BlueprintAttachServiceTests
 
         Assert.Equal(BlueprintAttachStatus.NotInstanceKind, result.Status);
         Assert.False(result.Success);
-        Assert.False(world.HasComponent<BlueprintBlackboard1024>(entity));
+        Assert.False(OccurrenceStoreAccess.HasStore(world, entity));
     }
 
     /// <summary>

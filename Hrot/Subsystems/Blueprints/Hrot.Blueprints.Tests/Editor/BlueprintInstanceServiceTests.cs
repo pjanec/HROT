@@ -80,7 +80,7 @@ public sealed class BlueprintInstanceServiceTests
         Assert.Equal(BlueprintAttachStatus.NotRegistered, result.Status);
         Assert.False(result.Success);
         // No tier component added on failure
-        Assert.False(world.HasComponent<BlueprintBlackboard1024>(entity));
+        Assert.False(OccurrenceStoreAccess.HasStore(world, entity));
     }
 
     // ── SC4: Non-Instance kind returns NotInstanceKind ───────────────────────
@@ -99,7 +99,7 @@ public sealed class BlueprintInstanceServiceTests
 
         Assert.Equal(BlueprintAttachStatus.NotInstanceKind, result.Status);
         Assert.False(result.Success);
-        Assert.False(world.HasComponent<BlueprintBlackboard1024>(entity));
+        Assert.False(OccurrenceStoreAccess.HasStore(world, entity));
     }
 
     // ── SC5: Detach frees slot and dense-compacts ────────────────────────────
@@ -198,7 +198,7 @@ public sealed class BlueprintInstanceServiceTests
 
     private static unsafe int SlotCount(EntityRepository world, Entity entity)
     {
-        if (world.HasComponent<BlueprintBlackboard1024>(entity))
+        if (OccurrenceStoreAccess.HasStore(world, entity))
         {
             ref var bb   = ref world.GetComponentRW<BlueprintBlackboard1024>(entity);
             byte* memory = (byte*)Unsafe.AsPointer(ref Unsafe.As<BlueprintBlackboard1024, byte>(ref bb));
@@ -225,7 +225,7 @@ public sealed class BlueprintInstanceServiceTests
     /// </summary>
     private static unsafe bool HasSlot(EntityRepository world, Entity entity, int blueprintId)
     {
-        if (world.HasComponent<BlueprintBlackboard1024>(entity))
+        if (OccurrenceStoreAccess.HasStore(world, entity))
         {
             ref var bb   = ref world.GetComponentRW<BlueprintBlackboard1024>(entity);
             byte* memory = (byte*)Unsafe.AsPointer(ref Unsafe.As<BlueprintBlackboard1024, byte>(ref bb));

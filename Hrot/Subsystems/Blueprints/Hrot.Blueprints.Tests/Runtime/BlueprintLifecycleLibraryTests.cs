@@ -320,7 +320,7 @@ public sealed unsafe class BlueprintLifecycleLibraryTests : IDisposable
         Assert.Null(ex);
 
         // Step 4: Verify the blueprint is attached to the entity.
-        Assert.True(_repo.HasComponent<BlueprintBlackboard1024>(entity));
+        Assert.True(OccurrenceStoreAccess.HasStore(_repo, entity));
         ref var bb = ref _repo.GetComponentRW<BlueprintBlackboard1024>(entity);
         byte* memory = (byte*)System.Runtime.CompilerServices.Unsafe.AsPointer(
             ref System.Runtime.CompilerServices.Unsafe.As<BlueprintBlackboard1024, byte>(ref bb));

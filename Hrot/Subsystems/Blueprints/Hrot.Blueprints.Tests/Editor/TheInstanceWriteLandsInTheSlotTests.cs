@@ -90,7 +90,9 @@ public sealed class TheInstanceWriteLandsInTheSlotTests
         var field = rig.Session.ResolveWorkingStateField(rig.Entity, rig.AssetId, FieldName);
 
         Assert.NotNull(field);
-        Assert.Equal(typeof(BlueprintBlackboard1024), field!.ComponentType);
+        // ⭐ B4 — §17.7: the property is "the field resolves to the tier the entity ACTUALLY
+        //   carries", not "1024". The ladder chooses; O3b moved the small cases.
+        Assert.Equal(BlueprintTierTable.Of(rig.World, rig.Entity)!.ComponentType, field!.ComponentType);
         Assert.Equal(expected, field.ComponentOffsetBytes);
 
         // ⛔ The AiPrimitive convention must NOT have been applied here.
@@ -115,7 +117,7 @@ public sealed class TheInstanceWriteLandsInTheSlotTests
             rig.Entity, field.ComponentType, field.ComponentOffsetBytes, BitConverter.GetBytes(4242)));
 
         var staged = Assert.Single(rig.Manager.Staged);
-        Assert.Equal(typeof(BlueprintBlackboard1024), staged.ComponentType);
+        Assert.Equal(BlueprintTierTable.Of(rig.World, rig.Entity)!.ComponentType, staged.ComponentType);
         Assert.Equal(expected, staged.ByteOffset);
         Assert.Equal(4242, BitConverter.ToInt32(staged.Bytes, 0));
     }
@@ -174,7 +176,7 @@ public sealed class TheInstanceWriteLandsInTheSlotTests
             rig.Entity, field.ComponentType, field.ComponentOffsetBytes, BitConverter.GetBytes(4242)));
 
         var staged = Assert.Single(rig.Manager.Staged);
-        Assert.Equal(typeof(BlueprintBlackboard1024), staged.ComponentType);
+        Assert.Equal(BlueprintTierTable.Of(rig.World, rig.Entity)!.ComponentType, staged.ComponentType);
         Assert.Equal(expected, staged.ByteOffset);
         Assert.Equal(4242, BitConverter.ToInt32(staged.Bytes, 0));
     }
@@ -196,8 +198,8 @@ public sealed class TheInstanceWriteLandsInTheSlotTests
     /// <summary>⭐ The READ's own answer for the slot start — the number the write must match.</summary>
     private static unsafe int PayloadOffsetOf(Rig rig)
     {
-        ref var bb = ref rig.World.GetComponentRW<BlueprintBlackboard1024>(rig.Entity);
-        byte* memory = (byte*)Unsafe.AsPointer(ref Unsafe.As<BlueprintBlackboard1024, byte>(ref bb));
+        // ⭐ B4 — §17.7: the store through the SEAM, not a named tier.
+        byte* memory = OccurrenceStoreAccess.TryGetStore(rig.World, rig.Entity, out _);
 
         Assert.True(BlueprintBlackboardPartitions.TryGetSlotOffset(
             memory, rig.BlueprintId, out int payloadOffset));

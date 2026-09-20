@@ -520,7 +520,7 @@ public sealed class VirtualPointerTests : IDisposable
         if (!registry.TryGetById(blueprintId, out var def) || def == null)
             return 0;
 
-        if (!repo.HasComponent<BlueprintBlackboard1024>(entity))
+        if (!OccurrenceStoreAccess.HasStore(repo, entity))
             return 0;
 
         ref var bb = ref repo.GetComponentRW<BlueprintBlackboard1024>(entity);

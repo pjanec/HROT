@@ -433,7 +433,7 @@ public sealed class SubTickRecorderIntegrationTests : IDisposable
             return 0;
 
         // Try BB1024 tier (test assets always use BB1024 in the fixture).
-        if (!repo.HasComponent<BlueprintBlackboard1024>(entity))
+        if (!OccurrenceStoreAccess.HasStore(repo, entity))
             return 0;
 
         ref var bb = ref repo.GetComponentRW<BlueprintBlackboard1024>(entity);

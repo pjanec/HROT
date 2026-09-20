@@ -234,7 +234,7 @@ public sealed unsafe class BlueprintEventIngressSystemTests : IDisposable
         sys.Execute(_repo, 0f);
 
         // Verify slot exists on B1024 tier.
-        Assert.True(_repo.HasComponent<BlueprintBlackboard1024>(entity));
+        Assert.True(OccurrenceStoreAccess.HasStore(_repo, entity));
         ref var bb = ref _repo.GetComponentRW<BlueprintBlackboard1024>(entity);
         byte* memory = (byte*)System.Runtime.CompilerServices.Unsafe.AsPointer(
             ref System.Runtime.CompilerServices.Unsafe.As<BlueprintBlackboard1024, byte>(ref bb));
@@ -350,7 +350,7 @@ public sealed unsafe class BlueprintEventIngressSystemTests : IDisposable
         Assert.Null(ex);
 
         // B should be attached.
-        Assert.True(_repo.HasComponent<BlueprintBlackboard1024>(entity));
+        Assert.True(OccurrenceStoreAccess.HasStore(_repo, entity));
         ref var bb = ref _repo.GetComponentRW<BlueprintBlackboard1024>(entity);
         byte* memory = (byte*)System.Runtime.CompilerServices.Unsafe.AsPointer(
             ref System.Runtime.CompilerServices.Unsafe.As<BlueprintBlackboard1024, byte>(ref bb));
@@ -377,7 +377,7 @@ public sealed unsafe class BlueprintEventIngressSystemTests : IDisposable
         BlueprintInstanceService.AttachToEntity(_repo, _registry, FakeBpD_Id, entity);
 
         // Verify tier is at capacity (4 slots, B1024).
-        Assert.True(_repo.HasComponent<BlueprintBlackboard1024>(entity));
+        Assert.True(OccurrenceStoreAccess.HasStore(_repo, entity));
         Assert.False(_repo.HasComponent<BlueprintBlackboard4096>(entity));
         ref var bb1 = ref _repo.GetComponentRW<BlueprintBlackboard1024>(entity);
         byte* mem1 = (byte*)System.Runtime.CompilerServices.Unsafe.AsPointer(
@@ -400,7 +400,7 @@ public sealed unsafe class BlueprintEventIngressSystemTests : IDisposable
         sys.Execute(_repo, 0f);
 
         // After system execution: A detached, E attached, still at 4 slots, B1024.
-        Assert.True(_repo.HasComponent<BlueprintBlackboard1024>(entity));
+        Assert.True(OccurrenceStoreAccess.HasStore(_repo, entity));
         Assert.False(_repo.HasComponent<BlueprintBlackboard4096>(entity),
             "Tier should NOT upgrade — remove-before-add allowed E to reuse A's freed slot");
 
