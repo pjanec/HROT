@@ -86,13 +86,43 @@ public static unsafe class HostedSubtree
     /// node whose key has a registered deactivator. ⇒ registering this IS the opt-in.</para>
     /// </summary>
     public static void Reset(ref BTreeContext ctx, int treeStateSlotKey)
+        => Reset(ctx.World, ctx.Self, treeStateSlotKey);
+
+    /// <summary>
+    /// ⭐⭐ <b><c>D4</c>, HALF TWO — the EXTERNAL form.</b> Same body, reached without a
+    /// <see cref="BTreeContext"/>, because the reset does not always arrive through a tick.
+    ///
+    /// <para>🔴 <b><c>F14b</c> — why this overload exists.</b> <c>BehaviorIngressSystem</c> zeroes the
+    /// host's <c>BrainBTreeState.State</c> on a behaviour change <b>without ticking</b>
+    /// (<c>:163</c> on assign-by-name, <c>:235</c> on assign-by-hash). ⇒ <c>SweepExitedNodes</c> never
+    /// runs, so the deactivator above never fires, and a hosted child that was <c>Running</c> keeps its
+    /// cursor while the host restarts from the root. ⚠ The ingress has <c>(repo, entity)</c> and no
+    /// context — hence the split. 📄 <c>DESIGN_Occurrence_Scoped_Storage.md</c> §21.2.</para>
+    /// </summary>
+    public static void Reset(EntityRepository world, Entity self, int treeStateSlotKey)
     {
-        byte* store = OccurrenceStoreAccess.TryGetStore(ctx.World, ctx.Self, out _);
+        byte* store = OccurrenceStoreAccess.TryGetStore(world, self, out _);
         if (store == null) return;   // ⚠ torn down already — nothing to reset, and not an error
 
         if (BlueprintBlackboardPartitions.TryGetSlotOffset(store, treeStateSlotKey, out int payloadOffset))
             Unsafe.AsRef<BehaviorTreeState>(store + payloadOffset) = default;
     }
+
+    /// <summary>
+    /// ⭐⭐⭐ <b>The manifest test: is this slot a hosted occurrence's tree state?</b>
+    ///
+    /// <para>⭐ The emitter stamps <c>WorkingStateType = typeof(BehaviorTreeState)</c> on exactly the
+    /// slots <c>BTreeBridgeEmitCore.CollectHostedTreeStateSlots</c> adds, and an authored
+    /// <c>WorkingState</c> struct can never be that type — so the manifest itself says which slots
+    /// carry a CURSOR rather than author state. ⛔ Nothing else in the manifest distinguishes them,
+    /// and a caller re-spelling this test is how the two would drift.</para>
+    ///
+    /// <para>⚠ It is deliberately NARROW: an external reset must clear a hosted <i>cursor</i> and must
+    /// NOT clear author working state, which survives a no-op re-assign on purpose
+    /// (<c>AttachSlotsToMemory</c>'s idempotent arm).</para>
+    /// </summary>
+    public static bool IsTreeStateSlot(StatefulSlotInfo slot)
+        => slot is not null && slot.WorkingStateType == typeof(BehaviorTreeState);
 
     /// <summary>
     /// The hosted occurrence's state bytes, as a <c>ref</c> into the entity's store.

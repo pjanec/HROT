@@ -162,6 +162,7 @@ namespace Fdp.Toolkit.Behavior.Systems
                     ref var btState = ref repo.GetComponentRW<BrainBTreeState>(evt.Entity);
                     btState.State = default;
                 }
+                ResetHostedTreeStates(repo, evt.Entity, def);
 
                 // 3. BHU-016 / CRITICAL FIX: Reset HSM instance bound to the new behavior's topology.
                 // Supplying the StructureHash keeps InstanceHeader.MachineId in sync with the new
@@ -233,6 +234,7 @@ namespace Fdp.Toolkit.Behavior.Systems
                 // Reset BTree execution pointer so the new phase starts from the root.
                 if (repo.HasComponent<BrainBTreeState>(evt.Entity))
                     repo.GetComponentRW<BrainBTreeState>(evt.Entity).State = default;
+                ResetHostedTreeStates(repo, evt.Entity, def);
 
                 // BHU-016 / CRITICAL FIX: Reset HSM instance bound to the new behavior's topology.
                 // Supplying the StructureHash keeps InstanceHeader.MachineId in sync with the new
@@ -242,6 +244,36 @@ namespace Fdp.Toolkit.Behavior.Systems
                     ResetHsmComponents(repo, evt.Entity, def.HsmDefinition.Header.StructureHash);
                 }
             }
+        }
+
+        /// <summary>
+        /// 🔴🔴 <b><c>F14b</c> — the EXTERNAL reset path: a hosted occurrence's cursor must follow
+        /// the host's.</b> 📄 <c>DESIGN_Occurrence_Scoped_Storage.md</c> §21.2.
+        ///
+        /// <para>⛔⛔ <b>Why the two <c>D4</c> halves do not cover this.</b>
+        /// <c>HostedSubtree.Tick</c> resets a child that COMPLETED, and the deactivator resets a child
+        /// the host ABANDONED mid-tick — both reached through <c>Interpreter.SweepExitedNodes</c>.
+        /// ⚠ This system zeroes <c>BrainBTreeState.State</c> <b>without a tick</b>, so neither fires:
+        /// the host restarts at the root while a hosted child resumes mid-tree. ⭐ Before <c>O4</c> the
+        /// child shared the host's 64-byte state, so zeroing the host cleared it by ACCIDENT — own
+        /// state removes that, and this is the bill (the same bill <c>F14</c> paid for the sweep).</para>
+        ///
+        /// <para>⭐ <b>Only the hosted tree-state slots</b> (<c>HostedSubtree.IsTreeStateSlot</c>).
+        /// ⛔ Author working state is deliberately NOT cleared: <c>AttachSlotsToMemory</c>'s idempotent
+        /// arm preserves it across a no-op re-assign on purpose, and a cursor is not working state.</para>
+        ///
+        /// <para>⚠ <b><c>ClearBehaviorEvent</c> (<c>:204</c>) needs no call</b> — measured: it
+        /// <c>DetachStatefulSlots</c> first, and <c>TryAttach</c> ZEROES the payload it hands out
+        /// (<c>SlotAttachZeroingTests</c>), so the next assign gets a clean cursor either way.</para>
+        /// </summary>
+        private static void ResetHostedTreeStates(EntityRepository repo, Entity entity, BehaviorDefinition? def)
+        {
+            var slots = def?.StatefulWorkingSlots;
+            if (slots == null) return;
+
+            for (int i = 0; i < slots.Count; i++)
+                if (HostedSubtree.IsTreeStateSlot(slots[i]))
+                    HostedSubtree.Reset(repo, entity, slots[i].SlotKey);
         }
 
         // ── S2-2: stateful slot provisioning helpers ─────────────────────────────

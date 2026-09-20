@@ -4,6 +4,9 @@ using Fbt;
 using Fbt.Compiler;
 using Fbt.Runtime;
 using Fdp.Core;
+using Fdp.Toolkit.Behavior.Components;
+using Fdp.Toolkit.Behavior.Events;
+using Fdp.Toolkit.Behavior.Systems;
 using Fdp.Toolkit.Blueprints.Components;
 using Fdp.Toolkit.Blueprints.Partitioning;
 using Xunit;
@@ -335,5 +338,212 @@ public sealed unsafe class HostedSubtreeCursorTests
 
         // ⚠ A host identity is never 0 — a 0 would silently re-enter ComputeNested's ROOT branch.
         Assert.NotEqual(0, OccurrenceSlots.IdentityOf(HostAsset));
+    }
+
+    // ═══ F14b — THE EXTERNAL RESET PATH ═══════════════════════════════════════════════════════
+    //  📄 DESIGN_Occurrence_Scoped_Storage.md §21.2. Rails ②a/②b cover the resets that arrive
+    //  THROUGH A TICK. BehaviorIngressSystem zeroes BrainBTreeState.State WITHOUT one, so neither
+    //  fires and a hosted child resumes mid-tree while the host restarts at its root.
+
+    /// <summary>The manifest a hosted subtree produces — what <c>CollectHostedTreeStateSlots</c> emits.</summary>
+    private static StatefulSlotInfo HostedManifestSlot() => new(
+        TreeStateKey,
+        HostedSubtree.TreeStatePayloadSize,
+        StructureHash: 0u,
+        WorkingStateType: typeof(BehaviorTreeState),
+        NodeLabel: "hosted subtree");
+
+    /// <summary>A BTree behaviour whose only stateful slot is a hosted occurrence's cursor.</summary>
+    private static BehaviorDefinition HostingBehavior(string name)
+    {
+        var b = new BTreeBuilder<BrainBlackboard, BTreeContext>()
+            .Sequence(seq => seq.Action(
+                static (ref BrainBlackboard bb, ref BehaviorTreeState st, ref BTreeContext c, int pi)
+                    => NodeStatus.Running));
+
+        return new BehaviorDefinition
+        {
+            Name                 = name,
+            BrainTier            = BehaviorConstants.BrainTierBTree,
+            BTreeInterpreter     = new Interpreter<BrainBlackboard, BTreeContext>(b.Compile(name), b.GetRegistry()),
+            StatefulWorkingSlots = new[] { HostedManifestSlot() },
+        };
+    }
+
+    /// <summary>
+    /// A world and an entity shaped the way production hands them to <see cref="BehaviorIngressSystem"/>
+    /// — ⚠ with NO tier component, so the system provisions it from the manifest, as it does live.
+    /// </summary>
+    private static (EntityRepository world, BehaviorRegistry registry, BehaviorIngressSystem sys, Entity entity)
+        CreateIngressFixture()
+    {
+        var world = TestWorldFactory.Create();
+        BlueprintTierTable.RegisterAll(world);
+
+        var entity = world.CreateEntity();
+        world.AddComponent(entity, new BehaviorState());
+        world.AddComponent(entity, new BrainBlackboard());
+        world.AddComponent(entity, new BrainBTreeState());
+
+        var registry = new BehaviorRegistry();
+        return (world, registry, new BehaviorIngressSystem(registry), entity);
+    }
+
+    /// <summary>Leaves BOTH cursors mid-tree, the way a live tick would.</summary>
+    private static void PoisonBothCursors(EntityRepository world, Entity entity)
+    {
+        ref var root = ref world.GetComponentRW<BrainBTreeState>(entity);
+        root.State.RunningNodeIndex = 7;
+        ReadChildState(world, entity, TreeStateKey).RunningNodeIndex = 7;
+    }
+
+    private static void AssertBothCursorsReset(EntityRepository world, Entity entity)
+    {
+        // ⚠ Non-vacuity: the HOST's reset is the behaviour that has always worked. If this reads 7
+        //   the fixture never reached the reset at all and the rail below would pass for free.
+        Assert.Equal(0, world.GetComponentRO<BrainBTreeState>(entity).State.RunningNodeIndex);
+
+        // ⭐⭐ THE RAIL. 🔴 Reads 7 without ResetHostedTreeStates.
+        Assert.Equal(0, ReadChildState(world, entity, TreeStateKey).RunningNodeIndex);
+    }
+
+    /// <summary>
+    /// ⭐⭐⭐ <b>Rail ⑤ — <c>F14b</c>: re-assigning a behaviour by NAME resets the hosted cursor too.</b>
+    ///
+    /// <para>🔴 <b>Why the SAME behaviour twice is the sharp case.</b> <c>BehaviorIngressSystem</c>
+    /// detaches the outgoing behaviour's slots only when <c>previousBehaviorId != behaviorId</c>
+    /// (<c>:146</c>), and <c>AttachSlotsToMemory</c>'s idempotent arm deliberately preserves a slot
+    /// whose size and hash match. ⇒ on a re-assign the hosted cursor is NOT reclaimed and NOT
+    /// re-zeroed — while the host's own cursor is zeroed unconditionally one line later.</para>
+    ///
+    /// <para>⛔ <b>Red-proof:</b> delete the <c>ResetHostedTreeStates</c> call at <c>:165</c> and this
+    /// reads <c>Actual 7</c> while every other rail stays green.</para>
+    /// </summary>
+    [Fact]
+    public void O4_R5_ReassigningABehaviourByNameResetsTheHostedCursor()
+    {
+        var (world, registry, sys, entity) = CreateIngressFixture();
+        using var _w = world;
+
+        const string name = "O4_HostingBehaviour";
+        const int    id   = 8401;
+        registry.Register(id, name, HostingBehavior(name));
+
+        void Assign()
+        {
+            world.Bus.PublishManaged(new AssignBehaviorEvent
+            {
+                Entity = entity, BehaviorName = name, JsonParams = string.Empty,
+            });
+            world.Bus.SwapBuffers();
+            sys.Execute(world, 0.016f);
+        }
+
+        Assign();                                  // provisions the tier and attaches the hosted slot
+        PoisonBothCursors(world, entity);
+        Assign();                                  // the EXTERNAL reset — no tick, so no sweep
+
+        AssertBothCursorsReset(world, entity);
+    }
+
+    /// <summary>
+    /// ⭐⭐⭐ <b>Rail ⑥ — <c>F14b</c>: assigning by HASH resets the hosted cursor too.</b>
+    ///
+    /// <para>🔴🔴 <b>This arm is worse than rail ⑤'s.</b> The <c>AssignBehaviorHashEvent</c> handler
+    /// (<c>:211-244</c>) touches no slots <b>at all</b> — it neither detaches the outgoing behaviour's
+    /// nor provisions the incoming one's — yet it zeroes <c>BrainBTreeState.State</c> like the others.
+    /// ⇒ every hosted cursor survives a phase transition that restarts the host.</para>
+    /// </summary>
+    [Fact]
+    public void O4_R6_AssigningByHashResetsTheHostedCursor()
+    {
+        var (world, registry, sys, entity) = CreateIngressFixture();
+        using var _w = world;
+
+        const string name = "O4_HostingBehaviourByHash";
+        const int    id   = 8402;
+        registry.Register(id, name, HostingBehavior(name));
+
+        // Provision through the by-NAME path, which is the only one that attaches slots.
+        world.Bus.PublishManaged(new AssignBehaviorEvent
+        {
+            Entity = entity, BehaviorName = name, JsonParams = string.Empty,
+        });
+        world.Bus.SwapBuffers();
+        sys.Execute(world, 0.016f);
+
+        PoisonBothCursors(world, entity);
+
+        world.Bus.Publish(new AssignBehaviorHashEvent { Entity = entity, BehaviorHash = id });
+        world.Bus.SwapBuffers();
+        sys.Execute(world, 0.016f);
+
+        AssertBothCursorsReset(world, entity);
+    }
+
+    /// <summary>
+    /// ⭐⭐ <b>Rail ⑦ — the reset is NARROW: author working state survives, a cursor does not.</b>
+    ///
+    /// <para>⛔ <c>AttachSlotsToMemory</c>'s idempotent arm preserves a matching slot's payload on
+    /// purpose — <i>"no churn on soft reload / no-op re-assign"</i>. ⚠ <c>F14b</c>'s fix must not
+    /// quietly turn every re-assign into a working-state wipe, which is what a blanket
+    /// <i>"zero every slot of the incoming manifest"</i> would have done. ⭐ The manifest itself draws
+    /// the line: <c>WorkingStateType == typeof(BehaviorTreeState)</c> marks exactly the slots the
+    /// emitter adds for hosting.</para>
+    /// </summary>
+    [Fact]
+    public void O4_R7_TheResetLeavesAuthorWorkingStateAlone()
+    {
+        var (world, registry, sys, entity) = CreateIngressFixture();
+        using var _w = world;
+
+        int authorKey = (OccurrenceSlots.TreeStateKeyFor(HostAsset, PatrolSite, ChildAsset) ^ 0x5A5A)
+                        & 0x7FFFFFFF;
+
+        const string name = "O4_MixedManifest";
+        const int    id   = 8403;
+
+        var hosting = HostingBehavior(name);
+        registry.Register(id, name, new BehaviorDefinition
+        {
+            Name                 = name,
+            BrainTier            = hosting.BrainTier,
+            BTreeInterpreter     = hosting.BTreeInterpreter,
+            StatefulWorkingSlots = new[]
+            {
+                HostedManifestSlot(),
+                // An authored WorkingState — 4 bytes, and NOT a BehaviorTreeState.
+                new StatefulSlotInfo(authorKey, sizeof(int), 0u, typeof(int), "author state"),
+            },
+        });
+
+        void Assign()
+        {
+            world.Bus.PublishManaged(new AssignBehaviorEvent
+            {
+                Entity = entity, BehaviorName = name, JsonParams = string.Empty,
+            });
+            world.Bus.SwapBuffers();
+            sys.Execute(world, 0.016f);
+        }
+
+        Assign();
+        PoisonBothCursors(world, entity);
+        {
+            byte* store = OccurrenceStoreAccess.TryGetStore(world, entity, out _);
+            Assert.True(BlueprintBlackboardPartitions.TryGetSlotOffset(store, authorKey, out int off));
+            *(int*)(store + off) = 0x1234;
+        }
+
+        Assign();
+
+        AssertBothCursorsReset(world, entity);
+
+        // ⭐⭐ THE RAIL. The author's slot is untouched by the cursor reset.
+        {
+            byte* store = OccurrenceStoreAccess.TryGetStore(world, entity, out _);
+            Assert.True(BlueprintBlackboardPartitions.TryGetSlotOffset(store, authorKey, out int off));
+            Assert.Equal(0x1234, *(int*)(store + off));
+        }
     }
 }

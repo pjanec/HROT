@@ -2579,7 +2579,7 @@ stays green.
 | ⚠ not claimed | |
 |---|---|
 | ⛔ **rail ②b drives `Reset` DIRECTLY**, not through a tree that abandons mid-flight | 📐 the interpreter's composites RESUME the running branch by design, so a genuine abandon needs a `Parallel` or a reactive abort. ⭐ ②b pins what `Reset` guarantees; ②c pins that it is invoked. 🔒 **End-to-end abandon is not yet measured** |
-| ⛔ **the EXTERNAL reset path is NOT covered** | 📌 `BehaviorIngressSystem:204` / `:235` set `BrainBTreeState.State = default` on a behaviour change. ⚠ That zeroes the HOST's cursor without a tick, so **no sweep fires and no deactivator runs** ⇒ a hosted child's slot keeps stale state across a behaviour swap. **Found while wiring `D4`; not fixed here** |
+| ⛔ **the EXTERNAL reset path is NOT covered** | ⛔⛔ **SUPERSEDED `2026-09-20` — FIXED, see §22 (`F14b`).** 📌 As found: `BehaviorIngressSystem:204` / `:235` set `BrainBTreeState.State = default` on a behaviour change. ⚠ That zeroes the HOST's cursor without a tick, so **no sweep fires and no deactivator runs** ⇒ a hosted child's slot keeps stale state across a behaviour swap. ⚠ **And the two line numbers were the wrong pair** — §22 measures which sites actually leak |
 
 | ⭐ left to do | |
 |---|---|
@@ -2620,7 +2620,7 @@ determinism check.
 |---|---|
 | ⛔ **the root occurrence still lives in `BrainBTreeState`** | §19.7 ① concluded both halves must ship together; 📐 measuring proved that **too strong** — `hostKey` is a disambiguator folded into a hash and never dereferences anything, so a canonical IDENTITY suffices. ⭐ Moving the root state into a slot remains a separate change |
 | ⛔ **end-to-end ABANDON is unmeasured** | rail ②b drives `Reset` directly; the interpreter's composites resume the running branch by design, so a genuine mid-flight abandon needs a `Parallel` or a reactive abort. ⭐ ②c pins that the deactivator is WIRED |
-| 🔴 **the EXTERNAL reset path is uncovered** | `BehaviorIngressSystem:204`/`:235` set `BrainBTreeState.State = default` on a behaviour change — **without a tick**, so no sweep fires and no deactivator runs ⇒ a hosted child's slot keeps stale state across a behaviour swap. **Found while wiring `D4`; not fixed** |
+| ✅ **the EXTERNAL reset path** | ⛔⛔ **SUPERSEDED `2026-09-20` — FIXED in §22 (`F14b`), with rails ⑤/⑥/⑦ and an exact red-proof.** As written here it was *"uncovered"*, and the two sites it named were **not the two that leak** |
 | ⚠ **§19.4's sizing re-measure is VACUOUS TODAY, and that is the honest answer** | 📐 **0** assets carry an alias ⇒ no asset gains a hosting-site slot ⇒ `B4`'s `MaxSlots 3` is **unmoved**. ⭐ The 80 B + 1 slot cost becomes real when someone first authors a hosted subtree. ⛔ Re-deriving a number from content that does not exist would be invention |
 
 ### 21.3 ⭐⭐⭐ THE GATE VERDICT
@@ -2632,3 +2632,68 @@ determinism check.
 ⚠ **One caveat on how much the golden proves here:** 📐 **0** assets exercise subtree hosting, so the
 golden shows `O4` **broke nothing**; it does **not** exercise the new path. ⭐ That path's evidence is
 the 6 runtime rails and the red-proof *(reverting only the hosting argument reddens only rail ①)*.
+
+
+## 22. ✅ `F14b` — **THE EXTERNAL RESET PATH, CLOSED** *(`2026-09-20`, obligation ⑤)*
+
+⭐⭐⭐ **`D4`'s two halves both arrive THROUGH A TICK. The ingress resets the host WITHOUT one.**
+⇒ `SweepExitedNodes` never runs, the deactivator never fires, and a hosted child resumes mid-tree while
+its host restarts at the root. 📌 Found while wiring `D4`; §20.2 and §21.2 carried it as an open hole.
+
+### 22.1 ⭐ THE SEQUENCE — **what the picture shows that §21.2's prose hid**
+
+```mermaid
+sequenceDiagram
+    autonumber
+    participant Dir as MissionDirectorSystem
+    participant Ing as BehaviorIngressSystem
+    participant Root as BrainBTreeState
+    participant Store as occurrence store
+    participant Sweep as Interpreter.SweepExitedNodes
+
+    Note over Dir,Sweep: the path D4 covers - a reset that arrives through a TICK
+    Sweep->>Store: deactivator fires, HostedSubtree.Reset clears the child
+
+    Note over Dir,Sweep: F14b - the path that does NOT tick
+    Dir->>Ing: AssignBehaviorEvent / AssignBehaviorHashEvent
+    Ing->>Root: State = default
+    Ing--xSweep: no tick, so no sweep and no deactivator
+    Ing->>Store: ResetHostedTreeStates - the fix
+```
+
+⭐ **Caption:** the two paths reach the SAME child state and only one of them runs the interpreter.
+⛔ The dashed edge is the one the prose could state but never forced anyone to look up.
+
+### 22.2 🔴 THE SITES — **§21.2 named the wrong pair, and measuring is what found it**
+
+| site | does it leak a hosted cursor? | why |
+|---|---|---|
+| **`:163`** `AssignBehaviorEvent` | 🔴 **YES** | detach is gated on `previousBehaviorId != behaviorId` (`:146`), and `AttachSlotsToMemory`'s idempotent arm **deliberately preserves** a slot whose size+hash match ⇒ a **re-assign of the same behaviour** keeps the cursor while the host's is zeroed one line later |
+| **`:235`** `AssignBehaviorHashEvent` | 🔴🔴 **YES, worse** | the handler touches **no slots at all** — it neither detaches the outgoing manifest nor provisions the incoming one — yet zeroes `BrainBTreeState.State` like the others |
+| **`:204`** `ClearBehaviorEvent` | ✅ **NO** | it `DetachStatefulSlots` first, and **`TryAttach` ZEROES the payload it hands out** (`SlotAttachZeroingTests`) ⇒ the next assign gets a clean cursor with no extra call. ⛔ **A reset call here would be dead code** |
+
+⚠⚠ **§20.2/§21.2 named `:204`/`:235`.** 📐 `:204` was already safe and `:163` was not — the leak is where
+**idempotent attach preserves state**, not where the cursor is zeroed. ⇒ 🔒 **the rule that would have got
+this right first time: for "does this path leak state?", read the SLOT lifecycle, not the line that zeroes
+the component.**
+
+### 22.3 ⭐ WHAT SHIPPED
+
+| | |
+|---|---|
+| `HostedSubtree.Reset(EntityRepository, Entity, int)` | the external overload; the `ref BTreeContext` form forwards to it ⇒ **one body** (ruling 9) |
+| `HostedSubtree.IsTreeStateSlot(StatefulSlotInfo)` | ⭐⭐ **the manifest itself says which slots are cursors** — the emitter stamps `WorkingStateType = typeof(BehaviorTreeState)` on exactly the slots `CollectHostedTreeStateSlots` adds, and an authored `WorkingState` can never be that type. ⛔ A caller re-spelling this test is how the two would drift |
+| `BehaviorIngressSystem.ResetHostedTreeStates` | called at `:163` and `:235`, **not** at `:204` |
+
+⛔⛔ **Deliberately NARROW — and rail ⑦ is what holds it that way.** A blanket *"zero every slot of the
+incoming manifest"* would have turned every no-op re-assign into a **working-state wipe**, destroying the
+behaviour `AttachSlotsToMemory` documents as *"no churn on soft reload / no-op re-assign"*. ⭐ A cursor is
+not working state.
+
+### 22.4 ⭐ EVIDENCE
+
+| | |
+|---|---|
+| rails | **⑤** by-name re-assign · **⑥** by-hash assign · **⑦** the narrowness — author state survives while the cursor does not. All in `HostedSubtreeCursorTests`, the feature's own suite (`T-1`) |
+| non-vacuity | each asserts the **host's** cursor reset too — a fixture that never reached the reset would fail there first |
+| red-proof | commenting out **only** the two `ResetHostedTreeStates` calls ⇒ **0 build errors**, exactly **3 failed / 6 passed**. ⭐ Restored ⇒ 9/9 |
