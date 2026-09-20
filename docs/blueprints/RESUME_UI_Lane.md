@@ -1,17 +1,23 @@
 <!--STATUS
 state: LIVE
 updated: 2026-09-20
-current-answer: ⭐⭐⭐ READ THE TOP OF THIS FILE — the "SESSION 2026-09-20 (g)" block (S-4) is the live
-  state; the (f) block below it (S-3e) is the one before.
+current-answer: ⭐⭐⭐ READ THE TOP OF THIS FILE — the "SESSION 2026-09-20 (h)" block (S-4b, the map's
+  right-click) is the live state; (g) is S-4 and (f) is S-3e.
   ☑ UXI-11 slices S-1, S-2, S-3, S-3b, S-3c, S-3d (Windows-VERIFIED), S-3e AND S-4 ARE BUILT: one
   store, one request, one writer, one announcement on every node — ONE PLACE (MapInteractionPack) that
   builds them all — and right-click SELECTS on both inspector panels, with the DER inspector wired to
   the host selection by NETWORK id.
   NEXT IS S-5 — losing the selection cancels that entity's edit (rule 5).
-  ⛔⛔ S-4 IS PARTIAL AND SAYS SO: the MAP's right-click still collapses a multi-selection, because the
-  vendored GizmoMap terminal's interaction event carries NO MOUSE BUTTON and has no "menu opened" kind.
-  That is a dependency change (a Button field, or a MenuOpened kind) — sized in §2.7.13, NOT an
-  oversight. Acceptance 11.4 passes on the panels and FAILS on the map.
+  ☑ S-4b CLOSED S-4's map gap: the vendored terminal now tags Started with its button, so §2.3 is met
+  on EVERY surface — inside the selection nothing moves, outside it replaces, empty space clears.
+  ⭐ NO NEW FIELD: the button rides in the interaction callback's existing actionId slot and in
+  GizmoInteractionBatch.ActionId, both of which already carry a MapMouseButton for RawInput. Left is 0,
+  so every un-migrated producer and any un-migrated sender on the wire keeps its old meaning exactly.
+  ⭐⭐ The rule is BUTTON-SPECIFIC and that is the whole reason the button was needed: a LEFT-click
+  inside a multi-selection must still narrow it to one. A shared guard would have removed that silently.
+  ⚠ S-4b edits FDP/ExtDeps/GizmoMap (2 sites) — done on the user's explicit nod.
+  ⚠ KNOWN LIMIT, pre-existing: the empty-space clear is LOCAL-ONLY (a canvas anchor does not survive
+  the ingress resolve filter). ⛔ OUT OF SCOPE, per its own design: the map menu's CONTENTS.
   ⚠ Still openly unmet, each saying so: two synchronous editor facade seams (§2.7.7 deviation ③);
   panels PROJECT rather than subscribe (§2.7.8 deviation ②); ClearAll still has 0 callers.
   📄 The as-builts are UX_Feature_Selection.md §2.7.6 (S-1), §2.7.7 (S-2), §2.7.8 (S-3), §2.7.9 (S-3b),
@@ -22,7 +28,7 @@ current-answer: ⭐⭐⭐ READ THE TOP OF THIS FILE — the "SESSION 2026-09-20 
   nothing from it is in flight. Older STRANDS below it are older history still; do NOT act on any of
   them unless explicitly told to continue one.
 
-stale-below: ⛔ EVERYTHING below the "SESSION 2026-09-20 (g)" block is HISTORY, newest first —
+stale-below: ⛔ EVERYTHING below the "SESSION 2026-09-20 (h)" block is HISTORY, newest first —
   including the (d), (c), (b) and (a) blocks (S-3b, S-3, S-2, S-1) and the 2026-09-19/20 block, whose
   plans are now DONE. Do not quote any of it as current state.
 known-rot: none open in this file.
@@ -37,6 +43,56 @@ related-designs:
   Nothing was deleted.
 -->
 # ⭐⭐⭐ RESUME — **the UI / variable implementation lane**
+
+## ⭐⭐⭐ SESSION `2026-09-20` (h) — **`S-4b`: THE MAP'S RIGHT-CLICK. §2.3 IS MET EVERYWHERE**
+
+> 🔒 **User:** *"the right click itself should deselect the entity unless the already selected group
+> right clicked"* · *"include the empty-space clear"*.
+
+☑ **Done.** 📄 As-built: [`UX_Feature_Selection.md` §2.7.14](../UX/UX_Feature_Selection.md).
+
+### 🔴 The defect was one argument
+
+`GizmoMap.Presentation/Layers/DebugGizmoLayer.cs:218` emitted `Started` for a right-release with
+`actionId = 0`, and the proxy tool emits the **same kind** for a left-press ⇒ the two gestures were
+indistinguishable downstream, so every press took the left branch and issued an unconditional
+`Replace`.
+
+### ⭐ The rule
+
+| gesture | selection afterwards |
+|---|---|
+| right-press **in** the selection | **unchanged** — the group survives |
+| right-press **not** in the selection | **Replace** — it deselects the others, as a left-click would |
+| right-press on **empty space** | **Clear** |
+| **left**-press | **Replace, unconditionally — UNCHANGED** |
+
+⛔⛔ **That last row is why the button had to be carried.** A left-click on a member of a five-selection
+must still narrow it to one; a guard applied to both buttons would have removed that silently, and §2.3
+exempts the right-click only. `LeftClickingAnEntityInsideTheSelection_StillNarrowsTheSelectionToIt`
+pins it.
+
+### ⭐⭐ No new field, and wire-compatible by construction
+
+The callback **already had** an `int actionId` that `Started` passed `0` into, and the `RawInput` path
+in the same file already puts a `MapMouseButton` there; `GizmoInteractionBatch.ActionId` does the same
+on the wire. ⭐ `MapMouseButton.Left == 0` and `ActionId` defaults to `0` ⇒ every un-migrated producer
+and sender decodes as **Left**, which is what its `Started` always meant.
+
+### ⚠ Two things measured while building, neither cosmetic
+
+- **The modifier trap.** `MapMouseButton` is `[Flags]` with Shift/Ctrl/Alt in bits 28-30, so a plain
+  `Button == Right` is **false for a shift-right-click**. Masked, and railed.
+- **The exclusive-capture guard.** The new empty-space arm is skipped while a tool holds exclusive
+  capture, mirroring the suppression the menu path already does — otherwise a right-click away from an
+  armed tool would deselect the entity being edited, which 🔒 **§2.6 forbids**.
+
+### ⛔ Limits, both stated in the design
+
+**Empty-space clear is local-only** — a canvas anchor does not survive the ingress resolve filter; that
+is **pre-existing** (no canvas interaction has ever crossed the wire) and relaxing the filter is
+`R-144`'s business. **The map menu's CONTENTS** stay out of scope — `canvas-context-menu-design.md`
+parks multi-entity menus; `S-4b` guarantees only the precondition they need.
 
 ## ⭐⭐⭐ SESSION `2026-09-20` (g) — **`S-4`: RIGHT-CLICK SELECTS ON THE PANELS; THE DER SEAM**
 

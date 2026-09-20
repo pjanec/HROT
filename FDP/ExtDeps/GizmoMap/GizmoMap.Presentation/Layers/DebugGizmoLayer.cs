@@ -102,9 +102,14 @@ namespace GizmoMap.Presentation
         /// <param name="camera">Current camera used to convert screen pixels to world space.</param>
         /// <param name="onInteraction">
         /// Optional callback invoked with the pick token, event kind, world position, actionId,
-        /// and stateFlags. For non-RawInput events actionId=0 and stateFlags=0.
+        /// and stateFlags.
         /// For RawInput: actionId=(int)MapMouseButton or (int)MapKeyboardKey;
         /// stateFlags bit7=1 mouse/0 keyboard, bit0=1 pressed/0 released.
+        /// For Started: actionId=(int)MapMouseButton — WHICH BUTTON began the interaction. Left is 0,
+        /// so a producer that does not set it reads as Left, which is what every left-press path is.
+        /// A consumer needs this because right-click and left-click have DIFFERENT selection rules
+        /// (see UX_Feature_Selection.md §2.3); without it the two gestures are indistinguishable here.
+        /// For DragUpdate/Commit/Cancel actionId=0 and stateFlags=0.
         /// </param>
         public void HandleInput(
             ReadOnlySpan<DebugPrimitive> primitives,
@@ -215,7 +220,28 @@ namespace GizmoMap.Presentation
                         hitNetworkId = hit.BoxAnchorId != 0 ? hit.BoxAnchorId : -1L;
 
                         var token = MakePickToken(in hit);
-                        onInteraction?.Invoke(token, GizmoInteractionEventKind.Started, worldPos3, 0, 0);
+                        // Tag the button. Previously this passed 0 -- i.e. Left -- so a consumer could not
+                        // tell a right-click from a left one and had to treat both the same. That made
+                        // right-clicking a member of a multi-selection collapse the selection, which
+                        // UX_Feature_Selection.md §2.3 forbids. No new field: actionId already exists on
+                        // this callback and already carries a MapMouseButton for RawInput below.
+                        onInteraction?.Invoke(token, GizmoInteractionEventKind.Started, worldPos3,
+                            (int)MapMouseButton.Right, 0);
+                    }
+                    else if (!exclusiveAnchorId.HasValue)
+                    {
+                        // Empty-space right-click. This emitted NOTHING before, so a consumer had no way
+                        // to learn the operator had clicked the canvas and §2.3's "right-click empty space
+                        // clears the selection" row could not be implemented at all. The token is default
+                        // (an invalid pick) -- the same signal the left-press canvas fallback uses -- and
+                        // the button distinguishes it from that one, which means "begin a rubber band".
+                        //
+                        // The exclusive guard mirrors the one below: while a tool holds exclusive capture,
+                        // a click away from its anchor is suppressed (hitNetworkId is forced to 0 so no
+                        // menu opens). Emitting a canvas clear here would bypass that and deselect the
+                        // entity being edited -- UX_Feature_Selection.md §2.6 rules the opposite.
+                        onInteraction?.Invoke(default, GizmoInteractionEventKind.Started, worldPos3,
+                            (int)MapMouseButton.Right, 0);
                     }
 
                     if (exclusiveAnchorId.HasValue && hitNetworkId != exclusiveAnchorId.Value)

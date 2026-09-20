@@ -70,15 +70,21 @@ public class SelectionInteractionSystemTests
 
     /// <summary>⭐ §6.7 — the token carries the target's NETWORK id; <c>Entity.Null</c> maps to 0,
     /// which is exactly the "empty canvas" signal the rubber-band arm reads.</summary>
-    private void PublishStartedEvent(Entity target, Vector3 worldPos = default)
+    private void PublishStartedEvent(Entity target, Vector3 worldPos = default,
+                                     MapMouseButton button = MapMouseButton.Left)
     {
         _world.Bus.Publish(new GizmoInteractionStartedEvent
         {
             Token    = new PickToken { AnchorId = AnchorIdOf(target) },
             WorldPos = worldPos,
+            Button   = button,
         });
         _world.Bus.SwapBuffers();
     }
+
+    /// <summary>⭐ <c>S-4b</c> — the right-press form, for §2.3's rows.</summary>
+    private void PublishRightStartedEvent(Entity target, Vector3 worldPos = default)
+        => PublishStartedEvent(target, worldPos, MapMouseButton.Right);
 
     private long AnchorIdOf(Entity target)
         => Fdp.Toolkit.Replication.Services.NetworkIdResolver.RuntimeNetworkIdOf(_world, target);
@@ -304,5 +310,146 @@ public class SelectionInteractionSystemTests
         _system.Tick(0f);
 
         Assert.Equal(Entity.Null, callbackEntity);
+    }
+
+    // ══ UXI-11 S-4b — §2.3'S BUTTON-SPECIFIC ROWS ON THE MAP ═══════════════════
+    // 📄 docs/UX/UX_Feature_Selection.md §2.3 (ruled 2026-08-12) and §2.7.14 (the as-built).
+    //
+    // 🔴 Until the terminal tagged the button, a right-release and a left-press arrived here as the
+    //    SAME event, so every press took the left branch and a right-click collapsed a multi-selection.
+    //    These four rails are what that defect could not satisfy.
+
+    /// <summary>
+    /// ⭐⭐⭐ <b>§2.3 row 1 — a right-click INSIDE the selection leaves the whole selection alone.</b>
+    /// 🔒 Load-bearing, not cosmetic: the <c>2026-09-10</c> fan-out ruling (<i>"a menu opened on a
+    /// selection affects all selected"</i>) is impossible if the gesture that opens the menu destroys
+    /// the multi-selection.
+    ///
+    /// <para>⛔ <b>Red-proof:</b> drop the <c>isRight &amp;&amp; IsSelected</c> guard and the second
+    /// entity loses its selection — the exact collapse the operator sees today.</para>
+    /// </summary>
+    [Fact]
+    public void RightClickingAnEntityInsideTheSelection_LeavesTheWholeSelectionAlone()
+    {
+        var a = CreateSelectableEntity();
+        var b = CreateSelectableEntity();
+
+        // Select both, through the real writer.
+        _world.Bus.PublishManaged(Fdp.Toolkit.Vis2D.Abstractions.SelectionChangeRequest
+            .ReplaceWith(new[] { a, b }, "test.setup"));
+        ServeRequests();
+        Assert.True(_world.GetComponent<SelectionState>(a).IsSelected);   // ⛔ anti-vacuity
+        Assert.True(_world.GetComponent<SelectionState>(b).IsSelected);
+
+        PublishRightStartedEvent(b);
+        _system.Tick(0f);
+        ServeRequests();
+
+        Assert.True(_world.GetComponent<SelectionState>(a).IsSelected);   // ⭐ the group SURVIVES
+        Assert.True(_world.GetComponent<SelectionState>(b).IsSelected);
+    }
+
+    /// <summary>
+    /// ⭐⭐⭐ <b>§2.3 row 2 — a right-click OUTSIDE the selection still replaces it.</b> ⚠ Right-click
+    /// does not stop selecting; it deselects the others exactly as a left-click would. Only the
+    /// inside-the-group case is exempt.
+    /// </summary>
+    [Fact]
+    public void RightClickingAnEntityOutsideTheSelection_ReplacesTheSelectionWithIt()
+    {
+        var a = CreateSelectableEntity();
+        var b = CreateSelectableEntity();
+
+        _world.Bus.PublishManaged(Fdp.Toolkit.Vis2D.Abstractions.SelectionChangeRequest
+            .ReplaceWith(a, "test.setup"));
+        ServeRequests();
+
+        PublishRightStartedEvent(b);
+        _system.Tick(0f);
+        ServeRequests();
+
+        Assert.False(_world.GetComponent<SelectionState>(a).IsSelected);
+        Assert.True(_world.GetComponent<SelectionState>(b).IsSelected);
+        Assert.True(_world.GetComponent<SelectionState>(b).IsPrimarySelection);
+    }
+
+    /// <summary>
+    /// ⭐⭐⭐ <b>The asymmetry that made the button necessary.</b> A LEFT-click inside a multi-selection
+    /// must still narrow it to that one entity — that is how an operator drills down. ⛔ If the §2.3
+    /// guard were applied to both buttons (which is what a button-less fix would have done), this rail
+    /// goes red and nobody would have noticed until an operator tried it.
+    /// </summary>
+    [Fact]
+    public void LeftClickingAnEntityInsideTheSelection_StillNarrowsTheSelectionToIt()
+    {
+        var a = CreateSelectableEntity();
+        var b = CreateSelectableEntity();
+
+        _world.Bus.PublishManaged(Fdp.Toolkit.Vis2D.Abstractions.SelectionChangeRequest
+            .ReplaceWith(new[] { a, b }, "test.setup"));
+        ServeRequests();
+
+        PublishStartedEvent(b);                     // ⭐ LEFT, the default
+        _system.Tick(0f);
+        ServeRequests();
+
+        Assert.False(_world.GetComponent<SelectionState>(a).IsSelected);
+        Assert.True(_world.GetComponent<SelectionState>(b).IsSelected);
+    }
+
+    /// <summary>
+    /// ⭐⭐⭐ <b>§2.3 row 3 — right-click on EMPTY SPACE clears.</b> 🔴 This could not be implemented at
+    /// all before <c>S-4b</c>: the terminal emitted nothing for a canvas right-click, so no event
+    /// reached this system.
+    ///
+    /// <para>⛔ And it must NOT arm a rubber band — that is a left-drag gesture, and arming one on a
+    /// right-release leaves <c>_isBoxSelecting</c> set with no matching commit. The second half of this
+    /// rail pins that: a later commit must not then re-clear as a tiny drag.</para>
+    /// </summary>
+    [Fact]
+    public void RightClickingEmptySpace_ClearsTheSelection_AndDoesNotArmARubberBand()
+    {
+        var a = CreateSelectableEntity();
+        _world.Bus.PublishManaged(Fdp.Toolkit.Vis2D.Abstractions.SelectionChangeRequest
+            .ReplaceWith(a, "test.setup"));
+        ServeRequests();
+        Assert.True(_world.GetComponent<SelectionState>(a).IsSelected);   // ⛔ anti-vacuity
+
+        PublishRightStartedEvent(Entity.Null);
+        _system.Tick(0f);
+        ServeRequests();
+
+        Assert.False(_world.GetComponent<SelectionState>(a).IsSelected);
+
+        // ⭐ No band was armed, so this commit is not a tiny-drag deselect and nothing further happens.
+        Entity? callbackEntity = null;
+        _system.OnSelectionChanged += (e, _) => callbackEntity = e;
+        _world.Bus.Publish(new GizmoInteractionCommitEvent { Token = default });
+        _world.Bus.SwapBuffers();
+        _system.Tick(0f);
+        Assert.Null(callbackEntity);
+    }
+
+    /// <summary>
+    /// ⚠ <b>The modifier trap, pinned.</b> <c>MapMouseButton</c> is <c>[Flags]</c> and packs
+    /// Shift/Ctrl/Alt into bits 28-30, so a naive <c>Button == Right</c> is FALSE for a
+    /// shift-right-click. ⛔ That bug would appear only once someone held a modifier.
+    /// </summary>
+    [Fact]
+    public void AShiftRightClickInsideTheSelection_IsStillARightClick()
+    {
+        var a = CreateSelectableEntity();
+        var b = CreateSelectableEntity();
+
+        _world.Bus.PublishManaged(Fdp.Toolkit.Vis2D.Abstractions.SelectionChangeRequest
+            .ReplaceWith(new[] { a, b }, "test.setup"));
+        ServeRequests();
+
+        PublishStartedEvent(b, default, MapMouseButton.Right | MapMouseButton.ShiftMask);
+        _system.Tick(0f);
+        ServeRequests();
+
+        Assert.True(_world.GetComponent<SelectionState>(a).IsSelected);
+        Assert.True(_world.GetComponent<SelectionState>(b).IsSelected);
     }
 }

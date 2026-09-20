@@ -23,10 +23,19 @@ build-state: BUILDING (§2.7 is the consolidated TARGET STATE with class + seque
   inspector gains its seam (network-id addressed, so no new event was needed) and ExCon wires it, so a
   DER row click moves the remote map's selection. §2.3's same-frame ordering constraint is SUPERSEDED:
   the gesture fixes the menu's subject at open time. As-built in §2.7.13.
-  ⛔ S-4 IS DELIBERATELY PARTIAL: the MAP's right-click still collapses a multi-selection, because the
-  vendored GizmoMap terminal's interaction event carries no mouse button and has no "menu opened" kind.
-  That is a dependency change, sized in §2.7.13, NOT an oversight — acceptance 11.4 passes on the
-  panels and FAILS on the map.
+  ☑ S-4b BUILT 2026-09-20 — user: "the right click itself should deselect the entity unless the already
+  selected group right clicked" + "include the empty-space clear". THE MAP'S RIGHT-CLICK IS FIXED and
+  §2.3 is now met on EVERY surface. The vendored GizmoMap terminal tags Started with its button (no new
+  field: actionId already existed on that callback and already carries a MapMouseButton for RawInput),
+  and a canvas right-click emits a Started that never existed before. MapMouseButton.Left is 0, so the
+  change is backward- and wire-compatible by construction. As-built in §2.7.14.
+  ⛔ S-4b EDITS THE VENDORED FDP/ExtDeps/GizmoMap TREE — 2 sites, on the user's explicit nod.
+  ⛔ STILL OUT OF SCOPE, and the owning design says so: the map menu's CONTENTS (items applicable to all
+  selected). canvas-context-menu-design.md parks multi-entity menus. S-4b guarantees the PRECONDITION —
+  the selection is still there when the menu opens.
+  ⚠ KNOWN LIMIT: the empty-space clear is LOCAL-ONLY. A canvas anchor (id 0/-1) does not survive the
+  ingress resolve filter, so a REMOTE terminal's empty-space right-click does not cross the wire. This
+  is PRE-EXISTING (no canvas interaction has ever crossed) and deliberately not fixed here.
   S-5..S-6 remain DESIGN.)
 verified: 2026-09-10 (measured source scan, graph + grep, coverage checked)
   ⭐ S-1's own inventory re-measured 2026-09-20 on the graph — §2.7.6.
@@ -64,8 +73,13 @@ current-answer: ✅ READ §2.7 — the consolidated TARGET STATE (2026-09-10), w
   RequestSelectEntity/HostSelectedNetworkId, addressed by NETWORK id (IDerEntity.EntityId already is
   one), wired in ExCon to SendSetSelection/SelectedEntityId. The menu's subject is fixed BY THE
   GESTURE, which dissolves §2.3's now-unsatisfiable same-frame ordering constraint.
-  ❌ STILL NOT BUILT: ClearAll has 0 callers; the MAP's right-click still collapses a multi-selection
-  (needs a button on the vendored terminal's interaction event — §2.7.13); S-5 and S-6.
+  ☑ BUILT (S-4b): the MAP's right-click obeys §2.3 — inside the selection nothing moves, outside it
+  replaces, empty space clears. The button rides in the interaction callback's existing actionId slot
+  and in GizmoInteractionBatch.ActionId; Left is 0 so nothing un-migrated changes meaning.
+  ⭐ The rule is BUTTON-SPECIFIC on purpose: a LEFT-click inside a multi-selection must still narrow it
+  to one, which is why a shared guard would have been wrong and the button had to be carried.
+  ❌ STILL NOT BUILT: ClearAll has 0 callers; the map menu's CONTENTS (out of scope, see its own
+  design); the empty-space clear does not cross the wire (pre-existing); S-5 and S-6.
   ⭐ 2026-09-10 — §2.6 is NEW and carries four user rulings: selection is GLOBAL across every host
   (ChainToMap as an opt-in is retired), a selection CHANGE cancels editing of the previously selected
   entity, clicks during an edit must not select (already true on the map via the capture-anchor filter,
@@ -97,7 +111,7 @@ known-conflict: none open. ✅ "Who owns selection" is RULED (2026-09-10): the g
 -->
 # Feature design — selection
 
-> **Design for [UXI-11](UX_Issues.md#uxi-11) · drafted 2026-08-12 · target state consolidated `2026-09-10` in §2.7.** **Status: 🟡 BUILDING — ☑ `S-1` (§2.7.6), ☑ `S-2` (§2.7.7), ☑ `S-3` (§2.7.8), ☑ `S-3b` (§2.7.9), ☑ `S-3c` (§2.7.10), ✅ `S-3d` (§2.7.11a, Windows-verified), ☑ `S-3e` (§2.7.12) and 🟡 `S-4` (§2.7.13) built `2026-09-20`: one store, one request, one writer, one announcement, on every node — **one place that builds them**, and right-click selects on both inspector panels. ❌ Still open — the **map's** right-click collapses a multi-selection (the vendored terminal's event carries no mouse button, §2.7.13), `ClearAll` has 0 callers, and `S-5`–`S-6` remain design.** Implements [rulings 27-28](UX_RESUME_INTERACTION.md). Feeds
+> **Design for [UXI-11](UX_Issues.md#uxi-11) · drafted 2026-08-12 · target state consolidated `2026-09-10` in §2.7.** **Status: 🟡 BUILDING — ☑ `S-1` (§2.7.6), ☑ `S-2` (§2.7.7), ☑ `S-3` (§2.7.8), ☑ `S-3b` (§2.7.9), ☑ `S-3c` (§2.7.10), ✅ `S-3d` (§2.7.11a, Windows-verified), ☑ `S-3e` (§2.7.12) 🟡 `S-4` (§2.7.13) and ☑ `S-4b` (§2.7.14) built `2026-09-20`: one store, one request, one writer, one announcement, on every node — **one place that builds them**, and right-click selects on both inspector panels. **§2.3 is now met on every surface.** ❌ Still open — the map menu's *contents* (parked by its own design), `ClearAll` has 0 callers, and `S-5`–`S-6` remain design.** Implements [rulings 27-28](UX_RESUME_INTERACTION.md). Feeds
 > [UXI-24](UX_Issues.md#uxi-24) (multi-select) and [UXI-23](UX_Issues.md#uxi-23) (map parity).
 
 ## 0. Prior art ([rule 6](UX_Issues.md#rules))
@@ -344,7 +358,8 @@ surfaces knowing anything about tools.**
 | §2.3 row | as-built `2026-09-10` | after `S-4` |
 |---|---|---|
 | right-click an **unselected** entity ⇒ cleared, then selected | ✅ on the **map** — right-release emits a `Started` event (`GizmoMap…/DebugGizmoLayer.cs:227`) which `SelectionInteractionSystem` turns into clear+select. 🔴 **NOT in the inspector** — `EntityInspectorPanel.cs:398-403` only opens the popup; left-click selects (`:385-395`), right-click does not | ☑ **both inspectors** now request a `Replace`; the map was already right |
-| right-click an **already-selected** entity ⇒ **selection unchanged** | 🔴 **VIOLATED** — the clear+select is unconditional, so right-clicking one of five selected **collapses the selection to one** | ☑ on the **panels**; 🔴 **STILL VIOLATED ON THE MAP** — the terminal's `Started` event carries **no mouse button**, so a right-press is indistinguishable from a left one. ⛔ Needs a seam in the vendored `GizmoMap` — §2.7.13 "NOT BUILT" |
+| right-click an **already-selected** entity ⇒ **selection unchanged** | 🔴 **VIOLATED** — the clear+select is unconditional, so right-clicking one of five selected **collapses the selection to one** | ☑ **panels** (`S-4`) and ☑ **map** (`S-4b`, §2.7.14) — the terminal now tags `Started` with its button, so the two gestures part company at `SelectionInteractionSystem` |
+| right-click **empty space** ⇒ cleared | 🔴 **not implemented on the map** — the terminal emitted **no event at all** for a canvas right-click *(the `Started` sat inside the hit guard)*, so nothing downstream could act | ☑ **map** (`S-4b`); ⛔ n/a on the panels *(a list has no canvas)*. ⚠ **local-only** — a canvas anchor does not survive the ingress filter, which is pre-existing (§2.7.14) |
 | mutate selection **before** the menu is populated | ⚠ **not asserted anywhere** — no rail found | ⭐ **the constraint is superseded** (§2.7.13): the gesture fixes the menu's subject at open time, and `TheInspectorPanelsRightClickSelectsTests` rails it |
 
 🔒 **The second row is load-bearing, not cosmetic:** the `2026-09-10` fan-out ruling (*"context menu opened
@@ -671,7 +686,8 @@ sequenceDiagram
 | ☑ **S-3c** *(`2026-09-20`, §2.7.10)* | 🔒 *"unify across host also the bootstrap code … including this entity selection stuff"* — `MapInteractionPack` constructs the selection for all five hosts | ☑ `new EcsSelectionState(` and `new SelectionInteractionSystem(` appear in production **once** |
 | ☑ **S-3e** *(`2026-09-20`, §2.7.12)* | 🔒 *"remaining half"* — CGF gains a map-input path; every gesture becomes a request | ☑ `SelectionRequestSystem` is **literally** the only writer; ☑ a regression `S-3` shipped is closed |
 | 🟡 **S-4** *(`2026-09-20`, §2.7.13)* | right-click selects on every surface *(§2.3 incl. row 1)*; DER inspector gains a seam | ☑ **both inspector panels**, bound and unbound, railed and red-proved; ☑ the DER seam, wired in ExCon; ☑ `CE-259s`'s ordering **already discharged at `S-2`** — and §2.3's same-frame constraint is now SUPERSEDED, not merely unmet. ⛔ **the MAP is NOT done**: the vendored terminal's event carries no mouse button *(§2.7.13 "NOT BUILT")* |
-| **S-5** | rule 5 — losing selection cancels that entity's edit | ⭐ needs **S-4** *(a targeted arming does not select — `Tool_Model` §4.14)* — ☑ the panel half it needed is in |
+| ☑ **S-4b** *(`2026-09-20`, §2.7.14)* | 🔒 *"the right click itself should deselect the entity unless the already selected group right clicked"* — the MAP joins §2.3 | ☑ all three §2.3 rows on the map, incl. the empty-space clear; ☑ the button is carried with **no new field** and Left-defaults to the old meaning; ⚠ **2 vendored sites**, on the user's nod |
+| **S-5** | rule 5 — losing selection cancels that entity's edit | ⭐ needs **S-4** *(a targeted arming does not select — `Tool_Model` §4.14)* — ☑ **S-4/S-4b are both in** |
 | **S-6** | remote-map-control dispatcher becomes a requester; echo suppression moves to egress | 📄 `DESIGN_Remote_Map_Control.md` |
 
 ⚠ **`UXI-24` (multi-select) rides on S-1 + S-2** — its map additive-click needs the mutators and the mode.
@@ -1395,6 +1411,83 @@ on the panels and FAILS on the map** — stated here so nobody reads `S-4` as cl
 | ⚠ a new class, not an addition | 📌 `T-1` ④ prefers the feature's own suite — the two panels' existing suites are `PanelSnapshot`/projection suites (*"what the dump carries"*), and §2.3's click semantics had **no** suite on either panel. This is it, and it covers both so they cannot drift apart |
 | ⛔ what it does NOT cover | that the ImGui draw calls `RightClick` at all — one `IsMouseClicked(Right)` guard inside a draw, not reachable headlessly. ⭐ `RightClick` / `RequestSelect` were **extracted from the draw** so everything the gesture MEANS is railed; the guard itself belongs to the operator pass |
 
+#### 2.7.14 ☑ **`S-4b` — THE MAP'S RIGHT-CLICK. §2.3 IS NOW MET ON EVERY SURFACE** *(`2026-09-20`)*
+
+> 🔒 **User:** *"the right click itself should deselect the entity unless the already selected group
+> right clicked"* · *"include the empty-space clear"*.
+
+⭐ **§2.7.13 left this open and named the reason. This closes it.** ⚠ It edits the **vendored**
+`FDP/ExtDeps/GizmoMap` tree — ⭐ done on the user's explicit nod, the same bar `Q22` and `CE-259x` set
+for that boundary.
+
+##### 🔴 The defect, in one line
+
+📐 [`GizmoMap.Presentation/Layers/DebugGizmoLayer.cs:218`](../../FDP/ExtDeps/GizmoMap/GizmoMap.Presentation/Layers/DebugGizmoLayer.cs)
+emitted `Started` for a right-release with `actionId = 0`, and `GizmoInteractionProxyTool`'s ctor emits
+the **same kind** for a left-press. ⇒ ⛔ **the two gestures were indistinguishable downstream**, so
+`SelectionInteractionSystem` treated every press as a left-click and issued an unconditional `Replace`
+— right-clicking one of five selected entities **collapsed the selection to one**.
+
+##### ⭐⭐⭐ The rule, and why it is BUTTON-SPECIFIC rather than a shared guard
+
+| gesture | selection afterwards |
+|---|---|
+| **right**-press on an entity **in** the selection | ⭐ **unchanged** — the group survives |
+| **right**-press on an entity **not** in the selection | ⭐ **Replace** — it deselects the others, exactly as a left-click would |
+| **right**-press on **empty space** | ⭐ **Clear** |
+| **left**-press | ⛔ **Replace, unconditionally — UNCHANGED** |
+
+⛔⛔ **The last row is why the button had to be carried at all.** 🔒 A left-click on a member of a
+five-selection must still narrow it to that one — that is how an operator drills down. ⇒ **a guard
+applied to both buttons would have silently removed that**, and §2.3 exempts the right-click only.
+⭐ `LeftClickingAnEntityInsideTheSelection_StillNarrowsTheSelectionToIt` is the rail that pins it.
+
+##### ⭐⭐ The transport: **no new field, and wire-compatible by construction**
+
+📐 The callback **already had** an `int actionId` slot that `Started` passed `0` into, and the
+`RawInput` path in the *same file* already puts `(int)MapMouseButton` in it. Likewise
+`GizmoInteractionBatch.ActionId` already carries a `MapMouseButton` for `RawInput` (ingress `:162`).
+
+⇒ ⭐⭐⭐ **`MapMouseButton.Left == 0` and `ActionId` defaults to `0`**, so every producer that does not
+set it — the proxy tool, every left-press path, an un-migrated sender on the wire — decodes as **Left**,
+which is precisely what its `Started` meant before the field existed. ⛔ **Not a silent default**: it is
+the value those producers genuinely have. Railed both ways
+(`SC_S4b_TheStartedButton_SurvivesEgressAndIngress`, `SC_S4b_AStartedRecordWithNoActionId_DecodesAsLeft`).
+
+| edit | where |
+|---|---|
+| ⚠ **vendored, 2 sites** | `:218` tags the button; a new `else` emits the **empty-space** `Started` that never existed |
+| ours, 5 | `GizmoInteractionStartedEvent.Button` · `Fdp.Presentation`'s layer decodes `actionId` · egress writes `ActionId` · ingress reads it · `SelectionInteractionSystem` applies the table above |
+
+##### ⭐ Two things measured while building it, neither of them cosmetic
+
+| | |
+|---|---|
+| ⭐⭐ **the modifier trap** | `MapMouseButton` is `[Flags]` with `Shift/Ctrl/AltMask` in bits 28-30 ⇒ ⛔ a plain `Button == Right` is **false for a shift-right-click**. Masked with `ButtonMask`, and pinned by `AShiftRightClickInsideTheSelection_IsStillARightClick` — a bug that would surface only once an operator held a modifier |
+| ⭐⭐ **the exclusive-capture guard** | the new empty-space arm is skipped when a tool holds exclusive capture, mirroring the suppression the menu path already does two lines below. ⛔ Without it a right-click away from an armed tool would deselect the entity being edited — 🔒 **§2.6 rules the opposite** *("clicks during an edit must not select")* |
+
+⭐ The modifier masks also retire `SelectionInteractionSystem`'s `TODO(P2): read Raylib shift/ctrl state
+for multi-select` — the information now arrives with the event; only the policy is left to write.
+
+##### ⛔ KNOWN LIMIT — **empty-space clear is LOCAL-ONLY, and it is pre-existing**
+
+📐 A canvas gesture carries anchor id `0`/`-1`, and the ingress drops any record whose anchor does not
+resolve *(`NetworkIdResolver.ResolveNetworkId` returns `Entity.Null` for `networkId <= 0`;
+`GizmoInteractionIngressTranslator` `:110`)*. ⇒ **a remote terminal's empty-space right-click does not
+cross the wire.** ⚠ **This is not new and not caused by this slice** — today's left-press canvas
+fallback emits a `default` token and is dropped by the same guard, so no canvas interaction has ever
+crossed. ⛔ **Not fixed here on purpose:** that guard is `R-144`'s protection against one operator's
+gesture reaching another's tool, and relaxing it is its own change with its own blast radius.
+⭐ On every host with its own window — editor, IG, SimHost, CGF, ReplayBrowser — the clear works, because
+the event never leaves the process.
+
+##### ⛔ STILL OUT OF SCOPE — **the map menu's CONTENTS**
+
+§2.3's second column (*"the menu shows items applicable to all selected"*) is **not** this slice. 📄 The
+owning design says so itself — `docs/designs/gizmos-1/canvas-context-menu-design.md` parks
+*"multi-entity selection menus"* until requirements are pinned. ⭐ What `S-4b` guarantees is the
+**precondition** that ruling needs: the selection is still there when the menu opens.
+
 ## 3. Acceptance
 
 | # | Case | Cls |
@@ -1402,9 +1495,9 @@ on the panels and FAILS on the map** — stated here so nobody reads `S-4` as cl
 | 11.1 | `PrimarySelected` set through the view is visible in the **component** — the desync regression guard | H |
 | 11.2 | A component change is visible through the **view** — both directions | H |
 | 11.3 | Exactly one entity has `IsPrimarySelection` after any selecting operation | H |
-| 11.4 | 🔒 Right-click on a **selected** entity leaves the selection **unchanged** — ☑ **panels** (`S-4`, §2.7.13); 🔴 **map still fails**, the terminal event carries no button | H |
-| 11.5 | 🔒 Right-click on an **unselected** entity clears the selection and selects **only** it — ☑ **panels** (`S-4`); ☑ map (already) | H |
-| 11.6 | 🔒 Right-click on **empty space** clears the selection — ⛔ n/a on the panels (no canvas) | H |
+| 11.4 | 🔒 Right-click on a **selected** entity leaves the selection **unchanged** — ☑ **panels** (`S-4`, §2.7.13) and ☑ **map** (`S-4b`, §2.7.14) | H |
+| 11.5 | 🔒 Right-click on an **unselected** entity clears the selection and selects **only** it — ☑ **panels** (`S-4`); ☑ **map** | H |
+| 11.6 | 🔒 Right-click on **empty space** clears the selection — ☑ **map** (`S-4b`); ⛔ n/a on the panels (no canvas). ⚠ local-only, see §2.7.14 | H |
 | 11.7 | The menu is populated **after** the selection mutation, same frame | H |
 | 11.8 | 🔒 **Reload clears the selection** — `ClearAll()` is actually called (it never is today) | H |
 | 11.9 | Despawning the primary leaves **no stale primary** in the view | H |

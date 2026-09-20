@@ -285,6 +285,13 @@ namespace Fdp.Toolkit.Vis2D.Layers
                     {
                         Token = pickToken,
                         WorldPos = worldPos,
+                        // ⭐⭐⭐ UXI-11 S-4b — the terminal tags Started with its button in actionId, the
+                        //   same slot RawInput already uses for one. ⚠ Left is 0, so a producer that
+                        //   passes 0 (every left-press path, and the proxy tool) reads as Left, which is
+                        //   what it genuinely is. 📄 UX_Feature_Selection.md §2.7.14.
+                        // ⚠ Fully qualified: Fdp.Toolkit.Vis2D.Abstractions declares a MapMouseButton
+                        //   too, and both namespaces are imported here.
+                        Button = (Fdp.Toolkit.Diagnostics.Gizmos.Interaction.MapMouseButton)actionId,
                     });
                     break;
                 case GizmoInteractionEventKind.DragUpdate:

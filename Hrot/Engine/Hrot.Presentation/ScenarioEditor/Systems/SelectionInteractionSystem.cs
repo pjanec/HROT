@@ -42,6 +42,14 @@ public sealed class SelectionInteractionSystem
     ///   with no store behind it, so an instance made here and one made by the host cannot disagree.
     private readonly Hrot.ScenarioEditor.Selection.EcsSelectionState _selection;
 
+    /// <summary>
+    /// ⭐⭐ Isolates the BUTTON from <see cref="MapMouseButton"/>'s modifier masks. ⚠ The enum is
+    /// <c>[Flags]</c> and packs <c>ShiftMask</c>/<c>CtrlMask</c>/<c>AltMask</c> into bits 28-30, so
+    /// <c>Button == MapMouseButton.Right</c> would be FALSE for a shift-right-click — ⛔ a bug that
+    /// would appear only once someone held a modifier, which is the worst kind to ship.
+    /// </summary>
+    private const MapMouseButton ButtonMask = (MapMouseButton)0xFF;
+
     // Rubber-band selection tracking.
     private bool    _isBoxSelecting;
     private Vector2 _boxStart;
@@ -86,8 +94,22 @@ public sealed class SelectionInteractionSystem
             var entity = Fdp.Toolkit.Replication.Services.NetworkIdResolver.ResolveNetworkId(
                 _world, evt.Token.AnchorId);
 
+            // ⭐⭐⭐ UXI-11 S-4b — §2.3's rows are BUTTON-SPECIFIC, so this is where the two gestures
+            //   part company. ⛔ Until the terminal tagged the button, a right-release and a left-press
+            //   arrived as the same event and every press took the left branch below.
+            bool isRight = (evt.Button & ButtonMask) == MapMouseButton.Right;
+
             if (entity.IsNull)
             {
+                if (isRight)
+                {
+                    // ⭐⭐ §2.3 row 3 — right-click on empty space CLEARS. ⛔ It must not start a rubber
+                    //   band: a band is a left-drag gesture, and arming one on a right-release would
+                    //   leave _isBoxSelecting set with no matching commit.
+                    Request(SelectionChangeRequest.ClearAll("Map.RightClick.EmptySpace"));
+                    continue;
+                }
+
                 // Empty-space press: begin rubber-band selection.
                 _isBoxSelecting = true;
                 _boxStart   = new Vector2(evt.WorldPos.X, evt.WorldPos.Y);
@@ -101,6 +123,21 @@ public sealed class SelectionInteractionSystem
             }
             else if (_world.IsAlive(entity))
             {
+                // ⭐⭐⭐ UXI-11 S-4b — §2.3 row 1: a right-click INSIDE the selection leaves it alone.
+                // 🔒 Ruled 2026-08-12, and it is load-bearing rather than cosmetic: the 2026-09-10
+                //    fan-out ruling ("a menu opened on a selection affects all selected") is impossible
+                //    if the gesture that opens the menu destroys the multi-selection.
+                // ⛔ NOT applied to a left-press, and that asymmetry is the whole reason the button had
+                //    to be carried: a left-click on a member of a five-selection must still narrow it to
+                //    that one. §2.3 exempts the right-click only.
+                // ⚠ Right-click on an entity OUTSIDE the selection still replaces — it deselects the
+                //   others, exactly as a left-click would. Only the inside case is exempt.
+                if (isRight && _selection.IsSelected(entity))
+                {
+                    OnSelectionChanged?.Invoke(entity, evt.WorldPos);
+                    continue;
+                }
+
                 // ⭐⭐⭐ UXI-11 S-4 — A MAP CLICK IS A REQUEST NOW, like every other surface.
                 // 🔴 This closes a defect S-3 introduced: the hand-syncs that pointed each host's
                 //    IInspectorContext at a map click were deleted in favour of the NOTIFICATION —
@@ -109,8 +146,10 @@ public sealed class SelectionInteractionSystem
                 //    for all of them at once, because the request system is what announces.
                 // ⚠ The callback still fires IMMEDIATELY: it means "the operator clicked this
                 //   entity", which is true now — ⛔ not "the selection is X", which is true next frame.
-                // TODO(P2): read Raylib shift/ctrl state for multi-select.
-                Request(SelectionChangeRequest.ReplaceWith(entity, "Map.Click"));
+                // TODO(P2): read the modifier masks below for multi-select (Shift => Add, Ctrl =>
+                //   toggle). MapMouseButton already carries them; nothing else is missing.
+                Request(SelectionChangeRequest.ReplaceWith(entity,
+                    isRight ? "Map.RightClick" : "Map.Click"));
                 OnSelectionChanged?.Invoke(entity, evt.WorldPos);
             }
         }
