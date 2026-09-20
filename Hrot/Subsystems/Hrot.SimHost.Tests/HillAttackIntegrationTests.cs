@@ -158,13 +158,10 @@ namespace Hrot.SimHost.Tests
                 new Guid("1a000000-0000-0000-0000-0000000000dd"),
                 StatefulSlotScope.Behavior, Guid.Empty, "State");
 
-            byte* mem;
-            if (repo.HasComponent<BlueprintBlackboard16384>(entity))
-            { ref var t = ref repo.GetComponentRW<BlueprintBlackboard16384>(entity); mem = (byte*)Unsafe.AsPointer(ref t); }
-            else if (repo.HasComponent<BlueprintBlackboard4096>(entity))
-            { ref var t = ref repo.GetComponentRW<BlueprintBlackboard4096>(entity); mem = (byte*)Unsafe.AsPointer(ref t); }
-            else
-            { ref var t = ref repo.GetComponentRW<BlueprintBlackboard1024>(entity); mem = (byte*)Unsafe.AsPointer(ref t); }
+            // ⭐ B4 — design §17.7. This was the three-arm ladder, and its ELSE branch assumed
+            //   1024 was the floor. O3b's 256 tier made that assumption false, so a small store
+            //   threw here. The seam probes the whole ladder, largest-first, and always has.
+            byte* mem = OccurrenceStoreAccess.TryGetStore(repo, entity, out _);
 
             BlueprintBlackboardPartitions.TryGetSlotOffset(mem, slotKey, out int off);
             return ref Unsafe.AsRef<HillAttackMutableState>(mem + off);

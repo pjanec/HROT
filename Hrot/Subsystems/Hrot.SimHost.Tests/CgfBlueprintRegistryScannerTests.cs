@@ -117,7 +117,7 @@ namespace Hrot.SimHost.Tests
 
             // The entity must have received a BlueprintBlackboard1024.
             Assert.True(
-                _repo.HasComponent<BlueprintBlackboard1024>(entity),
+                OccurrenceStoreAccess.HasStore(_repo, entity),
                 "Entity must have BlueprintBlackboard1024 after materialization with a populated registry.");
 
             // The intent must have been removed after processing.
@@ -144,7 +144,7 @@ namespace Hrot.SimHost.Tests
 
             // No blackboard component must have been attached.
             Assert.False(
-                _repo.HasComponent<BlueprintBlackboard1024>(entity),
+                OccurrenceStoreAccess.HasStore(_repo, entity),
                 "Entity must NOT have BlueprintBlackboard1024 when the registry is empty.");
             Assert.False(
                 _repo.HasComponent<BlueprintBlackboard4096>(entity),

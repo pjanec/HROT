@@ -122,16 +122,19 @@ namespace Hrot.SimHost.Tests
             // Intent removed
             Assert.False(_repo.HasManagedComponent<InitialBlueprintsIntent>(entity));
 
-            // Correct tier chosen: B1024 (300 bytes ≤ 928, 3 slots ≤ 4)
-            Assert.True(_repo.HasComponent<BlueprintBlackboard1024>(entity));
-            Assert.False(_repo.HasComponent<BlueprintBlackboard4096>(entity));
-            Assert.False(_repo.HasComponent<BlueprintBlackboard16384>(entity));
+            // ⭐ B4 — design §17.7. The property is "the aggregate lands on the tier the LADDER
+            //   picks for it", not "1024": 300 B / 3 slots named 1024 under 4/8/16 and still does
+            //   under 12/16/16, but pinning the NAME is what reddened three tests at B3② and more
+            //   at B4. ⇒ derive it, so the next ladder move is free.
+            Assert.True(OccurrenceStoreAccess.HasStore(_repo, entity));
+            Assert.Equal(BlueprintTierTable.Select(300, 3).Tier,
+                         BlueprintTierTable.Of(_repo, entity)!.Tier);
 
             // 3 slots occupied
             unsafe
             {
-                ref var bb = ref _repo.GetComponentRW<BlueprintBlackboard1024>(entity);
-                fixed (byte* mem = bb.Memory)
+                // ⭐ B4 — design §17.7: resolve the store through the SEAM, not a named tier.
+                byte* mem = OccurrenceStoreAccess.TryGetStore(_repo, entity, out _);
                 {
                     ref var header = ref Unsafe.AsRef<BlueprintBlackboardHeader>(mem);
                     Assert.Equal(BlueprintBlackboardHeader.MagicValue, header.MagicAndVersion);
@@ -162,10 +165,13 @@ namespace Hrot.SimHost.Tests
             var sys = CreateSystem();
             sys.Execute(_repo, 0f);
 
-            // Correct tier: B4096 (1000 bytes > 928 but ≤ 3936)
-            Assert.False(_repo.HasComponent<BlueprintBlackboard1024>(entity));
-            Assert.True(_repo.HasComponent<BlueprintBlackboard4096>(entity));
-            Assert.False(_repo.HasComponent<BlueprintBlackboard16384>(entity));
+            // ⭐ B4 — design §17.7: the aggregate must select the tier the LADDER selects, and it
+            //   must be a LARGER one than the small case above. ⛔ Not the literal name B4096.
+            var chosen = BlueprintTierTable.Of(_repo, entity);
+            Assert.NotNull(chosen);
+            Assert.Equal(BlueprintTierTable.Select(1000, 4).Tier, chosen!.Tier);
+            Assert.True(chosen.TotalSize > BlueprintTierTable.Select(300, 3).TotalSize,
+                "1000 B over 4 slots must outgrow the tier the 300 B / 3 slot case lands on");
         }
 
         // ── Test 3: Ceiling guard ──────────────────────────────────────────────
@@ -240,11 +246,11 @@ namespace Hrot.SimHost.Tests
             sys.Execute(_repo, 0f);
 
             // Valid blueprint attached (slot count == 1)
-            Assert.True(_repo.HasComponent<BlueprintBlackboard1024>(entity));
+            Assert.True(OccurrenceStoreAccess.HasStore(_repo, entity));
             unsafe
             {
-                ref var bb = ref _repo.GetComponentRW<BlueprintBlackboard1024>(entity);
-                fixed (byte* mem = bb.Memory)
+                // ⭐ B4 — design §17.7: resolve the store through the SEAM, not a named tier.
+                byte* mem = OccurrenceStoreAccess.TryGetStore(_repo, entity, out _);
                 {
                     ref var header = ref Unsafe.AsRef<BlueprintBlackboardHeader>(mem);
                     Assert.Equal(1, header.SlotCount);
@@ -319,7 +325,7 @@ namespace Hrot.SimHost.Tests
             matSys.Execute(_repo, 0f);
 
             Assert.False(_repo.HasManagedComponent<InitialBlueprintsIntent>(entity));
-            Assert.True(_repo.HasComponent<BlueprintBlackboard1024>(entity));
+            Assert.True(OccurrenceStoreAccess.HasStore(_repo, entity));
 
             // Tick the BlueprintTickSystem several times
             var tickSys = new BlueprintTickSystem(_registry);
