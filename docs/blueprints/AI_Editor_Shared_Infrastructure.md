@@ -1,3 +1,22 @@
+<!--STATUS
+state: LIVE
+updated: 2026-09-20 (STATUS block added; selection content re-measured with the graph)
+current-answer: the body below.
+known-rot: ⚠ this document predates UXI-11 (selection unification, ☑ 2026-09-20) and is NOT reconciled
+  with it. Two measured facts, 2026-09-20:
+  ① 🔴 SharedEntitySelection (wrapped per-editor by EditorSelectionStore) is a SECOND entity-selection
+     store, held in production by BOTH authoring hosts — EditorSubsystem.cs:360 and CgfSubsystem.cs:199 —
+     alongside the ECS SelectionState component UXI-11 made the one truth everywhere else. ⛔ No UXI-11
+     slice addressed it; it is NOT a view. Whether it should become one is UNRULED.
+  ② ⚠ IGSelectionBridge (this file's DDS-selection-to-EditorSelectionStore seam) has exactly ONE
+     implementation, CallbackSelectionBridge, and ZERO production construction sites — the only
+     `new CallbackSelectionBridge` is in its own test. ⛔ Do NOT read that as dead: it is a latent
+     SECOND remote-selection ingress path that would bypass UXI-11 S-6's unified egress if wired.
+     Recorded, not proposed for deletion.
+related-designs:
+  - docs/UX/UX_Feature_Selection.md — owns UXI-11: the ECS SelectionState component, the one store, the
+    request/notification protocol and the egress. It does NOT own this file's SharedEntitySelection.
+-->
 # AI Editor — Shared Infrastructure Detailed Design
 
 > **Status:** Detailed design, derived from `Blueprint_Subsystem_Editor_Detailed_Design.md` + Inline Patches + `Blueprint_Subsystem_Debug_Protocol_Detailed_Design.md` (+ Inline Patches) + `Blueprint_Subsystem_Architecture_v1_2.md` + FDP-ECS-AI-API research report + NodeEdit-docs + FastBTree + FastHSM source.
