@@ -1178,14 +1178,40 @@ the next task must not re-derive it.
 | ⭐ `A3_R4` **NEW, not in the table above** — the nibble array covers every tier's `MaxSlots` | ⭐ turns the *"binds future tiers to ≤ 16"* caveat into a rail that **reddens** when `O3a` re-picks the ladder or `O3b` adds its tier, instead of dropping declarations at runtime. Red-proved with `MaxKindSlots = 8` |
 
 ⭐⭐ **A free guard nobody designed, found while red-proving `R3` — record it so it is not re-derived.**
-📐 Renumbering `Blueprint` onto `0` does **not** redden a rail: it **fails the build.** The CycloneDDS
-codegen sweeps every public enum in `Fdp.Toolkits` into generated IDL, and `idlc` refuses two
-enumerators sharing a value — *"Value of enumerator 'Blueprint' clashes with the value of enumerator
-'Invalid'"*. ⇒ **"no two kinds share a value" is enforced by the toolchain**, and `A3_R3` covers only
-the half it cannot know: that the reserved value is specifically `0`, because `0` is what zeroed
-memory reads.
-⚠ **And the trap inside that:** the sweep is **indiscriminate** — `BlackboardTier`, which rides no
-topic, gets an `.idl` too ⇒ ⛔ **a generated `.idl` is NOT evidence that a type is on the wire.**
+📐 Renumbering `Blueprint` onto `0` does **not** redden a rail: it **fails the build**, with
+*"Value of enumerator 'Blueprint' clashes with the value of enumerator 'Invalid'"*. ⇒ **"no two kinds
+share a value" is enforced by the TOOLCHAIN**, and `A3_R3` covers only the half the toolchain cannot
+know: that the reserved value is specifically `0`, because `0` is what zeroed memory reads.
+
+⚠⚠ **WHY a brain enum reaches an IDL compiler at all — the chain, measured `2026-09-20`.**
+⛔ **An earlier version of this block called the sweep *"indiscriminate"* on the strength of ONE
+sample (`BlackboardTier`). That was an observation where a RULE was available, and it understated the
+cause. SUPERSEDED by the four steps below.**
+
+| # | step | evidence |
+|---|---|---|
+| ① | ⭐⭐ **`Fdp.Toolkits.csproj:70` carries `<PackageReference Include="CycloneDDS.NET" />`** — unconditional, per-project | ⛔ **no global setting**: `Directory.Build.props` sets nothing, and `Fdp.Core` does not reference it — which is why the engine core has **0** DDS types and gets **no** sweep |
+| ② | that alone sets `CycloneDdsCodeGenActive = true` for the whole assembly | `CycloneDDS.NET.targets:65` |
+| ③ | the detector fires on `rxDds.IsMatch(text) \|\| rxEnum.IsMatch(text)` — ⚠ **an enum alone is enough**, no DDS type required | `targets:94,105` |
+| ④ | the generator's own stated discovery rule: *"type is `[DdsTopic]`/`[DdsStruct]`/`[DdsUnion]` **OR is an enum**"* ⇒ **all 86 enums** in the assembly get IDL + a `DdsIdlMapping` | `targets:75-76` |
+
+⇒ ⭐⭐⭐ **`OccurrenceKind` is in IDL because it SHARES AN ASSEMBLY with wire types — not because
+anything chose to publish it.** The four files that drag the package reference in are
+`Spatial/Eqs/EqsDdsTopics.cs`, `Time/Messages/TimeMessages.cs`, `Commands/DdsCommandClient.cs` and
+`Time/SwitchTimeModeDescriptorTranslator.cs` — **11 `[DdsTopic]` in 4 files**, all documented
+(`docs/projects/FDP/Toolkits/Fdp.Toolkits.Spatial.Eqs.md` names `Fdp.Toolkit.Spatial.Eqs.Topics` as
+the topics' home).
+
+| ⭐ what this DOES and does NOT mean | |
+|---|---|
+| ✅ **`R-134` holds in the DATA path** | no DDS struct enters the brain path and no brain state leaves it: the crossing is done by `EqsResultIngressTranslator` / `EqsSensorConfigIngressTranslator`, which is the ruling's own sole-boundary pattern |
+| ✅ **nothing is actually on the wire** | 📐 **no generated `.idl` `#include`s `OccurrenceKind.idl` / `BlackboardTier.idl` / `BlueprintDispatchKind.idl`** — each appears only in its own file ⇒ no struct references them, no topic, no reader, no writer. ⭐ And the tiers carry `[DataPolicy(NoScenario)]`, so the nibbles miss the save too |
+| ⚠ **what DOES leak is SCHEMA, at the BUILD boundary** | ⛔ a network toolchain now has a say over brain enum VALUES — `idlc` refuses duplicate enumerators. Small, but it is the coupling the internal/wire enum duplication exists to prevent |
+| ⛔ **a generated `.idl` is NOT evidence a type is on the wire** | the rule in ④, not a guess from one sample |
+
+⛔ **Searched `docs/` then `.dev/`: no design owns the codegen sweep, and none justifies the ASSEMBLY
+choice for the EQS/time wire types** — the arrangement is described, never argued. ⇒ filed for the
+backend lane as **`QA-035`** (`Blueprint_Issues_Tracker.md` Area N); ⛔ **not this lane's to move.**
 
 ⚠ **`Reserved` IS NOW SPENT.** 📐 Checked: `BlueprintAssetTick`'s own header already **rejected** this
 field for the per-instance tick counter — *"wrong granularity: the header is per entity-tier"* — so
