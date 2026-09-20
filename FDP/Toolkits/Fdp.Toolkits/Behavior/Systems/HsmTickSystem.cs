@@ -185,9 +185,9 @@ namespace Fdp.Toolkit.Behavior.Systems
                 ref var component = ref repo.GetComponentRW<T>(entity);
 
                 // BHU-009: Inject MobilityLost interrupt if the interrupt register is set.
-                if (repo.HasComponent<BrainBlackboard>(entity))
+                if (repo.HasComponent<BrainInterrupts>(entity))   // O2: the interrupts moved
                 {
-                    ref var bb = ref repo.GetComponentRW<BrainBlackboard>(entity);
+                    ref var bb = ref repo.GetComponentRW<BrainInterrupts>(entity);
                     if (bb.Interrupt_MobilityLost == 1)
                     {
                         T* instPtr = (T*)Unsafe.AsPointer(ref component);

@@ -16,7 +16,12 @@ namespace Fdp.Toolkit.Behavior
         public const int MaxChannelSizeBytes = 96;
 
         /// <summary>Size of BrainBlackboard inline memory.</summary>
-        public const int BrainBlackboardByteSize = 128;
+        // ⭐ `O2` (2026-09-20): with the entity-fact tail moved to BrainInterrupts, the blackboard IS
+        //   the params region — 128 → 100. The 28 bytes between the params region and the old
+        //   interrupt registers were dead weight on every brain entity.
+        // ⚠ Kept as its own name because BehaviorIngressSystem's transactional-parse shadow copy sizes
+        //   itself from it; it now copies exactly the params, which is what that copy is for.
+        public const int BrainBlackboardByteSize = MaxBehaviorParamByteSize;
 
         /// <summary>
         /// Maximum byte size for a behavior parameter DTO projected onto

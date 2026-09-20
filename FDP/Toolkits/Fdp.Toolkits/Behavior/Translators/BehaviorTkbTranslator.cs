@@ -124,6 +124,14 @@ namespace Fdp.Toolkit.Behavior.Translators
 
             if (repo.IsComponentTypeRegistered<BrainBlackboard>() && !repo.HasComponent<BrainBlackboard>(entity))
                 repo.AddComponent(entity, new BrainBlackboard());
+
+            // ⭐⭐ O2 (2026-09-20) — the entity-fact tail rides the SAME fact as the blackboard:
+            //   "this template has a brain". ⛔ Hooked here, beside the blackboard, rather than at a
+            //   consumer — B1 learned that hooking a path instead of the fact leaves the component
+            //   missing wherever a second path exists. This is the one production site that gives an
+            //   entity a brain, and the guard mirrors the line above exactly.
+            if (repo.IsComponentTypeRegistered<BrainInterrupts>() && !repo.HasComponent<BrainInterrupts>(entity))
+                repo.AddComponent(entity, new BrainInterrupts());
         }
     }
 }

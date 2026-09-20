@@ -94,9 +94,16 @@ public sealed class BrainBlackboardRenderer : IEntityAwareImGuiRenderer
             RenderRawBytes(bb);
         }
 
-        ImGui.TextUnformatted($"ExpectedThreatLevel: {bb.ExpectedThreatLevel}");
-        ImGui.TextUnformatted($"Interrupt_MobilityLost: {bb.Interrupt_MobilityLost}");
-        ImGui.TextUnformatted($"Interrupt_Reserved: {bb.Interrupt_Reserved}");
+        // ⭐ O2 (2026-09-20) — the entity-fact tail moved to BrainInterrupts, but the INSPECTOR must
+        //   not lose it (R-137: unification may not cost a feature). Rendered from its new home, on
+        //   the same panel, so the designer sees no change.
+        if (session is not null && session.HasComponent(entity, typeof(BrainInterrupts))
+            && session.GetComponent(entity, typeof(BrainInterrupts)) is BrainInterrupts ints)
+        {
+            ImGui.TextUnformatted($"ExpectedThreatLevel: {ints.ExpectedThreatLevel}");
+            ImGui.TextUnformatted($"Interrupt_MobilityLost: {ints.Interrupt_MobilityLost}");
+            ImGui.TextUnformatted($"Interrupt_Reserved: {ints.Interrupt_Reserved}");
+        }
 
         return true;
     }

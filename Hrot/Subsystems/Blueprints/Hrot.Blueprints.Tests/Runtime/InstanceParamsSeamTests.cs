@@ -116,6 +116,8 @@ public sealed unsafe class InstanceParamsSeamTests : IDisposable
     {
         _repo.RegisterComponent<BlueprintBlackboard1024>();
         _repo.RegisterComponent<BrainBlackboard>();
+        _repo.RegisterComponent<BrainInterrupts>();   // O2 — the entity-fact tail
+        _repo.RegisterComponent<BrainInterrupts>();
         _registry.RegisterInstance(BpId, MakeDefinition());
     }
 
@@ -283,24 +285,30 @@ public sealed unsafe class InstanceParamsSeamTests : IDisposable
 
     /// <summary>
     /// ⭐⭐ <b>§8's "the tail is untouched".</b> Resolving an Instance's params must not reach into the
-    /// entity's <see cref="BrainBlackboard"/> — <c>ExpectedThreatLevel</c> and the two interrupts are
-    /// entity FACTS, unrelated to params, and they live in the region the behaviour path's own
-    /// <c>ParseParams</c> writes into. ⚠ One delegate type serving two destinations is exactly the
-    /// shape where a wrong pointer would land there.
+    /// entity's cognitive facts — <c>ExpectedThreatLevel</c> and the two interrupts are entity FACTS,
+    /// unrelated to params. ⚠ One delegate type serving two destinations is exactly the shape where a
+    /// wrong pointer would land there.
+    ///
+    /// <para>⭐ <b>`O2` (2026-09-20) made this claim STRONGER, not obsolete.</b> The tail used to be
+    /// bytes 120/126/127 of the same <c>BrainBlackboard</c> the behaviour path's <c>ParseParams</c>
+    /// writes into — one overrun away. It is now a separate <see cref="BrainInterrupts"/> component,
+    /// so reaching it takes a different component fetch rather than a stray offset. ⛔ The rail stays:
+    /// it now guards that the seam does not WANDER INTO ANOTHER COMPONENT, which is still possible.</para>
     /// </summary>
     [Fact]
     public void ResolvingInstanceParams_DoesNotWriteTheBrainBlackboardTail()
     {
         var e = _repo.CreateEntity();
         _repo.AddComponent(e, default(BrainBlackboard));
-        ref var brain = ref _repo.GetComponentRW<BrainBlackboard>(e);
+        _repo.AddComponent(e, default(BrainInterrupts));
+        ref var brain = ref _repo.GetComponentRW<BrainInterrupts>(e);
         brain.ExpectedThreatLevel     = 3;
         brain.Interrupt_MobilityLost  = 1;
         brain.Interrupt_Reserved      = 2;
 
         BlueprintInstanceService.AttachToEntity(_repo, _registry, BpId, e, "{\"Speed\":99,\"Range\":4}");
 
-        ref var after = ref _repo.GetComponentRW<BrainBlackboard>(e);
+        ref var after = ref _repo.GetComponentRW<BrainInterrupts>(e);
         Assert.Equal(3, after.ExpectedThreatLevel);
         Assert.Equal(1, after.Interrupt_MobilityLost);
         Assert.Equal(2, after.Interrupt_Reserved);

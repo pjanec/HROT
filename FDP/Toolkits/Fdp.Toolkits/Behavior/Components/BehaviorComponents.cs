@@ -69,23 +69,44 @@ namespace Fdp.Toolkit.Behavior.Components
         [FieldOffset(0)]
         public fixed byte BehaviorParameters[BehaviorConstants.MaxBehaviorParamByteSize];
 
+        // ⛔⛔ THE TAIL MOVED OUT — `O2` (2026-09-20). ExpectedThreatLevel and the two interrupt
+        //   registers now live in BrainInterrupts. They are ENTITY FACTS: one per entity, true
+        //   regardless of which behaviour is running — whereas everything above is per-occurrence
+        //   behaviour params. Keeping them in one struct meant BehaviorIngressSystem's transactional
+        //   parse shadow-copied the interrupts along with the params on every behaviour switch.
+        // 📄 R-41 (bytes 126/127) and R-39 (the param-region size) are updated in RULINGS.md.
+    }
+
+    /// <summary>
+    /// ⭐⭐ <b>Per-entity cognitive facts — <c>O2</c>'s half of the <c>BrainBlackboard</c> split.</b>
+    ///
+    /// <para>These are true of the ENTITY, not of whatever behaviour is currently running: a threat
+    /// rating for the waypoint it is on, and edge-triggered interrupts raised by one system and
+    /// cleared by another at end of frame. ⛔ They were bytes 120/126/127 of <c>BrainBlackboard</c>,
+    /// so a behaviour switch's shadow-copy carried them; now they simply persist.</para>
+    ///
+    /// <para>⚠ <b>The interrupt protocol is unchanged</b>: <c>CognitiveInterruptSystem</c> sets,
+    /// <c>CognitiveCleanupSystem</c> clears at end of frame. Only the home moved.</para>
+    /// </summary>
+    [StructLayout(LayoutKind.Sequential)]
+    [ComponentId(GlobalComponentIds.BrainInterrupts)]
+    [DataPolicy(DataPolicy.NoScenario)]
+    public struct BrainInterrupts
+    {
         /// <summary>
         /// Per-waypoint threat/danger level written by <c>RouteContextSystem</c>.
         /// A value of 0 means unknown/default; higher values indicate increasing danger.
         /// </summary>
-        [FieldOffset(BehaviorConstants.BrainBlackboardByteSize-8)]
         public byte ExpectedThreatLevel;
 
         /// <summary>
-        /// MobilityLost edge-triggered interrupt.
-        /// Set to 1 by <c>CognitiveInterruptSystem</c> on the tick <c>CanMove</c> transitions
-        /// from set to cleared.  Cleared back to 0 by <c>CognitiveCleanupSystem</c> at end of frame.
+        /// MobilityLost edge-triggered interrupt. Set to 1 by <c>CognitiveInterruptSystem</c> on the
+        /// tick <c>CanMove</c> transitions from set to cleared. Cleared back to 0 by
+        /// <c>CognitiveCleanupSystem</c> at end of frame.
         /// </summary>
-        [FieldOffset(BehaviorConstants.BrainBlackboardByteSize-2)]
         public byte Interrupt_MobilityLost;
 
         /// <summary>Reserved for future hardware-level interrupt.</summary>
-        [FieldOffset(BehaviorConstants.BrainBlackboardByteSize-1)]
         public byte Interrupt_Reserved;
     }
 

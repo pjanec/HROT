@@ -874,9 +874,18 @@ static NodeStatus MyAction(ref BrainBlackboard bb, ref BehaviorTreeState state,
 
 ## 6. Heavy-Data Behaviors: Blackboard1024 and Heavy Shared Attributes
 
-### Why `BrainBlackboard` Has a Hard 60-Byte Limit
+### Why `BrainBlackboard` Has a Hard Byte Limit
 
-The first 60 bytes of `BrainBlackboard.Memory` are reserved for behavior parameters. This ceiling is intentional: it keeps the universal cognitive bus small enough to fit in a single cache line alongside the interrupt registers at bytes 126–127, guarantees zero-allocation hot-path execution, and makes buffer-overrun into the soft-advice region mathematically impossible.
+`BrainBlackboard` **is** the behavior-parameter region: `fixed byte BehaviorParameters[BehaviorConstants.MaxBehaviorParamByteSize]`, currently **100** bytes. ⭐ That is the same constant `BehaviorParameterSizeAnalyzer` (`FDP_001`) enforces, so there is **one** number, not two — ⛔ do not quote the figure from here, read `BehaviorConstants`.
+
+⛔⛔ **Two things in this section were stale until `2026-09-20` and are corrected:**
+
+| what it said | what is true |
+|---|---|
+| *"the first 60 bytes"* | **100.** The prose was never updated when the analyzer was; ⇒ this is what made `R-39` read as an unreconciled doc-vs-code contradiction when it was doc-vs-doc |
+| *"the interrupt registers at bytes 126–127"* | ⛔ **those bytes no longer exist.** `O2` (2026-09-20) split `ExpectedThreatLevel` and both interrupt registers out into their own component, **`BrainInterrupts`**, as named fields — they are facts about the ENTITY, not about whichever behaviour is running, and inside the blackboard a behaviour switch's transactional-parse shadow-copy carried them. ⚠ The interrupt **protocol** is unchanged: `CognitiveInterruptSystem` sets, `CognitiveCleanupSystem` clears at end of frame. 📄 `R-41` |
+
+The ceiling itself is intentional: it keeps the universal cognitive bus small enough to stay cache-friendly, guarantees zero-allocation hot-path execution, and makes buffer overrun out of the parameter region mathematically impossible.
 
 When a behavior requires far more working memory — a full AI search context, pre-computed firing solutions, high-resolution threat grids, or deep historical tactical data — the correct pattern is to store that data in a **separate ECS component** and give the behavior methods a compiler-assisted path to reach it.
 
@@ -1063,7 +1072,7 @@ The condition attribute places `heavyDtoType` before the optional `heavyFieldNam
 | Scenario | Component type | Attribute form |
 |---|---|---|
 | Read-only reference data shared across entities (behavior config object) | Managed class | 3-arg action / 4-arg condition (no field name) |
-| Per-entity mutable numeric state exceeding 60 bytes (search buffers, heat maps) | `Blackboard1024` (unmanaged struct) | 5-arg action / 5-arg condition (with field name) |
+| Per-entity mutable numeric state exceeding the blackboard's 100 bytes (search buffers, heat maps) | `Blackboard1024` (unmanaged struct) | 5-arg action / 5-arg condition (with field name) |
 | Mixed: small config class + large mutable buffer | Both; two attributes on the same method | — |
 
 ---
@@ -2147,7 +2156,7 @@ what is some behavior ever needed a very large parameter structure or a large wo
 
 When a behavior requires a massive parameter payload—such as high-resolution heat maps, deep historical tactical context, or complex pre-computed pathing arrays—forcing it into the `BrainBlackboard` is an architectural anti-pattern.
 
-We strictly enforce the 60-byte `BehaviorParameters` limit within the `BlackboardMemoryLayout` to guarantee cache locality, ensure zero-allocation hot-path execution, and mathematically prevent buffer overruns into the `SoftAdvice` and interrupt registers.
+We strictly enforce the `BehaviorParameters` limit — **`BehaviorConstants.MaxBehaviorParamByteSize`, currently 100 bytes**, checked by analyzer `FDP_001` — to guarantee cache locality, ensure zero-allocation hot-path execution, and mathematically prevent buffer overruns out of the parameter region. ⛔ **This line said *60 bytes* and *"into the `SoftAdvice` and interrupt registers"* until `2026-09-20`: the figure was stale prose, and since `O2` there is nothing past the parameter region to overrun into — the soft-advice byte and both interrupt registers now live in the separate `BrainInterrupts` component.**
 
 To handle a data-heavy behavior, we lean entirely into Data-Oriented Design (DOD) and the Entity Component System (ECS). Instead of polluting the universal cognitive bus, you decouple the bulky data by defining it as its own dedicated ECS component.
 
@@ -2165,7 +2174,7 @@ using Fdp.Core;
 [ComponentId(250)] // Example application-level component ID
 public unsafe struct TacticalHeatMapData
 {
-    // A massive 1024-byte inline array, well beyond the blackboard's 60-byte limit
+    // A massive 1024-byte inline array, well beyond the blackboard's 100-byte limit
     public fixed float GridWeights;
     public int ActiveSectors;
     public float ThreatThreshold;

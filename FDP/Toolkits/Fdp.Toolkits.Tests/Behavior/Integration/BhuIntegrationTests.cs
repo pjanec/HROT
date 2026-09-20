@@ -103,6 +103,7 @@ namespace Fdp.Toolkit.Behavior.Tests
             world.AddComponent(e, new BehaviorState { ActiveBehaviorHash = docId, BrainTier = BehaviorConstants.BrainTierHsm, InstanceId = 1 });
             world.AddComponent(e, MakeBrain128(blob));
             world.AddComponent(e, new BrainBlackboard());
+            world.AddComponent(e, new BrainInterrupts());
 
             // BrainHsm128 Tier2 queue: 1 interrupt slot + 1 ring slot.
             // EventX uses the interrupt slot; EventY goes to the ring slot.
@@ -143,6 +144,7 @@ namespace Fdp.Toolkit.Behavior.Tests
             world.AddComponent(e, new BehaviorState { ActiveBehaviorHash = docId, BrainTier = BehaviorConstants.BrainTierHsm, InstanceId = 1 });
             world.AddComponent(e, MakeBrain128(blob));
             world.AddComponent(e, new BrainBlackboard());
+            world.AddComponent(e, new BrainInterrupts());
 
             // Frame 1: drive to terminal.
             InjectEvents<BrainHsm128>(world, e,
@@ -185,6 +187,7 @@ namespace Fdp.Toolkit.Behavior.Tests
             world.AddComponent(e, new BehaviorState { ActiveBehaviorHash = docIdA, BrainTier = BehaviorConstants.BrainTierHsm, InstanceId = 1 });
             world.AddComponent(e, MakeBrain128(sharedBlob));
             world.AddComponent(e, new BrainBlackboard());
+            world.AddComponent(e, new BrainInterrupts());
 
             // Drive behavior A to terminal.
             InjectEvents<BrainHsm128>(world, e,
@@ -238,6 +241,7 @@ namespace Fdp.Toolkit.Behavior.Tests
             world.AddComponent(e, new BehaviorState { ActiveBehaviorHash = docId, BrainTier = BehaviorConstants.BrainTierHsm, InstanceId = 1 });
             world.AddComponent(e, MakeBrain64(blob));
             world.AddComponent(e, new BrainBlackboard());
+            world.AddComponent(e, new BrainInterrupts());
 
             // Inject single EventX (Tier1 holds only one event).
             InjectEvents<BrainHsm64>(world, e, new HsmEvent { EventId = EventX });
@@ -278,6 +282,7 @@ namespace Fdp.Toolkit.Behavior.Tests
             world.AddComponent(e, new BehaviorState { ActiveBehaviorHash = docId, BrainTier = BehaviorConstants.BrainTierHsm, InstanceId = 1 });
             world.AddComponent(e, MakeBrain128(blob));
             world.AddComponent(e, new BrainBlackboard());
+            world.AddComponent(e, new BrainInterrupts());
             world.AddComponent(e, new ActorCapabilityState { Capabilities = ActorCapabilities.CanMove });
             world.AddComponent(e, new PreviousCapabilities { Capabilities = ActorCapabilities.CanMove });
 
@@ -296,7 +301,7 @@ namespace Fdp.Toolkit.Behavior.Tests
 
             // Assert mid-frame: interrupt field was set.
             {
-                ref readonly var bb = ref world.GetComponentRO<BrainBlackboard>(e);
+                ref readonly var bb = ref world.GetComponentRO<BrainInterrupts>(e);
                 Assert.Equal(1, bb.Interrupt_MobilityLost);
             }
 
@@ -309,7 +314,7 @@ namespace Fdp.Toolkit.Behavior.Tests
 
             // Assert end-of-frame: field cleared.
             {
-                ref readonly var bb = ref world.GetComponentRO<BrainBlackboard>(e);
+                ref readonly var bb = ref world.GetComponentRO<BrainInterrupts>(e);
                 Assert.Equal(0, bb.Interrupt_MobilityLost);
             }
 
@@ -340,6 +345,7 @@ namespace Fdp.Toolkit.Behavior.Tests
             world.AddComponent(e, new BehaviorState { ActiveBehaviorHash = docId, BrainTier = BehaviorConstants.BrainTierHsm, InstanceId = 1 });
             world.AddComponent(e, MakeBrain128(blob));
             world.AddComponent(e, new BrainBlackboard());
+            world.AddComponent(e, new BrainInterrupts());
             world.AddComponent(e, new ActorCapabilityState { Capabilities = ActorCapabilities.CanMove });
             world.AddComponent(e, new PreviousCapabilities { Capabilities = ActorCapabilities.CanMove });
 
@@ -362,7 +368,7 @@ namespace Fdp.Toolkit.Behavior.Tests
             interruptSys.Execute(world, 0.016f); // no edge: prev==curr==no CanMove
 
             {
-                ref readonly var bb = ref world.GetComponentRO<BrainBlackboard>(e);
+                ref readonly var bb = ref world.GetComponentRO<BrainInterrupts>(e);
                 Assert.Equal(0, bb.Interrupt_MobilityLost);
             }
 
@@ -371,7 +377,7 @@ namespace Fdp.Toolkit.Behavior.Tests
             cleanupSys.Execute(world, 0.016f);
 
             {
-                ref readonly var bb = ref world.GetComponentRO<BrainBlackboard>(e);
+                ref readonly var bb = ref world.GetComponentRO<BrainInterrupts>(e);
                 Assert.Equal(0, bb.Interrupt_MobilityLost);
             }
 
@@ -393,15 +399,16 @@ namespace Fdp.Toolkit.Behavior.Tests
             // Create a BTree-tier entity with only BrainBlackboard.
             var e = world.CreateEntity();
             world.AddComponent(e, new BrainBlackboard());
+            world.AddComponent(e, new BrainInterrupts());
 
             // Directly set Interrupt_MobilityLost = 1 (simulating what CognitiveInterruptSystem would do).
             {
-                ref var bb = ref world.GetComponentRW<BrainBlackboard>(e);
+                ref var bb = ref world.GetComponentRW<BrainInterrupts>(e);
                 bb.Interrupt_MobilityLost = 1;
             }
 
             {
-                ref readonly var bb = ref world.GetComponentRO<BrainBlackboard>(e);
+                ref readonly var bb = ref world.GetComponentRO<BrainInterrupts>(e);
                 Assert.Equal(1, bb.Interrupt_MobilityLost);
             }
 
@@ -409,7 +416,7 @@ namespace Fdp.Toolkit.Behavior.Tests
             cleanupSys.Execute(world, 0.016f);
 
             {
-                ref readonly var bb = ref world.GetComponentRO<BrainBlackboard>(e);
+                ref readonly var bb = ref world.GetComponentRO<BrainInterrupts>(e);
                 Assert.Equal(0, bb.Interrupt_MobilityLost);
             }
 

@@ -181,5 +181,12 @@ public static class HrotSharedComponentRegistry
         // ⚠ Registration is not allocation: it creates table metadata, and the 1024 bytes only
         //    materialise on an entity that actually becomes a commander.
         world.RegisterComponent<Fdp.Toolkit.Squad.SquadCognitiveState>();
+
+        // ── Brain interrupts (O2, 2026-09-20) ─────────────────────────────────
+        // ⭐ The entity-fact half of the BrainBlackboard split. Registered on the same Hrot-wide path
+        //   as the tiers and the squad state, for the same CE-161 reason: BehaviorTkbTranslator adds
+        //   it on every node that spawns a brain entity, so a per-host registration would be a
+        //   per-host chance to forget.
+        world.RegisterComponent<Fdp.Toolkit.Behavior.Components.BrainInterrupts>();
     }
 }

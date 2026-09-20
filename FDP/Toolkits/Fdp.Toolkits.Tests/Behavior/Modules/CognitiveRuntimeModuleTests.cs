@@ -68,6 +68,7 @@ namespace Fdp.Toolkit.Behavior.Tests.Modules
             var repo = new EntityRepository();
             repo.RegisterComponent<BehaviorState>();
             repo.RegisterComponent<BrainBlackboard>();
+            repo.RegisterComponent<BrainInterrupts>();
             repo.RegisterComponent<BrainBTreeState>();
             repo.RegisterComponent<LocomotionChannel>();
             repo.RegisterComponent<ActorCapabilityState>();
@@ -83,6 +84,7 @@ namespace Fdp.Toolkit.Behavior.Tests.Modules
             var e = repo.CreateEntity();
             repo.AddComponent(e, new BehaviorState());
             repo.AddComponent(e, new BrainBlackboard());
+            repo.AddComponent(e, new BrainInterrupts());
             repo.AddComponent(e, new BrainBTreeState());
             repo.AddComponent(e, new LocomotionChannel());
             repo.AddComponent(e, new ActorCapabilityState());
@@ -90,6 +92,14 @@ namespace Fdp.Toolkit.Behavior.Tests.Modules
             {
                 repo.SetAuthority(e, ComponentTypeRegistry.GetId(typeof(BehaviorState)),   true);
                 repo.SetAuthority(e, ComponentTypeRegistry.GetId(typeof(BrainBlackboard)), true);
+                // 🔴🔴 O2 (2026-09-20) — SPLITTING A COMPONENT SPLITS ITS AUTHORITY, and this rail is
+                //   what caught it. CognitiveCleanupSystem / CognitiveInterruptSystem now gate on
+                //   BrainInterrupts (the interrupts moved there), so authority must be granted for the
+                //   NEW component or the gate stops discriminating and an unowned brain IS touched.
+                //   ⚠ In production `gateOnAuthority` is false on every host today, so this is not yet
+                //   a live defect — but BrainInterrupts must join BrainBlackboard's ownership set
+                //   before the gate is ever turned on. Recorded in design §6's O2 AS-BUILT block.
+                repo.SetAuthority(e, ComponentTypeRegistry.GetId(typeof(BrainInterrupts)),  true);
             }
             return e;
         }
@@ -124,14 +134,14 @@ namespace Fdp.Toolkit.Behavior.Tests.Modules
 
             foreach (var e in new[] { mine, someones })
             {
-                ref var bb = ref repo.GetComponentRW<BrainBlackboard>(e);
+                ref var bb = ref repo.GetComponentRW<BrainInterrupts>(e);
                 bb.Interrupt_MobilityLost = 1;
             }
 
             RunPipeline(module, repo);
 
-            Assert.Equal(0, repo.GetComponent<BrainBlackboard>(mine).Interrupt_MobilityLost);
-            Assert.Equal(1, repo.GetComponent<BrainBlackboard>(someones).Interrupt_MobilityLost);
+            Assert.Equal(0, repo.GetComponent<BrainInterrupts>(mine).Interrupt_MobilityLost);
+            Assert.Equal(1, repo.GetComponent<BrainInterrupts>(someones).Interrupt_MobilityLost);
         }
 
         /// <summary>
@@ -154,14 +164,14 @@ namespace Fdp.Toolkit.Behavior.Tests.Modules
 
             foreach (var e in new[] { mine, someones })
             {
-                ref var bb = ref repo.GetComponentRW<BrainBlackboard>(e);
+                ref var bb = ref repo.GetComponentRW<BrainInterrupts>(e);
                 bb.Interrupt_MobilityLost = 1;
             }
 
             RunPipeline(module, repo);
 
-            Assert.Equal(0, repo.GetComponent<BrainBlackboard>(mine).Interrupt_MobilityLost);
-            Assert.Equal(0, repo.GetComponent<BrainBlackboard>(someones).Interrupt_MobilityLost);
+            Assert.Equal(0, repo.GetComponent<BrainInterrupts>(mine).Interrupt_MobilityLost);
+            Assert.Equal(0, repo.GetComponent<BrainInterrupts>(someones).Interrupt_MobilityLost);
         }
     }
 }

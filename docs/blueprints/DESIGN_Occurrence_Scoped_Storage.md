@@ -665,6 +665,35 @@ Ordered so that each step is provable on its own and the expensive irreversible 
 ⭐ **`O0`–`O5` deliver real value with no ExtDeps edit at all.** The boundary is crossed once, at
 `O6`, and only after `O4` has demonstrated the model on the paradigm that needs no kernel change.
 
+### ✅ AS-BUILT `2026-09-20` — **`O2` is SHIPPED** *(task `B2`, obligation ⑤)*
+
+⭐ `BrainBlackboard` is now **the params region and nothing else**: `128 → 100` bytes, no `FieldOffset`
+tail. The three entity facts moved to a new `BrainInterrupts` component
+(`[ComponentId] = 302`, `[DataPolicy(NoScenario)]`, 3 bytes, `LayoutKind.Sequential`).
+
+| what shipped | |
+|---|---|
+| `BrainInterrupts` — `ExpectedThreatLevel`, `Interrupt_MobilityLost`, `Interrupt_Reserved` | ⭐ the interrupt PROTOCOL is untouched: `CognitiveInterruptSystem` sets, `CognitiveCleanupSystem` clears at end of frame. Only the home moved |
+| `BehaviorConstants.BrainBlackboardByteSize` `128 → MaxBehaviorParamByteSize` (100) | ⭐⭐ the 28 bytes between the params region and the old interrupt registers were **dead weight on every brain entity** — the split pays for itself before any occurrence work |
+| the attach | ⭐ `BehaviorTkbTranslator`, on the line **beside** `BrainBlackboard`'s, under the identical `IsComponentTypeRegistered && !HasComponent` guard — `B1`'s lesson applied: hook the FACT ("this template has a brain"), not a consumer |
+| consumers converted | `CognitiveInterruptSystem`, `CognitiveCleanupSystem`, `HsmTickSystem`, `RouteContextSystem`, `BrainBlackboardTranslator` (extract keeps reporting the tail, `R-137`), `BrainBlackboardRenderer` |
+| ledger | **`R-39` ✅ RECONCILED** (it was doc-vs-code, not code-vs-code); **`R-41` ⚠ SUPERSEDED** — it pinned bytes 126/127, and those bytes no longer exist |
+
+| ⚠ two things measured that the design did not say | |
+|---|---|
+| ⭐⭐ **SPLITTING A COMPONENT SPLITS ITS AUTHORITY** — and a rail caught it, not a review | `CognitiveRuntimeModuleTests.WithTheGateOn_AnUnownedBrainIsNeverTouched` went red: the gate keys on the component the cleanup system reads, which is now `BrainInterrupts`, so granting authority for `BrainBlackboard` alone stopped discriminating. ⛔ **Not a live defect** — `gateOnAuthority` is `false` on every host today — ⭐ but **`BrainInterrupts` MUST join `BrainBlackboard`'s ownership set before that gate is ever turned on**, or `P3`'s guarantee is silently void. Recorded in the rail's own header too |
+| ⚠ **`BrainInterrupts` is registered MORE WIDELY than `BrainBlackboard`** | 📐 measured on the live run: brain entities on the **SimHost** perspective carry `BrainInterrupts` and **no** `BrainBlackboard`. Cause: `BrainBlackboard` is registered by `CognitiveComponentRegistry` (reached only via `CgfComponentRegistry`), while `BrainInterrupts` went into `HrotSharedComponentRegistry` — the `CE-161` path. ⭐ **Deliberate and it changes no query's host-set**: every `BrainInterrupts` consumer is either Brain-side or in `Hrot.CGF`, and a CGF host registers **both**. ⇒ the only effect is 3 bytes per brain entity on non-CGF hosts, which is the correct home for a fact about the ENTITY (§2.1's own framing: *"entity facts, per entity, never per occurrence"*) |
+
+⭐ **Golden test re-run after `B2`** *(port 8141, `--mode all`)*: `simTime 132`, platoon at
+`523.0 · 525.1 · 529.2 · 530.9`, both targets at `Health 0`, **0 faults in the log**, and every brain
+entity carries a `BrainInterrupts` that reads `0/0/0` after cleanup.
+
+⭐ **One dead thing the split exposed:** `Hrot.CGF/Systems/Routing/BlackboardOffsets.cs` is an EMPTY
+class whose whole premise — blind byte offsets into `BrainBlackboard` — is retired by named fields.
+Zero members, zero references *(`scripts/find.sh`, graph and grep agreeing)*. ⛔ **Not deleted**: its
+owning design is `ROUTES1-DESIGN`, so it is flagged a deletion candidate in its own header rather
+than removed by a task that does not own routes-1.
+
 ### ✅ AS-BUILT `2026-09-20` — **`O1` is SHIPPED** *(task `B1`, obligation ⑤)*
 
 ⭐ `SquadCognitiveState` is now its **own ECS component** (`[ComponentId] = 270`), not a projection over

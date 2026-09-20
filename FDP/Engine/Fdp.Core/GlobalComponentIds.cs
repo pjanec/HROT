@@ -528,5 +528,14 @@
         /// load, so persisting it would create a second place the truth can live — and singletons ARE
         /// written to a recording unless the policy excludes them.</summary>
         public const int TerrainDefinition = 301;
+
+        /// <summary><c>BrainInterrupts</c> — ⭐ <b>the entity-fact tail split out of <c>BrainBlackboard</c></b>
+        /// by `O2` (2026-09-20): <c>ExpectedThreatLevel</c> and the edge-triggered interrupt registers.
+        /// They are PER ENTITY and never per occurrence, so they must stop travelling inside a struct
+        /// whose head is per-occurrence behaviour params.
+        /// ⚠ Placed at 302 rather than beside <c>BrainBlackboard</c> (23) because the low behaviour block
+        /// is dense and the block comments are measurably stale (`QA-037`). 302 is free by a census of
+        /// EVERY <c>*Ids*.cs</c>, which is the only census that counts (`R-44`).</summary>
+        public const int BrainInterrupts = 302;
     }
 }

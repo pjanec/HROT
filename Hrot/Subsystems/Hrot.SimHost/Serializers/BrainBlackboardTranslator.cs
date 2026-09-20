@@ -53,12 +53,17 @@ namespace Hrot.SimHost.Serializers
             ref readonly var bb    = ref repo.GetComponentRO<BrainBlackboard>(entity);
             ref readonly var state = ref repo.GetComponentRO<BehaviorState>(entity);
 
-            var root = new JsonObject
+            // ⭐ O2 (2026-09-20) — the entity-fact tail moved to BrainInterrupts. This dump keeps
+            //   reporting it (R-137), now read from its own component; a brain entity always has one,
+            //   but the guard keeps the dump honest if a world was built without registering it.
+            var root = new JsonObject();
+            if (repo.HasComponent<BrainInterrupts>(entity))
             {
-                ["ExpectedThreatLevel"] = bb.ExpectedThreatLevel,
-                ["Interrupt_MobilityLost"] = bb.Interrupt_MobilityLost,
-                ["Interrupt_Reserved"] = bb.Interrupt_Reserved
-            };
+                ref readonly var ints = ref repo.GetComponentRO<BrainInterrupts>(entity);
+                root["ExpectedThreatLevel"]    = ints.ExpectedThreatLevel;
+                root["Interrupt_MobilityLost"] = ints.Interrupt_MobilityLost;
+                root["Interrupt_Reserved"]     = ints.Interrupt_Reserved;
+            }
 
             if (_registry.TryGetDefinition(state.ActiveBehaviorHash, out var def)
                 && def.BlackboardLayoutType != null)

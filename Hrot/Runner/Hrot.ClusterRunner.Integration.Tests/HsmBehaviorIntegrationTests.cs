@@ -27,6 +27,7 @@ namespace Hrot.ClusterRunner.Integration.Tests
             world.RegisterComponent<BrainHsm128>();
             world.RegisterComponent<BrainHsm64>();
             world.RegisterComponent<BrainBlackboard>();
+            world.RegisterComponent<BrainInterrupts>();
             world.RegisterComponent<ActorCapabilityState>();
             world.RegisterComponent<PreviousCapabilities>();
             world.RegisterComponent<BrainBTreeState>();
@@ -140,6 +141,7 @@ namespace Hrot.ClusterRunner.Integration.Tests
             world.AddComponent(e, new BehaviorState { ActiveBehaviorHash = docId, BrainTier = BehaviorConstants.BrainTierHsm, InstanceId = 1 });
             world.AddComponent(e, MakeBrain128(blob));
             world.AddComponent(e, new BrainBlackboard());
+            world.AddComponent(e, new BrainInterrupts());
             world.AddComponent(e, new ActorCapabilityState { Capabilities = ActorCapabilities.CanMove });
             world.AddComponent(e, new PreviousCapabilities { Capabilities = ActorCapabilities.CanMove });
 
@@ -172,7 +174,7 @@ namespace Hrot.ClusterRunner.Integration.Tests
 
             // CognitiveCleanupSystem (index 5) must have cleared the interrupt field.
             {
-                ref readonly var bb = ref world.GetComponentRO<BrainBlackboard>(e);
+                ref readonly var bb = ref world.GetComponentRO<BrainInterrupts>(e);
                 Assert.Equal(0, bb.Interrupt_MobilityLost);
             }
 

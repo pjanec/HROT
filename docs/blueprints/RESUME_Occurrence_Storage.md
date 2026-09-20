@@ -5,11 +5,12 @@ doc-type: LANE RESUMPTION for the `behaviors` lane — programme ②, OCCURRENCE
   ⛔ VERIFY against git before acting ("THE LEDGER MAY NOT ASSERT WHAT THE CODE IS").
 updated: 2026-09-20
 build-state: n/a — a resumption snapshot, not a design.
-current-answer: §3 — the NEXT ACTION is task B2 (`O2`: split BrainBlackboard -> BrainInterrupts +
-  an addressable params region). Increment A is COMPLETE and B1 is DONE; all pushed. §2 is the grounded facts: ⛔ do not re-derive them, they cost
-  real measurement. §5 is the trap list, and it is the section most worth two minutes — six of these
-  were MY errors, three of which reached a pushed document before being caught.
-stale-below: nothing — §3 rewritten 2026-09-20 after A4 landed.
+current-answer: §3 — the NEXT ACTION is task B3 (`O3a`: collapse per-tier branching to a TierSpec
+  table AND re-pick the MaxSlots ladder). Increment A is COMPLETE; B1 and B2 are DONE; all pushed.
+  §2 is the grounded facts: ⛔ do not re-derive them, they cost real measurement. §5 is the trap
+  list, and it is the section most worth two minutes — six of these were MY errors, three of which
+  reached a pushed document before being caught.
+stale-below: nothing — §3 rewritten 2026-09-20 after B2 landed.
 known-rot: nothing.
 known-conflict: RESUME_Assets_And_Occurrences.md is the COORDINATOR snapshot (2026-09-19) owning TWO
   programmes. ⛔ SUPERSEDED IN PART for this one: it says the occurrence design has no PLAN (false —
@@ -60,9 +61,10 @@ and ours are `CE-`. Do not quote it as evidence for them.
 | **`A3`** *(`Kind` + `H1` + `H2`)* | ✅ **DONE** — 4 rails, all red-proved. As-built folded into design **§13**'s `AS-BUILT` block |
 | **`A4`** *(`O0`)* | ✅ **DONE** — `CgfLogicPack` owns the splice; walker filters on declared `Kind`; 3 rails red-proved. Scope: **CGF + editor** (user ruling). As-built in design **§6** |
 | **`B1`** *(`O1`)* | ✅ **DONE** — `SquadCognitiveState` is its own component (id **270**), provisioned by `SquadStateProvisioning` from **both** roster creators. As-built in design **§6** |
-| ⭐⭐⭐ **next** | **`B2`** *(`O2`)* — split `BrainBlackboard` into `BrainInterrupts` + an addressable params region. ⛔⛔ It moves `R-39`/`R-41`'s pinned byte offsets — **update both ledger rows**, do not silently invalidate them |
+| **`B2`** *(`O2`)* | ✅ **DONE** — `BrainInterrupts` is its own component (id **302**); `BrainBlackboard` is now **100 B of pure params** *(128 → 100: 28 dead bytes per brain entity)*. `R-39` reconciled, `R-41` superseded. As-built in design **§6** |
 | **`A2b`** *(the emitter ladder)* | ✅ **DONE** — ⛔ **three** ladders, not two; golden diff shape **+252/−1234, net −982**, purely the collapse. As-built in design **§13** |
-| ⚠ also open | `B3`–`B4` *(`O3a` tier table + `O3b` the 256 tier)* |
+| ⭐⭐⭐ **next** | **`B3`** *(`O3a`)* — collapse per-tier branching to a `TierSpec` table across ingress / tick / renderers, **and re-pick the `MaxSlots` ladder with a sizing rationale** *(PLAN `W1`)*. ⛔ Not inherited constants: the root occurrence promotes an 8-slot behaviour 4096 → 16384 on slot count alone |
+| ⚠ also open | `B4` *(`O3b` — the 256 tier; `MaxSlots` is PLAN `W4`, and 2 is the value that earns the tier)* |
 | **defects filed** | `CE-295` open *(scenario live-reload is a one-shot — filed NOT fixed, user's call)* · `CE-296` **refuted** *(my error)* |
 
 ### 1.1 What increment `A` actually built
@@ -96,20 +98,26 @@ and ours are `CE-`. Do not quote it as evidence for them.
 
 ---
 
-## 3. ⭐⭐⭐ THE NEXT ACTION — **`B1`** *(`O1`)*, or **`A2b`** for a smaller start
+## 3. ⭐⭐⭐ THE NEXT ACTION — **`B3`** *(`O3a`)*
 
-⭐ **Increment `A` is complete except `A2b`.** Two honest options, and they do not block each other:
+⭐ **Increments `A` and `B1`/`B2` are complete.** `B3` is the last structural task before the 256
+tier, and it is the one that stops the per-tier duplication multiplying.
 
 | | |
 |---|---|
-| ⭐⭐ **`B1`** *(`O1`)* — `SquadCognitiveState` gets its own typed component | removes the **largest non-AI consumer** of `Blackboard1024`. ⭐ **A pure win even if the rest of the programme is cancelled**, which is why the design sequences it early |
-| ⚠ **`A2b`** — the emitter pair (`BTreeBridgeEmitCore:650, :726`) | the only genuine remaining duplication, and the one that **multiplies into every generated assembly**. ⛔ It **moves the generated goldens**, so the movement must be reported as a **DIFF SHAPE** against `Hrot.AiEditor.Generators.Tests` (280) — its own gate, which is why it was split out rather than folded into `A2` |
+| ⭐⭐⭐ **`B3`** *(`O3a`)* — collapse per-tier branching to a **`TierSpec` table** | ~10 three-way chains, **3** copied `TickTier_*` methods and **3** copied renderers become one loop; promotion stops being N² **across three files** — `BehaviorIngressSystem.UpgradeTier:600`, `BlueprintMaintenanceSystem:40/60`, `EntityBlueprintsPanel:299` |
+| ⭐⭐ **and RE-PICK THE `MaxSlots` LADDER** *(PLAN `W1`)* | 🔴 **ships with the arithmetic, not as inherited constants.** 4 / 8 / 16 is arbitrarily conservative: 📐 the **+1 root occurrence** promotes `PlatoonHillAttack2` from 4096 to **16384 on slot count alone**, while `MaxSlots 12` on the 1024 tier still leaves **800 B** of payload *(design §5a)* |
+| ⚠ then **`B4`** *(`O3b`)* — the 256 tier | trivial after `B3`, four copies before it. `MaxSlots` is PLAN `W4`: 📐 **77 %** of behaviours need ≤ 2 slots ⇒ **2** is the value that earns the tier; 1 makes it near-useless |
 
-🔴 **What `A4` taught, and `A2b` will hit the same wall:** the `Kind` filter reddened **120 tests**
-because harnesses attach through the allocator directly and kept the kind-less overload. ⇒ ⭐ **any
-code path that attaches a slot must DECLARE its kind** — including generated code, which is exactly
-what `A2b` regenerates. ⛔ Do not "fix" such a red by defaulting the overload to `Blueprint`: that
-rebuilds the *"undeclared means blueprint"* accident `D1′` exists to retire.
+🔴 **What `A4` taught and `B3` must not undo:** the `Kind` filter reddened **120 tests** because
+harnesses attach through the allocator directly with the kind-less overload. ⇒ ⭐ **any code path
+that attaches a slot must DECLARE its kind.** ⛔ A `TierSpec` table is exactly where a convenience
+default would get reintroduced — do not give the table one.
+
+⚠ **And `B3` touches `CopyToLargerTier`, which is where `H1` lives** *(`dstHeader.Reserved =
+srcHeader.Reserved`)*. 📌 The PLAN originally put `H1` in `O3a` and it was moved OUT to `A3` so the
+nibble array could never be zeroed in the gap. ⛔ **Do not let a table refactor drop that line** —
+`A3_R2` is the rail that would catch it, and it must stay green.
 
 ### 3.3 The working recipe (all three prior tasks used it, and it caught something every time)
 
@@ -153,8 +161,9 @@ source saying so. ⭐ Anyone "finishing A2" by collapsing them would introduce a
 
 ## 5. ⛔⛔ THE TRAPS THIS PROGRAMME HAS PAID FOR
 
-⭐ Eleven of these were **my own errors**; three reached a pushed document before being caught. They are
-here as checkable habits, not confessions.
+⭐ Twelve of these were **my own errors**; three reached a pushed document before being caught. They are
+here as checkable habits, not confessions. ⚠ **⑯ is not mine** — it is a defect in the tooling that
+enforces the rules, and it is here because believing its banner would have produced a grep-only answer.
 
 | # | trap | ⭐ the habit |
 |---|---|---|
@@ -172,6 +181,9 @@ here as checkable habits, not confessions.
 | ⭐ **⑪** | 🔴 **A DUPLICATION CENSUS MUST COUNT *CALLS*, NOT OCCURRENCES OF THE PATTERN.** `A2` reported *"2 copies emitted by `BTreeBridgeEmitCore` (`:650`, `:726`)"* and the PLAN inherited it. 📐 **There were THREE**: `EmitStatefulDeactivatorTierBlock` is **parameterised per tier** — one helper, three calls — so it emits a full ladder while matching no grep for the ladder's shape | ⭐ after censusing a pattern, grep for the **tier constants** (`BlueprintBlackboard16384`) and for helpers **called once per tier**; a parameterised emitter hides in plain sight |
 | ⭐ **⑫** | ⚠ **I RE-PAID TRAP ⑦ WHILE REGENERATING GOLDENS.** I built `Hrot.AiEditor.Persistence` and then ran `dotnet test <generators.Tests> --no-build` to regenerate — so the goldens were written from the **stale Persistence dll in the TEST project's bin**, and the next real run reddened them | ⛔ **regeneration is a test run: build the TEST project first**, then `--no-build`. ⭐ Check `ls -l <tests>/bin/*/Production.dll` against the edit time when a regenerated golden looks wrong |
 | ⭐ **⑩** | ⚠ **EVERY public enum in `Fdp.Toolkits` is swept into generated IDL**, and `idlc` **refuses duplicate enumerator values** ⇒ some "invariants" are already enforced by the build and your rail may be guarding something free. ⭐ **The CAUSE is a RULE, not a quirk:** `Fdp.Toolkits.csproj:70` references `CycloneDDS.NET`, and the generator's discovery rule is *"`[DdsTopic]`/`[DdsStruct]`/`[DdsUnion]` **OR is an enum**"* (`targets:75-76`) ⇒ **sharing an assembly with wire types is enough.** ⛔ **A generated `.idl` is NOT evidence a type is on the wire** — nothing `#include`s these. 📄 design §13; filed as `QA-035` | ⛔ **when an inverse edit fails to COMPILE rather than redden, do not stop at the observation — find the RULE.** 📌 I first wrote this up from ONE sample and called the sweep "indiscriminate"; the tool states the rule in its own targets file |
+
+| 🔴 **⑮** | ⛔⛔ **SPLITTING A COMPONENT SPLITS ITS AUTHORITY — and only a rail said so.** `B2` moved the interrupt bytes out of `BrainBlackboard` into `BrainInterrupts`; `CognitiveRuntimeModuleTests.WithTheGateOn_AnUnownedBrainIsNeverTouched` reddened because the gate keys on **the component the system reads**, and authority was still granted only for `BrainBlackboard` ⇒ the gate stopped discriminating and an unowned brain WAS touched. ⚠ Not live today *(`gateOnAuthority` is `false` on every host)*, which is precisely why nothing else would have caught it | ⭐ when you split a struct, enumerate **every per-component set the old type was a member of** — authority grants, replication masks, `DataPolicy`, registration paths — and decide for each. ⛔ "It compiles and the suites pass" answers none of them |
+| ⚠ **⑯** | 🔴🔴 **`scripts/find.sh`'s GRAPH HALF WAS SILENTLY DEAD** — it parsed `cli list_projects` as JSON while this CLI build prints a **human-readable TABLE**, so `PROJ` came back empty and it printed *"NO INDEXED PROJECT"* on a **fully indexed repo**, every call. ⚠ The identical defect had already been found and fixed for `search_code` *(2026-09-12, comment still in the file)* — one call earlier in the same script. ⇒ the tool that exists to enforce graph-before-grep was **advertising the graph as unavailable** | ⭐ **fixed `2026-09-20`** — the parser now understands the MCP envelope, bare JSON **and** the table. ⛔ **When a tool reports its own unavailability, verify that against the tool itself** *(`… cli list_projects` takes one second)* before accepting a grep-only answer — an "UNAVAILABLE" banner is a claim, not a measurement |
 
 ⭐ **And three operational ones, all re-paid despite being in the runbook:**
 ⛔ `127.0.0.1` 404s on **every** route — `HttpListener` binds the hostname; use `localhost` (§2.1) ·
@@ -191,4 +203,9 @@ loop · ⛔ never pipe a long-running script through `tail` (it buffers everythi
 | debug-API log fix — editor line through `FdpLog`, phrase matched to the cluster's | `e865f59c8` |
 | **`A1`** — one slot-key spelling + the nested form | `c99a8865d` |
 | **`A2`** — the seam + 11 adoptions | `7a87596aa`, `7574f228d` |
-| **`A3`** — `OccurrenceKind` nibble array + `H1` + `H2` + 4 red-proved rails + 5 declaring attach sites | *(this run)* |
+| **`A3`** — `OccurrenceKind` nibble array + `H1` + `H2` + 4 red-proved rails + 5 declaring attach sites | `c6048b59c` |
+| **`A4`** — the blueprint runtime reaches CGF; the walker filters on the declared `Kind` | `10d55a787` |
+| **`A2b`** — the emitted tier ladder collapses to the seam, in all **three** emitters | `f2d5849a1` |
+| **`B1`** — `SquadCognitiveState` becomes its own component (id **270**) | `85a5cc2d0` |
+| **`B2`** — `BrainInterrupts` split out (id **302**); `BrainBlackboard` is 100 B of pure params | *(this run)* |
+| `QA-035` *(IDL enum sweep)* · `QA-036` *(Health divergence)* · `QA-037` *(3 pre-existing component-id collisions)* filed for the **backend** lane | `a03243084`, `8a79de684`, `85a5cc2d0` |

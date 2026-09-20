@@ -39,6 +39,7 @@ public class RouteContextSystemTests
         repo.RegisterComponent<NavigationIntent>();
         repo.RegisterComponent<NavigationStatus>();
         repo.RegisterComponent<BrainBlackboard>();
+        repo.RegisterComponent<BrainInterrupts>();
         repo.RegisterComponent<PersonalRouteRef>();
         repo.RegisterComponent<RouteTrajectoryCache>();
         repo.RegisterManagedComponent<RoutePlan>();
@@ -71,6 +72,7 @@ public class RouteContextSystemTests
             IntentId  = 1u,
         });
         _repo.AddComponent(vehicle, new BrainBlackboard());
+        _repo.AddComponent(vehicle, new BrainInterrupts());
 
         if (personalRouteJson != null)
         {
@@ -108,7 +110,7 @@ public class RouteContextSystemTests
 
         _system.Execute(_repo, 0.016f);
 
-        var bb = _repo.GetComponent<BrainBlackboard>(vehicle);
+        var bb = _repo.GetComponent<BrainInterrupts>(vehicle);
         Assert.Equal(42, (int)bb.ExpectedThreatLevel);
     }
 
@@ -122,7 +124,7 @@ public class RouteContextSystemTests
 
         _system.Execute(_repo, 0.016f);
 
-        var bb = _repo.GetComponent<BrainBlackboard>(vehicle);
+        var bb = _repo.GetComponent<BrainInterrupts>(vehicle);
         Assert.Equal(255, (int)bb.ExpectedThreatLevel);
     }
 
@@ -136,7 +138,7 @@ public class RouteContextSystemTests
 
         _system.Execute(_repo, 0.016f);
 
-        var bb = _repo.GetComponent<BrainBlackboard>(vehicle);
+        var bb = _repo.GetComponent<BrainInterrupts>(vehicle);
         Assert.Equal(0, (int)bb.ExpectedThreatLevel);
     }
 
@@ -156,7 +158,7 @@ public class RouteContextSystemTests
         var ex = Record.Exception(() => _system.Execute(_repo, 0.016f));
 
         Assert.Null(ex);
-        var bb = _repo.GetComponent<BrainBlackboard>(vehicle);
+        var bb = _repo.GetComponent<BrainInterrupts>(vehicle);
         Assert.Equal(0, (int)bb.ExpectedThreatLevel);
     }
 
@@ -177,7 +179,7 @@ public class RouteContextSystemTests
 
         _system.Execute(_repo, 0f); // deltaTime=0 => _elapsed=0 => 0 < 1.0 => skip
 
-        var bb = _repo.GetComponent<BrainBlackboard>(vehicle);
+        var bb = _repo.GetComponent<BrainInterrupts>(vehicle);
         Assert.Equal(0, (int)bb.ExpectedThreatLevel);
     }
 
@@ -233,10 +235,11 @@ public class RouteContextSystemTests
         });
         _repo.AddComponent(vehicle, new NavigationStatus { ProgressS = 1f, IntentId = 1u });
         _repo.AddComponent(vehicle, new BrainBlackboard());
+        _repo.AddComponent(vehicle, new BrainInterrupts());
 
         _system.Execute(_repo, 0.016f);
 
-        var bb = _repo.GetComponent<BrainBlackboard>(vehicle);
+        var bb = _repo.GetComponent<BrainInterrupts>(vehicle);
         Assert.Equal(7, (int)bb.ExpectedThreatLevel);
     }
 
@@ -249,7 +252,7 @@ public class RouteContextSystemTests
         _system.Execute(_repo, 0.016f);
         _system.Execute(_repo, 0.016f);
 
-        var bb = _repo.GetComponent<BrainBlackboard>(vehicle);
+        var bb = _repo.GetComponent<BrainInterrupts>(vehicle);
         Assert.Equal(55, (int)bb.ExpectedThreatLevel);
     }
 
@@ -297,10 +300,11 @@ public class RouteContextSystemTests
         });
         _repo.AddComponent(vehicle, new NavigationStatus { ProgressS = 1f, IntentId = 1u });
         _repo.AddComponent(vehicle, new BrainBlackboard());
+        _repo.AddComponent(vehicle, new BrainInterrupts());
 
         _system.Execute(_repo, 0.016f);
 
-        var bb = _repo.GetComponent<BrainBlackboard>(vehicle);
+        var bb = _repo.GetComponent<BrainInterrupts>(vehicle);
         Assert.Equal(expectedDanger, (int)bb.ExpectedThreatLevel);
     }
 
@@ -321,7 +325,7 @@ public class RouteContextSystemTests
 
         _system.Execute(_repo, 0.016f);
 
-        var bb = _repo.GetComponent<BrainBlackboard>(vehicle);
+        var bb = _repo.GetComponent<BrainInterrupts>(vehicle);
         Assert.Equal(33, (int)bb.ExpectedThreatLevel);
     }
 
@@ -341,6 +345,7 @@ public class RouteContextSystemTests
         });
         _repo.AddComponent(vehicle, new NavigationStatus { ProgressS = 5f, IntentId = 1u });
         _repo.AddComponent(vehicle, new BrainBlackboard());
+        _repo.AddComponent(vehicle, new BrainInterrupts());
 
         // Attach a route with danger level so we'd detect mutation if it happened.
         var routeEntity = _repo.CreateEntity();
@@ -359,7 +364,7 @@ public class RouteContextSystemTests
 
         _system.Execute(_repo, 0.016f);
 
-        var bb = _repo.GetComponent<BrainBlackboard>(vehicle);
+        var bb = _repo.GetComponent<BrainInterrupts>(vehicle);
         Assert.Equal(0, (int)bb.ExpectedThreatLevel);
     }
 }
