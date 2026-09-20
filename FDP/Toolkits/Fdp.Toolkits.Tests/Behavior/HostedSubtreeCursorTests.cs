@@ -35,30 +35,51 @@ namespace Fdp.Toolkit.Behavior.Tests;
 public sealed class HostedSubtreeCursorTests
 {
     private struct HostBb   { public int Ticks; }
-    private struct ChildBb  { public int Ticks; }
+    private struct ChildBb  { public int FirstLeafEntries; }
 
     /// <summary>A leaf that never finishes, so the interpreter must remember where it is.</summary>
     private static NodeStatus StayRunning<TBb>(ref TBb bb, ref BehaviorTreeState state,
                                                ref BTreeContext ctx, int paramIndex)
         => NodeStatus.Running;
 
+    /// <summary>The child's FIRST leaf. It succeeds immediately and counts its entries — the
+    /// observable that says whether the child RESUMED or RESTARTED.</summary>
+    private static NodeStatus CountAndSucceed(ref ChildBb bb, ref BehaviorTreeState state,
+                                              ref BTreeContext ctx, int paramIndex)
+    {
+        bb.FirstLeafEntries++;
+        return NodeStatus.Success;
+    }
+
+    /// <summary>
+    /// The child is a Sequence of [succeed-once, stay-running]. ⭐ That shape is what makes the
+    /// collision observable: if the child's cursor survives, tick 2 resumes at the RUNNING leaf and
+    /// the first leaf is entered exactly ONCE. ⛔ If the cursor was clobbered, the child restarts
+    /// from the top and enters the first leaf again.
+    /// </summary>
     private static Interpreter<ChildBb, BTreeContext> BuildChild()
     {
         var b = new BTreeBuilder<ChildBb, BTreeContext>()
             .Sequence(seq => seq
+                .Action(CountAndSucceed)
                 .Action(StayRunning<ChildBb>));
         return new Interpreter<ChildBb, BTreeContext>(b.Compile("O4_Child"), b.GetRegistry());
     }
 
     /// <summary>
     /// 🔴 <b>RED before <c>O4</c>.</b> The host is <c>Running</c> at its hosting node and the child is
-    /// <c>Running</c> at its own leaf. Both cursors must survive one tick.
+    /// <c>Running</c> at its own second leaf. Both cursors must survive.
     ///
-    /// <para>⭐ The hosting action is written to mirror <c>BTreeOrchestratorEmitCore</c>'s emission
-    /// <b>verbatim</b> — it hands the child <c>ref state</c>, the master's own state — so this rail
-    /// fails for exactly the reason the generated orchestrator does, not for a reason invented here.
-    /// ⇒ ⛔ when <c>O4</c> gives the hosted occurrence its own <see cref="BehaviorTreeState"/> in its
-    /// own slot, the two cursors stop sharing a field and this goes green.</para>
+    /// <para>⭐ The hosting action mirrors <c>BTreeOrchestratorEmitCore</c>'s emission <b>verbatim</b>
+    /// — it hands the child <c>ref state</c>, the master's own state — so this fails for exactly the
+    /// reason the generated orchestrator does, not for a reason invented here.</para>
+    ///
+    /// <para>⚠⚠ <b>WHICH SIDE LOSES, and my first version of this rail got it backwards.</b> It
+    /// asserted the HOST resumes its hosting node, and that PASSED: the host interpreter writes its
+    /// own cursor <i>after</i> the hosting action returns, so the host always wins the race. 🔒 <b>The
+    /// CHILD is the side that is destroyed</b> — its cursor is overwritten by the host's write before
+    /// it can be read back. ⇒ the rail must observe the CHILD's resumption, which is what
+    /// <c>FirstLeafEntries</c> is for.</para>
     /// </summary>
     [Fact]
     public void O4_R1_AHostedSubtreeKeepsItsOwnCursor()
@@ -68,11 +89,14 @@ public sealed class HostedSubtreeCursorTests
         // ⛔ THE EMITTED SHAPE: the child is ticked with the MASTER's state.
         //    BTreeOrchestratorEmitCore:142  → Tick(ref subBb,  ref state, ref ctx)
         //    BTreeOrchestratorEmitCore:171  → Tick(ref subDto, ref state, ref ctx)
+        // ⚠ The child blackboard is hoisted out of the action so its observable survives the ticks;
+        //   the emitted code slices it off the master, which has the same lifetime.
+        var childBb = new ChildBb();
+
         NodeStatus Orchestrate(ref HostBb master, ref BehaviorTreeState state,
                                ref BTreeContext ctx, int paramIndex)
         {
             master.Ticks++;
-            var childBb = new ChildBb();
             return child.Tick(ref childBb, ref state, ref ctx);
         }
 
@@ -87,20 +111,16 @@ public sealed class HostedSubtreeCursorTests
         var ctx   = new BTreeContext();
         var state = new BehaviorTreeState();
 
-        var status = host.Tick(ref bb, ref state, ref ctx);
-
-        Assert.Equal(NodeStatus.Running, status);
+        Assert.Equal(NodeStatus.Running, host.Tick(ref bb, ref state, ref ctx));
         Assert.Equal(1, bb.Ticks);
+        Assert.Equal(1, childBb.FirstLeafEntries);   // the child ran its first leaf once
 
-        // ⭐ THE RAIL. The host is suspended at ITS hosting node; the child is suspended at ITS own
-        //   leaf. One BehaviorTreeState cannot hold both, so with the shipped `ref state` the host's
-        //   cursor is whatever the CHILD last wrote.
-        // ⛔ Stated as a property rather than a literal index so it survives any renumbering: after a
-        //   second tick the host must resume its OWN hosting node — i.e. run the orchestrator again —
-        //   rather than resuming wherever the child left off.
-        var status2 = host.Tick(ref bb, ref state, ref ctx);
+        Assert.Equal(NodeStatus.Running, host.Tick(ref bb, ref state, ref ctx));
+        Assert.Equal(2, bb.Ticks);                   // the host resumed its hosting node (it always does)
 
-        Assert.Equal(NodeStatus.Running, status2);
-        Assert.Equal(2, bb.Ticks);   // 🔴 the host re-entered its hosting node; shared state loses this
+        // ⭐⭐ THE RAIL. The child was left Running at its SECOND leaf, so tick 2 must resume there
+        //   and NOT re-enter the first. 🔴 With one shared BehaviorTreeState the child's cursor is
+        //   gone, so it restarts from the top and this reads 2.
+        Assert.Equal(1, childBb.FirstLeafEntries);
     }
 }
