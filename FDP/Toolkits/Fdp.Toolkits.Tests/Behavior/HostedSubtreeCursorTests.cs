@@ -1,4 +1,5 @@
 using System;
+using System.Runtime.CompilerServices;
 using Fbt;
 using Fbt.Compiler;
 using Fbt.Runtime;
@@ -101,6 +102,15 @@ public sealed unsafe class HostedSubtreeCursorTests
         return entity;
     }
 
+    /// <summary>The hosted child's state, read straight out of its slot.</summary>
+    private static ref BehaviorTreeState ReadChildState(EntityRepository world, Entity entity, int key)
+    {
+        byte* store = OccurrenceStoreAccess.TryGetStore(world, entity, out _);
+        Assert.True(store != null);
+        Assert.True(BlueprintBlackboardPartitions.TryGetSlotOffset(store, key, out int off));
+        return ref Unsafe.AsRef<BehaviorTreeState>(store + off);
+    }
+
     private static EntityRepository CreateWorld()
     {
         var world = TestWorldFactory.Create();
@@ -156,18 +166,19 @@ public sealed unsafe class HostedSubtreeCursorTests
     }
 
     /// <summary>
-    /// ⭐⭐ <b>Rail ② — re-entry reset (<c>F14</c>, <c>D4</c>).</b>
+    /// ⭐⭐ <b>Rail ②a — <c>D4</c> HALF ONE: a COMPLETED child starts fresh on the next entry.</b>
     ///
     /// <para>⚠ <b>This is the cost of rail ①, not a separate feature.</b> Sharing the master's state
-    /// gave the child an ACCIDENTAL reset: the host's own write clobbered the child's cursor every
-    /// tick. ⛔ Own state removes that, so a child that COMPLETED would resume mid-tree the next time
-    /// the host entered the hosting node — carrying stale progress into a fresh entry.</para>
+    /// gave the child an ACCIDENTAL reset — the host's own write clobbered its cursor every tick.
+    /// Own state removes that, so a completed child would carry stale progress into a fresh entry.</para>
     ///
-    /// <para>⭐ The child completes each tick, so the host leaves the hosting node each tick and
-    /// re-enters on the next. Its first leaf must run EVERY entry.</para>
+    /// <para>⭐ The host's tree SUCCEEDS each tick, so the interpreter zeroes its cursor and tick 2
+    /// re-enters the hosting node from the top. ⛔ <b>No <c>Repeater(-1)</c>:</b> a repeater over an
+    /// always-succeeding body spins forever INSIDE one tick — the first version of this rail hung the
+    /// test host for 44 minutes.</para>
     /// </summary>
     [Fact]
-    public void O4_R2_ACompletedChildResetsBeforeTheHostReEntersIt()
+    public void O4_R2a_ACompletedChildStartsFreshOnTheNextEntry()
     {
         using var world = CreateWorld();
         var entity = CreateHostEntity(world);
@@ -182,26 +193,94 @@ public sealed unsafe class HostedSubtreeCursorTests
             return HostedSubtree.Tick(child, ref childBb, ref ctx, key);
         }
 
-        // Repeater(-1) so the host re-enters the hosting node on every tick.
-        var hb = new BTreeBuilder<HostBb, BTreeContext>()
-            .Repeater(-1, rep => rep.Sequence(seq => seq.Action(Orchestrate)));
-        var host = new Interpreter<HostBb, BTreeContext>(hb.Compile("O4_HostRepeat"), hb.GetRegistry());
+        var hb = new BTreeBuilder<HostBb, BTreeContext>().Sequence(seq => seq.Action(Orchestrate));
+        var host = new Interpreter<HostBb, BTreeContext>(hb.Compile("O4_HostDone"), hb.GetRegistry());
 
         var bb    = new HostBb();
         var ctx   = new BTreeContext { Self = entity, World = world };
         var state = new BehaviorTreeState();
 
-        host.Tick(ref bb, ref state, ref ctx);
-        int afterFirst = childBb.FirstLeafEntries;
-        Assert.True(afterFirst >= 1, "the child must have run at least once");
+        Assert.Equal(NodeStatus.Success, host.Tick(ref bb, ref state, ref ctx));
+        Assert.Equal(1, childBb.FirstLeafEntries);
 
-        host.Tick(ref bb, ref state, ref ctx);
+        Assert.Equal(NodeStatus.Success, host.Tick(ref bb, ref state, ref ctx));
 
-        // ⭐⭐ THE RAIL. A COMPLETED child starts from the top on the next entry — its first leaf runs
-        //    again. 🔴 Without D4's clear, the stale cursor resumes past it and this stays flat.
-        Assert.True(childBb.FirstLeafEntries > afterFirst,
-            $"a completed child must reset before re-entry; first leaf ran {afterFirst} then " +
-            $"{childBb.FirstLeafEntries} times");
+        // ⭐⭐ THE RAIL. A completed child re-runs its first leaf on the next entry.
+        Assert.Equal(2, childBb.FirstLeafEntries);
+    }
+
+    /// <summary>
+    /// ⭐⭐⭐ <b>Rail ②b — <c>D4</c> HALF TWO, the actual <c>F14</c> case: the host ABANDONS a child
+    /// that is still <c>Running</c>.</b>
+    ///
+    /// <para>🔴🔴 <b>Half one cannot cover this, and finding that out is what this rail is for.</b> A
+    /// hosting action runs only when the host ENTERS it. If the host leaves the hosting node while the
+    /// child is mid-tree, the action is never called again ⇒ nothing clears the cursor and the next
+    /// entry RESUMES MID-TREE. ⭐ <see cref="HostedSubtree.Reset"/> is that clear, and the kernel's
+    /// existing deactivator sweep is what invokes it — no ExtDeps change.</para>
+    ///
+    /// <para>⚠ <b>Driven directly rather than through an abandoning tree.</b> The interpreter's
+    /// composites RESUME the running branch by design, so provoking a genuine mid-flight abandon needs
+    /// a Parallel or a reactive abort — neither of which this rail needs in order to pin what
+    /// <c>Reset</c> guarantees. ⛔ The WIRING (deactivator registered ⇒ node marked resource-owning
+    /// ⇒ sweep invokes it) is pinned separately by rail ②c.</para>
+    /// </summary>
+    [Fact]
+    public void O4_R2b_ResetClearsAChildLeftRunning()
+    {
+        using var world = CreateWorld();
+        var entity = CreateHostEntity(world);
+        var child  = BuildRunningChild();
+        var childBb = new ChildBb();
+        var ctx = new BTreeContext { Self = entity, World = world };
+        int key = TreeStateKey;
+
+        // Leave the child suspended mid-tree.
+        Assert.Equal(NodeStatus.Running, HostedSubtree.Tick(child, ref childBb, ref ctx, key));
+        Assert.Equal(1, childBb.FirstLeafEntries);
+        Assert.NotEqual(0, ReadChildState(world, entity, key).RunningNodeIndex);
+
+        // ⭐ The host abandons it.
+        HostedSubtree.Reset(ref ctx, key);
+        Assert.Equal(0, ReadChildState(world, entity, key).RunningNodeIndex);
+
+        // ⭐⭐ THE RAIL. The next entry starts from the top — the first leaf runs again.
+        Assert.Equal(NodeStatus.Running, HostedSubtree.Tick(child, ref childBb, ref ctx, key));
+        Assert.Equal(2, childBb.FirstLeafEntries);
+    }
+
+    /// <summary>
+    /// ⭐⭐ <b>Rail ②c — the WIRING: registering a deactivator is what opts the hosting node in.</b>
+    ///
+    /// <para>⭐ <c>BTreeBuilder.Compile</c> derives <c>IsResourceOwning</c> from
+    /// <c>_registry.TryGetDeactivator(methodName)</c>, and <c>Interpreter.SweepExitedNodes</c> invokes
+    /// a deactivator only for nodes carrying that bit. ⇒ <b>registration IS the opt-in</b>, and this
+    /// pins that chain so a future refactor cannot quietly break <c>F14</c> while every other rail
+    /// stays green.</para>
+    /// </summary>
+    [Fact]
+    public void O4_R2c_RegisteringADeactivatorMarksTheHostingNodeResourceOwning()
+    {
+        const string key = "O4_HostingNode";
+        var hb = new BTreeBuilder<HostBb, BTreeContext>();
+
+        hb.GetRegistry().Register(key,
+            static (ref HostBb bb, ref BehaviorTreeState st, ref BTreeContext c, int pi) => NodeStatus.Running);
+
+        // ⛔ Without a deactivator the node is NOT resource-owning, so the sweep would skip it.
+        var without = new BTreeBuilder<HostBb, BTreeContext>();
+        without.GetRegistry().Register(key,
+            static (ref HostBb bb, ref BehaviorTreeState st, ref BTreeContext c, int pi) => NodeStatus.Running);
+        without.Sequence(seq => seq.Action(key));
+        var blobWithout = without.Compile("O4_NoDeactivator");
+        Assert.False(blobWithout.Nodes[1].IsResourceOwning);
+
+        // ⭐ Registering one flips the bit — the opt-in, with no kernel change.
+        hb.GetRegistry().RegisterDeactivator(key,
+            static (ref HostBb bb, ref BehaviorTreeState st, ref BTreeContext c, int pi) => { });
+        hb.Sequence(seq => seq.Action(key));
+        var blobWith = hb.Compile("O4_WithDeactivator");
+        Assert.True(blobWith.Nodes[1].IsResourceOwning);
     }
 
     /// <summary>

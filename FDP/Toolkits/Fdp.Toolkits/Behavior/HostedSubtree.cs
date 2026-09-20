@@ -36,10 +36,10 @@ public static unsafe class HostedSubtree
     /// ⭐⭐ Ticks <paramref name="child"/> against ITS OWN <see cref="BehaviorTreeState"/>, resolved
     /// from the entity's occurrence store by <paramref name="treeStateSlotKey"/>.
     ///
-    /// <para>⭐ <b><c>D4</c> — re-entry reset (<c>F14</c>).</b> When the child returns anything but
-    /// <c>Running</c> its state is cleared, because the host has left the hosting node by definition.
-    /// ⚠ Own state removes the accidental continuity <c>ref state</c> used to provide, so without this
-    /// a completed child would resume mid-tree the next time the host entered.</para>
+    /// <para>⭐ <b><c>D4</c> is in TWO halves and this is only the first</b> — see <see cref="Reset"/>.
+    /// ⚠ A hosting action runs only when the host ENTERS it, so it can never observe the host
+    /// ABANDONING a still-<c>Running</c> child. That is the <c>F14</c> case and it needs the
+    /// deactivator.</para>
     ///
     /// <para>⛔⛔ <b>A missing slot is a HARD failure, not a silent one</b> — §19.6 ⑤. The hosting site
     /// owns its own identity now, so a wrong key would otherwise read as
@@ -58,11 +58,40 @@ public static unsafe class HostedSubtree
 
         var status = child.Tick(ref childBb, ref state, ref ctx);
 
-        // D4 — the host has left the hosting node; the child starts fresh next entry.
+        // ⭐ D4, HALF ONE — the child COMPLETED, so it starts fresh next entry.
+        // ⚠ The interpreter's own cleanup already zeroes RunningNodeIndex on a non-Running result;
+        //   this is the DEEPER reset — StackPointer, NodeIndexStack, LocalRegisters, InstanceFlags —
+        //   which the kernel does not clear and which would otherwise leak into the next entry.
+        // ⛔ It is NOT the F14 case: see Reset, which handles the child left RUNNING.
         if (status != NodeStatus.Running)
             state = default;
 
         return status;
+    }
+
+    /// <summary>
+    /// ⭐⭐⭐ <b><c>D4</c>, HALF TWO — the <c>F14</c> case: the host ABANDONS a child that is still
+    /// <c>Running</c>.</b> Registered as the hosting node's <b>deactivator</b>.
+    ///
+    /// <para>🔴🔴 <b>Why <see cref="Tick"/> alone cannot do this.</b> A hosting action only runs when
+    /// the host ENTERS it. If the host leaves the hosting node while the child is mid-tree — a
+    /// sibling fails, a Selector moves on, the host resets — the hosting action is never called
+    /// again, so nothing clears the child's cursor and the next entry RESUMES MID-TREE. ⚠ Sharing
+    /// the master's state used to hide this: the host's own write clobbered the child every tick, so
+    /// the reset was ACCIDENTAL. ⇒ own state removes it, and <c>F14</c> is the bill.</para>
+    ///
+    /// <para>⭐⭐ <b>And the hook already exists — zero ExtDeps.</b> <c>Interpreter.SweepExitedNodes</c>
+    /// invokes a deactivator for any node that leaves the active path and is
+    /// <c>IsResourceOwning</c>; <c>BTreeBuilder.Compile</c> sets that bit <b>automatically</b> for a
+    /// node whose key has a registered deactivator. ⇒ registering this IS the opt-in.</para>
+    /// </summary>
+    public static void Reset(ref BTreeContext ctx, int treeStateSlotKey)
+    {
+        byte* store = OccurrenceStoreAccess.TryGetStore(ctx.World, ctx.Self, out _);
+        if (store == null) return;   // ⚠ torn down already — nothing to reset, and not an error
+
+        if (BlueprintBlackboardPartitions.TryGetSlotOffset(store, treeStateSlotKey, out int payloadOffset))
+            Unsafe.AsRef<BehaviorTreeState>(store + payloadOffset) = default;
     }
 
     /// <summary>
