@@ -745,7 +745,11 @@ public static class ThrowingRegistrar
             throw new InvalidOperationException(
                 $"Blueprint '{asset.Name}' not loaded into registry. Call CompileAndLoad first.");
 
-        var tier = ChooseTier(def!.StateSize);
+        // ⭐ B4 — design §17.7. Mirror production EXACTLY: the payload-only pick is reconciled with
+        //   the tier the entity may already carry. ⛔ ChooseTier alone would add a SECOND store the
+        //   moment the pick disagrees — which the 256 tier made the common case.
+        var tier = BlueprintTierTable.EnsureAtLeast(
+            _repo, entity, BlueprintTierTable.SelectByPayload(def!.StateSize)).Tier;
         EnsureTierComponent(entity, tier);
 
         GetTierMemoryAndMeta(entity, tier, out byte* memory, out int totalSize, out byte maxSlots);
