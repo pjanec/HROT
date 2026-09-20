@@ -1,3 +1,4 @@
+using System;
 using System.Runtime.CompilerServices;
 
 namespace Fdp.Toolkit.Blueprints.Partitioning;
@@ -17,6 +18,25 @@ public static unsafe class BlueprintBlackboardPartitions
 
     /// <summary>Payload byte alignment: all slot offsets are multiples of 8.</summary>
     public const int Alignment           = 8;
+
+    /// <summary>
+    /// A3 / <c>D1′</c> — how many slots the per-slot <see cref="OccurrenceKind"/> nibble array can
+    /// address: <c>sizeof(ulong) * 2 == 16</c>, because
+    /// <see cref="BlueprintBlackboardHeader.Reserved"/> is the 8 bytes it lives in.
+    ///
+    /// <para>⚠ <b>This BINDS every tier to <c>MaxSlots &lt;= 16</c>.</b> Today the ladder is 4 / 8 / 16
+    /// (<c>BlueprintBlackboard1024/4096/16384</c>), so it is an exact fit with nothing spare —
+    /// ⛔ a future tier above 16 slots must widen the scheme <b>deliberately</b> (a second reserved
+    /// word, or a packed side table), not discover the limit at runtime. ⭐ The rail
+    /// <c>Kind_NibbleArray_CoversEveryTiersMaxSlots</c> fails the moment a tier crosses it.</para>
+    /// </summary>
+    public const int MaxKindSlots        = 16;
+
+    /// <summary>
+    /// The largest <see cref="OccurrenceKind"/> value a 4-bit nibble can hold. ⛔ A kind above this
+    /// is rejected by <see cref="SetSlotKind"/> rather than silently truncated.
+    /// </summary>
+    public const int MaxKind             = 0xF;
 
     // Same constant as BlueprintBlackboardHeader.MagicValue.
     private const uint HeaderMagicV1 = 0x42504257u;
@@ -91,15 +111,126 @@ public static unsafe class BlueprintBlackboardPartitions
     }
 
     /// <summary>
+    /// Finds the slot table INDEX occupied by <paramref name="blueprintId"/>.
+    ///
+    /// <para>⭐ The index — not the payload offset — is what addresses the per-slot
+    /// <see cref="OccurrenceKind"/> nibble, and it is what <c>O0</c>'s walker already iterates.</para>
+    ///
+    /// <para>⛔ <b>An index is only valid until the next <see cref="TryDetach"/></b>, which
+    /// dense-compacts the table (<c>:188-199</c>). Never cache one across a mutation.</para>
+    /// </summary>
+    public static bool TryGetSlotIndex(byte* memory, int blueprintId, out int slotIndex)
+    {
+        ref var header = ref Unsafe.AsRef<BlueprintBlackboardHeader>(memory);
+        byte* slotTable = memory + sizeof(BlueprintBlackboardHeader);
+
+        for (int i = 0; i < header.SlotCount; i++)
+        {
+            ref var slot = ref Unsafe.AsRef<BlueprintSlotEntry>(slotTable + i * SlotEntrySize);
+            if (slot.BlueprintId == blueprintId)
+            {
+                slotIndex = i;
+                return true;
+            }
+        }
+
+        slotIndex = -1;
+        return false;
+    }
+
+    /// <summary>
+    /// A3 / <c>D1′</c> — the <see cref="OccurrenceKind"/> declared for the slot at
+    /// <paramref name="slotIndex"/>, read from its nibble in
+    /// <see cref="BlueprintBlackboardHeader.Reserved"/>.
+    ///
+    /// <para>⭐ <b>Costs no extra fetch on the walk</b> — every walker already holds the header
+    /// (<c>BlueprintTickSystem.cs:79, 145, 211, 317</c>).</para>
+    ///
+    /// <para>⚠ Returns <see cref="OccurrenceKind.Invalid"/> rather than throwing for an index outside
+    /// the nibble array: a READ on a hot walk must never throw, and <c>Invalid</c> is already this
+    /// scheme's word for <i>"nobody declared one"</i>. ⛔ The asymmetry with
+    /// <see cref="SetSlotKind"/> is deliberate — a WRITE out of range would silently lose the
+    /// declaration, so that one throws.</para>
+    /// </summary>
+    public static OccurrenceKind GetSlotKind(byte* memory, int slotIndex)
+    {
+        if ((uint)slotIndex >= MaxKindSlots) return OccurrenceKind.Invalid;
+
+        ref var header = ref Unsafe.AsRef<BlueprintBlackboardHeader>(memory);
+        return (OccurrenceKind)(byte)((header.Reserved >> (slotIndex * 4)) & 0xFUL);
+    }
+
+    /// <summary>
+    /// A3 / <c>D1′</c> — declares the <see cref="OccurrenceKind"/> of the slot at
+    /// <paramref name="slotIndex"/>. ⭐ Called at ATTACH time, never per tick.
+    /// </summary>
+    /// <exception cref="ArgumentOutOfRangeException">
+    /// <paramref name="slotIndex"/> is outside the nibble array (see <see cref="MaxKindSlots"/>), or
+    /// <paramref name="kind"/> does not fit in 4 bits. ⛔ Both would otherwise lose the declaration
+    /// silently, and a slot that reads <c>Invalid</c> when something DID declare it is exactly the
+    /// failure this scheme exists to prevent.
+    /// </exception>
+    public static void SetSlotKind(byte* memory, int slotIndex, OccurrenceKind kind)
+    {
+        if ((uint)slotIndex >= MaxKindSlots)
+            throw new ArgumentOutOfRangeException(nameof(slotIndex), slotIndex,
+                $"The occurrence-kind nibble array addresses {MaxKindSlots} slots; a tier with more " +
+                "slots must widen the scheme deliberately (D1' in DESIGN_Occurrence_Scoped_Storage §13).");
+
+        if ((uint)kind > MaxKind)
+            throw new ArgumentOutOfRangeException(nameof(kind), kind,
+                $"OccurrenceKind is stored in 4 bits; values above {MaxKind} cannot be represented.");
+
+        ref var header = ref Unsafe.AsRef<BlueprintBlackboardHeader>(memory);
+        int shift = slotIndex * 4;
+        header.Reserved = (header.Reserved & ~(0xFUL << shift)) | ((ulong)kind << shift);
+    }
+
+    /// <summary>
+    /// The <see cref="OccurrenceKind"/> declared for the slot holding <paramref name="blueprintId"/>,
+    /// or <see cref="OccurrenceKind.Invalid"/> when there is no such slot — ⚠ the two are deliberately
+    /// NOT distinguished, because a caller that cares has already resolved the slot.
+    /// </summary>
+    public static OccurrenceKind GetKindOf(byte* memory, int blueprintId)
+        => TryGetSlotIndex(memory, blueprintId, out int slotIndex)
+            ? GetSlotKind(memory, slotIndex)
+            : OccurrenceKind.Invalid;
+
+    /// <summary>
     /// Allocates a payload slot for <paramref name="blueprintId"/>.
     /// Tries the free list first, falls back to bump allocation.
     /// Returns false if no slot or no payload space is available.
+    ///
+    /// <para>⚠ <b>This overload declares no <see cref="OccurrenceKind"/></b>, so the slot reads
+    /// <see cref="OccurrenceKind.Invalid"/>. ⭐ Prefer the overload that takes one — a slot nothing
+    /// declared is invisible to <c>O0</c>'s walker by design.</para>
     /// </summary>
     public static bool TryAttach(
         byte*  memory,
         int    blueprintId,
         int    requestedSize,
         ulong  structureHash,
+        out int payloadOffset)
+        => TryAttach(memory, blueprintId, requestedSize, structureHash, OccurrenceKind.Invalid, out payloadOffset);
+
+    /// <summary>
+    /// Allocates a payload slot for <paramref name="blueprintId"/> and DECLARES its
+    /// <paramref name="kind"/> (A3 / <c>D1′</c>).
+    /// Tries the free list first, falls back to bump allocation.
+    /// Returns false if no slot or no payload space is available.
+    ///
+    /// <para>🔴 <b>The nibble is written on EVERY successful attach, including
+    /// <see cref="OccurrenceKind.Invalid"/>.</b> ⛔ Not an optimisation to skip: leaving it alone
+    /// would let a fresh slot INHERIT whatever the previous occupant of that index declared, and
+    /// <c>Invalid</c> must mean <i>"nobody declared one"</i> rather than <i>"nobody declared one
+    /// recently"</i>.</para>
+    /// </summary>
+    public static bool TryAttach(
+        byte*  memory,
+        int    blueprintId,
+        int    requestedSize,
+        ulong  structureHash,
+        OccurrenceKind kind,
         out int payloadOffset)
     {
         ref var header = ref Unsafe.AsRef<BlueprintBlackboardHeader>(memory);
@@ -148,6 +279,10 @@ public static unsafe class BlueprintBlackboardPartitions
         slot.PayloadSize     = (ushort)alignedSize;
         slot.StructureHash   = (uint)structureHash; // Lower 32 bits -- DEBT-014
 
+        // A3/D1': declare the kind for THIS index. Always written (see the overload's remarks) so a
+        // reused index can never inherit the previous occupant's declaration.
+        SetSlotKind(memory, slotIndex, kind);
+
         header.SlotCount++;
         header.PayloadFree = (ushort)(header.PayloadFree - alignedSize);
 
@@ -191,11 +326,22 @@ public static unsafe class BlueprintBlackboardPartitions
         {
             ref var lastSlot = ref Unsafe.AsRef<BlueprintSlotEntry>(slotTable + lastIndex * SlotEntrySize);
             foundSlot = lastSlot;
+
+            // H2 (A3/D1'): the OccurrenceKind nibble array is indexed by SLOT INDEX, so it must be
+            // compacted in LOCKSTEP with the table above -- otherwise the moved entry keeps the
+            // DETACHED slot's kind and every occurrence from the hole onward is silently mislabelled.
+            SetSlotKind(memory, foundIndex, GetSlotKind(memory, lastIndex));
         }
 
         // Clear the (now duplicated) last slot
         ref var clearedSlot = ref Unsafe.AsRef<BlueprintSlotEntry>(slotTable + lastIndex * SlotEntrySize);
         clearedSlot = default;
+
+        // H2 (A3/D1'): ...and CLEAR the vacated tail nibble. The `clearedSlot = default` above zeroes
+        // the duplicated ENTRY, but that write cannot reach the header, so without this the stale
+        // kind survives at lastIndex for the next attach to inherit.
+        SetSlotKind(memory, lastIndex, OccurrenceKind.Invalid);
+
         header.SlotCount--;
 
         return true;
@@ -270,6 +416,16 @@ public static unsafe class BlueprintBlackboardPartitions
         }
 
         dstHeader.SlotCount        = srcHeader.SlotCount;
+
+        // H1 (A3/D1'): carry the OccurrenceKind nibble array across the promotion.
+        // Initialize() above zeroed the destination and then set eight header fields explicitly --
+        // Reserved is NOT among them -- so without this line EVERY tier upgrade silently zeroes the
+        // whole array while entries and payloads copy correctly, and all occurrences read kind 0.
+        // Slot ORDER is preserved (i -> i) directly above, so a whole-word copy is exactly right, and
+        // it covers all THREE production promotion sites at once because they all funnel through here
+        // (BehaviorIngressSystem.UpgradeTier, BlueprintMaintenanceSystem, EntityBlueprintsPanel).
+        dstHeader.Reserved         = srcHeader.Reserved;
+
         dstHeader.PayloadFree      = (ushort)(dstHeader.PayloadSize - SumAllocated(srcHeader, srcSlots));
         dstHeader.PayloadHighWater = (ushort)(dstHeader.PayloadStart + (srcHeader.PayloadHighWater - srcHeader.PayloadStart));
 

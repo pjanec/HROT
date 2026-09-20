@@ -5,11 +5,11 @@ doc-type: LANE RESUMPTION for the `behaviors` lane — programme ②, OCCURRENCE
   ⛔ VERIFY against git before acting ("THE LEDGER MAY NOT ASSERT WHAT THE CODE IS").
 updated: 2026-09-20
 build-state: n/a — a resumption snapshot, not a design.
-current-answer: §3 — the NEXT ACTION is task A3 (Kind + H1 + H2). A1 and A2 are DONE and pushed.
-  §2 is the grounded facts: ⛔ do not re-derive them, they cost real measurement. §5 is the trap
-  list, and it is the section most worth two minutes — six of these were MY errors, three of which
-  reached a pushed document before being caught.
-stale-below: nothing — rewritten 2026-09-20 after A1/A2 landed.
+current-answer: §3 — the NEXT ACTION is task A4 (`O0`: wire BlueprintTickSystem on every ECS host).
+  A1, A2 and A3 are DONE and pushed. §2 is the grounded facts: ⛔ do not re-derive them, they cost
+  real measurement. §5 is the trap list, and it is the section most worth two minutes — six of these
+  were MY errors, three of which reached a pushed document before being caught.
+stale-below: nothing — §3 rewritten 2026-09-20 after A3 landed.
 known-rot: nothing.
 known-conflict: RESUME_Assets_And_Occurrences.md is the COORDINATOR snapshot (2026-09-19) owning TWO
   programmes. ⛔ SUPERSEDED IN PART for this one: it says the occurrence design has no PLAN (false —
@@ -30,8 +30,8 @@ RELEARN
 
 > ⭐⭐⭐ **You are the `behaviors` lane on branch `behaviors`, and you OWN this design.**
 > 🔒 **User, `2026-09-20`: *"you take it from here, you are the one owning the design now."***
-> ⭐ **Nothing is half-finished.** `A1` and `A2` are committed, pushed and green; the tree is clean.
-> The next action is `A3`, and §3 says exactly how to start it.
+> ⭐ **Nothing is half-finished.** `A1`, `A2` and `A3` are committed, pushed and green; the tree is
+> clean. The next action is `A4`, and §3 says exactly how to start it.
 
 ## 0. ⭐ FIRST MOVES
 
@@ -57,16 +57,22 @@ and ours are `CE-`. Do not quote it as evidence for them.
 | ⭐ **golden test** | ✅ **GREEN** and usable as the gate — `hill-attack-close`, both targets destroyed, all 4 back on baseline, reproduced **3×**. ⛔ Green before **and** after every task |
 | **`A1`** *(unify the slot key)* | ✅ **DONE** — `c99a8865d` |
 | **`A2`** *(the resolution seam)* | ✅ **DONE** — `7a87596aa` + `7574f228d`. ⚠ See §4 for what was deliberately NOT collapsed |
-| ⭐⭐⭐ **next** | **`A3`** — `Kind` + `H1` + `H2`. §3 |
+| **`A3`** *(`Kind` + `H1` + `H2`)* | ✅ **DONE** — 4 rails, all red-proved. As-built folded into design **§13**'s `AS-BUILT` block |
+| ⭐⭐⭐ **next** | **`A4`** *(`O0`)* — wire `BlueprintTickSystem` on every ECS host. §3 |
+| ⚠ also open | **`A2b`** *(the emitter pair — moves goldens)* · `B1`–`B4` *(increment B)* |
 | **defects filed** | `CE-295` open *(scenario live-reload is a one-shot — filed NOT fixed, user's call)* · `CE-296` **refuted** *(my error)* |
 
-### 1.1 What `A1` and `A2` actually built
+### 1.1 What `A1`, `A2` and `A3` actually built
 
 | | |
 |---|---|
 | 🆕 `Fdp.Toolkits/Behavior/Shared/OccurrenceSlotKey.cs` | ONE slot-key spelling, `internal`, netstandard2.0-subset, **LINKED** into `Hrot.AiEditor.Persistence` (the `BP-306` pattern — that assembly carries no project references by design). Replaced 3 copies across 2 enums. Adds `ComputeNested` for `(assetId, hostPath)` |
 | 🆕 `Fdp.Toolkits/Blueprints/Partitioning/OccurrenceStoreAccess.cs` | ONE tier-resolution seam — `TryGetStore`, **`TryGetStoreReadOnly`**, `HasStore`, `GetStoreSize`, `TryResolveOccurrence`. Replaced 11 hand-rolled ladders |
-| rails | `OccurrenceSlotKeyParityTests` (13) · `OccurrenceStoreAccessTests` (11) |
+| 🆕 `Fdp.Toolkits/Blueprints/Partitioning/OccurrenceKind.cs` | `Invalid=0 · Blueprint=1 · BTree=2 · Hsm=3`. **12 of 16 nibble values free** |
+| ⭐ `BlueprintBlackboardPartitions` grew the nibble layer | `GetSlotKind` / `SetSlotKind` / `GetKindOf` / `TryGetSlotIndex` · `MaxKindSlots=16`, `MaxKind=0xF` · a `TryAttach` overload taking the kind *(the 5-arg one delegates with `Invalid`, so every existing call site compiles unchanged)* |
+| 🔴 the two hazards closed | **`H2`** in `TryDetach` *(compact the nibbles in lockstep **and** clear the vacated tail)* · **`H1`** in `CopyToLargerTier` *(`dstHeader.Reserved = srcHeader.Reserved` — ⭐ ONE line covering all three promotion sites, because they all funnel through it)* |
+| ⭐⭐ the five production attach sites DECLARE their kind | `BlueprintTickSystem:324`, `BlueprintInstanceService:161`, `BlueprintMaterializationSystem:140` *(`Blueprint`)*; `BehaviorIngressSystem` ×2, threaded from `def.BrainTier` via `ProvisionStatefulSlots → AttachManifestSlots → AttachSlotsToMemory`. ⇒ **`A4`/`O0`'s precondition is MET, not merely possible** |
+| rails | `OccurrenceSlotKeyParityTests` (13) · `OccurrenceStoreAccessTests` (11) · ⭐ `PartitionAllocatorTests` **`A3_R1..R4`** *(4, in the allocator's OWN suite per `R-142` ④ — ⛔ not a new class)* |
 
 ---
 
@@ -86,33 +92,28 @@ and ours are `CE-`. Do not quote it as evidence for them.
 
 ---
 
-## 3. ⭐⭐⭐ THE NEXT ACTION — **task `A3`**
+## 3. ⭐⭐⭐ THE NEXT ACTION — **task `A4`** *(`O0`)*
 
-⭐ **Why `A3` and not the `A2` remainder:** the six un-collapsed sites are **different shapes, not
-unfinished work** (§4), and the only genuine remainder — the emitter pair — carries **golden
-regeneration**, which is a gate of its own and deserves a clean start rather than the tail of a long
-session. ⛔ `A3` is on the critical path: `O0` cannot land without its declared `Kind`, and `H1` is a
-live hazard that must ship **with** `Kind` or promotion silently zeroes the nibble array in the gap.
+⭐ **Why `A4` and not `A2b` or increment `B`:** `A3` just delivered the **declared `Kind`** that `O0`
+was waiting on (`G4`), so `A4` is the item whose blocker has JUST cleared and the one that finishes
+increment A. ⛔ `A2b` still carries **golden regeneration** — its own gate, deserving its own start
+(§4). ⛔ Increment `B` is tier machinery that `O0` does not need.
 
-### 3.1 What `A3` is
+### 3.1 What `A4` is
 
-**`Kind` as a nibble per slot in `OccurrenceStoreHeader.Reserved`** (`D1′`), plus `H1` and `H2`.
-📐 The exact fit: `Reserved` is `ulong` — **8 B = 16 slots × 4 bits** (`BlueprintBlackboardHeader.cs:24`),
-and 16 is the largest `MaxSlots`. ⛔ NOT in `BlueprintSlotEntry` (`Size = 16`, fully packed); ⛔ NOT in
-the payload (its head is the shipped 16-byte `BlueprintLatentCursor`).
+**Wire `BlueprintTickSystem` on every ECS host.** ⚠ **Not a re-home** — it already lives in
+`Fdp.Toolkits`; only `BlueprintRuntimeWiring` is editor-side (`EditorSubsystem:1585/1594`).
 
-### 3.2 🔴 THREE RED-FIRST RAILS — each pins a different way the nibble array dies
+| 🔴 the two things that decide whether it is done | |
+|---|---|
+| ⭐⭐ **the walker filters on the DECLARED `Kind`** | ⛔ **never** on `_registry.TryGetById(…) → continue`, which works today only because `BlueprintRegistry` happens not to know an FNV stateful key. ⭐ `A3` shipped `GetSlotKind` / `GetKindOf` and every production attach now declares — ⇒ **the filter to write is `GetSlotKind(mem, i) == OccurrenceKind.Blueprint`**, and it is the point of the task |
+| ⭐⭐ **anti-vacuity** | ⛔ CGF **already** materialises and event-attaches Instances, so *"the slot exists"* proves nothing. ⭐ The acceptance is a `--mode all` run showing a blueprint Instance **TICK COUNTER ADVANCING on CGF** |
 
-| # | rail | the code it guards |
-|---|---|---|
-| ① | **detach compacts in lockstep** | `TryDetach:188-199` dense-compacts (last entry → the hole) ⇒ nibbles must move with it, **and clear the vacated tail** (`:197-198` clears the duplicated entry but cannot reach the header) |
-| ② | 🔴🔴 **promotion preserves `Reserved`** | `CopyToLargerTier:249` calls `Initialize`, which `InitBlock`s the component (`:38`) and sets **eight** header fields (`:44-51`) — ⛔ `Reserved` is not among them; `:272-290` then copy `SlotCount`/`PayloadFree`/`PayloadHighWater`/free-list **and nothing else**. ⇒ **every tier upgrade zeroes the whole array.** ⭐ Slot ORDER is preserved (`i → i`), so the fix is ONE line beside `:272` and it covers all **three** promotion sites |
-| ③ | **`Kind == 0` is `Invalid`** | `Initialize:38` zeroes the component, so 0 is what an un-migrated or never-written slot reads. ⛔ If 0 meant `Blueprint`, `O0`'s walker would resume filtering **by accident** — the hash-miss filter `D1′` exists to retire |
+⚠ **Grounded fact ⑨ bites here:** the golden test exercises the **hand-written** node path, so it is
+weaker proof for this than it looks — ⛔ do not let a green `hill-attack-close` stand in for *"the
+walker ticked on CGF"*.
 
-⛔⛔ **Write all three RED first.** A zeroed nibble array is indistinguishable from "everything is
-kind 0", which is exactly why this needs a failing test before a passing one.
-
-### 3.3 The working recipe (both prior tasks used it, both times it caught something)
+### 3.3 The working recipe (all three prior tasks used it, and it caught something every time)
 
 1. ⭐⭐ **T-1 first** — run the feature's own suites and record the number BEFORE editing.
 2. Make the change.
@@ -121,11 +122,18 @@ kind 0", which is exactly why this needs a failing test before a passing one.
    re-verify. ⛔ A rail never seen red is not known to work.
 5. Build the **test** project, not just production (§5 ⑦).
 
-📌 **The suites:** `Fdp.Toolkits.Tests` full = **2232** · the stateful/shared-state/parity filter =
-**32** · `Hrot.SimHost.Tests` Blueprint filter = **36** · `Hrot.Blueprints.Tests`
-EntityBlueprints/TierSummary/InstanceService = **31** · `Hrot.AiEditor.Generators.Tests` = **280**.
-⚠ `DEBT-AIB-030`: ~7 tests in `Fdp.Toolkits.Tests` rotate flaky — confirm a red by re-running it
-alone before believing it.
+📌 **The suites, MEASURED `2026-09-20` at `A3`'s green** — ⭐ use these as the baseline, they are one
+task old, not five:
+
+| suite | baseline | note |
+|---|---|---|
+| `Fdp.Toolkits.Tests` full | **2232 / 0** | ⚠ `DEBT-AIB-030`: ~7 rotate flaky — confirm a red by re-running it ALONE |
+| `Hrot.Blueprints.Tests` full | **3978 / 0**, 10 skipped | ⭐ **the allocator's OWN suite lives here** — `PartitionAllocatorTests`, and `A3`'s rails went INTO it |
+| the allocator filter *(`PartitionAllocator`+`BlackboardLayout`+`TierSummary`)* | **40 / 0** *(36 before `A3`)* | ⭐ the ~8 s loop for anything touching partitions |
+| `Hrot.Diagnostics.Breakpoints.Tests` | **165 / 0** | ⚠ needs `dotnet restore` first — trap ⑧ |
+| `Hrot.Presentation.Tests` | **252 / 0** | ⚠ same |
+| ⚠ `Hrot.SimHost.Tests` | **1001 / 3** | 🔴 **all three reds CONFIRMED PRE-EXISTING** at `5d3e632c2` by a stash-and-rerun: `NodeRolePersistenceRails.TheSaveHandlerSetIsStillComplete`, `MapPresentationParityRails.EveryTkbSpawningHost_ObtainsTheSharedTranslatorSet(EditorStrideSubsystem.cs)`, `FullBranchPipelineTests.BranchedRecording_CapturesHistoricalStateAsKeyframe`. ⚠ **A FOURTH is FLAKY, not a red** — `EcsRecordReplayControllerTests.PrepareRecordingAsync_InstallsRecordingModule` fired once and passed 3/3 alone + 2/2 in full runs after |
+| `Hrot.AiEditor.Generators.Tests` | **280** | ⛔ this is the one `A2b` moves — goldens |
 
 ---
 
@@ -147,7 +155,7 @@ source saying so. ⭐ Anyone "finishing A2" by collapsing them would introduce a
 
 ## 5. ⛔⛔ THE TRAPS THIS PROGRAMME HAS PAID FOR
 
-⭐ Six of these were **my own errors**; three reached a pushed document before being caught. They are
+⭐ Seven of these were **my own errors**; three reached a pushed document before being caught. They are
 here as checkable habits, not confessions.
 
 | # | trap | ⭐ the habit |
@@ -160,6 +168,8 @@ here as checkable habits, not confessions.
 | **⑥** | ⚠ **`ok:true` IS NOT A LOAD** | ⭐ read `sawWorldChange`, verify with `GET /entities`. This is `CE-295` |
 | **⑦** | ⚠ **STALE BINARY, TWICE** | ⭐ build the **TEST** project (a test project's build copies production into its bin; the reverse does not happen), and check the dll timestamp when a result looks too clean |
 | **⑧** | ⚠ **unrestored project** ⇒ `NETSDK1004` / *"the argument …dll is invalid"* | ⭐ `dotnet restore <proj>` first; this is not a code error |
+| ⭐ **⑨** | ⚠ **A RAIL THAT CANNOT GO RED IS NOT A RAIL — and the inverse edit is what EXPOSES that.** `A3_R3`'s first draft iterated `Enum.GetValues` and skipped on `kind == Invalid`; the inverse edit it was written for *(a real kind renumbered onto 0)* would have made that `continue` **skip the very case being checked**. ⭐ Found only by trying to redden it, then fixed to iterate **NAMES** | 🔒 **never mark a rail done on a green** — run the inverse edit, and if it will not redden, **the rail is the defect** |
+| ⭐ **⑩** | ⚠ **A PUBLIC ENUM IN `Fdp.Toolkits` IS SWEPT INTO GENERATED IDL**, and `idlc` **refuses duplicate enumerator values** — so some "invariants" are already enforced by the build ⇒ your rail may be guarding something free. ⛔ **But the sweep is indiscriminate** *(`BlackboardTier` rides no topic and gets an `.idl`)* ⇒ **a generated `.idl` is NOT evidence a type is on the wire** | ⭐ when an inverse edit fails to COMPILE rather than fail a test, that is a finding — ask which half the toolchain covers and which half your rail still owes |
 
 ⭐ **And three operational ones, all re-paid despite being in the runbook:**
 ⛔ `127.0.0.1` 404s on **every** route — `HttpListener` binds the hostname; use `localhost` (§2.1) ·
@@ -179,3 +189,4 @@ loop · ⛔ never pipe a long-running script through `tail` (it buffers everythi
 | debug-API log fix — editor line through `FdpLog`, phrase matched to the cluster's | `e865f59c8` |
 | **`A1`** — one slot-key spelling + the nested form | `c99a8865d` |
 | **`A2`** — the seam + 11 adoptions | `7a87596aa`, `7574f228d` |
+| **`A3`** — `OccurrenceKind` nibble array + `H1` + `H2` + 4 red-proved rails + 5 declaring attach sites | *(this run)* |

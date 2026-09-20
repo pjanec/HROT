@@ -137,8 +137,10 @@ namespace Hrot.SimHost.Systems
                     if (BlueprintBlackboardPartitions.TryGetSlotOffset(memory, bpId, out _))
                         continue;
 
+                    // A3/D1': the occurrence declares its Kind at attach — see BlueprintTickSystem's note.
                     if (!BlueprintBlackboardPartitions.TryAttach(
-                            memory, bpId, def.StateSize, def.StructureHash, out int payloadOffset))
+                            memory, bpId, def.StateSize, def.StructureHash,
+                            OccurrenceKind.Blueprint, out int payloadOffset))
                     {
                         FdpLog<BlueprintMaterializationSystem>.Error(
                             $"[BlueprintMat] NoSlotAvailable for bpId 0x{bpId:X8} " +

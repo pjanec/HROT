@@ -150,7 +150,10 @@ namespace Fdp.Toolkit.Behavior.Systems
                         DetachStatefulSlots(repo, evt.Entity, prevDef.StatefulWorkingSlots);
                     }
 
-                    ProvisionStatefulSlots(repo, evt.Entity, def.StatefulWorkingSlots);
+                    // A3/D1': declare WHAT these occurrences are, so O0's walker can filter on a
+                    // declared Kind instead of on a BlueprintRegistry miss (F7 -- an accident, not
+                    // a filter). The behaviour's tier IS the kind for its stateful working slots.
+                    ProvisionStatefulSlots(repo, evt.Entity, def.StatefulWorkingSlots, KindOf(def));
                 }
 
                 // 2. Reset BTree execution pointer so the new behavior starts from the root.
@@ -255,9 +258,22 @@ namespace Fdp.Toolkit.Behavior.Systems
         /// "to-be-freed" when computing available space, so tier selection is correct even when
         /// a WorkingState grows on a hard reload.
         /// </summary>
+        /// <summary>
+        /// A3/<c>D1′</c> — the <see cref="OccurrenceKind"/> a behaviour's stateful working slots get.
+        /// ⚠ <see cref="OccurrenceKind.Invalid"/> for an unknown tier is deliberate: an undeclared
+        /// occurrence must read <i>"nobody declared one"</i>, never a guess.
+        /// </summary>
+        private static OccurrenceKind KindOf(BehaviorDefinition def) => def.BrainTier switch
+        {
+            BehaviorConstants.BrainTierBTree => OccurrenceKind.BTree,
+            BehaviorConstants.BrainTierHsm   => OccurrenceKind.Hsm,
+            _                                => OccurrenceKind.Invalid,
+        };
+
         private static unsafe void ProvisionStatefulSlots(
             EntityRepository repo, Entity entity,
-            IReadOnlyList<StatefulSlotInfo> slots)
+            IReadOnlyList<StatefulSlotInfo> slots,
+            OccurrenceKind kind)
         {
             // Compute aggregate required payload for the new manifest:
             // each slot at alignment-padded size + one BlueprintSlotEntry header per slot.
@@ -309,7 +325,7 @@ namespace Fdp.Toolkit.Behavior.Systems
             }
 
             // Eager-allocate every manifest slot (idempotent for same-size+hash; detach+reattach for mismatch).
-            AttachManifestSlots(repo, entity, slots);
+            AttachManifestSlots(repo, entity, slots, kind);
         }
 
         /// <summary>Returns the current free payload bytes in the entity's tier.</summary>
@@ -619,14 +635,15 @@ namespace Fdp.Toolkit.Behavior.Systems
         /// Skips slots already attached (TryAttach is not idempotent; guard via TryGetSlotOffset).
         /// </summary>
         private static unsafe void AttachManifestSlots(
-            EntityRepository repo, Entity entity, IReadOnlyList<StatefulSlotInfo> slots)
+            EntityRepository repo, Entity entity, IReadOnlyList<StatefulSlotInfo> slots,
+            OccurrenceKind kind)
         {
             // A2: the three-tier ladder, once, in OccurrenceStoreAccess.
             // ⛔ The pointer is valid for THIS CALL only — see the seam's LIFETIME RULE.
             byte* mem = Fdp.Toolkit.Blueprints.Partitioning.OccurrenceStoreAccess
                             .TryGetStore(repo, entity, out _);
             if (mem != null)
-                AttachSlotsToMemory(mem, slots);
+                AttachSlotsToMemory(mem, slots, kind);
         }
 
         /// <summary>
@@ -645,14 +662,15 @@ namespace Fdp.Toolkit.Behavior.Systems
         /// Caller (ProvisionStatefulSlots) must have already ensured the tier has enough total
         /// space to satisfy the manifest (accounting for slots that will be freed before reattach).
         /// </summary>
-        private static unsafe void AttachSlotsToMemory(byte* mem, IReadOnlyList<StatefulSlotInfo> slots)
+        private static unsafe void AttachSlotsToMemory(
+            byte* mem, IReadOnlyList<StatefulSlotInfo> slots, OccurrenceKind kind)
         {
             foreach (var s in slots)
             {
                 if (!BlueprintBlackboardPartitions.TryGetSlotOffset(mem, s.SlotKey, out int existingOffset))
                 {
                     // Not attached — attach fresh.
-                    BlueprintBlackboardPartitions.TryAttach(mem, s.SlotKey, s.PayloadSize, s.StructureHash, out _);
+                    BlueprintBlackboardPartitions.TryAttach(mem, s.SlotKey, s.PayloadSize, s.StructureHash, kind, out _);
                     continue;
                 }
 
@@ -692,7 +710,7 @@ namespace Fdp.Toolkit.Behavior.Systems
                     // a slot that grew (or otherwise changed layout) on a hard reload.
                     // TryDetach dense-compacts the slot table — adjacent slots remain intact.
                     BlueprintBlackboardPartitions.TryDetach(mem, s.SlotKey);
-                    BlueprintBlackboardPartitions.TryAttach(mem, s.SlotKey, s.PayloadSize, s.StructureHash, out _);
+                    BlueprintBlackboardPartitions.TryAttach(mem, s.SlotKey, s.PayloadSize, s.StructureHash, kind, out _);
                 }
                 // else: same size + hash → idempotent leave-it path (no churn, working state preserved).
             }

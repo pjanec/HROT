@@ -158,8 +158,10 @@ public static unsafe class BlueprintInstanceService
         GetTierMemoryAndMeta(world, entity, tier, out byte* memory, out int totalSize, out byte maxSlots);
         BlueprintBlackboardPartitions.Initialize(memory, totalSize, maxSlots);
 
+        // A3/D1': the occurrence declares its Kind at attach — see BlueprintTickSystem's note.
         if (!BlueprintBlackboardPartitions.TryAttach(
-                memory, blueprintId, def.StateSize, def.StructureHash, out int payloadOffset))
+                memory, blueprintId, def.StateSize, def.StructureHash,
+                OccurrenceKind.Blueprint, out int payloadOffset))
             return new BlueprintAttachResult(
                 BlueprintAttachStatus.NoSlotAvailable, tier,
                 $"No free slot/payload for blueprint '{def.Name}' on entity {entity} " +

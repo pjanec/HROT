@@ -1151,6 +1151,51 @@ falsified §7's own rail — *"cursor intact at offset 0 after a resolve"*.**
 ⭐⭐ **`G6` dissolves with this revision** — §5a's *"payload 208 B at `MaxSlots=1`"* is correct again,
 because **no header is added to the payload at all.**
 
+#### ✅ AS-BUILT `2026-09-20` — **`D1′` is SHIPPED** *(task `A3`, obligation ⑤)*
+
+⭐ **Built exactly as specified above.** What follows is what the build ADDED, and it is here because
+the next task must not re-derive it.
+
+| what shipped | where |
+|---|---|
+| ⭐ **`OccurrenceKind : byte`** — `Invalid=0` · `Blueprint=1` · `BTree=2` · `Hsm=3`, matching §11.2's row vocabulary. **12 of 16 values free** | `Fdp.Toolkits/Blueprints/Partitioning/OccurrenceKind.cs` |
+| the nibble accessors — `GetSlotKind` / `SetSlotKind` / `GetKindOf` / `TryGetSlotIndex`, plus `MaxKindSlots = 16` and `MaxKind = 0xF` | `BlueprintBlackboardPartitions` |
+| a `TryAttach` **overload** taking the kind; the 5-arg one delegates with `Invalid` | same |
+| ⭐ **`H2`** — detach compacts the nibbles in lockstep **and clears the vacated tail** | `TryDetach`, beside `:188-199` |
+| 🔴 **`H1`** — `dstHeader.Reserved = srcHeader.Reserved` | `CopyToLargerTier`, beside `:272` |
+
+| ⭐ three as-built decisions the design did not state | why |
+|---|---|
+| ⭐⭐ **the attach ALWAYS writes the nibble, including `Invalid`** | ⛔ not an optimisation to skip: a reused slot index would otherwise INHERIT the previous occupant's declaration, and `Invalid` must mean *"nobody declared one"*, never *"nobody declared one recently"* |
+| ⚠ **`GetSlotKind` answers `Invalid` out of range; `SetSlotKind` THROWS** | ⭐ deliberate asymmetry — a READ on a hot walk must never throw, but a WRITE out of range would silently LOSE the declaration, which is this scheme's whole failure mode |
+| ⭐⭐ **the five production attach sites now DECLARE their kind** — `BlueprintTickSystem:324`, `BlueprintInstanceService:161`, `BlueprintMaterializationSystem:140` *(all `Blueprint`)*, and `BehaviorIngressSystem`'s two, threaded from `def.BrainTier` through `ProvisionStatefulSlots → AttachManifestSlots → AttachSlotsToMemory` | ⛔ a mechanism nothing declares into is a dead field that `O0` would then have to both fill AND read. ⇒ **`O0`'s precondition is now MET, not merely possible** |
+
+| 🔴 four rails, in `PartitionAllocatorTests` *(the allocator's OWN suite — `R-142` ④)* | |
+|---|---|
+| `A3_R1` detach compaction + tail clear | ⭐ **seen RED**: `103` read `BTree` — the detached slot's kind |
+| `A3_R2` promotion preserves the array | ⭐ **seen RED**: every occurrence read `Invalid` |
+| `A3_R3` `Kind == 0` is `Invalid` | ⚠ guards a FUTURE enum edit, so it has no live defect to fail on — ⭐ red-proved by the inverse edit `Invalid = 4` |
+| ⭐ `A3_R4` **NEW, not in the table above** — the nibble array covers every tier's `MaxSlots` | ⭐ turns the *"binds future tiers to ≤ 16"* caveat into a rail that **reddens** when `O3a` re-picks the ladder or `O3b` adds its tier, instead of dropping declarations at runtime. Red-proved with `MaxKindSlots = 8` |
+
+⭐⭐ **A free guard nobody designed, found while red-proving `R3` — record it so it is not re-derived.**
+📐 Renumbering `Blueprint` onto `0` does **not** redden a rail: it **fails the build.** The CycloneDDS
+codegen sweeps every public enum in `Fdp.Toolkits` into generated IDL, and `idlc` refuses two
+enumerators sharing a value — *"Value of enumerator 'Blueprint' clashes with the value of enumerator
+'Invalid'"*. ⇒ **"no two kinds share a value" is enforced by the toolchain**, and `A3_R3` covers only
+the half it cannot know: that the reserved value is specifically `0`, because `0` is what zeroed
+memory reads.
+⚠ **And the trap inside that:** the sweep is **indiscriminate** — `BlackboardTier`, which rides no
+topic, gets an `.idl` too ⇒ ⛔ **a generated `.idl` is NOT evidence that a type is on the wire.**
+
+⚠ **`Reserved` IS NOW SPENT.** 📐 Checked: `BlueprintAssetTick`'s own header already **rejected** this
+field for the per-instance tick counter — *"wrong granularity: the header is per entity-tier"* — so
+nothing was displaced. ⭐ But it is the last spare word in the header: the next thing that wants one
+must widen deliberately.
+
+⚠ **Scope note, measured:** the nibbles never reach a saved scenario — all three tiers carry
+`[DataPolicy(DataPolicy.NoScenario)]` (`BlueprintBlackboardNoSaveTests`) ⇒ ⛔ `R-42`'s
+*"integer ids are permanent"* does **not** bind `OccurrenceKind`; it is runtime-only.
+
 ### ⛔ HISTORY — `D1` as first approved *(superseded `2026-09-20` by `G1`)*
 
 | option | verdict |

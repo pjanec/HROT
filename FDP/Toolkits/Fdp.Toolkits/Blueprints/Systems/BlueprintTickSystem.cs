@@ -321,8 +321,12 @@ public sealed class BlueprintTickSystem : IEcsModuleSystem, IProfiledSystem
         // Attach slot if not yet attached
         if (!BlueprintBlackboardPartitions.TryGetSlotOffset(memory, blueprintId, out int payloadOffset))
         {
+            // A3/D1': declared, not inferred — O0's walker must filter on this Kind rather than on a
+            // BlueprintRegistry miss (F7: that only ever worked because the registry happens not to
+            // know an FNV stateful key).
             if (!BlueprintBlackboardPartitions.TryAttach(
-                    memory, blueprintId, def.StateSize, def.StructureHash, out payloadOffset))
+                    memory, blueprintId, def.StateSize, def.StructureHash,
+                    OccurrenceKind.Blueprint, out payloadOffset))
                 return; // tier capacity exhausted
 
             if (def.InitDefault is not null)
