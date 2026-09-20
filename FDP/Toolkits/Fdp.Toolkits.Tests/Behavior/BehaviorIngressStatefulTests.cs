@@ -107,10 +107,20 @@ public sealed unsafe class BehaviorIngressStatefulTests
         world.AddComponent(entity, new BrainBTreeState());
         world.AddComponent(entity, new BlueprintBlackboard1024());
 
-        // Fill most of the 1024 tier's payload with an existing slot (900 bytes).
-        // PayloadSize for 1024 = 928 bytes — a 900-byte slot leaves only 28 bytes free.
+        // Fill most of the 1024 tier's payload with an existing slot, leaving only 28 bytes free.
+        //
+        // ⛔⛔ DERIVED, NOT HARD-CODED — and B3② is why. This read `const int = 900` with the
+        //   comment "PayloadSize for 1024 = 928 bytes". When the MaxSlots ladder was re-picked
+        //   4 → 12 the payload became 800, a 900-byte slot no longer fit, and TryAttach failed on
+        //   the PRE-CONDITION — the test died before reaching what it actually asserts.
+        // ⭐ The test's intent is tier-value-independent: "an entity whose tier is nearly full is
+        //   upgraded SYNCHRONOUSLY when a new manifest does not fit". Deriving the fixture from the
+        //   constant expresses that intent and cannot rot when the ladder moves again.
+        // ⚠ It must stay a BYTES-driven upgrade: 1 existing + 3 manifest slots = 4, well inside
+        //   MaxSlots (12), so the slot axis does not trigger it and the payload axis still does.
         const int existingSlotKey     = 0x1CAFE001;
-        const int existingPayloadSize = 900; // nearly fills the 928-byte payload
+        const int freeBytesLeftOver   = 28;
+        int       existingPayloadSize = BlueprintBlackboard1024.PayloadSize - freeBytesLeftOver;
 
         {
             ref var tier = ref world.GetComponentRW<BlueprintBlackboard1024>(entity);
