@@ -49,7 +49,52 @@ related-designs:
 -->
 # ⭐⭐⭐ RESUME — **the UI / variable implementation lane**
 
-## 🔴 ROOT CAUSE FOUND `2026-09-20` — **THE CAMERA'S SCREEN→WORLD TRANSFORM RETURNS `NaN`**
+## ✅ FIXED `2026-09-20` — **CGF BUILT ITS MAP LAYER WITH NO CAMERA; THE WHOLE 2-D MAP WAS DEAD**
+
+🔒 **One missing named argument.** `CgfSubsystem.cs:1598`:
+
+```csharp
+_cgfGizmoLayer = new DebugGizmoLayer(31, _cgfGizmoBuffer, _cgfInteractionBus!);   // ⛔ no camera:
+```
+
+⇒ the layer's `Camera2D` stayed **`default`** — `zoom=0, offset=(0,0)` — and
+`Raylib.GetScreenToWorld2D`, which is `(screen − Offset) / Zoom + Target`, **divided by zero.** Every
+mouse position became `NaN`, every hit-test comparison `false`, every click fell through to the canvas.
+
+⭐⭐ **The final diagnostic printed both instances side by side, which is what named it:**
+
+```
+frame=0   pickable=0   | camera zoom=1 target=(0,0) offset=(640,360)   ← camera fine, buffer empty
+frame=763 pickable=708 | camera zoom=0 target=(0,0) offset=(0,0)       ← 708 pick boxes, NO camera
+```
+
+⛔ `zoom=0, offset=(0,0)` is not a corrupted camera — it is a **default-constructed struct**, i.e. one
+that was never assigned. ⇒ two `DebugGizmoLayer` instances, and **the one holding the primitives had no
+camera.**
+
+| ⚠ why this hid for so long | |
+|---|---|
+| ⭐⭐ **DRAWING is unaffected** | the map looked perfect; only INPUT was dead. ⛔ There is no error anywhere on this path |
+| ⭐ **the camera was TWO LINES ABOVE** | `_canvas = new MapCanvas()` at `:1550`, its offset set at `:1551`, the layer built at `:1598` and added to that very canvas at `:1599`. 🔒 The silent-default rule exactly: **a caller that HAD the dependency and did not pass it** |
+| ⛔ **every rail stayed green** | nothing covered a production construction site's ARGUMENTS |
+
+### ⭐ What landed
+
+| | |
+|---|---|
+| ✅ **the fix** | CGF passes `camera: _canvas.Camera` |
+| ⭐ **it reports itself now** | a layer with no camera WARNS once on its first `Update`: *"screen↔world is a divide by zero and NOTHING ON THIS MAP CAN BE CLICKED"*. ⛔ It still runs — drawing and headless rails are legitimate — it just stops failing invisibly |
+| ⭐⭐ **`EveryProductionGizmoLayerIsGivenACamera`** *(new rail)* | every production construction site passes `camera:`. ⚠ Parses the **balanced argument list**, not one line — CGF's site was one line but the editor's and IG's span five, and a line-based scan would have called those clean. ⭐ **Red-proved against the real bug:** removing CGF's camera reddens it and names `CgfSubsystem.cs:1609` |
+| ⭐ **camera hardening, kept** | the `NaN` guards and `Update`'s recovery stay — they were aimed at the wrong producer but the seam genuinely was unguarded, and `Zoom`'s setter had no check at all while `SetZoom` did |
+
+⚠⚠ **A correction to my own diagnosis, worth keeping:** I read `zoom=0` as *"a `NaN` poisoned the
+camera"* and built guards for that. ⛔ It was never poisoned — **it was never set.** ⭐ The guards are
+still right, but the actual defect was a missing argument, and the two log lines printed side by side
+are what made it obvious. 🔒 **Print the whole state, not the suspicious field.**
+
+## ⛔ SUPERSEDED — **the NaN reading that led here** *(kept: the guards it produced are live)*
+
+### 🔴 ROOT CAUSE NARROWED `2026-09-20` — **THE CAMERA'S SCREEN→WORLD TRANSFORM RETURNS `NaN`**
 
 ⭐⭐⭐ **The second `[SelDiag]` run named it outright:**
 

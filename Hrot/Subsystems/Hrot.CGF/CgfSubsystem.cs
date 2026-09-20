@@ -1595,7 +1595,19 @@ public sealed class CgfSubsystem : ISubsystem, Fdp.Toolkit.Runner.IMapCameraProv
                 _context.World, _context.World.Bus, _spawnAdapter);
 
             // GZ057: add gizmo layer so CGF entity presentation primitives are rendered.
-            _cgfGizmoLayer = new Fdp.Toolkit.Vis2D.Layers.DebugGizmoLayer(31, _cgfGizmoBuffer, _cgfInteractionBus!);
+            // 🔴🔴🔴 THE CAMERA IS NOT OPTIONAL HERE, and omitting it made the whole 2-D map DEAD.
+            //    📐 Measured from the product 2026-09-20: without it the layer's Camera2D stays
+            //       `default` — zoom=0, offset=(0,0) — and Raylib.GetScreenToWorld2D, which is
+            //       (screen − Offset) / Zoom + Target, DIVIDES BY ZERO. ⇒ every mouse position becomes
+            //       NaN, every hit-test comparison is false, and every click falls through to the canvas.
+            //    ⇒ the operator saw: nothing selectable, no marquee, and only the empty-space context
+            //       menu working (it needs no world position). 708 pick boxes were in the frame and not
+            //       one was reachable.
+            // ⭐ The camera was RIGHT THERE — built at :1550 and given its offset at :1551, two lines up.
+            //   🔒 This is the silent-default rule exactly: a production caller that HAS a dependency
+            //      must PASS it. Every other host does.
+            _cgfGizmoLayer = new Fdp.Toolkit.Vis2D.Layers.DebugGizmoLayer(
+                31, _cgfGizmoBuffer, _cgfInteractionBus!, camera: _canvas.Camera);
             _canvas.AddLayer(_cgfGizmoLayer);
             _canvas.DrawBuffer = _cgfGizmoBuffer;
 

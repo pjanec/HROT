@@ -279,6 +279,92 @@ public sealed class NoProductionHostKeepsAParallelSelectionStoreTests
     }
 
     /// <summary>
+    /// ⭐⭐⭐ <b>EVERY PRODUCTION <c>DebugGizmoLayer</c> GETS A CAMERA — a map without one is DEAD, and
+    /// silently.</b>
+    ///
+    /// <para>🔴 <b>Measured in the product <c>2026-09-20</c>, and it cost an operator four builds.</b>
+    /// <c>CgfSubsystem.cs:1598</c> constructed the layer without <c>camera:</c>, so its <c>Camera2D</c>
+    /// stayed <c>default</c> — <c>zoom=0, offset=(0,0)</c>. <c>Raylib.GetScreenToWorld2D</c> is
+    /// <c>(screen − Offset) / Zoom + Target</c>, so it DIVIDED BY ZERO: every mouse position became
+    /// <c>NaN</c>, every hit-test comparison <c>false</c>, and every click fell through to the canvas.
+    /// 📐 The diagnostic that caught it read <c>frame=763 pickable=708</c> at <c>worldPos=(NaN,NaN)</c> —
+    /// 708 pick boxes present and not one reachable.</para>
+    ///
+    /// <para>⛔ <b>Why nothing noticed for so long:</b> DRAWING is unaffected. The map looked perfect;
+    /// only input was dead. ⚠ And the camera was two lines above the construction site — the
+    /// silent-default shape exactly: a caller that HAD the dependency and did not pass it.</para>
+    ///
+    /// <para>⚠ The parameterless/no-camera form stays legal for headless rails and for a layer that only
+    /// renders — this rail covers PRODUCTION construction sites, which are the ones an operator clicks
+    /// on. ⛔ Red-proof: drop <c>camera:</c> from any host and this reddens naming the file and line.</para>
+    /// </summary>
+    [Fact]
+    public void EveryProductionGizmoLayerIsGivenACamera()
+    {
+        var root      = RepoRoot();
+        var offenders = new List<string>();
+        var sites     = 0;
+
+        // ⚠ Two spellings, scanned independently — a combined loop condition is how the first version of
+        //   this rail threw: the second IndexOf ran with the first one's stale index.
+        string[] patterns = { "new DebugGizmoLayer(", "new Fdp.Toolkit.Vis2D.Layers.DebugGizmoLayer(" };
+
+        foreach (var tree in ProductionTrees)
+        {
+            var treeDir = Path.Combine(root, tree);
+            if (!Directory.Exists(treeDir)) continue;
+
+            foreach (var file in Directory.EnumerateFiles(treeDir, "*.cs", SearchOption.AllDirectories))
+            {
+                if (!IsProductionFile(file)) continue;
+                var text = File.ReadAllText(file);
+
+                foreach (var pattern in patterns)
+                {
+                    int idx = text.IndexOf(pattern, StringComparison.Ordinal);
+                    while (idx >= 0)
+                    {
+                        // ⭐ Take the BALANCED argument list, not one line: the CGF site that caused this
+                        //   was one line, but the editor's and IG's span five, and a line-based scan
+                        //   would have declared those clean without looking.
+                        int open  = text.IndexOf('(', idx);
+                        int depth = 0, end = open;
+                        for (; end < text.Length; end++)
+                        {
+                            if (text[end] == '(') depth++;
+                            else if (text[end] == ')') { depth--; if (depth == 0) break; }
+                        }
+                        if (end >= text.Length) break;
+
+                        var args = text.Substring(open, end - open + 1);
+                        sites++;
+
+                        if (!args.Contains("camera:", StringComparison.Ordinal))
+                        {
+                            int line = 1;
+                            for (int i = 0; i < idx; i++) if (text[i] == '\n') line++;
+                            offenders.Add($"{Path.GetRelativePath(root, file)}:{line}");
+                        }
+
+                        idx = text.IndexOf(pattern, end, StringComparison.Ordinal);
+                    }
+                }
+            }
+        }
+
+        // ⚠ Anti-vacuity: if the scan matches nothing the assertion below is meaningless.
+        Assert.True(sites >= 3,
+            $"expected to find production DebugGizmoLayer constructions; found {sites}");
+
+        Assert.True(
+            offenders.Count == 0,
+            "A production map layer is built with NO CAMERA. Its Camera2D stays default (zoom=0), so " +
+            "GetScreenToWorld2D divides by zero, every mouse position is NaN and NOTHING on that map " +
+            "can be clicked — while drawing looks perfect. Sites:" +
+            Environment.NewLine + string.Join(Environment.NewLine, offenders));
+    }
+
+    /// <summary>
     /// ⚠ <b>The negative control.</b> ⛔ A scan that finds nothing because it is looking in the wrong
     /// place passes exactly like a scan that finds nothing because the tree is clean. 📌 This is the
     /// <c>T-1</c> lesson — <em>"if it stays GREEN while the feature is BROKEN, THAT is the finding"</em>

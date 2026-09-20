@@ -105,11 +105,31 @@ namespace Fdp.Toolkit.Vis2D.Layers
                 innerRenderer);
         }
 
+        private bool _warnedNoCamera;
+
         public void Update(float dt)
         {
             if (_buffer == null) return;
             if (_mapCamera != null)
                 _camera = _mapCamera.InnerCamera;
+
+            // ⭐⭐⭐ NO CAMERA IS A DEAD MAP, AND IT USED TO BE SILENT. 📐 Measured 2026-09-20:
+            //    CgfSubsystem built this layer without a camera, so `_camera` stayed `default(Camera2D)`
+            //    — zoom=0, offset=(0,0) — and Raylib.GetScreenToWorld2D ((screen − Offset) / Zoom +
+            //    Target) DIVIDED BY ZERO. Every mouse position became NaN, every hit-test comparison
+            //    false, every click fell through to the canvas. 708 pick boxes in the frame, none
+            //    reachable, and not one error anywhere.
+            // ⛔ The layer still RUNS without a camera on purpose — drawing and event routing are
+            //   unaffected, and a headless rail legitimately has none. ⭐ But INPUT cannot work, so it
+            //   says so, once, instead of failing invisibly for a whole session.
+            if (_mapCamera == null && !_warnedNoCamera)
+            {
+                _warnedNoCamera = true;
+                Fdp.Core.Logging.FdpLog<DebugGizmoLayer>.Warn(
+                    "[DebugGizmoLayer] constructed with NO CAMERA, so screen<->world is a divide by " +
+                    "zero and NOTHING ON THIS MAP CAN BE CLICKED. Drawing still works, which is why " +
+                    "this is easy to miss. Pass `camera:` at the construction site.");
+            }
 
             _innerTerminal.HandleInput(
                 _buffer.GetFrame(),
