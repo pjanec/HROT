@@ -49,6 +49,23 @@ related-designs:
 -->
 # ⭐⭐⭐ RESUME — **the UI / variable implementation lane**
 
+## ✅✅ VERIFIED IN THE PRODUCT `2026-09-20` — **CLICKING AND THE MARQUEE WORK**
+
+🔒 **Operator, Windows session:** *"clicking and rubberband work now."* ⇒ ⭐ `UXI-11`'s map half is
+reachable again, and the `S-4`/`S-4b` operator checks — which were never runnable while nothing on the
+map was clickable — can now be done.
+
+⭐ **The diagnostics have been TRIMMED to tripwires.** ⛔ The per-gesture `[SelDiag]` lines are gone: a
+canvas fallback is what an empty-space click IS, so logging every one would drown the log and the
+tripwire with it. ⭐ What remains fires **once, only when something is genuinely wrong**:
+
+| survives | fires when |
+|---|---|
+| `[DebugGizmoLayer] constructed with NO CAMERA` | a layer is built without one ⇒ nothing on that map can be clicked |
+| `[MapPick] THE CAMERA CANNOT CONVERT SCREEN TO WORLD` | the camera is degenerate at pick time, with its three fields printed |
+| `[MapPick] N primitives … NOT ONE IS PICKABLE` | the frame draws but carries no `BoxAnchorId` ⇒ the projector is emitting no pick boxes |
+| `[MapCamera] REJECTED / RECOVERING` | a caller writes a non-finite zoom/target |
+
 ## ✅ FIXED `2026-09-20` — **CGF BUILT ITS MAP LAYER WITH NO CAMERA; THE WHOLE 2-D MAP WAS DEAD**
 
 🔒 **One missing named argument.** `CgfSubsystem.cs:1598`:

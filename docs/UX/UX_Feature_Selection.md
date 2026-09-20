@@ -49,6 +49,14 @@ build-state: BUILDING (§2.7 is the consolidated TARGET STATE with class + seque
   so on IG, SimHost and CGF the drag WORKED and was INVISIBLE. MapInteractionPack now builds and
   registers it for every host, and the two host registrations are deleted so it is not drawn twice.
   As-built in §2.7.16.
+  ✅✅ VERIFIED IN THE PRODUCT 2026-09-20 — operator: "clicking and rubberband work now."
+  ⛔⛔ BUT READ THIS BEFORE TRUSTING ANY EARLIER MAP VERIFICATION: the editor/CGF 2-D map had been
+  COMPLETELY UNCLICKABLE, and not because of anything in UXI-11. CgfSubsystem.cs:1598 built its
+  DebugGizmoLayer with no `camera:` argument, so the layer's Camera2D stayed default (zoom=0) and
+  GetScreenToWorld2D -- (screen − Offset)/Zoom + Target -- divided by zero. Every mouse position was
+  NaN, so every click fell through to the canvas while DRAWING looked perfect. Root-caused and fixed
+  2026-09-20; folded into UX_Feature_Map_Parity.md, which owns this defect class (it is CE-123 again).
+  ⇒ S-4/S-4b's map rows could not have been exercised before that fix, whatever any check table said.
   S-6 remains DESIGN.)
 verified: 2026-09-10 (measured source scan, graph + grep, coverage checked)
   ⭐ S-1's own inventory re-measured 2026-09-20 on the graph — §2.7.6.

@@ -288,6 +288,8 @@ namespace Fdp.Toolkit.Vis2D.Layers
         /// (<c>ToPickToken</c>, the S3 payload path of <c>DESIGN_Gizmo_Anchor_Identity.md</c>) and that
         /// each <c>GizmoInteractionEventKind</c> publishes its matching event exactly once.</para>
         /// </summary>
+        private bool _warnedUnpickable;
+
         /// <summary>
         /// ⭐⭐ Reports what the hit-test HAD to work with when it fell through to the canvas.
         /// ⛔ Deliberately counts <c>BoxAnchorId != 0</c> rather than "any primitive": that is the exact
@@ -324,15 +326,35 @@ namespace Fdp.Toolkit.Vis2D.Layers
                          && MapCamera.IsFinite(_camera.Target)
                          && MapCamera.IsFinite(_camera.Offset);
 
-            Fdp.Core.Logging.FdpLog<DebugGizmoLayer>.Info(
-                $"[SelDiag] terminal canvas-fallback at ({worldPos.X:F1},{worldPos.Y:F1}) — " +
-                $"frame={frame.Length} pickable={boxes} " +
-                (boxes == 0
-                    ? "NO PICKABLE PRIMITIVES IN FRAME"
-                    : $"nearest=#{bestId} at {best:F1} world units") +
-                $" | camera zoom={_camera.Zoom} target=({_camera.Target.X},{_camera.Target.Y}) " +
-                $"offset=({_camera.Offset.X},{_camera.Offset.Y})" +
-                (camOk ? "" : "  <<<< CAMERA IS NOT USABLE — this is the cause, not the hit-test"));
+            // ⭐⭐⭐ SILENT WHEN HEALTHY. ⛔ A canvas fallback is NORMAL — it is what an empty-space click
+            //    IS — so logging every one would drown the log in routine operation. ⚠ This fires only
+            //    for the two states that are genuinely WRONG, and each warns ONCE:
+            //      · the camera cannot convert screen→world  ⇒ NOTHING is clickable (the CGF defect)
+            //      · the frame has primitives but NONE pickable ⇒ the projector is emitting no pick
+            //        boxes, which looks identical to "the map is fine" because drawing still works
+            // 🔒 Both were invisible for an entire session before 2026-09-20; neither has any other
+            //   symptom than "clicks do nothing", which an operator reasonably reports as a selection bug.
+            if (!camOk)
+            {
+                if (_warnedNoCamera) return;
+                _warnedNoCamera = true;
+                Fdp.Core.Logging.FdpLog<DebugGizmoLayer>.Warn(
+                    $"[MapPick] THE CAMERA CANNOT CONVERT SCREEN TO WORLD — zoom={_camera.Zoom} " +
+                    $"target=({_camera.Target.X},{_camera.Target.Y}) offset=({_camera.Offset.X},{_camera.Offset.Y}). " +
+                    "Every mouse position is NaN/degenerate, so NOTHING ON THIS MAP CAN BE CLICKED " +
+                    "while drawing still looks perfect. A zoom of 0 with a zero offset means no camera " +
+                    "was passed to this layer at all.");
+                return;
+            }
+
+            if (frame.Length > 0 && boxes == 0 && !_warnedUnpickable)
+            {
+                _warnedUnpickable = true;
+                Fdp.Core.Logging.FdpLog<DebugGizmoLayer>.Warn(
+                    $"[MapPick] {frame.Length} primitives in the frame and NOT ONE IS PICKABLE " +
+                    "(none carries a BoxAnchorId). The map draws but cannot be clicked — check that the " +
+                    "entity projector is running and that its entities have a non-zero network id.");
+            }
         }
 
         internal void OnInteraction(

@@ -2,7 +2,6 @@ using System;
 using System.Collections.Generic;
 using System.Numerics;
 using Fdp.Core;
-using Fdp.Core.Logging;
 using Fdp.Toolkit.Diagnostics.Gizmos.Events;
 using Fdp.Toolkit.Diagnostics.Gizmos.Interaction;
 using Fdp.Toolkit.NetworkSpawning.Events;
@@ -94,28 +93,6 @@ public sealed class SelectionInteractionSystem
             //     0 or -1 (the canvas sentinel) resolves to nothing, which is the same signal.
             var entity = Fdp.Toolkit.Replication.Services.NetworkIdResolver.ResolveNetworkId(
                 _world, evt.Token.AnchorId);
-
-            // ⭐⭐⭐ [SelDiag] — THE ONE LINE THAT SPLITS THE MAP-CLICK CHAIN IN THREE.
-            // 🔴 Added 2026-09-20 for an operator report — "mouse clicking does not select, marquee not
-            //    shown" — that SIX read-only hypotheses failed to explain, on a host where the canvas
-            //    context menu works (so input reaches the terminal).
-            // ⭐ It is the same instrument the S-3d Stride session used to settle the 3-D side, and it
-            //    reads three ways:
-            //      · NO LINE AT ALL          => the event never reaches this system. The break is
-            //                                   upstream: hit-test, input gating, or the bus.
-            //      · resolved=NULL           => the anchor does not resolve to an entity. §6.8's
-            //                                   "no id, no pick target" — the entity has no usable
-            //                                   NetworkIdentity, so nothing on the map is clickable.
-            //      · resolved=#n             => the gesture works; the break is downstream, in the
-            //                                   request being served or the ring being drawn.
-            // ⚠ Fires ONLY when a gesture arrives (operator-paced, a handful per minute), so it cannot
-            //   spam a frame loop — ⛔ deliberately NOT behind a flag, because a diagnostic you have to
-            //   switch on is one the next operator will not have switched on.
-            FdpLog<SelectionInteractionSystem>.Info(
-                $"[SelDiag] Started anchor=#{evt.Token.AnchorId} button={evt.Button} " +
-                $"resolved={(entity.IsNull ? "NULL" : "#" + entity.Index)} " +
-                $"alive={(entity.IsNull ? false : _world.IsAlive(entity))} " +
-                $"boxSelecting={_isBoxSelecting} band={_rubberBandState != null}");
 
             // ⭐⭐⭐ UXI-11 S-4b — §2.3's rows are BUTTON-SPECIFIC, so this is where the two gestures
             //   part company. ⛔ Until the terminal tagged the button, a right-release and a left-press

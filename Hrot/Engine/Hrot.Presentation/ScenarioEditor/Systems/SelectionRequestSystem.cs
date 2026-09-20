@@ -1,6 +1,5 @@
 using System;
 using Fdp.Core;
-using Fdp.Core.Logging;
 using Fdp.ModuleHost.Abstractions;
 using Fdp.Toolkit.Replication.Services;
 using Fdp.Toolkit.Vis2D.Abstractions;
@@ -94,16 +93,6 @@ public sealed class SelectionRequestSystem : IEcsModuleSystem
         foreach (var req in world.Bus.ReadManaged<SelectionChangeRequest>())
         {
             if (req == null) continue;
-
-            // ⭐⭐⭐ [SelDiag] — the SECOND half of the map-click instrument (2026-09-20).
-            // ⭐ Paired with the line in SelectionInteractionSystem: together they say whether a gesture
-            //   became a request AND whether the one writer served it. ⛔ Without this half, a missing
-            //   selection is ambiguous between "no request was published" and "the request was never
-            //   read" — and those have completely different causes.
-            // ⚠ Operator-paced, like its twin: one line per actual selection change.
-            FdpLog<SelectionRequestSystem>.Info(
-                $"[SelDiag] serving mode={req.Mode} reason={req.Reason ?? "(none)"} " +
-                $"count={req.Entities?.Count ?? 0}");
 
             Apply(world, selection, req);
         }
