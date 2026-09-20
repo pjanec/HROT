@@ -721,40 +721,25 @@ public static class ThrowingRegistrar
         return false;
     }
 
+    // ⛔⛔ O3b / B4 (2026-09-20) — THIS FIXTURE CARRIED ITS OWN COPY OF THE TIER LADDER, and it
+    //   was the FIFTH. `ChooseTier` still held the pre-B3② literals `928 / 3936`;
+    //   `EnsureTierComponent` and `GetTierMemoryAndMeta` were the same three-arm switches B3①
+    //   collapsed in production. B3①'s census covered PRODUCTION files, so these were invisible
+    //   to it.
+    // 🔴 And it passed B3②'s gate because it is SELF-CONSISTENT: the test asserts the fixture's
+    //   own answer, so both sides were wrong together. A fixture that duplicates production logic
+    //   cannot fail when production changes — it just silently diverges, and hands entities a
+    //   different tier than the code under test would.
+    // ⇒ all three now delegate to BlueprintTierTable, like every production caller.
+
     private unsafe void GetTierMemoryAndMeta(
         Entity entity, BlackboardTier tier,
         out byte* memory, out int totalSize, out byte maxSlots)
     {
-        switch (tier)
-        {
-            case BlackboardTier.B1024:
-            {
-                ref var bb = ref _repo.GetComponentRW<BlueprintBlackboard1024>(entity);
-                ref byte memRef = ref Unsafe.As<BlueprintBlackboard1024, byte>(ref bb);
-                memory    = (byte*)Unsafe.AsPointer(ref memRef);
-                totalSize = BlueprintBlackboard1024.TotalSize;
-                maxSlots  = BlueprintBlackboard1024.MaxSlots;
-                return;
-            }
-            case BlackboardTier.B4096:
-            {
-                ref var bb = ref _repo.GetComponentRW<BlueprintBlackboard4096>(entity);
-                ref byte memRef = ref Unsafe.As<BlueprintBlackboard4096, byte>(ref bb);
-                memory    = (byte*)Unsafe.AsPointer(ref memRef);
-                totalSize = BlueprintBlackboard4096.TotalSize;
-                maxSlots  = BlueprintBlackboard4096.MaxSlots;
-                return;
-            }
-            default:
-            {
-                ref var bb = ref _repo.GetComponentRW<BlueprintBlackboard16384>(entity);
-                ref byte memRef = ref Unsafe.As<BlueprintBlackboard16384, byte>(ref bb);
-                memory    = (byte*)Unsafe.AsPointer(ref memRef);
-                totalSize = BlueprintBlackboard16384.TotalSize;
-                maxSlots  = BlueprintBlackboard16384.MaxSlots;
-                return;
-            }
-        }
+        var spec  = BlueprintTierTable.ByTier(tier);
+        memory    = spec.Memory(_repo, entity);
+        totalSize = spec.TotalSize;
+        maxSlots  = (byte)spec.MaxSlots;
     }
 
     // ---- Entity convenience -------------------------------------------------
@@ -792,30 +777,17 @@ public static class ThrowingRegistrar
         }
     }
 
+    /// <summary>⛔ Delegates — see the note above <c>GetTierMemoryAndMeta</c>. This is the SAME
+    /// payload-only selector <c>BlueprintInstanceService.ChooseTier</c> uses, so the fixture seats a
+    /// blueprint exactly where production would.</summary>
     internal static BlackboardTier ChooseTier(int stateSize)
-    {
-        if (stateSize <= 928)  return BlackboardTier.B1024;
-        if (stateSize <= 3936) return BlackboardTier.B4096;
-        return BlackboardTier.B16384;
-    }
+        => BlueprintTierTable.SelectByPayload(stateSize).Tier;
 
     private void EnsureTierComponent(Entity entity, BlackboardTier tier)
     {
-        switch (tier)
-        {
-            case BlackboardTier.B1024:
-                if (!_repo.HasComponent<BlueprintBlackboard1024>(entity))
-                    _repo.AddComponent(entity, default(BlueprintBlackboard1024));
-                break;
-            case BlackboardTier.B4096:
-                if (!_repo.HasComponent<BlueprintBlackboard4096>(entity))
-                    _repo.AddComponent(entity, default(BlueprintBlackboard4096));
-                break;
-            case BlackboardTier.B16384:
-                if (!_repo.HasComponent<BlueprintBlackboard16384>(entity))
-                    _repo.AddComponent(entity, default(BlueprintBlackboard16384));
-                break;
-        }
+        var spec = BlueprintTierTable.ByTier(tier);
+        if (!spec.Has(_repo, entity))
+            spec.Add(_repo, entity);
     }
 
     // ---- BPF-008: Fixture helpers ------------------------------------------
