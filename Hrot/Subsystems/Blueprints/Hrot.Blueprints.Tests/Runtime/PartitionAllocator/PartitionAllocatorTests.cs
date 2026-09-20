@@ -445,35 +445,48 @@ public sealed unsafe class PartitionAllocatorTests
             BlueprintBlackboardPartitions.Initialize(
                 memory, BlueprintBlackboard1024.TotalSize, BlueprintBlackboard1024.MaxSlots);
 
-            // Fill all 4 slots to exhaust bump region
-            // bp1=112, bp2=112, bp3=112, bp4=496 -> 432 payload bytes used, PayloadHighWater=96+832=928? 
-            // Wait: 96 + 112 + 112 + 112 + 496 = 96 + 832 = 928 = PayloadStart + PayloadSize (TotalSize)
-            // But we need to check PayloadEnd = PayloadStart + PayloadSize = 96 + 928 = 1024
-            // So PayloadHighWater after all 4 attaches = 96 + 112 + 112 + 112 + 496 = 928. Not TotalSize.
-            // Correction: PayloadHighWater starts at PayloadStart=96.
-            // After bp1(112): PayloadHighWater = 96+112 = 208
-            // After bp2(112): PayloadHighWater = 208+112 = 320
-            // After bp3(112): PayloadHighWater = 320+112 = 432
-            // After bp4(496): PayloadHighWater = 432+496 = 928
-            // PayloadEnd = 96 + 928 = 1024.
-            // Available in bump for next = 1024 - 928 = 96. So bump IS exhausted for large allocations.
-            Assert.True(BlueprintBlackboardPartitions.TryAttach(memory, 1, 112, 0, out _));
-            Assert.True(BlueprintBlackboardPartitions.TryAttach(memory, 2, 112, 0, out _));
-            Assert.True(BlueprintBlackboardPartitions.TryAttach(memory, 3, 112, 0, out _));
-            Assert.True(BlueprintBlackboardPartitions.TryAttach(memory, 4, 496, 0, out _));
+            // ⛔⛔ DERIVED, NOT HARD-CODED — B3② is why. This read `112 / 112 / 112 / 496`, four
+            //   literals chosen to fill the 1024 tier's payload EXACTLY (3×112 + 496 = 928). When
+            //   the MaxSlots ladder was re-picked 4 → 12 the payload became 800, the fourth attach
+            //   no longer fit, and the test failed while BUILDING its scenario — before reaching
+            //   the fragmentation it exists to assert.
+            //
+            // ⭐ What SC11 actually owns is allocator behaviour, not a tier's size:
+            //      "total free >= request, but no CONTIGUOUS block that big ⇒ TryAttach fails".
+            //   Deriving the filler from PayloadSize reproduces that scenario at any payload.
+            //
+            // 📐 The construction, in terms of P = PayloadSize:
+            //      three `HoleSize` slots + one `filler` slot, where filler = P − 3×HoleSize, so the
+            //      bump region is exhausted EXACTLY. Detaching the 1st and 3rd leaves two
+            //      non-adjacent holes of HoleSize each. A request strictly between HoleSize and
+            //      2×HoleSize then has enough TOTAL free space and no block to put it in.
+            // ⚠ HoleSize and the request are alignment-safe (8 | 112, 8 | 200) and P is 8-aligned.
+            const int HoleSize    = 112;
+            const int RequestSize = 200;   // > one hole (112), < two holes (224)
+            int filler = BlueprintBlackboard1024.PayloadSize - 3 * HoleSize;
+
+            Assert.True(filler > 0,
+                $"the tier payload ({BlueprintBlackboard1024.PayloadSize}) must hold three "
+                + $"{HoleSize}-byte slots plus a filler; adjust HoleSize if the ladder shrinks further");
+            Assert.Equal(0, filler % BlueprintBlackboardPartitions.Alignment);
+            Assert.InRange(RequestSize, HoleSize + 1, 2 * HoleSize - 1);
+
+            Assert.True(BlueprintBlackboardPartitions.TryAttach(memory, 1, HoleSize, 0, out _));
+            Assert.True(BlueprintBlackboardPartitions.TryAttach(memory, 2, HoleSize, 0, out _));
+            Assert.True(BlueprintBlackboardPartitions.TryAttach(memory, 3, HoleSize, 0, out _));
+            Assert.True(BlueprintBlackboardPartitions.TryAttach(memory, 4, filler,   0, out _));
 
             // Detach bp1 and bp3 to create non-adjacent free blocks (each 112 bytes)
             BlueprintBlackboardPartitions.TryDetach(memory, 1);
             BlueprintBlackboardPartitions.TryDetach(memory, 3);
 
-            // PayloadFree = 224, but two 112-byte holes separated by bp2.
-            // Try to attach 200 bytes -- larger than either hole but < total free.
-            bool ok = BlueprintBlackboardPartitions.TryAttach(memory, 5, 200, 0, out int offset);
+            // PayloadFree = 2 × HoleSize, but as two holes separated by bp2.
+            bool ok = BlueprintBlackboardPartitions.TryAttach(memory, 5, RequestSize, 0, out int offset);
 
             Assert.False(ok);
             Assert.Equal(0, offset);
-            // Total free (224) > 200 but no contiguous block available
-            Assert.True((int)Header(memory).PayloadFree >= 200);
+            // Total free (2 × HoleSize) > RequestSize, but no contiguous block that big.
+            Assert.True((int)Header(memory).PayloadFree >= RequestSize);
         }
     }
 
