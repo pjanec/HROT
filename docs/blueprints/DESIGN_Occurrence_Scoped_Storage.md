@@ -1886,3 +1886,44 @@ recorded**, and `BlueprintTickSystem`'s walker filters ON the declared kind — 
 nowhere written down, and *"12 leaves 800 B of payload"* reads like the only constraint.
 ✅ **Now enforced in `BlueprintTierSpec.For<T>`, which throws** — a gate, not a note — and pinned by
 `B3_R2`.
+
+### 📐 `B3②`'s PRE-MEASUREMENT — **the 801–928 B band is EMPTY, in BOTH populations** *(`2026-09-20`)*
+
+⭐ The re-pick's only real risk was content moving up a tier: `MaxSlots 12` on the 1024 tier costs
+`32 + 12×16 = 224` and drops payload **928 → 800**, so anything needing **801–928 B** would be
+promoted. ⛔ That is a regression in someone's content, so it was measured before picking numbers.
+
+| population | how it is gated | measured |
+|---|---|---|
+| **behaviour manifests** — 30 assets in `Hrot.AI.Behaviors/Assets/{HSMs,BTrees}` | `SelectTierForPayload(Σ(AlignUp(slot,8) + 16), slotCount)` | **max 320 B** *(`PlatoonHillAttack2`)*. ⭐ **Band population: 0** |
+| **blueprint Instances** — 59 `.bp.json` in `Recipes/Blueprints` ⇒ 43 generated `*_Bp`, of which **41** expose `StateSize` *(the other two — `LibraryFunctionsDemo`, `SmokeMathLib` — are pure-function LIBRARIES with no instance state)* | `SelectByPayload(def.StateSize)` | **max 128 B** *(`HillAssault2DispatchWaveWithTargets`)*. ⭐ **Band population: 0** |
+
+| behaviour-manifest distribution | assets |
+|---|---|
+| **0 B** *(no stateful slots)* | **17** |
+| 1–64 B | 9 |
+| 65–256 B | 3 |
+| 257–800 B | **1** — `PlatoonHillAttack2`, 320 B |
+| **801–928 B** | 🔴 **0** |
+| > 928 B | **0** |
+
+⇒ ⭐⭐⭐ **`MaxSlots 12` on the 1024 tier moves NOTHING.** The whole corpus sits **2.5× below** the
+800 B floor it would create.
+
+#### ⭐⭐ AND IT CONFIRMS §5a's CENTRAL CLAIM WITH REAL BYTES — **the binding axis is SLOTS, not bytes**
+
+📐 `PlatoonHillAttack2` holds **8** stateful slots *(9 after `O4`'s root occurrence)* and **320 B**.
+⛔ Today it is promoted to **16384** — on slot count alone, with payload **50× below** that tier's
+capacity. ⭐ At `MaxSlots 12` the **1024** tier seats it *(12 slots, 800 B)* ⇒ **16× less memory for
+the worst case in the corpus**, and every other asset fits too.
+
+| ⚠ the ONE thing this measurement CANNOT settle, stated rather than assumed | |
+|---|---|
+| ⛔ **the root occurrence's own payload** | it does not exist until `O4`, so it cannot be measured — only bounded. ⭐ Using §5a's own figures *(`BehaviorTreeState` 64 B; root ≈ 64–164 B with params)*, one root slot costs **80–184 B**. ⇒ `PlatoonHillAttack2` becomes **9 slots / ~504 B**, still inside `1024@12`. ⚠ **Re-measure after `O4`**; the conclusion holds across the whole bounded range, but the number is an estimate, not a measurement |
+| ⚠ **a consequence of the `MaxSlots ≤ 16` ceiling** | with 1024 at 12 slots, the 4096 and 16384 tiers can offer at most **4 more slots each** — ⇒ they exist for **BYTES**, not for slots. ⭐ Worth saying out loud: **nothing in the current corpus would select them at all** |
+
+⭐ **Method, so it can be re-run:** the slot manifests are parsed from the **30 generated
+`*.Registrar.g.cs`** under `Hrot.AI.Behaviors/obj/GeneratedFiles/` *(the production emitter output —
+they carry `Marshal.SizeOf<T>()`, so the struct sizes came from reflection over the built
+`Hrot.AI.Behaviors` assembly)*. ✅ **Cross-check: the slot COUNTS reproduce §5a's
+`0×17 · 1×6 · 2×5 · 3×1 · 8×1` exactly**, which is what says the parse is faithful.
