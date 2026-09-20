@@ -7,6 +7,8 @@ using Fdp.Toolkit.Behavior.Components;
 using Fdp.Toolkit.Behavior.Executors;
 using Fdp.Toolkit.Behavior.Modules;
 using Fdp.Toolkit.Behavior.TacticalOrderMapper;
+using Fdp.Toolkit.Blueprints;
+using Fdp.Toolkit.Blueprints.Systems;
 using Fdp.Toolkit.Combat;
 using Fdp.Toolkit.Combat.Executors;
 using Fdp.Toolkit.Combat.Systems;
@@ -82,6 +84,19 @@ namespace Hrot.CGF
         /// <summary>Systems to wrap in TogglableSimulationGroup.</summary>
         public IReadOnlyList<IEcsModuleSystem> SimulationSystems { get; }
 
+        /// <summary>
+        /// A4 / <c>O0</c> — the blueprint <b>maintenance</b> system, for the capability to carry into
+        /// the kernel as a <c>SingleSystemModule</c>.
+        ///
+        /// <para>⚠ It is <c>[UpdateInPhase(BeforeSync)]</c>, so unlike the tick it cannot live in
+        /// <see cref="SimulationSystems"/>. ⛔ And it is deliberately NOT registered by each
+        /// composition root: a per-host <c>RegisterGlobalSystem</c> call is a per-host chance to
+        /// forget, which is exactly how <c>CE-161</c> arose (three of four bootstrappers missed the
+        /// tier registration). ⭐ Exposing it here lets the ONE capability that provides this pack
+        /// provide it too.</para>
+        /// </summary>
+        public BlueprintMaintenanceSystem MaintenanceSystem { get; }
+
         // ── Constructor ───────────────────────────────────────────────────────
 
         /// <summary>
@@ -110,18 +125,27 @@ namespace Hrot.CGF
         /// Optional high-level vehicle command façade forwarded to
         /// <see cref="JoinFormationExecutor"/>.  <c>null</c> while the executor is a stub.
         /// </param>
+        /// <param name="blueprintRegistry">
+        /// A4 / <c>O0</c> — the registry <see cref="BlueprintTickSystem"/> ticks against. ⭐ Required,
+        /// not optional: both production roots already hold one (<c>CgfSubsystem.cs:718</c>,
+        /// <c>EditorSubsystem</c>'s <c>_blueprintRegistry</c>), and a defaulted-to-new instance would
+        /// tick against an EMPTY registry — a silent no-op, and precisely the silent-default shape
+        /// this codebase keeps finding (<i>"a production caller that HAS a dependency must PASS it"</i>).
+        /// </param>
         public CgfLogicPack(
             BehaviorRegistry                     behaviorRegistry,
             NetworkEntityMap                     entityMap,
             ScenarioEntityCreationRequestSource  scenarioSource,
             TacticalIntentMapperRegistry         mapperRegistry,
+            BlueprintRegistry                    blueprintRegistry,
             VehicleAPI?                          vehicleApi = null,
             bool                                 gateOnAuthority = false)
         {
-            if (behaviorRegistry == null) throw new ArgumentNullException(nameof(behaviorRegistry));
-            if (entityMap        == null) throw new ArgumentNullException(nameof(entityMap));
-            if (scenarioSource   == null) throw new ArgumentNullException(nameof(scenarioSource));
-            if (mapperRegistry   == null) throw new ArgumentNullException(nameof(mapperRegistry));
+            if (behaviorRegistry  == null) throw new ArgumentNullException(nameof(behaviorRegistry));
+            if (entityMap         == null) throw new ArgumentNullException(nameof(entityMap));
+            if (scenarioSource    == null) throw new ArgumentNullException(nameof(scenarioSource));
+            if (mapperRegistry    == null) throw new ArgumentNullException(nameof(mapperRegistry));
+            if (blueprintRegistry == null) throw new ArgumentNullException(nameof(blueprintRegistry));
 
             ScenarioSource = scenarioSource;
 
@@ -172,8 +196,21 @@ namespace Hrot.CGF
             // CE-221: UnitHierarchySystem + EqsResultUpdateSystem were appended here. They are now
             // contributed by the infrastructure capabilities (see the field block above).
 
+            // ⭐⭐⭐ A4 / O0 — SPLICE THE BLUEPRINT TICK HERE, not at each composition root.
+            //   📐 CE-161's lesson, one level up: the tier COMPONENTS moved into a shared path on
+            //      2026-09-03 after a --mode all cluster aborted on CGF, but the SCHEDULING stayed in
+            //      Hrot.Blueprints.Editor — so only the Editor ever ticked a blueprint Instance.
+            //   ⭐ This pack is provided by CgfCapabilities.Brain, which both CgfSubsystem and
+            //      EditorSubsystem construct, so one splice serves both hosts.
+            //   ⚠ It must go BEFORE the action dispatchers (its own [UpdateBefore] targets, contributed
+            //      by _actionDispatchModule just above): module-group order is ARRAY POSITION, and an
+            //      appended tick dispatches intent a tick late — the Q#16-B contract. The shared helper
+            //      reads the targets off the attributes so this stays true by construction.
+            MaintenanceSystem = new BlueprintMaintenanceSystem();
+            SimulationSystems = BlueprintRuntimeComposition.SpliceIntoSimulation(
+                simList, new BlueprintTickSystem(blueprintRegistry));
+
             InputSystems       = inputList;
-            SimulationSystems  = simList;
         }
 
         /// <summary>

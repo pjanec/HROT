@@ -87,6 +87,18 @@ public sealed class BlueprintTickSystem : IEcsModuleSystem, IProfiledSystem
                 ref var slot = ref Unsafe.AsRef<BlueprintSlotEntry>(
                     slotTable + i * BlueprintBlackboardPartitions.SlotEntrySize);
 
+                // ⭐⭐⭐ A4/O0 + D1' — FILTER ON THE DECLARED KIND, NEVER ON A REGISTRY MISS.
+                //   📐 The line below used to be the whole filter, and it worked ONLY because
+                //      BlueprintRegistry happens not to know an FNV stateful slot key (F7) — an
+                //      accident, not a filter. This walker now runs on CGF as well as the Editor,
+                //      beside BTree/HSM occurrences in the SAME store, so the filter has to be a
+                //      declaration. A3 made every production attach declare its kind.
+                if (BlueprintBlackboardPartitions.GetSlotKind(memory, i) != OccurrenceKind.Blueprint)
+                    continue;
+
+                // ⚠ Still looked up, but it is no longer the filter: for a slot DECLARED Blueprint a
+                //   miss means the definition is absent from this host's registry, which is a real
+                //   condition (an asset this node did not compile) rather than "not ours".
                 if (!_registry.TryGetById(slot.BlueprintId, out var def)) continue;
 
                 if (slot.StructureHash != (uint)def!.StructureHash) // DEBT-014 truncation
@@ -153,6 +165,18 @@ public sealed class BlueprintTickSystem : IEcsModuleSystem, IProfiledSystem
                 ref var slot = ref Unsafe.AsRef<BlueprintSlotEntry>(
                     slotTable + i * BlueprintBlackboardPartitions.SlotEntrySize);
 
+                // ⭐⭐⭐ A4/O0 + D1' — FILTER ON THE DECLARED KIND, NEVER ON A REGISTRY MISS.
+                //   📐 The line below used to be the whole filter, and it worked ONLY because
+                //      BlueprintRegistry happens not to know an FNV stateful slot key (F7) — an
+                //      accident, not a filter. This walker now runs on CGF as well as the Editor,
+                //      beside BTree/HSM occurrences in the SAME store, so the filter has to be a
+                //      declaration. A3 made every production attach declare its kind.
+                if (BlueprintBlackboardPartitions.GetSlotKind(memory, i) != OccurrenceKind.Blueprint)
+                    continue;
+
+                // ⚠ Still looked up, but it is no longer the filter: for a slot DECLARED Blueprint a
+                //   miss means the definition is absent from this host's registry, which is a real
+                //   condition (an asset this node did not compile) rather than "not ours".
                 if (!_registry.TryGetById(slot.BlueprintId, out var def)) continue;
 
                 if (slot.StructureHash != (uint)def!.StructureHash) // DEBT-014 truncation
@@ -219,6 +243,18 @@ public sealed class BlueprintTickSystem : IEcsModuleSystem, IProfiledSystem
                 ref var slot = ref Unsafe.AsRef<BlueprintSlotEntry>(
                     slotTable + i * BlueprintBlackboardPartitions.SlotEntrySize);
 
+                // ⭐⭐⭐ A4/O0 + D1' — FILTER ON THE DECLARED KIND, NEVER ON A REGISTRY MISS.
+                //   📐 The line below used to be the whole filter, and it worked ONLY because
+                //      BlueprintRegistry happens not to know an FNV stateful slot key (F7) — an
+                //      accident, not a filter. This walker now runs on CGF as well as the Editor,
+                //      beside BTree/HSM occurrences in the SAME store, so the filter has to be a
+                //      declaration. A3 made every production attach declare its kind.
+                if (BlueprintBlackboardPartitions.GetSlotKind(memory, i) != OccurrenceKind.Blueprint)
+                    continue;
+
+                // ⚠ Still looked up, but it is no longer the filter: for a slot DECLARED Blueprint a
+                //   miss means the definition is absent from this host's registry, which is a real
+                //   condition (an asset this node did not compile) rather than "not ours".
                 if (!_registry.TryGetById(slot.BlueprintId, out var def)) continue;
 
                 if (slot.StructureHash != (uint)def!.StructureHash) // DEBT-014 truncation

@@ -92,26 +92,18 @@ public static class BlueprintRuntimeWiring
     /// containing NO target system (degenerate/test compositions without dispatchers) appends the
     /// tick at the end -- exactly the old behavior, where no ordering contract exists to honor.
     /// </para>
+    ///
+    /// <para>⚠⚠ <b>THE SPLICE MOVED <c>2026-09-20</c> (A4 / <c>O0</c>), for the same reason the tier
+    /// list moved in <c>CE-161</c>.</b> It now lives at
+    /// <see cref="Fdp.Toolkit.Blueprints.Systems.BlueprintRuntimeComposition"/> — in the assembly that
+    /// owns the systems — and <c>CgfLogicPack</c> performs it once, so every host carrying the Brain
+    /// capability ticks blueprint Instances rather than only the Editor. ⛔ This method is kept as a
+    /// forwarder so existing callers are unchanged; it is no longer a second implementation.</para>
     /// </summary>
     public static List<IEcsModuleSystem> SpliceIntoSimulation(
         IEnumerable<IEcsModuleSystem> simulationSystems, BlueprintTickSystem bpTick)
-    {
-        if (simulationSystems is null) throw new ArgumentNullException(nameof(simulationSystems));
-        if (bpTick is null)            throw new ArgumentNullException(nameof(bpTick));
-
-        var targets = typeof(BlueprintTickSystem)
-            .GetCustomAttributes<UpdateBeforeAttribute>()
-            .Select(a => a.Target)
-            .ToArray();
-
-        var result = new List<IEcsModuleSystem>(simulationSystems);
-        int firstTarget = result.FindIndex(s => targets.Contains(s.GetType()));
-        if (firstTarget >= 0)
-            result.Insert(firstTarget, bpTick);
-        else
-            result.Add(bpTick);
-        return result;
-    }
+        => Fdp.Toolkit.Blueprints.Systems.BlueprintRuntimeComposition
+               .SpliceIntoSimulation(simulationSystems, bpTick);
 
     /// <summary>
     /// Registers the blackboard tier components on <paramref name="world"/>. Idempotent.

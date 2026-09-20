@@ -387,7 +387,8 @@ namespace Hrot.SimHost.Integration.Tests.Infrastructure
             mapperRegistry.Register(new Hrot.AI.Behaviors.Mappers.HullDownAttackMapper());
             var brainPack  = new CgfLogicPack(_behaviorRegistry, _entityMap,
                 new ScenarioEntityCreationRequestSource(),
-                mapperRegistry);
+                mapperRegistry,
+                new Fdp.Toolkit.Blueprints.BlueprintRegistry());
 
             var inputList   = new List<IEcsModuleSystem>();
             var simList     = new List<IEcsModuleSystem>();

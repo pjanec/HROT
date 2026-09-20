@@ -1528,7 +1528,8 @@ namespace Hrot.Editor
             mapperRegistry.Register(new Hrot.AI.Behaviors.Mappers.HullDownAttackMapper());
             var cgfLogicPackInst = new CgfLogicPack(behaviorRegistry, entityMap,
                 scenarioLoadSource,
-                mapperRegistry);
+                mapperRegistry,
+                _blueprintRegistry);
 
             // ⭐⭐⭐ S2a — HOST (d) ON THE CAPABILITY AXIS. The editor was the last ECS composition root
             //    still hand-assembling its unit list; SimHost (§4.1s), IG (§4.1t) and CGF (§4.1x) all
@@ -1572,29 +1573,22 @@ namespace Hrot.Editor
                 Fdp.ModuleHost.Scheduling.SystemComposition
                     .DistinctByType(planInputSystems, System.Array.Empty<IEcsModuleSystem>()).ToArray());
 
-            // ── Blueprint runtime (MVE-BATCH-02) ──────────────────────────────────────
-            // Wire the Instance-Blueprint runtime into THIS kernel (the real composition the
-            // running editor uses — no sandbox world). The shared helper registers the three
-            // blackboard tier components on _world and registers BlueprintMaintenanceSystem
-            // (BeforeSync) as a global system; it returns the Simulation-phase tick system,
-            // which must be scheduled inside a module's sim list. We tick against the SAME
-            // _blueprintRegistry the editor's AiHotReloadCoordinator compiles blueprints into
-            // (see field declaration + _aiCoordinator construction above), so editor-registered
-            // blueprints run live. Both this composition and the integration-test EditorHarness
-            // call WireBlueprintRuntime so the wiring stays a single source of truth.
-            var bpTick = Hrot.Blueprints.Editor.Runtime.BlueprintRuntimeWiring.WireBlueprintRuntime(
-                _kernel, _world!, _blueprintRegistry);
-
-            // FC-1·G2: splice bpTick BEFORE the action dispatchers (its [UpdateBefore] targets)
-            // instead of appending it -- module-group order is array position, so an appended tick
-            // ran AFTER the dispatchers and intent writes were only dispatched next tick, silently
-            // violating the Q#16-B same-tick contract. See BlueprintRuntimeWiring.SpliceIntoSimulation.
+            // ── Blueprint runtime ─────────────────────────────────────────────────────
+            // ⭐⭐⭐ A4 / O0 (2026-09-20) — THE EDITOR NO LONGER WIRES THIS AT ITS ROOT.
+            //   The tick system is spliced by CgfLogicPack (constructed above with
+            //   _blueprintRegistry), and BlueprintMaintenanceSystem is provided by
+            //   CgfCapabilities.Brain as a SingleSystemModule. Both reach this composition through
+            //   the plan, exactly as they now reach CGF's.
+            //   ⛔ THE ROOT SPLICE HAD TO GO, not merely become redundant: the pack's tick is inside
+            //     planSimSystems, so splicing a SECOND instance here would put two BlueprintTickSystems
+            //     in one group (DistinctByType runs BEFORE the splice and cannot see it).
+            //   📐 The tier COMPONENTS are unaffected — HrotSharedComponentRegistry.RegisterAll has
+            //     registered them on every node since CE-161.
             var toggleSim = new TogglableSimulationGroup(
                 "EditorSim",
-                Hrot.Blueprints.Editor.Runtime.BlueprintRuntimeWiring.SpliceIntoSimulation(
-                    Fdp.ModuleHost.Scheduling.SystemComposition        // CE-165 — see toggleInput above
-                        .DistinctByType(planSimSystems, System.Array.Empty<IEcsModuleSystem>()),
-                    bpTick).ToArray());
+                Fdp.ModuleHost.Scheduling.SystemComposition            // CE-165 — see toggleInput above
+                    .DistinctByType(planSimSystems, System.Array.Empty<IEcsModuleSystem>())
+                    .ToArray());
 
             var togglePostSim = new TogglablePostSimulationGroup(
                 "EditorPostSim",

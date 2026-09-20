@@ -275,8 +275,11 @@ public sealed class EditorHarness : IDisposable
         var mapperRegistry = new TacticalIntentMapperRegistry();
         mapperRegistry.Register(new Hrot.AI.Behaviors.Mappers.DefendAreaMapper());
         mapperRegistry.Register(new Hrot.AI.Behaviors.Mappers.HullDownAttackMapper());
+        // ⭐ A4/O0 — the registry must exist BEFORE the pack, which now builds the tick system
+        //   against it. (It used to be created further down, beside the old root splice.)
+        BlueprintRegistry = new Fdp.Toolkit.Blueprints.BlueprintRegistry();
         var cgfLogicPackInst = new CgfLogicPack(behaviorRegistry, EntityMap,
-            new ScenarioEntityCreationRequestSource(), mapperRegistry);
+            new ScenarioEntityCreationRequestSource(), mapperRegistry, BlueprintRegistry);
         var scenarioMod      = new ScenarioEditorModule(fileService);
         var simHostMod       = new Fdp.ModuleHost.Scheduling.SingleSystemModule("NetworkSpawning", spawnSys);
 
@@ -340,24 +343,18 @@ public sealed class EditorHarness : IDisposable
         foreach (var sys in simHostCorePack.InputSystems)          Kernel.RegisterGlobalSystem(sys);
         foreach (var sys in simHostCorePack.PostSimulationSystems) Kernel.RegisterGlobalSystem(sys);
 
-        // ── Blueprint runtime (MVE-BATCH-02) ──────────────────────────────────────
-        // Mirror the EditorSubsystem wiring through the SAME shared helper so the headless
-        // real-kernel test exercises the identical composition (no sandbox world). The helper
-        // registers the tier components on Repo and the BeforeSync maintenance system as a
-        // global, and returns the Simulation-phase tick system to splice into the sim module.
-        BlueprintRegistry = new Fdp.Toolkit.Blueprints.BlueprintRegistry();
-        var bpTick = Hrot.Blueprints.Editor.Runtime.BlueprintRuntimeWiring.WireBlueprintRuntime(
-            Kernel, Repo, BlueprintRegistry);
+        // ── Blueprint runtime ─────────────────────────────────────────────────────
+        // ⭐⭐⭐ A4 / O0 (2026-09-20) — the tick is ALREADY in cgfLogicPackInst.SimulationSystems,
+        //   spliced by the pack before its own action dispatchers. ⛔ The harness must NOT splice a
+        //   second one: two BlueprintTickSystem instances in one group would tick every slot twice.
+        //   ⚠ This harness registers the pack DIRECTLY (not through CgfCapabilities.Brain), so the
+        //   BeforeSync maintenance system — which the capability contributes on the real hosts — is
+        //   registered here explicitly, from the SAME instance the pack built.
+        Hrot.Blueprints.Editor.Runtime.BlueprintRuntimeWiring.RegisterTierComponents(Repo);
+        Kernel.RegisterGlobalSystem(cgfLogicPackInst.MaintenanceSystem);
 
-        // Simulation-phase systems must go through a module (kernel forbids global registration).
-        // FC-1·G2: bpTick is SPLICED before the action dispatchers (its [UpdateBefore] targets) --
-        // module-group order is array position and the kernel does not re-apply ordering attributes
-        // inside the group, so the old append ran the tick AFTER the dispatchers (intent writes
-        // dispatched one tick late). Same splice as EditorSubsystem, via the shared helper.
-        var cgfSimWithBlueprint = Hrot.Blueprints.Editor.Runtime.BlueprintRuntimeWiring
-            .SpliceIntoSimulation(cgfLogicPackInst.SimulationSystems, bpTick);
         Kernel.RegisterModule(new EditorSimulationModule(
-            cgfSimWithBlueprint,
+            cgfLogicPackInst.SimulationSystems,
             simHostCorePack.SimulationSystems));
 
         // Register editor-specific ECS systems (cargo, perception, zone authoring).

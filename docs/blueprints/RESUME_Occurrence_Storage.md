@@ -5,11 +5,11 @@ doc-type: LANE RESUMPTION for the `behaviors` lane — programme ②, OCCURRENCE
   ⛔ VERIFY against git before acting ("THE LEDGER MAY NOT ASSERT WHAT THE CODE IS").
 updated: 2026-09-20
 build-state: n/a — a resumption snapshot, not a design.
-current-answer: §3 — the NEXT ACTION is task A4 (`O0`: wire BlueprintTickSystem on every ECS host).
-  A1, A2 and A3 are DONE and pushed. §2 is the grounded facts: ⛔ do not re-derive them, they cost
+current-answer: §3 — the NEXT ACTION is task B1 (`O1`: SquadCognitiveState gets its own component).
+  A1, A2, A3 and A4 are DONE and pushed; A2b is open and is the smaller alternative start. §2 is the grounded facts: ⛔ do not re-derive them, they cost
   real measurement. §5 is the trap list, and it is the section most worth two minutes — six of these
   were MY errors, three of which reached a pushed document before being caught.
-stale-below: nothing — §3 rewritten 2026-09-20 after A3 landed.
+stale-below: nothing — §3 rewritten 2026-09-20 after A4 landed.
 known-rot: nothing.
 known-conflict: RESUME_Assets_And_Occurrences.md is the COORDINATOR snapshot (2026-09-19) owning TWO
   programmes. ⛔ SUPERSEDED IN PART for this one: it says the occurrence design has no PLAN (false —
@@ -30,8 +30,8 @@ RELEARN
 
 > ⭐⭐⭐ **You are the `behaviors` lane on branch `behaviors`, and you OWN this design.**
 > 🔒 **User, `2026-09-20`: *"you take it from here, you are the one owning the design now."***
-> ⭐ **Nothing is half-finished.** `A1`, `A2` and `A3` are committed, pushed and green; the tree is
-> clean. The next action is `A4`, and §3 says exactly how to start it.
+> ⭐ **Nothing is half-finished.** `A1`, `A2`, `A3` and `A4` are committed, pushed and green; the tree
+> is clean. Increment **A is complete bar `A2b`**. §3 says how to start what is next.
 
 ## 0. ⭐ FIRST MOVES
 
@@ -58,11 +58,12 @@ and ours are `CE-`. Do not quote it as evidence for them.
 | **`A1`** *(unify the slot key)* | ✅ **DONE** — `c99a8865d` |
 | **`A2`** *(the resolution seam)* | ✅ **DONE** — `7a87596aa` + `7574f228d`. ⚠ See §4 for what was deliberately NOT collapsed |
 | **`A3`** *(`Kind` + `H1` + `H2`)* | ✅ **DONE** — 4 rails, all red-proved. As-built folded into design **§13**'s `AS-BUILT` block |
-| ⭐⭐⭐ **next** | **`A4`** *(`O0`)* — wire `BlueprintTickSystem` on every ECS host. §3 |
-| ⚠ also open | **`A2b`** *(the emitter pair — moves goldens)* · `B1`–`B4` *(increment B)* |
+| **`A4`** *(`O0`)* | ✅ **DONE** — `CgfLogicPack` owns the splice; walker filters on declared `Kind`; 3 rails red-proved. Scope: **CGF + editor** (user ruling). As-built in design **§6** |
+| ⭐⭐⭐ **next** | **`B1`** *(`O1`)* — `SquadCognitiveState` gets its own typed component. ⚠ **`A2b`** *(the emitter pair — moves goldens)* is still open and can go first if you prefer a smaller start |
+| ⚠ also open | **`A2b`** *(the emitter pair — moves goldens)* · `B2`–`B4` *(rest of increment B)* |
 | **defects filed** | `CE-295` open *(scenario live-reload is a one-shot — filed NOT fixed, user's call)* · `CE-296` **refuted** *(my error)* |
 
-### 1.1 What `A1`, `A2` and `A3` actually built
+### 1.1 What increment `A` actually built
 
 | | |
 |---|---|
@@ -72,7 +73,8 @@ and ours are `CE-`. Do not quote it as evidence for them.
 | ⭐ `BlueprintBlackboardPartitions` grew the nibble layer | `GetSlotKind` / `SetSlotKind` / `GetKindOf` / `TryGetSlotIndex` · `MaxKindSlots=16`, `MaxKind=0xF` · a `TryAttach` overload taking the kind *(the 5-arg one delegates with `Invalid`, so every existing call site compiles unchanged)* |
 | 🔴 the two hazards closed | **`H2`** in `TryDetach` *(compact the nibbles in lockstep **and** clear the vacated tail)* · **`H1`** in `CopyToLargerTier` *(`dstHeader.Reserved = srcHeader.Reserved` — ⭐ ONE line covering all three promotion sites, because they all funnel through it)* |
 | ⭐⭐ the five production attach sites DECLARE their kind | `BlueprintTickSystem:324`, `BlueprintInstanceService:161`, `BlueprintMaterializationSystem:140` *(`Blueprint`)*; `BehaviorIngressSystem` ×2, threaded from `def.BrainTier` via `ProvisionStatefulSlots → AttachManifestSlots → AttachSlotsToMemory`. ⇒ **`A4`/`O0`'s precondition is MET, not merely possible** |
-| rails | `OccurrenceSlotKeyParityTests` (13) · `OccurrenceStoreAccessTests` (11) · ⭐ `PartitionAllocatorTests` **`A3_R1..R4`** *(4, in the allocator's OWN suite per `R-142` ④ — ⛔ not a new class)* |
+| ⭐⭐ **`A4`** — the blueprint runtime reaches CGF | the splice moved to `Fdp.Toolkits/Blueprints/Systems/BlueprintRuntimeComposition.cs`; **`CgfLogicPack` performs it once** into its own `SimulationSystems`; the BeforeSync maintenance system rides a `SingleSystemModule` from `CgfCapabilities.Brain`; `BlueprintRegistry` is a **required** pack parameter; 🔴 the Editor's ROOT splice was **deleted** (`DistinctByType` runs before it, so keeping both = two tick systems); the walker filters on `GetSlotKind(...) == Blueprint` |
+| rails | `OccurrenceSlotKeyParityTests` (13) · `OccurrenceStoreAccessTests` (11) · ⭐ `PartitionAllocatorTests` **`A3_R1..R4`** *(4, in the allocator's OWN suite per `R-142` ④ — ⛔ not a new class)* · ⭐ `CgfLogicPackTests` **`A4_R1..R3`** *(3, likewise in the pack's own suite)* |
 
 ---
 
@@ -92,26 +94,20 @@ and ours are `CE-`. Do not quote it as evidence for them.
 
 ---
 
-## 3. ⭐⭐⭐ THE NEXT ACTION — **task `A4`** *(`O0`)*
+## 3. ⭐⭐⭐ THE NEXT ACTION — **`B1`** *(`O1`)*, or **`A2b`** for a smaller start
 
-⭐ **Why `A4` and not `A2b` or increment `B`:** `A3` just delivered the **declared `Kind`** that `O0`
-was waiting on (`G4`), so `A4` is the item whose blocker has JUST cleared and the one that finishes
-increment A. ⛔ `A2b` still carries **golden regeneration** — its own gate, deserving its own start
-(§4). ⛔ Increment `B` is tier machinery that `O0` does not need.
+⭐ **Increment `A` is complete except `A2b`.** Two honest options, and they do not block each other:
 
-### 3.1 What `A4` is
-
-**Wire `BlueprintTickSystem` on every ECS host.** ⚠ **Not a re-home** — it already lives in
-`Fdp.Toolkits`; only `BlueprintRuntimeWiring` is editor-side (`EditorSubsystem:1585/1594`).
-
-| 🔴 the two things that decide whether it is done | |
+| | |
 |---|---|
-| ⭐⭐ **the walker filters on the DECLARED `Kind`** | ⛔ **never** on `_registry.TryGetById(…) → continue`, which works today only because `BlueprintRegistry` happens not to know an FNV stateful key. ⭐ `A3` shipped `GetSlotKind` / `GetKindOf` and every production attach now declares — ⇒ **the filter to write is `GetSlotKind(mem, i) == OccurrenceKind.Blueprint`**, and it is the point of the task |
-| ⭐⭐ **anti-vacuity** | ⛔ CGF **already** materialises and event-attaches Instances, so *"the slot exists"* proves nothing. ⭐ The acceptance is a `--mode all` run showing a blueprint Instance **TICK COUNTER ADVANCING on CGF** |
+| ⭐⭐ **`B1`** *(`O1`)* — `SquadCognitiveState` gets its own typed component | removes the **largest non-AI consumer** of `Blackboard1024`. ⭐ **A pure win even if the rest of the programme is cancelled**, which is why the design sequences it early |
+| ⚠ **`A2b`** — the emitter pair (`BTreeBridgeEmitCore:650, :726`) | the only genuine remaining duplication, and the one that **multiplies into every generated assembly**. ⛔ It **moves the generated goldens**, so the movement must be reported as a **DIFF SHAPE** against `Hrot.AiEditor.Generators.Tests` (280) — its own gate, which is why it was split out rather than folded into `A2` |
 
-⚠ **Grounded fact ⑨ bites here:** the golden test exercises the **hand-written** node path, so it is
-weaker proof for this than it looks — ⛔ do not let a green `hill-attack-close` stand in for *"the
-walker ticked on CGF"*.
+🔴 **What `A4` taught, and `A2b` will hit the same wall:** the `Kind` filter reddened **120 tests**
+because harnesses attach through the allocator directly and kept the kind-less overload. ⇒ ⭐ **any
+code path that attaches a slot must DECLARE its kind** — including generated code, which is exactly
+what `A2b` regenerates. ⛔ Do not "fix" such a red by defaulting the overload to `Blueprint`: that
+rebuilds the *"undeclared means blueprint"* accident `D1′` exists to retire.
 
 ### 3.3 The working recipe (all three prior tasks used it, and it caught something every time)
 

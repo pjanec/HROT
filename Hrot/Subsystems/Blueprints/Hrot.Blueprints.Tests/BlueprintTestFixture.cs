@@ -776,7 +776,11 @@ public static class ThrowingRegistrar
         BlueprintBlackboardPartitions.Initialize(memory, totalSize, maxSlots);
 
         int blueprintId = BlueprintIdHash.Compute(asset.AssetId);
-        if (!BlueprintBlackboardPartitions.TryAttach(memory, blueprintId, def.StateSize, def.StructureHash, out int payloadOffset))
+        // ⭐ A3/D1' — declare the kind, exactly as the production attach paths do
+        //   (BlueprintInstanceService / BlueprintTickSystem / BlueprintMaterializationSystem).
+        //   ⛔ Without it the slot reads Invalid and A4's walker skips it, so nothing ticks.
+        if (!BlueprintBlackboardPartitions.TryAttach(memory, blueprintId, def.StateSize, def.StructureHash,
+                OccurrenceKind.Blueprint, out int payloadOffset))
             throw new InvalidOperationException(
                 $"Failed to attach Blueprint '{asset.Name}' to entity {entity} (tier {tier}).");
 

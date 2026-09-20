@@ -665,6 +665,30 @@ Ordered so that each step is provable on its own and the expensive irreversible 
 ⭐ **`O0`–`O5` deliver real value with no ExtDeps edit at all.** The boundary is crossed once, at
 `O6`, and only after `O4` has demonstrated the model on the paradigm that needs no kernel change.
 
+### ✅ AS-BUILT `2026-09-20` — **`O0` is SHIPPED** *(task `A4`, obligation ⑤)*
+
+⛔⛔ **`F13` was half right and its second clause was misleading. SUPERSEDED.** It said *"not a re-home
+— the system already lives in `Fdp.Toolkits`; only the **wiring** is editor-side… `O0` is smaller than
+it sounds."* ⭐ No type moved — true. ⛔ But *"only the wiring"* glossed the one part with no shared
+home: **`BlueprintTickSystem` is `[UpdateInPhase(Simulation)]`, which `RegisterGlobalSystem` rejects**,
+so it must be spliced into some host's Simulation list — and `CE-161` had already measured that a
+per-host call is a per-host chance to forget *(three of four bootstrappers missed the tier
+registration)*.
+
+| what shipped | where |
+|---|---|
+| ⭐ the splice moved down beside the systems — `BlueprintRuntimeComposition.SpliceIntoSimulation` | `Fdp.Toolkits/Blueprints/Systems/`; `Hrot.Blueprints.Editor`'s copy is now a forwarder, as its `RegisterTierComponents` already was |
+| ⭐⭐ **`CgfLogicPack` performs the splice ONCE**, into its own `SimulationSystems`, before the action dispatchers it contributes | so **CGF and the Editor** inherit it from one path. `CgfCapabilities.Brain` already feeds that list into both plans |
+| the BeforeSync **maintenance** system rides a `SingleSystemModule` from `CgfCapabilities.Brain` | ⛔ not a `RegisterGlobalSystem` line per root. 🔴 Without it a host ticks Instances but cannot PROMOTE a tier — which since `A3` is also what carries the `Kind` nibble array (`H1`) |
+| `CgfLogicPack` takes `BlueprintRegistry` as a **required** parameter | ⛔ not optional: a defaulted empty registry ticks nothing — a silent no-op, and the silent-default shape this codebase keeps finding |
+| 🔴 the Editor's **root splice was DELETED, not merely made redundant** | `DistinctByType` runs BEFORE the root splice and cannot see it ⇒ keeping both would put **two** `BlueprintTickSystem` instances in one group and tick every slot twice |
+| ⭐⭐⭐ the walker filters on the **declared `Kind`** | `BlueprintTickSystem`'s three tier walkers now test `GetSlotKind(...) == OccurrenceKind.Blueprint` **before** the registry lookup, which retires `F7`'s accidental filter |
+
+| ⚠ two things the design did not say, and the next task needs | |
+|---|---|
+| 🔒 **SCOPE IS `CGF` + EDITOR, not literally "every ECS host"** *(user ruling, `2026-09-20`: "cgf + editor scope")* | ⭐ Blueprint Instances attach where behaviours run — the Brain — and `O0`'s acceptance is a tick counter advancing on CGF. ⛔ SimHost and IG use `SimHostCoreLogicPack` and are **not** covered; extending to them is a separate decision, not an oversight |
+| 🔴🔴 **THE `Kind` FILTER BROKE 120 TESTS, AND THAT WAS THE POINT** | 📐 `A3` stamped the **five production** attach sites, but test harnesses call the allocator directly and kept the kind-less overload ⇒ their slots read `Invalid` and the walker skipped them: *"expected 5, actual 0"* tick counters. ⭐ **Fixed at the four harnesses that attach an INSTANCE** *(`BlueprintTestFixture`, `FIX2_009`, `BlueprintTierSummaryTests` ×3)*, ⛔ **NOT by defaulting the overload to `Blueprint`** — that would rebuild the "undeclared means blueprint" accident `D1′` exists to retire. ⚠ Two sites attaching a **shared/Entity-scope** slot were deliberately left undeclared: the walker MUST skip them. ⇒ ⭐ **any future hand-rolled attach must declare, and `BlueprintRunHarness`'s own header already says this attach belongs in a production service** |
+
 ---
 
 ## 7. Rails

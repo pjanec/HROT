@@ -899,7 +899,7 @@ public sealed class CgfSubsystem : ISubsystem, Fdp.Toolkit.Runner.IMapCameraProv
         //    (NullReplicationModule), receives no ghosts, and has no role policy — so for it the gate
         //    would only ever subtract.
         var cgfLogicPack = new CgfLogicPack(behaviorRegistry, _entityMap, _scenarioSource,
-            mapperRegistry, vehicleApi: null, gateOnAuthority: true);
+            mapperRegistry, _blueprintRegistry!, vehicleApi: null, gateOnAuthority: true);
 
         // ⭐⭐⭐ B4b step 2, HOST (c) — CGF's units come from a DECLARED PLAN, not a hand-written block.
         //    📄 §4.1x. SimHost was host (a), IG host (b); this is the third and last cluster host.
