@@ -2848,6 +2848,16 @@ defect, not a test one.
 | red-proof | commenting out **only** the two `StampOccurrence` calls ⇒ **0 build errors**, exactly **4 failed / 2 passed** — the two survivors being the sentinel and size-guard rails, which do not depend on the stamp. Restored ⇒ 6/6 |
 | non-vacuity | ② and ③ assert the machine actually transitioned before reading any stamp |
 
+### 23.6a ✅ THE GOLDEN GATE — **GREEN after `O6`**
+
+📐 `hill-attack-close`, port 8191, `--mode all`, `simTime 145`: platoon on the baseline at
+**`523.0 · 525.2 · 528.6 · 531.4`** *(y `399.6 / 450.2 / 499.1 / 549.4`)*, both targets **`Health 0`**,
+**0 faults** in a 441-line log *(`grep -icE "Strict Mode Violation|Unhandled|Exception"` ⇒ 0)*.
+⭐ Within ~1 m of every prior run — `B4`'s `523.1·525.1·529.2·531.0`, `O4`'s `522.7·524.8·528.4·531.0`.
+⚠ **Positions vary run to run; this is a live multi-node run, ⛔ not a determinism check.**
+
+⚠ **And §23.7's caveat applies to this number too** — see immediately below.
+
 ### 23.7 ⚠ WHAT `O6` DID **NOT** DO
 
 | | |
