@@ -5,8 +5,10 @@ doc-type: LANE RESUMPTION for the `behaviors` lane — programme ②, OCCURRENCE
   ⛔ VERIFY against git before acting ("THE LEDGER MAY NOT ASSERT WHAT THE CODE IS").
 updated: 2026-09-20
 build-state: n/a — a resumption snapshot, not a design.
-current-answer: §3 — O4 is DONE and the STOP-OR-GO gate is GO (design §21). The NEXT ACTION is O5,
-  then O6. ⭐ UPDATE 2026-09-20 (later): TWO of §21.2's three gaps are now CLOSED and their rows are
+current-answer: §3 — O4 is DONE and the STOP-OR-GO gate is GO (design §21). ⭐⭐ THE NEXT ACTION IS
+  O6, the single ExtDeps crossing — NOT O5: measured 2026-09-20, O5 SHIPPED ON 2026-08-17 (commit
+  a957ed448) with 10 rails, verified 13/0, so PLAN's C2 row was stale when written and now says so.
+  ⭐ UPDATE 2026-09-20 (later): TWO of §21.2's three gaps are now CLOSED and their rows are
   marked SUPERSEDED — (a) the EXTERNAL reset path is FIXED as F14b, design §22, rails ⑤/⑥/⑦ with an
   exact red-proof; ⚠ and §21.2 had named the wrong pair of sites — :163 and :235 leak, :204 was
   already safe; (b) the "end-to-end abandon is unmeasured" row is answered by design §22.5: the
