@@ -648,5 +648,42 @@ namespace Fdp.Toolkits.Tests.Blueprints.Partitioning
             Assert.True(BlueprintBlackboardPartitions.TryGetSlotOffset(store, bigId, out _),
                 "the slot that forced the promotion must be present");
         }
+
+        /// <summary>
+        /// ⛔⛔ <b><c>B4_R5</c> — the enum's ORDINAL order and the ladder's SIZE order really do
+        /// disagree</b>, so <see cref="BlueprintTierTable.IsLargerThan"/> cannot be "simplified"
+        /// back into <c>&gt;</c>. 📄 design §17.7.
+        ///
+        /// <para>📌 This is not a style point. <c>B256 = 3</c> is the enum's LAST member (the
+        /// ordinal is ABI, §17.1 <c>N2</c>) and the ladder's SMALLEST tier ⇒ <c>B256 &gt; B1024</c>
+        /// is <c>true</c> by ordinal and <c>false</c> by size. Two comparisons in
+        /// <c>EntityBlueprintsEditModel</c> read a DOWNGRADE as <i>"upgrade needed"</i> and put it
+        /// in the commit plan.</para>
+        /// </summary>
+        [Fact]
+        public void B4_R5_TierComparisonGoesBySIZE_NotByTheEnumOrdinal()
+        {
+            var smallest = BlueprintTierTable.Ascending[0];
+            var next     = BlueprintTierTable.Ascending[1];
+
+            // By SIZE: the first entry is smaller than the second. That is what callers mean.
+            Assert.False(BlueprintTierTable.IsLargerThan(smallest.Tier, next.Tier));
+            Assert.True(BlueprintTierTable.IsLargerThan(next.Tier, smallest.Tier));
+
+            // ⛔ And the ordinal DISAGREES for at least one pair — the whole reason this exists.
+            bool anyDisagreement = false;
+            var ladder = BlueprintTierTable.Ascending;
+            for (int i = 0; i < ladder.Count; i++)
+            for (int j = 0; j < ladder.Count; j++)
+            {
+                bool byOrdinal = ladder[i].Tier > ladder[j].Tier;
+                bool bySize    = BlueprintTierTable.IsLargerThan(ladder[i].Tier, ladder[j].Tier);
+                if (byOrdinal != bySize) anyDisagreement = true;
+            }
+
+            Assert.True(anyDisagreement,
+                "if the two orders ever agree everywhere, a tier was INSERTED rather than appended " +
+                "- which breaks the ABI (B4_R2). This rail is what says the helper is load-bearing.");
+        }
     }
 }

@@ -2131,3 +2131,36 @@ sites separately from the probe sites. **The information was on the page; the qu
 ⚠ **And the anti-vacuity rail `B4_R1` did not catch it**, correctly: it pins that `Select` *returns* the
 new tier, which is exactly the behaviour that broke the invariant. ⇒ ⭐ **a rail proving a new thing is
 reachable is not a rail proving it is safe to reach.**
+
+### 🔴🔴 §17.7a — **THE SECOND DEFECT: `BlackboardTier` IS COMPARED WITH `>` AND ITS ORDINAL IS NOT THE SIZE ORDER**
+
+⛔⛔ **Found the same way as the first — by the gate, not by the design.** ⭐ And it is the *exact*
+consequence of a constraint this document already states and `B4_R2` already pins:
+
+| the two facts, both already written down | |
+|---|---|
+| §17.1 `N2` | **the enum ordinal is ABI** ⇒ a new tier is **APPENDED**, never inserted ⇒ `BlackboardTier.B256 = 3` |
+| §17.2 / the table's header | **`BlueprintTierTable.Ascending` is the SIZE order**, and 256 is **first** |
+
+⇒ 🔴 **`B256 > B1024` is `true` by ordinal and `false` by size.** ⛔ Two sites in
+`EntityBlueprintsEditModel` spelled the comparison as `tier > currentTier`:
+
+| site | what it did once 256 existed |
+|---|---|
+| `ComputeProjection` | a **DOWNGRADE** to 256 set `UsageStatus.UpgradeNeeded` |
+| `BuildCommitPlan` | the same downgrade was written into `plan.UpgradeToTier` ⇒ the editor would have offered *"upgrade"* to a **smaller** store |
+
+⚠ **`BehaviorIngressSystem:319` has the identical-looking `targetTier > currentTier` and is CORRECT** —
+📐 checked, not assumed: both operands there are `TotalSize` **ints**, because `SelectTierForPayload`
+returns `.TotalSize`. ⭐ Worth stating, because the two lines read the same and only one is a bug.
+
+✅ **Fixed** by `BlueprintTierTable.IsLargerThan(a, b)` — a **size** comparison with the reason in its
+doc — and pinned by **`B4_R5`**, which asserts the ordinal order and the size order genuinely
+**disagree** somewhere. ⭐ That framing is deliberate: the rail fails if someone ever "tidies" the enum
+into size order, which is the ABI break `B4_R2` forbids, **and** it fails if the helper is inlined back
+into `>`.
+
+| ⭐⭐⭐ WHAT THIS ADDS TO §17.7's LESSON | |
+|---|---|
+| ⛔ §17.7 said: *"additive for consumers that READ the ladder, a behaviour change for every consumer that SELECTS from it."* | 🔒 **Extend it: and for every consumer that COMPARES tiers.** 📌 An append-only enum whose ordinal is ABI **cannot** stay size-ordered, so every `<`/`>` on it becomes wrong the first time a tier is added out of size order — which is the first time a tier is added at all, at the small end |
+| ⚠ **the honest version of how this was found** | ⛔ **not by the inventory, and not by reasoning.** `BuildCommitPlan_Paused_RemoveAndAdd` failed with *"`Assert.Null()` Failure: `Nullable<BlackboardTier>` has a value"*, and only reading it explained why. ⇒ ⭐ the suites earned their keep here; the design did not predict it |

@@ -74,7 +74,9 @@ public sealed class BlueprintKernelRunTests
             harness.Repo, harness.BlueprintRegistry, asset, entity);
 
         Assert.Equal(BlueprintAttachStatus.Attached, result.Status);
-        Assert.Equal(BlackboardTier.B1024, result.Tier);
+        // ⭐ B4 — §17.7: the result must NAME the tier the entity actually carries (and there is
+        //   exactly ONE). ⛔ Not the literal B1024 — the ladder chooses.
+        Assert.Equal(BlueprintTierTable.Of(harness.Repo, entity)!.Tier, result.Tier);
 
         // Before any tick the observable is at its InitDefault value (0).
         Assert.Equal(0, ReadCount(harness.Repo, entity));
@@ -135,11 +137,9 @@ public sealed class BlueprintKernelRunTests
     // Throws (rather than returning a misleading 0) if the slot is missing.
     private static unsafe int ReadCount(EntityRepository repo, Entity entity)
     {
-        Assert.True(repo.HasComponent<BlueprintBlackboard1024>(entity),
-            $"Entity {entity} has no BlueprintBlackboard1024 component.");
-
-        ref var bb    = ref repo.GetComponentRW<BlueprintBlackboard1024>(entity);
-        byte* memory  = (byte*)Unsafe.AsPointer(ref Unsafe.As<BlueprintBlackboard1024, byte>(ref bb));
+        // ⭐ B4 — design §17.7: the store through the SEAM, not a named tier.
+        byte* memory = OccurrenceStoreAccess.TryGetStore(repo, entity, out _);
+        Assert.True(memory != null, $"Entity {entity} carries no blueprint blackboard store.");
 
         Assert.True(
             BlueprintBlackboardPartitions.TryGetSlotOffset(

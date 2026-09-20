@@ -143,7 +143,10 @@ public sealed class EntityBlueprintsEditModel
         else
         {
             BlackboardTier currentTier = GetCurrentTier();
-            if (tier > currentTier) status = UsageStatus.UpgradeNeeded;
+            // ⛔⛔ B4 — §17.7: NOT `tier > currentTier`. BlackboardTier's ordinal is ABI, so B256
+            //   is the LAST member and the SMALLEST tier ⇒ a DOWNGRADE compared as `greater`.
+            if (BlueprintTierTable.IsLargerThan(tier, currentTier))
+                status = UsageStatus.UpgradeNeeded;
         }
 
         return new Projection(totalSlots, totalBytes, tier, status);
@@ -159,7 +162,8 @@ public sealed class EntityBlueprintsEditModel
         {
             var proj = ComputeProjection();
             BlackboardTier currentTier = GetCurrentTier();
-            if (proj.Tier > currentTier)
+            // ⛔⛔ B4 — §17.7: size order, not ordinal order. See IsLargerThan.
+            if (BlueprintTierTable.IsLargerThan(proj.Tier, currentTier))
                 plan.UpgradeToTier = proj.Tier;
 
             foreach (var assetId in StagedRemoves)

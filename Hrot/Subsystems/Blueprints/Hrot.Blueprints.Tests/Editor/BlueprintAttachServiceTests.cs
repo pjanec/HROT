@@ -37,7 +37,10 @@ public sealed class BlueprintAttachServiceTests
         var result = BlueprintAttachService.AttachToEntity(world, registry, asset, entity);
 
         Assert.Equal(BlueprintAttachStatus.Attached, result.Status);
-        Assert.Equal(BlackboardTier.B1024, result.Tier);
+        // ⭐ B4 — §17.7: the result must NAME the tier the entity actually carries.
+        //   ⛔ Not the literal B1024: the ladder chooses, and O3b moved the small cases.
+        //   ⭐ This is also the §17.7 invariant — exactly ONE store, and result.Tier is it.
+        Assert.Equal(BlueprintTierTable.Of(world, entity)!.Tier, result.Tier);
         Assert.True(result.Success);
 
         // The slot exists and InitDefault zeroed the observable Count.

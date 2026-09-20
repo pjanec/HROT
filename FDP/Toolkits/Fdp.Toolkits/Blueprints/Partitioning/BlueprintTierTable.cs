@@ -292,6 +292,24 @@ public static class BlueprintTierTable
         return required;
     }
 
+    /// <summary>
+    /// ⭐⭐⭐ <b>Is <paramref name="a"/> a LARGER tier than <paramref name="b"/>?</b> <c>O3b</c> /
+    /// task <c>B4</c> — 📄 <c>DESIGN_Occurrence_Scoped_Storage.md</c> §17.7.
+    ///
+    /// <para>⛔⛔ <b>Never compare <see cref="BlackboardTier"/> values with <c>&gt;</c>.</b> The enum's
+    /// ordinal is <b>ABI</b> (§17.1 <c>N2</c>), so a new tier must be APPENDED — which means
+    /// <c>B256 = 3</c> is the enum's LAST member while being the ladder's SMALLEST tier. ⇒ the
+    /// ordinal order and the size order deliberately disagree, and <c>B256 &gt; B1024</c> is
+    /// <c>true</c> by ordinal and <c>false</c> by size.</para>
+    ///
+    /// <para>📌 That is not hypothetical: two ordinal comparisons in
+    /// <c>EntityBlueprintsEditModel</c> read a DOWNGRADE to 256 as <i>"upgrade needed"</i> and put
+    /// it in the commit plan. ⭐ Pinned by <c>B4_R5</c>, which asserts the two orders really do
+    /// disagree — so this helper cannot be "simplified" back into <c>&gt;</c>.</para>
+    /// </summary>
+    public static bool IsLargerThan(BlackboardTier a, BlackboardTier b)
+        => ByTier(a).TotalSize > ByTier(b).TotalSize;
+
     private static BlueprintTierSpec[] BuildDescending()
     {
         var ascending = Ascending;
