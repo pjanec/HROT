@@ -1,21 +1,24 @@
 <!--STATUS
 state: LIVE
 updated: 2026-09-20
-current-answer: ⭐⭐⭐ READ THE "SESSION 2026-09-20 (c)" BLOCK AT THE TOP OF THIS FILE — it is the live
-  one. ☑ UXI-11 slices S-1, S-2 AND S-3 (selection unification) ARE BUILT. NEXT IS S-4 — right-click
-  selects on every surface, and the DER inspector gains a seam.
-  ⛔ No slice met its gate in full and each says so: stores are 3 of 4 (SimHost remains, lean recorded);
-  "the ONLY writer" has one surviving writer plus two synchronous facade seams; panels PROJECT rather
-  than subscribe. 📄 The as-builts are UX_Feature_Selection.md §2.7.6 (S-1), §2.7.7 (S-2) and §2.7.8
-  (S-3) — read those, not the summaries here, before starting S-4.
+current-answer: ⭐⭐⭐ READ THE "SESSION 2026-09-20 (d)" BLOCK AT THE TOP OF THIS FILE — it is the live
+  one. ☑ UXI-11 slices S-1, S-2, S-3 AND S-3b (selection unification) ARE BUILT, and the "4 stores
+  become 1 + views" gate is now MET on every node. NEXT IS S-4 — right-click selects on every surface,
+  and the DER inspector gains a seam.
+  ⚠ Two things remain openly unmet and each says so: "the ONLY writer" has one surviving writer
+  (SelectionInteractionSystem, through the view) plus two synchronous editor facade seams; and panels
+  PROJECT rather than subscribe. ⚠ Separately: CGF runs no SelectionInteractionSystem at all, so its
+  MAP-INPUT path is missing — that is UXI-11's remaining half.
+  📄 The as-builts are UX_Feature_Selection.md §2.7.6 (S-1), §2.7.7 (S-2), §2.7.8 (S-3) and §2.7.9
+  (S-3b) — read those, not the summaries here, before starting S-4.
   Branch: ui (the stable lane branch, R-148).
   ⛔ The 2026-09-15 block below (distributed persistence + ownership) is DONE and is now HISTORY —
   nothing from it is in flight. Older STRANDS below it are older history still; do NOT act on any of
   them unless explicitly told to continue one.
 
-stale-below: ⛔ EVERYTHING below the "SESSION 2026-09-20 (c)" block is HISTORY, newest first —
-  including the (b) and (a) blocks (S-2, S-1) and the 2026-09-19/20 block, whose plans are now DONE.
-  Do not quote any of it as current state.
+stale-below: ⛔ EVERYTHING below the "SESSION 2026-09-20 (d)" block is HISTORY, newest first —
+  including the (c), (b) and (a) blocks (S-3, S-2, S-1) and the 2026-09-19/20 block, whose plans are
+  now DONE. Do not quote any of it as current state.
 known-rot: none open in this file.
 related-designs:
   - docs/UX/UX_Feature_Selection.md — owns UXI-11; §2.7 is the target state, §2.7.5 the slice order.
@@ -29,7 +32,56 @@ related-designs:
 -->
 # ⭐⭐⭐ RESUME — **the UI / variable implementation lane**
 
-## ⭐⭐⭐ SESSION `2026-09-20` (c) — **`UXI-11` `S-3` IS BUILT; NEXT IS `S-4`**
+## ⭐⭐⭐ SESSION `2026-09-20` (d) — **`S-3b`: EVERY NODE THE SAME WAY; NEXT IS `S-4`**
+
+> 🔒 **User ruling, `2026-09-20`:** *"we shoulf unify, simhost is not special in how it should handle the
+> UI; lets make the nodes use same (best shared) stuff in the same way."*
+
+☑ **`S-3b` shipped.** 📄 As-built: [`UX_Feature_Selection.md` §2.7.9](../UX/UX_Feature_Selection.md).
+
+| host | what changed |
+|---|---|
+| **SimHost** | 🔴 had **three** stores — the component, a `SimHostSelectionManager` `HashSet` behind a `SimHostInspectorAdapter`, and `_fdpInspectorState` — bridged by a callback that fired **for map clicks only**. ⇒ now `EcsSelectionState` + the shared pair; ⛔ **both types DELETED** |
+| **ReplayBrowser** | 🔴 same split *(it runs `SelectionInteractionSystem` over a real repository)*, plus history navigation writing the inspector behind the map's back. ⇒ same view, same pair; history **publishes a request** |
+
+🔴 **`S-3` had justified leaving ReplayBrowser out with a claim that was false** — *"it inspects a
+recording, there is no global selection for it to agree with."* 📐 It holds a real `EntityRepository`
+and runs the interaction system. ⭐ The tell was one grep, and it is **now a rail**
+*(`EveryHostThatRunsTheInteractionSystemAlsoHoldsTheSharedView`, with anti-vacuity naming the four
+hosts)* rather than something to remember.
+
+☑ **The *"4 stores become 1 + views"* gate is MET** — `SimHostSelectionManager` was the last one, and
+`Hrot.Editor.AiShared/Shell/IEntitySelectionSource.cs` had named its adapter *"the defect — a second,
+parallel in-memory store"* in its own header. That note is now marked discharged.
+
+⚠ **Behaviour change:** on SimHost and ReplayBrowser, selecting from the inspector list, the context
+menu, or replay history now moves the **map ring** too. It did not before.
+
+⚠⚠ **`T-1` miss, again:** I changed both hosts before running either host's own suite. ⛔ And the first
+run said *"The argument …dll is invalid"*, which reads like a broken suite — 📐 it was the
+**un-restored project** trap, identical at base. 🔒 `dotnet restore <tests.csproj>` costs 2 s and is
+the first thing to try before calling a suite un-gateable.
+
+### ⚠ Gates as measured `2026-09-20` (d)
+
+| gate | result |
+|---|---|
+| `Hrot.Presentation.Tests` | ✅ **273/273** *(incl. the new unification rail)* |
+| `Hrot.SimHost.Tests` | ⚠ **1001/1007** — the **3 reds are PRE-EXISTING**, identical at base |
+| `Hrot.ReplayBrowser.Tests` | ✅ **30/30** |
+| `Hrot.Editor.Tests` | ✅ **418/420**, 1 skip — the one red is the known ALC flake |
+| `Hrot.IG.Tests` · `Fdp.Presentation.Tests` | ⚠ same **7** and **8** pre-existing reds |
+| `design-digest --check` · `rulings-check` **37/37** · `tracker-counts` · 5 mermaid | ✅ |
+
+### ⭐⭐ NEXT — **`S-4`**
+
+Right-click selects on **every** surface *(§2.3 incl. row 1)*; the **DER inspector gains a seam**.
+⚠ Separately open, and it is `UXI-11`'s remaining half: **CGF runs no `SelectionInteractionSystem`**,
+so it has no map-input path at all.
+
+---
+
+## ⛔ HISTORY — SESSION `2026-09-20` (c) — **`UXI-11` `S-3`**
 
 ☑ **`S-3` shipped** *(the notification + panels off their own selection)*. 📄 As-built, with four argued
 deviations, in [`UX_Feature_Selection.md` §2.7.8](../UX/UX_Feature_Selection.md).

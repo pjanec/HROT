@@ -114,6 +114,16 @@ public sealed class ReplayBrowserSubsystem : ISubsystem, IWindowRegistrar,
     private Hrot.Common.Systems.GlobalActionDispatchSystem? _actionDispatchSystem;
     private Hrot.ScenarioEditor.Systems.SelectionInteractionSystem? _selectionSystem;
 
+    // ⭐⭐⭐ UXI-11 S-3b — ReplayBrowser is NOT SPECIAL either (user ruling, 2026-09-20).
+    // 🔴 S-3 claimed this host "inspects a RECORDING, there is no global selection for it to agree
+    //    with". 📐 MEASURED FALSE: it holds a real EntityRepository and runs SelectionInteractionSystem,
+    //    which writes the SelectionState component — so it had the same two-store split as the rest,
+    //    plus its own hand-written map->inspector callback. ⇒ same view, same request/notify pair.
+    // ⚠ Rebuilt with _activeRepo, which is REPLACED on load: a cached view would pin a dead world.
+    private Hrot.ScenarioEditor.Selection.EcsSelectionState?        _selectionView;
+    private Hrot.ScenarioEditor.Systems.SelectionRequestSystem?     _selectionRequests;
+    private Hrot.ScenarioEditor.Systems.SelectionNotificationSystem? _selectionNotifications;
+
     /// <summary>⭐ <c>CE-259am</c> — the shared camera-centring system; see its tick in <see cref="Update"/>.</summary>
     private Hrot.ScenarioEditor.Systems.CenterOnEntitySystem? _centerOnEntitySystem;
     private readonly Fdp.Toolkit.Diagnostics.Gizmos.Hub.GizmoUiStateHub _gizmoUiHub = new();
@@ -215,13 +225,12 @@ public sealed class ReplayBrowserSubsystem : ISubsystem, IWindowRegistrar,
                 Fdp.Core.Logging.FdpLog<ReplayBrowserSubsystem>.Info("[Map] {0}", problem);
 
             _selectionSystem = new Hrot.ScenarioEditor.Systems.SelectionInteractionSystem(_activeRepo!, _interactionBus, rubberBandState);
-            _selectionSystem.OnSelectionChanged += (entity, worldPos) =>
-            {
-                if (entity == Fdp.Core.Entity.Null)
-                    _inspectorState.SelectedEntity = null;
-                else if (_activeRepo?.IsAlive(entity) ?? false)
-                    _inspectorState.SelectedEntity = entity;
-            };
+            // ⭐⭐⭐ UXI-11 S-3b — the hand-written map->inspector callback is GONE, for the same reason
+            //    it went on the editor, IG and SimHost: it fired for a MAP click and nothing else, so
+            //    an inspector click or a diff/event entity link left the map behind.
+            _selectionView          = new Hrot.ScenarioEditor.Selection.EcsSelectionState(_activeRepo!);
+            _selectionRequests      = new Hrot.ScenarioEditor.Systems.SelectionRequestSystem(() => _selectionView);
+            _selectionNotifications = new Hrot.ScenarioEditor.Systems.SelectionNotificationSystem(() => _inspectorState);
 
             // â”€â”€ Layer Control & Actions â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
             var actionRegistry = new Hrot.Common.Interactions.GlobalActionRegistry();
@@ -422,6 +431,12 @@ public sealed class ReplayBrowserSubsystem : ISubsystem, IWindowRegistrar,
             if (_activeRepo != null)
             {
                 _selectionSystem?.Tick(deltaTime);
+                // ⭐⭐⭐ UXI-11 — the shared request/notify pair, ticked directly like its neighbours
+                //    here because this host runs no ModuleHostKernel. ⚠ ORDER IS LOAD-BEARING:
+                //    requests apply, THEN the announcement is consumed, so a cause and its consequence
+                //    land in one frame (the order ScenarioEditorModule registers them in).
+                _selectionRequests?.Execute(_activeRepo, deltaTime);
+                _selectionNotifications?.Execute(_activeRepo, deltaTime);
                 _actionDispatchSystem?.Execute(_activeRepo, deltaTime);
                 // ⭐⭐⭐ CE-259am — the SHARED CenterOnEntitySystem, ticked directly like its five
                 //    neighbours here because this host runs no ModuleHostKernel
@@ -868,14 +883,15 @@ public sealed class ReplayBrowserSubsystem : ISubsystem, IWindowRegistrar,
         var (seekIntent, selectIntent, matchIntent) = WireDelegatesForTest(
             _entityHistory, _playbackHistory, _inspectorState!, null!, _diffPanel!, _eventPanel!);
 
-        // ⭐⭐ UXI-11 S-3 — ChainToMap is RETIRED; OnEntitySelected now fires unconditionally on a host
-        //    with no global selection. 📐 ReplayBrowser was the ONE production host that set the flag
-        //    true, so removing the gate changes nothing here — ⚠ and that is the measurement that
-        //    condemned the flag: everywhere else it stayed false and the inspector was inert.
-        // ⛔ This host is deliberately NOT given a Selection/RequestSelectionChange pair: it inspects a
-        //    RECORDING, there is no global selection for it to agree with, and inventing one would be
-        //    the parallel store S-1 removed. 📄 UX_Feature_Selection.md §2.7.8.
+        // ⭐⭐ UXI-11 S-3 — ChainToMap is RETIRED; OnEntitySelected now fires on every explicit row
+        //    click. ⚠ It is no longer a selection WRITE — it is "the user clicked this entity", which
+        //    is exactly what this host's selection HISTORY wants to record.
+        // ⭐⭐⭐ S-3b — and this host IS given the shared pair. 🔴 S-3 said it should not be, on the
+        //    claim that a recording has no global selection; measured false — it runs
+        //    SelectionInteractionSystem over a real repository. 📄 §2.7.8.
         _inspectorPanel!.OnEntitySelected = selectIntent;
+        _inspectorPanel.Selection = _selectionView;
+        _inspectorPanel.RequestSelectionChange = req => _activeRepo?.Bus.PublishManaged(req);
         _diffPanel!.IsMergedViewQuery = () => _viewMode == ViewMode.Merged;
         _diffPanel!.OnSeekToChangeRequested = direction =>
         {
@@ -1034,8 +1050,19 @@ public sealed class ReplayBrowserSubsystem : ISubsystem, IWindowRegistrar,
         _entityHistory   = entityHistory;
         _playbackHistory = playbackHistory;
 
-        // History-driven selection: when the selection history changes, update inspector state.
-        entityHistory.OnSelectionChanged += e => inspectorState.SelectedEntity = e;
+        // ⭐⭐⭐ UXI-11 S-3b — history navigation REQUESTS a selection instead of writing the inspector
+        //    behind the map's back. 🔴 Before, stepping back through the selection history moved the
+        //    inspector and left the map ring where it was. ⚠ Falls back to the direct write when no
+        //    world is attached (headless / before a recording loads), which is not a second store —
+        //    there is nothing to be second to.
+        entityHistory.OnSelectionChanged += e =>
+        {
+            if (_activeRepo != null)
+                _activeRepo.Bus.PublishManaged(
+                    Fdp.Toolkit.Vis2D.Abstractions.SelectionChangeRequest.ReplaceWith(e, "Replay.History"));
+            else
+                inspectorState.SelectedEntity = e;
+        };
 
         // Seek history: when the playback history fires, seek frame + restore selection.
         playbackHistory.OnWaypointRequested += wp =>

@@ -61,8 +61,16 @@ namespace Hrot.SimHost
 
         // ── Visualization ─────────────────────────────────────────────────────
         private MapCanvas?              _map;
-        private SimHostSelectionManager?  _selection;
-        private SimHostInspectorAdapter?  _inspector;
+        // ⭐⭐⭐ UXI-11 S-3b — SimHost is NOT SPECIAL (user ruling, 2026-09-20). It holds the SAME view
+        //    over the SAME ECS truth as the editor, CGF, IG and ReplayBrowser.
+        // 🔴 It used to hold TWO extra stores: SimHostSelectionManager (a HashSet) reached through
+        //    SimHostInspectorAdapter, plus _fdpInspectorState — while SelectionInteractionSystem wrote
+        //    the SelectionState component and a hand-written callback tried to keep them agreeing.
+        //    ⚠ Hrot.Editor.AiShared/Shell/IEntitySelectionSource.cs named that adapter as "the defect"
+        //    in its own header. Both types are DELETED.
+        private Hrot.ScenarioEditor.Selection.EcsSelectionState? _selection;
+        private Hrot.ScenarioEditor.Systems.SelectionRequestSystem?      _selectionRequests;
+        private Hrot.ScenarioEditor.Systems.SelectionNotificationSystem? _selectionNotifications;
         /// <summary>Phase 5: ECS system for selection/delete interactions.</summary>
         private SelectionInteractionSystem? _selectionSystem;
 
@@ -98,7 +106,7 @@ namespace Hrot.SimHost
         private Fdp.Core.FdpEventBus? _interactionBus;
 
         // ── Public access (tests / other subsystems) ──────────────────────────
-        public SimHostSelectionManager? Selection => _selection;
+        public Fdp.Toolkit.Vis2D.Abstractions.ISelectionState? Selection => _selection;
 
         /// <summary>Returns the map camera or <see langword="null"/> when not initialized.</summary>
         public MapCamera? GetMapCamera() => _map?.Camera;
@@ -170,8 +178,14 @@ namespace Hrot.SimHost
             _toolController       = toolController;
 
             // ── Selection & inspector ─────────────────────────────────────────
-            _selection = new SimHostSelectionManager();
-            _inspector = new SimHostInspectorAdapter(_selection, repo);
+            // ⭐⭐⭐ UXI-11 — the SHARED view over the SelectionState component, and the SHARED
+            //    request/notify pair. ⛔ Same three lines as every other host: a host that has a world
+            //    has no business inventing its own selection.
+            _selection              = new Hrot.ScenarioEditor.Selection.EcsSelectionState(repo);
+            _selectionRequests      = new Hrot.ScenarioEditor.Systems.SelectionRequestSystem(() => _selection);
+            _selectionNotifications = new Hrot.ScenarioEditor.Systems.SelectionNotificationSystem(() => _fdpInspectorState);
+            _fdpEntityInspector.Selection = _selection;
+            _fdpEntityInspector.RequestSelectionChange = req => repo.Bus.PublishManaged(req);
             _fdpRepoAdapter   = new FdpRepositoryAdapter(repo);
             _fdpEventBrowser = new FdpEventBrowserPanel(eventHistoryService);
 
@@ -180,10 +194,10 @@ namespace Hrot.SimHost
             {
                 builder.AddItem("Center on entity", () => CenterCameraOnEntity(entity));
                 builder.AddItem("Select entity", () =>
-                {
-                    _selection!.Set(entity);
-                    _fdpInspectorState.SelectedEntity = entity;
-                });
+                    // ⭐ A REQUEST, like every other surface. The inspector follows from the
+                    //   notification, so this no longer sets it by hand (§2.7.3 rules 1 and 4).
+                    _repo!.Bus.PublishManaged(Fdp.Toolkit.Vis2D.Abstractions.SelectionChangeRequest
+                        .ReplaceWith(entity, "SimHost.ContextMenu.Select")));
 
                 builder.AddSeparator();
                 builder.AddItem("Delete entity", () =>
@@ -204,10 +218,15 @@ namespace Hrot.SimHost
                             _repo.DestroyEntity(entity);
                         }
 
-                        if (_selection!.Contains(entity))
+                        if (_selection!.IsSelected(entity))
                         {
-                            _selection.Remove(entity);
-                            _fdpInspectorState.SelectedEntity = null;
+                            // ⚠ Reading the view is what a surface is FOR; only WRITING is reserved.
+                            _repo.Bus.PublishManaged(new Fdp.Toolkit.Vis2D.Abstractions.SelectionChangeRequest
+                            {
+                                Entities = new[] { entity },
+                                Mode     = Fdp.Toolkit.Vis2D.Abstractions.SelectionChangeMode.Remove,
+                                Reason   = "SimHost.DeleteEntity",
+                            });
                         }
                     }
                 });
@@ -269,7 +288,7 @@ namespace Hrot.SimHost
 
             _map.AddLayer(new SimHostRoadLayer(road));
 
-            _map.AddLayer(new SimHostTrajectoryLayer(trajectoryPool, repo, _inspector));
+            _map.AddLayer(new SimHostTrajectoryLayer(trajectoryPool, repo, _fdpInspectorState));
 
             // Gizmo debug overlay (GZ032).
             _gizmoBuffer = gizmoBuffer ?? new DebugPrimitiveBuffer();
@@ -327,20 +346,11 @@ namespace Hrot.SimHost
             // entity drag via EntityDragGizmo registered in DataDrivenGizmoSystem.
             _selectionSystem = new SelectionInteractionSystem(repo, interactionBus ?? repo.Bus);
 
-            // Sync selection to SimHostSelectionManager and FDP inspector.
-            _selectionSystem.OnSelectionChanged += (entity, worldPos) =>
-            {
-                if (entity == Entity.Null)
-                {
-                    _selection!.Clear();
-                    _fdpInspectorState.SelectedEntity = null;
-                }
-                else if (repo.IsAlive(entity))
-                {
-                    _selection!.Set(entity);
-                    _fdpInspectorState.SelectedEntity = entity;
-                }
-            };
+            // ⭐⭐⭐ UXI-11 — the hand-written "sync selection to the manager and the FDP inspector"
+            //    callback is GONE. 🔴 It fired for a MAP click and nothing else, so selecting from the
+            //    inspector list or the context menu left the map and the trajectory layer behind.
+            //    ⭐ SelectionNotificationSystem now points the inspector at whatever the selection
+            //    became, for every cause, and there is no second store left to sync.
 
             // 🔒 UXI-07 step 4b — a pick SUSPENDS the active tool instead of arming beside it.
             _mapPickBridge = new MapPickServiceBridge(
@@ -434,6 +444,15 @@ namespace Hrot.SimHost
             _scenario?.Update();
             _map.Update(dt);
             _selectionSystem?.Tick(dt);
+            // ⭐⭐⭐ UXI-11 — the shared request/notify pair, ticked here for the same reason the
+            //    selection system is: this host drives its presentation systems directly.
+            //    ⚠ ORDER IS LOAD-BEARING: requests apply, THEN the announcement is consumed, so a
+            //    cause and its consequence land in one frame (same order ScenarioEditorModule registers).
+            if (_repo != null)
+            {
+                _selectionRequests?.Execute(_repo, dt);
+                _selectionNotifications?.Execute(_repo, dt);
+            }
 
             _fdpFrameCount++;
         }
@@ -473,7 +492,7 @@ namespace Hrot.SimHost
 
             // When panels are Window Manager managed, skip rendering them here.
             if (!_panelsWindowManaged && _ui != null)
-                _ui.Render(_repo, _kernel, _scenario!, _inspector!);
+                _ui.Render(_repo, _kernel, _scenario!);
 
             // NOTE: The old SimHost-specific perspective toggle toolbar has been removed.
             // Map perspective switching is now handled by the Window Manager's perspective

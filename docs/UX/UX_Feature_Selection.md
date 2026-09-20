@@ -3,7 +3,10 @@ state: LIVE
 build-state: BUILDING (§2.7 is the consolidated TARGET STATE with class + sequence diagrams;
   §2.7.5 carries the slice order S-1..S-6. ☑ S-1 BUILT 2026-09-20 — as-built in §2.7.6.
   ☑ S-2 BUILT 2026-09-20 — as-built in §2.7.7.
-  ☑ S-3 BUILT 2026-09-20 — as-built in §2.7.8. S-4..S-6 remain DESIGN.)
+  ☑ S-3 BUILT 2026-09-20 — as-built in §2.7.8.
+  ☑ S-3b BUILT 2026-09-20 — user ruling "simhost is not special"; SimHost and ReplayBrowser joined the
+  protocol and SimHostSelectionManager/SimHostInspectorAdapter are DELETED. As-built in §2.7.9.
+  S-4..S-6 remain DESIGN.)
 verified: 2026-09-10 (measured source scan, graph + grep, coverage checked)
   ⭐ S-1's own inventory re-measured 2026-09-20 on the graph — §2.7.6.
 current-answer: ✅ READ §2.7 — the consolidated TARGET STATE (2026-09-10), with the class diagram, the
@@ -24,8 +27,12 @@ current-answer: ✅ READ §2.7 — the consolidated TARGET STATE (2026-09-10), w
   hand-sync and its tracker deleted.
   ⚠ Panels PROJECT rather than subscribe (§2.7.8 deviation ②) — a one-frame bus event is unsafe for a
   panel that may not be drawn. The notification is for consumers needing an EDGE (S-5 is the next).
-  ❌ STILL NOT BUILT: CGF has no map-input path; ClearAll has 0 callers; SimHostSelectionManager is
-  still a separate store (lean recorded in §2.7.8); DerEntityInspectorPanel is S-4's seam.
+  ☑ BUILT (S-3b): SimHost and ReplayBrowser hold the same EcsSelectionState and run the same
+  request/notify pair; SimHostSelectionManager and SimHostInspectorAdapter are DELETED.
+  ⇒ THE "4 STORES BECOME 1 + VIEWS" GATE IS MET.
+  ❌ STILL NOT BUILT: CGF runs no SelectionInteractionSystem, so it has no MAP-INPUT path (that is
+  UXI-11's remaining half — "the input path is missing", not "selection is missing");
+  ClearAll has 0 callers; DerEntityInspectorPanel is S-4's seam.
   ⭐ 2026-09-10 — §2.6 is NEW and carries four user rulings: selection is GLOBAL across every host
   (ChainToMap as an opt-in is retired), a selection CHANGE cancels editing of the previously selected
   entity, clicks during an edit must not select (already true on the map via the capture-anchor filter,
@@ -57,7 +64,7 @@ known-conflict: none open. ✅ "Who owns selection" is RULED (2026-09-10): the g
 -->
 # Feature design — selection
 
-> **Design for [UXI-11](UX_Issues.md#uxi-11) · drafted 2026-08-12 · target state consolidated `2026-09-10` in §2.7.** **Status: 🟡 BUILDING — ☑ `S-1` (§2.7.6), ☑ `S-2` (§2.7.7) and ☑ `S-3` (§2.7.8) built `2026-09-20`: one store, one request, one writer, one announcement. ❌ `S-4`–`S-6` remain design — right-click does not select everywhere, the DER inspector has no seam, CGF still has no map-input path, `ClearAll` has 0 callers, and SimHost keeps a separate store.** Implements [rulings 27-28](UX_RESUME_INTERACTION.md). Feeds
+> **Design for [UXI-11](UX_Issues.md#uxi-11) · drafted 2026-08-12 · target state consolidated `2026-09-10` in §2.7.** **Status: 🟡 BUILDING — ☑ `S-1` (§2.7.6), ☑ `S-2` (§2.7.7), ☑ `S-3` (§2.7.8) and ☑ `S-3b` (§2.7.9) built `2026-09-20`: one store, one request, one writer, one announcement, on every node. ❌ `S-4`–`S-6` remain design — right-click does not select everywhere, the DER inspector has no seam, CGF still runs no `SelectionInteractionSystem` so it has no map-input path, and `ClearAll` has 0 callers.** Implements [rulings 27-28](UX_RESUME_INTERACTION.md). Feeds
 > [UXI-24](UX_Issues.md#uxi-24) (multi-select) and [UXI-23](UX_Issues.md#uxi-23) (map parity).
 
 ## 0. Prior art ([rule 6](UX_Issues.md#rules))
@@ -607,6 +614,7 @@ sequenceDiagram
 | 🔴 | |
 |---|---|
 | `DefaultSelectionState`'s own `HashSet` | ☑ **`S-1`** — becomes `EcsSelectionState`, a read-through *(the class survives for world-less hosts; §2.7.6 deviation ②)* |
+| 🔴 `SimHostSelectionManager` + `SimHostInspectorAdapter` | ☑ **`S-3b`** — **DELETED.** ⚠ Not in this list before: `Hrot.Editor.AiShared/Shell/IEntitySelectionSource.cs` named the adapter as *"the defect — a second, parallel in-memory store"* and this delete-list never picked it up |
 | the **3 hand-rolled `SetSelected`** | ☑ **`S-2`** — and 🔴 **there were FOUR**: `SelectionInteractionSystem` *(discharged at `S-1`)* · `EditorSubsystem`'s `GlobalActionIds.Select` · `IgApplication.SelectEntityOnMap` · ⚠ **`EditorSubsystem.SetSelection2D`, which this list had MISSED**. 📄 §2.7.7 |
 | `EntityInspectorPanel._selectedEntities` · `DerEntityInspectorPanel._selectedEntityId` | ☑/❌ **`S-3`** — the entity inspector's set is now a projection of `ISelectionState`; ⚠ the **DER** panel is untouched, it speaks DER ids and is `S-4`'s seam |
 | `EntityInspectorPanel.ChainToMap` | ☑ **`S-3`** — retired with its operator toggle |
@@ -617,9 +625,10 @@ sequenceDiagram
 
 | # | slice | gate |
 |---|---|---|
-| ☑ **S-1** *(`2026-09-20`, §2.7.6)* | `ISelectionState` gains the multi mutators; `EcsSelectionState` replaces `DefaultSelectionState` | 🟡 the 4 stores become 1 + views — **2 of 4**; the rest lands at `S-3` |
+| ☑ **S-1** *(`2026-09-20`, §2.7.6)* | `ISelectionState` gains the multi mutators; `EcsSelectionState` replaces `DefaultSelectionState` | 🟡 the 4 stores become 1 + views — **2 of 4** here; ☑ **met at `S-3b`** |
 | ☑ **S-2** *(`2026-09-20`, §2.7.7)* | the **request** event gains a set + mode; `SelectionRequestSystem` becomes the only writer | ☑ the hand-rolled writers are deleted *(4, not 3)*; 🟡 one writer survives — §2.7.7 deviation ② |
-| ☑ **S-3** *(`2026-09-20`, §2.7.8)* | the **notification** event *(new, FDP-internal)*; panels subscribe | ☑ `R-134` met; 🟡 panels PROJECT rather than subscribe, and 🟡 the stores are **3 of 4** — SimHost remains |
+| ☑ **S-3** *(`2026-09-20`, §2.7.8)* | the **notification** event *(new, FDP-internal)*; panels subscribe | ☑ `R-134` met; 🟡 panels PROJECT rather than subscribe |
+| ☑ **S-3b** *(`2026-09-20`, §2.7.9)* | 🔒 *"simhost is not special … make the nodes use same (best shared) stuff in the same way"* — SimHost + ReplayBrowser join the protocol | ☑ **the 4 stores → 1 + views is MET**; two types deleted |
 | ⭐ **S-4 — NEXT** | right-click selects on every surface *(§2.3 incl. row 1)*; DER inspector gains a seam | ☑ `CE-259s`'s ordering **already discharged at `S-2`** — it stopped being latent the moment the write was deferred |
 | **S-5** | rule 5 — losing selection cancels that entity's edit | ⭐ needs **S-4** *(a targeted arming does not select — `Tool_Model` §4.14)* |
 | **S-6** | remote-map-control dispatcher becomes a requester; echo suppression moves to egress | 📄 `DESIGN_Remote_Map_Control.md` |
@@ -873,6 +882,65 @@ within minutes of being written. ⚠ **Note what did NOT catch it:** the build, 
 | ☑ *"⛔ `R-134`: no DDS type in the internal path"* | **met** — a plain managed record; neither `SelectionChangedEvent` (`[DdsTopic]`) nor `SelectionChangedEventDto` is referenced |
 | 🟡 the 4 stores → 1 + views | **3 of 4.** ☑ editor · CGF · IG; ❌ **`SimHostSelectionManager` remains.** 📐 Measured: SimHost has a world **and** runs `SelectionInteractionSystem` (writing the component) **and** keeps a separate manager for its panels ⇒ the same desync, on that host. 🔒 **Lean: give SimHost an `EcsSelectionState` and retire `SimHostSelectionManager`** — ⛔ §2.7.1's `DdsBackedSelectionState` is for hosts with **no** world, which SimHost is not. ⚠ Not built here: it retires a type with its own `IInspectorContext` wiring, and this lane cannot run SimHost |
 | ❌ `DerEntityInspectorPanel` | untouched — §2.7.5 assigns its seam to **`S-4`** |
+
+#### 2.7.9 ☑ **`S-3b` — EVERY NODE, THE SAME WAY** *(user ruling, `2026-09-20`)*
+
+> 🔒 **User, verbatim:** *"we shoulf unify, simhost is not special in how it should handle the UI; lets
+> make the nodes use same (best shared) stuff in the same way."*
+
+⛔ **`S-3` left two hosts outside the protocol and justified one of them with a claim that was false.**
+
+| host | before `S-3b` | after |
+|---|---|---|
+| **SimHost** | 🔴 **THREE** stores: the `SelectionState` component *(written by `SelectionInteractionSystem`)* · a `SimHostSelectionManager` `HashSet` behind a `SimHostInspectorAdapter` · `_fdpInspectorState`; a hand-written callback bridged them **for map clicks only** | ☑ `EcsSelectionState` + the shared request/notify pair. ⛔ **`SimHostSelectionManager` and `SimHostInspectorAdapter` are DELETED** |
+| **ReplayBrowser** | 🔴 the component *(it runs `SelectionInteractionSystem` over a real repository)* + its own map→inspector callback; the panel owned its set; **history navigation wrote the inspector behind the map's back** | ☑ same view, same pair; history navigation **publishes a request** |
+
+##### 🔴 The claim `S-3` got wrong
+
+⛔ §2.7.8 deviation ④ said ReplayBrowser *"inspects a **recording**; there is no global selection for it
+to agree with."* 📐 **Measured false:** it holds a real `EntityRepository` and constructs
+`SelectionInteractionSystem` over it, so it had **exactly** the two-store split every other host had.
+⇒ ⭐ **the tell was available and I did not look for it**: *"does this host run the system that writes
+the component?"* is one grep, and it is now the rail
+*(`EveryHostThatRunsTheInteractionSystemAlsoHoldsTheSharedView`)* rather than something to remember.
+
+##### ⭐ What "the same way" means, concretely — **four lines per host**
+
+```csharp
+_selection              = new EcsSelectionState(repo);                      // the view
+_selectionRequests      = new SelectionRequestSystem(() => _selection);     // the ONE writer
+_selectionNotifications = new SelectionNotificationSystem(() => _inspector);// the announcement
+panel.Selection = _selection;  panel.RequestSelectionChange = repo.Bus.PublishManaged;
+```
+
+⚠ **The only per-host difference left is WHERE the two systems are ticked**, and that is a pre-existing
+property of the host, not of selection: the editor and CGF register them through
+`ScenarioEditorModule`; IG registers them on its kernel; **SimHost and ReplayBrowser drive their
+presentation systems directly because neither runs a `ModuleHostKernel`** *(ReplayBrowser's
+`CenterOnEntitySystem` already documents that shape)*. 🔒 **Order is load-bearing everywhere: requests
+apply, then the announcement is consumed.**
+
+##### 🟡 The gate
+
+| | |
+|---|---|
+| ☑ **the 4 stores → 1 + views** | **MET.** `SimHostSelectionManager` — the last one — is deleted, along with the adapter that wrapped it. 📌 `Hrot.Editor.AiShared/Shell/IEntitySelectionSource.cs` named that adapter as *"the defect — a second, parallel in-memory store"* in its own header; that note is now marked discharged |
+| ⚠ **CGF is the fifth map host and runs NO `SelectionInteractionSystem`** | ⛔ **not a store problem** — CGF holds the shared view and serves requests. Its **map-input path** is missing, which is `UXI-11`'s remaining open half *(measured `2026-09-19`: "the input path is missing", not "selection is missing")*. ⭐ The rail's anti-vacuity comment names it, so the day CGF gains one it must bring the view with it |
+| ⚠ **behaviour change on SimHost and ReplayBrowser** | selecting from the inspector list, the context menu, or replay history now moves the **map ring** too. 🔴 It did not before — that is the defect, not a side effect |
+
+##### ⭐ Rails, and a `T-1` miss worth recording
+
+| suite | |
+|---|---|
+| `EveryHostThatRunsTheInteractionSystemAlsoHoldsTheSharedView` *(new)* | the ruling, made checkable: a file that constructs `SelectionInteractionSystem` must also construct `EcsSelectionState`. ⭐ Carries an **anti-vacuity** assertion naming the four hosts, so a scan that stops matching fails loudly |
+| `Hrot.SimHost.Tests` | **1001/1007** — the 3 reds are **pre-existing**, confirmed by stashing and re-running at base *(identical set)* |
+| `Hrot.ReplayBrowser.Tests` | **30/30** |
+
+⚠⚠ **I changed both hosts before running either host's own suite** — the same `T-1` miss as `S-2`.
+⛔ And the first attempt reported *"The argument …dll is invalid"*, which reads like a broken suite:
+📐 it was the **un-restored project** trap *(`obj/project.assets.json` missing)*, and it failed
+identically at base. ⇒ 🔒 **`dotnet restore <tests.csproj>` costs 2 s and is the first thing to try when
+a suite "cannot run"** — ⛔ never report it as un-gateable without that.
 
 ## 3. Acceptance
 

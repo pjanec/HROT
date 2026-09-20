@@ -148,6 +148,72 @@ public sealed class NoProductionHostKeepsAParallelSelectionStoreTests
     }
 
     /// <summary>
+    /// ⭐⭐⭐ <b>EVERY HOST WITH A MAP SELECTION HOLDS THE SHARED VIEW.</b>
+    /// 🔒 User ruling, <c>2026-09-20</c>: <i>"simhost is not special in how it should handle the UI;
+    /// lets make the nodes use same (best shared) stuff in the same way."</i>
+    ///
+    /// <para>📐 The checkable form: a file that constructs <c>SelectionInteractionSystem</c> — i.e. a
+    /// host that lets the operator select on a map — must also construct an
+    /// <c>EcsSelectionState</c>. ⛔ Without it the host is writing the <c>SelectionState</c> component
+    /// through one path and showing its panels something else, which is exactly the split
+    /// <c>UXI-11</c> exists to end.</para>
+    ///
+    /// <para>🔴 Measured <c>2026-09-20</c>, before this rail: <b>five</b> hosts constructed the
+    /// interaction system and only three held the view. SimHost kept a <c>SimHostSelectionManager</c>
+    /// behind a <c>SimHostInspectorAdapter</c> — <b>both now deleted</b> — and ReplayBrowser held
+    /// nothing at all while its own hand-written callback tried to bridge the gap. ⚠ I had recorded
+    /// ReplayBrowser as <i>"a host with no global selection"</i>; that was wrong, and this rail is what
+    /// makes the claim checkable instead of remembered.</para>
+    /// </summary>
+    [Fact]
+    public void EveryHostThatRunsTheInteractionSystemAlsoHoldsTheSharedView()
+    {
+        var root    = RepoRoot();
+        var missing = new List<string>();
+        var seen    = new List<string>();
+
+        foreach (var tree in ProductionTrees)
+        {
+            var treeDir = Path.Combine(root, tree);
+            if (!Directory.Exists(treeDir)) continue;
+
+            foreach (var file in Directory.EnumerateFiles(treeDir, "*.cs", SearchOption.AllDirectories))
+            {
+                if (!IsProductionFile(file)) continue;
+                var text = File.ReadAllText(file);
+                if (!text.Contains("new SelectionInteractionSystem(") &&
+                    !text.Contains("Systems.SelectionInteractionSystem(")) continue;
+
+                seen.Add(Path.GetFileName(file));
+                if (!text.Contains("EcsSelectionState("))
+                    missing.Add(Path.GetRelativePath(root, file));
+            }
+        }
+
+        // ⚠ Anti-vacuity: a scan that matched nothing would pass silently.
+        // 📐 FOUR hosts run it: Editor · IG · SimHost · ReplayBrowser.
+        // 🔴 CGF is the fifth MAP host and deliberately absent from this list — it runs NO
+        //    SelectionInteractionSystem at all, which is UXI-11's remaining open defect
+        //    ("the input path is missing", measured 2026-09-19). ⇒ when CGF gains one, this count
+        //    becomes 5 and the host must bring the shared view with it, which the assertion below
+        //    then enforces. ⛔ Do not raise the threshold to 5 to "fix" a failure — check whether a
+        //    host lost its interaction system instead.
+        Assert.True(
+            seen.Count >= 4,
+            $"expected >=4 interaction-system hosts, found {seen.Count}: {string.Join(", ", seen)}");
+        foreach (var expected in new[]
+                 { "EditorSubsystem.cs", "IgApplication.cs", "SimHostVisualization.cs", "ReplayBrowserSubsystem.cs" })
+            Assert.Contains(expected, seen);
+
+        Assert.True(
+            missing.Count == 0,
+            "A host runs SelectionInteractionSystem (so the operator can select on its map) but holds " +
+            "no EcsSelectionState, so its panels and its map cannot agree. Give it the shared view " +
+            "(UXI-11, UX_Feature_Selection.md §2.7.9). Hosts:" + Environment.NewLine +
+            string.Join(Environment.NewLine, missing));
+    }
+
+    /// <summary>
     /// ⚠ <b>The negative control.</b> ⛔ A scan that finds nothing because it is looking in the wrong
     /// place passes exactly like a scan that finds nothing because the tree is clean. 📌 This is the
     /// <c>T-1</c> lesson — <em>"if it stays GREEN while the feature is BROKEN, THAT is the finding"</em>
