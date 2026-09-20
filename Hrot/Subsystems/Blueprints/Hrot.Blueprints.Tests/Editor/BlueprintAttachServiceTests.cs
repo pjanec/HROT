@@ -158,8 +158,8 @@ public sealed class BlueprintAttachServiceTests
 
     private static unsafe int ReadCount(EntityRepository world, Entity entity)
     {
-        ref var bb   = ref world.GetComponentRW<BlueprintBlackboard1024>(entity);
-        byte* memory = (byte*)Unsafe.AsPointer(ref Unsafe.As<BlueprintBlackboard1024, byte>(ref bb));
+        // ⭐ B4 — §17.7: the store through the SEAM, not a named tier.
+        byte* memory = OccurrenceStoreAccess.TryGetStore(world, entity, out _);
 
         Assert.True(BlueprintBlackboardPartitions.TryGetSlotOffset(
             memory, CounterDemoBlueprint.BlueprintId, out int payloadOffset));
@@ -169,8 +169,8 @@ public sealed class BlueprintAttachServiceTests
 
     private static unsafe int SlotCount(EntityRepository world, Entity entity)
     {
-        ref var bb   = ref world.GetComponentRW<BlueprintBlackboard1024>(entity);
-        byte* memory = (byte*)Unsafe.AsPointer(ref Unsafe.As<BlueprintBlackboard1024, byte>(ref bb));
+        // ⭐ B4 — §17.7: the store through the SEAM, not a named tier.
+        byte* memory = OccurrenceStoreAccess.TryGetStore(world, entity, out _);
         return BlueprintBlackboardPartitions.GetSlotCount(memory);
     }
 }

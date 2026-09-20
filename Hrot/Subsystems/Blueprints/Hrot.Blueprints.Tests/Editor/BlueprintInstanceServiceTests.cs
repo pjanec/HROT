@@ -185,10 +185,13 @@ public sealed class BlueprintInstanceServiceTests
 
     // ── helpers ───────────────────────────────────────────────────────────────
 
+    // ⭐ B4 — design §17.7. These were three-arm ladders naming 1024 / 4096 / 16384, so the 256
+    //   tier was invisible to them: SlotCount returned 0 and HasSlot returned false for a store
+    //   that was there. ⛔ An entity carries AT MOST ONE store — the seam resolves whichever.
     private static unsafe int ReadCount(EntityRepository world, Entity entity)
     {
-        ref var bb   = ref world.GetComponentRW<BlueprintBlackboard1024>(entity);
-        byte* memory = (byte*)Unsafe.AsPointer(ref Unsafe.As<BlueprintBlackboard1024, byte>(ref bb));
+        byte* memory = OccurrenceStoreAccess.TryGetStoreReadOnly(world, entity, out _);
+        Assert.True(memory != null, "the entity must carry a store");
 
         Assert.True(BlueprintBlackboardPartitions.TryGetSlotOffset(
             memory, CounterDemoBlueprint.BlueprintId, out int payloadOffset));
@@ -198,54 +201,18 @@ public sealed class BlueprintInstanceServiceTests
 
     private static unsafe int SlotCount(EntityRepository world, Entity entity)
     {
-        if (OccurrenceStoreAccess.HasStore(world, entity))
-        {
-            ref var bb   = ref world.GetComponentRW<BlueprintBlackboard1024>(entity);
-            byte* memory = (byte*)Unsafe.AsPointer(ref Unsafe.As<BlueprintBlackboard1024, byte>(ref bb));
-            return BlueprintBlackboardPartitions.GetSlotCount(memory);
-        }
-        if (world.HasComponent<BlueprintBlackboard4096>(entity))
-        {
-            ref var bb   = ref world.GetComponentRW<BlueprintBlackboard4096>(entity);
-            byte* memory = (byte*)Unsafe.AsPointer(ref Unsafe.As<BlueprintBlackboard4096, byte>(ref bb));
-            return BlueprintBlackboardPartitions.GetSlotCount(memory);
-        }
-        if (world.HasComponent<BlueprintBlackboard16384>(entity))
-        {
-            ref var bb   = ref world.GetComponentRW<BlueprintBlackboard16384>(entity);
-            byte* memory = (byte*)Unsafe.AsPointer(ref Unsafe.As<BlueprintBlackboard16384, byte>(ref bb));
-            return BlueprintBlackboardPartitions.GetSlotCount(memory);
-        }
-        return 0;
+        byte* memory = OccurrenceStoreAccess.TryGetStoreReadOnly(world, entity, out _);
+        return memory == null ? 0 : BlueprintBlackboardPartitions.GetSlotCount(memory);
     }
 
     /// <summary>
-    /// Returns true if a slot for <paramref name="blueprintId"/> exists on any tier
-    /// of <paramref name="entity"/>.
+    /// Returns true if a slot for <paramref name="blueprintId"/> exists on the tier
+    /// <paramref name="entity"/> carries.
     /// </summary>
     private static unsafe bool HasSlot(EntityRepository world, Entity entity, int blueprintId)
     {
-        if (OccurrenceStoreAccess.HasStore(world, entity))
-        {
-            ref var bb   = ref world.GetComponentRW<BlueprintBlackboard1024>(entity);
-            byte* memory = (byte*)Unsafe.AsPointer(ref Unsafe.As<BlueprintBlackboard1024, byte>(ref bb));
-            if (BlueprintBlackboardPartitions.TryGetSlotOffset(memory, blueprintId, out _))
-                return true;
-        }
-        if (world.HasComponent<BlueprintBlackboard4096>(entity))
-        {
-            ref var bb   = ref world.GetComponentRW<BlueprintBlackboard4096>(entity);
-            byte* memory = (byte*)Unsafe.AsPointer(ref Unsafe.As<BlueprintBlackboard4096, byte>(ref bb));
-            if (BlueprintBlackboardPartitions.TryGetSlotOffset(memory, blueprintId, out _))
-                return true;
-        }
-        if (world.HasComponent<BlueprintBlackboard16384>(entity))
-        {
-            ref var bb   = ref world.GetComponentRW<BlueprintBlackboard16384>(entity);
-            byte* memory = (byte*)Unsafe.AsPointer(ref Unsafe.As<BlueprintBlackboard16384, byte>(ref bb));
-            if (BlueprintBlackboardPartitions.TryGetSlotOffset(memory, blueprintId, out _))
-                return true;
-        }
-        return false;
+        byte* memory = OccurrenceStoreAccess.TryGetStoreReadOnly(world, entity, out _);
+        return memory != null
+            && BlueprintBlackboardPartitions.TryGetSlotOffset(memory, blueprintId, out _);
     }
 }

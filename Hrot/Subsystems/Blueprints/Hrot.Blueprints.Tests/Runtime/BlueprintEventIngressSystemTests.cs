@@ -235,9 +235,8 @@ public sealed unsafe class BlueprintEventIngressSystemTests : IDisposable
 
         // Verify slot exists on B1024 tier.
         Assert.True(OccurrenceStoreAccess.HasStore(_repo, entity));
-        ref var bb = ref _repo.GetComponentRW<BlueprintBlackboard1024>(entity);
-        byte* memory = (byte*)System.Runtime.CompilerServices.Unsafe.AsPointer(
-            ref System.Runtime.CompilerServices.Unsafe.As<BlueprintBlackboard1024, byte>(ref bb));
+        // ⭐ B4 — §17.7: the store through the SEAM, not a named tier.
+        byte* memory = OccurrenceStoreAccess.TryGetStore(_repo, entity, out _);
         int slotCount = BlueprintBlackboardPartitions.GetSlotCount(memory);
         Assert.Equal(1, slotCount);
         Assert.True(BlueprintBlackboardPartitions.TryGetSlotOffset(memory, FakeBpA_Id, out _));
@@ -267,9 +266,8 @@ public sealed unsafe class BlueprintEventIngressSystemTests : IDisposable
         sys.Execute(_repo, 0f);
 
         // Verify slot is gone.
-        ref var bb = ref _repo.GetComponentRW<BlueprintBlackboard1024>(entity);
-        byte* memory = (byte*)System.Runtime.CompilerServices.Unsafe.AsPointer(
-            ref System.Runtime.CompilerServices.Unsafe.As<BlueprintBlackboard1024, byte>(ref bb));
+        // ⭐ B4 — §17.7: the store through the SEAM, not a named tier.
+        byte* memory = OccurrenceStoreAccess.TryGetStore(_repo, entity, out _);
         int slotCount = BlueprintBlackboardPartitions.GetSlotCount(memory);
         Assert.Equal(0, slotCount);
         Assert.False(BlueprintBlackboardPartitions.TryGetSlotOffset(memory, FakeBpA_Id, out _));
@@ -301,9 +299,8 @@ public sealed unsafe class BlueprintEventIngressSystemTests : IDisposable
         sys.Execute(_repo, 0f);
 
         // A detached, B attached.
-        ref var bb = ref _repo.GetComponentRW<BlueprintBlackboard1024>(entity);
-        byte* memory = (byte*)System.Runtime.CompilerServices.Unsafe.AsPointer(
-            ref System.Runtime.CompilerServices.Unsafe.As<BlueprintBlackboard1024, byte>(ref bb));
+        // ⭐ B4 — §17.7: the store through the SEAM, not a named tier.
+        byte* memory = OccurrenceStoreAccess.TryGetStore(_repo, entity, out _);
         int slotCount = BlueprintBlackboardPartitions.GetSlotCount(memory);
         Assert.Equal(1, slotCount);
         Assert.False(BlueprintBlackboardPartitions.TryGetSlotOffset(memory, FakeBpA_Id, out _));
@@ -351,9 +348,8 @@ public sealed unsafe class BlueprintEventIngressSystemTests : IDisposable
 
         // B should be attached.
         Assert.True(OccurrenceStoreAccess.HasStore(_repo, entity));
-        ref var bb = ref _repo.GetComponentRW<BlueprintBlackboard1024>(entity);
-        byte* memory = (byte*)System.Runtime.CompilerServices.Unsafe.AsPointer(
-            ref System.Runtime.CompilerServices.Unsafe.As<BlueprintBlackboard1024, byte>(ref bb));
+        // ⭐ B4 — §17.7: the store through the SEAM, not a named tier.
+        byte* memory = OccurrenceStoreAccess.TryGetStore(_repo, entity, out _);
         Assert.True(BlueprintBlackboardPartitions.TryGetSlotOffset(memory, FakeBpB_Id, out _));
     }
 
@@ -379,9 +375,8 @@ public sealed unsafe class BlueprintEventIngressSystemTests : IDisposable
         // Verify tier is at capacity (4 slots, B1024).
         Assert.True(OccurrenceStoreAccess.HasStore(_repo, entity));
         Assert.False(_repo.HasComponent<BlueprintBlackboard4096>(entity));
-        ref var bb1 = ref _repo.GetComponentRW<BlueprintBlackboard1024>(entity);
-        byte* mem1 = (byte*)System.Runtime.CompilerServices.Unsafe.AsPointer(
-            ref System.Runtime.CompilerServices.Unsafe.As<BlueprintBlackboard1024, byte>(ref bb1));
+        // ⭐ B4 — §17.7: the store through the SEAM, not a named tier.
+        byte* mem1 = OccurrenceStoreAccess.TryGetStore(_repo, entity, out _);
         Assert.Equal(4, BlueprintBlackboardPartitions.GetSlotCount(mem1));
 
         // Publish Remove(A) + Attach(E) in the same frame.
@@ -404,9 +399,8 @@ public sealed unsafe class BlueprintEventIngressSystemTests : IDisposable
         Assert.False(_repo.HasComponent<BlueprintBlackboard4096>(entity),
             "Tier should NOT upgrade — remove-before-add allowed E to reuse A's freed slot");
 
-        ref var bb2 = ref _repo.GetComponentRW<BlueprintBlackboard1024>(entity);
-        byte* mem2 = (byte*)System.Runtime.CompilerServices.Unsafe.AsPointer(
-            ref System.Runtime.CompilerServices.Unsafe.As<BlueprintBlackboard1024, byte>(ref bb2));
+        // ⭐ B4 — §17.7: the store through the SEAM, not a named tier.
+        byte* mem2 = OccurrenceStoreAccess.TryGetStore(_repo, entity, out _);
         Assert.Equal(4, BlueprintBlackboardPartitions.GetSlotCount(mem2));
         Assert.False(BlueprintBlackboardPartitions.TryGetSlotOffset(mem2, FakeBpA_Id, out _),
             "A should be removed");

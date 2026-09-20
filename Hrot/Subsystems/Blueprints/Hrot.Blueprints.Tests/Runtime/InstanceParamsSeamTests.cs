@@ -129,8 +129,8 @@ public sealed unsafe class InstanceParamsSeamTests : IDisposable
 
     private byte* TierMemory(Entity e)
     {
-        ref var bb = ref _repo.GetComponentRW<BlueprintBlackboard1024>(e);
-        return (byte*)Unsafe.AsPointer(ref Unsafe.As<BlueprintBlackboard1024, byte>(ref bb));
+        // ⭐ B4 — §17.7: the store through the SEAM, not a named tier.
+        return OccurrenceStoreAccess.TryGetStore(_repo, e, out _);
     }
 
     private ParamsShape ReadParams(Entity e)

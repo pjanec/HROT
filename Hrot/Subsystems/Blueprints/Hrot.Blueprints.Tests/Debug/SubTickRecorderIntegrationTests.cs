@@ -436,9 +436,8 @@ public sealed class SubTickRecorderIntegrationTests : IDisposable
         if (!OccurrenceStoreAccess.HasStore(repo, entity))
             return 0;
 
-        ref var bb = ref repo.GetComponentRW<BlueprintBlackboard1024>(entity);
-        ref byte memRef = ref Unsafe.As<BlueprintBlackboard1024, byte>(ref bb);
-        byte* memory = (byte*)Unsafe.AsPointer(ref memRef);
+        // ⭐ B4 — §17.7: the store through the SEAM, not a named tier.
+        byte* memory = OccurrenceStoreAccess.TryGetStore(repo, entity, out _);
 
         if (!BlueprintBlackboardPartitions.TryGetSlotOffset(memory, blueprintId, out int payloadOffset))
             return 0;

@@ -321,9 +321,8 @@ public sealed unsafe class BlueprintLifecycleLibraryTests : IDisposable
 
         // Step 4: Verify the blueprint is attached to the entity.
         Assert.True(OccurrenceStoreAccess.HasStore(_repo, entity));
-        ref var bb = ref _repo.GetComponentRW<BlueprintBlackboard1024>(entity);
-        byte* memory = (byte*)System.Runtime.CompilerServices.Unsafe.AsPointer(
-            ref System.Runtime.CompilerServices.Unsafe.As<BlueprintBlackboard1024, byte>(ref bb));
+        // ⭐ B4 — §17.7: the store through the SEAM, not a named tier.
+        byte* memory = OccurrenceStoreAccess.TryGetStore(_repo, entity, out _);
         int slotCount = BlueprintBlackboardPartitions.GetSlotCount(memory);
         Assert.Equal(1, slotCount);
         Assert.True(BlueprintBlackboardPartitions.TryGetSlotOffset(memory, FakeBpA_Id, out _));
@@ -355,9 +354,8 @@ public sealed unsafe class BlueprintLifecycleLibraryTests : IDisposable
         sys.Execute(_repo, 0f);
 
         // Verify slot is gone.
-        ref var bb = ref _repo.GetComponentRW<BlueprintBlackboard1024>(entity);
-        byte* memory = (byte*)System.Runtime.CompilerServices.Unsafe.AsPointer(
-            ref System.Runtime.CompilerServices.Unsafe.As<BlueprintBlackboard1024, byte>(ref bb));
+        // ⭐ B4 — §17.7: the store through the SEAM, not a named tier.
+        byte* memory = OccurrenceStoreAccess.TryGetStore(_repo, entity, out _);
         int slotCount = BlueprintBlackboardPartitions.GetSlotCount(memory);
         Assert.Equal(0, slotCount);
         Assert.False(BlueprintBlackboardPartitions.TryGetSlotOffset(memory, FakeBpA_Id, out _));
@@ -391,9 +389,8 @@ public sealed unsafe class BlueprintLifecycleLibraryTests : IDisposable
         sys.Execute(_repo, 0f);
 
         // A detached, B attached.
-        ref var bb = ref _repo.GetComponentRW<BlueprintBlackboard1024>(entity);
-        byte* memory = (byte*)System.Runtime.CompilerServices.Unsafe.AsPointer(
-            ref System.Runtime.CompilerServices.Unsafe.As<BlueprintBlackboard1024, byte>(ref bb));
+        // ⭐ B4 — §17.7: the store through the SEAM, not a named tier.
+        byte* memory = OccurrenceStoreAccess.TryGetStore(_repo, entity, out _);
         int slotCount = BlueprintBlackboardPartitions.GetSlotCount(memory);
         Assert.Equal(1, slotCount);
         Assert.False(BlueprintBlackboardPartitions.TryGetSlotOffset(memory, FakeBpA_Id, out _));
