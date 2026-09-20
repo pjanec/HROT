@@ -18,13 +18,13 @@ public static class OccurrenceSlots
     /// <summary>
     /// The prefix no author-supplied variable name can carry. ⛔ Do not spell it inline anywhere else.
     /// </summary>
-    public const string ReservedPrefix = "$occ.";
+    public const string ReservedPrefix = Shared.OccurrenceSlotKey.ReservedPrefix;
 
     /// <summary>
     /// ⭐ The hosted occurrence's own <c>BehaviorTreeState</c> — the 64 bytes that <c>O4</c> stops
     /// sharing with the host (§3.1, §18).
     /// </summary>
-    public const string TreeState = ReservedPrefix + "treeState";
+    public const string TreeState = Shared.OccurrenceSlotKey.TreeStateVariableId;
 
     /// <summary>
     /// ⭐⭐ <b>The occurrence's IDENTITY — a number, not storage.</b>
@@ -44,9 +44,7 @@ public static class OccurrenceSlots
     /// number serves, and WHERE the host's state physically lives is independent. ⇒ moving the root
     /// state into a slot is a separate change, and <c>O4</c> does not need it.</para>
     /// </summary>
-    public static int IdentityOf(Guid assetId)
-        => StatefulBTreeActionBinder.ComputeStatefulSlotKey(
-               assetId, StatefulSlotScope.Behavior, Guid.Empty, ReservedPrefix + "identity");
+    public static int IdentityOf(Guid assetId) => Shared.OccurrenceSlotKey.ComputeIdentity(assetId);
 
     /// <summary>
     /// ⭐ <b><c>D5</c> — the hosting SITE, folded from the author's stable node <c>Guid</c>.</b>
@@ -60,9 +58,7 @@ public static class OccurrenceSlots
     /// <para>⚠ <c>Guid.Empty</c> folds to a non-zero value on purpose: a site is never "no site", and
     /// a zero here would be indistinguishable from "unset" at the call site.</para>
     /// </summary>
-    public static int SiteId(Guid nodeVisualId)
-        => StatefulBTreeActionBinder.ComputeStatefulSlotKey(
-               nodeVisualId, StatefulSlotScope.Node, nodeVisualId, ReservedPrefix + "site");
+    public static int SiteId(Guid nodeVisualId) => Shared.OccurrenceSlotKey.ComputeSiteId(nodeVisualId);
 
     /// <summary>
     /// ⭐⭐ The hosted child's <see cref="TreeState"/> slot key — the one number a hosting site needs.
@@ -72,11 +68,5 @@ public static class OccurrenceSlots
     /// ⛔ Both must agree byte-for-byte, which is why there is ONE function.</para>
     /// </summary>
     public static int TreeStateKeyFor(Guid hostAssetId, Guid siteNodeVisualId, Guid childAssetId)
-        => StatefulBTreeActionBinder.ComputeOccurrenceSlotKey(
-               hostKey: IdentityOf(hostAssetId),
-               siteId: SiteId(siteNodeVisualId),
-               assetId: childAssetId,
-               scope: StatefulSlotScope.Behavior,
-               nodeVisualId: Guid.Empty,
-               variableId: TreeState);
+        => Shared.OccurrenceSlotKey.ComputeTreeStateKey(hostAssetId, siteNodeVisualId, childAssetId);
 }

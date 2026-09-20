@@ -138,6 +138,47 @@ namespace Fdp.Toolkit.Behavior.Shared
         /// by the caller, or a BTree node ordinal. ⛔ Must be stable across a recompile, or the child's
         /// slot moves; <c>StructureHash</c> catches the drift but the state is lost.
         /// </param>
+        // ── O4: the RESERVED names and the occurrence arithmetic ────────────────────────────
+        //
+        // ⭐⭐⭐ THESE LIVE HERE, IN THE LINKED FILE, FOR THE SAME REASON THE KEY ITSELF DOES.
+        //   The generated orchestrator (netstandard2.0, Hrot.AiEditor.Persistence) and the runtime
+        //   (net8.0, Fdp.Toolkits) must compute byte-identical keys — D3 says the emitter's bake is
+        //   an optimisation over the same arithmetic a hand-written host runs. ⛔ Spelling "$occ."
+        //   on both sides of the wall is precisely the duplication A1 exists to kill, and
+        //   BlueprintTierLadder already paid this bill once for the tier numbers (B3②, §17.5).
+
+        /// <summary>The prefix no author-chosen blackboard variable can carry.</summary>
+        internal const string ReservedPrefix = "$occ.";
+
+        /// <summary>A hosted occurrence's own <c>BehaviorTreeState</c>.</summary>
+        internal const string TreeStateVariableId = ReservedPrefix + "treeState";
+
+        private const string IdentityVariableId = ReservedPrefix + "identity";
+        private const string SiteVariableId     = ReservedPrefix + "site";
+
+        /// <summary>
+        /// ⭐⭐ An occurrence's IDENTITY — a number, never storage.
+        /// ⛔ Must be NON-ZERO: <see cref="ComputeNested"/> treats <c>hostKey == 0</c> as ROOT and
+        /// drops <c>siteId</c>, which would collide two sites hosting the same child asset.
+        /// </summary>
+        internal static int ComputeIdentity(System.Guid assetId)
+            => Compute(assetId, OccurrenceSlotScope.Behavior, System.Guid.Empty, IdentityVariableId);
+
+        /// <summary>⭐ <c>D5</c> — the hosting SITE, from the author's stable node id. ⛔ Not an ordinal.</summary>
+        internal static int ComputeSiteId(System.Guid nodeVisualId)
+            => Compute(nodeVisualId, OccurrenceSlotScope.Node, nodeVisualId, SiteVariableId);
+
+        /// <summary>⭐⭐ The hosted child's tree-state slot key — THE one function both paths call.</summary>
+        internal static int ComputeTreeStateKey(
+            System.Guid hostAssetId, System.Guid siteNodeVisualId, System.Guid childAssetId)
+            => ComputeNested(
+                   ComputeIdentity(hostAssetId),
+                   ComputeSiteId(siteNodeVisualId),
+                   childAssetId,
+                   OccurrenceSlotScope.Behavior,
+                   System.Guid.Empty,
+                   TreeStateVariableId);
+
         internal static int ComputeNested(
             int hostKey,
             int siteId,
