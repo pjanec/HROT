@@ -38,11 +38,11 @@ RELEARN
 ```bash
 python3 scripts/session-design-brief.sh          # ledger · digest · probe · 3 random rulings
 # then read docs/blueprints/RULINGS.md IN FULL   (RULE ZERO)
-git fetch origin && git log --oneline -3 origin/behaviors   # snapshot head: 7574f228d
+git fetch origin && git log --oneline -3 origin/behaviors   # snapshot head: 10d55a787
 python3 scripts/rulings-check.py && python3 scripts/design-digest.py --check
 ```
 
-⚠ **Snapshot `2026-09-20`:** `rulings-check` **37/37** · `design-digest --check` OK (68 docs).
+⚠ **Snapshot `2026-09-20`:** `rulings-check` **37/37** · `design-digest --check` OK (69 docs).
 ⛔ `tracker-counts --check` says NOTHING about our rows — **it counts only `BP-` rows** (`CE-073`),
 and ours are `CE-`. Do not quote it as evidence for them.
 
@@ -54,7 +54,7 @@ and ours are `CE-`. Do not quote it as evidence for them.
 |---|---|
 | **design** | ✅ FINALIZED — [`DESIGN_Occurrence_Scoped_Storage.md`](DESIGN_Occurrence_Scoped_Storage.md), start at **§16** |
 | **plan** | ✅ WRITTEN — [`PLAN_Occurrence_Storage_Build.md`](PLAN_Occurrence_Storage_Build.md), 14 tasks / 5 increments |
-| ⭐ **golden test** | ✅ **GREEN** and usable as the gate — `hill-attack-close`, both targets destroyed, all 4 back on baseline, reproduced **3×**. ⛔ Green before **and** after every task |
+| ⭐ **golden test** | ✅ **GREEN**, re-proved `2026-09-20` AFTER `A3`+`A4` *(design §15.4: targets 0/0, platoon `523·525·529·531`, **0 faults**)*. ⛔ **But it does NOT close `O0`'s acceptance** — the scenario's one store has `SlotCount 0`, so no Instance ticked. ⛔ Green before **and** after every task |
 | **`A1`** *(unify the slot key)* | ✅ **DONE** — `c99a8865d` |
 | **`A2`** *(the resolution seam)* | ✅ **DONE** — `7a87596aa` + `7574f228d`. ⚠ See §4 for what was deliberately NOT collapsed |
 | **`A3`** *(`Kind` + `H1` + `H2`)* | ✅ **DONE** — 4 rails, all red-proved. As-built folded into design **§13**'s `AS-BUILT` block |

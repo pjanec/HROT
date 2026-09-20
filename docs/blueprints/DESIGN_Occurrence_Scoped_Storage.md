@@ -1361,6 +1361,33 @@ on the baseline' … the test works ok and we can use it as a gold one."*
 ⭐ **Reproduced three times** — `--mode all` ×2 and editor mode ×1, same build, same scenario.
 
 🔒 **THE LESSON, and it is the checkable form:** *"where they started"* is not *"where they belong"*.
+
+### 15.4 ✅ RE-RUN `2026-09-20`, **after `A3` and `A4`** — the gate is still green
+
+⭐ **The PLAN makes the golden test the gate *"green before AND after every task"*, so `A3` + `A4` owed
+a re-run.** Build clean, `--mode all`, port 8121, `providers=[SimHost, IG, ExCon, CGF]`.
+
+| criterion | result |
+|---|---|
+| load | `hill-attack-close` · `entityCount:8` · `sawWorldChange:true` · `hadWorldAnchor:true` |
+| ✅ **both targets destroyed** | `1006` and `1007` at `Health.Current 0`, agreeing on **both** nodes |
+| ✅ **all 4 back on baseline** | `523.0 · 525.2 · 529.2 · 531.0` at `t=107` — ⭐ within a hair of §15.3's recorded `523, 525, 529, 531` |
+| ⭐ **faults** | **0** over the whole run (`grep -cE "Exception\|Unhandled\|StackTrace"`) |
+
+⭐⭐ **`A4` verified at the seam:** `/diagnostics/architecture` shows `BlueprintTickSystem` **and**
+`BlueprintMaintenanceSystem` scheduled on the **CGF** subsystem (73 systems) and ⛔ correctly **absent**
+from SimHost (63) and IG (42) — the CGF+Editor scope, measured rather than asserted.
+
+| ⛔⛔ WHAT THIS RUN DOES **NOT** PROVE — say it rather than let the green imply it | |
+|---|---|
+| 🔴 **`O0`'s stated acceptance — *"a blueprint Instance TICK COUNTER ADVANCING on CGF"* — is NOT demonstrated** | 📐 The one store in the scenario is on entity `1000` (the commander) and its header decodes to **`SlotCount = 0`**: `Magic 0x42504257 · MaxSlots 4 · PayloadStart 96 · HighWater 216 · FreeListHead 96 · Reserved [0×8]`. ⇒ **the walker ran for 107 s over a real, initialised, EMPTY store.** ⭐ That proves it is scheduled, reached and harmless; ⛔ it does not prove it ticks an Instance |
+| ⭐ **why, and it was predicted** | grounded fact ⑨: `hill-attack-close` exercises the **hand-written node** path. ⇒ **closing `O0`'s acceptance needs a scenario that attaches a blueprint Instance** — ⛔ a green golden test must not stand in for it |
+| ⚠ **`HighWater 216 > PayloadStart 96` with `SlotCount 0` and a free list at 96** | ⇒ slots WERE attached and detached during the run. ⭐ So `TryDetach` — `H2`'s nibble compaction — did execute live, and `Reserved` came back to all-zero, which is what a fully-drained store should read |
+
+⚠ **One observation NOT investigated, and not attributable to this programme:** the platoon's
+`Health.Current` reads **50 on CGF** and **3000 on SimHost** at the same instant, while the two targets
+agree at **0** on both. ⛔ `A3`/`A4` touch neither health nor replication, and no baseline for this
+field exists in §15.3 — ⚠ recorded as seen, **not** diagnosed.
 The baseline is **authored** (`behaviorParams.baselineStart`/`baselineEnd`) and the spawn sits behind
 it, so ⛔ **a position check must resolve the AUTHORED baseline, never the `t=0` reading.**
 
