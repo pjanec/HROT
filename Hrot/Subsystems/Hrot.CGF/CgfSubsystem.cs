@@ -374,6 +374,9 @@ public sealed class CgfSubsystem : ISubsystem, Fdp.Toolkit.Runner.IMapCameraProv
     // ⛔ This was a DefaultSelectionState: a HashSet with no connection to the world, while
     //   SelectionInteractionSystem wrote the SelectionState component. Two stores, one concept.
     private ISelectionState?           _selectionState;
+
+    /// ⭐ UXI-11 — the shared map pack; the selection view and the scheduled systems come from it.
+    private Hrot.ScenarioEditor.Map.MapInteraction? _cgfMapInteraction;
     // (Phase 5: _interactionTool removed; entity selection via ECS gizmos)
     private EntityQuery?               _entityQuery;
     private Fdp.Toolkit.Diagnostics.Gizmos.DebugPrimitiveBuffer? _cgfGizmoBuffer;
@@ -1306,12 +1309,13 @@ public sealed class CgfSubsystem : ISubsystem, Fdp.Toolkit.Runner.IMapCameraProv
         // before Kernel.Initialize() because the GizmoInteractionModule is registered here.
         // UXI-23 S2b: the buffer, both registries, the reflection pass and the three systems come from
         // the shared pack. 🔒 The pack CONSTRUCTS; CGF still SCHEDULES, below.
-        var cgfMapInteraction = Hrot.ScenarioEditor.Map.MapInteractionPack.Build(
+        _cgfMapInteraction = Hrot.ScenarioEditor.Map.MapInteractionPack.Build(
             new Hrot.ScenarioEditor.Map.MapInteractionContext
             {
                 World = _context.World,
                 // CGF is a dumb terminal for handles — it draws all active gizmos, like IG.
                 IsSelectedPredicate = null,
+                Inspector = () => _fdpInspectorState,
                 // GZH-003: CGF is headless-first; enable only when a terminal connects.
                 StartEnabled = false,
                 // ⭐⭐⭐ UXI-07 — the Spawn tool's behaviour goes to the PACK (see §4.10; the editor carries
@@ -1322,14 +1326,14 @@ public sealed class CgfSubsystem : ISubsystem, Fdp.Toolkit.Runner.IMapCameraProv
                 StartPlacementMode = () => _spawnAdapter?.ArmPlacement(),
             });
 
-        _cgfGizmoBuffer           = cgfMapInteraction.Buffer;
-        _cgfInteractionBus        = cgfMapInteraction.InteractionBus;
-        _cgfGizmoManager          = cgfMapInteraction.GlobalManager;
-        _cgfToolController        = cgfMapInteraction.Tools;
-        _cgfDataDrivenGizmoSystem = cgfMapInteraction.DataDrivenSystem;
-        var cgfStatelessRegistry  = cgfMapInteraction.StatelessRegistry;
-        var cgfGizmoRegistry      = cgfMapInteraction.GizmoRegistry;
-        var cgfSettingsRegistry   = cgfMapInteraction.Settings;
+        _cgfGizmoBuffer           = _cgfMapInteraction.Buffer;
+        _cgfInteractionBus        = _cgfMapInteraction.InteractionBus;
+        _cgfGizmoManager          = _cgfMapInteraction.GlobalManager;
+        _cgfToolController        = _cgfMapInteraction.Tools;
+        _cgfDataDrivenGizmoSystem = _cgfMapInteraction.DataDrivenSystem;
+        var cgfStatelessRegistry  = _cgfMapInteraction.StatelessRegistry;
+        var cgfGizmoRegistry      = _cgfMapInteraction.GizmoRegistry;
+        var cgfSettingsRegistry   = _cgfMapInteraction.Settings;
         // Route gizmo interaction translators and publisher through the network factory
         // so that CgfSubsystem has no direct dependency on Hrot.Network.NED.
         CycloneNetworkIngressSystem? cgfGizmoIngress = null;
@@ -1354,8 +1358,8 @@ public sealed class CgfSubsystem : ISubsystem, Fdp.Toolkit.Runner.IMapCameraProv
                 _context.Kernel.RegisterGlobalSystem(publisherSystem);
         }
         // UXI-23 S2b: the group and its three members come from the pack; CGF schedules them below.
-        var cgfGizmoGroup = cgfMapInteraction.GizmoGroup;
-        _cgfGizmoController = cgfMapInteraction.Gate;
+        var cgfGizmoGroup = _cgfMapInteraction.GizmoGroup;
+        _cgfGizmoController = _cgfMapInteraction.Gate;
         _context.Kernel.RegisterModule(new GizmoInteractionModule(
             _cgfInteractionBus,
             contextIngress: null,
@@ -1366,7 +1370,7 @@ public sealed class CgfSubsystem : ISubsystem, Fdp.Toolkit.Runner.IMapCameraProv
             gizmoIngress: cgfGizmoIngress,
             gizmoEgress:  cgfGizmoEgress));
         // ⭐⭐ UXI-23 S3: report anything this host constructed but did not schedule (§3.2e).
-        foreach (string problem in cgfMapInteraction.Unserviceable(new object[] { cgfGizmoGroup }))
+        foreach (string problem in _cgfMapInteraction.Unserviceable(new object[] { cgfGizmoGroup }))
             Fdp.Core.Logging.FdpLog<CgfSubsystem>.Info("[Map] {0}", problem);
         _context.Kernel.RegisterGlobalSystem(new EventHistoryCaptureSystem("Interaction", _fdpEventHistory, _cgfInteractionBus));
         // Register canvas menu update so CanvasContextMenuGizmo has state to project.
@@ -1394,8 +1398,8 @@ public sealed class CgfSubsystem : ISubsystem, Fdp.Toolkit.Runner.IMapCameraProv
             fileService: null,
             interaction: new Hrot.ScenarioEditor.ScenarioEditorModule.InteractionDeps(
                 Selection:    () => _selectionState,
-                // ⭐⭐ UXI-11 S-3 — the inspector context follows the NOTIFICATION, not a map click.
-                Inspector:    () => _fdpInspectorState,
+                // ⭐⭐⭐ UXI-11 — the pack's ordered pair, not systems this module builds.
+                SelectionSystems: () => _cgfMapInteraction?.SelectionSystemsInOrder,
                 Gizmos:       () => _cgfDataDrivenGizmoSystem,
                 Camera:       () => _canvas?.Camera,
                 // ⭐⭐⭐ CE-061 — StartPlacementMode is SUPPLIED now, and it has to be.
@@ -1413,7 +1417,7 @@ public sealed class CgfSubsystem : ISubsystem, Fdp.Toolkit.Runner.IMapCameraProv
                 AlsoSelect:   entity => _fdpInspectorState.SelectedEntity = entity,
                 // 🔒 UXI-07 step 3b — the host's ONE tool arbiter, built by MapInteractionPack alongside
                 //    the two focus arbiters it reconciles. ⛔ Resolver for the same reason as the rest.
-                Tools:        () => cgfMapInteraction.Tools)));
+                Tools:        () => _cgfMapInteraction.Tools)));
 
         // ── Universal breakpoints (UBP-P10T2) ────────────────────────────────────
         // ⭐⭐⭐ cgf==editor SLICE 4 (DQ30) — the no-op time adapter is RETIRED.
@@ -1534,7 +1538,8 @@ public sealed class CgfSubsystem : ISubsystem, Fdp.Toolkit.Runner.IMapCameraProv
 
             // ⭐⭐⭐ UXI-11 S-1 -- read through to the ECS SelectionState component, the one truth.
             //   📐 Before this, a map click moved the ring and nothing else on this host.
-            _selectionState    = new Hrot.ScenarioEditor.Selection.EcsSelectionState(_context.World);
+            // ⭐⭐⭐ UXI-11 — the PACK's view, shared with the systems this host schedules.
+            _selectionState    = _cgfMapInteraction!.Selection;
             // ⭐⭐⭐ UXI-11 S-3 — same wiring as the editor, same ruling: one selection per host.
             _fdpEntityInspector.Selection = _selectionState;
             _fdpEntityInspector.RequestSelectionChange =

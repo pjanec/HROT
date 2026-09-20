@@ -56,12 +56,16 @@ public sealed class SelectionInteractionSystem
     public SelectionInteractionSystem(
         EntityRepository world,
         FdpEventBus interactionBus,
-        RubberBandState? rubberBandState = null)
+        RubberBandState? rubberBandState = null,
+        // ⭐⭐⭐ UXI-11 — the PACK's view. ⚠ Optional only for direct test construction; ⛔ in
+        //   production MapInteractionPack always passes the one it built, so this system and the
+        //   host write through the same object rather than two handles over one world.
+        Hrot.ScenarioEditor.Selection.EcsSelectionState? selection = null)
     {
         _world           = world          ?? throw new ArgumentNullException(nameof(world));
         _interactionBus  = interactionBus ?? throw new ArgumentNullException(nameof(interactionBus));
         _rubberBandState = rubberBandState;
-        _selection       = new Hrot.ScenarioEditor.Selection.EcsSelectionState(_world);
+        _selection       = selection ?? new Hrot.ScenarioEditor.Selection.EcsSelectionState(_world);
     }
 
     public void Tick(float dt)

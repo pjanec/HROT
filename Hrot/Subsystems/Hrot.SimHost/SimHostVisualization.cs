@@ -167,7 +167,12 @@ namespace Hrot.SimHost
             //   context menu ACTIVATES the shared tool instead of hand-rolling it. Same contract as
             //   globalGizmoManager above: optional to keep callers compiling, ⛔ but a host that HAS one
             //   must pass it (the silent-default rule).
-            Hrot.ScenarioEditor.Tools.ToolController? toolController = null)
+            Hrot.ScenarioEditor.Tools.ToolController? toolController = null,
+            // ⭐⭐⭐ UXI-11 — the PACK's selection view and gesture system. ⚠ Optional only so existing
+            //   test callers compile; ⛔ a host that HAS them must pass them, and SimHostApp does —
+            //   two instances would mean two selections over one world.
+            Hrot.ScenarioEditor.Selection.EcsSelectionState? mapSelection = null,
+            Hrot.ScenarioEditor.Systems.SelectionInteractionSystem? selectionInteraction = null)
         {
             _repo                 = repo         ?? throw new ArgumentNullException(nameof(repo));
             _kernel               = kernel        ?? throw new ArgumentNullException(nameof(kernel));
@@ -180,23 +185,15 @@ namespace Hrot.SimHost
             // ⭐⭐⭐ UXI-11 — the SHARED view over the SelectionState component, and the SHARED
             //    request/notify pair. ⛔ Same three lines as every other host: a host that has a world
             //    has no business inventing its own selection.
-            _selection = new Hrot.ScenarioEditor.Selection.EcsSelectionState(repo);
-            // ⭐⭐⭐ ON THE KERNEL, exactly as IG does it — 🔒 "make the nodes use same (best shared)
-            //    stuff in the same way" (user, 2026-09-20). ⚠⚠ An earlier draft ticked these by hand
-            //    from Update() and justified it with "this host runs no ModuleHostKernel". 🔴 FALSE,
-            //    and caught by the user: SimHostCapabilities registers modules and global systems on
-            //    context.Kernel throughout, and StrideNodeBootstrapper drives Context.Kernel.Update().
-            //    📌 The false claim was COPIED from ReplayBrowser, which genuinely has none
-            //    (DESIGN_Subsystem_Composition_Unification.md: "zero ModuleHostKernel references —
-            //    it is a viewer, not an ECS node").
-            // ⭐ ORDER: registration order is execution order within the phase, so requests apply and
-            //   only then is the announcement consumed — one frame, cause and consequence.
-            // ⚠ RegisterGlobalSystem THROWS after Kernel.Initialize(), so this cannot fail silently:
-            //   if the visualization were ever built post-init, the host would die here, loudly.
-            kernel.RegisterGlobalSystem(
-                new Hrot.ScenarioEditor.Systems.SelectionRequestSystem(() => _selection));
-            kernel.RegisterGlobalSystem(
-                new Hrot.ScenarioEditor.Systems.SelectionNotificationSystem(() => _fdpInspectorState));
+            // ⭐⭐⭐ UXI-11 — THE SELECTION COMES FROM THE SHARED PACK. 🔒 User, 2026-09-20: "unify
+            //    across host also the bootstrap code as far as possible, including this entity
+            //    selection stuff." 📐 This window used to build its own EcsSelectionState AND its own
+            //    SelectionInteractionSystem; MapInteractionPack.Build now constructs both, for all five
+            //    hosts, and SimHostApp schedules the request/notify pair on the kernel.
+            // ⚠ The fallback exists for test callers that construct this window directly. ⛔ It is NOT
+            //   a production path: SimHostApp always passes the pack's instances, and passing none in
+            //   production would give this window a second selection over the same world.
+            _selection = mapSelection ?? new Hrot.ScenarioEditor.Selection.EcsSelectionState(repo);
             _fdpEntityInspector.Selection = _selection;
             _fdpEntityInspector.RequestSelectionChange = req => repo.Bus.PublishManaged(req);
             _fdpRepoAdapter   = new FdpRepositoryAdapter(repo);
@@ -357,7 +354,9 @@ namespace Hrot.SimHost
             // ── Interaction ───────────────────────────────────────────────────
             // Phase 5: entity selection via SelectionInteractionSystem;
             // entity drag via EntityDragGizmo registered in DataDrivenGizmoSystem.
-            _selectionSystem = new SelectionInteractionSystem(repo, interactionBus ?? repo.Bus);
+            // ⭐⭐⭐ UXI-11 — the PACK's gesture system. ⚠ Fallback for direct test construction only.
+            _selectionSystem = selectionInteraction
+                ?? new SelectionInteractionSystem(repo, interactionBus ?? repo.Bus);
 
             // ⭐⭐⭐ UXI-11 — the hand-written "sync selection to the manager and the FDP inspector"
             //    callback is GONE. 🔴 It fired for a MAP click and nothing else, so selecting from the

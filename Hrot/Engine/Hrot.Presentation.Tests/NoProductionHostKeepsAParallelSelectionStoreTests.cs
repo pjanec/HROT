@@ -148,29 +148,27 @@ public sealed class NoProductionHostKeepsAParallelSelectionStoreTests
     }
 
     /// <summary>
-    /// ⭐⭐⭐ <b>EVERY HOST WITH A MAP SELECTION HOLDS THE SHARED VIEW.</b>
-    /// 🔒 User ruling, <c>2026-09-20</c>: <i>"simhost is not special in how it should handle the UI;
-    /// lets make the nodes use same (best shared) stuff in the same way."</i>
+    /// ⭐⭐⭐ <b>NO HOST BUILDS ITS OWN SELECTION — <c>MapInteractionPack</c> BUILDS IT FOR ALL FIVE.</b>
+    /// 🔒 User, <c>2026-09-20</c>: <i>"we want to unify across host also the bootstrap code as far as
+    /// possible, including this entity selection stuff."</i>
     ///
-    /// <para>📐 The checkable form: a file that constructs <c>SelectionInteractionSystem</c> — i.e. a
-    /// host that lets the operator select on a map — must also construct an
-    /// <c>EcsSelectionState</c>. ⛔ Without it the host is writing the <c>SelectionState</c> component
-    /// through one path and showing its panels something else, which is exactly the split
-    /// <c>UXI-11</c> exists to end.</para>
+    /// <para>📐 The checkable form: <c>new EcsSelectionState(</c> and
+    /// <c>new SelectionInteractionSystem(</c> appear in production in exactly ONE place — the pack.
+    /// ⛔ A host that constructs either gets a SECOND selection over the same world, which is the
+    /// split <c>UXI-11</c> spent four slices removing.</para>
     ///
-    /// <para>🔴 Measured <c>2026-09-20</c>, before this rail: <b>five</b> hosts constructed the
-    /// interaction system and only three held the view. SimHost kept a <c>SimHostSelectionManager</c>
-    /// behind a <c>SimHostInspectorAdapter</c> — <b>both now deleted</b> — and ReplayBrowser held
-    /// nothing at all while its own hand-written callback tried to bridge the gap. ⚠ I had recorded
-    /// ReplayBrowser as <i>"a host with no global selection"</i>; that was wrong, and this rail is what
-    /// makes the claim checkable instead of remembered.</para>
+    /// <para>⚠⚠ <b>This rail REPLACED an earlier one that asserted the opposite</b> — that every host
+    /// which constructs <c>SelectionInteractionSystem</c> also constructs <c>EcsSelectionState</c>.
+    /// 🔴 That was right for the world where each host wired its own and became FALSE the moment the
+    /// pack took over; it failed on the very commit that unified them. ⭐ The invariant it was reaching
+    /// for is stronger and simpler: <b>nobody wires their own.</b></para>
     /// </summary>
     [Fact]
-    public void EveryHostThatRunsTheInteractionSystemAlsoHoldsTheSharedView()
+    public void OnlyTheSharedPackConstructsTheSelection()
     {
-        var root    = RepoRoot();
-        var missing = new List<string>();
-        var seen    = new List<string>();
+        var root      = RepoRoot();
+        var offenders = new List<string>();
+        var packHits  = 0;
 
         foreach (var tree in ProductionTrees)
         {
@@ -180,37 +178,44 @@ public sealed class NoProductionHostKeepsAParallelSelectionStoreTests
             foreach (var file in Directory.EnumerateFiles(treeDir, "*.cs", SearchOption.AllDirectories))
             {
                 if (!IsProductionFile(file)) continue;
-                var text = File.ReadAllText(file);
-                if (!text.Contains("new SelectionInteractionSystem(") &&
-                    !text.Contains("Systems.SelectionInteractionSystem(")) continue;
+                var name = Path.GetFileName(file);
 
-                seen.Add(Path.GetFileName(file));
-                if (!text.Contains("EcsSelectionState("))
-                    missing.Add(Path.GetRelativePath(root, file));
+                var lines = File.ReadAllLines(file);
+                for (int i = 0; i < lines.Length; i++)
+                {
+                    var l = lines[i].TrimStart();
+                    if (l.StartsWith("//", StringComparison.Ordinal)) continue;
+                    if (!l.Contains("new Hrot.ScenarioEditor.Selection.EcsSelectionState(") &&
+                        !l.Contains("new EcsSelectionState(") &&
+                        !l.Contains("new SelectionInteractionSystem(") &&
+                        !l.Contains("new Hrot.ScenarioEditor.Systems.SelectionInteractionSystem(")) continue;
+
+                    if (name == "MapInteractionPack.cs") { packHits++; continue; }
+                    // ⚠ TWO named `?? new …` fallbacks survive, both for callers that construct the
+                    //   object directly in a test. ⛔ Neither is reachable in production, because
+                    //   MapInteractionPack always passes the instance it built:
+                    //     · SimHostVisualization — SimHostApp passes the pack's view and gesture system;
+                    //     · SelectionInteractionSystem — the pack passes the view it just constructed.
+                    // ⭐ Keyed on the `??`, so REPLACING either fallback with an unconditional `new`
+                    //   fails this rail — which is the case that would actually make two selections.
+                    if (l.Contains("??") &&
+                        (name == "SimHostVisualization.cs" || name == "SelectionInteractionSystem.cs"))
+                        continue;
+
+                    offenders.Add($"{Path.GetRelativePath(root, file)}:{i + 1}");
+                }
             }
         }
 
-        // ⚠ Anti-vacuity: a scan that matched nothing would pass silently.
-        // 📐 FOUR hosts run it: Editor · IG · SimHost · ReplayBrowser.
-        // 🔴 CGF is the fifth MAP host and deliberately absent from this list — it runs NO
-        //    SelectionInteractionSystem at all, which is UXI-11's remaining open defect
-        //    ("the input path is missing", measured 2026-09-19). ⇒ when CGF gains one, this count
-        //    becomes 5 and the host must bring the shared view with it, which the assertion below
-        //    then enforces. ⛔ Do not raise the threshold to 5 to "fix" a failure — check whether a
-        //    host lost its interaction system instead.
-        Assert.True(
-            seen.Count >= 4,
-            $"expected >=4 interaction-system hosts, found {seen.Count}: {string.Join(", ", seen)}");
-        foreach (var expected in new[]
-                 { "EditorSubsystem.cs", "IgApplication.cs", "SimHostVisualization.cs", "ReplayBrowserSubsystem.cs" })
-            Assert.Contains(expected, seen);
+        // ⚠ Anti-vacuity: the pack must actually build both, or this scan is matching nothing.
+        Assert.True(packHits >= 2,
+            $"expected MapInteractionPack to construct the view AND the gesture system; found {packHits}");
 
         Assert.True(
-            missing.Count == 0,
-            "A host runs SelectionInteractionSystem (so the operator can select on its map) but holds " +
-            "no EcsSelectionState, so its panels and its map cannot agree. Give it the shared view " +
-            "(UXI-11, UX_Feature_Selection.md §2.7.9). Hosts:" + Environment.NewLine +
-            string.Join(Environment.NewLine, missing));
+            offenders.Count == 0,
+            "A host is constructing its own selection instead of taking MapInteractionPack's. Two " +
+            "instances over one world are two selections (UXI-11, UX_Feature_Selection.md §2.7.10). " +
+            "Sites:" + Environment.NewLine + string.Join(Environment.NewLine, offenders));
     }
 
     /// <summary>

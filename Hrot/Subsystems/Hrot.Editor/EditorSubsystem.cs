@@ -337,6 +337,10 @@ namespace Hrot.Editor
         //   Mission Editor from the hash set and ctx.Entities read the component, and the two
         //   disagreed on every map click -- the divergence ScenarioMissionView's remarks record.
         private ISelectionState? _selectionState;
+
+        /// ⭐ UXI-11 — the shared map pack, kept so the selection view and the systems this host
+        ///   schedules are the SAME instances. ⛔ Two packs would mean two selections.
+        private Hrot.ScenarioEditor.Map.MapInteraction? _editorMapInteraction;
         private Hrot.ScenarioEditor.Gizmos.RubberBandState? _rubberBandState;
         private Hrot.ScenarioEditor.Systems.SelectionInteractionSystem? _selectionSystem;
         // ⭐⭐⭐ Batch 95 (95b) — THE SELECTED ENTITY, ONCE, for every store this subsystem holds.
@@ -1608,9 +1612,8 @@ namespace Hrot.Editor
                 fileService,
                 new ScenarioEditorModule.InteractionDeps(
                     Selection:          () => _selectionState,
-                    // ⭐⭐ UXI-11 S-3 — replaces the OnSelectionChanged hand-sync, which fired only
-                    //    for a MAP click and so ignored every other cause of a selection change.
-                    Inspector:          () => _fdpInspectorState,
+                    // ⭐⭐⭐ UXI-11 — the pack's ordered pair, not systems this module builds.
+                    SelectionSystems:   () => _editorMapInteraction?.SelectionSystemsInOrder,
                     Gizmos:             () => _editorDataDrivenGizmoSystem,
                     Camera:             () => _camera,
                     Tools:              () => _editorToolController));
@@ -1867,10 +1870,13 @@ namespace Hrot.Editor
             // visibility cache from registry.Rules.Count, so a rule added later would silently ignore its
             // visibility policy. MissionPresentationGizmo needs an IGeographicTransform and
             // EntityEditorLabelGizmo a BehaviorRegistry; reflection cannot supply either.
-            var editorMapInteraction = Hrot.ScenarioEditor.Map.MapInteractionPack.Build(
+            _editorMapInteraction = Hrot.ScenarioEditor.Map.MapInteractionPack.Build(
                 new Hrot.ScenarioEditor.Map.MapInteractionContext
                 {
                     World = _world,
+                    Inspector = () => _fdpInspectorState,
+                    // ⭐ UXI-11 — the pack builds the gesture system, so it needs the marquee state.
+                    RubberBand = _rubberBandState ??= new Hrot.ScenarioEditor.Gizmos.RubberBandState(),
                     IsSelectedPredicate = static (view, entity) =>
                         view.HasComponent<SelectionState>(entity) &&
                         view.GetComponentRO<SelectionState>(entity).IsSelected,
@@ -1902,16 +1908,16 @@ namespace Hrot.Editor
                     },
                 });
 
-            _gizmoBuffer                 = editorMapInteraction.Buffer;
-            var editorGizmoRegistry      = editorMapInteraction.GizmoRegistry;
-            var editorStatelessGizmoRegistry = editorMapInteraction.StatelessRegistry;
-            var editorGizmoSettings      = editorMapInteraction.Settings;
+            _gizmoBuffer                 = _editorMapInteraction.Buffer;
+            var editorGizmoRegistry      = _editorMapInteraction.GizmoRegistry;
+            var editorStatelessGizmoRegistry = _editorMapInteraction.StatelessRegistry;
+            var editorGizmoSettings      = _editorMapInteraction.Settings;
             // Editor has no DDS transport so no network ingress/egress translators.
-            var interactionBus           = editorMapInteraction.InteractionBus;
+            var interactionBus           = _editorMapInteraction.InteractionBus;
             _interactionBus              = interactionBus;
-            _editorDataDrivenGizmoSystem = editorMapInteraction.DataDrivenSystem;
-            _globalGizmoManager          = editorMapInteraction.GlobalManager;
-            _editorToolController        = editorMapInteraction.Tools;
+            _editorDataDrivenGizmoSystem = _editorMapInteraction.DataDrivenSystem;
+            _globalGizmoManager          = _editorMapInteraction.GlobalManager;
+            _editorToolController        = _editorMapInteraction.Tools;
             var actionRegistry = new GlobalActionRegistry();
             long layerControlId = GlobalGizmoManager.NewId();
             var layerControlGizmo = new Hrot.Common.Diagnostics.Gizmos.LayerControlGizmo(layerControlId, interactionBus, new StructEdit.Reflection.ComponentEditServiceBuilder().Build(), _gizmoUiHub);
@@ -2048,9 +2054,11 @@ namespace Hrot.Editor
             });
 
             var contextIngress = new ContextActionIngressSystem(entityMap, interactionBus);
-            _rubberBandState = new Hrot.ScenarioEditor.Gizmos.RubberBandState();
-            editorStatelessGizmoRegistry.RegisterGlobal(new Hrot.ScenarioEditor.Gizmos.RubberBandGizmo(_rubberBandState));
-            _selectionSystem = new Hrot.ScenarioEditor.Systems.SelectionInteractionSystem(_world, interactionBus, _rubberBandState);
+            editorStatelessGizmoRegistry.RegisterGlobal(new Hrot.ScenarioEditor.Gizmos.RubberBandGizmo(_rubberBandState!));
+            // ⭐⭐⭐ UXI-11 — the PACK's gesture system. 📐 The state itself is created before the pack
+            //    is built (see the MapInteractionContext above), because the pack hands it to the
+            //    system it constructs.
+            _selectionSystem = _editorMapInteraction!.SelectionInteraction;
             // ⭐⭐⭐ UXI-11 S-2 — the two _selectionState writes that used to live here are DELETED as
             //    PROVABLY REDUNDANT, not merely moved. 📐 Since S-1 the view is a read-through over the
             //    SelectionState component, and SelectionInteractionSystem has ALREADY written that
@@ -2082,10 +2090,10 @@ namespace Hrot.Editor
             });
             _selectionBridge.Connect(_aiEditorSelectionStore);
             // UXI-23 S2b: the group, its three members and the gate come from the pack.
-            var gizmoGroup   = editorMapInteraction.GizmoGroup;
-            _gizmoController = editorMapInteraction.Gate;
+            var gizmoGroup   = _editorMapInteraction.GizmoGroup;
+            _gizmoController = _editorMapInteraction.Gate;
             // ⭐⭐ UXI-23 S3: report anything constructed but not scheduled (§3.2e).
-            foreach (string problem in editorMapInteraction.Unserviceable(new object[] { gizmoGroup }))
+            foreach (string problem in _editorMapInteraction.Unserviceable(new object[] { gizmoGroup }))
                 Fdp.Core.Logging.FdpLog<EditorSubsystem>.Info("[Map] {0}", problem);
             _kernel.RegisterModule(new GizmoInteractionModule(
                 interactionBus,
@@ -2353,7 +2361,9 @@ namespace Hrot.Editor
                 // ⭐⭐⭐ UXI-11 S-1 -- read through to the ECS SelectionState component, the one truth.
                 //   ⚠ Same lifecycle as _fdpRepoAdapter below: nulled on teardown and rebuilt here,
                 //     because both hold the World and the World is replaced on reload.
-                _selectionState   = new Hrot.ScenarioEditor.Selection.EcsSelectionState(_world);
+                // ⭐⭐⭐ UXI-11 — the PACK's view, so this host and the systems it schedules read the
+                //   same one. ⛔ A locally-built view would be a second one over the same world.
+                _selectionState   = _editorMapInteraction!.Selection;
                 // ⭐⭐⭐ UXI-11 S-3 — the entity inspector stops owning a selection.
                 // 🔒 Ruling ① (2026-09-10): inspector selection IS the global selection, on every host.
                 //    ⛔ ChainToMap -- the opt-in that gated exactly this -- is retired with the panel's

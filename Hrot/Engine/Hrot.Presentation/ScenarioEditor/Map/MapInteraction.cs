@@ -36,8 +36,16 @@ namespace Hrot.ScenarioEditor.Map
             TogglablePostSimulationGroup gizmoGroup,
             GizmoExecutionController gate,
             MapSelfCheckSystem selfCheck,
-            Hrot.ScenarioEditor.Tools.ToolController tools)
+            Hrot.ScenarioEditor.Tools.ToolController tools,
+            Hrot.ScenarioEditor.Selection.EcsSelectionState selection,
+            Hrot.ScenarioEditor.Systems.SelectionInteractionSystem selectionInteraction,
+            Hrot.ScenarioEditor.Systems.SelectionRequestSystem selectionRequests,
+            Hrot.ScenarioEditor.Systems.SelectionNotificationSystem selectionNotifications)
         {
+            Selection              = selection;
+            SelectionInteraction   = selectionInteraction;
+            SelectionRequests      = selectionRequests;
+            SelectionNotifications = selectionNotifications;
             Tools             = tools;
             Buffer            = buffer;
             InteractionBus    = interactionBus;
@@ -51,6 +59,36 @@ namespace Hrot.ScenarioEditor.Map
             Gate              = gate;
             SelfCheck         = selfCheck;
         }
+
+        // ══ UXI-11 — the SELECTION. 📄 UX_Feature_Selection.md §2.7 / §2.7.10 ═══════════════
+
+        /// <summary>
+        /// ⭐⭐⭐ <b>The one selection this map subsystem has</b> — a read-through VIEW over the
+        /// <c>SelectionState</c> component, never a store. Panels read it; ⛔ nothing writes it except
+        /// <see cref="SelectionRequests"/>.
+        /// </summary>
+        public Hrot.ScenarioEditor.Selection.EcsSelectionState Selection { get; }
+
+        /// <summary>Turns map gestures — click, rubber-band, Delete — into selection changes.</summary>
+        public Hrot.ScenarioEditor.Systems.SelectionInteractionSystem SelectionInteraction { get; }
+
+        /// <summary>🔒 <b>The ONE writer</b> (§2.7.3 rule 1). Consumes every surface's request.</summary>
+        public Hrot.ScenarioEditor.Systems.SelectionRequestSystem SelectionRequests { get; }
+
+        /// <summary>Points the host's <c>IInspectorContext</c> at whatever the selection became.</summary>
+        public Hrot.ScenarioEditor.Systems.SelectionNotificationSystem SelectionNotifications { get; }
+
+        /// <summary>
+        /// ⭐⭐⭐ <b>Schedule these two, IN THIS ORDER.</b> Requests must apply before the announcement is
+        /// consumed, or a cause and its consequence land a frame apart.
+        ///
+        /// <para>⚠ The pack cannot enforce it — 🔒 <i>"pack constructs, host schedules"</i> — so it hands
+        /// back an ordered pair instead of two properties a host could register the wrong way round.
+        /// ⛔ <see cref="SelectionInteraction"/> is deliberately NOT in here: hosts tick it in different
+        /// places (some inside their map update, some on the kernel), and that is pre-existing.</para>
+        /// </summary>
+        public IReadOnlyList<Fdp.ModuleHost.Abstractions.IEcsModuleSystem> SelectionSystemsInOrder
+            => new Fdp.ModuleHost.Abstractions.IEcsModuleSystem[] { SelectionRequests, SelectionNotifications };
 
         /// <summary>The one buffer all three systems write into, and the terminal reads.</summary>
         public DebugPrimitiveBuffer Buffer { get; }

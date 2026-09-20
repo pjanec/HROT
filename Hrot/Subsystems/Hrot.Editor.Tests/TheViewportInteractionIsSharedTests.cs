@@ -955,9 +955,14 @@ public sealed class TheViewportInteractionIsSharedTests
                 Selection: () => new DefaultSelectionState(),
                 Gizmos:    () => NewGizmoSystem(),
                 Camera:    () => null,
-                // ⭐ UXI-11 S-3 — a host with an inspector passes it; the notification system is
-                //   registered only then, which is what keeps it honest on a headless root.
-                Inspector: () => new Fdp.Presentation.Abstractions.InspectorState()));
+                // ⭐⭐⭐ UXI-11 — the selection systems are BUILT BY MapInteractionPack and passed in,
+                //   in the order the pack hands back. ⛔ The module no longer constructs them, so a
+                //   host that supplies none registers none — which is what keeps a headless root honest.
+                SelectionSystems: () => new Fdp.ModuleHost.Abstractions.IEcsModuleSystem[]
+                {
+                    new SelectionRequestSystem(() => new DefaultSelectionState()),
+                    new SelectionNotificationSystem(() => new Fdp.Presentation.Abstractions.InspectorState()),
+                }));
 
         Assert.True(withViewport.HasInteractionSystems);
         registry = new RecordingRegistry();

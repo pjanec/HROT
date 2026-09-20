@@ -191,9 +191,12 @@ public sealed class ReplayBrowserSubsystem : ISubsystem, IWindowRegistrar,
                 new Hrot.ScenarioEditor.Map.MapInteractionContext
                 {
                     World = _activeRepo!,
-                    IsSelectedPredicate = static (view, entity) =>
-                        view.HasComponent<Hrot.IG.Components.SelectionState>(entity) &&
-                        view.GetComponentRO<Hrot.IG.Components.SelectionState>(entity).IsSelected,
+                    // ⭐ UXI-11 — the shared predicate, no longer hand-written here.
+                    IsSelectedPredicate = Hrot.ScenarioEditor.Map.MapInteractionContext.SelectedEntitiesOnly,
+                    // ⭐⭐⭐ UXI-11 — the pack builds this host's selection too. Resolver: _inspectorState
+                    //   is rebuilt whenever a recording loads.
+                    Inspector  = () => _inspectorState,
+                    RubberBand = rubberBandState,
                     // The replay browser is an interactive window: it has a viewer from startup.
                     StartEnabled = true,
                     ContributeExtras = regs =>
@@ -224,13 +227,15 @@ public sealed class ReplayBrowserSubsystem : ISubsystem, IWindowRegistrar,
                          new object[] { _globalGizmoManager, _dataDrivenGizmoSystem, _statelessGizmoSystem }))
                 Fdp.Core.Logging.FdpLog<ReplayBrowserSubsystem>.Info("[Map] {0}", problem);
 
-            _selectionSystem = new Hrot.ScenarioEditor.Systems.SelectionInteractionSystem(_activeRepo!, _interactionBus, rubberBandState);
-            // ⭐⭐⭐ UXI-11 S-3b — the hand-written map->inspector callback is GONE, for the same reason
-            //    it went on the editor, IG and SimHost: it fired for a MAP click and nothing else, so
-            //    an inspector click or a diff/event entity link left the map behind.
-            _selectionView          = new Hrot.ScenarioEditor.Selection.EcsSelectionState(_activeRepo!);
-            _selectionRequests      = new Hrot.ScenarioEditor.Systems.SelectionRequestSystem(() => _selectionView);
-            _selectionNotifications = new Hrot.ScenarioEditor.Systems.SelectionNotificationSystem(() => _inspectorState);
+            // ⭐⭐⭐ UXI-11 — ALL FOUR COME FROM THE PACK NOW. 📐 This host used to construct the gesture
+            //    system, the view and both systems by hand, exactly as the other four did — which is
+            //    the duplication MapInteractionPack exists to remove.
+            // ⭐ The hand-written map->inspector callback went at S-3b: it fired for a MAP click and
+            //    nothing else, so an inspector click or a diff/event entity link left the map behind.
+            _selectionSystem        = mapInteraction.SelectionInteraction;
+            _selectionView          = mapInteraction.Selection;
+            _selectionRequests      = mapInteraction.SelectionRequests;
+            _selectionNotifications = mapInteraction.SelectionNotifications;
 
             // â”€â”€ Layer Control & Actions â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
             var actionRegistry = new Hrot.Common.Interactions.GlobalActionRegistry();

@@ -29,9 +29,18 @@ namespace Hrot.ScenarioEditor.Map
     /// (<c>DESIGN_Subsystem_Composition_Unification.md</c> §3.1/§3.2).</para>
     ///
     /// <para>⛔ <b>Equally deliberately NOT here:</b> DDS publishers, ingress/egress translators, action
-    /// registries, selection systems, canvas menus and layer-control gizmos. Those are the host's role or
+    /// registries, canvas menus and layer-control gizmos. Those are the host's role or
     /// its own affordances; a host adds its gizmos through
     /// <see cref="MapInteractionContext.ContributeExtras"/>.</para>
+    ///
+    /// <para>⚠⚠ <b>AMENDED <c>2026-09-20</c>: <i>"selection systems"</i> WAS on that exclusion list and is
+    /// now BUILT HERE.</b> 🔒 User: <i>"we want to unify across host also the bootstrap code as far as
+    /// possible, including this entity selection stuff."</i> 📐 The exclusion was written when selection
+    /// genuinely was host-shaped — five hosts, three different parallel stores, five hand-rolled writers.
+    /// <c>UXI-11</c> <c>S-1</c>…<c>S-3b</c> made the wiring <b>identical on every host</b>, at which point
+    /// the exclusion preserved exactly the five-way duplication this pack exists to remove. ⭐ The ruling
+    /// it was protecting is untouched: <b>the pack constructs, the host schedules.</b>
+    /// 📄 <c>docs/UX/UX_Feature_Selection.md</c> §2.7.10.</para>
     /// </summary>
     public static class MapInteractionPack
     {
@@ -187,9 +196,33 @@ namespace Hrot.ScenarioEditor.Map
 
             var gate = new GizmoExecutionController(group, globalManager, dataDriven);
 
+            // ⭐⭐⭐ UXI-11 — THE SELECTION, BUILT HERE SO ALL FIVE HOSTS GET THE SAME ONE.
+            // 🔒 User, 2026-09-20: "unify across host also the bootstrap code as far as possible,
+            //    including this entity selection stuff."
+            // 📐 What this replaces: five composition roots each constructing EcsSelectionState, the
+            //    interaction system, the request system and the notification system in their own order,
+            //    plus — before S-1..S-3b — three different parallel stores. Same disease as the buffer
+            //    and the three gizmo systems this pack was written for, and the same cure.
+            // ⛔ The pack still CONSTRUCTS ONLY. Scheduling stays the host's, per the 2026-08-28 ruling
+            //   and enforced structurally: MapInteractionContext carries no kernel.
+            var selection = new Hrot.ScenarioEditor.Selection.EcsSelectionState(ctx.World);
+
+            var selectionInteraction = new Hrot.ScenarioEditor.Systems.SelectionInteractionSystem(
+                ctx.World, bus, ctx.RubberBand, selection);
+            if (ctx.OnMapSelectionChanged != null)
+                selectionInteraction.OnSelectionChanged += ctx.OnMapSelectionChanged;
+
+            // ⚠ ORDER IS LOAD-BEARING and the pack cannot enforce it — the host schedules. Requests must
+            //   apply BEFORE the announcement is consumed, or a cause and its consequence land a frame
+            //   apart. MapInteraction.SelectionSystemsInOrder exists so a host cannot get it wrong.
+            var selectionRequests = new Hrot.ScenarioEditor.Systems.SelectionRequestSystem(() => selection);
+            var selectionNotifications = new Hrot.ScenarioEditor.Systems.SelectionNotificationSystem(
+                ctx.Inspector ?? (static () => null));
+
             return new MapInteraction(
                 buffer, bus, gizmoRegistry, statelessRegistry, settings,
-                globalManager, dataDriven, stateless, group, gate, selfCheck, tools);
+                globalManager, dataDriven, stateless, group, gate, selfCheck, tools,
+                selection, selectionInteraction, selectionRequests, selectionNotifications);
         }
     }
 }

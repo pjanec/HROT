@@ -791,7 +791,18 @@ public class IgApplication : IDisposable
                 {
                     World = ctx.World,
                     // IG is a dumb terminal — draw all active gizmos, not just the selection's.
+                    // ⛔ NOT drift: `null` is the documented policy ("an IG draws handles on
+                    //   everything"), which is why UXI-11 did NOT default this in the pack.
                     IsSelectedPredicate = null,
+                    // ⭐⭐⭐ UXI-11 — the pack builds this host's selection too.
+                    Inspector = () => _fdpInspectorState,
+                    // ⭐ IG publishes its network click from the same gesture. ⛔ Not a selection
+                    //   write — the pack's request system owns that.
+                    OnMapSelectionChanged = _igBootstrapper!.NetworkEnabled
+                        ? (entity, worldPos) => OnCanvasClicked(
+                              new System.Numerics.Vector2(worldPos.X, worldPos.Y),
+                              MapMouseButton.Left, false, false, entity, updateSelection: true)
+                        : null,
                     // IG draws the richest frame of the five.
                     BufferCapacity = 4096,
                     // GZH-003: IG is interactive and always has a window at startup. It is not driven by
@@ -849,18 +860,10 @@ public class IgApplication : IDisposable
             // Phase 5: selection and drag handled by SelectionInteractionSystem + EntityDragGizmo.
             // Canvas no longer has a base tool for entity picking.
 
-            _selectionSystem = new SelectionInteractionSystem(ctx.World, _interactionBus!);
-
-            // When a network-enabled entity is clicked, also publish MapClickEvent and
-            // SelectionChangedEvent so that ExCon can track map selections.
-            if (_igBootstrapper!.NetworkEnabled)
-            {
-                _selectionSystem.OnSelectionChanged += (entity, worldPos) =>
-                {
-                    OnCanvasClicked(new System.Numerics.Vector2(worldPos.X, worldPos.Y),
-                        MapMouseButton.Left, false, false, entity, updateSelection: true);
-                };
-            }
+            // ⭐⭐⭐ UXI-11 — the gesture system comes from the PACK, and so does its network
+            //    follow-through (MapInteractionContext.OnMapSelectionChanged, above). 📐 This host used
+            //    to construct it here, as all five did.
+            _selectionSystem = igMapInteraction.SelectionInteraction;
 
             ctx.Kernel.RegisterGlobalSystem(new SelectionInteractionSystemAdapter(_selectionSystem));
 
@@ -871,16 +874,15 @@ public class IgApplication : IDisposable
             //    there. Publishing a request here without this line would have recreated it exactly.
             // ⭐ The view is a read-through handle over the SelectionState component (S-1), which is
             //   what IG already used directly, so this changes WHO writes, not WHAT is written.
-            _igSelectionState = new Hrot.ScenarioEditor.Selection.EcsSelectionState(ctx.World);
+            _igSelectionState = igMapInteraction.Selection;
             // ⭐⭐⭐ UXI-11 S-3 — IG's inspector is a requester too, now that this host serves requests.
             _fdpEntityInspector.Selection = _igSelectionState;
             _fdpEntityInspector.RequestSelectionChange =
                 req => ctx.World.Bus.PublishManaged(req);
-            ctx.Kernel.RegisterGlobalSystem(
-                new Hrot.ScenarioEditor.Systems.SelectionRequestSystem(() => _igSelectionState));
-            // ⭐⭐⭐ UXI-11 S-3 — AFTER the publisher, so a request and its consequence land in one frame.
-            ctx.Kernel.RegisterGlobalSystem(
-                new Hrot.ScenarioEditor.Systems.SelectionNotificationSystem(() => _fdpInspectorState));
+            // ⭐⭐⭐ UXI-11 — SCHEDULE what the pack built, in the order it hands back. 🔒 "The pack
+            //    CONSTRUCTS; the host SCHEDULES" — untouched; what moved is the construction.
+            foreach (var selectionSystem in igMapInteraction.SelectionSystemsInOrder)
+                ctx.Kernel.RegisterGlobalSystem(selectionSystem);
 
             // MapCommandController - created here when network is available.
             if (_igBootstrapper!.NetworkEnabled && ctx.Participant != null)

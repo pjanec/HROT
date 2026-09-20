@@ -1,10 +1,10 @@
 <!--STATUS
 state: LIVE
 updated: 2026-09-20
-current-answer: ⭐⭐⭐ READ THE "SESSION 2026-09-20 (d)" BLOCK AT THE TOP OF THIS FILE — it is the live
-  one. ☑ UXI-11 slices S-1, S-2, S-3 AND S-3b (selection unification) ARE BUILT, and the "4 stores
-  become 1 + views" gate is now MET on every node. NEXT IS S-4 — right-click selects on every surface,
-  and the DER inspector gains a seam.
+current-answer: ⭐⭐⭐ READ THE "SESSION 2026-09-20 (e)" BLOCK AT THE TOP OF THIS FILE — it is the live
+  one. ☑ UXI-11 slices S-1, S-2, S-3, S-3b AND S-3c ARE BUILT: one store, one request, one writer, one
+  announcement on every node — and ONE PLACE (MapInteractionPack) that builds them all.
+  NEXT IS S-4 — right-click selects on every surface, and the DER inspector gains a seam.
   ⚠ Two things remain openly unmet and each says so: "the ONLY writer" has one surviving writer
   (SelectionInteractionSystem, through the view) plus two synchronous editor facade seams; and panels
   PROJECT rather than subscribe. ⚠ Separately: CGF runs no SelectionInteractionSystem at all, so its
@@ -16,9 +16,9 @@ current-answer: ⭐⭐⭐ READ THE "SESSION 2026-09-20 (d)" BLOCK AT THE TOP OF 
   nothing from it is in flight. Older STRANDS below it are older history still; do NOT act on any of
   them unless explicitly told to continue one.
 
-stale-below: ⛔ EVERYTHING below the "SESSION 2026-09-20 (d)" block is HISTORY, newest first —
-  including the (c), (b) and (a) blocks (S-3, S-2, S-1) and the 2026-09-19/20 block, whose plans are
-  now DONE. Do not quote any of it as current state.
+stale-below: ⛔ EVERYTHING below the "SESSION 2026-09-20 (e)" block is HISTORY, newest first —
+  including the (d), (c), (b) and (a) blocks (S-3b, S-3, S-2, S-1) and the 2026-09-19/20 block, whose
+  plans are now DONE. Do not quote any of it as current state.
 known-rot: none open in this file.
 related-designs:
   - docs/UX/UX_Feature_Selection.md — owns UXI-11; §2.7 is the target state, §2.7.5 the slice order.
@@ -32,7 +32,55 @@ related-designs:
 -->
 # ⭐⭐⭐ RESUME — **the UI / variable implementation lane**
 
-## ⭐⭐⭐ SESSION `2026-09-20` (d) — **`S-3b`: EVERY NODE THE SAME WAY; NEXT IS `S-4`**
+## ⭐⭐⭐ SESSION `2026-09-20` (e) — **`S-3c`: THE BOOTSTRAP IS SHARED; NEXT IS `S-4`**
+
+> 🔒 **User, `2026-09-20`:** *"we want to unify across host also the bootstrap code as far as possible,
+> including this entity selection stuff, pls check if unifieable and unify if possible."*
+
+☑ **It was unifiable, and the seam already existed.** 📄 As-built:
+[`UX_Feature_Selection.md` §2.7.10](../UX/UX_Feature_Selection.md).
+
+⭐ **`MapInteractionPack.Build` is called by all five hosts** and was written for exactly this disease
+*("five hosts built the same buffer, the same two registries … by hand, in five composition roots")*.
+🔴 Its header listed **`"selection systems"` among what is deliberately NOT here** — written when
+selection *was* host-shaped. `S-1`…`S-3b` made the wiring identical, so that exclusion had become the
+duplication. **Amended in the pack's own header, with the reason.**
+
+| now built once, in the pack | was |
+|---|---|
+| `EcsSelectionState` · `SelectionInteractionSystem` | **5** composition roots each |
+| `SelectionRequestSystem` + `SelectionNotificationSystem` | **3** places — and `ScenarioEditorModule` built its own, so the editor and CGF had **different instances** from the rest |
+| the `SelectedEntitiesOnly` predicate | the same 4 lines hand-written in **3** hosts |
+
+🔒 **The `2026-08-28` ruling is untouched — the pack CONSTRUCTS, the host SCHEDULES.** Scheduling stays
+five-way *(module · kernel · kernel · kernel · direct tick)*, and that fan-out is a property of the
+hosts: ReplayBrowser alone has no kernel.
+
+⛔ **Checked and NOT unified, deliberately:** `IsSelectedPredicate`. IG and CGF pass `null`, and `null`
+is a **documented policy** — *"an IG draws handles on everything, an editor draws them only on the
+selection"* — so defaulting it would silently change what IG draws. ⭐ Only the copy-paste was removed.
+
+### ⛔⛔ TWO PROCESS MISSES IN THIS SLICE — **both nearly shipped**
+
+| | |
+|---|---|
+| 🔴 **a stale-binary false green** | `Hrot.Editor.Tests` **failed to compile** *(the module's parameter changed)* and still reported **419 passed** — from the previous binary. ⇒ ⭐ **every test project's build is now checked, and its error count printed, BEFORE any result is read** |
+| 🔴 **a rail that encoded the WIRING, not the INVARIANT** | the `S-3b` rail asserted *"every host that runs the interaction system also holds the shared view"* — true for the world where each host wired its own, and **false on the very commit that unified them**. ⇒ 🔒 replaced by *"nobody wires their own"*, which survives the refactor. **Red-proved** |
+
+### ⚠ Gates as measured `2026-09-20` (e) — **all six projects compiled first**
+
+| gate | result |
+|---|---|
+| `Hrot.Presentation.Tests` | ✅ **273/273** |
+| `Hrot.Editor.Tests` | ✅ **419/420**, 1 skip, 0 fail |
+| `Hrot.ReplayBrowser.Tests` | ✅ **30/30** |
+| `Hrot.SimHost.Tests` | ⚠ **1001/1007** — the same 3 pre-existing |
+| `Hrot.IG.Tests` · `Fdp.Presentation.Tests` | ⚠ same **7** and **8** pre-existing |
+| `design-digest --check` · `rulings-check` **37/37** · `tracker-counts` · 6 mermaid | ✅ |
+
+---
+
+## ⛔ HISTORY — SESSION `2026-09-20` (d) — **`S-3b`**
 
 > 🔒 **User ruling, `2026-09-20`:** *"we shoulf unify, simhost is not special in how it should handle the
 > UI; lets make the nodes use same (best shared) stuff in the same way."*

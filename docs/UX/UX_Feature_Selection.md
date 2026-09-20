@@ -6,7 +6,8 @@ build-state: BUILDING (§2.7 is the consolidated TARGET STATE with class + seque
   ☑ S-3 BUILT 2026-09-20 — as-built in §2.7.8.
   ☑ S-3b BUILT 2026-09-20 — user ruling "simhost is not special"; SimHost and ReplayBrowser joined the
   protocol and SimHostSelectionManager/SimHostInspectorAdapter are DELETED. As-built in §2.7.9.
-  S-4..S-6 remain DESIGN.)
+  ☑ S-3c BUILT 2026-09-20 — user ruling "unify the bootstrap too"; MapInteractionPack now CONSTRUCTS the
+  selection for all five hosts. As-built in §2.7.10. S-4..S-6 remain DESIGN.)
 verified: 2026-09-10 (measured source scan, graph + grep, coverage checked)
   ⭐ S-1's own inventory re-measured 2026-09-20 on the graph — §2.7.6.
 current-answer: ✅ READ §2.7 — the consolidated TARGET STATE (2026-09-10), with the class diagram, the
@@ -30,6 +31,13 @@ current-answer: ✅ READ §2.7 — the consolidated TARGET STATE (2026-09-10), w
   ☑ BUILT (S-3b): SimHost and ReplayBrowser hold the same EcsSelectionState and run the same
   request/notify pair; SimHostSelectionManager and SimHostInspectorAdapter are DELETED.
   ⇒ THE "4 STORES BECOME 1 + VIEWS" GATE IS MET.
+  ☑ BUILT (S-3c): the BOOTSTRAP is shared — MapInteractionPack.Build constructs the view, the gesture
+  system and the request/notify pair for all five hosts; ScenarioEditorModule registers the pack's
+  instances instead of building its own. The pack's "selection systems are deliberately NOT here"
+  exclusion is amended, with the reason, in its own header. Railed by
+  OnlyTheSharedPackConstructsTheSelection (red-proved).
+  ⛔ NOT unified, deliberately: IsSelectedPredicate stays per-host — `null` ("draw handles on
+  everything") is IG's documented policy, so defaulting it would silently change what IG draws.
   ❌ STILL NOT BUILT: CGF runs no SelectionInteractionSystem, so it has no MAP-INPUT path (that is
   UXI-11's remaining half — "the input path is missing", not "selection is missing");
   ClearAll has 0 callers; DerEntityInspectorPanel is S-4's seam.
@@ -64,7 +72,7 @@ known-conflict: none open. ✅ "Who owns selection" is RULED (2026-09-10): the g
 -->
 # Feature design — selection
 
-> **Design for [UXI-11](UX_Issues.md#uxi-11) · drafted 2026-08-12 · target state consolidated `2026-09-10` in §2.7.** **Status: 🟡 BUILDING — ☑ `S-1` (§2.7.6), ☑ `S-2` (§2.7.7), ☑ `S-3` (§2.7.8) and ☑ `S-3b` (§2.7.9) built `2026-09-20`: one store, one request, one writer, one announcement, on every node. ❌ `S-4`–`S-6` remain design — right-click does not select everywhere, the DER inspector has no seam, CGF still runs no `SelectionInteractionSystem` so it has no map-input path, and `ClearAll` has 0 callers.** Implements [rulings 27-28](UX_RESUME_INTERACTION.md). Feeds
+> **Design for [UXI-11](UX_Issues.md#uxi-11) · drafted 2026-08-12 · target state consolidated `2026-09-10` in §2.7.** **Status: 🟡 BUILDING — ☑ `S-1` (§2.7.6), ☑ `S-2` (§2.7.7), ☑ `S-3` (§2.7.8) and ☑ `S-3b` (§2.7.9) and ☑ `S-3c` (§2.7.10) built `2026-09-20`: one store, one request, one writer, one announcement, on every node — **and one place that builds them**. ❌ `S-4`–`S-6` remain design — right-click does not select everywhere, the DER inspector has no seam, CGF still runs no `SelectionInteractionSystem` so it has no map-input path, and `ClearAll` has 0 callers.** Implements [rulings 27-28](UX_RESUME_INTERACTION.md). Feeds
 > [UXI-24](UX_Issues.md#uxi-24) (multi-select) and [UXI-23](UX_Issues.md#uxi-23) (map parity).
 
 ## 0. Prior art ([rule 6](UX_Issues.md#rules))
@@ -629,6 +637,7 @@ sequenceDiagram
 | ☑ **S-2** *(`2026-09-20`, §2.7.7)* | the **request** event gains a set + mode; `SelectionRequestSystem` becomes the only writer | ☑ the hand-rolled writers are deleted *(4, not 3)*; 🟡 one writer survives — §2.7.7 deviation ② |
 | ☑ **S-3** *(`2026-09-20`, §2.7.8)* | the **notification** event *(new, FDP-internal)*; panels subscribe | ☑ `R-134` met; 🟡 panels PROJECT rather than subscribe |
 | ☑ **S-3b** *(`2026-09-20`, §2.7.9)* | 🔒 *"simhost is not special … make the nodes use same (best shared) stuff in the same way"* — SimHost + ReplayBrowser join the protocol | ☑ **the 4 stores → 1 + views is MET**; two types deleted |
+| ☑ **S-3c** *(`2026-09-20`, §2.7.10)* | 🔒 *"unify across host also the bootstrap code … including this entity selection stuff"* — `MapInteractionPack` constructs the selection for all five hosts | ☑ `new EcsSelectionState(` and `new SelectionInteractionSystem(` appear in production **once** |
 | ⭐ **S-4 — NEXT** | right-click selects on every surface *(§2.3 incl. row 1)*; DER inspector gains a seam | ☑ `CE-259s`'s ordering **already discharged at `S-2`** — it stopped being latent the moment the write was deferred |
 | **S-5** | rule 5 — losing selection cancels that entity's edit | ⭐ needs **S-4** *(a targeted arming does not select — `Tool_Model` §4.14)* |
 | **S-6** | remote-map-control dispatcher becomes a requester; echo suppression moves to egress | 📄 `DESIGN_Remote_Map_Control.md` |
@@ -975,6 +984,87 @@ ledger asserting what the code is, which is precisely the failure this programme
 📐 it was the **un-restored project** trap *(`obj/project.assets.json` missing)*, and it failed
 identically at base. ⇒ 🔒 **`dotnet restore <tests.csproj>` costs 2 s and is the first thing to try when
 a suite "cannot run"** — ⛔ never report it as un-gateable without that.
+
+#### 2.7.10 ☑ **`S-3c` — THE BOOTSTRAP IS SHARED TOO** *(user ruling, `2026-09-20`)*
+
+> 🔒 **User, verbatim:** *"we want to unify across host also the bootstrap code as far as possible,
+> including this entity selection stuff, pls check if unifieable and unify if possible."*
+
+⭐ **It was unifiable, and the seam already existed.** `MapInteractionPack.Build` is called by **all five
+hosts** — it is the *"one place the map's machinery is constructed"*, written for exactly this disease:
+*"five hosts built the same buffer, the same two registries, the same reflection call, the same three
+systems … by hand, in five composition roots."*
+
+🔴 **Its header listed `"selection systems"` among what is deliberately NOT here.** ⚠ That exclusion was
+written when selection genuinely **was** host-shaped — five hosts, three parallel stores, five
+hand-rolled writers. ⇒ `S-1`…`S-3b` made the wiring **identical everywhere**, at which point the
+exclusion preserved precisely the five-way duplication the pack exists to remove. **Amended, with the
+reason recorded in the pack's own header.**
+
+| what the pack now builds | was |
+|---|---|
+| `EcsSelectionState` | constructed in **5** composition roots |
+| `SelectionInteractionSystem` | constructed in **5** composition roots |
+| `SelectionRequestSystem` + `SelectionNotificationSystem` | constructed in **3** places — two hosts inline, and `ScenarioEditorModule` for the other two, so the editor and CGF got **different instances** from the rest |
+| `MapInteractionContext.SelectedEntitiesOnly` | the same 4-line predicate hand-written in **3** hosts |
+
+🔒 **The `2026-08-28` ruling is untouched: THE PACK CONSTRUCTS, THE HOST SCHEDULES.** Enforced
+structurally — `MapInteractionContext` carries no kernel. What moved is construction only.
+
+```mermaid
+graph TD
+    Pack["MapInteractionPack.Build()<br/>builds the view + 3 systems"] --> E[EditorSubsystem]
+    Pack --> C[CgfSubsystem]
+    Pack --> I[IgApplication]
+    Pack --> S[SimHostApp]
+    Pack --> R[ReplayBrowserSubsystem]
+    E -->|ScenarioEditorModule| K1[kernel]
+    C -->|ScenarioEditorModule| K1
+    I -->|RegisterGlobalSystem| K1
+    S -->|RegisterGlobalSystem| K1
+    R -->|ticks directly - no kernel| M[its own Update]
+```
+
+⭐ *What the picture shows that the prose hid: construction converges to one node, scheduling stays
+five-way — and that fan-out is a pre-existing property of the hosts, not of selection.*
+
+##### ⭐ How each host schedules, and why they differ
+
+| host | schedules via | why |
+|---|---|---|
+| Editor · CGF | `ScenarioEditorModule` — which now **registers the pack's ordered pair** instead of constructing its own | both already register that module |
+| IG · SimHost | `ctx.Kernel.RegisterGlobalSystem` | both are full ECS nodes with a kernel |
+| ReplayBrowser | ticks them in its own `Update` | 📄 it **alone** has no kernel — *"zero `ModuleHostKernel` references — a **viewer**, not an ECS node"* |
+
+⚠ `MapInteraction.SelectionSystemsInOrder` hands back an **ordered pair** rather than two properties,
+because requests must apply before the announcement is consumed and the pack cannot enforce ordering it
+does not own.
+
+##### ⛔ What was NOT unified, and why — **the check the ruling asked for**
+
+| candidate | verdict |
+|---|---|
+| 🔴 **`IsSelectedPredicate`** | ⛔ **NOT defaulted.** 📐 Three hosts pass the same predicate; **IG and CGF pass `null`** — and `null` is a *documented policy*, not drift: *"an IG draws handles on everything, an editor draws them only on the selection."* ⇒ defaulting it would silently change what IG draws. ⭐ Unified the **copy-paste** only, via `SelectedEntitiesOnly`, leaving the choice explicit |
+| ⚠ **where the systems are ticked** | ⛔ cannot be unified from the pack — it holds no kernel by construction, which is the ruling |
+| ⚠ **`SelectionInteractionSystem`'s tick** | still per-host *(kernel adapter on IG, map update on SimHost/ReplayBrowser)*. Pre-existing and out of this slice |
+
+##### ⭐ The rail, and what it replaced
+
+`OnlyTheSharedPackConstructsTheSelection` — `new EcsSelectionState(` and `new SelectionInteractionSystem(`
+appear in production in **one place**. ⭐ **Red-proved:** turning either surviving `?? new …` test
+fallback into an unconditional `new` fails it by name and line.
+
+⚠⚠ **It replaced a rail written one commit earlier** — *"every host that runs the interaction system also
+holds the shared view"* — which was correct for the world where each host wired its own and **became
+false on the commit that unified them.** ⇒ 🔒 **a rail that encodes the CURRENT wiring dies with the next
+refactor; one that encodes the INVARIANT (*nobody wires their own*) survives it.**
+
+##### ⚠ And a process miss, recorded because it nearly shipped a false green
+
+📐 `Hrot.Editor.Tests` **failed to compile** during this slice *(the module's parameter changed)*, and the
+suite still reported **419 passed** — from the previous binary. ⛔ That is the stale-binary trap, and the
+only reason it was caught is that the build error scrolled past above the results. ⇒ ⭐ **every test
+project's build is now checked, and its error count printed, BEFORE any result is read.**
 
 ## 3. Acceptance
 
