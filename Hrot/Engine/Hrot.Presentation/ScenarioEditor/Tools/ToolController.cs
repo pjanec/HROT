@@ -219,6 +219,66 @@ namespace Hrot.ScenarioEditor.Tools
         }
 
         /// <inheritdoc/>
+        public void CancelArmedOn(Entity entity)
+        {
+            // ⭐ A target-less tool is exempt from ruling ② BY CONSTRUCTION — it is not editing an entity.
+            //   📄 UX_Feature_Tool_Model.md §4.14's arming-path inventory: Measure, the picker and
+            //   placement all arm with Entity.Null.
+            if (entity.IsNull || _modalStack.Count == 0) return;
+
+            // ⚠ TOP-DOWN. The top is the only entry whose gizmo HOLDS FOCUS, which is what CancelFocused
+            //   tears down; anything beneath it is SUSPENDED and still injected (§4.11 — "a suspended tool
+            //   KEEPS DRAWING and simply stops receiving input").
+            bool changed = false;
+            for (int i = _modalStack.Count - 1; i >= 0; i--)
+            {
+                if (_modalStack[i].Target != entity) continue;
+
+                if (i != _modalStack.Count - 1)
+                {
+                    // 🔴 A SUSPENDED entry on the losing entity, with an interruption above it.
+                    // ⛔ We cannot tear this one down surgically: CancelFocused would reach the
+                    //   INTERRUPTER's gizmo, and dropping the entry alone would leave this one injected
+                    //   and drawing forever — the leak NotifyToolEnded tolerates only because there the
+                    //   gizmo was already gone.
+                    // ⇒ unwind the whole stack, which is the only action that leaves nothing drawing. The
+                    //   interrupter was armed in service of the edit that just lost its justification.
+                    // ⚠ UNREACHABLE IN PRODUCTION TODAY, measured: the only PushModal callers are
+                    //   PickerToolHost ×2 and both push with NO target, so no entry beneath an
+                    //   interruption can match a real entity. Handled rather than asserted because the
+                    //   alternative is a silent leak if that ever changes.
+                    FdpLog<ToolController>.Warn(
+                        "[Tools] '{0}' was armed on an entity that lost selection while interrupted; " +
+                        "unwinding the modal stack (UXI-11 S-5).", _modalStack[i].Tool.Id);
+                    CancelActiveModalWithoutNotify();
+                    NotifyActiveModalChanged();
+                    return;
+                }
+
+                var popped = _modalStack[i];
+                _modalStack.RemoveAt(i);
+
+                // ⛔⛔ CancelFocused, NOT CancelInteractiveTools — the same distinction PopModalAt makes:
+                //   the sweep clears EVERY exclusive-focus gizmo on the arbiter, which would destroy a
+                //   tool armed on a different, still-selected entity. Ruling ② is per-entity.
+                switch (popped.Tool.Arbiter)
+                {
+                    case ToolArbiter.EntityScoped: _dataDriven()?.CancelFocused(); break;
+                    case ToolArbiter.Global:       _global()?.CancelFocused();     break;
+                    case ToolArbiter.None:         break;   // the null modal tool owns no gizmo
+                }
+
+                // ⭐ Whatever this entry interrupted is owed its focus back, exactly as a popped scope
+                //   would give it.
+                ResumeInto(_modalStack.Count > 0 ? _modalStack[^1].Tool.Arbiter : ToolArbiter.None,
+                           popped.Suspended);
+                changed = true;
+            }
+
+            if (changed) NotifyActiveModalChanged();
+        }
+
+        /// <inheritdoc/>
         public void NotifyToolEnded(string toolId, Entity target = default)
         {
             if (!_tools.TryGetValue(toolId, out var entry)) return;   // never registered ⇒ nothing to pop

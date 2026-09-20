@@ -36,7 +36,14 @@ build-state: BUILDING (§2.7 is the consolidated TARGET STATE with class + seque
   ⚠ KNOWN LIMIT: the empty-space clear is LOCAL-ONLY. A canvas anchor (id 0/-1) does not survive the
   ingress resolve filter, so a REMOTE terminal's empty-space right-click does not cross the wire. This
   is PRE-EXISTING (no canvas interaction has ever crossed) and deliberately not fixed here.
-  S-5..S-6 remain DESIGN.)
+  ☑ S-5 BUILT 2026-09-20 — ruling ②: an entity that loses the selection loses its edit. The FIRST real
+  edge consumer of SelectionChangedNotification. As-built in §2.7.15.
+  ⛔⛔ S-5 CORRECTED THE OWNING TOOL DESIGN: UX_Feature_Tool_Model.md §4.14 prescribed NotifyToolEnded,
+  which deliberately does NOT tear the gizmo down ("the gizmo ENDED ITSELF") and would have left it armed
+  and drawing — the mirror of CE-259q. Cancel() is wrong the other way (it unwinds the whole stack and
+  would kill a tool on a still-selected entity). The member ② needs is NEW: IToolController
+  .CancelArmedOn(Entity). Red-proved, and folded back into §4.14 with the proof.
+  S-6 remains DESIGN.)
 verified: 2026-09-10 (measured source scan, graph + grep, coverage checked)
   ⭐ S-1's own inventory re-measured 2026-09-20 on the graph — §2.7.6.
 current-answer: ✅ READ §2.7 — the consolidated TARGET STATE (2026-09-10), with the class diagram, the
@@ -78,8 +85,12 @@ current-answer: ✅ READ §2.7 — the consolidated TARGET STATE (2026-09-10), w
   and in GizmoInteractionBatch.ActionId; Left is 0 so nothing un-migrated changes meaning.
   ⭐ The rule is BUTTON-SPECIFIC on purpose: a LEFT-click inside a multi-selection must still narrow it
   to one, which is why a shared guard would have been wrong and the button had to be carried.
+  ☑ BUILT (S-5): losing the selection cancels that entity's edit. The EDGE is the notification; the
+  PREDICATE is ISelectionState.IsSelected read live off the one store (a per-entity question, never a
+  diff of two sets); the HOME is SelectionNotificationSystem, which already is "what a selection change
+  causes"; the WIRING is one constructor argument in MapInteractionPack, so all five hosts get it.
   ❌ STILL NOT BUILT: ClearAll has 0 callers; the map menu's CONTENTS (out of scope, see its own
-  design); the empty-space clear does not cross the wire (pre-existing); S-5 and S-6.
+  design); the empty-space clear does not cross the wire (pre-existing); S-6.
   ⭐ 2026-09-10 — §2.6 is NEW and carries four user rulings: selection is GLOBAL across every host
   (ChainToMap as an opt-in is retired), a selection CHANGE cancels editing of the previously selected
   entity, clicks during an edit must not select (already true on the map via the capture-anchor filter,
@@ -687,7 +698,7 @@ sequenceDiagram
 | ☑ **S-3e** *(`2026-09-20`, §2.7.12)* | 🔒 *"remaining half"* — CGF gains a map-input path; every gesture becomes a request | ☑ `SelectionRequestSystem` is **literally** the only writer; ☑ a regression `S-3` shipped is closed |
 | 🟡 **S-4** *(`2026-09-20`, §2.7.13)* | right-click selects on every surface *(§2.3 incl. row 1)*; DER inspector gains a seam | ☑ **both inspector panels**, bound and unbound, railed and red-proved; ☑ the DER seam, wired in ExCon; ☑ `CE-259s`'s ordering **already discharged at `S-2`** — and §2.3's same-frame constraint is now SUPERSEDED, not merely unmet. ⛔ **the MAP is NOT done**: the vendored terminal's event carries no mouse button *(§2.7.13 "NOT BUILT")* |
 | ☑ **S-4b** *(`2026-09-20`, §2.7.14)* | 🔒 *"the right click itself should deselect the entity unless the already selected group right clicked"* — the MAP joins §2.3 | ☑ all three §2.3 rows on the map, incl. the empty-space clear; ☑ the button is carried with **no new field** and Left-defaults to the old meaning; ⚠ **2 vendored sites**, on the user's nod |
-| **S-5** | rule 5 — losing selection cancels that entity's edit | ⭐ needs **S-4** *(a targeted arming does not select — `Tool_Model` §4.14)* — ☑ **S-4/S-4b are both in** |
+| ☑ **S-5** *(`2026-09-20`, §2.7.15)* | rule 5 — losing selection cancels that entity's edit | ☑ `CancelArmedOn` tears the gizmo down per entity; ☑ the notification gets its first EDGE consumer; ⛔ **the design's own prescribed member was WRONG and is corrected in `Tool_Model` §4.14**, red-proved |
 | **S-6** | remote-map-control dispatcher becomes a requester; echo suppression moves to egress | 📄 `DESIGN_Remote_Map_Control.md` |
 
 ⚠ **`UXI-24` (multi-select) rides on S-1 + S-2** — its map additive-click needs the mutators and the mode.
@@ -1487,6 +1498,67 @@ the event never leaves the process.
 owning design says so itself — `docs/designs/gizmos-1/canvas-context-menu-design.md` parks
 *"multi-entity selection menus"* until requirements are pinned. ⭐ What `S-4b` guarantees is the
 **precondition** that ruling needs: the selection is still there when the menu opens.
+
+#### 2.7.15 ☑ **`S-5` — LOSING THE SELECTION CANCELS THAT ENTITY'S EDIT** *(`2026-09-20`)*
+
+> 🔒 **User ruling ②, `2026-09-10`:** *"if entity becomes unselected, it should cancel any editing on the
+> entity losing the selection"*.
+
+⭐ **This is the FIRST real edge consumer of `SelectionChangedNotification`** — the thing §2.7.8 deviation
+② said the notification existed for while the panels projected instead. ⇒ the notification is no longer
+a surface with one consumer; it is the mechanism ② needs and projection cannot supply.
+
+##### ⭐⭐⭐ The correction: **the design named a member that would NOT have worked**
+
+📄 `UX_Feature_Tool_Model.md` §4.14 prescribed *"the tool armed on that entity ends via `NotifyToolEnded`"*.
+🔴 **Measured, and red-proved:**
+
+| candidate | what it actually does | verdict |
+|---|---|---|
+| `NotifyToolEnded(id, target)` | removes the stack entry and **deliberately does NOT tear the gizmo down** — its own body: *"the gizmo ENDED ITSELF, so there is nothing of ours left to tear down"* | ⛔ **would leave the gizmo ARMED AND DRAWING** — the exact mirror of `CE-259q` *(there the arbiter forgot and the stack remembered)* |
+| `Cancel()` | unwinds the **whole** stack via the `CancelInteractiveTools` sweep | ⛔ **destroys a tool armed on a different, still-selected entity.** ② is per-entity |
+| `PopModalAt(depth)` | tears down **and** resumes — the right shape | ⛔ **top-only, and private** |
+
+⇒ ⭐⭐ **`IToolController.CancelArmedOn(Entity)` is new**, and it is the smallest thing that is correct:
+pop every entry targeting that entity **with** its arbiter teardown *(`CancelFocused` per entry, ⛔ not
+the sweep)*, resuming whatever each had suspended.
+
+⭐ **The correction is folded back into `UX_Feature_Tool_Model.md` §4.14** with the red-proof, per
+obligation ⑤ — ⛔ not left in a report.
+
+##### ⭐ The shape
+
+| | |
+|---|---|
+| **the EDGE** | `SelectionChangedNotification` — *when* to ask |
+| **the PREDICATE** | `ISelectionState.IsSelected(target)`, read **live** off the one store — *the answer*. 🔒 §4.14 ②: ruling ② is *"is THIS entity still selected?"*, a per-entity question ⛔ **not a diff of two selection sets**, which would need a latch (`R-126`) |
+| **driven off the ARMED SET, not the selection** | the modal stack is short by construction *(🔒 `Q27-F`: nothing needs more than 2)*; a selection can be large. ⭐ And it is ②'s own wording |
+| **the HOME** | `SelectionNotificationSystem` — ⛔ **not a parallel system.** That class already IS *"what a selection change causes"*; a second consumer of one edge would be two implementations of one concept *(ruling 9)* |
+| **the WIRING** | one constructor argument in `MapInteractionPack`, which already builds **both** the `ToolController` and the selection ⇒ all five hosts, one place, exactly as `S-3c` did for the selection itself |
+
+⚠ **`Entity.Null` is exempt BY CONSTRUCTION** — a target-less tool *(Measure, the picker, placement)* is
+not editing an entity. 📄 §4.14's arming-path inventory measured that every entity-targeted arming goes
+through the controller, which is the completeness ② needs.
+
+⚠ **A silent-default check, passed deliberately:** both new parameters are optional so a lightweight host
+or a test need not supply them — ⭐ but `MapInteractionPack` **holds** them and therefore **passes** them.
+⛔ That is the rule the `CLAUDE.md` silent-default section states; the inverse edit that drops them
+reddens the end-to-end rail.
+
+##### 🔴 One defect found and fixed while wiring it
+
+`SelectionNotificationSystem` began with `if (inspector == null) return;`. ⛔ A host with no inspector
+context would have skipped `S-5`'s cancel **silently**. ⇒ the early return is gone and the inspector
+write is now conditional instead.
+
+##### ⭐ Rails
+
+| | |
+|---|---|
+| `CancelArmedOn_*` ×4 *(new, in `ToolControllerTests` — the feature's own suite, `T-1`)* | tears down the **gizmo** and not just the entry · leaves a tool on a **different** entity alone · `Entity.Null` is a no-op · idempotent |
+| `SelectingAnotherEntity_CancelsTheEditOnTheOneThatLostTheSelection` *(new)* | ②, end to end: request → the one writer → the announcement → the cancel → **the gizmo is gone** |
+| `AnEntityThatKeepsTheSelection_KeepsItsEdit` *(new)* | ⛔ the anti-sweep rail: if this reddens, someone replaced the per-entity predicate with *"selection changed ⇒ cancel everything"*, which §4.14 forbids by name |
+| ⭐ **red-proofs, two** | ① the pack not passing the controller ⇒ the end-to-end rail reddens; ② implementing it **as §4.14 prescribed**, via `NotifyToolEnded` ⇒ **2 rails redden** — which is how the design error above was established rather than argued |
 
 ## 3. Acceptance
 

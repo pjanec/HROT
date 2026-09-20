@@ -216,8 +216,15 @@ namespace Hrot.ScenarioEditor.Map
             //   apply BEFORE the announcement is consumed, or a cause and its consequence land a frame
             //   apart. MapInteraction.SelectionSystemsInOrder exists so a host cannot get it wrong.
             var selectionRequests = new Hrot.ScenarioEditor.Systems.SelectionRequestSystem(() => selection);
+
+            // ⭐⭐⭐ UXI-11 S-5 — ruling ②: "if entity becomes unselected, it should cancel any editing on
+            //   the entity losing the selection." The arbiter and the store are BOTH built right here, so
+            //   the hook is a constructor argument rather than a per-host wiring step — all five hosts get
+            //   it, in one place, exactly as S-3c did for the selection itself.
+            // 🔒 THE SILENT-DEFAULT RULE, applied: both parameters are optional so a lightweight host or a
+            //   test need not supply them, but this caller HOLDS them and therefore PASSES them.
             var selectionNotifications = new Hrot.ScenarioEditor.Systems.SelectionNotificationSystem(
-                ctx.Inspector ?? (static () => null));
+                ctx.Inspector ?? (static () => null), tools, selection);
 
             return new MapInteraction(
                 buffer, bus, gizmoRegistry, statelessRegistry, settings,

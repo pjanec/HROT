@@ -1835,7 +1835,32 @@ an earlier version of this section duplicated all five and that duplication is w
 
 | # | the tool-side obligation | |
 |---|---|---|
-| **②** | 🔒 *"if entity becomes unselected, it should cancel any editing on the entity losing the selection"* | ⭐ a **per-entity predicate** — the tool armed on that entity ends via `NotifyToolEnded` *(§4.7h)*. ⛔ Never by sweeping an arbiter |
+| **②** | 🔒 *"if entity becomes unselected, it should cancel any editing on the entity losing the selection"* | ⭐ a **per-entity predicate** — the tool armed on that entity ends via ⛔ ~~`NotifyToolEnded`~~ **`IToolController.CancelArmedOn(Entity)`** *(corrected `2026-09-20`, see the box below)*. ⛔ Never by sweeping an arbiter |
+
+> ⛔⛔⛔ **CORRECTION `2026-09-20`, MEASURED AND RED-PROVED — this section prescribed the WRONG MEMBER.**
+> 📄 As-built: [`UX_Feature_Selection.md` §2.7.15](UX_Feature_Selection.md) (`UXI-11` `S-5`).
+>
+> 🔴 **`NotifyToolEnded` deliberately does NOT tear the gizmo down.** Its own body says so —
+> *"the gizmo ENDED ITSELF, so there is nothing of ours left to tear down"* — because it exists for the
+> case where the gizmo removed **itself** (`§4.7h`, `CE-259q`). ⇒ using it for ② would drop the stack
+> entry and leave the gizmo **armed and drawing**: the exact MIRROR of `CE-259q`, where the arbiter
+> forgot and the stack remembered. ⭐ **Proved, not argued:** implementing ② via `NotifyToolEnded`
+> reddens `CancelArmedOn_TearsDownTheGizmo_NotJustTheStackEntry` and
+> `SelectingAnotherEntity_CancelsTheEditOnTheOneThatLostTheSelection`.
+>
+> ⛔ **`Cancel()` is wrong too, for the opposite reason:** it unwinds the WHOLE stack, so deselecting A
+> would destroy a tool armed on a still-selected B. ⭐ Ruling ② is **per-entity**; the teardown must be too.
+>
+> ⭐⭐ **The member ② actually needs — `CancelArmedOn(Entity)`** — pops every entry targeting that entity
+> **with** its arbiter teardown (`CancelFocused`, not the `CancelInteractiveTools` sweep) and resumes
+> whatever each entry had suspended. ⚠ `Entity.Null` is a no-op: a target-less tool is exempt from ② by
+> construction, which this section's own arming inventory already establishes.
+>
+> ⚠ **One case is handled but is UNREACHABLE in production today:** a SUSPENDED entry on the losing
+> entity, underneath an interruption. Its gizmo holds no focus, so `CancelFocused` would reach the
+> interrupter's — and dropping the entry alone would leave it injected and drawing. ⇒ the whole stack is
+> unwound, which is the only action that leaves nothing drawing. 📐 Unreachable because the only
+> `PushModal` callers are `PickerToolHost` ×2 and **both push with no target**.
 | **③** | clicks during an edit must not select | ✅ **already true, and it is a MAP-INPUT rule** — `HandleInput` passes `exclusiveAnchorId` into the hit-test *(`GizmoMap…/DebugGizmoLayer.cs:213`)* and `:491` skips non-matching anchors ⇒ no `Started` ⇒ no selection change. ⛔ **It never governed panels and must not be extended to them** |
 
 ⭐⭐ **② and ③ do not conflict, and this is a tool fact worth keeping here:** while a tool is armed the MAP
@@ -1906,13 +1931,15 @@ right-click *should* select and the order matters again — ⛔ do not decide th
 
 ⭐ **The only dependency that is a TOOL fact**, measured above: **ruling ② needs §2.3's right-click-selects
 on the surface the menu opens from**, because a TARGETED arming deliberately does not select its target
-*(§4.7d)*. ✅ Satisfied on the map; 🔴 not in the entity inspector.
+*(§4.7d)*. ✅ Satisfied on the map; ⛔ ~~not in the entity inspector~~ ✅ **AND in the entity inspector since
+`UXI-11` `S-4`** *(`2026-09-20`)*, and on the map's right-click since `S-4b`. ⇒ **this dependency is
+DISCHARGED**, which is what unblocked `S-5`.
 #### 📐 What the tool side owes once the store is one
 
 | | |
 |---|---|
-| the cancel hook | a selection change cancels the modal tool armed on the previously-selected entity — ⭐ through `IToolController` (`Cancel` for a switch, or `NotifyToolEnded` per §4.7h), ⛔ **never by sweeping an arbiter directly** |
-| ⚠ **today nothing does it** | 📐 the ONLY production `ToolController.Cancel()` is IG's `MeasureToolGizmoAdapter.cs:124`; `SelectEntitySystem.cs:83` and `SelectionInteractionSystem` both write selection and touch no tool state |
+| ☑ **the cancel hook — BUILT `2026-09-20` (`S-5`)** | `IToolController.CancelArmedOn(Entity)`, called by `SelectionNotificationSystem` off the `SelectionChangedNotification` edge and wired for all five hosts in `MapInteractionPack`. ⛔ **never by sweeping an arbiter directly** — still true, and `CancelArmedOn` uses `CancelFocused` per entry rather than the sweep |
+| ⛔ **HISTORY — *"today nothing does it"*** | 📐 was true until `2026-09-20`. The ONLY production `ToolController.Cancel()` was IG's `MeasureToolGizmoAdapter.cs:124`; `SelectEntitySystem` and `SelectionInteractionSystem` both wrote selection and touched no tool state. ⭐ Now the notification system closes it, and the predicate reads the ONE store live rather than diffing |
 
 ### 4.15 🔴🔴🔴 THE INPUT NEVER REACHED THE TOOL — **a host that forgot the click latch** *(`CE-297`/`CE-298`, `2026-09-20`)*
 

@@ -195,6 +195,107 @@ public class SelectionInteractionSystemTests
     }
 
     /// <summary>
+    /// ⭐⭐⭐ <b><c>UXI-11</c> <c>S-5</c> — ruling ②, END TO END: selecting another entity cancels the edit
+    /// on the one that lost the selection.</b>
+    /// 🔒 <i>"if entity becomes unselected, it should cancel any editing on the entity losing the
+    /// selection"</i> (user, <c>2026-09-10</c>). 📄 §2.6 ② / §2.7.15.
+    ///
+    /// <para>⭐ This is the first real EDGE consumer of <c>SelectionChangedNotification</c> — the thing
+    /// §2.7.8 deviation ② said the notification existed for while the panels projected instead.</para>
+    ///
+    /// <para>⛔ <b>Red-proof:</b> stop passing the controller to <c>SelectionNotificationSystem</c> and the
+    /// gizmo stays armed on the deselected entity.</para>
+    /// </summary>
+    [Fact]
+    public void SelectingAnotherEntity_CancelsTheEditOnTheOneThatLostTheSelection()
+    {
+        var a = CreateSelectableEntity();
+        var b = CreateSelectableEntity();
+
+        var buffer     = new Fdp.Toolkit.Diagnostics.Gizmos.DebugPrimitiveBuffer();
+        var dataDriven = new Fdp.Toolkit.Diagnostics.Gizmos.Systems.DataDrivenGizmoSystem(
+            new Fdp.Toolkit.Diagnostics.Gizmos.GizmoRegistry(), buffer, interactionBus: _world.Bus);
+        var tools = new Hrot.ScenarioEditor.Tools.ToolController(() => null, () => dataDriven);
+        tools.Register(
+            new Hrot.ScenarioEditor.Tools.ToolDescriptor(
+                "edit", "Edit Shape",
+                Hrot.ScenarioEditor.Tools.ToolModality.Modal,
+                Hrot.ScenarioEditor.Tools.ToolArbiter.EntityScoped),
+            target =>
+            {
+                dataDriven.ActivateGizmo(target, new S5ProbeGizmo());
+                return Hrot.ScenarioEditor.Tools.ToolActivationOutcome.Armed;
+            });
+
+        var selection = new Hrot.ScenarioEditor.Selection.EcsSelectionState(_world);
+        var notify    = new SelectionNotificationSystem(
+            () => new Fdp.Presentation.Abstractions.InspectorState(), tools, selection);
+
+        // ① select A, then arm an edit ON A.
+        _world.Bus.PublishManaged(Fdp.Toolkit.Vis2D.Abstractions.SelectionChangeRequest
+            .ReplaceWith(a, "test.setup"));
+        ServeRequests();
+        Assert.True(tools.Activate("edit", a));
+        Assert.True(dataDriven.HasInjectedGizmo(a));        // ⛔ anti-vacuity: it really is armed
+
+        // ② now select B. A loses the selection.
+        _world.Bus.PublishManaged(Fdp.Toolkit.Vis2D.Abstractions.SelectionChangeRequest
+            .ReplaceWith(b, "test.reselect"));
+        ServeRequests();                                     // the one writer applies AND announces
+        _world.Bus.SwapBuffers();
+        notify.Execute(_world, 0f);
+
+        Assert.Null(tools.ActiveModal);                      // ⭐ the edit is over
+        Assert.False(dataDriven.HasInjectedGizmo(a));        // ⭐ and the gizmo is gone, not merely forgotten
+    }
+
+    /// <summary>
+    /// ⭐⭐ <b>The other half of ruling ②, and the one a sweep would break:</b> an entity that KEEPS the
+    /// selection keeps its edit. ⛔ If this ever reddens, something replaced the per-entity predicate with
+    /// a "selection changed ⇒ cancel everything" sweep, which §4.14 forbids by name.
+    /// </summary>
+    [Fact]
+    public void AnEntityThatKeepsTheSelection_KeepsItsEdit()
+    {
+        var a = CreateSelectableEntity();
+        var b = CreateSelectableEntity();
+
+        var buffer     = new Fdp.Toolkit.Diagnostics.Gizmos.DebugPrimitiveBuffer();
+        var dataDriven = new Fdp.Toolkit.Diagnostics.Gizmos.Systems.DataDrivenGizmoSystem(
+            new Fdp.Toolkit.Diagnostics.Gizmos.GizmoRegistry(), buffer, interactionBus: _world.Bus);
+        var tools = new Hrot.ScenarioEditor.Tools.ToolController(() => null, () => dataDriven);
+        tools.Register(
+            new Hrot.ScenarioEditor.Tools.ToolDescriptor(
+                "edit", "Edit Shape",
+                Hrot.ScenarioEditor.Tools.ToolModality.Modal,
+                Hrot.ScenarioEditor.Tools.ToolArbiter.EntityScoped),
+            target =>
+            {
+                dataDriven.ActivateGizmo(target, new S5ProbeGizmo());
+                return Hrot.ScenarioEditor.Tools.ToolActivationOutcome.Armed;
+            });
+
+        var selection = new Hrot.ScenarioEditor.Selection.EcsSelectionState(_world);
+        var notify    = new SelectionNotificationSystem(
+            () => new Fdp.Presentation.Abstractions.InspectorState(), tools, selection);
+
+        // A is armed, and the selection GROWS to {A, B} — A never loses it.
+        _world.Bus.PublishManaged(Fdp.Toolkit.Vis2D.Abstractions.SelectionChangeRequest
+            .ReplaceWith(a, "test.setup"));
+        ServeRequests();
+        tools.Activate("edit", a);
+
+        _world.Bus.PublishManaged(Fdp.Toolkit.Vis2D.Abstractions.SelectionChangeRequest
+            .ReplaceWith(new[] { a, b }, "test.grow"));
+        ServeRequests();
+        _world.Bus.SwapBuffers();
+        notify.Execute(_world, 0f);
+
+        Assert.NotNull(tools.ActiveModal);                   // ⭐ still editing A
+        Assert.True(dataDriven.HasInjectedGizmo(a));
+    }
+
+    /// <summary>
     /// ⭐⭐ A rubber band is ONE request carrying the set — not a clear plus N writes.
     /// ⚠ That is what makes the ring, the panels and the announcement all see the finished selection
     /// instead of N intermediate ones.
@@ -452,4 +553,25 @@ public class SelectionInteractionSystemTests
         Assert.True(_world.GetComponent<SelectionState>(a).IsSelected);
         Assert.True(_world.GetComponent<SelectionState>(b).IsSelected);
     }
+    /// <summary>⭐ A minimal modal gizmo for the <c>S-5</c> rails. ⚠ Local on purpose:
+    /// <c>ToolControllerTests.ProbeGizmo</c> is a private nested type and sharing it would mean widening
+    /// another suite's surface for this one's convenience.</summary>
+    private sealed class S5ProbeGizmo : Fdp.Toolkit.Diagnostics.Gizmos.IEntityStatefulGizmo
+    {
+        public bool RequiresExclusiveFocus => true;
+        public bool IsFocused { get; private set; }
+        public bool Disposed  { get; private set; }
+        public void SetFocus(bool f) { IsFocused = f; }
+        public void UpdateAndDraw(Fdp.ModuleHost.Abstractions.ISimulationView view, float dt,
+                                  Fdp.Toolkit.Diagnostics.Gizmos.IDebugDrawBuilder b) { }
+        public void OnInteractionStarted(GizmoPickToken t, Vector3 w) { }
+        public void OnDragUpdate(Vector3 pos) { }
+        public void OnCommit(Vector3 w) { }
+        public void OnMenuAction(int id) { }
+        public void OnMouseEvent(MapMouseButton b, bool p, Vector3 w) { }
+        public void OnKeyEvent(MapKeyboardKey k, bool p) { }
+        public void OnCancel() { }
+        public void Dispose() { Disposed = true; }
+    }
+
 }

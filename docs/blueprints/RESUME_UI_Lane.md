@@ -1,13 +1,18 @@
 <!--STATUS
 state: LIVE
 updated: 2026-09-20
-current-answer: ⭐⭐⭐ READ THE TOP OF THIS FILE — the "SESSION 2026-09-20 (h)" block (S-4b, the map's
-  right-click) is the live state; (g) is S-4 and (f) is S-3e.
+current-answer: ⭐⭐⭐ READ THE TOP OF THIS FILE — the "SESSION 2026-09-20 (i)" block (S-5) is the live
+  state; (h) is S-4b, (g) is S-4, (f) is S-3e.
   ☑ UXI-11 slices S-1, S-2, S-3, S-3b, S-3c, S-3d (Windows-VERIFIED), S-3e AND S-4 ARE BUILT: one
   store, one request, one writer, one announcement on every node — ONE PLACE (MapInteractionPack) that
   builds them all — and right-click SELECTS on both inspector panels, with the DER inspector wired to
   the host selection by NETWORK id.
-  NEXT IS S-5 — losing the selection cancels that entity's edit (rule 5).
+  ☑ S-5 IS BUILT TOO: losing the selection cancels that entity's edit (ruling ②).
+  NEXT IS S-6 — the remote-map dispatcher becomes a requester; echo suppression moves to egress.
+  ⛔⛔ S-5 CORRECTED ITS OWN OWNING DESIGN, red-proved: UX_Feature_Tool_Model.md §4.14 prescribed
+  NotifyToolEnded, which deliberately does NOT tear the gizmo down and would have left it armed and
+  drawing (the mirror of CE-259q). Cancel() is wrong the other way — it unwinds the whole stack. The
+  member ruling ② needs is NEW: IToolController.CancelArmedOn(Entity). §4.14 now carries the correction.
   ☑ S-4b CLOSED S-4's map gap: the vendored terminal now tags Started with its button, so §2.3 is met
   on EVERY surface — inside the selection nothing moves, outside it replaces, empty space clears.
   ⭐ NO NEW FIELD: the button rides in the interaction callback's existing actionId slot and in
@@ -28,7 +33,7 @@ current-answer: ⭐⭐⭐ READ THE TOP OF THIS FILE — the "SESSION 2026-09-20 
   nothing from it is in flight. Older STRANDS below it are older history still; do NOT act on any of
   them unless explicitly told to continue one.
 
-stale-below: ⛔ EVERYTHING below the "SESSION 2026-09-20 (h)" block is HISTORY, newest first —
+stale-below: ⛔ EVERYTHING below the "SESSION 2026-09-20 (i)" block is HISTORY, newest first —
   including the (d), (c), (b) and (a) blocks (S-3b, S-3, S-2, S-1) and the 2026-09-19/20 block, whose
   plans are now DONE. Do not quote any of it as current state.
 known-rot: none open in this file.
@@ -43,6 +48,42 @@ related-designs:
   Nothing was deleted.
 -->
 # ⭐⭐⭐ RESUME — **the UI / variable implementation lane**
+
+## ⭐⭐⭐ SESSION `2026-09-20` (i) — **`S-5`: LOSING THE SELECTION CANCELS THAT ENTITY'S EDIT**
+
+> 🔒 **User ruling ②, `2026-09-10`:** *"if entity becomes unselected, it should cancel any editing on the
+> entity losing the selection"*.
+
+☑ **Done.** 📄 As-built: [`UX_Feature_Selection.md` §2.7.15](../UX/UX_Feature_Selection.md).
+
+### ⛔⛔⛔ It corrected its own owning design, and the correction was RED-PROVED
+
+`UX_Feature_Tool_Model.md` §4.14 prescribed *"the tool armed on that entity ends via `NotifyToolEnded`"*.
+
+| candidate | measured | verdict |
+|---|---|---|
+| `NotifyToolEnded` | **deliberately does not tear the gizmo down** — *"the gizmo ENDED ITSELF, so there is nothing of ours left to tear down"* | ⛔ would leave it **armed and drawing** — the mirror of `CE-259q` |
+| `Cancel()` | unwinds the **whole** stack | ⛔ kills a tool on a different, still-selected entity |
+| ⭐ **`CancelArmedOn(Entity)`** *(new)* | pops every entry on that entity **with** its `CancelFocused` teardown, resuming what each suspended | ✅ |
+
+⭐ **Implementing it as §4.14 said reddens two rails** — that is how the design error was established
+rather than argued. §4.14 now carries the correction and the proof *(obligation ⑤)*.
+
+### ⭐ The shape
+
+**EDGE** = `SelectionChangedNotification` *(its first real edge consumer — what §2.7.8 said it was for)*.
+**PREDICATE** = `ISelectionState.IsSelected`, read **live** off the one store — ②'s own wording is a
+per-entity question, ⛔ never a diff of two sets *(which would need a latch, `R-126`)*.
+**HOME** = `SelectionNotificationSystem`, which already is *"what a selection change causes"* — ⛔ not a
+parallel system *(ruling 9)*. **WIRING** = one constructor argument in `MapInteractionPack`, which builds
+**both** the controller and the selection ⇒ all five hosts, one place.
+
+⚠ `Entity.Null` is exempt by construction — a target-less tool is not editing an entity.
+
+### 🔴 One defect found while wiring it
+
+`SelectionNotificationSystem` opened with `if (inspector == null) return;` ⇒ a host with no inspector
+context would have skipped the cancel **silently**. The early return is gone.
 
 ## ⭐⭐⭐ SESSION `2026-09-20` (h) — **`S-4b`: THE MAP'S RIGHT-CLICK. §2.3 IS MET EVERYWHERE**
 
