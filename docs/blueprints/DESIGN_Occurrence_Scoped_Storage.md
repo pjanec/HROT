@@ -2247,3 +2247,131 @@ not at fault; the ORCHESTRATOR's argument is.
 ⚠ **Stated plainly because it nearly reached a document:** the *"maybe it is latent like §3.2"*
 reading was **wrong**, and it was wrong because of tooling, not analysis. 📌 §3.2's correction was real;
 this is not another one.
+
+## 19. ⭐⭐⭐ `O4` / `C1` — **THE BUILD DESIGN** *(authored `2026-09-20`, `behaviors` lane)*
+
+> ⭐ **build-state: READY-TO-BUILD**, pending the user's nod on §19.3's four decisions.
+> ⛔ §3.1 and §18 carry the *why*; this section is the *what*.
+
+### 19.1 ⛔ INVENTORY — **and the headline is that `O4` NEEDS NO NEW MACHINERY**
+
+| query | result |
+|---|---|
+| `search_graph(name_pattern=".*StatefulSlot.*", label="Class")` | **4**, `has_more:false` — `StatefulSlotInfo`, `StatefulSlotManifestBuilder`, 2 test classes |
+| `search_graph(name_pattern=".*(Occurrence\|StatefulSlot).*", label="Enum")` | **4**, `has_more:false` — `OccurrenceKind`, `OccurrenceSlotScope`, `StatefulSlotRole`, `StatefulSlotScope` |
+| `grep` the orchestrator's emission | `BTreeOrchestratorEmitCore:142` · `:171` — two sites, both `ref state` |
+
+| ⭐⭐⭐ what ALREADY EXISTS, measured — each one was a thing `O4` might have had to build | |
+|---|---|
+| ⭐⭐ **a chain-capable slot key** | `OccurrenceSlotKey.ComputeNested(hostKey, siteId, assetId, scope, nodeVisualId, variableId)` — **`A1` built it**, and its root case is the identity. ⇒ 🔒 **§3.1's `F5` objection *("the existing key cannot express this")* is already PAID.** `O4` computes a key; it does not design one |
+| ⭐⭐ **a declared kind** | `OccurrenceKind.BTree = 2`, whose own doc-comment already reads *"stateful node working state, and (from `O4`) tree state + params"* ⇒ the nibble needs no new member |
+| ⭐⭐ **the store, and a seam to reach it** | `OccurrenceStoreAccess.TryGetStore(repo, entity, out _)`; `BTreeContext` carries **`Self`** and **`World`**, so the emitted orchestrator can resolve bytes from what it is already handed |
+| ⭐ **provisioning** | `BehaviorIngressSystem` already walks a manifest and attaches every slot, declaring each one's `Kind` (`A4`) |
+| ⭐ **a role** | `StatefulSlotRole.State = 1` |
+
+⇒ ⭐⭐⭐ **`O4` is: emit one more manifest entry per hosting site, and change one argument at two emit
+sites.** ⛔ That is the whole shape — which is exactly what §6 predicted when it said `O4` proves the
+model with **zero** ExtDeps change.
+
+### 19.2 ⭐ The model — `classDiagram`
+
+```mermaid
+classDiagram
+    class BTreeOrchestratorEmitCore {
+        <<EXISTS - 2 lines change>>
+        +Emit(dto, groups) string
+    }
+    class OccurrenceSlotKey {
+        <<EXISTS - A1 built it>>
+        +Compute(assetId, scope, nodeVisualId, variableId)$ int
+        +ComputeNested(hostKey, siteId, assetId, scope, nodeVisualId, variableId)$ int
+    }
+    class HostedTreeStateSlot {
+        <<NEW - a NAME and a rule, not a type>>
+        +ReservedVariableId$ string
+        +KeyFor(hostKey, siteId, childAssetId)$ int
+    }
+    class StatefulSlotManifestBuilder {
+        <<EXISTS - one more entry>>
+        +Add(slotKey, payloadSize, role, scope)
+    }
+    class OccurrenceStoreAccess {
+        <<EXISTS - unchanged>>
+        +TryGetStore(repo, entity) byte*
+    }
+    class BlueprintBlackboardPartitions {
+        <<EXISTS - unchanged>>
+        +TryGetSlotOffset(mem, key, out offset) bool
+    }
+    class BehaviorTreeState {
+        <<ExtDeps - UNTOUCHED>>
+        +RunningNodeIndex
+        +StackPointer
+        +NodeIndexStack
+    }
+    class BehaviorIngressSystem {
+        <<EXISTS - unchanged>>
+    }
+
+    BTreeOrchestratorEmitCore ..> HostedTreeStateSlot : bakes the key as a CONST
+    HostedTreeStateSlot ..> OccurrenceSlotKey : one ComputeNested call
+    BTreeOrchestratorEmitCore ..> OccurrenceStoreAccess : emitted lookup
+    OccurrenceStoreAccess ..> BlueprintBlackboardPartitions : slot offset
+    BlueprintBlackboardPartitions ..> BehaviorTreeState : the slot's 64 bytes
+    BehaviorIngressSystem ..> StatefulSlotManifestBuilder : provisions it
+    StatefulSlotManifestBuilder ..> HostedTreeStateSlot : one entry per hosting SITE
+```
+
+**What the picture shows that the prose hid:** every box but one says **EXISTS**, and the one new box
+is **a name and a rule, not a type**. ⛔ `BehaviorTreeState` is ExtDeps and is *untouched* — the slot
+holds the existing 64-byte struct, it does not redefine it.
+
+### 19.3 ⭐⭐ Sequence, and the four decisions — `sequenceDiagram`
+
+```mermaid
+sequenceDiagram
+    participant HO as Host interpreter
+    participant OR as Orchestrate_Child_Tick
+    participant SA as OccurrenceStoreAccess
+    participant PA as Partitions
+    participant CH as Child interpreter
+
+    HO->>OR: action tick with ref master, ref state, ref ctx
+    OR->>SA: TryGetStore with ctx.World and ctx.Self
+    SA-->>OR: store pointer
+    OR->>PA: TryGetSlotOffset with the BAKED key
+    PA-->>OR: payload offset
+    Note over OR,PA: D3 - the key is a COMPILE-TIME const.<br/>Nesting is static, so no chain walk at runtime.
+    OR->>CH: Tick with ref childState from the SLOT
+    Note over OR,CH: D1 - this is the ONE argument that changes.<br/>Today it is ref state, the master's own.
+    CH-->>OR: status
+    alt status is not Running
+        OR->>PA: clear the slot's BehaviorTreeState
+        Note over OR,PA: D4 - re-entry reset, F14.<br/>Own state removes the continuity ref state gave.
+    end
+    OR-->>HO: status
+```
+
+| # | decision | ⭐ **my lean** | blast radius |
+|---|---|---|---|
+| **D1** | where the child's state comes from | ⭐⭐⭐ **a slot in the entity's occurrence store**, resolved through the seam from `ctx` | 2 emit sites. ⛔ The single line §18 proves is the defect |
+| **D2** | what names it | ⭐⭐ a **reserved `variableId`** at `Behavior` scope, role `State`, kind `BTree` — ⛔ no new enum member anywhere | the manifest gains 1 entry per hosting site |
+| **D3** | how the orchestrator knows its key | ⭐⭐⭐ **baked as a `const` at emit time.** 🔒 Hosting is STATIC — the chain is fully known to the emitter ⇒ **no runtime walk, no host-key plumbing, no new parameter** | none at runtime |
+| **D4** | re-entry reset (`F14`) | ⭐ **clear the slot when the child returns non-`Running`** — the host has left the hosting node by definition | rail ② |
+
+### 19.4 ⚠ WHAT THIS COSTS THAT §17's SIZING DID NOT COUNT
+
+⛔⛔ **Each hosting SITE adds a 64-byte `BehaviorTreeState` slot** *(`AlignUp(64,8) + 16` = **80 B** and
+one slot)*. ⇒ 🔴 **this is the `O4` term `B4`'s `MaxSlots 3` measurement was explicitly bounded but not
+measured against** (§17, *"`B4`'s PRE-MEASUREMENT"*, and `W4`'s *"re-measure after `O4`"*).
+⭐ **Re-measure is part of `O4`, not a follow-up** — and the corpus figure to beat is `PlatoonHillAttack2`
+at 8 slots / 320 B.
+
+### 19.5 ⭐ Acceptance
+
+| | |
+|---|---|
+| **rail ①** | ✅ **written and RED** — `HostedSubtreeCursorTests.O4_R1` (§18). ⇒ **green is the gate** |
+| **rail ②** | ⛔ **not written.** Re-entry reset: host leaves the hosting node, re-enters, child starts fresh |
+| **golden** | `hill-attack-close` green before and after |
+| **sizing** | §19.4's re-measure, folded back into §17 |
