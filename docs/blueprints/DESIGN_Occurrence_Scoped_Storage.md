@@ -2341,7 +2341,7 @@ sequenceDiagram
     SA-->>OR: store pointer
     OR->>PA: TryGetSlotOffset with the BAKED key
     PA-->>OR: payload offset
-    Note over OR,PA: D3 - the key is a COMPILE-TIME const.<br/>Nesting is static, so no chain walk at runtime.
+    Note over OR,PA: D3 - the key is SUPPLIED BY THE HOSTING SITE<br/>baked as a const on the JSON path<br/>passed by hand on the code-built path
     OR->>CH: Tick with ref childState from the SLOT
     Note over OR,CH: D1 - this is the ONE argument that changes.<br/>Today it is ref state, the master's own.
     CH-->>OR: status
@@ -2356,7 +2356,7 @@ sequenceDiagram
 |---|---|---|---|
 | **D1** | where the child's state comes from | ⭐⭐⭐ **a slot in the entity's occurrence store**, resolved through the seam from `ctx` | 2 emit sites. ⛔ The single line §18 proves is the defect |
 | **D2** | what names it | ⭐⭐ a **reserved `variableId`** at `Behavior` scope, role `State`, kind `BTree` — ⛔ no new enum member anywhere | the manifest gains 1 entry per hosting site |
-| **D3** | how the orchestrator knows its key | ⭐⭐⭐ **baked as a `const` at emit time.** 🔒 Hosting is STATIC — the chain is fully known to the emitter ⇒ **no runtime walk, no host-key plumbing, no new parameter** | none at runtime |
+| **D3** | how the orchestrator knows its key | ⭐⭐⭐ **RE-LEANED `2026-09-20` — the key is RUNTIME-COMPUTABLE and SUPPLIED BY THE HOSTING SITE**; the const-bake is demoted to an emitter optimisation on the JSON path. ⛔ **Prior lean — *"baked as a `const`; hosting is static so the chain is fully known to the emitter"* — is SUPERSEDED**: it is true only of hosting the GENERATOR CAN SEE. §19.6 has the measurement | ⭐ still **no** new `NodeLogicDelegate` parameter, **no** `BTreeContext` field, **no** kernel change ⇒ `O4` keeps zero-ExtDeps |
 | **D4** | re-entry reset (`F14`) | ⭐ **clear the slot when the child returns non-`Running`** — the host has left the hosting node by definition | rail ② |
 
 ### 19.4 ⚠ WHAT THIS COSTS THAT §17's SIZING DID NOT COUNT
@@ -2375,3 +2375,84 @@ at 8 slots / 320 B.
 | **rail ②** | ⛔ **not written.** Re-entry reset: host leaves the hosting node, re-enters, child starts fresh |
 | **golden** | `hill-attack-close` green before and after |
 | **sizing** | §19.4's re-measure, folded back into §17 |
+| ⭐ **a debug assertion** | §19.6 ⑤ — a hosting site that supplies the WRONG key gets a silent slot miss, the exact failure `A1` exists to kill ⇒ `O4` ships an assertion, not an implicit contract |
+
+### 19.6 🔴🔴 WHAT `D3`'s FIRST LEAN GOT WRONG — **"hosting is static" is true only of hosting the GENERATOR CAN SEE** *(user question, `2026-09-20`)*
+
+> ⭐⭐⭐ **The two questions that produced this**, and neither had been asked: *"is it that we know the
+> whole possible chains like HSM → BTree → sub-BTree → Blueprint action? how do we know it, by
+> analyzing the json assets?"* — then, decisively: 🔒 ***"and how we would know if the relations are
+> hardcoded in manually written code which is still a required possibility?"***
+
+#### ① ⭐ What IS static, and the mechanism — *(which the first lean asserted without citing)*
+
+| | |
+|---|---|
+| **the link** | a host asset's JSON carries `BlackboardAliasBindingDto`: **`RequiringAssetId`** (child asset GUID) + **`RequiringElementId`** (the node/state inside it) — `BlackboardAliasBindingDto.cs:33-36`. ⛔ Nothing picks a child at runtime on this path |
+| ⭐⭐ **the whole corpus IS in hand** | `BTreeJsonGenerator` emits **per asset**, but every run also receives `rawFiles.Collect()` — *every* `*.btree.json` — and `bpJsonCollected` — *every* `*.bp.json` *(`:61`, `:69`)*. ⇒ **a global host graph is computable at build time.** 📌 That is why `GeneratedBTreeSchemaCatalog` exists — its own comment says *"the SIBLING TREES, for subtree-sync identity"* |
+
+#### ② 🔴 THE FIRST STING — **a child's own slots are baked ROOT-FORM, and the child does not know its host**
+
+📐 Measured in the generated registrars: slot keys are **integer literals** — `577338280`, `740138773` —
+from `Compute(assetId, scope, visualId, name)`, **with no host term**. ⇒ a child asset is compiled
+without knowing who hosts it, and **one asset can carry MORE THAN ONE occurrence key** *(hosted at two
+sites; or root on one entity and hosted on another)* ⇒ ⛔ **one baked literal per asset is wrong.**
+⭐ The *tree-state* slot escapes this — it is emitted in the **HOST's** file, where the site is known.
+⚠ Making the child's **own** slots occurrence-scoped needs the global graph and is **not** in `O4`.
+
+#### ③ 🔴🔴 THE DECISIVE STING — **HAND-WRITTEN HOSTS ARE INVISIBLE TO THE GENERATOR**
+
+⛔⛔ The generator filters `AdditionalTexts` to `*.btree.json` / `*.bp.json` *(`:32`, `:52`)*. **A host
+written in C# is not an AdditionalText and cannot be seen at all.** ⇒ 🔒 **no amount of build-time
+analysis answers *"who hosts whom"* for code-built trees**, and the user is right that this is a
+required possibility, not a corner case.
+
+📐 **And it is PRODUCTION, not hypothetical** — 4 hand-written trees under `Hrot.AI.Behaviors/Brains/`:
+`HideInCoverBehavior` · `HillAttackCommanderNodes` · `HillAttackTankNodes` · `CgfNodes`. ⭐⭐ §15 already
+measured that **the golden test exercises the HAND-WRITTEN node path**, so this is the path that
+actually runs.
+
+#### ④ ⭐⭐⭐ THE WAY OUT — **the code-built path never needed build-time knowledge**
+
+📐 It already computes keys **at runtime**: `StatefulBTreeActionBinder.ComputeStatefulSlotKey(
+manifest.AssetId, scope, keyVisualId, variableId)` *(`:190`)*, with the author supplying the asset id
+by hand — `HillAttackCommanderNodes.cs:562` constructs `new StatefulSlotManifestBuilder(new
+Guid("1a000000-…-dd"))`.
+
+⇒ ⭐⭐ **THE RE-LEAN: one runtime-computable identity serves BOTH paths, supplied by the HOSTING SITE.**
+
+| path | who supplies `(hostKey, siteId)` |
+|---|---|
+| **JSON** | the emitter bakes the literal — exactly as it already bakes `577338280` for ordinary slots. ⭐ An optimisation, **not** the contract |
+| **hand-written** | the author passes it, the same way they already pass the asset id |
+
+| ⭐ why this keeps `O4` a valid stop-or-go gate | |
+|---|---|
+| ⛔ **no new `NodeLogicDelegate` parameter** — the signature is fixed, and a hand-written host hard-codes its key exactly as it already hard-codes its asset id | ⛔ **no `BTreeContext` field** · ⛔ **no kernel change** ⇒ **zero ExtDeps**, §4.1 intact |
+| ⛔ **REJECTED — thread the host key through `BTreeContext`** | that IS runtime occurrence stamping, which §6 **deliberately defers to `O6`** as *"the one ExtDeps crossing, paid once, after `O4` has proved the storage model"*. ⭐ Doing it here destroys the very property that makes `O4` the gate |
+| ⛔ **REJECTED — bake only, JSON only** | silently wrong the first time someone hand-writes a host, and **nothing would catch it** |
+
+#### ⑤ ⚠ THE COST THIS CREATES, STATED RATHER THAN DISCOVERED LATER
+
+⛔ It makes the **hosting site responsible for its own identity** ⇒ a site that supplies the WRONG key
+gets a **silent slot miss** — 🔒 *"a compile-time key and a runtime key that disagree by one byte do not
+fail loudly: the slot is simply never found"*, which is `OccurrenceSlotKey`'s own header and the exact
+failure `A1` exists to kill. ⇒ ⭐ **`O4` ships a debug assertion on slot resolution**, not an implicit
+contract *(acceptance §19.5)*.
+
+#### ⑥ ⛔⛔ AND A REACHABILITY CORRECTION TO §3.1 — **the EMITTER ships the defect; no ASSET triggers it**
+
+📐 Measured across the repo: **0** `.Orchestrators.g.cs` generated from **30** registrars, **0** JSON
+files carrying `RequiringAssetId`, and **0** hand-written brains ticking a child interpreter
+*(`GetInterpreter()` / `new Interpreter<` under `Brains/` — no hits)*. ⭐ The hosting actually in use is
+`AiPrimitive`: **33 `BTreeAction` + 8 `BTreeCondition`**.
+
+⇒ ⚠⚠ **§3.1's *"this is in shipped code today"* means the EMITTER ships it, not that an asset reaches
+it.** ⛔ Rail ① (§18) proves the **mechanism** and stands; the **reachability** claim does not.
+🔒 **This is the same latent-vs-shipped distinction §3.2 already had to make once** — and it was made
+there by a live run, here by a corpus census. ⭐ Neither weakens `O4`: the tree-state slot is what `O8`
+needs regardless, and §3.1 says so.
+
+⚠ **Stated plainly: I asserted *"the chain is fully known to the emitter"* without measuring HOW, and
+the how is what breaks it.** 📌 The generating question — *"what would have to be true for this to be
+wrong?"* — had an answer one grep deep: **a host the generator cannot see.**
