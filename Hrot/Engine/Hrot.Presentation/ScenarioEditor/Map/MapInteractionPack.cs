@@ -207,8 +207,22 @@ namespace Hrot.ScenarioEditor.Map
             //   and enforced structurally: MapInteractionContext carries no kernel.
             var selection = new Hrot.ScenarioEditor.Selection.EcsSelectionState(ctx.World);
 
+            // ⭐⭐⭐ THE MARQUEE, BUILT AND DRAWN HERE SO ALL FIVE HOSTS HAVE ONE.
+            // 🔒 User ruling, 2026-09-20: "any perspective showing 2d map should support marquee and
+            //    rubberband, not just editor and cgf."
+            // 🔴 MEASURED, and the shape is sharper than "it is missing": the box-select LOGIC already
+            //    ran everywhere — SelectionInteractionSystem tracks _isBoxSelecting and commits the box
+            //    on all five hosts. What only the editor and ReplayBrowser had was the STATE OBJECT and
+            //    the GIZMO THAT DRAWS IT. ⇒ on IG, SimHost and CGF the drag worked and was invisible.
+            // ⭐ Same cure as S-3c: the thing every host needs is constructed in the one place that
+            //    builds the map, not in five composition roots three of which forgot.
+            // ⚠ ctx.RubberBand is still honoured — a host that needs the handle before Build() returns
+            //   passes its own and the pack adopts it rather than making a second one.
+            var rubberBand = ctx.RubberBand ?? new Hrot.ScenarioEditor.Gizmos.RubberBandState();
+            statelessRegistry.RegisterGlobal(new Hrot.ScenarioEditor.Gizmos.RubberBandGizmo(rubberBand));
+
             var selectionInteraction = new Hrot.ScenarioEditor.Systems.SelectionInteractionSystem(
-                ctx.World, bus, ctx.RubberBand, selection);
+                ctx.World, bus, rubberBand, selection);
             if (ctx.OnMapSelectionChanged != null)
                 selectionInteraction.OnSelectionChanged += ctx.OnMapSelectionChanged;
 
@@ -229,7 +243,8 @@ namespace Hrot.ScenarioEditor.Map
             return new MapInteraction(
                 buffer, bus, gizmoRegistry, statelessRegistry, settings,
                 globalManager, dataDriven, stateless, group, gate, selfCheck, tools,
-                selection, selectionInteraction, selectionRequests, selectionNotifications);
+                selection, selectionInteraction, selectionRequests, selectionNotifications,
+                rubberBand);
         }
     }
 }

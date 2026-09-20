@@ -219,6 +219,66 @@ public sealed class NoProductionHostKeepsAParallelSelectionStoreTests
     }
 
     /// <summary>
+    /// ⭐⭐⭐ <b>THE MARQUEE BELONGS TO EVERY HOST WITH A 2-D MAP — and to exactly one place.</b>
+    /// 🔒 User ruling, <c>2026-09-20</c>: <i>"any perspective showing 2d map should support marquee and
+    /// rubberband, not just editor and cgf."</i> 📄 <c>UX_Feature_Selection.md</c> §2.7.16.
+    ///
+    /// <para>🔴 <b>What it pins, measured before the fix:</b> the box-select LOGIC ran on all five hosts
+    /// — <c>SelectionInteractionSystem</c> tracks the box and commits it — but only <c>EditorSubsystem</c>
+    /// and <c>ReplayBrowserSubsystem</c> ever registered a <c>RubberBandGizmo</c>. ⇒ on IG, SimHost and
+    /// CGF the operator dragged a box that WORKED and was INVISIBLE. ⛔ That is the worst shape of gap:
+    /// not a missing feature, a feature with no feedback.</para>
+    ///
+    /// <para>⚠ <b>Why "exactly one" and not "at least one":</b> moving it into the pack without removing
+    /// the two host registrations would draw the marquee TWICE on the hosts that already had it — and a
+    /// doubled overlay is the kind of defect that looks like a rendering artefact rather than a wiring
+    /// one. ⛔ Red-proof: restore either host's <c>RegisterGlobal(new RubberBandGizmo(</c> and this
+    /// reddens.</para>
+    /// </summary>
+    [Fact]
+    public void OnlyTheSharedPackRegistersTheMarquee()
+    {
+        var root      = RepoRoot();
+        var offenders = new List<string>();
+        var packHits  = 0;
+
+        foreach (var tree in ProductionTrees)
+        {
+            var treeDir = Path.Combine(root, tree);
+            if (!Directory.Exists(treeDir)) continue;
+
+            foreach (var file in Directory.EnumerateFiles(treeDir, "*.cs", SearchOption.AllDirectories))
+            {
+                if (!IsProductionFile(file)) continue;
+                var name  = Path.GetFileName(file);
+                var lines = File.ReadAllLines(file);
+
+                for (int i = 0; i < lines.Length; i++)
+                {
+                    var l = lines[i].TrimStart();
+                    if (l.StartsWith("//", StringComparison.Ordinal)) continue;
+                    if (!l.Contains("new Hrot.ScenarioEditor.Gizmos.RubberBandGizmo(") &&
+                        !l.Contains("new RubberBandGizmo(")) continue;
+
+                    if (name == "MapInteractionPack.cs") { packHits++; continue; }
+                    offenders.Add($"{Path.GetRelativePath(root, file)}:{i + 1}");
+                }
+            }
+        }
+
+        // ⚠ Anti-vacuity: if the pack stopped registering it, every host loses the marquee silently —
+        //   which is exactly the state this rail exists to prevent returning to.
+        Assert.True(packHits == 1,
+            $"MapInteractionPack must register the marquee exactly once; found {packHits}");
+
+        Assert.True(
+            offenders.Count == 0,
+            "A host registers its own RubberBandGizmo. The pack registers it for every host now, so " +
+            "this one draws the marquee TWICE (UX_Feature_Selection.md §2.7.16). Sites:" +
+            Environment.NewLine + string.Join(Environment.NewLine, offenders));
+    }
+
+    /// <summary>
     /// ⚠ <b>The negative control.</b> ⛔ A scan that finds nothing because it is looking in the wrong
     /// place passes exactly like a scan that finds nothing because the tree is clean. 📌 This is the
     /// <c>T-1</c> lesson — <em>"if it stays GREEN while the feature is BROKEN, THAT is the finding"</em>

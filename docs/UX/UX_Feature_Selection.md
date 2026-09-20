@@ -43,6 +43,12 @@ build-state: BUILDING (§2.7 is the consolidated TARGET STATE with class + seque
   and drawing — the mirror of CE-259q. Cancel() is wrong the other way (it unwinds the whole stack and
   would kill a tool on a still-selected entity). The member ② needs is NEW: IToolController
   .CancelArmedOn(Entity). Red-proved, and folded back into §4.14 with the proof.
+  ☑ THE MARQUEE, 2026-09-20 — user ruling: "any perspective showing 2d map should support marquee and
+  rubberband, not just editor and cgf." MEASURED: the box-select LOGIC ran on all five hosts; only the
+  editor and ReplayBrowser (NOT cgf) ever constructed a RubberBandState or registered a RubberBandGizmo,
+  so on IG, SimHost and CGF the drag WORKED and was INVISIBLE. MapInteractionPack now builds and
+  registers it for every host, and the two host registrations are deleted so it is not drawn twice.
+  As-built in §2.7.16.
   S-6 remains DESIGN.)
 verified: 2026-09-10 (measured source scan, graph + grep, coverage checked)
   ⭐ S-1's own inventory re-measured 2026-09-20 on the graph — §2.7.6.
@@ -1559,6 +1565,52 @@ write is now conditional instead.
 | `SelectingAnotherEntity_CancelsTheEditOnTheOneThatLostTheSelection` *(new)* | ②, end to end: request → the one writer → the announcement → the cancel → **the gizmo is gone** |
 | `AnEntityThatKeepsTheSelection_KeepsItsEdit` *(new)* | ⛔ the anti-sweep rail: if this reddens, someone replaced the per-entity predicate with *"selection changed ⇒ cancel everything"*, which §4.14 forbids by name |
 | ⭐ **red-proofs, two** | ① the pack not passing the controller ⇒ the end-to-end rail reddens; ② implementing it **as §4.14 prescribed**, via `NotifyToolEnded` ⇒ **2 rails redden** — which is how the design error above was established rather than argued |
+
+#### 2.7.16 ☑ **THE MARQUEE BELONGS TO EVERY 2-D MAP** *(user ruling, `2026-09-20`)*
+
+> 🔒 **User:** *"Any perspective showing 2d map should support marquee and rubberband, not just editor
+> and cgf."*
+
+##### 🔴 The gap, measured — **and it is sharper than "it is missing"**
+
+📐 **The box-select LOGIC already ran on all five hosts.** `SelectionInteractionSystem` tracks
+`_isBoxSelecting`, follows the drag and commits the box, and every host schedules it *(IG
+`IgApplication.cs:870`, CGF `CgfSubsystem.cs:1384`, ReplayBrowser `:235`, SimHost
+`SimHostVisualization.cs`, editor `EditorSubsystem.cs:2074`)*.
+
+🔴 **What only TWO hosts had was the STATE OBJECT and the GIZMO THAT DRAWS IT** — `RubberBandState` +
+`RubberBandGizmo`, constructed in `EditorSubsystem.cs:1892`/`:2070` and
+`ReplayBrowserSubsystem.cs:188`/`:210`. ⛔ **Nowhere in IG, SimHost or CGF.**
+
+⇒ ⭐⭐ **on those three the operator dragged a box that WORKED and was INVISIBLE.** ⚠ That is the worst
+shape a gap can take: not a missing feature, a feature with **no feedback** — indistinguishable from
+"nothing happened", which is exactly how it was reported.
+
+⚠ **A correction to what was said in chat, in both directions:** the pair was **editor and
+ReplayBrowser**, ⛔ **not editor and CGF** — CGF lacked the marquee too. ⛔ **Searched `docs/` and
+`.dev/`: no design record says any host should lack it.** It is three composition roots that were never
+given it, which is precisely the disease `MapInteractionPack` exists to cure.
+
+##### ⭐ The fix — **the `S-3c` pattern, third time**
+
+`MapInteractionPack.Build` now constructs the `RubberBandState` and registers the `RubberBandGizmo`
+itself, and `MapInteraction` exposes the state. ⇒ **every host with a 2-D map has the marquee by
+construction**, and a new host cannot forget it.
+
+⚠ **`ctx.RubberBand` is still honoured**: a host that needs the handle before `Build()` returns passes
+its own and the pack **adopts that instance** rather than making a second one. ⛔ The editor does
+exactly that, so its state is created once and shared, not duplicated.
+
+⛔ **The two host registrations are DELETED, and that deletion is load-bearing:** leaving them would
+draw the marquee **twice** on the hosts that already had it — a doubled overlay reads as a rendering
+artefact, not a wiring bug, and would have been hunted in the wrong place.
+
+##### ⭐ Rails
+
+| | |
+|---|---|
+| `OnlyTheSharedPackRegistersTheMarquee` *(new)* | `new RubberBandGizmo(` appears in production **exactly once**, in the pack. ⭐ **Red-proved:** restoring the editor's own registration reddens it |
+| ⚠ anti-vacuity | the rail asserts `packHits == 1`, so **the pack dropping it** fails too — the state this rail exists to prevent returning to |
 
 ## 3. Acceptance
 

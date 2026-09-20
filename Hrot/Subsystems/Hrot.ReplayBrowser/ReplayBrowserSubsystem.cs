@@ -207,7 +207,9 @@ public sealed class ReplayBrowserSubsystem : ISubsystem, IWindowRegistrar,
                         regs.Stateless.Register(
                             new Hrot.ScenarioEditor.Gizmos.EntityEditorLabelGizmo(behaviorRegistry),
                             new[] { typeof(Fdp.Core.SimTransform), typeof(Fdp.Toolkit.Replication.Components.NetworkIdentity) });
-                        regs.Stateless.RegisterGlobal(new Hrot.ScenarioEditor.Gizmos.RubberBandGizmo(rubberBandState));
+                        // ⛔ The RubberBandGizmo registration MOVED into MapInteractionPack (2026-09-20,
+                        //    §2.7.16): every host with a 2-D map gets the marquee, not just the two that
+                        //    remembered to register it. Registering here too would draw it TWICE.
                         regs.Stateless.RegisterGlobal(new ReplaySpatialBoundsGizmo(() => _searchPanel?.ActiveSpatialBounds));
                     },
                 });

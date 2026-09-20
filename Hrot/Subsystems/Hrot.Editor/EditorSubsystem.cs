@@ -2067,7 +2067,10 @@ namespace Hrot.Editor
             });
 
             var contextIngress = new ContextActionIngressSystem(entityMap, interactionBus);
-            editorStatelessGizmoRegistry.RegisterGlobal(new Hrot.ScenarioEditor.Gizmos.RubberBandGizmo(_rubberBandState!));
+            // ⛔ The RubberBandGizmo registration MOVED into MapInteractionPack (2026-09-20, §2.7.16) —
+            //    the marquee belongs to every host with a 2-D map. The editor still creates the STATE
+            //    early (see the MapInteractionContext above) because it needs the handle; the pack
+            //    adopts that instance rather than making a second one.
             // ⭐⭐⭐ UXI-11 — the PACK's gesture system. 📐 The state itself is created before the pack
             //    is built (see the MapInteractionContext above), because the pack hands it to the
             //    system it constructs.

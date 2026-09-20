@@ -49,6 +49,32 @@ related-designs:
 -->
 # ⭐⭐⭐ RESUME — **the UI / variable implementation lane**
 
+## 🔴 OPEN — **OPERATOR REPORT `2026-09-20`: "mouse clicking does not select"**
+
+> 🔒 **User, after the `S-4`/`S-4b` Windows pass:** *"Mouse clicking does not select, marquee rubber band
+> not shown."* · then, to my question: *"Right click open context menu if free space clicked."*
+
+⚠⚠ **HALF OF THIS IS ANSWERED, HALF IS NOT — do not close it.**
+
+| symptom | status |
+|---|---|
+| **marquee not shown** | ✅ **EXPLAINED AND FIXED** — §2.7.16. The box-select logic ran on all five hosts; only the editor and ReplayBrowser ever registered a `RubberBandGizmo`, so on IG, SimHost and CGF the drag worked and was invisible. ⛔ **Not a regression from `S-4b`** |
+| 🔴 **clicking does not select** | ⛔ **UNEXPLAINED.** The host was never established |
+
+⭐ **What is RULED OUT, measured:** input reaches the frame *(the context menu opens)*, so this is not
+§4.15's click-latch disease · the vendored left-press block is byte-identical to before `S-4b` · the
+system's left branch is unchanged *(`isRight` is false for a left press)* · `ClearAll` is safe *(its
+branch returns before the `Entities` read)* · `GizmoMap.Presentation.Tests` and the `SC_GZ025_*`
+publication rails stayed green.
+
+⭐ **The open question, and the cheapest instrument:** **which host** — editor, Stride editor window, IG
+or SimHost — and **does left-click select there on the commit BEFORE `c1f5487c0`?** ⛔ Until that is
+known, attributing this to `S-4b` or `S-5` is a guess. ⚠ A suspect worth checking first:
+`SimHostVisualization.cs:359` still has a `?? new SelectionInteractionSystem(...)` fallback — a host
+reaching it would get an instance with **no selection view and no rubber band**, i.e. clicks that go
+nowhere. `SimHostApp.cs:598` passes the pack's instance, so the fallback is unreachable **on that
+path**; no other caller was enumerated.
+
 ## ⭐⭐⭐ SESSION `2026-09-20` (i) — **`S-5`: LOSING THE SELECTION CANCELS THAT ENTITY'S EDIT**
 
 > 🔒 **User ruling ②, `2026-09-10`:** *"if entity becomes unselected, it should cancel any editing on the

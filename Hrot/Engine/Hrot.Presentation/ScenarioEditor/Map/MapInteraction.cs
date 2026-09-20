@@ -40,8 +40,10 @@ namespace Hrot.ScenarioEditor.Map
             Hrot.ScenarioEditor.Selection.EcsSelectionState selection,
             Hrot.ScenarioEditor.Systems.SelectionInteractionSystem selectionInteraction,
             Hrot.ScenarioEditor.Systems.SelectionRequestSystem selectionRequests,
-            Hrot.ScenarioEditor.Systems.SelectionNotificationSystem selectionNotifications)
+            Hrot.ScenarioEditor.Systems.SelectionNotificationSystem selectionNotifications,
+            Hrot.ScenarioEditor.Gizmos.RubberBandState rubberBand)
         {
+            RubberBand             = rubberBand;
             Selection              = selection;
             SelectionInteraction   = selectionInteraction;
             SelectionRequests      = selectionRequests;
@@ -71,6 +73,24 @@ namespace Hrot.ScenarioEditor.Map
 
         /// <summary>Turns map gestures — click, rubber-band, Delete — into selection changes.</summary>
         public Hrot.ScenarioEditor.Systems.SelectionInteractionSystem SelectionInteraction { get; }
+
+        /// <summary>
+        /// ⭐⭐⭐ <b>The marquee's state — built and DRAWN by the pack, so every host with a 2-D map has
+        /// one.</b> 🔒 User ruling, <c>2026-09-20</c>: <i>"any perspective showing 2d map should support
+        /// marquee and rubberband, not just editor and cgf."</i>
+        /// 📄 <c>docs/UX/UX_Feature_Selection.md</c> §2.7.16.
+        ///
+        /// <para>🔴 <b>What this closes, measured:</b> box-select LOGIC ran on all five hosts —
+        /// <c>SelectionInteractionSystem</c> tracks the box and commits it — but only the editor and
+        /// ReplayBrowser ever constructed a <c>RubberBandState</c> or registered a
+        /// <c>RubberBandGizmo</c>. ⇒ on IG, SimHost and CGF the operator dragged a box that WORKED and
+        /// was INVISIBLE, which reads as "nothing happened". ⛔ Not a design decision — no design record
+        /// says those hosts should lack it; it is three composition roots that were never given it.</para>
+        ///
+        /// <para>⚠ A host may still pass its own through <c>MapInteractionContext.RubberBand</c> when it
+        /// needs the handle early; the pack uses that instance rather than making a second one.</para>
+        /// </summary>
+        public Hrot.ScenarioEditor.Gizmos.RubberBandState RubberBand { get; }
 
         /// <summary>🔒 <b>The ONE writer</b> (§2.7.3 rule 1). Consumes every surface's request.</summary>
         public Hrot.ScenarioEditor.Systems.SelectionRequestSystem SelectionRequests { get; }
