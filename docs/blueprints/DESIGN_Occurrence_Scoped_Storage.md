@@ -1387,7 +1387,12 @@ from SimHost (63) and IG (42) — the CGF+Editor scope, measured rather than ass
 ⚠ **One observation NOT investigated, and not attributable to this programme:** the platoon's
 `Health.Current` reads **50 on CGF** and **3000 on SimHost** at the same instant, while the two targets
 agree at **0** on both. ⛔ `A3`/`A4` touch neither health nor replication, and no baseline for this
-field exists in §15.3 — ⚠ recorded as seen, **not** diagnosed.
+field exists in §15.3. ⇒ **filed as `QA-035`'s neighbour `QA-036`** *(tracker Area N2, backend lane)*
+with the mechanism found — `EntityDamageIngressTranslator` + **`CE-272`**, whose own header records
+this exact SHAPE *("Brain Health 0, Muscle Health 50")* — and the decisive measurement not yet taken:
+⭐ **compare `Health.Max`, not just `Current`**, because `CombatTkbTranslator:56` projects
+`Current = platformDef.MaxHealth`, so a differing `Max` would mean two nodes projected **different TKB
+platform definitions** rather than damage failing to replicate.
 The baseline is **authored** (`behaviorParams.baselineStart`/`baselineEnd`) and the spawn sits behind
 it, so ⛔ **a position check must resolve the AUTHORED baseline, never the `t=0` reading.**
 
