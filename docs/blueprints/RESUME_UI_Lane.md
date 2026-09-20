@@ -70,17 +70,34 @@ publication rails stayed green.
 ⭐⭐ **`2026-09-20`, LATER — THE BISECT AND A CORRECTION TO THIS FILE'S OWN EVIDENCE.**
 📐 The operator built the commit **before `S-3e`** (`1476031a5`): **clicking and the rubber band fail
 there too.** ⇒ ⛔ **not `S-3e`, not `S-4`, not `S-4b`, not `S-5`.** The gap is older than every slice.
-🔴 **And the Stride "selection works" datapoint does NOT contradict that** — §2.7.11a check 4 has been
-DOWNGRADED: its evidence (*"no preceding `[ClickDiag]`"*) rules out the 3-D ray and nothing else, and the
-inspector ROW CLICK explains it equally well, which is exactly what check 3's reconciliation concluded.
-⇒ 🔒 **no 2-D MAP click has been demonstrated on any host since `UXI-11` began.**
+🔒 **AND THE STRIDE DATAPOINT IS REAL — operator, from the screen:** *"both the rubberband and left
+click was making the entities selected VISUALLY on the map."* ⇒ ⭐⭐ **the 2-D map click WORKED at
+`S-3d`, on the Stride host.** ⛔ I briefly downgraded §2.7.11a check 4 to *"never demonstrated"* because
+its LOG argument was unsound; that was an over-correction and is reverted — **a weak argument is not a
+false result.**
+⇒ ⭐⭐⭐ **THE WINDOW IS NARROW AND BOTH ENDS ARE NOW KNOWN:** it worked on **Stride at `S-3d`**, and it
+fails on the **plain editor at `1476031a5`** *(a DOCS-ONLY commit on top of `S-3d`)*. ⇒ ⛔ **the
+difference is very likely the HOST, not the commit** — the Stride window and the standalone editor run
+the same `EditorSubsystem` behind **different frame loops** *(§4.15: `StrideInspectorWindow.PumpFrame()`
+is a hand-written copy of clusterrunner's sequence)*. ⭐ **That is the next thing to measure.**
 
 ⭐ **Five mechanisms RULED OUT by measurement** *(so the next session does not re-walk them)*: the editor
 does register the request/notify pair *(pack `:1886` < `Initialize()` `:2129`)* · it does tick the gesture
 system *(`:2637`)* · the gizmo layer and the gesture system share one bus *(`:1929` → `:2549`)* · that bus
 IS swapped *(`GizmoInteractionModule:73`)* · the editor does register that module *(`:2114`)*.
 
-⭐ **The open question, and the cheapest instrument:** **which host** — editor, Stride editor window, IG
+⭐⭐⭐ **THE INSTRUMENT IS NOW IN THE CODE** *(`2026-09-20`)* — `[SelDiag]`, two lines, the same technique
+that settled the 3-D side at `S-3d`:
+`SelectionInteractionSystem` logs every gesture it reads *(anchor, button, whether it RESOLVED, whether a
+band state exists)*; `SelectionRequestSystem` logs every request it SERVES. Operator-paced, not
+frame-paced, and deliberately **not behind a flag** — a diagnostic you must switch on is one the next
+operator will not have switched on. ⭐ It reads three ways:
+**no line at all** ⇒ the event never reaches the system *(upstream: hit-test, input gating, bus)* ·
+**`resolved=NULL`** ⇒ the anchor resolves to nothing *(§6.8 "no id, no pick target" — the entity has no
+usable `NetworkIdentity`)* · **`resolved=#n` but no `serving` line** ⇒ the request is never served
+*(downstream: scheduling)*.
+
+⭐ **The older open question, and the cheapest instrument:** **which host** — editor, Stride editor window, IG
 or SimHost — and **does left-click select there on the commit BEFORE `c1f5487c0`?** ⛔ Until that is
 known, attributing this to `S-4b` or `S-5` is a guess. ⚠ A suspect worth checking first:
 `SimHostVisualization.cs:359` still has a `?? new SelectionInteractionSystem(...)` fallback — a host
