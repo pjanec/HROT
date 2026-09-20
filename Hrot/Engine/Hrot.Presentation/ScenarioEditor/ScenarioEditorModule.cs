@@ -97,9 +97,19 @@ public class ScenarioEditorModule : IEcsModule
         // 🔒 UXI-07 step 3b — the drain takes the host's ONE arbiter (MapInteraction.Tools). ⛔ A host that
         //    does not pass it gets a drain that REPORTS every dropped activation rather than swallowing it;
         //    TheViewportInteractionIsSharedTests rails that both production roots do pass it.
+        // ⭐⭐⭐ UXI-11 S-2 — THE REQUEST SYSTEM RUNS FIRST, AND THE ORDER IS LOAD-BEARING.
+        // 🔴 The drain reads deps.Selection to find the entity a target-less activation should arm on.
+        //    Once "select this, then arm that tool" became TWO EVENTS IN ONE FRAME (S-2 made the select
+        //    a request), the old order — drain first — armed the tool on the PREVIOUS selection.
+        // 📌 That is CE-259s, filed as "ToolActivationDrainSystem registered before the select system
+        //    ⇒ the menu arms on the pre-menu selection", and it discharges here: it stopped being a
+        //    latent ordering smell and became a live defect the moment the write was deferred.
+        // ⚠ Railed by TheViewportInteractionIsSharedTests' registration-order assertion; ⛔ that rail
+        //    is the ONLY thing standing between this and a silent regression, since nothing about the
+        //    two systems' code says they must run in this order.
+        registry.RegisterSystem(new SelectionRequestSystem(deps.Selection, deps.AlsoSelect));
         registry.RegisterSystem(new ToolActivationDrainSystem(
             deps.Selection, deps.Gizmos, deps.Tools ?? (() => null)));
-        registry.RegisterSystem(new SelectEntitySystem(deps.Selection, deps.AlsoSelect));
         registry.RegisterSystem(new CenterOnEntitySystem(deps.Camera));
     }
 

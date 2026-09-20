@@ -770,27 +770,18 @@ namespace Hrot.Editor
         /// </summary>
         public void SetSelection2D(Fdp.Core.Entity? entity)
         {
-            if (_world == null) return;
-
-            // Clear existing ECS selection flags.
-            var q = _world.Query().With<Hrot.IG.Components.SelectionState>()
-                .WithLifecycle(Fdp.Core.EntityLifecycle.All).Build();
-            foreach (var e in q)
-            {
-                var st = _world.GetComponent<Hrot.IG.Components.SelectionState>(e);
-                if (st.IsSelected || st.IsPrimarySelection)
-                    _world.SetComponent(e, new Hrot.IG.Components.SelectionState { IsSelected = false, IsPrimarySelection = false });
-            }
-
-            // Set the new primary selection (ECS component) when a live entity is given.
-            if (entity.HasValue && entity.Value != Fdp.Core.Entity.Null && _world.IsAlive(entity.Value))
-            {
-                if (!_world.HasComponent<Hrot.IG.Components.SelectionState>(entity.Value))
-                    _world.AddComponent(entity.Value, new Hrot.IG.Components.SelectionState());
-                _world.SetComponent(entity.Value, new Hrot.IG.Components.SelectionState { IsSelected = true, IsPrimarySelection = true });
-            }
-
-            // Keep the UI-level primary in sync (drives inspector/tools).
+            // ⭐⭐⭐ UXI-11 S-2 — this used to hand-roll the clear-loop and the set, then ALSO assign
+            //    through the view. 📐 Since S-1 the view's setter does EXACTLY those three steps
+            //    (EcsSelectionState.PrimarySelected -> ClearCore + SetSelectedCore), so this is a
+            //    provably-equivalent reduction: one hand-rolled writer deleted, zero behaviour change.
+            //
+            // ⚠⚠ AND IT STAYS SYNCHRONOUS ON PURPOSE — 📄 §2.7.7 names it as one of the two facade
+            //    seams that do NOT publish a request. 📐 Its ONE caller is
+            //    EditorStrideSubsystem.SyncSelection2D3D, which reads Selection2DVersion BACK IN THE
+            //    SAME FRAME to arm its anti-bounce tracker. ⛔ A deferred request would not have
+            //    bumped the version by then. ⚠ The Stride project is net8.0-windows and cannot be
+            //    built or tested on the Linux lane, so the change with the least untestable risk is
+            //    the one that preserves the contract exactly.
             if (_selectionState != null)
                 _selectionState.PrimarySelected = entity;
         }
@@ -1990,15 +1981,16 @@ namespace Hrot.Editor
             {
                 if (target == Entity.Null) return;
 
-                var q = _world!.Query().With<SelectionState>().WithLifecycle(EntityLifecycle.All).Build();
-                foreach (var e in q)
-                {
-                    if (_world.IsAlive(e))
-                        _world.SetComponent(e, new SelectionState { IsSelected = false, IsPrimarySelection = false });
-                }
-
-                _world.SetComponent(target, new SelectionState { IsSelected = true, IsPrimarySelection = true });
-                if (_selectionState != null) _selectionState.PrimarySelected = target;
+                // ⭐⭐⭐ UXI-11 S-2 — an action handler REQUESTS; it does not write the selection.
+                //    📄 UX_Feature_Selection.md §2.7.3 rule 1. ⛔ This used to hand-roll the clear-loop,
+                //    set the component, AND assign through the view — three ways to say one thing.
+                //    ⚠ One frame later than before, which §2.5 already rules structural. 📌 §2.5 also
+                //    calls a menu item that changes selection "an action handler", which is exactly
+                //    the deferred path ruling 15 gives every action.
+                _world!.Bus.PublishManaged(
+                    Hrot.Common.Events.SelectionChangeRequest.ReplaceWith(target, "ContextMenu.Select"));
+                // ⚠ Panel view state, not the selection store. S-3 turns this into a notification
+                //   consumer; until then the handler still points the inspector at its own choice.
                 _fdpInspectorState.SelectedEntity = target;
             });
             actionRegistry.Register(GlobalActionIds.ToggleAiTrace, (view, target) =>
@@ -2056,18 +2048,20 @@ namespace Hrot.Editor
             _rubberBandState = new Hrot.ScenarioEditor.Gizmos.RubberBandState();
             editorStatelessGizmoRegistry.RegisterGlobal(new Hrot.ScenarioEditor.Gizmos.RubberBandGizmo(_rubberBandState));
             _selectionSystem = new Hrot.ScenarioEditor.Systems.SelectionInteractionSystem(_world, interactionBus, _rubberBandState);
+            // ⭐⭐⭐ UXI-11 S-2 — the two _selectionState writes that used to live here are DELETED as
+            //    PROVABLY REDUNDANT, not merely moved. 📐 Since S-1 the view is a read-through over the
+            //    SelectionState component, and SelectionInteractionSystem has ALREADY written that
+            //    component through the very same view before it raises this callback
+            //    (ClearAllSelections + SetSelected, then Invoke). ⇒ assigning PrimarySelected here
+            //    re-derived a state that was already true. ⛔ It was not a second store any more after
+            //    S-1 — it was a second WRITE, which is what rule 1 is about.
+            // ⚠ What remains is panel view state. S-3 makes it a notification consumer.
             _selectionSystem.OnSelectionChanged += (entity, _) =>
             {
                 if (entity == Entity.Null)
-                {
-                    if (_selectionState != null) _selectionState.PrimarySelected = null;
                     _fdpInspectorState.SelectedEntity = null;
-                }
                 else if (_world.IsAlive(entity))
-                {
-                    if (_selectionState != null) _selectionState.PrimarySelected = entity;
                     _fdpInspectorState.SelectedEntity = entity;
-                }
             };
             // Wire the AI editor selection store so AI editor windows track the selected entity.
             _selectionBridge = new Hrot.Editor.AiShared.Selection.CallbackSelectionBridge(onEntitySelected =>

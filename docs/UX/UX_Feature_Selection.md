@@ -1,18 +1,24 @@
 <!--STATUS
 state: LIVE
 build-state: BUILDING (§2.7 is the consolidated TARGET STATE with class + sequence diagrams;
-  §2.7.5 carries the slice order S-1..S-6. ☑ S-1 BUILT 2026-09-20 — see §2.7.6 for the as-built.
-  S-2..S-6 remain DESIGN.)
+  §2.7.5 carries the slice order S-1..S-6. ☑ S-1 BUILT 2026-09-20 — as-built in §2.7.6.
+  ☑ S-2 BUILT 2026-09-20 — as-built in §2.7.7. S-3..S-6 remain DESIGN.)
 verified: 2026-09-10 (measured source scan, graph + grep, coverage checked)
   ⭐ S-1's own inventory re-measured 2026-09-20 on the graph — §2.7.6.
 current-answer: ✅ READ §2.7 — the consolidated TARGET STATE (2026-09-10), with the class diagram, the
-  request/notify sequence, the delete-list and the S-1..S-6 slice order, THEN §2.7.6 for what S-1
-  actually built and where it deviated. §2.1 is its older sketch and §2.7 supersedes it where they
-  differ. §2.6 carries the rulings §2.7 encodes.
+  request/notify sequence, the delete-list and the S-1..S-6 slice order, THEN §2.7.6 (S-1 as-built)
+  and §2.7.7 (S-2 as-built) for what was actually built and where it deviated. §2.1 is its older
+  sketch and §2.7 supersedes it where they differ. §2.6 carries the rulings §2.7 encodes.
   ☑ BUILT (S-1): ISelectionState carries Add/Remove/SetMultiple/Clear/Version; EcsSelectionState is
   the read-through view; the editor and CGF hold it instead of a parallel hash set.
-  ❌ STILL NOT BUILT: the request event has no set+mode; no SelectionRequestSystem; no notification
-  event; the 3 hand-rolled writers survive; CGF has no map-input path; ClearAll has 0 callers.
+  ☑ BUILT (S-2): SelectionChangeRequest (managed, set + mode) + SelectionRequestSystem (the renamed
+  SelectEntitySystem), registered on IG too; all FOUR hand-rolled component writers are gone —
+  "new SelectionState {" appears in zero production files outside EcsSelectionState.
+  ⚠ NOT LITERALLY "the only writer": SelectionInteractionSystem still writes through the view, and
+  two editor facade seams (SetSelection2D, Selected2DEntity) stay synchronous — §2.7.7 deviations
+  ② and ③, both argued.
+  ❌ STILL NOT BUILT: the notification event; panels are not subscribers; CGF has no map-input path;
+  ClearAll has 0 callers; SimHost and SharedEntitySelection are still separate stores (needs S-3).
   ⭐ 2026-09-10 — §2.6 is NEW and carries four user rulings: selection is GLOBAL across every host
   (ChainToMap as an opt-in is retired), a selection CHANGE cancels editing of the previously selected
   entity, clicks during an edit must not select (already true on the map via the capture-anchor filter,
@@ -44,7 +50,7 @@ known-conflict: none open. ✅ "Who owns selection" is RULED (2026-09-10): the g
 -->
 # Feature design — selection
 
-> **Design for [UXI-11](UX_Issues.md#uxi-11) · drafted 2026-08-12 · target state consolidated `2026-09-10` in §2.7.** **Status: 🟡 BUILDING — ☑ `S-1` built `2026-09-20` (§2.7.6): the mutators, `EcsSelectionState`, and the two hosts off their parallel hash sets. ❌ `S-2`–`S-6` remain design — no request set+mode, no `SelectionRequestSystem`, no notification event, CGF still has no map-input path, `ClearAll` has 0 callers.** Implements [rulings 27-28](UX_RESUME_INTERACTION.md). Feeds
+> **Design for [UXI-11](UX_Issues.md#uxi-11) · drafted 2026-08-12 · target state consolidated `2026-09-10` in §2.7.** **Status: 🟡 BUILDING — ☑ `S-1` (§2.7.6) and ☑ `S-2` (§2.7.7) built `2026-09-20`: the mutators, `EcsSelectionState`, `SelectionChangeRequest` + `SelectionRequestSystem`, and every hand-rolled component writer deleted. ❌ `S-3`–`S-6` remain design — no notification event, panels are not subscribers, CGF still has no map-input path, `ClearAll` has 0 callers.** Implements [rulings 27-28](UX_RESUME_INTERACTION.md). Feeds
 > [UXI-24](UX_Issues.md#uxi-24) (multi-select) and [UXI-23](UX_Issues.md#uxi-23) (map parity).
 
 ## 0. Prior art ([rule 6](UX_Issues.md#rules))
@@ -551,8 +557,8 @@ classDiagram
 | `ISelectionState` | ☑ **`S-1`, `2026-09-20`** — carries `Add`/`Remove`/`SetMultiple`/`Clear`, plus `Version` *(§2.7.6 deviation ①)*. ⛔ *Was: only `IsSelected`, `SelectedEntities`, `PrimarySelected`, `HoveredEntity`.* |
 | `EcsSelectionState` | ☑ **`S-1`, `2026-09-20`** — `Hrot.Presentation`, a read-through over the component; the editor and CGF hold it. ⛔ *Was: did not exist; `DefaultSelectionState` was a parallel `HashSet` store on both hosts.* |
 | `DdsBackedSelectionState` | 🔴 does not exist; 🔒 ruling: *"some similar central piece on non ecs nodes"* |
-| `SelectionRequestSystem` | ⚠ `SelectEntitySystem` is its single-entity ancestor |
-| **request** event | ⚠ `SelectEntityCommand` exists but is `long NetworkId` — **needs a set + a mode** *(replace · add · remove · clear)* |
+| `SelectionRequestSystem` | ☑ **`S-2`, `2026-09-20`** — `SelectEntitySystem` **renamed** *(Roslyn)* and extended; consumes both request forms and is the only thing that serves them. ⚠ One other writer survives *(§2.7.7 deviation ②)*. |
+| **request** event | ☑ **`S-2`, `2026-09-20`** — `SelectionChangeRequest` *(managed, entity-addressed, `Entities` + `Mode`)*. ⚠ `SelectEntityCommand` is **kept** as the network-id boundary *(§2.7.7 deviation ①)*. ⛔ *Was: only `SelectEntityCommand`, a single `long NetworkId`.* |
 | 🔴 **notification** event | ⛔ **DOES NOT EXIST.** Both `SelectionChangedEvent` *(`[DdsTopic]`)* and `SelectionChangedEventDto` are NETWORK types ⇒ `R-134` requires a NEW FDP-internal record |
 
 #### 2.7.2 The flow
@@ -593,21 +599,21 @@ sequenceDiagram
 
 | 🔴 | |
 |---|---|
-| `DefaultSelectionState`'s own `HashSet` | becomes `EcsSelectionState`, a read-through |
-| the **3 hand-rolled `SetSelected`** | `SelectionInteractionSystem` · `EditorSubsystem` · `IgApplication.SelectEntityOnMap:1596-1614` ⇒ all become requests |
+| `DefaultSelectionState`'s own `HashSet` | ☑ **`S-1`** — becomes `EcsSelectionState`, a read-through *(the class survives for world-less hosts; §2.7.6 deviation ②)* |
+| the **3 hand-rolled `SetSelected`** | ☑ **`S-2`** — and 🔴 **there were FOUR**: `SelectionInteractionSystem` *(discharged at `S-1`)* · `EditorSubsystem`'s `GlobalActionIds.Select` · `IgApplication.SelectEntityOnMap` · ⚠ **`EditorSubsystem.SetSelection2D`, which this list had MISSED**. 📄 §2.7.7 |
 | `EntityInspectorPanel._selectedEntities` · `DerEntityInspectorPanel._selectedEntityId` | view state fed by the notification |
 | `EntityInspectorPanel.ChainToMap` | ⛔ **retired** — a panel may not know a map exists |
 | `ScenarioOrbatAdapter`'s `ActivateEditorToolEvent(Select)` | ⭐ redundant once rule 5 is central |
-| `IgApplication._fdpInspectorState` hand-sync | a notification consumer |
+| `IgApplication._fdpInspectorState` hand-sync | ☑ **`S-2`** — deleted with `SelectEntityOnMap`'s rewrite; `DrawUI`'s own change-detector does the follow-through *(§2.7.7 deviation ④)* |
 
 #### 2.7.5 Sequencing — **derived from the measurements, not preference**
 
 | # | slice | gate |
 |---|---|---|
-| **S-1** | `ISelectionState` gains the multi mutators; `EcsSelectionState` replaces `DefaultSelectionState` | the 4 stores become 1 + views |
-| **S-2** | the **request** event gains a set + mode; `SelectionRequestSystem` becomes the only writer | the 3 hand-rolled writers are deleted |
-| **S-3** | the **notification** event *(new, FDP-internal)*; panels subscribe | ⛔ `R-134`: no DDS type in the internal path |
-| **S-4** | right-click selects on every surface *(§2.3 incl. row 1)*; DER inspector gains a seam | `CE-259s`'s ordering resolves with it |
+| ☑ **S-1** *(`2026-09-20`, §2.7.6)* | `ISelectionState` gains the multi mutators; `EcsSelectionState` replaces `DefaultSelectionState` | 🟡 the 4 stores become 1 + views — **2 of 4**; the rest lands at `S-3` |
+| ☑ **S-2** *(`2026-09-20`, §2.7.7)* | the **request** event gains a set + mode; `SelectionRequestSystem` becomes the only writer | ☑ the hand-rolled writers are deleted *(4, not 3)*; 🟡 one writer survives — §2.7.7 deviation ② |
+| ⭐ **S-3 — NEXT** | the **notification** event *(new, FDP-internal)*; panels subscribe | ⛔ `R-134`: no DDS type in the internal path |
+| **S-4** | right-click selects on every surface *(§2.3 incl. row 1)*; DER inspector gains a seam | ☑ `CE-259s`'s ordering **already discharged at `S-2`** — it stopped being latent the moment the write was deferred |
 | **S-5** | rule 5 — losing selection cancels that entity's edit | ⭐ needs **S-4** *(a targeted arming does not select — `Tool_Model` §4.14)* |
 | **S-6** | remote-map-control dispatcher becomes a requester; echo suppression moves to egress | 📄 `DESIGN_Remote_Map_Control.md` |
 
@@ -699,6 +705,105 @@ notification event before they can become views. ⛔ Do not read `S-1` as having
 | `SelectionInteractionSystemTests` *(the feature's own, `T-1`)* | **8/8 green** after the delegation — the behaviour-preserving check on deviation ④ |
 | `EcsSelectionStateTests` *(new, 17)* | acceptance **11.1 · 11.2 · 11.3 · 11.9**, the `Version` contract, and the cached-query-sees-later-entities trap |
 | `NoProductionHostKeepsAParallelSelectionStoreTests` *(new, 2)* | the gate, **red-proved** by re-introducing `new DefaultSelectionState()` in `CgfSubsystem` — it named the exact line |
+
+#### 2.7.7 ☑ **`S-2` AS-BUILT — `2026-09-20`**
+
+⭐ **What shipped, against §2.7.1's element table:**
+
+| element | designed | as-built |
+|---|---|---|
+| **request** event | *"`SelectEntityCommand` exists but is `long NetworkId` — needs a set + a mode"* | ☑ **`SelectionChangeRequest`** *(NEW, managed, entity-addressed, `Entities` + `Mode` + `Reason`)*. ⚠ `SelectEntityCommand` **KEPT** as the network-id boundary — deviation ① |
+| `SelectionChangeMode` | *"replace · add · remove · clear"* | ☑ as designed |
+| `SelectionRequestSystem` | *"`SelectEntitySystem` is its single-entity ancestor"* | ☑ **renamed** *(Roslyn)* and extended; consumes **both** events |
+| the 3 hand-rolled `SetSelected` | *"all become requests"* | ☑ **all four** — ⚠ the delete-list had **missed one**, see below |
+
+```mermaid
+sequenceDiagram
+    participant S as Surface (menu, orbat, IG remote)
+    participant Bus as FdpEventBus
+    participant Req as SelectionRequestSystem
+    participant View as EcsSelectionState
+    participant Drain as ToolActivationDrainSystem
+
+    S->>Bus: SelectionChangeRequest(entities, mode)
+    S->>Bus: ActivateEditorToolEvent(tool)
+    Note over S: both in ONE frame
+    Bus->>Req: consumed FIRST
+    Req->>View: SetMultiple / Add / Remove / Clear
+    View->>View: writes SelectionState component
+    Bus->>Drain: consumed SECOND
+    Drain->>View: reads the NEW primary
+```
+
+⭐ *What the picture shows that the prose hid: the two systems' ORDER is part of the contract. The drain
+reads the selection the request just wrote, so registering them the other way round arms the tool on the
+previous selection — silently.*
+
+##### 🔴 A finding: **the delete-list was short by one**
+
+📐 §2.7.4 named three hand-rolled `SetSelected`. Measured `2026-09-20`, there were **four**:
+
+| site | disposition |
+|---|---|
+| `SelectionInteractionSystem` | ☑ discharged at **`S-1`** *(delegates to the view)* |
+| `EditorSubsystem`'s `GlobalActionIds.Select` handler | ☑ publishes a request |
+| `IgApplication.SelectEntityOnMap` | ☑ publishes a request |
+| 🔴 **`EditorSubsystem.SetSelection2D`** — **not in the delete-list** | ☑ reduced to a one-line view write — deviation ③ |
+
+⇒ ⭐ **that is why the gate is now a SOURCE SCAN** *(`OnlyTheViewWritesTheSelectionStateComponent`)* and
+not a checklist: a checklist is only as complete as the sweep that wrote it.
+
+##### ⚠ Deviations, and why
+
+| # | deviation | why |
+|---|---|---|
+| **①** | ⭐ **`SelectEntityCommand` kept** beside `SelectionChangeRequest` | 🔒 §2.7.3 rule 7 — selection is host-local and the wire form is **translated at the boundary**. Panels and the orbat address entities by **network id** and must not learn ECS handles; the internal request speaks the host's own handle. ⇒ two *addressings* of one concept, **one consumer, one writer** — ⛔ not two implementations |
+| **②** | ⛔ **`SelectionInteractionSystem` still writes** *(through the view)*, so `SelectionRequestSystem` is **not literally the only writer** | 📄 §2.5's own blessed shape is *"a system writing during its own main-thread tick"*, which is what both are. ⛔ Converting it needs the request system on **ReplayBrowser and SimHost** *(which run it and have no request system)* and a rework of `OnSelectionChanged`'s immediate-callback contract — real regression risk on hosts this lane cannot run. ⭐ `S-4` touches this path anyway *(right-click selects on every surface)*; it lands there |
+| **③** | ⚠ **`SetSelection2D` and the `Selected2DEntity` setter stay synchronous** view writes | 📐 `SetSelection2D`'s ONE caller is `EditorStrideSubsystem.SyncSelection2D3D`, which reads `Selection2DVersion` **back in the same frame** to arm its anti-bounce tracker; a deferred request has not bumped it by then. ⛔ `HrotStrideApp.Game` is `net8.0-windows` and **cannot be built or tested on this lane** ⇒ the change with the least untestable risk wins. ⭐ Both are now **one line over the shared view** instead of a hand-rolled loop |
+| **④** | ⭐ **`IgApplication`'s two hand-syncs deleted**, not merely bypassed | 📐 `SelectEntityOnMap` pre-set `_fdpInspectorState` and `_fdpLastMapSelection` so `DrawUI`'s change-detector would see *"no change"*. ⛔ Under a one-frame deferral that pre-set **inverts** — for one frame the component holds the OLD entity and the tracker the new one, so the detector pushes the OLD one back. ⭐ Letting the detector do its own job is correct by construction |
+| **⑤** | ⭐ **`SelectionRequestSystem` registered on IG** | 📐 Measured: `ScenarioEditorModule` is registered by the **editor and CGF only** ⇒ on IG `SelectEntityCommand` had **no consumer at all** — the same silent no-op `CE-051` found elsewhere. ⛔ Publishing a request from IG without this would have recreated it exactly |
+
+##### ☑ `CE-259s` discharged — **it stopped being latent the moment the write was deferred**
+
+📌 `CE-259s` *(the tool drain registered before the select system ⇒ the menu arms on the pre-menu
+selection)* was parked with the lean *"resolves with `S-4`"*. ⛔ **It could not wait:** *"select this,
+then arm Rotate"* is two events in one frame, and once the select became a request the drain read the
+**previous** selection. ⇒ `ScenarioEditorModule` now registers **`SelectionRequestSystem` first**, and
+the registration-order rail is the only thing holding it.
+
+##### 🟡 The gate, reported honestly
+
+| §2.7.5 gate for `S-2` | result |
+|---|---|
+| *"the 3 hand-rolled writers are deleted"* | ☑ **met, and it was 4** — `new SelectionState {` now appears in **zero** production files outside `EcsSelectionState` |
+| *"`SelectionRequestSystem` becomes the ONLY writer"* | 🟡 **one writer remains**: `SelectionInteractionSystem`, via the shared view — deviation ② |
+| the 4 stores | unchanged from `S-1` — **2 of 4**; the rest needs `S-3`'s notification |
+
+##### ⭐ Rails
+
+| suite | |
+|---|---|
+| `TheViewportInteractionIsSharedTests` *(the system's own suite, `T-1`)* | **+5**: replace-a-set · add/remove modes · clear · a dead entity in the request · **the registration order** |
+| `NoProductionHostKeepsAParallelSelectionStoreTests` | **+1**: `OnlyTheViewWritesTheSelectionStateComponent`, a whitelist scan |
+| `TheSharedViewportEventsArePublishableAfterOnlyTheSharedRegistry` | extended with the new event — ⛔ under strict mode an unregistered publish throws, which was the `2026-08-27` CGF crash |
+| 🔴 **`SetSelectionCommandTests` *(IG's own, `OC1-G001`)* — it CAUGHT the change** | ⭐⭐ **the `T-1` payoff, and I had missed this suite on the first sweep.** It asserted the component **immediately** after `CMD_SET_SELECTION`; a deferred request had not landed. ⭐ Fixed by pumping one kernel frame, which makes it **stronger**: it now proves request → bus → *the system being registered on IG at all* → view, where before it proved only that a private method wrote two booleans |
+
+##### ⚠ A finding filed, not fixed — **a process-global flag under parallel tests**
+
+📐 `TheSharedViewportEventsArePublishableAfterOnlyTheSharedRegistry` must flip
+`FdpConfig.EnforceExplicitEventRegistration`, a **process-global**, because registration can only be
+observed by publishing under strict mode *(⛔ `FdpEventBus.HasEvent`/`HasManagedEvent` do **not** answer
+"is it registered" — they answer *"was one published THIS FRAME"*; read the body before reaching for
+them)*. xUnit serialises within a collection but runs other collections in parallel ⇒ whichever class
+happens to publish a managed event during that window throws.
+
+📌 Documented `2026-09-09` against `JsonEntityContextMenuHandlerTests`; `S-2`'s five added tests changed
+the scheduling and it surfaced on `EditorOrbatAdapterTests` and once on `EditorMapPickAdapterTests`.
+⭐ `EditorOrbatAdapterTests` joined the serialized collection; ⛔ **that treats a victim, not the cause.**
+
+🔒 **Lean, for whoever picks it up:** `[assembly: CollectionBehavior(DisableTestParallelization = true)]`
+on `Hrot.Editor.Tests` *(~4 s → ~10 s)*, or give `FdpConfig` an `AsyncLocal` override so a test's flip
+cannot escape its own flow. ⚠ Out of `S-2`'s scope — it is a suite-wide policy call.
 
 ## 3. Acceptance
 

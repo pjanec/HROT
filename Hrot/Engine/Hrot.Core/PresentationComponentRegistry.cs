@@ -81,5 +81,11 @@ public static class PresentationComponentRegistry
         world.RegisterEvent<Hrot.Common.Events.SelectEntityCommand>();
         world.RegisterEvent<Hrot.Common.Events.CenterOnEntityCommand>();
         world.RegisterEvent<Hrot.Common.Events.ActivateEditorToolEvent>();
+        // ⭐⭐⭐ UXI-11 S-2 — the selection REQUEST. 📄 UX_Feature_Selection.md §2.7.1.
+        // ⛔ MANAGED, because it carries a SET: a rubber band selects N entities in one request and a
+        //   blittable struct cannot hold that. 🔒 R-134 — a plain FDP record, never a DDS topic.
+        // ⚠ Registered HERE and not inline in a host, for the reason the block above records: an
+        //   adopter publishing into a bus that never heard of the event THROWS under strict mode.
+        world.RegisterManagedEvent<Hrot.Common.Events.SelectionChangeRequest>();
     }
 }

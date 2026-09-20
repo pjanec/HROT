@@ -90,6 +90,64 @@ public sealed class NoProductionHostKeepsAParallelSelectionStoreTests
     }
 
     /// <summary>
+    /// ⭐⭐⭐ <b><c>UXI-11</c> slice <c>S-2</c>'s gate: NOTHING hand-writes the <c>SelectionState</c>
+    /// component except the view.</b>
+    ///
+    /// <para>📄 §2.7.3 rule 1 — one writer. 🔴 Measured <c>2026-09-20</c>, BEFORE <c>S-2</c>: four
+    /// production sites each hand-rolled the same clear-loop-then-set —
+    /// <c>EditorSubsystem</c>'s <c>GlobalActionIds.Select</c> handler, <c>EditorSubsystem.SetSelection2D</c>,
+    /// <c>IgApplication.SelectEntityOnMap</c>, and (until <c>S-1</c>) <c>SelectionInteractionSystem</c>.
+    /// ⚠ §2.7.4's delete-list named THREE; <c>SetSelection2D</c> was the fourth and it had been
+    /// missed — that is why this is a scan and not a checklist.</para>
+    ///
+    /// <para>⚠ <b>The exemption is a WHITELIST, not a pattern.</b> ⛔ Any new file that writes the
+    /// component fails this, including a "small" one — that is the point. ⭐ If a host genuinely needs
+    /// to write it, the answer is to publish a <c>SelectionChangeRequest</c>.</para>
+    /// </summary>
+    [Fact]
+    public void OnlyTheViewWritesTheSelectionStateComponent()
+    {
+        // ⭐ The ONE implementation. It uses an alias (SelectionStateComponent) precisely because the
+        //   view's own type name would collide -- so the literal below cannot match it by accident.
+        var allowed = new HashSet<string>(StringComparer.Ordinal) { "EcsSelectionState.cs" };
+
+        var root      = RepoRoot();
+        var offenders = new List<string>();
+
+        foreach (var tree in ProductionTrees)
+        {
+            var treeDir = Path.Combine(root, tree);
+            if (!Directory.Exists(treeDir)) continue;
+
+            foreach (var file in Directory.EnumerateFiles(treeDir, "*.cs", SearchOption.AllDirectories))
+            {
+                if (!IsProductionFile(file)) continue;
+                if (allowed.Contains(Path.GetFileName(file))) continue;
+                // ⚠ Scoped to Hrot.IG.Components.SelectionState. The Blueprint/BTree/HSM editors have
+                //   their own unrelated SelectionState -- a NODE selection, a different concept
+                //   (the ".*Selection.*" trap: ~60 of 67 classes are not this one).
+                var p = file.Replace('\\', '/');
+                if (p.Contains("/Blueprints/") || p.Contains("/NodeEdit") || p.Contains("/AI/")) continue;
+
+                var lines = File.ReadAllLines(file);
+                for (int i = 0; i < lines.Length; i++)
+                {
+                    var l = lines[i];
+                    if (l.TrimStart().StartsWith("//", StringComparison.Ordinal)) continue;
+                    if (!l.Contains("new SelectionState {") && !l.Contains("new SelectionState{")) continue;
+                    offenders.Add($"{Path.GetRelativePath(root, file)}:{i + 1}");
+                }
+            }
+        }
+
+        Assert.True(
+            offenders.Count == 0,
+            "The SelectionState component is being written outside EcsSelectionState. Publish a " +
+            "SelectionChangeRequest instead (UXI-11 S-2, UX_Feature_Selection.md §2.7.3 rule 1). Sites:" +
+            Environment.NewLine + string.Join(Environment.NewLine, offenders));
+    }
+
+    /// <summary>
     /// ⚠ <b>The negative control.</b> ⛔ A scan that finds nothing because it is looking in the wrong
     /// place passes exactly like a scan that finds nothing because the tree is clean. 📌 This is the
     /// <c>T-1</c> lesson — <em>"if it stays GREEN while the feature is BROKEN, THAT is the finding"</em>

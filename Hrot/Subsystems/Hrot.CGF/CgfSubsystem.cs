@@ -1606,7 +1606,13 @@ public sealed class CgfSubsystem : ISubsystem, Fdp.Toolkit.Runner.IMapCameraProv
                     builder.AddItem("Rotate", () =>
                     {
                         // ⭐ Select first (the caller concern above), then let the SHARED drain do the work.
-                        _selectionState.PrimarySelected = entity;
+                        // ⭐⭐⭐ UXI-11 S-2 — the select is now a REQUEST, not a direct write
+                        //    (§2.7.3 rule 1). ⚠⚠ THAT IS WHY ScenarioEditorModule NOW REGISTERS THE
+                        //    REQUEST SYSTEM BEFORE THE DRAIN: both events land in the same frame, and
+                        //    with the old order the drain would have armed Rotate on the PREVIOUS
+                        //    selection. 📌 Same ordering defect as CE-259s, which this discharges.
+                        _context.World.Bus.PublishManaged(
+                            Hrot.Common.Events.SelectionChangeRequest.ReplaceWith(entity, "Cgf.Rotate"));
                         _context.World.Bus.Publish(
                             new Hrot.Common.Events.ActivateEditorToolEvent(Hrot.Common.EditorTool.Rotate));
                     });
@@ -3029,7 +3035,11 @@ public sealed class CgfSubsystem : ISubsystem, Fdp.Toolkit.Runner.IMapCameraProv
 
         if (_selectionState?.IsSelected(entity) == true)
         {
-            _selectionState.PrimarySelected = null;
+            // ⭐⭐ UXI-11 S-2 — deleting the selected entity REQUESTS a clear (§2.7.3 rule 1).
+            // ⚠ The read above stays a direct read: reading the view is what a surface is FOR; only
+            //   WRITING is reserved to the request system.
+            _context!.World.Bus.PublishManaged(
+                Hrot.Common.Events.SelectionChangeRequest.ClearAll("Cgf.DeleteEntity"));
             _fdpInspectorState.SelectedEntity = null;
         }
     }

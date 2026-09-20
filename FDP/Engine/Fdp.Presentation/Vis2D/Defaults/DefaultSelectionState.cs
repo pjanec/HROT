@@ -84,12 +84,20 @@ namespace Fdp.Toolkit.Vis2D.Defaults
         public void SetMultiple(IReadOnlyCollection<Entity> entities)
         {
             _selectedEntities.Clear();
+            // ⚠ The primary is the FIRST ENTITY GIVEN, tracked as we go -- ⛔ NOT _selectedEntities
+            //   .First(). A HashSet does not promise insertion order, so reading the primary back off
+            //   it would make "the first becomes primary" true by luck. 📌 The contract is on the
+            //   interface; honouring it by accident is how a rail passes until it does not.
+            Entity? first = null;
             if (entities != null)
             {
                 foreach (var e in entities)
-                    if (e != Entity.Null) _selectedEntities.Add(e);
+                {
+                    if (e == Entity.Null) continue;
+                    if (_selectedEntities.Add(e) && first == null) first = e;
+                }
             }
-            _primarySelected = _selectedEntities.Count > 0 ? _selectedEntities.First() : (Entity?)null;
+            _primarySelected = first;
             Version++;
         }
 

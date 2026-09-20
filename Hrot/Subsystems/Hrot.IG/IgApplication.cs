@@ -466,6 +466,9 @@ public class IgApplication : IDisposable
     // inspector selection when the map has nothing selected.
     private Entity                  _fdpLastMapSelection = Entity.Null;
 
+    /// ⭐ UXI-11 S-2 — IG's view over the ECS selection truth, and the one thing that writes it here.
+    private Hrot.ScenarioEditor.Selection.EcsSelectionState? _igSelectionState;
+
     // Ensures context menu handlers are registered only once.
     private bool                    _fdpContextMenusWired;
 
@@ -861,6 +864,17 @@ public class IgApplication : IDisposable
             }
 
             ctx.Kernel.RegisterGlobalSystem(new SelectionInteractionSystemAdapter(_selectionSystem));
+
+            // ⭐⭐⭐ UXI-11 S-2 — IG becomes a REQUESTER, so it needs the system that serves requests.
+            // 📐 MEASURED 2026-09-20: ScenarioEditorModule (which registers the shared viewport systems)
+            //    is registered by the EDITOR and CGF only. ⇒ ⛔ on IG, SelectEntityCommand had NO
+            //    consumer at all — the same silent no-op CE-051 found on the other hosts and fixed
+            //    there. Publishing a request here without this line would have recreated it exactly.
+            // ⭐ The view is a read-through handle over the SelectionState component (S-1), which is
+            //   what IG already used directly, so this changes WHO writes, not WHAT is written.
+            _igSelectionState = new Hrot.ScenarioEditor.Selection.EcsSelectionState(ctx.World);
+            ctx.Kernel.RegisterGlobalSystem(
+                new Hrot.ScenarioEditor.Systems.SelectionRequestSystem(() => _igSelectionState));
 
             // MapCommandController - created here when network is available.
             if (_igBootstrapper!.NetworkEnabled && ctx.Participant != null)
@@ -1612,22 +1626,20 @@ public class IgApplication : IDisposable
     /// </summary>
     private void SelectEntityOnMap(Entity entity)
     {
-        // 1. Clear all existing ECS selection state (include ghosts/spawning).
-        var q = _world.Query().With<SelectionState>().WithLifecycle(EntityLifecycle.All).Build();
-        foreach (var e in q)
-        {
-            if (_world.IsAlive(e))
-                _world.SetComponent(e, new SelectionState { IsSelected = false, IsPrimarySelection = false });
-        }
-
-        // 2. Apply selection to the target entity if it is alive.
-        if (_world.IsAlive(entity))
-            _world.SetComponent(entity, new SelectionState { IsSelected = true, IsPrimarySelection = true });
-
-        // 3. Keep the FDP inspector and map-selection tracker in sync so that
-        //    the per-frame change-detection in DrawUI does not revert this choice.
-        _fdpInspectorState.SelectedEntity = entity;
-        _fdpLastMapSelection = entity;
+        // ⭐⭐⭐ UXI-11 S-2 — this was the THIRD hand-rolled SetSelected named in
+        //    UX_Feature_Selection.md §2.7.4. It now REQUESTS; SelectEntitySystem (registered on this
+        //    host by the same slice) is the only thing that writes.
+        //
+        // ⭐⭐ THE HAND-SYNC IS GONE TOO, and dropping it is what makes the deferral CORRECT rather
+        //    than merely tolerable. 📐 Steps 2-3 used to pre-set _fdpInspectorState and
+        //    _fdpLastMapSelection so that DrawUI's change-detection (:1241) would see "no change" and
+        //    not revert the choice. ⛔ With a one-frame deferral that pre-set would INVERT: for one
+        //    frame the component still holds the OLD entity while the tracker holds the new one, so
+        //    the detector would push the OLD one back. ⭐ Letting the detector do its own job instead
+        //    is correct by construction — when the request lands, the component differs from the
+        //    tracker and the inspector follows, which is exactly what it was written to do.
+        _world.Bus.PublishManaged(
+            Hrot.Common.Events.SelectionChangeRequest.ReplaceWith(entity, "Ig.SelectEntityOnMap"));
     }
 
 

@@ -1,19 +1,21 @@
 <!--STATUS
 state: LIVE
 updated: 2026-09-20
-current-answer: ⭐⭐⭐ READ THE "SESSION 2026-09-20" BLOCK AT THE TOP OF THIS FILE — it is the live one.
-  ☑ UXI-11 slice S-1 (selection unification) IS BUILT. NEXT IS S-2 — the request event gains a
-  set + mode, SelectionRequestSystem becomes the only writer, the 3 hand-rolled writers are deleted.
-  ⛔ S-1's gate ("4 stores become 1 + views") was only PARTLY met — 2 of 4; the rest lands at S-3.
-  📄 The as-built (and four argued deviations) is UX_Feature_Selection.md §2.7.6 — read that, not the
-  summary here, before starting S-2.
+current-answer: ⭐⭐⭐ READ THE "SESSION 2026-09-20 (b)" BLOCK AT THE TOP OF THIS FILE — it is the live
+  one. ☑ UXI-11 slices S-1 AND S-2 (selection unification) ARE BUILT. NEXT IS S-3 — the notification
+  event (new, FDP-internal, R-134), panels subscribe, and the last two stores collapse.
+  ⛔ Neither slice met its gate in full, and both say so: S-1's "4 stores become 1 + views" is 2 of 4
+  (the rest needs S-3); S-2's "the ONLY writer" has one surviving writer plus two synchronous facade
+  seams, all argued. 📄 The as-builts are UX_Feature_Selection.md §2.7.6 (S-1) and §2.7.7 (S-2) —
+  read those, not the summaries here, before starting S-3.
   Branch: ui (the stable lane branch, R-148).
   ⛔ The 2026-09-15 block below (distributed persistence + ownership) is DONE and is now HISTORY —
   nothing from it is in flight. Older STRANDS below it are older history still; do NOT act on any of
   them unless explicitly told to continue one.
 
-stale-below: ⛔ EVERYTHING below the "SESSION 2026-09-20" block is HISTORY, newest first — including
-  the 2026-09-19/20 block, whose plan ("start S-1") is now DONE. Do not quote any of it as current state.
+stale-below: ⛔ EVERYTHING below the "SESSION 2026-09-20 (b)" block is HISTORY, newest first —
+  including the (a) block (S-1) and the 2026-09-19/20 block, whose plans are now DONE. Do not quote
+  any of it as current state.
 known-rot: none open in this file.
 related-designs:
   - docs/UX/UX_Feature_Selection.md — owns UXI-11; §2.7 is the target state, §2.7.5 the slice order.
@@ -27,7 +29,60 @@ related-designs:
 -->
 # ⭐⭐⭐ RESUME — **the UI / variable implementation lane**
 
-## ⭐⭐⭐ SESSION `2026-09-20` — **`UXI-11` SLICE `S-1` IS BUILT; NEXT IS `S-2`**
+## ⭐⭐⭐ SESSION `2026-09-20` (b) — **`UXI-11` `S-2` IS BUILT; NEXT IS `S-3`**
+
+☑ **`S-2` shipped** *(the request event + the only writer)*. 📄 The as-built, with five argued
+deviations, is [`UX_Feature_Selection.md` §2.7.7](../UX/UX_Feature_Selection.md) — read **that** before
+starting `S-3`.
+
+| what | |
+|---|---|
+| `SelectionChangeRequest` *(NEW)* | a **managed** FDP event: `Entities` + `Mode` *(replace·add·remove·clear)*. ⛔ Managed because a blittable struct cannot carry a set, and a rubber band selects N in one request |
+| `SelectionRequestSystem` | the **Roslyn-renamed** `SelectEntitySystem`; consumes the new request **and** `SelectEntityCommand` *(the network-id boundary, kept on purpose — rule 7)* |
+| ⭐ **registered on IG** | 📐 measured: `ScenarioEditorModule` is registered by the editor and CGF **only** ⇒ on IG `SelectEntityCommand` had **no consumer at all**. Publishing a request from IG without this would have recreated that silent no-op exactly |
+| the hand-rolled writers | ☑ **all four gone** — `new SelectionState {` is now in **zero** production files outside `EcsSelectionState`. 🔴 The design's delete-list named **three**; `EditorSubsystem.SetSelection2D` was the missed fourth |
+| ☑ **`CE-259s` discharged** | the drain was registered **before** the select system ⇒ once the write was deferred, *"select then arm Rotate"* armed on the **previous** selection. `ScenarioEditorModule` now registers the request system first |
+
+⚠⚠ **NOT literally *"the only writer"*, and that is reported rather than claimed.**
+`SelectionInteractionSystem` still writes through the shared view *(deviation ②: converting it needs the
+request system on **ReplayBrowser and SimHost** and a rework of `OnSelectionChanged`'s immediate
+callback — `S-4` touches that path anyway)*, and two editor facade seams stay synchronous
+*(deviation ③: `SetSelection2D`'s only caller reads `Selection2DVersion` back **in the same frame**, and
+`HrotStrideApp.Game` is `net8.0-windows` — unbuildable on this lane)*.
+
+⭐⭐ **The `T-1` payoff, and my miss:** `Hrot.IG.Tests/CommandHandling/SetSelectionCommandTests` —
+**IG's own selection rail** — **caught the deferral**. ⛔ I had not opened it on the first sweep even
+though my own file search listed it. Fixed by pumping one kernel frame, which makes it stronger: it now
+proves request → bus → *the system being registered on IG at all* → view.
+
+⚠ **A finding filed, not fixed** — `FdpConfig.EnforceExplicitEventRegistration` is a **process-global**
+flipped by one rail while other xUnit collections run in parallel; whichever class publishes a managed
+event in that window throws. Documented `2026-09-09`; `S-2`'s added tests changed the scheduling and it
+surfaced on two more classes. ⭐ Lean: `DisableTestParallelization` on `Hrot.Editor.Tests`, or an
+`AsyncLocal` override on `FdpConfig`. ⛔ Suite-wide policy — not `S-2`'s call.
+*(⚠ And `FdpEventBus.HasEvent`/`HasManagedEvent` are **not** an is-registered check — they answer
+*"was one published this frame"*. I nearly rewrote the rail on that misreading.)*
+
+### ⭐⭐ NEXT — **`S-3`**
+
+The **notification** event *(new, FDP-internal — 🔒 `R-134`: no DDS type in the internal path)*; panels
+subscribe and their own selection fields become view state. ⭐ That is also what collapses the last two
+stores: `SimHostSelectionManager` and `SharedEntitySelection`.
+
+### ⚠ Gates as measured `2026-09-20` (b)
+
+| gate | result |
+|---|---|
+| `Hrot.Presentation.Tests` | ✅ **272/272** |
+| `Hrot.Editor.Tests` | ✅ **414/415**, 1 skip, 0 fail *(the `AiHotReload` ALC flake did not fire this run)* |
+| `Hrot.IG.Tests` | ⚠ **427/435** — the **7 reds are PRE-EXISTING**, confirmed by stashing and re-running at base: identical set *(`EntityDamage` · `EntityInfo` · `EntityMaster` translators)*. ⭐ My two reds — IG's selection rail — are **fixed**, not excused |
+| `Fdp.Presentation.Tests` | ⚠ **541/550** — the same **8 pre-existing** ImGui-context reds |
+| `design-digest --check` · `rulings-check` **37/37** · `tracker-counts` · 4 mermaid blocks | ✅ |
+| ⛔ `HrotStrideApp.Game` | still `net8.0-windows`, unbuildable here. No Stride file was edited |
+
+---
+
+## ⛔ HISTORY — SESSION `2026-09-20` (a) — **`UXI-11` SLICE `S-1`**
 
 ☑ **`S-1` shipped** *(selection unification, slice 1)*. 📄 The as-built is
 [`UX_Feature_Selection.md` §2.7.6](../UX/UX_Feature_Selection.md) — read **that**, not this summary,
