@@ -29,6 +29,28 @@ public class SelectionInteractionSystemTests
         _world.RegisterComponent<SelectionState>();
         _world.RegisterComponent<VehicleState>();
         _system = new SelectionInteractionSystem(_world, _world.Bus);
+        _requests = new SelectionRequestSystem(
+            () => new Hrot.ScenarioEditor.Selection.EcsSelectionState(_world));
+    }
+
+    private readonly SelectionRequestSystem _requests;
+
+    /// <summary>
+    /// ⭐⭐⭐ <b><c>UXI-11</c> <c>S-4</c> — a map gesture is a REQUEST now, so serving it takes a frame.</b>
+    ///
+    /// <para>📄 §2.7.3 rule 1: <c>SelectionRequestSystem</c> is the only writer. ⛔ This system used to
+    /// write the component itself and announce nothing, which is exactly the defect <c>S-4</c> closes —
+    /// the hosts' inspector context stopped following map clicks when <c>S-3</c> replaced their
+    /// hand-syncs with the notification.</para>
+    ///
+    /// <para>⭐⭐ <b>These rails are STRONGER for it.</b> Before, they proved this system wrote two
+    /// booleans. Now they prove the whole chain — gesture → request → the one writer → the component —
+    /// which is the chain that actually has to work on five hosts.</para>
+    /// </summary>
+    private void ServeRequests()
+    {
+        _world.Bus.SwapBuffers();
+        _requests.Execute(_world, 0f);
     }
 
     /// <summary>⭐⭐ §6.7 — ids must be UNIQUE now. Selection resolves the token's anchor id against the
@@ -79,6 +101,7 @@ public class SelectionInteractionSystemTests
         PublishStartedEvent(entity);
 
         _system.Tick(0f);
+        ServeRequests();
 
         var state = _world.GetComponent<SelectionState>(entity);
         Assert.True(state.IsSelected);
@@ -96,6 +119,7 @@ public class SelectionInteractionSystemTests
         // Step 1: null entity click -> rubber-band starts, selection NOT yet cleared
         PublishStartedEvent(Entity.Null);
         _system.Tick(0f);
+        ServeRequests();
         // Still selected (rubber-band in progress, no commit yet)
         Assert.True(_world.GetComponent<SelectionState>(entity).IsSelected);
 
@@ -103,6 +127,7 @@ public class SelectionInteractionSystemTests
         _world.Bus.Publish(new GizmoInteractionCommitEvent { Token = default });
         _world.Bus.SwapBuffers();
         _system.Tick(0f);
+        ServeRequests();
 
         var state = _world.GetComponent<SelectionState>(entity);
         Assert.False(state.IsSelected);
@@ -120,13 +145,79 @@ public class SelectionInteractionSystemTests
 
         PublishStartedEvent(entity1);
         _system.Tick(0f);
+        ServeRequests();
         Assert.True(_world.GetComponent<SelectionState>(entity1).IsSelected);
 
         PublishStartedEvent(entity2);
         _system.Tick(0f);
+        ServeRequests();
 
         Assert.False(_world.GetComponent<SelectionState>(entity1).IsSelected);
         Assert.True(_world.GetComponent<SelectionState>(entity2).IsSelected);
+    }
+
+    /// <summary>
+    /// ⭐⭐⭐ <b><c>UXI-11</c> <c>S-4</c> — A MAP CLICK REACHES THE INSPECTOR CONTEXT. This is the rail
+    /// the regression it fixes never had.</b>
+    ///
+    /// <para>🔴 <b>What broke, and how it hid.</b> Every host used to hand-sync
+    /// <c>IInspectorContext.SelectedEntity</c> off <c>OnSelectionChanged</c>. <c>S-3</c> deleted those
+    /// in favour of <c>SelectionChangedNotification</c> — correctly, because they fired for a MAP click
+    /// and nothing else. ⛔ But this system wrote the component DIRECTLY and published no notification,
+    /// so the replacement never fired for a map click either. ⇒ the details pane stopped following the
+    /// map on the editor, IG, SimHost and ReplayBrowser, and **the whole ~8 000-rail suite stayed
+    /// green** — because the entity-inspector PANEL projects from <c>ISelectionState</c> each draw and
+    /// so kept working, which is exactly the kind of partial symptom that reads as "fine".</para>
+    ///
+    /// <para>⭐ Now the gesture is a request, the request system announces, and the notification system
+    /// points the context. This asserts that chain end to end.</para>
+    /// </summary>
+    [Fact]
+    public void AMapClickReachesTheInspectorContext()
+    {
+        var entity    = CreateSelectableEntity();
+        var inspector = new Fdp.Presentation.Abstractions.InspectorState();
+        var notify    = new SelectionNotificationSystem(() => inspector);
+
+        PublishStartedEvent(entity);
+        _system.Tick(0f);          // the gesture publishes a request
+        ServeRequests();           // the one writer applies it AND announces
+        _world.Bus.SwapBuffers();
+        notify.Execute(_world, 0f);
+
+        Assert.Equal(entity, inspector.SelectedEntity);
+    }
+
+    /// <summary>
+    /// ⭐⭐ A rubber band is ONE request carrying the set — not a clear plus N writes.
+    /// ⚠ That is what makes the ring, the panels and the announcement all see the finished selection
+    /// instead of N intermediate ones.
+    /// </summary>
+    [Fact]
+    public void ARubberBandSelectsTheWholeBoxInOneRequest()
+    {
+        var a = CreateSelectableEntity();
+        var b = CreateSelectableEntity();
+        _world.SetComponent(a, default(SimTransform));
+        _world.SetComponent(b, new SimTransform { Position = new System.Numerics.Vector3(5f, 5f, 0f) });
+
+        PublishStartedEvent(Entity.Null, new System.Numerics.Vector3(-10f, -10f, 0f));
+        _system.Tick(0f);
+
+        _world.Bus.Publish(new GizmoDragUpdateEvent
+        {
+            Token = default, WorldPos = new System.Numerics.Vector3(20f, 20f, 0f),
+        });
+        _world.Bus.SwapBuffers();
+        _system.Tick(0f);
+
+        _world.Bus.Publish(new GizmoInteractionCommitEvent { Token = default });
+        _world.Bus.SwapBuffers();
+        _system.Tick(0f);
+        ServeRequests();
+
+        Assert.True(_world.GetComponent<SelectionState>(a).IsSelected);
+        Assert.True(_world.GetComponent<SelectionState>(b).IsSelected);
     }
 
     // SIS-004: GizmoKeyEvent(Delete, isPressed=false) on selected entity publishes DestroyEntityCommand.

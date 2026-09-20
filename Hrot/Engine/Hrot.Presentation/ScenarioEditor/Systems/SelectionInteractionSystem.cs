@@ -8,6 +8,9 @@ using Fdp.Toolkit.NetworkSpawning.Events;
 using Fdp.Toolkit.Replication.Components;
 using Hrot.IG.Components;
 using Hrot.ScenarioEditor.Gizmos;
+// ⚠ Aliased, not imported: Fdp.Toolkit.Vis2D.Abstractions also declares MapKeyboardKey, which
+//   would make the Delete-key check ambiguous with the gizmo interaction one already in use.
+using SelectionChangeRequest = Fdp.Toolkit.Vis2D.Abstractions.SelectionChangeRequest;
 
 namespace Hrot.ScenarioEditor.Systems;
 
@@ -98,10 +101,16 @@ public sealed class SelectionInteractionSystem
             }
             else if (_world.IsAlive(entity))
             {
+                // ⭐⭐⭐ UXI-11 S-4 — A MAP CLICK IS A REQUEST NOW, like every other surface.
+                // 🔴 This closes a defect S-3 introduced: the hand-syncs that pointed each host's
+                //    IInspectorContext at a map click were deleted in favour of the NOTIFICATION —
+                //    but this system wrote the component DIRECTLY and announced nothing, so the
+                //    details pane stopped following map clicks on every host. Requesting fixes it
+                //    for all of them at once, because the request system is what announces.
+                // ⚠ The callback still fires IMMEDIATELY: it means "the operator clicked this
+                //   entity", which is true now — ⛔ not "the selection is X", which is true next frame.
                 // TODO(P2): read Raylib shift/ctrl state for multi-select.
-                // Phase 5 implements single-select only.
-                ClearAllSelections();
-                SetSelected(entity, isPrimary: true);
+                Request(SelectionChangeRequest.ReplaceWith(entity, "Map.Click"));
                 OnSelectionChanged?.Invoke(entity, evt.WorldPos);
             }
         }
@@ -169,18 +178,26 @@ public sealed class SelectionInteractionSystem
             }
 
             if (toDestroy.Count > 0)
-                ClearAllSelections();
+                Request(SelectionChangeRequest.ClearAll("Map.DeleteKey"));
         }
     }
 
     /// <summary>
     /// Clears all ECS SelectionState components. Call before a world reset.
-    /// ⭐ Delegates to the shared view (UXI-11 S-1) -- this method stays because callers name it.
+    ///
+    /// <para>⭐⭐ <b>Deliberately IMMEDIATE, unlike every gesture above.</b> A world reset cannot wait a
+    /// frame for a request to be served — the world it would apply to is the one being torn down.
+    /// ⛔ It is also the only member of this class with no production caller: it exists for the reset
+    /// path and the rails, which is why it is safe for it to bypass the request.</para>
     /// </summary>
     public void ClearAllSelections() => _selection.ClearCore();
 
-    private void SetSelected(Entity entity, bool isPrimary)
-        => _selection.SetSelectedCore(entity, isPrimary);
+    /// <summary>
+    /// ⭐⭐⭐ Every gesture goes through here — 🔒 §2.7.3 rule 1, <c>SelectionRequestSystem</c> is the
+    /// only writer. ⚠ One frame later than the direct write it replaces; §2.5 rules that structural.
+    /// </summary>
+    private void Request(SelectionChangeRequest request)
+        => _world.Bus.PublishManaged(request);
 
     /// <summary>
     /// Finalises a rubber-band selection. Selects all entities with
@@ -195,7 +212,7 @@ public sealed class SelectionInteractionSystem
         if (dx < 2f && dy < 2f)
         {
             // Tiny drag: treat as deselect-all click.
-            ClearAllSelections();
+            Request(SelectionChangeRequest.ClearAll("Map.EmptyClick"));
             OnSelectionChanged?.Invoke(Entity.Null, new Vector3(_boxStart.X, _boxStart.Y, 0f));
             return;
         }
@@ -205,8 +222,11 @@ public sealed class SelectionInteractionSystem
         float minY = Math.Min(_boxStart.Y, _boxCurrent.Y);
         float maxY = Math.Max(_boxStart.Y, _boxCurrent.Y);
 
-        ClearAllSelections();
-        bool anySelected = false;
+        // ⭐⭐⭐ UXI-11 S-4 — ONE request carrying the whole set, rather than a clear plus N writes.
+        // ⭐ This is what SelectionChangeMode was for: a rubber band is a single Replace, so the ring,
+        //   the panels and the announcement all see the finished selection instead of N intermediate
+        //   ones. ⛔ The old loop published nothing at all.
+        var inBox = new List<Entity>();
 
         var q = _world.Query().With<SimTransform>().WithLifecycle(EntityLifecycle.All).Build();
         foreach (var e in q)
@@ -217,11 +237,10 @@ public sealed class SelectionInteractionSystem
             float px = tf.Position.X;
             float py = tf.Position.Y;
             if (px >= minX && px <= maxX && py >= minY && py <= maxY)
-            {
-                SetSelected(e, isPrimary: !anySelected);
-                anySelected = true;
-            }
+                inBox.Add(e);
         }
+
+        Request(SelectionChangeRequest.ReplaceWith(inBox, "Map.RubberBand"));
     }
 }
 

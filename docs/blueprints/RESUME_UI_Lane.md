@@ -33,7 +33,60 @@ related-designs:
 -->
 # ⭐⭐⭐ RESUME — **the UI / variable implementation lane**
 
-## ⛔⛔ UNVERIFIED ON THIS LANE — **`S-3d` (Stride) NEEDS A WINDOWS BUILD**
+## ⭐⭐⭐ SESSION `2026-09-20` (f) — **`S-3e`: CGF'S MAP INPUT, AND A REGRESSION `S-3` SHIPPED**
+
+> 🔒 **User:** *"Remaining half"*.
+
+☑ **Done — and measuring it found something worse first.** 📄 As-built:
+[`UX_Feature_Selection.md` §2.7.12](../UX/UX_Feature_Selection.md).
+
+### 🔴 The regression `S-3` shipped, found by measuring CGF
+
+📐 Every host used to hand-sync `IInspectorContext.SelectedEntity` off `OnSelectionChanged`. `S-3`
+deleted those in favour of the notification — correctly, they fired for map clicks only. ⛔ **But
+`SelectionInteractionSystem` wrote the component directly and published nothing**, so the replacement
+never fired for a map click either. ⇒ the **details pane stopped following the map on four hosts**.
+
+⚠⚠ **Why nothing caught it:** the entity-inspector PANEL projects from `ISelectionState` each draw, so
+row highlighting kept working — ⭐ a partial symptom that reads as *"fine"*. And the gesture system's
+rails asserted it wrote **two booleans**; nothing asserted anything downstream.
+
+### ⭐ One change closed three things
+
+**Every map gesture is now a `SelectionChangeRequest`** ⇒ the request system applies **and announces**.
+
+| ☑ | |
+|---|---|
+| the regression | map clicks announce again, on every host |
+| **`S-2` deviation ②** | `SelectionRequestSystem` is now **literally** the only writer. `S-2` deferred this for want of a request system on ReplayBrowser/SimHost — `S-3b` had already supplied it |
+| **CGF's map-input path** | ⭐ **one line**, because `S-3c` made the pack build the gesture system for all five hosts |
+
+📐 **CGF's shape was sharper than the filed text.** It was never missing a *selection* — it holds the
+shared view and serves requests. The remote terminal's clicks were **already arriving** on its
+interaction bus and **nothing consumed them**: a click selected nothing, silently. ⚠ The adapter it
+needed was **IG-private**; it now lives beside the system.
+
+### ⚠ Gates `2026-09-20` (f) — all six projects compiled first
+
+| gate | result |
+|---|---|
+| `Hrot.Presentation.Tests` | ✅ **275/275** *(+2 new rails; the regression rail is **red-proved**)* |
+| `Hrot.ReplayBrowser.Tests` | ✅ **30/30** |
+| `Hrot.Editor.Tests` | ⚠ 418/420 — the known ALC flake |
+| `Hrot.IG.Tests` · `Hrot.SimHost.Tests` · `Fdp.Presentation.Tests` | ⚠ same **7** / **3** / **8** pre-existing |
+| `design-digest` · `rulings-check` **37/37** · `tracker-counts` · 6 mermaid | ✅ |
+
+⭐ **`T-1` worked as designed this time:** 3 of the 8 `SelectionInteractionSystemTests` reddened on the
+deferral and were **folded, not routed around** — they now pump the request system and so prove the
+whole chain instead of two booleans.
+
+### ⭐⭐ NEXT — **`S-4`**
+
+Right-click selects on **every** surface *(§2.3 incl. row 1)*; the **DER inspector gains a seam**.
+
+---
+
+## ⛔⛔ STILL UNVERIFIED ON THIS LANE — **`S-3d` (Stride) — VERIFIED ON WINDOWS `2026-09-20`, see below**
 
 ⚠⚠ **Written, pushed, NOT COMPILED.** `HrotStrideApp.Game` is `net8.0-windows` and outside the root
 solution — this lane can build neither it nor `HrotStrideApp.Game.Tests`. 📄 §2.7.11 of

@@ -16,6 +16,9 @@ build-state: BUILDING (§2.7 is the consolidated TARGET STATE with class + seque
   in the product: "The selection works both ways, clicks as well." Checks 1-5 PASS, check 6 (headless) NOT
   RUN. The blind-written code needed NO fix. Result table: §2.7.11a. ⛔ Check 2 asked for 12 tests and the
   file has 11 — a DOC error, not a missing rail; corrected in §2.7.11a.
+  ☑ S-3e BUILT 2026-09-20 — user: "remaining half". CGF has a map-input path at last; every map gesture
+  is a REQUEST, which closes S-2 deviation ② AND a regression S-3 had shipped (the inspector context
+  stopped following map clicks on four hosts, with the whole suite green). As-built in §2.7.12.
   S-4..S-6 remain DESIGN.)
 verified: 2026-09-10 (measured source scan, graph + grep, coverage checked)
   ⭐ S-1's own inventory re-measured 2026-09-20 on the graph — §2.7.6.
@@ -28,9 +31,8 @@ current-answer: ✅ READ §2.7 — the consolidated TARGET STATE (2026-09-10), w
   ☑ BUILT (S-2): SelectionChangeRequest (managed, set + mode) + SelectionRequestSystem (the renamed
   SelectEntitySystem), registered on IG too; all FOUR hand-rolled component writers are gone —
   "new SelectionState {" appears in zero production files outside EcsSelectionState.
-  ⚠ NOT LITERALLY "the only writer": SelectionInteractionSystem still writes through the view, and
-  two editor facade seams (SetSelection2D, Selected2DEntity) stay synchronous — §2.7.7 deviations
-  ② and ③, both argued.
+  ☑ S-3e CLOSED deviation ②: SelectionInteractionSystem now REQUESTS. Two editor facade seams
+  (SetSelection2D, Selected2DEntity) remain synchronous — §2.7.7 deviation ③, argued.
   ☑ BUILT (S-3): SelectionChangedNotification (FDP-internal, R-134-clean) published by the one
   writer for every cause; SelectionNotificationSystem points IInspectorContext at it; the entity
   inspector projects the host selection and publishes requests; ChainToMap RETIRED; IG's map->inspector
@@ -47,9 +49,11 @@ current-answer: ✅ READ §2.7 — the consolidated TARGET STATE (2026-09-10), w
   OnlyTheSharedPackConstructsTheSelection (red-proved).
   ⛔ NOT unified, deliberately: IsSelectedPredicate stays per-host — `null` ("draw handles on
   everything") is IG's documented policy, so defaulting it would silently change what IG draws.
-  ❌ STILL NOT BUILT: CGF runs no SelectionInteractionSystem, so it has no MAP-INPUT path (that is
-  UXI-11's remaining half — "the input path is missing", not "selection is missing");
-  ClearAll has 0 callers; DerEntityInspectorPanel is S-4's seam.
+  ☑ BUILT (S-3e): CGF schedules the gesture system — the map-input path exists on all five hosts; every
+  map gesture publishes a SelectionChangeRequest, so SelectionRequestSystem is now LITERALLY the only
+  writer and a map click announces (which it did not between S-3 and S-3e — see §2.7.12).
+  ❌ STILL NOT BUILT: ClearAll has 0 callers; DerEntityInspectorPanel is S-4's seam; right-click does
+  not select on every surface yet (S-4).
   ⭐ 2026-09-10 — §2.6 is NEW and carries four user rulings: selection is GLOBAL across every host
   (ChainToMap as an opt-in is retired), a selection CHANGE cancels editing of the previously selected
   entity, clicks during an edit must not select (already true on the map via the capture-anchor filter,
@@ -647,6 +651,7 @@ sequenceDiagram
 | ☑ **S-3** *(`2026-09-20`, §2.7.8)* | the **notification** event *(new, FDP-internal)*; panels subscribe | ☑ `R-134` met; 🟡 panels PROJECT rather than subscribe |
 | ☑ **S-3b** *(`2026-09-20`, §2.7.9)* | 🔒 *"simhost is not special … make the nodes use same (best shared) stuff in the same way"* — SimHost + ReplayBrowser join the protocol | ☑ **the 4 stores → 1 + views is MET**; two types deleted |
 | ☑ **S-3c** *(`2026-09-20`, §2.7.10)* | 🔒 *"unify across host also the bootstrap code … including this entity selection stuff"* — `MapInteractionPack` constructs the selection for all five hosts | ☑ `new EcsSelectionState(` and `new SelectionInteractionSystem(` appear in production **once** |
+| ☑ **S-3e** *(`2026-09-20`, §2.7.12)* | 🔒 *"remaining half"* — CGF gains a map-input path; every gesture becomes a request | ☑ `SelectionRequestSystem` is **literally** the only writer; ☑ a regression `S-3` shipped is closed |
 | ⭐ **S-4 — NEXT** | right-click selects on every surface *(§2.3 incl. row 1)*; DER inspector gains a seam | ☑ `CE-259s`'s ordering **already discharged at `S-2`** — it stopped being latent the moment the write was deferred |
 | **S-5** | rule 5 — losing selection cancels that entity's edit | ⭐ needs **S-4** *(a targeted arming does not select — `Tool_Model` §4.14)* |
 | **S-6** | remote-map-control dispatcher becomes a requester; echo suppression moves to egress | 📄 `DESIGN_Remote_Map_Control.md` |
@@ -1184,6 +1189,76 @@ type provided by the runtime"* — in `Hrot.Stride.Animation` and `Hrot.Stride.C
 never touched.** 📐 Cause: `dotnet` resolved **SDK 10.0.300** and nothing pinned it. ⇒ a root `global.json`
 pinning **8.0.408** turns it into **0 errors**. ⛔ `BOOTSTRAP_Stride_Windows_Session.md` §2.1 still presents
 this build as working unconditionally; it is true only under SDK 8.
+
+#### 2.7.12 ☑ **`S-3e` — CGF'S MAP-INPUT PATH, AND A REGRESSION `S-3` SHIPPED**
+
+> 🔒 **User, `2026-09-20`:** *"Remaining half"* — `UXI-11`'s other open half, CGF having no map input.
+
+🔴🔴 **Measuring it found something worse first: `S-3` broke the inspector context on EVERY host, and
+the whole suite stayed green.**
+
+##### 🔴 The regression, stated plainly
+
+📐 Before `S-3`, every host hand-synced `IInspectorContext.SelectedEntity` off
+`SelectionInteractionSystem.OnSelectionChanged`. `S-3` deleted those in favour of
+`SelectionChangedNotification` — **correctly**, because they fired for a map click and nothing else.
+⛔ **But this system wrote the component DIRECTLY and published no notification**, so the replacement
+never fired for a map click either. ⇒ on the **editor, IG, SimHost and ReplayBrowser**, the details
+pane stopped following the map.
+
+| ⚠ why nothing caught it | |
+|---|---|
+| the entity-inspector **panel** kept working | it PROJECTS from `ISelectionState` each draw *(§2.7.8 deviation ②)*, so row highlighting still followed the map — ⭐ a partial symptom that reads as *"fine"* |
+| no rail asserted the chain | the gesture system's rails asserted it wrote **two booleans**; nothing asserted anything downstream of it |
+| 📐 measured after the fact | `SelectionChangedNotification` has exactly **one** publisher — `SelectionRequestSystem` — and `SelectionInteractionSystem` contained no publish at all |
+
+##### ⭐ The fix is one change that closes three things
+
+**Every map gesture is now a `SelectionChangeRequest`** — click, empty-click, rubber band, Delete-key
+clear. ⇒ the request system applies **and announces**, so the notification reaches every host.
+
+| it closes | |
+|---|---|
+| ☑ the regression above | the announcement now happens for map clicks |
+| ☑ **`S-2` deviation ②** | `SelectionRequestSystem` is now **literally** the only writer. 📌 `S-2` deferred this because ReplayBrowser and SimHost had no request system — ⭐ `S-3b` gave them one, so the blocker was already gone |
+| ☑ **CGF's map-input path** — the remaining half | see below |
+
+⭐ **A rubber band is now ONE request carrying the set** rather than a clear plus N writes, which is
+what `SelectionChangeMode` was for: panels and the announcement see the finished selection, not N
+intermediate ones.
+
+⚠ **`ClearAllSelections()` stays immediate** — a world reset cannot wait a frame for a request to be
+served against the world being torn down. 📐 It has **no production callers**; it exists for the reset
+path and the rails, which is what makes the exception safe.
+
+##### ☑ CGF — **and it was one line, for a reason worth recording**
+
+📐 **The filed text says *"CGF has no `SelectionInteractionSystem` at all"*. Measured, the shape is
+sharper:** CGF was never missing a *selection* — it holds the shared view and serves requests like
+every other host. What it never had was **anything turning a map gesture into one**.
+
+🔴 **The events were already arriving.** `CreateGizmoTranslators(_cgfInteractionBus, …)` wires a remote
+terminal's clicks onto CGF's interaction bus, and CGF schedules the gizmo group. ⇒ **nothing consumed
+them**: a click on a CGF-backed map selected nothing, silently, and no rail could see it.
+
+⭐ The fix is `RegisterGlobalSystem(new SelectionInteractionSystemAdapter(pack.SelectionInteraction))`
+— **one line, because `S-3c` made the pack build the gesture system for all five hosts.** ⛔ Before
+that it would have needed a construction, a view and an ordering decision as well.
+
+⚠ **The adapter was IG-PRIVATE**, which is part of why CGF had none: the wrapper CGF needed existed and
+could not be seen from there. It now lives in `Hrot.Presentation` beside the system.
+⛔ **Deliberately still an adapter rather than making the system an `IEcsModuleSystem`:** three hosts
+tick it from their own map update and two schedule it — if it implemented the interface, a host doing
+both would tick it **twice**, and a double tick means the Delete key destroying on one pass and
+clearing on the next.
+
+##### ⭐ Rails
+
+| | |
+|---|---|
+| `AMapClickReachesTheInspectorContext` *(new)* | the chain the regression broke, end to end: gesture → request → the one writer → announcement → context. ⭐ **Red-proved** — restoring the direct write fails it |
+| `ARubberBandSelectsTheWholeBoxInOneRequest` *(new)* | the set-valued path |
+| `SelectionInteractionSystemTests` *(the feature's own, `T-1`)* | **3 of 8 reddened** on the deferral and were folded, not routed around: they now pump the request system, so they prove the whole chain rather than two booleans |
 
 ## 3. Acceptance
 

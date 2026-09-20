@@ -865,7 +865,9 @@ public class IgApplication : IDisposable
             //    to construct it here, as all five did.
             _selectionSystem = igMapInteraction.SelectionInteraction;
 
-            ctx.Kernel.RegisterGlobalSystem(new SelectionInteractionSystemAdapter(_selectionSystem));
+            // ⭐ UXI-11 S-4 — the adapter moved to Hrot.Presentation so CGF can use it too.
+            ctx.Kernel.RegisterGlobalSystem(
+                new Hrot.ScenarioEditor.Systems.SelectionInteractionSystemAdapter(_selectionSystem));
 
             // ⭐⭐⭐ UXI-11 S-2 — IG becomes a REQUESTER, so it needs the system that serves requests.
             // 📐 MEASURED 2026-09-20: ScenarioEditorModule (which registers the shared viewport systems)
@@ -3819,14 +3821,8 @@ FdpLog<IgApplication>.Info("[Node-{0}] MapClickEvent published. ContextId={1} hi
 
     // ?? Ghost entity cleanup ??????????????????????????????????????????????????????
 
-    // Phase 5: wraps SelectionInteractionSystem (POJO) as an IEcsModuleSystem so it can be
-    // registered via _kernel.RegisterGlobalSystem and ticked by the kernel each frame.
-    [Fdp.ModuleHost.Abstractions.UpdateInPhase(Fdp.ModuleHost.Abstractions.SystemPhase.PostSimulation)]
-    private sealed class SelectionInteractionSystemAdapter : Fdp.ModuleHost.Abstractions.IEcsModuleSystem
-    {
-        private readonly SelectionInteractionSystem _system;
-        public SelectionInteractionSystemAdapter(SelectionInteractionSystem system) => _system = system;
-        public void Execute(Fdp.ModuleHost.Abstractions.ISimulationView view, float deltaTime) => _system.Tick(deltaTime);
-    }
+    // ⛔ The SelectionInteractionSystemAdapter that lived here MOVED to
+    //    Hrot.ScenarioEditor.Systems (UXI-11 S-4), because CGF needed the same wrapper and could not
+    //    see an IG-private one. ⭐ Its [UpdateInPhase(PostSimulation)] moved with it.
 }
 

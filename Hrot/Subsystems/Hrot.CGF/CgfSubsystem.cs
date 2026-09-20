@@ -1370,6 +1370,20 @@ public sealed class CgfSubsystem : ISubsystem, Fdp.Toolkit.Runner.IMapCameraProv
             gizmoIngress: cgfGizmoIngress,
             gizmoEgress:  cgfGizmoEgress));
         // ⭐⭐ UXI-23 S3: report anything this host constructed but did not schedule (§3.2e).
+        // ⭐⭐⭐ UXI-11 S-4 — CGF FINALLY HAS A MAP-INPUT PATH. This is the issue's "remaining half".
+        // 🔴 MEASURED, and it is smaller than the filed text: CGF was never missing a SELECTION — it
+        //    holds the shared view and serves requests like every other host. What it never had was
+        //    anything turning a map GESTURE into one. ⇒ the interaction events were already arriving
+        //    (CreateGizmoTranslators wires the remote terminal's clicks onto _cgfInteractionBus above)
+        //    and NOTHING CONSUMED THEM. A click on a CGF-backed map selected nothing, silently.
+        // ⭐ One line, because S-3c made the pack build the gesture system for all five hosts —
+        //    before that this would also have needed a construction, a view and an ordering decision.
+        // ⚠ Registered, not ticked inline: CGF is headless-first and runs no local map loop, so the
+        //   kernel is the only thing that ticks every frame here.
+        _context.Kernel.RegisterGlobalSystem(
+            new Hrot.ScenarioEditor.Systems.SelectionInteractionSystemAdapter(
+                _cgfMapInteraction.SelectionInteraction));
+
         foreach (string problem in _cgfMapInteraction.Unserviceable(new object[] { cgfGizmoGroup }))
             Fdp.Core.Logging.FdpLog<CgfSubsystem>.Info("[Map] {0}", problem);
         _context.Kernel.RegisterGlobalSystem(new EventHistoryCaptureSystem("Interaction", _fdpEventHistory, _cgfInteractionBus));
