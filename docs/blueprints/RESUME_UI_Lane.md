@@ -49,6 +49,43 @@ related-designs:
 -->
 # ⭐⭐⭐ RESUME — **the UI / variable implementation lane**
 
+## 🔴 OPEN — **ROOT CAUSE NARROWED `2026-09-20`: NOTHING ON THE EDITOR'S 2-D MAP IS PICKABLE**
+
+⭐⭐⭐ **The `[SelDiag]` run settled it. Operator clicked ON an entity:**
+
+```
+[SelDiag] Started anchor=#0 button=Left resolved=NULL alive=False boxSelecting=False band=True
+[SelDiag] serving mode=Clear   reason=Map.EmptyClick  count=0
+[SelDiag] serving mode=Replace reason=Map.RubberBand  count=0
+```
+
+🔒 **`anchor=#0` is the CANVAS FALLBACK.** The terminal creates that token **only** when
+`FindTopmostInteractivePrimitive` returns nothing *(`GizmoMap…/DebugGizmoLayer.cs:194`)*. ⇒ the click did
+not miss a handler — **the hit-test found no pickable primitive under the cursor.**
+
+⇒ ⭐⭐⭐ **`UXI-11` IS EXONERATED, and the log proves it POSITIVELY rather than by elimination:** every
+stage downstream did exactly the right thing with the input it was given — an empty-space click cleared
+*(`Map.EmptyClick`)*, and the tiny-drag commit ran a box select that legitimately matched nothing
+*(`Map.RubberBand count=0`)*. ⛔ The selection machinery is not broken; it is being told "empty space",
+correctly, because that is what the terminal saw.
+
+⚠ `band=True` confirms the marquee state now exists on this host *(§2.7.16)*. The band does not SHOW for
+a click because a click is not a drag — that is correct behaviour, not the reported defect.
+
+### ⭐ What is left, and the instrument for it is already in
+
+📐 A pick box is emitted by `EntityPresentationGizmoShared.EmitPickBox` and found by
+`BoxAnchorId != 0` *(the hit-test's `:550` skip and `:563` identity)*. ⚠ And `EntityPresentationGizmo.cs:94`
+returns early when `networkId == 0` — so an id-0 entity would be **invisible**, and the operator SEES
+entities ⇒ they have ids. **Two possibilities remain:**
+
+| the next run says | meaning |
+|---|---|
+| `pickable=0` | the pick boxes are **not in the frame the hit-test reads**. The projector is not running, or the buffer is empty at `canvas.Update()` time |
+| `pickable=N nearest=#id at D` | they ARE there and the click missed by `D` world units ⇒ a geometry/size question *(the box is `8×8` WORLD units — at a zoomed-out view that is sub-pixel)*, not a wiring one |
+
+⭐ `[SelDiag] terminal canvas-fallback …` now reports exactly that, on every canvas-fallback press.
+
 ## 🔴 OPEN — **OPERATOR REPORT `2026-09-20`: "mouse clicking does not select"**
 
 > 🔒 **User, after the `S-4`/`S-4b` Windows pass:** *"Mouse clicking does not select, marquee rubber band

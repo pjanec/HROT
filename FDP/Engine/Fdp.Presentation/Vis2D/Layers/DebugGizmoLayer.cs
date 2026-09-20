@@ -268,6 +268,41 @@ namespace Fdp.Toolkit.Vis2D.Layers
         /// (<c>ToPickToken</c>, the S3 payload path of <c>DESIGN_Gizmo_Anchor_Identity.md</c>) and that
         /// each <c>GizmoInteractionEventKind</c> publishes its matching event exactly once.</para>
         /// </summary>
+        /// <summary>
+        /// ⭐⭐ Reports what the hit-test HAD to work with when it fell through to the canvas.
+        /// ⛔ Deliberately counts <c>BoxAnchorId != 0</c> rather than "any primitive": that is the exact
+        /// predicate <c>FindTopmostInteractivePrimitive</c> uses to decide a primitive is pickable
+        /// (its <c>:550</c> skip and <c>:563</c> identity), so a count of 0 here means "nothing on this
+        /// map is clickable", not "nothing is drawn".
+        /// </summary>
+        private void LogCanvasFallback(System.Numerics.Vector3 worldPos)
+        {
+            if (_buffer == null) return;
+
+            var frame   = _buffer.GetFrame();
+            int boxes   = 0;
+            float best  = float.MaxValue;
+            long  bestId = 0;
+
+            for (int i = 0; i < frame.Length; i++)
+            {
+                ref readonly var p = ref frame[i];
+                if (p.BoxAnchorId == 0) continue;
+                boxes++;
+                float dx = worldPos.X - p.BoxCenterX;
+                float dy = worldPos.Y - p.BoxCenterY;
+                float d  = MathF.Sqrt(dx * dx + dy * dy);
+                if (d < best) { best = d; bestId = p.BoxAnchorId; }
+            }
+
+            Fdp.Core.Logging.FdpLog<DebugGizmoLayer>.Info(
+                $"[SelDiag] terminal canvas-fallback at ({worldPos.X:F1},{worldPos.Y:F1}) — " +
+                $"frame={frame.Length} pickable={boxes} " +
+                (boxes == 0
+                    ? "NO PICKABLE PRIMITIVES IN FRAME"
+                    : $"nearest=#{bestId} at {best:F1} world units"));
+        }
+
         internal void OnInteraction(
             GizmoPickToken token,
             GizmoInteractionEventKind kind,
@@ -281,6 +316,18 @@ namespace Fdp.Toolkit.Vis2D.Layers
             switch (kind)
             {
                 case GizmoInteractionEventKind.Started:
+                    // ⭐⭐⭐ [SelDiag] — THE TERMINAL'S HALF. 📄 Added 2026-09-20 for an operator report
+                    //    whose first diagnostic round returned `anchor=#0`, i.e. the CANVAS FALLBACK:
+                    //    the hit-test found no interactive primitive under the cursor.
+                    // ⭐ That leaves exactly two possibilities, and this line separates them:
+                    //      · boxes=0            => the pick boxes are NOT IN THE FRAME the hit-test sees
+                    //                              (the projector is not running, or the buffer is empty
+                    //                              at canvas.Update() time)
+                    //      · boxes=N, nearest=D => they ARE there and the click missed by D world units,
+                    //                              which is a geometry/size question, not a wiring one
+                    // ⚠ Fires ONLY on a canvas-fallback press (anchor 0) — operator-paced, and silent
+                    //   once entities become clickable again.
+                    if (token.AnchorId == 0) LogCanvasFallback(worldPos);
                     _eventBus.Publish(new GizmoInteractionStartedEvent
                     {
                         Token = pickToken,
