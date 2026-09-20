@@ -537,5 +537,13 @@
         /// is dense and the block comments are measurably stale (`QA-037`). 302 is free by a census of
         /// EVERY <c>*Ids*.cs</c>, which is the only census that counts (`R-44`).</summary>
         public const int BrainInterrupts = 302;
+
+        /// <summary><c>BlueprintBlackboard256</c> — ⭐ <b>the SMALLEST occurrence-store tier</b>, added by
+        /// <c>O3b</c> / task <c>B4</c> (2026-09-20) to price the simple case: one root occurrence and at
+        /// most a couple of stateful slots. 📐 25 of 30 generated behaviours (83 %) fit it.
+        /// ⚠ <b>NOT beside its siblings at 204–206, and that is deliberate</b>: the 200–216 range is
+        /// fully allocated, so the tier family cannot stay contiguous. 303 is free by a census of EVERY
+        /// <c>*Ids*.cs</c>, which is the only census that counts (<c>R-44</c>, and <c>QA-037</c> is why).</summary>
+        public const int BlueprintBlackboard256 = 303;
     }
 }

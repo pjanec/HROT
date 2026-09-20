@@ -1,5 +1,6 @@
 using System;
 using Fdp.Core;
+using Fdp.Toolkit.Blueprints;
 using Fdp.Toolkit.Blueprints.Components;
 using Fdp.Toolkit.Blueprints.Partitioning;
 using Fdp.Toolkit.Blueprints.Shared;
@@ -20,9 +21,9 @@ namespace Fdp.Toolkits.Tests.Blueprints.Partitioning
         private static EntityRepository CreateWorld()
         {
             var world = new EntityRepository();
-            world.RegisterComponent<BlueprintBlackboard1024>();
-            world.RegisterComponent<BlueprintBlackboard4096>();
-            world.RegisterComponent<BlueprintBlackboard16384>();
+            // ⭐ B4: register from the LADDER, not a hand-list. A tier added to the table but
+            //   missing here would make every rail below silently test a smaller ladder.
+            BlueprintTierTable.RegisterAll(world);
             return world;
         }
 
@@ -445,6 +446,10 @@ namespace Fdp.Toolkits.Tests.Blueprints.Partitioning
         [Fact]
         public void B3_R8_TheTierStructsAgreeWithTheLinkedLadderFile()
         {
+            Assert.Equal(BlueprintTierLadder.Tier256TotalSize,     BlueprintBlackboard256.TotalSize);
+            Assert.Equal(BlueprintTierLadder.Tier256MaxSlots,      BlueprintBlackboard256.MaxSlots);
+            Assert.Equal(BlueprintTierLadder.Tier256PayloadSize,   BlueprintBlackboard256.PayloadSize);
+
             Assert.Equal(BlueprintTierLadder.Tier1024TotalSize,    BlueprintBlackboard1024.TotalSize);
             Assert.Equal(BlueprintTierLadder.Tier1024MaxSlots,     BlueprintBlackboard1024.MaxSlots);
             Assert.Equal(BlueprintTierLadder.Tier1024PayloadSize,  BlueprintBlackboard1024.PayloadSize);
@@ -471,6 +476,53 @@ namespace Fdp.Toolkits.Tests.Blueprints.Partitioning
             Assert.Equal(BlueprintBlackboardPartitions.MaxKindSlots,  BlueprintTierLadder.MaxKindSlots);
             Assert.Equal(System.Runtime.CompilerServices.Unsafe.SizeOf<BlueprintBlackboardHeader>(),
                          BlueprintTierLadder.HeaderSize);
+        }
+        /// <summary>
+        /// ⭐⭐⭐ <b><c>B4</c> / <c>O3b</c> — THE 256 TIER IS ACTUALLY SELECTED.</b>
+        ///
+        /// <para>⛔⛔ Anti-vacuity, and it is the whole point of the task. Adding a tier to the table
+        /// proves nothing: <c>B3_R1</c>/<c>R2</c>/<c>R5</c>/<c>R8</c> would all stay green for a tier
+        /// that <see cref="BlueprintTierTable.Select"/> never returns. 📐 The measured simple case —
+        /// one root occurrence plus a stateful slot or two — must land HERE, or the tier costs a
+        /// component id and buys nothing.</para>
+        ///
+        /// <para>📐 The sizing that chose <c>MaxSlots 3</c> (design §17, "B4's PRE-MEASUREMENT"):
+        /// 25 of 30 generated behaviours fit at 83 %, the peak of a 1–6 sweep.</para>
+        /// </summary>
+        [Fact]
+        public void B4_R1_TheSmallestTierIsSelectedForTheSimpleCase()
+        {
+            var smallest = BlueprintTierTable.Ascending[0];
+            Assert.Equal(BlueprintBlackboard256.TotalSize, smallest.TotalSize);
+
+            // The measured worst case that still fits: 3 occurrences totalling the whole payload.
+            Assert.Same(smallest, BlueprintTierTable.Select(smallest.PayloadSize, smallest.MaxSlots));
+
+            // A bare root occurrence — BehaviorTreeState (64 B) + entry, no params, one slot.
+            Assert.Same(smallest, BlueprintTierTable.Select(64 + 16, 1));
+
+            // ⛔ And it must NOT swallow what it cannot hold: one slot too many, or one byte too many.
+            Assert.NotSame(smallest, BlueprintTierTable.Select(1, smallest.MaxSlots + 1));
+            Assert.NotSame(smallest, BlueprintTierTable.Select(smallest.PayloadSize + 1, 1));
+        }
+
+        /// <summary>
+        /// ⚠ <b>The enum's numeric order is deliberately NOT the ladder's size order.</b>
+        /// <c>BlackboardTier.B256</c> is <b>3</b>, the last member, because the ordinal is ABI and a
+        /// new tier must be APPENDED (§17.1 <c>N2</c> measured three enums spelling this ladder, one
+        /// of them <c>: byte</c>). ⛔ If someone "tidies" the enum into size order, every persisted
+        /// ordinal shifts — this rail is what says so.
+        /// </summary>
+        [Fact]
+        public void B4_R2_TheTierEnumIsAppendOnly_NotInSizeOrder()
+        {
+            Assert.Equal(0, (int)BlackboardTier.B1024);
+            Assert.Equal(1, (int)BlackboardTier.B4096);
+            Assert.Equal(2, (int)BlackboardTier.B16384);
+            Assert.Equal(3, (int)BlackboardTier.B256);
+
+            // The SIZE order is the table's, and it disagrees with the enum's — by design.
+            Assert.Equal(BlackboardTier.B256, BlueprintTierTable.Ascending[0].Tier);
         }
     }
 }

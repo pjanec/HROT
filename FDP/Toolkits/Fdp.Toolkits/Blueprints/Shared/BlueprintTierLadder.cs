@@ -70,6 +70,31 @@ namespace Fdp.Toolkit.Blueprints.Shared
         //      non-decreasing alongside TotalSize and PayloadSize. ⚠ NON-decreasing, not strictly:
         //      MaxKindSlots caps the ladder at 16, so the top tiers legitimately share a value.
 
+        /// <summary>
+        /// ⭐⭐ <b>The SMALLEST tier — <c>O3b</c> / task <c>B4</c>.</b> It exists to price the simple
+        /// case: one root occurrence and at most a couple of stateful slots.
+        /// </summary>
+        public const int Tier256TotalSize = 256;
+
+        /// <summary>
+        /// ⭐⭐⭐ <b>3, and that OVERTURNED the plan's lean of 2</b> *(PLAN <c>W4</c>)*.
+        ///
+        /// <para>📐 <c>W4</c> reasoned from slot COUNT alone — <i>"77 % of behaviours need ≤ 2"</i>.
+        /// Measured with the BYTES included (design §17, "B4's PRE-MEASUREMENT"), over all 30
+        /// generated behaviours, counting each asset's root occurrence plus every stateful slot:
+        /// <c>@1</c> 56 % · <c>@2</c> 73 % · <b><c>@3</c> 83 %</b> · <c>@4</c> 80 % · <c>@6</c> 60 %.
+        /// ⇒ <b>3 is a genuine maximum</b>, not a marginal preference.</para>
+        ///
+        /// <para>⚠ That measurement is POST-<c>O4</c> arithmetic for a root occurrence not yet built
+        /// — ⭐ re-measure once <c>O4</c> lands. It holds pre-<c>O4</c> too, where the root does not
+        /// exist and every asset needs strictly less.</para>
+        /// </summary>
+        public const int Tier256MaxSlots = 3;
+
+        /// <summary><c>256 − 32 − 3×16</c> = <b>176 B</b>.</summary>
+        public const int Tier256PayloadSize =
+            Tier256TotalSize - HeaderSize - Tier256MaxSlots * SlotEntrySize;
+
         /// <summary>Small tier — total bytes.</summary>
         public const int Tier1024TotalSize = 1024;
 

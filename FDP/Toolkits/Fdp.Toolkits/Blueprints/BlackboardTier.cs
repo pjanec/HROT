@@ -10,4 +10,11 @@ public enum BlackboardTier
     B1024  = 0,
     B4096  = 1,
     B16384 = 2,
+
+    /// <summary>
+    /// ⭐ The 256-byte tier (<c>O3b</c> / <c>B4</c>). ⛔⛔ <b>APPENDED at 3, not inserted at 0, even
+    /// though it is the SMALLEST tier</b> — the ordinal is ABI. ⇒ the enum's numeric order is
+    /// deliberately NOT the size order; <c>BlueprintTierTable.Ascending</c> is the size order.
+    /// </summary>
+    B256   = 3,
 }

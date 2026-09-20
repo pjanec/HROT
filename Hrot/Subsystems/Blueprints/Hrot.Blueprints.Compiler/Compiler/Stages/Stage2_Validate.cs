@@ -509,9 +509,11 @@ internal sealed class V_VariablesAndState : IValidator
                 //      one set of numbers. 📄 design §17.1 N1, §17.5.
                 int tierBudget = (asset.TierHint, stateSize) switch
                 {
+                    (BlackboardTierHint.Force256,   _) => Ladder.Tier256PayloadSize,
                     (BlackboardTierHint.Force1024,  _) => Ladder.Tier1024PayloadSize,
                     (BlackboardTierHint.Force4096,  _) => Ladder.Tier4096PayloadSize,
                     (BlackboardTierHint.Force16384, _) => Ladder.Tier16384PayloadSize,
+                    (BlackboardTierHint.Auto, _) when stateSize <= Ladder.Tier256PayloadSize   => Ladder.Tier256PayloadSize,
                     (BlackboardTierHint.Auto, _) when stateSize <= Ladder.Tier1024PayloadSize  => Ladder.Tier1024PayloadSize,
                     (BlackboardTierHint.Auto, _) when stateSize <= Ladder.Tier4096PayloadSize  => Ladder.Tier4096PayloadSize,
                     (BlackboardTierHint.Auto, _) when stateSize <= Ladder.Tier16384PayloadSize => Ladder.Tier16384PayloadSize,

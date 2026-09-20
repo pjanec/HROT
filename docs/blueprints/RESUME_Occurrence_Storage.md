@@ -67,7 +67,7 @@ and ours are `CE-`. Do not quote it as evidence for them.
 | **`B3①`** *(`O3a`, THE COLLAPSE)* | ✅ **DONE, golden GREEN** *(`25e158d81`)* — `BlueprintTierSpec` + `BlueprintTierTable`; **net −435 lines of C#**; 3 verbatim `TickTier_*` → 1, the quadratic `UpgradeTier` → 1 body, 3 byte-identical renderers → a generic base. ⛔ Ladder values UNCHANGED on purpose. 7 rails, red-proved. As-built in design **§17** |
 | **`B3②`** *(`O3a`, THE RE-PICK)* | ✅ **DONE, golden GREEN, all suites at baseline** — ladder **12 / 16 / 16**; `BlueprintTierLadder` is the one source, LINKED into the compiler ⇒ `Stage2_Validate`'s literals are gone and ⑪ is CLOSED. 🔴 Forced 4096 → 16 as well: a larger tier with FEWER slots makes promotion a capacity REDUCTION. 3 rails, red-proved. As-built in design **§17** |
 | ⭐⭐⭐ **next** | **`B4`** *(`O3b` — the 256 tier)*. ⭐ Now genuinely additive: one entry in `BlueprintTierTable.Ascending`, one component struct, one id. ⛔ **APPENDED to `BlackboardTier`, never inserted** *(§2 ⑫)*. `MaxSlots` is PLAN `W4` — 📐 77 % of behaviours need ≤ 2 slots ⇒ **2** earns the tier, 1 makes it near-useless |
-| ⚠ also open | `B4` *(`O3b` — the 256 tier; `MaxSlots` is PLAN `W4`, and 2 is the value that earns the tier)* |
+| **`B4`** *(`O3b`, the 256 tier)* | ✅ **DONE** — `MaxSlots` **3** *(measured; `W4`'s lean of 2 overturned)*, id **303**, `BlackboardTier.B256 = 3` **appended**. ⭐⭐ Additive exactly as `O3a` promised: nothing but the table, the ladder, a struct, an id and a 4-line renderer. 2 rails, red-proved. As-built in design **§17** |
 | **defects filed** | `CE-295` open *(scenario live-reload is a one-shot — filed NOT fixed, user's call)* · `CE-296` **refuted** *(my error)* |
 
 ### 1.1 What increment `A` actually built

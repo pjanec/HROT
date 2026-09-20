@@ -135,7 +135,13 @@ public sealed class BlueprintAsset
 /// </summary>
 public enum BlueprintDispatchKind { Library, AiPrimitive, Instance }
 
-public enum BlackboardTierHint { Auto, Force1024, Force4096, Force16384 }
+/// <summary>
+/// Authoring hint for which blackboard tier an Instance blueprint should use.
+/// ⛔⛔ <b>APPEND new members, never insert</b> — this is serialised into <c>.bp.json</c> as
+/// <c>TierHint</c>, so the ordinals reach assets on disk. ⭐ <c>Force256</c> is therefore LAST even
+/// though 256 is the smallest tier (<c>O3b</c> / task <c>B4</c>, 2026-09-20).
+/// </summary>
+public enum BlackboardTierHint { Auto, Force1024, Force4096, Force16384, Force256 }
 
 public sealed class AiPrimitiveDecl
 {

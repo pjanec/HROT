@@ -35,6 +35,15 @@ public static class BlueprintTierTable
     /// </summary>
     public static IReadOnlyList<BlueprintTierSpec> Ascending { get; } = new[]
     {
+        // ⚠ FIRST because this list is ordered by SIZE. ⛔ BlackboardTier.B256 is the enum's LAST
+        //   member (3) because the ordinal is ABI and a new tier must be appended (§17.1 N2) —
+        //   so the enum order and this order deliberately disagree. This list is the size order.
+        BlueprintTierSpec.For<BlueprintBlackboard256>(
+            BlackboardTier.B256,
+            BlueprintBlackboard256.TotalSize,
+            BlueprintBlackboard256.MaxSlots,
+            BlueprintBlackboard256.PayloadSize),
+
         BlueprintTierSpec.For<BlueprintBlackboard1024>(
             BlackboardTier.B1024,
             BlueprintBlackboard1024.TotalSize,

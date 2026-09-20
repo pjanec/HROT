@@ -2036,3 +2036,36 @@ region used is `max(offset + sizeof(TParams))`)*, with DTO sizes by reflection:
 |---|---|
 | ⚠ **it is POST-`O4` arithmetic for a design that is not built** | the root occurrence does not exist yet. The composition used here — **state + params in ONE slot** — is this document's own §5a reading. ⇒ ⭐ **re-measure after `O4`**, and treat `3` as the value to build toward rather than a constant already earned |
 | ⚠ **`HsmVariableShowcase` sits exactly on the line** | 3 slots / **192 B** — it fits `@2`'s payload *exactly* but needs 3 slots, and at `@3` the payload drops to 176 so it misses on bytes. ⛔ A one-asset swing either way changes the 83 % |
+
+### ✅ AS-BUILT `2026-09-20` — **`O3b` / `B4` — THE 256 TIER IS SHIPPED** *(obligation ⑤)*
+
+⭐⭐ **And it was genuinely additive, which is what `O3a` was FOR.** The whole tier is:
+
+| what | where |
+|---|---|
+| 3 consts | `BlueprintTierLadder.Tier256{TotalSize,MaxSlots,PayloadSize}` = `256 / 3 / 176` |
+| 1 struct | `BlueprintBlackboard256` — reads the ladder, declares no number of its own |
+| 1 id | `GlobalComponentIds.BlueprintBlackboard256 = 303` |
+| 1 enum member | `BlackboardTier.B256 = 3` — ⛔ **APPENDED** |
+| 1 table entry | first in `BlueprintTierTable.Ascending` *(size order)* |
+| 1 renderer | **4 lines**, on `B3①`'s generic base |
+| compiler | one `Auto` arm + `BlackboardTierHint.Force256` *(appended)* |
+
+⛔ **Nothing else changed.** ⭐ Registration, promotion, probe order, adjacent pairs, the tick walker,
+the seam, every consumer — all pick it up from the table. 📐 `AdjacentPairs` became **3** pairs with
+no code edit; the ladder is `256 → 1024 → 4096 → 16384`, `MaxSlots` `3 → 12 → 16 → 16`
+*(non-decreasing ✅)*, payload `176 → 800 → 3808 → 16096` *(strictly increasing ✅)*.
+
+| ⚠ two places the enum ordinal bites, both handled | |
+|---|---|
+| ⛔⛔ **`BlackboardTier.B256 = 3`, the LAST member, though 256 is the SMALLEST tier** | the ordinal is **ABI** (§17.1 `N2`). ⇒ **the enum's numeric order deliberately is NOT the size order** — `BlueprintTierTable.Ascending` is the size order. ⭐ Pinned by **`B4_R2`**, which red-proves by "tidying" the enum into size order |
+| ⛔ **`BlackboardTierHint.Force256` is also appended** | it is serialised into `.bp.json` as `TierHint`, so its ordinals reach assets on disk |
+
+| ⭐ rails | |
+|---|---|
+| **`B4_R1`** — ⛔⛔ **ANTI-VACUITY, and it is the point** | adding a tier to the table proves nothing: `B3_R1/R2/R5/R8` all stay green for a tier `Select` never returns. This pins that the measured simple case — a bare root occurrence, and 3 occurrences filling the payload — **lands here**, and that it does **not** swallow one slot or one byte too many |
+| **`B4_R2`** — the enum is append-only, not in size order | |
+| ⭐ the four existing table rails cover the new tier **automatically** | `B3_R1` ordering + monotonic `MaxSlots` · `B3_R2` spec-vs-struct + the `MaxKindSlots` ceiling · `B3_R5` adjacent pairs · `B3_R8` ladder agreement. ⚠ `OccurrenceStoreAccessTests`'s world now calls `BlueprintTierTable.RegisterAll` instead of hand-listing three tiers — a hand-list would have left every rail silently testing a smaller ladder |
+
+⭐ **Red-proof:** ① `Select` skipping the smallest tier reddened **`B4_R1`** *(and `B3_R3`)*;
+② "tidying" the enum into size order reddened **`B4_R2`**. Reverted, 22/22 green.

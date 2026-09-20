@@ -62,6 +62,20 @@ public sealed class BlackboardLayoutTests
 
     // ---- SC3: Payload layout constants are consistent ----------------------
 
+    /// <summary>⭐ <c>O3b</c> / task <c>B4</c> — the smallest tier's constants.
+    /// 📐 <c>MaxSlots 3</c> is measured, not inherited: design §17's "B4's PRE-MEASUREMENT" sweeps
+    /// 1–6 over all 30 generated behaviours and 3 is the peak at 83 %.</summary>
+    [Fact]
+    public void SC3_Tier256_PayloadConstants()
+    {
+        Assert.Equal(256, BlueprintBlackboard256.TotalSize);
+        Assert.Equal(32,  BlueprintBlackboard256.HeaderSize);
+        Assert.Equal(3,   BlueprintBlackboard256.MaxSlots);
+        Assert.Equal(48,  BlueprintBlackboard256.SlotTableSize);   // 3 * 16
+        Assert.Equal(80,  BlueprintBlackboard256.PayloadStart);    // 32 + 48
+        Assert.Equal(176, BlueprintBlackboard256.PayloadSize);     // 256 - 80
+    }
+
     [Fact]
     public void SC3_Tier1024_PayloadConstants()
     {
@@ -117,6 +131,7 @@ public sealed class BlackboardLayoutTests
     {
         int slotEntrySize = BlueprintBlackboardPartitions.SlotEntrySize;
 
+        Assert.Equal(BlueprintBlackboard256.SlotTableSize,   BlueprintBlackboard256.MaxSlots   * slotEntrySize);
         Assert.Equal(BlueprintBlackboard1024.SlotTableSize,  BlueprintBlackboard1024.MaxSlots  * slotEntrySize);
         Assert.Equal(BlueprintBlackboard4096.SlotTableSize,  BlueprintBlackboard4096.MaxSlots  * slotEntrySize);
         Assert.Equal(BlueprintBlackboard16384.SlotTableSize, BlueprintBlackboard16384.MaxSlots * slotEntrySize);
