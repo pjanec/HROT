@@ -55,7 +55,7 @@ and ours are `CE-`. Do not quote it as evidence for them.
 |---|---|
 | **design** | ✅ FINALIZED — [`DESIGN_Occurrence_Scoped_Storage.md`](DESIGN_Occurrence_Scoped_Storage.md), start at **§16** |
 | **plan** | ✅ WRITTEN — [`PLAN_Occurrence_Storage_Build.md`](PLAN_Occurrence_Storage_Build.md), 14 tasks / 5 increments |
-| ⭐ **golden test** | ✅ **GREEN**, re-proved `2026-09-20` AFTER `A3`+`A4` *(design §15.4: targets 0/0, platoon `523·525·529·531`, **0 faults**)*. ⛔ **But it does NOT close `O0`'s acceptance** — the scenario's one store has `SlotCount 0`, so no Instance ticked. ⛔ Green before **and** after every task |
+| ⭐ **golden test** | ✅ **GREEN**, re-proved `2026-09-20` after `A3`+`A4`, after `B1`, after `B2`, and after **`B3①`** *(`simTime 116`: platoon `521.9·525.0·528.4·532.2` on the baseline, both targets `Health 0`, **0 faults**)*. ⚠ Positions vary ~1 m run to run — it is a live multi-node run, ⛔ **not a determinism check**. ⭐ Original record *(design §15.4: targets 0/0, platoon `523·525·529·531`, **0 faults**)*. ⛔ **But it does NOT close `O0`'s acceptance** — the scenario's one store has `SlotCount 0`, so no Instance ticked. ⛔ Green before **and** after every task |
 | **`A1`** *(unify the slot key)* | ✅ **DONE** — `c99a8865d` |
 | **`A2`** *(the resolution seam)* | ✅ **DONE** — `7a87596aa` + `7574f228d`. ⚠ See §4 for what was deliberately NOT collapsed |
 | **`A3`** *(`Kind` + `H1` + `H2`)* | ✅ **DONE** — 4 rails, all red-proved. As-built folded into design **§13**'s `AS-BUILT` block |
@@ -63,7 +63,7 @@ and ours are `CE-`. Do not quote it as evidence for them.
 | **`B1`** *(`O1`)* | ✅ **DONE** — `SquadCognitiveState` is its own component (id **270**), provisioned by `SquadStateProvisioning` from **both** roster creators. As-built in design **§6** |
 | **`B2`** *(`O2`)* | ✅ **DONE** — `BrainInterrupts` is its own component (id **302**); `BrainBlackboard` is now **100 B of pure params** *(128 → 100: 28 dead bytes per brain entity)*. `R-39` reconciled, `R-41` superseded. As-built in design **§6** |
 | **`A2b`** *(the emitter ladder)* | ✅ **DONE** — ⛔ **three** ladders, not two; golden diff shape **+252/−1234, net −982**, purely the collapse. As-built in design **§13** |
-| **`B3①`** *(`O3a`, THE COLLAPSE)* | ✅ **DONE** — `BlueprintTierSpec` + `BlueprintTierTable`; **net −435 lines of C#**; 3 verbatim `TickTier_*` → 1, the quadratic `UpgradeTier` → 1 body, 3 byte-identical renderers → a generic base. ⛔ Ladder values UNCHANGED on purpose. 7 rails, red-proved. As-built in design **§17** |
+| **`B3①`** *(`O3a`, THE COLLAPSE)* | ✅ **DONE, golden GREEN** *(`25e158d81`)* — `BlueprintTierSpec` + `BlueprintTierTable`; **net −435 lines of C#**; 3 verbatim `TickTier_*` → 1, the quadratic `UpgradeTier` → 1 body, 3 byte-identical renderers → a generic base. ⛔ Ladder values UNCHANGED on purpose. 7 rails, red-proved. As-built in design **§17** |
 | ⭐⭐⭐ **next** | **`B3②`** *(`O3a`, THE RE-PICK — PLAN `W1`)*. 🔴 **It is NOT the one-file constant change it looked like** — see §2 ⑩ and ⑪ |
 | ⚠ also open | `B4` *(`O3b` — the 256 tier; `MaxSlots` is PLAN `W4`, and 2 is the value that earns the tier)* |
 | **defects filed** | `CE-295` open *(scenario live-reload is a one-shot — filed NOT fixed, user's call)* · `CE-296` **refuted** *(my error)* |

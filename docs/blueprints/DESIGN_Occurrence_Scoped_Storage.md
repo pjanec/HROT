@@ -1863,6 +1863,18 @@ whole value of step ①. ⇒ they ship separately, in that order.
 ⭐ **Red-proof:** three inverse edits — `Descending` not reversed, `Select`'s slot axis dropped,
 `AdjacentPairs` non-adjacent — reddened **4 rails** *(`R1`, `R3`, `R4`, `R5`)*; reverted, 18/18 green.
 
+⭐⭐ **Golden test `hill-attack-close` re-run after `B3①`** *(port 8151, `--mode all`, `simTime 116`)*:
+platoon at **`521.9 · 525.0 · 528.4 · 532.2`** on the baseline *(y `400 / 449 / 499 / 549`)*, both
+targets at **`Health 0`**, **0 faults in the log**, `BrainInterrupts` present on every brain entity.
+⚠ **Stated honestly: the x values are within ~1.3 m of the `B2` run, not bit-identical** — this is a
+live multi-node run with real timing, not a deterministic replay, and the acceptance is *"the platoon
+is back on the baseline and both targets are destroyed"*, which it is. ⛔ Do not read the golden as a
+determinism check; `DeterminismRails` is that.
+
+⭐ **The gate that mattered most here: `Hrot.AiEditor.Generators.Tests` 280/280, goldens UNMOVED.**
+`B3①` touches no emitter, so any movement there would have meant the collapse reached further than
+intended.
+
 #### 🔴🔴 A NEW GATE FOUND BY BUILDING, NOT BY DESIGN — **`MaxSlots` has a HARD CEILING OF 16**
 
 ⛔⛔ **`W1` (the re-pick) cannot raise `MaxSlots` above `BlueprintBlackboardPartitions.MaxKindSlots`
