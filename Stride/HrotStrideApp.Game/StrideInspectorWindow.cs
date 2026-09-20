@@ -281,6 +281,19 @@ public sealed class StrideInspectorWindow : IDisposable
     // Kept for unload on Close().
     private Raylib_cs.Texture2D _atlasTexture;
 
+    // ⭐⭐⭐ CE-297 — the remote-desktop click latch for THIS window.
+    // 🔴 Without it the Stride host's editor window runs PRE-FIX input: a TeamViewer / Parsec / RDP
+    //    click injects WM_*BUTTONDOWN and WM_*BUTTONUP microseconds apart, both land in one
+    //    glfwPollEvents() drain, the polled state ends where it started, and the press is NEVER
+    //    OBSERVED. 📐 Measured 2026-09-20: clusterrunner installs this (Program.cs:603) and
+    //    FdpApplication.Run does (:54); PumpFrame below is a hand-written copy of that same loop
+    //    that omitted it, so this one window — alone among the hosts — still lost every click.
+    // ⚠ CreateForRaylibWindow(), not Create(): Create() binds to Process.MainWindowHandle, and this
+    //   process ALSO owns Stride's Direct3D window. Binding the wrong one installs cleanly and does
+    //   nothing — see the overload's own note.
+    private Fdp.Presentation.Input.IClickLatch _clickLatch =
+        Fdp.Presentation.Input.NoOpClickLatch.Instance;
+
     // ── P1 frame-timing instrumentation ──────────────────────────────────────
     // Measures PumpFrame cost and its sub-phases; logs ~once per second (throttled).
     // Stopwatches are reused across frames — no allocation per frame.
@@ -388,6 +401,12 @@ public sealed class StrideInspectorWindow : IDisposable
         Raylib_cs.Raylib.SetExitKey(Raylib_cs.KeyboardKey.Null);
         Raylib_cs.Raylib.SetTargetFPS(0);
 
+        // ── 1b. Install the remote-desktop click latch on THIS window ─────────
+        // Must follow InitWindow: before it there is no handle to subclass. Kill switch:
+        // HROT_DISABLE_CLICK_LATCH=1. Inert for local input and off Windows.
+        _clickLatch = Fdp.Presentation.Input.ClickLatch.CreateForRaylibWindow();
+        Log.Info("[StrideInspectorWindow] Click latch active={0}.", _clickLatch.IsActive);
+
         // ── 2. Set up ImGui for this window ───────────────────────────────────
         // rlImGui.Setup creates the ImGui context bound to the current GL window.
         // Enables DockingEnable so panels dock inside the dockspace (mirrors clusterrunner).
@@ -473,6 +492,15 @@ public sealed class StrideInspectorWindow : IDisposable
 
 
         var wm     = _windowManager;
+
+        // ⭐ CE-297 — before input is polled: replay anything the previous frame dropped.
+        //   Mirrors clusterrunner Program.cs:615 and FdpApplication.Run:60, which place the Tick at
+        //   the top of the frame for the same reason — raylib drains GLFW events inside EndDrawing,
+        //   so a replay issued here is seen by THIS frame's poll rather than sitting a frame late.
+        _clickLatch.Tick(
+            Raylib_cs.Raylib.IsMouseButtonDown(Raylib_cs.MouseButton.Left),
+            Raylib_cs.Raylib.IsMouseButtonDown(Raylib_cs.MouseButton.Right),
+            Raylib_cs.Raylib.IsMouseButtonDown(Raylib_cs.MouseButton.Middle));
 
         // ── P1 timing: total frame ────────────────────────────────────────────
         _timingTotal.Restart();
@@ -614,6 +642,12 @@ public sealed class StrideInspectorWindow : IDisposable
         //   3. UnloadTexture (GL call, still valid while the GLFW context is live).
         //   4. Raylib.CloseWindow() — tears down the GLFW/OpenGL context.
         _windowManager = null;
+
+        // ⭐ CE-297 — un-subclass the window proc BEFORE the GL/ImGui teardown below. The latch holds
+        //   a delegate installed into this window's proc chain; dropping it while messages can still
+        //   arrive is the one ordering mistake that would matter here.
+        _clickLatch.Dispose();
+        _clickLatch = Fdp.Presentation.Input.NoOpClickLatch.Instance;
 
         // If the hosted editor is still registered (from RegisterWindows), un-register it
         // by calling rlImGui.Shutdown immediately (the WindowManager holds no back-ref into

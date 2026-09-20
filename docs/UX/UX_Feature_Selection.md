@@ -10,8 +10,13 @@ build-state: BUILDING (§2.7 is the consolidated TARGET STATE with class + seque
   selection for all five hosts. As-built in §2.7.10.
   ⚠⚠ S-3d WRITTEN BUT NOT COMPILED 2026-09-20 — the Stride 3-D selection becomes a view of the 2-D one
   and SyncSelection2D3D is deleted. HrotStrideApp.Game is net8.0-windows and outside the root solution,
-  so this lane cannot build it OR its tests. ⛔ DO NOT TREAT §2.7.11 AS VERIFIED until a Windows session
-  runs the six checks listed there. S-4..S-6 remain DESIGN.)
+  so that lane could build neither it nor its tests.
+  ✅✅ SUPERSEDED 2026-09-20 — A WINDOWS SESSION RAN IT. S-3d is VERIFIED: compiles (0 errors, whole
+  HrotStrideApp.sln incl. HrotStrideApp.Windows), EditorSelectionStateTests 11/11, and the user confirmed
+  in the product: "The selection works both ways, clicks as well." Checks 1-5 PASS, check 6 (headless) NOT
+  RUN. The blind-written code needed NO fix. Result table: §2.7.11a. ⛔ Check 2 asked for 12 tests and the
+  file has 11 — a DOC error, not a missing rail; corrected in §2.7.11a.
+  S-4..S-6 remain DESIGN.)
 verified: 2026-09-10 (measured source scan, graph + grep, coverage checked)
   ⭐ S-1's own inventory re-measured 2026-09-20 on the graph — §2.7.6.
 current-answer: ✅ READ §2.7 — the consolidated TARGET STATE (2026-09-10), with the class diagram, the
@@ -1070,15 +1075,22 @@ suite still reported **419 passed** — from the previous binary. ⛔ That is th
 only reason it was caught is that the build error scrolled past above the results. ⇒ ⭐ **every test
 project's build is now checked, and its error count printed, BEFORE any result is read.**
 
-#### 2.7.11 ⚠ **`S-3d` — THE STRIDE HOST, WRITTEN BLIND** *(needs a Windows build)*
+#### 2.7.11 ✅✅ **`S-3d` — THE STRIDE HOST — VERIFIED ON WINDOWS `2026-09-20`**
 
 > 🔒 **User, `2026-09-20`:** chose option **(a)** — make the change, marked as unbuilt on this lane, and
 > compile on Windows.
 
-⛔⛔ **STATE: WRITTEN, NOT COMPILED.** `HrotStrideApp.Game` targets `net8.0-windows` and sits outside the
-root solution, so **neither it nor `HrotStrideApp.Game.Tests` can be built on the Linux lane.** ⚠ Treat
-every claim below as *reasoned from source*, not measured — 📄 the Windows verification prompt is in
-[`RESUME_UI_Lane.md`](../blueprints/RESUME_UI_Lane.md).
+✅✅✅ **STATE: COMPILED, RAILED AND CONFIRMED IN THE PRODUCT** *(Windows session, `2026-09-20`)*.
+🔒 **User, verbatim, after running it: *"The selection works both ways, clicks as well."*** ⇒ checks **1–5**
+of §"What a Windows run must confirm" are **PASS**; check 6 *(headless)* was not run. ⭐⭐ **The code needed
+NO fix — it compiled and behaved as written.** 📄 Full result table in §2.7.11a below.
+⚠ **`stale-below` for this subsection:** the paragraph that follows is the pre-verification framing, kept
+because it explains *why* the slice was written blind. ⛔ **Do not quote it as current state.**
+
+⛔⛔ **HISTORY — STATE AT THE TIME OF WRITING: WRITTEN, NOT COMPILED.** `HrotStrideApp.Game` targets
+`net8.0-windows` and sits outside the root solution, so **neither it nor `HrotStrideApp.Game.Tests` could be
+built on the Linux lane.** ⚠ Every claim below was *reasoned from source*, not measured — 📄 the Windows
+verification prompt is in [`RESUME_UI_Lane.md`](../blueprints/RESUME_UI_Lane.md).
 
 ##### 🔴 What it closes — **the sixth store, and a per-frame bridge**
 
@@ -1126,6 +1138,30 @@ keeps both the headless path and `StrideNodeShell`'s world-less `_operatorSelect
 | **4** | click an entity **on the 2-D map** → the 3-D highlight follows | the other direction, now free |
 | **5** | watch for a **per-frame version churn** — selection flicker, or `[SelDiag]` logging a change every second with no input | the loop the bridge would have caused if it had survived |
 | **6** | run the Stride app **headless / without the inspector window**, if that configuration exists | the `available` path |
+
+#### 2.7.11a ✅ THE WINDOWS RESULT — **obligation ③/⑤, `2026-09-20`**
+
+| # | check | result |
+|---|---|---|
+| **1** | `HrotStrideApp.Game` compiles | ✅ **0 errors** — and so does the whole `HrotStrideApp.sln`, **including `HrotStrideApp.Windows`**. ⭐⭐ **No code fix was required: the blind-written slice was correct as written** |
+| **2** | `EditorSelectionStateTests` | ✅ **11/11**, twice *(before and after the `CE-297` edit)*. ⛔⛔ **THE "12" IN CHECK 2 ABOVE WAS WRONG** — see the correction below |
+| **3** | 3-D click → 2-D ring, same frame | ✅ 🔒 user: *"selection works both ways"* |
+| **4** | 2-D click → 3-D highlight | ✅ same; 📐 independently visible in the log **before** the user's confirmation — `[SelDiag] HasSelection=True entity=#2` with **no preceding `[ClickDiag]`**, i.e. the 3-D state reporting a selection made on the 2-D side, which is the bound read working |
+| **5** | 🔴 **no per-frame churn** | ✅✅ **PASS, in its strong form** — 30 consecutive `[SelDiag]` lines with a **live** selection *(`entity=#2`)* over ~30 s of no input, **all identical**. ⭐ Structurally confirmed too: `SyncSelection2D3D` and both trackers are gone *(only explanatory comments remain)*, and the 3-D side has exactly **one** writer, `StrideHrotGame.cs:597` |
+| **6** | headless / no inspector window | ⚠ **NOT RUN** — no such configuration was exercised this session. ⛔ The `available` path remains covered only by the unbound rails |
+
+⛔⛔ **A DOC DEFECT THIS RUN FOUND — check 2 asked for `12/12` and the file has ELEVEN tests.** 📐 Measured:
+`EditorSelectionStateTests.cs` carries **11** `[Fact]`s, and carried 11 at `S-3d`'s parent commit too — the
+file was last touched by the Bullet port, not by this slice. ⇒ ⭐ **nothing is missing; the number was
+wrong.** ⚠ **Worth the correction because the failure mode is expensive:** a later session reads "12",
+counts 11, and goes hunting for a deleted rail that never existed.
+
+⚠ **ONE ENVIRONMENT FINDING, not about this slice but blocking anyone who repeats it:** the first build
+FAILED — `MSB4061`, *"the `Stride.Core.AssemblyProcessor` task could not be instantiated … Type must be a
+type provided by the runtime"* — in `Hrot.Stride.Animation` and `Hrot.Stride.Core`, **two projects `S-3d`
+never touched.** 📐 Cause: `dotnet` resolved **SDK 10.0.300** and nothing pinned it. ⇒ a root `global.json`
+pinning **8.0.408** turns it into **0 errors**. ⛔ `BOOTSTRAP_Stride_Windows_Session.md` §2.1 still presents
+this build as working unconditionally; it is true only under SDK 8.
 
 ## 3. Acceptance
 

@@ -44,6 +44,36 @@ public static class ClickLatch
         try { return new Win32ClickLatch(); }
         catch (Exception) { return NoOpClickLatch.Instance; }
     }
+
+    /// <summary>
+    /// ⭐⭐⭐ Creates the latch bound to the <b>raylib</b> window explicitly, rather than to whichever
+    /// top-level window <c>Process.MainWindowHandle</c> happens to return.
+    ///
+    /// <para>🔴 <b>Why this overload exists (<c>CE-297</c>).</b> <see cref="Create"/> resolves the
+    /// process's MAIN window, which is correct only when the raylib window IS the main one — true of
+    /// clusterrunner and <c>FdpApplication</c>, and <b>false in the Stride host</b>, which owns a
+    /// Direct3D window of its own alongside the raylib editor window. ⛔ Binding the latch to the
+    /// wrong window is a SILENT no-op: it installs, reports <c>IsActive</c>, observes messages nobody
+    /// is losing, and the editor's clicks keep vanishing.</para>
+    ///
+    /// <para>⚠ Must be called AFTER <c>Raylib.InitWindow</c> — before it there is no handle and this
+    /// returns an inert latch. ⭐ <c>Raylib.GetWindowHandle()</c> returns a <c>void*</c>, so the
+    /// <c>unsafe</c> block lives here, once, instead of in every host that needs one.</para>
+    /// </summary>
+    public static IClickLatch CreateForRaylibWindow()
+    {
+        if (!OperatingSystem.IsWindows()) return NoOpClickLatch.Instance;
+
+        try
+        {
+            IntPtr hWnd;
+            unsafe { hWnd = (IntPtr)Raylib_cs.Raylib.GetWindowHandle(); }
+            if (hWnd == IntPtr.Zero) return NoOpClickLatch.Instance;
+
+            return new Win32ClickLatch(hWnd);
+        }
+        catch (Exception) { return NoOpClickLatch.Instance; }
+    }
 }
 
 /// <summary>

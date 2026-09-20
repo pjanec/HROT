@@ -1914,6 +1914,79 @@ on the surface the menu opens from**, because a TARGETED arming deliberately doe
 | the cancel hook | a selection change cancels the modal tool armed on the previously-selected entity — ⭐ through `IToolController` (`Cancel` for a switch, or `NotifyToolEnded` per §4.7h), ⛔ **never by sweeping an arbiter directly** |
 | ⚠ **today nothing does it** | 📐 the ONLY production `ToolController.Cancel()` is IG's `MeasureToolGizmoAdapter.cs:124`; `SelectEntitySystem.cs:83` and `SelectionInteractionSystem` both write selection and touch no tool state |
 
+### 4.15 🔴🔴🔴 THE INPUT NEVER REACHED THE TOOL — **a host that forgot the click latch** *(`CE-297`/`CE-298`, `2026-09-20`)*
+
+> 🔒 **User, `2026-09-20`, on a TeamViewer session:** *"it almost does not allow me to make mouse clicks -
+> one of thousands have anny effect. This very trouble was solved some time ago for non stribe builds.
+> Is it is use in the strislde build?"* ⭐ **The answer was NO, and the user's recollection was exactly right.**
+
+⭐⭐ **Why this belongs in the TOOL MODEL and not in a host document.** Every §4.7x finding above is about a
+click that reached the frame and was routed wrongly. ⛔ **This one is the layer below: the click never
+became an event at all.** ⇒ a tool can be perfectly wired, focused and armed, and still look dead — which
+is indistinguishable, from the operator's chair, from every defect in §4.7.
+
+#### 📐 The mechanism — **it is a POLLING artefact, not a tool defect**
+
+Remote-desktop tools *(TeamViewer, Parsec, RDP)* inject `WM_*BUTTONDOWN` and `WM_*BUTTONUP` **microseconds
+apart**, so both land in **one** `glfwPollEvents()` drain and the polled button state **ends where it
+started** ⇒ ⛔ the press is never observed. 📄 The fix already existed —
+`Fdp.Presentation/ImGui/Input/{ClickLatch,ClickLatchCore,Win32ClickLatch}.cs`: it subclasses the window
+proc *(forwarding every message)*, watches the raw messages, and **replays** a lost click held across
+frames so the polled backend sees an ordinary slow one.
+
+#### 🔴 The finding — **one host ran pre-fix input, for a structural reason worth naming**
+
+| host | installs the latch? |
+|---|---|
+| clusterrunner | ✅ `Hrot.ClusterRunner/Program.cs:603` |
+| `FdpApplication.Run` *(SimHost, examples)* | ✅ `FdpApplication.cs:54` |
+| 🔴 **the Stride host's editor window** | ⛔ **NO** — `StrideInspectorWindow.PumpFrame()` |
+
+⚠⚠ **`PumpFrame` is a HAND-WRITTEN COPY of the clusterrunner frame sequence** — its own doc comment says
+*"mirrors clusterrunner Program.cs ~281-332"*. ⇒ ⭐⭐⭐ **the copy inherited the shape and not the fix, and
+nothing could notice: there is no seam that makes "a raylib frame loop" declare its obligations.** 📌 This
+is the duplicate-implementation disease in its quietest form — not two behaviours that disagree, but one
+behaviour and one *stale replica of it*.
+
+#### ⛔⛔ The trap the fix had to avoid — **`Create()` would have installed and done NOTHING**
+
+📐 `Win32ClickLatch(windowHandle = default)` resolves `Process.MainWindowHandle`. ⭐ Correct where the raylib
+window IS the main window *(both existing call sites)*; ⛔ **false in the Stride host, which also owns a
+Direct3D window.** ⇒ a default-constructed latch there subclasses the wrong window, reports `IsActive`,
+observes messages nobody is losing, **and the editor's clicks keep vanishing.**
+⇒ ✅ **`ClickLatch.CreateForRaylibWindow()`** resolves `Raylib.GetWindowHandle()` explicitly, keeping the
+one `unsafe` block *(it returns `void*`)* in the class that owns the latch instead of spreading it.
+⚠ **This is the `available` lesson from [`UX_Feature_Selection.md` §2.7.11](UX_Feature_Selection.md) again,
+in a different subsystem: a dependency that is PRESENT but pointed at the wrong thing is worse than an
+absent one, because it reports healthy.**
+
+#### ⭐ `CE-298` — **rotation had a keyboard binding nobody could reach**
+
+🔒 **User:** *"I need to be able to rotate the camera using cursor keys so that i do not need to use mouse."*
+📐 **Measured before building: it already existed** — `BasicCameraController` binds pitch/yaw to
+**NumPad 8/2/4/6**, and the controller IS attached *(`StrideHrotGame.cs:1713`, in code, not in the scene)*.
+⛔ **A remote session from a laptop or a phone has no numpad**, so the only reachable rotation was
+right-mouse-drag — i.e. the very thing `CE-297` is about.
+⇒ ✅ **`Ctrl` + cursor keys**, added *after* the numpad block and *before* the mouse block so RMB-drag still
+overrides and local behaviour is byte-identical. ⛔ **Deliberately NOT the bare arrows** — they are already
+movement aliases of `W/A/S/D`, which is equally mouse-free and equally needed; stealing them would fix
+looking around by breaking flying around.
+
+#### ✅ Verified in the product — **the only evidence that counts here**
+
+🔒 **User, `2026-09-20`, after the rebuild:** *"The selection works both ways, clicks as well."*
+📐 `[StrideInspectorWindow] Click latch active=True` confirms it bound to the right window.
+⚠ **No rail could have caught either defect** — the same blind spot §4.7 records: *a broken tool still
+draws*, and here a dead input path still renders a perfect frame.
+
+#### ⛔ STILL OPEN — **3-D entity picking, NOT closed by this**
+
+📐 Measured `2026-09-20`, before the fixes: **13 LMB presses reached the 3-D view** *(`[ClickDiag]`)* — so
+they were never lost — and **every one resolved `hitEntity=#-1`**, terrain and not an entity.
+`"LMB selected entity"` has **never once** been logged. ⚠ **Whether that is aim or a raycast that cannot
+resolve entities is NOT MEASURED**; the scene holds 13 FDP entities / 11 visuals, so the ray had targets.
+⇒ 🔒 **Do not read `CE-297` as having fixed 3-D picking — it fixed the 2-D window's clicks.**
+
 ## Migration
 
 | Step | Change | Gate |
