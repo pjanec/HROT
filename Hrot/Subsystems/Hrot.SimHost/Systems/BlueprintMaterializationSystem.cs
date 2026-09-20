@@ -98,7 +98,7 @@ namespace Hrot.SimHost.Systems
                     totalBytes += def.StateSize;
 
                 // Ceiling guard (16 slots / 16096 bytes)
-                if (totalSlots > BlueprintBlackboard16384.MaxSlots || totalBytes > BlueprintBlackboard16384.PayloadSize)
+                if (totalSlots > BlueprintTierTable.Largest.MaxSlots || totalBytes > BlueprintTierTable.Largest.PayloadSize)
                 {
                     FdpLog<BlueprintMaterializationSystem>.Error(
                         $"[BlueprintMat] Entity {entity} exceeds absolute ceiling " +
@@ -109,8 +109,8 @@ namespace Hrot.SimHost.Systems
                     var truncatedList = new List<(int, BlueprintDefinition, BlueprintAssignmentDto)>();
                     foreach (var r in resolved)
                     {
-                        if (truncated >= BlueprintBlackboard16384.MaxSlots) break;
-                        if (truncatedBytes + r.Def.StateSize > BlueprintBlackboard16384.PayloadSize) break;
+                        if (truncated >= BlueprintTierTable.Largest.MaxSlots) break;
+                        if (truncatedBytes + r.Def.StateSize > BlueprintTierTable.Largest.PayloadSize) break;
                         truncatedList.Add(r);
                         truncated++;
                         truncatedBytes += r.Def.StateSize;
@@ -182,17 +182,18 @@ namespace Hrot.SimHost.Systems
 
         // ── Tier selection ─────────────────────────────────────────────────────
 
+        // ═══ O3a / B3 — the three tier helpers are now the one ladder ══════════════════════════
+        //  📄 DESIGN_Occurrence_Scoped_Storage.md §17. ⛔ ChooseTierFromAggregate, GetTierMemoryAndMeta
+        //  and AddTierComponentIfMissing were a select ladder and two switch copies of the same
+        //  three-way dispatch that ~36 sites carried. They now read BlueprintTierTable.
+        //  ⚠ Semantics preserved exactly, including "fall through to the largest tier" and
+        //  AddTierComponentIfMissing's idempotence.
+
         /// <summary>
         /// Choose smallest tier satisfying BOTH slot count and payload bytes.
         /// </summary>
         private static BlackboardTier ChooseTierFromAggregate(int totalSlots, int totalBytes)
-        {
-            if (totalSlots <= BlueprintBlackboard1024.MaxSlots && totalBytes <= BlueprintBlackboard1024.PayloadSize)
-                return BlackboardTier.B1024;
-            if (totalSlots <= BlueprintBlackboard4096.MaxSlots && totalBytes <= BlueprintBlackboard4096.PayloadSize)
-                return BlackboardTier.B4096;
-            return BlackboardTier.B16384;
-        }
+            => BlueprintTierTable.Select(totalBytes, totalSlots).Tier;
 
         // ── Tier memory access ─────────────────────────────────────────────────
 
@@ -200,54 +201,19 @@ namespace Hrot.SimHost.Systems
             EntityRepository repo, Entity entity, BlackboardTier tier,
             out byte* memory, out int totalSize, out byte maxSlots)
         {
-            switch (tier)
-            {
-                case BlackboardTier.B1024:
-                {
-                    ref var bb = ref repo.GetComponentRW<BlueprintBlackboard1024>(entity);
-                    memory    = (byte*)Unsafe.AsPointer(ref Unsafe.As<BlueprintBlackboard1024, byte>(ref bb));
-                    totalSize = BlueprintBlackboard1024.TotalSize;
-                    maxSlots  = BlueprintBlackboard1024.MaxSlots;
-                    return;
-                }
-                case BlackboardTier.B4096:
-                {
-                    ref var bb = ref repo.GetComponentRW<BlueprintBlackboard4096>(entity);
-                    memory    = (byte*)Unsafe.AsPointer(ref Unsafe.As<BlueprintBlackboard4096, byte>(ref bb));
-                    totalSize = BlueprintBlackboard4096.TotalSize;
-                    maxSlots  = BlueprintBlackboard4096.MaxSlots;
-                    return;
-                }
-                default:
-                {
-                    ref var bb = ref repo.GetComponentRW<BlueprintBlackboard16384>(entity);
-                    memory    = (byte*)Unsafe.AsPointer(ref Unsafe.As<BlueprintBlackboard16384, byte>(ref bb));
-                    totalSize = BlueprintBlackboard16384.TotalSize;
-                    maxSlots  = BlueprintBlackboard16384.MaxSlots;
-                    return;
-                }
-            }
+            var spec  = BlueprintTierTable.ByTier(tier);
+            memory    = spec.Memory(repo, entity);
+            totalSize = spec.TotalSize;
+            maxSlots  = (byte)spec.MaxSlots;
         }
 
         // ── Tier component helper ──────────────────────────────────────────────
 
         private static void AddTierComponentIfMissing(EntityRepository repo, Entity entity, BlackboardTier tier)
         {
-            switch (tier)
-            {
-                case BlackboardTier.B1024:
-                    if (!repo.HasComponent<BlueprintBlackboard1024>(entity))
-                        repo.AddComponent(entity, default(BlueprintBlackboard1024));
-                    break;
-                case BlackboardTier.B4096:
-                    if (!repo.HasComponent<BlueprintBlackboard4096>(entity))
-                        repo.AddComponent(entity, default(BlueprintBlackboard4096));
-                    break;
-                case BlackboardTier.B16384:
-                    if (!repo.HasComponent<BlueprintBlackboard16384>(entity))
-                        repo.AddComponent(entity, default(BlueprintBlackboard16384));
-                    break;
-            }
+            var spec = BlueprintTierTable.ByTier(tier);
+            if (!spec.Has(repo, entity))
+                spec.Add(repo, entity);
         }
     }
 }

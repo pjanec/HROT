@@ -30,6 +30,11 @@ namespace Hrot.SimHost.Serializers
     {
         private const string OutputKey = "BlueprintAssignments";
 
+        // ⛔⛔ O3a / B3: these are HISTORICAL SCENARIO KEYS, deliberately NOT derived from
+        //   BlueprintTierTable. They name what OLD scenario files on disk actually contain, and that
+        //   set is frozen by history — a tier added today was never written by an old writer, so it
+        //   gets no legacy key. ⚠ Deriving them from the live ladder would be the natural-looking
+        //   change and it would be wrong.
         private static readonly string[] LegacyBlackboardKeys =
         {
             "BlueprintBlackboard1024",
@@ -46,10 +51,12 @@ namespace Hrot.SimHost.Serializers
 
         public BitMask512 GetConsumedComponentsMask()
         {
+            // ⭐ O3a / B3: the CONSUMED mask follows the live ladder — unlike LegacyBlackboardKeys
+            //   above, which follows history. The two look alike and must not be merged.
             var mask = new BitMask512();
-            SetBitIfRegistered(mask, typeof(BlueprintBlackboard1024));
-            SetBitIfRegistered(mask, typeof(BlueprintBlackboard4096));
-            SetBitIfRegistered(mask, typeof(BlueprintBlackboard16384));
+            var tiers = Fdp.Toolkit.Blueprints.Partitioning.BlueprintTierTable.Ascending;
+            for (int i = 0; i < tiers.Count; i++)
+                SetBitIfRegistered(mask, tiers[i].ComponentType);
             return mask;
         }
 

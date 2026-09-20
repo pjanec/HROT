@@ -8,7 +8,7 @@ build-state: n/a — a resumption snapshot, not a design.
 current-answer: §3 — the NEXT ACTION is task B3 (`O3a`: collapse per-tier branching to a TierSpec
   table AND re-pick the MaxSlots ladder). Increment A is COMPLETE; B1 and B2 are DONE; all pushed.
   §2 is the grounded facts: ⛔ do not re-derive them, they cost real measurement. §5 is the trap
-  list, and it is the section most worth two minutes — twelve of these were MY errors, three of
+  list, and it is the section most worth two minutes — fifteen of these were MY errors, three of
   which reached a pushed document before being caught.
 stale-below: nothing — §3 rewritten 2026-09-20 after B2 landed.
 known-rot: nothing.
@@ -63,7 +63,8 @@ and ours are `CE-`. Do not quote it as evidence for them.
 | **`B1`** *(`O1`)* | ✅ **DONE** — `SquadCognitiveState` is its own component (id **270**), provisioned by `SquadStateProvisioning` from **both** roster creators. As-built in design **§6** |
 | **`B2`** *(`O2`)* | ✅ **DONE** — `BrainInterrupts` is its own component (id **302**); `BrainBlackboard` is now **100 B of pure params** *(128 → 100: 28 dead bytes per brain entity)*. `R-39` reconciled, `R-41` superseded. As-built in design **§6** |
 | **`A2b`** *(the emitter ladder)* | ✅ **DONE** — ⛔ **three** ladders, not two; golden diff shape **+252/−1234, net −982**, purely the collapse. As-built in design **§13** |
-| ⭐⭐⭐ **next** | **`B3`** *(`O3a`)* — collapse per-tier branching to a `TierSpec` table across ingress / tick / renderers, **and re-pick the `MaxSlots` ladder with a sizing rationale** *(PLAN `W1`)*. ⛔ Not inherited constants: the root occurrence promotes an 8-slot behaviour 4096 → 16384 on slot count alone |
+| **`B3①`** *(`O3a`, THE COLLAPSE)* | ✅ **DONE** — `BlueprintTierSpec` + `BlueprintTierTable`; **net −435 lines of C#**; 3 verbatim `TickTier_*` → 1, the quadratic `UpgradeTier` → 1 body, 3 byte-identical renderers → a generic base. ⛔ Ladder values UNCHANGED on purpose. 7 rails, red-proved. As-built in design **§17** |
+| ⭐⭐⭐ **next** | **`B3②`** *(`O3a`, THE RE-PICK — PLAN `W1`)*. 🔴 **It is NOT the one-file constant change it looked like** — see §2 ⑩ and ⑪ |
 | ⚠ also open | `B4` *(`O3b` — the 256 tier; `MaxSlots` is PLAN `W4`, and 2 is the value that earns the tier)* |
 | **defects filed** | `CE-295` open *(scenario live-reload is a one-shot — filed NOT fixed, user's call)* · `CE-296` **refuted** *(my error)* |
 
@@ -94,30 +95,33 @@ and ours are `CE-`. Do not quote it as evidence for them.
 | ⑥ | **slots per behaviour** (30 generated assets) | 0 ×17 · 1 ×6 · 2 ×5 · 3 ×1 · 8 ×1 ⇒ **77 % fit a 256 tier**; worst case `PlatoonHillAttack2` needs 9 ⇒ the `MaxSlots` ladder must be re-picked in `O3a`. ⚠ `PlatoonHillAttack2` is **NOT** the golden test's tree — `hill-attack-close` runs `PlatoonHillAttack` (hand-written nodes, 1 slot) |
 | ⑦ | **`Blackboard1024` is attached to ZERO entities** in a live run | ⇒ §3.2's defect is **LATENT**, not shipped; gated on `HeavyDtoType`, which production sets nowhere |
 | ⑧ | **AI entity count** | single-digit in every shipped scenario. ⚠ **No exercise-scale scenario exists in the repo** — say so, do not extrapolate |
+| 🔴 ⑩ | ⛔⛔ **`MaxSlots` HAS A HARD CEILING OF 16, AND NOTHING SAID SO** | `A3`'s `Kind` nibble array is **4 bits × 16** in the header's 8-byte `Reserved` — an exact fit. A tier with more slots has slots whose kind **cannot be recorded**, and `BlueprintTickSystem` filters ON the kind ⇒ they are **silently skipped**, not rejected. ⭐ §5a's *"`MaxSlots` 12 leaves 800 B"* is safely inside it, but reads as if payload were the only constraint. ✅ Now a throw in `BlueprintTierSpec.For<T>` + rail `B3_R2` |
+| 🔴 ⑪ | ⛔⛔ **A FOURTH LADDER LIVES IN THE COMPILER, AS LITERALS** | `Stage2_Validate.cs:503-508` spells the payload budgets **`928 / 3936 / 16096`** as integers, not as references to `BlueprintBlackboard*.PayloadSize`. ⚠ `Hrot.Blueprints.Compiler` targets `netstandard2.0;net8.0` and references `Fdp.Toolkits` **only under net8.0** ⇒ it *cannot* see the constants. 🔴 **Re-picking `MaxSlots` therefore desyncs compile-time validation from runtime capacity.** ⭐ Fix by the `A1`/`BP-306` precedent: a netstandard2.0-safe ladder file, LINKED |
+| ⑫ | ⛔ **THREE `BlackboardTier` ENUMS** | `Fdp.Toolkit.Blueprints.BlackboardTier` · `Hrot.Blueprints.Core.Compiler.BlackboardTier : byte` · `BlackboardTierHint {Auto, Force1024, …}`. All ordinal ⇒ **`O3b`'s 256 tier must be APPENDED, never inserted** |
 | ⑨ | ⭐ **the golden test exercises the HAND-WRITTEN node path, not the blueprint path** | so the `AiPrimitive` machinery this design is built around is **less exercised by it than assumed** — matters before `O4`/`O5` lean on it for proof |
 
 ---
 
-## 3. ⭐⭐⭐ THE NEXT ACTION — **`B3`** *(`O3a`)*
+## 3. ⭐⭐⭐ THE NEXT ACTION — **`B3②`** *(the `MaxSlots` re-pick)*
 
-⭐ **Increments `A` and `B1`/`B2` are complete.** `B3` is the last structural task before the 256
-tier, and it is the one that stops the per-tier duplication multiplying.
+⭐ **`B3①` — the structural collapse — is DONE and green.** What is left of `O3a` is the ladder
+VALUES, and `B3①` deliberately did not touch them so that *"did the refactor change behaviour?"* had
+a provable answer *(design §17.6)*.
+
+⛔⛔ **`B3②` is NOT the one-file constant change the PLAN made it look like.** Three constraints,
+all measured while building `B3①`:
 
 | | |
 |---|---|
-| ⭐⭐⭐ **`B3`** *(`O3a`)* — collapse per-tier branching to a **`TierSpec` table** | ~10 three-way chains, **3** copied `TickTier_*` methods and **3** copied renderers become one loop; promotion stops being N² **across three files** — `BehaviorIngressSystem.UpgradeTier:600`, `BlueprintMaintenanceSystem:40/60`, `EntityBlueprintsPanel:299` |
-| ⭐⭐ **and RE-PICK THE `MaxSlots` LADDER** *(PLAN `W1`)* | 🔴 **ships with the arithmetic, not as inherited constants.** 4 / 8 / 16 is arbitrarily conservative: 📐 the **+1 root occurrence** promotes `PlatoonHillAttack2` from 4096 to **16384 on slot count alone**, while `MaxSlots 12` on the 1024 tier still leaves **800 B** of payload *(design §5a)* |
-| ⚠ then **`B4`** *(`O3b`)* — the 256 tier | trivial after `B3`, four copies before it. `MaxSlots` is PLAN `W4`: 📐 **77 %** of behaviours need ≤ 2 slots ⇒ **2** is the value that earns the tier; 1 makes it near-useless |
+| 🔴 **the Kind-nibble CEILING** | ⛔ `MaxSlots` may not exceed **16** *(§2 ⑩)*. §5a's suggested **12** on the 1024 tier is inside it — but the ceiling was nowhere written down and payload arithmetic alone would not have found it. ✅ Now a throw plus rail `B3_R2` |
+| 🔴 **the COMPILER's literals** | ⛔⛔ `Stage2_Validate.cs:503-508` hard-codes `928 / 3936 / 16096` and **cannot reference `Fdp.Toolkits` under `netstandard2.0`** *(§2 ⑪)*. ⇒ the re-pick ships a **LINKED netstandard2.0-safe ladder file** — the `A1`/`BP-306` precedent, already proven on this programme — or compile-time validation and runtime capacity silently disagree |
+| ⚠ **it MOVES REAL ASSETS** | 📐 `MaxSlots 12` on the 1024 tier costs `32 + 12×16 = 224` ⇒ payload **928 → 800**. An asset whose state lands in **801–928 B** moves up a tier. ⭐ **Measure that population before picking**, and report it — it is the difference between a free win and a regression for someone |
 
-🔴 **What `A4` taught and `B3` must not undo:** the `Kind` filter reddened **120 tests** because
-harnesses attach through the allocator directly with the kind-less overload. ⇒ ⭐ **any code path
-that attaches a slot must DECLARE its kind.** ⛔ A `TierSpec` table is exactly where a convenience
-default would get reintroduced — do not give the table one.
-
-⚠ **And `B3` touches `CopyToLargerTier`, which is where `H1` lives** *(`dstHeader.Reserved =
-srcHeader.Reserved`)*. 📌 The PLAN originally put `H1` in `O3a` and it was moved OUT to `A3` so the
-nibble array could never be zeroed in the gap. ⛔ **Do not let a table refactor drop that line** —
-`A3_R2` is the rail that would catch it, and it must stay green.
+⭐ **Then `B4`** *(`O3b`, the 256 tier)* — trivial now that the table exists: one entry in
+`BlueprintTierTable.Ascending`, one component struct, one `GlobalComponentIds` id.
+⛔ **APPENDED to `BlackboardTier`, never inserted** *(§2 ⑫: three ordinal enums spell this ladder)*.
+`MaxSlots` is PLAN `W4`: 📐 **77 %** of behaviours need ≤ 2 slots ⇒ **2** is the value that earns the
+tier; 1 makes it near-useless.
 
 ### 3.3 The working recipe (all three prior tasks used it, and it caught something every time)
 
@@ -161,7 +165,7 @@ source saying so. ⭐ Anyone "finishing A2" by collapsing them would introduce a
 
 ## 5. ⛔⛔ THE TRAPS THIS PROGRAMME HAS PAID FOR
 
-⭐ Twelve of these were **my own errors**; three reached a pushed document before being caught. They are
+⭐ Fifteen of these were **my own errors**; three reached a pushed document before being caught. They are
 here as checkable habits, not confessions. ⚠ **⑯ is not mine** — it is a defect in the tooling that
 enforces the rules, and it is here because believing its banner would have produced a grep-only answer.
 
@@ -184,6 +188,10 @@ enforces the rules, and it is here because believing its banner would have produ
 
 | 🔴 **⑮** | ⛔⛔ **SPLITTING A COMPONENT SPLITS ITS AUTHORITY — and only a rail said so.** `B2` moved the interrupt bytes out of `BrainBlackboard` into `BrainInterrupts`; `CognitiveRuntimeModuleTests.WithTheGateOn_AnUnownedBrainIsNeverTouched` reddened because the gate keys on **the component the system reads**, and authority was still granted only for `BrainBlackboard` ⇒ the gate stopped discriminating and an unowned brain WAS touched. ⚠ Not live today *(`gateOnAuthority` is `false` on every host)*, which is precisely why nothing else would have caught it | ⭐ when you split a struct, enumerate **every per-component set the old type was a member of** — authority grants, replication masks, `DataPolicy`, registration paths — and decide for each. ⛔ "It compiles and the suites pass" answers none of them |
 | ⚠ **⑯** | 🔴🔴 **`scripts/find.sh`'s GRAPH HALF WAS SILENTLY DEAD** — it parsed `cli list_projects` as JSON while this CLI build prints a **human-readable TABLE**, so `PROJ` came back empty and it printed *"NO INDEXED PROJECT"* on a **fully indexed repo**, every call. ⚠ The identical defect had already been found and fixed for `search_code` *(2026-09-12, comment still in the file)* — one call earlier in the same script. ⇒ the tool that exists to enforce graph-before-grep was **advertising the graph as unavailable** | ⭐ **fixed `2026-09-20`** — the parser now understands the MCP envelope, bare JSON **and** the table. ⛔ **When a tool reports its own unavailability, verify that against the tool itself** *(`… cli list_projects` takes one second)* before accepting a grep-only answer — an "UNAVAILABLE" banner is a claim, not a measurement |
+
+| 🔴 **⑰** | ⛔⛔ **I QUOTED A TRUNCATED SEARCH PAGE AS A CENSUS.** `search_code("BlueprintBlackboard16384")` printed `files: 37` — and, in the same result, **`results_returned: 100`, `total_results: 129`, `has_more: true`**. 📐 The real figure is **75 files**. ⇒ the `B3` site table was built from one page and **missed three real ladders**; all three surfaced only from a full-solution build. ⚠ `CLAUDE.md` names this exact trap *("`limit` defaults to 10 — a truncated page looks exactly like a small answer")* and it was still paid | ⭐ **read `has_more` / `total_results` BEFORE quoting a count**, and for a whole-repo census prefer `grep -rln`, which cannot paginate. ⛔ A file list is not a census unless the result says it is complete |
+| 🔴 **⑱** | ⛔⛔ **A FOREGROUND BUILD RACING A BACKGROUND ONE MAKES `--no-build` RUN A BINARY THAT SILENTLY OMITS YOUR NEW TESTS.** 📐 Measured: the test `.dll` was stamped **13:31:16**, the `.cs` holding 7 new rails **13:31:12** ⇒ the incremental check saw the dll as newer and **skipped the compile**. `dotnet build` said *"Build succeeded"*, `dotnet test --no-build` said *"Passed! 11"* — and **11 was exactly the old rail count.** ⚠ A green with a suspiciously round number is the only symptom; nothing errors. ⭐ Fixed by `--no-incremental` | ⭐⭐ **after adding tests, check the COUNT went up by what you added.** ⛔ `strings <dll> \| grep <NewTestName>` settles it in a second. ⚠ This is the third face of the stale-binary trap *(⑦ failed build, ⑫ wrong project, ⑱ skipped compile)* — ⇒ 🔒 **do not run a foreground build of a project a background job is also building** |
+| ⚠ **⑲** | 🔴 **`git stash` WHILE A BACKGROUND BUILD OR TEST RUNS CORRUPTS IT.** I stashed to measure a baseline while a suite was running in the background; the stash left untracked NEW files in place, so the "baseline" build failed with 10 errors, produced a broken dll, **and poisoned the concurrent run** — whose result then had to be thrown away | ⛔ **never stash with work in flight.** ⭐ For a baseline, use `git worktree add` — it is isolated by construction — or measure the property from the SOURCE instead: 📌 here the question *"did skips change?"* was answered by `git status <test project>` returning **empty**, proving `B3` touched no test source, in one command and no build |
 
 ⭐ **And three operational ones, all re-paid despite being in the runbook:**
 ⛔ `127.0.0.1` 404s on **every** route — `HttpListener` binds the hostname; use `localhost` (§2.1) ·

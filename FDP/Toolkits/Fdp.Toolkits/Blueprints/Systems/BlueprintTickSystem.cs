@@ -22,9 +22,9 @@ public sealed class BlueprintTickSystem : IEcsModuleSystem, IProfiledSystem
     private readonly BlueprintRegistry _registry;
     private readonly IReloadLogSink    _logSink;
 
-    private EntityQuery? _query1024;
-    private EntityQuery? _query4096;
-    private EntityQuery? _query16384;
+    // ⭐ O3a / B3: one query per tier, built FROM the ladder, index-aligned with
+    //   BlueprintTierTable.Ascending. ⛔ Was three named fields and three named methods.
+    private EntityQuery[]? _tierQueries;
 
     /// <summary>
     /// Optional frame-start hook -- wire from a higher-level module at startup (e.g. DebugProbe.NewTick).
@@ -56,25 +56,42 @@ public sealed class BlueprintTickSystem : IEcsModuleSystem, IProfiledSystem
         var repo = (EntityRepository)view;
         var ecb  = view.GetCommandBuffer();
 
-        _query1024  ??= repo.Query().With<BlueprintBlackboard1024>().Build();
-        _query4096  ??= repo.Query().With<BlueprintBlackboard4096>().Build();
-        _query16384 ??= repo.Query().With<BlueprintBlackboard16384>().Build();
+        var tiers = BlueprintTierTable.Ascending;
+        if (_tierQueries is null)
+        {
+            _tierQueries = new EntityQuery[tiers.Count];
+            for (int t = 0; t < tiers.Count; t++)
+                _tierQueries[t] = tiers[t].BuildQuery(repo);
+        }
 
-        TickTier_1024(repo, view, ecb, deltaTime);
-        TickTier_4096(repo, view, ecb, deltaTime);
-        TickTier_16384(repo, view, ecb, deltaTime);
+        // ⚠ Smallest-first, which is the order the three named calls ran in. An entity carries at
+        //   most one tier, so the order is not observable — it is preserved anyway, because
+        //   "not observable" is a claim and preserving it costs nothing.
+        for (int t = 0; t < tiers.Count; t++)
+            TickTier(repo, view, ecb, deltaTime, tiers[t], _tierQueries[t]);
 
         TickWorldSingletons(repo, view, ecb, deltaTime);
     }
 
-    private unsafe void TickTier_1024(
-        EntityRepository repo, ISimulationView view, IEntityCommandBuffer ecb, float deltaTime)
+    /// <summary>
+    /// ⭐⭐⭐ <b>ONE tier walk.</b> <c>O3a</c> / task <c>B3</c> — 📄 <c>DESIGN §17.2</c>.
+    ///
+    /// <para>📐 This body was <b>three verbatim ~78-line copies</b> — <c>TickTier_1024</c>,
+    /// <c>_4096</c>, <c>_16384</c> — differing only in the component type named on two lines.
+    /// (Verified verbatim by normalising the tier number before the collapse.) A fourth tier was a
+    /// fourth copy.</para>
+    ///
+    /// <para>⚠ The memory resolution moved to <see cref="BlueprintTierSpec.Memory"/>, which uses the
+    /// same <c>Unsafe.As&lt;TTier, byte&gt;</c> this method already used. ⛔ The pointer is used only
+    /// within this call, and nothing here adds or removes a component on the entity.</para>
+    /// </summary>
+    private unsafe void TickTier(
+        EntityRepository repo, ISimulationView view, IEntityCommandBuffer ecb, float deltaTime,
+        BlueprintTierSpec spec, EntityQuery query)
     {
-        foreach (var entity in _query1024!)
+        foreach (var entity in query)
         {
-            ref var bb      = ref repo.GetComponentRW<BlueprintBlackboard1024>(entity);
-            ref byte memRef = ref Unsafe.As<BlueprintBlackboard1024, byte>(ref bb);
-            byte* memory    = (byte*)Unsafe.AsPointer(ref memRef);
+            byte* memory = spec.Memory(repo, entity);
 
             ref var header = ref Unsafe.AsRef<BlueprintBlackboardHeader>(memory);
             if (header.MagicAndVersion != BlueprintBlackboardHeader.MagicValue) continue;
@@ -107,9 +124,8 @@ public sealed class BlueprintTickSystem : IEcsModuleSystem, IProfiledSystem
                     BlueprintBlackboardPartitions.ResetSlot(memory, i, def.StructureHash);
                     if (def.InitDefault is not null)
                     {
-                        var initSpan = MemoryMarshal.CreateSpan(
-                            ref Unsafe.Add(ref memRef, slot.PayloadOffset),
-                            slot.PayloadSize);
+                        var initSpan = new Span<byte>(
+                            memory + slot.PayloadOffset, slot.PayloadSize);
                         def.InitDefault(initSpan);
                     }
                     _logSink.OnHardReset(slot.BlueprintId, entity, oldHash, (ulong)def!.StructureHash);
@@ -119,174 +135,16 @@ public sealed class BlueprintTickSystem : IEcsModuleSystem, IProfiledSystem
                 // sees handler effects). HasEvent-gated inside DispatchForSlot — absent events cost nothing.
                 if (def.EventHandlers is not null && def.EventHandlers.Count > 0)
                 {
-                    var evSpan = MemoryMarshal.CreateSpan(
-                        ref Unsafe.Add(ref memRef, slot.PayloadOffset),
-                        slot.PayloadSize);
+                    var evSpan = new Span<byte>(
+                        memory + slot.PayloadOffset, slot.PayloadSize);
                     BlueprintEventDispatch.DispatchForSlot(
                         def, evSpan, repo.Bus, view, ecb, entity, view.Time, deltaTime);
                 }
 
                 if (def.Tick is not null)
                 {
-                    var tickSpan = MemoryMarshal.CreateSpan(
-                        ref Unsafe.Add(ref memRef, slot.PayloadOffset),
-                        slot.PayloadSize);
-                    def.Tick(tickSpan, view, ecb, entity,
-                             view.Time, deltaTime, slot.InstanceVersion);
-
-                    // ⭐⭐⭐ C-tick: ONE non-frozen tick of THIS asset on THIS entity.
-                    // ⭐ Frozen comes free -- Execute returns at `deltaTime <= 0f`, so this line is
-                    //   unreachable while paused, which is exactly what the ruling needs.
-                    // ⛔ AFTER def.Tick, not before: the counter means "a tick HAS RUN", and the
-                    //   monitor diffs the value the tick produced.
-                    BlueprintAssetTick.Bump(slot.BlueprintId, entity);
-                }
-            }
-        }
-    }
-
-    private unsafe void TickTier_4096(
-        EntityRepository repo, ISimulationView view, IEntityCommandBuffer ecb, float deltaTime)
-    {
-        foreach (var entity in _query4096!)
-        {
-            ref var bb      = ref repo.GetComponentRW<BlueprintBlackboard4096>(entity);
-            ref byte memRef = ref Unsafe.As<BlueprintBlackboard4096, byte>(ref bb);
-            byte* memory    = (byte*)Unsafe.AsPointer(ref memRef);
-
-            ref var header = ref Unsafe.AsRef<BlueprintBlackboardHeader>(memory);
-            if (header.MagicAndVersion != BlueprintBlackboardHeader.MagicValue) continue;
-
-            int   slotCount = header.SlotCount;
-            byte* slotTable = memory + sizeof(BlueprintBlackboardHeader);
-
-            for (int i = 0; i < slotCount; i++)
-            {
-                ref var slot = ref Unsafe.AsRef<BlueprintSlotEntry>(
-                    slotTable + i * BlueprintBlackboardPartitions.SlotEntrySize);
-
-                // ⭐⭐⭐ A4/O0 + D1' — FILTER ON THE DECLARED KIND, NEVER ON A REGISTRY MISS.
-                //   📐 The line below used to be the whole filter, and it worked ONLY because
-                //      BlueprintRegistry happens not to know an FNV stateful slot key (F7) — an
-                //      accident, not a filter. This walker now runs on CGF as well as the Editor,
-                //      beside BTree/HSM occurrences in the SAME store, so the filter has to be a
-                //      declaration. A3 made every production attach declare its kind.
-                if (BlueprintBlackboardPartitions.GetSlotKind(memory, i) != OccurrenceKind.Blueprint)
-                    continue;
-
-                // ⚠ Still looked up, but it is no longer the filter: for a slot DECLARED Blueprint a
-                //   miss means the definition is absent from this host's registry, which is a real
-                //   condition (an asset this node did not compile) rather than "not ours".
-                if (!_registry.TryGetById(slot.BlueprintId, out var def)) continue;
-
-                if (slot.StructureHash != (uint)def!.StructureHash) // DEBT-014 truncation
-                {
-                    ulong oldHash = slot.StructureHash;
-                    BlueprintBlackboardPartitions.ResetSlot(memory, i, def.StructureHash);
-                    if (def.InitDefault is not null)
-                    {
-                        var initSpan = MemoryMarshal.CreateSpan(
-                            ref Unsafe.Add(ref memRef, slot.PayloadOffset),
-                            slot.PayloadSize);
-                        def.InitDefault(initSpan);
-                    }
-                    _logSink.OnHardReset(slot.BlueprintId, entity, oldHash, (ulong)def!.StructureHash);
-                }
-
-                // Q#14: dispatch any custom events this instance subscribes to (before Tick, so the tick
-                // sees handler effects). HasEvent-gated inside DispatchForSlot — absent events cost nothing.
-                if (def.EventHandlers is not null && def.EventHandlers.Count > 0)
-                {
-                    var evSpan = MemoryMarshal.CreateSpan(
-                        ref Unsafe.Add(ref memRef, slot.PayloadOffset),
-                        slot.PayloadSize);
-                    BlueprintEventDispatch.DispatchForSlot(
-                        def, evSpan, repo.Bus, view, ecb, entity, view.Time, deltaTime);
-                }
-
-                if (def.Tick is not null)
-                {
-                    var tickSpan = MemoryMarshal.CreateSpan(
-                        ref Unsafe.Add(ref memRef, slot.PayloadOffset),
-                        slot.PayloadSize);
-                    def.Tick(tickSpan, view, ecb, entity,
-                             view.Time, deltaTime, slot.InstanceVersion);
-
-                    // ⭐⭐⭐ C-tick: ONE non-frozen tick of THIS asset on THIS entity.
-                    // ⭐ Frozen comes free -- Execute returns at `deltaTime <= 0f`, so this line is
-                    //   unreachable while paused, which is exactly what the ruling needs.
-                    // ⛔ AFTER def.Tick, not before: the counter means "a tick HAS RUN", and the
-                    //   monitor diffs the value the tick produced.
-                    BlueprintAssetTick.Bump(slot.BlueprintId, entity);
-                }
-            }
-        }
-    }
-
-    private unsafe void TickTier_16384(
-        EntityRepository repo, ISimulationView view, IEntityCommandBuffer ecb, float deltaTime)
-    {
-        foreach (var entity in _query16384!)
-        {
-            ref var bb      = ref repo.GetComponentRW<BlueprintBlackboard16384>(entity);
-            ref byte memRef = ref Unsafe.As<BlueprintBlackboard16384, byte>(ref bb);
-            byte* memory    = (byte*)Unsafe.AsPointer(ref memRef);
-
-            ref var header = ref Unsafe.AsRef<BlueprintBlackboardHeader>(memory);
-            if (header.MagicAndVersion != BlueprintBlackboardHeader.MagicValue) continue;
-
-            int   slotCount = header.SlotCount;
-            byte* slotTable = memory + sizeof(BlueprintBlackboardHeader);
-
-            for (int i = 0; i < slotCount; i++)
-            {
-                ref var slot = ref Unsafe.AsRef<BlueprintSlotEntry>(
-                    slotTable + i * BlueprintBlackboardPartitions.SlotEntrySize);
-
-                // ⭐⭐⭐ A4/O0 + D1' — FILTER ON THE DECLARED KIND, NEVER ON A REGISTRY MISS.
-                //   📐 The line below used to be the whole filter, and it worked ONLY because
-                //      BlueprintRegistry happens not to know an FNV stateful slot key (F7) — an
-                //      accident, not a filter. This walker now runs on CGF as well as the Editor,
-                //      beside BTree/HSM occurrences in the SAME store, so the filter has to be a
-                //      declaration. A3 made every production attach declare its kind.
-                if (BlueprintBlackboardPartitions.GetSlotKind(memory, i) != OccurrenceKind.Blueprint)
-                    continue;
-
-                // ⚠ Still looked up, but it is no longer the filter: for a slot DECLARED Blueprint a
-                //   miss means the definition is absent from this host's registry, which is a real
-                //   condition (an asset this node did not compile) rather than "not ours".
-                if (!_registry.TryGetById(slot.BlueprintId, out var def)) continue;
-
-                if (slot.StructureHash != (uint)def!.StructureHash) // DEBT-014 truncation
-                {
-                    ulong oldHash = slot.StructureHash;
-                    BlueprintBlackboardPartitions.ResetSlot(memory, i, def.StructureHash);
-                    if (def.InitDefault is not null)
-                    {
-                        var initSpan = MemoryMarshal.CreateSpan(
-                            ref Unsafe.Add(ref memRef, slot.PayloadOffset),
-                            slot.PayloadSize);
-                        def.InitDefault(initSpan);
-                    }
-                    _logSink.OnHardReset(slot.BlueprintId, entity, oldHash, (ulong)def!.StructureHash);
-                }
-
-                // Q#14: dispatch any custom events this instance subscribes to (before Tick, so the tick
-                // sees handler effects). HasEvent-gated inside DispatchForSlot — absent events cost nothing.
-                if (def.EventHandlers is not null && def.EventHandlers.Count > 0)
-                {
-                    var evSpan = MemoryMarshal.CreateSpan(
-                        ref Unsafe.Add(ref memRef, slot.PayloadOffset),
-                        slot.PayloadSize);
-                    BlueprintEventDispatch.DispatchForSlot(
-                        def, evSpan, repo.Bus, view, ecb, entity, view.Time, deltaTime);
-                }
-
-                if (def.Tick is not null)
-                {
-                    var tickSpan = MemoryMarshal.CreateSpan(
-                        ref Unsafe.Add(ref memRef, slot.PayloadOffset),
-                        slot.PayloadSize);
+                    var tickSpan = new Span<byte>(
+                        memory + slot.PayloadOffset, slot.PayloadSize);
                     def.Tick(tickSpan, view, ecb, entity,
                              view.Time, deltaTime, slot.InstanceVersion);
 
@@ -308,51 +166,25 @@ public sealed class BlueprintTickSystem : IEcsModuleSystem, IProfiledSystem
         {
             if (!_registry.TryGetById(blueprintId, out var def)) continue;
 
-            switch (tier)
-            {
-                case BlackboardTier.B1024:
-                    EnsureAndTickSingleton<BlueprintBlackboard1024>(
-                        repo, view, ecb, blueprintId, def!,
-                        BlueprintBlackboard1024.TotalSize,
-                        (byte)BlueprintBlackboard1024.MaxSlots,
-                        deltaTime);
-                    break;
-                case BlackboardTier.B4096:
-                    EnsureAndTickSingleton<BlueprintBlackboard4096>(
-                        repo, view, ecb, blueprintId, def!,
-                        BlueprintBlackboard4096.TotalSize,
-                        (byte)BlueprintBlackboard4096.MaxSlots,
-                        deltaTime);
-                    break;
-                case BlackboardTier.B16384:
-                    EnsureAndTickSingleton<BlueprintBlackboard16384>(
-                        repo, view, ecb, blueprintId, def!,
-                        BlueprintBlackboard16384.TotalSize,
-                        (byte)BlueprintBlackboard16384.MaxSlots,
-                        deltaTime);
-                    break;
-            }
+            // ⭐ O3a / B3: was a three-arm switch, each arm naming a tier type and re-quoting its
+            //   TotalSize and MaxSlots. The spec carries all three.
+            EnsureAndTickSingleton(
+                repo, view, ecb, blueprintId, def!, BlueprintTierTable.ByTier(tier), deltaTime);
         }
     }
 
-    private unsafe void EnsureAndTickSingleton<TBB>(
+    private unsafe void EnsureAndTickSingleton(
         EntityRepository repo, ISimulationView view, IEntityCommandBuffer ecb,
-        int blueprintId, BlueprintDefinition def, int totalSize, byte maxSlots,
+        int blueprintId, BlueprintDefinition def, BlueprintTierSpec spec,
         float deltaTime)
-        where TBB : unmanaged
     {
         // Lazy attach -- first encounter creates the singleton component
-        if (!repo.HasSingleton<TBB>())
-            repo.SetSingletonUnmanaged<TBB>(default);
-
-        ref var bb      = ref repo.GetSingleton<TBB>();
-        ref byte memRef = ref Unsafe.As<TBB, byte>(ref bb);
-        byte* memory    = (byte*)Unsafe.AsPointer(ref memRef);
+        byte* memory = spec.EnsureSingletonMemory(repo);
 
         // Initialize header if not yet done
         ref var header = ref Unsafe.AsRef<BlueprintBlackboardHeader>(memory);
         if (header.MagicAndVersion != BlueprintBlackboardHeader.MagicValue)
-            BlueprintBlackboardPartitions.Initialize(memory, totalSize, maxSlots);
+            BlueprintBlackboardPartitions.Initialize(memory, spec.TotalSize, (byte)spec.MaxSlots);
 
         // Attach slot if not yet attached
         if (!BlueprintBlackboardPartitions.TryGetSlotOffset(memory, blueprintId, out int payloadOffset))
@@ -367,9 +199,7 @@ public sealed class BlueprintTickSystem : IEcsModuleSystem, IProfiledSystem
 
             if (def.InitDefault is not null)
             {
-                var initSpan = MemoryMarshal.CreateSpan(
-                    ref Unsafe.Add(ref memRef, payloadOffset),
-                    def.StateSize);
+                var initSpan = new Span<byte>(memory + payloadOffset, def.StateSize);
                 def.InitDefault(initSpan);
             }
         }
@@ -387,9 +217,7 @@ public sealed class BlueprintTickSystem : IEcsModuleSystem, IProfiledSystem
             BlueprintBlackboardPartitions.ResetSlot(memory, slotIndex, def.StructureHash);
             if (def.InitDefault is not null)
             {
-                var resetSpan = MemoryMarshal.CreateSpan(
-                    ref Unsafe.Add(ref memRef, slot.PayloadOffset),
-                    slot.PayloadSize);
+                var resetSpan = new Span<byte>(memory + slot.PayloadOffset, slot.PayloadSize);
                 def.InitDefault(resetSpan);
             }
             _logSink.OnHardReset(blueprintId, Entity.Null, oldHash, (ulong)def.StructureHash);
@@ -397,9 +225,7 @@ public sealed class BlueprintTickSystem : IEcsModuleSystem, IProfiledSystem
 
         if (def.Tick is not null)
         {
-            var tickSpan = MemoryMarshal.CreateSpan(
-                ref Unsafe.Add(ref memRef, slot.PayloadOffset),
-                slot.PayloadSize);
+            var tickSpan = new Span<byte>(memory + slot.PayloadOffset, slot.PayloadSize);
             def.Tick(tickSpan, view, ecb, Entity.Null,
                      view.Time, deltaTime, slot.InstanceVersion);
 

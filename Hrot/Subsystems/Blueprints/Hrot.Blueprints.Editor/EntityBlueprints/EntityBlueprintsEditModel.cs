@@ -135,9 +135,9 @@ public sealed class EntityBlueprintsEditModel
 
         BlackboardTier tier = ChooseTierFromAggregate(totalSlots, totalBytes);
         UsageStatus status = UsageStatus.Ok;
-        if (totalSlots > BlueprintBlackboard16384.MaxSlots || totalBytes > BlueprintBlackboard16384.PayloadSize)
+        if (totalSlots > BlueprintTierTable.Largest.MaxSlots || totalBytes > BlueprintTierTable.Largest.PayloadSize)
         {
-            tier = BlackboardTier.B16384;
+            tier = BlueprintTierTable.Largest.Tier;
             status = UsageStatus.OverCeiling;
         }
         else
@@ -201,18 +201,15 @@ public sealed class EntityBlueprintsEditModel
         // ⚠ NOT OccurrenceStoreAccess: this maps to the editor's BlackboardTier enum and
         //    deliberately answers B1024 for an entity with NO store at all (the default the panel
         //    opens on). The seam's GetStoreSize returns 0 there, which is a different answer.
-        if (_repo.HasComponent<BlueprintBlackboard16384>(_entity)) return BlackboardTier.B16384;
-        if (_repo.HasComponent<BlueprintBlackboard4096>(_entity)) return BlackboardTier.B4096;
-        return BlackboardTier.B1024;
+        // ⭐ O3a / B3: the probe order is BlueprintTierTable.Descending; the "no store ⇒ smallest"
+        //   default this method is documented for is spelled explicitly below.
+        return BlueprintTierTable.Of(_repo, _entity)?.Tier
+            ?? BlueprintTierTable.Ascending[0].Tier;
     }
 
     public static BlackboardTier ChooseTierFromAggregate(int totalSlots, int totalBytes)
     {
-        if (totalSlots <= BlueprintBlackboard1024.MaxSlots && totalBytes <= BlueprintBlackboard1024.PayloadSize)
-            return BlackboardTier.B1024;
-        if (totalSlots <= BlueprintBlackboard4096.MaxSlots && totalBytes <= BlueprintBlackboard4096.PayloadSize)
-            return BlackboardTier.B4096;
-        return BlackboardTier.B16384;
+        return BlueprintTierTable.Select(totalBytes, totalSlots).Tier;
     }
 
     public string? GetBlueprintName(Guid assetId)

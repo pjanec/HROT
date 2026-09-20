@@ -55,31 +55,17 @@ public static unsafe class OccurrenceStoreAccess
     /// <returns><c>null</c> when the entity carries no tier component — ⛔ a normal, expected answer.</returns>
     public static byte* TryGetStore(EntityRepository world, Entity entity, out int totalSize)
     {
-        // ⚠ Order is load-bearing: an entity carries AT MOST ONE tier, so the first match is
-        //    authoritative. Largest first mirrors every site this replaces.
-        if (world.HasComponent<BlueprintBlackboard16384>(entity))
+        // ⭐ O3a: the ladder is BlueprintTierTable.Descending. The probe order — and the reason it is
+        //   load-bearing — is unchanged; it simply is not spelled here any more.
+        var spec = BlueprintTierTable.Of(world, entity);
+        if (spec is null)
         {
-            totalSize = BlueprintBlackboard16384.TotalSize;
-            ref var tier = ref world.GetComponentRW<BlueprintBlackboard16384>(entity);
-            fixed (byte* mem = tier.Memory) return mem;
+            totalSize = 0;
+            return null;
         }
 
-        if (world.HasComponent<BlueprintBlackboard4096>(entity))
-        {
-            totalSize = BlueprintBlackboard4096.TotalSize;
-            ref var tier = ref world.GetComponentRW<BlueprintBlackboard4096>(entity);
-            fixed (byte* mem = tier.Memory) return mem;
-        }
-
-        if (world.HasComponent<BlueprintBlackboard1024>(entity))
-        {
-            totalSize = BlueprintBlackboard1024.TotalSize;
-            ref var tier = ref world.GetComponentRW<BlueprintBlackboard1024>(entity);
-            fixed (byte* mem = tier.Memory) return mem;
-        }
-
-        totalSize = 0;
-        return null;
+        totalSize = spec.TotalSize;
+        return spec.Memory(world, entity);
     }
 
     /// <summary>
@@ -99,29 +85,15 @@ public static unsafe class OccurrenceStoreAccess
     /// </summary>
     public static byte* TryGetStoreReadOnly(EntityRepository world, Entity entity, out int totalSize)
     {
-        if (world.HasComponent<BlueprintBlackboard16384>(entity))
+        var spec = BlueprintTierTable.Of(world, entity);
+        if (spec is null)
         {
-            totalSize = BlueprintBlackboard16384.TotalSize;
-            ref readonly var tier = ref world.GetComponentRO<BlueprintBlackboard16384>(entity);
-            fixed (byte* mem = tier.Memory) return mem;
+            totalSize = 0;
+            return null;
         }
 
-        if (world.HasComponent<BlueprintBlackboard4096>(entity))
-        {
-            totalSize = BlueprintBlackboard4096.TotalSize;
-            ref readonly var tier = ref world.GetComponentRO<BlueprintBlackboard4096>(entity);
-            fixed (byte* mem = tier.Memory) return mem;
-        }
-
-        if (world.HasComponent<BlueprintBlackboard1024>(entity))
-        {
-            totalSize = BlueprintBlackboard1024.TotalSize;
-            ref readonly var tier = ref world.GetComponentRO<BlueprintBlackboard1024>(entity);
-            fixed (byte* mem = tier.Memory) return mem;
-        }
-
-        totalSize = 0;
-        return null;
+        totalSize = spec.TotalSize;
+        return spec.MemoryReadOnly(world, entity);
     }
 
     /// <summary>
@@ -130,21 +102,14 @@ public static unsafe class OccurrenceStoreAccess
     /// genuinely only ask the question (e.g. a translator's "should I serialise this entity?").
     /// </summary>
     public static bool HasStore(EntityRepository world, Entity entity)
-        => world.HasComponent<BlueprintBlackboard16384>(entity)
-        || world.HasComponent<BlueprintBlackboard4096>(entity)
-        || world.HasComponent<BlueprintBlackboard1024>(entity);
+        => BlueprintTierTable.Of(world, entity) is not null;
 
     /// <summary>
     /// The entity's tier <c>TotalSize</c>, or <c>0</c> when it has no store — the size-only half of
     /// the same ladder (<c>BehaviorIngressSystem.GetCurrentTierSize</c> was a verbatim copy).
     /// </summary>
     public static int GetStoreSize(EntityRepository world, Entity entity)
-    {
-        if (world.HasComponent<BlueprintBlackboard16384>(entity)) return BlueprintBlackboard16384.TotalSize;
-        if (world.HasComponent<BlueprintBlackboard4096>(entity))  return BlueprintBlackboard4096.TotalSize;
-        if (world.HasComponent<BlueprintBlackboard1024>(entity))  return BlueprintBlackboard1024.TotalSize;
-        return 0;
-    }
+        => BlueprintTierTable.Of(world, entity)?.TotalSize ?? 0;
 
     /// <summary>
     /// Resolves a single occurrence's payload within the entity's store — the seam

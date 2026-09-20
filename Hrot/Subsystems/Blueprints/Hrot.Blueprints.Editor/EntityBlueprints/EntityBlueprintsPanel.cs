@@ -296,38 +296,41 @@ public sealed class EntityBlueprintsPanel : BlueprintEditorWindowBase
         }
     }
 
+    /// <summary>
+    /// ⭐ <c>O3a</c> / task <c>B3</c> — 📄 <c>DESIGN_Occurrence_Scoped_Storage.md</c> §17.
+    /// The editor's own promotion, now the same one body as
+    /// <c>BehaviorIngressSystem.UpgradeTier</c> and <c>BlueprintMaintenanceSystem.UpgradePair</c>.
+    ///
+    /// <para>🔴🔴 <b>AND IT FIXES A LATENT HOLE, which is a real behaviour change — stated, not
+    /// buried.</b> The two hand-written <c>switch</c>es this replaces covered only the ADJACENT
+    /// promotions (<c>1024→4096</c>, <c>4096→16384</c>). A <b><c>1024→16384</c></b> jump added the
+    /// 16384 component and then matched no copy arm ⇒ the entity was left carrying <b>both</b>
+    /// components, the new one <b>never initialised and never copied into</b>, and nothing repaired
+    /// it — <c>BlueprintMaintenanceSystem</c> only queries ADJACENT pairs, and <c>1024+16384</c> is
+    /// not one. ⚠ <c>BehaviorIngressSystem.UpgradeTier</c> always handled that jump, so the editor
+    /// was the odd one out: an omission, not a policy. The generic form has no such gap.</para>
+    ///
+    /// <para>⛔⛔ <c>CopyToLargerTier</c> carries <c>H1</c> — the header's <c>Reserved</c>, which since
+    /// <c>A3</c> holds the per-slot <c>Kind</c> nibble array. Rail <c>A3_R2</c> pins it.</para>
+    /// </summary>
     private unsafe void UpgradeTier(BlackboardTier oldTier, BlackboardTier newTier)
     {
         var entity = _model.GetEntity();
-        switch (newTier)
-        {
-            case BlackboardTier.B4096:
-                if (!_world.HasComponent<BlueprintBlackboard4096>(entity))
-                    _world.AddComponent(entity, default(BlueprintBlackboard4096));
-                break;
-            case BlackboardTier.B16384:
-                if (!_world.HasComponent<BlueprintBlackboard16384>(entity))
-                    _world.AddComponent(entity, default(BlueprintBlackboard16384));
-                break;
-        }
 
-        switch (oldTier)
-        {
-            case BlackboardTier.B1024 when newTier == BlackboardTier.B4096:
-                ref var old1024 = ref _world.GetComponentRW<BlueprintBlackboard1024>(entity);
-                ref var new4096 = ref _world.GetComponentRW<BlueprintBlackboard4096>(entity);
-                fixed (byte* src = old1024.Memory) fixed (byte* dst = new4096.Memory)
-                    BlueprintBlackboardPartitions.CopyToLargerTier(src, BlueprintBlackboard1024.TotalSize, dst, BlueprintBlackboard4096.TotalSize, BlueprintBlackboard4096.MaxSlots);
-                _world.RemoveComponent<BlueprintBlackboard1024>(entity);
-                break;
-            case BlackboardTier.B4096 when newTier == BlackboardTier.B16384:
-                ref var old4096 = ref _world.GetComponentRW<BlueprintBlackboard4096>(entity);
-                ref var new16384 = ref _world.GetComponentRW<BlueprintBlackboard16384>(entity);
-                fixed (byte* src = old4096.Memory) fixed (byte* dst = new16384.Memory)
-                    BlueprintBlackboardPartitions.CopyToLargerTier(src, BlueprintBlackboard4096.TotalSize, dst, BlueprintBlackboard16384.TotalSize, BlueprintBlackboard16384.MaxSlots);
-                _world.RemoveComponent<BlueprintBlackboard4096>(entity);
-                break;
-        }
+        var src = BlueprintTierTable.ByTier(oldTier);
+        var dst = BlueprintTierTable.ByTier(newTier);
+        if (dst.TotalSize <= src.TotalSize) return;   // no downgrade path, as before
+
+        if (!dst.Has(_world, entity))
+            dst.Add(_world, entity);
+
+        if (!src.Has(_world, entity)) return;         // nothing to carry over
+
+        BlueprintBlackboardPartitions.CopyToLargerTier(
+            src.Memory(_world, entity), src.TotalSize,
+            dst.Memory(_world, entity), dst.TotalSize, (byte)dst.MaxSlots);
+
+        src.Remove(_world, entity);
     }
 
     public override void OnActivated() { }

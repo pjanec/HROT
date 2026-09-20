@@ -52,8 +52,9 @@ public static class BlueprintBlackboardTiers
     {
         if (world is null) throw new System.ArgumentNullException(nameof(world));
 
-        world.RegisterComponent<BlueprintBlackboard1024>();
-        world.RegisterComponent<BlueprintBlackboard4096>();
-        world.RegisterComponent<BlueprintBlackboard16384>();
+        // ⭐ O3a / B3: the tier LIST moved to BlueprintTierTable, which every other consumer also
+        //   reads. ⛔ This method stays as the documented entry point — its header carries the
+        //   CE-161 argument for why registration is Hrot-wide — but it no longer spells the ladder.
+        Fdp.Toolkit.Blueprints.Partitioning.BlueprintTierTable.RegisterAll(world);
     }
 }

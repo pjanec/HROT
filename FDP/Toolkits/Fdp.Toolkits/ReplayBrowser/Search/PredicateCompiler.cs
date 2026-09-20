@@ -263,11 +263,15 @@ namespace Fdp.Toolkit.ReplayBrowser.Search
             Expression condition = BuildConditionExpression(param, dto.Operator, dto.Predicate);
             var matcher = Expression.Lambda<ComponentMatcherDelegate<TField>>(condition, param).Compile();
 
-            // Bake tier component type IDs at compile time.
-            // GetId returns -1 for unregistered types (BB16384 in test repos) -> HasComponentByTypeId returns false.
-            int typeId1024  = ComponentTypeRegistry.GetId(typeof(BlueprintBlackboard1024));
-            int typeId4096  = ComponentTypeRegistry.GetId(typeof(BlueprintBlackboard4096));
-            int typeId16384 = ComponentTypeRegistry.GetId(typeof(BlueprintBlackboard16384));
+            // ⭐ O3a / B3: bake ONE type id per tier, from BlueprintTierTable, at compile time.
+            //   ⚠ HasComponentByTypeId is kept deliberately rather than spec.Has: GetId returns -1
+            //     for a type this repo never registered (BB16384 in test repos), and the by-id probe
+            //     answers false for -1 where HasComponent<T> would not be safe. That subtlety was
+            //     documented on the old three-arm version and it survives the collapse.
+            var tiers   = BlueprintTierTable.Ascending;
+            var typeIds = new int[tiers.Count];
+            for (int t = 0; t < tiers.Count; t++)
+                typeIds[t] = ComponentTypeRegistry.GetId(tiers[t].ComponentType);
 
             return (repo, entity) =>
             {
@@ -275,20 +279,13 @@ namespace Fdp.Toolkit.ReplayBrowser.Search
                 {
                     byte* memory = null;
 
-                    if (repo.HasComponentByTypeId(entity, typeId1024))
+                    // ⚠ Ascending, which is the order the three arms probed in. An entity carries at
+                    //   most one tier, so the order is not observable — preserved anyway.
+                    for (int t = 0; t < tiers.Count; t++)
                     {
-                        ref readonly var bb = ref repo.GetComponentRO<BlueprintBlackboard1024>(entity);
-                        memory = (byte*)Unsafe.AsPointer(ref Unsafe.AsRef(in bb));
-                    }
-                    else if (repo.HasComponentByTypeId(entity, typeId4096))
-                    {
-                        ref readonly var bb = ref repo.GetComponentRO<BlueprintBlackboard4096>(entity);
-                        memory = (byte*)Unsafe.AsPointer(ref Unsafe.AsRef(in bb));
-                    }
-                    else if (repo.HasComponentByTypeId(entity, typeId16384))
-                    {
-                        ref readonly var bb = ref repo.GetComponentRO<BlueprintBlackboard16384>(entity);
-                        memory = (byte*)Unsafe.AsPointer(ref Unsafe.AsRef(in bb));
+                        if (typeIds[t] < 0 || !repo.HasComponentByTypeId(entity, typeIds[t])) continue;
+                        memory = tiers[t].MemoryReadOnly(repo, entity);
+                        break;
                     }
 
                     if (memory == null) return false;

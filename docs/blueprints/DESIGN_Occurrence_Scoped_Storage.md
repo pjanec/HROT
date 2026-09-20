@@ -1569,3 +1569,308 @@ measurement error of mine *(spawn read as baseline)*, filed as `CE-296` and refu
 ⇒ ⭐ **`O3` → `O0` → `O1` → `O2` → `O3a` → `O3b` → `O4` → `O5` → `O6` → `O7` → `O8` → `O9`**,
 with `O4` as the **stop-or-go gate** *(it proves the model with zero ExtDeps edits; if it fails, stop
 before paying for `O6`)*.
+
+---
+
+## 17. `O3a` — **THE TIER TABLE** *(design authored `2026-09-20`, task `B3`)*
+
+> ⭐ **build-state: READY-TO-BUILD.** This section is the design `B3` builds against; §5a already
+> carries the *why* and the sizing arithmetic — ⛔ it is not restated here.
+
+### 17.1 ⛔⛔ INVENTORY — **the census, and it is BIGGER than §5a and the PLAN assumed**
+
+| query | result |
+|---|---|
+| `search_graph(name_pattern=".*BlueprintBlackboard(1024\|4096\|16384).*")` | **39 nodes, `has_more:false`** — 3 tier structs, 3 renderers, 3 `GlobalComponentIds` fields, the rest tests/docs |
+| `search_code("BlueprintBlackboard16384", *.cs)` | ⛔⛔ **I FIRST READ THIS AS "37 files" AND IT WAS A TRUNCATED PAGE.** The same result said `results_returned: 100`, `total_results: 129`, **`has_more: true`** — the 37 was the file count of ONE page. 📐 The real census, by `grep -rln` over all three tier names: **75 files**, of which **17 non-test**. ⇒ ⭐ the sites table below was built from the truncated page and **missed three real ladders** *(`BlueprintTickSystem.TickWorldSingletons`, `BlueprintStateTranslator.GetConsumedComponentsMask`, and the `BlueprintStateTranslator` legacy-key list)*, all three found only by the full-solution build. ⚠ This is the `limit`-default trap `CLAUDE.md` names, paid in full |
+| `grep -c` per production file | the table below |
+
+| file | the shape | sites |
+|---|---|---|
+| `OccurrenceStoreAccess` *(the `A2` seam)* | ⚠ **the seam has FOUR ladders of its own** — `TryGetStore`, `TryGetStoreReadOnly`, `HasStore`, `GetStoreSize` | 4 |
+| `BehaviorIngressSystem` | 5 memory-resolve ladders + `SelectTierForPayload` + `AddAndInitializeTier` + `UpgradeTier` | 8 |
+| `BlueprintInstanceService` | `DetachFromEntity` · `TryFindExistingTier` · `EnsureTierComponent` · `GetTierMemoryAndMeta` · `ChooseTier` | 5 |
+| `BlueprintMaterializationSystem` | select + resolve + the `16384`-cap truncation constants | 3 |
+| `BlueprintTickSystem` | ⭐ **3 near-verbatim ~78-line `TickTier_*` methods** + 3 queries | 2 |
+| `BlueprintMaintenanceSystem` | 2 pairwise upgrade methods + 2 pairwise queries | 1 |
+| `BlueprintDebugSession` | `TryInstanceSlot` ladder · the RO resolve ladder | 2 |
+| `EntityBlueprintsPanel` | the editor's own promotion (`CopyToLargerTier` called directly) | 1 |
+| `EntityBlueprintsEditModel` | current-tier probe · select · the `16384` cap | 3 |
+| `PredicateCompiler` *(replay search)* | typeId triple + RO resolve triple | 1 |
+| `BlueprintBlackboardTiers.RegisterAll` | the registration triple | 1 |
+| 🔴 `BlueprintTickSystem.TickWorldSingletons` | ⛔ **MISSED BY THE TRUNCATED CENSUS** — a `switch` over `BlackboardTier`, each arm calling `EnsureAndTickSingleton<T>` with that tier's `TotalSize` and `MaxSlots` re-quoted | 1 |
+| 🔴 `BlueprintStateTranslator` | ⛔ **MISSED** — `GetConsumedComponentsMask` sets a bit per tier type; ⚠ **and a LEGACY-KEY list that must NOT follow the ladder** *(see `N4`)* | 2 |
+| `EditorSubsystem:1145` · `CgfSubsystem:879` | the renderer-accessor triple, **twice** | 2 |
+| `BlueprintBlackboard{1024,4096,16384}Renderer` | 3 near-identical ~80-line files | 3 |
+
+⇒ **~39 sites across 14 production files + 3 renderers.** ⛔ §5a's *"~10 three-way chains, 3 copied
+tick methods and 3 copied renderers"* undercounted by roughly **3×**, and the PLAN's *"across three
+files"* named only the promotion trio.
+
+#### 🔴🔴 THREE THINGS THE INVENTORY FOUND THAT NO PRIOR SECTION NAMES
+
+| # | finding | why it is load-bearing |
+|---|---|---|
+| **N1** | ⛔⛔ **A FOURTH LADDER LIVES IN THE COMPILER, AS HARD-CODED LITERALS.** `Stage2_Validate.cs:503-508` spells the payload budgets **`928 / 3936 / 16096`** — not as references to `BlueprintBlackboard*.PayloadSize`, but as integers. 📐 They are correct **today** *(1024−96, 4096−160, 16384−288)*. ⛔ `Hrot.Blueprints.Compiler` targets **`netstandard2.0;net8.0`** and references `Fdp.Toolkits` **only under net8.0**, so it *cannot* see the constants under the older TFM — this is the netstandard wall this repo already knows about | ⇒ 🔴 **re-picking `MaxSlots` (the PLAN's `W1`) silently DESYNCS compile-time validation from runtime capacity.** The compiler would keep accepting an asset the runtime can no longer seat, or reject one it could. ⭐ **`W1` is not a one-file constant change**, which is what it looked like |
+| **N2** | ⛔ **THREE `BlackboardTier` ENUMS.** `Fdp.Toolkit.Blueprints.BlackboardTier {B1024,B4096,B16384}` · `Hrot.Blueprints.Core.Compiler.BlackboardTier : byte {Blackboard1024,…}` · `BlackboardTierHint {Auto,Force1024,Force4096,Force16384}` | ⭐ exactly the `F5` shape `A1` already fixed for the slot key *("three entry points, two enums")*. ⚠ All three are **ordinal 0/1/2**, so `O3b`'s 256 tier must be **appended**, never inserted — the compiler one is `: byte` and reaches compiled artefacts |
+| **N4** | ⛔⛔ **ONE LADDER-SHAPED LIST MUST NOT FOLLOW THE LADDER.** `BlueprintStateTranslator.LegacyBlackboardKeys` spells the same three names as string literals — but they are **historical SCENARIO KEYS**: what old files on disk actually contain, claimed and black-holed so `FdpAutoSerializer` never sees them. ⚠ That set is frozen by history | ⇒ 🔴 **a tier added today was never written by an old writer and gets no legacy key.** ⭐ Deriving this list from `BlueprintTierTable` is the natural-looking change and it is **wrong**. Its neighbour two methods down, `GetConsumedComponentsMask`, is the opposite and *must* follow the ladder. Both now carry a comment saying which they are |
+| **N3** | ⭐⭐ **FIVE OF `BehaviorIngressSystem`'S LADDERS NEED NO TABLE AT ALL — the seam already answers them.** `GetTierFreePayload` · `GetTierFreeSlotCount` · `GetTierUsedPayload` · `GetManifestSlotsToBeFreedPayload` · `GetManifestSlotsAlreadyAttachedCount` · `GetTierUsedSlotCount` each take `(repo, entity, tierSize)` and resolve **that same entity's** store — and `tierSize` is `GetCurrentTierSize(repo, entity)` *(already delegating to `OccurrenceStoreAccess.GetStoreSize`)* computed one line earlier at `:287`. 📐 **And `BlueprintBlackboardHeader` already carries `PayloadSize`, `PayloadFree`, `MaxSlots`, `SlotCount`** — so even `GetTierUsedPayload`'s three-constant ternary is redundant: the store describes itself | ⇒ ⭐ **the seam law again: the seam exists and is under-adopted.** These six collapse to `TryGetStore` + header reads with **no tier knowledge whatsoever**. ✅ Provably equivalent: all six are called only inside the `currentTier != 0` branch (`:289`), so the `null` case is unreachable |
+
+### 17.2 ⭐ The model — **`classDiagram`**
+
+```mermaid
+classDiagram
+    class BlueprintTierSpec {
+        <<existing types, new descriptor>>
+        +BlackboardTier Tier
+        +Type ComponentType
+        +int TotalSize
+        +int MaxSlots
+        +int PayloadSize
+        +Has(repo, entity) bool
+        +Memory(repo, entity) byte*
+        +MemoryReadOnly(repo, entity) byte*
+        +Add(repo, entity) void
+        +Remove(repo, entity) void
+        +Register(repo) void
+        +BuildQuery(repo) EntityQuery
+        +For~TTier~(tier, total, maxSlots)$ BlueprintTierSpec
+    }
+    class BlueprintTierTable {
+        <<NEW - the ONE ladder>>
+        +Ascending$ IReadOnlyList
+        +Descending$ IReadOnlyList
+        +Of(repo, entity)$ BlueprintTierSpec
+        +ByTotalSize(int)$ BlueprintTierSpec
+        +Select(payload, slots)$ BlueprintTierSpec
+        +AdjacentPairs$ IReadOnlyList
+    }
+    class BlueprintBlackboard1024 {
+        <<EXISTS - unchanged>>
+        +TotalSize 1024
+        +MaxSlots 4
+    }
+    class BlueprintBlackboard4096 {
+        <<EXISTS - unchanged>>
+    }
+    class BlueprintBlackboard16384 {
+        <<EXISTS - unchanged>>
+    }
+    class OccurrenceStoreAccess {
+        <<EXISTS - 4 ladders become 4 loops>>
+        +TryGetStore()
+        +TryGetStoreReadOnly()
+        +HasStore()
+        +GetStoreSize()
+        +TryResolveOccurrence()
+    }
+    class BlueprintBlackboardHeader {
+        <<EXISTS - already self-describing>>
+        +MaxSlots
+        +SlotCount
+        +PayloadSize
+        +PayloadFree
+    }
+    class BehaviorIngressSystem {
+        <<EXISTS - 6 ladders DELETED>>
+    }
+    class BlueprintTickSystem {
+        <<EXISTS - 3 copies become 1 generic>>
+        +TickTier~TTier~()
+    }
+    class BlueprintMaintenanceSystem
+    class BlueprintInstanceService
+    class BlueprintBlackboardRendererBase~TTier~ {
+        <<NEW base - 3 files become 3 stubs>>
+    }
+
+    BlueprintTierTable "1" o-- "N" BlueprintTierSpec : ordered, smallest first
+    BlueprintTierSpec ..> BlueprintBlackboard1024 : one For~T~ call
+    BlueprintTierSpec ..> BlueprintBlackboard4096 : one For~T~ call
+    BlueprintTierSpec ..> BlueprintBlackboard16384 : one For~T~ call
+    OccurrenceStoreAccess ..> BlueprintTierTable : probes Descending
+    BehaviorIngressSystem ..> OccurrenceStoreAccess : N3 - the 6 ladders go HERE
+    BehaviorIngressSystem ..> BlueprintBlackboardHeader : N3 - reads its own capacity
+    BehaviorIngressSystem ..> BlueprintTierTable : Select / Add / Upgrade only
+    BlueprintTickSystem ..> BlueprintTierTable : one query per spec
+    BlueprintMaintenanceSystem ..> BlueprintTierTable : AdjacentPairs
+    BlueprintInstanceService ..> BlueprintTierTable
+    BlueprintBlackboardRendererBase ..> BlueprintTierTable
+```
+
+**What the picture shows that the prose hid:** two *different* collapses are happening, and conflating
+them is how this task would grow a table nobody needs. ⭐ **`BehaviorIngressSystem`'s six ladders go to
+`OccurrenceStoreAccess` + the HEADER** *(`N3` — no tier identity involved at all)*; only **`Select` /
+`Add` / `Upgrade`**, where the *component type must be named*, reach for the table. ⛔ The table is for
+sites that must **name a type**, never for sites that merely need **this entity's bytes**.
+
+### 17.3 ⭐ Provisioning — **`sequenceDiagram`**
+
+```mermaid
+sequenceDiagram
+    participant IN as BehaviorIngressSystem
+    participant SA as OccurrenceStoreAccess
+    participant TT as BlueprintTierTable
+    participant HD as BlueprintBlackboardHeader
+    participant AL as BlueprintBlackboardPartitions
+
+    IN->>SA: GetStoreSize
+    SA->>TT: first Descending spec whose Has matches
+    SA-->>IN: current TotalSize, zero when none
+
+    alt no store yet
+        IN->>TT: Select by payload and slots
+        TT-->>IN: smallest spec fitting BOTH axes
+        IN->>TT: spec.Add(repo, entity)
+        IN->>AL: Initialize mem with TotalSize and MaxSlots
+    else store exists
+        IN->>SA: TryGetStore
+        SA-->>IN: store pointer
+        IN->>HD: read PayloadFree and MaxSlots minus SlotCount
+        Note over IN,HD: N3 - capacity read from the STORE,<br/>not from a per-tier constant ladder
+        alt manifest does not fit
+            IN->>TT: Select by total payload and total slots
+            TT-->>IN: target spec
+            IN->>TT: target Add then source Remove
+            IN->>AL: CopyToLargerTier src to dst
+            Note over TT,AL: H1 - Reserved carries the Kind nibbles<br/>and is copied HERE. A3 added that line.<br/>B3 must not drop it - rail A3_R2.
+        end
+    end
+    IN->>AL: AttachManifestSlots with a DECLARED OccurrenceKind
+    Note over IN,AL: A4 - the kind is declared, never defaulted.<br/>The table gets no default kind.
+```
+
+**What the picture shows that the prose hid:** the promotion arm calls `CopyToLargerTier`, which is
+where **`H1`** lives. `A3` deliberately moved `H1` *out* of `O3a` and *into* `O3` so the `Kind` nibble
+array could never be zeroed in the gap between them — ⇒ a table refactor that re-writes the promotion
+call sites is exactly where that line gets dropped. ⭐ `A3_R2` is the rail that would catch it.
+
+### 17.4 ⭐⭐ Who ticks it — **the MODULE diagram** *(obligation ①a: the dead edges matter)*
+
+```mermaid
+graph TD
+    subgraph reg["Registration - every ECS host"]
+        HSCR["HrotSharedComponentRegistry.RegisterAll"]
+        BBT["BlueprintBlackboardTiers.RegisterAll<br/>becomes: foreach spec in Table"]
+        HSCR --> BBT
+    end
+
+    subgraph cgf["CGF + Editor only - A4 scope ruling"]
+        CLP["CgfLogicPack"]
+        TICK["BlueprintTickSystem<br/>Simulation phase"]
+        MAINT["BlueprintMaintenanceSystem<br/>BeforeSync via SingleSystemModule"]
+        CLP -->|SpliceIntoSimulation| TICK
+        CLP -->|CgfCapabilities.Brain| MAINT
+    end
+
+    subgraph every["Every host running behaviours"]
+        MCM["MissionControlModule"]
+        ING["BehaviorIngressSystem"]
+        MCM --> ING
+    end
+
+    subgraph ed["Editor only"]
+        PANEL["EntityBlueprintsPanel.UpgradeTier"]
+        DBG["BlueprintDebugSession"]
+        REND["BlueprintBlackboard*Renderer x3"]
+    end
+
+    subgraph rb["Replay browser only"]
+        PC["PredicateCompiler"]
+    end
+
+    TABLE["BlueprintTierTable - NEW"]
+    TICK --> TABLE
+    MAINT --> TABLE
+    ING --> TABLE
+    PANEL --> TABLE
+    DBG --> TABLE
+    REND --> TABLE
+    PC --> TABLE
+    BBT --> TABLE
+
+    COMP["Stage2_Validate<br/>928 / 3936 / 16096 LITERALS"]
+    COMP -.->|N1 - NO EDGE TODAY<br/>netstandard2.0 wall| TABLE
+
+    style COMP fill:#802020,color:#fff
+    style TABLE fill:#1f6f3f,color:#fff
+```
+
+**What the picture shows that the prose hid — and it is the reason this diagram is required:** the
+**red** box is a ladder with **no edge to the table at all**. Every other consumer can be made to read
+one source of truth; `Stage2_Validate` cannot, because its assembly cannot reference `Fdp.Toolkits`
+under `netstandard2.0`. ⇒ ⭐ **the tier budgets have a FOURTH, unreachable copy, and a `MaxSlots`
+re-pick moves the numbers under it.** ⛔ That edge is the one piece of `O3a` that is not a refactor.
+
+### 17.5 ⭐ `N1`'s fix — **the `A1` precedent, already proven on this programme**
+
+⭐ `A1` hit this exact wall: `Hrot.AiEditor.Persistence` carries no project references by design, so
+the unified slot key ships as an `internal`, netstandard2.0-subset source file **LINKED** into that
+assembly *(the `BP-306` pattern)*. ⇒ ⭐⭐ **the tier ladder does the same**: a single
+`BlueprintTierLadder.cs` holding *only* the `(TotalSize, MaxSlots, PayloadSize)` triples as `const`s,
+in netstandard2.0-safe C#, **linked** into `Hrot.Blueprints.Compiler`. ⛔ Not the `BlueprintTierSpec`
+type itself — that needs `EntityRepository` and is net8.0-only. **The numbers travel; the behaviour
+does not.**
+
+### 17.6 ⛔⛔ SCOPE — **`B3` splits in two, and the split is deliberate**
+
+| step | what | risk |
+|---|---|---|
+| ⭐ **`B3`-① — THE COLLAPSE** | every site above onto the table / the seam, with the ladder values **UNCHANGED** (4 / 8 / 16) | ⭐⭐ **zero behaviour change by construction** — provable by the full suites plus the golden test. ⛔ Mechanical, and large |
+| ⚠ **`B3`-② — THE RE-PICK** *(PLAN `W1`)* | new `MaxSlots` values + the linked ladder file for `N1` | 🔴 **a real behaviour change**: `MaxSlots` **12** on the 1024 tier costs `32+12×16=224` and drops payload `928 → 800`, so an asset whose state lands in **801–928 B** moves up a tier — and `Stage2_Validate`'s budget must move with it or the compiler and the runtime disagree |
+
+⛔ **Doing both in one commit makes "did the collapse change anything?" unanswerable**, which is the
+whole value of step ①. ⇒ they ship separately, in that order.
+
+
+### ✅ AS-BUILT `2026-09-20` — **`B3`-① THE COLLAPSE IS SHIPPED** *(obligation ⑤)*
+
+⭐ The ladder now exists once, as `BlueprintTierSpec` + `BlueprintTierTable`
+*(`Fdp.Toolkits/Blueprints/Partitioning/`)*. 📐 **Diff shape: 18 files changed, +522 / −957 in C#
+⇒ net −435 lines, plus 3 new files (543 lines, of which the majority is the rationale above).**
+⛔ **Zero behaviour change intended, with ONE stated exception** — the editor hole in the table below.
+
+| what collapsed | from → to |
+|---|---|
+| `OccurrenceStoreAccess` | 4 hand-rolled ladders → 4 calls to the table |
+| `BehaviorIngressSystem` | **6** `N3` helpers → the seam + the header · `Select`/`Add`/`Upgrade` → the table. ⭐⭐ **`UpgradeTier` was the QUADRATIC one** — 3 tiers ⇒ 3 arms, 4 ⇒ 6 — and is now one body |
+| `BlueprintTickSystem` | ⭐ **3 verbatim ~78-line `TickTier_*` methods → 1** *(verbatim proved by normalising the tier number and diffing: all three matched exactly)*, 3 query fields → one array, and the world-singleton `switch` → one call |
+| `BlueprintMaintenanceSystem` | 2 copied `UpgradeTier_A_to_B` + 2 queries → `AdjacentPairs` + one `UpgradePair` |
+| `BlueprintInstanceService` | 5 sites → the table; `GetTierMemoryAndMeta`'s 3-arm `switch` is 4 lines |
+| `BlueprintMaterializationSystem` | select + resolve + add → the table; the `16384` caps → `Largest` |
+| `EntityBlueprintsPanel` · `EntityBlueprintsEditModel` · `BlueprintDebugSession` · `PredicateCompiler` | each to the table; `BlueprintDebugSession.TryInstanceSlot<T>` **deleted** — its halves are `HasInView`/`BytesInView` |
+| ⭐ **3 renderers** | 3 byte-identical ~80-line files → `BlueprintBlackboardRendererBase<TTier>` + 3 **fifteen-line** declarations *(the `[ImGuiRenderer]` attribute needs a concrete type)*, and **one** shared registry static instead of three ⇒ the wiring in `EditorSubsystem` **and** `CgfSubsystem` drops from 3 lines each to 1 |
+
+| 🔴 the ONE behaviour change, and it is a FIX | |
+|---|---|
+| ⛔⛔ **`EntityBlueprintsPanel.UpgradeTier` silently corrupted a `1024 → 16384` jump** | its two hand-written `switch`es covered only ADJACENT promotions. A direct `1024→16384` added the 16384 component and matched **no copy arm** ⇒ the entity was left carrying **both**, the new one never initialised and never copied into. ⛔ Nothing repaired it: `BlueprintMaintenanceSystem` queries only ADJACENT pairs, and `1024+16384` is not one. ⚠ `BehaviorIngressSystem.UpgradeTier` always handled that jump ⇒ **the editor was the odd one out — an omission, not a policy.** ⭐ The generic body has no such gap |
+
+| ⚠ what was deliberately NOT collapsed | why |
+|---|---|
+| `BlueprintStateTranslator.LegacyBlackboardKeys` | `N4` — historical scenario keys, frozen by history. ⛔ A new tier gets no legacy key |
+| `BlackboardTier` / the compiler's `BlackboardTier : byte` / `BlackboardTierHint` | `N2` — unifying three enums is `A1`'s shape and its own task. ⚠ `B3` only requires that a new tier be **appended**, and `BlueprintTierTable`'s header says so |
+| `Stage2_Validate`'s `928 / 3936 / 16096` | `N1` — it is `B3`-②'s work, together with the re-pick (§17.5, §17.6) |
+
+| ⚠ one consequence of the SHARED renderer static, stated so it is not discovered later | ⭐ the three per-class `BlueprintRegistryAccessor` properties are KEPT as forwarders, so `BlueprintTierSummaryTests` and any other caller compile unchanged — ⛔ but they now address **one** backing field. ⇒ two test classes setting *different* tiers' accessors in parallel would clobber each other, where before they were independent. 📐 Measured: **`BlueprintTierSummaryTests` is the only class that touches them**, and xUnit runs a class serially, so there is no race today. ⚠ A second such class must share its collection |
+
+| ⭐ rails — **7, in the seam's OWN suite** *(`R-142` ④, ⛔ not a new class)* | `OccurrenceStoreAccessTests.B3_R1..R7` |
+|---|---|
+| `B3_R1` ladder ordered ascending, `Descending` its exact reverse | `B3_R2` every spec agrees with its struct **and** `MaxSlots ≤ MaxKindSlots` |
+| `B3_R3` `Select` gates on BOTH axes and falls through to `Largest` | `B3_R4` `Of` probes largest-first; the larger wins mid-promotion |
+| `B3_R5` `AdjacentPairs` covers the ladder with no gaps | `B3_R6` `spec.Memory` is the SAME bytes the seam returns, and the header reports the spec's own capacity |
+| `B3_R7` `RegisterAll` covers every tier *(the `CE-161` property)* | |
+
+⭐ **Red-proof:** three inverse edits — `Descending` not reversed, `Select`'s slot axis dropped,
+`AdjacentPairs` non-adjacent — reddened **4 rails** *(`R1`, `R3`, `R4`, `R5`)*; reverted, 18/18 green.
+
+#### 🔴🔴 A NEW GATE FOUND BY BUILDING, NOT BY DESIGN — **`MaxSlots` has a HARD CEILING OF 16**
+
+⛔⛔ **`W1` (the re-pick) cannot raise `MaxSlots` above `BlueprintBlackboardPartitions.MaxKindSlots`
+= 16.** 📐 `A3`'s `Kind` nibble array lives in the header's 8-byte `Reserved` at **4 bits per slot**,
+which is an exact fit for 16 and no more. ⇒ a tier with more slots has slots whose kind **cannot be
+recorded**, and `BlueprintTickSystem`'s walker filters ON the declared kind — so every slot past the
+16th would be **silently skipped**, not rejected.
+⭐ §5a's suggested *"`MaxSlots` 12 on the 1024 tier"* is safely inside it; ⛔ but the ceiling was
+nowhere written down, and *"12 leaves 800 B of payload"* reads like the only constraint.
+✅ **Now enforced in `BlueprintTierSpec.For<T>`, which throws** — a gate, not a note — and pinned by
+`B3_R2`.

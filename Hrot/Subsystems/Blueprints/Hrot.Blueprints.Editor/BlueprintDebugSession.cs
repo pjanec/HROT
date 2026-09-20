@@ -1053,13 +1053,15 @@ public sealed class BlueprintDebugSession : IBlueprintDebugSession, Hrot.Editor.
     {
         if (FindField(mapIndex, def, fieldName) is not { } f) return null;
 
-        // ⭐ The read's own component pick, in the read's own order.
-        if (TryInstanceSlot<BlueprintBlackboard1024>(entity, blueprintId, out int payload))
-            return Ref(typeof(BlueprintBlackboard1024), payload);
-        if (TryInstanceSlot<BlueprintBlackboard4096>(entity, blueprintId, out payload))
-            return Ref(typeof(BlueprintBlackboard4096), payload);
-        if (TryInstanceSlot<BlueprintBlackboard16384>(entity, blueprintId, out payload))
-            return Ref(typeof(BlueprintBlackboard16384), payload);
+        // ⭐ O3a / B3: the read's own component pick, in the read's own order — now the ladder.
+        var tiers = BlueprintTierTable.Ascending;
+        for (int t = 0; t < tiers.Count; t++)
+        {
+            var spec = tiers[t];
+            if (!spec.HasInView(_view, entity)) continue;
+            if (TryGetInstancePayloadOffset(spec.BytesInView(_view, entity), blueprintId, out int payload))
+                return Ref(spec.ComponentType, payload);
+        }
 
         return null;
 
@@ -1067,19 +1069,10 @@ public sealed class BlueprintDebugSession : IBlueprintDebugSession, Hrot.Editor.
             => new(component, payloadOffset + f.Offset, f.Size);
     }
 
-    /// <summary>⭐ One tier's "does this entity carry it, and where is my slot?" — the span acquisition
-    /// the read does inline, here as a generic so the three tiers are not three copies.</summary>
-    private bool TryInstanceSlot<T>(Entity entity, int blueprintId, out int payloadOffset)
-        where T : unmanaged
-    {
-        payloadOffset = 0;
-        if (!_view.HasComponent<T>(entity)) return false;
-
-        ref readonly var bb = ref _view.GetComponentRO<T>(entity);
-        var bytes = System.Runtime.InteropServices.MemoryMarshal.AsBytes(
-            System.Runtime.InteropServices.MemoryMarshal.CreateReadOnlySpan(in bb, 1));
-        return TryGetInstancePayloadOffset(bytes, blueprintId, out payloadOffset);
-    }
+    // ⛔ O3a / B3 (2026-09-20): `TryInstanceSlot<T>` is DELETED. It was the local generic that kept
+    //   the three tiers from being three copies — the right instinct, but it still needed a named
+    //   type per call, so the ladder stayed spelled out at its one caller. Its two halves now live
+    //   in BlueprintTierSpec (HasInView + BytesInView) and its caller walks BlueprintTierTable.
 
     /// <summary>⭐ NAME → <c>(offset, size)</c> from the SAME two tables the read consults, in the same
     /// order: the debug map's editor-authored layout first, the compiled <c>StateFields</c> second.</summary>
@@ -1554,26 +1547,17 @@ public sealed class BlueprintDebugSession : IBlueprintDebugSession, Hrot.Editor.
         cursor = null;
         var effectiveView = view ?? _view;
 
-        if (effectiveView.HasComponent<BlueprintBlackboard1024>(self))
+        // ⭐ O3a / B3: was a three-arm if/else chain over the tiers, ascending. ⚠ The view form is
+        //   used because `effectiveView` may be a HISTORICAL snapshot, not the live repository.
+        var tiers = BlueprintTierTable.Ascending;
+        for (int t = 0; t < tiers.Count; t++)
         {
-            ref readonly var bb = ref effectiveView.GetComponentRO<BlueprintBlackboard1024>(self);
-            var bytes = System.Runtime.InteropServices.MemoryMarshal.AsBytes(
-                System.Runtime.InteropServices.MemoryMarshal.CreateReadOnlySpan(in bb, 1));
-            ReadInstanceState(bytes, blueprintId, mapIndex?.StateLayout, def, outFields, out cursor);
-        }
-        else if (effectiveView.HasComponent<BlueprintBlackboard4096>(self))
-        {
-            ref readonly var bb = ref effectiveView.GetComponentRO<BlueprintBlackboard4096>(self);
-            var bytes = System.Runtime.InteropServices.MemoryMarshal.AsBytes(
-                System.Runtime.InteropServices.MemoryMarshal.CreateReadOnlySpan(in bb, 1));
-            ReadInstanceState(bytes, blueprintId, mapIndex?.StateLayout, def, outFields, out cursor);
-        }
-        else if (effectiveView.HasComponent<BlueprintBlackboard16384>(self))
-        {
-            ref readonly var bb = ref effectiveView.GetComponentRO<BlueprintBlackboard16384>(self);
-            var bytes = System.Runtime.InteropServices.MemoryMarshal.AsBytes(
-                System.Runtime.InteropServices.MemoryMarshal.CreateReadOnlySpan(in bb, 1));
-            ReadInstanceState(bytes, blueprintId, mapIndex?.StateLayout, def, outFields, out cursor);
+            var spec = tiers[t];
+            if (!spec.HasInView(effectiveView, self)) continue;
+
+            ReadInstanceState(spec.BytesInView(effectiveView, self),
+                blueprintId, mapIndex?.StateLayout, def, outFields, out cursor);
+            break;
         }
     }
 

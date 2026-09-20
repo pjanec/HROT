@@ -876,9 +876,9 @@ public sealed class CgfSubsystem : ISubsystem, Fdp.Toolkit.Runner.IMapCameraProv
 
         // Expose the blueprint registry to the Entity Inspector renderers so
         // BlueprintBlackboard* components can show per-tier slot summaries.
-        Hrot.Presentation.Renderers.BlueprintBlackboard1024Renderer.BlueprintRegistryAccessor  = _blueprintRegistry;
-        Hrot.Presentation.Renderers.BlueprintBlackboard4096Renderer.BlueprintRegistryAccessor  = _blueprintRegistry;
-        Hrot.Presentation.Renderers.BlueprintBlackboard16384Renderer.BlueprintRegistryAccessor = _blueprintRegistry;
+        // ⭐ O3a / B3: ONE static for the whole renderer family. ⛔ Was one line per tier,
+        //   here and in the other host — a per-tier, per-host chance to forget (CE-161).
+        Hrot.Presentation.Renderers.BlueprintBlackboardRenderers.Registry = _blueprintRegistry;
 
         // ── Register CGF simulation logic (Brain-specific) ─────────────────────
         var mapperRegistry = new TacticalIntentMapperRegistry();

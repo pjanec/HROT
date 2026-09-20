@@ -1,4 +1,3 @@
-using System.Runtime.CompilerServices;
 using Fdp.Core;
 using Fdp.ModuleHost.Abstractions;
 using Fdp.Toolkit.Blueprints.Components;
@@ -15,8 +14,10 @@ namespace Fdp.Toolkit.Blueprints.Systems;
 [UpdateInPhase(SystemPhase.BeforeSync)]
 public sealed class BlueprintMaintenanceSystem : IEcsModuleSystem, IProfiledSystem
 {
-    private EntityQuery? _queryUpgrade1024to4096;
-    private EntityQuery? _queryUpgrade4096to16384;
+    // ⭐ O3a / B3: one query per ADJACENT tier pair, built from BlueprintTierTable.AdjacentPairs
+    //   and index-aligned with it. ⛔ Was two named fields and two ~18-line copied methods; a 4th
+    //   tier made it three of each.
+    private EntityQuery[]? _upgradeQueries;
 
     public string ProfileName => "BlueprintMaintenanceSystem";
 
@@ -24,56 +25,41 @@ public sealed class BlueprintMaintenanceSystem : IEcsModuleSystem, IProfiledSyst
     {
         var repo = (EntityRepository)view;
 
-        _queryUpgrade1024to4096 ??= repo.Query()
-            .With<BlueprintBlackboard1024>()
-            .With<BlueprintBlackboard4096>()
-            .Build();
-        _queryUpgrade4096to16384 ??= repo.Query()
-            .With<BlueprintBlackboard4096>()
-            .With<BlueprintBlackboard16384>()
-            .Build();
-
-        UpgradeTier_1024_to_4096(repo);
-        UpgradeTier_4096_to_16384(repo);
-    }
-
-    private unsafe void UpgradeTier_1024_to_4096(EntityRepository repo)
-    {
-        foreach (var entity in _queryUpgrade1024to4096!)
+        var pairs = BlueprintTierTable.AdjacentPairs;
+        if (_upgradeQueries is null)
         {
-            ref var oldBB   = ref repo.GetComponentRW<BlueprintBlackboard1024>(entity);
-            ref byte srcRef = ref Unsafe.As<BlueprintBlackboard1024, byte>(ref oldBB);
-            byte* src       = (byte*)Unsafe.AsPointer(ref srcRef);
-
-            ref var newBB   = ref repo.GetComponentRW<BlueprintBlackboard4096>(entity);
-            ref byte dstRef = ref Unsafe.As<BlueprintBlackboard4096, byte>(ref newBB);
-            byte* dst       = (byte*)Unsafe.AsPointer(ref dstRef);
-
-            BlueprintBlackboardPartitions.CopyToLargerTier(
-                src, BlueprintBlackboard1024.TotalSize,
-                dst, BlueprintBlackboard4096.TotalSize, (byte)BlueprintBlackboard4096.MaxSlots);
-
-            repo.RemoveComponent<BlueprintBlackboard1024>(entity);
+            _upgradeQueries = new EntityQuery[pairs.Count];
+            for (int i = 0; i < pairs.Count; i++)
+            {
+                var (from, to) = pairs[i];
+                // ⚠ "Holds BOTH tiers" is the promotion signal, exactly as the two hand-written
+                //   queries expressed it: something added the larger component and left the smaller.
+                _upgradeQueries[i] = to.Constrain(from.Constrain(repo.Query())).Build();
+            }
         }
+
+        // ⭐ Smallest pair first — the order the two named calls ran in, and it is load-bearing:
+        //   a 1024→4096 promotion in this same pass can make the entity eligible for 4096→16384,
+        //   and running ascending lets that cascade complete within one frame, as it did before.
+        for (int i = 0; i < pairs.Count; i++)
+            UpgradePair(repo, pairs[i].From, pairs[i].To, _upgradeQueries[i]);
     }
 
-    private unsafe void UpgradeTier_4096_to_16384(EntityRepository repo)
+    /// <summary>
+    /// ⛔⛔ <c>CopyToLargerTier</c> is where <c>H1</c> lives — it copies the header's
+    /// <c>Reserved</c>, which since <c>A3</c> carries the per-slot <c>Kind</c> nibble array. Rail
+    /// <c>A3_R2</c> pins it, and this method must keep going THROUGH that helper.
+    /// </summary>
+    private unsafe void UpgradePair(
+        EntityRepository repo, BlueprintTierSpec from, BlueprintTierSpec to, EntityQuery query)
     {
-        foreach (var entity in _queryUpgrade4096to16384!)
+        foreach (var entity in query)
         {
-            ref var oldBB   = ref repo.GetComponentRW<BlueprintBlackboard4096>(entity);
-            ref byte srcRef = ref Unsafe.As<BlueprintBlackboard4096, byte>(ref oldBB);
-            byte* src       = (byte*)Unsafe.AsPointer(ref srcRef);
-
-            ref var newBB   = ref repo.GetComponentRW<BlueprintBlackboard16384>(entity);
-            ref byte dstRef = ref Unsafe.As<BlueprintBlackboard16384, byte>(ref newBB);
-            byte* dst       = (byte*)Unsafe.AsPointer(ref dstRef);
-
             BlueprintBlackboardPartitions.CopyToLargerTier(
-                src, BlueprintBlackboard4096.TotalSize,
-                dst, BlueprintBlackboard16384.TotalSize, (byte)BlueprintBlackboard16384.MaxSlots);
+                from.Memory(repo, entity), from.TotalSize,
+                to.Memory(repo, entity),   to.TotalSize, (byte)to.MaxSlots);
 
-            repo.RemoveComponent<BlueprintBlackboard4096>(entity);
+            from.Remove(repo, entity);
         }
     }
 }
