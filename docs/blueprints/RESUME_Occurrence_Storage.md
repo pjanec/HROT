@@ -5,12 +5,13 @@ doc-type: LANE RESUMPTION for the `behaviors` lane — programme ②, OCCURRENCE
   ⛔ VERIFY against git before acting ("THE LEDGER MAY NOT ASSERT WHAT THE CODE IS").
 updated: 2026-09-20
 build-state: n/a — a resumption snapshot, not a design.
-current-answer: §3 — the NEXT ACTION is task B3 (`O3a`: collapse per-tier branching to a TierSpec
-  table AND re-pick the MaxSlots ladder). Increment A is COMPLETE; B1 and B2 are DONE; all pushed.
+current-answer: §3 — the NEXT ACTION is task B4 (`O3b`: add the 256-byte tier). Increment A is
+  COMPLETE; B1, B2 and B3 (both halves of O3a — the TierSpec table AND the MaxSlots re-pick) are
+  DONE, golden green, all suites at baseline; all pushed.
   §2 is the grounded facts: ⛔ do not re-derive them, they cost real measurement. §5 is the trap
   list, and it is the section most worth two minutes — sixteen of these were MY errors, three of
   which reached a pushed document before being caught.
-stale-below: nothing — §3 rewritten 2026-09-20 after B2 landed.
+stale-below: nothing — §3 rewritten 2026-09-20 after B3② landed.
 known-rot: nothing.
 known-conflict: RESUME_Assets_And_Occurrences.md is the COORDINATOR snapshot (2026-09-19) owning TWO
   programmes. ⛔ SUPERSEDED IN PART for this one: it says the occurrence design has no PLAN (false —
@@ -55,7 +56,7 @@ and ours are `CE-`. Do not quote it as evidence for them.
 |---|---|
 | **design** | ✅ FINALIZED — [`DESIGN_Occurrence_Scoped_Storage.md`](DESIGN_Occurrence_Scoped_Storage.md), start at **§16** |
 | **plan** | ✅ WRITTEN — [`PLAN_Occurrence_Storage_Build.md`](PLAN_Occurrence_Storage_Build.md), 14 tasks / 5 increments |
-| ⭐ **golden test** | ✅ **GREEN**, re-proved `2026-09-20` after `A3`+`A4`, after `B1`, after `B2`, and after **`B3①`** *(`simTime 116`: platoon `521.9·525.0·528.4·532.2` on the baseline, both targets `Health 0`, **0 faults**)*. ⚠ Positions vary ~1 m run to run — it is a live multi-node run, ⛔ **not a determinism check**. ⭐ Original record *(design §15.4: targets 0/0, platoon `523·525·529·531`, **0 faults**)*. ⛔ **But it does NOT close `O0`'s acceptance** — the scenario's one store has `SlotCount 0`, so no Instance ticked. ⛔ Green before **and** after every task |
+| ⭐ **golden test** | ✅ **GREEN**, re-proved `2026-09-20` after `A3`+`A4`, after `B1`, after `B2`, after **`B3①`** and after **`B3②`** *(`simTime 116`: platoon `521.9·525.0·528.4·532.2` on the baseline, both targets `Health 0`, **0 faults**)*. ⚠ Positions vary ~1 m run to run — it is a live multi-node run, ⛔ **not a determinism check**. ⭐ Original record *(design §15.4: targets 0/0, platoon `523·525·529·531`, **0 faults**)*. ⛔ **But it does NOT close `O0`'s acceptance** — the scenario's one store has `SlotCount 0`, so no Instance ticked. ⛔ Green before **and** after every task |
 | **`A1`** *(unify the slot key)* | ✅ **DONE** — `c99a8865d` |
 | **`A2`** *(the resolution seam)* | ✅ **DONE** — `7a87596aa` + `7574f228d`. ⚠ See §4 for what was deliberately NOT collapsed |
 | **`A3`** *(`Kind` + `H1` + `H2`)* | ✅ **DONE** — 4 rails, all red-proved. As-built folded into design **§13**'s `AS-BUILT` block |
@@ -64,7 +65,7 @@ and ours are `CE-`. Do not quote it as evidence for them.
 | **`B2`** *(`O2`)* | ✅ **DONE** — `BrainInterrupts` is its own component (id **302**); `BrainBlackboard` is now **100 B of pure params** *(128 → 100: 28 dead bytes per brain entity)*. `R-39` reconciled, `R-41` superseded. As-built in design **§6** |
 | **`A2b`** *(the emitter ladder)* | ✅ **DONE** — ⛔ **three** ladders, not two; golden diff shape **+252/−1234, net −982**, purely the collapse. As-built in design **§13** |
 | **`B3①`** *(`O3a`, THE COLLAPSE)* | ✅ **DONE, golden GREEN** *(`25e158d81`)* — `BlueprintTierSpec` + `BlueprintTierTable`; **net −435 lines of C#**; 3 verbatim `TickTier_*` → 1, the quadratic `UpgradeTier` → 1 body, 3 byte-identical renderers → a generic base. ⛔ Ladder values UNCHANGED on purpose. 7 rails, red-proved. As-built in design **§17** |
-| **`B3②`** *(`O3a`, THE RE-PICK)* | ✅ **DONE** — ladder **12 / 16 / 16**; `BlueprintTierLadder` is the one source, LINKED into the compiler ⇒ `Stage2_Validate`'s literals are gone and ⑪ is CLOSED. 🔴 Forced 4096 → 16 as well: a larger tier with FEWER slots makes promotion a capacity REDUCTION. 3 rails, red-proved. As-built in design **§17** |
+| **`B3②`** *(`O3a`, THE RE-PICK)* | ✅ **DONE, golden GREEN, all suites at baseline** — ladder **12 / 16 / 16**; `BlueprintTierLadder` is the one source, LINKED into the compiler ⇒ `Stage2_Validate`'s literals are gone and ⑪ is CLOSED. 🔴 Forced 4096 → 16 as well: a larger tier with FEWER slots makes promotion a capacity REDUCTION. 3 rails, red-proved. As-built in design **§17** |
 | ⭐⭐⭐ **next** | **`B4`** *(`O3b` — the 256 tier)*. ⭐ Now genuinely additive: one entry in `BlueprintTierTable.Ascending`, one component struct, one id. ⛔ **APPENDED to `BlackboardTier`, never inserted** *(§2 ⑫)*. `MaxSlots` is PLAN `W4` — 📐 77 % of behaviours need ≤ 2 slots ⇒ **2** earns the tier, 1 makes it near-useless |
 | ⚠ also open | `B4` *(`O3b` — the 256 tier; `MaxSlots` is PLAN `W4`, and 2 is the value that earns the tier)* |
 | **defects filed** | `CE-295` open *(scenario live-reload is a one-shot — filed NOT fixed, user's call)* · `CE-296` **refuted** *(my error)* |
@@ -103,26 +104,30 @@ and ours are `CE-`. Do not quote it as evidence for them.
 
 ---
 
-## 3. ⭐⭐⭐ THE NEXT ACTION — **`B3②`** *(the `MaxSlots` re-pick)*
+## 3. ⭐⭐⭐ THE NEXT ACTION — **`B4`** *(`O3b`, the 256-byte tier)*
 
-⭐ **`B3①` — the structural collapse — is DONE and green.** What is left of `O3a` is the ladder
-VALUES, and `B3①` deliberately did not touch them so that *"did the refactor change behaviour?"* had
-a provable answer *(design §17.6)*.
+⭐⭐ **`O3a` is COMPLETE — both halves.** The ladder exists once (`BlueprintTierSpec` +
+`BlueprintTierTable`), its numbers live once (`BlueprintTierLadder`, linked across the netstandard
+wall), and the values are re-picked to **12 / 16 / 16** with the arithmetic recorded.
+⇒ ⭐ **`B4` is now genuinely additive**, which is exactly what `O3a` was for.
 
-⛔⛔ **`B3②` is NOT the one-file constant change the PLAN made it look like.** Three constraints,
-all measured while building `B3①`:
-
-| | |
+| what `B4` is | |
 |---|---|
-| 🔴 **the Kind-nibble CEILING** | ⛔ `MaxSlots` may not exceed **16** *(§2 ⑩)*. §5a's suggested **12** on the 1024 tier is inside it — but the ceiling was nowhere written down and payload arithmetic alone would not have found it. ✅ Now a throw plus rail `B3_R2` |
-| 🔴 **the COMPILER's literals** | ⛔⛔ `Stage2_Validate.cs:503-508` hard-codes `928 / 3936 / 16096` and **cannot reference `Fdp.Toolkits` under `netstandard2.0`** *(§2 ⑪)*. ⇒ the re-pick ships a **LINKED netstandard2.0-safe ladder file** — the `A1`/`BP-306` precedent, already proven on this programme — or compile-time validation and runtime capacity silently disagree |
-| ✅ **DOES IT MOVE REAL ASSETS? MEASURED `2026-09-20`: NO — the band is EMPTY** | 📐 `MaxSlots 12` drops the 1024 tier's payload **928 → 800**, so anything needing **801–928 B** would be promoted. **Measured in BOTH populations: zero.** Behaviour manifests max **320 B** *(`PlatoonHillAttack2`)*; blueprint Instances max **128 B**. The whole corpus sits **2.5× below** the new floor. ⭐⭐ And it is a large WIN: the worst case is promoted to 16384 today **on slot count alone**, with payload 50× below that tier — at `MaxSlots 12` it seats in **1024**, a **16×** reduction. ⚠ The root occurrence's own payload cannot be measured until `O4` — bounded at 80–184 B, and the conclusion holds across that whole range. 📄 design §17 |
+| ⭐ **one entry** in `BlueprintTierTable.Ascending` | `BlueprintTierSpec.For<BlueprintBlackboard256>(…)` |
+| ⭐ **one component struct** | reading `BlueprintTierLadder.Tier256*`, like the other three — ⛔ never its own literals |
+| ⭐ **one `GlobalComponentIds` entry** | ⚠ census EVERY `*Ids*.cs` first *(trap ⑭)*; highest allocated is **302** |
+| ⭐ **three ladder consts** | `Tier256TotalSize / MaxSlots / PayloadSize` |
 
-⭐ **Then `B4`** *(`O3b`, the 256 tier)* — trivial now that the table exists: one entry in
-`BlueprintTierTable.Ascending`, one component struct, one `GlobalComponentIds` id.
-⛔ **APPENDED to `BlackboardTier`, never inserted** *(§2 ⑫: three ordinal enums spell this ladder)*.
-`MaxSlots` is PLAN `W4`: 📐 **77 %** of behaviours need ≤ 2 slots ⇒ **2** is the value that earns the
-tier; 1 makes it near-useless.
+| ⛔⛔ the four constraints, all measured, none of them obvious | |
+|---|---|
+| 🔴 **APPEND to `BlackboardTier`, never insert** | §2 ⑫: **three** ordinal enums spell this ladder and one is `: byte`, reaching compiled artefacts |
+| 🔴 **`MaxSlots` must be NON-DECREASING up the ladder** | ⇒ a 256 tier at the BOTTOM may be **≤ 12**, and that is the binding limit on it. ⭐ Pinned by `B3_R1` |
+| 📐 **`MaxSlots 2` is the value that earns it** *(PLAN `W4`)* | 77 % of behaviours need ≤ 2 slots; **1 makes it near-useless**. 📐 payload at 2 slots = `256 − 32 − 32` = **192 B** |
+| ⚠ **the root occurrence is the open question, and it is NOT measurable yet** | it does not exist until `O4`. §17 bounds one root slot at **80–184 B** ⇒ a 1-slot asset needs up to **184 B**, which fits 192 **with 8 B to spare**. 🔴 **That is the whole margin of the 256 tier** — ⛔ so `B4` should either land AFTER `O4` measures the real root payload, or ship with that sensitivity stated in its report |
+
+⛔⛔ **And before changing any constant, grep the test tree for its VALUE** — trap ⑳. `B3②` moved
+three fixtures that mentioned no constant by name, and two of them failed while BUILDING their
+scenario rather than at their assertion.
 
 ### 3.3 The working recipe (all three prior tasks used it, and it caught something every time)
 

@@ -1982,6 +1982,19 @@ cannot reproduce it. ⚠ **And the general lesson is not "measure harder"** — 
 🔒 **It is that a CONSTANT-CHANGE task must grep the test tree for the OLD VALUES, not only reason about
 production content.**
 
+⭐⭐ **Golden test `hill-attack-close` re-run after `B3②`** *(port 8161, `--mode all`, `simTime 116`)*:
+platoon at **`522.7 · 524.8 · 528.3 · 531.1`** on the baseline *(y `400 / 450 / 498 / 549`)*, both
+targets at **`Health 0`**, **0 faults**. ⚠ Within ~1 m of the `B3①` run, as expected for a live
+multi-node run — ⛔ still not a determinism check.
+
+⭐ **Suites, all at or above baseline after the three fixture repairs:** `Fdp.Toolkits.Tests`
+**2241/0** *(2239 + 2 new rails, exact)* · `Hrot.Blueprints.Tests` **3970/0** · `Hrot.SimHost.Tests`
+**1004/3** *(the same three base-proved pre-existing)* · `Hrot.Presentation.Tests` **252/0** ·
+`Hrot.Editor.Tests` **409/0** *(green on re-run; the known GC flake)* ·
+⭐⭐ **`Hrot.AiEditor.Generators.Tests` 280/280 with goldens UNMOVED — through a LADDER CHANGE.**
+🔒 That is not a null result: it proves the emitters bake **no tier constants** into generated code,
+which is what makes `O3b`'s fourth tier additive rather than another regeneration.
+
 ⇒ ✅ **PLAN `W1` is ANSWERED and `O3a` is COMPLETE.** ⭐ `O3b` (the 256 tier, task `B4`) is now one
 entry in `BlueprintTierTable.Ascending` plus a component struct and an id — ⛔ appended to
 `BlackboardTier`, never inserted (`N2`).
