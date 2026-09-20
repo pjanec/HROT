@@ -2,9 +2,13 @@
 state: LIVE
 updated: 2026-09-20
 build-state: DESIGN
-current-answer: the whole document. §4 is the ExtDeps justification; §6 is the sequence.
+current-answer: ⭐ START AT §16 — the READY-TO-PLAN checklist (settled / measured / still open, and
+  the corrected dispatch order). §4 is the ExtDeps justification; §6 is the sequence.
   ⭐ §15 is the LIVE-RUN record and it OVERTURNS two earlier claims — read it before quoting §3.2's
   severity or §5a's C1 credit.
+  ⛔ BLOCKED ON A RED GOLDEN TEST: hill-attack-close returns 0/4 platoon members to baseline
+  (§15.3). No O-item may land until it is green — it is the only proof that scenario loading,
+  the behaviours and replication work together. That defect is NOT this programme's.
 stale-below: nothing. Superseded wording lives under §15's "⛔ HISTORY" heading.
 known-rot:
   - §3.2 was written as a "shipped" defect. MEASURED 2026-09-20: it is LATENT — gated on
@@ -546,13 +550,39 @@ allocated — the two-mechanism answer `Q35-C` already ruled against)*.
 | params cap | **100 B** (`MaxBehaviorParamByteSize`) — a ceiling, not a typical: `MoveToLocation` is 4 fields |
 | an `OccurrenceStore256` | header 32 + slot table `MaxSlots`×16 ⇒ **payload 208 B at `MaxSlots=1`, 192 B at 2** |
 
-| the case | fits 256? |
+| the case | ⭐ slots | fits 256? |
+|---|---|---|
+| **BTree root**, typical params + `BehaviorTreeState` (64) | **1** | ✅ comfortably |
+| **HSM root** on `HsmInstance64` + typical params | **1** | ✅ |
+| **HSM root** on `HsmInstance128` + typical params | **1** | ✅ *(~150 B)* |
+| ⚠ **HSM root** on `HsmInstance128` + params near the 100 B cap | **1** | ⛔ ~236 B — **spills to 1024 on BYTES** |
+| **`HsmInstance256`**, or any nesting (2+ occurrences) | **2+** | ⛔ **1024** — correctly so; neither is the simple case |
+
+#### 📐 THE SLOTS AXIS — **measured `2026-09-20` over all 30 generated behaviours** *(`F3`'s missing column)*
+
+⭐ **The rule:** an entity needs **1 root occurrence + one slot per distinct `(scope, key)` stateful
+binding** *(⚠ `Behavior`- and `Entity`-scope bindings **dedupe** — `T30…:291-293`: two co-bound nodes
+share one slot)*, plus one per attached blueprint Instance and one per hosted child.
+
+| stateful slots **today** | assets | ⇒ slots **after** *(+1 root)* | smallest tier by SLOTS |
+|---|---|---|---|
+| 0 | **17** *(57 %)* | 1 | ⭐ **256** *(`MaxSlots` 1)* |
+| 1 | **6** *(20 %)* | 2 | ⭐ **256** *(`MaxSlots` 2)* |
+| 2 | **5** *(17 %)* | 3 | 1024 |
+| 3 | 1 | 4 | 1024 *(exactly full)* |
+| 🔴 **8** — `PlatoonHillAttack2` | 1 | **9** | 🔴🔴 **16384** |
+
+| ⇒ two conclusions, and the second is new | |
 |---|---|
-| **BTree root**, typical params + `BehaviorTreeState` (64) | ✅ comfortably |
-| **HSM root** on `HsmInstance64` + typical params | ✅ |
-| **HSM root** on `HsmInstance128` + typical params | ✅ *(~150 B)* |
-| ⚠ **HSM root** on `HsmInstance128` + params near the 100 B cap | ⛔ ~236 B — **spills to 1024** |
-| **`HsmInstance256`**, or any nesting (2+ occurrences) | ⛔ **1024** — correctly so; neither is the simple case |
+| ✅ **`O3b` is JUSTIFIED on real content** | **23 of 30 assets (77 %)** land on a 256 tier at `MaxSlots ≤ 2`. ⭐ This was an assumption; it is now a measurement |
+| 🔴🔴 **the `MaxSlots` LADDER 4 / 8 / 16 IS TOO COARSE, and it promotes the GOLDEN TEST** | `PlatoonHillAttack2` — the behaviour `hill-attack-close` runs — holds **8** stateful slots today and fits **4096** (`MaxSlots` 8) exactly. ⛔ **The root occurrence makes it 9 ⇒ it jumps to `16384`** — a **4× allocation** bought by ONE slot, with payload bytes nowhere near the limit |
+
+⇒ ⭐⭐⭐ **`O3a`'s `TierSpec` table must RE-PICK `MaxSlots` per tier, not inherit 4 / 8 / 16.**
+📐 `MaxSlots` is a free choice traded against payload: on the 1024 tier, `MaxSlots` **12** costs
+`32 + 12×16 = 224` and still leaves **800 B** of payload — ample for 12 occurrences averaging 66 B.
+⛔ **Today's 4 is arbitrarily conservative**, and it is the only reason a 9-occurrence entity would
+reach for 16 KB. ⇒ **the ladder is an `O3a` deliverable with its own sizing rationale**, not a constant
+to carry forward.
 
 ⛔⛔ **F3 — BYTES ARE ONLY ONE AXIS, and the table above prices only that one.** `MaxSlots` is
 **4 / 8 / 16** for 1024 / 4096 / 16384 (`BlueprintBlackboard*.cs:17`) and `SelectTierForPayload`
@@ -610,7 +640,7 @@ Ordered so that each step is provable on its own and the expensive irreversible 
 | **O1** | **`SquadCognitiveState` gets its own component** | removes the largest non-AI consumer of `Blackboard1024`; pure win even if the rest is cancelled | — |
 | **O2** | **Split `BrainBlackboard` → `BrainInterrupts` + a params region type** | the params region becomes addressable; the tail stops travelling with it. Updates `R-39`/`R-41` | — |
 | **O3** | **The occurrence seam** — ⭐ **FIRST: unify the key (`F5` — three entry points, two enums)**; then `TryResolveOccurrence` and ⭐ **`Kind` as the header nibble (`D1′`), with the `TryDetach` compaction rail** | one lookup that classes 4/5/6 all call, and **the precondition for `O0`** (`G4`). **No behaviour changes yet** | — |
-| ⭐ **O3a** | **Collapse per-tier branching to a `TierSpec` table** — ingress, tick, renderers | ⛔ **prerequisite for `O3b`, and it pays for itself**: ~10 three-way chains, 3 copied tick methods and 3 copied renderers become one loop; `PromoteTier` stops being N² | — |
+| ⭐ **O3a** | **Collapse per-tier branching to a `TierSpec` table** — ingress, tick, renderers. ⭐⭐ **AND RE-PICK THE `MaxSlots` LADDER** *(`2026-09-20`)*: 4 / 8 / 16 is arbitrarily conservative and the **+1 root occurrence promotes `PlatoonHillAttack2` from 4096 to 16384** (§5a). ⛔ The ladder ships with a sizing rationale, not as an inherited constant. ⭐ Also the home of `H1`'s `Reserved` copy in `CopyToLargerTier` | ⛔ **prerequisite for `O3b`, and it pays for itself**: ~10 three-way chains, 3 copied tick methods and 3 copied renderers become one loop; promotion stops being N² across three files | — |
 | ⭐ **O3b** | **Add the `OccurrenceStore256` tier** — `Q37` option B. ⚠ **`MaxSlots` sized on SLOTS as well as bytes (`F3`)**, not fixed at 1–2 | ⛔⛔ **`G5` — the old numbers here were stale.** §5a's corrected arithmetic: the simple case is **5.3× / 4× at 1024** and **1.33× / 1.0× at 256**. ⛔⛔ **No heavy-DTO credit** *(`2026-09-20`)* ⇒ ⭐⭐ **`O3b` is LOAD-BEARING, not an optimisation**: without it every AI entity pays 4–5.3×. ⛔ Trivial after `O3a`, four copies before it | — |
 | **O4** | **BTree onto occurrence storage** — tree state and params into slots, **including a hosted subtree's own `BehaviorTreeState`, and its RE-ENTRY RESET (F14)** | ⭐ **proves the whole model with ZERO ExtDeps change** (§4.1) **and closes the shared-`BehaviorTreeState` defect in §3.1**. ⚠ Own state removes the accidental continuity `ref state` gave, so the child's cursor must be reset when the host re-enters the hosting node — **its own rail**. If this does not work, stop before paying for `O6` | **none** |
 | **O5** | **Blueprint Instances take params** (`DESIGN_Parameter_Model.md` §3.3) | the slot layout is now shared with `O4`; closes `R4`, which has no design today | — |
@@ -631,7 +661,9 @@ Ordered so that each step is provable on its own and the expensive irreversible 
 | **two occurrences, distinct bytes** | the same asset twice on one entity ⇒ different param bytes. This is `DESIGN_Parameter_Model.md` §8's rail and it is what stops the shared-region assumption returning |
 | **the tail is untouched** | resolving params for any occurrence writes neither interrupt byte nor `ExpectedThreatLevel` |
 | **cursor intact** | a blueprint Instance with params keeps its `BlueprintLatentCursor` at offset 0 after a resolve — the `startOffset: 0` trap. ✅ **Still TRUE under `D1′`**, which is why `D1` was revised (`G1`): the payload is untouched |
-| 🔴 **kind survives a detach** | `TryDetach` **compacts the slot table** (last entry moves into the freed slot) ⇒ the `Kind` nibble array must compact in lockstep. ⛔ **Write it to go RED first** — a stale nibble silently mislabels every occurrence after the hole |
+| 🔴 **kind survives a detach** | `TryDetach` **compacts the slot table** (last entry moves into the freed slot, `:188-199`) ⇒ the `Kind` nibble array must compact in lockstep. ⛔ **Write it to go RED first** — a stale nibble silently mislabels every occurrence after the hole. ⚠ **And it must CLEAR the vacated tail nibble** (`H2`): `:197-198` zeroes the duplicated last *entry*, but that write cannot reach the header, so a stale nibble survives at `lastIndex` for the next attach to inherit |
+| 🔴🔴 **kind survives a TIER PROMOTION** *(`H1`, `2026-09-20` — the hazard `D1′` did not record)* | 📐 **`CopyToLargerTier` never copies `Reserved`.** `:249` calls `Initialize`, which at `:38` does `InitBlock(memory, 0, totalSize)` and then sets **eight** header fields explicitly (`:44-51`) — ⛔ `Reserved` is not among them; `:272-290` then copy `SlotCount`, `PayloadFree`, `PayloadHighWater` and the free list, **and nothing else**. ⇒ **every tier upgrade silently zeroes the whole nibble array** while entries and payloads copy correctly (`:263`), so **all** occurrences read `Kind 0` — strictly worse than the detach case, and it fires on the ordinary growth path. ⭐ **Slot ORDER is preserved (`i → i`), so the fix is one line** — `dstHeader.Reserved = srcHeader.Reserved` beside `:272` — and it covers all **three** promotion sites at once, because they all funnel through `CopyToLargerTier`. ⛔ **Its own red-first rail**: a zeroed nibble array is indistinguishable from "everything is kind 0" |
+| ⭐ **`Kind == 0` is `Invalid`, never a valid kind** *(`H2`)* | `Initialize:38` zeroes the component, so 0 is what an un-migrated, un-promoted or never-written slot reads. ⛔ If 0 meant `Blueprint`, `O0`'s walker would resume filtering **by accident** — the very hash-miss filter `F7`/`D1′` exist to retire. ⭐ With 0 reserved, a missing declaration trips §11.4's *"every allocated occurrence is renderable"* rail **at allocation** |
 | **parse before commit** | a failing resolve at attach leaves the entity without the new occurrence |
 | **two regions, two slots** | two concurrently-active HSM regions running the same action write **different** bytes. ⚠ `BP-297` measured that today's fixture cannot redden this — the two regions run an **empty** action. **A DTO-bound HSM action must be authored as part of `O7`, or the rail is vacuous** |
 | **one context per instance** | `UpdateBatch` with N instances: each `ExecuteAction` sees the occurrence of *its* instance (§4.2 caveat ②) |
@@ -955,17 +987,26 @@ occurrences render as children, using the `hostPath` the key already carries (§
 | **HTTP discovery of slot state** | ⭐ **already built**: `DebugApiService.Variables.cs:39-69 AttachedBlueprints` walks all three tiers with `BlueprintTierSummary.AppendSlots` and returns `List<SlotSummary>` — its own comment: *"the same scan the Entity Inspector uses… without it, every call would need an asset Guid nobody can guess"* | ⭐ widen the same scan to every occurrence kind |
 | **scenario/clipboard translators** | `BrainBlackboardTranslator`, `Blackboard1024Translator` — extract-only | follow the manifest; no wire impact (§5 class 7) |
 
-#### ⚠ One deliberate HTTP contract change, to be decided rather than discovered
+#### ✅✅ `D3` — **the AI-state route BECOMES A LIST** — APPROVED by the user, `2026-09-20`
+
+> 🔒 **User, `2026-09-20`:** *"OK with HTTP ai state route to become a list"*.
+
+⇒ ⭐ **Decided, not open.** The shape below is the ruling; the compatibility window is the part to
+build deliberately. ⚠ **`O7` owns it** *(it is the item where the sessions stop being one-per-entity —
+`F9`)*, and it lands with `HsmDebugSession` becoming a **list** of snapshots (§11.3).
 
 `DebugApiRouteDocs.cs:1675` documents the AI-state route as returning *"BTree active node path +
 history, **or** HSM active leaves, **or** blueprint live state"* with a single `tier` field
 (`:1684`). ⛔ **That shape assumes one brain per entity.** With nesting it must return a **list of
 occurrences**, each with its own `kind`, `assetName`, `hostPath` and state.
 
-⚖️ **Lean: make it a list, and keep the current object as the list's first element for one release**,
+✅ **RULED: make it a list, and keep the current object as the list's first element for one release**,
 so an existing agent script keeps working while the new field appears beside it. ⛔ Do **not** silently
 change the single object's meaning — an agent reading `tier` would start getting the root's tier for
-a tree that is no longer the only one running.
+a tree that is no longer the only one running. ⚠ **The first element must be the ROOT occurrence**,
+deterministically — 📐 measured `2026-09-20`: `DebugApiService.cs:2749` reads `BehaviorState.BrainTier`
+and stamps `["tier"]`, so "first" has to mean the entity's assigned root or the old field silently
+starts answering for a hosted child.
 
 ### 11.4 Rails
 
@@ -1214,3 +1255,58 @@ same run before proposing a test for it.**
 > *"§3.2 … it is a **shipped data-corruption bug** that per-occurrence slots fix by construction … the
 > strongest single argument the programme has."* — **SUPERSEDED `2026-09-20`** by §3.2's gate table.
 > ⭐ The mechanism it describes is unchanged and still correct; only its **reachability** was wrong.
+
+---
+
+## 16. ⭐⭐⭐ READY-TO-PLAN CHECKLIST *(`2026-09-20`)* — **what is settled, what is measured, what is left**
+
+> 🔒 **User, `2026-09-20`:** *"the stuck platoon is worth investigation as this is the 'golden test'
+> proving all works … So we need it fixed before we start modifying the engine. But before let's
+> finalize the design issues and measurements you need for that."*
+
+⇒ ⛔ **This design does NOT start building until `hill-attack-close` passes end to end.** The golden
+test is the only thing that proves scenario loading, the behaviours and replication together, and
+⭐ **every `O`-item edits the machinery it exercises** — so a red golden test means a change cannot be
+told from a regression. 📌 §15.3 records the current failure *(0/4 return to baseline)* and names the
+candidate; ⛔ **it is NOT this programme's defect, and it is NOT a reason to re-open the storage model.**
+
+### 16.1 ✅ SETTLED — do not re-open
+
+| | |
+|---|---|
+| `Q37` option **B** — unify **and** add a small tier | user, `2026-09-19` |
+| `BehaviorState` stays **singular**; concurrency comes from nesting | user, `2026-09-19` (`Q4`) |
+| blueprint as an assigned **root** is `O9`, after `O8` | user, `2026-09-19` |
+| the rename names (§10) | user, `2026-09-19` |
+| ⭐ **`D1′`** — `Kind` is a **nibble per slot** in `OccurrenceStoreHeader.Reserved` | `2026-09-20`, after `D1` was withdrawn (`G1`) |
+| ⭐ **`D2`** — `EvaluateGuard` widens to carry the writer | `2026-09-19`; ⚠ its *reason* is `R-50` (emitted source is machine-owned), **not** "single-digit population" |
+| ⭐ **`D3`** — the AI-state HTTP route becomes a **list** | user, `2026-09-20` |
+| the kernel supplies **identity**, the thunk does the **lookup** | `Q35`, `2026-08-17` |
+
+### 16.2 📐 MEASURED — the numbers a PLAN may quote
+
+| # | measurement | result |
+|---|---|---|
+| ① | **bytes per AI entity** *(the one `Q37` never took)* | **192 B** BTree root · **256 B** HSM root · ⛔ **no heavy-DTO credit** ⇒ 256 tier **free–1.33×**, 1024 tier **4–5.3×** (§5a) |
+| ② | ⭐ **slots per behaviour**, all 30 generated assets | 0 slots ×17 · 1 ×6 · 2 ×5 · 3 ×1 · **8 ×1**. ⇒ **77 % fit a 256 tier**; 🔴 the golden test's own behaviour needs **9** and is promoted **4096 → 16384** by the root occurrence (§5a) |
+| ③ | `Blackboard1024` attachment in a live run | **zero entities, both nodes** ⇒ §3.2 is latent, C1 gets no byte credit (§15) |
+| ④ | attributed `[HsmGuard]` population | **8** in `.cs`, **zero in production** — 3 FastHSM demo, 3 FastHSM tests, 2 exporter tests (§14) |
+| ⑤ | promotion sites | **three** — `BehaviorIngressSystem.UpgradeTier:600`, `BlueprintMaintenanceSystem:40/60`, `EntityBlueprintsPanel:299` |
+| ⑥ | `OccurrenceStoreHeader.Reserved` | **`ulong`, 8 B** ⇒ 4 bits × 16 slots is an **exact** fit (§13) |
+
+### 16.3 ⛔ STILL OPEN — and none of it blocks writing the PLAN
+
+| # | open item | who settles it |
+|---|---|---|
+| ① | 🔴 **the golden test is RED** — `hill-attack-close`, 0/4 return to baseline (§15.3) | ⭐⭐ **behaviour-lifecycle owner, BEFORE any `O`-item lands.** Candidate: commander `1000` ends at `ActiveBehaviorHash 0` |
+| ② | the **AI entity count** | ⚠ genuinely unmeasured — but §16.2 ① fixed the **sign** of the per-entity delta, so it now only scales a known number. ⛔ Not a blocker |
+| ③ | the `MaxSlots` **ladder** values | `O3a`, with a sizing rationale (§5a) |
+| ④ | `OccurrenceHeader`'s own size | ⚠ only needed if a payload header is ever reintroduced — ⛔ **`D1′` removed that need**; recorded so it is not re-derived |
+| ⑤ | whether `O8` waits on **H1** *(one region consumes the event)* | §9.3 already rules it does; the dispatch fix is a **separate** ExtDeps change and must be justified on its own terms |
+
+### 16.4 ⭐ The dispatch order a PLAN should carry
+
+⛔ **`O0` is no longer first** *(`G4`)*: it needs `D1′`'s declared `Kind`, which `O3` delivers.
+⇒ ⭐ **`O3` → `O0` → `O1` → `O2` → `O3a` → `O3b` → `O4` → `O5` → `O6` → `O7` → `O8` → `O9`**,
+with `O4` as the **stop-or-go gate** *(it proves the model with zero ExtDeps edits; if it fails, stop
+before paying for `O6`)*.
