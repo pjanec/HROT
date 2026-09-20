@@ -244,11 +244,11 @@ public sealed class S3_BehaviorScopedThunkTests : IDisposable
 
     private static unsafe int SlotCount(EntityRepository world, Fdp.Core.Entity entity)
     {
-        if (world.HasComponent<BlueprintBlackboard16384>(entity))
-        { ref var t = ref world.GetComponentRW<BlueprintBlackboard16384>(entity); fixed (byte* m = t.Memory) return BlueprintBlackboardPartitions.GetSlotCount(m); }
-        if (world.HasComponent<BlueprintBlackboard4096>(entity))
-        { ref var t = ref world.GetComponentRW<BlueprintBlackboard4096>(entity); fixed (byte* m = t.Memory) return BlueprintBlackboardPartitions.GetSlotCount(m); }
-        ref var t1 = ref world.GetComponentRW<BlueprintBlackboard1024>(entity); fixed (byte* m = t1.Memory) return BlueprintBlackboardPartitions.GetSlotCount(m);
+        // ⭐ B4: hard-coded the 1024 tier. With a 256 tier the ingress seats these entities
+        //   there, and GetComponentRW<...1024> throws. OccurrenceStoreAccess is the seam
+        //   production uses — it resolves whichever tier was actually chosen.
+        byte* m = OccurrenceStoreAccess.TryGetStore(world, entity, out _);
+        return m == null ? 0 : BlueprintBlackboardPartitions.GetSlotCount(m);
     }
 
     private static unsafe int ReadCursor(EntityRepository world, Fdp.Core.Entity entity, int slotKey)
@@ -259,11 +259,12 @@ public sealed class S3_BehaviorScopedThunkTests : IDisposable
                 .Should().BeTrue("shared slot must exist when reading cursor");
             return Unsafe.AsRef<DemoCounterNodes.DemoCursorState>(mem + off).Cursor;
         }
-        if (world.HasComponent<BlueprintBlackboard16384>(entity))
-        { ref var t = ref world.GetComponentRW<BlueprintBlackboard16384>(entity); fixed (byte* m = t.Memory) return Read(m); }
-        if (world.HasComponent<BlueprintBlackboard4096>(entity))
-        { ref var t = ref world.GetComponentRW<BlueprintBlackboard4096>(entity); fixed (byte* m = t.Memory) return Read(m); }
-        ref var t1 = ref world.GetComponentRW<BlueprintBlackboard1024>(entity); fixed (byte* m = t1.Memory) return Read(m);
+        // ⭐ B4: hard-coded the 1024 tier. With a 256 tier the ingress seats these entities
+        //   there, and GetComponentRW<...1024> throws. OccurrenceStoreAccess is the seam
+        //   production uses — it resolves whichever tier was actually chosen.
+        byte* m = OccurrenceStoreAccess.TryGetStore(world, entity, out _);
+        (m != null).Should().BeTrue("entity must carry a blueprint blackboard tier");
+        return Read(m);
     }
 
     // ── TEST 1: BehaviorScoped_TwoNodes_ShareOneSlot ──────────────────────────────

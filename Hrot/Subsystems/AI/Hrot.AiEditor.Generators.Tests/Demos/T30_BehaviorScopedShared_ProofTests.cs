@@ -243,27 +243,34 @@ public sealed class T30_BehaviorScopedShared_ProofTests : IDisposable
 
     private static unsafe int SlotCount(EntityRepository world, Entity entity)
     {
-        ref var t = ref world.GetComponentRW<BlueprintBlackboard1024>(entity);
-        fixed (byte* m = t.Memory) return BlueprintBlackboardPartitions.GetSlotCount(m);
+        // ⭐ B4: hard-coded the 1024 tier. With a 256 tier the ingress seats these entities
+        //   there, and GetComponentRW<...1024> throws. OccurrenceStoreAccess is the seam
+        //   production uses — it resolves whichever tier was actually chosen.
+        byte* m = OccurrenceStoreAccess.TryGetStore(world, entity, out _);
+        return m == null ? 0 : BlueprintBlackboardPartitions.GetSlotCount(m);
     }
 
     private static unsafe T ReadState<T>(EntityRepository world, Entity entity, int slotKey,
         Func<HillAttackMutableState, T> project)
     {
-        ref var t = ref world.GetComponentRW<BlueprintBlackboard1024>(entity);
-        fixed (byte* m = t.Memory)
-        {
-            BlueprintBlackboardPartitions.TryGetSlotOffset(m, slotKey, out int off)
-                .Should().BeTrue("shared slot must exist");
-            return project(Unsafe.AsRef<HillAttackMutableState>(m + off));
-        }
+        // ⭐ B4: hard-coded the 1024 tier. With a 256 tier the ingress seats these entities
+        //   there, and GetComponentRW<...1024> throws. OccurrenceStoreAccess is the seam
+        //   production uses — it resolves whichever tier was actually chosen.
+        byte* m = OccurrenceStoreAccess.TryGetStore(world, entity, out _);
+        (m != null).Should().BeTrue("entity must carry a blueprint blackboard tier");
+        BlueprintBlackboardPartitions.TryGetSlotOffset(m, slotKey, out int off)
+            .Should().BeTrue("shared slot must exist");
+        return project(Unsafe.AsRef<HillAttackMutableState>(m + off));
     }
 
     private static unsafe void MutateState(EntityRepository world, Entity entity, int slotKey,
         RefAction mutate)
     {
-        ref var t = ref world.GetComponentRW<BlueprintBlackboard1024>(entity);
-        fixed (byte* m = t.Memory)
+        // ⭐ B4: hard-coded the 1024 tier. With a 256 tier the ingress seats these entities
+        //   there, and GetComponentRW<...1024> throws. OccurrenceStoreAccess is the seam
+        //   production uses — it resolves whichever tier was actually chosen.
+        byte* m = OccurrenceStoreAccess.TryGetStore(world, entity, out _);
+        (m != null).Should().BeTrue("entity must carry a blueprint blackboard tier");
         {
             BlueprintBlackboardPartitions.TryGetSlotOffset(m, slotKey, out int off)
                 .Should().BeTrue("shared slot must exist");
