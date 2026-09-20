@@ -2164,3 +2164,37 @@ into `>`.
 |---|---|
 | ⛔ §17.7 said: *"additive for consumers that READ the ladder, a behaviour change for every consumer that SELECTS from it."* | 🔒 **Extend it: and for every consumer that COMPARES tiers.** 📌 An append-only enum whose ordinal is ABI **cannot** stay size-ordered, so every `<`/`>` on it becomes wrong the first time a tier is added out of size order — which is the first time a tier is added at all, at the small end |
 | ⚠ **the honest version of how this was found** | ⛔ **not by the inventory, and not by reasoning.** `BuildCommitPlan_Paused_RemoveAndAdd` failed with *"`Assert.Null()` Failure: `Nullable<BlackboardTier>` has a value"*, and only reading it explained why. ⇒ ⭐ the suites earned their keep here; the design did not predict it |
+
+### ✅ §17.7b — **THE `B4` GATE, AFTER BOTH DEFECTS** *(`2026-09-20`)*
+
+⭐⭐ **Golden test `hill-attack-close`** *(port 8171, `--mode all`, `simTime 120`)*: platoon at
+**`523.1 · 525.1 · 529.2 · 531.0`** on the baseline *(y `399.5 / 450.2 / 498.3 / 549.2`)*, both targets
+at **`Health 0`**, **0 faults** in a 439-line run log, `BrainInterrupts` present on every brain entity.
+⚠ Within ~1 m of the `B3②` run — a live multi-node run, ⛔ **not a determinism check**.
+
+| suite | result | vs baseline |
+|---|---|---|
+| `Fdp.Toolkits.Tests` | ✅ **2246 / 0** | 2243 + `B4_R3` + `B4_R4` + `B4_R5`, exact |
+| `Hrot.Blueprints.Tests` | ✅ **3971 / 0** *(18 skipped)* | ⛔ **was 192 FAILED**; the 18 skips are the known environment-dependent set *(8 static `[Fact(Skip=)]` + 10 `Skip.If`)*, not a regression |
+| `Hrot.SimHost.Tests` | ⚠ **3 failed / 1004** | ⭐ **exactly the pre-existing trio, by name**: `NodeRolePersistenceRails`, `MapPresentationParityRails`, `FullBranchPipelineTests`. ⛔ None blueprint-related |
+| `Hrot.Diagnostics.Breakpoints.Tests` | ✅ **165 / 0** | unchanged |
+| `Hrot.AiEditor.Generators.Tests` | ✅ **280 / 0** | ⭐⭐ **goldens UNMOVED through a ladder change** — the emitters bake no tier constants |
+| `Hrot.ClusterRunner.Integration.Tests` | ⚠ **compiles, 0 errors** | ⛔ **not run** — outside this lane's gate set. Its two `ReadCount` ladders were collapsed here, so it is named rather than left silent |
+
+⭐ **All seven projects built with 0 errors**, so no row above is a stale binary *(traps ⑦ / ⑫ / ⑱ / ㉑)*.
+
+#### ⚠ THE TEST-SIDE COST, STATED HONESTLY — **192 failures in 14 classes, and NONE of them a bad test**
+
+📐 Every one encoded the ladder rather than the property it protects, in **four** distinct shapes:
+
+| shape | what it spelled | what it meant |
+|---|---|---|
+| **registration** | a hand-list of `RegisterComponent<BlueprintBlackboard…>` | *"this world can hold blueprint state"* ⇒ `BlueprintTierTable.RegisterUpTo` |
+| **presence** | `HasComponent<BlueprintBlackboard1024>` | *"a store was provisioned"* ⇒ `OccurrenceStoreAccess.HasStore` |
+| **resolution** | `GetComponentRW<BlueprintBlackboard1024>` — ⛔ often a **three-arm ladder summing across tiers an entity can only ever have one of** | *"this entity's bytes"* ⇒ `TryGetStore` |
+| **capacity** | `"fill the B1024 tier (max 4 slots)"` | *"fill the store"* — ⛔⛔ and **`MaxSlots` is NOT the capacity**: 64 B of state fills the 256 tier's 176 B payload at **2**, while `MaxSlots` is 3 ⇒ fill until the store says full |
+
+🔒 **The rule that falls out, and it is cheaper than any of this:** a test may name a tier **only when
+the tier is its subject** — a promotion asserting the entity moved OFF one and ONTO another.
+⭐ Three sites legitimately do, and now say so in a comment. ⛔ Everywhere else the name was a stand-in
+for *"the store"*, and the seam has expressed that since `A2`.
