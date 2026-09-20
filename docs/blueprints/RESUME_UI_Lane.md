@@ -1,605 +1,134 @@
 <!--STATUS
 state: LIVE
-updated: 2026-09-15
-current-answer: ⭐⭐⭐ THE DISTRIBUTED-PERSISTENCE + OWNERSHIP PROGRAMME IS BUILT & LIVE-PROVEN as of
-  2026-09-15. Nothing is in flight — read the "SESSION 2026-09-15" block at the TOP of this file for what
-  shipped, what is deferred, and the decided facts. Branch claude/reset-working-branch-qd1qpv, HEAD
-  4b0cb5285, tree clean, all gates green. The 2026-09-14 note (CE-275 "not started") and the older STRANDS
-  below are HISTORY — do NOT act on them unless explicitly told to continue one.
-  ══ (older) STRAND 0 — ROLE-AFFINITY OWNERSHIP (P3) + THE TKB COMPONENT-SET DERIVATION ══
-  ══ STRAND 0 — ROLE-AFFINITY OWNERSHIP (P3) + THE TKB COMPONENT-SET DERIVATION. The live work. ══
-  BRANCH claude/reset-working-branch-qd1qpv, head = the commit carrying this doc.
-  Tree clean. Gates: design-digest --check clean · rulings 34/34 · tracker-counts OK.
+updated: 2026-09-20
+current-answer: ⭐⭐⭐ READ THE "SESSION 2026-09-19/20" BLOCK AT THE TOP OF THIS FILE — it is the live
+  one. THE PLAN: start UXI-11 (selection unification), slice S-1. The UX interaction backlog was
+  re-verified against code on 2026-09-19 and five of nineteen ledger rows were wrong; the docs are now
+  repaired and the remaining work is a coherent entity-action/authority set.
+  Branch: ui (the stable lane branch, R-148) at 79e9a449d, tree clean, all gates green.
+  ⛔ The 2026-09-15 block below (distributed persistence + ownership) is DONE and is now HISTORY —
+  nothing from it is in flight. Older STRANDS below it are older history still; do NOT act on any of
+  them unless explicitly told to continue one.
 
-  ⭐⭐⭐ READ FIRST, in this order:
-    1. docs/DESIGN_Role_Affinity_Ownership.md — its STATUS current-answer names §3.9c (the tables are
-       COMPLEMENTS) and §6i (step 4's as-built). ⛔ AND §3.6, which was RETRACTED this session.
-    2. docs/designs/tkb-1/DESIGN.md §6.6 / §6.6a — the whole TKB component-set design and its as-built.
-
-  ✅✅✅ SHIPPED 2026-09-13
-  CE-264  9943c6c9c  P3 STEP 4 — CGF holds a Brain policy, SimHost a Muscle policy, and gateOnAuthority
-                     comes ON in the same change (§6f's ordering hazard closed by construction).
-                     NEW Hrot.Core/HrotRoleComponentSets.cs — the cluster role tables, authored ONCE;
-                     CreatePolicy(NodeRole) takes a role and NOTHING else. 10 rails, 4 red-proofs.
-                     ⭐ P3 went from "a mechanism every node ran with a null policy" to LIVE.
-  CE-259az 603a05248 file-loaded TKB templates had an EMPTY BirthCriticalComponents. Fixed via an
-                     app-layer convention — ⚠ then SUPERSEDED the same day by CE-266, see below.
-  CE-266  c101e2cc2  [BirthCritical] + [PerInstanceValue] in Fdp.Core, and
-                     TkbTemplate.BirthCriticalComponents becomes a DERIVED READ-ONLY view.
-                     Deleted 8 authoring sites, TkbComponentConventions + its loader call, and
-                     HrotRoleComponentSets' hand-written SimTransform (three producers of one fact).
-                     6 new rails, 2 red-proofs — removing [BirthCritical] from SimTransform reddens
-                     9 rails across 4 files.
-
-  CE-265  74438cb7f  THE MANDATORY HALF SHIPPED. The promotion gate is DERIVED PER HOST and the file
-                     path has one for the first time. ITkbEntityTranslator gains GetProducedComponents()
-                     (no default impl — all 9 production translators, compiler-enumerated);
-                     NEW MandatoryComponentResolver does the four-way intersection; GhostPromotionSystem
-                     gates on derived ∪ explicit and gained a STALL DIAGNOSTIC (600 frames, once per
-                     (TkbType, component) — ⛔ not a timeout, the ghost still waits).
-                     Deleted DefineVehicle's 2 AddMandatoryComponent calls + AsComposite's EntityInfo
-                     check. 13 rails (10 new + 3 into GhostProtocolTests), 5 red-proofs.
-                     📄 tkb-1/DESIGN.md §6.6b carries the as-built AND the class + sequence UML.
-
-  ⛔⛔ THREE THINGS CE-265 MEASURED THAT THIS DOC PREVIOUSLY GOT WRONG — do not re-derive them:
-  · "DescriptorOwnershipMap needs a UNION accessor" — FALSE. CoveredComponentIds (:173) already was it.
-    The seam law, 25th instance. I wrote that line myself from the class's summary without opening it.
-  · DIRECTION MUST NOT BE FILTERED on the ingress set. ZERO translators under NED's Replication/Map/
-    Ingress/ declare TargetComponentIds — only the EGRESS side overrides the interface default. An
-    "ingress-only" filter yields ∅ and collapses the derivation; GeoSpatialEgressTranslator._targetIds
-    is the ONLY pairing SimTransform has.
-  · §6.6a's "fill both at ITkbDatabase.Register" is NOT BUILDABLE for mandatory. TkbDatabase.cs:20-32 is
-    two dictionary writes with zero host context, and 3 of the 4 inputs are host-local. A TkbTemplate is
-    a SHARED record (one object serves CGF, SimHost, IG, editor) ⇒ a host-local answer has no home on
-    it. The cache lives with the CONSUMER. Same fact as "a TKB file may not carry it", one level down.
-
-  ⭐⭐⭐ NEXT: nothing in this strand is in flight. The nearest open items are P3 step 3c (the boot
-    warning) and CE-259bk/bl (role-derived registration, logic packs). ⚠ CE-259bm's premise is STALE:
-    EnforceExplicitComponentIds is read by nothing and ComponentType.cs throws unconditionally.
-    ⚠ Still open from CE-265's original row, on its own merits: the promote-leg role claim is ONE-SHOT
-    (GhostPromotionSystem fires it at promotion, then the entity leaves the query), so components
-    arriving afterwards are never claimed. A real gate makes that far less likely to bite; it does not
-    remove it.
-
-  ⛔⛔ FIVE THINGS THAT WILL BE RE-DERIVED WRONG IF NOT READ FIRST
-  · THE AUTHORITY MASK IS READ BY NO EGRESS TRANSLATOR (§3.6, re-measured). Every production egress calls
-    the ISimulationView EXTENSION, which reads DescriptorOwnership/NetworkAuthority; the overload
-    resolution hides it (packedKey is a long). The mask's WHOLE production readership is SimTransform,
-    BehaviorState, BrainBlackboard, plus a Position query matching ZERO HROT entities. ⇒ narrowing the
-    mask changes what a node EXECUTES, never what it PUBLISHES.
-  · THE ROLE TABLES ARE COMPLEMENTS (§3.9c). Brain = ALL − birthCritical; Muscle = that − brainOnly. An
-    enumerated set is a WHITELIST and reproduces CE-256. EveryUnclassifiedComponentStaysOwnedByBothRoles
-    is the rail a future positive enumeration must argue with.
-  · NO ROLE MAY OWN A BIRTH-CRITICAL COMPONENT, on EITHER leg. GeoSpatialIngressTranslator.cs:90 applies
-    an incoming position only when HasAuthority<SimTransform> is FALSE ⇒ a promoting node that claimed it
-    by role freezes every ghost on that node.
-  · SimTransform PRESENCE IS THE "is this spatial?" PREDICATE — 42 production .With<SimTransform>()
-    filters across 37 files. ⛔ Do NOT make it universal (the Unity-Transform idea): a positionless entity
-    would enter the spatial hash at the origin and become a perception/EQS/ballistics candidate. Global
-    data belongs in SetSingleton, which is not an entity at all.
-  · MANDATORY REQUIREMENTS ARE HOST-DEPENDENT. GhostPromotionSystem.cs:211 has NO registration guard, so a
-    HARD requirement for a component the local host never registers aborts promotion every frame forever,
-    silently. ⇒ a shared TKB FILE may never carry them.
-
-  ⭐⭐ USER RULINGS THIS SESSION — do not re-litigate
-  · "the components the entity have makes the entity a vehicle" → ⛔ NO per-entity-class vocabulary
-    anywhere. That killed a TkbMasterDto⇒vehicle-bundle proposal. DefineVehicle and friends are AUTHORING
-    helpers for the default catalogue only; the file path needs none of them.
-  · "we can add TKB record override any time later … the tkb in-memory record can be just a readonly
-    cache" → the component ATTRIBUTE is the source of truth; the per-type override is DEFERRED, not
-    rejected, and TkbTemplate's property is the seam it lands on.
-  · "i do not want to wait 10 frames by design" → ⛔ SOFT-by-design REJECTED. SoftTimeoutFrames is an
-    EMERGENCY escape only. Requirements are HARD and the derivation must be EXACT.
-  · "sending state on change is what actually happens … almost nothing is sent unconditionally" → the
-    addition rule for [PerInstanceValue] is GUARANTEED BASELINE for a newly spawned entity, ⛔ not
-    "unconditional egress".
-  · "PerInstanceValue" → the attribute's name, chosen by the user over my alternatives.
-  · "ghosting is a deployment property, not content" → UrbanCombat is just a dev/test scenario; whether
-    its entities arrive as ghosts is NOT a property of the content, so the catalogue divergence is DRIFT.
-
-  ⚠⚠ MY FAILURE MODE THIS SESSION, AND IT REPEATED SEVEN TIMES: I PROPOSED A MECHANISM BEFORE MEASURING
-  WHETHER THE EXACT ANSWER WAS ALREADY AVAILABLE. Each was caught by the user, not by me:
-  · "derive birth-critical from TkbMasterDto" — misses area/route, which carry no descriptors yet still
-    need the birthright.
-  · "mandatory = what translators produce" — backwards; producing it is the reason you need NOT wait.
-  · "mandatory = produced ∧ the !HasComponent guard" — the guard is IDEMPOTENCY and sits on ~25 of ~30
-    produced components. It selects nearly everything.
-  · "the catalogues disagree ⇒ per-template policy was intended" — an INFERENCE stated as a measurement.
-  · "the egress must be unconditional" — change-driven egress is the norm AND the point.
-  · "unify the catalogues and it becomes derivable" — unifying makes it UNIFORM; uniform is what makes a
-    CONSTANT safe. Different thing.
-  · relayed-architect claim "translators derive mandatory at load time" — VERIFIED FALSE against source
-    (ITkbEntityTranslator has two members and Inject takes an ENTITY). ⭐ But its CONCLUSION was right for
-    a reason it never stated, which is how the host-dependence fact was found.
-  ⇒ 🔒 AND THE TOOL HALF: I used grep for enumeration claims most of this session and only re-ran them
-  through search_graph when challenged. They held — that was luck, not method. GRAPH FIRST for any
-  complete-set or absence claim; CLAUDE.md says so and it was not followed.
-
-  ══ STRAND 1 — MAP INTERACTION / SELECTION / TOOLS (the live one as of 2026-09-10) ══
-  ✅✅✅ READ docs/SNAPSHOT_Map_Interaction_Architecture.md FIRST. It is a SNAPSHOT, not an owning
-  design: §1 the block map, §2 the data flows, §3 remote map control, §4 the FINDINGS LEDGER,
-  §5 the eight user rulings of 2026-09-10 + the TWO OWNING DESIGNS THAT DO NOT EXIST YET,
-  §6 rot owed to other documents. Then its owners: UX_Feature_Tool_Model.md §4.7h–§4.14 and
-  UX_Feature_Selection.md §2.6.
-  ✅ §4.7i IS BUILT AND OPERATOR-CONFIRMED 2026-09-10 ("the handles disappeared when picker activated").
-  ⚠⚠ CE-259r WAS RE-FIXED THE SAME DAY — the first attempt did NOT work and the operator run found it.
-  The production picker is on ToolArbiter.Global (PickerToolHost.cs:116), so its hover is dispatched by
-  GLOBALMANAGER, the FIRST group member — not by dataDriven. Swapping stateless past dataDriven alone
-  left globalManager ahead of it. The group is now stateless, globalManager, dataDriven, selfCheck.
-  ⛔ TWO PROCESS FAILURES WORTH NOT REPEATING: my headless probe put the picker in dataDriven, measuring
-  a scenario that does not exist in production (the same "mirror the ARBITERS, not just the gesture"
-  mistake CE-259q already recorded); and the new rail asserted only stateless<dataDriven so it stayed
-  GREEN over the live defect. The rail is fixed IN PLACE to require stateless before EVERY arbiter, and
-  red-proofed against the order that shipped this morning.
-  ⛔ CE-259r IS STILL NOT VERIFIED IN THE PRODUCT — the next operator run closes it.
-  ✅✅✅ THE ANCHOR-IDENTITY REFACTOR IS BUILT AND PUSHED — S0..S7 on 2026-09-10, and §6.7 on
-  2026-09-11 (../DESIGN_Gizmo_Anchor_Identity.md).
-  ⭐⭐⭐ READ ITS **§6.7** FIRST — it SUPERSEDES §6.6 and is the current answer. Then §6.2 "AS-BUILT",
-  which OVERRIDES §5's UML and §6's table (three steps deviated while building).
-  ⭐ IN ONE LINE: a gizmo anchor is identified by its NETWORK id everywhere, END TO END, and the ECS
-  handle is GONE — from GizmoPickToken, from PickToken (now `long AnchorId`), from the terminal's
-  hit-test (`PickTopmostAnchorId → long?`) and from every primitive producer. Each consumer resolves
-  the id IN ITS OWN WORLD via NetworkIdResolver.ResolveNetworkId (map-first, and the map hit is
-  VERIFIED against the entity's NetworkIdentity, so a stale map degrades to slow, never to wrong).
-  ⚠⚠ AN EARLIER VERSION OF THIS BLOCK SAID the ECS handle "survives as a declared IN-PROCESS PAYLOAD
-  on GizmoPickToken (AnchorIndex + StreamId)". THAT IS SUPERSEDED — the user refuted the reasoning
-  ("replaybrowser is ecs module like any else. i do not want such exceptions") and it was measured
-  wrong: the NetworkEntityMap is a WORLD SINGLETON, not a per-host delegate, so the SILENT-DEFAULT
-  argument never applied. ReplayBrowser now maintains one like every other ECS module.
-  🔴 A LIVE DEFECT FELL OUT: DataDrivenGizmoSystem routed MenuAction/StructUpdate through
-  FindGizmoByIndex((int)evt.AnchorId,…) — a network id narrowed to an int and compared to Entity.Index,
-  i.e. defect D1 in the one place S0/S5 never swept. Fixed; FindGizmoByIndex deleted. GlobalGizmoManager
-  had already keyed those events by the id ⇒ the seam law, 5th measured instance.
-  ⭐⭐⭐ THE PROCESS LESSON WORTH KEEPING: T-1 caught a regression in my OWN change after I had already
-  written a confident design paragraph saying the opposite. I removed the ingress DROP ("the consumer
-  decides"); SC-GZ037-4 and ANetworkIdThisNodeDoesNotKnowYieldsNoEvent reddened and were RIGHT — DDS is
-  broadcast and Recipient routes to the FOCUS HOLDER FIRST (R-144), so a foreign drag would have fed one
-  operator's gesture into another operator's active tool. Both behaviours kept, and better: the drop now
-  asks "is this id in my WORLD" (any node can answer) instead of "is it in my MAP" (which is what made a
-  mapless node silently drop everything).
-  ⛔ NEW, FILED, NOT FIXED: CE-259ah — DrawEntityBadge writes an ECS handle nothing reads into offsets
-  24/28 while the renderer takes the badge position from BoxCenterX/Y, which nothing writes ⇒
-  HealthBarGizmo badges render at the world origin. Same family, different offsets, needs a placement
-  decision. ⭐ Closed: CE-259ag.
-  ✅ CLOSED BY IT: CE-259x (the exclusive-filter leak — but by DELETING S0's fix and removing the CAUSE,
-  a disjoint tool-id range, §6.1) and CE-259h (the pick token's network-stable contract).
-  🔴 NEW, FILED, NOT FIXED: CE-259z — an EntityLocal primitive's SpatialAnchor key is truncated to 32
-  bits, so an id above int.MaxValue makes the shape VANISH with no error. Cannot be widened (the payload
-  union is full and 64 bytes is a DDS invariant) ⇒ it is constraint C7; asserted + railed, open question
-  is whether to ENFORCE that no tool emits EntityLocal rather than rely on it.
-  🔴🔴 NEW, FILED, BLOCKS GATING: CE-259aa — Fdp.Presentation.Tests aborts with a native SIGSEGV
-  (exit 139, reproduced outside the test host) inside DebugGizmoLayerHitTests, so ~95 of its ~185 tests
-  have NEVER RUN. That is the real cause of CE-088's "54 of 185 discovered". PROVEN pre-existing at
-  740b522c with all work stashed. ⛔ Do NOT quarantine (R-131) — the crash is hiding the other tests.
-  Interim gate: --filter the class you need.
-  📐 CE-259y CORRECTED: it is SEVEN reds, not two (CE-259aa was hiding five), and its dependency on S7
-  is WITHDRAWN — S7 could not collapse AnchorIndex, so that row is now just "the wrapper must forward
-  its ISimulationView".
-  ✅ ALSO FIXED 2026-09-10: CE-259ab — DataDrivenGizmoSystem hard-cast its IDebugDrawBuilder seam to
-  DebugPrimitiveBuffer at 4 sites, so DataDrivenGizmoPredicateTests.D003_* threw InvalidCastException
-  inside Execute and had NEVER RUN. Pre-existing (identical at da2d360d). Fixed BOTH halves: the system
-  degrades-and-asserts, and the hand-rolled D003NoOpDrawBuilder is retired for a real buffer — degrading
-  alone would have made a red rail GREEN AND BLIND.
-  ⚠⚠ HOW IT WAS INVISIBLE ALL SESSION, worth remembering on a fresh VM: 68 projects had never been
-  restored, so every suite in them reported NETSDK1004 and was skipped. `dotnet restore <sln>` once, then
-  a full-solution build, is what surfaced them. ⛔ NETSDK1004 is not a code break — do not treat it as one,
-  and do not treat "the suite did not run" as "the suite is green".
-  📐 KNOWN PRE-EXISTING REDS, all reproduced at da2d360d so none is this lane's: Hrot.IG.Tests 5
-  (EntityInfoTranslator ×4, EntityMasterTranslator ×1) · Hrot.ClusterRunner.Tests 3
-  (OrchestratorSubsystemTests) · Hrot.Editor.Tests 1 (AiHotReloadCoordinator ALC collection) ·
-  Hrot.Presentation.Tests rotates 0–1 (CE-084) · Fdp.Toolkits.Tests rotates 0–2 (DEBT-AIB-030).
-  ✅✅✅ CE-259aa IS CLOSED, 2026-09-10, and it was bigger than the row said. NEW OWNING DESIGN:
-  ../DESIGN_Gizmo_Renderer_Seam.md — READ ITS §6.1 (as-built), it is where the findings are.
-  📐 Fdp.Presentation.Tests now reports 544 tests (535 pass / 8 fail / 1 skip). It reported ~90 and
-  then died, so ~450 had NEVER EXECUTED. CE-088's "54 of 185" is explained and subsumed: same crash,
-  not a discovery bug. ⛔ THE LESSON: "the suite did not run" is not "the suite is green", and a
-  native crash makes those indistinguishable from the summary line.
-  ⭐ Root cause: the Fdp.Presentation renderer WRAPPER had invented a SECOND DispatchShape hook firing
-  before the real renderer, so test doubles captured unfiltered primitives AND left Raylib drawing.
-  The real seam was one layer down all along (GizmoMap.Presentation .cs:193-195) and
-  GizmoMap.Presentation.Tests had always used it, 41/41 headless. Fourth measured instance of the
-  seam law (CE-259p, SC-GZ067-1, CE-259ab, this).
-  🔴 CE-259y IS REFUTED, not fixed-as-filed. The dropped ISimulationView is the DESIGNED END STATE:
-  feedback2.md:798 "completely severs the presentation layer's reliance on the heavy simulation ECS",
-  :871 "Eradicating Entity", and the SpatialAnchor mechanism IS built with production producers
-  (EntityPresentationGizmo.cs:95). The 7 reds were rails for the RETIRED ECS mechanism, now rewritten.
-  🔒 The unread parameter is what manufactured the false finding — a parameter nobody reads is a claim
-  nobody checks. Deleted from the wrapper AND the layer; the 4 hosts stopped passing a world.
-  🔴 NEW, FILED, NOT FIXED: CE-259ac — a gizmo Line is UNPICKABLE. The live hit-test serves Box2D and
-  Sphere only; line hit-testing was lost in the terminal migration and its only record was a rail that
-  could not run. R-137. NOT re-implemented on a rail's say-so (a UX decision, no design record asks
-  for it) but PINNED by SC-GZ026-2b so it cannot be lost twice.
-  ⚠ TWO HARD-CODED TEST HOOKS DELETED: TestHook_IsCaptureActive/IsInteractionActive were `=> false`,
-  so every Assert.True could never pass and every Assert.False was vacuous. The real state is private
-  one assembly down behind a Raylib-polling HandleInput ⇒ not railable headlessly, and now SAID so.
-  ⭐ NEW REUSABLE CONTROL: [RequiresDisplayFact] (FDP/Engine/Fdp.Presentation.Tests/Raylib/). Use it for
-  ANY test that opens a window or issues a Raylib draw call — a skip costs one summary line, a crash
-  costs every test after it.
-  📐 The 8 remaining Fdp.Presentation.Tests reds (EntityInspectorPanel, EventBrowserPanel,
-  PerspectiveMenu, WindowManagerMainToolbar) are NOT gizmo-related and are PROVEN pre-existing
-  (identical 8 with all work stashed). They had simply never run — they belong to their own owners.
-  ✅✅ CE-259z CLOSED 2026-09-10, and its "open policy question" hid a THIRD live instance of the
-  same family: DrawEntityLocal / DrawEntityLocalInteractive wrote an ECS index into offset 8, which the
-  renderer probes as a NETWORK id against the SpatialAnchor cache ⇒ the lookup missed and the primitive
-  was SILENTLY SKIPPED, drawn nowhere. feedback2.md:871 had specified the fix ("DrawEntityLocal will now
-  accept `long anchorNetworkId`") and it was never built. ROUTED not deleted; measured ZERO production
-  callers, so it was a trap for the next author, not an outage.
-  ⭐⭐⭐ AND THE ATTEMPT TO FINISH IT PROPERLY FOUND SOMETHING BETTER: I tried to also stamp the S5
-  identity in BoxAnchorId and the rail read back 0. For a Line, BoxAnchorId (long @44-51) OVERLAPS
-  LineEnd.Z (@44-47) and EndColor (@48-51). ⇒ A LINE HAS NO SLOT FOR AN IDENTITY. That is structural,
-  and it means CE-259ac CANNOT be closed by teaching the hit-test about lines — the primitive could not
-  carry what it routes on. LEAN recorded on that row: give a gizmo that wants a clickable line a
-  co-located invisible Box2D/Sphere, which VertexEditGizmo and RouteWaypointGizmo already do.
-  🔒 Both facts are PROVED by rails, not asserted: the second one writes the identity and watches the
-  geometry die. Its first version asserted the opposite and failed — which is how the fact was found.
-  ✅✅✅ CE-259ac FIXED 2026-09-11 — LINES ARE CLICKABLE. 🔒 User: "what is the issue with clickability
-  of something as simple as a line? I do not want to accept it." ⭐⭐ THEY WERE RIGHT AND THIS IS THE
-  MOST INSTRUCTIVE MISS OF THE WHOLE PROGRAMME: my layout fact was TRUE ("a Line cannot host
-  BoxAnchorId" — LineEnd@36-47 + EndColor@48-51 vs BoxAnchorId@44-51) and I attached the WRONG
-  CONCLUSION to it. It argues against storing the identity INSIDE a Line — not against clickable
-  lines. ⛔ I generalised from ONE blocked route to "the capability is unavailable" without measuring
-  the others. That is R-139's failure mode with a measurement attached: a true file:line does not make
-  the inference from it true.
-  📐 Measuring the other routes found a REAL BUG, not a missing feature: the renderer has ALWAYS drawn
-  Box2D rotated (Renderer2D.cs:296 DrawRectanglePro, and :139 composes the anchor yaw) while the
-  hit-test compared AXIS-ALIGNED extents ⇒ a rotated box DREW ROTATED AND PICKED AXIS-ALIGNED. Latent
-  only because no production gizmo had set a non-zero angle yet.
-  ⭐ THE FIX, with NO contract change: an oriented-box hit-test (reduces exactly to the old compare at
-  angle 0) + DebugPrimitive.MakePickSegment(from, to, networkId, pickThickness, subElementId). A
-  clickable line IS a thin oriented box, and Box2D already carries centre, extents, angle, a 64-bit
-  BoxAnchorId and SubElementId@52 for "which segment". It is EmitPickBox's transparent-pick-target
-  pattern generalised from a point to a segment.
-  ⛔ Widening Line itself was checked and IS out: Stride/…/DebugPrimitiveRenderer3D.cs:222-223 needs
-  the full Vector3. That is the only part of my original analysis that survives.
-  ⚠⚠ AND THE RED-PROOF CAUGHT A FLAW IN MY OWN RAIL, worth remembering: my first rail probed the
-  diagonal's MIDPOINT, which hits with or without the rotation — the inverse edit stayed GREEN and
-  exposed it. It also corrected my description of the bug: an un-rotated segment box is NOT "the
-  bounding square" — extents are (length/2, thickness/2), so ignoring the angle leaves a long thin
-  corridor ALONG THE X AXIS through the midpoint whatever direction the segment runs. Rails now probe
-  off-centre; the red-proof reddens 2 of 11.
-  🔴 STILL OPEN, and it is a UX CALL not work: no gizmo is wired to USE clickable lines yet. Searched
-  docs/ and .dev/ — NO record says what clicking an edge should DO (insert a vertex at that point?
-  select the segment?). The mechanism is delivered and railed; the gesture semantics need one decision.
-  🔴 ALSO FILED, latent: CE-259ad — the hit-test does not resolve EntityLocal coordinates (reads
-  BoxCenterX/Y raw), so an EntityLocal pick target would draw in the right place and click in the wrong
-  one. Same draw-vs-pick family. NOT live: every pick target is World-space today.
-  ✅✅✅ CE-259ae DONE 2026-09-11 — POLYGON AREAS AND ROUTES ARE SELECTABLE BY CLICKING THEIR LINES,
-  AND RIGHT-CLICKABLE FOR THEIR CONTEXT MENU. 🔒 User requirement, verbatim: "polygon areas and routes
-  entities should be selectable by clicking on their lines, also context menu by right clicking them."
-  ⭐⭐⭐ THE FINDING THAT MADE IT SMALL: both halves were ALREADY BUILT and merely UNREACHABLE.
-  SelectionInteractionSystem selects Token.Target with no GizmoTypeId filter; and
-  ContextMenuProjectorGizmo ALREADY emits MenuJsonArea (EditablePolyline) and MenuJsonRoute (RoutePlan)
-  bound by network id, with the terminal resolving the menu from the hit primitive's BoxAnchorId.
-  ⇒ nothing was missing but a PICK TARGET on the lines (both gizmos emitted Line only, and the
-  hit-test serves Box2D/Sphere). One shared EntityPresentationGizmoShared.EmitPickSegments, two call
-  sites, done. ⭐ Measure the seams before designing — that is what turned a feature into a helper.
-  ⛔⛔ SubElementId MUST be 0, and this was measured not guessed: an EditablePolyline entity may have a
-  VertexEditGizmo INJECTED, and FindGizmo gives injected gizmos STRICT PRIORITY ignoring GizmoTypeId
-  ⇒ a non-zero sub-element would make a click on edge i start DRAGGING VERTEX i. With 0 it falls
-  through that gizmo's idx<0 guard, and 0 already means "the whole entity".
-  ⚠⚠ A Z-ORDER WORRY I HAD BACKWARDS, worth remembering: I believed these would steal an active tool's
-  handles because the stateless group emits FIRST. The hit-test walks the buffer in REVERSE, so a
-  layer-0 tie goes to the LAST-emitted primitive ⇒ the arbiter groups still win and CE-259r/§4.7i
-  holds unchanged. Reading the loop direction stopped me "fixing" a non-problem.
-  ⚠ NOT done deliberately: the menu CONTENT is unchanged, and clicking an edge does nothing
-  gizmo-specific yet (insert a vertex there?) — searched docs/ and .dev/, no record specifies it.
-  ⭐ Also fixed a blind shared double: FullCapturingDrawBuilder inherited EmitRaw's DEFAULT NO-OP and
-  silently dropped every raw primitive, so rails using it were blind to pick boxes and bindings.
-  ✅✅ CE-259af DONE 2026-09-11, and it came from the USER ASKING WHY A FIELD EXISTS: "why are we still
-  keeping a field for ecs entity index and generation in the gizmo now?" ⭐ Answering it properly meant
-  justifying the FIELD rather than the decision — and that turned up a real latent defect.
-  📐 DebugPrimitivesIngressTranslator AppendRaw'd received primitives VERBATIM, so a receiving node's
-  buffer held the SENDER's ECS handle at offsets 8/12 ⇒ ToPickToken would rebuild a foreign handle and
-  SelectionInteractionSystem would select a locally-plausible WRONG entity, silently. Defect D2
-  relocated from the wire to the receiver's own boundary. NOT live (that translator is instantiated
-  only in tests) but IG imports it and holds a map.
-  ⭐⭐ FIX: strip the payload at the ONE place foreign primitives enter a buffer ⇒ a received primitive
-  arrives with StreamId==0, the adapter yields an invalid token, and the interaction goes over DDS to
-  the OWNING node which resolves via its map. It degrades onto the DESIGNED remote path instead of a
-  wrong selection. ⇒ the field's contract is no longer "do not compare this" but "valid only for a
-  primitive emitted in THIS PROCESS" — structural now, not a comment.
-  ⛔⛔ AND THE NAIVE FIX IS WRONG — I NEARLY SHIPPED IT. Zeroing 8/12 unconditionally breaks two of the
-  THREE roles offset 8 carries: EntityLocal uses it as the SpatialAnchor cache KEY (remote EntityLocal
-  geometry would stop resolving at all) and Text/EntityBadge use StringHash@8 + LineOffsetPx@12. The
-  strip is shape-discriminated, with TWO red-proofs — removing it reddens 1, a BLANKET zeroing reddens
-  the other 2. That second red-proof exists because I made that mistake.
-  ⛔⛔ THE NEXT SENTENCE IS SUPERSEDED BY §6.7 AND IS KEPT ONLY AS HISTORY — DO NOT QUOTE IT. The payload
-  WAS deleted, and the premise below is false: the map is a WORLD SINGLETON, not a per-host delegate, so
-  no host can forget to pass it, and ReplayBrowser now maintains one like every other ECS module.
-  ~~⚠ Why not delete the payload instead: ReplayBrowser has NO NetworkEntityMap (:991 falls back to the
-  linear FindEntityByNetworkId, which C5 forbids), so resolving locally needs a delegate every host
-  must remember to pass — the SILENT-DEFAULT failure that produced CE-259y. The payload needs nothing
-  passed, so it cannot be forgotten in one host. 📄 DESIGN_Gizmo_Anchor_Identity.md §6.6.~~
-  ⛔ PROCESS FAILURE WORTH NOT REPEATING (the third of the day): HandleInput builds a pick token TWICE
-  and the first S5 pass converted ONE arm. Every suite stayed green because the rails exercise the
-  hit-test, not HandleInput. `scripts/find.sh 'AnchorGeneration != 0'` found it in one call. And the
-  rail that should have caught it lived in GizmoMap.Contracts.Tests as a RE-IMPLEMENTATION of the
-  production logic — that project cannot reference production code at all. Moved, and both arms now
-  call ONE seam, DebugGizmoLayer.MakePickToken.
-  🔴 NEW, MEASURED, NOT BUILT: CE-259w — ONE RIGHT-CLICK ENDS TWO TOOLS. The picker cancels on right
-  PRESS (EntityPickerGizmo.cs:164), the vertex editor self-removes on right RELEASE (:198-200), so the
-  DOWN pops the picker, the editor resumes, and the UP then ends the editor. Pre-existing; §4.7i only
-  made it visible. Lean is (a) pair the gesture in the arbiter — the press recipient also gets the
-  release. ⛔ Blast radius NOT measured yet; do not build before it is (R-139).
-  ⭐ ALSO OPEN, needs a nod: CE-259v — a suspended EntityRotatorGizmo draws a line to a STALE cursor.
-  OPEN with leans: CE-259s, CE-259t. FIXED 2026-09-10: CE-259q.
-  ⛔ The 2026-09-09 T1 manual test found the amber-crosshair defect; it is CE-259r and NOT yet fixed.
-  ✅✅✅ RUN-THE-REAL-THING, 2026-09-11 — THE ANCHOR-IDENTITY WORK IS PROVEN IN THREE RUNNING HOSTS.
-  📄 DESIGN_Gizmo_Anchor_Identity.md §6.8a (editor + --mode all) and §6.8b (ReplayBrowser).
-  ⭐ --mode editor and --mode all under xvfb, driven over HTTP: hill-attack live, simTime 348.9, the AI
-  chain (contact → firing), 739–802 primitives/frame per perspective with 16–24 Box2D pick boxes each,
-  117 translators / 20 live topics. ZERO GizmoAnchorIdentityException across 1130 log lines.
-  ⭐⭐ --mode replaybrowser (the riskiest host — §6.7 gave it a NetworkEntityMap it never had, rebuilt at
-  every seek): a 50.5 MB / 3671-frame .fdp recorded from the editor, loaded, seeked to 5 frames with
-  /replay/entities returning n=8 EVERY TIME, stepped forward/back with correct clamping, 8 panels
-  captured per frame, unloaded. ZERO exceptions.
-  ⭐⭐⭐ AND THE ZERO IS NOT VACUOUS — an INVERSE-EDIT RED-PROOF in that process: a temporary
-  Box2D(subElementId:7, anchorId:0) in ReplaySpatialBoundsGizmo.Draw ABORTED IT ON FRAME 1 via
-  DebugPrimitiveBuffer.AppendRaw:74 → StatelessGizmoSystem.Execute:107 → ReplayBrowserSubsystem
-  .Update:421 ⇒ the emitters really run there, the central guard is armed there, and it fails fast
-  UNHANDLED (no scheduler try/catch swallows it — the CE-188 disease). Reverted; clean drive re-run.
-  ✅✅✅ CE-259am FIXED 2026-09-11 — THE REPLAY BROWSER CONTRIBUTES A DEBUG PROVIDER, and fixing it found a
-  SECOND, PRE-EXISTING defect. 📄 AS-BUILT: ../DESIGN_Gizmo_Anchor_Identity.md §6.8c.
-  ⭐⭐ A seam ADOPTION, not a mechanism: it was the ONLY perspective-owning subsystem not implementing
-  IProvidesDebugSurface — the seam Program.cs:388 already selects on and four other hosts already have.
-  Now providers=[ReplayBrowser] with a MEASURED matrix (world.read/world.entityMap/panels.gizmo true, the
-  other six honestly false). world: is a Func for a LOAD-BEARING reason unique to this host (RebindActiveRepo
-  REPLACES the repo on every seek, so a captured value would answer from the pre-load master forever), and
-  entityMap: goes through a NEW shared SubsystemDebugProvider.EntityMapFrom — the exact analog of TkbFrom.
-  ⚠ CGF/SimHost/IG deliberately NOT migrated to it: their private fields ARE the singleton they set, so they
-  are correct BY CONVENTION and swapping three hosts deserves its own measurement.
-  ⭐ The message is fixed too: one GizmoFeedAbsenceReason() names which of three states it is instead of
-  asserting a missing buffer the red-proof showed was there.
-  🔴🔴 THE SECOND DEFECT, and it was NOT debug-API-only: the instant world.read became reachable,
-  /entities/{id}/focus answered 500 "Strict Mode Violation: CenterOnEntityCommand (ID: 8104) … not
-  registered" — BYTE-FOR-BYTE the crash CE-065 already fixed on CGF, whose own header records
-  POST /entities/1000/focus → 500 … (ID: 8104) as its reproduction. The shared list had FOUR adopters and
-  this is the fifth host that needed it; RepositoryPriming registers component tables, NEVER events.
-  ⭐ Fixed in TWO halves and the second is the point: ① PresentationComponentRegistry.RegisterAll at a new
-  PrepareRepo choke point (Initialize AND RebindActiveRepo, idempotent); ② the shared CenterOnEntitySystem
-  ticked from Update — ⛔⛔ ① ALONE WOULD HAVE MADE THE ROUTE LIE (ok:true, camera never moves, since this
-  host runs no kernel so nothing consumes the event). ⭐ It also fixes the UI path: the entity-inspector's
-  "Center on entity" was publishing into a world that had never heard of the event.
-  ⛔⛔ AND A RED-PROOF CAUGHT A FLAW IN MY OWN RAIL — the most useful thing in the batch. My perspective
-  assertion was src.Contains("\"<Perspective>\"") and the inverse edit STAYED GREEN: every one of these
-  subsystems also writes `public string Name => "<Perspective>"`, so the literal was satisfied by the NAME
-  property while perspective: named something else. THIRD recorded instance of that blindness (the
-  fully-qualified EntityRotatorGizmo since CE-051; new FdpEventBus() in CE-260). Fixed IN PLACE, reddens now.
-  📐 Rails went into the feature's OWN suite (TheDebugProvidersDoNotUnderReportTests 10/10 → 21/21) because
-  this is a THIRD defect shape: CE-162 was argument-present-and-null, CE-163 argument-absent-from-a-provider,
-  this is NO PROVIDER AT ALL — and both older rails read an argument list that does not exist. Four
-  inverse-edit red-proofs, all 1🔴.
-  📐 Blast radius BOUNDED: Configuration:190 rejects replaybrowser combined with anything ⇒ standalone-only,
-  so --mode all and --mode editor cannot be affected.
-  🔴 NEW, FILED, NOT FIXED: CE-259an — TWO REPLAY WORLDS. /replay/load loads into an ISOLATED
-  ReplayBrowserContext owned by the debug service, so /replay/entities says 8 while GET /entities says 0 —
-  and BOTH are correct (world.read reports the UI's own repo, still empty until an operator opens a
-  recording). ⛔ Reading /entities → 0 as "the recording is empty" is the CE-110 mistake again. LEAN: do NOT
-  rewire the shared route — add the hint. Searched docs/ and .dev/: no design record says which world
-  /replay/load should target.
-  ⛔ STILL NOT RUN-PROVEN, unchanged: a real PICK/SELECTION (CE-259al — the interaction bus is isolated
-  from the world bus by design, so no HTTP route can publish onto it) and Stride/ (cannot run here).
-  ══ STRAND 2 — ENTITY CREATION (as of 2026-09-03, untouched since) ══
-  READ docs/blueprints/BOOTSTRAP_Entity_Creation_Session.md §5.0 — THE AGREED PLAN
-  (user-confirmed 2026-09-01). That is the ordered continuation point; this file is only the longer LOG.
-  STATE AS OF 2026-09-03 (branch head e762fe988, next free id CE-166):
-    P1 EntityCreationPack adoption — ✅ COMPLETE, ALL SIX HOSTS. Host (f) IG landed 2026-09-03 with
-       Q65-A' + CE-143 + CE-144 atomically, VERIFIED (GhostDestructionSystem deleted; IgNodeBootstrapper
-       .cs:362 calls EntityCreationPack.Build; CE-141+CE-144 confirmed on a live four-process cluster).
-    P2 relocate GhostPromotionSystem out of NedReplicationModule into EntityCreationPack, add+remove in
-       ONE commit — 🔴 UNBLOCKED, the next buildable step.
-    P3 ⭐⭐⭐ AUTO-TAKEOVER (role-affinity ownership) — 🔴 FULLY DESIGNED, ENTIRELY UNBUILT.
-       ../DESIGN_Role_Affinity_Ownership.md, build-state READY-TO-BUILD, "Nothing here is built yet",
-       §6 steps 0->3b. ⚠ Its §5 holds THREE OPEN DECISIONS that are the USER's to settle first.
-       ⛔ "P1 done" does NOT mean entity-creation unification is done — P3 is the unimplemented half.
-  ⭐ ALSO LIVE, a separate strand raised 2026-09-03: DESIGN_Subsystem_Composition_Unification.md §4.1
-     (role-based node composition, READY-TO-BUILD at B1). §4.1L/CE-165 found that the RUNNING Hrot.Editor
-     double-registers UnitHierarchySystem + EqsResultUpdateSystem and corrupts unit rosters, so B1
-     ([SingleInstance] + a central duplicate check) is now a FIX, not a guard, and wants a reproducing
-     rail with an inverse-edit red-proof.
-  ⛔ Do not read THIS file top-to-bottom; the STATUS block below is the longer LOG and the sections
-  below it are HISTORY.
-folded-back: 2026-09-03 — the previous current-answer said "(f) is UNBLOCKED, §4.9 is the next batch"
-  and named head 4a69ad3f8. Both were a day behind: that batch shipped. Corrected together with
-  BOOTSTRAP §5.0/§5 and DESIGN_Entity_Creation_Unification.md §5 step 3 (which was three days behind,
-  still claiming host (a) only). Cause in all three: the work was reported in chat and in commits, and
-  the owning documents were not updated — CLAUDE.md obligation ⑤.
-  The AGREED ORDER OF WORK across the 2026-08-30 compaction (unchanged):
-  (1) entity creation — pack step 4, then MOVE CreateEntityRequestSystem out of Hrot.CGF to a shared
-  assembly (Architect_Question_65 §5 obstacle 1), then pack step 3 as ONE uniform pipeline, then Q65-A'
-  (originators self-target) and Q65-B (widen the NodeRole gate on GhostPromotionSystem inside
-  NedReplicationModule -- NOT a per-host composition change; corrected 2026-08-31); THEN (2) back to the gizmo /
-  symbology work: CE-134 (health bar) first, then CE-133, CE-135, CE-136 against
-  UX_Feature_Entity_Symbology.md §3.8. ⭐ Q65 is RESOLVED — genesis is already peer-to-peer and needs no
-  contract change; DESIGN_Entity_Creation_Unification.md §2.3's "halves" are SUPERSEDED. ⛔ Do not
-  re-derive any of it.
-ruling-2026-08-31: 🔒 THE GOVERNING RULING is Architect_Question_65 §0 (user, verbatim): the shared
-  entity-creation code "should not restrict any ECS enabled node from creating own networked entities ...
-  no exceptions, not removing capabilities by design, and only concrete authoring code picks the way it
-  needs." ⭐ BOTH paths stay legitimate: OwnerAppInstanceId = 0 routes to the arbiter (CGF) for
-  BRAIN-ENABLED entities and is CORRECT; OwnerAppInstanceId = localNodeId creates+owns locally (IG map
-  drawings). The AUTHORING CALL SITE picks -- not a policy table, not a TKB flag, not config.
-  ⛔ EntityCreationPack.Build gets NO flag that omits the request or spawn system (DESIGN §3.1
-  invariant 6, §3.4, acceptance 9-11).
-measured-2026-08-31: (a) IG CAN already publish EntityMaster -- SharedTranslatorPack is gated on
-  participant != null, NOT on role (NedReplicationModule.cs:213), and IG calls .WithReplication at
-  IgNodeBootstrapper.cs:142; it also already has MapVisualOverlayEgressTranslator for OWNED area
-  entities. IG lacks only the ability to BECOME THE OWNER: request source + CreateEntityRequestSystem +
-  NetworkSpawningSystem. (b) The bottleneck mechanism is ONE FIELD --
-  SpawnEntityCommandEgressTranslator.cs:167 writes Owner = default => 0 => arbiter.
-  (c) 🔴 ORDERING HAZARD: NetworkSpawningSystem.cs:92 and
-  SpawnEntityCommandEgressTranslator.cs:80 read the SAME bus event => IG's pack adoption (step 3) and
-  Q65-A' (retarget its tools) MUST ship in ONE commit or IG double-spawns. Q65 §6 carries it.
-CE-142 (new, 2026-08-31): ownership DELEGATION is mechanism gated by policy. All three pieces --
-  DeferredTakeOwnershipEgressTranslator (_roleHasBrain, :230), its ingress (_roleHasMuscle, :232) and
-  DeferredTakeoverSystem (_roleHasMuscle, :206) -- contain ZERO role logic; the only role-specific
-  thing is the INJECTED BrainMuscleOwnershipStrategy POLICY. Probe: ungating the receive side is FREE
-  (ExecuteTakeover self-filters on ownerNodeId and guards each component with HasComponentByTypeId, so
-  no throw on unregistered components). Latent silent drop: :313 publishes the bus command on
-  _isDefaultProcessor && _ownershipStrategy != null, but the wire translator exists only on
-  _roleHasBrain -- they coincide by CONVENTION only. Fix: mechanism on participant != null, policy on
-  _ownershipStrategy != null. WITH or AFTER pack step 3; NOT a prerequisite for path 2.
-  Prior docs saying that gate was "correct, do not widen" are RETRACTED (Q65 §5.3).
-STEP 4 IS BUILT (2026-08-31). New: Hrot/Engine/Hrot.Core/Tkb/UrbanCombatTkbCatalog.cs (RegisterAll +
-  BuildMannequinAnimationDef + public TkbType codes); HrotEnvironment.CreateTkb() seeds it;
-  UrbanCombatNewScenario forwards; its FIVE private per-template methods DELETED (they were a second
-  copy missing StrideRenderModelDefDto on all five ⇒ render-less, collider-less entities);
-  EditorSubsystem's explicit RegisterUrbanCombatTkbTemplates call REMOVED (TkbDatabase.Register THROWS
-  on duplicates and it was 4 lines after CreateTkb ⇒ would have crashed at startup);
-  EditorStrideSubsystem LEFT ALONE (builds its own new TkbDatabase(), so no duplicate — but it still
-  misses NedTkbCatalog; Stride tree cannot build on Linux, follow-up). New rails:
-  Hrot.SimHost.Tests/UrbanCombatCatalogRails.cs 14/14, two inverse-edit red-proofs (remove the seeding
-  => 13/14 red; strip one StrideRenderModelDefDto => exactly 1 red). T1 Hrot.SimHost.Tests 798 pass /
-  1 fail / 3 skip; the 1 fail is QA-012 (FullBranchPipelineTests.BranchedRecording_...), PROVEN
-  pre-existing this run by git stash + rebuild on base 7face3aee. Hrot.Editor.Tests --filter
-  UrbanCombat 18/18.
-CE-145 (new, deferred BY THE USER to a Windows/VS session): the animation TKB descriptor DTOs
-  (CharacterAnimationDefDto + SlotDefDto/MontageDefDto/MontageNotifyRefDto/NotifyMarkerDefDto/
-  StanceTransitionDto/AimConfigDto/SlotCompositingMode, plus AnimNotifyCategory and StanceId) MOVED to
-  FDP/Toolkits/Fdp.Toolkits/Tkb/Domain/ but KEPT their Hrot.MuscleCharacter.Animation.* namespaces, so
-  zero consumer files changed (C# binds on namespace, not assembly). CE-145 = rename them to
-  Fdp.Toolkit.Tkb.Domain — 53 files across 20 projects, 6 in the Stride tree that cannot compile on
-  Linux, which is why it waits for VS. ⚠ I first sized this at 24 files; that count covered only four
-  DTO names and missed StanceId + AnimNotifyCategory. Each moved file carries a header explaining why a
-  Hrot.* namespace sits in Fdp.Toolkits.
-OBSTACLE 1 IS DONE (2026-08-31). The 3 request-tier files moved to
-  Hrot/Engine/Hrot.Common/Systems/ with namespace Hrot.Common.Systems (renamed, NOT preserved -- keeping
-  "CGF" in the name of a type every node registers is the misconception Q65 kills).
-  ⛔ TARGET WAS NOT Hrot.Core: Q65 §5.4's own "resolved" answer was WRONG. CreateEntityRequestSystem:394
-  constructs Hrot.Common.Serializers.InitialUnitSubordinateIntent by FULLY-QUALIFIED name, and
-  Hrot.Common.csproj:33 references Hrot.Core, so Hrot.Core -> Hrot.Common is a CYCLE. Moving
-  InitialUnitSubordinateIntent instead was measured at ~30 consumers + a cohesive genesis-intent file =>
-  more churn. Hrot.Common is reachable from every host (Editor transitively via SimHost/CGF/NED) and is
-  where SharedApplicationBootstrapper lives.
-  ⚠⚠ ERROR CLASS, THIRD INSTANCE IN ONE DAY: I checked the files USINGS and called the dependency set
-  clean; a fully-qualified reference in a method body is invisible to that. A usings scan is NOT a
-  dependency scan -- grep the body for <OtherAssembly>. prefixes, or just BUILD IT (8s/project).
-  Churn: 6 one-line using additions. ⭐ The Stride fence held with ZERO action -- EditorStrideSubsystem.cs
-  already imported Hrot.Common.Systems, so the one file both lanes could reach was never contested.
-  Hazard handled: Hrot.Core has TreatWarningsAsErrors, so EntityLifecycleInterfaces.cs's <see cref> into
-  Hrot.Common would be CS1574 => error; changed to <c>.
-  New rails: RequestTierPlacementRails 12/12 (not in a host assembly, no CGF in the namespace, publicly
-  constructible, IEcsModuleSystem). Non-vacuity probe (flip expectations to the OLD values) reddens
-  exactly 6 of 12 -- that proves the rails read reality; it is NOT a defect red-proof.
-  Gates: 10 projects build; T1 Hrot.SimHost.Tests 810 pass / 1 fail (QA-012, pre-existing) / 3 skip;
-  Hrot.Editor.Tests 341/0/1; EntityCreationFlowTests 7/7 (integration -- exercises the moved system
-  end to end).
-PRE-EXISTING BREAK FIXED (out of my lane, flagged for the backend lane): Hrot.SimHost.Integration.Tests
-  did not compile AT ALL on base -- SimHostInstance.cs used AttributeCompilerFactory with no
-  using Fdp.Toolkit.Replication.Attributes. Proven pre-existing by git stash + rebuild (same CS0103 on
-  base). Fixed with the one missing using because it was blocking verification of my own change; the
-  whole test project is now buildable and its 7 entity-creation tests pass.
-STEP 3 STARTED (2026-08-31): EntityCreationPack BUILT in Hrot/Engine/Hrot.Common/EntityCreation/
-  (Pack + Context + EntityCreation). Host (a) StrideNodeBootstrapper ADOPTED -- and that closed a second
-  gap: it had no CreateEntityRequestSystem at all, so nothing could ask it to create an entity, not even
-  itself. Scheduling unchanged (spawn via SimHostModule/BeforeSync; request + finalization via
-  RegisterGlobalSystem). ⚠ Follow-up: no DDS ingress/ACK sink passed there because HrotNodeContext
-  exposes no lifecycle adapters => local requests only; strictly better than before.
-  ⛔ NOT in this slice: the two authoring affordances (DESIGN §3.4) -- they need CE-143's ReliableInitType,
-  so they land with Q65-A'.
-  Rails: EntityCreationPackRails 8/8 (acceptance 2,3,5,9 + no-kernel + no-suppression-flag tripwires).
-  Red-proof: remove ctx.Elm.SetTranslators => exactly 1 rail reddens (the CE-139 defect class).
-  T1 818 pass / 1 fail (QA-012) / 3 skip. Hrot.NodeComposition.Tests 22/22.
-  ⚠ Acceptance 3's rail uses REFLECTION on EntityLifecycleModule._translators -- private, no accessor.
-  A read-only accessor on the ELM would be the better fix (Fdp.Toolkits change, deferred).
-  REMAINING hosts for step 3: SimHost, Editor, CGF, then IG -- IG atomic with Q65-A' + CE-143 + CE-144.
-CE-145 DONE + MERGED (2026-08-31, from claude/ce145-stride-namespace-win at 03ecea4da). Namespace rename
-  complete (55 files, not the 24/53/56 I quoted); EditorStrideSubsystem now uses HrotEnvironment.CreateTkb()
-  and the strip translator is back at index 2; Fdp.Examples.Scenarios dropped its now-redundant
-  Hrot.MuscleCharacter.Animation reference. Verified live in the Stride editor: entities=6, visuals=6.
-  Merge verified on Linux: 8 projects build, T1 818/1/3 = identical to pre-merge. ⚠ One T1 run reported 3
-  failures while naming only 1 (26s vs the usual 14s); two following runs were 818/1/3, so the steady state
-  is 1 (QA-012) but that suite is not perfectly deterministic under load.
-  ⚠⚠ MY HANDOFF'S GREP MISSED THREE THINGS: relative-qualified refs (Components.StanceId, 15 refs/6 files,
-  hard CS0234); a fully-qualified ref that must NOT move (…Contracts.AnimationBackendConfig); and that
-  …Animation.Descriptors was declared by the moved file ALONE, so the rename DELETES the namespace and every
-  using of it is an error. HABIT: for a namespace move, grep the namespace SEGMENTS too, and check whether
-  the moved file was the sole declarant.
-CE-146 (new, 2026-08-31) -- and it came from THEIR probe refuting MY hypothesis. I claimed the strip
-  translator's Capsule gate was unsatisfied; Apply_Infantry_AddsCapsuleRenderDef PASSES, so type 200 does
-  carry a Capsule StrideRenderModelDefDto. The two VehicleState reds are instead: (a)
-  Translator_Infantry200 = STALE TEST, it calls VehicleKinematicsTkbTranslator.Inject() alone so the strip
-  post-pass never runs => fix the test, not the product; (b) SI3_InfantryMoveTo = REAL CROSS-HOST GAP =
-  CE-146: EditorSubsystem.cs:1241 uses bare TkbTranslatorSet.Base(), the strip's only registrar is
-  EditorStrideSubsystem, and the strip lives in Hrot.Stride.Core (unreachable from Hrot.Editor) => Capsule
-  infantry keeps VehicleState on every host but the Stride editor, while the crowd bridge that guards on
-  !HasComponent<VehicleState>() (NavigationIntentBridgeSystem) is SHARED in Fdp.Toolkits. Three options in
-  DESIGN §3.3; ⛔ do not pick one before measuring whether any non-Stride host actually runs that bridge
-  over capsule infantry. The two StrD21 navigation reds are unattributed.
-  ⭐ Their baseline was 5 pre-existing reds, not 4 -- the 5th is the AttributeCompilerFactory build break
-  that blocked the whole solution build on Windows, and obstacle 1's commit already fixed it.
-CE-146 PROBED AND RESOLVED (2026-08-31) -- and my own three options (A/B/C) were the WRONG FRAME.
-  MEASURED: (1) the crowd guard is DOUBLE-gated on _dtCrowd != null (NavigationIntentBridgeSystem:235,243);
-  (2) two production registrars -- StrideMuscleModules:70 passes a crowd, but SimHostCoreLogicPack:118 uses
-  the NO-ARG ctor => the crowd path is INERT on SimHost, so SimHost's missing strip is NOT a gap;
-  (3) DotRecastDtCrowdProvider exists only in the Stride tree (EditorStrideSubsystem:635, :887) and
-  Hrot.Editor has ZERO DtCrowd references; (4) BUT EditorStrideSubsystem:892 does
-  _editor = new EditorSubsystem() and injects the Stride muscle via MuscleModuleFactory =>
-  "EditorSubsystem + a LIVE crowd" IS a real production configuration and SI3 replicates it faithfully.
-  => CE-146 is a REAL production defect whose root is the TWO SPAWN PIPELINES OVER ONE WORLD (the exact
-  ambiguity CE-139 named): EditorSubsystem:1241 uses bare Base() (no strip => VehicleState stays => crowd
-  registration SKIPPED) while EditorStrideSubsystem's list has the strip at index 2. Which pipeline handled
-  a spawn decides whether that infantry can join the crowd.
-  RESOLUTION: it is step 3 HOST (e) -- collapse the Stride editor's second pipeline into the pack. And the
-  fix needs NO new reference: Hrot.Editor can never name the strip, but EditorStrideSubsystem already
-  injects the muscle via MuscleModuleFactory, so it passes EntityCreationContext.ExtraTranslators the same
-  way. That is precisely what the pack's add-only ExtraTranslators is for.
-  ⛔ Options A (move the strip down) and B (restore the shape guard) are DEAD. C (one host only is fine) is
-  also dead -- the Editor genuinely runs a live crowd when Stride hosts it.
-  ⚠ Verification of host (e) CANNOT be done on Linux -- hand it to the Windows lane.
-  ⚠ The two StrD21 navigation reds are plausibly the same root but remain UNATTRIBUTED; do not claim them
-  until host (e) is done and they are re-run.
-  ⚠ TWO STALE DIAGNOSTICS to fix in words, not code: NavigationIntentBridgeSystem.cs:234-240's warning text
-  ("the translator fix is absent", "ShapeKind must be Capsule") describes the pre-relocation design -- the
-  tripwire is correct, its explanation is not; and Translator_Infantry200_DoesNotInjectVehicleState calls
-  the kinematics translator ALONE, encoding the removed design => re-home it onto the strip.
-CE-143 (new, 2026-08-31, from the architect review): ReliableInitType is HARDCODED to AllPeers at
-  CreateEntityRequestSystem.cs:302 (root) and :397 (TKB children), and EntityCreationRequest carries NO
-  field to override it. Enum has None / PhysicsServer / AllPeers. => an IG drawing created via path 2
-  waits for ConstructionAck from all expected peers: pointless latency and a stall risk. FIX: add an
-  init-only ReliableInitType to EntityCreationRequest, default AllPeers (so adoption changes nothing),
-  both affordances take it explicitly, IG passes None. Decide explicitly whether :397's children
-  inherit the parent's InitType (lean: yes). SHIP WITH Q65-A' (step 4) -- it is the one real
-  prerequisite for IG drawings being USABLE, not merely correct. STILL UNVERIFIED (needs a live
-  cluster): do peers ACK ghosts of entities they neither own nor simulate?
-obstacle-1-resolved (2026-08-31): the move target is Hrot.Core/Network/ -- NOT Fdp.Toolkits (that would
-  invert the layering, since both files depend on Hrot.Core.Network) and not Hrot.Common. Exactly 2
-  files move: CreateEntityRequestSystem.cs + EntityRequestFinalizationSystem.cs. Measured: neither
-  references Hrot.CGF/Map/Editor/IG except its own namespace line; JsonAttributeCompiler and
-  IOwnershipDistributionStrategy are already in Fdp.Toolkits. Zero new project references. Also update
-  the <see cref="Hrot.CGF.Systems.CreateEntityRequestSystem"/> in EntityCreationRequest's docs.
-  RULED by the user 2026-08-31: YES, move DeleteEntityRequestSystem.cs too => the move is 3 FILES.
-  Measured, and the case is stronger than the lean: its ctor takes EntityRequestFinalizationSystem as a
-  REQUIRED arg (so leaving it behind splits a hard dependency), its usings are Hrot.Core.Network + Fdp.*
-  only, IEntityDeletionRequestSource is in the SAME file as the creation one
-  (Hrot.Core/Network/EntityLifecycleInterfaces.cs:102), and it has 1 production construction site
-  (CgfSubsystem.cs:728). The see-cref fix in EntityCreationRequest is an explicit deliverable of the
-  same commit; sweep for other stale crefs.
-CE-144 (new, 2026-08-31): the DESTROY side has the SAME double-consumption hazard as spawn, and it
-  fails SILENTLY. GhostDestructionSystem (IgBootstrapperHelpers.cs:30) does _entityMap.Unregister +
-  world.DestroyEntity IMMEDIATELY; NetworkSpawningSystem.ProcessDestroy (:98 -> :213) does
-  cmdBuffer.SetLifecycleState(TearDown) + _elm.BeginDestruction. If IG holds BOTH, whichever runs first
-  defeats the other: GhostDestruction first => ProcessDestroy finds nothing in the map, logs to stderr
-  and returns => ELM teardown NEVER runs => EntityMaster is never disposed => peer IGs keep ZOMBIE
-  drawings. Reverse order rips the entity out mid-teardown. Either order is wrong => once IG has
-  NetworkSpawningSystem, DROP GhostDestructionSystem (its own comment says it "replaces SpawningModule").
-  Ships in the SAME commit as IG's adoption + Q65-A' + CE-143. Acceptance 11 extended to the destroy
-  side. NOT verified: the actual execution order today (irrelevant to the fix, decides the symptom).
-  ⛔ CORRECTS my own earlier text in Q65 §5.1 and DESIGN §5.1 ("IG keeps GhostDestructionSystem").
-NON-FINDING, recorded so it is not re-derived: the deletion tier has only a DDS source while creation
-  has three (DDS + in-memory + composite). That is NOT a gap -- the local destroy path bypasses the
-  request tier entirely (NetworkSpawningSystem.cs:98 consumes bus DestroyEntityCommand), so any node the
-  pack equips can destroy what it owns in-process. Do not add an in-memory deletion source.
-
-stale-below: ⛔ EVERYTHING except §0's header and §0.0e is HISTORY, newest first — §0.0c (the CE-070/071
-  way-forward), §0.0b (phase 1's seam), §0.0a/§0.0 (phase 0), §0-prev and below. They are kept as the
-  record of WHY, not as instructions. ⚠ §0.0c and the §0 header both used to say "Start here"; §0.0d
-  supersedes both (corrected 2026-08-27).
-known-conflict: ⛔ HANDOFF_Cgf_Bootstrap_Unification.md (the dispatched frame) is STALE on two points —
-  its stage-1 god-facade prerequisite and its phase-0 rail wording. AQ63 §10.4 and §12 supersede both,
-  deliberately. The handoff is NOT edited (rule 1: never amend a dispatched handoff).
+stale-below: ⛔ EVERYTHING below the "SESSION 2026-09-19/20" block is HISTORY, newest first. Do not
+  quote it as current state.
+known-rot: none open in this file.
+related-designs:
+  - docs/UX/UX_Feature_Selection.md — owns UXI-11; §2.7 is the target state, §2.7.5 the slice order.
+  - docs/UX/PLAN_Interaction_UX_Backlog.md — the re-verified UX ledger (2026-09-19) and the sequence.
+  - docs/UX/UX_Issues.md — the UXI register; note ✅ = designed, ☑ = done, 🟡 = partially built.
+  - docs/SNAPSHOT_Map_Interaction_Architecture.md — measured snapshot of the map/interaction as built.
+⚠ HOUSEKEEPING 2026-09-20: this STATUS block was 604 lines — the whole programme history lived inside
+  the comment, so a post-compaction reader met ~590 lines of dead strands before the live answer.
+  The dead text was MOVED VERBATIM to "## ⛔ HISTORY — older STATUS strands" at the foot of this file.
+  Nothing was deleted.
 -->
 # ⭐⭐⭐ RESUME — **the UI / variable implementation lane**
+
+## ⭐⭐⭐ SESSION `2026-09-19/20` — **UX DOCS RE-VERIFIED; NEXT: `UXI-11` SELECTION, SLICE `S-1`**
+
+**Branch `ui`** *(the stable role-named lane branch — `R-148`, `2026-09-19`)*, **HEAD `79e9a449d`**, tree
+clean, nothing unpushed. Gates green: `design-digest --check` · `rulings-check` **37/37** ·
+`tracker-counts` · **13 mermaid blocks** across the three touched diagram files.
+
+⚠ **Branch note, checked so the next session does not re-check it:** `ui` **contains** the old UI-lane head
+`4b0cb5285` and everything on `origin/coordinator` *(0 behind both, 110 ahead)*. ⛔ The older `claude/…`
+lane names in this file are historical — the lanes are now `coordinator` · `ui` · `backend` · `behaviors`.
+
+### ⭐⭐⭐ THE PLAN — **start `UXI-11` (selection unification), slice `S-1`**
+
+📄 **The owning design is [`docs/UX/UX_Feature_Selection.md`](../UX/UX_Feature_Selection.md) and it is NOT
+stale** — re-verified `2026-09-10` with graph + grep + coverage. ⭐ **Read its §2.7** *(consolidated TARGET
+STATE: the class diagram, the request/notify sequence, the delete-list)* and **§2.7.5** *(the slice order)*.
+⛔ §2.1 is its older sketch; §2.7 supersedes it where they differ.
+
+| slice | what | gate |
+|---|---|---|
+| ⭐⭐⭐ **`S-1` — START HERE** | `ISelectionState` gains `Add`/`Remove`/`SetMultiple`/`Clear`; **`EcsSelectionState` replaces `DefaultSelectionState`** | the 4 stores become 1 + views |
+| `S-2` | the request event gains a **set + mode** *(replace·add·remove·clear)*; `SelectionRequestSystem` becomes the ONLY writer | the 3 hand-rolled writers are deleted |
+| `S-3` | the **notification** event *(new, FDP-internal)*; panels subscribe | ⛔ `R-134` — no DDS type in the internal path |
+| `S-4` | right-click selects on every surface; DER inspector gains a seam | resolves `CE-259s`'s ordering |
+| `S-5` | losing selection cancels that entity's edit | needs `S-4` |
+| `S-6` | the remote-map dispatcher becomes a requester | 📄 `DESIGN_Remote_Map_Control.md` |
+
+⭐ **`UXI-24` (multi-select) rides on `S-1`+`S-2`** — its additive map click needs the mutators and the mode.
+
+#### 📐 What `2026-09-19` MEASURED about `UXI-11` — **it is SMALLER than the issue text says**
+
+| claim | measured on the GRAPH |
+|---|---|
+| ⛔ *"CGF has no selection at all"* — the filed headline | 🔴 **FALSE.** CGF holds **two** stores: `_selectionState` **and** `_sharedEntitySelection` *(the shared `Hrot.Editor.AiShared` one)*. ⇒ CGF has **adopted the shared store already** |
+| what CGF actually lacks | ⭐ **a SYSTEM writing them from map input.** `SelectionInteractionSystem` is constructed in **4** hosts — IG · ReplayBrowser · SimHost · Editor — **not** CGF |
+| the size of the seam | ⭐⭐ **2 interfaces**: `ISelectionState` *(**2** production impls — `DefaultSelectionState`, `SimHostInspectorAdapter`; +1 Examples, +1 test fake)* and `IEntitySelectionSource` |
+| ⛔⛔ **THE TRAP** | `.*Selection.*` matches **67 classes**. ⛔ **~60 are BTree/HSM/Blueprint NODE selections — a DIFFERENT CONCEPT.** Do not fold them in |
+
+⇒ 🔒 **Re-word the `UXI-11` framing before building:** the CGF half is *"the input path is missing"*, **not**
+*"selection is missing"*.
+
+### ✅ What shipped this session — **docs only, no code**
+
+📄 Commit **`79e9a449d`** — *"docs(UX): re-verify the interaction backlog against code, with the graph"*.
+
+| doc | what was wrong, and is now right |
+|---|---|
+| [`UX/PLAN_Interaction_UX_Backlog.md`](../UX/PLAN_Interaction_UX_Backlog.md) | its *"verified ledger"* was dated `2026-08-28` and **wrong on 5 of 19**. New counts **6 DONE · 8 PARTIAL · 6 NOT-BUILT**; new **§2.1** names the five that moved; dependency graph marks discharged nodes; phase table carries measured state; the old ledger is in a `⛔ HISTORY` section |
+| [`UX/UX_Issues.md`](../UX/UX_Issues.md) | `UXI-10` and `UXI-11` claimed **☑ done**; `UXI-07` claimed **✅ designed**. All three corrected with measured notes. ⭐ The `🟡` partially-built marker was **already in use on `UXI-35` and missing from the legend** — now documented, not invented |
+| [`DESIGN_Map_Rendering_And_Interaction.md`](../DESIGN_Map_Rendering_And_Interaction.md) | the two rot rows it recorded **against itself** on `2026-09-10`, unrepaired since: §3.2's sequence diagram, §4.2's *"NOT-BUILT"* table. ⭐ Plus a **third** instance the rot list had missed — §1.3's *"backend stack does not exist"*. `known-rot` now reads **none open** |
+| `SNAPSHOT_Map_Interaction_Architecture.md` · `UX/UX_Feature_Selection.md` | both said `ISelectionState` has **3 production impls**; measured by `IMPLEMENTS` edges it is **2** *(the third was the Examples adapter)* |
+
+### ⭐⭐ THE FIVE VERDICTS THAT MOVED — **do not re-derive these**
+
+| item | verdict `2026-09-19` |
+|---|---|
+| **`UXI-23`** map parity | ✅ **DONE** — `MapInteractionPack.Build` called by **all five** hosts |
+| **`UXI-09`** map viewport | ✅ **DONE** — `new MapCamera(` down to **2** production sites from the filed 5 |
+| **`UXI-07`** tool model | 🟡 **steps 1–4b BUILT**, operator-confirmed. ⛔ **Open: steps 5–6** — `ShowOnToolbar` has **6 writers, 0 readers**; nothing binds `ActiveModalChanged` *(`CE-259m`)* |
+| **`UXI-10`** symbology | 🟡 **PARTIAL.** `ResolvedStyle` has **8 production consumers and NOT ONE is a gizmo or map layer**; none of the **8** presentation gizmos reads it; `EntityPresentationGizmoShared.cs:236` paints **every** entity `Rgba32(100,220,255)`. 🔴 *"friend and hostile indistinguishable"* **still holds** |
+| **`UXI-11`** selection | 🟡 **PARTIAL, smaller than filed** — see the measurement table above |
+
+### ⛔⛔ THE PROCESS LESSON — **the reason the ledger drifted, and it will drift again without this**
+
+🔴 **The `2026-08-28` scan was grep-shaped**, and **four of the five wrong rows were set- or absence-shaped
+claims** — *"who builds the pack"* · *"how many camera copies"* · *"who reads `ResolvedStyle`"* · *"does CGF
+have selection"*. ⛔ **grep can confirm a guess; it cannot enumerate a set or prove an absence.**
+
+⚠⚠ **And I repeated the mistake on `2026-09-19` before the user caught it** *(user: "pls use codebase memory
+as claude.md is saying, not just grep")*. ⭐ **Redoing it on the graph changed one verdict outright** *(the
+CGF selection claim above)* **and properly founded two absence claims.** ⇒ 🔒 **for `UXI-11`, whose whole
+subject is "how many stores and who writes them", `search_graph` / `query_graph` over `IMPLEMENTS` and
+`USAGE` is the tool — not grep.**
+
+⭐ **Working recipe when the MCP flaps** *(it did, repeatedly)* — the CLI is the same binary:
+```bash
+/opt/codebase-memory-mcp/codebase-memory-mcp cli search_graph \
+  '{"project":"home-user-HROT","name_pattern":".*Foo.*","label":"Class","detail":"ids","limit":60}'
+/opt/codebase-memory-mcp/codebase-memory-mcp cli query_graph \
+  '{"project":"home-user-HROT","query":"MATCH (c)-[:IMPLEMENTS]->(i) WHERE i.name = \"IFoo\" RETURN c.qualified_name, c.file LIMIT 40"}'
+```
+⛔ **`check_index_coverage` is NOT in the CLI** — it needs the MCP. Coverage on `2026-09-19` was
+`index_mode: full`, `recording_status: complete`, no parse gaps in `Hrot.CGF` · `ScenarioEditor` · `Vis2D`.
+
+### ⚠ OPEN ITEMS parked, with leans already recorded — **not part of `UXI-11`**
+
+| id | what | lean |
+|---|---|---|
+| `CE-259r` | the picker's hover hit-tests an **empty** frame *(reproduced headlessly)* | reorder the group |
+| `CE-259s` | `ToolActivationDrainSystem` registered **before** `SelectEntitySystem` ⇒ menu arms on the pre-menu selection | ⭐ **resolves with `S-4`** |
+| `CE-259t` | the shared orbat seam sets ExCon's selection locally only | one line |
+| `CE-259m` | `UXI-07` steps 5–6 — the toolbar shows no state | — |
+| `CE-259l` | should `InputCaptureBinding`'s `wantsRawInput` bit exist at all? | 📄 `Tool_Model` §4.7f |
+| — | **design "A"** — no document owns *"the interaction surface"* as a thing | 📄 `SNAPSHOT…` §5.2; wants `S-1`'s store settled first |
+
+### ⭐ Canon that changed under this lane on `2026-09-19` — **read before allocating an id**
+
+| | |
+|---|---|
+| ⛔⛔ **`3a-id`: ids are PLAIN INCREMENTING NUMBERS — no letter suffixes** | 📐 63 rows were spelled `CE-259a…CE-259bm`. ⭐ **Allocate the next free plain number**; ⛔ never renumber existing ids *(they are cited from designs and commits)*; grouping goes in the row's PROSE |
+| ⭐ **`R-148`: lanes run on stable role-named branches**, all derived from `coordinator` | ancestry still verifies, names do not |
+| ⭐ **EXPLORE WIDE, DECIDE SHORT** · **RUN SLOW COMMANDS IN THE BACKGROUND** · **DIAGRAM FIRST** · module-relationship diagram is now obligation ①a · `related-designs` is mandatory in a STATUS block | all new in `CLAUDE.md` |
+
+---
+
 
 ## ⭐⭐⭐ SESSION 2026-09-15 — DISTRIBUTED PERSISTENCE + OWNERSHIP: BUILT & LIVE-PROVEN
 
@@ -1673,3 +1202,607 @@ written by the coordinator, **amended by this lane `2026-08-22`**:
 | **time / MCP** | see `RESUME_Time_Stride_Session.md` | `Fdp.Toolkits/Time/` · `Hrot.Orchestrator` · `ModuleHostKernel` · the MCP harness. ids **`TM-`**, tracker **Area H only** |
 
 ⛔ **A cross-lane edit is a STOP-and-report, not a judgement call.**
+
+
+---
+
+## ⛔ HISTORY — older STATUS strands *(moved out of the STATUS block `2026-09-20`)*
+
+⚠ **Moved verbatim, nothing deleted.** ⛔ **Do not quote any of it as current state** — it is the
+accumulated `current-answer` text of earlier programmes, newest first. The live answer is the
+`SESSION 2026-09-19/20` block at the TOP of this file.
+
+```text
+  ══ (older) STRAND 0 — ROLE-AFFINITY OWNERSHIP (P3) + THE TKB COMPONENT-SET DERIVATION ══
+  ══ STRAND 0 — ROLE-AFFINITY OWNERSHIP (P3) + THE TKB COMPONENT-SET DERIVATION. The live work. ══
+  BRANCH claude/reset-working-branch-qd1qpv, head = the commit carrying this doc.
+  Tree clean. Gates: design-digest --check clean · rulings 34/34 · tracker-counts OK.
+
+  ⭐⭐⭐ READ FIRST, in this order:
+    1. docs/DESIGN_Role_Affinity_Ownership.md — its STATUS current-answer names §3.9c (the tables are
+       COMPLEMENTS) and §6i (step 4's as-built). ⛔ AND §3.6, which was RETRACTED this session.
+    2. docs/designs/tkb-1/DESIGN.md §6.6 / §6.6a — the whole TKB component-set design and its as-built.
+
+  ✅✅✅ SHIPPED 2026-09-13
+  CE-264  9943c6c9c  P3 STEP 4 — CGF holds a Brain policy, SimHost a Muscle policy, and gateOnAuthority
+                     comes ON in the same change (§6f's ordering hazard closed by construction).
+                     NEW Hrot.Core/HrotRoleComponentSets.cs — the cluster role tables, authored ONCE;
+                     CreatePolicy(NodeRole) takes a role and NOTHING else. 10 rails, 4 red-proofs.
+                     ⭐ P3 went from "a mechanism every node ran with a null policy" to LIVE.
+  CE-259az 603a05248 file-loaded TKB templates had an EMPTY BirthCriticalComponents. Fixed via an
+                     app-layer convention — ⚠ then SUPERSEDED the same day by CE-266, see below.
+  CE-266  c101e2cc2  [BirthCritical] + [PerInstanceValue] in Fdp.Core, and
+                     TkbTemplate.BirthCriticalComponents becomes a DERIVED READ-ONLY view.
+                     Deleted 8 authoring sites, TkbComponentConventions + its loader call, and
+                     HrotRoleComponentSets' hand-written SimTransform (three producers of one fact).
+                     6 new rails, 2 red-proofs — removing [BirthCritical] from SimTransform reddens
+                     9 rails across 4 files.
+
+  CE-265  74438cb7f  THE MANDATORY HALF SHIPPED. The promotion gate is DERIVED PER HOST and the file
+                     path has one for the first time. ITkbEntityTranslator gains GetProducedComponents()
+                     (no default impl — all 9 production translators, compiler-enumerated);
+                     NEW MandatoryComponentResolver does the four-way intersection; GhostPromotionSystem
+                     gates on derived ∪ explicit and gained a STALL DIAGNOSTIC (600 frames, once per
+                     (TkbType, component) — ⛔ not a timeout, the ghost still waits).
+                     Deleted DefineVehicle's 2 AddMandatoryComponent calls + AsComposite's EntityInfo
+                     check. 13 rails (10 new + 3 into GhostProtocolTests), 5 red-proofs.
+                     📄 tkb-1/DESIGN.md §6.6b carries the as-built AND the class + sequence UML.
+
+  ⛔⛔ THREE THINGS CE-265 MEASURED THAT THIS DOC PREVIOUSLY GOT WRONG — do not re-derive them:
+  · "DescriptorOwnershipMap needs a UNION accessor" — FALSE. CoveredComponentIds (:173) already was it.
+    The seam law, 25th instance. I wrote that line myself from the class's summary without opening it.
+  · DIRECTION MUST NOT BE FILTERED on the ingress set. ZERO translators under NED's Replication/Map/
+    Ingress/ declare TargetComponentIds — only the EGRESS side overrides the interface default. An
+    "ingress-only" filter yields ∅ and collapses the derivation; GeoSpatialEgressTranslator._targetIds
+    is the ONLY pairing SimTransform has.
+  · §6.6a's "fill both at ITkbDatabase.Register" is NOT BUILDABLE for mandatory. TkbDatabase.cs:20-32 is
+    two dictionary writes with zero host context, and 3 of the 4 inputs are host-local. A TkbTemplate is
+    a SHARED record (one object serves CGF, SimHost, IG, editor) ⇒ a host-local answer has no home on
+    it. The cache lives with the CONSUMER. Same fact as "a TKB file may not carry it", one level down.
+
+  ⭐⭐⭐ NEXT: nothing in this strand is in flight. The nearest open items are P3 step 3c (the boot
+    warning) and CE-259bk/bl (role-derived registration, logic packs). ⚠ CE-259bm's premise is STALE:
+    EnforceExplicitComponentIds is read by nothing and ComponentType.cs throws unconditionally.
+    ⚠ Still open from CE-265's original row, on its own merits: the promote-leg role claim is ONE-SHOT
+    (GhostPromotionSystem fires it at promotion, then the entity leaves the query), so components
+    arriving afterwards are never claimed. A real gate makes that far less likely to bite; it does not
+    remove it.
+
+  ⛔⛔ FIVE THINGS THAT WILL BE RE-DERIVED WRONG IF NOT READ FIRST
+  · THE AUTHORITY MASK IS READ BY NO EGRESS TRANSLATOR (§3.6, re-measured). Every production egress calls
+    the ISimulationView EXTENSION, which reads DescriptorOwnership/NetworkAuthority; the overload
+    resolution hides it (packedKey is a long). The mask's WHOLE production readership is SimTransform,
+    BehaviorState, BrainBlackboard, plus a Position query matching ZERO HROT entities. ⇒ narrowing the
+    mask changes what a node EXECUTES, never what it PUBLISHES.
+  · THE ROLE TABLES ARE COMPLEMENTS (§3.9c). Brain = ALL − birthCritical; Muscle = that − brainOnly. An
+    enumerated set is a WHITELIST and reproduces CE-256. EveryUnclassifiedComponentStaysOwnedByBothRoles
+    is the rail a future positive enumeration must argue with.
+  · NO ROLE MAY OWN A BIRTH-CRITICAL COMPONENT, on EITHER leg. GeoSpatialIngressTranslator.cs:90 applies
+    an incoming position only when HasAuthority<SimTransform> is FALSE ⇒ a promoting node that claimed it
+    by role freezes every ghost on that node.
+  · SimTransform PRESENCE IS THE "is this spatial?" PREDICATE — 42 production .With<SimTransform>()
+    filters across 37 files. ⛔ Do NOT make it universal (the Unity-Transform idea): a positionless entity
+    would enter the spatial hash at the origin and become a perception/EQS/ballistics candidate. Global
+    data belongs in SetSingleton, which is not an entity at all.
+  · MANDATORY REQUIREMENTS ARE HOST-DEPENDENT. GhostPromotionSystem.cs:211 has NO registration guard, so a
+    HARD requirement for a component the local host never registers aborts promotion every frame forever,
+    silently. ⇒ a shared TKB FILE may never carry them.
+
+  ⭐⭐ USER RULINGS THIS SESSION — do not re-litigate
+  · "the components the entity have makes the entity a vehicle" → ⛔ NO per-entity-class vocabulary
+    anywhere. That killed a TkbMasterDto⇒vehicle-bundle proposal. DefineVehicle and friends are AUTHORING
+    helpers for the default catalogue only; the file path needs none of them.
+  · "we can add TKB record override any time later … the tkb in-memory record can be just a readonly
+    cache" → the component ATTRIBUTE is the source of truth; the per-type override is DEFERRED, not
+    rejected, and TkbTemplate's property is the seam it lands on.
+  · "i do not want to wait 10 frames by design" → ⛔ SOFT-by-design REJECTED. SoftTimeoutFrames is an
+    EMERGENCY escape only. Requirements are HARD and the derivation must be EXACT.
+  · "sending state on change is what actually happens … almost nothing is sent unconditionally" → the
+    addition rule for [PerInstanceValue] is GUARANTEED BASELINE for a newly spawned entity, ⛔ not
+    "unconditional egress".
+  · "PerInstanceValue" → the attribute's name, chosen by the user over my alternatives.
+  · "ghosting is a deployment property, not content" → UrbanCombat is just a dev/test scenario; whether
+    its entities arrive as ghosts is NOT a property of the content, so the catalogue divergence is DRIFT.
+
+  ⚠⚠ MY FAILURE MODE THIS SESSION, AND IT REPEATED SEVEN TIMES: I PROPOSED A MECHANISM BEFORE MEASURING
+  WHETHER THE EXACT ANSWER WAS ALREADY AVAILABLE. Each was caught by the user, not by me:
+  · "derive birth-critical from TkbMasterDto" — misses area/route, which carry no descriptors yet still
+    need the birthright.
+  · "mandatory = what translators produce" — backwards; producing it is the reason you need NOT wait.
+  · "mandatory = produced ∧ the !HasComponent guard" — the guard is IDEMPOTENCY and sits on ~25 of ~30
+    produced components. It selects nearly everything.
+  · "the catalogues disagree ⇒ per-template policy was intended" — an INFERENCE stated as a measurement.
+  · "the egress must be unconditional" — change-driven egress is the norm AND the point.
+  · "unify the catalogues and it becomes derivable" — unifying makes it UNIFORM; uniform is what makes a
+    CONSTANT safe. Different thing.
+  · relayed-architect claim "translators derive mandatory at load time" — VERIFIED FALSE against source
+    (ITkbEntityTranslator has two members and Inject takes an ENTITY). ⭐ But its CONCLUSION was right for
+    a reason it never stated, which is how the host-dependence fact was found.
+  ⇒ 🔒 AND THE TOOL HALF: I used grep for enumeration claims most of this session and only re-ran them
+  through search_graph when challenged. They held — that was luck, not method. GRAPH FIRST for any
+  complete-set or absence claim; CLAUDE.md says so and it was not followed.
+
+  ══ STRAND 1 — MAP INTERACTION / SELECTION / TOOLS (the live one as of 2026-09-10) ══
+  ✅✅✅ READ docs/SNAPSHOT_Map_Interaction_Architecture.md FIRST. It is a SNAPSHOT, not an owning
+  design: §1 the block map, §2 the data flows, §3 remote map control, §4 the FINDINGS LEDGER,
+  §5 the eight user rulings of 2026-09-10 + the TWO OWNING DESIGNS THAT DO NOT EXIST YET,
+  §6 rot owed to other documents. Then its owners: UX_Feature_Tool_Model.md §4.7h–§4.14 and
+  UX_Feature_Selection.md §2.6.
+  ✅ §4.7i IS BUILT AND OPERATOR-CONFIRMED 2026-09-10 ("the handles disappeared when picker activated").
+  ⚠⚠ CE-259r WAS RE-FIXED THE SAME DAY — the first attempt did NOT work and the operator run found it.
+  The production picker is on ToolArbiter.Global (PickerToolHost.cs:116), so its hover is dispatched by
+  GLOBALMANAGER, the FIRST group member — not by dataDriven. Swapping stateless past dataDriven alone
+  left globalManager ahead of it. The group is now stateless, globalManager, dataDriven, selfCheck.
+  ⛔ TWO PROCESS FAILURES WORTH NOT REPEATING: my headless probe put the picker in dataDriven, measuring
+  a scenario that does not exist in production (the same "mirror the ARBITERS, not just the gesture"
+  mistake CE-259q already recorded); and the new rail asserted only stateless<dataDriven so it stayed
+  GREEN over the live defect. The rail is fixed IN PLACE to require stateless before EVERY arbiter, and
+  red-proofed against the order that shipped this morning.
+  ⛔ CE-259r IS STILL NOT VERIFIED IN THE PRODUCT — the next operator run closes it.
+  ✅✅✅ THE ANCHOR-IDENTITY REFACTOR IS BUILT AND PUSHED — S0..S7 on 2026-09-10, and §6.7 on
+  2026-09-11 (../DESIGN_Gizmo_Anchor_Identity.md).
+  ⭐⭐⭐ READ ITS **§6.7** FIRST — it SUPERSEDES §6.6 and is the current answer. Then §6.2 "AS-BUILT",
+  which OVERRIDES §5's UML and §6's table (three steps deviated while building).
+  ⭐ IN ONE LINE: a gizmo anchor is identified by its NETWORK id everywhere, END TO END, and the ECS
+  handle is GONE — from GizmoPickToken, from PickToken (now `long AnchorId`), from the terminal's
+  hit-test (`PickTopmostAnchorId → long?`) and from every primitive producer. Each consumer resolves
+  the id IN ITS OWN WORLD via NetworkIdResolver.ResolveNetworkId (map-first, and the map hit is
+  VERIFIED against the entity's NetworkIdentity, so a stale map degrades to slow, never to wrong).
+  ⚠⚠ AN EARLIER VERSION OF THIS BLOCK SAID the ECS handle "survives as a declared IN-PROCESS PAYLOAD
+  on GizmoPickToken (AnchorIndex + StreamId)". THAT IS SUPERSEDED — the user refuted the reasoning
+  ("replaybrowser is ecs module like any else. i do not want such exceptions") and it was measured
+  wrong: the NetworkEntityMap is a WORLD SINGLETON, not a per-host delegate, so the SILENT-DEFAULT
+  argument never applied. ReplayBrowser now maintains one like every other ECS module.
+  🔴 A LIVE DEFECT FELL OUT: DataDrivenGizmoSystem routed MenuAction/StructUpdate through
+  FindGizmoByIndex((int)evt.AnchorId,…) — a network id narrowed to an int and compared to Entity.Index,
+  i.e. defect D1 in the one place S0/S5 never swept. Fixed; FindGizmoByIndex deleted. GlobalGizmoManager
+  had already keyed those events by the id ⇒ the seam law, 5th measured instance.
+  ⭐⭐⭐ THE PROCESS LESSON WORTH KEEPING: T-1 caught a regression in my OWN change after I had already
+  written a confident design paragraph saying the opposite. I removed the ingress DROP ("the consumer
+  decides"); SC-GZ037-4 and ANetworkIdThisNodeDoesNotKnowYieldsNoEvent reddened and were RIGHT — DDS is
+  broadcast and Recipient routes to the FOCUS HOLDER FIRST (R-144), so a foreign drag would have fed one
+  operator's gesture into another operator's active tool. Both behaviours kept, and better: the drop now
+  asks "is this id in my WORLD" (any node can answer) instead of "is it in my MAP" (which is what made a
+  mapless node silently drop everything).
+  ⛔ NEW, FILED, NOT FIXED: CE-259ah — DrawEntityBadge writes an ECS handle nothing reads into offsets
+  24/28 while the renderer takes the badge position from BoxCenterX/Y, which nothing writes ⇒
+  HealthBarGizmo badges render at the world origin. Same family, different offsets, needs a placement
+  decision. ⭐ Closed: CE-259ag.
+  ✅ CLOSED BY IT: CE-259x (the exclusive-filter leak — but by DELETING S0's fix and removing the CAUSE,
+  a disjoint tool-id range, §6.1) and CE-259h (the pick token's network-stable contract).
+  🔴 NEW, FILED, NOT FIXED: CE-259z — an EntityLocal primitive's SpatialAnchor key is truncated to 32
+  bits, so an id above int.MaxValue makes the shape VANISH with no error. Cannot be widened (the payload
+  union is full and 64 bytes is a DDS invariant) ⇒ it is constraint C7; asserted + railed, open question
+  is whether to ENFORCE that no tool emits EntityLocal rather than rely on it.
+  🔴🔴 NEW, FILED, BLOCKS GATING: CE-259aa — Fdp.Presentation.Tests aborts with a native SIGSEGV
+  (exit 139, reproduced outside the test host) inside DebugGizmoLayerHitTests, so ~95 of its ~185 tests
+  have NEVER RUN. That is the real cause of CE-088's "54 of 185 discovered". PROVEN pre-existing at
+  740b522c with all work stashed. ⛔ Do NOT quarantine (R-131) — the crash is hiding the other tests.
+  Interim gate: --filter the class you need.
+  📐 CE-259y CORRECTED: it is SEVEN reds, not two (CE-259aa was hiding five), and its dependency on S7
+  is WITHDRAWN — S7 could not collapse AnchorIndex, so that row is now just "the wrapper must forward
+  its ISimulationView".
+  ✅ ALSO FIXED 2026-09-10: CE-259ab — DataDrivenGizmoSystem hard-cast its IDebugDrawBuilder seam to
+  DebugPrimitiveBuffer at 4 sites, so DataDrivenGizmoPredicateTests.D003_* threw InvalidCastException
+  inside Execute and had NEVER RUN. Pre-existing (identical at da2d360d). Fixed BOTH halves: the system
+  degrades-and-asserts, and the hand-rolled D003NoOpDrawBuilder is retired for a real buffer — degrading
+  alone would have made a red rail GREEN AND BLIND.
+  ⚠⚠ HOW IT WAS INVISIBLE ALL SESSION, worth remembering on a fresh VM: 68 projects had never been
+  restored, so every suite in them reported NETSDK1004 and was skipped. `dotnet restore <sln>` once, then
+  a full-solution build, is what surfaced them. ⛔ NETSDK1004 is not a code break — do not treat it as one,
+  and do not treat "the suite did not run" as "the suite is green".
+  📐 KNOWN PRE-EXISTING REDS, all reproduced at da2d360d so none is this lane's: Hrot.IG.Tests 5
+  (EntityInfoTranslator ×4, EntityMasterTranslator ×1) · Hrot.ClusterRunner.Tests 3
+  (OrchestratorSubsystemTests) · Hrot.Editor.Tests 1 (AiHotReloadCoordinator ALC collection) ·
+  Hrot.Presentation.Tests rotates 0–1 (CE-084) · Fdp.Toolkits.Tests rotates 0–2 (DEBT-AIB-030).
+  ✅✅✅ CE-259aa IS CLOSED, 2026-09-10, and it was bigger than the row said. NEW OWNING DESIGN:
+  ../DESIGN_Gizmo_Renderer_Seam.md — READ ITS §6.1 (as-built), it is where the findings are.
+  📐 Fdp.Presentation.Tests now reports 544 tests (535 pass / 8 fail / 1 skip). It reported ~90 and
+  then died, so ~450 had NEVER EXECUTED. CE-088's "54 of 185" is explained and subsumed: same crash,
+  not a discovery bug. ⛔ THE LESSON: "the suite did not run" is not "the suite is green", and a
+  native crash makes those indistinguishable from the summary line.
+  ⭐ Root cause: the Fdp.Presentation renderer WRAPPER had invented a SECOND DispatchShape hook firing
+  before the real renderer, so test doubles captured unfiltered primitives AND left Raylib drawing.
+  The real seam was one layer down all along (GizmoMap.Presentation .cs:193-195) and
+  GizmoMap.Presentation.Tests had always used it, 41/41 headless. Fourth measured instance of the
+  seam law (CE-259p, SC-GZ067-1, CE-259ab, this).
+  🔴 CE-259y IS REFUTED, not fixed-as-filed. The dropped ISimulationView is the DESIGNED END STATE:
+  feedback2.md:798 "completely severs the presentation layer's reliance on the heavy simulation ECS",
+  :871 "Eradicating Entity", and the SpatialAnchor mechanism IS built with production producers
+  (EntityPresentationGizmo.cs:95). The 7 reds were rails for the RETIRED ECS mechanism, now rewritten.
+  🔒 The unread parameter is what manufactured the false finding — a parameter nobody reads is a claim
+  nobody checks. Deleted from the wrapper AND the layer; the 4 hosts stopped passing a world.
+  🔴 NEW, FILED, NOT FIXED: CE-259ac — a gizmo Line is UNPICKABLE. The live hit-test serves Box2D and
+  Sphere only; line hit-testing was lost in the terminal migration and its only record was a rail that
+  could not run. R-137. NOT re-implemented on a rail's say-so (a UX decision, no design record asks
+  for it) but PINNED by SC-GZ026-2b so it cannot be lost twice.
+  ⚠ TWO HARD-CODED TEST HOOKS DELETED: TestHook_IsCaptureActive/IsInteractionActive were `=> false`,
+  so every Assert.True could never pass and every Assert.False was vacuous. The real state is private
+  one assembly down behind a Raylib-polling HandleInput ⇒ not railable headlessly, and now SAID so.
+  ⭐ NEW REUSABLE CONTROL: [RequiresDisplayFact] (FDP/Engine/Fdp.Presentation.Tests/Raylib/). Use it for
+  ANY test that opens a window or issues a Raylib draw call — a skip costs one summary line, a crash
+  costs every test after it.
+  📐 The 8 remaining Fdp.Presentation.Tests reds (EntityInspectorPanel, EventBrowserPanel,
+  PerspectiveMenu, WindowManagerMainToolbar) are NOT gizmo-related and are PROVEN pre-existing
+  (identical 8 with all work stashed). They had simply never run — they belong to their own owners.
+  ✅✅ CE-259z CLOSED 2026-09-10, and its "open policy question" hid a THIRD live instance of the
+  same family: DrawEntityLocal / DrawEntityLocalInteractive wrote an ECS index into offset 8, which the
+  renderer probes as a NETWORK id against the SpatialAnchor cache ⇒ the lookup missed and the primitive
+  was SILENTLY SKIPPED, drawn nowhere. feedback2.md:871 had specified the fix ("DrawEntityLocal will now
+  accept `long anchorNetworkId`") and it was never built. ROUTED not deleted; measured ZERO production
+  callers, so it was a trap for the next author, not an outage.
+  ⭐⭐⭐ AND THE ATTEMPT TO FINISH IT PROPERLY FOUND SOMETHING BETTER: I tried to also stamp the S5
+  identity in BoxAnchorId and the rail read back 0. For a Line, BoxAnchorId (long @44-51) OVERLAPS
+  LineEnd.Z (@44-47) and EndColor (@48-51). ⇒ A LINE HAS NO SLOT FOR AN IDENTITY. That is structural,
+  and it means CE-259ac CANNOT be closed by teaching the hit-test about lines — the primitive could not
+  carry what it routes on. LEAN recorded on that row: give a gizmo that wants a clickable line a
+  co-located invisible Box2D/Sphere, which VertexEditGizmo and RouteWaypointGizmo already do.
+  🔒 Both facts are PROVED by rails, not asserted: the second one writes the identity and watches the
+  geometry die. Its first version asserted the opposite and failed — which is how the fact was found.
+  ✅✅✅ CE-259ac FIXED 2026-09-11 — LINES ARE CLICKABLE. 🔒 User: "what is the issue with clickability
+  of something as simple as a line? I do not want to accept it." ⭐⭐ THEY WERE RIGHT AND THIS IS THE
+  MOST INSTRUCTIVE MISS OF THE WHOLE PROGRAMME: my layout fact was TRUE ("a Line cannot host
+  BoxAnchorId" — LineEnd@36-47 + EndColor@48-51 vs BoxAnchorId@44-51) and I attached the WRONG
+  CONCLUSION to it. It argues against storing the identity INSIDE a Line — not against clickable
+  lines. ⛔ I generalised from ONE blocked route to "the capability is unavailable" without measuring
+  the others. That is R-139's failure mode with a measurement attached: a true file:line does not make
+  the inference from it true.
+  📐 Measuring the other routes found a REAL BUG, not a missing feature: the renderer has ALWAYS drawn
+  Box2D rotated (Renderer2D.cs:296 DrawRectanglePro, and :139 composes the anchor yaw) while the
+  hit-test compared AXIS-ALIGNED extents ⇒ a rotated box DREW ROTATED AND PICKED AXIS-ALIGNED. Latent
+  only because no production gizmo had set a non-zero angle yet.
+  ⭐ THE FIX, with NO contract change: an oriented-box hit-test (reduces exactly to the old compare at
+  angle 0) + DebugPrimitive.MakePickSegment(from, to, networkId, pickThickness, subElementId). A
+  clickable line IS a thin oriented box, and Box2D already carries centre, extents, angle, a 64-bit
+  BoxAnchorId and SubElementId@52 for "which segment". It is EmitPickBox's transparent-pick-target
+  pattern generalised from a point to a segment.
+  ⛔ Widening Line itself was checked and IS out: Stride/…/DebugPrimitiveRenderer3D.cs:222-223 needs
+  the full Vector3. That is the only part of my original analysis that survives.
+  ⚠⚠ AND THE RED-PROOF CAUGHT A FLAW IN MY OWN RAIL, worth remembering: my first rail probed the
+  diagonal's MIDPOINT, which hits with or without the rotation — the inverse edit stayed GREEN and
+  exposed it. It also corrected my description of the bug: an un-rotated segment box is NOT "the
+  bounding square" — extents are (length/2, thickness/2), so ignoring the angle leaves a long thin
+  corridor ALONG THE X AXIS through the midpoint whatever direction the segment runs. Rails now probe
+  off-centre; the red-proof reddens 2 of 11.
+  🔴 STILL OPEN, and it is a UX CALL not work: no gizmo is wired to USE clickable lines yet. Searched
+  docs/ and .dev/ — NO record says what clicking an edge should DO (insert a vertex at that point?
+  select the segment?). The mechanism is delivered and railed; the gesture semantics need one decision.
+  🔴 ALSO FILED, latent: CE-259ad — the hit-test does not resolve EntityLocal coordinates (reads
+  BoxCenterX/Y raw), so an EntityLocal pick target would draw in the right place and click in the wrong
+  one. Same draw-vs-pick family. NOT live: every pick target is World-space today.
+  ✅✅✅ CE-259ae DONE 2026-09-11 — POLYGON AREAS AND ROUTES ARE SELECTABLE BY CLICKING THEIR LINES,
+  AND RIGHT-CLICKABLE FOR THEIR CONTEXT MENU. 🔒 User requirement, verbatim: "polygon areas and routes
+  entities should be selectable by clicking on their lines, also context menu by right clicking them."
+  ⭐⭐⭐ THE FINDING THAT MADE IT SMALL: both halves were ALREADY BUILT and merely UNREACHABLE.
+  SelectionInteractionSystem selects Token.Target with no GizmoTypeId filter; and
+  ContextMenuProjectorGizmo ALREADY emits MenuJsonArea (EditablePolyline) and MenuJsonRoute (RoutePlan)
+  bound by network id, with the terminal resolving the menu from the hit primitive's BoxAnchorId.
+  ⇒ nothing was missing but a PICK TARGET on the lines (both gizmos emitted Line only, and the
+  hit-test serves Box2D/Sphere). One shared EntityPresentationGizmoShared.EmitPickSegments, two call
+  sites, done. ⭐ Measure the seams before designing — that is what turned a feature into a helper.
+  ⛔⛔ SubElementId MUST be 0, and this was measured not guessed: an EditablePolyline entity may have a
+  VertexEditGizmo INJECTED, and FindGizmo gives injected gizmos STRICT PRIORITY ignoring GizmoTypeId
+  ⇒ a non-zero sub-element would make a click on edge i start DRAGGING VERTEX i. With 0 it falls
+  through that gizmo's idx<0 guard, and 0 already means "the whole entity".
+  ⚠⚠ A Z-ORDER WORRY I HAD BACKWARDS, worth remembering: I believed these would steal an active tool's
+  handles because the stateless group emits FIRST. The hit-test walks the buffer in REVERSE, so a
+  layer-0 tie goes to the LAST-emitted primitive ⇒ the arbiter groups still win and CE-259r/§4.7i
+  holds unchanged. Reading the loop direction stopped me "fixing" a non-problem.
+  ⚠ NOT done deliberately: the menu CONTENT is unchanged, and clicking an edge does nothing
+  gizmo-specific yet (insert a vertex there?) — searched docs/ and .dev/, no record specifies it.
+  ⭐ Also fixed a blind shared double: FullCapturingDrawBuilder inherited EmitRaw's DEFAULT NO-OP and
+  silently dropped every raw primitive, so rails using it were blind to pick boxes and bindings.
+  ✅✅ CE-259af DONE 2026-09-11, and it came from the USER ASKING WHY A FIELD EXISTS: "why are we still
+  keeping a field for ecs entity index and generation in the gizmo now?" ⭐ Answering it properly meant
+  justifying the FIELD rather than the decision — and that turned up a real latent defect.
+  📐 DebugPrimitivesIngressTranslator AppendRaw'd received primitives VERBATIM, so a receiving node's
+  buffer held the SENDER's ECS handle at offsets 8/12 ⇒ ToPickToken would rebuild a foreign handle and
+  SelectionInteractionSystem would select a locally-plausible WRONG entity, silently. Defect D2
+  relocated from the wire to the receiver's own boundary. NOT live (that translator is instantiated
+  only in tests) but IG imports it and holds a map.
+  ⭐⭐ FIX: strip the payload at the ONE place foreign primitives enter a buffer ⇒ a received primitive
+  arrives with StreamId==0, the adapter yields an invalid token, and the interaction goes over DDS to
+  the OWNING node which resolves via its map. It degrades onto the DESIGNED remote path instead of a
+  wrong selection. ⇒ the field's contract is no longer "do not compare this" but "valid only for a
+  primitive emitted in THIS PROCESS" — structural now, not a comment.
+  ⛔⛔ AND THE NAIVE FIX IS WRONG — I NEARLY SHIPPED IT. Zeroing 8/12 unconditionally breaks two of the
+  THREE roles offset 8 carries: EntityLocal uses it as the SpatialAnchor cache KEY (remote EntityLocal
+  geometry would stop resolving at all) and Text/EntityBadge use StringHash@8 + LineOffsetPx@12. The
+  strip is shape-discriminated, with TWO red-proofs — removing it reddens 1, a BLANKET zeroing reddens
+  the other 2. That second red-proof exists because I made that mistake.
+  ⛔⛔ THE NEXT SENTENCE IS SUPERSEDED BY §6.7 AND IS KEPT ONLY AS HISTORY — DO NOT QUOTE IT. The payload
+  WAS deleted, and the premise below is false: the map is a WORLD SINGLETON, not a per-host delegate, so
+  no host can forget to pass it, and ReplayBrowser now maintains one like every other ECS module.
+  ~~⚠ Why not delete the payload instead: ReplayBrowser has NO NetworkEntityMap (:991 falls back to the
+  linear FindEntityByNetworkId, which C5 forbids), so resolving locally needs a delegate every host
+  must remember to pass — the SILENT-DEFAULT failure that produced CE-259y. The payload needs nothing
+  passed, so it cannot be forgotten in one host. 📄 DESIGN_Gizmo_Anchor_Identity.md §6.6.~~
+  ⛔ PROCESS FAILURE WORTH NOT REPEATING (the third of the day): HandleInput builds a pick token TWICE
+  and the first S5 pass converted ONE arm. Every suite stayed green because the rails exercise the
+  hit-test, not HandleInput. `scripts/find.sh 'AnchorGeneration != 0'` found it in one call. And the
+  rail that should have caught it lived in GizmoMap.Contracts.Tests as a RE-IMPLEMENTATION of the
+  production logic — that project cannot reference production code at all. Moved, and both arms now
+  call ONE seam, DebugGizmoLayer.MakePickToken.
+  🔴 NEW, MEASURED, NOT BUILT: CE-259w — ONE RIGHT-CLICK ENDS TWO TOOLS. The picker cancels on right
+  PRESS (EntityPickerGizmo.cs:164), the vertex editor self-removes on right RELEASE (:198-200), so the
+  DOWN pops the picker, the editor resumes, and the UP then ends the editor. Pre-existing; §4.7i only
+  made it visible. Lean is (a) pair the gesture in the arbiter — the press recipient also gets the
+  release. ⛔ Blast radius NOT measured yet; do not build before it is (R-139).
+  ⭐ ALSO OPEN, needs a nod: CE-259v — a suspended EntityRotatorGizmo draws a line to a STALE cursor.
+  OPEN with leans: CE-259s, CE-259t. FIXED 2026-09-10: CE-259q.
+  ⛔ The 2026-09-09 T1 manual test found the amber-crosshair defect; it is CE-259r and NOT yet fixed.
+  ✅✅✅ RUN-THE-REAL-THING, 2026-09-11 — THE ANCHOR-IDENTITY WORK IS PROVEN IN THREE RUNNING HOSTS.
+  📄 DESIGN_Gizmo_Anchor_Identity.md §6.8a (editor + --mode all) and §6.8b (ReplayBrowser).
+  ⭐ --mode editor and --mode all under xvfb, driven over HTTP: hill-attack live, simTime 348.9, the AI
+  chain (contact → firing), 739–802 primitives/frame per perspective with 16–24 Box2D pick boxes each,
+  117 translators / 20 live topics. ZERO GizmoAnchorIdentityException across 1130 log lines.
+  ⭐⭐ --mode replaybrowser (the riskiest host — §6.7 gave it a NetworkEntityMap it never had, rebuilt at
+  every seek): a 50.5 MB / 3671-frame .fdp recorded from the editor, loaded, seeked to 5 frames with
+  /replay/entities returning n=8 EVERY TIME, stepped forward/back with correct clamping, 8 panels
+  captured per frame, unloaded. ZERO exceptions.
+  ⭐⭐⭐ AND THE ZERO IS NOT VACUOUS — an INVERSE-EDIT RED-PROOF in that process: a temporary
+  Box2D(subElementId:7, anchorId:0) in ReplaySpatialBoundsGizmo.Draw ABORTED IT ON FRAME 1 via
+  DebugPrimitiveBuffer.AppendRaw:74 → StatelessGizmoSystem.Execute:107 → ReplayBrowserSubsystem
+  .Update:421 ⇒ the emitters really run there, the central guard is armed there, and it fails fast
+  UNHANDLED (no scheduler try/catch swallows it — the CE-188 disease). Reverted; clean drive re-run.
+  ✅✅✅ CE-259am FIXED 2026-09-11 — THE REPLAY BROWSER CONTRIBUTES A DEBUG PROVIDER, and fixing it found a
+  SECOND, PRE-EXISTING defect. 📄 AS-BUILT: ../DESIGN_Gizmo_Anchor_Identity.md §6.8c.
+  ⭐⭐ A seam ADOPTION, not a mechanism: it was the ONLY perspective-owning subsystem not implementing
+  IProvidesDebugSurface — the seam Program.cs:388 already selects on and four other hosts already have.
+  Now providers=[ReplayBrowser] with a MEASURED matrix (world.read/world.entityMap/panels.gizmo true, the
+  other six honestly false). world: is a Func for a LOAD-BEARING reason unique to this host (RebindActiveRepo
+  REPLACES the repo on every seek, so a captured value would answer from the pre-load master forever), and
+  entityMap: goes through a NEW shared SubsystemDebugProvider.EntityMapFrom — the exact analog of TkbFrom.
+  ⚠ CGF/SimHost/IG deliberately NOT migrated to it: their private fields ARE the singleton they set, so they
+  are correct BY CONVENTION and swapping three hosts deserves its own measurement.
+  ⭐ The message is fixed too: one GizmoFeedAbsenceReason() names which of three states it is instead of
+  asserting a missing buffer the red-proof showed was there.
+  🔴🔴 THE SECOND DEFECT, and it was NOT debug-API-only: the instant world.read became reachable,
+  /entities/{id}/focus answered 500 "Strict Mode Violation: CenterOnEntityCommand (ID: 8104) … not
+  registered" — BYTE-FOR-BYTE the crash CE-065 already fixed on CGF, whose own header records
+  POST /entities/1000/focus → 500 … (ID: 8104) as its reproduction. The shared list had FOUR adopters and
+  this is the fifth host that needed it; RepositoryPriming registers component tables, NEVER events.
+  ⭐ Fixed in TWO halves and the second is the point: ① PresentationComponentRegistry.RegisterAll at a new
+  PrepareRepo choke point (Initialize AND RebindActiveRepo, idempotent); ② the shared CenterOnEntitySystem
+  ticked from Update — ⛔⛔ ① ALONE WOULD HAVE MADE THE ROUTE LIE (ok:true, camera never moves, since this
+  host runs no kernel so nothing consumes the event). ⭐ It also fixes the UI path: the entity-inspector's
+  "Center on entity" was publishing into a world that had never heard of the event.
+  ⛔⛔ AND A RED-PROOF CAUGHT A FLAW IN MY OWN RAIL — the most useful thing in the batch. My perspective
+  assertion was src.Contains("\"<Perspective>\"") and the inverse edit STAYED GREEN: every one of these
+  subsystems also writes `public string Name => "<Perspective>"`, so the literal was satisfied by the NAME
+  property while perspective: named something else. THIRD recorded instance of that blindness (the
+  fully-qualified EntityRotatorGizmo since CE-051; new FdpEventBus() in CE-260). Fixed IN PLACE, reddens now.
+  📐 Rails went into the feature's OWN suite (TheDebugProvidersDoNotUnderReportTests 10/10 → 21/21) because
+  this is a THIRD defect shape: CE-162 was argument-present-and-null, CE-163 argument-absent-from-a-provider,
+  this is NO PROVIDER AT ALL — and both older rails read an argument list that does not exist. Four
+  inverse-edit red-proofs, all 1🔴.
+  📐 Blast radius BOUNDED: Configuration:190 rejects replaybrowser combined with anything ⇒ standalone-only,
+  so --mode all and --mode editor cannot be affected.
+  🔴 NEW, FILED, NOT FIXED: CE-259an — TWO REPLAY WORLDS. /replay/load loads into an ISOLATED
+  ReplayBrowserContext owned by the debug service, so /replay/entities says 8 while GET /entities says 0 —
+  and BOTH are correct (world.read reports the UI's own repo, still empty until an operator opens a
+  recording). ⛔ Reading /entities → 0 as "the recording is empty" is the CE-110 mistake again. LEAN: do NOT
+  rewire the shared route — add the hint. Searched docs/ and .dev/: no design record says which world
+  /replay/load should target.
+  ⛔ STILL NOT RUN-PROVEN, unchanged: a real PICK/SELECTION (CE-259al — the interaction bus is isolated
+  from the world bus by design, so no HTTP route can publish onto it) and Stride/ (cannot run here).
+  ══ STRAND 2 — ENTITY CREATION (as of 2026-09-03, untouched since) ══
+  READ docs/blueprints/BOOTSTRAP_Entity_Creation_Session.md §5.0 — THE AGREED PLAN
+  (user-confirmed 2026-09-01). That is the ordered continuation point; this file is only the longer LOG.
+  STATE AS OF 2026-09-03 (branch head e762fe988, next free id CE-166):
+    P1 EntityCreationPack adoption — ✅ COMPLETE, ALL SIX HOSTS. Host (f) IG landed 2026-09-03 with
+       Q65-A' + CE-143 + CE-144 atomically, VERIFIED (GhostDestructionSystem deleted; IgNodeBootstrapper
+       .cs:362 calls EntityCreationPack.Build; CE-141+CE-144 confirmed on a live four-process cluster).
+    P2 relocate GhostPromotionSystem out of NedReplicationModule into EntityCreationPack, add+remove in
+       ONE commit — 🔴 UNBLOCKED, the next buildable step.
+    P3 ⭐⭐⭐ AUTO-TAKEOVER (role-affinity ownership) — 🔴 FULLY DESIGNED, ENTIRELY UNBUILT.
+       ../DESIGN_Role_Affinity_Ownership.md, build-state READY-TO-BUILD, "Nothing here is built yet",
+       §6 steps 0->3b. ⚠ Its §5 holds THREE OPEN DECISIONS that are the USER's to settle first.
+       ⛔ "P1 done" does NOT mean entity-creation unification is done — P3 is the unimplemented half.
+  ⭐ ALSO LIVE, a separate strand raised 2026-09-03: DESIGN_Subsystem_Composition_Unification.md §4.1
+     (role-based node composition, READY-TO-BUILD at B1). §4.1L/CE-165 found that the RUNNING Hrot.Editor
+     double-registers UnitHierarchySystem + EqsResultUpdateSystem and corrupts unit rosters, so B1
+     ([SingleInstance] + a central duplicate check) is now a FIX, not a guard, and wants a reproducing
+     rail with an inverse-edit red-proof.
+  ⛔ Do not read THIS file top-to-bottom; the STATUS block below is the longer LOG and the sections
+  below it are HISTORY.
+folded-back: 2026-09-03 — the previous current-answer said "(f) is UNBLOCKED, §4.9 is the next batch"
+  and named head 4a69ad3f8. Both were a day behind: that batch shipped. Corrected together with
+  BOOTSTRAP §5.0/§5 and DESIGN_Entity_Creation_Unification.md §5 step 3 (which was three days behind,
+  still claiming host (a) only). Cause in all three: the work was reported in chat and in commits, and
+  the owning documents were not updated — CLAUDE.md obligation ⑤.
+  The AGREED ORDER OF WORK across the 2026-08-30 compaction (unchanged):
+  (1) entity creation — pack step 4, then MOVE CreateEntityRequestSystem out of Hrot.CGF to a shared
+  assembly (Architect_Question_65 §5 obstacle 1), then pack step 3 as ONE uniform pipeline, then Q65-A'
+  (originators self-target) and Q65-B (widen the NodeRole gate on GhostPromotionSystem inside
+  NedReplicationModule -- NOT a per-host composition change; corrected 2026-08-31); THEN (2) back to the gizmo /
+  symbology work: CE-134 (health bar) first, then CE-133, CE-135, CE-136 against
+  UX_Feature_Entity_Symbology.md §3.8. ⭐ Q65 is RESOLVED — genesis is already peer-to-peer and needs no
+  contract change; DESIGN_Entity_Creation_Unification.md §2.3's "halves" are SUPERSEDED. ⛔ Do not
+  re-derive any of it.
+ruling-2026-08-31: 🔒 THE GOVERNING RULING is Architect_Question_65 §0 (user, verbatim): the shared
+  entity-creation code "should not restrict any ECS enabled node from creating own networked entities ...
+  no exceptions, not removing capabilities by design, and only concrete authoring code picks the way it
+  needs." ⭐ BOTH paths stay legitimate: OwnerAppInstanceId = 0 routes to the arbiter (CGF) for
+  BRAIN-ENABLED entities and is CORRECT; OwnerAppInstanceId = localNodeId creates+owns locally (IG map
+  drawings). The AUTHORING CALL SITE picks -- not a policy table, not a TKB flag, not config.
+  ⛔ EntityCreationPack.Build gets NO flag that omits the request or spawn system (DESIGN §3.1
+  invariant 6, §3.4, acceptance 9-11).
+measured-2026-08-31: (a) IG CAN already publish EntityMaster -- SharedTranslatorPack is gated on
+  participant != null, NOT on role (NedReplicationModule.cs:213), and IG calls .WithReplication at
+  IgNodeBootstrapper.cs:142; it also already has MapVisualOverlayEgressTranslator for OWNED area
+  entities. IG lacks only the ability to BECOME THE OWNER: request source + CreateEntityRequestSystem +
+  NetworkSpawningSystem. (b) The bottleneck mechanism is ONE FIELD --
+  SpawnEntityCommandEgressTranslator.cs:167 writes Owner = default => 0 => arbiter.
+  (c) 🔴 ORDERING HAZARD: NetworkSpawningSystem.cs:92 and
+  SpawnEntityCommandEgressTranslator.cs:80 read the SAME bus event => IG's pack adoption (step 3) and
+  Q65-A' (retarget its tools) MUST ship in ONE commit or IG double-spawns. Q65 §6 carries it.
+CE-142 (new, 2026-08-31): ownership DELEGATION is mechanism gated by policy. All three pieces --
+  DeferredTakeOwnershipEgressTranslator (_roleHasBrain, :230), its ingress (_roleHasMuscle, :232) and
+  DeferredTakeoverSystem (_roleHasMuscle, :206) -- contain ZERO role logic; the only role-specific
+  thing is the INJECTED BrainMuscleOwnershipStrategy POLICY. Probe: ungating the receive side is FREE
+  (ExecuteTakeover self-filters on ownerNodeId and guards each component with HasComponentByTypeId, so
+  no throw on unregistered components). Latent silent drop: :313 publishes the bus command on
+  _isDefaultProcessor && _ownershipStrategy != null, but the wire translator exists only on
+  _roleHasBrain -- they coincide by CONVENTION only. Fix: mechanism on participant != null, policy on
+  _ownershipStrategy != null. WITH or AFTER pack step 3; NOT a prerequisite for path 2.
+  Prior docs saying that gate was "correct, do not widen" are RETRACTED (Q65 §5.3).
+STEP 4 IS BUILT (2026-08-31). New: Hrot/Engine/Hrot.Core/Tkb/UrbanCombatTkbCatalog.cs (RegisterAll +
+  BuildMannequinAnimationDef + public TkbType codes); HrotEnvironment.CreateTkb() seeds it;
+  UrbanCombatNewScenario forwards; its FIVE private per-template methods DELETED (they were a second
+  copy missing StrideRenderModelDefDto on all five ⇒ render-less, collider-less entities);
+  EditorSubsystem's explicit RegisterUrbanCombatTkbTemplates call REMOVED (TkbDatabase.Register THROWS
+  on duplicates and it was 4 lines after CreateTkb ⇒ would have crashed at startup);
+  EditorStrideSubsystem LEFT ALONE (builds its own new TkbDatabase(), so no duplicate — but it still
+  misses NedTkbCatalog; Stride tree cannot build on Linux, follow-up). New rails:
+  Hrot.SimHost.Tests/UrbanCombatCatalogRails.cs 14/14, two inverse-edit red-proofs (remove the seeding
+  => 13/14 red; strip one StrideRenderModelDefDto => exactly 1 red). T1 Hrot.SimHost.Tests 798 pass /
+  1 fail / 3 skip; the 1 fail is QA-012 (FullBranchPipelineTests.BranchedRecording_...), PROVEN
+  pre-existing this run by git stash + rebuild on base 7face3aee. Hrot.Editor.Tests --filter
+  UrbanCombat 18/18.
+CE-145 (new, deferred BY THE USER to a Windows/VS session): the animation TKB descriptor DTOs
+  (CharacterAnimationDefDto + SlotDefDto/MontageDefDto/MontageNotifyRefDto/NotifyMarkerDefDto/
+  StanceTransitionDto/AimConfigDto/SlotCompositingMode, plus AnimNotifyCategory and StanceId) MOVED to
+  FDP/Toolkits/Fdp.Toolkits/Tkb/Domain/ but KEPT their Hrot.MuscleCharacter.Animation.* namespaces, so
+  zero consumer files changed (C# binds on namespace, not assembly). CE-145 = rename them to
+  Fdp.Toolkit.Tkb.Domain — 53 files across 20 projects, 6 in the Stride tree that cannot compile on
+  Linux, which is why it waits for VS. ⚠ I first sized this at 24 files; that count covered only four
+  DTO names and missed StanceId + AnimNotifyCategory. Each moved file carries a header explaining why a
+  Hrot.* namespace sits in Fdp.Toolkits.
+OBSTACLE 1 IS DONE (2026-08-31). The 3 request-tier files moved to
+  Hrot/Engine/Hrot.Common/Systems/ with namespace Hrot.Common.Systems (renamed, NOT preserved -- keeping
+  "CGF" in the name of a type every node registers is the misconception Q65 kills).
+  ⛔ TARGET WAS NOT Hrot.Core: Q65 §5.4's own "resolved" answer was WRONG. CreateEntityRequestSystem:394
+  constructs Hrot.Common.Serializers.InitialUnitSubordinateIntent by FULLY-QUALIFIED name, and
+  Hrot.Common.csproj:33 references Hrot.Core, so Hrot.Core -> Hrot.Common is a CYCLE. Moving
+  InitialUnitSubordinateIntent instead was measured at ~30 consumers + a cohesive genesis-intent file =>
+  more churn. Hrot.Common is reachable from every host (Editor transitively via SimHost/CGF/NED) and is
+  where SharedApplicationBootstrapper lives.
+  ⚠⚠ ERROR CLASS, THIRD INSTANCE IN ONE DAY: I checked the files USINGS and called the dependency set
+  clean; a fully-qualified reference in a method body is invisible to that. A usings scan is NOT a
+  dependency scan -- grep the body for <OtherAssembly>. prefixes, or just BUILD IT (8s/project).
+  Churn: 6 one-line using additions. ⭐ The Stride fence held with ZERO action -- EditorStrideSubsystem.cs
+  already imported Hrot.Common.Systems, so the one file both lanes could reach was never contested.
+  Hazard handled: Hrot.Core has TreatWarningsAsErrors, so EntityLifecycleInterfaces.cs's <see cref> into
+  Hrot.Common would be CS1574 => error; changed to <c>.
+  New rails: RequestTierPlacementRails 12/12 (not in a host assembly, no CGF in the namespace, publicly
+  constructible, IEcsModuleSystem). Non-vacuity probe (flip expectations to the OLD values) reddens
+  exactly 6 of 12 -- that proves the rails read reality; it is NOT a defect red-proof.
+  Gates: 10 projects build; T1 Hrot.SimHost.Tests 810 pass / 1 fail (QA-012, pre-existing) / 3 skip;
+  Hrot.Editor.Tests 341/0/1; EntityCreationFlowTests 7/7 (integration -- exercises the moved system
+  end to end).
+PRE-EXISTING BREAK FIXED (out of my lane, flagged for the backend lane): Hrot.SimHost.Integration.Tests
+  did not compile AT ALL on base -- SimHostInstance.cs used AttributeCompilerFactory with no
+  using Fdp.Toolkit.Replication.Attributes. Proven pre-existing by git stash + rebuild (same CS0103 on
+  base). Fixed with the one missing using because it was blocking verification of my own change; the
+  whole test project is now buildable and its 7 entity-creation tests pass.
+STEP 3 STARTED (2026-08-31): EntityCreationPack BUILT in Hrot/Engine/Hrot.Common/EntityCreation/
+  (Pack + Context + EntityCreation). Host (a) StrideNodeBootstrapper ADOPTED -- and that closed a second
+  gap: it had no CreateEntityRequestSystem at all, so nothing could ask it to create an entity, not even
+  itself. Scheduling unchanged (spawn via SimHostModule/BeforeSync; request + finalization via
+  RegisterGlobalSystem). ⚠ Follow-up: no DDS ingress/ACK sink passed there because HrotNodeContext
+  exposes no lifecycle adapters => local requests only; strictly better than before.
+  ⛔ NOT in this slice: the two authoring affordances (DESIGN §3.4) -- they need CE-143's ReliableInitType,
+  so they land with Q65-A'.
+  Rails: EntityCreationPackRails 8/8 (acceptance 2,3,5,9 + no-kernel + no-suppression-flag tripwires).
+  Red-proof: remove ctx.Elm.SetTranslators => exactly 1 rail reddens (the CE-139 defect class).
+  T1 818 pass / 1 fail (QA-012) / 3 skip. Hrot.NodeComposition.Tests 22/22.
+  ⚠ Acceptance 3's rail uses REFLECTION on EntityLifecycleModule._translators -- private, no accessor.
+  A read-only accessor on the ELM would be the better fix (Fdp.Toolkits change, deferred).
+  REMAINING hosts for step 3: SimHost, Editor, CGF, then IG -- IG atomic with Q65-A' + CE-143 + CE-144.
+CE-145 DONE + MERGED (2026-08-31, from claude/ce145-stride-namespace-win at 03ecea4da). Namespace rename
+  complete (55 files, not the 24/53/56 I quoted); EditorStrideSubsystem now uses HrotEnvironment.CreateTkb()
+  and the strip translator is back at index 2; Fdp.Examples.Scenarios dropped its now-redundant
+  Hrot.MuscleCharacter.Animation reference. Verified live in the Stride editor: entities=6, visuals=6.
+  Merge verified on Linux: 8 projects build, T1 818/1/3 = identical to pre-merge. ⚠ One T1 run reported 3
+  failures while naming only 1 (26s vs the usual 14s); two following runs were 818/1/3, so the steady state
+  is 1 (QA-012) but that suite is not perfectly deterministic under load.
+  ⚠⚠ MY HANDOFF'S GREP MISSED THREE THINGS: relative-qualified refs (Components.StanceId, 15 refs/6 files,
+  hard CS0234); a fully-qualified ref that must NOT move (…Contracts.AnimationBackendConfig); and that
+  …Animation.Descriptors was declared by the moved file ALONE, so the rename DELETES the namespace and every
+  using of it is an error. HABIT: for a namespace move, grep the namespace SEGMENTS too, and check whether
+  the moved file was the sole declarant.
+CE-146 (new, 2026-08-31) -- and it came from THEIR probe refuting MY hypothesis. I claimed the strip
+  translator's Capsule gate was unsatisfied; Apply_Infantry_AddsCapsuleRenderDef PASSES, so type 200 does
+  carry a Capsule StrideRenderModelDefDto. The two VehicleState reds are instead: (a)
+  Translator_Infantry200 = STALE TEST, it calls VehicleKinematicsTkbTranslator.Inject() alone so the strip
+  post-pass never runs => fix the test, not the product; (b) SI3_InfantryMoveTo = REAL CROSS-HOST GAP =
+  CE-146: EditorSubsystem.cs:1241 uses bare TkbTranslatorSet.Base(), the strip's only registrar is
+  EditorStrideSubsystem, and the strip lives in Hrot.Stride.Core (unreachable from Hrot.Editor) => Capsule
+  infantry keeps VehicleState on every host but the Stride editor, while the crowd bridge that guards on
+  !HasComponent<VehicleState>() (NavigationIntentBridgeSystem) is SHARED in Fdp.Toolkits. Three options in
+  DESIGN §3.3; ⛔ do not pick one before measuring whether any non-Stride host actually runs that bridge
+  over capsule infantry. The two StrD21 navigation reds are unattributed.
+  ⭐ Their baseline was 5 pre-existing reds, not 4 -- the 5th is the AttributeCompilerFactory build break
+  that blocked the whole solution build on Windows, and obstacle 1's commit already fixed it.
+CE-146 PROBED AND RESOLVED (2026-08-31) -- and my own three options (A/B/C) were the WRONG FRAME.
+  MEASURED: (1) the crowd guard is DOUBLE-gated on _dtCrowd != null (NavigationIntentBridgeSystem:235,243);
+  (2) two production registrars -- StrideMuscleModules:70 passes a crowd, but SimHostCoreLogicPack:118 uses
+  the NO-ARG ctor => the crowd path is INERT on SimHost, so SimHost's missing strip is NOT a gap;
+  (3) DotRecastDtCrowdProvider exists only in the Stride tree (EditorStrideSubsystem:635, :887) and
+  Hrot.Editor has ZERO DtCrowd references; (4) BUT EditorStrideSubsystem:892 does
+  _editor = new EditorSubsystem() and injects the Stride muscle via MuscleModuleFactory =>
+  "EditorSubsystem + a LIVE crowd" IS a real production configuration and SI3 replicates it faithfully.
+  => CE-146 is a REAL production defect whose root is the TWO SPAWN PIPELINES OVER ONE WORLD (the exact
+  ambiguity CE-139 named): EditorSubsystem:1241 uses bare Base() (no strip => VehicleState stays => crowd
+  registration SKIPPED) while EditorStrideSubsystem's list has the strip at index 2. Which pipeline handled
+  a spawn decides whether that infantry can join the crowd.
+  RESOLUTION: it is step 3 HOST (e) -- collapse the Stride editor's second pipeline into the pack. And the
+  fix needs NO new reference: Hrot.Editor can never name the strip, but EditorStrideSubsystem already
+  injects the muscle via MuscleModuleFactory, so it passes EntityCreationContext.ExtraTranslators the same
+  way. That is precisely what the pack's add-only ExtraTranslators is for.
+  ⛔ Options A (move the strip down) and B (restore the shape guard) are DEAD. C (one host only is fine) is
+  also dead -- the Editor genuinely runs a live crowd when Stride hosts it.
+  ⚠ Verification of host (e) CANNOT be done on Linux -- hand it to the Windows lane.
+  ⚠ The two StrD21 navigation reds are plausibly the same root but remain UNATTRIBUTED; do not claim them
+  until host (e) is done and they are re-run.
+  ⚠ TWO STALE DIAGNOSTICS to fix in words, not code: NavigationIntentBridgeSystem.cs:234-240's warning text
+  ("the translator fix is absent", "ShapeKind must be Capsule") describes the pre-relocation design -- the
+  tripwire is correct, its explanation is not; and Translator_Infantry200_DoesNotInjectVehicleState calls
+  the kinematics translator ALONE, encoding the removed design => re-home it onto the strip.
+CE-143 (new, 2026-08-31, from the architect review): ReliableInitType is HARDCODED to AllPeers at
+  CreateEntityRequestSystem.cs:302 (root) and :397 (TKB children), and EntityCreationRequest carries NO
+  field to override it. Enum has None / PhysicsServer / AllPeers. => an IG drawing created via path 2
+  waits for ConstructionAck from all expected peers: pointless latency and a stall risk. FIX: add an
+  init-only ReliableInitType to EntityCreationRequest, default AllPeers (so adoption changes nothing),
+  both affordances take it explicitly, IG passes None. Decide explicitly whether :397's children
+  inherit the parent's InitType (lean: yes). SHIP WITH Q65-A' (step 4) -- it is the one real
+  prerequisite for IG drawings being USABLE, not merely correct. STILL UNVERIFIED (needs a live
+  cluster): do peers ACK ghosts of entities they neither own nor simulate?
+obstacle-1-resolved (2026-08-31): the move target is Hrot.Core/Network/ -- NOT Fdp.Toolkits (that would
+  invert the layering, since both files depend on Hrot.Core.Network) and not Hrot.Common. Exactly 2
+  files move: CreateEntityRequestSystem.cs + EntityRequestFinalizationSystem.cs. Measured: neither
+  references Hrot.CGF/Map/Editor/IG except its own namespace line; JsonAttributeCompiler and
+  IOwnershipDistributionStrategy are already in Fdp.Toolkits. Zero new project references. Also update
+  the <see cref="Hrot.CGF.Systems.CreateEntityRequestSystem"/> in EntityCreationRequest's docs.
+  RULED by the user 2026-08-31: YES, move DeleteEntityRequestSystem.cs too => the move is 3 FILES.
+  Measured, and the case is stronger than the lean: its ctor takes EntityRequestFinalizationSystem as a
+  REQUIRED arg (so leaving it behind splits a hard dependency), its usings are Hrot.Core.Network + Fdp.*
+  only, IEntityDeletionRequestSource is in the SAME file as the creation one
+  (Hrot.Core/Network/EntityLifecycleInterfaces.cs:102), and it has 1 production construction site
+  (CgfSubsystem.cs:728). The see-cref fix in EntityCreationRequest is an explicit deliverable of the
+  same commit; sweep for other stale crefs.
+CE-144 (new, 2026-08-31): the DESTROY side has the SAME double-consumption hazard as spawn, and it
+  fails SILENTLY. GhostDestructionSystem (IgBootstrapperHelpers.cs:30) does _entityMap.Unregister +
+  world.DestroyEntity IMMEDIATELY; NetworkSpawningSystem.ProcessDestroy (:98 -> :213) does
+  cmdBuffer.SetLifecycleState(TearDown) + _elm.BeginDestruction. If IG holds BOTH, whichever runs first
+  defeats the other: GhostDestruction first => ProcessDestroy finds nothing in the map, logs to stderr
+  and returns => ELM teardown NEVER runs => EntityMaster is never disposed => peer IGs keep ZOMBIE
+  drawings. Reverse order rips the entity out mid-teardown. Either order is wrong => once IG has
+  NetworkSpawningSystem, DROP GhostDestructionSystem (its own comment says it "replaces SpawningModule").
+  Ships in the SAME commit as IG's adoption + Q65-A' + CE-143. Acceptance 11 extended to the destroy
+  side. NOT verified: the actual execution order today (irrelevant to the fix, decides the symptom).
+  ⛔ CORRECTS my own earlier text in Q65 §5.1 and DESIGN §5.1 ("IG keeps GhostDestructionSystem").
+NON-FINDING, recorded so it is not re-derived: the deletion tier has only a DDS source while creation
+  has three (DDS + in-memory + composite). That is NOT a gap -- the local destroy path bypasses the
+  request tier entirely (NetworkSpawningSystem.cs:98 consumes bus DestroyEntityCommand), so any node the
+  pack equips can destroy what it owns in-process. Do not add an in-memory deletion source.
+
+stale-below: ⛔ EVERYTHING except §0's header and §0.0e is HISTORY, newest first — §0.0c (the CE-070/071
+  way-forward), §0.0b (phase 1's seam), §0.0a/§0.0 (phase 0), §0-prev and below. They are kept as the
+  record of WHY, not as instructions. ⚠ §0.0c and the §0 header both used to say "Start here"; §0.0d
+  supersedes both (corrected 2026-08-27).
+known-conflict: ⛔ HANDOFF_Cgf_Bootstrap_Unification.md (the dispatched frame) is STALE on two points —
+  its stage-1 god-facade prerequisite and its phase-0 rail wording. AQ63 §10.4 and §12 supersede both,
+  deliberately. The handoff is NOT edited (rule 1: never amend a dispatched handoff).
+```
