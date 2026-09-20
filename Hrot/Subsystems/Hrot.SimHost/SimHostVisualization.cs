@@ -69,8 +69,7 @@ namespace Hrot.SimHost
         //    ⚠ Hrot.Editor.AiShared/Shell/IEntitySelectionSource.cs named that adapter as "the defect"
         //    in its own header. Both types are DELETED.
         private Hrot.ScenarioEditor.Selection.EcsSelectionState? _selection;
-        private Hrot.ScenarioEditor.Systems.SelectionRequestSystem?      _selectionRequests;
-        private Hrot.ScenarioEditor.Systems.SelectionNotificationSystem? _selectionNotifications;
+
         /// <summary>Phase 5: ECS system for selection/delete interactions.</summary>
         private SelectionInteractionSystem? _selectionSystem;
 
@@ -181,9 +180,23 @@ namespace Hrot.SimHost
             // ⭐⭐⭐ UXI-11 — the SHARED view over the SelectionState component, and the SHARED
             //    request/notify pair. ⛔ Same three lines as every other host: a host that has a world
             //    has no business inventing its own selection.
-            _selection              = new Hrot.ScenarioEditor.Selection.EcsSelectionState(repo);
-            _selectionRequests      = new Hrot.ScenarioEditor.Systems.SelectionRequestSystem(() => _selection);
-            _selectionNotifications = new Hrot.ScenarioEditor.Systems.SelectionNotificationSystem(() => _fdpInspectorState);
+            _selection = new Hrot.ScenarioEditor.Selection.EcsSelectionState(repo);
+            // ⭐⭐⭐ ON THE KERNEL, exactly as IG does it — 🔒 "make the nodes use same (best shared)
+            //    stuff in the same way" (user, 2026-09-20). ⚠⚠ An earlier draft ticked these by hand
+            //    from Update() and justified it with "this host runs no ModuleHostKernel". 🔴 FALSE,
+            //    and caught by the user: SimHostCapabilities registers modules and global systems on
+            //    context.Kernel throughout, and StrideNodeBootstrapper drives Context.Kernel.Update().
+            //    📌 The false claim was COPIED from ReplayBrowser, which genuinely has none
+            //    (DESIGN_Subsystem_Composition_Unification.md: "zero ModuleHostKernel references —
+            //    it is a viewer, not an ECS node").
+            // ⭐ ORDER: registration order is execution order within the phase, so requests apply and
+            //   only then is the announcement consumed — one frame, cause and consequence.
+            // ⚠ RegisterGlobalSystem THROWS after Kernel.Initialize(), so this cannot fail silently:
+            //   if the visualization were ever built post-init, the host would die here, loudly.
+            kernel.RegisterGlobalSystem(
+                new Hrot.ScenarioEditor.Systems.SelectionRequestSystem(() => _selection));
+            kernel.RegisterGlobalSystem(
+                new Hrot.ScenarioEditor.Systems.SelectionNotificationSystem(() => _fdpInspectorState));
             _fdpEntityInspector.Selection = _selection;
             _fdpEntityInspector.RequestSelectionChange = req => repo.Bus.PublishManaged(req);
             _fdpRepoAdapter   = new FdpRepositoryAdapter(repo);
@@ -443,16 +456,9 @@ namespace Hrot.SimHost
 
             _scenario?.Update();
             _map.Update(dt);
+            // ⚠ SelectionInteractionSystem is still ticked by hand here (pre-existing); the shared
+            //   request/notify pair is on the KERNEL, like every other ECS node.
             _selectionSystem?.Tick(dt);
-            // ⭐⭐⭐ UXI-11 — the shared request/notify pair, ticked here for the same reason the
-            //    selection system is: this host drives its presentation systems directly.
-            //    ⚠ ORDER IS LOAD-BEARING: requests apply, THEN the announcement is consumed, so a
-            //    cause and its consequence land in one frame (same order ScenarioEditorModule registers).
-            if (_repo != null)
-            {
-                _selectionRequests?.Execute(_repo, dt);
-                _selectionNotifications?.Execute(_repo, dt);
-            }
 
             _fdpFrameCount++;
         }

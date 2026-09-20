@@ -913,12 +913,46 @@ _selectionNotifications = new SelectionNotificationSystem(() => _inspector);// t
 panel.Selection = _selection;  panel.RequestSelectionChange = repo.Bus.PublishManaged;
 ```
 
-⚠ **The only per-host difference left is WHERE the two systems are ticked**, and that is a pre-existing
+⚠ **The only per-host difference left is WHERE the two systems are ticked**, and it is a pre-existing
 property of the host, not of selection: the editor and CGF register them through
-`ScenarioEditorModule`; IG registers them on its kernel; **SimHost and ReplayBrowser drive their
-presentation systems directly because neither runs a `ModuleHostKernel`** *(ReplayBrowser's
-`CenterOnEntitySystem` already documents that shape)*. 🔒 **Order is load-bearing everywhere: requests
-apply, then the announcement is consumed.**
+`ScenarioEditorModule`; **IG and SimHost register them on their kernel**; **ReplayBrowser drives them
+directly, because it alone has no kernel** — 📄 `DESIGN_Subsystem_Composition_Unification.md`:
+*"`ReplayBrowserSubsystem` has **zero** `ModuleHostKernel`/`RegisterGlobalSystem` references — it is a
+**viewer**, not an ECS node"*. 🔒 **Order is load-bearing everywhere: requests apply, then the
+announcement is consumed.**
+
+> 🔴🔴 **RETRACTED `2026-09-20`, caught by the user *("SimHost does NOT run a ModuleHost kernel? are you
+> sure? why wouldn't it?")*.** An earlier version of this paragraph said *"SimHost and ReplayBrowser
+> drive their presentation systems directly because **neither** runs a `ModuleHostKernel`"*.
+> 📐 **False for SimHost:** `SimHostCapabilities.cs:67·79·100` call `context.Kernel.RegisterModule(…)`
+> and `:116` `RegisterGlobalSystem(…)`; `SimHostApp.cs:512` registers global systems in a block whose
+> own comment reads *"before kernel.Initialize()"*; `StrideNodeBootstrapper.cs:199` drives
+> `Context.Kernel.Update()`. ⇒ SimHost is a full ECS node and its pair is now **on the kernel**, like
+> IG's. ⚠⚠ **The mechanism of the error is worth more than the correction:** ReplayBrowser's
+> no-kernel fact is *cited and true*, and I **generalised it onto the host named beside it in the same
+> sentence** without searching. ⭐ What is actually true of SimHost is far narrower —
+> `SimHostVisualization` ticks `SelectionInteractionSystem` by hand, which is a property of that class.
+> ⭐ Safe by construction either way: `ModuleHostKernel.RegisterGlobalSystem` **throws** after
+> `Initialize()` (`:165`), so a wrong ordering dies loudly rather than silently not scheduling.
+
+##### ⚠ THE COUNT IS SIX, NOT FIVE — **the Stride host was never counted** *(open)*
+
+🔒 **User, same message:** *"Did you count with stride host as well?"* ⛔ **No — and it is a node.**
+
+| measured `2026-09-20` | |
+|---|---|
+| is it an ECS node? | ✅ `StrideNodeBootstrapper` composes `Hrot.SimHost` **and** `Hrot.IG` systems, calls `PresentationComponentRegistry.RegisterAll(world)` and drives `Context.Kernel.Update()` |
+| its own selection | 🔴 `EditorSelectionState` *(`Stride/HrotStrideApp.Game/StrideInspectorWindow.cs:80`)*, written on a 3-D ray hit *(`StrideHrotGame.cs:597`)* — **plus a second instance** at `StrideNodeShell.cs:678` |
+| how it reaches the 2-D selection | ⛔ **version polling** — `EditorStrideSubsystem.SyncSelection2D3D` compares `Selection2DVersion` against `SelectionState.Version`, one direction per frame, with anti-bounce trackers |
+| can it be unified? | ✅ it is over `Fdp.Core.Entity`, the same type ⇒ `EcsSelectionState` + the shared pair replaces it and **`SyncSelection2D3D` disappears entirely** |
+
+⛔⛔ **NOT DONE, and the reason is a lane constraint, not a design one:** `HrotStrideApp.Game` targets
+`net8.0-windows` and sits outside the root solution, so **this lane can build neither it nor its own
+`EditorSelectionStateTests`.** 🔒 **Lean: DO IT** — deleting a version-polling bridge between two
+selection stores is the largest remaining win here and the edit is mechanical — ⚠ **but it wants a
+Windows build before it ships**, which is why it is recorded here rather than pushed blind.
+📌 `S-1` excluded this store on the grounds that §2.7.4's delete-list did not name it; ⛔ that is the
+ledger asserting what the code is, which is precisely the failure this programme keeps repeating.
 
 ##### 🟡 The gate
 

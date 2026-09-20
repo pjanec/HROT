@@ -67,17 +67,30 @@ the first thing to try before calling a suite un-gateable.
 | gate | result |
 |---|---|
 | `Hrot.Presentation.Tests` | ✅ **273/273** *(incl. the new unification rail)* |
-| `Hrot.SimHost.Tests` | ⚠ **1001/1007** — the **3 reds are PRE-EXISTING**, identical at base |
+| `Hrot.SimHost.Tests` | ⚠ **1001/1007** — the **3 reds are PRE-EXISTING**, identical at base. ⭐ Re-run after moving the pair onto the kernel: **same 3, no new throw**, and `SimHostVisualizationTests` calls `Initialize(repo, kernel, …)` with a real kernel |
 | `Hrot.ReplayBrowser.Tests` | ✅ **30/30** |
 | `Hrot.Editor.Tests` | ✅ **418/420**, 1 skip — the one red is the known ALC flake |
 | `Hrot.IG.Tests` · `Fdp.Presentation.Tests` | ⚠ same **7** and **8** pre-existing reds |
 | `design-digest --check` · `rulings-check` **37/37** · `tracker-counts` · 5 mermaid | ✅ |
 
-### ⭐⭐ NEXT — **`S-4`**
+### 🔴 TWO CORRECTIONS THE USER CAUGHT — **read these before trusting the block above**
 
-Right-click selects on **every** surface *(§2.3 incl. row 1)*; the **DER inspector gains a seam**.
-⚠ Separately open, and it is `UXI-11`'s remaining half: **CGF runs no `SelectionInteractionSystem`**,
-so it has no map-input path at all.
+| | |
+|---|---|
+| 🔴 *"SimHost runs no `ModuleHostKernel`"* | **FALSE.** `SimHostCapabilities.cs:67·79·100·116` register modules and global systems on `context.Kernel`; `StrideNodeBootstrapper.cs:199` drives `Context.Kernel.Update()`. ⇒ SimHost's pair is now **on the kernel**, like IG's. ⚠ The mechanism: ReplayBrowser's no-kernel fact **is** cited and true, and I generalised it onto the host named beside it in the same sentence. ⭐ Safe either way — `RegisterGlobalSystem` **throws** after `Initialize()`, so a wrong ordering dies loudly |
+| 🔴 **the Stride host was never counted** | it **is** an ECS node *(composes SimHost + IG systems, `RegisterAll`, `Kernel.Update()`)* and holds its **own** `EditorSelectionState` — **two instances** — reaching the 2-D selection only by **version polling** in `SyncSelection2D3D`. ⇒ the count is **six** surfaces, not five |
+
+### ⭐⭐ NEXT — **`S-4`**, and one open decision
+
+`S-4`: right-click selects on **every** surface *(§2.3 incl. row 1)*; the **DER inspector gains a seam**.
+
+⚠ **OPEN, awaiting the user:** unify the **Stride host** — replace `EditorSelectionState` with
+`EcsSelectionState` + the shared pair, which **deletes `SyncSelection2D3D` outright**. 🔒 **Lean: do
+it** *(largest remaining win, mechanical edit)* — ⛔ but `HrotStrideApp.Game` is `net8.0-windows` and
+outside the root solution, so **this lane can build neither it nor its tests**. 📄 §2.7.9.
+
+⚠ Separately open, and it is `UXI-11`'s other remaining half: **CGF runs no
+`SelectionInteractionSystem`**, so it has no map-input path at all.
 
 ---
 
