@@ -31,6 +31,14 @@ public sealed class SelectionInteractionSystem
     private readonly FdpEventBus _interactionBus;
     private readonly RubberBandState? _rubberBandState;
 
+    /// ⭐⭐ UXI-11 S-1 -- the component writes live in ONE place now.
+    /// ⛔ This system used to carry its own SetSelected/ClearAllSelections; EcsSelectionState carries
+    ///   the same two and is the view every host reads through, so keeping both would be two
+    ///   implementations of "what selected looks like on the component" (ruling 9).
+    /// ⭐ Constructing our own is correct, not a silent default: the view is a read-through HANDLE
+    ///   with no store behind it, so an instance made here and one made by the host cannot disagree.
+    private readonly Hrot.ScenarioEditor.Selection.EcsSelectionState _selection;
+
     // Rubber-band selection tracking.
     private bool    _isBoxSelecting;
     private Vector2 _boxStart;
@@ -53,6 +61,7 @@ public sealed class SelectionInteractionSystem
         _world           = world          ?? throw new ArgumentNullException(nameof(world));
         _interactionBus  = interactionBus ?? throw new ArgumentNullException(nameof(interactionBus));
         _rubberBandState = rubberBandState;
+        _selection       = new Hrot.ScenarioEditor.Selection.EcsSelectionState(_world);
     }
 
     public void Tick(float dt)
@@ -162,27 +171,12 @@ public sealed class SelectionInteractionSystem
 
     /// <summary>
     /// Clears all ECS SelectionState components. Call before a world reset.
+    /// ⭐ Delegates to the shared view (UXI-11 S-1) -- this method stays because callers name it.
     /// </summary>
-    public void ClearAllSelections()
-    {
-        var q = _world.Query().With<SelectionState>().WithLifecycle(EntityLifecycle.All).Build();
-        foreach (var e in q)
-        {
-            if (_world.IsAlive(e))
-                _world.SetComponent(e, new SelectionState { IsSelected = false, IsPrimarySelection = false });
-        }
-    }
+    public void ClearAllSelections() => _selection.ClearCore();
 
     private void SetSelected(Entity entity, bool isPrimary)
-    {
-        if (!_world.HasComponent<SelectionState>(entity))
-            _world.AddComponent(entity, new SelectionState());
-        _world.SetComponent(entity, new SelectionState
-        {
-            IsSelected         = true,
-            IsPrimarySelection = isPrimary,
-        });
-    }
+        => _selection.SetSelectedCore(entity, isPrimary);
 
     /// <summary>
     /// Finalises a rubber-band selection. Selects all entities with

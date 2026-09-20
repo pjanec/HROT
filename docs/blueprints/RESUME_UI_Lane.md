@@ -1,17 +1,19 @@
 <!--STATUS
 state: LIVE
 updated: 2026-09-20
-current-answer: ⭐⭐⭐ READ THE "SESSION 2026-09-19/20" BLOCK AT THE TOP OF THIS FILE — it is the live
-  one. THE PLAN: start UXI-11 (selection unification), slice S-1. The UX interaction backlog was
-  re-verified against code on 2026-09-19 and five of nineteen ledger rows were wrong; the docs are now
-  repaired and the remaining work is a coherent entity-action/authority set.
-  Branch: ui (the stable lane branch, R-148) at 79e9a449d, tree clean, all gates green.
+current-answer: ⭐⭐⭐ READ THE "SESSION 2026-09-20" BLOCK AT THE TOP OF THIS FILE — it is the live one.
+  ☑ UXI-11 slice S-1 (selection unification) IS BUILT. NEXT IS S-2 — the request event gains a
+  set + mode, SelectionRequestSystem becomes the only writer, the 3 hand-rolled writers are deleted.
+  ⛔ S-1's gate ("4 stores become 1 + views") was only PARTLY met — 2 of 4; the rest lands at S-3.
+  📄 The as-built (and four argued deviations) is UX_Feature_Selection.md §2.7.6 — read that, not the
+  summary here, before starting S-2.
+  Branch: ui (the stable lane branch, R-148).
   ⛔ The 2026-09-15 block below (distributed persistence + ownership) is DONE and is now HISTORY —
   nothing from it is in flight. Older STRANDS below it are older history still; do NOT act on any of
   them unless explicitly told to continue one.
 
-stale-below: ⛔ EVERYTHING below the "SESSION 2026-09-19/20" block is HISTORY, newest first. Do not
-  quote it as current state.
+stale-below: ⛔ EVERYTHING below the "SESSION 2026-09-20" block is HISTORY, newest first — including
+  the 2026-09-19/20 block, whose plan ("start S-1") is now DONE. Do not quote any of it as current state.
 known-rot: none open in this file.
 related-designs:
   - docs/UX/UX_Feature_Selection.md — owns UXI-11; §2.7 is the target state, §2.7.5 the slice order.
@@ -25,7 +27,52 @@ related-designs:
 -->
 # ⭐⭐⭐ RESUME — **the UI / variable implementation lane**
 
-## ⭐⭐⭐ SESSION `2026-09-19/20` — **UX DOCS RE-VERIFIED; NEXT: `UXI-11` SELECTION, SLICE `S-1`**
+## ⭐⭐⭐ SESSION `2026-09-20` — **`UXI-11` SLICE `S-1` IS BUILT; NEXT IS `S-2`**
+
+☑ **`S-1` shipped** *(selection unification, slice 1)*. 📄 The as-built is
+[`UX_Feature_Selection.md` §2.7.6](../UX/UX_Feature_Selection.md) — read **that**, not this summary,
+before starting `S-2`.
+
+| what | |
+|---|---|
+| `ISelectionState` | gained `Add` · `Remove` · `SetMultiple` · `Clear` · **`Version`** |
+| `EcsSelectionState` *(NEW)* | `Hrot/Engine/Hrot.Presentation/ScenarioEditor/Selection/` — a read-through view over the `SelectionState` **component**. The editor and CGF hold it instead of a parallel `HashSet` |
+| `SelectionInteractionSystem` | **delegates** its component writes to the same view ⇒ one implementation of *"what selected looks like"* |
+| `DefaultSelectionState` | **kept but demoted** to world-less hosts + tests; a source-scan rail fails if any host under `Hrot/`/`Stride/` constructs one |
+
+⚠⚠ **THE GATE WAS NOT FULLY MET, AND THAT IS REPORTED, NOT HIDDEN.** `S-1`'s gate is *"the 4 stores
+become 1 + views"*; **2 of 4** collapsed. `SimHostSelectionManager` and `SharedEntitySelection`
+*(`Hrot.Editor.AiShared`)* stay separate until the **notification event** exists ⇒ 🔒 **the gate really
+lands at `S-3`.** ⛔ Do not read `S-1` as having met it.
+
+⭐ **Free win worth knowing:** `Version` is derived from the observed ECS truth, so a **map click now
+reaches the Stride 3-D view** through `EditorStrideSubsystem.SyncSelection2D3D` — it could not before,
+because the hash set only bumped when editor code assigned through it.
+
+⚠ **Four deviations from the design, all argued in §2.7.6** — `Version` added to the interface ·
+`DefaultSelectionState` kept · **writes go direct, not through a command buffer** *(§2.5 carries the
+as-built note; `S-2` retires the question)* · `SelectionInteractionSystem` delegates.
+
+### ⭐⭐ NEXT — **`S-2`**
+
+The request event gains a **set + mode** *(replace · add · remove · clear)*; `SelectionRequestSystem`
+becomes the **only** writer; the **3 hand-rolled `SetSelected`** are deleted
+*(`SelectionInteractionSystem` · `EditorSubsystem` · `IgApplication.SelectEntityOnMap:1596-1614`)*.
+⭐ `S-2` is also what makes §2.5's command-buffer question disappear.
+
+### ⚠ Gates as measured `2026-09-20`
+
+| gate | result |
+|---|---|
+| `Hrot.Presentation.Tests` *(the feature's own suite + the new rails)* | ✅ **271/271** |
+| `Hrot.Editor.Tests` | ⚠ **409/410**, and the one red is a **flake**: `AiHotReloadCoordinatorTests.TwoReloadCycles_OldAlcIsCollected` — an ALC-collection/GC timing test, **green 3/3 in isolation**, green on one full run and red on the next **with the same binary**. ⛔ Unrelated to selection |
+| `Fdp.Presentation.Tests` | ⚠ **541/550** — the **8 reds are PRE-EXISTING**, confirmed by stashing the change and re-running: identical 8 at base *(ImGui-context panel/perspective tests)* |
+| `design-digest --check` · `rulings-check` **37/37** · `tracker-counts` · 3 mermaid blocks | ✅ |
+| ⛔ `HrotStrideApp.Windows` / `HrotStrideApp.Game` | **not buildable on this Linux host** *(`net8.0-windows`)*. ⭐ No Stride file was edited and `Selection2DVersion` kept its type, so it is source-compatible — ⚠ **reasoned, not measured** |
+
+---
+
+## ⛔ HISTORY — SESSION `2026-09-19/20` — **UX DOCS RE-VERIFIED; the plan that produced the above**
 
 **Branch `ui`** *(the stable role-named lane branch — `R-148`, `2026-09-19`)*, **HEAD `79e9a449d`**, tree
 clean, nothing unpushed. Gates green: `design-digest --check` · `rulings-check` **37/37** ·

@@ -58,6 +58,39 @@ internal sealed class FakeSelectionState : ISelectionState
     public bool IsSelected(Entity entity) => _selected.Contains(entity);
 
     public void AddSelected(Entity e) => _selected.Add(e);
+
+    // ── ISelectionState, UXI-11 S-1 ───────────────────────────────────────────
+    public int Version { get; private set; }
+
+    public void Add(Entity entity)
+    {
+        if (!_selected.Contains(entity)) _selected.Add(entity);
+        PrimarySelected = entity;
+        Version++;
+    }
+
+    public void Remove(Entity entity)
+    {
+        if (!_selected.Remove(entity)) return;
+        if (PrimarySelected == entity)
+            PrimarySelected = _selected.Count > 0 ? _selected[0] : (Entity?)null;
+        Version++;
+    }
+
+    public void SetMultiple(IReadOnlyCollection<Entity> entities)
+    {
+        _selected.Clear();
+        if (entities != null) _selected.AddRange(entities);
+        PrimarySelected = _selected.Count > 0 ? _selected[0] : (Entity?)null;
+        Version++;
+    }
+
+    public void Clear()
+    {
+        _selected.Clear();
+        PrimarySelected = null;
+        Version++;
+    }
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════

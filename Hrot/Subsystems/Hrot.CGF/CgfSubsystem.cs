@@ -370,7 +370,10 @@ public sealed class CgfSubsystem : ISubsystem, Fdp.Toolkit.Runner.IMapCameraProv
 
     // ── Visualization ─────────────────────────────────────────────────────────
     private MapCanvas?                 _canvas;
-    private DefaultSelectionState?     _selectionState;
+    // ⭐⭐⭐ UXI-11 S-1 -- the VIEW, not a store. 📄 UX_Feature_Selection.md §2.7.
+    // ⛔ This was a DefaultSelectionState: a HashSet with no connection to the world, while
+    //   SelectionInteractionSystem wrote the SelectionState component. Two stores, one concept.
+    private ISelectionState?           _selectionState;
     // (Phase 5: _interactionTool removed; entity selection via ECS gizmos)
     private EntityQuery?               _entityQuery;
     private Fdp.Toolkit.Diagnostics.Gizmos.DebugPrimitiveBuffer? _cgfGizmoBuffer;
@@ -1527,7 +1530,9 @@ public sealed class CgfSubsystem : ISubsystem, Fdp.Toolkit.Runner.IMapCameraProv
             _canvas = new MapCanvas();
             _canvas.Camera.Offset = new Vector2(1280 / 2f, 720 / 2f);
 
-            _selectionState    = new DefaultSelectionState();
+            // ⭐⭐⭐ UXI-11 S-1 -- read through to the ECS SelectionState component, the one truth.
+            //   📐 Before this, a map click moved the ring and nothing else on this host.
+            _selectionState    = new Hrot.ScenarioEditor.Selection.EcsSelectionState(_context.World);
             _fdpRepoAdapter    = new FdpRepositoryAdapter(_context.World);
 
             // ⭐⭐⭐ CE-061 (Axis-C E5 item ④) — THE SCENARIO-PERSPECTIVE PANELS + ADAPTERS.

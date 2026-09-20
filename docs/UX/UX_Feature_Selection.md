@@ -1,13 +1,18 @@
 <!--STATUS
 state: LIVE
-build-state: READY-TO-BUILD (§2.7 is the consolidated TARGET STATE with class + sequence diagrams;
-  §2.7.5 carries the slice order S-1..S-6. Nothing is built yet.)
+build-state: BUILDING (§2.7 is the consolidated TARGET STATE with class + sequence diagrams;
+  §2.7.5 carries the slice order S-1..S-6. ☑ S-1 BUILT 2026-09-20 — see §2.7.6 for the as-built.
+  S-2..S-6 remain DESIGN.)
 verified: 2026-09-10 (measured source scan, graph + grep, coverage checked)
+  ⭐ S-1's own inventory re-measured 2026-09-20 on the graph — §2.7.6.
 current-answer: ✅ READ §2.7 — the consolidated TARGET STATE (2026-09-10), with the class diagram, the
-  request/notify sequence, the delete-list and the S-1..S-6 slice order. §2.1 is its older sketch and
-  §2.7 supersedes it where they differ. §2.6 carries the rulings §2.7 encodes.
-  STILL NOT BUILT: ISelectionState unchanged; no EcsSelectionState; CGF not on the
-  selection chain; ClearAll has 0 callers.
+  request/notify sequence, the delete-list and the S-1..S-6 slice order, THEN §2.7.6 for what S-1
+  actually built and where it deviated. §2.1 is its older sketch and §2.7 supersedes it where they
+  differ. §2.6 carries the rulings §2.7 encodes.
+  ☑ BUILT (S-1): ISelectionState carries Add/Remove/SetMultiple/Clear/Version; EcsSelectionState is
+  the read-through view; the editor and CGF hold it instead of a parallel hash set.
+  ❌ STILL NOT BUILT: the request event has no set+mode; no SelectionRequestSystem; no notification
+  event; the 3 hand-rolled writers survive; CGF has no map-input path; ClearAll has 0 callers.
   ⭐ 2026-09-10 — §2.6 is NEW and carries four user rulings: selection is GLOBAL across every host
   (ChainToMap as an opt-in is retired), a selection CHANGE cancels editing of the previously selected
   entity, clicks during an edit must not select (already true on the map via the capture-anchor filter,
@@ -39,7 +44,7 @@ known-conflict: none open. ✅ "Who owns selection" is RULED (2026-09-10): the g
 -->
 # Feature design — selection
 
-> **Design for [UXI-11](UX_Issues.md#uxi-11) · drafted 2026-08-12 · target state consolidated `2026-09-10` in §2.7.** **Status: ✅ READY-TO-BUILD, ❌ nothing built — `ISelectionState` unchanged; no `EcsSelectionState`; CGF not on the selection chain; `ClearAll` has 0 callers.** Implements [rulings 27-28](UX_RESUME_INTERACTION.md). Feeds
+> **Design for [UXI-11](UX_Issues.md#uxi-11) · drafted 2026-08-12 · target state consolidated `2026-09-10` in §2.7.** **Status: 🟡 BUILDING — ☑ `S-1` built `2026-09-20` (§2.7.6): the mutators, `EcsSelectionState`, and the two hosts off their parallel hash sets. ❌ `S-2`–`S-6` remain design — no request set+mode, no `SelectionRequestSystem`, no notification event, CGF still has no map-input path, `ClearAll` has 0 callers.** Implements [rulings 27-28](UX_RESUME_INTERACTION.md). Feeds
 > [UXI-24](UX_Issues.md#uxi-24) (multi-select) and [UXI-23](UX_Issues.md#uxi-23) (map parity).
 
 ## 0. Prior art ([rule 6](UX_Issues.md#rules))
@@ -251,6 +256,16 @@ merits:**
 🔒 **The one exception stays as-is:** `SelectionInteractionSystem` writes the repository directly during
 its own main-thread `Tick`. That is correct today, immediate, and has no reason to change — the ECB rule
 applies to **callers outside the tick**, which is where the view's setter lives.
+
+> ⚠⚠ **AS-BUILT `2026-09-20` — `S-1` DID NOT DO THIS, deliberately.** `EcsSelectionState`'s mutators
+> write the repository **directly**. 📐 The paragraph above already establishes that the corruption
+> risk is not real *(`EntityQuery` is an index scan)*, so the ECB was winning on uniformity alone — and
+> ⛔ **the one-frame deferral is not free here**: `EditorStrideSubsystem.SyncSelection2D3D` reads
+> `Selection2DVersion` back **in the same frame** it writes the selection, which the risk table below
+> already flags. ⭐⭐ **`S-2` retires the question rather than answering it** — once every caller
+> publishes a `SelectionChangeRequest` and `SelectionRequestSystem` applies it during its own tick,
+> the only writer IS the blessed exception and no caller sits outside a tick. ⇒ an ECB path built at
+> `S-1` is a path `S-2` deletes. 📄 §2.7.6 deviation ③.
 
 ### 2.6 🔒🔒🔒 SELECTION IS GLOBAL, AND ONLY THE SELECTED ENTITY IS EDITABLE *(user rulings, `2026-09-10`)*
 
@@ -533,8 +548,8 @@ classDiagram
 | element | state today |
 |---|---|
 | `SelectionState` component | ✅ exists, already models multi-select |
-| `ISelectionState` | ⚠ exists; 🔴 **needs `Add`/`Remove`/`SetMultiple`/`Clear`** — it has only `IsSelected`, `SelectedEntities`, `PrimarySelected`, `HoveredEntity` |
-| `EcsSelectionState` | 🔴 **does not exist** — `DefaultSelectionState` is a parallel `HashSet` store |
+| `ISelectionState` | ☑ **`S-1`, `2026-09-20`** — carries `Add`/`Remove`/`SetMultiple`/`Clear`, plus `Version` *(§2.7.6 deviation ①)*. ⛔ *Was: only `IsSelected`, `SelectedEntities`, `PrimarySelected`, `HoveredEntity`.* |
+| `EcsSelectionState` | ☑ **`S-1`, `2026-09-20`** — `Hrot.Presentation`, a read-through over the component; the editor and CGF hold it. ⛔ *Was: did not exist; `DefaultSelectionState` was a parallel `HashSet` store on both hosts.* |
 | `DdsBackedSelectionState` | 🔴 does not exist; 🔒 ruling: *"some similar central piece on non ecs nodes"* |
 | `SelectionRequestSystem` | ⚠ `SelectEntitySystem` is its single-entity ancestor |
 | **request** event | ⚠ `SelectEntityCommand` exists but is `long NetworkId` — **needs a set + a mode** *(replace · add · remove · clear)* |
@@ -597,6 +612,93 @@ sequenceDiagram
 | **S-6** | remote-map-control dispatcher becomes a requester; echo suppression moves to egress | 📄 `DESIGN_Remote_Map_Control.md` |
 
 ⚠ **`UXI-24` (multi-select) rides on S-1 + S-2** — its map additive-click needs the mutators and the mode.
+
+#### 2.7.6 ☑ **`S-1` AS-BUILT — `2026-09-20`**
+
+⭐ **What shipped, against §2.7.1's element table:**
+
+| element | designed | as-built |
+|---|---|---|
+| `ISelectionState` mutators | `Add`/`Remove`/`SetMultiple`/`Clear` | ☑ as designed |
+| `ISelectionState.Version` | ⛔ **not in the design** | ☑ **ADDED — see deviation ① below** |
+| `EcsSelectionState` | *"read-through over the component"* | ☑ `Hrot/Engine/Hrot.Presentation/ScenarioEditor/Selection/EcsSelectionState.cs` |
+| `DefaultSelectionState` | *"becomes `EcsSelectionState`"* | ⚠ **kept, demoted** — see deviation ② |
+| the 4 stores | *"become 1 + views"* | 🟡 **2 of 4 collapsed** — see the gate below |
+
+```mermaid
+classDiagram
+    class ISelectionState {
+        <<interface - the VIEW>>
+        +IsSelected(e) bool
+        +SelectedEntities
+        +PrimarySelected
+        +HoveredEntity
+        +Version int
+        +Add(e)
+        +Remove(e)
+        +SetMultiple(set)
+        +Clear()
+    }
+    class EcsSelectionState {
+        <<NEW - Hrot.Presentation>>
+        +ClearCore()
+        +SetSelectedCore(e, isPrimary)
+    }
+    class DefaultSelectionState {
+        <<demoted - world-less hosts and tests only>>
+    }
+    class SimHostInspectorAdapter
+    class SelectionStateComponent {
+        <<ECS component - THE TRUTH>>
+    }
+    class SelectionInteractionSystem {
+        <<delegates its writes now>>
+    }
+    class EditorSubsystem
+    class CgfSubsystem
+
+    ISelectionState <|.. EcsSelectionState
+    ISelectionState <|.. DefaultSelectionState
+    ISelectionState <|.. SimHostInspectorAdapter
+    EcsSelectionState ..> SelectionStateComponent : reads AND writes
+    SelectionInteractionSystem ..> EcsSelectionState : ClearCore / SetSelectedCore
+    EditorSubsystem --> EcsSelectionState
+    CgfSubsystem --> EcsSelectionState
+```
+
+⭐ *What the picture shows that the prose hid: `SelectionInteractionSystem` no longer writes the
+component itself — it went from a parallel writer to a caller of the same view the hosts hold. That is
+what collapses the writers, and it is invisible in a list of classes.*
+
+##### ⚠ Deviations, and why
+
+| # | deviation | why |
+|---|---|---|
+| **①** | ⭐ **`Version` added to the interface** — a per-observer change token | 📐 `EditorSubsystem.Selection2DVersion` exposed `DefaultSelectionState.Version`, so the host had to hold the CONCRETE type to reach it — the coupling `S-1` exists to remove. ⭐⭐ **And deriving it from the observed ECS truth is a free win**: `EditorStrideSubsystem.SyncSelection2D3D` polls it, so a MAP click now reaches the 3-D view. 🔴 It could not before — the hash set only bumped when editor code assigned through it |
+| **②** | ⚠ **`DefaultSelectionState` kept, not deleted** | §2.7.1 itself specifies `DdsBackedSelectionState` for hosts with no world (ExCon) — **the same shape**. ⇒ deleting the one in-memory implementation and re-adding it at `S-3` is churn. ⭐ **The gate is enforced instead of the deletion**: `NoProductionHostKeepsAParallelSelectionStoreTests` fails if any host under `Hrot/` or `Stride/` constructs one, and it carries a negative control proving the scan reaches `CgfSubsystem.cs`/`EditorSubsystem.cs` |
+| **③** | ⚠ **writes go DIRECT to the repository, not through a command buffer** — a deviation from **§2.5** | 📐 §2.5's own analysis already shows the corruption risk does not exist (`EntityQuery` is an index scan). ⛔ Deferral would put a one-frame lag inside `SyncSelection2D3D`'s same-frame read-back of `Selection2DVersion`. ⭐⭐ **`S-2` deletes the question**: every caller publishes a request, `SelectionRequestSystem` writes during its own tick — which §2.5's stated exception already blesses. ⇒ building an ECB path here is work `S-2` throws away |
+| **④** | ⭐ **`SelectionInteractionSystem` delegates its component writes** to `EcsSelectionState.ClearCore`/`SetSelectedCore` | ⛔ not in the slice text, but it had its own private `SetSelected`/`ClearAllSelections` — **two implementations of "what selected looks like on the component"** (ruling 9). ⭐ Safe because the view is a read-through HANDLE with no store: two instances over one world cannot disagree |
+
+##### 🟡 The gate, reported honestly — **2 of the 4 stores collapsed, not 4**
+
+| store | after `S-1` |
+|---|---|
+| `DefaultSelectionState` × 2 hosts *(editor, CGF)* | ☑ **gone** — both now read through the ECS component |
+| the `SelectionState` component | ☑ the one truth on those hosts |
+| `SimHostSelectionManager` | ❌ **still separate** — SimHost has no FDP world behind its view |
+| `SharedEntitySelection` *(`Hrot.Editor.AiShared.Selection`, wrapped per-editor by `EditorSelectionStore`; `CgfSubsystem.cs:199`)* | ❌ **still separate** |
+| the Stride 3-D `SelectionState` | ❌ **still separate** — ⚠ **not in §2.7.4's delete-list**; it syncs through `Version` and is out of scope until someone rules on it |
+
+⇒ 🔒 **The *"4 stores become 1 + views"* gate lands at `S-3`, not here** — the remaining three need the
+notification event before they can become views. ⛔ Do not read `S-1` as having met it.
+
+##### ⭐ Rails
+
+| suite | |
+|---|---|
+| `SelectionInteractionSystemTests` *(the feature's own, `T-1`)* | **8/8 green** after the delegation — the behaviour-preserving check on deviation ④ |
+| `EcsSelectionStateTests` *(new, 17)* | acceptance **11.1 · 11.2 · 11.3 · 11.9**, the `Version` contract, and the cached-query-sees-later-entities trap |
+| `NoProductionHostKeepsAParallelSelectionStoreTests` *(new, 2)* | the gate, **red-proved** by re-introducing `new DefaultSelectionState()` in `CgfSubsystem` — it named the exact line |
 
 ## 3. Acceptance
 

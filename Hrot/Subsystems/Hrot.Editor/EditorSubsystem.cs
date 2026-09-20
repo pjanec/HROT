@@ -331,7 +331,12 @@ namespace Hrot.Editor
 
         // ?? Selection state ???????????????????????????????????????????????????????
 
-        private DefaultSelectionState? _selectionState;
+        // ⭐⭐⭐ UXI-11 S-1 -- the VIEW, not a store. 📄 UX_Feature_Selection.md §2.7.
+        // ⛔ This was a DefaultSelectionState: a HashSet with no connection to the world, while
+        //   SelectionInteractionSystem wrote the SelectionState component. ⇒ Update() fed the
+        //   Mission Editor from the hash set and ctx.Entities read the component, and the two
+        //   disagreed on every map click -- the divergence ScenarioMissionView's remarks record.
+        private ISelectionState? _selectionState;
         private Hrot.ScenarioEditor.Gizmos.RubberBandState? _rubberBandState;
         private Hrot.ScenarioEditor.Systems.SelectionInteractionSystem? _selectionSystem;
         // ⭐⭐⭐ Batch 95 (95b) — THE SELECTED ENTITY, ONCE, for every store this subsystem holds.
@@ -2350,7 +2355,10 @@ namespace Hrot.Editor
                 _zoneAdapter      = new EditorZoneAdapter(
                     _canvas!, _world.Bus, _globalGizmoManager!, _editorToolController);
                 _mapConfigAdapter = new ScenarioMapConfigAdapter(_mapViewConfig, _canvas!);
-                _selectionState   = new DefaultSelectionState();
+                // ⭐⭐⭐ UXI-11 S-1 -- read through to the ECS SelectionState component, the one truth.
+                //   ⚠ Same lifecycle as _fdpRepoAdapter below: nulled on teardown and rebuilt here,
+                //     because both hold the World and the World is replaced on reload.
+                _selectionState   = new Hrot.ScenarioEditor.Selection.EcsSelectionState(_world);
 
                 // ⭐⭐ CE-051 — the shared rename modal. ⭐ Commits through IEditorLogic.CommitPropertyEdit,
                 //    which publishes an UpdateEntityCommand — ⛔ NOT a direct component write, which is what
