@@ -200,6 +200,88 @@ public sealed unsafe class HsmOccurrenceKeyTests
             () => HsmOccurrence.Resolve<DemoWorkingState>(world, entity, Key(0, 4)));
     }
 
+    /// <summary>
+    /// ⭐⭐ <b>Rail ⑦ — <c>ResolveOrAttach</c> creates the slot on first use, then reuses it.</b>
+    ///
+    /// <para>⭐ The shipped thunk is already self-initialising, so lazy attach is a like-for-like
+    /// replacement rather than a new lifecycle (§24.8). ⚠ <c>freshlyAttached</c> is what tells the
+    /// caller to run <c>InitDefaultWorkingState</c> — ⛔ it is not an error signal.</para>
+    /// </summary>
+    [Fact]
+    public void O7_R7_ResolveOrAttachCreatesTheSlotOnceThenReusesIt()
+    {
+        using var world = CreateWorld();
+        var entity = MakeEntityWithStore(world);
+        int key = Key(region: 0, state: 4);
+
+        ref var first = ref HsmOccurrence.ResolveOrAttach<DemoWorkingState>(
+            world, entity, key, structureHash: 0xABCD, out bool fresh1);
+        Assert.True(fresh1);
+        first.Counter = 7;
+
+        ref var second = ref HsmOccurrence.ResolveOrAttach<DemoWorkingState>(
+            world, entity, key, structureHash: 0xABCD, out bool fresh2);
+
+        // ⭐⭐ THE RAIL. Second entry finds the SAME slot and the state survived.
+        Assert.False(fresh2);
+        Assert.Equal(7, second.Counter);
+    }
+
+    /// <summary>
+    /// ⭐⭐ <b>Rail ⑧ — a <c>StructureHash</c> mismatch RESETS the occurrence.</b>
+    ///
+    /// <para>⛔ The layout changed under the slot, so the old bytes are not this type's. ⚠ It is also
+    /// the only defence against an HSM recompile renumbering states, which would move this occurrence's
+    /// key — see §24.5. ⭐ Reset, never reinterpret.</para>
+    /// </summary>
+    [Fact]
+    public void O7_R8_AStructureHashMismatchResetsTheOccurrence()
+    {
+        using var world = CreateWorld();
+        var entity = MakeEntityWithStore(world);
+        int key = Key(region: 0, state: 4);
+
+        HsmOccurrence.ResolveOrAttach<DemoWorkingState>(
+            world, entity, key, structureHash: 0xABCD, out _).Counter = 99;
+
+        ref var after = ref HsmOccurrence.ResolveOrAttach<DemoWorkingState>(
+            world, entity, key, structureHash: 0x1234, out bool fresh);
+
+        // ⭐⭐ THE RAIL. A new layout gets a FRESH slot, not the old bytes reinterpreted.
+        Assert.True(fresh);
+        Assert.Equal(0, after.Counter);
+    }
+
+    /// <summary>
+    /// ⭐ <b>Rail ⑨ — a missing STORE is a different failure from a missing SLOT, and says so.</b>
+    ///
+    /// <para>⛔ Adding a tier component is a STRUCTURAL change and must never happen inside a kernel
+    /// dispatch. ⚠ Conflating the two messages is how a caller "fixes" the wrong thing.</para>
+    /// </summary>
+    [Fact]
+    public void O7_R9_AMissingStoreIsRefusedDistinctlyFromAMissingSlot()
+    {
+        using var world = CreateWorld();
+        var entity = world.CreateEntity();
+
+        var ex = Assert.Throws<InvalidOperationException>(
+            () => HsmOccurrence.ResolveOrAttach<DemoWorkingState>(
+                      world, entity, Key(0, 4), 0xABCD, out _));
+
+        Assert.Contains("structural change", ex.Message);
+    }
+
+    private static Entity MakeEntityWithStore(EntityRepository world)
+    {
+        var entity = world.CreateEntity();
+        world.AddComponent(entity, new BlueprintBlackboard1024());
+        ref var tier = ref world.GetComponentRW<BlueprintBlackboard1024>(entity);
+        fixed (byte* mem = tier.Memory)
+            BlueprintBlackboardPartitions.Initialize(
+                mem, BlueprintBlackboard1024.TotalSize, (byte)BlueprintBlackboard1024.MaxSlots);
+        return entity;
+    }
+
     // ── helpers ──────────────────────────────────────────────────────────────────
 
     private static EntityRepository CreateWorld()

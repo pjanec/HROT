@@ -2978,3 +2978,46 @@ occurrences; one region moving BETWEEN states is a different occurrence. ⭐ Rai
 | ⛔⛔ **no emitted thunk calls it yet** | `O7a` is a seam **with rails but without a production caller**, which this repo's own rule warns about. ⭐ It is deliberate and time-boxed: `O7b` is the adoption, and until it lands the shipped thunks still hard-code `Blackboard1024 + 8` |
 | ⛔ **the provisioning side is unwritten** | who attaches the per-`(region, state)` slot is `O7b`'s question. ⭐ The answer is already shaped: `BehaviorIngressSystem` provisions `def.StatefulWorkingSlots` **without consulting `BrainTier`** (`E1`/`E2`, pinned by `HsmStatefulProvisioningTests`) — so the HSM host emitting manifest entries is all that is missing |
 | ⛔ **`BrainHsm*` still exist** | that is `O7c`, and §9.4's *"after `O7` there is no `BrainHsm*` at all"* remains the target, not the current state |
+
+### 24.8 ⭐⭐ `O7b`'s FIRST DECISION — **LAZY attach, decided by measurement**
+
+| the lean rests on | code — how it IS | design basis — how it was MEANT to be |
+|---|---|---|
+| the shipped thunk **already** self-initialises ⇒ lazy is like-for-like, not a new lifecycle | ✅ `AiPrimitiveEmitter:357-362` — `if (storedHash != StructureHash) { InitBlock; *(ulong*)memory = StructureHash; InitDefaultWorkingState(…); }` | ✅ §7 *"parse before commit"* governs **params**, not working state; nothing requires eager working state |
+| the blueprint's emitter **cannot see its HSM host** ⇒ there is no host-side manifest to read at emit time | ✅ the thunk is emitted from the BLUEPRINT asset; the host is an HSM asset it never sees | ✅ §19.6 ③ records the same invisibility for hand-written hosts |
+| a lazily-attached slot is **renderable** | ✅ `BlueprintBlackboardRendererBase:72` walks `GetSlotCount(mem)` — the **store**, not the manifest | ✅ §11.4's rail is *"every ALLOCATED occurrence is renderable"* — it does not require pre-allocation |
+| lazy and eager **compose** | ✅ `AttachSlotsToMemory`'s idempotent arm preserves a matching slot ⇒ a manifest entry with the same key makes `ResolveOrAttach` a no-op lookup | ✅ `E1`/`E2` — `BehaviorIngressSystem` provisions without consulting `BrainTier` |
+
+⇒ ⭐ **Lazy now; a manifest entry can be added later purely for TYPED LABELS in the inspector**, without
+touching the thunk. ⚠ **The one real cost of lazy, stated:** with no manifest entry the slot has no
+`WorkingStateType`/`NodeLabel`, so the inspector shows raw bytes until `O7b-2` adds one.
+
+### 24.9 🔴🔴 `O7b` IS BLOCKED ON A MEASURED QUESTION — **what is `instance` in an HSM thunk?**
+
+⛔⛔ **Stopped here deliberately rather than guessing.** Building the emitter change needs the thunk to
+know **its host's identity**, and chasing that surfaced something that must be settled first.
+
+📐 **Measured:**
+
+| | |
+|---|---|
+| the kernel passes the **HSM INSTANCE** pointer | `HsmKernelCore.ExecuteAction:778-781` → `HsmActionDispatcher.ExecuteAction(actionId, instancePtr, contextPtr, writerPtr)`, where `instancePtr` is the `byte*` instance |
+| the emitted HSM thunk casts it to **`Params`** | `AiPrimitiveEmitter` — `ref var p = ref *(Params*)instance;` |
+| ⭐ the BTree thunk does something **different** | it projects params from `bb.BehaviorParameters[0]` (`EmitParamProjection`), never from a kernel pointer |
+| ⚠ and these thunks register through the **same** table | `CSharpEmitter:382-385` — `RegisterAction(BlueprintId, &…HsmAction)` |
+
+⇒ ⚠⚠ **Either the HSM thunk is reading the HSM instance's header bytes as its `Params`, or something
+remaps `instance` for these registrations that I have not found.** ⛔ **I have not established which**,
+and the difference decides `O7b`:
+
+| if `instance` IS the HSM instance | ⭐ then `((InstanceHeader*)instance)->MachineId` is the host's `StructureHash` — **a host identity for free, per dispatch, with no new plumbing** — and the current `(Params*)` cast is a defect |
+|---|---|
+| **if it is remapped** | the host identity needs another route, and the cast is fine |
+
+⭐⭐ **Why this has plausibly never bitten:** the inventory says **1** shipped asset declares `HsmAction`
+and **0** declare `HsmGuard` — so this path is close to never executed in production.
+
+⚠ **And note the key does not need the host TODAY:** `Q4` ruled one assignable behaviour per entity, so
+one HSM machine is active at a time and `(region, state)` is already unique. ⛔ It stops being unique at
+`O8` (HSM hosting HSM). ⇒ the host half is **future-proofing**, which is exactly why it must not be
+guessed at now.

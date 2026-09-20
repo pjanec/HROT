@@ -63,6 +63,71 @@ public static unsafe class HsmOccurrence
         => sizeof(TWorkingState);
 
     /// <summary>
+    /// ⭐⭐⭐ <b>The occurrence's working state, ATTACHING it on first use.</b> This is the call an
+    /// emitted HSM thunk makes.
+    ///
+    /// <para>⭐⭐ <b>Why LAZY, decided by measurement (§24.8):</b> ① the shipped thunk is <b>already</b>
+    /// self-initialising — <c>if (storedHash != StructureHash) { InitBlock; InitDefaultWorkingState; }</c>
+    /// — so this is a like-for-like replacement rather than a new lifecycle; ② the blueprint's emitter
+    /// <b>cannot see its HSM host</b>, the same invisibility §19.6 ③ records for hand-written hosts, so
+    /// there is no host-side manifest to read; ③ the live renderer walks the <b>store's</b> slot table
+    /// (<c>BlueprintBlackboardRendererBase:72</c>), not the manifest, so a lazily-attached slot is
+    /// renderable the moment it exists.</para>
+    ///
+    /// <para>⭐ <b>And it COMPOSES with eager provisioning</b> — if a manifest ever declares the same
+    /// key, <c>BehaviorIngressSystem</c> will have attached it already and this is a no-op lookup. ⇒
+    /// adding manifest entries later (for typed labels in the inspector) changes nothing here.</para>
+    ///
+    /// <para>⛔ <b>A <c>StructureHash</c> mismatch RESETS the state</b>, which is the documented
+    /// behaviour everywhere else in this store: the layout changed under the slot, so the old bytes are
+    /// not this type's. ⚠ It is also the only defence against an HSM recompile renumbering states — see
+    /// §24.5.</para>
+    ///
+    /// <para>⛔⛔ <b>A missing STORE is still a hard failure.</b> Adding a tier component is a
+    /// STRUCTURAL change and must never happen inside a kernel dispatch; the entity must already carry
+    /// one. ⚠ That is a different failure from a missing slot, and the message says which.</para>
+    /// </summary>
+    /// <param name="freshlyAttached">
+    /// <c>true</c> when the slot was just created (or reset by a hash mismatch), so the caller must
+    /// initialise its default working state. ⛔ Not an error either way.
+    /// </param>
+    public static ref TWorkingState ResolveOrAttach<TWorkingState>(
+        EntityRepository world, Entity self, int slotKey, ulong structureHash, out bool freshlyAttached)
+        where TWorkingState : unmanaged
+    {
+        byte* store = OccurrenceStoreAccess.TryGetStore(world, self, out _);
+
+        if (store == null)
+            throw new InvalidOperationException(
+                $"Entity {self} carries no occurrence store, so HSM-hosted slot {slotKey} cannot be " +
+                "attached. Adding a tier component is a structural change and must not happen inside " +
+                "a kernel dispatch — the entity must already carry one.");
+
+        if (BlueprintBlackboardPartitions.TryGetSlotOffset(store, slotKey, out int offset, out uint existingHash))
+        {
+            if (existingHash == (uint)structureHash)
+            {
+                freshlyAttached = false;
+                return ref Unsafe.AsRef<TWorkingState>(store + offset);
+            }
+
+            // The layout changed under this slot — the old bytes are not this type's.
+            BlueprintBlackboardPartitions.TryDetach(store, slotKey);
+        }
+
+        if (!BlueprintBlackboardPartitions.TryAttach(
+                store, slotKey, sizeof(TWorkingState), structureHash, OccurrenceKind.Hsm, out int newOffset))
+            throw new InvalidOperationException(
+                $"Entity {self} has an occurrence store with no room for HSM-hosted slot {slotKey} " +
+                $"({sizeof(TWorkingState)} bytes). The tier is full — provision a larger one, or " +
+                "declare this occurrence in the behaviour's stateful manifest so the ingress sizes " +
+                "the tier for it.");
+
+        freshlyAttached = true;
+        return ref Unsafe.AsRef<TWorkingState>(store + newOffset);
+    }
+
+    /// <summary>
     /// ⭐⭐ The occurrence's working state, as a <c>ref</c> into the entity's occurrence store.
     ///
     /// <para>⛔ <b>Valid for the CALLING FRAME ONLY</b> — the seam's lifetime rule. Native ECS storage
