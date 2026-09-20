@@ -1960,6 +1960,28 @@ netstandard2.0-subset, **LINKED** into `Hrot.Blueprints.Compiler`.
 a struct re-declaring `MaxSlots = 8` — reddened **`B3_R1`, `B3_R2`, `B3_R6`, `B3_R8`, `B3_R9`**.
 Reverted, 20/20 green.
 
+#### 🔴🔴 WHAT THE RE-PICK ACTUALLY COST — **THREE TESTS PINNED THE LADDER'S NUMBERS, NOT THEIR OWN INVARIANT**
+
+⛔⛔ **The pre-measurement was right and I over-read it.** It measured **production content** and found
+the 801–928 B band empty — that held. ⚠ It said nothing about **test fixtures**, and I took it to mean
+*"nothing moves"*. 📐 Three tests reddened, in three different files, **all the same defect**:
+
+| test | what it PINNED | what it actually OWNS |
+|---|---|---|
+| `BehaviorIngressStatefulTests.Assign_UpgradesTierSynchronously_BeforeFirstTick` | `const int = 900`, with the comment *"PayloadSize for 1024 = 928"* | *"a nearly-full tier is upgraded SYNCHRONOUSLY when a manifest does not fit"* |
+| `BlueprintMaterializationSystemTests.Materialize_ExceedsCeiling_TruncatesWithoutThrowing` | `HasComponent<BlueprintBlackboard16384>` | *"exceeding the ceiling TRUNCATES and does not throw"* |
+| `PartitionAllocatorTests.Attach_Fragmented_ReturnsFalseEvenIfTotalFreeBigEnough` | `112 / 112 / 112 / 496`, filling 928 **exactly** | *"total free ≥ request but no CONTIGUOUS block ⇒ fail"* |
+
+| ⭐ the two things worth carrying forward | |
+|---|---|
+| ⛔⛔ **TWO OF THE THREE FAILED WHILE BUILDING THEIR SCENARIO** | ⚠ the nastier variant: the test is not wrong about behaviour, it simply **cannot reach its own assertion** any more. 📌 `Assign_Upgrades…` died on `Assert.True(ok, "Pre-existing slot must attach successfully")` — a **pre-condition** |
+| ⭐⭐ **the ceiling test was a SECOND confirmation of the win** | 📐 20 blueprints × 50 B truncate to 16 slots / 800 B. Under `4/8/16` nothing below 16384 held 16 slots; at `12/16/16` the **4096** tier does — **4×**, independent of the `PlatoonHillAttack2` result |
+
+⇒ ⭐ **All three now derive from `BlueprintTierLadder` / `BlueprintTierTable`**, so `B4`'s 256 tier
+cannot reproduce it. ⚠ **And the general lesson is not "measure harder"** — the measurement was correct.
+🔒 **It is that a CONSTANT-CHANGE task must grep the test tree for the OLD VALUES, not only reason about
+production content.**
+
 ⇒ ✅ **PLAN `W1` is ANSWERED and `O3a` is COMPLETE.** ⭐ `O3b` (the 256 tier, task `B4`) is now one
 entry in `BlueprintTierTable.Ascending` plus a component struct and an id — ⛔ appended to
 `BlackboardTier`, never inserted (`N2`).

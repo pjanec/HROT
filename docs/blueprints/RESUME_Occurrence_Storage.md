@@ -8,7 +8,7 @@ build-state: n/a — a resumption snapshot, not a design.
 current-answer: §3 — the NEXT ACTION is task B3 (`O3a`: collapse per-tier branching to a TierSpec
   table AND re-pick the MaxSlots ladder). Increment A is COMPLETE; B1 and B2 are DONE; all pushed.
   §2 is the grounded facts: ⛔ do not re-derive them, they cost real measurement. §5 is the trap
-  list, and it is the section most worth two minutes — fifteen of these were MY errors, three of
+  list, and it is the section most worth two minutes — sixteen of these were MY errors, three of
   which reached a pushed document before being caught.
 stale-below: nothing — §3 rewritten 2026-09-20 after B2 landed.
 known-rot: nothing.
@@ -176,7 +176,7 @@ source saying so. ⭐ Anyone "finishing A2" by collapsing them would introduce a
 
 ## 5. ⛔⛔ THE TRAPS THIS PROGRAMME HAS PAID FOR
 
-⭐ Fifteen of these were **my own errors**; three reached a pushed document before being caught. They are
+⭐ Sixteen of these were **my own errors**; three reached a pushed document before being caught. They are
 here as checkable habits, not confessions. ⚠ **⑯ is not mine** — it is a defect in the tooling that
 enforces the rules, and it is here because believing its banner would have produced a grep-only answer.
 
@@ -203,6 +203,8 @@ enforces the rules, and it is here because believing its banner would have produ
 | 🔴 **⑰** | ⛔⛔ **I QUOTED A TRUNCATED SEARCH PAGE AS A CENSUS.** `search_code("BlueprintBlackboard16384")` printed `files: 37` — and, in the same result, **`results_returned: 100`, `total_results: 129`, `has_more: true`**. 📐 The real figure is **75 files**. ⇒ the `B3` site table was built from one page and **missed three real ladders**; all three surfaced only from a full-solution build. ⚠ `CLAUDE.md` names this exact trap *("`limit` defaults to 10 — a truncated page looks exactly like a small answer")* and it was still paid | ⭐ **read `has_more` / `total_results` BEFORE quoting a count**, and for a whole-repo census prefer `grep -rln`, which cannot paginate. ⛔ A file list is not a census unless the result says it is complete |
 | 🔴 **⑱** | ⛔⛔ **A FOREGROUND BUILD RACING A BACKGROUND ONE MAKES `--no-build` RUN A BINARY THAT SILENTLY OMITS YOUR NEW TESTS.** 📐 Measured: the test `.dll` was stamped **13:31:16**, the `.cs` holding 7 new rails **13:31:12** ⇒ the incremental check saw the dll as newer and **skipped the compile**. `dotnet build` said *"Build succeeded"*, `dotnet test --no-build` said *"Passed! 11"* — and **11 was exactly the old rail count.** ⚠ A green with a suspiciously round number is the only symptom; nothing errors. ⭐ Fixed by `--no-incremental` | ⭐⭐ **after adding tests, check the COUNT went up by what you added.** ⛔ `strings <dll> \| grep <NewTestName>` settles it in a second. ⚠ This is the third face of the stale-binary trap *(⑦ failed build, ⑫ wrong project, ⑱ skipped compile)* — ⇒ 🔒 **do not run a foreground build of a project a background job is also building** |
 | ⚠ **⑲** | 🔴 **`git stash` WHILE A BACKGROUND BUILD OR TEST RUNS CORRUPTS IT.** I stashed to measure a baseline while a suite was running in the background; the stash left untracked NEW files in place, so the "baseline" build failed with 10 errors, produced a broken dll, **and poisoned the concurrent run** — whose result then had to be thrown away | ⛔ **never stash with work in flight.** ⭐ For a baseline, use `git worktree add` — it is isolated by construction — or measure the property from the SOURCE instead: 📌 here the question *"did skips change?"* was answered by `git status <test project>` returning **empty**, proving `B3` touched no test source, in one command and no build |
+
+| 🔴 **⑳** | ⛔⛔ **A CONSTANT-CHANGE TASK MUST GREP THE TEST TREE FOR THE OLD VALUES — reasoning about production content is NOT enough.** `B3②` re-picked the `MaxSlots` ladder and I pre-measured the displaced **production** population *(empty, correctly)*. 📐 **Three tests reddened anyway**, in three files, all the same defect: each had encoded the ladder's NUMBERS rather than the property it protects — a `900`-byte fixture against a 928-byte payload, an assertion on a specific tier COMPONENT, and `112/112/112/496` filling 928 exactly. ⚠⚠ **Two of the three failed while BUILDING their scenario**, before reaching their own assertion — a pre-condition `Assert.True`, which reads like a broken test rather than a moved constant | ⭐⭐ before changing a constant, **`grep` the repo for its VALUE** *(`928`, `3936`, the literal slot sizes)*, not just for its NAME — a fixture that hard-codes `900` mentions neither. ⭐ Then rewrite each hit to DERIVE from the constant, so the next move is free. ⛔ *"I measured the production impact"* is a different claim from *"nothing references the old number"* |
 
 ⭐ **And three operational ones, all re-paid despite being in the runbook:**
 ⛔ `127.0.0.1` 404s on **every** route — `HttpListener` binds the hostname; use `localhost` (§2.1) ·
