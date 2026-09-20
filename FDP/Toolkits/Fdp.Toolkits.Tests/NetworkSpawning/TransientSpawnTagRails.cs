@@ -1,3 +1,4 @@
+using System.Linq;
 using Fdp.Core;
 using Fdp.Interfaces;
 using Fdp.ModuleHost.Abstractions;
@@ -64,6 +65,30 @@ namespace Fdp.Toolkit.NetworkSpawning.Tests
             ((EntityCommandBuffer)((ISimulationView)repo).GetCommandBuffer()).Playback(repo);
         }
 
+        /// <summary>
+        /// 🔴🔴 <b>Trap ㉗ — these two rails fail intermittently in the FULL suite and pass 2/2 in
+        /// isolation, and SIX observed failures produced NO usable evidence because nobody ever
+        /// captured the assertion state.</b> 📄 <c>RESUME_Occurrence_Storage.md</c> §5 ㉗.
+        ///
+        /// <para>📐 Measured <c>2026-09-20</c>: ~6 failures in ~27 full runs, parallelism ON and OFF
+        /// alike, never reproducible on demand. ⛔ The leading suspect — that the process-global
+        /// <c>ComponentTypeRegistry</c> could hand back a different id depending on which of the 26
+        /// <c>Clear()</c> callers ran first — is <b>refuted</b>: <c>GetOrRegisterManaged</c> requires an
+        /// explicit <c>[ComponentId]</c>, so <see cref="ScenarioIgnoreTag"/> is <b>always 200</b>.</para>
+        ///
+        /// <para>⭐⭐ <b>So the next red must diagnose itself.</b> ⚠ Both rails fail TOGETHER, which
+        /// already narrows it to one mechanism — <i>the tag never landed</i> — and these fields say
+        /// whether the id, the registration or the stamp is the part that moved. ⛔ A generic
+        /// <c>Assert.True</c> message would send the next session round the same loop.</para>
+        /// </summary>
+        private static string Diagnosis(EntityRepository repo, int tagId, Entity keeper, Entity sketch)
+            => $"[trap ㉗ diagnosis] tagId={tagId} (expected 200) · " +
+               $"registeredOnRepo={repo.IsComponentTypeRegistered<ScenarioIgnoreTag>()} · " +
+               $"keeperMask.IsSet={repo.GetComponentMask(keeper.Index).IsSet(tagId)} · " +
+               $"sketchMask.IsSet={repo.GetComponentMask(sketch.Index).IsSet(tagId)} · " +
+               $"keeperAlive={repo.IsAlive(keeper)} sketchAlive={repo.IsAlive(sketch)} · " +
+               $"keeperIndex={keeper.Index} sketchIndex={sketch.Index}";
+
         private static SpawnEntityCommand Cmd(long networkId, bool isTransient) => new()
         {
             RequestId   = System.Guid.NewGuid(),
@@ -102,10 +127,12 @@ namespace Fdp.Toolkit.NetworkSpawning.Tests
 
             int tagId = ComponentTypeRegistry.GetId(typeof(ScenarioIgnoreTag));
             Assert.False(repo.GetComponentMask(keeper.Index).IsSet(tagId),
-                "the NORMAL entity was tagged — ProcessSpawn is not reading cmd.IsTransient.");
+                "the NORMAL entity was tagged — ProcessSpawn is not reading cmd.IsTransient. " +
+                Diagnosis(repo, tagId, keeper, sketch));
             Assert.True(repo.GetComponentMask(sketch.Index).IsSet(tagId),
                 "the TRANSIENT entity was NOT tagged — ProcessSpawn dropped the stamp, so an IG sketch " +
-                "would be written into the scenario by whichever node saves (R-140, §7.3).");
+                "would be written into the scenario by whichever node saves (R-140, §7.3). " +
+                Diagnosis(repo, tagId, keeper, sketch));
         }
 
         /// <summary>
@@ -134,7 +161,15 @@ namespace Fdp.Toolkit.NetworkSpawning.Tests
                 .Serialize(repo, new ScenarioHeader("Hrot.Scenario"));
 
             var entities = dom["Entities"]!.AsObject();
-            Assert.Single(entities);
+            Assert.True(entities.Count == 1,
+                $"expected exactly the keeper in the saved scenario, got {entities.Count} " +
+                $"([{string.Join(", ", entities.Select(e => e.Key))}]). " +
+                // ⚠ trap ㉗ — this rail reds TOGETHER with the stamp rail above, so the same
+                //   diagnosis applies: a count of 2 means the tag never landed, 0 means the
+                //   serializer emitted nothing and the assertion would have passed vacuously.
+                Diagnosis(repo, ComponentTypeRegistry.GetId(typeof(ScenarioIgnoreTag)),
+                          map.TryGetEntity(901, out var k) ? k : default,
+                          map.TryGetEntity(902, out var s) ? s : default));
         }
     }
 }
