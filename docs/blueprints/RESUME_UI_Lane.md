@@ -1,8 +1,9 @@
 <!--STATUS
 state: LIVE
 updated: 2026-09-20
-current-answer: ⭐⭐⭐ READ THE "SESSION 2026-09-20 (e)" BLOCK AT THE TOP OF THIS FILE — it is the live
-  one. ☑ UXI-11 slices S-1, S-2, S-3, S-3b AND S-3c ARE BUILT: one store, one request, one writer, one
+current-answer: ⭐⭐⭐ READ THE TOP OF THIS FILE. ⛔⛔ FIRST BLOCK: "S-3d NEEDS A WINDOWS BUILD" — the
+  Stride change is WRITTEN AND PUSHED BUT NEVER COMPILED, and it carries the prompt for that session.
+  THEN the "SESSION 2026-09-20 (e)" block, which is the live state of everything else. ☑ UXI-11 slices S-1, S-2, S-3, S-3b AND S-3c ARE BUILT: one store, one request, one writer, one
   announcement on every node — and ONE PLACE (MapInteractionPack) that builds them all.
   NEXT IS S-4 — right-click selects on every surface, and the DER inspector gains a seam.
   ⚠ Two things remain openly unmet and each says so: "the ONLY writer" has one surviving writer
@@ -31,6 +32,58 @@ related-designs:
   Nothing was deleted.
 -->
 # ⭐⭐⭐ RESUME — **the UI / variable implementation lane**
+
+## ⛔⛔ UNVERIFIED ON THIS LANE — **`S-3d` (Stride) NEEDS A WINDOWS BUILD**
+
+⚠⚠ **Written, pushed, NOT COMPILED.** `HrotStrideApp.Game` is `net8.0-windows` and outside the root
+solution — this lane can build neither it nor `HrotStrideApp.Game.Tests`. 📄 §2.7.11 of
+[`UX_Feature_Selection.md`](../UX/UX_Feature_Selection.md) carries the reasoning and the six checks.
+
+**What changed:** the Stride 3-D `EditorSelectionState` became a **view** of the 2-D selection
+*(`BindTo` over the editor's existing `Selected2DEntity` / `SetSelection2D` / `Selection2DVersion`)*,
+and **`SyncSelection2D3D` is deleted** with both anti-bounce trackers. ⚠ Deleting it is mandatory: with
+one truth, each "push" bumps a version the other arm reads as a change ⇒ a bump every frame, forever.
+
+🔴 **One defect was caught by audit before pushing:** the Stride rails drive the subsystem **headless**,
+where the editor never builds its selection — binding unconditionally would have made `Select` a
+**silent no-op** with every rail still green. ⇒ `BindTo` takes a fourth `available` delegate, backed by
+the new (Linux-built, tested) `EditorSubsystem.Has2DSelection`.
+
+### 🪟 PROMPT FOR THE WINDOWS SESSION
+
+```
+Branch `ui` at origin. Pull it.
+
+UXI-11 S-3d was written on a Linux lane that cannot compile Stride. Verify it.
+Read docs/UX/UX_Feature_Selection.md §2.7.11 first — it lists what to check and why.
+
+1. Build Stride/HrotStrideApp.sln (or HrotStrideApp.Game.csproj). It has NEVER been
+   compiled with these edits. Fix compile errors in place; the touched files are
+   Stride/HrotStrideApp.Game/StrideInspectorWindow.cs (EditorSelectionState gained
+   BindTo/IsBound and a bound mode) and EditorStrideSubsystem.cs (binds after
+   `_editor = new EditorSubsystem()`, and SyncSelection2D3D + its two version
+   trackers are deleted).
+
+2. Run HrotStrideApp.Game.Tests, especially EditorSelectionStateTests (12 tests).
+   They drive the UNBOUND path. If any fail, `available` is returning true when it
+   should not — check EditorSubsystem.Has2DSelection.
+
+3. Run the editor with the Stride 3-D view. Confirm, in this order:
+   a. click an entity in the 3-D view -> the 2-D map ring moves, same frame;
+   b. click an entity on the 2-D map -> the 3-D highlight follows;
+   c. NO per-frame churn: no selection flicker, and [SelDiag] must not log a
+      change every second with no input. That churn is the failure mode the
+      deleted bridge would have caused, so it is the thing most worth watching.
+
+4. Report back: did it compile, did the 12 rails pass, and did 3a-3c behave.
+   If 3c churns, say so immediately — that means something still writes the
+   selection on both sides.
+
+Do not "fix" a failure by restoring SyncSelection2D3D; with one selection there is
+nothing to sync, and restoring it recreates the churn. Fix the binding instead.
+```
+
+---
 
 ## ⭐⭐⭐ SESSION `2026-09-20` (e) — **`S-3c`: THE BOOTSTRAP IS SHARED; NEXT IS `S-4`**
 

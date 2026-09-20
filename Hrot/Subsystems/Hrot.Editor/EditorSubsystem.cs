@@ -768,6 +768,19 @@ namespace Hrot.Editor
         public int Selection2DVersion => _selectionState?.Version ?? 0;
 
         /// <summary>
+        /// ⭐⭐⭐ <b>Whether this editor actually HAS a 2-D selection to share.</b>
+        /// <c>false</c> in headless, where <c>_selectionState</c> is never built.
+        ///
+        /// <para>🔴 <b>Why it exists (<c>UXI-11</c> <c>S-3d</c>):</b> the Stride 3-D view binds its
+        /// selection to this editor's. ⛔ Binding unconditionally would make <c>Select</c> a SILENT
+        /// NO-OP on a headless subsystem — <c>SetSelection2D</c> would write nothing and
+        /// <see cref="Selection2DVersion"/> would answer a constant 0, which is indistinguishable
+        /// from "nothing is selected". ⚠ <c>0</c> is also a legitimate version, so the caller cannot
+        /// infer absence from it; this says so explicitly.</para>
+        /// </summary>
+        public bool Has2DSelection => _selectionState != null;
+
+        /// <summary>
         /// Sets the 2D editor selection to <paramref name="entity"/> (or clears it when null),
         /// updating BOTH the UI-level primary AND the ECS <c>SelectionState</c> components the 2D map
         /// overlay renders -- i.e. exactly what an in-map click does. Used by the 3D-to-2D sync.

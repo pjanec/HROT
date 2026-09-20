@@ -81,20 +81,80 @@ public sealed class EditorSelectionState
 {
     private Entity _selectedEntity = Entity.Null;
 
+    // ══ UXI-11 S-3d — BOUND MODE: this is a VIEW of the host's one selection ═══════════════
+    // 🔒 User, 2026-09-20: "we should unify … make the nodes use same (best shared) stuff in the
+    //    same way", extended to the bootstrap. 📄 docs/UX/UX_Feature_Selection.md §2.7.11.
+    //
+    // 🔴 WHAT THIS CLOSES. Unbound, this class is a SIXTH selection store: the 3-D view kept its own
+    //    entity and reached the 2-D map only through EditorStrideSubsystem.SyncSelection2D3D, a
+    //    version-polling bridge that moved one direction per frame with two anti-bounce trackers.
+    //    ⇒ bound, there is nothing to bridge, and that method is DELETED.
+    //
+    // ⚠ BOUND vs UNBOUND is deliberate, not a half-measure. StrideNodeShell constructs one of these
+    //   with no editor behind it (the node-shell path has no 2-D map), and EditorSelectionStateTests
+    //   drive the unbound behaviour directly. ⛔ Unbound semantics are UNCHANGED.
+    private Func<Entity?>?  _read;
+    private Action<Entity?>? _write;
+    private Func<int>?      _version;
+    private Func<bool>?     _available;
+
+    /// <summary>
+    /// True when this state is a view of the host's shared selection rather than a store.
+    ///
+    /// <para>⚠⚠ <b><c>_available</c> is not defensive padding — it is the difference between a view
+    /// and a silent no-op.</b> The 2-D editor builds its selection only when it registers windows, so
+    /// a HEADLESS subsystem has none. ⛔ Bound unconditionally, <c>Select</c> would write nowhere and
+    /// <c>Version</c> would answer a constant 0 — indistinguishable from "nothing selected", and the
+    /// 3-D highlight would simply never appear. ⭐ Unbound-until-available keeps the local store
+    /// working in exactly that case, which is also what <c>EditorSelectionStateTests</c> drives.</para>
+    /// </summary>
+    public bool IsBound => _read != null && _write != null && _version != null
+                        && (_available?.Invoke() ?? true);
+
+    /// <summary>
+    /// ⭐⭐⭐ Binds this state to the host's ONE selection, making the 3-D view and the 2-D map the
+    /// same selection rather than two kept in step.
+    ///
+    /// <para>⚠ Deferred rather than a constructor argument because <c>EditorStrideSubsystem</c> creates
+    /// the <c>EditorSubsystem</c> it binds to <b>after</b> this property is initialised; a field
+    /// initializer cannot reference an instance field (CS0236).</para>
+    ///
+    /// <para>⭐ The three delegates are deliberately the editor's EXISTING public trio —
+    /// <c>Selected2DEntity</c>, <c>SetSelection2D</c>, <c>Selection2DVersion</c> — all of which already
+    /// route to the shared <c>EcsSelectionState</c>. ⛔ No new API on the 2-D side, which keeps the
+    /// blast radius of this (Windows-only, unbuildable on the Linux lane) change to one file plus the
+    /// deletion of the bridge.</para>
+    /// </summary>
+    /// <param name="available">
+    /// ⭐⭐⭐ Whether the host's shared selection EXISTS yet. Re-asked every time, because the editor
+    /// builds it during window registration — so a subsystem is unbound at construction and bound
+    /// once it has windows. ⛔ Without this, headless is a silent no-op.
+    /// </param>
+    public void BindTo(Func<Entity?> read, Action<Entity?> write, Func<int> version, Func<bool> available)
+    {
+        _read      = read      ?? throw new ArgumentNullException(nameof(read));
+        _write     = write     ?? throw new ArgumentNullException(nameof(write));
+        _version   = version   ?? throw new ArgumentNullException(nameof(version));
+        _available = available ?? throw new ArgumentNullException(nameof(available));
+    }
+
     /// <summary>
     /// The currently-selected FDP entity, or <see cref="Entity.Null"/> when nothing is selected.
     /// </summary>
-    public Entity SelectedEntity => _selectedEntity;
+    public Entity SelectedEntity => IsBound ? (_read!() ?? Entity.Null) : _selectedEntity;
 
     /// <summary>
     /// Monotonically-increasing counter.  Bumped every time <see cref="Select"/> or
     /// <see cref="Clear"/> changes the selection.  Readers can compare against their last-seen
     /// version to detect changes without polling the entity.
+    /// ⭐ When bound, this is the shared view's own change token — one counter, not two in step.
     /// </summary>
-    public int Version { get; private set; }
+    public int Version => IsBound ? _version!() : _localVersion;
+
+    private int _localVersion;
 
     /// <summary>Returns <c>true</c> when an entity is selected (not <see cref="Entity.Null"/>).</summary>
-    public bool HasSelection => _selectedEntity != Entity.Null;
+    public bool HasSelection => SelectedEntity != Entity.Null;
 
     /// <summary>
     /// Sets the selected entity and bumps <see cref="Version"/>.
@@ -102,8 +162,16 @@ public sealed class EditorSelectionState
     /// </summary>
     public void Select(Entity entity)
     {
+        if (IsBound)
+        {
+            // ⭐ A 3-D ray hit now moves the 2-D map ring, the inspector and the ORBAT, because they
+            //   all read the one selection. 🔴 Before, it moved only the 3-D highlight until the
+            //   version-poll bridge caught up a frame later.
+            _write!(entity == Entity.Null ? null : entity);
+            return;
+        }
         _selectedEntity = entity;
-        Version++;
+        _localVersion++;
     }
 
     /// <summary>
@@ -111,18 +179,27 @@ public sealed class EditorSelectionState
     /// </summary>
     public void Clear()
     {
+        if (IsBound)
+        {
+            if (SelectedEntity == Entity.Null) return;
+            _write!(null);
+            return;
+        }
         if (_selectedEntity == Entity.Null) return; // already clear — don't bump version
         _selectedEntity = Entity.Null;
-        Version++;
+        _localVersion++;
     }
 
     /// <summary>
     /// Checks whether the currently-selected entity is still alive in <paramref name="world"/>.
     /// If it is dead (or the world is null), the selection is cleared.
     /// Call once per frame from the host loop after the FDP kernel tick.
+    /// ⭐ A NO-OP when bound: <c>EcsSelectionState</c> reads the live world, so a destroyed entity is
+    /// already absent — there is no stale handle to scrub.
     /// </summary>
     public void ClearIfDead(Fdp.Core.EntityRepository? world)
     {
+        if (IsBound) return;
         if (_selectedEntity == Entity.Null) return;
         if (world == null || !world.IsAlive(_selectedEntity))
             Clear();

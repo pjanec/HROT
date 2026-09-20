@@ -7,7 +7,11 @@ build-state: BUILDING (§2.7 is the consolidated TARGET STATE with class + seque
   ☑ S-3b BUILT 2026-09-20 — user ruling "simhost is not special"; SimHost and ReplayBrowser joined the
   protocol and SimHostSelectionManager/SimHostInspectorAdapter are DELETED. As-built in §2.7.9.
   ☑ S-3c BUILT 2026-09-20 — user ruling "unify the bootstrap too"; MapInteractionPack now CONSTRUCTS the
-  selection for all five hosts. As-built in §2.7.10. S-4..S-6 remain DESIGN.)
+  selection for all five hosts. As-built in §2.7.10.
+  ⚠⚠ S-3d WRITTEN BUT NOT COMPILED 2026-09-20 — the Stride 3-D selection becomes a view of the 2-D one
+  and SyncSelection2D3D is deleted. HrotStrideApp.Game is net8.0-windows and outside the root solution,
+  so this lane cannot build it OR its tests. ⛔ DO NOT TREAT §2.7.11 AS VERIFIED until a Windows session
+  runs the six checks listed there. S-4..S-6 remain DESIGN.)
 verified: 2026-09-10 (measured source scan, graph + grep, coverage checked)
   ⭐ S-1's own inventory re-measured 2026-09-20 on the graph — §2.7.6.
 current-answer: ✅ READ §2.7 — the consolidated TARGET STATE (2026-09-10), with the class diagram, the
@@ -1065,6 +1069,63 @@ refactor; one that encodes the INVARIANT (*nobody wires their own*) survives it.
 suite still reported **419 passed** — from the previous binary. ⛔ That is the stale-binary trap, and the
 only reason it was caught is that the build error scrolled past above the results. ⇒ ⭐ **every test
 project's build is now checked, and its error count printed, BEFORE any result is read.**
+
+#### 2.7.11 ⚠ **`S-3d` — THE STRIDE HOST, WRITTEN BLIND** *(needs a Windows build)*
+
+> 🔒 **User, `2026-09-20`:** chose option **(a)** — make the change, marked as unbuilt on this lane, and
+> compile on Windows.
+
+⛔⛔ **STATE: WRITTEN, NOT COMPILED.** `HrotStrideApp.Game` targets `net8.0-windows` and sits outside the
+root solution, so **neither it nor `HrotStrideApp.Game.Tests` can be built on the Linux lane.** ⚠ Treat
+every claim below as *reasoned from source*, not measured — 📄 the Windows verification prompt is in
+[`RESUME_UI_Lane.md`](../blueprints/RESUME_UI_Lane.md).
+
+##### 🔴 What it closes — **the sixth store, and a per-frame bridge**
+
+| before | after |
+|---|---|
+| `EditorSelectionState` held its **own** `Entity` and `Version` | it is a **VIEW** of the 2-D selection when bound |
+| `SyncSelection2D3D` moved the selection **one direction per frame** between two stores, with two anti-bounce trackers | ⛔ **DELETED**, with `_last2dSelVersion`/`_last3dSelVersion` |
+| a 3-D ray hit moved the 3-D highlight, and the map ring followed **a frame later** | a 3-D hit **is** the selection — map ring, inspector and ORBAT follow because they read the same one |
+
+⚠ **Deleting the bridge is mandatory, not tidying.** With one truth, each "push" writes through
+`PrimarySelected`, which bumps the version, which the other arm reads as a change ⇒ **a bump every
+frame, forever.**
+
+##### ⭐ How it binds, and why that shape
+
+`EditorSelectionState.BindTo(read, write, version, available)` is wired to the editor's **existing**
+public trio — `Selected2DEntity` · `SetSelection2D` · `Selection2DVersion` — all of which already route
+to the shared `EcsSelectionState`. ⇒ ⛔ **no new API on the 2-D side**, which keeps an unbuildable
+change to one Stride file plus the bridge deletion.
+
+⚠ **Deferred rather than a constructor argument** because `EditorStrideSubsystem` creates the
+`EditorSubsystem` it binds to *after* the property is initialised; a field initializer cannot reference
+an instance field (CS0236).
+
+##### 🔴🔴 The defect the audit caught before it shipped — **`available` is the whole ballgame**
+
+📐 `EditorSelectionStateTests` drives `EditorStrideSubsystem` **headless**, and the editor builds
+`_selectionState` only during **window registration**. ⇒ bound unconditionally, `SetSelection2D` would
+write nowhere and `Selection2DVersion` would answer a constant `0` — **indistinguishable from "nothing
+selected"**. The 3-D highlight would simply never appear on a headless subsystem, and every rail would
+still pass.
+
+⇒ ⭐ `BindTo` takes a fourth delegate, `available`, re-asked every call; `EditorSubsystem.Has2DSelection`
+is the new (Linux-built, tested) property behind it. ⛔ `0` could not serve — it is a legitimate version,
+so absence had to be stated rather than inferred. ⚠ Unbound behaviour is **unchanged**, which is what
+keeps both the headless path and `StrideNodeShell`'s world-less `_operatorSelection` working.
+
+##### ⚠ What a Windows run must confirm
+
+| # | check | why it is the risk |
+|---|---|---|
+| **1** | `HrotStrideApp.Game` **compiles** | the only unverified thing about the whole slice |
+| **2** | `HrotStrideApp.Game.Tests` — `EditorSelectionStateTests` **12/12** | they drive the UNBOUND path; if any fail, `available` is returning true when it should not |
+| **3** | click an entity **in the 3-D view** → the 2-D map ring moves **in the same frame** | the payoff, and the bridge's removal |
+| **4** | click an entity **on the 2-D map** → the 3-D highlight follows | the other direction, now free |
+| **5** | watch for a **per-frame version churn** — selection flicker, or `[SelDiag]` logging a change every second with no input | the loop the bridge would have caused if it had survived |
+| **6** | run the Stride app **headless / without the inspector window**, if that configuration exists | the `available` path |
 
 ## 3. Acceptance
 
