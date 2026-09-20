@@ -30,10 +30,15 @@ reopens: Architect_Question_37_Unify_On_The_Allocator.md — PARKED by the user 
   ("keep this open and return to it a bit later"). THIS DOCUMENT IS THAT RETURN. Q37's
   measurements are banked and marked do-not-re-measure; they are cited here, not re-derived.
 related-designs:
-  - RESUME_Assets_And_Occurrences.md — ⭐ THE COORDINATOR RESUMPTION for this programme. Read it FIRST
-    if you are picking this up cold: this document has NO PLAN yet, and §3.2 there says what to do
-    before writing one (including the one cost measurement Q37 never took — the AI entity count).
-    ⚠ A state snapshot, not canon — verify against git.
+  - PLAN_Occurrence_Storage_Build.md — ⭐ THE BUILD BREAKDOWN of this design: 14 tasks, 5 increments,
+    the under-specified register and the dispatch grouping (2026-09-20). ⛔ Where it and this design
+    disagree, THIS design wins.
+  - RESUME_Occurrence_Storage.md — the `behaviors` lane resumption. Its §4 is the trap list this
+    session paid for; its current-answer names the one job in flight.
+  - RESUME_Assets_And_Occurrences.md — the COORDINATOR resumption (2026-09-19), owning TWO programmes.
+    ⛔ SUPERSEDED IN PART: it says this document has no PLAN (now false — see above), treats §3.2's
+    defect as "shipped" (now measured LATENT) and names the AI entity count as the first measurement
+    to take (taken; and it was the wrong one to take first — §5a). ⚠ A state snapshot, not canon.
   - Architect_Question_37_Unify_On_The_Allocator.md — THE OWNING QUESTION. Owns whether all
     parameter storage moves to the allocator, its two real costs (the ~1 KB floor, indirection
     from some actions to all) and the option set A/B/C. This document is its build-out.
@@ -647,8 +652,8 @@ Ordered so that each step is provable on its own and the expensive irreversible 
 | **O0** | **WIRE `BlueprintTickSystem` on every ECS host** *(F13: not a re-home — it already lives in `Fdp.Toolkits`; only the wiring is editor-side)* | ⛔⛔ **`G4` — NOT independent, and NOT first.** It puts the unconditional slot-walker on every host, so it **must follow `O3`**, which owns `Kind` (`D1′`). Until both land, blueprint Instances are editor-only and the tripod has no third leg on CGF | — |
 | **O1** | **`SquadCognitiveState` gets its own component** | removes the largest non-AI consumer of `Blackboard1024`; pure win even if the rest is cancelled | — |
 | **O2** | **Split `BrainBlackboard` → `BrainInterrupts` + a params region type** | the params region becomes addressable; the tail stops travelling with it. Updates `R-39`/`R-41` | — |
-| **O3** | **The occurrence seam** — ⭐ **FIRST: unify the key (`F5` — three entry points, two enums)**; then `TryResolveOccurrence` and ⭐ **`Kind` as the header nibble (`D1′`), with the `TryDetach` compaction rail** | one lookup that classes 4/5/6 all call, and **the precondition for `O0`** (`G4`). **No behaviour changes yet** | — |
-| ⭐ **O3a** | **Collapse per-tier branching to a `TierSpec` table** — ingress, tick, renderers. ⭐⭐ **AND RE-PICK THE `MaxSlots` LADDER** *(`2026-09-20`)*: 4 / 8 / 16 is arbitrarily conservative and the **+1 root occurrence promotes `PlatoonHillAttack2` from 4096 to 16384** (§5a). ⛔ The ladder ships with a sizing rationale, not as an inherited constant. ⭐ Also the home of `H1`'s `Reserved` copy in `CopyToLargerTier` | ⛔ **prerequisite for `O3b`, and it pays for itself**: ~10 three-way chains, 3 copied tick methods and 3 copied renderers become one loop; promotion stops being N² across three files | — |
+| **O3** | **The occurrence seam** — ⭐ **FIRST: unify the key (`F5` — three entry points, two enums)**; then `TryResolveOccurrence` and ⭐ **`Kind` as the header nibble (`D1′`)**, with **all three** of its rails — ⛔⛔ **`H1`'s `Reserved` copy in `CopyToLargerTier` LANDS HERE, not in `O3a`** *(corrected `2026-09-20` from the PLAN)*: `Kind` is introduced in `O3`, so between `O3` and `O3a` **every tier promotion would zero the nibble array**. ⇒ the detach-compaction rail, the promotion rail and `Kind == 0 = Invalid` all ship with `Kind` | one lookup that classes 4/5/6 all call, and **the precondition for `O0`** (`G4`). **No behaviour changes yet** | — |
+| ⭐ **O3a** | **Collapse per-tier branching to a `TierSpec` table** — ingress, tick, renderers. ⭐⭐ **AND RE-PICK THE `MaxSlots` LADDER** *(`2026-09-20`)*: 4 / 8 / 16 is arbitrarily conservative and the **+1 root occurrence promotes `PlatoonHillAttack2` from 4096 to 16384** (§5a). ⛔ The ladder ships with a sizing rationale, not as an inherited constant. ⚠ **`H1`'s `Reserved` copy MOVED OUT of this item to `O3`** *(`2026-09-20`)* — it must land with `Kind`, or promotion breaks in the gap between them | ⛔ **prerequisite for `O3b`, and it pays for itself**: ~10 three-way chains, 3 copied tick methods and 3 copied renderers become one loop; promotion stops being N² across three files | — |
 | ⭐ **O3b** | **Add the `OccurrenceStore256` tier** — `Q37` option B. ⚠ **`MaxSlots` sized on SLOTS as well as bytes (`F3`)**, not fixed at 1–2 | ⛔⛔ **`G5` — the old numbers here were stale.** §5a's corrected arithmetic: the simple case is **5.3× / 4× at 1024** and **1.33× / 1.0× at 256**. ⛔⛔ **No heavy-DTO credit** *(`2026-09-20`)* ⇒ ⭐⭐ **`O3b` is LOAD-BEARING, not an optimisation**: without it every AI entity pays 4–5.3×. ⛔ Trivial after `O3a`, four copies before it | — |
 | **O4** | **BTree onto occurrence storage** — tree state and params into slots, **including a hosted subtree's own `BehaviorTreeState`, and its RE-ENTRY RESET (F14)** | ⭐ **proves the whole model with ZERO ExtDeps change** (§4.1) **and closes the shared-`BehaviorTreeState` defect in §3.1**. ⚠ Own state removes the accidental continuity `ref state` gave, so the child's cursor must be reset when the host re-enters the hosting node — **its own rail**. If this does not work, stop before paying for `O6` | **none** |
 | **O5** | **Blueprint Instances take params** (`DESIGN_Parameter_Model.md` §3.3) | the slot layout is now shared with `O4`; closes `R4`, which has no design today | — |
