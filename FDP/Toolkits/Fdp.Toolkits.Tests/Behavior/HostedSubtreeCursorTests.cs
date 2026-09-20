@@ -46,7 +46,7 @@ public sealed class HostedSubtreeCursorTests
     {
         var b = new BTreeBuilder<ChildBb, BTreeContext>()
             .Sequence(seq => seq
-                .Action(StayRunning<ChildBb>, label: "ChildLeaf"));
+                .Action(StayRunning<ChildBb>));
         return new Interpreter<ChildBb, BTreeContext>(b.Compile("O4_Child"), b.GetRegistry());
     }
 
@@ -78,7 +78,7 @@ public sealed class HostedSubtreeCursorTests
 
         var hostBuilder = new BTreeBuilder<HostBb, BTreeContext>()
             .Sequence(seq => seq
-                .Action(Orchestrate, label: "HostingNode"));
+                .Action(Orchestrate));
 
         var host = new Interpreter<HostBb, BTreeContext>(
             hostBuilder.Compile("O4_Host"), hostBuilder.GetRegistry());
