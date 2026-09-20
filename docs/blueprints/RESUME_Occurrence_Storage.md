@@ -122,8 +122,9 @@ wall), and the values are re-picked to **12 / 16 / 16** with the arithmetic reco
 |---|---|
 | 🔴 **APPEND to `BlackboardTier`, never insert** | §2 ⑫: **three** ordinal enums spell this ladder and one is `: byte`, reaching compiled artefacts |
 | 🔴 **`MaxSlots` must be NON-DECREASING up the ladder** | ⇒ a 256 tier at the BOTTOM may be **≤ 12**, and that is the binding limit on it. ⭐ Pinned by `B3_R1` |
-| 📐 **`MaxSlots 2` is the value that earns it** *(PLAN `W4`)* | 77 % of behaviours need ≤ 2 slots; **1 makes it near-useless**. 📐 payload at 2 slots = `256 − 32 − 32` = **192 B** |
-| ⚠ **the root occurrence is the open question, and it is NOT measurable yet** | it does not exist until `O4`. §17 bounds one root slot at **80–184 B** ⇒ a 1-slot asset needs up to **184 B**, which fits 192 **with 8 B to spare**. 🔴 **That is the whole margin of the 256 tier** — ⛔ so `B4` should either land AFTER `O4` measures the real root payload, or ship with that sensitivity stated in its report |
+| ✅ **`MaxSlots` is `3`, payload 176 B — MEASURED `2026-09-20`, and it OVERTURNS PLAN `W4`** | ⛔ `W4` leaned *"2 earns the tier"* on a **slots-only** count. With bytes: `@1` 56 % · `@2` 73 % · ⭐ **`@3` 83 %** · `@4` 80 % · `@6` 60 %. **3 is a genuine maximum, not a marginal preference** |
+| ✅ **the root occurrence is MEASURED now, not bounded** | 📐 from the baked param projections in the 30 generated registrars: **max 89 B** of the 100 B cap, **16 of 30 assets bake none**. Root = `AlignUp(state + params, 8) + 16`, state = `BehaviorTreeState` 64 or `BrainHsm128` **128** *(✅ verified hard-coded at `BehaviorTkbTranslator.cs:121-122`, not quoted from §9.4)*. ⇒ the *"8 B of margin"* worry is retired |
+| ⚠ **but it is POST-`O4` arithmetic for a root that is not built** | ⛔ the composition *(state + params in ONE slot)* is §5a's own reading. ⭐ **Re-measure after `O4`**, and treat `3` as the value to build toward. ⚠ `HsmVariableShowcase` sits exactly on the line — a one-asset swing moves the 83 % |
 
 ⛔⛔ **And before changing any constant, grep the test tree for its VALUE** — trap ⑳. `B3②` moved
 three fixtures that mentioned no constant by name, and two of them failed while BUILDING their

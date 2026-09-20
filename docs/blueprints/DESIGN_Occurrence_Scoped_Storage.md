@@ -1998,3 +1998,41 @@ which is what makes `O3b`'s fourth tier additive rather than another regeneratio
 ⇒ ✅ **PLAN `W1` is ANSWERED and `O3a` is COMPLETE.** ⭐ `O3b` (the 256 tier, task `B4`) is now one
 entry in `BlueprintTierTable.Ascending` plus a component struct and an id — ⛔ appended to
 `BlackboardTier`, never inserted (`N2`).
+
+### 📐 `B4`'s PRE-MEASUREMENT — **the 256 tier's `MaxSlots` is 3, not 2** *(`2026-09-20`)*
+
+⛔⛔ **This OVERTURNS PLAN `W4`'s lean** *(*"1 or 2. 77 % of behaviours need ≤ 2 ⇒ **2** is the value
+that earns the tier; 1 makes it near-useless"*)*. ⚠ That figure counted **slots only**. With the
+BYTES included the answer moves, and `3` is a genuine maximum rather than a marginal preference.
+
+| `MaxSlots` | payload | assets that fit | |
+|---|---|---|---|
+| 1 | 208 B | 17/30 | 56 % |
+| 2 | 192 B | 22/30 | 73 % |
+| ⭐ **3** | **176 B** | **25/30** | ⭐ **83 %** |
+| 4 | 160 B | 24/30 | 80 % |
+| 5 | 144 B | 24/30 | 80 % |
+| 6 | 128 B | 18/30 | 60 % |
+
+#### 📐 WHY THE ROOT OCCURRENCE IS NOW MEASURED, NOT BOUNDED
+
+⭐ §5a priced the root from *"typical params"* — asserted, never measured. ⛔ That assumption was the
+**whole 8-byte margin** the resumption warned about. 📐 Measured from the **baked param projections in
+the 30 generated registrars** *(`Unsafe.As<byte, TParams>(… AddByteOffset(…, (nint)OFFSET))`, so the
+region used is `max(offset + sizeof(TParams))`)*, with DTO sizes by reflection:
+
+| | |
+|---|---|
+| **max params region used** | **89 B** *(`PlatoonHillAttack2`)* — against the **100 B** cap ⇒ ⭐ *"typical params"* is real, and one asset is within 11 B of the ceiling |
+| **assets with ZERO baked params** | **16 of 30** |
+| ⭐ **root occurrence** = `AlignUp(state + params, 8) + 16` | BTree state = `BehaviorTreeState` **64 B**; ⚠ HSM state = **`BrainHsm128`**, ✅ **verified hard-coded** at `BehaviorTkbTranslator.cs:121-122` *(§9.4's finding, confirmed in code rather than quoted)* |
+| **total per asset** | root + every stateful slot, each `AlignUp(size,8) + 16` |
+
+| ⚠ the five that fit NO 256 tier at any `MaxSlots`, and why that is correct | |
+|---|---|
+| `PlatoonHillAttack2` 9 slots / 496 B · `HillAssault2I_Smoke` 3 / 280 · `PlatoonHillAttack` 2 / 272 · `HsmVariableShowcase` 3 / 192 · `T39_TwoDistinctPrimitives` 4 / 184 | ⭐ none of these is *"the simple case"* the 256 tier exists to price. They land on **1024**, which at `MaxSlots 12` now holds all of them comfortably |
+
+| ⛔ what this measurement does NOT settle | |
+|---|---|
+| ⚠ **it is POST-`O4` arithmetic for a design that is not built** | the root occurrence does not exist yet. The composition used here — **state + params in ONE slot** — is this document's own §5a reading. ⇒ ⭐ **re-measure after `O4`**, and treat `3` as the value to build toward rather than a constant already earned |
+| ⚠ **`HsmVariableShowcase` sits exactly on the line** | 3 slots / **192 B** — it fits `@2`'s payload *exactly* but needs 3 slots, and at `@3` the payload drops to 176 so it misses on bytes. ⛔ A one-asset swing either way changes the 83 % |
