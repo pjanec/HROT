@@ -76,9 +76,11 @@ namespace Hrot.SimHost.Tests
             _repo.RegisterComponent<Fdp.Toolkit.Replication.Components.NetworkIdentity>();
             // S3-G: PlatoonHillAttack's Behavior-scoped working state is provisioned into a
             // BlueprintBlackboard* partition tier (registered in production by BlueprintRuntimeWiring).
-            _repo.RegisterComponent<BlueprintBlackboard1024>();
-            _repo.RegisterComponent<BlueprintBlackboard4096>();
-            _repo.RegisterComponent<BlueprintBlackboard16384>();
+            // ⭐ B4: register from the LADDER, not a hand-list. ⛔ This was three explicit
+            //   RegisterComponent calls and it did NOT know about the 256 tier — 11 tests
+            //   failed with "Component BlueprintBlackboard256 is not registered" the moment
+            //   O3b added one. Production never had the bug: it registers from the table.
+            BlueprintTierTable.RegisterAll(_repo);
 
             // 100 x 100 cells, 5 m each → covers 0..500 m in both axes.
             _grid = SpatialHashGrid.Create(100, 100, 5f, 1000, Allocator.Persistent);

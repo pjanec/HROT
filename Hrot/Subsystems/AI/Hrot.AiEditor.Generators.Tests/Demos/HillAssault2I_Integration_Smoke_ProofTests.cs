@@ -55,9 +55,11 @@ public sealed class HillAssault2I_Integration_Smoke_ProofTests : IDisposable
         world.RegisterComponent<BehaviorState>();
         world.RegisterComponent<BrainBlackboard>();
         world.RegisterComponent<BrainBTreeState>();
-        world.RegisterComponent<BlueprintBlackboard1024>();
-        world.RegisterComponent<BlueprintBlackboard4096>();
-        world.RegisterComponent<BlueprintBlackboard16384>();
+        // ⭐ B4: register from the LADDER, not a hand-list. ⛔ This was three explicit
+        //   RegisterComponent calls and it did NOT know about the 256 tier — 11 tests
+        //   failed with "Component BlueprintBlackboard256 is not registered" the moment
+        //   O3b added one. Production never had the bug: it registers from the table.
+        BlueprintTierTable.RegisterAll(world);
         return world;
     }
 

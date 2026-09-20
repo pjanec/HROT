@@ -9,6 +9,7 @@ using Hrot.SimHost.Systems;
 using Hrot.AI.Behaviors.Generated;
 using Xunit;
 
+using Fdp.Toolkit.Blueprints.Partitioning;
 namespace Hrot.SimHost.Tests
 {
     /// <summary>
@@ -32,9 +33,11 @@ namespace Hrot.SimHost.Tests
         public CgfBlueprintRegistryScannerTests()
         {
             _repo = new EntityRepository();
-            _repo.RegisterComponent<BlueprintBlackboard1024>();
-            _repo.RegisterComponent<BlueprintBlackboard4096>();
-            _repo.RegisterComponent<BlueprintBlackboard16384>();
+            // ⭐ B4: register from the LADDER, not a hand-list. ⛔ This was three explicit
+            //   RegisterComponent calls and it did NOT know about the 256 tier — 11 tests
+            //   failed with "Component BlueprintBlackboard256 is not registered" the moment
+            //   O3b added one. Production never had the bug: it registers from the table.
+            BlueprintTierTable.RegisterAll(_repo);
             _repo.RegisterManagedComponent<InitialBlueprintsIntent>();
             _registry = new BlueprintRegistry();
         }
