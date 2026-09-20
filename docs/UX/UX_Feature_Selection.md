@@ -1202,7 +1202,7 @@ keeps both the headless path and `StrideNodeShell`'s world-less `_operatorSelect
 | **1** | `HrotStrideApp.Game` compiles | ✅ **0 errors** — and so does the whole `HrotStrideApp.sln`, **including `HrotStrideApp.Windows`**. ⭐⭐ **No code fix was required: the blind-written slice was correct as written** |
 | **2** | `EditorSelectionStateTests` | ✅ **11/11**, twice *(before and after the `CE-297` edit)*. ⛔⛔ **THE "12" IN CHECK 2 ABOVE WAS WRONG** — see the correction below |
 | **3** | 3-D click → 2-D ring, same frame | ⚠⚠ **VERIFIED FOR THE STRIDE HOST'S INSPECTOR WINDOW, NOT FOR THE 3-D VIEWPORT RAY** — 🔒 user: *"selection works both ways"*, and the binding's write path is genuinely proven. ⛔ **But it cannot have been the viewport ray:** `CE-299`, measured the same session, finds a 3-D left-click has **never once** resolved an entity *(13 LMB presses, every one `hitEntity=#-1`; `"LMB selected entity"` appears **zero** times in the whole log history)*. ⇒ ⭐ the gesture exercised was the inspector window's row click — the OTHER writer into `SelectionState.Select` *(`StrideHrotGame.cs:1324` hands it the shared state for exactly that)*. 📌 See the reconciliation below |
-| **4** | 2-D click → 3-D highlight | ✅ same; 📐 independently visible in the log **before** the user's confirmation — `[SelDiag] HasSelection=True entity=#2` with **no preceding `[ClickDiag]`**, i.e. the 3-D state reporting a selection made on the 2-D side, which is the bound read working |
+| **4** | 2-D click → 3-D highlight | ⚠⚠ **DOWNGRADED `2026-09-20` — the BINDING is proven, the 2-D MAP CLICK is NOT.** The evidence was `[SelDiag] HasSelection=True entity=#2` with **no preceding `[ClickDiag]`**, read as *"a selection made on the 2-D side"*. ⛔ **That inference is the SAME ONE check 3 was reconciled for, and it fails the same way:** `[ClickDiag]` marks a **3-D** click, so its absence rules out the 3-D ray and **nothing else** — the inspector window's row click explains the line equally well, and check 3 concluded that is exactly what the operator was using. ⇒ ✅ what stands is that the 3-D side READS the shared state; ⛔ **no 2-D map click was ever demonstrated in this session** |
 | **5** | 🔴 **no per-frame churn** | ✅✅ **PASS, in its strong form** — 30 consecutive `[SelDiag]` lines with a **live** selection *(`entity=#2`)* over ~30 s of no input, **all identical**. ⭐ Structurally confirmed too: `SyncSelection2D3D` and both trackers are gone *(only explanatory comments remain)*, and the 3-D side has exactly **one** writer, `StrideHrotGame.cs:597` |
 | **6** | headless / no inspector window | ⚠ **NOT RUN** — no such configuration was exercised this session. ⛔ The `available` path remains covered only by the unbound rails |
 
@@ -1229,6 +1229,25 @@ measured in the same session — reports that gesture has **never once** selecte
 → 2-D ring ✅"* and concludes 3-D picking works — then `CE-299`'s discriminator looks like a
 contradiction of a verified result instead of the open question it is. 🔒 **`S-3d` unified the 3-D
 selection; it did not, and could not, fix 3-D picking.**
+
+##### ⛔⛔⛔ THE RECONCILIATION WAS HALF-DONE — **check 4 rested on the SAME inference and was left ✅** *(`2026-09-20`)*
+
+🔴 **My error, and it cost an operator two builds.** The reconciliation above scrutinised check 3 and
+stopped. ⭐ **Check 4's evidence is the identical argument** — *"no preceding `[ClickDiag]`, therefore the
+2-D side"* — and `[ClickDiag]` only marks the **3-D** click. ⇒ its absence rules out the 3-D ray and
+leaves the **inspector row click** as an equally good explanation, which is precisely what check 3
+concluded the operator had been using.
+
+⇒ 🔒 **NEITHER check 3 NOR check 4 demonstrates a 2-D MAP CLICK.** ⛔ **There is no evidence, in this
+document or anywhere else, that a left-click on the 2-D map has selected an entity on any host since
+`UXI-11` began.** 📌 Confirmed from the other end `2026-09-20`: an operator reports the editor's map
+click does not select, and bisecting to the commit **before** `S-3e` reproduces it — so the gap is
+older than every slice that was verified against it.
+
+⚠ **The generic lesson, which is the one this file should carry:** ⭐⭐ **when a reconciliation finds an
+inference unsound, apply it to EVERY row that shares the inference — not only the row that raised the
+flag.** ⛔ A table where one ✅ has been re-examined and its twin has not is more dangerous than one that
+was never checked, because the visible correction implies the rest were audited.
 
 ⭐ **What would close it:** `CE-299`'s own discriminator — now that `CE-298` makes the camera steerable,
 orbit onto a mannequin at close range and read `[ClickDiag]`; a `hasHit=True` with `hitEntity=#-1` **on a

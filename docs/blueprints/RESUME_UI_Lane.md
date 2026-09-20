@@ -67,6 +67,19 @@ system's left branch is unchanged *(`isRight` is false for a left press)* · `Cl
 branch returns before the `Entities` read)* · `GizmoMap.Presentation.Tests` and the `SC_GZ025_*`
 publication rails stayed green.
 
+⭐⭐ **`2026-09-20`, LATER — THE BISECT AND A CORRECTION TO THIS FILE'S OWN EVIDENCE.**
+📐 The operator built the commit **before `S-3e`** (`1476031a5`): **clicking and the rubber band fail
+there too.** ⇒ ⛔ **not `S-3e`, not `S-4`, not `S-4b`, not `S-5`.** The gap is older than every slice.
+🔴 **And the Stride "selection works" datapoint does NOT contradict that** — §2.7.11a check 4 has been
+DOWNGRADED: its evidence (*"no preceding `[ClickDiag]`"*) rules out the 3-D ray and nothing else, and the
+inspector ROW CLICK explains it equally well, which is exactly what check 3's reconciliation concluded.
+⇒ 🔒 **no 2-D MAP click has been demonstrated on any host since `UXI-11` began.**
+
+⭐ **Five mechanisms RULED OUT by measurement** *(so the next session does not re-walk them)*: the editor
+does register the request/notify pair *(pack `:1886` < `Initialize()` `:2129`)* · it does tick the gesture
+system *(`:2637`)* · the gizmo layer and the gesture system share one bus *(`:1929` → `:2549`)* · that bus
+IS swapped *(`GizmoInteractionModule:73`)* · the editor does register that module *(`:2114`)*.
+
 ⭐ **The open question, and the cheapest instrument:** **which host** — editor, Stride editor window, IG
 or SimHost — and **does left-click select there on the commit BEFORE `c1f5487c0`?** ⛔ Until that is
 known, attributing this to `S-4b` or `S-5` is a guess. ⚠ A suspect worth checking first:
