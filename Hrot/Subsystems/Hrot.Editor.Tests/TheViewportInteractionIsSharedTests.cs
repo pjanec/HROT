@@ -281,6 +281,124 @@ public sealed class TheViewportInteractionIsSharedTests
         Assert.Equal(b, selection.PrimarySelected);
     }
 
+    // ══ ②c UXI-11 S-3 — THE NOTIFICATION ═══════════════════════════════════
+
+    /// <summary>
+    /// ⭐⭐⭐ <b>Every applied change is ANNOUNCED — whatever caused it.</b> 📄 §2.7.2.
+    /// 🔴 That is the whole point: the hand-syncs this replaces hung off
+    /// <c>SelectionInteractionSystem.OnSelectionChanged</c>, so they fired for a MAP click and for
+    /// nothing else — not an inspector click, not a context menu, not <c>CMD_SET_SELECTION</c>.
+    /// </summary>
+    [Fact]
+    public void ApplyingARequestAnnouncesTheWholeNewSelection()
+    {
+        var (world, a, _) = WorldWithEntity();
+        var b = AnotherEntity(world, 7101L);
+        var selection = new DefaultSelectionState();
+        var system = new SelectionRequestSystem(() => selection);
+
+        world.Bus.PublishManaged(SelectionChangeRequest.ReplaceWith(new[] { a, b }, "rail"));
+        world.Bus.SwapBuffers();
+        system.Execute(world, 0f);
+        world.Bus.SwapBuffers();
+
+        var notes = world.Bus.ReadManaged<SelectionChangedNotification>().ToArray();
+        Assert.Single(notes);
+        Assert.Equal(new[] { a, b }, notes[0].Selected.ToArray());
+        Assert.Equal(a, notes[0].Primary);
+        Assert.Equal("rail", notes[0].Reason);
+    }
+
+    /// <summary>⭐ The network-id form announces too — one publisher, both request shapes.</summary>
+    [Fact]
+    public void TheNetworkIdCommandAlsoAnnounces()
+    {
+        var (world, entity, netId) = WorldWithEntity();
+        var selection = new DefaultSelectionState();
+        var system = new SelectionRequestSystem(() => selection);
+
+        world.Bus.Publish(new SelectEntityCommand { NetworkId = netId });
+        world.Bus.SwapBuffers();
+        system.Execute(world, 0f);
+        world.Bus.SwapBuffers();
+
+        var notes = world.Bus.ReadManaged<SelectionChangedNotification>().ToArray();
+        Assert.Single(notes);
+        Assert.Equal(entity, notes[0].Primary);
+    }
+
+    /// <summary>
+    /// ⚠⚠ <b>The snapshot must be a COPY.</b> <c>EcsSelectionState.SelectedEntities</c> hands back its
+    /// own observation buffer and rewrites it on the next read ⇒ publishing that reference would give
+    /// every subscriber a list that changes underneath them. ⛔ This rail fails if the copy is dropped
+    /// "as an optimisation".
+    /// </summary>
+    [Fact]
+    public void TheAnnouncedSetIsASnapshotNotTheLiveCollection()
+    {
+        var (world, a, _) = WorldWithEntity();
+        var b = AnotherEntity(world, 7102L);
+        var selection = new DefaultSelectionState();
+        var system = new SelectionRequestSystem(() => selection);
+
+        world.Bus.PublishManaged(SelectionChangeRequest.ReplaceWith(new[] { a }));
+        world.Bus.SwapBuffers();
+        system.Execute(world, 0f);
+        world.Bus.SwapBuffers();
+        var first = world.Bus.ReadManaged<SelectionChangedNotification>().Single();
+
+        // Mutate the store after the announcement was taken.
+        selection.Add(b);
+
+        Assert.Equal(new[] { a }, first.Selected.ToArray());
+    }
+
+    /// <summary>
+    /// ⭐⭐⭐ <b><c>SelectionNotificationSystem</c> points the inspector context at the new primary —
+    /// for a cause that is NOT a map click.</b> 🔴 The hand-syncs it replaces could not.
+    /// </summary>
+    [Fact]
+    public void TheInspectorContextFollowsTheAnnouncementFromANonMapCause()
+    {
+        var (world, a, _) = WorldWithEntity();
+        var selection = new DefaultSelectionState();
+        var inspector = new Fdp.Presentation.Abstractions.InspectorState();
+        var requests  = new SelectionRequestSystem(() => selection);
+        var notify    = new SelectionNotificationSystem(() => inspector);
+
+        // A context-menu / inspector-shaped cause: a request, not a gizmo event.
+        world.Bus.PublishManaged(SelectionChangeRequest.ReplaceWith(a, "ContextMenu.Select"));
+        world.Bus.SwapBuffers();
+        requests.Execute(world, 0f);
+        world.Bus.SwapBuffers();
+        notify.Execute(world, 0f);
+
+        Assert.Equal(a, inspector.SelectedEntity);
+    }
+
+    /// <summary>
+    /// ⚠ <b>Clearing clears the inspector too</b> — the behaviour change `S-3` makes deliberately.
+    /// 🔒 Ruling ① (2026-09-10): one selection per host, so there is no list-selection to protect from
+    /// a map clear. ⛔ IG's retired detector explicitly refused to do this.
+    /// </summary>
+    [Fact]
+    public void ClearingTheSelectionClearsTheInspectorContext()
+    {
+        var (world, a, _) = WorldWithEntity();
+        var selection = new DefaultSelectionState { PrimarySelected = a };
+        var inspector = new Fdp.Presentation.Abstractions.InspectorState { SelectedEntity = a };
+        var requests  = new SelectionRequestSystem(() => selection);
+        var notify    = new SelectionNotificationSystem(() => inspector);
+
+        world.Bus.PublishManaged(SelectionChangeRequest.ClearAll("rail"));
+        world.Bus.SwapBuffers();
+        requests.Execute(world, 0f);
+        world.Bus.SwapBuffers();
+        notify.Execute(world, 0f);
+
+        Assert.Null(inspector.SelectedEntity);
+    }
+
     private static Entity AnotherEntity(EntityRepository world, long networkId)
     {
         var e = world.CreateEntity();
@@ -836,7 +954,10 @@ public sealed class TheViewportInteractionIsSharedTests
             interaction: new ScenarioEditorModule.InteractionDeps(
                 Selection: () => new DefaultSelectionState(),
                 Gizmos:    () => NewGizmoSystem(),
-                Camera:    () => null));
+                Camera:    () => null,
+                // ⭐ UXI-11 S-3 — a host with an inspector passes it; the notification system is
+                //   registered only then, which is what keeps it honest on a headless root.
+                Inspector: () => new Fdp.Presentation.Abstractions.InspectorState()));
 
         Assert.True(withViewport.HasInteractionSystems);
         registry = new RecordingRegistry();
@@ -848,7 +969,7 @@ public sealed class TheViewportInteractionIsSharedTests
             //    then arm that tool" publishes both events in one frame, and the drain reads the
             //    selection to decide what to arm on. ⛔ With the drain first it arms on the PREVIOUS
             //    selection — CE-259s, which this order discharges.
-            new[] { nameof(SelectionRequestSystem), nameof(ToolActivationDrainSystem), nameof(CenterOnEntitySystem) },
+            new[] { nameof(SelectionRequestSystem), nameof(SelectionNotificationSystem), nameof(ToolActivationDrainSystem), nameof(CenterOnEntitySystem) },
             registry.Registered.ToArray());
     }
 

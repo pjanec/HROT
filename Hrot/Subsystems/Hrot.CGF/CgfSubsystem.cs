@@ -1394,6 +1394,8 @@ public sealed class CgfSubsystem : ISubsystem, Fdp.Toolkit.Runner.IMapCameraProv
             fileService: null,
             interaction: new Hrot.ScenarioEditor.ScenarioEditorModule.InteractionDeps(
                 Selection:    () => _selectionState,
+                // ⭐⭐ UXI-11 S-3 — the inspector context follows the NOTIFICATION, not a map click.
+                Inspector:    () => _fdpInspectorState,
                 Gizmos:       () => _cgfDataDrivenGizmoSystem,
                 Camera:       () => _canvas?.Camera,
                 // ⭐⭐⭐ CE-061 — StartPlacementMode is SUPPLIED now, and it has to be.
@@ -1533,6 +1535,10 @@ public sealed class CgfSubsystem : ISubsystem, Fdp.Toolkit.Runner.IMapCameraProv
             // ⭐⭐⭐ UXI-11 S-1 -- read through to the ECS SelectionState component, the one truth.
             //   📐 Before this, a map click moved the ring and nothing else on this host.
             _selectionState    = new Hrot.ScenarioEditor.Selection.EcsSelectionState(_context.World);
+            // ⭐⭐⭐ UXI-11 S-3 — same wiring as the editor, same ruling: one selection per host.
+            _fdpEntityInspector.Selection = _selectionState;
+            _fdpEntityInspector.RequestSelectionChange =
+                req => _context.World.Bus.PublishManaged(req);
             _fdpRepoAdapter    = new FdpRepositoryAdapter(_context.World);
 
             // ⭐⭐⭐ CE-061 (Axis-C E5 item ④) — THE SCENARIO-PERSPECTIVE PANELS + ADAPTERS.
@@ -1612,7 +1618,7 @@ public sealed class CgfSubsystem : ISubsystem, Fdp.Toolkit.Runner.IMapCameraProv
                         //    with the old order the drain would have armed Rotate on the PREVIOUS
                         //    selection. 📌 Same ordering defect as CE-259s, which this discharges.
                         _context.World.Bus.PublishManaged(
-                            Hrot.Common.Events.SelectionChangeRequest.ReplaceWith(entity, "Cgf.Rotate"));
+                            Fdp.Toolkit.Vis2D.Abstractions.SelectionChangeRequest.ReplaceWith(entity, "Cgf.Rotate"));
                         _context.World.Bus.Publish(
                             new Hrot.Common.Events.ActivateEditorToolEvent(Hrot.Common.EditorTool.Rotate));
                     });
@@ -3039,7 +3045,7 @@ public sealed class CgfSubsystem : ISubsystem, Fdp.Toolkit.Runner.IMapCameraProv
             // ⚠ The read above stays a direct read: reading the view is what a surface is FOR; only
             //   WRITING is reserved to the request system.
             _context!.World.Bus.PublishManaged(
-                Hrot.Common.Events.SelectionChangeRequest.ClearAll("Cgf.DeleteEntity"));
+                Fdp.Toolkit.Vis2D.Abstractions.SelectionChangeRequest.ClearAll("Cgf.DeleteEntity"));
             _fdpInspectorState.SelectedEntity = null;
         }
     }

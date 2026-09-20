@@ -2,7 +2,8 @@
 state: LIVE
 build-state: BUILDING (§2.7 is the consolidated TARGET STATE with class + sequence diagrams;
   §2.7.5 carries the slice order S-1..S-6. ☑ S-1 BUILT 2026-09-20 — as-built in §2.7.6.
-  ☑ S-2 BUILT 2026-09-20 — as-built in §2.7.7. S-3..S-6 remain DESIGN.)
+  ☑ S-2 BUILT 2026-09-20 — as-built in §2.7.7.
+  ☑ S-3 BUILT 2026-09-20 — as-built in §2.7.8. S-4..S-6 remain DESIGN.)
 verified: 2026-09-10 (measured source scan, graph + grep, coverage checked)
   ⭐ S-1's own inventory re-measured 2026-09-20 on the graph — §2.7.6.
 current-answer: ✅ READ §2.7 — the consolidated TARGET STATE (2026-09-10), with the class diagram, the
@@ -17,8 +18,14 @@ current-answer: ✅ READ §2.7 — the consolidated TARGET STATE (2026-09-10), w
   ⚠ NOT LITERALLY "the only writer": SelectionInteractionSystem still writes through the view, and
   two editor facade seams (SetSelection2D, Selected2DEntity) stay synchronous — §2.7.7 deviations
   ② and ③, both argued.
-  ❌ STILL NOT BUILT: the notification event; panels are not subscribers; CGF has no map-input path;
-  ClearAll has 0 callers; SimHost and SharedEntitySelection are still separate stores (needs S-3).
+  ☑ BUILT (S-3): SelectionChangedNotification (FDP-internal, R-134-clean) published by the one
+  writer for every cause; SelectionNotificationSystem points IInspectorContext at it; the entity
+  inspector projects the host selection and publishes requests; ChainToMap RETIRED; IG's map->inspector
+  hand-sync and its tracker deleted.
+  ⚠ Panels PROJECT rather than subscribe (§2.7.8 deviation ②) — a one-frame bus event is unsafe for a
+  panel that may not be drawn. The notification is for consumers needing an EDGE (S-5 is the next).
+  ❌ STILL NOT BUILT: CGF has no map-input path; ClearAll has 0 callers; SimHostSelectionManager is
+  still a separate store (lean recorded in §2.7.8); DerEntityInspectorPanel is S-4's seam.
   ⭐ 2026-09-10 — §2.6 is NEW and carries four user rulings: selection is GLOBAL across every host
   (ChainToMap as an opt-in is retired), a selection CHANGE cancels editing of the previously selected
   entity, clicks during an edit must not select (already true on the map via the capture-anchor filter,
@@ -50,7 +57,7 @@ known-conflict: none open. ✅ "Who owns selection" is RULED (2026-09-10): the g
 -->
 # Feature design — selection
 
-> **Design for [UXI-11](UX_Issues.md#uxi-11) · drafted 2026-08-12 · target state consolidated `2026-09-10` in §2.7.** **Status: 🟡 BUILDING — ☑ `S-1` (§2.7.6) and ☑ `S-2` (§2.7.7) built `2026-09-20`: the mutators, `EcsSelectionState`, `SelectionChangeRequest` + `SelectionRequestSystem`, and every hand-rolled component writer deleted. ❌ `S-3`–`S-6` remain design — no notification event, panels are not subscribers, CGF still has no map-input path, `ClearAll` has 0 callers.** Implements [rulings 27-28](UX_RESUME_INTERACTION.md). Feeds
+> **Design for [UXI-11](UX_Issues.md#uxi-11) · drafted 2026-08-12 · target state consolidated `2026-09-10` in §2.7.** **Status: 🟡 BUILDING — ☑ `S-1` (§2.7.6), ☑ `S-2` (§2.7.7) and ☑ `S-3` (§2.7.8) built `2026-09-20`: one store, one request, one writer, one announcement. ❌ `S-4`–`S-6` remain design — right-click does not select everywhere, the DER inspector has no seam, CGF still has no map-input path, `ClearAll` has 0 callers, and SimHost keeps a separate store.** Implements [rulings 27-28](UX_RESUME_INTERACTION.md). Feeds
 > [UXI-24](UX_Issues.md#uxi-24) (multi-select) and [UXI-23](UX_Issues.md#uxi-23) (map parity).
 
 ## 0. Prior art ([rule 6](UX_Issues.md#rules))
@@ -558,8 +565,8 @@ classDiagram
 | `EcsSelectionState` | ☑ **`S-1`, `2026-09-20`** — `Hrot.Presentation`, a read-through over the component; the editor and CGF hold it. ⛔ *Was: did not exist; `DefaultSelectionState` was a parallel `HashSet` store on both hosts.* |
 | `DdsBackedSelectionState` | 🔴 does not exist; 🔒 ruling: *"some similar central piece on non ecs nodes"* |
 | `SelectionRequestSystem` | ☑ **`S-2`, `2026-09-20`** — `SelectEntitySystem` **renamed** *(Roslyn)* and extended; consumes both request forms and is the only thing that serves them. ⚠ One other writer survives *(§2.7.7 deviation ②)*. |
+| 🔴 **notification** event | ☑ **`S-3`, `2026-09-20`** — `SelectionChangedNotification`, a plain managed FDP record in `Fdp.Toolkits`. ⛔ *Was: DOES NOT EXIST; both `SelectionChangedEvent` (`[DdsTopic]`) and `SelectionChangedEventDto` are NETWORK types.* |
 | **request** event | ☑ **`S-2`, `2026-09-20`** — `SelectionChangeRequest` *(managed, entity-addressed, `Entities` + `Mode`)*. ⚠ `SelectEntityCommand` is **kept** as the network-id boundary *(§2.7.7 deviation ①)*. ⛔ *Was: only `SelectEntityCommand`, a single `long NetworkId`.* |
-| 🔴 **notification** event | ⛔ **DOES NOT EXIST.** Both `SelectionChangedEvent` *(`[DdsTopic]`)* and `SelectionChangedEventDto` are NETWORK types ⇒ `R-134` requires a NEW FDP-internal record |
 
 #### 2.7.2 The flow
 
@@ -601,8 +608,8 @@ sequenceDiagram
 |---|---|
 | `DefaultSelectionState`'s own `HashSet` | ☑ **`S-1`** — becomes `EcsSelectionState`, a read-through *(the class survives for world-less hosts; §2.7.6 deviation ②)* |
 | the **3 hand-rolled `SetSelected`** | ☑ **`S-2`** — and 🔴 **there were FOUR**: `SelectionInteractionSystem` *(discharged at `S-1`)* · `EditorSubsystem`'s `GlobalActionIds.Select` · `IgApplication.SelectEntityOnMap` · ⚠ **`EditorSubsystem.SetSelection2D`, which this list had MISSED**. 📄 §2.7.7 |
-| `EntityInspectorPanel._selectedEntities` · `DerEntityInspectorPanel._selectedEntityId` | view state fed by the notification |
-| `EntityInspectorPanel.ChainToMap` | ⛔ **retired** — a panel may not know a map exists |
+| `EntityInspectorPanel._selectedEntities` · `DerEntityInspectorPanel._selectedEntityId` | ☑/❌ **`S-3`** — the entity inspector's set is now a projection of `ISelectionState`; ⚠ the **DER** panel is untouched, it speaks DER ids and is `S-4`'s seam |
+| `EntityInspectorPanel.ChainToMap` | ☑ **`S-3`** — retired with its operator toggle |
 | `ScenarioOrbatAdapter`'s `ActivateEditorToolEvent(Select)` | ⭐ redundant once rule 5 is central |
 | `IgApplication._fdpInspectorState` hand-sync | ☑ **`S-2`** — deleted with `SelectEntityOnMap`'s rewrite; `DrawUI`'s own change-detector does the follow-through *(§2.7.7 deviation ④)* |
 
@@ -612,8 +619,8 @@ sequenceDiagram
 |---|---|---|
 | ☑ **S-1** *(`2026-09-20`, §2.7.6)* | `ISelectionState` gains the multi mutators; `EcsSelectionState` replaces `DefaultSelectionState` | 🟡 the 4 stores become 1 + views — **2 of 4**; the rest lands at `S-3` |
 | ☑ **S-2** *(`2026-09-20`, §2.7.7)* | the **request** event gains a set + mode; `SelectionRequestSystem` becomes the only writer | ☑ the hand-rolled writers are deleted *(4, not 3)*; 🟡 one writer survives — §2.7.7 deviation ② |
-| ⭐ **S-3 — NEXT** | the **notification** event *(new, FDP-internal)*; panels subscribe | ⛔ `R-134`: no DDS type in the internal path |
-| **S-4** | right-click selects on every surface *(§2.3 incl. row 1)*; DER inspector gains a seam | ☑ `CE-259s`'s ordering **already discharged at `S-2`** — it stopped being latent the moment the write was deferred |
+| ☑ **S-3** *(`2026-09-20`, §2.7.8)* | the **notification** event *(new, FDP-internal)*; panels subscribe | ☑ `R-134` met; 🟡 panels PROJECT rather than subscribe, and 🟡 the stores are **3 of 4** — SimHost remains |
+| ⭐ **S-4 — NEXT** | right-click selects on every surface *(§2.3 incl. row 1)*; DER inspector gains a seam | ☑ `CE-259s`'s ordering **already discharged at `S-2`** — it stopped being latent the moment the write was deferred |
 | **S-5** | rule 5 — losing selection cancels that entity's edit | ⭐ needs **S-4** *(a targeted arming does not select — `Tool_Model` §4.14)* |
 | **S-6** | remote-map-control dispatcher becomes a requester; echo suppression moves to egress | 📄 `DESIGN_Remote_Map_Control.md` |
 
@@ -804,6 +811,68 @@ the scheduling and it surfaced on `EditorOrbatAdapterTests` and once on `EditorM
 🔒 **Lean, for whoever picks it up:** `[assembly: CollectionBehavior(DisableTestParallelization = true)]`
 on `Hrot.Editor.Tests` *(~4 s → ~10 s)*, or give `FdpConfig` an `AsyncLocal` override so a test's flip
 cannot escape its own flow. ⚠ Out of `S-2`'s scope — it is a suite-wide policy call.
+
+#### 2.7.8 ☑ **`S-3` AS-BUILT — `2026-09-20`**
+
+| element | designed | as-built |
+|---|---|---|
+| **notification** event | *"DOES NOT EXIST. Both `SelectionChangedEvent` and `SelectionChangedEventDto` are NETWORK types ⇒ `R-134` requires a NEW FDP-internal record"* | ☑ **`SelectionChangedNotification`** — a plain managed record carrying the **whole** selection + primary. ⛔ Neither DDS type is touched |
+| panels subscribe | *"panels repaint from the notification; their own sets are VIEW state"* | 🟡 **panels PROJECT, they do not subscribe** — deviation ② |
+| `EntityInspectorPanel._selectedEntities` | *"view state fed by the notification"* | ☑ a projection of `ISelectionState`, refreshed every draw; clicks publish requests |
+| `EntityInspectorPanel.ChainToMap` | ⛔ *"retired — a panel may not know a map exists"* | ☑ **gone**, with its operator toggle |
+| `IgApplication._fdpInspectorState` hand-sync | *"a notification consumer"* | ☑ replaced by `SelectionNotificationSystem`; IG's map-selection tracker deleted |
+| `DerEntityInspectorPanel._selectedEntityId` | *"view state fed by the notification"* | ❌ **not done** — it is `S-4`'s seam *(it speaks DER ids, not `Entity`)* |
+
+```mermaid
+graph TD
+    Panel["EntityInspectorPanel<br/>(Fdp.Presentation)"] -->|SelectionChangeRequest| Bus[FdpEventBus]
+    Map["map gizmos / context menus / ExCon"] -->|SelectionChangeRequest| Bus
+    Bus --> Req[SelectionRequestSystem]
+    Req -->|writes| View[EcsSelectionState]
+    Req -->|SelectionChangedNotification| Bus2[FdpEventBus]
+    Bus2 --> Notify[SelectionNotificationSystem]
+    Notify -->|SelectedEntity| Ctx[IInspectorContext]
+    View -.->|projected every draw| Panel
+    DER["DerEntityInspectorPanel<br/>NOT WIRED - S-4"]:::dead
+    classDef dead stroke-dasharray: 5 5,color:#888
+```
+
+⭐ *What the picture shows that the prose hid: the panel has TWO edges of different kinds — a solid one
+out (it requests) and a dotted one in (it re-reads, it does not listen). The dashed box is the surface
+still outside the protocol.*
+
+##### 🔴 A layering finding: **`S-2` put the request event in the wrong assembly**
+
+📐 `Fdp.Presentation` references `Fdp.Core`, `Fdp.Toolkits` and the ExtDeps — ⛔ **never `Hrot.Core`**.
+`S-2` declared `SelectionChangeRequest` in `Hrot.Common.Events`, which made §2.7.3 **rule 2**
+*("every surface is a requester")* **unbuildable for the ImGui panels** — half the surfaces in the design.
+⇒ ⭐ both events now live in **`Fdp.Toolkits`** *(`Fdp.Toolkit.Vis2D`)*, the one layer the panels **and**
+`Hrot.Core`'s registry can both see. ⚠ `SelectEntityCommand` stays in Hrot: it is the **network-id**
+boundary and a network id is a Hrot concept.
+
+##### ⚠ Deviations, and why
+
+| # | deviation | why |
+|---|---|---|
+| **①** | ⭐ **`SelectionNotificationSystem` is a SYSTEM, not a panel subscription** | ⛔ A bus event is readable for exactly one frame. A system runs every frame by construction; an ImGui panel does not — collapsed, on a hidden tab, or not drawn, it misses the event and is stale **forever** |
+| **②** | 🟡 **Panels PROJECT from `ISelectionState` each draw rather than subscribing** | same hazard, same answer: re-reading is idempotent and cannot miss. ⭐ The design's intent — *"their own sets are VIEW state"* — is met; ⛔ the mechanism is a pull, not a push. The notification still exists and has real consumers: the ones that need an **edge** *(`S-5`'s "losing selection cancels that entity's edit" is the next)* |
+| **③** | ⚠ **BEHAVIOUR CHANGE on IG: clearing the selection now clears the inspector** | 📐 IG's retired detector *deliberately refused* to clear, to protect a list-made selection from a map clear. 🔒 Ruling ① removes the premise — one selection per host means a list selection and a map selection **are the same thing**. ⭐ Railed by `ClearingTheSelectionClearsTheInspectorContext` |
+| **④** | ⛔ **ReplayBrowser is deliberately NOT wired** | it inspects a **recording**; there is no global selection for it to agree with, and inventing one would be the parallel store `S-1` removed. ⭐ It keeps its own set and its `OnEntitySelected` — now fired unconditionally, since `ChainToMap` was the gate |
+
+##### 🔴 The defect the rails caught — **a `Clear` was never announced**
+
+📌 `Apply`'s `Clear` branch returned **before** the announcement, so emptying the selection told nobody
+and every subscriber kept painting what had just been cleared — the *"accepted and silently discarded"*
+shape this programme keeps producing. ⭐ Caught by `ClearingTheSelectionClearsTheInspectorContext`
+within minutes of being written. ⚠ **Note what did NOT catch it:** the build, and every other rail.
+
+##### 🟡 The gate
+
+| | |
+|---|---|
+| ☑ *"⛔ `R-134`: no DDS type in the internal path"* | **met** — a plain managed record; neither `SelectionChangedEvent` (`[DdsTopic]`) nor `SelectionChangedEventDto` is referenced |
+| 🟡 the 4 stores → 1 + views | **3 of 4.** ☑ editor · CGF · IG; ❌ **`SimHostSelectionManager` remains.** 📐 Measured: SimHost has a world **and** runs `SelectionInteractionSystem` (writing the component) **and** keeps a separate manager for its panels ⇒ the same desync, on that host. 🔒 **Lean: give SimHost an `EcsSelectionState` and retire `SimHostSelectionManager`** — ⛔ §2.7.1's `DdsBackedSelectionState` is for hosts with **no** world, which SimHost is not. ⚠ Not built here: it retires a type with its own `IInspectorContext` wiring, and this lane cannot run SimHost |
+| ❌ `DerEntityInspectorPanel` | untouched — §2.7.5 assigns its seam to **`S-4`** |
 
 ## 3. Acceptance
 

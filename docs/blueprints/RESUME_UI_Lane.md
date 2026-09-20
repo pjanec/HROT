@@ -1,21 +1,21 @@
 <!--STATUS
 state: LIVE
 updated: 2026-09-20
-current-answer: ⭐⭐⭐ READ THE "SESSION 2026-09-20 (b)" BLOCK AT THE TOP OF THIS FILE — it is the live
-  one. ☑ UXI-11 slices S-1 AND S-2 (selection unification) ARE BUILT. NEXT IS S-3 — the notification
-  event (new, FDP-internal, R-134), panels subscribe, and the last two stores collapse.
-  ⛔ Neither slice met its gate in full, and both say so: S-1's "4 stores become 1 + views" is 2 of 4
-  (the rest needs S-3); S-2's "the ONLY writer" has one surviving writer plus two synchronous facade
-  seams, all argued. 📄 The as-builts are UX_Feature_Selection.md §2.7.6 (S-1) and §2.7.7 (S-2) —
-  read those, not the summaries here, before starting S-3.
+current-answer: ⭐⭐⭐ READ THE "SESSION 2026-09-20 (c)" BLOCK AT THE TOP OF THIS FILE — it is the live
+  one. ☑ UXI-11 slices S-1, S-2 AND S-3 (selection unification) ARE BUILT. NEXT IS S-4 — right-click
+  selects on every surface, and the DER inspector gains a seam.
+  ⛔ No slice met its gate in full and each says so: stores are 3 of 4 (SimHost remains, lean recorded);
+  "the ONLY writer" has one surviving writer plus two synchronous facade seams; panels PROJECT rather
+  than subscribe. 📄 The as-builts are UX_Feature_Selection.md §2.7.6 (S-1), §2.7.7 (S-2) and §2.7.8
+  (S-3) — read those, not the summaries here, before starting S-4.
   Branch: ui (the stable lane branch, R-148).
   ⛔ The 2026-09-15 block below (distributed persistence + ownership) is DONE and is now HISTORY —
   nothing from it is in flight. Older STRANDS below it are older history still; do NOT act on any of
   them unless explicitly told to continue one.
 
-stale-below: ⛔ EVERYTHING below the "SESSION 2026-09-20 (b)" block is HISTORY, newest first —
-  including the (a) block (S-1) and the 2026-09-19/20 block, whose plans are now DONE. Do not quote
-  any of it as current state.
+stale-below: ⛔ EVERYTHING below the "SESSION 2026-09-20 (c)" block is HISTORY, newest first —
+  including the (b) and (a) blocks (S-2, S-1) and the 2026-09-19/20 block, whose plans are now DONE.
+  Do not quote any of it as current state.
 known-rot: none open in this file.
 related-designs:
   - docs/UX/UX_Feature_Selection.md — owns UXI-11; §2.7 is the target state, §2.7.5 the slice order.
@@ -29,7 +29,64 @@ related-designs:
 -->
 # ⭐⭐⭐ RESUME — **the UI / variable implementation lane**
 
-## ⭐⭐⭐ SESSION `2026-09-20` (b) — **`UXI-11` `S-2` IS BUILT; NEXT IS `S-3`**
+## ⭐⭐⭐ SESSION `2026-09-20` (c) — **`UXI-11` `S-3` IS BUILT; NEXT IS `S-4`**
+
+☑ **`S-3` shipped** *(the notification + panels off their own selection)*. 📄 As-built, with four argued
+deviations, in [`UX_Feature_Selection.md` §2.7.8](../UX/UX_Feature_Selection.md).
+
+| what | |
+|---|---|
+| `SelectionChangedNotification` *(NEW)* | a plain managed FDP record carrying the **whole** selection + primary. 🔒 `R-134` met — ⛔ neither `SelectionChangedEvent` (`[DdsTopic]`) nor `SelectionChangedEventDto` is touched |
+| `SelectionNotificationSystem` *(NEW)* | points `IInspectorContext` at the new primary. 🔴 It replaces hand-syncs that hung off `SelectionInteractionSystem.OnSelectionChanged` — i.e. **fired for a map click and nothing else**, so an inspector click, a context menu or `CMD_SET_SELECTION` never moved the inspector |
+| `EntityInspectorPanel` | stops owning a selection: its set is a **projection** of `ISelectionState`, its clicks **publish requests** *(ctrl→Add/Remove, shift→Add, plain→Replace)* |
+| ⛔ **`ChainToMap` RETIRED** | with its operator toggle. 🔒 Ruling ① — selection is global on every host. 📐 It defaulted to OFF and exactly **one** production host set it true, which is why an editor inspector click never reached the map |
+| IG | its map→inspector change-detector **and** `_fdpLastMapSelection` are deleted |
+
+🔴 **A layering finding: `S-2` had put the request event in the wrong assembly.** `Fdp.Presentation`
+cannot reference `Hrot.Core`, so a request type in `Hrot.Common.Events` made §2.7.3 rule 2 *("every
+surface is a requester")* **unbuildable for the ImGui panels** — half the surfaces. ⇒ both events now
+live in **`Fdp.Toolkits`**, the one layer the panels and `Hrot.Core`'s registry can both see.
+
+🔴 **The rails caught a real defect of mine:** `Apply`'s `Clear` branch returned **before** the
+announcement ⇒ emptying the selection told nobody. ⚠ The build was green and every other rail passed.
+
+⚠⚠ **Panels PROJECT, they do not subscribe** *(deviation ②)* — a bus event is readable for exactly one
+frame and an ImGui panel that is collapsed, on a hidden tab, or simply not drawn would miss it and stay
+stale forever. Re-reading the view each draw cannot miss. ⭐ The notification is for consumers that need
+an **edge**; `S-5` is the next one.
+
+⚠ **Behaviour change, stated not buried:** clearing the selection now clears the inspector on IG. Its
+retired detector deliberately refused to; ruling ① removes the premise.
+
+🟡 **Stores: 3 of 4.** ❌ `SimHostSelectionManager` remains — SimHost has a world **and** runs
+`SelectionInteractionSystem` **and** keeps a separate manager for its panels. 🔒 **Lean: give SimHost an
+`EcsSelectionState` and retire the manager** *(⛔ `DdsBackedSelectionState` is for hosts with NO world)*.
+Not built: it retires a type with its own `IInspectorContext` wiring and this lane cannot run SimHost.
+
+### ⭐⭐ NEXT — **`S-4`**
+
+Right-click selects on **every** surface *(§2.3 incl. row 1 — an already-selected entity keeps the whole
+selection)*; the **DER inspector gains a seam** *(it speaks DER ids, not `Entity`, which is why `S-3`
+left it alone)*.
+
+### ⚠ Gates as measured `2026-09-20` (c)
+
+| gate | result |
+|---|---|
+| `Hrot.Presentation.Tests` | ✅ **272/272** |
+| `Hrot.Editor.Tests` | ✅ **419/420**, 1 skip — the only red across two runs was the `AiHotReload` ALC flake |
+| `Hrot.IG.Tests` | ⚠ **427/435** — the **7 reds are the same PRE-EXISTING translator set** |
+| `Fdp.Presentation.Tests` | ⚠ **541/550** — the same **8 pre-existing** |
+| `design-digest --check` · `rulings-check` **37/37** · `tracker-counts` · 5 mermaid blocks | ✅ |
+
+⛔ **Roslyn note for the next session:** `roslyn_apply_rename` **fails on this server** (errors with no
+detail, green tree, fresh token, twice). `roslyn_preview_rename` works — apply its diff and verify.
+⚠ And `RoslynMcp.dll` has **no query CLI**: its subcommands are `setup`/`hook`/`list`/`verify`/`update`
+only, so the MCP stdio server IS the only tool path (unlike codebase-memory, which has `cli <tool>`).
+
+---
+
+## ⛔ HISTORY — SESSION `2026-09-20` (b) — **`UXI-11` `S-2`**
 
 ☑ **`S-2` shipped** *(the request event + the only writer)*. 📄 The as-built, with five argued
 deviations, is [`UX_Feature_Selection.md` §2.7.7](../UX/UX_Feature_Selection.md) — read **that** before

@@ -81,11 +81,19 @@ public static class PresentationComponentRegistry
         world.RegisterEvent<Hrot.Common.Events.SelectEntityCommand>();
         world.RegisterEvent<Hrot.Common.Events.CenterOnEntityCommand>();
         world.RegisterEvent<Hrot.Common.Events.ActivateEditorToolEvent>();
-        // ⭐⭐⭐ UXI-11 S-2 — the selection REQUEST. 📄 UX_Feature_Selection.md §2.7.1.
-        // ⛔ MANAGED, because it carries a SET: a rubber band selects N entities in one request and a
-        //   blittable struct cannot hold that. 🔒 R-134 — a plain FDP record, never a DDS topic.
+        // ⭐⭐⭐ UXI-11 S-2/S-3 — the selection REQUEST and its NOTIFICATION. 📄 §2.7.1/§2.7.2.
+        // ⛔ MANAGED, because both carry a SET: a rubber band selects N entities in one request and a
+        //   blittable struct cannot hold that. 🔒 R-134 — plain FDP records, never DDS topics.
+        //   ⚠ Two selection-changed types already exist and NEITHER may be used: SelectionChangedEvent
+        //     ([DdsTopic]) and SelectionChangedEventDto are NETWORK types; the egress converts.
+        // ⚠⚠ They live in Fdp.Toolkits, NOT here, and the reason is load-bearing: the ImGui panels are
+        //    surfaces too (§2.7.3 rule 2 — "every surface is a requester"), and Fdp.Presentation
+        //    cannot reference Hrot.Core. 📐 S-2 put the request in Hrot.Common.Events, which made half
+        //    the surfaces unable to publish it; S-3 moved it down. Fdp.Toolkits is the one layer both
+        //    this registry and the panels can see.
         // ⚠ Registered HERE and not inline in a host, for the reason the block above records: an
         //   adopter publishing into a bus that never heard of the event THROWS under strict mode.
-        world.RegisterManagedEvent<Hrot.Common.Events.SelectionChangeRequest>();
+        world.RegisterManagedEvent<Fdp.Toolkit.Vis2D.Abstractions.SelectionChangeRequest>();
+        world.RegisterManagedEvent<Fdp.Toolkit.Vis2D.Abstractions.SelectionChangedNotification>();
     }
 }

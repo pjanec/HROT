@@ -59,7 +59,13 @@ public class ScenarioEditorModule : IEcsModule
         Func<DataDrivenGizmoSystem?>  Gizmos,
         Func<MapCamera?>              Camera,
         Action<Entity>?               AlsoSelect         = null,
-        Func<Hrot.ScenarioEditor.Tools.ToolController?>? Tools = null);
+        Func<Hrot.ScenarioEditor.Tools.ToolController?>? Tools = null,
+        // ⭐⭐ UXI-11 S-3 — the host's inspector context, pointed at the selection by
+        //    SelectionNotificationSystem. ⚠ OPTIONAL and a resolver, like Selection: a host without an
+        //    ImGui inspector (headless, a test root) simply has none, and the system no-ops.
+        //    ⛔ A host that HAS one must pass it -- "a production caller that HAS a dependency must
+        //    pass it" -- and TheViewportInteractionIsSharedTests rails that both roots do.
+        Func<Fdp.Presentation.Abstractions.IInspectorContext?>? Inspector = null);
 
     // ⛔⛔ REMOVED 2026-09-09 (UXI-07 §4.10): GlobalGizmos and StartPlacementMode.
     //    🔴 Step 3b moved the tool REGISTRATIONS out of this module and into MapInteractionPack, which
@@ -108,6 +114,9 @@ public class ScenarioEditorModule : IEcsModule
         //    is the ONLY thing standing between this and a silent regression, since nothing about the
         //    two systems' code says they must run in this order.
         registry.RegisterSystem(new SelectionRequestSystem(deps.Selection, deps.AlsoSelect));
+        // ⭐⭐⭐ UXI-11 S-3 — AFTER the publisher, so a request and its consequence land in one frame.
+        if (deps.Inspector != null)
+            registry.RegisterSystem(new SelectionNotificationSystem(deps.Inspector));
         registry.RegisterSystem(new ToolActivationDrainSystem(
             deps.Selection, deps.Gizmos, deps.Tools ?? (() => null)));
         registry.RegisterSystem(new CenterOnEntitySystem(deps.Camera));

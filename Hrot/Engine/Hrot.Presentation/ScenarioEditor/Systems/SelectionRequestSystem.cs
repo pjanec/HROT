@@ -86,6 +86,7 @@ public sealed class SelectionRequestSystem : IEcsModuleSystem
 
             selection.PrimarySelected = target;
             _alsoSelect?.Invoke(target);
+            Announce(world, selection, "SelectEntityCommand");
         }
 
         // ── the ENTITY-addressed form with a set and a mode (UXI-11 S-2) ─────────
@@ -94,6 +95,32 @@ public sealed class SelectionRequestSystem : IEcsModuleSystem
             if (req == null) continue;
             Apply(world, selection, req);
         }
+    }
+
+    /// <summary>
+    /// ⭐⭐⭐ <b>Announces what the selection BECAME.</b> 📄 §2.7.2 — <c>UXI-11</c> slice <c>S-3</c>.
+    ///
+    /// <para>⚠ <b>Published AFTER the store is written, in the same tick</b>, so a consumer that reads
+    /// <c>ISelectionState</c> while handling the notification sees the new value. ⛔ Announcing first
+    /// would hand every subscriber the state it is replacing.</para>
+    ///
+    /// <para>⭐ It carries the WHOLE selection, not a delta — a subscriber that missed a frame is
+    /// correct again after the next one, and it never has to keep a running copy (which is the
+    /// parallel-store disease <c>S-1</c> removed).</para>
+    /// </summary>
+    private static void Announce(EntityRepository world, ISelectionState selection, string? reason)
+    {
+        // ⚠ A COPY, not the live collection. EcsSelectionState.SelectedEntities hands back its own
+        //   observation buffer, which it rewrites on the next read ⇒ handing that to subscribers
+        //   would give them a list that silently changes underneath them.
+        var snapshot = new System.Collections.Generic.List<Entity>(selection.SelectedEntities);
+
+        world.Bus.PublishManaged(new SelectionChangedNotification
+        {
+            Selected = snapshot,
+            Primary  = selection.PrimarySelected,
+            Reason   = reason,
+        });
     }
 
     /// <summary>
@@ -106,6 +133,12 @@ public sealed class SelectionRequestSystem : IEcsModuleSystem
         if (req.Mode == SelectionChangeMode.Clear)
         {
             selection.Clear();
+            // ⚠⚠ A CLEAR IS A CHANGE AND MUST BE ANNOUNCED. 📌 It was not, for about ten minutes:
+            //    this branch returned early and skipped the Announce at the foot of the method, so
+            //    every subscriber kept painting the selection that had just been emptied — the exact
+            //    "accepted and silently discarded" shape. ⭐ Caught by
+            //    ClearingTheSelectionClearsTheInspectorContext, which is why that rail exists.
+            Announce(world, selection, req.Reason);
             return;
         }
 
@@ -135,5 +168,7 @@ public sealed class SelectionRequestSystem : IEcsModuleSystem
         //   follows selection with its own panel wiring behaves the same whichever form was used.
         if (_alsoSelect != null && selection.PrimarySelected is { } primary && !primary.IsNull)
             _alsoSelect(primary);
+
+        Announce(world, selection, req.Reason);
     }
 }

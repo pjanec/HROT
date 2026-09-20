@@ -1608,6 +1608,9 @@ namespace Hrot.Editor
                 fileService,
                 new ScenarioEditorModule.InteractionDeps(
                     Selection:          () => _selectionState,
+                    // ⭐⭐ UXI-11 S-3 — replaces the OnSelectionChanged hand-sync, which fired only
+                    //    for a MAP click and so ignored every other cause of a selection change.
+                    Inspector:          () => _fdpInspectorState,
                     Gizmos:             () => _editorDataDrivenGizmoSystem,
                     Camera:             () => _camera,
                     Tools:              () => _editorToolController));
@@ -1988,7 +1991,7 @@ namespace Hrot.Editor
                 //    calls a menu item that changes selection "an action handler", which is exactly
                 //    the deferred path ruling 15 gives every action.
                 _world!.Bus.PublishManaged(
-                    Hrot.Common.Events.SelectionChangeRequest.ReplaceWith(target, "ContextMenu.Select"));
+                    Fdp.Toolkit.Vis2D.Abstractions.SelectionChangeRequest.ReplaceWith(target, "ContextMenu.Select"));
                 // ⚠ Panel view state, not the selection store. S-3 turns this into a notification
                 //   consumer; until then the handler still points the inspector at its own choice.
                 _fdpInspectorState.SelectedEntity = target;
@@ -2053,16 +2056,14 @@ namespace Hrot.Editor
             //    SelectionState component, and SelectionInteractionSystem has ALREADY written that
             //    component through the very same view before it raises this callback
             //    (ClearAllSelections + SetSelected, then Invoke). ⇒ assigning PrimarySelected here
-            //    re-derived a state that was already true. ⛔ It was not a second store any more after
-            //    S-1 — it was a second WRITE, which is what rule 1 is about.
-            // ⚠ What remains is panel view state. S-3 makes it a notification consumer.
-            _selectionSystem.OnSelectionChanged += (entity, _) =>
-            {
-                if (entity == Entity.Null)
-                    _fdpInspectorState.SelectedEntity = null;
-                else if (_world.IsAlive(entity))
-                    _fdpInspectorState.SelectedEntity = entity;
-            };
+            //    re-derived a state that was already true.
+            //
+            // ⭐⭐⭐ UXI-11 S-3 — AND THE CALLBACK ITSELF IS GONE. 📄 §2.7.4 listed this hand-sync for
+            //    retirement; SelectionNotificationSystem below does it from the NOTIFICATION instead.
+            // ⚠⚠ The difference is not cosmetic: this callback fired ONLY for a MAP click, because it
+            //    hung off SelectionInteractionSystem. ⇒ an inspector click, a context-menu Select, a
+            //    CMD_SET_SELECTION from ExCon — none of them moved _fdpInspectorState. 📌 That is the
+            //    whole argument for an announcement: one publisher, every cause, one consumer.
             // Wire the AI editor selection store so AI editor windows track the selected entity.
             _selectionBridge = new Hrot.Editor.AiShared.Selection.CallbackSelectionBridge(onEntitySelected =>
             {
@@ -2353,6 +2354,14 @@ namespace Hrot.Editor
                 //   ⚠ Same lifecycle as _fdpRepoAdapter below: nulled on teardown and rebuilt here,
                 //     because both hold the World and the World is replaced on reload.
                 _selectionState   = new Hrot.ScenarioEditor.Selection.EcsSelectionState(_world);
+                // ⭐⭐⭐ UXI-11 S-3 — the entity inspector stops owning a selection.
+                // 🔒 Ruling ① (2026-09-10): inspector selection IS the global selection, on every host.
+                //    ⛔ ChainToMap -- the opt-in that gated exactly this -- is retired with the panel's
+                //    toggle; it defaulted to OFF here, which is why an inspector click never moved the
+                //    editor's map. 📄 UX_Feature_Selection.md §2.6 ruling ① / §2.7.8.
+                _fdpEntityInspector.Selection = _selectionState;
+                _fdpEntityInspector.RequestSelectionChange =
+                    req => _world!.Bus.PublishManaged(req);
 
                 // ⭐⭐ CE-051 — the shared rename modal. ⭐ Commits through IEditorLogic.CommitPropertyEdit,
                 //    which publishes an UpdateEntityCommand — ⛔ NOT a direct component write, which is what

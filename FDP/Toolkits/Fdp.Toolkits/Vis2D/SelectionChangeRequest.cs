@@ -1,11 +1,14 @@
 using System.Collections.Generic;
 using Fdp.Core;
 
-namespace Hrot.Common.Events;
+namespace Fdp.Toolkit.Vis2D.Abstractions;
 
 /// <summary>
 /// How a <see cref="SelectionChangeRequest"/> combines with the selection that already exists.
 /// 📄 <c>docs/UX/UX_Feature_Selection.md</c> §2.7.1 — <c>UXI-11</c> slice <c>S-2</c>.
+/// ⚠ <b>Moved into FDP at <c>S-3</c></b> (§2.7.8): the ImGui panels are surfaces too, and
+/// <c>Fdp.Presentation</c> cannot reference <c>Hrot.Core</c> — so a request type living in Hrot made
+/// §2.7.3 rule 2 (<i>"every surface is a requester"</i>) unbuildable for half the surfaces.
 /// </summary>
 public enum SelectionChangeMode
 {
@@ -34,7 +37,7 @@ public enum SelectionChangeMode
 /// <para>⚠ <b>Entity-addressed on purpose.</b> 🔒 §2.7.3 rule 7: selection is <b>HOST-LOCAL</b>; DDS
 /// carries it only for direct 2-D map control and is <b>translated at the boundary</b>. ⇒ the internal
 /// request speaks the host's own handle. ⭐ The network-id-addressed form is
-/// <see cref="SelectEntityCommand"/>, which the same system consumes as a <see cref="Replace"/> — that
+/// <c>Hrot.Common.Events.SelectEntityCommand</c>, which the same system consumes as a <see cref="Replace"/> — that
 /// is the boundary, and it is one line.</para>
 ///
 /// <para>⛔ <b>A MANAGED event, and it has to be.</b> A blittable struct cannot carry a set, and the

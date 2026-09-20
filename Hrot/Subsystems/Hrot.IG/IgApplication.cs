@@ -461,10 +461,9 @@ public class IgApplication : IDisposable
 
     private FdpInspectorState       _fdpInspectorState  = new();
 
-    // Task 46: track last known map selection so we only push map?inspector
-    // when the selection actually changes, and never overwrite a user-chosen
-    // inspector selection when the map has nothing selected.
-    private Entity                  _fdpLastMapSelection = Entity.Null;
+    // ⛔ REMOVED (UXI-11 S-3): the "last known map selection" tracker. Its whole job was to make a
+    //    per-frame poll of the map's component behave like a change event; the notification IS that
+    //    event, published by the one writer for every cause. 📄 UX_Feature_Selection.md §2.7.4.
 
     /// ⭐ UXI-11 S-2 — IG's view over the ECS selection truth, and the one thing that writes it here.
     private Hrot.ScenarioEditor.Selection.EcsSelectionState? _igSelectionState;
@@ -873,8 +872,15 @@ public class IgApplication : IDisposable
             // ⭐ The view is a read-through handle over the SelectionState component (S-1), which is
             //   what IG already used directly, so this changes WHO writes, not WHAT is written.
             _igSelectionState = new Hrot.ScenarioEditor.Selection.EcsSelectionState(ctx.World);
+            // ⭐⭐⭐ UXI-11 S-3 — IG's inspector is a requester too, now that this host serves requests.
+            _fdpEntityInspector.Selection = _igSelectionState;
+            _fdpEntityInspector.RequestSelectionChange =
+                req => ctx.World.Bus.PublishManaged(req);
             ctx.Kernel.RegisterGlobalSystem(
                 new Hrot.ScenarioEditor.Systems.SelectionRequestSystem(() => _igSelectionState));
+            // ⭐⭐⭐ UXI-11 S-3 — AFTER the publisher, so a request and its consequence land in one frame.
+            ctx.Kernel.RegisterGlobalSystem(
+                new Hrot.ScenarioEditor.Systems.SelectionNotificationSystem(() => _fdpInspectorState));
 
             // MapCommandController - created here when network is available.
             if (_igBootstrapper!.NetworkEnabled && ctx.Participant != null)
@@ -1247,17 +1253,16 @@ public class IgApplication : IDisposable
 
             _inspectorState.Refresh(_world, GetSelectedEntity());
 
-            // Task 43/46: one-directional sync map ? FDP inspector.
-            // Only update when the map selection actually changes to a real entity.
-            // When the map is cleared (Entity.Null) we intentionally do NOT clear
-            // the FDP inspector so the user can keep a selection made via the list.
-            var fdpSelected = GetSelectedEntity();
-            if (fdpSelected != _fdpLastMapSelection)
-            {
-                _fdpLastMapSelection = fdpSelected;
-                if (fdpSelected != Entity.Null)
-                    _fdpInspectorState.SelectedEntity = fdpSelected;
-            }
+            // ⭐⭐⭐ UXI-11 S-3 — the "Task 43/46 one-directional map -> inspector sync" is GONE.
+            //    📄 UX_Feature_Selection.md §2.7.4 listed this hand-sync for retirement;
+            //    SelectionNotificationSystem now drives _fdpInspectorState from the ANNOUNCEMENT.
+            // ⭐⭐ Why that is better and not merely tidier: this block polled GetSelectedEntity(),
+            //    i.e. the MAP's component, so it followed a map click and nothing else -- and it
+            //    deliberately refused to clear, to protect a list-made selection from being wiped.
+            //    🔒 Ruling ① (2026-09-10) removes the premise: there is ONE selection per host, so a
+            //    list selection and a map selection are the same thing and there is nothing to protect.
+            // ⚠ BEHAVIOUR CHANGE, stated rather than buried: clearing the map selection now clears
+            //    the inspector too. That is what "unified behavior, every host" means.
 
         }
 
@@ -1632,14 +1637,11 @@ public class IgApplication : IDisposable
         //
         // ⭐⭐ THE HAND-SYNC IS GONE TOO, and dropping it is what makes the deferral CORRECT rather
         //    than merely tolerable. 📐 Steps 2-3 used to pre-set _fdpInspectorState and
-        //    _fdpLastMapSelection so that DrawUI's change-detection (:1241) would see "no change" and
-        //    not revert the choice. ⛔ With a one-frame deferral that pre-set would INVERT: for one
-        //    frame the component still holds the OLD entity while the tracker holds the new one, so
-        //    the detector would push the OLD one back. ⭐ Letting the detector do its own job instead
-        //    is correct by construction — when the request lands, the component differs from the
-        //    tracker and the inspector follows, which is exactly what it was written to do.
+        //    a map-selection tracker so DrawUI's change-detector would see "no change". ⭐ S-3 deleted
+        //    both the pre-set AND the detector: SelectionNotificationSystem points the inspector at
+        //    whatever the selection became, from the announcement, for every cause.
         _world.Bus.PublishManaged(
-            Hrot.Common.Events.SelectionChangeRequest.ReplaceWith(entity, "Ig.SelectEntityOnMap"));
+            Fdp.Toolkit.Vis2D.Abstractions.SelectionChangeRequest.ReplaceWith(entity, "Ig.SelectEntityOnMap"));
     }
 
 

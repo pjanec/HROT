@@ -868,8 +868,14 @@ public sealed class ReplayBrowserSubsystem : ISubsystem, IWindowRegistrar,
         var (seekIntent, selectIntent, matchIntent) = WireDelegatesForTest(
             _entityHistory, _playbackHistory, _inspectorState!, null!, _diffPanel!, _eventPanel!);
 
+        // ⭐⭐ UXI-11 S-3 — ChainToMap is RETIRED; OnEntitySelected now fires unconditionally on a host
+        //    with no global selection. 📐 ReplayBrowser was the ONE production host that set the flag
+        //    true, so removing the gate changes nothing here — ⚠ and that is the measurement that
+        //    condemned the flag: everywhere else it stayed false and the inspector was inert.
+        // ⛔ This host is deliberately NOT given a Selection/RequestSelectionChange pair: it inspects a
+        //    RECORDING, there is no global selection for it to agree with, and inventing one would be
+        //    the parallel store S-1 removed. 📄 UX_Feature_Selection.md §2.7.8.
         _inspectorPanel!.OnEntitySelected = selectIntent;
-        _inspectorPanel.ChainToMap = true;
         _diffPanel!.IsMergedViewQuery = () => _viewMode == ViewMode.Merged;
         _diffPanel!.OnSeekToChangeRequested = direction =>
         {
