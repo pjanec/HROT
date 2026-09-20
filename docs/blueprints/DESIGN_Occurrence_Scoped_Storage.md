@@ -2358,6 +2358,7 @@ sequenceDiagram
 | **D2** | what names it | ⭐⭐ a **reserved `variableId`** at `Behavior` scope, role `State`, kind `BTree` — ⛔ no new enum member anywhere | the manifest gains 1 entry per hosting site |
 | **D3** | how the orchestrator knows its key | ⭐⭐⭐ **RE-LEANED `2026-09-20` — the key is RUNTIME-COMPUTABLE and SUPPLIED BY THE HOSTING SITE**; the const-bake is demoted to an emitter optimisation on the JSON path. ⛔ **Prior lean — *"baked as a `const`; hosting is static so the chain is fully known to the emitter"* — is SUPERSEDED**: it is true only of hosting the GENERATOR CAN SEE. §19.6 has the measurement | ⭐ still **no** new `NodeLogicDelegate` parameter, **no** `BTreeContext` field, **no** kernel change ⇒ `O4` keeps zero-ExtDeps |
 | **D4** | re-entry reset (`F14`) | ⭐ **clear the slot when the child returns non-`Running`** — the host has left the hosting node by definition | rail ② |
+| **D5** | what `siteId` IS | ⭐⭐ **fold the author's existing stable node `Guid`** — ⛔ **NOT a node ordinal.** `ComputeNested`'s own doc: *"must be stable across a recompile, or the child's slot moves; `StructureHash` catches the drift but the state is lost"* ⇒ an ordinal shifts the moment a node is inserted above it. ⭐ Authors already supply a stable `Guid` per node today *(the `visualId` argument of `StatefulAction`)* | the emitter and the builder extension both fold the same `Guid` |
 
 ### 19.4 ⚠ WHAT THIS COSTS THAT §17's SIZING DID NOT COUNT
 
@@ -2376,6 +2377,7 @@ at 8 slots / 320 B.
 | **golden** | `hill-attack-close` green before and after |
 | **sizing** | §19.4's re-measure, folded back into §17 |
 | ⭐ **a debug assertion** | §19.6 ⑤ — a hosting site that supplies the WRONG key gets a silent slot miss, the exact failure `A1` exists to kill ⇒ `O4` ships an assertion, not an implicit contract |
+| ⛔⛔ **the two halves are NOT independent** | §19.7 ① — the ROOT occurrence's own slot is what makes hosted children addressable at all. ⚠ `O4` cannot ship "hosted children" without "the root occurrence", and the plan reads as though it could |
 
 ### 19.6 🔴🔴 WHAT `D3`'s FIRST LEAN GOT WRONG — **"hosting is static" is true only of hosting the GENERATOR CAN SEE** *(user question, `2026-09-20`)*
 
@@ -2456,3 +2458,84 @@ needs regardless, and §3.1 says so.
 ⚠ **Stated plainly: I asserted *"the chain is fully known to the emitter"* without measuring HOW, and
 the how is what breaks it.** 📌 The generating question — *"what would have to be true for this to be
 wrong?"* — had an answer one grep deep: **a host the generator cannot see.**
+
+### 19.7 ⭐⭐ WHAT `(hostKey, siteId)` LOOKS LIKE IN HAND-WRITTEN CODE — **and three things writing it out exposed**
+
+> ⭐ Asked for as an illustrative example; kept because **writing the call out is what found ①**, which
+> changes what `O4` can ship. ⛔ This is PROPOSED shape — `O4` is not built.
+
+#### ⭐ The idiom it extends *(this part EXISTS)*
+
+📐 A hand-written tree already hard-codes its asset identity and a **stable `Guid` per node** —
+`HillAttackCommanderNodes.cs:562` and the `StatefulAction` calls below it:
+
+```csharp
+var manifest = new StatefulSlotManifestBuilder(new Guid("1a000000-0000-0000-0000-0000000000dd"));
+
+.StatefulAction<…>(bb => bb.Params, Action_CalculateSegments, manifest, "State",
+    StatefulSlotScope.Behavior, new Guid("1a000000-…-a1"), "CalculateSegments")
+//                              ^^^^^^^^^^^^^^^^^^^^^^^^^^ the author's stable node id — D5 folds THIS
+```
+
+#### ⭐ The proposed form — the same act of authorship, one level up
+
+```csharp
+static readonly Guid HostAsset   = new Guid("1a000000-…-dd");   // this tree
+static readonly Guid PatrolAsset = new Guid("1a000000-…-77");   // the tree it hosts
+
+// ① THE HOST'S OWN occurrence key. This tree is a root, so its host path is empty.
+static readonly int HostOccurrenceKey =
+    StatefulBTreeActionBinder.ComputeOccurrenceSlotKey(
+        hostKey: 0, siteId: 0,                          // 0 == root
+        assetId: HostAsset, scope: StatefulSlotScope.Behavior,
+        nodeVisualId: Guid.Empty, variableId: OccurrenceSlots.TreeState);
+
+// ② THE SITE — which node in THIS tree hosts the child (D5: the node's stable Guid).
+static readonly Guid PatrolSite = new Guid("1a000000-…-c1");
+
+// ③ THE CHILD'S tree-state slot.
+static readonly int PatrolTreeStateKey =
+    StatefulBTreeActionBinder.ComputeOccurrenceSlotKey(
+        hostKey: HostOccurrenceKey, siteId: FoldGuid(PatrolSite),
+        assetId: PatrolAsset, scope: StatefulSlotScope.Behavior,
+        nodeVisualId: Guid.Empty, variableId: OccurrenceSlots.TreeState);
+```
+
+⭐ and the hosting action — **the one line `O4` is actually about**:
+
+```csharp
+byte* store = OccurrenceStoreAccess.TryGetStore(ctx.World, ctx.Self, out _);
+if (store == null ||
+    !BlueprintBlackboardPartitions.TryGetSlotOffset(store, PatrolTreeStateKey, out int off))
+    return NodeStatus.Failure;                       // + the §19.6 ⑤ debug assert
+
+ref var childState = ref Unsafe.AsRef<BehaviorTreeState>(store + off);
+return Patrol.GetInterpreter().Tick(ref master.Patrol, ref childState, ref ctx);
+//                                                     ^^^^^^^^^^^^^ NOT ref state
+```
+
+#### 🔴🔴 ① `hostKey: 0` SILENTLY DROPS `siteId` — **so the two halves of `O4` are NOT independent**
+
+⛔ `ComputeNested` returns `Compute(...)` **verbatim** when `hostKey == 0` — deliberately, because that
+is what keeps `A1`'s existing keys byte-identical. ⇒ 🔴 **a child CANNOT be keyed as
+`(hostKey: 0, siteId: N)`**: two sites hosting the same child asset would collide, and the root case
+would swallow the difference without a word.
+
+⇒ ⭐⭐⭐ **the host must pass its OWN occurrence key**, which only exists once the **root occurrence has
+its own slot**. ⚠⚠ **§6 and §19 read as though "give the hosted child its own state" and "give the root
+occurrence a slot" were two independent deliverables. They are not** — the second is what makes the
+first addressable. 🔒 **`O4` ships both or neither.**
+
+#### ⚠ ② `StatefulSlotManifestBuilder.Add` IS `internal` — **so this arrives as a BUILDER EXTENSION**
+
+⛔ A hand-written host in `Hrot.AI.Behaviors` cannot register the slot directly. ⭐ It comes through an
+extension mirroring the existing `StatefulAction` in `StatefulTreeBuilderExtensions` — so `O4` ships
+**`HostSubtree(...)`**, which registers the hosting action **and** the manifest entry together, and the
+author never touches the key arithmetic above. ⇒ **the explicit form is what the extension does
+underneath**, not what anyone writes.
+
+#### ⭐ ③ `siteId` STABILITY — *(now `D5`)*
+
+⛔ A node **ordinal** shifts the moment a node is inserted above it, and `ComputeNested`'s own doc says
+the child's slot then moves — `StructureHash` catches the drift, **but the state is lost**. ⇒ fold the
+author's existing stable node `Guid`, which they already supply for every `StatefulAction`.
