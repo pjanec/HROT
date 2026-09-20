@@ -138,12 +138,22 @@ task old, not five:
 | suite | baseline | note |
 |---|---|---|
 | `Fdp.Toolkits.Tests` full | **2232 / 0** | ⚠ `DEBT-AIB-030`: ~7 rotate flaky — confirm a red by re-running it ALONE |
-| `Hrot.Blueprints.Tests` full | **3978 / 0**, 10 skipped | ⭐ **the allocator's OWN suite lives here** — `PartitionAllocatorTests`, and `A3`'s rails went INTO it |
+| `Hrot.Blueprints.Tests` full | **~3970 / 0**, ⚠ **skips vary 10–18 — see below** | ⭐ **the allocator's OWN suite lives here** — `PartitionAllocatorTests`, and `A3`'s rails went INTO it |
 | the allocator filter *(`PartitionAllocator`+`BlackboardLayout`+`TierSummary`)* | **40 / 0** *(36 before `A3`)* | ⭐ the ~8 s loop for anything touching partitions |
 | `Hrot.Diagnostics.Breakpoints.Tests` | **165 / 0** | ⚠ needs `dotnet restore` first — trap ⑧ |
 | `Hrot.Presentation.Tests` | **252 / 0** | ⚠ same |
 | ⚠ `Hrot.SimHost.Tests` | **1001 / 3** | 🔴 **all three reds CONFIRMED PRE-EXISTING** at `5d3e632c2` by a stash-and-rerun: `NodeRolePersistenceRails.TheSaveHandlerSetIsStillComplete`, `MapPresentationParityRails.EveryTkbSpawningHost_ObtainsTheSharedTranslatorSet(EditorStrideSubsystem.cs)`, `FullBranchPipelineTests.BranchedRecording_CapturesHistoricalStateAsKeyframe`. ⚠ **A FOURTH is FLAKY, not a red** — `EcsRecordReplayControllerTests.PrepareRecordingAsync_InstallsRecordingModule` fired once and passed 3/3 alone + 2/2 in full runs after |
 | `Hrot.AiEditor.Generators.Tests` | **280** | ⛔ this is the one `A2b` moves — goldens |
+
+⛔⛔ **THE SKIP COUNT IN `Hrot.Blueprints.Tests` IS NOT A STABLE BASELINE — do not treat a change in it
+as a finding without checking this first** *(measured `2026-09-20`, chasing an apparent 10 → 18 jump)*:
+
+| | |
+|---|---|
+| 📐 **the 18 are fully accounted for** | **8** static `[Fact(Skip = …)]` + **10** from **`[SkippableFact]` / `Skip.If(…)`** — 21 such sites across 7 files *(`AllocationFreeTests`, `WhenNodePerfTests`, and the five `Editor/Frame/*` dialog suites)* |
+| ⭐⭐ **`[SkippableFact]` skips at RUNTIME, on the ENVIRONMENT** | headless ImGui frame availability, GC monitoring. ⇒ **the count moves between machines and runs while the code is identical** |
+| ⛔ **why this cost time** | a `grep "Skip *="` finds only the STATIC half — it returned **9** and looked like it explained everything. ⚠ The gate contract's *"a new skip is a finding"* is still right; ⭐ **it just needs `SkippableFact` in the search** |
+| ✅ **verdict for `B3`** | `git status` on the test project returned **empty** *(B3 touched no test source there)*, and the count was **identical across two independent runs**. ⇒ **not a regression** |
 
 ---
 
