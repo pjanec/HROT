@@ -67,10 +67,14 @@ public sealed class BlackboardLayoutTests
     {
         Assert.Equal(1024, BlueprintBlackboard1024.TotalSize);
         Assert.Equal(32,   BlueprintBlackboard1024.HeaderSize);
-        Assert.Equal(4,    BlueprintBlackboard1024.MaxSlots);
-        Assert.Equal(64,   BlueprintBlackboard1024.SlotTableSize);   // 4 * 16
-        Assert.Equal(96,   BlueprintBlackboard1024.PayloadStart);    // 32 + 64
-        Assert.Equal(928,  BlueprintBlackboard1024.PayloadSize);     // 1024 - 96
+        // ⭐ B3② (2026-09-20): MaxSlots re-picked 4 → 12. 📄 BlueprintTierLadder carries the
+        //   measurement; design §17 "B3②'s PRE-MEASUREMENT" shows the 801–928 B band is EMPTY, so
+        //   the 128 B of payload this costs displaces nothing and the 8 extra slots take the
+        //   corpus's worst case from the 16384 tier to this one.
+        Assert.Equal(12,   BlueprintBlackboard1024.MaxSlots);
+        Assert.Equal(192,  BlueprintBlackboard1024.SlotTableSize);   // 12 * 16
+        Assert.Equal(224,  BlueprintBlackboard1024.PayloadStart);    // 32 + 192
+        Assert.Equal(800,  BlueprintBlackboard1024.PayloadSize);     // 1024 - 224
     }
 
     [Fact]
@@ -78,10 +82,12 @@ public sealed class BlackboardLayoutTests
     {
         Assert.Equal(4096, BlueprintBlackboard4096.TotalSize);
         Assert.Equal(32,   BlueprintBlackboard4096.HeaderSize);
-        Assert.Equal(8,    BlueprintBlackboard4096.MaxSlots);
-        Assert.Equal(128,  BlueprintBlackboard4096.SlotTableSize);   // 8 * 16
-        Assert.Equal(160,  BlueprintBlackboard4096.PayloadStart);    // 32 + 128
-        Assert.Equal(3936, BlueprintBlackboard4096.PayloadSize);     // 4096 - 160
+        // ⭐ B3② : 8 → 16. ⛔ NOT optional — with the small tier at 12, a medium tier at 8 would
+        //   make promotion a capacity REDUCTION on the slots axis. 16 is the Kind-nibble ceiling.
+        Assert.Equal(16,   BlueprintBlackboard4096.MaxSlots);
+        Assert.Equal(256,  BlueprintBlackboard4096.SlotTableSize);   // 16 * 16
+        Assert.Equal(288,  BlueprintBlackboard4096.PayloadStart);    // 32 + 256
+        Assert.Equal(3808, BlueprintBlackboard4096.PayloadSize);     // 4096 - 288
     }
 
     [Fact]
@@ -94,6 +100,15 @@ public sealed class BlackboardLayoutTests
         Assert.Equal(288,   BlueprintBlackboard16384.PayloadStart);   // 32 + 256
         Assert.Equal(16096, BlueprintBlackboard16384.PayloadSize);    // 16384 - 288
     }
+
+    // ⛔⛔ B3②: the ladder-agreement rails (B3_R8 / B3_R9) live in Fdp.Toolkits.Tests, NOT here.
+    //   📐 Measured: this assembly holds InternalsVisibleTo from BOTH Fdp.Toolkits AND
+    //      Hrot.Blueprints.Compiler, and BlueprintTierLadder is an internal file LINKED into the
+    //      second ⇒ naming it here is CS0433, "exists in both". ⭐ That ambiguity is a property of
+    //      THIS test assembly, not a defect in the link.
+    //   ⭐ And drift between the two copies is impossible by construction: it is ONE file on disk,
+    //      linked — if the link were dropped, Stage2_Validate would stop compiling. What still needs
+    //      a rail is the STRUCTS agreeing with the ladder, and that is B3_R8's job, one assembly up.
 
     // ---- SC4: SlotTableSize == MaxSlots * SlotEntrySize --------------------
 

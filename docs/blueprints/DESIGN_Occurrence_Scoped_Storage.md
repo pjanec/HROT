@@ -1927,3 +1927,39 @@ the worst case in the corpus**, and every other asset fits too.
 they carry `Marshal.SizeOf<T>()`, so the struct sizes came from reflection over the built
 `Hrot.AI.Behaviors` assembly)*. ✅ **Cross-check: the slot COUNTS reproduce §5a's
 `0×17 · 1×6 · 2×5 · 3×1 · 8×1` exactly**, which is what says the parse is faithful.
+
+### ✅ AS-BUILT `2026-09-20` — **`B3②` THE RE-PICK IS SHIPPED** *(obligation ⑤)*
+
+⭐ **The ladder is `12 / 16 / 16`** *(was `4 / 8 / 16`)*, and its numbers now live in ONE file —
+`Fdp.Toolkits/Blueprints/Shared/BlueprintTierLadder.cs`, `internal`, `const`-only,
+netstandard2.0-subset, **LINKED** into `Hrot.Blueprints.Compiler`.
+
+| tier | `MaxSlots` | payload | change |
+|---|---|---|---|
+| 1024 | **4 → 12** | **928 → 800** | ⭐ costs 128 B, buys **8 slots** |
+| 4096 | **8 → 16** | 3936 → 3808 | ⛔ **not optional** — see the hazard below |
+| 16384 | 16 | 16096 | unchanged |
+
+| what shipped | |
+|---|---|
+| ⭐⭐ **`BlueprintTierLadder`** — the numbers, once | `Stage2_Validate.cs:503-508`'s literals `928 / 3936 / 16096` are gone; it reads the linked consts. ⇒ **`N1` is CLOSED**: compile-time validation and runtime capacity can no longer drift, because they are one file |
+| the tier structs READ the ladder | `BlueprintBlackboard{1024,4096,16384}` no longer declare `MaxSlots`/`TotalSize`/`PayloadSize` of their own |
+| rails | **`B3_R8`** structs-agree-with-ladder · **`B3_R9`** ladder mirrors the allocator's `SlotEntrySize` / `MaxKindSlots` / header size · **`B3_R1`** gained the monotonic-`MaxSlots` assertion · `BlackboardLayoutTests` `SC3` updated to the new values |
+
+| 🔴🔴 THE HAZARD THE RE-PICK CREATES, AND IT IS NOT OBVIOUS | |
+|---|---|
+| ⛔⛔ **`MaxSlots` must be NON-DECREASING up the ladder** | raising the small tier to 12 while leaving the medium tier at **8** makes promotion a **capacity REDUCTION**: `CopyToLargerTier` would be handed a `dstMaxSlots` **smaller than the slot count it is copying**. ⇒ 4096 had to go to 16 as well. 🔴 **And every other assertion in `B3_R1` would still have passed**, because `TotalSize` and `PayloadSize` kept increasing — the slots axis was simply not checked. ⭐ It is now |
+| ⚠ **the ceiling makes the top two tiers share a value** | `MaxKindSlots` = 16, so 4096 and 16384 both sit at 16 ⇒ the assertion is **non-decreasing**, not strictly increasing. ⭐ Consequence worth saying out loud: **those two tiers now exist for BYTES only** — nothing in the current corpus would select them at all |
+
+| ⚠ two things measured while building, neither of which was in the design | |
+|---|---|
+| ⛔ **`Hrot.Blueprints.Tests` cannot name the linked type** | it holds `InternalsVisibleTo` from **both** `Fdp.Toolkits` and `Hrot.Blueprints.Compiler`, so both copies are visible ⇒ **`CS0433`**. ⭐ `B3_R8`/`B3_R9` live in `Fdp.Toolkits.Tests` instead. ⚠ A property of that test assembly, **not** a defect in the link |
+| ⭐ **drift between the two COPIES is impossible by construction** | it is one file on disk; dropping the link stops `Stage2_Validate` compiling. ⇒ what still needed a rail is a tier struct **re-declaring a literal of its own**, and that is exactly what `B3_R8` pins — red-proved by doing it |
+
+⭐ **Red-proof:** three inverse edits — medium tier back to 8 slots, `SlotEntrySize` drifted to 8, and
+a struct re-declaring `MaxSlots = 8` — reddened **`B3_R1`, `B3_R2`, `B3_R6`, `B3_R8`, `B3_R9`**.
+Reverted, 20/20 green.
+
+⇒ ✅ **PLAN `W1` is ANSWERED and `O3a` is COMPLETE.** ⭐ `O3b` (the 256 tier, task `B4`) is now one
+entry in `BlueprintTierTable.Ascending` plus a component struct and an id — ⛔ appended to
+`BlackboardTier`, never inserted (`N2`).

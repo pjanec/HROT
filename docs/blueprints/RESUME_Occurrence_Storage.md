@@ -64,7 +64,8 @@ and ours are `CE-`. Do not quote it as evidence for them.
 | **`B2`** *(`O2`)* | ✅ **DONE** — `BrainInterrupts` is its own component (id **302**); `BrainBlackboard` is now **100 B of pure params** *(128 → 100: 28 dead bytes per brain entity)*. `R-39` reconciled, `R-41` superseded. As-built in design **§6** |
 | **`A2b`** *(the emitter ladder)* | ✅ **DONE** — ⛔ **three** ladders, not two; golden diff shape **+252/−1234, net −982**, purely the collapse. As-built in design **§13** |
 | **`B3①`** *(`O3a`, THE COLLAPSE)* | ✅ **DONE, golden GREEN** *(`25e158d81`)* — `BlueprintTierSpec` + `BlueprintTierTable`; **net −435 lines of C#**; 3 verbatim `TickTier_*` → 1, the quadratic `UpgradeTier` → 1 body, 3 byte-identical renderers → a generic base. ⛔ Ladder values UNCHANGED on purpose. 7 rails, red-proved. As-built in design **§17** |
-| ⭐⭐⭐ **next** | **`B3②`** *(`O3a`, THE RE-PICK — PLAN `W1`)*. 🔴 **It is NOT the one-file constant change it looked like** — see §2 ⑩ and ⑪ |
+| **`B3②`** *(`O3a`, THE RE-PICK)* | ✅ **DONE** — ladder **12 / 16 / 16**; `BlueprintTierLadder` is the one source, LINKED into the compiler ⇒ `Stage2_Validate`'s literals are gone and ⑪ is CLOSED. 🔴 Forced 4096 → 16 as well: a larger tier with FEWER slots makes promotion a capacity REDUCTION. 3 rails, red-proved. As-built in design **§17** |
+| ⭐⭐⭐ **next** | **`B4`** *(`O3b` — the 256 tier)*. ⭐ Now genuinely additive: one entry in `BlueprintTierTable.Ascending`, one component struct, one id. ⛔ **APPENDED to `BlackboardTier`, never inserted** *(§2 ⑫)*. `MaxSlots` is PLAN `W4` — 📐 77 % of behaviours need ≤ 2 slots ⇒ **2** earns the tier, 1 makes it near-useless |
 | ⚠ also open | `B4` *(`O3b` — the 256 tier; `MaxSlots` is PLAN `W4`, and 2 is the value that earns the tier)* |
 | **defects filed** | `CE-295` open *(scenario live-reload is a one-shot — filed NOT fixed, user's call)* · `CE-296` **refuted** *(my error)* |
 

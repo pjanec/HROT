@@ -5,19 +5,27 @@ using Fdp.Toolkit.Blueprints.Partitioning;
 namespace Fdp.Toolkit.Blueprints.Components;
 
 /// <summary>
-/// Large blackboard tier -- up to 16096 bytes of Blueprint state plus a 288-byte header+slot-table.
+/// Large blackboard tier — up to 16096 bytes of Blueprint state in up to 16 occurrence
+/// slots, plus a 288-byte header+slot-table.
+///
+/// <para>⚠ MaxSlots was re-picked 4/8/16 → 12/16/16 by <c>B3②</c> (2026-09-20); the numbers live in
+/// <c>BlueprintTierLadder</c>. See that file for the measurement that justified it.</para>
 /// </summary>
 [StructLayout(LayoutKind.Sequential)]
 [ComponentId(GlobalComponentIds.BlueprintBlackboard16384)]
 [DataPolicy(DataPolicy.NoScenario)]
 public unsafe struct BlueprintBlackboard16384
 {
-    public const int TotalSize     = 16384;
-    public const int HeaderSize    = 32;
-    public const int MaxSlots      = 16;
-    public const int SlotTableSize = MaxSlots * BlueprintBlackboardPartitions.SlotEntrySize; // 256
-    public const int PayloadStart  = HeaderSize + SlotTableSize;                              // 288
-    public const int PayloadSize   = TotalSize - PayloadStart;                                // 16096
+    // ⭐⭐ O3a / B3② — THE NUMBERS COME FROM ONE PLACE NOW.
+    //   BlueprintTierLadder is an internal, netstandard2.0-subset file LINKED into
+    //   Hrot.Blueprints.Compiler, which cannot reference Fdp.Toolkits under netstandard2.0 and was
+    //   hard-coding these budgets as literals (design §17.1 N1). ⛔ Do not re-declare a number here.
+    public const int TotalSize     = Shared.BlueprintTierLadder.Tier16384TotalSize;
+    public const int HeaderSize    = Shared.BlueprintTierLadder.HeaderSize;
+    public const int MaxSlots      = Shared.BlueprintTierLadder.Tier16384MaxSlots;
+    public const int SlotTableSize = MaxSlots * BlueprintBlackboardPartitions.SlotEntrySize;
+    public const int PayloadStart  = HeaderSize + SlotTableSize;
+    public const int PayloadSize   = Shared.BlueprintTierLadder.Tier16384PayloadSize;
 
     /// <summary>
     /// Entire component memory: header (32) + slot table (256) + payload (16096) = 16384 bytes.

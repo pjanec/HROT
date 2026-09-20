@@ -2,6 +2,7 @@ using System;
 using Fdp.Core;
 using Fdp.Toolkit.Blueprints.Components;
 using Fdp.Toolkit.Blueprints.Partitioning;
+using Fdp.Toolkit.Blueprints.Shared;
 using Xunit;
 
 namespace Fdp.Toolkits.Tests.Blueprints.Partitioning
@@ -251,6 +252,17 @@ namespace Fdp.Toolkits.Tests.Blueprints.Partitioning
                     $"Ascending must be strictly increasing by TotalSize: {asc[i - 1]} then {asc[i]}.");
                 Assert.True(asc[i].PayloadSize > asc[i - 1].PayloadSize,
                     $"A larger tier must offer more payload: {asc[i - 1]} then {asc[i]}.");
+
+                // ⛔⛔ B3② — THE SLOTS AXIS MUST NOT GO BACKWARDS, and the re-pick is exactly what
+                //   could break it. A larger tier offering FEWER slots makes promotion a capacity
+                //   REDUCTION, and CopyToLargerTier would be handed a dstMaxSlots smaller than the
+                //   slot count it is copying. 📌 With the small tier re-picked 4 → 12, leaving the
+                //   medium tier at 8 would have done precisely that — and every OTHER assertion in
+                //   this rail would still have passed, because payload kept increasing.
+                //   ⚠ NON-decreasing, not strictly increasing: MaxKindSlots caps the ladder at 16,
+                //   so the top tiers legitimately share a value.
+                Assert.True(asc[i].MaxSlots >= asc[i - 1].MaxSlots,
+                    $"A larger tier must not offer FEWER slots: {asc[i - 1]} then {asc[i]}.");
             }
 
             var desc = BlueprintTierTable.Descending;
@@ -415,6 +427,50 @@ namespace Fdp.Toolkits.Tests.Blueprints.Partitioning
             }
 
             world.Dispose();
+        }
+        /// <summary>
+        /// ⭐⭐⭐ <b>The tier structs agree with <c>BlueprintTierLadder</c> — the file LINKED into
+        /// <c>Hrot.Blueprints.Compiler</c>.</b>
+        ///
+        /// <para>🔴 This closes §17.1 <c>N1</c>. <c>Stage2_Validate</c> spelled the payload budgets as
+        /// the literals <c>928 / 3936 / 16096</c>, because its project targets <c>netstandard2.0</c>
+        /// and can reference <c>Fdp.Toolkits</c> only under <c>net8.0</c> ⇒ a <c>MaxSlots</c> re-pick
+        /// moved the runtime's capacity and left compile-time validation behind, silently.</para>
+        ///
+        /// <para>⚠ <b>What this rail does and does not cover.</b> Drift between the two COPIES is
+        /// impossible by construction — it is one file on disk, linked, and dropping the link stops
+        /// <c>Stage2_Validate</c> compiling. ⛔ What is still possible, and what this pins, is a tier
+        /// struct quietly re-declaring a literal of its own instead of reading the ladder.</para>
+        /// </summary>
+        [Fact]
+        public void B3_R8_TheTierStructsAgreeWithTheLinkedLadderFile()
+        {
+            Assert.Equal(BlueprintTierLadder.Tier1024TotalSize,    BlueprintBlackboard1024.TotalSize);
+            Assert.Equal(BlueprintTierLadder.Tier1024MaxSlots,     BlueprintBlackboard1024.MaxSlots);
+            Assert.Equal(BlueprintTierLadder.Tier1024PayloadSize,  BlueprintBlackboard1024.PayloadSize);
+
+            Assert.Equal(BlueprintTierLadder.Tier4096TotalSize,    BlueprintBlackboard4096.TotalSize);
+            Assert.Equal(BlueprintTierLadder.Tier4096MaxSlots,     BlueprintBlackboard4096.MaxSlots);
+            Assert.Equal(BlueprintTierLadder.Tier4096PayloadSize,  BlueprintBlackboard4096.PayloadSize);
+
+            Assert.Equal(BlueprintTierLadder.Tier16384TotalSize,   BlueprintBlackboard16384.TotalSize);
+            Assert.Equal(BlueprintTierLadder.Tier16384MaxSlots,    BlueprintBlackboard16384.MaxSlots);
+            Assert.Equal(BlueprintTierLadder.Tier16384PayloadSize, BlueprintBlackboard16384.PayloadSize);
+        }
+
+        /// <summary>
+        /// ⚠ <b>The ladder file MIRRORS three allocator constants by hand</b>, because a linked
+        /// netstandard2.0 file cannot reference the allocator. ⛔ Nothing but this rail says they
+        /// still match — and a wrong <c>SlotEntrySize</c> there mis-sizes every payload budget the
+        /// compiler validates against, on the side of the wall that cannot be checked at all.
+        /// </summary>
+        [Fact]
+        public void B3_R9_TheLadderFileMirrorsTheAllocatorConstants()
+        {
+            Assert.Equal(BlueprintBlackboardPartitions.SlotEntrySize, BlueprintTierLadder.SlotEntrySize);
+            Assert.Equal(BlueprintBlackboardPartitions.MaxKindSlots,  BlueprintTierLadder.MaxKindSlots);
+            Assert.Equal(System.Runtime.CompilerServices.Unsafe.SizeOf<BlueprintBlackboardHeader>(),
+                         BlueprintTierLadder.HeaderSize);
         }
     }
 }
