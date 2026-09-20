@@ -98,9 +98,7 @@ public sealed class T34_ComposedAiPrimitiveCondition_ProofTests : IDisposable
         world.Bus.SwapBuffers();
         ingress.Execute(world, 0.016f);
 
-        (world.HasComponent<BlueprintBlackboard1024>(entity)
-         || world.HasComponent<BlueprintBlackboard4096>(entity)
-         || world.HasComponent<BlueprintBlackboard16384>(entity))
+        (OccurrenceStoreAccess.HasStore(world, entity))
             .Should().BeTrue("BehaviorIngressSystem must provision a partition tier for the blueprint slot");
 
         // Tick the real interpreter. RunsNeeded=3 → TickCore returns Running, Running, Success;
@@ -126,32 +124,13 @@ public sealed class T34_ComposedAiPrimitiveCondition_ProofTests : IDisposable
 
     private static unsafe int ReadSlotTicks(EntityRepository world, Entity entity)
     {
-        if (world.HasComponent<BlueprintBlackboard16384>(entity))
+        // ⭐ B4: was THREE arms over the tier trio and knew nothing about the 256 tier.
+        //   OccurrenceStoreAccess is the seam production uses for exactly this.
+        byte* mem = OccurrenceStoreAccess.TryGetStore(world, entity, out _);
+        if (mem != null)
         {
-            ref var t = ref world.GetComponentRW<BlueprintBlackboard16384>(entity);
-            fixed (byte* mem = t.Memory)
-            {
-                BlueprintBlackboardPartitions.TryGetSlotOffset(mem, SlotKey, out int off).Should().BeTrue();
-                return Unsafe.AsRef<DemoAiPrimitiveNodes.WorkingState>(mem + off).Ticks;
-            }
-        }
-        if (world.HasComponent<BlueprintBlackboard4096>(entity))
-        {
-            ref var t = ref world.GetComponentRW<BlueprintBlackboard4096>(entity);
-            fixed (byte* mem = t.Memory)
-            {
-                BlueprintBlackboardPartitions.TryGetSlotOffset(mem, SlotKey, out int off).Should().BeTrue();
-                return Unsafe.AsRef<DemoAiPrimitiveNodes.WorkingState>(mem + off).Ticks;
-            }
-        }
-        if (world.HasComponent<BlueprintBlackboard1024>(entity))
-        {
-            ref var t = ref world.GetComponentRW<BlueprintBlackboard1024>(entity);
-            fixed (byte* mem = t.Memory)
-            {
-                BlueprintBlackboardPartitions.TryGetSlotOffset(mem, SlotKey, out int off).Should().BeTrue();
-                return Unsafe.AsRef<DemoAiPrimitiveNodes.WorkingState>(mem + off).Ticks;
-            }
+            BlueprintBlackboardPartitions.TryGetSlotOffset(mem, SlotKey, out int off).Should().BeTrue();
+            return Unsafe.AsRef<DemoAiPrimitiveNodes.WorkingState>(mem + off).Ticks;
         }
         throw new InvalidOperationException("entity has no BlueprintBlackboard* tier — slot cannot be read");
     }

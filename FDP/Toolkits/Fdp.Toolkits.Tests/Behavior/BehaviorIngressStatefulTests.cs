@@ -244,54 +244,28 @@ public sealed unsafe class BehaviorIngressStatefulTests
         sys.Execute(world, 0.016f);
 
         // The entity must now carry a tier component.
-        bool hasTier = world.HasComponent<BlueprintBlackboard1024>(entity)
-                    || world.HasComponent<BlueprintBlackboard4096>(entity)
-                    || world.HasComponent<BlueprintBlackboard16384>(entity);
-        Assert.True(hasTier, "Entity must carry a BlueprintBlackboard* tier after assignment");
+        // ⭐ B4: ANY tier, asked once — HasStore is the seam's own answer to this question.
+        Assert.True(OccurrenceStoreAccess.HasStore(world, entity),
+            "Entity must carry a BlueprintBlackboard* tier after assignment");
 
         // ALL 3 slots must be attached — including slots that may not execute this tick.
+        //
+        // ⛔⛔ O3b / B4: this was THREE copies of the same block, one per tier, differing only in
+        //   the component named and the tier number in the failure message. It knew nothing about
+        //   the 256 tier, so the moment one existed the entity landed there and the helper fell
+        //   through to Assert.Fail("No tier component found").
+        // ⭐ OccurrenceStoreAccess answers "where are this entity's bytes" for ANY tier — it is the
+        //   seam A2 built and the one production uses. A test helper that re-spells the ladder
+        //   tests a different ladder than the code under test.
         void AssertAllSlotsAttached()
         {
-            if (world.HasComponent<BlueprintBlackboard16384>(entity))
-            {
-                ref var t = ref world.GetComponentRW<BlueprintBlackboard16384>(entity);
-                fixed (byte* mem = t.Memory)
-                {
-                    Assert.True(BlueprintBlackboardPartitions.TryGetSlotOffset(mem, keyA, out _), "keyA missing (16384)");
-                    Assert.True(BlueprintBlackboardPartitions.TryGetSlotOffset(mem, keyB, out _), "keyB missing (16384)");
-                    Assert.True(BlueprintBlackboardPartitions.TryGetSlotOffset(mem, keyC, out _), "keyC missing (16384)");
-                    int slotCount = BlueprintBlackboardPartitions.GetSlotCount(mem);
-                    Assert.Equal(3, slotCount);
-                }
-                return;
-            }
-            if (world.HasComponent<BlueprintBlackboard4096>(entity))
-            {
-                ref var t = ref world.GetComponentRW<BlueprintBlackboard4096>(entity);
-                fixed (byte* mem = t.Memory)
-                {
-                    Assert.True(BlueprintBlackboardPartitions.TryGetSlotOffset(mem, keyA, out _), "keyA missing (4096)");
-                    Assert.True(BlueprintBlackboardPartitions.TryGetSlotOffset(mem, keyB, out _), "keyB missing (4096)");
-                    Assert.True(BlueprintBlackboardPartitions.TryGetSlotOffset(mem, keyC, out _), "keyC missing (4096)");
-                    int slotCount = BlueprintBlackboardPartitions.GetSlotCount(mem);
-                    Assert.Equal(3, slotCount);
-                }
-                return;
-            }
-            if (world.HasComponent<BlueprintBlackboard1024>(entity))
-            {
-                ref var t = ref world.GetComponentRW<BlueprintBlackboard1024>(entity);
-                fixed (byte* mem = t.Memory)
-                {
-                    Assert.True(BlueprintBlackboardPartitions.TryGetSlotOffset(mem, keyA, out _), "keyA missing (1024)");
-                    Assert.True(BlueprintBlackboardPartitions.TryGetSlotOffset(mem, keyB, out _), "keyB missing (1024)");
-                    Assert.True(BlueprintBlackboardPartitions.TryGetSlotOffset(mem, keyC, out _), "keyC missing (1024)");
-                    int slotCount = BlueprintBlackboardPartitions.GetSlotCount(mem);
-                    Assert.Equal(3, slotCount);
-                }
-                return;
-            }
-            Assert.Fail("No tier component found");
+            byte* mem = OccurrenceStoreAccess.TryGetStore(world, entity, out int totalSize);
+            Assert.True(mem != null, "No tier component found");
+
+            Assert.True(BlueprintBlackboardPartitions.TryGetSlotOffset(mem, keyA, out _), $"keyA missing (tier {totalSize})");
+            Assert.True(BlueprintBlackboardPartitions.TryGetSlotOffset(mem, keyB, out _), $"keyB missing (tier {totalSize})");
+            Assert.True(BlueprintBlackboardPartitions.TryGetSlotOffset(mem, keyC, out _), $"keyC missing (tier {totalSize})");
+            Assert.Equal(3, BlueprintBlackboardPartitions.GetSlotCount(mem));
         }
 
         AssertAllSlotsAttached();
@@ -301,27 +275,21 @@ public sealed unsafe class BehaviorIngressStatefulTests
 
     // ── S3-5: ClearBehaviorEvent detach ───────────────────────────────────────────
 
+    // ⭐ B4: both helpers were three-arm ladders that did not know about the 256 tier — so they
+    //   returned 0 / false for an entity that HAD a store, which reads as "nothing was provisioned".
+    //   OccurrenceStoreAccess is the production answer to "whichever tier it carries".
+
     /// <summary>Reads the entity's active-tier slot count (whichever tier it carries).</summary>
     private static int SlotCountOf(EntityRepository world, Entity entity)
     {
-        if (world.HasComponent<BlueprintBlackboard16384>(entity))
-        { ref var t = ref world.GetComponentRW<BlueprintBlackboard16384>(entity); fixed (byte* m = t.Memory) return BlueprintBlackboardPartitions.GetSlotCount(m); }
-        if (world.HasComponent<BlueprintBlackboard4096>(entity))
-        { ref var t = ref world.GetComponentRW<BlueprintBlackboard4096>(entity); fixed (byte* m = t.Memory) return BlueprintBlackboardPartitions.GetSlotCount(m); }
-        if (world.HasComponent<BlueprintBlackboard1024>(entity))
-        { ref var t = ref world.GetComponentRW<BlueprintBlackboard1024>(entity); fixed (byte* m = t.Memory) return BlueprintBlackboardPartitions.GetSlotCount(m); }
-        return 0;
+        byte* mem = OccurrenceStoreAccess.TryGetStore(world, entity, out _);
+        return mem == null ? 0 : BlueprintBlackboardPartitions.GetSlotCount(mem);
     }
 
     private static bool HasSlot(EntityRepository world, Entity entity, int key)
     {
-        if (world.HasComponent<BlueprintBlackboard16384>(entity))
-        { ref var t = ref world.GetComponentRW<BlueprintBlackboard16384>(entity); fixed (byte* m = t.Memory) return BlueprintBlackboardPartitions.TryGetSlotOffset(m, key, out _); }
-        if (world.HasComponent<BlueprintBlackboard4096>(entity))
-        { ref var t = ref world.GetComponentRW<BlueprintBlackboard4096>(entity); fixed (byte* m = t.Memory) return BlueprintBlackboardPartitions.TryGetSlotOffset(m, key, out _); }
-        if (world.HasComponent<BlueprintBlackboard1024>(entity))
-        { ref var t = ref world.GetComponentRW<BlueprintBlackboard1024>(entity); fixed (byte* m = t.Memory) return BlueprintBlackboardPartitions.TryGetSlotOffset(m, key, out _); }
-        return false;
+        byte* mem = OccurrenceStoreAccess.TryGetStore(world, entity, out _);
+        return mem != null && BlueprintBlackboardPartitions.TryGetSlotOffset(mem, key, out _);
     }
 
     private static void Assign(EntityRepository world, BehaviorIngressSystem sys, Entity entity, string name)

@@ -166,55 +166,21 @@ public sealed unsafe class BehaviorIngressHardReloadRepublishTests : IDisposable
 
         // Verify slot attached and record initial InstanceVersion.
         uint versionBeforeReload = 0;
-        if (_world.HasComponent<BlueprintBlackboard16384>(entity))
+        // ⭐ B4: was an if/else-if chain over the tier trio — and its final `else` fell through to
+        //   1024 UNCONDITIONALLY, so with a 256 tier it threw "missing BlueprintBlackboard1024".
+        //   OccurrenceStoreAccess resolves whichever tier the ingress actually chose.
         {
-            ref var tier = ref _world.GetComponentRW<BlueprintBlackboard16384>(entity);
-            fixed (byte* mem = tier.Memory)
+            byte* mem = OccurrenceStoreAccess.TryGetStore(_world, entity, out _);
+            Assert.True(mem != null, "entity must carry a blueprint blackboard tier");
+            Assert.True(BlueprintBlackboardPartitions.TryGetSlotOffset(mem, slotKey, out _),
+                "Slot must be attached after initial assign");
+            ref var hdr = ref Unsafe.AsRef<BlueprintBlackboardHeader>(mem);
+            byte* tbl = mem + Unsafe.SizeOf<BlueprintBlackboardHeader>();
+            for (int i = 0; i < hdr.SlotCount; i++)
             {
-                Assert.True(BlueprintBlackboardPartitions.TryGetSlotOffset(mem, slotKey, out _),
-                    "Slot must be attached after initial assign");
-                ref var hdr = ref Unsafe.AsRef<BlueprintBlackboardHeader>(mem);
-                byte* tbl = mem + Unsafe.SizeOf<BlueprintBlackboardHeader>();
-                for (int i = 0; i < hdr.SlotCount; i++)
-                {
-                    ref var e = ref Unsafe.AsRef<BlueprintSlotEntry>(
-                        tbl + i * BlueprintBlackboardPartitions.SlotEntrySize);
-                    if (e.BlueprintId == slotKey) { versionBeforeReload = e.InstanceVersion; break; }
-                }
-            }
-        }
-        else if (_world.HasComponent<BlueprintBlackboard4096>(entity))
-        {
-            ref var tier = ref _world.GetComponentRW<BlueprintBlackboard4096>(entity);
-            fixed (byte* mem = tier.Memory)
-            {
-                Assert.True(BlueprintBlackboardPartitions.TryGetSlotOffset(mem, slotKey, out _),
-                    "Slot must be attached after initial assign");
-                ref var hdr = ref Unsafe.AsRef<BlueprintBlackboardHeader>(mem);
-                byte* tbl = mem + Unsafe.SizeOf<BlueprintBlackboardHeader>();
-                for (int i = 0; i < hdr.SlotCount; i++)
-                {
-                    ref var e = ref Unsafe.AsRef<BlueprintSlotEntry>(
-                        tbl + i * BlueprintBlackboardPartitions.SlotEntrySize);
-                    if (e.BlueprintId == slotKey) { versionBeforeReload = e.InstanceVersion; break; }
-                }
-            }
-        }
-        else
-        {
-            ref var tier = ref _world.GetComponentRW<BlueprintBlackboard1024>(entity);
-            fixed (byte* mem = tier.Memory)
-            {
-                Assert.True(BlueprintBlackboardPartitions.TryGetSlotOffset(mem, slotKey, out _),
-                    "Slot must be attached after initial assign");
-                ref var hdr = ref Unsafe.AsRef<BlueprintBlackboardHeader>(mem);
-                byte* tbl = mem + Unsafe.SizeOf<BlueprintBlackboardHeader>();
-                for (int i = 0; i < hdr.SlotCount; i++)
-                {
-                    ref var e = ref Unsafe.AsRef<BlueprintSlotEntry>(
-                        tbl + i * BlueprintBlackboardPartitions.SlotEntrySize);
-                    if (e.BlueprintId == slotKey) { versionBeforeReload = e.InstanceVersion; break; }
-                }
+                ref var e = ref Unsafe.AsRef<BlueprintSlotEntry>(
+                    tbl + i * BlueprintBlackboardPartitions.SlotEntrySize);
+                if (e.BlueprintId == slotKey) { versionBeforeReload = e.InstanceVersion; break; }
             }
         }
 
@@ -297,20 +263,13 @@ public sealed unsafe class BehaviorIngressHardReloadRepublishTests : IDisposable
             Assert.Equal(1u, newVersion);
         }
 
-        if (_world.HasComponent<BlueprintBlackboard16384>(entity))
+        // ⭐ B4: was an if/else-if chain over the tier trio — and its final `else` fell through to
+        //   1024 UNCONDITIONALLY, so with a 256 tier it threw "missing BlueprintBlackboard1024".
+        //   OccurrenceStoreAccess resolves whichever tier the ingress actually chose.
         {
-            ref var tier = ref _world.GetComponentRW<BlueprintBlackboard16384>(entity);
-            fixed (byte* mem = tier.Memory) AssertSlotReprovisioned(mem);
-        }
-        else if (_world.HasComponent<BlueprintBlackboard4096>(entity))
-        {
-            ref var tier = ref _world.GetComponentRW<BlueprintBlackboard4096>(entity);
-            fixed (byte* mem = tier.Memory) AssertSlotReprovisioned(mem);
-        }
-        else
-        {
-            ref var tier = ref _world.GetComponentRW<BlueprintBlackboard1024>(entity);
-            fixed (byte* mem = tier.Memory) AssertSlotReprovisioned(mem);
+            byte* mem = OccurrenceStoreAccess.TryGetStore(_world, entity, out _);
+            Assert.True(mem != null, "entity must carry a blueprint blackboard tier");
+            AssertSlotReprovisioned(mem);
         }
     }
 

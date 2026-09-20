@@ -285,43 +285,22 @@ public sealed class S3_SharedSlotProvisioningTests : IDisposable
 
     private static unsafe int GetProvisionedSlotCount(EntityRepository world, Fdp.Core.Entity entity)
     {
-        if (world.HasComponent<BlueprintBlackboard16384>(entity))
-        {
-            ref var t = ref world.GetComponentRW<BlueprintBlackboard16384>(entity);
-            fixed (byte* mem = t.Memory) return BlueprintBlackboardPartitions.GetSlotCount(mem);
-        }
-        if (world.HasComponent<BlueprintBlackboard4096>(entity))
-        {
-            ref var t = ref world.GetComponentRW<BlueprintBlackboard4096>(entity);
-            fixed (byte* mem = t.Memory) return BlueprintBlackboardPartitions.GetSlotCount(mem);
-        }
-        if (world.HasComponent<BlueprintBlackboard1024>(entity))
-        {
-            ref var t = ref world.GetComponentRW<BlueprintBlackboard1024>(entity);
-            fixed (byte* mem = t.Memory) return BlueprintBlackboardPartitions.GetSlotCount(mem);
-        }
-        throw new InvalidOperationException(
-            "entity has no BlueprintBlackboard* tier component — slot count cannot be read");
+        // ⭐ B4: was THREE arms over the tier trio and knew nothing about the 256 tier.
+        //   OccurrenceStoreAccess is the seam production uses for exactly this.
+        byte* mem = OccurrenceStoreAccess.TryGetStore(world, entity, out _);
+        if (mem == null)
+            throw new InvalidOperationException(
+                "entity has no BlueprintBlackboard* tier component — slot count cannot be read");
+
+        return BlueprintBlackboardPartitions.GetSlotCount(mem);
     }
 
     private static unsafe bool TrySlotOffset(EntityRepository world, Fdp.Core.Entity entity, int slotKey)
     {
-        if (world.HasComponent<BlueprintBlackboard16384>(entity))
-        {
-            ref var t = ref world.GetComponentRW<BlueprintBlackboard16384>(entity);
-            fixed (byte* mem = t.Memory) return BlueprintBlackboardPartitions.TryGetSlotOffset(mem, slotKey, out _);
-        }
-        if (world.HasComponent<BlueprintBlackboard4096>(entity))
-        {
-            ref var t = ref world.GetComponentRW<BlueprintBlackboard4096>(entity);
-            fixed (byte* mem = t.Memory) return BlueprintBlackboardPartitions.TryGetSlotOffset(mem, slotKey, out _);
-        }
-        if (world.HasComponent<BlueprintBlackboard1024>(entity))
-        {
-            ref var t = ref world.GetComponentRW<BlueprintBlackboard1024>(entity);
-            fixed (byte* mem = t.Memory) return BlueprintBlackboardPartitions.TryGetSlotOffset(mem, slotKey, out _);
-        }
-        return false;
+        // ⭐ B4: was THREE arms over the tier trio and knew nothing about the 256 tier.
+        //   OccurrenceStoreAccess is the seam production uses for exactly this.
+        byte* mem = OccurrenceStoreAccess.TryGetStore(world, entity, out _);
+        return mem != null && BlueprintBlackboardPartitions.TryGetSlotOffset(mem, slotKey, out _);
     }
 
     private void AssignBehavior(EntityRepository world, Fdp.Core.Entity entity, string behaviorName)

@@ -285,9 +285,7 @@ public sealed class T39_TwoDistinctAiPrimitives_ProofTests : IDisposable
         world.Bus.SwapBuffers();
         ingress.Execute(world, 0.016f);
 
-        (world.HasComponent<BlueprintBlackboard1024>(entity)
-         || world.HasComponent<BlueprintBlackboard4096>(entity)
-         || world.HasComponent<BlueprintBlackboard16384>(entity))
+        (OccurrenceStoreAccess.HasStore(world, entity))
             .Should().BeTrue("BehaviorIngressSystem must provision a partition tier for the stateful slots");
 
         return entity;
@@ -299,22 +297,13 @@ public sealed class T39_TwoDistinctAiPrimitives_ProofTests : IDisposable
     private static unsafe TResult WithTierMemory<TResult>(
         EntityRepository world, Entity entity, TierReader<TResult> read)
     {
-        if (world.HasComponent<BlueprintBlackboard16384>(entity))
-        {
-            ref var tier = ref world.GetComponentRW<BlueprintBlackboard16384>(entity);
-            fixed (byte* mem = tier.Memory) return read(mem);
-        }
-        if (world.HasComponent<BlueprintBlackboard4096>(entity))
-        {
-            ref var tier = ref world.GetComponentRW<BlueprintBlackboard4096>(entity);
-            fixed (byte* mem = tier.Memory) return read(mem);
-        }
-        if (world.HasComponent<BlueprintBlackboard1024>(entity))
-        {
-            ref var tier = ref world.GetComponentRW<BlueprintBlackboard1024>(entity);
-            fixed (byte* mem = tier.Memory) return read(mem);
-        }
-        throw new InvalidOperationException("entity has no BlueprintBlackboard* tier — slots cannot be read");
+        // ⭐ B4: was THREE arms over the tier trio and knew nothing about the 256 tier.
+        //   OccurrenceStoreAccess is the seam production uses for exactly this.
+        byte* mem = OccurrenceStoreAccess.TryGetStore(world, entity, out _);
+        if (mem == null)
+            throw new InvalidOperationException("entity has no BlueprintBlackboard* tier — slots cannot be read");
+
+        return read(mem);
     }
 
     private static unsafe int SlotOffset(EntityRepository world, Entity entity, int slotKey)

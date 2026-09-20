@@ -78,22 +78,11 @@ public sealed unsafe class HsmStatefulProvisioningTests
     /// <summary>Reads the entity's active tier and runs <paramref name="probe"/> over its memory.</summary>
     private static void WithTierMemory(EntityRepository world, Entity entity, Action<IntPtr> probe)
     {
-        if (world.HasComponent<BlueprintBlackboard16384>(entity))
-        {
-            ref var t = ref world.GetComponentRW<BlueprintBlackboard16384>(entity);
-            fixed (byte* m = t.Memory) { probe((IntPtr)m); return; }
-        }
-        if (world.HasComponent<BlueprintBlackboard4096>(entity))
-        {
-            ref var t = ref world.GetComponentRW<BlueprintBlackboard4096>(entity);
-            fixed (byte* m = t.Memory) { probe((IntPtr)m); return; }
-        }
-        if (world.HasComponent<BlueprintBlackboard1024>(entity))
-        {
-            ref var t = ref world.GetComponentRW<BlueprintBlackboard1024>(entity);
-            fixed (byte* m = t.Memory) { probe((IntPtr)m); return; }
-        }
-        Assert.Fail("Entity carries no BlueprintBlackboard* tier after assignment.");
+        // ⭐ B4: was THREE arms over the tier trio; it knew nothing about the 256 tier.
+        //   OccurrenceStoreAccess answers this for ANY tier — the seam production uses.
+        byte* m = OccurrenceStoreAccess.TryGetStore(world, entity, out _);
+        Assert.True(m != null, "Entity carries no BlueprintBlackboard* tier after assignment.");
+        probe((IntPtr)m);
     }
 
     // ── The rail ────────────────────────────────────────────────────────────────

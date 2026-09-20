@@ -147,9 +147,7 @@ public sealed class T37_SharedStateManifestProvisioning_ProofTests : IDisposable
         world.Bus.SwapBuffers();
         ingress.Execute(world, 0.016f);
 
-        (world.HasComponent<BlueprintBlackboard1024>(entity)
-         || world.HasComponent<BlueprintBlackboard4096>(entity)
-         || world.HasComponent<BlueprintBlackboard16384>(entity))
+        (OccurrenceStoreAccess.HasStore(world, entity))
             .Should().BeTrue("BehaviorIngressSystem must provision a partition tier for the manifest's slots");
 
         RallySlotIsAttached(world, entity).Should().BeTrue(
@@ -183,56 +181,22 @@ public sealed class T37_SharedStateManifestProvisioning_ProofTests : IDisposable
     private static unsafe bool RallySlotIsAttached(EntityRepository world, Entity entity)
     {
         int slotKey = RallySlotKey;
-        if (world.HasComponent<BlueprintBlackboard16384>(entity))
-        {
-            ref var t = ref world.GetComponentRW<BlueprintBlackboard16384>(entity);
-            fixed (byte* mem = t.Memory)
-                return BlueprintBlackboardPartitions.TryGetSlotOffset(mem, slotKey, out _);
-        }
-        if (world.HasComponent<BlueprintBlackboard4096>(entity))
-        {
-            ref var t = ref world.GetComponentRW<BlueprintBlackboard4096>(entity);
-            fixed (byte* mem = t.Memory)
-                return BlueprintBlackboardPartitions.TryGetSlotOffset(mem, slotKey, out _);
-        }
-        if (world.HasComponent<BlueprintBlackboard1024>(entity))
-        {
-            ref var t = ref world.GetComponentRW<BlueprintBlackboard1024>(entity);
-            fixed (byte* mem = t.Memory)
-                return BlueprintBlackboardPartitions.TryGetSlotOffset(mem, slotKey, out _);
-        }
-        return false;
+        // ⭐ B4: was THREE arms over the tier trio and knew nothing about the 256 tier.
+        //   OccurrenceStoreAccess is the seam production uses for exactly this.
+        byte* mem = OccurrenceStoreAccess.TryGetStore(world, entity, out _);
+        return mem != null && BlueprintBlackboardPartitions.TryGetSlotOffset(mem, slotKey, out _);
     }
 
     private static unsafe int ReadRallyCount(EntityRepository world, Entity entity)
     {
         int slotKey = RallySlotKey;
-        if (world.HasComponent<BlueprintBlackboard16384>(entity))
+        // ⭐ B4: was THREE arms over the tier trio and knew nothing about the 256 tier.
+        //   OccurrenceStoreAccess is the seam production uses for exactly this.
+        byte* mem = OccurrenceStoreAccess.TryGetStore(world, entity, out _);
+        if (mem != null)
         {
-            ref var t = ref world.GetComponentRW<BlueprintBlackboard16384>(entity);
-            fixed (byte* mem = t.Memory)
-            {
-                BlueprintBlackboardPartitions.TryGetSlotOffset(mem, slotKey, out int off).Should().BeTrue();
-                return Unsafe.AsRef<SquadRallyState>(mem + off).RallyCount;
-            }
-        }
-        if (world.HasComponent<BlueprintBlackboard4096>(entity))
-        {
-            ref var t = ref world.GetComponentRW<BlueprintBlackboard4096>(entity);
-            fixed (byte* mem = t.Memory)
-            {
-                BlueprintBlackboardPartitions.TryGetSlotOffset(mem, slotKey, out int off).Should().BeTrue();
-                return Unsafe.AsRef<SquadRallyState>(mem + off).RallyCount;
-            }
-        }
-        if (world.HasComponent<BlueprintBlackboard1024>(entity))
-        {
-            ref var t = ref world.GetComponentRW<BlueprintBlackboard1024>(entity);
-            fixed (byte* mem = t.Memory)
-            {
-                BlueprintBlackboardPartitions.TryGetSlotOffset(mem, slotKey, out int off).Should().BeTrue();
-                return Unsafe.AsRef<SquadRallyState>(mem + off).RallyCount;
-            }
+            BlueprintBlackboardPartitions.TryGetSlotOffset(mem, slotKey, out int off).Should().BeTrue();
+            return Unsafe.AsRef<SquadRallyState>(mem + off).RallyCount;
         }
         throw new InvalidOperationException("entity has no BlueprintBlackboard* tier — slot cannot be read");
     }

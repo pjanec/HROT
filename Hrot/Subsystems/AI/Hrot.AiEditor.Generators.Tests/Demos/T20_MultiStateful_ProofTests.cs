@@ -322,9 +322,7 @@ public sealed class T20_MultiStateful_ProofTests : IDisposable
         ingress.Execute(world, 0.016f);
 
         // ── Assert: a tier was provisioned and both slots are attached ────────────
-        bool hasTier = world.HasComponent<BlueprintBlackboard1024>(entity)
-                    || world.HasComponent<BlueprintBlackboard4096>(entity)
-                    || world.HasComponent<BlueprintBlackboard16384>(entity);
+        bool hasTier = OccurrenceStoreAccess.HasStore(world, entity);
         hasTier.Should().BeTrue(
             "BehaviorIngressSystem must have provisioned a BlueprintBlackboard* tier for 2 slots × 4 bytes");
 
@@ -463,92 +461,33 @@ public sealed class T20_MultiStateful_ProofTests : IDisposable
     private static unsafe void AssertBothSlotsAttached(EntityRepository world, Fdp.Core.Entity entity)
     {
         // Check whichever tier the ingress provisioned.
-        if (world.HasComponent<BlueprintBlackboard16384>(entity))
-        {
-            ref var t = ref world.GetComponentRW<BlueprintBlackboard16384>(entity);
-            fixed (byte* mem = t.Memory)
-            {
-                BlueprintBlackboardPartitions.TryGetSlotOffset(mem, SlotKeyA, out _)
-                    .Should().BeTrue($"slot A (key={SlotKeyA}) must be attached in BlueprintBlackboard16384");
-                BlueprintBlackboardPartitions.TryGetSlotOffset(mem, SlotKeyB, out _)
-                    .Should().BeTrue($"slot B (key={SlotKeyB}) must be attached in BlueprintBlackboard16384");
-            }
-            return;
-        }
-        if (world.HasComponent<BlueprintBlackboard4096>(entity))
-        {
-            ref var t = ref world.GetComponentRW<BlueprintBlackboard4096>(entity);
-            fixed (byte* mem = t.Memory)
-            {
-                BlueprintBlackboardPartitions.TryGetSlotOffset(mem, SlotKeyA, out _)
-                    .Should().BeTrue($"slot A (key={SlotKeyA}) must be attached in BlueprintBlackboard4096");
-                BlueprintBlackboardPartitions.TryGetSlotOffset(mem, SlotKeyB, out _)
-                    .Should().BeTrue($"slot B (key={SlotKeyB}) must be attached in BlueprintBlackboard4096");
-            }
-            return;
-        }
-        if (world.HasComponent<BlueprintBlackboard1024>(entity))
-        {
-            ref var t = ref world.GetComponentRW<BlueprintBlackboard1024>(entity);
-            fixed (byte* mem = t.Memory)
-            {
-                BlueprintBlackboardPartitions.TryGetSlotOffset(mem, SlotKeyA, out _)
-                    .Should().BeTrue($"slot A (key={SlotKeyA}) must be attached in BlueprintBlackboard1024");
-                BlueprintBlackboardPartitions.TryGetSlotOffset(mem, SlotKeyB, out _)
-                    .Should().BeTrue($"slot B (key={SlotKeyB}) must be attached in BlueprintBlackboard1024");
-            }
-            return;
-        }
-        false.Should().BeTrue("entity must have a BlueprintBlackboard* tier after ingress Execute");
+        // ⭐ B4: was THREE arms over the tier trio and knew nothing about the 256 tier.
+        //   OccurrenceStoreAccess is the seam production uses for exactly this.
+        byte* mem = OccurrenceStoreAccess.TryGetStore(world, entity, out int tier);
+        (mem != null).Should().BeTrue("entity must have a BlueprintBlackboard* tier after ingress Execute");
+
+        BlueprintBlackboardPartitions.TryGetSlotOffset(mem, SlotKeyA, out _)
+            .Should().BeTrue($"slot A (key={SlotKeyA}) must be attached in the {tier}-byte tier");
+        BlueprintBlackboardPartitions.TryGetSlotOffset(mem, SlotKeyB, out _)
+            .Should().BeTrue($"slot B (key={SlotKeyB}) must be attached in the {tier}-byte tier");
     }
 
     private static unsafe void ReadCursorStates(
         EntityRepository world, Fdp.Core.Entity entity, out int cursorA, out int cursorB)
     {
-        if (world.HasComponent<BlueprintBlackboard16384>(entity))
-        {
-            ref var t = ref world.GetComponentRW<BlueprintBlackboard16384>(entity);
-            fixed (byte* mem = t.Memory)
-            {
-                BlueprintBlackboardPartitions.TryGetSlotOffset(mem, SlotKeyA, out int offA)
-                    .Should().BeTrue("slot A must exist when reading cursor states (16384)");
-                BlueprintBlackboardPartitions.TryGetSlotOffset(mem, SlotKeyB, out int offB)
-                    .Should().BeTrue("slot B must exist when reading cursor states (16384)");
-                cursorA = Unsafe.AsRef<DemoCounterNodes.DemoCursorState>(mem + offA).Cursor;
-                cursorB = Unsafe.AsRef<DemoCounterNodes.DemoCursorState>(mem + offB).Cursor;
-            }
-            return;
-        }
-        if (world.HasComponent<BlueprintBlackboard4096>(entity))
-        {
-            ref var t = ref world.GetComponentRW<BlueprintBlackboard4096>(entity);
-            fixed (byte* mem = t.Memory)
-            {
-                BlueprintBlackboardPartitions.TryGetSlotOffset(mem, SlotKeyA, out int offA)
-                    .Should().BeTrue("slot A must exist when reading cursor states (4096)");
-                BlueprintBlackboardPartitions.TryGetSlotOffset(mem, SlotKeyB, out int offB)
-                    .Should().BeTrue("slot B must exist when reading cursor states (4096)");
-                cursorA = Unsafe.AsRef<DemoCounterNodes.DemoCursorState>(mem + offA).Cursor;
-                cursorB = Unsafe.AsRef<DemoCounterNodes.DemoCursorState>(mem + offB).Cursor;
-            }
-            return;
-        }
-        if (world.HasComponent<BlueprintBlackboard1024>(entity))
-        {
-            ref var t = ref world.GetComponentRW<BlueprintBlackboard1024>(entity);
-            fixed (byte* mem = t.Memory)
-            {
-                BlueprintBlackboardPartitions.TryGetSlotOffset(mem, SlotKeyA, out int offA)
-                    .Should().BeTrue("slot A must exist when reading cursor states (1024)");
-                BlueprintBlackboardPartitions.TryGetSlotOffset(mem, SlotKeyB, out int offB)
-                    .Should().BeTrue("slot B must exist when reading cursor states (1024)");
-                cursorA = Unsafe.AsRef<DemoCounterNodes.DemoCursorState>(mem + offA).Cursor;
-                cursorB = Unsafe.AsRef<DemoCounterNodes.DemoCursorState>(mem + offB).Cursor;
-            }
-            return;
-        }
-        throw new InvalidOperationException(
-            "entity has no BlueprintBlackboard* tier component — slot states cannot be read");
+        // ⭐ B4: was THREE arms over the tier trio and knew nothing about the 256 tier.
+        //   OccurrenceStoreAccess is the seam production uses for exactly this.
+        byte* mem = OccurrenceStoreAccess.TryGetStore(world, entity, out _);
+        if (mem == null)
+            throw new InvalidOperationException(
+                "entity has no BlueprintBlackboard* tier component — slot states cannot be read");
+
+        BlueprintBlackboardPartitions.TryGetSlotOffset(mem, SlotKeyA, out int offA)
+            .Should().BeTrue("slot A must exist when reading cursor states");
+        BlueprintBlackboardPartitions.TryGetSlotOffset(mem, SlotKeyB, out int offB)
+            .Should().BeTrue("slot B must exist when reading cursor states");
+        cursorA = Unsafe.AsRef<DemoCounterNodes.DemoCursorState>(mem + offA).Cursor;
+        cursorB = Unsafe.AsRef<DemoCounterNodes.DemoCursorState>(mem + offB).Cursor;
     }
 
     // ── ALC GC helper ─────────────────────────────────────────────────────────────
