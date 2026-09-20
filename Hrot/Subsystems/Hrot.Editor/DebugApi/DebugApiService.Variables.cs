@@ -43,27 +43,13 @@ namespace Hrot.Editor.DebugApi
 
             unsafe
             {
-                if (_world.HasComponent<BlueprintBlackboard1024>(entity))
-                {
-                    ref var bb = ref _world.GetComponentRW<BlueprintBlackboard1024>(entity);
-                    BlueprintTierSummary.AppendSlots(
-                        (byte*)Unsafe.AsPointer(ref Unsafe.As<BlueprintBlackboard1024, byte>(ref bb)),
-                        _blueprintRegistry, slots);
-                }
-                if (_world.HasComponent<BlueprintBlackboard4096>(entity))
-                {
-                    ref var bb = ref _world.GetComponentRW<BlueprintBlackboard4096>(entity);
-                    BlueprintTierSummary.AppendSlots(
-                        (byte*)Unsafe.AsPointer(ref Unsafe.As<BlueprintBlackboard4096, byte>(ref bb)),
-                        _blueprintRegistry, slots);
-                }
-                if (_world.HasComponent<BlueprintBlackboard16384>(entity))
-                {
-                    ref var bb = ref _world.GetComponentRW<BlueprintBlackboard16384>(entity);
-                    BlueprintTierSummary.AppendSlots(
-                        (byte*)Unsafe.AsPointer(ref Unsafe.As<BlueprintBlackboard16384, byte>(ref bb)),
-                        _blueprintRegistry, slots);
-                }
+                // A2: the three-tier ladder, once, in OccurrenceStoreAccess.
+                // ⚠ RW form deliberately — the old code used GetComponentRW here, and switching to
+                //    the read-only form would change which chunks are marked dirty.
+                byte* mem = Fdp.Toolkit.Blueprints.Partitioning.OccurrenceStoreAccess
+                                .TryGetStore(_world, entity, out _);
+                if (mem != null)
+                    BlueprintTierSummary.AppendSlots(mem, _blueprintRegistry, slots);
             }
             return slots;
         }

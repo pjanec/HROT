@@ -83,6 +83,48 @@ public static unsafe class OccurrenceStoreAccess
     }
 
     /// <summary>
+    /// ⭐⭐ The READ-ONLY resolution — identical to <see cref="TryGetStore"/> except that it reads
+    /// through <c>GetComponentRO</c>.
+    ///
+    /// <para>🔴 <b>This overload is NOT a stylistic nicety, and using the wrong one is a real
+    /// behaviour change.</b> 📐 <c>NativeChunkTable.GetRefRW</c> WRITES the chunk version
+    /// (<c>:158-161</c>) while <c>GetRefRO</c> explicitly does not (<c>:166-167</c>, "Does not update
+    /// version"), and <c>EntityRepository.DeltaQuery</c> reads those versions. ⇒ resolving a
+    /// read-only consumer — a scenario translator, a renderer, a debug dump — through the RW form
+    /// would mark every blackboard chunk dirty on every pass, changing what delta queries and
+    /// replication observe.</para>
+    ///
+    /// <para>⭐ <b>Rule: if the caller only READS the bytes, call this.</b> The two are otherwise
+    /// identical, including the probe order.</para>
+    /// </summary>
+    public static byte* TryGetStoreReadOnly(EntityRepository world, Entity entity, out int totalSize)
+    {
+        if (world.HasComponent<BlueprintBlackboard16384>(entity))
+        {
+            totalSize = BlueprintBlackboard16384.TotalSize;
+            ref readonly var tier = ref world.GetComponentRO<BlueprintBlackboard16384>(entity);
+            fixed (byte* mem = tier.Memory) return mem;
+        }
+
+        if (world.HasComponent<BlueprintBlackboard4096>(entity))
+        {
+            totalSize = BlueprintBlackboard4096.TotalSize;
+            ref readonly var tier = ref world.GetComponentRO<BlueprintBlackboard4096>(entity);
+            fixed (byte* mem = tier.Memory) return mem;
+        }
+
+        if (world.HasComponent<BlueprintBlackboard1024>(entity))
+        {
+            totalSize = BlueprintBlackboard1024.TotalSize;
+            ref readonly var tier = ref world.GetComponentRO<BlueprintBlackboard1024>(entity);
+            fixed (byte* mem = tier.Memory) return mem;
+        }
+
+        totalSize = 0;
+        return null;
+    }
+
+    /// <summary>
     /// <see langword="true"/> when the entity carries any occurrence store.
     /// ⭐ Prefer <see cref="TryGetStore"/> when the memory is wanted — this exists for the sites that
     /// genuinely only ask the question (e.g. a translator's "should I serialise this entity?").

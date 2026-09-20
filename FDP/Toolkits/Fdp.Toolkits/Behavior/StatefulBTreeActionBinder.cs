@@ -198,50 +198,22 @@ namespace Fdp.Toolkit.Behavior
                         ref TParams p = ref Unsafe.As<TBB, TParams>(
                             ref Unsafe.AddByteOffset(ref bb, paramOffset));
 
-                        if (ctx.World.HasComponent<BlueprintBlackboard16384>(ctx.Self))
+                        // A2: the 16384 -> 4096 -> 1024 ladder, once, in OccurrenceStoreAccess.
+                        // ⛔ HOT PATH — this runs per action, per tick, so the seam is deliberately
+                        //    allocation-free. The pointer is used inside this call only
+                        //    (see the seam's LIFETIME RULE).
+                        // ⚠ The old code asserted with the TIER NAME in the message; the tier is no
+                        //    longer visible here and does not change the diagnosis — "no slot for
+                        //    this key on this entity" is the whole finding either way.
+                        if (!Fdp.Toolkit.Blueprints.Partitioning.OccurrenceStoreAccess
+                                 .TryResolveOccurrence(ctx.World, ctx.Self, slotKey, out byte* wsPtr))
                         {
-                            ref var tier = ref ctx.World.GetComponentRW<BlueprintBlackboard16384>(ctx.Self);
-                            fixed (byte* mem = tier.Memory)
-                            {
-                                if (!BlueprintBlackboardPartitions.TryGetSlotOffset(mem, slotKey, out int wsOff))
-                                {
-                                    System.Diagnostics.Debug.Assert(false, $"S3-G: stateful slot {slotKey} missing from BlueprintBlackboard16384");
-                                    return NodeStatus.Failure;
-                                }
-                                ref var ws = ref Unsafe.AsRef<TWorkingState>(mem + wsOff);
-                                return logic(ref p, ref ws, ref st, ref ctx);
-                            }
+                            System.Diagnostics.Debug.Assert(false, $"S3-G: stateful slot {slotKey} not resolvable on this entity (no tier component, or the slot is not attached)");
+                            return NodeStatus.Failure;
                         }
-                        if (ctx.World.HasComponent<BlueprintBlackboard4096>(ctx.Self))
-                        {
-                            ref var tier = ref ctx.World.GetComponentRW<BlueprintBlackboard4096>(ctx.Self);
-                            fixed (byte* mem = tier.Memory)
-                            {
-                                if (!BlueprintBlackboardPartitions.TryGetSlotOffset(mem, slotKey, out int wsOff))
-                                {
-                                    System.Diagnostics.Debug.Assert(false, $"S3-G: stateful slot {slotKey} missing from BlueprintBlackboard4096");
-                                    return NodeStatus.Failure;
-                                }
-                                ref var ws = ref Unsafe.AsRef<TWorkingState>(mem + wsOff);
-                                return logic(ref p, ref ws, ref st, ref ctx);
-                            }
-                        }
-                        if (ctx.World.HasComponent<BlueprintBlackboard1024>(ctx.Self))
-                        {
-                            ref var tier = ref ctx.World.GetComponentRW<BlueprintBlackboard1024>(ctx.Self);
-                            fixed (byte* mem = tier.Memory)
-                            {
-                                if (!BlueprintBlackboardPartitions.TryGetSlotOffset(mem, slotKey, out int wsOff))
-                                {
-                                    System.Diagnostics.Debug.Assert(false, $"S3-G: stateful slot {slotKey} missing from BlueprintBlackboard1024");
-                                    return NodeStatus.Failure;
-                                }
-                                ref var ws = ref Unsafe.AsRef<TWorkingState>(mem + wsOff);
-                                return logic(ref p, ref ws, ref st, ref ctx);
-                            }
-                        }
-                        System.Diagnostics.Debug.Assert(false, $"S3-G: entity has no BlueprintBlackboard* tier component for stateful slot {slotKey}");
-                        return NodeStatus.Failure;
+
+                        ref var ws = ref Unsafe.AsRef<TWorkingState>(wsPtr);
+                        return logic(ref p, ref ws, ref st, ref ctx);
                     }
                 };
 

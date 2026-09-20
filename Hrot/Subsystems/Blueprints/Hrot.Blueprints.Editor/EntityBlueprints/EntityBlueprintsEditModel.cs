@@ -105,24 +105,16 @@ public sealed class EntityBlueprintsEditModel
     public unsafe void RefreshReality()
     {
         Reality.Clear();
-        if (_repo.HasComponent<BlueprintBlackboard1024>(_entity))
-        {
-            ref var bb = ref _repo.GetComponentRW<BlueprintBlackboard1024>(_entity);
-            byte* mem = (byte*)Unsafe.AsPointer(ref Unsafe.As<BlueprintBlackboard1024, byte>(ref bb));
+
+        // A2: the three-tier ladder, once, in OccurrenceStoreAccess.
+        // ⚠ Deliberately the RW form, to preserve behaviour EXACTLY — the old code used
+        //    GetComponentRW here even though it only reads, and GetComponentRW bumps the chunk
+        //    version. Moving this to TryGetStoreReadOnly would be an improvement AND a behaviour
+        //    change, so it is not A2's to make.
+        byte* mem = Fdp.Toolkit.Blueprints.Partitioning.OccurrenceStoreAccess
+                        .TryGetStore(_repo, _entity, out _);
+        if (mem != null)
             BlueprintTierSummary.AppendSlots(mem, _registry, Reality);
-        }
-        if (_repo.HasComponent<BlueprintBlackboard4096>(_entity))
-        {
-            ref var bb = ref _repo.GetComponentRW<BlueprintBlackboard4096>(_entity);
-            byte* mem = (byte*)Unsafe.AsPointer(ref Unsafe.As<BlueprintBlackboard4096, byte>(ref bb));
-            BlueprintTierSummary.AppendSlots(mem, _registry, Reality);
-        }
-        if (_repo.HasComponent<BlueprintBlackboard16384>(_entity))
-        {
-            ref var bb = ref _repo.GetComponentRW<BlueprintBlackboard16384>(_entity);
-            byte* mem = (byte*)Unsafe.AsPointer(ref Unsafe.As<BlueprintBlackboard16384, byte>(ref bb));
-            BlueprintTierSummary.AppendSlots(mem, _registry, Reality);
-        }
     }
 
     // ── Projection ───────────────────────────────────────────────────────────
@@ -206,6 +198,9 @@ public sealed class EntityBlueprintsEditModel
 
     public BlackboardTier GetCurrentTier()
     {
+        // ⚠ NOT OccurrenceStoreAccess: this maps to the editor's BlackboardTier enum and
+        //    deliberately answers B1024 for an entity with NO store at all (the default the panel
+        //    opens on). The seam's GetStoreSize returns 0 there, which is a different answer.
         if (_repo.HasComponent<BlueprintBlackboard16384>(_entity)) return BlackboardTier.B16384;
         if (_repo.HasComponent<BlueprintBlackboard4096>(_entity)) return BlackboardTier.B4096;
         return BlackboardTier.B1024;

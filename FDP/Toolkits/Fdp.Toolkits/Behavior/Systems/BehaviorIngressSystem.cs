@@ -621,27 +621,12 @@ namespace Fdp.Toolkit.Behavior.Systems
         private static unsafe void AttachManifestSlots(
             EntityRepository repo, Entity entity, IReadOnlyList<StatefulSlotInfo> slots)
         {
-            // Dispatch to whichever tier component the entity has.
-            if (repo.HasComponent<BlueprintBlackboard16384>(entity))
-            {
-                ref var tier = ref repo.GetComponentRW<BlueprintBlackboard16384>(entity);
-                fixed (byte* mem = tier.Memory)
-                    AttachSlotsToMemory(mem, slots);
-                return;
-            }
-            if (repo.HasComponent<BlueprintBlackboard4096>(entity))
-            {
-                ref var tier = ref repo.GetComponentRW<BlueprintBlackboard4096>(entity);
-                fixed (byte* mem = tier.Memory)
-                    AttachSlotsToMemory(mem, slots);
-                return;
-            }
-            if (repo.HasComponent<BlueprintBlackboard1024>(entity))
-            {
-                ref var tier = ref repo.GetComponentRW<BlueprintBlackboard1024>(entity);
-                fixed (byte* mem = tier.Memory)
-                    AttachSlotsToMemory(mem, slots);
-            }
+            // A2: the three-tier ladder, once, in OccurrenceStoreAccess.
+            // ⛔ The pointer is valid for THIS CALL only — see the seam's LIFETIME RULE.
+            byte* mem = Fdp.Toolkit.Blueprints.Partitioning.OccurrenceStoreAccess
+                            .TryGetStore(repo, entity, out _);
+            if (mem != null)
+                AttachSlotsToMemory(mem, slots);
         }
 
         /// <summary>
