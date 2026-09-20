@@ -1,10 +1,18 @@
 <!--STATUS
 state: LIVE
-updated: 2026-09-19
+updated: 2026-09-20
 build-state: DESIGN
 current-answer: the whole document. §4 is the ExtDeps justification; §6 is the sequence.
-stale-below: nothing.
-known-rot: none at authoring time.
+  ⭐ §15 is the LIVE-RUN record and it OVERTURNS two earlier claims — read it before quoting §3.2's
+  severity or §5a's C1 credit.
+stale-below: nothing. Superseded wording lives under §15's "⛔ HISTORY" heading.
+known-rot:
+  - §3.2 was written as a "shipped" defect. MEASURED 2026-09-20: it is LATENT — gated on
+    HeavyDtoType, which production sets nowhere, so Blackboard1024 is on zero entities.
+    Corrected in place; the prior wording is in §15's HISTORY row.
+  - §5a's "net saving on any heavy-DTO entity" is RETIRED for the same reason. Consequence:
+    O3b (the 256 tier) is load-bearing, not an optimisation.
+  - The AI entity count is still NOT measured. The per-entity delta now is (§5a).
 known-conflict: none. This document EXTENDS DESIGN_Parameter_Model.md §4 rather than
   overturning it; where they disagree, DESIGN_Parameter_Model.md wins and this file is wrong.
 reopens: Architect_Question_37_Unify_On_The_Allocator.md — PARKED by the user 2026-08-17
@@ -300,7 +308,13 @@ valid wherever that DTO lives. Same offsets, different base.
 corruption defect.** It holds for `[SharedAiAction]`. It is **false for all four `AiPrimitive`
 hosting modes**, which bake the **component type** — see §3.2.
 
-### 3.2 🔴🔴 THE SECOND LIVE DEFECT — **an AiPrimitive zeroes the WHOLE shared component**
+### 3.2 ⚠ THE SECOND DEFECT — **an AiPrimitive zeroes the WHOLE shared component** *(LATENT, not shipped — the gate is below)*
+
+> ⛔⛔ **CORRECTED `2026-09-20`, from a LIVE RUN (§15).** An earlier wording of this section — *"a
+> **shipped** data-corruption bug"*, *"the strongest single argument the programme has"* — **overstated
+> it**, and the coordinator folded that wording in on the `behaviors` lane's say-so. The mechanism below
+> is real and unchanged; ⛔ **its REACHABILITY is not.** The prior claim is kept in §15's HISTORY row so
+> it cannot be re-quoted.
 
 📐 **Measured `2026-09-19`** *(found by the `behaviors` lane's review; verified here independently)*.
 All four `AiPrimitive` hosting modes — `BTreeAction`, `BTreeCondition`, `HsmAction`, `HsmGuard` —
@@ -327,11 +341,31 @@ its position inside `Blackboard1024`**"*.
 | 🔴🔴 **two of them MUTUALLY THRASH, every tick** | A sees B's hash ⇒ zeroes 1024 B ⇒ writes A's; then B sees A's ⇒ zeroes 1024 B ⇒ writes B's |
 | 🔴🔴 **and the blast radius is the WHOLE component** | `R-65`: `Blackboard1024` is shared by BTree, HSM **and** Blueprint at disjoint offsets — plus the commander's `SquadCognitiveState` (§5 class 1). ⇒ **one AiPrimitive hash mismatch wipes the squad contact pool and the BTree heavy DTO** |
 
-⭐⭐⭐ **This is the exact twin of §3.1's BTree defect, one layer down, and it is the strongest single
-argument the programme has** — ⛔ *"two occurrences need two homes"* is not a future requirement here,
-it is a **shipped data-corruption bug** that per-occurrence slots fix by construction. ⭐ It also
-retires the *"the simple case is fine today"* objection: the simple case is fine only while an entity
-has **exactly one** AiPrimitive.
+#### 🔴 THE GATE — **why this is LATENT, and what would make it live** *(measured live, `2026-09-20`)*
+
+| # | the gate, in order | measured |
+|---|---|---|
+| ① | the preamble needs **`Blackboard1024` on the entity** | — |
+| ② | the **only** production attach is `BehaviorIngressSystem:137/226`, gated on `def.HeavyDtoType != null` | ✅ every other `AddComponent(…Blackboard1024)` in the tree is a **test** |
+| ③ | 🔴 **production sets `HeavyDtoType` NOWHERE** | ✅ both mappers hardcode `HeavyDtoType = null` — `HsmAssetMapper.cs:493`, `BehaviorTreeAssetMapper.cs:443`; the retirement is deliberate and pinned by `T30_BehaviorScopedShared_ProofTests.cs:295` *("Blackboard1024 HeavyDtoType hack is gone")* |
+| ④ | ⇒ **`Blackboard1024` is attached to ZERO entities in a real run** | ✅ `hill-attack-close`, `--mode all`, both nodes — §15 |
+
+⭐⭐⭐ **And a BTree-hosted blueprint never reaches this preamble at all.** 🔒 **Architect ruling,
+`2026-06-15`** *(`SLICE1-DESIGN.md §9` Q1, CONFIRMED)*: *"the BTree generator **ignores** the blueprint's
+standalone `BTreeTick` … and emits a **per-node adapter**"*; `SLICE2-DESIGN.md §6.2`: *"(The blueprint's
+own `BTreeTick`/`Memory+8` path stays the **standalone** blueprint-as-behavior hosting.)"*
+📐 **Confirmed in the emitted code that actually runs** — `PlatoonHillAttack2.Registrar.g.cs` routes every
+`HillAssault2*` primitive through **`BlueprintBlackboard1024`** *(the allocator)*, **guarded** with
+`HasComponent` (`:85, :148, :211, :268, :331, :388, :448`), and declares them as `StatefulWorkingSlots`
+(`:591-595`). ⛔ It does not mention `Blackboard1024` once.
+
+⇒ ⭐⭐ **The honest statement.** This is the exact twin of §3.1's BTree defect, one layer down, and
+per-occurrence slots fix it by construction — ⛔ **but it is LATENT: reachable only through *standalone*
+blueprint-as-behaviour hosting, which needs `HeavyDtoType`, which nothing sets.** ⚠ **It is not a vestige
+either** — `AiPrimitiveHosting.BTreeAction`/`BTreeCondition` is an opt-in capability the design record
+defends *(the `CLAUDE.md` "unreferenced is not unintentional" case)*, so the day standalone hosting is
+used, two primitives on one entity thrash. ⛔ **Do not price the programme on this defect**, and ⛔ do not
+re-quote *"shipped"*. ⭐ §3.1's BTree-hosts-BTree defect is the one that **is** in shipped, reachable code.
 
 ### 3.1 ⭐⭐ Hosting one graph inside another ALREADY SHIPS — and it is the template
 
@@ -472,7 +506,7 @@ action signature, the tables and every attribute shape are still untouched.
 
 | # | the cost | `Q37`'s measurement |
 |---|---|---|
-| ⚠ **C1** | ~~a ~1 KB floor, **~8×**~~ ⛔ **CORRECTED `2026-09-19` (F4) — the ~8× was against the WRONG BASELINE** | `Q37` priced 1024 B against `BrainBlackboard` (128) **alone**, but §2.1 also deletes `BrainBTreeState` (64), `BrainHsm64/128` (64/128) and `Blackboard1024` (1024) wherever `HeavyDtoType != null` (`BehaviorIngressSystem.cs:134-138`). ⭐ **Honest ratios below** — and the floor is still real, just far smaller |
+| ⚠ **C1** | ~~a ~1 KB floor, **~8×**~~ ⛔ **CORRECTED `2026-09-19` (F4) — the ~8× was against the WRONG BASELINE** | `Q37` priced 1024 B against `BrainBlackboard` (128) **alone**, but §2.1 also deletes `BrainBTreeState` (64) and `BrainHsm64/128` (64/128). ⭐ **Honest ratios below** — the floor is still real, just far smaller. ⛔⛔ **`Blackboard1024` buys NO bytes** *(corrected `2026-09-20`, §3.2's gate)*: it is attached to **zero entities** in a real run, so deleting it frees a component id and 52 files of consumer churn — **not memory** |
 | ⚠ **C2** | **indirection moves from SOME actions to ALL** | today one field access on a component already in hand; under the allocator: tier probe → `GetComponentRW` → `fixed` → `TryGetSlotOffset` *(linear scan)*. ⭐ Generated **stateful** thunks already do exactly this, so it is proven — ⛔ but it goes from *"the stateful ones pay it"* to *"every action, every tick"* |
 
 #### 📐 The honest simple-case arithmetic *(F4)*
@@ -481,13 +515,14 @@ action signature, the tables and every attribute shape are still untouched.
 |---|---|---|---|
 | **BTree root** | `BrainBlackboard` 128 + `BrainBTreeState` 64 = **192 B** | 5.3× | ⭐ **1.33×** |
 | **HSM root** | 128 + `BrainHsm128` 128 = **256 B** | 4× | ⭐ **1.0× — free** |
-| ⭐ **any heavy-DTO entity** | + `Blackboard1024` **1024 B** | — | ⭐⭐ **a NET SAVING** |
+| ⛔ ~~any heavy-DTO entity → a NET SAVING~~ | **RETIRED `2026-09-20`** — there are no heavy-DTO entities (§3.2 gate ③). ⚠ **The programme gets NO byte credit from `Blackboard1024`** | — | — |
 
-⇒ ⭐⭐⭐ **The first measurement to take is NOT the AI entity count** *(that is second)*. It is
-**bytes per AI entity today vs after**, derivable from the manifest with no scenario run — because
-the ratio above already shows the 256 tier landing between *free* and *1.33×*, and heavy-DTO
-entities getting **cheaper**. ⚠ The entity count only scales whatever that per-entity delta turns
-out to be.
+⇒ ✅ **THE BYTES-PER-AI-ENTITY MEASUREMENT IS TAKEN** *(`2026-09-20`, §15)*, and it is the table
+above: **192 B** for a BTree root, **256 B** for an HSM root, and ⛔ **no heavy-DTO credit.** ⇒ the
+256 tier lands between **free and 1.33×**; the 1024 tier costs **4–5.3×**. ⭐⭐ **So `O3b` is what
+makes the floor acceptable, and it is now load-bearing rather than an optimisation** — without it the
+programme asks for 4–5.3× on every AI entity. ⚠ The AI entity count *(still unmeasured)* only scales
+that per-entity delta; ⭐ it can no longer change its **sign**.
 
 ⭐ **And two objections that `Q37` measured DO NOT exist** — do not re-raise them: **hardcoded
 behaviours are not harmed** *(every direct `bb.BehaviorParameters[0]` reference is inside an EMITTER;
@@ -576,7 +611,7 @@ Ordered so that each step is provable on its own and the expensive irreversible 
 | **O2** | **Split `BrainBlackboard` → `BrainInterrupts` + a params region type** | the params region becomes addressable; the tail stops travelling with it. Updates `R-39`/`R-41` | — |
 | **O3** | **The occurrence seam** — ⭐ **FIRST: unify the key (`F5` — three entry points, two enums)**; then `TryResolveOccurrence` and ⭐ **`Kind` as the header nibble (`D1′`), with the `TryDetach` compaction rail** | one lookup that classes 4/5/6 all call, and **the precondition for `O0`** (`G4`). **No behaviour changes yet** | — |
 | ⭐ **O3a** | **Collapse per-tier branching to a `TierSpec` table** — ingress, tick, renderers | ⛔ **prerequisite for `O3b`, and it pays for itself**: ~10 three-way chains, 3 copied tick methods and 3 copied renderers become one loop; `PromoteTier` stops being N² | — |
-| ⭐ **O3b** | **Add the `OccurrenceStore256` tier** — `Q37` option B. ⚠ **`MaxSlots` sized on SLOTS as well as bytes (`F3`)**, not fixed at 1–2 | ⛔⛔ **`G5` — the old numbers here were stale.** §5a's corrected arithmetic: the simple case is **5.3× / 4× at 1024** and **1.33× / 1.0× at 256**, with a **net saving** on any heavy-DTO entity. ⛔ Trivial after `O3a`, four copies before it | — |
+| ⭐ **O3b** | **Add the `OccurrenceStore256` tier** — `Q37` option B. ⚠ **`MaxSlots` sized on SLOTS as well as bytes (`F3`)**, not fixed at 1–2 | ⛔⛔ **`G5` — the old numbers here were stale.** §5a's corrected arithmetic: the simple case is **5.3× / 4× at 1024** and **1.33× / 1.0× at 256**. ⛔⛔ **No heavy-DTO credit** *(`2026-09-20`)* ⇒ ⭐⭐ **`O3b` is LOAD-BEARING, not an optimisation**: without it every AI entity pays 4–5.3×. ⛔ Trivial after `O3a`, four copies before it | — |
 | **O4** | **BTree onto occurrence storage** — tree state and params into slots, **including a hosted subtree's own `BehaviorTreeState`, and its RE-ENTRY RESET (F14)** | ⭐ **proves the whole model with ZERO ExtDeps change** (§4.1) **and closes the shared-`BehaviorTreeState` defect in §3.1**. ⚠ Own state removes the accidental continuity `ref state` gave, so the child's cursor must be reset when the host re-enters the hosting node — **its own rail**. If this does not work, stop before paying for `O6` | **none** |
 | **O5** | **Blueprint Instances take params** (`DESIGN_Parameter_Model.md` §3.3) | the slot layout is now shared with `O4`; closes `R4`, which has no design today | — |
 | **O6** | **The kernel stamps the occurrence** — two fields on `HsmCommandWriter`, **plus the `EvaluateGuard` widening (`D2`, approved)**, plus the pointer overload (§9.4) | the one ExtDeps crossing, paid **once**, after `O4` has proved the storage model. ⭐ All three ride it together | **the only one** |
@@ -1007,10 +1042,10 @@ than the review states**, and they are marked ⭐ below. Verdicts, then the two 
 
 | # | finding | verdict |
 |---|---|---|
-| **F1** | `AiPrimitive` thunks bake the component, and a hash mismatch zeroes all 1024 B | ✅✅ **ACCEPTED — §3.2 is new.** ⭐ **Worse than stated:** two AiPrimitives don't merely collide, they **mutually thrash every tick**, and the wipe takes the squad region with it |
+| **F1** | `AiPrimitive` thunks bake the component, and a hash mismatch zeroes all 1024 B | ✅ **ACCEPTED — §3.2.** The mechanism holds and the thrash/wipe amplification is right. ⛔⛔ **But the SEVERITY was wrong on both sides and is CORRECTED `2026-09-20` (§15): LATENT, not shipped** — `HeavyDtoType` is null everywhere, so `Blackboard1024` is on **zero entities**, and a BTree-hosted blueprint uses the allocator path instead *(architect ruling, `SLICE1 §9` Q1)* |
 | **F2** | guards are NOT free — the compiler emits `EmitHsmGuardThunk` | ✅ **ACCEPTED — see `D2` below.** The goal sentence promises blueprints as conditions; §4.2's *"free today"* was about **hand-authored** guards only |
 | **F3** | slot-count is the second axis; a 256 tier may never be selected | ✅ **ACCEPTED.** `MaxSlots` 4/8/16, `SelectTierForPayload` gates on both. §5a's fit table needs a **slots** column, and the root occurrence consumes one slot that does not exist today |
-| **F4** | C1's ~8× is against the wrong baseline | ✅ **ACCEPTED, and it helps us.** Deleting `BrainBTreeState` (64) and `BrainHsm128` (128) too makes the honest simple-case ratio **5.3× / 4× at 1024**, and **1.33× / 1.0× at 256** — with a **net saving** on any heavy-DTO entity |
+| **F4** | C1's ~8× is against the wrong baseline | ✅ **ACCEPTED.** Deleting `BrainBTreeState` (64) and `BrainHsm128` (128) too makes the honest simple-case ratio **5.3× / 4× at 1024**, and **1.33× / 1.0× at 256**. ⛔ **The "net saving on any heavy-DTO entity" half was WRONG and is RETIRED `2026-09-20`** — there are no heavy-DTO entities (§15). ⇒ `O3b` becomes load-bearing |
 | **F5** | the key cannot express `(assetId, hostPath)` | ✅ **ACCEPTED.** ⭐ **Worse than stated: there are THREE entry points and TWO enums** — `StatefulBTreeActionBinder.ComputeStatefulSlotKey(Guid, StatefulSlotScope, Guid, string)` (`:89`), `BTreeBridgeEmitCore.ComputeStatefulSlotKey(Guid, WorkingStateScope, Guid, …)` (`:227`) and a 2-arg overload (`:187`), hand-mirrored in ≥4 test copies. **Ruling 9 applies to the key itself** |
 | **F6** | `StatefulSlotScope.Entity` is deliberately entity-scoped | ✅ **ACCEPTED.** The thesis sentence must carve it out: *"the occurrence owns memory **except where a scope deliberately shares it**"*. `R-137` |
 | **F7** | no `Kind` in the slot table, and no room | ✅ **ACCEPTED — see `D1` below.** `BlueprintSlotEntry` is `Size = 16` and its own comment says `StructureHash` was truncated to `uint` *specifically* to hold 16 B |
@@ -1119,3 +1154,63 @@ overwritten.
 attributes** *(3 FastHSM demo, 3 FastHSM tests, 2 `ActionSchemaExporterTests`)*, **4 comments**, and
 **3 that are a different attribute, `[HsmGuardPicker]`**. ⭐ **The review's conclusion is unaffected and
 its correction of me stands** — both of us over-collapsed a grep; the numbers above are the opened ones.
+
+---
+
+## 15. 📐 THE LIVE RUN — **what running the product settled, and what it overturned** *(`2026-09-20`)*
+
+> 🔒 **User:** *"run the test, use http ai debug api, use 'hill attack close', both targets needs to be
+> destroyed, all 4 platoon members must return back to the baseline … Note there were scenario file
+> distribution issues fixed recently and never proven."*
+
+⭐⭐⭐ **Two claims in this document were argued from reading and are now MEASURED — one of them was
+WRONG in the direction that flattered the programme.** ⛔ That is the point of the run, and it is why
+§3.2's severity and §5a's C1 credit both moved.
+
+### 15.1 The run
+
+| | |
+|---|---|
+| build | `Hrot.ClusterRunner` — **0 errors**, 65 s |
+| launch | `--mode all`, `HROT_DEBUG_API_PORT=8111` ⇒ `providers=[SimHost, IG, ExCon, CGF]`, `perspectives=[ExCon, IG, Scenario, SimHost]` |
+| faults | ⭐ **zero** — `grep -cE "Exception\|Unhandled\|StackTrace"` over the whole log = **0** |
+
+### 15.2 ✅ Scenario distribution — **PROVEN** *(the user's "never proven" item)*
+
+`POST /scenario/load/live {"name":"hill-attack-close","waitForReady":true}` →
+`ok:true · target:OperatingLive · entityCount:8 · sawWorldChange:true · hadWorldAnchor:true`,
+⭐ and verified the three independent ways §11's own rules demand rather than from the envelope:
+`entityCount` 8 · `GET /entities` returns 8 on **both** `Scenario` (brain/CGF) and `SimHost` (muscle)
+· correct names and component counts on each. ⛔ Nothing partial, no empty world.
+
+### 15.3 The acceptance — **one of two**
+
+| criterion | result |
+|---|---|
+| ✅ **both targets destroyed** | `1006` and `1007` reach `Health.Current: 0` by **t≈64**, confirmed on both nodes |
+| 🔴 **all 4 platoon members return to baseline** | ⛔ **0 of 4.** Baseline is x≈446–449; members hold at x≈523–531 with **bit-identical positions from t=64 to t=409** — **345 s of advancing `simTime`** ⇒ a terminal state, not a slow return |
+
+⚠ **Cause NOT established, and it is not this design's.** The surviving candidate is the commander:
+entity `1000` sits at `BehaviorState{ActiveBehaviorHash: 0, BrainTier: 0, InstanceId: 4}` — it ran four
+behaviours and ended **cleared**, so nothing remains to dispatch the return. ⇒ **a separate defect, to be
+filed by the lane that owns behaviour lifecycle.** ⛔ It is NOT evidence for or against occurrence storage.
+
+### 15.4 ⛔⛔ What it OVERTURNED — the storage claims
+
+| # | claim as it stood | measured |
+|---|---|---|
+| ① | §3.2: *"a **shipped** data-corruption bug … the strongest single argument the programme has"* | 🔴 **WRONG — LATENT.** `Blackboard1024` is attached to **zero entities**, both nodes. `BlueprintBlackboard1024` is on **entity 1000 only**, **Scenario node only** |
+| ② | §5a C1: *"a **net saving** on any heavy-DTO entity"* | 🔴 **WRONG — there are no heavy-DTO entities.** ⇒ `O3b` promoted from optimisation to load-bearing |
+| ③ | *"the AiPrimitive preamble is how blueprint actions reach their working state"* | 🔴 **WRONG for BTree-hosted blueprints.** `PlatoonHillAttack2.Registrar.g.cs` routes every `HillAssault2*` primitive through `BlueprintBlackboard1024`, **guarded** (`:85, :148, :211, …`), as `StatefulWorkingSlots` (`:591-595`) — matching the architect's `2026-06-15` ruling that the BTree generator **ignores** the standalone `BTreeTick` |
+
+⭐⭐⭐ **The disconfirming evidence was in the run all along and went unused for one round: the assault
+WORKED.** Fifteen waves, both targets killed, driven by the same `AiPrimitive` blueprints. ⇒ *"a missing
+`Blackboard1024` breaks AiPrimitives"* was already falsified by the phase that succeeded. 🔒 **The habit:
+when a hypothesis predicts a failure, check whether the SAME mechanism visibly succeeded elsewhere in the
+same run before proposing a test for it.**
+
+### ⛔ HISTORY — the superseded severity wording *(kept so it cannot be re-quoted as current)*
+
+> *"§3.2 … it is a **shipped data-corruption bug** that per-occurrence slots fix by construction … the
+> strongest single argument the programme has."* — **SUPERSEDED `2026-09-20`** by §3.2's gate table.
+> ⭐ The mechanism it describes is unchanged and still correct; only its **reachability** was wrong.
