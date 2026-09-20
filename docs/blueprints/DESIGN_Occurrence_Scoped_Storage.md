@@ -2069,3 +2069,65 @@ no code edit; the ladder is `256 → 1024 → 4096 → 16384`, `MaxSlots` `3 →
 
 ⭐ **Red-proof:** ① `Select` skipping the smallest tier reddened **`B4_R1`** *(and `B3_R3`)*;
 ② "tidying" the enum into size order reddened **`B4_R2`**. Reverted, 22/22 green.
+
+## 17.7 🔴🔴🔴 `B4`'s REAL FIND — **the 256 tier broke the "at most one store" invariant, and the bug was in PRODUCTION** *(`2026-09-20`)*
+
+> ⭐⭐ **This is not a test-fixture story.** `O3b` was designed as, and measured as, a purely additive
+> change — §17's as-built says *"nothing else changed"*, and for the table, the registration, the probe
+> order, the tick walker and the seam that was **true**. ⛔ It was not true for the two sites that pick a
+> tier from **CONTENT** and then add that component.
+
+### ⭐ What the gate found
+
+📐 `Hrot.Blueprints.Tests` **192 failed / 3779 passed**, `Hrot.SimHost.Tests` **10 failed** — after
+`Fdp.Toolkits.Tests` and `Hrot.AiEditor.Generators.Tests` had both been driven to green. ⚠ **Two
+distinct causes wearing one label**, and only the second is a real defect:
+
+| # | cause | verdict |
+|---|---|---|
+| **①** | ⛔ **`Component BlueprintBlackboard256 is not registered`** — 14 test worlds spelled a **hand-list** of `RegisterComponent<BlueprintBlackboard…>()` calls. ⭐ Production never had this: it registers from the table | ⚠ **a test-tree defect**, and the *exact* lesson §17's `B3②` retro already drew — *"a constant-change task must grep the test tree for the OLD VALUES"*. 🔴 **The retro was written and the sweep still missed this shape**, because the ladder change there was a NUMBER and this one is a TYPE |
+| **②** | 🔴🔴 **an entity ended up carrying TWO blackboard components** | ⛔⛔ **a PRODUCTION defect in `BlueprintInstanceService.AttachToEntity` and `BlueprintMaterializationSystem`** |
+
+### 🔴🔴 ② — the defect, exactly
+
+📌 `AttachToEntity` chose its tier with `ChooseTier(def.StateSize)` — the payload-only selector — and then
+called `EnsureTierComponent`, which adds that component **if absent**. ⛔ **Neither step looks at the tier
+the entity already carries.** ⇒ whenever the content-derived pick differs from the tier already present,
+a **second** store is added beside the first.
+
+| ⚠ why it lay dormant until `O3b` | |
+|---|---|
+| ⭐ with the ladder `1024 / 4096 / 16384`, **1024 was the floor** | ⇒ `ChooseTier` could only ever name a tier **≥** one already present, so the mismatch needed a *large* instance landing on a small-tier entity — rare, and it left the smaller store **orphaned** rather than shadowing the new one |
+| 🔴 **the 256 tier made the DOWNGRADE direction the common case** | every small instance attached to an entity already carrying 1024 now chose **256**. ⇒ the slots were written into a fresh 256 store while `OccurrenceStoreAccess` probes **largest-first** and returned the **empty 1024** |
+| ⛔⛔ **and it is SILENT at the call site** | both attaches returned `BlueprintAttachStatus.Attached`. 📌 `BlueprintStateTranslatorTests.Extract_TwoBlueprintsAttached` asked for the assignments of two successfully-attached blueprints and got **0** |
+
+⇒ ⭐⭐⭐ **The invariant broken is the one `OccurrenceStoreAccess`'s own header states and every consumer
+reads through — *"an entity carries AT MOST ONE tier, so the first match is authoritative."*** ⚠ Nothing
+enforced it; it was a convention held by the fact that the ladder had a floor.
+
+### ✅ The fix — **one rule, in the table, shared by every site that provisions a store**
+
+| what | where |
+|---|---|
+| ⭐⭐ **`BlueprintTierTable.EnsureAtLeast(repo, entity, required)`** — *"the tier this attach lands on, given what the entity already carries"*: **never a second store, never a downgrade**, and a **promotion** when the content genuinely outgrows the current tier | the two content-driven sites call it: `BlueprintInstanceService.AttachToEntity` and `BlueprintMaterializationSystem` |
+| ⭐⭐ **`BlueprintTierTable.Promote(repo, entity, from, to)`** — **THE** promotion body: add larger, `CopyToLargerTier`, remove smaller | §17.1's inventory found **three** copies (`BehaviorIngressSystem.UpgradeTier`, `BlueprintMaintenanceSystem.UpgradePair`, `EntityBlueprintsPanel.UpgradeTier`); `B3①` left them as three because each was already correct. ⛔ `B4` needed a **fourth** caller, and a fourth copy is what ruling 9 forbids ⇒ all four now share one body |
+| ⭐ **`BlueprintTierTable.RegisterUpTo(world, maxTotalSize)`** | cause ① — the 14 hand-lists become table-driven **while keeping their deliberate exclusion of the big tiers** (a registered component reserves `TotalSize × MAX_ENTITIES`; the 16384 tier alone is ~16 GB and exceeds the allocator's paranoid-mode cap) |
+| ⭐ **`BlueprintTierSpec.IsRegistered(repo)`** | the type-erased probe a table-driven walk needs, because querying an unregistered component throws and those bounded worlds genuinely lack the big tiers |
+
+| ⭐ rails | |
+|---|---|
+| **`B4_R3`** | attaching a **small** instance to an entity already carrying **1024** leaves **exactly one** tier — the one it had — and the slot is readable through the seam. ⛔ This is the failing case, pinned |
+| **`B4_R4`** | an instance that **outgrows** the current tier **PROMOTES** it, carrying the pre-existing slot across — ⛔ not a second component with the old slots stranded |
+
+### ⭐⭐⭐ THE LESSON, and it is about how "additive" was CLAIMED
+
+⛔⛔ **`O3b` was called additive on the strength of the TABLE being additive.** 📐 That was measured and it
+is true. ⚠ **What was never asked is the question that decides it:** *"which sites derive a tier from
+CONTENT rather than from the entity, and what happens when those two disagree?"* ⇒ 🔒 **adding a member to
+an ordered ladder is only additive for consumers that READ the ladder; it is a behaviour change for every
+consumer that SELECTS from it** — and §17.1's inventory had already listed `Select` / `SelectByPayload`
+sites separately from the probe sites. **The information was on the page; the question was not asked.**
+
+⚠ **And the anti-vacuity rail `B4_R1` did not catch it**, correctly: it pins that `Select` *returns* the
+new tier, which is exactly the behaviour that broke the invariant. ⇒ ⭐ **a rail proving a new thing is
+reachable is not a rail proving it is safe to reach.**

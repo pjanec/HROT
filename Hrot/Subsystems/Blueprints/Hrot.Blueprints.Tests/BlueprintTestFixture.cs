@@ -108,8 +108,11 @@ public sealed class BlueprintTestFixture : IDisposable
             new AiHotReloadCoordinatorOptions());
 
         MockTestComponents.Register(_repo);
-        _repo.RegisterComponent<BlueprintBlackboard1024>();
-        _repo.RegisterComponent<BlueprintBlackboard4096>();
+        // ⭐ B4: register from the LADDER, not a hand-list. ⛔ A hand-list silently leaves a
+        //   newly-appended tier unregistered — O3b's 256 tier reddened 192 tests this way.
+        //   The bound keeps this world's deliberate exclusion of the larger tiers (their
+        //   virtual-address reservation exceeds the allocator's paranoid-mode cap).
+        BlueprintTierTable.RegisterUpTo(_repo, maxTotalSize: 4096);
         // BlueprintBlackboard16384 (16 384 bytes) would require ~16 GB of virtual-address
         // reservation for MAX_ENTITIES = 1 000 000, which exceeds the paranoid-mode cap in
         // NativeMemoryAllocator.  Tests that need BB16384 must use a standalone fixture.
@@ -688,35 +691,23 @@ public static class ThrowingRegistrar
     {
         int blueprintId = BlueprintIdHash.Compute(assetId);
 
-        if (_repo.HasComponent<BlueprintBlackboard1024>(entity))
+        // ⭐ B4: walk the LADDER, not a hand-list — this was three copied arms that did not
+        //   know about the 256 tier. ⚠ Largest-first, the same probe order the seam documents.
+        var descending = BlueprintTierTable.Descending;
+        for (int i = 0; i < descending.Count; i++)
         {
-            GetTierMemoryAndMeta(entity, BlackboardTier.B1024, out byte* memory, out _, out _);
+            var spec = descending[i];
+            if (!spec.Has(_repo, entity)) continue;
+
+            GetTierMemoryAndMeta(entity, spec.Tier, out byte* memory, out _, out _);
             if (BlueprintBlackboardPartitions.TryGetSlotOffset(memory, blueprintId, out payloadOffset))
             {
-                tier = BlackboardTier.B1024;
-                return true;
-            }
-        }
-        if (_repo.HasComponent<BlueprintBlackboard4096>(entity))
-        {
-            GetTierMemoryAndMeta(entity, BlackboardTier.B4096, out byte* memory, out _, out _);
-            if (BlueprintBlackboardPartitions.TryGetSlotOffset(memory, blueprintId, out payloadOffset))
-            {
-                tier = BlackboardTier.B4096;
-                return true;
-            }
-        }
-        if (_repo.HasComponent<BlueprintBlackboard16384>(entity))
-        {
-            GetTierMemoryAndMeta(entity, BlackboardTier.B16384, out byte* memory, out _, out _);
-            if (BlueprintBlackboardPartitions.TryGetSlotOffset(memory, blueprintId, out payloadOffset))
-            {
-                tier = BlackboardTier.B16384;
+                tier = spec.Tier;
                 return true;
             }
         }
 
-        tier = BlackboardTier.B1024;
+        tier = BlueprintTierTable.Ascending[0].Tier;
         payloadOffset = -1;
         return false;
     }
@@ -843,28 +834,24 @@ public static class ThrowingRegistrar
         var ms     = new MemoryStream();
         var writer = new BinaryWriter(ms);
 
-        var query1024 = _repo.Query().With<BlueprintBlackboard1024>().Build();
-        foreach (var entity in query1024)
+        // ⭐ B4: snapshot every REGISTERED tier from the ladder. ⛔ This was two copied blocks
+        //   naming 1024 and 4096, so a 256-tier store was simply absent from the snapshot and a
+        //   "nothing changed" assertion over it was vacuously true.
+        // ⚠ Ascending, so the byte order is stable and does not depend on the probe order.
+        var ascending = BlueprintTierTable.Ascending;
+        for (int t = 0; t < ascending.Count; t++)
         {
-            ref readonly var bb  = ref _repo.GetComponentRO<BlueprintBlackboard1024>(entity);
-            byte* ptr            = (byte*)Unsafe.AsPointer(ref Unsafe.AsRef(in bb));
-            int   size           = Unsafe.SizeOf<BlueprintBlackboard1024>();
-            writer.Write(entity.Index);
-            writer.Write(entity.Generation);
-            for (int i = 0; i < size; i++)
-                writer.Write(ptr[i]);
-        }
+            var spec = ascending[t];
+            if (!spec.IsRegistered(_repo)) continue;
 
-        var query4096 = _repo.Query().With<BlueprintBlackboard4096>().Build();
-        foreach (var entity in query4096)
-        {
-            ref readonly var bb  = ref _repo.GetComponentRO<BlueprintBlackboard4096>(entity);
-            byte* ptr            = (byte*)Unsafe.AsPointer(ref Unsafe.AsRef(in bb));
-            int   size           = Unsafe.SizeOf<BlueprintBlackboard4096>();
-            writer.Write(entity.Index);
-            writer.Write(entity.Generation);
-            for (int i = 0; i < size; i++)
-                writer.Write(ptr[i]);
+            foreach (var entity in spec.BuildQuery(_repo))
+            {
+                byte* ptr = spec.MemoryReadOnly(_repo, entity);
+                writer.Write(entity.Index);
+                writer.Write(entity.Generation);
+                for (int i = 0; i < spec.TotalSize; i++)
+                    writer.Write(ptr[i]);
+            }
         }
 
         writer.Flush();

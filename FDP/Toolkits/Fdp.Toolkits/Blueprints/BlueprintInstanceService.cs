@@ -152,7 +152,7 @@ public static unsafe class BlueprintInstanceService
             resolvedParams = scratch;
         }
 
-        var tier = ChooseTier(def.StateSize);
+        var tier = ChooseTierHonouringCurrent(world, entity, def.StateSize);
         EnsureTierComponent(world, entity, tier);
 
         GetTierMemoryAndMeta(world, entity, tier, out byte* memory, out int totalSize, out byte maxSlots);
@@ -309,6 +309,37 @@ public static unsafe class BlueprintInstanceService
             return false;
         return BlueprintBlackboardPartitions.TryGetSlotOffset(memory, blueprintId, out _);
     }
+
+    /// <summary>
+    /// ⭐⭐⭐ <b>The tier this attach must land on, given the tier the entity ALREADY carries.</b>
+    /// <c>O3b</c> / task <c>B4</c> — 📄 <c>DESIGN_Occurrence_Scoped_Storage.md</c> §17.7.
+    ///
+    /// <para>🔴🔴 <b>The defect this fixes, and it is a PRODUCTION one.</b> This call site used
+    /// <see cref="ChooseTier"/> alone and then added that component. ⛔ <c>ChooseTier</c> sizes the
+    /// ONE instance being attached and knows nothing about the entity — so whenever it named a
+    /// DIFFERENT tier from the one already present, <see cref="EnsureTierComponent"/> added a
+    /// <b>second</b> blackboard component and the entity ended up carrying two. That breaks the
+    /// <see cref="OccurrenceStoreAccess"/> invariant every consumer relies on — <i>"an entity carries
+    /// AT MOST ONE tier"</i> — and the probe order then decides which store is authoritative, so the
+    /// slots just written can become invisible.</para>
+    ///
+    /// <para>⚠ <b>Reachable before <c>B4</c> only upwards, and now in both directions.</b> With the
+    /// ladder <c>1024 / 4096 / 16384</c>, <c>ChooseTier</c> could only name a tier LARGER than a
+    /// present one (a big instance on a 1024 entity) — rare, and it left the small tier orphaned.
+    /// ⛔ <c>O3b</c>'s 256 tier made the DOWNGRADE direction the common case: every small instance
+    /// attached to an entity already carrying 1024 chose 256. 📌 That is what reddened
+    /// <c>BlueprintStateTranslatorTests.Extract_TwoBlueprintsAttached</c> — the slots landed in a
+    /// fresh 256 store while <c>Extract</c> probes largest-first and found the empty 1024.</para>
+    ///
+    /// <para>⭐ The rule: <b>never downgrade</b>. A tier already present is kept when the state fits
+    /// it. When it genuinely does not, the store is <b>PROMOTED</b> through
+    /// <see cref="BlueprintTierTable.Promote"/> — carrying the existing slots and their
+    /// <c>Kind</c> nibbles — rather than a second component being bolted on beside it.</para>
+    /// </summary>
+    private static BlackboardTier ChooseTierHonouringCurrent(
+        EntityRepository world, Entity entity, int stateSize)
+        => BlueprintTierTable.EnsureAtLeast(
+               world, entity, BlueprintTierTable.SelectByPayload(stateSize)).Tier;
 
     private static void EnsureTierComponent(EntityRepository world, Entity entity, BlackboardTier tier)
     {

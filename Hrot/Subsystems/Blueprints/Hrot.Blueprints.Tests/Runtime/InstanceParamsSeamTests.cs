@@ -114,7 +114,11 @@ public sealed unsafe class InstanceParamsSeamTests : IDisposable
 
     public InstanceParamsSeamTests()
     {
-        _repo.RegisterComponent<BlueprintBlackboard1024>();
+        // ⭐ B4: register from the LADDER, not a hand-list. ⛔ A hand-list silently leaves a
+        //   newly-appended tier unregistered — O3b's 256 tier reddened 192 tests this way.
+        //   The bound keeps this world's deliberate exclusion of the larger tiers (their
+        //   virtual-address reservation exceeds the allocator's paranoid-mode cap).
+        BlueprintTierTable.RegisterUpTo(_repo, maxTotalSize: 1024);
         _repo.RegisterComponent<BrainBlackboard>();
         _repo.RegisterComponent<BrainInterrupts>();   // O2 — the entity-fact tail
         _repo.RegisterComponent<BrainInterrupts>();

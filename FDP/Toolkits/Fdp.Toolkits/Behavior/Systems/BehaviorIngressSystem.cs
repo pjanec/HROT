@@ -502,15 +502,10 @@ namespace Fdp.Toolkit.Behavior.Systems
             // No downgrade path (current >= target means no-op, handled by caller).
             if (dstTierSize <= srcTierSize) return;
 
-            var src = BlueprintTierTable.ByTotalSize(srcTierSize);
-            var dst = BlueprintTierTable.ByTotalSize(dstTierSize);
-
-            dst.Add(repo, entity);
-            // ⚠ Both pointers are resolved AFTER the add, and used within this call only.
-            BlueprintBlackboardPartitions.CopyToLargerTier(
-                src.Memory(repo, entity), src.TotalSize,
-                dst.Memory(repo, entity), dst.TotalSize, (byte)dst.MaxSlots);
-            src.Remove(repo, entity);
+            BlueprintTierTable.Promote(
+                repo, entity,
+                BlueprintTierTable.ByTotalSize(srcTierSize),
+                BlueprintTierTable.ByTotalSize(dstTierSize));
         }
 
         /// <summary>

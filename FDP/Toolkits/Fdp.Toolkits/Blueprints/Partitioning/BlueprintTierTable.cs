@@ -183,12 +183,113 @@ public static class BlueprintTierTable
     /// its header carries the <c>CE-161</c> argument for why this is Hrot-wide.
     /// </summary>
     public static void RegisterAll(EntityRepository world)
+        => RegisterUpTo(world, int.MaxValue);
+
+    /// <summary>
+    /// Registers every tier whose <see cref="BlueprintTierSpec.TotalSize"/> is at most
+    /// <paramref name="maxTotalSize"/>.
+    ///
+    /// <para>⭐⭐ <b>Why a bounded form exists, and it is not test sugar.</b> A registered component
+    /// costs a virtual-address reservation of <c>TotalSize × MAX_ENTITIES</c>; at
+    /// <c>MAX_ENTITIES = 1 000 000</c> the 16384 tier alone reserves <b>~16 GB</b>, which exceeds
+    /// <c>NativeMemoryAllocator</c>'s paranoid-mode cap. ⇒ several scratch worlds deliberately carry
+    /// only the small tiers. ⛔ Before <c>B4</c> each of those spelled a hand-list of
+    /// <c>RegisterComponent&lt;…&gt;</c> calls, and <b>every one of them broke the moment <c>O3b</c>
+    /// appended the 256 tier</b> — 192 tests failed with <i>"Component BlueprintBlackboard256 is not
+    /// registered"</i>. ⭐ A bound on SIZE keeps the deliberate exclusion while still being
+    /// table-driven, so the next tier is picked up automatically.</para>
+    /// </summary>
+    public static void RegisterUpTo(EntityRepository world, int maxTotalSize)
     {
         if (world is null) throw new ArgumentNullException(nameof(world));
 
         var ascending = Ascending;
         for (int i = 0; i < ascending.Count; i++)
-            ascending[i].Register(world);
+            if (ascending[i].TotalSize <= maxTotalSize)
+                ascending[i].Register(world);
+    }
+
+    /// <summary>
+    /// ⭐⭐⭐ <b>THE promotion body: add the larger, copy, remove the smaller.</b> <c>O3b</c> / task
+    /// <c>B4</c> — 📄 <c>DESIGN_Occurrence_Scoped_Storage.md</c> §17.7.
+    ///
+    /// <para>🔴🔴 <b>Why it had to become a shared member.</b> §17.1's inventory found THREE copies of
+    /// this three-line sequence (<c>BehaviorIngressSystem.UpgradeTier</c>,
+    /// <c>BlueprintMaintenanceSystem.UpgradePair</c>, <c>EntityBlueprintsPanel.UpgradeTier</c>) and
+    /// <c>B3</c>-① left them as three, because each was already correct. ⛔ <c>B4</c> found a FOURTH
+    /// site that needs it — <c>BlueprintInstanceService.AttachToEntity</c> — and adding a fourth copy
+    /// is what ruling 9 forbids. ⭐ One body; the callers keep their own eligibility rules.</para>
+    ///
+    /// <para>⛔⛔ <c>CopyToLargerTier</c> is where <c>H1</c> lives — it carries the header's
+    /// <c>Reserved</c>, which since <c>A3</c> holds the per-slot <c>Kind</c> nibble array. Rail
+    /// <c>A3_R2</c> pins it, and every caller must keep going THROUGH this helper: a hand-rolled copy
+    /// zeroes every slot's kind and the tick walker then skips the entity entirely.</para>
+    ///
+    /// <para>⚠ A no-op when <paramref name="to"/> is not larger, or when the entity does not carry
+    /// <paramref name="from"/> — both were guards the callers already had, hoisted here so the fourth
+    /// caller cannot forget them.</para>
+    /// </summary>
+    public static unsafe void Promote(
+        EntityRepository repo, Entity entity, BlueprintTierSpec from, BlueprintTierSpec to)
+    {
+        if (repo is null) throw new ArgumentNullException(nameof(repo));
+        if (from is null) throw new ArgumentNullException(nameof(from));
+        if (to   is null) throw new ArgumentNullException(nameof(to));
+
+        if (to.TotalSize <= from.TotalSize) return;   // ⛔ no downgrade path, ever
+        if (!from.Has(repo, entity)) return;          // nothing to carry over
+
+        if (!to.Has(repo, entity))
+            to.Add(repo, entity);
+
+        // ⚠ Both pointers are resolved AFTER the add and used within this call only — the seam's
+        //   LIFETIME RULE. An add can move the source chunk, so a pointer taken before it is stale.
+        BlueprintBlackboardPartitions.CopyToLargerTier(
+            from.Memory(repo, entity), from.TotalSize,
+            to.Memory(repo, entity),   to.TotalSize, (byte)to.MaxSlots);
+
+        from.Remove(repo, entity);
+    }
+
+    /// <summary>
+    /// ⭐⭐⭐ <b>The tier an attach must land on, given what the entity ALREADY carries — never a
+    /// second store, never a downgrade.</b> <c>O3b</c> / task <c>B4</c> —
+    /// 📄 <c>DESIGN_Occurrence_Scoped_Storage.md</c> §17.7.
+    ///
+    /// <para>🔴🔴 <b>The invariant this protects</b> is the one <see cref="OccurrenceStoreAccess"/>
+    /// documents and every consumer reads through: <i>an entity carries AT MOST ONE tier</i>.
+    /// ⛔ Two sites picked a tier from the CONTENT alone — <c>BlueprintInstanceService.AttachToEntity</c>
+    /// (one instance's <c>StateSize</c>) and <c>BlueprintMaterializationSystem</c> (a scenario's
+    /// aggregate) — and then added that component. Whenever the pick differed from the tier already
+    /// present, the entity ended up with <b>two</b> stores and the largest-first probe order decided
+    /// which one was authoritative, silently orphaning the other's slots.</para>
+    ///
+    /// <para>⚠ <b>Before <c>O3b</c> this was reachable only UPWARDS</b> (a big instance landing on a
+    /// 1024-carrying entity) and left the smaller store stranded. ⭐ The 256 tier made the DOWNGRADE
+    /// direction the common case — every small instance on a 1024 entity — which is how it surfaced.
+    /// 📌 Neither direction was covered by a rail; <c>B4_R3</c>/<c>B4_R4</c> now pin both.</para>
+    ///
+    /// <para>⛔ It does NOT promise the content fits: <c>TryAttach</c> still reports slot exhaustion
+    /// and fragmentation, and the over-size case still truncates downstream. This decides only WHICH
+    /// store the attach writes into.</para>
+    /// </summary>
+    public static BlueprintTierSpec EnsureAtLeast(
+        EntityRepository repo, Entity entity, BlueprintTierSpec required)
+    {
+        if (required is null) throw new ArgumentNullException(nameof(required));
+
+        var current = Of(repo, entity);
+        if (current == null)
+            return required;
+
+        // ⭐ The store the entity already has is big enough — use it, never downgrade.
+        if (required.TotalSize <= current.TotalSize)
+            return current;
+
+        // ⚠ It genuinely is not. PROMOTE — carrying the existing slots and their Kind nibbles —
+        //   rather than bolting a second component on beside it.
+        Promote(repo, entity, current, required);
+        return required;
     }
 
     private static BlueprintTierSpec[] BuildDescending()

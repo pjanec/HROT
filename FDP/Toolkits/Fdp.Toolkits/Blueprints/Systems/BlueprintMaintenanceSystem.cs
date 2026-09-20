@@ -54,12 +54,6 @@ public sealed class BlueprintMaintenanceSystem : IEcsModuleSystem, IProfiledSyst
         EntityRepository repo, BlueprintTierSpec from, BlueprintTierSpec to, EntityQuery query)
     {
         foreach (var entity in query)
-        {
-            BlueprintBlackboardPartitions.CopyToLargerTier(
-                from.Memory(repo, entity), from.TotalSize,
-                to.Memory(repo, entity),   to.TotalSize, (byte)to.MaxSlots);
-
-            from.Remove(repo, entity);
-        }
+            BlueprintTierTable.Promote(repo, from: from, to: to, entity: entity);
     }
 }

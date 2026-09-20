@@ -120,7 +120,14 @@ namespace Hrot.SimHost.Systems
                     totalBytes = truncatedBytes;
                 }
 
-                BlackboardTier tier = ChooseTierFromAggregate(totalSlots, totalBytes);
+                // ⭐ B4 — 📄 DESIGN_Occurrence_Scoped_Storage.md §17.7. The aggregate names the tier
+                //   this scenario's blueprints NEED; EnsureAtLeast reconciles it with the tier the
+                //   entity may ALREADY carry (a behaviour manifest's store). ⛔ Adding the chosen
+                //   component blind left the entity with TWO stores whenever the two disagreed —
+                //   which O3b's 256 tier made the common case. Rails B4_R3 / B4_R4.
+                BlackboardTier tier = BlueprintTierTable.EnsureAtLeast(
+                    repo, entity,
+                    BlueprintTierTable.ByTier(ChooseTierFromAggregate(totalSlots, totalBytes))).Tier;
 
                 // Step 3: Pre-provision the tier component
                 AddTierComponentIfMissing(repo, entity, tier);

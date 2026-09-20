@@ -48,6 +48,7 @@ public sealed unsafe class BlueprintTierSpec
     private readonly Action<EntityRepository, Entity>       _add;
     private readonly Action<EntityRepository, Entity>       _remove;
     private readonly Action<EntityRepository>               _register;
+    private readonly Func<EntityRepository, bool>           _isRegistered;
     private readonly Func<QueryBuilder, QueryBuilder>       _constrain;
     private readonly Func<EntityRepository, IntPtr>         _ensureSingleton;
     private readonly Func<ISimulationView, Entity, bool>    _viewHas;
@@ -73,7 +74,8 @@ public sealed unsafe class BlueprintTierSpec
         Func<EntityRepository, Entity, bool> has,
         MemoryResolver memory, MemoryResolver memoryReadOnly,
         Action<EntityRepository, Entity> add, Action<EntityRepository, Entity> remove,
-        Action<EntityRepository> register, Func<QueryBuilder, QueryBuilder> constrain,
+        Action<EntityRepository> register, Func<EntityRepository, bool> isRegistered,
+        Func<QueryBuilder, QueryBuilder> constrain,
         Func<EntityRepository, IntPtr> ensureSingleton,
         Func<ISimulationView, Entity, bool> viewHas, ViewMemoryResolver viewMemoryReadOnly)
     {
@@ -81,6 +83,7 @@ public sealed unsafe class BlueprintTierSpec
         TotalSize = totalSize; MaxSlots = maxSlots; PayloadSize = payloadSize;
         _has = has; _memory = memory; _memoryReadOnly = memoryReadOnly;
         _add = add; _remove = remove; _register = register; _constrain = constrain;
+        _isRegistered = isRegistered;
         _ensureSingleton = ensureSingleton;
         _viewHas = viewHas; _viewMemoryReadOnly = viewMemoryReadOnly;
     }
@@ -136,6 +139,7 @@ public sealed unsafe class BlueprintTierSpec
             add:            static (repo, e) => repo.AddComponent(e, default(TTier)),
             remove:         static (repo, e) => repo.RemoveComponent<TTier>(e),
             register:       static repo => repo.RegisterComponent<TTier>(),
+            isRegistered:   static repo => repo.IsComponentTypeRegistered<TTier>(),
             constrain:      static qb => qb.With<TTier>(),
             // ⭐ WORLD SINGLETON form — a blueprint declared `WorldSingleton` lives in a singleton
             //   component of its tier, not on an entity. Lazy-attach on first encounter, as before.
@@ -192,6 +196,16 @@ public sealed unsafe class BlueprintTierSpec
 
     /// <summary>Registers the component type on a world. Idempotent, as <c>RegisterComponent</c> is.</summary>
     public void Register(EntityRepository repo) => _register(repo);
+
+    /// <summary>
+    /// Whether this tier's component type is registered on <paramref name="repo"/>.
+    /// ⭐ <c>B4</c>: several scratch worlds deliberately carry only the small tiers
+    /// (<see cref="BlueprintTierTable.RegisterUpTo"/>), so a table-driven walk that QUERIES every
+    /// tier must skip the ones this world never registered — querying an unregistered component
+    /// throws. ⛔ Not a capability probe: use <see cref="Has(EntityRepository, Entity)"/> for an
+    /// entity.
+    /// </summary>
+    public bool IsRegistered(EntityRepository repo) => _isRegistered(repo);
 
     /// <summary>
     /// ⭐ Adds <c>.With&lt;TTier&gt;()</c> to a query under construction — the composable form, so a

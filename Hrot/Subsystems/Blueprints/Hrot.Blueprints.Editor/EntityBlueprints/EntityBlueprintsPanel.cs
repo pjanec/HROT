@@ -317,20 +317,13 @@ public sealed class EntityBlueprintsPanel : BlueprintEditorWindowBase
     {
         var entity = _model.GetEntity();
 
-        var src = BlueprintTierTable.ByTier(oldTier);
-        var dst = BlueprintTierTable.ByTier(newTier);
-        if (dst.TotalSize <= src.TotalSize) return;   // no downgrade path, as before
-
-        if (!dst.Has(_world, entity))
-            dst.Add(_world, entity);
-
-        if (!src.Has(_world, entity)) return;         // nothing to carry over
-
-        BlueprintBlackboardPartitions.CopyToLargerTier(
-            src.Memory(_world, entity), src.TotalSize,
-            dst.Memory(_world, entity), dst.TotalSize, (byte)dst.MaxSlots);
-
-        src.Remove(_world, entity);
+        // ⭐ B4: the three guards this method used to spell out (no downgrade, add-if-absent,
+        //   nothing-to-carry-over) are now inside BlueprintTierTable.Promote, with the fourth
+        //   caller — BlueprintInstanceService.AttachToEntity — sharing them.
+        BlueprintTierTable.Promote(
+            _world, entity,
+            BlueprintTierTable.ByTier(oldTier),
+            BlueprintTierTable.ByTier(newTier));
     }
 
     public override void OnActivated() { }

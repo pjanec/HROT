@@ -524,5 +524,129 @@ namespace Fdp.Toolkits.Tests.Blueprints.Partitioning
             // The SIZE order is the table's, and it disagrees with the enum's — by design.
             Assert.Equal(BlackboardTier.B256, BlueprintTierTable.Ascending[0].Tier);
         }
+
+        // ── B4's real find: the at-most-one-tier invariant, under ATTACH ────────────────────────
+
+        private static int RegisterInstanceBlueprint(
+            BlueprintRegistry registry, string name, int stateSize)
+        {
+            int blueprintId = name.GetHashCode();
+            registry.RegisterInstance(blueprintId, new BlueprintDefinition
+            {
+                Name          = name,
+                Kind          = BlueprintDispatchKind.Instance,
+                StructureHash = (ulong)blueprintId,
+                StateSize     = stateSize,
+                AssetId       = Guid.NewGuid(),
+            });
+            return blueprintId;
+        }
+
+        private static int TierComponentCount(EntityRepository world, Entity entity)
+        {
+            int n = 0;
+            var ascending = BlueprintTierTable.Ascending;
+            for (int i = 0; i < ascending.Count; i++)
+                if (ascending[i].Has(world, entity)) n++;
+            return n;
+        }
+
+        /// <summary>
+        /// 🔴🔴 <b><c>B4_R3</c> — attaching a SMALL instance to an entity that already carries a
+        /// LARGER tier must not add a second blackboard component.</b>
+        /// 📄 <c>DESIGN_Occurrence_Scoped_Storage.md</c> §17.7.
+        ///
+        /// <para>⛔⛔ This is the production defect <c>O3b</c> exposed. <c>AttachToEntity</c> picked its
+        /// tier with <c>ChooseTier(def.StateSize)</c>, which sizes the ONE instance and knows nothing
+        /// about the entity — so once a tier SMALLER than 1024 existed, every small instance attached
+        /// to a 1024-carrying entity chose 256 and <c>EnsureTierComponent</c> bolted it on beside the
+        /// 1024. ⇒ the entity carried TWO stores, breaking the invariant every consumer reads through
+        /// <see cref="OccurrenceStoreAccess"/>, and since the probe order is largest-first the slots
+        /// just written became INVISIBLE.</para>
+        ///
+        /// <para>📌 How it presented: <c>BlueprintStateTranslatorTests.Extract_TwoBlueprintsAttached</c>
+        /// returned <b>0</b> assignments for two successfully-attached blueprints. ⚠ Both attaches
+        /// reported <c>Attached</c> — the corruption was silent at the call site.</para>
+        /// </summary>
+        [Fact]
+        public void B4_R3_AttachIntoAnExistingLargerTierDoesNotAddASecondStore()
+        {
+            using var world = CreateWorld();
+            var registry    = new BlueprintRegistry();
+            var entity      = world.CreateEntity();
+
+            // The entity already carries 1024 — the shape a behaviour manifest leaves behind.
+            var big = BlueprintTierTable.ByTier(BlackboardTier.B1024);
+            big.Add(world, entity);
+
+            // A small instance: its state fits the 256 tier, so ChooseTier alone would pick 256.
+            int smallId = RegisterInstanceBlueprint(registry, "Small", stateSize: 16);
+            Assert.True(BlueprintTierTable.Ascending[0].PayloadSize >= 16,
+                "premise: the smallest tier really does hold this state");
+
+            var result = BlueprintInstanceService.AttachToEntity(world, registry, smallId, entity);
+            Assert.Equal(BlueprintAttachStatus.Attached, result.Status);
+
+            // ⭐ THE RAIL: exactly one tier, and it is the one the entity already had.
+            Assert.Equal(1, TierComponentCount(world, entity));
+            Assert.Equal(BlackboardTier.B1024, result.Tier);
+            Assert.False(BlueprintTierTable.ByTier(BlackboardTier.B256).Has(world, entity));
+
+            // ⭐ And the slot is readable through the seam — the property the defect destroyed.
+            byte* store = OccurrenceStoreAccess.TryGetStoreReadOnly(world, entity, out int size);
+            Assert.True(store != null);
+            Assert.Equal(BlueprintBlackboard1024.TotalSize, size);
+            Assert.True(BlueprintBlackboardPartitions.TryGetSlotOffset(store, smallId, out _));
+        }
+
+        /// <summary>
+        /// ⭐ <b><c>B4_R4</c> — when the instance genuinely does NOT fit the tier the entity carries,
+        /// the store is PROMOTED, not doubled.</b> The other half of <c>B4_R3</c>, and the direction
+        /// that was reachable even before <c>O3b</c>: a large instance on a small-tier entity.
+        ///
+        /// <para>⛔ The old code added the larger component and left the smaller one orphaned beside
+        /// it — with its existing slots stranded in a store nothing would read again.
+        /// ⭐ <see cref="BlueprintTierTable.Promote"/> carries them across, and with them the header's
+        /// <c>Reserved</c> <c>Kind</c> nibbles (<c>H1</c>).</para>
+        /// </summary>
+        [Fact]
+        public void B4_R4_AttachThatOutgrowsTheCurrentTierPromotesItAndCarriesTheSlots()
+        {
+            using var world = CreateWorld();
+            var registry    = new BlueprintRegistry();
+            var entity      = world.CreateEntity();
+
+            var small = BlueprintTierTable.Ascending[0];
+            var large = BlueprintTierTable.ByTier(BlackboardTier.B1024);
+
+            // Seat a first, small instance — it lands on the smallest tier.
+            int firstId  = RegisterInstanceBlueprint(registry, "First", stateSize: 16);
+            Assert.Equal(
+                BlueprintAttachStatus.Attached,
+                BlueprintInstanceService.AttachToEntity(world, registry, firstId, entity).Status);
+            Assert.True(small.Has(world, entity));
+
+            // Now one that cannot fit the smallest tier's payload at all.
+            int bigId = RegisterInstanceBlueprint(registry, "Big", stateSize: small.PayloadSize + 1);
+            var result = BlueprintInstanceService.AttachToEntity(world, registry, bigId, entity);
+            Assert.Equal(BlueprintAttachStatus.Attached, result.Status);
+
+            // ⭐ THE RAIL: promoted, not doubled — and the FIRST slot came with it.
+            Assert.Equal(1, TierComponentCount(world, entity));
+            Assert.False(small.Has(world, entity));
+            Assert.True(large.Has(world, entity));
+
+            byte* store = OccurrenceStoreAccess.TryGetStoreReadOnly(world, entity, out _);
+            Assert.True(store != null);
+            Assert_BothSlotsPresent(store, firstId, bigId);
+        }
+
+        private static void Assert_BothSlotsPresent(byte* store, int firstId, int bigId)
+        {
+            Assert.True(BlueprintBlackboardPartitions.TryGetSlotOffset(store, firstId, out _),
+                "the pre-existing slot must survive the promotion");
+            Assert.True(BlueprintBlackboardPartitions.TryGetSlotOffset(store, bigId, out _),
+                "the slot that forced the promotion must be present");
+        }
     }
 }
