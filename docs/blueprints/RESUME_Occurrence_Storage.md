@@ -5,7 +5,15 @@ doc-type: LANE RESUMPTION for the `behaviors` lane — programme ②, OCCURRENCE
   ⛔ VERIFY against git before acting ("THE LEDGER MAY NOT ASSERT WHAT THE CODE IS").
 updated: 2026-09-20
 build-state: n/a — a resumption snapshot, not a design.
-current-answer: §3 — ⭐⭐ THE NEXT ACTION IS O7 ("HSM per-region actions key on the occurrence").
+current-answer: §3 — ⭐⭐ THE NEXT ACTION IS O7b's EMITTER CHANGE. O7 is SLICED (design §24.3):
+  O7a (the key + the lookup) and O7b's seam (HsmOccurrence.ResolveOrAttach, lazy attach decided by
+  measurement in §24.8) are DONE — 9 rails, two red-proofs, 2271/0. ⛔ NO EMITTED THUNK CALLS THEM
+  YET: that is O7b, and §24.7 says so plainly rather than letting the seam read as adoption.
+  ⭐ O7b is UNBLOCKED — §24.9's question is resolved: the kernel passes the HSM INSTANCE pointer, so
+  (a) InstanceHeader.MachineId is a free per-dispatch host identity (what O8 will need) and
+  (b) AiPrimitiveEmitter's `*(Params*)instance` cast is a DEFECT, filed as CE-297, to be fixed WITH
+  the emitter change because it needs the authored DTO-bound HSM action to be testable.
+  ⛔ O7c (delete BrainHsm*, F9's tick-system reshape) is L — 188 refs across 18 production files.
   O4, O5 and O6 are all DONE. O6 — the single ExtDeps crossing — landed 2026-09-20: as-built in
   design §23, 6 rails, red-proof exact, and the FULL 156-project solution build reported exactly TWO
   compile errors, so §4.2's "single-digit blast radius" held. ⛔ O6 delivers the IDENTITY only —

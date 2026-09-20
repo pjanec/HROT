@@ -3006,13 +3006,26 @@ know **its host's identity**, and chasing that surfaced something that must be s
 | ⭐ the BTree thunk does something **different** | it projects params from `bb.BehaviorParameters[0]` (`EmitParamProjection`), never from a kernel pointer |
 | ⚠ and these thunks register through the **same** table | `CSharpEmitter:382-385` — `RegisterAction(BlueprintId, &…HsmAction)` |
 
-⇒ ⚠⚠ **Either the HSM thunk is reading the HSM instance's header bytes as its `Params`, or something
-remaps `instance` for these registrations that I have not found.** ⛔ **I have not established which**,
-and the difference decides `O7b`:
+#### ✅ RESOLVED, same session — **`instance` IS the HSM instance, and the cast is a DEFECT (`CE-297`)**
 
-| if `instance` IS the HSM instance | ⭐ then `((InstanceHeader*)instance)->MachineId` is the host's `StructureHash` — **a host identity for free, per dispatch, with no new plumbing** — and the current `(Params*)` cast is a defect |
+📐 **The sibling generator settles it, and states the convention outright.** `HsmActionGenerator`'s
+SharedAi HSM thunks take `void* instancePtr` and **ignore it**, reading their DTO from
+`BrainBlackboard.BehaviorParameters[0]` at a baked offset (`:715`, `:753`) — the same projection the
+BTree thunks use. ⇒ ⭐⭐ **two conventions for ONE dispatcher table, and only one matches what the kernel
+passes.** ⛔ Filed as **`CE-297`**, to be fixed WITH the emitter change rather than in isolation: the fix
+needs the authored DTO-bound HSM action that makes it testable.
+
+⭐⭐⭐ **And the same header states `E3` verbatim, which is worth quoting because it is the defect this
+whole item closes, written down by the generator's own author:**
+> *"Every SharedAi entry below becomes a thunk that reads its DTO at a compile-time constant byte offset
+> from `BrainBlackboard.BehaviorParameters[0]`… **One occurrence per entity is all such a thunk can ever
+> address: a second occurrence of the same asset reads the first one's bytes, with no diagnostic.**"*
+
+⇒ ⭐ **The consequence for `O7b` is now settled both ways:**
+
+| ✅ the host identity | `((InstanceHeader*)instance)->MachineId` is the host's `StructureHash` — **free, per dispatch, no new plumbing** ⇒ `O8`'s HSM-hosts-HSM key is already served |
 |---|---|
-| **if it is remapped** | the host identity needs another route, and the cast is fine |
+| ✅ the params projection | must move to `BrainBlackboard.BehaviorParameters[0]`, matching the sibling generator and the BTree path — **`CE-297`** |
 
 ⭐⭐ **Why this has plausibly never bitten:** the inventory says **1** shipped asset declares `HsmAction`
 and **0** declare `HsmGuard` — so this path is close to never executed in production.
