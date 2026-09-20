@@ -801,7 +801,7 @@ public class IgApplication : IDisposable
                     OnMapSelectionChanged = _igBootstrapper!.NetworkEnabled
                         ? (entity, worldPos) => OnCanvasClicked(
                               new System.Numerics.Vector2(worldPos.X, worldPos.Y),
-                              MapMouseButton.Left, false, false, entity, updateSelection: true)
+                              MapMouseButton.Left, false, false, entity)
                         : null,
                     // IG draws the richest frame of the five.
                     BufferCapacity = 4096,
@@ -885,6 +885,26 @@ public class IgApplication : IDisposable
             //    CONSTRUCTS; the host SCHEDULES" — untouched; what moved is the construction.
             foreach (var selectionSystem in igMapInteraction.SelectionSystemsInOrder)
                 ctx.Kernel.RegisterGlobalSystem(selectionSystem);
+
+            // ⭐⭐⭐ UXI-11 S-6 — TELL REMOTE OBSERVERS WHAT THE SELECTION BECAME, from the announcement.
+            // 🔒 §2.6: "IG → observers: the IG publishes when ITS OWN MAP selection changes." Under the
+            //    request/notify protocol that IS SelectionChangedNotification, so this is the faithful
+            //    reading rather than a new mechanism.
+            // 🔴 It replaces a publish that sat inside the MAP-CLICK handler and therefore fired for a
+            //    map click and nothing else — an inspector click, an orbat select or a remote command
+            //    left ExCon's panel showing a selection this host no longer had.
+            // ⚠ IG ONLY, deliberately: §2.6's carve-out is "remote map CONTROL, not a general selection
+            //   mechanism", and no other host has observers to tell. ⛔ This is why it is registered
+            //   here and not built by MapInteractionPack with the rest of the selection.
+            // ⚠ AFTER SelectionSystemsInOrder: the announcement must exist before anything egresses it.
+            ctx.Kernel.RegisterGlobalSystem(
+                new Hrot.ScenarioEditor.Systems.SelectionEgressSystem(
+                    ids => _networkAdapter?.WriteSelectionChanged(
+                        new Hrot.Core.Network.SelectionChangedEventDto
+                        {
+                            MapId             = _effectiveInstanceId,
+                            SelectedEntityIds = ids,
+                        })));
 
             // MapCommandController - created here when network is available.
             if (_igBootstrapper!.NetworkEnabled && ctx.Participant != null)
@@ -2149,7 +2169,11 @@ public class IgApplication : IDisposable
 
     /// </summary>
 
-    private void OnCanvasClicked(Vector2 worldPos, MapMouseButton button, bool shift, bool ctrl, Entity hit, bool updateSelection = true)
+    // ⚠ `bool updateSelection = true` REMOVED at S-6: it gated ONLY the selection egress that moved to
+    //   SelectionEgressSystem, so it now decides nothing. ⛔ Keeping it would be exactly "a parameter
+    //   nobody reads is a claim nobody checks" — the note DebugGizmoLayer's R3 constructor already
+    //   carries, and the reason that constructor was collapsed.
+    private void OnCanvasClicked(Vector2 worldPos, MapMouseButton button, bool shift, bool ctrl, Entity hit)
 
     {
 
@@ -2195,20 +2219,16 @@ public class IgApplication : IDisposable
 
 FdpLog<IgApplication>.Info("[Node-{0}] MapClickEvent published. ContextId={1} hit={2}", _effectiveInstanceId, _activeContextId, hit.Index);
 
-        // Publish selection state so ExCon can update the "Selection & Mission" panel.
-        // A non-empty hit selects the entity; an empty-space click clears the selection.
-        if (updateSelection)
-        {
-            var selIds = hitEntityIds.Count > 0
-                ? hitEntityIds
-                : new System.Collections.Generic.List<int>();
-            _networkAdapter.WriteSelectionChanged(new Hrot.Core.Network.SelectionChangedEventDto
-            {
-                MapId             = _effectiveInstanceId,
-                SelectedEntityIds = selIds,
-            });
-            FdpLog<IgApplication>.Debug("[Node-{0}] SelectionChangedEvent published. count={1}", _effectiveInstanceId, selIds.Count);
-        }
+        // ⭐⭐⭐ UXI-11 S-6 — THE SELECTION EGRESS MOVED OUT OF THIS HANDLER, to SelectionEgressSystem.
+        //    🔴 Hanging it here meant it fired for a MAP CLICK AND NOTHING ELSE: a selection changed by
+        //       the entity inspector, the orbat, a context-menu Select, or a remote CMD_SET_SELECTION
+        //       never reached ExCon, so its "Selection & Mission" panel showed a selection this host no
+        //       longer had. ⭐ Exactly the defect S-3 fixed on the INBOUND side, and the same cause — a
+        //       consequence hung off ONE cause instead of the announcement.
+        //    ⭐ The system consumes SelectionChangedNotification, so every cause propagates AND the echo
+        //       suppression finally has a home. 📄 UX_Feature_Selection.md §2.6 / §2.7.17.
+        //    ⚠ The MapClickEvent above is UNTOUCHED — it reports a GESTURE, which is a different fact
+        //      from "the selection changed", and the two picker call sites rely on exactly that.
 
     }
 
@@ -2988,9 +3008,21 @@ FdpLog<IgApplication>.Info("[Node-{0}] MapClickEvent published. ContextId={1} hi
     // ??? OC1-G001: CMD_SET_SELECTION ??????????????????????????????????????????
 
     /// <summary>
-    /// Handles an incoming <see cref="CommandType.CMD_SET_SELECTION"/> command.
-    /// Selects the entity identified by <c>entityId</c> in the ECS without publishing
-    /// a <see cref="SelectionChangedEvent"/> (to avoid ExCon?IG?ExCon echo loops).
+    /// Handles an incoming <see cref="CommandType.CMD_SET_SELECTION"/> command — 🔒 §2.6's carve-out:
+    /// <i>"remote map control is JUST ANOTHER REQUESTER"</i>, so this publishes the same
+    /// <c>SelectionChangeRequest</c> a panel does and the one writer applies it.
+    ///
+    /// <para>⛔⛔ <b>THE OLD DOC COMMENT HERE WAS FALSE, AND HAD BEEN FOR TWO SLICES.</b> It read
+    /// <i>"without publishing a SelectionChangedEvent (to avoid ExCon→IG→ExCon echo loops)"</i> — 🔴 but
+    /// <c>S-2</c> routed this through <c>SelectionRequestSystem</c> and <c>S-3</c> made that system
+    /// announce for EVERY cause. ⇒ the suppression it described no longer existed, and the only reason
+    /// no echo appeared is that the egress happened to be GESTURE-driven, which was itself the bug
+    /// <c>S-6</c> fixes.</para>
+    ///
+    /// <para>⭐⭐ Suppression now lives where §2.6 says it belongs — at the EGRESS, keyed on this
+    /// reason's <c>Remote.</c> prefix. ⚠ The prefix is load-bearing: change it here without changing
+    /// <see cref="Hrot.ScenarioEditor.Systems.SelectionEgressSystem.RemoteOriginPrefix"/> and this host
+    /// starts echoing remote commands straight back to their sender.</para>
     /// </summary>
     private void ParseCommandAndSetSelection(string argsJson)
     {
@@ -3013,7 +3045,12 @@ FdpLog<IgApplication>.Info("[Node-{0}] MapClickEvent published. ContextId={1} hi
                 return;
             }
 
-            SelectEntityOnMap(entity);
+            // ⭐ NOT SelectEntityOnMap: that carries the LOCAL reason, and a local reason is echoed
+            //   outward by SelectionEgressSystem. This one must not be.
+            _world.Bus.PublishManaged(
+                Fdp.Toolkit.Vis2D.Abstractions.SelectionChangeRequest.ReplaceWith(
+                    entity,
+                    Hrot.ScenarioEditor.Systems.SelectionEgressSystem.RemoteOriginPrefix + "SetSelection"));
         }
         catch (Exception ex)
         {
@@ -3707,7 +3744,7 @@ FdpLog<IgApplication>.Info("[Node-{0}] MapClickEvent published. ContextId={1} hi
             Hrot.ScenarioEditor.Tools.ScenarioToolIds.PickLocation,
             remove => new Fdp.Toolkit.Vis2D.Gizmos.FdpLocationPickerGizmo(
                 onPicked: worldPos =>
-                    OnCanvasClicked(worldPos, MapMouseButton.Left, false, false, Entity.Null, updateSelection: false),
+                    OnCanvasClicked(worldPos, MapMouseButton.Left, false, false, Entity.Null),
                 onRemove: () =>
                 {
                     remove();
@@ -3789,7 +3826,7 @@ FdpLog<IgApplication>.Info("[Node-{0}] MapClickEvent published. ContextId={1} hi
                 {
                     // Re-use OnCanvasClicked to publish the MapClickEvent.
                     // The entity will appear in HitStack so the ExCon receives the networkId.
-                    OnCanvasClicked(Vector2.Zero, MapMouseButton.Left, false, false, entity, updateSelection: false);
+                    OnCanvasClicked(Vector2.Zero, MapMouseButton.Left, false, false, entity);
                     FdpLog<IgApplication>.Info("[Node-{0}] EntityPicker picked entity {1}", _effectiveInstanceId, entity.Index);
                 },
                 onCancelled: () => FdpLog<IgApplication>.Debug("[Node-{0}] EntityPicker cancelled.", _effectiveInstanceId),

@@ -57,7 +57,14 @@ build-state: BUILDING (§2.7 is the consolidated TARGET STATE with class + seque
   NaN, so every click fell through to the canvas while DRAWING looked perfect. Root-caused and fixed
   2026-09-20; folded into UX_Feature_Map_Parity.md, which owns this defect class (it is CE-123 again).
   ⇒ S-4/S-4b's map rows could not have been exercised before that fix, whatever any check table said.
-  S-6 remains DESIGN.)
+  ☑ S-6 BUILT 2026-09-20 — the last slice. SelectionEgressSystem consumes the notification, so EVERY
+  cause reaches remote observers (it was GESTURE-driven before, so an inspector/orbat/remote change
+  never left the host at all — the mirror of the defect S-3 fixed inbound). Echo suppression now lives
+  at the egress, keyed on the request Reason's "Remote." prefix. As-built in §2.7.17.
+  ⛔ NOT DONE, deliberately: widening MapCommandController into the dispatcher. §2.6 leans that way but
+  attaches a constraint (session state must stay separate from dispatch); that is a structural move with
+  its own risk, not part of "becomes a requester".
+  ⇒ UXI-11's slice list S-1..S-6 IS COMPLETE.)
 verified: 2026-09-10 (measured source scan, graph + grep, coverage checked)
   ⭐ S-1's own inventory re-measured 2026-09-20 on the graph — §2.7.6.
 current-answer: ✅ READ §2.7 — the consolidated TARGET STATE (2026-09-10), with the class diagram, the
@@ -713,7 +720,7 @@ sequenceDiagram
 | 🟡 **S-4** *(`2026-09-20`, §2.7.13)* | right-click selects on every surface *(§2.3 incl. row 1)*; DER inspector gains a seam | ☑ **both inspector panels**, bound and unbound, railed and red-proved; ☑ the DER seam, wired in ExCon; ☑ `CE-259s`'s ordering **already discharged at `S-2`** — and §2.3's same-frame constraint is now SUPERSEDED, not merely unmet. ⛔ **the MAP is NOT done**: the vendored terminal's event carries no mouse button *(§2.7.13 "NOT BUILT")* |
 | ☑ **S-4b** *(`2026-09-20`, §2.7.14)* | 🔒 *"the right click itself should deselect the entity unless the already selected group right clicked"* — the MAP joins §2.3 | ☑ all three §2.3 rows on the map, incl. the empty-space clear; ☑ the button is carried with **no new field** and Left-defaults to the old meaning; ⚠ **2 vendored sites**, on the user's nod |
 | ☑ **S-5** *(`2026-09-20`, §2.7.15)* | rule 5 — losing selection cancels that entity's edit | ☑ `CancelArmedOn` tears the gizmo down per entity; ☑ the notification gets its first EDGE consumer; ⛔ **the design's own prescribed member was WRONG and is corrected in `Tool_Model` §4.14**, red-proved |
-| **S-6** | remote-map-control dispatcher becomes a requester; echo suppression moves to egress | 📄 `DESIGN_Remote_Map_Control.md` |
+| ☑ **S-6** *(`2026-09-20`, §2.7.17)* | remote-map-control dispatcher becomes a requester; echo suppression moves to egress | ☑ the requester half was ALREADY true *(an `S-2` side effect)*; ☑ egress is now notification-driven, so every cause propagates; ☑ suppression keyed on the `Remote.` reason. ⛔ the `MapCommandController` widening is NOT in this slice — §2.6's own constraint makes it a separate move |
 
 ⚠ **`UXI-24` (multi-select) rides on S-1 + S-2** — its map additive-click needs the mutators and the mode.
 
@@ -1640,6 +1647,75 @@ artefact, not a wiring bug, and would have been hunted in the wrong place.
 |---|---|
 | `OnlyTheSharedPackRegistersTheMarquee` *(new)* | `new RubberBandGizmo(` appears in production **exactly once**, in the pack. ⭐ **Red-proved:** restoring the editor's own registration reddens it |
 | ⚠ anti-vacuity | the rail asserts `packHits == 1`, so **the pack dropping it** fails too — the state this rail exists to prevent returning to |
+
+#### 2.7.17 ☑ **`S-6` — REMOTE MAP CONTROL IS JUST ANOTHER REQUESTER, AND ECHO SUPPRESSION MOVES TO THE EGRESS** *(`2026-09-20`)*
+
+⭐ **The last slice.** 🔒 §2.6's carve-out: *"remote map control … even this one needs to be translated to
+fdp events"* and *"Echo suppression belongs at the EGRESS translator (do not re-publish outward what
+ingress produced), never by muting the internal notification."*
+
+##### ⚠ FIRST, A CORRECTION TO THIS DOCUMENT — **§2.6's snapshot was measured `2026-09-10`, before `S-1`…`S-5`**
+
+📐 Re-measured before building. **Half of what §2.6 lists as to-do was already done, as a side effect:**
+
+| §2.6 said | measured `2026-09-20` |
+|---|---|
+| *"`SelectEntityOnMap` is a THIRD hand-rolled `SetSelected`"* | ☑ **already a requester** — `S-2` rewrote it; the hand-sync went with `S-3` |
+| *"`CMD_SET_SELECTION` … the dispatcher becomes a requester"* | ☑ **already true**, because it routes through `SelectEntityOnMap` |
+| 🔴 *"echo suppression is implemented in the wrong place"* | ⛔ **it was not implemented AT ALL any more** — see below |
+
+⇒ ⭐⭐ **reading §2.6 as a work list would have rebuilt two things that existed.** 📌 The same trap the
+`S-4b` reconciliation hit from the other side: **a measured snapshot is true of its date, not of now.**
+
+##### 🔴 THE SUPPRESSION HAD BEEN A LIE FOR TWO SLICES
+
+`ParseCommandAndSetSelection`'s doc comment read *"Selects the entity … **without publishing a
+`SelectionChangedEvent`** (to avoid ExCon→IG→ExCon echo loops)."*
+
+⛔ **`S-2` routed it through `SelectionRequestSystem`, and `S-3` made that system announce for EVERY
+cause.** ⇒ the described suppression had not existed since `S-2`. ⚠⚠ **And no echo appeared anyway —
+for a reason that was itself a defect:**
+
+##### 🔴🔴 THE REAL FINDING — **the outbound event was GESTURE-DRIVEN, so most selection changes never left the host**
+
+📐 `WriteSelectionChanged` was called from **inside IG's map-click handler** (`OnCanvasClicked`). ⇒ a
+selection changed by **the entity inspector · the orbat · a context-menu *Select* · a remote
+`CMD_SET_SELECTION`** — **none of them reached ExCon at all.** Its *"Selection & Mission"* panel kept
+painting a selection this host no longer had.
+
+⭐⭐⭐ **This is the exact mirror of the defect `S-3` fixed on the INBOUND side**, and the same cause: **a
+consequence hung off ONE cause instead of the announcement.** ⚠ It is also why the missing echo
+suppression never showed — a remote command is not a map gesture, so it never reached the egress.
+
+##### ⭐ The shape
+
+| | |
+|---|---|
+| **`SelectionEgressSystem`** *(new)* | consumes `SelectionChangedNotification` ⇒ **every cause propagates, by construction** |
+| **echo suppression** | one line — skip when the notification's `Reason` starts with `Remote.`. ⭐ The reason travels WITH the change; ⛔ not a flag, a latch or a "suppress next" counter, all of which are state that can desynchronise |
+| **`R-134`-clean** | the system takes an `Action<IReadOnlyList<int>>` and speaks **network ids**; the host owns the transport. ⇒ no DDS type in the FDP-internal path, and the class lives beside the other selection systems |
+| **IG only** | 🔒 §2.6: *"remote map CONTROL, not a general selection mechanism"* — no other host has observers to tell. ⛔ Deliberately **not** built by `MapInteractionPack` |
+| ⚠ **a CLEAR is a message** | an empty set is sent, not skipped — skipping it leaves every observer painting a dead selection, the same shape that bit the `Clear` branch in §2.7.7 |
+| ⚠ **id 0 is skipped, not sent** | zero is the *"unreplicated"* sentinel (§6.8); a peer resolving it would select whatever answered |
+
+⭐ **`bool updateSelection` is DELETED from `OnCanvasClicked`** — it gated only the egress that moved, so
+it decided nothing. 🔒 *"A parameter nobody reads is a claim nobody checks"* — the note
+`DebugGizmoLayer`'s own constructor carries.
+
+⛔ **NOT DONE, and deliberately: widening `MapCommandController` into the dispatcher.** §2.6 leans that
+way, but it carries a constraint — *"the session state must stay separate from dispatch"*, because
+folding stateless commands into a class that guards `_sessionContextId` is how a selection command gets
+silently refused while a placement session is open. ⇒ **a structural move with its own risk, not part of
+"becomes a requester", which is what this slice's gate asks for.**
+
+##### ⭐ Rails
+
+| | |
+|---|---|
+| `ASelectionChangeFromAnyLocalCause_ReachesTheObservers` | the gap this slice closes. ⭐ **Red-proved** — restricting egress to `Map.` reasons reddens it |
+| `ARemoteOriginatedChange_IsNotEchoedBack_ButStillLandsLocally` | ⭐⭐ **both halves**: no echo, AND the local view still applied. ⛔ The second assertion is what §2.6 forbids losing. **Red-proved** — removing the suppression reddens it |
+| `ClearingTheSelection_IsSentAsAnEmptySet_NotSkipped` · `AnEntityWithNoNetworkId_IsNotSentAsZero` · `IsRemoteOrigin_KeysOnThePrefix` *(4 cases)* | the boundary rules, and the predicate asserted DIRECTLY rather than inferred from a publish that did not happen |
+| `SetSelectionCommandTests` *(the feature's own suite, `T-1`)* | 4/4 green, unchanged |
 
 ## 3. Acceptance
 

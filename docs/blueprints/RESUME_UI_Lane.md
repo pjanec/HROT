@@ -1,14 +1,19 @@
 <!--STATUS
 state: LIVE
 updated: 2026-09-20
-current-answer: ⭐⭐⭐ READ THE TOP OF THIS FILE — the "SESSION 2026-09-20 (i)" block (S-5) is the live
-  state; (h) is S-4b, (g) is S-4, (f) is S-3e.
-  ☑ UXI-11 slices S-1, S-2, S-3, S-3b, S-3c, S-3d (Windows-VERIFIED), S-3e AND S-4 ARE BUILT: one
-  store, one request, one writer, one announcement on every node — ONE PLACE (MapInteractionPack) that
-  builds them all — and right-click SELECTS on both inspector panels, with the DER inspector wired to
-  the host selection by NETWORK id.
-  ☑ S-5 IS BUILT TOO: losing the selection cancels that entity's edit (ruling ②).
-  NEXT IS S-6 — the remote-map dispatcher becomes a requester; echo suppression moves to egress.
+current-answer: ⭐⭐⭐ READ THE TOP OF THIS FILE — the "SESSION 2026-09-20 (j)" block (S-6) is the live
+  state; (i) is S-5, (h) is S-4b, (g) is S-4, (f) is S-3e.
+  ☑☑ UXI-11's SLICE LIST S-1…S-6 IS COMPLETE. One store, one request, one writer, one announcement on
+  every node — ONE PLACE (MapInteractionPack) that builds them all — right-click SELECTS on both
+  inspector panels with the DER inspector wired by NETWORK id, the MAP obeys §2.3 including the
+  empty-space clear, losing the selection cancels that entity's edit, and remote observers are told
+  what the selection BECAME rather than what one gesture did.
+  ⭐ S-6's finding: the outbound SelectionChangedEvent was GESTURE-DRIVEN, so an inspector/orbat/remote
+  selection change never reached ExCon at all — the mirror of the defect S-3 fixed inbound. Egress is
+  now notification-driven and echo suppression lives there, keyed on the "Remote." reason prefix.
+  ⛔ NOT DONE, deliberately: widening MapCommandController into the dispatcher (§2.6 attaches a
+  constraint that makes it a separate structural move).
+  ⚠ STILL OWED: the S-4/S-4b OPERATOR pass on Windows — unrunnable until the map became clickable.
   ⛔⛔ S-5 CORRECTED ITS OWN OWNING DESIGN, red-proved: UX_Feature_Tool_Model.md §4.14 prescribed
   NotifyToolEnded, which deliberately does NOT tear the gizmo down and would have left it armed and
   drawing (the mirror of CE-259q). Cancel() is wrong the other way — it unwinds the whole stack. The
@@ -26,16 +31,19 @@ current-answer: ⭐⭐⭐ READ THE TOP OF THIS FILE — the "SESSION 2026-09-20 
   ⚠ Still openly unmet, each saying so: two synchronous editor facade seams (§2.7.7 deviation ③);
   panels PROJECT rather than subscribe (§2.7.8 deviation ②); ClearAll still has 0 callers.
   📄 The as-builts are UX_Feature_Selection.md §2.7.6 (S-1), §2.7.7 (S-2), §2.7.8 (S-3), §2.7.9 (S-3b),
-  §2.7.10 (S-3c), §2.7.11a (S-3d, the Windows result), §2.7.12 (S-3e) and §2.7.13 (S-4) — read those,
-  not the summaries here, before starting S-5.
+  §2.7.10 (S-3c), §2.7.11a (S-3d, the Windows result), §2.7.12 (S-3e), §2.7.13 (S-4), §2.7.14 (S-4b),
+  §2.7.15 (S-5) and §2.7.17 (S-6) — read those, not the summaries here.
   Branch: ui (the stable lane branch, R-148).
   ⛔ The 2026-09-15 block below (distributed persistence + ownership) is DONE and is now HISTORY —
   nothing from it is in flight. Older STRANDS below it are older history still; do NOT act on any of
   them unless explicitly told to continue one.
 
-stale-below: ⛔ EVERYTHING below the "SESSION 2026-09-20 (i)" block is HISTORY, newest first —
-  including the (d), (c), (b) and (a) blocks (S-3b, S-3, S-2, S-1) and the 2026-09-19/20 block, whose
-  plans are now DONE. Do not quote any of it as current state.
+stale-below: ⛔ EVERYTHING below the "SESSION 2026-09-20 (j)" block is HISTORY, newest first, with TWO
+  exceptions that are LIVE STATUS and not session logs: the "VERIFIED IN THE PRODUCT" block (the
+  Windows result) and the "CGF BUILT ITS MAP LAYER WITH NO CAMERA" fix directly under it.
+  ⚠ The two "SUPERSEDED" blocks under those record the readings that LED to the fix and are wrong as
+  state. Below them, the (i)…(a) session blocks and the 2026-09-19/20 block are DONE. Do not quote any
+  of it as current state.
 known-rot: none open in this file.
 related-designs:
   - docs/UX/UX_Feature_Selection.md — owns UXI-11; §2.7 is the target state, §2.7.5 the slice order.
@@ -48,6 +56,47 @@ related-designs:
   Nothing was deleted.
 -->
 # ⭐⭐⭐ RESUME — **the UI / variable implementation lane**
+
+## ⭐⭐⭐ SESSION `2026-09-20` (j) — **`S-6`: THE LAST SLICE. `UXI-11`'s S-1…S-6 ARE COMPLETE**
+
+📄 **As-built: [`UX_Feature_Selection.md` §2.7.17](https://github.com/pjanec/HROT/blob/ui/docs/UX/UX_Feature_Selection.md)** — read that, not this summary.
+
+⚠⚠ **§2.6's snapshot was measured `2026-09-10`, BEFORE `S-1`…`S-5`, and half of it was already done.**
+⭐ `SelectEntityOnMap` and `CMD_SET_SELECTION` were **already requesters** — an `S-2` side effect. ⇒
+📌 **reading §2.6 as a work list would have rebuilt two things that existed.** *(The same trap `S-4b`'s
+reconciliation hit from the other side: a measured snapshot is true of its date, not of now.)*
+
+🔴🔴 **THE REAL FINDING — the outbound `SelectionChangedEvent` was GESTURE-DRIVEN.** `WriteSelectionChanged`
+sat **inside IG's map-click handler**, so a selection changed by the entity inspector, the orbat, a
+context-menu *Select* or a remote `CMD_SET_SELECTION` **never reached ExCon at all** — its *"Selection &
+Mission"* panel kept painting a selection this host no longer had. ⭐⭐⭐ **The exact mirror of the defect
+`S-3` fixed on the INBOUND side, and the same cause: a consequence hung off ONE cause instead of the
+announcement.**
+
+🔴 **And the echo suppression had been a LIE for two slices** — `ParseCommandAndSetSelection`'s doc comment
+claimed it did not publish, but `S-2` routed it through the request system and `S-3` made that system
+announce for every cause. ⚠ **No echo appeared anyway, for a reason that was itself the bug above:** a
+remote command is not a map gesture, so it never reached the egress.
+
+| ☑ what is built | |
+|---|---|
+| **`SelectionEgressSystem`** *(new, `Hrot.Presentation`)* | consumes `SelectionChangedNotification` ⇒ **every cause propagates, by construction** |
+| **echo suppression, at the EGRESS** | 🔒 §2.6's own ruling. One line: skip when `Reason` starts with `Remote.`. ⭐ The reason travels WITH the change — ⛔ not a flag, a latch or a "suppress next" counter |
+| **`R-134`-clean** | an `Action<IReadOnlyList<int>>` speaking **network ids**; the host owns the transport ⇒ no DDS type in the FDP-internal path |
+| **IG only, deliberately** | 🔒 §2.6: *"remote map CONTROL, not a general selection mechanism"* ⇒ ⛔ **not** built by `MapInteractionPack` |
+| **`bool updateSelection` DELETED** | it gated only the egress that moved ⇒ it decided nothing |
+
+⛔ **NOT DONE, deliberately: widening `MapCommandController` into the dispatcher.** §2.6 leans that way but
+attaches a constraint — *session state must stay separate from dispatch* — so it is a structural move with
+its own risk, **not** part of *"becomes a requester"*.
+
+⭐ **Rails:** 8 new in `SelectionEgressSystemTests`, **2 red-proved** *(remove the suppression ⇒ the echo
+rail reddens; restrict egress to `Map.` reasons ⇒ the every-cause rail reddens)*; `SetSelectionCommandTests`
+*(the feature's own suite, `T-1`)* 4/4 unchanged.
+
+⚠ **Still openly unmet, each saying so in the design:** two synchronous editor facade seams *(§2.7.7
+deviation ③)*; panels PROJECT rather than subscribe *(§2.7.8 deviation ②)*; `ClearAll` still has 0 callers.
+⚠ **`S-4`/`S-4b`'s OPERATOR pass is still owed** — it was unrunnable until the map became clickable.
 
 ## ✅✅ VERIFIED IN THE PRODUCT `2026-09-20` — **CLICKING AND THE MARQUEE WORK**
 
@@ -192,12 +241,17 @@ entities ⇒ they have ids. **Two possibilities remain:**
 
 ⭐ `[SelDiag] terminal canvas-fallback …` now reports exactly that, on every canvas-fallback press.
 
-## 🔴 OPEN — **OPERATOR REPORT `2026-09-20`: "mouse clicking does not select"**
+## ✅ CLOSED — **OPERATOR REPORT `2026-09-20`: "mouse clicking does not select"** *(kept: it carries the marquee RULING)*
 
 > 🔒 **User, after the `S-4`/`S-4b` Windows pass:** *"Mouse clicking does not select, marquee rubber band
 > not shown."* · then, to my question: *"Right click open context menu if free space clicked."*
 
-⚠⚠ **HALF OF THIS IS ANSWERED, HALF IS NOT — do not close it.**
+✅ **The report itself is CLOSED** — root cause was the no-camera layer two blocks up, and the operator
+confirmed *"clicking and rubberband work now."*
+⭐⭐ **What survives here and is STILL BINDING is the RULING inside it:** 🔒 *"any perspective showing a
+2-D map should support marquee and rubberband, not just editor and CGF"* — recorded as
+[`UX_Feature_Selection.md` §2.7.16](https://github.com/pjanec/HROT/blob/ui/docs/UX/UX_Feature_Selection.md).
+⚠ **Read the rest of this block as the investigation record, not as open work.**
 
 | symptom | status |
 |---|---|
