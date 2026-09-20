@@ -156,6 +156,10 @@ namespace Fdp.Toolkit.Behavior.Shared
         private const string IdentityVariableId = ReservedPrefix + "identity";
         private const string SiteVariableId     = ReservedPrefix + "site";
 
+        /// <summary>O7 — an HSM-hosted occurrence's working state, per (region, state).</summary>
+        internal const string HsmWorkingStateVariableId = ReservedPrefix + "hsmState";
+        private const string HsmSiteVariableId          = ReservedPrefix + "hsmSite";
+
         /// <summary>
         /// ⭐⭐ An occurrence's IDENTITY — a number, never storage.
         /// ⛔ Must be NON-ZERO: <see cref="ComputeNested"/> treats <c>hostKey == 0</c> as ROOT and
@@ -178,6 +182,63 @@ namespace Fdp.Toolkit.Behavior.Shared
                    OccurrenceSlotScope.Behavior,
                    System.Guid.Empty,
                    TreeStateVariableId);
+
+        /// <summary>
+        /// ⭐⭐⭐ <c>O7</c> / <c>E3</c> — <b>an HSM-hosted occurrence's working-state slot key, keyed by
+        /// the REGION AND STATE the kernel stamps.</b>
+        ///
+        /// <para>🔴🔴 <b>The defect this closes (<c>BP-297</c>).</b> Every HSM thunk resolves its
+        /// working state as <c>GetComponentRW&lt;Blackboard1024&gt;(bridge-&gt;Self)</c> at a hard-coded
+        /// <c>memory + 8</c> — <b>one working state per ENTITY</b>. ⇒ two concurrently-active HSM
+        /// regions running the same asset write the SAME bytes, silently. ⭐ The BTree hosting path has
+        /// been occurrence-keyed since <c>S2</c>; this is the seam law again — the mechanism existed and
+        /// the HSM path was never brought onto it.</para>
+        ///
+        /// <para>⭐⭐ <b>The site is the PAIR, which is exactly what <c>O6</c> made available.</b>
+        /// <c>HsmCommandWriter.OccurrenceRegionSlotIndex</c> + <c>.OccurrenceStateId</c> are stamped
+        /// before every dispatch, so a thunk can compute this key without the kernel knowing anything
+        /// about the allocator. ⛔ <c>Q35-B</c> ruled the pair rather than a pre-hashed key precisely so
+        /// the arithmetic stays here, outside ExtDeps.</para>
+        ///
+        /// <para>⚠ <b>Both halves are load-bearing.</b> Two regions in the SAME state and one region
+        /// moving BETWEEN states are different occurrences; folding only the region would alias the
+        /// second, and folding only the state would alias the first.</para>
+        /// </summary>
+        internal static int ComputeHsmStateKey(
+            System.Guid hostAssetId, int regionSlotIndex, ushort stateId, System.Guid childAssetId)
+            => ComputeNested(
+                   ComputeIdentity(hostAssetId),
+                   ComputeHsmSiteId(regionSlotIndex, stateId),
+                   childAssetId,
+                   OccurrenceSlotScope.Behavior,
+                   System.Guid.Empty,
+                   HsmWorkingStateVariableId);
+
+        /// <summary>
+        /// ⭐ The HSM hosting SITE, folded from the kernel's <c>(region, state)</c> pair.
+        ///
+        /// <para>⛔ <b>Not a node <c>Guid</c>, and that is the difference from <c>D5</c>.</b> A BTree site
+        /// is an author-placed node with a stable id; an HSM site is a <i>position in the compiled
+        /// machine</i>, and the only thing the kernel can hand a thunk is the pair. ⚠ That makes the key
+        /// sensitive to a recompile that renumbers states — which is what <c>StructureHash</c> on the
+        /// slot is for: the mismatch is detected and the state resets rather than being misread.</para>
+        ///
+        /// <para>⚠ Folded through the same FNV path as every other site so a site id can never collide
+        /// with a raw region index, and never returns 0 for the same reason
+        /// <see cref="ComputeIdentity"/> must not.</para>
+        /// </summary>
+        internal static int ComputeHsmSiteId(int regionSlotIndex, ushort stateId)
+        {
+            unchecked
+            {
+                // Fold the pair into a deterministic Guid so it goes through the ONE hashing path
+                // rather than growing a second, subtly different one.
+                var pair = new System.Guid(
+                    (uint)regionSlotIndex, stateId, 0,
+                    0x4F, 0x43, 0x43, 0x48, 0x53, 0x4D, 0x00, 0x00);   // "OCCHSM"
+                return Compute(pair, OccurrenceSlotScope.Node, pair, HsmSiteVariableId);
+            }
+        }
 
         internal static int ComputeNested(
             int hostKey,

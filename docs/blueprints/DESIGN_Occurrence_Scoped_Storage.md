@@ -2865,3 +2865,116 @@ defect, not a test one.
 | ⛔ **no thunk looks the pair up yet** | that is `O7` — *"HSM per-region actions key on the occurrence"*. `O6` delivers the identity and nothing reads it in production. ⭐ Stated plainly so nobody reads these rails as proof that per-region HSM storage works |
 | ⛔ **the golden test does not exercise this** | 📐 `hill-attack-close` runs the hand-written BTree node path; **zero** shipped assets use `AiPrimitiveHosting.HsmGuard`. ⇒ the golden shows `O6` **broke nothing**, not that the new path works — the same honest caveat `O4` carried |
 | ⚠ **`Fhsm.Tests` and `Fhsm.Demo.Visual` are updated but CANNOT gate** | they are outside `IOS-IG-SimHost.sln`, so a root-solution build does not build them and a `--no-build` run of them would report a stale bin |
+
+
+## 24. ⏳ `O7` — **HSM PER-REGION ACTIONS KEY ON THE OCCURRENCE** *(started `2026-09-20`; SLICE 1 LANDED)*
+
+<!-- build-state: BUILDING -->
+
+### 24.1 📐 THE INVENTORY — **run before any of this was designed**
+
+| query | result |
+|---|---|
+| `BrainHsm64` / `BrainHsm128` references | **188** across **18** production files *(7 of them `FDP/Examples`)* + tests |
+| shipped assets declaring `AiPrimitiveHosting.HsmAction` | ⭐ **1** — `MoveAndFireCombo.bp.json` |
+| shipped assets declaring `HsmGuard` | ⭐ **0** |
+| *(for contrast)* `BTreeAction` / `BTreeCondition` | **33 / 9** |
+
+⇒ ⭐⭐ **HSM hosting is declared once and hosted essentially nowhere**, so — exactly as in `O4` — an
+emitter change is near-invisible to today's corpus and **the decisive rail must be authored, not
+found**. §7 already demanded that: *"a DTO-bound HSM action must be authored as part of `O7`, or the
+rail is vacuous."*
+
+### 24.2 🔴 THE DEFECT, MEASURED — **`BP-297` / `E3` in one line**
+
+📌 `AiPrimitiveEmitter` emits **all three** HSM thunks — `HsmAction`, `HsmActivity`, `HsmGuard` — as:
+
+```csharp
+ref var bb1024 = ref world.GetComponentRW<Blackboard1024>(bridge->Self);
+fixed (byte* memory = bb1024.Memory) { … ref var ws = ref Unsafe.AsRef<WorkingState>(memory + 8); }
+```
+
+⇒ 🔴 **one working state per ENTITY, at a hard-coded offset.** Two concurrently-active HSM regions
+running the same asset write the **same bytes**, silently.
+
+⭐⭐ **And this is the seam law again:** the BTree hosting path has been occurrence-keyed since `S2`
+*(manifest entry + `OccurrenceSlotKey` + `BlueprintBlackboardPartitions`)*. ⛔ Nothing needed inventing —
+**the HSM path was simply never brought onto the mechanism that already existed.**
+
+### 24.3 ⭐ THE SLICING — **and why it is sliced at all**
+
+⛔ `O7` as written in §6 bundles three independent changes. 📐 The inventory prices them very
+differently, so they ship separately, each green:
+
+| slice | what | size |
+|---|---|---|
+| ✅ **`O7a` — THE KEY AND THE LOOKUP** *(LANDED)* | `ComputeHsmStateKey` in the **LINKED** `OccurrenceSlotKey` + `HsmOccurrence` — the runtime seam every thunk will call | **S** |
+| ⏳ **`O7b` — THE EMITTER** | the three thunks call `HsmOccurrence` instead of `Blackboard1024 + 8`; the HSM host emits a manifest entry per hosting `(region, state)`; **a DTO-bound HSM action authored** so §7's *"two regions, two slots"* rail is not vacuous | **M** |
+| ⏳ **`O7c` — THE STORAGE MIGRATION** | HSM instances move from `BrainHsm64`/`BrainHsm128` into slots; those components are **deleted**; `HsmTickSystem` gains entity discovery across the tier components (`F9`); `HsmDebugSession` becomes a list (§11.3) | 🔴 **L — 188 references** |
+
+⚠ **`O7c` is where `F9` and §9.4's *"the tier stops being a TYPE and becomes a PAYLOAD SIZE"* land.**
+⛔ It is NOT a prerequisite for `O7a`/`O7b`: keying an occurrence is independent of where the HSM
+*instance* lives.
+
+### 24.4 ⭐ `O7a` AS BUILT — **the classes**
+
+```mermaid
+classDiagram
+    class OccurrenceSlotKey {
+        <<LINKED into the emitter assembly>>
+        +ComputeHsmStateKey(hostAssetId, regionSlotIndex, stateId, childAssetId) int
+        +ComputeHsmSiteId(regionSlotIndex, stateId) int
+        +ComputeTreeStateKey(hostAssetId, siteNodeVisualId, childAssetId) int
+    }
+    class HsmOccurrence {
+        <<runtime - the LOOKUP>>
+        +KeyFor(hostAssetId, childAssetId, HsmCommandWriter*) int
+        +Resolve~TWorkingState~(world, self, slotKey) ref TWorkingState
+    }
+    class HostedSubtree {
+        <<runtime - the BTree twin>>
+        +Tick(...)
+        +Reset(...)
+    }
+    class HsmCommandWriter {
+        <<ExtDeps - O6 supplies the pair>>
+        +OccurrenceRegionSlotIndex
+        +OccurrenceStateId
+    }
+    HsmOccurrence ..> HsmCommandWriter : reads the stamp
+    HsmOccurrence ..> OccurrenceSlotKey : ONE key function
+    HostedSubtree ..> OccurrenceSlotKey : ONE key function
+    HsmOccurrence ..> OccurrenceStoreAccess : the same store
+```
+
+⭐ **Caption:** the two hosting paradigms are drawn on one canvas deliberately — **two paradigms, ONE
+storage model, ONE key file.** ⛔ The picture is what makes a second key function obviously wrong.
+
+### 24.5 ⭐⭐ THE SITE IS THE PAIR — **and how it differs from `D5`**
+
+| | BTree site *(`D5`)* | HSM site *(`O7a`)* |
+|---|---|---|
+| what it is | an author-placed node with a stable `Guid` | ⭐ a **position in the compiled machine** — `(regionSlotIndex, stateId)` |
+| where it comes from | the asset's own node id | ⭐ **the kernel's per-dispatch stamp** (`O6`) |
+| stability across a recompile | ⭐ stable — the author owns the id | ⚠ **NOT stable if states renumber** — that is what the slot's `StructureHash` is for: the mismatch resets the state rather than misreading it |
+
+⛔ **Both halves of the pair are load-bearing.** Two regions in the SAME state are different
+occurrences; one region moving BETWEEN states is a different occurrence. ⭐ Rail ① asserts each half
+**separately**, so a red tells you *which* half broke — and both red-proofs below confirm it does.
+
+### 24.6 ⭐ `O7a` EVIDENCE
+
+| | |
+|---|---|
+| rails | **6** in `HsmOccurrenceKeyTests`: ① region AND state each discriminate *(the `BP-297` claim)* · ② host and child discriminate · ③ an HSM site can never collide with a BTree site · ④ **`KeyFor` reads a stamp from a REAL kernel tick** and refuses an unstamped writer · ⑤ **two regions get two slots on one entity** — `BP-297` on real memory, not on arithmetic · ⑥ a missing slot throws |
+| red-proof **A** | make the site ignore the REGION ⇒ **0 build errors**, exactly **2 red** — ① and ⑤, the two that carry the `BP-297` claim |
+| red-proof **B** | make the site ignore the STATE ⇒ **0 build errors**, exactly **1 red** — ① alone |
+| ⭐ why two red-proofs | ⛔ one would not distinguish *"the key changed"* from *"the right half of the key changed."* 📐 The pair of proofs is what shows each half is independently load-bearing |
+
+### 24.7 ⚠ WHAT `O7a` DID **NOT** DO — **stated so the seam is not mistaken for adoption**
+
+| | |
+|---|---|
+| ⛔⛔ **no emitted thunk calls it yet** | `O7a` is a seam **with rails but without a production caller**, which this repo's own rule warns about. ⭐ It is deliberate and time-boxed: `O7b` is the adoption, and until it lands the shipped thunks still hard-code `Blackboard1024 + 8` |
+| ⛔ **the provisioning side is unwritten** | who attaches the per-`(region, state)` slot is `O7b`'s question. ⭐ The answer is already shaped: `BehaviorIngressSystem` provisions `def.StatefulWorkingSlots` **without consulting `BrainTier`** (`E1`/`E2`, pinned by `HsmStatefulProvisioningTests`) — so the HSM host emitting manifest entries is all that is missing |
+| ⛔ **`BrainHsm*` still exist** | that is `O7c`, and §9.4's *"after `O7` there is no `BrainHsm*` at all"* remains the target, not the current state |
