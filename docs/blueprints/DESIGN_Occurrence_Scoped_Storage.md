@@ -2586,3 +2586,49 @@ stays green.
 | the emitter's two sites *(`:142`, `:171`)* | route both through `HostedSubtree.Tick` with the baked key |
 | **`HostSubtree(...)`** builder extension | registers the action, the **deactivator** and the manifest entry together *(§19.7 ②)* |
 | §19.4's sizing re-measure | each hosting site costs **80 B + 1 slot**; feeds back into `B4`'s `MaxSlots 3` |
+
+
+## 21. ✅ `O4` / `C1` IS COMPLETE — **the stop-or-go gate is GO** *(`2026-09-20`, obligation ⑤)*
+
+⭐⭐ **Golden `hill-attack-close`** *(port 8181, `--mode all`, `simTime 116`)*: platoon
+**`522.7 · 524.8 · 528.4 · 531.0`** on the baseline *(y `400.0 / 449.7 / 497.5 / 548.5`)*, both targets
+`Health 0`, **0 faults**. ⚠ Within ~1 m of the `B3②`/`B4` runs, as a live multi-node run is — ⛔ not a
+determinism check.
+
+| suite | result |
+|---|---|
+| `Hrot.Blueprints.Tests` | ✅ **3971 / 0** — unchanged by `O4` |
+| `Hrot.BTree.Editor.Tests` | ✅ **633 / 0** |
+| `Hrot.AiEditor.Generators.Tests` | ✅ **280 / 0** |
+| `Hrot.AiEditor.Persistence.Tests` | ✅ **151 / 151** *(+1: the new emit-level guard)* |
+| `Hrot.SimHost.Tests` | ⚠ **3 / 1004** — the pre-existing trio, by name |
+| `Fdp.Toolkits.Tests` | ⚠ **2252 total**, ⛔ **order-sensitive in the full run** — trap ㉗ |
+
+### 21.1 ⭐ WHAT `O4` SHIPPED
+
+| | |
+|---|---|
+| **runtime** | `OccurrenceSlots` *(reserved names, `IdentityOf`, `SiteId`, `TreeStateKeyFor`)* · `HostedSubtree.Tick` / `.Reset` |
+| **the wall** | the names + arithmetic moved into the **LINKED** `OccurrenceSlotKey`, so emitter and runtime cannot drift — the `BlueprintTierLadder` pattern (§17.5) |
+| **emitter** | `BTreeBridgeEmitCore` declares one tree-state slot per hosted subtree · `BTreeOrchestratorEmitCore` routes **both** sites through `HostedSubtree.Tick` |
+| **editor** | `BTreeOrchestratorEmitter` now carries the real site/child ids — ⛔ it would have baked a key from `Guid.Empty`: well-formed, deterministic, **wrong**, and only detectable at runtime |
+| **rails** | 6 runtime *(`HostedSubtreeCursorTests`)* + 2 emit-level guards |
+
+### 21.2 ⚠ WHAT `O4` DID **NOT** DO — **stated so the next session does not assume otherwise**
+
+| | |
+|---|---|
+| ⛔ **the root occurrence still lives in `BrainBTreeState`** | §19.7 ① concluded both halves must ship together; 📐 measuring proved that **too strong** — `hostKey` is a disambiguator folded into a hash and never dereferences anything, so a canonical IDENTITY suffices. ⭐ Moving the root state into a slot remains a separate change |
+| ⛔ **end-to-end ABANDON is unmeasured** | rail ②b drives `Reset` directly; the interpreter's composites resume the running branch by design, so a genuine mid-flight abandon needs a `Parallel` or a reactive abort. ⭐ ②c pins that the deactivator is WIRED |
+| 🔴 **the EXTERNAL reset path is uncovered** | `BehaviorIngressSystem:204`/`:235` set `BrainBTreeState.State = default` on a behaviour change — **without a tick**, so no sweep fires and no deactivator runs ⇒ a hosted child's slot keeps stale state across a behaviour swap. **Found while wiring `D4`; not fixed** |
+| ⚠ **§19.4's sizing re-measure is VACUOUS TODAY, and that is the honest answer** | 📐 **0** assets carry an alias ⇒ no asset gains a hosting-site slot ⇒ `B4`'s `MaxSlots 3` is **unmoved**. ⭐ The 80 B + 1 slot cost becomes real when someone first authors a hosted subtree. ⛔ Re-deriving a number from content that does not exist would be invention |
+
+### 21.3 ⭐⭐⭐ THE GATE VERDICT
+
+🔒 **`O4` proved the model with ZERO ExtDeps change**, which is exactly what §6 asked of it:
+`BehaviorTreeState` untouched, no new delegate parameter, no `BTreeContext` field, no kernel edit.
+⇒ ⭐ **GO** — `O5` and `O6` may proceed on this storage model.
+
+⚠ **One caveat on how much the golden proves here:** 📐 **0** assets exercise subtree hosting, so the
+golden shows `O4` **broke nothing**; it does **not** exercise the new path. ⭐ That path's evidence is
+the 6 runtime rails and the red-proof *(reverting only the hosting argument reddens only rail ①)*.
