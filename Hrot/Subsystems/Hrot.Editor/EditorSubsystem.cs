@@ -2317,7 +2317,21 @@ namespace Hrot.Editor
                     _debugApiService = debugService;
                     _debugApiHost.AttachService(debugService);
                     _debugApiHost.Start();
-                    System.Console.WriteLine($"[DebugApi] AI-debug API (MCP control plane) listening on http://localhost:{debugApiPort}/");
+                    // ⛔⛔ TWO TRAPS THIS LINE EXISTS TO DEFUSE, both measured 2026-09-20 and both
+                    //    cost a Windows session a round trip:
+                    //    ① It used to be Console.WriteLine. A host that captures the LOG but not
+                    //       stdout therefore had no record at all, and "the debug API is absent in
+                    //       -m editor" was reported when it was running fine. ⇒ it goes through
+                    //       FdpLog like every other lifecycle line.
+                    //    ② The phrase must MATCH the cluster's (Program.cs "Debug API listening on"),
+                    //       because that is the string people grep. It used to read "AI-debug API
+                    //       (MCP control plane) listening on", so grepping the cluster's wording
+                    //       found nothing here and read as "never started".
+                    // ⚠ And the URL is spelled out because HttpListener binds the HOSTNAME: a request
+                    //    to 127.0.0.1 404s on EVERY route (RUNBOOK_Cluster_Debugging_Over_Http §2.1).
+                    Fdp.Core.Logging.FdpLog<EditorSubsystem>.Info(
+                        "[Editor] Debug API listening on {0} — AI-debug/MCP control plane at http://localhost:{0}/ (use localhost, NOT 127.0.0.1).",
+                        debugApiPort);
                 }
             }
 
