@@ -64,6 +64,32 @@ public static unsafe class HsmOccurrence
     }
 
     /// <summary>
+    /// ⭐⭐⭐ <c>E3b-0</c> — <b>the byte offset this occurrence's params SEED from</b>, for the stamped
+    /// <c>(machine, state)</c>. 📄 §28.6.
+    ///
+    /// <para>⭐ <b>One call, so the emitted thunk stays trivial</b> — it reads the machine id from the
+    /// instance header and the state from the stamp, exactly as <see cref="KeyFor"/> does, and asks
+    /// <see cref="HsmParamBindings"/>. ⛔ Re-deriving either in generated code is how the two would
+    /// drift.</para>
+    ///
+    /// <para>⚠ <b>Returns <see cref="HsmParamBindings.UnboundOffset"/> for an unbound state</b>, which
+    /// is the pre-<c>E3b-0</c> behaviour byte-for-byte. ⛔ Unlike <see cref="KeyFor"/> this does NOT
+    /// refuse an unstamped writer: a seed with no stamp still has a truthful answer — offset 0 — and
+    /// the unstamped case is already refused loudly by <see cref="KeyFor"/> one line earlier in every
+    /// emitted body.</para>
+    /// </summary>
+    public static int SeedParamsOffset(void* hsmInstance, HsmCommandWriter* writer)
+    {
+        if (writer == null || hsmInstance == null) return HsmParamBindings.UnboundOffset;
+
+        ushort state = writer->OccurrenceStateId;
+        if (state == HsmCommandWriter.NoStateId) return HsmParamBindings.UnboundOffset;
+
+        uint machineId = ((InstanceHeader*)hsmInstance)->MachineId;
+        return HsmParamBindings.SeedOffsetFor(machineId, state);
+    }
+
+    /// <summary>
     /// The same key from an explicit machine id — for hand-written hosts and for rails that want to
     /// state the host rather than construct an instance. ⛔ ONE key function underneath, always.
     /// </summary>

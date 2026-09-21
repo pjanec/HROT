@@ -363,16 +363,23 @@ internal static class AiPrimitiveEmitter
     /// (<c>DetachHostedOccurrenceSlots</c>): without it a re-assign's new JSON would never reach the
     /// slot, because this seed only runs when the slot is created.</para>
     /// </summary>
-    private static void EmitParamSeed(CSharpEmitter e)
+    private static void EmitParamSeed(CSharpEmitter e, string offsetExpr)
     {
         e.WriteLine("if (freshlyAttached)");
         e.WriteLine("{");
         e.Indent();
         e.WriteLine("// E3a SEED (§28.4): the bytes this thunk read LIVE before params moved into the");
         e.WriteLine("//   slot. Copying them makes the move byte-identical at the first dispatch.");
+        if (offsetExpr != "0")
+        {
+            e.WriteLine("// E3b-0 (§28.6): …and WHICH bytes is the STATE's own binding, not always the");
+            e.WriteLine("//   first variable — that is what lets two parallel regions differ.");
+            e.WriteLine($"int __seedOffset = {offsetExpr};");
+            offsetExpr = "__seedOffset";
+        }
         e.WriteLine("*__params = global::System.Runtime.CompilerServices.Unsafe.As<byte, Params>(");
         e.WriteLine("    ref global::System.Runtime.CompilerServices.Unsafe.AddByteOffset(");
-        e.WriteLine("        ref bb.BehaviorParameters[0], (nint)0));");
+        e.WriteLine($"        ref bb.BehaviorParameters[0], (nint){offsetExpr}));");
         e.WriteLine("InitDefaultWorkingState((WorkingState*)global::System.Runtime.CompilerServices.Unsafe.AsPointer(ref ws));");
         e.Outdent();
         e.WriteLine("}");
@@ -435,7 +442,9 @@ internal static class AiPrimitiveEmitter
         e.WriteLine("ref var ws = ref global::Fdp.Toolkit.Behavior.OccurrenceWorkingState.ResolveOrAttach<Params, WorkingState>(");
         e.WriteLine("    ctx.World, ctx.Self, occurrenceKey, StructureHash,");
         e.WriteLine("    global::Fdp.Toolkit.Blueprints.Partitioning.OccurrenceKind.Blueprint, out bool freshlyAttached, out Params* __params);");
-        EmitParamSeed(e);
+        // ⭐ Offset 0, and TRUE BY CONSTRUCTION here: standalone hosting is the single-
+        //   occurrence case (the `@0` in its own registration key). ⛔ No site to bind.
+        EmitParamSeed(e, "0");
         e.WriteLine("ref var p = ref *__params;");
         e.WriteLine(tail);
     }
@@ -485,7 +494,7 @@ internal static class AiPrimitiveEmitter
         e.WriteLine("int occurrenceKey = global::Fdp.Toolkit.Behavior.HsmOccurrence.KeyFor(instance, AssetId, writer);");
         e.WriteLine("ref var ws = ref global::Fdp.Toolkit.Behavior.HsmOccurrence.ResolveOrAttach<Params, WorkingState>(");
         e.WriteLine("    world, bridge->Self, occurrenceKey, StructureHash, out bool freshlyAttached, out Params* __params);");
-        EmitParamSeed(e);
+        EmitParamSeed(e, "global::Fdp.Toolkit.Behavior.HsmOccurrence.SeedParamsOffset(instance, writer)");
         e.WriteLine("ref var p = ref *__params;");
         e.WriteLine(tail);
     }

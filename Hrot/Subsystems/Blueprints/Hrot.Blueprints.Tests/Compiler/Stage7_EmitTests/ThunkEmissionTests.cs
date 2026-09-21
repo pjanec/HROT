@@ -185,8 +185,39 @@ public sealed class ThunkEmissionTests
         Assert.True(fresh >= 0 && seed > fresh,
             "the blackboard copy must sit INSIDE the freshlyAttached arm — a seed, not a live read");
 
-        // ⛔ And it appears exactly ONCE: a second occurrence would be a live read that slipped back in.
-        Assert.Equal(1, CountOccurrences(src, "ref bb.BehaviorParameters[0], (nint)0"));
+        // ⭐⭐⭐ E3b-0 (§28.6): and the seed offset is the STATE'S OWN BINDING, not a literal 0 —
+        //    that is what lets two parallel regions seed from different variables.
+        Assert.Contains("int __seedOffset = global::Fdp.Toolkit.Behavior.HsmOccurrence.SeedParamsOffset(instance, writer);", src);
+        Assert.Contains("ref bb.BehaviorParameters[0], (nint)__seedOffset", src);
+
+        // ⛔ …and the HSM thunk no longer bakes a literal 0 anywhere.
+        Assert.Equal(0, CountOccurrences(src, "ref bb.BehaviorParameters[0], (nint)0"));
+    }
+
+    /// <summary>
+    /// ⭐⭐ <b><c>E3b-0</c> — the STANDALONE BTree thunk keeps the literal <c>0</c>, and that is CORRECT
+    /// BY CONSTRUCTION.</b>
+    ///
+    /// <para>⛔ Standalone hosting is the single-occurrence case — the <c>@0</c> in its own registration
+    /// key has always said so, and <c>O7d</c>'s slot key is ASSET-scoped for the same reason. ⭐ There is
+    /// no site to bind, so asking a binding table would be a lookup whose answer is always 0.</para>
+    ///
+    /// <para>⚠ The rail exists because the obvious wrong symmetry is to route BOTH paths through the
+    /// binding — which would add a per-dispatch lookup to the path that provably cannot need one.</para>
+    /// </summary>
+    [Fact]
+    public void StandaloneThunk_KeepsTheLiteralZeroSeed_E3b0()
+    {
+        var asset = BlueprintAssetBuilder
+            .AiPrimitive("StandaloneSeed")
+            .WithHostings(AiPrimitiveHosting.BTreeAction)
+            .WithGraph("Main", g => g.Entry().Return())
+            .Build();
+
+        var src = EmitAndGetSource(asset);
+
+        Assert.Contains("ref bb.BehaviorParameters[0], (nint)0", src);
+        Assert.DoesNotContain("SeedParamsOffset", src);
     }
 
     private static int CountOccurrences(string haystack, string needle)

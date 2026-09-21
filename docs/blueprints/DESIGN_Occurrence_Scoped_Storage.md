@@ -3638,3 +3638,25 @@ stamp. ⇒ **the seed reads offset `X` instead of `0`.**
 ⚠ **The editor PICKER for ① is a UI-lane surface** *(`Hrot.Hsm.Editor`'s `HsmPickerDrawers` /
 `HsmFacetDispatcher`)*. ⭐ The field is authorable in JSON without it, which is enough to rail ②+③ —
 ⛔ so the picker is flagged for the UI lane, not smuggled in here.
+
+#### 28.6b ✅ `E3b-0` AS BUILT — **and a COVERAGE GAP it exposed** *(`2026-09-21`)*
+
+| part | where |
+|---|---|
+| **①** the authoring binding | `StateNodeDto.ExpressionTargetField` — **ONE field for all four action slots**, because the occurrence key is `(region, state, childAsset)`: every action slot of one state hosting one blueprint resolves to the SAME slot. ⛔ Four fields would offer a distinction the storage cannot express |
+| **②** the table | `HsmBridgeEmitCore.EmitStateParamBindings` bakes `(StableId, offset)` pairs; `HsmParamBindings.Register` resolves them to flat indices through the blob's own `MachineMetadata.StateStableIds` ⇒ ⭐ **the emitter never needs the flattener's ordering** |
+| **③** the consumer | `HsmOccurrence.SeedParamsOffset(instance, writer)` — reads the **same stamp** `KeyFor` does, so params and working state cannot resolve for different occurrences |
+
+⭐⭐ **Additive by construction:** an unbound state answers `UnboundOffset` (`0`) — the pre-`E3b-0`
+behaviour byte-for-byte — and an asset with no bound state **emits nothing at all**, so every asset
+authored before this stays byte-identical. ⚠ That gating is the `AssetId` lesson applied.
+
+🔒 **The user's ruling holds:** the HSM registrar maps its **own** states to its **own** blackboard
+variables; the blueprint side only asks *"what offset for this `(machine, state)`?"*.
+
+⛔⛔ **THE COVERAGE GAP — measured, and it is why `E3b-0` moved ZERO goldens.**
+📐 **Not one asset in the golden corpus declares HSM hosting** *(`grep -rl "hsmAction: true|hsmGuard: true"`
+over `Snapshots/` ⇒ **0 files**)*. ⇒ ⚠ **the emitted HSM thunk shape has NO golden coverage whatsoever**;
+its only guard is `ThunkEmissionTests`. 🔴 **That is why an HSM emitter change can look free** — and it
+is the same blind spot that let `BP-297` ship. ⭐ Worth a golden asset with HSM hosting; ⛔ filed as an
+observation here rather than smuggled into this slice.

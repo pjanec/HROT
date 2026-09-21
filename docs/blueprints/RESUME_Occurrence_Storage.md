@@ -82,7 +82,29 @@ current-answer: §3 — ⭐⭐ THE NEXT ACTION IS E3 (E7a + CE-298, together —
   red-proof and it reddens alone when the call is removed.
   ⭐ A3/D1's Kind nibble is what makes the detach PRECISE — kind Hsm/Blueprint AND not named by the
   manifest, so provisioned slots survive.
-  ⭐⭐ NEXT ACTION: E3b — per-site authored VALUES. Every occurrence still seeds from the SAME
+  ✅ E3b-0 IS LANDED 2026-09-21 (design §28.6 / §28.6a / §28.6b) — HSM states can now bind their own
+  blackboard variable, so two parallel regions seed from DIFFERENT values.
+  🔒 FOUND BY THE USER ASKING "do the decisions still look healthy from today's point of view?" —
+  every Q41/Q43 decision re-measured TRUE, but C1'/C2' resolve PER VARIABLE and a site reaches a
+  variable via ExpressionTargetField, which BTree nodes and HSM TRANSITIONS have and HSM STATES did
+  not. So E3b as designed closed the BTree case and left open the HSM parallel-regions case CE-298
+  was filed for. Not an error in Q41/Q43: Q41 was framed from a BTree question.
+  ⛔ AND IT WAS BIGGER THAN "ADD A DTO FIELD": the BTree bridge emits one adapter PER NODE at a
+  per-site key; HSM registers ONE thunk per ushort action id, so there is nowhere to bake a per-site
+  offset. What made it tractable is that E3a had already moved the params — the binding only has to
+  reach the SEED, which already holds O6's stamp. Three parts: the DTO field; HsmBridgeEmitCore emits
+  a (StableId, offset) table; the seed consults it via HsmOccurrence.SeedParamsOffset.
+  ⭐ The StableId→flat-index join is the blob's OWN MachineMetadata.StateStableIds, so the emitter
+  never needs the flattener's ordering. And the HSM still learns nothing about blueprints.
+  ⭐ ADDITIVE: unbound ⇒ offset 0 (pre-E3b-0 byte-for-byte); no bound state ⇒ emits nothing.
+  ⭐ Rails O7_R28–O7_R31 (R31 drives a REAL kernel tick) + 3 emission guards + 1 standalone guard.
+  Red-proof: neutering the offset reddens exactly R28/R29/R31; R30 (no metadata) correctly stays green.
+  ⛔⛔ COVERAGE GAP FOUND: ZERO goldens declare HSM hosting, so the emitted HSM thunk shape has NO
+  golden coverage — only ThunkEmissionTests. That is why this moved zero goldens, and it is the same
+  blind spot that let BP-297 ship. Worth a golden asset with HSM hosting; filed as an observation.
+  ⭐⭐ NEXT ACTION: E3b proper — Q41-C1' (emit the resolve hook), then C2', then Q43. The binding
+  E3b-0 added is what makes a per-site resolver meaningful.
+  (HISTORY) E3b — per-site authored VALUES. Every occurrence still seeds from the SAME
   variable, so two regions get their own COPY of one authored value. The design is DONE and
   APPROVED, not open: Architect_Question_41 (C1' = emit the resolve hook, named there as the
   enabler) then C2', and Architect_Question_43 (resolver authored as a blueprint) — both marked

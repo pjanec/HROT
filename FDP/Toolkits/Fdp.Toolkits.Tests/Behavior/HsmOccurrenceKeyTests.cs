@@ -1008,7 +1008,155 @@ public sealed unsafe class HsmOccurrenceKeyTests
         Assert.True(BlueprintBlackboardPartitions.TryGetSlotOffset(store, manifest[0].SlotKey, out _));
     }
 
+    /// <summary>
+    /// 🔴🔴🔴 <b>Rail ㉘ — <c>E3b-0</c>: two states seed their params from DIFFERENT variables.</b>
+    /// 📄 §28.6.
+    ///
+    /// <para>⛔⛔ <b>This is the case <c>E3a</c> could NOT close.</b> <c>E3a</c> gave each occurrence its
+    /// own params BYTES, but every one of them seeded from <c>BehaviorParameters[0] + 0</c> — so two
+    /// regions got their own COPY of the SAME authored value. ⭐ The binding is what makes them differ.</para>
+    /// </summary>
+    [Fact]
+    public void O7_R28_TwoStatesSeedFromTheirOwnBoundVariables()
+    {
+        HsmParamBindings.ClearAll();
+        try
+        {
+            var stateA = new Guid("07000000-0000-0000-0000-00000000e3a1");
+            var stateB = new Guid("07000000-0000-0000-0000-00000000e3b1");
+
+            HsmParamBindings.Register(BlobWithMetadata(stateA, stateB), new[] { (stateA, 0), (stateB, 8) });
+
+            // ⭐⭐ THE RAIL. 🔴 Before E3b-0 both answered 0 — one variable for every region.
+            Assert.Equal(0, HsmParamBindings.SeedOffsetFor(HostMachine, stateId: 1));
+            Assert.Equal(8, HsmParamBindings.SeedOffsetFor(HostMachine, stateId: 2));
+        }
+        finally { HsmParamBindings.ClearAll(); }
+    }
+
+    /// <summary>
+    /// ⭐⭐ <b>Rail ㉙ — an UNBOUND state seeds from 0: the pre-<c>E3b-0</c> behaviour, byte-for-byte.</b>
+    ///
+    /// <para>⛔ Unbound is the COMMON case — every asset authored before this, and every state that
+    /// hosts nothing. ⚠ A sentinel or a throw would push a decision into the emitted thunk, which must
+    /// stay trivial, and would make <c>E3b-0</c> breaking instead of additive.</para>
+    /// </summary>
+    [Fact]
+    public void O7_R29_AnUnboundStateSeedsFromZero()
+    {
+        HsmParamBindings.ClearAll();
+        try
+        {
+            var stateA = new Guid("07000000-0000-0000-0000-00000000e3a2");
+            HsmParamBindings.Register(BlobWithMetadata(stateA, Guid.NewGuid()), new[] { (stateA, 16) });
+
+            Assert.Equal(16, HsmParamBindings.SeedOffsetFor(HostMachine, stateId: 1));
+
+            // ⭐⭐ THE RAIL — an unbound state AND an unknown machine both answer 0.
+            Assert.Equal(0, HsmParamBindings.SeedOffsetFor(HostMachine, stateId: 2));
+            Assert.Equal(0, HsmParamBindings.SeedOffsetFor(0xDEADBEEF, stateId: 1));
+        }
+        finally { HsmParamBindings.ClearAll(); }
+    }
+
+    /// <summary>
+    /// ⭐⭐⭐ <b>Rail ㉚ — the binding is keyed by AUTHORING identity and resolved through the BLOB.</b>
+    ///
+    /// <para>⭐ The emitter bakes <c>StableId</c>s because it does not know the flattener's ordering;
+    /// <c>MachineMetadata.StateStableIds</c> recovers the flat index at runtime. ⛔ A blob with NO
+    /// metadata registers nothing — correctly and silently: a hand-built blob has no authoring identity
+    /// to resolve, and every state then seeds from 0.</para>
+    /// </summary>
+    [Fact]
+    public void O7_R30_ABlobWithoutMetadataRegistersNothing()
+    {
+        HsmParamBindings.ClearAll();
+        try
+        {
+            HsmParamBindings.Register(
+                BuildTwoRegionBlob(actionId: 0),                       // no Metadata sidecar
+                new[] { (new Guid("07000000-0000-0000-0000-00000000e3a3"), 24) });
+
+            // ⭐⭐ THE RAIL. Nothing registered, no throw, and the seed falls back to 0.
+            Assert.Equal(0, HsmParamBindings.Count);
+            Assert.Equal(0, HsmParamBindings.SeedOffsetFor(HostMachine, stateId: 1));
+        }
+        finally { HsmParamBindings.ClearAll(); }
+    }
+
+    /// <summary>
+    /// ⭐⭐⭐ <b>Rail ㉛ — END TO END, THROUGH A REAL KERNEL TICK: two parallel regions resolve two
+    /// different seed offsets in ONE dispatch.</b>
+    ///
+    /// <para>🔒 This is the rail the whole of <c>E3b-0</c> exists for, and it is deliberately driven by
+    /// <c>HsmKernel.Update</c> rather than by calling the seam twice with different numbers — the same
+    /// standard rail ⑫ set. ⛔ It also pins that <c>SeedParamsOffset</c> and <c>KeyFor</c> read the SAME
+    /// stamp: if they ever diverged, params would seed for one occurrence while the working state
+    /// resolved for another, with no symptom until two regions disagreed.</para>
+    /// </summary>
+    [Fact]
+    public void O7_R31_TwoRegionsResolveTwoSeedOffsetsInOneTick()
+    {
+        const ushort ActionId = 0x0E3B;
+        HsmParamBindings.ClearAll();
+        Fhsm.Kernel.HsmActionDispatcher.ClearAll();
+        SeenSeeds.Clear();
+        try
+        {
+            var stateA = new Guid("07000000-0000-0000-0000-00000000e3a5");
+            var stateB = new Guid("07000000-0000-0000-0000-00000000e3b5");
+
+            var blob = BuildTwoRegionBlob(ActionId);
+            blob.Metadata = new MachineMetadata();
+            blob.Metadata.StateStableIds[1] = stateA;
+            blob.Metadata.StateStableIds[2] = stateB;
+            HsmParamBindings.Register(blob, new[] { (stateA, 0), (stateB, 8) });
+
+            Fhsm.Kernel.HsmActionDispatcher.RegisterAction(
+                ActionId, (IntPtr)(delegate* <void*, void*, HsmCommandWriter*, void>)&RecordingSeed);
+
+            var inst = new HsmInstance128();
+            inst.Header.MachineId = HostMachine;
+            inst.Header.Phase = InstancePhase.Entry;
+            for (int r = 0; r < 4; r++) inst.ActiveLeafIds[r] = 0xFFFF;
+
+            var ctx = 0;
+            var page = default(CommandPage);
+            Fhsm.Kernel.HsmKernel.Update(blob, ref inst, in ctx, 0.016f, ref page);
+
+            // Non-vacuity: the parallel root really did fan out into two regions.
+            Assert.Equal(2, SeenSeeds.Count);
+
+            // ⭐⭐ THE RAIL. One asset, one tick, two regions — and TWO DIFFERENT seed offsets.
+            //    🔴 Before E3b-0 both would be 0.
+            Assert.Contains((1, (ushort)1, 0), SeenSeeds);
+            Assert.Contains((2, (ushort)2, 8), SeenSeeds);
+        }
+        finally
+        {
+            Fhsm.Kernel.HsmActionDispatcher.ClearAll();
+            HsmParamBindings.ClearAll();
+        }
+    }
+
     // ── helpers ──────────────────────────────────────────────────────────────────
+
+    /// <summary>A blob whose metadata maps flat states 1 and 2 to two authoring ids.</summary>
+    private static HsmDefinitionBlob BlobWithMetadata(Guid stateOne, Guid stateTwo)
+    {
+        var blob = BuildTwoRegionBlob(actionId: 0);
+        blob.Metadata = new MachineMetadata();
+        blob.Metadata.StateStableIds[1] = stateOne;
+        blob.Metadata.StateStableIds[2] = stateTwo;
+        return blob;
+    }
+
+    private static readonly List<(int Region, ushort State, int SeedOffset)> SeenSeeds = new();
+
+    /// <summary>Captures exactly what an emitted HSM thunk's seed computes, per dispatch.</summary>
+    private static void RecordingSeed(void* instance, void* context, HsmCommandWriter* writer)
+        => SeenSeeds.Add((writer->OccurrenceRegionSlotIndex, writer->OccurrenceStateId,
+                          HsmOccurrence.SeedParamsOffset(instance, writer)));
 
     private static Fdp.Toolkit.Behavior.Systems.BehaviorIngressSystem? _reassignSystem;
 
