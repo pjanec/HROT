@@ -600,7 +600,19 @@ namespace Hrot.ExCon
                 windowManager.RegisterWindow(new ExConSpawnerWindow(_mock.GetSpawnerPanel(), _mock.SpawnController));
                 windowManager.RegisterWindow(new ExConConfigWindow(_mock.GetConfigPanel(), _mock.MapConfigAdapter));
                 windowManager.RegisterWindow(new ExConDiagnosticsWindow(_mock.GetDiagnosticsPanel(), logic));
-                windowManager.RegisterWindow(new ExConDerEntityInspectorWindow(_mock.GetDerEntityInspectorPanel(), logic));
+                // ⭐⭐⭐ UXI-11 S-4 — THE DER INSPECTOR'S SEAM, WIRED. 📄 §2.7.13.
+                // 🔒 Ruling ① (2026-09-10): "inspector selection changes global entity selection state.
+                //    not just map, not just editor, everywhere, every host, unified behavior."
+                // 📐 On ExCon the global selection is the REMOTE map's, so the seam is the network-id
+                //    boundary: SendSetSelection writes CMD_SET_SELECTION, SelectedEntityId reads back
+                //    what the map reports (ExConLogic:836 already updates it from SelectionChangedEvent).
+                // ⛔ This is why the DER panel needed no new event — IDerEntity.EntityId IS a network id.
+                // ⚠ BEHAVIOUR CHANGE: clicking a row in the DER inspector now moves the remote map's
+                //   selection. That is the ruling; before, it moved nothing but this panel's own field.
+                var derPanel = _mock.GetDerEntityInspectorPanel();
+                derPanel.RequestSelectEntity   = id => logic.SendSetSelection(id);
+                derPanel.HostSelectedNetworkId = () => logic.SelectedEntityId;
+                windowManager.RegisterWindow(new ExConDerEntityInspectorWindow(derPanel, logic));
                 _mock.SetPanelsWindowManaged();
             }
 

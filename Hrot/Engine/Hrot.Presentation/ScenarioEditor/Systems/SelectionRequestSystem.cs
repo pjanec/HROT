@@ -45,7 +45,7 @@ namespace Hrot.ScenarioEditor.Systems;
 /// ⛔ Not <c>Simulation</c>: that runs on background threads and this touches ImGui-adjacent host state.</para>
 /// </remarks>
 [UpdateInPhase(SystemPhase.PostSimulation)]
-public sealed class SelectEntitySystem : IEcsModuleSystem
+public sealed class SelectionRequestSystem : IEcsModuleSystem
 {
     private readonly Func<ISelectionState?> _selection;
     private readonly Action<Entity>? _alsoSelect;
@@ -59,7 +59,7 @@ public sealed class SelectEntitySystem : IEcsModuleSystem
     /// parallel be deleted without losing the inspector follow-through — ⛔ rather than pushing a panel
     /// type into this assembly.</para>
     /// </param>
-    public SelectEntitySystem(Func<ISelectionState?> selection, Action<Entity>? alsoSelect = null)
+    public SelectionRequestSystem(Func<ISelectionState?> selection, Action<Entity>? alsoSelect = null)
     {
         _selection  = selection ?? throw new ArgumentNullException(nameof(selection));
         _alsoSelect = alsoSelect;
@@ -74,6 +74,10 @@ public sealed class SelectEntitySystem : IEcsModuleSystem
         var selection = _selection();
         if (selection == null) return;
 
+        // ── the NETWORK-ID-addressed form: the boundary (UXI-11 S-2) ─────────────
+        // ⭐ SelectEntityCommand stays because panels and the orbat address entities by network id
+        //   and must not learn about ECS handles. 🔒 §2.7.3 rule 7 — selection is host-local and the
+        //   wire form is translated AT THE BOUNDARY. This loop is that boundary, and it is one line.
         foreach (ref readonly var cmd in world.Bus.Read<SelectEntityCommand>())
         {
             // ⭐ BP-508 — the ONE resolver (R-77).
@@ -82,6 +86,90 @@ public sealed class SelectEntitySystem : IEcsModuleSystem
 
             selection.PrimarySelected = target;
             _alsoSelect?.Invoke(target);
+            Announce(world, selection, "SelectEntityCommand");
         }
+
+        // ── the ENTITY-addressed form with a set and a mode (UXI-11 S-2) ─────────
+        foreach (var req in world.Bus.ReadManaged<SelectionChangeRequest>())
+        {
+            if (req == null) continue;
+
+            Apply(world, selection, req);
+        }
+    }
+
+    /// <summary>
+    /// ⭐⭐⭐ <b>Announces what the selection BECAME.</b> 📄 §2.7.2 — <c>UXI-11</c> slice <c>S-3</c>.
+    ///
+    /// <para>⚠ <b>Published AFTER the store is written, in the same tick</b>, so a consumer that reads
+    /// <c>ISelectionState</c> while handling the notification sees the new value. ⛔ Announcing first
+    /// would hand every subscriber the state it is replacing.</para>
+    ///
+    /// <para>⭐ It carries the WHOLE selection, not a delta — a subscriber that missed a frame is
+    /// correct again after the next one, and it never has to keep a running copy (which is the
+    /// parallel-store disease <c>S-1</c> removed).</para>
+    /// </summary>
+    private static void Announce(EntityRepository world, ISelectionState selection, string? reason)
+    {
+        // ⚠ A COPY, not the live collection. EcsSelectionState.SelectedEntities hands back its own
+        //   observation buffer, which it rewrites on the next read ⇒ handing that to subscribers
+        //   would give them a list that silently changes underneath them.
+        var snapshot = new System.Collections.Generic.List<Entity>(selection.SelectedEntities);
+
+        world.Bus.PublishManaged(new SelectionChangedNotification
+        {
+            Selected = snapshot,
+            Primary  = selection.PrimarySelected,
+            Reason   = reason,
+        });
+    }
+
+    /// <summary>
+    /// ⭐⭐⭐ <b>The ONE place the selection changes.</b> 📄 <c>UX_Feature_Selection.md</c> §2.7.3 rule 1.
+    /// ⚠ Dead entities are dropped here rather than at the publisher: a request may sit on the bus for
+    /// a frame, and whether its targets are still alive is a question only this point can answer.
+    /// </summary>
+    private void Apply(EntityRepository world, ISelectionState selection, SelectionChangeRequest req)
+    {
+        if (req.Mode == SelectionChangeMode.Clear)
+        {
+            selection.Clear();
+            // ⚠⚠ A CLEAR IS A CHANGE AND MUST BE ANNOUNCED. 📌 It was not, for about ten minutes:
+            //    this branch returned early and skipped the Announce at the foot of the method, so
+            //    every subscriber kept painting the selection that had just been emptied — the exact
+            //    "accepted and silently discarded" shape. ⭐ Caught by
+            //    ClearingTheSelectionClearsTheInspectorContext, which is why that rail exists.
+            Announce(world, selection, req.Reason);
+            return;
+        }
+
+        var live = new System.Collections.Generic.List<Entity>(req.Entities.Count);
+        foreach (var e in req.Entities)
+            if (!e.IsNull && world.IsAlive(e)) live.Add(e);
+
+        switch (req.Mode)
+        {
+            case SelectionChangeMode.Replace:
+                // ⚠ An empty REPLACE clears -- which is what an empty-space click means. ⛔ It is NOT
+                //   the same as "the request named entities and they all died"; that also clears, and
+                //   deliberately: selecting nothing is the honest outcome either way.
+                selection.SetMultiple(live);
+                break;
+
+            case SelectionChangeMode.Add:
+                foreach (var e in live) selection.Add(e);
+                break;
+
+            case SelectionChangeMode.Remove:
+                foreach (var e in live) selection.Remove(e);
+                break;
+        }
+
+        // ⭐ The host hook runs for the primary, as it does on the network-id path, so a host that
+        //   follows selection with its own panel wiring behaves the same whichever form was used.
+        if (_alsoSelect != null && selection.PrimarySelected is { } primary && !primary.IsNull)
+            _alsoSelect(primary);
+
+        Announce(world, selection, req.Reason);
     }
 }

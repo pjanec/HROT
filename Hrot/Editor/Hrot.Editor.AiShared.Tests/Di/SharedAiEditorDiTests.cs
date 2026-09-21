@@ -52,12 +52,8 @@ public class SharedAiEditorDiTests
     //    window is retired (§7.6 ⑤) and the DI extension no longer registers it. The Details views that
     //    replaced its arms are registered by PerspectiveWorkspaceRegistrar, not by this extension.
 
-    [Fact]
-    public void AddSharedAiEditor_Resolves_RuntimeInspectorWindow()
-    {
-        using var sp = BuildSp();
-        Assert.NotNull(sp.GetRequiredService<RuntimeInspectorWindow>());
-    }
+    // ⛔ CE-303: the RuntimeInspectorWindow singleton is GONE — the window dissolved into
+    //    details.runtime.<kind> views (§4's Q-iii). There is no window to resolve.
 
     [Fact]
     public void AddSharedAiEditor_Resolves_TraceTimelineWindow()

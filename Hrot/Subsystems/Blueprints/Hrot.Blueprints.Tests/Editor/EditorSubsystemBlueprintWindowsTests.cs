@@ -23,7 +23,8 @@ public sealed class EditorSubsystemBlueprintWindowsTests
 
     private static readonly string[] BTreeWindowIds =
     [
-        "ai_runtime_inspector_btree",
+        // ⛔ CE-303 (2026-09-21): 'ai_runtime_inspector_*' is GONE — RuntimeInspectorWindow
+        //    dissolved into details.runtime.<kind> views (§4's closed question Q-iii).
         "ai_trace_timeline_btree",
         "ai_find_results_btree",
         "ai_blackboard_variables_btree",
@@ -32,7 +33,6 @@ public sealed class EditorSubsystemBlueprintWindowsTests
 
     private static readonly string[] HsmWindowIds =
     [
-        "ai_runtime_inspector_hsm",
         "ai_trace_timeline_hsm",
         "ai_find_results_hsm",
         "ai_blackboard_variables_hsm",
@@ -41,7 +41,6 @@ public sealed class EditorSubsystemBlueprintWindowsTests
 
     private static readonly string[] BlueprintWindowIds =
     [
-        "ai_runtime_inspector_blueprint",
         "ai_trace_timeline_blueprint",
         "ai_find_results_blueprint",
         "ai_blackboard_variables_blueprint",

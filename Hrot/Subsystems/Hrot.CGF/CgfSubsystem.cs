@@ -370,7 +370,13 @@ public sealed class CgfSubsystem : ISubsystem, Fdp.Toolkit.Runner.IMapCameraProv
 
     // ── Visualization ─────────────────────────────────────────────────────────
     private MapCanvas?                 _canvas;
-    private DefaultSelectionState?     _selectionState;
+    // ⭐⭐⭐ UXI-11 S-1 -- the VIEW, not a store. 📄 UX_Feature_Selection.md §2.7.
+    // ⛔ This was a DefaultSelectionState: a HashSet with no connection to the world, while
+    //   SelectionInteractionSystem wrote the SelectionState component. Two stores, one concept.
+    private ISelectionState?           _selectionState;
+
+    /// ⭐ UXI-11 — the shared map pack; the selection view and the scheduled systems come from it.
+    private Hrot.ScenarioEditor.Map.MapInteraction? _cgfMapInteraction;
     // (Phase 5: _interactionTool removed; entity selection via ECS gizmos)
     private EntityQuery?               _entityQuery;
     private Fdp.Toolkit.Diagnostics.Gizmos.DebugPrimitiveBuffer? _cgfGizmoBuffer;
@@ -1303,12 +1309,17 @@ public sealed class CgfSubsystem : ISubsystem, Fdp.Toolkit.Runner.IMapCameraProv
         // before Kernel.Initialize() because the GizmoInteractionModule is registered here.
         // UXI-23 S2b: the buffer, both registries, the reflection pass and the three systems come from
         // the shared pack. 🔒 The pack CONSTRUCTS; CGF still SCHEDULES, below.
-        var cgfMapInteraction = Hrot.ScenarioEditor.Map.MapInteractionPack.Build(
+        _cgfMapInteraction = Hrot.ScenarioEditor.Map.MapInteractionPack.Build(
             new Hrot.ScenarioEditor.Map.MapInteractionContext
             {
                 World = _context.World,
                 // CGF is a dumb terminal for handles — it draws all active gizmos, like IG.
                 IsSelectedPredicate = null,
+                Inspector = () => _fdpInspectorState,
+                // ⭐⭐⭐ CE-300 — CGF's AI cell gets its FIRST production writer. 📐 Measured before
+                //   this change: no bridge here at all, so SelectedEntity was null for ever.
+                //   📄 DESIGN_Editor_Entity_Selection_Source.md §4 (the dead-edge diagram).
+                AiEntitySelection = e => _sharedEntitySelection.Selected = e,
                 // GZH-003: CGF is headless-first; enable only when a terminal connects.
                 StartEnabled = false,
                 // ⭐⭐⭐ UXI-07 — the Spawn tool's behaviour goes to the PACK (see §4.10; the editor carries
@@ -1319,14 +1330,14 @@ public sealed class CgfSubsystem : ISubsystem, Fdp.Toolkit.Runner.IMapCameraProv
                 StartPlacementMode = () => _spawnAdapter?.ArmPlacement(),
             });
 
-        _cgfGizmoBuffer           = cgfMapInteraction.Buffer;
-        _cgfInteractionBus        = cgfMapInteraction.InteractionBus;
-        _cgfGizmoManager          = cgfMapInteraction.GlobalManager;
-        _cgfToolController        = cgfMapInteraction.Tools;
-        _cgfDataDrivenGizmoSystem = cgfMapInteraction.DataDrivenSystem;
-        var cgfStatelessRegistry  = cgfMapInteraction.StatelessRegistry;
-        var cgfGizmoRegistry      = cgfMapInteraction.GizmoRegistry;
-        var cgfSettingsRegistry   = cgfMapInteraction.Settings;
+        _cgfGizmoBuffer           = _cgfMapInteraction.Buffer;
+        _cgfInteractionBus        = _cgfMapInteraction.InteractionBus;
+        _cgfGizmoManager          = _cgfMapInteraction.GlobalManager;
+        _cgfToolController        = _cgfMapInteraction.Tools;
+        _cgfDataDrivenGizmoSystem = _cgfMapInteraction.DataDrivenSystem;
+        var cgfStatelessRegistry  = _cgfMapInteraction.StatelessRegistry;
+        var cgfGizmoRegistry      = _cgfMapInteraction.GizmoRegistry;
+        var cgfSettingsRegistry   = _cgfMapInteraction.Settings;
         // Route gizmo interaction translators and publisher through the network factory
         // so that CgfSubsystem has no direct dependency on Hrot.Network.NED.
         CycloneNetworkIngressSystem? cgfGizmoIngress = null;
@@ -1351,8 +1362,8 @@ public sealed class CgfSubsystem : ISubsystem, Fdp.Toolkit.Runner.IMapCameraProv
                 _context.Kernel.RegisterGlobalSystem(publisherSystem);
         }
         // UXI-23 S2b: the group and its three members come from the pack; CGF schedules them below.
-        var cgfGizmoGroup = cgfMapInteraction.GizmoGroup;
-        _cgfGizmoController = cgfMapInteraction.Gate;
+        var cgfGizmoGroup = _cgfMapInteraction.GizmoGroup;
+        _cgfGizmoController = _cgfMapInteraction.Gate;
         _context.Kernel.RegisterModule(new GizmoInteractionModule(
             _cgfInteractionBus,
             contextIngress: null,
@@ -1363,7 +1374,21 @@ public sealed class CgfSubsystem : ISubsystem, Fdp.Toolkit.Runner.IMapCameraProv
             gizmoIngress: cgfGizmoIngress,
             gizmoEgress:  cgfGizmoEgress));
         // ⭐⭐ UXI-23 S3: report anything this host constructed but did not schedule (§3.2e).
-        foreach (string problem in cgfMapInteraction.Unserviceable(new object[] { cgfGizmoGroup }))
+        // ⭐⭐⭐ UXI-11 S-4 — CGF FINALLY HAS A MAP-INPUT PATH. This is the issue's "remaining half".
+        // 🔴 MEASURED, and it is smaller than the filed text: CGF was never missing a SELECTION — it
+        //    holds the shared view and serves requests like every other host. What it never had was
+        //    anything turning a map GESTURE into one. ⇒ the interaction events were already arriving
+        //    (CreateGizmoTranslators wires the remote terminal's clicks onto _cgfInteractionBus above)
+        //    and NOTHING CONSUMED THEM. A click on a CGF-backed map selected nothing, silently.
+        // ⭐ One line, because S-3c made the pack build the gesture system for all five hosts —
+        //    before that this would also have needed a construction, a view and an ordering decision.
+        // ⚠ Registered, not ticked inline: CGF is headless-first and runs no local map loop, so the
+        //   kernel is the only thing that ticks every frame here.
+        _context.Kernel.RegisterGlobalSystem(
+            new Hrot.ScenarioEditor.Systems.SelectionInteractionSystemAdapter(
+                _cgfMapInteraction.SelectionInteraction));
+
+        foreach (string problem in _cgfMapInteraction.Unserviceable(new object[] { cgfGizmoGroup }))
             Fdp.Core.Logging.FdpLog<CgfSubsystem>.Info("[Map] {0}", problem);
         _context.Kernel.RegisterGlobalSystem(new EventHistoryCaptureSystem("Interaction", _fdpEventHistory, _cgfInteractionBus));
         // Register canvas menu update so CanvasContextMenuGizmo has state to project.
@@ -1391,6 +1416,8 @@ public sealed class CgfSubsystem : ISubsystem, Fdp.Toolkit.Runner.IMapCameraProv
             fileService: null,
             interaction: new Hrot.ScenarioEditor.ScenarioEditorModule.InteractionDeps(
                 Selection:    () => _selectionState,
+                // ⭐⭐⭐ UXI-11 — the pack's ordered pair, not systems this module builds.
+                SelectionSystems: () => _cgfMapInteraction?.SelectionSystemsInOrder,
                 Gizmos:       () => _cgfDataDrivenGizmoSystem,
                 Camera:       () => _canvas?.Camera,
                 // ⭐⭐⭐ CE-061 — StartPlacementMode is SUPPLIED now, and it has to be.
@@ -1408,7 +1435,7 @@ public sealed class CgfSubsystem : ISubsystem, Fdp.Toolkit.Runner.IMapCameraProv
                 AlsoSelect:   entity => _fdpInspectorState.SelectedEntity = entity,
                 // 🔒 UXI-07 step 3b — the host's ONE tool arbiter, built by MapInteractionPack alongside
                 //    the two focus arbiters it reconciles. ⛔ Resolver for the same reason as the rest.
-                Tools:        () => cgfMapInteraction.Tools)));
+                Tools:        () => _cgfMapInteraction.Tools)));
 
         // ── Universal breakpoints (UBP-P10T2) ────────────────────────────────────
         // ⭐⭐⭐ cgf==editor SLICE 4 (DQ30) — the no-op time adapter is RETIRED.
@@ -1527,7 +1554,14 @@ public sealed class CgfSubsystem : ISubsystem, Fdp.Toolkit.Runner.IMapCameraProv
             _canvas = new MapCanvas();
             _canvas.Camera.Offset = new Vector2(1280 / 2f, 720 / 2f);
 
-            _selectionState    = new DefaultSelectionState();
+            // ⭐⭐⭐ UXI-11 S-1 -- read through to the ECS SelectionState component, the one truth.
+            //   📐 Before this, a map click moved the ring and nothing else on this host.
+            // ⭐⭐⭐ UXI-11 — the PACK's view, shared with the systems this host schedules.
+            _selectionState    = _cgfMapInteraction!.Selection;
+            // ⭐⭐⭐ UXI-11 S-3 — same wiring as the editor, same ruling: one selection per host.
+            _fdpEntityInspector.Selection = _selectionState;
+            _fdpEntityInspector.RequestSelectionChange =
+                req => _context.World.Bus.PublishManaged(req);
             _fdpRepoAdapter    = new FdpRepositoryAdapter(_context.World);
 
             // ⭐⭐⭐ CE-061 (Axis-C E5 item ④) — THE SCENARIO-PERSPECTIVE PANELS + ADAPTERS.
@@ -1565,7 +1599,19 @@ public sealed class CgfSubsystem : ISubsystem, Fdp.Toolkit.Runner.IMapCameraProv
                 _context.World, _context.World.Bus, _spawnAdapter);
 
             // GZ057: add gizmo layer so CGF entity presentation primitives are rendered.
-            _cgfGizmoLayer = new Fdp.Toolkit.Vis2D.Layers.DebugGizmoLayer(31, _cgfGizmoBuffer, _cgfInteractionBus!);
+            // 🔴🔴🔴 THE CAMERA IS NOT OPTIONAL HERE, and omitting it made the whole 2-D map DEAD.
+            //    📐 Measured from the product 2026-09-20: without it the layer's Camera2D stays
+            //       `default` — zoom=0, offset=(0,0) — and Raylib.GetScreenToWorld2D, which is
+            //       (screen − Offset) / Zoom + Target, DIVIDES BY ZERO. ⇒ every mouse position becomes
+            //       NaN, every hit-test comparison is false, and every click falls through to the canvas.
+            //    ⇒ the operator saw: nothing selectable, no marquee, and only the empty-space context
+            //       menu working (it needs no world position). 708 pick boxes were in the frame and not
+            //       one was reachable.
+            // ⭐ The camera was RIGHT THERE — built at :1550 and given its offset at :1551, two lines up.
+            //   🔒 This is the silent-default rule exactly: a production caller that HAS a dependency
+            //      must PASS it. Every other host does.
+            _cgfGizmoLayer = new Fdp.Toolkit.Vis2D.Layers.DebugGizmoLayer(
+                31, _cgfGizmoBuffer, _cgfInteractionBus!, camera: _canvas.Camera);
             _canvas.AddLayer(_cgfGizmoLayer);
             _canvas.DrawBuffer = _cgfGizmoBuffer;
 
@@ -1601,7 +1647,13 @@ public sealed class CgfSubsystem : ISubsystem, Fdp.Toolkit.Runner.IMapCameraProv
                     builder.AddItem("Rotate", () =>
                     {
                         // ⭐ Select first (the caller concern above), then let the SHARED drain do the work.
-                        _selectionState.PrimarySelected = entity;
+                        // ⭐⭐⭐ UXI-11 S-2 — the select is now a REQUEST, not a direct write
+                        //    (§2.7.3 rule 1). ⚠⚠ THAT IS WHY ScenarioEditorModule NOW REGISTERS THE
+                        //    REQUEST SYSTEM BEFORE THE DRAIN: both events land in the same frame, and
+                        //    with the old order the drain would have armed Rotate on the PREVIOUS
+                        //    selection. 📌 Same ordering defect as CE-259s, which this discharges.
+                        _context.World.Bus.PublishManaged(
+                            Fdp.Toolkit.Vis2D.Abstractions.SelectionChangeRequest.ReplaceWith(entity, "Cgf.Rotate"));
                         _context.World.Bus.Publish(
                             new Hrot.Common.Events.ActivateEditorToolEvent(Hrot.Common.EditorTool.Rotate));
                     });
@@ -3024,7 +3076,11 @@ public sealed class CgfSubsystem : ISubsystem, Fdp.Toolkit.Runner.IMapCameraProv
 
         if (_selectionState?.IsSelected(entity) == true)
         {
-            _selectionState.PrimarySelected = null;
+            // ⭐⭐ UXI-11 S-2 — deleting the selected entity REQUESTS a clear (§2.7.3 rule 1).
+            // ⚠ The read above stays a direct read: reading the view is what a surface is FOR; only
+            //   WRITING is reserved to the request system.
+            _context!.World.Bus.PublishManaged(
+                Fdp.Toolkit.Vis2D.Abstractions.SelectionChangeRequest.ClearAll("Cgf.DeleteEntity"));
             _fdpInspectorState.SelectedEntity = null;
         }
     }

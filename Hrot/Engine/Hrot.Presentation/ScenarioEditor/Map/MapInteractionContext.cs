@@ -92,6 +92,70 @@ namespace Hrot.ScenarioEditor.Map
         public Func<ISimulationView, Entity, bool>? IsSelectedPredicate { get; init; }
 
         /// <summary>
+        /// ⭐⭐ <b>The predicate three of the five hosts hand-wrote identically</b> — <i>"selected"</i> means
+        /// the entity carries a <c>SelectionState</c> with <c>IsSelected</c>.
+        ///
+        /// <para>⛔ <b>NOT a default.</b> 🔒 <c>null</c> is a real, documented policy — <i>"an IG draws
+        /// handles on everything, an editor draws them only on the selection"</i> — so defaulting this
+        /// would silently change what IG and CGF draw. ⭐ This exists so the three hosts that DO want it
+        /// stop writing the same four lines; the choice stays theirs.</para>
+        /// </summary>
+        public static readonly Func<ISimulationView, Entity, bool> SelectedEntitiesOnly =
+            static (view, entity) =>
+                view.HasComponent<Hrot.IG.Components.SelectionState>(entity) &&
+                view.GetComponentRO<Hrot.IG.Components.SelectionState>(entity).IsSelected;
+
+        // ══ UXI-11 — the SELECTION half of the pack ═════════════════════════════
+        // 📄 docs/UX/UX_Feature_Selection.md §2.7.10.
+        // 🔒 User, 2026-09-20: "we want to unify across host also the bootstrap code as far as
+        //    possible, including this entity selection stuff."
+        // ⚠⚠ MapInteractionPack's header used to list "selection systems" among what is deliberately NOT
+        //    here. That was written when selection WAS host-shaped: five hosts each hand-rolled a store
+        //    and a writer. S-1..S-3b made the wiring identical on every host, which turns the exclusion
+        //    into exactly the five-way duplication this pack exists to remove. ⇒ the pack CONSTRUCTS;
+        //    the host still SCHEDULES (the 2026-08-28 ruling is untouched).
+
+        /// <summary>
+        /// ⭐ The host's inspector context, resolved at USE time. Supplying it is what makes
+        /// <c>SelectionNotificationSystem</c> do anything — ⛔ a host with no ImGui inspector passes
+        /// nothing and the system no-ops, which is a fact about that host rather than a silent default.
+        /// </summary>
+        public Func<Fdp.Presentation.Abstractions.IInspectorContext?>? Inspector { get; init; }
+
+        /// <summary>
+        /// ⭐⭐⭐ <b><c>CE-300</c> — the AI editors' entity cell, as a SINK.</b>
+        /// 📄 <c>docs/blueprints/DESIGN_Editor_Entity_Selection_Source.md</c> §3.1.
+        ///
+        /// <para>⚠ <b>A DELEGATE, and that is an ASSEMBLY fact, not style:</b> the cell
+        /// (<c>SharedEntitySelection</c>) lives in <c>Hrot.Editor.AiShared</c>, which this assembly
+        /// does not and must not reference. ⭐ Same shape and same reason as
+        /// <c>SelectionEgressSystem</c>'s publish delegate (<c>R-134</c>).</para>
+        ///
+        /// <para>⭐ <b>It replaces <c>CallbackSelectionBridge</c>, which hung off
+        /// <c>SelectionInteractionSystem.OnSelectionChanged</c> — a MAP GESTURE.</b> ⇒ an inspector
+        /// click, an orbat select, a context-menu <i>Select</i> or a remote <c>CMD_SET_SELECTION</c>
+        /// never moved the AI editors' entity, so every Watch/Details live-value row kept projecting
+        /// the PREVIOUS one. 🔴 The third instance of the shape <c>S-3</c> fixed inbound and
+        /// <c>S-6</c> outbound.</para>
+        ///
+        /// <para>⚠ A host with no AI editors passes nothing and nothing happens — a fact about that
+        /// host, not a silent default.</para>
+        /// </summary>
+        public Action<Entity?>? AiEntitySelection { get; init; }
+
+        /// <summary>
+        /// ⭐ The host's rubber-band visual, if it draws one. <c>null</c> ⇒ box-select still SELECTS, it
+        /// just draws no marquee — which is what SimHost and IG do today.
+        /// </summary>
+        public Hrot.ScenarioEditor.Gizmos.RubberBandState? RubberBand { get; init; }
+
+        /// <summary>
+        /// ⚠ Optional host follow-through invoked after a map click selects an entity — IG uses it to
+        /// publish its network click. ⛔ Not a selection write; the pack's systems own that.
+        /// </summary>
+        public Action<Entity, System.Numerics.Vector3>? OnMapSelectionChanged { get; init; }
+
+        /// <summary>
         /// 🔴 <b>Whether the gizmo group starts enabled.</b> Default <c>false</c> — <c>GZH-003</c>
         /// headless-first.
         ///

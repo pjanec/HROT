@@ -184,8 +184,10 @@ namespace Hrot.SimHost.UI
         public void Render(
             EntityRepository          repo,
             ModuleHostKernel          kernel,
-            SimHostScenarioManager    scenario,
-            SimHostInspectorAdapter   inspector)
+            // ⛔ UXI-11 S-3b — the SimHostInspectorAdapter parameter is GONE. 📐 It was never read by
+            //    this method or anything it calls; the adapter itself is deleted with
+            //    SimHostSelectionManager, the parallel store it wrapped.
+            SimHostScenarioManager    scenario)
         {
             ImGui.SetNextWindowPos(new Vector2(10, 10), ImGuiCond.FirstUseEver);
             ImGui.SetNextWindowSize(new Vector2(320, 520), ImGuiCond.FirstUseEver);

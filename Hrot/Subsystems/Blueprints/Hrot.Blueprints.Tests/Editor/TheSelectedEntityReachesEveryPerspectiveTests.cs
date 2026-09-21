@@ -18,9 +18,16 @@ namespace Hrot.Blueprints.Tests.Editor;
 /// <summary>
 /// ⭐⭐⭐ <b>Batch 95 (<c>95b</c>) — the selected entity reaches every perspective, and a VALUE ARRIVES.</b>
 ///
-/// <para>🔴🔴 <b>The defect, measured.</b> The editor holds <b>four</b>
+/// <para>⚠⚠ <b><c>CE-300</c> SUPERSEDED THE MECHANISM BELOW, <c>2026-09-21</c> — the RAILS STAND.</b>
+/// <c>CallbackSelectionBridge</c> is DELETED; the cell is now written by
+/// <c>SelectionNotificationSystem</c> from <c>SelectionChangedNotification</c>, so which store a test
+/// writes is moot — they are one cell, which is exactly what these rails assert.
+/// 📄 <c>docs/blueprints/DESIGN_Editor_Entity_Selection_Source.md</c> §3.1. ⛔ Read "the bridge's
+/// store" below as "the store production used to write".</para>
+///
+/// <para>🔴🔴 <b>The defect, measured (Batch 95).</b> The editor holds <b>four</b>
 /// <see cref="EditorSelectionStore"/>s — one per perspective plus the bridge's own — and
-/// <c>CallbackSelectionBridge.Connect</c> is called <b>exactly once</b>, on the fourth
+/// <c>CallbackSelectionBridge.Connect</c> was called <b>exactly once</b>, on the fourth
 /// (<c>EditorSubsystem:1351</c>). ⇒ <c>SelectedEntity</c> was <c>null</c> on all three perspective
 /// stores, always ⇒ every live-value provider returned <c>null</c> on its <b>second line</b>
 /// (<c>var entity = _store.SelectedEntity; if (entity is null) return null;</c>) ⇒ ⛔ <b>every

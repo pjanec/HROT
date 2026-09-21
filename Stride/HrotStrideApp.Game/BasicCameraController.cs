@@ -13,7 +13,10 @@ namespace HrotStrideApp
     /// </summary>
     /// <remarks>
     /// The entity can be moved using W, A, S, D, Q and E, arrow keys or dragging/scaling using multi-touch.
-    /// Rotation is achieved using the Numpad, the mouse while holding the right mouse button, or dragging using single-touch.
+    /// Rotation is achieved using the Numpad, <b>Ctrl + the cursor keys</b>, the mouse while holding the
+    /// right mouse button, or dragging using single-touch.
+    /// <para>⭐ The Ctrl+cursor binding (<c>CE-298</c>) is the one that works over a remote desktop: it
+    /// needs neither a mouse nor a numpad, and a remote session typically has neither.</para>
     /// </remarks>
     public class BasicCameraController : SyncScript
     {
@@ -114,6 +117,34 @@ namespace HrotStrideApp
             else if (Input.IsKeyDown(Keys.NumPad6))
             {
                 yaw = -KeyboardRotationSpeed.Y;
+            }
+
+            // ⭐⭐⭐ CE-298 — ROTATE WITH CTRL + CURSOR KEYS, a mouse-free alternative to the numpad.
+            // 🔒 User, 2026-09-20: "I need to be able to rotate the camera using cursor keys so that i
+            //    do not need to use mouse for that - that allows me seeing the entites in 3d even with
+            //    team viewer".
+            // 🔴 WHY THIS IS NEEDED AT ALL. Rotation already had a keyboard binding — NumPad 8/2/4/6,
+            //    directly above — but a remote session from a laptop or a phone has NO NUMPAD, so the
+            //    only reachable rotation was right-mouse-drag, and a remote-desktop mouse is exactly
+            //    what is unusable here (see CE-297, the click latch).
+            // ⚠ CTRL-modified, deliberately, rather than taking the bare arrows: the bare arrows are
+            //   already MOVEMENT (aliases of W/A/S/D above) and that is just as mouse-free and just as
+            //   needed. Stealing them would fix looking around by breaking flying around.
+            // ⭐ Placed AFTER the numpad block so a held numpad key still wins; placed BEFORE the mouse
+            //   block so right-mouse-drag still overrides everything, which keeps local behaviour
+            //   byte-identical when no modifier is held.
+            if (Input.IsKeyDown(Keys.LeftCtrl) || Input.IsKeyDown(Keys.RightCtrl))
+            {
+                // The arrows are movement aliases, so cancel the translation they just requested —
+                // otherwise Ctrl+Left would strafe AND yaw at once.
+                translation.X = 0;
+                translation.Z = 0;
+
+                if (Input.IsKeyDown(Keys.Down))     pitch =  KeyboardRotationSpeed.X;
+                else if (Input.IsKeyDown(Keys.Up))  pitch = -KeyboardRotationSpeed.X;
+
+                if (Input.IsKeyDown(Keys.Left))      yaw =  KeyboardRotationSpeed.Y;
+                else if (Input.IsKeyDown(Keys.Right)) yaw = -KeyboardRotationSpeed.Y;
             }
 
             // Rotate with mouse

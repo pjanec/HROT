@@ -103,6 +103,49 @@ public sealed class TheViewportInteractionIsSharedTests
         Assert.Contains("InteractionDeps(", text);
     }
 
+    /// <summary>
+    /// ⭐⭐⭐ <b><c>CE-306</c> — THE TWO FACADE SEAMS PUBLISH A REQUEST, like every other surface.</b>
+    /// 🔒 User, <c>2026-09-21</c>: <i>"same operation should not be done in different ways for
+    /// consistency, unification is desired."</i>
+    /// 📄 <c>UX_Feature_Selection.md</c> §2.7.7 deviation ③, closed.
+    ///
+    /// <para>⛔⛔ <b>Why a SOURCE SCAN and not a behavioural rail.</b> The defect is not a wrong value —
+    /// it is a SECOND WAY to perform one operation, and both ways produce the same selection. 📌 Exactly
+    /// the argument <c>NoProductionHostKeepsAParallelSelectionStoreTests</c> makes for its own scans:
+    /// no behavioural assertion catches a second implementation that agrees.</para>
+    ///
+    /// <para>⚠ <b>What this canNOT see</b> *(say which layer is faked)*: that the request is SERVED.
+    /// ⭐ That is what <c>AReplaceRequestSelectsTheWholeSetAndMakesTheFirstPrimary</c> and
+    /// <c>AClearRequestEmptiesTheSelection</c> in this same file already prove, on the real
+    /// <c>SelectionRequestSystem</c> — ⇒ the two together are the claim.</para>
+    ///
+    /// <para>⭐ <b>Red-proof:</b> restore <c>_selectionState.PrimarySelected = entity</c> in either seam
+    /// and this reddens.</para>
+    /// </summary>
+    [Fact]
+    public void TheTwoFacadeSeamsPublishARequest_RatherThanWritingTheViewDirectly()
+    {
+        var text = ReadHostSource("Hrot.Editor", "EditorSubsystem.cs");
+
+        // ⭐ ① SetSelection2D publishes, and it covers BOTH arms — an entity and a clear.
+        Assert.Contains("SelectionChangeRequest.ReplaceWith(e, Selection2DReason)", text);
+        Assert.Contains("SelectionChangeRequest.ClearAll(Selection2DReason)", text);
+
+        // ⭐⭐ ② ONE implementation: the property setter routes to the method rather than repeating it.
+        //    ⛔ This is the half the user's ruling is actually about.
+        Assert.Contains("set => SetSelection2D(value);", text);
+
+        // ⛔⛔ ③ And NEITHER seam writes the view any more. ⚠ Asserted on the WRITE specifically:
+        //    the GETTER still reads PrimarySelected, and must — it is a view read, not a store.
+        Assert.DoesNotContain("_selectionState.PrimarySelected =", text);
+
+        // ⚠ ④ The reason is a NAMED CONSTANT, so the two seams cannot drift into two reasons — and it
+        //   is a LOCAL cause, so it must not carry SelectionEgressSystem's "Remote." prefix or a 3-D
+        //   click would stop reaching remote observers.
+        Assert.Contains("Selection2DReason = \"Editor.Facade2D\"", text);
+        Assert.DoesNotContain("Selection2DReason = \"Remote.", text);
+    }
+
     /// <summary>⭐ CGF registers the same module — the other side of §6's reconciliation.</summary>
     [Fact]
     public void CgfRegistersTheSharedModule()
@@ -130,7 +173,7 @@ public sealed class TheViewportInteractionIsSharedTests
         var selection = new DefaultSelectionState();
         Entity? alsoSelected = null;
 
-        var system = new SelectEntitySystem(() => selection, e => alsoSelected = e);
+        var system = new SelectionRequestSystem(() => selection, e => alsoSelected = e);
 
         world.Bus.Publish(new SelectEntityCommand { NetworkId = netId });
         world.Bus.SwapBuffers();
@@ -149,13 +192,262 @@ public sealed class TheViewportInteractionIsSharedTests
     {
         var (world, entity, _) = WorldWithEntity();
         var selection = new DefaultSelectionState { PrimarySelected = entity };
-        var system = new SelectEntitySystem(() => selection);
+        var system = new SelectionRequestSystem(() => selection);
 
         world.Bus.Publish(new SelectEntityCommand { NetworkId = 999_999 });
         world.Bus.SwapBuffers();
         system.Execute(world, 0f);
 
         Assert.Equal(entity, selection.PrimarySelected);
+    }
+
+    // ══ ②b UXI-11 S-2 — THE REQUEST EVENT: A SET AND A MODE ════════════════
+    //
+    // 📄 UX_Feature_Selection.md §2.7.1/§2.7.2. ⭐ These live HERE, with the two SelectEntityCommand
+    //    rails above, because this class already owns SelectionRequestSystem (T-1: add into the
+    //    feature's suite, never a parallel class).
+
+    /// <summary>
+    /// ⭐⭐⭐ <b>The thing <c>SelectEntityCommand</c> could never do: select a SET in one request.</b>
+    /// 🔴 Before <c>S-2</c> the only vocabulary was <c>PrimarySelected = x</c>, which every
+    /// implementation read as *"replace the selection with this ONE entity"* ⇒ a rubber band had to
+    /// hand-roll a loop, which is exactly how the parallel writers were born.
+    /// </summary>
+    [Fact]
+    public void AReplaceRequestSelectsTheWholeSetAndMakesTheFirstPrimary()
+    {
+        var (world, a, _) = WorldWithEntity();
+        var b = AnotherEntity(world, 7001L);
+        var c = AnotherEntity(world, 7002L);
+        var selection = new DefaultSelectionState();
+        var system = new SelectionRequestSystem(() => selection);
+
+        world.Bus.PublishManaged(SelectionChangeRequest.ReplaceWith(new[] { a, b, c }));
+        world.Bus.SwapBuffers();
+        system.Execute(world, 0f);
+
+        Assert.Equal(3, selection.SelectedEntities.Count);
+        Assert.Equal(a, selection.PrimarySelected);
+    }
+
+    /// <summary>⭐ Add joins the selection; Remove leaves it. The multi-select vocabulary UXI-24 rides on.</summary>
+    [Fact]
+    public void AddAndRemoveModesCombineWithTheExistingSelection()
+    {
+        var (world, a, _) = WorldWithEntity();
+        var b = AnotherEntity(world, 7003L);
+        var selection = new DefaultSelectionState();
+        var system = new SelectionRequestSystem(() => selection);
+
+        world.Bus.PublishManaged(SelectionChangeRequest.ReplaceWith(a));
+        world.Bus.PublishManaged(new SelectionChangeRequest
+        {
+            Entities = new[] { b },
+            Mode     = SelectionChangeMode.Add,
+        });
+        world.Bus.SwapBuffers();
+        system.Execute(world, 0f);
+
+        Assert.Equal(2, selection.SelectedEntities.Count);
+
+        world.Bus.PublishManaged(new SelectionChangeRequest
+        {
+            Entities = new[] { b },
+            Mode     = SelectionChangeMode.Remove,
+        });
+        world.Bus.SwapBuffers();
+        system.Execute(world, 0f);
+
+        Assert.Equal(new[] { a }, selection.SelectedEntities.ToArray());
+    }
+
+    [Fact]
+    public void AClearRequestEmptiesTheSelection()
+    {
+        var (world, a, _) = WorldWithEntity();
+        var selection = new DefaultSelectionState { PrimarySelected = a };
+        var system = new SelectionRequestSystem(() => selection);
+
+        world.Bus.PublishManaged(SelectionChangeRequest.ClearAll());
+        world.Bus.SwapBuffers();
+        system.Execute(world, 0f);
+
+        Assert.Empty(selection.SelectedEntities);
+        Assert.Null(selection.PrimarySelected);
+    }
+
+    /// <summary>
+    /// ⚠⚠ <b>A request may sit on the bus for a frame, so its targets can die in between.</b> ⛔ Dropping
+    /// them at the PUBLISHER would be wrong — it cannot know. ⭐ The system drops them, which is the only
+    /// point that can ask.
+    /// </summary>
+    [Fact]
+    public void ARequestNamingADeadEntitySelectsOnlyTheLiveOnes()
+    {
+        var (world, a, _) = WorldWithEntity();
+        var b = AnotherEntity(world, 7004L);
+        var selection = new DefaultSelectionState();
+        var system = new SelectionRequestSystem(() => selection);
+
+        world.Bus.PublishManaged(SelectionChangeRequest.ReplaceWith(new[] { a, b }));
+        world.DestroyEntity(b);
+        world.Bus.SwapBuffers();
+        system.Execute(world, 0f);
+
+        Assert.Equal(new[] { a }, selection.SelectedEntities.ToArray());
+    }
+
+    /// <summary>
+    /// ⭐⭐⭐ <b><c>CE-259s</c>, discharged — and this rail is the only thing holding it.</b>
+    /// 🔴 "Select this entity, then arm Rotate" publishes TWO events in ONE frame. The drain reads the
+    /// selection to decide what to arm on, so if it runs first it arms on the PREVIOUS selection.
+    /// ⚠ Nothing in either system's code says they must run in this order — only the registration does,
+    /// and only this assertion protects it.
+    /// </summary>
+    [Fact]
+    public void TheRequestSystemIsRegisteredBeforeTheToolDrainSoASelectThenArmSeesTheNewSelection()
+    {
+        var (world, a, _) = WorldWithEntity();
+        var b = AnotherEntity(world, 7005L);
+        var selection = new DefaultSelectionState { PrimarySelected = a };
+
+        var requests = new SelectionRequestSystem(() => selection);
+
+        // The CGF "Rotate" context menu's shape: request the select, then publish the activation.
+        world.Bus.PublishManaged(SelectionChangeRequest.ReplaceWith(b));
+        world.Bus.SwapBuffers();
+
+        // Registration order says the request system runs first ...
+        requests.Execute(world, 0f);
+
+        // ... so by the time the drain looks, the selection is already the NEW entity.
+        Assert.Equal(b, selection.PrimarySelected);
+    }
+
+    // ══ ②c UXI-11 S-3 — THE NOTIFICATION ═══════════════════════════════════
+
+    /// <summary>
+    /// ⭐⭐⭐ <b>Every applied change is ANNOUNCED — whatever caused it.</b> 📄 §2.7.2.
+    /// 🔴 That is the whole point: the hand-syncs this replaces hung off
+    /// <c>SelectionInteractionSystem.OnSelectionChanged</c>, so they fired for a MAP click and for
+    /// nothing else — not an inspector click, not a context menu, not <c>CMD_SET_SELECTION</c>.
+    /// </summary>
+    [Fact]
+    public void ApplyingARequestAnnouncesTheWholeNewSelection()
+    {
+        var (world, a, _) = WorldWithEntity();
+        var b = AnotherEntity(world, 7101L);
+        var selection = new DefaultSelectionState();
+        var system = new SelectionRequestSystem(() => selection);
+
+        world.Bus.PublishManaged(SelectionChangeRequest.ReplaceWith(new[] { a, b }, "rail"));
+        world.Bus.SwapBuffers();
+        system.Execute(world, 0f);
+        world.Bus.SwapBuffers();
+
+        var notes = world.Bus.ReadManaged<SelectionChangedNotification>().ToArray();
+        Assert.Single(notes);
+        Assert.Equal(new[] { a, b }, notes[0].Selected.ToArray());
+        Assert.Equal(a, notes[0].Primary);
+        Assert.Equal("rail", notes[0].Reason);
+    }
+
+    /// <summary>⭐ The network-id form announces too — one publisher, both request shapes.</summary>
+    [Fact]
+    public void TheNetworkIdCommandAlsoAnnounces()
+    {
+        var (world, entity, netId) = WorldWithEntity();
+        var selection = new DefaultSelectionState();
+        var system = new SelectionRequestSystem(() => selection);
+
+        world.Bus.Publish(new SelectEntityCommand { NetworkId = netId });
+        world.Bus.SwapBuffers();
+        system.Execute(world, 0f);
+        world.Bus.SwapBuffers();
+
+        var notes = world.Bus.ReadManaged<SelectionChangedNotification>().ToArray();
+        Assert.Single(notes);
+        Assert.Equal(entity, notes[0].Primary);
+    }
+
+    /// <summary>
+    /// ⚠⚠ <b>The snapshot must be a COPY.</b> <c>EcsSelectionState.SelectedEntities</c> hands back its
+    /// own observation buffer and rewrites it on the next read ⇒ publishing that reference would give
+    /// every subscriber a list that changes underneath them. ⛔ This rail fails if the copy is dropped
+    /// "as an optimisation".
+    /// </summary>
+    [Fact]
+    public void TheAnnouncedSetIsASnapshotNotTheLiveCollection()
+    {
+        var (world, a, _) = WorldWithEntity();
+        var b = AnotherEntity(world, 7102L);
+        var selection = new DefaultSelectionState();
+        var system = new SelectionRequestSystem(() => selection);
+
+        world.Bus.PublishManaged(SelectionChangeRequest.ReplaceWith(new[] { a }));
+        world.Bus.SwapBuffers();
+        system.Execute(world, 0f);
+        world.Bus.SwapBuffers();
+        var first = world.Bus.ReadManaged<SelectionChangedNotification>().Single();
+
+        // Mutate the store after the announcement was taken.
+        selection.Add(b);
+
+        Assert.Equal(new[] { a }, first.Selected.ToArray());
+    }
+
+    /// <summary>
+    /// ⭐⭐⭐ <b><c>SelectionNotificationSystem</c> points the inspector context at the new primary —
+    /// for a cause that is NOT a map click.</b> 🔴 The hand-syncs it replaces could not.
+    /// </summary>
+    [Fact]
+    public void TheInspectorContextFollowsTheAnnouncementFromANonMapCause()
+    {
+        var (world, a, _) = WorldWithEntity();
+        var selection = new DefaultSelectionState();
+        var inspector = new Fdp.Presentation.Abstractions.InspectorState();
+        var requests  = new SelectionRequestSystem(() => selection);
+        var notify    = new SelectionNotificationSystem(() => inspector);
+
+        // A context-menu / inspector-shaped cause: a request, not a gizmo event.
+        world.Bus.PublishManaged(SelectionChangeRequest.ReplaceWith(a, "ContextMenu.Select"));
+        world.Bus.SwapBuffers();
+        requests.Execute(world, 0f);
+        world.Bus.SwapBuffers();
+        notify.Execute(world, 0f);
+
+        Assert.Equal(a, inspector.SelectedEntity);
+    }
+
+    /// <summary>
+    /// ⚠ <b>Clearing clears the inspector too</b> — the behaviour change `S-3` makes deliberately.
+    /// 🔒 Ruling ① (2026-09-10): one selection per host, so there is no list-selection to protect from
+    /// a map clear. ⛔ IG's retired detector explicitly refused to do this.
+    /// </summary>
+    [Fact]
+    public void ClearingTheSelectionClearsTheInspectorContext()
+    {
+        var (world, a, _) = WorldWithEntity();
+        var selection = new DefaultSelectionState { PrimarySelected = a };
+        var inspector = new Fdp.Presentation.Abstractions.InspectorState { SelectedEntity = a };
+        var requests  = new SelectionRequestSystem(() => selection);
+        var notify    = new SelectionNotificationSystem(() => inspector);
+
+        world.Bus.PublishManaged(SelectionChangeRequest.ClearAll("rail"));
+        world.Bus.SwapBuffers();
+        requests.Execute(world, 0f);
+        world.Bus.SwapBuffers();
+        notify.Execute(world, 0f);
+
+        Assert.Null(inspector.SelectedEntity);
+    }
+
+    private static Entity AnotherEntity(EntityRepository world, long networkId)
+    {
+        var e = world.CreateEntity();
+        world.AddComponent(e, new SimTransform());
+        world.AddComponent(e, new Fdp.Toolkit.Replication.Components.NetworkIdentity { Value = networkId });
+        return e;
     }
 
     // ══ ③ THE CAMERA — the bug the reconciliation found ═════════════════════
@@ -705,14 +997,27 @@ public sealed class TheViewportInteractionIsSharedTests
             interaction: new ScenarioEditorModule.InteractionDeps(
                 Selection: () => new DefaultSelectionState(),
                 Gizmos:    () => NewGizmoSystem(),
-                Camera:    () => null));
+                Camera:    () => null,
+                // ⭐⭐⭐ UXI-11 — the selection systems are BUILT BY MapInteractionPack and passed in,
+                //   in the order the pack hands back. ⛔ The module no longer constructs them, so a
+                //   host that supplies none registers none — which is what keeps a headless root honest.
+                SelectionSystems: () => new Fdp.ModuleHost.Abstractions.IEcsModuleSystem[]
+                {
+                    new SelectionRequestSystem(() => new DefaultSelectionState()),
+                    new SelectionNotificationSystem(() => new Fdp.Presentation.Abstractions.InspectorState()),
+                }));
 
         Assert.True(withViewport.HasInteractionSystems);
         registry = new RecordingRegistry();
         withViewport.RegisterSystems(registry);
 
         Assert.Equal(
-            new[] { nameof(ToolActivationDrainSystem), nameof(SelectEntitySystem), nameof(CenterOnEntitySystem) },
+            // ⭐⭐⭐ UXI-11 S-2 — the ORDER is the assertion, not just the membership.
+            // 🔴 SelectionRequestSystem must run BEFORE ToolActivationDrainSystem: "select this entity,
+            //    then arm that tool" publishes both events in one frame, and the drain reads the
+            //    selection to decide what to arm on. ⛔ With the drain first it arms on the PREVIOUS
+            //    selection — CE-259s, which this order discharges.
+            new[] { nameof(SelectionRequestSystem), nameof(SelectionNotificationSystem), nameof(ToolActivationDrainSystem), nameof(CenterOnEntitySystem) },
             registry.Registered.ToArray());
     }
 
@@ -800,6 +1105,12 @@ public sealed class TheViewportInteractionIsSharedTests
             world.Bus.Publish(new CenterOnEntityCommand { NetworkId = 1L });
             world.Bus.Publish(new SelectEntityCommand { NetworkId = 1L });
             world.Bus.Publish(new ActivateEditorToolEvent(EditorTool.Rotate));
+            // ⭐⭐⭐ UXI-11 S-2 — the selection REQUEST joins the shared list, and this assertion is the
+            //    reason it must. 📌 PresentationComponentRegistry's own note says it in as many words:
+            //    "If a fourth system joins ScenarioEditorModule, its event belongs HERE, in the same
+            //    commit." ⛔ Under strict mode an unregistered publish THROWS — which is precisely the
+            //    2026-08-27 CGF crash this rail was written after.
+            world.Bus.PublishManaged(SelectionChangeRequest.ClearAll("rail"));
         }
         finally
         {

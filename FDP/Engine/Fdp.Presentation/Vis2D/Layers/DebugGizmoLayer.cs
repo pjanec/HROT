@@ -105,11 +105,31 @@ namespace Fdp.Toolkit.Vis2D.Layers
                 innerRenderer);
         }
 
+        private bool _warnedNoCamera;
+
         public void Update(float dt)
         {
             if (_buffer == null) return;
             if (_mapCamera != null)
                 _camera = _mapCamera.InnerCamera;
+
+            // ⭐⭐⭐ NO CAMERA IS A DEAD MAP, AND IT USED TO BE SILENT. 📐 Measured 2026-09-20:
+            //    CgfSubsystem built this layer without a camera, so `_camera` stayed `default(Camera2D)`
+            //    — zoom=0, offset=(0,0) — and Raylib.GetScreenToWorld2D ((screen − Offset) / Zoom +
+            //    Target) DIVIDED BY ZERO. Every mouse position became NaN, every hit-test comparison
+            //    false, every click fell through to the canvas. 708 pick boxes in the frame, none
+            //    reachable, and not one error anywhere.
+            // ⛔ The layer still RUNS without a camera on purpose — drawing and event routing are
+            //   unaffected, and a headless rail legitimately has none. ⭐ But INPUT cannot work, so it
+            //   says so, once, instead of failing invisibly for a whole session.
+            if (_mapCamera == null && !_warnedNoCamera)
+            {
+                _warnedNoCamera = true;
+                Fdp.Core.Logging.FdpLog<DebugGizmoLayer>.Warn(
+                    "[DebugGizmoLayer] constructed with NO CAMERA, so screen<->world is a divide by " +
+                    "zero and NOTHING ON THIS MAP CAN BE CLICKED. Drawing still works, which is why " +
+                    "this is easy to miss. Pass `camera:` at the construction site.");
+            }
 
             _innerTerminal.HandleInput(
                 _buffer.GetFrame(),
@@ -268,6 +288,75 @@ namespace Fdp.Toolkit.Vis2D.Layers
         /// (<c>ToPickToken</c>, the S3 payload path of <c>DESIGN_Gizmo_Anchor_Identity.md</c>) and that
         /// each <c>GizmoInteractionEventKind</c> publishes its matching event exactly once.</para>
         /// </summary>
+        private bool _warnedUnpickable;
+
+        /// <summary>
+        /// ⭐⭐ Reports what the hit-test HAD to work with when it fell through to the canvas.
+        /// ⛔ Deliberately counts <c>BoxAnchorId != 0</c> rather than "any primitive": that is the exact
+        /// predicate <c>FindTopmostInteractivePrimitive</c> uses to decide a primitive is pickable
+        /// (its <c>:550</c> skip and <c>:563</c> identity), so a count of 0 here means "nothing on this
+        /// map is clickable", not "nothing is drawn".
+        /// </summary>
+        private void LogCanvasFallback(System.Numerics.Vector3 worldPos)
+        {
+            if (_buffer == null) return;
+
+            var frame   = _buffer.GetFrame();
+            int boxes   = 0;
+            float best  = float.MaxValue;
+            long  bestId = 0;
+
+            for (int i = 0; i < frame.Length; i++)
+            {
+                ref readonly var p = ref frame[i];
+                if (p.BoxAnchorId == 0) continue;
+                boxes++;
+                float dx = worldPos.X - p.BoxCenterX;
+                float dy = worldPos.Y - p.BoxCenterY;
+                float d  = MathF.Sqrt(dx * dx + dy * dy);
+                if (d < best) { best = d; bestId = p.BoxAnchorId; }
+            }
+
+            // ⭐⭐⭐ THE CAMERA IS PART OF THE EVIDENCE. 📐 Measured 2026-09-20: `pickable=708` with
+            //    `worldPos=(NaN,NaN)` proved the pick boxes were all present and the CONVERSION was
+            //    broken — so the useful question stopped being "are there boxes" and became "WHICH
+            //    camera field is poisoned". GetScreenToWorld2D is (screen − Offset) / Zoom + Target, so
+            //    naming the three fields identifies the producer's victim exactly.
+            bool camOk = float.IsFinite(_camera.Zoom) && _camera.Zoom > 0f
+                         && MapCamera.IsFinite(_camera.Target)
+                         && MapCamera.IsFinite(_camera.Offset);
+
+            // ⭐⭐⭐ SILENT WHEN HEALTHY. ⛔ A canvas fallback is NORMAL — it is what an empty-space click
+            //    IS — so logging every one would drown the log in routine operation. ⚠ This fires only
+            //    for the two states that are genuinely WRONG, and each warns ONCE:
+            //      · the camera cannot convert screen→world  ⇒ NOTHING is clickable (the CGF defect)
+            //      · the frame has primitives but NONE pickable ⇒ the projector is emitting no pick
+            //        boxes, which looks identical to "the map is fine" because drawing still works
+            // 🔒 Both were invisible for an entire session before 2026-09-20; neither has any other
+            //   symptom than "clicks do nothing", which an operator reasonably reports as a selection bug.
+            if (!camOk)
+            {
+                if (_warnedNoCamera) return;
+                _warnedNoCamera = true;
+                Fdp.Core.Logging.FdpLog<DebugGizmoLayer>.Warn(
+                    $"[MapPick] THE CAMERA CANNOT CONVERT SCREEN TO WORLD — zoom={_camera.Zoom} " +
+                    $"target=({_camera.Target.X},{_camera.Target.Y}) offset=({_camera.Offset.X},{_camera.Offset.Y}). " +
+                    "Every mouse position is NaN/degenerate, so NOTHING ON THIS MAP CAN BE CLICKED " +
+                    "while drawing still looks perfect. A zoom of 0 with a zero offset means no camera " +
+                    "was passed to this layer at all.");
+                return;
+            }
+
+            if (frame.Length > 0 && boxes == 0 && !_warnedUnpickable)
+            {
+                _warnedUnpickable = true;
+                Fdp.Core.Logging.FdpLog<DebugGizmoLayer>.Warn(
+                    $"[MapPick] {frame.Length} primitives in the frame and NOT ONE IS PICKABLE " +
+                    "(none carries a BoxAnchorId). The map draws but cannot be clicked — check that the " +
+                    "entity projector is running and that its entities have a non-zero network id.");
+            }
+        }
+
         internal void OnInteraction(
             GizmoPickToken token,
             GizmoInteractionEventKind kind,
@@ -281,10 +370,29 @@ namespace Fdp.Toolkit.Vis2D.Layers
             switch (kind)
             {
                 case GizmoInteractionEventKind.Started:
+                    // ⭐⭐⭐ [SelDiag] — THE TERMINAL'S HALF. 📄 Added 2026-09-20 for an operator report
+                    //    whose first diagnostic round returned `anchor=#0`, i.e. the CANVAS FALLBACK:
+                    //    the hit-test found no interactive primitive under the cursor.
+                    // ⭐ That leaves exactly two possibilities, and this line separates them:
+                    //      · boxes=0            => the pick boxes are NOT IN THE FRAME the hit-test sees
+                    //                              (the projector is not running, or the buffer is empty
+                    //                              at canvas.Update() time)
+                    //      · boxes=N, nearest=D => they ARE there and the click missed by D world units,
+                    //                              which is a geometry/size question, not a wiring one
+                    // ⚠ Fires ONLY on a canvas-fallback press (anchor 0) — operator-paced, and silent
+                    //   once entities become clickable again.
+                    if (token.AnchorId == 0) LogCanvasFallback(worldPos);
                     _eventBus.Publish(new GizmoInteractionStartedEvent
                     {
                         Token = pickToken,
                         WorldPos = worldPos,
+                        // ⭐⭐⭐ UXI-11 S-4b — the terminal tags Started with its button in actionId, the
+                        //   same slot RawInput already uses for one. ⚠ Left is 0, so a producer that
+                        //   passes 0 (every left-press path, and the proxy tool) reads as Left, which is
+                        //   what it genuinely is. 📄 UX_Feature_Selection.md §2.7.14.
+                        // ⚠ Fully qualified: Fdp.Toolkit.Vis2D.Abstractions declares a MapMouseButton
+                        //   too, and both namespaces are imported here.
+                        Button = (Fdp.Toolkit.Diagnostics.Gizmos.Interaction.MapMouseButton)actionId,
                     });
                     break;
                 case GizmoInteractionEventKind.DragUpdate:

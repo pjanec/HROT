@@ -112,6 +112,31 @@ namespace Hrot.ScenarioEditor.Tools
         /// </summary>
         void NotifyToolEnded(string toolId, Entity target = default);
 
+        /// <summary>
+        /// ⭐⭐⭐ <b><c>UXI-11</c> <c>S-5</c> — "this entity is no longer selected, so end whatever is being
+        /// edited ON it."</b> 🔒 User ruling ②, <c>2026-09-10</c>: <i>"if entity becomes unselected, it
+        /// should cancel any editing on the entity losing the selection"</i>.
+        /// 📄 <c>docs/UX/UX_Feature_Selection.md</c> §2.6 ② / §2.7.15 · <c>UX_Feature_Tool_Model.md</c> §4.14.
+        ///
+        /// <para>⛔⛔ <b>Why this is a NEW member and not <see cref="NotifyToolEnded"/>, which §4.14
+        /// prescribed.</b> 📐 Measured <c>2026-09-20</c>: <c>NotifyToolEnded</c> deliberately does <b>not</b>
+        /// tear the gizmo down — its own body says <i>"the gizmo ENDED ITSELF, so there is nothing of ours
+        /// left to tear down"</i>. ⇒ using it here would drop the stack entry and leave the gizmo <b>armed
+        /// and drawing</b> — the exact mirror of <c>CE-259q</c>, where the arbiter forgot and the stack
+        /// remembered. 🔴 Here the tool has NOT ended itself; we are ending it.</para>
+        ///
+        /// <para>⛔ <b>And not <see cref="Cancel"/>:</b> that unwinds the WHOLE stack by design, which would
+        /// destroy a tool armed on a DIFFERENT, still-selected entity. ⭐ Ruling ② is a <b>per-entity</b>
+        /// predicate, so the teardown has to be per-entity too.</para>
+        ///
+        /// <para>⚠ <see cref="Entity.Null"/> is a no-op: a target-less tool (Measure, the picker, placement)
+        /// is exempt from ② <b>by construction</b> — it is not editing an entity. 📄 §4.14's arming-path
+        /// inventory.</para>
+        ///
+        /// <para>⚠ IDEMPOTENT, like the rest of this surface: an entity with nothing armed on it is a no-op.</para>
+        /// </summary>
+        void CancelArmedOn(Entity entity);
+
         /// <summary>Raised whenever <see cref="ActiveModal"/> changes. The toolbar binds here (step 5).</summary>
         event Action<ToolDescriptor?>? ActiveModalChanged;
     }

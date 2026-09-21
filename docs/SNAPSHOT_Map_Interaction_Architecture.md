@@ -2,7 +2,7 @@
 state: SNAPSHOT
 build-state: N/A — this document describes what EXISTS. It specifies nothing and owns nothing.
 snapshot-date: 2026-09-10
-updated: 2026-09-10
+updated: 2026-09-20
 current-answer: §1 is the block map, §2 the data flows, §3 the remote-map-control path. §4 is the
   FINDINGS LEDGER from the 2026-09-10 session (the reason this file exists). §5 is FUTURE INTENTIONS
   and the two owning designs — B (remote map control) was WRITTEN 2026-09-10 as
@@ -184,7 +184,7 @@ graph TD
     DDS["CMD_SET_SELECTION<br/>remote"] --> IGH["IgApplication<br/>SelectEntityOnMap"]
 
     SIS --> ECS["SelectionState<br/>ECS component"]
-    SES --> ISS["ISelectionState<br/>3 impls"]
+    SES --> ISS["ISelectionState<br/>2 production impls"]
     IGH --> ECS
     IGH --> FDPINSP["_fdpInspectorState<br/>hand-synced"]
     PANEL --> PRIV["panel-private sets<br/>2 more stores"]
@@ -315,6 +315,12 @@ gets silently refused because a placement session is open.
 | `DESIGN_Map_Rendering_And_Interaction.md` **§3.2** | its sequence diagram shows `ToolActivationDrainSystem` owning `ToggleEntityGizmo`. 🔴 Since `UXI-07` step 3b the drain is *"an EVENT ADAPTER and nothing else"*; the bodies are in `ScenarioToolRegistrations`. ⇒ **the diagram is stale** |
 | same, **§4.2** | its table marks `IToolController` · `ActiveModal` · `ModalStack` · `PushModal` · `Cancel` as *"already designed, user-ruled, **NOT-BUILT**"*. 🔴 **All are BUILT** *(`UXI-07`, `2026-09-09`)*, and `PushModal`'s suspend/resume was operator-confirmed |
 | `VertexEditGizmo.cs:27` | ✅ **already fixed** `2026-09-10` — it claimed the gizmo never calls `_onRemove()` itself, false since the right-release arm existed |
+
+> ✅✅ **BOTH `DESIGN_Map_Rendering_And_Interaction.md` ROWS WERE REPAIRED `2026-09-19`**, in place, each
+> with a correction banner naming what the old text said. That file's `known-rot` now reads *"none open."*
+> ⚠ **One correction to THIS file's own §2.3 diagram at the same time:** it said `ISelectionState` has
+> **"3 impls"**; measured on the graph *(`IMPLEMENTS` edges)* it is **2 production** — `DefaultSelectionState`
+> and `SimHostInspectorAdapter` — plus one Examples adapter and one test fake.
 
 ⛔ **Not repaired here on purpose:** this snapshot must not edit documents it does not own. The two §6 rows
 are listed so the next session repairs them in place.

@@ -90,7 +90,11 @@ public sealed class RuntimeDetailsView : IDetailsViewInstance
     public void Draw(DetailsContext context, string idScope)
     {
         BuildAndPublish(idScope);
-        _pane.Draw();
+
+        // ⭐⭐⭐ CE-303 — THE CONTEXT REACHES THE PANE. 🔴 This method used to DISCARD it and call a
+        //    no-argument Draw(), so the pane resolved its entity from a global ⇒ a pinned copy of this
+        //    view rendered the currently-selected entity, not the pinned one. 📄 §11.
+        _pane.Draw(context);
     }
 
     /// <summary>⛔ Deliberately empty — the pane is BORROWED. See the class remarks.</summary>

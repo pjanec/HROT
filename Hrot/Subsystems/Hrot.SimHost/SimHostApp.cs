@@ -105,6 +105,10 @@ namespace Hrot.SimHost
 
         // ── Visualization ─────────────────────────────────────────────────────
         private SimHostVisualization? _vis;
+
+        /// ⭐ UXI-11 — the shared map pack, kept so the visualization takes its selection from the
+        ///    same instance this root scheduled. ⛔ Two instances would be two selections.
+        private Hrot.ScenarioEditor.Map.MapInteraction? _mapInteraction;
         // ── Gizmo systems (GZ032) ───────────────────────────────────────
         private DebugPrimitiveBuffer? _gizmoBuffer;
         private GizmoRegistry? _gizmoRegistry;
@@ -399,9 +403,12 @@ namespace Hrot.SimHost
                     new Hrot.ScenarioEditor.Map.MapInteractionContext
                     {
                         World = ctx.World,
-                        IsSelectedPredicate = static (view, entity) =>
-                            view.HasComponent<SelectionState>(entity) &&
-                            view.GetComponentRO<SelectionState>(entity).IsSelected,
+                        // ⭐ UXI-11 — the shared predicate, no longer hand-written here. ⛔ Still an
+                        //   explicit CHOICE: `null` means "handles on everything", which IG wants.
+                        IsSelectedPredicate = Hrot.ScenarioEditor.Map.MapInteractionContext.SelectedEntitiesOnly,
+                        // ⭐⭐⭐ UXI-11 — the pack builds this host's selection too. Resolver, because
+                        //   _vis is constructed later and REPLACED on teardown.
+                        Inspector = () => _vis?.FdpInspectorState,
                         // GZH-003: headless-first — enable only when a terminal connects.
                         StartEnabled = false,
                         ContributeExtras = static regs =>
@@ -417,6 +424,14 @@ namespace Hrot.SimHost
                 _globalGizmoManager     = mapInteraction.GlobalManager;
                 _dataDrivenGizmoSystem  = mapInteraction.DataDrivenSystem;
                 _toolController         = mapInteraction.Tools;
+                _mapInteraction         = mapInteraction;
+
+                // ⭐⭐⭐ UXI-11 — SCHEDULE what the pack built. 🔒 "The pack CONSTRUCTS; the host
+                //    SCHEDULES" — unchanged; what moved is the CONSTRUCTION, which used to be five
+                //    hand-written copies. ⚠ SelectionSystemsInOrder is an ordered pair on purpose:
+                //    requests must apply before the announcement is consumed.
+                foreach (var selectionSystem in mapInteraction.SelectionSystemsInOrder)
+                    ctx.Kernel.RegisterGlobalSystem(selectionSystem);
                 // Register the global action registry and wire operator action handlers.
                 var actionRegistry = new GlobalActionRegistry();
                 long layerControlId = GlobalGizmoManager.NewId();
@@ -578,6 +593,9 @@ namespace Hrot.SimHost
                     worldPosDescriptorId: _networkFactory?.WorldPosDescriptorId ?? 0,
                     gizmoBuffer: _gizmoBuffer,
                     gizmoSystem: _dataDrivenGizmoSystem,
+                    // ⭐⭐⭐ UXI-11 — the PACK's selection, not a second one built inside the window.
+                    mapSelection: _mapInteraction!.Selection,
+                    selectionInteraction: _mapInteraction!.SelectionInteraction,
                     // ⛔⛔⛔ CE-254 — DO NOT PASS globalGizmoManager HERE. IT REGRESSES THE SCENARIO.
                     //
                     // 📐 The seam exists (SimHostVisualization's optional parameter) and passing

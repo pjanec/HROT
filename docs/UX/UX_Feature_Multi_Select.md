@@ -2,6 +2,15 @@
 state: LIVE
 build-state: NOT-BUILT
 verified: 2026-08-28 (coordinator source scan)
+updated: 2026-09-20 — ⭐ THE PREREQUISITE LANDED. UXI-11 is ☑ COMPLETE (S-1..S-6), so §1.4's demand is
+  MET: ISelectionState now carries Add / Remove / SetMultiple / Clear
+  (FDP/Engine/Fdp.Presentation/Vis2D/Abstractions/ISelectionState.cs:54-69), implemented once by
+  EcsSelectionState over the ECS SelectionState component. ⛔ §1.4's text below still reads as a
+  BLOCKER and is stale in that respect — the additive OPERATIONS exist; what remains unbuilt is the
+  map-side MODIFIER PLUMBING (ctrl/shift on a map click) and the fan-out semantics, which is this
+  design's own half. ⚠ Also note UXI-11 S-4b made the map's right-click BUTTON-SPECIFIC precisely so a
+  left-click inside a multi-selection still narrows it to one — read UX_Feature_Selection.md §2.7.14
+  before designing the modifier rules.
 current-answer: NOT-BUILT (design only; the map half). SelectionInteractionSystem map additive-click is still a TODO; no modifier plumbing. Only the pre-existing inspector-list ctrl/shift exists.
 -->
 # Feature design — multi-select

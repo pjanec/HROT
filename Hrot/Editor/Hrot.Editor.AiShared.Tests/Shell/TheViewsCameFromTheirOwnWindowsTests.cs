@@ -44,7 +44,7 @@ public sealed class TheViewsCameFromTheirOwnWindowsTests
         public PaneFor(AssetKind kind) => TargetKind = kind;
         public AssetKind TargetKind { get; }
         public int Draws { get; private set; }
-        public void Draw() => Draws++;
+        public void Draw(Hrot.Editor.AiShared.Shell.DetailsContext context) => Draws++;
     }
 
     // ══ L3.1 — the runtime pane becomes a predicated view ════════════════════
@@ -62,7 +62,7 @@ public sealed class TheViewsCameFromTheirOwnWindowsTests
     {
         var registrar = Production(perspective, new EditorSelectionStore());
 
-        registrar.RuntimeInspector.RegisterPane(new PaneFor(AssetKind.BTree));
+        registrar.RegisterRuntimePane(new PaneFor(AssetKind.BTree));
 
         Assert.Contains(
             registrar.DetailsViews.All,
@@ -112,7 +112,7 @@ public sealed class TheViewsCameFromTheirOwnWindowsTests
             { ActiveAsset = new Tests.Selection.EditorSelectionStoreTests.FakeAsset
                 { Kind = AssetKind.BTree } };
         var registrar = Production("BTree", store);
-        registrar.RuntimeInspector.RegisterPane(new PaneFor(AssetKind.BTree));
+        registrar.RegisterRuntimePane(new PaneFor(AssetKind.BTree));
 
         // ⭐ a SECOND, unrelated view that also claims BTree — the old shape had no way to express this
         registrar.DetailsViews.Add(new DetailsViewDescriptor(
@@ -136,10 +136,10 @@ public sealed class TheViewsCameFromTheirOwnWindowsTests
     public void TwoPanesForOneKind_ThrowAtRegistration()
     {
         var registrar = Production("BTree", new EditorSelectionStore());
-        registrar.RuntimeInspector.RegisterPane(new PaneFor(AssetKind.BTree));
+        registrar.RegisterRuntimePane(new PaneFor(AssetKind.BTree));
 
         var ex = Assert.Throws<InvalidOperationException>(
-            () => registrar.RuntimeInspector.RegisterPane(new PaneFor(AssetKind.BTree)));
+            () => registrar.RegisterRuntimePane(new PaneFor(AssetKind.BTree)));
         Assert.Contains("details.runtime", ex.Message, StringComparison.Ordinal);
     }
 
@@ -150,7 +150,7 @@ public sealed class TheViewsCameFromTheirOwnWindowsTests
     {
         var registrar = Production("BTree", new EditorSelectionStore());
         foreach (var k in new[] { AssetKind.BTree, AssetKind.Hsm, AssetKind.Blueprint })
-            registrar.RuntimeInspector.RegisterPane(new PaneFor(k));
+            registrar.RegisterRuntimePane(new PaneFor(k));
 
         Assert.Equal(3, registrar.DetailsViews.All.Count(d => d.Id.StartsWith("details.runtime", StringComparison.Ordinal)));
     }
@@ -222,7 +222,7 @@ public sealed class TheViewsCameFromTheirOwnWindowsTests
             { ActiveAsset = new Tests.Selection.EditorSelectionStoreTests.FakeAsset
                 { Kind = AssetKind.BTree } };
         var registrar = Production("BTree", store);
-        registrar.RuntimeInspector.RegisterPane(new PaneFor(AssetKind.BTree));
+        registrar.RegisterRuntimePane(new PaneFor(AssetKind.BTree));
 
         var running = registrar.DetailsViews.Default(Ctx(store, "BTree", VariableRunState.Running));
         Assert.Equal(RuntimeDetailsViewDescriptor.ViewIdFor(AssetKind.BTree), running!.Id);

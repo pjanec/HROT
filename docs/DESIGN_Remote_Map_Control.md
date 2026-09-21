@@ -1,7 +1,17 @@
 <!--STATUS
 state: LIVE
-build-state: READY-TO-BUILD (§4 is the target; §6 the slice order. Nothing is built yet.)
-updated: 2026-09-10
+build-state: READY-TO-BUILD (§4 is the target; §6 the slice order.)
+updated: 2026-09-20 — ⚠ "Nothing is built yet" is NO LONGER TRUE and is corrected here. UXI-11 S-6
+  (2026-09-20) built the ECHO-SUPPRESSION half exactly as §4/§2.6 ruled: suppression moved to the
+  EGRESS (a new SelectionEgressSystem in Hrot.Presentation, consuming SelectionChangedNotification and
+  skipping causes whose Reason starts with "Remote."), replacing IG's old suppress-by-not-publishing.
+  ⇒ §4's sequence ("egress decides NOT to echo") is AS-BUILT for selection. ⭐ S-6 also found and fixed
+  the defect that had hidden the echo: the outbound SelectionChangedEvent was GESTURE-driven, sitting
+  inside IG's map-click handler, so an inspector/orbat/remote-command selection change never reached
+  ExCon at all. ⛔ STILL NOT BUILT, deliberately: widening MapCommandController into the dispatcher
+  (§4.2) — S-6 left it alone because §5.1's session-state constraint makes it a separate structural
+  move. ⇒ the CMD_SET_SELECTION case still sits inline in IgApplication, as §3.2 measures.
+  📄 As-built: docs/UX/UX_Feature_Selection.md §2.7.17.
 current-answer: §3 is the AS-IS (an inline switch in IgApplication), §4 the TARGET (an installable
   module, present by configuration), §5 the constraints that shaped it, §6 the slices.
 design-basis: user rulings 2026-09-10 (§2) · docs/SNAPSHOT_Map_Interaction_Architecture.md §3 (the
@@ -12,6 +22,11 @@ design-basis: user rulings 2026-09-10 (§2) · docs/SNAPSHOT_Map_Interaction_Arc
 verified: 2026-09-10 — every AS-IS claim measured from source, file:line inline.
 known-conflict: none. ⚠ The dispatcher role is claimed by MapCommandController's HEADER but not by its
   code; §3.2 measures what that class actually does, and §4.2 says which half it keeps.
+related-designs:
+  - docs/UX/UX_Feature_Selection.md — owns UXI-11: the selection store, request, notification and
+    egress. This file owns only the remote COMMAND path that feeds it as one more requester.
+  - docs/SNAPSHOT_Map_Interaction_Architecture.md — the measured AS-IS snapshot this design was built on.
+  - docs/DESIGN_Map_Rendering_And_Interaction.md — the map layer reference.
 -->
 # DESIGN — remote map control as an installable module
 

@@ -15,6 +15,12 @@ design-basis: R-126 (one source of paused; staged writes drain from the sim tick
   store at the composition root, not in a view) · R-63 (a direct write to a rewound view is lost on
   resume — the ECB staging path is required) · DESIGN_Time_Architecture §10 (the drain) ·
   DESIGN_Variable_Details_And_Editing §4a/§6 (colours + optimistic display).
+related-designs:
+  - docs/blueprints/DESIGN_Editor_Entity_Selection_Source.md — §6 measures that this write path is ONE
+    implementation shared by Watch and Details, not two; its §5.4 asks which entity a write targets
+    when the issuing view is PINNED, which this file does not answer.
+  - docs/blueprints/DESIGN_Variable_Details_And_Editing.md — owns the colours and the optimistic
+    display this design stages behind.
 -->
 # DESIGN — **the staged live write**: one mechanism, yellow while pending, drained by the tick
 

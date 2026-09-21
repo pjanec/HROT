@@ -116,7 +116,15 @@ namespace Hrot.Network.NED.Gizmos
             switch (batch.Kind)
             {
                 case GizmoInteractionEventKind.Started:
-                    _interactionBus.Publish(new GizmoInteractionStartedEvent { Token = token, WorldPos = worldPos });
+                    // ⭐⭐⭐ UXI-11 S-4b — ActionId carries the BUTTON for Started, exactly as it carries
+                    //   one for RawInput below. ⚠ An un-migrated sender leaves it 0 = Left, which is the
+                    //   meaning every Started had before this field existed. 📄 §2.7.14.
+                    _interactionBus.Publish(new GizmoInteractionStartedEvent
+                    {
+                        Token    = token,
+                        WorldPos = worldPos,
+                        Button   = (MapMouseButton)batch.ActionId,
+                    });
                     break;
 
                 case GizmoInteractionEventKind.DragUpdate:

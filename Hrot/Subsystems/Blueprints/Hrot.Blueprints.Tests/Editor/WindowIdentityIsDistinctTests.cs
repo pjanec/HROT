@@ -145,7 +145,8 @@ public sealed class WindowIdentityIsDistinctTests
     private static readonly (string Perspective, string Id)[] KnownWindowIds =
     [
         // ── the per-perspective core set (PerspectiveWorkspaceRegistrar.RegisterWindows) ──
-        ("BTree",     "ai_runtime_inspector_btree"),
+        // ⛔ CE-303 (2026-09-21): 'ai_runtime_inspector_*' is GONE — RuntimeInspectorWindow
+        //    dissolved into details.runtime.<kind> views (§4's closed question Q-iii).
         ("BTree",     "ai_trace_timeline_btree"),
         ("BTree",     "ai_find_results_btree"),
         ("BTree",     "ai_blackboard_variables_btree"),
@@ -153,7 +154,6 @@ public sealed class WindowIdentityIsDistinctTests
         ("BTree",     "ai_variable_values_btree"),
         ("BTree",     "ai_my_blueprint_btree"),
         ("BTree",     "ai_canvas_btree"),
-        ("HSM",       "ai_runtime_inspector_hsm"),
         ("HSM",       "ai_trace_timeline_hsm"),
         ("HSM",       "ai_find_results_hsm"),
         ("HSM",       "ai_blackboard_variables_hsm"),
@@ -161,7 +161,6 @@ public sealed class WindowIdentityIsDistinctTests
         ("HSM",       "ai_variable_values_hsm"),
         ("HSM",       "ai_my_blueprint_hsm"),
         ("HSM",       "ai_canvas_hsm"),
-        ("Blueprint", "ai_runtime_inspector_blueprint"),
         ("Blueprint", "ai_trace_timeline_blueprint"),
         ("Blueprint", "ai_find_results_blueprint"),
         ("Blueprint", "ai_blackboard_variables_blueprint"),

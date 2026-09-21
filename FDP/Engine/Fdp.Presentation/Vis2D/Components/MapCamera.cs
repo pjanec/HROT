@@ -14,17 +14,63 @@ namespace Fdp.Toolkit.Vis2D.Components
     {
         public Camera2D InnerCamera; // Public field for direct access if needed, or property
         
+        /// <summary>
+        /// ⭐⭐⭐ <b>THE SEAM CANNOT BE POISONED.</b> 📄 Added <c>2026-09-20</c> after a measured operator
+        /// defect: the editor's 2-D map became completely unclickable and the marquee invisible, because
+        /// <c>Raylib.GetScreenToWorld2D</c> — which is <c>(screen − Offset) / Zoom + Target</c> — returned
+        /// <c>NaN</c> for every mouse position.
+        ///
+        /// <para>🔴 <b>Why ONE bad write is permanent.</b> <c>NaN</c> propagates: once it reaches
+        /// <c>Target</c> or <c>Zoom</c>, every later screen↔world conversion is <c>NaN</c>, every hit-test
+        /// comparison is <c>false</c>, and the terminal falls through to the canvas on EVERY click —
+        /// forever, with no error anywhere. 📐 Measured from the product: <c>frame=763 pickable=708</c>
+        /// (the pick boxes were all there) at <c>worldPos=(NaN,NaN)</c>.</para>
+        ///
+        /// <para>⛔ <b>Rejecting is right; repairing silently is not.</b> A dropped write keeps the camera
+        /// usable and REPORTS the caller, so the producer can be found. ⭐ Same shape as
+        /// <c>EmitPickBox</c>'s §6.8 <c>networkId == 0</c> guard: the rule belongs on the seam that owns
+        /// the invariant, so every caller gets it.</para>
+        ///
+        /// <para>⚠ <c>Zoom</c> additionally rejects <c>&lt;= 0</c>: a zero zoom is a division by zero in
+        /// the same conversion, and <c>SetZoom</c> already guarded it — ⛔ but this setter did not, so
+        /// the guard was reachable only through one of the two doors.</para>
+        /// </summary>
         public float Zoom 
         { 
             get => InnerCamera.Zoom; 
-            set => InnerCamera.Zoom = value; 
+            set
+            {
+                if (!float.IsFinite(value) || value <= 0f)
+                {
+                    Fdp.Core.Logging.FdpLog<MapCamera>.Warn(
+                        $"[MapCamera] REJECTED a non-finite or non-positive Zoom ({value}). " +
+                        "Accepting it would make every screen<->world conversion NaN and silently " +
+                        "un-click the whole map. The camera is unchanged; fix the caller.");
+                    return;
+                }
+                InnerCamera.Zoom = value;
+            }
         }
 
         public Vector2 Target
         {
             get => InnerCamera.Target;
-            set => InnerCamera.Target = value;
+            set
+            {
+                if (!IsFinite(value))
+                {
+                    Fdp.Core.Logging.FdpLog<MapCamera>.Warn(
+                        $"[MapCamera] REJECTED a non-finite Target ({value.X},{value.Y}). " +
+                        "Accepting it would make every screen<->world conversion NaN and silently " +
+                        "un-click the whole map. The camera is unchanged; fix the caller.");
+                    return;
+                }
+                InnerCamera.Target = value;
+            }
         }
+
+        /// <summary>⭐ One predicate, so the three seams cannot disagree about what "usable" means.</summary>
+        internal static bool IsFinite(Vector2 v) => float.IsFinite(v.X) && float.IsFinite(v.Y);
         
         public Vector2 Offset
         {
@@ -66,11 +112,74 @@ namespace Fdp.Toolkit.Vis2D.Components
             _targetTarget = Vector2.Zero;
         }
 
+        /// <summary>
+        /// ⭐⭐⭐ <b>THE LAST LINE OF DEFENCE, and the one that matters — this is the ONLY per-frame writer
+        /// of <see cref="InnerCamera"/>.</b> 📄 Added <c>2026-09-20</c> with the property guards; see the
+        /// <c>Zoom</c> setter for the measured defect (the whole 2-D map silently un-clickable).
+        ///
+        /// <para>🔴🔴 <b>TWO HOLES THE PROPERTY GUARDS DO NOT COVER, and both were live:</b>
+        /// <list type="number">
+        /// <item>⛔⛔ <b>The old clamp could not see <c>NaN</c>.</b> <c>if (_targetZoom &lt; MinZoom)</c> and
+        /// <c>if (_targetZoom &gt; MaxZoom)</c> are <b>both false</b> for <c>NaN</c> — every comparison
+        /// against <c>NaN</c> is false — so a <c>NaN</c> target sailed through a block whose entire job was
+        /// validation.</item>
+        /// <item>⛔⛔ <b>These assignments write the FIELD, not the guarded properties</b>, so they bypass
+        /// the checks added beside them.</item>
+        /// </list></para>
+        ///
+        /// <para>🔒 <b>And <c>NaN</c> here is SELF-SUSTAINING:</b> <c>Lerp(NaN, x, t)</c> is <c>NaN</c>, so
+        /// once it lands in <c>InnerCamera</c> the smoothing re-poisons it every frame forever. ⭐ That is
+        /// exactly the observed signature — a valid world position on the first frames, then <c>NaN</c> for
+        /// the rest of the session.</para>
+        ///
+        /// <para>⭐⭐ <b>So this RECOVERS rather than merely refusing.</b> A camera found non-finite is
+        /// snapped back to its (validated) targets, which means an already-poisoned session repairs itself
+        /// on the next frame instead of staying dead until restart. ⛔ It still WARNS every time it has to,
+        /// because a silent repair would hide the producer.</para>
+        /// </summary>
         public virtual void Update(float dt)
         {
-            // Validating targets
-            if (_targetZoom < MinZoom) _targetZoom = MinZoom;
-            if (_targetZoom > MaxZoom) _targetZoom = MaxZoom;
+            // ⚠ dt first: a non-finite or negative dt makes every interpolation below non-finite, and it
+            //   arrives from outside this class. Treat it as "no interpolation this frame".
+            if (!float.IsFinite(dt) || dt < 0f) dt = 0f;
+
+            // ⭐ Validate the TARGETS with finite-aware logic. ⛔ `!(x >= Min)` is NOT the same as
+            //   `x < Min` — it is true for NaN, which is precisely the case the old clamp missed.
+            if (!(_targetZoom >= MinZoom) || !(_targetZoom <= MaxZoom))
+            {
+                if (!float.IsFinite(_targetZoom))
+                {
+                    Fdp.Core.Logging.FdpLog<MapCamera>.Warn(
+                        $"[MapCamera] target zoom was non-finite ({_targetZoom}); reset to 1. " +
+                        "Something wrote a NaN/Inf zoom — fix the caller.");
+                    _targetZoom = 1.0f;
+                }
+                else
+                {
+                    _targetZoom = System.Math.Clamp(_targetZoom, MinZoom, MaxZoom);
+                }
+            }
+
+            if (!IsFinite(_targetTarget))
+            {
+                Fdp.Core.Logging.FdpLog<MapCamera>.Warn(
+                    $"[MapCamera] target position was non-finite ({_targetTarget.X},{_targetTarget.Y}); " +
+                    "reset to origin. Something focused the camera on a NaN position — fix the caller.");
+                _targetTarget = Vector2.Zero;
+            }
+
+            // ⭐⭐⭐ RECOVERY: if the camera is ALREADY poisoned, snapping it to the validated targets is
+            //    the only way out — Lerp would carry the NaN forever.
+            if (!float.IsFinite(InnerCamera.Zoom) || InnerCamera.Zoom <= 0f || !IsFinite(InnerCamera.Target))
+            {
+                Fdp.Core.Logging.FdpLog<MapCamera>.Warn(
+                    $"[MapCamera] RECOVERING a non-finite camera (zoom={InnerCamera.Zoom}, " +
+                    $"target=({InnerCamera.Target.X},{InnerCamera.Target.Y})). Every screen<->world " +
+                    "conversion was NaN, which makes the whole map unclickable.");
+                InnerCamera.Zoom   = _targetZoom;
+                InnerCamera.Target = _targetTarget;
+                return;
+            }
 
             if (EnableSmoothing)
             {
@@ -188,8 +297,20 @@ namespace Fdp.Toolkit.Vis2D.Components
 
         public void FocusOn(Vector2 position, float zoom = -1f)
         {
+            // ⭐⭐⭐ THE THIRD DOOR, and the one most likely to be handed a bad value: callers focus on an
+            //    ENTITY POSITION, and a component can hold NaN. ⛔ `_targetTarget` is copied into
+            //    InnerCamera.Target every frame by Update(), so poisoning it here is exactly as permanent
+            //    as writing Target directly. 📄 See the Target setter for the measured defect.
+            if (!IsFinite(position))
+            {
+                Fdp.Core.Logging.FdpLog<MapCamera>.Warn(
+                    $"[MapCamera] REJECTED FocusOn a non-finite position ({position.X},{position.Y}) — " +
+                    "this is the write that un-clicks the map. The camera is unchanged; fix the caller.");
+                return;
+            }
+
             _targetTarget = position;
-            if (zoom > 0) _targetZoom = zoom;
+            if (zoom > 0 && float.IsFinite(zoom)) _targetZoom = zoom;
         }
 
         /// <summary>

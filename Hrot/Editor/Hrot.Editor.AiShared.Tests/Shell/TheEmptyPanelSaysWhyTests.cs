@@ -92,52 +92,21 @@ public sealed class TheEmptyPanelSaysWhyTests
             DetailsEmptyState.NothingForThisSelection,
             DetailsEmptyState.ForInapplicableFloat("  "));
 
-    // ══ the second SITE the design names by line number ══════════════════════
-
-    /// <summary>
-    /// ⭐⭐⭐ <b><c>RuntimeInspectorWindow</c>'s two arms said the SAME sentence for two DIFFERENT
-    /// facts.</b> 📄 §6 <c>L2.3</c> names both by line — <c>:54</c> and <c>:67</c> — and both read
-    /// <i>"No active session."</i>
-    ///
-    /// <para>📐 Measured: <c>:54</c> fires when <c>ActiveAsset</c> is null *(nothing open)*; <c>:67</c>
-    /// when a document IS open and no pane claims its kind. ⚠ <b>Neither is about a session.</b>
-    /// ⇒ ⭐ this rail is what stops them collapsing back together.</para>
-    /// </summary>
-    [Fact]
-    public void TheRuntimeInspector_TellsTheTwoEmptyCasesApart()
-    {
-        var store  = new EditorSelectionStore();
-        var window = new RuntimeInspectorWindow(store, new DebugSessionRegistry());
-
-        // :54 — nothing is open at all.
-        Assert.Equal(DetailsEmptyState.NoDocument, window.EmptyState());
-
-        // :67 — a document is open, and no pane claims its kind.
-        store.ActiveAsset = new Tests.Selection.EditorSelectionStoreTests.FakeAsset
-            { Kind = AssetKind.Blueprint };
-        Assert.Equal(DetailsEmptyState.NothingForThisSelection, window.EmptyState());
-    }
-
-    /// <summary>
-    /// ⭐ …and with a matching pane there is no grey line at all — ⛔ <see langword="null"/> means
-    /// <i>"draw the pane"</i>, which keeps the empty state a single decision rather than two.
-    /// </summary>
-    [Fact]
-    public void TheRuntimeInspector_WithAMatchingPane_HasNoEmptyState()
-    {
-        var store  = new EditorSelectionStore
-            { ActiveAsset = new Tests.Selection.EditorSelectionStoreTests.FakeAsset
-                { Kind = AssetKind.BTree } };
-        var window = new RuntimeInspectorWindow(store, new DebugSessionRegistry());
-        window.RegisterPane(new PaneFor(AssetKind.BTree));
-
-        Assert.Null(window.EmptyState());
-    }
+    // ⛔⛔ CE-303 — THE SECOND SITE IS GONE, and so are the two rails that covered it.
+    //    They asserted RuntimeInspectorWindow.EmptyState() telling "no document" from
+    //    "nothing claims this kind" apart. 🔒 DESIGN_Details_Panel_View_Switching.md §4
+    //    (closed question Q-iii) says that window DISSOLVES into three predicated views,
+    //    and 2026-09-21 finally applied it.
+    // ⭐ The BEHAVIOUR did not move to nowhere: the shell now decides both sentences, and
+    //    the rails above this line are exactly that — NoDocument_AndNothingApplicable_Are
+    //    DifferentSentences and its two neighbours. ⚠ What is genuinely lost is the
+    //    per-KIND clause, which is now a view PREDICATE and is railed as one
+    //    (TheRegistryOffersWhatApplies / RuntimeDetailsViewDescriptor).
 
     private sealed class PaneFor : IRuntimeInspectorPane
     {
         public PaneFor(AssetKind kind) => TargetKind = kind;
         public AssetKind TargetKind { get; }
-        public void Draw() { }
+        public void Draw(Hrot.Editor.AiShared.Shell.DetailsContext context) { }
     }
 }

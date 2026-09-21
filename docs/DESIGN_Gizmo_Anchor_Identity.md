@@ -26,6 +26,13 @@ known-rot: none. §9 lists what was retracted while reaching this state, so nobo
 known-conflict: none. ⚠ FDP/Engine/Fdp.Presentation/Vis2D/Layers/DebugGizmoLayer.cs:271-285 and
   Hrot/Network/Hrot.Network.NED/Gizmos/GizmoInteractionIngressTranslator.cs:56 CONTRADICT the field
   contracts they consume; that is the subject of this design, not an unreconciled disagreement.
+related-designs:
+  - docs/blueprints/Architect_Question_73_Canvas_Interaction_Scope.md — REOPENS §6.3's
+    PickStreamId ruling: a CANVAS pick (AnchorId 0) has nothing on this record to scope it to a
+    target node, so the ingress drops it. That question proposes the field's DECLARED purpose as
+    the scope. §6.3's reason (an ECS generation on the wire is defect D2) is NOT what it asks for.
+  - docs/UX/UX_Feature_Selection.md — owns UXI-11; §2.7.14 records the local-only empty-space
+    clear that the drop above causes.
 -->
 # ⭐⭐⭐ Gizmo Anchor Identity — **one id, and it is the network id**
 

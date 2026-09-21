@@ -160,8 +160,10 @@ public class PerspectiveWorkspaceRegistrarTests : IDisposable
         //    last one the window drew nothing at all.
         //    📌 B101c: the DIRECTION was established before this number moved — the design commissions
         //    the retirement, so this is a designed loss, ⛔ not an expectation relaxed to hide a red.)
-        Assert.Equal(23, allIds.Count);
-        Assert.Equal(23, allIds.Distinct().Count());
+        // ⚠ CE-303 (2026-09-21): THREE fewer — one dissolved RuntimeInspectorWindow per AI
+        //    registrar (§4's Q-iii). ⭐ Exact, not relaxed: the DISTINCT half is the real claim.
+        Assert.Equal(20, allIds.Count);
+        Assert.Equal(20, allIds.Distinct().Count());
     }
 
     /// <summary>
@@ -177,7 +179,11 @@ public class PerspectiveWorkspaceRegistrarTests : IDisposable
         //    per-perspective sources on this same registrar, asserted just below.
         Assert.NotNull(reg.ParameterSync);
         Assert.NotNull(reg.NodeProperties);
-        Assert.NotNull(reg.RuntimeInspector);
+        // ⛔ CE-303: reg.RuntimeInspector is GONE — §4's Q-iii, the window DISSOLVES into three
+        //    predicated views. ⭐ The capability that replaced it is asserted instead: a pane
+        //    registered here reaches the catalogue (TheViewsCameFromTheirOwnWindowsTests covers
+        //    the content; this only says the seam exists on every registrar).
+        Assert.NotNull(reg.DetailsViews);
         Assert.NotNull(reg.TraceTimeline);
         Assert.NotNull(reg.BlackboardAuthoring);
         Assert.NotNull(reg.Diagnostics);
