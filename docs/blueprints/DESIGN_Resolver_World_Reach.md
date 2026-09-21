@@ -2,8 +2,10 @@
 state: LIVE
 updated: 2026-09-21
 build-state: READY-TO-BUILD
-current-answer: section 4 (the decision) and section 5 (the diagrams). Section 7 settles the
-  PUBLISHING CURRENCY, which Q43 section 8 deliberately left open.
+current-answer: section 4 (the decision) and section 5 (the diagrams). Section 7.1 settles the
+  PUBLISHING CURRENCY, which Q43 section 8 deliberately left open; section 7.2 settles SELECTION
+  (the params-owning region NAMES its resolver, user 2026-09-21) and carries its own HISTORY note
+  for the superseded "rank by authorship" answer - do NOT quote that.
 stale-below: nothing.
 known-rot: nothing.
 known-conflict: Behavior_Parameter_Resolver_Detailed_Design.md 8.1 rates R4 "Medium" and offers
@@ -230,6 +232,11 @@ graph TD
     class BD dead
 ```
 
+> ⭐⭐ **UPDATED `2026-09-21`:** §7.2 gives that dashed edge a home — **the params-owning region names
+> its resolver**, and for an asset's OWN `Construction` graph the registrar already holds both halves,
+> so the edge becomes solid with no binding step. ⚠ The diagram still draws it dashed because **nothing
+> selects a resolver in the CODE today**.
+>
 > 📌 **What the picture shows that prose hid — and it is the load-bearing part.** ⛔⛔ **The dashed red
 > edge is the only thing standing between this design and a working feature: NOTHING SELECTS A
 > RESOLVER.** `BlueprintDefinition.Resolvers` is populated by the registrar and read by nobody.
@@ -288,28 +295,85 @@ not, and discards `view`/`self`/`time` *(inventory ⑦)*.
 | ⛔ **`Functions` is untouched** | it is a genuinely different concept — *"call this graph by name"* — and its `LibraryFunctionDelegate` is right for it |
 | ⚠ **this supersedes `Q43` §8.4's `Resolvers` row** | ⭐ shipped `2026-09-21` as provisional; the currency was explicitly deferred to this design |
 
-### 7.2 ⛔⛔ PRECEDENCE — **is a blueprint-authored resolver CURATED or GENERATED?** *(`R-132`)*
+### 7.2 ⭐⭐⭐ SELECTION — **the asset NAMES its resolver, so competition is UNREPRESENTABLE** *(user, `2026-09-21`)*
 
-🔒 **`R-132`, user `2026-08-23`:** *"if curated (hand-authored) exists, then no other is needed —
-having automatically generated is undesired in such a case."* ⛔ And its sharper half: **two producers
-for one slot bound by REGISTRATION ORDER is a race, not a precedence rule.**
+> 🔒 **User, verbatim:** *"blueprint graph defined resolver will likely not compete with hand written,
+> how could it? resolver is per graph and someone needs to name the manually coded resolver somehow —
+> how in a blueprint? maybe the property of the blueprint itself (UI picked), and if defined, then it
+> is clear that this blueprint will not generate own resolver."*
 
-📐 **`R-132`'s mechanism, measured:** `BehaviorRegistry.RegisterResolver` is reached **only** from
-`CgfCuratedBehaviorRegistrar` ⇒ *"the presence of an overlay IS the signal that a human wrote a
-resolver for this behaviour."*
+⭐⭐⭐ **This replaces a precedence RULE with a structural IMPOSSIBILITY, and that is strictly better.**
+📌 The codebase already prefers this move — `LibraryEmitter`'s own words about the `__loc_` prefix:
+*"the prefix makes the collision unrepresentable rather than making it someone's later bug report."*
 
-⚠⚠ **A blueprint-authored resolver breaks that signal, and this is a NEW question `R-132` could not
-have anticipated.** It is **generated code** *(a `[BlueprintRegistrar]` emits it)* produced from a
-**hand-authored artefact** *(a designer drew the graph)*. ⇒ ⛔ **the C#-vs-emitted test no longer
-distinguishes "a human wrote this" from "a tool did."**
+#### ⭐ The shape
 
-| ⭐ the recommended answer — ⛔ **needs the user's nod before it is canon** | |
+**One nullable property on the thing that OWNS a params region**, whose value is a single reference:
+
+```
+ParamResolverRef?            // null => no resolver; the deserialize IS the resolve (§3.1's common case)
+  ├─ OwnGraphId  : Guid      // one of THIS asset's own Construction graphs
+  ├─ AssetId + GraphId       // a reusable resolver blueprint (a Library asset's Construction graph)
+  └─ CuratedName : string    // a hand-written C# resolver, by the name BehaviorRegistry already keys on
+```
+
+| ⭐ why this shape | |
 |---|---|
-| ⭐⭐⭐ **rank by AUTHORSHIP, not by artefact kind** | ⭐ a blueprint resolver is **CURATED**: a human chose it, in a tool, for this behaviour. ⛔ What `R-132` actually refuses is a resolver **nobody asked for** — the BTree JSON generator's incidental `ParseParams`, emitted *because the asset declares a managed blackboard* |
-| ⭐⭐ **so the rank is: explicit binding (C# overlay **or** blueprint) ▸ incidental generated `ParseParams`** | ⇒ ⭐ the blueprint resolver joins the **overlay** tier, not the generated one |
-| ⛔⛔ **and TWO EXPLICIT bindings for one behaviour must THROW, never race** | 🔒 that is `R-132`'s own sentence applied to its successor: *"where a curated and a generated artefact can both fill a slot, curated wins **by declaration**, not by arriving first."* ⇒ **two curated ones is an authoring error and must be loud** |
-| ⚠ **this is a BINDING-time rule, so it lands with the binding, not with `R4`** | ⭐ recorded here so the binding pass cannot re-derive it wrongly — ⛔ `R4` itself changes no precedence |
+| ⭐⭐⭐ **one field, one value ⇒ two resolvers for one region CANNOT BE AUTHORED** | ⛔ no precedence rule to get wrong, no registration-order race — `R-132`'s *"bound by REGISTRATION ORDER is a race, not a precedence rule"* simply has nothing to bind here |
+| ⭐⭐ **it answers the question my design never did** — *how does a blueprint name a HAND-WRITTEN resolver?* | ⭐ `CuratedName` reuses the key `BehaviorRegistry.RegisterResolver(name, …)` **already** uses; ⛔ no new identity scheme |
+| ⭐⭐ **the ROLE is assigned by the PROPERTY, not by the graph KIND** | ⭐⭐ this is what honours `Q43-A2′`'s *"do not define `Construction` as the resolver graph"*: `Construction` keeps meaning **"runs once at setup"**, and the property says *which* setup graph resolves params. ⇒ an Instance asset may later carry a second `Construction` graph meaning *"configure the instance"* with **no ambiguity** |
+| ⭐ **`CallablePeers : List<Guid>` is the prior art for the reference shape** | `BlueprintAsset.cs:100` — a blueprint already names other assets by `Guid`. ⚠ **Reuse the DECLARATION shape only** — 📄 §8's own trap warning: the peer-CALL path *"is designed-only and non-functional … do NOT build the resolver on it"* |
+| ⭐ **data now, picker later** | the property is **authored JSON**; the *"(UI picked)"* half is `Q41-C2′` and the UI lane is held. ⇒ this lands without touching the editor |
 
+#### ⭐⭐ Why this also DISSOLVES the binding problem for the hosted path
+
+📐 **Measured:** `HostedParamResolvers.Register<TParams>(Guid assetId, …)` is keyed by **the hosted
+blueprint's OWN asset id** — *"registers the resolve stage for a hosted blueprint, keyed by its ASSET
+id."* ⇒ ⭐⭐⭐ **when the resolver is the asset's own `Construction` graph, the generated registrar
+already holds both halves** and emits `Register(ownAssetId, ownResolver)` with **no binding step at
+all.** ⛔ §5.3's dashed red edge disappears for exactly the case the occurrence programme cares about.
+
+#### ⚠ The ONE open sub-question — **granularity, and it differs by what owns the region**
+
+| owner | its params region | so the property lives on… |
+|---|---|---|
+| an **AiPrimitive / Instance** blueprint | **ONE** struct *(the occurrence slot, or `[Cursor][Params][State]`)* | ⭐ **the ASSET** — matching `HostedParamResolvers`' per-asset key and `Q43-B`'s *"per ASSET, not per site"* |
+| a **BTree / HSM behaviour** | **N** packed variables on one blackboard | ⭐ **the VARIABLE** — `R-91` *(the hook is per-VARIABLE)* and `Q41-C2′` *(the authorable one is per VARIABLE)* |
+
+⭐⭐ **That is not two mechanisms:** the rule is **one resolver per params REGION**, and a blueprint has
+one region where a behaviour blackboard has N. ⛔ Collapsing them to per-asset would make an HSM
+blackboard unresolvable per-variable, which `R-91` forbids.
+⚠ **Cost to name:** the behaviour half adds a field to `HsmAssetDto`/`BehaviorTreeAssetDto`, which
+moves their round-trip goldens. ⭐ The blueprint half moves none.
+
+#### ⛔ HISTORY — **`2026-09-21`, SUPERSEDED the same day**
+
+⚠ This section first proposed *"rank by AUTHORSHIP, not by artefact kind"* — treating a blueprint
+resolver as CURATED so it would outrank an incidental generated `ParseParams`. ⛔ **That was solving a
+problem this model makes unrepresentable.** 🔒 The user's question — *"how could it [compete]?"* — is
+the refutation: a resolver is selected **by the region that needs one**, so there is never a second
+candidate for the same slot. ⭐ **`R-132` is untouched and still governs its own case** *(a curated C#
+overlay vs the BTree JSON generator's incidental `ParseParams`)* — ⛔ the blueprint resolver simply
+does not join that race.
+
+---
+
+## 7.3 ⚠ CONSEQUENCE FOR `BP1676` — **its scope narrows, and that is a finding**
+
+📐 `V_ResolverPurity` ships **`BP1676`: "a `Construction` graph is only supported on a Library asset."**
+⭐ That was right when a resolver could only be a **separate** asset. ⛔ Under §7.2 an **AiPrimitive or
+Instance asset may carry its OWN `Construction` graph** — it owns a params region, so it is precisely
+the case the property is for.
+
+| ⭐ the revised rule | |
+|---|---|
+| ⭐⭐ **`Construction` is legal wherever a params region exists** — Library *(a reusable named resolver)*, AiPrimitive and Instance *(its own)* | ⛔ still refused where there is nothing to resolve |
+| ⭐⭐⭐ **and a `Construction` graph that NOTHING NAMES is the new `BP1676`** | ⭐ that keeps the rule's real job — *"refuse a graph nobody will ever call"* — while dropping the dispatch test that the selection property makes wrong. ⚠ **This is the honest replacement, not a relaxation** |
+| ⚠ **it stays a Stage-2 error, not a warning** | a silently-uncalled resolver is the failure shape this programme keeps filing |
+
+⛔ **`BP1676` as shipped is therefore PROVISIONAL**, like the `Resolvers` currency — both were decided
+before the selection model existed. ⭐ Neither is a live defect: today **no** asset carries a
+`Construction` graph except `ParamResolverDemo`, which is a Library asset and passes either rule.
 
 ---
 
