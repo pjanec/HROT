@@ -90,9 +90,20 @@ that inside a lazy factory lambda, so the eager form *looked* equivalent. ⇒ th
 `Func<…>`. ⭐ **Red-proved** by building the descriptor and never registering it — 📌 `BP-475`'s
 "built and unreachable" defect, which is exactly what that rail exists to catch.
 
-⚠ **`EntityBlueprintsManagedWindow` now has ZERO production construction sites and is NOT deleted** —
-🔒 *"no rush removals"*, and ⭐ the precedent cuts the other way: `BP-475` converted `HsmEventsWindow`
-and **kept the window**. ⇒ **a user call.**
+☑ **`EntityBlueprintsManagedWindow` IS DELETED** — 🔒 user, after being told what it shows: *"no
+standalone window if this one is related to one single entity … the standalone window would still be
+possible, pinned to concrete entity in the same way as the details panel supports now."*
+📐 **Measured first:** it shows the **Instance** blueprints on **ONE** entity *(its own empty state says
+so)* ⇒ single-entity, which is the condition the ruling turns on.
+⭐⭐ **A pin IS the standalone window**: `DetailsWindow.Pin` freezes whichever view is chosen over a
+`FrozenContextSource` and titles it *(`R-100`)* ⇒ strictly MORE than the window had, which could only
+follow the global selection. ⚠ `entity_blueprints` removed from the shipped layout too.
+⭐ **Railed:** `APinnedViewKeepsItsEntity_WhileADockedOneFollows` drives a frozen and a live context
+through two instances and asserts they **diverge** — ⛔ the docked half is in the same rail because a
+frozen source that never changed would pass the pinned half while breaking the ordinary case.
+⚠ **Why this is not a breach of *"no rush removals"*:** that rule sends you to the design record first;
+here the record is the **user's ruling**. ⭐ `BP-475` kept `HsmEventsWindow` because it is **asset**-scoped
+— a standalone window on the open asset is meaningful; this one is **entity**-scoped.
 
 ☑☑ **`CE-303` BUILT `2026-09-21` — 🔒 user: *"let it dissolve, go ahead."*** `RuntimeInspectorWindow` is
 **DELETED** *(§4's closed question `Q-iii`, finally applied — the code had kept both surfaces)*;

@@ -471,15 +471,41 @@ not a runtime path.
 ⭐ **Red-proved:** build the descriptor and never `Add` it — the `BP-475` defect exactly — and the
 catalogue rail reddens while all four others stay green.
 
-### ⚠ LEFT IN THE TREE, DELIBERATELY: `EntityBlueprintsManagedWindow`
+### ☑ `EntityBlueprintsManagedWindow` IS DELETED — **user ruling, `2026-09-21`**
 
-📐 It now has **zero production construction sites** — the registration it existed for is the one this
-item replaced. ⛔ **Not deleted**, and that is the rule, not hesitation: 🔒 *"what is not used does not
-mean it is existing without reason"* and *"no rush removals"*.
-⭐⭐ **And the precedent cuts against deleting:** `BP-475` converted `HsmEventsWindow` to a view and
-**kept the window** — so on this codebase *"is a details view"* and *"is also a window"* have coexisted
-before. ⇒ ⚠ **whether Entity Blueprints should keep a standalone window is a USER call**, and it is
-asked rather than assumed.
+> 🔒 **User, asked what the panel does and whether the window should stay:** *"no standalone window if
+> this one is related to one single entity, then it should become hosted by the details panel of the
+> blueprint perspective; and the standalone window would still be possible, pinned to concrete entity
+> in the same way as the details panel supports now."*
+
+📐 **What it shows, measured before answering** — the **Instance** blueprints attached to **ONE**
+entity, with staged add/remove and an apply/cancel flow. Its own empty state says it: *"No entity
+selected. Select an entity on the map to edit its blueprints."* ⇒ **single-entity by construction**,
+which is the condition the ruling turns on.
+
+| ⭐ why deleting is a REPLACEMENT, not a loss | |
+|---|---|
+| ⭐⭐⭐ **the standalone window still exists — as a PIN** | 📐 `DetailsWindow.Pin(windowManager)` pins **whichever view is chosen**, with a `FrozenContextSource(frame.Context)` ⇒ *"a standalone window pinned to a concrete entity"* is exactly what it produces, and it is **titled** so two pins are told apart *(`R-100`)* |
+| ⭐ **it is strictly MORE than the window had** | ⛔ the old window followed the global selection and could not be fixed to an entity at all |
+| ⚠ **the shipped layout claimed `entity_blueprints` too** | removed from `layout/default/{imgui.ini,fdp_windows.json}` — 📌 the same orphan class the `CE-303` layout rail caught |
+
+⛔⛔ **This does NOT weaken *"no rush removals"*, and the distinction is the point.** 📌 That rule sends
+you to the design record before deleting; the record here is the **user's own ruling**, given after
+being told what the thing does. ⚠ `BP-475` kept `HsmEventsWindow` — ⭐ and the ruling explains why the
+cases differ: that view is **asset**-scoped, so a standalone window showing the open asset is
+meaningful; this one is **entity**-scoped, and a window that follows "whoever is selected" is exactly
+what a pin does better.
+
+⭐ **Railed**, because the window is gone either way: `APinnedViewKeepsItsEntity_WhileADockedOneFollows`
+drives a `FrozenContextSource` and a live one through two instances and asserts they **diverge** —
+⛔ the docked half is in the same rail on purpose, since a frozen source that never changed would pass
+the pinned assertion while breaking the ordinary case.
+
+⚠ **One property worth naming:** `EntityBlueprintsPanel.BuildViewModel` only re-targets on a
+**non-default** entity, so it LATCHES the last one. ⭐ Unreachable through the details panel — the
+predicate is `ExactlyOneEntity`, so the view is not offered with none — ⛔ but it is why the view's own
+cell is cleared rather than left, and it would matter again if anything ever hosted this panel without
+that predicate.
 
 ## 11. ⛔⛔ `CE-303` IS RE-SCOPED — **`BlueprintRuntimeInspectorPane` IS ALREADY A DETAILS VIEW**
 

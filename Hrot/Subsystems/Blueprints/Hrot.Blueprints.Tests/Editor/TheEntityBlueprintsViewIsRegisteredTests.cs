@@ -92,6 +92,51 @@ public sealed class TheEntityBlueprintsViewIsRegisteredTests
         Assert.Null(view.CurrentEntity);
     }
 
+    /// <summary>
+    /// ⭐⭐⭐ <b>THE CAPABILITY THAT REPLACED THE STANDALONE WINDOW, end to end.</b>
+    /// 🔒 User, <c>2026-09-21</c>: <i>"no standalone window if this one is related to one single entity
+    /// … the standalone window would still be possible, pinned to concrete entity in the same way as
+    /// the details panel supports now."</i>
+    ///
+    /// <para>⭐⭐ <b>A pinned view is a <see cref="FrozenContextSource"/> over the context AT PIN TIME</b>
+    /// *(<c>R-100</c>)*, so the selection moving afterwards must not move it. ⛔ This is what makes
+    /// deleting <c>EntityBlueprintsManagedWindow</c> a REPLACEMENT rather than a loss — and it is
+    /// asserted rather than assumed, because the window is gone either way.</para>
+    ///
+    /// <para>⚠ <b>The DOCKED half is in the same rail deliberately</b>: a frozen source that never
+    /// changed would pass the pinned assertion while breaking the ordinary case. ⛔ One without the
+    /// other proves half the claim.</para>
+    /// </summary>
+    [Fact]
+    public void APinnedViewKeepsItsEntity_WhileADockedOneFollows()
+    {
+        var pinnedTo = new Entity(7, 1);
+        var moved     = new Entity(8, 1);
+
+        var world    = new EntityRepository();
+        var registry = new Fdp.Toolkit.Blueprints.BlueprintRegistry();
+
+        // ⭐ PINNED: the context is snapshotted once and handed over frozen.
+        var frozen = new FrozenContextSource(ContextFor(pinnedTo));
+        using var pinned = new EntityBlueprintsDetailsView(world, registry);
+
+        // ⭐ DOCKED: re-reads a live context every draw.
+        using var docked = new EntityBlueprintsDetailsView(world, registry);
+
+        pinned.PointAt(frozen.Current());
+        docked.PointAt(ContextFor(pinnedTo));
+        Assert.Equal(pinnedTo, pinned.CurrentEntity);
+        Assert.Equal(pinnedTo, docked.CurrentEntity);
+
+        // ── the selection moves ──────────────────────────────────────────────
+        pinned.PointAt(frozen.Current());          // ⭐ still the snapshot
+        docked.PointAt(ContextFor(moved));         // ⭐ follows
+
+        Assert.Equal(pinnedTo, pinned.CurrentEntity);
+        Assert.Equal(moved,    docked.CurrentEntity);
+        Assert.NotEqual(pinned.CurrentEntity, docked.CurrentEntity);
+    }
+
     private static DetailsContext ContextFor(params Entity[] entities)
         => DetailsContextBuilder.Build(
             store:       new Hrot.Editor.AiShared.Selection.EditorSelectionStore(),
