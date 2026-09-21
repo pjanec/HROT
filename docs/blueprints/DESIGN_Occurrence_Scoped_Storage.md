@@ -3851,3 +3851,42 @@ demand bump, and **N one-line re-anchorings**. ⛔ The "scatter" reading would h
 | **`P3-A`** | ⭐⭐⭐ **No storage needed.** 🔒 *"the key that leads to the slot allocated for the behavior params… where is this key stored? maybe where the BrainTier is?"* — ⭐ `BehaviorState.ActiveBehaviorHash` **already identifies the root behaviour and is already on the entity**, and every occurrence key here is COMPUTED, never stored. ⇒ `ComputeRootParamsKey(behaviourHash)` |
 | **`P3-B`** | ⭐⭐ **Add the accessor** — `BehaviorParams.TryGetRoot<T>(world, entity, out T*)`. ⭐⭐ **And the EMITTERS can use the same one for the ROOT path**, because the root key is a RUNTIME value needing no baking. ⛔ Per-SITE occurrences stay inlined in the emitter: their identity comes from the `writer` stamp, which no generic accessor can see. ⚠ Cost: one more public surface, and a non-inlined generic call — the same call the emitter already makes |
 | **`P3-C`** | ⭐⭐ **CLEAN CUT.** The ingress memcpy into `BrainBlackboard` stops; slots are the only home. ⛔ Dual-write would be `R-132`'s second producer, and in this codebase a temporary one becomes permanent. ⚠ The 7 UI readers are re-anchored **in the same programme** rather than left stale — the lane fence was lifted for this work |
+
+### 29.8 ⛔⛔⛔ AS-BUILT `2026-09-21` — **`CE-302` IS TWO FIXES, AND THE SECOND ONE WAS A LIVE DEFECT**
+
+⚠ **§29.6's demand row describes only HALF of what `CE-302` turned out to be.** Building it exposed a
+defect `P3` step 2 had already shipped.
+
+| # | what | where |
+|---|---|---|
+| **①** | ⭐⭐ **THE DEMAND** *(as §29.6 predicted)* — the root slot's **aligned payload + one `BlueprintSlotEntry`** is added to the tier demand in **BOTH** provisioning branches, before the tier is chosen | `BehaviorIngressSystem.RootParamsCost` ⇒ `ProvisionStatefulSlots` and `EnsureOccurrenceStore` |
+| **②** | 🔴🔴🔴 **THE ORDERING — NOT PREDICTED, AND IT WAS TOTAL PARAMS LOSS ON EVERY HSM BRAIN** | the `P3` attach block now sits **AFTER** `DetachHostedOccurrenceSlots` |
+| **③** | ⚠ **THE LEAK** — a BTree brain's root slot is invisible to that sweep, so each behaviour change stranded one | new `RootParamsAccess.DetachRoot`, called on `previousBehaviorId != behaviorId` |
+
+#### 🔴 Why ② is the one worth writing down
+
+⛔ The root slot is attached with **`KindOf(def)`** — `OccurrenceKind.Hsm` on an HSM brain
+*(`A3`/`D1′`: the kind follows the brain tier)*. ⭐ `DetachHostedOccurrenceSlots` sweeps exactly
+**"kind `Hsm` or `Blueprint`, and not named by the manifest"** — which the root slot satisfies on both
+counts. ⇒ **with the attach above the sweep, the slot was created and destroyed inside one call, on
+every assign, on every HSM behaviour.**
+
+⭐⭐ **Nothing noticed because the blackboard commit still ran** — params still arrived, no behaviour
+changed. 🔒 **That is the shape this programme keeps filing, and the reason `P3` was deliberately built
+additive-first: the cut would have turned a silent no-op into silent zeroed params.**
+
+| ⚠ the asymmetry that makes it a RAIL, not a comment | |
+|---|---|
+| ⭐ a **BTree** brain's root slot has kind `BTree`, which the sweep does not look at ⇒ **it was always fine** | ⛔ so a rail covering only BTree would have proved nothing. `O7_R39` asserts **both**, HSM first |
+| ⭐ conversely the **leak** (③) is **BTree-only** — the HSM sweep was already detaching the old root slot by accident | ⇒ `O7_R41` churns four BTree assigns and asserts the slot count stays **1** |
+
+#### ✅ Rails and red-proofs
+
+| rail | asserts | red-proof *(measured, `2026-09-21`)* |
+|---|---|---|
+| **`O7_R39`** | an HSM behaviour's root params survive its own assign; the BTree sibling too | move the attach back above the sweep ⇒ **RED at the HSM `TryGetRoot`**, BTree-only `O7_R41` stays green |
+| **`O7_R40`** | a behaviour whose hosted demand fills the 256 tier's **3** slots still gets room for its root params | drop `rootParamsCost` from either branch ⇒ **RED** |
+| **`O7_R41`** | four consecutive assigns leave **one** slot, carrying the newest values | delete `DetachRoot` ⇒ **RED, `Expected: 1  Actual: 3`** |
+
+⇒ ⭐⭐ **`P3` steps 1–3 are now safe to cut behind.** ⛔ Step 4 *(re-anchor the readers)* and the cut
+itself still land together — §29.7 `P3-C`.

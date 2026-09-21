@@ -154,15 +154,27 @@ namespace Fdp.Toolkit.Behavior.Systems
                     // declared Kind instead of on a BlueprintRegistry miss (F7 -- an accident, not
                     // a filter). The behaviour's tier IS the kind for its stateful working slots.
                     // O7b-3: the behaviour's HOSTED occurrences need room in the same tier.
+                    // CE-302: and so does the ROOT PARAMS slot attached a few lines below.
                     _registry.TryGetHostedOccurrenceDemand(evt.BehaviorName, out var hosted);
                     ProvisionStatefulSlots(repo, evt.Entity, def.StatefulWorkingSlots, KindOf(def),
-                                           hosted);
+                                           hosted, RootParamsCost(def));
                 }
                 else
                 {
                     _registry.TryGetHostedOccurrenceDemand(evt.BehaviorName, out var hosted);
-                    EnsureOccurrenceStore(repo, evt.Entity, def, hosted);
+                    EnsureOccurrenceStore(repo, evt.Entity, def, hosted, RootParamsCost(def));
                 }
+
+                // E3a: drop the PREVIOUS assign's lazily-attached hosted occurrences, so their params
+                // re-seed from the JSON just parsed. ⛔ Omitting this makes new JSON a no-op (§28.4).
+                DetachHostedOccurrenceSlots(repo, evt.Entity, def.StatefulWorkingSlots);
+
+                // ⭐ CE-302: and the PREVIOUS behaviour's ROOT PARAMS slot, which the sweep above
+                //   cannot reach on a BTree brain — its kind is BTree, not Hsm/Blueprint. ⛔ Without
+                //   this, every behaviour change leaks one slot, and an entity reassigned a few times
+                //   exhausts MaxSlots (3 on the 256 tier) and then silently loses its params.
+                if (previousBehaviorId != BehaviorIds.None && previousBehaviorId != behaviorId)
+                    RootParamsAccess.DetachRoot(repo, evt.Entity, previousBehaviorId);
 
                 // ⭐⭐⭐ P3 — THE ROOT BEHAVIOUR'S PARAMS GET THEIR OWN SLOT.
                 //   §29.6: ONE slot holds the WHOLE packed table, exactly as BehaviorParameters does,
@@ -172,9 +184,13 @@ namespace Fdp.Toolkit.Behavior.Systems
                 // ⚠ It must run AFTER provisioning: the occurrence store is what we attach into, and
                 //   ProvisionStatefulSlots/EnsureOccurrenceStore above is what guarantees one exists.
                 //
-                // ⚠ The blackboard commit above still runs. P3's clean cut (P3-C) removes it once the
-                //   readers are re-anchored; landing the cut before them would blank every params
-                //   reader in one commit.
+                // 🔴🔴 AND AFTER DetachHostedOccurrenceSlots — measured 2026-09-21, this ordering is
+                //   LOAD-BEARING and the first version had it wrong. An HSM behaviour's root slot is
+                //   attached with OccurrenceKind.Hsm (KindOf follows the brain tier, A3/D1′), and the
+                //   sweep detaches exactly "kind Hsm|Blueprint and not named by the manifest" ⇒ it
+                //   swept the root slot away on the very same assign that created it. ⛔ Harmless only
+                //   while the blackboard commit still ran; after P3-C it is total params loss on every
+                //   HSM brain. ⚠ Do NOT move this block back above the sweep.
                 if (def.ParseParams != null)
                 {
                     int rootBytes = RootParamsAccess.RootParamsBytes(def);
@@ -194,10 +210,6 @@ namespace Fdp.Toolkit.Behavior.Systems
                         }
                     }
                 }
-
-                // E3a: drop the PREVIOUS assign's lazily-attached hosted occurrences, so their params
-                // re-seed from the JSON just parsed. ⛔ Omitting this makes new JSON a no-op (§28.4).
-                DetachHostedOccurrenceSlots(repo, evt.Entity, def.StatefulWorkingSlots);
 
                 // 2. Reset BTree execution pointer so the new behavior starts from the root.
                 if (repo.HasComponent<BrainBTreeState>(evt.Entity))
@@ -319,7 +331,7 @@ namespace Fdp.Toolkit.Behavior.Systems
         /// </summary>
         private static void EnsureOccurrenceStore(
             EntityRepository repo, Entity entity, BehaviorDefinition def,
-            HostedOccurrenceDemand? hosted = null)
+            HostedOccurrenceDemand? hosted = null, int rootParamsCost = 0)
         {
             if (def.BrainTier != BehaviorConstants.BrainTierBTree &&
                 def.BrainTier != BehaviorConstants.BrainTierHsm)
@@ -330,7 +342,11 @@ namespace Fdp.Toolkit.Behavior.Systems
             // ⭐⭐ O7b-3: size it for what this behaviour will actually host. ⚠ A null demand means
             //   "nobody computed one" (§27.7), and the smallest tier is the same answer E-cap gave —
             //   so this is additive, never a regression.
-            int targetTier = SelectTierForPayload(HostedPayloadCost(hosted), hosted?.SlotCount ?? 0);
+            // ⭐ CE-302: the root params slot is attached after this returns, so its cost is added here
+            //   or it is never counted at all.
+            int targetTier = SelectTierForPayload(
+                HostedPayloadCost(hosted) + rootParamsCost,
+                (hosted?.SlotCount ?? 0) + (rootParamsCost > 0 ? 1 : 0));
 
             // ⛔⛔ DO NOT WIDEN THE TOOLKIT'S CONTRACT. Registering the tier components is Hrot-wide
             //   (HrotSharedComponentRegistry, CE-161) but this system lives in Fdp.Toolkits, which
@@ -457,6 +473,37 @@ namespace Fdp.Toolkit.Behavior.Systems
                  ? 0
                  : hosted.PayloadBytes + hosted.SlotCount * BlueprintBlackboardPartitions.SlotEntrySize;
 
+        /// <summary>
+        /// ⭐⭐⭐ <b><c>CE-302</c> — the store bytes the ROOT PARAMS slot costs</b>, in the same
+        /// arithmetic <see cref="HostedPayloadCost"/> uses: aligned payload plus one
+        /// <c>BlueprintSlotEntry</c>. <b>Zero means "this behaviour has no root params".</b>
+        ///
+        /// <para>⛔⛔ <b>Why this had to exist before <c>P3-C</c>'s clean cut.</b> The root params slot
+        /// is attached AFTER provisioning, so nothing that sizes the tier ever saw it. ⭐ While the
+        /// blackboard commit still ran that was harmless — a full store simply returned <c>null</c>
+        /// and the entity kept using <c>BrainBlackboard</c>. ⇒ once the blackboard is gone, the same
+        /// <c>null</c> is <b>lost params</b>, so the room has to be reserved up front.</para>
+        ///
+        /// <para>⚠ <b>The slot count is implicitly ONE.</b> §29.6: the root params region is ONE slot
+        /// holding the WHOLE packed table — scattering it per state would destroy <c>E3b-0</c>'s seed
+        /// offsets, which index INTO that table. ⇒ callers add <c>cost &gt; 0 ? 1 : 0</c> slots, and
+        /// there is no shape in which this returns a cost for more than one.</para>
+        ///
+        /// <para>⚠ <b>Gated on <c>ParseParams</c>, exactly as the attach is.</b> A behaviour with a
+        /// manifest but no parser never attaches a root slot, so reserving for it would push entities
+        /// up a tier for nothing.</para>
+        /// </summary>
+        private static int RootParamsCost(BehaviorDefinition def)
+        {
+            if (def?.ParseParams == null) return 0;
+
+            int bytes = RootParamsAccess.RootParamsBytes(def);
+            if (bytes <= 0) return 0;
+
+            return AlignUp(bytes, BlueprintBlackboardPartitions.Alignment)
+                 + BlueprintBlackboardPartitions.SlotEntrySize;
+        }
+
         private static OccurrenceKind KindOf(BehaviorDefinition def) => def.BrainTier switch
         {
             BehaviorConstants.BrainTierBTree => OccurrenceKind.BTree,
@@ -468,7 +515,8 @@ namespace Fdp.Toolkit.Behavior.Systems
             EntityRepository repo, Entity entity,
             IReadOnlyList<StatefulSlotInfo> slots,
             OccurrenceKind kind,
-            HostedOccurrenceDemand? hosted = null)
+            HostedOccurrenceDemand? hosted = null,
+            int rootParamsCost = 0)
         {
             // Compute aggregate required payload for the new manifest:
             // each slot at alignment-padded size + one BlueprintSlotEntry header per slot.
@@ -485,6 +533,12 @@ namespace Fdp.Toolkit.Behavior.Systems
             //   never runs for a behaviour that declares stateful slots of its own (rail O7_R18).
             requiredPayload += HostedPayloadCost(hosted);
             requiredSlots   += hosted?.SlotCount ?? 0;
+
+            // ⭐⭐ CE-302: and the ROOT PARAMS slot, attached after this returns (§29.6 — ONE slot for
+            //   the whole packed table). ⛔ Same reason as the hosted demand above: nothing later can
+            //   grow the tier, because that is a structural change inside a tick.
+            requiredPayload += rootParamsCost;
+            requiredSlots   += rootParamsCost > 0 ? 1 : 0;
 
             // Determine the entity's current tier (0 = none, else TotalSize).
             int currentTier = GetCurrentTierSize(repo, entity);

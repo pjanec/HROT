@@ -132,6 +132,28 @@ public static unsafe class RootParamsAccess
     }
 
     /// <summary>
+    /// ⭐ <b>Drop a behaviour's root params slot — for INGRESS only, on a behaviour CHANGE.</b>
+    ///
+    /// <para>⛔⛔ <b>Why this is not covered by <c>DetachHostedOccurrenceSlots</c>.</b> That sweep
+    /// takes slots whose kind is <c>Hsm</c> or <c>Blueprint</c>; a root params slot on a BTree brain
+    /// declares <c>OccurrenceKind.BTree</c> (<c>KindOf</c> follows the brain tier, <c>A3</c>/<c>D1′</c>)
+    /// and is therefore invisible to it. ⇒ without this, each behaviour change leaks one slot.</para>
+    ///
+    /// <para>⚠ Keyed by the OLD behaviour hash, so it cannot touch the new behaviour's slot even when
+    /// the two are attached in the same frame.</para>
+    /// </summary>
+    public static bool DetachRoot(EntityRepository world, Entity self, int behaviourHash)
+    {
+        int key = KeyForBehaviour(behaviourHash);
+        if (key == 0) return false;
+
+        byte* store = OccurrenceStoreAccess.TryGetStore(world, self, out _);
+        if (store == null) return false;
+
+        return BlueprintBlackboardPartitions.TryDetach(store, key);
+    }
+
+    /// <summary>
     /// ⭐⭐ <b>How many bytes this behaviour's root params region occupies.</b>
     ///
     /// <para>⭐ The EXTENT of the packed variable table — <c>max(ByteOffset + sizeof(Type))</c> over

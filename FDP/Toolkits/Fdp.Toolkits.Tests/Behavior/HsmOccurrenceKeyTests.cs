@@ -1628,6 +1628,176 @@ public sealed unsafe class HsmOccurrenceKeyTests
         }
     }
 
+    // ═══ CE-302 — THE ROOT PARAMS SLOT IS RESERVED, SURVIVES, AND DOES NOT LEAK ═══════════════
+    //  📄 DESIGN_Occurrence_Scoped_Storage.md §29.8. These three are the precondition for P3-C's
+    //     clean cut: once BrainBlackboard is gone the root slot is the ONLY home for root params,
+    //     so "it usually works" stops being good enough.
+
+    /// <summary>
+    /// 🔴🔴🔴 <b>Rail ㊴ — <c>CE-302</c> ORDERING: an HSM behaviour's ROOT PARAMS SLOT SURVIVES its
+    /// own assign.</b>
+    ///
+    /// <para>⛔⛔ <b>This pins a defect that <c>P3</c> step 2 shipped.</b> The root slot is attached
+    /// with <c>KindOf(def)</c> — <c>OccurrenceKind.Hsm</c> on an HSM brain — and
+    /// <c>DetachHostedOccurrenceSlots</c> sweeps exactly <i>"kind Hsm|Blueprint and not named by the
+    /// manifest"</i>. ⇒ with the attach ABOVE the sweep, the slot was created and destroyed in the
+    /// same call, every time, on every HSM behaviour.</para>
+    ///
+    /// <para>⭐ <b>Why nothing noticed.</b> The blackboard commit still ran, so params still arrived
+    /// and no behaviour changed — the classic shape this programme keeps filing. ⚠ It becomes total
+    /// params loss at the clean cut, which is why it is a rail and not a comment.</para>
+    ///
+    /// <para>⭐⭐ <b>RED-PROOF:</b> move the <c>P3</c> attach block back above
+    /// <c>DetachHostedOccurrenceSlots</c> in <c>BehaviorIngressSystem</c> and this goes red on the
+    /// <c>TryGetRoot</c> assertion, while the BTree sibling below stays green — which is the whole
+    /// point: only the HSM kind is swept.</para>
+    /// </summary>
+    [Fact]
+    public void O7_R39_AnHsmBehavioursRootParamsSlotSurvivesTheHostedSweep()
+    {
+        using var world = CreateWorld();
+
+        Entity entity = AssignParamsBehaviour(
+            world, behaviourId: 7439, name: "Ce302HsmRoot",
+            brainTier: BehaviorConstants.BrainTierHsm, threshold: 31337);
+
+        // ⭐⭐⭐ THE RAIL. 🔴 Before the ordering fix this was false on every HSM brain.
+        Assert.True(RootParamsAccess.TryGetRoot<DemoParams>(world, entity, out DemoParams* p));
+        Assert.Equal(31337, p->Threshold);
+
+        // ⛔ NON-VACUITY: the same behaviour on a BTree brain was ALWAYS fine — the sweep does not
+        //    look at OccurrenceKind.BTree — so a rail that only covered BTree would have proved
+        //    nothing about the defect.
+        Entity bt = AssignParamsBehaviour(
+            world, behaviourId: 7440, name: "Ce302BTreeRoot",
+            brainTier: BehaviorConstants.BrainTierBTree, threshold: 4242);
+        Assert.True(RootParamsAccess.TryGetRoot<DemoParams>(world, bt, out DemoParams* q));
+        Assert.Equal(4242, q->Threshold);
+    }
+
+    /// <summary>
+    /// ⭐⭐⭐ <b>Rail ㊵ — <c>CE-302</c> SIZING: a behaviour whose HOSTED demand exactly fills the
+    /// smallest tier still gets room for its ROOT PARAMS.</b>
+    ///
+    /// <para>🔴 <b>The failure without it is silent.</b> The root attach runs AFTER provisioning, so
+    /// a full store simply returns <c>null</c>; today the blackboard covers for it, and after the
+    /// clean cut the entity runs on a zero-filled params region. ⇒ the demand has to reserve
+    /// <b>one slot plus the params extent</b> BEFORE the tier is chosen.</para>
+    ///
+    /// <para>⭐⭐ <b>RED-PROOF:</b> drop <c>rootParamsCost</c> from either provisioning path and this
+    /// goes red — the entity lands on the 256 tier with all three slots spent on hosted occurrences
+    /// and <c>TryGetRoot</c> returns false.</para>
+    ///
+    /// <para>⚠ <b>Three hosted occurrences is the exact ceiling</b>: <c>MaxSlots</c> is 3 on the 256
+    /// tier (rail ⑯ measures the same edge from the other side), so the fourth slot the root params
+    /// need cannot come from anywhere but a bigger tier.</para>
+    /// </summary>
+    [Fact]
+    public void O7_R40_TheTierIsSizedForTheRootParamsSlotToo()
+    {
+        using var world = CreateWorld();
+
+        Entity entity = AssignParamsBehaviour(
+            world, behaviourId: 7441, name: "Ce302TierDemand",
+            brainTier: BehaviorConstants.BrainTierHsm, threshold: 909,
+            hostedSlots: 3, hostedPayloadEach: 24);
+
+        // ⛔ NON-VACUITY: the hosted demand really did claim the smallest tier's three slots.
+        Assert.True(OccurrenceStoreAccess.GetStoreSize(world, entity) > 256);
+
+        // ⭐⭐⭐ THE RAIL — the root slot fits, and carries the parsed value.
+        Assert.True(RootParamsAccess.TryGetRoot<DemoParams>(world, entity, out DemoParams* p));
+        Assert.Equal(909, p->Threshold);
+    }
+
+    /// <summary>
+    /// ⚠ <b>Rail ㊶ — <c>CE-302</c> LEAK: re-assigning to a DIFFERENT behaviour does not strand the
+    /// old root params slot.</b>
+    ///
+    /// <para>⛔ On a BTree brain the hosted sweep cannot see a root slot (kind <c>BTree</c>), so
+    /// without an explicit detach each behaviour change leaks one slot — and <c>MaxSlots</c> is 3 on
+    /// the 256 tier. ⇒ the fourth assign of a long-lived entity would silently lose its params.</para>
+    ///
+    /// <para>⭐⭐ <b>RED-PROOF:</b> delete the <c>RootParamsAccess.DetachRoot</c> call in the ingress
+    /// and the slot count climbs with every assign instead of staying at one.</para>
+    /// </summary>
+    [Fact]
+    public void O7_R41_ReassigningDoesNotLeakThePreviousRootParamsSlot()
+    {
+        using var world = CreateWorld();
+
+        var registry = new BehaviorRegistry();
+        var sys = new Fdp.Toolkit.Behavior.Systems.BehaviorIngressSystem(registry);
+
+        var entity = world.CreateEntity();
+        world.AddComponent(entity, new Fdp.Toolkit.Behavior.Components.BehaviorState());
+        world.AddComponent(entity, new Fdp.Toolkit.Behavior.Components.BrainBlackboard());
+
+        for (int i = 0; i < 4; i++)
+        {
+            string name = "Ce302Churn" + i;
+            registry.Register(7450 + i, name, ParamsBehaviour(name, BehaviorConstants.BrainTierBTree));
+            world.Bus.PublishManaged(new Fdp.Toolkit.Behavior.Events.AssignBehaviorEvent
+            {
+                Entity = entity, BehaviorName = name,
+                JsonParams = "{\"Threshold\":" + (100 + i) + "}",
+            });
+            world.Bus.SwapBuffers();
+            sys.Execute(world, 0.016f);
+        }
+
+        byte* store = OccurrenceStoreAccess.TryGetStore(world, entity, out _);
+        Assert.True(store != null);
+
+        // ⭐⭐⭐ THE RAIL. 🔴 Without DetachRoot this is 4 and the last assign had nowhere to land.
+        Assert.Equal(1, BlueprintBlackboardPartitions.GetSlotCount(store));
+
+        // ⭐ …and it is the CURRENT behaviour's slot, not a survivor of an earlier one.
+        Assert.True(RootParamsAccess.TryGetRoot<DemoParams>(world, entity, out DemoParams* p));
+        Assert.Equal(103, p->Threshold);
+    }
+
+    /// <summary>A behaviour that parses <see cref="DemoParams"/> into its root params region.</summary>
+    private static BehaviorDefinition ParamsBehaviour(string name, byte brainTier)
+        => new()
+        {
+            Name                 = name,
+            BrainTier            = brainTier,
+            StatefulWorkingSlots = Array.Empty<StatefulSlotInfo>(),
+            BlackboardLayoutType = typeof(DemoParams),
+            ParseParams          = BehaviorParams.FromJson<DemoParams>(),
+        };
+
+    /// <summary>
+    /// Registers a params-carrying behaviour, optionally with a hosted demand, and assigns it through
+    /// the REAL ingress — so the ordering, the sweep and the tier selection are production code.
+    /// </summary>
+    private static Entity AssignParamsBehaviour(
+        EntityRepository world, int behaviourId, string name, byte brainTier, int threshold,
+        int hostedSlots = 0, int hostedPayloadEach = 0)
+    {
+        var entity = world.CreateEntity();
+        world.AddComponent(entity, new Fdp.Toolkit.Behavior.Components.BehaviorState());
+        world.AddComponent(entity, new Fdp.Toolkit.Behavior.Components.BrainBlackboard());
+
+        var registry = new BehaviorRegistry();
+        var sys = new Fdp.Toolkit.Behavior.Systems.BehaviorIngressSystem(registry);
+        registry.Register(behaviourId, name, ParamsBehaviour(name, brainTier));
+
+        if (hostedSlots > 0)
+            registry.RegisterHostedOccurrenceDemand(
+                name, HostedOccurrenceDemand.Of(Enumerable.Repeat(hostedPayloadEach, hostedSlots)));
+
+        world.Bus.PublishManaged(new Fdp.Toolkit.Behavior.Events.AssignBehaviorEvent
+        {
+            Entity = entity, BehaviorName = name,
+            JsonParams = "{\"Threshold\":" + threshold + "}",
+        });
+        world.Bus.SwapBuffers();
+        sys.Execute(world, 0.016f);
+        return entity;
+    }
+
     // ── helpers ──────────────────────────────────────────────────────────────────
 
     /// <summary>A blob whose metadata maps flat states 1 and 2 to two authoring ids.</summary>
