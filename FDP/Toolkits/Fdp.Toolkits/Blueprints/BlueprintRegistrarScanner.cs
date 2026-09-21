@@ -157,5 +157,43 @@ public static class BlueprintRegistrarScanner
             if (!skipThisRegistrar)
                 method.Invoke(null, args);
         }
+
+        ComputeHostedOccurrenceDemands(blueprintStaging, behaviorStaging);
+    }
+
+    /// <summary>
+    /// ⭐⭐⭐ <c>O7b-3</c> — <b>THE JOIN, and this is the only place in the tree where both registries
+    /// are populated in one pass.</b> 📄 <c>DESIGN_Occurrence_Scoped_Storage.md</c> §27.7.
+    ///
+    /// <para>🔒 <b>Why here rather than in the HSM emitter</b> (user ruling, <c>2026-09-21</c>:
+    /// <i>"would that mean the hsm code will need to know about blueprint catalogs? Not good."</i>). A
+    /// generated HSM registrar authors the machine's topology and must stay ignorant of blueprints;
+    /// this pass reads the topology it already wrote and joins it to the blueprints the SAME scan just
+    /// staged. ⇒ nothing new is emitted anywhere.</para>
+    ///
+    /// <para>⚠ <b>The honest limit: a scan sees ONE assembly.</b> A behaviour whose machine hosts a
+    /// blueprint staged by a DIFFERENT scan gets no demand recorded, which is the pre-<c>O7b-3</c>
+    /// state — the smallest tier, and <c>OccurrenceWorkingState</c>'s loud <i>"no room"</i> if it does
+    /// not fit. ⛔ It is not a silent mis-size: absent ≠ zero, and both registries' overlays are
+    /// order-independent, so a later scan that sees both simply records it then.</para>
+    /// </summary>
+    private static void ComputeHostedOccurrenceDemands(
+        BlueprintRegistryStaging blueprintStaging, BehaviorRegistry behaviorStaging)
+    {
+        if (blueprintStaging.Definitions.Count == 0) return;
+
+        // ⭐ Built ONCE for the whole scan — O(behaviours + blueprints), not the product.
+        var sizeByActionId = HostedOccurrenceDemandCalculator
+            .BuildActionIdIndex(blueprintStaging.Definitions);
+
+        foreach (var name in behaviorStaging.GetRegisteredNames())
+        {
+            if (!behaviorStaging.TryGetId(name, out int id)) continue;
+            if (!behaviorStaging.TryGetDefinition(id, out var def) || def is null) continue;
+
+            var demand = HostedOccurrenceDemandCalculator.For(def, sizeByActionId);
+            if (demand is not null)
+                behaviorStaging.RegisterHostedOccurrenceDemand(name, demand);
+        }
     }
 }

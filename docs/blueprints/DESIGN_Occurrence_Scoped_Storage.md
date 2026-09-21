@@ -3295,7 +3295,7 @@ block replaced by the `StandaloneStateKeyFor` / `ResolveOrAttach` pair.
 | | |
 |---|---|
 | ⛔ **`CE-298`** — params are still per-entity | `E-cap` supplies the **store**; it does not supply **params**. That still needs `E7a` (`IHostVariableAccess`, zero implementers) |
-| ⛔ **the tier is the SMALLEST, not the RIGHT one** | `SelectTierForPayload(0, 0)`. A behaviour hosting several occurrences can still exhaust it ⇒ `ResolveOrAttach` throws *"no room"*. ⭐ Correct sizing is what a manifest would give — **`O7b-3` proper**, still open |
+| ✅ **the tier is the SMALLEST, not the RIGHT one** — **CLOSED by §27.7**, same day | `SelectTierForPayload(0, 0)`. A behaviour hosting several occurrences can still exhaust it ⇒ `ResolveOrAttach` throws *"no room"*. ⭐ Correct sizing is what a manifest would give — **`O7b-3` proper** |
 | ⛔ **`E5`** — retiring the legacy `Blackboard1024` | ⭐ **now unblocked**: no emitted thunk reads it any more. What remains are the `HeavyDtoType`-gated consumers *(translator, renderer, view provider, replay drawers)* and the cleanup |
 
 ### 27.6 ✅ `O7b-3` PROPER — **its ONE open premise is now MEASURED**
@@ -3317,3 +3317,100 @@ ANSWERED, two independent ways:**
 compilation, so two blueprints in **different** assemblies that never meet at compile time would not be
 caught — ⛔ **but they also never share a dispatcher table**, so the collision cannot occur where it
 would matter.
+
+## 27.7 ✅ `O7b-3` PROPER — **THE TIER IS SIZED FOR WHAT THE BEHAVIOUR HOSTS** *(`2026-09-21`)*
+
+⭐⭐⭐ **`E-cap` answered *"is there a store?"*. This answers *"is it BIG ENOUGH?"*** — the half §27.5
+named as still open, closed the same day because §27.6 had already measured its one premise.
+
+### 27.7.1 📐 THE MEASUREMENT THAT SIZED THE PROBLEM — **and it is smaller than it sounds**
+
+| | |
+|---|---|
+| ⭐ the smallest tier holds | **3 slots · 176 payload bytes** *(`BlueprintTierLadder`: 256 total − 32 header − 3 × 16 slot table)* |
+| 📐 assets declaring HSM hosting, whole tree | **ONE** — `MoveAndFireCombo.bp.json` *(the other 17 hits are `bin/` copies)* |
+| 📐 its working state | **EMPTY** |
+
+⇒ ⛔⛔ **Nothing shipped today can overflow the smallest tier.** ⭐⭐ **The rails exist anyway**, on the
+standing ruling: 🔒 *"HSMs are under adopted now, but their time will come soon, so all the features need
+to be covered with tests at least if not yet real usages."* ⚠ **Stated plainly so nobody reads §27.7 as a
+bug fix** — it is a capability, red-proved on a synthetic machine.
+
+### 27.7.2 ⭐⭐⭐ THE SHAPE — **derive the DEMAND, never the MANIFEST**
+
+```mermaid
+sequenceDiagram
+    autonumber
+    participant Scan as BlueprintRegistrarScanner.Scan
+    participant BpS as BlueprintRegistryStaging
+    participant BeR as BehaviorRegistry
+    participant Calc as HostedOccurrenceDemandCalculator
+    participant Ing as BehaviorIngressSystem
+    participant Occ as OccurrenceWorkingState
+
+    Note over Scan: ONE pass fills BOTH registries — the only place they meet
+    Scan->>BpS: generated [BlueprintRegistrar] stages blueprints
+    Scan->>BeR: generated HSM registrar registers topology (knows NO blueprints)
+    Scan->>Calc: For(behaviour, stagedBlueprints)
+    Calc->>Calc: walk StateDefs, actionId == (ushort)blueprintId
+    Calc-->>BeR: RegisterHostedOccurrenceDemand(name, demand)
+
+    Note over Ing: assign time — before the first tick
+    Ing->>BeR: TryGetHostedOccurrenceDemand(name)
+    Ing->>Ing: SelectTierForPayload(manifest + hosted)
+
+    Note over Occ: first dispatch — LAZY, and now it fits
+    Occ->>Occ: ResolveOrAttach(key)
+```
+
+*What the picture shows that the prose hid: the demand travels **registry → registry**, never through the
+HSM emitter — and the arrow the user forbade (`HsmEmitCore → blueprint catalog`) simply is not on the
+canvas.*
+
+| ⭐ the decision, and why each piece is where it is | |
+|---|---|
+| ⭐⭐⭐ **a SIZE, not a manifest** | 🔒 the occurrence KEY needs the region slot the kernel picks at runtime, so it is not knowable at registration — ⭐ but the SIZE is, and the tier is all that must be decided before the first tick. ⇒ slots still attach lazily (§24.8) |
+| ⭐⭐⭐ **an OVERLAY on `BehaviorRegistry`, not a field on `BehaviorDefinition`** | ⛔ `BehaviorDefinition`'s properties are `init` and the topology is registered by a generated registrar that must stay blueprint-ignorant ⇒ a post-pass would have to CLONE the definition, which breaks on every property added later. ⭐ `_resolversByName` and `_jsonParamsDtoByName` are **the same shape for the same reason** — order-independent reconciliation — so this is prior art, not a new mechanism |
+| ⭐⭐ **the join runs in `BlueprintRegistrarScanner.Scan`** | 📐 it is **the only place in the tree where both registries are populated in one pass** *(its own parameter list: `BlueprintRegistryStaging` **and** `BehaviorRegistry`)* |
+| ⭐⭐ **ADDITIVE to the manifest, in BOTH branches** | ⛔ the cheap wrong fix sizes only `EnsureOccurrenceStore`, which **never runs** for a behaviour that declares stateful slots of its own ⇒ rail `O7_R18` exists precisely to redden on it |
+
+⛔ **Rejected, one line each:**
+**inject `BlueprintRegistry` into `BehaviorIngressSystem`** — cascades through `MissionControlModule` and
+3 production + ~18 test construction sites, and the silent-default rule then obliges every one of them to
+pass it · **grow the tier inside `ResolveOrAttach`** — a structural change inside a kernel dispatch, which
+the seam's own contract forbids · **emit the demand from `HsmBridgeEmitCore`** — the user's explicit
+ruling · **store it on `BehaviorDefinition`** — see the table above.
+
+### 27.7.3 ⚠ WHAT THE CALCULATOR COUNTS, AND THE ONE ARM THAT IS INEXACT
+
+⭐ **Distinct `(state, blueprint)` pairs** — that is exactly what makes two distinct slot KEYS, because
+the region a state runs in is fixed by the machine's topology. Sources: each `StateDef`'s
+entry/exit/activity/timer action id, and each per-region transition's guard and action id **keyed by its
+source state** *(`HsmKernelCore.cs:594`/`:727` dispatch against the source)*.
+
+⛔⛔ **GLOBAL transitions are the inexact arm, and it is named rather than papered over.**
+`HsmKernelCore.cs:551` evaluates a global guard against `activeLeafIds[0]` — *whatever region 0's leaf
+happens to be* — so its occurrence key varies with the machine's current state. ⚠ Counting it **per
+state** would multiply the demand by `StateCount` and push every machine with one global transition to
+the largest tier; ⭐ it is counted **once**, which covers the common case, and
+`OccurrenceWorkingState`'s loud *"no room"* remains the backstop for the rest.
+
+⚠ **And a scan sees ONE assembly.** A behaviour whose machine hosts a blueprint staged by a **different**
+scan records no demand — which is the pre-`O7b-3` state exactly (smallest tier, loud throw). ⛔ It is not
+a silent mis-size: 🔒 **absent ≠ zero** is enforced by the API — `TryGetHostedOccurrenceDemand` returning
+`false` means *"nobody computed one"*, while `SlotCount: 0` means *"measured, and it hosts nothing"*.
+
+### 27.7.4 ⭐ EVIDENCE — **two red-proofs, each hitting only its own half**
+
+| what was neutered | what reddened |
+|---|---|
+| the **CONSUMER** — `HostedPayloadCost` → `0` in both branches | ⭐ **exactly 3**: `O7_R16` *(a 4th occurrence)* · `O7_R17` *(a 512-byte state)* · `O7_R18` *(manifest + hosted)*. ⛔ The producer rails stayed green |
+| the **PRODUCER** — one `Count(s, state.OnEntryActionId)` commented out | ⭐ **exactly 1**: `O7_R19` *(the demand is DERIVED)*. ⛔ The consumer rails stayed green |
+
+⇒ ⭐⭐ **The two halves are independently pinned**, which is the property that matters: a future change
+that keeps the plumbing and breaks the derivation reddens `R19` alone and says so.
+
+⭐ **Seven rails** — `O7_R16`–`O7_R22`; ⑳ *(a non-blueprint action id costs nothing)*, ㉑ *(one state
+hosting one blueprint three ways is ONE occurrence, because it is one key)* and ㉒ *(no machine ⇒ `null`,
+not zero)* have no red-proof of their own because they pin **inverse** claims — each one is the rail that
+reddens on the obvious wrong simplification.

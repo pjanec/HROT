@@ -1,4 +1,6 @@
 using System;
+using System.Linq;
+using System.Collections.Generic;
 using System.Runtime.CompilerServices;
 using Fdp.Core;
 using Fdp.Toolkit.Blueprints.Components;
@@ -567,7 +569,287 @@ public sealed unsafe class HsmOccurrenceKeyTests
         Assert.True(store == null);
     }
 
+    /// <summary>
+    /// 🔴🔴🔴 <b>Rail ⑯ — <c>O7b-3</c>: the SMALLEST tier holds THREE slots, and a fourth hosted
+    /// occurrence has nowhere to go.</b> 📄 design §27.5 / §27.7.
+    ///
+    /// <para>⛔⛔ <b>This is the half <c>E-cap</c> deliberately did NOT deliver.</b> <c>E-cap</c>
+    /// provisions <c>SelectTierForPayload(0, 0)</c> — the 256 tier, <b>3 slots / 176 payload bytes</b>.
+    /// A host with four hosted occurrences overflows it on the FOURTH attach, and the failure is a
+    /// throw from inside a dispatch.</para>
+    ///
+    /// <para>⚠ <b>Nothing in the shipped corpus reaches this yet</b> — measured: exactly ONE asset
+    /// declares HSM hosting (<c>MoveAndFireCombo</c>) and its <c>WorkingState</c> is EMPTY. 🔒 The rail
+    /// exists because the user's standing ruling is that HSM features are covered by rails before they
+    /// are covered by usage: <i>"HSMs are under adopted now, but their time will come soon."</i></para>
+    /// </summary>
+    [Fact]
+    public void O7_R16_AFourthHostedOccurrenceNeedsMoreThanTheSmallestTier()
+    {
+        var world = TestWorldFactory.Create();
+        using var _w = world;
+        BlueprintTierTable.RegisterAll(world);
+
+        var entity = AssignHostingBehaviour(world, 7403, "O7b3FourOccurrences", slotCount: 4,
+                                            payloadEach: sizeof(DemoWorkingState));
+
+        // ⭐⭐ THE RAIL. Four DISTINCT occurrences must all attach. 🔴 Sized at the smallest tier this
+        //    throws on the fourth: MaxSlots is 3.
+        for (int i = 0; i < 4; i++)
+        {
+            ref var ws = ref OccurrenceWorkingState.ResolveOrAttach<DemoWorkingState>(
+                world, entity, HsmOccurrence.KeyFor(HostMachine, Child, regionSlotIndex: i, stateId: 1),
+                0xABCD, OccurrenceKind.Hsm, out bool fresh);
+            Assert.True(fresh);
+            ws.Counter = i;
+        }
+
+        // …and they are FOUR separate states, not one aliased four times.
+        for (int i = 0; i < 4; i++)
+            Assert.Equal(i, OccurrenceWorkingState.ResolveOrAttach<DemoWorkingState>(
+                world, entity, HsmOccurrence.KeyFor(HostMachine, Child, i, 1),
+                0xABCD, OccurrenceKind.Hsm, out _).Counter);
+    }
+
+    /// <summary>
+    /// 🔴🔴 <b>Rail ⑰ — the OTHER axis: one FAT working state overflows the smallest tier's PAYLOAD.</b>
+    ///
+    /// <para>⭐ <c>BlueprintTierTable.SelectTierForPayload</c> takes <b>both</b> axes and §5a's <c>F3</c>
+    /// says why: slots and bytes run out independently. ⚠ Rail ⑯ exhausts slots with tiny payloads;
+    /// this one exhausts bytes with a single slot, so a fix that only counts occurrences still reddens
+    /// here.</para>
+    /// </summary>
+    [Fact]
+    public void O7_R17_OneFatWorkingStateNeedsMoreThanTheSmallestTiersPayload()
+    {
+        var world = TestWorldFactory.Create();
+        using var _w = world;
+        BlueprintTierTable.RegisterAll(world);
+
+        var entity = AssignHostingBehaviour(world, 7404, "O7b3FatOccurrence", slotCount: 1,
+                                            payloadEach: sizeof(FatWorkingState));
+
+        // ⭐⭐ THE RAIL. 🔴 The 256 tier's payload is 176 bytes; FatWorkingState is 512.
+        ref var ws = ref OccurrenceWorkingState.ResolveOrAttach<FatWorkingState>(
+            world, entity, HsmOccurrence.KeyFor(HostMachine, Child, 0, 1),
+            0xFA7, OccurrenceKind.Hsm, out bool fresh);
+
+        Assert.True(fresh);
+        ws.Head = 0x5A;
+        Assert.Equal((byte)0x5A, OccurrenceWorkingState.ResolveOrAttach<FatWorkingState>(
+            world, entity, HsmOccurrence.KeyFor(HostMachine, Child, 0, 1),
+            0xFA7, OccurrenceKind.Hsm, out _).Head);
+    }
+
+    /// <summary>
+    /// ⚠ <b>Rail ⑱ — and the demand must be ADDITIVE to a behaviour's own manifest, not an alternative
+    /// to it.</b>
+    ///
+    /// <para>⛔ The cheap wrong fix sizes the tier for hosted occurrences only in the
+    /// <c>EnsureOccurrenceStore</c> branch — which never runs when the behaviour declares stateful slots
+    /// of its own. ⇒ a behaviour with BOTH is sized for the manifest alone and overflows exactly as
+    /// before, in the branch nobody looked at.</para>
+    /// </summary>
+    [Fact]
+    public void O7_R18_HostedDemandIsAddedOnTopOfTheBehavioursOwnManifest()
+    {
+        var world = TestWorldFactory.Create();
+        using var _w = world;
+        BlueprintTierTable.RegisterAll(world);
+
+        // Two manifest slots of its own AND three hosted occurrences ⇒ five in total.
+        var own = new[]
+        {
+            new StatefulSlotInfo(unchecked((int)0xB0000001), sizeof(DemoWorkingState), 0x11),
+            new StatefulSlotInfo(unchecked((int)0xB0000002), sizeof(DemoWorkingState), 0x22),
+        };
+        var entity = AssignHostingBehaviour(world, 7405, "O7b3ManifestPlusHosted", slotCount: 3,
+                                            payloadEach: sizeof(DemoWorkingState), ownManifest: own);
+
+        // The manifest slots are there (E-cap never touched this branch)…
+        Assert.True(BlueprintBlackboardPartitions.TryGetSlotOffset(
+            OccurrenceStoreAccess.TryGetStore(world, entity, out _), own[0].SlotKey, out _));
+
+        // ⭐⭐ THE RAIL. …and the three hosted ones still fit on top. 🔴 Sized for the manifest alone
+        //    the 256 tier has ONE slot left and this throws on the second.
+        for (int i = 0; i < 3; i++)
+            OccurrenceWorkingState.ResolveOrAttach<DemoWorkingState>(
+                world, entity, HsmOccurrence.KeyFor(HostMachine, Child, i, 1),
+                0xABCD, OccurrenceKind.Hsm, out _).Counter = i;
+
+        for (int i = 0; i < 3; i++)
+            Assert.Equal(i, OccurrenceWorkingState.ResolveOrAttach<DemoWorkingState>(
+                world, entity, HsmOccurrence.KeyFor(HostMachine, Child, i, 1),
+                0xABCD, OccurrenceKind.Hsm, out _).Counter);
+    }
+
+    /// <summary>
+    /// ⭐⭐⭐ <b>Rail ⑲ — <c>O7b-3</c>'s PRODUCER: the demand is DERIVED from the machine, not declared.</b>
+    ///
+    /// <para>🔒 <b>This is the rail for the user's ruling</b> (<c>2026-09-21</c>: <i>"would that mean the
+    /// hsm code will need to know about blueprint catalogs? Not good."</i>). ⭐ The join runs the other
+    /// way: the machine's own <see cref="StateDef"/>s already carry action ids, and an action id IS the
+    /// blueprint id truncated to 16 bits — so nothing has to be emitted and the HSM emitter learns
+    /// nothing. ⛔ Rails ⑯–⑱ prove the CONSUMER; without this one the demand could only ever be
+    /// hand-written.</para>
+    /// </summary>
+    [Fact]
+    public void O7_R19_TheDemandIsDerivedFromTheMachinesOwnActionIds()
+    {
+        const int BlueprintId = unchecked((int)0xDEAD0712);   // low-16 = 0x0712
+        var blueprints = OneAiPrimitive(BlueprintId, stateSize: 24);
+
+        // BuildTwoRegionBlob puts the SAME action on states 1 and 2 ⇒ two distinct occurrences.
+        var def = HostingBehaviour(BuildTwoRegionBlob(unchecked((ushort)BlueprintId)));
+
+        var demand = HostedOccurrenceDemandCalculator.For(def, blueprints);
+
+        Assert.NotNull(demand);
+        Assert.Equal(2, demand!.SlotCount);
+        Assert.Equal(2 * 24, demand.PayloadBytes);            // 24 is already 8-aligned
+    }
+
+    /// <summary>
+    /// ⚠ <b>Rail ⑳ — an action id that is NOT a blueprint contributes NOTHING.</b>
+    ///
+    /// <para>⛔ Most HSM actions are hand-written thunks with no occurrence at all. ⭐ Counting them
+    /// would inflate every machine's tier, so the calculator's membership test is the blueprint
+    /// registry — and this rail is what stops a future "count every action id" simplification.</para>
+    /// </summary>
+    [Fact]
+    public void O7_R20_AnActionIdThatIsNotABlueprintCostsNothing()
+    {
+        // The registry knows a DIFFERENT blueprint; the machine's action id matches nothing.
+        var blueprints = OneAiPrimitive(unchecked((int)0xDEAD0999), stateSize: 24);
+        var def = HostingBehaviour(BuildTwoRegionBlob(actionId: 0x0712));
+
+        var demand = HostedOccurrenceDemandCalculator.For(def, blueprints);
+
+        Assert.NotNull(demand);
+        Assert.Equal(0, demand!.SlotCount);
+        Assert.Equal(0, demand.PayloadBytes);
+    }
+
+    /// <summary>
+    /// ⭐⭐ <b>Rail ㉑ — ONE state hosting one blueprint TWICE is ONE occurrence, because it is one KEY.</b>
+    ///
+    /// <para>🔴 The key is <c>(host, region, state, child)</c> — an entry action and an activity action
+    /// on the SAME state bound to the SAME blueprint resolve to the SAME slot. ⛔ Counting each action
+    /// id separately would double the demand of every ordinary state. ⚠ It is also the thing that makes
+    /// the count an occurrence count rather than a dispatch count.</para>
+    /// </summary>
+    [Fact]
+    public void O7_R21_OneStateHostingOneBlueprintTwiceIsOneOccurrence()
+    {
+        const int BlueprintId = unchecked((int)0xDEAD0712);
+        var blueprints = OneAiPrimitive(BlueprintId, stateSize: 24);
+        ushort actionId = unchecked((ushort)BlueprintId);
+
+        var states = new StateDef[1];
+        states[0] = new StateDef
+        {
+            ParentIndex = 0xFFFF, FirstTransitionIndex = 0xFFFF,
+            OnEntryActionId = actionId, ActivityActionId = actionId, OnExitActionId = actionId,
+        };
+        var regions = new[] { new RegionDef { ParentStateIndex = 0xFFFF, InitialStateIndex = 0 } };
+        var blob = new HsmDefinitionBlob(
+            new HsmDefinitionHeader { StructureHash = HostMachine, StateCount = 1, RegionCount = 1 },
+            states, Array.Empty<TransitionDef>(), regions,
+            Array.Empty<GlobalTransitionDef>(), Array.Empty<ushort>(), Array.Empty<ushort>());
+
+        var demand = HostedOccurrenceDemandCalculator.For(HostingBehaviour(blob), blueprints);
+
+        Assert.Equal(1, demand!.SlotCount);
+        Assert.Equal(24, demand.PayloadBytes);
+    }
+
+    /// <summary>
+    /// ⚠ <b>Rail ㉒ — NO MACHINE ⇒ <c>null</c>, and that is NOT the same as a zero demand.</b>
+    ///
+    /// <para>⛔ <c>null</c> means <i>"nobody computed one"</i> — a hand-registered behaviour, or one
+    /// whose blueprints were staged by a different scan. ⭐ <c>SlotCount: 0</c> means <i>"measured, and
+    /// it hosts nothing"</i>. Collapsing the two would make an unmeasured behaviour look proven.</para>
+    /// </summary>
+    [Fact]
+    public void O7_R22_NoMachineMeansUnknownRatherThanZero()
+    {
+        var blueprints = OneAiPrimitive(unchecked((int)0xDEAD0712), stateSize: 24);
+
+        var noMachine = new BehaviorDefinition
+        {
+            Name = "O7b3NoMachine", BrainTier = BehaviorConstants.BrainTierBTree,
+        };
+
+        Assert.Null(HostedOccurrenceDemandCalculator.For(noMachine, blueprints));
+        Assert.Equal(0, HostedOccurrenceDemandCalculator
+            .For(HostingBehaviour(BuildTwoRegionBlob(actionId: 0)), blueprints)!.SlotCount);
+    }
+
     // ── helpers ──────────────────────────────────────────────────────────────────
+
+    private static Dictionary<int, Fdp.Toolkit.Blueprints.BlueprintDefinition> OneAiPrimitive(
+        int blueprintId, int stateSize)
+        => new()
+        {
+            [blueprintId] = new Fdp.Toolkit.Blueprints.BlueprintDefinition
+            {
+                Name          = "HostedChild",
+                Kind          = Fdp.Toolkit.Blueprints.BlueprintDispatchKind.AiPrimitive,
+                StructureHash = 0xABCD,
+                StateSize     = stateSize,
+                AssetId       = Child,
+            },
+        };
+
+    private static BehaviorDefinition HostingBehaviour(HsmDefinitionBlob blob)
+        => new()
+        {
+            Name = "O7b3DerivedDemand",
+            BrainTier = BehaviorConstants.BrainTierHsm,
+            HsmDefinition = blob,
+        };
+
+    private struct FatWorkingState { public byte Head; public fixed byte Bulk[511]; }
+
+    /// <summary>
+    /// Registers an HSM behaviour whose machine hosts <paramref name="slotCount"/> occurrences of
+    /// <see cref="Child"/>, assigns it through the REAL ingress, and returns the entity.
+    ///
+    /// <para>⭐ The hosted states are built so the demand is discoverable from the blob alone: one
+    /// action id per occurrence, each resolving to the same child asset through the blueprint
+    /// registry.</para>
+    /// </summary>
+    private static Entity AssignHostingBehaviour(
+        EntityRepository world, int behaviourId, string name, int slotCount, int payloadEach,
+        StatefulSlotInfo[]? ownManifest = null)
+    {
+        var entity = world.CreateEntity();
+        world.AddComponent(entity, new Fdp.Toolkit.Behavior.Components.BehaviorState());
+        world.AddComponent(entity, new Fdp.Toolkit.Behavior.Components.BrainBlackboard());
+
+        var registry = new BehaviorRegistry();
+        var sys = new Fdp.Toolkit.Behavior.Systems.BehaviorIngressSystem(registry);
+
+        registry.Register(behaviourId, name, new BehaviorDefinition
+        {
+            Name = name,
+            BrainTier = BehaviorConstants.BrainTierHsm,
+            StatefulWorkingSlots = ownManifest ?? Array.Empty<StatefulSlotInfo>(),
+        });
+
+        // ⭐ The demand is an OVERLAY on the registry, not a field on the definition — the generated
+        //   registrar that authors the topology must not know about blueprints (§27.7).
+        registry.RegisterHostedOccurrenceDemand(
+            name, HostedOccurrenceDemand.Of(Enumerable.Repeat(payloadEach, slotCount)));
+
+        world.Bus.PublishManaged(new Fdp.Toolkit.Behavior.Events.AssignBehaviorEvent
+        {
+            Entity = entity, BehaviorName = name, JsonParams = string.Empty,
+        });
+        world.Bus.SwapBuffers();
+        sys.Execute(world, 0.016f);
+        return entity;
+    }
 
     private static EntityRepository CreateWorld()
     {

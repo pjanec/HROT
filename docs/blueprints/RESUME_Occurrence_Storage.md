@@ -5,7 +5,8 @@ doc-type: LANE RESUMPTION for the `behaviors` lane — programme ②, OCCURRENCE
   ⛔ VERIFY against git before acting ("THE LEDGER MAY NOT ASSERT WHAT THE CODE IS").
 updated: 2026-09-21
 build-state: n/a — a resumption snapshot, not a design.
-current-answer: §3 — ⭐⭐ THE NEXT ACTION IS O7c. O7 is SLICED (design §24.3):
+current-answer: §3 — ⭐⭐ THE NEXT ACTION IS E3 (E7a + CE-298, together — its prerequisite O7b-3 is
+  now met); after it, O7c. O7 is SLICED (design §24.3):
   O7a (the key + the lookup) and O7b (the emitter + the inspector) are DONE — 17 rails, three
   red-proofs, 2273/0 and Blueprints 3971/0 with goldens byte-identical.
   ⭐ §24.9's question is RESOLVED: the kernel passes the HSM INSTANCE pointer, so
@@ -45,10 +46,29 @@ current-answer: §3 — ⭐⭐ THE NEXT ACTION IS O7c. O7 is SLICED (design §24
   shipped asset shares state through it), and it CANNOT be keyed per-node.
   🔒 THE RULE this earned, measured 3x in 2 days: before moving ANY state into an occurrence slot,
   name what will PROVISION the slot and WRITE its contents. If either is "nothing", it is a REGRESSION.
-  ⭐⭐ NEXT ACTION: O7b-3 PROPER — E-cap provisions only the SMALLEST tier and does NOT size it. Tier
-  sizing needs manifest entries, joined at RUNTIME (the action id IS the truncated blueprint id;
-  StateDef carries the per-state action ids) so HsmEmitCore never learns about blueprints. It is the
-  prerequisite for E3 (E7a + CE-298 together).
+  ✅ O7b-3 PROPER IS ALSO LANDED 2026-09-21 (design §27.7) — the tier is now sized for what the
+  behaviour HOSTS, not just for its own manifest.
+  THE SHAPE: the demand is DERIVED from the machine's own StateDef action ids joined against the
+  blueprint registry (an action id IS the blueprint id truncated to 16 bits, CSharpEmitter.cs:383),
+  computed in BlueprintRegistrarScanner.Scan — measured as the ONLY place in the tree where both
+  registries are populated in one pass — and recorded as an OVERLAY on BehaviorRegistry, the same
+  shape as _resolversByName/_jsonParamsDtoByName and for the same reason. ⇒ HsmBridgeEmitCore never
+  learns about blueprints (the user's ruling).
+  ⛔ It computes a SIZE, never a manifest of keys: the occurrence key needs the region slot the kernel
+  picks at runtime. Slots still attach lazily.
+  ⭐ ADDITIVE in BOTH tier-selection branches — the cheap wrong fix sizes only EnsureOccurrenceStore,
+  which never runs for a behaviour with its own stateful slots (rail O7_R18 reddens on exactly that).
+  📐 THE PROBLEM IS LATENT, NOT LIVE: the smallest tier holds 3 slots / 176 bytes, and exactly ONE
+  asset in the tree declares HSM hosting (MoveAndFireCombo) with an EMPTY working state. Built and
+  railed anyway on the standing ruling that HSM features get rails before usage.
+  ⭐ Rails O7_R16–O7_R22, TWO independent red-proofs: neutering the CONSUMER reddens exactly R16/R17/
+  R18; neutering the PRODUCER reddens exactly R19. Neither touches the other's rails.
+  ⚠ Two honest limits, both in §27.7.3: a global transition's guard keys on activeLeafIds[0] so it is
+  counted ONCE rather than per state; and a scan sees ONE assembly, so a cross-assembly host records
+  no demand — which is the pre-O7b-3 state, not a silent mis-size (absent ≠ zero, enforced by the API).
+  ⭐⭐ NEXT ACTION: E3 — E7a + CE-298 TOGETHER (slot payload becomes [Params N][WorkingState M], AND
+  something must WRITE each occurrence's params; IHostVariableAccess has zero implementers). Its
+  prerequisite is now met.
   ⚠ CORRECTION: "the BTree hosting path has been occurrence-keyed since S2" is TRUE of the bridge
   per-node adapters and FALSE of the standalone @0 thunks.
   ⭐ RETIRING Blackboard1024 (the LEGACY one, NOT BlueprintBlackboard*): it is already on ZERO
@@ -56,11 +76,8 @@ current-answer: §3 — ⭐⭐ THE NEXT ACTION IS O7c. O7 is SLICED (design §24
   (both editor mappers hard-write null). Order: O7d first, then the HeavyDtoType-gated consumers
   (translator, renderer, view provider, replay drawers), then WorkingStateLayout / the registration /
   the GlobalComponentIds entry / the BlueprintDebugSession legacy fallback.
-  ⛔ STILL OPEN: O7b-3 PROPER — eager manifest entries, NOT for labels (already derived and typed);
-  its real value is TIER CAPACITY, and E-cap deliberately does not deliver it. The join is RUNTIME:
-  walk the HSM blob's per-state action ids against the blueprint registry, so HsmEmitCore never
-  learns about blueprints (the user's ruling). ⚠ Verify the ushort truncation cannot collide two
-  blueprints first. And O7c (delete BrainHsm*, F9's tick-system reshape) — L, 188 refs / 18 files.
+  ⛔ STILL OPEN: E3 (E7a + CE-298, see above) and O7c (delete BrainHsm*, F9's tick-system reshape)
+  — O7c is L, 188 refs across 18 production files.
   O4, O5 and O6 are all DONE. O6 — the single ExtDeps crossing — landed 2026-09-20: as-built in
   design §23, 6 rails, red-proof exact, and the FULL 156-project solution build reported exactly TWO
   compile errors, so §4.2's "single-digit blast radius" held. ⛔ O6 delivers the IDENTITY only —

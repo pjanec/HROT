@@ -153,11 +153,15 @@ namespace Fdp.Toolkit.Behavior.Systems
                     // A3/D1': declare WHAT these occurrences are, so O0's walker can filter on a
                     // declared Kind instead of on a BlueprintRegistry miss (F7 -- an accident, not
                     // a filter). The behaviour's tier IS the kind for its stateful working slots.
-                    ProvisionStatefulSlots(repo, evt.Entity, def.StatefulWorkingSlots, KindOf(def));
+                    // O7b-3: the behaviour's HOSTED occurrences need room in the same tier.
+                    _registry.TryGetHostedOccurrenceDemand(evt.BehaviorName, out var hosted);
+                    ProvisionStatefulSlots(repo, evt.Entity, def.StatefulWorkingSlots, KindOf(def),
+                                           hosted);
                 }
                 else
                 {
-                    EnsureOccurrenceStore(repo, evt.Entity, def);
+                    _registry.TryGetHostedOccurrenceDemand(evt.BehaviorName, out var hosted);
+                    EnsureOccurrenceStore(repo, evt.Entity, def, hosted);
                 }
 
                 // 2. Reset BTree execution pointer so the new behavior starts from the root.
@@ -274,7 +278,9 @@ namespace Fdp.Toolkit.Behavior.Systems
         /// <para>⚠ <b>Brain tiers only.</b> A behaviour that is neither BTree nor HSM cannot host an
         /// occurrence, so it gets nothing — ⛔ this is not "a store for every entity".</para>
         /// </summary>
-        private static void EnsureOccurrenceStore(EntityRepository repo, Entity entity, BehaviorDefinition def)
+        private static void EnsureOccurrenceStore(
+            EntityRepository repo, Entity entity, BehaviorDefinition def,
+            HostedOccurrenceDemand? hosted = null)
         {
             if (def.BrainTier != BehaviorConstants.BrainTierBTree &&
                 def.BrainTier != BehaviorConstants.BrainTierHsm)
@@ -282,7 +288,10 @@ namespace Fdp.Toolkit.Behavior.Systems
 
             if (GetCurrentTierSize(repo, entity) != 0) return;   // already has one — idempotent
 
-            int targetTier = SelectTierForPayload(0, 0);
+            // ⭐⭐ O7b-3: size it for what this behaviour will actually host. ⚠ A null demand means
+            //   "nobody computed one" (§27.7), and the smallest tier is the same answer E-cap gave —
+            //   so this is additive, never a regression.
+            int targetTier = SelectTierForPayload(HostedPayloadCost(hosted), hosted?.SlotCount ?? 0);
 
             // ⛔⛔ DO NOT WIDEN THE TOOLKIT'S CONTRACT. Registering the tier components is Hrot-wide
             //   (HrotSharedComponentRegistry, CE-161) but this system lives in Fdp.Toolkits, which
@@ -345,6 +354,24 @@ namespace Fdp.Toolkit.Behavior.Systems
         /// ⚠ <see cref="OccurrenceKind.Invalid"/> for an unknown tier is deliberate: an undeclared
         /// occurrence must read <i>"nobody declared one"</i>, never a guess.
         /// </summary>
+        /// <summary>
+        /// <c>O7b-3</c> — the store bytes a behaviour's HOSTED occurrences will cost, in the SAME
+        /// arithmetic <see cref="ProvisionStatefulSlots"/> uses for a manifest slot: aligned payload
+        /// plus one <c>BlueprintSlotEntry</c> each.
+        ///
+        /// <para>⭐ The demand already carries its payload ALIGNED (<c>HostedOccurrenceDemand.Of</c>),
+        /// so only the slot-entry overhead is added here. ⛔ Two places computing this would be two
+        /// places to get it wrong — that is why the split is stated on the record and not invented at
+        /// each call site.</para>
+        ///
+        /// <para>⚠ A <c>null</c> demand costs ZERO, which reproduces <c>E-cap</c>'s smallest tier
+        /// exactly. ⛔ Not an error: <i>"nobody computed one"</i> is a real state (§27.7).</para>
+        /// </summary>
+        private static int HostedPayloadCost(HostedOccurrenceDemand? hosted)
+            => hosted is null
+                 ? 0
+                 : hosted.PayloadBytes + hosted.SlotCount * BlueprintBlackboardPartitions.SlotEntrySize;
+
         private static OccurrenceKind KindOf(BehaviorDefinition def) => def.BrainTier switch
         {
             BehaviorConstants.BrainTierBTree => OccurrenceKind.BTree,
@@ -355,7 +382,8 @@ namespace Fdp.Toolkit.Behavior.Systems
         private static unsafe void ProvisionStatefulSlots(
             EntityRepository repo, Entity entity,
             IReadOnlyList<StatefulSlotInfo> slots,
-            OccurrenceKind kind)
+            OccurrenceKind kind,
+            HostedOccurrenceDemand? hosted = null)
         {
             // Compute aggregate required payload for the new manifest:
             // each slot at alignment-padded size + one BlueprintSlotEntry header per slot.
@@ -364,6 +392,14 @@ namespace Fdp.Toolkit.Behavior.Systems
                 requiredPayload += AlignUp(s.PayloadSize, BlueprintBlackboardPartitions.Alignment)
                                  + BlueprintBlackboardPartitions.SlotEntrySize;
             int requiredSlots = slots.Count;
+
+            // ⭐⭐⭐ O7b-3: the behaviour's HOSTED occurrences need room too, and they attach LAZILY —
+            //   so nothing here will ever see them, and nothing later can grow the tier (a structural
+            //   change inside a tick). ⇒ their demand is ADDITIVE to the manifest's, in BOTH branches
+            //   below. ⛔ Sizing only the `EnsureOccurrenceStore` branch is the cheap wrong fix: it
+            //   never runs for a behaviour that declares stateful slots of its own (rail O7_R18).
+            requiredPayload += HostedPayloadCost(hosted);
+            requiredSlots   += hosted?.SlotCount ?? 0;
 
             // Determine the entity's current tier (0 = none, else TotalSize).
             int currentTier = GetCurrentTierSize(repo, entity);

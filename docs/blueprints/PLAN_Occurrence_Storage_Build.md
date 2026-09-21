@@ -169,7 +169,7 @@ behaviour and naming the id that will flip it.
 | **E1** | ⭐⭐ **the two-region rails** | a genuine 2-region HSM driving the same asset at both ⇒ ① working state SEPARATES *(proves `O7b` end-to-end, retiring §7's "the fixture cannot redden this" caveat)* · ② params COLLIDE *(pins `CE-298`)* | ⛔ nothing has ever driven a multi-region machine; every `O7` claim rests on it |
 | ⭐⭐ **E-cap** | ✅ **LANDED `2026-09-21`** *(design §27)* — `BehaviorIngressSystem.EnsureOccurrenceStore` provisions the **smallest** tier for a brain-tier behaviour whose stateful manifest is empty, so a lazily-attached occurrence has somewhere to land | ⛔⛔ **This is the SUPPLY half of `O7b-3`, not all of it** — it does **not** size the tier. ⭐⭐ The part that needed care: it **SKIPS when the tier type is not registered** rather than making eight fixtures register it — ⛔ provisioning must not widen the `Fdp.Toolkits` contract *(§27.2)* | rails `O7_R14`/`O7_R15` |
 | **E2** | ✅ **`O7d` — LANDED `2026-09-21`** *(design §27.3)*, once E-cap gave it a store. Both standalone thunks route onto `OccurrenceSlots.StandaloneStateKeyFor(AssetId)` + `OccurrenceWorkingState.ResolveOrAttach`; **ASSET-scoped**, because `Interpreter.cs:655` hands an action delegate no node identity and per-node is the BRIDGE's job by design | the standalone BTree thunks | ⛔ **zero goldens still mention the legacy blackboard** ⇒ ⭐ the last *emitted* use is gone, which is what **E5** was blocked on. The defect pin flipped to `StandaloneBTreeThunks_UseTheOccurrenceStore_O7d` | 📐 golden movement: **30 files, +330/−420, net −90** |
-| ⭐ **E-cap′** | **`O7b-3` PROPER** — manifest entries for **correct TIER SIZING** | ⛔ E-cap only provisions the *smallest* tier; a real payload will overflow it. ⭐ The join is **runtime, not emit-time**: the action id IS the truncated blueprint id, and `StateDef` carries the per-state action ids ⇒ **`HsmEmitCore` never learns about blueprints** *(the user's ruling)* | ⚠ verify the `ushort` truncation cannot collide two blueprints first. ⭐ Needed before **E3** |
+| ⭐ **E-cap′** | ✅ **`O7b-3` PROPER — LANDED `2026-09-21`** *(design §27.7)*. The demand is **DERIVED** from the machine's own `StateDef` action ids against the blueprint registry, recorded as an **OVERLAY on `BehaviorRegistry`** *(the `_resolversByName` shape — prior art, not a new mechanism)*, and **ADDED to the manifest's** demand in **both** tier-selection branches | correct TIER SIZING | ⭐ The join runs in `BlueprintRegistrarScanner.Scan` — 📐 measured as the only place in the tree where both registries are populated in one pass ⇒ **`HsmBridgeEmitCore` never learns about blueprints** *(the user's ruling)* | ⚠ the `ushort` premise was ANSWERED first: 85 assets → 85 distinct low-16, and `BHU020` makes a collision a build error. ⭐ Rails `O7_R16`–`O7_R22`, **two independent red-proofs** |
 | **E3** | **`E7a` + `CE-298`** — **TOGETHER** | ① slot payload becomes `[Params N][WorkingState M]` · ② something WRITES each occurrence's params *(`IHostVariableAccess`, **zero implementers** today)* | ⛔⛔ **① alone is a REGRESSION** — a zeroed params region where today it reads the authored ones. Same lesson as `O7b-1`/`O7b-2` |
 | **E4** | **`O7c`** — delete `BrainHsm64`/`BrainHsm128` | instances into slots; `F9`'s tick-system reshape | 🔴 **L** — 188 refs / 18 production files |
 | **E5** | ⭐ **retire the LEGACY `Blackboard1024`** | ⚠ **NOT `BlueprintBlackboard*`** — those ARE the store. 📐 It is already on **ZERO** production entities: both `AddComponent` sites are gated on `HeavyDtoType`, which **nothing ever sets** *(both editor mappers hard-write `null`)* | ✅ **UNBLOCKED** — `E2`/`O7d` landed and no emitted thunk reads it any more. ⚠ What remains is the `HeavyDtoType`-gated consumers and the cleanup, **not** the emitter |
@@ -181,9 +181,13 @@ the `H1`–`H3` event-queue hazards, and it wants an architect question with mea
 
 ### ⚠ `O7b-3` is RE-SCOPED, twice — read this before picking it up
 
-> ✅ **`2026-09-21` — its SUPPLY half is now built** *(`E-cap`, design §27)*: an empty manifest gets the
-> smallest tier provisioned so lazy attach has somewhere to land. ⛔ **What is left is TIER SIZING**, and
-> the table below is about exactly that. ⚠ Do not read *"`O7b-3` landed"* from the `E-cap` row.
+> ✅ **`2026-09-21` — BOTH halves are now built.** The SUPPLY half is `E-cap` (design §27): an empty
+> manifest gets the smallest tier provisioned so lazy attach has somewhere to land. The SIZING half is
+> §27.7, landed the same day. ⛔ **The table below is HISTORY** — it records the two re-scopings that got
+> the item to a buildable shape, and both of its ✅ columns are what was built.
+>
+> ⚠ **What §27.7 deliberately did NOT do:** it computes a **SIZE**, never a manifest of keys — the
+> occurrence key needs the region slot the kernel picks at runtime. ⭐ Slots still attach lazily.
 
 | ⛔ what I said | ✅ what measuring found |
 |---|---|
