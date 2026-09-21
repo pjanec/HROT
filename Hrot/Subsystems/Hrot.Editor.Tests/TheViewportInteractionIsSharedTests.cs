@@ -103,6 +103,49 @@ public sealed class TheViewportInteractionIsSharedTests
         Assert.Contains("InteractionDeps(", text);
     }
 
+    /// <summary>
+    /// ⭐⭐⭐ <b><c>CE-306</c> — THE TWO FACADE SEAMS PUBLISH A REQUEST, like every other surface.</b>
+    /// 🔒 User, <c>2026-09-21</c>: <i>"same operation should not be done in different ways for
+    /// consistency, unification is desired."</i>
+    /// 📄 <c>UX_Feature_Selection.md</c> §2.7.7 deviation ③, closed.
+    ///
+    /// <para>⛔⛔ <b>Why a SOURCE SCAN and not a behavioural rail.</b> The defect is not a wrong value —
+    /// it is a SECOND WAY to perform one operation, and both ways produce the same selection. 📌 Exactly
+    /// the argument <c>NoProductionHostKeepsAParallelSelectionStoreTests</c> makes for its own scans:
+    /// no behavioural assertion catches a second implementation that agrees.</para>
+    ///
+    /// <para>⚠ <b>What this canNOT see</b> *(say which layer is faked)*: that the request is SERVED.
+    /// ⭐ That is what <c>AReplaceRequestSelectsTheWholeSetAndMakesTheFirstPrimary</c> and
+    /// <c>AClearRequestEmptiesTheSelection</c> in this same file already prove, on the real
+    /// <c>SelectionRequestSystem</c> — ⇒ the two together are the claim.</para>
+    ///
+    /// <para>⭐ <b>Red-proof:</b> restore <c>_selectionState.PrimarySelected = entity</c> in either seam
+    /// and this reddens.</para>
+    /// </summary>
+    [Fact]
+    public void TheTwoFacadeSeamsPublishARequest_RatherThanWritingTheViewDirectly()
+    {
+        var text = ReadHostSource("Hrot.Editor", "EditorSubsystem.cs");
+
+        // ⭐ ① SetSelection2D publishes, and it covers BOTH arms — an entity and a clear.
+        Assert.Contains("SelectionChangeRequest.ReplaceWith(e, Selection2DReason)", text);
+        Assert.Contains("SelectionChangeRequest.ClearAll(Selection2DReason)", text);
+
+        // ⭐⭐ ② ONE implementation: the property setter routes to the method rather than repeating it.
+        //    ⛔ This is the half the user's ruling is actually about.
+        Assert.Contains("set => SetSelection2D(value);", text);
+
+        // ⛔⛔ ③ And NEITHER seam writes the view any more. ⚠ Asserted on the WRITE specifically:
+        //    the GETTER still reads PrimarySelected, and must — it is a view read, not a store.
+        Assert.DoesNotContain("_selectionState.PrimarySelected =", text);
+
+        // ⚠ ④ The reason is a NAMED CONSTANT, so the two seams cannot drift into two reasons — and it
+        //   is a LOCAL cause, so it must not carry SelectionEgressSystem's "Remote." prefix or a 3-D
+        //   click would stop reaching remote observers.
+        Assert.Contains("Selection2DReason = \"Editor.Facade2D\"", text);
+        Assert.DoesNotContain("Selection2DReason = \"Remote.", text);
+    }
+
     /// <summary>⭐ CGF registers the same module — the other side of §6's reconciliation.</summary>
     [Fact]
     public void CgfRegistersTheSharedModule()

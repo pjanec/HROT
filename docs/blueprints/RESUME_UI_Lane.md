@@ -1,7 +1,9 @@
 <!--STATUS
 state: LIVE
 updated: 2026-09-20
-current-answer: ⭐⭐⭐ READ THE TOP OF THIS FILE — the "SESSION 2026-09-21 (b)" block is the live state
+current-answer: ⭐⭐⭐ READ THE TOP OF THIS FILE — the "SESSION 2026-09-21 (c)" block is the live state
+  (CE-306 closed §2.7.7 deviation ③, and THREE of the five UXI-11 residuals were measured and struck —
+  the list had rotted). Below it "SESSION 2026-09-21 (b)"
   (CE-302 AND CE-303 built; RuntimeInspectorWindow is DELETED on the user's "let it dissolve" ruling).
   ⇒ CE-300..CE-305 are ALL DONE and nothing is in flight. Below it "SESSION 2026-09-21" is
   CE-300/CE-301; below it "SESSION 2026-09-20 (j)" is S-6, (i) is S-5, (h) is S-4b, (g) is S-4, (f) is S-3e.
@@ -56,7 +58,7 @@ current-answer: ⭐⭐⭐ READ THE TOP OF THIS FILE — the "SESSION 2026-09-21 
   nothing from it is in flight. Older STRANDS below it are older history still; do NOT act on any of
   them unless explicitly told to continue one.
 
-stale-below: ⛔ EVERYTHING below the "SESSION 2026-09-21 (b)" block is HISTORY, newest first, with TWO
+stale-below: ⛔ EVERYTHING below the "SESSION 2026-09-21 (c)" block is HISTORY, newest first, with TWO
   exceptions that are LIVE STATUS and not session logs: the "VERIFIED IN THE PRODUCT" block (the
   Windows result) and the "CGF BUILT ITS MAP LAYER WITH NO CAMERA" fix directly under it.
   ⚠ The two "SUPERSEDED" blocks under those record the readings that LED to the fix and are wrong as
@@ -74,6 +76,46 @@ related-designs:
   Nothing was deleted.
 -->
 # ⭐⭐⭐ RESUME — **the UI / variable implementation lane**
+
+## ⭐⭐⭐ SESSION `2026-09-21` (c) — **`CE-306`: the last two selection seams unified; the residual list was ROTTEN**
+
+🔒 **User:** *"same operation should not be done in different ways for consistency, unification is desired."*
+
+☑ **`CE-306`** — `EditorSubsystem.SetSelection2D` and `Selected2DEntity` now **publish a
+`SelectionChangeRequest`** instead of writing the view, and the **property setter routes to the
+method** so there is ONE implementation. 📄 As-built: [`UX_Feature_Selection.md` §2.7.18](https://github.com/pjanec/HROT/blob/ui/docs/UX/UX_Feature_Selection.md). §2.7.7 **deviation ③ is CLOSED**.
+
+⛔⛔ **The exception's own defence had rotted, which is why this was cheap.** It cited
+`EditorStrideSubsystem.SyncSelection2D3D` reading `Selection2DVersion` back in the same frame — 📐 `S-3d`
+**deleted that method**, its replacement calls `_write(...)` and returns, and **`.Version` has no
+consumer anywhere in the Stride app**. ⚠ **A defended exception whose defence has rotted is worse than
+an undefended one: it reads as considered.**
+
+⚠ **One behaviour change, ruled acceptable:** the 3-D highlight reads the previous entity for one frame
+*(user: "neglectable")*. ⛔ **It cannot touch the CONTEXT MENU** — asked, then measured: the menu's
+subject is the entity the **gesture** hit *(`ContextMenuSystem:195`, and the cache is a per-entity
+component)*, never the selection store. ⭐ That is why §2.3's same-frame constraint is SUPERSEDED.
+
+⛔ **Untestable here:** the Stride caller is `net8.0-windows` ⇒ **the 3-D click needs a Windows pass.**
+
+### ⚠⚠ AND THE RESIDUAL LIST WAS WRONG — three of five entries struck
+
+| entry | verdict |
+|---|---|
+| *"`ClearAll` has 0 callers"* | ⛔ **FALSE.** Measured: `SelectionInteractionSystem:109/220/254` *(`S-4b`'s empty-space clear)*, `CgfSubsystem:3083`, `SimHostVisualization:209` |
+| *"two synchronous editor facade seams"* | ☑ **closed by `CE-306`** |
+| *"panels PROJECT rather than subscribe"* | ⭐ **not a residual — it IS the design.** A bus event lives one frame, so a collapsed panel would miss it and stay stale for ever |
+| *"map menu contents"* | ⚠ **stands**, parked by its OWN design |
+| *"empty-space clear is local-only"* | ⚠ **stands — and it is the one worth doing next** |
+
+⇒ 📌 **a residual list rots exactly like any other state claim** *(the ledger rule: measure, don't
+memorise)*. ⭐ The header in `UX_Feature_Selection.md` now carries the corrected list with the evidence.
+
+⛔ **NEXT, and nothing is in flight:** the **local-only empty-space clear** *(§2.7.14)* — right-click on
+empty map space clears YOUR selection but the clear does not reach other nodes, because a canvas anchor
+does not survive the ingress resolve filter. ⚠ **Measure first** whether that filter drops canvas
+anchors by design or by omission — the answer decides whether it is a one-line filter change or a
+protocol question.
 
 ## ⭐⭐⭐ SESSION `2026-09-21` (b) — **`CE-302` + `CE-303` BUILT; `UXI-11`'s follow-on set is COMPLETE**
 

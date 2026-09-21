@@ -81,8 +81,15 @@ current-answer: ✅ READ §2.7 — the consolidated TARGET STATE (2026-09-10), w
   ☑ BUILT (S-2): SelectionChangeRequest (managed, set + mode) + SelectionRequestSystem (the renamed
   SelectEntitySystem), registered on IG too; all FOUR hand-rolled component writers are gone —
   "new SelectionState {" appears in zero production files outside EcsSelectionState.
-  ☑ S-3e CLOSED deviation ②: SelectionInteractionSystem now REQUESTS. Two editor facade seams
-  (SetSelection2D, Selected2DEntity) remain synchronous — §2.7.7 deviation ③, argued.
+  ☑ S-3e CLOSED deviation ②: SelectionInteractionSystem now REQUESTS.
+  ☑☑ DEVIATION ③ IS CLOSED TOO, 2026-09-21 (CE-306): both editor facade seams (SetSelection2D,
+  Selected2DEntity) now PUBLISH A REQUEST, and the property setter routes to the method so there is ONE
+  implementation. User ruling: "same operation should not be done in different ways for consistency."
+  ⚠ The justification for the old exception was STALE — it cited SyncSelection2D3D reading
+  Selection2DVersion back in the same frame; S-3d DELETED that caller, its replacement does not read
+  the version, and `.Version` has no consumer in the Stride app at all. The one behaviour change is a
+  one-frame lag on the 3-D highlight (user: "neglectable"); it CANNOT affect the context menu, whose
+  subject is the entity the GESTURE hit, never the selection store.
   ☑ BUILT (S-3): SelectionChangedNotification (FDP-internal, R-134-clean) published by the one
   writer for every cause; SelectionNotificationSystem points IInspectorContext at it; the entity
   inspector projects the host selection and publishes requests; ChainToMap RETIRED; IG's map->inspector
@@ -176,7 +183,7 @@ related-designs:
 -->
 # Feature design — selection
 
-> **Design for [UXI-11](UX_Issues.md#uxi-11) · drafted 2026-08-12 · target state consolidated `2026-09-10` in §2.7.** **Status: ✅ THE SLICE LIST IS COMPLETE — ☑ `S-1` (§2.7.6), ☑ `S-2` (§2.7.7), ☑ `S-3` (§2.7.8), ☑ `S-3b` (§2.7.9), ☑ `S-3c` (§2.7.10), ✅ `S-3d` (§2.7.11a, Windows-verified), ☑ `S-3e` (§2.7.12), ✅ `S-4` (§2.7.13), ✅ `S-4b` (§2.7.14) — **both operator-verified `2026-09-20`, §2.7.14a** — ☑ `S-5` (§2.7.15), ☑ the marquee ruling (§2.7.16) and ☑ `S-6` (§2.7.17), all `2026-09-20`: one store, one request, one writer, one announcement, on every node — **one place that builds them** — right-click selects on every surface, and observers are told what the selection BECAME rather than what one gesture did. **§2.3 is met on every surface.** ❌ Still open, each saying so in its own section — the map menu's *contents* (parked by its own design), `ClearAll` has 0 callers, two synchronous editor facade seams (§2.7.7 ③), panels PROJECT rather than subscribe (§2.7.8 ②), the empty-space clear is local-only (§2.7.14), `MapCommandController` is deliberately NOT widened (§2.7.17), and 🔴 **`SharedEntitySelection` — the AI-editor's own entity selection, wrapped by `EditorSelectionStore` — is STILL A SECOND STORE on both authoring hosts** *(`EditorSubsystem.cs:360`, `CgfSubsystem.cs:199`; measured with the graph `2026-09-20`)*: no slice ever addressed it, it is recorded only in §2.7.6's dated table, and its owning design is [`AI_Editor_Shared_Infrastructure.md`](../blueprints/AI_Editor_Shared_Infrastructure.md).** Implements [rulings 27-28](UX_RESUME_INTERACTION.md). Feeds
+> **Design for [UXI-11](UX_Issues.md#uxi-11) · drafted 2026-08-12 · target state consolidated `2026-09-10` in §2.7.** **Status: ✅ THE SLICE LIST IS COMPLETE — ☑ `S-1` (§2.7.6), ☑ `S-2` (§2.7.7), ☑ `S-3` (§2.7.8), ☑ `S-3b` (§2.7.9), ☑ `S-3c` (§2.7.10), ✅ `S-3d` (§2.7.11a, Windows-verified), ☑ `S-3e` (§2.7.12), ✅ `S-4` (§2.7.13), ✅ `S-4b` (§2.7.14) — **both operator-verified `2026-09-20`, §2.7.14a** — ☑ `S-5` (§2.7.15), ☑ the marquee ruling (§2.7.16) and ☑ `S-6` (§2.7.17), all `2026-09-20`: one store, one request, one writer, one announcement, on every node — **one place that builds them** — right-click selects on every surface, and observers are told what the selection BECAME rather than what one gesture did. **§2.3 is met on every surface.** ❌ Still open, each saying so in its own section — the map menu's *contents* (parked by its OWN design, not by this one), the empty-space clear is **local-only** (§2.7.14), and `MapCommandController` is deliberately NOT widened (§2.7.17). ⚠⚠ **THREE ENTRIES WERE STRUCK `2026-09-21` AFTER MEASURING THEM** — ⛔ a residual list rots exactly like any other state claim: ① *"`ClearAll` has 0 callers"* is **FALSE** — measured production callers: `SelectionInteractionSystem` `:109/:220/:254` (`S-4b`'s empty-space clear), `CgfSubsystem:3083`, `SimHostVisualization:209`; ② *"two synchronous editor facade seams"* is **CLOSED by `CE-306`** (§2.7.18); ③ *"panels PROJECT rather than subscribe"* is **NOT a residual — it is the DESIGN**: a bus event is readable for one frame, so a collapsed or hidden panel would miss it and stay stale for ever, which is why §2.7.8 gives the notification to consumers that need an EDGE and lets panels project, and 🔴 **`SharedEntitySelection` — the AI-editor's own entity selection, wrapped by `EditorSelectionStore` — is STILL A SECOND STORE on both authoring hosts** *(`EditorSubsystem.cs:360`, `CgfSubsystem.cs:199`; measured with the graph `2026-09-20`)*: no slice ever addressed it, it is recorded only in §2.7.6's dated table, and its owning design is [`AI_Editor_Shared_Infrastructure.md`](../blueprints/AI_Editor_Shared_Infrastructure.md).** Implements [rulings 27-28](UX_RESUME_INTERACTION.md). Feeds
 > [UXI-24](UX_Issues.md#uxi-24) (multi-select) and [UXI-23](UX_Issues.md#uxi-23) (map parity).
 
 ## 0. Prior art ([rule 6](UX_Issues.md#rules))
@@ -886,7 +893,7 @@ previous selection — silently.*
 | `SelectionInteractionSystem` | ☑ discharged at **`S-1`** *(delegates to the view)* |
 | `EditorSubsystem`'s `GlobalActionIds.Select` handler | ☑ publishes a request |
 | `IgApplication.SelectEntityOnMap` | ☑ publishes a request |
-| 🔴 **`EditorSubsystem.SetSelection2D`** — **not in the delete-list** | ☑ reduced to a one-line view write — deviation ③ |
+| 🔴 **`EditorSubsystem.SetSelection2D`** — **not in the delete-list** | ☑ `S-2` reduced it to a one-line view write *(deviation ③)*; ☑☑ **`CE-306` `2026-09-21` made it PUBLISH A REQUEST** — deviation ③ is CLOSED, see §2.7.18 |
 
 ⇒ ⭐ **that is why the gate is now a SOURCE SCAN** *(`OnlyTheViewWritesTheSelectionStateComponent`)* and
 not a checklist: a checklist is only as complete as the sweep that wrote it.
@@ -1778,6 +1785,64 @@ silently refused while a placement session is open. ⇒ **a structural move with
 | `ARemoteOriginatedChange_IsNotEchoedBack_ButStillLandsLocally` | ⭐⭐ **both halves**: no echo, AND the local view still applied. ⛔ The second assertion is what §2.6 forbids losing. **Red-proved** — removing the suppression reddens it |
 | `ClearingTheSelection_IsSentAsAnEmptySet_NotSkipped` · `AnEntityWithNoNetworkId_IsNotSentAsZero` · `IsRemoteOrigin_KeysOnThePrefix` *(4 cases)* | the boundary rules, and the predicate asserted DIRECTLY rather than inferred from a publish that did not happen |
 | `SetSelectionCommandTests` *(the feature's own suite, `T-1`)* | 4/4 green, unchanged |
+
+#### 2.7.18 ☑ **`CE-306` — THE TWO FACADE SEAMS PUBLISH A REQUEST; deviation ③ is CLOSED** *(`2026-09-21`)*
+
+> 🔒 **User:** *"same operation should not be done in different ways for consistency, unification is
+> desired."*
+
+⭐ **What "publishing a request" means, concretely** — instead of `_selectionState.PrimarySelected = e`
+*(a direct write through the view)*, both seams now do what every other surface does:
+
+```csharp
+_world.Bus.PublishManaged(SelectionChangeRequest.ReplaceWith(e, Selection2DReason));   // or ClearAll
+```
+
+…and `SelectionRequestSystem`, **the one writer**, applies it and announces it.
+⭐⭐ **And `Selected2DEntity`'s setter now ROUTES to `SetSelection2D`** — ⛔ two setters that both wrote
+the view was the duplication the ruling is actually about; the sync-ness was only how it showed.
+
+##### ⛔⛔ THE EXCEPTION'S JUSTIFICATION WAS STALE — **and that is why this became cheap**
+
+📐 **Measured `2026-09-21`.** The comment defending the synchronous write read: *"its ONE caller is
+`EditorStrideSubsystem.SyncSelection2D3D`, which reads `Selection2DVersion` BACK IN THE SAME FRAME to
+arm its anti-bounce tracker."* 🔴 **All of it is out of date:**
+
+| the claim | measured |
+|---|---|
+| *"its ONE caller is `SyncSelection2D3D`"* | ⛔ **`S-3d` DELETED that method** — its own commit comment says *"What this deletes: `SyncSelection2D3D`, a per-frame version-polling bridge … with two anti-bounce trackers"* |
+| *"reads the version back in the same frame"* | ⛔ its replacement, `StrideInspectorWindow.SelectionState.BindTo`, calls `_write(...)` **and returns** |
+| the version is load-bearing | ⛔ **`.Version` has NO consumer anywhere in the Stride app** |
+
+⇒ ⭐⭐ **the anti-bounce tracker the exception protected no longer existed.** 📌 A defended exception
+whose defence has rotted is worse than an undefended one: it reads as considered.
+
+##### ⚠ THE ONE BEHAVIOUR CHANGE, and what it canNOT touch
+
+⚠ The write lands on the next drain, so a 3-D click's **own highlight** reads the previous entity for
+one frame *(`SelectionState.SelectedEntity` reads back through `read`)*. 🔒 **User: *"one frame lag is
+neglectable in terms of perceptibility."***
+
+⛔⛔ **It cannot affect the CONTEXT MENU, and that was asked and measured rather than assumed:**
+
+| the claim | measured |
+|---|---|
+| the menu's subject is the **hit entity**, not the store | ✅ `ContextMenuSystem.cs:195` builds the request from `target`'s `NetworkIdentity` |
+| it works with **no prior selection** | ✅ that block's own comment: *"handles the right-click-without-prior-selection scenario"* |
+| the cached path is entity-scoped too | ✅ `ContextMenuState` is a **component on the entity** |
+| ExCon builds from what the request carried | ✅ `ContextMenuLogic.cs:143` |
+
+⇒ ⭐ **that is exactly why §2.3's *"mutate before the menu, same frame"* constraint is SUPERSEDED**
+*(§2.7.13)* rather than merely unmet — the gesture fixes the subject at open time.
+
+##### ⭐ Railed
+
+`TheTwoFacadeSeamsPublishARequest_RatherThanWritingTheViewDirectly` — a **source scan**, because the
+defect is a SECOND WAY to do one operation and both ways produce the same selection ⇒ ⛔ no behavioural
+assertion catches an implementation that agrees. ⭐ **Red-proved.**
+⚠ **What it cannot see:** that the request is SERVED — ⭐ `AReplaceRequestSelectsTheWholeSet…` and
+`AClearRequestEmptiesTheSelection` in the same file already prove that on the real system.
+⛔ **Untestable here:** the Stride caller is `net8.0-windows`; the 3-D click needs a Windows pass.
 
 ## 3. Acceptance
 

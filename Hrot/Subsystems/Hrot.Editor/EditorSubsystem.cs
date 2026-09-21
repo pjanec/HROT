@@ -760,8 +760,12 @@ namespace Hrot.Editor
         /// </summary>
         public Fdp.Core.Entity? Selected2DEntity
         {
+            // ⭐ The GETTER stays a read-through — it is a VIEW read, not a second store (S-1).
             get => _selectionState?.PrimarySelected;
-            set { if (_selectionState != null) _selectionState.PrimarySelected = value; }
+            // ⭐⭐⭐ CE-306 — the SETTER routes to SetSelection2D, so the two seams are ONE operation
+            //    with one implementation. 🔒 User: "same operation should not be done in different
+            //    ways." ⛔ Two setters that both wrote the view was the duplication, not the sync-ness.
+            set => SetSelection2D(value);
         }
 
         /// <summary>Monotonic version of the 2D selection; 0 in headless.</summary>
@@ -787,21 +791,42 @@ namespace Hrot.Editor
         /// </summary>
         public void SetSelection2D(Fdp.Core.Entity? entity)
         {
-            // ⭐⭐⭐ UXI-11 S-2 — this used to hand-roll the clear-loop and the set, then ALSO assign
-            //    through the view. 📐 Since S-1 the view's setter does EXACTLY those three steps
-            //    (EcsSelectionState.PrimarySelected -> ClearCore + SetSelectedCore), so this is a
-            //    provably-equivalent reduction: one hand-rolled writer deleted, zero behaviour change.
+            // ⭐⭐⭐ CE-306 — THIS PUBLISHES A REQUEST, like every other surface.
+            // 🔒 User, 2026-09-21: "same operation should not be done in different ways for
+            //    consistency, unification is desired." ⇒ selecting an entity is ONE operation with ONE
+            //    implementation: publish, and let SelectionRequestSystem (the one writer) apply and
+            //    announce it. 📄 UX_Feature_Selection.md §2.7.7 deviation ③, now CLOSED.
             //
-            // ⚠⚠ AND IT STAYS SYNCHRONOUS ON PURPOSE — 📄 §2.7.7 names it as one of the two facade
-            //    seams that do NOT publish a request. 📐 Its ONE caller is
+            // ⚠⚠ THE OLD JUSTIFICATION FOR STAYING SYNCHRONOUS WAS STALE, and it is worth saying why
+            //    rather than deleting it. It read: "its ONE caller is
             //    EditorStrideSubsystem.SyncSelection2D3D, which reads Selection2DVersion BACK IN THE
-            //    SAME FRAME to arm its anti-bounce tracker. ⛔ A deferred request would not have
-            //    bumped the version by then. ⚠ The Stride project is net8.0-windows and cannot be
-            //    built or tested on the Linux lane, so the change with the least untestable risk is
-            //    the one that preserves the contract exactly.
-            if (_selectionState != null)
-                _selectionState.PrimarySelected = entity;
+            //    SAME FRAME to arm its anti-bounce tracker." 📐 Measured 2026-09-21:
+            //      · SyncSelection2D3D was DELETED by S-3d — its own commit comment says so;
+            //      · its replacement, StrideInspectorWindow.SelectionState.BindTo, calls _write(...)
+            //        and RETURNS — it does not read the version;
+            //      · `.Version` has NO consumer anywhere in the Stride app.
+            //    ⇒ the anti-bounce tracker the exception protected no longer exists.
+            //
+            // ⚠ THE ONE BEHAVIOUR CHANGE, named: the write now lands on the next drain rather than
+            //   immediately, so a 3-D click's own highlight reads the PREVIOUS entity for one frame
+            //   (SelectionState.SelectedEntity reads back through `read`). 🔒 User: "one frame lag is
+            //   neglectable in terms of perceptibility." ⛔ It cannot affect the CONTEXT MENU —
+            //   measured: the menu's subject is the entity the GESTURE hit (ContextMenuSystem builds
+            //   the request from `target`'s NetworkIdentity, and the cache is a per-entity component),
+            //   never the selection store. That is why §2.3's same-frame constraint is SUPERSEDED.
+            if (_world == null) return;
+
+            _world.Bus.PublishManaged(entity is { } e
+                ? Fdp.Toolkit.Vis2D.Abstractions.SelectionChangeRequest.ReplaceWith(e, Selection2DReason)
+                : Fdp.Toolkit.Vis2D.Abstractions.SelectionChangeRequest.ClearAll(Selection2DReason));
         }
+
+        /// <summary>
+        /// ⭐ The reason both facade seams publish under. ⚠ NOT <c>SelectionEgressSystem</c>'s
+        /// <c>Remote.</c> prefix: a 3-D click is a LOCAL cause and must reach remote observers like any
+        /// other. ⛔ Naming it once is what stops the two seams drifting into two reasons.
+        /// </summary>
+        internal const string Selection2DReason = "Editor.Facade2D";
 
         /// <summary>
         /// Replaces the muscle tier built during <see cref="Initialize"/> with a host's own
