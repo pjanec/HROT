@@ -2,13 +2,19 @@
 state: LIVE
 updated: 2026-09-21
 build-state: DESIGN
-current-answer: section 4 (the decisions D1-D5, each with a lean awaiting approval). Section 1 is
-  the INVENTORY it rests on; section 3 holds the diagrams. NOTHING here is approved yet - D1
-  changes a key shape AND carries a mandatory fourth clause (a scan-time validation pass) without
-  which the feature's failure mode is silence. Read D1's fourth-clause subsection before anything.
-review: reviewed 2026-09-21; seven findings folded in - the silent-TryRun path (section 3.2's else
-  arm), D1's build-time unverifiability and its clause four, load order, D5, two further stale doc
-  comments (section 5), the netstandard2.0 wall, and check_index_coverage was run after all.
+current-answer: section 4. D1-a (with its MANDATORY clause four), D2 and D3 are leans awaiting
+  approval; D4 is DECIDED (yes, a 4th+5th member - PackedField is unreachable from FDP/Toolkits);
+  D5 is NOT a decision but an enforcement obligation of R-149. Section 1 is the INVENTORY;
+  section 3 the diagrams; section 6.1 scopes A7 by host. Read D1's fourth-clause subsection and
+  the ResolverKey subsection under it before anything - both address the same silent-failure mode.
+stale-below: nothing. Two leans were REVERSED in place by the second review and say so where they
+  sit: D4 (was "no 4th member") and D1-a's DeterministicIds citation (unreachable across the
+  netstandard2.0 wall; ResolverKey is a LINKED file on the OccurrenceSlotKey pattern).
+review: reviewed twice, 2026-09-21. Round 1: the silent-TryRun path, D1's build-time
+  unverifiability and clause four, load order, D5, two further stale doc comments, the
+  netstandard2.0 wall, check_index_coverage. Round 2: D4 flipped to yes, ResolverKey given a home,
+  D5 re-filed as enforcement, A7 scoped by host. One round-2 premise did NOT verify - a
+  warn-vs-fail artifact ruling in the asset-management corpus; searched, none found (section 6.1).
 stale-below: nothing.
 known-rot: nothing.
 known-conflict: nothing.
@@ -262,10 +268,30 @@ signal at all.**
 |---|---|
 | ⭐⭐⭐ **a validation pass at `BlueprintRegistrarScanner`** *(inventory ⑩ — this design's own join precedent)* that, for every baked ref, checks ① the resolver **is registered** and ② its input `TypeId` **equals the variable's** — and **FAILS THE LOAD LOUDLY** | ⭐⭐ **one addition closes three flaws at once**: the silent-`false` path of §3.2, the unverifiable type match here, and the load-ORDER question below |
 | ⭐⭐ **it also settles LOAD ORDER** | ⛔ nothing today orders the Library registrar before a behaviour referencing it attaches. ⭐ A pass that runs **after** the scan has staged everything does not care about order — which is exactly why `ComputeHostedOccurrenceDemands` is shaped that way |
-| ⚠ **the manifest may have to carry the ref after all** | ⭐ the pass needs *(variable `TypeId`, key)* per behaviour at scan time. ⛔ **This is the one thing that could reopen `D4`** — if the pass cannot reach `PackedField`, the 4th member on `ManagedBlackboardVariable` becomes its carrier. ⭐ **Resolve this when `D1` is approved**, not before |
+| ⭐⭐⭐ **the manifest MUST carry the ref — `D4` is DECIDED, not deferred** | 📐 **Measured, and it settles it categorically: `PackedField` has ZERO references anywhere in `FDP/Toolkits/`.** `ComputeHostedOccurrenceDemands:180` works purely in runtime currency — `BlueprintRegistryStaging.Definitions`, `behaviorStaging.GetRegisteredNames/TryGetDefinition`, an action-id index. ⇒ a scan-time pass **cannot reach `PackedField` by construction**, so the manifest is the only carrier. ⚠ **An earlier revision said *"resolve this when `D1` is approved"* — that was deferring a question one grep answers; see `D4`** |
 
 ⛔ **Without this clause the slice ships a feature whose failure mode is silence** — which is the exact
 defect class this programme keeps filing. ⇒ ⭐ **`D1-a` is approved-as-a-lean only WITH clause four.**
+
+#### ⛔⛔ `ResolverKey` HAS NO HOME — **and the repo already ruled the answer TWICE**
+
+🔴 **`D1-a` cited `DeterministicIds.PinId` as prior art, and that citation does not work.** 📐
+`DeterministicIds` lives in **`Hrot.Blueprints.Core.Compiler`** *(`DeterministicIds.cs:5`)*, and
+Persistence has **no project references by design** ⇒ the emitter **cannot call it**.
+
+⭐⭐⭐ **This is not a new problem — that csproj already solves it twice with LINKED SHARED SOURCE**,
+and one of the two is this programme's own work:
+
+| linked file | why |
+|---|---|
+| `Fdp.Toolkits.Analyzers/Shared/BlackboardParamsExpression.cs` → `Emit\Shared\` *(`BP-306`)* | the expression spelling must match on both sides of the wall |
+| ⭐⭐⭐ **`Fdp.Toolkits/Behavior/Shared/OccurrenceSlotKey.cs` → `Emit\Shared\`** — **task `A1` of this very plan** | 🔒 its own header: *"A compile-time key and a runtime key that disagree by one byte **do not fail loudly: the slot is simply never found.**"* ⚠ It also pins an **ABI enum** across three spellings, with `OccurrenceSlotKeyParityTests` as the rail |
+
+⇒ ⭐⭐ **`ResolverKey` is a LINKED netstandard2.0-subset file on the `OccurrenceSlotKey` pattern, with a
+parity rail** — ⛔ not a call into `DeterministicIds`. ⚠⚠ **And note WHY this matters beyond
+mechanics:** a compile-time key that disagrees with the runtime key is **the same silence clause four
+exists to kill, arriving by a second door.** ⭐ The parity rail is therefore part of the slice, not
+polish.
 
 #### ⚠ `netstandard2.0` — the wall the DTO work lands against
 
@@ -289,20 +315,31 @@ exactly `CE-226`'s precedent for the manifest emitter (inventory ⑤), and for i
 
 ### `D4` — does `ManagedBlackboardVariable` need a 4th member?
 
-⭐⭐ **LEAN: NO — and this NARROWS the plan row, which assumed yes.** 📐 Step 3 is emitted **inline**
-with the offset and key baked in, so no runtime consumer needs to rediscover the ref. ⛔ Adding a
-member for symmetry would put a fact in two places. ⚠ **Reopen it** only if a debugger/inspector has to
-show *"this variable is resolved by X"* — ⛔ **or if `D1`'s clause four cannot reach `PackedField`**,
-in which case the manifest becomes the scan-time pass's carrier. ⭐ Decide with `D1`.
+⭐⭐⭐ **YES. It carries the KEY and the variable's `TypeId`.** ⛔⛔ **This REVERSES this document's own
+first lean, and the measurement that reverses it was available the whole time:**
 
-### `D5` — a ref on a `Role == State` variable
+| 📐 measured | |
+|---|---|
+| **`PackedField` has ZERO references anywhere in `FDP/Toolkits/`** | ⇒ nothing in the runtime assembly can see it |
+| `ComputeHostedOccurrenceDemands:180` reads **only** `BlueprintRegistryStaging.Definitions`, `behaviorStaging.GetRegisteredNames/TryGetId/TryGetDefinition`, and an action-id index | ⇒ **runtime currency only**, and `BehaviorDefinition` is exactly where `ManagedBlackboardVariables` already lives |
 
-⭐⭐ **LEAN: REFUSE it, at the same scan-time pass as `D1`'s clause four.** 📐 `BlackboardVariableDto`
-carries `Role` *(Input/State)* and `Scope`, and the ref sits on the DTO **unconditionally** ⇒ nothing
-stops an author attaching one to working state. ⛔ `R-149` is explicit — *"offered only where a params
-region exists, never on `Role=State` working state"* — and `D2` refuses curated-plus-per-variable while
-**nothing refuses this**. ⚠ It is a one-line check; the reason it needs stating is that the DTO cannot
-express the restriction structurally.
+⇒ ⭐⭐⭐ **`D1`'s clause four and a manifest with no ref are CONTRADICTORY**, and the earlier draft
+presented both as approved-ready. ⭐ **The 4th and 5th members carry the key *and* the `TypeId`**,
+because `A8` needs both to compare against the resolver's declared input type.
+
+⚠ **The honest reading of the original lean:** *"Step 3 bakes the offset inline, so no runtime consumer
+needs the ref"* was **true of Step 3** and false of the **validation pass**, which did not exist when
+the lean was written. ⛔ The lean was not re-tested when clause four was added.
+
+### `D5` — ⛔ **NOT A DECISION: an ENFORCEMENT OBLIGATION of `R-149`**
+
+⛔⛔ **This was mis-filed as a lean awaiting approval, and that invites re-deciding settled canon.**
+🔒 `R-149` already rules it **verbatim**: *"Offered only where a params region exists, ⛔ never on
+`Role=State` working state."* ⭐ The whole point of a ledger row is that it is not re-litigated.
+
+⇒ ⭐⭐ **The obligation:** `BlackboardVariableDto` carries `Role` *(Input/State)* and the ref sits on the
+DTO **unconditionally**, so the restriction **cannot be expressed structurally** ⇒ the scan-time pass
+enforces it, and **`A9` is its rail**. ⛔ There is nothing here to approve — only to build.
 
 ---
 
@@ -331,9 +368,31 @@ correct *rule* is how the next session re-derives the wrong constraint.
 | `A4` | the resolver **reaches the world** — the `R4` rail's shape, through a behaviour bridge this time |
 | `A5` | `D2`'s refusal fires, with a red-proof |
 | `A6` | a `ResolverRef` in JSON **round-trips** through both DTOs and `ToPackable` |
-| ⭐⭐⭐ `A7` | a ref naming a **MISSING or RENAMED** resolver **fails the load with a diagnostic** — red-proved by renaming the graph. ⛔ **Closes the silent-`false` path of §3.2**, and it is the acceptance row the slice most needs |
+| ⭐⭐⭐ `A7` | a ref naming a **MISSING or RENAMED** resolver **fails the load with a diagnostic** — red-proved by renaming the graph. ⛔ **Closes the silent-`false` path of §3.2**, and it is the acceptance row the slice most needs. ⭐⭐ **SCOPED — see §6.1** |
+| ⭐ `A10` | the **key parity rail**: the linked `ResolverKey` computes byte-identical keys on the netstandard2.0 authoring side and the net8.0 runtime side — modelled on `OccurrenceSlotKeyParityTests` |
 | ⭐⭐ `A8` | a ref whose variable `TypeId` ≠ the resolver's input `TypeId` is **refused at SCAN time**, not at attach — ⛔ `TryRun`'s in-sim throw is not an acceptable last line |
 | ⭐⭐ `A9` | a ref on a `Role == State` variable is **refused** *(`D5`)* |
 
 ⚠ **`A7`–`A9` all land on `D1`'s clause-four pass**, which is why that clause is not optional: without
 it none of the three has anywhere to fire.
+
+### 6.1 ⚠ `A7` — **WHICH HOSTS does "fails the load" mean?**
+
+⭐ **The question is right:** a node holding a partial asset set must not turn a missing resolver into a
+node-down. ⛔ **But I could not verify the precedent it was raised on.** 📐 **Searched
+`docs/designs/mgmt-1`, `docs/designs/packs-3`, `docs/designs/cgf-1` and a regex sweep over
+`docs/designs/` for a missing-vs-stale artifact policy — NONE FOUND.** ⚠ Stated plainly rather than
+adopted: **do not cite a warn-vs-fail ruling until someone names the document.**
+
+⭐⭐ **What IS measured settles the scoping anyway** — the pass runs **only where the scan runs**:
+
+| production caller of `BlueprintRegistrarScanner.Scan` | host |
+|---|---|
+| `CgfBehaviorSetup.LoadFromAiAssembly:53` | ⭐ the **CGF** behaviour-setup path — i.e. exactly the hosts that tick behaviours |
+| `AiHotReloadCoordinator.ApplyReload:332` · `DoLoadAndScan:483` | hot reload |
+| `QuickReloadService.TriggerFromSourcesAsync:144` | the editor |
+
+⇒ ⭐⭐ **`A7` is naturally scoped by construction: a host that never sets up behaviours never runs the
+pass, so it cannot fail on a resolver it was never going to call.** ⛔ **`A7` must assert that** — a
+non-behaviour host loads clean — rather than assuming it. ⚠ **If a warn-vs-fail ruling IS found later,
+it overrides this paragraph**; the scoping measured here is a floor, not a policy.
