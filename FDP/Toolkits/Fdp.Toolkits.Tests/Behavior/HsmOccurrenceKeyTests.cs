@@ -1388,6 +1388,119 @@ public sealed unsafe class HsmOccurrenceKeyTests
         }
     }
 
+    /// <summary>
+    /// ⭐⭐⭐ <b>Rail ㊲ — <c>P1</c>: TWO PARALLEL REGIONS CALL A **REAL EMITTED ACTION** WITH PARAMS,
+    /// AND EACH GETS ITS OWN.</b> 📄 user, `2026-09-21`: *"a rail that exercises the multi region
+    /// parallel action call with params"*.
+    ///
+    /// <para>⭐⭐ <b>What this adds over ㊱.</b> ㊱ drives a RECORDING STUB — it proves the seam carries a
+    /// resolver's values. ⛔ It does not prove a **compiled blueprint thunk** does the same. This one
+    /// registers <c>HsmTwoRegionParamsDemo</c>'s own emitted <c>HsmActivity</c> — the real
+    /// <c>ResolveOrAttach</c> → <c>SeedParamsOffset</c> → <c>TickCore(ref p, …)</c> body — and reads
+    /// the two occurrences back out of the store.</para>
+    ///
+    /// <para>⭐⭐⭐ <b>And it is reached through the NUMERIC <c>entryActionId</c> BYPASS.</b> 📐 An HSM
+    /// asset cannot name a blueprint action by FQN: <c>HsmFlattener</c> hashes the NAME while
+    /// <c>CSharpEmitter</c> registers under <c>(ushort)BlueprintId</c>, which is derived from the asset
+    /// GUID. ⇒ two unrelated id spaces. ⭐ The blob here stands in for an asset whose state carries
+    /// <c>entryActionId = (ushort)BlueprintId</c>, which is exactly the recipe the plan records.</para>
+    ///
+    /// <para>🔒 <b>This is the invariant <c>BP-297</c> could never redden</b> — <c>HsmOrthogonalRegions</c>'
+    /// two regions both run <c>StubIdle</c>, whose body is empty, so there were no bytes to collide.</para>
+    /// </summary>
+    [Fact]
+    public void O7_R37_ARealEmittedBlueprintActionGivesTwoRegionsTheirOwnParams()
+    {
+        const int RegionZeroValue = 4242;
+        const int RegionOneValue  = 7777;
+
+        var bp = typeof(global::Hrot.AI.Behaviors.Generated.HsmTwoRegionParamsDemo_1434647B_Bp);
+        ushort actionId = unchecked((ushort)
+            global::Hrot.AI.Behaviors.Generated.HsmTwoRegionParamsDemo_1434647B_Bp.BlueprintId);
+        Guid childAsset = global::Hrot.AI.Behaviors.Generated.HsmTwoRegionParamsDemo_1434647B_Bp.AssetId;
+
+        var world = TestWorldFactory.Create();
+        using var _w = world;
+        BlueprintTierTable.RegisterAll(world);
+        var entity = MakeEntityWithStore(world);
+
+        // ⭐ The SEED source: two ints in the packed params region, at the two offsets the two
+        //   states bind. This is what ingress would have written (role ③).
+        world.AddComponent(entity, new Components.BrainBlackboard());
+        ref var bb = ref world.GetComponentRW<Components.BrainBlackboard>(entity);
+        fixed (byte* p0 = &bb.BehaviorParameters[0])
+        {
+            *(int*)(p0 + 0) = RegionZeroValue;
+            *(int*)(p0 + 4) = RegionOneValue;
+        }
+
+        HsmParamBindings.ClearAll();
+        Fhsm.Kernel.HsmActionDispatcher.ClearAll();
+        var worldHandle = System.Runtime.InteropServices.GCHandle.Alloc(world);
+        try
+        {
+            var stateA = new Guid("07000000-0000-0000-0000-00000000e3d1");
+            var stateB = new Guid("07000000-0000-0000-0000-00000000e3d2");
+
+            var blob = BuildTwoRegionBlob(actionId);
+            blob.Metadata = new MachineMetadata();
+            blob.Metadata.StateStableIds[1] = stateA;
+            blob.Metadata.StateStableIds[2] = stateB;
+            // ⭐⭐ E3b-0: state 1 seeds from offset 0, state 2 from offset 4 — DIFFERENT variables.
+            HsmParamBindings.Register(blob, new[] { (stateA, 0), (stateB, 4) });
+
+            // ⭐⭐⭐ THE REAL EMITTED THUNK, under the id the emitter registers it with.
+            var activity = (delegate* unmanaged<void*, void*, HsmCommandWriter*, void>)
+                bp.GetMethod("HsmActivity")!.MethodHandle.GetFunctionPointer();
+            Fhsm.Kernel.HsmActionDispatcher.RegisterAction(actionId, (IntPtr)activity);
+
+            var inst = new HsmInstance128();
+            inst.Header.MachineId = HostMachine;
+            inst.Header.Phase     = InstancePhase.Entry;
+            for (int r = 0; r < 4; r++) inst.ActiveLeafIds[r] = 0xFFFF;
+
+            var bridge = new Fdp.Toolkit.Behavior.Systems.HsmKernelBridge
+            {
+                Self         = entity,
+                WorldHandle  = System.Runtime.InteropServices.GCHandle.ToIntPtr(worldHandle),
+                TraceContext = null,
+            };
+            var page = default(CommandPage);
+            Fhsm.Kernel.HsmKernel.Update(blob, ref inst, in bridge, 0.016f, ref page);
+
+            // ── read the two occurrences back out of the store ───────────────────────
+            int keyA = HsmOccurrence.KeyFor(HostMachine, childAsset, regionSlotIndex: 1, stateId: 1);
+            int keyB = HsmOccurrence.KeyFor(HostMachine, childAsset, regionSlotIndex: 2, stateId: 2);
+
+            ulong sh = global::Hrot.AI.Behaviors.Generated.HsmTwoRegionParamsDemo_1434647B_Bp.StructureHash;
+
+            OccurrenceWorkingState.ResolveOrAttach<
+                    global::Hrot.AI.Behaviors.Generated.HsmTwoRegionParamsDemo_1434647B_Bp.Params,
+                    global::Hrot.AI.Behaviors.Generated.HsmTwoRegionParamsDemo_1434647B_Bp.WorkingState>(
+                world, entity, keyA, sh, OccurrenceKind.Hsm, out bool freshA, out var pA);
+            OccurrenceWorkingState.ResolveOrAttach<
+                    global::Hrot.AI.Behaviors.Generated.HsmTwoRegionParamsDemo_1434647B_Bp.Params,
+                    global::Hrot.AI.Behaviors.Generated.HsmTwoRegionParamsDemo_1434647B_Bp.WorkingState>(
+                world, entity, keyB, sh, OccurrenceKind.Hsm, out bool freshB, out var pB);
+
+            // ⛔ NON-VACUITY: the tick must already have attached both — a `true` here would mean
+            //    the thunk never ran and we are reading two slots we just created ourselves.
+            Assert.False(freshA, "region 1's occurrence was not attached by the tick — the thunk never ran");
+            Assert.False(freshB, "region 2's occurrence was not attached by the tick — the thunk never ran");
+
+            // ⭐⭐⭐ THE RAIL. Two parallel regions, ONE asset, ONE tick — and each holds the value its
+            //    OWN bound variable seeded. 🔴 Before E3b-0 both would read RegionZeroValue.
+            Assert.Equal(RegionZeroValue, pA->Value);
+            Assert.Equal(RegionOneValue,  pB->Value);
+        }
+        finally
+        {
+            worldHandle.Free();
+            Fhsm.Kernel.HsmActionDispatcher.ClearAll();
+            HsmParamBindings.ClearAll();
+        }
+    }
+
     // ── helpers ──────────────────────────────────────────────────────────────────
 
     /// <summary>A blob whose metadata maps flat states 1 and 2 to two authoring ids.</summary>
