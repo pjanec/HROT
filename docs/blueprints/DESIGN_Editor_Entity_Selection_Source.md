@@ -1,16 +1,19 @@
 <!--STATUS
 state: LIVE
-build-state: READY-TO-BUILD
+build-state: BUILT (CE-300, CE-301, CE-305 landed 2026-09-21 — §9 and §5.4's as-built. CE-302/CE-303 remain.)
 updated: 2026-09-21
 current-answer: this whole file. §2 is the class model, §3 the sequences, §4 the module/registration
   view, §5 the per-surface rulings, §6 the write path (measured NOT a duplicate), §7 what this
   supersedes in AI_Editor_Shared_Infrastructure.md, §8 the items.
 stale-below: nothing — this file is new.
-known-rot: none open. ⚠ §5.4 CORRECTED ITSELF 2026-09-21: it argued the read/write invariant
-  "breaks the moment a view is pinned". Measured — it does not yet, because a pinned
-  DetailsViewWindow is not an IVariableTableHost and so gets no edit gestures at all. The user's
-  ruling (write target from the view's own IDetailsContextSource) STANDS as a precondition of
-  CE-302/CE-303, not as a repair. The original framing is kept under §5.4's HISTORY heading.
+known-rot: none open. ⚠ §5.4 CORRECTED ITSELF TWICE and both corrections are recorded there.
+  (a) It argued the read/write invariant "breaks the moment a view is pinned". Measured — it does not
+  yet, because a pinned DetailsViewWindow is not an IVariableTableHost and so gets no edit gestures at
+  all. The user's ruling stands, as a precondition rather than a repair.
+  (b) The MECHANISM it proposed (thread IDetailsContextSource down to the writer, changing the
+  WriteLiveValue delegate) was not needed: the rule already existed in StagedWriteView.EntityFor and
+  the WRITE was the half ignoring it. Built as VariableRowOrigin.Resolve, no signature change.
+  Both original framings are kept under §5.4's HISTORY heading.
 known-conflict: none. It SUPERSEDES AI_Editor_Shared_Infrastructure.md §5.3 (the DDS bridge as the
   ingress) and §5.4 (the per-window ChainToMap toggle); that file's known-rot points here.
 design-basis: UX_Feature_Selection.md §2.7.8 (the announcement) and §2.7.17 (the egress; the same
@@ -281,16 +284,53 @@ stated, and the premise was measured false afterwards. ⛔ Silently building it 
 refactor on a defect that does not exist; ⛔ silently dropping it would lose a rule that becomes
 load-bearing two items later.
 
-##### ⭐ The shape the rule takes when it is built
+##### ☑ AS-BUILT `2026-09-21` — **the mechanism is NOT the one this section proposed, and the difference matters**
 
-⭐⭐ **The entity for a live write comes from the SAME `IDetailsContextSource` the view rendered from**
-— ⛔ not from `EditorSelectionStore.SelectedEntity`. 📌 `DetailsContext` already carries
-`IReadOnlyList<Entity> Entities`, so a `FrozenContextSource` snapshot already holds the pinned entity;
-nothing new needs storing.
-⚠ **The obstacle to name now:** `VariableEditGestureBinder` is **one per PERSPECTIVE**, attached to
-several table hosts *(`AttachEditGestures(Details)` `:636`, `(Watch)` `:690`, `(Variables)` `:704`)* —
-⇒ **the binder does not know which host raised the gesture**, and that, not the writer, is the piece
-that has to change.
+⛔⛔ **This section proposed threading the view's `IDetailsContextSource` down to the writer**, and named
+the obstacle: `VariableEditGestureBinder` is one per PERSPECTIVE, attached to several table hosts, so it
+does not know which host raised the gesture. ⇒ that would have meant a new parameter on the commit path
+and a signature change to the `WriteLiveValue` delegate *(measured blast radius: 1 production
+implementation, 1 commit site, ~8 test lambdas)*.
+
+⭐⭐⭐ **NONE OF THAT WAS NEEDED — the rule already existed, implemented, and was UNDER-ADOPTED.**
+📐 Measured: `StagedWriteView.EntityFor` read
+
+```csharp
+origin.Entity.Equals(default(Entity)) ? _selectedEntity() ?? default : origin.Entity
+```
+
+— which is exactly `R-78`'s two kinds: **a CONCRETE origin answers itself; the CHAMELEON sentinel falls
+back to the selection.** 🔴 **The YELLOW obeyed this rule. The WRITE did not** —
+`BlueprintLiveValueWriter` read `store.SelectedEntity` unconditionally, carrying a remark saying the
+origin must *never* be consulted.
+
+| ⭐ why that is the same ruling, satisfied | |
+|---|---|
+| 🔒 the user asked for *"the write target from the same `IDetailsContextSource` the view read from"* | ⭐ **a frozen (pinned) view produces CONCRETE rows**, because its snapshot holds the entity ⇒ its rows answer their own entity **without any surface asking a global what is selected** |
+| ⭐⭐ **the row IS what the view read** | ⇒ resolving through the row *is* resolving through the view's context, and it needs no new plumbing |
+
+⇒ ⭐ **`VariableRowOrigin.Resolve(Entity? chameleon)`** is now the ONE statement of the rule; the yellow
+routes to it and the write now uses it *(📌 `R-13`: route, don't duplicate)*.
+
+| ⛔ the defect this closed, stated exactly | |
+|---|---|
+| it was **not** a divergence that exists today | 📐 every production row is a chameleon, so both rules gave the same answer |
+| it **was** a divergence one concrete row away | ⭐ the first concrete row anyone produced — i.e. **the first pinned view** — would have had *the designer watching one entity go yellow while another was written* |
+| ⚠ **the writer's own invariant was the giveaway** | 🔒 its header: *"the write must target whatever the READ displayed."* ⭐ True only by accident; now true by construction |
+
+##### ⚠ WHAT IS STILL NOT DONE, and `CE-302`/`CE-303` own it
+
+⛔ **The live-value PROVIDERS are asset-scoped, not row-scoped** — `LiveBlackboardValueProvider:59` and
+`BlueprintLiveValueProvider:103,138` answer *"the values for the selected entity"* and have no origin to
+resolve. ⇒ ⭐ **a pinned view needs its provider built over the frozen entity**, which is part of making
+a pinned view render at all — ⛔ not something this rule can do for them.
+
+⭐ **The rails:** `AConcreteRow_IsWrittenToItsOwnEntity_NotTheSelectedOne` *(red-proved: restore the
+unconditional store read and it reddens while every chameleon rail stays green)* and
+`TheRowResolvesBothKinds_ConcreteWins_SentinelFallsBack` *(the rule itself, both kinds, including
+"nothing selected")*. ⚠ **What the first cannot see:** which entity was staged — the rig's recording
+manager does not record it ⇒ the discriminator is *"did the write resolve at all"*, with a chameleon
+control in the same rail so a harness that broke everything cannot pass.
 
 #### ⛔ HISTORY — **the original framing, kept because the ruling was given against it**
 
@@ -349,7 +389,7 @@ view pinning — 📌 they compose: a pinned row in a pinned view is a fixed var
 | **`CE-302`** | `EntityBlueprintsManagedWindow` → a details-panel view, with float+pin | ⭐ ready |
 | **`CE-303`** | `BlueprintRuntimeInspectorPane` → a details-panel view, with float+pin | ⭐ ready |
 | **`CE-304`** | `RunBlueprintOnEntityCommand` follows the unified current selection, no pinning | ✅ **discharged by `CE-300`**, recorded so it is not re-broken |
-| **`CE-305`** | the write target for an edit issued from a **pinned** view comes from that view's `IDetailsContextSource` | ✅ **RULED** `2026-09-21` — ⚠ **not a bug fix**: a pinned view is READ-ONLY today *(`DetailsViewWindow` is not an `IVariableTableHost`)*, so this is a **PRECONDITION of `CE-302`/`CE-303`** and is built with the first of them. §5.4 |
+| ☑ **`CE-305`** | the write target for an edit issued from a **pinned** view comes from that view's context | ✅ **BUILT `2026-09-21`** — ⭐ and NOT as designed: the rule already existed in `StagedWriteView.EntityFor` and the WRITE was the half that ignored it. One method (`VariableRowOrigin.Resolve`) now states `R-78`'s two kinds; no signature change was needed. §5.4 |
 
 ⚠ **`CE-302`/`CE-303` are NOT prerequisites of `CE-300`** — they are conversions of two surfaces that
 read the cell directly; both keep working after `CE-300` and simply keep following the selection until

@@ -105,8 +105,12 @@ public sealed class StagedWriteView
     /// ⭐⭐ <b>Which entity this row is about</b> — its own, or the selected one when it carries the
     /// chameleon sentinel. See the <c>selectedEntity</c> parameter for why this rule is not optional.
     /// </summary>
-    public Entity EntityFor(VariableRowOrigin origin)
-        => origin.Entity.Equals(default(Entity)) ? _selectedEntity() ?? default : origin.Entity;
+    /// <remarks>
+    /// ⭐⭐ <c>CE-305</c> — routed to <see cref="VariableRowOrigin.Resolve"/>, which is now the ONE
+    /// statement of <c>R-78</c>'s two kinds. ⛔ The rule used to live here alone, and the WRITE path had
+    /// its own (wrong) answer — see that method's remarks. 📌 <c>R-13</c>: route, don't duplicate.
+    /// </remarks>
+    public Entity EntityFor(VariableRowOrigin origin) => origin.Resolve(_selectedEntity());
 
     /// <summary>⭐ §3's <c>IsPending(origin, entity)</c>, with the entity resolved by <see cref="EntityFor"/>.</summary>
     public bool IsPending(VariableRowOrigin origin) => TryGetTyped(origin, out _);

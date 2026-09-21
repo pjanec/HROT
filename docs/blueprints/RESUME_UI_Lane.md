@@ -7,8 +7,13 @@ current-answer: ⭐⭐⭐ READ THE TOP OF THIS FILE — the "SESSION 2026-09-21"
   instance of the shape S-3 fixed inbound and S-6 outbound); it is now a projection of
   SelectionChangedNotification, and CGF's cell has a production writer for the first time. Owning design
   is the NEW docs/blueprints/DESIGN_Editor_Entity_Selection_Source.md.
-  ⛔ NEXT: CE-302/CE-303 (convert EntityBlueprintsManagedWindow and BlueprintRuntimeInspectorPane into
-  details-panel views with pinning), carrying CE-305's ruled write-target rule. CE-304 is discharged.
+  ☑ CE-305 BUILT 2026-09-21 too, and NOT as designed: the rule already existed in
+  StagedWriteView.EntityFor and the WRITE was the half ignoring it. VariableRowOrigin.Resolve is
+  now the one statement of R-78's two kinds; no signature change was needed.
+  ⛔ NEXT: CE-302/CE-303 (convert EntityBlueprintsManagedWindow and BlueprintRuntimeInspectorPane
+  into details-panel views with pinning). They still own the piece CE-305 could not do — the
+  live-value providers are asset-scoped, so a pinned view needs its provider built over the
+  frozen entity. CE-304 is discharged.
   ☑☑ UXI-11's SLICE LIST S-1…S-6 IS COMPLETE. One store, one request, one writer, one announcement on
   every node — ONE PLACE (MapInteractionPack) that builds them all — right-click SELECTS on both
   inspector panels with the DER inspector wired by NETWORK id, the MAP obeys §2.3 including the
@@ -95,9 +100,20 @@ implementation of the Watch's live write. `VariableEditCommit` is the one commit
 The writer is the Blueprint `writeLive` **strategy** plugged into it; `StagedWrites`' yellow resolves
 through **the same call the write makes**. 📄 §6 of the new design.
 
+☑ **`CE-305` BUILT the same day, and NOT as designed.** §5.4 proposed threading the view's
+`IDetailsContextSource` down to the writer *(a `WriteLiveValue` signature change)*. 📐 Measured: **the
+rule already existed** — `StagedWriteView.EntityFor` has always honoured `R-78`'s two kinds *(concrete
+origin wins; the sentinel falls back to the selection)* — and **the WRITE was the half ignoring it**,
+reading `store.SelectedEntity` unconditionally under a remark saying the origin must never be consulted.
+⇒ ⭐ one method, `VariableRowOrigin.Resolve`, now states the rule; the yellow routes to it and the write
+uses it. **No signature change.** ⚠ It closed no divergence that exists today *(every production row is
+a chameleon)* — it closed one that was **one concrete row away**, i.e. the first pinned view: the
+designer would have watched one entity go yellow while another was written. ⭐ Red-proved.
+
 ⛔ **NEXT, and nothing is in flight:** `CE-302` / `CE-303` *(convert `EntityBlueprintsManagedWindow` and
-`BlueprintRuntimeInspectorPane` into details-panel views with pinning)*, which carry `CE-305`'s rule
-with them. `CE-304` is discharged.
+`BlueprintRuntimeInspectorPane` into details-panel views with pinning)*. ⚠ **They still own one piece
+`CE-305` could not do**: the live-value PROVIDERS are asset-scoped, not row-scoped, so a pinned view
+needs its provider built over the frozen entity. `CE-304` is discharged.
 
 ## ⭐⭐⭐ SESSION `2026-09-20` (j) — **`S-6`: THE LAST SLICE. `UXI-11`'s S-1…S-6 ARE COMPLETE**
 

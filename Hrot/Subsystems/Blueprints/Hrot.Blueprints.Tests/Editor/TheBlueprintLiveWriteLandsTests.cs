@@ -143,6 +143,83 @@ public sealed class TheBlueprintLiveWriteLandsTests
     }
 
     /// <summary>
+    /// ⭐⭐⭐ <b><c>CE-305</c> — A CONCRETE ROW IS WRITTEN TO ITS OWN ENTITY, not to the selected one.</b>
+    /// 🔒 User, <c>2026-09-21</c>: <i>"the write target should come from the same
+    /// <c>IDetailsContextSource</c> the view read from."</i>
+    /// 📄 <c>DESIGN_Editor_Entity_Selection_Source.md</c> §5.4 · 📌 <c>R-78</c>'s two kinds.
+    ///
+    /// <para>🔴 <b>What this pins.</b> <c>BlueprintLiveValueWriter</c> used to read
+    /// <c>store.SelectedEntity</c> <b>unconditionally</b>, carrying a remark that the row's origin must
+    /// never be consulted. 📐 But <c>StagedWriteView.EntityFor</c> — the YELLOW — has always honoured a
+    /// concrete origin. ⇒ for the first concrete row anyone produced, <b>the designer would have
+    /// watched one entity go yellow while another was written.</b></para>
+    ///
+    /// <para>⚠ <b>The selected entity is deliberately set to something ELSE</b>, so a writer that
+    /// ignored the origin would silently pass with the wrong target. ⛔ A rail where both are the same
+    /// entity cannot tell the two rules apart — that is why this one separates them.</para>
+    ///
+    /// <para>⭐ <b>Red-proof:</b> restore <c>var entity = _store.SelectedEntity;</c> and this reddens
+    /// while every chameleon rail stays green.</para>
+    /// </summary>
+    [Fact]
+    public void AConcreteRow_IsWrittenToItsOwnEntity_NotTheSelectedOne()
+    {
+        var h = Harness();
+
+        // ⭐ The store points at the entity that WOULD resolve. The row names a different one that
+        //   does not exist, so the two rules give OPPOSITE answers and the outcome tells them apart.
+        // ⚠ The rig's RecordingManager does not record the target entity, so the discriminator is
+        //   "did the write resolve at all" rather than "which entity was staged" — ⛔ weaker to read,
+        //   but it cannot be satisfied by the wrong rule, which is what a rail must guarantee.
+        h.Store.SelectedEntity = h.Entity;
+        var ghost = new Entity(31337, 7);
+        Assert.NotEqual(h.Entity, ghost);
+
+        h.Registrar.EditGestures!.OnEditValue(Row(h.AssetId) with
+        {
+            Origin = new VariableRowOrigin(h.AssetId, ghost, "vars", FieldName, "LiveWriteRail"),
+        });
+        var outcome = h.Registrar.EditGestures!.Accept();
+
+        // ⭐ It targeted the ROW's entity, which cannot resolve ⇒ refused, and NOTHING staged.
+        Assert.NotEqual(VariableEditCommit.Outcome.Ok, outcome);
+        Assert.Empty(h.Manager.Staged);
+
+        // ⭐⭐ And the CONTROL, in the same rail: the identical row as a CHAMELEON lands, so the
+        //    refusal above is about the ENTITY and not about the row, the asset or the harness.
+        //    ⛔ Without this half, a rail that broke everything would still pass.
+        h.Registrar.EditGestures!.OnEditValue(Row(h.AssetId));
+        Assert.Equal(VariableEditCommit.Outcome.Ok, h.Registrar.EditGestures!.Accept());
+        Assert.Single(h.Manager.Staged);
+    }
+
+    /// <summary>
+    /// ⭐⭐ <b><c>CE-305</c> — THE WRITE AND THE YELLOW RESOLVE THE SAME ENTITY, for BOTH kinds.</b>
+    ///
+    /// <para>⭐ Asserted on the RULE ITSELF (<see cref="VariableRowOrigin.Resolve"/>) rather than on two
+    /// call sites agreeing today — 📌 <c>R-13</c>: once both route through one method, agreement is
+    /// structural. ⛔ Two call sites that happen to match is what the codebase HAD, and it was one
+    /// concrete row away from being wrong.</para>
+    /// </summary>
+    [Fact]
+    public void TheRowResolvesBothKinds_ConcreteWins_SentinelFallsBack()
+    {
+        var concrete = new Entity(12, 3);
+        var selected = new Entity(99, 1);
+        var assetId  = Guid.NewGuid();
+
+        var chameleonRow = new VariableRowOrigin(assetId, default,  "vars", FieldName);
+        var concreteRow  = new VariableRowOrigin(assetId, concrete, "vars", FieldName);
+
+        Assert.Equal(selected,     chameleonRow.Resolve(selected));
+        Assert.Equal(concrete,     concreteRow.Resolve(selected));
+        // ⚠ Nothing selected: a chameleon has no answer, and Entity.Null is what every caller already
+        //   reads as "cannot project". ⛔ A concrete row is unaffected — its binding never changes.
+        Assert.True(chameleonRow.Resolve(null).IsNull);
+        Assert.Equal(concrete, concreteRow.Resolve(null));
+    }
+
+    /// <summary>
     /// ⛔⛔⛔ <b>THE HEADER IS APPLIED EXACTLY ONCE.</b>
     ///
     /// <para>📐 The READ path computes <c>WorkingStateLayout.ComponentOffsetOf(field.OffsetBytes)</c>

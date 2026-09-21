@@ -22,9 +22,12 @@ namespace Hrot.Editor;
 /// would be the unsafe route wearing the safe one's name</b> (📌 <c>VariableEditCommit</c>'s own
 /// remark). ⚠ Their <c>writeLive</c> stays <c>null</c> at the composition root, deliberately.</para>
 ///
-/// <para>⭐⭐⭐ <b>The entity comes from the SAME OBJECT the READ takes it from</b> — this store's
-/// <see cref="EditorSelectionStore.SelectedEntity"/>, exactly as
-/// <c>BlueprintLiveValueProvider.GetLiveObjects</c> does, ⛔ <b>NOT from <c>row.Origin.Entity</c></b>.
+/// <para>⭐⭐⭐ <b>The entity is resolved BY THE ROW</b> — 📌 <c>CE-305</c>/<c>R-78</c>: a CONCRETE origin
+/// answers itself, a CHAMELEON origin falls back to this store's
+/// <see cref="EditorSelectionStore.SelectedEntity"/>, exactly as the yellow
+/// (<c>StagedWriteView.EntityFor</c>) has always done. ⚠⚠ <b>The paragraph below is the SUPERSEDED
+/// blanket ban</b> — <i>"NOT from <c>row.Origin.Entity</c>"</i> — kept because its REASONING is still
+/// right about the sentinel and only wrong about the concrete case.
 /// 📌 <c>R-78</c>: a Details row's origin carries <c>entity: default</c> as the CHAMELEON SENTINEL —
 /// <i>"whoever is selected"</i> — so reading it would write to entity 0. ⚠ And even for a row that did
 /// carry a concrete entity, the write must target whatever the READ displayed: if those two ever
@@ -113,10 +116,16 @@ public sealed class BlueprintLiveValueWriter
     }
 
     /// <summary>
-    /// ⭐⭐ <b>The entity the WRITE targets</b>, exposed so <c>StagedWriteView</c> asks the SAME object.
-    /// ⛔ 📌 <c>R-78</c>: a Details row's origin carries the chameleon sentinel, so the yellow must not
-    /// read it either. ⚠ See the class remarks — if the read, the write and the yellow ever disagreed
-    /// about the entity, a designer would edit one and watch another.
+    /// ⭐⭐ <b>The CHAMELEON FALLBACK</b> — <i>"whoever is selected"</i> — exposed so
+    /// <c>StagedWriteView</c> resolves rows against the SAME answer this class does.
+    ///
+    /// <para>⚠⚠ <b><c>CE-305</c> CORRECTED THIS MEMBER'S MEANING.</b> It used to be described as
+    /// <i>"the entity the WRITE targets"</i>, with <i>"a Details row's origin carries the chameleon
+    /// sentinel, so the yellow must not read it either"</i>. ⛔ That was a blanket ban where
+    /// <c>R-78</c> defines TWO kinds: 📐 <c>StagedWriteView.EntityFor</c> has always honoured a
+    /// CONCRETE origin, so the ban was already untrue of the yellow — and the write, which obeyed it,
+    /// was the half that would have been wrong. ⭐ Both now route through
+    /// <see cref="VariableRowOrigin.Resolve"/>; this supplies only the fallback.</para>
     /// </summary>
     public Entity? SelectedEntity => _store.SelectedEntity;
 
@@ -148,9 +157,18 @@ public sealed class BlueprintLiveValueWriter
     /// </summary>
     public LiveWriteAttempt TryWrite(VariableRow row, ReadOnlySpan<byte> bytes)
     {
-        // ⭐ 1 — an entity must be selected, from the store the READ reads. See the class remarks.
-        var entity = _store.SelectedEntity;
-        if (entity is null) return LiveWriteAttempt.Refused(LiveWriteRefusal.NoSelectedEntity);
+        // ⭐⭐⭐ 1 — WHICH ENTITY. 📌 CE-305 / R-78's two kinds, resolved by the ROW, not by this class.
+        // 🔴 This used to read _store.SelectedEntity UNCONDITIONALLY, with a remark saying the origin
+        //    must never be consulted. ⇒ it would have disagreed with the YELLOW — StagedWriteView
+        //    .EntityFor has always honoured a concrete origin — for the first concrete row anyone
+        //    produced, and the designer would watch one entity while writing another.
+        // ⭐ The store is now the CHAMELEON FALLBACK, which is all it ever legitimately was.
+        // 🔒 User, 2026-09-21: "the write target should come from the same IDetailsContextSource the
+        //    view read from" — a frozen (pinned) view produces CONCRETE rows, so this satisfies the
+        //    ruling without any surface asking a global what is selected.
+        var resolved = row.Origin.Resolve(_store.SelectedEntity);
+        if (resolved.IsNull) return LiveWriteAttempt.Refused(LiveWriteRefusal.NoSelectedEntity);
+        Entity? entity = resolved;
 
         // ⭐ 2 — a blueprint session must be active. ⛔ Not "the sim is frozen" — that is step 5's.
         var session = _sessionFactory();
