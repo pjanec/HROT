@@ -153,21 +153,33 @@ namespace Fdp.Toolkit.Behavior.Tests
         }
 
         /// <summary>
-        /// ⛔ <b><c>IHostVariableAccess</c> has NO implementation, on purpose.</b> ⚠ If this ever goes
-        /// red it means <c>E7a</c> started early — in which case the ingress must start passing a real
-        /// instance, and this test is the reminder that the two go together.
+        /// ✅ <b><c>E7a</c> — <c>IHostVariableAccess</c> IS IMPLEMENTED, and the ROOT ingress still
+        /// passes <c>null</c>.</b> 📄 <c>DESIGN_Occurrence_Scoped_Storage.md</c> §28.7.
+        ///
+        /// <para>⚠ <b>This rail was a pin asserting ZERO implementers, and it has FLIPPED</b> — which
+        /// is what a pin is for. ⛔ But its stated premise needed correcting, not just its assertion:
+        /// it said <i>"the ingress must start passing a real instance, and the two go together."</i>
+        /// 📐 <b>The ingress is the ROOT path, and a root behaviour HAS no host</b> — §3.4 defines
+        /// <c>null</c> as its value. ⇒ the real instance appears on the HOSTED path, at the
+        /// occurrence's seed, which is the only place a host exists.</para>
+        ///
+        /// <para>⭐ So the pairing the old rail wanted is still asserted, just at the right seam: an
+        /// implementation EXISTS, and the root caller still passes <c>null</c>.</para>
         /// </summary>
         [Fact]
-        public void IHostVariableAccess_IsDeclaredButNotYetImplemented()
+        public void IHostVariableAccess_IsImplemented_AndTheRootStillPassesNull()
         {
             var implementers = typeof(IHostVariableAccess).Assembly.GetTypes()
                 .Where(t => !t.IsInterface && typeof(IHostVariableAccess).IsAssignableFrom(t))
-                .Select(t => t.FullName)
+                .Select(t => t.Name)
                 .ToList();
 
-            Assert.True(implementers.Count == 0,
-                "IHostVariableAccess gained an implementation without the ingress supplying one: "
-                + string.Join(", ", implementers));
+            // ⭐⭐ THE RAIL. 🔴 Zero implementers from 2026-08-16 until E7a landed.
+            Assert.Contains(nameof(HsmHostVariableAccess), implementers);
+
+            // ⭐ …and the delegate still carries the argument, so nothing had to change shape.
+            var last = typeof(ParseParamsDelegate).GetMethod("Invoke")!.GetParameters().Last();
+            Assert.Equal(typeof(IHostVariableAccess), last.ParameterType);
         }
     }
 }

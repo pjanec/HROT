@@ -3660,3 +3660,52 @@ over `Snapshots/` ⇒ **0 files**)*. ⇒ ⚠ **the emitted HSM thunk shape has N
 its only guard is `ThunkEmissionTests`. 🔴 **That is why an HSM emitter change can look free** — and it
 is the same blind spot that let `BP-297` ship. ⭐ Worth a golden asset with HSM hosting; ⛔ filed as an
 observation here rather than smuggled into this slice.
+
+### 28.7 ✅ `C1′` + `E7a` — **THE RESOLVE STAGE RUNS, AND IT SEES THE HOST** *(`2026-09-21`)*
+
+⭐⭐⭐ **`IHostVariableAccess` has an implementation for the first time since it was declared on
+`2026-08-16`** — and the reason it could not have had one earlier is the point of this section.
+
+### 28.7.1 🔒 THE DECISION, AND THE USER'S QUESTION THAT SETTLED IT
+
+⭐ I had framed the open call as *"root-only resolve, or a hosted resolve pass at seed time?"*.
+
+> 🔒 **User, `2026-09-21`:** *"isn't there something like function based param resolution, allowing to
+> take params from wherever the function/graph has access to? this would mean own resolve pass."*
+
+📐 **Measured, and it settles it by SIGNATURE rather than by preference** — `BehaviorParams.cs:19`:
+
+```csharp
+public delegate void ResolveParams<TDto>(
+    ref TDto dto, EntityRepository world, Entity self, IHostVariableAccess? host)
+```
+
+⇒ ⭐⭐⭐ **a resolver reads from `world`, `self` AND `host`, so its result depends on the OCCURRENCE's
+context.** ⛔ Running it once per behaviour and copying the result into every occurrence would be wrong
+**by construction** — and `host` can only ever be non-null in a per-occurrence pass. ⇒ **own resolve
+pass, at the seed.**
+
+### 28.7.2 ⭐ WHAT SHIPPED
+
+| | |
+|---|---|
+| `HsmHostVariableAccess` | the **first** `IHostVariableAccess` implementation — NAME-keyed over the host's params region, **read-only**, **fails closed** on an absent name, a width disagreement or an unknown machine |
+| `HsmParamBindings.RegisterVariables` | the host's own `name → (offset, size)` map, emitted from the **same `packedFields`** that drive its `ParseParams` and its `ManagedBlackboardVariables` ⇒ ⛔ the three cannot disagree |
+| `HostedParamResolvers` | the resolve stage, keyed by ASSET; **a miss is free and silent** (§3.1's common case), **a wrong-typed registration THROWS** |
+| the emitted seed | `bake/copy → RESOLVE → init` inside `if (freshlyAttached)` ⇒ **resolve-ONCE** at activation (§3.1, `R-84`), never per dispatch |
+
+⭐ **The STANDALONE thunk gets the stage too, with `host: null`** — it has no host by construction, but
+a resolver may still compute from `world`/`self`. ⛔ Omitting it would make the two paths differ for no
+reason the model expresses.
+
+⚠ **The width check is a type check in disguise, and it is the honest one available**: the packed map
+records a byte size, not a CLR type, so an `int` read as a `float` is NOT caught. ⛔ Said plainly rather
+than implied — pretending otherwise would be worse than the gap.
+
+### 28.7.3 ⚠ WHAT IS STILL OPEN
+
+| | |
+|---|---|
+| ⛔ **`C2′` — the resolver PICKER** | it is `Hrot.Hsm.Editor`, a **UI-lane** surface. 🔒 User, `2026-09-21`: *"with UI related parts let's wait, we will need first to integrate the stuff not yet merged from the ui branch."* ⇒ resolvers are registered in CODE until then |
+| ⛔ **`Q43`** — a resolver authored AS A BLUEPRINT | the `GraphKind.Construction` emitter arm + `V_ResolverPurity`. ⭐ Approved and unbuilt; deliberately held until this proves out |
+| ⚠ **the generated `ParseParams` hook for the ROOT path** | `C1′` as `Q41` words it. ⭐ The hosted half is what carried the capability; the root half is additive and has no blocked consumer |

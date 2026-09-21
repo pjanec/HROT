@@ -1139,6 +1139,153 @@ public sealed unsafe class HsmOccurrenceKeyTests
         }
     }
 
+    /// <summary>
+    /// 🔴🔴🔴 <b>Rail ㉜ — <c>E7a</c>: <see cref="IHostVariableAccess"/> HAS AN IMPLEMENTATION, and a
+    /// resolver can read its HOST's variables by name.</b> 📄 §28.7.
+    ///
+    /// <para>⛔⛔ <b>That interface had ZERO implementers from <c>2026-08-16</c> to today</b> — every
+    /// resolver received <c>null</c>. ⭐ What it was waiting for was a call site where a host actually
+    /// exists, and <c>E3a</c>+<c>E3b-0</c> built one: the hosted occurrence's seed.</para>
+    ///
+    /// <para>⭐ NAME-keyed, never an offset — §3.4, because a cross-asset read is
+    /// <c>StructureHash</c>-versioned.</para>
+    /// </summary>
+    [Fact]
+    public void O7_R32_AResolverCanReadItsHostsVariablesByName()
+    {
+        HsmParamBindings.ClearAll();
+        try
+        {
+            var blob = BlobWithMetadata(Guid.NewGuid(), Guid.NewGuid());
+            HsmParamBindings.RegisterVariables(blob, new[] { ("Speed", 0, 4), ("Range", 4, 4) });
+
+            byte* host = stackalloc byte[BehaviorConstants.MaxBehaviorParamByteSize];
+            new Span<byte>(host, BehaviorConstants.MaxBehaviorParamByteSize).Clear();
+            *(int*)(host + 0) = 42;
+            *(int*)(host + 4) = 99;
+
+            var access = new HsmHostVariableAccess(
+                HostMachine, host, BehaviorConstants.MaxBehaviorParamByteSize);
+
+            // ⭐⭐ THE RAIL. 🔴 Before E7a this interface had no implementation at all.
+            Assert.True(access.TryRead<int>("Speed", out int speed));
+            Assert.Equal(42, speed);
+            Assert.True(access.TryRead<int>("Range", out int range));
+            Assert.Equal(99, range);
+        }
+        finally { HsmParamBindings.ClearAll(); }
+    }
+
+    /// <summary>
+    /// ⭐⭐⭐ <b>Rail ㉝ — it FAILS CLOSED, and never returns a silent zero.</b>
+    ///
+    /// <para>🔒 §3.4: <i>"hash mismatch, absent name or type mismatch ⇒ false, and the resolver decides.
+    /// ⛔ Never a silent zero."</i> ⚠ That distinction is the whole reason the interface returns
+    /// <c>bool</c> instead of the value — a zero is indistinguishable from an authored zero.</para>
+    /// </summary>
+    [Fact]
+    public void O7_R33_HostVariableAccessFailsClosed()
+    {
+        HsmParamBindings.ClearAll();
+        try
+        {
+            var blob = BlobWithMetadata(Guid.NewGuid(), Guid.NewGuid());
+            HsmParamBindings.RegisterVariables(blob, new[] { ("Speed", 0, 4) });
+
+            byte* host = stackalloc byte[BehaviorConstants.MaxBehaviorParamByteSize];
+            new Span<byte>(host, BehaviorConstants.MaxBehaviorParamByteSize).Clear();
+            *(int*)host = 7;
+
+            var access = new HsmHostVariableAccess(
+                HostMachine, host, BehaviorConstants.MaxBehaviorParamByteSize);
+
+            // ⭐⭐ THE RAIL — three ways to miss, and all of them say FALSE rather than 0.
+            Assert.False(access.TryRead<int>("NoSuchVariable", out _));          // absent name
+            Assert.False(access.TryRead<long>("Speed", out _));                  // width disagreement
+            Assert.False(new HsmHostVariableAccess(0xDEADBEEF, host, BehaviorConstants.MaxBehaviorParamByteSize)
+                             .TryRead<int>("Speed", out _));                     // unknown machine
+
+            // ⭐ …and the one that DOES resolve still works, so the rail is not vacuous.
+            Assert.True(access.TryRead<int>("Speed", out int ok));
+            Assert.Equal(7, ok);
+        }
+        finally { HsmParamBindings.ClearAll(); }
+    }
+
+    /// <summary>
+    /// ⭐⭐⭐ <b>Rail ㉞ — <c>C1′</c>: the RESOLVE stage runs, and it SEES the host.</b>
+    ///
+    /// <para>🔒 <b>User, <c>2026-09-21</c>:</b> <i>"isn't there something like function based param
+    /// resolution, allowing to take params from wherever the function/graph has access to? this would
+    /// mean own resolve pass."</i> ⭐ Exactly — and this is that pass: the resolver computes a value
+    /// from the HOST's variable, which is something no amount of per-occurrence STORAGE could do.</para>
+    /// </summary>
+    [Fact]
+    public void O7_R34_TheResolveStageRunsAndSeesTheHost()
+    {
+        HsmParamBindings.ClearAll();
+        HostedParamResolvers.ClearAll();
+        try
+        {
+            var blob = BlobWithMetadata(Guid.NewGuid(), Guid.NewGuid());
+            HsmParamBindings.RegisterVariables(blob, new[] { ("Speed", 0, 4) });
+
+            HostedParamResolvers.Register<DemoParams>(Child, static (ref DemoParams p, Fdp.Core.EntityRepository _, Fdp.Core.Entity _, IHostVariableAccess? host) =>
+            {
+                // ⭐ The resolver reads its HOST — the capability the whole slice exists for.
+                if (host is not null && host.TryRead<int>("Speed", out int speed)) p.Threshold = speed * 2;
+            });
+
+            byte* host = stackalloc byte[BehaviorConstants.MaxBehaviorParamByteSize];
+            new Span<byte>(host, BehaviorConstants.MaxBehaviorParamByteSize).Clear();
+            *(int*)host = 21;
+
+            var p = default(DemoParams);
+            bool ran = HostedParamResolvers.TryRun(
+                Child, ref p, null!, default,
+                new HsmHostVariableAccess(HostMachine, host, BehaviorConstants.MaxBehaviorParamByteSize));
+
+            // ⭐⭐ THE RAIL. The resolve stage ran and computed from the host: 21 * 2.
+            Assert.True(ran);
+            Assert.Equal(42, p.Threshold);
+        }
+        finally { HostedParamResolvers.ClearAll(); HsmParamBindings.ClearAll(); }
+    }
+
+    /// <summary>
+    /// ⭐⭐ <b>Rail ㉟ — NO resolver is FREE and SILENT, which §3.1 says is the common case.</b>
+    ///
+    /// <para>⛔ <i>"For the overwhelmingly common case the authored DTO and the usable params are the
+    /// same shape, and the resolve step IS the deserialize."</i> ⚠ If a missing resolver threw or
+    /// logged, every asset would pay for a feature it does not use.</para>
+    ///
+    /// <para>⛔⛔ …but a resolver registered for the WRONG TYPE throws, because reinterpreting one
+    /// asset's bytes as another's layout is silent corruption.</para>
+    /// </summary>
+    [Fact]
+    public void O7_R35_NoResolverIsFreeButAWrongTypedOneThrows()
+    {
+        HostedParamResolvers.ClearAll();
+        try
+        {
+            var p = default(DemoParams);
+            Assert.False(HostedParamResolvers.TryRun(Child, ref p, null!, default, null));
+            Assert.Equal(0, p.Threshold);
+
+            // A resolver for a DIFFERENT Params type, registered against this asset.
+            HostedParamResolvers.Register<WideParams>(Child, static (ref WideParams w, Fdp.Core.EntityRepository _, Fdp.Core.Entity _, IHostVariableAccess? _) => w.A = 1);
+
+            InvalidOperationException? thrown = null;
+            try { HostedParamResolvers.TryRun(Child, ref p, null!, default, null); }
+            catch (InvalidOperationException ex) { thrown = ex; }
+
+            // ⭐⭐ THE RAIL — loud, and it names both the asset and the type.
+            Assert.NotNull(thrown);
+            Assert.Contains("ResolveParams", thrown!.Message);
+        }
+        finally { HostedParamResolvers.ClearAll(); }
+    }
+
     // ── helpers ──────────────────────────────────────────────────────────────────
 
     /// <summary>A blob whose metadata maps flat states 1 and 2 to two authoring ids.</summary>

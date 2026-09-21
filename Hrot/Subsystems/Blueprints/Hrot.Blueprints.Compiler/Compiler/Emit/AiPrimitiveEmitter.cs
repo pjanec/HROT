@@ -363,7 +363,7 @@ internal static class AiPrimitiveEmitter
     /// (<c>DetachHostedOccurrenceSlots</c>): without it a re-assign's new JSON would never reach the
     /// slot, because this seed only runs when the slot is created.</para>
     /// </summary>
-    private static void EmitParamSeed(CSharpEmitter e, string offsetExpr)
+    private static void EmitParamSeed(CSharpEmitter e, string offsetExpr, string hostExpr)
     {
         e.WriteLine("if (freshlyAttached)");
         e.WriteLine("{");
@@ -380,10 +380,44 @@ internal static class AiPrimitiveEmitter
         e.WriteLine("*__params = global::System.Runtime.CompilerServices.Unsafe.As<byte, Params>(");
         e.WriteLine("    ref global::System.Runtime.CompilerServices.Unsafe.AddByteOffset(");
         e.WriteLine($"        ref bb.BehaviorParameters[0], (nint){offsetExpr}));");
+        EmitHostedResolve(e, hostExpr);
         e.WriteLine("InitDefaultWorkingState((WorkingState*)global::System.Runtime.CompilerServices.Unsafe.AsPointer(ref ws));");
         e.Outdent();
         e.WriteLine("}");
     }
+
+    /// <summary>
+    /// ⭐⭐⭐ <c>Q41-C1′</c> for the hosted path — <b>the RESOLVE stage, at the child's activation.</b>
+    /// 📄 <c>DESIGN_Occurrence_Scoped_Storage.md</c> §28.7.
+    ///
+    /// <para>🔴 <b>The pipeline <c>BehaviorParams.FromJson</c> specifies is bake → overlay → RESOLVE →
+    /// write, and the RESOLVE stage has never been emitted anywhere.</b> ⭐ This is it, on the one path
+    /// where <c>IHostVariableAccess</c> can be non-null — a hosted occurrence, which by definition has
+    /// a host.</para>
+    ///
+    /// <para>⭐⭐ <b>Why it belongs in the SEED and not in <c>ParseParams</c>.</b> A resolver reads
+    /// <c>world</c>, <c>self</c> and <c>host</c>, so its result depends on the OCCURRENCE's context.
+    /// ⛔ The behaviour's <c>ParseParams</c> runs once per assign with <c>host: null</c> — running the
+    /// resolve there and copying the result into every occurrence would be wrong by construction.</para>
+    ///
+    /// <para>⚠ <b>Resolve-ONCE</b> (§3.1): this sits inside <c>if (freshlyAttached)</c>, so it runs at
+    /// activation and never on a steady-state dispatch. ⛔ Live re-binding is out of the model (<c>R-84</c>).</para>
+    ///
+    /// <para>⭐ <b>Free when unused</b> — <c>TryRun</c> is a dictionary miss for every asset with no
+    /// registered resolver, which §3.1 says is the overwhelmingly common case.</para>
+    /// </summary>
+    private static void EmitHostedResolve(CSharpEmitter e, string hostExpr)
+    {
+        e.WriteLine("// C1′ (§28.7): the RESOLVE stage — the one place IHostVariableAccess is non-null.");
+        e.WriteLine("global::Fdp.Toolkit.Behavior.HostedParamResolvers.TryRun(");
+        e.WriteLine($"    AssetId, ref *__params, {WorldExprOf(hostExpr)}, {SelfExprOf(hostExpr)}, {hostExpr});");
+    }
+
+    /// <summary>The repository expression that goes with a given host expression.</summary>
+    private static string WorldExprOf(string hostExpr) => hostExpr == "null" ? "ctx.World" : "world";
+
+    /// <summary>The entity expression that goes with a given host expression.</summary>
+    private static string SelfExprOf(string hostExpr) => hostExpr == "null" ? "ctx.Self" : "bridge->Self";
 
     private static void EmitBTreeActionThunk(CSharpEmitter e)
     {
@@ -444,7 +478,7 @@ internal static class AiPrimitiveEmitter
         e.WriteLine("    global::Fdp.Toolkit.Blueprints.Partitioning.OccurrenceKind.Blueprint, out bool freshlyAttached, out Params* __params);");
         // ⭐ Offset 0, and TRUE BY CONSTRUCTION here: standalone hosting is the single-
         //   occurrence case (the `@0` in its own registration key). ⛔ No site to bind.
-        EmitParamSeed(e, "0");
+        EmitParamSeed(e, "0", "null");   // standalone: no host, so no host variables to read
         e.WriteLine("ref var p = ref *__params;");
         e.WriteLine(tail);
     }
@@ -488,13 +522,18 @@ internal static class AiPrimitiveEmitter
         e.WriteLine("// CE-297: the SEED for params comes from the blackboard, NOT from the kernel's");
         e.WriteLine("//         instance pointer. E3a: it is a seed now, not the live home.");
         e.WriteLine("ref var bb = ref world.GetComponentRW<global::Fdp.Toolkit.Behavior.Components.BrainBlackboard>(bridge->Self);");
+        e.WriteLine("// E3b (§28.7): the HOST's params region, so a resolver can read the host's own");
+        e.WriteLine("//   variables BY NAME through IHostVariableAccess — its first implementation.");
+        e.WriteLine("byte* __hostParams = (byte*)global::System.Runtime.CompilerServices.Unsafe.AsPointer(");
+        e.WriteLine("    ref bb.BehaviorParameters[0]);");
         e.WriteLine();
         e.WriteLine("// O7/E3: this occurrence's OWN params AND working state, keyed by the (region, state)");
         e.WriteLine("//        the kernel stamped (O6) and by the hosting machine's id from the instance header.");
         e.WriteLine("int occurrenceKey = global::Fdp.Toolkit.Behavior.HsmOccurrence.KeyFor(instance, AssetId, writer);");
         e.WriteLine("ref var ws = ref global::Fdp.Toolkit.Behavior.HsmOccurrence.ResolveOrAttach<Params, WorkingState>(");
         e.WriteLine("    world, bridge->Self, occurrenceKey, StructureHash, out bool freshlyAttached, out Params* __params);");
-        EmitParamSeed(e, "global::Fdp.Toolkit.Behavior.HsmOccurrence.SeedParamsOffset(instance, writer)");
+        EmitParamSeed(e, "global::Fdp.Toolkit.Behavior.HsmOccurrence.SeedParamsOffset(instance, writer)",
+                      "global::Fdp.Toolkit.Behavior.HsmHostVariableAccess.For(instance, __hostParams, global::Fdp.Toolkit.Behavior.BehaviorConstants.MaxBehaviorParamByteSize)");
         e.WriteLine("ref var p = ref *__params;");
         e.WriteLine(tail);
     }

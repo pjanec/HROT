@@ -102,8 +102,33 @@ current-answer: §3 — ⭐⭐ THE NEXT ACTION IS E3 (E7a + CE-298, together —
   ⛔⛔ COVERAGE GAP FOUND: ZERO goldens declare HSM hosting, so the emitted HSM thunk shape has NO
   golden coverage — only ThunkEmissionTests. That is why this moved zero goldens, and it is the same
   blind spot that let BP-297 ship. Worth a golden asset with HSM hosting; filed as an observation.
-  ⭐⭐ NEXT ACTION: E3b proper — Q41-C1' (emit the resolve hook), then C2', then Q43. The binding
-  E3b-0 added is what makes a per-site resolver meaningful.
+  ✅ C1' + E7a ARE LANDED 2026-09-21 (design §28.7) — the RESOLVE stage runs, and IHostVariableAccess
+  has its FIRST implementation since it was declared 2026-08-16 (it had zero implementers for a month).
+  🔒 SETTLED BY THE USER'S QUESTION: "isn't there something like function based param resolution,
+  allowing to take params from wherever the function/graph has access to? this would mean own resolve
+  pass." Measured: ResolveParams<TDto>(ref dto, world, self, host) at BehaviorParams.cs:19 — a
+  resolver reads world/self/host, so its result depends on the OCCURRENCE's context. Running it once
+  per behaviour and copying into every occurrence would be wrong BY CONSTRUCTION, and `host` can only
+  be non-null in a per-occurrence pass. ⇒ own resolve pass, at the seed.
+  SHIPPED: HsmHostVariableAccess (name-keyed, read-only, fails closed on absent name / width
+  disagreement / unknown machine) · HsmParamBindings.RegisterVariables (the host's own name→offset
+  map, from the SAME packedFields as its ParseParams and ManagedBlackboardVariables) ·
+  HostedParamResolvers (per-asset; a miss is free and silent per §3.1, a wrong-typed registration
+  THROWS) · the emitted seed does bake/copy → RESOLVE → init inside `if (freshlyAttached)`, so it is
+  resolve-ONCE at activation, never per dispatch.
+  ⚠ HONEST GAP: the width check is a type check in disguise — the packed map carries no CLR type, so
+  an int read as a float is NOT caught. Stated in §28.7.2 rather than implied.
+  ⭐ Goldens: 30 files, +90/-0, purely additive (3 lines each: the resolve call). The standalone thunk
+  gets the stage too with host:null — it has no host by construction but may still compute from
+  world/self.
+  ⭐ Rails O7_R32–O7_R35 + 2 emission guards. Red-proof: neutering the resolve reddens R34 alone.
+  ⛔ STILL HELD: C2' (the resolver PICKER) is Hrot.Hsm.Editor = UI lane. 🔒 User 2026-09-21: "with UI
+  related parts let's wait, we will need first to integrate the stuff not yet merged from the ui
+  branch." Resolvers are registered in CODE until then.
+  ⛔ STILL OPEN: Q43 (resolver authored AS A BLUEPRINT — the GraphKind.Construction emitter arm +
+  V_ResolverPurity), approved and unbuilt, held until this proves out. And the generated ParseParams
+  hook for the ROOT path (C1' as Q41 words it) — additive, no blocked consumer.
+  ⭐⭐ NEXT ACTION: integrate the ui branch, then C2'; or Q43 if the user prefers depth first.
   (HISTORY) E3b — per-site authored VALUES. Every occurrence still seeds from the SAME
   variable, so two regions get their own COPY of one authored value. The design is DONE and
   APPROVED, not open: Architect_Question_41 (C1' = emit the resolve hook, named there as the

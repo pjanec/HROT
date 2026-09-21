@@ -114,6 +114,9 @@ public static class HillAssault2CalculateSegments_FA6F3CC3_Bp
             *__params = global::System.Runtime.CompilerServices.Unsafe.As<byte, Params>(
                 ref global::System.Runtime.CompilerServices.Unsafe.AddByteOffset(
                     ref bb.BehaviorParameters[0], (nint)0));
+            // C1′ (§28.7): the RESOLVE stage — the one place IHostVariableAccess is non-null.
+            global::Fdp.Toolkit.Behavior.HostedParamResolvers.TryRun(
+                AssetId, ref *__params, ctx.World, ctx.Self, null);
             InitDefaultWorkingState((WorkingState*)global::System.Runtime.CompilerServices.Unsafe.AsPointer(ref ws));
         }
         ref var p = ref *__params;

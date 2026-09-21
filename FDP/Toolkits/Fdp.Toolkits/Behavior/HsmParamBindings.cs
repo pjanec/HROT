@@ -88,11 +88,66 @@ public static class HsmParamBindings
     public static int SeedOffsetFor(uint machineId, ushort stateId)
         => _offsets.TryGetValue((machineId, stateId), out int offset) ? offset : UnboundOffset;
 
+    // machineId -> (variable name -> packed (offset, size)) in the HOST's BrainBlackboard params
+    // region. ⭐ E3b: this is what IHostVariableAccess addresses, and it is NAME-keyed because a
+    // cross-asset read is StructureHash-versioned — §3.4's rule, not a style choice.
+    private static readonly Dictionary<uint, Dictionary<string, (int Offset, int Size)>> _variables = new();
+
+    /// <summary>
+    /// ⭐⭐⭐ <b><c>E3b</c> — registers the HOST machine's own blackboard variables by NAME</b>, so a
+    /// hosted occurrence's resolver can read them through <see cref="IHostVariableAccess"/>.
+    ///
+    /// <para>⭐ Emitted from the SAME <c>packedFields</c> list that drives the host's <c>ParseParams</c>
+    /// switch and its <c>ManagedBlackboardVariables</c> manifest ⇒ ⛔ the three cannot disagree about
+    /// where a variable lives.</para>
+    ///
+    /// <para>⚠ Keyed by the machine's <c>StructureHash</c>, so a recompiled machine registers under a
+    /// NEW key and a stale reader resolves nothing rather than reading moved bytes — §3.4's
+    /// <i>"fails closed"</i> rule.</para>
+    /// </summary>
+    public static void RegisterVariables(
+        HsmDefinitionBlob blob, IReadOnlyList<(string Name, int Offset, int Size)> variables)
+    {
+        if (blob is null) throw new ArgumentNullException(nameof(blob));
+        if (variables is null) throw new ArgumentNullException(nameof(variables));
+
+        uint machineId = blob.Header.StructureHash;
+        if (!_variables.TryGetValue(machineId, out var byName))
+            _variables[machineId] = byName = new Dictionary<string, (int, int)>(StringComparer.Ordinal);
+
+        for (int i = 0; i < variables.Count; i++)
+        {
+            var (name, offset, size) = variables[i];
+            if (string.IsNullOrEmpty(name)) continue;
+            byName[name] = (offset, size);
+        }
+    }
+
+    /// <summary>
+    /// Where a host variable lives in the host's params region. ⛔ <c>false</c> — never a zero offset —
+    /// when the machine or the name is unknown, so a reader cannot mistake "absent" for "at 0".
+    /// </summary>
+    public static bool TryGetVariable(uint machineId, string variableName, out int offset, out int size)
+    {
+        offset = 0;
+        size = 0;
+        if (variableName is null) return false;
+        if (!_variables.TryGetValue(machineId, out var byName)) return false;
+        if (!byName.TryGetValue(variableName, out var slot)) return false;
+        offset = slot.Offset;
+        size = slot.Size;
+        return true;
+    }
+
     /// <summary>
     /// Drops every registration. ⚠ For hot reload and for test isolation — the registries beside this
     /// one have the same escape hatch, and for the same reason.
     /// </summary>
-    public static void ClearAll() => _offsets.Clear();
+    public static void ClearAll()
+    {
+        _offsets.Clear();
+        _variables.Clear();
+    }
 
     /// <summary>How many bindings are registered. ⭐ For rails and the diagnostics surface.</summary>
     public static int Count => _offsets.Count;
