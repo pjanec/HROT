@@ -1492,12 +1492,30 @@ public sealed class BlueprintDebugSession : IBlueprintDebugSession, Hrot.Editor.
 
     // Reads AiPrimitive working-state fields from Blackboard1024 (BPF-001 section 8.6).
     // NGS-2.2: accepts an explicit view so the caller can redirect to the scratch repo.
-    private void CaptureAiPrimitiveState(
+    /// <summary>
+    /// ⭐⭐⭐ <c>O7b-2</c> — <b>SHOW ALL the occurrences, each LABELLED and DECODED.</b> 📄 §24.11.
+    ///
+    /// <para>🔴 <b>Why this changed shape.</b> Before <c>O7</c> an AiPrimitive's working state lived in
+    /// <c>Blackboard1024</c> at a fixed offset — <b>one per entity</b>, so one row. After <c>O7</c> it
+    /// lives in an occurrence slot keyed by the <c>(region, state)</c> the kernel stamps, so there can
+    /// be <b>N</b>. ⛔ Showing only the active one would hide exactly what <c>BP-297</c> is about: two
+    /// regions quietly holding different state for the same asset.</para>
+    ///
+    /// <para>⭐ <b>Legacy layout still read.</b> An entity with no occurrence store — or an asset whose
+    /// thunk predates the change — still resolves through the old path, so this is additive for
+    /// anything not yet migrated.</para>
+    /// </summary>
+    private unsafe void CaptureAiPrimitiveState(
         Entity self, BlueprintDefinition def, DebugMapIndex? mapIndex,
         Dictionary<string, object> outFields,
         ISimulationView? view = null)
     {
         var effectiveView = view ?? _view;
+
+        if (CaptureAiPrimitiveOccurrences(self, def, mapIndex, outFields, effectiveView))
+            return;
+
+        // ── legacy: one working state per entity, in Blackboard1024 at the +8 offset ──
         if (!effectiveView.HasComponent<Blackboard1024>(self)) return;
         ref readonly var bb = ref effectiveView.GetComponentRO<Blackboard1024>(self);
 
@@ -1509,30 +1527,103 @@ public sealed class BlueprintDebugSession : IBlueprintDebugSession, Hrot.Editor.
         ulong storedHash = System.Runtime.InteropServices.MemoryMarshal.Read<ulong>(bytes);
         if (storedHash != def.StructureHash) return;
 
-        var layoutFields = mapIndex?.StateLayout.Fields;
-        if (layoutFields != null && layoutFields.Count > 0)
+        // ⭐ BATCH 84 — the +8 through its ONE owner (Q32 §2.1). ⛔ The write path computes the same
+        //   offset the same way; a read and a write that disagree by 8 bytes do not show a wrong
+        //   number, they scribble on the neighbouring field.
+        DecodeStateFields(bytes, WorkingStateLayout.ComponentOffsetOf(0),
+                          mapIndex?.StateLayout, def, namePrefix: null, outFields);
+    }
+
+    /// <summary>
+    /// Walks the entity's occurrence store for every slot this asset owns, labels each by the
+    /// <c>(region, state)</c> it was keyed for, and decodes its fields.
+    /// Returns <c>true</c> when the store answered — so the caller knows not to fall back.
+    /// </summary>
+    private unsafe bool CaptureAiPrimitiveOccurrences(
+        Entity self, BlueprintDefinition def, DebugMapIndex? mapIndex,
+        Dictionary<string, object> outFields, ISimulationView effectiveView)
+    {
+        var tiers = BlueprintTierTable.Ascending;
+        ReadOnlySpan<byte> store = default;
+        for (int t = 0; t < tiers.Count; t++)
         {
-            foreach (var field in layoutFields)
+            if (!tiers[t].HasInView(effectiveView, self)) continue;
+            store = tiers[t].BytesInView(effectiveView, self);
+            break;
+        }
+        if (store.IsEmpty) return false;
+
+        // The hosting machine's id — the other half of the key the thunk computed.
+        uint machineId = 0;
+        if (effectiveView.HasComponent<BrainHsm128>(self))
+            machineId = effectiveView.GetComponentRO<BrainHsm128>(self).State.Header.MachineId;
+        else if (effectiveView.HasComponent<BrainHsm64>(self))
+            machineId = effectiveView.GetComponentRO<BrainHsm64>(self).State.Header.MachineId;
+
+        bool any = false;
+        fixed (byte* mem = store)
+        {
+            int slotCount = BlueprintBlackboardPartitions.GetSlotCount(mem);
+            for (int i = 0; i < slotCount; i++)
             {
-                // ⭐ BATCH 84 — the +8 through its ONE owner (Q32 §2.1). ⛔ The write path computes the
-                //   same offset the same way; a read and a write that disagree by 8 bytes do not show
-                //   a wrong number, they scribble on the neighbouring field.
-                int start = WorkingStateLayout.ComponentOffsetOf(field.OffsetBytes);
-                if (start + field.SizeBytes > bytes.Length) continue;
+                if (BlueprintBlackboardPartitions.GetSlotKind(mem, i) != OccurrenceKind.Hsm) continue;
+
+                ref var entry = ref BlueprintBlackboardPartitions.GetSlot(mem, i);
+                if (entry.StructureHash != (uint)def.StructureHash) continue;
+
+                // ⭐ The label is EXACT or absent — never guessed. See HsmOccurrence.TryDescribe.
+                string label = global::Fdp.Toolkit.Behavior.HsmOccurrence.TryDescribe(
+                        machineId, def.AssetId, entry.BlueprintId,
+                        out int region, out ushort stateId)
+                    ? global::Fdp.Toolkit.Behavior.HsmOccurrence.DescribeLabel(region, stateId)
+                    : $"Occurrence 0x{entry.BlueprintId:X8}";
+
+                DecodeStateFields(store, entry.PayloadOffset,
+                                  mapIndex?.StateLayout, def, label, outFields);
+                any = true;
+            }
+        }
+
+        return any;
+    }
+
+    /// <summary>
+    /// ⭐⭐ <b>THE decode loop — one body, four former copies.</b> Prefers the DebugMap's
+    /// editor-authored layout and falls back to the registrar's compiled offsets.
+    ///
+    /// <para>⭐ <paramref name="namePrefix"/> is what makes "show all" legible: with N occurrences the
+    /// bare field name is ambiguous, so each is emitted as <c>"Region 0 / State 4 · Counter"</c>.
+    /// ⛔ A null prefix keeps the single-occurrence spelling for the legacy path.</para>
+    /// </summary>
+    private static void DecodeStateFields(
+        ReadOnlySpan<byte> bytes, int payloadOffset,
+        DebugStateLayout? stateLayout, BlueprintDefinition? def,
+        string? namePrefix, Dictionary<string, object> outFields)
+    {
+        string Name(string field) => namePrefix is null ? field : namePrefix + " \u00B7 " + field;
+
+        if (stateLayout != null && stateLayout.Fields.Count > 0)
+        {
+            foreach (var field in stateLayout.Fields)
+            {
+                int start = payloadOffset + field.OffsetBytes;
+                if (field.SizeBytes <= 0 || start + field.SizeBytes > bytes.Length) continue;
                 var fieldType = ResolveType(field.Type);
                 if (fieldType is null) continue;
                 var raw = MarshalFromBytes(bytes.Slice(start, field.SizeBytes).ToArray(), fieldType);
-                if (raw != null) outFields[field.Name] = raw;
+                if (raw != null) outFields[Name(field.Name)] = raw;
             }
+            return;
         }
-        else
+
+        if (def?.StateFields is { Count: > 0 } stateFields)
         {
-            foreach (var (name, descriptor) in def.StateFields)
+            foreach (var (name, descriptor) in stateFields)
             {
-                int start = WorkingStateLayout.ComponentOffsetOf(descriptor.OffsetBytes);
-                if (start + descriptor.SizeBytes > bytes.Length) continue;
+                int start = payloadOffset + descriptor.OffsetBytes;
+                if (descriptor.SizeBytes <= 0 || start + descriptor.SizeBytes > bytes.Length) continue;
                 var raw = MarshalFromBytes(bytes.Slice(start, descriptor.SizeBytes).ToArray(), descriptor.ClrType);
-                if (raw != null) outFields[name] = raw;
+                if (raw != null) outFields[Name(name)] = raw;
             }
         }
     }

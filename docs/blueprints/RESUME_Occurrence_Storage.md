@@ -5,22 +5,26 @@ doc-type: LANE RESUMPTION for the `behaviors` lane — programme ②, OCCURRENCE
   ⛔ VERIFY against git before acting ("THE LEDGER MAY NOT ASSERT WHAT THE CODE IS").
 updated: 2026-09-20
 build-state: n/a — a resumption snapshot, not a design.
-current-answer: §3 — ⭐⭐ THE NEXT ACTION IS O7b's EMITTER CHANGE. O7 is SLICED (design §24.3):
-  O7a (the key + the lookup) and O7b's seam (HsmOccurrence.ResolveOrAttach, lazy attach decided by
-  measurement in §24.8) are DONE — 9 rails, two red-proofs, 2271/0. ⛔ NO EMITTED THUNK CALLS THEM
-  YET: that is O7b, and §24.7 says so plainly rather than letting the seam read as adoption.
+current-answer: §3 — ⭐⭐ THE NEXT ACTION IS O7c. O7 is SLICED (design §24.3):
+  O7a (the key + the lookup) and O7b (the emitter + the inspector) are DONE — 17 rails, three
+  red-proofs, 2273/0 and Blueprints 3971/0 with goldens byte-identical.
   ⭐ §24.9's question is RESOLVED: the kernel passes the HSM INSTANCE pointer, so
   (a) InstanceHeader.MachineId is a free per-dispatch host identity (what O8 will need) and
   (b) AiPrimitiveEmitter's `*(Params*)instance` cast is a DEFECT, filed as CE-297.
-  🔴 O7b's EMITTER SLICE WAS BUILT, MEASURED AND WITHDRAWN (§24.10) — it works (3965/6) and the diff
-  is kept at docs/blueprints/patches/O7b-emitter-slice.patch, but it leaves the debug/inspector read
-  path behind, and fixing that needs a UI ANSWER FIRST: the inspector used to show ONE working state
-  per asset per entity; after O7 there are N, one per (region, state). Ask the user what it should
-  show before re-landing. O7b-1 (emitter) and O7b-2 (inspector) must land TOGETHER.
+  ✅ O7b IS LANDED (design §25) — the HSM path is on occurrence storage and the inspector SHOWS ALL
+  occurrences, each labelled "Region N / State M" and decoded into typed values, per the user's
+  ruling 2026-09-21. CE-297 fixed in the same change. 17 rails; red-proof exact (reverting only the
+  emitter's occurrence call gives 0 build errors and 5 red — the 2 emission guards AND the 3
+  inspector rails, which is the point: the inspector is a real consumer now).
+  ⭐ THE LABEL IS DERIVED, NOT STORED: the key is an FNV fold and BlueprintSlotEntry is exactly 16
+  bytes with no padding, so the debugger searches FORWARD over (region, state) — a hit is exact, and
+  an unrecognised key reports UNKNOWN rather than mislabelling.
   ⚠ TRAP WORTH KEEPING: emitting the AssetId const unconditionally moved 11 golden baselines for
   assets that cannot use HSM hosting; gating it on Hostings.Contains(HsmAction|HsmGuard) returned all
   11 to byte-identical. An emitter addition must be gated on the feature that needs it.
-  ⛔ O7c (delete BrainHsm*, F9's tick-system reshape) is L — 188 refs across 18 production files.
+  ⛔ STILL OPEN: O7b-3 (eager manifest entries for typed labels — needs HsmEmitCore to resolve an
+  action name to a blueprint, a cross-asset dependency) and
+  O7c (delete BrainHsm*, F9's tick-system reshape) — L, 188 refs across 18 production files.
   O4, O5 and O6 are all DONE. O6 — the single ExtDeps crossing — landed 2026-09-20: as-built in
   design §23, 6 rails, red-proof exact, and the FULL 156-project solution build reported exactly TWO
   compile errors, so §4.2's "single-digit blast radius" held. ⛔ O6 delivers the IDENTITY only —

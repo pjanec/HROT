@@ -17,6 +17,17 @@ internal static class AiPrimitiveEmitter
 
         e.WriteLine($"public const int BlueprintId = unchecked((int)0x{asset.BlueprintId:X8});");
         e.WriteLine($"public const ulong StructureHash = {asset.StructureHash}UL;");
+        // ⭐ O7b — the CHILD's identity, for the occurrence key an HSM-hosted thunk computes. The HOST
+        //   comes from the instance pointer the kernel passes (§24.9), so only this half is baked.
+        // ⛔⛔ Emitted ONLY for an asset that actually declares HSM hosting. Emitting it for every
+        //    asset moved 11 golden baselines for assets that cannot use it — the corpus must stay
+        //    byte-identical wherever the feature is not used, which is the property O4 established
+        //    and the thing that makes "did this change behaviour?" answerable.
+        if (asset.Hostings.Contains(AiPrimitiveHosting.HsmAction) ||
+            asset.Hostings.Contains(AiPrimitiveHosting.HsmGuard))
+        {
+            e.WriteLine($"public static readonly global::System.Guid AssetId = new global::System.Guid(\"{asset.AssetId}\");");
+        }
         e.WriteLine();
 
         EmitParamsStruct(e, asset);
@@ -415,25 +426,7 @@ internal static class AiPrimitiveEmitter
         e.WriteLine("public static unsafe void HsmActivity(void* instance, void* context, global::Fhsm.Kernel.Data.HsmCommandWriter* writer)");
         e.WriteLine("{");
         e.Indent();
-        e.WriteLine("var bridge = (global::Fdp.Toolkit.Behavior.Systems.HsmKernelBridge*)context;");
-        e.WriteLine("var world = (global::Fdp.Core.EntityRepository)global::System.Runtime.InteropServices.GCHandle.FromIntPtr(bridge->WorldHandle).Target!;");
-        e.WriteLine("ref var p = ref *(Params*)instance;");
-        e.WriteLine("ref var bb1024 = ref world.GetComponentRW<global::Fdp.Toolkit.Behavior.Components.Blackboard1024>(bridge->Self);");
-        e.WriteLine("fixed (byte* memory = bb1024.Memory)");
-        e.WriteLine("{");
-        e.Indent();
-        e.WriteLine("if (*(ulong*)memory != StructureHash)");
-        e.WriteLine("{");
-        e.Indent();
-        e.WriteLine("global::System.Runtime.CompilerServices.Unsafe.InitBlock(memory, 0, (uint)global::System.Runtime.CompilerServices.Unsafe.SizeOf<global::Fdp.Toolkit.Behavior.Components.Blackboard1024>());");
-        e.WriteLine("*(ulong*)memory = StructureHash;");
-        e.WriteLine("InitDefaultWorkingState((WorkingState*)(memory + 8));");
-        e.Outdent();
-        e.WriteLine("}");
-        e.WriteLine("ref var ws = ref global::System.Runtime.CompilerServices.Unsafe.AsRef<WorkingState>(memory + 8);");
-        e.WriteLine("TickCore(ref p, ref ws, bridge->Self, world, world.SimulationTime);");
-        e.Outdent();
-        e.WriteLine("}");
+        EmitHsmOccurrenceBody(e, "TickCore(ref p, ref ws, bridge->Self, world, world.SimulationTime);");
         e.Outdent();
         e.WriteLine("}");
     }
@@ -443,27 +436,43 @@ internal static class AiPrimitiveEmitter
         e.WriteLine("public static unsafe bool HsmGuard(void* instance, void* context, ushort eventId, global::Fhsm.Kernel.Data.HsmCommandWriter* writer)");
         e.WriteLine("{");
         e.Indent();
+        EmitHsmOccurrenceBody(e,
+            "return TickCore(ref p, ref ws, bridge->Self, world, world.SimulationTime) == global::Fbt.NodeStatus.Success;");
+        e.Outdent();
+        e.WriteLine("}");
+    }
+
+    /// <summary>
+    /// ⭐⭐⭐ <c>O7b</c> — the occurrence-keyed body both HSM thunks share.
+    ///
+    /// <para>🔴 <b>It replaces TWO defects at once.</b> ① <c>BP-297</c>/<c>E3</c>: the working state was
+    /// <c>GetComponentRW&lt;Blackboard1024&gt;(self)</c> at a hard-coded <c>memory + 8</c> — one per
+    /// ENTITY, so two concurrently-active regions aliased. ② <c>CE-297</c>: the params were read as
+    /// <c>*(Params*)instance</c>, but the kernel passes the <b>HSM INSTANCE</b> there — the sibling
+    /// generator ignores that pointer and projects from <c>BrainBlackboard</c>, which is what this now
+    /// does, matching the BTree path.</para>
+    /// </summary>
+    private static void EmitHsmOccurrenceBody(CSharpEmitter e, string tail)
+    {
         e.WriteLine("var bridge = (global::Fdp.Toolkit.Behavior.Systems.HsmKernelBridge*)context;");
         e.WriteLine("var world = (global::Fdp.Core.EntityRepository)global::System.Runtime.InteropServices.GCHandle.FromIntPtr(bridge->WorldHandle).Target!;");
-        e.WriteLine("ref var p = ref *(Params*)instance;");
-        e.WriteLine("ref var bb1024 = ref world.GetComponentRW<global::Fdp.Toolkit.Behavior.Components.Blackboard1024>(bridge->Self);");
-        e.WriteLine("fixed (byte* memory = bb1024.Memory)");
+        e.WriteLine();
+        e.WriteLine("// CE-297: params come from the blackboard, NOT from the kernel's instance pointer.");
+        e.WriteLine("ref var bb = ref world.GetComponentRW<global::Fdp.Toolkit.Behavior.Components.BrainBlackboard>(bridge->Self);");
+        EmitParamProjection(e);
+        e.WriteLine();
+        e.WriteLine("// O7/E3: this occurrence's OWN working state, keyed by the (region, state) the");
+        e.WriteLine("//        kernel stamped (O6) and by the hosting machine's id from the instance header.");
+        e.WriteLine("int occurrenceKey = global::Fdp.Toolkit.Behavior.HsmOccurrence.KeyFor(instance, AssetId, writer);");
+        e.WriteLine("ref var ws = ref global::Fdp.Toolkit.Behavior.HsmOccurrence.ResolveOrAttach<WorkingState>(");
+        e.WriteLine("    world, bridge->Self, occurrenceKey, StructureHash, out bool freshlyAttached);");
+        e.WriteLine("if (freshlyAttached)");
         e.WriteLine("{");
         e.Indent();
-        e.WriteLine("if (*(ulong*)memory != StructureHash)");
-        e.WriteLine("{");
-        e.Indent();
-        e.WriteLine("global::System.Runtime.CompilerServices.Unsafe.InitBlock(memory, 0, (uint)global::System.Runtime.CompilerServices.Unsafe.SizeOf<global::Fdp.Toolkit.Behavior.Components.Blackboard1024>());");
-        e.WriteLine("*(ulong*)memory = StructureHash;");
-        e.WriteLine("InitDefaultWorkingState((WorkingState*)(memory + 8));");
+        e.WriteLine("InitDefaultWorkingState((WorkingState*)global::System.Runtime.CompilerServices.Unsafe.AsPointer(ref ws));");
         e.Outdent();
         e.WriteLine("}");
-        e.WriteLine("ref var ws = ref global::System.Runtime.CompilerServices.Unsafe.AsRef<WorkingState>(memory + 8);");
-        e.WriteLine("return TickCore(ref p, ref ws, bridge->Self, world, world.SimulationTime) == global::Fbt.NodeStatus.Success;");
-        e.Outdent();
-        e.WriteLine("}");
-        e.Outdent();
-        e.WriteLine("}");
+        e.WriteLine(tail);
     }
 
     private static void EmitBlueprintCallThunk(CSharpEmitter e)

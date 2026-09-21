@@ -70,6 +70,51 @@ public static unsafe class HsmOccurrence
     public static int KeyFor(uint hostMachineId, Guid childAssetId, int regionSlotIndex, ushort stateId)
         => Shared.OccurrenceSlotKey.ComputeHsmStateKey(hostMachineId, regionSlotIndex, stateId, childAssetId);
 
+    /// <summary>
+    /// ⭐⭐⭐ <b>The inverse the debugger needs: which <c>(region, state)</c> does this slot key name?</b>
+    /// <c>O7b-2</c> — 📄 §24.11.
+    ///
+    /// <para>⛔⛔ <b>The key is an FNV fold and CANNOT be inverted</b>, and there is nowhere to record
+    /// the pair: <c>BlueprintSlotEntry</c> is <b>exactly 16 bytes with no padding</b>, and widening it
+    /// changes every tier's capacity arithmetic — the one part of this store that is not additive.</para>
+    ///
+    /// <para>⭐⭐ <b>So this searches FORWARD instead.</b> Computing a key is ~20 operations; the space
+    /// is tiny (regions are 2/4/8 by instance size, and state ids are small); and a hit is EXACT, never
+    /// a guess — the key either equals the one the thunk computed or it does not. ⚠ It runs when a
+    /// human inspects an entity, not per frame.</para>
+    ///
+    /// <para>⚠ <b>The honest limit:</b> a state id beyond <paramref name="maxStateId"/> is simply not
+    /// found, and the caller labels it by its raw key. ⛔ It never mislabels — that is the property
+    /// worth having.</para>
+    /// </summary>
+    public static bool TryDescribe(
+        uint hostMachineId, Guid childAssetId, int slotKey,
+        out int regionSlotIndex, out ushort stateId,
+        int maxRegionSlots = 8, int maxStateId = 1024)
+    {
+        for (int r = 0; r < maxRegionSlots; r++)
+        {
+            for (int s = 0; s <= maxStateId; s++)
+            {
+                if (KeyFor(hostMachineId, childAssetId, r, (ushort)s) != slotKey) continue;
+                regionSlotIndex = r;
+                stateId = (ushort)s;
+                return true;
+            }
+        }
+
+        regionSlotIndex = -1;
+        stateId = HsmCommandWriter.NoStateId;
+        return false;
+    }
+
+    /// <summary>
+    /// ⭐ The human-readable name of an occurrence, for the inspector. ⚠ One spelling, one place — a
+    /// label invented at each call site is a label that drifts.
+    /// </summary>
+    public static string DescribeLabel(int regionSlotIndex, ushort stateId)
+        => $"Region {regionSlotIndex} / State {stateId}";
+
     /// <summary>Payload bytes one HSM-hosted occurrence's working state costs, for a given state type.</summary>
     public static int PayloadSizeOf<TWorkingState>() where TWorkingState : unmanaged
         => sizeof(TWorkingState);

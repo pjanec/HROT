@@ -3035,7 +3035,10 @@ one HSM machine is active at a time and `(region, state)` is already unique. ⛔
 `O8` (HSM hosting HSM). ⇒ the host half is **future-proofing**, which is exactly why it must not be
 guessed at now.
 
-### 24.10 🔴🔴🔴 `O7b`'s EMITTER SLICE WAS BUILT, MEASURED, AND **WITHDRAWN** — *(`2026-09-21`)*
+### 24.10 ⛔ HISTORY — `O7b`'s EMITTER SLICE WAS WITHDRAWN FOR ONE DAY *(`2026-09-21`)*
+
+⚠⚠ **SUPERSEDED BY §24.11 — it is LANDED.** The account below is kept because its two measurements
+*(the golden-baseline trap, and the consumer it left behind)* are the reasons §24.11 has the shape it has.
 
 ⛔⛔ **It works. It is withdrawn anyway, because it leaves a CONSUMER behind** — and a half-migration in
 main-line code is worse than a well-specified next step. 📄 The diff is kept verbatim at
@@ -3085,3 +3088,61 @@ lives in an occurrence slot. ⛔ **That is not a test artefact — it is a real 
 
 ⚠ **What remains GREEN and adopted-free on the branch:** the key arithmetic and the lookup
 (`O7a` + `ResolveOrAttach`), 15 rails, two red-proofs. ⛔ **Still no production caller** — §24.7 stands.
+
+
+## 25. ✅ `O7b` — **THE HSM PATH IS ON OCCURRENCE STORAGE, AND THE INSPECTOR SHOWS ALL OF IT** *(`2026-09-21`)*
+
+🔒 **User ruling, verbatim:** *"Show all and properly labelled and properly decoded into readable
+state."* ⇒ `O7b-1` *(the emitter)* and `O7b-2` *(the inspector)* landed **together**, as §24.10 said
+they must.
+
+### 25.1 ⭐⭐⭐ THE RULING CHANGED A DESIGN DECISION — **and that is worth recording**
+
+⛔ §24.8 leaned **LAZY** attach, partly because *"a lazily-attached slot is renderable"*. ⭐⭐ **The
+labelling requirement re-opened that**: labels and types conventionally come from the MANIFEST, and a
+lazily-attached slot has no manifest entry ⇒ raw bytes.
+
+📐 **Measured, and it changed the answer a second time:** the manifest would have to be emitted by the
+**HOST** *(the HSM asset)*, and `HsmEmitCore` emits actions as **strings** — it has **no blueprint
+catalog**, so it cannot know an action name refers to a blueprint, nor that blueprint's `WorkingState`
+type. ⇒ ⛔ eager-by-manifest is a cross-asset dependency in the editor's persistence layer, i.e. its own
+slice.
+
+⇒ ⭐⭐⭐ **So the label is DERIVED at read time instead, and lazy stands.** The decode was never the
+problem — `BlueprintDefinition.StateFields` already carries every field's offset, size and CLR type,
+which is what *"properly decoded into readable state"* asks for.
+
+### 25.2 🔴 HOW THE LABEL IS RECOVERED — **forward search, because the key cannot be inverted**
+
+| the constraint | the measurement |
+|---|---|
+| the slot key is an **FNV fold** | ⛔ not invertible |
+| ⛔ **nowhere to record the pair** | `BlueprintSlotEntry` is **exactly 16 bytes with no padding** *(4+4+2+2+4)*, and widening it changes every tier's capacity arithmetic — the one part of this store that is **not** additive |
+| ⭐ **so search FORWARD** | computing a key is ~20 operations and the space is tiny *(regions 2/4/8; state ids small)*. ⭐⭐ **A hit is EXACT** — the key either equals the one the thunk computed or it does not |
+| ⚠ **the honest limit** | a state id beyond the bound is **not found**, and the caller falls back to `Occurrence 0x…`. ⛔ **It never mislabels**, which is the property worth having: a plausible-but-wrong label would attribute one region's state to another — the very confusion `BP-297` is about |
+
+### 25.3 ⭐ WHAT SHIPPED
+
+| | |
+|---|---|
+| **emitter** | both HSM thunks call `HsmOccurrence.KeyFor` + `ResolveOrAttach` ⇒ **`BP-297`/`E3` closed**; params moved to `BrainBlackboard.BehaviorParameters[0]` ⇒ **`CE-297` fixed** |
+| ⭐ **gated emission** | the `AssetId` literal is emitted **only** for assets declaring HSM hosting — ⛔ unconditional emission moved **11** Tier-2 golden baselines; gating returned all 11 to byte-identical |
+| **inspector** | `CaptureAiPrimitiveState` walks the store for every slot of this asset, labels each `Region N / State M`, and decodes it. ⭐ The legacy `Blackboard1024 + 8` path remains as a fallback, so nothing un-migrated goes dark |
+| ⭐⭐ **one decode loop** | four near-identical copies *(two readers × two arms)* collapsed into `DecodeStateFields` — ruling 9 |
+| **fixture** | `BlueprintTestFixture` dispatches through a **real kernel tick** and parks the instance in `BrainHsm128`, as production does ⇒ the harness now exercises kernel → dispatcher → thunk → store |
+
+### 25.4 ⭐ EVIDENCE
+
+| | |
+|---|---|
+| rails | **17** in `HsmOccurrenceKeyTests` — ⑩ every occurrence is recoverable **and labelled exactly**, ⑪ an unrecognised key reports UNKNOWN rather than mislabelling; plus the emission guards asserting the thunks no longer mention `Blackboard1024` or `*(Params*)instance` |
+| red-proof | revert **only** the emitter's occurrence call ⇒ **0 build errors, 5 red** — the 2 emission guards **and the 3 inspector rails**. ⭐⭐ That the INSPECTOR reddens is the point: it is a real consumer now, which is exactly what §24.10 said shipping the halves separately would break |
+| suites | `Hrot.Blueprints.Tests` **3971 / 0** *(18 skipped)* · `Fdp.Toolkits.Tests` **2273 / 0** · goldens **byte-identical** |
+
+### 25.5 ⚠ WHAT IS STILL OPEN
+
+| | |
+|---|---|
+| ⛔ **eager manifest entries** *(`O7b-3`)* | would give the inspector typed labels from the manifest instead of derived ones, and would size the tier for hosting sites. ⚠ Needs `HsmEmitCore` to resolve an action name to a blueprint — a cross-asset dependency, and its own slice |
+| ⛔ **`O7c`** | `BrainHsm*` deleted, instances into slots, `F9`'s tick-system reshape — **188 references across 18 production files** |
+| ⚠ **the corpus still barely exercises this** | **1** asset declares `HsmAction`, **0** declare `HsmGuard` ⇒ the golden shows `O7b` **broke nothing**; the rails and the red-proof are what show it WORKS |

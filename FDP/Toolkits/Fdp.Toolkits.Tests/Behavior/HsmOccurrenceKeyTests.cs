@@ -283,6 +283,55 @@ public sealed unsafe class HsmOccurrenceKeyTests
         return entity;
     }
 
+    /// <summary>
+    /// ⭐⭐⭐ <b>Rail ⑩ — <c>O7b-2</c>: every occurrence is recoverable and LABELLED, exactly.</b>
+    ///
+    /// <para>🔒 <b>User ruling, <c>2026-09-21</c>:</b> <i>"Show all and properly labelled and properly
+    /// decoded into readable state."</i> ⛔ The key is an FNV fold and cannot be inverted, and
+    /// <c>BlueprintSlotEntry</c> is exactly 16 bytes with no room to record the pair — so the debugger
+    /// searches FORWARD. ⭐ A hit is EXACT: the key either equals the one the thunk computed or it does
+    /// not, so a label is never a guess.</para>
+    /// </summary>
+    [Fact]
+    public void O7_R10_EveryOccurrenceIsRecoverableAndLabelled()
+    {
+        foreach (var (region, state) in new[] { (0, (ushort)0), (1, (ushort)4), (3, (ushort)17) })
+        {
+            int key = Key(region, state);
+
+            Assert.True(HsmOccurrence.TryDescribe(HostMachine, Child, key,
+                out int foundRegion, out ushort foundState));
+
+            Assert.Equal(region, foundRegion);
+            Assert.Equal(state, foundState);
+            Assert.Equal($"Region {region} / State {state}",
+                         HsmOccurrence.DescribeLabel(foundRegion, foundState));
+        }
+    }
+
+    /// <summary>
+    /// ⭐⭐ <b>Rail ⑪ — an unrecognised key is REPORTED AS UNKNOWN, never mislabelled.</b>
+    ///
+    /// <para>⚠ The search is bounded, so a state id beyond the cap is simply not found. ⛔ That must
+    /// read as <i>"unknown"</i> and let the caller fall back to the raw key — a plausible-but-wrong
+    /// label is worse than none, because it would attribute one region's state to another.</para>
+    /// </summary>
+    [Fact]
+    public void O7_R11_AnUnrecognisedKeyIsNotMislabelled()
+    {
+        // A key from a DIFFERENT host machine cannot belong to this one.
+        int foreign = Fdp.Toolkit.Behavior.Shared.OccurrenceSlotKey
+            .ComputeHsmStateKey(0x0BADF00D, 0, 4, Child);
+
+        Assert.False(HsmOccurrence.TryDescribe(HostMachine, Child, foreign, out int r, out ushort st));
+        Assert.Equal(-1, r);
+        Assert.Equal(HsmCommandWriter.NoStateId, st);
+
+        // And a state beyond the search bound is not found either — bounded, not wrong.
+        int beyond = Key(0, 900);
+        Assert.False(HsmOccurrence.TryDescribe(HostMachine, Child, beyond, out _, out _, maxStateId: 100));
+    }
+
     // ── helpers ──────────────────────────────────────────────────────────────────
 
     private static EntityRepository CreateWorld()

@@ -89,10 +89,20 @@ public sealed class ThunkEmissionTests
 
         // HSM activity thunk.
         Assert.Contains("HsmActivity", src);
-        // Blackboard1024 should use Fdp.Toolkit.Behavior.Components namespace.
-        Assert.Contains("global::Fdp.Toolkit.Behavior.Components.Blackboard1024", src);
         // HsmKernelBridge should use Fdp.Toolkit.Behavior.Systems namespace.
         Assert.Contains("global::Fdp.Toolkit.Behavior.Systems.HsmKernelBridge", src);
+
+        // ⭐⭐ O7 / E3 — the working state comes from THIS OCCURRENCE'S slot, keyed by the (region,
+        //    state) the kernel stamped. 🔴 It used to be Blackboard1024 at a hard-coded memory + 8,
+        //    which is ONE working state per ENTITY: two concurrently-active regions running this
+        //    asset wrote the same bytes, silently (BP-297).
+        Assert.Contains("global::Fdp.Toolkit.Behavior.HsmOccurrence.KeyFor(instance, AssetId, writer)", src);
+        Assert.Contains("HsmOccurrence.ResolveOrAttach<WorkingState>", src);
+        Assert.DoesNotContain("global::Fdp.Toolkit.Behavior.Components.Blackboard1024", src);
+
+        // ⭐ CE-297 — params come from the blackboard, NOT from the kernel's instance pointer.
+        Assert.Contains("BrainBlackboard", src);
+        Assert.DoesNotContain("*(Params*)instance", src);
     }
 
     [Fact]
@@ -108,7 +118,11 @@ public sealed class ThunkEmissionTests
         var src = EmitAndGetSource(asset);
 
         Assert.Contains("HsmGuard", src);
-        Assert.Contains("global::Fdp.Toolkit.Behavior.Components.Blackboard1024", src);
+
+        // ⭐⭐ O7 / E3 + CE-297 — same two corrections as the action thunk; one shared body emits both.
+        Assert.Contains("HsmOccurrence.ResolveOrAttach<WorkingState>", src);
+        Assert.DoesNotContain("global::Fdp.Toolkit.Behavior.Components.Blackboard1024", src);
+        Assert.DoesNotContain("*(Params*)instance", src);
     }
 
     [Fact]
