@@ -1,8 +1,9 @@
 <!--STATUS
 state: LIVE
 updated: 2026-09-21
-build-state: READY-TO-BUILD
-current-answer: section 4 (the decision) and section 5 (the diagrams). Section 7.1 settles the
+build-state: BUILT 2026-09-21 — see section 10 for the as-built and the two deviations.
+current-answer: section 10 (AS-BUILT) first, then section 4 (the decision) and section 5
+  (the diagrams). Section 7.1 settles the
   PUBLISHING CURRENCY, which Q43 section 8 deliberately left open; section 7.2 settles SELECTION
   (the params-owning region NAMES its resolver, user 2026-09-21) and carries its own HISTORY note
   for the superseded "rank by authorship" answer - do NOT quote that.
@@ -415,3 +416,59 @@ before the selection model existed. ⭐ Neither is a live defect: today **no** a
 | **A4** | `ParamResolverDemo` gains a golden sibling that **reads a world singleton through the CLR hatch** and refines the DTO from it — ⭐ the motivating case, in the corpus |
 | **A5** | `BlueprintResolverEntry.As<TDto>()` **throws** on a mismatched type, mirroring `HostedParamResolvers.TryRun` ⇒ never a silent reinterpret |
 | **A6** | ⭐⭐ **the red-proof:** reverting only the §4 signature reddens `A2`/`A3`/`A4` and **nothing else** |
+
+---
+
+## 10. ⭐⭐⭐ AS-BUILT `2026-09-21` — **`R4` is in; two deviations, both narrowing**
+
+### 10.1 ⭐ What was built, against §9's acceptance
+
+| # | shape | ✅ |
+|---|---|---|
+| **A1** | a `Construction` graph carries the §4 signature, a `Function` graph does not | ✅ `ResolverWorldReachTests.OnlyAConstructionGraph_GetsTheWorldContext` — and 📐 **43 of 45 goldens byte-identical**; only the two resolver assets moved |
+| **A2** | a resolver reaches `self` | ✅ `ACallInsideAResolver_ReceivesSelfAndTheView` — emitted `HasTarget(…, self, world)` |
+| **A3** | a CLR method declared `(…, ISimulationView)` receives the view | ✅ same rail |
+| **A4** | a golden reads a **world singleton** through the CLR hatch | ✅ **`ResolverWorldReachDemo`** — `NetworkEntityMapOps.ResolveTarget(__t1, world)` reads `NetworkEntityMap` and the `Entity` lands in `PlatoonHillAttackParams.TargetAreaEntity`, run end-to-end in `AResolver_ReadsAWorldSingleton_AndRefinesTheDtoFromIt` |
+| **A5** | `As<TDto>()` throws on a mismatch | ✅ `BlueprintAuthoredResolver_InvokeTests.AskingAResolverForTheWrongDtoType_Throws` |
+| **A6** | the red-proof | ✅ **TWO, each isolating one half** — below |
+
+### 10.2 ⭐⭐ The red-proof, in two halves — **and both fail in GENERATED code, which is the point**
+
+| revert | what reddens |
+|---|---|
+| **only the `Stage5_Schedule` gate** *(restore `if (Dispatch == Library) return (false,false)`)* | 🔴 `CS7036: no argument given for the required parameter 'view' of NetworkEntityMapOps.ResolveTarget` — ⭐ the trailing context stops being appended |
+| **only the emitted signature** *(drop `world`/`self` from `EmitResolverGraph`)* | 🔴 `CS0103: the name 'world' does not exist in the current context` — ⭐⭐ **literally the failure this design's problem statement names** |
+
+⚠ **Neither red is a test assertion — both are BUILD failures of the production assembly**, because the
+corpus asset itself stops compiling. ⭐ That is a stronger proof than a red rail, and it is why the
+golden matters: without `ResolverWorldReachDemo` in the corpus, reverting either half would have been
+silent.
+
+### 10.3 ⚠ DEVIATION 1 — **the emitted `host` is UNANNOTATED**
+
+📐 `IHostVariableAccess`, not `IHostVariableAccess?`. 🔴 The blueprint compiler's generated files carry
+no `#nullable enable`, and a Roslyn generator's output is nullable-**oblivious** regardless of the
+project setting ⇒ **`CS8669`**, measured: emitting the `?` fails the build of every asset with a
+resolver.
+
+⛔ **The other fix — adding the pragma to the file header — was REJECTED**: it moves all 45 golden
+baselines for an annotation, and flips every other emitted construct from oblivious to annotated at
+once, under `TreatWarningsAsErrors`, with an unmeasured blast radius. ⚠ `BTreeBridgeEmitCore` does emit
+the pragma; that is a **different emitter** whose output was annotated from its first line.
+⭐ Nullability is not part of delegate compatibility, so the parameter still binds to
+`ResolveParams<TDto>`'s `IHostVariableAccess?` exactly.
+
+### 10.4 ⚠ DEVIATION 2 — **`A2` is proven by a CLR call, not by a bare `IrOp_Self`**
+
+📐 §9 `A2` says *"a resolver graph containing `IrOp_Self`"*. Measured: **there is no standalone `Self`
+node** — `IrOp_Self` is produced by the component/collection ops, and most of those are side-effecting
+and therefore refused by `V_ResolverPurity`. ⭐ A `FunctionCall` with
+`TrailingContext = SelfAndView` requires `self` in scope for the **same** reason and fails the **same**
+way (`CS0103`), so it proves the same property with a node a resolver may legally contain.
+
+### 10.5 ⭐ Two things the build taught, both kept
+
+| | |
+|---|---|
+| ⭐⭐ **`BP1677` refused an early draft of `R4`'s own rail** | the first `A2`/`A3` rail was authored `uint in → bool out`. ⛔ That is not a resolver shape, and the validator said so. ⭐ **The rail was fixed, not the rule** — a test may not quietly author a shape the product forbids |
+| ⭐ **the test builder gained `WithOutput` and `PureCallReturning`** | ⚠ and the second one **wires the call into the `Return` value pin deliberately**: an unwired data node is unreachable, Stage 5 drops it, and a rail asserting on the emitted source would then pass or fail for the wrong reason |

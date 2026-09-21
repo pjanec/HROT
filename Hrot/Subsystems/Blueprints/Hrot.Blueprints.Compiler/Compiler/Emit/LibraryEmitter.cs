@@ -39,7 +39,7 @@ internal static class LibraryEmitter
         // naming convention (Q43-A3).
         foreach (var graph in asset.Graphs.Where(g => g.Kind == IrGraphKind.Construction))
         {
-            EmitFunctionGraph(e, asset, graph);
+            EmitResolverGraph(e, asset, graph);
             e.WriteLine();
         }
 
@@ -153,6 +153,87 @@ internal static class LibraryEmitter
 
         e.Outdent();
         e.WriteLine("}");
+    }
+
+    /// <summary>
+    /// ⭐⭐⭐ <b><c>R4</c> — a resolver graph's emitted method, with the world in scope.</b>
+    /// 📄 <c>DESIGN_Resolver_World_Reach.md</c> §4.
+    ///
+    /// <para>
+    /// ⭐⭐⭐ <b>The parameter list IS <c>ResolveParams&lt;TDto&gt;</c> with the <c>ref</c> unrolled into
+    /// a return value</b> — <c>(dto, world, self, host)</c>. ⇒ the emitted method is the universal
+    /// currency every supply path already speaks, so the registrar needs no adapter and no new
+    /// delegate: it wraps this in one lambda whose body is <c>dto = Resolve(dto, world, self, host)</c>.
+    /// </para>
+    ///
+    /// <para>
+    /// ⚠ <b>The context is appended ALWAYS, never demand-driven</b> (§4 <c>D1</c>). <c>BP1677</c>
+    /// already fixes the DTO half of the signature, so a fixed shape makes a resolver callable
+    /// generically; a demand-driven list would produce N shapes and force reflection over generated
+    /// code to call any of them.
+    /// </para>
+    ///
+    /// <para>
+    /// ⛔ <b><c>EntityRepository</c>, not <c>ISimulationView</c></b> (§4 <c>D2</c>): the world-singleton
+    /// accessors are declared on the repository and NOT on the view, so a resolver reaching
+    /// <c>IGeographicTransform</c> needs the concrete type. ⭐ It upcasts implicitly wherever a view is
+    /// wanted, which is why <c>EmissionContext.ViewVar</c> can answer <c>"world"</c> unchanged.
+    /// </para>
+    ///
+    /// <para>
+    /// ⚠ <b><c>host</c> is emitted although NOTHING supplies it on this path yet</b> (§4 <c>D3</c>) —
+    /// deliberately, and the precedent is this codebase's own: <c>ParseParamsDelegate</c> carries the
+    /// same parameter for the same stated reason, <i>"adding one is a breaking change to every
+    /// resolver."</i> ⛔ Paying that twice is the mistake being avoided.
+    /// </para>
+    ///
+    /// <para>
+    /// ⛔ <b>No <c>time</c></b> (§4 <c>D4</c>): <c>R-37</c> is resolve-once-at-activation, so a tick
+    /// clock would invite params that resolve once and then lie — and omitting it keeps this signature
+    /// EQUAL to <c>ResolveParams&lt;TDto&gt;</c> rather than merely similar.
+    /// </para>
+    /// </summary>
+    private static void EmitResolverGraph(CSharpEmitter e, IrAsset asset, IrGraph graph)
+    {
+        // ⚠ Set BEFORE the signature is written: EmissionContext.IsResolverGraph keys on CurrentGraph,
+        //   and CSharpReturnType/CSharpType do not need it but the body emitter's scope vars do.
+        //   EmitGraphBody sets it again (and clears it), which is harmless and keeps that method the
+        //   single owner of the body's lifetime.
+        e.Ctx.CurrentGraph = graph;
+
+        bool hasStatusReturn = graph.Blocks.Any(b => b.Terminator is IrTerm_ReturnStatus);
+        var returnType = CSharpReturnType(graph, hasStatusReturn);
+
+        var parts = graph.Inputs.Select(f => $"{CSharpType(f.Type)} {f.Name}").ToList();
+        parts.Add("global::Fdp.Core.EntityRepository world");
+        parts.Add("global::Fdp.Core.Entity self");
+        // ⚠⚠ UNANNOTATED on purpose — `IHostVariableAccess`, not `IHostVariableAccess?`.
+        //
+        // 🔴 The blueprint compiler's generated files carry NO `#nullable enable`, and a Roslyn
+        //    generator's output is nullable-OBLIVIOUS regardless of the project's <Nullable>enable</>
+        //    (CS8669: "auto-generated code requires an explicit #nullable directive"). ⛔ Measured:
+        //    emitting the `?` fails the build of every asset that has a resolver.
+        //
+        // ⭐ Adding the pragma to the file header is the OTHER fix and was rejected: it moves all 44
+        //    golden baselines for a nullability annotation, and it would switch every other emitted
+        //    construct from oblivious to annotated at once — under TreatWarningsAsErrors, with an
+        //    unmeasured blast radius. ⚠ `BTreeBridgeEmitCore` does emit the pragma; that is a
+        //    DIFFERENT emitter whose output was annotated from its first line.
+        //
+        // ⭐⭐ Nullability is not part of delegate compatibility, so the unannotated parameter binds to
+        //    `ResolveParams<TDto>`'s `IHostVariableAccess?` exactly. The annotation's documentation
+        //    value lives on that delegate's own declaration, where a reader will look for it.
+        parts.Add("global::Fdp.Toolkit.Behavior.IHostVariableAccess host");
+
+        e.WriteLine($"public static {returnType} {graph.Name}({string.Join(", ", parts)})");
+        e.WriteLine("{");
+        e.Indent();
+
+        EmitGraphBody(e, asset, graph);
+
+        e.Outdent();
+        e.WriteLine("}");
+        e.Ctx.CurrentGraph = null;
     }
 
     /// <summary>Emits the block-by-block body for a graph. Sets CurrentGraph on context.</summary>

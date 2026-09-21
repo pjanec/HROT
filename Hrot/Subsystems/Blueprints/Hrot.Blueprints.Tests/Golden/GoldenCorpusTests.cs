@@ -63,7 +63,9 @@ public sealed class GoldenCorpusTests
         // ⭐ 43 → 44 in the Q43 build: `ParamResolverDemo` is the first asset in the corpus whose only
         //    graph is a `Construction` graph — a parameter resolver authored AS A BLUEPRINT. Before it,
         //    `GraphKind.Construction` had no emitter consumer anywhere and no golden coverage at all.
-        Assert.Equal(44, GoldenCorpus.EnumerateFiles().Count);
+        // ⭐ 44 → 45 in the R4 build: `ResolverWorldReachDemo` — a resolver that REACHES THE WORLD
+        //    (acceptance A3+A4), which no asset could express before.
+        Assert.Equal(45, GoldenCorpus.EnumerateFiles().Count);
     }
 
     // ────────────────────────────────────────────────────────────────────────

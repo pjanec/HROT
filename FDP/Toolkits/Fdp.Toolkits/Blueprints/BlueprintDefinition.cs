@@ -25,27 +25,31 @@ public sealed record BlueprintDefinition
         = new Dictionary<string, LibraryFunctionDelegate>(StringComparer.Ordinal);
 
     /// <summary>
-    /// ⭐⭐⭐ <b><c>Q43-A2′</c> — the asset's <c>Construction</c> graphs, keyed by graph name.</b>
-    /// 📄 <c>Architect_Question_43</c> §5 <c>A2′</c> · <c>Behavior_Parameter_Resolver_Detailed_Design.md</c> §8.1.
+    /// ⭐⭐⭐ <b><c>Q43-A2′</c> + <c>R4</c> — the asset's <c>Construction</c> graphs, keyed by graph name.</b>
+    /// 📄 <c>DESIGN_Resolver_World_Reach.md</c> §7.1 · <c>Architect_Question_43</c> §5 <c>A2′</c>, §8.6.
     ///
     /// <para>
-    /// ⭐⭐ <b>Same delegate type as <see cref="Functions"/> — ONE invocation mechanism</b> (ruling 9).
-    /// ⛔ A SEPARATE INDEX, because the graph KIND is what says <i>"this one is a resolver"</i>:
-    /// <c>Q43-A3</c> rejected <i>"a Library function plus an unchecked naming convention"</i>, and a
-    /// caller that had to pick a resolver out of <see cref="Functions"/> by convention would be exactly
-    /// that. ⇒ a binding site can only name something the compiler has already classified as
-    /// <c>Construction</c> and validated for purity (<c>BP1675</c>–<c>BP1677</c>).
+    /// ⛔⛔ <b>A SEPARATE INDEX from <see cref="Functions"/>, and now a different TYPE too.</b> The graph
+    /// KIND is what says <i>"this one is a resolver"</i>: <c>Q43-A3</c> rejected <i>"a Library function
+    /// plus an unchecked naming convention"</i>, and a caller picking a resolver out of
+    /// <see cref="Functions"/> by convention would be exactly that.
+    /// </para>
+    ///
+    /// <para>
+    /// ⚠ <b>This shipped as <c>LibraryFunctionDelegate</c> on <c>2026-09-21</c> and was WRONG</b> — see
+    /// <see cref="BlueprintResolverEntry"/>'s header for the measurement: that delegate carries no
+    /// <c>IHostVariableAccess</c>, so a resolver published through it silently loses <c>host</c>.
     /// </para>
     ///
     /// <para>
     /// ⚠ <b>"Runs once at setup" is the MEANING, not "resolves params".</b> <c>Q43-A2′</c> is explicit
-    /// that <c>Construction</c> must not be squatted on: on a Library asset such a graph resolves
-    /// parameters; on an Instance asset the same shape would configure the instance. ⇒ this table says
-    /// only WHAT the graphs are, never what a caller does with them.
+    /// that <c>Construction</c> must not be squatted on; ⭐ <c>R-149</c> settles it properly — the ROLE
+    /// is assigned by the params region's own selection PROPERTY, never by the graph kind. ⇒ this table
+    /// says only WHAT the graphs are, never what a caller does with them.
     /// </para>
     /// </summary>
-    public IReadOnlyDictionary<string, LibraryFunctionDelegate> Resolvers { get; init; }
-        = new Dictionary<string, LibraryFunctionDelegate>(StringComparer.Ordinal);
+    public IReadOnlyDictionary<string, BlueprintResolverEntry> Resolvers { get; init; }
+        = new Dictionary<string, BlueprintResolverEntry>(StringComparer.Ordinal);
 
     // ── Parameters (DESIGN_Parameter_Model.md §3.3) ──────────────────────────
     //

@@ -3863,7 +3863,16 @@ internal sealed class GraphScheduler
     /// </summary>
     private (bool AppendSelf, bool AppendView) ResolveFunctionCallTrailingContext(FunctionCallNode fc)
     {
-        if (_typed.Asset.Dispatch == AssetDispatchKind.Library)
+        // ⭐⭐⭐ R4 — the gate is per-GRAPH, not per-ASSET. 📄 DESIGN_Resolver_World_Reach.md §4.
+        //
+        // A Library asset's Function graphs are still stateless static methods with no self/view in
+        // scope, so appending either would emit an undefined identifier — that is the case below.
+        // ⛔ But a CONSTRUCTION graph on the same asset is a parameter RESOLVER, and LibraryEmitter
+        // now emits it with `(…, world, self, host)`. ⇒ it must take the normal trailing-context path,
+        // or the CLR escape hatch (the route the geo-authored motivating case needs) stays unreachable
+        // exactly where R4 exists to open it.
+        if (_typed.Asset.Dispatch == AssetDispatchKind.Library
+            && _graph.Kind != GraphKind.Construction)
             return (false, false);
 
         // P7.1 -- baked decision wins over reflection; no reflection attempted at all.

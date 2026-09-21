@@ -277,11 +277,11 @@ internal sealed class CSharpEmitter
         var constructionGraphs = asset.Graphs.Where(g => g.Kind == IrGraphKind.Construction).ToList();
         if (constructionGraphs.Count > 0)
         {
-            WriteLine("Resolvers = new global::System.Collections.Generic.Dictionary<string, global::Fdp.Toolkit.Blueprints.LibraryFunctionDelegate>(global::System.StringComparer.Ordinal)");
+            WriteLine("Resolvers = new global::System.Collections.Generic.Dictionary<string, global::Fdp.Toolkit.Blueprints.BlueprintResolverEntry>(global::System.StringComparer.Ordinal)");
             WriteLine("{");
             Indent();
             foreach (var g in constructionGraphs)
-                EmitLibraryFunctionAdapter(className, g);
+                EmitResolverEntry(className, g);
             Outdent();
             WriteLine("},");
         }
@@ -358,6 +358,45 @@ internal sealed class CSharpEmitter
 
         Outdent();
         WriteLine("},");
+    }
+
+    /// <summary>
+    /// ⭐⭐⭐ <b><c>R4</c> — publishes one <c>Construction</c> graph as a typed
+    /// <c>ResolveParams&lt;TDto&gt;</c>.</b> 📄 <c>DESIGN_Resolver_World_Reach.md</c> §4, §7.1.
+    ///
+    /// <para>
+    /// ⭐⭐ <b>No marshalling, and that is the saving.</b> <see cref="EmitLibraryFunctionAdapter"/>
+    /// blits its arguments through two byte spans because <c>LibraryFunctionDelegate</c> is untyped.
+    /// ⛔ A resolver does not need that: <c>BP1677</c> guarantees the graph's input and output are the
+    /// SAME declared type, so the emitted method already has the exact shape
+    /// <c>ResolveParams&lt;TDto&gt;</c> wants — the lambda just unrolls <c>ref</c> into an assignment.
+    /// </para>
+    ///
+    /// <para>
+    /// ⚠ <b>Why a lambda and not a method group.</b> The emitted resolver RETURNS the DTO (a graph's
+    /// output is a return value), while <c>ResolveParams&lt;TDto&gt;</c> writes through <c>ref</c>.
+    /// ⭐ <c>BlueprintResolverEntry.For&lt;TDto&gt;</c> supplies the target type, so the lambda needs no
+    /// cast and the generated code stays one expression per resolver.
+    /// </para>
+    /// </summary>
+    private void EmitResolverEntry(string className, IrGraph graph)
+    {
+        // ⛔ BP1677 refuses anything else at Stage 2, and a fatal validation error stops the pipeline
+        //    before emit — so this cannot be reached with a malformed signature. Guarded anyway: an
+        //    emitter that indexes [0] on an empty list would crash the SOURCE GENERATOR, which reports
+        //    far worse than a diagnostic.
+        if (graph.Inputs.Count != 1) return;
+
+        string dto = LibraryEmitter.CSharpType(graph.Inputs[0].Type);
+
+        WriteLine($"[\"{graph.Name}\"] = global::Fdp.Toolkit.Blueprints.BlueprintResolverEntry.For<{dto}>(");
+        Indent();
+        WriteLine($"static (ref {dto} __dto, global::Fdp.Core.EntityRepository __world, " +
+                  "global::Fdp.Core.Entity __self, " +
+                  // ⚠ unannotated for the same CS8669 reason LibraryEmitter documents.
+                  "global::Fdp.Toolkit.Behavior.IHostVariableAccess __host) =>");
+        WriteLine($"    __dto = {className}.{graph.Name}(__dto, __world, __self, __host)),");
+        Outdent();
     }
 
     private void EmitAiPrimitiveRegistration(string className, IrAsset asset)

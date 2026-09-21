@@ -275,7 +275,8 @@ public sealed class CorpusCanonicalisationTests
     {
         // ⭐ 42 → 43 in Batch 60: `LayoutAlignmentWitness` (PA-14) — see EmittedStateLayoutTests.
         // ⭐ 43 → 44 in the Q43 build: `ParamResolverDemo`, the first Construction-graph asset.
-        Assert.Equal(44, GoldenCorpus.EnumerateFiles().Count);
+        // ⭐ 44 → 45 in the R4 build: `ResolverWorldReachDemo`.
+        Assert.Equal(45, GoldenCorpus.EnumerateFiles().Count);
         Assert.Equal(16, RecipeFiles().Count);
     }
 }
