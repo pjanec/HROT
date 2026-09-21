@@ -16,7 +16,10 @@
 > 📄 [`Architect_Question_43`](Architect_Question_43_Blueprint_Authored_Param_Resolver.md) owns the
 > **blueprint-authored** resolver — it details `G2`/`R1`–`R5`, and its §8 supersedes §8.3's `R3`
 > avoidance below · 📄 [`DESIGN_Occurrence_Scoped_Storage.md`](DESIGN_Occurrence_Scoped_Storage.md)
-> §28 owns **where a resolved DTO lands** (the occurrence slot), which this document predates.
+> §28 owns **where a resolved DTO lands** (the occurrence slot), which this document predates. ·
+> 📄 [`DESIGN_Resolver_World_Reach.md`](DESIGN_Resolver_World_Reach.md) **BUILDS `R4`** from §8.1 below
+> and settles `R5`'s signature — ⭐ it picks the *"adapter-supplied service arguments"* shape and
+> explicitly **refuses** the *"small read-singleton node"* alternative, with the measurement.
 
 > **Status:** design draft (2026-07-13) — resolves the "how do JSON-authored behaviors parse/post-process parameters without a curated `AiBehaviorFactory`" question. Describes the **future state**; no code has been written for it yet. Supersedes the ad-hoc, factory-injected `ParseParams` closure model.
 > **Scope:** how a behavior (BTree or HSM, hardcoded or JSON-authored) declares its authored parameters, its runtime-usable parameters, and an optional **resolver** that bridges the two; how the resolver runs exactly once at activation; how behaviors register and are referenced **by name**; and the end-to-end authoring workflow. Does **not** re-specify blackboard bin-packing, variable roles/scopes, or blueprint compilation — those are owned by the docs cited below.
@@ -240,7 +243,7 @@ Verified against code on branch `claude/hill-attack-json-slice-3-7fbaf4` (2026-0
 | **R1** | A resolver **delegate type** + a `Functions` table on `BlueprintDefinition` | Mechanical | Copy the existing `EventHandlers` dict pattern (`Fdp.Toolkits/Blueprints/BlueprintDefinition.cs:19-20`); `TickDelegate`'s `(Span<byte>, ISimulationView, Entity, float)` shape (`BlueprintDelegates.cs:11-37`) is the template. |
 | **R2** | Emit **registration** for Library functions (populate that table) | Mechanical | `LibraryEmitter` already emits deterministically-named static methods; add a registrar loop mirroring the Instance `EventHandlers` emission. Today `EmitLibraryRegistration` stops at a bare marker (`Hrot.Blueprints.Compiler/Emit/CSharpEmitter.cs:194-205`, `StateSize=0`, no delegate). |
 | **R3** | **Struct/DTO-typed** graph inputs/outputs | Hard (architectural) | `StaticTypeRegistry` is a fixed scalar/vector/Entity list; Library assets are barred from declaring variables (`Stage2_Validate.cs:95-97`, BP1011). **Avoided by §8.3.** |
-| **R4** | **World-singleton reach** from a function (geo transform, entity map) | Medium | `NetworkEntityMap` already uses `SetSingletonManaged` (`Hrot.SimHost/SimHostApp.cs:482`); **geo transform does not** (passed by ref — gap G3). `ISimulationView` exposes no singleton accessor, but the compiler already downcasts `((EntityRepository)view)` (`EmissionContext.cs:71-74`), so the runtime accessor exists; no blueprint *node*/IR op reads a singleton yet. |
+| **R4** ⭐ **DESIGNED `2026-09-21` — [`DESIGN_Resolver_World_Reach.md`](DESIGN_Resolver_World_Reach.md)** | **World-singleton reach** from a function (geo transform, entity map) | Medium | `NetworkEntityMap` already uses `SetSingletonManaged` (`Hrot.SimHost/SimHostApp.cs:482`); **geo transform does not** (passed by ref — gap G3). `ISimulationView` exposes no singleton accessor, but the compiler already downcasts `((EntityRepository)view)` (`EmissionContext.cs:71-74`), so the runtime accessor exists; no blueprint *node*/IR op reads a singleton yet. |
 | **R5** | **Invocation shim** in `BehaviorIngressSystem` | Small | Known seam (`BehaviorIngressSystem.cs:~119`), replaces the 2-arg `def.ParseParams(json, dst)` (`:96`); depends on R1–R4. |
 
 ### 8.2 Editor work (decomposes G7)

@@ -26,6 +26,8 @@ related-designs:
   - DESIGN_Occurrence_Scoped_Storage.md - owns WHERE a resolved DTO lands (28, 28.7); this
     question owns WHO computes it.
   - Architect_Question_41... - owns the per-VARIABLE resolver selection (C1'/C2') this details.
+  - DESIGN_Resolver_World_Reach.md - owns what a resolver graph can REACH (R4) and SETTLES the
+    publishing currency this question's section 8.4 shipped as provisional.
 -->
 # ⭐ Architect Question 43 — **a parameter resolver authored AS A BLUEPRINT**
 
@@ -293,3 +295,15 @@ convention."* ⛔ One delegate type (ruling 9 — one invocation mechanism), two
 | **`MacroCallNode` is DENIED** | ⛔ macros expand at Stage 5, AFTER this Stage-2 check, so an allowed macro could smuggle in any denied node |
 | ⛔ **§6's step 2 — the C# resolver picker — was SKIPPED** | 🔒 the UI lane is held by the user *(`2026-09-21`)* until the `ui` branch is integrated. ⭐ It was a de-risking step, not a hard dependency: resolvers register in CODE for now |
 | ⛔ **NO BINDING YET** | ⚠ nothing yet says *"behaviour X's params are refined by resolver Y.Z"*. `Resolvers` is a producer whose consumer is the next slice — ⭐ and that is exactly the `Functions`-shaped orphan this document should not repeat, so it is named here rather than left implicit |
+
+### 8.6 ⛔⛔ `2026-09-21` — **THE `Resolvers` CURRENCY IS SUPERSEDED**
+
+📄 **[`DESIGN_Resolver_World_Reach.md`](DESIGN_Resolver_World_Reach.md) §7 settles it.** §8.4 above
+shipped `Resolvers` typed as `LibraryFunctionDelegate`, which was **provisional and is wrong for three
+of the five supply paths**: 📐 that delegate carries no `IHostVariableAccess`, so a resolver published
+through it **silently loses `host`** — the one capability `Q41-C1′`/`E7a` exist to provide.
+
+⭐ The measured currency is **`ResolveParams<TDto>`**, the only shape that fits all five *(the hosted
+path has no JSON, so `ParseParamsDelegate` cannot serve it; every consumer knows `TDto` at its call
+site, so erasure in the table is free)*. ⚠ **Do not build a binding onto §8.4's table** — build `R4`
+first, which is what decides the signature.
