@@ -124,6 +124,40 @@ name left null, the registered-name check does not fire.
 | ⚠ **the numeric bypass is UNEXERCISED** | 🔒 `HsmBridgeEmitCore.cs:195`'s own words: *"used by neither shipped asset."* ⇒ **it may have rot of its own** — budget for that, and treat a failure there as a finding about the bypass, not about the seam |
 | ⚠ **two smaller risks to name** | ⭐ `(ushort)BlueprintId` truncates a GUID hash, so it could collide with a name-hashed action id in the same asset — **`BHU_020` is the rail that ranges over the final id set**; and hand-editing `.hsm.json` **moves the HSM goldens** *(`HsmGoldenCorpusTests`)*, so canonicalise deliberately |
 
+## ⭐⭐⭐ THE PATH — **from here to (a) a multi-region parallel action-with-params RAIL and (b) retiring `BrainBlackboard`** *(user asked `2026-09-21`)*
+
+⚠ **They are far apart. The rail is 2 steps away; the retirement is 4 and crosses a DECLINED item.**
+⭐ Stated as one ordered path so the distance is visible rather than implied.
+
+### ⛔⛔ First, the measurement that resizes the retirement — **`BrainBlackboard.BehaviorParameters` has THREE roles, and `E5a` names TWO**
+
+| # | role | sites |
+|---|---|---|
+| ① | **the ROOT behaviour's LIVE params home** *(read)* | `AiPrimitiveEmitter.cs:425,607` · `HsmBridgeEmitCore.cs:243` · `JoinFormationExecutor.cs:92` · `PredicateCompiler.cs:357` |
+| ② | **the SEED SOURCE** every hosted occurrence copies from on first attach *(read)* | `AiPrimitiveEmitter.cs:461`, inside the `freshlyAttached` arm |
+| ③ | 🔴 **the INGRESS COMMIT TARGET** *(write)* — **newly named `2026-09-21`; `E5a` did not list it** | `BehaviorIngressSystem.cs:113` memcpys the parse shadow into the live component |
+
+⇒ ⭐⭐ **Retirement re-homes all three.** ⭐ The root occurrence answers ① and ③ *(it becomes the params home AND what ingress writes into)*. ⚠⚠ **② is the subtle one**: `SeedParamsOffset` returns an offset **into the packed blackboard variable layout**, so the root occurrence's slot must carry that same layout for the seed to keep meaning what it means. ⛔ **That is a design question nobody has answered**, and it is not in the root occurrence's 136-ref estimate.
+
+### ⭐ The ordered path
+
+| step | what | gate to the next | state |
+|---|---|---|---|
+| **`P0`** ✅ **DONE `2026-09-21`** | ⭐ **the SEAM carries a hand-authored resolver's values to two regions** — rail `O7_R36` in `HsmOccurrenceKeyTests`, driven by a real `HsmKernel.Update` tick, red-proved exactly *(binding both states to offset 0 reddens only it)* | — | ✅ |
+| **`P1`** ⭐⭐ **NEXT, and CHEAP** | ⭐⭐⭐ **the rail the user asked for, with a REAL action** — two regions, parallel, each calling an action **with params**, via the **numeric `entryActionId` bypass** onto a blueprint AiPrimitive *(recipe above)*. ⛔ `P0`'s thunk is a recording stub; this one is a real emitted action | ⚠ if the **unexercised** bypass has rot, that is a finding about the bypass — ⛔ not a reason to stop | ⛔ **not started** |
+| **`P2`** ⭐⭐ **`D2`/`O7`** | the **curated** `[SharedAiAction]` half — ⭐ **ONE indivisible slice** *(author the DTO-bound subject ⇒ tripwire reddens ⇒ convert `HsmActionGenerator` to `SeedParamsOffset` ⇒ move the baseline entry)*. ⭐ **This CLOSES `BP-297`** and is the last thing standing between a hand-authored action-with-params and the occurrence model | ⭐ `P1`'s rail re-pointed at the curated action is `P2`'s acceptance | ⛔ **open, designed, unblocked** |
+| — | 🔒 **`(b)` DIVERGES HERE.** ⭐⭐ **After `P2` the COLLISION is gone and `BrainBlackboard` is no longer a hazard — it is merely a SEED BUFFER.** ⛔ Everything below is about **deleting a component**, which buys tidiness, not correctness | | |
+| **`P3`** ⛔⛔ **THE DECLINED ITEM** | **the ROOT OCCURRENCE** — roles ① and ③ move into a slot | 🔴 **no task row; deliberately deferred** *("136 refs / 17 files for uniformity, not capability … revisit only if `O8` forces it")*, and `O8` is itself blocked on the dispatch fix. ⚠ **Re-price before trusting the 136** — it predates `E3a`/`O7d`/`E8a` | ⛔ **declined** |
+| **`P3a`** ⚠ **UNANSWERED** | **where the SEED layout lives** once ② has no blackboard — the root occurrence's slot must carry the packed variable layout `SeedParamsOffset` indexes into | ⛔ **needs a design pass; it is NOT inside `P3`'s estimate** | ⛔ **unowned** |
+| **`P4`** | **`E5a`** — delete the component and sweep the readers | ⭐ mechanical once `P3`+`P3a` land | ⛔ blocked |
+
+| ⭐⭐⭐ the two answers, plainly | |
+|---|---|
+| ⭐ **the RAIL** *(a)* | **`P1`** — one asset edit, no new C#, no tripwire tripped. ⭐⭐ **Then `P2` makes it a HAND-AUTHORED action**, which is the full form of the user's requirement |
+| ⛔ **the RETIREMENT** *(b)* | **`P3` + `P3a` + `P4`** — and `P3` is **declined**, `P3a` is **unowned**. ⇒ 🔒 **it is not on the current plan.** ⭐ **Re-opening it needs a decision on its own merits, not a wait for `O8`** — ⚠ and the honest case for it got WEAKER, not stronger: after `P2` the component is a seed buffer, not a hazard |
+
+---
+
 ### Increment E — composition
 
 | # | task | success condition | owning chapter |
@@ -228,7 +262,7 @@ regions running the same action address the same bytes**."*
 | | |
 |---|---|
 | ⭐⭐ **the COLLISION** — a params region addressed by a baked compile-time offset | ⛔ **a CAPABILITY defect**, not uniformity. ⭐ It has its **own open item — `D2`/`O7`** *(closes `BP-297`/`E3`)*, and its design is **finished and waiting**: `Architect_Question_35` *(RESOLVED)* + `DESIGN_Hsm_Storage_Model.md` §3. ⛔⛔ **It is NOT gated on the root occurrence** |
-| ⭐ **the DELETION** — removing the component | ⭐ that is `E5a`, and it IS gated on the root occurrence, which is deferred below |
+| ⭐ **the DELETION** — removing the component | ⭐ that is `E5a`, and it IS gated on the root occurrence, which is deferred below. 📄 **The full ordered path — `P0`…`P4` — is in *"THE PATH"* above**, including a **third** role of `BehaviorParameters` that this row never named *(the ingress commit target)* and an **unowned** design question `P3a` *(where the seed layout lives)* |
 
 ⚠⚠ **And the liveness must be stated honestly in BOTH directions — the defect is REAL but LATENT.**
 📐 Measured `2026-09-21`: ⭐ the **blueprint** path was fixed by `E3a` *(the thunk reads
