@@ -22,7 +22,24 @@ current-answer: §3 — ⭐⭐ THE NEXT ACTION IS O7c. O7 is SLICED (design §24
   ⚠ TRAP WORTH KEEPING: emitting the AssetId const unconditionally moved 11 golden baselines for
   assets that cannot use HSM hosting; gating it on Hostings.Contains(HsmAction|HsmGuard) returned all
   11 to byte-identical. An emitter addition must be gated on the feature that needs it.
-  ⛔ STILL OPEN: O7b-3 (eager manifest entries for typed labels — needs HsmEmitCore to resolve an
+  🔴 CE-298 (user, 2026-09-21): PARAMS ARE STILL PER-ENTITY — O7b closed working state only. The
+  HSM thunks and the standalone BTree @0 thunk project params at BehaviorParameters[0] + 0, which
+  DESIGN_Parameter_Model.md §4.1 calls a "live race" for concurrent regions. Fix is two halves that
+  MUST land together: (1) slot payload becomes [Params N][WorkingState M]; (2) something must WRITE
+  each occurrence's params — nothing does today and IHostVariableAccess has zero implementers (E7a).
+  Storage without supply is a REGRESSION (zeroed params instead of the behaviour's authored ones).
+  🔴 O7d: the standalone BTree thunks (AiPrimitiveEmitter:360/:398) STILL use Blackboard1024 + 8 —
+  the same one-per-entity shape as BP-297, for 42 shipped assets (33 BTreeAction + 9 BTreeCondition).
+  ⚠ CORRECTION: "the BTree hosting path has been occurrence-keyed since S2" is TRUE of the bridge
+  per-node adapters and FALSE of the standalone @0 thunks.
+  ⭐ RETIRING Blackboard1024 (the LEGACY one, NOT BlueprintBlackboard*): it is already on ZERO
+  production entities — both AddComponent sites are gated on HeavyDtoType, which nothing ever sets
+  (both editor mappers hard-write null). Order: O7d first, then the HeavyDtoType-gated consumers
+  (translator, renderer, view provider, replay drawers), then WorkingStateLayout / the registration /
+  the GlobalComponentIds entry / the BlueprintDebugSession legacy fallback.
+  ⛔ STILL OPEN: O7b-3 (eager manifest entries — NOT for labels, which are already derived and typed;
+  its real value is TIER CAPACITY. And the join can be done at RUNTIME by walking the HSM blob's
+  per-state action ids against the blueprint registry, so HsmEmitCore never learns about blueprints) — needs HsmEmitCore to resolve an
   action name to a blueprint, a cross-asset dependency) and
   O7c (delete BrainHsm*, F9's tick-system reshape) — L, 188 refs across 18 production files.
   O4, O5 and O6 are all DONE. O6 — the single ExtDeps crossing — landed 2026-09-20: as-built in

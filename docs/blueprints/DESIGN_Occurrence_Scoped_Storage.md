@@ -3125,7 +3125,7 @@ which is what *"properly decoded into readable state"* asks for.
 
 | | |
 |---|---|
-| **emitter** | both HSM thunks call `HsmOccurrence.KeyFor` + `ResolveOrAttach` ⇒ **`BP-297`/`E3` closed**; params moved to `BrainBlackboard.BehaviorParameters[0]` ⇒ **`CE-297` fixed** |
+| **emitter** | both HSM thunks call `HsmOccurrence.KeyFor` + `ResolveOrAttach` ⇒ **`BP-297`/`E3` closed** for WORKING STATE; params moved off the kernel's instance pointer onto `BrainBlackboard.BehaviorParameters[0]` ⇒ **`CE-297` fixed**. ⛔⛔ **But that region is PER-ENTITY, and `DESIGN_Parameter_Model.md` §4.1 rules it a *"live race"* for concurrent HSM regions** — filed as **`CE-298`**, see §25.6 |
 | ⭐ **gated emission** | the `AssetId` literal is emitted **only** for assets declaring HSM hosting — ⛔ unconditional emission moved **11** Tier-2 golden baselines; gating returned all 11 to byte-identical |
 | **inspector** | `CaptureAiPrimitiveState` walks the store for every slot of this asset, labels each `Region N / State M`, and decodes it. ⭐ The legacy `Blackboard1024 + 8` path remains as a fallback, so nothing un-migrated goes dark |
 | ⭐⭐ **one decode loop** | four near-identical copies *(two readers × two arms)* collapsed into `DecodeStateFields` — ruling 9 |
@@ -3146,3 +3146,34 @@ which is what *"properly decoded into readable state"* asks for.
 | ⛔ **eager manifest entries** *(`O7b-3`)* | would give the inspector typed labels from the manifest instead of derived ones, and would size the tier for hosting sites. ⚠ Needs `HsmEmitCore` to resolve an action name to a blueprint — a cross-asset dependency, and its own slice |
 | ⛔ **`O7c`** | `BrainHsm*` deleted, instances into slots, `F9`'s tick-system reshape — **188 references across 18 production files** |
 | ⚠ **the corpus still barely exercises this** | **1** asset declares `HsmAction`, **0** declare `HsmGuard` ⇒ the golden shows `O7b` **broke nothing**; the rails and the red-proof are what show it WORKS |
+
+
+### 25.6 🔴🔴 `CE-298` — **PARAMS ARE STILL PER-ENTITY. `O7b` CLOSED HALF THE PROBLEM.**
+
+🔒 **User, `2026-09-21`:** *"how can they live there and not in occurrence slot? If there are two btrees
+running in parallel, each with its own params, or two actions running from hsm regions, each having its
+params, they can not share same single place."* ⭐ **Correct, and the design said so first.**
+
+📄 `DESIGN_Parameter_Model.md` §4.1 — the HSM row reads **⛔ *"per-behaviour, and concurrent ⇒ a live
+race"***; §4.2 concludes ***"give each occurrence its own params region and tick it against that"***;
+§4.4 adds ***"the params-base change folds into the same seam."*** ⇒ ⛔ **`O7b` built that seam and used
+it for working state only.**
+
+📐 **Measured per path:**
+
+| path | params address | |
+|---|---|---|
+| BTree **bridge** per-node adapter | `BehaviorParameters[0] + baked NODE offset` *(bin-packed, `{fqn}@{offset}`)* | ✅ distinct nodes, distinct bytes |
+| **HSM** thunks *(as shipped by `O7b`)* | `BehaviorParameters[0] + 0` | ⛔ two regions of one asset SHARE params |
+| **standalone BTree `@0`** thunk | `BehaviorParameters[0] + 0` | ⛔ same |
+
+⚠ **`CE-297` was still an improvement** — the HSM thunks previously read the kernel's `InstanceHeader`
+as `Params`. ⛔ **The pointer is right now; the region is not.**
+
+⭐ **The fix is two halves, and shipping ① alone is a REGRESSION:**
+
+| | |
+|---|---|
+| **① storage** | the slot payload becomes `[Params N][WorkingState M]`, mirroring the Instance payload's `[Cursor 16][Params N][State M]`. ⭐ Every `[SharedAiAction]` thunk keeps working **unchanged** — a DTO's field offsets are relative to the struct base (§4.2) |
+| **② supply** | 📐 measured: **nothing parses params for a hosted occurrence**, and **`IHostVariableAccess` has ZERO implementers** ⇒ this is `E7a`/`G1` |
+| ⛔⛔ **why together** | ① alone gives each occurrence its own **zeroed** params region, where today it at least reads what the behaviour authored. **Worse than the defect.** ⚠ Same lesson as `O7b-1`/`O7b-2` |
