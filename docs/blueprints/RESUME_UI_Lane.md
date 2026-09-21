@@ -110,6 +110,12 @@ uses it. **No signature change.** ⚠ It closed no divergence that exists today 
 a chameleon)* — it closed one that was **one concrete row away**, i.e. the first pinned view: the
 designer would have watched one entity go yellow while another was written. ⭐ Red-proved.
 
+✅ **THE GATE ROW `9bb950bb7` DEFERRED IS NOW IN: `Hrot.Blueprints.Tests` 3968 passed / 0 failed / 18
+pre-existing skips.** ⭐ The total moved `3984 → 3986` — **exactly the two rails `CE-305` added**, which
+is the check that matters: ⛔ a suite whose total did not move would mean the new rails never ran.
+⚠ That commit's message says the run was still going and that the result would be *reported, not
+assumed* — this is that report, put where `git log` can find it.
+
 ⛔ **NEXT, and nothing is in flight:** `CE-302` / `CE-303` *(convert `EntityBlueprintsManagedWindow` and
 `BlueprintRuntimeInspectorPane` into details-panel views with pinning)*. ⚠ **They still own one piece
 `CE-305` could not do**: the live-value PROVIDERS are asset-scoped, not row-scoped, so a pinned view
