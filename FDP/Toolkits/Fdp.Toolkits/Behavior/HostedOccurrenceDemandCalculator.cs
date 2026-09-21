@@ -19,10 +19,15 @@ namespace Fdp.Toolkit.Behavior;
 ///
 /// <para>⭐⭐ <b>And the truncation is SAFE, measured <c>2026-09-21</c>:</b> across <b>85</b> distinct
 /// blueprint assets there are <b>85</b> distinct low-16 values — zero collisions — and
-/// <c>HsmDispatcherIdAnalyzer</c> raises <c>BHU020_DuplicateDispatcherId</c> on a collision, so it is a
-/// BUILD ERROR rather than a silent alias. ⚠ The analyzer sees one compilation; two blueprints in
-/// different assemblies could collide there — ⛔ but they also never share a dispatcher table, so the
-/// collision cannot occur where it would matter.</para>
+/// <c>HsmDispatcherIdAnalyzer</c> raises <c>BHU020_DuplicateDispatcherId</c> on a collision, so
+/// <b>within one compilation</b> it is a BUILD ERROR rather than a silent alias.</para>
+///
+/// <para>🔴🔴 <b>But NOT across assemblies, and that is filed as <c>CE-299</c>.</b>
+/// <c>HsmActionDispatcher</c>'s tables are <c>private static readonly Dictionary&lt;ushort, IntPtr&gt;</c>
+/// — <b>process-global</b> — and <c>RegisterAction</c> is a plain indexer assignment ⇒ <b>silent
+/// last-writer-wins</b>. ⚠ <b>For SIZING that is harmless</b>: <see cref="BuildActionIdIndex"/> takes
+/// the LARGER of a colliding pair, so the store stays big enough either way. ⛔ The hazard is the
+/// DISPATCH — the wrong thunk runs — and that is <c>CE-299</c>'s, not this type's.</para>
 ///
 /// <para>⚠ <b>What this CANNOT know, stated plainly.</b> The occurrence KEY needs the region slot the
 /// kernel picks at runtime, so this computes a SIZE and never a manifest. ⇒ the slots still attach
@@ -122,9 +127,10 @@ public static class HostedOccurrenceDemandCalculator
     /// ⭐ The <c>ushort</c> action id → hosted working-state size index, built from the blueprint
     /// registry. ⚠ Built per call: this runs once per behaviour at REGISTRATION, never per frame.
     ///
-    /// <para>⛔ A duplicate low-16 is a build error upstream (<c>BHU020</c>), so a collision reaching
-    /// here would be a compiler-guard failure, not a data condition. ⭐ Taking the LARGER of the two
-    /// keeps the store big enough either way rather than picking arbitrarily.</para>
+    /// <para>⛔ A duplicate low-16 is a build error upstream (<c>BHU020</c>) <b>within one
+    /// compilation</b>; ⚠ <b>across assemblies it is NOT caught</b> — <c>CE-299</c>. ⭐ Taking the
+    /// LARGER of the two is therefore a real defence, not defensive decoration: the store stays big
+    /// enough for whichever thunk actually wins the dispatcher table.</para>
     /// </summary>
     public static Dictionary<ushort, int> BuildActionIdIndex(
         IEnumerable<KeyValuePair<int, BlueprintDefinition>> blueprints)

@@ -3313,10 +3313,24 @@ ANSWERED, two independent ways:**
 | 📐 **measured `2026-09-21`** | the id is `FNV-1a-32` over the asset `Guid`'s bytes *(`BlueprintSignatureParser.cs:41-44`)*. Recomputed over every asset JSON in the tree: **85 distinct assets → 85 distinct low-16 values → 0 collisions** |
 | ⭐⭐ **and it is GUARDED, not merely lucky** | `Fdp.Toolkits.Analyzers/HsmDispatcherIdAnalyzer.cs` raises **`BHU020_DuplicateDispatcherId`** on exactly this, and it **resolves constants**, so blueprint registrations are visible to it |
 
-⇒ ⭐ **A collision is a BUILD ERROR, not a silent alias.** ⚠ The honest limit: the analyzer sees one
-compilation, so two blueprints in **different** assemblies that never meet at compile time would not be
-caught — ⛔ **but they also never share a dispatcher table**, so the collision cannot occur where it
-would matter.
+⇒ ⭐ **Within one compilation, a collision is a BUILD ERROR, not a silent alias.**
+
+> 🔴🔴 **CORRECTION, `2026-09-21`, same day — the sentence that stood here was WRONG.** It read: *"the
+> analyzer sees one compilation … ⛔ but they also never share a dispatcher table, so the collision
+> cannot occur where it would matter."* ⛔⛔ **That second clause was ASSUMED and never measured, and it
+> is FALSE.** 📐 `HsmActionDispatcher.ActionTable`/`GuardTable` are
+> **`private static readonly Dictionary<ushort, IntPtr>`** — **process-global** — and
+> `RegisterAction(ushort id, IntPtr a) => ActionTable[id] = a` is a plain indexer assignment ⇒
+> **silent last-writer-wins, no throw.** Two blueprints in different assemblies with colliding low-16
+> ids **do** share the table and the second **replaces** the first.
+>
+> ⭐ **Filed as `CE-299`** *(cross-assembly dispatcher-id collision is silent)* on the user's ruling:
+> 🔒 *"it is [luck], if not yet resolved it has to be filed as an issue so we do not forget."*
+> ⚠ **The risk is LATENT** — 85 assets, 0 collisions today — ⛔ but at 85 keys in a 16-bit space the
+> birthday probability is already ≈ 5%, so *"0 today"* is a measurement, not a guarantee.
+>
+> ⚠ **What this does NOT change for `O7b-3`:** `BuildActionIdIndex` takes `Math.Max` of a colliding
+> pair, so the STORE stays big enough either way. ⛔ The hazard is the **dispatch**, which is `CE-299`.
 
 ## 27.7 ✅ `O7b-3` PROPER — **THE TIER IS SIZED FOR WHAT THE BEHAVIOUR HOSTS** *(`2026-09-21`)*
 

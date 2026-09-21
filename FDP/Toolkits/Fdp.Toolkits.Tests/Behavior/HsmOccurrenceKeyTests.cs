@@ -785,6 +785,67 @@ public sealed unsafe class HsmOccurrenceKeyTests
             .For(HostingBehaviour(BuildTwoRegionBlob(actionId: 0)), blueprints)!.SlotCount);
     }
 
+    /// <summary>
+    /// 🔴🔴🔴 <b>Rail ㉓ — <c>CE-299</c> DEFECT PIN: the dispatcher table is PROCESS-GLOBAL and a
+    /// re-registration is SILENT LAST-WRITER-WINS.</b>
+    ///
+    /// <para>⛔⛔ <b>This rail asserts the CURRENT WRONG behaviour on purpose.</b> An HSM action id is
+    /// the blueprint id truncated to 16 bits, so two blueprints in DIFFERENT assemblies can collide;
+    /// <c>BHU020_DuplicateDispatcherId</c> only sees one compilation, and
+    /// <c>HsmActionDispatcher.RegisterAction</c> is a plain indexer assignment into a
+    /// <c>private static</c> dictionary. ⇒ the second registration replaces the first, and the wrong
+    /// thunk runs forever.</para>
+    ///
+    /// <para>⭐⭐ <b>It goes RED the day <c>CE-299</c> is fixed</b> — a throw on re-registering an id
+    /// with a DIFFERENT pointer — and whoever fixes it must consciously flip this. ⚠ A SAME-pointer
+    /// re-registration must stay idempotent: <c>ClearAll()</c> + re-register is the hot-reload path,
+    /// and the second half of this rail pins that so the fix cannot break it.</para>
+    ///
+    /// <para>🔒 Filed on the user's ruling (<c>2026-09-21</c>): <i>"it is [luck], if not yet resolved it
+    /// has to be filed as an issue so we do not forget."</i> ⛔ My own claim that the collision
+    /// <i>"cannot occur where it would matter"</i> was assumed, not measured, and was false.</para>
+    /// </summary>
+    [Fact]
+    public void O7_R23_ACollidingDispatcherIdSilentlyReplacesTheFirst_CE299()
+    {
+        const ushort Colliding = 0x0C99;
+        Fhsm.Kernel.HsmActionDispatcher.ClearAll();
+        try
+        {
+            Seen.Clear();
+            Fhsm.Kernel.HsmActionDispatcher.RegisterAction(
+                Colliding, (IntPtr)(delegate* <void*, void*, HsmCommandWriter*, void>)&RecordingStamp);
+
+            // ⛔ THE DEFECT. A DIFFERENT blueprint, same low-16 id, from "another assembly" — and the
+            //    registration is accepted in silence. 🔴 When CE-299 lands this must THROW.
+            Fhsm.Kernel.HsmActionDispatcher.RegisterAction(
+                Colliding, (IntPtr)(delegate* <void*, void*, HsmCommandWriter*, void>)&CapturingAction);
+
+            // ⭐ And it is the SECOND one that now runs — proved by dispatching, not by reading a field.
+            _capturedRegion = -99;
+            var blob = BuildTwoRegionBlob(Colliding);
+            var inst = new HsmInstance128();
+            inst.Header.MachineId = HostMachine;
+            inst.Header.Phase = InstancePhase.Entry;
+            for (int r = 0; r < 4; r++) inst.ActiveLeafIds[r] = 0xFFFF;
+            var ctx = 0;
+            var page = default(CommandPage);
+            Fhsm.Kernel.HsmKernel.Update(blob, ref inst, in ctx, 0.016f, ref page);
+
+            Assert.Empty(Seen);                    // the FIRST thunk never ran…
+            Assert.NotEqual(-99, _capturedRegion); // …and the SECOND one did.
+
+            // ⭐⭐ THE OTHER HALF, and the fix must preserve it: re-registering the SAME pointer is the
+            //    hot-reload path and must stay idempotent.
+            Fhsm.Kernel.HsmActionDispatcher.RegisterAction(
+                Colliding, (IntPtr)(delegate* <void*, void*, HsmCommandWriter*, void>)&CapturingAction);
+        }
+        finally
+        {
+            Fhsm.Kernel.HsmActionDispatcher.ClearAll();
+        }
+    }
+
     // ── helpers ──────────────────────────────────────────────────────────────────
 
     private static Dictionary<int, Fdp.Toolkit.Blueprints.BlueprintDefinition> OneAiPrimitive(
