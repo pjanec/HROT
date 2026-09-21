@@ -5,7 +5,9 @@ doc-type: LANE RESUMPTION for the `behaviors` lane — programme ②, OCCURRENCE
   ⛔ VERIFY against git before acting ("THE LEDGER MAY NOT ASSERT WHAT THE CODE IS").
 updated: 2026-09-21
 build-state: n/a — a resumption snapshot, not a design.
-current-answer: ⭐⭐⭐ READ §0b FIRST (Q43 slice 1 as-built, 2026-09-21), THEN §0a for the
+current-answer: ⭐⭐⭐ READ §0c FIRST (THE PATH P0-P4, 2026-09-21 late) — it supersedes §0b's
+  "next slice" line and names the EXACT next action. THEN §0a for the standing constraints.
+  (previous head) READ §0b FIRST (Q43 slice 1 as-built, 2026-09-21), THEN §0a for the
   standing constraints and holds. §0a's "THE NEXT TASK is Q43" is now PARTLY DONE - §0b says
   which half landed and what the next slice is (the BINDING).
   Everything below §0a is accumulated background: true, dated, and NOT a to-do list.
@@ -321,6 +323,58 @@ python3 scripts/rulings-check.py && python3 scripts/design-digest.py --check
 and ours are `CE-`. Do not quote it as evidence for them.
 
 ---
+
+## 0c. ⭐⭐⭐ THE PATH `P0`–`P4` — **RESUME HERE** *(`2026-09-21`, late; supersedes §0b's "next slice")*
+
+> 🔒 **The goal, in the user's words:** retire `BrainBlackboard` — *"we will retire it unless we find a
+> true need and do not see any. Being part of ABI is no reason, ABI can and must change."*
+> 📄 The ordered path lives in **`PLAN_Occurrence_Storage_Build.md` § "THE PATH"**; the design is
+> **`DESIGN_Occurrence_Scoped_Storage.md` §29** *(read §29.6 and §29.7 — they CORRECT §29.1-29.5)*.
+
+### ⭐ State, verified at `92d242172` on branch `behaviors`
+
+| step | state |
+|---|---|
+| `P0` | ✅ rail `O7_R36` — the seam carries a hand-authored resolver's values to two regions |
+| `P1` | ✅ rail `O7_R37` + golden `HsmTwoRegionParamsDemo` *(corpus 46 → 47)* — a REAL emitted blueprint action, two regions, own params each |
+| `P2` | ✅ **`BP-297` CLOSED** — `HsmTwoRegionCuratedNodes` authored, `EmitSharedAiActionThunk` converted, rail `O7_R38`, baseline moved |
+| `P3` | ⚠ **STEPS 1-2 ONLY, BOTH ADDITIVE** — the key + `RootParamsAccess`, and ingress now ALSO fills a root params slot. ⛔ The blackboard commit **still runs**; nothing has changed behaviourally |
+| `P4` | ⛔ not started — delete the component *(the struct is empty once `P3` completes)* |
+
+### ⛔⛔ THE EXACT NEXT ACTION, in order
+
+| # | | |
+|---|---|---|
+| **1** | **`CE-302`** — make `HostedOccurrenceDemandCalculator` reserve **+1 slot + the params extent** | ⛔ **MUST land before the cut.** Today a behaviour at its slot ceiling just gets `null` and keeps using the blackboard; after the cut that is a hard failure |
+| **2** | **re-anchor the readers** — `bb.BehaviorParameters[0] + X` → `rootSlotBase + X`. ⛔ **No offset arithmetic changes** | `BTreeActionGenerator.cs:700,713,730` · `AiPrimitiveEmitter.cs:461`(seed) `:607`(host ptr) · `JoinFormationExecutor.cs:88` · `PredicateCompiler.cs:354` · the **7 UI readers** |
+| **3** | **the clean cut** — delete the ingress memcpy at `BehaviorIngressSystem.cs:112-119` | ⭐ **`P3-C`, user-approved.** Steps 2+3 land TOGETHER — cutting first blanks every params reader |
+| **4** | **`P4`** — delete `BrainBlackboard`, drop the `ActionRegistry<…>` type parameter, drop 4 vestigial `ref BrainBlackboard` parameters | 📐 no hand-written body changes semantically |
+
+### ⭐⭐ SETTLED — **do not re-litigate**
+
+| | |
+|---|---|
+| **`P3-A`** | ⛔ the root key is **NOT stored**. `BehaviorState.ActiveBehaviorHash` already identifies the behaviour; every key here is COMPUTED ⇒ `ComputeRootParamsKey` |
+| **`P3-B`** | ⭐ the **accessor** (`RootParamsAccess`), and the EMITTERS use it too for the ROOT path. ⛔ Per-SITE occurrences stay inlined — their identity comes from the `writer` stamp |
+| **`P3-C`** | ⭐ **CLEAN CUT**, not dual-write |
+| **`P4`(a)** | ⭐ the **7 UI readers get re-anchored in this programme** — 🔒 the user lifted the lane fence: *"and do UI stuff yourself"* |
+| **perf** | ⭐ **per-tick resolve**, not a persistent cache. The persistent cache is **`CE-301`**, with its measurements |
+
+### ⛔⛔ TRAPS PAID FOR TODAY — **do not re-pay**
+
+| | |
+|---|---|
+| 🔴 **§29.1-29.5 say "SCATTER each state's slice". THAT IS WRONG** | `SeedParamsOffset` returns an offset **INTO** the packed table, so the table must stay **CONTIGUOUS**. §29.6 is the correction: ONE slot, N re-anchorings |
+| 🔴 **`BehaviorParams.cs` ALREADY EXISTS** — it is `G1`'s supply seam *(`ResolveParams<TDto>`, `JsonOptions`, `FromJson`)* | ⛔ I overwrote it with `Write` and the build caught it. The locator is **`RootParamsAccess.cs`**. ⭐ **Check a filename is free before writing** |
+| ⚠ **`TryDetach` does NOT move other payloads** | free list + slot-**TABLE** compaction only. **Only `CopyToLargerTier` moves a payload**, and it is structural ⇒ never mid-tick |
+| ⚠ **`RW-S` is a VALID tracker category** | legend line 14, ~150 rows. `tracker-counts.py`'s `ORDER` omits it — recorded at tracker line 38, tracked by `CE-259at`. ⛔ Do not "fix" the rows |
+| ⚠ **the `ui` lane is MERGED** *(`ca9a84f2e`)* | zero conflicts. ⛔ Do not merge it again; verify with `git merge-base --is-ancestor origin/ui HEAD` |
+
+### ⚠ OPEN ELSEWHERE — not on this path
+
+⭐ **`E8c`** *(the per-variable resolver ref)* — design at `DESIGN_Per_Variable_Param_Resolver.md`,
+**awaiting approval** on `D1-a`+clause four, `D2`, `D3`; `D4` decided, `D5` is `R-149` enforcement.
+⚠ **`CE-300`/`301`/`302`** are filed and open. ⛔ `CE-295` is filed and **must NOT be fixed**.
 
 ## 1. WHERE THE PROGRAMME STANDS
 
