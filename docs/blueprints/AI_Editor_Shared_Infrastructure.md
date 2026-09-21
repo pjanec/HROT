@@ -40,6 +40,9 @@ known-rot: ⚠ this document predates UXI-11 (selection unification, ☑ 2026-09
      global entity selection state … every host"): EntityInspectorPanel.ChainToMap was RETIRED at S-3,
      with its operator toggle. Do not implement §5.4 as written.
 related-designs:
+  - docs/blueprints/DESIGN_Editor_Entity_Selection_Source.md — owns WHERE an AI-editor view gets its
+    entity (unified selection when docked, frozen snapshot when pinned). SUPERSEDES this file's
+    §5.3 (the DDS bridge as ingress) and §5.4 (the per-window ChainToMap toggle).
   - docs/UX/UX_Feature_Selection.md — owns UXI-11: the ECS SelectionState component, the one store, the
     request/notification protocol and the egress. It does NOT own this file's SharedEntitySelection.
 -->

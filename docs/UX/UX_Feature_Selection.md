@@ -147,6 +147,9 @@ known-conflict: none open. ✅ "Who owns selection" is RULED (2026-09-10): the g
   Either an R-134 shape or a deliberate DDS-client architecture — §2.6's last subsection; not measured.
 updated: 2026-09-20
 related-designs:
+  - ../blueprints/DESIGN_Editor_Entity_Selection_Source.md — owns the AI editors' entity cell: how
+    it is fed from THIS design's SelectionChangedNotification, and how a PINNED view stops
+    following. This design does not own that cell.
   - docs/UX/UX_Issues.md — the UXI register; owns the ROW (UXI-11) and its ✅/☑/🟡 state, which this
     design does not carry.
   - docs/UX/UX_Feature_Multi_Select.md — owns UXI-24 multi-select: the SELECTION SET's semantics
