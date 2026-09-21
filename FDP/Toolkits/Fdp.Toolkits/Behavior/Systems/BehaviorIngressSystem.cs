@@ -164,6 +164,37 @@ namespace Fdp.Toolkit.Behavior.Systems
                     EnsureOccurrenceStore(repo, evt.Entity, def, hosted);
                 }
 
+                // ⭐⭐⭐ P3 — THE ROOT BEHAVIOUR'S PARAMS GET THEIR OWN SLOT.
+                //   §29.6: ONE slot holds the WHOLE packed table, exactly as BehaviorParameters does,
+                //   so every per-state seed offset (E3b-0) keeps meaning what it means. ⛔ It is NOT a
+                //   scatter — scattering would destroy that indexing.
+                //
+                // ⚠ It must run AFTER provisioning: the occurrence store is what we attach into, and
+                //   ProvisionStatefulSlots/EnsureOccurrenceStore above is what guarantees one exists.
+                //
+                // ⚠ The blackboard commit above still runs. P3's clean cut (P3-C) removes it once the
+                //   readers are re-anchored; landing the cut before them would blank every params
+                //   reader in one commit.
+                if (def.ParseParams != null)
+                {
+                    int rootBytes = RootParamsAccess.RootParamsBytes(def);
+                    if (rootBytes > 0)
+                    {
+                        byte* rootParams = RootParamsAccess.ResolveOrAttachRoot(
+                            repo, evt.Entity, behaviorId, rootBytes, KindOf(def), out _);
+
+                        // ⛔ A null here means the store had no room. It is NOT silently ignored:
+                        //   the blackboard still carries the params this frame, so behaviour is
+                        //   unchanged — but the root slot is what P3-C will depend on, so the
+                        //   tier demand (CE-302) must keep room for it.
+                        if (rootParams != null)
+                        {
+                            fixed (byte* src = shadow)
+                                Buffer.MemoryCopy(src, rootParams, rootBytes, rootBytes);
+                        }
+                    }
+                }
+
                 // E3a: drop the PREVIOUS assign's lazily-attached hosted occurrences, so their params
                 // re-seed from the JSON just parsed. ⛔ Omitting this makes new JSON a no-op (§28.4).
                 DetachHostedOccurrenceSlots(repo, evt.Entity, def.StatefulWorkingSlots);

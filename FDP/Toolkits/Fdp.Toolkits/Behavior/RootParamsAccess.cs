@@ -130,4 +130,38 @@ public static unsafe class RootParamsAccess
         freshlyAttached = true;
         return store + newOffset;
     }
+
+    /// <summary>
+    /// ⭐⭐ <b>How many bytes this behaviour's root params region occupies.</b>
+    ///
+    /// <para>⭐ The EXTENT of the packed variable table — <c>max(ByteOffset + sizeof(Type))</c> over
+    /// the manifest — not <c>MaxBehaviorParamByteSize</c>. ⛔ Allocating the full 100 bytes for every
+    /// entity would waste most of a slot on the 256 tier, where the whole payload is 176 bytes.</para>
+    ///
+    /// <para>⚠ Falls back to the curated <c>BlackboardLayoutType</c>'s size when there is no manifest
+    /// — that is the shape a hand-registered behaviour has. ⛔ Returns 0 when neither exists, which
+    /// correctly means "this behaviour has no params" rather than "allocate something just in case".</para>
+    /// </summary>
+    public static int RootParamsBytes(BehaviorDefinition def)
+    {
+        if (def is null) return 0;
+
+        var manifest = def.ManagedBlackboardVariables;
+        if (manifest != null && manifest.Count > 0)
+        {
+            int extent = 0;
+            for (int i = 0; i < manifest.Count; i++)
+            {
+                var v = manifest[i];
+                if (v.Type == null) continue;
+                int end = v.ByteOffset + System.Runtime.InteropServices.Marshal.SizeOf(v.Type);
+                if (end > extent) extent = end;
+            }
+            return extent;
+        }
+
+        return def.BlackboardLayoutType != null
+            ? System.Runtime.InteropServices.Marshal.SizeOf(def.BlackboardLayoutType)
+            : 0;
+    }
 }
