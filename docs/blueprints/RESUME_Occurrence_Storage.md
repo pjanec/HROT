@@ -5,8 +5,11 @@ doc-type: LANE RESUMPTION for the `behaviors` lane — programme ②, OCCURRENCE
   ⛔ VERIFY against git before acting ("THE LEDGER MAY NOT ASSERT WHAT THE CODE IS").
 updated: 2026-09-21
 build-state: n/a — a resumption snapshot, not a design.
-current-answer: §3 — ⭐⭐ THE NEXT ACTION IS E3 (E7a + CE-298, together — its prerequisite O7b-3 is
-  now met); after it, O7c. O7 is SLICED (design §24.3):
+current-answer: ⭐⭐⭐ READ §0a FIRST — "NEXT SESSION STARTS HERE" (written 2026-09-21 for an
+  imminent compaction). It names the one next task, its constraint, and what NOT to touch.
+  Everything below §0a is accumulated background: true, dated, and NOT a to-do list.
+  (historic head follows) THE NEXT ACTION WAS E3 (E7a + CE-298) — ✅ BOTH NOW DONE.
+  O7 is SLICED (design §24.3):
   O7a (the key + the lookup) and O7b (the emitter + the inspector) are DONE — 17 rails, three
   red-proofs, 2273/0 and Blueprints 3971/0 with goldens byte-identical.
   ⭐ §24.9's question is RESOLVED: the kernel passes the HSM INSTANCE pointer, so
@@ -192,6 +195,71 @@ RELEARN
 > 🔒 **User, `2026-09-20`: *"you take it from here, you are the one owning the design now."***
 > ⭐ **Nothing is half-finished.** `A1`, `A2`, `A3` and `A4` are committed, pushed and green; the tree
 > is clean. **Increment A is COMPLETE; `B1` and `B2` have landed.** §3 says what is next.
+
+## 0a. ⭐⭐⭐ NEXT SESSION STARTS HERE — *(written `2026-09-21`, pre-compaction)*
+
+> 🔒 **User, `2026-09-21`:** *"then whatever does not require the UI - maybe the Q43? the
+> function/graph param resolver need proper golden tests."*
+
+### ⭐ STATE — verify with `git log --oneline -8` before trusting it
+
+| | |
+|---|---|
+| **branch** | `behaviors` — ⛔ never push elsewhere |
+| **HEAD at writing** | `ea359db16` *(everything below is landed AND pushed)* |
+| **gates at that sha** | `Fdp.Toolkits.Tests` **2297/0** · `Hrot.Blueprints.Tests` **3975/0** (18 skipped) · `Hrot.AiEditor.Generators.Tests` **283/0** |
+| ⚠ **flaky pair, not regressions** | `TransientSpawnTagRails.ATransientEntity…` and `SquadInputsP3Tests.AllReaders_ZeroAlloc…` — the `DEBT-AIB-030` rotating flake (§5 trap ㉗). ⛔ **Re-run before calling either a break** |
+
+### ⭐⭐⭐ THE NEXT TASK — **`Q43`: a parameter resolver authored AS A BLUEPRINT**
+
+📄 [`Architect_Question_43`](Architect_Question_43_Blueprint_Authored_Param_Resolver.md) — **APPROVED IN
+FULL by the user `2026-08-18`, nothing built.** ⭐ Chosen because it needs **no UI**.
+
+| ⭐ the approved answers — ⛔ do NOT re-open them | |
+|---|---|
+| **`A2′`** | the resolver **IS a `GraphKind.Construction` graph**. 📐 Re-measured `2026-09-21`: that member still exists, still maps at `Stage5_Schedule:4837`, and **still has no emitter consumer** ⇒ **zero enum changes, no `StructureHash` impact** |
+| **`B2`** | it fills **any struct type it names**, via `IrOp_MakeStruct` / `IrOp_SetMembers` — 📐 both still have live arms at `StatementEmitter.cs:238/258` |
+| **`C1`** | purity via a **validator arm `V_ResolverPurity`** — no variables, no side-effecting op, writes only the output. ⛔ Not documentation, not a whitelist that rots |
+| **`D`** | it **SEES** the baked+overlaid value: takes the current DTO in, returns it modified |
+| **`F`** | a faulting resolver **THROWS, uncaught** — the ingress already turns that into *"the entity stays on its old behaviour"* |
+
+⭐ **The delta `Q43` names is small and specific:** an **emitter arm for `IrGraphKind.Construction`**, plus
+the validator. ⛔ Everything else already exists.
+
+### 🔴🔴 THE CONSTRAINT THE USER ATTACHED — **PROPER GOLDEN TESTS**
+
+⛔⛔ **This is not a nicety, and §28.6b explains why it is urgent:** 📐 **ZERO assets in the golden
+corpus declare HSM hosting** *(`grep -rl "hsmAction: true\|hsmGuard: true"` over `Snapshots/` ⇒ **0
+files**)*. ⇒ ⚠ **the emitted HSM thunk shape has NO golden coverage at all** — only
+`ThunkEmissionTests`. 🔴 **That is the same blind spot that let `BP-297` ship**, and it is why `E3b-0`
+moved zero goldens while changing the HSM emitter.
+
+⇒ ⭐⭐⭐ **`Q43` must land WITH a golden asset that actually exercises the resolver path** — and,
+while there, **a golden asset with HSM hosting**, which the corpus has never had.
+⚠ Regeneration gotcha: `Golden/` and `Demos/` snapshots are written by **different tests**
+*(`AiPrimitiveEmitGoldenTests` vs `MoveToAndFireDemoTests`)*, so a filter of `Golden` alone leaves
+`Demos/` stale. Use `--filter "…Golden|…EmitMatchesGolden|…DemoTests"` with
+`BLUEPRINT_REGENERATE_SNAPSHOTS=1`.
+
+### ⛔ DO NOT TOUCH — **held by the user**
+
+| | |
+|---|---|
+| ⛔⛔ **anything in `Hrot.Hsm.Editor` / any UI surface** | 🔒 *"with UI related parts let's wait, we will need first to integrate the stuff not yet merged from the ui branch."* ⇒ **`Q41-C2′` (the resolver PICKER) is PARKED**; resolvers register in CODE |
+| ⛔ **`CE-295`** | *"`load_scenario_live` works once per process"* — **filed, and the user said DO NOT FIX** |
+| ⚠ **`CE-299`** | the cross-assembly dispatcher-id collision — **filed, not fixed**; the fix is an ExtDeps crossing needing its own justification |
+
+### ⭐ WHAT JUST LANDED *(context for `Q43`, all in design §§26–28)*
+
+`E-cap` + `O7d` *(§27)* · `O7b-3` tier sizing *(§27.7)* · **`E3a`** params into the slot *(§28)* ·
+**`E3b-0`** an HSM state binds its own variable *(§28.6)* · **`C1′`+`E7a`** the resolve stage runs and
+`IHostVariableAccess` has its first implementation *(§28.7)*.
+
+🔒 **The rule that governed all of them, and will govern `Q43`:** *before moving ANY state, name the
+thing that will ① PROVISION it and ② WRITE its contents. If either is "nothing", it is a REGRESSION*
+*(§26.1)*.
+
+---
 
 ## 0. ⭐ FIRST MOVES
 
