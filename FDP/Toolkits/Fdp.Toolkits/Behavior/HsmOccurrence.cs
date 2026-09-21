@@ -31,8 +31,8 @@ public static unsafe class HsmOccurrence
     /// <summary>
     /// ⭐⭐ The slot key for the occurrence the kernel has just stamped on <paramref name="writer"/>.
     ///
-    /// <para>⭐ <b>The emitter bakes the host and child ids as literals and calls this at runtime</b>,
-    /// because the region and state are only known per dispatch. ⛔ There is exactly ONE key function,
+    /// <para>⭐ <b>The emitter bakes only the CHILD's asset id; the host comes from the instance
+    /// pointer the kernel passes</b>, and the region and state from the stamp — all three per dispatch. ⛔ There is exactly ONE key function,
     /// so a generated thunk and a hand-written host cannot disagree — the same <c>D3</c> rule
     /// <see cref="OccurrenceSlots.TreeStateKeyFor"/> follows.</para>
     ///
@@ -41,9 +41,10 @@ public static unsafe class HsmOccurrence
     /// real occurrence's bytes — a silent cross-occurrence alias, which is the exact failure this model
     /// exists to remove.</para>
     /// </summary>
-    public static int KeyFor(Guid hostAssetId, Guid childAssetId, HsmCommandWriter* writer)
+    public static int KeyFor(void* hsmInstance, Guid childAssetId, HsmCommandWriter* writer)
     {
         if (writer == null) throw new ArgumentNullException(nameof(writer));
+        if (hsmInstance == null) throw new ArgumentNullException(nameof(hsmInstance));
 
         int region = writer->OccurrenceRegionSlotIndex;
         ushort state = writer->OccurrenceStateId;
@@ -55,8 +56,19 @@ public static unsafe class HsmOccurrence
                 "dispatch (O6); reaching here without one means this thunk was invoked outside a " +
                 "kernel dispatch.");
 
-        return Shared.OccurrenceSlotKey.ComputeHsmStateKey(hostAssetId, region, state, childAssetId);
+        // ⭐ The host identity comes from the instance the kernel just handed us — its header carries
+        //   the HSM definition's StructureHash. No literal to bake, no new plumbing (§24.9).
+        uint machineId = ((InstanceHeader*)hsmInstance)->MachineId;
+
+        return Shared.OccurrenceSlotKey.ComputeHsmStateKey(machineId, region, state, childAssetId);
     }
+
+    /// <summary>
+    /// The same key from an explicit machine id — for hand-written hosts and for rails that want to
+    /// state the host rather than construct an instance. ⛔ ONE key function underneath, always.
+    /// </summary>
+    public static int KeyFor(uint hostMachineId, Guid childAssetId, int regionSlotIndex, ushort stateId)
+        => Shared.OccurrenceSlotKey.ComputeHsmStateKey(hostMachineId, regionSlotIndex, stateId, childAssetId);
 
     /// <summary>Payload bytes one HSM-hosted occurrence's working state costs, for a given state type.</summary>
     public static int PayloadSizeOf<TWorkingState>() where TWorkingState : unmanaged

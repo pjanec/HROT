@@ -24,13 +24,13 @@ namespace Fdp.Toolkit.Behavior.Tests;
 /// </summary>
 public sealed unsafe class HsmOccurrenceKeyTests
 {
-    private static readonly Guid HostHsm = new("07000000-0000-0000-0000-0000000000a1");
+    private const uint HostMachine = 0x0700A5E1;   // the HSM definition's StructureHash
     private static readonly Guid Child   = new("07000000-0000-0000-0000-0000000000b1");
 
     private struct DemoWorkingState { public int Counter; public float Elapsed; }
 
     private static int Key(int region, ushort state)
-        => Fdp.Toolkit.Behavior.Shared.OccurrenceSlotKey.ComputeHsmStateKey(HostHsm, region, state, Child);
+        => Fdp.Toolkit.Behavior.Shared.OccurrenceSlotKey.ComputeHsmStateKey(HostMachine, region, state, Child);
 
     /// <summary>
     /// ⭐⭐⭐ <b>Rail ① — THE <c>BP-297</c> CLAIM: region and state each discriminate, on their own.</b>
@@ -69,14 +69,14 @@ public sealed unsafe class HsmOccurrenceKeyTests
     [Fact]
     public void O7_R2_TheKeyDiscriminatesByHostAndByChild()
     {
-        var otherHost = new Guid("07000000-0000-0000-0000-0000000000a9");
+        const uint OtherMachine = 0x0700A5E2;
         var otherChild = new Guid("07000000-0000-0000-0000-0000000000b9");
         int baseline = Key(region: 0, state: 4);
 
         Assert.NotEqual(baseline, Fdp.Toolkit.Behavior.Shared.OccurrenceSlotKey
-            .ComputeHsmStateKey(otherHost, 0, 4, Child));
+            .ComputeHsmStateKey(OtherMachine, 0, 4, Child));
         Assert.NotEqual(baseline, Fdp.Toolkit.Behavior.Shared.OccurrenceSlotKey
-            .ComputeHsmStateKey(HostHsm, 0, 4, otherChild));
+            .ComputeHsmStateKey(HostMachine, 0, 4, otherChild));
     }
 
     /// <summary>
@@ -93,13 +93,13 @@ public sealed unsafe class HsmOccurrenceKeyTests
         var node = new Guid("07000000-0000-0000-0000-0000000000c1");
 
         int hsmKey = Key(region: 0, state: 0);
-        int btreeKey = OccurrenceSlots.TreeStateKeyFor(HostHsm, node, Child);
+        int btreeKey = OccurrenceSlots.TreeStateKeyFor(Child, node, Child);
 
         Assert.NotEqual(hsmKey, btreeKey);
 
         // ⚠ And a site id is never 0 — a 0 host key re-enters ComputeNested's ROOT branch, which
         //   drops the site entirely.
-        Assert.NotEqual(0, OccurrenceSlots.IdentityOf(HostHsm));
+        Assert.NotEqual(0, OccurrenceSlots.IdentityOf(Child));
     }
 
     /// <summary>
@@ -119,7 +119,8 @@ public sealed unsafe class HsmOccurrenceKeyTests
         {
             var page = default(CommandPage);
             var writer = new HsmCommandWriter(&page);
-            try { HsmOccurrence.KeyFor(HostHsm, Child, &writer); }
+            var hdr = new InstanceHeader { MachineId = HostMachine };
+            try { HsmOccurrence.KeyFor(&hdr, Child, &writer); }
             catch (InvalidOperationException ex) { thrown = ex; }
         }
 
@@ -299,7 +300,7 @@ public sealed unsafe class HsmOccurrenceKeyTests
     {
         _capturedRegion = writer->OccurrenceRegionSlotIndex;
         _capturedState = writer->OccurrenceStateId;
-        _capturedKey = HsmOccurrence.KeyFor(HostHsm, Child, writer);
+        _capturedKey = HsmOccurrence.KeyFor(instance, Child, writer);
     }
 
     /// <summary>Drives one real kernel tick so the stamp comes from production code, not a test setter.</summary>
@@ -314,7 +315,7 @@ public sealed unsafe class HsmOccurrenceKeyTests
         {
             new StateDef { ParentIndex = 0xFFFF, FirstTransitionIndex = 0xFFFF, OnEntryActionId = ActionId },
         };
-        var header = new HsmDefinitionHeader { StructureHash = 0x0700A5E1, StateCount = 1 };
+        var header = new HsmDefinitionHeader { StructureHash = HostMachine, StateCount = 1 };
         var blob = new HsmDefinitionBlob(
             header, states, Array.Empty<TransitionDef>(), Array.Empty<RegionDef>(),
             Array.Empty<GlobalTransitionDef>(), Array.Empty<ushort>(), Array.Empty<ushort>());

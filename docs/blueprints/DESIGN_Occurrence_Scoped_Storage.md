@@ -3034,3 +3034,54 @@ and **0** declare `HsmGuard` — so this path is close to never executed in prod
 one HSM machine is active at a time and `(region, state)` is already unique. ⛔ It stops being unique at
 `O8` (HSM hosting HSM). ⇒ the host half is **future-proofing**, which is exactly why it must not be
 guessed at now.
+
+### 24.10 🔴🔴🔴 `O7b`'s EMITTER SLICE WAS BUILT, MEASURED, AND **WITHDRAWN** — *(`2026-09-21`)*
+
+⛔⛔ **It works. It is withdrawn anyway, because it leaves a CONSUMER behind** — and a half-migration in
+main-line code is worse than a well-specified next step. 📄 The diff is kept verbatim at
+[`patches/O7b-emitter-slice.patch`](patches/O7b-emitter-slice.patch) so nothing has to be re-derived.
+
+#### ⭐ What it did, and what that proved
+
+| | |
+|---|---|
+| both HSM thunks moved onto `HsmOccurrence.KeyFor` + `ResolveOrAttach` | ⇒ `BP-297`/`E3` closed at the emitter |
+| the params projection moved to `BrainBlackboard.BehaviorParameters[0]` | ⇒ **`CE-297` fixed**, matching the sibling generator and the BTree path |
+| the child's `AssetId` emitted as a literal | ⭐ **only for assets that declare HSM hosting** — see the trap below |
+| `BlueprintTestFixture` now dispatches **through a real kernel tick** | ⭐ because `StampOccurrence` is `internal` **on purpose**: a harness that could forge a stamp could forge a cross-occurrence alias. ⇒ the fixture became MORE truthful — it exercises kernel → dispatcher → thunk → store |
+
+📐 **Result: 3965 / 6** — and the six are the whole story.
+
+#### ⚠⚠ THE TRAP, MEASURED — **an unconditional const moved 11 GOLDEN BASELINES**
+
+📌 The first version emitted `public static readonly Guid AssetId` on **every** asset. ⇒ **11 Tier-2
+golden baselines moved** for assets that cannot even use HSM hosting. ⭐ Making it conditional on
+`Hostings.Contains(HsmAction | HsmGuard)` returned **all 11 to byte-identical**.
+
+🔒 **The rule this pays for again:** ⭐⭐⭐ **an emitter addition must be gated on the feature that needs
+it**, or the corpus stops being byte-identical and *"did this change behaviour?"* loses its provable
+answer — the property `O4` established and `B3①` leaned on.
+
+#### 🔴 WHY IT IS WITHDRAWN — **the debug/inspector read path is a CONSUMER, and it has a UI question in it**
+
+📐 After the change, `AiPrimitiveStateMetadataTests` ×3 fail with *"StateFields/StateLayout are
+empty"*: the debug session still reads the working state from `Blackboard1024 + 8`, and the state now
+lives in an occurrence slot. ⛔ **That is not a test artefact — it is a real consumer left behind.**
+
+⭐⭐ **And fixing it is not mechanical, because the shape of the answer changed:**
+
+> ⚠ The inspector used to show **one** working state for *"asset X on entity E"*. After `O7` there can
+> be **N** — one per `(region, state)` the asset is hosted at. ⇒ **what should it show?** All of them,
+> labelled by region and state? Only the currently-active region's? 🔒 **That is a UI decision, not a
+> storage one**, and it belongs with the user rather than in a silent default.
+
+⇒ ⭐ **`O7b` is re-sliced:**
+
+| | |
+|---|---|
+| **`O7b-1`** | the emitter + `CE-297` + the kernel-dispatching fixture — ✅ **written and measured**, in the patch above |
+| **`O7b-2`** | the debug/inspector read path follows the occurrence — ⛔ **needs the UI answer first** |
+| ⭐ **they must land TOGETHER** | ⛔ shipping `O7b-1` alone leaves the inspector blind, which is exactly the *"a capability that looked built and did nothing"* shape this document already records three times |
+
+⚠ **What remains GREEN and adopted-free on the branch:** the key arithmetic and the lookup
+(`O7a` + `ResolveOrAttach`), 15 rails, two red-proofs. ⛔ **Still no production caller** — §24.7 stands.

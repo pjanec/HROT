@@ -185,7 +185,7 @@ namespace Fdp.Toolkit.Behavior.Shared
 
         /// <summary>
         /// ⭐⭐⭐ <c>O7</c> / <c>E3</c> — <b>an HSM-hosted occurrence's working-state slot key, keyed by
-        /// the REGION AND STATE the kernel stamps.</b>
+        /// the HOSTING MACHINE and by the REGION AND STATE the kernel stamps.</b>
         ///
         /// <para>🔴🔴 <b>The defect this closes (<c>BP-297</c>).</b> Every HSM thunk resolves its
         /// working state as <c>GetComponentRW&lt;Blackboard1024&gt;(bridge-&gt;Self)</c> at a hard-coded
@@ -205,9 +205,9 @@ namespace Fdp.Toolkit.Behavior.Shared
         /// second, and folding only the state would alias the first.</para>
         /// </summary>
         internal static int ComputeHsmStateKey(
-            System.Guid hostAssetId, int regionSlotIndex, ushort stateId, System.Guid childAssetId)
+            uint hostMachineId, int regionSlotIndex, ushort stateId, System.Guid childAssetId)
             => ComputeNested(
-                   ComputeIdentity(hostAssetId),
+                   ComputeHsmHostIdentity(hostMachineId),
                    ComputeHsmSiteId(regionSlotIndex, stateId),
                    childAssetId,
                    OccurrenceSlotScope.Behavior,
@@ -227,6 +227,31 @@ namespace Fdp.Toolkit.Behavior.Shared
         /// with a raw region index, and never returns 0 for the same reason
         /// <see cref="ComputeIdentity"/> must not.</para>
         /// </summary>
+        /// <summary>
+        /// ⭐⭐ The HOSTING MACHINE's identity, from the kernel's own <c>InstanceHeader.MachineId</c>
+        /// (the HSM definition's <c>StructureHash</c>).
+        ///
+        /// <para>⛔ <b>Not a <c>Guid</c>, and that is deliberate.</b> The BTree side identifies its host
+        /// by asset id because the emitter bakes it; an HSM thunk has no such literal — but it DOES
+        /// receive the instance pointer every dispatch, and its header already carries the machine
+        /// hash. ⇒ ⭐ <b>a host identity for free, with no new plumbing</b> (§24.9).</para>
+        ///
+        /// <para>⚠ <b>Why include the host at all when <c>Q4</c> says one machine per entity?</b> It
+        /// costs nothing and it is what <c>O8</c> (HSM hosting HSM) will need. ⭐ And it adds no extra
+        /// key churn: an HSM edit that changes the structure hash also renumbers state ids, so the
+        /// <c>(region, state)</c> half moves anyway.</para>
+        /// </summary>
+        internal static int ComputeHsmHostIdentity(uint hostMachineId)
+        {
+            unchecked
+            {
+                var machine = new System.Guid(
+                    hostMachineId, 0, 0,
+                    0x4F, 0x43, 0x43, 0x48, 0x4F, 0x53, 0x54, 0x00);   // "OCCHOST"
+                return Compute(machine, OccurrenceSlotScope.Behavior, System.Guid.Empty, IdentityVariableId);
+            }
+        }
+
         internal static int ComputeHsmSiteId(int regionSlotIndex, ushort stateId)
         {
             unchecked
