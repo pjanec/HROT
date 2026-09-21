@@ -346,6 +346,23 @@ blackboard unresolvable per-variable, which `R-91` forbids.
 ⚠ **Cost to name:** the behaviour half adds a field to `HsmAssetDto`/`BehaviorTreeAssetDto`, which
 moves their round-trip goldens. ⭐ The blueprint half moves none.
 
+##### ⭐⭐⭐ What a blackboard "VARIABLE" actually IS — 📐 **measured over the 30 shipped behaviour assets, `2026-09-21`**
+
+> 🔒 **User's question, and it is the right one:** *"i hope the 'per-variable' actually means per action
+> asset or per btree asset used as the chained sub-item of the calling one (because the 'variable' there
+> means the concrete parameters of some concrete called ai primitive)."* ⭐ **Substantially YES**, and the
+> corpus says so in its own naming.
+
+| 📐 measured | |
+|---|---|
+| ⭐⭐⭐ **a params variable IS one hosted primitive's params, and the assets NAME it that way** | `PlatoonHillAttack2.btree.json` → target field **`bpParamsCalculateSegments`** · `T39_TwoDistinctPrimitives` → **`bpParamsA`** · `T35_SharedWorkingState` → **`bpParamsSharedA`** ⇒ **`bpParams<site>` is the existing convention** |
+| ⭐⭐ **a variable's TYPE can be a whole DTO struct** | `PlatoonHillAttack.btree.json` — `Params : Hrot.AI.Behaviors.Brains.PlatoonHillAttackParams`, comment: *"all nodes alias this one variable"* |
+| ⛔⛔ **but site→variable is MANY-TO-ONE — this is why the granularity is the VARIABLE, not the SITE** | 📐 `PlatoonHillAttack` has **7** `ExpressionTargetField` bindings **all naming `Params`**. ⇒ per-SITE would resolve the same bytes **7×**; per-VARIABLE resolves **once**. ⭐ It is also why `Q43-B` refused a per-site resolver as *"a second selection mechanism"* |
+| ⚠ **not every variable is a params region** | `HsmVariableShowcase` — `Threshold : System.Single`, `Cursor : System.Int32 (Role=State)`; `T20_MultiStateful` → `cursorA`. ⇒ ⭐ **the property is offered only where a params region exists**, never on working state |
+
+⇒ ⭐⭐⭐ **"Variable" is simply what a params REGION is CALLED on a behaviour blackboard.** ⛔ One rule,
+two spellings — because a blueprint carves one params struct and a behaviour blackboard carves N.
+
 #### ⛔ HISTORY — **`2026-09-21`, SUPERSEDED the same day**
 
 ⚠ This section first proposed *"rank by AUTHORSHIP, not by artefact kind"* — treating a blueprint
