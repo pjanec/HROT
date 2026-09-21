@@ -1,7 +1,7 @@
 <!--STATUS
 state: LIVE
 updated: 2026-09-20
-build-state: DESIGN
+build-state: READY-TO-BUILD
 current-answer: ⭐ START AT §16 — the READY-TO-PLAN checklist (settled / measured / still open, and
   the corrected dispatch order). §4 is the ExtDeps justification; §6 is the sequence.
   ⭐ §15 is the LIVE-RUN record and it OVERTURNS two earlier claims — read it before quoting §3.2's
@@ -3822,3 +3822,32 @@ sequenceDiagram
 | ⚠ **`P3-A`** | what key does the **root** behaviour's own params slot use? | ⭐ Hosted uses `ComputeHsmStateKey`, curated uses `…ForCurated`, BTree sites use `ComputeTreeStateKey`. ⛔ The ROOT has no site — it needs its own, and that is a `P2-A`-shaped decision |
 | ⚠ **`P3-B`** | do `B1`/`B2` read the root slot, or keep a helper? | ⭐ `JoinFormationExecutor` and `PredicateCompiler` are hand-written and outside the generators ⇒ they need a public accessor, which is new surface |
 | ⚠ **`P3-C`** | does the scatter replace the ingress commit, or run beside it for one release? | ⛔ Dual-write is `R-132`'s second producer; ⭐ but a clean cut breaks the 7 UI readers before the UI lane migrates them *(`P4`(a))* |
+
+### 29.6 ⛔⛔ CORRECTION `2026-09-21` — **IT IS NOT A "SCATTER". IT IS ONE SLOT AND N RE-ANCHORINGS**
+
+⚠ **29.1–29.5 describe `P3` as *"ingress scatters each state's slice into its slot"*. That is WRONG,
+and thinking the build through is what exposed it.**
+
+📐 **The refutation is `SeedParamsOffset` itself.** It returns an offset **INTO the packed variable
+table** — `HsmParamBindings.SeedOffsetFor(machineId, state)` is `field.ByteOffset` from
+`BTreeBlackboardPackHelper`. ⇒ **the table must stay CONTIGUOUS** for those offsets to mean anything.
+⛔ Scattering it into per-state slots destroys the very indexing `E3b-0` built.
+
+| ⭐ the correct shape | |
+|---|---|
+| ⭐⭐⭐ **ONE root slot holds the WHOLE packed table**, exactly as `BrainBlackboard.BehaviorParameters` does today | keyed by `ComputeRootParamsKey(BehaviorState.ActiveBehaviorHash)` — ⭐ **computed, never stored**, like every other key here *(user, `2026-09-21`: the identity is already on the entity)* |
+| ⭐⭐ **every reader changes ONE thing: its ANCHOR** | `bb.BehaviorParameters[0] + X` → `rootSlotBase + X`. ⛔ No offset arithmetic changes anywhere — which is why the BTree adapters, the seed, the host-params pointer and the two hand-written readers are all one-line edits |
+| ⭐⭐ **ingress writes the shadow into the root slot** instead of memcpying it into the component | ⭐ `P3-C` **clean cut** *(user)*: the blackboard write STOPS |
+| ⚠ **the tier demand grows by ONE slot + the params bytes** | 📐 §5a already priced this shape *("the root occurrence consumes one slot that does not exist today")* ⇒ `HostedOccurrenceDemandCalculator` must add it, or a behaviour at its slot ceiling fails to attach |
+
+⇒ ⭐⭐⭐ **`P3` is much smaller than 29.1 implied**: one new key, one accessor, one ingress change, one
+demand bump, and **N one-line re-anchorings**. ⛔ The "scatter" reading would have been a rewrite of
+`E3b-0`.
+
+### 29.7 ✅ THE THREE OPEN QUESTIONS, SETTLED *(user, `2026-09-21`)*
+
+| # | answer |
+|---|---|
+| **`P3-A`** | ⭐⭐⭐ **No storage needed.** 🔒 *"the key that leads to the slot allocated for the behavior params… where is this key stored? maybe where the BrainTier is?"* — ⭐ `BehaviorState.ActiveBehaviorHash` **already identifies the root behaviour and is already on the entity**, and every occurrence key here is COMPUTED, never stored. ⇒ `ComputeRootParamsKey(behaviourHash)` |
+| **`P3-B`** | ⭐⭐ **Add the accessor** — `BehaviorParams.TryGetRoot<T>(world, entity, out T*)`. ⭐⭐ **And the EMITTERS can use the same one for the ROOT path**, because the root key is a RUNTIME value needing no baking. ⛔ Per-SITE occurrences stay inlined in the emitter: their identity comes from the `writer` stamp, which no generic accessor can see. ⚠ Cost: one more public surface, and a non-inlined generic call — the same call the emitter already makes |
+| **`P3-C`** | ⭐⭐ **CLEAN CUT.** The ingress memcpy into `BrainBlackboard` stops; slots are the only home. ⛔ Dual-write would be `R-132`'s second producer, and in this codebase a temporary one becomes permanent. ⚠ The 7 UI readers are re-anchored **in the same programme** rather than left stale — the lane fence was lifted for this work |

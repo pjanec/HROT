@@ -225,6 +225,44 @@ namespace Fdp.Toolkit.Behavior.Shared
         /// it is the field's position inside the action's own declared slot struct, never a
         /// blackboard address, so it survives the params move with only its anchor changed.</para>
         /// </summary>
+        /// <summary>
+        /// ⭐⭐⭐ <b><c>P3</c> — the ROOT behaviour's own params slot.</b>
+        ///
+        /// <para>🔒 <b>User, <c>2026-09-21</c>:</b> <i>"the key that leads to the slot allocated for the
+        /// behavior params… where is this key stored? maybe where the <c>BrainTier</c> is?"</i>
+        /// ⭐⭐ <b>It is not stored at all</b> — <c>BehaviorState.ActiveBehaviorHash</c> already
+        /// identifies the root behaviour and is already on the entity, and every key in this file is
+        /// COMPUTED by its reader. Storing one would be the novel thing, not computing it.</para>
+        ///
+        /// <para>⛔ <b>There is no SITE.</b> A hosted occurrence folds a host identity and a site; the
+        /// root is the host, so it folds neither — <see cref="ComputeNested"/>'s <c>hostKey == 0</c>
+        /// arm returns the plain identity, which is exactly right here and is why no new arithmetic
+        /// is introduced.</para>
+        /// </summary>
+        internal const string RootParamsVariableId = ReservedPrefix + "rootParams";
+
+        internal static int ComputeRootParamsKey(int behaviourHash)
+            => Compute(
+                   BehaviourHashAsGuid(behaviourHash),
+                   OccurrenceSlotScope.Behavior,
+                   System.Guid.Empty,
+                   RootParamsVariableId);
+
+        /// <summary>
+        /// ⚠ The behaviour hash widened into the <c>Guid</c> slot <see cref="Compute"/> folds.
+        /// ⛔ Not an identity of its own — just the 4 bytes placed deterministically so both sides of
+        /// the netstandard/net8 wall produce the same key.
+        /// </summary>
+        private static System.Guid BehaviourHashAsGuid(int behaviourHash)
+        {
+            var b = new byte[16];
+            b[0] = (byte)(behaviourHash        & 0xFF);
+            b[1] = (byte)((behaviourHash >>  8) & 0xFF);
+            b[2] = (byte)((behaviourHash >> 16) & 0xFF);
+            b[3] = (byte)((behaviourHash >> 24) & 0xFF);
+            return new System.Guid(b);
+        }
+
         internal static string CuratedVariableId(string compoundKey)
             => ReservedPrefix + "curated." + (compoundKey ?? string.Empty);
 
