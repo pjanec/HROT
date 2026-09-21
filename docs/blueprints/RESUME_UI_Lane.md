@@ -2,7 +2,8 @@
 state: LIVE
 updated: 2026-09-20
 current-answer: ⭐⭐⭐ READ THE TOP OF THIS FILE — the "SESSION 2026-09-21 (b)" block is the live state
-  (CE-302 built, CE-303 re-scoped and BLOCKED on a user ruling); below it "SESSION 2026-09-21" is
+  (CE-302 AND CE-303 built; RuntimeInspectorWindow is DELETED on the user's "let it dissolve" ruling).
+  ⇒ CE-300..CE-305 are ALL DONE and nothing is in flight. Below it "SESSION 2026-09-21" is
   CE-300/CE-301; below it "SESSION 2026-09-20 (j)" is S-6, (i) is S-5, (h) is S-4b, (g) is S-4, (f) is S-3e.
   ☑ CE-300/CE-301 BUILT 2026-09-21: the AI editors' entity cell was written by a MAP GESTURE (the third
   instance of the shape S-3 fixed inbound and S-6 outbound); it is now a projection of
@@ -74,7 +75,7 @@ related-designs:
 -->
 # ⭐⭐⭐ RESUME — **the UI / variable implementation lane**
 
-## ⭐⭐⭐ SESSION `2026-09-21` (b) — **`CE-302` BUILT · `CE-303` RE-SCOPED, it was already done**
+## ⭐⭐⭐ SESSION `2026-09-21` (b) — **`CE-302` + `CE-303` BUILT; `UXI-11`'s follow-on set is COMPLETE**
 
 📄 **[`DESIGN_Editor_Entity_Selection_Source.md`](https://github.com/pjanec/HROT/blob/ui/docs/blueprints/DESIGN_Editor_Entity_Selection_Source.md) §10 / §11.**
 
@@ -93,7 +94,18 @@ that inside a lazy factory lambda, so the eager form *looked* equivalent. ⇒ th
 🔒 *"no rush removals"*, and ⭐ the precedent cuts the other way: `BP-475` converted `HsmEventsWindow`
 and **kept the window**. ⇒ **a user call.**
 
-⛔⛔ **`CE-303` IS NOT WHAT WE THOUGHT.** 📐 `RuntimeInspectorWindow.RegisterPane:106` already adds a
+☑☑ **`CE-303` BUILT `2026-09-21` — 🔒 user: *"let it dissolve, go ahead."*** `RuntimeInspectorWindow` is
+**DELETED** *(§4's closed question `Q-iii`, finally applied — the code had kept both surfaces)*;
+`RegisterPane` moved to `PerspectiveWorkspaceRegistrar.RegisterRuntimePane`;
+`IRuntimeInspectorPane.Draw` now takes a `DetailsContext` and the Blueprint pane's
+`selectedEntityResolver` is **gone**. ⭐⭐ **The two halves are ONE change and the order mattered**: a
+window has no context to hand a pane, so while it drew them the pane *had* to read a global.
+⛔⛔ **A rail earned its keep again:** the **shipped layout** still claimed
+`ai_runtime_inspector_{btree,hsm,blueprint}` — a product artefact naming a deleted window, invisible to
+the compiler. Both `layout/default/fdp_windows.json` and `imgui.ini` are fixed.
+📄 **As-built: §12.**
+
+⛔ **THE ORIGINAL FINDING, kept because it is why this was not a "conversion":** 📐 `RuntimeInspectorWindow.RegisterPane:106` already adds a
 `RuntimeDetailsViewDescriptor` ⇒ **`BlueprintRuntimeInspectorPane` IS ALREADY A DETAILS VIEW** *(`L3.1`
 did it)*. ⚠ This design's §5 said otherwise and is corrected.
 🔴 **The real defect is smaller and sharper:** `RuntimeDetailsView.Draw(context, idScope)` **discards its

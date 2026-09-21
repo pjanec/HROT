@@ -71,7 +71,8 @@ public static class SharedAiEditorServiceCollectionExtensions
         });
         // ⛔ S5 (2026-08-22): InspectorWindow is RETIRED — all six of its arms became Details views
         //    or asset-row menu items (BP-399 §7.6 ⑤). Nothing to register.
-        services.AddSingleton<RuntimeInspectorWindow>();
+        // ⛔ CE-303 (2026-09-21): RuntimeInspectorWindow is DISSOLVED — §4's Q-iii, finally applied.
+        //    Its panes are reached as details.runtime.<kind> views; there is no window to resolve.
         services.AddSingleton<TraceTimelineWindow>();
         // ⭐⭐⭐ A6 (2026-08-23) — THE PERSPECTIVE IS PASSED, and this registration is WHY the rule was
         //    worth having. 📄 DESIGN_Perspective_Unification.md §1c "the LATENT generator".
@@ -80,7 +81,7 @@ public static class SharedAiEditorServiceCollectionExtensions
         //    omitted it, and this container is the one that did. ⚠ Only harmless because
         //    AddSharedAiEditor has no production caller today (measured: tests only) — ⛔ i.e. luck.
         // ⭐ "Authoring" is passed EXPLICITLY to preserve the exact prior behaviour and to match its
-        //    siblings above (RuntimeInspectorWindow/TraceTimelineWindow default to the same name).
+        //    siblings above (TraceTimelineWindow defaults to the same name).
         //    ⚠ Note "Authoring" is NOT a live perspective (§1): no production registration claims it.
         //    ⇒ a host adopting this container must pass its own perspective, and now it CANNOT forget.
         services.AddSingleton<FindResultsWindow>(_ => new FindResultsWindow("Authoring"));

@@ -51,22 +51,9 @@ public class SharedWindowIdOverrideTests
     // ── SharedWindow_IdOverride_ProducesDistinctId (all window types) ─────────
 
 
-    [Fact]
-    public void SharedWindow_IdOverride_ProducesDistinctId_RuntimeInspectorWindow()
-    {
-        var registry = new DebugSessionRegistry();
-        var w1 = new RuntimeInspectorWindow(
-            new EditorSelectionStore(), registry,
-            idOverride: "ai_runtime_inspector_btree", owningPerspective: "BTree");
-        var w2 = new RuntimeInspectorWindow(
-            new EditorSelectionStore(), registry,
-            idOverride: "ai_runtime_inspector_hsm", owningPerspective: "HSM");
-
-        Assert.NotEqual(w1.Id, w2.Id);
-        Assert.Equal("BTree", w1.OwningPerspective);
-        Assert.Equal("HSM",   w2.OwningPerspective);
-    }
-
+    // ⛔ CE-303: the RuntimeInspectorWindow id-override case is GONE with the window itself
+    //    (§4's Q-iii — it dissolved into three predicated details views). ⚠ The RULE it
+    //    checked is unchanged and still covered by the other window types below.
     [Fact]
     public void SharedWindow_IdOverride_ProducesDistinctId_TraceTimelineWindow()
     {
@@ -135,7 +122,7 @@ public class SharedWindowIdOverrideTests
         var registry = new DebugSessionRegistry();
         var catalog  = new AssetCatalog();
 
-        var runtime    = new RuntimeInspectorWindow(new EditorSelectionStore(), registry);
+        // ⛔ CE-303: RuntimeInspectorWindow is dissolved — no window, no default id to assert.
         var timeline   = new TraceTimelineWindow(new EditorSelectionStore(), registry);
         // ⭐⭐ A6 — there is no longer a "no overrides" case for this window: owningPerspective is
         //    REQUIRED, so the old ?? "Authoring" default it used to assert BELOW cannot exist.
@@ -149,8 +136,6 @@ public class SharedWindowIdOverrideTests
         // ⛔ S5: the Inspector's two back-compat assertions are GONE with the window (§7.6 ⑤).
         //    ⚠ Every other default below is UNCHANGED — that is the point of keeping this rail.
 
-        Assert.Equal("ai_runtime_inspector",    runtime.Id);
-        Assert.Equal("Authoring",               runtime.OwningPerspective);
 
         Assert.Equal("ai_trace_timeline",       timeline.Id);
         Assert.Equal("Authoring",               timeline.OwningPerspective);

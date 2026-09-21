@@ -4146,27 +4146,30 @@ namespace Hrot.Editor
             {
                 var btreePane = new BTreeRuntimeInspectorPane();
                 btreePane.SetSession(_btreeDebugSession);
-                _btreeRegistrar.RuntimeInspector.RegisterPane(btreePane);
+                _btreeRegistrar.RegisterRuntimePane(btreePane);
             }
             if (_hsmDebugSession != null)
             {
                 var hsmPane = new HsmRuntimeInspectorPane();
                 hsmPane.SetSession(_hsmDebugSession);
-                _hsmRegistrar.RuntimeInspector.RegisterPane(hsmPane);
+                _hsmRegistrar.RegisterRuntimePane(hsmPane);
             }
             if (_blueprintDebugSession != null)
             {
                 var blueprintPane = new Hrot.Blueprints.Editor.Inspector.BlueprintRuntimeInspectorPane();
                 blueprintPane.SetSession(_blueprintDebugSession);
+                // ⭐⭐⭐ CE-303 — the selectedEntityResolver is GONE. It read the AI store — a GLOBAL —
+                //    so a PINNED copy of this view showed whatever was selected NOW. The entity now
+                //    arrives with the DetailsContext: LIVE when docked, FROZEN when pinned.
+                // ⚠ The ASSET id stays a resolver: it follows the active DOCUMENT, not the selection.
                 blueprintPane.SetResolvers(
-                    selectedEntityResolver: () => _aiEditorSelectionStore?.SelectedEntity,
                     activeAssetIdResolver:  () =>
                     {
                         var ctx = _aiDocumentManager?.Active?.ViewState
                             as Hrot.Editor.AiShared.Windows.AiCanvasContext;
                         return (ctx?.AssetRef as Hrot.Blueprints.Core.Assets.BlueprintAsset)?.AssetId;
                     });
-                _blueprintRegistrar.RuntimeInspector.RegisterPane(blueprintPane);
+                _blueprintRegistrar.RegisterRuntimePane(blueprintPane);
             }
             // ────────────────────────────────────────────────────────────────────────────────────
 

@@ -69,8 +69,28 @@ public class PerspectiveWorkspaceRegistrar
     /// </summary>
     public Shell.ParameterSyncSource ParameterSync { get; } = new();
 
-    /// <summary>The Runtime Inspector window for this perspective.</summary>
-    public RuntimeInspectorWindow RuntimeInspector { get; }
+    /// <summary>
+    /// ⭐⭐⭐ <b><c>CE-303</c> — a runtime pane becomes a DETAILS VIEW, and there is no window any more.</b>
+    /// 🔒 <c>DESIGN_Details_Panel_View_Switching.md</c> §4, closed question <c>Q-iii</c>:
+    /// <c>RuntimeInspectorWindow</c> <i>"⛔ registry on the wrong axis (<c>R-112</c>) ⇒ <b>dissolves</b>:
+    /// 3 panes → 3 predicated views"</i>. 📐 The code had kept BOTH for a while — the window drew panes
+    /// by an <c>AssetKind</c> lookup while the same panes were also offered as
+    /// <c>details.runtime.&lt;kind&gt;</c>.
+    ///
+    /// <para>⛔⛔ <b>Keeping both was not merely redundant — it BLOCKED pinning.</b> The window has no
+    /// <see cref="Shell.DetailsContext"/> to give a pane, so as long as it drew them the pane had to
+    /// resolve its own entity from a global ⇒ a pinned view could not honour its frozen entity.
+    /// 🔒 User, <c>2026-09-21</c>: <i>"let it dissolve."</i></para>
+    ///
+    /// <para>⚠ <b>The duplicate-id guard is inherited, not lost</b>: a second pane for one kind now
+    /// throws from <see cref="Shell.DetailsViewRegistry.Add"/> — 📌 the <c>G4</c> precedent, fail where
+    /// it is wired. ⛔ It used to be silent in the window's <c>_panes.Find</c> path.</para>
+    /// </summary>
+    public void RegisterRuntimePane(Debug.IRuntimeInspectorPane pane)
+    {
+        ArgumentNullException.ThrowIfNull(pane);
+        DetailsViews.Add(Shell.RuntimeDetailsViewDescriptor.For(pane));
+    }
 
     /// <summary>The Trace Timeline window for this perspective.</summary>
     public TraceTimelineWindow TraceTimeline { get; }
@@ -340,17 +360,6 @@ public class PerspectiveWorkspaceRegistrar
         // ⚠ Without the gate this was harmless at DRAW time (Blueprint has no dispatcher, so CanShow
         //   is always false) and fatal at REGISTRATION time — which is the better place to fail.
         // ⭐ The registration itself is a few lines down, where `effectiveHost` is computed.
-
-        RuntimeInspector = new RuntimeInspectorWindow(
-            store:             selectionStore,
-            registry:          debugRegistry,
-            idOverride:        $"ai_runtime_inspector_{suffix}",
-            owningPerspective: perspectiveName,
-            // ⭐⭐⭐ L3.1 — the catalogue is PASSED, so RegisterPane can contribute the Runtime view.
-            //   📌 The 2026-08-16 rule: this registrar HOLDS the registry (a field initialiser), so it
-            //      must hand it over. ⛔ EditorSubsystem's three RegisterPane calls are UNCHANGED —
-            //      the root gains nothing to forget (R-67).
-            detailsViews:      DetailsViews);
 
         TraceTimeline = new TraceTimelineWindow(
             store:             selectionStore,
@@ -749,7 +758,6 @@ public class PerspectiveWorkspaceRegistrar
 
         // ⭐ S5: FIVE core side-panels now — the Inspector is retired (§7.6 ⑤).
         RegisterCore(windowManager, FindResults);
-        RegisterCore(windowManager, RuntimeInspector);
         RegisterCore(windowManager, TraceTimeline);
         RegisterCore(windowManager, BlackboardAuthoring);
         RegisterCore(windowManager, Diagnostics);

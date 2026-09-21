@@ -1,9 +1,8 @@
 <!--STATUS
 state: LIVE
 build-state: BUILT (CE-300, CE-301, CE-305 and CE-302 landed 2026-09-21 — §9, §5.4 and §10.
-  CE-303 is RE-SCOPED, not built: §11 — the pane is ALREADY a details view, the real defect is that
-  RuntimeDetailsView discards its context, and fixing it needs a user ruling on whether
-  RuntimeInspectorWindow finally dissolves as DESIGN_Details_Panel_View_Switching.md §4 says.)
+  CE-303 landed too, on the user's ruling "let it dissolve" — §11 has the re-scoped finding and §12
+  the as-built. ALL SIX ITEMS ARE DONE.)
 updated: 2026-09-21
 current-answer: this whole file. §2 is the class model, §3 the sequences, §4 the module/registration
   view, §5 the per-surface rulings, §6 the write path (measured NOT a duplicate), §7 what this
@@ -393,7 +392,7 @@ view pinning — 📌 they compose: a pinned row in a pinned view is a fixed var
 | ☑ **`CE-300`** | `SelectionNotificationSystem` gains the AI cell as a sink; `CallbackSelectionBridge` + `IGSelectionBridge` deleted | ✅ **BUILT `2026-09-21`** — §9 |
 | ☑ **`CE-301`** | `SharedEntitySelection` is documented and railed as a **projection**, not a store — its only writer is the notification | ✅ **BUILT `2026-09-21`** — §9 |
 | ☑ **`CE-302`** | `EntityBlueprintsManagedWindow` → a details-panel view, with float+pin | ✅ **BUILT `2026-09-21`** — §10 |
-| ⚠ **`CE-303`** | `BlueprintRuntimeInspectorPane` → a details-panel view, with float+pin | ⛔⛔ **RE-SCOPED `2026-09-21` — IT IS ALREADY A DETAILS VIEW.** §11 states what is actually wrong and why it needs a user ruling before it is built |
+| ☑ **`CE-303`** | the runtime pane honours its context, so it can be pinned | ✅ **BUILT `2026-09-21`** — ⭐ and the enabling move was **dissolving `RuntimeInspectorWindow`**, on the user's ruling. §11 |
 | **`CE-304`** | `RunBlueprintOnEntityCommand` follows the unified current selection, no pinning | ✅ **discharged by `CE-300`**, recorded so it is not re-broken |
 | ☑ **`CE-305`** | the write target for an edit issued from a **pinned** view comes from that view's context | ✅ **BUILT `2026-09-21`** — ⭐ and NOT as designed: the rule already existed in `StagedWriteView.EntityFor` and the WRITE was the half that ignored it. One method (`VariableRowOrigin.Resolve`) now states `R-78`'s two kinds; no signature change was needed. §5.4 |
 
@@ -515,3 +514,38 @@ says one of them should not exist.
 |---|---|
 | 🔒 **Does `RuntimeInspectorWindow` finally dissolve, as §4 says?** | ⭐ **LEAN: YES.** Then the pane has ONE caller, `Draw(DetailsContext)` is unambiguous, and pinning falls out. ⛔ Keeping both means the pane must serve a context-less caller too, and the *"which entity?"* answer forks again — which is the defect, re-introduced |
 | ⚠ what would change the lean | ⭐ if the standalone Runtime Inspector is a **surface operators actually use** *(the `2026-08-17` rule: a duplicate SURFACE is usually KEPT — surfaces differ by context)*. ⛔ I have not measured operator usage and cannot |
+
+## 12. ☑ AS-BUILT — **`CE-303`, `2026-09-21`: the window dissolved, and the pane got its context**
+
+> 🔒 **User, `2026-09-21`:** *"let it dissolve, go ahead."*
+
+⭐⭐⭐ **The two halves are one change, and the order matters:** the window had to go FIRST, because a
+window has no `DetailsContext` to hand a pane — ⇒ while it drew them, the pane was obliged to resolve
+its own entity from a global, and no amount of work on the pane could have fixed pinning.
+
+| what landed | |
+|---|---|
+| ⛔ **`RuntimeInspectorWindow` DELETED** | 📄 §4's closed question `Q-iii`, finally applied. Its `RegisterPane` moved to `PerspectiveWorkspaceRegistrar.RegisterRuntimePane`, which adds the descriptor directly |
+| ⭐ **`IRuntimeInspectorPane.Draw(DetailsContext)`** | ⛔ **no default body** — 📌 `U-5`/`BP-230`: *"a default body is the interface volunteering to lie on an implementer's behalf"*, and a pane silently reading a global is exactly that lie. ⚠ BTree and HSM ignore it **and say so at their own `Draw`** — measured: they are keyed on a debug SESSION, not an entity |
+| ⭐⭐⭐ **`BlueprintRuntimeInspectorPane` takes the entity from the context** | its `selectedEntityResolver` is **gone**; the asset-id resolver stays, because that follows the active DOCUMENT rather than the selection |
+| ⚠ **the duplicate-pane guard is inherited, not lost** | a second pane for one kind now throws from `DetailsViewRegistry.Add` — 📌 the `G4` precedent. ⛔ In the window's `_panes.Find` it was **silent**: the second pane simply never drew |
+
+### ⛔⛔ THE RAIL THAT EARNED ITS KEEP — **the SHIPPED LAYOUT still claimed the window**
+
+🔴 `TheDefaultLayoutIsNotStaleTests.EveryIdInTheShippedLayoutIsClaimedBySomething` reddened with three
+orphans — `ai_runtime_inspector_{btree,hsm,blueprint}` — in **`layout/default/fdp_windows.json`** *(and
+two matching blocks in `imgui.ini`)*. ⇒ ⭐⭐ **a shipped product artefact referencing a window that no
+longer exists**, which no compiler and no behavioural test could have seen. ⚠ Both files are fixed.
+
+📌 **This is the second time in two items that a rail caught what the build could not** — the other was
+`CE-302`'s reachability rail. ⭐ Both are *production-artefact* rails, and both were written because a
+prior batch shipped the defect they describe.
+
+### ⚠ WHAT THE DISSOLVE COST, stated honestly
+
+| ⛔ removed | ⭐ where the claim lives now |
+|---|---|
+| `RuntimeInspectorWindowTests` · `RuntimeInspectorWindowDumpsItsStateTests` | the window's id, title, scope and pane COUNT — ⛔ all properties **of the window**, and they die with it |
+| `TheEmptyPanelSaysWhyTests`' two `TheRuntimeInspector_*` rails | ⭐ the two SENTENCES are still railed in the same file *(the shell decides them now)*; ⚠ **the per-KIND clause became a view PREDICATE** and is railed as one |
+| one id-override case, one DI resolution | the window is not constructed anywhere any more |
+| ⚠ **four COUNT rails moved** *(8→7, 10→9, 23→20, 29→26)* | ⭐ **kept EXACT rather than relaxed** — an exact count is what makes an accidental extra window visible |

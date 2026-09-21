@@ -107,3 +107,53 @@ public sealed class TheEntityBlueprintsViewIsRegisteredTests
         public System.Collections.Generic.IReadOnlyList<Entity> Selected() => _entities;
     }
 }
+
+/// <summary>
+/// ⭐⭐⭐ <b><c>CE-303</c> — the Blueprint RUNTIME pane takes its entity from the CONTEXT, so a pinned
+/// copy of <c>details.runtime.Blueprint</c> shows the entity it was pinned to.</b>
+/// 📄 <c>DESIGN_Editor_Entity_Selection_Source.md</c> §11.
+///
+/// <para>⚠⚠ <b>This pane was ALREADY a details view</b> — <c>RegisterPane</c> added a
+/// <c>RuntimeDetailsViewDescriptor</c> — ⛔ but <c>RuntimeDetailsView.Draw</c> DISCARDED its context and
+/// the pane read <c>EditorSelectionStore.SelectedEntity</c>, a GLOBAL. ⇒ a pinned copy rendered
+/// whatever was selected NOW. 🔒 The user ruled the standalone <c>RuntimeInspectorWindow</c> should
+/// <i>"dissolve"</i>, which is what made a context-carrying <c>Draw</c> possible at all.</para>
+/// </summary>
+public sealed class TheRuntimePaneReadsItsContextTests
+{
+    /// <summary>
+    /// ⭐ Two DIFFERENT contexts, one pane — the docked/pinned difference in miniature. ⛔ A rail that
+    /// fed one context could not tell "reads the context" from "read a global that happened to match".
+    /// ⭐ <b>Red-proof:</b> restore the <c>selectedEntityResolver</c> and this stops varying.
+    /// </summary>
+    [Fact]
+    public void TheEntityComesFromTheContext_NotAGlobal()
+    {
+        var first  = new Fdp.Core.Entity(41, 1);
+        var second = new Fdp.Core.Entity(42, 1);
+
+        Assert.Equal(first,
+            Hrot.Blueprints.Editor.Inspector.BlueprintRuntimeInspectorPane.ResolveEntity(Ctx(first)));
+        Assert.Equal(second,
+            Hrot.Blueprints.Editor.Inspector.BlueprintRuntimeInspectorPane.ResolveEntity(Ctx(second)));
+
+        // ⚠ No entity ⇒ null, which the pane already renders as "No entity or blueprint selected."
+        //   ⛔ Not Entity.Null, which would make the session resolve snapshots for entity 0.
+        Assert.Null(
+            Hrot.Blueprints.Editor.Inspector.BlueprintRuntimeInspectorPane.ResolveEntity(Ctx()));
+    }
+
+    private static Hrot.Editor.AiShared.Shell.DetailsContext Ctx(params Fdp.Core.Entity[] entities)
+        => Hrot.Editor.AiShared.Shell.DetailsContextBuilder.Build(
+            store:       new Hrot.Editor.AiShared.Selection.EditorSelectionStore(),
+            perspective: "Blueprint",
+            mode:        Hrot.Editor.AiShared.Variables.VariableRunState.Planning,
+            entities:    new Fixed(entities));
+
+    private sealed class Fixed : Hrot.Editor.AiShared.Shell.IEntitySelectionSource
+    {
+        private readonly Fdp.Core.Entity[] _e;
+        public Fixed(Fdp.Core.Entity[] e) => _e = e;
+        public System.Collections.Generic.IReadOnlyList<Fdp.Core.Entity> Selected() => _e;
+    }
+}
