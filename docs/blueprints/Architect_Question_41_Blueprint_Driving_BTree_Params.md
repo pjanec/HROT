@@ -26,7 +26,10 @@ related-designs:
   - Architect_Question_43_Blueprint_Authored_Param_Resolver.md - C3' promoted; owns WHAT a
     resolver blueprint is.
   - DESIGN_Resolver_World_Reach.md - owns what a resolver graph can REACH (R4), the publishing
-    currency, and C2's DATA half (the selection property, R-149).
+    currency, and the SELECTION ruling itself (R-149, section 7.2).
+  - DESIGN_Per_Variable_Param_Resolver.md - owns C2's DATA half: the per-VARIABLE ref on a
+    blackboard params variable and the Step-3 emit. The PICKER half of C2' stays here and stays
+    held with the UI lane.
   - DESIGN_Parameter_Model.md - owns the bake/overlay/resolve/write order this hooks into.
 -->
 # ⭐ Architect Question 41 — **can a blueprint drive a BTree node's parameters?**

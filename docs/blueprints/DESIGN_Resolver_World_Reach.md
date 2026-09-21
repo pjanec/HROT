@@ -5,9 +5,11 @@ build-state: BUILT 2026-09-21 — see section 10 for the as-built and the two de
 current-answer: section 10 (AS-BUILT) first, then section 4 (the decision) and section 5
   (the diagrams). Section 7.1 settles the
   PUBLISHING CURRENCY, which Q43 section 8 deliberately left open; section 7.2 settles SELECTION
-  (the params-owning region NAMES its resolver, user 2026-09-21) and carries its own HISTORY note
-  for the superseded "rank by authorship" answer - do NOT quote that.
-stale-below: nothing.
+  (the params-owning region NAMES its resolver, user 2026-09-21) and carries TWO history notes -
+  section 7.2a for the superseded three-arm ParamResolverRef, and the note below it for the
+  superseded "rank by authorship" answer. Do NOT quote either.
+stale-below: section 7.2a (the three-arm ParamResolverRef shape) and section 7.2's trailing
+  HISTORY note are both SUPERSEDED and kept only for the measurements that retired them.
 known-rot: nothing.
 known-conflict: Behavior_Parameter_Resolver_Detailed_Design.md 8.1 rates R4 "Medium" and offers
   two shapes ("adapter-supplied service arguments, or a small read-singleton node"). This design
@@ -21,6 +23,9 @@ related-designs:
     mechanism" rail this must not break.
   - DESIGN_Occurrence_Scoped_Storage.md - owns WHERE a resolved DTO lands (28, 28.7) and supplies
     the only IHostVariableAccess implementation (E7a).
+  - DESIGN_Per_Variable_Param_Resolver.md - owns the BEHAVIOUR half of section 7.2's selection
+    ruling: how a blackboard params VARIABLE names a resolver, and the Step-3 emit in both
+    bridges. This design owns the blueprint half, which needs no property at all (section 11.1).
 -->
 # ⭐ `DESIGN` — **what a resolver graph can REACH** *(`R4`)*
 
@@ -309,22 +314,43 @@ not, and discards `view`/`self`/`time` *(inventory ⑦)*.
 
 #### ⭐ The shape
 
-**One nullable property on the thing that OWNS a params region**, whose value is a single reference:
+> ⛔⛔ **CORRECTED `2026-09-21`, by measurement — the three-arm shape this section first proposed is
+> SUPERSEDED. It lives in §7.2a; do NOT quote it.** ⭐ The RULING below is untouched: a params region
+> names exactly one resolver. ⚠ What was wrong was **where the property lives** — I put it on the
+> blueprint ASSET, and two of its three arms only ever resolve to a BEHAVIOUR.
+
+**One nullable property on the thing that OWNS a params region** — and measurement says there are **two
+such things, not one**:
+
+| the region | it names its resolver… | state |
+|---|---|---|
+| ⭐ a blueprint asset's **generated `Params` struct** | ⛔ **it does not have to** — `Register(AssetId,…)` and `TryRun(AssetId,…)` key on one value the asset already carries | ✅ **BUILT — `E8a`**, with no property at all *(§11.1)* |
+| ⭐⭐ a behaviour blackboard's **params VARIABLE** | ⭐ **a nullable ref on the variable**, because a blackboard carves **N** regions and only the variable can say *which* | ⛔ **`E8c`** — the only place the surviving arms type-check |
+
+⇒ ⭐⭐⭐ **The rule is unchanged — one resolver per params REGION.** ⭐ What changed is that the blueprint
+half needs **no property to express it**, so the property is a purely behaviour-side concern.
+
+#### ⛔ §7.2a HISTORY — **the three-arm `ParamResolverRef`, and the measurement that retired it**
 
 ```
-ParamResolverRef?            // null => no resolver; the deserialize IS the resolve (§3.1's common case)
+ParamResolverRef?            // SUPERSEDED 2026-09-21 — see the table below for what each arm measured to
   ├─ OwnGraphId  : Guid      // one of THIS asset's own Construction graphs
   ├─ AssetId + GraphId       // a reusable resolver blueprint (a Library asset's Construction graph)
   └─ CuratedName : string    // a hand-written C# resolver, by the name BehaviorRegistry already keys on
 ```
 
-| ⭐ why this shape | |
+| arm | 📐 what it measured to | verdict |
+|---|---|---|
+| `OwnGraphId` | `CSharpEmitter.cs:456` emits `Register(AssetId,…)` against the thunk's `TryRun(AssetId,…)` ⇒ **one key, no binding step**; and `BP1676`'s one-per-region arm (`V_ResolverPurity.cs:160`) already makes a second own-resolver **unauthorable** | ⛔ **REDUNDANT** — the property would be a second spelling for a fact the structure states |
+| `AssetId + GraphId` | `AiPrimitiveEmitter.EmitParamsStruct:151` (and `InstanceEmitter.cs:191`) build `public struct Params` **from the asset's own Parameter declarations** ⇒ always a generated per-asset type, while `ValidateReusableSignature:189` requires the Library resolver declare 1-in/1-out of the **same authored `TypeId`**. `ResolveParams<AuthoredDto>` can never register as `ResolveParams<{Class}.Params>` — `HostedParamResolvers.TryRun:74` would throw its own wrong-type error by construction | 🔴 **TYPE-IMPOSSIBLE on a blueprint.** ⭐ Its only type-compatible consumer is a blackboard variable typed on an authored DTO ⇒ **moves to `E8c`** |
+| `CuratedName` | 🔴 **the sentence *"reuses the key `BehaviorRegistry.RegisterResolver(name,…)` already uses"* is the ERROR.** `BehaviorRegistry.cs:468` resolves `name` through `_nameToId` → `_definitions`, i.e. **behaviours**; the only production registrations are `CgfCuratedBehaviorRegistrar.cs:131–138`, keyed by `BehaviorNames.*` and already carrying the DTO as `blackboardLayoutType` | 🔴 **CATEGORY ERROR** — a blueprint asset naming a behaviour-keyed registry ⇒ **moves to `E8c`**, where the key is the right kind of thing |
+
+| ⭐ what SURVIVES from the original table, unchanged | |
 |---|---|
-| ⭐⭐⭐ **one field, one value ⇒ two resolvers for one region CANNOT BE AUTHORED** | ⛔ no precedence rule to get wrong, no registration-order race — `R-132`'s *"bound by REGISTRATION ORDER is a race, not a precedence rule"* simply has nothing to bind here |
-| ⭐⭐ **it answers the question my design never did** — *how does a blueprint name a HAND-WRITTEN resolver?* | ⭐ `CuratedName` reuses the key `BehaviorRegistry.RegisterResolver(name, …)` **already** uses; ⛔ no new identity scheme |
-| ⭐⭐ **the ROLE is assigned by the PROPERTY, not by the graph KIND** | ⭐⭐ this is what honours `Q43-A2′`'s *"do not define `Construction` as the resolver graph"*: `Construction` keeps meaning **"runs once at setup"**, and the property says *which* setup graph resolves params. ⇒ an Instance asset may later carry a second `Construction` graph meaning *"configure the instance"* with **no ambiguity** |
-| ⭐ **`CallablePeers : List<Guid>` is the prior art for the reference shape** | `BlueprintAsset.cs:100` — a blueprint already names other assets by `Guid`. ⚠ **Reuse the DECLARATION shape only** — 📄 §8's own trap warning: the peer-CALL path *"is designed-only and non-functional … do NOT build the resolver on it"* |
-| ⭐ **data now, picker later** | the property is **authored JSON**; the *"(UI picked)"* half is `Q41-C2′` and the UI lane is held. ⇒ this lands without touching the editor |
+| ⭐⭐⭐ **one field, one value ⇒ two resolvers for one region CANNOT BE AUTHORED** | ⛔ no precedence rule to get wrong, no registration-order race — `R-132`'s *"bound by REGISTRATION ORDER is a race, not a precedence rule"* simply has nothing to bind here. ⭐ This is `R-149` and it is untouched |
+| ⭐⭐ **the ROLE is assigned by the PROPERTY, not by the graph KIND** | ⭐⭐ this is what honours `Q43-A2′`'s *"do not define `Construction` as the resolver graph"*: `Construction` keeps meaning **"runs once at setup"**. ⚠ On the blueprint half `E8a` reached the same end **structurally** — `BP1676` permits exactly one `Construction` graph where a params region exists — so the kind never became the role |
+| ⭐ **data now, picker later** | the property is **authored JSON**; the *"(UI picked)"* half is `Q41-C2′` and the UI lane is held |
+| ⛔ **DROPPED: *"`CallablePeers` is the prior art for the reference shape"*** | ⚠ it was cited as precedent for a cross-asset `Guid` ref — but the arm it supported is type-impossible here, and §8 already warns the peer-CALL path is *"designed-only and non-functional."* ⭐ **An under-adopted feature is not evidence either way**; the shape `E8c` needs is the one `CgfCuratedBehaviorRegistrar` already uses |
 
 #### ⭐⭐ Why this also DISSOLVES the binding problem for the hosted path
 
