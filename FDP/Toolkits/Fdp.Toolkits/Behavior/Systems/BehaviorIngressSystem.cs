@@ -155,6 +155,10 @@ namespace Fdp.Toolkit.Behavior.Systems
                     // a filter). The behaviour's tier IS the kind for its stateful working slots.
                     ProvisionStatefulSlots(repo, evt.Entity, def.StatefulWorkingSlots, KindOf(def));
                 }
+                else
+                {
+                    EnsureOccurrenceStore(repo, evt.Entity, def);
+                }
 
                 // 2. Reset BTree execution pointer so the new behavior starts from the root.
                 if (repo.HasComponent<BrainBTreeState>(evt.Entity))
@@ -244,6 +248,52 @@ namespace Fdp.Toolkit.Behavior.Systems
                     ResetHsmComponents(repo, evt.Entity, def.HsmDefinition.Header.StructureHash);
                 }
             }
+        }
+
+        /// <summary>
+        /// 🔴🔴🔴 <b><c>E-cap</c> — A BEHAVIOUR WITH NO MANIFEST STILL NEEDS A STORE.</b>
+        /// 📄 <c>DESIGN_Occurrence_Scoped_Storage.md</c> §27.
+        ///
+        /// <para>⛔⛔ <b>Why this is not speculative housekeeping.</b> A hosted occurrence attaches its
+        /// working state <b>lazily</b>, on first dispatch (§24.8) — and it <b>cannot add a tier
+        /// component to do so</b>, because that is a STRUCTURAL change and must never happen inside a
+        /// tick. ⇒ without a store already present, the very first dispatch of an HSM- or BTree-hosted
+        /// blueprint <b>throws</b>.</para>
+        ///
+        /// <para>🔴 <b>Measured: that gap was real and shipped.</b> <c>ProvisionStatefulSlots</c> ran
+        /// only when <c>def.StatefulWorkingSlots</c> was non-empty, so a behaviour that hosts a
+        /// blueprint but declares no stateful slots of its own got no store at all. <c>O7b</c>'s HSM
+        /// path passed its tests only because the fixture adds one by hand — ⚠ <b>the production path
+        /// would have thrown</b>, which is exactly the shape §26.1's rule exists to catch.</para>
+        ///
+        /// <para>⭐ <b>The cost is the smallest tier</b> — <c>SelectTierForPayload(0, 0)</c> — which is
+        /// why <c>O3b</c> added the 256 tier: §5a measured it as <b>load-bearing, not an
+        /// optimisation</b>. ⚠ Entities whose behaviour never hosts anything do carry it; that is
+        /// accepted, and it is reversible once a manifest can say who actually hosts (<c>O7b-3</c>).</para>
+        ///
+        /// <para>⚠ <b>Brain tiers only.</b> A behaviour that is neither BTree nor HSM cannot host an
+        /// occurrence, so it gets nothing — ⛔ this is not "a store for every entity".</para>
+        /// </summary>
+        private static void EnsureOccurrenceStore(EntityRepository repo, Entity entity, BehaviorDefinition def)
+        {
+            if (def.BrainTier != BehaviorConstants.BrainTierBTree &&
+                def.BrainTier != BehaviorConstants.BrainTierHsm)
+                return;
+
+            if (GetCurrentTierSize(repo, entity) != 0) return;   // already has one — idempotent
+
+            int targetTier = SelectTierForPayload(0, 0);
+
+            // ⛔⛔ DO NOT WIDEN THE TOOLKIT'S CONTRACT. Registering the tier components is Hrot-wide
+            //   (HrotSharedComponentRegistry, CE-161) but this system lives in Fdp.Toolkits, which
+            //   hosts may use WITHOUT them. ⇒ a host that never hosts an occurrence must not start
+            //   failing at assign just because this provisioning was added.
+            // ⭐ The skip is SAFE because it is not silent where it matters: a host that skips here
+            //   and then DOES host an occurrence gets OccurrenceWorkingState's loud "carries no
+            //   occurrence store", whose message names tier registration as a cause.
+            if (!BlueprintTierTable.ByTotalSize(targetTier).IsRegistered(repo)) return;
+
+            AddAndInitializeTier(repo, entity, targetTier);
         }
 
         /// <summary>

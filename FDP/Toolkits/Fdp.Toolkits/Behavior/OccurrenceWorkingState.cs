@@ -43,7 +43,10 @@ public static unsafe class OccurrenceWorkingState
             throw new InvalidOperationException(
                 $"Entity {self} carries no occurrence store, so hosted slot {slotKey} cannot be " +
                 "attached. Adding a tier component is a structural change and must not happen inside " +
-                "a tick — the entity must already carry one.");
+                "a tick — the entity must already carry one. Two causes, in order of likelihood: " +
+                "(1) this host never registered the BlueprintBlackboard* tier components, so " +
+                "BehaviorIngressSystem skipped provisioning — call BlueprintTierTable.RegisterAll; " +
+                "(2) the entity was built by hand and never went through a behaviour assign.");
 
         if (BlueprintBlackboardPartitions.TryGetSlotOffset(store, slotKey, out int offset, out uint existingHash))
         {

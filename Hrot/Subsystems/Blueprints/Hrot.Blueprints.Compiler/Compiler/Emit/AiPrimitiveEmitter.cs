@@ -24,7 +24,9 @@ internal static class AiPrimitiveEmitter
         //    byte-identical wherever the feature is not used, which is the property O4 established
         //    and the thing that makes "did this change behaviour?" answerable.
         if (asset.Hostings.Contains(AiPrimitiveHosting.HsmAction) ||
-            asset.Hostings.Contains(AiPrimitiveHosting.HsmGuard))
+            asset.Hostings.Contains(AiPrimitiveHosting.HsmGuard) ||
+            asset.Hostings.Contains(AiPrimitiveHosting.BTreeAction) ||
+            asset.Hostings.Contains(AiPrimitiveHosting.BTreeCondition))
         {
             e.WriteLine($"public static readonly global::System.Guid AssetId = new global::System.Guid(\"{asset.AssetId}\");");
         }
@@ -356,29 +358,8 @@ internal static class AiPrimitiveEmitter
         e.Outdent();
         e.WriteLine("{");
         e.Indent();
-        EmitParamProjection(e);
-        e.WriteLine("ref var bb1024 = ref ctx.World.GetComponentRW<global::Fdp.Toolkit.Behavior.Components.Blackboard1024>(ctx.Self);");
-        e.WriteLine("unsafe");
-        e.WriteLine("{");
-        e.Indent();
-        e.WriteLine("fixed (byte* memory = bb1024.Memory)");
-        e.WriteLine("{");
-        e.Indent();
-        e.WriteLine("ulong storedHash = *(ulong*)memory;");
-        e.WriteLine("if (storedHash != StructureHash)");
-        e.WriteLine("{");
-        e.Indent();
-        e.WriteLine("global::System.Runtime.CompilerServices.Unsafe.InitBlock(memory, 0, (uint)global::System.Runtime.CompilerServices.Unsafe.SizeOf<global::Fdp.Toolkit.Behavior.Components.Blackboard1024>());");
-        e.WriteLine("*(ulong*)memory = StructureHash;");
-        e.WriteLine("InitDefaultWorkingState((WorkingState*)(memory + 8));");
-        e.Outdent();
-        e.WriteLine("}");
-        e.WriteLine("ref var ws = ref global::System.Runtime.CompilerServices.Unsafe.AsRef<WorkingState>(memory + 8);");
-        e.WriteLine("return TickCore(ref p, ref ws, ctx.Self, ctx.World, ctx.World.SimulationTime);");
-        e.Outdent();
-        e.WriteLine("}");
-        e.Outdent();
-        e.WriteLine("}");
+        EmitStandaloneOccurrenceBody(e,
+            "return TickCore(ref p, ref ws, ctx.Self, ctx.World, ctx.World.SimulationTime);");
         e.Outdent();
         e.WriteLine("}");
     }
@@ -394,31 +375,44 @@ internal static class AiPrimitiveEmitter
         e.Outdent();
         e.WriteLine("{");
         e.Indent();
+        EmitStandaloneOccurrenceBody(e,
+            "return TickCore(ref p, ref ws, ctx.Self, ctx.World, ctx.World.SimulationTime) == global::Fbt.NodeStatus.Success;");
+        e.Outdent();
+        e.WriteLine("}");
+    }
+
+    /// <summary>
+    /// ⭐⭐⭐ <c>O7d</c> — the occurrence-keyed body both STANDALONE BTree thunks share.
+    ///
+    /// <para>🔴 <b>What it replaces.</b> <c>GetComponentRW&lt;Blackboard1024&gt;(ctx.Self)</c> at a
+    /// hard-coded <c>memory + 8</c> — one region for EVERY asset on the entity, in a component
+    /// production adds to <b>no entity at all</b> (its two <c>AddComponent</c> sites are gated on
+    /// <c>HeavyDtoType</c>, which nothing ever sets). ⇒ this thunk would have <b>thrown</b> the moment
+    /// it was bound.</para>
+    ///
+    /// <para>⛔⛔ <b>ASSET-scoped, and that is forced.</b> 📐 The interpreter hands an action delegate
+    /// only <c>node.PayloadIndex</c> — no node identity — so a single shared thunk cannot key itself
+    /// per-occurrence. ⭐ Per-node IS the BRIDGE's job: it emits one adapter per node with the slot key
+    /// BAKED. The standalone thunk is the degenerate single-occurrence case, which is exactly what the
+    /// <c>@0</c> in its own registration key has always said.</para>
+    /// </summary>
+    private static void EmitStandaloneOccurrenceBody(CSharpEmitter e, string tail)
+    {
         EmitParamProjection(e);
-        e.WriteLine("ref var bb1024 = ref ctx.World.GetComponentRW<global::Fdp.Toolkit.Behavior.Components.Blackboard1024>(ctx.Self);");
-        e.WriteLine("unsafe");
+        e.WriteLine();
+        e.WriteLine("// O7d: this asset's OWN working state, in the entity's occurrence store —");
+        e.WriteLine("//      NOT Blackboard1024 at a fixed offset shared by every asset.");
+        e.WriteLine("int occurrenceKey = global::Fdp.Toolkit.Behavior.OccurrenceSlots.StandaloneStateKeyFor(AssetId);");
+        e.WriteLine("ref var ws = ref global::Fdp.Toolkit.Behavior.OccurrenceWorkingState.ResolveOrAttach<WorkingState>(");
+        e.WriteLine("    ctx.World, ctx.Self, occurrenceKey, StructureHash,");
+        e.WriteLine("    global::Fdp.Toolkit.Blueprints.Partitioning.OccurrenceKind.Blueprint, out bool freshlyAttached);");
+        e.WriteLine("if (freshlyAttached)");
         e.WriteLine("{");
         e.Indent();
-        e.WriteLine("fixed (byte* memory = bb1024.Memory)");
-        e.WriteLine("{");
-        e.Indent();
-        e.WriteLine("ulong storedHash = *(ulong*)memory;");
-        e.WriteLine("if (storedHash != StructureHash)");
-        e.WriteLine("{");
-        e.Indent();
-        e.WriteLine("global::System.Runtime.CompilerServices.Unsafe.InitBlock(memory, 0, (uint)global::System.Runtime.CompilerServices.Unsafe.SizeOf<global::Fdp.Toolkit.Behavior.Components.Blackboard1024>());");
-        e.WriteLine("*(ulong*)memory = StructureHash;");
-        e.WriteLine("InitDefaultWorkingState((WorkingState*)(memory + 8));");
+        e.WriteLine("InitDefaultWorkingState((WorkingState*)global::System.Runtime.CompilerServices.Unsafe.AsPointer(ref ws));");
         e.Outdent();
         e.WriteLine("}");
-        e.WriteLine("ref var ws = ref global::System.Runtime.CompilerServices.Unsafe.AsRef<WorkingState>(memory + 8);");
-        e.WriteLine("return TickCore(ref p, ref ws, ctx.Self, ctx.World, ctx.World.SimulationTime) == global::Fbt.NodeStatus.Success;");
-        e.Outdent();
-        e.WriteLine("}");
-        e.Outdent();
-        e.WriteLine("}");
-        e.Outdent();
-        e.WriteLine("}");
+        e.WriteLine(tail);
     }
 
     private static void EmitHsmActivityThunk(CSharpEmitter e)

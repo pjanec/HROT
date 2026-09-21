@@ -3,7 +3,7 @@ state: LIVE
 doc-type: LANE RESUMPTION for the `behaviors` lane — programme ②, OCCURRENCE-SCOPED STORAGE.
   ⚠ A STATE doc, not canon. Every "green"/"pushed"/"HEAD" line is a snapshot dated below.
   ⛔ VERIFY against git before acting ("THE LEDGER MAY NOT ASSERT WHAT THE CODE IS").
-updated: 2026-09-20
+updated: 2026-09-21
 build-state: n/a — a resumption snapshot, not a design.
 current-answer: §3 — ⭐⭐ THE NEXT ACTION IS O7c. O7 is SLICED (design §24.3):
   O7a (the key + the lookup) and O7b (the emitter + the inspector) are DONE — 17 rails, three
@@ -28,16 +28,27 @@ current-answer: §3 — ⭐⭐ THE NEXT ACTION IS O7c. O7 is SLICED (design §24
   MUST land together: (1) slot payload becomes [Params N][WorkingState M]; (2) something must WRITE
   each occurrence's params — nothing does today and IHostVariableAccess has zero implementers (E7a).
   Storage without supply is a REGRESSION (zeroed params instead of the behaviour's authored ones).
-  🔴 O7d: ATTEMPTED AND REVERTED 2026-09-21 (design §26) — blocked on supply, like CE-298. Two of my
-  claims were wrong and measuring fixed them: the standalone @0 thunk is BOUND BY NOTHING (no shipped
-  asset shares state through it), and it CANNOT be keyed per-node (Interpreter.cs:655 gives an action
-  delegate no node identity; per-node is the BRIDGE's job by design). Re-scoped to an ASSET-scoped
-  slot, built, 0 build errors — and it broke on "carries no occurrence store", because nothing
-  provisions one for a standalone occurrence. ⇒ O7b-3 (manifest entries / tier capacity) is NO LONGER
-  OPTIONAL: it unblocks both O7d and CE-298. Diff kept at patches/O7d-emitter-slice.patch.
-  ⭐ Kept and green: OccurrenceWorkingState (one body, two callers) + the asset-scoped key.
+  ✅ E-cap + O7d ARE LANDED 2026-09-21 (design §27) — SUPPLY FIRST, THEN STORAGE, and the item that
+  had been reverted twice landed on the first try once its supply existed.
+  E-cap: BehaviorIngressSystem.EnsureOccurrenceStore provisions the SMALLEST tier for a brain-tier
+  behaviour whose stateful manifest is empty, so lazy attach has somewhere to land. ⛔⛔ It SKIPS when
+  the tier component is not registered — the first attempt broke 8 tests with "BlueprintBlackboard256
+  is not registered", and the fix was the NARROWER contract, not RegisterAll in eight fixtures
+  (§27.2). Rails O7_R14/O7_R15.
+  O7d: both standalone BTree thunks now route onto OccurrenceSlots.StandaloneStateKeyFor(AssetId) +
+  OccurrenceWorkingState.ResolveOrAttach — ASSET-scoped, because Interpreter.cs:655 hands an action
+  delegate no node identity and per-node is the BRIDGE's job by design. The defect pin FLIPPED to
+  StandaloneBTreeThunks_UseTheOccurrenceStore_O7d. Goldens moved DELIBERATELY: 30 files, +330/−420,
+  net −90; per asset one added AssetId line plus the Blackboard1024/fixed/memory+8 block replaced by
+  the occurrence pair ⇒ ZERO goldens still mention the legacy blackboard, which is what E5 waited on.
+  ⭐ Earlier, measuring corrected two of my claims: the standalone @0 thunk is BOUND BY NOTHING (no
+  shipped asset shares state through it), and it CANNOT be keyed per-node.
   🔒 THE RULE this earned, measured 3x in 2 days: before moving ANY state into an occurrence slot,
   name what will PROVISION the slot and WRITE its contents. If either is "nothing", it is a REGRESSION.
+  ⭐⭐ NEXT ACTION: O7b-3 PROPER — E-cap provisions only the SMALLEST tier and does NOT size it. Tier
+  sizing needs manifest entries, joined at RUNTIME (the action id IS the truncated blueprint id;
+  StateDef carries the per-state action ids) so HsmEmitCore never learns about blueprints. It is the
+  prerequisite for E3 (E7a + CE-298 together).
   ⚠ CORRECTION: "the BTree hosting path has been occurrence-keyed since S2" is TRUE of the bridge
   per-node adapters and FALSE of the standalone @0 thunks.
   ⭐ RETIRING Blackboard1024 (the LEGACY one, NOT BlueprintBlackboard*): it is already on ZERO
@@ -45,11 +56,11 @@ current-answer: §3 — ⭐⭐ THE NEXT ACTION IS O7c. O7 is SLICED (design §24
   (both editor mappers hard-write null). Order: O7d first, then the HeavyDtoType-gated consumers
   (translator, renderer, view provider, replay drawers), then WorkingStateLayout / the registration /
   the GlobalComponentIds entry / the BlueprintDebugSession legacy fallback.
-  ⛔ STILL OPEN: O7b-3 (eager manifest entries — NOT for labels, which are already derived and typed;
-  its real value is TIER CAPACITY. And the join can be done at RUNTIME by walking the HSM blob's
-  per-state action ids against the blueprint registry, so HsmEmitCore never learns about blueprints) — needs HsmEmitCore to resolve an
-  action name to a blueprint, a cross-asset dependency) and
-  O7c (delete BrainHsm*, F9's tick-system reshape) — L, 188 refs across 18 production files.
+  ⛔ STILL OPEN: O7b-3 PROPER — eager manifest entries, NOT for labels (already derived and typed);
+  its real value is TIER CAPACITY, and E-cap deliberately does not deliver it. The join is RUNTIME:
+  walk the HSM blob's per-state action ids against the blueprint registry, so HsmEmitCore never
+  learns about blueprints (the user's ruling). ⚠ Verify the ushort truncation cannot collide two
+  blueprints first. And O7c (delete BrainHsm*, F9's tick-system reshape) — L, 188 refs / 18 files.
   O4, O5 and O6 are all DONE. O6 — the single ExtDeps crossing — landed 2026-09-20: as-built in
   design §23, 6 rails, red-proof exact, and the FULL 156-project solution build reported exactly TWO
   compile errors, so §4.2's "single-digit blast radius" held. ⛔ O6 delivers the IDENTITY only —

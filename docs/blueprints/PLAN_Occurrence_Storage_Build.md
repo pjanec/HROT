@@ -2,7 +2,7 @@
 state: LIVE
 build-state: PLAN — the dispatchable breakdown of an approved design. ⛔ NOT a design: every task
   REFERENCES its owning chapter and restates nothing. If this file and the design disagree, the DESIGN wins.
-updated: 2026-09-20
+updated: 2026-09-21
 current-answer: §2 is the stage/task table (14 tasks, 5 increments). §3 is the under-specified register
   (W1–W5, all implementer calls). §4 is what this deliberately does NOT contain. §5 is the dispatch
   grouping — ⭐ increment A is dispatchable now, nothing blocks it.
@@ -167,11 +167,12 @@ behaviour and naming the id that will flip it.
 | # | item | what | why here |
 |---|---|---|---|
 | **E1** | ⭐⭐ **the two-region rails** | a genuine 2-region HSM driving the same asset at both ⇒ ① working state SEPARATES *(proves `O7b` end-to-end, retiring §7's "the fixture cannot redden this" caveat)* · ② params COLLIDE *(pins `CE-298`)* | ⛔ nothing has ever driven a multi-region machine; every `O7` claim rests on it |
-| **E2** | 🔴 **`O7d`** — **ATTEMPTED `2026-09-21`, REVERTED — BLOCKED ON `O7b-3`** *(design §26)*. 📐 Measuring corrected the item twice: the standalone `@0` thunk is **bound by nothing** *(so no shipped asset shares state through it)*, and it **cannot be keyed per-node** — `Interpreter.cs:655` gives an action delegate no node identity, and per-node is the BRIDGE's job by design. ⭐ Re-scoped to an ASSET-scoped slot, built, and it broke on **supply**: nothing provisions the store. ⇒ **E2 now depends on E-cap below.** ⭐ Kept: `OccurrenceWorkingState` *(one body, two callers)* + the asset-scoped key. Diff at `patches/O7d-emitter-slice.patch` | ~~the standalone BTree thunks~~ | `AiPrimitiveEmitter:360/:398` still emit `Blackboard1024 + 8` ⇒ the `BP-297` shape for **42** shipped assets *(33 `BTreeAction` + 9 `BTreeCondition`)*. Route them onto the occurrence seam | ⭐ cheap now the seam exists, and it is the **last emitted use** of the legacy blackboard |
-| ⭐⭐ **E-cap** | **`O7b-3`** — manifest entries so `BehaviorIngressSystem` PROVISIONS the store | ⛔⛔ **NO LONGER OPTIONAL — it unblocks BOTH `E2` and `E3`.** ⭐ And the join is runtime, not emit-time: the action id IS the truncated blueprint id, and `StateDef` carries the per-state action ids ⇒ **`HsmEmitCore` never learns about blueprints** | ⚠ verify the `ushort` truncation cannot collide two blueprints |
+| ⭐⭐ **E-cap** | ✅ **LANDED `2026-09-21`** *(design §27)* — `BehaviorIngressSystem.EnsureOccurrenceStore` provisions the **smallest** tier for a brain-tier behaviour whose stateful manifest is empty, so a lazily-attached occurrence has somewhere to land | ⛔⛔ **This is the SUPPLY half of `O7b-3`, not all of it** — it does **not** size the tier. ⭐⭐ The part that needed care: it **SKIPS when the tier type is not registered** rather than making eight fixtures register it — ⛔ provisioning must not widen the `Fdp.Toolkits` contract *(§27.2)* | rails `O7_R14`/`O7_R15` |
+| **E2** | ✅ **`O7d` — LANDED `2026-09-21`** *(design §27.3)*, once E-cap gave it a store. Both standalone thunks route onto `OccurrenceSlots.StandaloneStateKeyFor(AssetId)` + `OccurrenceWorkingState.ResolveOrAttach`; **ASSET-scoped**, because `Interpreter.cs:655` hands an action delegate no node identity and per-node is the BRIDGE's job by design | the standalone BTree thunks | ⛔ **zero goldens still mention the legacy blackboard** ⇒ ⭐ the last *emitted* use is gone, which is what **E5** was blocked on. The defect pin flipped to `StandaloneBTreeThunks_UseTheOccurrenceStore_O7d` | 📐 golden movement: **30 files, +330/−420, net −90** |
+| ⭐ **E-cap′** | **`O7b-3` PROPER** — manifest entries for **correct TIER SIZING** | ⛔ E-cap only provisions the *smallest* tier; a real payload will overflow it. ⭐ The join is **runtime, not emit-time**: the action id IS the truncated blueprint id, and `StateDef` carries the per-state action ids ⇒ **`HsmEmitCore` never learns about blueprints** *(the user's ruling)* | ⚠ verify the `ushort` truncation cannot collide two blueprints first. ⭐ Needed before **E3** |
 | **E3** | **`E7a` + `CE-298`** — **TOGETHER** | ① slot payload becomes `[Params N][WorkingState M]` · ② something WRITES each occurrence's params *(`IHostVariableAccess`, **zero implementers** today)* | ⛔⛔ **① alone is a REGRESSION** — a zeroed params region where today it reads the authored ones. Same lesson as `O7b-1`/`O7b-2` |
 | **E4** | **`O7c`** — delete `BrainHsm64`/`BrainHsm128` | instances into slots; `F9`'s tick-system reshape | 🔴 **L** — 188 refs / 18 production files |
-| **E5** | ⭐ **retire the LEGACY `Blackboard1024`** | ⚠ **NOT `BlueprintBlackboard*`** — those ARE the store. 📐 It is already on **ZERO** production entities: both `AddComponent` sites are gated on `HeavyDtoType`, which **nothing ever sets** *(both editor mappers hard-write `null`)* | ⛔ blocked on **E2** — the emitted thunks are the only live readers |
+| **E5** | ⭐ **retire the LEGACY `Blackboard1024`** | ⚠ **NOT `BlueprintBlackboard*`** — those ARE the store. 📐 It is already on **ZERO** production entities: both `AddComponent` sites are gated on `HeavyDtoType`, which **nothing ever sets** *(both editor mappers hard-write `null`)* | ✅ **UNBLOCKED** — `E2`/`O7d` landed and no emitted thunk reads it any more. ⚠ What remains is the `HeavyDtoType`-gated consumers and the cleanup, **not** the emitter |
 
 ⛔ **NOT in this increment, and why:** the **root occurrence** staying in `BrainBTreeState` *(§21.2)* —
 📐 136 refs / 17 files for **uniformity, not capability**; `Q4` makes the root genuinely singular and the
@@ -179,6 +180,10 @@ tick path would gain a slot lookup. ⭐ **Revisit only if `O8` forces it.** · *
 the `H1`–`H3` event-queue hazards, and it wants an architect question with measurements, not a build.
 
 ### ⚠ `O7b-3` is RE-SCOPED, twice — read this before picking it up
+
+> ✅ **`2026-09-21` — its SUPPLY half is now built** *(`E-cap`, design §27)*: an empty manifest gets the
+> smallest tier provisioned so lazy attach has somewhere to land. ⛔ **What is left is TIER SIZING**, and
+> the table below is about exactly that. ⚠ Do not read *"`O7b-3` landed"* from the `E-cap` row.
 
 | ⛔ what I said | ✅ what measuring found |
 |---|---|

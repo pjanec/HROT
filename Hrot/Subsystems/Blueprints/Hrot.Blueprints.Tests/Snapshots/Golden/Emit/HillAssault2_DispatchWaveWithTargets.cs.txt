@@ -18,6 +18,7 @@ public static class HillAssault2DispatchWaveWithTargets_8CA4BFD9_Bp
 {
     public const int BlueprintId = unchecked((int)0x8CA4BFD9);
     public const ulong StructureHash = 396973659203954370UL;
+    public static readonly global::System.Guid AssetId = new global::System.Guid("6ffc2d3c-41e3-4016-8f2a-5dcb8720fb73");
     
     [global::System.Runtime.InteropServices.StructLayout(global::System.Runtime.InteropServices.LayoutKind.Sequential)]
     public struct Params
@@ -165,22 +166,18 @@ public static class HillAssault2DispatchWaveWithTargets_8CA4BFD9_Bp
         ref var p = ref global::System.Runtime.CompilerServices.Unsafe.As<byte, Params>(
             ref global::System.Runtime.CompilerServices.Unsafe.AddByteOffset(
                 ref bb.BehaviorParameters[0], (nint)0));
-        ref var bb1024 = ref ctx.World.GetComponentRW<global::Fdp.Toolkit.Behavior.Components.Blackboard1024>(ctx.Self);
-        unsafe
+        
+        // O7d: this asset's OWN working state, in the entity's occurrence store —
+        //      NOT Blackboard1024 at a fixed offset shared by every asset.
+        int occurrenceKey = global::Fdp.Toolkit.Behavior.OccurrenceSlots.StandaloneStateKeyFor(AssetId);
+        ref var ws = ref global::Fdp.Toolkit.Behavior.OccurrenceWorkingState.ResolveOrAttach<WorkingState>(
+            ctx.World, ctx.Self, occurrenceKey, StructureHash,
+            global::Fdp.Toolkit.Blueprints.Partitioning.OccurrenceKind.Blueprint, out bool freshlyAttached);
+        if (freshlyAttached)
         {
-            fixed (byte* memory = bb1024.Memory)
-            {
-                ulong storedHash = *(ulong*)memory;
-                if (storedHash != StructureHash)
-                {
-                    global::System.Runtime.CompilerServices.Unsafe.InitBlock(memory, 0, (uint)global::System.Runtime.CompilerServices.Unsafe.SizeOf<global::Fdp.Toolkit.Behavior.Components.Blackboard1024>());
-                    *(ulong*)memory = StructureHash;
-                    InitDefaultWorkingState((WorkingState*)(memory + 8));
-                }
-                ref var ws = ref global::System.Runtime.CompilerServices.Unsafe.AsRef<WorkingState>(memory + 8);
-                return TickCore(ref p, ref ws, ctx.Self, ctx.World, ctx.World.SimulationTime);
-            }
+            InitDefaultWorkingState((WorkingState*)global::System.Runtime.CompilerServices.Unsafe.AsPointer(ref ws));
         }
+        return TickCore(ref p, ref ws, ctx.Self, ctx.World, ctx.World.SimulationTime);
     }
     
 }

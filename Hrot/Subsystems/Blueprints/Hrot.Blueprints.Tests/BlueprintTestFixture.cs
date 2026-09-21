@@ -803,7 +803,22 @@ public static class ThrowingRegistrar
 
     // ---- Entity convenience -------------------------------------------------
 
-    public Entity CreateEntity() => _repo.CreateEntity();
+    /// <summary>
+    /// ⭐⭐ <c>E-cap</c> — a fixture entity carries an occurrence store, because a PRODUCTION brained
+    /// entity does: <c>BehaviorIngressSystem</c> provisions one at assign even when the behaviour
+    /// declares no stateful slots (design §27).
+    ///
+    /// <para>⛔ Without it, every test that ticks a blueprint action would have to remember to add one
+    /// — and the first one that forgot would report <i>"carries no occurrence store"</i>, which reads
+    /// as a product defect rather than a fixture gap. ⚠ That is exactly how this landed the first
+    /// time.</para>
+    /// </summary>
+    public Entity CreateEntity()
+    {
+        var entity = _repo.CreateEntity();
+        EnsureOccurrenceStore(entity);
+        return entity;
+    }
 
     // ---- Attach Blueprint ---------------------------------------------------
 

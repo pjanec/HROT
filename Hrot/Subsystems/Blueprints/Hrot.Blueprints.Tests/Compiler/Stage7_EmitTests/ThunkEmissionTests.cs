@@ -179,22 +179,25 @@ public sealed class ThunkEmissionTests
     }
 
     /// <summary>
-    /// 🔴🔴 <b><c>O7d</c> PINNED — the STANDALONE BTree thunks are still on the legacy per-entity
-    /// blackboard.</b>
+    /// ⭐⭐⭐ <b><c>O7d</c> — the STANDALONE BTree thunks are on the occurrence store.</b>
     ///
-    /// <para>⚠ <b>This corrects a claim I made twice:</b> <i>"the BTree hosting path has been
-    /// occurrence-keyed since <c>S2</c>"</i> is true of the <b>bridge</b> per-node adapters and
-    /// <b>false</b> of these standalone <c>@0</c> thunks, which carry the same one-working-state-per-
-    /// entity shape as <c>BP-297</c> — for <b>42</b> shipped assets (33 <c>BTreeAction</c> +
-    /// 9 <c>BTreeCondition</c>).</para>
+    /// <para>⚠ <b>This rail was a DEFECT PIN and has now FLIPPED</b>, which is exactly what a pin is
+    /// for: it asserted <c>Blackboard1024 + 8</c> while that was true, and reddened the moment
+    /// <c>O7d</c> landed so the change could not ship silently.</para>
     ///
-    /// <para>⭐ It is latent because they are registered-but-unbound — which <c>CLAUDE.md</c> already
-    /// records as an <b>opt-in capability, not a vestige</b>: <i>"the right answer was ROUTE, not
-    /// delete."</i> ⛔ <b>Flip this rail when <c>O7d</c> routes them</b>; it is also what blocks
-    /// retiring the legacy <c>Blackboard1024</c> (increment <c>E5</c>).</para>
+    /// <para>⛔ <b>ASSET-scoped, and that is forced, not chosen.</b> 📐 <c>Interpreter.cs:655</c> hands
+    /// an action delegate only <c>node.PayloadIndex</c> — no node identity — so one shared thunk cannot
+    /// key itself per-occurrence. ⭐ Per-node IS the BRIDGE's job (it bakes a key per adapter); the
+    /// standalone thunk is the degenerate single-occurrence case, which is what the <c>@0</c> in its
+    /// registration key has always meant.</para>
+    ///
+    /// <para>🔴 <b>And it fixed more than a collision:</b> <c>Blackboard1024</c> is on ZERO production
+    /// entities (both <c>AddComponent</c> sites gated on <c>HeavyDtoType</c>, which nothing sets) and
+    /// <c>GetComponentRW</c> throws on a missing component ⇒ this thunk would have <b>thrown</b> the
+    /// moment it was bound.</para>
     /// </summary>
     [Fact]
-    public void StandaloneBTreeThunks_StillUseTheLegacyBlackboard_O7d()
+    public void StandaloneBTreeThunks_UseTheOccurrenceStore_O7d()
     {
         var asset = BlueprintAssetBuilder
             .AiPrimitive("StandaloneBTree")
@@ -204,11 +207,12 @@ public sealed class ThunkEmissionTests
 
         var src = EmitAndGetSource(asset);
 
-        // 🔴 THE DEFECT: one working state per ENTITY, at a hard-coded offset.
-        Assert.Contains("global::Fdp.Toolkit.Behavior.Components.Blackboard1024", src);
-        Assert.Contains("memory + 8", src);
+        // ⭐⭐ THE RAIL. Asset-scoped occurrence storage, through the SAME shared body the HSM path uses.
+        Assert.Contains("OccurrenceSlots.StandaloneStateKeyFor(AssetId)", src);
+        Assert.Contains("OccurrenceWorkingState.ResolveOrAttach<WorkingState>", src);
 
-        // ⛔ And it has NOT been routed onto the occurrence seam — unlike the HSM thunks.
-        Assert.DoesNotContain("HsmOccurrence", src);
+        // 🔴 …and the legacy per-entity blackboard is gone from this thunk.
+        Assert.DoesNotContain("global::Fdp.Toolkit.Behavior.Components.Blackboard1024", src);
+        Assert.DoesNotContain("memory + 8", src);
     }
 }

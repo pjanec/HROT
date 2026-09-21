@@ -469,6 +469,104 @@ public sealed unsafe class HsmOccurrenceKeyTests
 
     private static readonly List<(int Region, ushort State)> Seen = new();
 
+    /// <summary>
+    /// 🔴🔴🔴 <b>Rail ⑭ — <c>E-cap</c>: a behaviour that declares NO stateful slots still gets a STORE,
+    /// so a hosted occurrence can attach on first dispatch.</b> 📄 design §27.
+    ///
+    /// <para>⛔⛔ <b>This pins a gap that was SHIPPED.</b> <c>ProvisionStatefulSlots</c> ran only on a
+    /// non-empty manifest, so a behaviour that hosts a blueprint but declares no stateful slots of its
+    /// own got no store — and a hosted occurrence cannot create one, because adding a tier component is
+    /// a STRUCTURAL change and must not happen inside a tick. ⇒ the first dispatch threw.</para>
+    ///
+    /// <para>⚠ <b><c>O7b</c>'s HSM path passed its tests only because the fixture adds a store by
+    /// hand.</b> 🔒 That is the exact shape §26.1's rule names — <i>"storage without supply"</i> — and
+    /// it is why this rail drives the REAL ingress rather than a hand-built entity.</para>
+    /// </summary>
+    [Fact]
+    public void O7_R14_ABehaviourWithNoManifestStillGetsAStore()
+    {
+        var world = TestWorldFactory.Create();
+        using var _w = world;
+        BlueprintTierTable.RegisterAll(world);
+
+        var entity = world.CreateEntity();
+        world.AddComponent(entity, new Fdp.Toolkit.Behavior.Components.BehaviorState());
+        world.AddComponent(entity, new Fdp.Toolkit.Behavior.Components.BrainBlackboard());
+        world.AddComponent(entity, new Fdp.Toolkit.Behavior.Components.BrainBTreeState());
+
+        var registry = new BehaviorRegistry();
+        var sys = new Fdp.Toolkit.Behavior.Systems.BehaviorIngressSystem(registry);
+
+        // ⚠ A BTree behaviour with an EMPTY stateful manifest — the case that got no store.
+        const string name = "EcapHostNoManifest";
+        registry.Register(7401, name, new BehaviorDefinition
+        {
+            Name = name,
+            BrainTier = BehaviorConstants.BrainTierBTree,
+            StatefulWorkingSlots = Array.Empty<StatefulSlotInfo>(),
+        });
+
+        world.Bus.PublishManaged(new Fdp.Toolkit.Behavior.Events.AssignBehaviorEvent
+        {
+            Entity = entity, BehaviorName = name, JsonParams = string.Empty,
+        });
+        world.Bus.SwapBuffers();
+        sys.Execute(world, 0.016f);
+
+        // ⭐⭐ THE RAIL. A hosted occurrence can now attach on first dispatch. 🔴 Before E-cap this
+        //    threw "carries no occurrence store".
+        ref var ws = ref OccurrenceWorkingState.ResolveOrAttach<DemoWorkingState>(
+            world, entity, OccurrenceSlots.StandaloneStateKeyFor(Child), 0xABCD,
+            OccurrenceKind.Blueprint, out bool fresh);
+
+        Assert.True(fresh);
+        ws.Counter = 5;
+        Assert.Equal(5, OccurrenceWorkingState.ResolveOrAttach<DemoWorkingState>(
+            world, entity, OccurrenceSlots.StandaloneStateKeyFor(Child), 0xABCD,
+            OccurrenceKind.Blueprint, out _).Counter);
+    }
+
+    /// <summary>
+    /// ⭐ <b>Rail ⑮ — and it is BRAIN-TIER ONLY: this is not "a store for every entity".</b>
+    ///
+    /// <para>⚠ A behaviour that is neither BTree nor HSM cannot host an occurrence, so provisioning one
+    /// would be pure cost. ⛔ The rail exists because the cheap wrong version of <c>E-cap</c> is to
+    /// provision unconditionally, and nothing else would notice.</para>
+    /// </summary>
+    [Fact]
+    public void O7_R15_ANonBrainBehaviourGetsNoStore()
+    {
+        var world = TestWorldFactory.Create();
+        using var _w = world;
+        BlueprintTierTable.RegisterAll(world);
+
+        var entity = world.CreateEntity();
+        world.AddComponent(entity, new Fdp.Toolkit.Behavior.Components.BehaviorState());
+        world.AddComponent(entity, new Fdp.Toolkit.Behavior.Components.BrainBlackboard());
+
+        var registry = new BehaviorRegistry();
+        var sys = new Fdp.Toolkit.Behavior.Systems.BehaviorIngressSystem(registry);
+
+        const string name = "EcapNotABrain";
+        registry.Register(7402, name, new BehaviorDefinition
+        {
+            Name = name,
+            BrainTier = 0,                         // neither BTree nor HSM
+            StatefulWorkingSlots = Array.Empty<StatefulSlotInfo>(),
+        });
+
+        world.Bus.PublishManaged(new Fdp.Toolkit.Behavior.Events.AssignBehaviorEvent
+        {
+            Entity = entity, BehaviorName = name, JsonParams = string.Empty,
+        });
+        world.Bus.SwapBuffers();
+        sys.Execute(world, 0.016f);
+
+        // ⭐⭐ THE RAIL. No store — it could never host anything.
+        byte* store = OccurrenceStoreAccess.TryGetStore(world, entity, out _);
+        Assert.True(store == null);
+    }
+
     // ── helpers ──────────────────────────────────────────────────────────────────
 
     private static EntityRepository CreateWorld()

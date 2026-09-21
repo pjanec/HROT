@@ -4,7 +4,12 @@ updated: 2026-09-08
 current-answer: the whole document; it is authoritative for parameters and storage.
   See 3.1's AS BUILT 2026-09-08 (CE-235) for the two-member split of the authored DTO
   vs the blackboard layout - that is the live shape of BehaviorDefinition.
-known-rot: (none) - the BP1031-as-live rot was REPAIRED 2026-08-17, Batch 82; the
+known-rot: 4.1's params column is STILL THE LIVE STATE as of 2026-09-21, and the fix is FILED
+  not built - see 4.5. CE-298: O7b moved an HSM-hosted occurrence's WORKING STATE into its slot
+  and left PARAMS at BehaviorParameters[0] + 0, which 4.1 already calls a "live race". The
+  standalone BTree @0 thunk has the same shape. Do NOT read 4.2's "give each occurrence its own
+  params region" as built.
+  (none-otherwise) - the BP1031-as-live rot was REPAIRED 2026-08-17, Batch 82; the
   section 3.2 "overlay is NOT implemented on every path" correction was REPAIRED
   2026-08-18 (it had gone false at Batch 70/74) and now sits under a HISTORY fold
 known-conflict: gives Scope three values; Q-b in Variable_Model_Unification rules two. UNRECONCILED.
@@ -12,6 +17,8 @@ related-designs:
   - DESIGN_Occurrence_Scoped_Storage.md — owns WHERE the bytes live and HOW an occurrence is
     addressed (the slot key, the tier components, the one FastHSM change). This document owns
     WHAT a parameter is and the rulings it must obey; it wins on any disagreement.
+    ⭐ 2026-09-21: its 24-26 carry the AS-BUILT of the occurrence seam, and its 26.1 carries the
+    rule that blocks 4.5 here — "storage without supply is a regression".
   - EXPLAINER_Where_Parameters_And_State_Live.md — the file:line measurement record behind §2.
   - Architect_Question_34_Blueprint_Occurrence_Identity.md — blueprint Instance slot identity.
 -->
@@ -288,6 +295,54 @@ breaking change bought deliberately, rather than churning the delegate a third t
 |---|---|
 | root behaviour | `ref component.Params` |
 | hosted sub-behaviour / Instance | `ref` its own params region in its slot |
+
+### 4.5 ⚠ AS MEASURED `2026-09-21` — **§4.1's PARAMS COLUMN IS STILL THE LIVE STATE** *(`CE-298`)*
+
+🔒 **User, `2026-09-21`:** *"If there are two btrees running in parallel, each with its own params, or
+two actions running from hsm regions, each having its params, they can not share same single place."*
+⭐ **Correct — and §4.1 above already said so.** ⛔ **It is not fixed.**
+
+📐 **Measured per path, `2026-09-21`:**
+
+| path | params address | |
+|---|---|---|
+| BTree **bridge** per-node adapter | `BehaviorParameters[0] + baked NODE offset` *(`{fqn}@{offset}`)* | ✅ distinct nodes, distinct bytes — this is §4.1's *"SOLVED — the template"* |
+| **HSM** thunks | `BehaviorParameters[0] + 0` | ⛔ **§4.1's *"live race"*, still live** |
+| **standalone BTree `@0`** thunk | `BehaviorParameters[0] + 0` | ⛔ same shape |
+
+⚠ **What `O7` DID change, so the two are not confused:** an HSM-hosted occurrence's **WORKING STATE**
+now lives in its own slot, keyed by the `(region, state)` the kernel stamps. ⛔ **Params did not move.**
+📌 `CE-297` *(fixed)* was a different bug — the HSM thunks were reading the kernel's `InstanceHeader`
+as `Params`; the pointer is right now, **the region is not**.
+
+⭐⭐ **§4.2's prescription stands and is the fix** — *"give each occurrence its own params region and
+tick it against that"* — with the slot payload becoming `[Params N][WorkingState M]`. ⭐ Every
+`[SharedAiAction]` thunk survives unchanged, exactly as §4.2 argues, because a DTO's field offsets are
+relative to the struct base.
+
+### ⛔⛔ 4.5a — WHY IT IS FILED AND NOT BUILT
+
+📐 **Measured: nothing writes a hosted occurrence's params, and `IHostVariableAccess` has ZERO
+implementers** *(it is declared-not-implemented on purpose — §3.4's `E7a`)*. ⇒ moving params into the
+slot **without** the supply half gives each occurrence a **zeroed** params region, where today it at
+least reads what the behaviour authored.
+
+🔒 **That is an instance of a rule measured three times in two days** — 📄
+[`DESIGN_Occurrence_Scoped_Storage.md`](DESIGN_Occurrence_Scoped_Storage.md) §26.1:
+> **Before moving ANY state into an occurrence slot, name the thing that will ① PROVISION the slot and
+> ② WRITE its initial contents. If either answer is "nothing", the move is a REGRESSION.**
+
+⇒ ⭐ **`CE-298` and `E7a` land TOGETHER**, after the provisioning work that unblocks them.
+
+### 4.6 📐 AND A BTree FACT THIS DOCUMENT SHOULD CARRY *(`2026-09-21`)*
+
+⭐⭐ **Why §4.1's BTree row is *"SOLVED"* only for the BRIDGE.** 📐 `Interpreter.cs:655` hands an action
+delegate **only `node.PayloadIndex`** — **no node identity**. ⇒ a single shared thunk **cannot** key
+itself per-occurrence; the bridge solves it by emitting **one adapter per node with the key BAKED**.
+
+⇒ ⛔ **The standalone `@0` thunk is the degenerate SINGLE-occurrence case by construction, not by
+oversight** — which is what the `@0` in its registration key has always meant. ⭐ Worth stating here
+because *"BTree is solved"* is true of the mechanism and **not** of every BTree code path.
 
 ### 4.4 Cost
 

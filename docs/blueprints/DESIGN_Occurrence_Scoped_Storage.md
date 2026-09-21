@@ -3217,17 +3217,103 @@ it is not "sharing state", it is **non-functional**.
 | `OccurrenceWorkingState.ResolveOrAttach` | ⭐ **ONE body, two callers** (ruling 9) — `HsmOccurrence` now forwards to it; the standalone path will too |
 | `OccurrenceSlotKey.ComputeStandaloneStateKey` + `OccurrenceSlots.StandaloneStateKeyFor` | the asset-scoped key, in the **LINKED** file so emitter and runtime cannot drift |
 
-⛔ **Reverted:** the emitter change itself — diff kept at
-[`patches/O7d-emitter-slice.patch`](patches/O7d-emitter-slice.patch). 📐 It is CORRECT as far as it goes:
-0 build errors, and the only runtime failure is *"carries no occurrence store"* — **the supply half,
-exactly.**
+⛔ **Reverted:** the emitter change itself. 📐 It was CORRECT as far as it went: 0 build errors, and the
+only runtime failure is *"carries no occurrence store"* — **the supply half, exactly.**
 
 ⇒ ⭐ **`O7d` is now BLOCKED ON THE SAME THING AS `CE-298`**: a manifest entry so
 `BehaviorIngressSystem` provisions a store. ⚠ That is `O7b-3`'s *(tier capacity)* work, which is
 therefore **no longer optional** — it is the unblocker for both.
+
+> ✅ **SUPERSEDED THE SAME DAY BY §27.** `E-cap` supplied the store and the emitter slice re-landed
+> unchanged. ⛔ **The kept patch file is DELETED** — a patch of code that is now in the tree is a second
+> copy that rots; read the commit, or §27.3.
 
 ### 26.4 ⚠ THE PIN STAYS GREEN, AND THAT IS CORRECT
 
 `ThunkEmissionTests.StandaloneBTreeThunks_StillUseTheLegacyBlackboard_O7d` is still green because the
 defect is still there. ⭐ **That is the pin working** — it will redden the day `O7d` re-lands, which is
 the whole reason it exists.
+
+> ✅ **AND IT DID REDDEN, hours later.** §27 flipped it to
+> `StandaloneBTreeThunks_UseTheOccurrenceStore_O7d`. ⭐ **That is the whole value of a defect pin**: the
+> fix could not land silently.
+
+## 27. ✅ `E-cap` + `O7d` — **SUPPLY FIRST, THEN STORAGE** *(`2026-09-21`)*
+
+⭐⭐⭐ **This is §26.1's rule applied in the right order, and it worked on the first try** — the item that
+had been reverted twice landed once its supply existed.
+
+### 27.1 🔴 THE GAP `E-cap` CLOSES — **and `O7b` had it too**
+
+📐 `ProvisionStatefulSlots` ran **only** when `def.StatefulWorkingSlots` was non-empty. ⇒ a behaviour
+that HOSTS a blueprint but declares no stateful slots of its own got **no occurrence store at all** —
+and a hosted occurrence **cannot create one**, because adding a tier component is a STRUCTURAL change
+and must not happen inside a tick.
+
+⚠⚠ **That gap was not only `O7d`'s.** 🔴 **`O7b`'s shipped HSM path had it as well**, and passed its
+tests only because the fixture adds a store by hand. ⇒ **the production path would have thrown on the
+first hosted dispatch.** ⭐ Exactly the shape §26.1 exists to catch, caught by applying it.
+
+### 27.2 ⛔⛔ THE PART THAT NEEDED CARE — **do NOT widen the toolkit's contract**
+
+📌 **First attempt: provision unconditionally. It broke 8 tests** with *"Component
+`BlueprintBlackboard256` is not registered"* — the same trap `B4` hit when `O3b` added the 256 tier.
+
+📐 **Measured:** tier registration is **Hrot-wide** (`HrotSharedComponentRegistry:174`, the `CE-161`
+argument), ⛔ **but `BehaviorIngressSystem` lives in `Fdp.Toolkits`**, which a host may use *without*
+Hrot. ⇒ unconditional provisioning would make tier registration a **hard new requirement** for every
+host that assigns a brain behaviour — including ones that never host an occurrence.
+
+⭐⭐ **So it SKIPS when the tier type is not registered** (`BlueprintTierSpec.IsRegistered`, which
+already existed). ⚠ **And the skip is not silent where it matters:** a host that skips and then DOES
+host gets `OccurrenceWorkingState`'s loud failure, whose message now **names tier registration as the
+first cause**.
+
+🔒 **The tell that the narrower contract was right:** the 8 failures disappeared **without touching a
+single unrelated fixture.** ⛔ Had I "fixed" them by adding `RegisterAll` to eight test worlds, I would
+have shipped the widened contract and never noticed.
+
+### 27.3 ⭐ `O7d` AS BUILT
+
+| | |
+|---|---|
+| both standalone BTree thunks | `OccurrenceSlots.StandaloneStateKeyFor(AssetId)` + `OccurrenceWorkingState.ResolveOrAttach` — ⭐ the **same shared body** the HSM path uses |
+| ⛔ **ASSET-scoped, forced not chosen** | `Interpreter.cs:655` hands an action delegate only `node.PayloadIndex` — **no node identity**. Per-node is the BRIDGE's job (it bakes a key per adapter); the standalone thunk is the degenerate single-occurrence case, which is what its `@0` key always meant |
+| fixture | `BlueprintTestFixture.CreateEntity` now provisions a store, because a **production** brained entity has one — ⛔ otherwise every blueprint-ticking test must remember to, and the first that forgot would read as a product defect |
+| ⭐ **the defect pin FLIPPED** | `StandaloneBTreeThunks_StillUseTheLegacyBlackboard_O7d` → `..._UseTheOccurrenceStore_O7d`. **That is a pin doing its job**: it reddened the moment the fix landed, so the change could not ship silently |
+
+### 27.4 📐 GOLDEN MOVEMENT — **reported as a DIFF SHAPE, not as "regenerated"**
+
+**30 files, +330 / −420.** Per asset the shape is identical and nothing else moved:
+① one added line — `public static readonly Guid AssetId = …`; ② the `Blackboard1024` + `fixed` + `memory + 8`
+block replaced by the `StandaloneStateKeyFor` / `ResolveOrAttach` pair.
+⭐ **Net −90 lines**, because the self-initialising `InitBlock`/`storedHash` dance collapses into
+`freshlyAttached`. ✅ **Zero goldens still mention the legacy `Blackboard1024`** — measured.
+
+### 27.5 ⚠ WHAT THIS DOES **NOT** CLOSE
+
+| | |
+|---|---|
+| ⛔ **`CE-298`** — params are still per-entity | `E-cap` supplies the **store**; it does not supply **params**. That still needs `E7a` (`IHostVariableAccess`, zero implementers) |
+| ⛔ **the tier is the SMALLEST, not the RIGHT one** | `SelectTierForPayload(0, 0)`. A behaviour hosting several occurrences can still exhaust it ⇒ `ResolveOrAttach` throws *"no room"*. ⭐ Correct sizing is what a manifest would give — **`O7b-3` proper**, still open |
+| ⛔ **`E5`** — retiring the legacy `Blackboard1024` | ⭐ **now unblocked**: no emitted thunk reads it any more. What remains are the `HeavyDtoType`-gated consumers *(translator, renderer, view provider, replay drawers)* and the cleanup |
+
+### 27.6 ✅ `O7b-3` PROPER — **its ONE open premise is now MEASURED**
+
+⭐⭐ **The runtime join `O7b-3` needs is: *"which blueprint does this state's action id name?"*** — and the
+action id **is** the blueprint id truncated to 16 bits
+*(`CSharpEmitter.cs:383`/`:385` — `RegisterAction(unchecked((ushort)BlueprintId), …)`)*. 🔒 **That is why
+the join can be RUNTIME and `HsmEmitCore` need never learn about blueprints** — the user's ruling.
+
+⛔ **The premise the plan flagged — *"verify the `ushort` truncation cannot collide two blueprints"* — is
+ANSWERED, two independent ways:**
+
+| | |
+|---|---|
+| 📐 **measured `2026-09-21`** | the id is `FNV-1a-32` over the asset `Guid`'s bytes *(`BlueprintSignatureParser.cs:41-44`)*. Recomputed over every asset JSON in the tree: **85 distinct assets → 85 distinct low-16 values → 0 collisions** |
+| ⭐⭐ **and it is GUARDED, not merely lucky** | `Fdp.Toolkits.Analyzers/HsmDispatcherIdAnalyzer.cs` raises **`BHU020_DuplicateDispatcherId`** on exactly this, and it **resolves constants**, so blueprint registrations are visible to it |
+
+⇒ ⭐ **A collision is a BUILD ERROR, not a silent alias.** ⚠ The honest limit: the analyzer sees one
+compilation, so two blueprints in **different** assemblies that never meet at compile time would not be
+caught — ⛔ **but they also never share a dispatcher table**, so the collision cannot occur where it
+would matter.
