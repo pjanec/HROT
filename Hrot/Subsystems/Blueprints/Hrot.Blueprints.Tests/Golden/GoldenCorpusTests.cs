@@ -67,7 +67,7 @@ public sealed class GoldenCorpusTests
         //    (acceptance A3+A4), which no asset could express before.
         // ⭐ 45 → 46 in E8a: `OwnParamResolverDemo` — an AiPrimitive carrying its OWN resolver, the case
         //    that needs no binding at all (R-149).
-        Assert.Equal(46, GoldenCorpus.EnumerateFiles().Count);
+        Assert.Equal(47, GoldenCorpus.EnumerateFiles().Count);
     }
 
     // ────────────────────────────────────────────────────────────────────────

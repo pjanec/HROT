@@ -1,0 +1,120 @@
+{
+  "$meta": {
+    "docType": "Hrot.Blueprints",
+    "schemaVersion": 2
+  },
+  "Header": {},
+  "AssetId": "00000146-0000-0000-0000-000000000001",
+  "Name": "HsmTwoRegionParamsDemo",
+  "Dispatch": "AiPrimitive",
+  "TierHint": "Auto",
+  "IsWorldSingleton": false,
+  "Primitive": {
+    "Intent": "Action",
+    "Hostings": [
+      "HsmAction"
+    ]
+  },
+  "Declarations": [
+    {
+      "Kind": "Parameter",
+      "Id": "d1460001-0001-0001-0001-000000000001",
+      "Name": "Value",
+      "Type": {
+        "TypeId": "System.Int32",
+        "IsArray": false,
+        "GenericArgs": []
+      },
+      "DefaultValueJson": null,
+      "Tooltip": null,
+      "Comment": null
+    }
+  ],
+  "ParameterOrder": null,
+  "WorkingStateOrder": null,
+  "VariableOrder": null,
+  "EventDispatchers": [],
+  "CustomEvents": [],
+  "CallablePeers": [],
+  "Graphs": [
+    {
+      "Id": "10000146-0000-0000-0000-000000000001",
+      "Name": "Main",
+      "Kind": "Function",
+      "Inputs": [],
+      "Outputs": [],
+      "ExecOutputs": [],
+      "ExecInputs": [],
+      "Nodes": [
+        {
+          "kind": "EventEntry",
+          "EventTypeId": "",
+          "Id": "20000146-0000-0000-0000-000000000001",
+          "Pins": [
+            {
+              "Id": "e0000146-0000-0000-0000-000000000001",
+              "Name": "ExecOut",
+              "Direction": "Out",
+              "TypeRef": {
+                "TypeId": "",
+                "IsArray": false,
+                "GenericArgs": []
+              },
+              "IsExec": true,
+              "LinkedToIds": []
+            }
+          ],
+          "EditorMetadata": {
+            "X": 60,
+            "Y": 60,
+            "Comment": null
+          }
+        },
+        {
+          "kind": "Return",
+          "Status": "Success",
+          "Id": "20000146-0000-0000-0000-000000000002",
+          "Pins": [
+            {
+              "Id": "e0000146-0000-0000-0000-000000000002",
+              "Name": "ExecIn",
+              "Direction": "In",
+              "TypeRef": {
+                "TypeId": "",
+                "IsArray": false,
+                "GenericArgs": []
+              },
+              "IsExec": true,
+              "LinkedToIds": []
+            }
+          ],
+          "EditorMetadata": {
+            "X": 320,
+            "Y": 60,
+            "Comment": null
+          }
+        }
+      ],
+      "Links": [
+        {
+          "FromNodeId": "20000146-0000-0000-0000-000000000001",
+          "FromPinId": "e0000146-0000-0000-0000-000000000001",
+          "ToNodeId": "20000146-0000-0000-0000-000000000002",
+          "ToPinId": "e0000146-0000-0000-0000-000000000002"
+        }
+      ],
+      "LocalVariables": [],
+      "Comments": [],
+      "EditorMetadata": {
+        "ViewportX": 0,
+        "ViewportY": 0,
+        "ViewportZoom": 0
+      }
+    }
+  ],
+  "EditorMetadata": {
+    "Description": "P1 - the FIRST AiPrimitive in the corpus hosted as an HsmAction. Measured 2026-09-21: all 46 existing assets are BTreeAction/BTreeCondition, so the HSM hosting path had no golden at all. It exists to be driven from TWO parallel HSM regions bound to TWO different blackboard variables, so SeedParamsOffset (E3b-0) gives each occurrence a different seed and the two regions observe DIFFERENT params - the invariant BP-297 could never redden because HsmOrthogonalRegions\u0027 two regions both ran StubIdle, whose body is empty. The Main graph is deliberately trivial: what is under test is the SEED and the occurrence slot, not the graph body.",
+    "Category": "Demo",
+    "Recipe": null
+  }
+}
