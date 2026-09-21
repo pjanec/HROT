@@ -237,8 +237,13 @@ namespace Hrot.ScenarioEditor.Map
             //   it, in one place, exactly as S-3c did for the selection itself.
             // 🔒 THE SILENT-DEFAULT RULE, applied: both parameters are optional so a lightweight host or a
             //   test need not supply them, but this caller HOLDS them and therefore PASSES them.
+            // ⭐⭐⭐ CE-300 — the AI editors' entity cell joins the SAME announcement, as a third
+            //   consequence. 📄 DESIGN_Editor_Entity_Selection_Source.md §3.1 / §4.
+            // ⛔ NOT a fourth system: this class already IS "what a selection change causes", and a
+            //   parallel consumer of one edge would be two implementations of one concept (ruling 9) —
+            //   the same argument S-5 made for putting CancelArmedOn here.
             var selectionNotifications = new Hrot.ScenarioEditor.Systems.SelectionNotificationSystem(
-                ctx.Inspector ?? (static () => null), tools, selection);
+                ctx.Inspector ?? (static () => null), tools, selection, ctx.AiEntitySelection);
 
             return new MapInteraction(
                 buffer, bus, gizmoRegistry, statelessRegistry, settings,

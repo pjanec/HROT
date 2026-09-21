@@ -195,6 +195,75 @@ public class SelectionInteractionSystemTests
     }
 
     /// <summary>
+    /// ⭐⭐⭐ <b><c>CE-300</c> — the AI editors' entity cell follows the ANNOUNCEMENT, so EVERY cause
+    /// moves it.</b> 📄 <c>docs/blueprints/DESIGN_Editor_Entity_Selection_Source.md</c> §3.1.
+    ///
+    /// <para>🔴 <b>The defect this pins.</b> The cell's only production writer used to be
+    /// <c>CallbackSelectionBridge</c>, hung off <c>SelectionInteractionSystem.OnSelectionChanged</c> —
+    /// <b>a map gesture</b>. ⇒ an entity-inspector click, an orbat select, a context-menu <i>Select</i>
+    /// or a remote <c>CMD_SET_SELECTION</c> left every Watch/Details live-value row projecting the
+    /// PREVIOUS entity.</para>
+    ///
+    /// <para>⭐⭐ <b>The request here is deliberately NOT a map gesture</b> — it is published directly,
+    /// the way the inspector publishes one. ⛔ Driving this through <c>PublishStartedEvent</c> would
+    /// assert the defect away: the old bridge passed that case too, and only that case.
+    /// ⛔ <b>Red-proof:</b> restrict the sink to <c>Map.</c> reasons and this reddens while
+    /// <see cref="AMapClickReachesTheInspectorContext"/> stays green.</para>
+    /// </summary>
+    [Fact]
+    public void ASelectionFromANonMapCause_ReachesTheAiEditorsEntityCell()
+    {
+        var entity = CreateSelectableEntity();
+        Entity? aiCell = null;
+        var notify = new SelectionNotificationSystem(
+            static () => null, null, null, e => aiCell = e);
+
+        _world.Bus.PublishManaged(
+            Fdp.Toolkit.Vis2D.Abstractions.SelectionChangeRequest
+                .ReplaceWith(entity, "Inspector.RowClick"));     // ⭐ NOT a map gesture
+        ServeRequests();
+        _world.Bus.SwapBuffers();
+        notify.Execute(_world, 0f);
+
+        Assert.Equal(entity, aiCell);
+    }
+
+    /// <summary>
+    /// ⚠ <b><c>CE-300</c> — a CLEARED selection hands the cell <c>null</c>, never
+    /// <see cref="Entity.Null"/>.</b>
+    ///
+    /// <para>⭐ The cell's <c>null</c> is a REAL state its readers gate on — <c>LiveBlackboardValue
+    /// Provider</c>'s second line is <c>if (entity == null) return false</c>, so the row honestly reads
+    /// <c>(pending)</c>. ⛔ Handing them <c>Entity.Null</c> instead would make every provider ask the
+    /// world about entity 0.</para>
+    ///
+    /// <para>⛔ <b>Asserted as "assigned, and assigned null"</b>, not merely "still null" — ⚠ an
+    /// unchanged initial value would pass a test that never ran the system at all.</para>
+    /// </summary>
+    [Fact]
+    public void ClearingTheSelection_HandsTheAiCellNull_NotEntityNull()
+    {
+        var entity = CreateSelectableEntity();
+        var writes = new System.Collections.Generic.List<Entity?>();
+        var notify = new SelectionNotificationSystem(
+            static () => null, null, null, e => writes.Add(e));
+
+        _world.Bus.PublishManaged(
+            Fdp.Toolkit.Vis2D.Abstractions.SelectionChangeRequest.ReplaceWith(entity, "Map.Click"));
+        ServeRequests();
+        _world.Bus.SwapBuffers();
+        notify.Execute(_world, 0f);
+
+        _world.Bus.PublishManaged(
+            Fdp.Toolkit.Vis2D.Abstractions.SelectionChangeRequest.ClearAll("Map.RightClick.EmptySpace"));
+        ServeRequests();
+        _world.Bus.SwapBuffers();
+        notify.Execute(_world, 0f);
+
+        Assert.Equal(new Entity?[] { entity, null }, writes);
+    }
+
+    /// <summary>
     /// ⭐⭐⭐ <b><c>UXI-11</c> <c>S-5</c> — ruling ②, END TO END: selecting another entity cancels the edit
     /// on the one that lost the selection.</b>
     /// 🔒 <i>"if entity becomes unselected, it should cancel any editing on the entity losing the

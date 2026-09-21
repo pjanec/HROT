@@ -4,6 +4,12 @@ updated: 2026-09-20 (STATUS block added; selection content re-measured with the 
 current-answer: the body below.
 known-rot: ⚠ this document predates UXI-11 (selection unification, ☑ 2026-09-20) and is NOT reconciled
   with it. Two measured facts, 2026-09-20:
+  ⭐⭐ ①+② ARE RESOLVED IN CODE 2026-09-21 by CE-300/CE-301 — CallbackSelectionBridge and
+     IGSelectionBridge are DELETED; SharedEntitySelection is now written ONLY by
+     SelectionNotificationSystem, from SelectionChangedNotification, so every cause moves it and
+     CGF's cell has a production writer for the first time. It is a PROJECTION, railed as one.
+     📄 DESIGN_Editor_Entity_Selection_Source.md §9. ⚠ The two entries below are kept as the
+     RECORD OF WHAT WAS WRONG — including a retraction worth not re-deriving.
   ① 🔴 SharedEntitySelection (wrapped per-editor by EditorSelectionStore) is a SECOND entity-selection
      store, held in production by BOTH authoring hosts — EditorSubsystem.cs:360 and CgfSubsystem.cs:199 —
      alongside the ECS SelectionState component UXI-11 made the one truth everywhere else. ⛔ No UXI-11

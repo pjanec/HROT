@@ -1,8 +1,14 @@
 <!--STATUS
 state: LIVE
 updated: 2026-09-20
-current-answer: ⭐⭐⭐ READ THE TOP OF THIS FILE — the "SESSION 2026-09-20 (j)" block (S-6) is the live
-  state; (i) is S-5, (h) is S-4b, (g) is S-4, (f) is S-3e.
+current-answer: ⭐⭐⭐ READ THE TOP OF THIS FILE — the "SESSION 2026-09-21" block (CE-300/CE-301) is the
+  live state; below it "SESSION 2026-09-20 (j)" is S-6, (i) is S-5, (h) is S-4b, (g) is S-4, (f) is S-3e.
+  ☑ CE-300/CE-301 BUILT 2026-09-21: the AI editors' entity cell was written by a MAP GESTURE (the third
+  instance of the shape S-3 fixed inbound and S-6 outbound); it is now a projection of
+  SelectionChangedNotification, and CGF's cell has a production writer for the first time. Owning design
+  is the NEW docs/blueprints/DESIGN_Editor_Entity_Selection_Source.md.
+  ⛔ NEXT: CE-302/CE-303 (convert EntityBlueprintsManagedWindow and BlueprintRuntimeInspectorPane into
+  details-panel views with pinning), carrying CE-305's ruled write-target rule. CE-304 is discharged.
   ☑☑ UXI-11's SLICE LIST S-1…S-6 IS COMPLETE. One store, one request, one writer, one announcement on
   every node — ONE PLACE (MapInteractionPack) that builds them all — right-click SELECTS on both
   inspector panels with the DER inspector wired by NETWORK id, the MAP obeys §2.3 including the
@@ -43,7 +49,7 @@ current-answer: ⭐⭐⭐ READ THE TOP OF THIS FILE — the "SESSION 2026-09-20 
   nothing from it is in flight. Older STRANDS below it are older history still; do NOT act on any of
   them unless explicitly told to continue one.
 
-stale-below: ⛔ EVERYTHING below the "SESSION 2026-09-20 (j)" block is HISTORY, newest first, with TWO
+stale-below: ⛔ EVERYTHING below the "SESSION 2026-09-21" block is HISTORY, newest first, with TWO
   exceptions that are LIVE STATUS and not session logs: the "VERIFIED IN THE PRODUCT" block (the
   Windows result) and the "CGF BUILT ITS MAP LAYER WITH NO CAMERA" fix directly under it.
   ⚠ The two "SUPERSEDED" blocks under those record the readings that LED to the fix and are wrong as
@@ -61,6 +67,37 @@ related-designs:
   Nothing was deleted.
 -->
 # ⭐⭐⭐ RESUME — **the UI / variable implementation lane**
+
+## ⭐⭐⭐ SESSION `2026-09-21` — **`CE-300` + `CE-301`: the AI editors' entity followed a MAP GESTURE**
+
+📄 **Owning design (NEW): [`DESIGN_Editor_Entity_Selection_Source.md`](https://github.com/pjanec/HROT/blob/ui/docs/blueprints/DESIGN_Editor_Entity_Selection_Source.md)** — read it, not this summary.
+
+🔴 **The defect.** The AI editors' entity cell was written by `CallbackSelectionBridge`, hung off
+`SelectionInteractionSystem.OnSelectionChanged` — **a map gesture** — *two lines below the comment
+explaining why the neighbouring hand-sync was retired for exactly that*. ⇒ an inspector click, an orbat
+select, a context-menu *Select* or a remote `CMD_SET_SELECTION` left every Watch/Details live-value row
+projecting the **previous** entity. ⭐⭐⭐ **Third instance of one shape** — `S-3` inbound, `S-6` outbound.
+
+☑ **Fixed:** `SelectionNotificationSystem` gained the cell as a sink *(a delegate — the cell is in
+`Hrot.Editor.AiShared`, which `Hrot.Presentation` may not reference; `R-134`)*. Both bridge types, their
+test, the field+dispose and an orphaned `DelegateDisposable` are deleted. ⭐ **CGF's cell has a
+production writer for the first time.**
+
+⚠⚠ **TWO CORRECTIONS I OWE THE RECORD:**
+| | |
+|---|---|
+| ⛔ **the coordinator's known-rot ② was FALSE** | *"`IGSelectionBridge` has ZERO production construction sites"* — `EditorSubsystem.cs:2092` constructed it, `:2105` connected it, in `Initialize()`, no `#if`. ⭐ A graph query that misses a construction site is **indistinguishable from a real absence** |
+| ⛔ **§5.4's own premise was wrong, and I had given the user a LEAN on it** | I said the read/write invariant *"breaks the moment a view is pinned"*. 📐 Measured after: `DetailsViewWindow` is **not** an `IVariableTableHost`, so a pinned view gets **no edit gestures at all** ⇒ **pinned views are READ-ONLY today** and the divergence cannot occur. ⭐ The user's ruling *(write target from the view's own `IDetailsContextSource`)* **stands as a PRECONDITION of `CE-302`/`CE-303`**, not as a repair |
+
+⭐ **Also measured, because the user asked:** `BlueprintLiveValueWriter`/`StagedWrites` is **NOT** a second
+implementation of the Watch's live write. `VariableEditCommit` is the one commit path and
+`PerspectiveWorkspaceRegistrar` attaches the **same** binder to Details *(`:636`)* and Watch *(`:690`)*.
+The writer is the Blueprint `writeLive` **strategy** plugged into it; `StagedWrites`' yellow resolves
+through **the same call the write makes**. 📄 §6 of the new design.
+
+⛔ **NEXT, and nothing is in flight:** `CE-302` / `CE-303` *(convert `EntityBlueprintsManagedWindow` and
+`BlueprintRuntimeInspectorPane` into details-panel views with pinning)*, which carry `CE-305`'s rule
+with them. `CE-304` is discharged.
 
 ## ⭐⭐⭐ SESSION `2026-09-20` (j) — **`S-6`: THE LAST SLICE. `UXI-11`'s S-1…S-6 ARE COMPLETE**
 

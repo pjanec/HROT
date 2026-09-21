@@ -90,6 +90,185 @@ public sealed class NoProductionHostKeepsAParallelSelectionStoreTests
     }
 
     /// <summary>
+    /// ⭐⭐⭐ <b><c>CE-301</c>'s gate: the AI editors' entity cell is a PROJECTION, so exactly ONE
+    /// production site may assign it.</b>
+    /// 📄 <c>docs/blueprints/DESIGN_Editor_Entity_Selection_Source.md</c> §2.
+    ///
+    /// <para>⭐ <b>Same argument as the rail above, on a different cell.</b> The defect is not a wrong
+    /// value — it is a second <em>place</em> the entity can be written from, which is what turns a view
+    /// back into a store. ⛔ No behavioural assertion catches a second writer: both writers would agree
+    /// most of the time, and disagree exactly when it matters.</para>
+    ///
+    /// <para>⭐⭐ <b>The permitted sites are the two HOST forwards to the pack</b>
+    /// (<c>AiEntitySelection = e =&gt; _sharedEntitySelection.Selected = e</c>, the editor's and CGF's),
+    /// which are the sink <c>SelectionNotificationSystem</c> drives — <b>plus
+    /// <c>EditorSelectionStore</c>'s own delegating setter.</b> ⚠ The exact FILE SET is asserted, not a
+    /// count, ⛔ so this reddens if a host DROPS its forward as well as if a third writer appears.
+    /// 📌 <c>R-67</c>: the control for a forwarding rail is on the site that forwards.</para>
+    ///
+    /// <para>⭐⭐⭐ <b>And the delegating setter is a CONDUIT, so the second assertion closes it</b>: no
+    /// production code may write <c>store.SelectedEntity</c> directly. 📐 Measured — the only such
+    /// writer was <c>CallbackSelectionBridge</c>, which <c>CE-300</c> deleted. ⛔ Excluding the conduit
+    /// from the scan instead would hide exactly the route a second writer would take.</para>
+    ///
+    /// <para>⚠ <b>What this CANNOT see</b> *(say which layer is faked)*: that the sink is reached at
+    /// runtime. ⭐ That is
+    /// <c>SelectionInteractionSystemTests.ASelectionFromANonMapCause_ReachesTheAiEditorsEntityCell</c>'s
+    /// job, and the two together are the claim.</para>
+    /// </summary>
+    [Fact]
+    public void OnlyTheHostForwardWritesTheAiEditorsEntityCell()
+    {
+        var root    = RepoRoot();
+        var writers = new List<string>();
+
+        foreach (var tree in ProductionTrees)
+        {
+            var treeDir = Path.Combine(root, tree);
+            if (!Directory.Exists(treeDir)) continue;
+
+            foreach (var file in Directory.EnumerateFiles(treeDir, "*.cs", SearchOption.AllDirectories))
+            {
+                if (!IsProductionFile(file)) continue;
+
+                var lines = File.ReadAllLines(file);
+                for (int i = 0; i < lines.Length; i++)
+                {
+                    var line = lines[i];
+                    // ⚠ Comments and doc comments are skipped: this file's own prose names the member,
+                    //   and so does the cell's header. ⛔ A text rail that counts prose is a rail that
+                    //   reddens on documentation.
+                    var trimmed = line.TrimStart();
+                    if (trimmed.StartsWith("//") || trimmed.StartsWith("///") || trimmed.StartsWith("*"))
+                        continue;
+
+                    // ⭐ An ASSIGNMENT to the cell, not a read: `.Selected =` but not `==`.
+                    int at = line.IndexOf(".Selected", StringComparison.Ordinal);
+                    while (at >= 0)
+                    {
+                        var rest = line[(at + ".Selected".Length)..].TrimStart();
+                        if (rest.StartsWith("=", StringComparison.Ordinal) &&
+                            !rest.StartsWith("==", StringComparison.Ordinal))
+                        {
+                            writers.Add($"{Path.GetRelativePath(root, file)}:{i + 1}");
+                            break;
+                        }
+                        at = line.IndexOf(".Selected", at + 1, StringComparison.Ordinal);
+                    }
+                }
+            }
+        }
+
+        // ⭐⭐ THREE sites are correct, and naming the third is the point: EditorSelectionStore's own
+        //    `SelectedEntity` setter DELEGATES to the cell. It is a CONDUIT, not a writer — ⛔ but it is
+        //    a public setter, so anything holding a store could write the cell through it and quietly
+        //    make it a store again. ⇒ that hole is closed by the SECOND assertion below, not by
+        //    excluding the line here: a rail that hides a conduit cannot see it being used.
+        var expected = new[]
+        {
+            "Hrot/Subsystems/Hrot.CGF/CgfSubsystem.cs",
+            "Hrot/Subsystems/Hrot.Editor/EditorSubsystem.cs",
+            "Hrot/Editor/Hrot.Editor.AiShared/Selection/EditorSelectionStore.cs",
+        };
+        var actualFiles = writers
+            .Select(w => w[..w.LastIndexOf(':')].Replace('\\', '/'))
+            .OrderBy(f => f, StringComparer.Ordinal)
+            .ToList();
+
+        Assert.True(
+            actualFiles.SequenceEqual(expected.OrderBy(f => f, StringComparer.Ordinal)),
+            "The AI editors' entity cell (SharedEntitySelection.Selected) must be assigned by exactly " +
+            "three production sites: the editor's and CGF's forward of MapInteractionContext" +
+            ".AiEntitySelection (which SelectionNotificationSystem drives), plus EditorSelectionStore's " +
+            "own delegating setter. More means a second writer turned the projection back into a " +
+            "store; fewer means a host dropped its forward (CE-300/CE-301, " +
+            "DESIGN_Editor_Entity_Selection_Source.md §2). Sites:" +
+            Environment.NewLine + string.Join(Environment.NewLine, writers));
+
+        // ⭐⭐⭐ THE CONDUIT IS UNUSED IN PRODUCTION, and that is the half that actually keeps the cell a
+        //    projection. 📐 Measured 2026-09-21: the only production writer of `store.SelectedEntity`
+        //    was CallbackSelectionBridge, which CE-300 deleted. ⚠ Tests and the smoke harness write it
+        //    freely — they are excluded by IsProductionFile, and that is correct: a rail needs to be
+        //    able to place an entity without standing up a notification pipeline.
+        var conduitUsers = new List<string>();
+        foreach (var tree in ProductionTrees)
+        {
+            var treeDir = Path.Combine(root, tree);
+            if (!Directory.Exists(treeDir)) continue;
+
+            foreach (var file in Directory.EnumerateFiles(treeDir, "*.cs", SearchOption.AllDirectories))
+            {
+                if (!IsProductionFile(file)) continue;
+                // ⛔ The declaring file itself is where the property LIVES.
+                if (file.Replace('\\', '/').EndsWith("Selection/EditorSelectionStore.cs",
+                        StringComparison.Ordinal))
+                    continue;
+
+                var text = File.ReadAllText(file);
+                // ⭐ A file that never names the type cannot be writing one's property.
+                if (!text.Contains("EditorSelectionStore", StringComparison.Ordinal)) continue;
+
+                var lines = text.Split('\n');
+
+                // ⭐⭐⭐ THE RECEIVER SET, DERIVED FROM DECLARATIONS — not guessed from names.
+                // 🔴 Two weaker discriminators were tried and BOTH were wrong, in opposite directions:
+                //    a blacklist of variable names (fragile — it passes or fails on what someone called
+                //    a local), then a file-level filter (over-scoped — the two host files DO name the
+                //    type, so their unrelated `_fdpInspectorState.SelectedEntity` writes were flagged).
+                // ⚠ `SelectedEntity` is a member name at least THREE types carry here. ⇒ the only
+                //    honest text answer is to learn which identifiers in THIS file are stores, and flag
+                //    writes through those alone. 📌 CLAUDE.md: text cannot tell a real reference from a
+                //    same-named symbol — so narrow the text until it can.
+                var storeNames = new HashSet<string>(StringComparer.Ordinal);
+                foreach (var raw in lines)
+                {
+                    var m = System.Text.RegularExpressions.Regex.Matches(
+                        raw,
+                        @"(?:EditorSelectionStore[?\s]+(\w+)\s*[=;)]"        // typed declaration/param
+                        + @"|(\w+)\s*=\s*new\s+(?:[\w.]*\.)?EditorSelectionStore)"); // var x = new ...
+                    foreach (System.Text.RegularExpressions.Match hit in m)
+                    {
+                        var name = hit.Groups[1].Success ? hit.Groups[1].Value : hit.Groups[2].Value;
+                        if (!string.IsNullOrEmpty(name)) storeNames.Add(name);
+                    }
+                }
+                if (storeNames.Count == 0) continue;
+
+                for (int i = 0; i < lines.Length; i++)
+                {
+                    var trimmed = lines[i].TrimStart();
+                    if (trimmed.StartsWith("//") || trimmed.StartsWith("///") || trimmed.StartsWith("*"))
+                        continue;
+
+                    foreach (var name in storeNames)
+                    {
+                        int at = lines[i].IndexOf(name + ".SelectedEntity", StringComparison.Ordinal);
+                        if (at < 0) continue;
+                        // ⚠ Must be the WHOLE identifier, not a suffix of a longer one.
+                        if (at > 0 && (char.IsLetterOrDigit(lines[i][at - 1]) || lines[i][at - 1] == '_'))
+                            continue;
+                        var rest = lines[i][(at + name.Length + ".SelectedEntity".Length)..].TrimStart();
+                        if (rest.StartsWith("=", StringComparison.Ordinal) &&
+                            !rest.StartsWith("==", StringComparison.Ordinal))
+                        {
+                            conduitUsers.Add($"{Path.GetRelativePath(root, file)}:{i + 1}");
+                            break;
+                        }
+                    }
+                }
+            }
+        }
+
+        Assert.True(
+            conduitUsers.Count == 0,
+            "Production code is writing EditorSelectionStore.SelectedEntity directly. That is a SECOND " +
+            "writer of the AI editors' entity cell, which turns the projection back into a store — the " +
+            "cell's one writer is SelectionNotificationSystem, via MapInteractionContext" +
+            ".AiEntitySelection (CE-301). Sites:" +
+            Environment.NewLine + string.Join(Environment.NewLine, conduitUsers));
+    }
+
+    /// <summary>
     /// ⭐⭐⭐ <b><c>UXI-11</c> slice <c>S-2</c>'s gate: NOTHING hand-writes the <c>SelectionState</c>
     /// component except the view.</b>
     ///

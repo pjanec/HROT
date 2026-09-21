@@ -123,6 +123,27 @@ namespace Hrot.ScenarioEditor.Map
         public Func<Fdp.Presentation.Abstractions.IInspectorContext?>? Inspector { get; init; }
 
         /// <summary>
+        /// ⭐⭐⭐ <b><c>CE-300</c> — the AI editors' entity cell, as a SINK.</b>
+        /// 📄 <c>docs/blueprints/DESIGN_Editor_Entity_Selection_Source.md</c> §3.1.
+        ///
+        /// <para>⚠ <b>A DELEGATE, and that is an ASSEMBLY fact, not style:</b> the cell
+        /// (<c>SharedEntitySelection</c>) lives in <c>Hrot.Editor.AiShared</c>, which this assembly
+        /// does not and must not reference. ⭐ Same shape and same reason as
+        /// <c>SelectionEgressSystem</c>'s publish delegate (<c>R-134</c>).</para>
+        ///
+        /// <para>⭐ <b>It replaces <c>CallbackSelectionBridge</c>, which hung off
+        /// <c>SelectionInteractionSystem.OnSelectionChanged</c> — a MAP GESTURE.</b> ⇒ an inspector
+        /// click, an orbat select, a context-menu <i>Select</i> or a remote <c>CMD_SET_SELECTION</c>
+        /// never moved the AI editors' entity, so every Watch/Details live-value row kept projecting
+        /// the PREVIOUS one. 🔴 The third instance of the shape <c>S-3</c> fixed inbound and
+        /// <c>S-6</c> outbound.</para>
+        ///
+        /// <para>⚠ A host with no AI editors passes nothing and nothing happens — a fact about that
+        /// host, not a silent default.</para>
+        /// </summary>
+        public Action<Entity?>? AiEntitySelection { get; init; }
+
+        /// <summary>
         /// ⭐ The host's rubber-band visual, if it draws one. <c>null</c> ⇒ box-select still SELECTS, it
         /// just draws no marquee — which is what SimHost and IG do today.
         /// </summary>

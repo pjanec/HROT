@@ -344,7 +344,7 @@ namespace Hrot.Editor
         private Hrot.ScenarioEditor.Gizmos.RubberBandState? _rubberBandState;
         private Hrot.ScenarioEditor.Systems.SelectionInteractionSystem? _selectionSystem;
         // ⭐⭐⭐ Batch 95 (95b) — THE SELECTED ENTITY, ONCE, for every store this subsystem holds.
-        // 🔴🔴 Measured: this editor builds FOUR EditorSelectionStores and calls
+        // 🔴🔴 Measured (Batch 95): this editor builds FOUR EditorSelectionStores and called
         //    CallbackSelectionBridge.Connect exactly ONCE, on _aiEditorSelectionStore below. ⇒
         //    SelectedEntity was null on all three PERSPECTIVE stores, always ⇒ every live-value
         //    provider returned null on its second line ⇒ every Details/Watch row on every host read
@@ -359,7 +359,6 @@ namespace Hrot.Editor
         //    abolish. ⭐ One fact, read by every store; the bridge still connects exactly one.
         private readonly Hrot.Editor.AiShared.Selection.SharedEntitySelection _sharedEntitySelection = new();
         private readonly Hrot.Editor.AiShared.Selection.EditorSelectionStore _aiEditorSelectionStore;
-        private Hrot.Editor.AiShared.Selection.CallbackSelectionBridge? _selectionBridge;
         // ?? Behavior registry (promoted for tooltip rendering) ?????????????????
 
         private BehaviorRegistry? _behaviorRegistry;
@@ -680,11 +679,12 @@ namespace Hrot.Editor
         /// ⭐⭐⭐ Batch 95 (<c>95b</c>) — internal test hook: <b>the ONE store the selection bridge
         /// writes to.</b>
         ///
-        /// <para>⭐ <c>CallbackSelectionBridge.Connect</c>'s entire action is
-        /// <c>store.SelectedEntity = entity</c> on this store, so writing here IS how production
-        /// selects an entity. ⛔ A rail that instead wrote to a PERSPECTIVE store would assert the
-        /// defect away rather than expose it — the whole finding is that the perspective stores are
-        /// not the ones production writes.</para>
+        /// <para>⚠⚠ <b><c>CE-300</c> CORRECTED THIS.</b> It used to read: <i>"CallbackSelectionBridge
+        /// .Connect's entire action is store.SelectedEntity = entity on this store, so writing here IS
+        /// how production selects an entity."</i> ⛔ That bridge is DELETED. ⭐ Production now writes
+        /// the SHARED CELL from <c>SelectionChangedNotification</c>, so writing to ANY of the four
+        /// stores is equivalent — they are one cell. 📄
+        /// <c>DESIGN_Editor_Entity_Selection_Source.md</c> §3.1.</para>
         /// </summary>
         internal Hrot.Editor.AiShared.Selection.EditorSelectionStore AiEditorSelectionStore
             => _aiEditorSelectionStore;
@@ -1888,6 +1888,10 @@ namespace Hrot.Editor
                 {
                     World = _world,
                     Inspector = () => _fdpInspectorState,
+                    // ⭐⭐⭐ CE-300 — the AI editors' entity cell follows the ANNOUNCEMENT, not a map
+                    //   gesture. 📄 DESIGN_Editor_Entity_Selection_Source.md §3.1.
+                    // 🔒 R-67 — this caller HOLDS the cell, so it PASSES it.
+                    AiEntitySelection = e => _sharedEntitySelection.Selected = e,
                     // ⭐ UXI-11 — the pack builds the gesture system, so it needs the marquee state.
                     RubberBand = _rubberBandState ??= new Hrot.ScenarioEditor.Gizmos.RubberBandState(),
                     IsSelectedPredicate = static (view, entity) =>
@@ -2088,23 +2092,16 @@ namespace Hrot.Editor
             //    hung off SelectionInteractionSystem. ⇒ an inspector click, a context-menu Select, a
             //    CMD_SET_SELECTION from ExCon — none of them moved _fdpInspectorState. 📌 That is the
             //    whole argument for an announcement: one publisher, every cause, one consumer.
-            // Wire the AI editor selection store so AI editor windows track the selected entity.
-            _selectionBridge = new Hrot.Editor.AiShared.Selection.CallbackSelectionBridge(onEntitySelected =>
-            {
-                Action<Entity, System.Numerics.Vector3> handler = (entity, _) =>
-                {
-                    onEntitySelected(_world != null && entity != Entity.Null && _world.IsAlive(entity)
-                        ? entity
-                        : (Entity?)null);
-                };
-                _selectionSystem!.OnSelectionChanged += handler;
-                return new DelegateDisposable(() =>
-                {
-                    if (_selectionSystem != null)
-                        _selectionSystem.OnSelectionChanged -= handler;
-                });
-            });
-            _selectionBridge.Connect(_aiEditorSelectionStore);
+            // ⭐⭐⭐ CE-300 — CallbackSelectionBridge IS DELETED, and the gap is the point.
+            // 🔴 It subscribed to _selectionSystem.OnSelectionChanged — a MAP GESTURE — two lines below
+            //    the comment above explaining why the neighbouring hand-sync was retired for exactly
+            //    that. ⇒ an inspector click, an orbat select, a context-menu Select or a remote
+            //    CMD_SET_SELECTION never moved the AI editors' entity, so every Watch/Details
+            //    live-value row kept projecting the PREVIOUS one.
+            // ⭐ The cell is now a SINK of SelectionChangedNotification, passed to the pack as
+            //    MapInteractionContext.AiEntitySelection above.
+            // 📄 DESIGN_Editor_Entity_Selection_Source.md §3.1; the third instance of the shape S-3
+            //    fixed inbound and S-6 outbound.
             // UXI-23 S2b: the group, its three members and the gate come from the pack.
             var gizmoGroup   = _editorMapInteraction.GizmoGroup;
             _gizmoController = _editorMapInteraction.Gate;
@@ -5215,8 +5212,6 @@ namespace Hrot.Editor
             _zoneEditorPanel  = null;
             _fdpRepoAdapter   = null;
             _selectionState   = null;
-            _selectionBridge?.Dispose();
-            _selectionBridge  = null;
             // (Phase 5: _interactionTool was here; removed)
             _clusterMaster?.Dispose();
             _clusterMaster  = null;
@@ -5691,13 +5686,6 @@ namespace Hrot.Editor
         // IEcsModule wrapper for Simulation-phase systems in the offline Editor.
         // The kernel forbids registering SystemPhase.Simulation systems as global systems;
         // they must be routed through a module.
-
-        private sealed class DelegateDisposable : IDisposable
-        {
-            private Action? _action;
-            public DelegateDisposable(Action action) => _action = action;
-            public void Dispose() { _action?.Invoke(); _action = null; }
-        }
 
         private sealed class EditorSimulationModule : IEcsModule        {
             private readonly TogglableSimulationGroup _simulationGroup;

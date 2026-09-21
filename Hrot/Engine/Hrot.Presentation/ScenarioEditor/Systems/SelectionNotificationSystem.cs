@@ -39,6 +39,7 @@ public sealed class SelectionNotificationSystem : IEcsModuleSystem
     private readonly Func<IInspectorContext?> _inspector;
     private readonly Hrot.ScenarioEditor.Tools.IToolController? _tools;
     private readonly ISelectionState? _selection;
+    private readonly Action<Entity?>? _aiEntity;
 
     /// <param name="inspector">
     /// ⚠ Resolved per execute, not captured: a host rebuilds its inspector state on scenario reload,
@@ -54,14 +55,24 @@ public sealed class SelectionNotificationSystem : IEcsModuleSystem
     /// <i>"is THIS entity still selected?"</i> — not a diff of the notification's set. ⭐ The notification
     /// is only the EDGE that says when to ask; the answer comes from the one store (<c>R-126</c>).
     /// </param>
+    /// <param name="aiEntitySelection">
+    /// ⭐⭐⭐ <c>CE-300</c> — the AI editors' entity cell, written from the ANNOUNCEMENT.
+    /// 📄 <c>DESIGN_Editor_Entity_Selection_Source.md</c> §3.1.
+    /// ⚠ A DELEGATE because the cell lives in <c>Hrot.Editor.AiShared</c>, which this assembly must not
+    /// reference — same reason as <c>SelectionEgressSystem</c>'s publish (<c>R-134</c>).
+    /// ⛔ Optional, and legitimately so: only the two AUTHORING hosts have AI editors. ⚠ But a host
+    /// that HAS a cell must pass it — <c>R-67</c>, and the rail is on the constructed pack.
+    /// </param>
     public SelectionNotificationSystem(
         Func<IInspectorContext?> inspector,
         Hrot.ScenarioEditor.Tools.IToolController? tools = null,
-        ISelectionState? selection = null)
+        ISelectionState? selection = null,
+        Action<Entity?>? aiEntitySelection = null)
     {
         _inspector = inspector ?? throw new ArgumentNullException(nameof(inspector));
         _tools     = tools;
         _selection = selection;
+        _aiEntity  = aiEntitySelection;
     }
 
     /// <inheritdoc/>
@@ -82,6 +93,15 @@ public sealed class SelectionNotificationSystem : IEcsModuleSystem
             //   panel reads the full set from ISelectionState. ⛔ Inventing a "first of many" rule
             //   here would be a second opinion about what "the" selected entity is.
             if (inspector != null) inspector.SelectedEntity = note.Primary;
+
+            // ⭐⭐⭐ CE-300 — the AI editors' entity, from the SAME announcement.
+            // ⚠ THE SAME PRIMARY the inspector gets, deliberately: the AI cell is a single Entity? and
+            //   "the selected entity" must mean one thing on a host, not two. ⛔ Picking a different
+            //   member of the set here would be a second opinion about what "the" selection is.
+            // ⚠ Entity.Null => null, because the cell's null is a REAL state its readers gate on
+            //   ("I cannot project" => the row shows (pending)). ⛔ Handing them Entity.Null instead
+            //   would make every provider ask the world about entity 0.
+            _aiEntity?.Invoke(note.Primary == Entity.Null ? null : note.Primary);
 
             CancelEditsOnDeselectedEntities();
         }

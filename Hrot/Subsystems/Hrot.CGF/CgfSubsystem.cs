@@ -1316,6 +1316,10 @@ public sealed class CgfSubsystem : ISubsystem, Fdp.Toolkit.Runner.IMapCameraProv
                 // CGF is a dumb terminal for handles — it draws all active gizmos, like IG.
                 IsSelectedPredicate = null,
                 Inspector = () => _fdpInspectorState,
+                // ⭐⭐⭐ CE-300 — CGF's AI cell gets its FIRST production writer. 📐 Measured before
+                //   this change: no bridge here at all, so SelectedEntity was null for ever.
+                //   📄 DESIGN_Editor_Entity_Selection_Source.md §4 (the dead-edge diagram).
+                AiEntitySelection = e => _sharedEntitySelection.Selected = e,
                 // GZH-003: CGF is headless-first; enable only when a terminal connects.
                 StartEnabled = false,
                 // ⭐⭐⭐ UXI-07 — the Spawn tool's behaviour goes to the PACK (see §4.10; the editor carries

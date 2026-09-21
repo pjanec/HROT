@@ -6,8 +6,11 @@ current-answer: this whole file. §2 is the class model, §3 the sequences, §4 
   view, §5 the per-surface rulings, §6 the write path (measured NOT a duplicate), §7 what this
   supersedes in AI_Editor_Shared_Infrastructure.md, §8 the items.
 stale-below: nothing — this file is new.
-known-rot: none open. ⚠ ONE question is UNRULED and is stated as such in §5.4: which entity a live
-  variable WRITE targets when the view it was issued from is PINNED.
+known-rot: none open. ⚠ §5.4 CORRECTED ITSELF 2026-09-21: it argued the read/write invariant
+  "breaks the moment a view is pinned". Measured — it does not yet, because a pinned
+  DetailsViewWindow is not an IVariableTableHost and so gets no edit gestures at all. The user's
+  ruling (write target from the view's own IDetailsContextSource) STANDS as a precondition of
+  CE-302/CE-303, not as a repair. The original framing is kept under §5.4's HISTORY heading.
 known-conflict: none. It SUPERSEDES AI_Editor_Shared_Infrastructure.md §5.3 (the DDS bridge as the
   ingress) and §5.4 (the per-window ChainToMap toggle); that file's known-rot points here.
 design-basis: UX_Feature_Selection.md §2.7.8 (the announcement) and §2.7.17 (the egress; the same
@@ -31,6 +34,36 @@ related-designs:
 -->
 
 # DESIGN — **where an AI-editor view gets its entity**: follow when docked, frozen when pinned
+
+## 0. ⭐⭐ INVENTORY — **the enumeration this design was drawn from** *(`2026-09-21`)*
+
+⛔ **Graph FIRST, then grep — and the two disagreed, which is the point of running both.**
+
+```
+search_graph(project="home-user-HROT",
+             name_pattern=".*(SharedEntitySelection|EditorSelectionStore|IGSelectionBridge|CallbackSelectionBridge).*",
+             limit=60)                                    → total: 47, has_more: false
+```
+
+| what the enumeration returned | |
+|---|---|
+| **`SharedEntitySelection`** | ⭐ ONE class, `Hrot.Editor.AiShared/Selection/` — one `Entity?` cell |
+| **`EditorSelectionStore`** | ⚠⚠ **TWO classes, not one** — `Hrot.Editor.AiShared/Selection/` *(250 lines, the live one)* **and** `Hrot.Blueprints.Editor/EditorSelectionStore.cs` *(19 lines, `in_degree: 75`)*. ⛔ Neither the handoff nor the prior sweep named the second |
+| **`IGSelectionBridge`** | ONE interface, ONE implementation *(`CallbackSelectionBridge`)* |
+| production holders | `EditorSubsystem.cs:360`, `CgfSubsystem.cs:199` |
+
+⛔⛔ **WHERE THE GRAPH WAS WRONG, and it decided the whole task.** 📐 A prior graph-only sweep concluded
+*"`CallbackSelectionBridge` has **ZERO** production construction sites — the only `new` is in its own
+test."* 🔴 **False.** `grep` found `EditorSubsystem.cs:2092`, constructing it, with `:2105`
+`Connect(_aiEditorSelectionStore)`, inside `Initialize()`, unconditional, **no `#if`**.
+⇒ ⭐⭐⭐ **a graph query that misses a construction site is indistinguishable from a real absence** —
+📌 exactly `CLAUDE.md` ③, and the reason an absence claim needs both tools.
+
+⭐ **Corroborating greps run** *(each enumerating a SET, not confirming a guess)*: every
+`SharedEntitySelection` site *(13)* · every production `.SelectedEntity` assignment · every
+`VariableEditCommit` caller · every `AttachEditGestures` call · every `DetailsViewWindow` site.
+⚠ **`check_index_coverage` is NOT available through the CLI**, and the MCP dropped repeatedly during
+this session ⇒ ⛔ **no coverage check backs these totals**; they rest on graph+grep agreement.
 
 ## 1. ⭐⭐⭐ THE MODEL — **user-ruled, `2026-09-21`**
 
@@ -225,7 +258,41 @@ graph TD
 | ✅ **`RunBlueprintOnEntityCommand`** | `EditorSubsystem.cs:3794` — reads the store at button-press | 🔒 **user:** *"a debug/development tool … connected to the current unified entity selection (no pinning)."* ⭐ **Discharged by `CE-300` with no edit of its own** — once the cell IS the unified selection, reading it at press time is exactly the ruling. ⚠ Recorded so nobody "fixes" it into a pinned resolver later |
 | ⚠ **the live variable WRITE** | `BlueprintLiveValueWriter` via `VariableEditCommit` | ⛔⛔ **UNRULED — §5.4 below** |
 
-### 5.4 ⛔⛔ THE ONE OPEN QUESTION — **which entity does a PINNED view's edit write to?**
+### 5.4 ✅ RULED — **a pinned view's edit writes to the entity that view READ**
+
+> 🔒 **User, `2026-09-21`:** *"the write target should come from the same `IDetailsContextSource` the
+> view read from."*
+
+#### ⚠⚠ CORRECTION TO THIS SECTION'S OWN PREMISE — **measured `2026-09-21`, AFTER the ruling was given**
+
+🔴 **This section argued the invariant "breaks the moment a view is pinned." 📐 It does not — yet.**
+`DetailsViewWindow` *(the float/pin window)* **is not an `IVariableTableHost`**, and
+`PerspectiveWorkspaceRegistrar.cs:862` attaches edit gestures **only** to a window that is one. ⇒
+⭐⭐ **a pinned view is READ-ONLY today**, so the display/write divergence **cannot occur**.
+
+| ⭐ what the correction changes, and what it does not | |
+|---|---|
+| ⛔ **the ruling is NOT a bug fix** | there is no live defect to repair — ⚠ I presented it as one, and that was wrong |
+| ✅ **the ruling still STANDS, as a PRECONDITION** | ⭐ `CE-302`/`CE-303` convert two surfaces into details views *with pinning*; the moment any pinned view becomes editable, the divergence is real. ⇒ **the rule must exist before that, not after** |
+| ⭐⭐ **it moves WHERE the work belongs** | ⛔ not a standalone refactor of `BlueprintLiveValueWriter` now — ⭐ it is a **constraint on `CE-302`/`CE-303`**, and the natural time to build it is when the first pinned view gains an edit gesture |
+
+⚠ **Why this is recorded rather than quietly dropped:** 📌 the user ruled on a premise this design
+stated, and the premise was measured false afterwards. ⛔ Silently building it anyway would spend a
+refactor on a defect that does not exist; ⛔ silently dropping it would lose a rule that becomes
+load-bearing two items later.
+
+##### ⭐ The shape the rule takes when it is built
+
+⭐⭐ **The entity for a live write comes from the SAME `IDetailsContextSource` the view rendered from**
+— ⛔ not from `EditorSelectionStore.SelectedEntity`. 📌 `DetailsContext` already carries
+`IReadOnlyList<Entity> Entities`, so a `FrozenContextSource` snapshot already holds the pinned entity;
+nothing new needs storing.
+⚠ **The obstacle to name now:** `VariableEditGestureBinder` is **one per PERSPECTIVE**, attached to
+several table hosts *(`AttachEditGestures(Details)` `:636`, `(Watch)` `:690`, `(Variables)` `:704`)* —
+⇒ **the binder does not know which host raised the gesture**, and that, not the writer, is the piece
+that has to change.
+
+#### ⛔ HISTORY — **the original framing, kept because the ruling was given against it**
 
 📐 **Measured:** `BlueprintLiveValueWriter` takes the entity from `EditorSelectionStore.SelectedEntity`
 — *"the SAME OBJECT the READ takes it from"*, which was **true when every read came from that store**.
@@ -277,13 +344,53 @@ view pinning — 📌 they compose: a pinned row in a pinned view is a fixed var
 
 | id | what | state |
 |---|---|---|
-| **`CE-300`** | `SelectionNotificationSystem` gains the AI cell as a sink; `CallbackSelectionBridge` + `IGSelectionBridge` deleted | ⭐ **ready** — the edit is one sink argument and two deletions |
-| **`CE-301`** | `SharedEntitySelection` is documented and railed as a **projection**, not a store — its only writer is the notification | ⭐ **ready**, lands with `CE-300` |
+| ☑ **`CE-300`** | `SelectionNotificationSystem` gains the AI cell as a sink; `CallbackSelectionBridge` + `IGSelectionBridge` deleted | ✅ **BUILT `2026-09-21`** — §9 |
+| ☑ **`CE-301`** | `SharedEntitySelection` is documented and railed as a **projection**, not a store — its only writer is the notification | ✅ **BUILT `2026-09-21`** — §9 |
 | **`CE-302`** | `EntityBlueprintsManagedWindow` → a details-panel view, with float+pin | ⭐ ready |
 | **`CE-303`** | `BlueprintRuntimeInspectorPane` → a details-panel view, with float+pin | ⭐ ready |
 | **`CE-304`** | `RunBlueprintOnEntityCommand` follows the unified current selection, no pinning | ✅ **discharged by `CE-300`**, recorded so it is not re-broken |
-| **`CE-305`** | the write target for an edit issued from a **pinned** view | ⛔ **BLOCKED on a user ruling** — §5.4 |
+| **`CE-305`** | the write target for an edit issued from a **pinned** view comes from that view's `IDetailsContextSource` | ✅ **RULED** `2026-09-21` — ⚠ **not a bug fix**: a pinned view is READ-ONLY today *(`DetailsViewWindow` is not an `IVariableTableHost`)*, so this is a **PRECONDITION of `CE-302`/`CE-303`** and is built with the first of them. §5.4 |
 
 ⚠ **`CE-302`/`CE-303` are NOT prerequisites of `CE-300`** — they are conversions of two surfaces that
 read the cell directly; both keep working after `CE-300` and simply keep following the selection until
 converted.
+
+## 9. ☑ AS-BUILT — **`CE-300` + `CE-301`, `2026-09-21`**
+
+⭐ **The diagrams in §2–§4 are TRUE as drawn.** ⛔ One deviation, and it is an addition rather than a
+change: the class diagram shows `SelectionNotificationSystem --> SharedEntitySelection` as a direct
+edge; in code it is a `Action<Entity?>` threaded through `MapInteractionContext.AiEntitySelection`,
+because `Hrot.Presentation` may not reference `Hrot.Editor.AiShared`. ⭐ Same shape and same reason as
+`SelectionEgressSystem`'s publish delegate (`R-134`), and the **module diagram in §4 already draws it
+that way** — the class diagram simplifies one hop.
+
+| what landed | |
+|---|---|
+| `MapInteractionContext.AiEntitySelection` | the sink, optional — ⚠ only the two AUTHORING hosts have AI editors |
+| `SelectionNotificationSystem` | a 4th ctor arg; invokes the sink with the **same `Primary`** the inspector gets. ⚠ `Entity.Null` → `null`, because the cell's `null` is a real state its readers gate on |
+| `EditorSubsystem` · `CgfSubsystem` | each forwards its own cell — 🔒 `R-67`, the caller HOLDS it so it PASSES it. ⭐ **CGF's cell gets its FIRST production writer** |
+| deleted | `CallbackSelectionBridge`, `IGSelectionBridge`, their test, the `_selectionBridge` field + dispose, and `DelegateDisposable` *(orphaned — its only caller was the bridge)* |
+
+### ⭐ Rails, and what each can and cannot see
+
+| rail | |
+|---|---|
+| `ASelectionFromANonMapCause_ReachesTheAiEditorsEntityCell` | ⭐ the request is published **directly**, the way the inspector publishes one — ⛔ driving it through `PublishStartedEvent` would assert the defect away, since the old bridge passed *that* case and only that case. ⭐ **Red-proved**: restricting the sink to `Map.` reasons reddens it while `AMapClickReachesTheInspectorContext` stays green |
+| `ClearingTheSelection_HandsTheAiCellNull_NotEntityNull` | ⛔ asserts *"assigned, and assigned null"*, not *"still null"* — ⚠ an unchanged initial value would pass a test that never ran the system |
+| `OnlyTheHostForwardWritesTheAiEditorsEntityCell` | the structural half: the exact FILE SET that assigns the cell, **plus** that nothing writes the store's delegating setter. ⭐ **Red-proved**: dropping CGF's forward reddens it |
+| ⚠ **what the source scan cannot see** | that the sink is reached at RUNTIME — that is the first rail's job. ⭐ The two together are the claim |
+
+### ⛔⛔ THE RAIL NEEDED THREE ATTEMPTS, AND THE REASON IS WORTH KEEPING
+
+📐 `SelectedEntity` is a member name at least **three** types here carry. Two discriminators were built
+and both were wrong, **in opposite directions**:
+
+| attempt | why it failed |
+|---|---|
+| a **blacklist of receiver variable names** | ⛔ fragile by construction — it passes or fails on what someone called a local |
+| a **file-level filter** *(does the file name `EditorSelectionStore`?)* | ⛔ **over-scoped**: both host files DO name the type, so their unrelated `_fdpInspectorState.SelectedEntity` writes were flagged. ⚠ I had called over-scoping *"the safe direction for a gate"* — ⛔ **it is not: a gate that is red on correct code is a broken gate, not a strict one** |
+| ✅ **the receiver set DERIVED from declarations in the same file** | ⭐ learn which identifiers are stores, flag writes through those alone |
+
+⇒ 📌 **the generic lesson, and it is `CLAUDE.md`'s own:** text cannot tell a real reference from a
+same-named symbol. ⭐ Roslyn is the right instrument and is not available inside a unit test ⇒ **narrow
+the text until it can**, and say in the rail which layer is still text.
