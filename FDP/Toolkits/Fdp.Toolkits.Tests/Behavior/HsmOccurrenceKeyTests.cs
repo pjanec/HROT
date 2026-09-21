@@ -846,7 +846,174 @@ public sealed unsafe class HsmOccurrenceKeyTests
         }
     }
 
+    /// <summary>
+    /// 🔴🔴🔴 <b>Rail ㉔ — <c>E3a</c> / <c>CE-298</c>: TWO REGIONS, TWO PARAMS. A write through one does
+    /// not move the other.</b> 📄 §28.
+    ///
+    /// <para>🔒 <b>The user's case, verbatim (<c>2026-09-21</c>):</b> <i>"the simplest case like two
+    /// actions running in two hsm regions would overwrite the params."</i> 🔴 Before <c>E3a</c> both
+    /// projected <c>Params</c> over <c>BehaviorParameters[0] + 0</c> — a literal <c>0</c> — so this rail
+    /// could not have been written: there was one region of bytes.</para>
+    ///
+    /// <para>⚠ It writes through <c>p</c> deliberately. ⛔ No shipped thunk does that today (measured:
+    /// 0 of 27), and that is exactly why the defect was invisible — the hazard is in the SHAPE.</para>
+    /// </summary>
+    [Fact]
+    public void O7_R24_TwoRegionsGetTheirOwnParams()
+    {
+        var world = TestWorldFactory.Create();
+        using var _w = world;
+        BlueprintTierTable.RegisterAll(world);
+        var entity = MakeEntityWithStore(world);
+
+        ref var wsA = ref OccurrenceWorkingState.ResolveOrAttach<DemoParams, DemoWorkingState>(
+            world, entity, Key(0, 4), 0xE3A, OccurrenceKind.Hsm, out bool freshA, out DemoParams* pA);
+        ref var wsB = ref OccurrenceWorkingState.ResolveOrAttach<DemoParams, DemoWorkingState>(
+            world, entity, Key(1, 4), 0xE3A, OccurrenceKind.Hsm, out bool freshB, out DemoParams* pB);
+
+        Assert.True(freshA);
+        Assert.True(freshB);
+
+        pA->Threshold = 11; pA->Flag = true;
+        pB->Threshold = 22; pB->Flag = false;
+
+        // ⭐⭐ THE RAIL. 🔴 One shared region before E3a ⇒ both would read 22/false.
+        Assert.Equal(11, pA->Threshold);
+        Assert.True(pA->Flag);
+        Assert.Equal(22, pB->Threshold);
+        Assert.False(pB->Flag);
+
+        // ⚠ And params must not overlap the WORKING state either — the payload is [Params][State].
+        wsA.Counter = 7; wsB.Counter = 9;
+        Assert.Equal(11, pA->Threshold);
+        Assert.Equal(22, pB->Threshold);
+        Assert.Equal(7, wsA.Counter);
+        Assert.Equal(9, wsB.Counter);
+    }
+
+    /// <summary>
+    /// 🔴🔴 <b>Rail ㉕ — two DIFFERENT blueprints no longer type-pun each other's bytes.</b>
+    ///
+    /// <para>⛔⛔ <b>This is the half the user's challenge surfaced and I had missed.</b> Even READ-ONLY,
+    /// two different blueprints hosted at two states both projected <b>their own <c>Params</c>
+    /// type</b> over <c>BehaviorParameters[0] + 0</c> ⇒ each read the other's variable reinterpreted.
+    /// ⚠ No validator guards it (searched <c>Stage2_Validate*</c>, none found).</para>
+    ///
+    /// <para>⭐ Distinct CHILD asset ids ⇒ distinct keys ⇒ distinct slots, sized for their own types.</para>
+    /// </summary>
+    [Fact]
+    public void O7_R25_TwoDifferentBlueprintsDoNotTypePunEachOther()
+    {
+        var world = TestWorldFactory.Create();
+        using var _w = world;
+        BlueprintTierTable.RegisterAll(world);
+        var entity = MakeEntityWithStore(world);
+
+        var otherChild = new Guid("07000000-0000-0000-0000-0000000000e3");
+        int keySmall = HsmOccurrence.KeyFor(HostMachine, Child, 0, 4);
+        int keyFat   = HsmOccurrence.KeyFor(HostMachine, otherChild, 1, 4);
+
+        OccurrenceWorkingState.ResolveOrAttach<DemoParams, DemoWorkingState>(
+            world, entity, keySmall, 0xE3A, OccurrenceKind.Hsm, out _, out DemoParams* pSmall);
+        OccurrenceWorkingState.ResolveOrAttach<WideParams, DemoWorkingState>(
+            world, entity, keyFat, 0xE3B, OccurrenceKind.Hsm, out _, out WideParams* pWide);
+
+        pSmall->Threshold = 0x11111111;
+        pWide->A = 0x22222222; pWide->B = 0x33333333; pWide->C = 0x44444444;
+
+        // ⭐⭐ THE RAIL. 🔴 At a shared offset 0 the wider write would have clobbered the narrower one.
+        Assert.Equal(0x11111111, pSmall->Threshold);
+        Assert.Equal(0x22222222, pWide->A);
+        Assert.Equal(0x44444444, pWide->C);
+    }
+
+    /// <summary>
+    /// ⭐⭐ <b>Rail ㉖ — a params region survives across dispatches, and the slot is found again.</b>
+    ///
+    /// <para>⚠ The point of the seed is that it runs ONCE. If a second resolve reported
+    /// <c>freshlyAttached</c> again, the emitter would re-seed every dispatch and a thunk could never
+    /// keep anything in its params — which is the capability the whole slice exists for.</para>
+    /// </summary>
+    [Fact]
+    public void O7_R26_TheParamsRegionPersistsAndIsSeededOnlyOnce()
+    {
+        var world = TestWorldFactory.Create();
+        using var _w = world;
+        BlueprintTierTable.RegisterAll(world);
+        var entity = MakeEntityWithStore(world);
+
+        OccurrenceWorkingState.ResolveOrAttach<DemoParams, DemoWorkingState>(
+            world, entity, Key(0, 4), 0xE3A, OccurrenceKind.Hsm, out bool first, out DemoParams* p1);
+        Assert.True(first);
+        p1->Threshold = 1234;
+
+        OccurrenceWorkingState.ResolveOrAttach<DemoParams, DemoWorkingState>(
+            world, entity, Key(0, 4), 0xE3A, OccurrenceKind.Hsm, out bool second, out DemoParams* p2);
+
+        // ⭐⭐ THE RAIL. ⛔ `second` true would mean the emitter re-seeds every dispatch.
+        Assert.False(second);
+        Assert.Equal(1234, p2->Threshold);
+    }
+
+    /// <summary>
+    /// 🔴🔴🔴 <b>Rail ㉗ — A RE-ASSIGN DROPS THE HOSTED OCCURRENCE, so its params re-seed from the NEW
+    /// json.</b> 📄 §28.4.
+    ///
+    /// <para>⛔⛔ <b>Without this the slice is a REGRESSION, not an improvement.</b> Before <c>E3a</c>
+    /// the thunk read <c>BrainBlackboard</c> LIVE, so a re-assign's new JSON took effect on the next
+    /// dispatch. ⭐ Now the slot holds a COPY ⇒ if the slot survived the assign, new JSON would
+    /// <b>silently stop taking effect</b> and the occurrence would run forever on the first assign's
+    /// values.</para>
+    ///
+    /// <para>⭐ And it must be PRECISE: a slot the manifest declares is provisioned, not lazily
+    /// attached, and must survive. The second half asserts that.</para>
+    /// </summary>
+    [Fact]
+    public void O7_R27_AReassignDropsTheHostedOccurrenceButKeepsTheManifestSlot()
+    {
+        var world = TestWorldFactory.Create();
+        using var _w = world;
+        BlueprintTierTable.RegisterAll(world);
+
+        var manifest = new[]
+        {
+            new StatefulSlotInfo(unchecked((int)0xE3A00001), sizeof(DemoWorkingState), 0x55),
+        };
+        var entity = AssignHostingBehaviour(world, 7406, "E3aReassign", slotCount: 2,
+                                            payloadEach: 32, ownManifest: manifest);
+
+        // A hosted occurrence attaches lazily on first dispatch.
+        int hostedKey = Key(0, 4);
+        OccurrenceWorkingState.ResolveOrAttach<DemoParams, DemoWorkingState>(
+            world, entity, hostedKey, 0xE3A, OccurrenceKind.Hsm, out _, out DemoParams* p);
+        p->Threshold = 999;
+
+        byte* store = OccurrenceStoreAccess.TryGetStore(world, entity, out _);
+        Assert.True(BlueprintBlackboardPartitions.TryGetSlotOffset(store, hostedKey, out _));
+
+        // Re-assign the SAME behaviour — the shape a new JSON payload arrives in.
+        world.Bus.PublishManaged(new Fdp.Toolkit.Behavior.Events.AssignBehaviorEvent
+        {
+            Entity = entity, BehaviorName = "E3aReassign", JsonParams = string.Empty,
+        });
+        world.Bus.SwapBuffers();
+        _reassignSystem!.Execute(world, 0.016f);
+
+        store = OccurrenceStoreAccess.TryGetStore(world, entity, out _);
+
+        // ⭐⭐ THE RAIL. The lazily-attached occurrence is GONE ⇒ the next dispatch re-seeds it.
+        Assert.False(BlueprintBlackboardPartitions.TryGetSlotOffset(store, hostedKey, out _));
+
+        // ⭐ …and the MANIFEST slot survived: it is provisioned, not lazily attached.
+        Assert.True(BlueprintBlackboardPartitions.TryGetSlotOffset(store, manifest[0].SlotKey, out _));
+    }
+
     // ── helpers ──────────────────────────────────────────────────────────────────
+
+    private static Fdp.Toolkit.Behavior.Systems.BehaviorIngressSystem? _reassignSystem;
+
+    private struct DemoParams { public int Threshold; public bool Flag; }
+    private struct WideParams { public int A; public int B; public int C; }
 
     private static Dictionary<int, Fdp.Toolkit.Blueprints.BlueprintDefinition> OneAiPrimitive(
         int blueprintId, int stateSize)
@@ -902,6 +1069,9 @@ public sealed unsafe class HsmOccurrenceKeyTests
         //   registrar that authors the topology must not know about blueprints (§27.7).
         registry.RegisterHostedOccurrenceDemand(
             name, HostedOccurrenceDemand.Of(Enumerable.Repeat(payloadEach, slotCount)));
+
+        // ⭐ Rail ㉗ re-assigns through the SAME system instance, which is what a live re-assign is.
+        _reassignSystem = sys;
 
         world.Bus.PublishManaged(new Fdp.Toolkit.Behavior.Events.AssignBehaviorEvent
         {

@@ -59,22 +59,22 @@ public static class GateConditionDemo_CDFE149C_Bp
         ref global::Fdp.Toolkit.Behavior.BTreeContext ctx,
         int paramIndex)
     {
-        // W13: the offset form — identical in shape to the BTree bridge's per-node adapter.
-        //      Standalone hosting is the single-method case, so the baked offset is 0.
-        ref var p = ref global::System.Runtime.CompilerServices.Unsafe.As<byte, Params>(
-            ref global::System.Runtime.CompilerServices.Unsafe.AddByteOffset(
-                ref bb.BehaviorParameters[0], (nint)0));
-        
-        // O7d: this asset's OWN working state, in the entity's occurrence store —
-        //      NOT Blackboard1024 at a fixed offset shared by every asset.
+        // O7d/E3a: this asset's OWN params AND working state, in the entity's occurrence
+        //          store — NOT Blackboard1024, and no longer the SHARED param region.
         int occurrenceKey = global::Fdp.Toolkit.Behavior.OccurrenceSlots.StandaloneStateKeyFor(AssetId);
-        ref var ws = ref global::Fdp.Toolkit.Behavior.OccurrenceWorkingState.ResolveOrAttach<WorkingState>(
+        ref var ws = ref global::Fdp.Toolkit.Behavior.OccurrenceWorkingState.ResolveOrAttach<Params, WorkingState>(
             ctx.World, ctx.Self, occurrenceKey, StructureHash,
-            global::Fdp.Toolkit.Blueprints.Partitioning.OccurrenceKind.Blueprint, out bool freshlyAttached);
+            global::Fdp.Toolkit.Blueprints.Partitioning.OccurrenceKind.Blueprint, out bool freshlyAttached, out Params* __params);
         if (freshlyAttached)
         {
+            // E3a SEED (§28.4): the bytes this thunk read LIVE before params moved into the
+            //   slot. Copying them makes the move byte-identical at the first dispatch.
+            *__params = global::System.Runtime.CompilerServices.Unsafe.As<byte, Params>(
+                ref global::System.Runtime.CompilerServices.Unsafe.AddByteOffset(
+                    ref bb.BehaviorParameters[0], (nint)0));
             InitDefaultWorkingState((WorkingState*)global::System.Runtime.CompilerServices.Unsafe.AsPointer(ref ws));
         }
+        ref var p = ref *__params;
         return TickCore(ref p, ref ws, ctx.Self, ctx.World, ctx.World.SimulationTime) == global::Fbt.NodeStatus.Success;
     }
     

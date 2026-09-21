@@ -155,6 +155,22 @@ public static unsafe class HsmOccurrence
                world, self, slotKey, structureHash, OccurrenceKind.Hsm, out freshlyAttached);
 
     /// <summary>
+    /// ⭐⭐⭐ <c>E3a</c> / <c>CE-298</c> — the occurrence's <b>params AND</b> working state, one slot.
+    /// 📄 §28. ⛔ ONE body underneath (<see cref="OccurrenceWorkingState"/>), as always — this forwards
+    /// only to bind <see cref="OccurrenceKind.Hsm"/>.
+    ///
+    /// <para>⚠ The caller SEEDS <paramref name="paramsPtr"/> when <paramref name="freshlyAttached"/>;
+    /// §28.4 says from where, and why seeding from zeros would be a regression.</para>
+    /// </summary>
+    public static ref TWorkingState ResolveOrAttach<TParams, TWorkingState>(
+        EntityRepository world, Entity self, int slotKey, ulong structureHash,
+        out bool freshlyAttached, out TParams* paramsPtr)
+        where TParams : unmanaged
+        where TWorkingState : unmanaged
+        => ref OccurrenceWorkingState.ResolveOrAttach<TParams, TWorkingState>(
+               world, self, slotKey, structureHash, OccurrenceKind.Hsm, out freshlyAttached, out paramsPtr);
+
+    /// <summary>
     /// ⭐⭐ The occurrence's working state, as a <c>ref</c> into the entity's occurrence store.
     ///
     /// <para>⛔ <b>Valid for the CALLING FRAME ONLY</b> — the seam's lifetime rule. Native ECS storage

@@ -1,8 +1,15 @@
 <!--STATUS
 state: LIVE
-updated: 2026-08-18
-current-answer: the whole file
-known-rot: none as of 2026-08-18; the BP1031 claims were repaired in Batch 82 (BP-318)
+updated: 2026-09-21
+current-answer: the whole file AS A BEFORE-PICTURE. Read the banner below first.
+known-rot: 2026-09-21 - the HOSTED half of this document's storage map is now BUILT and therefore
+  HISTORY, not intent. E3a moved a hosted occurrence's PARAMS into its own occurrence slot
+  ([WorkingState][Params]), so this file's "params live in BrainBlackboard.BehaviorParameters for
+  every host" (the table near line 46) and "params would COLLIDE" (near line 343) describe the
+  BEFORE state only. The prediction near line 432 - "give a hosted occurrence its own params region
+  inside its slot" - CAME TRUE; see DESIGN_Occurrence_Scoped_Storage.md 28 and
+  DESIGN_Parameter_Model.md 4.7. A ROOT behaviour's params ARE still in BrainBlackboard.
+  (earlier) none as of 2026-08-18; the BP1031 claims were repaired in Batch 82 (BP-318)
 -->
 # Where parameters and state actually live — all hosts, one picture
 
@@ -20,6 +27,20 @@ known-rot: none as of 2026-08-18; the BP1031 claims were repaired in Batch 82 (B
 >
 > ⭐⭐ **This file keeps its value as the BEFORE measurement record** — that is what it was written to
 > be. ⛔ Do not quote its storage map as the target.
+>
+> ### ✅ `2026-09-21` — **THE HOSTED HALF IS NOW BUILT, so this file's params map is HISTORY**
+>
+> 📄 **`E3a`** — [`DESIGN_Occurrence_Scoped_Storage.md`](DESIGN_Occurrence_Scoped_Storage.md) §28 ·
+> [`DESIGN_Parameter_Model.md`](DESIGN_Parameter_Model.md) §4.7.
+>
+> | this file says | ✅ now |
+> |---|---|
+> | *"`BrainBlackboard.BehaviorParameters` — every input, every host, every tier"* | ⚠ **true only for a ROOT behaviour.** A **HOSTED** occurrence's params live in **its own occurrence slot** |
+> | *"params **would COLLIDE** — one region for the one active behaviour"* | ✅ **they no longer do** — that collision is what `E3a` closed |
+> | ⭐ *"give a hosted occurrence its own params region inside its slot and tick it against that"* | ✅ **BUILT** — the slot payload is `[WorkingState M][Params N]` |
+>
+> ⚠ **What is still ahead:** each occurrence gets its own **copy**, seeded from the same authored
+> variable. **Per-site authored VALUES** are `E3b` — `Q41-C1′` then `C2′`, approved and unbuilt.
 
 
 > ## ⭐ This is the MEASUREMENT RECORD + the diagrams.
@@ -432,11 +453,11 @@ def.BTreeInterpreter!.Tick(ref blackboard, ref btState.State, ref context);   //
 ⇒ ⭐⭐⭐ **Give a hosted occurrence its own params region inside its slot and tick it against that.**
 Every `[SharedAiAction]` thunk keeps working — same offsets, different instance.
 
-| occurrence | its params live in |
-|---|---|
-| **root behaviour** | the entity's `BrainBlackboard` component *(as today)* |
-| **hosted sub-behaviour** | its own params region **in its slot** |
-| **blueprint Instance** | its own params region in its slot *(§5c ruling)* |
+| occurrence | its params live in | status `2026-09-21` |
+|---|---|---|
+| **root behaviour** | the entity's `BrainBlackboard` component *(as today)* | ⚠ **unchanged** — and still scheduled to move |
+| **hosted sub-behaviour** | its own params region **in its slot** | ✅ **BUILT as `E3a`** — payload `[WorkingState][Params]` |
+| **blueprint Instance** | its own params region in its slot *(§5c ruling)* | ⚠ still intent |
 
 ⇒ ⭐⭐ **Params belong to the OCCURRENCE.** The 100-byte layout is the **shape of one occurrence's
 params**, not a per-entity singleton.

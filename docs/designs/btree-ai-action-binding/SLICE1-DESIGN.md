@@ -9,6 +9,13 @@ A real behavior composes many actions/conditions, each with a different paramete
 ## 2. Verified architecture (ground truth)
 All confirmed in code + by the architect (2026-06-15).
 
+> ⚠⚠ **`2026-09-21` — the AiPrimitive half of this is SUPERSEDED.** The per-node BAKED-OFFSET
+> projection described below is still exactly how the **BTree bridge** works. ⛔ But a **standalone
+> AiPrimitive thunk** (and every **HSM** one) no longer projects `Params` over
+> `bb.BehaviorParameters` at all: `E3a` moved a hosted occurrence's params into **its own occurrence
+> slot**, and the blackboard survives only as the one-time SEED. 📄
+> [`DESIGN_Occurrence_Scoped_Storage.md`](../../blueprints/DESIGN_Occurrence_Scoped_Storage.md) §28.
+
 1. **Memory.** `BrainBlackboard` (128 B): `BehaviorParameters` = `fixed byte[100]` at offset 0; interrupt/tail registers at 120–127. Behavior input params + reusable-action DTOs live in the 100 B inline region; overflow → `Blackboard1024` (1024 B, ~928 usable). `MaxBehaviorParamByteSize=100`.
 2. **Assignment.** A generated/hand-written `ParseParamsDelegate(json, byte*)` runs once at behavior assignment, writing defaults into `BehaviorParameters` ([BehaviorIngressSystem.cs:93](../../FDP/Toolkits/Fdp.Toolkits/Behavior/BehaviorIngressSystem.cs#L93)).
 3. **Projection (the key mechanism).** A reusable action/condition is `static NodeStatus M(ref TDto p, ref BehaviorTreeState, ref BTreeContext)`. The generator emits a thunk projecting the DTO at a **baked byte offset**: `Unsafe.As<…>(ref Unsafe.AddByteOffset(ref bb.BehaviorParameters, (nint)offset))`. **Already emitted today** at [BTreeActionGenerator.cs:693](../../FDP/Toolkits/Fdp.Toolkits.Analyzers/BTreeActionGenerator.cs#L693) for `[SharedAiAction]` entries. The legacy AiPrimitive `paramIndex * sizeof(Params)` form (homogeneous arrays) is superseded; **`paramIndex` is ignored** in the baked-offset pipeline.

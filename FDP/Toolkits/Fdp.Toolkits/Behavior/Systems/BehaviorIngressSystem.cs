@@ -164,6 +164,10 @@ namespace Fdp.Toolkit.Behavior.Systems
                     EnsureOccurrenceStore(repo, evt.Entity, def, hosted);
                 }
 
+                // E3a: drop the PREVIOUS assign's lazily-attached hosted occurrences, so their params
+                // re-seed from the JSON just parsed. ⛔ Omitting this makes new JSON a no-op (§28.4).
+                DetachHostedOccurrenceSlots(repo, evt.Entity, def.StatefulWorkingSlots);
+
                 // 2. Reset BTree execution pointer so the new behavior starts from the root.
                 if (repo.HasComponent<BrainBTreeState>(evt.Entity))
                 {
@@ -203,6 +207,10 @@ namespace Fdp.Toolkit.Behavior.Systems
                 {
                     DetachStatefulSlots(repo, evt.Entity, prevDef.StatefulWorkingSlots);
                 }
+
+                // E3a: a clear-without-successor must reclaim the lazily-attached hosted occurrences
+                // too — the same leak S3-5 fixed for manifest slots.
+                DetachHostedOccurrenceSlots(repo, evt.Entity, manifest: null);
 
                 ref var behavior = ref repo.GetComponentRW<BehaviorState>(evt.Entity);
                 behavior.ActiveBehaviorHash = BehaviorIds.None;
@@ -325,6 +333,52 @@ namespace Fdp.Toolkit.Behavior.Systems
         /// <c>DetachStatefulSlots</c> first, and <c>TryAttach</c> ZEROES the payload it hands out
         /// (<c>SlotAttachZeroingTests</c>), so the next assign gets a clean cursor either way.</para>
         /// </summary>
+        /// <summary>
+        /// 🔴🔴🔴 <b><c>E3a</c> — drop the LAZILY-ATTACHED hosted occurrences on a behaviour assign, so
+        /// their params are re-seeded from the JSON this assign just parsed.</b> 📄 §28.4.
+        ///
+        /// <para>⛔⛔ <b>This is NOT housekeeping — omitting it is a REGRESSION.</b> Before <c>E3a</c> an
+        /// HSM thunk read its params from <c>BrainBlackboard</c> <b>live</b>, so a re-assign with new
+        /// JSON took effect on the very next dispatch. ⭐ After <c>E3a</c> the slot holds a <b>copy</b>
+        /// ⇒ without this, <b>new JSON would silently stop taking effect</b> and the occurrence would
+        /// run forever on the first assign's values.</para>
+        ///
+        /// <para>⭐⭐ <b><c>A3</c>/<c>D1′</c>'s <c>Kind</c> nibble is what makes this PRECISE.</b> A
+        /// lazily-attached hosted occurrence declares <see cref="OccurrenceKind.Hsm"/> or
+        /// <see cref="OccurrenceKind.Blueprint"/>; a manifest slot is provisioned with the behaviour's
+        /// own kind. ⛔ Detaching by kind ALONE would also take manifest slots — hence <i>kind AND not
+        /// named by the manifest</i>. ⚠ Without the nibble this sweep could not be written at all,
+        /// which is what <c>F7</c> predicted.</para>
+        ///
+        /// <para>⚠ <b>Walks DOWNWARD.</b> <c>TryDetach</c> dense-compacts the slot table
+        /// (<c>:188-199</c>), so an ascending walk would skip the entry that slid into the hole.</para>
+        /// </summary>
+        private static unsafe void DetachHostedOccurrenceSlots(
+            EntityRepository repo, Entity entity, IReadOnlyList<StatefulSlotInfo>? manifest)
+        {
+            byte* store = OccurrenceStoreAccess.TryGetStore(repo, entity, out _);
+            if (store == null) return;
+
+            for (int i = BlueprintBlackboardPartitions.GetSlotCount(store) - 1; i >= 0; i--)
+            {
+                var kind = BlueprintBlackboardPartitions.GetSlotKind(store, i);
+                if (kind != OccurrenceKind.Hsm && kind != OccurrenceKind.Blueprint) continue;
+
+                int key = BlueprintBlackboardPartitions.GetSlot(store, i).BlueprintId;
+                if (IsNamedByManifest(manifest, key)) continue;   // provisioned, not lazily attached
+
+                BlueprintBlackboardPartitions.TryDetach(store, key);
+            }
+        }
+
+        private static bool IsNamedByManifest(IReadOnlyList<StatefulSlotInfo>? manifest, int slotKey)
+        {
+            if (manifest == null) return false;
+            for (int i = 0; i < manifest.Count; i++)
+                if (manifest[i].SlotKey == slotKey) return true;
+            return false;
+        }
+
         private static void ResetHostedTreeStates(EntityRepository repo, Entity entity, BehaviorDefinition? def)
         {
             var slots = def?.StatefulWorkingSlots;

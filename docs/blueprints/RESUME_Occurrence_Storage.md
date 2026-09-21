@@ -66,9 +66,28 @@ current-answer: §3 — ⭐⭐ THE NEXT ACTION IS E3 (E7a + CE-298, together —
   ⚠ Two honest limits, both in §27.7.3: a global transition's guard keys on activeLeafIds[0] so it is
   counted ONCE rather than per state; and a scan sees ONE assembly, so a cross-assembly host records
   no demand — which is the pre-O7b-3 state, not a silent mis-size (absent ≠ zero, enforced by the API).
-  ⭐⭐ NEXT ACTION: E3 — E7a + CE-298 TOGETHER (slot payload becomes [Params N][WorkingState M], AND
-  something must WRITE each occurrence's params; IHostVariableAccess has zero implementers). Its
-  prerequisite is now met.
+  ✅ E3a IS LANDED 2026-09-21 (design §28, DESIGN_Parameter_Model §4.7) — CE-298 CLOSED. The slot
+  payload is [Params N][WorkingState M], so a hosted occurrence's params are its own.
+  🔒 FORCED BY A USER CORRECTION, and the correction is the lesson: I argued the move "buys nothing
+  measurable today" from the measurement that 0 of 27 goldens mutate Params. The measurement was
+  true; the INFERENCE reasoned from today's corpus to a CAPABILITY question and was wrong. User:
+  "forget the fact it is not in use now. it will be." The challenge also surfaced a failure I had
+  missed: even READ-ONLY, two DIFFERENT blueprints at two states type-punned each other's bytes.
+  ⭐ THE SEED is why this is not a regression: on first attach the slot is filled by COPYING from
+  BehaviorParameters[0] + 0 — the exact bytes the thunk read before — so the move is byte-identical
+  at the first dispatch. ⛔ Offset 0 is the seed's SOURCE, never the destination; it dies at E3b.
+  ⛔⛔ THE DETACH IS MANDATORY, not a follow-up: BehaviorIngressSystem.DetachHostedOccurrenceSlots
+  drops lazily-attached hosted slots on assign/clear. Without it the thunk (which used to read the
+  blackboard LIVE) would run forever on the first assign's values — a regression. Rail O7_R27 is the
+  red-proof and it reddens alone when the call is removed.
+  ⭐ A3/D1's Kind nibble is what makes the detach PRECISE — kind Hsm/Blueprint AND not named by the
+  manifest, so provisioned slots survive.
+  ⭐⭐ NEXT ACTION: E3b — per-site authored VALUES. Every occurrence still seeds from the SAME
+  variable, so two regions get their own COPY of one authored value. The design is DONE and
+  APPROVED, not open: Architect_Question_41 (C1' = emit the resolve hook, named there as the
+  enabler) then C2', and Architect_Question_43 (resolver authored as a blueprint) — both marked
+  "APPROVED IN FULL, nothing is built" since 2026-08-18. IHostVariableAccess becomes callable only
+  once C1' exists. ⚠ C1' is an emitter change and WILL move goldens.
   ⚠ CORRECTION: "the BTree hosting path has been occurrence-keyed since S2" is TRUE of the bridge
   per-node adapters and FALSE of the standalone @0 thunks.
   ⭐ RETIRING Blackboard1024 (the LEGACY one, NOT BlueprintBlackboard*): it is already on ZERO

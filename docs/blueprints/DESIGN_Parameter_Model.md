@@ -1,14 +1,16 @@
 <!--STATUS
 state: LIVE
-updated: 2026-09-08
+updated: 2026-09-21
 current-answer: the whole document; it is authoritative for parameters and storage.
   See 3.1's AS BUILT 2026-09-08 (CE-235) for the two-member split of the authored DTO
   vs the blackboard layout - that is the live shape of BehaviorDefinition.
-known-rot: 4.1's params column is STILL THE LIVE STATE as of 2026-09-21, and the fix is FILED
-  not built - see 4.5. CE-298: O7b moved an HSM-hosted occurrence's WORKING STATE into its slot
-  and left PARAMS at BehaviorParameters[0] + 0, which 4.1 already calls a "live race". The
-  standalone BTree @0 thunk has the same shape. Do NOT read 4.2's "give each occurrence its own
-  params region" as built.
+  READ 4.7 FIRST for hosted occurrences: as of 2026-09-21 (E3a) a HOSTED occurrence's params
+  live in ITS OWN OCCURRENCE SLOT, not in the shared BrainBlackboard region.
+known-rot: 4.1's params column is SUPERSEDED for HOSTED occurrences by 4.7 (E3a, 2026-09-21).
+  It remains true for a ROOT behaviour, whose params still live in BrainBlackboard - and that
+  too is scheduled to move (DESIGN_Hsm_Storage_Model's supersession banner). Do not quote 4.1's
+  params column as the whole live state; quote 4.7 for anything hosted.
+  4.5/4.5a describe CE-298 as FILED-NOT-BUILT: that is HISTORY as of 2026-09-21, see 4.7.
   (none-otherwise) - the BP1031-as-live rot was REPAIRED 2026-08-17, Batch 82; the
   section 3.2 "overlay is NOT implemented on every path" correction was REPAIRED
   2026-08-18 (it had gone false at Batch 70/74) and now sits under a HISTORY fold
@@ -296,7 +298,15 @@ breaking change bought deliberately, rather than churning the delegate a third t
 | root behaviour | `ref component.Params` |
 | hosted sub-behaviour / Instance | `ref` its own params region in its slot |
 
-### 4.5 ⚠ AS MEASURED `2026-09-21` — **§4.1's PARAMS COLUMN IS STILL THE LIVE STATE** *(`CE-298`)*
+### 4.5 ⛔ HISTORY — **`CE-298` AS FILED, BEFORE `E3a` BUILT IT** *(same day)*
+
+> ⚠⚠ **SUPERSEDED BY §4.7.** This section and §4.5a record the state on `2026-09-21` BEFORE the fix:
+> the measurement that found it, and my argument for filing rather than building it. ⛔ **Do not
+> quote either as the live state** — the params of a HOSTED occurrence are in its slot now.
+> ⭐ Kept because §4.5a's reasoning (*"storage without supply is a regression"*) is still correct
+> and is what shaped the SEED in §28.4.
+
+#### ⛔ the pre-`E3a` measurement
 
 🔒 **User, `2026-09-21`:** *"If there are two btrees running in parallel, each with its own params, or
 two actions running from hsm regions, each having its params, they can not share same single place."*
@@ -320,7 +330,7 @@ tick it against that"* — with the slot payload becoming `[Params N][WorkingSta
 `[SharedAiAction]` thunk survives unchanged, exactly as §4.2 argues, because a DTO's field offsets are
 relative to the struct base.
 
-### ⛔⛔ 4.5a — WHY IT IS FILED AND NOT BUILT
+#### ⛔⛔ 4.5a — why it was FILED and not built *(the argument that produced the seed)*
 
 📐 **Measured: nothing writes a hosted occurrence's params, and `IHostVariableAccess` has ZERO
 implementers** *(it is declared-not-implemented on purpose — §3.4's `E7a`)*. ⇒ moving params into the
@@ -343,6 +353,55 @@ itself per-occurrence; the bridge solves it by emitting **one adapter per node w
 ⇒ ⛔ **The standalone `@0` thunk is the degenerate SINGLE-occurrence case by construction, not by
 oversight** — which is what the `@0` in its registration key has always meant. ⭐ Worth stating here
 because *"BTree is solved"* is true of the mechanism and **not** of every BTree code path.
+
+### 4.7 ✅ `E3a` — **A HOSTED OCCURRENCE'S PARAMS LIVE IN ITS OWN SLOT** *(`2026-09-21`)*
+
+⭐⭐⭐ **This SUPERSEDES §4.1's params column for anything HOSTED, and turns §4.2's ruling —
+*"give each occurrence its own params region and tick it against that"* — from intent into as-built.**
+📄 The mechanism is [`DESIGN_Occurrence_Scoped_Storage.md`](DESIGN_Occurrence_Scoped_Storage.md) §28.
+
+| host | params — BEFORE `E3a` | params — NOW |
+|---|---|---|
+| **root behaviour** | `BrainBlackboard.BehaviorParameters`, per packed variable | ⚠ **unchanged** — and still scheduled to move |
+| **BTree bridge, per node** | `BehaviorParameters[0] + <per-variable offset>` | ⚠ **unchanged** — it was already per-site (§4.1's *"the template"*) |
+| 🔴 **HSM-hosted blueprint** | `BehaviorParameters[0] + 0` — **a literal `0`, shared by every occurrence** | ✅ **its own occurrence slot**, keyed by the `(region, state)` the kernel stamps |
+| 🔴 **standalone BTree `@0` thunk** | the same literal `0` | ✅ **its own occurrence slot**, asset-keyed |
+
+⛔⛔ **The slot payload is now `[WorkingState M][Params N]`** — ⭐ **ONE slot, one key, one lookup, one
+lifetime.** A second slot for params would need a second key, a second hash guard and a second detach.
+
+⚠ **The ORDER is load-bearing and was corrected during the build** *(§28.3a there)*: params-first
+shifted every reader that decodes working state at the payload base — three inspector rails caught it.
+⭐ **State-first keeps them correct by construction.**
+
+#### 🔒 THE RULING THAT FORCED IT — **and the inference of mine it overturned**
+
+> 🔒 **User, `2026-09-21`:** *"how can we avoid moving params into the slot? the simplest case like two
+> actions running in two hsm regions would overwrite the params. **Forget the fact it is not in use
+> now. it will be.**"*
+
+⛔ I had argued the move *"buys nothing measurable today"*, on the measurement that **0 of 27**
+AiPrimitive goldens mutate their `Params`. ⚠ **The measurement was true; the INFERENCE was wrong** — it
+reasoned from today's corpus to answer a **capability** question. ⭐ The hazard is in the **SHAPE**:
+`TickCore(ref Params p, …)` permits writes.
+
+⭐⭐⭐ **And the challenge surfaced a second failure I had missed:** even **READ-ONLY**, two **DIFFERENT**
+blueprints hosted at two states of one asset each projected **their own `Params` type** over the same
+bytes ⇒ a **type-punned misread**, with no validator guarding it.
+
+#### ⚠ WHAT `E3a` DOES NOT DO — **the VALUES are still shared**
+
+⛔ Each occurrence gets its own **copy**, seeded from the same authored variable. ⭐ **Per-site authored
+VALUES are `E3b`** — `Q41-C1′`'s resolve hook, then `C2′` — both approved and unbuilt. ⇒ §3.4's
+`IHostVariableAccess` is still **zero-implementer**, and this section does not change that.
+
+⭐ **The seed and its re-supply** are §28.4 there: the slot is seeded from
+`BehaviorParameters[0] + 0` on first attach — *the exact bytes the thunk read before* — and
+`BehaviorIngressSystem.DetachHostedOccurrenceSlots` drops it on re-assign so new JSON still lands.
+⛔ **Without that detach the move would be a REGRESSION**, because the thunk used to read the
+blackboard live.
+
+---
 
 ### 4.4 Cost
 

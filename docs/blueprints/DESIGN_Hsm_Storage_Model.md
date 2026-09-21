@@ -1,7 +1,9 @@
 <!--STATUS
 state: LIVE
-updated: 2026-08-18
-current-answer: the whole file
+updated: 2026-09-21
+current-answer: the whole file, WITH the storage banner below - and note that section 4's E7a row
+  and the BP-281 destination table are now split: a ROOT behaviour's params are still in
+  BrainBlackboard, a HOSTED occurrence's params moved into its own slot on 2026-09-21 (E3a).
 note: section 2 CORRECTS the coordinator - BP-281 is NOT blocked. Read it before
   scheduling anything that assumes it is.
 -->
@@ -40,7 +42,7 @@ note: section 2 CORRECTS the coordinator - BP-281 is NOT blocked. Read it before
 
 | # | class | BTree | HSM |
 |---|---|---|---|
-| ① | **`Role=Input`** — the params | ✅ packed by `BTreeBlackboardPackHelper` into `BrainBlackboard.BehaviorParameters[100]`, written by the generated `ParseParams` | ⛔⛔ **NOTHING.** No pack step, no `ParseParams` ⇒ **`BP-281`** |
+| ① | **`Role=Input`** — the params | ✅ packed by `BTreeBlackboardPackHelper` into `BrainBlackboard.BehaviorParameters[100]`, written by the generated `ParseParams`. ⚠ **`2026-09-21`: still true for a ROOT behaviour; a HOSTED occurrence's params are in its own slot (`E3a`)** | ⛔⛔ **NOTHING.** No pack step, no `ParseParams` ⇒ **`BP-281`** |
 | ② | **`Role=State` @ `Behavior`/`Entity`** | ✅ partition slot, `FNV(assetId ++ variableName)` | ✅ **SHIPPED `E1`/`E2`** — `HsmBridgeEmitCore.EmitStatefulWorkingSlotsArray`, **the same allocator and the same key function** |
 | ③ | **per-OCCURRENCE bytes** | ✅ `Scope.Node`, `FNV(assetId ++ nodeVisualId)` ⇒ two nodes, two regions | ⛔⛔ the action DTO sits at a **baked offset into the single 100-byte blackboard** ⇒ **`E3`** |
 
@@ -65,7 +67,7 @@ variables**, which is why ① and ② do not overlap.
 | ⭐ **destination** | `BrainBlackboard.BehaviorParameters` at packed offsets — **the same place BTree's inputs live** |
 | ⭐ **mechanism** | pack non-`State` variables, emit `ParseParams` **as the BTree bridge does after `DEBT-AIB-021`**: baked defaults first, then the incoming JSON overlays per variable by name, unknown keys ignored |
 | ⚠ **the two guards** | ⛔ **emit whenever there is ≥1 packed variable, NOT ≥1 default** *(defect (b))*, and the `JsonSerializerOptions` field carries the same guard *(defect (c))*. ⭐ **Copying the pre-`-021` BTree shape reproduces both** |
-| ⛔ **what IS blocked** | ⭐ only the **hosted / multi-occurrence** case — *"which occurrence's params?"* — and that is `E3`, not `BP-281`. **The ROOT behaviour has one params area and always did** |
+| ✅ **what WAS blocked — RESOLVED `2026-09-21`** | ⭐ only the **hosted / multi-occurrence** case — *"which occurrence's params?"* — and that was `E3`, not `BP-281`. ✅ **`E3a` answered it: a hosted occurrence's params live in ITS OWN SLOT** *(payload `[WorkingState][Params]`)* — 📄 [`DESIGN_Occurrence_Scoped_Storage.md`](DESIGN_Occurrence_Scoped_Storage.md) §28, [`DESIGN_Parameter_Model.md`](DESIGN_Parameter_Model.md) §4.7. ⚠ **The ROOT behaviour still has one params area** — the row above is about the root and stays true |
 
 ⇒ ⭐⭐ **`BP-281` can be dispatched immediately.** ⚠ **My pull was right for the wrong reason** — the
 user's instinct *"are we building authoring for a not-ready runtime?"* was correct about the **picker**;

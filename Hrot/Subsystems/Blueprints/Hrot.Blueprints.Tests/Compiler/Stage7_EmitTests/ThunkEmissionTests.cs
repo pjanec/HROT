@@ -97,10 +97,13 @@ public sealed class ThunkEmissionTests
         //    which is ONE working state per ENTITY: two concurrently-active regions running this
         //    asset wrote the same bytes, silently (BP-297).
         Assert.Contains("global::Fdp.Toolkit.Behavior.HsmOccurrence.KeyFor(instance, AssetId, writer)", src);
-        Assert.Contains("HsmOccurrence.ResolveOrAttach<WorkingState>", src);
+        // ⭐⭐⭐ E3a — and the PARAMS ride the same slot: one key, one lookup, one lifetime (§28).
+        Assert.Contains("HsmOccurrence.ResolveOrAttach<Params, WorkingState>", src);
         Assert.DoesNotContain("global::Fdp.Toolkit.Behavior.Components.Blackboard1024", src);
 
-        // ⭐ CE-297 — params come from the blackboard, NOT from the kernel's instance pointer.
+        // ⭐ CE-297 — the params SEED comes from the blackboard, never from the kernel's instance
+        //   pointer. ⚠ E3a demoted it from the live home to the seed; HsmThunk_TakesParamsFromThe-
+        //   OccurrenceSlot_E3a pins that it sits inside the freshly-attached arm.
         Assert.Contains("BrainBlackboard", src);
         Assert.DoesNotContain("*(Params*)instance", src);
     }
@@ -119,8 +122,8 @@ public sealed class ThunkEmissionTests
 
         Assert.Contains("HsmGuard", src);
 
-        // ⭐⭐ O7 / E3 + CE-297 — same two corrections as the action thunk; one shared body emits both.
-        Assert.Contains("HsmOccurrence.ResolveOrAttach<WorkingState>", src);
+        // ⭐⭐ O7 / E3 / E3a + CE-297 — the same corrections as the action thunk; one shared body.
+        Assert.Contains("HsmOccurrence.ResolveOrAttach<Params, WorkingState>", src);
         Assert.DoesNotContain("global::Fdp.Toolkit.Behavior.Components.Blackboard1024", src);
         Assert.DoesNotContain("*(Params*)instance", src);
     }
@@ -141,26 +144,25 @@ public sealed class ThunkEmissionTests
     }
 
     /// <summary>
-    /// 🔴🔴🔴 <b><c>CE-298</c> PINNED AT THE SOURCE — the thunk's params projection takes NO
-    /// occurrence argument.</b>
+    /// ⭐⭐⭐ <b><c>E3a</c> / <c>CE-298</c> — the thunk's params come from the OCCURRENCE SLOT, and the
+    /// blackboard is only the SEED.</b> 📄 <c>DESIGN_Occurrence_Scoped_Storage.md</c> §28.
     ///
-    /// <para>🔒 <b>User, <c>2026-09-21</c>:</b> <i>"two actions running from hsm regions, each having
-    /// its params, they can not share same single place."</i> ⭐ Correct, and
-    /// <c>DESIGN_Parameter_Model.md</c> §4.1 already ruled the HSM params cell a <b>"live race"</b>.
-    /// <c>O7b</c> moved WORKING STATE into the occurrence slot and left params where they were.</para>
+    /// <para>⚠ <b>This rail was a DEFECT PIN and has now FLIPPED.</b> It asserted
+    /// <c>ref bb.BehaviorParameters[0], (nint)0</c> as the LIVE projection while that was true, and
+    /// reddened the moment <c>E3a</c> landed — which is the whole point of a pin.</para>
     ///
-    /// <para>⛔⛔ <b>THIS RAIL ASSERTS THE DEFECT, DELIBERATELY.</b> It is green because the emitted
-    /// projection is <c>BehaviorParameters[0]</c> at a baked <c>0</c> — the same address for every
-    /// occurrence. ⭐⭐ <b>When <c>CE-298</c> lands this MUST go red</b>, and whoever lands it comes
-    /// here and rewrites it to assert the per-occurrence params region. ⛔ Not a <c>Skip</c>: a
-    /// skipped rail tells nobody anything, and this one has to be impossible to ship past.</para>
+    /// <para>🔒 <b>User, <c>2026-09-21</c>:</b> <i>"the simplest case like two actions running in two
+    /// hsm regions would overwrite the params. Forget the fact it is not in use now. it will be."</i>
+    /// ⛔ My own first answer — that it <i>"buys nothing measurable today"</i> because 0 of 27 goldens
+    /// mutate <c>Params</c> — reasoned from the corpus to a CAPABILITY question and was wrong.</para>
     ///
-    /// <para>⚠ <b>Why a rail on emitted TEXT and not on behaviour:</b> the collision is an ADDRESS
-    /// property — "the params address does not depend on the occurrence" — and the address is baked
-    /// by the emitter. A runtime rail would compare a constant with itself.</para>
+    /// <para>⚠ <b>Why a rail on emitted TEXT:</b> the property is an ADDRESS one — <i>"the params
+    /// address depends on the occurrence"</i> — and the address is baked by the emitter. ⭐ The
+    /// behavioural half is <c>O7_R24</c>/<c>O7_R25</c> in <c>Fdp.Toolkits.Tests</c>, which write
+    /// through two occurrences and prove they do not move each other.</para>
     /// </summary>
     [Fact]
-    public void HsmThunk_StillProjectsParamsPerEntity_CE298()
+    public void HsmThunk_TakesParamsFromTheOccurrenceSlot_E3a()
     {
         var asset = BlueprintAssetBuilder
             .AiPrimitive("ParamsPerEntity")
@@ -170,12 +172,28 @@ public sealed class ThunkEmissionTests
 
         var src = EmitAndGetSource(asset);
 
-        // The working state IS occurrence-keyed (O7b).
-        Assert.Contains("HsmOccurrence.ResolveOrAttach<WorkingState>", src);
+        // ⭐⭐ ONE slot carries BOTH — one key, one lookup, one lifetime.
+        Assert.Contains("HsmOccurrence.ResolveOrAttach<Params, WorkingState>", src);
+        Assert.DoesNotContain("HsmOccurrence.ResolveOrAttach<WorkingState>", src);
 
-        // 🔴 …and the params are NOT: one address, every occurrence. THE DEFECT.
-        Assert.Contains("ref bb.BehaviorParameters[0], (nint)0", src);
-        Assert.DoesNotContain("HsmOccurrence.ResolveOrAttach<Params>", src);
+        // ⭐ The live read is from the slot…
+        Assert.Contains("ref var p = ref *__params;", src);
+
+        // …and the blackboard survives ONLY as the seed, inside the freshly-attached arm.
+        int seed = src.IndexOf("*__params = ", StringComparison.Ordinal);
+        int fresh = src.IndexOf("if (freshlyAttached)", StringComparison.Ordinal);
+        Assert.True(fresh >= 0 && seed > fresh,
+            "the blackboard copy must sit INSIDE the freshlyAttached arm — a seed, not a live read");
+
+        // ⛔ And it appears exactly ONCE: a second occurrence would be a live read that slipped back in.
+        Assert.Equal(1, CountOccurrences(src, "ref bb.BehaviorParameters[0], (nint)0"));
+    }
+
+    private static int CountOccurrences(string haystack, string needle)
+    {
+        int n = 0, i = 0;
+        while ((i = haystack.IndexOf(needle, i, StringComparison.Ordinal)) >= 0) { n++; i += needle.Length; }
+        return n;
     }
 
     /// <summary>
@@ -209,7 +227,7 @@ public sealed class ThunkEmissionTests
 
         // ⭐⭐ THE RAIL. Asset-scoped occurrence storage, through the SAME shared body the HSM path uses.
         Assert.Contains("OccurrenceSlots.StandaloneStateKeyFor(AssetId)", src);
-        Assert.Contains("OccurrenceWorkingState.ResolveOrAttach<WorkingState>", src);
+        Assert.Contains("OccurrenceWorkingState.ResolveOrAttach<Params, WorkingState>", src);
 
         // 🔴 …and the legacy per-entity blackboard is gone from this thunk.
         Assert.DoesNotContain("global::Fdp.Toolkit.Behavior.Components.Blackboard1024", src);

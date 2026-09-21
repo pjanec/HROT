@@ -876,7 +876,7 @@ static NodeStatus MyAction(ref BrainBlackboard bb, ref BehaviorTreeState state,
 
 ### Why `BrainBlackboard` Has a Hard Byte Limit
 
-`BrainBlackboard` **is** the behavior-parameter region: `fixed byte BehaviorParameters[BehaviorConstants.MaxBehaviorParamByteSize]`, currently **100** bytes. ⭐ That is the same constant `BehaviorParameterSizeAnalyzer` (`FDP_001`) enforces, so there is **one** number, not two — ⛔ do not quote the figure from here, read `BehaviorConstants`.
+`BrainBlackboard` **is** the behavior-parameter region **for a ROOT behaviour**: `fixed byte BehaviorParameters[BehaviorConstants.MaxBehaviorParamByteSize]`, currently **100** bytes. ⚠ **`2026-09-21` — a HOSTED occurrence's params are NOT here any more**: `E3a` moved them into that occurrence's own slot in the partition store, and the blackboard is only the one-time seed — 📄 [`DESIGN_Occurrence_Scoped_Storage.md`](blueprints/DESIGN_Occurrence_Scoped_Storage.md) §28, [`DESIGN_Parameter_Model.md`](blueprints/DESIGN_Parameter_Model.md) §4.7. ⭐ That is the same constant `BehaviorParameterSizeAnalyzer` (`FDP_001`) enforces, so there is **one** number, not two — ⛔ do not quote the figure from here, read `BehaviorConstants`.
 
 ⛔⛔ **Two things in this section were stale until `2026-09-20` and are corrected:**
 

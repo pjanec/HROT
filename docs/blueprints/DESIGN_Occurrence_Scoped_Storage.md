@@ -3025,7 +3025,7 @@ whole item closes, written down by the generator's own author:**
 
 | ✅ the host identity | `((InstanceHeader*)instance)->MachineId` is the host's `StructureHash` — **free, per dispatch, no new plumbing** ⇒ `O8`'s HSM-hosts-HSM key is already served |
 |---|---|
-| ✅ the params projection | must move to `BrainBlackboard.BehaviorParameters[0]`, matching the sibling generator and the BTree path — **`CE-297`** |
+| ✅ the params projection | must move to `BrainBlackboard.BehaviorParameters[0]`, matching the sibling generator and the BTree path — **`CE-297`**. ⚠⚠ **SUPERSEDED `2026-09-21` by §28 (`E3a`)**: that projection is now the one-time **SEED** for a slot-local params region, not the live read. ⛔ Do not quote this row, or §24.9's surrounding params prose, as the current shape |
 
 ⭐⭐ **Why this has plausibly never bitten:** the inventory says **1** shipped asset declares `HsmAction`
 and **0** declare `HsmGuard` — so this path is close to never executed in production.
@@ -3428,3 +3428,142 @@ that keeps the plumbing and breaks the derivation reddens `R19` alone and says s
 hosting one blueprint three ways is ONE occurrence, because it is one key)* and ㉒ *(no machine ⇒ `null`,
 not zero)* have no red-proof of their own because they pin **inverse** claims — each one is the rail that
 reddens on the obvious wrong simplification.
+
+## 28. 🔴🔴🔴 `E3a` / `CE-298` — **A HOSTED OCCURRENCE'S PARAMS MOVE INTO ITS SLOT** *(`2026-09-21`)*
+
+### 28.1 ⛔⛔ THE REFRAME — **and a wrong inference of mine that the user caught**
+
+📐 **Measured first, and it changed what `CE-298` is:**
+
+| | |
+|---|---|
+| params live in the behaviour's **100-byte** `BehaviorParameters` region, at a **per-variable** packed offset | `BehaviorConstants.cs:32` · `BTreeBridgeEmitCore.cs:1236` writes `memory + field.ByteOffset` |
+| a hosted blueprint's `Params` is a **VIEW** at a baked offset | `AiPrimitiveEmitter.EmitParamProjection` |
+| ⭐ the **BTree bridge** bakes a real per-variable offset *(0, 4, 8 in `T20_MultiStateful`)* | ✅ correct already — §4.1 calls it *"the template"* |
+| 🔴 **every HSM thunk bakes a literal `0`** | `AiPrimitiveEmitter.cs:344-347` |
+| 🔴 the HSM generated registrars bake **NO** `BehaviorParameters` projection at all | measured over `HsmJsonGenerator/*.g.cs` — zero hits at any offset |
+| an HSM state's action binding is a **bare method-name string**, with no params of its own | `HsmVariableShowcase.hsm.json` state keys |
+
+⛔⛔ **I first argued that per-occurrence params storage *"buys nothing measurable today"*, on the
+grounds that **0 of 27** AiPrimitive goldens mutate their `Params`. 🔒 **The user rejected that, and was
+right:** *"how can we avoid moving params into the slot? the simplest case like two actions running in
+two hsm regions would overwrite the params. Forget the fact it is not in use now. it will be."*
+
+⚠ **The measurement was true; the INFERENCE was wrong** — it reasoned from today's corpus to answer a
+**capability** question. ⭐ The hazard is in the **SHAPE**: `TickCore(ref Params p, …)` permits writes,
+so the first action that keeps a cooldown in its params corrupts its sibling, silently.
+
+⭐⭐⭐ **And it is WORSE than the overwrite, which the challenge surfaced:** even **READ-ONLY**, two
+**DIFFERENT** blueprints hosted at two states of one asset both project **their own `Params` type** over
+`BehaviorParameters[0] + 0`. ⇒ a **type-punned misread** of whichever variable is packed first. ⛔ **No
+validator guards it** *(searched `Stage2_Validate*`, none found)*.
+
+### 28.2 ⛔ WHY THE SLOT IS THE ONLY HOME — **the cheap fix is REFUTED, not merely rejected**
+
+⭐ The obvious cheap fix is *"bake a per-site offset in the HSM thunk, like the bridge does per node."*
+📐 **It cannot be done**: `AiPrimitiveEmitter` emits **ONE thunk per blueprint**, registered under one
+action id (`CSharpEmitter.cs:383`), and **the blueprint's emitter cannot see its HSM hosts** — §24.8, the
+same invisibility that forced lazy attach and that `O6`'s runtime stamp exists to work around. ⭐ The
+BTree bridge can only bake an offset because it emits **one adapter per node** and sees the binding.
+
+⇒ ⭐⭐⭐ **Only the occurrence slot can distinguish two regions, and it already does** — the
+`(region, state)` stamp has been serving working state since `O7b`. 🔒 And the destination is not new:
+`DESIGN_Hsm_Storage_Model.md`'s supersession banner already states that **`BrainBlackboard.BehaviorParameters`**
+moves into per-occurrence slots. **`E3a` is one occupant leaving.**
+
+### 28.3 ⭐⭐ THE LAYOUT AND THE SEAM
+
+```mermaid
+classDiagram
+    class OccurrenceWorkingState {
+        <<static>>
+        +ResolveOrAttach~TWorkingState~(...) ref TWorkingState
+        +ResolveOrAttach~TParams,TWorkingState~(..., out TParams* p) ref TWorkingState
+        -PayloadSizeOf(paramsBytes, stateBytes) int
+    }
+    class HsmOccurrence {
+        <<static>>
+        +KeyFor(instance, childAssetId, writer) int
+        +ResolveOrAttach~TParams,TWorkingState~(...) ref TWorkingState
+    }
+    class SlotPayload {
+        +WorkingState : bytes 0..AlignUp(M)
+        +Params : bytes AlignUp(M)..+N
+    }
+    class AiPrimitiveEmitter {
+        <<emitter, EXISTS>>
+        -EmitParamProjection() "the SEED only"
+        -EmitHsmOccurrenceBody()
+        -EmitStandaloneOccurrenceBody()
+    }
+    class BehaviorIngressSystem {
+        <<EXISTS>>
+        -DetachHostedOccurrenceSlots() "MANDATORY - re-supply"
+    }
+    HsmOccurrence ..> OccurrenceWorkingState : forwards (one body)
+    OccurrenceWorkingState --> SlotPayload : lays out
+    AiPrimitiveEmitter ..> HsmOccurrence : emits calls to
+    BehaviorIngressSystem ..> SlotPayload : detaches on re-assign
+```
+
+*What the picture shows that the prose hid: `Params` and `WorkingState` are ONE slot, so there is one
+key, one lookup and one lifetime — and `BehaviorIngressSystem` is a second writer of that slot's
+lifetime, which is the edge §28.4 is about.*
+
+### 28.3a 🔴🔴🔴 DEVIATION FROM THE DRAWN DESIGN — **the payload is `[WorkingState][Params]`, NOT the reverse**
+
+⛔⛔ **§28.3 above was drawn as `[Params N][WorkingState M]`** *(following §4.2's wording in
+`DESIGN_Parameter_Model`)*, **and it was built that way first. It is SUPERSEDED — the order is
+reversed.** ⭐ Recorded rather than quietly corrected, because the reason generalises.
+
+📐 **What it cost, measured:** params-first shifts the working state to `payload + AlignUp(sizeof(Params))`,
+and **every existing reader decodes working state at the payload BASE** — `BlueprintDebugSession`, the
+live renderers, `OccurrenceWorkingState.Resolve<T>`. ⇒ **three `AiPrimitiveStateMetadataTests` inspector
+rails went red, reading zeros where a value had been written.**
+
+| ⭐ the fix, and why it is better than teaching the readers | |
+|---|---|
+| ⭐⭐⭐ **working state FIRST** | every existing reader stays correct **BY CONSTRUCTION** — nothing had to learn that params exist |
+| ⛔ **the rejected repair** | emit `ParamsSize` onto the AiPrimitive registration and add it at each decode site. ⚠ That is **N readers to find and keep in step**, and the next reader added would get it wrong |
+| ⭐ **only the emitter needs the offset**, through `OccurrenceWorkingState.ParamsOffsetOf<TWorkingState>()` | ⛔ one spelling, so the seam and the emitter cannot disagree |
+
+⭐⭐ **This is the `O7b-1` lesson repeating — *"the inspector is a real consumer"* — and this time a RAIL
+caught it rather than the user.** ⚠ That is the whole value of `O7b-2` having wired the inspector to the
+occurrence store: it made the inspector able to fail.
+
+### 28.4 ⭐⭐⭐ THE SEED, AND WHY THE DETACH IS MANDATORY
+
+```mermaid
+sequenceDiagram
+    autonumber
+    participant Ing as BehaviorIngressSystem
+    participant BB as BrainBlackboard
+    participant Thunk as emitted HSM thunk
+    participant Slot as occurrence slot
+
+    Ing->>BB: ParseParams(json) writes every packed variable
+    Ing->>Slot: detach hosted occurrence slots (kind Hsm/Blueprint, not in manifest)
+    Note over Thunk: first dispatch after the assign
+    Thunk->>Slot: ResolveOrAttach<Params,WorkingState> => freshlyAttached
+    Thunk->>BB: SEED - copy Params bytes from BehaviorParameters[0] + 0
+    Thunk->>Slot: InitDefaultWorkingState
+    Note over Thunk,Slot: every later dispatch reads Params from the SLOT
+```
+
+*What the picture shows that the prose hid: without step 2 the assign in step 1 never reaches the
+thunk — the slot still holds the PREVIOUS assign's seed.*
+
+| ⭐ | |
+|---|---|
+| ⭐⭐⭐ **the SEED is from `BehaviorParameters[0] + 0` — the exact bytes the thunk reads today** | ⇒ the move is **byte-identical** at the first dispatch, so it is provably not a downgrade. ⛔ Seeding from zeros/defaults would hand every occurrence zeroed params where today it gets the behaviour's authored ones — §26.1, the rule `O7d` was reverted twice for |
+| ⛔⛔ **THE DETACH IS NOT OPTIONAL** | 🔴 Today the thunk reads the blackboard **live**, so a re-assign with new JSON takes effect on the next dispatch. ⭐ After `E3a` the slot holds a **copy** ⇒ **without the detach, new JSON would silently stop taking effect.** ⚠ That is a REGRESSION, which is why it is in this slice and not a follow-up |
+| ⭐ **the detach is precise, and `A3` is what makes it possible** | the `Kind` nibble (`D1′`) distinguishes a lazily-attached hosted occurrence (`Hsm`/`Blueprint`) from a manifest slot. ⛔ Detaching by kind ALONE would also take manifest slots — so it is *kind AND not-in-manifest* |
+| ⚠ **offset `0` is the SEED's source, never the destination** | it is inherited from the model being retired, and it dies at `E3b` when a per-site authored value exists. ⛔ It is NOT a new dependency on the blackboard |
+
+### 28.5 ⚠ WHAT `E3a` DOES **NOT** CLOSE
+
+| | |
+|---|---|
+| ⛔ **per-site authored VALUES** | every occurrence still seeds from the SAME variable ⇒ two regions get their own *copy* of one authored value. ⭐ That is `E3b` — `Q41-C1′` (the resolve hook) then `C2′`, both approved and unbuilt |
+| ⛔ **the type-pun is not FIXED, it is CONTAINED** | two different blueprints still seed from offset `0`; ⭐ but they now write into **separate slots**, so neither corrupts the other. ⚠ The misread of the seed remains until `E3b` |
+| ⚠ **a live binary upgrade over an existing slot** | the payload grows while `StructureHash` is unchanged, so the hash guard would not re-attach. ⛔ Not reachable within one process (slots are created by the binary that reads them); named so nobody is surprised by it in a hot-reload |

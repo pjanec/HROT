@@ -338,13 +338,44 @@ internal static class AiPrimitiveEmitter
     /// not ours to change. ⭐ It is now unread — exactly as the bridge's per-node adapter leaves it.
     /// </para>
     /// </summary>
-    private static void EmitParamProjection(CSharpEmitter e)
+    /// <summary>
+    /// ⭐⭐⭐ <c>E3a</c> / <c>CE-298</c> — <b>the SEED, and it runs ONCE per occurrence.</b>
+    /// 📄 <c>DESIGN_Occurrence_Scoped_Storage.md</c> §28.4.
+    ///
+    /// <para>🔴 <b>What this used to be.</b> The identical expression, evaluated on EVERY dispatch as
+    /// the LIVE params home: <c>Unsafe.As&lt;byte, Params&gt;(ref bb.BehaviorParameters[0] + 0)</c>.
+    /// ⛔ A literal <c>0</c> shared by every occurrence on the entity ⇒ two HSM regions running actions
+    /// overwrote each other, and two DIFFERENT blueprints type-punned each other's variable.
+    /// 🔒 <b>User, <c>2026-09-21</c>:</b> <i>"forget the fact it is not in use now. it will be."</i></para>
+    ///
+    /// <para>⭐⭐ <b>Why the seed comes from HERE and not from zeros.</b> This is the ONLY place an
+    /// authored value for this occurrence exists today — an HSM state's binding is a bare method-name
+    /// string with no params of its own. ⇒ copying makes the move <b>byte-identical at the first
+    /// dispatch</b>, so it is provably not a downgrade. ⛔ Seeding from <c>default</c> would hand every
+    /// occurrence zeroed params where today it gets the behaviour's authored ones — §26.1, the rule
+    /// <c>O7d</c> was reverted twice for.</para>
+    ///
+    /// <para>⚠ <b>Offset <c>0</c> is the seed's SOURCE, never the destination.</b> It is inherited from
+    /// the model being retired and it dies at <c>E3b</c>, when <c>Q41-C1′</c>'s resolve hook gives a
+    /// per-site authored value. ⛔ It is not a new dependency on the blackboard.</para>
+    ///
+    /// <para>⛔ <b>And the re-supply is <c>BehaviorIngressSystem</c>'s half</b>
+    /// (<c>DetachHostedOccurrenceSlots</c>): without it a re-assign's new JSON would never reach the
+    /// slot, because this seed only runs when the slot is created.</para>
+    /// </summary>
+    private static void EmitParamSeed(CSharpEmitter e)
     {
-        e.WriteLine("// W13: the offset form — identical in shape to the BTree bridge's per-node adapter.");
-        e.WriteLine("//      Standalone hosting is the single-method case, so the baked offset is 0.");
-        e.WriteLine("ref var p = ref global::System.Runtime.CompilerServices.Unsafe.As<byte, Params>(");
+        e.WriteLine("if (freshlyAttached)");
+        e.WriteLine("{");
+        e.Indent();
+        e.WriteLine("// E3a SEED (§28.4): the bytes this thunk read LIVE before params moved into the");
+        e.WriteLine("//   slot. Copying them makes the move byte-identical at the first dispatch.");
+        e.WriteLine("*__params = global::System.Runtime.CompilerServices.Unsafe.As<byte, Params>(");
         e.WriteLine("    ref global::System.Runtime.CompilerServices.Unsafe.AddByteOffset(");
         e.WriteLine("        ref bb.BehaviorParameters[0], (nint)0));");
+        e.WriteLine("InitDefaultWorkingState((WorkingState*)global::System.Runtime.CompilerServices.Unsafe.AsPointer(ref ws));");
+        e.Outdent();
+        e.WriteLine("}");
     }
 
     private static void EmitBTreeActionThunk(CSharpEmitter e)
@@ -398,20 +429,14 @@ internal static class AiPrimitiveEmitter
     /// </summary>
     private static void EmitStandaloneOccurrenceBody(CSharpEmitter e, string tail)
     {
-        EmitParamProjection(e);
-        e.WriteLine();
-        e.WriteLine("// O7d: this asset's OWN working state, in the entity's occurrence store —");
-        e.WriteLine("//      NOT Blackboard1024 at a fixed offset shared by every asset.");
+        e.WriteLine("// O7d/E3a: this asset's OWN params AND working state, in the entity's occurrence");
+        e.WriteLine("//          store — NOT Blackboard1024, and no longer the SHARED param region.");
         e.WriteLine("int occurrenceKey = global::Fdp.Toolkit.Behavior.OccurrenceSlots.StandaloneStateKeyFor(AssetId);");
-        e.WriteLine("ref var ws = ref global::Fdp.Toolkit.Behavior.OccurrenceWorkingState.ResolveOrAttach<WorkingState>(");
+        e.WriteLine("ref var ws = ref global::Fdp.Toolkit.Behavior.OccurrenceWorkingState.ResolveOrAttach<Params, WorkingState>(");
         e.WriteLine("    ctx.World, ctx.Self, occurrenceKey, StructureHash,");
-        e.WriteLine("    global::Fdp.Toolkit.Blueprints.Partitioning.OccurrenceKind.Blueprint, out bool freshlyAttached);");
-        e.WriteLine("if (freshlyAttached)");
-        e.WriteLine("{");
-        e.Indent();
-        e.WriteLine("InitDefaultWorkingState((WorkingState*)global::System.Runtime.CompilerServices.Unsafe.AsPointer(ref ws));");
-        e.Outdent();
-        e.WriteLine("}");
+        e.WriteLine("    global::Fdp.Toolkit.Blueprints.Partitioning.OccurrenceKind.Blueprint, out bool freshlyAttached, out Params* __params);");
+        EmitParamSeed(e);
+        e.WriteLine("ref var p = ref *__params;");
         e.WriteLine(tail);
     }
 
@@ -451,21 +476,17 @@ internal static class AiPrimitiveEmitter
         e.WriteLine("var bridge = (global::Fdp.Toolkit.Behavior.Systems.HsmKernelBridge*)context;");
         e.WriteLine("var world = (global::Fdp.Core.EntityRepository)global::System.Runtime.InteropServices.GCHandle.FromIntPtr(bridge->WorldHandle).Target!;");
         e.WriteLine();
-        e.WriteLine("// CE-297: params come from the blackboard, NOT from the kernel's instance pointer.");
+        e.WriteLine("// CE-297: the SEED for params comes from the blackboard, NOT from the kernel's");
+        e.WriteLine("//         instance pointer. E3a: it is a seed now, not the live home.");
         e.WriteLine("ref var bb = ref world.GetComponentRW<global::Fdp.Toolkit.Behavior.Components.BrainBlackboard>(bridge->Self);");
-        EmitParamProjection(e);
         e.WriteLine();
-        e.WriteLine("// O7/E3: this occurrence's OWN working state, keyed by the (region, state) the");
-        e.WriteLine("//        kernel stamped (O6) and by the hosting machine's id from the instance header.");
+        e.WriteLine("// O7/E3: this occurrence's OWN params AND working state, keyed by the (region, state)");
+        e.WriteLine("//        the kernel stamped (O6) and by the hosting machine's id from the instance header.");
         e.WriteLine("int occurrenceKey = global::Fdp.Toolkit.Behavior.HsmOccurrence.KeyFor(instance, AssetId, writer);");
-        e.WriteLine("ref var ws = ref global::Fdp.Toolkit.Behavior.HsmOccurrence.ResolveOrAttach<WorkingState>(");
-        e.WriteLine("    world, bridge->Self, occurrenceKey, StructureHash, out bool freshlyAttached);");
-        e.WriteLine("if (freshlyAttached)");
-        e.WriteLine("{");
-        e.Indent();
-        e.WriteLine("InitDefaultWorkingState((WorkingState*)global::System.Runtime.CompilerServices.Unsafe.AsPointer(ref ws));");
-        e.Outdent();
-        e.WriteLine("}");
+        e.WriteLine("ref var ws = ref global::Fdp.Toolkit.Behavior.HsmOccurrence.ResolveOrAttach<Params, WorkingState>(");
+        e.WriteLine("    world, bridge->Self, occurrenceKey, StructureHash, out bool freshlyAttached, out Params* __params);");
+        EmitParamSeed(e);
+        e.WriteLine("ref var p = ref *__params;");
         e.WriteLine(tail);
     }
 
