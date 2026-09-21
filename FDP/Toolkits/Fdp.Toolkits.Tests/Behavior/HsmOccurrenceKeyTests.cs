@@ -1286,6 +1286,108 @@ public sealed unsafe class HsmOccurrenceKeyTests
         finally { HostedParamResolvers.ClearAll(); }
     }
 
+    /// <summary>
+    /// ⭐⭐⭐ <b>Rail ㊱ — A HAND-AUTHORED RESOLVER'S OUTPUT REACHES TWO REGIONS AS TWO DIFFERENT
+    /// VALUES.</b> 📄 user question, <c>2026-09-21</c>: <i>"it must work also with hand authored action
+    /// having param dto and hand authored resolver. Will it?"</i>
+    ///
+    /// <para>⭐⭐ <b>What the existing rails left open.</b> ㉘ and ㉛ prove two regions resolve two
+    /// different <b>seed OFFSETS</b>. ⛔ Neither proves that the offset a CURATED resolver <b>writes
+    /// at</b> is the offset a state <b>seeds from</b> — they are produced by two different emitters
+    /// from one <c>offsetMap</c>, i.e. they agree <b>by construction</b>. ⚠ This repo has been bitten
+    /// by exactly that shape before: <c>OccurrenceSlotKey</c> exists because one FNV was hand-copied
+    /// into three entry points and one copy was wrong.</para>
+    ///
+    /// <para>⭐ So this drives the WHOLE chain: the curated resolver is registered exactly as
+    /// <c>CgfCuratedBehaviorRegistrar</c> registers one and invoked exactly as
+    /// <c>BehaviorIngressSystem:100</c> invokes it, then a REAL kernel tick fans out into two regions
+    /// and each reads the blackboard at its own bound offset.</para>
+    ///
+    /// <para>⛔⛔ <b>What this does NOT prove, stated so it is not read as more than it is:</b> the
+    /// curated <c>HsmActionGenerator</c> thunk still bakes a compile-time offset and does NOT call
+    /// <c>SeedParamsOffset</c> — that conversion is <c>D2</c>/<c>O7</c>. ⭐ This rail pins that the
+    /// SEAM carries a hand-authored resolver's values correctly, which is what makes that conversion
+    /// worth doing rather than a guess.</para>
+    /// </summary>
+    [Fact]
+    public void O7_R36_AHandAuthoredResolverSeedsTwoRegionsWithDifferentValues()
+    {
+        const ushort ActionId = 0x0E3D;
+        const int RegionZeroValue = 111;
+        const int RegionOneValue  = 222;
+
+        HsmParamBindings.ClearAll();
+        Fhsm.Kernel.HsmActionDispatcher.ClearAll();
+        SeenSeededValues.Clear();
+        new Span<byte>(SeedBlackboard, BehaviorConstants.MaxBehaviorParamByteSize).Clear();
+        try
+        {
+            // ── ① the HAND-AUTHORED resolver, in the curated shape ────────────────────
+            var registry = new BehaviorRegistry();
+            registry.Register("HandAuthored", new BehaviorDefinition
+            {
+                Name      = "HandAuthored",
+                BrainTier = BehaviorConstants.BrainTierHsm,
+            });
+            registry.RegisterResolver("HandAuthored",
+                static (string json, byte* mem, EntityRepository world, Entity self,
+                        IHostVariableAccess? host) =>
+                {
+                    // Two packed variables — what a real curated resolver writes after doing its
+                    // geo/unit conversion. The offsets are the blackboard PACKING's, not invented.
+                    *(int*)(mem + 0) = RegionZeroValue;
+                    *(int*)(mem + 8) = RegionOneValue;
+                },
+                typeof(int));
+
+            Assert.True(registry.TryGetDefinition(BehaviorHash.FromName("HandAuthored"), out var def));
+
+            // ── ② run it exactly as the ingress does (BehaviorIngressSystem:100) ──────
+            def!.ParseParams!(string.Empty, SeedBlackboard, null!, default, host: null);
+
+            // Non-vacuity: the resolver really wrote, and wrote two DIFFERENT values.
+            Assert.Equal(RegionZeroValue, *(int*)(SeedBlackboard + 0));
+            Assert.Equal(RegionOneValue,  *(int*)(SeedBlackboard + 8));
+
+            // ── ③ bind the two states to those two variables ─────────────────────────
+            var stateA = new Guid("07000000-0000-0000-0000-00000000e3c1");
+            var stateB = new Guid("07000000-0000-0000-0000-00000000e3c2");
+
+            var blob = BuildTwoRegionBlob(ActionId);
+            blob.Metadata = new MachineMetadata();
+            blob.Metadata.StateStableIds[1] = stateA;
+            blob.Metadata.StateStableIds[2] = stateB;
+            HsmParamBindings.Register(blob, new[] { (stateA, 0), (stateB, 8) });
+
+            Fhsm.Kernel.HsmActionDispatcher.RegisterAction(
+                ActionId, (IntPtr)(delegate* <void*, void*, HsmCommandWriter*, void>)&RecordingSeededValue);
+
+            // ── ④ one REAL kernel tick ───────────────────────────────────────────────
+            var inst = new HsmInstance128();
+            inst.Header.MachineId = HostMachine;
+            inst.Header.Phase     = InstancePhase.Entry;
+            for (int r = 0; r < 4; r++) inst.ActiveLeafIds[r] = 0xFFFF;
+
+            var ctx  = 0;
+            var page = default(CommandPage);
+            Fhsm.Kernel.HsmKernel.Update(blob, ref inst, in ctx, 0.016f, ref page);
+
+            // Non-vacuity: the parallel root really did fan out into two regions.
+            Assert.Equal(2, SeenSeededValues.Count);
+
+            // ⭐⭐⭐ THE RAIL. The hand-authored resolver's TWO values land in the TWO regions —
+            //    🔴 and before E3b-0 both regions would have read RegionZeroValue.
+            Assert.Contains((1, RegionZeroValue), SeenSeededValues);
+            Assert.Contains((2, RegionOneValue),  SeenSeededValues);
+        }
+        finally
+        {
+            Fhsm.Kernel.HsmActionDispatcher.ClearAll();
+            HsmParamBindings.ClearAll();
+            SeenSeededValues.Clear();
+        }
+    }
+
     // ── helpers ──────────────────────────────────────────────────────────────────
 
     /// <summary>A blob whose metadata maps flat states 1 and 2 to two authoring ids.</summary>
@@ -1299,6 +1401,28 @@ public sealed unsafe class HsmOccurrenceKeyTests
     }
 
     private static readonly List<(int Region, ushort State, int SeedOffset)> SeenSeeds = new();
+
+    // ── rail ㊱'s harness: a stand-in for BrainBlackboard.BehaviorParameters ──────────
+    //
+    // ⭐ A pinned native buffer, because the recording thunk is a `static` function pointer and
+    //   cannot close over a stack local. Its LIFETIME is the test class, and every rail that uses
+    //   it clears it first, so no rail inherits another's bytes.
+    private static readonly byte* SeedBlackboard =
+        (byte*)System.Runtime.InteropServices.NativeMemory.AllocZeroed(
+            (nuint)BehaviorConstants.MaxBehaviorParamByteSize);
+
+    private static readonly List<(int Region, int Value)> SeenSeededValues = new();
+
+    /// <summary>
+    /// ⭐ What an emitted thunk does on <c>freshlyAttached</c>: ask for THIS occurrence's seed offset,
+    /// then read the params from the blackboard there. ⛔ The offset is never baked here — that is the
+    /// whole point of the rail.
+    /// </summary>
+    private static void RecordingSeededValue(void* instance, void* context, HsmCommandWriter* writer)
+    {
+        int offset = HsmOccurrence.SeedParamsOffset(instance, writer);
+        SeenSeededValues.Add((writer->OccurrenceRegionSlotIndex, *(int*)(SeedBlackboard + offset)));
+    }
 
     /// <summary>Captures exactly what an emitted HSM thunk's seed computes, per dispatch.</summary>
     private static void RecordingSeed(void* instance, void* context, HsmCommandWriter* writer)
