@@ -65,7 +65,9 @@ public sealed class GoldenCorpusTests
         //    `GraphKind.Construction` had no emitter consumer anywhere and no golden coverage at all.
         // ⭐ 44 → 45 in the R4 build: `ResolverWorldReachDemo` — a resolver that REACHES THE WORLD
         //    (acceptance A3+A4), which no asset could express before.
-        Assert.Equal(45, GoldenCorpus.EnumerateFiles().Count);
+        // ⭐ 45 → 46 in E8a: `OwnParamResolverDemo` — an AiPrimitive carrying its OWN resolver, the case
+        //    that needs no binding at all (R-149).
+        Assert.Equal(46, GoldenCorpus.EnumerateFiles().Count);
     }
 
     // ────────────────────────────────────────────────────────────────────────

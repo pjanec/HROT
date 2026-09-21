@@ -472,3 +472,77 @@ way (`CS0103`), so it proves the same property with a node a resolver may legall
 |---|---|
 | ⭐⭐ **`BP1677` refused an early draft of `R4`'s own rail** | the first `A2`/`A3` rail was authored `uint in → bool out`. ⛔ That is not a resolver shape, and the validator said so. ⭐ **The rail was fixed, not the rule** — a test may not quietly author a shape the product forbids |
 | ⭐ **the test builder gained `WithOutput` and `PureCallReturning`** | ⚠ and the second one **wires the call into the `Return` value pin deliberately**: an unwired data node is unreachable, Stage 5 drops it, and a rail asserting on the emitted source would then pass or fail for the wrong reason |
+
+---
+
+## 11. ⭐⭐⭐ AS-BUILT `2026-09-21` — **`E8a`: an asset carries its OWN resolver**
+
+> 🔒 **User:** *"e8a agreed. RegisterResolver duplicate gap as part of e8a."*
+
+### 11.1 ⭐⭐ Why this needs NO selection property
+
+📐 **Measured:** `HostedParamResolvers.Register` is keyed by the hosted blueprint's **own asset id**, and
+`AiPrimitiveEmitter:413` already emits `TryRun(AssetId, …)` in the thunk. ⇒ when the resolver is the
+asset's own `Construction` graph, **producer and consumer key on one value the asset already carries**
+and there is no binding step at all. ⭐ §7.2's property is needed only for **reuse** and for the
+**behaviour** side — which is why `E8` split into three.
+
+### 11.2 🔴 THE MEASUREMENT THAT CHANGED THE SLICE — **an own-asset resolver cannot name its DTO**
+
+📐 An AiPrimitive's params struct is **GENERATED** — `{Class}.Params`, built from the asset's own
+`Parameters` by `AiPrimitiveEmitter.EmitParamsStruct`. ⛔ Its FQN embeds the BlueprintId hash, so **no
+authored `TypeId` could name it** without baking the emitted class name into the asset.
+
+⇒ ⭐⭐⭐ **`E8a` was NOT "one validator revision plus one `Register` call"**, which is how it was pitched.
+The implied subject forces four changes, each of which falls out of that one fact:
+
+| | |
+|---|---|
+| **`BP1676` revised** | `Construction` is legal wherever a params region exists. ⭐ The rule's real job survives verbatim — **refuse a resolver nothing will ever call** — which on a params-owning asset means one whose asset declares no parameters |
+| **`BP1676` second arm** | ⭐⭐ **at most ONE `Construction` graph** on a params-owning asset: its parameters are ONE region and `R-149` gives a region exactly one resolver. ⚠ A **Library** may carry many — they are separately-named reusable resolvers |
+| **`BP1677` splits** | a *reusable* resolver declares `1-in / 1-out, same type`; an *own-asset* resolver declares **nothing** |
+| **`BP1675` gains ONE exemption** | ⭐⭐⭐ a `SetVariable` targeting a **PARAMETER** is allowed in an own-asset resolver, because the params region **IS its output**. ⛔ Targeting STATE is still refused, and the rail asserts **both halves** — the negative one is what keeps the exemption narrow |
+
+⭐ The emitted method is `(ref Params p, EntityRepository world, Entity self, IHostVariableAccess host)`
+— `ResolveParams<Params>` exactly — and `p` is named `p` on purpose, because
+`EmissionContext.ParamsVar` already answers `"p"` for AiPrimitive dispatch, so every emitted parameter
+read and write resolves against it with **no new scope-var arm**.
+
+### 11.3 ⚠ DEVIATION — **the emitted resolver returns `NodeStatus`, and the registration discards it**
+
+📐 A graph's `Return` node always carries a status — that is the graph vocabulary, shared with ticking
+graphs — so a resolver body ends in `return NodeStatus.Success;` and a `void` method is **`CS0127`**.
+⭐ A resolver has no status of its own, so the value is dropped at the registration lambda. ⛔ Forcing
+`void` would mean teaching the **shared terminator emitter** about resolvers: a far wider change for a
+value nobody reads.
+
+### 11.4 ⭐⭐ The duplicate guard — **two registries, OPPOSITE policies, and the reason is measured**
+
+| registry | policy | why |
+|---|---|---|
+| `BehaviorRegistry.RegisterResolver` | ⭐⭐⭐ **THROWS** | `R-149`. 📐 Every scan builds a **FRESH** staging registry *(`AiHotReloadCoordinator.cs:315`, `QuickReloadService.cs:142`)* and the live registry is written by `MergeFrom`, a separate overwrite path ⇒ a duplicate seen here can only be **two bindings in ONE scan** — an authoring error |
+| `HostedParamResolvers.Register` | ⭐ **OVERWRITES** | keyed by **asset id** and re-registered by **every rescan** ⇒ a throw here would break hot reload |
+
+⚠⚠ **Without that measurement the obvious implementation — "throw on any duplicate" — would have
+broken reload.** ⭐ Both halves are railed, the second one specifically asserting `MergeFrom` still
+overwrites.
+
+### 11.4a 📌 WHAT THE SUITE CAUGHT — **`U-11`'s rail, and it was right**
+
+📐 The first full run reddened **`ViewsAreUnreadTests.TheCompilerStagesReadNoDeclarationListDirectly`**
+on two lines of `V_ResolverPurity`. ⛔ A compiler stage may not read the per-kind declaration VIEWS
+directly: `U-12` deletes those three properties on the strength of *"nothing reads them any more"*, so
+a direct read here would have turned that deletion into the batch that finds out.
+
+⭐ Routed through `Declarations.Of(DeclarationKind.Parameter)` behind one `ParamsOf` helper.
+⚠ **And the fix had a second half worth recording:** the first attempt put the words
+*"not `asset.Parameters`"* in an explanatory COMMENT — which the rail's regex matches just as
+happily as code. ⇒ the comment was reworded rather than the rail loosened.
+
+### 11.5 ⭐ Gates
+
+| | |
+|---|---|
+| golden | `OwnParamResolverDemo`, corpus **45 → 46**; movement **purely additive** *(2 new files + 1 line)*, zero existing goldens moved |
+| rails | 9 — the emitted shape, the negative *"no resolver ⇒ no registration"*, `BP1676` ×3 *(none/two/Library-many)*, `BP1677`, the purity exemption **with its negative half**, and the two duplicate-policy rails |
+| red-proof | neutering **only** the registration reddens exactly 2: the emission rail and that one Tier2 golden — 154 others green |

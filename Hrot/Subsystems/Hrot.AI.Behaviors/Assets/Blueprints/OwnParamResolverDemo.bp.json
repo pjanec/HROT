@@ -1,0 +1,240 @@
+{
+  "$meta": {
+    "docType": "Hrot.Blueprints",
+    "schemaVersion": 2
+  },
+  "Header": {},
+  "AssetId": "00000145-0000-0000-0000-000000000001",
+  "Name": "OwnParamResolverDemo",
+  "Dispatch": "AiPrimitive",
+  "TierHint": "Auto",
+  "IsWorldSingleton": false,
+  "Primitive": {
+    "Intent": "Action",
+    "Hostings": [
+      "BTreeAction"
+    ]
+  },
+  "Declarations": [
+    {
+      "Kind": "Parameter",
+      "Id": "d1450001-0001-0001-0001-000000000001",
+      "Name": "SpeedKph",
+      "Type": {
+        "TypeId": "System.Single",
+        "IsArray": false,
+        "GenericArgs": []
+      },
+      "DefaultValueJson": null,
+      "Tooltip": null,
+      "Comment": null
+    },
+    {
+      "Kind": "Parameter",
+      "Id": "d1450002-0002-0002-0002-000000000002",
+      "Name": "SpeedMps",
+      "Type": {
+        "TypeId": "System.Single",
+        "IsArray": false,
+        "GenericArgs": []
+      },
+      "DefaultValueJson": null,
+      "Tooltip": null,
+      "Comment": null
+    },
+    {
+      "Kind": "Variable",
+      "Id": "d1450003-0003-0003-0003-000000000003",
+      "Name": "Ticks",
+      "Type": {
+        "TypeId": "System.Int32",
+        "IsArray": false,
+        "GenericArgs": []
+      },
+      "DefaultValueJson": null,
+      "IsEditable": false,
+      "IsExposedOnSpawn": false,
+      "Category": null,
+      "Tooltip": null,
+      "Comment": null
+    }
+  ],
+  "ParameterOrder": null,
+  "WorkingStateOrder": null,
+  "VariableOrder": null,
+  "EventDispatchers": [],
+  "CustomEvents": [],
+  "CallablePeers": [],
+  "Graphs": [
+    {
+      "Id": "10000145-0000-0000-0000-000000000009",
+      "Name": "Main",
+      "Kind": "Function",
+      "Inputs": [],
+      "Outputs": [],
+      "ExecOutputs": [],
+      "ExecInputs": [],
+      "Nodes": [
+        {
+          "kind": "EventEntry",
+          "EventTypeId": "",
+          "Id": "30000145-0000-0000-0000-000000000001",
+          "Pins": [],
+          "EditorMetadata": {
+            "X": 60,
+            "Y": 60,
+            "Comment": null
+          }
+        },
+        {
+          "kind": "Return",
+          "Status": "Success",
+          "Id": "30000145-0000-0000-0000-000000000002",
+          "Pins": [],
+          "EditorMetadata": {
+            "X": 320,
+            "Y": 60,
+            "Comment": null
+          }
+        }
+      ],
+      "Links": [
+        {
+          "FromNodeId": "30000145-0000-0000-0000-000000000001",
+          "FromPinId": "16c2010c-b962-5e55-9cfd-1f006c25a933",
+          "ToNodeId": "30000145-0000-0000-0000-000000000002",
+          "ToPinId": "6a83aa25-0937-e156-b80f-b4bcdb239d8c"
+        }
+      ],
+      "LocalVariables": [],
+      "Comments": [],
+      "EditorMetadata": {
+        "ViewportX": 0,
+        "ViewportY": 0,
+        "ViewportZoom": 0
+      }
+    },
+    {
+      "Id": "10000145-0000-0000-0000-000000000001",
+      "Name": "ResolveOwnParams",
+      "Kind": "Construction",
+      "Inputs": [],
+      "Outputs": [],
+      "ExecOutputs": [],
+      "ExecInputs": [],
+      "Nodes": [
+        {
+          "kind": "EventEntry",
+          "EventTypeId": "",
+          "Id": "20000145-0000-0000-0000-000000000001",
+          "Pins": [],
+          "EditorMetadata": {
+            "X": 60,
+            "Y": 200,
+            "Comment": null
+          }
+        },
+        {
+          "kind": "GetParameter",
+          "ParameterId": "d1450001-0001-0001-0001-000000000001",
+          "Id": "20000145-0000-0000-0000-000000000002",
+          "Pins": [],
+          "EditorMetadata": {
+            "X": 60,
+            "Y": 400,
+            "Comment": null
+          }
+        },
+        {
+          "kind": "Literal",
+          "TypeId": "System.Single",
+          "ValueJson": "0.2777778f",
+          "Id": "20000145-0000-0000-0000-000000000003",
+          "Pins": [],
+          "EditorMetadata": {
+            "X": 60,
+            "Y": 520,
+            "Comment": null
+          }
+        },
+        {
+          "kind": "BinaryOp",
+          "Operator": "Multiply",
+          "Id": "20000145-0000-0000-0000-000000000004",
+          "Pins": [],
+          "EditorMetadata": {
+            "X": 380,
+            "Y": 440,
+            "Comment": null
+          }
+        },
+        {
+          "kind": "SetVariable",
+          "VariableId": "d1450002-0002-0002-0002-000000000002",
+          "Id": "20000145-0000-0000-0000-000000000005",
+          "Pins": [],
+          "EditorMetadata": {
+            "X": 680,
+            "Y": 200,
+            "Comment": null
+          }
+        },
+        {
+          "kind": "Return",
+          "Status": "Success",
+          "Id": "20000145-0000-0000-0000-000000000006",
+          "Pins": [],
+          "EditorMetadata": {
+            "X": 960,
+            "Y": 200,
+            "Comment": null
+          }
+        }
+      ],
+      "Links": [
+        {
+          "FromNodeId": "20000145-0000-0000-0000-000000000001",
+          "FromPinId": "819ff15f-75dd-fa5b-a474-ad429d1d4b7f",
+          "ToNodeId": "20000145-0000-0000-0000-000000000005",
+          "ToPinId": "26dd4aa6-658e-d15f-8566-dfcd4126d401"
+        },
+        {
+          "FromNodeId": "20000145-0000-0000-0000-000000000005",
+          "FromPinId": "9bf32894-f160-a757-bde4-d3d5776e6727",
+          "ToNodeId": "20000145-0000-0000-0000-000000000006",
+          "ToPinId": "54d7450d-09fe-8a55-a31d-c0767dd97691"
+        },
+        {
+          "FromNodeId": "20000145-0000-0000-0000-000000000002",
+          "FromPinId": "2f9091d3-9cd6-f95d-9329-93a3578ecc67",
+          "ToNodeId": "20000145-0000-0000-0000-000000000004",
+          "ToPinId": "d4eb131b-98cb-5353-a046-4787570baf85"
+        },
+        {
+          "FromNodeId": "20000145-0000-0000-0000-000000000003",
+          "FromPinId": "e8a099ef-28c6-3c5b-a07b-e4679d0f5f9c",
+          "ToNodeId": "20000145-0000-0000-0000-000000000004",
+          "ToPinId": "e344e58f-10f4-4e55-8474-4bb6b037c694"
+        },
+        {
+          "FromNodeId": "20000145-0000-0000-0000-000000000004",
+          "FromPinId": "d2bb402f-9571-1c53-be82-3e9d69ef0fc3",
+          "ToNodeId": "20000145-0000-0000-0000-000000000005",
+          "ToPinId": "9e430878-28ba-1b56-9263-9e91390c3571"
+        }
+      ],
+      "LocalVariables": [],
+      "Comments": [],
+      "EditorMetadata": {
+        "ViewportX": 0,
+        "ViewportY": 0,
+        "ViewportZoom": 0
+      }
+    }
+  ],
+  "EditorMetadata": {
+    "Description": "E8a / R-149 - an AiPrimitive carrying its OWN parameter resolver, so NOTHING needs to name it: Register(AssetId, ...) and the thunk\u0027s TryRun(AssetId, ...) key on the same value the asset already carries. That is why this case needs no selection property. The Construction graph declares NO inputs and NO outputs (BP1677) - its subject is this asset\u0027s GENERATED Params struct, which no authored TypeId could name without baking the emitted class name into the asset. It reads SpeedKph with Get Parameter and writes SpeedMps with Set Variable: a write V_ResolverPurity permits HERE and nowhere else, because the params region is this resolver\u0027s OUTPUT, not a side effect that would outlive a failed parse.",
+    "Category": "Demo",
+    "Recipe": null
+  }
+}

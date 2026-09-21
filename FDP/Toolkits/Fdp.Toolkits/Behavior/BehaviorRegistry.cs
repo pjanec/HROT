@@ -470,6 +470,31 @@ namespace Fdp.Toolkit.Behavior
             if (name     == null) throw new ArgumentNullException(nameof(name));
             if (resolver == null) throw new ArgumentNullException(nameof(resolver));
 
+            // ⭐⭐⭐ R-149 — TWO EXPLICIT BINDINGS FOR ONE PARAMS REGION MUST THROW, NEVER RACE.
+            //
+            // 🔒 The ruling is R-132's own sentence applied to its successor: "where a curated and a
+            //    generated artefact can both fill a slot, curated wins BY DECLARATION, not by arriving
+            //    first." ⇒ two CURATED bindings have no such tie-break, and the silent
+            //    last-writer-wins this line used to be would pick one by source order — the exact
+            //    "not a precedence rule, a race" shape R-132 names.
+            //
+            // ⛔⛔ THE SCOPE IS ONE REGISTRY INSTANCE, and that is load-bearing, not caution.
+            //    📐 Measured: every scan builds a FRESH staging registry
+            //    (AiHotReloadCoordinator.cs:315, QuickReloadService.cs:142) and the live registry is
+            //    written by MergeFrom, which is a separate overwrite path. ⇒ a duplicate seen HERE
+            //    can only be two registrations in ONE scan — a genuine authoring error — while
+            //    re-registration across a hot reload never reaches this check. A throw without that
+            //    distinction would have broken reload.
+            //
+            // ⚠ Its sibling HostedParamResolvers.Register deliberately does the OPPOSITE and
+            //    overwrites: it is keyed by ASSET id and re-registered by every rescan, so the two
+            //    registries need opposite duplicate policies for opposite reasons.
+            if (_resolversByName.ContainsKey(name))
+                throw new InvalidOperationException(
+                    $"Two resolvers are registered for behaviour '{name}' in one scan. A parameters "
+                    + "region names exactly one resolver (R-149), so this is an authoring error: "
+                    + "picking one by registration order would be a race, not a precedence rule.");
+
             var overlay = (resolver, blackboardLayoutType);
             _resolversByName[name] = overlay;
 

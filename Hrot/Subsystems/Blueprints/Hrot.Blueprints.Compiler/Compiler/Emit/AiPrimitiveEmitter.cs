@@ -23,10 +23,15 @@ internal static class AiPrimitiveEmitter
         //    asset moved 11 golden baselines for assets that cannot use it — the corpus must stay
         //    byte-identical wherever the feature is not used, which is the property O4 established
         //    and the thing that makes "did this change behaviour?" answerable.
+        // ⭐ E8a — and for an asset carrying its OWN resolver, because AssetId IS the key the
+        //    registration and HostedParamResolvers.TryRun both use. ⚠ Still gated: an asset with
+        //    neither hosting nor a resolver emits nothing, so the corpus stays byte-identical
+        //    wherever the feature is unused.
         if (asset.Hostings.Contains(AiPrimitiveHosting.HsmAction) ||
             asset.Hostings.Contains(AiPrimitiveHosting.HsmGuard) ||
             asset.Hostings.Contains(AiPrimitiveHosting.BTreeAction) ||
-            asset.Hostings.Contains(AiPrimitiveHosting.BTreeCondition))
+            asset.Hostings.Contains(AiPrimitiveHosting.BTreeCondition) ||
+            OwnResolverGraphOf(asset) is not null)
         {
             e.WriteLine($"public static readonly global::System.Guid AssetId = new global::System.Guid(\"{asset.AssetId}\");");
         }
@@ -63,10 +68,84 @@ internal static class AiPrimitiveEmitter
             e.WriteLine();
         }
 
+        // ⭐⭐⭐ E8a — the asset's OWN parameter resolver.
+        if (OwnResolverGraphOf(asset) is { } resolverGraph)
+        {
+            EmitOwnResolverMethod(e, asset, resolverGraph);
+            e.WriteLine();
+        }
+
         EmitThunks(e, asset, className);
 
         e.Outdent();
         e.WriteLine("}");
+    }
+
+    /// <summary>
+    /// ⭐⭐ <b><c>E8a</c> — this asset's own <c>Construction</c> graph, or <c>null</c>.</b>
+    /// 📄 <c>DESIGN_Resolver_World_Reach.md</c> §7.2 · <c>R-149</c>.
+    ///
+    /// <para>
+    /// ⚠ <b><c>FirstOrDefault</c>, not <c>Single</c>.</b> <c>V_ResolverPurity</c>'s <c>BP1676</c>
+    /// already refuses a second one — an asset's parameters are ONE region and a region names exactly
+    /// one resolver — but a fatal validation error stops the pipeline before emit, so this can never
+    /// see two. ⛔ Throwing here would turn that into a source-generator crash rather than the
+    /// diagnostic the designer needs.
+    /// </para>
+    /// </summary>
+    internal static IrGraph? OwnResolverGraphOf(IrAsset asset)
+        => asset.Graphs.FirstOrDefault(g => g.Kind == IrGraphKind.Construction);
+
+    /// <summary>
+    /// ⭐⭐⭐ <b><c>E8a</c> — emits the own-asset resolver, shaped as <c>ResolveParams&lt;Params&gt;</c>.</b>
+    ///
+    /// <para>
+    /// ⭐⭐ <b>The signature is the universal currency EXACTLY</b>, so the registrar registers it by
+    /// METHOD GROUP — no lambda, no cast, no adapter:
+    /// <c>HostedParamResolvers.Register&lt;Params&gt;(AssetId, {Class}.{Name})</c>.
+    /// </para>
+    ///
+    /// <para>
+    /// 🔴 <b>Why <c>ref Params p</c> and not a declared DTO.</b> An AiPrimitive's params struct is
+    /// GENERATED from its own declarations, so no authored <c>TypeId</c> could name it without baking
+    /// this asset's emitted class name (which embeds the BlueprintId hash) into the asset. ⇒ the
+    /// subject is IMPLIED, <c>BP1677</c> requires the graph to declare nothing, and the graph reads
+    /// through <c>Get Parameter</c> and writes back through <c>Set Variable</c> — which
+    /// <c>V_ResolverPurity</c> permits here precisely because that write IS the return value.
+    /// </para>
+    ///
+    /// <para>
+    /// ⭐ <c>p</c> is the parameter name on purpose: <c>EmissionContext.ParamsVar</c> already answers
+    /// <c>"p"</c> for AiPrimitive dispatch, so every emitted parameter read and write resolves against
+    /// this argument with no new scope-var arm.
+    /// </para>
+    /// </summary>
+    private static void EmitOwnResolverMethod(CSharpEmitter e, IrAsset asset, IrGraph graph)
+    {
+        e.Ctx.CurrentGraph = graph;
+
+        // ⚠ The RETURN TYPE is the body's own, not `void`. A graph's `Return` node always carries a
+        //   NodeStatus — that is the graph vocabulary, shared with ticking graphs — so a resolver body
+        //   ends in `return NodeStatus.Success;` and a `void` method would be CS0127. ⭐ A resolver has
+        //   no status of its own, so the REGISTRATION discards it (see CSharpEmitter's resolver
+        //   registration); forcing `void` here would mean teaching the shared terminator emitter about
+        //   resolvers, which is a far wider change for a value nobody reads.
+        bool hasStatusReturn = graph.Blocks.Any(b => b.Terminator is IrTerm_ReturnStatus);
+        var returnType = LibraryEmitter.CSharpReturnType(graph, hasStatusReturn);
+
+        e.WriteLine($"public static {returnType} {graph.Name}(");
+        e.WriteLine("    ref Params p,");
+        e.WriteLine("    global::Fdp.Core.EntityRepository world,");
+        e.WriteLine("    global::Fdp.Core.Entity self,");
+        e.WriteLine("    global::Fdp.Toolkit.Behavior.IHostVariableAccess host)");
+        e.WriteLine("{");
+        e.Indent();
+
+        LibraryEmitter.EmitGraphBody(e, asset, graph);
+
+        e.Outdent();
+        e.WriteLine("}");
+        e.Ctx.CurrentGraph = null;
     }
 
     private static void EmitParamsStruct(CSharpEmitter e, IrAsset asset)

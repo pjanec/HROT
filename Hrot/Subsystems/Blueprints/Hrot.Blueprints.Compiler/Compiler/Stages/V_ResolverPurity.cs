@@ -84,62 +84,68 @@ internal sealed class V_ResolverPurity : IValidator
 
     public void Validate(BlueprintAsset asset, ValidationContext ctx)
     {
+        // ⭐⭐⭐ E8a / R-149 — TWO KINDS OF RESOLVER GRAPH, and the difference is WHOSE params it refines.
+        //
+        //   ① a LIBRARY asset's Construction graph — a REUSABLE resolver. It declares the DTO it
+        //      refines (one in, one out, same type: BP1677), and something else names it.
+        //   ② an ASSET'S OWN Construction graph — it refines THIS asset's parameters.
+        //
+        // 🔴 ② cannot declare its DTO, and that is a MEASURED fact rather than a simplification: an
+        //    AiPrimitive's params struct is GENERATED (`{Class}.Params`, built from the asset's own
+        //    Parameters by AiPrimitiveEmitter.EmitParamsStruct), so its FQN embeds the BlueprintId
+        //    hash and no authored TypeId could name it without coupling the asset to its own emitted
+        //    class name. ⇒ its subject is IMPLIED, and it declares NOTHING.
+        var ownResolverGraphs = new List<Graph>();
+
         foreach (var graph in asset.Graphs)
         {
             if (graph.Kind != GraphKind.Construction) continue;
 
-            // ── BP1676 — a Construction graph is a LIBRARY shape today ────────────
+            bool isLibrary = asset.Dispatch == BlueprintDispatchKind.Library;
+            if (!isLibrary) ownResolverGraphs.Add(graph);
+
+            // ── BP1676 — there must be something for this graph to resolve ────────
             //
-            // ⭐⭐ Q43-A2′ is explicit that `Construction` must NOT be redefined as "the resolver
-            // graph" — it means "runs once at setup", and `Dispatch × GraphKind` says what that means:
-            // on a Library asset it resolves parameters; on an Instance asset it would configure the
-            // instance. ⛔ But NOTHING consumes the Instance sense today, so a Construction graph on an
-            // Instance asset would compile to a method nobody calls — a silent no-op, which is the
-            // failure shape this programme keeps filing. ⇒ refuse it LOUDLY and keep the meaning free
-            // for whoever builds that consumer.
-            if (asset.Dispatch != BlueprintDispatchKind.Library)
+            // ⭐⭐ REVISED for E8a. It used to read "Construction is only supported on a Library
+            // asset", which was right while a resolver could only be a SEPARATE asset. ⛔ Under
+            // R-149 the params-owning region names its resolver, and the simplest such naming is
+            // "my own graph" — so an asset that HAS parameters may carry one.
+            //
+            // ⭐ The rule's real job is unchanged and is what survives: REFUSE A RESOLVER NOTHING
+            // WILL EVER CALL. On a Library that cannot happen here (the binding lives elsewhere);
+            // on any other kind it happens exactly when the asset declares no parameters.
+            // ⚠ Through the SANCTIONED view — see ParamsOf below for why a compiler stage may not
+            //   read a declaration view directly. 📌 U-11's rail caught this file on its first full
+            //   run, which is the rail doing exactly its job.
+            if (!isLibrary && !ParamsOf(asset).Any())
             {
                 ctx.Diagnostics.Add(Diagnostic.Error(DiagnosticCodes.BP1676,
-                    $"Graph '{graph.Name}' is a Construction graph, which is only supported on a "
-                    + $"Library asset today (it compiles to a parameter resolver). This asset's "
-                    + $"dispatch is '{asset.Dispatch}', where nothing would ever call it. Move the "
-                    + "graph to a Library asset, or make it a Function graph.",
+                    $"Graph '{graph.Name}' is a Construction graph, which on a '{asset.Dispatch}' "
+                    + "asset resolves that asset's own parameters — but this asset declares none, so "
+                    + "nothing would ever call it. Declare the parameters it should refine, or move "
+                    + "the graph to a Library asset to make it a reusable resolver.",
                     asset.AssetId, graph.Id));
                 continue;
             }
 
-            // ── BP1677 — the resolver signature ───────────────────────────────────
-            //
-            // ⭐⭐ Q43-D, and it is not a style rule: "the graph takes the current DTO as an input and
-            // returns the modified one" is what makes the resolver REFINE rather than REPLACE (R-81).
-            // ⛔ A resolver that only PRODUCED a value would silently discard the scenario's JSON
-            // override — the exact defect BP-275 fixed on the generated path.
-            //
-            // ⚠ It is also what makes `BlueprintDefinition.Resolvers` callable generically: one
-            // blittable in, the same type out, so a binding site marshals a single DTO both ways
-            // without knowing the asset.
-            if (graph.Inputs.Count != 1 || graph.Outputs.Count != 1)
-            {
-                ctx.Diagnostics.Add(Diagnostic.Error(DiagnosticCodes.BP1677,
-                    $"Resolver graph '{graph.Name}' must declare exactly one input and one output "
-                    + $"(the parameters DTO in, the refined DTO out); it declares "
-                    + $"{graph.Inputs.Count} input(s) and {graph.Outputs.Count} output(s).",
-                    asset.AssetId, graph.Id));
-            }
-            else if (!string.Equals(graph.Inputs[0].Type.TypeId, graph.Outputs[0].Type.TypeId,
-                         StringComparison.Ordinal))
-            {
-                ctx.Diagnostics.Add(Diagnostic.Error(DiagnosticCodes.BP1677,
-                    $"Resolver graph '{graph.Name}' takes '{graph.Inputs[0].Type.TypeId}' but returns "
-                    + $"'{graph.Outputs[0].Type.TypeId}'. A resolver REFINES the parameters it is "
-                    + "given, so its input and output must be the same type.",
-                    asset.AssetId, graph.Id));
-            }
+            // ── BP1677 — the signature, which differs by KIND ─────────────────────
+            if (isLibrary) ValidateReusableSignature(asset, graph, ctx);
+            else           ValidateOwnResolverSignature(asset, graph, ctx);
 
             // ── BP1675 — purity ───────────────────────────────────────────────────
             foreach (var node in graph.Nodes)
             {
                 if (!SideEffectingNodeTypes.Contains(node.GetType())) continue;
+
+                // ⭐⭐⭐ THE ONE EXEMPTION, and it is not a loosening.
+                //
+                // An own-asset resolver's OUTPUT *is* its parameters region — the emitted method
+                // takes `ref Params p` and the graph writes through it. ⇒ a SetVariable that targets
+                // a PARAMETER is this graph's return value, not an escape from the ingress shadow.
+                // ⛔ A SetVariable targeting STATE is still refused, and so is every other denied
+                // node, because those genuinely outlive a failed parse (Q43 §4).
+                if (!isLibrary && node is SetVariableNode sv && TargetsAParameter(asset, sv))
+                    continue;
 
                 ctx.Diagnostics.Add(Diagnostic.Error(DiagnosticCodes.BP1675,
                     $"Resolver graph '{graph.Name}' contains a '{node.GetType().Name}', which has an "
@@ -150,5 +156,105 @@ internal sealed class V_ResolverPurity : IValidator
                     asset.AssetId, graph.Id, node.Id));
             }
         }
+
+        // ── BP1676 (second arm) — ONE resolver per params region ──────────────────
+        //
+        // ⭐ R-149: "one field, one value, so two resolvers for one region cannot be authored." An
+        // asset's own parameters are ONE region, so two Construction graphs on it would be exactly
+        // the competition the selection model exists to make unrepresentable.
+        // ⚠ A LIBRARY may carry many — they are separate reusable resolvers, each named separately.
+        if (ownResolverGraphs.Count > 1)
+        {
+            ctx.Diagnostics.Add(Diagnostic.Error(DiagnosticCodes.BP1676,
+                $"This asset declares {ownResolverGraphs.Count} Construction graphs "
+                + $"({string.Join(", ", ownResolverGraphs.Select(g => "'" + g.Name + "'"))}), but its "
+                + "parameters are ONE region and a region names exactly one resolver. Keep one, or "
+                + "move the others to a Library asset as separately-named reusable resolvers.",
+                asset.AssetId, ownResolverGraphs[1].Id));
+        }
     }
+
+    /// <summary>
+    /// ⭐ <b>① a REUSABLE resolver on a Library asset</b> — it declares the DTO it refines.
+    ///
+    /// <para>
+    /// ⭐⭐ <c>Q43-D</c>/<c>R-81</c>: <i>"the graph takes the current DTO as an input and returns the
+    /// modified one"</i> is what makes a resolver REFINE rather than REPLACE. ⛔ A resolver that only
+    /// PRODUCED a value would silently discard the scenario's JSON override — the exact defect
+    /// <c>BP-275</c> fixed on the generated path.
+    /// </para>
+    /// </summary>
+    private static void ValidateReusableSignature(BlueprintAsset asset, Graph graph, ValidationContext ctx)
+    {
+        if (graph.Inputs.Count != 1 || graph.Outputs.Count != 1)
+        {
+            ctx.Diagnostics.Add(Diagnostic.Error(DiagnosticCodes.BP1677,
+                $"Resolver graph '{graph.Name}' must declare exactly one input and one output "
+                + $"(the parameters DTO in, the refined DTO out); it declares "
+                + $"{graph.Inputs.Count} input(s) and {graph.Outputs.Count} output(s).",
+                asset.AssetId, graph.Id));
+            return;
+        }
+
+        if (!string.Equals(graph.Inputs[0].Type.TypeId, graph.Outputs[0].Type.TypeId,
+                StringComparison.Ordinal))
+        {
+            ctx.Diagnostics.Add(Diagnostic.Error(DiagnosticCodes.BP1677,
+                $"Resolver graph '{graph.Name}' takes '{graph.Inputs[0].Type.TypeId}' but returns "
+                + $"'{graph.Outputs[0].Type.TypeId}'. A resolver REFINES the parameters it is "
+                + "given, so its input and output must be the same type.",
+                asset.AssetId, graph.Id));
+        }
+    }
+
+    /// <summary>
+    /// ⭐⭐ <b>② an OWN-asset resolver</b> — it declares NOTHING, because its subject is implied.
+    ///
+    /// <para>
+    /// ⛔ <b>Not laxity — the opposite.</b> The DTO is this asset's generated <c>Params</c> struct, so
+    /// a declared input could only ever be WRONG or a restatement. Refusing the declaration keeps the
+    /// one true shape unambiguous, and it means the emitter never has to reconcile an authored type
+    /// against a generated one.
+    /// </para>
+    /// </summary>
+    private static void ValidateOwnResolverSignature(BlueprintAsset asset, Graph graph, ValidationContext ctx)
+    {
+        if (graph.Inputs.Count == 0 && graph.Outputs.Count == 0) return;
+
+        ctx.Diagnostics.Add(Diagnostic.Error(DiagnosticCodes.BP1677,
+            $"Resolver graph '{graph.Name}' resolves this asset's OWN parameters, so it must declare "
+            + $"no inputs and no outputs; it declares {graph.Inputs.Count} input(s) and "
+            + $"{graph.Outputs.Count} output(s). Read the parameters with Get Parameter nodes and "
+            + "write the refined values back with Set Variable nodes targeting those parameters.",
+            asset.AssetId, graph.Id));
+    }
+
+    /// <summary>
+    /// Does this <c>SetVariable</c> target one of the asset's PARAMETERS (rather than its state)?
+    /// ⚠ Matches by id first and name second, mirroring <c>Stage5_Schedule.FindVariableIndex</c> — if
+    /// the two disagreed, a write the validator allowed could land somewhere else entirely.
+    /// </summary>
+    private static bool TargetsAParameter(BlueprintAsset asset, SetVariableNode node)
+    {
+        if (string.IsNullOrEmpty(node.VariableId)) return false;
+
+        if (Guid.TryParse(node.VariableId, out var id))
+            return ParamsOf(asset).Any(p => p.Id == id);
+
+        return ParamsOf(asset)
+            .Any(p => string.Equals(p.Name, node.VariableId, StringComparison.Ordinal));
+    }
+
+    /// <summary>
+    /// The asset's parameter declarations, through the SANCTIONED accessor.
+    ///
+    /// <para>
+    /// ⛔ <b>A compiler stage may not read the per-kind declaration VIEWS directly.</b> <c>U-11</c>'s
+    /// <c>ViewsAreUnreadTests</c> greps for exactly that, because <c>U-12</c> deletes those three
+    /// properties on the strength of <i>"nothing reads them any more"</i> — so a direct read here
+    /// would turn that deletion into the batch that finds out.
+    /// </para>
+    /// </summary>
+    private static IEnumerable<BlueprintDeclaration> ParamsOf(BlueprintAsset asset)
+        => asset.Declarations.Of(DeclarationKind.Parameter);
 }
