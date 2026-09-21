@@ -154,6 +154,9 @@ known-conflict: none open. ✅ "Who owns selection" is RULED (2026-09-10): the g
   Either an R-134 shape or a deliberate DDS-client architecture — §2.6's last subsection; not measured.
 updated: 2026-09-20
 related-designs:
+  - ../blueprints/Architect_Question_73_Canvas_Interaction_Scope.md — asks what scopes a CANVAS
+    (entity-less) map interaction to its target node, i.e. how §2.7.14's local-only empty-space
+    clear would reach other nodes. OPEN; nothing built.
   - ../blueprints/DESIGN_Editor_Entity_Selection_Source.md — owns the AI editors' entity cell: how
     it is fed from THIS design's SelectionChangedNotification, and how a PINNED view stops
     following. This design does not own that cell.

@@ -27,6 +27,9 @@ design-basis: UX_Feature_Selection.md §2.7.8 (the announcement) and §2.7.17 (t
   §5.1.1 ("SelectedEntity stays global") · DESIGN_Staged_Live_Write.md (the one write path) ·
   UXI-11 ruling ① (selection is global; ChainToMap retired) · user rulings 2026-09-21, quoted in §1.
 related-designs:
+  - docs/blueprints/Architect_Question_73_Canvas_Interaction_Scope.md — the WIRE half of the same
+    story: CE-306 fixed the in-process Stride 3-D empty-space clear, and Q73 asks how an EXTERNAL
+    gizmo terminal's one would cross. OPEN; nothing built.
   - docs/UX/UX_Feature_Selection.md — owns UXI-11: the ECS SelectionState component, the one store,
     the request/notification protocol and the egress. It does NOT own the AI editors' entity cell.
   - docs/blueprints/AI_Editor_Shared_Infrastructure.md — owns EditorSelectionStore's ASSET half
