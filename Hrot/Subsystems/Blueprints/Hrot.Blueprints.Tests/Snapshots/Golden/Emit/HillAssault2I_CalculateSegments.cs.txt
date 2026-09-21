@@ -94,9 +94,10 @@ public static class HillAssault2ICalculateSegments_C870810D_Bp
         {
             // E3a SEED (§28.4): the bytes this thunk read LIVE before params moved into the
             //   slot. Copying them makes the move byte-identical at the first dispatch.
+            ref byte __rootParams = ref global::Fdp.Toolkit.Behavior.RootParamsAccess.RootRef(ctx.World, ctx.Self);
             *__params = global::System.Runtime.CompilerServices.Unsafe.As<byte, Params>(
                 ref global::System.Runtime.CompilerServices.Unsafe.AddByteOffset(
-                    ref bb.BehaviorParameters[0], (nint)0));
+                    ref __rootParams, (nint)0));
             // C1′ (§28.7): the RESOLVE stage — the one place IHostVariableAccess is non-null.
             global::Fdp.Toolkit.Behavior.HostedParamResolvers.TryRun(
                 AssetId, ref *__params, ctx.World, ctx.Self, null);

@@ -107,24 +107,51 @@ public sealed class BlueprintTestFixture : IDisposable
             Registry,
             new AiHotReloadCoordinatorOptions());
 
-        MockTestComponents.Register(_repo);
+        RegisterWorldComponents(_repo);
+
+        DebugProbe.Sink = DebugSession;   // route generated probe calls to the capturing session
+    }
+
+    /// <summary>
+    /// ⭐⭐⭐ <b>THE component registration set for a fixture world — and for any SCRATCH world that
+    /// has to receive its recordings.</b>
+    ///
+    /// <para>🔴 <b>Why this is a method and not eight lines in the constructor.</b> The sub-tick
+    /// recorder replays a recorded frame into a scratch <c>EntityRepository</c>, and
+    /// <c>PlaybackSystem</c> throws <i>"Component type ID N not found in repository"</i> for anything
+    /// the source world had and the scratch world does not. ⇒ the two registration lists MUST match,
+    /// and until now they were hand-mirrored in three places — ⛔ already imperfectly: the scratch
+    /// builders never registered the three channel components, which only worked because no recorded
+    /// entity happened to carry one.</para>
+    ///
+    /// <para>📌 <b>Measured <c>2026-09-21</c>:</b> adding <see cref="BehaviorState"/> here for
+    /// <c>P3-C</c> reddened <c>SubTickRecorderIntegrationTests</c> and <c>VirtualPointerTests</c> with
+    /// exactly that message — the fixture gained a component the scratch world did not know. ⭐ One
+    /// list makes the class of failure impossible rather than fixing this instance of it.</para>
+    /// </summary>
+    public static void RegisterWorldComponents(EntityRepository repo)
+    {
+        MockTestComponents.Register(repo);
+
         // ⭐ B4: register from the LADDER, not a hand-list. ⛔ A hand-list silently leaves a
         //   newly-appended tier unregistered — O3b's 256 tier reddened 192 tests this way.
         //   The bound keeps this world's deliberate exclusion of the larger tiers (their
         //   virtual-address reservation exceeds the allocator's paranoid-mode cap).
-        BlueprintTierTable.RegisterUpTo(_repo, maxTotalSize: 4096);
-        // BlueprintBlackboard16384 (16 384 bytes) would require ~16 GB of virtual-address
-        // reservation for MAX_ENTITIES = 1 000 000, which exceeds the paranoid-mode cap in
-        // NativeMemoryAllocator.  Tests that need BB16384 must use a standalone fixture.
+        // ⚠ BlueprintBlackboard16384 (16 384 bytes) would require ~16 GB of virtual-address
+        //   reservation for MAX_ENTITIES = 1 000 000, which exceeds the paranoid-mode cap in
+        //   NativeMemoryAllocator. Tests that need BB16384 must use a standalone fixture.
+        BlueprintTierTable.RegisterUpTo(repo, maxTotalSize: 4096);
 
-        // Register behavior channel components needed for end-to-end compiled blueprint tests.
-        _repo.RegisterComponent<LocomotionChannel>();
-        _repo.RegisterComponent<WeaponChannel>();
-        _repo.RegisterComponent<InteractionChannel>();
-        _repo.RegisterComponent<BrainBlackboard>();
-        _repo.RegisterComponent<Blackboard1024>();   // FBT behavior blackboard (AiPrimitive working state)
+        // Behavior channel components needed for end-to-end compiled blueprint tests.
+        repo.RegisterComponent<LocomotionChannel>();
+        repo.RegisterComponent<WeaponChannel>();
+        repo.RegisterComponent<InteractionChannel>();
+        repo.RegisterComponent<BrainBlackboard>();
+        repo.RegisterComponent<Blackboard1024>();   // FBT behavior blackboard (AiPrimitive working state)
 
-        DebugProbe.Sink = DebugSession;   // route generated probe calls to the capturing session
+        // 🔴 P3-C (2026-09-21): an emitted thunk's SEED reads the entity's ROOT PARAMS SLOT, whose key
+        //   comes from BehaviorState.ActiveBehaviorHash ⇒ the component is no longer optional here.
+        repo.RegisterComponent<global::Fdp.Toolkit.Behavior.Components.BehaviorState>();
     }
 
     // ---- Tick ---------------------------------------------------------------
@@ -817,7 +844,40 @@ public static class ThrowingRegistrar
     {
         var entity = _repo.CreateEntity();
         EnsureOccurrenceStore(entity);
+        EnsureRootParams(entity);
         return entity;
+    }
+
+    /// <summary>
+    /// ⭐⭐ <b><c>P3-C</c> (<c>2026-09-21</c>) — a fixture entity needs a ROOT PARAMS SLOT, because an
+    /// emitted thunk's SEED now reads one.</b>
+    ///
+    /// <para>🔴 <b>What changed.</b> A blueprint thunk seeds a freshly-attached occurrence from the
+    /// hosting behaviour's params region. That region used to be <c>BrainBlackboard</c> — a component
+    /// every entity in this fixture carried by construction, readable whether or not anyone had ever
+    /// written it. ⇒ the seed silently read zeros and nothing noticed. ⛔ The region is now an
+    /// occurrence slot, and <c>RootParamsAccess</c> THROWS rather than inventing one, so a fixture
+    /// entity with no slot fails at the first dispatch.</para>
+    ///
+    /// <para>⚠ <b>The values are still zeros</b> — this fixture never runs ingress, so nothing parses
+    /// params into the slot. ⭐ That is deliberate and is exactly the old behaviour: these rails are
+    /// about the thunk's STRUCTURE (offsets, slot keys, working state), not about parameter values.
+    /// ⛔ What has changed is that the absence is now explicit instead of accidental.</para>
+    /// </summary>
+    private unsafe void EnsureRootParams(Entity entity)
+    {
+        const int HarnessBehaviourHash = 0x7E5702;
+
+        if (!_repo.HasComponent<global::Fdp.Toolkit.Behavior.Components.BehaviorState>(entity))
+            _repo.AddComponent(entity, new global::Fdp.Toolkit.Behavior.Components.BehaviorState());
+
+        ref var st = ref _repo.GetComponentRW<global::Fdp.Toolkit.Behavior.Components.BehaviorState>(entity);
+        if (st.ActiveBehaviorHash == 0) st.ActiveBehaviorHash = HarnessBehaviourHash;
+
+        global::Fdp.Toolkit.Behavior.RootParamsAccess.ResolveOrAttachRoot(
+            _repo, entity, st.ActiveBehaviorHash,
+            global::Fdp.Toolkit.Behavior.BehaviorConstants.MaxBehaviorParamByteSize,
+            OccurrenceKind.BTree, out _);
     }
 
     // ---- Attach Blueprint ---------------------------------------------------

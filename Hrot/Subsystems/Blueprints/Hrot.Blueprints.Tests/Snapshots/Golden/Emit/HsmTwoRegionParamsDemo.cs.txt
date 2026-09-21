@@ -55,13 +55,12 @@ public static class HsmTwoRegionParamsDemo_1434647B_Bp
         var bridge = (global::Fdp.Toolkit.Behavior.Systems.HsmKernelBridge*)context;
         var world = (global::Fdp.Core.EntityRepository)global::System.Runtime.InteropServices.GCHandle.FromIntPtr(bridge->WorldHandle).Target!;
         
-        // CE-297: the SEED for params comes from the blackboard, NOT from the kernel's
-        //         instance pointer. E3a: it is a seed now, not the live home.
-        ref var bb = ref world.GetComponentRW<global::Fdp.Toolkit.Behavior.Components.BrainBlackboard>(bridge->Self);
         // E3b (§28.7): the HOST's params region, so a resolver can read the host's own
         //   variables BY NAME through IHostVariableAccess — its first implementation.
-        byte* __hostParams = (byte*)global::System.Runtime.CompilerServices.Unsafe.AsPointer(
-            ref bb.BehaviorParameters[0]);
+        // CE-297: the SEED comes from HERE, not from the kernel's instance pointer.
+        // P3-C: and 'here' is the entity's ROOT PARAMS SLOT — BrainBlackboard is retired.
+        byte* __hostParams = global::Fdp.Toolkit.Behavior.RootParamsAccess.RequireRootBytes(
+            world, bridge->Self);
         
         // O7/E3: this occurrence's OWN params AND working state, keyed by the (region, state)
         //        the kernel stamped (O6) and by the hosting machine's id from the instance header.
@@ -75,9 +74,10 @@ public static class HsmTwoRegionParamsDemo_1434647B_Bp
             // E3b-0 (§28.6): …and WHICH bytes is the STATE's own binding, not always the
             //   first variable — that is what lets two parallel regions differ.
             int __seedOffset = global::Fdp.Toolkit.Behavior.HsmOccurrence.SeedParamsOffset(instance, writer);
+            ref byte __rootParams = ref global::Fdp.Toolkit.Behavior.RootParamsAccess.RootRef(world, bridge->Self);
             *__params = global::System.Runtime.CompilerServices.Unsafe.As<byte, Params>(
                 ref global::System.Runtime.CompilerServices.Unsafe.AddByteOffset(
-                    ref bb.BehaviorParameters[0], (nint)__seedOffset));
+                    ref __rootParams, (nint)__seedOffset));
             // C1′ (§28.7): the RESOLVE stage — the one place IHostVariableAccess is non-null.
             global::Fdp.Toolkit.Behavior.HostedParamResolvers.TryRun(
                 AssetId, ref *__params, world, bridge->Self, global::Fdp.Toolkit.Behavior.HsmHostVariableAccess.For(instance, __hostParams, global::Fdp.Toolkit.Behavior.BehaviorConstants.MaxBehaviorParamByteSize));

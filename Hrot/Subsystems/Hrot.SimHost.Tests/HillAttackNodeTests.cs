@@ -74,9 +74,10 @@ namespace Hrot.SimHost.Tests
             repo.RegisterComponent<Fdp.Toolkit.Replication.Components.NetworkIdentity>();
             // S3-G: PlatoonHillAttack's Behavior-scoped working state is provisioned into a
             // BlueprintBlackboard* partition tier (registered in production by BlueprintRuntimeWiring).
-            repo.RegisterComponent<Fdp.Toolkit.Blueprints.Components.BlueprintBlackboard1024>();
-            repo.RegisterComponent<Fdp.Toolkit.Blueprints.Components.BlueprintBlackboard4096>();
-            repo.RegisterComponent<Fdp.Toolkit.Blueprints.Components.BlueprintBlackboard16384>();
+            // ⭐⭐ B4: register from the LADDER, never a hand-list. 🔴 This WAS three explicit calls and
+            //   did not know about the 256 tier, so the smallest tier — which is what a params-only
+            //   behaviour selects — was silently unregistered and provisioning skipped it.
+            Fdp.Toolkit.Blueprints.Partitioning.BlueprintTierTable.RegisterAll(repo);
             return repo;
         }
 
@@ -1715,10 +1716,11 @@ namespace Hrot.SimHost.Tests
             repo.Bus.SwapBuffers();
             ingress.Execute(repo, 0.016f);
 
-            ref readonly var bb = ref repo.GetComponentRO<BrainBlackboard>(commander);
-            PlatoonHillAttackParams parms;
-            fixed (BrainBlackboard* bp = &bb)
-                parms = *(PlatoonHillAttackParams*)bp;
+            // 🔴 P3-C: ingress commits the parsed params into the ROOT PARAMS OCCURRENCE SLOT now,
+            //   not into BrainBlackboard. Same bytes at the same offset — only the anchor moved.
+            Assert.True(Fdp.Toolkit.Behavior.RootParamsAccess.TryGetRoot<PlatoonHillAttackParams>(
+                repo, commander, out PlatoonHillAttackParams* parmsPtr));
+            PlatoonHillAttackParams parms = *parmsPtr;
 
             // FiringLineStart lon=7 -> X = 7*1000 = 7000 (geo used), NOT 7 (null fallback).
             Assert.Equal(7000f, parms.StartX, 0.5f);
