@@ -158,6 +158,9 @@ namespace Fdp.Toolkit.Behavior.Shared
 
         /// <summary>O7 — an HSM-hosted occurrence's working state, per (region, state).</summary>
         internal const string HsmWorkingStateVariableId = ReservedPrefix + "hsmState";
+
+        /// <summary>O7d — a STANDALONE-hosted AiPrimitive's working state, per ASSET.</summary>
+        internal const string StandaloneWorkingStateVariableId = ReservedPrefix + "standaloneState";
         private const string HsmSiteVariableId          = ReservedPrefix + "hsmSite";
 
         /// <summary>
@@ -241,6 +244,29 @@ namespace Fdp.Toolkit.Behavior.Shared
         /// key churn: an HSM edit that changes the structure hash also renumbers state ids, so the
         /// <c>(region, state)</c> half moves anyway.</para>
         /// </summary>
+        /// <summary>
+        /// ⭐⭐⭐ <c>O7d</c> — <b>a STANDALONE-hosted AiPrimitive's working-state slot key, scoped to the
+        /// ASSET.</b>
+        ///
+        /// <para>⛔⛔ <b>Asset-scoped, and that is FORCED, not chosen.</b> 📐 Measured: the interpreter
+        /// hands an action delegate only <c>node.PayloadIndex</c> (<c>Interpreter.cs:655</c>) — <b>no
+        /// node identity</b>. ⇒ a single shared thunk CANNOT tell which node it is running for, so it
+        /// cannot be keyed per-occurrence without an ExtDeps signature change.</para>
+        ///
+        /// <para>⭐⭐ <b>And it does not need one: per-node IS the BRIDGE's job.</b>
+        /// <c>BTreeBridgeEmitCore</c> emits one adapter per node with the slot key <b>baked</b>
+        /// (<c>{MethodFqn}@{offset}@{slotKey}</c>). The standalone thunk is the degenerate
+        /// single-occurrence case — exactly what the <c>@0</c> in its own registration key says. ⇒ this
+        /// gives that case honest per-ASSET storage instead of a per-ENTITY component.</para>
+        ///
+        /// <para>🔴 <b>What it replaces.</b> <c>Blackboard1024</c> at a hard-coded <c>memory + 8</c> —
+        /// one region for <b>every</b> asset on the entity, in a component production adds to
+        /// <b>no entity at all</b>, so the thunk would have thrown if it were ever bound.</para>
+        /// </summary>
+        internal static int ComputeStandaloneStateKey(System.Guid assetId)
+            => Compute(assetId, OccurrenceSlotScope.Behavior, System.Guid.Empty,
+                       StandaloneWorkingStateVariableId);
+
         internal static int ComputeHsmHostIdentity(uint hostMachineId)
         {
             unchecked

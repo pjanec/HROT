@@ -151,38 +151,8 @@ public static unsafe class HsmOccurrence
     public static ref TWorkingState ResolveOrAttach<TWorkingState>(
         EntityRepository world, Entity self, int slotKey, ulong structureHash, out bool freshlyAttached)
         where TWorkingState : unmanaged
-    {
-        byte* store = OccurrenceStoreAccess.TryGetStore(world, self, out _);
-
-        if (store == null)
-            throw new InvalidOperationException(
-                $"Entity {self} carries no occurrence store, so HSM-hosted slot {slotKey} cannot be " +
-                "attached. Adding a tier component is a structural change and must not happen inside " +
-                "a kernel dispatch — the entity must already carry one.");
-
-        if (BlueprintBlackboardPartitions.TryGetSlotOffset(store, slotKey, out int offset, out uint existingHash))
-        {
-            if (existingHash == (uint)structureHash)
-            {
-                freshlyAttached = false;
-                return ref Unsafe.AsRef<TWorkingState>(store + offset);
-            }
-
-            // The layout changed under this slot — the old bytes are not this type's.
-            BlueprintBlackboardPartitions.TryDetach(store, slotKey);
-        }
-
-        if (!BlueprintBlackboardPartitions.TryAttach(
-                store, slotKey, sizeof(TWorkingState), structureHash, OccurrenceKind.Hsm, out int newOffset))
-            throw new InvalidOperationException(
-                $"Entity {self} has an occurrence store with no room for HSM-hosted slot {slotKey} " +
-                $"({sizeof(TWorkingState)} bytes). The tier is full — provision a larger one, or " +
-                "declare this occurrence in the behaviour's stateful manifest so the ingress sizes " +
-                "the tier for it.");
-
-        freshlyAttached = true;
-        return ref Unsafe.AsRef<TWorkingState>(store + newOffset);
-    }
+        => ref OccurrenceWorkingState.ResolveOrAttach<TWorkingState>(
+               world, self, slotKey, structureHash, OccurrenceKind.Hsm, out freshlyAttached);
 
     /// <summary>
     /// ⭐⭐ The occurrence's working state, as a <c>ref</c> into the entity's occurrence store.

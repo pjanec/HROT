@@ -3177,3 +3177,57 @@ as `Params`. ⛔ **The pointer is right now; the region is not.**
 | **① storage** | the slot payload becomes `[Params N][WorkingState M]`, mirroring the Instance payload's `[Cursor 16][Params N][State M]`. ⭐ Every `[SharedAiAction]` thunk keeps working **unchanged** — a DTO's field offsets are relative to the struct base (§4.2) |
 | **② supply** | 📐 measured: **nothing parses params for a hosted occurrence**, and **`IHostVariableAccess` has ZERO implementers** ⇒ this is `E7a`/`G1` |
 | ⛔⛔ **why together** | ① alone gives each occurrence its own **zeroed** params region, where today it at least reads what the behaviour authored. **Worse than the defect.** ⚠ Same lesson as `O7b-1`/`O7b-2` |
+
+## 26. 🔴🔴🔴 `O7d` — **AND THE RULE THREE FAILURES IN A ROW HAVE NOW EARNED** *(`2026-09-21`)*
+
+### 26.1 ⭐⭐⭐ THE RULE — **STORAGE WITHOUT SUPPLY IS A REGRESSION, NOT A HALF-STEP**
+
+📐 **Measured three times in two days, each time by building it and watching it break:**
+
+| # | item | storage moved | supply followed? | outcome |
+|---|---|---|---|---|
+| ① | **`O7b-1`** *(emitter)* | ✅ working state → slot | ⛔ the inspector still read the old place | 🔴 withdrawn for a day; re-landed only WITH `O7b-2` |
+| ② | **`CE-298`** *(params)* | — *(not attempted)* | ⛔ nothing writes a hosted occurrence's params; `IHostVariableAccess` has **0** implementers | ⭐ **filed, not built** — the lesson had landed |
+| ③ | **`O7d`** *(standalone BTree)* | ✅ working state → slot | ⛔⛔ **nothing provisions the STORE** — `ProvisionStatefulSlots` only runs on a non-empty manifest, and a standalone occurrence has no manifest entry | 🔴 **reverted, same day it was written** |
+
+🔒 **The rule, checkable before writing a line:** ⭐⭐⭐ **before moving ANY state into an occurrence
+slot, name the thing that will (a) PROVISION the slot and (b) WRITE its initial contents. If either
+answer is "nothing", the move is a REGRESSION — the old location at least had a producer.**
+
+⚠ **Why this keeps happening, stated plainly:** the storage half is mechanical and satisfying — a key,
+a resolve, a rail. ⛔ **The supply half lives in a different file, often a different lane**, and nothing
+about the storage work forces you to look at it. ⇒ **the check has to be up front, not at the gate.**
+
+### 26.2 📐 WHAT `O7d` MEASURED — **and two claims of mine it corrected**
+
+| ⛔ what I said | ✅ what measuring found |
+|---|---|
+| *"42 shipped assets carry the `BP-297` shape"* | ⛔ **wrong.** The standalone `BTreeTick@0` thunk is **bound by nothing** in the asset corpus *(re-measured; matches `CLAUDE.md`'s own record)*. Per-node multi-occurrence goes through the **BRIDGE**, which bakes a slot key per adapter and **is** occurrence-keyed. ⇒ no shipped asset shares state through this path |
+| *"route the standalone thunks onto the occurrence seam"* | ⛔ **not per-node, and it cannot be.** 📐 `Interpreter.cs:655` hands an action delegate only `node.PayloadIndex` — **no node identity** ⇒ one shared thunk cannot key itself per-occurrence without an ExtDeps signature change. ⭐ Per-node is the bridge's job **by design**; the standalone thunk is the degenerate single-occurrence case, which is what the `@0` in its registration key always said |
+
+⭐⭐ **And a sharper defect than the one I filed:** `Blackboard1024` is on **zero** production entities
+*(both `AddComponent` sites gated on `HeavyDtoType`, which nothing sets)*, and `GetComponentRW` **throws**
+on a missing component *(measured)*. ⇒ 🔴 **the standalone thunk would THROW the moment it was bound** —
+it is not "sharing state", it is **non-functional**.
+
+### 26.3 ⭐ WHAT LANDED, AND WHAT DID NOT
+
+| ✅ kept *(green, rail-covered, already used by the HSM path)* | |
+|---|---|
+| `OccurrenceWorkingState.ResolveOrAttach` | ⭐ **ONE body, two callers** (ruling 9) — `HsmOccurrence` now forwards to it; the standalone path will too |
+| `OccurrenceSlotKey.ComputeStandaloneStateKey` + `OccurrenceSlots.StandaloneStateKeyFor` | the asset-scoped key, in the **LINKED** file so emitter and runtime cannot drift |
+
+⛔ **Reverted:** the emitter change itself — diff kept at
+[`patches/O7d-emitter-slice.patch`](patches/O7d-emitter-slice.patch). 📐 It is CORRECT as far as it goes:
+0 build errors, and the only runtime failure is *"carries no occurrence store"* — **the supply half,
+exactly.**
+
+⇒ ⭐ **`O7d` is now BLOCKED ON THE SAME THING AS `CE-298`**: a manifest entry so
+`BehaviorIngressSystem` provisions a store. ⚠ That is `O7b-3`'s *(tier capacity)* work, which is
+therefore **no longer optional** — it is the unblocker for both.
+
+### 26.4 ⚠ THE PIN STAYS GREEN, AND THAT IS CORRECT
+
+`ThunkEmissionTests.StandaloneBTreeThunks_StillUseTheLegacyBlackboard_O7d` is still green because the
+defect is still there. ⭐ **That is the pin working** — it will redden the day `O7d` re-lands, which is
+the whole reason it exists.

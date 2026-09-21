@@ -28,8 +28,16 @@ current-answer: §3 — ⭐⭐ THE NEXT ACTION IS O7c. O7 is SLICED (design §24
   MUST land together: (1) slot payload becomes [Params N][WorkingState M]; (2) something must WRITE
   each occurrence's params — nothing does today and IHostVariableAccess has zero implementers (E7a).
   Storage without supply is a REGRESSION (zeroed params instead of the behaviour's authored ones).
-  🔴 O7d: the standalone BTree thunks (AiPrimitiveEmitter:360/:398) STILL use Blackboard1024 + 8 —
-  the same one-per-entity shape as BP-297, for 42 shipped assets (33 BTreeAction + 9 BTreeCondition).
+  🔴 O7d: ATTEMPTED AND REVERTED 2026-09-21 (design §26) — blocked on supply, like CE-298. Two of my
+  claims were wrong and measuring fixed them: the standalone @0 thunk is BOUND BY NOTHING (no shipped
+  asset shares state through it), and it CANNOT be keyed per-node (Interpreter.cs:655 gives an action
+  delegate no node identity; per-node is the BRIDGE's job by design). Re-scoped to an ASSET-scoped
+  slot, built, 0 build errors — and it broke on "carries no occurrence store", because nothing
+  provisions one for a standalone occurrence. ⇒ O7b-3 (manifest entries / tier capacity) is NO LONGER
+  OPTIONAL: it unblocks both O7d and CE-298. Diff kept at patches/O7d-emitter-slice.patch.
+  ⭐ Kept and green: OccurrenceWorkingState (one body, two callers) + the asset-scoped key.
+  🔒 THE RULE this earned, measured 3x in 2 days: before moving ANY state into an occurrence slot,
+  name what will PROVISION the slot and WRITE its contents. If either is "nothing", it is a REGRESSION.
   ⚠ CORRECTION: "the BTree hosting path has been occurrence-keyed since S2" is TRUE of the bridge
   per-node adapters and FALSE of the standalone @0 thunks.
   ⭐ RETIRING Blackboard1024 (the LEGACY one, NOT BlueprintBlackboard*): it is already on ZERO

@@ -69,4 +69,14 @@ public static class OccurrenceSlots
     /// </summary>
     public static int TreeStateKeyFor(Guid hostAssetId, Guid siteNodeVisualId, Guid childAssetId)
         => Shared.OccurrenceSlotKey.ComputeTreeStateKey(hostAssetId, siteNodeVisualId, childAssetId);
+
+    /// <summary>
+    /// ⭐⭐ <c>O7d</c> — the slot key a STANDALONE-hosted AiPrimitive uses for its working state.
+    ///
+    /// <para>⛔ <b>Per ASSET, not per node</b> — the interpreter gives an action delegate no node
+    /// identity, and per-node multi-occurrence is the BRIDGE's job (it bakes a slot key per adapter).
+    /// 📄 <c>DESIGN_Occurrence_Scoped_Storage.md</c> §26.</para>
+    /// </summary>
+    public static int StandaloneStateKeyFor(Guid assetId)
+        => Shared.OccurrenceSlotKey.ComputeStandaloneStateKey(assetId);
 }

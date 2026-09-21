@@ -167,7 +167,8 @@ behaviour and naming the id that will flip it.
 | # | item | what | why here |
 |---|---|---|---|
 | **E1** | ⭐⭐ **the two-region rails** | a genuine 2-region HSM driving the same asset at both ⇒ ① working state SEPARATES *(proves `O7b` end-to-end, retiring §7's "the fixture cannot redden this" caveat)* · ② params COLLIDE *(pins `CE-298`)* | ⛔ nothing has ever driven a multi-region machine; every `O7` claim rests on it |
-| **E2** | **`O7d`** — the standalone BTree thunks | `AiPrimitiveEmitter:360/:398` still emit `Blackboard1024 + 8` ⇒ the `BP-297` shape for **42** shipped assets *(33 `BTreeAction` + 9 `BTreeCondition`)*. Route them onto the occurrence seam | ⭐ cheap now the seam exists, and it is the **last emitted use** of the legacy blackboard |
+| **E2** | 🔴 **`O7d`** — **ATTEMPTED `2026-09-21`, REVERTED — BLOCKED ON `O7b-3`** *(design §26)*. 📐 Measuring corrected the item twice: the standalone `@0` thunk is **bound by nothing** *(so no shipped asset shares state through it)*, and it **cannot be keyed per-node** — `Interpreter.cs:655` gives an action delegate no node identity, and per-node is the BRIDGE's job by design. ⭐ Re-scoped to an ASSET-scoped slot, built, and it broke on **supply**: nothing provisions the store. ⇒ **E2 now depends on E-cap below.** ⭐ Kept: `OccurrenceWorkingState` *(one body, two callers)* + the asset-scoped key. Diff at `patches/O7d-emitter-slice.patch` | ~~the standalone BTree thunks~~ | `AiPrimitiveEmitter:360/:398` still emit `Blackboard1024 + 8` ⇒ the `BP-297` shape for **42** shipped assets *(33 `BTreeAction` + 9 `BTreeCondition`)*. Route them onto the occurrence seam | ⭐ cheap now the seam exists, and it is the **last emitted use** of the legacy blackboard |
+| ⭐⭐ **E-cap** | **`O7b-3`** — manifest entries so `BehaviorIngressSystem` PROVISIONS the store | ⛔⛔ **NO LONGER OPTIONAL — it unblocks BOTH `E2` and `E3`.** ⭐ And the join is runtime, not emit-time: the action id IS the truncated blueprint id, and `StateDef` carries the per-state action ids ⇒ **`HsmEmitCore` never learns about blueprints** | ⚠ verify the `ushort` truncation cannot collide two blueprints |
 | **E3** | **`E7a` + `CE-298`** — **TOGETHER** | ① slot payload becomes `[Params N][WorkingState M]` · ② something WRITES each occurrence's params *(`IHostVariableAccess`, **zero implementers** today)* | ⛔⛔ **① alone is a REGRESSION** — a zeroed params region where today it reads the authored ones. Same lesson as `O7b-1`/`O7b-2` |
 | **E4** | **`O7c`** — delete `BrainHsm64`/`BrainHsm128` | instances into slots; `F9`'s tick-system reshape | 🔴 **L** — 188 refs / 18 production files |
 | **E5** | ⭐ **retire the LEGACY `Blackboard1024`** | ⚠ **NOT `BlueprintBlackboard*`** — those ARE the store. 📐 It is already on **ZERO** production entities: both `AddComponent` sites are gated on `HeavyDtoType`, which **nothing ever sets** *(both editor mappers hard-write `null`)* | ⛔ blocked on **E2** — the emitted thunks are the only live readers |
@@ -183,3 +184,18 @@ the `H1`–`H3` event-queue hazards, and it wants an architect question with mea
 |---|---|
 | *"it gives the inspector typed labels"* | ⛔ **false** — the decode already uses `descriptor.ClrType` / `ResolveType(field.Type)`, and the label is derived. ⭐ **Its real value is TIER CAPACITY**: `ProvisionStatefulSlots` only runs on a non-empty manifest, and that is what sizes the tier |
 | *"it needs `HsmEmitCore` to know about blueprints"* | ⛔ **false, and the user was right to refuse it** — 📐 the action id **IS** the truncated blueprint id (`RegisterAction(unchecked((ushort)BlueprintId), …)`), and `StateDef` carries `OnEntryActionId`/`OnExitActionId`/`ActivityActionId`/`TimerActionId` at runtime ⇒ ⭐ **the join can happen at RUNTIME against the blueprint registry; the HSM editor never learns about blueprints.** ⚠ Verify the `ushort` truncation cannot collide two blueprints first |
+
+
+### 🔴🔴🔴 THE RULE INCREMENT E EARNED — **check SUPPLY before moving STORAGE**
+
+📐 Measured **three times in two days**, each time by building it and watching it break — `O7b-1`
+*(inspector left behind, withdrawn a day)*, `CE-298` *(nothing writes hosted params — filed, not
+built)*, `O7d` *(nothing provisions the store — reverted the same day)*.
+
+🔒 **Before moving ANY state into an occurrence slot, name the thing that will ① PROVISION the slot and
+② WRITE its initial contents. If either answer is "nothing", the move is a REGRESSION** — the old
+location at least had a producer.
+
+⚠ **Why it keeps recurring:** the storage half is mechanical and satisfying — a key, a resolve, a rail.
+⛔ The supply half lives in another file, often another lane, and **nothing about the storage work
+forces you to look at it.** ⇒ the check belongs at the START, not at the gate.
