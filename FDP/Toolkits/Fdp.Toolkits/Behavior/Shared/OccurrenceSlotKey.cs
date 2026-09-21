@@ -207,6 +207,37 @@ namespace Fdp.Toolkit.Behavior.Shared
         /// moving BETWEEN states are different occurrences; folding only the region would alias the
         /// second, and folding only the state would alias the first.</para>
         /// </summary>
+        /// <summary>
+        /// ⭐⭐⭐ <b><c>P2</c> — the identity of a CURATED <c>[SharedAiAction]</c>'s occurrence.</b>
+        ///
+        /// <para>⛔ A curated action has <b>no asset Guid</b> — <c>SharedAiEntry</c> carries a method
+        /// FQN, a field type and an offset, and nothing else. ⭐ But it already HAS an identity:
+        /// <c>HsmActionKey.CompoundKeyName</c> = <c>fqn + "@" + fieldOffset</c>, which is what the
+        /// dispatcher's <c>ushort</c> id is hashed from. ⇒ fold THAT where the Guid goes rather than
+        /// inventing a second identity scheme for the same thing (<c>R-132</c>).</para>
+        ///
+        /// <para>⭐⭐ <b>No new hashing.</b> It reuses <see cref="Compute"/> at
+        /// <see cref="OccurrenceSlotScope.Behavior"/> with an EMPTY asset id and the compound key as
+        /// the variable id — so a curated occurrence can never collide with a blueprint's, which
+        /// always folds a non-empty asset Guid together with <see cref="HsmWorkingStateVariableId"/>.</para>
+        ///
+        /// <para>⚠ <b>The <c>@offset</c> in the compound key stays MEANINGFUL after <c>P2</c></b> —
+        /// it is the field's position inside the action's own declared slot struct, never a
+        /// blackboard address, so it survives the params move with only its anchor changed.</para>
+        /// </summary>
+        internal static string CuratedVariableId(string compoundKey)
+            => ReservedPrefix + "curated." + (compoundKey ?? string.Empty);
+
+        internal static int ComputeHsmStateKeyForCurated(
+            uint hostMachineId, int regionSlotIndex, ushort stateId, string compoundKey)
+            => ComputeNested(
+                   ComputeHsmHostIdentity(hostMachineId),
+                   ComputeHsmSiteId(regionSlotIndex, stateId),
+                   System.Guid.Empty,
+                   OccurrenceSlotScope.Behavior,
+                   System.Guid.Empty,
+                   CuratedVariableId(compoundKey));
+
         internal static int ComputeHsmStateKey(
             uint hostMachineId, int regionSlotIndex, ushort stateId, System.Guid childAssetId)
             => ComputeNested(

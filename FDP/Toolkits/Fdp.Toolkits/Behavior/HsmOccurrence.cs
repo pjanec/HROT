@@ -64,6 +64,58 @@ public static unsafe class HsmOccurrence
     }
 
     /// <summary>
+    /// ⭐⭐ <b><c>P2</c> — the working state of a CURATED <c>[SharedAiAction]</c>, which has none.</b>
+    ///
+    /// <para>⭐ A curated action declares a params DTO and nothing else, but the slot payload is
+    /// <c>[Params N][WorkingState M]</c> and <c>ResolveOrAttach</c> has no params-only overload.
+    /// ⇒ <c>M</c> is this. ⛔ Adding an overload would put new surface on the seam for a case the
+    /// existing shape already covers — 📐 proven by <c>HsmTwoRegionParamsDemo</c>, whose generated
+    /// <c>WorkingState</c> is empty and which runs green through <c>O7_R37</c>.</para>
+    ///
+    /// <para>⚠ <c>sizeof</c> is 1, not 0 — an empty struct still occupies a byte. That is the correct
+    /// cost and it is stated so nobody reads the slot arithmetic as off-by-one.</para>
+    /// </summary>
+    public struct EmptyWorkingState { }
+
+    /// <summary>
+    /// ⭐⭐⭐ <b><c>P2</c> — the same key for a CURATED <c>[SharedAiAction]</c>, which has no asset Guid.</b>
+    ///
+    /// <para>⭐ Identical in every other respect to <see cref="KeyFor(void*, System.Guid, HsmCommandWriter*)"/>:
+    /// the kernel's <c>(region, state)</c> stamp and the host machine id from the instance header.
+    /// ⛔ The only difference is WHAT identifies the occupant — a compound key string
+    /// (<c>fqn@fieldOffset</c>) instead of a blueprint's asset id.</para>
+    ///
+    /// <para>⛔⛔ Refuses an unstamped writer for exactly the reason <see cref="KeyFor(void*, System.Guid, HsmCommandWriter*)"/>
+    /// does: resolving "no stamp" to region 0 / state 0 would hand this action a real occurrence's
+    /// bytes — the silent cross-occurrence alias this model exists to remove.</para>
+    /// </summary>
+    public static int KeyForCurated(void* hsmInstance, string compoundKey, HsmCommandWriter* writer)
+    {
+        if (writer == null) throw new ArgumentNullException(nameof(writer));
+        if (hsmInstance == null) throw new ArgumentNullException(nameof(hsmInstance));
+
+        int region = writer->OccurrenceRegionSlotIndex;
+        ushort state = writer->OccurrenceStateId;
+
+        if (region == HsmCommandWriter.NoRegionSlot || state == HsmCommandWriter.NoStateId)
+            throw new InvalidOperationException(
+                "The HsmCommandWriter carries no occurrence stamp, so a curated [SharedAiAction] "
+                + $"('{compoundKey}') cannot key its params. The kernel stamps the (region, state) "
+                + "pair before every dispatch (O6); reaching here without one means this thunk was "
+                + "invoked outside a kernel dispatch.");
+
+        uint machineId = ((InstanceHeader*)hsmInstance)->MachineId;
+
+        return Shared.OccurrenceSlotKey.ComputeHsmStateKeyForCurated(
+            machineId, region, state, compoundKey);
+    }
+
+    /// <summary>The same key from an explicit machine id — for rails, mirroring the Guid overload.</summary>
+    public static int KeyForCurated(uint hostMachineId, string compoundKey, int regionSlotIndex, ushort stateId)
+        => Shared.OccurrenceSlotKey.ComputeHsmStateKeyForCurated(
+               hostMachineId, regionSlotIndex, stateId, compoundKey);
+
+    /// <summary>
     /// ⭐⭐⭐ <c>E3b-0</c> — <b>the byte offset this occurrence's params SEED from</b>, for the stamped
     /// <c>(machine, state)</c>. 📄 §28.6.
     ///

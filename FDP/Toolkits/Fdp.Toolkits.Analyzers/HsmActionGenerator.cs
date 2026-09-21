@@ -758,9 +758,34 @@ namespace Fdp.Toolkit.Behavior.Analyzers
             sb.AppendLine("            // corrupt the chunk arrays. Only read/write fields of existing components.");
             sb.AppendLine("            var bridge = (global::Fdp.Toolkit.Behavior.Systems.HsmKernelBridge*)contextPtr;");
             sb.AppendLine("            var repo   = (global::Fdp.Core.EntityRepository)global::System.Runtime.InteropServices.GCHandle.FromIntPtr(bridge->WorldHandle).Target!;");
+            // ⭐⭐⭐ P2 / BP-297 — THIS THUNK USED TO READ ITS DTO AT A BAKED OFFSET INTO THE ENTITY'S
+            //   ONE BrainBlackboard, so two concurrently-active regions running the same action
+            //   addressed the SAME BYTES, silently. It now resolves its OWN occurrence, keyed by the
+            //   (region, state) the kernel stamped (O6) and by this action's compound key.
+            //
+            // ⭐ The blackboard survives ONLY as the SEED, inside the freshlyAttached arm — the same
+            //   shape AiPrimitiveEmitter.EmitParamSeed emits for a hosted blueprint (E3a/E3b-0).
             sb.AppendLine("            ref var bb = ref repo.GetComponentRW<global::Fdp.Toolkit.Behavior.Components.BrainBlackboard>(bridge->Self);");
-            sb.AppendLine("            ref var field = ref Unsafe.As<byte, " + entry.FieldTypeFqn + ">(");
-            sb.AppendLine("                " + BlackboardParamsExpression.At("bb", entry.Offset) + ");");
+            sb.AppendLine("            int __occKey = global::Fdp.Toolkit.Behavior.HsmOccurrence.KeyForCurated(");
+            sb.AppendLine("                instancePtr, \"" + entry.CompoundKey + "\", writer);");
+            sb.AppendLine("            ulong __structureHash = " + HsmActionKey.Fnv64(entry.CompoundKey + "|" + entry.FieldTypeFqn)
+                          + "UL ^ (ulong)sizeof(" + entry.FieldTypeFqn + ");");
+            sb.AppendLine("            ref var __ws = ref global::Fdp.Toolkit.Behavior.HsmOccurrence.ResolveOrAttach<"
+                          + entry.FieldTypeFqn + ", global::Fdp.Toolkit.Behavior.HsmOccurrence.EmptyWorkingState>(");
+            sb.AppendLine("                repo, bridge->Self, __occKey, __structureHash, out bool __freshlyAttached, out "
+                          + entry.FieldTypeFqn + "* __params);");
+            sb.AppendLine("            if (__freshlyAttached)");
+            sb.AppendLine("            {");
+            // ⭐⭐ E3b-0 composes with the attribute's offset: the STATE picks which blackboard variable
+            //   seeds this occurrence, and entry.Offset picks the field inside the action's own SLOT
+            //   struct. Neither is a blackboard address on its own.
+            sb.AppendLine("                int __seedOffset = global::Fdp.Toolkit.Behavior.HsmOccurrence.SeedParamsOffset(instancePtr, writer);");
+            sb.AppendLine("                *__params = Unsafe.As<byte, " + entry.FieldTypeFqn + ">(");
+            sb.AppendLine("                    ref Unsafe.AddByteOffset(ref bb.BehaviorParameters[0], (nint)(__seedOffset + "
+                          + entry.Offset + ")));");
+            sb.AppendLine("            }");
+            sb.AppendLine("            _ = __ws;");
+            sb.AppendLine("            ref var field = ref *__params;");
             if (entry.IsHeavy)
             {
                 if (entry.IsHeavyManaged)

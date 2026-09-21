@@ -1501,6 +1501,133 @@ public sealed unsafe class HsmOccurrenceKeyTests
         }
     }
 
+    /// <summary>
+    /// ⭐⭐⭐ <b>Rail ㊳ — <c>P2</c> / <c>BP-297</c> CLOSED: a HAND-AUTHORED, DTO-BOUND HSM ACTION
+    /// RUNNING IN TWO PARALLEL REGIONS GETS ITS OWN PARAMS IN EACH.</b>
+    ///
+    /// <para>🔴🔴 <b>This is the rail <c>BP-297</c> said could not be written.</b> Its words:
+    /// <i>"the pre-written rail cannot be made to fail before the change — <c>HsmOrthogonalRegions</c>'
+    /// two regions both run <c>StubIdle</c>, whose body is empty ⇒ there are no bytes to collide"</i>,
+    /// and <i>"ZERO DTO-bound HSM thunks exist in any binary"</i>. ⭐ <c>P2</c> authored the subject —
+    /// which is what reddened the tripwire — and converted the emitter in the same slice.</para>
+    ///
+    /// <para>⭐⭐ <b>What is different from ㊲.</b> ㊲ drives a compiled BLUEPRINT thunk, keyed by its
+    /// asset Guid. This drives the CURATED path — <c>HsmActionGenerator</c>'s emitted thunk, keyed by
+    /// <c>KeyForCurated</c> over the compound key <c>fqn@fieldOffset</c>, which is the half that still
+    /// baked a blackboard offset an hour ago.</para>
+    ///
+    /// <para>⭐ The stored layout hash is read back out of the partition rather than restated here —
+    /// ⛔ hard-coding the emitter's constant would make this rail agree with the emitter by
+    /// construction instead of checking it.</para>
+    /// </summary>
+    [Fact]
+    public void O7_R38_ACuratedDtoBoundActionGetsItsOwnParamsInTwoParallelRegions()
+    {
+        const string CompoundKey =
+            "Hrot.AI.Behaviors.Brains.HsmTwoRegionCuratedNodes.Action_ReadRegionParams@0";
+        const int RegionZeroValue = 31337;
+        const int RegionOneValue  = 64206;
+
+        var world = TestWorldFactory.Create();
+        using var _w = world;
+        BlueprintTierTable.RegisterAll(world);
+        var entity = MakeEntityWithStore(world);
+
+        // ⭐ The SEED: two ints at the two offsets the two states bind (role ③'s output).
+        world.AddComponent(entity, new Components.BrainBlackboard());
+        ref var bb = ref world.GetComponentRW<Components.BrainBlackboard>(entity);
+        fixed (byte* p0 = &bb.BehaviorParameters[0])
+        {
+            *(int*)(p0 + 0) = RegionZeroValue;
+            *(int*)(p0 + 8) = RegionOneValue;
+        }
+
+        HsmParamBindings.ClearAll();
+        Fhsm.Kernel.HsmActionDispatcher.ClearAll();
+        var worldHandle = System.Runtime.InteropServices.GCHandle.Alloc(world);
+        try
+        {
+            // ⭐⭐⭐ The REAL generated registrar for the assembly that now has a DTO-bound subject.
+            global::Hrot.AI.Behaviors.Generated.HsmActionRegistrar.RegisterAll();
+
+            // ⚠ The emitted registrar's id for this compound key. ⛔ HsmActionKey is `internal` to
+            //   the analyzer, so the rail cannot recompute it — and spelling its FNV here would
+            //   duplicate the algorithm, which is the very thing OccurrenceSlotKey exists to prevent.
+            // ⭐ A changed id is a FINDING, not a flake: the thunk then never runs and the
+            //   "was never attached" assertions below fail with that exact message.
+            const ushort actionId = 18280;
+
+            var stateA = new Guid("07000000-0000-0000-0000-00000000e3e1");
+            var stateB = new Guid("07000000-0000-0000-0000-00000000e3e2");
+
+            var blob = BuildTwoRegionBlob(actionId);
+            blob.Metadata = new MachineMetadata();
+            blob.Metadata.StateStableIds[1] = stateA;
+            blob.Metadata.StateStableIds[2] = stateB;
+            HsmParamBindings.Register(blob, new[] { (stateA, 0), (stateB, 8) });
+
+            var inst = new HsmInstance128();
+            inst.Header.MachineId = HostMachine;
+            inst.Header.Phase     = InstancePhase.Entry;
+            for (int r = 0; r < 4; r++) inst.ActiveLeafIds[r] = 0xFFFF;
+
+            var bridge = new Fdp.Toolkit.Behavior.Systems.HsmKernelBridge
+            {
+                Self         = entity,
+                WorldHandle  = System.Runtime.InteropServices.GCHandle.ToIntPtr(worldHandle),
+                TraceContext = null,
+            };
+            var page = default(CommandPage);
+            Fhsm.Kernel.HsmKernel.Update(blob, ref inst, in bridge, 0.016f, ref page);
+
+            // ── read both occurrences out of the partition, by the SAME key the thunk computed ──
+            int keyA = HsmOccurrence.KeyForCurated(HostMachine, CompoundKey, regionSlotIndex: 1, stateId: 1);
+            int keyB = HsmOccurrence.KeyForCurated(HostMachine, CompoundKey, regionSlotIndex: 2, stateId: 2);
+
+            Assert.NotEqual(keyA, keyB);   // non-vacuity: the two regions really are two occupants
+
+            // ⚠ The stored layout hash comes OUT of the partition — the rail must not restate the
+            //   emitter's constant, or it would agree with the emitter by construction.
+            uint hashA, hashB;
+            ref var tier = ref world.GetComponentRW<BlueprintBlackboard1024>(entity);
+            fixed (byte* store = tier.Memory)
+            {
+                Assert.True(BlueprintBlackboardPartitions.TryGetSlotOffset(store, keyA, out _, out hashA),
+                    "region 1's curated occurrence was never attached — the converted thunk did not run");
+                Assert.True(BlueprintBlackboardPartitions.TryGetSlotOffset(store, keyB, out _, out hashB),
+                    "region 2's curated occurrence was never attached — the converted thunk did not run");
+            }
+
+            // ⛔⛔ The payload is [WorkingState][Params], NOT the other way round
+            //    (OccurrenceWorkingState.cs:115 — "the order is load-bearing"). ⇒ resolve through the
+            //    SAME helper the emitted thunk uses rather than re-deriving the offset here, which is
+            //    exactly the duplication OccurrenceSlotKey exists to prevent.
+            OccurrenceWorkingState.ResolveOrAttach<
+                    global::Hrot.AI.Behaviors.Brains.HsmTwoRegionCuratedNodes.CuratedRegionParams,
+                    HsmOccurrence.EmptyWorkingState>(
+                world, entity, keyA, hashA, OccurrenceKind.Hsm, out bool freshA, out var pA);
+            OccurrenceWorkingState.ResolveOrAttach<
+                    global::Hrot.AI.Behaviors.Brains.HsmTwoRegionCuratedNodes.CuratedRegionParams,
+                    HsmOccurrence.EmptyWorkingState>(
+                world, entity, keyB, hashB, OccurrenceKind.Hsm, out bool freshB, out var pB);
+
+            // ⛔ NON-VACUITY: the TICK attached these, not this read-back.
+            Assert.False(freshA);
+            Assert.False(freshB);
+
+            // ⭐⭐⭐ THE RAIL. 🔴 Before P2 both regions read bb.BehaviorParameters[0] + 0 and
+            //    would have seen RegionZeroValue twice.
+            Assert.Equal(RegionZeroValue, pA->Value);
+            Assert.Equal(RegionOneValue,  pB->Value);
+        }
+        finally
+        {
+            worldHandle.Free();
+            Fhsm.Kernel.HsmActionDispatcher.ClearAll();
+            HsmParamBindings.ClearAll();
+        }
+    }
+
     // ── helpers ──────────────────────────────────────────────────────────────────
 
     /// <summary>A blob whose metadata maps flat states 1 and 2 to two authoring ids.</summary>
