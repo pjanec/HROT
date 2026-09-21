@@ -2,9 +2,13 @@
 state: LIVE
 updated: 2026-09-21
 build-state: DESIGN
-current-answer: section 4 (the decisions, each with a lean awaiting approval). Section 1 is the
-  INVENTORY it rests on; section 3 holds the diagrams. NOTHING here is approved yet - section 4's
-  D1 changes a key shape and needs a nod before any code.
+current-answer: section 4 (the decisions D1-D5, each with a lean awaiting approval). Section 1 is
+  the INVENTORY it rests on; section 3 holds the diagrams. NOTHING here is approved yet - D1
+  changes a key shape AND carries a mandatory fourth clause (a scan-time validation pass) without
+  which the feature's failure mode is silence. Read D1's fourth-clause subsection before anything.
+review: reviewed 2026-09-21; seven findings folded in - the silent-TryRun path (section 3.2's else
+  arm), D1's build-time unverifiability and its clause four, load order, D5, two further stale doc
+  comments (section 5), the netstandard2.0 wall, and check_index_coverage was run after all.
 stale-below: nothing.
 known-rot: nothing.
 known-conflict: nothing.
@@ -39,9 +43,10 @@ related-designs:
 
 ## 1. ⭐⭐ INVENTORY *(`R-74`)*
 
-> ⚠ `check_index_coverage` is **not reachable through the CLI** and was not run; the graph was queried
-> live through the MCP tools *(`list_projects` → `home-user-HROT`, 201 934 nodes)*. Counts below are
-> what the queries returned, corroborated by grep where noted.
+> ⭐ **`check_index_coverage` WAS run** *(it is reachable through the MCP tools; only the CLI lacks
+> it)*: all **9** paths cited below report `no_recorded_issue` with `generation_matches: true`.
+> ⚠ Its own caveat stands — best-effort is never proof of completeness — so every count below is
+> corroborated by grep as well.
 
 ```
 search_graph(name_pattern=".*ManagedBlackboardVariable.*|.*BlueprintRegistrarScanner.*|.*HostedOccurrence.*")  -> 22, has_more:false
@@ -150,19 +155,34 @@ sequenceDiagram
     loop per variable carrying a ResolverRef
         PP->>PP: __p = Unsafe.Read~Dto~(memory + offset)
         PP->>HPR: TryRun(key, ref __p, world, self, host)
-        HPR->>RG: resolve(ref __p, world, self, host)
-        RG-->>HPR: refined __p
-        HPR-->>PP: true
-        PP->>PP: Unsafe.Write(memory + offset, __p)
+        alt resolver registered
+            HPR->>RG: resolve(ref __p, world, self, host)
+            RG-->>HPR: refined __p
+            HPR-->>PP: true
+            PP->>PP: Unsafe.Write(memory + offset, __p)
+        else NOT registered - returns false, SILENTLY
+            HPR-->>PP: false
+            Note over PP: variable keeps its BAKED DEFAULT - no signal
+        end
     end
     PP-->>Ingress: commit or throw
 ```
 
-> ⭐ **Caption.** The loop body needs **no new scope**: `world`, `self` and `host` are already the
-> lambda's own parameters *(`BTreeBridgeEmitCore.cs:1268`)*, and `TypeId`/`ByteOffset` are already in
-> the emitter's hand per packed field. ⛔ **The throw-on-failure semantics are inherited, not added** —
-> the ingress parses into a stack shadow and commits only on success, which is the same reason
-> `BP1675` refuses a side-effecting resolver.
+> ⭐ **Caption — the `else` arm is the finding, and it is why `D1` grows a fourth clause.** The loop
+> body needs no new scope: `world`, `self` and `host` are already the lambda's own parameters
+> *(`BTreeBridgeEmitCore.cs:1270`)*, and `TypeId`/`ByteOffset` are already in the emitter's hand.
+> 🔴 **But `TryRun` returning `false` is SILENT BY DESIGN** — its own header insists *"no resolver must
+> be free and silent, or every existing asset pays for a feature it does not use"*, which is **right
+> for `E8a`**, where absence is the overwhelmingly common case.
+>
+> ⛔⛔ **`E8c` INVERTS that premise.** A variable carrying a `ResolverRef` has **named** one, so absence
+> is an **error**, not the norm. 📌 Concrete failure: rename a Library resolver graph and every
+> behaviour referencing it falls back to baked defaults — no diagnostic, no rail, sim running on wrong
+> params. ⚠ **This is the silent-default pattern with a caller that DID hold the information.**
+>
+> ⚠ **An earlier version of this caption said the *"throw-on-failure semantics are inherited"*.** That
+> was about the JSON **parse** throw and it is true of that; ⛔ as written it read as covering the
+> missing-resolver case, where the inherited semantics are the **opposite**. Corrected `2026-09-21`.
 
 ### 3.3 Modules — ⭐⭐ who emits, who registers, and **the edge that does not exist yet**
 
@@ -224,6 +244,36 @@ graph TD
 > necessary. 📐 **I could not find one** — searched the 30 shipped behaviour assets and the 5
 > `RegisterResolver` call sites; every curated resolver today owns its whole behaviour.
 
+#### 🔴 `D1-a`'s FOURTH CLAUSE — **a SCAN-TIME validation pass, and it is not optional**
+
+⛔⛔ **`D1-a`'s real cost is NOT the missing edge in §3.3 — it is that the type match becomes
+UNVERIFIABLE AT BUILD TIME.** 📐 Both halves of the check exist — `ValidateReusableSignature:189` pins
+the resolver's type as `graph.Inputs[0].Type.TypeId`, and `PackedField.TypeId` is the variable's —
+⛔ **but they are not in the same process.** 📐 Measured: `Hrot.AiEditor.Persistence.csproj` targets
+**`netstandard2.0`** and declares **no `ProjectReference` at all** *(one `PackageReference`,
+`System.Text.Json`)*. ⇒ the bridge emitters **cannot see the Blueprints compiler**, so `D1-a` bakes
+`(assetId, graphName)` **blindly**.
+
+⇒ ⭐⭐⭐ **Without a fourth clause the only check left is `TryRun`'s runtime throw — which fires at
+OCCURRENCE ATTACH, IN-SIM, and only when the DTO types DIFFER.** ⛔ **Same type, wrong resolver: no
+signal at all.**
+
+| ⭐ the clause | |
+|---|---|
+| ⭐⭐⭐ **a validation pass at `BlueprintRegistrarScanner`** *(inventory ⑩ — this design's own join precedent)* that, for every baked ref, checks ① the resolver **is registered** and ② its input `TypeId` **equals the variable's** — and **FAILS THE LOAD LOUDLY** | ⭐⭐ **one addition closes three flaws at once**: the silent-`false` path of §3.2, the unverifiable type match here, and the load-ORDER question below |
+| ⭐⭐ **it also settles LOAD ORDER** | ⛔ nothing today orders the Library registrar before a behaviour referencing it attaches. ⭐ A pass that runs **after** the scan has staged everything does not care about order — which is exactly why `ComputeHostedOccurrenceDemands` is shaped that way |
+| ⚠ **the manifest may have to carry the ref after all** | ⭐ the pass needs *(variable `TypeId`, key)* per behaviour at scan time. ⛔ **This is the one thing that could reopen `D4`** — if the pass cannot reach `PackedField`, the 4th member on `ManagedBlackboardVariable` becomes its carrier. ⭐ **Resolve this when `D1` is approved**, not before |
+
+⛔ **Without this clause the slice ships a feature whose failure mode is silence** — which is the exact
+defect class this programme keeps filing. ⇒ ⭐ **`D1-a` is approved-as-a-lean only WITH clause four.**
+
+#### ⚠ `netstandard2.0` — the wall the DTO work lands against
+
+📐 Same measurement: `PackedField`'s own header says *"plain class for netstandard2.0 compatibility —
+no record."* ⇒ ⭐ `ParamResolverRefDto` is a **plain class**, and `PackedField`'s 4-arg constructor
+gains a 5th parameter, changing **every construction site**. ⚠ Minor, but it is the same wall that
+produced `W1` ② — name it in the item so it is not discovered mid-build.
+
 ### `D2` — what happens when a behaviour has **both** a curated whole-behaviour resolver and a per-variable ref
 
 | option | ⭐ |
@@ -242,18 +292,32 @@ exactly `CE-226`'s precedent for the manifest emitter (inventory ⑤), and for i
 ⭐⭐ **LEAN: NO — and this NARROWS the plan row, which assumed yes.** 📐 Step 3 is emitted **inline**
 with the offset and key baked in, so no runtime consumer needs to rediscover the ref. ⛔ Adding a
 member for symmetry would put a fact in two places. ⚠ **Reopen it** only if a debugger/inspector has to
-show *"this variable is resolved by X"*.
+show *"this variable is resolved by X"* — ⛔ **or if `D1`'s clause four cannot reach `PackedField`**,
+in which case the manifest becomes the scan-time pass's carrier. ⭐ Decide with `D1`.
+
+### `D5` — a ref on a `Role == State` variable
+
+⭐⭐ **LEAN: REFUSE it, at the same scan-time pass as `D1`'s clause four.** 📐 `BlackboardVariableDto`
+carries `Role` *(Input/State)* and `Scope`, and the ref sits on the DTO **unconditionally** ⇒ nothing
+stops an author attaching one to working state. ⛔ `R-149` is explicit — *"offered only where a params
+region exists, never on `Role=State` working state"* — and `D2` refuses curated-plus-per-variable while
+**nothing refuses this**. ⚠ It is a one-line check; the reason it needs stating is that the DTO cannot
+express the restriction structurally.
 
 ---
 
-## 5. 🔴 A STALE DOC FOUND WHILE MEASURING — **fix it in this slice**
+## 5. 🔴 THREE DOC COMMENTS TO FIX IN THIS SLICE — **one already false, two that `D1` falsifies**
 
-📐 `BehaviorRegistry.cs:239` documents `ManagedBlackboardVariables` as *"Null for non-managed or **HSM**
-behaviors."* ⛔ **`HsmBridgeEmitCore.cs:178` emits the array**, through the shared emitter `CE-226`
-made `internal` for exactly that purpose. ⇒ the comment predates the sharing and is now false.
+| # | the comment | why it must move |
+|---|---|---|
+| ⑴ | `BehaviorRegistry.cs:239` — `ManagedBlackboardVariables` is *"Null for non-managed or **HSM** behaviors."* | ⛔ **already FALSE**: `HsmBridgeEmitCore.cs:178` emits the array through the shared emitter `CE-226` made `internal` for exactly that purpose. ⚠ The comment predates the sharing |
+| ⑵ | `CSharpEmitter.cs:452` — *"`Register` OVERWRITES … it is **keyed by ASSET id** and re-registered by every rescan"* | ⚠ **`D1-a` falsifies the REASON, not the policy.** Under clause one the key is `ResolverKey.Of(assetId, graphName)`; overwrite-on-rescan still holds, but *"keyed by asset id"* stops being why |
+| ⑶ | `BehaviorRegistry.cs:490` — the mirror sentence justifying the **opposite** duplicate policy | ⭐ same correction. ⛔ These two comments are each other's cross-reference, so fixing one alone leaves a contradiction |
 
-⚠ Small, but it is the kind that costs a session: a reader deciding whether HSM carries a manifest gets
-the wrong answer from the only place that looks authoritative. ⭐ **One-line fix, in this batch.**
+⚠ ⑴ is small but it is the kind that costs a session — a reader deciding whether HSM carries a manifest
+gets the wrong answer from the only place that looks authoritative. ⭐ ⑵ and ⑶ are **`D1`'s own
+as-built obligation**: the duplicate-policy argument is `R-149`'s, and leaving a stale *reason* under a
+correct *rule* is how the next session re-derives the wrong constraint.
 
 ---
 
@@ -267,3 +331,9 @@ the wrong answer from the only place that looks authoritative. ⭐ **One-line fi
 | `A4` | the resolver **reaches the world** — the `R4` rail's shape, through a behaviour bridge this time |
 | `A5` | `D2`'s refusal fires, with a red-proof |
 | `A6` | a `ResolverRef` in JSON **round-trips** through both DTOs and `ToPackable` |
+| ⭐⭐⭐ `A7` | a ref naming a **MISSING or RENAMED** resolver **fails the load with a diagnostic** — red-proved by renaming the graph. ⛔ **Closes the silent-`false` path of §3.2**, and it is the acceptance row the slice most needs |
+| ⭐⭐ `A8` | a ref whose variable `TypeId` ≠ the resolver's input `TypeId` is **refused at SCAN time**, not at attach — ⛔ `TryRun`'s in-sim throw is not an acceptable last line |
+| ⭐⭐ `A9` | a ref on a `Role == State` variable is **refused** *(`D5`)* |
+
+⚠ **`A7`–`A9` all land on `D1`'s clause-four pass**, which is why that clause is not optional: without
+it none of the three has anywhere to fire.
