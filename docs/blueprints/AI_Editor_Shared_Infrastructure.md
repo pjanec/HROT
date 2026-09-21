@@ -7,12 +7,38 @@ known-rot: ⚠ this document predates UXI-11 (selection unification, ☑ 2026-09
   ① 🔴 SharedEntitySelection (wrapped per-editor by EditorSelectionStore) is a SECOND entity-selection
      store, held in production by BOTH authoring hosts — EditorSubsystem.cs:360 and CgfSubsystem.cs:199 —
      alongside the ECS SelectionState component UXI-11 made the one truth everywhere else. ⛔ No UXI-11
-     slice addressed it; it is NOT a view. Whether it should become one is UNRULED.
-  ② ⚠ IGSelectionBridge (this file's DDS-selection-to-EditorSelectionStore seam) has exactly ONE
-     implementation, CallbackSelectionBridge, and ZERO production construction sites — the only
-     `new CallbackSelectionBridge` is in its own test. ⛔ Do NOT read that as dead: it is a latent
-     SECOND remote-selection ingress path that would bypass UXI-11 S-6's unified egress if wired.
-     Recorded, not proposed for deletion.
+     slice addressed it; it is NOT a view. Whether it should become one is UNRULED (CE-301).
+     ⭐⭐ SPLIT THE STORE BEFORE JUDGING IT, 2026-09-21 — EditorSelectionStore holds TWO unrelated things
+     and only ONE is an entity selection:
+       · ActiveAsset + per-asset sub-selection (BTree/HSM/Blueprint NODES) — ⛔ NOT an entity store,
+         entirely outside UXI-11's scope, and §5.1.1's per-asset argument is about THIS half only.
+       · SelectedEntity, delegated to SharedEntitySelection — ⭐ THIS is the second store, and it is one
+         cell, not a set: "ONE FACT ABOUT THE WORLD" in its own header.
+     ⇒ the open question is about ONE Entity? cell, not about the asset bus. §5.1 already asks for the
+     engine sync ("the single source of selection truth for all three editors plus the engine's
+     selection-sync (map, outliner, game viewport)") and §5.1.1 says SelectedEntity "stays global".
+  ② ⛔⛔ CORRECTED 2026-09-21 — the 2026-09-20 entry below was WRONG and is kept so nobody re-derives
+     it. It read: "IGSelectionBridge has exactly ONE implementation, CallbackSelectionBridge, and ZERO
+     production construction sites — the only `new CallbackSelectionBridge` is in its own test."
+     📐 MEASURED: EditorSubsystem.cs:2092 constructs it and :2105 calls Connect(_aiEditorSelectionStore),
+     inside Initialize(), unconditionally, no #if. The ONE implementation is right; "zero production
+     sites" is not. ⚠ A graph query that misses a construction site looks identical to a real absence —
+     corroborate with grep before any zero (CLAUDE.md ③).
+     ⭐ WHAT IS ACTUALLY TRUE, and it is worse than the retracted claim (CE-300):
+       · the bridge does NOT consume the DDS SelectionChangedEvent this file's §5.3 describes. It
+         subscribes to SelectionInteractionSystem.OnSelectionChanged — the LOCAL MAP-GESTURE callback.
+       · ⇒ the AI editors' SelectedEntity moves on a MAP CLICK AND NOTHING ELSE. An entity-inspector
+         click, an orbat select, a context-menu Select, a remote CMD_SET_SELECTION: none of them move it,
+         so every live-value/Watch/Details row keeps projecting the PREVIOUS entity.
+       · 🔴 This is the THIRD instance of one defect shape — UXI-11 S-3 fixed it inbound, S-6 outbound,
+         and this one sits TWO LINES BELOW the comment at EditorSubsystem.cs:2085-2090 that explains why
+         the neighbouring hand-sync was retired for being gesture-driven.
+       · on CGF the cell is INERT, not wrong: CgfSubsystem.cs:2033-2035 build three stores over one
+         SharedEntitySelection, and measured — no production writer AND no reader (CGF passes no
+         liveValueProvider to CreateRegistrar). Every reader of the cell lives in Hrot.Editor.
+  ③ ⚠ §5.4's per-window ChainToMap toggle is ROTTED by UXI-11 ruling ① ("inspector selection changes
+     global entity selection state … every host"): EntityInspectorPanel.ChainToMap was RETIRED at S-3,
+     with its operator toggle. Do not implement §5.4 as written.
 related-designs:
   - docs/UX/UX_Feature_Selection.md — owns UXI-11: the ECS SelectionState component, the one store, the
     request/notification protocol and the egress. It does NOT own this file's SharedEntitySelection.
