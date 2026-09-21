@@ -26,6 +26,13 @@ internal static class Stage2_Validate
     {
         new V_AssetStructure(),
         new V_DispatchKindCompatibility(),
+        // ⭐⭐ Q43-C1 places this "beside V_DispatchKindCompatibility", and the ORDER is load-bearing,
+        // not cosmetic: Stage2_Validate.Run RETURNS on the first fatal error, and a resolver that
+        // contains a side-effecting node usually trips that node's OWN rule first (a SetVariable with
+        // no declaration is BP1670, a Delay is a latency error). ⛔ Reported late, BP1675 would be
+        // unreachable for exactly the assets it exists to refuse — and the designer would be told
+        // "that variable does not exist" instead of "a resolver may not write".
+        new V_ResolverPurity(),             // Q43-C1: BP1675/BP1676/BP1677
         new V_NodeStructure(),
         new V_LinkStructure(),
         new V_GraphStructure(),

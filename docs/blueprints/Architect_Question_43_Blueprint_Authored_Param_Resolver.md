@@ -1,20 +1,31 @@
 <!--STATUS
 state: LIVE
-updated: 2026-08-18
-current-answer: section 5 - APPROVED IN FULL by the user 2026-08-18. A2' (the
-  Construction slot, replacing the withdrawn A2) plus B-F as recommended.
-  Nothing here is built.
-stale-below: nothing.
-known-rot: 2026-09-21 - the DECISIONS all re-measured TRUE (Construction still unconsumed,
-  MakeStruct/SetMembers still live, IHostVariableAccess still zero-implementer). But C1'/C2'
-  resolve PER VARIABLE, and a site reaches a variable via ExpressionTargetField - which HSM
-  STATES do not have (only BTree nodes and HSM transitions do). So this question's answers do
-  NOT reach the HSM parallel-regions case that CE-298 was filed for. That needs E3b-0 first:
-  a target field on the state's four action slots. See DESIGN_Occurrence_Scoped_Storage.md 28.6.
-  This is a premise that became load-bearing only when E3a made the HSM path per-occurrence -
-  not an error in the answers, which were framed from a BTree question.
-known-conflict: none. This is Q41-C3' promoted to its own question, as Q41 said it
-  should be; it does not disagree with Q41, it details it.
+updated: 2026-09-21
+current-answer: section 5 for the DECISIONS (APPROVED IN FULL by the user 2026-08-18: A2',
+  B2, C1, D, E, F). Section 8 for WHAT IS BUILT - read it before quoting section 1's
+  INVENTORY or section 6's sequencing, both of which section 8 corrects.
+stale-below: section 1's INVENTORY is INCOMPLETE - it never found
+  Behavior_Parameter_Resolver_Detailed_Design.md, which already owns this feature as gap G2
+  and decomposes it into R1-R5. Section 6's step 2 ("the C# resolver picker first") did NOT
+  happen and was not a hard dependency. Section 8 supersedes both.
+known-rot: 2026-09-21 - C1'/C2' resolve PER VARIABLE, and a site reaches a variable via
+  ExpressionTargetField - which HSM STATES did not have. E3b-0 has since given the state's
+  four action slots a target field, so that gap is CLOSED; see
+  DESIGN_Occurrence_Scoped_Storage.md 28.6.
+known-conflict: Behavior_Parameter_Resolver_Detailed_Design.md 8.3 rules a reuse strategy
+  that AVOIDS struct-typed graph inputs/outputs ("R3 - Hard (architectural)"), which
+  CONTRADICTS Q43-B2. MEASURED 2026-09-21: R3 already works - a Library graph input typed
+  `global::Ns.Struct` compiles and marshals today. Q43-B2 wins; 8.3's avoidance is stale.
+  This is Q41-C3' promoted to its own question, as Q41 said it should be.
+related-designs:
+  - Behavior_Parameter_Resolver_Detailed_Design.md - owns this feature as gap G2 and
+    decomposes it into R1-R5/E1-E6; R1+R2 (the LibraryFunctionDelegate seam) shipped
+    2026-07-14 and this question's inventory missed them.
+  - DESIGN_Parameter_Model.md - owns the three data shapes and the bake/overlay/resolve/write
+    order this refines (3.1, 4.7).
+  - DESIGN_Occurrence_Scoped_Storage.md - owns WHERE a resolved DTO lands (28, 28.7); this
+    question owns WHO computes it.
+  - Architect_Question_41... - owns the per-VARIABLE resolver selection (C1'/C2') this details.
 -->
 # ⭐ Architect Question 43 — **a parameter resolver authored AS A BLUEPRINT**
 
@@ -208,3 +219,77 @@ which would convert a loud failure into a silent all-zero params region. 📌 **
 | **letting a resolver WRITE the host blackboard** | ⛔ `Q41-A1`, approved: publish/subscribe only |
 | **`E7a`** *(populating `IHostVariableAccess`)* | ⭐ **orthogonal — a resolver blueprint receives `host` for free once `E7a` lands**; ⛔ this question does not build it |
 | **`Q42`'s guid migration** | independent |
+
+---
+
+## 8. ⭐⭐⭐ AS-BUILT `2026-09-21` — **the resolver compiles, registers and runs**
+
+> ⭐⭐ **Obligation ⑤:** the build deviated from this document in three measured ways. They are
+> recorded here, and the prior state is marked, rather than left only in a batch report.
+
+### 8.1 ⛔⛔ What §1's INVENTORY MISSED — **the owning design already existed**
+
+📌 §1 ran six graph queries and concluded *"three of the four hard parts already exist."* ⛔ It never
+found 📄 [`Behavior_Parameter_Resolver_Detailed_Design.md`](Behavior_Parameter_Resolver_Detailed_Design.md),
+which owns this feature as **gap `G2`** and decomposes it in §8.1 into `R1`–`R5`.
+
+| 📐 measured `2026-09-21` | |
+|---|---|
+| ⭐⭐⭐ **`R1` + `R2` SHIPPED `2026-07-14`** | `LibraryFunctionDelegate` + `BlueprintDefinition.Functions`. Its own XML doc says it verbatim: *"the runtime seam through which a blueprint-authored parameter resolver is dispatched."* |
+| ⛔⛔ **and had ZERO production consumers** for two months | only `LibraryFunction_InvokeTests` and `LibraryFunctionsDemo_ProofTests` read it |
+| ⇒ ⭐ **the delta was smaller than §5 `A2′` said** | not *"an emitter arm plus a picker filter"* — ⭐ **an emitter arm, a table, a validator.** The marshalling, the delegate and the registrar loop were already there |
+
+🔒 **The transferable lesson, and it is `CLAUDE.md`'s seam law again:** *"we need a shared X"* almost
+always means **X already exists and is under-adopted.** ⚠ The `INVENTORY` rule was FOLLOWED — six
+queries, all answered — ⛔ **but it queried the CODE graph only.** The design corpus was not swept for
+this question's own topic, and the one document that owned it was one `search_code` away.
+
+### 8.2 ⛔ `§8.3`'s "avoid R3" is STALE — **struct-typed graph pins already work**
+
+📄 `Behavior_Parameter_Resolver_Detailed_Design.md` §8.1 rates **`R3` — struct/DTO-typed graph
+inputs/outputs — *"Hard (architectural)"***, and its **§8.3 reuse strategy exists to AVOID it**: *"the
+blueprint function stays pure scalar-in / scalar-out."* ⛔ **That contradicts `Q43-B2`.**
+
+📐 **Measured by experiment, not by reading:** a `Library` asset whose graph input is typed
+`global::Hrot.AI.Behaviors.Brains.CgfNodes.MoveToLocationParams` **compiles today**, emits
+`public static …MoveToLocationParams Resolve(…MoveToLocationParams Dto)`, and the
+`LibraryFunctionDelegate` adapter marshals it with `MemoryMarshal.Read<T>` / `Unsafe.SizeOf<T>`.
+
+⭐ **Why it works although `StaticTypeRegistry` is a fixed scalar list:** the `global::` acceptance path
+takes any FQN as an unmanaged value type, and its **guessed 4-byte size is never used here** — a Library
+asset has no state layout (`StateSize = 0`) and the adapter sizes with the **real CLR** `Unsafe.SizeOf`.
+⇒ ⭐⭐ **`Q43-B2` stands; §8.3's decomposition is no longer needed** *(the reciprocal note is in that
+document)*.
+
+### 8.3 ⭐ The ONE thing that actually blocked `A2′` — **`BP5001`**
+
+📐 A `Library` asset whose only graph was `Construction` failed with **`BP5001`** — *"declares no
+Function graphs and no Macro graphs, so it exposes nothing to call"* — and emitted **nothing**. ⛔ Not
+the type system, not the emitter, not `StructureHash`: **one lowering rule.** ⭐ The widening is purely
+additive — it can only turn a hard error into a successful compile — so no asset that compiled before
+moved.
+
+### 8.4 ⭐⭐ What was built
+
+| piece | where |
+|---|---|
+| the **`Construction` emitter arm** — the consumer the kind was reserved for | `LibraryEmitter.EmitClass` *(the same emit as a Function graph, deliberately)* |
+| **`BlueprintDefinition.Resolvers`** — a separate INDEX, the same `LibraryFunctionDelegate` | `Fdp.Toolkits/Blueprints/BlueprintDefinition.cs` |
+| the registrar table, gated on `Count > 0` so no existing golden moves | `CSharpEmitter.EmitLibraryRegistration` |
+| **`V_ResolverPurity`** — `BP1675` purity · `BP1676` Library-only · `BP1677` the `(DTO in → same DTO out)` signature | `Compiler/Stages/V_ResolverPurity.cs` |
+| **the golden asset** — `ParamResolverDemo`, corpus 43 → 44 | `Hrot.AI.Behaviors/Assets/Blueprints/ParamResolverDemo.bp.json` |
+| **the completeness rail** — every concrete `Node` subclass is classified pure or side-effecting | `V_ResolverPurityTests.EveryNodeKind_IsClassifiedAsPureOrSideEffecting` |
+| **the end-to-end rail** — the real corpus asset compiles, loads, registers and REFINES a DTO | `BlueprintAuthoredResolver_InvokeTests` |
+
+⭐⭐ **Why `Resolvers` is its own table and not a `Functions` entry:** the graph KIND is the only thing
+that separates a resolver from a helper, and `Q43-A3` rejected *"a Library function plus an unchecked
+convention."* ⛔ One delegate type (ruling 9 — one invocation mechanism), two indexes.
+
+### 8.5 ⚠ Two honest gaps in `C1`'s enforcement, and one deviation from §6
+
+| ⚠ | |
+|---|---|
+| **`FunctionCallNode` is ALLOWED** and the validator cannot see inside a CLR callee | ⭐ refusing it would kill the motivating case — geo-authored params need `IGeographicTransform.ToCartesian`, and §8.2 `E3` names the CLR escape hatch as how a graph reaches one. ⇒ the callee's purity belongs to whoever registered it |
+| **`MacroCallNode` is DENIED** | ⛔ macros expand at Stage 5, AFTER this Stage-2 check, so an allowed macro could smuggle in any denied node |
+| ⛔ **§6's step 2 — the C# resolver picker — was SKIPPED** | 🔒 the UI lane is held by the user *(`2026-09-21`)* until the `ui` branch is integrated. ⭐ It was a de-risking step, not a hard dependency: resolvers register in CODE for now |
+| ⛔ **NO BINDING YET** | ⚠ nothing yet says *"behaviour X's params are refined by resolver Y.Z"*. `Resolvers` is a producer whose consumer is the next slice — ⭐ and that is exactly the `Functions`-shaped orphan this document should not repeat, so it is named here rather than left implicit |

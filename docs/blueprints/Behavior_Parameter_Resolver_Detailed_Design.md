@@ -11,6 +11,12 @@
 > ⭐⭐ **Extended since:** Instance blueprints now use this same pipeline, params belong to the
 > **occurrence** rather than the entity, and **sections replace any `Role`/`Scope` control**.
 > ⇒ **`DESIGN_Parameter_Model.md` wins on any disagreement.**
+>
+> ⭐⭐ **`2026-09-21` — related designs** *(reciprocal links, per the `related-designs` rule)*:
+> 📄 [`Architect_Question_43`](Architect_Question_43_Blueprint_Authored_Param_Resolver.md) owns the
+> **blueprint-authored** resolver — it details `G2`/`R1`–`R5`, and its §8 supersedes §8.3's `R3`
+> avoidance below · 📄 [`DESIGN_Occurrence_Scoped_Storage.md`](DESIGN_Occurrence_Scoped_Storage.md)
+> §28 owns **where a resolved DTO lands** (the occurrence slot), which this document predates.
 
 > **Status:** design draft (2026-07-13) — resolves the "how do JSON-authored behaviors parse/post-process parameters without a curated `AiBehaviorFactory`" question. Describes the **future state**; no code has been written for it yet. Supersedes the ad-hoc, factory-injected `ParseParams` closure model.
 > **Scope:** how a behavior (BTree or HSM, hardcoded or JSON-authored) declares its authored parameters, its runtime-usable parameters, and an optional **resolver** that bridges the two; how the resolver runs exactly once at activation; how behaviors register and are referenced **by name**; and the end-to-end authoring workflow. Does **not** re-specify blackboard bin-packing, variable roles/scopes, or blueprint compilation — those are owned by the docs cited below.
@@ -251,6 +257,32 @@ The editor is Instance-centric by omission: the data model supports all three ki
 | **E6** | "Detach authored shape" + divergence-detection UI | Lives on the behavior/BTree side, not the blueprint editor; nothing exists yet. |
 
 ### 8.3 Reuse strategy — avoid the two hard pieces (R3 + E4)
+
+> ## ⛔⛔ `2026-09-21` — **THIS SECTION'S PREMISE IS SUPERSEDED FOR `R3`. The reciprocal design is
+> [`Architect_Question_43`](Architect_Question_43_Blueprint_Authored_Param_Resolver.md) §8.**
+>
+> 📐 **Measured by experiment, not by reading:** a `Library` graph whose **input and output are typed
+> as a struct FQN** (`global::Hrot.AI.Behaviors.Brains.CgfNodes.MoveToLocationParams`) **compiles
+> today**, and the `LibraryFunctionDelegate` adapter marshals it correctly with
+> `MemoryMarshal.Read<T>` / `Unsafe.SizeOf<T>`.
+>
+> ⭐ **Why, although `StaticTypeRegistry` is still the fixed scalar/vector/Entity list this section
+> cites:** `TryResolve`'s `global::` acceptance path takes any FQN as an unmanaged value type, and its
+> **guessed 4-byte size is never consulted on this path** — a Library asset has no state layout
+> (`StateSize = 0`) and the emitted adapter sizes with the **real CLR** `Unsafe.SizeOf<T>`.
+>
+> ⇒ ⛔ **`R3` is NOT "Hard (architectural)" any more, so the decomposition below is not needed to reach
+> a blueprint-authored resolver.** ⭐ `Q43-B2` (*"it fills any struct type it names"*) is the live
+> answer, and it is what `ParamResolverDemo` ships.
+>
+> ⚠ **What still stands here:** `E4` (a cross-asset bridge from blueprint outputs to behaviour
+> variables) is untouched by that measurement, and the scalar-decomposition rail remains a legitimate
+> authoring style — it is simply no longer **required**.
+>
+> ⭐ **And `R1`/`R2` are DONE** (`2026-07-14`): `Q43` §8.1 records that this document's own seam had
+> **zero production consumers** for two months, which is why its inventory is worth reading before
+> planning any further resolver work.
+
 
 The only architecturally-hard pieces are R3 (struct pins in the general blueprint type system) and E4 (a cross-asset bridge from blueprint outputs to behavior variables). Both are **avoided** by riding the rail that stateful actions already use — the "**BTree owns layout, blueprint provides `TickCore`**" composition from `BTree_AiActionParameterBinding_Detailed_Design.md` §3.2, where the generated per-asset registrar emits an adapter that projects a struct at its baked offset and calls the blueprint's core function.
 

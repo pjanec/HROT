@@ -23,6 +23,26 @@ internal static class LibraryEmitter
             e.WriteLine();
         }
 
+        // ⭐⭐⭐ Q43-A2′ — the CONSTRUCTION graph arm. `Construction` was a RESERVED GraphKind with no
+        // emitter consumer anywhere in the compiler (Q23: "nothing in the runtime consumes
+        // GraphKind.Construction yet"); this is the consumer it was reserved for.
+        //
+        // ⭐⭐ Deliberately the SAME emit as a Function graph, not a parallel shape. A resolver is
+        // "a pure function from the authored DTO to the usable DTO" — Q43-D — which is exactly what
+        // EmitFunctionGraph already produces, and Q43-B2's struct-typed signature needs nothing extra
+        // (measured 2026-09-21: a `global::Ns.Struct` graph input already emits and marshals correctly
+        // through the LibraryFunctionDelegate adapter; §8.1's "R3 — struct/DTO-typed graph inputs,
+        // Hard (architectural)" is STALE).
+        //
+        // ⛔ What makes it a RESOLVER rather than a function is the KIND, carried through to a separate
+        // `BlueprintDefinition.Resolvers` index and checked for purity by V_ResolverPurity — never a
+        // naming convention (Q43-A3).
+        foreach (var graph in asset.Graphs.Where(g => g.Kind == IrGraphKind.Construction))
+        {
+            EmitFunctionGraph(e, asset, graph);
+            e.WriteLine();
+        }
+
         e.Outdent();
         e.WriteLine("}");
     }

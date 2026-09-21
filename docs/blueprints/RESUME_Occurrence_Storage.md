@@ -5,8 +5,9 @@ doc-type: LANE RESUMPTION for the `behaviors` lane — programme ②, OCCURRENCE
   ⛔ VERIFY against git before acting ("THE LEDGER MAY NOT ASSERT WHAT THE CODE IS").
 updated: 2026-09-21
 build-state: n/a — a resumption snapshot, not a design.
-current-answer: ⭐⭐⭐ READ §0a FIRST — "NEXT SESSION STARTS HERE" (written 2026-09-21 for an
-  imminent compaction). It names the one next task, its constraint, and what NOT to touch.
+current-answer: ⭐⭐⭐ READ §0b FIRST (Q43 slice 1 as-built, 2026-09-21), THEN §0a for the
+  standing constraints and holds. §0a's "THE NEXT TASK is Q43" is now PARTLY DONE - §0b says
+  which half landed and what the next slice is (the BINDING).
   Everything below §0a is accumulated background: true, dated, and NOT a to-do list.
   (historic head follows) THE NEXT ACTION WAS E3 (E7a + CE-298) — ✅ BOTH NOW DONE.
   O7 is SLICED (design §24.3):
@@ -195,6 +196,51 @@ RELEARN
 > 🔒 **User, `2026-09-20`: *"you take it from here, you are the one owning the design now."***
 > ⭐ **Nothing is half-finished.** `A1`, `A2`, `A3` and `A4` are committed, pushed and green; the tree
 > is clean. **Increment A is COMPLETE; `B1` and `B2` have landed.** §3 says what is next.
+
+## 0b. ⭐⭐⭐ LATEST — **`Q43` slice ① LANDED `2026-09-21`** *(read this before §0a)*
+
+### ⭐ What landed
+
+**A parameter resolver authored AS A BLUEPRINT now compiles, registers and runs.**
+📄 [`Architect_Question_43`](Architect_Question_43_Blueprint_Authored_Param_Resolver.md) **§8 is the
+as-built** — read it before §1's inventory or §6's sequencing, both of which it corrects.
+
+| | |
+|---|---|
+| the **`Construction` emitter arm** | `LibraryEmitter.EmitClass` — the consumer `GraphKind.Construction` was RESERVED for since `Q23`. Same emit as a Function graph, deliberately |
+| **`BlueprintDefinition.Resolvers`** | a separate INDEX, the same `LibraryFunctionDelegate` (ruling 9: one invocation mechanism, two indexes — the KIND is what marks a resolver, never a naming convention) |
+| **`V_ResolverPurity`** | `BP1675` purity · `BP1676` Library-only · `BP1677` the `(DTO in → same DTO out)` signature. ⭐ Ordered EARLY in `Stage2_Validate` on purpose: `Run` returns on the first fatal error, so reported late `BP1675` would be unreachable for the very assets it refuses |
+| **the golden** | `ParamResolverDemo.bp.json`, corpus **43 → 44** — the first corpus asset whose only graph is `Construction` |
+| **the completeness rail** | every concrete `Node` subclass is classified pure or side-effecting; a new node kind reddens it until someone classifies it |
+| **the end-to-end rail** | `BlueprintAuthoredResolver_InvokeTests` drives the REAL corpus asset: compile → Roslyn-load → registrar → invoke → assert the DTO was REFINED (`Speed` scaled, `X`/`Y`/`ArrivalRadius` preserved) |
+
+### 🔴🔴 THREE MEASURED CORRECTIONS — **do not re-derive these**
+
+| | |
+|---|---|
+| ⛔⛔ **`Q43` §1's INVENTORY missed the owning design** | 📄 `Behavior_Parameter_Resolver_Detailed_Design.md` owns this feature as gap **`G2`** and decomposes it into `R1`–`R5`. ⭐⭐ **`R1`+`R2` SHIPPED `2026-07-14`** — `LibraryFunctionDelegate` is documented verbatim as *"the runtime seam through which a blueprint-authored parameter resolver is dispatched"* — and had **ZERO production consumers** for two months. 🔒 The `INVENTORY` rule was obeyed but queried the CODE graph only; the design corpus was never swept for this question's own topic |
+| ⛔ **`§8.3`'s "R3 is Hard (architectural), avoid it" is STALE** | 📐 Measured by EXPERIMENT: a Library graph input typed `global::Ns.Struct` **compiles and marshals today**. The `global::` acceptance path's guessed 4-byte size is never consulted here (Library has no state layout; the adapter uses the real `Unsafe.SizeOf`). ⇒ `Q43-B2` wins; that document now carries the supersession banner |
+| ⭐ **the ONE real blocker was `BP5001`** | a Library whose only graph is `Construction` was refused as *"exposes nothing to call"*. Widened — purely additive, it can only turn a hard error into a compile |
+
+### ⛔ WHAT IS NOT DONE — **the binding**
+
+⚠ `Resolvers` is a **producer whose consumer is the next slice**: nothing yet says *"behaviour X's params
+are refined by resolver Y.Z"*. 🔒 That is named explicitly rather than left implicit, because an
+unconsumed table is exactly the `Functions`-shaped orphan this slice was correcting.
+⛔ `Q41-C2′` (the picker) is the authoring surface and the **UI lane is still held**.
+
+### ⭐ ALSO ANSWERED `2026-09-21` — **when can the legacy blackboards retire?** *(user question)*
+
+📄 The measured answer is folded into [`PLAN_Occurrence_Storage_Build.md`](PLAN_Occurrence_Storage_Build.md)
+rows **`E5`** and **`E5a`**. In one line each:
+
+| | |
+|---|---|
+| ⭐ **legacy `Blackboard1024`** *(`Fdp.Toolkit.Behavior.Components`)* | **SAFE NOW.** Zero production entities, no emitted thunk reads it, `O1` moved `SquadCognitiveState` out. Six production files of cleanup ⇒ frees a component id and ends `R-65`'s shared-offset hazard; buys **no** memory |
+| ⛔⛔ **NOT `BlueprintBlackboard1024`** | different type, same number — it **IS** the occurrence store's tier ladder |
+| ⛔ **`BrainBlackboard`** | **NOT YET.** Still the live root-params home AND the **SEED SOURCE** every hosted occurrence copies from. Gate: **the ROOT occurrence must own its params slot** *(design §21.2 — `O4` landed the hosted half only)* |
+
+---
 
 ## 0a. ⭐⭐⭐ NEXT SESSION STARTS HERE — *(written `2026-09-21`, pre-compaction)*
 

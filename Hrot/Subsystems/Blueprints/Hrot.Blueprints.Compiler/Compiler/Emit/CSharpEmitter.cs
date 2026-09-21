@@ -262,6 +262,30 @@ internal sealed class CSharpEmitter
             WriteLine("},");
         }
 
+        // ⭐⭐⭐ Q43-A2′ — the Construction graphs land in their OWN index, through the SAME adapter.
+        //
+        // ⭐ One adapter emitter, two tables: the marshalling problem is identical (blittable inputs in
+        // declaration order, return value out), so a second adapter would be ruling 9's "two
+        // implementations of one concept". ⛔ The tables are separate because the KIND is the only
+        // thing that distinguishes a resolver from a helper, and a binding site must not have to guess
+        // (Q43-A3).
+        //
+        // ⚠ Gated on Count > 0, like Functions above — the emitter-addition trap this programme paid
+        // for (O7b: emitting a constant unconditionally moved 11 golden baselines for assets that
+        // could not use the feature). With the gate, every asset without a Construction graph is
+        // byte-identical.
+        var constructionGraphs = asset.Graphs.Where(g => g.Kind == IrGraphKind.Construction).ToList();
+        if (constructionGraphs.Count > 0)
+        {
+            WriteLine("Resolvers = new global::System.Collections.Generic.Dictionary<string, global::Fdp.Toolkit.Blueprints.LibraryFunctionDelegate>(global::System.StringComparer.Ordinal)");
+            WriteLine("{");
+            Indent();
+            foreach (var g in constructionGraphs)
+                EmitLibraryFunctionAdapter(className, g);
+            Outdent();
+            WriteLine("},");
+        }
+
         Outdent();
         WriteLine("});");
     }

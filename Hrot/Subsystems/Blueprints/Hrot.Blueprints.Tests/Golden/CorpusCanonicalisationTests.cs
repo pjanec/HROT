@@ -274,7 +274,8 @@ public sealed class CorpusCanonicalisationTests
     public void TheManagedScopeIsTheCorpusPlusTheRecipes()
     {
         // ⭐ 42 → 43 in Batch 60: `LayoutAlignmentWitness` (PA-14) — see EmittedStateLayoutTests.
-        Assert.Equal(43, GoldenCorpus.EnumerateFiles().Count);
+        // ⭐ 43 → 44 in the Q43 build: `ParamResolverDemo`, the first Construction-graph asset.
+        Assert.Equal(44, GoldenCorpus.EnumerateFiles().Count);
         Assert.Equal(16, RecipeFiles().Count);
     }
 }

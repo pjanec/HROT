@@ -24,6 +24,29 @@ public sealed record BlueprintDefinition
     public IReadOnlyDictionary<string, LibraryFunctionDelegate> Functions { get; init; }
         = new Dictionary<string, LibraryFunctionDelegate>(StringComparer.Ordinal);
 
+    /// <summary>
+    /// ⭐⭐⭐ <b><c>Q43-A2′</c> — the asset's <c>Construction</c> graphs, keyed by graph name.</b>
+    /// 📄 <c>Architect_Question_43</c> §5 <c>A2′</c> · <c>Behavior_Parameter_Resolver_Detailed_Design.md</c> §8.1.
+    ///
+    /// <para>
+    /// ⭐⭐ <b>Same delegate type as <see cref="Functions"/> — ONE invocation mechanism</b> (ruling 9).
+    /// ⛔ A SEPARATE INDEX, because the graph KIND is what says <i>"this one is a resolver"</i>:
+    /// <c>Q43-A3</c> rejected <i>"a Library function plus an unchecked naming convention"</i>, and a
+    /// caller that had to pick a resolver out of <see cref="Functions"/> by convention would be exactly
+    /// that. ⇒ a binding site can only name something the compiler has already classified as
+    /// <c>Construction</c> and validated for purity (<c>BP1675</c>–<c>BP1677</c>).
+    /// </para>
+    ///
+    /// <para>
+    /// ⚠ <b>"Runs once at setup" is the MEANING, not "resolves params".</b> <c>Q43-A2′</c> is explicit
+    /// that <c>Construction</c> must not be squatted on: on a Library asset such a graph resolves
+    /// parameters; on an Instance asset the same shape would configure the instance. ⇒ this table says
+    /// only WHAT the graphs are, never what a caller does with them.
+    /// </para>
+    /// </summary>
+    public IReadOnlyDictionary<string, LibraryFunctionDelegate> Resolvers { get; init; }
+        = new Dictionary<string, LibraryFunctionDelegate>(StringComparer.Ordinal);
+
     // ── Parameters (DESIGN_Parameter_Model.md §3.3) ──────────────────────────
     //
     // ⭐⭐ An Instance payload is ONE struct: [BlueprintLatentCursor 16][Params N][State M].

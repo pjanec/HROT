@@ -1,0 +1,452 @@
+{
+  "$meta": {
+    "docType": "Hrot.Blueprints",
+    "schemaVersion": 2
+  },
+  "Header": {},
+  "AssetId": "00000143-0000-0000-0000-000000000001",
+  "Name": "ParamResolverDemo",
+  "Dispatch": "Library",
+  "TierHint": "Auto",
+  "IsWorldSingleton": false,
+  "Primitive": null,
+  "Declarations": [],
+  "ParameterOrder": null,
+  "WorkingStateOrder": null,
+  "VariableOrder": null,
+  "EventDispatchers": [],
+  "CustomEvents": [],
+  "CallablePeers": [],
+  "Graphs": [
+    {
+      "Id": "10000143-0000-0000-0000-000000000001",
+      "Name": "ResolveMoveTo",
+      "Kind": "Construction",
+      "Inputs": [
+        {
+          "Id": "a0000143-0000-0000-0000-000000000001",
+          "Name": "Dto",
+          "Type": {
+            "TypeId": "global::Hrot.AI.Behaviors.Brains.CgfNodes.MoveToLocationParams",
+            "IsArray": false,
+            "GenericArgs": []
+          },
+          "DefaultValueJson": null,
+          "Tooltip": null,
+          "Comment": null
+        }
+      ],
+      "Outputs": [
+        {
+          "Id": "a0000143-0000-0000-0000-000000000002",
+          "Name": "Result",
+          "Type": {
+            "TypeId": "global::Hrot.AI.Behaviors.Brains.CgfNodes.MoveToLocationParams",
+            "IsArray": false,
+            "GenericArgs": []
+          },
+          "DefaultValueJson": null,
+          "Tooltip": null,
+          "Comment": null
+        }
+      ],
+      "ExecOutputs": [],
+      "ExecInputs": [],
+      "Nodes": [
+        {
+          "kind": "EventEntry",
+          "EventTypeId": "",
+          "Id": "20000143-0000-0000-0000-000000000001",
+          "Pins": [
+            {
+              "Id": "e0000143-0000-0000-0000-000000000001",
+              "Name": "ExecOut",
+              "Direction": "Out",
+              "TypeRef": {
+                "TypeId": "",
+                "IsArray": false,
+                "GenericArgs": []
+              },
+              "IsExec": true,
+              "LinkedToIds": []
+            },
+            {
+              "Id": "d0000143-0000-0000-0000-000000000001",
+              "Name": "Dto",
+              "Direction": "Out",
+              "TypeRef": {
+                "TypeId": "global::Hrot.AI.Behaviors.Brains.CgfNodes.MoveToLocationParams",
+                "IsArray": false,
+                "GenericArgs": []
+              },
+              "IsExec": false,
+              "LinkedToIds": []
+            }
+          ],
+          "EditorMetadata": {
+            "X": 80,
+            "Y": 200,
+            "Comment": null
+          }
+        },
+        {
+          "kind": "BreakStruct",
+          "StructTypeId": "Hrot.AI.Behaviors.Brains.CgfNodes.MoveToLocationParams",
+          "Fields": [
+            {
+              "Name": "X",
+              "TypeId": "System.Single"
+            },
+            {
+              "Name": "Y",
+              "TypeId": "System.Single"
+            },
+            {
+              "Name": "Speed",
+              "TypeId": "System.Single"
+            },
+            {
+              "Name": "ArrivalRadius",
+              "TypeId": "System.Single"
+            }
+          ],
+          "Id": "20000143-0000-0000-0000-000000000002",
+          "Pins": [
+            {
+              "Id": "d0000143-0000-0000-0000-000000000002",
+              "Name": "Value",
+              "Direction": "In",
+              "TypeRef": {
+                "TypeId": "global::Hrot.AI.Behaviors.Brains.CgfNodes.MoveToLocationParams",
+                "IsArray": false,
+                "GenericArgs": []
+              },
+              "IsExec": false,
+              "LinkedToIds": []
+            },
+            {
+              "Id": "d0000143-0000-0000-0000-000000000003",
+              "Name": "X",
+              "Direction": "Out",
+              "TypeRef": {
+                "TypeId": "System.Single",
+                "IsArray": false,
+                "GenericArgs": []
+              },
+              "IsExec": false,
+              "LinkedToIds": []
+            },
+            {
+              "Id": "d0000143-0000-0000-0000-000000000004",
+              "Name": "Y",
+              "Direction": "Out",
+              "TypeRef": {
+                "TypeId": "System.Single",
+                "IsArray": false,
+                "GenericArgs": []
+              },
+              "IsExec": false,
+              "LinkedToIds": []
+            },
+            {
+              "Id": "d0000143-0000-0000-0000-000000000005",
+              "Name": "Speed",
+              "Direction": "Out",
+              "TypeRef": {
+                "TypeId": "System.Single",
+                "IsArray": false,
+                "GenericArgs": []
+              },
+              "IsExec": false,
+              "LinkedToIds": []
+            },
+            {
+              "Id": "d0000143-0000-0000-0000-000000000006",
+              "Name": "ArrivalRadius",
+              "Direction": "Out",
+              "TypeRef": {
+                "TypeId": "System.Single",
+                "IsArray": false,
+                "GenericArgs": []
+              },
+              "IsExec": false,
+              "LinkedToIds": []
+            }
+          ],
+          "EditorMetadata": {
+            "X": 320,
+            "Y": 200,
+            "Comment": null
+          }
+        },
+        {
+          "kind": "Literal",
+          "TypeId": "System.Single",
+          "ValueJson": "0.2777778f",
+          "Id": "20000143-0000-0000-0000-000000000003",
+          "Pins": [
+            {
+              "Id": "d0000143-0000-0000-0000-000000000010",
+              "Name": "Value",
+              "Direction": "Out",
+              "TypeRef": {
+                "TypeId": "System.Single",
+                "IsArray": false,
+                "GenericArgs": []
+              },
+              "IsExec": false,
+              "LinkedToIds": []
+            }
+          ],
+          "EditorMetadata": {
+            "X": 320,
+            "Y": 420,
+            "Comment": null
+          }
+        },
+        {
+          "kind": "BinaryOp",
+          "Operator": "Multiply",
+          "Id": "20000143-0000-0000-0000-000000000004",
+          "Pins": [
+            {
+              "Id": "d0000143-0000-0000-0000-000000000011",
+              "Name": "A",
+              "Direction": "In",
+              "TypeRef": {
+                "TypeId": "System.Single",
+                "IsArray": false,
+                "GenericArgs": []
+              },
+              "IsExec": false,
+              "LinkedToIds": []
+            },
+            {
+              "Id": "d0000143-0000-0000-0000-000000000012",
+              "Name": "B",
+              "Direction": "In",
+              "TypeRef": {
+                "TypeId": "System.Single",
+                "IsArray": false,
+                "GenericArgs": []
+              },
+              "IsExec": false,
+              "LinkedToIds": []
+            },
+            {
+              "Id": "d0000143-0000-0000-0000-000000000013",
+              "Name": "Result",
+              "Direction": "Out",
+              "TypeRef": {
+                "TypeId": "System.Single",
+                "IsArray": false,
+                "GenericArgs": []
+              },
+              "IsExec": false,
+              "LinkedToIds": []
+            }
+          ],
+          "EditorMetadata": {
+            "X": 560,
+            "Y": 340,
+            "Comment": null
+          }
+        },
+        {
+          "kind": "SetMembers",
+          "StructTypeId": "Hrot.AI.Behaviors.Brains.CgfNodes.MoveToLocationParams",
+          "Fields": [
+            {
+              "Name": "X",
+              "TypeId": "System.Single"
+            },
+            {
+              "Name": "Y",
+              "TypeId": "System.Single"
+            },
+            {
+              "Name": "Speed",
+              "TypeId": "System.Single"
+            },
+            {
+              "Name": "ArrivalRadius",
+              "TypeId": "System.Single"
+            }
+          ],
+          "Id": "20000143-0000-0000-0000-000000000005",
+          "Pins": [
+            {
+              "Id": "d0000143-0000-0000-0000-000000000020",
+              "Name": "Source",
+              "Direction": "In",
+              "TypeRef": {
+                "TypeId": "global::Hrot.AI.Behaviors.Brains.CgfNodes.MoveToLocationParams",
+                "IsArray": false,
+                "GenericArgs": []
+              },
+              "IsExec": false,
+              "LinkedToIds": []
+            },
+            {
+              "Id": "d0000143-0000-0000-0000-000000000021",
+              "Name": "X",
+              "Direction": "In",
+              "TypeRef": {
+                "TypeId": "System.Single",
+                "IsArray": false,
+                "GenericArgs": []
+              },
+              "IsExec": false,
+              "LinkedToIds": []
+            },
+            {
+              "Id": "d0000143-0000-0000-0000-000000000022",
+              "Name": "Y",
+              "Direction": "In",
+              "TypeRef": {
+                "TypeId": "System.Single",
+                "IsArray": false,
+                "GenericArgs": []
+              },
+              "IsExec": false,
+              "LinkedToIds": []
+            },
+            {
+              "Id": "d0000143-0000-0000-0000-000000000023",
+              "Name": "Speed",
+              "Direction": "In",
+              "TypeRef": {
+                "TypeId": "System.Single",
+                "IsArray": false,
+                "GenericArgs": []
+              },
+              "IsExec": false,
+              "LinkedToIds": []
+            },
+            {
+              "Id": "d0000143-0000-0000-0000-000000000024",
+              "Name": "ArrivalRadius",
+              "Direction": "In",
+              "TypeRef": {
+                "TypeId": "System.Single",
+                "IsArray": false,
+                "GenericArgs": []
+              },
+              "IsExec": false,
+              "LinkedToIds": []
+            },
+            {
+              "Id": "d0000143-0000-0000-0000-000000000030",
+              "Name": "Value",
+              "Direction": "Out",
+              "TypeRef": {
+                "TypeId": "global::Hrot.AI.Behaviors.Brains.CgfNodes.MoveToLocationParams",
+                "IsArray": false,
+                "GenericArgs": []
+              },
+              "IsExec": false,
+              "LinkedToIds": []
+            }
+          ],
+          "EditorMetadata": {
+            "X": 800,
+            "Y": 200,
+            "Comment": null
+          }
+        },
+        {
+          "kind": "Return",
+          "Status": "Success",
+          "Id": "20000143-0000-0000-0000-000000000006",
+          "Pins": [
+            {
+              "Id": "e0000143-0000-0000-0000-000000000002",
+              "Name": "ExecIn",
+              "Direction": "In",
+              "TypeRef": {
+                "TypeId": "",
+                "IsArray": false,
+                "GenericArgs": []
+              },
+              "IsExec": true,
+              "LinkedToIds": []
+            },
+            {
+              "Id": "d0000143-0000-0000-0000-000000000040",
+              "Name": "Result",
+              "Direction": "In",
+              "TypeRef": {
+                "TypeId": "global::Hrot.AI.Behaviors.Brains.CgfNodes.MoveToLocationParams",
+                "IsArray": false,
+                "GenericArgs": []
+              },
+              "IsExec": false,
+              "LinkedToIds": []
+            }
+          ],
+          "EditorMetadata": {
+            "X": 1060,
+            "Y": 200,
+            "Comment": null
+          }
+        }
+      ],
+      "Links": [
+        {
+          "FromNodeId": "20000143-0000-0000-0000-000000000001",
+          "FromPinId": "e0000143-0000-0000-0000-000000000001",
+          "ToNodeId": "20000143-0000-0000-0000-000000000006",
+          "ToPinId": "e0000143-0000-0000-0000-000000000002"
+        },
+        {
+          "FromNodeId": "20000143-0000-0000-0000-000000000001",
+          "FromPinId": "d0000143-0000-0000-0000-000000000001",
+          "ToNodeId": "20000143-0000-0000-0000-000000000002",
+          "ToPinId": "d0000143-0000-0000-0000-000000000002"
+        },
+        {
+          "FromNodeId": "20000143-0000-0000-0000-000000000001",
+          "FromPinId": "d0000143-0000-0000-0000-000000000001",
+          "ToNodeId": "20000143-0000-0000-0000-000000000005",
+          "ToPinId": "d0000143-0000-0000-0000-000000000020"
+        },
+        {
+          "FromNodeId": "20000143-0000-0000-0000-000000000002",
+          "FromPinId": "d0000143-0000-0000-0000-000000000005",
+          "ToNodeId": "20000143-0000-0000-0000-000000000004",
+          "ToPinId": "d0000143-0000-0000-0000-000000000011"
+        },
+        {
+          "FromNodeId": "20000143-0000-0000-0000-000000000003",
+          "FromPinId": "d0000143-0000-0000-0000-000000000010",
+          "ToNodeId": "20000143-0000-0000-0000-000000000004",
+          "ToPinId": "d0000143-0000-0000-0000-000000000012"
+        },
+        {
+          "FromNodeId": "20000143-0000-0000-0000-000000000004",
+          "FromPinId": "d0000143-0000-0000-0000-000000000013",
+          "ToNodeId": "20000143-0000-0000-0000-000000000005",
+          "ToPinId": "d0000143-0000-0000-0000-000000000023"
+        },
+        {
+          "FromNodeId": "20000143-0000-0000-0000-000000000005",
+          "FromPinId": "d0000143-0000-0000-0000-000000000030",
+          "ToNodeId": "20000143-0000-0000-0000-000000000006",
+          "ToPinId": "d0000143-0000-0000-0000-000000000040"
+        }
+      ],
+      "LocalVariables": [],
+      "Comments": [],
+      "EditorMetadata": {
+        "ViewportX": 0,
+        "ViewportY": 0,
+        "ViewportZoom": 0
+      }
+    }
+  ],
+  "EditorMetadata": {
+    "Description": "Q43-A2\u0027 - a parameter resolver authored AS A BLUEPRINT. A Library asset whose only graph is a Construction graph (\u0027runs once at setup\u0027), which the compiler emits as a pure static method and the registrar publishes in BlueprintDefinition.Resolvers. It takes MoveToLocationParams in and returns it REFINED (Q43-D): the authored Speed is in km/h, the usable Speed is in m/s, so the graph breaks the DTO, scales Speed by 1/3.6 and copies the struct with that one member overwritten - X/Y/ArrivalRadius are left unwired and therefore preserved. Nothing here writes anything outside the value it returns, which is what V_ResolverPurity (BP1675) enforces.",
+    "Category": "Demo",
+    "Recipe": null
+  }
+}

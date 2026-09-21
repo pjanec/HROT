@@ -182,6 +182,12 @@ public static class DiagnosticCodes
     // against the declaration.
     public const string BP1674 = "BP1674";  // default value is not a literal of the declared type
 
+    // ⭐⭐⭐ Q43 — the blueprint-authored parameter resolver (a Construction graph on a Library asset).
+    // See V_ResolverPurity for the reasoning behind each; in one line apiece:
+    public const string BP1675 = "BP1675";  // a resolver graph contains a side-effecting node
+    public const string BP1676 = "BP1676";  // a Construction graph on a non-Library asset (no consumer)
+    public const string BP1677 = "BP1677";  // a resolver graph is not (one DTO in -> the same DTO out)
+
     // Stage 2 -- Validate (WhenNode rules)
     public const string BP2001 = "BP2001";  // WhenNode in unsupported dispatch
     public const string BP2002 = "BP2002";  // WhenNode missing required payload
