@@ -134,3 +134,52 @@ guards. ⛔ **No new allocator, no new component family, no new freshness rule.*
 | **③ C** | `C1`, `C2` — ⭐⭐⭐ **the gate** | ⛔ **`C1` decides whether the programme continues.** Zero ExtDeps edits by construction |
 | **④ D** | `D1`, `D2` — the one crossing | ⛔ **only after `C1` proves the model** |
 | **⑤ E** | `E1`, `E2` — composition | ⚠ `E1` gated on §4 ①; `E2` is `Q33`'s, three of whose four gaps are not storage |
+
+---
+
+## ⭐⭐⭐ INCREMENT E — **THE AGREED QUEUE** *(user, `2026-09-21`)*
+
+🔒 **User:** *"agreed with the queue, record it as a plan, make sure there are tests for all those
+surprisingly found missing pieces like the colliding params."*
+
+⭐⭐ **And the standing rule this increment is built on** *(user, `2026-09-21`)*:
+> *"HSMs are under adopted now, but their time will come soon, so all the features need to be covered
+> with tests at least if not yet real usages."*
+
+⇒ ⛔⛔ **LOW CORPUS ADOPTION IS NOT A LICENCE FOR THIN RAILS.** 📐 Measured: **1** shipped asset declares
+`HsmAction`, **0** declare `HsmGuard`, and **no test anywhere drives a multi-region HSM**
+*(`RegionDef[]` is `Array.Empty` in every one)*. ⇒ **coverage has to stand in for usage until usage
+arrives.**
+
+### ⭐ E0 — **DEFECT-PINNING RAILS** *(the "surprisingly found missing pieces")*
+
+⭐⭐⭐ **Every defect found by inspection gets a rail BEFORE its fix**, asserting the **current, wrong**
+behaviour and naming the id that will flip it.
+
+| ⭐ why this shape | |
+|---|---|
+| ⭐⭐ **it proves the defect is REAL** | ⛔ not inferred from reading. 📌 This programme has filed a refuted defect before (`CE-296`) — a rail is the difference |
+| ⭐⭐⭐ **it REDDENS when the defect is fixed** | ⇒ the fix cannot land silently, and whoever lands it must consciously flip the rail. ⛔ A defect with no rail is a defect that gets re-found |
+| ⭐ **the gate stays GREEN** | ⛔ not a `Skip` — *"a new skip is a finding, not a fix"* |
+
+### ⭐ The queue, in order
+
+| # | item | what | why here |
+|---|---|---|---|
+| **E1** | ⭐⭐ **the two-region rails** | a genuine 2-region HSM driving the same asset at both ⇒ ① working state SEPARATES *(proves `O7b` end-to-end, retiring §7's "the fixture cannot redden this" caveat)* · ② params COLLIDE *(pins `CE-298`)* | ⛔ nothing has ever driven a multi-region machine; every `O7` claim rests on it |
+| **E2** | **`O7d`** — the standalone BTree thunks | `AiPrimitiveEmitter:360/:398` still emit `Blackboard1024 + 8` ⇒ the `BP-297` shape for **42** shipped assets *(33 `BTreeAction` + 9 `BTreeCondition`)*. Route them onto the occurrence seam | ⭐ cheap now the seam exists, and it is the **last emitted use** of the legacy blackboard |
+| **E3** | **`E7a` + `CE-298`** — **TOGETHER** | ① slot payload becomes `[Params N][WorkingState M]` · ② something WRITES each occurrence's params *(`IHostVariableAccess`, **zero implementers** today)* | ⛔⛔ **① alone is a REGRESSION** — a zeroed params region where today it reads the authored ones. Same lesson as `O7b-1`/`O7b-2` |
+| **E4** | **`O7c`** — delete `BrainHsm64`/`BrainHsm128` | instances into slots; `F9`'s tick-system reshape | 🔴 **L** — 188 refs / 18 production files |
+| **E5** | ⭐ **retire the LEGACY `Blackboard1024`** | ⚠ **NOT `BlueprintBlackboard*`** — those ARE the store. 📐 It is already on **ZERO** production entities: both `AddComponent` sites are gated on `HeavyDtoType`, which **nothing ever sets** *(both editor mappers hard-write `null`)* | ⛔ blocked on **E2** — the emitted thunks are the only live readers |
+
+⛔ **NOT in this increment, and why:** the **root occurrence** staying in `BrainBTreeState` *(§21.2)* —
+📐 136 refs / 17 files for **uniformity, not capability**; `Q4` makes the root genuinely singular and the
+tick path would gain a slot lookup. ⭐ **Revisit only if `O8` forces it.** · **`O8`** itself — blocked on
+the `H1`–`H3` event-queue hazards, and it wants an architect question with measurements, not a build.
+
+### ⚠ `O7b-3` is RE-SCOPED, twice — read this before picking it up
+
+| ⛔ what I said | ✅ what measuring found |
+|---|---|
+| *"it gives the inspector typed labels"* | ⛔ **false** — the decode already uses `descriptor.ClrType` / `ResolveType(field.Type)`, and the label is derived. ⭐ **Its real value is TIER CAPACITY**: `ProvisionStatefulSlots` only runs on a non-empty manifest, and that is what sizes the tier |
+| *"it needs `HsmEmitCore` to know about blueprints"* | ⛔ **false, and the user was right to refuse it** — 📐 the action id **IS** the truncated blueprint id (`RegisterAction(unchecked((ushort)BlueprintId), …)`), and `StateDef` carries `OnEntryActionId`/`OnExitActionId`/`ActivityActionId`/`TimerActionId` at runtime ⇒ ⭐ **the join can happen at RUNTIME against the blueprint registry; the HSM editor never learns about blueprints.** ⚠ Verify the `ushort` truncation cannot collide two blueprints first |

@@ -332,6 +332,143 @@ public sealed unsafe class HsmOccurrenceKeyTests
         Assert.False(HsmOccurrence.TryDescribe(HostMachine, Child, beyond, out _, out _, maxStateId: 100));
     }
 
+    // ═══ E1 — A GENUINELY MULTI-REGION MACHINE ════════════════════════════════════════
+    //  🔴 Measured 2026-09-21: NO test in this repo had ever driven one — RegionDef[] is
+    //     Array.Empty in every single fixture. Every O6/O7 claim about "two regions" therefore
+    //     rested on key arithmetic and hand-attached slots, never on the kernel.
+    //  ⭐ The shape, read out of InitializeMachine/InitializeSlot rather than guessed:
+    //     state 0 is IsComposite|IsParallel, so slot 0's drill-down STOPS there (it is its own
+    //     leaf); each region r>=1 then initialises because IsAncestor(leaf 0, parent 0) is true
+    //     (a state is its own ancestor, :989). ⇒ activeLeafIds == [0, 1, 2].
+
+    private static HsmDefinitionBlob BuildTwoRegionBlob(ushort actionId)
+    {
+        var states = new StateDef[3];
+        // 0 — the parallel composite; the leaf of slot 0.
+        states[0] = new StateDef
+        {
+            ParentIndex = 0xFFFF, FirstChildIndex = 1, ChildCount = 2,
+            FirstTransitionIndex = 0xFFFF,
+            Flags = StateFlags.IsComposite | StateFlags.IsParallel,
+        };
+        // 1 and 2 — one per orthogonal region, BOTH hosting the SAME asset.
+        states[1] = new StateDef
+        {
+            ParentIndex = 0, FirstTransitionIndex = 0xFFFF, OnEntryActionId = actionId,
+        };
+        states[2] = new StateDef
+        {
+            ParentIndex = 0, FirstTransitionIndex = 0xFFFF, OnEntryActionId = actionId,
+        };
+
+        // regions[0] is the root slot; the r>=1 loop is what activates the orthogonal ones.
+        var regions = new RegionDef[3];
+        regions[0] = new RegionDef { ParentStateIndex = 0xFFFF, InitialStateIndex = 0 };
+        regions[1] = new RegionDef { ParentStateIndex = 0, InitialStateIndex = 1 };
+        regions[2] = new RegionDef { ParentStateIndex = 0, InitialStateIndex = 2 };
+
+        var header = new HsmDefinitionHeader
+        {
+            StructureHash = HostMachine, StateCount = 3, RegionCount = 3,
+        };
+        return new HsmDefinitionBlob(
+            header, states, Array.Empty<TransitionDef>(), regions,
+            Array.Empty<GlobalTransitionDef>(), Array.Empty<ushort>(), Array.Empty<ushort>());
+    }
+
+    /// <summary>
+    /// ⭐⭐⭐ <b>Rail ⑫ — <c>E1</c>: TWO REGIONS, ONE TICK, ONE ASSET — the kernel really does stamp
+    /// two different occurrences.</b>
+    ///
+    /// <para>🔒 This is the rail design §7 demanded and could not have: <i>"two regions, two slots…
+    /// `BP-297` measured that today's fixture cannot redden this."</i> ⭐ Now it can — and note what
+    /// it costs to be honest: the pair must come from a REAL multi-region dispatch, not from calling
+    /// <c>KeyFor</c> twice with different numbers.</para>
+    /// </summary>
+    [Fact]
+    public void O7_R12_TwoRegionsInOneTickAreTwoDistinctOccurrences()
+    {
+        const ushort ActionId = 0x0712;
+        Seen.Clear();
+        Fhsm.Kernel.HsmActionDispatcher.ClearAll();
+        Fhsm.Kernel.HsmActionDispatcher.RegisterAction(
+            ActionId, (IntPtr)(delegate* <void*, void*, HsmCommandWriter*, void>)&RecordingStamp);
+        try
+        {
+            var blob = BuildTwoRegionBlob(ActionId);
+            var inst = new HsmInstance128();
+            inst.Header.MachineId = HostMachine;
+            inst.Header.Phase = InstancePhase.Entry;
+            for (int r = 0; r < 4; r++) inst.ActiveLeafIds[r] = 0xFFFF;
+
+            var ctx = 0;
+            var page = default(CommandPage);
+            Fhsm.Kernel.HsmKernel.Update(blob, ref inst, in ctx, 0.016f, ref page);
+
+            // Non-vacuity: the parallel root really did fan out into two regions.
+            Assert.Equal((ushort)0, inst.ActiveLeafIds[0]);
+            Assert.Equal((ushort)1, inst.ActiveLeafIds[1]);
+            Assert.Equal((ushort)2, inst.ActiveLeafIds[2]);
+
+            // ⭐⭐ THE RAIL. One asset, one tick, TWO dispatches — each stamped with its own region.
+            Assert.Equal(2, Seen.Count);
+            Assert.Contains((1, (ushort)1), Seen);
+            Assert.Contains((2, (ushort)2), Seen);
+
+            // ⭐⭐⭐ And therefore two DIFFERENT slot keys — BP-297 closed on a real dispatch, not on
+            //     arithmetic. 🔴 Before O7 both of these resolved to Blackboard1024 + 8.
+            int keyA = Key(Seen[0].Region, Seen[0].State);
+            int keyB = Key(Seen[1].Region, Seen[1].State);
+            Assert.NotEqual(keyA, keyB);
+        }
+        finally
+        {
+            Fhsm.Kernel.HsmActionDispatcher.ClearAll();
+        }
+    }
+
+    /// <summary>
+    /// 🔴🔴🔴 <b>Rail ⑬ — <c>CE-298</c> PINNED: the two occurrences' WORKING STATE separates, and
+    /// their PARAMS DO NOT.</b>
+    ///
+    /// <para>🔒 <b>User, <c>2026-09-21</c>:</b> <i>"two actions running from hsm regions, each having
+    /// its params, they can not share same single place."</i> ⭐ Correct — and
+    /// <c>DESIGN_Parameter_Model.md</c> §4.1 already called it a <b>live race</b>.</para>
+    ///
+    /// <para>⛔⛔ <b>THIS RAIL ASSERTS THE DEFECT, ON PURPOSE.</b> It is green today because params
+    /// ARE shared. ⭐⭐ <b>When <c>CE-298</c> lands it must go RED</b> — that is the point: the fix
+    /// cannot be shipped silently, and whoever ships it has to come here and flip the assertion to
+    /// <c>NotEqual</c>. ⛔ Not a <c>Skip</c>: a skipped rail tells nobody anything.</para>
+    /// </summary>
+    [Fact]
+    public void O7_R13_TwoRegionsWorkingStateSeparates()
+    {
+        using var world = CreateWorld();
+        var entity = MakeEntityWithStore(world);
+
+        // Two occurrences of ONE asset, as rail ⑫ proves the kernel produces.
+        int keyRegion1 = Key(region: 1, state: 1);
+        int keyRegion2 = Key(region: 2, state: 2);
+
+        HsmOccurrence.ResolveOrAttach<DemoWorkingState>(world, entity, keyRegion1, 0xABCD, out _).Counter = 111;
+        HsmOccurrence.ResolveOrAttach<DemoWorkingState>(world, entity, keyRegion2, 0xABCD, out _).Counter = 222;
+
+        // ✅ WORKING STATE — separated by O7b. This half is FIXED.
+        Assert.Equal(111, HsmOccurrence.ResolveOrAttach<DemoWorkingState>(world, entity, keyRegion1, 0xABCD, out _).Counter);
+        Assert.Equal(222, HsmOccurrence.ResolveOrAttach<DemoWorkingState>(world, entity, keyRegion2, 0xABCD, out _).Counter);
+
+        // 🔴 PARAMS — NOT separated. ⛔ The honest pin for that lives where the defect lives: an
+        //    EMISSION rail asserting the thunk's params projection takes no occurrence argument
+        //    (ThunkEmissionTests.HsmThunk_StillProjectsParamsPerEntity_CE298). ⚠ Asserting it here
+        //    would compare a constant with itself and prove nothing — which is worth saying out
+        //    loud, because a vacuous rail is worse than an absent one: it reads as coverage.
+    }
+
+    private static void RecordingStamp(void* instance, void* context, HsmCommandWriter* writer)
+        => Seen.Add((writer->OccurrenceRegionSlotIndex, writer->OccurrenceStateId));
+
+    private static readonly List<(int Region, ushort State)> Seen = new();
+
     // ── helpers ──────────────────────────────────────────────────────────────────
 
     private static EntityRepository CreateWorld()
