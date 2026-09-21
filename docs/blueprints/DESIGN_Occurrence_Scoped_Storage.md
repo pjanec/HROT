@@ -3709,3 +3709,116 @@ than implied — pretending otherwise would be worse than the gap.
 | ⛔ **`C2′` — the resolver PICKER** | it is `Hrot.Hsm.Editor`, a **UI-lane** surface. 🔒 User, `2026-09-21`: *"with UI related parts let's wait, we will need first to integrate the stuff not yet merged from the ui branch."* ⇒ resolvers are registered in CODE until then |
 | ⛔ **`Q43`** — a resolver authored AS A BLUEPRINT | the `GraphKind.Construction` emitter arm + `V_ResolverPurity`. ⭐ Approved and unbuilt; deliberately held until this proves out |
 | ⚠ **the generated `ParseParams` hook for the ROOT path** | `C1′` as `Q41` words it. ⭐ The hosted half is what carried the capability; the root half is additive and has no blocked consumer |
+
+---
+
+## 29. ⛔ `P3` — **THE ROOT BEHAVIOUR'S PARAMS MOVE INTO A SLOT** *(DESIGN, `2026-09-21`)*
+
+> **`build-state: DESIGN`** — ⛔ nothing here is built. 📄 `PLAN_Occurrence_Storage_Build.md` "THE PATH"
+> `P3`; it is what makes `P4` *(retire `BrainBlackboard`)* possible.
+
+### 29.1 ⭐⭐ INVENTORY — **the LIVE params surface, re-measured after `E3a` + `P2`**
+
+```
+grep BehaviorParameters --include=*.cs (production)   -> 28 files / 60 refs
+```
+
+⛔⛔ **The plan's framing is now STALE, and by a lot.** It says `P3` re-homes *"the root behaviour's
+live params home — `AiPrimitiveEmitter` · `HsmBridgeEmitCore` · `JoinFormationExecutor` ·
+`PredicateCompiler`"*. 📐 Measured today: **`AiPrimitiveEmitter` has NO live root-params read left.**
+Its only two `BehaviorParameters` emits are `:461` *(the SEED, inside `freshlyAttached`)* and `:607`
+*(the HOST pointer for `IHostVariableAccess`)* — ⚠ the hits at `:389` and `:425` are **history
+comments**, not code. `E3a` already took the blueprint half.
+
+| # | what still reads the blackboard as the LIVE params home | where |
+|---|---|---|
+| ⭐⭐⭐ **A** | **the BTree per-node ADAPTERS** — three `BlackboardParamsExpression.At("bb", entry.Offset)` sites | `BTreeActionGenerator.cs:700,713,730` |
+| ⭐ **B1** | `JoinFormationExecutor.OnEnter` — `*(JoinFormationParams*)&bb.BehaviorParameters[0]`, hand-written | `:88-91` |
+| ⭐ **B2** | `PredicateCompiler` — the replay-browser search projecting `TDto` at offset 0 | `:354-360` |
+| ⚠ **C** | the HSM bridge's `__parseParams` **write** target *(role ③)* | `HsmBridgeEmitCore.cs:243` |
+| ⚠ **D** | the ingress **commit** — memcpy of the parse shadow into the live component *(role ③)* | `BehaviorIngressSystem.cs:113` |
+| ✅ **E** | the SEED *(②)* and the HOST params pointer *(④)* — ⛔ **these STAY**, see 29.3 | `AiPrimitiveEmitter.cs:461,607` |
+
+⇒ ⭐⭐ **`A` is the whole of the remaining hard work, and it is `P2`'s twin.** The BTree adapter does
+exactly what `HsmActionGenerator` did an hour ago, through the **same** `BlackboardParamsExpression`
+home *(`BP-306`)*.
+
+### 29.2 ⭐⭐⭐ WHY `A` IS EASIER THAN `P2` WAS — **BTree already HAS a per-site key**
+
+⛔ `P2` needed a new identity *(`ComputeHsmStateKeyForCurated`)* because the HSM dispatcher registers
+**one thunk per `ushort` action id**, so there was nowhere to put a per-site discriminator.
+⭐⭐⭐ **The BTree bridge has the opposite shape and always did** — 🔒 `HsmParamBindings`' own header
+says so: *"the BTree bridge does not have this problem because it emits **one adapter per node** at a
+per-site key `{MethodFqn}@{offset}`."*
+
+⇒ ⭐ **`ComputeTreeStateKey(hostAssetId, siteNodeVisualId, childAssetId)` already exists** and already
+keys per node. `A` re-points the adapter at a slot resolved by **that** key — ⛔ no new identity, and
+no `P2-A`-style decision to make.
+
+### 29.3 🔴 WHAT MUST NOT MOVE — **the two roles that keep the blackboard alive until `P4`**
+
+```mermaid
+graph TD
+    subgraph ingress["assign time - BehaviorIngressSystem"]
+        SHADOW[parse shadow on the stack]
+        RESOLVER[curated ParseParams / resolver<br/>host is NULL here]
+        SCATTER[P3 NEW - scatter each slice into its slot]
+    end
+    subgraph dispatch["first dispatch - the emitted thunk"]
+        SEED[role 2 - SEED copy]
+        RESOLVE[role 2b - HostedParamResolvers.TryRun<br/>NEEDS host]
+        HOSTP[role 4 - IHostVariableAccess over the host params]
+    end
+    BB[BrainBlackboard.BehaviorParameters]
+    SLOT[occurrence slot - Params + WorkingState]
+
+    RESOLVER --> SHADOW
+    SHADOW --> SCATTER
+    SCATTER --> SLOT
+    SHADOW -.->|P3 RETIRES this commit| BB
+    BB --> SEED
+    SEED --> SLOT
+    SLOT --> RESOLVE
+    BB --> HOSTP
+    HOSTP --> RESOLVE
+
+    classDef gone stroke-dasharray: 5 5,stroke:#c00,color:#c00
+    class BB gone
+```
+
+> ⭐⭐ **Caption — what the picture shows that the prose hid.** Drawing the two columns forces the
+> question *"where does `host` come from?"*, and the answer is the edge `BB → HOSTP`: the host's
+> variable table. ⛔ **That edge is why `P3` cannot simply delete the blackboard** — it is `P4`'s job,
+> after the root's slot becomes the host table. ⚠ And `RESOLVE` sits in the **right-hand** column on
+> purpose: it runs at FIRST DISPATCH, not at assign time, because `IHostVariableAccess` does not
+> exist until the child activates *(`BehaviorIngressSystem.cs:100` passes `host: null` and says so)*.
+
+### 29.4 ⭐ The sequence — **assign time gains a scatter; first dispatch keeps its resolve**
+
+```mermaid
+sequenceDiagram
+    participant Ing as BehaviorIngressSystem
+    participant PP as ParseParams / curated resolver
+    participant Store as occurrence store
+    participant Thunk as emitted thunk
+
+    Ing->>Ing: provision slots (ALREADY EAGER today, :140-165)
+    Ing->>PP: parse into the stack shadow (host = null)
+    PP-->>Ing: packed variable table
+    Note over Ing,Store: P3 - scatter each state's slice into ITS slot
+    Ing->>Store: write slice per bound variable
+    Note over Ing: P3 - the memcpy into BrainBlackboard goes away
+    Thunk->>Store: ResolveOrAttach -> params already there
+    Thunk->>Thunk: role 2b resolve, with host in scope
+```
+
+> ⭐ **Caption.** The provisioning arrow is drawn as *already eager* because it is — `P3` adds a
+> scatter beside work that happens today, it does not introduce a new phase.
+
+### 29.5 ⚠ OPEN — **to settle before `build-state: READY-TO-BUILD`**
+
+| # | question | why it is not answered here |
+|---|---|---|
+| ⚠ **`P3-A`** | what key does the **root** behaviour's own params slot use? | ⭐ Hosted uses `ComputeHsmStateKey`, curated uses `…ForCurated`, BTree sites use `ComputeTreeStateKey`. ⛔ The ROOT has no site — it needs its own, and that is a `P2-A`-shaped decision |
+| ⚠ **`P3-B`** | do `B1`/`B2` read the root slot, or keep a helper? | ⭐ `JoinFormationExecutor` and `PredicateCompiler` are hand-written and outside the generators ⇒ they need a public accessor, which is new surface |
+| ⚠ **`P3-C`** | does the scatter replace the ingress commit, or run beside it for one release? | ⛔ Dual-write is `R-132`'s second producer; ⭐ but a clean cut breaks the 7 UI readers before the UI lane migrates them *(`P4`(a))* |
