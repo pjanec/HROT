@@ -288,6 +288,29 @@ not, and discards `view`/`self`/`time` *(inventory ⑦)*.
 | ⛔ **`Functions` is untouched** | it is a genuinely different concept — *"call this graph by name"* — and its `LibraryFunctionDelegate` is right for it |
 | ⚠ **this supersedes `Q43` §8.4's `Resolvers` row** | ⭐ shipped `2026-09-21` as provisional; the currency was explicitly deferred to this design |
 
+### 7.2 ⛔⛔ PRECEDENCE — **is a blueprint-authored resolver CURATED or GENERATED?** *(`R-132`)*
+
+🔒 **`R-132`, user `2026-08-23`:** *"if curated (hand-authored) exists, then no other is needed —
+having automatically generated is undesired in such a case."* ⛔ And its sharper half: **two producers
+for one slot bound by REGISTRATION ORDER is a race, not a precedence rule.**
+
+📐 **`R-132`'s mechanism, measured:** `BehaviorRegistry.RegisterResolver` is reached **only** from
+`CgfCuratedBehaviorRegistrar` ⇒ *"the presence of an overlay IS the signal that a human wrote a
+resolver for this behaviour."*
+
+⚠⚠ **A blueprint-authored resolver breaks that signal, and this is a NEW question `R-132` could not
+have anticipated.** It is **generated code** *(a `[BlueprintRegistrar]` emits it)* produced from a
+**hand-authored artefact** *(a designer drew the graph)*. ⇒ ⛔ **the C#-vs-emitted test no longer
+distinguishes "a human wrote this" from "a tool did."**
+
+| ⭐ the recommended answer — ⛔ **needs the user's nod before it is canon** | |
+|---|---|
+| ⭐⭐⭐ **rank by AUTHORSHIP, not by artefact kind** | ⭐ a blueprint resolver is **CURATED**: a human chose it, in a tool, for this behaviour. ⛔ What `R-132` actually refuses is a resolver **nobody asked for** — the BTree JSON generator's incidental `ParseParams`, emitted *because the asset declares a managed blackboard* |
+| ⭐⭐ **so the rank is: explicit binding (C# overlay **or** blueprint) ▸ incidental generated `ParseParams`** | ⇒ ⭐ the blueprint resolver joins the **overlay** tier, not the generated one |
+| ⛔⛔ **and TWO EXPLICIT bindings for one behaviour must THROW, never race** | 🔒 that is `R-132`'s own sentence applied to its successor: *"where a curated and a generated artefact can both fill a slot, curated wins **by declaration**, not by arriving first."* ⇒ **two curated ones is an authoring error and must be loud** |
+| ⚠ **this is a BINDING-time rule, so it lands with the binding, not with `R4`** | ⭐ recorded here so the binding pass cannot re-derive it wrongly — ⛔ `R4` itself changes no precedence |
+
+
 ---
 
 ## 8. ⛔ OUT OF SCOPE — **and named so it is not mistaken for done**
