@@ -21,6 +21,11 @@ related-designs:
     WHAT a parameter is and the rulings it must obey; it wins on any disagreement.
     ⭐ 2026-09-21: its 24-26 carry the AS-BUILT of the occurrence seam, and its 26.1 carries the
     rule that blocks 4.5 here — "storage without supply is a regression".
+  - DESIGN_Resolver_World_Reach.md — owns the RESOLVE stage's reach and selection: what a
+    resolver graph can read (R4), the one shape that serves all five supply paths
+    (ResolveParams<TDto>), and R-149's rule that a params REGION names its own resolver.
+    This document owns the bake/overlay/resolve/write ORDER; that one owns who runs the
+    middle step and with what in scope.
   - EXPLAINER_Where_Parameters_And_State_Live.md — the file:line measurement record behind §2.
   - Architect_Question_34_Blueprint_Occurrence_Identity.md — blueprint Instance slot identity.
 -->

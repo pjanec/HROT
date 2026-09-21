@@ -16,6 +16,18 @@ known-rot: 2026-09-21 - the DECISIONS all re-measured TRUE (Construction still u
 known-conflict: none known. Section 3 records where DESIGN_Parameter_Model.md's
   resolver tier turns out to be unreachable for managed assets; that is a finding,
   not a disagreement between documents.
+  2026-09-21 UPDATE to the known-rot above: E3b-0 HAS since given an HSM state's four
+  action slots an ExpressionTargetField, so the premise that blocked C1'/C2' from the
+  HSM parallel-regions case is CLOSED (DESIGN_Occurrence_Scoped_Storage.md 28.6).
+  And C2' (the per-variable resolver PICKER) is now split in two: the DATA half is
+  R-149's selection property, which lands without the editor; the PICKER half stays
+  held with the UI lane. See DESIGN_Resolver_World_Reach.md 7.2.
+related-designs:
+  - Architect_Question_43_Blueprint_Authored_Param_Resolver.md - C3' promoted; owns WHAT a
+    resolver blueprint is.
+  - DESIGN_Resolver_World_Reach.md - owns what a resolver graph can REACH (R4), the publishing
+    currency, and C2's DATA half (the selection property, R-149).
+  - DESIGN_Parameter_Model.md - owns the bake/overlay/resolve/write order this hooks into.
 -->
 # ⭐ Architect Question 41 — **can a blueprint drive a BTree node's parameters?**
 
