@@ -167,20 +167,34 @@ must stay. That conflated EFFORT with NEED and is WITHDRAWN.**
 
 ⇒ ⭐⭐⭐ **RETIREMENT IS THE TARGET.** ⛔ *"`BrainBlackboard` stops being a params store"* and *"`BrainBlackboard` goes away"* turn out to be **the same change**, because after `P3` the struct is empty.
 
-#### 🔴 `P4`'s ONE REAL DESIGN QUESTION — **what replaces the action's blackboard parameter?**
+#### ✅ `P4`'s DESIGN QUESTION IS **ANSWERED** — **the action is HANDED its DTO; it never looks** *(user ruling, `2026-09-21`)*
 
-⭐ Not *whether* to change the ABI — ⛔ that is settled — but **what the new signature is.** Today every
-BTree action is `(ref BrainBlackboard bb, ref BehaviorTreeState st, ref BTreeContext ctx, int pi)` and
-reads its params out of `bb`. ⚠ **Options, to be designed with `P4`:** drop the parameter and have the
-action reach its occurrence slot *(what the HSM thunks already do)*; or keep a type parameter that IS
-the occurrence accessor. ⛔ **Do not pick one here** — it wants the same measure-then-decide pass `P3`
-gets, and it is the item's main cost.
+> 🔒 **User, verbatim:** *"Action should get the param dto reference, not actively looking for it.
+> Action should not need to know where to look for params, it doesn't care."*
+
+⭐⭐⭐ **And the measurement is the good news: THIS IS ALREADY THE SHAPE AT THE BODY LEVEL.**
+
+| 📐 measured `2026-09-21` | |
+|---|---|
+| ⭐⭐⭐ **a curated `[SharedAiAction]` body ALREADY receives `ref TParams`** | `BlueprintLifecycleLibrary.cs:70` — `AttachInstanceBlueprint(ref AttachInstanceBlueprintParams dto, Entity self, EntityRepository world)`. ⛔ **It has never known where params live** |
+| ⭐⭐ **ALL the looking is in the GENERATED THUNK** | `HsmActionGenerator.EmitSharedAiActionThunk:749-788` does `GetComponentRW<BrainBlackboard>(bridge->Self)` → `Unsafe.As<byte, TDto>(BlackboardParamsExpression.At("bb", entry.Offset))` → `{Body}(ref field, self, repo)`. ⇒ **exactly two lines to replace with an occurrence-slot resolve** |
+| ⭐⭐⭐ **and the 4 raw bodies that DO take the blackboard NEVER USE IT** | `CgfNodes.cs:417,609` · `HillAttackTankNodes.cs:560,580` — `Action_Wander` and two `[BTreeDeactivator]`s. 📐 **All four work entirely off `ctx.World`/`ctx.Self`; the `blackboard` parameter is unused.** ⇒ they lose a **vestigial** parameter, not a capability |
+
+⇒ ⭐⭐⭐ **The ruling is not a redirection — it is already satisfied wherever an action touches params,
+and the four exceptions ignore the argument.** ⛔ **`P4` therefore changes NO hand-written body
+semantically:** it changes the **generated adapters**, `BlackboardParamsExpression`, and the
+`ActionRegistry<…>` type parameter, and drops 4 unused parameters.
+
+⚠ **What still wants care** *(effort, not doubt)*: the adapters are emitted by **four** generators
+*(`HsmActionGenerator`, the two `BTreeActionGenerator`s, the bridge emit cores)*, and
+`BlackboardParamsExpression` exists precisely because that expression **was once spelled four ways and
+one was wrong** *(`BP-306`)*. ⭐ **Change it in that ONE home** and the adapters follow.
 
 | ⭐⭐⭐ the two answers, plainly | |
 |---|---|
 | ⭐ **the RAIL** *(a)* | **`P1`** — one asset edit, no new C#, no tripwire tripped. ⭐⭐ **Then `P2` makes it a HAND-AUTHORED action**, which is the full form of the requirement |
 | ⭐ **the PARAMS UNIFICATION** *(b)* | **`P3`** — **28 files / 60 refs**, no declined prerequisite, no unowned design question. ⛔ **It does NOT depend on `O8`**, and `P3a` is gone. ⚠ **`P2` should land first** so the curated path is already on the seam when the root joins it |
-| ⭐⭐ **RETIREMENT** *(b, completed)* | **`P4`** — ⭐ **the struct is EMPTY after `P3`**, so this is deletion plus one design call: **what replaces the BTree action's blackboard parameter**. ⛔ **No true need was found to keep it** *(user ruling — the three claimed holds are refuted above)* |
+| ⭐⭐ **RETIREMENT** *(b, completed)* | **`P4`** — ⭐ **the struct is EMPTY after `P3`**, and the design call is **SETTLED**: the action is handed its DTO *(user ruling)*, which is already how every `[SharedAiAction]` body works. ⇒ **no hand-written body changes semantically**; the work is the **generated adapters** + `BlackboardParamsExpression` + the `ActionRegistry<…>` type parameter, plus 4 unused parameters dropped. ⛔ **No true need was found to keep the component** |
 
 ---
 
