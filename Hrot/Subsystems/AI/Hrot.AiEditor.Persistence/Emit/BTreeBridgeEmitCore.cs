@@ -491,7 +491,7 @@ public static class BTreeBridgeEmitCore
             sb.AppendLine($"{pad2}{Indent}{Indent}unsafe");
             sb.AppendLine($"{pad2}{Indent}{Indent}{{");
             sb.AppendLine($"{pad2}{Indent}{Indent}{Indent}ref var dto = ref Unsafe.As<byte, {dtoTypeFqn}>(");
-            sb.AppendLine($"{pad2}{Indent}{Indent}{Indent}{Indent}{BlackboardParamsExpression.At("bb", offset)});");
+            sb.AppendLine($"{pad2}{Indent}{Indent}{Indent}{Indent}{BlackboardParamsExpression.At("ctx.World", "ctx.Self", offset)});");
             sb.AppendLine($"{pad2}{Indent}{Indent}{Indent}return {methodRef}(ref dto, ref st, ref ctx);");
             sb.AppendLine($"{pad2}{Indent}{Indent}}}");
             sb.AppendLine($"{pad2}{Indent}}});");
@@ -546,7 +546,7 @@ public static class BTreeBridgeEmitCore
             sb.AppendLine($"{pad2}{Indent}{Indent}unsafe");
             sb.AppendLine($"{pad2}{Indent}{Indent}{{");
             sb.AppendLine($"{pad2}{Indent}{Indent}{Indent}ref var dto = ref Unsafe.As<byte, {dtoTypeFqn}>(");
-            sb.AppendLine($"{pad2}{Indent}{Indent}{Indent}{Indent}{BlackboardParamsExpression.At("bb", offset)});");
+            sb.AppendLine($"{pad2}{Indent}{Indent}{Indent}{Indent}{BlackboardParamsExpression.At("ctx.World", "ctx.Self", offset)});");
             sb.AppendLine($"{pad2}{Indent}{Indent}{Indent}return {methodRef}(ref dto, ref st, ref ctx);");
             sb.AppendLine($"{pad2}{Indent}{Indent}}}");
             sb.AppendLine($"{pad2}{Indent}}});");
@@ -644,7 +644,7 @@ public static class BTreeBridgeEmitCore
         sb.AppendLine($"{pad2}{Indent}{Indent}{{");
         sb.AppendLine($"{pad2}{Indent}{Indent}{Indent}// Project Params from BrainBlackboard (Slice-1 pattern).");
         sb.AppendLine($"{pad2}{Indent}{Indent}{Indent}ref var dto = ref Unsafe.As<byte, {dtoTypeFqn}>(");
-        sb.AppendLine($"{pad2}{Indent}{Indent}{Indent}{Indent}{BlackboardParamsExpression.At("bb", offset)});");
+        sb.AppendLine($"{pad2}{Indent}{Indent}{Indent}{Indent}{BlackboardParamsExpression.At("ctx.World", "ctx.Self", offset)});");
         // ⭐⭐⭐ A2b (PLAN_Occurrence_Storage_Build) — ONE seam call, not a hand-emitted tier ladder.
         //   📐 This used to emit the 16384 → 4096 → 1024 chain inline: three HasComponent/GetComponentRW/
         //      fixed arms plus a no-tier fallthrough, MULTIPLIED INTO EVERY GENERATED ASSEMBLY. A fourth
@@ -698,7 +698,7 @@ public static class BTreeBridgeEmitCore
         sb.AppendLine($"{pad2}{Indent}{Indent}{{");
         sb.AppendLine($"{pad2}{Indent}{Indent}{Indent}// Project Params from BrainBlackboard (Slice-1 pattern).");
         sb.AppendLine($"{pad2}{Indent}{Indent}{Indent}ref var dto = ref Unsafe.As<byte, {dtoTypeFqn}>(");
-        sb.AppendLine($"{pad2}{Indent}{Indent}{Indent}{Indent}{BlackboardParamsExpression.At("bb", offset)});");
+        sb.AppendLine($"{pad2}{Indent}{Indent}{Indent}{Indent}{BlackboardParamsExpression.At("ctx.World", "ctx.Self", offset)});");
         // ⭐⭐⭐ A2b (PLAN_Occurrence_Storage_Build) — ONE seam call, not a hand-emitted tier ladder.
         //   📐 This used to emit the 16384 → 4096 → 1024 chain inline: three HasComponent/GetComponentRW/
         //      fixed arms plus a no-tier fallthrough, MULTIPLIED INTO EVERY GENERATED ASSEMBLY. A fourth
@@ -1575,7 +1575,7 @@ public static class BTreeBridgeEmitCore
                 sb.AppendLine($"{pad2}{Indent}{Indent}{{");
                 sb.AppendLine($"{pad2}{Indent}{Indent}{Indent}// Project Params from BrainBlackboard (Slice-1 pattern).");
                 sb.AppendLine($"{pad2}{Indent}{Indent}{Indent}ref var dto = ref Unsafe.As<byte, {d.DtoTypeFqn}>(");
-                sb.AppendLine($"{pad2}{Indent}{Indent}{Indent}{Indent}{BlackboardParamsExpression.At("bb", d.DtoByteOffset)});");
+                sb.AppendLine($"{pad2}{Indent}{Indent}{Indent}{Indent}{BlackboardParamsExpression.At("ctx.World", "ctx.Self", d.DtoByteOffset)});");
                 // ⭐ A2b — the THIRD emitted ladder, and the one my own A2 census MISSED because it is
                 //   PARAMETERISED PER TIER (three calls to one helper) rather than written out inline.
                 //   ⚠ Same collapse, same seam; the deactivator returns void, so a miss just returns.
@@ -1604,7 +1604,7 @@ public static class BTreeBridgeEmitCore
                 sb.AppendLine($"{pad2}{Indent}{Indent}unsafe");
                 sb.AppendLine($"{pad2}{Indent}{Indent}{{");
                 sb.AppendLine($"{pad2}{Indent}{Indent}{Indent}ref var dto = ref Unsafe.As<byte, {d.DtoTypeFqn}>(");
-                sb.AppendLine($"{pad2}{Indent}{Indent}{Indent}{Indent}{BlackboardParamsExpression.At("bb", d.DtoByteOffset)});");
+                sb.AppendLine($"{pad2}{Indent}{Indent}{Indent}{Indent}{BlackboardParamsExpression.At("ctx.World", "ctx.Self", d.DtoByteOffset)});");
                 sb.AppendLine($"{pad2}{Indent}{Indent}{Indent}{methodRef}(ref dto, ref st, ref ctx);");
                 sb.AppendLine($"{pad2}{Indent}{Indent}}}");
                 sb.AppendLine($"{pad2}{Indent}}});");

@@ -442,7 +442,8 @@ internal static class AiPrimitiveEmitter
     /// (<c>DetachHostedOccurrenceSlots</c>): without it a re-assign's new JSON would never reach the
     /// slot, because this seed only runs when the slot is created.</para>
     /// </summary>
-    private static void EmitParamSeed(CSharpEmitter e, string offsetExpr, string hostExpr)
+    private static void EmitParamSeed(
+        CSharpEmitter e, string offsetExpr, string hostExpr, string worldExpr, string selfExpr)
     {
         e.WriteLine("if (freshlyAttached)");
         e.WriteLine("{");
@@ -456,9 +457,16 @@ internal static class AiPrimitiveEmitter
             e.WriteLine($"int __seedOffset = {offsetExpr};");
             offsetExpr = "__seedOffset";
         }
+        // 🔴 P3-C (2026-09-21): the seed's anchor is the entity's ROOT PARAMS SLOT, not the retired
+        //   BrainBlackboard component. ⭐ The offset is untouched — it still indexes INTO the same
+        //   packed variable table (§29.6), which is why this is one line and not an E3b-0 rewrite.
+        // ⚠ Declared INSIDE the freshlyAttached arm on purpose: the anchor THROWS when the entity has
+        //   no root params slot, and a thunk on an entity that legitimately has none must not pay that
+        //   on every dispatch — only on the one that would actually read the seed.
+        e.WriteLine($"ref byte __rootParams = ref global::Fdp.Toolkit.Behavior.RootParamsAccess.RootRef({worldExpr}, {selfExpr});");
         e.WriteLine("*__params = global::System.Runtime.CompilerServices.Unsafe.As<byte, Params>(");
         e.WriteLine("    ref global::System.Runtime.CompilerServices.Unsafe.AddByteOffset(");
-        e.WriteLine($"        ref bb.BehaviorParameters[0], (nint){offsetExpr}));");
+        e.WriteLine($"        ref __rootParams, (nint){offsetExpr}));");
         EmitHostedResolve(e, hostExpr);
         e.WriteLine("InitDefaultWorkingState((WorkingState*)global::System.Runtime.CompilerServices.Unsafe.AsPointer(ref ws));");
         e.Outdent();
@@ -557,7 +565,7 @@ internal static class AiPrimitiveEmitter
         e.WriteLine("    global::Fdp.Toolkit.Blueprints.Partitioning.OccurrenceKind.Blueprint, out bool freshlyAttached, out Params* __params);");
         // ⭐ Offset 0, and TRUE BY CONSTRUCTION here: standalone hosting is the single-
         //   occurrence case (the `@0` in its own registration key). ⛔ No site to bind.
-        EmitParamSeed(e, "0", "null");   // standalone: no host, so no host variables to read
+        EmitParamSeed(e, "0", "null", "ctx.World", "ctx.Self");   // standalone: no host variables
         e.WriteLine("ref var p = ref *__params;");
         e.WriteLine(tail);
     }
@@ -598,13 +606,12 @@ internal static class AiPrimitiveEmitter
         e.WriteLine("var bridge = (global::Fdp.Toolkit.Behavior.Systems.HsmKernelBridge*)context;");
         e.WriteLine("var world = (global::Fdp.Core.EntityRepository)global::System.Runtime.InteropServices.GCHandle.FromIntPtr(bridge->WorldHandle).Target!;");
         e.WriteLine();
-        e.WriteLine("// CE-297: the SEED for params comes from the blackboard, NOT from the kernel's");
-        e.WriteLine("//         instance pointer. E3a: it is a seed now, not the live home.");
-        e.WriteLine("ref var bb = ref world.GetComponentRW<global::Fdp.Toolkit.Behavior.Components.BrainBlackboard>(bridge->Self);");
         e.WriteLine("// E3b (§28.7): the HOST's params region, so a resolver can read the host's own");
         e.WriteLine("//   variables BY NAME through IHostVariableAccess — its first implementation.");
-        e.WriteLine("byte* __hostParams = (byte*)global::System.Runtime.CompilerServices.Unsafe.AsPointer(");
-        e.WriteLine("    ref bb.BehaviorParameters[0]);");
+        e.WriteLine("// CE-297: the SEED comes from HERE, not from the kernel's instance pointer.");
+        e.WriteLine("// P3-C: and 'here' is the entity's ROOT PARAMS SLOT — BrainBlackboard is retired.");
+        e.WriteLine("byte* __hostParams = global::Fdp.Toolkit.Behavior.RootParamsAccess.RequireRootBytes(");
+        e.WriteLine("    world, bridge->Self);");
         e.WriteLine();
         e.WriteLine("// O7/E3: this occurrence's OWN params AND working state, keyed by the (region, state)");
         e.WriteLine("//        the kernel stamped (O6) and by the hosting machine's id from the instance header.");
@@ -612,7 +619,8 @@ internal static class AiPrimitiveEmitter
         e.WriteLine("ref var ws = ref global::Fdp.Toolkit.Behavior.HsmOccurrence.ResolveOrAttach<Params, WorkingState>(");
         e.WriteLine("    world, bridge->Self, occurrenceKey, StructureHash, out bool freshlyAttached, out Params* __params);");
         EmitParamSeed(e, "global::Fdp.Toolkit.Behavior.HsmOccurrence.SeedParamsOffset(instance, writer)",
-                      "global::Fdp.Toolkit.Behavior.HsmHostVariableAccess.For(instance, __hostParams, global::Fdp.Toolkit.Behavior.BehaviorConstants.MaxBehaviorParamByteSize)");
+                      "global::Fdp.Toolkit.Behavior.HsmHostVariableAccess.For(instance, __hostParams, global::Fdp.Toolkit.Behavior.BehaviorConstants.MaxBehaviorParamByteSize)",
+                      "world", "bridge->Self");
         e.WriteLine("ref var p = ref *__params;");
         e.WriteLine(tail);
     }

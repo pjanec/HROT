@@ -42,7 +42,7 @@ public static class HullDownAttackRunRegistrar
                 unsafe
                 {
                     ref var dto = ref Unsafe.As<byte, global::Hrot.AI.Behaviors.Brains.HullDownAttackParams>(
-                        ref Unsafe.AddByteOffset(ref bb.BehaviorParameters[0], (nint)0));
+                        ref Unsafe.AddByteOffset(ref global::Fdp.Toolkit.Behavior.RootParamsAccess.RootRef(ctx.World, ctx.Self), (nint)0));
                     return global::Hrot.AI.Behaviors.Brains.HillAttackTankNodes.Action_CreepToAndBeyondSlot(ref dto, ref st, ref ctx);
                 }
             });
@@ -52,7 +52,7 @@ public static class HullDownAttackRunRegistrar
                 unsafe
                 {
                     ref var dto = ref Unsafe.As<byte, global::Hrot.AI.Behaviors.Brains.HullDownAttackParams>(
-                        ref Unsafe.AddByteOffset(ref bb.BehaviorParameters[0], (nint)0));
+                        ref Unsafe.AddByteOffset(ref global::Fdp.Toolkit.Behavior.RootParamsAccess.RootRef(ctx.World, ctx.Self), (nint)0));
                     return global::Hrot.AI.Behaviors.Brains.HillAttackTankNodes.Action_AimAndFireSpecific(ref dto, ref st, ref ctx);
                 }
             });
@@ -62,7 +62,7 @@ public static class HullDownAttackRunRegistrar
                 unsafe
                 {
                     ref var dto = ref Unsafe.As<byte, global::Hrot.AI.Behaviors.Brains.HullDownAttackParams>(
-                        ref Unsafe.AddByteOffset(ref bb.BehaviorParameters[0], (nint)0));
+                        ref Unsafe.AddByteOffset(ref global::Fdp.Toolkit.Behavior.RootParamsAccess.RootRef(ctx.World, ctx.Self), (nint)0));
                     return global::Hrot.AI.Behaviors.Brains.HillAttackTankNodes.Action_AbortEngagement(ref dto, ref st, ref ctx);
                 }
             });
@@ -72,7 +72,7 @@ public static class HullDownAttackRunRegistrar
                 unsafe
                 {
                     ref var dto = ref Unsafe.As<byte, global::Hrot.AI.Behaviors.Brains.HullDownAttackParams>(
-                        ref Unsafe.AddByteOffset(ref bb.BehaviorParameters[0], (nint)0));
+                        ref Unsafe.AddByteOffset(ref global::Fdp.Toolkit.Behavior.RootParamsAccess.RootRef(ctx.World, ctx.Self), (nint)0));
                     return global::Hrot.AI.Behaviors.Brains.HillAttackTankNodes.Action_ReverseToBaseline(ref dto, ref st, ref ctx);
                 }
             });

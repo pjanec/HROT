@@ -2,6 +2,7 @@ using System.Runtime.InteropServices;
 using CarKinem.Commands;
 using Fdp.Core.Logging;
 using Fdp.Core;
+using Fdp.Toolkit.Behavior;
 using Fdp.Toolkit.Behavior.Components;
 using Fdp.Toolkit.Behavior.Executors;
 using Fdp.Toolkit.Replication.Services;
@@ -85,12 +86,11 @@ namespace Fdp.Toolkit.Navigation.Executors
         /// <inheritdoc/>
         public unsafe void OnEnter(Entity entity, ref LocomotionChannel channel, EntityRepository world)
         {
-            // Read params written into BrainBlackboard.BehaviorParameters by BehaviorDefinition.ParseParams.
-            // Use ref to avoid stack-copying the struct (fixed buffer must stay on heap).
-            ref var bbRW = ref world.GetComponentRW<BrainBlackboard>(entity);
-            JoinFormationParams p;
-            fixed (byte* src = &bbRW.BehaviorParameters[0])
-                p = *(JoinFormationParams*)src;
+            // P3-C: read the params from the entity's ROOT PARAMS OCCURRENCE SLOT, where
+            // BehaviorDefinition.ParseParams commits them. 🔴 This used to be
+            // BrainBlackboard.BehaviorParameters, a per-entity component that is now retired.
+            JoinFormationParams p = *(JoinFormationParams*)
+                RootParamsAccess.RequireRootBytes(world, entity);
 
             // Resolve leader network ID → ECS entity.
             if (!_entityMap.TryGetEntity(p.LeaderNetworkId, out var leaderEntity))

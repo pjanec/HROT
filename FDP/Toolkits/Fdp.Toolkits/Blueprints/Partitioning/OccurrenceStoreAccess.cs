@@ -1,4 +1,5 @@
 using Fdp.Core;
+using Fdp.ModuleHost.Abstractions;
 using Fdp.Toolkit.Blueprints.Components;
 
 namespace Fdp.Toolkit.Blueprints.Partitioning;
@@ -94,6 +95,32 @@ public static unsafe class OccurrenceStoreAccess
 
         totalSize = spec.TotalSize;
         return spec.MemoryReadOnly(world, entity);
+    }
+
+    /// <summary>
+    /// ⭐⭐ <b>The <see cref="ISimulationView"/> form of <see cref="TryGetStoreReadOnly"/>, for the
+    /// surfaces that never hold an <see cref="EntityRepository"/>: gizmos, renderers, the debug API.</b>
+    ///
+    /// <para>⛔⛔ <b>Why this is not "just cast the view".</b> A view may be a read-only SNAPSHOT, and
+    /// <c>BlueprintTierSpec</c> exists precisely because the component fetch differs between the two
+    /// (<c>BlueprintTierSpec.cs:39</c> names the debug surfaces as the reason). ⇒ casting would either
+    /// throw on a snapshot or silently read the live world while rendering a snapshot frame.</para>
+    ///
+    /// <para>⚠ <b><c>P3-C</c> is what made this load-bearing.</b> Before it, a gizmo read behaviour
+    /// params straight off <c>BrainBlackboard</c> — an ordinary component every view can serve. The
+    /// params now live in the store, so every read-only surface needs this door.</para>
+    /// </summary>
+    public static byte* TryGetStoreInView(ISimulationView view, Entity entity, out int totalSize)
+    {
+        var spec = BlueprintTierTable.OfInView(view, entity);
+        if (spec is null)
+        {
+            totalSize = 0;
+            return null;
+        }
+
+        totalSize = spec.TotalSize;
+        return spec.MemoryReadOnlyInView(view, entity);
     }
 
     /// <summary>

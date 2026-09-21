@@ -66,25 +66,37 @@ namespace Fdp.Toolkit.Behavior.Systems
                 if (!_registry.TryGetDefinition(behaviorId, out var def)) continue;
 
                 // DEBT-035 fix: attempt ParseParams BEFORE writing BehaviorState/BrainBTreeState.
-                // Strategy: shadow-copy the live blackboard into stack memory, attempt parse on the
-                // shadow, and only on success write the shadow back + commit the behavior transition.
-                // This ensures a ParseParams failure leaves the entity 100% on the old behavior.
+                // Strategy: parse into stack memory and commit only on success, so a ParseParams
+                // failure leaves the entity 100% on the old behavior.
+                //
+                // ⭐⭐⭐ P3-C — THE CLEAN CUT (2026-09-21). 🔴 The shadow used to be copied FROM and
+                //   committed back TO a per-entity BrainBlackboard component. Both halves are gone:
+                //   the parsed bytes now land in the entity's ROOT PARAMS OCCURRENCE SLOT, which is
+                //   attached further down once the store is provisioned (§29.6 / §29.7 P3-C).
+                //
+                // ⛔ NOT a dual write. R-132's second producer, and in this codebase a temporary one
+                //   becomes permanent — the user ruled CLEAN CUT for exactly that reason.
                 if (def.ParseParams != null)
                 {
-                    if (!repo.HasComponent<BrainBlackboard>(evt.Entity))
-                    {
-                        // Behavior requires params but entity has no blackboard — skip.
-                        continue;
-                    }
-
-                    // Reuse the pre-allocated shadow buffer (cleared per iteration below).
-
-                    ref readonly var bbRO = ref repo.GetComponentRO<BrainBlackboard>(evt.Entity);
-                    fixed (BrainBlackboard* src = &bbRO)
+                    // ⭐⭐ SEED THE SHADOW FROM THE CURRENT ROOT SLOT, exactly as the blackboard copy
+                    //   did. It is the PREVIOUS behaviour's region — BehaviorState still names it,
+                    //   this line runs before the transition is committed — which is what makes a
+                    //   partial parse (an emitted parser writes only the variables the JSON mentions)
+                    //   behave as it always has.
+                    // ⛔ And ZERO it when there is none: the buffer is allocated ONCE outside the
+                    //   loop, so a stale event's bytes would otherwise leak into this one.
+                    // ⚠ The length comes from the PREVIOUS slot's own guard, never from the NEW
+                    //   behaviour's extent — the two differ, and using the new one overreads the old
+                    //   slot into whatever occurrence follows it.
                     fixed (byte* dst = shadow)
                     {
-                        Buffer.MemoryCopy(src, dst, BehaviorConstants.BrainBlackboardByteSize,
-                            BehaviorConstants.BrainBlackboardByteSize);
+                        shadow.Clear();
+                        if (RootParamsAccess.TryGetRootBytes(repo, evt.Entity, out byte* prev, out int prevLen)
+                            && prevLen > 0)
+                        {
+                            int copy = Math.Min(prevLen, BehaviorConstants.BrainBlackboardByteSize);
+                            Buffer.MemoryCopy(prev, dst, BehaviorConstants.BrainBlackboardByteSize, copy);
+                        }
                     }
 
                     // Attempt parse on the shadow.
@@ -109,15 +121,6 @@ namespace Fdp.Toolkit.Behavior.Systems
                     }
 
                     if (!parseOk) continue; // ParseParams failed — entity stays on old behavior entirely.
-
-                    // Parse succeeded: commit shadow back to the live blackboard.
-                    ref var bbW = ref repo.GetComponentRW<BrainBlackboard>(evt.Entity);
-                    fixed (byte* src = shadow)
-                    fixed (BrainBlackboard* dst = &bbW)
-                    {
-                        Buffer.MemoryCopy(src, dst, BehaviorConstants.BrainBlackboardByteSize,
-                            BehaviorConstants.BrainBlackboardByteSize);
-                    }
                 }
 
                 // ParseParams succeeded (or was not required). Commit behavior transition.
@@ -199,15 +202,26 @@ namespace Fdp.Toolkit.Behavior.Systems
                         byte* rootParams = RootParamsAccess.ResolveOrAttachRoot(
                             repo, evt.Entity, behaviorId, rootBytes, KindOf(def), out _);
 
-                        // ⛔ A null here means the store had no room. It is NOT silently ignored:
-                        //   the blackboard still carries the params this frame, so behaviour is
-                        //   unchanged — but the root slot is what P3-C will depend on, so the
-                        //   tier demand (CE-302) must keep room for it.
-                        if (rootParams != null)
-                        {
-                            fixed (byte* src = shadow)
-                                Buffer.MemoryCopy(src, rootParams, rootBytes, rootBytes);
-                        }
+                        // ⛔⛔ A null here USED TO BE TOLERABLE — the blackboard still carried the
+                        //   params, so the entity ran correctly and the miss was invisible. 🔴 After
+                        //   P3-C the slot is the ONLY home, so tolerating it means the behaviour runs
+                        //   on an all-zero params region: it does not crash, it just quietly does the
+                        //   wrong thing. ⇒ THROW, and name the two causes.
+                        // ⚠ This is the one place the toolkit's narrow contract (E-cap §27.2 — skip
+                        //   when the tier components are not registered) becomes visible to a host. It
+                        //   is deliberate: skipping is fine for a behaviour that merely MIGHT host an
+                        //   occurrence, and is not fine for one that HAS parameters.
+                        if (rootParams == null)
+                            throw new InvalidOperationException(
+                                $"Behaviour '{evt.BehaviorName}' parses {rootBytes} bytes of parameters, " +
+                                $"but entity {evt.Entity.Index} has nowhere to put them. Either the " +
+                                "BlueprintBlackboard* tier components are not registered on this world " +
+                                "(Hrot registers them in HrotSharedComponentRegistry; a bare test world " +
+                                "needs BlueprintTierTable.RegisterAll), or the entity's store had no " +
+                                "room, which means the tier demand under-counted (CE-302).");
+
+                        fixed (byte* src = shadow)
+                            Buffer.MemoryCopy(src, rootParams, rootBytes, rootBytes);
                     }
                 }
 

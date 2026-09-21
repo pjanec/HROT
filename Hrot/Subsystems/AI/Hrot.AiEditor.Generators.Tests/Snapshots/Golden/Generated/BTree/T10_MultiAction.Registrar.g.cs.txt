@@ -44,7 +44,7 @@ public static class T10_MultiActionRegistrar
                 unsafe
                 {
                     ref var dto = ref Unsafe.As<byte, global::Hrot.AI.Behaviors.Brains.DemoCounterNodes.DemoCounterParams>(
-                        ref Unsafe.AddByteOffset(ref bb.BehaviorParameters[0], (nint)0));
+                        ref Unsafe.AddByteOffset(ref global::Fdp.Toolkit.Behavior.RootParamsAccess.RootRef(ctx.World, ctx.Self), (nint)0));
                     return global::Hrot.AI.Behaviors.Brains.DemoCounterNodes.Action_IncrementCounter(ref dto, ref st, ref ctx);
                 }
             });
@@ -54,7 +54,7 @@ public static class T10_MultiActionRegistrar
                 unsafe
                 {
                     ref var dto = ref Unsafe.As<byte, global::Hrot.AI.Behaviors.Brains.DemoCounterNodes.DemoAccumParams>(
-                        ref Unsafe.AddByteOffset(ref bb.BehaviorParameters[0], (nint)8));
+                        ref Unsafe.AddByteOffset(ref global::Fdp.Toolkit.Behavior.RootParamsAccess.RootRef(ctx.World, ctx.Self), (nint)8));
                     return global::Hrot.AI.Behaviors.Brains.DemoCounterNodes.Action_AddStepToSum(ref dto, ref st, ref ctx);
                 }
             });
@@ -66,7 +66,7 @@ public static class T10_MultiActionRegistrar
                 unsafe
                 {
                     ref var dto = ref Unsafe.As<byte, global::Hrot.AI.Behaviors.Brains.DemoCounterNodes.DemoCounterParams>(
-                        ref Unsafe.AddByteOffset(ref bb.BehaviorParameters[0], (nint)0));
+                        ref Unsafe.AddByteOffset(ref global::Fdp.Toolkit.Behavior.RootParamsAccess.RootRef(ctx.World, ctx.Self), (nint)0));
                     return global::Hrot.AI.Behaviors.Brains.DemoCounterNodes.Condition_CounterBelowThreshold(ref dto, ref st, ref ctx);
                 }
             });

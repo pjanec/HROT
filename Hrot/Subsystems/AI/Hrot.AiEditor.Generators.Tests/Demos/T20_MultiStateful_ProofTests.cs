@@ -273,11 +273,11 @@ public sealed class T20_MultiStateful_ProofTests : IDisposable
 
     // ── Helper: read a DTO at a packed byte offset ────────────────────────────────
 
-    private static unsafe ref T ReadDto<T>(ref BrainBlackboard bb, int byteOffset)
+    // 🔴 P3-C: the DTO is projected from the entity's ROOT PARAMS SLOT, which is where the real
+    //   ingress above committed it. ⭐ Same offsets, same bytes — only the anchor moved (§29.6).
+    private static unsafe ref T ReadDto<T>(EntityRepository world, Fdp.Core.Entity entity, int byteOffset)
         where T : unmanaged
-        => ref Unsafe.As<byte, T>(
-               ref Unsafe.AddByteOffset(
-                   ref bb.BehaviorParameters[0], (nint)byteOffset));
+        => ref RootParamsTestHarness.ReadDto<T>(world, entity, byteOffset);
 
     // ── PROOF TEST 1 ─────────────────────────────────────────────────────────────
 
@@ -401,10 +401,9 @@ public sealed class T20_MultiStateful_ProofTests : IDisposable
 
         // ── Assert ParseParams wrote expected defaults ─────────────────────────────
         {
-            ref var bb = ref world.GetComponentRW<BrainBlackboard>(entity);
-            ref var cursorAParams = ref ReadDto<DemoCounterNodes.DemoCursorParams>(ref bb, CursorAParamOffset);
-            ref var cursorBParams = ref ReadDto<DemoCounterNodes.DemoCursorParams>(ref bb, CursorBParamOffset);
-            ref var counterParams = ref ReadDto<DemoCounterNodes.DemoCounterParams>(ref bb, CounterParamOffset);
+            ref var cursorAParams = ref ReadDto<DemoCounterNodes.DemoCursorParams>(world, entity, CursorAParamOffset);
+            ref var cursorBParams = ref ReadDto<DemoCounterNodes.DemoCursorParams>(world, entity, CursorBParamOffset);
+            ref var counterParams = ref ReadDto<DemoCounterNodes.DemoCounterParams>(world, entity, CounterParamOffset);
 
             cursorAParams.Limit.Should().Be(3, "ParseParams must have set cursorA.Limit=3");
             cursorBParams.Limit.Should().Be(5, "ParseParams must have set cursorB.Limit=5");
@@ -423,10 +422,9 @@ public sealed class T20_MultiStateful_ProofTests : IDisposable
 
         // ── Assert: BrainBlackboard DTOs are correct and disjoint ─────────────────
         {
-            ref var bb = ref world.GetComponentRW<BrainBlackboard>(entity);
-            ref var cursorAParams = ref ReadDto<DemoCounterNodes.DemoCursorParams>(ref bb, CursorAParamOffset);
-            ref var cursorBParams = ref ReadDto<DemoCounterNodes.DemoCursorParams>(ref bb, CursorBParamOffset);
-            ref var counterParams = ref ReadDto<DemoCounterNodes.DemoCounterParams>(ref bb, CounterParamOffset);
+            ref var cursorAParams = ref ReadDto<DemoCounterNodes.DemoCursorParams>(world, entity, CursorAParamOffset);
+            ref var cursorBParams = ref ReadDto<DemoCounterNodes.DemoCursorParams>(world, entity, CursorBParamOffset);
+            ref var counterParams = ref ReadDto<DemoCounterNodes.DemoCounterParams>(world, entity, CounterParamOffset);
 
             // Stateless IncrementCounter incremented once (tick 7, when both cursors returned Success).
             counterParams.Counter.Should().Be(1,

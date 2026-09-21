@@ -25,6 +25,13 @@ namespace Fdp.Toolkit.Behavior.Tests
             CreateFixture()
         {
             var world    = TestWorldFactory.Create();
+
+            // 🔴 P3-C: a behaviour's params live in an OCCURRENCE SLOT now, so a world that never
+            //   registered the tier components has nowhere to put them — and the ingress says so
+            //   loudly rather than dropping the parse. ⭐ Production registers these Hrot-wide
+            //   (HrotSharedComponentRegistry:174); a bare test world has to ask.
+            Fdp.Toolkit.Blueprints.Partitioning.BlueprintTierTable.RegisterAll(world);
+
             var registry = new BehaviorRegistry();
             var sys      = new BehaviorIngressSystem(registry);
             return (world, sys, registry);
@@ -65,11 +72,12 @@ namespace Fdp.Toolkit.Behavior.Tests
 
             sys.Execute(world, 0.016f);
 
-            // Verify: BrainBlackboard.BehaviorParameters[0..3] == 50.0f.
-            ref var blackboard = ref world.GetComponentRW<BrainBlackboard>(e);
-            var bbPtr = (BrainBlackboard*)Unsafe.AsPointer(ref blackboard);
-            var fb    = *(FleeBlackboard*)bbPtr->BehaviorParameters;
-            Assert.Equal(50.0f, fb.SafeDistance);
+            // 🔴 P3-C (2026-09-21): verify the ROOT PARAMS OCCURRENCE SLOT, not BrainBlackboard.
+            //   This rail is what caught the cut's one real gap — this behaviour declares a
+            //   ParseParams and NEITHER a manifest NOR a BlackboardLayoutType, so RootParamsBytes
+            //   returned 0 and the parse went nowhere. See RootParamsAccess.RootParamsBytes.
+            Assert.True(RootParamsAccess.TryGetRoot<FleeBlackboard>(world, e, out var fb));
+            Assert.Equal(50.0f, fb->SafeDistance);
 
             world.Dispose();
         }

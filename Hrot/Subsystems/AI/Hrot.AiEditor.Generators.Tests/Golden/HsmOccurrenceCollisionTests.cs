@@ -97,13 +97,21 @@ public sealed class HsmOccurrenceCollisionTests
         var expression = System.IO.File.ReadAllText(FindUp(System.IO.Path.Combine(
             "FDP", "Toolkits", "Fdp.Toolkits.Analyzers", "Shared", "BlackboardParamsExpression.cs")));
 
-        // The emitted body: ref Unsafe.AddByteOffset(ref bb.BehaviorParameters[0], (nint)<offset>)
-        Assert.Contains(".BehaviorParameters[0]", expression);
+        // 🔴 P3-C (2026-09-21) moved the ANCHOR a second time — BrainBlackboard is retired and the
+        //   region now lives in the entity's ROOT PARAMS OCCURRENCE SLOT. ⭐ The CLAIM this rail pins
+        //   is untouched: a baked, build-time constant offset, so one entity still has exactly one
+        //   region for this thunk to address. ⇒ the rail follows the expression again rather than
+        //   being deleted, exactly as it did for BP-306.
+        // The emitted body: ref Unsafe.AddByteOffset(ref RootParamsAccess.RootRef(w, e), (nint)<offset>)
+        Assert.Contains("\"ref global::Fdp.Toolkit.Behavior.RootParamsAccess.RootRef(\"", expression);
         Assert.Contains("(nint)\" + byteOffset", expression);
+        // ⚠ The retired spelling may survive in the file's PROSE — it explains what moved and why —
+        //   so the rail checks the EMITTED string, not the file text.
+        Assert.DoesNotContain("\"ref \" + blackboardExpr + \".BehaviorParameters[0]\"", expression);
 
         // ⭐ And the generator still reaches it through that one home — if it stopped, the offset
         //   could drift back to a second spelling without this rail noticing.
-        Assert.Contains("BlackboardParamsExpression.At(\"bb\", entry.Offset)", generator);
+        Assert.Contains("BlackboardParamsExpression.At(\"repo\", \"bridge->Self\", entry.Offset)", generator);
 
         // ⛔ And nothing in the thunk consults the partition allocator, which is where per-occurrence
         //    bytes would have to come from.

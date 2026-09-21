@@ -3890,3 +3890,43 @@ additive-first: the cut would have turned a silent no-op into silent zeroed para
 
 ⇒ ⭐⭐ **`P3` steps 1–3 are now safe to cut behind.** ⛔ Step 4 *(re-anchor the readers)* and the cut
 itself still land together — §29.7 `P3-C`.
+
+### 29.9 ✅ AS-BUILT `2026-09-21` — **`P3-C` THE CLEAN CUT, and the five things measuring it changed**
+
+⭐⭐ **The re-anchoring and the cut landed together**, as §29.7 `P3-C` required: cutting first blanks
+every params reader in one commit.
+
+#### ⭐ What moved
+
+| | |
+|---|---|
+| ⭐⭐⭐ **the EMITTERS — ONE edit, in `BlackboardParamsExpression`** | 📐 `BP-306` had already collapsed all four emitters onto one home, so `Base()`/`At()` changing from `ref {bb}.BehaviorParameters[0]` to `ref RootParamsAccess.RootRef(world, self)` re-anchored **45 generated files**. ⚠ The signature had to change shape — the old form took the name of a blackboard LOCAL, the new anchor needs `(world, entity)`, which each emitter spells differently (`ctx.World`/`ctx.Self`, `repo`/`bridge->Self`, `world`/`bridge->Self`) |
+| ⭐ **the hand-written readers** | `JoinFormationExecutor` · `PredicateCompiler` · `HillAttackGizmo` · `BrainBlackboardTranslator` |
+| ⭐ **the ingress** | the shadow is seeded from the CURRENT root slot and zeroed when there is none; the commit back into the component is **gone** |
+
+#### 🔴 THE FIVE FINDINGS — **each one a thing the design did not predict**
+
+| # | finding | why it matters |
+|---|---|---|
+| **①** | **`RootParamsBytes` returned 0 for a behaviour with a PARSER but no manifest and no `BlackboardLayoutType`** — and the original comment called that *"correctly means this behaviour has no params"*. ⛔ It does not: before the cut the whole 100-byte region existed whether declared or not. ⇒ that arm now reserves `MaxBehaviorParamByteSize` | 🔒 Found by `BehaviorIngress_ParsesFleeBlackboard_FromJson`, which is exactly what a rail is for. Silently dropping the parse would have been invisible in production |
+| **②** | **THREE reader postures, not one.** `Require` THROWS *(execution paths: emitted thunks, `JoinFormationExecutor`)*; `Try` returns false *(diagnostics: the translator, the gizmo)*; and the **replay search predicate** must `Try` because it runs over EVERY entity in a frame and "no params region" is an ordinary non-match | ⛔ Using the loud accessor in `PredicateCompiler` would turn a browse into a crash. ⭐ The posture is a property of the CALLER, not of the data |
+| **③** | **A read-only `ISimulationView` door was missing.** `HillAttackGizmo` is handed a view that may be a SNAPSHOT, and every `OccurrenceStoreAccess` entry point took an `EntityRepository`. ⇒ new `TryGetStoreInView` / `TryGetRootBytesInView`, built on `BlueprintTierSpec`'s existing view resolvers | ⚠ Before the cut a gizmo read params off an ordinary component, which every view serves. ⛔ Casting the view would throw on a snapshot or read the live world while drawing a snapshot frame |
+| **④** | **The toolkit's narrow contract becomes visible at assign.** `E-cap` (§27.2) SKIPS provisioning when the tier components are not registered. ⭐ That is right for a behaviour that merely MIGHT host an occurrence; ⛔ it is wrong for one that HAS parameters, which would then run on an all-zero region — no crash, just quietly wrong. ⇒ ingress now **throws**, naming both causes | 🔒 This is the one place `P3-C` widens what a host must do: a host that assigns a params-carrying behaviour must register the tiers. The user's ruling covers it — *"ABI can and must change"* |
+| **⑤** | **The proof tests could no longer hold a stack-local blackboard.** `T10`'s bodies were `var bb = new BrainBlackboard(); var ctx = new BTreeContext();` — **no world, no entity** — because params were a struct you could own. ⇒ they now build a real entity through `RootParamsTestHarness` | ⭐ Not a weakening: the assertions are about the same bytes at the same offsets, and the fixture is closer to production than a stack local ever was |
+
+#### ⚠ WHAT IS DELIBERATELY LEFT FOR `P4`
+
+⭐ **The two StructEdit/ImGui surfaces** — `BrainBlackboardRenderer` and `BrainBlackboardViewProvider` —
+are keyed on `typeof(BrainBlackboard)` and on the buffer path `$.BehaviorParameters`. ⛔ They cannot be
+re-anchored; they have to be **re-homed onto the occurrence inspector** (§25 already shows every
+occurrence, labelled and decoded), which is a `P4` job because it is the component's deletion that
+forces it. ⚠ **Between this commit and `P4` those two panels render zeros** — stated here rather than
+discovered.
+
+#### ✅ Gates
+
+| suite | result |
+|---|---|
+| `Fdp.Toolkits.Tests` | **2303 / 0** |
+| `Hrot.AiEditor.Generators.Tests` | **279 passed, 4 failed — the SAME 4 as the base commit**, measured by stashing the change and re-running *(`S3_BehaviorScopedThunkTests`, `S3_SharedSlotProvisioningTests` ×2, `T30_BehaviorScopedShared_ProofTests`)* |
+| BTree generated goldens | **14 files, 38 lines changed, +38/−38 — one-for-one anchor replacement, zero net movement**, which is the shape a pure re-anchoring must have |

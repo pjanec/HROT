@@ -341,24 +341,25 @@ namespace Fdp.Toolkit.ReplayBrowser.Search
         {
             var matcher = Expression.Lambda<BehaviorParamMatcherDelegate<TDto>>(condition, dtoParam).Compile();
             int stateTypeId = ComponentTypeRegistry.GetId(typeof(BehaviorState));
-            int bbTypeId = ComponentTypeRegistry.GetId(typeof(BrainBlackboard));
 
             return (repo, entity) =>
             {
                 if (!repo.HasComponentByTypeId(entity, stateTypeId)) return false;
-                if (!repo.HasComponentByTypeId(entity, bbTypeId)) return false;
 
                 ref readonly var state = ref repo.GetComponentRO<BehaviorState>(entity);
                 if (state.ActiveBehaviorHash != behaviorHash) return false;
 
-                ref readonly var bb = ref repo.GetComponentRO<BrainBlackboard>(entity);
                 unsafe
                 {
-                    fixed (byte* src = bb.BehaviorParameters)
-                    {
-                        ref TDto projected = ref Unsafe.AsRef<TDto>(src);
-                        return matcher(ref projected);
-                    }
+                    // ⚠ P3-C: the params live in the ROOT PARAMS OCCURRENCE SLOT now, not in a
+                    //   BrainBlackboard component. ⭐ TRY, not Require — a SEARCH PREDICATE runs over
+                    //   every entity in a replay frame and "this one has no params region" is an
+                    //   ordinary non-match, not a fault. ⛔ That is the one place the loud accessor
+                    //   would be wrong: it would turn a browse into a crash.
+                    if (!RootParamsAccess.TryGetRootBytes(repo, entity, out byte* src)) return false;
+
+                    ref TDto projected = ref Unsafe.AsRef<TDto>(src);
+                    return matcher(ref projected);
                 }
             };
         }

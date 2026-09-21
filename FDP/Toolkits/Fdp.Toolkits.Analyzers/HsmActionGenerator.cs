@@ -720,9 +720,8 @@ namespace Fdp.Toolkit.Behavior.Analyzers
             sb.AppendLine("            // corrupt the chunk arrays. Only read/write fields of existing components.");
             sb.AppendLine("            var bridge = (global::Fdp.Toolkit.Behavior.Systems.HsmKernelBridge*)contextPtr;");
             sb.AppendLine("            var repo   = (global::Fdp.Core.EntityRepository)global::System.Runtime.InteropServices.GCHandle.FromIntPtr(bridge->WorldHandle).Target!;");
-            sb.AppendLine("            ref var bb = ref repo.GetComponentRW<global::Fdp.Toolkit.Behavior.Components.BrainBlackboard>(bridge->Self);");
             sb.AppendLine("            ref var field = ref Unsafe.As<byte, " + entry.FieldTypeFqn + ">(");
-            sb.AppendLine("                " + BlackboardParamsExpression.At("bb", entry.Offset) + ");");
+            sb.AppendLine("                " + BlackboardParamsExpression.At("repo", "bridge->Self", entry.Offset) + ");");
             if (entry.IsHeavy)
             {
                 if (entry.IsHeavyManaged)
@@ -763,9 +762,10 @@ namespace Fdp.Toolkit.Behavior.Analyzers
             //   addressed the SAME BYTES, silently. It now resolves its OWN occurrence, keyed by the
             //   (region, state) the kernel stamped (O6) and by this action's compound key.
             //
-            // ⭐ The blackboard survives ONLY as the SEED, inside the freshlyAttached arm — the same
-            //   shape AiPrimitiveEmitter.EmitParamSeed emits for a hosted blueprint (E3a/E3b-0).
-            sb.AppendLine("            ref var bb = ref repo.GetComponentRW<global::Fdp.Toolkit.Behavior.Components.BrainBlackboard>(bridge->Self);");
+            // ⭐ The ROOT PARAMS REGION survives ONLY as the SEED, inside the freshlyAttached arm —
+            //   the same shape AiPrimitiveEmitter.EmitParamSeed emits for a hosted blueprint
+            //   (E3a/E3b-0). 🔴 P3-C (2026-09-21): that region is now the entity's ROOT PARAMS SLOT,
+            //   not BrainBlackboard — the anchor moved, the offset arithmetic did not (§29.6).
             sb.AppendLine("            int __occKey = global::Fdp.Toolkit.Behavior.HsmOccurrence.KeyForCurated(");
             sb.AppendLine("                instancePtr, \"" + entry.CompoundKey + "\", writer);");
             sb.AppendLine("            ulong __structureHash = " + HsmActionKey.Fnv64(entry.CompoundKey + "|" + entry.FieldTypeFqn)
@@ -781,8 +781,8 @@ namespace Fdp.Toolkit.Behavior.Analyzers
             //   struct. Neither is a blackboard address on its own.
             sb.AppendLine("                int __seedOffset = global::Fdp.Toolkit.Behavior.HsmOccurrence.SeedParamsOffset(instancePtr, writer);");
             sb.AppendLine("                *__params = Unsafe.As<byte, " + entry.FieldTypeFqn + ">(");
-            sb.AppendLine("                    ref Unsafe.AddByteOffset(ref bb.BehaviorParameters[0], (nint)(__seedOffset + "
-                          + entry.Offset + ")));");
+            sb.AppendLine("                    " + BlackboardParamsExpression.AtExpr(
+                              "repo", "bridge->Self", "__seedOffset + " + entry.Offset) + ");");
             sb.AppendLine("            }");
             sb.AppendLine("            _ = __ws;");
             sb.AppendLine("            ref var field = ref *__params;");

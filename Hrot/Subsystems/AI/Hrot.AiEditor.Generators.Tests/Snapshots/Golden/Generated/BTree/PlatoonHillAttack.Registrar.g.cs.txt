@@ -43,7 +43,7 @@ public static class PlatoonHillAttackRegistrar
                 unsafe
                 {
                     ref var dto = ref Unsafe.As<byte, global::Hrot.AI.Behaviors.Brains.PlatoonHillAttackParams>(
-                        ref Unsafe.AddByteOffset(ref bb.BehaviorParameters[0], (nint)0));
+                        ref Unsafe.AddByteOffset(ref global::Fdp.Toolkit.Behavior.RootParamsAccess.RootRef(ctx.World, ctx.Self), (nint)0));
                     return global::Hrot.AI.Behaviors.Brains.HillAttackCommanderNodes.Condition_AreAllAtBaseline(ref dto, ref st, ref ctx);
                 }
             });
@@ -57,7 +57,7 @@ public static class PlatoonHillAttackRegistrar
                 {
                     // Project Params from BrainBlackboard (Slice-1 pattern).
                     ref var dto = ref Unsafe.As<byte, global::Hrot.AI.Behaviors.Brains.PlatoonHillAttackParams>(
-                        ref Unsafe.AddByteOffset(ref bb.BehaviorParameters[0], (nint)0));
+                        ref Unsafe.AddByteOffset(ref global::Fdp.Toolkit.Behavior.RootParamsAccess.RootRef(ctx.World, ctx.Self), (nint)0));
                     // Resolve this occurrence's WorkingState across every tier, in one call (A2b).
                     const int __slotKey = 1299152117;
                     if (!global::Fdp.Toolkit.Blueprints.Partitioning.OccurrenceStoreAccess.TryResolveOccurrence(ctx.World, ctx.Self, __slotKey, out byte* __wsPtr))
@@ -79,7 +79,7 @@ public static class PlatoonHillAttackRegistrar
                 {
                     // Project Params from BrainBlackboard (Slice-1 pattern).
                     ref var dto = ref Unsafe.As<byte, global::Hrot.AI.Behaviors.Brains.PlatoonHillAttackParams>(
-                        ref Unsafe.AddByteOffset(ref bb.BehaviorParameters[0], (nint)0));
+                        ref Unsafe.AddByteOffset(ref global::Fdp.Toolkit.Behavior.RootParamsAccess.RootRef(ctx.World, ctx.Self), (nint)0));
                     // Resolve this occurrence's WorkingState across every tier, in one call (A2b).
                     const int __slotKey = 1299152117;
                     if (!global::Fdp.Toolkit.Blueprints.Partitioning.OccurrenceStoreAccess.TryResolveOccurrence(ctx.World, ctx.Self, __slotKey, out byte* __wsPtr))
@@ -101,7 +101,7 @@ public static class PlatoonHillAttackRegistrar
                 {
                     // Project Params from BrainBlackboard (Slice-1 pattern).
                     ref var dto = ref Unsafe.As<byte, global::Hrot.AI.Behaviors.Brains.PlatoonHillAttackParams>(
-                        ref Unsafe.AddByteOffset(ref bb.BehaviorParameters[0], (nint)0));
+                        ref Unsafe.AddByteOffset(ref global::Fdp.Toolkit.Behavior.RootParamsAccess.RootRef(ctx.World, ctx.Self), (nint)0));
                     // Resolve this occurrence's WorkingState across every tier, in one call (A2b).
                     const int __slotKey = 1299152117;
                     if (!global::Fdp.Toolkit.Blueprints.Partitioning.OccurrenceStoreAccess.TryResolveOccurrence(ctx.World, ctx.Self, __slotKey, out byte* __wsPtr))
@@ -123,7 +123,7 @@ public static class PlatoonHillAttackRegistrar
                 {
                     // Project Params from BrainBlackboard (Slice-1 pattern).
                     ref var dto = ref Unsafe.As<byte, global::Hrot.AI.Behaviors.Brains.PlatoonHillAttackParams>(
-                        ref Unsafe.AddByteOffset(ref bb.BehaviorParameters[0], (nint)0));
+                        ref Unsafe.AddByteOffset(ref global::Fdp.Toolkit.Behavior.RootParamsAccess.RootRef(ctx.World, ctx.Self), (nint)0));
                     // Resolve this occurrence's WorkingState across every tier, in one call (A2b).
                     const int __slotKey = 1299152117;
                     if (!global::Fdp.Toolkit.Blueprints.Partitioning.OccurrenceStoreAccess.TryResolveOccurrence(ctx.World, ctx.Self, __slotKey, out byte* __wsPtr))
@@ -145,7 +145,7 @@ public static class PlatoonHillAttackRegistrar
                 {
                     // Project Params from BrainBlackboard (Slice-1 pattern).
                     ref var dto = ref Unsafe.As<byte, global::Hrot.AI.Behaviors.Brains.PlatoonHillAttackParams>(
-                        ref Unsafe.AddByteOffset(ref bb.BehaviorParameters[0], (nint)0));
+                        ref Unsafe.AddByteOffset(ref global::Fdp.Toolkit.Behavior.RootParamsAccess.RootRef(ctx.World, ctx.Self), (nint)0));
                     // Resolve this occurrence's WorkingState across every tier, in one call (A2b).
                     const int __slotKey = 1299152117;
                     if (!global::Fdp.Toolkit.Blueprints.Partitioning.OccurrenceStoreAccess.TryResolveOccurrence(ctx.World, ctx.Self, __slotKey, out byte* __wsPtr))
@@ -167,7 +167,7 @@ public static class PlatoonHillAttackRegistrar
                 {
                     // Project Params from BrainBlackboard (Slice-1 pattern).
                     ref var dto = ref Unsafe.As<byte, global::Hrot.AI.Behaviors.Brains.PlatoonHillAttackParams>(
-                        ref Unsafe.AddByteOffset(ref bb.BehaviorParameters[0], (nint)0));
+                        ref Unsafe.AddByteOffset(ref global::Fdp.Toolkit.Behavior.RootParamsAccess.RootRef(ctx.World, ctx.Self), (nint)0));
                     // Resolve this occurrence's WorkingState across every tier, in one call (A2b).
                     const int __slotKey = 1299152117;
                     if (!global::Fdp.Toolkit.Blueprints.Partitioning.OccurrenceStoreAccess.TryResolveOccurrence(ctx.World, ctx.Self, __slotKey, out byte* __wsPtr))
@@ -191,7 +191,7 @@ public static class PlatoonHillAttackRegistrar
                 {
                     // Project Params from BrainBlackboard (Slice-1 pattern).
                     ref var dto = ref Unsafe.As<byte, global::Hrot.AI.Behaviors.Brains.PlatoonHillAttackParams>(
-                        ref Unsafe.AddByteOffset(ref bb.BehaviorParameters[0], (nint)0));
+                        ref Unsafe.AddByteOffset(ref global::Fdp.Toolkit.Behavior.RootParamsAccess.RootRef(ctx.World, ctx.Self), (nint)0));
                     // Resolve this occurrence's WorkingState across every tier, in one call (A2b).
                     const int __slotKey = 1299152117;
                     if (!global::Fdp.Toolkit.Blueprints.Partitioning.OccurrenceStoreAccess.TryResolveOccurrence(ctx.World, ctx.Self, __slotKey, out byte* __wsPtr))

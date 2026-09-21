@@ -274,6 +274,31 @@ public sealed unsafe class HsmOccurrenceKeyTests
         Assert.Contains("structural change", ex.Message);
     }
 
+    /// <summary>
+    /// ⭐⭐ Attaches this entity's ROOT PARAMS SLOT and returns its base — the fixture's stand-in for
+    /// what <c>BehaviorIngressSystem</c> does at assign time, since these rails drive the KERNEL
+    /// directly and never publish an <c>AssignBehaviorEvent</c>.
+    ///
+    /// <para>🔴 <b>Before <c>P3-C</c> this was <c>AddComponent(new BrainBlackboard())</c> plus a write
+    /// into its fixed buffer.</b> ⛔ The component is retired; the seed the emitted thunks read is the
+    /// slot, so the fixture has to build the slot or it is testing nothing.</para>
+    /// </summary>
+    private static byte* SeedRootParams(EntityRepository world, Entity entity)
+    {
+        const int BehaviourHash = 0x7E5701;
+
+        if (!world.HasComponent<Components.BehaviorState>(entity))
+            world.AddComponent(entity, new Components.BehaviorState());
+        ref var st = ref world.GetComponentRW<Components.BehaviorState>(entity);
+        st.ActiveBehaviorHash = BehaviourHash;
+
+        byte* p = RootParamsAccess.ResolveOrAttachRoot(
+            world, entity, BehaviourHash, BehaviorConstants.MaxBehaviorParamByteSize,
+            OccurrenceKind.Hsm, out _);
+        Assert.True(p != null, "the fixture's store had no room for a root params slot");
+        return p;
+    }
+
     private static Entity MakeEntityWithStore(EntityRepository world)
     {
         var entity = world.CreateEntity();
@@ -1425,14 +1450,11 @@ public sealed unsafe class HsmOccurrenceKeyTests
         var entity = MakeEntityWithStore(world);
 
         // ⭐ The SEED source: two ints in the packed params region, at the two offsets the two
-        //   states bind. This is what ingress would have written (role ③).
-        world.AddComponent(entity, new Components.BrainBlackboard());
-        ref var bb = ref world.GetComponentRW<Components.BrainBlackboard>(entity);
-        fixed (byte* p0 = &bb.BehaviorParameters[0])
-        {
-            *(int*)(p0 + 0) = RegionZeroValue;
-            *(int*)(p0 + 4) = RegionOneValue;
-        }
+        //   states bind. This is what ingress writes (role ③).
+        // 🔴 P3-C: that region is the ROOT PARAMS OCCURRENCE SLOT now, not BrainBlackboard.
+        byte* p0 = SeedRootParams(world, entity);
+        *(int*)(p0 + 0) = RegionZeroValue;
+        *(int*)(p0 + 4) = RegionOneValue;
 
         HsmParamBindings.ClearAll();
         Fhsm.Kernel.HsmActionDispatcher.ClearAll();
@@ -1533,14 +1555,12 @@ public sealed unsafe class HsmOccurrenceKeyTests
         BlueprintTierTable.RegisterAll(world);
         var entity = MakeEntityWithStore(world);
 
-        // ⭐ The SEED: two ints at the two offsets the two states bind (role ③'s output).
-        world.AddComponent(entity, new Components.BrainBlackboard());
-        ref var bb = ref world.GetComponentRW<Components.BrainBlackboard>(entity);
-        fixed (byte* p0 = &bb.BehaviorParameters[0])
-        {
-            *(int*)(p0 + 0) = RegionZeroValue;
-            *(int*)(p0 + 8) = RegionOneValue;
-        }
+        // ⭐ The SEED source: two ints in the packed params region, at the two offsets the two
+        //   states bind. This is what ingress writes (role ③).
+        // 🔴 P3-C: that region is the ROOT PARAMS OCCURRENCE SLOT now, not BrainBlackboard.
+        byte* p0 = SeedRootParams(world, entity);
+        *(int*)(p0 + 0) = RegionZeroValue;
+        *(int*)(p0 + 8) = RegionOneValue;
 
         HsmParamBindings.ClearAll();
         Fhsm.Kernel.HsmActionDispatcher.ClearAll();

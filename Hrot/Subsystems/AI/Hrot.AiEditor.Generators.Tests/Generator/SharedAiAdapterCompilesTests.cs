@@ -121,7 +121,10 @@ namespace Probe
         // ---- helpers -----------------------------------------------------------
 
         private static readonly Regex ProjectionRegex = new(
-            @"ref Unsafe\.AddByteOffset\(ref \w+\.BehaviorParameters(\[0\])?, \((nint|IntPtr)\)\d+\)",
+            // 🔴 P3-C: the anchor moved from BrainBlackboard to the ROOT PARAMS SLOT. ⭐ The claim this
+        //   rail makes — ONE spelling across the two emitters — is unchanged, so the pattern
+        //   follows the expression rather than the rail being deleted.
+        @"ref Unsafe\.AddByteOffset\(ref global::Fdp\.Toolkit\.Behavior\.RootParamsAccess\.RootRef\([^)]*\), \((nint|IntPtr)\)\d+\)",
             RegexOptions.Compiled);
 
         private static IReadOnlyList<string> ParamsProjections(string source) =>

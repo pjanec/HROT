@@ -697,7 +697,7 @@ namespace Fdp.Toolkit.Behavior.Analyzers
                 sb.AppendLine("                static (ref " + tb + " bb, ref global::Fbt.BehaviorTreeState _, ref " + tc + " ctx, int _) =>");
                 sb.AppendLine("                {");
                 sb.AppendLine("                    ref var field = ref Unsafe.As<byte, " + entry.FieldTypeFqn + ">(");
-                sb.AppendLine("                        " + BlackboardParamsExpression.At("bb", entry.Offset) + ");");
+                sb.AppendLine("                        " + BlackboardParamsExpression.At("ctx.World", "ctx.Self", entry.Offset) + ");");
                 if (entry.IsCondition)
                     sb.AppendLine("                    return global::" + entry.FullQualifiedMethodName + "(ref field, ctx.Self, ctx.World) ? global::Fbt.NodeStatus.Success : global::Fbt.NodeStatus.Failure;");
                 else
@@ -710,7 +710,7 @@ namespace Fdp.Toolkit.Behavior.Analyzers
                 sb.AppendLine("                static (ref " + tb + " bb, ref global::Fbt.BehaviorTreeState st, ref " + tc + " ctx, int pi) =>");
                 sb.AppendLine("                {");
                 sb.AppendLine("                    ref var field = ref Unsafe.As<byte, " + entry.FieldTypeFqn + ">(");
-                sb.AppendLine("                        " + BlackboardParamsExpression.At("bb", entry.Offset) + ");");
+                sb.AppendLine("                        " + BlackboardParamsExpression.At("ctx.World", "ctx.Self", entry.Offset) + ");");
                 sb.AppendLine("                    var status = global::" + entry.FullQualifiedMethodName + "(ref field, ctx.Self, ctx.World);");
                 EmitChannelClear(sb, entry.WritesChannels, "                    ");
                 sb.AppendLine("                    return status;");
@@ -727,7 +727,7 @@ namespace Fdp.Toolkit.Behavior.Analyzers
             sb.AppendLine("                static (ref " + tb + " bb, ref global::Fbt.BehaviorTreeState st, ref " + tc + " ctx, int pi) =>");
             sb.AppendLine("                {");
             sb.AppendLine("                    ref var field = ref Unsafe.As<byte, " + entry.FieldTypeFqn + ">(");
-            sb.AppendLine("                        " + BlackboardParamsExpression.At("bb", entry.Offset) + ");");
+            sb.AppendLine("                        " + BlackboardParamsExpression.At("ctx.World", "ctx.Self", entry.Offset) + ");");
             if (entry.IsHeavyManaged)
             {
                 // Managed component: fetch via GetComponent<T> (returns the class instance)

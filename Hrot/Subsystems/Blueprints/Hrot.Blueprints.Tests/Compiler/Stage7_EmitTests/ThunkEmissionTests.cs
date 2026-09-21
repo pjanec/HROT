@@ -188,10 +188,12 @@ public sealed class ThunkEmissionTests
         // ⭐⭐⭐ E3b-0 (§28.6): and the seed offset is the STATE'S OWN BINDING, not a literal 0 —
         //    that is what lets two parallel regions seed from different variables.
         Assert.Contains("int __seedOffset = global::Fdp.Toolkit.Behavior.HsmOccurrence.SeedParamsOffset(instance, writer);", src);
-        Assert.Contains("ref bb.BehaviorParameters[0], (nint)__seedOffset", src);
+        // 🔴 P3-C: the anchor is the ROOT PARAMS SLOT now; the OFFSET is what this rail is about.
+        Assert.Contains("ref __rootParams, (nint)__seedOffset", src);
+        Assert.Contains("RootParamsAccess.RootRef(world, bridge->Self)", src);
 
         // ⛔ …and the HSM thunk no longer bakes a literal 0 anywhere.
-        Assert.Equal(0, CountOccurrences(src, "ref bb.BehaviorParameters[0], (nint)0"));
+        Assert.Equal(0, CountOccurrences(src, "ref __rootParams, (nint)0"));
     }
 
     /// <summary>
@@ -216,7 +218,7 @@ public sealed class ThunkEmissionTests
 
         var src = EmitAndGetSource(asset);
 
-        Assert.Contains("ref bb.BehaviorParameters[0], (nint)0", src);
+        Assert.Contains("ref __rootParams, (nint)0", src);
         Assert.DoesNotContain("SeedParamsOffset", src);
 
         // ⭐ C1′ — it still gets the RESOLVE stage, with a null host: it has none by construction,

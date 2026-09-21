@@ -34,13 +34,14 @@ namespace Hrot.AI.Behaviors.Gizmos
             if (bs.ActiveBehaviorHash != PlatoonHillAttack_BT)
                 return;
 
-            ref readonly var bb = ref view.GetComponentRO<BrainBlackboard>(entity);
+            // P3-C: the behaviour's params live in its ROOT PARAMS OCCURRENCE SLOT now, not in a
+            // BrainBlackboard component. ⚠ The VIEW form, because a gizmo may be drawing a snapshot.
+            // ⛔ A miss draws NOTHING rather than a line through the origin — the old read could not
+            //    fail, so silently projecting zeros would put a 0,0 firing line on the map.
+            if (!RootParamsAccess.TryGetRootBytesInView(view, entity, out byte* mem))
+                return;
 
-            // Project the first bytes of the blackboard parameters as PlatoonHillAttackParams.
-            PlatoonHillAttackParams p;
-            ref var bbMut = ref Unsafe.AsRef(in bb);
-            fixed (byte* mem = &bbMut.BehaviorParameters[0])
-                p = *(PlatoonHillAttackParams*)mem;
+            var p = *(PlatoonHillAttackParams*)mem;
 
             var fireStart = new Vector3(p.StartX,         p.StartY,         0f);
             var fireEnd   = new Vector3(p.EndX,           p.EndY,           0f);

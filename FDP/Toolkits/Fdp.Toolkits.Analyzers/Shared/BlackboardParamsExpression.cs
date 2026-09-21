@@ -25,17 +25,41 @@ namespace Fdp.Toolkit.Behavior.Shared
     internal static class BlackboardParamsExpression
     {
         /// <summary>
-        /// The base of the params region: a <c>ref byte</c> at offset 0 of the blackboard's fixed
-        /// buffer. The <c>[0]</c> is load-bearing — indexing is what takes the fixed buffer out of
-        /// "unfixed expression" territory.
+        /// ⭐⭐⭐ <b>The base of the params region: a <c>ref byte</c> at the start of the entity's ROOT
+        /// PARAMS OCCURRENCE SLOT.</b>
+        ///
+        /// <para>🔴 <b><c>P3-C</c> (<c>2026-09-21</c>) moved this.</b> It used to be
+        /// <c>ref {bb}.BehaviorParameters[0]</c> — offset 0 of a per-entity <c>BrainBlackboard</c>
+        /// component, whose <c>[0]</c> was load-bearing only because indexing takes a <c>fixed</c>
+        /// buffer out of "unfixed expression" territory. ⇒ the component is retired and the region
+        /// now lives in the occurrence store, keyed by the behaviour.</para>
+        ///
+        /// <para>⭐⭐ <b>The OFFSET ARITHMETIC IS UNCHANGED, deliberately</b> (§29.6). Every baked
+        /// <c>byteOffset</c> indexes INTO the same packed variable table it always did — only the
+        /// anchor moved. ⛔ That is why this is a one-line change per emitter and not a rewrite of
+        /// <c>E3b-0</c>'s seed offsets.</para>
+        ///
+        /// <para>⚠ <b>The parameters changed shape, and they had to.</b> The old form took the name of
+        /// a blackboard local the thunk already held; the new anchor is resolved from
+        /// <c>(world, entity)</c>, which every emitted thunk has in a DIFFERENT spelling
+        /// (<c>ctx.World</c>/<c>ctx.Self</c>, <c>repo</c>/<c>bridge-&gt;Self</c>, …). ⇒ the caller
+        /// supplies both expressions; the projection text still lives only here.</para>
         /// </summary>
-        internal static string Base(string blackboardExpr) => "ref " + blackboardExpr + ".BehaviorParameters[0]";
+        internal static string Base(string worldExpr, string selfExpr) =>
+            "ref global::Fdp.Toolkit.Behavior.RootParamsAccess.RootRef(" + worldExpr + ", " + selfExpr + ")";
 
         /// <summary>
         /// A <c>ref byte</c> at <paramref name="byteOffset"/> inside the params region, ready to be
         /// wrapped in <c>Unsafe.As&lt;byte, TDto&gt;(…)</c> by the caller.
         /// </summary>
-        internal static string At(string blackboardExpr, int byteOffset) =>
-            "ref Unsafe.AddByteOffset(" + Base(blackboardExpr) + ", (nint)" + byteOffset + ")";
+        internal static string At(string worldExpr, string selfExpr, int byteOffset) =>
+            "ref Unsafe.AddByteOffset(" + Base(worldExpr, selfExpr) + ", (nint)" + byteOffset + ")";
+
+        /// <summary>
+        /// ⭐ The same, with the offset given as an EXPRESSION rather than a constant — the seed paths,
+        /// where <c>E3b-0</c>'s per-state offset is only known at dispatch.
+        /// </summary>
+        internal static string AtExpr(string worldExpr, string selfExpr, string offsetExpr) =>
+            "ref Unsafe.AddByteOffset(" + Base(worldExpr, selfExpr) + ", (nint)(" + offsetExpr + "))";
     }
 }

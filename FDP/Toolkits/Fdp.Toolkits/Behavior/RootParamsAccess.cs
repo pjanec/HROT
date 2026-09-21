@@ -80,8 +80,25 @@ public static unsafe class RootParamsAccess
     /// type they only know by reflection.
     /// </summary>
     public static bool TryGetRootBytes(EntityRepository world, Entity self, out byte* ptr)
+        => TryGetRootBytes(world, self, out ptr, out _);
+
+    /// <summary>
+    /// ⭐⭐ The same, also reporting HOW MANY bytes the region holds.
+    ///
+    /// <para>⭐ <b>The length is the slot's own layout guard</b>, which for a root params slot IS its
+    /// byte count — <see cref="ResolveOrAttachRoot"/> stores <c>paramsBytes</c> there deliberately
+    /// (a root params region is the packed variable table, so its size is what changes when the table
+    /// does). ⇒ a reader gets the extent of THIS entity's region without knowing the behaviour.</para>
+    ///
+    /// <para>⛔⛔ <b>Ingress needs exactly this, and getting it wrong overreads.</b> When it seeds its
+    /// parse shadow it is looking at the PREVIOUS behaviour's slot while computing for the NEW one;
+    /// copying the new behaviour's extent out of the old slot walks into whatever occurrence was
+    /// attached after it.</para>
+    /// </summary>
+    public static bool TryGetRootBytes(EntityRepository world, Entity self, out byte* ptr, out int length)
     {
         ptr = null;
+        length = 0;
 
         int key = KeyFor(world, self);
         if (key == 0) return false;
@@ -89,11 +106,74 @@ public static unsafe class RootParamsAccess
         byte* store = OccurrenceStoreAccess.TryGetStore(world, self, out _);
         if (store == null) return false;
 
+        if (!BlueprintBlackboardPartitions.TryGetSlotOffset(store, key, out int offset, out uint guard))
+            return false;
+
+        ptr = store + offset;
+        length = unchecked((int)guard);
+        return true;
+    }
+
+    /// <summary>
+    /// ⭐⭐ <b>The read-only <see cref="Fdp.ModuleHost.Abstractions.ISimulationView"/> form</b>, for
+    /// gizmos, ImGui renderers and the debug API — surfaces that are handed a view and may be looking
+    /// at a SNAPSHOT, so they must not cast to <see cref="EntityRepository"/>.
+    ///
+    /// <para>⚠ Deliberately a <c>Try</c>: a debug surface draws what is there. ⛔ The loud
+    /// <see cref="RequireRootBytes"/> is for EXECUTION paths, where a missing region is a fault.</para>
+    /// </summary>
+    public static bool TryGetRootBytesInView(
+        Fdp.ModuleHost.Abstractions.ISimulationView view, Entity self, out byte* ptr)
+    {
+        ptr = null;
+
+        if (!view.HasComponent<Components.BehaviorState>(self)) return false;
+        ref readonly var state = ref view.GetComponentRO<Components.BehaviorState>(self);
+        if (state.ActiveBehaviorHash == 0) return false;
+
+        int key = Shared.OccurrenceSlotKey.ComputeRootParamsKey(state.ActiveBehaviorHash);
+
+        byte* store = OccurrenceStoreAccess.TryGetStoreInView(view, self, out _);
+        if (store == null) return false;
+
         if (!BlueprintBlackboardPartitions.TryGetSlotOffset(store, key, out int offset, out _))
             return false;
 
         ptr = store + offset;
         return true;
+    }
+
+    /// <summary>
+    /// ⭐⭐⭐ <b>THE ANCHOR EVERY READER PROJECTS FROM — a <c>ref byte</c> at the base of this entity's
+    /// root params region.</b> Replaces <c>ref bb.BehaviorParameters[0]</c>, one for one.
+    ///
+    /// <para>⛔⛔ <b>It THROWS rather than returning a null ref, and that is the whole design.</b> Until
+    /// <c>P3-C</c> a missing region was impossible — the component was always there and always
+    /// readable, so every reader was written assuming success. ⇒ handing back zeros on a miss would
+    /// turn "this entity's store had no room" into "the behaviour was authored with all-default
+    /// params", which is unobservable at runtime and exactly the silent-default shape this programme
+    /// keeps filing. ⚠ The message names the three real causes so the fault is actionable.</para>
+    ///
+    /// <para>⭐ <b>Generated code calls THIS</b>, through <c>BlackboardParamsExpression</c> — the one
+    /// home for the projection text (<c>BP-306</c>). ⛔ Per-SITE occurrences do not: their identity is
+    /// the kernel's <c>writer</c> stamp, which no world+entity accessor can see.</para>
+    /// </summary>
+    public static ref byte RootRef(EntityRepository world, Entity self)
+        => ref System.Runtime.CompilerServices.Unsafe.AsRef<byte>(RequireRootBytes(world, self));
+
+    /// <summary>⭐ The same anchor as a raw pointer, for callers already in pointer arithmetic.</summary>
+    public static byte* RequireRootBytes(EntityRepository world, Entity self)
+    {
+        if (TryGetRootBytes(world, self, out byte* ptr)) return ptr;
+
+        throw new InvalidOperationException(
+            $"Entity {self.Index} has no ROOT PARAMS slot, so its behaviour parameters cannot be read. " +
+            "Causes, in the order worth checking: (1) no behaviour is assigned — BehaviorState." +
+            "ActiveBehaviorHash is 0; (2) the entity carries no occurrence store, because its brain " +
+            "tier is neither BTree nor HSM, or the BlueprintBlackboard* tier components were never " +
+            "registered on this world; (3) the store had no room at assign time, which means the tier " +
+            "demand under-counted (see CE-302 / RootParamsCost). " +
+            "Before P3-C this read came from BrainBlackboard.BehaviorParameters and could not fail.");
     }
 
     /// <summary>
@@ -182,8 +262,21 @@ public static unsafe class RootParamsAccess
             return extent;
         }
 
-        return def.BlackboardLayoutType != null
-            ? System.Runtime.InteropServices.Marshal.SizeOf(def.BlackboardLayoutType)
-            : 0;
+        if (def.BlackboardLayoutType != null)
+            return System.Runtime.InteropServices.Marshal.SizeOf(def.BlackboardLayoutType);
+
+        // 🔴🔴 MEASURED AT THE CUT (2026-09-21) — and the original comment here was WRONG.
+        //   It read "returns 0 when neither exists, which correctly means 'this behaviour has no
+        //   params'". ⛔ That is only true when there is no PARSER. A behaviour that declares a
+        //   ParseParams and NEITHER a manifest NOR a layout type does have params — it simply never
+        //   said how wide they are — and before the cut it did not have to, because the whole
+        //   100-byte BrainBlackboard region was there whether anyone declared it or not.
+        // ⇒ reserve the documented MAXIMUM rather than nothing. ⭐ That reproduces the old
+        //   behaviour exactly; ⛔ returning 0 would silently drop the parse on the floor, which is
+        //   how BehaviorIngress_ParsesFleeBlackboard_FromJson found this.
+        // ⚠ It costs a full-width slot for an under-declared behaviour. Accepted: every behaviour in
+        //   the shipped corpus declares one of the two, so this arm is the escape hatch for
+        //   hand-registered and test behaviours, not a path production takes.
+        return def.ParseParams != null ? BehaviorConstants.MaxBehaviorParamByteSize : 0;
     }
 }

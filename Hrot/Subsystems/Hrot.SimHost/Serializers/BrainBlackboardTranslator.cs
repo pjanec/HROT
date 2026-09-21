@@ -50,7 +50,6 @@ namespace Hrot.SimHost.Serializers
         public unsafe Dictionary<string, object> Extract(
             EntityRepository repo, Entity entity, IGuidResolver resolver)
         {
-            ref readonly var bb    = ref repo.GetComponentRO<BrainBlackboard>(entity);
             ref readonly var state = ref repo.GetComponentRO<BehaviorState>(entity);
 
             // ⭐ O2 (2026-09-20) — the entity-fact tail moved to BrainInterrupts. This dump keeps
@@ -65,15 +64,18 @@ namespace Hrot.SimHost.Serializers
                 root["Interrupt_Reserved"]     = ints.Interrupt_Reserved;
             }
 
+            // 🔴 P3-C (2026-09-21): the params come from the entity's ROOT PARAMS OCCURRENCE SLOT.
+            //   They used to be `bb.BehaviorParameters`, a per-entity component that is now retired.
+            // ⚠ TRY, not Require: this is a DUMP. An entity with no params region reports an empty
+            //   object, exactly as one with no BlackboardLayoutType always has — ⛔ a diagnostic that
+            //   throws is a diagnostic nobody can use to find out WHY it threw.
             if (_registry.TryGetDefinition(state.ActiveBehaviorHash, out var def)
-                && def.BlackboardLayoutType != null)
+                && def.BlackboardLayoutType != null
+                && RootParamsAccess.TryGetRootBytes(repo, entity, out byte* ptr))
             {
-                fixed (byte* ptr = &bb.BehaviorParameters[0])
-                {
-                    object dto = Marshal.PtrToStructure((IntPtr)ptr, def.BlackboardLayoutType)!;
-                    var mapped   = DtoDiagnosticMapper.MapObject(dto, def.BlackboardLayoutType, new HashSet<object>(ReferenceEqualityComparer.Instance));
-                    root["BehaviorParameters"] = JsonSerializer.SerializeToNode(mapped, FdpJsonOptionsRegistry.DefaultRelaxed) ?? new JsonObject();
-                }
+                object dto = Marshal.PtrToStructure((IntPtr)ptr, def.BlackboardLayoutType)!;
+                var mapped   = DtoDiagnosticMapper.MapObject(dto, def.BlackboardLayoutType, new HashSet<object>(ReferenceEqualityComparer.Instance));
+                root["BehaviorParameters"] = JsonSerializer.SerializeToNode(mapped, FdpJsonOptionsRegistry.DefaultRelaxed) ?? new JsonObject();
             }
             else
             {

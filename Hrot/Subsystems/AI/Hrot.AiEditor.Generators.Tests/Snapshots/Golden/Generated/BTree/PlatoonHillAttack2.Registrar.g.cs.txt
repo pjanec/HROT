@@ -51,7 +51,7 @@ public static class PlatoonHillAttack2Registrar
                 {
                     // Project Params from BrainBlackboard (Slice-1 pattern).
                     ref var dto = ref Unsafe.As<byte, global::Hrot.AI.Behaviors.Generated.HillAssault2ICalculateSegments_C870810D_Bp.Params>(
-                        ref Unsafe.AddByteOffset(ref bb.BehaviorParameters[0], (nint)0));
+                        ref Unsafe.AddByteOffset(ref global::Fdp.Toolkit.Behavior.RootParamsAccess.RootRef(ctx.World, ctx.Self), (nint)0));
                     // Resolve this occurrence's WorkingState across every tier, in one call (A2b).
                     const int __slotKey = 719287041;
                     if (!global::Fdp.Toolkit.Blueprints.Partitioning.OccurrenceStoreAccess.TryResolveOccurrence(ctx.World, ctx.Self, __slotKey, out byte* __wsPtr))
@@ -79,7 +79,7 @@ public static class PlatoonHillAttack2Registrar
                 {
                     // Project Params from BrainBlackboard (Slice-1 pattern).
                     ref var dto = ref Unsafe.As<byte, global::Hrot.AI.Behaviors.Generated.HillAssault2IDispatchAllToBaseline_64F11A6D_Bp.Params>(
-                        ref Unsafe.AddByteOffset(ref bb.BehaviorParameters[0], (nint)24));
+                        ref Unsafe.AddByteOffset(ref global::Fdp.Toolkit.Behavior.RootParamsAccess.RootRef(ctx.World, ctx.Self), (nint)24));
                     // Resolve this occurrence's WorkingState across every tier, in one call (A2b).
                     const int __slotKey = 668954184;
                     if (!global::Fdp.Toolkit.Blueprints.Partitioning.OccurrenceStoreAccess.TryResolveOccurrence(ctx.World, ctx.Self, __slotKey, out byte* __wsPtr))
@@ -107,7 +107,7 @@ public static class PlatoonHillAttack2Registrar
                 {
                     // Project Params from BrainBlackboard (Slice-1 pattern).
                     ref var dto = ref Unsafe.As<byte, global::Hrot.AI.Behaviors.Generated.HillAssault2IRequestAreaQuery_61F115B4_Bp.Params>(
-                        ref Unsafe.AddByteOffset(ref bb.BehaviorParameters[0], (nint)40));
+                        ref Unsafe.AddByteOffset(ref global::Fdp.Toolkit.Behavior.RootParamsAccess.RootRef(ctx.World, ctx.Self), (nint)40));
                     // Resolve this occurrence's WorkingState across every tier, in one call (A2b).
                     const int __slotKey = 450845137;
                     if (!global::Fdp.Toolkit.Blueprints.Partitioning.OccurrenceStoreAccess.TryResolveOccurrence(ctx.World, ctx.Self, __slotKey, out byte* __wsPtr))
@@ -129,7 +129,7 @@ public static class PlatoonHillAttack2Registrar
                 {
                     // Project Params from BrainBlackboard (Slice-1 pattern).
                     ref var dto = ref Unsafe.As<byte, global::Hrot.AI.Behaviors.Generated.HillAssault2IIsAreaQueryResolved_62F11747_Bp.Params>(
-                        ref Unsafe.AddByteOffset(ref bb.BehaviorParameters[0], (nint)48));
+                        ref Unsafe.AddByteOffset(ref global::Fdp.Toolkit.Behavior.RootParamsAccess.RootRef(ctx.World, ctx.Self), (nint)48));
                     // Resolve this occurrence's WorkingState across every tier, in one call (A2b).
                     const int __slotKey = 400512280;
                     if (!global::Fdp.Toolkit.Blueprints.Partitioning.OccurrenceStoreAccess.TryResolveOccurrence(ctx.World, ctx.Self, __slotKey, out byte* __wsPtr))
@@ -157,7 +157,7 @@ public static class PlatoonHillAttack2Registrar
                 {
                     // Project Params from BrainBlackboard (Slice-1 pattern).
                     ref var dto = ref Unsafe.As<byte, global::Hrot.AI.Behaviors.Generated.HillAssault2IDispatchWaveWithTargets_60F11421_Bp.Params>(
-                        ref Unsafe.AddByteOffset(ref bb.BehaviorParameters[0], (nint)48));
+                        ref Unsafe.AddByteOffset(ref global::Fdp.Toolkit.Behavior.RootParamsAccess.RootRef(ctx.World, ctx.Self), (nint)48));
                     // Resolve this occurrence's WorkingState across every tier, in one call (A2b).
                     const int __slotKey = 417289899;
                     if (!global::Fdp.Toolkit.Blueprints.Partitioning.OccurrenceStoreAccess.TryResolveOccurrence(ctx.World, ctx.Self, __slotKey, out byte* __wsPtr))
@@ -179,7 +179,7 @@ public static class PlatoonHillAttack2Registrar
                 {
                     // Project Params from BrainBlackboard (Slice-1 pattern).
                     ref var dto = ref Unsafe.As<byte, global::Hrot.AI.Behaviors.Generated.HillAssault2IIsWaveCompleted_CDAC491D_Bp.Params>(
-                        ref Unsafe.AddByteOffset(ref bb.BehaviorParameters[0], (nint)88));
+                        ref Unsafe.AddByteOffset(ref global::Fdp.Toolkit.Behavior.RootParamsAccess.RootRef(ctx.World, ctx.Self), (nint)88));
                     // Resolve this occurrence's WorkingState across every tier, in one call (A2b).
                     const int __slotKey = 501177994;
                     if (!global::Fdp.Toolkit.Blueprints.Partitioning.OccurrenceStoreAccess.TryResolveOccurrence(ctx.World, ctx.Self, __slotKey, out byte* __wsPtr))
@@ -204,7 +204,7 @@ public static class PlatoonHillAttack2Registrar
                 {
                     // Project Params from BrainBlackboard (Slice-1 pattern).
                     ref var dto = ref Unsafe.As<byte, global::Hrot.AI.Behaviors.Generated.HillAssault2AreAllAtBaseline_4CDE3A29_Bp.Params>(
-                        ref Unsafe.AddByteOffset(ref bb.BehaviorParameters[0], (nint)40));
+                        ref Unsafe.AddByteOffset(ref global::Fdp.Toolkit.Behavior.RootParamsAccess.RootRef(ctx.World, ctx.Self), (nint)40));
                     // Resolve this occurrence's WorkingState across every tier, in one call (A2b).
                     const int __slotKey = 685731803;
                     if (!global::Fdp.Toolkit.Blueprints.Partitioning.OccurrenceStoreAccess.TryResolveOccurrence(ctx.World, ctx.Self, __slotKey, out byte* __wsPtr))

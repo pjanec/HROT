@@ -1184,9 +1184,9 @@ namespace Stub
             "action registry key must be {actionFqn}@4 (== blob key)");
 
         // (b) Baked offset must be wired into each thunk projection.
-        registrar.Should().Contain("Unsafe.AddByteOffset(ref bb.BehaviorParameters[0], (nint)0)",
+        registrar.Should().Contain("Unsafe.AddByteOffset(ref global::Fdp.Toolkit.Behavior.RootParamsAccess.RootRef(ctx.World, ctx.Self), (nint)0)",
             "the @0 binding must project at byte offset 0");
-        registrar.Should().Contain("Unsafe.AddByteOffset(ref bb.BehaviorParameters[0], (nint)4)",
+        registrar.Should().Contain("Unsafe.AddByteOffset(ref global::Fdp.Toolkit.Behavior.RootParamsAccess.RootRef(ctx.World, ctx.Self), (nint)4)",
             "the @4 binding must project at byte offset 4 (not @0 for everything)");
     }
 
@@ -2016,9 +2016,9 @@ namespace Stub
             "registrar key for Params1 must be @0");
         registrar.Should().Contain($"\"{actionFqn2}@8\"",
             "registrar key for Params2 must be @8 (== blob key)");
-        registrar.Should().Contain("Unsafe.AddByteOffset(ref bb.BehaviorParameters[0], (nint)0)",
+        registrar.Should().Contain("Unsafe.AddByteOffset(ref global::Fdp.Toolkit.Behavior.RootParamsAccess.RootRef(ctx.World, ctx.Self), (nint)0)",
             "Params1 thunk must project at offset 0");
-        registrar.Should().Contain("Unsafe.AddByteOffset(ref bb.BehaviorParameters[0], (nint)8)",
+        registrar.Should().Contain("Unsafe.AddByteOffset(ref global::Fdp.Toolkit.Behavior.RootParamsAccess.RootRef(ctx.World, ctx.Self), (nint)8)",
             "Params2 thunk must project at resolved offset 8 (single offset source)");
     }
 

@@ -29,7 +29,7 @@ public sealed class ParameterProjectionFormulaTests
 {
     /// <summary>⭐ The one permitted shape: a CONSTANT byte offset from the start of the region.</summary>
     private static readonly Regex OffsetForm = new(
-        @"Unsafe\.AddByteOffset\(\s*ref bb\.BehaviorParameters\[0\],\s*\(nint\)\d+\s*\)",
+        @"Unsafe\.AddByteOffset\(\s*ref (bb\.BehaviorParameters\[0\]|__rootParams|global::Fdp\.Toolkit\.Behavior\.RootParamsAccess\.RootRef\([^)]*\)),\s*\(nint\)\d+\s*\)",
         RegexOptions.Compiled);
 
     /// <summary>🔴 The retired shape: anything whose offset depends on the caller-supplied index.</summary>
