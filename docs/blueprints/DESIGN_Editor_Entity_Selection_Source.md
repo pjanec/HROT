@@ -1,6 +1,9 @@
 <!--STATUS
 state: LIVE
-build-state: BUILT (CE-300, CE-301, CE-305 landed 2026-09-21 — §9 and §5.4's as-built. CE-302/CE-303 remain.)
+build-state: BUILT (CE-300, CE-301, CE-305 and CE-302 landed 2026-09-21 — §9, §5.4 and §10.
+  CE-303 is RE-SCOPED, not built: §11 — the pane is ALREADY a details view, the real defect is that
+  RuntimeDetailsView discards its context, and fixing it needs a user ruling on whether
+  RuntimeInspectorWindow finally dissolves as DESIGN_Details_Panel_View_Switching.md §4 says.)
 updated: 2026-09-21
 current-answer: this whole file. §2 is the class model, §3 the sequences, §4 the module/registration
   view, §5 the per-surface rulings, §6 the write path (measured NOT a duplicate), §7 what this
@@ -14,6 +17,9 @@ known-rot: none open. ⚠ §5.4 CORRECTED ITSELF TWICE and both corrections are 
   WriteLiveValue delegate) was not needed: the rule already existed in StagedWriteView.EntityFor and
   the WRITE was the half ignoring it. Built as VariableRowOrigin.Resolve, no signature change.
   Both original framings are kept under §5.4's HISTORY heading.
+  ⚠ §5 was ALSO wrong about CE-303: it listed BlueprintRuntimeInspectorPane as needing conversion into a
+  details view. Measured 2026-09-21 — RuntimeInspectorWindow.RegisterPane:106 already adds a
+  RuntimeDetailsViewDescriptor, so the pane IS one. §11 carries the corrected finding.
 known-conflict: none. It SUPERSEDES AI_Editor_Shared_Infrastructure.md §5.3 (the DDS bridge as the
   ingress) and §5.4 (the per-window ChainToMap toggle); that file's known-rot points here.
 design-basis: UX_Feature_Selection.md §2.7.8 (the announcement) and §2.7.17 (the egress; the same
@@ -386,8 +392,8 @@ view pinning — 📌 they compose: a pinned row in a pinned view is a fixed var
 |---|---|---|
 | ☑ **`CE-300`** | `SelectionNotificationSystem` gains the AI cell as a sink; `CallbackSelectionBridge` + `IGSelectionBridge` deleted | ✅ **BUILT `2026-09-21`** — §9 |
 | ☑ **`CE-301`** | `SharedEntitySelection` is documented and railed as a **projection**, not a store — its only writer is the notification | ✅ **BUILT `2026-09-21`** — §9 |
-| **`CE-302`** | `EntityBlueprintsManagedWindow` → a details-panel view, with float+pin | ⭐ ready |
-| **`CE-303`** | `BlueprintRuntimeInspectorPane` → a details-panel view, with float+pin | ⭐ ready |
+| ☑ **`CE-302`** | `EntityBlueprintsManagedWindow` → a details-panel view, with float+pin | ✅ **BUILT `2026-09-21`** — §10 |
+| ⚠ **`CE-303`** | `BlueprintRuntimeInspectorPane` → a details-panel view, with float+pin | ⛔⛔ **RE-SCOPED `2026-09-21` — IT IS ALREADY A DETAILS VIEW.** §11 states what is actually wrong and why it needs a user ruling before it is built |
 | **`CE-304`** | `RunBlueprintOnEntityCommand` follows the unified current selection, no pinning | ✅ **discharged by `CE-300`**, recorded so it is not re-broken |
 | ☑ **`CE-305`** | the write target for an edit issued from a **pinned** view comes from that view's context | ✅ **BUILT `2026-09-21`** — ⭐ and NOT as designed: the rule already existed in `StagedWriteView.EntityFor` and the WRITE was the half that ignored it. One method (`VariableRowOrigin.Resolve`) now states `R-78`'s two kinds; no signature change was needed. §5.4 |
 
@@ -434,3 +440,78 @@ and both were wrong, **in opposite directions**:
 ⇒ 📌 **the generic lesson, and it is `CLAUDE.md`'s own:** text cannot tell a real reference from a
 same-named symbol. ⭐ Roslyn is the right instrument and is not available inside a unit test ⇒ **narrow
 the text until it can**, and say in the rail which layer is still text.
+
+## 10. ☑ AS-BUILT — **`CE-302`, `2026-09-21`**
+
+⭐ `EntityBlueprintsDetailsView` + `EntityBlueprintsDetailsViewDescriptor` *(`details.entityblueprints`,
+rank **15** — above Variables (10), below Node Properties (20), and `details.runtime.*` stays at 50)*,
+registered from `EditorSubsystem` because of §3's **reference wall** *(the view lives in
+`Hrot.Blueprints.Editor`, the registrar in `Hrot.Editor.AiShared` below it)*.
+
+| ⭐ the property that matters | |
+|---|---|
+| ⭐⭐⭐ **the entity comes from `context.Entities[0]`** | ⇒ **LIVE when docked, FROZEN when pinned** *(`R-100`'s snapshot)*. ⛔ **Pinning is opted into NOWHERE** — there is no flag on this class, which is the whole design |
+| ⭐ **one instance per window** *(`R-120`)* | ⇒ docked and pinned can show **two different entities at the same time** |
+| ⚠ **an empty context clears the cell** | ⛔ a view that remembered would go on showing a selection that no longer exists |
+
+### ⛔⛔ THE REACHABILITY RAIL FAILED FIRST, AND IT FAILED FOR A REASON WORTH KEEPING
+
+📌 `BP-475`'s warning — *"landed BUILT AND UNREACHABLE and was nearly shipped that way … every one of
+its unit rails passed"* — is why `TheEntityBlueprintsViewIsRegisteredTests` asserts on the
+**CONSTRUCTED** editor. 🔴 **It reddened on the first run**, with
+`ArgumentNullException(world)`:
+
+⭐⭐ **`EditorSubsystem.RegisterWindows` runs BEFORE `Initialize` assigns `_world`.** The retired window
+hid that inside a **lazy factory lambda**, so taking `world`/`registry` **by value** looked equivalent
+to what was there and was not. ⇒ the descriptor takes `Func<…>` and resolves at `Create`, like every
+other descriptor here *(`R-126`'s pull)*.
+⚠ **`Create` cannot be reached before a world exists** — the predicate needs an entity in the context,
+and the context's entities are read FROM the world ⇒ the throw in `Create` is a **wiring assertion**,
+not a runtime path.
+
+⭐ **Red-proved:** build the descriptor and never `Add` it — the `BP-475` defect exactly — and the
+catalogue rail reddens while all four others stay green.
+
+### ⚠ LEFT IN THE TREE, DELIBERATELY: `EntityBlueprintsManagedWindow`
+
+📐 It now has **zero production construction sites** — the registration it existed for is the one this
+item replaced. ⛔ **Not deleted**, and that is the rule, not hesitation: 🔒 *"what is not used does not
+mean it is existing without reason"* and *"no rush removals"*.
+⭐⭐ **And the precedent cuts against deleting:** `BP-475` converted `HsmEventsWindow` to a view and
+**kept the window** — so on this codebase *"is a details view"* and *"is also a window"* have coexisted
+before. ⇒ ⚠ **whether Entity Blueprints should keep a standalone window is a USER call**, and it is
+asked rather than assumed.
+
+## 11. ⛔⛔ `CE-303` IS RE-SCOPED — **`BlueprintRuntimeInspectorPane` IS ALREADY A DETAILS VIEW**
+
+📐 **Measured `2026-09-21`, before building anything.** `RuntimeInspectorWindow.RegisterPane` *(`:102`)*
+does `_detailsViews?.Add(RuntimeDetailsViewDescriptor.For(pane))` at `:106`. ⇒ ⭐ **every registered
+pane — BTree, HSM and Blueprint — is already offered as `details.runtime.<kind>`**, built by `L3.1`.
+
+⚠⚠ **So this design's §5 was WRONG about it.** It listed the pane beside
+`EntityBlueprintsManagedWindow` as *"reads the store directly"* — **true** — and implied the same remedy
+*(convert it)* — **false**. ⛔ The conversion happened at `L3.1`.
+
+### ⭐ What is ACTUALLY wrong, and it is smaller and sharper
+
+| 📐 measured | |
+|---|---|
+| 🔴 **`RuntimeDetailsView.Draw(context, idScope)` DISCARDS its context** | it calls `_pane.Draw()`, and `IRuntimeInspectorPane.Draw()` **takes no arguments** ⇒ the pane resolves its own entity from `SetResolvers(selectedEntityResolver: () => _aiEditorSelectionStore?.SelectedEntity)` — **a global** |
+| ⇒ **it is a details view that cannot honour pinning** | a pinned copy would render the *currently selected* entity, not the pinned one — ⚠ **the exact display/write divergence `CE-305` closed on the write side**, still open on this read side |
+
+### ⛔ WHY IT IS NOT BUILT HERE — **a question only the user can settle**
+
+⭐ Fixing it means giving the pane its entity, i.e. changing `IRuntimeInspectorPane.Draw()` — **three
+implementations** *(BTree, HSM, Blueprint)*. ⚠ **But the pane has TWO live draw paths**: the details
+view, **and `RuntimeInspectorWindow` itself, which still draws panes at `:170`** by the asset-kind
+lookup `_panes.Find(p => p.TargetKind == …)`.
+
+🔴 **That standalone window was supposed to be GONE.** 📄 `DESIGN_Details_Panel_View_Switching.md` §4,
+verbatim: `RuntimeInspectorWindow` *"⛔ registry on the wrong axis (`R-112`) ⇒ **dissolves**: 3 panes →
+3 predicated views"* — ⭐ approved as closed question `Q-iii`. ⇒ ⚠ **the code kept BOTH**, and the design
+says one of them should not exist.
+
+| ⭐ the question, with a lean | |
+|---|---|
+| 🔒 **Does `RuntimeInspectorWindow` finally dissolve, as §4 says?** | ⭐ **LEAN: YES.** Then the pane has ONE caller, `Draw(DetailsContext)` is unambiguous, and pinning falls out. ⛔ Keeping both means the pane must serve a context-less caller too, and the *"which entity?"* answer forks again — which is the defect, re-introduced |
+| ⚠ what would change the lean | ⭐ if the standalone Runtime Inspector is a **surface operators actually use** *(the `2026-08-17` rule: a duplicate SURFACE is usually KEPT — surfaces differ by context)*. ⛔ I have not measured operator usage and cannot |

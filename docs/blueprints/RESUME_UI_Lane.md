@@ -1,8 +1,9 @@
 <!--STATUS
 state: LIVE
 updated: 2026-09-20
-current-answer: ⭐⭐⭐ READ THE TOP OF THIS FILE — the "SESSION 2026-09-21" block (CE-300/CE-301) is the
-  live state; below it "SESSION 2026-09-20 (j)" is S-6, (i) is S-5, (h) is S-4b, (g) is S-4, (f) is S-3e.
+current-answer: ⭐⭐⭐ READ THE TOP OF THIS FILE — the "SESSION 2026-09-21 (b)" block is the live state
+  (CE-302 built, CE-303 re-scoped and BLOCKED on a user ruling); below it "SESSION 2026-09-21" is
+  CE-300/CE-301; below it "SESSION 2026-09-20 (j)" is S-6, (i) is S-5, (h) is S-4b, (g) is S-4, (f) is S-3e.
   ☑ CE-300/CE-301 BUILT 2026-09-21: the AI editors' entity cell was written by a MAP GESTURE (the third
   instance of the shape S-3 fixed inbound and S-6 outbound); it is now a projection of
   SelectionChangedNotification, and CGF's cell has a production writer for the first time. Owning design
@@ -54,7 +55,7 @@ current-answer: ⭐⭐⭐ READ THE TOP OF THIS FILE — the "SESSION 2026-09-21"
   nothing from it is in flight. Older STRANDS below it are older history still; do NOT act on any of
   them unless explicitly told to continue one.
 
-stale-below: ⛔ EVERYTHING below the "SESSION 2026-09-21" block is HISTORY, newest first, with TWO
+stale-below: ⛔ EVERYTHING below the "SESSION 2026-09-21 (b)" block is HISTORY, newest first, with TWO
   exceptions that are LIVE STATUS and not session logs: the "VERIFIED IN THE PRODUCT" block (the
   Windows result) and the "CGF BUILT ITS MAP LAYER WITH NO CAMERA" fix directly under it.
   ⚠ The two "SUPERSEDED" blocks under those record the readings that LED to the fix and are wrong as
@@ -72,6 +73,38 @@ related-designs:
   Nothing was deleted.
 -->
 # ⭐⭐⭐ RESUME — **the UI / variable implementation lane**
+
+## ⭐⭐⭐ SESSION `2026-09-21` (b) — **`CE-302` BUILT · `CE-303` RE-SCOPED, it was already done**
+
+📄 **[`DESIGN_Editor_Entity_Selection_Source.md`](https://github.com/pjanec/HROT/blob/ui/docs/blueprints/DESIGN_Editor_Entity_Selection_Source.md) §10 / §11.**
+
+☑ **`CE-302`** — Entity Blueprints is a DETAILS VIEW *(`details.entityblueprints`, rank 15)*, registered
+from `EditorSubsystem` *(the reference wall)*. ⭐⭐ **Its entity comes from `context.Entities[0]`** ⇒ LIVE
+when docked, FROZEN when pinned — **pinning is opted into nowhere**, which is the whole design. ⭐ One
+instance per window *(`R-120`)*, so docked and pinned can show **two different entities at once**.
+
+⛔⛔ **The reachability rail REDDENED FIRST, and the cause is worth keeping:** `RegisterWindows` runs
+**before** `Initialize` assigns `_world`, so taking the world **by value** threw. The retired window hid
+that inside a lazy factory lambda, so the eager form *looked* equivalent. ⇒ the descriptor takes
+`Func<…>`. ⭐ **Red-proved** by building the descriptor and never registering it — 📌 `BP-475`'s
+"built and unreachable" defect, which is exactly what that rail exists to catch.
+
+⚠ **`EntityBlueprintsManagedWindow` now has ZERO production construction sites and is NOT deleted** —
+🔒 *"no rush removals"*, and ⭐ the precedent cuts the other way: `BP-475` converted `HsmEventsWindow`
+and **kept the window**. ⇒ **a user call.**
+
+⛔⛔ **`CE-303` IS NOT WHAT WE THOUGHT.** 📐 `RuntimeInspectorWindow.RegisterPane:106` already adds a
+`RuntimeDetailsViewDescriptor` ⇒ **`BlueprintRuntimeInspectorPane` IS ALREADY A DETAILS VIEW** *(`L3.1`
+did it)*. ⚠ This design's §5 said otherwise and is corrected.
+🔴 **The real defect is smaller and sharper:** `RuntimeDetailsView.Draw(context, idScope)` **discards its
+context** and calls `_pane.Draw()`, which takes no arguments — so the pane resolves its entity from a
+GLOBAL ⇒ **a details view that cannot honour pinning.**
+⛔ **Not built, because it needs a ruling:** fixing it changes `IRuntimeInspectorPane.Draw()` across three
+panes, and the pane has **TWO live draw paths** — the view, and `RuntimeInspectorWindow` which still
+draws panes at `:170`. 🔒 `DESIGN_Details_Panel_View_Switching.md` §4 says that window **dissolves**
+*(closed question `Q-iii`)* — the code kept both. ⇒ ⭐ **LEAN: let it dissolve**, then the pane has one
+caller and pinning falls out. ⚠ What would change it: evidence operators actually use the standalone
+window *(a duplicate SURFACE is usually kept)*.
 
 ## ⭐⭐⭐ SESSION `2026-09-21` — **`CE-300` + `CE-301`: the AI editors' entity followed a MAP GESTURE**
 

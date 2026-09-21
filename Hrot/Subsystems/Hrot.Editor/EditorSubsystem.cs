@@ -3842,18 +3842,27 @@ namespace Hrot.Editor
             // ─────────────────────────────────────────────────────────────────────────────────────
 
             // ── BSA-205: "Entity Blueprints" perspective window ───────────────────────────────
-            // Registered via RegisterExtraWindow so it appears in the Window → Blueprint menu.
-            var entityBpWindow = new Hrot.Blueprints.Editor.EntityBlueprints.EntityBlueprintsManagedWindow(
-                () =>
-                {
-                    var model = new Hrot.Blueprints.Editor.EntityBlueprints.EntityBlueprintsEditModel(
-                        _world!, _blueprintRegistry!, Entity.Null);
-                    var panel = new Hrot.Blueprints.Editor.EntityBlueprints.EntityBlueprintsPanel(
-                        model, _world!, _blueprintRegistry!,
-                        entityResolver: () => _aiEditorSelectionStore?.SelectedEntity);
-                    return panel;
-                });
-            _blueprintRegistrar!.RegisterExtraWindow(windowManager, entityBpWindow);
+            // ⭐⭐⭐ CE-302 — ENTITY BLUEPRINTS IS A DETAILS VIEW, not a standalone window.
+            // 🔒 User, 2026-09-21: "EntityBlueprintsManagedWindow … sound[s] like [it] needs converting
+            //    into [a] proper details panel view[] with all the pinning support."
+            // 🔴 What it was: a ManagedWindow whose panel read `_aiEditorSelectionStore.SelectedEntity`
+            //    — a GLOBAL. ⇒ it could only show "whoever is selected", and a pinned copy on a second
+            //    entity was not expressible at all.
+            // ⭐ As a view it is handed a DetailsContext per draw: LIVE when docked, FROZEN when pinned
+            //    (R-100's snapshot) ⇒ pinning costs the panel nothing and is opted into nowhere.
+            // ⛔⛔ REGISTERED HERE BY CONSTRUCTION, NOT CONVENIENCE — the reference wall: the view lives
+            //    in Hrot.Blueprints.Editor and the registrar in Hrot.Editor.AiShared BELOW it, so the
+            //    root is the only assembly that sees both ends. 📌 The same wall BP-475 hit.
+            // ⚠ AND IT MUST BE REACHABLE: 📌 BP-475 shipped a view that was BUILT AND UNREGISTERED with
+            //   every one of its unit rails passing. TheEntityBlueprintsViewIsRegisteredTests asserts
+            //   the Blueprint catalogue OFFERS it, on the CONSTRUCTED editor.
+            // 📄 DESIGN_Editor_Entity_Selection_Source.md §5.
+            // ⚠ DELEGATES, not values: RegisterWindows runs BEFORE Initialize assigns _world, so an
+            //   eager For(_world!, …) throws here. 📌 The retired window hid that inside its lazy
+            //   factory lambda — which is exactly why the eager form looked equivalent.
+            _blueprintRegistrar!.DetailsViews.Add(
+                Hrot.Blueprints.Editor.EntityBlueprints.EntityBlueprintsDetailsViewDescriptor.For(
+                    () => _world, () => _blueprintRegistry));
             // ─────────────────────────────────────────────────────────────────────────────────────
 
             // ── PU-603/PU-D11: "Save All" callback — FlushNow + SaveAllAiDocumentsCommand ─────────
