@@ -5,7 +5,14 @@ current-answer: section 5 - APPROVED IN FULL by the user 2026-08-18. A2' (the
   Construction slot, replacing the withdrawn A2) plus B-F as recommended.
   Nothing here is built.
 stale-below: nothing.
-known-rot: none.
+known-rot: 2026-09-21 - the DECISIONS all re-measured TRUE (Construction still unconsumed,
+  MakeStruct/SetMembers still live, IHostVariableAccess still zero-implementer). But C1'/C2'
+  resolve PER VARIABLE, and a site reaches a variable via ExpressionTargetField - which HSM
+  STATES do not have (only BTree nodes and HSM transitions do). So this question's answers do
+  NOT reach the HSM parallel-regions case that CE-298 was filed for. That needs E3b-0 first:
+  a target field on the state's four action slots. See DESIGN_Occurrence_Scoped_Storage.md 28.6.
+  This is a premise that became load-bearing only when E3a made the HSM path per-occurrence -
+  not an error in the answers, which were framed from a BTree question.
 known-conflict: none. This is Q41-C3' promoted to its own question, as Q41 said it
   should be; it does not disagree with Q41, it details it.
 -->

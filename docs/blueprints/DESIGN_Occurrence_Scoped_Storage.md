@@ -3567,3 +3567,74 @@ thunk — the slot still holds the PREVIOUS assign's seed.*
 | ⛔ **per-site authored VALUES** | every occurrence still seeds from the SAME variable ⇒ two regions get their own *copy* of one authored value. ⭐ That is `E3b` — `Q41-C1′` (the resolve hook) then `C2′`, both approved and unbuilt |
 | ⛔ **the type-pun is not FIXED, it is CONTAINED** | two different blueprints still seed from offset `0`; ⭐ but they now write into **separate slots**, so neither corrupts the other. ⚠ The misread of the seed remains until `E3b` |
 | ⚠ **a live binary upgrade over an existing slot** | the payload grows while `StructureHash` is unchanged, so the hash guard would not re-attach. ⛔ Not reachable within one process (slots are created by the binary that reads them); named so nobody is surprised by it in a hot-reload |
+
+### 28.6 🔴🔴🔴 `E3b` DOES NOT REACH THE HSM PATH — **the missing site→variable binding** *(found `2026-09-21`)*
+
+⭐⭐ **Found by re-measuring `Q41`/`Q43`'s premises a month after they were approved** — the user asked
+*"do the decisions still look healthy from today's point of view?"*, and this is what the check turned up.
+⛔ **It is not a flaw in those decisions**; it is a premise that only became load-bearing when `E3a`
+made the HSM path per-occurrence.
+
+📐 **The measurement.** `C1′`/`C2′` resolve **per VARIABLE**, and a hosting site reaches a variable
+through **`ExpressionTargetField`**:
+
+| where | carries `ExpressionTargetField`? |
+|---|---|
+| **BTree action / condition nodes** | ✅ `BehaviorTreeAssetDto:177`/`:204` |
+| **HSM transitions** *(and global transitions)* | ✅ `TransitionNodeDto:137`, `GlobalTransitionNodeDto:157` |
+| 🔴 **HSM STATES** — `OnEntryAction` · `OnExitAction` · `ActivityAction` · `TimerAction` | ⛔ **NO.** Bare method-name strings |
+
+⭐⭐⭐ **And it is genuinely the params address, not decoration:**
+`BTreeBridgeEmitCore.EmitManagedActionThunks` **skips any node whose `ExpressionTargetField` is empty**,
+then bakes `offsetMap[targetField].ByteOffset` as that site's params offset.
+⚠ *(`HsmAsset.cs:263` calls the same field an "OUTPUT binding" — that is the editor's variable-usage
+counter describing the other half of the same thing: a reusable action's DTO **is** the variable, read
+as params and written as a result. ⛔ Not a contradiction, and worth saying because it reads like one.)*
+
+⇒ 🔴 **Two parallel HSM regions hosting one asset have nothing to bind them to different variables**, so
+they resolve to the same one — which is exactly `E3a`'s offset-`0` seed. **`E3b` as designed closes the
+BTree case and leaves the HSM one open**, and the HSM parallel-regions case is what `CE-298` was filed for.
+
+| ⭐ why the decisions are still healthy | |
+|---|---|
+| ⭐⭐ **`Q41` was written from a BTree question** | 🔒 *"what if i need to set the speed or destination from a blackboard?"* — HSM applicability was never in scope, never measured, and never claimed |
+| ⭐ **everything `Q41`/`Q43` DID decide re-measured true** *(`2026-09-21`)* | `GraphKind.Construction` still has no emitter consumer *(only the `Stage5_Schedule:4837` map + an editor label)* · `IrOp_MakeStruct`/`IrOp_SetMembers` still have live arms *(`StatementEmitter.cs:238/258`)* · `IHostVariableAccess` still has **zero** implementers · `host: null` at **two** production sites now *(`BehaviorIngressSystem:100`, `BlueprintInstanceService:143`)* |
+
+⇒ ⭐⭐⭐ **`E3b-0` — give an HSM STATE's four action slots a target field, mirroring `TransitionNodeDto`.**
+⭐ Same shape, same picker, no new concept — and it names a variable in the **HSM's own blackboard**, so
+it does **not** make the HSM learn about blueprint catalogs *(the user's ruling)*.
+⛔ **It sequences BEFORE `C1′`**: without it a resolver cannot produce different values for two regions
+however good it is.
+
+⛔ **Rejected:** give the resolver the occurrence identity and let it branch on region — that makes every
+resolver aware of the hosting topology, and `Q41-A2`'s *"no second supply mechanism"* rules against it.
+
+#### 28.6a ⛔⛔ `E3b-0` IS BIGGER THAN "ADD A DTO FIELD" — **the HSM path has no per-site DISPATCH**
+
+⚠ **My first statement of `E3b-0` was *"add `ExpressionTargetField` to `StateDto`'s four action slots,
+mirroring `TransitionNodeDto`"*. 📐 **Measuring the runtime showed that is NECESSARY AND NOT SUFFICIENT.**
+
+📐 **The asymmetry, measured:**
+
+| | how a site is dispatched |
+|---|---|
+| ⭐ **BTree bridge** | emits **ONE ADAPTER PER NODE**, registered at a **per-site key** — `{MethodFqn}@{offset}[@{slotKey}]` (`BTreeBridgeEmitCore:473`) ⇒ the offset is **baked per site** |
+| 🔴 **HSM** | `HsmActionDispatcher.RegisterAction(ushort id, IntPtr)` — **ONE thunk per action id**, and the kernel dispatches from `StateDef.OnEntryActionId`, a single `ushort`. ⇒ **there is nowhere to bake a per-site offset** |
+
+⇒ ⛔ **A target field on the state would be AUTHORING WITH NO CONSUMER** — the mirror of §26.1's rule
+*(storage without supply)*, and the same disease: a field nothing reads.
+
+⭐⭐⭐ **What makes it tractable is that `E3a` already moved the params.** The binding does **not** need
+to reach the thunk's address computation at all — the params are in the slot. It only needs to reach
+**the SEED** (§28.4), which already runs inside the thunk and already holds `O6`'s `(region, state)`
+stamp. ⇒ **the seed reads offset `X` instead of `0`.**
+
+| ⭐ so `E3b-0` is three parts, and all three are in this lane | |
+|---|---|
+| **①** | `StateDto`'s four action slots gain a target field *(authoring)* |
+| **②** | **`HsmBridgeEmitCore` emits a `stateId → packedOffset` table** beside the blob. ⭐⭐ It maps **its own states to its own blackboard variables** ⇒ 🔒 **the HSM still learns nothing about blueprint catalogs** — the user's ruling holds |
+| **③** | the seed consults that table through the stamp, instead of the literal `0` |
+
+⚠ **The editor PICKER for ① is a UI-lane surface** *(`Hrot.Hsm.Editor`'s `HsmPickerDrawers` /
+`HsmFacetDispatcher`)*. ⭐ The field is authorable in JSON without it, which is enough to rail ②+③ —
+⛔ so the picker is flagged for the UI lane, not smuggled in here.

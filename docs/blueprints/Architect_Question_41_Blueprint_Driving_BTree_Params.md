@@ -5,7 +5,14 @@ current-answer: section 5 - APPROVED IN FULL by the user 2026-08-18. A, B and D 
   written; C1 WITHDRAWN and replaced by C1'/C2'/C3', also approved. C3' is detailed
   in Architect_Question_43_Blueprint_Authored_Param_Resolver.md. Nothing is built.
 stale-below: nothing.
-known-rot: none.
+known-rot: 2026-09-21 - the DECISIONS all re-measured TRUE (Construction still unconsumed,
+  MakeStruct/SetMembers still live, IHostVariableAccess still zero-implementer). But C1'/C2'
+  resolve PER VARIABLE, and a site reaches a variable via ExpressionTargetField - which HSM
+  STATES do not have (only BTree nodes and HSM transitions do). So this question's answers do
+  NOT reach the HSM parallel-regions case that CE-298 was filed for. That needs E3b-0 first:
+  a target field on the state's four action slots. See DESIGN_Occurrence_Scoped_Storage.md 28.6.
+  This is a premise that became load-bearing only when E3a made the HSM path per-occurrence -
+  not an error in the answers, which were framed from a BTree question.
 known-conflict: none known. Section 3 records where DESIGN_Parameter_Model.md's
   resolver tier turns out to be unreachable for managed assets; that is a finding,
   not a disagreement between documents.
