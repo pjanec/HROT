@@ -6,10 +6,11 @@ updated: 2026-09-22
 build-state: n/a — a build resumption. The DESIGN is DESIGN_Occurrence_Scoped_Storage.md §30;
   §30.18 is the slice table, and §30.22/§30.23/§30.24 are the P4-③ as-built (they SUPERSEDE
   parts of §30.14 and §30.18 — read them before quoting either).
-current-answer: ⭐ START AT §2. FOUR OF FIVE SLICES ARE DONE; the tree is GREEN at 70d40c0d2.
-  What is LEFT is `P4`-④ (the 100-byte cap — RESCOPED, it is NOT a deletion) and then the
-  BrainBlackboard struct itself, which is BLOCKED on one decision (§2 ③). §1 is what is done.
-  §3 traps. §4 gates + the cluster harness. §5 open questions + the pending fork decision.
+current-answer: ⭐ START AT §2 ⓪ — 🔴 **A LIVE REGRESSION FROM `P4`-② IS THE FIRST THING TO FIX:
+  six BTree assets silently stopped generating.** ALL FIVE SLICES are otherwise DONE (`P4`-④
+  landed 2026-09-22, §30.25). What remains is that regression, which IS §2 ③'s
+  `BlackboardTypeName` blocker already biting, and then the BrainBlackboard struct itself (§2 ②).
+  §1 is what is done. §3 traps. §4 gates + the cluster harness. §5 open + the pending fork decision.
 related-designs:
   - DESIGN_Occurrence_Scoped_Storage.md — §30.18 the slice table · §30.20 P4-① · §30.21 P4-②
     (the zero-fallback rail) · §30.22 CE-312 · §30.23 CE-308 · §30.24 CE-313. It wins on any
@@ -37,7 +38,7 @@ related-designs:
 | **`P4`-⑤** | ✅ the stale corpus |
 | **`P4`-②** | ✅ **`TBlackboard` bound to `byte`** + the **zero-fallback rail** + **2/2 cluster GOLD** *(§30.21)* |
 | **`P4`-③** | ✅ **all six identity-keyed surfaces re-homed** *(`CE-303`)*, **`CE-308`** *(the search axis)*, **`CE-313`** *(the builder generic)* — and it uncovered **`CE-312`** |
-| **`P4`-④** | ⛔ **NOT STARTED — and it is not what §30.18 says it is.** See §2 ① |
+| **`P4`-④** | ✅ **DONE `2026-09-22`** *(`CE-307`, §30.25)* — the cap was **seven sites, not three**, and two read 100 as a **WIDTH**. Shadow buffer sized per behaviour FIRST, then the bound repointed to **16 096**. ⭐ 3 positive rails. 🔴 **And it uncovered §2 ⓪** |
 
 ### 🔴🔴 THE BIG FINDING OF `P4`-③ — **`CE-312`, the FOURTH dead-storage instance**
 
@@ -61,7 +62,40 @@ by construction.
 
 ## 2. ⭐⭐⭐ WHAT IS LEFT
 
-### ① `P4`-④ — **the 100-byte cap is NOT a deletion** *(`CE-307`, rescoped `2026-09-22`)*
+### ⓪ 🔴🔴🔴 START HERE — **`P4`-② SILENTLY STOPPED GENERATING SIX BTREE ASSETS** *(found `2026-09-22`, §30.25 ⑤)*
+
+📐 **Measured, and confirmed by the repo itself.** `P4`-② changed hand-written `[BTreeAction]` methods
+in `CgfNodes.cs` from `ref BrainBlackboard` to `ref byte`. ⛔ **The 26 asset `.json` files still declare
+`"BlackboardTypeName": "…BrainBlackboard"`**, `BTreeMethodCompatibilityValidator` compares the two, and
+`BTreeJsonGenerator` treats an incompatible leaf as a **WHOLE-ASSET SKIP** — `BTREE0002`, no generated
+code at all.
+
+**The six, all binding `Action_Wander`:** `BTreeRenderShowcase` · `CombatShowcase` ·
+`T04_DecoratorRepeater` · `T05_DecoratorStack` · `T06_ObserverSelector` · `T08_ActionLeaf`.
+
+⭐⭐⭐ **THE CONFIRMATION, and it needs no build:** `CE-313` regenerated goldens and **exactly 6 of the 26
+still say `Interpreter<BrainBlackboard`** — and they are **the same six**. ⇒ they generated before; the
+regeneration had nothing to write for them.
+
+| ⛔ why nothing caught it — **three independent blind spots** | |
+|---|---|
+| 🔴 **the warnings appear only on a REAL recompile** | an incremental build prints nothing. ⭐ `touch Hrot/Subsystems/Hrot.AI.Behaviors/Brains/CgfNodes.cs` first, then build |
+| 🔴🔴 **`P4`-②'s own zero-fallback rail is green BY CONSTRUCTION** | it asserts *every REGISTERED node binds*. ⭐⭐ **A skipped asset never registers** ⇒ the rail cannot see it. ⚠ Same shape as `CE-312`'s six refusal-only rails |
+| ⚠ **the golden suite did not redden** | it left the six stale rather than failing on them |
+
+⇒ 🔒 **This is §2 ③ already biting — it is no longer "a decision needed before the struct can go", it is
+a repair.** ⛔ **Do not start §2 ② before this.**
+
+⚠ **The 2/2 cluster gold is NOT contradicted** — `hill-attack-close`'s behaviours are not among the six.
+
+### ① ✅ `P4`-④ — **DONE `2026-09-22`. The 100-byte cap was NOT a deletion** *(`CE-307`)*
+
+> ✅ **LANDED — 📄 §30.25 is the as-built and supersedes the plan below.** Kept because the ORDER
+> argument is the reusable part. ⭐ **Seven sites, not three.** ⭐ `BehaviorConstants.MaxRootParamsByteSize`
+> = **16 096** *(`BlueprintTierLadder.Tier16384PayloadSize`)*, mirrored in the analyzer and both packers.
+> ⛔ **`MaxBehaviorParamByteSize` stays at 100** — it is the `fixed byte[]` width and the escape hatch;
+> it dies with the struct. 🔴 **Two sites the row below did not name:** `BTreeBlackboardPackHelper`
+> → `BTreeJsonGenerator:257` **skips the whole asset**, and the ingress shadow read 100 as a WIDTH.
 
 > 🔒 **User:** *"Capping no longer needed as we allocate as much as we need, no?"* — ⭐ **Correct as
 > far as the CAP goes.**
@@ -139,7 +173,12 @@ at?** ⚠ **Not a blind rename** — §30.19: it mangles into params-layout stru
 | ⚠ **an over-broad substitution corrupts DOC COMMENTS** | ⭐ Always `git diff --name-only \| grep -v Tests` after a scripted edit |
 | ⚠ **`NETSDK1004` × ~60 is PRE-EXISTING** | unrestored `Stride/` projects. ⭐ Filter on `error CS` |
 | ⚠ **build the TEST project, not the production one** | `--no-build` against a production-only build runs a stale binary |
-| ⛔ **do NOT "fix" `RW-S` tracker rows** | invisible to `tracker-counts.py` — known gap `CE-259at` |
+| ⛔ **do NOT "fix" `RW-S` tracker rows** | invisible to `tracker-counts.py` — known gap `CE-259at`. ⭐ **Corollary measured `2026-09-22`:** adding/closing `RW-S` rows leaves `--check` reporting the SAME counts. That is CORRECT, not a stale gate |
+| 🔴🔴🔴 **A GENERATOR WARNING ONLY APPEARS ON A REAL RECOMPILE** | 📌 `2026-09-22`: six assets had been silently skipped since `P4`-② and every incremental build printed nothing. ⭐ **`touch` the source that changed, then build** — otherwise "no warnings" means "nothing recompiled" |
+| 🔴🔴 **A RAIL OVER THE *REGISTRY* CANNOT SEE A SKIPPED *ASSET*** | 📌 `P4`-②'s zero-fallback rail asserts *every REGISTERED node binds*. ⭐⭐ **An asset the generator skipped never registers**, so the rail is green by construction — ⚠ **the same blind spot as `CE-312`'s refusal-only rails, one level up.** 🔒 **A rail over a DERIVED collection cannot see items that never entered it** |
+| ⭐⭐ **STALE GOLDENS ARE EVIDENCE, and they are free** | 📌 `CE-313` regenerated goldens; **exactly 6 of 26 still said `Interpreter<BrainBlackboard`, and they were exactly the 6 skipped assets.** ⇒ *"which goldens did NOT move when they should have"* answered a causation question a build could not |
+| 🔴🔴 **A WORKTREE BUILD LEAKS GENERATOR OUTPUT ACROSS TREES** | 📌 `2026-09-22`: a worktree at `05d15ec5f` emitted `Interpreter<byte, …>` — a shape that commit's source cannot produce. ⛔ **The experiment was INVALID and its result was discarded.** ⚠ New instance of *"a reload is not a reset"*: ⭐ **before trusting a historical build, check its output for something only the NEW code could emit** |
+| ⚠ **`Hrot.Editor.AiShared.Tests` is ALSO unrestored here** | `NETSDK1004`, same as `Fdp.Presentation.Tests`. ⭐ `dotnet restore <proj>` first. ⭐⭐ **`quick-check.sh` REFUSES to test a failed build** — that refusal is what surfaced it, instead of a stale-binary `PASSED` |
 
 ---
 
@@ -148,12 +187,13 @@ at?** ⚠ **Not a blind rename** — §30.19: it mangles into params-layout stru
 | suite | baseline |
 |---|---|
 | solution build *(156 projects)* | **0 `error CS`** |
-| `Fdp.Toolkits.Tests` | **2307 / 0** ⚠ was 2299; **+8 = `BehaviorParamSlotResolverTests`** |
+| `Fdp.Toolkits.Tests` | **2310 / 0** ⚠ was 2307; **+3 = `CE-307`'s positive rails** in `BehaviorIngressSystemTests` |
 | `Hrot.Blueprints.Tests` | **4017 / 0** *(18 skipped)* |
 | `Hrot.SimHost.Tests` | **1005 / 3** *(the 3 documented)* |
 | `Hrot.Presentation.Tests` | **299 / 0** |
-| `Hrot.AiEditor.Generators.Tests` | **281 / 4** *(the 4 documented)* ⚠ was 279/4; **+2 = the zero-fallback rails** |
+| `Hrot.AiEditor.Generators.Tests` | **282 / 4** *(the 4 documented)* ⚠ was 281/4; **+1 = `NoTierIsLargerThanTheCeiling`**. ⛔ **`CE-307` re-pointed two rails that PINNED the retired cap** — `ManagedAsset_MasterDtoOverTheParamsCeiling_IsSkipped` and `StructDtoVariable_AggregateOverTheParamsCeiling_SkipsWithBtree0002`; their fixtures now size themselves FROM the constant, so the skip-on-overflow MECHANISM is still tested and the threshold can move again without a hand edit |
 | `Fdp.Presentation.Tests` | ⛔ **filter only** — `--filter "FullyQualifiedName~ReplayBrowser"` ⇒ **93 / 0** |
+| ⭐ `Hrot.Editor.AiShared.Tests` | **2058 / 0** — ⚠ **NEW gate row `2026-09-22`.** It was never gated because the project was **unrestored** *(`NETSDK1004`)*; `dotnet restore` once and it runs. ⭐⭐ **It is the bin packer's own suite, so `CE-314` must run it** |
 | docs | `design-digest --check` · `rulings-check` **38/38** · `tracker-counts --check` · `mermaid-check` |
 
 ⭐ **Golden regeneration switches:** `BLUEPRINT_REGENERATE_SNAPSHOTS=1` *(Blueprints)* ·
@@ -201,17 +241,27 @@ claim, observed on the running product.
 | 🔴 **THE FORK DECISION — awaiting the user** | 🔒 User: *"The vendored fork can be removed"* — ⚠ **given before this measurement.** 📐 `Fbt.SourceGen` is referenced by **3** projects in `FastBTree.sln`: 2 examples and **`Fbt.Tests`**. Of `Fbt.Tests`' 33 unit files, **7** touch the generator *(useless to HROT — it has its own)*; **~26 test `Fbt.Kernel`/`Fbt.Compiler`, which ARE in the root solution and ship in HROT** — and `Fbt.Kernel` is what `P4`-② modified. ⭐ **Lean: delete the generator + its 7 tests + the 2 examples, KEEP the kernel/compiler tests.** ⚠ `SampleTreeDefinitions.cs` is a SHARED fixture using `[BTreeDefinition]`, so whether the kernel tests survive needs **one build**, not a guess. 🔒 **User also ruled: *"in extdeps btree there should be nothing from fdp"*** ⇒ ⛔ **"sync the fork with the analyzer copies" is WITHDRAWN** — it would push FDP *into* a vendored library |
 | ✅ **`G4` — CLOSED** | `Idle` registers with no `ParseParams`, no `BlackboardLayoutType`, no manifest ⇒ `RootParamsBytes` = **0** |
 | ✅ **`G5` — ANSWERED, and LATENT** | `subBb` is **`master.{VarName}`** — a *field* of the master struct, so orchestration needs a struct, not `byte`. `BTreeOrchestratorEmitCore:108` types `master` on the **asset's** type *(not `byte`)*, which is why the solution builds. 📐 **Zero** generated `HostedSubtree.Tick` sites ⇒ nothing orchestrates today. ⚠ §2 ③ would trip it |
-| ⚠ **`BehaviorValidationScenario` is excluded from the BTree tick** | §2 ②. Not yet filed as a row — ⭐ file it when `P4`-④ starts |
+| ✅ **`BehaviorValidationScenario` excluded from the BTree tick** | **FILED as `CE-315`** `2026-09-22`. ⭐ Closes for free when §2 ② deletes the struct; filed separately because the scenario is wrong TODAY and the lesson is its own: **dead storage used as a QUERY PREDICATE fails as silent NON-EXECUTION**, which no value-asserting rail can see |
+| 🔴 **`CE-314` — the bin packer's HEAVY arm still targets the deleted `Blackboard1024`** | filed `2026-09-22`. ⭐ **Unreachable since `CE-307`** raised the ceiling, so the PATH is closed — ⛔ the code, `PackTier.Heavy`, `MaxHeavyBytes`, and the authoring window's `RequiresHeavyComponent` *(view model + JSON export key)* are not. ⚠ **Low severity, and the reason is `CE-312`'s generalisation:** the one production caller reads only `ByteSize` — `Tier`/`ByteOffset` are discarded — so no offset into the dead component is ever used. What leaks is a **misleading UI claim**, not corrupt data. ⇒ its own slice, its own rails |
 | ⚠ **the two §29 unknowns** | the failing runs reaching the firing line with no spawn-time writer; the 100-byte probe passing 2/2 *before* the fix. ⛔ Neither blocks — ⭐ re-read if `P4` reddens the cluster in a way the unit rails miss |
 
 ---
 
 ## 6. ⭐ THE EXACT FIRST ACTION
 
-1. `git fetch origin behaviors && git status` — expect **clean at `70d40c0d2`**.
-2. **`P4`-④, in the order §2 ① gives:** ⭐ **shadow buffer first** *(`BehaviorIngressSystem:57,97,98`
-   → slot-sized)*, **then** the analyzer cap + its 3 mirrors. ⛔ Not the other way round.
-3. **Settle §2 ③** *(what a BTree asset's `BlackboardTypeName` points at)* — it gates the struct deletion.
-4. **Then delete `BrainBlackboard`** — ⛔ **re-run §3's dead-storage check FIRST**; it is what found
-   `CE-310`, `CE-311` and `CE-312`.
-5. The fork decision *(§5)* is independent and can go any time.
+1. `git fetch origin behaviors && git status` — expect **clean**, `P4`-④ landed.
+2. 🔴🔴🔴 **§2 ⓪ FIRST — the six skipped assets.** ⭐ **Reproduce it before anything else**, because an
+   incremental build hides it:
+   ```bash
+   touch Hrot/Subsystems/Hrot.AI.Behaviors/Brains/CgfNodes.cs
+   dotnet build Hrot/Subsystems/Hrot.AI.Behaviors/Hrot.AI.Behaviors.csproj --no-restore 2>&1 \
+     | grep -oE "Skipped '[^']*\.btree\.json'" | sed 's|.*/||' | sort -u      # expect 6
+   ```
+   ⛔ **This IS §2 ③** — the repair and the decision are the same question, so settle
+   `BlackboardTypeName` *as* the fix rather than separately.
+3. ⭐ **Add the rail `P4`-② lacked, in the same slice** — *"no `.btree.json` asset is skipped"*, asserted
+   over the ASSET SET, not the registry. ⚠ §3: a rail over a derived collection cannot see what never
+   entered it.
+4. **Then delete `BrainBlackboard`** *(§2 ②)* — ⛔ **re-run §3's dead-storage check FIRST**; it is what
+   found `CE-310`, `CE-311` and `CE-312`. ⭐ It also closes `CE-315` for free.
+5. `CE-314` *(the packer's dead heavy arm)* and the fork decision *(§5)* are independent, any time.

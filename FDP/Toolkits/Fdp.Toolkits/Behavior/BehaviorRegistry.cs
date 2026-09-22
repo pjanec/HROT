@@ -306,21 +306,29 @@ namespace Fdp.Toolkit.Behavior
         /// </summary>
         public void Register(int id, string name, BehaviorDefinition definition)
         {
-            // Startup-time firewall: ensure the params DTO won't overrun the 60-byte
-            // BehaviorParameters region and corrupt the SoftAdvice or Interrupt registers.
-            // Source generators enforce this at compile time via BHU_004; this check is
-            // the runtime backstop for behaviors whose DTO is bound without [SharedAiAction].
-            // ⭐ CE-235: this guard is about the BLACKBOARD REGION, so it reads the layout type, never
-            //   the authored JSON contract — a JSON DTO is a heap class whose Marshal size means nothing
-            //   here.
+            // Startup-time firewall: ensure the params DTO can actually be STORED.
+            // ⭐ CE-235: this guard is about the params REGION, so it reads the layout type, never the
+            //   authored JSON contract — a JSON DTO is a heap class whose Marshal size means nothing here.
+            //
+            // ⭐⭐⭐ CE-307 (2026-09-22) — THIS WAS A 100-BYTE CAP, AND THE REASON IT GAVE WAS ALREADY
+            //   FALSE. It read "would corrupt the SoftAdvice and Interrupt registers in BrainBlackboard":
+            //   O2 moved those registers to BrainInterrupts, and P3-C moved params out of the blackboard
+            //   entirely. ⇒ there are no neighbours to corrupt — params occupy their own occurrence slot,
+            //   sized RootParamsBytes(def) and promoted up the tier ladder.
+            // ⛔ So this is no longer a CAP. It is a CAPACITY check, and the honest number is the largest
+            //   tier's whole payload: above it, no tier can hold the region at all.
+            // ⚠ Below it is NOT a guarantee of fit — the region shares its tier with the behaviour's
+            //   stateful slots and hosted occurrences, and ingress throws (naming CE-302) when the store
+            //   has no room. This catches the case that is impossible to satisfy, at registration.
             if (definition.BlackboardLayoutType != null)
             {
                 int dtoSize = System.Runtime.InteropServices.Marshal.SizeOf(definition.BlackboardLayoutType);
-                if (dtoSize > BehaviorConstants.MaxBehaviorParamByteSize)
+                if (dtoSize > BehaviorConstants.MaxRootParamsByteSize)
                     throw new InvalidOperationException(
                         $"Behavior '{name}' params DTO '{definition.BlackboardLayoutType.Name}' requires {dtoSize} bytes, " +
-                        $"which exceeds the maximum allowed parameter size of {BehaviorConstants.MaxBehaviorParamByteSize} bytes. " +
-                        "This would corrupt the SoftAdvice and Interrupt registers in BrainBlackboard.");
+                        $"which exceeds {BehaviorConstants.MaxRootParamsByteSize} — the payload of the largest occurrence " +
+                        "storage tier. No tier can hold a root params region this wide, so the behaviour could never be " +
+                        "assigned. Split the parameters, or add a larger tier to BlueprintTierLadder.");
             }
 
             // Duplicate-name hard error (Phase 1e, unblocked by Phase 2c factory retirement).

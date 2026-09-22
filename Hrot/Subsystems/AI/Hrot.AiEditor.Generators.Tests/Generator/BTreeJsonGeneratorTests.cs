@@ -993,7 +993,7 @@ namespace Stub
         structSource!.Should().Contain("[MarshalAs(UnmanagedType.I1)]",
             "bool fields require [MarshalAs(UnmanagedType.I1)] for sequential layout correctness");
 
-        // Total must be within 100-byte inline budget.
+        // Total must be within the params ceiling (CE-307: was a 100-byte inline budget).
         packResult.TotalInlineBytes.Should().BeLessOrEqualTo(BlackboardBinPacker.MaxInlineBytes,
             "test fixture must fit in the inline budget");
     }
@@ -1199,20 +1199,32 @@ namespace Stub
     }
 
     /// <summary>
-    /// S1-2: A managed asset whose variables exceed 100 bytes must be SKIPPED BY THE GENERATOR
-    /// with a BTREE0002 Warning — never a hard build break, and no oversized struct emitted.
+    /// S1-2: A managed asset whose variables exceed the params ceiling must be SKIPPED BY THE
+    /// GENERATOR with a BTREE0002 Warning — never a hard build break, and no oversized struct emitted.
     ///
-    /// Corrective round (BATCH-02 review): this test now RUNS THE GENERATOR on the 13×Vector3
-    /// managed asset (same harness as ManagedAsset_Generator_EmitsThreeFiles_*) instead of only
-    /// poking WouldOverflow/Pack directly, so it verifies the real generator path (the previous
-    /// version never exercised GenerateOneAsset and so could not catch a silent oversized emit).
+    /// Corrective round (BATCH-02 review): this test RUNS THE GENERATOR on the oversized managed asset
+    /// (same harness as ManagedAsset_Generator_EmitsThreeFiles_*) instead of only poking
+    /// WouldOverflow/Pack directly, so it verifies the real generator path (the previous version never
+    /// exercised GenerateOneAsset and so could not catch a silent oversized emit).
+    ///
+    /// <para>⭐⭐⭐ <b><c>CE-307</c> (2026-09-22) — THE MECHANISM IS UNCHANGED; THE THRESHOLD MOVED.</b>
+    /// This used to overflow with <b>13 × Vector3 = 156 B</b> against a 100-byte cap. ⛔ That cap was a
+    /// buffer-overrun guard for params stored inline in <c>BrainBlackboard</c>; params now occupy their
+    /// own occurrence slot, so the only real bound is the largest tier's payload. ⭐ <b>The fixture is
+    /// sized FROM the constant</b>, so it keeps testing the skip-on-overflow path if the ceiling moves
+    /// again — ⛔ a hard-coded count would have to be found and edited by hand, which is how the
+    /// previous number outlived its reason.</para>
     /// </summary>
     [Fact]
-    public void ManagedAsset_MasterDtoOver100Bytes_HardErrors()
+    public void ManagedAsset_MasterDtoOverTheParamsCeiling_IsSkipped()
     {
-        // Build a managed DTO with 13 × Vector3 (13 × 12 = 156 bytes > 100).
+        // Vector3 is 12 bytes and packs at alignment 4 with no padding between fields, so the
+        // aggregate is 12 × count. Two spare fields put it unambiguously over the ceiling.
+        const int Vector3Bytes = 12;
+        int fieldCount = (BTreeBlackboardPackHelper.MaxInlineBytes / Vector3Bytes) + 2;
+
         var vars = new List<BlackboardVariableDto>();
-        for (int i = 0; i < 13; i++)
+        for (int i = 0; i < fieldCount; i++)
         {
             vars.Add(new BlackboardVariableDto
             {
@@ -1223,7 +1235,9 @@ namespace Stub
 
         // Small standalone sanity check on the pack helper (kept from the original test).
         bool overflow = BTreeBlackboardPackHelper.WouldOverflow(vars, out string? unknownType);
-        overflow.Should().BeTrue("13 Vector3 fields (156 bytes) exceeds 100-byte inline budget");
+        overflow.Should().BeTrue(
+            $"{fieldCount} Vector3 fields ({fieldCount * Vector3Bytes} bytes) exceeds the "
+            + $"{BTreeBlackboardPackHelper.MaxInlineBytes}-byte params ceiling");
         unknownType.Should().BeNull("Vector3 is a known type");
 
         // Build a managed asset (Wait node — no method binding, avoids validator interference)
@@ -1905,7 +1919,7 @@ namespace Stub
         packed[1].ByteSize.Should().Be(12, "ThreeFieldParams is 12 bytes");
 
         total.Should().Be(20, "total = 8+12 = 20 bytes");
-        total.Should().BeLessOrEqualTo(BTreeBlackboardPackHelper.MaxInlineBytes, "must fit in 100-byte budget");
+        total.Should().BeLessOrEqualTo(BTreeBlackboardPackHelper.MaxInlineBytes, "must fit in the params ceiling");
 
         // Emit struct and verify both fields declared with global::-qualified names.
         var dto = BuildManagedDtoWithVars("StructDtoPackTest", vars);
@@ -2103,22 +2117,27 @@ namespace Stub
             "valid nested-DTO asset must emit topology + struct + bridge");
     }
 
-    // ── Test 5: StructDtoVariable_AggregateOver100Bytes_SkipsWithBtree0002 ───
+    // ── Test 5: StructDtoVariable_AggregateOverTheParamsCeiling_SkipsWithBtree0002 ───
 
     /// <summary>
-    /// S1-2b: A managed asset whose resolved struct sizes sum >100 bytes must emit
+    /// S1-2b: A managed asset whose resolved struct sizes sum past the params ceiling must emit
     /// a BTREE0002 Warning and no .Blackboard.g.cs (generator skips entirely).
     /// Uses the full generator pipeline (same pattern as BATCH-02 overflow rewrite).
+    ///
+    /// <para>⭐⭐ <b><c>CE-307</c> (2026-09-22)</b> — was 6 × <c>VecParams</c> against a 100-byte cap.
+    /// ⭐ The fixture is now sized FROM the constant; the resolved-struct-size path it exercises is
+    /// unchanged.</para>
     /// </summary>
     [Fact]
-    public void StructDtoVariable_AggregateOver100Bytes_SkipsWithBtree0002()
+    public void StructDtoVariable_AggregateOverTheParamsCeiling_SkipsWithBtree0002()
     {
-        // VecParams is 24 bytes (managed sequential: int@0, Vector3@8, AlignUp(20,8)=24).
-        // Each VecParams: size=24, align=min(24,8)=8.
-        // V0@0(24), V1@24(24), V2@48(24), V3@72(24), V4@96(24), end@120 > 100B.
-        // 5 VecParams already exceeds 100. Use 6 to be safe.
+        // VecParams is 24 bytes (managed sequential: int@0, Vector3@8, AlignUp(20,8)=24)
+        // and packs at alignment min(24,8)=8, so 24 divides evenly and there is no padding.
+        const int VecParamsBytes = 24;
+        int fieldCount = (BTreeBlackboardPackHelper.MaxInlineBytes / VecParamsBytes) + 2;
+
         var vars = new List<BlackboardVariableDto>();
-        for (int i = 0; i < 6; i++)
+        for (int i = 0; i < fieldCount; i++)
             vars.Add(new BlackboardVariableDto
             {
                 Name = $"V{i}",
@@ -2164,7 +2183,7 @@ namespace Stub
         result.Diagnostics.Should().ContainSingle(d =>
             d.Id == BTreeJsonGenerator.CodegenWarningId &&
             d.Severity == DiagnosticSeverity.Warning,
-            "struct-DTO aggregate >100 bytes must produce exactly one BTREE0002 Warning");
+            "a struct-DTO aggregate over the params ceiling must produce exactly one BTREE0002 Warning");
         result.Diagnostics.Where(d => d.Severity == DiagnosticSeverity.Error)
             .Should().BeEmpty("overflow must never be a hard build break");
 

@@ -423,5 +423,149 @@ namespace Fdp.Toolkit.Behavior.Tests
 
             world.Dispose();
         }
+
+        // ══ CE-307 — PARAMS WIDER THAN 100 BYTES ═══════════════════════════════════════════
+        //  🔴🔴 Every one of these was IMPOSSIBLE before CE-307, and each was blocked by a
+        //     DIFFERENT site, which is why they are asserted separately:
+        //       · BehaviorRegistry.Register  threw on a >100-byte BlackboardLayoutType;
+        //       · BehaviorIngressSystem      parsed into a `stackalloc byte[100]` shadow, so a wider
+        //                                    ParseParams wrote PAST THE END OF THE STACK BUFFER;
+        //       · the carry-over seed        clamped to the constant 100, not to the region's width.
+        //  ⭐⭐ These are POSITIVE rails — they write known values and assert they READ BACK. ⛔ The
+        //     CE-312 lesson: a rail that asserts only REFUSALS is satisfied by a zero-filled region.
+
+        /// <summary>256 bytes — comfortably over the retired 100-byte cap, under the 16096 ceiling.</summary>
+        private const int WideParamsBytes = 256;
+
+        [System.Runtime.InteropServices.StructLayout(
+            System.Runtime.InteropServices.LayoutKind.Sequential, Size = WideParamsBytes)]
+        private struct WideParams { public byte First; }
+
+        [System.Runtime.InteropServices.StructLayout(
+            System.Runtime.InteropServices.LayoutKind.Sequential, Size = 16)]
+        private struct NarrowParams { public byte First; }
+
+        /// <summary>The pattern a wide parser writes — distinct per offset, so a truncation SHOWS.</summary>
+        private static byte Pattern(int i) => unchecked((byte)(i ^ 0x5A));
+
+        private static void RegisterWide(BehaviorRegistry registry, int id, string name) =>
+            registry.Register(id, name, new BehaviorDefinition
+            {
+                Name                 = name,
+                BrainTier            = BehaviorConstants.BrainTierBTree,
+                BlackboardLayoutType = typeof(WideParams),
+                // ⚠ Writes the FULL width. Before CE-307 this ran against a 100-byte stackalloc.
+                ParseParams = static (string json, byte* mem, EntityRepository world, Entity self, IHostVariableAccess? host) =>
+                {
+                    for (int i = 0; i < WideParamsBytes; i++) mem[i] = unchecked((byte)(i ^ 0x5A));
+                },
+            });
+
+        /// <summary>
+        /// ⭐⭐⭐ <b>A behaviour with 256 bytes of params parses IN FULL and lands in its slot.</b>
+        /// ⛔ The assertion that matters is the tail: bytes at offsets ≥ 100 are exactly the region the
+        /// retired cap made unreachable, and a partial fix would leave them zero.
+        /// </summary>
+        [Fact]
+        public void BehaviorIngress_ParamsWiderThanTheRetiredCap_RoundTripInFull()
+        {
+            var (world, sys, registry) = CreateFixture();
+
+            const string behaviorName = "WideParamsBehavior";
+            RegisterWide(registry, 0x0C_E3_07_01, behaviorName);
+
+            var e = world.CreateEntity();
+            world.AddComponent(e, new BehaviorState());
+
+            world.Bus.PublishManaged(new AssignBehaviorEvent
+            {
+                Entity = e, BehaviorName = behaviorName, JsonParams = "",
+            });
+            world.Bus.SwapBuffers();
+            sys.Execute(world, 0.016f);
+
+            Assert.True(RootParamsAccess.TryGetRootBytes(world, e, out byte* root, out int len),
+                "the wide behaviour got no root params slot");
+
+            // ⭐ The slot is sized to the behaviour — promoted off the 256 tier (176-byte payload)
+            //   onto the 1024 tier automatically, which is the whole point of the ladder.
+            Assert.Equal(WideParamsBytes, len);
+
+            for (int i = 0; i < WideParamsBytes; i++)
+                Assert.Equal(Pattern(i), root[i]);
+
+            world.Dispose();
+        }
+
+        /// <summary>
+        /// ⭐⭐ <b>Registration no longer refuses a wide layout type.</b> 🔴 <c>BehaviorRegistry.Register</c>
+        /// threw <i>"exceeds the maximum allowed parameter size of 100 bytes … would corrupt the
+        /// SoftAdvice and Interrupt registers in BrainBlackboard"</i> — a rationale that was already
+        /// false when <c>O2</c> moved those registers out.
+        /// </summary>
+        [Fact]
+        public void BehaviorRegistry_AcceptsALayoutTypeWiderThanTheRetiredCap()
+        {
+            var registry = new BehaviorRegistry();
+
+            Assert.Null(Record.Exception(
+                () => RegisterWide(registry, 0x0C_E3_07_02, "WideRegistrationBehavior")));
+        }
+
+        /// <summary>
+        /// ⭐⭐⭐ <b>Switching WIDE → NARROW truncates the carry-over at the NEW region's width.</b>
+        ///
+        /// <para>⛔⛔ This is the line the cap was hiding. The seed copies the PREVIOUS behaviour's slot
+        /// into the parse shadow so a partial parse behaves as it always has; the clamp used to be the
+        /// constant <c>100</c>. ⇒ with a 256-byte previous region and a 16-byte new one, clamping to
+        /// 100 would have written <b>84 bytes past the end of the shadow</b>. ⭐ The clamp is now the
+        /// shadow's own width, which IS the new region's width.</para>
+        ///
+        /// <para>⚠ Asserts the NEW region is exactly 16 bytes and holds the narrow parser's marker —
+        /// ⛔ not that it is zero, which a broken implementation could also produce.</para>
+        /// </summary>
+        [Fact]
+        public void BehaviorIngress_SwitchingFromWideToNarrow_ClampsTheCarryOverToTheNewWidth()
+        {
+            var (world, sys, registry) = CreateFixture();
+
+            const string wideName   = "WideThenNarrow_Wide";
+            const string narrowName = "WideThenNarrow_Narrow";
+            RegisterWide(registry, 0x0C_E3_07_03, wideName);
+            registry.Register(0x0C_E3_07_04, narrowName, new BehaviorDefinition
+            {
+                Name                 = narrowName,
+                BrainTier            = BehaviorConstants.BrainTierBTree,
+                BlackboardLayoutType = typeof(NarrowParams),
+                // ⚠ Writes ONLY its first byte — a deliberately PARTIAL parse, which is exactly the
+                //   case the carry-over seed exists for.
+                ParseParams = static (string json, byte* mem, EntityRepository world, Entity self, IHostVariableAccess? host) =>
+                {
+                    mem[0] = 0xC7;
+                },
+            });
+
+            var e = world.CreateEntity();
+            world.AddComponent(e, new BehaviorState());
+
+            world.Bus.PublishManaged(new AssignBehaviorEvent { Entity = e, BehaviorName = wideName, JsonParams = "" });
+            world.Bus.SwapBuffers();
+            sys.Execute(world, 0.016f);
+
+            world.Bus.PublishManaged(new AssignBehaviorEvent { Entity = e, BehaviorName = narrowName, JsonParams = "" });
+            world.Bus.SwapBuffers();
+            sys.Execute(world, 0.016f);
+
+            Assert.True(RootParamsAccess.TryGetRootBytes(world, e, out byte* root, out int len),
+                "the narrow behaviour got no root params slot");
+            Assert.Equal(16, len);
+
+            Assert.Equal(0xC7, root[0]);
+            // ⭐ Bytes 1..15 carried over from the wide region's head — the partial-parse contract.
+            for (int i = 1; i < 16; i++)
+                Assert.Equal(Pattern(i), root[i]);
+
+            world.Dispose();
+        }
     }
 }

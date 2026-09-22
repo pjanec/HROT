@@ -83,15 +83,39 @@ public record PackResult(
 public static class BlackboardBinPacker
 {
     /// <summary>
-    /// The maximum number of bytes available in the inline (master) blackboard region.
-    /// Mirrors <c>BehaviorConstants.MaxBehaviorParamByteSize</c>.
-    /// The last 28 bytes of BrainBlackboard (offsets 100--127) are reserved for tail registers
-    /// and must never be allocated by the packer.
+    /// The maximum number of bytes a behaviour's packed variable table may occupy.
+    /// Mirrors <c>BehaviorConstants.MaxRootParamsByteSize</c> — the payload of the largest occurrence
+    /// storage tier. Pinned against every other copy by <c>InlineBudgetConstantAgreementTests</c>.
+    ///
+    /// <para>⭐⭐⭐ <b><c>CE-307</c> (2026-09-22) — was <b>100</b>, the width of the inline
+    /// <c>BrainBlackboard.BehaviorParameters</c> buffer, whose last bytes abutted tail registers that
+    /// must never be allocated over.</b> ⛔ That layout is gone: <c>O2</c> moved the registers to
+    /// <c>BrainInterrupts</c> and <c>P3-C</c> moved params into their own occurrence slot. ⇒ the table
+    /// is sized to itself and promoted up the tier ladder, so the only real bound is the largest
+    /// tier's payload.</para>
+    ///
+    /// <para>🔴🔴 <b>DELIBERATELY STILL <c>100</c>, and it is the ONE copy `CE-307` did NOT raise.</b>
+    /// ⚠ In THIS packer the number is not only a ceiling — it is also the <b>INLINE/HEAVY SPLIT
+    /// POINT</b>, and the heavy side addresses <c>Blackboard1024</c>, which <c>P4</c>-① deleted (see
+    /// <see cref="MaxHeavyBytes"/>). ⇒ raising it here makes the spill unreachable and leaves four
+    /// tests exercising a dead arm with absurd fixtures. ⛔ <b>The split has to GO, not be re-tuned</b>
+    /// — that is <c>CE-314</c>, and this constant is raised there, in the same change that removes the
+    /// heavy concept. ⚠ <b>Until then the EDITOR still refuses a &gt;100-byte authored blackboard while
+    /// the GENERATOR accepts one</b> — a stated, temporary inconsistency, not an oversight.</para>
     /// </summary>
     public const int MaxInlineBytes = 100;
 
     /// <summary>
-    /// The maximum number of bytes available in the heavy (Blackboard1024) component.
+    /// ⛔⛔ <b>DEAD ARM — <c>Blackboard1024</c> WAS DELETED BY <c>P4</c>-①.</b> Nothing provisions the
+    /// storage these offsets address, so a variable routed to <see cref="PackTier.Heavy"/> has nowhere
+    /// to live and <c>RequiresHeavyComponent</c> reports a component that cannot exist.
+    ///
+    /// <para>⭐ <b>Unreachable as of <c>CE-307</c>, not merely unused:</b> spill happens only when an
+    /// aggregated variable does not fit within <see cref="MaxInlineBytes"/>, and that is now the whole
+    /// 16384-tier payload. ⇒ raising the ceiling closed the path; ⛔ the arm itself, the
+    /// <see cref="PackTier.Heavy"/> member, and the authoring window's <c>RequiresHeavyComponent</c>
+    /// surface (view model + its JSON export key) are a separate removal — they change an editor
+    /// contract and deserve their own rails. <b>Filed as <c>CE-314</c>.</b></para>
     /// </summary>
     public const int MaxHeavyBytes = 928;
 

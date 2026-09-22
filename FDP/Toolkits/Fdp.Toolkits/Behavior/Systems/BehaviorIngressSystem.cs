@@ -38,9 +38,54 @@ namespace Fdp.Toolkit.Behavior.Systems
     {
         private readonly BehaviorRegistry _registry;
 
+        /// <summary>
+        /// ⭐⭐⭐ <b><c>CE-307</c> — the transactional-parse shadow. A GROWABLE scratch buffer, and
+        /// deliberately <b>not</b> a bound.</b>
+        ///
+        /// <para>🔴 <b>What it replaced, and why the replacement is the load-bearing half of
+        /// <c>P4</c>-④.</b> This was <c>stackalloc byte[BehaviorConstants.BrainBlackboardByteSize]</c>
+        /// — 100 bytes, the width of the component being retired. ⛔ A behaviour whose packed variable
+        /// table exceeded 100 bytes would have had <see cref="BehaviorDefinition.ParseParams"/> write
+        /// <b>past the end of a stack buffer</b>, and the carry-over seed silently truncate. ⚠ Neither
+        /// was reachable — <b>only because <c>BehaviorParameterSizeAnalyzer</c> capped params at
+        /// 100</b>. ⇒ 🔒 removing that cap before this was sized per-behaviour would have converted an
+        /// impossible fault into a live one, which is why this change lands FIRST.</para>
+        ///
+        /// <para>⭐ <b>An instance field, not a <c>stackalloc</c>.</b> The width is a RUNTIME value now
+        /// (<see cref="RootParamsAccess.RootParamsBytes"/> — 52 for <c>PlatoonHillAttack</c>, 16 for
+        /// <c>MoveToLocation</c>), so a compile-time stack allocation cannot express it, and a
+        /// <c>stackalloc</c> inside the event loop is the <c>CA2014</c> stack-overflow the original
+        /// comment was avoiding. ⚠ Reused across events and frames — hence the unconditional
+        /// <c>Clear()</c> at the seed — and it only ever grows, so the steady state allocates nothing.
+        /// ⛔ <c>Execute</c> is not re-entrant (Input phase, one thread), which is what makes per-system
+        /// scratch state safe here.</para>
+        /// </summary>
+        private byte[] _shadow = Array.Empty<byte>();
+
+        /// <summary>
+        /// The smallest shadow this will hand out. ⛔ <b>Not a cap and not a budget</b> — a floor, so
+        /// that pinning the buffer can never yield a <c>null</c> <c>dst</c> for a
+        /// <see cref="BehaviorDefinition.ParseParams"/> delegate. ⚠ Reachable only for a behaviour that
+        /// declares a parser and a manifest whose extent computes to zero; every shipped behaviour
+        /// declares either a manifest with real variables or a <c>BlackboardLayoutType</c>.
+        /// </summary>
+        private const int MinShadowBytes = 16;
+
         public BehaviorIngressSystem(BehaviorRegistry registry)
         {
             _registry = registry ?? throw new ArgumentNullException(nameof(registry));
+        }
+
+        /// <summary>
+        /// ⭐ Widens <see cref="_shadow"/> to hold <paramref name="bytes"/> and returns exactly that
+        /// window. ⚠ The returned span's <c>Length</c> is the authority for the seed clamp — ⛔ never
+        /// <c>_shadow.Length</c>, which may be wider from a previous, larger behaviour.
+        /// </summary>
+        private Span<byte> EnsureShadow(int bytes)
+        {
+            int need = Math.Max(bytes, MinShadowBytes);
+            if (_shadow.Length < need) _shadow = new byte[need];
+            return _shadow.AsSpan(0, need);
         }
 
         public unsafe void Execute(ISimulationView view, float deltaTime)
@@ -51,10 +96,6 @@ namespace Fdp.Toolkit.Behavior.Systems
                     $"and cannot run on a read-only snapshot ({view.GetType().Name}).");
 
             var events = repo.Bus.ReadManaged<AssignBehaviorEvent>();
-
-            // Shadow buffer allocated once per OnUpdate call (outside the loop) to avoid
-            // CA2014 stack-overflow risk. BrainBlackboardByteSize is a compile-time constant.
-            Span<byte> shadow = stackalloc byte[BehaviorConstants.BrainBlackboardByteSize];
 
             foreach (var evt in events)
             {
@@ -76,6 +117,15 @@ namespace Fdp.Toolkit.Behavior.Systems
                 //
                 // ⛔ NOT a dual write. R-132's second producer, and in this codebase a temporary one
                 //   becomes permanent — the user ruled CLEAN CUT for exactly that reason.
+                // ⭐⭐⭐ CE-307 — THE SHADOW IS SIZED BY THE BEHAVIOUR, NOT BY A CONSTANT.
+                //   Hoisted here because the shadow's width IS this number: the region the parser may
+                //   write is the packed variable table's extent, and that is what lands in the slot
+                //   below. ⛔ It used to be BrainBlackboardByteSize (100) — the OLD component's width —
+                //   which made a >100-byte behaviour a STACK SMASH in ParseParams and a silent
+                //   truncation in the carry-over. Impossible only because the analyzer capped at 100.
+                int rootBytes = def.ParseParams != null ? RootParamsAccess.RootParamsBytes(def) : 0;
+                Span<byte> shadow = def.ParseParams != null ? EnsureShadow(rootBytes) : default;
+
                 if (def.ParseParams != null)
                 {
                     // ⭐⭐ SEED THE SHADOW FROM THE CURRENT ROOT SLOT, exactly as the blackboard copy
@@ -83,19 +133,21 @@ namespace Fdp.Toolkit.Behavior.Systems
                     //   this line runs before the transition is committed — which is what makes a
                     //   partial parse (an emitted parser writes only the variables the JSON mentions)
                     //   behave as it always has.
-                    // ⛔ And ZERO it when there is none: the buffer is allocated ONCE outside the
-                    //   loop, so a stale event's bytes would otherwise leak into this one.
+                    // ⛔ And ZERO it when there is none: the buffer is REUSED across events and across
+                    //   frames, so a stale event's bytes would otherwise leak into this one.
                     // ⚠ The length comes from the PREVIOUS slot's own guard, never from the NEW
                     //   behaviour's extent — the two differ, and using the new one overreads the old
-                    //   slot into whatever occurrence follows it.
+                    //   slot into whatever occurrence follows it. ⭐ Clamping to the shadow's width is
+                    //   then CORRECT TRUNCATION, not a cap: a wider previous region cannot carry over
+                    //   into a narrower new one, because those bytes are not part of the new table.
                     fixed (byte* dst = shadow)
                     {
                         shadow.Clear();
                         if (RootParamsAccess.TryGetRootBytes(repo, evt.Entity, out byte* prev, out int prevLen)
                             && prevLen > 0)
                         {
-                            int copy = Math.Min(prevLen, BehaviorConstants.BrainBlackboardByteSize);
-                            Buffer.MemoryCopy(prev, dst, BehaviorConstants.BrainBlackboardByteSize, copy);
+                            int copy = Math.Min(prevLen, shadow.Length);
+                            Buffer.MemoryCopy(prev, dst, shadow.Length, copy);
                         }
                     }
 
@@ -193,7 +245,8 @@ namespace Fdp.Toolkit.Behavior.Systems
                 //   HSM brain. ⚠ Do NOT move this block back above the sweep.
                 if (def.ParseParams != null)
                 {
-                    int rootBytes = RootParamsAccess.RootParamsBytes(def);
+                    // ⚠ CE-307: `rootBytes` is the SAME value the shadow was sized from, hoisted to
+                    //   the top of this iteration. ⛔ Recomputing it here would let the two drift.
                     if (rootBytes > 0)
                     {
                         byte* rootParams = RootParamsAccess.ResolveOrAttachRoot(
