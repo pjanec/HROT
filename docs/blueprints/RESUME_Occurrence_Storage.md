@@ -5,8 +5,8 @@ doc-type: LANE RESUMPTION for the `behaviors` lane — programme ②, OCCURRENCE
   ⛔ VERIFY against git before acting ("THE LEDGER MAY NOT ASSERT WHAT THE CODE IS").
 updated: 2026-09-21
 build-state: n/a — a resumption snapshot, not a design.
-current-answer: 🔴🔴🔴 READ §0d FIRST (2026-09-22) — P3-C is landed and NOT VALIDATED (CE-304);
-  P4 is PARKED. THEN §0c for the path. (previous head) READ §0c FIRST (THE PATH P0-P4, 2026-09-21 late) — it supersedes §0b's
+current-answer: ✅ §0d IS RESOLVED (2026-09-22) — CE-304 is FIXED and RE-VALIDATED on a live
+  cluster (2/2 gold). P4 is UNPARKED. READ §0c for the path. (previous head) READ §0c FIRST (THE PATH P0-P4, 2026-09-21 late) — it supersedes §0b's
   "next slice" line and names the EXACT next action. THEN §0a for the standing constraints.
   (previous head) READ §0b FIRST (Q43 slice 1 as-built, 2026-09-21), THEN §0a for the
   standing constraints and holds. §0a's "THE NEXT TASK is Q43" is now PARTLY DONE - §0b says
@@ -325,7 +325,17 @@ and ours are `CE-`. Do not quote it as evidence for them.
 
 ---
 
-## 0d. 🔴🔴🔴 STOP — **`P3-C` IS LANDED AND NOT VALIDATED** *(`2026-09-22`)*
+## 0d. ✅✅✅ RESOLVED — **`P3-C` IS VALIDATED; `CE-304` IS CLOSED** *(`2026-09-22`)*
+
+> ⭐⭐⭐ **The stop sign is LIFTED.** `CE-304` was `BTreeActionGenerator.cs:655` — the 3-param
+> `[BTreeAction]` bridge still projected params out of the `BrainBlackboard` COMPONENT, whose only
+> writer `P3-C` cut, so 23 production thunks read an all-zero region. One-line re-anchor onto
+> `BlackboardParamsExpression.At("ctx.World","ctx.Self", 0)`, railed with a red-proof
+> (`Expected: 523  Actual: 0`), and **re-validated 2/2 gold on `--mode all`**.
+> 📄 `DESIGN_Occurrence_Scoped_Storage.md` §29.12 + §29.12a. ⇒ **`P4` is UNPARKED.**
+> ⛔ The text below is the ORIGINAL stop sign, kept as the record.
+
+## ⛔ HISTORY — the stop sign as filed
 
 ⛔⛔ **Read `CE-304` before touching anything in this programme.**
 📄 **[`RESUME_CE304_Params_Regression.md`](RESUME_CE304_Params_Regression.md) — THE DEBUGGING STATE, START THERE** ·
@@ -336,7 +346,7 @@ and ours are `CE-`. Do not quote it as evidence for them.
 |---|---|
 | ⭐ **what is true** | `P3-C` is committed and pushed (`3d4547a8d`, `cc4132859`) and **every unit suite is green** — Toolkits 2303/0, Blueprints 4017/0, Editor 420/0, Presentation 299/0 |
 | 🔴 **what is also true** | it **REGRESSES the golden test on a live cluster.** `hill-attack-close`, `--mode all`: baseline `9e20d3f97` **3/3 PASS**, `CE-302` alone **2/2 PASS**, `P3-C` **3/3 FAIL** — deterministic, bisected |
-| ⛔ **therefore** | **`P4` is PARKED** and nothing may be built on `P3-C` until `CE-304` closes |
+| ⛔ **therefore** *(SUPERSEDED — `CE-304` closed `2026-09-22`)* | ~~**`P4` is PARKED** and nothing may be built on `P3-C` until `CE-304` closes~~ |
 | ⭐ **the shape of it** | **NOT params delivery** — that is correct end to end, measured on a stranded entity. Three probes each moved WHICH entities recover without fixing it ⇒ **an adjacency / memory-overlap fault.** §29.10 has the design defect (§29.6 specified the ANCHOR and never the EXTENT) and the correct solution |
 | ⛔⛔ **do the RAIL first** | no rail anywhere asserts a projection stays INSIDE its slot. That is the gap that let this ship — §29.10's last section |
 

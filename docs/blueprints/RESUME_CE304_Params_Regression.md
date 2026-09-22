@@ -4,7 +4,8 @@ doc-type: DEBUGGING RESUMPTION for CE-304 — the live regression P3-C introduce
   ⚠ A STATE doc, not canon. Every "measured" line is dated; ⛔ VERIFY against git before acting.
 updated: 2026-09-22
 build-state: n/a — a debugging snapshot, not a design.
-current-answer: ✅ READ §8 FIRST (2026-09-22) — THE MECHANISM IS FOUND, FIXED AND RAILED.
+current-answer: ✅✅ CLOSED. READ §8 FIRST (2026-09-22) — THE MECHANISM IS FOUND, FIXED, RAILED
+  AND RE-VALIDATED ON A LIVE CLUSTER (2/2 gold).
   BTreeActionGenerator.cs:655 (the 3-param [BTreeAction] bridge) still projected params out of
   the BrainBlackboard COMPONENT, whose only writer P3-C cut. §1 (the failure record) and §6 (the
   reproducer) stand. ⚠ §4.3's "size is load-bearing" is NOT explained by the fix and is demoted
@@ -334,6 +335,6 @@ reached through `Unsafe.As` over the component the kernel hands the tick (`BTree
 
 | | |
 |---|---|
-| ⛔ **the live-cluster re-run** | §1.1's bisect table must be re-run at the fixed HEAD. **That is what closes `CE-304`**, not the unit rail |
+| ✅ **the live-cluster re-run — DONE, `CE-304` IS CLOSED** | 📐 **2/2 PASS** at `9830ca2cb`, each trial from a fresh process with `sawWorldChange: true`: `521.7 525.7 528.2 532.2` and `523.0 525.3 529.2 531.0`, both targets `Health 0`, all four `LocomotionChannel.Status: Success`. ⭐ Trial 2 reproduces the recorded gold to the metre. 📄 `DESIGN` §29.12a |
 | ⚠ **§4.3's probe is UNEXPLAINED** | widening `RootParamsBytes` to 100 cannot revive a component nobody writes ⇒ *"size is load-bearing"* does **not** follow from this mechanism. ⭐ Its own trial numbers differ from every other pass (`522` vs `523`) and §6 documents a stale-`bin/` trap. ⇒ **demoted to unconfirmed; A/B/C are neither live nor disproven** |
 | ⭐ **the extent rail §5②(a) still wants writing** | *"attach a root slot, attach an occurrence after it, write through the params `ref`, assert the neighbour is byte-unchanged"* — `CE-305` shows the hole is real even though it was not this bug |

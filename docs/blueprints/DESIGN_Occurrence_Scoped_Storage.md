@@ -7,9 +7,9 @@ current-answer: ✅ READ §29.12 FIRST (2026-09-22). CE-304's MECHANISM IS FOUND
   the BrainBlackboard COMPONENT, whose only writer P3-C cut, so 23 production thunks read an
   all-zero region. §29.10 is the (correct) failure record; §29.11's "size is load-bearing" is NOT
   explained by this and is demoted to unconfirmed. §29.13 is CE-305, a second, latent extent bug
-  found in the same sweep. ⚠ The live-cluster re-run is what re-validates P3-C; until it is green
-  the gate line below ("THE GOLDEN TEST IS GREEN") is TRUE OF 9e20d3f97 and UNPROVEN AT HEAD, and
-  P4 stays PARKED.
+  found in the same sweep. ✅ RE-VALIDATED ON A LIVE CLUSTER: §29.12a records 2/2 gold at the fixed
+  HEAD (both targets dead, all four members home), so the gate line below ("THE GOLDEN TEST IS
+  GREEN") is TRUE AGAIN AT HEAD and P4 is UNPARKED.
   ⭐ Then §16 — the READY-TO-PLAN checklist (settled / measured / still open, and
   the corrected dispatch order). §4 is the ExtDeps justification; §6 is the sequence.
   ⭐ §15 is the LIVE-RUN record and it OVERTURNS two earlier claims — read it before quoting §3.2's
@@ -4131,19 +4131,53 @@ test the node BODY and never the params ADDRESSING.** `T-1`③ applies: the blin
 
 #### ⚠ WHAT IS **NOT** CLAIMED
 
-⛔⛔ **IT DOES NOT YET EXPLAIN THE WHOLE SCENARIO, AND SAYING SO IS THE POINT.** 📐 The platoon spawns
-at **x ≈ 446–449** *(`scenarios/hill-attack-close/scenario.json`)*, and in the FAILING runs it ends at
-**579 / 587 / 524 / 590** — i.e. it **DID** reach the firing line. ⚠ An all-zero params region from the
-first dispatch would have commanded `(0,0)` instead. ⇒ 🔒 **either some dispatches got good bytes by a
-route this section does not name, or §1.2's *"tanks advance, acquire, fire"* narrative is itself
-partly inferred.** ⛔ **Do not resolve this by argument** — the live re-run is the instrument, and it
-is what closes `CE-304`.
+⚠ **ONE OBSERVATION IS STILL UNEXPLAINED, AND IT IS RECORDED RATHER THAN ARGUED AWAY.** 📐 The platoon
+spawns at **x ≈ 446–449** *(`scenarios/hill-attack-close/scenario.json`)* and the FAILING runs ended at
+**579 / 587 / 524 / 590**, so it reached the firing line; and the stranded tank's `NavState.FinalDestination`
+read a **correct** `[523, 401]`. ⛔ An all-zero region from the first dispatch should have commanded
+`(0,0)`.
+
+📐 **What the sweep DID settle:** there is **no spawn-time value writer** — `BehaviorTkbTranslator.cs:126`
+is the one production site that gives an entity a brain and it adds a **zeroed** `new BrainBlackboard()`;
+`BrainBlackboardTranslator.Inject` is a documented no-op. ⇒ the component is zero from spawn to death
+after `P3-C`, and *"an early dispatch read good bytes"* has no mechanism behind it that I can name.
+
+⇒ ⭐ **Demoted, not dismissed:** the gold test is GREEN at the fixed HEAD *(§29.12a)*, so this is no
+longer load-bearing on `CE-304`. ⛔ **But it is not explained**, and a future session must not read this
+section as if it were.
 
 ⛔ **And it does not explain §29.11's probe.** Widening `RootParamsBytes` to 100 cannot revive a component
 nobody writes, so the *"size is load-bearing"* observation remains **unexplained by this mechanism**.
 ⚠ Its own trial numbers differ from every other pass (`522` vs `523`), and the harness has a documented
 stale-`bin/` trap. ⇒ **§29.11's three candidates are NOT closed by this section** — they are demoted to
 *unconfirmed*, and the live-cluster re-run is what settles whether anything remains.
+
+### 29.12a ✅✅✅ THE LIVE RE-RUN — **`CE-304` IS CLOSED. 2/2 GOLD AT THE FIXED HEAD** *(`2026-09-22`)*
+
+📐 `clusterrunner --mode all`, `hill-attack-close`, acceptance per `CE-296`, each trial from a fresh
+process with `sawWorldChange: true`:
+
+| build | trials | end positions (x) | targets |
+|---|---|---|---|
+| `9e20d3f97` *(pre-`P3`)* | ✅ 3/3 PASS | `523 525 529 531` | dead |
+| `e9d124326` *(`CE-302`)* | ✅ 2/2 PASS | `523 525 529 531` | dead |
+| `3d4547a8d`+ *(`P3-C`, broken)* | 🔴 3/3 FAIL | `579 587 524 590` | dead |
+| ⭐⭐ **`9830ca2cb` *(this fix)*** | ✅✅ **2/2 PASS** | **`521.7 525.7 528.2 532.2`** · **`523.0 525.3 529.2 531.0`** | **dead** |
+
+⇒ ⭐⭐⭐ **Both `CE-296` criteria met on both trials** — `Health.Current: 0` on entities `1006`/`1007`,
+all four platoon members back on the baseline with `LocomotionChannel.Status: Success`. ⭐ **Trial 2
+reproduces the recorded gold to the metre.**
+
+#### ⭐ The direct byte evidence, same field §29.10 measured
+
+| field, tank `1001` | `P3-C` broken | ✅ this fix |
+|---|---|---|
+| `LocomotionChannel.Params` | `[0,0,0,…]` | **`[1,192,2,68, 0,128,200,67, …]`** ⇒ floats **523.0 / 401.0** |
+| `LocomotionChannel.Status` | `Running` *(never arrives)* | **`Success`** |
+| `NavigationIntent.FinalDestination` | `[0,0,0]` | the authored baseline |
+
+⛔ Nothing about the fix is inferred from the unit rail alone: this is the same field, on the same
+entity, in the same scenario, that the bisect table was built on.
 
 ### 29.13 ⚠ `CE-305` — **THE EXTENT WAS STILL A CONSTANT ON THE HOST-PARAMS PATH** *(found in the same sweep)*
 
