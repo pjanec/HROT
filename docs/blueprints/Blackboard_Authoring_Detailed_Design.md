@@ -436,7 +436,9 @@ is an occurrence slot sized to `RootParamsBytes(def)`, seated by the partition a
 tier fits — **176 / 800 / 3 808 / 16 096 B** of payload for `BlueprintBlackboard256 / 1024 / 4096 /
 16384`, with promotion up the ladder rather than refusal. The 100 survives from the retired fixed
 params region and is enforced in six places *(this packer, `BTreeBlackboardPackHelper`,
-`BehaviorConstants`, the `FDP_001` analyzer, `BP1200`, and a runtime throw)*. `CE-307` retires them;
+`BehaviorConstants`, the `FDP_001` analyzer, `BP1200`, and a runtime throw)*. ⚠ The packer also still
+carries `MaxHeavyBytes = 928` and a `HeavyMemoryExceeded` warning — a second survival, and its figure
+is the **pre-`B3②`** 1024-tier payload, stale by 128 bytes even for the arrangement it describes. `CE-307` retires them;
 when it lands, this bar's Y becomes the tier payload and the panel gains the tier it is sizing for.
 
 ---

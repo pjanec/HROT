@@ -1,6 +1,6 @@
 <!--STATUS
 state: LIVE
-updated: 2026-08-18
+updated: 2026-09-22
 current-answer: the per-row verdict table
 note: a sweep record, not a design. Rows marked STILL REAL are open debt; rows marked
   ALREADY FIXED or SUPERSEDED are closed and kept as the record of why.
@@ -41,15 +41,16 @@ note: a sweep record, not a design. Rows marked STILL REAL are open debt; rows m
 | verdict | rows |
 |---|---:|
 | ⭐⭐ **ALREADY FIXED** | **2** — `001` *(BATCH-01)*, `005` *(I4)* |
-| ⭐⭐ **SUPERSEDED** | **3** — `004` *(S3 scopes)*, `010` *(into `030`)*, `025` *(I4)* |
+| ⭐⭐ **SUPERSEDED** | **4** — `003` *(heavy-DTO concept retired)*, `004` *(S3 scopes)*, `010` *(into `030`)*, `025` *(I4)* |
 | ⭐⭐ **FOLD** | **1** — `024` into `023` |
-| ⭐ **STILL REAL** | **6** — `002`, `003`, `008`, `011`, `023`, `031` |
+| ⭐ **STILL REAL** | **5** — `002`, `008`, `011`, `023`, `031` |
 | ⛔ **USER-DEFERRED** | **1** — `022` |
 | **CANNOT REPRODUCE** | **0** |
 
-⇒ ⭐⭐ **Six of thirteen are no longer live as filed.** ⭐ The handoff predicted *"ALREADY FIXED is the
-likely majority"* — ⚠ **it is not the majority, but it is close to half**, and the six that survive are
-smaller than their text suggests.
+⇒ ⭐⭐ **Seven of thirteen are no longer live as filed** *(`003` joined them on `2026-09-22`, when the
+heavy-DTO concept it wanted a generator for was retired)*. ⭐ The handoff predicted *"ALREADY FIXED is
+the likely majority"* — ⚠ **it is not, but the closed rows are now the majority**, and the five that
+survive are smaller than their text suggests.
 
 ---
 
