@@ -168,7 +168,21 @@ if (freshlyAttached) {
 | ⚠ **so `P3` SPLITS the arm, it does not delete it** | ⭐ the seed copy becomes an eager scatter; ⛔ the `TryRun` stays exactly where it is. ⚠ **A `P3` that removes the whole arm silently disables every hosted resolver** *(`E8a`, `Q41-C1′`)* — no diagnostic, params just stop being refined |
 
 ⭐ **This is also where `E8c` meets `P3`, and they do NOT conflict:** `E8c`'s per-variable `TryRun` runs at **ingress**, inside `__parseParams`, above the scatter. ⇒ **`E8c` = how params get their value · `P3` = where the value is stored · ② = the per-occurrence refinement that needs the host.** Three layers, one order.
-| **`P4`** ⭐⭐⭐ **RETIRE IT — no true need was found** | delete `BrainBlackboard` **and `Blackboard1024`**; ⛔⛔ ~~the BTree action's blackboard type parameter goes with it~~ — **SUPERSEDED `2026-09-22` by a user ruling: the type parameter STAYS and is BOUND TO `byte`, pointing at the root slot's memory.** 📐 Measured: the FastBTree kernel has **zero** by-value or sized uses of `TBlackboard`, and `where TBlackboard : struct` admits `byte` ⇒ **no `ExtDeps` change at all** | ⭐ **DESIGNED — 📄 `DESIGN_Occurrence_Scoped_Storage.md` §30**, three slices, with UML | ⛔ open, after `P3` *(`P3` is DONE and validated — `CE-304` closed `2026-09-22`)* |
+| **`P4`** ⭐⭐⭐ **RETIRE IT — no true need was found** | delete `BrainBlackboard` **and `Blackboard1024`**; ⛔⛔ ~~the BTree action's blackboard type parameter goes with it~~ — **SUPERSEDED `2026-09-22` by a user ruling: the type parameter STAYS and is BOUND TO `byte`, pointing at the root slot's memory.** 📐 Measured: the FastBTree kernel has **zero** by-value or sized uses of `TBlackboard`, and `where TBlackboard : struct` admits `byte` ⇒ **no `ExtDeps` change at all** | ⭐ **DESIGNED — 📄 `DESIGN_Occurrence_Scoped_Storage.md` §30** | 🔵 **BUILDING** — `P4`-① started `2026-09-22` |
+
+> ⛔⛔ **`P4` WAS RE-SCOPED `2026-09-22` AFTER A FULL RE-MEASUREMENT. The "three slices" above are now
+> FIVE, and `§30.5`'s table is SUPERSEDED by 📄 [`DESIGN_Occurrence_Scoped_Storage.md`](DESIGN_Occurrence_Scoped_Storage.md) **§30.18**.**
+> ⭐ Read **§30.12** *(what the first inventory under-counted)*, **§30.16** *(the absence sweep — six
+> claims settled)* and **§30.19** *(`G2`+`G3`)* before touching any of it.
+
+| slice | what | state |
+|---|---|---|
+| **`P4`-①** | delete `Blackboard1024` **+ route the AiPrimitive WRITE path** *(`CE-310` — it is the same edit, not a separate slice)*. 54 code files, 17 prod + 37 test | 🔵 **BUILDING** |
+| **`P4`-②** | bind `TBlackboard` to `byte`. ⭐ **The generator needs ZERO changes** — it already reads `TBlackboardType` from the author's 4-param declaration. The edit is **4 authored declarations** + 4 Blueprints-compiler lines + ⛔ **3 runtime `typeof` filters IN LOCKSTEP** *(§30.19)* | ✅ cleared |
+| ~~`P4`-②b~~ | ⛔ **WITHDRAWN** — the blob is type-erased, so `BTreeBuilder<T>` is build-time only and the wrapper structs cost nothing. Deleting them is **unsafe** for `HideInCover` *(§30.18)* | ⛔ withdrawn |
+| **`P4`-③** | re-home the **SIX** identity-keyed surfaces *(`CE-303`, + `CE-308`: `BlackboardTarget` is **RE-POINTED**, two regions still exist)* | ✅ cleared |
+| **`P4`-④** | retire the 100-byte cap *(`CE-307`)* — ⭐ now argued from the measured **16 096 B** real ceiling *(§30.15)* | ⚠ with/after ② |
+| **`P4`-⑤** | fix the stale corpus — two heavy-overflow design docs with **no STATUS block**, + 24 files of stale `<see cref>` prose | ✅ cleared |
 
 #### ⭐⭐⭐ THE THREE "HOLDS" WERE TESTED FOR A **NEED** AND NONE SURVIVED *(user ruling, `2026-09-21`)*
 

@@ -1010,23 +1010,71 @@ public sealed class BlueprintDebugSession : IBlueprintDebugSession, Hrot.Editor.
     /// the WRITE must too — a stale layout writing at a valid-looking offset is exactly how memory gets
     /// corrupted."</i> ⇒ the read would show the designer NOTHING while the write happily scribbled.</para>
     /// </summary>
-    private WorkingStateFieldRef? ResolveAiPrimitiveField(
+    /// <summary>
+    /// 🔴🔴 <b><c>CE-310</c> / <c>P4</c>-① (<c>2026-09-22</c>) — THIS ARM WAS DEAD AND NOBODY NOTICED.</b>
+    ///
+    /// <para>📐 It read <see cref="Blackboard1024"/>, whose AiPrimitive working state moved to the
+    /// Blueprint tier ladder in <c>SLICE2</c> — ⛔ <b>and nothing has added that component since.</b>
+    /// So <c>HasComponent</c> was false on every call and this returned <c>null</c> every time:
+    /// AiPrimitive working-state editing was broken in the editor <b>and</b> in the debug API, with no
+    /// exception and no failing test.</para>
+    ///
+    /// <para>⛔⛔ <b>The asymmetry that hid it:</b> the READ path had both arms
+    /// (<see cref="CaptureAiPrimitiveOccurrences"/> first, the legacy block behind it); the WRITE path
+    /// had only the legacy one — 📌 against this file's own header demand that <i>"if the read verifies
+    /// identity before trusting an offset, the WRITE must too."</i> ⇒ it is now <b>built by mirroring
+    /// the read</b>, exactly as Batch 102 built <see cref="ResolveInstanceField"/>.</para>
+    ///
+    /// <para>⚠⚠ <b>NO <c>+8</c> ANY MORE, and that is not an omission.</b> The <c>WorkingStateLayout</c>
+    /// header belonged to the <c>Memory+8</c> block inside <c>Blackboard1024</c>. An occurrence slot has
+    /// no such header — <see cref="DecodeStateFields"/> reads at <c>PayloadOffset + field.OffsetBytes</c>
+    /// — ⛔ so applying <c>ComponentOffsetOf</c> here would land <b>8 bytes past every field</b>, which
+    /// is the same trap <see cref="ResolveInstanceField"/> documents for <c>Instance</c>.</para>
+    ///
+    /// <para>⛔ <b>AMBIGUITY REFUSES rather than guesses.</b> One blueprint may have several occurrences
+    /// on one entity (that is the whole point of <c>SLICE2</c>), and a bare field name cannot say which.
+    /// The read disambiguates with a per-occurrence LABEL; a writer has no such channel ⇒ <b>more than
+    /// one match returns <c>null</c></b>. 📌 §19.6 ⑤ — a slot the caller cannot name is a hard refusal,
+    /// never a write to the first one that matched.</para>
+    /// </summary>
+    private unsafe WorkingStateFieldRef? ResolveAiPrimitiveField(
         Entity entity, BlueprintDefinition def, DebugMapIndex? mapIndex, string fieldName)
     {
-        if (!_view.HasComponent<Blackboard1024>(entity)) return null;
-
-        // ⭐ The SAME identity gate the read applies before it trusts any offset in this block.
-        ref readonly var bb = ref _view.GetComponentRO<Blackboard1024>(entity);
-        var bytes = System.Runtime.InteropServices.MemoryMarshal.AsBytes(
-            System.Runtime.InteropServices.MemoryMarshal.CreateReadOnlySpan(in bb, 1));
-        if (bytes.Length < WorkingStateLayout.HeaderBytes) return null;
-        if (System.Runtime.InteropServices.MemoryMarshal.Read<ulong>(bytes) != def.StructureHash) return null;
-
-        // ⭐⭐ The +8 through its ONE owner (📌 Q32 §2.1), applied HERE rather than by the writer —
-        //    see WorkingStateFieldRef.ComponentOffsetBytes for why that moved in Batch 102.
         if (FindField(mapIndex, def, fieldName) is not { } f) return null;
-        return new WorkingStateFieldRef(
-            typeof(Blackboard1024), WorkingStateLayout.ComponentOffsetOf(f.Offset), f.Size);
+
+        // ⭐ The read's own component pick, in the read's own order — the ladder.
+        var tiers = BlueprintTierTable.Ascending;
+        for (int t = 0; t < tiers.Count; t++)
+        {
+            var spec = tiers[t];
+            if (!spec.HasInView(_view, entity)) continue;
+
+            ReadOnlySpan<byte> store = spec.BytesInView(_view, entity);
+            if (store.IsEmpty) return null;
+
+            int payloadOffset = -1;
+            int matches       = 0;
+            fixed (byte* mem = store)
+            {
+                int slotCount = BlueprintBlackboardPartitions.GetSlotCount(mem);
+                for (int i = 0; i < slotCount; i++)
+                {
+                    if (BlueprintBlackboardPartitions.GetSlotKind(mem, i) != OccurrenceKind.Hsm) continue;
+
+                    // ⭐ The SAME identity gate the read applies before it trusts any offset.
+                    ref var entry = ref BlueprintBlackboardPartitions.GetSlot(mem, i);
+                    if (entry.StructureHash != (uint)def.StructureHash) continue;
+
+                    payloadOffset = entry.PayloadOffset;
+                    matches++;
+                }
+            }
+
+            if (matches != 1) return null;
+            return new WorkingStateFieldRef(spec.ComponentType, payloadOffset + f.Offset, f.Size);
+        }
+
+        return null;
     }
 
     /// <summary>

@@ -5,6 +5,8 @@ using System.Linq;
 using Fdp.Core;
 using Fdp.Toolkit.Behavior.Components;
 using Fdp.Toolkit.Blueprints;
+using Fdp.Toolkit.Blueprints.Components;
+using Fdp.Toolkit.Blueprints.Partitioning;
 using Hrot.Blueprints.Core.Debug;
 using Hrot.Blueprints.Editor;
 using Hrot.Blueprints.Tests.Debug;
@@ -50,6 +52,11 @@ public sealed class TheBlueprintLiveWriteLandsTests
     private const int RawOffset = 12;
     private const int Width     = 4;
     private const string FieldName = "Health";
+
+    // 🔴 CE-310 / P4-① — the occurrence slot the AiPrimitive arm resolves through now.
+    // ⚠ The key is arbitrary: the resolver matches on StructureHash + OccurrenceKind, never on the key.
+    private const int AiPrimitiveSlotKey = 0x5B1A7;
+    private const int StateSize          = 64;
 
     /// <summary>
     /// ⭐⭐ <b>A NON-ZERO structure hash, and Batch 102 (<c>102a</c>) made that load-bearing.</b>
@@ -135,7 +142,9 @@ public sealed class TheBlueprintLiveWriteLandsTests
 
         Assert.Equal(VariableEditCommit.Outcome.Ok, outcome);
         var staged = Assert.Single(h.Manager.Staged);
-        Assert.Equal(typeof(Blackboard1024), staged.ComponentType);
+        // ⭐ CE-310: the write lands in the TIER the entity actually carries, not in a named component.
+        //   📌 B4 / §17.7 — the ladder chooses, exactly as the Instance rail asserts.
+        Assert.Equal(BlueprintTierTable.Of(h.World, h.Entity)!.ComponentType, staged.ComponentType);
         Assert.Equal(Width, staged.Bytes.Length);
         // ⭐ The VALUE, not just the width — a wrapper leaking through would be the right size and the
         //   wrong bytes (📌 97a's ScalarEditBox).
@@ -253,21 +262,41 @@ public sealed class TheBlueprintLiveWriteLandsTests
         var h   = Harness(mapOffset: mapOffset);
         int raw = mapOffset ?? RawOffset;
 
-        int once  = WorkingStateLayout.ComponentOffsetOf(raw);
-        int twice = WorkingStateLayout.ComponentOffsetOf(once);
-        Assert.NotEqual(once, twice);   // ⭐ the rail is only meaningful because these differ
+        // 🔴🔴 CE-310 / P4-① — THE HEADER IS GONE, AND ITS ABSENCE IS NOW THE PROPERTY.
+        //   The 8-byte WorkingStateLayout header belonged to the `Memory + 8` block inside
+        //   Blackboard1024. An occurrence slot has no such header — the allocator's PayloadOffset
+        //   already places the block, exactly as it does for an Instance. ⇒ applying ComponentOffsetOf
+        //   here would land 8 bytes past every field, which is the very corruption the old spelling of
+        //   this rail existed to prevent. ⭐ Same property, opposite arithmetic.
+        int payloadOffset = PayloadOffsetOf(h);
+        int expected      = payloadOffset + raw;
 
         var field = h.Session.ResolveWorkingStateField(h.Entity, h.AssetId, FieldName);
         Assert.NotNull(field);
-        Assert.Equal(once,  field!.ComponentOffsetBytes);   // ⭐ applied ONCE, by the resolver
-        Assert.NotEqual(raw, field.ComponentOffsetBytes);   // ⛔ and it really did convert
+        Assert.Equal(expected, field!.ComponentOffsetBytes);   // ⭐ the allocator's own address
         Assert.Equal(Width, field.SizeBytes);
+
+        // ⛔ And the AiPrimitive-era header must NOT have been applied on top of it.
+        Assert.NotEqual(WorkingStateLayout.ComponentOffsetOf(expected), field.ComponentOffsetBytes);
 
         h.Registrar.EditGestures!.OnEditValue(Row(h.AssetId));
         h.Registrar.EditGestures!.Accept();
 
         // ⭐ The writer stores what it was given — ⛔ no second conversion anywhere downstream.
-        Assert.Equal(once, Assert.Single(h.Manager.Staged).ByteOffset);
+        Assert.Equal(expected, Assert.Single(h.Manager.Staged).ByteOffset);
+    }
+
+    /// <summary>
+    /// ⭐ The allocator's own payload offset for this entity's occurrence slot — read back through the
+    /// production seam, ⛔ never a constant and never the resolver's arithmetic re-run.
+    /// 📌 Mirrors <c>TheInstanceWriteLandsInTheSlotTests.PayloadOffsetOf</c>.
+    /// </summary>
+    private static unsafe int PayloadOffsetOf(Rig h)
+    {
+        byte* memory = OccurrenceStoreAccess.TryGetStore(h.World, h.Entity, out _);
+        Assert.True(BlueprintBlackboardPartitions.TryGetSlotOffset(
+            memory, AiPrimitiveSlotKey, out int payloadOffset));
+        return payloadOffset;
     }
 
     /// <summary>
@@ -365,7 +394,8 @@ public sealed class TheBlueprintLiveWriteLandsTests
         var h = Harness(mapOffset: mapOffset);
 
         var field = h.Session.ResolveWorkingStateField(h.Entity, h.AssetId, FieldName);
-        Assert.Equal(WorkingStateLayout.ComponentOffsetOf(mapOffset), field!.ComponentOffsetBytes);
+        // ⭐ CE-310: the map's offset, placed by the allocator — ⛔ no WorkingStateLayout header.
+        Assert.Equal(PayloadOffsetOf(h) + mapOffset, field!.ComponentOffsetBytes);
     }
 
     // ══ the honest refusals ══════════════════════════════════════════════════
@@ -545,7 +575,10 @@ public sealed class TheBlueprintLiveWriteLandsTests
         PerspectiveWorkspaceRegistrar Registrar,
         // ⭐ Batch 102 (102b) — exposed so a rail can take the SESSION away and see what the dialog
         //   then says. ⛔ Without it "no document is open" is unreachable through the production chain.
-        Hrot.Editor.AiShared.Debug.DebugSessionRegistry Sessions);
+        Hrot.Editor.AiShared.Debug.DebugSessionRegistry Sessions,
+        // 🔴 CE-310 — exposed so a rail can read the ALLOCATOR'S OWN payload offset back out of the
+        //   store, instead of asserting a constant the resolver could agree with while both are wrong.
+        EntityRepository World);
 
     /// <summary>
     /// ⭐ Everything REAL except the draw layer: a real <c>BlueprintRegistry</c>, a real
@@ -571,15 +604,34 @@ public sealed class TheBlueprintLiveWriteLandsTests
         //    structure hash exactly as the generated thunk stamps it (📌 AiPrimitiveStateMetadataTests:89).
         // ⛔ Before this, the session was handed `new EntityRepository()` and a fabricated Entity(7,1)
         //    that existed in no world at all — see the StructureHash remark for what that concealed.
+        //
+        // 🔴🔴 CE-310 / P4-① (2026-09-22) — AND THAT REAL WORLD WAS STILL THE WRONG WORLD.
+        //   It added `Blackboard1024`, whose AiPrimitive working state moved to the Blueprint tier
+        //   ladder in SLICE2 — ⛔ and NOTHING in production has added that component since. So this
+        //   harness was the ONLY place the resolver's Blackboard1024 arm could ever succeed: the whole
+        //   suite stayed GREEN while AiPrimitive working-state editing was dead in the editor and in
+        //   the debug API alike.
+        // ⇒ ⭐ T-1 ③: "if it stays GREEN while the feature is BROKEN, THAT is the finding — fix the
+        //   blindness in place." The store is now a REAL tier component carrying a REAL occurrence
+        //   slot at the allocator's own offset, which is what production actually builds.
         var world = new EntityRepository();
-        world.RegisterComponent<Blackboard1024>();
+        world.RegisterComponent<BlueprintBlackboard1024>();
         var entity = world.CreateEntity();
         if (kind == BlueprintDispatchKind.AiPrimitive)
         {
-            world.AddComponent(entity, default(Blackboard1024));
-            ref var bb = ref world.GetComponentRW<Blackboard1024>(entity);
-            fixed (Blackboard1024* p = &bb)
-                *(ulong*)p = storedHash ?? StructureHash;
+            world.AddComponent(entity, new BlueprintBlackboard1024());
+            ref var tier = ref world.GetComponentRW<BlueprintBlackboard1024>(entity);
+            fixed (byte* mem = tier.Memory)
+            {
+                BlueprintBlackboardPartitions.Initialize(
+                    mem, BlueprintBlackboard1024.TotalSize, (byte)BlueprintBlackboard1024.MaxSlots);
+
+                // ⭐ OccurrenceKind.Hsm is what the resolver filters on — the same nibble the hosted
+                //   attach declares (A3 / D1′). ⛔ A slot of any other kind is invisible to it, by design.
+                Assert.True(BlueprintBlackboardPartitions.TryAttach(
+                    mem, AiPrimitiveSlotKey, StateSize,
+                    storedHash ?? StructureHash, OccurrenceKind.Hsm, out _));
+            }
         }
 
         var registry = new BlueprintRegistry();
@@ -639,7 +691,7 @@ public sealed class TheBlueprintLiveWriteLandsTests
             validators: Array.Empty<IAssetValidator>(),
             writeLive:  writer.WriteLive);
 
-        return new Rig(assetId, entity, session, manager, store, writer, registrar, debugRegistry);
+        return new Rig(assetId, entity, session, manager, store, writer, registrar, debugRegistry, world);
     }
 
     /// <summary>
