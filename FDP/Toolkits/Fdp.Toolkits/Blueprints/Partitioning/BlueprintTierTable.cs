@@ -130,6 +130,58 @@ public static class BlueprintTierTable
     /// <c>return …16384</c>. The over-size case is caught downstream — <c>TryAttach</c> fails and
     /// <c>BlueprintMaterializationSystem</c> truncates with a log.</para>
     /// </summary>
+    /// <summary>
+    /// ⭐⭐⭐ <b><c>O7c</c>-② — ONE cached query per tier, so every system that walks entities-with-a-store
+    /// walks them the same way.</b> 📄 <c>DESIGN_Occurrence_Scoped_Storage.md</c> §31.7.
+    ///
+    /// <para>⛔⛔ <b>This is deliberately SMALLER than §31.7's first draft, which proposed a shared
+    /// <c>BrainTickWalk</c> handing back <c>(entity, payload, payloadSize)</c>.</b> 📐 Measuring killed
+    /// that shape: <see cref="BlueprintTierSpec"/> already owns <c>Constrain</c>, <c>BuildQuery</c>,
+    /// <c>Memory</c> and <c>IsRegistered</c>, and the three consumers <b>diverge immediately after the
+    /// entity walk</b> — <c>BlueprintTickSystem</c> iterates EVERY slot filtered by kind, while the
+    /// BTree and HSM roots look up ONE slot by a computed key. ⇒ a shared slot-walk fits exactly one
+    /// of the three. <b>What they genuinely share is which ENTITIES to visit</b>, and that is this.</para>
+    ///
+    /// <para>⭐⭐ <b>Why it is worth a helper at all, when it is eight lines.</b> Those eight lines carry
+    /// three details that are each one forgotten line away from a defect: the tiers are walked
+    /// <b>smallest-first</b>; the queries are built <b>once</b>, not per frame; and a tier this world
+    /// never registered is <b>skipped</b>. ⚠ The third is <c>B4</c>'s — several scratch worlds carry
+    /// only the small tiers via <see cref="RegisterUpTo"/>, and <c>Fdp.Toolkits</c> hosts may register
+    /// none at all (<c>BehaviorIngressSystem.EnsureOccurrenceStore</c> guards on exactly this, and its
+    /// comment says why: a host that never hosts an occurrence must not start failing because
+    /// provisioning was added).</para>
+    ///
+    /// <para>⚠ <b>The returned array is index-aligned with <see cref="Ascending"/></b>, and an entry is
+    /// <c>null</c> where that tier is unregistered — ⛔ a caller must skip nulls rather than assume a
+    /// dense array. ⭐ Nulls, not a compacted list, so <c>queries[t]</c> pairs with <c>Ascending[t]</c>
+    /// without a second index.</para>
+    ///
+    /// <param name="constrain">
+    /// ⭐ Extra constraints applied BEFORE the tier component, so a caller can add its own — e.g.
+    /// <c>BTreeTickSystem</c> passing <c>q =&gt; q.WithOwnedWhen&lt;BehaviorState&gt;(gate)</c> for the
+    /// <c>P3</c> step-<c>3b</c> authority gate. ⛔ Invoked ONCE per tier at build time, never per frame.
+    /// </param>
+    /// </summary>
+    public static EntityQuery?[] BuildTierQueries(
+        EntityRepository repo, Func<QueryBuilder, QueryBuilder>? constrain = null)
+    {
+        if (repo is null) throw new ArgumentNullException(nameof(repo));
+
+        var ascending = Ascending;
+        var queries   = new EntityQuery?[ascending.Count];
+
+        for (int t = 0; t < ascending.Count; t++)
+        {
+            var spec = ascending[t];
+            if (!spec.IsRegistered(repo)) continue;   // B4: this world never registered that tier
+
+            var builder = constrain is null ? repo.Query() : constrain(repo.Query());
+            queries[t] = spec.Constrain(builder).Build();
+        }
+
+        return queries;
+    }
+
     public static BlueprintTierSpec Select(int requiredPayload, int requiredSlots)
     {
         var ascending = Ascending;

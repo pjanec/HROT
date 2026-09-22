@@ -24,7 +24,7 @@ public sealed class BlueprintTickSystem : IEcsModuleSystem, IProfiledSystem
 
     // ⭐ O3a / B3: one query per tier, built FROM the ladder, index-aligned with
     //   BlueprintTierTable.Ascending. ⛔ Was three named fields and three named methods.
-    private EntityQuery[]? _tierQueries;
+    private EntityQuery?[]? _tierQueries;
 
     /// <summary>
     /// Optional frame-start hook -- wire from a higher-level module at startup (e.g. DebugProbe.NewTick).
@@ -57,18 +57,25 @@ public sealed class BlueprintTickSystem : IEcsModuleSystem, IProfiledSystem
         var ecb  = view.GetCommandBuffer();
 
         var tiers = BlueprintTierTable.Ascending;
-        if (_tierQueries is null)
-        {
-            _tierQueries = new EntityQuery[tiers.Count];
-            for (int t = 0; t < tiers.Count; t++)
-                _tierQueries[t] = tiers[t].BuildQuery(repo);
-        }
+
+        // ⭐⭐ O7c-②: the cached per-tier queries now come from BlueprintTierTable, so BTreeTickSystem
+        //   (and later the HSM tick) enumerate store-carrying entities the SAME way. 📄 §31.7.
+        // ⛔ It also CLOSES A GAP this loop had: it never checked IsRegistered, while that member's own
+        //   doc says it exists because "a table-driven walk that QUERIES every tier must skip the ones
+        //   this world never registered". ⚠ Harmless here in practice — With<T>() only sets a mask bit,
+        //   so an unregistered tier yields an EMPTY query rather than throwing — but relying on that is
+        //   relying on an implementation detail of QueryBuilder, and the guard costs one branch once.
+        _tierQueries ??= BlueprintTierTable.BuildTierQueries(repo);
 
         // ⚠ Smallest-first, which is the order the three named calls ran in. An entity carries at
         //   most one tier, so the order is not observable — it is preserved anyway, because
         //   "not observable" is a claim and preserving it costs nothing.
         for (int t = 0; t < tiers.Count; t++)
-            TickTier(repo, view, ecb, deltaTime, tiers[t], _tierQueries[t]);
+        {
+            var q = _tierQueries[t];
+            if (q is null) continue;            // tier not registered on this world
+            TickTier(repo, view, ecb, deltaTime, tiers[t], q);
+        }
 
         TickWorldSingletons(repo, view, ecb, deltaTime);
     }

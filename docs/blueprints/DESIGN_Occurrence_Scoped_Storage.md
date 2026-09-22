@@ -5688,9 +5688,16 @@ classDiagram
         +TryGetRootState(world, self, out ptr, out len) bool
         +DetachRoot(world, self) void
     }
-    class BrainTickWalk {
-        <<NEW - the shared tier walk>>
-        +ForEachOccurrence(repo, kind, visitor) void
+    class BlueprintTierTable {
+        <<EXISTS - gains ONE method>>
+        +Ascending : IReadOnlyList~BlueprintTierSpec~
+        +BuildTierQueries(repo, constrain) EntityQuery[]
+    }
+    class BlueprintTierSpec {
+        <<EXISTS - already the walk>>
+        +Constrain(QueryBuilder) QueryBuilder
+        +Memory(repo, entity) byte*
+        +IsRegistered(repo) bool
     }
     class HsmTickSystem {
         <<EXISTS - reshaped>>
@@ -5727,9 +5734,10 @@ classDiagram
     BehaviorState "1" --> "0..1" OccurrenceStoreTier : one tier per entity
     OccurrenceStoreTier "1" *-- "0..MaxSlots" RootStateAccess : root state is ONE slot
     RootStateAccess ..> OccurrenceSlotKey : key is COMPUTED, never stored
-    HsmTickSystem ..> BrainTickWalk : adopts 4th
-    BTreeTickSystem ..> BrainTickWalk : adopts 2nd - FIRST
-    BlueprintTickSystem ..> BrainTickWalk : EXTRACTED FROM
+    BlueprintTierTable ..> BlueprintTierSpec : one per tier
+    HsmTickSystem ..> BlueprintTierTable : adopts 4th
+    BTreeTickSystem ..> BlueprintTierTable : adopts 2nd - FIRST
+    BlueprintTickSystem ..> BlueprintTierTable : EXTRACTED FROM
     HsmTickSystem ..> HsmKernel : pointer + size, never a type
     HsmTickSystem ..> HsmInstanceOps : reset on assign
     BrainHsm64 ..> RootStateAccess : instance becomes
@@ -5896,22 +5904,57 @@ bytes**, and `BlueprintTierTable.Select:139` compares the inflated number agains
 ⇒ ⭐ **BTree saves because 64 B lands inside the tier the entity already carries. HSM costs only
 because of `CE-318`.** ⛔ Neither number is a reason to do or not do `O7c`.
 
-### 31.7 ⭐⭐⭐ ONE WALK FOR THREE PARADIGMS — **the seam, and why it is built HERE**
+### 31.7 ⭐⭐⭐ ONE WALK FOR THREE PARADIGMS — **CORRECTED `2026-09-22`: the seam is MUCH smaller than this section first claimed**
 
-📐 `BlueprintTickSystem.cs:58-70` already caches `BlueprintTierTable.Ascending` queries and resolves
-memory through `spec.Memory(repo, entity)`; its own comment records that `TickTier`'s body **was three
-verbatim ~78-line copies** before `B3` collapsed them. ⚠ And `BTreeTickSystem` / `HsmTickSystem` are
-already substantially parallel to each other — same `_publishedTerminalForInstanceId` dedup, same
-`DestructionOrder`/`ClearBehaviorEvent` pruning, same `BrainTier` guard, same terminal-event publish.
+> ⛔⛔ **SUPERSEDED IN PART.** The first draft of this section proposed extracting a shared
+> **`BrainTickWalk`** handing back `(entity, byte* payload, int payloadSize)` filtered by
+> `OccurrenceKind`, on the ruling-9 argument that otherwise the repo carries *"two discovery shapes
+> for one concept, then three."* 📐 **The prior-art pass killed that shape, and the argument with
+> it.** The prose below is the corrected version; the original claim is in the HISTORY note at the end.
 
-⇒ ⛔⛔ **If `O7c-2` grows a private tier walk on `HsmTickSystem`, the repo carries TWO discovery shapes
-for one concept while `O7c-4` is open, and then three.** That is ruling 9 territory and it is the exact
-duplication `B3` has already paid to remove once.
+📐 **What already exists** — `BlueprintTierSpec` *(`BlueprintTierSpec.cs:195-224`)* owns
+**`Constrain(QueryBuilder)`** *(the composable form, written for exactly this)*, **`BuildQuery`**,
+**`Memory`**, **`Has`/`HasInView`** and **`IsRegistered`**; `BlueprintTierTable.Ascending` owns the
+order. ⇒ ⭐ **the per-entity half of the "walk" was never missing.** `OccurrenceStoreAccess` is the
+`A2` seam for *"where does THIS entity's store live"*, and it already states the lifetime rule the
+walk must obey.
 
-⭐⭐ **So `O7c-2` extracts `BrainTickWalk` as a shared seam and adopts it; `O7c-3`/`O7c-4` adopt it
-unchanged.** ⚠ **It is sized by what all three need and nothing more** — `(entity, byte* payload, int
-payloadSize)` filtered by `OccurrenceKind`. ⛔ It does **not** absorb the dedup cache or the terminal
-publish; those differ per paradigm and collapsing them is a separate argument nobody has made.
+⛔⛔ **And the three consumers DIVERGE the moment the entity is in hand:**
+
+| consumer | what it does per entity |
+|---|---|
+| `BlueprintTickSystem` | iterates **EVERY** slot, filtered by `OccurrenceKind.Blueprint` — an entity hosts many instances |
+| **BTree root** *(`CE-319`)* | looks up **ONE** slot by `ComputeRootStateKey(behaviourHash)` |
+| **HSM root** | looks up **ONE** slot by its own computed key |
+
+⇒ 🔒 **a shared SLOT-walk fits exactly one of the three.** What they genuinely share is **which
+ENTITIES to visit**, and nothing more.
+
+⭐⭐ **So the seam built is `BlueprintTierTable.BuildTierQueries(repo, constrain)`** — eight lines
+that cache one query per tier. ⚠ **Worth a helper anyway**, because those eight lines carry three
+details each one forgotten line from a defect: **smallest-first**; built **once**, not per frame; and
+**skip a tier this world never registered** *(`B4`'s rule — scratch worlds use `RegisterUpTo`, and a
+`Fdp.Toolkits` host may register none)*. ⭐ The `constrain` hook is what lets `BTreeTickSystem` keep
+its `P3` step-`3b` authority gate (`WithOwnedWhen<BehaviorState>`) without the helper knowing about it.
+
+⛔ **It also CLOSED A GAP**: `BlueprintTickSystem`'s own loop never checked `IsRegistered`, although
+that member's doc says it exists precisely for a table-driven walk. ⚠ **Harmless in practice and
+stated as such** — 📐 `QueryBuilder.With<T>()` only sets a mask bit (`QueryBuilder.cs:34-38`), so an
+unregistered tier yields an EMPTY query rather than throwing ⇒ the doc-comment's *"throws"* is
+**stronger than the code**. ⛔ But relying on that is relying on an implementation detail, and the
+guard costs one branch once.
+
+#### ⛔ HISTORY — the claim this section made before it was measured
+
+> *"`O7c`-② extracts `BrainTickWalk` as a shared seam and adopts it; the later slices adopt it
+> unchanged … sized by what all three need — `(entity, byte* payload, int payloadSize)` filtered by
+> `OccurrenceKind`."*
+
+⚠ **Wrong in its SIZE and in its SHAPE**, right in its instinct. 🔒 The lesson is the seam law's own,
+inverted: this programme's usual finding is *"we need a shared X"* ⇒ **X already exists and is
+under-adopted**. Here X already existed **and was already adopted** — what looked like a missing seam
+was me not having read `BlueprintTierSpec` before drawing a box for it. ⭐ **Two tool calls would have
+saved the box**, which is the `CLAIM TABLE` rule pointing at a design diagram instead of a lean.
 
 ### 31.8 ⛔ THE ONE `ExtDeps` ADDITION — **and why it is not avoidable**
 

@@ -241,6 +241,32 @@ namespace Fdp.Toolkit.Behavior.Shared
         /// </summary>
         internal const string RootParamsVariableId = ReservedPrefix + "rootParams";
 
+        /// <summary>
+        /// ⭐⭐⭐ <b><c>O7c</c>-② / <c>CE-319</c> — the ROOT behaviour's own EXECUTION STATE slot.</b>
+        ///
+        /// <para>⭐ The exact shape of <see cref="ComputeRootParamsKey"/>, differing ONLY in the
+        /// reserved variable id. ⇒ the two keys cannot collide for the same behaviour hash, because
+        /// the variable id is folded into the hash — and no new arithmetic is introduced, which is
+        /// what keeps every existing key byte-identical.</para>
+        ///
+        /// <para>⛔ <b>Not to be confused with <see cref="ComputeTreeStateKey"/></b>, which keys a
+        /// HOSTED subtree's state and folds a host identity and a SITE. The root is the host, so it
+        /// folds neither — the same reason <see cref="ComputeRootParamsKey"/> takes no site.</para>
+        ///
+        /// <para>⚠ <b>Why the ROOT state needs a key at all, when a component needed none:</b> a
+        /// component is addressed by its TYPE, so there could only ever be one per entity — which is
+        /// precisely the limit that stopped a hosted subtree owning its own cursor. A keyed slot is
+        /// what makes "multiple trees on one entity" expressible.</para>
+        /// </summary>
+        internal const string RootStateVariableId = ReservedPrefix + "rootState";
+
+        internal static int ComputeRootStateKey(int behaviourHash)
+            => Compute(
+                   BehaviourHashAsGuid(behaviourHash),
+                   OccurrenceSlotScope.Behavior,
+                   System.Guid.Empty,
+                   RootStateVariableId);
+
         internal static int ComputeRootParamsKey(int behaviourHash)
             => Compute(
                    BehaviourHashAsGuid(behaviourHash),
