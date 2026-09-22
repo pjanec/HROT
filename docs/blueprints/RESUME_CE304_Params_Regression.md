@@ -99,7 +99,7 @@ only, since the early ones carried the tanks to the firing line.
 
 | ⛔ obligation on resume | |
 |---|---|
-| ⭐⭐⭐ **EDIT `CE-304` and `DESIGN` §29.10 to retract the "delivery is fine" claim** | ⚠ as written they send the next reader AWAY from the fault. Do this BEFORE any code |
+| ✅ **DONE (`29f1b3628`) — the retraction is applied to `CE-304` and `DESIGN` §29.10.** ⛔ Nothing to redo here | ⚠ kept because the RETRACTED TEXT still reads plausibly; a future reader must not re-adopt it |
 | ⭐ **the lesson** | a targeted read of a field that *looks* right is not proof of a chain. ⛔ `NavState` is downstream STATE; `NavigationIntent` is the live COMMAND. The full dump was two commands away and would have shown this hours earlier |
 
 ---
@@ -230,11 +230,19 @@ one, the same number fixes it: `rootBytes` must cover everything `ParseParams` c
 
 | # | | |
 |---|---|---|
-| **①** | ✅ **DONE — see §4.1** (the thunk writes zeros) **and §4.3** (slot size is load-bearing). ⇒ ⭐⭐⭐ **THE NEXT ACTION IS §4.3's REGISTRATION PRINT** — it names which of A/B/C is live. ⛔ Do not code before it `/tmp/dump-HEAD.txt` exists (t = 140, 5 entities, every component). Produce the baseline twin and diff them | ⛔ **This is the measurement in flight when the session ended.** It names the fault mechanically instead of by hypothesis — and 5 of my hypotheses have now died |
-| **②** | ⭐⭐ **RETRACT the §2 claim** in `CE-304` and `DESIGN` §29.10 | ⛔ before any code — the docs currently misdirect |
-| **③** | ⭐⭐⭐ **WRITE THE RAIL FIRST** *(§29.10's own demand)* | attach a root slot, attach an occurrence AFTER it, write through the params `ref`, assert the neighbour is **byte-unchanged**. ⚠ **AND** a rail for the re-assign path: assign → dispatch → re-assign → dispatch, assert the thunk still reads the authored values. 📐 **No rail anywhere asserts either** — that is the gap that let this ship with 2303 + 4017 + 420 + 299 green |
-| **④** | fix, then re-run §1.1's table — **all three builds, 2 trials each** | ⭐ the reproducer is deterministic, so 2 trials suffice |
+| **①** | ⭐⭐⭐ **THE REGISTRATION PRINT — §4.3. DO THIS FIRST, IT IS ONE BUILD.** Log per behaviour: `def.Name` · `RootParamsBytes(def)` · `sizeof(JsonParamsDtoType)` · `sizeof(BlackboardLayoutType)` · manifest extent. Then assert **`rootBytes >= everything the parser can write`** | ⛔⛔ **DO NOT CODE BEFORE THIS.** It names which of §4.3's **A / B / C** is live, and **A/B need a different fix from C**. 📐 5 hypotheses have already died to measurement in this hunt; ⛔ a 6th guess is not affordable |
+| **②** | ⭐⭐ **WRITE THE RAILS — before the fix**, one per candidate that survives ① | **(a)** *extent*: attach a root slot, attach an occurrence AFTER it, write through the params `ref`, assert the neighbour is **byte-unchanged**. **(b)** *carry-over / commit*: assign → dispatch → **re-assign to a DIFFERENT behaviour** → dispatch, assert the thunk reads the AUTHORED values, not zeros. 📐 **No rail anywhere asserts either** — that is the gap that shipped this with 2303 + 4017 + 420 + 299 green |
+| **③** | ⭐ **FIX** — 📄 `DESIGN` §29.10 ① for the extent arm; for A/B the same number must simply cover everything `ParseParams` can write | ⛔ **NOT** the 100-byte probe: 100 B against the 256 tier's **176 B** payload discards what the tier ladder is for |
+| **④** | ⭐ **RE-RUN §1.1's TABLE** — all three builds, 2 trials each | ⭐ the reproducer is deterministic, so 2 trials suffice |
 | **⑤** | only then unpark **`P4`** | 📄 `RESUME_Occurrence_Storage.md` §0c |
+
+### ✅ ALREADY DONE — **do NOT redo these**
+
+| | |
+|---|---|
+| ⭐ the baseline/HEAD component DIFF | ✅ §4.1 — `/tmp/dump-BASE.txt` / `/tmp/dump-HEAD.txt` *(⚠ `/tmp` does not survive a container restart; §6 recreates them)* |
+| ⭐ retracting the *"params delivery is fine"* claim | ✅ applied to `CE-304` **and** `DESIGN` §29.10 in `29f1b3628` |
+| ⭐ retracting the *"confirmed overspill"* claim | ✅ applied to this doc §4.3, `CE-304` **and** `DESIGN` §29.11 in `3bffae927` |
 
 ---
 
