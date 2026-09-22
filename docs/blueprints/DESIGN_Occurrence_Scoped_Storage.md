@@ -2,7 +2,26 @@
 state: LIVE
 updated: 2026-09-22
 build-state: READY-TO-BUILD
-current-answer: ✅ READ §29.12 FIRST (2026-09-22). CE-304's MECHANISM IS FOUND AND FIXED:
+current-answer: ⭐⭐⭐ NEXT TO BUILD IS §31 — O7c, RETIRE THE ROOT BRAIN COMPONENTS (2026-09-22).
+  P4 is COMPLETE: BrainBlackboard and Blackboard1024 are DELETED and the live-cluster acceptance
+  passed (§30.28). §31 carries O7c's INVENTORY, its three UML diagrams and FOUR slices.
+  ⭐ THE DRIVER IS CAPABILITY, NOT BYTES (user: "i thought the reason is to allow for subtrees
+  (multiple trees on a single entity)") — a slot-resident root can be KEYED, so a hosted subtree
+  gets its own state instead of sharing the master's ref. ⛔ Memory is a GUARD; §31.6 prices it
+  only so a regression would stop us.
+  📐 O7c IS RE-RATED: §24.3's "L — 188 references" counted TESTS. Production is 42 lines /
+  12 files. O7c-1 (delete BrainHsm64) is FREE — nothing in production ever attaches it, so its
+  tick query has always been empty. O7c-2 is the real work and needs ONE ExtDeps addition
+  (§31.8: public size-driven Initialize/Reset; the pointer+size Update O6 added is already there
+  and has ZERO production adopters). O7c-3 is the debug-session list (§11.3/D3, approved).
+  O7c-4 is CE-319 — the BTree root, which was DESIGNED, OPEN and had no tracker id until now.
+  ⛔⛔ LAND CE-318 BEFORE O7c-2 MEASURES ANY TIER: the demand charges each slot's 16-byte entry
+  TWICE on the payload axis, which promotes an HSM entity 256 -> 1024 by EIGHT BYTES. Conservative,
+  never unsafe — but it would record an artifact as a fact (§31.6).
+  ⭐⭐ AND §31.7 IS THE PART TO NOT SKIP: three tick systems converge on ONE tier walk. Growing a
+  private walk on HsmTickSystem gives the repo two discovery shapes for one concept, then three —
+  the duplication B3 already paid to remove once.
+  (previous head) ✅ READ §29.12 FIRST (2026-09-22). CE-304's MECHANISM IS FOUND AND FIXED:
   BTreeActionGenerator.cs:655 — the 3-param [BTreeAction] bridge — still projected params out of
   the BrainBlackboard COMPONENT, whose only writer P3-C cut, so 23 production thunks read an
   all-zero region. §29.10 is the (correct) failure record; §29.11's "size is load-bearing" is NOT
@@ -551,6 +570,13 @@ action signature, the tables and every attribute shape are still untouched.
 |---|---|---|---|
 | **BTree root** | `BrainBlackboard` 128 + `BrainBTreeState` 64 = **192 B** | 5.3× | ⭐ **1.33×** |
 | **HSM root** | 128 + `BrainHsm128` 128 = **256 B** | 4× | ⭐ **1.0× — free** |
+
+⛔⛔ **BOTH ROWS ARE STALE AS OF `2026-09-22` — `BrainBlackboard` NO LONGER EXISTS** *(`P4` §2 ②, §30.28)*,
+so the "today" column's 128-byte term is gone from both. 📐 **§31.6 carries the re-measured
+arithmetic** against real root-params extents *(52 for `PlatoonHillAttack`, 16 for `MoveToLocation`)*:
+the BTree root move **SAVES 64 B** and stays on tier 256, and the HSM root move costs **+640 B** only
+because of `CE-318`'s double-charged slot entry — without it, it saves 128 B. ⚠ The ratios above are
+kept because `O3b`'s load-bearing conclusion rests on them; ⛔ **do not quote the byte figures.**
 | ⛔ ~~any heavy-DTO entity → a NET SAVING~~ | **RETIRED `2026-09-20`** — there are no heavy-DTO entities (§3.2 gate ③). ⚠ **The programme gets NO byte credit from `Blackboard1024`** | — | — |
 
 ⇒ ✅ **THE BYTES-PER-AI-ENTITY MEASUREMENT IS TAKEN** *(`2026-09-20`, §15)*, and it is the table
@@ -2930,7 +2956,7 @@ differently, so they ship separately, each green:
 |---|---|---|
 | ✅ **`O7a` — THE KEY AND THE LOOKUP** *(LANDED)* | `ComputeHsmStateKey` in the **LINKED** `OccurrenceSlotKey` + `HsmOccurrence` — the runtime seam every thunk will call | **S** |
 | ⏳ **`O7b` — THE EMITTER** | the three thunks call `HsmOccurrence` instead of `Blackboard1024 + 8`; the HSM host emits a manifest entry per hosting `(region, state)`; **a DTO-bound HSM action authored** so §7's *"two regions, two slots"* rail is not vacuous | **M** |
-| ⏳ **`O7c` — THE STORAGE MIGRATION** | HSM instances move from `BrainHsm64`/`BrainHsm128` into slots; those components are **deleted**; `HsmTickSystem` gains entity discovery across the tier components (`F9`); `HsmDebugSession` becomes a list (§11.3) | 🔴 **L — 188 references** |
+| ⏳ **`O7c` — THE STORAGE MIGRATION** | HSM instances move from `BrainHsm64`/`BrainHsm128` into slots; those components are **deleted**; `HsmTickSystem` gains entity discovery across the tier components (`F9`); `HsmDebugSession` becomes a list (§11.3) | ⛔⛔ **RE-RATED `2026-09-22` — §31.** ~~L — 188 references~~: 📐 **the 188 counted TESTS.** Production is **42 lines / 12 files**, and it is now **FOUR slices** — `O7c-1` *(delete `BrainHsm64`, which nothing attaches)* is free, `O7c-4` is `CE-319`'s BTree root |
 
 ⚠ **`O7c` is where `F9` and §9.4's *"the tier stops being a TYPE and becomes a PAYLOAD SIZE"* land.**
 ⛔ It is NOT a prerequisite for `O7a`/`O7b`: keying an occurrence is independent of where the HSM
@@ -5590,3 +5616,284 @@ bytes need no world. ⇒ a positive rail that means something.
 
 ⚠ **This is the same shape as `CE-312` and `CE-316` a third time:** the surface moved, the test's
 fixture did not, and nothing failed loudly enough to notice.
+
+---
+
+## 31. ⭐⭐⭐ `O7c` — **RETIRE THE ROOT BRAIN COMPONENTS** *(DESIGN, `2026-09-22`)*
+
+> 🔒 **The driver, in the user's words (`2026-09-22`):** *"i thought the reason is to allow for
+> subtrees (multiple trees on a single entity)."* ⭐⭐ **Correct, and it is the whole point.** A root
+> that lives in a slot can be **KEYED**, so a hosted subtree gets its own `BehaviorTreeState` instead
+> of sharing the master's `ref state` — the shipped defect `C1` railed. The second driver is §9.4's:
+> **the tier stops being a TYPE**, so eight HSM regions becomes *"allocate 256 bytes"* instead of a
+> new component + id + registration + tick registration.
+>
+> ⛔⛔ **MEMORY IS A GUARD, NOT A REASON.** §31.6 prices it because a large regression would be a
+> reason to stop — ⚠ **not** because bytes motivate the move. AI entity count is measured
+> **single-digit in every shipped scenario** *(STATUS `known-rot`)*, so per-entity bytes here are
+> noise.
+
+### 31.1 ⛔⛔ INVENTORY — **measured `2026-09-22`, before any of this was designed**
+
+| query | result |
+|---|---|
+| `search_graph(name_pattern=".*Hsm.*", label="Class")` *(via the CLI; the MCP dropped mid-session and reconnected)* | **93 rows, `has_more:false`** — the two ECS wrappers in it are `BrainHsm64` *(`BrainComponents.cs:16-22`)* and `BrainHsm128` *(`:24-30`)*; ⛔ there is **no `BrainHsm256`** |
+| `grep -rn 'BrainHsm' --include='*.cs'` | **200 lines / 37 files** total |
+| the same, excluding `*Tests*` / `Examples` / `demos` | ⭐⭐ **42 lines / 12 files** — ⛔⛔ **the plan's "188 references / 18 production files" counted TESTS**; `E4`'s `L` rating rests on that number |
+| `grep -rn 'BrainBTreeState'`, production only | **36 lines / 14 files** |
+| who **ATTACHES** a `BrainHsm*` in production | 🔴 **exactly one site — `BehaviorTkbTranslator.cs:121`, and it writes `BrainHsm128` unconditionally.** ⇒ **every `new BrainHsm64()` in the tree is a test** *(9 test files)* |
+| adopters of the pointer+size `HsmKernel.Update(blob, byte*, int, …)` | 🔴 **one, and it is a guard test** *(`HsmOccurrenceStampTests.cs:308`, size `0`)* |
+| adopters of `HsmInstanceManager.SelectTier(blob)` | 🔴 **tests only** |
+| any **wire / egress / NED** translator naming `BrainHsm` | ⭐ **none** — corroborating `HrotRoleComponentSets.cs:134`'s own *"zero wire references"*. Both components are `[DataPolicy(NoScenario)]` |
+
+⭐⭐ **The seam law, twice over: every enabling seam already exists and has ZERO production adopters.**
+⛔ Nothing needs inventing; the HSM path was simply never brought onto the mechanism that was built
+for it by `O6`.
+
+### 31.2 ⭐ THE MODEL AFTER `O7c` — `classDiagram`
+
+```mermaid
+classDiagram
+    class BehaviorState {
+        <<EXISTS - stays>>
+        +uint ActiveBehaviorHash
+        +byte BrainTier
+        +uint InstanceId
+    }
+    class OccurrenceStoreTier {
+        <<EXISTS - BlueprintBlackboard 256/1024/4096/16384>>
+        +BlueprintBlackboardHeader header
+        +BlueprintSlotEntry[] slotTable
+        +byte[] payload
+    }
+    class OccurrenceSlotKey {
+        <<EXISTS - LINKED>>
+        +ComputeRootParamsKey(behaviourHash) int
+        +ComputeRootStateKey(behaviourHash) int
+    }
+    class RootStateAccess {
+        <<NEW - mirrors RootParamsAccess>>
+        +ResolveOrAttachRoot(world, self, hash, bytes, kind) byte*
+        +TryGetRootState(world, self, out ptr, out len) bool
+        +DetachRoot(world, self) void
+    }
+    class BrainTickWalk {
+        <<NEW - the shared tier walk>>
+        +ForEachOccurrence(repo, kind, visitor) void
+    }
+    class HsmTickSystem {
+        <<EXISTS - reshaped>>
+        -BehaviorRegistry registry
+        +Execute(view, dt) void
+    }
+    class BTreeTickSystem {
+        <<EXISTS - reshaped by CE-319>>
+        +Execute(view, dt) void
+    }
+    class BlueprintTickSystem {
+        <<EXISTS - already this shape>>
+        +Execute(view, dt) void
+    }
+    class HsmKernel {
+        <<EXISTS - ExtDeps>>
+        +Update(blob, byte* inst, int size, void* ctx, float dt, CommandPage*, HsmTraceContext*) void
+    }
+    class HsmInstanceOps {
+        <<NEW - the ONE ExtDeps addition>>
+        +Initialize(byte* inst, int size, HsmDefinitionBlob) void
+        +Reset(byte* inst, int size) void
+    }
+    class BrainHsm64 {
+        <<DELETED by O7c-1>>
+    }
+    class BrainHsm128 {
+        <<DELETED by O7c-2>>
+    }
+    class BrainBTreeState {
+        <<DELETED by O7c-4 - CE-319>>
+    }
+
+    BehaviorState "1" --> "0..1" OccurrenceStoreTier : one tier per entity
+    OccurrenceStoreTier "1" *-- "0..MaxSlots" RootStateAccess : root state is ONE slot
+    RootStateAccess ..> OccurrenceSlotKey : key is COMPUTED, never stored
+    HsmTickSystem ..> BrainTickWalk : adopts at O7c-2
+    BTreeTickSystem ..> BrainTickWalk : adopts at O7c-4
+    BlueprintTickSystem ..> BrainTickWalk : adopts at O7c-3
+    HsmTickSystem ..> HsmKernel : pointer + size, never a type
+    HsmTickSystem ..> HsmInstanceOps : reset on assign
+    BrainHsm64 ..> RootStateAccess : instance becomes
+    BrainHsm128 ..> RootStateAccess : instance becomes
+    BrainBTreeState ..> RootStateAccess : tree state becomes
+```
+
+*Caption — what the picture shows that the prose hid: **three tick systems, one walk.** `O7c` is not
+"delete two components"; it is the point at which the last two paradigms adopt the shape
+`BlueprintTickSystem` has had since `B3`. ⭐ `RootStateAccess` is drawn as a SIBLING of the existing
+`RootParamsAccess`, not a new mechanism — the key is computed, the slot attaches lazily, the detach
+is mandatory. ⛔ `HsmInstanceOps` is the ONE box that does not exist anywhere today.*
+
+### 31.3 ⭐ ONE HSM TICK, SLOT-RESIDENT — `sequenceDiagram`
+
+```mermaid
+sequenceDiagram
+    participant ING as BehaviorIngressSystem
+    participant STORE as occurrence store
+    participant HTS as HsmTickSystem
+    participant WALK as BrainTickWalk
+    participant OPS as HsmInstanceOps
+    participant K as HsmKernel
+
+    Note over ING,STORE: ASSIGN - once per behaviour change
+    ING->>ING: SelectTier(HsmInstanceManager.SelectTier(blob))
+    ING->>STORE: EnsureOccurrenceStore(+rootStateCost, +1 slot)
+    ING->>STORE: ResolveOrAttachRoot(key, instanceSize, kind Hsm)
+    ING->>OPS: Initialize(ptr, instanceSize, blob)
+    Note right of OPS: replaces ResetHsmComponents'<br/>two hand-rolled tier branches
+
+    Note over HTS,K: EVERY TICK
+    HTS->>WALK: ForEachOccurrence(repo, kind Hsm)
+    WALK-->>HTS: (entity, byte* ptr, int payloadSize)
+    HTS->>HTS: BrainTier == Hsm? registry.TryGetDefinition?
+    HTS->>K: Update(blob, ptr, payloadSize, &bridge, dt, &page, traceCtx)
+    K-->>HTS: instance mutated IN THE SLOT
+    HTS->>HTS: read InstanceHeader at ptr+0 - Terminated? publish once
+```
+
+*Caption — the load-bearing detail prose keeps losing: **the size comes from the SLOT, never from a
+type.** `HsmKernel.Update`'s own doc comment (`HsmKernel.cs:140-155`) states the reason and cites
+§9.4 — with payloads packed adjacently, a generic overload whose `sizeof(TInstance)` exceeds the slot
+reads into the **next occurrence's bytes**, with no compiler and no runtime check. ⛔ That is why
+`O7c` may not keep `HsmTickSystem<T>` and merely change where the pointer comes from.*
+
+### 31.4 ⭐⭐ WHO CALLS WHAT — the MODULE diagram *(obligation ①a: the dead edges matter)*
+
+```mermaid
+graph TD
+    subgraph sim["SimulationSystemGroup - CognitiveRuntimeModule registers these"]
+        BTS[BTreeTickSystem]
+        HTS128["HsmTickSystem-BrainHsm128"]
+        HTS64["HsmTickSystem-BrainHsm64"]
+        BPS[BlueprintTickSystem]
+    end
+    subgraph input["InputSystemGroup"]
+        ING[BehaviorIngressSystem]
+    end
+    subgraph editor["editor - NOT ticked"]
+        HDS[HsmDebugSession]
+        BDS[BlueprintDebugSession]
+        HRC["AiHotReloadCoordinator<br/>ReloadHsmChunks-T"]
+    end
+    STORE[(occurrence store<br/>tier component)]
+    TKB[BehaviorTkbTranslator]
+
+    TKB -->|the ONE production attach| HTS128
+    ING -->|provisions + resets| STORE
+    BPS -->|tier walk since B3| STORE
+    BTS -->|root params only| STORE
+    HTS128 -->|root params only| STORE
+    HDS -->|reads the component| HTS128
+    BDS -->|MachineId only| HTS128
+    HRC -->|chunk span per component| HTS128
+
+    HTS64 -.->|NOTHING EVER ATTACHES IT<br/>query is always empty| TKB
+
+    classDef dead stroke-dasharray: 5 5,stroke:#c00,color:#c00
+    class HTS64 dead
+```
+
+*Caption — the dead edge is the finding. **`HsmTickSystem<BrainHsm64>` is registered, scheduled and
+ticked every frame against a query that can never match**, because no production path attaches
+`BrainHsm64`. It is also reset by ingress, read by two debug sessions and swept by hot reload. ⇒ that
+is `O7c-1`, and it is free. ⭐ The picture also shows why hot reload is the awkward consumer:
+`ReloadHsmChunks<T>` walks **component chunks**, and slot payloads are not contiguous — `btree-hsm-unif`
+§Q6 called this out and said reload becomes a slot walk.*
+
+### 31.5 ⭐⭐⭐ THE FOUR SLICES
+
+| # | slice | why it is separable |
+|---|---|---|
+| **`O7c-1`** | ⭐⭐ **Delete `BrainHsm64` alone** — the struct, its `GlobalComponentIds` entry *(burned `_RESERVED`, never reused)*, its registration, its role-set bit, its tick registration, its ingress reset branch, its two debug-session branches and its hot-reload sweep | 📐 **zero production attach sites.** No behaviour can change. Halves every remaining branch before the hard slice touches them. ⚠ Cost is 9 test files re-homing onto 128 |
+| **`O7c-2`** | ⭐⭐⭐ **The HSM instance into a slot** — `RootStateAccess`, the ingress provision+reset, `HsmTickSystem` onto `BrainTickWalk` + the pointer+size kernel call, `AiHotReloadCoordinator` onto a slot walk, `BrainHsm128` deleted | ⛔ needs the ONE `ExtDeps` addition *(§31.8)*. ⛔⛔ **Land `CE-318` FIRST** or the memory row records an artifact |
+| **`O7c-3`** | ⭐ **`HsmDebugSession` becomes a LIST** of snapshots; the decoders go size-driven | 📄 §11.3 + `D3`, **already user-approved**. ⭐ Insulated: 📐 measured — `DebugApiService` does not read `BrainHsm*` at all, it reads `BehaviorState.BrainTier` and delegates, so the surface is the SESSIONS, not the endpoints |
+| **`O7c-4`** | ⭐⭐ **`BrainBTreeState` into a slot** — `CE-319`, and the point at which `BTreeTickSystem` adopts the shared walk | ⚠ **sequenced LAST so the walk exists to adopt**, ⛔ not because it is harder — §31.6 shows it is the cheap one |
+
+⛔⛔ **`O7c-1` must not be bundled.** It is independently green and independently revertible; making a
+free deletion wait on the hard slice is how a batch loses its own baseline.
+
+### 31.6 📐 WHAT IT COSTS IN BYTES — **and the 8-byte miss that is an accounting bug**
+
+📐 Constants, all measured: `Alignment 8` · `SlotEntrySize 16` · `HeaderSize 32` ·
+`Tier256` = **176** payload / **3** slots · `Tier1024` = **800** / **12** ·
+`BehaviorTreeState` is **exactly 64 B** *(`[StructLayout(LayoutKind.Explicit, Size = 64)]`)* ·
+real root-params extents, cited in `RootParamsAccess`: **52** *(`PlatoonHillAttack`)*, **16**
+*(`MoveToLocation`)*.
+
+| | today | after the move | delta |
+|---|---|---|---|
+| **BTree root** *(params 52)* | `BrainBTreeState` 64 + tier **256** = **320 B** | demand 72 + 80 = **152 ≤ 176** at **2 ≤ 3** slots ⇒ stays tier **256** | ⭐ **−64 B** |
+| **HSM root** *(params 16, instance 128)* | `BrainHsm128` 128 + tier **256** = **384 B** | demand 40 + 144 = **184 > 176** ⇒ promotes to tier **1024** | 🔴 **+640 B** |
+| **HSM root, with `CE-318` fixed** | — | true need 24 + 128 = **152 ≤ 176** at 2 slots ⇒ stays tier **256** | ⭐ **−128 B** |
+
+⛔⛔ **The HSM promotion is an ARTIFACT, not capacity — `CE-318`.** `BlueprintTierLadder` carves the
+slot table out once *(`PayloadSize = TotalSize − 32 − MaxSlots × 16`)* and
+`BlueprintBlackboardPartitions.Initialize:60-70` sets `PayloadFree` from that same derivation; the
+allocator then charges the two axes **separately** — `TryAttach:239` tests slots, `:247` tests payload,
+`:287` deducts `alignedSize` **only**. ⇒ the `+ SlotEntrySize` that `HostedPayloadCost` and
+`ProvisionStatefulSlots` add to the **payload** requirement is a **second charge for the same 16
+bytes**, and `BlueprintTierTable.Select:139` compares the inflated number against `PayloadSize`.
+⚠ **Conservative, never unsafe** — it over-reserves, so nothing overflows.
+
+⇒ ⭐ **BTree saves because 64 B lands inside the tier the entity already carries. HSM costs only
+because of `CE-318`.** ⛔ Neither number is a reason to do or not do `O7c`.
+
+### 31.7 ⭐⭐⭐ ONE WALK FOR THREE PARADIGMS — **the seam, and why it is built HERE**
+
+📐 `BlueprintTickSystem.cs:58-70` already caches `BlueprintTierTable.Ascending` queries and resolves
+memory through `spec.Memory(repo, entity)`; its own comment records that `TickTier`'s body **was three
+verbatim ~78-line copies** before `B3` collapsed them. ⚠ And `BTreeTickSystem` / `HsmTickSystem` are
+already substantially parallel to each other — same `_publishedTerminalForInstanceId` dedup, same
+`DestructionOrder`/`ClearBehaviorEvent` pruning, same `BrainTier` guard, same terminal-event publish.
+
+⇒ ⛔⛔ **If `O7c-2` grows a private tier walk on `HsmTickSystem`, the repo carries TWO discovery shapes
+for one concept while `O7c-4` is open, and then three.** That is ruling 9 territory and it is the exact
+duplication `B3` has already paid to remove once.
+
+⭐⭐ **So `O7c-2` extracts `BrainTickWalk` as a shared seam and adopts it; `O7c-3`/`O7c-4` adopt it
+unchanged.** ⚠ **It is sized by what all three need and nothing more** — `(entity, byte* payload, int
+payloadSize)` filtered by `OccurrenceKind`. ⛔ It does **not** absorb the dedup cache or the terminal
+publish; those differ per paradigm and collapsing them is a separate argument nobody has made.
+
+### 31.8 ⛔ THE ONE `ExtDeps` ADDITION — **and why it is not avoidable**
+
+| what exists | what is missing |
+|---|---|
+| ⭐ `HsmKernel.Update(blob, byte*, int, void*, float, CommandPage*, HsmTraceContext*)` — **public**, added by `O6` | — |
+| ⭐ `HsmEventQueue.TryEnqueue/TryDequeue/GetCount(void* instance, int size, …)` — **public**, size-driven | — |
+| ⭐ `HsmInstanceManager.SelectTier(blob)` → 64/128/256 — **public** | — |
+| ⭐ `HsmKernelCore.ResetInstance(byte*, int)` — size-driven | 🔴 **`internal`**, and `InternalsVisibleTo` names only `Fhsm.Tests` and `Fhsm.Demo.Visual` |
+| `HsmInstanceManager.Initialize<T>` / `Reset<T>` | 🔴 **generic on `T`** — `sizeof(T)`, which is the type-driven sizing `O7c` exists to remove |
+
+⇒ ⭐ **Add `HsmInstanceOps.Initialize(byte*, int, blob)` and `Reset(byte*, int)`** — public size-driven
+wrappers over the machinery already there. 📐 **This is the exact shape `O6` already added** *(the
+pointer+size `Update`)*, so it is a mirrored precedent rather than a new kind of crossing.
+⛔ Do **not** widen `InternalsVisibleTo` to `Fdp.Toolkits` instead: that exports the whole internal
+kernel to buy two methods.
+
+### 31.9 ⭐ ACCEPTANCE
+
+| # | |
+|---|---|
+| **①** | ⭐⭐ **`hill-attack-close --mode all` matches gold** — ⚠ **on a QUIET machine**: it is a wall-clock sim at `timeScale 1` and trial 1 of the `P4` acceptance drifted purely on load |
+| **②** | **the four shipped `.hsm.json` assets still run** *(`HsmShowcase`, `HsmOrthogonalRegions`, `HsmVariableShowcase`, `SampleGuard`)* — ⛔ this is the only HSM content there is, so it IS the HSM coverage |
+| **③** | ⭐ **a red-first rail per slice**, each with an inverse-edit red-proof, per the standing discipline |
+| **④** | ⛔⛔ **a rail that the `BrainHsm64` tick query was EMPTY before `O7c-1`** — 📐 otherwise the deletion's safety is an argument, not a measurement. ⚠ `CE-315` is the precedent: dead storage used as a QUERY PREDICATE fails as **silent non-execution**, which no value-asserting rail can see |
+| **⑤** | **the memory row is re-measured AFTER `CE-318`**, not before |
+
+### 31.10 ⛔ WHAT THIS SUPERSEDES
+
+| where | what changes |
+|---|---|
+| **§24.3's `O7c` row** | ⛔ *"🔴 L — 188 references"* — 📐 **the 188 counted TESTS.** Production is **42 lines / 12 files**. The row is re-rated in place |
+| **`PLAN_Occurrence_Storage_Build.md` row `E4`** | same correction; and `O7c` is now **four slices**, not one |
+| **§9.4's *"who chooses the tier: nothing does"*** | ⭐ still true, and §31.8 names the public selector that ends it |
+| **§21.2 row 1** | ⭐ *"the root occurrence still lives in `BrainBTreeState`"* now has an id — **`CE-319`** — and a slice, `O7c-4` |
