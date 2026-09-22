@@ -54,7 +54,7 @@ public sealed unsafe class BehaviorIngressStatefulTests
         string name, int id, IReadOnlyList<StatefulSlotInfo> slots)
     {
         // Build a trivial interpreter (no-op) just so BrainTier is BTree.
-        var actionReg = new ActionRegistry<BrainBlackboard, BTreeContext>();
+        var actionReg = new ActionRegistry<byte, BTreeContext>();
         var blob = new BehaviorTreeBlob
         {
             TreeName    = name,
@@ -63,7 +63,7 @@ public sealed unsafe class BehaviorIngressStatefulTests
             FloatParams = Array.Empty<float>(),
             IntParams   = Array.Empty<int>(),
         };
-        var interpreter = new Interpreter<BrainBlackboard, BTreeContext>(blob, actionReg);
+        var interpreter = new Interpreter<byte, BTreeContext>(blob, actionReg);
 
         return new BehaviorDefinition
         {

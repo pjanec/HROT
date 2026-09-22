@@ -307,7 +307,25 @@ public static class BTreeBridgeEmitCore
         // Deterministic behavior ID from the asset GUID (not string.GetHashCode()).
         int behaviorId = DeterministicIdFromGuid(dto.AssetId);
         string name    = dto.Name.Replace("\"", "\\\"");
-        var bbShort    = ShortTypeName(AiEmitCoreBase.EffectiveBlackboardTypeName(dto.BlackboardTypeName));
+        // ⭐⭐⭐ P4-② (2026-09-22) — THE DISPATCH TYPE IS `byte`, FOR EVERY TREE.
+        //
+        // 📐 `bbShort` is threaded into dispatch-typed positions ONLY — the `Register` signature's
+        //    `ActionRegistry<…>`, every thunk lambda's `ref … bb`, the deactivator registrations —
+        //    and never as a LAYOUT type. ⇒ one assignment retargets all ten emission sites.
+        //
+        // ⛔⛔ IT IS NO LONGER DERIVED FROM THE ASSET, AND THAT IS DELIBERATE. It used to read
+        //    `dto.BlackboardTypeName`, which is PERSISTED and also mangles into the generated
+        //    params-layout struct name ({Asset}_{SanitizedType}) and into SubtreeSyncIdentity.Derive,
+        //    whose inputs match subtrees by (name, dto type, dto ns). ⇒ retargeting the ASSET field
+        //    would rename 11 generated structs across 44 files AND silently break subtree matching.
+        //    📄 §30.19. ⭐ Retargeting the type ARGUMENT at its emission site does neither, and the
+        //    asset keeps naming its own layout — which is the only thing that name was ever about.
+        //
+        // ⚠ ⛔ The generated BUILDER (BTreeEmitCore:408) keeps the asset's type and MUST: its
+        //    selector-form bindings need a struct with fields, and `byte` has none. That is the same
+        //    reason P4-②b was withdrawn — a builder's generic is build-time only and never reaches
+        //    the interpreter, because Compile() returns an untyped BehaviorTreeBlob.
+        var bbShort    = "byte";
         var ctxShort   = ShortTypeName(AiEmitCoreBase.EffectiveContextTypeName(dto.ContextTypeName));
 
         sb.AppendLine($"{pad}/// <summary>");
@@ -390,7 +408,17 @@ public static class BTreeBridgeEmitCore
 
         sb.AppendLine();
         sb.AppendLine($"{pad2}// 3. Construct the Interpreter — BindActions runs here; registry must be populated above.");
-        sb.AppendLine($"{pad2}var interpreter = new Interpreter<{bbShort}, {ctxShort}>(blob, actionRegistry);");
+        // ⭐⭐⭐ P4-② (2026-09-22): the DISPATCH type is `byte` for every tree, not the asset's
+        //   blackboard type. The interpreter is handed the entity's ROOT PARAMS SLOT BASE, and a slot
+        //   base is bytes — what the asset calls its layout struct is irrelevant to dispatch.
+        //
+        // ⛔⛔ AND THIS IS WHY IT IS FIXED HERE RATHER THAN IN THE ASSET. `bbShort` comes from the
+        //   asset's persisted `BlackboardTypeName`, which ALSO mangles into the generated params-layout
+        //   struct name ({Asset}_{SanitizedType}) and into SubtreeSyncIdentity.Derive — whose inputs are
+        //   persisted and which MATCHES SUBTREES by (name, dto type, dto ns). ⇒ retargeting the asset
+        //   field would rename 11 generated structs across 44 files AND silently break subtree
+        //   matching. 📄 §30.19. ⭐ Changing the type argument at its emission site does neither.
+        sb.AppendLine($"{pad2}var interpreter = new Interpreter<byte, {ctxShort}>(blob, actionRegistry);");
         sb.AppendLine();
 
         // 4a. Emit ParseParams into a local variable (must be declared in an unsafe context so
@@ -443,7 +471,7 @@ public static class BTreeBridgeEmitCore
     /// <summary>
     /// S1-3: emits baked-offset Action registry entries for a managed blackboard asset.
     /// Key format: <c>{MethodFqn}@{offset}</c> — matches the blob key produced by BTreeEmitCore.
-    /// Thunk: <c>Unsafe.As&lt;byte, TDto&gt;(ref Unsafe.AddByteOffset(ref bb.BehaviorParameters[0], (nint){offset}))</c>
+    /// Thunk: <c>Unsafe.As&lt;byte, TDto&gt;(ref Unsafe.AddByteOffset(ref bb, (nint){offset}))</c>
     /// </summary>
     private static void EmitManagedActionThunks(
         StringBuilder sb, BehaviorTreeAssetDto dto,

@@ -45,7 +45,7 @@ namespace Hrot.AI.Behaviors
         /// </summary>
         public static unsafe void Register(
             BehaviorRegistry beh,
-            ActionRegistry<BrainBlackboard, BTreeContext> actionRegistry)
+            ActionRegistry<byte, BTreeContext> actionRegistry)
         {
             // The injected registry is already populated from this assembly's [FbtRegistrar]
             // (via BTreeActionRegistryFactory.BuildFromAssembly), including the paired
@@ -59,7 +59,7 @@ namespace Hrot.AI.Behaviors
                 Name             = BehaviorNames.MoveToLocation,
                 BrainTier        = BehaviorConstants.BrainTierBTree,
                 BlackboardLayoutType = typeof(CgfNodes.MoveToLocationParams),
-                BTreeInterpreter = new Interpreter<BrainBlackboard, BTreeContext>(
+                BTreeInterpreter = new Interpreter<byte, BTreeContext>(
                     FbtTreeCatalog.GetMoveToLocation(isResourceOwning), actionRegistry),
             });
 
@@ -68,7 +68,7 @@ namespace Hrot.AI.Behaviors
                 Name             = BehaviorNames.FollowRoute,
                 BrainTier        = BehaviorConstants.BrainTierBTree,
                 BlackboardLayoutType = typeof(CgfNodes.FollowRouteParams),
-                BTreeInterpreter = new Interpreter<BrainBlackboard, BTreeContext>(
+                BTreeInterpreter = new Interpreter<byte, BTreeContext>(
                     FbtTreeCatalog.GetFollowRoute(isResourceOwning), actionRegistry),
             });
 
@@ -77,7 +77,7 @@ namespace Hrot.AI.Behaviors
                 Name             = BehaviorNames.JoinFormation,
                 BrainTier        = BehaviorConstants.BrainTierBTree,
                 BlackboardLayoutType = typeof(CgfNodes.JoinFormationParams),
-                BTreeInterpreter = new Interpreter<BrainBlackboard, BTreeContext>(
+                BTreeInterpreter = new Interpreter<byte, BTreeContext>(
                     FbtTreeCatalog.GetJoinFormation(isResourceOwning), actionRegistry),
             });
 
@@ -85,7 +85,7 @@ namespace Hrot.AI.Behaviors
             {
                 Name             = BehaviorNames.WanderMilitary,
                 BrainTier        = BehaviorConstants.BrainTierBTree,
-                BTreeInterpreter = new Interpreter<BrainBlackboard, BTreeContext>(
+                BTreeInterpreter = new Interpreter<byte, BTreeContext>(
                     FbtTreeCatalog.GetWanderMilitary(isResourceOwning), actionRegistry),
             });
 
@@ -94,7 +94,7 @@ namespace Hrot.AI.Behaviors
                 Name             = BehaviorNames.FireAtTarget,
                 BrainTier        = BehaviorConstants.BrainTierBTree,
                 BlackboardLayoutType = typeof(CgfNodes.FireAtTargetParams),
-                BTreeInterpreter = new Interpreter<BrainBlackboard, BTreeContext>(
+                BTreeInterpreter = new Interpreter<byte, BTreeContext>(
                     FbtTreeCatalog.GetFireAtTarget(isResourceOwning), actionRegistry),
             });
 

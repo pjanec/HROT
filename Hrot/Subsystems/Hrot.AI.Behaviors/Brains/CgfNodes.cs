@@ -414,7 +414,7 @@ namespace Hrot.AI.Behaviors.Brains
         /// </summary>
         [BTreeAction]
         public static NodeStatus Action_Wander(
-            ref BrainBlackboard blackboard,
+            ref byte blackboard,   // P4-②: the root params SLOT BASE, not a component
             ref BehaviorTreeState state,
             ref BTreeContext ctx,
             int paramIndex)
@@ -606,7 +606,7 @@ namespace Hrot.AI.Behaviors.Brains
         /// visible. Always returns <see cref="NodeStatus.Running"/> so the Selector stays alive.
         /// </summary>
         public static NodeStatus Action_HoldPosition(
-            ref BrainBlackboard blackboard,
+            ref byte blackboard,   // P4-②: the root params SLOT BASE, not a component
             ref BehaviorTreeState state,
             ref BTreeContext ctx,
             int paramIndex)
@@ -653,9 +653,14 @@ namespace Hrot.AI.Behaviors.Brains
         /// Exposes the WanderMilitary BTree structure for Fbt.SourceGen static analysis.
         /// </summary>
         [BTreeDefinition("WanderMilitary")]
-        public static BTreeBuilder<BrainBlackboard, BTreeContext> BuildWanderMilitaryTree()
+        // ⭐ P4-②: `byte` here, and it is the RAW-DELEGATE case so nothing is lost. A selector-form
+        //   builder still needs a struct with fields (which is why the wrapper structs stay — §30.18);
+        //   this tree binds a delegate directly, and that delegate now takes `ref byte`.
+        // ⚠ WanderMilitary declares NO params, so its entity has no root slot and the tick hands the
+        //   interpreter a scratch byte. That is safe precisely because nothing here projects.
+        public static BTreeBuilder<byte, BTreeContext> BuildWanderMilitaryTree()
         {
-            return new BTreeBuilder<BrainBlackboard, BTreeContext>()
+            return new BTreeBuilder<byte, BTreeContext>()
                 .Action(Action_Wander);
         }
 

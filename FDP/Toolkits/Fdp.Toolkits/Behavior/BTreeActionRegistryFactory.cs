@@ -32,11 +32,11 @@ public static class BTreeActionRegistryFactory
     /// registrar failure or a partially-loadable assembly — those are skipped so a bad
     /// registrar cannot abort the whole load.
     /// </summary>
-    public static ActionRegistry<BrainBlackboard, BTreeContext> BuildFromAssembly(Assembly assembly)
+    public static ActionRegistry<byte, BTreeContext> BuildFromAssembly(Assembly assembly)
     {
         if (assembly is null) throw new ArgumentNullException(nameof(assembly));
 
-        var registry = new ActionRegistry<BrainBlackboard, BTreeContext>();
+        var registry = new ActionRegistry<byte, BTreeContext>();
 
         Type[] types;
         try
@@ -61,7 +61,7 @@ public static class BTreeActionRegistryFactory
 
                 var ps = method.GetParameters();
                 if (ps.Length != 1 ||
-                    ps[0].ParameterType != typeof(ActionRegistry<BrainBlackboard, BTreeContext>))
+                    ps[0].ParameterType != typeof(ActionRegistry<byte, BTreeContext>))
                     continue;
 
                 try

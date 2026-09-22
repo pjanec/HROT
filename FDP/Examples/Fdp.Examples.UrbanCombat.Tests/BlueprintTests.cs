@@ -73,15 +73,15 @@ namespace Fdp.Examples.UrbanCombat.Tests
 
         // ── Helper: build the Ambush interpreter ──────────────────────────────────
 
-        private static Interpreter<BrainBlackboard, BTreeContext> BuildAmbushInterpreter()
+        private static Interpreter<byte, BTreeContext> BuildAmbushInterpreter()
         {
-            var registry = new ActionRegistry<BrainBlackboard, BTreeContext>();
+            var registry = new ActionRegistry<byte, BTreeContext>();
             registry.Register("Condition_HasTarget",  InsurgentNodes.Condition_HasTarget);
             registry.Register("Action_AimAndFire",    InsurgentNodes.Action_AimAndFire);
             registry.Register("Action_HoldPosition",  InsurgentNodes.Action_HoldPosition);
 
             var blob = TreeCompiler.CompileFromJson(AmbushJson);
-            return new Interpreter<BrainBlackboard, BTreeContext>(blob, registry);
+            return new Interpreter<byte, BTreeContext>(blob, registry);
         }
 
         // ════════════════════════════════════════════════════════════════════════════

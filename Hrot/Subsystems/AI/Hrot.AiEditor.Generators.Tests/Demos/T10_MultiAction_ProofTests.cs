@@ -40,7 +40,7 @@ namespace Hrot.AiEditor.Generators.Tests.Demos;
 ///   accum   (DemoAccumParams   {int,int} = 8 bytes, align 4) → offset 8
 ///
 /// Both DTOs are read back via:
-///   Unsafe.As&lt;byte, TDto&gt;(ref Unsafe.AddByteOffset(ref bb.BehaviorParameters[0], (nint)offset))
+///   Unsafe.As&lt;byte, TDto&gt;(ref Unsafe.AddByteOffset(ref bb, (nint)offset))
 /// which is exactly what the emitted thunks do.
 ///
 /// Defaults note: managed-asset DefaultValueJson is NOT auto-written in the test harness
@@ -194,7 +194,7 @@ public sealed class T10_MultiAction_ProofTests : IDisposable
     /// <summary>
     /// Full end-to-end: load JSON → generate → compile → bridge-register → return interpreter.
     /// </summary>
-    private (Interpreter<BrainBlackboard, BTreeContext> Interpreter, AssemblyLoadContext Alc)
+    private (Interpreter<byte, BTreeContext> Interpreter, AssemblyLoadContext Alc)
         BuildInterpreterFromJson(string assetName, string registrarName)
     {
         string json = LoadJsonFromCommittedFile(assetName);
@@ -214,8 +214,8 @@ public sealed class T10_MultiAction_ProofTests : IDisposable
             .OrderBy(p => p.OrdinalIndex)
             .Select(p => p.ParameterType == typeof(BehaviorRegistry)
                          ? (object)stagingRegistry
-                         : p.ParameterType == typeof(ActionRegistry<BrainBlackboard, BTreeContext>)
-                           ? new ActionRegistry<BrainBlackboard, BTreeContext>()
+                         : p.ParameterType == typeof(ActionRegistry<byte, BTreeContext>)
+                           ? new ActionRegistry<byte, BTreeContext>()
                            : (object)bpStaging)
             .ToArray();
         bridge.RegisterMethod.Invoke(null, args);
@@ -316,8 +316,8 @@ public sealed class T10_MultiAction_ProofTests : IDisposable
             .OrderBy(p => p.OrdinalIndex)
             .Select(p => p.ParameterType == typeof(BehaviorRegistry)
                          ? (object)stagingRegistry
-                         : p.ParameterType == typeof(ActionRegistry<BrainBlackboard, BTreeContext>)
-                           ? new ActionRegistry<BrainBlackboard, BTreeContext>()
+                         : p.ParameterType == typeof(ActionRegistry<byte, BTreeContext>)
+                           ? new ActionRegistry<byte, BTreeContext>()
                            : (object)bpStaging)
             .ToArray();
         bridge.RegisterMethod.Invoke(null, args);

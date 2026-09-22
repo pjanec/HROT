@@ -85,16 +85,16 @@ public sealed class MultiActionBoundTests
         const string actionKey1 = "Test.MultiActionBoundTests.CounterAction@0";
         const string actionKey2 = "Test.MultiActionBoundTests.FlagAction@8";
 
-        var actionReg = new ActionRegistry<BrainBlackboard, BTreeContext>();
+        var actionReg = new ActionRegistry<byte, BTreeContext>();
 
         // Register action1: increments Counter at offset 0.
         actionReg.Register(actionKey1,
-            static (ref BrainBlackboard bb, ref BehaviorTreeState st, ref BTreeContext ctx, int pi) =>
+            static (ref byte bb, ref BehaviorTreeState st, ref BTreeContext ctx, int pi) =>
             {
                 unsafe
                 {
                     ref var dto = ref Unsafe.As<byte, CounterParams>(
-                        ref Unsafe.AddByteOffset(ref bb.BehaviorParameters[0], (nint)counterOffset));
+                        ref Unsafe.AddByteOffset(ref bb, (nint)counterOffset));
                     dto.Counter++;
                 }
                 return NodeStatus.Success;
@@ -102,19 +102,19 @@ public sealed class MultiActionBoundTests
 
         // Register action2: sets Done=true at offset 8.
         actionReg.Register(actionKey2,
-            static (ref BrainBlackboard bb, ref BehaviorTreeState st, ref BTreeContext ctx, int pi) =>
+            static (ref byte bb, ref BehaviorTreeState st, ref BTreeContext ctx, int pi) =>
             {
                 unsafe
                 {
                     ref var dto = ref Unsafe.As<byte, FlagParams>(
-                        ref Unsafe.AddByteOffset(ref bb.BehaviorParameters[0], (nint)flagOffset));
+                        ref Unsafe.AddByteOffset(ref bb, (nint)flagOffset));
                     dto.Done = true;
                 }
                 return NodeStatus.Success;
             });
 
         var blob        = BuildSequenceBlob(actionKey1, actionKey2);
-        var interpreter = new Interpreter<BrainBlackboard, BTreeContext>(blob, actionReg);
+        var interpreter = new Interpreter<byte, BTreeContext>(blob, actionReg);
         var bb          = new BrainBlackboard();
         var ctx         = new BTreeContext();
         var state       = new BehaviorTreeState();
@@ -124,9 +124,9 @@ public sealed class MultiActionBoundTests
 
         // Read back via Unsafe projection to verify independent writes.
         ref var counter = ref Unsafe.As<byte, CounterParams>(
-            ref Unsafe.AddByteOffset(ref bb.BehaviorParameters[0], (nint)counterOffset));
+            ref Unsafe.AddByteOffset(ref bb, (nint)counterOffset));
         ref var flag = ref Unsafe.As<byte, FlagParams>(
-            ref Unsafe.AddByteOffset(ref bb.BehaviorParameters[0], (nint)flagOffset));
+            ref Unsafe.AddByteOffset(ref bb, (nint)flagOffset));
 
         Assert.Equal(1, counter.Counter);  // action1 incremented Counter
         Assert.Equal(0, counter.Threshold); // action1 did NOT touch Threshold
@@ -138,21 +138,21 @@ public sealed class MultiActionBoundTests
         // bleed into offset 8 by re-running only action1 on a fresh blackboard.
         var bb2   = new BrainBlackboard();
         var state2 = new BehaviorTreeState();
-        var singleActionReg = new ActionRegistry<BrainBlackboard, BTreeContext>();
+        var singleActionReg = new ActionRegistry<byte, BTreeContext>();
         singleActionReg.Register(actionKey1,
-            static (ref BrainBlackboard bb, ref BehaviorTreeState st, ref BTreeContext ctx, int pi) =>
+            static (ref byte bb, ref BehaviorTreeState st, ref BTreeContext ctx, int pi) =>
             {
                 unsafe
                 {
                     ref var dto = ref Unsafe.As<byte, CounterParams>(
-                        ref Unsafe.AddByteOffset(ref bb.BehaviorParameters[0], (nint)0));
+                        ref Unsafe.AddByteOffset(ref bb, (nint)0));
                     dto.Counter++;
                 }
                 return NodeStatus.Success;
             });
 
         var singleBlob        = BuildActionBlob(actionKey1);
-        var singleInterpreter = new Interpreter<BrainBlackboard, BTreeContext>(singleBlob, singleActionReg);
+        var singleInterpreter = new Interpreter<byte, BTreeContext>(singleBlob, singleActionReg);
         singleInterpreter.Tick(ref bb2, ref state2, ref ctx);
 
         // After running ONLY action1, the flag region (offset 8) must remain zero.
@@ -193,16 +193,16 @@ public sealed class MultiActionBoundTests
             IntParams   = Array.Empty<int>(),
         };
 
-        var actionReg = new ActionRegistry<BrainBlackboard, BTreeContext>();
+        var actionReg = new ActionRegistry<byte, BTreeContext>();
 
         // Condition: Success when Counter < Threshold.
         actionReg.RegisterCondition(conditionKey,
-            static (ref BrainBlackboard bb, ref BehaviorTreeState st, ref BTreeContext ctx, int pi) =>
+            static (ref byte bb, ref BehaviorTreeState st, ref BTreeContext ctx, int pi) =>
             {
                 unsafe
                 {
                     ref var dto = ref Unsafe.As<byte, CounterParams>(
-                        ref Unsafe.AddByteOffset(ref bb.BehaviorParameters[0], (nint)offset));
+                        ref Unsafe.AddByteOffset(ref bb, (nint)offset));
                     return dto.Counter < dto.Threshold
                         ? NodeStatus.Success
                         : NodeStatus.Failure;
@@ -211,18 +211,18 @@ public sealed class MultiActionBoundTests
 
         // Action: increments Counter.
         actionReg.Register(actionKey,
-            static (ref BrainBlackboard bb, ref BehaviorTreeState st, ref BTreeContext ctx, int pi) =>
+            static (ref byte bb, ref BehaviorTreeState st, ref BTreeContext ctx, int pi) =>
             {
                 unsafe
                 {
                     ref var dto = ref Unsafe.As<byte, CounterParams>(
-                        ref Unsafe.AddByteOffset(ref bb.BehaviorParameters[0], (nint)offset));
+                        ref Unsafe.AddByteOffset(ref bb, (nint)offset));
                     dto.Counter++;
                 }
                 return NodeStatus.Success;
             });
 
-        var interpreter = new Interpreter<BrainBlackboard, BTreeContext>(blob, actionReg);
+        var interpreter = new Interpreter<byte, BTreeContext>(blob, actionReg);
         var bb    = new BrainBlackboard();
         var ctx   = new BTreeContext();
         var state = new BehaviorTreeState();
@@ -231,7 +231,7 @@ public sealed class MultiActionBoundTests
         unsafe
         {
             ref var dto = ref Unsafe.As<byte, CounterParams>(
-                ref Unsafe.AddByteOffset(ref bb.BehaviorParameters[0], (nint)offset));
+                ref Unsafe.AddByteOffset(ref bb, (nint)offset));
             dto.Threshold = 3;
         }
 
@@ -245,7 +245,7 @@ public sealed class MultiActionBoundTests
         unsafe
         {
             ref var dto = ref Unsafe.As<byte, CounterParams>(
-                ref Unsafe.AddByteOffset(ref bb.BehaviorParameters[0], (nint)offset));
+                ref Unsafe.AddByteOffset(ref bb, (nint)offset));
             Assert.Equal(3, dto.Counter);  // incremented 3 times
         }
 
@@ -256,7 +256,7 @@ public sealed class MultiActionBoundTests
         unsafe
         {
             ref var dto = ref Unsafe.As<byte, CounterParams>(
-                ref Unsafe.AddByteOffset(ref bb.BehaviorParameters[0], (nint)offset));
+                ref Unsafe.AddByteOffset(ref bb, (nint)offset));
             Assert.Equal(3, dto.Counter);  // NOT incremented — condition blocked
         }
     }

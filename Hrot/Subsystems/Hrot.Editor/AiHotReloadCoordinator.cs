@@ -547,24 +547,24 @@ namespace Hrot.Editor
         /// <c>new Interpreter(blob, registry)</c> and require a non-null registry; without this the
         /// editor crashes at startup with ArgumentNullException ('registry').
         /// </summary>
-        private static ActionRegistry<BrainBlackboard, BTreeContext> BuildBTreeActionRegistry(
+        private static ActionRegistry<byte, BTreeContext> BuildBTreeActionRegistry(
             IReadOnlyList<ResolvedRegistrar> registrars)
         {
             var asm = registrars.Count > 0 ? registrars[0].DeclaringType.Assembly : null;
             return asm != null
                 ? BTreeActionRegistryFactory.BuildFromAssembly(asm)
-                : new ActionRegistry<BrainBlackboard, BTreeContext>();
+                : new ActionRegistry<byte, BTreeContext>();
         }
 
         private object? ResolveRegistrarParam(
             Type paramType,
             BehaviorRegistry behaviorStaging,
             BlueprintRegistryStaging blueprintStaging,
-            ActionRegistry<BrainBlackboard, BTreeContext> btreeActionRegistry)
+            ActionRegistry<byte, BTreeContext> btreeActionRegistry)
         {
             if (paramType == typeof(BehaviorRegistry))         return behaviorStaging;
             if (paramType == typeof(BlueprintRegistryStaging)) return blueprintStaging;
-            if (paramType == typeof(ActionRegistry<BrainBlackboard, BTreeContext>)) return btreeActionRegistry;
+            if (paramType == typeof(ActionRegistry<byte, BTreeContext>)) return btreeActionRegistry;
             if (paramType == typeof(IGeographicTransform))     return _geoTransform;
             if (typeof(IGeographicTransform).IsAssignableFrom(paramType)) return _geoTransform;
             if (paramType == typeof(NetworkEntityMap))         return _entityMap;

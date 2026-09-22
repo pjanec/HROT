@@ -1096,7 +1096,7 @@ namespace Stub
     /// (a) the registrar registers under the SAME keys the topology blob uses
     ///     ("{conditionFqn}@0", "{actionFqn}@4") — proving blob key == registry key, and
     /// (b) each thunk projects at the baked offset
-    ///     (Unsafe.AddByteOffset(ref bb.BehaviorParameters[0], (nint)0) for @0,
+    ///     (Unsafe.AddByteOffset(ref bb, (nint)0) for @0,
     ///      and (nint)4 for @4) — proving the offset is wired in, not @0 for everything.
     /// </summary>
     [Fact]

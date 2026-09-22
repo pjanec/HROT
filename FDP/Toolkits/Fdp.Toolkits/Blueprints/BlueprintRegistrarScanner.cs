@@ -94,7 +94,7 @@ public static class BlueprintRegistrarScanner
 
         // Lazily built (once per scan) the first time a registrar requests the BTree
         // action registry. Built from THIS assembly only — see BTreeActionRegistryFactory.
-        ActionRegistry<BrainBlackboard, BTreeContext>? btreeActionRegistry = null;
+        ActionRegistry<byte, BTreeContext>? btreeActionRegistry = null;
 
         foreach (var type in types)
         {
@@ -123,7 +123,7 @@ public static class BlueprintRegistrarScanner
                 // BTree action delegates: inject a registry populated from this assembly's
                 // [FbtRegistrar]. Lazily built once so JSON BTree bridges resolve real
                 // action/condition logic instead of the interpreter's Failure fallback.
-                else if (paramType == typeof(ActionRegistry<BrainBlackboard, BTreeContext>))
+                else if (paramType == typeof(ActionRegistry<byte, BTreeContext>))
                     args[i] = btreeActionRegistry ??= BTreeActionRegistryFactory.BuildFromAssembly(assembly);
                 // BlueprintRegistry direct — violates the RCU contract.
                 else if (paramType == typeof(BlueprintRegistry))

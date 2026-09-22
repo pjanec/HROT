@@ -181,7 +181,7 @@ public sealed class MoveToAndFire_InterpreterTick_Tests : IDisposable
         var builder = new BTreeBuilder<BrainBlackboard, BTreeContext>();
         builder.Action(ActionKey());
         var blob = builder.Compile("I1_MoveToAndFire_Smoke");
-        var interpreter = new Interpreter<BrainBlackboard, BTreeContext>(blob, _fixture.ActionRegistry);
+        var interpreter = new Interpreter<byte, BTreeContext>(blob, _fixture.ActionRegistry);
 
         var bb    = default(BrainBlackboard);
         var state = default(Fbt.BehaviorTreeState);

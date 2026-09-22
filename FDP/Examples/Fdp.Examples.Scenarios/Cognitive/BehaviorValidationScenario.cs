@@ -130,14 +130,14 @@ namespace Fdp.Examples.Scenarios.Cognitive
             // ── Behavior registry and BTree setup ─────────────────────────────
             var registry = new BehaviorRegistry();
 
-            var actionReg = new ActionRegistry<BrainBlackboard, BTreeContext>();
+            var actionReg = new ActionRegistry<byte, BTreeContext>();
             actionReg.Register("Condition_ThreatVisible", Condition_ThreatVisible);
             actionReg.Register("Condition_HasAmmo",       Condition_HasAmmo);
             actionReg.Register("Action_AimAndFire",       Action_AimAndFire);
             actionReg.Register("Action_Flee",             Action_Flee);
 
             var blob        = TreeCompiler.CompileFromJson(CombatBTreeJson);
-            var interpreter = new Interpreter<BrainBlackboard, BTreeContext>(blob, actionReg);
+            var interpreter = new Interpreter<byte, BTreeContext>(blob, actionReg);
 
             registry.Register(BehaviorValidationBehaviorIds.Combat, "MockCombat",
                 new BehaviorDefinition
@@ -286,7 +286,7 @@ namespace Fdp.Examples.Scenarios.Cognitive
 
         /// <summary>Returns Success when <c>BrainBlackboard.BehaviorParameters[0]</c> is non-zero.</summary>
         private static unsafe NodeStatus Condition_ThreatVisible(
-            ref BrainBlackboard bb,
+            ref byte bb,
             ref BehaviorTreeState _,
             ref BTreeContext ctx,
             int payloadIndex)
@@ -298,7 +298,7 @@ namespace Fdp.Examples.Scenarios.Cognitive
 
         /// <summary>Returns Success when <c>Memory[4..7]</c> as int is greater than zero.</summary>
         private static unsafe NodeStatus Condition_HasAmmo(
-            ref BrainBlackboard bb,
+            ref byte bb,
             ref BehaviorTreeState _,
             ref BTreeContext ctx,
             int payloadIndex)
@@ -315,7 +315,7 @@ namespace Fdp.Examples.Scenarios.Cognitive
         /// and clears <see cref="LocomotionChannel"/>. Returns <see cref="NodeStatus.Running"/>.
         /// </summary>
         private static NodeStatus Action_AimAndFire(
-            ref BrainBlackboard _bb,
+            ref byte _bb,
             ref BehaviorTreeState _,
             ref BTreeContext ctx,
             int payloadIndex)
@@ -338,7 +338,7 @@ namespace Fdp.Examples.Scenarios.Cognitive
         /// and clears <see cref="WeaponChannel"/>. Returns <see cref="NodeStatus.Running"/>.
         /// </summary>
         private static NodeStatus Action_Flee(
-            ref BrainBlackboard _bb,
+            ref byte _bb,
             ref BehaviorTreeState _,
             ref BTreeContext ctx,
             int payloadIndex)

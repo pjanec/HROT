@@ -440,7 +440,7 @@ namespace Hrot.Editor.Tests
             Assert.Single(registrars);
             // Sanity: the registrar really does declare the ActionRegistry parameter.
             Assert.Contains(registrars[0].Parameters,
-                p => p.ParameterType == typeof(ActionRegistry<BrainBlackboard, BTreeContext>));
+                p => p.ParameterType == typeof(ActionRegistry<byte, BTreeContext>));
 
             StubBTreeActionRegistryRegistrar.LastRegistry = null;
             var alc = new AssemblyLoadContext("test-btree-actionreg", isCollectible: true);
@@ -464,12 +464,12 @@ namespace Hrot.Editor.Tests
     [Fdp.Toolkit.Blueprints.Attributes.BlueprintRegistrar]
     internal static class StubBTreeActionRegistryRegistrar
     {
-        public static ActionRegistry<BrainBlackboard, BTreeContext>? LastRegistry;
+        public static ActionRegistry<byte, BTreeContext>? LastRegistry;
 
         public static void Register(
             BehaviorRegistry beh,
             BlueprintRegistryStaging staging,
-            ActionRegistry<BrainBlackboard, BTreeContext> actionRegistry)
+            ActionRegistry<byte, BTreeContext> actionRegistry)
         {
             // Real bridges crash here with ArgumentNullException if the registry is null.
             if (actionRegistry == null) throw new ArgumentNullException(nameof(actionRegistry));

@@ -97,7 +97,7 @@ public sealed unsafe class BehaviorIngressHardReloadRepublishTests : IDisposable
     private static BehaviorDefinition MakeStatefulDefinition(
         string name, int id, IReadOnlyList<StatefulSlotInfo> slots)
     {
-        var actionReg = new ActionRegistry<BrainBlackboard, BTreeContext>();
+        var actionReg = new ActionRegistry<byte, BTreeContext>();
         var blob = new BehaviorTreeBlob
         {
             TreeName    = name,
@@ -106,7 +106,7 @@ public sealed unsafe class BehaviorIngressHardReloadRepublishTests : IDisposable
             FloatParams = Array.Empty<float>(),
             IntParams   = Array.Empty<int>(),
         };
-        var interpreter = new Interpreter<BrainBlackboard, BTreeContext>(blob, actionReg);
+        var interpreter = new Interpreter<byte, BTreeContext>(blob, actionReg);
         return new BehaviorDefinition
         {
             Name                 = name,
@@ -286,14 +286,14 @@ public sealed unsafe class BehaviorIngressHardReloadRepublishTests : IDisposable
         public static int    Id    { get; set; } = 0;
         public static IReadOnlyList<StatefulSlotInfo> Slots { get; set; } = Array.Empty<StatefulSlotInfo>();
 
-        // Signature: BehaviorRegistry, BlueprintRegistryStaging, ActionRegistry<BrainBlackboard, BTreeContext>
+        // Signature: BehaviorRegistry, BlueprintRegistryStaging, ActionRegistry<byte, BTreeContext>
         // — exactly the three supported injectable types in ResolveRegistrarArgument.
         public static void Register(
             BehaviorRegistry behaviorRegistry,
             BlueprintRegistryStaging blueprintStaging,
-            ActionRegistry<BrainBlackboard, BTreeContext> actionRegistry)
+            ActionRegistry<byte, BTreeContext> actionRegistry)
         {
-            var actionReg = new ActionRegistry<BrainBlackboard, BTreeContext>();
+            var actionReg = new ActionRegistry<byte, BTreeContext>();
             var blob = new BehaviorTreeBlob
             {
                 TreeName    = Name,
@@ -302,7 +302,7 @@ public sealed unsafe class BehaviorIngressHardReloadRepublishTests : IDisposable
                 FloatParams = Array.Empty<float>(),
                 IntParams   = Array.Empty<int>(),
             };
-            var interpreter = new Interpreter<BrainBlackboard, BTreeContext>(blob, actionReg);
+            var interpreter = new Interpreter<byte, BTreeContext>(blob, actionReg);
             behaviorRegistry.Register(Id, Name, new BehaviorDefinition
             {
                 Name                 = Name,

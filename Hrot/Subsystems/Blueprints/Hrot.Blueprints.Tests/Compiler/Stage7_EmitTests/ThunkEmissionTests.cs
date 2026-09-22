@@ -148,7 +148,7 @@ public sealed class ThunkEmissionTests
     /// blackboard is only the SEED.</b> 📄 <c>DESIGN_Occurrence_Scoped_Storage.md</c> §28.
     ///
     /// <para>⚠ <b>This rail was a DEFECT PIN and has now FLIPPED.</b> It asserted
-    /// <c>ref bb.BehaviorParameters[0], (nint)0</c> as the LIVE projection while that was true, and
+    /// <c>ref bb, (nint)0</c> as the LIVE projection while that was true, and
     /// reddened the moment <c>E3a</c> landed — which is the whole point of a pin.</para>
     ///
     /// <para>🔒 <b>User, <c>2026-09-21</c>:</b> <i>"the simplest case like two actions running in two

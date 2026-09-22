@@ -419,14 +419,14 @@ public sealed unsafe class HostedSubtreeCursorTests
     {
         var b = new BTreeBuilder<BrainBlackboard, BTreeContext>()
             .Sequence(seq => seq.Action(
-                static (ref BrainBlackboard bb, ref BehaviorTreeState st, ref BTreeContext c, int pi)
+                static (ref byte bb, ref BehaviorTreeState st, ref BTreeContext c, int pi)
                     => NodeStatus.Running));
 
         return new BehaviorDefinition
         {
             Name                 = name,
             BrainTier            = BehaviorConstants.BrainTierBTree,
-            BTreeInterpreter     = new Interpreter<BrainBlackboard, BTreeContext>(b.Compile(name), b.GetRegistry()),
+            BTreeInterpreter     = new Interpreter<byte, BTreeContext>(b.Compile(name), b.GetRegistry()),
             StatefulWorkingSlots = new[] { HostedManifestSlot() },
         };
     }

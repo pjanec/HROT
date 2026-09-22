@@ -56,7 +56,7 @@ public sealed class BlueprintTestFixture : IDisposable
     /// bridge registrars) populate. Exposed so a test can build an <see cref="Interpreter{TBlackboard,TContext}"/>
     /// that binds a blueprint-authored action by its registered key and tick it for real.
     /// </summary>
-    public ActionRegistry<BrainBlackboard, BTreeContext> ActionRegistry { get; } = new();
+    public ActionRegistry<byte, BTreeContext> ActionRegistry { get; } = new();
 
     /// <summary>
     /// When set, passed to generated registrars that declare an IPredicateCompiler parameter.
@@ -519,7 +519,7 @@ public static class ThrowingRegistrar
                     else if (paramInfos[i].ParameterType == typeof(BehaviorRegistry))
                         args[i] = behaviorStaging;
                     // I1: BTree-hosted AiPrimitive registrars register their thunks here.
-                    else if (paramInfos[i].ParameterType == typeof(ActionRegistry<BrainBlackboard, BTreeContext>))
+                    else if (paramInfos[i].ParameterType == typeof(ActionRegistry<byte, BTreeContext>))
                         args[i] = ActionRegistry;
                     // Patch 4: BlueprintRegistry is forbidden — violates the RCU contract.
                     else if (paramInfos[i].ParameterType == typeof(BlueprintRegistry))

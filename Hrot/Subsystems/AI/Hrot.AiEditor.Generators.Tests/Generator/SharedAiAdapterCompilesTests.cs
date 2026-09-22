@@ -64,7 +64,7 @@ namespace Probe
     {
         [BTreeAction]
         public static NodeStatus PlainAction(
-            ref BrainBlackboard bb, ref BehaviorTreeState st, ref BTreeContext ctx, int pi)
+            ref byte bb, ref BehaviorTreeState st, ref BTreeContext ctx, int pi)
             => NodeStatus.Success;
 
         [SharedAiAction(typeof(ProbeSlot), nameof(ProbeSlot.Params))]

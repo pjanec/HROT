@@ -510,7 +510,7 @@ internal static class AiPrimitiveEmitter
     {
         e.WriteLine("public static unsafe global::Fbt.NodeStatus BTreeTick(");
         e.Indent();
-        e.WriteLine("ref global::Fdp.Toolkit.Behavior.Components.BrainBlackboard bb,");
+        e.WriteLine("ref byte bb,");   // P4-②: the dispatch blackboard IS the root slot base
         e.WriteLine("ref global::Fbt.BehaviorTreeState state,");
         e.WriteLine("ref global::Fdp.Toolkit.Behavior.BTreeContext ctx,");
         e.WriteLine("int paramIndex)");
@@ -527,7 +527,7 @@ internal static class AiPrimitiveEmitter
     {
         e.WriteLine("public static unsafe bool BTreeEvaluate(");
         e.Indent();
-        e.WriteLine("ref global::Fdp.Toolkit.Behavior.Components.BrainBlackboard bb,");
+        e.WriteLine("ref byte bb,");   // P4-②: the dispatch blackboard IS the root slot base
         e.WriteLine("ref global::Fbt.BehaviorTreeState state,");
         e.WriteLine("ref global::Fdp.Toolkit.Behavior.BTreeContext ctx,");
         e.WriteLine("int paramIndex)");

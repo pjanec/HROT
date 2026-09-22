@@ -71,13 +71,13 @@ namespace Fdp.Toolkit.Behavior.Tests
 
             int tickCount = 0;
             var blob      = BuildSingleActionBlob("CountTick");
-            var actionReg = new ActionRegistry<BrainBlackboard, BTreeContext>();
-            actionReg.Register("CountTick", (ref BrainBlackboard _, ref BehaviorTreeState _, ref BTreeContext _, int _) =>
+            var actionReg = new ActionRegistry<byte, BTreeContext>();
+            actionReg.Register("CountTick", (ref byte _, ref BehaviorTreeState _, ref BTreeContext _, int _) =>
             {
                 tickCount++;
                 return NodeStatus.Success;
             });
-            var interpreter = new Interpreter<BrainBlackboard, BTreeContext>(blob, actionReg);
+            var interpreter = new Interpreter<byte, BTreeContext>(blob, actionReg);
 
             const string behaviorName = "CountTick";
             const int   behaviorId   = 9001;
@@ -118,16 +118,16 @@ namespace Fdp.Toolkit.Behavior.Tests
             var registry = new BehaviorRegistry();
 
             var blob      = BuildSingleActionBlob("SetLocomotion");
-            var actionReg = new ActionRegistry<BrainBlackboard, BTreeContext>();
+            var actionReg = new ActionRegistry<byte, BTreeContext>();
             actionReg.Register("SetLocomotion",
-                (ref BrainBlackboard _, ref BehaviorTreeState _, ref BTreeContext ctx, int _) =>
+                (ref byte _, ref BehaviorTreeState _, ref BTreeContext ctx, int _) =>
                 {
                     ref var ch = ref ctx.World.GetComponentRW<LocomotionChannel>(ctx.Self);
                     ch.ActiveAction    = 1;
                     ch.ActionInstanceId = 1;
                     return NodeStatus.Success;
                 });
-            var interpreter = new Interpreter<BrainBlackboard, BTreeContext>(blob, actionReg);
+            var interpreter = new Interpreter<byte, BTreeContext>(blob, actionReg);
 
             const string behaviorName = "SetLocomotion";
             const int   behaviorId   = 9002;
@@ -170,10 +170,10 @@ namespace Fdp.Toolkit.Behavior.Tests
         {
             var registry  = new BehaviorRegistry();
             var blob      = BuildSingleActionBlob(behaviorName);
-            var actionReg = new ActionRegistry<BrainBlackboard, BTreeContext>();
+            var actionReg = new ActionRegistry<byte, BTreeContext>();
             actionReg.Register(behaviorName,
-                (ref BrainBlackboard _, ref BehaviorTreeState _, ref BTreeContext _, int _) => status);
-            var interpreter = new Interpreter<BrainBlackboard, BTreeContext>(blob, actionReg);
+                (ref byte _, ref BehaviorTreeState _, ref BTreeContext _, int _) => status);
+            var interpreter = new Interpreter<byte, BTreeContext>(blob, actionReg);
             registry.Register(behaviorId, behaviorName, new BehaviorDefinition
             {
                 Name             = behaviorName,
@@ -384,14 +384,14 @@ namespace Fdp.Toolkit.Behavior.Tests
 
             int tickCount = 0;
             var blob      = BuildSingleActionBlob("CountTickPaused");
-            var actionReg = new ActionRegistry<BrainBlackboard, BTreeContext>();
+            var actionReg = new ActionRegistry<byte, BTreeContext>();
             actionReg.Register("CountTickPaused",
-                (ref BrainBlackboard _, ref BehaviorTreeState _, ref BTreeContext _, int _) =>
+                (ref byte _, ref BehaviorTreeState _, ref BTreeContext _, int _) =>
                 {
                     tickCount++;
                     return NodeStatus.Running;
                 });
-            var interpreter = new Interpreter<BrainBlackboard, BTreeContext>(blob, actionReg);
+            var interpreter = new Interpreter<byte, BTreeContext>(blob, actionReg);
 
             const string behaviorName = "CountTickPaused";
             const int   behaviorId   = 9010;

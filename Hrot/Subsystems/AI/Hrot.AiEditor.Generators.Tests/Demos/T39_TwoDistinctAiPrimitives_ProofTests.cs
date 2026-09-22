@@ -255,7 +255,7 @@ public sealed class T39_TwoDistinctAiPrimitives_ProofTests : IDisposable
 
     // ── Helpers ──────────────────────────────────────────────────────────────────
 
-    private Interpreter<BrainBlackboard, BTreeContext> InterpreterFor()
+    private Interpreter<byte, BTreeContext> InterpreterFor()
     {
         _registry.TryGetId(BehaviorName, out int id).Should().BeTrue();
         _registry.TryGetDefinition(id, out var def).Should().BeTrue();

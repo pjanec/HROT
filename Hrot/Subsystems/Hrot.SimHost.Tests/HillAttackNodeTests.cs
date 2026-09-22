@@ -456,7 +456,7 @@ namespace Hrot.SimHost.Tests
         ///
         /// <para>⭐⭐ <b>This drives the REAL chain:</b> <c>AssignBehaviorEvent</c> → the real
         /// <c>BehaviorIngressSystem</c> → the root params occurrence slot → the REAL generated thunk
-        /// out of <c>FbtActionRegistrar</c>, dispatched with the same <c>ref BrainBlackboard</c> the
+        /// out of <c>FbtActionRegistrar</c>, dispatched with the same <c>ref byte</c> the
         /// kernel gets (<c>BTreeTickSystem.cs:123</c>). ⛔ Nothing here constructs a
         /// <c>HullDownAttackParams</c> — if the addressing is wrong the destination is zero.</para>
         ///
@@ -494,7 +494,7 @@ namespace Hrot.SimHost.Tests
             ingress.Execute(repo, 0.016f);
 
             // The thunk exactly as the Interpreter resolves it — key, delegate and all.
-            var actions = new ActionRegistry<BrainBlackboard, BTreeContext>();
+            var actions = new ActionRegistry<byte, BTreeContext>();
             FbtActionRegistrar.RegisterAll(actions);
             Assert.True(actions.TryGetAction(
                 "Hrot.AI.Behaviors.Brains.HillAttackTankNodes.Action_ReverseToBaseline@0",

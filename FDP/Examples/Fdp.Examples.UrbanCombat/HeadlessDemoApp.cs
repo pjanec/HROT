@@ -299,7 +299,7 @@ namespace Fdp.Examples.UrbanCombat
                 });
 
             // ── InfantrySoldier: minimal hold-position BTree ──────────────────────────
-            var holdReg = new ActionRegistry<BrainBlackboard, BTreeContext>();
+            var holdReg = new ActionRegistry<byte, BTreeContext>();
             holdReg.Register("HoldPosition", InsurgentNodes.Action_HoldPosition);
             var holdBlob = TreeCompiler.CompileFromJson(InfantryCombatJson);
             _behaviorRegistry.Register(BehaviorIds.InfantryCombat, "InfantryCombat",
@@ -307,11 +307,11 @@ namespace Fdp.Examples.UrbanCombat
                 {
                     Name             = "InfantryCombat",
                     BrainTier        = BehaviorConstants.BrainTierBTree,
-                    BTreeInterpreter = new Interpreter<BrainBlackboard, BTreeContext>(holdBlob, holdReg),
+                    BTreeInterpreter = new Interpreter<byte, BTreeContext>(holdBlob, holdReg),
                 });
 
             // ── Insurgent: Ambush BTree ───────────────────────────────────────────────
-            var ambushReg = new ActionRegistry<BrainBlackboard, BTreeContext>();
+            var ambushReg = new ActionRegistry<byte, BTreeContext>();
             ambushReg.Register("Condition_HasTarget", InsurgentNodes.Condition_HasTarget);
             ambushReg.Register("Action_AimAndFire",   InsurgentNodes.Action_AimAndFire);
             ambushReg.Register("Action_HoldPosition", InsurgentNodes.Action_HoldPosition);
@@ -322,7 +322,7 @@ namespace Fdp.Examples.UrbanCombat
                 {
                     Name             = "Ambush",
                     BrainTier        = BehaviorConstants.BrainTierBTree,
-                    BTreeInterpreter = new Interpreter<BrainBlackboard, BTreeContext>(ambushBlob, ambushReg),
+                    BTreeInterpreter = new Interpreter<byte, BTreeContext>(ambushBlob, ambushReg),
                 });
         }
 

@@ -201,7 +201,7 @@ internal sealed class CSharpEmitter
         if (needsActionRegistry)
             paramParts.Add(
                 "global::Fbt.Runtime.ActionRegistry<" +
-                "global::Fdp.Toolkit.Behavior.Components.BrainBlackboard, " +
+                "byte, " +   // P4-②
                 "global::Fdp.Toolkit.Behavior.BTreeContext> actionRegistry");
         if (hasConditionMet)
         {
@@ -435,7 +435,7 @@ internal sealed class CSharpEmitter
         if (asset.Hostings.Contains(AiPrimitiveHosting.BTreeCondition))
             WriteLine(
                 $"actionRegistry.RegisterCondition(\"{fqnNs}.{className}.BTreeEvaluate@0\", " +
-                "static (ref global::Fdp.Toolkit.Behavior.Components.BrainBlackboard bb, " +
+                "static (ref byte bb, " +   // P4-②
                 "ref global::Fbt.BehaviorTreeState st, ref global::Fdp.Toolkit.Behavior.BTreeContext ctx, int pi) => " +
                 $"{className}.BTreeEvaluate(ref bb, ref st, ref ctx, pi) " +
                 "? global::Fbt.NodeStatus.Success : global::Fbt.NodeStatus.Failure);");

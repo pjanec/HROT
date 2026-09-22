@@ -449,7 +449,7 @@ namespace Fdp.Examples.Scenarios.Integrated
                 });
 
             // ── InfantrySoldier: aggressive InfantryCombat BTree ─────────────
-            var infantryReg = new ActionRegistry<BrainBlackboard, BTreeContext>();
+            var infantryReg = new ActionRegistry<byte, BTreeContext>();
             infantryReg.Register("Condition_HasTarget", BTreeNodes.Condition_HasTarget);
             infantryReg.Register("Action_AimAndFire",   BTreeNodes.Action_AimAndFire);
             infantryReg.Register("Action_HoldPosition", BTreeNodes.Action_HoldPosition);
@@ -459,11 +459,11 @@ namespace Fdp.Examples.Scenarios.Integrated
                 {
                     Name             = "InfantryCombat",
                     BrainTier        = BehaviorConstants.BrainTierBTree,
-                    BTreeInterpreter = new Interpreter<BrainBlackboard, BTreeContext>(infantryBlob, infantryReg),
+                    BTreeInterpreter = new Interpreter<byte, BTreeContext>(infantryBlob, infantryReg),
                 });
 
             // ── Insurgent: Ambush BTree ───────────────────────────────────────
-            var ambushReg = new ActionRegistry<BrainBlackboard, BTreeContext>();
+            var ambushReg = new ActionRegistry<byte, BTreeContext>();
             ambushReg.Register("Condition_HasTarget", BTreeNodes.Condition_HasTarget);
             ambushReg.Register("Action_AimAndFire",   BTreeNodes.Action_AimAndFire);
             ambushReg.Register("Action_HoldPosition", BTreeNodes.Action_HoldPosition);
@@ -473,7 +473,7 @@ namespace Fdp.Examples.Scenarios.Integrated
                 {
                     Name             = "Ambush",
                     BrainTier        = BehaviorConstants.BrainTierBTree,
-                    BTreeInterpreter = new Interpreter<BrainBlackboard, BTreeContext>(ambushBlob, ambushReg),
+                    BTreeInterpreter = new Interpreter<byte, BTreeContext>(ambushBlob, ambushReg),
                 });
         }
 
@@ -715,7 +715,7 @@ namespace Fdp.Examples.Scenarios.Integrated
         private static class BTreeNodes
         {
             public static NodeStatus Condition_HasTarget(
-                ref BrainBlackboard blackboard,
+                ref byte blackboard,
                 ref BehaviorTreeState state,
                 ref BTreeContext ctx,
                 int paramIndex)
@@ -728,7 +728,7 @@ namespace Fdp.Examples.Scenarios.Integrated
             }
 
             public static unsafe NodeStatus Action_AimAndFire(
-                ref BrainBlackboard blackboard,
+                ref byte blackboard,
                 ref BehaviorTreeState state,
                 ref BTreeContext ctx,
                 int paramIndex)
@@ -758,7 +758,7 @@ namespace Fdp.Examples.Scenarios.Integrated
             }
 
             public static NodeStatus Action_HoldPosition(
-                ref BrainBlackboard blackboard,
+                ref byte blackboard,
                 ref BehaviorTreeState state,
                 ref BTreeContext ctx,
                 int paramIndex)

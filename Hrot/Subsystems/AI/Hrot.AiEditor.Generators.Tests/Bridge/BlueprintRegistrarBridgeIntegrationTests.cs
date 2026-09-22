@@ -265,12 +265,12 @@ public sealed class BlueprintRegistrarBridgeIntegrationTests : IDisposable
 
         // Parameters: BehaviorRegistry, BlueprintRegistryStaging, ActionRegistry (in that order)
         bridge.Parameters.Should().HaveCount(3,
-            "bridge Register(BehaviorRegistry, BlueprintRegistryStaging, ActionRegistry<BrainBlackboard,BTreeContext>) has 3 params");
+            "bridge Register(BehaviorRegistry, BlueprintRegistryStaging, ActionRegistry<byte, BTreeContext>) has 3 params");
         bridge.Parameters[0].ParameterType.Should().Be(typeof(BehaviorRegistry),
             "first param must be BehaviorRegistry (injectable by coordinator)");
         bridge.Parameters[1].ParameterType.Should().Be(typeof(BlueprintRegistryStaging),
             "second param must be BlueprintRegistryStaging (injectable by coordinator)");
-        bridge.Parameters[2].ParameterType.Should().Be(typeof(ActionRegistry<BrainBlackboard, BTreeContext>),
+        bridge.Parameters[2].ParameterType.Should().Be(typeof(ActionRegistry<byte, BTreeContext>),
             "third param must be the BTree action registry (injected, populated from [FbtRegistrar])");
 
         alc.Unload();
@@ -312,7 +312,7 @@ public sealed class BlueprintRegistrarBridgeIntegrationTests : IDisposable
         var args = bridge.Parameters
             .OrderBy(p => p.OrdinalIndex)
             .Select(p => p.ParameterType == typeof(BehaviorRegistry) ? (object)stagingRegistry
-                       : p.ParameterType == typeof(ActionRegistry<BrainBlackboard, BTreeContext>) ? new ActionRegistry<BrainBlackboard, BTreeContext>()
+                       : p.ParameterType == typeof(ActionRegistry<byte, BTreeContext>) ? new ActionRegistry<byte, BTreeContext>()
                        : bpStaging)
             .ToArray();
         bridge.RegisterMethod.Invoke(null, args);
@@ -360,7 +360,7 @@ public sealed class BlueprintRegistrarBridgeIntegrationTests : IDisposable
         var args = bridge.Parameters
             .OrderBy(p => p.OrdinalIndex)
             .Select(p => p.ParameterType == typeof(BehaviorRegistry) ? (object)stagingRegistry
-                       : p.ParameterType == typeof(ActionRegistry<BrainBlackboard, BTreeContext>) ? new ActionRegistry<BrainBlackboard, BTreeContext>()
+                       : p.ParameterType == typeof(ActionRegistry<byte, BTreeContext>) ? new ActionRegistry<byte, BTreeContext>()
                        : bpStaging)
             .ToArray();
         bridge.RegisterMethod.Invoke(null, args);
@@ -453,7 +453,7 @@ public sealed class BlueprintRegistrarBridgeIntegrationTests : IDisposable
         var args = bridge.Parameters
             .OrderBy(p => p.OrdinalIndex)
             .Select(p => p.ParameterType == typeof(BehaviorRegistry) ? (object)stagingRegistry
-                       : p.ParameterType == typeof(ActionRegistry<BrainBlackboard, BTreeContext>) ? new ActionRegistry<BrainBlackboard, BTreeContext>()
+                       : p.ParameterType == typeof(ActionRegistry<byte, BTreeContext>) ? new ActionRegistry<byte, BTreeContext>()
                        : bpStaging)
             .ToArray();
         bridge.RegisterMethod.Invoke(null, args);

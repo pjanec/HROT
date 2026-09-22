@@ -138,7 +138,7 @@ namespace Fdp.Toolkit.Behavior
         /// Pre-built FastBTree interpreter for this behavior.
         /// <c>null</c> when <see cref="BrainTier"/> is not <see cref="BehaviorConstants.BrainTierBTree"/>.
         /// </summary>
-        public Interpreter<BrainBlackboard, BTreeContext>? BTreeInterpreter { get; init; }
+        public Interpreter<byte, BTreeContext>? BTreeInterpreter { get; init; }
 
         /// <summary>
         /// FastHSM definition blob for this behavior.

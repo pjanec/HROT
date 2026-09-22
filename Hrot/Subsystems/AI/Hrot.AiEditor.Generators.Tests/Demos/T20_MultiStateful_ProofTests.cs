@@ -219,7 +219,7 @@ public sealed class T20_MultiStateful_ProofTests : IDisposable
     /// The bridge's Register method is called with _liveRegistry directly (not a staging copy)
     /// so that BehaviorIngressSystem can find the definition when it calls TryGetId / TryGetDefinition.
     /// </summary>
-    private (Interpreter<BrainBlackboard, BTreeContext> Interpreter, AssemblyLoadContext Alc)
+    private (Interpreter<byte, BTreeContext> Interpreter, AssemblyLoadContext Alc)
         BuildInterpreterFromJson(string assetName, string registrarName)
     {
         // Force required assemblies into the AppDomain so Roslyn's ForRuntimeAssemblies picks them up.
@@ -245,12 +245,12 @@ public sealed class T20_MultiStateful_ProofTests : IDisposable
 
         // Pass _liveRegistry directly so BehaviorIngressSystem can find the definition.
         var bpStaging = _blueprintRegistry.BeginStaging();
-        var actionReg = new ActionRegistry<BrainBlackboard, BTreeContext>();
+        var actionReg = new ActionRegistry<byte, BTreeContext>();
         var args = bridge!.Parameters
             .OrderBy(p => p.OrdinalIndex)
             .Select(p => p.ParameterType == typeof(BehaviorRegistry)
                          ? (object)_liveRegistry
-                         : p.ParameterType == typeof(ActionRegistry<BrainBlackboard, BTreeContext>)
+                         : p.ParameterType == typeof(ActionRegistry<byte, BTreeContext>)
                            ? (object)actionReg
                            : (object)bpStaging)
             .ToArray();

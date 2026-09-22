@@ -4842,6 +4842,24 @@ it never belonged in a params-layout identifier.)*
 ⚠ **`G1`, `G4`, `G5` remain open** — ⭐ none blocks `P4`-②; they are effort-estimate and branch-coverage
 questions, not correctness gates.
 
+#### 🔴 CORRECTION TO `G3`, FOUND WHILE BUILDING `P4`-② *(`2026-09-22`)*
+
+⛔⛔ **`G3` measured the ANALYZER generator (`BTreeActionGenerator`) thoroughly and UNDER-MEASURED the
+ASSET-DRIVEN one (`BTreeBridgeEmitCore`).** ⭐ The analyzer conclusion stands — it is polymorphic and
+needed **zero** changes. ⚠ But `BTreeBridgeEmitCore` is a **second, independent generator**, and it
+derives the dispatch type from the asset: `bbShort = ShortTypeName(EffectiveBlackboardTypeName(
+dto.BlackboardTypeName))` *(`:310`)*, threaded into **ten** emission sites — the `Register` signature's
+`ActionRegistry<…>`, every thunk lambda's `ref … bb`, and the deactivator registrations.
+
+⇒ ⭐⭐ **`G2`'s "leave `BlackboardTypeName` alone" ruling SURVIVES and is what made the fix safe.** The
+asset field feeds **both** the params-layout struct name **and** this dispatch type; retargeting the
+field would have renamed 11 structs and broken `SubtreeSyncIdentity`. ⭐ Retargeting the **type argument
+at its emission site** — one assignment, `bbShort = "byte"` — does neither.
+
+⚠ **And the generated BUILDER keeps the asset's type** *(`BTreeEmitCore.cs:408`)*: its selector-form
+bindings need a struct with fields, and `byte` has none. ⭐ Consistent with `P4`-②b's withdrawal — a
+builder's generic is build-time only, because `Compile()` returns an untyped blob.
+
 ### 30.20 🔴🔴 `P4`-① AS BUILT — **the deletion uncovered a SECOND dead-storage defect** *(`2026-09-22`)*
 
 ⭐⭐⭐ **The generalisable finding, and it is the third time this programme has hit it:**

@@ -96,17 +96,17 @@ public sealed unsafe class StatefulPrimitiveTests
         const int paramOffset = 0;
         string thunkKey = $"StatefulTest.Action_AdvanceCursor@{paramOffset}@{slotKey}";
 
-        var actionReg = new ActionRegistry<BrainBlackboard, BTreeContext>();
+        var actionReg = new ActionRegistry<byte, BTreeContext>();
 
         // Register the adapter thunk (mirror of what BTreeBridgeEmitCore would emit).
         actionReg.Register(thunkKey,
-            (ref BrainBlackboard bb, ref BehaviorTreeState st, ref BTreeContext ctx, int pi) =>
+            (ref byte bb, ref BehaviorTreeState st, ref BTreeContext ctx, int pi) =>
             {
                 unsafe
                 {
                     // Project Params from BrainBlackboard at offset 0.
                     ref var p = ref Unsafe.As<byte, DemoCounterNodes.DemoCursorParams>(
-                        ref Unsafe.AddByteOffset(ref bb.BehaviorParameters[0], (nint)paramOffset));
+                        ref Unsafe.AddByteOffset(ref bb, (nint)paramOffset));
 
                     // Dispatch to BlueprintBlackboard1024 (only tier in this test).
                     if (ctx.World.HasComponent<BlueprintBlackboard1024>(ctx.Self))
@@ -138,14 +138,14 @@ public sealed unsafe class StatefulPrimitiveTests
             IntParams   = Array.Empty<int>(),
         };
 
-        var interpreter = new Interpreter<BrainBlackboard, BTreeContext>(blob, actionReg);
+        var interpreter = new Interpreter<byte, BTreeContext>(blob, actionReg);
 
         // Set Limit=5 in BrainBlackboard params.
         ref var bb = ref world.GetComponentRW<BrainBlackboard>(entity);
         unsafe
         {
             ref var pParams = ref Unsafe.As<byte, DemoCounterNodes.DemoCursorParams>(
-                ref Unsafe.AddByteOffset(ref bb.BehaviorParameters[0], (nint)paramOffset));
+                ref Unsafe.AddByteOffset(ref bb, (nint)paramOffset));
             pParams.Limit = 5;
         }
 
@@ -218,12 +218,12 @@ public sealed unsafe class StatefulPrimitiveTests
 
         // Helper: build an adapter for a given slot key.
         Func<int, NodeLogicDelegate<BrainBlackboard, BTreeContext>> makeThunk = (sk) =>
-            (ref BrainBlackboard bb, ref BehaviorTreeState st, ref BTreeContext ctx, int pi) =>
+            (ref byte bb, ref BehaviorTreeState st, ref BTreeContext ctx, int pi) =>
             {
                 unsafe
                 {
                     ref var p = ref Unsafe.As<byte, DemoCounterNodes.DemoCursorParams>(
-                        ref Unsafe.AddByteOffset(ref bb.BehaviorParameters[0], (nint)0));
+                        ref Unsafe.AddByteOffset(ref bb, (nint)0));
                     if (ctx.World.HasComponent<BlueprintBlackboard1024>(ctx.Self))
                     {
                         ref var tier = ref ctx.World.GetComponentRW<BlueprintBlackboard1024>(ctx.Self);
@@ -244,7 +244,7 @@ public sealed unsafe class StatefulPrimitiveTests
         unsafe
         {
             ref var pParams = ref Unsafe.As<byte, DemoCounterNodes.DemoCursorParams>(
-                ref Unsafe.AddByteOffset(ref bb.BehaviorParameters[0], (nint)0));
+                ref Unsafe.AddByteOffset(ref bb, (nint)0));
             pParams.Limit = 100;
         }
 
@@ -253,7 +253,7 @@ public sealed unsafe class StatefulPrimitiveTests
         // Build a NodeA-only blob and a NodeB-only blob so we can advance them independently.
         // The Sequence-with-Limit=100 approach cannot run both nodes because NodeA keeps returning
         // Running (cursor < Limit), so Sequence stays at NodeA and never advances to NodeB.
-        var regA = new ActionRegistry<BrainBlackboard, BTreeContext>();
+        var regA = new ActionRegistry<byte, BTreeContext>();
         regA.Register(thunkKeyA, makeThunk(slotKeyA));
         var blobA = new BehaviorTreeBlob
         {
@@ -263,9 +263,9 @@ public sealed unsafe class StatefulPrimitiveTests
             FloatParams = Array.Empty<float>(),
             IntParams   = Array.Empty<int>(),
         };
-        var interpA = new Interpreter<BrainBlackboard, BTreeContext>(blobA, regA);
+        var interpA = new Interpreter<byte, BTreeContext>(blobA, regA);
 
-        var regB = new ActionRegistry<BrainBlackboard, BTreeContext>();
+        var regB = new ActionRegistry<byte, BTreeContext>();
         regB.Register(thunkKeyB, makeThunk(slotKeyB));
         var blobB = new BehaviorTreeBlob
         {
@@ -275,7 +275,7 @@ public sealed unsafe class StatefulPrimitiveTests
             FloatParams = Array.Empty<float>(),
             IntParams   = Array.Empty<int>(),
         };
-        var interpB = new Interpreter<BrainBlackboard, BTreeContext>(blobB, regB);
+        var interpB = new Interpreter<byte, BTreeContext>(blobB, regB);
 
         // --- Act: advance NodeA 4 times, NodeB 2 times ---
         for (int tick = 0; tick < 4; tick++)

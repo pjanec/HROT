@@ -216,10 +216,10 @@ public sealed class T30_BehaviorScopedShared_ProofTests : IDisposable
         bridge.Should().NotBeNull($"ScanForRegistrars must discover '{registrarName}'");
 
         var bpStaging = _blueprintRegistry.BeginStaging();
-        var actionReg = new ActionRegistry<BrainBlackboard, BTreeContext>();
+        var actionReg = new ActionRegistry<byte, BTreeContext>();
         var args = bridge!.Parameters.OrderBy(p => p.OrdinalIndex)
             .Select(p => p.ParameterType == typeof(BehaviorRegistry) ? (object)_liveRegistry
-                       : p.ParameterType == typeof(ActionRegistry<BrainBlackboard, BTreeContext>) ? (object)actionReg
+                       : p.ParameterType == typeof(ActionRegistry<byte, BTreeContext>) ? (object)actionReg
                        : (object)bpStaging)
             .ToArray();
         bridge.RegisterMethod.Invoke(null, args);

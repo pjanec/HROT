@@ -120,7 +120,25 @@ namespace Fdp.Toolkit.Behavior.Systems
                 if ((btState.State.InstanceFlags & Fbt.BehaviorInstanceFlags.Paused) != 0)
                     continue;
 
-                ref var blackboard = ref repo.GetComponentRW<BrainBlackboard>(entity);
+                // ⭐⭐⭐ P4-② (2026-09-22) — THE BLACKBOARD IS THE ROOT PARAMS SLOT, RESOLVED ONCE
+                //   PER ENTITY PER TICK and handed down as a `ref byte`.
+                //
+                // ⭐ This is also CE-301's answer, and it costs nothing: the base used to be looked up
+                //   once PER DISPATCH inside every generated thunk (that is what BlackboardParamsExpression
+                //   emits). Resolving here instead means the interpreter carries it, so the lookup happens
+                //   once for the whole tree rather than once per action. ⛔ No cache, no invalidation.
+                //
+                // ⛔⛔ THE NO-PARAMS CASE IS GATED ON A CHECKABLE PREDICATE, NOT A NULL-GUESS.
+                //   A behaviour that declares no parameters (Idle, WanderMilitary) has NO root slot —
+                //   ingress attaches one only when rootBytes > 0 — so RootRef would THROW. ⚠ Asking
+                //   "did the lookup fail?" cannot tell "this behaviour has no params" from "the slot
+                //   should exist and does not", and silently accepting both is the exact silent-default
+                //   shape this programme keeps filing. ⇒ ask the DEFINITION instead: RootParamsBytes(def)
+                //   == 0 means no params by construction, and anything else still fails loudly.
+                byte __noParamsScratch = 0;
+                ref byte blackboard = ref __noParamsScratch;
+                if (RootParamsAccess.RootParamsBytes(def) > 0)
+                    blackboard = ref RootParamsAccess.RootRef(repo, entity);
 
                 // Resolve the optional per-entity trace ring buffer. Skipped (and the
                 // chunk version stays clean) unless DebugState.EnableTraceBuffer is set.
