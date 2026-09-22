@@ -4352,6 +4352,11 @@ blackboard ref**, so the HSM arm keeps `world`+`self` while the BTree arm loses 
 | **`P4`-①** | ⭐ **Delete `Blackboard1024`** and its three surfaces *(`Blackboard1024Renderer`, `Blackboard1024ViewProvider`, `BlackboardReflection`'s arm)* | 📐 **zero entities carry it** — nothing to re-home, no behaviour change possible |
 | **`P4`-②** | ⭐⭐⭐ **Bind `TBlackboard` to `byte` and hand the interpreter the slot base** | ⛔ **no `ExtDeps` change** (§30.1). ⭐ It also SIMPLIFIES `CE-304`'s fix: `BlackboardParamsExpression`'s BTree arm reverts to `bb`-relative, and the resolve moves from per-dispatch to **once per entity per tick** |
 | **`P4`-③** | ⭐ **Re-home the three editor surfaces** onto the occurrence inspector | ⚠ display only; the sim is already correct. Independently testable |
+| **`P4`-④** | ⭐ **Retire the 100-byte cap** — the analyzer, its mirror and the runtime throw | 📄 **§30.11.** Its premise is already false and the real bound is structural. ⚠ lands WITH or AFTER ② |
+
+⚠ **`P4`-② has a second half, added `2026-09-22` on a user challenge — 📄 §30.10 (`P4`-②b):** the five
+curated **wrapper blackboard structs go too**, and the curated builders name a **key** instead of a
+type. ⛔ The first draft of this table kept them; that was too timid.
 
 ⭐ **`P4`-① is a pure deletion and should land first** — it shrinks the surface `P4`-② has to sweep.
 
@@ -4398,3 +4403,83 @@ programme's advice said it was; that is WITHDRAWN.**
 | `PLAN_Occurrence_Storage_Build.md` § "THE PATH" `P4` | *"delete `BrainBlackboard`; **the BTree action's blackboard type parameter goes with it**"* ⇒ ⛔ **the parameter STAYS, bound to `byte`** |
 | same, the "RETIREMENT (b)" row | *"the work is … **the `ActionRegistry<…>` type parameter**"* ⇒ ⚠ it is a type ARGUMENT change *(`BrainBlackboard` → `byte`)*, not a parameter removal |
 | `RESUME_Occurrence_Storage.md` §0c `P4(a)` | *"the **7 UI readers** get **RE-ANCHORED**"* ⇒ ⛔⛔ **wrong verb and an unenumerated set.** Three of them are keyed on the component's IDENTITY *(attribute · component+path match · session lookup)*, so they cannot be re-anchored — they are **RE-HOMED**, and §30.1 enumerates them |
+
+### 30.10 ⭐⭐⭐ `P4`-②b — **THE CURATED REGISTRAR NAMES NOTHING. THE WRAPPER BLACKBOARD STRUCTS GO TOO** *(user, `2026-09-22`)*
+
+> 🔒 **User, verbatim:** *"What woukd the curated registrsar reference newly ut tgere imwill be no
+> brainblackoard componrnt anymore? Why would it need to name the cincrete data type? Ahouldnt it
+> live with the byte regerence as well?"*
+
+⭐⭐ **Correct, and §30.5 as first drafted was too timid** — it kept
+`BTreeBuilder<MoveToBlackboard, BTreeContext>` on the grounds that the fluent selector needs a struct
+with fields. 📐 **Measured: the type is ceremony, and the builder already has the overload that removes it.**
+
+#### 📐 THE TWO MEASUREMENTS THAT SETTLE IT
+
+| | |
+|---|---|
+| ⭐⭐⭐ **`BTreeBuilder` ALREADY takes a raw key** | `Action(string methodKey, …)` *(`BTreeBuilder.cs:236`)* and `Condition(string methodKey, …)` *(`:263`)*. ⇒ ⛔ **no `ExtDeps` change is needed at all** — not even an additive overload |
+| ⭐⭐ **the concrete type has NO in-product consumer** | `TargetDtoType`/`TargetFieldName` are written at `:309-310,:350-351`, copied into `LogicNode` at `:609-610`, and read by **one FastBTree unit test**. 📐 **`ToGraph()` has ZERO callers in the repo.** ⇒ the type name is authoring metadata nothing in HROT reads |
+
+⇒ ⭐⭐⭐ **The five wrapper structs exist for ONE reason: to make `bb => bb.Params` resolve to offset 0.**
+`MoveToBlackboard` · `FollowRouteBlackboard` · `JoinFormationBlackboard` · `HullDownAttackBlackboard` ·
+`PlatoonHillAttackBlackboard` — each is `{ public XParams Params; }` with **exactly one use site**, its
+own `[BTreeDefinition]` method. ⛔ **They are deleted with the component.**
+
+#### ⭐ THE SHAPE
+
+```csharp
+// before — the wrapper exists only so Marshal.OffsetOf can yield 0
+new BTreeBuilder<MoveToBlackboard, BTreeContext>()
+    .Action(bb => bb.Params, Action_WriteMoveToChannel);
+
+// after — the runtime blackboard IS the slot, and the key is written
+new BTreeBuilder<byte, BTreeContext>()
+    .Action($"{typeof(CgfNodes).FullName}.{nameof(Action_WriteMoveToChannel)}@0");
+```
+
+⚠⚠ **THE ONE THING THIS COSTS, AND IT MUST NOT BE GLOSSED.** The selector form is **compile-time
+checked** — rename the method and the build breaks; move the field and the offset follows. The key form
+is **not**, and the failure is SILENT-ish: 📐 `Interpreter.BindActions:697-709` binds an unknown key to a
+**fallback delegate that returns `NodeStatus.Failure`**, after a single `Console.WriteLine`. ⇒ a typo is
+a behaviour change with no exception and no test failure — **the exact shape `CE-304` just cost a day to.**
+
+| ⭐ the mitigations, all cheap, and ⛔ none optional | |
+|---|---|
+| ⭐⭐⭐ **build the key with `nameof`** | `$"{typeof(CgfNodes).FullName}.{nameof(Action_WriteMoveToChannel)}@0"` keeps rename-safety for the half that actually moves. ⛔ Never a bare string literal |
+| ⭐⭐ **a rail that asserts EVERY curated tree binds EVERY key** | walk `FbtTreeCatalog`'s blobs against a populated `ActionRegistry` and assert **zero** fallbacks. ⭐ That is the rail the `Console.WriteLine` should always have been |
+| ⚠ **the `@0` is now hand-written, so assert it** | the curated params region starts at offset 0 by construction *(one packed variable)*; a rail pins it rather than a comment |
+
+### 30.11 ⭐⭐ `P4`-④ — **RETIRE THE 100-BYTE CAP; ITS PREMISE IS ALREADY FALSE** *(`2026-09-22`)*
+
+> 🔒 **User:** *"The roslyn compile time checker shoukd not need to know about 100byte blackboard size
+> limit."* ⇒ ⭐ **it should not, and after `P4` the number has no referent at all.**
+
+📐 **Measured — the cap is enforced in TWO live places and mirrored in a third:**
+
+| site | what |
+|---|---|
+| `BehaviorConstants.cs:32` | `MaxBehaviorParamByteSize = 100` — the source of truth |
+| 🔴 `BehaviorParameterSizeAnalyzer.cs:26,64` | a **Roslyn analyzer with its own `private const` mirror**, refusing any DTO above it *(the mirror is pinned by `InlineBudgetConstantAgreementTests`)* |
+| `BehaviorRegistry.cs:319` | a runtime `throw` on the same cap |
+
+#### ⛔⛔ TWO THINGS ABOUT IT ARE NOW FALSE
+
+| the claim | 📐 the measurement |
+|---|---|
+| `BehaviorConstants.cs:29` — *"Enforced by `BTreeBuilder` at tree-compile time"* | 🔴 **there is NO size check anywhere in `Fbt.Compiler`.** Stale doc, and it is the reason the cap looked like an ExtDeps concern |
+| the analyzer's message — exceeding it *"would corrupt the SoftAdvice and Interrupt registers in `BrainBlackboard`"* | 🔴 **those registers are not there.** `B2`/`O2` moved the tail into `BrainInterrupts`; `BrainBlackboard` has been *exactly* `fixed byte[100]` since. ⇒ **the stated reason for the cap no longer exists** |
+
+⇒ ⭐⭐ **After `P3` the real bound is PER-BEHAVIOUR** — `RootParamsBytes(def)`, enforced **structurally**
+by the slot allocator *(`TryAttach` fails when the payload will not fit)*. ⛔ And 100 is not even a
+conservative stand-in: the 256 tier's **whole payload is 176 B**.
+
+| ⭐ what `P4`-④ does | |
+|---|---|
+| **delete** `BehaviorParameterSizeAnalyzer` + its mirror + `InlineBudgetConstantAgreementTests`' mirror-agreement arm | the diagnostic is unreachable once the region it describes is gone |
+| **delete** `BehaviorRegistry.cs:319`'s throw and `BehaviorConstants`' two constants | ⚠ `BrainBlackboardByteSize` is also the ingress parse-shadow's size — it becomes `RootParamsBytes(def)`, which is what the shadow is FOR |
+| ⭐ **replace with the honest bound** | a behaviour whose params do not fit its tier fails **at attach**, loudly, where `P3-C` already put the throw *(`BehaviorIngressSystem`, naming `CE-302`)* |
+
+⚠ **Sequencing:** `P4`-④ lands **with or after** `P4`-②, never before — the analyzer is the only thing
+currently stopping an oversized curated DTO, and the structural bound only becomes the sole guard once
+the component is gone.
