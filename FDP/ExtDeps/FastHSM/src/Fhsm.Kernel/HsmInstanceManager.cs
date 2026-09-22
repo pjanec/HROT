@@ -22,19 +22,9 @@ namespace Fhsm.Kernel
             // Basic size check - though strictly we might just trust the T provided
             // But good to warn if mismatch? taking "T" allows the caller to alloc the memory.
             
-            // 1. Zero out the memory
-            Unsafe.InitBlock(instance, 0, (uint)size);
-            
-            // 2. Setup Header
-            ref InstanceHeader header = ref Unsafe.As<T, InstanceHeader>(ref *instance);
-            
-            header.MachineId = definition.Header.StructureHash;
-            header.Generation = 1;
-            header.Phase = InstancePhase.Entry; // Start in Entry to trigger initialization 
-            // Seed could be set by caller or rng. For now 0 or default is fine.
-            
-            // 3. Mark as uninitialized (ActiveLeafIds = 0xFFFF)
-            HsmKernelCore.ResetInstance((byte*)instance, size);
+            // ⭐ O7c (2026-09-22): delegates to the size-driven form, so the generic and slot-resident
+            //   paths cannot drift. The body moved, not the behaviour.
+            Initialize((byte*)instance, size, definition);
         }
 
         /// <summary>
@@ -63,6 +53,68 @@ namespace Fhsm.Kernel
 
              // Mark as uninitialized
              HsmKernelCore.ResetInstance((byte*)instance, sizeof(T));
+        }
+
+        /// <summary>
+        /// ⭐⭐⭐ <b>Initialize an instance that lives at a POINTER of a known SIZE</b> — the slot-resident
+        /// form of <see cref="Initialize{T}"/>. 📄 <c>DESIGN_Occurrence_Scoped_Storage.md</c> §31.8.
+        ///
+        /// <para>⛔⛔ <b>The deciding argument is MEMORY SAFETY, not convenience</b>, and it is the same one
+        /// <see cref="HsmKernel.Update(HsmDefinitionBlob, byte*, int, void*, float, Data.CommandPage*, Data.HsmTraceContext*)"/>
+        /// already makes: with occurrence payloads packed adjacently inside one component, a generic
+        /// overload whose <c>sizeof(TInstance)</c> exceeds the slot writes past the payload and into the
+        /// NEXT OCCURRENCE'S bytes — no compiler check, no runtime check. <b>Sizing from the allocation
+        /// cannot disagree with the allocation.</b></para>
+        ///
+        /// <para>⭐ <b>Exactly the generic body, with <c>sizeof(T)</c> replaced by the caller's size.</b>
+        /// ⚠ Deliberately NOT re-expressed: the generic overload now delegates here, so the two cannot
+        /// drift — which is the failure mode this repo files as "two producers of one fact".</para>
+        /// </summary>
+        public static unsafe void Initialize(byte* instance, int instanceSize, HsmDefinitionBlob definition)
+        {
+            if (instance == null) throw new ArgumentNullException(nameof(instance));
+            if (definition == null) throw new ArgumentNullException(nameof(definition));
+            if (instanceSize <= 0)
+                throw new ArgumentOutOfRangeException(
+                    nameof(instanceSize),
+                    "The instance size must come from the slot's own PayloadSize; a non-positive size " +
+                    "means the caller does not know how big its occurrence is.");
+
+            Unsafe.InitBlock(instance, 0, (uint)instanceSize);
+
+            ref InstanceHeader header = ref Unsafe.AsRef<InstanceHeader>(instance);
+            header.MachineId  = definition.Header.StructureHash;
+            header.Generation = 1;
+            header.Phase      = InstancePhase.Entry;
+
+            HsmKernelCore.ResetInstance(instance, instanceSize);
+        }
+
+        /// <summary>
+        /// ⭐⭐ <b>Reset an instance at a POINTER of a known SIZE</b>, preserving <c>MachineId</c>,
+        /// <c>RngState</c> and bumping <c>Generation</c> — the slot-resident form of <see cref="Reset{T}"/>.
+        /// ⚠ Same sizing rule as <see cref="Initialize(byte*, int, HsmDefinitionBlob)"/>.
+        /// </summary>
+        public static unsafe void Reset(byte* instance, int instanceSize)
+        {
+            if (instance == null) throw new ArgumentNullException(nameof(instance));
+            if (instanceSize <= 0)
+                throw new ArgumentOutOfRangeException(nameof(instanceSize));
+
+            ref InstanceHeader header = ref Unsafe.AsRef<InstanceHeader>(instance);
+
+            uint   machineId  = header.MachineId;
+            ushort generation = header.Generation;
+            uint   rngState   = header.RngState;
+
+            Unsafe.InitBlock(instance, 0, (uint)instanceSize);
+
+            header.MachineId  = machineId;
+            header.Generation = (ushort)(generation + 1);
+            header.RngState   = rngState;
+            header.Phase      = InstancePhase.Entry;
+
+            HsmKernelCore.ResetInstance(instance, instanceSize);
         }
 
         /// <summary>

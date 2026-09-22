@@ -5840,7 +5840,7 @@ is `O7c-1`, and it is free. ⭐ The picture also shows why hot reload is the awk
 |---|---|---|
 | **①** | ⭐⭐ **`O7c-1` — delete `BrainHsm64` alone**: the struct, its `GlobalComponentIds` entry *(burned `_RESERVED`, never reused)*, its registration, its role-set bit, its tick registration, its ingress reset branch, its two debug-session branches, its hot-reload sweep | 📐 **zero production attach sites** ⇒ no behaviour can change. Independent of everything below, and it shrinks the surface ③/④ must sweep. ⚠ Cost is 9 test files re-homing onto 128 |
 | **②** | ⭐⭐⭐ **`O7c-2` — THE BTREE ROOT INTO A SLOT** *(`CE-319`)*, **and `BrainTickWalk` extracted from `BlueprintTickSystem` in the same change** | ⭐ **This is the slice that PROVES THE MODEL, and it is the cheap one** — §31.5a |
-| **③** | ⭐ **`CE-318`** — stop double-charging the slot entry on the payload axis | ⛔⛔ **must precede ④**, or the HSM tier measurement records an artifact as a fact *(§31.6)*. ⚠ BTree does not need it — 152 ≤ 176 fits either way |
+| **③** | ⚠⚠ **`CE-318`** — stop double-charging the slot entry on the payload axis — ⛔ **DEFERRED `2026-09-22`, see §31.13** | ⛔ The original reason: *"must precede ④, or the HSM tier measurement records an artifact as a fact (§31.6)"*. 🔴 **Superseded in ORDER, not in substance** — it moves tiers for EVERY entity, so it must not ride along with the HSM move and blur a golden regression. ⭐ §31.6 already documents the promotion as `CE-318`-driven |
 | **④** | **`O7c-3` — the HSM instance into a slot**, `BrainHsm128` deleted, `AiHotReloadCoordinator` onto a slot walk | ⭐ adopts a walk that is **already proven against the golden**. ⛔ needs the ONE `ExtDeps` addition *(§31.8)* |
 | **⑤** | **`O7c-4` — `HsmDebugSession` becomes a LIST**; the decoders go size-driven | 📄 §11.3 + `D3`, already user-approved. ⭐ Insulated: 📐 `DebugApiService` does not read `BrainHsm*` at all — it reads `BehaviorState.BrainTier` and delegates ⇒ the surface is the SESSIONS, not the endpoints |
 
@@ -6229,3 +6229,19 @@ first read showed 8 entities with no `BehaviorState` at all.
 `MapPresentationParityRails.EveryTkbSpawningHost_ObtainsTheSharedTranslatorSet(EditorStrideSubsystem.cs)`,
 `FullBranchPipelineTests.BranchedRecording_CapturesHistoricalStateAsKeyframe`)*. 📐 A worktree at the base
 commit `23bd73c1e` reproduces **the same three names and counts** ⇒ none is this change's.
+
+### 31.13 ⚠ SEQUENCING DEVIATION — **`CE-318` is DEFERRED behind the HSM slice** *(`2026-09-22`)*
+
+📄 §31.5 ordered `CE-318` (the double-charged slot entry) **third**, before the HSM instance move, so
+that slice's memory row would record real capacity rather than an accounting artifact.
+⛔ **Built in the other order, deliberately.**
+
+| why | |
+|---|---|
+| ⭐⭐⭐ **`CE-318` changes the payload demand for EVERY entity** | it can shift which TIER an entity lands on across the whole product — ⛔ that is not an HSM-local change |
+| 🔴 **`O7c`-② has just earned a golden pass** *(§31.12.7, positions within 0.02)* | ⇒ bundling a global tier-selection change with the HSM move makes a golden regression have **two candidate causes and no cheap way to tell them apart.** ⚠ The `CE-304` hunt cost a bisection for exactly that reason |
+| ⭐ **the stated motive for ordering it first is already satisfied** | §31.6 says in its own words that the HSM promotion 256 → 1024 is `CE-318`-driven and **misses by 8 bytes** ⇒ the memory row is documented as an artifact rather than recorded as a fact |
+
+⇒ ⭐ **`CE-318` becomes its own change, gated by its own golden run**, because a tier-selection shift
+deserves one. ⚠ **It is NOT dropped** — the row stays open and §31.5's table is amended rather than
+rewritten, so the reason for the original order survives next to the reason it was changed.
