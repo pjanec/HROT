@@ -4681,6 +4681,67 @@ without it removes designer + debug-API working-state writing for good.
 > `:1518`)*; the **WRITE** path has only the legacy one. 📌 The file's own header quotes the user who
 > demanded they agree: *"if the read verifies identity before trusting an offset, the WRITE must too."*
 
+### 30.18 ⭐⭐⭐ `P4` RE-SCOPED — **the buildable plan, `2026-09-22`**
+
+⛔⛔ **This section SUPERSEDES §30.5's slice table.** Everything above it is the evidence; this is the plan.
+
+#### 🔴 THE MEASUREMENT THAT RE-SHAPED IT — **`BTreeBuilder<T>` is BUILD-TIME ONLY**
+
+📐 Three facts, each verified: ① `BTreeBuilder.Compile(string)` returns a **`BehaviorTreeBlob`** — *not*
+generic. ② `Interpreter<TBlackboard,TContext>(BehaviorTreeBlob blob, ActionRegistry<TBlackboard,TContext>)`
+takes that **untyped** blob. ③ the selector form *(`BTreeBuilder.cs:326-355`)* computes
+`key = "{fqn}.{method}@{Marshal.OffsetOf}"`, registers a curried thunk into the builder's **OWN**
+registry — and `CgfCuratedBehaviorRegistrar.cs:63` then binds the blob against the **GLOBAL generated**
+registry instead, **discarding the builder's**.
+
+⇒ ⭐⭐⭐ **The builder's `TBlackboard` NEVER reaches the interpreter. It exists only so `Marshal.OffsetOf`
+can compute a key.** ⇒ ⛔⛔ **`P4`-②b IS WITHDRAWN** *(see below)*.
+
+#### ⭐⭐ THE SLICES
+
+| slice | scope | state |
+|---|---|---|
+| **`P4`-①** ⭐ **delete `Blackboard1024` + route the write path** | 54 code files *(17 prod + 37 test)*. ⭐⭐ **`CE-310` IS PART OF THIS SLICE, NOT A SEPARATE ONE** — `ResolveAiPrimitiveField:1013` is one of the sites being edited, so the occurrence arm goes in with the deletion or the write path dies *(§30.17)*. Also: the translator + `HrotScenarioSerializerFactory.cs:24-25` · `Blackboard1024Tests` · the 5 `BlueprintDebugSession` sites · `HrotRoleComponentSets.cs:128` · `CognitiveComponentRegistry.cs:45` · `GlobalComponentIds.cs:244` ⚠ **leave id 74 RESERVED** | ✅ **CLEARED TO BUILD** — §30.16 ① settled every absence claim |
+| **`P4`-②** ⭐⭐⭐ **bind `TBlackboard` to `byte`** | see the site list below | ⚠ **needs `G2`+`G3` first** |
+| ~~`P4`-②b~~ | ⛔⛔ **WITHDRAWN** | see below |
+| **`P4`-③** **re-home the SIX identity-keyed surfaces** *(`CE-303`)* | renderer · StructEdit provider · `LiveBlackboardValueProvider` · `HillAttackGizmo`'s `[GizmoProjector]` gate · `PredicateCompiler`+`BlackboardTarget` *(`CE-308` — **RE-POINT**, two regions still exist)* · `BrainBlackboardTranslator`'s gate | ⚠ independent, display-only |
+| **`P4`-④** **retire the 100-byte cap** *(`CE-307`)* | ⭐ now argued from the real ceiling: **16 096 B** *(§30.15)*, so the cap is **160× low** | ⚠ with or after ② |
+| ⭐ **`P4`-⑤ NEW — fix the stale corpus** | 🔴 `BTree_AiActionParameterBinding_Detailed_Design.md:16` and `BTree_HSM_JSON_Persistence_Detailed_Design.md:71,163,215` describe heavy overflow as **CURRENT** and carry **no STATUS block** · plus 15 production files documenting `BrainBlackboard` and 9 documenting `Blackboard1024` in stale `<see cref>` prose *(⚠ **not** a build break — §30.16)* | ⭐ cheap, and `R-129` requires it |
+
+#### ⛔⛔ WHY `P4`-②b IS WITHDRAWN — **the wrappers may STAY**
+
+| | |
+|---|---|
+| ⭐ **they cost nothing at runtime** | the builder generic is erased at `Compile()`; ⇒ `BTreeBuilder<MoveToBlackboard,…>` and `Interpreter<byte,…>` coexist with **no change** |
+| 🔴 **deleting them is ACTIVELY UNSAFE for `HideInCover`** | 📐 `HideInCoverBlackboard` has **two** sub-regions, so `bb => bb.MoveConfig` computes a **non-zero** key — and 📐 **every generated key for those Eqs nodes is `@0`** *(swept across all `*.g.cs`)*. ⇒ a hand-written key-form conversion would bind `Action_MoveToOptimalCover@0`, silently projecting **`EqsConfig` instead of `MoveConfig`** — ⛔ **wrong data, not a `Failure` fallback.** Worse than the hazard §30.10 feared |
+| ⚠ **and those trees are not even registered** | 📐 `HideInCover_BT` / `_v2` have **no `BehaviorNames` entry and no registrar** ⇒ reference trees the generator scans. ⛔ Per *"no real users ≠ not needed"*, they stay |
+| ⭐ **`IssueTacticalIntentBlackboard` is the one safe delete** | 📐 zero references, and its action is registered at `@0` through the `[BTreeAction]` bridge — ⚠ optional tidy-up, **not** a `P4` requirement |
+
+#### ⭐⭐ `P4`-②'s FULL SITE LIST — **measured, and larger than §30 had**
+
+| site | change |
+|---|---|
+| `BTreeTickSystem.cs:123` → `:159` | ✅ **clean** — the `ref var blackboard` has **exactly one** consumer, `def.BTreeInterpreter!.Tick(...)`. Replace with one root-slot resolve per entity |
+| 🔴 `BehaviorRegistry.cs:141` | `Interpreter<BrainBlackboard, BTreeContext>? BTreeInterpreter` — **the registry itself is typed**, which is what forces every tree onto one `TBlackboard` |
+| `BTreeActionRegistryFactory.cs:35,39,64` · `AiHotReloadCoordinator.cs:412,427,433` | the global `ActionRegistry<BrainBlackboard, BTreeContext>` |
+| ⛔ `BlueprintRegistrarScanner.cs:97,**126**` | ⚠ **`:126` is a RUNTIME `typeof(...)` MATCH** — if it and the generator disagree, registrars **silently stop binding**. Change them in lockstep |
+| 🔴 `HostedSubtree.Tick<TChildBb>` + `BTreeOrchestratorEmitCore.cs:151,182` | **a SECOND `TBlackboard` axis the design never named** — hosted subtrees run a child `Interpreter<TChildBb,…>` with `ref subBb`/`ref subDto`. ⚠ `BTreeOrchestratorEmitter.cs:79` already warns a registrar/host mismatch **throws at runtime** |
+| the generator | `ref BrainBlackboard bb` → `ref byte bb`; ⭐ `CE-304`'s fix at `:655` **simplifies** back to `bb`-relative |
+| ⛔ **124 golden/snapshot files** | 📐 they embed generated C# naming `BrainBlackboard` ⇒ **a large, deliberate golden move**. Report it as a DIFF SHAPE *(gate contract row 3)*, never a count |
+| ✅ **HSM is untouched** | 📐 `HsmTickSystem` and `HsmOccurrence` contain **zero** `BrainBlackboard` references |
+
+#### ⚠⚠ STILL UNMEASURED — **what to do before `P4`-② starts**
+
+| id | gap | why it blocks |
+|---|---|---|
+| **`G1`** | the **shape** of the 37 + 73 test files *(mechanical `Register`/`Add` vs claim-asserting)* | ⭐ effort estimate only — ⛔ but it is the `HN-037` trap, so do it before promising a duration |
+| 🔴 **`G2`** | **the golden diff shape** — run one regeneration on a scratch branch and read it | ⛔ 124 files is exactly where a silent semantic change hides in noise |
+| 🔴 **`G3`** | the **exact emission edits** in `BTreeActionGenerator` · `BTreeBridgeEmitCore` · `BTreeOrchestratorEmitCore` | ⛔ `P4`-② is mostly a generator change and none of the three has been read for it |
+| **`G4`** | the complete **no-params** set *(`RootParamsBytes(def) == 0`)* | 📐 `WanderMilitary` confirmed *(no `BlackboardLayoutType`, `CgfCuratedBehaviorRegistrar.cs:88`)*; `Idle` **unconfirmed** |
+| **`G5`** | where a hosted subtree's `ref subBb` comes from today | ⛔ decides whether the child base is a second slot resolve |
+
+⇒ ⭐⭐ **`P4`-① and `P4`-⑤ are cleared to build now. `P4`-② waits on `G2`+`G3`.**
+
 ### 30.15 ⭐⭐⭐ THE HEAVY-DTO CONCEPT IS GONE — **and the real size ceiling is ~16 KB, not 100 B**
 
 > 🔒 **User, `2026-09-22`:** *"how is the heavy dto concept done now? i am pretty sure the platoon hill
