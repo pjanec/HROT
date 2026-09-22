@@ -26,7 +26,7 @@ public static class BlackboardReflection
 {
     /// <summary>
     /// Registers the typed-DTO buffer view providers and the <c>EditContextFactory</c> that lets
-    /// StructEdit project a brain's blackboard.
+    /// StructEdit project a brain's ROOT PARAMS out of its occurrence store.
     /// </summary>
     /// <param name="inspector">the host's entity inspector panel.</param>
     /// <param name="registry">
@@ -39,24 +39,32 @@ public static class BlackboardReflection
     {
         if (inspector is null) throw new ArgumentNullException(nameof(inspector));
 
-        // Project the raw BrainBlackboard.BehaviorParameters as its typed DTO.
-        inspector.Reflector.AddBufferViewProvider(new BrainBlackboardViewProvider());
+        // ⭐ P4-③ (2026-09-22): project the behaviour's ROOT PARAMS SLOT as its typed DTO.
+        //    ⛔ It was BrainBlackboardViewProvider, bound to BrainBlackboard.$.BehaviorParameters —
+        //    a buffer P3 stopped filling while leaving the component attached, so the editor bound
+        //    its fields to permanently zero bytes. 📄 CE-312, §30.22.
+        inspector.Reflector.AddBufferViewProvider(new RootParamsViewProvider());
         // ⛔ P4-① (2026-09-22): the heavy Blackboard1024 provider is GONE with its component. The
         //    "heavy" tier it projected was the params-overflow path, and HeavyDtoType was null at
         //    every production site — so this arm could only ever return null. 📄 §30.13.
 
-        // Inject EditContextFactory so TryOpenEditWindow passes BlackboardLayoutType to StructEdit.
+        // Inject EditContextFactory so TryOpenEditWindow passes the DTO type AND the slot offset.
         inspector.Reflector.EditContextFactory = (session, e, type) =>
         {
-            if (type != typeof(BrainBlackboard)) return null;
-            if (!session.HasComponent(e, typeof(BehaviorState))) return null;
-            var ds = session.GetComponent(e, typeof(BehaviorState)) as BehaviorState?;
-            if (ds == null) return null;
-            if (registry?.TryGetDefinition(ds.Value.ActiveBehaviorHash, out var def) != true) return null;
-            if (def == null) return null;
+            // ⭐ The gate is now "is this the entity's occurrence-store component?", asked of the tier
+            //   TABLE — the params live in whichever tier the allocator put the entity on, and it may
+            //   promote between frames. ⛔ Naming one component here would silently stop working on
+            //   promotion, which is the failure this slice is fixing in the first place.
+            if (registry == null) return null;
+            if (!RootParamsProjection.TryLocateRootParams(
+                    session, e, registry, out var tierType, out int payloadOffset, out var def))
+                return null;
+            if (type != tierType) return null;
+            if (def!.BlackboardLayoutType == null) return null;
 
-            if (def.BlackboardLayoutType == null) return null;
-            return new StructEdit.Core.EditContext().With("BlackboardLayoutType", def.BlackboardLayoutType);
+            return new StructEdit.Core.EditContext()
+                .With(RootParamsViewProvider.LayoutTypeKey, def.BlackboardLayoutType)
+                .With(RootParamsViewProvider.OffsetKey, payloadOffset);
         };
     }
 }

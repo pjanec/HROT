@@ -166,7 +166,8 @@ public sealed class ReplayBrowserSubsystem : ISubsystem, IWindowRegistrar,
             _behaviorRegistry = behaviorRegistry;
             CgfBehaviorSetup.LoadFromAiAssembly(behaviorRegistry, _blueprintRegistry);
             _scenarioSerializer = Hrot.SimHost.Serializers.HrotScenarioSerializerFactory.Build(behaviorRegistry);
-            Hrot.Presentation.Renderers.BrainBlackboardRenderer.BehaviorRegistryAccessor = behaviorRegistry;
+            // ⭐ P4-③: see CgfSubsystem — the params section is on the tier renderers now.
+            Hrot.Presentation.Renderers.BlueprintBlackboardRenderers.BehaviorRegistry = behaviorRegistry;
             // ⛔ P4-①: Blackboard1024Renderer is gone with its component (§30.13).
             Hrot.Presentation.Renderers.BTreeVisualizerRenderer.BehaviorRegistryAccessor = behaviorRegistry;
             Hrot.Presentation.Renderers.BehaviorStateRenderer.BehaviorRegistryAccessor = behaviorRegistry;

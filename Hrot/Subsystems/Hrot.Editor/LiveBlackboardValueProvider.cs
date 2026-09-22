@@ -6,6 +6,7 @@ using Fdp.Core;
 using Fdp.Presentation.Abstractions;
 using Fdp.Toolkit.Behavior;
 using Fdp.Toolkit.Behavior.Components;
+using Hrot.Presentation.Renderers;
 using Hrot.Editor.AiShared;
 using Hrot.Editor.AiShared.Blackboard;
 using Hrot.Editor.AiShared.Selection;
@@ -14,7 +15,8 @@ namespace Hrot.Editor;
 
 /// <summary>
 /// Production implementation of <see cref="ILiveBlackboardValueProvider"/>.
-/// Reads live <see cref="BrainBlackboard"/> values for the selected entity,
+/// Reads live behaviour-parameter values for the selected entity from its root params
+/// occurrence slot (<c>P4</c>-③),
 /// gated on the name-match between the asset and the entity's active behavior.
 /// </summary>
 public sealed class LiveBlackboardValueProvider : ILiveBlackboardValueProvider, ILiveVariableProjection
@@ -50,9 +52,13 @@ public sealed class LiveBlackboardValueProvider : ILiveBlackboardValueProvider, 
     /// <para>⚠ <b>Behaviour-neutral for the string arm</b>: the steps, their order and their early
     /// returns are unchanged; only their home moved.</para>
     /// </summary>
-    private bool TryResolve(IEditableAsset asset, out BrainBlackboard bb, out IReadOnlyList<ManagedBlackboardVariable> vars)
+    /// <para>🔴 <b><c>P4</c>-③ (<c>CE-312</c>): step 5 now reads the ROOT PARAMS OCCURRENCE SLOT.</b>
+    /// It used to fetch the <c>BrainBlackboard</c> component — which <c>P3</c> stopped filling while
+    /// leaving it attached, so every value this provider showed had been <b>zero since then</b>.
+    /// ⚠ The gate steps 1–4 are unchanged; only the source of the bytes moved.</para>
+    private bool TryResolve(IEditableAsset asset, out byte[] rootParams, out IReadOnlyList<ManagedBlackboardVariable> vars)
     {
-        bb   = default;
+        rootParams = Array.Empty<byte>();
         vars = Array.Empty<ManagedBlackboardVariable>();
 
         // Step 1: must have a selected entity.
@@ -74,15 +80,18 @@ public sealed class LiveBlackboardValueProvider : ILiveBlackboardValueProvider, 
         if (!registry.TryGetId(asset.Name, out int id)) return false;
         if (id != bs.ActiveBehaviorHash) return false;
 
-        // Step 5: load definition and BrainBlackboard.
+        // Step 5: load definition and the entity's ROOT PARAMS region.
         if (!registry.TryGetDefinition(id, out var def)) return false;
         if (def.ManagedBlackboardVariables is not { Count: > 0 } declared) return false;
 
-        var bbObj = session.GetComponent(entity.Value, typeof(BrainBlackboard));
-        if (bbObj is not BrainBlackboard blackboard) return false;
+        // ⭐ ONE walk, shared with the inspector's params section — see RootParamsProjection.
+        //   ⛔ Not a second spelling of "find the root slot": that is the duplication RootParamsAccess
+        //   exists to prevent, and it is how this provider drifted from the storage in the first place.
+        if (!RootParamsProjection.TryCopyRootParams(session, entity.Value, registry, out var region, out _))
+            return false;
 
-        bb   = blackboard;
-        vars = declared;
+        rootParams = region;
+        vars       = declared;
         return true;
     }
 
@@ -118,7 +127,7 @@ public sealed class LiveBlackboardValueProvider : ILiveBlackboardValueProvider, 
     /// <remarks>
     /// ⭐⭐⭐ <b>Batch 90 (<c>90c</c>) — the BYTE arm, and this host needs NO new arm on the row.</b>
     ///
-    /// <para>📐 This provider already walks <c>(BrainBlackboard, Type, ByteOffset)</c> and only formats
+    /// <para>📐 This provider already walks <c>(root params region, Type, ByteOffset)</c> and only formats
     /// at the very end ⇒ ⭐ <b>it HAS the bytes</b>, and the row source's <c>readRaw</c> seam has been
     /// <c>null</c> since it was built. ⇒ ⛔ <b>BTree/HSM must NOT go through the object arm</b>: bytes
     /// keep §4a's change highlight LIVE, and objects would make it inert for no gain.</para>
@@ -163,30 +172,39 @@ public sealed class LiveBlackboardValueProvider : ILiveBlackboardValueProvider, 
     }
 
     /// <summary>
-    /// ⭐⭐ Copies a variable's RAW bytes out of <c>BehaviorParameters + byteOffset</c>.
+    /// ⭐⭐ Copies a variable's RAW bytes out of the root params region at <c>byteOffset</c>.
     /// ⛔ Deliberately no decode: the ONE decoder is the formatter's injected
     /// <c>DecodeRawValue</c>, and a second one here would be the duplication <c>S3</c> collapsed.
     /// </summary>
-    internal static unsafe byte[] ProjectBytes(BrainBlackboard bb, Type type, int byteOffset)
+    internal static byte[] ProjectBytes(byte[] rootParams, Type type, int byteOffset)
     {
         int size = Marshal.SizeOf(type);
         if (size <= 0) return Array.Empty<byte>();
+        if (byteOffset < 0 || byteOffset + size > rootParams.Length) return Array.Empty<byte>();
 
         var bytes = new byte[size];
-        Marshal.Copy((IntPtr)(bb.BehaviorParameters + byteOffset), bytes, 0, size);
+        Array.Copy(rootParams, byteOffset, bytes, 0, size);
         return bytes;
     }
 
     /// <summary>
-    /// Projects a typed struct from <paramref name="bb"/>.<c>BehaviorParameters + byteOffset</c>
+    /// Projects a typed struct from <paramref name="rootParams"/> at <c>byteOffset</c>
     /// and formats it as a compact one-line string.
     /// For multi-field structs: <c>"Field1=val1, Field2=val2"</c>.
     /// For primitives: <c>value.ToString()</c>.
     /// </summary>
-    internal static unsafe string ProjectAndFormat(BrainBlackboard bb, Type type, int byteOffset)
+    internal static unsafe string ProjectAndFormat(byte[] rootParams, Type type, int byteOffset)
     {
-        object boxed = Marshal.PtrToStructure((IntPtr)(bb.BehaviorParameters + byteOffset), type)!;
-        return FormatValue(boxed, type);
+        int size = Marshal.SizeOf(type);
+        if (byteOffset < 0 || size <= 0 || byteOffset + size > rootParams.Length)
+            throw new ArgumentOutOfRangeException(nameof(byteOffset),
+                "the declared variable does not fit inside this behaviour's root params region");
+
+        fixed (byte* p = &rootParams[byteOffset])
+        {
+            object boxed = Marshal.PtrToStructure((IntPtr)p, type)!;
+            return FormatValue(boxed, type);
+        }
     }
 
     /// <summary>

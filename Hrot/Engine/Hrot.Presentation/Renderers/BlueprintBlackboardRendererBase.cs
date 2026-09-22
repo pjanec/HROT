@@ -3,6 +3,8 @@ using System.Runtime.CompilerServices;
 using Fdp.Core;
 using Fdp.Presentation.Abstractions;
 using Fdp.Presentation.Renderers;
+using Fdp.Toolkit.Behavior;
+using Fdp.Toolkit.Behavior.Components;
 using Fdp.Toolkit.Blueprints;
 using Fdp.Toolkit.Blueprints.Partitioning;
 using ImGuiNET;
@@ -109,8 +111,25 @@ public abstract unsafe class BlueprintBlackboardRendererBase<TTier> : IEntityAwa
             ImGui.EndTable();
         }
 
+        // ⭐ P4-③: the ROOT PARAMS section. It goes FIRST of the two typed sections because it is
+        //   the behaviour's inputs; working state is what the tick did with them.
+        RootParamsProjection.RenderRootParams(session, entity, mem, out doubleClickedPath);
+
         // Feature A (BATCH-10): render typed WorkingState section after the summary table.
         StatefulWorkingStateProjection.RenderWorkingState(session, entity, mem);
+
+        // ⭐ P4-③ / R-137 — the entity-fact tail came from BrainBlackboardRenderer, which is deleted.
+        //   It was never blackboard data (O2 moved it to BrainInterrupts in 2026-09-20); it was just
+        //   rendered on that panel. ⛔ Dropping it with the renderer would cost a feature the
+        //   retirement has no business costing, so it rides here — the panel a brain entity now has.
+        if (session.HasComponent(entity, typeof(BrainInterrupts))
+            && session.GetComponent(entity, typeof(BrainInterrupts)) is BrainInterrupts ints)
+        {
+            ImGui.Separator();
+            ImGui.TextUnformatted($"ExpectedThreatLevel: {ints.ExpectedThreatLevel}");
+            ImGui.TextUnformatted($"Interrupt_MobilityLost: {ints.Interrupt_MobilityLost}");
+            ImGui.TextUnformatted($"Interrupt_Reserved: {ints.Interrupt_Reserved}");
+        }
 
         return true; // suppress default byte-dump
     }
@@ -125,9 +144,23 @@ public abstract unsafe class BlueprintBlackboardRendererBase<TTier> : IEntityAwa
         => (byte*)Unsafe.AsPointer(ref Unsafe.As<TTier, byte>(ref bb));
 }
 
-/// <summary>Non-generic home for the one registry static the whole renderer family shares.</summary>
+/// <summary>Non-generic home for the registry statics the whole renderer family shares.</summary>
 public static class BlueprintBlackboardRenderers
 {
     /// <summary>Set once at startup by whichever host owns the inspector.</summary>
     public static BlueprintRegistry? Registry { get; set; }
+
+    /// <summary>
+    /// ⭐ <c>P4</c>-③ — the BEHAVIOUR registry, for the two typed sections this panel renders
+    /// (<see cref="RootParamsProjection"/> and <see cref="StatefulWorkingStateProjection"/>).
+    ///
+    /// <para>⛔⛔ <b>Why it was consolidated here, and it is not tidiness.</b> 📐 Measured
+    /// <c>2026-09-22</c>: the accessor existed on <b>two</b> classes, and of the three hosts that
+    /// wire the inspector, <c>EditorSubsystem</c> set both while <c>CgfSubsystem</c> and
+    /// <c>ReplayBrowserSubsystem</c> set only <c>BrainBlackboardRenderer</c>'s. ⇒ deleting that
+    /// renderer would have left two hosts with a registry-less panel and a silently inert typed
+    /// section — <b>the silent-default shape</b>, arriving as the by-product of a deletion.
+    /// ⭐ One static cannot be half-set.</para>
+    /// </summary>
+    public static BehaviorRegistry? BehaviorRegistry { get; set; }
 }

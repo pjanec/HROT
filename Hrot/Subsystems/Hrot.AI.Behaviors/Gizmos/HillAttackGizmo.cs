@@ -14,7 +14,12 @@ using FixedString32 = Fdp.Core.FixedString32;
 
 namespace Hrot.AI.Behaviors.Gizmos
 {
-    [GizmoProjector(typeof(BrainBlackboard), typeof(BehaviorState), typeof(SimTransform))]
+    // ⭐ P4-③ (CE-303): gated on BehaviorState + SimTransform. ⛔ BrainBlackboard was dropped from
+    //   the gate, NOT swapped for a tier component: a tier component means "this entity has SOME
+    //   occurrence storage", which is not a proxy for "this entity has a brain" — and the Draw body
+    //   already refuses on a root-slot miss. ⚠ Gating on a tier would also pin the gizmo to whichever
+    //   tier the entity happens to land on, which the allocator may promote at any time.
+    [GizmoProjector(typeof(BehaviorState), typeof(SimTransform))]
     public sealed class HillAttackGizmo : IStatelessGizmo
     {
         // Hash value of PlatoonHillAttack_BT from BehaviorIds (= 3014).

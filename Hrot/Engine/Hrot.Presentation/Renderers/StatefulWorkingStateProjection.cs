@@ -28,8 +28,16 @@ public static class StatefulWorkingStateProjection
     /// <summary>
     /// Set once at startup (e.g., in <c>EditorSubsystem</c>).
     /// Required for behavior lookup by hash.
+    ///
+    /// <para>⭐ <c>P4</c>-③: the value now LIVES on <see cref="BlueprintBlackboardRenderers.BehaviorRegistry"/>,
+    /// shared with <see cref="RootParamsProjection"/>. ⛔ This stays as the name existing callers and
+    /// rails use — it is an alias for one static, not a second one.</para>
     /// </summary>
-    public static BehaviorRegistry? BehaviorRegistryAccessor { get; set; }
+    public static BehaviorRegistry? BehaviorRegistryAccessor
+    {
+        get => BlueprintBlackboardRenderers.BehaviorRegistry;
+        set => BlueprintBlackboardRenderers.BehaviorRegistry = value;
+    }
 
     // ── Public render entry point ─────────────────────────────────────────────
 

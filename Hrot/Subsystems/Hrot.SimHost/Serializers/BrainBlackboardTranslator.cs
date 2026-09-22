@@ -35,17 +35,29 @@ namespace Hrot.SimHost.Serializers
             _registry = registry ?? throw new ArgumentNullException(nameof(registry));
         }
 
+        /// <summary>
+        /// ⭐ <c>P4</c>-③ (<c>CE-303</c>): the consumed component is <see cref="BehaviorState"/>.
+        /// ⛔ It was <c>BrainBlackboard</c> — the component <see cref="Extract"/> stopped reading at
+        /// <c>P3</c>-C, when the params moved to the root occurrence slot. ⚠ A mask naming a component
+        /// the translator never opens is not merely stale: it is what the promotion gate arbitrates
+        /// on, so it claimed ownership of bytes this translator has no opinion about.
+        /// </summary>
         public BitMask512 GetConsumedComponentsMask()
         {
             var mask = new BitMask512();
-            int id = ComponentTypeRegistry.GetId(typeof(BrainBlackboard));
+            int id = ComponentTypeRegistry.GetId(typeof(BehaviorState));
             if (id >= 0) mask.SetBit(id);
             return mask;
         }
 
+        /// <remarks>
+        /// ⭐ <c>P4</c>-③: <see cref="BehaviorState"/> alone. ⛔ Not a tier component — an entity with
+        /// a brain but no params region still has a dump worth producing (the <c>BrainInterrupts</c>
+        /// tail plus an empty <c>BehaviorParameters</c>), which is exactly what <see cref="Extract"/>
+        /// already emits on a root-slot miss.
+        /// </remarks>
         public bool CanTranslate(EntityRepository repo, Entity entity)
-            => repo.HasComponent<BrainBlackboard>(entity)
-            && repo.HasComponent<BehaviorState>(entity);
+            => repo.HasComponent<BehaviorState>(entity);
 
         public unsafe Dictionary<string, object> Extract(
             EntityRepository repo, Entity entity, IGuidResolver resolver)

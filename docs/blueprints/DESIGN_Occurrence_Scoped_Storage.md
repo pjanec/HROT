@@ -5064,3 +5064,82 @@ process are ONE trial**, and the numbers looked plausible enough to report.
 ⚠ **And a SECOND instance of the self-kill trap** *(§3 of the resume doc)*: `pkill -f Xvfb` **kills its
 own shell** — the pattern is in its own command line *(exit 144)*. ⛔ It is not an `awk` quirk; it is
 **matching on the full command line at all**. ⭐ Filter on `comm` only.
+
+---
+
+### 30.22 🔴🔴🔴 `P4`-③ AS BUILT — **the dead-storage pattern, FOURTH instance, and this one RENDERED** *(`CE-312`, `2026-09-22`)*
+
+#### ⭐⭐⭐ ① THE FINDING — **`BrainBlackboard` is ATTACHED BUT NEVER FILLED**
+
+📐 Measured before touching anything, by asking §30.20's question — *"which production site
+PROVISIONS the storage this reads?"*:
+
+| | |
+|---|---|
+| ⭐ **who ATTACHES it** | `BehaviorTkbTranslator.cs:125` — `repo.AddComponent(entity, new BrainBlackboard())`. **One site, and it adds an EMPTY one.** |
+| 🔴 **who FILLS `BehaviorParameters`** | ⛔ **NOBODY.** `P3` moved ingress to `RootParamsAccess.ResolveOrAttachRoot` *(`BehaviorIngressSystem.cs:193`)* and cut the blackboard write. 📐 Every remaining mention in production is a **doc comment** — the only code is the `fixed byte[100]` declaration itself and a JSON key **string** in the translator |
+
+⇒ ⛔⛔ **Four reader surfaces have been projecting a permanently ZERO 100-byte region since `P3`.**
+
+| surface | what the user saw |
+|---|---|
+| `BrainBlackboardRenderer` | the inspector's params tree, **all fields zero** |
+| `BrainBlackboardViewProvider` + `BlackboardReflection.EditContextFactory` | StructEdit bound its editable fields to those zero bytes ⇒ **every edit wrote into memory nothing reads** |
+| `LiveBlackboardValueProvider` | the asset editor's LIVE value column, **all zeros** |
+
+#### 🔴 ② WHY THIS INSTANCE IS THE WORST OF THE FOUR
+
+| instance | failure mode | how loud |
+|---|---|---|
+| `CE-304` | read an all-zero region | silent |
+| `CE-310` | returned `null` every call | ⭐ visibly nothing |
+| `CE-311` | would **throw** | ⭐⭐ loudest |
+| 🔴🔴 **`CE-312`** | **renders plausible zeros, and accepts edits into them** | ⛔⛔ **silent AND confident** — a `0.0` reads as data, not as a fault |
+
+⇒ ⭐⭐⭐ **The generalisation this earns:** the danger of a dead-storage instance is set by **what its
+reader does with an unfilled region**, not by how central the code is. ⛔ A reader that THROWS is a bug
+report; a reader that PROJECTS is a wrong answer nobody files.
+
+#### ⛔⛔ ③ AND ITS RAILS WERE ALL GREEN — **the shape that let it live**
+
+📐 `BrainBlackboardRendererTests` carried **six** tests. ⛔ **Every one handed the renderer a
+`new BrainBlackboard()` and asserted only its REFUSALS** *(no `BehaviorState` ⇒ false, no registry ⇒
+false, unknown hash ⇒ false)*. ⇒ **a zero-filled component is exactly what the test supplied**, so the
+suite could not distinguish "correct" from "reading storage nobody fills."
+
+⭐⭐ **The fix is the missing shape, not more tests:** `RootParamsProjectionTests` adds a **POSITIVE**
+rail that builds a real occurrence store, attaches the root slot under
+`RootParamsAccess.KeyForBehaviour`, writes known values, **and asserts they read back** — ⛔ not merely
+that a lookup returned `true`, because `true` with zeros is precisely the broken state.
+
+#### ⭐⭐ ④ THE RE-HOMES, AND THE ONE THAT WAS NOT MECHANICAL
+
+| surface | as built |
+|---|---|
+| `BrainBlackboardRenderer` | ✅ **deleted.** Its params tree is now `RootParamsProjection`, a section on the **tier** renderers — the panel that already holds the store's base pointer. ⭐ Its `BrainInterrupts` tail rode along *(`R-137`: a retirement may not cost a feature)* |
+| `BrainBlackboardViewProvider` | ✅ **replaced** by `RootParamsViewProvider`, keyed on the tier component's `$.Memory` + a slot offset |
+| `BlackboardReflection.EditContextFactory` | ✅ gate re-asked as *"is this the entity's occurrence-store component?"*, of the tier TABLE. ⛔ **Not a named component** — the allocator may promote between frames, and a named gate would silently stop matching |
+| `LiveBlackboardValueProvider` | ✅ step 5 reads the root slot through the shared walk; steps 1–4 untouched |
+| `HillAttackGizmo` | ✅ `[GizmoProjector(BehaviorState, SimTransform)]`. ⛔ `BrainBlackboard` **dropped, not swapped for a tier** — a tier component means *"has SOME occurrence storage"*, which is not a proxy for *"has a brain"*, and it would pin the gizmo to one tier |
+| `BrainBlackboardTranslator` | ✅ `CanTranslate`/`GetConsumedComponentsMask` on `BehaviorState`. ⚠ The mask is what the **promotion gate arbitrates on**, so naming a component this translator never opens was not merely stale |
+
+#### 🔴 ⑤ THE ONE THAT WOULD HAVE BROKEN TWO HOSTS — **a silent default arriving as a BY-PRODUCT**
+
+📐 Three hosts wire the inspector. **`EditorSubsystem` set both** `BrainBlackboardRenderer`'s registry
+accessor and `StatefulWorkingStateProjection`'s; ⛔ **`CgfSubsystem` and `ReplayBrowserSubsystem` set
+only the renderer's.** ⇒ deleting that renderer and simply dropping its line would have left **two
+hosts with a registry-less panel** and a silently inert typed section.
+
+⭐⭐ **Fixed structurally, not by remembering:** the accessor moved to **one** static,
+`BlueprintBlackboardRenderers.BehaviorRegistry`, which the whole renderer family already does for the
+blueprint registry. 🔒 **One static cannot be half-set.**
+
+⇒ ⚠ **The generalisation:** *the silent-default rule fires on DELETIONS too.* ⛔ The usual shape is a
+caller that has a dependency and does not pass it; this one was a caller that **stops** passing it
+because the thing it passed to went away. ⭐ The check is the same — *does every production caller still
+supply what the survivor needs?*
+
+#### ⭐ ⑥ STRUCTEDIT — **the ruling held exactly** *(§30.7)*
+
+`ProjectBufferAs(viewType, viewName, bufferOffset = 0)`. ⭐ One addend; StructEdit still learns nothing
+about slots, keys or partitioning, and every existing caller is unchanged by the default.
